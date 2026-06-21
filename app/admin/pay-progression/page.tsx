@@ -1,6 +1,7 @@
 // app/admin/pay-progression/page.tsx
 'use client';
 import '../styles/AdminPayroll.css';
+import '../styles/AdminRewards.css';
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';

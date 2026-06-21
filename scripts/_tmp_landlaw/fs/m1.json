@@ -1,0 +1,522 @@
+{
+  "module_number": 1,
+  "title": "Fundamentals of Surveying",
+  "description": "The mathematical and measurement-science foundation for the entire FS exam: units and conversions, significant figures, error theory, statistics, error propagation, and probability. Master this before any COGO, leveling, or curve work.",
+  "week_range": "Weeks 1-2",
+  "exam_weight_percent": 15,
+  "icon": "📐",
+  "xp_reward": 400,
+  "prerequisite_module": null,
+  "key_topics": [
+    "Units and conversions (US survey foot vs international foot, chains, acres, metric)",
+    "Significant figures and rounding rules",
+    "Error types: gross/blunder, systematic, random",
+    "Accuracy vs precision",
+    "Most probable value (mean) and residuals",
+    "Sample standard deviation σ = √(Σv²/(n−1))",
+    "Standard error of the mean σ_m = σ/√n",
+    "Error propagation: sum √(Σe²), series e·√n, product",
+    "Relative precision / accuracy ratio",
+    "Normal distribution and the 68-95-99.7 rule",
+    "Weighted mean (weight ∝ 1/σ²)",
+    "Confidence intervals (Z-values)"
+  ],
+  "key_formulas": [
+    {"name": "Sample Standard Deviation", "formula": "σ = √(Σv² / (n − 1)),  v = xᵢ − x̄"},
+    {"name": "Standard Error of the Mean", "formula": "σ_m = σ / √n"},
+    {"name": "Error Propagation — Sum", "formula": "E_sum = √(E₁² + E₂² + … + Eₙ²)"},
+    {"name": "Error Propagation — Series of n equal errors", "formula": "E_series = E · √n"},
+    {"name": "Error Propagation — Product (area)", "formula": "σ_A = √((b·σ_a)² + (a·σ_b)²)"},
+    {"name": "Most Probable Value (mean)", "formula": "x̄ = Σxᵢ / n"},
+    {"name": "Weighted Mean", "formula": "x̄_w = Σ(wᵢ·xᵢ) / Σwᵢ,  wᵢ ∝ 1/σᵢ²"},
+    {"name": "Relative Precision", "formula": "1 : (distance / error)"},
+    {"name": "Confidence Interval", "formula": "x̄ ± Z·σ_m   (Z = 1.6449 @90%, 1.9600 @95%)"}
+  ],
+  "content_sections": [
+    {
+      "type": "overview",
+      "title": "Module Overview",
+      "content": "## Why this module matters\n\nThe NCEES FS exam blends two knowledge areas that this module covers head-on: **Applied Mathematics and Statistics** (10–15 questions) and **Surveying Principles** (13–20 questions, the measurement-theory half). Together with the measurement-science questions embedded in **Survey Computations** (17–26), the material here is worth roughly **15% of your score** and — just as important — underpins every other computation in the course. You cannot reduce a traverse, balance a level loop, or judge whether a measurement is acceptable without understanding error.\n\nEverything in surveying is a **measurement**, and every measurement carries error. The professional's job is not to eliminate error (impossible) but to **understand, quantify, and bound** it. This module builds that mindset in five steps:\n\n- **Units & significant figures** — the bookkeeping that keeps answers honest. Watch the US survey foot vs international foot trap and never report more precision than you measured.\n- **Error classification** — gross (blunders), systematic (one-directional, correctable), and random (the irreducible scatter statistics actually describe).\n- **Statistics of a measurement set** — the most probable value (mean), residuals, and the **sample standard deviation** σ = √(Σv²/(n−1)).\n- **Error propagation** — how the uncertainty in inputs flows into a sum, a series of n repeated readings, or a product such as area.\n- **Probability** — the normal curve and the **68-95-99.7 rule**, weighted means, and confidence intervals.\n\nThe payoff: when the exam hands you ten distance observations, a ±tolerance on each side of a lot, or a 1:10,000 precision spec, you will know exactly which formula applies and how to key it on an NCEES-approved calculator. These are fast, high-yield points — drill them until they are reflexive."
+    },
+    {
+      "type": "concepts",
+      "title": "Key Concepts",
+      "content": "## Accuracy vs precision\n\n**Accuracy** = closeness to the true value. **Precision** = closeness of repeated measurements to one another (repeatability). A total station can be precise (tight cluster) yet inaccurate (cluster centered on the wrong value because of an uncorrected systematic error). The classic image: tight grouping off the bullseye = precise but not accurate; scattered around the bullseye = accurate-on-average but not precise.\n\n## The three error types\n\n<table border=\"1\" cellpadding=\"6\">\n<tr><th>Type</th><th>Cause</th><th>Behavior</th><th>Treatment</th></tr>\n<tr><td><b>Gross (blunder/mistake)</b></td><td>Human error: transposed digits, wrong target, misread rod</td><td>Large, sporadic, not predictable</td><td><b>Detect &amp; remove</b> with redundancy/checks; never \"adjust\"</td></tr>\n<tr><td><b>Systematic</b></td><td>Physical/instrumental: tape too long, EDM scale, refraction</td><td><b>One-directional</b>, repeats in same sign/size, accumulates</td><td><b>Correct by formula or procedure</b> (e.g., temperature correction, reciprocal leveling)</td></tr>\n<tr><td><b>Random (accidental)</b></td><td>Irreducible limits of reading/pointing</td><td>Equally likely + or −, small, follows the normal curve</td><td><b>Treat with statistics</b> (mean, std dev, least squares)</td></tr>\n</table>\n\nOnly **random** error is what standard deviation and error propagation describe. Blunders must be found and thrown out first; systematic errors must be modeled/corrected first. Statistics applied to data still containing a blunder is meaningless.\n\n## Most probable value and residuals\n\nFor a set of equally-weighted direct observations, the **most probable value (MPV)** is the arithmetic mean x̄ = Σxᵢ/n. The **residual** of each observation is vᵢ = xᵢ − x̄ (observation minus the mean). Residuals are the raw material of every dispersion statistic.\n\n## Standard deviation and standard error\n\nThe **sample standard deviation** measures the scatter of a single observation about the mean:\n\nσ = √( Σv² / (n − 1) )\n\nWe divide by (n − 1), the **degrees of freedom**, not n — one degree of freedom was \"used up\" computing the mean. The **standard error (deviation) of the mean** measures how well the *mean itself* is known and is always smaller than σ:\n\nσ_m = σ / √n\n\nDoubling your confidence in the mean by halving σ_m requires **four times** as many observations (because of the √n).\n\n## Error propagation\n\nWhen a result is computed from several measured quantities, their individual random errors **combine in quadrature** (root-sum-square), not by simple addition, because random errors partly cancel:\n\n- **Sum/difference of independent quantities:** E = √(E₁² + E₂² + … )\n- **Series of n equal, independent errors** (e.g., n equal tape lengths each ±e): E = e·√n\n- **Product** such as area A = a·b: σ_A = √((b·σ_a)² + (a·σ_b)²)\n\n## Probability and the normal curve\n\nRandom errors follow the **normal (Gaussian) distribution**. The empirical **68-95-99.7 rule** states that about **68.3%** of observations fall within ±1σ of the mean, **95.4%** within ±2σ, and **99.7%** within ±3σ. The **probable error (E₅₀ = 0.6745σ)** is the bound containing 50% of errors. **Weights** are assigned inversely to variance, w ∝ 1/σ², so a more precise measurement (smaller σ) pulls the **weighted mean** more strongly."
+    },
+    {
+      "type": "formulas",
+      "title": "Essential Formulas",
+      "content": "## From the NCEES FS Reference Handbook (Probability & Statistics)\n\n**Mean (most probable value):**\n\nx̄ = Σxᵢ / n\n\n**Residual:** vᵢ = xᵢ − x̄\n\n**Sample standard deviation:**\n\nσ = √( Σ(xᵢ − x̄)² / (n − 1) ) = √( Σv² / (n − 1) )\n\n**Standard error of the mean:**\n\nσ_m = σ / √n\n\n## Error propagation (handbook A17)\n\n<table border=\"1\" cellpadding=\"6\">\n<tr><th>Case</th><th>Formula</th></tr>\n<tr><td>Sum of independent errors</td><td>E_sum = √(E₁² + E₂² + … + Eₙ²)</td></tr>\n<tr><td>Series of n equal errors</td><td>E_series = E·√n</td></tr>\n<tr><td>Error in the mean</td><td>E_mean = E / √n</td></tr>\n<tr><td>Product A = a·b</td><td>σ_A = √((b·σ_a)² + (a·σ_b)²)</td></tr>\n</table>\n\n## Weighting & weighted mean\n\nWeight inversely proportional to variance: **wᵢ ∝ 1/σᵢ²**\n\nWeighted mean: **x̄_w = Σ(wᵢ·xᵢ) / Σwᵢ**\n\n## Relative precision (accuracy ratio)\n\nExpressed as 1:N, reduced so the numerator is 1:\n\n**Relative precision = 1 : (distance / error)**  →  e.g. error 0.08 ft over 800 ft = 1:10,000\n\n## Probability bounds (normal curve)\n\n<table border=\"1\" cellpadding=\"6\">\n<tr><th>Bound</th><th>Multiplier on σ</th><th>% of observations</th></tr>\n<tr><td>Probable error E₅₀</td><td>0.6745σ</td><td>50%</td></tr>\n<tr><td>1σ</td><td>1.000σ</td><td>68.3%</td></tr>\n<tr><td>90% (E₉₀)</td><td>1.6449σ</td><td>90%</td></tr>\n<tr><td>2σ (95.4%)</td><td>2.000σ</td><td>95.4%</td></tr>\n<tr><td>95% (E₉₅)</td><td>1.9600σ</td><td>95%</td></tr>\n<tr><td>3σ</td><td>3.000σ</td><td>99.7%</td></tr>\n</table>\n\n## Useful unit conversions (handbook A1)\n\n<ul>\n<li>1 chain = 100 links = 66 ft = 4 rods/poles/perches</li>\n<li>1 mile = 80 chains = 5,280 ft</li>\n<li>1 acre = 10 sq chains = 43,560 ft²</li>\n<li>1 US survey ft = 0.3048006096 m  (1 m = 3.2808333333 US ft)</li>\n<li>1 international ft = 0.3048 m exactly  (1 in = 25.4 mm exactly)</li>\n<li>1 rad = 180°/π ≈ 57.2957795°</li>\n</ul>"
+    },
+    {
+      "type": "examples",
+      "title": "Worked Examples",
+      "content": "## Example 1 — Mean, standard deviation, and standard error of the mean\n\nA distance is measured 10 times (ft): 215.86, 215.80, 215.78, 215.84, 215.84, 215.83, 215.82, 215.86, 215.86, 215.81. Find the most probable value, the standard deviation, and the standard error of the mean.\n\n**Step 1 — Mean (MPV).** Σx = 2158.30, n = 10 → x̄ = 2158.30/10 = **215.830 ft**.\n\n**Step 2 — Residuals & Σv².** v = x − 215.830. Squaring and summing gives Σv² = 0.006600 ft².\n\n**Step 3 — Standard deviation.**\n\nσ = √(Σv²/(n−1)) = √(0.006600/9) = √0.0007333 = **±0.027 ft** (matches practice-exam Q6).\n\n**Step 4 — Standard error of the mean.**\n\nσ_m = σ/√n = 0.027/√10 = 0.027/3.1623 = **±0.0086 ft**.\n\n**Calculator — TI-36X Pro (stat mode):** press `data`, enter all ten values in L1, `2nd [data]` (stat) → `1-Var Stats`, select L1, `calc`. Read **x̄ = 215.83** and **Sx = 0.0271** (Sx is the sample σ; the screen also shows σx, the population value — use **Sx** for n−1). Then σ_m = Sx ÷ √10.\n\n**Calculator — Casio fx-991EX (ClassWiz):** `MENU` → `6 Statistics` → `1 (1-Variable)`, type the ten values, `AC`, then `OPTN` → `2 1-Variable Calc`. Read **x̄** and **sx** (sample std dev). HP-35S: enter values with `Σ+`, then `s` for sample std dev.\n\n## Example 2 — Error propagation of a sum (taping a line in segments)\n\nA line is taped in 6 equal segments; each segment's length has a random error of ±0.010 ft. What is the expected error in the total length?\n\n**Series of n equal errors:** E = e·√n = 0.010·√6 = 0.010·2.449 = **±0.0245 ft ≈ ±0.024 ft.**\n\nNote it is **not** 6 × 0.010 = 0.060 ft — random errors partly cancel, so they add in quadrature. Equivalently E = √(0.010² × 6).\n\n**Calculator — TI-36X Pro:** `0.010 × √6 =` → 0.02449. (For unequal errors use √(e1²+e2²+…): square each, sum, `√`.)\n\n## Example 3 — Error propagation of a product (area of a lot)\n\nA rectangular lot measures 120.00 ± 0.04 ft by 144.00 ± 0.05 ft. State the area and its uncertainty.\n\n**Area:** A = 120.00 × 144.00 = 17,280 ft².\n\n**Propagation (product):** σ_A = √((b·σ_a)² + (a·σ_b)²) = √((144·0.04)² + (120·0.05)²) = √(5.76² + 6.00²) = √(33.18 + 36.00) = √69.18 = **±8.3 ft².**\n\nSo **A = 17,280 ± 8.3 ft²** (matches practice-exam Q2, choice B).\n\n**Calculator — TI-36X Pro:** compute `144×0.04 = 5.76` `[STO→ x]`, `120×0.05 = 6`, then `√(5.76² + 6²)` = 8.31.\n\n## Example 4 — Relative precision\n\nA traverse with perimeter 2,640 ft closes with a linear misclosure of 0.22 ft. Express the relative precision.\n\nRelative precision = misclosure / perimeter = 0.22 / 2640 = 1/12,000. **Report as 1:12,000** (always reduce numerator to 1: divide perimeter by misclosure → 2640/0.22 = 12,000).\n\n## Example 5 — Weighted mean of redundant length measurements\n\nA distance is measured three ways: tape 297.426 m (σ = ±0.070), EDM 297.155 m (σ = ±0.015), total-station inverse 297.209 m (σ = ±0.048). Find the most probable length.\n\n**Step 1 — Weights ∝ 1/σ².** w_tape = 1/0.070² = 204.1; w_EDM = 1/0.015² = 4444.4; w_inv = 1/0.048² = 434.0.\n\n**Step 2 — Weighted mean.**\n\nx̄_w = Σ(w·x)/Σw = (204.1·297.426 + 4444.4·297.155 + 434.0·297.209) / (204.1 + 4444.4 + 434.0)\n= (60,704.7 + 1,320,684.4 + 128,988.7) / 5082.5 = 1,510,377.8 / 5082.5 = **297.168 m.**\n\nThe high-precision EDM (smallest σ → largest weight) dominates, pulling the answer toward 297.155 m.\n\n**Calculator — TI-36X Pro (weighted stat):** in stat mode use the two-column (FRQ) layout — enter values in L1 and weights in L2, run `1-Var Stats` with **FRQ = L2**; the reported x̄ is the weighted mean.\n\n## Example 6 — The 68-95-99.7 rule\n\nAngles are observed with σ = 4″. Within what symmetric bound do 95.4% of observations fall? That is ±2σ = ±8″. About 68.3% fall within ±4″ (±1σ); 99.7% within ±12″ (±3σ)."
+    },
+    {
+      "type": "tips",
+      "title": "Exam Tips & Calculator Strategy",
+      "content": "## Exam strategy for this area\n\n- **These are fast points.** Stats and unit questions are usually one- or two-step. Bank them early; flag-and-skip long COGO problems. Budget ~2.9 min/question overall, but most of these take under a minute.\n- **Read the n−1 vs n choice carefully.** \"Standard deviation of the *set/observations*\" → use sample σ (n−1). The exam's distractors almost always include the population value (÷n). On your calculator that is **Sx (TI) / sx (Casio)** for n−1 and **σx / xσn** for n.\n- **Standard error of the mean has the extra √n.** If a question asks how well the *mean* is known (vs a single observation), divide by √n. Forgetting this is the #1 trap.\n- **Errors add in quadrature, not linearly.** For a sum or a series, root-sum-square. If you see a clean linear sum among the choices, it is the distractor.\n- **Relative precision is reported 1:N.** Divide the distance by the error and round to a \"nice\" denominator (1:5,000, 1:10,000…).\n- **Watch the foot.** US survey foot (0.3048006096 m) vs international foot (0.3048 m exactly) differ by 2 ppm — on a state-plane coordinate that is feet of difference. The exam mixes SI and USCS; confirm units before keying.\n\n## Approved-calculator tricks (NCEES 2026 list)\n\nApproved: **TI-30X / TI-36X** (all), **Casio fx-115 / fx-991** (all), **HP 33s / 35s** only. No programmable/graphing/CAS models.\n\n- **TI-36X Pro stats:** `data` to enter L1 (and L2 for frequencies/weights), `2nd [data]` → `1-Var Stats`. Read **x̄** (mean) and **Sx** (sample σ, n−1). Compute σ_m = Sx ÷ √n by hand.\n- **Casio fx-991EX:** `MENU 6` Statistics → `1-Variable`; turn on the FREQ column via `SHIFT MENU (SETUP) → Statistics → Frequency On` to do weighted means. `OPTN → 1-Variable Calc` shows x̄ and **sx**.\n- **HP-35S:** enter each value `Σ+`; recall **x̄** with `[x̄,ŷ]`, sample std dev with `[s]`. RPN chaining is handy but optional here.\n- **Root-sum-square fast path:** `√( a x² + b x² + … )` — use the `x²` key on each term, sum, then `√`. Store an intermediate with `STO` to avoid re-keying.\n- **DMS for angle-error problems:** keep the calculator in degree mode and use the `°’”` (DMS) key so angular σ values combine correctly.\n\n## Common traps\n\n- Applying statistics to data that still contains a **blunder** (find/remove it first) or an uncorrected **systematic** error (model it first).\n- Confusing **accuracy** (closeness to truth) with **precision** (repeatability).\n- Using **n** instead of **n−1** in σ.\n- Adding tolerances linearly instead of in quadrature.\n- Reporting more **significant figures** than the measurement justifies — carry full precision through intermediate steps, round only at the end.\n\n## How the handbook helps\n\nThe FS Reference Handbook's **Probability and Statistics** section gives σ = √(Σv²/(n−1)), the propagation formulas (sum, series, product, mean), weighted-mean relation w ∝ 1/σ², and the **Z-value / unit-normal table** (90% → 1.6449, 95% → 1.9600). Know *where* these live so you can confirm a formula in seconds rather than deriving it. The **Conversions** section up front has every unit factor you need — bookmark both pages mentally before exam day."
+    }
+  ],
+  "questions": [
+    {
+      "question_text": "Which type of error is one-directional, repeats with the same sign and magnitude under the same conditions, and can be removed by applying a correction formula?",
+      "question_type": "multiple_choice",
+      "options": ["Random error", "Systematic error", "Gross error (blunder)", "Standard error"],
+      "correct_answer": "Systematic error",
+      "explanation": "Systematic errors follow physical/instrumental laws (e.g., tape too long, atmospheric refraction). They accumulate in one direction and are corrected by formula or procedure, unlike random errors (treated statistically) or blunders (detected and removed).",
+      "difficulty": "easy"
+    },
+    {
+      "question_text": "A measurement is described as 'precise but not accurate.' What does this mean?",
+      "question_type": "multiple_choice",
+      "options": ["Repeated measurements cluster tightly together but are centered away from the true value", "A single measurement happens to equal the true value", "Repeated measurements scatter widely but average to the true value", "The measurement has many significant figures"],
+      "correct_answer": "Repeated measurements cluster tightly together but are centered away from the true value",
+      "explanation": "Precision is repeatability (tight clustering). Accuracy is closeness to truth. A tight cluster offset from the bullseye is precise but inaccurate, typically caused by an uncorrected systematic error.",
+      "difficulty": "easy"
+    },
+    {
+      "question_text": "In the sample standard deviation formula σ = √(Σv²/(n−1)), why is the denominator (n−1) rather than n?",
+      "question_type": "multiple_choice",
+      "options": ["To make the result larger and more conservative", "Because one degree of freedom is consumed computing the mean", "Because one observation is always a blunder", "To convert variance to standard deviation"],
+      "correct_answer": "Because one degree of freedom is consumed computing the mean",
+      "explanation": "The residuals are taken about the computed mean, which uses up one degree of freedom. Dividing by (n−1) gives an unbiased estimate of the population variance from a sample.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "A line is measured 10 times and the standard deviation of a single observation is σ = 0.030 ft. What is the standard error of the mean?",
+      "question_type": "multiple_choice",
+      "options": ["0.0095 ft", "0.030 ft", "0.095 ft", "0.300 ft"],
+      "correct_answer": "0.0095 ft",
+      "explanation": "σ_m = σ/√n = 0.030/√10 = 0.030/3.1623 = 0.0095 ft. The standard error of the mean is always smaller than the standard deviation of a single observation by a factor of √n.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "A distance is taped in 4 equal segments, each with a random error of ±0.012 ft. What is the expected random error in the total distance?",
+      "question_type": "multiple_choice",
+      "options": ["±0.012 ft", "±0.024 ft", "±0.048 ft", "±0.144 ft"],
+      "correct_answer": "±0.024 ft",
+      "explanation": "For a series of n equal independent errors, E = e·√n = 0.012·√4 = 0.012·2 = 0.024 ft. Random errors combine in quadrature, not by simple addition (which would give 0.048 ft).",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "A rectangular parcel measures 200.00 ± 0.05 ft by 300.00 ± 0.06 ft. What is the standard error in the computed area?",
+      "question_type": "multiple_choice",
+      "options": ["±10.0 ft²", "±18.0 ft²", "±20.8 ft²", "±28.0 ft²"],
+      "correct_answer": "±20.8 ft²",
+      "explanation": "For a product A = a·b, σ_A = √((b·σ_a)² + (a·σ_b)²) = √((300·0.05)² + (200·0.06)²) = √(15² + 12²) = √(225+144) = √369 = 20.8 ft².",
+      "difficulty": "hard"
+    },
+    {
+      "question_text": "According to the 68-95-99.7 rule for a normal distribution, approximately what percentage of random errors fall within ±2σ of the mean?",
+      "question_type": "multiple_choice",
+      "options": ["68.3%", "90.0%", "95.4%", "99.7%"],
+      "correct_answer": "95.4%",
+      "explanation": "±1σ contains ~68.3%, ±2σ contains ~95.4%, and ±3σ contains ~99.7% of observations in a normal distribution. (The 95% confidence multiplier of exactly 1.96σ is slightly less than 2σ.)",
+      "difficulty": "easy"
+    },
+    {
+      "question_text": "A traverse has a perimeter of 3,300 ft and a linear misclosure of 0.33 ft. What is the relative precision?",
+      "question_type": "multiple_choice",
+      "options": ["1:1,000", "1:5,000", "1:10,000", "1:33,000"],
+      "correct_answer": "1:10,000",
+      "explanation": "Relative precision = perimeter/misclosure expressed as 1:N = 3300/0.33 = 10,000, reported as 1:10,000.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "When forming a weighted mean of several measurements with differing standard deviations, the weight of each measurement is proportional to:",
+      "question_type": "multiple_choice",
+      "options": ["σ", "σ²", "1/σ", "1/σ²"],
+      "correct_answer": "1/σ²",
+      "explanation": "Weight is inversely proportional to variance: w ∝ 1/σ². The most precise measurement (smallest σ) receives the largest weight and dominates the weighted mean.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "The probable error E₅₀ (the bound containing 50% of random errors) equals which multiple of the standard deviation?",
+      "question_type": "multiple_choice",
+      "options": ["0.6745σ", "1.0000σ", "1.6449σ", "1.9600σ"],
+      "correct_answer": "0.6745σ",
+      "explanation": "The probable error is E₅₀ = 0.6745σ — half of all random errors are smaller than this value. The 90% and 95% multipliers are 1.6449 and 1.9600 respectively.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "Before applying statistical analysis (mean, standard deviation) to a set of observations, the surveyor must first ensure the data is free of:",
+      "question_type": "multiple_choice",
+      "options": ["All random errors", "Blunders and uncorrected systematic errors", "Significant figures", "Any rounding"],
+      "correct_answer": "Blunders and uncorrected systematic errors",
+      "explanation": "Statistics describe random error only. A blunder or an uncorrected systematic error invalidates the statistical estimates, so blunders must be detected/removed and systematic errors corrected first.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "How many significant figures are in the measurement 0.04060 m?",
+      "question_type": "multiple_choice",
+      "options": ["3", "4", "5", "6"],
+      "correct_answer": "4",
+      "explanation": "Leading zeros are not significant (0.0...). The digits 4, 0, 6, and the trailing 0 (after the decimal) are significant → 4060 → four significant figures.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "A distance of 2,640.00 US survey feet is to be expressed in international feet. Which statement is correct?",
+      "question_type": "multiple_choice",
+      "options": ["The two values are identical because a foot is a foot", "The international-foot value is slightly larger by about 2 ppm", "The international-foot value is slightly smaller by about 5%", "Conversion is impossible without the latitude"],
+      "correct_answer": "The international-foot value is slightly larger by about 2 ppm",
+      "explanation": "1 US survey ft = 0.3048006096 m vs 1 international ft = 0.3048 m exactly. A US survey foot is slightly longer, so the same physical distance expressed in international feet is a slightly larger number — about 2 ppm difference, which matters for state-plane coordinates.",
+      "difficulty": "hard"
+    },
+    {
+      "question_text": "What is the most probable value of a set of equally-weighted direct observations?",
+      "question_type": "multiple_choice",
+      "options": ["The median", "The mode", "The arithmetic mean", "The midrange"],
+      "correct_answer": "The arithmetic mean",
+      "explanation": "For equally-weighted direct observations the most probable value (MPV) is the arithmetic mean, x̄ = Σxᵢ/n. This is the value that minimizes the sum of squared residuals.",
+      "difficulty": "easy"
+    },
+    {
+      "question_text": "An angle is measured with a standard deviation of 5″. A surveyor needs the standard error of the mean to be ≤ 1″. Approximately how many repetitions are required?",
+      "question_type": "multiple_choice",
+      "options": ["5", "10", "25", "50"],
+      "correct_answer": "25",
+      "explanation": "σ_m = σ/√n ≤ 1 → √n ≥ σ/1 = 5 → n ≥ 25. Because of the √n relationship, reducing the standard error of the mean by a factor of 5 requires 25 times the observations.",
+      "difficulty": "hard"
+    },
+    {
+      "question_text": "Convert 50.0 chains to feet (US survey/Gunter's chain).",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "3300",
+      "explanation": "1 chain = 66 ft, so 50.0 chains × 66 ft/chain = 3,300 ft.",
+      "difficulty": "easy"
+    },
+    {
+      "question_text": "A parcel contains 87,120 ft². How many acres is this?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "2",
+      "explanation": "1 acre = 43,560 ft². 87,120 / 43,560 = 2.0 acres.",
+      "difficulty": "easy"
+    },
+    {
+      "question_text": "True or False: The standard error of the mean is always larger than the standard deviation of a single observation.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "False. σ_m = σ/√n, so for n > 1 the standard error of the mean is always SMALLER than σ. Averaging more observations sharpens the estimate of the mean.",
+      "difficulty": "easy"
+    },
+    {
+      "question_text": "True or False: Random errors are equally likely to be positive or negative and tend to cancel as the number of observations increases.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "True. Random (accidental) errors follow the normal distribution, are symmetric about zero, and partially cancel — which is why repeated observations and least-squares adjustment improve results.",
+      "difficulty": "easy"
+    },
+    {
+      "question_text": "Two independent distances are measured: AB = 450.00 ± 0.03 ft and BC = 300.00 ± 0.04 ft. What is the standard error of the total distance AC = AB + BC?",
+      "question_type": "multiple_choice",
+      "options": ["±0.01 ft", "±0.05 ft", "±0.07 ft", "±0.50 ft"],
+      "correct_answer": "±0.05 ft",
+      "explanation": "For a sum of independent quantities, errors add in quadrature: E = √(0.03² + 0.04²) = √(0.0009 + 0.0016) = √0.0025 = 0.05 ft.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "Five angle observations have residuals (seconds) of +2, −3, +1, −1, +1 about their mean. What is Σv² used in the standard deviation calculation?",
+      "question_type": "multiple_choice",
+      "options": ["0", "8", "16", "16 (with sign)"],
+      "correct_answer": "16",
+      "explanation": "Σv² = 2² + 3² + 1² + 1² + 1² = 4 + 9 + 1 + 1 + 1 = 16. Squaring removes the signs; this feeds σ = √(Σv²/(n−1)) = √(16/4) = 2″.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "Which of the following is the correct value of the 95% confidence multiplier (two-tailed Z value) for a normal distribution?",
+      "question_type": "multiple_choice",
+      "options": ["1.2816", "1.6449", "1.9600", "2.5758"],
+      "correct_answer": "1.9600",
+      "explanation": "The two-tailed Z value is 1.6449 for 90%, 1.9600 for 95%, and 2.5758 for 99%. These appear in the FS Reference Handbook unit-normal table.",
+      "difficulty": "medium"
+    },
+    {
+      "question_text": "A measured value is 1234.567 and is to be rounded to 5 significant figures. What is the rounded result?",
+      "question_type": "multiple_choice",
+      "options": ["1234.5", "1234.6", "1234.57", "1235.0"],
+      "correct_answer": "1234.6",
+      "explanation": "Five significant figures of 1234.567 are 1,2,3,4,5; the next digit (6) rounds the fifth digit up: 1234.6.",
+      "difficulty": "easy"
+    },
+    {
+      "question_text": "The product of two measured quantities, each known to 3 significant figures, should be reported to how many significant figures?",
+      "question_type": "multiple_choice",
+      "options": ["2", "3", "5", "6"],
+      "correct_answer": "3",
+      "explanation": "In multiplication/division, the result carries the same number of significant figures as the least precise factor — here 3 significant figures.",
+      "difficulty": "medium"
+    }
+  ],
+  "problem_templates": [
+    {
+      "name": "Standard error of the mean from n observations",
+      "category": "FS — Applied Mathematics and Statistics",
+      "subcategory": "Error analysis",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A distance is measured {{n}} times. The standard deviation of a single observation is σ = {{sigma:f3}} ft. Compute the standard error of the mean (ft).",
+      "parameters": [
+        {"name": "n", "type": "integer", "min": 4, "max": 36},
+        {"name": "sigma", "type": "float", "min": 0.010, "max": 0.090, "decimals": 3}
+      ],
+      "computed_vars": [],
+      "answer_formula": "sigma/sqrt(n)",
+      "answer_format": {"decimals": 4, "unit": "ft", "tolerance": 0.0005},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Apply σ_m = σ/√n", "calculation_template": "σ_m = {{sigma:f3}} / √{{n}}"},
+        {"step_number": 2, "title": "Result", "result_template": "{{_answer}} ft"}
+      ],
+      "explanation_template": "The standard error of the mean is σ_m = σ/√n = {{sigma:f3}}/√{{n}} = {{_answer}} ft. It is always smaller than the single-observation σ by the factor √n.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Error propagation — series of n equal errors",
+      "category": "FS — Applied Mathematics and Statistics",
+      "subcategory": "Error propagation",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A line is taped in {{n}} equal segments. Each segment carries an independent random error of ±{{e:f3}} ft. Compute the expected random error in the total length (ft).",
+      "parameters": [
+        {"name": "n", "type": "integer", "min": 3, "max": 16},
+        {"name": "e", "type": "float", "min": 0.005, "max": 0.030, "decimals": 3}
+      ],
+      "computed_vars": [],
+      "answer_formula": "e*sqrt(n)",
+      "answer_format": {"decimals": 4, "unit": "ft", "tolerance": 0.0005},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Series rule E = e·√n", "calculation_template": "E = {{e:f3}} × √{{n}}"},
+        {"step_number": 2, "title": "Result", "result_template": "{{_answer}} ft"}
+      ],
+      "explanation_template": "For n equal independent errors, they combine in quadrature: E = e·√n = {{e:f3}}·√{{n}} = {{_answer}} ft. This is NOT the linear sum n·e.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Error propagation — sum of three independent errors",
+      "category": "FS — Applied Mathematics and Statistics",
+      "subcategory": "Error propagation",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "Three independent distances are added end to end. Their standard errors are ±{{e1:f3}} ft, ±{{e2:f3}} ft, and ±{{e3:f3}} ft. Compute the standard error of the total distance (ft).",
+      "parameters": [
+        {"name": "e1", "type": "float", "min": 0.010, "max": 0.060, "decimals": 3},
+        {"name": "e2", "type": "float", "min": 0.010, "max": 0.060, "decimals": 3},
+        {"name": "e3", "type": "float", "min": 0.010, "max": 0.060, "decimals": 3}
+      ],
+      "computed_vars": [],
+      "answer_formula": "sqrt(e1*e1 + e2*e2 + e3*e3)",
+      "answer_format": {"decimals": 4, "unit": "ft", "tolerance": 0.0005},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Root-sum-square", "calculation_template": "E = √({{e1:f3}}² + {{e2:f3}}² + {{e3:f3}}²)"},
+        {"step_number": 2, "title": "Result", "result_template": "{{_answer}} ft"}
+      ],
+      "explanation_template": "For a sum of independent quantities, errors add in quadrature: E = √(e1²+e2²+e3²) = {{_answer}} ft.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Relative precision of a traverse",
+      "category": "FS — Survey Computations",
+      "subcategory": "Traverse",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "A traverse has a perimeter of {{perimeter:f2}} ft and a linear misclosure of {{misclosure:f3}} ft. Express the relative precision as 1:N — report N (rounded to the nearest whole number).",
+      "parameters": [
+        {"name": "perimeter", "type": "float", "min": 1500, "max": 5000, "decimals": 2},
+        {"name": "misclosure", "type": "float", "min": 0.10, "max": 0.60, "decimals": 3}
+      ],
+      "computed_vars": [],
+      "answer_formula": "round(perimeter/misclosure,0)",
+      "answer_format": {"decimals": 0, "unit": "", "tolerance": 1},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Divide perimeter by misclosure", "calculation_template": "N = {{perimeter:f2}} / {{misclosure:f3}}"},
+        {"step_number": 2, "title": "Result", "result_template": "1:{{_answer}}"}
+      ],
+      "explanation_template": "Relative precision = misclosure/perimeter reduced to a unit numerator: N = perimeter/misclosure = {{perimeter:f2}}/{{misclosure:f3}} = {{_answer}}, reported as 1:{{_answer}}.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Sample standard deviation from residual sum",
+      "category": "FS — Applied Mathematics and Statistics",
+      "subcategory": "Statistics",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A quantity is observed {{n}} times. The sum of the squared residuals about the mean is Σv² = {{sv2:f4}}. Compute the sample standard deviation σ = √(Σv²/(n−1)).",
+      "parameters": [
+        {"name": "n", "type": "integer", "min": 5, "max": 15},
+        {"name": "sv2", "type": "float", "min": 0.0040, "max": 0.0200, "decimals": 4}
+      ],
+      "computed_vars": [],
+      "answer_formula": "sqrt(sv2/(n-1))",
+      "answer_format": {"decimals": 4, "unit": "", "tolerance": 0.0005},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Divide by degrees of freedom (n−1)", "calculation_template": "{{sv2:f4}} / ({{n}} − 1)"},
+        {"step_number": 2, "title": "Take the square root", "result_template": "σ = {{_answer}}"}
+      ],
+      "explanation_template": "σ = √(Σv²/(n−1)) = √({{sv2:f4}}/({{n}}−1)) = {{_answer}}. Use n−1 (degrees of freedom) because the mean consumed one degree of freedom.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Weighted mean of two measurements",
+      "category": "FS — Applied Mathematics and Statistics",
+      "subcategory": "Weighted observations",
+      "difficulty": "hard",
+      "question_type": "numeric_input",
+      "question_template": "A distance is measured two ways: method 1 gives {{m1:f3}} ft with σ₁ = ±{{s1:f3}} ft; method 2 gives {{m2:f3}} ft with σ₂ = ±{{s2:f3}} ft. Compute the weighted mean (ft), using weights ∝ 1/σ².",
+      "parameters": [
+        {"name": "m1", "type": "float", "min": 250.000, "max": 350.000, "decimals": 3},
+        {"name": "d", "type": "float", "min": 0.050, "max": 0.400, "decimals": 3},
+        {"name": "s1", "type": "float", "min": 0.020, "max": 0.080, "decimals": 3},
+        {"name": "s2", "type": "float", "min": 0.008, "max": 0.030, "decimals": 3}
+      ],
+      "computed_vars": [
+        {"name": "m2", "formula": "m1+d"},
+        {"name": "w1", "formula": "1/(s1*s1)"},
+        {"name": "w2", "formula": "1/(s2*s2)"}
+      ],
+      "answer_formula": "(w1*m1 + w2*m2)/(w1+w2)",
+      "answer_format": {"decimals": 3, "unit": "ft", "tolerance": 0.005},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Weights ∝ 1/σ²", "calculation_template": "w1 = 1/{{s1:f3}}², w2 = 1/{{s2:f3}}²"},
+        {"step_number": 2, "title": "Weighted mean", "calculation_template": "(w1·{{m1:f3}} + w2·{{m2:f3}})/(w1+w2)"},
+        {"step_number": 3, "title": "Result", "result_template": "{{_answer}} ft"}
+      ],
+      "explanation_template": "Weights are inverse variances: w1 = 1/σ₁², w2 = 1/σ₂². The weighted mean = Σ(w·x)/Σw = {{_answer}} ft, pulled toward the more precise (smaller-σ) measurement.",
+      "options_generator": {"method": "none"}
+    }
+  ],
+  "mock_questions": [
+    {
+      "question_text": "A line is observed 8 times with a single-observation standard deviation of 0.024 ft. What is the standard error of the mean?",
+      "options": ["0.0085 ft", "0.0240 ft", "0.0680 ft", "0.1920 ft"],
+      "correct_answer": "0.0085 ft",
+      "explanation": "σ_m = σ/√n = 0.024/√8 = 0.024/2.828 = 0.0085 ft.",
+      "difficulty": "medium",
+      "area": "math"
+    },
+    {
+      "question_text": "Which error type must be detected and removed (never statistically adjusted) before any analysis?",
+      "options": ["Random error", "Systematic error", "Gross error (blunder)", "Probable error"],
+      "correct_answer": "Gross error (blunder)",
+      "explanation": "Blunders (mistakes) are large, sporadic, and must be found via checks/redundancy and removed. Systematic errors are corrected by formula; random errors are treated statistically.",
+      "difficulty": "easy",
+      "area": "principles"
+    },
+    {
+      "question_text": "Four independent distances with standard errors ±0.02, ±0.02, ±0.03, and ±0.04 ft are added. The standard error of the total is most nearly:",
+      "options": ["±0.06 ft", "±0.11 ft", "±0.055 ft", "±0.02 ft"],
+      "correct_answer": "±0.055 ft",
+      "explanation": "E = √(0.02²+0.02²+0.03²+0.04²) = √(0.0004+0.0004+0.0009+0.0016) = √0.0033 = 0.0574 ≈ 0.055 ft.",
+      "difficulty": "medium",
+      "area": "computations"
+    },
+    {
+      "question_text": "A rectangular lot is 100.00 ± 0.03 ft by 250.00 ± 0.05 ft. The standard error of its area is most nearly:",
+      "options": ["±5.6 ft²", "±9.0 ft²", "±13.5 ft²", "±16.0 ft²"],
+      "correct_answer": "±9.0 ft²",
+      "explanation": "σ_A = √((b·σ_a)² + (a·σ_b)²) = √((250·0.03)² + (100·0.05)²) = √(7.5² + 5²) = √(56.25+25) = √81.25 = 9.0 ft².",
+      "difficulty": "hard",
+      "area": "computations"
+    },
+    {
+      "question_text": "In a normal distribution of random errors, approximately 99.7% of observations fall within:",
+      "options": ["±1σ", "±2σ", "±3σ", "±0.6745σ"],
+      "correct_answer": "±3σ",
+      "explanation": "The 68-95-99.7 rule: ±1σ ≈ 68.3%, ±2σ ≈ 95.4%, ±3σ ≈ 99.7%.",
+      "difficulty": "easy",
+      "area": "math"
+    },
+    {
+      "question_text": "Weight assigned to an observation in a weighted mean is proportional to:",
+      "options": ["The standard deviation σ", "The variance σ²", "The inverse of the variance 1/σ²", "The number of observations"],
+      "correct_answer": "The inverse of the variance 1/σ²",
+      "explanation": "More precise measurements (smaller σ) receive more weight: w ∝ 1/σ².",
+      "difficulty": "medium",
+      "area": "math"
+    },
+    {
+      "question_text": "A surveyor's tape is 0.02 ft too long and this length is used for every measurement along a line. This is an example of:",
+      "options": ["A random error", "A systematic error", "A blunder", "A standard error"],
+      "correct_answer": "A systematic error",
+      "explanation": "A tape standardization error repeats with the same sign and magnitude each tape length and accumulates — the definition of a systematic error, correctable by formula.",
+      "difficulty": "easy",
+      "area": "principles"
+    },
+    {
+      "question_text": "A traverse perimeter is 4,000 ft with a linear misclosure of 0.40 ft. The relative precision is:",
+      "options": ["1:1,000", "1:4,000", "1:10,000", "1:40,000"],
+      "correct_answer": "1:10,000",
+      "explanation": "N = perimeter/misclosure = 4000/0.40 = 10,000 → 1:10,000.",
+      "difficulty": "medium",
+      "area": "computations"
+    },
+    {
+      "question_text": "How many feet are in 3.5 Gunter's chains?",
+      "options": ["210 ft", "231 ft", "350 ft", "168 ft"],
+      "correct_answer": "231 ft",
+      "explanation": "1 chain = 66 ft → 3.5 × 66 = 231 ft.",
+      "difficulty": "easy",
+      "area": "math"
+    },
+    {
+      "question_text": "The arithmetic mean of a set of equally-weighted observations is best described as the:",
+      "options": ["Probable error", "Most probable value", "Standard error", "Residual"],
+      "correct_answer": "Most probable value",
+      "explanation": "For equally-weighted direct observations, the mean is the most probable value (MPV) — the value that minimizes Σv².",
+      "difficulty": "easy",
+      "area": "principles"
+    },
+    {
+      "question_text": "A measurement has a precision described as 'tight repeatability but a consistent offset from the true value.' The most likely cause is:",
+      "options": ["Large random errors", "An uncorrected systematic error", "Too few observations", "Excess significant figures"],
+      "correct_answer": "An uncorrected systematic error",
+      "explanation": "A consistent offset (bias) with tight repeatability indicates a systematic error — precise but not accurate.",
+      "difficulty": "medium",
+      "area": "principles"
+    },
+    {
+      "question_text": "An angle is turned with σ = 6″. To reduce the standard error of the mean to 2″, how many repetitions are required?",
+      "options": ["3", "9", "18", "36"],
+      "correct_answer": "9",
+      "explanation": "σ_m = σ/√n ≤ 2 → √n ≥ 6/2 = 3 → n ≥ 9.",
+      "difficulty": "hard",
+      "area": "math"
+    },
+    {
+      "question_text": "How many acres are in a parcel of 130,680 ft²?",
+      "options": ["2.5 acres", "3.0 acres", "3.5 acres", "4.0 acres"],
+      "correct_answer": "3.0 acres",
+      "explanation": "130,680 / 43,560 = 3.0 acres (1 acre = 43,560 ft²).",
+      "difficulty": "easy",
+      "area": "computations"
+    },
+    {
+      "question_text": "Which statement about random errors is correct?",
+      "options": ["They are always positive", "They are equally likely positive or negative and follow the normal curve", "They can be eliminated by a correction formula", "They are the same as blunders"],
+      "correct_answer": "They are equally likely positive or negative and follow the normal curve",
+      "explanation": "Random (accidental) errors are symmetric about zero, follow the normal distribution, and partially cancel with redundancy.",
+      "difficulty": "easy",
+      "area": "principles"
+    },
+    {
+      "question_text": "The probable error E₅₀ equals 0.6745σ. If σ = 0.04 ft, the probable error is most nearly:",
+      "options": ["±0.020 ft", "±0.027 ft", "±0.040 ft", "±0.067 ft"],
+      "correct_answer": "±0.027 ft",
+      "explanation": "E₅₀ = 0.6745 × 0.04 = 0.0270 ft — half of all errors are smaller than this.",
+      "difficulty": "medium",
+      "area": "math"
+    },
+    {
+      "question_text": "A result computed by multiplying two quantities, each measured to 4 significant figures, should be reported to how many significant figures?",
+      "options": ["2", "4", "6", "8"],
+      "correct_answer": "4",
+      "explanation": "In multiplication, the product carries the significant figures of the least precise factor — 4 significant figures.",
+      "difficulty": "medium",
+      "area": "principles"
+    }
+  ]
+}

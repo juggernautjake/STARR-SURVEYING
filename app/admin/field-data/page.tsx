@@ -352,20 +352,32 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  // field-data-row-alignment-2026-06-21 — date inputs lacked explicit
+  // height; the native picker chrome made them taller than the
+  // adjacent Refresh button. Pin every control in the row to a
+  // shared 36 px box-sizing: border-box baseline.
   input: {
-    padding: '8px 10px',
+    height: 36,
+    boxSizing: 'border-box',
+    padding: '0 10px',
     border: '1px solid #E2E5EB',
     borderRadius: 8,
     fontSize: 13,
     minWidth: 160,
+    fontFamily: 'inherit',
+    background: '#FFFFFF',
   },
   refreshBtn: {
+    height: 36,
+    boxSizing: 'border-box',
     background: 'transparent',
     border: '1px solid #E2E5EB',
     borderRadius: 8,
-    padding: '8px 14px',
+    padding: '0 14px',
     cursor: 'pointer',
     fontSize: 13,
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
   },
   error: {
     background: '#FEF2F2',

@@ -1,0 +1,907 @@
+{
+  "order_index": 12,
+  "module_id": "c100000c-0000-0000-0000-00000000000c",
+  "title": "Robotic, Scanning, and UAS Technology",
+  "lessons": [
+    {
+      "lesson_id": "01481882-ccd3-4374-8d8d-7b5d72b9b37e",
+      "title": "Robotic Total Stations",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Explain how a robotic total station automates pointing through servo motors and automatic target recognition.",
+        "Describe the components of a one-person robotic crew, including the radio link, controller, and active prism.",
+        "Identify when prism lock and search are gained or lost, and how to recover a locked target efficiently."
+      ],
+      "key_takeaways": [
+        "A robotic total station replaces the human at the instrument with servomotors and ATR, letting one person operate the rover at the prism.",
+        "Automatic Target Recognition (ATR) centers the crosshairs on the prism, removing manual pointing error and speeding observations.",
+        "Prism lock keeps the instrument tracking a moving prism; loss of lock triggers a search, so keep a clear line of sight."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>From Two-Person to One-Person Crews</h3><p>A <strong>robotic total station</strong> is a motorized total station that can aim, measure, and record without a person standing at the instrument. Servo motors rotate the instrument in both the horizontal and vertical axes, and <strong>Automatic Target Recognition (ATR)</strong> uses an infrared beam reflected from the prism to fine-center the crosshairs automatically. Control passes to a radio handset (the data collector) carried by the surveyor at the prism pole. The result is the <em>one-person crew</em>: the surveyor walks to each point, commands a measurement from the rover, and the instrument back at the control point turns, locks, measures, and stores the shot.</p><p>The productivity gain is large. A traditional crew needs an instrument operator and a rodperson; the robotic crew folds both roles into one. For topographic detail and stakeout, where the prism moves constantly, this halves labor cost while keeping the rigor of a conventional total station survey.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The Robotic System</h3><p>A working robotic setup has four linked parts:</p><ul><li><strong>Motorized instrument</strong> with servo drives on both axes and an ATR sensor.</li><li><strong>Radio modem</strong> (internal or external) providing a two-way data link, typically several hundred meters to over a kilometer with line of sight.</li><li><strong>Field controller</strong> running the survey software, carried by the surveyor; it sends measure/store commands and displays results.</li><li><strong>Active prism (360-degree prism)</strong> on the pole so the prism is visible from any direction without rotating it toward the instrument.</li></ul><p>Because the surveyor stands at the point of interest, they can verify the feature being shot, code it correctly, and immediately check the live coordinate against the design, catching blunders that a remote operator would not see.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "ATR removes the human pointing error but not instrument error. The instrument must still be properly leveled, centered over its control point, and calibrated; ATR only automates the final centering on the prism."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Prism Lock, Tracking, and Search</h3><p>The defining behavior of a robotic instrument is <strong>lock</strong>. Once the instrument has acquired the prism, it enters tracking mode and the servos continuously follow the prism as the surveyor walks, so a measurement is ready on demand. Tracking is fast but lower-precision; a final \"standard\" or \"precise\" measurement is taken when the surveyor stops and stores the point.</p><p>Lock is lost whenever the line of sight is broken — a passing vehicle, a tree, or the surveyor turning a corner. The instrument then runs a <strong>search</strong>, sweeping a window around the last known direction. A well-set <em>search window</em> recovers lock in a second or two; too wide a window wastes time, too narrow a window may miss the prism. Many systems add a <strong>PowerSearch</strong> or radio-direction aid that spins the instrument to the prism's general bearing before the fine ATR search.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Mode", "What the instrument does", "Use"],
+            "rows": [
+              ["Tracking", "Continuously follows the prism, fast low-precision distances", "Walking between points, stakeout navigation"],
+              ["Standard / Precise", "Stops and takes a full-precision angle and distance", "Storing a final coordinate"],
+              ["Search", "Sweeps a window to re-acquire a lost prism", "After line of sight is broken"],
+              ["Lock", "Holds the prism centered via ATR", "Ready to measure on command"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Multiple prisms or reflective surfaces (windows, signs, parked cars, another crew's prism) can cause the instrument to lock onto the wrong target. Use a controller working area, an active/ID-tagged prism, or keep competing reflectors out of the search window."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "One-person robotic crew with motorized instrument tracking a 360-degree prism on a rover pole",
+            "caption": "Figure: A robotic total station tracks a 360-degree active prism while the surveyor controls measurement from the rover.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Servo motors plus ATR let a robotic total station aim and measure with no operator at the instrument.",
+              "A 360-degree active prism keeps the rover visible from any direction during tracking.",
+              "Maintain line of sight; lost lock forces a search, and stray reflectors can cause a false lock."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Automatic Target Recognition (ATR)", "definition": "An instrument sensor that detects the reflected beam from a prism and automatically fine-centers the crosshairs on it, eliminating manual pointing error.", "hint_1": "It does the final aiming for you."},
+        {"term": "Prism lock (tracking)", "definition": "The state in which a robotic total station continuously follows a moving prism with its servos so a measurement is ready on demand.", "hint_1": "Lost when line of sight is broken."},
+        {"term": "360-degree (active) prism", "definition": "A prism with reflectors arranged so it returns a signal from any horizontal direction, letting the rover be seen without aiming it back at the instrument."},
+        {"term": "One-person crew", "definition": "A survey crew of a single operator who works at the prism pole and remotely commands a motorized instrument, replacing the separate instrument operator and rodperson."}
+      ]
+    },
+    {
+      "lesson_id": "9d92655f-bc09-401c-a2eb-d30fd3e28545",
+      "title": "3D Laser Scanning (Terrestrial LiDAR)",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Distinguish time-of-flight from phase-based scanning and relate each to range and accuracy.",
+        "Explain how point density, angular resolution, and range affect scan planning and deliverables.",
+        "Describe target-based and cloud-to-cloud registration of multiple scan stations into a common coordinate system."
+      ],
+      "key_takeaways": [
+        "Terrestrial LiDAR measures millions of points per second by sweeping a laser over a scene, producing a dense point cloud.",
+        "Time-of-flight scanners reach long ranges; phase-shift scanners give very high speed and density at shorter ranges.",
+        "Multiple scans must be registered, using targets or overlapping geometry, into one coordinate system before use."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>What a Laser Scanner Measures</h3><p><strong>Terrestrial laser scanning (TLS)</strong>, a form of <strong>LiDAR</strong> (Light Detection And Ranging), captures the three-dimensional geometry of a scene by rapidly sweeping a laser beam across it. For each pulse the scanner records a range and two angles, yielding a 3D point; modern instruments collect hundreds of thousands to over a million points per second. The product is a <strong>point cloud</strong> — a dense set of XYZ points, often colored from an onboard or paired camera and tagged with an intensity value from the returned signal strength.</p><p>Where a total station captures discrete, chosen points, a scanner captures <em>everything</em> in view at high density. This is ideal for as-built documentation, complex facades, industrial plant, deformation monitoring, accident and forensic scenes, and topographic capture of irregular surfaces that would be impractical to survey point by point.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>How Range Is Measured: TOF vs. Phase</h3><p>Two ranging principles dominate TLS:</p><ul><li><strong>Time-of-flight (TOF):</strong> the scanner times how long a laser pulse takes to travel to the surface and back; range = (speed of light × time) / 2. TOF reaches long distances (hundreds of meters to over a kilometer) and suits large outdoor scenes, but per-point speed is lower.</li><li><strong>Phase-shift (phase comparison):</strong> the scanner emits a continuously modulated beam and measures the phase difference between emitted and returned waves to derive range. Phase scanners are extremely fast and dense and very precise at short range, but their useful range is shorter (typically up to ~100–350 m).</li></ul><p>A third class, <strong>waveform / pulse-modulation</strong> hybrids, blends these. Choose the principle to match the job: TOF for a quarry or long corridor, phase for a tight building interior or a detailed structure.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "R = \\frac{c \\cdot t}{2}",
+            "label": "Time-of-flight range (c = speed of light, t = round-trip time)",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Point Density and Resolution</h3><p><strong>Point density</strong> — the spacing between adjacent points on the surface — is the key planning parameter. It is governed by the scanner's <strong>angular resolution</strong> (the angular step between consecutive points) and by <strong>range</strong>: because points fan out, the on-surface spacing grows with distance. As a rule of thumb, point spacing s on a surface at range R for an angular step θ is approximately s ≈ R × θ (with θ in radians). To resolve a feature you must scan at a resolution that places several points across it, so detailed targets demand finer resolution or closer setups. Higher density means longer scan times and far larger files, so density is balanced against the deliverable's accuracy needs.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Ranging type", "Typical range", "Speed / density", "Best for"],
+            "rows": [
+              ["Time-of-flight", "Long (300 m to 1+ km)", "Moderate", "Quarries, corridors, large outdoor sites"],
+              ["Phase-shift", "Short to medium (up to ~100-350 m)", "Very high", "Building interiors, plants, detailed structures"],
+              ["Hybrid / waveform", "Medium-long", "High", "General-purpose scanning"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Registration of Multiple Scans</h3><p>A single setup sees only what is in its line of sight, so most projects require several <strong>scan stations</strong>. <strong>Registration</strong> stitches these scans into one coordinate system. The main methods are:</p><ul><li><strong>Target-based:</strong> place spheres or checkerboard targets visible from adjacent setups; the software matches common targets to compute the transformation. Surveying at least three well-distributed targets per overlap gives strong geometry.</li><li><strong>Cloud-to-cloud (ICP):</strong> the Iterative Closest Point algorithm aligns overlapping point geometry directly, needing generous overlap and non-planar shape.</li><li><strong>Georeferencing:</strong> surveyed control coordinates (from GNSS or total station) on targets or scanner positions tie the cloud to a real-world datum such as Texas State Plane.</li></ul><p>Registration quality is reported as a residual (RMS) error; a tight residual is essential before any measurement is trusted from the cloud.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Class 1 / Class 3R laser products are eye-safe in normal use, but always confirm the laser class, avoid pointing scanners at people at close range, and follow the manufacturer's and OSHA safety guidance on site."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Terrestrial laser scanner with overlapping scan stations and spherical registration targets",
+            "caption": "Figure: Multiple scan stations with overlapping coverage and registration spheres tied to surveyed control.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "TLS captures dense XYZ point clouds at up to millions of points per second, with intensity and often color.",
+              "Time-of-flight ranging suits long ranges; phase-shift gives higher speed and density at shorter ranges.",
+              "Point spacing grows with range, so plan resolution per feature; multiple scans must be registered and georeferenced before measurement."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Point cloud", "definition": "A dense set of measured 3D (XYZ) points representing the surfaces of a scanned scene, typically carrying intensity and sometimes RGB color.", "hint_1": "The raw deliverable of a laser scan."},
+        {"term": "Time-of-flight (TOF) ranging", "definition": "A LiDAR ranging method that measures the round-trip travel time of a laser pulse; range equals (speed of light times time) divided by two.", "hint_1": "Best for long range."},
+        {"term": "Phase-shift ranging", "definition": "A LiDAR method that derives range from the phase difference between a modulated emitted beam and its return; very fast and dense but shorter range.", "hint_1": "Best for high density at short range."},
+        {"term": "Registration", "definition": "The process of aligning multiple scan stations into a single common coordinate system, using common targets, cloud-to-cloud (ICP) matching, or surveyed control."}
+      ]
+    },
+    {
+      "lesson_id": "8fe92114-8460-42b3-a5df-7ea0b49f8e7d",
+      "title": "Point Cloud Processing",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Outline the point cloud processing workflow from registration through classification to deliverables.",
+        "Explain noise filtering, decimation, and classification of points into ground and feature classes.",
+        "Compare deliverables such as TINs/DTMs, meshes, sections, and CAD/BIM extractions and their uses."
+      ],
+      "key_takeaways": [
+        "Raw point clouds are registered, cleaned, and classified before any product is built from them.",
+        "Classification separates ground from vegetation, structures, and noise so a bare-earth surface can be modeled.",
+        "Common deliverables include DTMs/TINs, meshes, cross-sections, contours, and CAD/BIM features extracted from the cloud."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>From Raw Cloud to Usable Product</h3><p>A registered point cloud is data, not yet information. <strong>Point cloud processing</strong> turns billions of raw points into the surfaces, sections, and models a client can use. The workflow is broadly: <strong>register</strong> the scans → <strong>georeference</strong> to control → <strong>clean / filter</strong> noise → <strong>decimate</strong> (thin) to a workable density → <strong>classify</strong> points → <strong>model / extract</strong> deliverables. Each step trades data volume for usability; the surveyor's judgment about the project's accuracy requirements drives how aggressively to filter and thin.</p><p>The files are enormous — a small site can exceed hundreds of millions of points — so processing is done in specialized software (e.g., Cyclone, RealWorks, ReCap, CloudCompare) that can index, tile, and stream the cloud efficiently.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Cleaning, Noise, and Decimation</h3><p>Scans contain artifacts that must be removed before modeling:</p><ul><li><strong>Noise / stray points</strong> from dust, rain, edges, and beam divergence are filtered statistically (e.g., removing points far from their neighbors).</li><li><strong>Mixed pixels</strong> at object edges, where one pulse straddles two surfaces, create false points in space.</li><li><strong>Moving objects</strong> (people, vehicles) and unwanted reflections are deleted manually or by overlap comparison.</li></ul><p><strong>Decimation</strong> reduces point count by keeping one point per voxel or per spacing interval. Done well it preserves geometry while shrinking files; done blindly it can erase fine features. Always decimate to a density consistent with the required accuracy, not below it.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Classification</h3><p><strong>Classification</strong> labels each point by what it represents — ground, vegetation (low/medium/high), buildings, water, wires, noise, and so on. The most important separation for surveyors is <strong>ground vs. non-ground</strong>: only ground points should feed a bare-earth surface. Automated ground filters (progressive TIN densification, slope-based filters) handle most points, followed by manual cleanup. Good classification is what lets you generate a clean <strong>Digital Terrain Model (DTM)</strong> under tree canopy or strip away a building to expose the slab.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Surface model", "Includes", "Typical use"],
+            "rows": [
+              ["DSM (Digital Surface Model)", "First returns: tops of buildings, canopy, ground", "Volumes of stockpiles, line-of-sight, canopy"],
+              ["DTM / DEM (bare earth)", "Ground points only", "Contours, grading, hydrology, design surface"],
+              ["TIN", "Triangulated network of selected points / breaklines", "Engineering surface, earthwork, cross-sections"],
+              ["Mesh", "Triangulated skin over the full cloud", "Visualization, complex as-built geometry"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Deliverables</h3><p>From the processed and classified cloud the surveyor extracts client products:</p><ul><li><strong>Surfaces:</strong> TIN/DTM/DSM for contours, earthwork volumes, and design.</li><li><strong>Meshes:</strong> a continuous triangulated skin for visualization and complex geometry.</li><li><strong>Sections and profiles:</strong> cross-sections sliced from the cloud for roadway, tunnel, or structural work.</li><li><strong>CAD / BIM features:</strong> lines, pipes, steel, and surfaces vectorized from the cloud into a 2D/3D drawing or a building model (<em>scan-to-BIM</em>).</li><li><strong>The cloud itself:</strong> delivered in formats such as LAS/LAZ, E57, or RCP for the client's own use.</li></ul><p>Every deliverable should state the coordinate system, the registration and georeferencing accuracy, and the point density so the client knows its fitness for purpose.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "LAS/LAZ is the open ASPRS standard for storing classified lidar; E57 is a vendor-neutral format for scan + imagery. Delivering an open format protects the client from being locked into one software vendor."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Point cloud classified into ground, vegetation and buildings with a bare-earth DTM derived from ground points",
+            "caption": "Figure: Classification separates ground from vegetation and structures, enabling a bare-earth DTM.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Processing moves from register and georeference, through cleaning and decimation, to classification and modeling.",
+              "Classifying ground vs. non-ground is what enables a clean bare-earth DTM.",
+              "Deliverables range from DTMs/DSMs and meshes to sections and scan-to-BIM features, each with stated accuracy and density."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Classification (point cloud)", "definition": "Labeling each point by the object it represents (ground, vegetation, building, noise, etc.) so surfaces and features can be extracted correctly.", "hint_1": "Ground vs. non-ground is the key split."},
+        {"term": "Decimation", "definition": "Thinning a point cloud to a lower, consistent density (e.g., one point per voxel) to reduce file size while preserving needed geometry."},
+        {"term": "DSM vs. DTM", "definition": "A Digital Surface Model includes tops of buildings and canopy (first returns); a Digital Terrain Model is bare earth, using ground points only.", "hint_1": "DSM = everything; DTM = ground."},
+        {"term": "Scan-to-BIM", "definition": "Extracting CAD/BIM features—walls, pipes, steel, surfaces—from a point cloud to build a measured 2D drawing or 3D building model."}
+      ]
+    },
+    {
+      "lesson_id": "991f9023-ca4c-41b4-92b9-29d4e39aaa2c",
+      "title": "Unmanned Aerial Systems (Drones) in Surveying",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Describe the components of a UAS and the platform types used in surveying.",
+        "Plan a mapping flight using ground sample distance, overlap, and altitude.",
+        "Explain the role of ground control points and checkpoints in accuracy and verification."
+      ],
+      "key_takeaways": [
+        "A UAS captures overlapping aerial imagery (or lidar) that is processed into orthomosaics and 3D surfaces.",
+        "Flight altitude sets the ground sample distance (GSD); higher flight covers more area at coarser resolution.",
+        "Ground control points georeference and scale the model, while independent checkpoints verify its accuracy."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>UAS as a Survey Platform</h3><p>An <strong>Unmanned Aerial System (UAS)</strong> — the aircraft, its ground control station, and the data link — has become a standard surveying tool for rapid mapping of sites, corridors, stockpiles, and inaccessible terrain. The aircraft carries a calibrated camera (for photogrammetry) or a lidar sensor, plus GNSS and an inertial unit (IMU) to log position and attitude. Two platform classes dominate: <strong>multirotor</strong> drones, which hover and take off vertically and suit small, detailed sites; and <strong>fixed-wing</strong> aircraft, which fly faster and longer to cover large areas efficiently. A UAS does not replace ground survey — it complements it, producing dense surfaces quickly while ground control and checkpoints anchor and verify the accuracy.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Ground Sample Distance and Altitude</h3><p>The single most important mapping parameter is <strong>Ground Sample Distance (GSD)</strong> — the ground size represented by one image pixel. GSD scales with flight height and inversely with focal length and sensor pixel size. Lower, slower flight gives finer GSD (sharper, more accurate maps) but covers less ground and needs more images and battery; higher flight covers more area at coarser GSD. A practical relation is GSD = (pixel size × flight height) / focal length. Surveyors pick a target GSD from the deliverable's accuracy requirement — final map accuracy is roughly two to three times the GSD — then back-solve the required flight altitude.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\text{GSD}_{cm} = \\frac{p_{\\mu m} \\cdot H_{m}}{f_{mm} \\cdot 10}",
+            "label": "Ground sample distance (pixel size in microns, height in m, focal length in mm)",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Overlap and Flight Planning</h3><p>Photogrammetry needs every ground point to appear in several images. Flights are planned in a grid of parallel lines with two overlaps:</p><ul><li><strong>Forward (end) overlap</strong> along each flight line — typically <strong>70–80%</strong>.</li><li><strong>Side overlap</strong> between adjacent lines — typically <strong>60–75%</strong>.</li></ul><p>Higher overlap improves the Structure-from-Motion solution and reduces holes, at the cost of more images and flight time. The planning software combines the target GSD, sensor specs, and overlaps to compute altitude, line spacing, and the number of photos. Plan extra overlap over vegetation, water, uniform surfaces, and tall structures where matching is weak.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Platform", "Endurance / coverage", "Strength", "Best for"],
+            "rows": [
+              ["Multirotor", "Short (15-40 min)", "Hovers, vertical takeoff, detailed", "Small sites, structures, stockpiles"],
+              ["Fixed-wing", "Long (45 min-hours)", "Fast, large area per flight", "Corridors, large tracts"],
+              ["VTOL hybrid", "Long", "Vertical takeoff + efficient cruise", "Large sites without a runway"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Ground Control and Checkpoints</h3><p>Imagery alone yields a model with relative shape but no real-world position or scale. <strong>Ground Control Points (GCPs)</strong> — surveyed targets visible in the imagery — georeference the model to the project datum (e.g., Texas State Plane) and constrain its scale and tilt. Distribute GCPs around the perimeter and through the interior, including the corners and at least one in the middle; sparse or clustered control causes \"doming\" and vertical error. <strong>Checkpoints</strong> are additional surveyed points withheld from the adjustment and used to <em>independently verify</em> accuracy. PPK/RTK drones with a precise onboard GNSS can reduce the number of GCPs needed but checkpoints remain essential for an honest accuracy statement.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "GCPs and checkpoints serve different roles: GCPs are used in the adjustment to position the model; checkpoints are held out of it to verify accuracy. Never report a checkpoint that was also used as a control point as proof of accuracy."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "UAS grid flight plan with forward and side overlap and distributed ground control targets",
+            "caption": "Figure: A grid flight plan with forward/side overlap and ground control distributed around and through the site.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "A UAS captures overlapping imagery (or lidar) processed into orthomosaics and 3D surfaces; multirotor for detail, fixed-wing for area.",
+              "GSD is set by flight height and sensor optics; pick GSD from the accuracy spec, then solve for altitude.",
+              "Plan ~70-80% forward and 60-75% side overlap; GCPs georeference the model and independent checkpoints verify it."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Ground Sample Distance (GSD)", "definition": "The real-world ground distance represented by one pixel of an aerial image; smaller GSD means higher resolution. It scales with flight height and sensor optics.", "hint_1": "Set largely by how high you fly."},
+        {"term": "Forward and side overlap", "definition": "The percentage of image area shared between successive photos along a flight line (forward, ~70-80%) and between adjacent lines (side, ~60-75%).", "hint_1": "Needed so each point appears in many photos."},
+        {"term": "Ground Control Point (GCP)", "definition": "A surveyed target visible in the imagery, used in processing to georeference, scale, and level the photogrammetric model to the project datum."},
+        {"term": "Checkpoint", "definition": "A surveyed point withheld from the adjustment and used to independently verify the accuracy of the final model.", "hint_1": "Not used to position the model."}
+      ]
+    },
+    {
+      "lesson_id": "d4ce5cc5-421a-46d9-9194-636ce782c5ac",
+      "title": "Photogrammetry from UAS",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Explain how Structure-from-Motion reconstructs 3D geometry from overlapping images.",
+        "Define orthomosaic, DSM, and DTM and how each is produced from the imagery.",
+        "Identify accuracy factors and sources of error in UAS photogrammetric products."
+      ],
+      "key_takeaways": [
+        "Structure-from-Motion solves camera positions and a sparse then dense point cloud from overlapping photos.",
+        "An orthomosaic is a geometrically corrected, scale-true image; a DSM/DTM is the elevation surface.",
+        "Accuracy depends on GSD, overlap, control distribution, camera calibration, and scene texture."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Structure-from-Motion</h3><p><strong>Structure-from-Motion (SfM)</strong> is the photogrammetric engine behind UAS mapping. From a set of overlapping images it automatically finds thousands of matching features across photos and, by triangulation, simultaneously solves for the camera position and orientation of every image and for the 3D coordinates of the matched features. This bundle of unknowns is refined together in a <strong>bundle adjustment</strong>. The result is first a <em>sparse</em> point cloud (the tie points) and recovered camera poses, then a <em>dense</em> point cloud built by matching across all overlapping pixels. SfM tolerates uncalibrated, consumer cameras by self-calibrating during the adjustment, which is what makes inexpensive drones viable mapping tools.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The Processing Pipeline</h3><p>A typical UAS photogrammetry workflow runs:</p><ul><li><strong>Align photos / aerotriangulation:</strong> feature matching and bundle adjustment produce camera poses and a sparse cloud.</li><li><strong>Mark GCPs:</strong> the surveyed control is identified in the images and the solution is georeferenced and re-optimized.</li><li><strong>Dense cloud:</strong> multi-view stereo densifies the surface to millions of points.</li><li><strong>Mesh / DSM:</strong> a triangulated surface or raster elevation model is built.</li><li><strong>Orthomosaic:</strong> images are orthorectified onto the surface and blended into a single map.</li></ul><p>Software such as Pix4D, Agisoft Metashape, and DroneDeck/Reality capture these steps; the surveyor's job is to feed good imagery and control and to QA each stage.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Orthomosaics, DSM, and DTM</h3><p>The headline deliverables are an image product and elevation products. An <strong>orthomosaic</strong> is a mosaic of the photos that has been <em>orthorectified</em> — the perspective and relief distortion of each photo is removed so that every pixel is in its true plan position at uniform scale. Unlike a raw photo, you can measure distances and areas directly on an orthomosaic. The <strong>Digital Surface Model (DSM)</strong> records the elevation of the top surface (buildings, canopy, ground), while the <strong>Digital Terrain Model (DTM)</strong> is the bare-earth surface after removing vegetation and structures — the basis for contours and design. Producing a true DTM from imagery is harder than from lidar because cameras cannot see the ground through canopy.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\text{footprint}_{m} = \\text{GSD}_{m} \\times (\\text{image width in pixels})",
+            "label": "Ground footprint width of one image",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Product", "What it is", "Use"],
+            "rows": [
+              ["Orthomosaic", "Scale-true, orthorectified image map", "Measure plan distances/areas, base map"],
+              ["DSM", "Elevation of the top surface", "Volumes, line-of-sight, canopy height"],
+              ["DTM", "Bare-earth elevation", "Contours, grading design, drainage"],
+              ["Dense point cloud / mesh", "3D points or triangulated skin", "3D measurement, visualization, CAD"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Accuracy and Error Sources</h3><p>Photogrammetric accuracy is driven by a chain of factors. <strong>GSD</strong> sets the floor — horizontal accuracy is commonly two to three times the GSD. <strong>Overlap</strong> and <strong>control distribution</strong> control the strength and stability of the network; weak control causes systematic doming and vertical drift. <strong>Camera calibration</strong> (lens distortion) and a rolling shutter introduce geometric error if not modeled. The <strong>scene</strong> matters too: water, snow, uniform pavement, dense vegetation, and moving objects defeat feature matching and create holes or noise. Wind and image blur degrade sharpness. A disciplined surveyor controls these inputs and proves the result against independent checkpoints reported as RMSE in plan and vertical.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Vertical accuracy from UAS photogrammetry is typically weaker than horizontal. When elevations matter (grading, drainage), tighten control, add checkpoints, and consider UAS-lidar where canopy or accuracy demands it."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "SfM reconstruction showing camera positions, tie points, dense cloud, and resulting orthomosaic and DSM",
+            "caption": "Figure: SfM recovers camera poses and a dense cloud, from which an orthomosaic and DSM/DTM are derived.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "SfM with bundle adjustment recovers camera poses and a dense 3D cloud from overlapping photos, even with consumer cameras.",
+              "An orthomosaic is scale-true for plan measurement; DSM is top-surface and DTM is bare-earth elevation.",
+              "Accuracy tracks GSD, overlap, control distribution, and calibration; verify against independent checkpoints (RMSE)."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Structure-from-Motion (SfM)", "definition": "A photogrammetric method that simultaneously solves camera positions/orientations and 3D point coordinates from overlapping images via feature matching and bundle adjustment.", "hint_1": "Recovers the cameras and the scene together."},
+        {"term": "Orthomosaic", "definition": "A single, geometrically corrected (orthorectified) image map in which relief and perspective distortion are removed so distances and areas can be measured at true scale."},
+        {"term": "Bundle adjustment", "definition": "The simultaneous least-squares refinement of all camera parameters and tie-point coordinates that minimizes reprojection error across the image network."},
+        {"term": "Dense point cloud (MVS)", "definition": "The high-density 3D point cloud produced by multi-view stereo after image alignment, used to build meshes and elevation models."}
+      ]
+    },
+    {
+      "lesson_id": "2659a29f-3f98-4733-a026-754fa0d58782",
+      "title": "Technology Integration and Best Practices",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Select the appropriate technology (robotic, scanning, GNSS, UAS) for a given survey task.",
+        "Combine multiple sensors and tie them to common control for an integrated deliverable.",
+        "Apply QA/QC, safety, and Texas/FAA legal requirements to technology-based surveys."
+      ],
+      "key_takeaways": [
+        "No single tool is best for everything; match the technology to accuracy, site, and deliverable needs.",
+        "Integration depends on a common control framework and consistent coordinate system and datum.",
+        "QA/QC, independent checks, safety, and FAA Part 107 / Texas licensure rules govern professional practice."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Choosing the Right Tool</h3><p>Robotic total stations, GNSS, terrestrial scanning, and UAS are complementary, not competing. The professional surveyor selects — or combines — tools to meet the project's <strong>accuracy</strong>, <strong>site conditions</strong>, <strong>deliverable</strong>, and <strong>budget</strong>. A robotic total station gives high relative accuracy and works under canopy and indoors where GNSS fails. GNSS provides fast control over open areas. Terrestrial scanning captures dense, complex geometry such as facades and plant. UAS rapidly maps large or hazardous areas from the air. Recognizing the strengths and limits of each is the core engineering judgment of modern surveying.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Technology", "Strength", "Limitation", "Typical use"],
+            "rows": [
+              ["Robotic total station", "High relative accuracy, one-person crew", "Line of sight, slower for area", "Stakeout, control, topo"],
+              ["GNSS (RTK/static)", "Fast control over open areas", "Needs sky view, weak vertically", "Control, open-area topo"],
+              ["Terrestrial scanning", "Dense, complex geometry", "Occlusions, large data, setup time", "As-built, structures, deformation"],
+              ["UAS imagery/lidar", "Rapid large-area coverage", "Weak under canopy (photo), regulated", "Site mapping, corridors, volumes"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Integration Through Common Control</h3><p>The key to combining sensors is a single, well-distributed <strong>control framework</strong> in one coordinate system and datum (commonly Texas State Plane with NAVD88 elevations). Every sensor — the scanner's targets, the UAS GCPs, the robotic traverse, the GNSS base — is tied to the same control so the products overlay correctly. A typical integrated job might use GNSS to establish control, a robotic total station to set and check it and to capture detail under trees, a UAS to map the open ground and volumes, and a scanner for a complex structure, all merged into one model. Consistent datums, geoid model, and units (watch the U.S. survey foot vs. international foot in Texas) are non-negotiable for a clean merge.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: a UAS does not change who may practice. Surveys and maps that establish boundaries or are offered as professional surveying work must be performed under a Registered Professional Land Surveyor (RPLS) per the Texas Board rules—the drone is a tool, not a license."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>FAA Part 107 and Legal/Safety Duties</h3><p>Commercial UAS operations in the U.S. require an FAA <strong>Part 107 Remote Pilot Certificate</strong>. Core Part 107 rules include flying below 400 ft AGL, maintaining visual line of sight, daylight or civil-twilight operation (with anti-collision lighting), staying clear of controlled airspace without authorization (LAANC), not flying over people or moving vehicles without a waiver, and yielding to manned aircraft. The aircraft must be registered, and operations follow a preflight checklist and airspace check. Safety on the ground — traffic control, PPE, laser-class awareness for scanners, and battery handling — applies to every technology. Document waivers and authorizations in the project record.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>QA/QC and Verification</h3><p>High-tech tools produce data quickly, which makes <strong>QA/QC</strong> more important, not less — a fast blunder is still a blunder. Build verification into every workflow:</p><ul><li><strong>Independent checks:</strong> shoot known control with each instrument; hold checkpoints out of UAS and scan adjustments and report RMSE.</li><li><strong>Redundancy:</strong> overlapping scans, repeated GNSS occupations, closed traverses.</li><li><strong>Calibration:</strong> keep instruments calibrated and cameras characterized; log it.</li><li><strong>Metadata:</strong> record datum, units, accuracy, sensor, and processing settings on every deliverable.</li></ul><p>A defensible survey states not just the answer but how its accuracy was verified — the mark of professional, rather than merely technical, work.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Integrated survey tying GNSS, robotic total station, scanner and UAS to one common control framework",
+            "caption": "Figure: Multiple sensors tied to a single control framework and datum produce one consistent deliverable.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Match the technology to accuracy, site, deliverable, and budget; combine sensors when it serves the job.",
+              "Integration relies on one common control framework, datum, geoid, and unit definition.",
+              "Comply with FAA Part 107 and Texas RPLS requirements, and build QA/QC, redundancy, and documented checks into every workflow."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {"term": "Common control framework", "definition": "A single set of well-distributed control points in one coordinate system and datum to which every sensor is tied so their products overlay correctly.", "hint_1": "The glue that lets sensors merge."},
+        {"term": "FAA Part 107", "definition": "The U.S. federal rule and Remote Pilot Certificate governing commercial small-UAS operations: line of sight, below 400 ft AGL, daylight, airspace authorization, and related limits."},
+        {"term": "QA/QC in surveying", "definition": "Quality assurance/quality control: independent checks, redundancy, calibration, and metadata that verify and document the accuracy of a survey deliverable.", "hint_1": "Fast data still needs verification."},
+        {"term": "RPLS requirement (Texas)", "definition": "In Texas, surveying work that establishes boundaries or is offered as professional land surveying must be performed under a Registered Professional Land Surveyor; the technology is only a tool."}
+      ]
+    }
+  ],
+  "quiz_questions": [
+    {
+      "lesson_id": "01481882-ccd3-4374-8d8d-7b5d72b9b37e",
+      "question_text": "What is the primary advantage of a robotic total station over a conventional motorized total station?",
+      "question_type": "multiple_choice",
+      "options": [
+        "It eliminates the need for any control points",
+        "It allows a one-person crew by letting the surveyor operate from the prism",
+        "It measures distances without a prism in all cases",
+        "It does not require leveling or centering"
+      ],
+      "correct_answer": "It allows a one-person crew by letting the surveyor operate from the prism",
+      "explanation": "A robotic total station is controlled remotely from the rover via radio, so one person works at the prism. It still requires control, proper leveling/centering, and a reflector for most measurements.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "01481882-ccd3-4374-8d8d-7b5d72b9b37e",
+      "question_text": "What does Automatic Target Recognition (ATR) do?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Levels the instrument automatically",
+        "Detects the reflected beam from the prism and fine-centers the crosshairs on it",
+        "Calculates coordinates from GNSS",
+        "Removes atmospheric refraction from the distance"
+      ],
+      "correct_answer": "Detects the reflected beam from the prism and fine-centers the crosshairs on it",
+      "explanation": "ATR uses the prism's reflected infrared signal to automatically center the line of sight, removing manual pointing error. It does not level the instrument or perform GNSS work.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "01481882-ccd3-4374-8d8d-7b5d72b9b37e",
+      "question_text": "A 360-degree active prism is used on a robotic rover primarily because it",
+      "question_type": "multiple_choice",
+      "options": [
+        "is more accurate than a single prism for precise measurements",
+        "returns a signal from any horizontal direction so the rover need not be aimed back at the instrument",
+        "eliminates the need for the instrument to track",
+        "doubles the maximum measuring range"
+      ],
+      "correct_answer": "returns a signal from any horizontal direction so the rover need not be aimed back at the instrument",
+      "explanation": "A 360-degree prism lets the instrument see the rover from any direction during tracking. A single prism is actually slightly more precise but must be aimed at the instrument.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "01481882-ccd3-4374-8d8d-7b5d72b9b37e",
+      "question_text": "A robotic total station can falsely lock onto reflective surfaces such as windows, signs, or another crew's prism.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "Stray reflectors within the search window can cause a false lock, which is why active/ID prisms, working areas, and clearing competing reflectors are used.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "9d92655f-bc09-401c-a2eb-d30fd3e28545",
+      "question_text": "Which ranging method is best suited to a terrestrial scanner used on a long quarry or highway corridor?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Phase-shift, because it has the longest range",
+        "Time-of-flight, because it reaches the longest ranges",
+        "Stadia, because it is fastest",
+        "Trilateration, because it needs no prism"
+      ],
+      "correct_answer": "Time-of-flight, because it reaches the longest ranges",
+      "explanation": "Time-of-flight scanners measure long ranges (hundreds of meters to over a kilometer), suiting large outdoor sites. Phase-shift scanners are faster and denser but shorter range.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "9d92655f-bc09-401c-a2eb-d30fd3e28545",
+      "question_text": "Why does the on-surface point spacing of a laser scan increase as range increases for a fixed angular resolution?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The laser loses power and skips points",
+        "The angular step subtends a larger ground distance at greater range (spacing approximately equals range times angle)",
+        "The scanner deliberately thins distant points",
+        "Atmospheric refraction bends the beam"
+      ],
+      "correct_answer": "The angular step subtends a larger ground distance at greater range (spacing approximately equals range times angle)",
+      "explanation": "Points fan out from the scanner, so for a fixed angular increment the arc length on the surface grows with range (s is approximately R times theta). Distant surfaces are sampled more sparsely.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "9d92655f-bc09-401c-a2eb-d30fd3e28545",
+      "question_text": "What is the purpose of registration in terrestrial laser scanning?",
+      "question_type": "multiple_choice",
+      "options": [
+        "To remove noise from a single scan",
+        "To align multiple scan stations into one common coordinate system",
+        "To convert the cloud into a mesh",
+        "To classify ground versus vegetation"
+      ],
+      "correct_answer": "To align multiple scan stations into one common coordinate system",
+      "explanation": "Registration stitches separate setups into a single coordinate system using targets, cloud-to-cloud (ICP), or surveyed control. Noise removal, meshing, and classification are later processing steps.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "8fe92114-8460-42b3-a5df-7ea0b49f8e7d",
+      "question_text": "In point cloud processing, what is the main reason to classify points before building a bare-earth surface?",
+      "question_type": "multiple_choice",
+      "options": [
+        "To add color to the points",
+        "To separate ground points from vegetation and structures so only ground feeds the DTM",
+        "To compress the file",
+        "To register the scans"
+      ],
+      "correct_answer": "To separate ground points from vegetation and structures so only ground feeds the DTM",
+      "explanation": "A clean Digital Terrain Model uses ground points only; classification is what removes canopy and buildings. Color, compression, and registration are separate concerns.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "8fe92114-8460-42b3-a5df-7ea0b49f8e7d",
+      "question_text": "Which deliverable represents the elevation of the top surface, including building roofs and tree canopy?",
+      "question_type": "multiple_choice",
+      "options": [
+        "DTM (Digital Terrain Model)",
+        "DSM (Digital Surface Model)",
+        "Orthomosaic",
+        "TIN breakline"
+      ],
+      "correct_answer": "DSM (Digital Surface Model)",
+      "explanation": "A DSM records the top surface (first returns) including buildings and canopy. A DTM is bare earth; an orthomosaic is an image product.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "8fe92114-8460-42b3-a5df-7ea0b49f8e7d",
+      "question_text": "Decimating a point cloud always improves the accuracy of the final surface.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "Decimation reduces point count and file size but, done too aggressively, can erase fine features and degrade the surface. It should be matched to the required accuracy, not pushed blindly.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "8fe92114-8460-42b3-a5df-7ea0b49f8e7d",
+      "question_text": "Name one open, vendor-neutral file format commonly used to deliver classified lidar point clouds.",
+      "question_type": "short_answer",
+      "options": [],
+      "correct_answer": "LAS",
+      "explanation": "LAS (or its compressed form LAZ) is the ASPRS open standard for lidar; E57 is another vendor-neutral format for scans plus imagery. Delivering an open format avoids vendor lock-in.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "991f9023-ca4c-41b4-92b9-29d4e39aaa2c",
+      "question_text": "If a surveyor needs a finer (smaller) ground sample distance, what change to the flight plan achieves it, all else equal?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Fly higher above the ground",
+        "Fly lower above the ground",
+        "Increase the side overlap only",
+        "Use a longer flight line spacing"
+      ],
+      "correct_answer": "Fly lower above the ground",
+      "explanation": "GSD scales with flight height, so flying lower yields a smaller GSD (higher resolution) at the cost of less coverage and more images. Overlap and line spacing do not set GSD.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "991f9023-ca4c-41b4-92b9-29d4e39aaa2c",
+      "question_text": "Typical forward (end) overlap for UAS mapping photography is about:",
+      "question_type": "multiple_choice",
+      "options": [
+        "20-30%",
+        "40-50%",
+        "70-80%",
+        "95-100%"
+      ],
+      "correct_answer": "70-80%",
+      "explanation": "Forward overlap of roughly 70-80% (with 60-75% side overlap) ensures each ground point appears in several images for a strong Structure-from-Motion solution.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "991f9023-ca4c-41b4-92b9-29d4e39aaa2c",
+      "question_text": "What is the essential difference between a ground control point (GCP) and a checkpoint?",
+      "question_type": "multiple_choice",
+      "options": [
+        "GCPs are surveyed and checkpoints are not",
+        "GCPs are used in the adjustment to position the model; checkpoints are withheld to independently verify accuracy",
+        "Checkpoints are only used for lidar, GCPs only for imagery",
+        "There is no difference"
+      ],
+      "correct_answer": "GCPs are used in the adjustment to position the model; checkpoints are withheld to independently verify accuracy",
+      "explanation": "Both are surveyed targets, but GCPs constrain the photogrammetric solution while checkpoints are held out and used as an independent accuracy check (RMSE).",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "991f9023-ca4c-41b4-92b9-29d4e39aaa2c",
+      "question_text": "A multirotor UAS is generally preferred over a fixed-wing for mapping a very large open tract as quickly as possible.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "Fixed-wing aircraft fly faster and longer and cover large areas more efficiently; multirotors are better for small, detailed sites and structures.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "d4ce5cc5-421a-46d9-9194-636ce782c5ac",
+      "question_text": "What does Structure-from-Motion (SfM) solve for from a set of overlapping images?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Only the orthomosaic",
+        "The camera positions/orientations and the 3D coordinates of matched features simultaneously",
+        "Only the ground control coordinates",
+        "The atmospheric conditions during flight"
+      ],
+      "correct_answer": "The camera positions/orientations and the 3D coordinates of matched features simultaneously",
+      "explanation": "SfM matches features across photos and, via bundle adjustment, solves camera poses and scene point coordinates together, producing a sparse then dense cloud.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "d4ce5cc5-421a-46d9-9194-636ce782c5ac",
+      "question_text": "Why can distances be measured directly on an orthomosaic but not on a raw aerial photo?",
+      "question_type": "multiple_choice",
+      "options": [
+        "An orthomosaic is in color",
+        "An orthomosaic is orthorectified, removing perspective and relief distortion so every pixel is at true plan position and uniform scale",
+        "A raw photo has no resolution",
+        "An orthomosaic is a 3D model"
+      ],
+      "correct_answer": "An orthomosaic is orthorectified, removing perspective and relief distortion so every pixel is at true plan position and uniform scale",
+      "explanation": "Orthorectification removes the tilt and relief displacement of a perspective photo, giving a uniform-scale map on which plan distances and areas are true.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "d4ce5cc5-421a-46d9-9194-636ce782c5ac",
+      "question_text": "Which is typically the WEAKEST aspect of UAS photogrammetric accuracy, requiring extra control and checkpoints?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Horizontal position",
+        "Vertical (elevation) accuracy",
+        "Image color",
+        "File size"
+      ],
+      "correct_answer": "Vertical (elevation) accuracy",
+      "explanation": "Vertical accuracy is usually weaker than horizontal in UAS photogrammetry, so elevation-critical work needs tighter control, checkpoints, or UAS-lidar.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "2659a29f-3f98-4733-a026-754fa0d58782",
+      "question_text": "What certificate does the FAA require to operate a small UAS commercially in the United States?",
+      "question_type": "multiple_choice",
+      "options": [
+        "A private pilot license",
+        "A Part 107 Remote Pilot Certificate",
+        "An RPLS license",
+        "No certificate is required"
+      ],
+      "correct_answer": "A Part 107 Remote Pilot Certificate",
+      "explanation": "Commercial small-UAS flight requires an FAA Part 107 Remote Pilot Certificate, with rules such as line of sight, below 400 ft AGL, and airspace authorization.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "2659a29f-3f98-4733-a026-754fa0d58782",
+      "question_text": "In Texas, what governs who may perform a boundary survey produced with drone and scanning technology?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Only the FAA Part 107 certificate is needed",
+        "It must be performed under a Registered Professional Land Surveyor (RPLS); the technology is just a tool",
+        "Anyone with a drone may perform it",
+        "It is governed solely by the software vendor"
+      ],
+      "correct_answer": "It must be performed under a Registered Professional Land Surveyor (RPLS); the technology is just a tool",
+      "explanation": "Texas requires boundary/professional surveying work to be done under an RPLS. Part 107 only authorizes the flight; it does not license surveying.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "2659a29f-3f98-4733-a026-754fa0d58782",
+      "question_text": "What is the key requirement that lets data from a robotic total station, GNSS, a scanner, and a UAS be merged into one consistent deliverable?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Using the same brand of equipment",
+        "Tying every sensor to a common control framework in one coordinate system and datum",
+        "Collecting all data on the same day",
+        "Using the highest possible point density"
+      ],
+      "correct_answer": "Tying every sensor to a common control framework in one coordinate system and datum",
+      "explanation": "Integration depends on a shared, well-distributed control framework with a consistent datum, geoid, and units, so all sensor products overlay correctly.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "2659a29f-3f98-4733-a026-754fa0d58782",
+      "question_text": "Because high-tech sensors collect data so quickly, QA/QC and independent checks become less important.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "Fast acquisition makes QA/QC more important: independent checks, redundancy, calibration, and documented checkpoints are what make the result defensible.",
+      "difficulty": "easy"
+    }
+  ],
+  "problem_templates": [
+    {
+      "name": "Ground sample distance from flight height and camera optics",
+      "category": "UAS Surveying — Flight Planning",
+      "subcategory": "Ground sample distance",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A UAS camera has a pixel size of {{pixel:f2}} microns and a focal length of {{focal:f2}} mm. The aircraft flies at {{height:f0}} m above ground. Using GSD = (pixel_size_um x height_m) / (focal_mm x 10), what is the ground sample distance, in centimeters per pixel?",
+      "parameters": [
+        {"name": "pixel", "type": "float", "min": 1.5, "max": 4.0, "decimals": 2},
+        {"name": "focal", "type": "float", "min": 8.0, "max": 12.0, "decimals": 2},
+        {"name": "height", "type": "float", "min": 60, "max": 120, "decimals": 0}
+      ],
+      "computed_vars": [
+        {"name": "num", "formula": "pixel*height"},
+        {"name": "den", "formula": "focal*10"}
+      ],
+      "answer_formula": "(pixel*height)/(focal*10)",
+      "answer_format": {"decimals": 2, "unit": "cm/px", "tolerance": 0.05},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Numerator (pixel x height)", "formula": "pixel_um x height_m", "calculation_template": "{{pixel:f2}} x {{height:f0}} = {{num:f2}}"},
+        {"step_number": 2, "title": "Denominator (focal x 10)", "formula": "focal_mm x 10", "calculation_template": "{{focal:f2}} x 10 = {{den:f2}}"},
+        {"step_number": 3, "title": "Divide", "result_template": "{{num:f2}} / {{den:f2}} = {{_answer}} cm/px"}
+      ],
+      "explanation_template": "GSD = (pixel x height)/(focal x 10) = ({{pixel:f2}} x {{height:f0}})/({{focal:f2}} x 10) = {{_answer}} cm/px. Flying lower or using a longer focal length reduces GSD.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Ground footprint width of one UAS image",
+      "category": "UAS Surveying — Flight Planning",
+      "subcategory": "Image footprint",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "A mapping flight produces a GSD of {{gsd:f2}} cm/pixel with a camera {{width:f0}} pixels wide. What is the ground footprint width of a single image, in meters?",
+      "parameters": [
+        {"name": "gsd", "type": "float", "min": 1.5, "max": 5.0, "decimals": 2},
+        {"name": "width", "type": "integer", "min": 4000, "max": 6000}
+      ],
+      "computed_vars": [
+        {"name": "cmTotal", "formula": "gsd*width"}
+      ],
+      "answer_formula": "(gsd*width)/100",
+      "answer_format": {"decimals": 2, "unit": "m", "tolerance": 0.5},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Width in centimeters", "formula": "GSD x pixels", "calculation_template": "{{gsd:f2}} cm x {{width:f0}} = {{cmTotal:f2}} cm"},
+        {"step_number": 2, "title": "Convert to meters", "result_template": "{{cmTotal:f2}} / 100 = {{_answer}} m"}
+      ],
+      "explanation_template": "Footprint = GSD x image width = {{gsd:f2}} cm x {{width:f0}} px = {{cmTotal:f2}} cm = {{_answer}} m. The along-track footprint uses the image height instead.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Laser scan point spacing at a given range",
+      "category": "Laser Scanning — Resolution",
+      "subcategory": "Point spacing",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A terrestrial scanner is set to an angular resolution of {{ang:f3}} degrees. For a surface at a range of {{range:f0}} m, what is the approximate point spacing on that surface, in centimeters? (Use spacing = range x angle, with angle in radians.)",
+      "parameters": [
+        {"name": "ang", "type": "float", "min": 0.010, "max": 0.060, "decimals": 3},
+        {"name": "range", "type": "float", "min": 20, "max": 120, "decimals": 0}
+      ],
+      "computed_vars": [
+        {"name": "angRad", "formula": "toRad(ang)"},
+        {"name": "spacingM", "formula": "range*toRad(ang)"}
+      ],
+      "answer_formula": "range*toRad(ang)*100",
+      "answer_format": {"decimals": 2, "unit": "cm", "tolerance": 0.1},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Angle to radians", "formula": "theta_rad = theta_deg x pi/180", "calculation_template": "{{ang:f3}} deg = {{angRad:f6}} rad"},
+        {"step_number": 2, "title": "Spacing (range x angle)", "formula": "s = R x theta", "calculation_template": "{{range:f0}} x {{angRad:f6}} = {{spacingM:f4}} m"},
+        {"step_number": 3, "title": "Convert to centimeters", "result_template": "{{spacingM:f4}} x 100 = {{_answer}} cm"}
+      ],
+      "explanation_template": "For a small angular step, on-surface spacing s = R x theta (theta in radians) = {{range:f0}} x {{angRad:f6}} = {{spacingM:f4}} m = {{_answer}} cm. Spacing grows with range, so distant surfaces are sampled more sparsely.",
+      "options_generator": {"method": "none"}
+    }
+  ]
+}

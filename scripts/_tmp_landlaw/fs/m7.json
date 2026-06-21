@@ -1,0 +1,1087 @@
+{
+ "module_number": 7,
+ "title": "Boundary Law and Public Lands",
+ "description": "The largest knowledge area on the FS exam: the Public Land Survey System (townships, ranges, sections, aliquot parts, section subdivision, and lost/obliterated-corner restoration by single and double proportionate measurement), the three systems of legal description (metes-and-bounds, lot-and-block, PLSS), the dignity/priority of calls and the footsteps doctrine, senior/junior rights, simultaneous vs. sequential conveyances, riparian/littoral water boundaries, adverse possession, easements, recording, and boundary-related ethics — with Texas (GLO grant, vara, no-PLSS) callouts throughout.",
+ "week_range": "Weeks 13-16",
+ "exam_weight_percent": 20,
+ "icon": "⚖️",
+ "xp_reward": 800,
+ "prerequisite_module": 6,
+ "key_topics": [
+  "PLSS framework: principal meridian/base line, townships, ranges, sections",
+  "Numbering and acreage of sections (1 section = 640 acres = 1 sq mile)",
+  "Aliquot parts and section subdivision (quarters, quarter-quarters, half-quarters)",
+  "Lost vs. obliterated vs. existent corners; corner accessories and bearing trees",
+  "Single proportionate measurement (corner on a single line)",
+  "Double proportionate measurement (corner controlled in two directions)",
+  "Legal descriptions: metes-and-bounds, lot-and-block (platted), PLSS aliquot",
+  "Dignity/priority of calls and the footsteps-of-the-original-surveyor doctrine",
+  "Senior/junior rights; simultaneous vs. sequential conveyances; excess & deficiency",
+  "Riparian/littoral boundaries; accretion, reliction, erosion, avulsion; navigable beds",
+  "Adverse possession elements and easements (express, implied, prescriptive)",
+  "Recording acts (notice/race/race-notice), chain of title, BFP doctrine",
+  "Texas specifics: GLO original-survey/abstract system, no PLSS grid, the vara",
+  "Boundary-related professional ethics and the surveyor's duty in retracement"
+ ],
+ "key_formulas": [
+  {
+   "name": "Area of a standard section",
+   "formula": "1 section = 1 sq mile = 640 acres"
+  },
+  {
+   "name": "Aliquot part area",
+   "formula": "A = (product of the aliquot fractions) × 640 acres"
+  },
+  {
+   "name": "Quarter section",
+   "formula": "¼ × 640 = 160 acres"
+  },
+  {
+   "name": "Quarter-quarter (forty)",
+   "formula": "¼ × ¼ × 640 = 40 acres"
+  },
+  {
+   "name": "Half of a quarter",
+   "formula": "½ × ¼ × 640 = 80 acres"
+  },
+  {
+   "name": "Acre definition",
+   "formula": "1 acre = 43,560 ft² = 10 sq chains"
+  },
+  {
+   "name": "Chain / mile",
+   "formula": "1 chain = 66 ft; 1 mile = 80 chains = 5,280 ft"
+  },
+  {
+   "name": "Single proportion (corrected interval)",
+   "formula": "d' = D_record × (L_measured / L_record)"
+  },
+  {
+   "name": "Single proportion (restored coordinate)",
+   "formula": "C = C₁ + (C₂ − C₁) × (record dist to corner / total record dist)"
+  },
+  {
+   "name": "Texas vara",
+   "formula": "1 vara = 33⅓ in = 2.7778 ft;  ft = vrs × 2.7778 = vrs ÷ 0.36"
+  },
+  {
+   "name": "Texas labor / league",
+   "formula": "1 labor ≈ 177.1 ac; 1 league (sitio) = 25 labors ≈ 4,428 ac"
+  }
+ ],
+ "content_sections": [
+  {
+   "type": "overview",
+   "title": "Module Overview",
+   "content": "## The heaviest area on the FS exam\n\n**Boundary Law and Real Property Principles is the single largest knowledge area on the NCEES FS exam — 19 to 29 of the 110 questions (roughly 17–26%).** Do not treat the FS as a pure math test: more points live here than in any computational area, and most boundary questions are conceptual, fast to answer, and high-return. A candidate who masters this module banks a large block of quick points while others burn time on long COGO problems.\n\nBoundary law answers one question: **where is the line, and who owns the land?** It is answered with three intertwined systems:\n\n1. **The Public Land Survey System (PLSS)** — the federal rectangular grid of townships, ranges, sections, and **aliquot parts** that organizes most of the 30 \"public-land states.\" You must be able to number a section, subdivide it, compute aliquot-part acreage, and **restore a lost corner** by single or double proportionate measurement using the BLM *Manual of Surveying Instructions*.\n\n2. **Legal descriptions** — **metes-and-bounds** (a perimeter of bearings, distances, and monuments), **lot-and-block** (reference to a recorded subdivision plat), and **PLSS aliquot** (e.g., the *NE¼ of the SW¼ of Sec. 14*). Each must unambiguously locate one closed parcel.\n\n3. **Common-law boundary doctrine** — the **dignity (priority) of calls**, the **footsteps of the original surveyor**, **senior/junior rights**, **simultaneous vs. sequential** conveyances, **water boundaries** (riparian/littoral, accretion/avulsion), **adverse possession**, **easements**, and **recording/chain of title**.\n\nThroughout, watch for **Texas specifics**: Texas was **never federal public domain**, so **most of Texas has no PLSS township-range grid** — Texas land is metes-and-bounds keyed to an **original General Land Office (GLO) survey + abstract number**, measured historically in **varas**. These Texas-vs-PLSS distinctions are flagged in callouts and appear on the Texas SIT. Every concept here is exam-aligned to the NCEES FS specification (Area 3) and the supplied standards."
+  },
+  {
+   "type": "concepts",
+   "title": "Key Concepts",
+   "content": "## 1. The Public Land Survey System (PLSS)\n\nThe PLSS (begun under the Land Ordinance of 1785, administered today by the **BLM**, successor to the federal **General Land Office**) lays a **rectangular grid** over the public domain. It is built from an **initial point**, from which run a **principal meridian** (north–south) and a **base line** (east–west).\n\n- **Township strips** run east–west, numbered north or south of the base line: **T2N, T3S**, etc.\n- **Range strips** run north–south, numbered east or west of the principal meridian: **R4E, R1W**, etc.\n- A **township** is the 6 mi × 6 mi square at the intersection of a township row and a range column — nominally **36 sq miles**, containing **36 sections**.\n\n**Section numbering is a boustrophedon (\"ox-plow\") serpentine:** Section 1 is in the **NE corner**, numbering runs **west** across the top to 6, **drops down** to 7, runs **east** to 12, drops to 13, and so on, ending at **Section 36 in the SE corner**.\n\n```\n  6  5  4  3  2  1\n  7  8  9 10 11 12\n 18 17 16 15 14 13\n 19 20 21 22 23 24\n 30 29 28 27 26 25\n 31 32 33 34 35 36\n```\n\nA **standard section is 1 mile square = 640 acres.** Because the Earth converges toward the poles, the grid cannot be perfectly square: **standard parallels (correction lines)** and **guide meridians** periodically reset the grid, and the resulting deficiency or surplus is thrown into the **west and north tiers** of the township as irregular **government lots** (e.g., along a meander line or the township's NW corner). Sections 6 and along the north/west edges therefore commonly contain fractional government lots rather than clean aliquot parts.\n\n## 2. Aliquot parts and section subdivision\n\nA section is subdivided by repeated halving and quartering into **aliquot parts**. The acreage of any aliquot part is simply the **product of its fractions times 640 acres**:\n\n- **Quarter section** (NE¼) = ¼ × 640 = **160 acres**\n- **Quarter-quarter** (NE¼ of the NW¼), the classic **\"forty\"** = ¼ × ¼ × 640 = **40 acres**\n- **Half of a quarter** (N½ of the NW¼) = ½ × ¼ × 640 = **80 acres**\n- **Half-half-quarter** (S½ of the NE¼ of the SW¼) = ½ × ¼ × ¼ × 640 = **20 acres**\n\n**Read the description right-to-left** to nest the parts: \"the *NE¼ of the SW¼*\" means *take the SW quarter (160 ac), then its NE quarter (40 ac)*. The center-quarter corners and quarter-quarter corners are set by **straight lines connecting opposite quarter and sixteenth corners** on the section boundary (the BLM \"3-3 rule\" of subdivision), **not** by measuring nominal 1,320-ft distances — found original corners control, and any excess/deficiency falls into the northern/western lots.\n\n## 3. Existent, obliterated, and lost corners\n\nWhen retracing a PLSS line you must classify each original corner:\n\n- **Existent corner** — its position can be recovered from the original monument or undisturbed accessories, beyond reasonable doubt. **It controls; never disturb it.**\n- **Obliterated corner** — no trace of the monument remains, **but its position can be recovered from collateral evidence** (testimony, fences/occupation lines, bearing trees, found accessories, adjoiner deeds). An obliterated corner is **not** lost.\n- **Lost corner** — its position **cannot be recovered from any acceptable evidence**, original or collateral, and can be restored **only by proportionate measurement** from surrounding existent corners. Proportioning is a **last resort.**\n\n**Corner accessories** — **bearing trees** (scribed trees with recorded bearings/distances to the corner), **mounds, pits, and memorial objects** — are the surveyor's primary collateral evidence for recovering an obliterated corner.\n\n## 4. Proportionate measurement\n\nProportionate measurement restores a **lost** corner so the restored point bears the **same ratio to the corrected whole as the record interval bears to the record whole**, distributing the accumulated discrepancy uniformly.\n\n- **Single proportionate measurement (\"two-way\")** — for a corner that lies on **one line** between two found corners (e.g., a quarter corner between two section corners, or a lost corner on a township exterior). Distribute the measured-vs-record difference along that single line:  `d' = D_record × (L_measured / L_record)`.\n- **Double proportionate measurement** — for a corner **controlled in two directions** (the typical **interior section corner**, common to four sections, controlled by the nearest found corners **north, south, east, and west**). Proportion **independently** in the N–S direction and the E–W direction to get two trial positions, then the corner is set at the intersection (the latitudinal value from the E–W proportion, the longitudinal value from the N–S proportion).\n\n**Order of precedence is the exam point:** existent monuments → obliterated corners recovered by collateral evidence → **only then** lost-corner proportioning. A gross **blunder** is placed where it belongs; only ordinary distributed error is proportioned.\n\n## 5. Legal descriptions\n\n- **Metes-and-bounds** — a perimeter run: a **point of beginning (POB)**, a series of **calls** (bearing + distance), **monuments**, and closure back to the POB. The original system of the 13 colonies and of Texas.\n- **Lot-and-block (platted)** — references a **recorded subdivision plat**: \"Lot 7, Block 3, of Sunset Addition, recorded in Vol. __, Pg. __.\" The plat (a **simultaneous** conveyance) controls; lots have no seniority among themselves.\n- **PLSS aliquot** — \"the SE¼ of the NW¼ of Sec. 14, T2N, R3E, [meridian].\" Compact and self-locating within the grid.\n\n## 6. Dignity (priority) of calls and footsteps\n\nWhen the calls in one description **conflict**, they are ranked by relative reliability (\"dignity\"), highest to lowest:\n\n1. **Calls for natural monuments** (rivers, lakes, established trees, rock outcrops)\n2. **Calls for artificial monuments** (set iron, stakes, marked trees, fences, road ROW)\n3. **Calls for adjoinder** (an adjacent, already-established survey line)\n4. **Course** (bearing/direction)\n5. **Distance**\n6. **Quantity / area / acreage** (the **weakest** — a check, not a control)\n\nThis hierarchy is **only a rule of construction** — a set of rebuttable presumptions — that **always yields to (i) the intent of the parties** (read within the four corners of the instrument) **and (ii) the footsteps of the original surveyor**: the line is located **where it was actually run on the ground**, even against later \"more accurate\" measurements. A found, identifiable original monument controls over conflicting course-and-distance calls.\n\n## 7. Senior/junior rights; simultaneous vs. sequential\n\n- **Sequential conveyances** (parcels carved off one at a time over time): **senior rights govern.** The **senior** (earlier) deed takes the full measure of its description; the **junior** (later) takes only the **remainder** — it absorbs any excess and eats any deficiency. **No proration.**\n- **Simultaneous conveyances** (all parcels created at one instant — classically, lots in a recorded plat): **no lot is senior.** Excess or deficiency found between controlling monuments is **apportioned proportionately** among the affected lots by their record dimensions. The order lots later *sold* is immaterial.\n\n## 8. Water boundaries\n\n- **Riparian** rights attach to land along a **flowing watercourse**; **littoral** rights attach to land along a **static body** (lake, sea).\n- On a **non-navigable** stream, the abutting owner generally takes to the **center thread**; on a **navigable** stream the bed below the ordinary high-water mark is **State-owned** (public-trust).\n- **Accretion** (gradual deposit) and **reliction** (gradual uncovering) **move the boundary** — the owner gains. **Erosion** moves it landward — the owner loses. **Avulsion** (a **sudden**, perceptible change — a flood cutting a new channel) **FIXES the boundary** at its former location.\n\n## 9. Adverse possession, easements, recording\n\n- **Adverse possession** matures title in a trespasser whose possession is **actual, open and notorious, exclusive, hostile (under a claim of right), and continuous** for the statutory period. (Texas instead runs a **statutory multi-track** 3/5/10/25-year scheme in Civ. Prac. & Rem. Code Ch. 16.)\n- **Easements** are **non-possessory** rights to use another's land — created **expressly** (writing), by **implication/prior use**, by **necessity**, or by **prescription** (adverse use for the statutory period). An **appurtenant** easement runs with the land; an **easement in gross** is personal.\n- **Recording acts** give later purchasers notice and set priority. Three regimes: **race** (first to record wins), **notice** (a later bona-fide purchaser without notice wins, recording order irrelevant), and **race-notice** (later BFP wins only if without notice **and** records first). A **bona-fide purchaser (BFP)** pays value, in good faith, without actual or constructive notice."
+  },
+  {
+   "type": "formulas",
+   "title": "Essential Formulas & Reference Facts",
+   "content": "## PLSS dimensions and acreage\n\n| Quantity | Value |\n|---|---|\n| Township | 6 mi × 6 mi = 36 sq mi = **36 sections** |\n| Standard section | 1 mi × 1 mi = **640 acres** |\n| Half section (N½, E½, …) | ½ × 640 = **320 acres** |\n| Quarter section (NE¼, …) | ¼ × 640 = **160 acres** |\n| Half-quarter (N½ of NW¼) | ½ × ¼ × 640 = **80 acres** |\n| Quarter-quarter (\"forty\") | ¼ × ¼ × 640 = **40 acres** |\n| Quarter-quarter-quarter (S½ of NE¼ of SW¼) | ½ × ¼ × ¼ × 640 = **20 acres** |\n\n**General aliquot rule:**  `Area (acres) = (product of all the aliquot fractions) × 640`.\n\n**Linear:** 1 section side = 1 mile = **80 chains = 5,280 ft**; a quarter-section side = ½ mile = 40 chains = **2,640 ft**; a quarter-quarter side = ¼ mile = 20 chains = **1,320 ft**.\n\n## Units (NCEES handbook v2.5)\n\n| Conversion | Value |\n|---|---|\n| 1 acre | **43,560 ft²** = 10 sq chains |\n| 1 chain | 100 links = **66 ft** = 4 rods/poles/perches |\n| 1 mile | 80 chains = **5,280 ft** |\n| 1 acre | 0.40469 hectare |\n| 1 sq mile | 640 acres |\n\n## Single proportionate measurement\n\nA lost corner on a single line between two found corners (1 and 2). Let `L_record` = total record distance 1→2, `L_measured` = total measured distance 1→2, `D_record` = record distance from corner 1 to the lost corner. The corrected (restored) distance from corner 1 is:\n\n`d' = D_record × (L_measured / L_record)`\n\nEquivalently, restore each coordinate of the lost corner by linear interpolation between the found corners' coordinates in proportion to the record distances:\n\n`C_restored = C₁ + (C₂ − C₁) × (D_record / L_record)`\n\n## Double proportionate measurement\n\nFor an interior corner controlled in two directions, proportion **separately**:\n- **Latitude (N–S) value** from the nearest found corners **N and S**, by their record N–S distances.\n- **Departure (E–W) value** from the nearest found corners **E and W**, by their record E–W distances.\n\nThe corner is set at the point having the proportioned **latitude** (from the N–S line) and the proportioned **departure** (from the E–W line). (A small final adjustment for the cardinal-offset is made per the BLM Manual; for FS purposes the two-direction proportion is the key idea.)\n\n## Dignity of calls (memorize the order)\n\n`Natural monuments  >  Artificial monuments  >  Adjoinder  >  Course  >  Distance  >  Quantity/area`\n\nAll subordinate to **(i) intent of the parties** and **(ii) footsteps of the original surveyor.**\n\n## Water-boundary changes\n\n| Process | Speed | Effect on boundary |\n|---|---|---|\n| **Accretion** | gradual addition | boundary **moves** (owner gains) |\n| **Reliction** | gradual uncovering | boundary **moves** (owner gains) |\n| **Erosion** | gradual loss | boundary **moves** (owner loses) |\n| **Avulsion** | **sudden** change | boundary **FIXED** at former line |\n\n## Texas conversions (callout)\n\n| Unit | Value |\n|---|---|\n| **1 vara** | 33⅓ in = **2.7778 ft** (36 varas = exactly 100 ft) |\n| Vara → feet | × 2.7778  (equivalently **÷ 0.36**) |\n| Feet → vara | × **0.36** |\n| 1 labor | 1,000,000 sq varas ≈ **177.1 acres** |\n| 1 league (sitio) | 25,000,000 sq varas = 25 labors ≈ **4,428 acres** |\n| League + labor | ≈ **4,605.5 acres** (standard married-head grant) |\n\n> **⚠️ Texas vs. PLSS:** Most of Texas has **no township-range grid.** Texas grants are **metes-and-bounds keyed to an original GLO survey + abstract number**, measured in varas. Do not read a Texas description in T/R/Section terms, and do not apply a non-Texas vara value to a Texas grant."
+  },
+  {
+   "type": "examples",
+   "title": "Worked Examples",
+   "content": "## A labeled section with aliquot subdivision\n\nThe figure shows one **640-acre section** subdivided into quarters and the NW¼ further into quarter-quarters. Acreages are labeled; use it for Examples 1–3.\n\n<svg width=\"440\" height=\"440\" viewBox=\"0 0 440 440\" xmlns=\"http://www.w3.org/2000/svg\" style=\"background:#fff;border:1px solid #ccc\">\n  <defs>\n    <marker id=\"narr\" markerWidth=\"8\" markerHeight=\"8\" refX=\"6\" refY=\"3\" orient=\"auto\"><path d=\"M0,0 L6,3 L0,6 Z\" fill=\"#333\"/></marker>\n  </defs>\n  <line x1=\"22\" y1=\"60\" x2=\"22\" y2=\"24\" stroke=\"#333\" stroke-width=\"1.5\" marker-end=\"url(#narr)\"/>\n  <text x=\"15\" y=\"20\" font-size=\"12\" font-family=\"sans-serif\">N</text>\n  <!-- outer section 360x360 from (60,40) -->\n  <rect x=\"60\" y=\"40\" width=\"360\" height=\"360\" fill=\"#f7faf7\" stroke=\"#1c4e80\" stroke-width=\"2.5\"/>\n  <!-- quarter lines -->\n  <line x1=\"240\" y1=\"40\" x2=\"240\" y2=\"400\" stroke=\"#1c4e80\" stroke-width=\"1.5\"/>\n  <line x1=\"60\" y1=\"220\" x2=\"420\" y2=\"220\" stroke=\"#1c4e80\" stroke-width=\"1.5\"/>\n  <!-- NW quarter subdivided into 4 forties -->\n  <line x1=\"150\" y1=\"40\" x2=\"150\" y2=\"220\" stroke=\"#8a8a8a\" stroke-width=\"1\"/>\n  <line x1=\"60\" y1=\"130\" x2=\"240\" y2=\"130\" stroke=\"#8a8a8a\" stroke-width=\"1\"/>\n  <!-- labels -->\n  <text x=\"95\" y=\"92\" font-size=\"11\">NW¼NW¼</text>\n  <text x=\"100\" y=\"106\" font-size=\"10\" fill=\"#c0392b\">40 ac</text>\n  <text x=\"175\" y=\"92\" font-size=\"11\">NE¼NW¼</text>\n  <text x=\"182\" y=\"106\" font-size=\"10\" fill=\"#c0392b\">40 ac</text>\n  <text x=\"95\" y=\"182\" font-size=\"11\">SW¼NW¼</text>\n  <text x=\"100\" y=\"196\" font-size=\"10\" fill=\"#c0392b\">40 ac</text>\n  <text x=\"175\" y=\"182\" font-size=\"11\">SE¼NW¼</text>\n  <text x=\"182\" y=\"196\" font-size=\"10\" fill=\"#c0392b\">40 ac</text>\n  <text x=\"300\" y=\"135\" font-size=\"13\" font-weight=\"bold\">NE¼</text>\n  <text x=\"300\" y=\"152\" font-size=\"11\" fill=\"#c0392b\">160 ac</text>\n  <text x=\"120\" y=\"315\" font-size=\"13\" font-weight=\"bold\">SW¼</text>\n  <text x=\"120\" y=\"332\" font-size=\"11\" fill=\"#c0392b\">160 ac</text>\n  <text x=\"300\" y=\"315\" font-size=\"13\" font-weight=\"bold\">SE¼</text>\n  <text x=\"300\" y=\"332\" font-size=\"11\" fill=\"#c0392b\">160 ac</text>\n  <text x=\"150\" y=\"420\" font-size=\"11\" fill=\"#555\">1 section = 1 mi × 1 mi = 640 acres</text>\n</svg>\n\n---\n\n## Example 1 — Acreage of an aliquot part\n\n**Find the area of the *S½ of the NE¼ of the SW¼* of a regular section.**\n\nMultiply the fractions, then × 640:\n\n`A = ½ × ¼ × ¼ × 640 = (1/32) × 640 = 20.00 acres.`\n\n**Method:** read right-to-left — the SW¼ (160 ac), its NE¼ (40 ac), the S½ of that (20 ac). A clean way to do it on the calculator: `640 ÷ 2 ÷ 4 ÷ 4 =` → **20**. (Each \"half\" divides by 2, each \"quarter\" divides by 4.)\n\n**Calculator (TI-36X Pro / Casio fx-991):** `640 ÷ 2 ÷ 4 ÷ 4 =` returns **20**. No mode setting needed — this is pure arithmetic.\n\n---\n\n## Example 2 — A compound description\n\n**Find the area of the *N½ of the NW¼* plus the *SE¼ of the NW¼*.**\n\n- N½ of NW¼ = ½ × ¼ × 640 = **80 acres**\n- SE¼ of NW¼ = ¼ × ¼ × 640 = **40 acres**\n- **Total = 80 + 40 = 120 acres.**\n\nNote the whole NW¼ is 160 ac; this description takes the north half (80) plus one of the two southern forties (40) = 120, leaving the SW¼NW¼ (40 ac) out.\n\n---\n\n## Example 3 — Dimensions of a forty\n\n**A quarter-quarter (40-acre \"forty\") of a regular section is nominally how many feet on a side, and how many square feet?**\n\n- Side = ¼ mile = 20 chains = 20 × 66 = **1,320 ft.**\n- Area = 1,320 × 1,320 = 1,742,400 ft²; ÷ 43,560 = **40.00 acres** ✓ (the check).\n\n**Calculator:** `1320 x² =` → 1,742,400, then `÷ 43560 =` → **40**. (Remember a forty is a square 1,320 ft on a side only in the *ideal* regular section; found original corners govern the real dimensions.)\n\n---\n\n## Example 4 — Single proportionate measurement (lost corner on one line)\n\nA **quarter corner** is recorded **40.00 chains** from each adjacent **section corner** (record line length 80.00 ch). The quarter corner is **lost**. You remeasure the full line between the two **existent section corners** and get **80.40 chains** (40-link surplus). Where do you set the restored quarter corner?\n\n1. **Proportion the record distance:** `d' = D_record × (L_measured / L_record) = 40.00 × (80.40 / 80.00) = 40.00 × 1.005 = 40.20 chains` from the first section corner.\n2. So the restored quarter corner is **40.20 ch** from each section corner — the **0.40-ch surplus is split equally** (0.20 ch to each half), exactly because the record split was 40/40.\n\n**Why proportion, not hold record?** The corner is *lost*, so no monument controls; single proportion distributes the accumulated surplus uniformly along the single line so neither half absorbs it all.\n\n**Calculator:** `40 × ( 80.40 ÷ 80 ) =` → **40.20**. (In coordinates: restored N,E = section-corner-1 coordinates + 0.5 × (corner-2 − corner-1), since the record fraction is 40/80 = 0.5.)\n\n---\n\n## Example 5 — Coordinate form of single proportion (unequal record split)\n\nFound corner **1** is at (N 1,000.00, E 1,000.00); found corner **2** is at (N 1,000.00, E 6,000.00) — a measured 5,000.00-ft line. The lost intermediate corner has a **record distance of 2,000.00 ft from corner 1** on a record line total of 5,000.00 ft. Restore its easting.\n\n1. **Record fraction:** `2,000 / 5,000 = 0.40`.\n2. **Restored E:** `E = E₁ + (E₂ − E₁) × 0.40 = 1,000 + (6,000 − 1,000) × 0.40 = 1,000 + 2,000 = 3,000.00 ft.`\n3. Northing is unchanged here (the line is due east), so the restored corner is **(N 1,000.00, E 3,000.00).**\n\n**Calculator:** `1000 + ( 6000 − 1000 ) × ( 2000 ÷ 5000 ) =` → **3,000**. This linear-interpolation form generalizes single proportion to any coordinate.\n\n---\n\n## Example 6 — Texas vara conversion (callout problem)\n\nA Texas GLO field note calls **\"S 45°00′ E, 950 vrs\"** to a corner. Convert the distance to feet, and give the latitude/departure.\n\n1. **Distance in feet:** `950 × 2.7778 = 2,638.9 ft` (or 950 ÷ 0.36 = 2,638.9 ft).\n2. **Bearing S 45°00′ E → azimuth** = 180° − 45° = **135°**. Lat = 2,638.9 × cos135° = **−1,866.1 ft** (south); Dep = 2,638.9 × sin135° = **+1,866.1 ft** (east).\n\n**Calculator:** `950 × 2.7778 =` → 2,638.9; then `× cos(135) =` → −1,866.1 and `× sin(135) =` → +1,866.1 (DEGREE mode). **Texas note:** the historic bearing is likely magnetic/assumed — a retracing surveyor must reconcile it to a modern datum (State Plane, NAD83) before plotting."
+  },
+  {
+   "type": "tips",
+   "title": "Exam Tips & Calculator Strategy",
+   "content": "## Strategy for the boundary area (the biggest block of points)\n\n- **Treat Boundary Law as your point bank.** It is the **largest area (19–29 questions)** and most items are **definitions and short reasoning** you can answer in under a minute. On preview, sweep these first and bank them before the long COGO problems.\n- **Memorize the dignity of calls cold:** *natural > artificial > adjoinder > course > distance > quantity*, **all yielding to intent and the original surveyor's footsteps.** Many questions are a single application of this ladder (e.g., \"a call to a blazed oak controls over a conflicting bearing/distance\").\n- **Know the PLSS section snake (1 in the NE, 36 in the SE) and the aliquot acreage shortcuts** (forty = 40, quarter = 160, eighty = 80). These are guaranteed quick points.\n- **Classify the corner before you act:** existent → obliterated (collateral evidence) → lost (proportion). Proportioning is **always a last resort**; the most-common trap answer says \"immediately proportion\" when an obliterated corner is recoverable from a bearing tree, fence, or testimony.\n- **Match the discrepancy rule to the conveyance type:** **sequential → senior/junior (no proration)**; **simultaneous (platted) → apportion excess/deficiency.** Reversing these is the classic boundary trap.\n\n## Aliquot / acreage calculator tricks\n\n- **Aliquot area = chain-divide 640.** Each \"half\" = `÷ 2`, each \"quarter\" = `÷ 4`. So *S½ of NE¼ of SW¼* = `640 ÷ 2 ÷ 4 ÷ 4 = 20`. Faster and less error-prone than multiplying fractions.\n- **Acre ↔ ft²:** divide ft² by **43,560** for acres; a forty checks as 1,320 × 1,320 = 1,742,400 ft² = 40 ac.\n- **Chains:** keep work in chains when the record is in chains (1 ch = 66 ft; 10 sq ch = 1 ac) — it avoids large numbers, then convert at the end.\n\n## Proportionate-measurement tricks\n\n- **Single proportion is one multiply:** `d' = D_record × (L_measured / L_record)` — set up the ratio once, multiply each record interval. In coordinates it is **linear interpolation** between the two found corners by the record fraction — do it as `C₁ + (C₂ − C₁) × fraction` on the calculator.\n- **Double proportion = do it twice** (N–S, then E–W) and combine. Recognize it whenever the lost corner is an **interior section corner controlled in four directions**.\n- **Sanity-check direction:** the restored corner must fall *between* the controlling monuments and the surplus/deficiency must split per the record ratio — if a half ends up longer than the whole, you inverted the ratio.\n\n## Texas (SIT) callouts\n\n- **No PLSS in most of Texas** — Texas grants are **metes-and-bounds keyed to a GLO survey + abstract**, measured in **varas** (1 vara = 33⅓ in = 2.7778 ft; ÷0.36 for ft→vara). Convert varas before any COGO.\n- **Footsteps doctrine is strong in Texas** (*Stafford v. King*): follow the original surveyor's monuments over inconsistent field-note calls. **Adverse possession in Texas is statutory** (Civ. Prac. & Rem. Code Ch. 16, the 3/5/10/25-year tracks), **not** the single common-law test — and the **§16.025 five-year track requires paying taxes.**\n\n## Common traps\n\n- **Quantity/area is the weakest call** — \"containing 5.00 acres more or less\" never controls over a monument or a course-and-distance.\n- **Avulsion fixes, accretion moves** — a sudden flood does **not** shift the boundary; gradual accretion does.\n- **A quitclaim conveys only what the grantor has** (no warranty); a **warranty deed** guarantees title.\n- **Recording acts:** a **notice** state lets a later BFP-without-notice win even if recorded second; **race-notice** requires the BFP to also record first. Texas is a **pure notice** state.\n- **Easements are non-possessory** and (if appurtenant) **pass with the land** — they cannot be conveyed separately from the dominant estate.\n\n## How the handbook helps\n\nThe NCEES FS Reference Handbook v2.5 gives the **Land Description (PLSS) diagram**, the **unit conversions** (acre = 43,560 ft²; chain = 66 ft; mile = 80 chains), and the **area-by-coordinates** formula. Most boundary-law questions, though, are **conceptual** and not in the handbook — they reward *prepared knowledge* of the dignity of calls, senior/junior rights, water-boundary doctrine, and the BLM corner-restoration rules. Study those cold; use the handbook only for the conversions and the PLSS diagram."
+  }
+ ],
+ "questions": [
+  {
+   "question_text": "In the Public Land Survey System, the lines running east–west and numbered north or south of the base line define:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Townships",
+    "Ranges",
+    "Sections",
+    "Aliquot parts"
+   ],
+   "correct_answer": "Townships",
+   "explanation": "Township rows run east–west and are numbered north/south of the base line (e.g., T2N). Ranges run north–south, numbered east/west of the principal meridian (e.g., R3E). A township (6×6 mi) sits at the intersection of a township row and a range column.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "A standard PLSS township contains how many sections, and a standard section contains how many acres?",
+   "question_type": "multiple_choice",
+   "options": [
+    "36 sections; 640 acres",
+    "16 sections; 160 acres",
+    "36 sections; 160 acres",
+    "640 sections; 36 acres"
+   ],
+   "correct_answer": "36 sections; 640 acres",
+   "explanation": "A township is 6 mi × 6 mi = 36 sq mi, divided into 36 sections. A standard section is 1 mi × 1 mi = 1 sq mile = 640 acres.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "Within a standard township, Section 1 and Section 36 are located, respectively, in the:",
+   "question_type": "multiple_choice",
+   "options": [
+    "NE corner and the SE corner",
+    "NW corner and the SE corner",
+    "SE corner and the NW corner",
+    "NE corner and the SW corner"
+   ],
+   "correct_answer": "NE corner and the SE corner",
+   "explanation": "Section numbering is a serpentine (boustrophedon): Section 1 is in the NE corner, numbering runs west to 6, drops to 7, runs east to 12, and so on, ending at Section 36 in the SE corner.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "What is the area of the NE¼ of the SW¼ of a regular section?",
+   "question_type": "multiple_choice",
+   "options": [
+    "40 acres",
+    "160 acres",
+    "80 acres",
+    "20 acres"
+   ],
+   "correct_answer": "40 acres",
+   "explanation": "A quarter-quarter (the classic 'forty') = ¼ × ¼ × 640 = 40 acres. Read right-to-left: the SW¼ is 160 ac, and its NE¼ is 40 ac.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "What is the area of the N½ of the NW¼ of a regular section?",
+   "question_type": "multiple_choice",
+   "options": [
+    "80 acres",
+    "40 acres",
+    "160 acres",
+    "120 acres"
+   ],
+   "correct_answer": "80 acres",
+   "explanation": "N½ of NW¼ = ½ × ¼ × 640 = 80 acres. (The whole NW¼ is 160 ac; the north half is 80 ac.)",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "What is the area of the S½ of the SE¼ of the NW¼ of a regular section?",
+   "question_type": "multiple_choice",
+   "options": [
+    "20 acres",
+    "40 acres",
+    "10 acres",
+    "80 acres"
+   ],
+   "correct_answer": "20 acres",
+   "explanation": "S½ × SE¼ × NW¼ × 640 = ½ × ¼ × ¼ × 640 = (1/32) × 640 = 20 acres. On a calculator: 640 ÷ 2 ÷ 4 ÷ 4 = 20.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A regular quarter-quarter section ('forty') is nominally how many feet on a side?",
+   "question_type": "multiple_choice",
+   "options": [
+    "1,320 ft",
+    "2,640 ft",
+    "660 ft",
+    "5,280 ft"
+   ],
+   "correct_answer": "1,320 ft",
+   "explanation": "A forty is ¼ mile on a side = 20 chains = 20 × 66 = 1,320 ft. Check: 1,320² = 1,742,400 ft² ÷ 43,560 = 40 acres.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A PLSS corner whose original monument is gone but whose position can be recovered from collateral evidence such as a bearing tree, occupation lines, and credible testimony is classified as:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Obliterated",
+    "Lost",
+    "Existent",
+    "Witness"
+   ],
+   "correct_answer": "Obliterated",
+   "explanation": "An obliterated corner has lost its monument but is recoverable from acceptable collateral evidence; it is NOT lost. A lost corner cannot be recovered from any evidence and must be restored by proportionate measurement. An existent corner still has its monument or undisturbed accessories.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "Proportionate measurement may be used to restore a PLSS corner only when the corner is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Lost (not recoverable from any acceptable evidence)",
+    "Obliterated but recoverable from a bearing tree",
+    "Existent with an undisturbed original monument",
+    "Merely inconvenient to reach"
+   ],
+   "correct_answer": "Lost (not recoverable from any acceptable evidence)",
+   "explanation": "Proportioning is the last resort, used only for a truly lost corner. Existent corners control absolutely, and obliterated corners are recovered from collateral evidence — never proportioned if any acceptable evidence locates them.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "Which restoration method is used for a lost interior section corner that is controlled in two directions by the nearest found corners to the north, south, east, and west?",
+   "question_type": "multiple_choice",
+   "options": [
+    "Double proportionate measurement",
+    "Single proportionate measurement",
+    "Compass (Bowditch) rule",
+    "Random line and true line"
+   ],
+   "correct_answer": "Double proportionate measurement",
+   "explanation": "A corner controlled in two directions (the typical interior section corner common to four sections) is restored by double proportion: proportion independently in the N–S and E–W directions and combine. Single proportion is for a corner lying on a single line between two found corners.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A lost quarter corner is recorded 40.00 chains from each adjacent section corner. The full line between the two existent section corners measures 80.50 chains. By single proportionate measurement, the restored quarter corner is set how far from the first section corner?",
+   "question_type": "multiple_choice",
+   "options": [
+    "40.25 chains",
+    "40.00 chains",
+    "40.50 chains",
+    "80.50 chains"
+   ],
+   "correct_answer": "40.25 chains",
+   "explanation": "d' = D_record × (L_measured / L_record) = 40.00 × (80.50 / 80.00) = 40.25 chains. The 0.50-ch surplus splits equally (0.25 each) because the record split was 40/40.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "When the calls in a single deed conflict, which class of call has the HIGHEST dignity (controls)?",
+   "question_type": "multiple_choice",
+   "options": [
+    "A call for a natural monument",
+    "A call for a bearing (course)",
+    "A call for a distance",
+    "A call for quantity (acreage)"
+   ],
+   "correct_answer": "A call for a natural monument",
+   "explanation": "The dignity of calls ranks natural monuments highest, then artificial monuments, adjoinder, course, distance, and quantity (weakest). The hierarchy is a rule of construction that yields to the parties' intent and the original surveyor's footsteps.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "A deed call reads '…thence N 80°20′ E, 800.28 feet to a 12-inch oak tree blazed and recorded as the corner.' On the ground the oak is found at 815 feet. Which call controls?",
+   "question_type": "multiple_choice",
+   "options": [
+    "The oak tree (a natural monument)",
+    "The bearing N 80°20′ E",
+    "The distance 800.28 feet",
+    "The stated acreage of the parcel"
+   ],
+   "correct_answer": "The oak tree (a natural monument)",
+   "explanation": "A found, identified natural monument outranks course and distance. The line runs to the oak even though the measured distance differs from the record — monuments control over course-and-distance (Stafford v. King).",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "The cardinal principle that a retracing surveyor must locate a boundary where the original surveyor actually ran it on the ground — even against later, more precise measurements — is called:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Following the footsteps of the original surveyor",
+    "The rule of apportionment",
+    "The doctrine of accretion",
+    "The race-notice rule"
+   ],
+   "correct_answer": "Following the footsteps of the original surveyor",
+   "explanation": "The footsteps doctrine holds that the original survey, as actually run and monumented, governs the location of the boundary; the dignity-of-calls hierarchy is invoked only when those footsteps cannot be retraced.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A grantor conveys Parcel A in 2005 and the adjoining Parcel B in 2010 by separate metes-and-bounds deeds carved from a larger tract. A 3-foot overlap is later discovered. How is it resolved?",
+   "question_type": "multiple_choice",
+   "options": [
+    "The senior deed (Parcel A) prevails; Parcel B is cut back to the remainder",
+    "The overlap is split equally between the two parcels",
+    "The junior deed (Parcel B) prevails because it is more recent",
+    "The overlap is apportioned in proportion to each parcel's record area"
+   ],
+   "correct_answer": "The senior deed (Parcel A) prevails; Parcel B is cut back to the remainder",
+   "explanation": "These are sequential conveyances, so senior/junior rights govern. The senior (earlier) deed takes the full measure of its description; the junior takes only the remainder and absorbs the conflict. There is no proration between sequential conveyances.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A recorded subdivision plat creates 10 equal lots in a block. The measured distance between the controlling block-corner monuments exceeds the platted total by 2.00 feet. How is the excess handled?",
+   "question_type": "multiple_choice",
+   "options": [
+    "Apportioned among the lots in proportion to their record dimensions",
+    "Given entirely to the first lot sold (the senior lot)",
+    "Discarded, because the plat dimensions are conclusive",
+    "Given entirely to the last lot in the block"
+   ],
+   "correct_answer": "Apportioned among the lots in proportion to their record dimensions",
+   "explanation": "Lots in a recorded plat are a simultaneous conveyance — no lot is senior. Excess or deficiency between controlling monuments is apportioned proportionately among the lots. (Equal lots here would each get 0.20 ft.)",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A river forms a property boundary. Over many years the river slowly and imperceptibly deposits soil, building out the bank. The boundary:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Moves with the new bank (the owner gains land by accretion)",
+    "Is fixed at its former location",
+    "Moves to the centerline of the new channel only if navigable",
+    "Reverts to the state regardless of the change"
+   ],
+   "correct_answer": "Moves with the new bank (the owner gains land by accretion)",
+   "explanation": "Accretion is the gradual, imperceptible addition of alluvion; the boundary moves with the water and the riparian owner gains the new land. (Sudden avulsive change, by contrast, fixes the boundary at its former location.)",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A flood suddenly cuts a new channel, abruptly relocating a stream that served as a boundary. The boundary:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Remains fixed at the former location of the stream (avulsion)",
+    "Moves to the new channel immediately",
+    "Is split equally between the old and new channels",
+    "Is extinguished entirely"
+   ],
+   "correct_answer": "Remains fixed at the former location of the stream (avulsion)",
+   "explanation": "Avulsion is a sudden, perceptible change. Title does not shift merely because the water moved suddenly; the boundary is fixed at the former location of the watercourse.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "On a navigable stream, the bed below the ordinary high-water mark is generally:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Owned by the State, held in trust for the public",
+    "Owned by the adjoining upland owner to the centerline",
+    "Unowned until claimed by adverse possession",
+    "Owned equally by both abutting owners"
+   ],
+   "correct_answer": "Owned by the State, held in trust for the public",
+   "explanation": "On navigable waters the State owns the bed under the public-trust doctrine; private title typically stops at the high-water mark. On a non-navigable stream the abutting owner generally takes to the centerline (thread).",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "Which set of elements must a claimant prove to acquire title by common-law adverse possession?",
+   "question_type": "multiple_choice",
+   "options": [
+    "Actual, open and notorious, exclusive, hostile, and continuous for the statutory period",
+    "Recorded, surveyed, platted, and taxed",
+    "Permissive, shared, occasional, and good-faith",
+    "Granted, written, acknowledged, and delivered"
+   ],
+   "correct_answer": "Actual, open and notorious, exclusive, hostile, and continuous for the statutory period",
+   "explanation": "Common-law adverse possession requires possession that is actual, open and notorious, exclusive, hostile (under a claim of right adverse to the true owner), and continuous for the statutory limitation period. Permissive use can never ripen into title.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "An easement is best described as:",
+   "question_type": "multiple_choice",
+   "options": [
+    "A non-possessory right to use another person's land for a specified purpose",
+    "A complete (fee-simple) ownership of the servient land",
+    "A lien securing payment of a debt",
+    "A restrictive covenant limiting building height"
+   ],
+   "correct_answer": "A non-possessory right to use another person's land for a specified purpose",
+   "explanation": "An easement is a limited, non-possessory interest in another's land. It may be appurtenant (running with the land) or in gross (personal), and may be created expressly, by implication, by necessity, or by prescription.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "In a pure 'notice' recording jurisdiction, a later bona-fide purchaser for value without notice of a prior unrecorded deed:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Prevails over the prior grantee even if the BFP records second (or never records)",
+    "Prevails only if the BFP records before the prior grantee",
+    "Loses to the prior grantee because the prior conveyance was first in time",
+    "Must re-record annually to keep priority"
+   ],
+   "correct_answer": "Prevails over the prior grantee even if the BFP records second (or never records)",
+   "explanation": "In a notice state, a subsequent BFP for value without notice takes free of a prior unrecorded conveyance regardless of recording order — there is no race requirement. (In a race-notice state, that same BFP would also have to record first.)",
+   "difficulty": "hard"
+  },
+  {
+   "question_text": "A quitclaim deed:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Conveys only whatever interest the grantor has, with no warranty of title",
+    "Guarantees clear title against all defects in the chain",
+    "Is the same as a general warranty deed",
+    "Automatically makes the grantee a bona-fide purchaser"
+   ],
+   "correct_answer": "Conveys only whatever interest the grantor has, with no warranty of title",
+   "explanation": "A quitclaim conveys the grantor's interest, if any, without warranties. A general warranty deed, by contrast, warrants title against all defects back through the chain.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "The three principal systems of legal land description in the United States are:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Metes-and-bounds, lot-and-block (platted), and PLSS (rectangular/aliquot)",
+    "State plane, geographic, and UTM",
+    "Deed, patent, and easement",
+    "Bearing, distance, and elevation"
+   ],
+   "correct_answer": "Metes-and-bounds, lot-and-block (platted), and PLSS (rectangular/aliquot)",
+   "explanation": "Land is described by metes-and-bounds (a perimeter of calls), lot-and-block (reference to a recorded subdivision plat), or PLSS aliquot parts (e.g., the SE¼ of Sec. 14, T2N, R3E). The other lists are coordinate or instrument categories, not description systems.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "Texas land is distinctive because, unlike most western states, it:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Was never federal public domain, so most of Texas has no PLSS township-range grid",
+    "Uses a denser PLSS grid with half-mile sections",
+    "Was surveyed entirely by the federal BLM",
+    "Has no recorded land descriptions at all"
+   ],
+   "correct_answer": "Was never federal public domain, so most of Texas has no PLSS township-range grid",
+   "explanation": "Texas retained its public lands at annexation; its titles flow from the State (via the GLO), not the federal government. Most of Texas therefore has no PLSS grid — land is described by metes-and-bounds keyed to an original GLO survey + abstract number, historically measured in varas.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "One Texas vara equals 33⅓ inches. A field-note call of 540 varas is most nearly how many feet?",
+   "question_type": "numeric_input",
+   "options": [],
+   "correct_answer": "1500",
+   "explanation": "1 vara = 33⅓ in = 2.7778 ft, so 540 × 2.7778 = 1,500.0 ft (equivalently 540 ÷ 0.36 = 1,500). Recall 36 varas = exactly 100 ft, so 540 vrs = 15 × 100 = 1,500 ft.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "True or False: When the dignity of calls cannot resolve a conflict, the stated quantity (acreage) of the parcel is the call given the greatest weight.",
+   "question_type": "true_false",
+   "options": [
+    "True",
+    "False"
+   ],
+   "correct_answer": "False",
+   "explanation": "False. Quantity/area is the WEAKEST call — a check, not a control. When the hierarchy cannot resolve a conflict, the parties' intent (read in light of the surrounding circumstances) governs, not the acreage.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "An appurtenant easement that benefits a dominant estate is generally:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Transferred automatically with the dominant land and cannot be conveyed separately",
+    "Personal to the original holder and ends when the land is sold",
+    "A possessory fee interest in the servient land",
+    "Valid only if it appears on a recorded plat"
+   ],
+   "correct_answer": "Transferred automatically with the dominant land and cannot be conveyed separately",
+   "explanation": "An appurtenant easement runs with the land — it passes automatically to successive owners of the dominant estate and cannot be severed and conveyed apart from that land. An easement in gross, by contrast, is personal.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A surveyor retraces a section line and finds the original quarter-corner monument, undisturbed, set by the government surveyor. The record distance to it differs from the surveyor's measurement by 1.2 ft. The surveyor should:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Hold the original monument (an existent corner controls absolutely)",
+    "Reset the corner at the record distance",
+    "Proportion the corner between the section corners",
+    "Average the record and measured positions"
+   ],
+   "correct_answer": "Hold the original monument (an existent corner controls absolutely)",
+   "explanation": "An existent original monument controls over record course-and-distance. The found monument is the corner; you do not move it to fit a measurement, and proportioning is improper when an existent (or obliterated-but-recoverable) corner is available.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "Which professional-ethics principle most directly governs a surveyor who discovers that an existing fence does not match the true deeded boundary?",
+   "question_type": "multiple_choice",
+   "options": [
+    "Report the professional analysis honestly and without bias, even if it is unwelcome to the client",
+    "Set the corners to match the fence so the client is satisfied",
+    "Conceal the discrepancy to avoid a dispute",
+    "Defer to the neighbor's preference"
+   ],
+   "correct_answer": "Report the professional analysis honestly and without bias, even if it is unwelcome to the client",
+   "explanation": "The surveyor's canons require communicating professional analysis and opinion truthfully and without bias or personal interest, and holding the public welfare paramount. The surveyor reports the true boundary relationship to the fence; the boundary is not moved to please a client.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "Reading right-to-left, the description 'the W½ of the SW¼ of the NE¼' of a regular section describes a parcel of:",
+   "question_type": "numeric_input",
+   "options": [],
+   "correct_answer": "20",
+   "explanation": "W½ × SW¼ × NE¼ × 640 = ½ × ¼ × ¼ × 640 = 20 acres. (NE¼ = 160 ac; its SW¼ = 40 ac; the W half of that = 20 ac.)",
+   "difficulty": "medium"
+  }
+ ],
+ "problem_templates": [
+  {
+   "name": "Area of an aliquot part (fraction × 640)",
+   "category": "FS — Boundary Law and Public Lands",
+   "subcategory": "PLSS",
+   "difficulty": "easy",
+   "question_type": "numeric_input",
+   "question_template": "A regular PLSS section contains 640 acres. Compute the area, in acres, of an aliquot part formed by applying a {{f1:choice}}, then a {{f2:choice}}, then a {{f3:choice}} (e.g., 'the {{f3:choice}} of the {{f2:choice}} of the {{f1:choice}}'). Each 'half' divides the area by 2 and each 'quarter' divides it by 4.",
+   "parameters": [
+    {
+     "name": "f1",
+     "type": "choice",
+     "choices": [
+      "half",
+      "quarter"
+     ]
+    },
+    {
+     "name": "f2",
+     "type": "choice",
+     "choices": [
+      "half",
+      "quarter"
+     ]
+    },
+    {
+     "name": "f3",
+     "type": "choice",
+     "choices": [
+      "half",
+      "quarter"
+     ]
+    },
+    {
+     "name": "d1",
+     "type": "computed"
+    },
+    {
+     "name": "d2",
+     "type": "computed"
+    },
+    {
+     "name": "d3",
+     "type": "computed"
+    }
+   ],
+   "computed_vars": [
+    {
+     "name": "d1",
+     "formula": "f1=='half'?2:4"
+    },
+    {
+     "name": "d2",
+     "formula": "f2=='half'?2:4"
+    },
+    {
+     "name": "d3",
+     "formula": "f3=='half'?2:4"
+    }
+   ],
+   "answer_formula": "640/(d1*d2*d3)",
+   "answer_format": {
+    "decimals": 2,
+    "unit": "acres",
+    "tolerance": 0.05
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Each fraction divides 640",
+     "calculation_template": "640 ÷ {{d1}} ÷ {{d2}} ÷ {{d3}}"
+    },
+    {
+     "step_number": 2,
+     "title": "Result",
+     "result_template": "{{_answer}} acres"
+    }
+   ],
+   "explanation_template": "Aliquot area = 640 ÷ (product of the divisors). A 'half' divides by 2, a 'quarter' by 4. Here 640 ÷ {{d1}} ÷ {{d2}} ÷ {{d3}} = {{_answer}} acres. Read the description right-to-left to nest the parts.",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "Acreage of a quarter-fraction of a section",
+   "category": "FS — Boundary Law and Public Lands",
+   "subcategory": "PLSS",
+   "difficulty": "easy",
+   "question_type": "numeric_input",
+   "question_template": "Compute the area, in acres, of {{frac:choice}} of a regular 640-acre section.",
+   "parameters": [
+    {
+     "name": "frac",
+     "type": "choice",
+     "choices": [
+      "a quarter section (e.g., the NE¼)",
+      "a half section (e.g., the N½)",
+      "a quarter-quarter (e.g., the NE¼ of the SW¼)",
+      "a half of a quarter (e.g., the N½ of the NW¼)"
+     ]
+    },
+    {
+     "name": "div",
+     "type": "computed"
+    }
+   ],
+   "computed_vars": [
+    {
+     "name": "div",
+     "formula": "frac=='a quarter section (e.g., the NE¼)'?4:(frac=='a half section (e.g., the N½)'?2:(frac=='a quarter-quarter (e.g., the NE¼ of the SW¼)'?16:8))"
+    }
+   ],
+   "answer_formula": "640/div",
+   "answer_format": {
+    "decimals": 2,
+    "unit": "acres",
+    "tolerance": 0.05
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Divide 640 by the part's denominator",
+     "calculation_template": "640 ÷ {{div}}"
+    },
+    {
+     "step_number": 2,
+     "title": "Result",
+     "result_template": "{{_answer}} acres"
+    }
+   ],
+   "explanation_template": "A quarter = 640/4 = 160 ac; a half = 640/2 = 320 ac; a quarter-quarter = 640/16 = 40 ac; a half-quarter = 640/8 = 80 ac. For this part, 640 ÷ {{div}} = {{_answer}} acres.",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "Single proportionate measurement — corrected distance to a lost corner",
+   "category": "FS — Boundary Law and Public Lands",
+   "subcategory": "Corner Restoration",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "A lost corner lies on a single straight line between two existent corners. Its RECORD distance from the first corner is {{dRec:f2}} ft on a RECORD total line length of {{lRec:f2}} ft. You remeasure the full line between the two existent corners and obtain {{lMeas:f2}} ft. By single proportionate measurement, compute the CORRECTED distance (ft) from the first corner at which to set the restored corner.",
+   "parameters": [
+    {
+     "name": "lRec",
+     "type": "float",
+     "min": 2640,
+     "max": 5400,
+     "decimals": 2
+    },
+    {
+     "name": "fRac",
+     "type": "float",
+     "min": 0.3,
+     "max": 0.7,
+     "decimals": 3
+    },
+    {
+     "name": "delta",
+     "type": "float",
+     "min": -2.5,
+     "max": 2.5,
+     "decimals": 2
+    }
+   ],
+   "computed_vars": [
+    {
+     "name": "dRec",
+     "formula": "round(lRec*fRac,2)"
+    },
+    {
+     "name": "lMeas",
+     "formula": "round(lRec+delta,2)"
+    }
+   ],
+   "answer_formula": "dRec*(lMeas/lRec)",
+   "answer_format": {
+    "decimals": 2,
+    "unit": "ft",
+    "tolerance": 0.05
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Proportion ratio",
+     "formula": "d' = D_record × (L_measured / L_record)",
+     "calculation_template": "{{dRec:f2}} × ({{lMeas:f2}} ÷ {{lRec:f2}})"
+    },
+    {
+     "step_number": 2,
+     "title": "Result",
+     "result_template": "d' = {{_answer}} ft from the first existent corner"
+    }
+   ],
+   "explanation_template": "Single proportion distributes the measured-vs-record difference uniformly along the single line: d' = D_record × (L_measured / L_record) = {{dRec:f2}} × ({{lMeas:f2}} ÷ {{lRec:f2}}) = {{_answer}} ft. The restored corner keeps the same record fraction of the corrected line.",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "Single proportion in coordinates (linear interpolation)",
+   "category": "FS — Boundary Law and Public Lands",
+   "subcategory": "Corner Restoration",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "Existent corner 1 is at (N {{n1:f2}}, E {{e1:f2}}) and existent corner 2 is at (N {{n2:f2}}, E {{e2:f2}}). A lost corner lies between them on the line, with a RECORD distance of {{dRec:f2}} ft from corner 1 on a record line total of {{lRec:f2}} ft. By single proportion (linear interpolation), compute the restored EASTING (ft) of the lost corner.",
+   "parameters": [
+    {
+     "name": "n1",
+     "type": "float",
+     "min": 1000,
+     "max": 3000,
+     "decimals": 2
+    },
+    {
+     "name": "e1",
+     "type": "float",
+     "min": 1000,
+     "max": 3000,
+     "decimals": 2
+    },
+    {
+     "name": "dN",
+     "type": "float",
+     "min": 1500,
+     "max": 4000,
+     "decimals": 2
+    },
+    {
+     "name": "dE",
+     "type": "float",
+     "min": 1500,
+     "max": 4000,
+     "decimals": 2
+    },
+    {
+     "name": "fRac",
+     "type": "float",
+     "min": 0.3,
+     "max": 0.7,
+     "decimals": 3
+    }
+   ],
+   "computed_vars": [
+    {
+     "name": "n2",
+     "formula": "n1+dN"
+    },
+    {
+     "name": "e2",
+     "formula": "e1+dE"
+    },
+    {
+     "name": "lRec",
+     "formula": "round(hypot(dN,dE),2)"
+    },
+    {
+     "name": "dRec",
+     "formula": "round(hypot(dN,dE)*fRac,2)"
+    }
+   ],
+   "answer_formula": "e1+(e2-e1)*(dRec/lRec)",
+   "answer_format": {
+    "decimals": 2,
+    "unit": "ft",
+    "tolerance": 0.1
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Record fraction along the line",
+     "calculation_template": "f = {{dRec:f2}} ÷ {{lRec:f2}}"
+    },
+    {
+     "step_number": 2,
+     "title": "Interpolate the easting",
+     "formula": "E = E₁ + (E₂ − E₁)·f",
+     "calculation_template": "{{e1:f2}} + ({{e2:f2}} − {{e1:f2}}) × ({{dRec:f2}} ÷ {{lRec:f2}})"
+    },
+    {
+     "step_number": 3,
+     "title": "Result",
+     "result_template": "E = {{_answer}} ft"
+    }
+   ],
+   "explanation_template": "Single proportion in coordinate form is a linear interpolation by the record fraction f = D_record/L_record = {{dRec:f2}}/{{lRec:f2}}. Restored easting E = E₁ + (E₂ − E₁)·f = {{e1:f2}} + ({{e2:f2}} − {{e1:f2}})·f = {{_answer}} ft. (The northing interpolates the same way.)",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "Acreage of a metes-and-bounds parcel (rectangle by sides)",
+   "category": "FS — Boundary Law and Public Lands",
+   "subcategory": "Area / Description",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "A described rectangular parcel measures {{a:f2}} ft along its north and south lines and {{b:f2}} ft along its east and west lines. Compute the parcel's area in ACRES (1 acre = 43,560 ft²).",
+   "parameters": [
+    {
+     "name": "a",
+     "type": "float",
+     "min": 200,
+     "max": 1400,
+     "decimals": 2
+    },
+    {
+     "name": "b",
+     "type": "float",
+     "min": 200,
+     "max": 1400,
+     "decimals": 2
+    }
+   ],
+   "computed_vars": [
+    {
+     "name": "sqft",
+     "formula": "a*b"
+    }
+   ],
+   "answer_formula": "(a*b)/43560",
+   "answer_format": {
+    "decimals": 3,
+    "unit": "acres",
+    "tolerance": 0.01
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Area in square feet",
+     "calculation_template": "{{a:f2}} × {{b:f2}} = {{sqft:f2}} ft²"
+    },
+    {
+     "step_number": 2,
+     "title": "Convert to acres",
+     "formula": "acres = ft² ÷ 43,560",
+     "result_template": "{{_answer}} acres"
+    }
+   ],
+   "explanation_template": "Area = length × width = {{a:f2}} × {{b:f2}} = {{sqft:f2}} ft². Divide by 43,560 ft²/acre: {{_answer}} acres. (For a non-rectangular described parcel, reduce the corners to coordinates and use the shoelace area, then convert.)",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "Texas vara ↔ feet conversion (grant call)",
+   "category": "FS — Boundary Law and Public Lands",
+   "subcategory": "Texas / Units",
+   "difficulty": "easy",
+   "question_type": "numeric_input",
+   "question_template": "A Texas GLO field note gives a call of {{vrs:f1}} varas. Using the Texas legal vara of 33⅓ in = 2.7778 ft, convert the distance to FEET.",
+   "parameters": [
+    {
+     "name": "vrs",
+     "type": "float",
+     "min": 150,
+     "max": 2000,
+     "decimals": 1
+    }
+   ],
+   "computed_vars": [],
+   "answer_formula": "vrs*2.7778",
+   "answer_format": {
+    "decimals": 2,
+    "unit": "ft",
+    "tolerance": 0.2
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Multiply by feet-per-vara",
+     "formula": "ft = vrs × 2.7778",
+     "calculation_template": "{{vrs:f1}} × 2.7778"
+    },
+    {
+     "step_number": 2,
+     "title": "Result",
+     "result_template": "{{_answer}} ft"
+    }
+   ],
+   "explanation_template": "1 vara = 33⅓ in = 2.7778 ft (equivalently feet = varas ÷ 0.36). So {{vrs:f1}} vrs × 2.7778 = {{_answer}} ft. Recall 36 varas = exactly 100 ft. A retracing surveyor must also reconcile the historic (often magnetic) bearing basis to a modern datum.",
+   "options_generator": {
+    "method": "none"
+   }
+  }
+ ],
+ "mock_questions": [
+  {
+   "question_text": "In a standard PLSS township, which section is in the SE corner?",
+   "options": [
+    "Section 36",
+    "Section 1",
+    "Section 6",
+    "Section 31"
+   ],
+   "correct_answer": "Section 36",
+   "explanation": "Numbering snakes from Section 1 in the NE corner and ends at Section 36 in the SE corner. (Section 6 is the NW corner; Section 31 is the SW corner.)",
+   "difficulty": "easy",
+   "area": "boundary"
+  },
+  {
+   "question_text": "The area of the SE¼ of the NW¼ of a regular section is:",
+   "options": [
+    "40 acres",
+    "160 acres",
+    "80 acres",
+    "20 acres"
+   ],
+   "correct_answer": "40 acres",
+   "explanation": "Quarter-quarter = ¼ × ¼ × 640 = 40 acres. The NW¼ is 160 ac; its SE¼ is 40 ac.",
+   "difficulty": "easy",
+   "area": "boundary"
+  },
+  {
+   "question_text": "A lost corner cannot be recovered from any acceptable evidence. The proper method to restore an interior section corner controlled in two directions is:",
+   "options": [
+    "Double proportionate measurement",
+    "Single proportionate measurement",
+    "Hold the nearest fence",
+    "Adopt the record bearing and distance from one neighbor"
+   ],
+   "correct_answer": "Double proportionate measurement",
+   "explanation": "An interior section corner is controlled by found corners in four directions; restore it by proportioning independently N–S and E–W (double proportion). Single proportion is for a corner on a single line between two found corners.",
+   "difficulty": "medium",
+   "area": "boundary"
+  },
+  {
+   "question_text": "When deed calls conflict, the correct order of dignity (highest to lowest) is:",
+   "options": [
+    "Natural monuments, artificial monuments, course, distance, quantity",
+    "Quantity, distance, course, artificial monuments, natural monuments",
+    "Course, distance, natural monuments, artificial monuments, quantity",
+    "Distance, course, quantity, monuments"
+   ],
+   "correct_answer": "Natural monuments, artificial monuments, course, distance, quantity",
+   "explanation": "The dignity of calls ranks natural monuments highest and quantity (acreage) lowest, with adjoinder typically inserted between artificial monuments and course. The hierarchy yields to intent and the original surveyor's footsteps.",
+   "difficulty": "medium",
+   "area": "boundary"
+  },
+  {
+   "question_text": "Two parcels are carved sequentially from a larger tract by separate deeds five years apart, and a gap is later found between them. The discrepancy is resolved by:",
+   "options": [
+    "Senior/junior rights — the senior deed takes its full description, the junior the remainder",
+    "Equal apportionment of the gap between the two parcels",
+    "Proration in proportion to each parcel's acreage",
+    "Awarding the gap to whichever owner recorded last"
+   ],
+   "correct_answer": "Senior/junior rights — the senior deed takes its full description, the junior the remainder",
+   "explanation": "Sequential conveyances are governed by senior/junior rights, not proration. The earlier (senior) deed gets the full measure of its description; the later (junior) deed takes only what remains.",
+   "difficulty": "medium",
+   "area": "boundary"
+  },
+  {
+   "question_text": "A lake gradually recedes, permanently uncovering a strip of land along the shore of a littoral owner's parcel. This process is called and its effect is:",
+   "options": [
+    "Reliction — the boundary moves and the owner gains the uncovered land",
+    "Avulsion — the boundary is fixed",
+    "Accretion — the owner loses land",
+    "Erosion — the owner gains land"
+   ],
+   "correct_answer": "Reliction — the boundary moves and the owner gains the uncovered land",
+   "explanation": "Reliction is the gradual uncovering of land by the permanent recession of water; like accretion, the boundary moves and the abutting owner gains. Avulsion (sudden change) fixes the boundary; erosion is gradual loss.",
+   "difficulty": "medium",
+   "area": "boundary"
+  },
+  {
+   "question_text": "Lots in a recorded subdivision plat are a SIMULTANEOUS conveyance. When measured block dimensions exceed the platted total, the excess is:",
+   "options": [
+    "Apportioned among the lots in proportion to their record dimensions",
+    "Given to the senior (first-sold) lot",
+    "Ignored, because plats are conclusive",
+    "Absorbed entirely by the corner lots"
+   ],
+   "correct_answer": "Apportioned among the lots in proportion to their record dimensions",
+   "explanation": "No platted lot is senior to another; excess or deficiency between controlling monuments is apportioned among the lots proportionally. Senior/junior rights apply only to sequential conveyances.",
+   "difficulty": "medium",
+   "area": "boundary"
+  },
+  {
+   "question_text": "A surveyor recovers an original government quarter-corner monument, clearly the genuine, undisturbed monument, though it sits 2 ft off the record distance. The surveyor should:",
+   "options": [
+    "Hold the monument — an existent original corner controls over record measurements",
+    "Move it to the record distance",
+    "Proportion it between the section corners",
+    "Set a new corner at the average position"
+   ],
+   "correct_answer": "Hold the monument — an existent original corner controls over record measurements",
+   "explanation": "Existent original monuments control absolutely; the footsteps of the original surveyor, evidenced by the genuine monument, govern over record course-and-distance. Proportioning applies only to truly lost corners.",
+   "difficulty": "medium",
+   "area": "boundary"
+  },
+  {
+   "question_text": "A prescriptive easement requires use that is, among other things:",
+   "options": [
+    "Open, notorious, continuous, and adverse (non-permissive) for the statutory period",
+    "Permissive and shared with the owner",
+    "Granted in writing and recorded",
+    "Approved by the county within one year"
+   ],
+   "correct_answer": "Open, notorious, continuous, and adverse (non-permissive) for the statutory period",
+   "explanation": "A prescriptive easement arises from open, notorious, continuous, adverse (hostile, non-permissive) use for the statutory period. Permissive use can never ripen into a prescriptive right.",
+   "difficulty": "medium",
+   "area": "boundary"
+  },
+  {
+   "question_text": "A description reads 'the John Doe Survey, Abstract No. 123, Bexar County, Texas.' This locational anchor reflects that Texas:",
+   "options": [
+    "Has no PLSS grid; land is keyed to an original GLO survey and abstract number",
+    "Uses township, range, and section like the federal system",
+    "Was surveyed by the federal BLM",
+    "Numbers its lands by latitude only"
+   ],
+   "correct_answer": "Has no PLSS grid; land is keyed to an original GLO survey and abstract number",
+   "explanation": "Texas retained its public lands, so most Texas land is described by metes-and-bounds tied to an original General Land Office survey and abstract number — the spine of Texas land identification — not by the PLSS township-range-section grid.",
+   "difficulty": "medium",
+   "area": "boundary"
+  },
+  {
+   "question_text": "Under a pure 'notice' recording act, a later good-faith purchaser for value without notice of a prior unrecorded deed:",
+   "options": [
+    "Takes free of the prior deed regardless of who records first",
+    "Wins only by recording before the prior grantee",
+    "Always loses to the earlier conveyance",
+    "Must record within 30 days"
+   ],
+   "correct_answer": "Takes free of the prior deed regardless of who records first",
+   "explanation": "A notice statute protects the subsequent BFP without notice irrespective of recording order. A race-notice statute would additionally require the BFP to record first. Texas is a pure notice state.",
+   "difficulty": "hard",
+   "area": "boundary"
+  },
+  {
+   "question_text": "The stated quantity (acreage) in a deed, when it conflicts with a found monument and a course-and-distance call, is:",
+   "options": [
+    "The weakest call — it yields to monuments and to course and distance",
+    "The strongest call — it controls all others",
+    "Equal in weight to a natural monument",
+    "Controlling only on platted subdivisions"
+   ],
+   "correct_answer": "The weakest call — it yields to monuments and to course and distance",
+   "explanation": "Quantity/area is the lowest-dignity call: a check, not a control. It yields to natural and artificial monuments and to course and distance, and ultimately to the parties' intent.",
+   "difficulty": "easy",
+   "area": "boundary"
+  },
+  {
+   "question_text": "A 540-vara call in a Texas grant equals, in feet (1 vara = 2.7778 ft):",
+   "options": [
+    "1,500 ft",
+    "1,944 ft",
+    "1,080 ft",
+    "194 ft"
+   ],
+   "correct_answer": "1,500 ft",
+   "explanation": "540 × 2.7778 = 1,500 ft (since 36 varas = 100 ft, 540 vrs = 15 × 100 = 1,500 ft). The vara is unique to Texas and former Spanish-grant areas; use Texas's legal 33⅓-inch value.",
+   "difficulty": "medium",
+   "area": "boundary"
+  },
+  {
+   "question_text": "An LSLS or RPLS retracing a public-land boundary classifies a corner with no monument but recoverable from a recorded bearing tree and an old fence line. This corner is:",
+   "options": [
+    "Obliterated — recoverable from collateral evidence, not proportioned",
+    "Lost — must be proportioned",
+    "Existent — the monument is intact",
+    "A meander corner"
+   ],
+   "correct_answer": "Obliterated — recoverable from collateral evidence, not proportioned",
+   "explanation": "An obliterated corner has lost its monument but is recoverable from collateral evidence (bearing trees, fences, testimony, adjoiner deeds). It is not lost and must not be proportioned while acceptable evidence locates it.",
+   "difficulty": "medium",
+   "area": "boundary"
+  },
+  {
+   "question_text": "A surveyor's professional duty when a client asks that monuments be set to favor the client's claim rather than the evidence is to:",
+   "options": [
+    "Decline and set corners per the boundary evidence, holding the public welfare paramount",
+    "Comply, since the client pays the fee",
+    "Set the corners halfway as a compromise",
+    "Refer the client to the neighbor"
+   ],
+   "correct_answer": "Decline and set corners per the boundary evidence, holding the public welfare paramount",
+   "explanation": "The surveyor's canons require unbiased professional analysis and place the public welfare first and foremost. Boundaries are located from the evidence and the original survey, not adjusted to favor a paying client.",
+   "difficulty": "medium",
+   "area": "boundary"
+  },
+  {
+   "question_text": "On a non-navigable stream that forms a boundary, the abutting owner's title generally extends to:",
+   "options": [
+    "The center thread of the channel",
+    "Only the top of the bank",
+    "The far bank",
+    "The ordinary high-water mark on the owner's own side only"
+   ],
+   "correct_answer": "The center thread of the channel",
+   "explanation": "On a non-navigable watercourse the riparian owner generally takes to the centerline (thread) of the stream. On a navigable stream the State owns the bed and private title stops at the high-water mark.",
+   "difficulty": "medium",
+   "area": "boundary"
+  }
+ ]
+}

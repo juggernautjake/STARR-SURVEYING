@@ -121,6 +121,41 @@ a:hover {
   color: var(--brand-blue);
 }
 
+/* select-chevron-2026-06-20 — every native <select> site-wide
+ * gets a unified chevron on the right side so it reads as a
+ * dropdown. The chevron rotates from down (▾) to up (▴) when the
+ * dropdown is open via the CSS `:open` pseudo-class (Chromium 130+
+ * / Safari 18.2). On browsers without `:open`, the chevron stays
+ * down at all times — the user still gets the cue.
+ *
+ * Page-specific rules can override `background-image` (e.g. the
+ * audit page draws its own chevron and a custom focus ring). The
+ * rule below only applies when the page hasn't done so already:
+ * it sets a default background-image that's overridable by any
+ * later rule.
+ *
+ * Excludes <select multiple> (those render as a list, no caret
+ * dropdown) + selects that already opt out via `--select-no-chevron`. */
+select:not([multiple]) {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  background-color: inherit;
+  /* Reserve room for the chevron so option text never collides
+   * with it. Inherit the rest of the typography from the page. */
+  padding-right: 2rem;
+}
+
+/* Flip the chevron when the dropdown is open. CSS `:open` only
+ * fires on <select>/<details> in Chromium 130+ and Safari 18.2+ —
+ * older browsers keep the chevron pointing down. */
+select:not([multiple]):open {
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 7l5-5 5 5' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;

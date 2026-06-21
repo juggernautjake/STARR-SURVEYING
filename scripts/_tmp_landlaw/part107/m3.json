@@ -1,0 +1,1062 @@
+{
+  "module": {
+    "order_index": 3,
+    "title": "Module 3: Airspace & Reading Sectional Charts",
+    "description": "The National Airspace System for Part 107 pilots: controlled Classes A-E, uncontrolled Class G, where each starts and stops, who needs LAANC/DroneZone authorization, and how to read a VFR Sectional Aeronautical Chart to decide whether you can legally fly at a given spot.",
+    "estimated_hours": 3.0,
+    "learning_objectives": [
+      "Describe the National Airspace System and distinguish controlled from uncontrolled airspace.",
+      "State the altitudes and dimensions of Class A, B, C, D, E, and G airspace and who must obtain authorization.",
+      "Explain why Part 107 operations in controlled airspace require LAANC or DroneZone authorization while Class G does not.",
+      "Read Sectional Chart symbology: airport symbols, airspace ring/vignette colors, ceiling/floor numbers, data blocks, frequencies, lat/long, and the MEF.",
+      "Identify Special Use Airspace, TFRs, NOTAMs, and charted obstructions, and determine whether a given location is legal to fly."
+    ]
+  },
+  "lessons": [
+    {
+      "title": "The National Airspace System: Controlled vs. Uncontrolled",
+      "estimated_minutes": 25,
+      "learning_objectives": [
+        "Define the National Airspace System (NAS) and the purpose of airspace classification.",
+        "Distinguish controlled airspace (A-E) from uncontrolled airspace (Class G).",
+        "Explain the practical meaning of 'controlled' for a Part 107 remote pilot."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>What the National Airspace System Is</h3><p>The <strong>National Airspace System (NAS)</strong> is the network of airspace, airports, navigation aids, air traffic control facilities, rules, and procedures that lets manned and unmanned aircraft share the sky safely. To keep traffic separated, the United States divides the airspace into lettered <strong>classes</strong>, each with its own dimensions, communication and equipment requirements, and entry rules. As a Remote Pilot in Command (RPIC) you do not need to memorize every manned-aircraft requirement, but you absolutely must know <strong>which class of airspace you are flying in</strong> and <strong>whether it requires authorization</strong> before you launch.</p><p>Two big buckets matter for Part 107: <strong>controlled airspace</strong> (Classes A, B, C, D, and E) where air traffic control (ATC) provides separation services, and <strong>uncontrolled airspace</strong> (Class G) where ATC does not. The single most important habit this module builds is reading a <strong>Sectional Aeronautical Chart</strong> to figure out which class sits over any spot on the ground.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Controlled vs. Uncontrolled in Plain Terms</h3><p><strong>Controlled airspace</strong> does not mean drones are banned there. It means ATC exercises some authority and provides services to participating aircraft. For a Part 107 pilot the practical translation is simple: <strong>to fly in controlled airspace you must obtain an airspace authorization first</strong> (through LAANC or FAADroneZone). <strong>Uncontrolled airspace (Class G)</strong> requires <strong>no ATC authorization</strong> — it is the default legal home for sUAS flying at or below 400 ft AGL, as long as you obey all other Part 107 rules.</p><p>Remember a key reference frame: airspace floors and ceilings are quoted in feet above ground level (<strong>AGL</strong>) or feet above mean sea level (<strong>MSL</strong>). Drones are limited to 400 ft AGL, so most of the airspace you ever touch is the lowest slice — exactly the slice that surrounds airports, where controlled airspace usually comes all the way down to the surface.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Class letters run A (highest/busiest) through G (uncontrolled). A memory hook: A, B, C, D, E are Controlled; G is the 'Ground/General' airspace that is uncontrolled. (There is no Class F in the United States.)"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Cross-section diagram of the National Airspace System showing Class A, B, C, D, E, and G stacked by altitude",
+            "caption": "Figure: Side-view cross-section of the NAS showing each airspace class by altitude, with Class B's upside-down wedding-cake shape, Class C's two-tier shape, Class D's cylinder to the surface, Class E floors at 700/1,200 ft AGL and the surface, Class A from 18,000 ft MSL up, and Class G filling the space below the overlying Class E.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Bucket", "Classes", "ATC services?", "Part 107 authorization needed?"],
+            "rows": [
+              ["Controlled", "A, B, C, D, E", "Yes (to participating aircraft)", "Yes for B, C, D, and surface-area E"],
+              ["Uncontrolled", "G", "No", "No"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Class A airspace begins at 18,000 ft MSL and tops out at FL600 (60,000 ft) — far above the 400 ft AGL drone ceiling. You will never legally operate a Part 107 drone in Class A, but you must still know it exists for the exam."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "The NAS is divided into lettered classes A-G to keep aircraft separated.",
+              "Controlled = Classes A, B, C, D, E (ATC provides services); uncontrolled = Class G.",
+              "Part 107 requires an airspace authorization (LAANC/DroneZone) to fly in controlled airspace; Class G needs none.",
+              "Drones are limited to 400 ft AGL, so the relevant airspace is the lowest slice near the surface.",
+              "Class A (18,000 ft MSL to FL600) is never relevant to drone operations but appears on the exam."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "National Airspace System (NAS)",
+          "definition": "The network of airspace, airports, navigation aids, ATC facilities, rules, and procedures that lets aircraft share U.S. airspace safely.",
+          "hint_1": "It's the whole 'system,' not a single class."
+        },
+        {
+          "term": "Controlled airspace",
+          "definition": "Airspace Classes A, B, C, D, and E in which ATC provides separation services; for Part 107 it requires an airspace authorization (LAANC/DroneZone) to enter.",
+          "hint_1": "A through E."
+        },
+        {
+          "term": "Uncontrolled airspace (Class G)",
+          "definition": "Airspace where ATC does not provide separation services; no authorization needed for Part 107 ops at or below 400 ft AGL.",
+          "hint_1": "The default legal home for drones."
+        },
+        {
+          "term": "AGL vs. MSL",
+          "definition": "AGL = feet Above Ground Level (height over the terrain). MSL = feet above Mean Sea Level (elevation referenced to the ocean). The 400 ft drone limit is AGL.",
+          "hint_1": "One follows the dirt, one is fixed to the sea."
+        }
+      ],
+      "images_needed": [
+        {
+          "slug": "p107-m3-nas-crosssection",
+          "caption": "Side-view cross-section of the National Airspace System showing all classes stacked by altitude: Class A above 18,000 MSL, Class B upside-down wedding cake, Class C two-tier, Class D cylinder to surface, Class E floors (surface, 700, 1,200 ft AGL), and Class G below the overlying Class E.",
+          "kind": "diagram"
+        }
+      ]
+    },
+    {
+      "title": "Controlled Airspace: Classes A, B, C, and D",
+      "estimated_minutes": 28,
+      "learning_objectives": [
+        "State the altitude limits and physical shape of Class A, B, C, and D airspace.",
+        "Match each class to its Sectional Chart line color.",
+        "Recognize that Class B, C, and D all require Part 107 authorization before flight."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Class A: The High-Altitude Ceiling</h3><p><strong>Class A</strong> airspace extends from <strong>18,000 ft MSL up to and including FL600 (60,000 ft)</strong> over the contiguous United States and offshore areas. All operations there are conducted under instrument flight rules (IFR) by ATC clearance. Because it begins miles above the 400 ft AGL drone limit, <strong>Class A is never a Part 107 concern operationally</strong> — but expect a knowledge-test question on its floor (18,000 MSL) and ceiling (FL600).</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Class B: The Busiest Airports ('Upside-Down Wedding Cake')</h3><p><strong>Class B</strong> surrounds the nation's <strong>busiest airports</strong> (think major metropolitan hubs). It typically extends from the <strong>surface up to about 10,000 ft MSL</strong> and is built from several concentric shelves that get wider as you go up — the classic <strong>'upside-down wedding cake.'</strong> On a Sectional Chart, Class B is drawn with <strong>solid blue</strong> lines. Every Part 107 operation inside Class B requires an <strong>airspace authorization</strong> before flight.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Class C: Busy (Not Busiest) Airports</h3><p><strong>Class C</strong> surrounds <strong>moderately busy</strong> airports with an operating control tower and radar approach control. It generally runs from the <strong>surface to about 4,000 ft AGL</strong> and is usually a two-ring structure (an inner surface ring and an outer shelf). On the Sectional, Class C is drawn with <strong>solid magenta</strong> lines. Authorization is required for Part 107 operations.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Class D: Smaller Towered Airports</h3><p><strong>Class D</strong> surrounds airports that have an <strong>operating control tower</strong> but less traffic than Class C. It is typically a simple cylinder from the <strong>surface up to about 2,500 ft AGL</strong>, and on the chart it is shown with a <strong>blue dashed</strong> ring. A small <strong>boxed number</strong> inside the ring (for example, [25]) gives the Class D <strong>ceiling in hundreds of feet MSL</strong> — [25] means the top is 2,500 ft MSL. Authorization is required. Note that when a control tower closes for the night, the airspace may revert to Class E or G, but for Part 107 planning you still treat the charted controlled airspace as requiring authorization unless you confirm otherwise.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Sectional chart excerpt showing solid blue Class B rings, solid magenta Class C rings, and a blue dashed Class D ring with a ceiling box",
+            "caption": "Figure: Sectional excerpt placing the three towered-airport airspaces side by side — solid BLUE concentric Class B rings, solid MAGENTA Class C rings, and a BLUE DASHED Class D ring with its boxed ceiling number (e.g., [33]) shown clearly.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Class", "Typical vertical extent", "Sectional line color", "107 authorization?"],
+            "rows": [
+              ["A", "18,000 ft MSL to FL600", "Not depicted on sectionals as a ring", "N/A (above drones)"],
+              ["B", "Surface to ~10,000 ft MSL", "Solid BLUE", "Required"],
+              ["C", "Surface to ~4,000 ft AGL", "Solid MAGENTA", "Required"],
+              ["D", "Surface to ~2,500 ft AGL", "BLUE DASHED", "Required"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Don't confuse the colors: Class B and Class D are both BLUE (B solid, D dashed); Class C is solid MAGENTA. A common trap on the exam is calling a magenta solid ring 'Class B' — magenta solid is Class C."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Class A: 18,000 ft MSL to FL600 — never a drone operating concern.",
+              "Class B (busiest airports): surface to ~10,000 MSL, upside-down wedding cake, solid BLUE.",
+              "Class C (busy airports): surface to ~4,000 AGL, solid MAGENTA.",
+              "Class D (towered airports): surface to ~2,500 AGL, BLUE DASHED, ceiling shown in a box (hundreds of ft MSL).",
+              "B, C, and D all require a Part 107 airspace authorization before flight."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Class A airspace",
+          "definition": "Controlled airspace from 18,000 ft MSL up to and including FL600; all IFR; far above the drone ceiling.",
+          "hint_1": "18,000 to 60,000."
+        },
+        {
+          "term": "Class B airspace",
+          "definition": "Controlled airspace around the busiest airports, surface to ~10,000 ft MSL, 'upside-down wedding cake,' drawn with SOLID BLUE lines; 107 authorization required.",
+          "hint_1": "Busiest = solid blue."
+        },
+        {
+          "term": "Class C airspace",
+          "definition": "Controlled airspace around busy towered airports, surface to ~4,000 ft AGL, drawn with SOLID MAGENTA lines; 107 authorization required.",
+          "hint_1": "Solid magenta."
+        },
+        {
+          "term": "Class D airspace",
+          "definition": "Controlled airspace around smaller towered airports, surface to ~2,500 ft AGL, drawn with a BLUE DASHED ring; boxed number = ceiling in hundreds of ft MSL; authorization required.",
+          "hint_1": "Blue dashed cylinder."
+        }
+      ],
+      "images_needed": [
+        {
+          "slug": "p107-m3-bcd-comparison",
+          "caption": "Sectional excerpt comparing the three towered-airport classes side by side: solid blue Class B concentric rings, solid magenta Class C rings, and a blue dashed Class D ring with a visible boxed ceiling number.",
+          "kind": "chart"
+        },
+        {
+          "slug": "p107-m3-class-b-weddingcake",
+          "caption": "Three-dimensional cutaway of a Class B 'upside-down wedding cake' showing the surface core and the wider shelves stacked above it, with each shelf's floor/ceiling MSL altitudes labeled.",
+          "kind": "diagram"
+        }
+      ]
+    },
+    {
+      "title": "Class E, Class G, and Who Needs Authorization",
+      "estimated_minutes": 28,
+      "learning_objectives": [
+        "Describe where Class E airspace begins (surface, 700 ft AGL, 1,200 ft AGL) and how each is charted.",
+        "Define Class G uncontrolled airspace and its relationship to the overlying Class E.",
+        "Explain why controlled airspace near the surface requires LAANC/DroneZone authorization but Class G does not."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Class E: Controlled Airspace That Floats at Different Floors</h3><p><strong>Class E</strong> is controlled airspace that is everywhere except where another class or Class G exists. What makes it tricky is that its <strong>floor</strong> changes from place to place. The three floors a drone pilot cares about are:</p><ul><li><strong>Surface</strong> — Class E to the ground, usually around an airport that needs controlled airspace but doesn't rate a tower. Charted with a <strong>dashed magenta</strong> line. <strong>This requires Part 107 authorization</strong> because it is controlled airspace touching the surface where you fly.</li><li><strong>700 ft AGL</strong> — the most common floor; charted as a <strong>fuzzy/faded magenta vignette</strong> that fades <em>outward</em>. Inside the faded edge the floor is 700 AGL.</li><li><strong>1,200 ft AGL</strong> — charted as a <strong>fuzzy/faded blue vignette</strong>.</li></ul><p>For a drone flying at or below 400 ft AGL, a Class E floor of 700 or 1,200 ft AGL sits <em>above</em> you — so you are actually operating in the <strong>Class G</strong> beneath it and need no authorization. Only <strong>surface-area Class E</strong> (the dashed magenta) reaches down to where you fly and triggers an authorization requirement.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Sectional excerpt showing dashed-magenta Class E to surface, faded magenta 700 AGL vignette, and faded blue 1,200 AGL vignette",
+            "caption": "Figure: Sectional excerpt that shows all three Class E depictions together — a DASHED MAGENTA surface-area ring around an airport, the FADED MAGENTA vignette (700 ft AGL floor) fading outward, and a FADED BLUE vignette marking where the floor steps up to 1,200 ft AGL.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Class G: Uncontrolled — The Drone's Default Home</h3><p><strong>Class G</strong> is <strong>uncontrolled</strong> airspace. It runs from the <strong>surface up to the base of the overlying Class E</strong> — commonly 700 ft AGL (under a magenta vignette) or 1,200 ft AGL (under a blue vignette), and in some remote areas higher. Because a drone is limited to 400 ft AGL, when you are in a Class G area you are comfortably below the Class E floor and <strong>no ATC authorization is required.</strong> Class G is where the vast majority of legal Part 107 flying happens.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Why Controlled Airspace Needs LAANC/DroneZone but Class G Does Not</h3><p><strong>14 CFR 107.41</strong> prohibits operating in Class B, C, D, or the surface area of Class E <strong>without prior authorization from ATC.</strong> The reason is safety: those areas surround airports where manned aircraft are taking off and landing at low altitude — exactly the altitude band a drone occupies. ATC needs to know a drone is operating so it can manage that risk, so the FAA created two tools to grant authorization:</p><ul><li><strong>LAANC</strong> (Low Altitude Authorization and Notification Capability) — gives <strong>near-real-time</strong> authorization up to the altitude posted on the UAS Facility Map grid for that location.</li><li><strong>FAADroneZone</strong> — the FAA portal used where LAANC is unavailable, and for further-coordination requests and waivers (not near-real-time).</li></ul><p><strong>Class G</strong> has none of this airport traffic structure at the surface, so no authorization is needed — but you still owe every other Part 107 duty: stay at or below 400 ft AGL, maintain visual line of sight, yield to manned aircraft, and check for TFRs.</p>"
+          }
+        },
+        {
+          "block_type": "accordion",
+          "content": {
+            "sections": [
+              {
+                "title": "How LAANC works (and the '0' grid)",
+                "content": "<p>LAANC is a partnership between the FAA and approved companies called UAS Service Suppliers (USS). You request authorization through a USS app; if your requested altitude is at or below the maximum altitude posted on the UAS Facility Map (UASFM) grid for that location, the system can approve it <strong>automatically in near-real-time.</strong> A grid showing <strong>'0'</strong> means automatic LAANC is NOT available there — you must submit a <strong>further-coordination</strong> request through FAADroneZone, which the FAA reviews manually and is much slower.</p>",
+                "open": false
+              },
+              {
+                "title": "UAS Facility Maps (UASFM)",
+                "content": "<p>UAS Facility Maps are grids overlaid around controlled airports that show the <strong>maximum altitude (e.g., 0, 100, 200, 300, 400 ft AGL)</strong> at which LAANC can pre-approve a drone operation. Lower numbers appear close to runways; the cap may be 400 ft farther out. Always check the grid value before requesting an authorization.</p>",
+                "open": false
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "error",
+            "text": "Authorization is NOT a waiver. An airspace authorization (LAANC/DroneZone) lets you enter controlled airspace; a waiver (107.205) lets you deviate from an operating rule like VLOS or flying over people. Don't mix them up on the exam."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Class E floors: surface (dashed magenta), 700 ft AGL (faded magenta vignette), 1,200 ft AGL (faded blue vignette).",
+              "Only surface-area Class E (dashed magenta) reaches drone altitude and requires authorization.",
+              "Class G is uncontrolled, runs surface to the base of overlying Class E, and needs no authorization.",
+              "14 CFR 107.41 requires ATC authorization for Class B, C, D, and surface-area E — obtained via LAANC (near-real-time) or DroneZone.",
+              "A UASFM '0' grid means no automatic LAANC; a further-coordination request is required."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Class E airspace",
+          "definition": "Controlled airspace with a floor that varies: surface (dashed magenta), 700 ft AGL (faded magenta vignette), or 1,200 ft AGL (faded blue vignette). Only surface-area E requires 107 authorization.",
+          "hint_1": "The 'everywhere else' controlled airspace with shifting floors."
+        },
+        {
+          "term": "Class G airspace",
+          "definition": "Uncontrolled airspace from the surface up to the base of the overlying Class E (often 700 or 1,200 ft AGL); no ATC authorization needed for Part 107.",
+          "hint_1": "Where most legal drone flying happens."
+        },
+        {
+          "term": "LAANC",
+          "definition": "Low Altitude Authorization and Notification Capability — provides near-real-time authorization to fly in controlled airspace up to the altitude on the UAS Facility Map grid.",
+          "hint_1": "Near-real-time approval via a USS app."
+        },
+        {
+          "term": "FAADroneZone",
+          "definition": "FAA portal for airspace authorizations where LAANC is unavailable, plus further-coordination requests and waivers; not near-real-time.",
+          "hint_1": "The slower, manual route."
+        },
+        {
+          "term": "14 CFR 107.41",
+          "definition": "Rule prohibiting operation in Class B, C, D, or the lateral surface area of Class E airspace without prior authorization from ATC.",
+          "hint_1": "The 'get permission for controlled airspace' rule."
+        }
+      ],
+      "images_needed": [
+        {
+          "slug": "p107-m3-class-e-types",
+          "caption": "Sectional excerpt showing all three Class E depictions together: dashed-magenta surface-area E around an airport, faded magenta 700 ft AGL vignette fading outward, and faded blue 1,200 ft AGL vignette transition.",
+          "kind": "chart"
+        },
+        {
+          "slug": "p107-m3-uasfm-grid",
+          "caption": "Example UAS Facility Map (UASFM) grid overlaid on an airport area, showing maximum LAANC altitudes (0, 100, 200, 300, 400 ft AGL) per cell, with low/zero values near the runway and higher values farther out.",
+          "kind": "map"
+        }
+      ]
+    },
+    {
+      "title": "Reading the Sectional Chart: Airports, Airspace Lines & Vignettes",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Identify towered vs. non-towered airport symbols by color.",
+        "Decode every airspace line/vignette color back to its airspace class.",
+        "Interpret ceiling and floor numbers (boxes and slashed pairs) on the chart."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The Sectional Aeronautical Chart</h3><p>A <strong>Sectional Aeronautical Chart</strong> (or 'sectional') is the primary VFR chart pilots and drone operators use to see airspace, airports, terrain, and obstacles. Many UAG exam questions hand you a chart excerpt and ask which airspace applies, how high you may fly, or what a symbol means. The chart speaks in <strong>color and symbol</strong> — once you can translate those two languages, chart questions become quick points.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Airport Symbols: Color Tells You Towered vs. Non-Towered</h3><p>The color of an airport symbol tells you whether it has an operating control tower:</p><ul><li><strong>BLUE airport symbol</strong> = airport <strong>WITH</strong> an operating control tower (towered).</li><li><strong>MAGENTA airport symbol</strong> = airport <strong>WITHOUT</strong> an operating control tower (non-towered).</li></ul><p>Extra marks add detail: small <strong>ticks/extensions</strong> around the symbol indicate fuel and services are available; a <strong>star</strong> above the symbol means the airport has a <strong>rotating beacon</strong>; the runway layout may be drawn to scale at larger airports.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Chart legend comparing a blue towered airport symbol with a magenta non-towered airport symbol, including fuel ticks and a beacon star",
+            "caption": "Figure: Side-by-side airport symbols — a BLUE towered-airport symbol and a MAGENTA non-towered-airport symbol — annotated with the fuel/service ticks and the rotating-beacon star.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Airspace Lines & Vignettes: The Master Color Key</h3><p>Every boundary on the chart maps to an airspace class. Memorize this key — it is the single highest-yield chart skill for Part 107:</p><ul><li><strong>Solid BLUE line</strong> = Class B.</li><li><strong>Solid MAGENTA line</strong> = Class C.</li><li><strong>BLUE DASHED line</strong> = Class D.</li><li><strong>MAGENTA DASHED line</strong> = Class E to the surface.</li><li><strong>Faded MAGENTA vignette</strong> (fades outward) = Class E floor at 700 ft AGL.</li><li><strong>Faded BLUE vignette</strong> = Class E floor at 1,200 ft AGL.</li></ul><p>A handy rule for the magenta fade: standing <em>inside</em> the faded magenta, the Class E floor is 700 AGL; step <em>outside</em> it (onto the plain background or into the blue vignette) and the floor is 1,200 AGL or as noted.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["What you see on the chart", "Airspace it means", "Floor / ceiling clue"],
+            "rows": [
+              ["Solid blue line", "Class B", "Floors/ceilings printed in the shelf boxes (MSL)"],
+              ["Solid magenta line", "Class C", "Floor/ceiling pairs printed near the ring (MSL)"],
+              ["Blue dashed line", "Class D", "Boxed number = ceiling in hundreds of ft MSL"],
+              ["Magenta dashed line", "Class E to surface", "Reaches the ground; authorization required"],
+              ["Faded magenta (fades outward)", "Class E, floor 700 ft AGL", "Inside the fade = 700 AGL floor"],
+              ["Faded blue", "Class E, floor 1,200 ft AGL", "Floor steps up to 1,200 AGL"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Reading the Ceiling/Floor Numbers</h3><p>Airspace boxes use a stacked or slashed pair of numbers to show the <strong>ceiling over the floor</strong>, in hundreds of feet MSL. For example, a Class C shelf marked <strong>41/12</strong> means the airspace there runs from a floor of <strong>1,200 ft MSL up to a ceiling of 4,100 ft MSL</strong>. A bare <strong>boxed number like [25]</strong> next to a blue dashed ring is a Class D <strong>ceiling</strong> of 2,500 ft MSL. A floor written as <strong>SFC</strong> means the airspace starts at the surface.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Chart excerpt showing a Class C shelf with a 41 over 12 box and a Class D ring with a bracketed 25 ceiling",
+            "caption": "Figure: Zoomed chart excerpt highlighting airspace floor/ceiling numbers — a Class C shelf labeled '41/12' (4,100 MSL ceiling over 1,200 MSL floor) and a Class D ring with a boxed [25] ceiling (2,500 MSL), with an 'SFC' floor callout.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Blue airport symbol = towered; magenta airport symbol = non-towered.",
+              "Solid blue = Class B; solid magenta = Class C; blue dashed = Class D; magenta dashed = Class E to surface.",
+              "Faded magenta vignette = Class E floor at 700 ft AGL; faded blue vignette = floor at 1,200 ft AGL.",
+              "Stacked/slashed numbers show ceiling over floor in hundreds of feet MSL (e.g., 41/12 = 4,100 over 1,200 MSL).",
+              "SFC = surface; a boxed number by a blue dashed ring is the Class D ceiling in hundreds of feet MSL."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Blue airport symbol",
+          "definition": "On a Sectional, indicates an airport WITH an operating control tower (towered).",
+          "hint_1": "Towered = blue."
+        },
+        {
+          "term": "Magenta airport symbol",
+          "definition": "On a Sectional, indicates an airport WITHOUT an operating control tower (non-towered).",
+          "hint_1": "Non-towered = magenta."
+        },
+        {
+          "term": "Magenta dashed line",
+          "definition": "Sectional symbol for Class E airspace that begins at the surface; reaches drone altitude and requires 107 authorization.",
+          "hint_1": "Dashed = D or E-surface; magenta points to E."
+        },
+        {
+          "term": "Faded magenta vignette",
+          "definition": "Sectional shading marking Class E with a floor at 700 ft AGL; fades outward, with the 700-AGL floor on the inside.",
+          "hint_1": "Soft magenta = 700 AGL floor."
+        },
+        {
+          "term": "Stacked airspace numbers (e.g., 41/12)",
+          "definition": "Ceiling over floor in hundreds of feet MSL; 41/12 = ceiling 4,100 MSL, floor 1,200 MSL. SFC = surface.",
+          "hint_1": "Top number is the ceiling."
+        }
+      ],
+      "images_needed": [
+        {
+          "slug": "p107-m3-airport-symbols",
+          "caption": "Sectional legend comparison of a blue towered-airport symbol and a magenta non-towered-airport symbol, annotated with fuel-service ticks and the rotating-beacon star.",
+          "kind": "chart"
+        },
+        {
+          "slug": "p107-m3-airspace-color-key",
+          "caption": "A clean reference panel showing each airspace line/vignette style next to its class: solid blue (B), solid magenta (C), blue dashed (D), magenta dashed (E-surface), faded magenta (E 700 AGL), faded blue (E 1,200 AGL).",
+          "kind": "chart"
+        },
+        {
+          "slug": "p107-m3-ceiling-floor-boxes",
+          "caption": "Zoomed chart excerpt highlighting airspace floor/ceiling numbers: a Class C shelf labeled 41/12 and a Class D ring with a boxed [25] ceiling, plus an SFC floor callout.",
+          "kind": "chart"
+        }
+      ]
+    },
+    {
+      "title": "Airport Data Blocks, Frequencies, Lat/Long & the MEF",
+      "estimated_minutes": 28,
+      "learning_objectives": [
+        "Read an airport data block for elevation, CTAF/UNICOM frequency, runway length, and lighting.",
+        "Locate and interpret latitude/longitude tick marks on the chart neatlines.",
+        "Define the Maximum Elevation Figure (MEF) and read it from a chart quadrangle."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The Airport Data Block</h3><p>Next to each airport symbol is a small block of text — the <strong>airport data block</strong>. Reading it tells you how to coordinate with manned traffic and assess the site. A typical block lists, in order, the airport <strong>name</strong>, the <strong>field elevation in feet MSL</strong>, the <strong>CTAF/UNICOM frequency</strong>, the <strong>longest runway length</strong> (in hundreds of feet), and <strong>lighting</strong> availability (e.g., an asterisk/'L' code for lighting that operates on a schedule). Knowing the field elevation matters because airspace ceilings are in MSL but your drone limit is AGL.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>CTAF & Other Frequencies</h3><p>Many drone sites sit near <strong>non-towered</strong> airports where pilots self-announce on the <strong>CTAF (Common Traffic Advisory Frequency)</strong>. On the chart, the CTAF is marked with a bold <strong>'C'</strong> inside a magenta circle next to the frequency. <strong>UNICOM</strong> (an advisory/ground service) commonly uses 122.7, 122.8, 122.9, or 123.0 MHz. Around Class B/C/D airspace you will also see boxed <strong>approach/departure</strong> and tower frequencies. While Part 107 does not require you to transmit, <strong>monitoring</strong> the CTAF is excellent practice for keeping situational awareness of manned aircraft taking off and landing.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Sectional airport data block annotated with name, elevation, CTAF with magenta C-in-circle, runway length, and lighting code",
+            "caption": "Figure: A magnified Sectional airport data block with callouts labeling each element — airport name, field elevation (MSL), CTAF frequency (with the bold magenta 'C' in a circle), runway length in hundreds of feet, and the lighting code.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Latitude & Longitude</h3><p><strong>Latitude</strong> lines (parallels) run east-west and measure degrees <strong>north or south</strong> of the equator; <strong>longitude</strong> lines (meridians) run north-south and measure degrees <strong>east or west</strong> of the Prime Meridian. On a Sectional, tick marks along the <strong>neatlines</strong> (and along the latitude/longitude grid lines crossing the chart) let you read a location's coordinates. Each degree is divided into 60 minutes; the small ticks usually mark single minutes. Exam questions may give you coordinates and ask you to find the airspace at that point, or give a point and ask for its coordinates.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The Maximum Elevation Figure (MEF)</h3><p>Each latitude-longitude <strong>quadrangle</strong> on the chart carries a large <strong>bold number</strong> made of two parts — for example a big <strong>'12'</strong> with a slightly smaller <strong>'5'</strong>. This is the <strong>Maximum Elevation Figure (MEF)</strong>: the height of the <strong>highest known terrain or obstacle</strong> in that quadrangle, expressed in <strong>thousands and hundreds of feet MSL.</strong> A MEF shown as 12<sup>5</sup> means 12,500 ft MSL. The MEF includes an allowance for the height of obstacles and gives a quick terrain-clearance reference. While a drone stays at 400 ft AGL, the MEF is a fast way to spot tall obstructions worth investigating before you fly.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Chart quadrangle showing a large bold MEF number like 12 superscript 5 with latitude and longitude tick marks on the neatlines",
+            "caption": "Figure: A chart quadrangle bounded by latitude/longitude lines, showing the large bold Maximum Elevation Figure (e.g., 12 with a superscript 5 = 12,500 ft MSL) centered in the block, with the minute tick marks along the lat/long neatlines called out.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "MEF math: read it as thousands + hundreds of feet MSL. A MEF of 3 with a small 4 = 3,400 ft MSL; a MEF of 10 with a small 8 = 10,800 ft MSL. It is the HIGHEST obstacle/terrain in that grid square, not an airspace floor."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "The airport data block lists name, field elevation (MSL), CTAF/UNICOM frequency, runway length, and lighting.",
+              "CTAF is shown with a bold magenta 'C' in a circle; UNICOM commonly 122.7-123.0; monitoring CTAF aids awareness.",
+              "Latitude = N/S parallels; longitude = E/W meridians; tick marks on the neatlines read coordinates (60 minutes per degree).",
+              "The MEF is the highest terrain/obstacle in a quadrangle in thousands+hundreds of ft MSL (12 over 5 = 12,500 MSL).",
+              "Field elevation matters because airspace ceilings are MSL while your 400 ft drone limit is AGL."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Airport data block",
+          "definition": "Text near an airport symbol giving its name, field elevation (MSL), CTAF/UNICOM frequency, longest runway length, and lighting.",
+          "hint_1": "The little caption next to the airport."
+        },
+        {
+          "term": "CTAF (Common Traffic Advisory Frequency)",
+          "definition": "The frequency pilots use to self-announce at non-towered airports; shown on the chart with a bold magenta 'C' in a circle.",
+          "hint_1": "Self-announce frequency, marked with a C."
+        },
+        {
+          "term": "Latitude vs. longitude",
+          "definition": "Latitude = parallels measuring degrees N/S of the equator; longitude = meridians measuring degrees E/W of the Prime Meridian. 60 minutes per degree.",
+          "hint_1": "'Lat' is flat (runs east-west)."
+        },
+        {
+          "term": "Maximum Elevation Figure (MEF)",
+          "definition": "Large bold number in each chart quadrangle giving the highest terrain/obstacle in that block in thousands+hundreds of feet MSL (e.g., 12 over 5 = 12,500 MSL).",
+          "hint_1": "Highest thing in the grid square."
+        }
+      ],
+      "images_needed": [
+        {
+          "slug": "p107-m3-data-block",
+          "caption": "Magnified Sectional airport data block with each element labeled: airport name, field elevation MSL, CTAF (bold magenta C in circle), runway length in hundreds of feet, lighting code.",
+          "kind": "chart"
+        },
+        {
+          "slug": "p107-m3-latlong-ticks",
+          "caption": "Sectional neatline corner showing degree and minute tick marks for latitude and longitude, with an example coordinate read-off annotated.",
+          "kind": "chart"
+        },
+        {
+          "slug": "p107-m3-mef-quadrangle",
+          "caption": "A chart quadrangle bounded by lat/long lines showing a large bold MEF (e.g., 12 with superscript 5 = 12,500 MSL) centered in the block.",
+          "kind": "chart"
+        }
+      ]
+    },
+    {
+      "title": "Special Use Airspace, TFRs, NOTAMs & Obstructions",
+      "estimated_minutes": 28,
+      "learning_objectives": [
+        "Identify the types of Special Use Airspace and how each is charted.",
+        "Explain TFRs and NOTAMs and the duty to check them before every flight.",
+        "Recognize charted obstructions and lighting symbols and their height labels."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Special Use Airspace (SUA)</h3><p><strong>Special Use Airspace</strong> sets aside areas where activities require limits on other aircraft. Some are <strong>regulatory</strong> (created by rulemaking, 14 CFR Part 73) and some are <strong>non-regulatory.</strong> They are outlined on the chart with blue or magenta <strong>hatched borders</strong>, and a tabbed box lists each area's <strong>number, altitudes, hours of use, and controlling agency.</strong></p><ul><li><strong>Prohibited Area (P-###):</strong> flight is <strong>prohibited</strong> entirely (e.g., over the White House). Regulatory.</li><li><strong>Restricted Area (R-###):</strong> hazardous activity such as artillery or missile firing; flight is <strong>restricted</strong> and you may enter only with the controlling agency's permission when it is 'cold.' Regulatory.</li><li><strong>Warning Area (W-###):</strong> like a restricted area but located over <strong>international waters</strong> (3+ NM offshore). Non-regulatory.</li><li><strong>Military Operations Area (MOA):</strong> separates military training from IFR traffic; use caution when active. Non-regulatory.</li><li><strong>Alert Area (A-###):</strong> high volume of pilot training or unusual aerial activity; all pilots share responsibility to see and avoid. Non-regulatory.</li><li><strong>Controlled Firing Area (CFA):</strong> activity that ceases when an aircraft approaches; <strong>not charted</strong> because it poses no charted hazard.</li></ul>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Sectional excerpt showing hatched Restricted, Prohibited, Warning, MOA, and Alert area borders with the SUA tabulation box",
+            "caption": "Figure: Sectional excerpt displaying several Special Use Airspace borders (a Restricted Area R-#### with blue hatching, a Prohibited Area, a magenta-hatched MOA, and an Alert Area) alongside the chart's SUA tabulation box listing numbers, altitudes, times, and controlling agency.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>TFRs and NOTAMs</h3><p>A <strong>Temporary Flight Restriction (TFR)</strong> restricts flight in a defined area for a limited time — common reasons include VIP/Presidential movement, disasters, wildfires, and major sporting events. TFRs are issued as <strong>FDC NOTAMs</strong>, and <strong>many TFRs prohibit all UAS operations.</strong> Because they pop up and expire, they are <strong>not pre-printed</strong> on the Sectional — you must check for active TFRs before every flight.</p><p>A <strong>NOTAM (Notice to Air Missions)</strong> is time-critical aeronautical information such as a closed runway, an inoperative light, a crane erected near an airport, or an airspace restriction. Part 107 pilots must check NOTAMs and TFRs as part of preflight planning; an airspace authorization does not excuse you from complying with an active TFR or NOTAM.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "TFRs are dynamic and override your routine plan. Check a current source (B4UFLY app, the FAA TFR list, or a briefing) immediately before launch. Stadium TFRs and disaster/VIP TFRs frequently ban drones outright."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Obstructions & Lighting</h3><p><strong>Obstructions</strong> (towers, antennas, tall buildings) are drawn on the chart with an <strong>inverted-V</strong> symbol; a group of them gets a clustered symbol. Each obstruction lists <strong>two heights</strong>: the <strong>top above MSL in bold</strong>, and the <strong>height above ground (AGL) in parentheses below it.</strong> For example, <strong>1,549 (1,149)</strong> means the top is 1,549 ft MSL and the structure rises 1,149 ft above the ground. Obstructions that are <strong>lighted</strong> show a small lightning-bolt/asterisk-style marking. Obstructions <strong>1,000 ft AGL or higher</strong> are drawn with a bolder symbol. Because drones operate low, charted towers — especially tall lighted ones — are a real collision hazard worth checking against your flight area.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Sectional obstruction symbols showing a single inverted-V tower and a grouped obstruction with bold MSL height and parenthetical AGL height plus lighting marks",
+            "caption": "Figure: Sectional obstruction symbology — a single tower (inverted V) and a grouped obstruction, each annotated with the bold top-of-structure MSL height and the parenthetical AGL height, plus the symbol used for high-intensity lighted obstructions.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Prohibited (P) = no flight; Restricted (R) = enter only with permission when cold; Warning (W) = like restricted but over international waters.",
+              "MOA, Alert (A), and Controlled Firing Areas are non-regulatory; CFAs are not charted.",
+              "SUA is outlined with hatched borders; a tabulation box lists numbers, altitudes, hours, and controlling agency.",
+              "TFRs (issued as FDC NOTAMs) are temporary, often ban UAS, and must be checked before every flight.",
+              "Obstructions show top MSL in bold and AGL in parentheses; lighted/tall (>=1,000 AGL) obstructions get special symbols."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Prohibited Area (P-)",
+          "definition": "Special Use Airspace where flight is prohibited entirely (e.g., over the White House); regulatory, created under 14 CFR Part 73.",
+          "hint_1": "P = no entry, period."
+        },
+        {
+          "term": "Restricted Area (R-)",
+          "definition": "SUA containing hazardous activity (artillery, missiles); flight restricted, entry only with controlling-agency permission when inactive ('cold').",
+          "hint_1": "Hazards present; ask before entering."
+        },
+        {
+          "term": "Military Operations Area (MOA)",
+          "definition": "Non-regulatory SUA that separates military training from IFR traffic; use caution when active.",
+          "hint_1": "Military training zone."
+        },
+        {
+          "term": "Temporary Flight Restriction (TFR)",
+          "definition": "A time-limited flight restriction issued via FDC NOTAM (VIP movement, disasters, stadiums); often bans UAS; not pre-printed on charts, so check before every flight.",
+          "hint_1": "Temporary, dynamic, often drone-banning."
+        },
+        {
+          "term": "Obstruction height (e.g., 1549 (1149))",
+          "definition": "Chart obstruction labels: bold number = top above MSL; parenthetical number = height above ground (AGL). Lighted/tall obstructions get special symbols.",
+          "hint_1": "Top is MSL; the parentheses are AGL."
+        }
+      ],
+      "images_needed": [
+        {
+          "slug": "p107-m3-sua-borders",
+          "caption": "Sectional excerpt with several Special Use Airspace borders (Restricted, Prohibited, MOA, Alert) and the SUA tabulation box listing numbers, altitudes, times of use, and controlling agency.",
+          "kind": "chart"
+        },
+        {
+          "slug": "p107-m3-tfr-example",
+          "caption": "Graphical depiction of a TFR ring (e.g., a stadium or VIP TFR) as shown in a flight-planning app, with the prohibited radius and altitude limits labeled.",
+          "kind": "map"
+        },
+        {
+          "slug": "p107-m3-obstruction-symbols",
+          "caption": "Sectional obstruction symbology: single inverted-V tower and a grouped obstruction, each labeled with bold MSL top height and parenthetical AGL height, plus the high-intensity lighted-obstruction symbol.",
+          "kind": "chart"
+        }
+      ]
+    },
+    {
+      "title": "Putting It Together: Can I Legally Fly Here?",
+      "estimated_minutes": 25,
+      "learning_objectives": [
+        "Apply a step-by-step workflow to decide whether a location is legal to fly.",
+        "Integrate airspace class, authorization, SUA, TFRs, and obstructions into a go/no-go decision.",
+        "Use tools (UASFM, B4UFLY, LAANC) to confirm a plan."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>A Repeatable Decision Workflow</h3><p>Every chart question and every real flight boils down to one question: <strong>'Can I legally fly here, and how high?'</strong> Use this five-step workflow every time:</p><ol><li><strong>Locate the point</strong> on the chart (by airport name or by latitude/longitude).</li><li><strong>Identify the airspace</strong> at the surface there — read the ring colors and vignettes to name the class.</li><li><strong>Decide if authorization is needed.</strong> Controlled (B/C/D/surface-E) = yes, get LAANC or DroneZone first. Class G = no authorization needed.</li><li><strong>Check for restrictions</strong> — active TFRs, Special Use Airspace, and a current NOTAM search.</li><li><strong>Check obstructions and terrain</strong> — towers, MEF, and the local environment around your operating area.</li></ol><p>If any step says 'no' (an active prohibitive TFR, a prohibited area, no authorization obtained for controlled airspace), then you do not fly until the issue is resolved.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Flowchart of the can-I-fly decision: locate point, identify airspace, authorization needed, check TFR/SUA/NOTAM, check obstructions, go/no-go",
+            "caption": "Figure: A decision flowchart mirroring the five-step workflow — Locate point -> Identify airspace class -> Authorization needed? (Class G = no / controlled = LAANC/DroneZone) -> TFR/SUA/NOTAM check -> Obstruction & MEF check -> GO / NO-GO.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "accordion",
+          "content": {
+            "sections": [
+              {
+                "title": "Worked example 1 — Magenta non-towered field in faded magenta",
+                "content": "<p>You plan to fly in a park next to a <strong>magenta (non-towered) airport</strong> that sits inside a <strong>faded magenta vignette</strong> with no dashed ring touching it. The faded magenta means Class E starts at <strong>700 ft AGL</strong>; below that, at the surface, you are in <strong>Class G.</strong> A drone at 400 ft AGL is in Class G, so <strong>no authorization is required.</strong> You still check TFRs/NOTAMs, watch for traffic at the non-towered field, and stay within VLOS at or below 400 ft AGL. Result: GO (with normal precautions).</p>",
+                "open": false
+              },
+              {
+                "title": "Worked example 2 — Blue dashed ring around a towered airport",
+                "content": "<p>Your site falls inside a <strong>blue dashed ring</strong> with a boxed [33] ceiling. Blue dashed = <strong>Class D</strong> (controlled, surface to 3,300 ft MSL). You <strong>must obtain an airspace authorization</strong> (LAANC if available, otherwise FAADroneZone) before flying, and you may only go up to the altitude the UASFM grid permits at that spot — which could be 400 ft, 100 ft, or even 0 (no auto-LAANC). Result: NO-GO until authorized.</p>",
+                "open": false
+              },
+              {
+                "title": "Worked example 3 — Stadium event day",
+                "content": "<p>Your Class G site is fine on the chart, but there is a major sporting event nearby today. A <strong>stadium TFR</strong> may be active, and many of those <strong>prohibit all UAS</strong> within a several-mile radius up to a few thousand feet. Even though the underlying airspace is uncontrolled, the active <strong>TFR overrides</strong> your plan. Result: NO-GO inside the TFR while it is active.</p>",
+                "open": false
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Tools That Confirm Your Plan</h3><p>The chart tells you the airspace; these tools confirm the rest. The <strong>UAS Facility Map (UASFM)</strong> shows the maximum LAANC altitude for each grid around a controlled airport. <strong>LAANC</strong> (via a USS app) grants near-real-time authorization up to that altitude. <strong>FAADroneZone</strong> handles non-LAANC airports, further coordination, and waivers. The <strong>B4UFLY</strong> app gives an at-a-glance view of where you can fly, current restrictions, and active TFRs. Use the chart to understand <em>why</em>, and the apps to confirm <em>that</em> you are authorized before you launch.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "success",
+            "text": "Bottom line: Class G + no TFR + within 400 ft AGL + VLOS = fly. Controlled airspace = get LAANC/DroneZone authorization first. Active prohibitive TFR or prohibited area = do not fly. Always re-check TFRs immediately before launch."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Five-step go/no-go: locate -> identify airspace -> authorization? -> TFR/SUA/NOTAM -> obstructions/MEF.",
+              "Class G below 400 ft AGL needs no authorization; controlled airspace needs LAANC or DroneZone first.",
+              "An active prohibitive TFR or a prohibited area overrides everything else — do not fly.",
+              "The UASFM altitude caps what LAANC can auto-approve; a '0' grid means no automatic approval.",
+              "Use B4UFLY and a current TFR/NOTAM check immediately before launch to confirm the plan."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Can-I-fly workflow",
+          "definition": "1) Locate the point, 2) identify the airspace class, 3) decide if authorization is needed, 4) check TFRs/SUA/NOTAMs, 5) check obstructions/MEF, then make a go/no-go decision.",
+          "hint_1": "Five steps ending in go/no-go."
+        },
+        {
+          "term": "B4UFLY",
+          "definition": "An FAA-approved app that shows where you can fly, current airspace restrictions, and active TFRs for trip planning.",
+          "hint_1": "Before-you-fly situational-awareness app."
+        },
+        {
+          "term": "UAS Facility Map (UASFM)",
+          "definition": "Grid around a controlled airport showing the maximum altitude LAANC can auto-approve; a '0' grid means no automatic authorization (further coordination required).",
+          "hint_1": "The grid of LAANC altitude caps."
+        }
+      ],
+      "images_needed": [
+        {
+          "slug": "p107-m3-go-nogo-flowchart",
+          "caption": "Decision flowchart for the five-step can-I-fly workflow ending in GO / NO-GO, branching at airspace class and TFR checks.",
+          "kind": "diagram"
+        },
+        {
+          "slug": "p107-m3-b4ufly-screen",
+          "caption": "Mock B4UFLY-style app screen showing a location with its airspace status (e.g., controlled/authorization-required vs. clear), nearby airport, and an active TFR alert.",
+          "kind": "schematic"
+        }
+      ]
+    }
+  ],
+  "quiz_questions": [
+    {
+      "lesson_index": 0,
+      "question_text": "Which group of airspace classes is considered 'controlled' airspace?",
+      "question_type": "multiple_choice",
+      "options": ["Classes A, B, C, D, and E", "Class G only", "Classes E, F, and G"],
+      "correct_answer": "Classes A, B, C, D, and E",
+      "explanation": "Controlled airspace consists of Classes A, B, C, D, and E, where ATC provides separation services. Class G is uncontrolled. There is no Class F in the United States.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 0,
+      "question_text": "For a Part 107 remote pilot, what is the practical meaning of operating in 'controlled' airspace?",
+      "question_type": "multiple_choice",
+      "options": ["You must obtain an airspace authorization (LAANC or DroneZone) before flying", "Drone flight is completely banned there", "You may fly with no restrictions because ATC handles everything"],
+      "correct_answer": "You must obtain an airspace authorization (LAANC or DroneZone) before flying",
+      "explanation": "Controlled airspace is not closed to drones, but Part 107 requires prior ATC authorization (via LAANC or FAADroneZone) to operate in Class B, C, D, or surface-area E. It is not unrestricted.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 0,
+      "question_text": "The 400-foot maximum altitude for Part 107 operations is measured in which reference?",
+      "question_type": "multiple_choice",
+      "options": ["Above ground level (AGL)", "Above mean sea level (MSL)", "Above the nearest airport's field elevation"],
+      "correct_answer": "Above ground level (AGL)",
+      "explanation": "The 400-foot drone ceiling is AGL (height over the terrain). Airspace ceilings on the chart are usually MSL, which is why knowing the difference matters.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "Class A airspace extends from what lower limit up to FL600?",
+      "question_type": "multiple_choice",
+      "options": ["18,000 ft MSL", "10,000 ft MSL", "1,200 ft AGL"],
+      "correct_answer": "18,000 ft MSL",
+      "explanation": "Class A runs from 18,000 ft MSL up to and including FL600 (60,000 ft). It is far above the 400 ft AGL drone limit and is never an operating concern for Part 107.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "On a Sectional Chart, which airspace is depicted by solid blue concentric rings forming an 'upside-down wedding cake'?",
+      "question_type": "multiple_choice",
+      "options": ["Class B", "Class C", "Class D"],
+      "correct_answer": "Class B",
+      "explanation": "Class B surrounds the busiest airports and is drawn with solid blue lines in the characteristic upside-down wedding-cake shape. Class C is solid magenta; Class D is blue dashed.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "A solid magenta ring around a busy towered airport on a Sectional indicates which class of airspace?",
+      "question_type": "multiple_choice",
+      "options": ["Class C", "Class B", "Class D"],
+      "correct_answer": "Class C",
+      "explanation": "Solid magenta lines depict Class C airspace (surface to ~4,000 ft AGL). Class B is solid blue; Class D is a blue dashed ring.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "A blue dashed-line ring around an airport indicates which class of airspace?",
+      "question_type": "multiple_choice",
+      "options": ["Class D", "Class C", "Class E to the surface"],
+      "correct_answer": "Class D",
+      "explanation": "A blue dashed ring depicts Class D airspace around a towered airport. Class C is solid magenta; Class E to the surface is depicted with a magenta dashed line.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "Inside a Class D blue dashed ring you see a boxed number [25]. What does it represent?",
+      "question_type": "multiple_choice",
+      "options": ["The Class D ceiling of 2,500 ft MSL", "A radio frequency of 25 MHz", "The maximum drone altitude of 250 ft"],
+      "correct_answer": "The Class D ceiling of 2,500 ft MSL",
+      "explanation": "A bracketed number in a Class D ring is the ceiling in hundreds of feet MSL; [25] = 2,500 ft MSL. It is not a frequency or a drone altitude limit.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "Which statement about Class B, C, and D airspace is correct for a Part 107 operation?",
+      "question_type": "multiple_choice",
+      "options": ["All three require an airspace authorization before flight", "Only Class B requires authorization", "None require authorization because drones stay below 400 ft AGL"],
+      "correct_answer": "All three require an airspace authorization before flight",
+      "explanation": "Class B, C, and D are all controlled airspace surrounding towered airports; Part 107 requires prior ATC authorization for each, regardless of how low the drone flies.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "On a Sectional, Class E airspace beginning at 700 ft AGL is depicted by which symbol?",
+      "question_type": "multiple_choice",
+      "options": ["A faded (fuzzy) magenta vignette that fades outward", "A solid blue ring", "A magenta dashed ring"],
+      "correct_answer": "A faded (fuzzy) magenta vignette that fades outward",
+      "explanation": "The faded magenta vignette marks Class E with a 700 ft AGL floor; inside the fade the floor is 700 AGL. A faded blue vignette marks a 1,200 ft AGL floor, and a magenta dashed ring is Class E to the surface.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "A magenta dashed line around an airport on a Sectional indicates which airspace?",
+      "question_type": "multiple_choice",
+      "options": ["Class E that begins at the surface", "Class D", "Class G uncontrolled airspace"],
+      "correct_answer": "Class E that begins at the surface",
+      "explanation": "A magenta dashed ring depicts Class E to the surface, which is controlled airspace reaching the ground and therefore requires Part 107 authorization. Class D is blue dashed.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "Why does a Part 107 operation in Class G airspace not require ATC authorization while one in Class D does?",
+      "question_type": "multiple_choice",
+      "options": ["Class G is uncontrolled airspace with no ATC services, whereas Class D is controlled airspace around a towered airport", "Class G is only available at night", "Class G airspace does not exist below 400 ft AGL"],
+      "correct_answer": "Class G is uncontrolled airspace with no ATC services, whereas Class D is controlled airspace around a towered airport",
+      "explanation": "Class G is uncontrolled — ATC provides no separation there, so no authorization is needed. Class D is controlled airspace around a towered airport, so 14 CFR 107.41 requires prior ATC authorization.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "Class G airspace generally extends from the surface up to what point?",
+      "question_type": "multiple_choice",
+      "options": ["The base of the overlying Class E (often 700 or 1,200 ft AGL)", "18,000 ft MSL", "Exactly 400 ft AGL everywhere"],
+      "correct_answer": "The base of the overlying Class E (often 700 or 1,200 ft AGL)",
+      "explanation": "Class G runs from the surface up to the floor of the overlying Class E, commonly 700 ft AGL (magenta vignette) or 1,200 ft AGL (blue vignette). 400 ft AGL is the drone limit, not the top of Class G.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "Which tool provides near-real-time authorization to operate in controlled airspace up to the altitude posted on the UAS Facility Map?",
+      "question_type": "multiple_choice",
+      "options": ["LAANC", "FAADroneZone further coordination", "A Part 107 waiver under 107.205"],
+      "correct_answer": "LAANC",
+      "explanation": "LAANC (Low Altitude Authorization and Notification Capability) delivers near-real-time authorization up to the UASFM grid altitude. DroneZone further coordination is manual and slow; a waiver lets you deviate from operating rules, not enter airspace.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "A UAS Facility Map grid square for your location shows '0'. What does this mean for LAANC?",
+      "question_type": "multiple_choice",
+      "options": ["Automatic LAANC is unavailable there; a further-coordination request to the FAA is required", "You may fly up to 400 ft AGL without any authorization", "The airport is closed to all aircraft"],
+      "correct_answer": "Automatic LAANC is unavailable there; a further-coordination request to the FAA is required",
+      "explanation": "A '0' grid means LAANC cannot auto-approve any altitude there; you must submit a further-coordination request through FAADroneZone, which the FAA reviews manually.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "Which regulation prohibits operating in Class B, C, D, or surface-area E airspace without prior ATC authorization?",
+      "question_type": "multiple_choice",
+      "options": ["14 CFR 107.41", "14 CFR 107.9", "14 CFR 107.51"],
+      "correct_answer": "14 CFR 107.41",
+      "explanation": "14 CFR 107.41 is the airspace-authorization rule. 107.9 covers accident reporting and 107.51 covers operating limitations like the 400 ft and 87 kt caps.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "On a Sectional Chart, what does a blue airport symbol indicate?",
+      "question_type": "multiple_choice",
+      "options": ["An airport with an operating control tower", "An airport without a control tower", "A heliport"],
+      "correct_answer": "An airport with an operating control tower",
+      "explanation": "Blue airport symbols denote towered airports; magenta symbols denote non-towered airports.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "A magenta airport symbol on a Sectional Chart indicates what?",
+      "question_type": "multiple_choice",
+      "options": ["An airport without an operating control tower", "An airport with an operating control tower", "A prohibited area"],
+      "correct_answer": "An airport without an operating control tower",
+      "explanation": "Magenta airport symbols mark non-towered airports. Blue symbols mark towered airports.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "A Class C shelf on a Sectional is labeled '41/12'. What altitudes does this represent?",
+      "question_type": "multiple_choice",
+      "options": ["Ceiling 4,100 ft MSL over a floor of 1,200 ft MSL", "Ceiling 41,000 ft over a floor of 1,200 ft", "A frequency pair of 41 and 12"],
+      "correct_answer": "Ceiling 4,100 ft MSL over a floor of 1,200 ft MSL",
+      "explanation": "Stacked/slashed airspace numbers are ceiling-over-floor in hundreds of feet MSL: 41/12 = 4,100 ft MSL ceiling and 1,200 ft MSL floor.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "If you are standing inside the faded edge of a magenta vignette (with no other ring present), what is the floor of the Class E airspace above you?",
+      "question_type": "multiple_choice",
+      "options": ["700 ft AGL", "1,200 ft AGL", "The surface"],
+      "correct_answer": "700 ft AGL",
+      "explanation": "Inside the faded magenta vignette the Class E floor is 700 ft AGL. Outside it (plain background or blue vignette) the floor steps up to 1,200 ft AGL. A surface floor would be a magenta dashed ring.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 4,
+      "question_text": "Where on a Sectional Chart do you read latitude and longitude coordinates?",
+      "question_type": "multiple_choice",
+      "options": ["From tick marks along the neatlines and lat/long grid lines", "From the airport data block", "From the Maximum Elevation Figure"],
+      "correct_answer": "From tick marks along the neatlines and lat/long grid lines",
+      "explanation": "Latitude (parallels) and longitude (meridians) are read from the tick marks along the chart's neatlines and grid lines, with 60 minutes per degree. The data block gives airport info, not coordinates.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 4,
+      "question_text": "A chart quadrangle shows a large bold MEF of '12' with a smaller '5'. What does this tell you?",
+      "question_type": "multiple_choice",
+      "options": ["The highest terrain or obstacle in that quadrangle is 12,500 ft MSL", "The airspace floor is 1,250 ft AGL", "The CTAF frequency is 125.0 MHz"],
+      "correct_answer": "The highest terrain or obstacle in that quadrangle is 12,500 ft MSL",
+      "explanation": "The Maximum Elevation Figure is read as thousands+hundreds of feet MSL; 12 over 5 = 12,500 ft MSL, the highest known terrain/obstacle in that grid block. It is not a floor or a frequency.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 4,
+      "question_text": "On a Sectional, the CTAF (Common Traffic Advisory Frequency) is marked with which symbol?",
+      "question_type": "multiple_choice",
+      "options": ["A bold magenta 'C' inside a circle next to the frequency", "A blue star above the airport symbol", "An inverted-V symbol"],
+      "correct_answer": "A bold magenta 'C' inside a circle next to the frequency",
+      "explanation": "CTAF is shown with a bold magenta 'C' in a circle. A blue star indicates a rotating beacon; an inverted V is an obstruction symbol.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 5,
+      "question_text": "In which type of Special Use Airspace is flight prohibited entirely?",
+      "question_type": "multiple_choice",
+      "options": ["A Prohibited Area (P-)", "A Military Operations Area (MOA)", "An Alert Area (A-)"],
+      "correct_answer": "A Prohibited Area (P-)",
+      "explanation": "Prohibited Areas (P-) forbid flight entirely. MOAs and Alert Areas are non-regulatory and call for caution but do not prohibit flight outright.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 5,
+      "question_text": "A Restricted Area (R-) on a chart means what for an aircraft?",
+      "question_type": "multiple_choice",
+      "options": ["Hazardous activity may be present; entry only with the controlling agency's permission when inactive", "Flight is always permitted with no coordination", "It is reserved exclusively for drones"],
+      "correct_answer": "Hazardous activity may be present; entry only with the controlling agency's permission when inactive",
+      "explanation": "Restricted Areas contain hazards like artillery or missile firing; you may enter only with the controlling agency's permission, typically when the area is 'cold.'",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 5,
+      "question_text": "How is a Temporary Flight Restriction (TFR) issued, and how should a remote pilot treat it?",
+      "question_type": "multiple_choice",
+      "options": ["It is issued via an FDC NOTAM and must be checked before every flight because it is temporary and often bans UAS", "It is permanently printed on the Sectional Chart", "It only applies to manned aircraft, never drones"],
+      "correct_answer": "It is issued via an FDC NOTAM and must be checked before every flight because it is temporary and often bans UAS",
+      "explanation": "TFRs are issued as FDC NOTAMs, are dynamic, frequently prohibit UAS, and are not pre-printed on charts — so you must check current sources before every flight. They absolutely apply to drones.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 5,
+      "question_text": "An obstruction on a Sectional is labeled '2049 (1149)'. What do these two numbers mean?",
+      "question_type": "multiple_choice",
+      "options": ["Top is 2,049 ft MSL; the structure is 1,149 ft above ground (AGL)", "Top is 2,049 ft AGL; 1,149 is the frequency", "2,049 is the latitude; 1,149 is the longitude"],
+      "correct_answer": "Top is 2,049 ft MSL; the structure is 1,149 ft above ground (AGL)",
+      "explanation": "Obstruction labels show the bold top elevation in MSL and, in parentheses, the height above ground (AGL). So 2,049 ft MSL and 1,149 ft AGL.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_index": 6,
+      "question_text": "Using the can-I-fly workflow, after locating your point and identifying the airspace as Class G, what is the next key consideration before launching?",
+      "question_type": "multiple_choice",
+      "options": ["Check for active TFRs, Special Use Airspace, NOTAMs, and obstructions", "Immediately file for a LAANC authorization", "Climb above 400 ft AGL to clear obstacles"],
+      "correct_answer": "Check for active TFRs, Special Use Airspace, NOTAMs, and obstructions",
+      "explanation": "Even in Class G (no authorization needed), you must still check TFRs, SUA, NOTAMs, and obstructions, and stay at/below 400 ft AGL within VLOS. You would not file LAANC for Class G or exceed 400 ft AGL.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 6,
+      "question_text": "Your planned site is in Class G, but a major sporting event with an active stadium TFR covers the area today. What is the correct decision?",
+      "question_type": "multiple_choice",
+      "options": ["Do not fly inside the TFR while it is active, even though the underlying airspace is uncontrolled", "Fly anyway because Class G never requires authorization", "Fly as long as you stay below 200 ft AGL"],
+      "correct_answer": "Do not fly inside the TFR while it is active, even though the underlying airspace is uncontrolled",
+      "explanation": "An active TFR overrides the underlying airspace; many stadium/VIP TFRs ban all UAS. Being in Class G does not exempt you from a TFR, and there is no low-altitude carve-out.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 6,
+      "question_text": "What is the difference between an airspace authorization and a Part 107 waiver?",
+      "question_type": "multiple_choice",
+      "options": ["An authorization lets you enter controlled airspace; a waiver lets you deviate from an operating rule like VLOS or operations over people", "They are the same thing with different names", "A waiver is required to fly in Class G airspace"],
+      "correct_answer": "An authorization lets you enter controlled airspace; a waiver lets you deviate from an operating rule like VLOS or operations over people",
+      "explanation": "An airspace authorization (LAANC/DroneZone) grants entry to controlled airspace; a waiver (107.205) permits deviation from specific operating rules. Class G needs neither.",
+      "difficulty": "hard"
+    }
+  ],
+  "homework": []
+}

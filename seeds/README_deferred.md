@@ -54,4 +54,14 @@ This file is the audit trail. Updated when the picture changes.
 
 ---
 
-**Last reviewed:** 2026-05-15 (after seeds 220-282 applied to `pmpjaqrmxnbfdayddrha`)
+**Last reviewed:** 2026-05-30 — re-audited after the 207-commit branch sync.
+Applied seeds `303`–`307` (drawing assignment + `drawing_notes`, `jobs.deliverables`,
+`contacts`/`job_contacts`, jobs + cad_drawings soft-delete). All 100 seed-defined
+tables + every recent `ADD COLUMN` now present in `pmpjaqrmxnbfdayddrha`.
+
+**2026-05-29:** full seed-vs-live audit; applied the 5 still-missing seeds
+(`098`, `299`, `300`, `301`, `302`); seed `299` was corrected first (it mapped
+drone/UAS modules to a nonexistent `drone_pilot` credential — now `faa_part107`,
+which exists in `credential_bonuses`).
+
+**2026-05-15:** after seeds 220-282 applied to `pmpjaqrmxnbfdayddrha`.

@@ -1,0 +1,660 @@
+{
+  "module": {
+    "order_index": 1,
+    "title": "Module 1: Historical and Current Common-Law Principles",
+    "description": "Traces boundary law from English common law through American and Texas practice: how boundaries are created, the estates and interests recognized in land, the deeds that convey them, and the doctrines courts use to interpret descriptions.",
+    "estimated_hours": 3.0,
+    "learning_objectives": [
+      "Identify the methods by which boundaries are created (by action/survey, by words/deed, and by law).",
+      "Differentiate the estates in land (freehold vs. non-freehold; fee simple, defeasible fees, life estate, leasehold) and the present vs. future interests they create.",
+      "Explain how common-law doctrines and stare decisis influence modern boundary determination and ownership rights.",
+      "Recognize the principal types of deeds, their warranties/covenants, and the elements of a valid deed.",
+      "Apply Texas-specific rules where they diverge from general common law (sovereign land sources, the vara, narrowed deed covenants, and the quitclaim/BFP rule)."
+    ],
+    "textbook_chapters": "Brown ch. 1-3"
+  },
+  "lessons": [
+    {
+      "title": "Lesson 1: The Origins of Boundary Law",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Describe the historical and cultural roots of boundaries and boundary marking.",
+        "Explain how English common law became the foundation of American property law (lex loci).",
+        "Define the role of stare decisis and the difference between common law, statute law, and equity."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Why boundaries have a history</h3><p>Boundaries are one of the oldest legal ideas in human society. They appear throughout mythology and Judeo-Christian history; in Roman religion <em>Terminus</em> was the god who protected boundary markers, and disturbing a boundary stone was a sacrilege. Numerous wars, from international conflicts down to neighborhood disputes, have been fought over the location of a line. The instinct to mark territory is so basic that, as Brown wryly notes, animals do it too, but humans formalized it into <strong>law</strong>.</p><p>Medieval England gave us two practices that survive conceptually in modern surveying. <strong>Livery of seisin</strong> was a ceremony that transferred land from one party to another, often by handing over a clod of earth or a twig on the land itself, before written deeds were common. <strong>Beating the bounds</strong> (the Ritual of Perambulation) was an annual walk of a parish's boundaries so that the community collectively remembered where the lines ran, an oral and physical record-keeping system that predated reliable written descriptions.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Common law, statute law, and equity</h3><p>Three streams of law govern land. <strong>Common (case) law</strong> is judge-made law built up case by case; under the doctrine of <em>stare decisis</em> (\"to stand by things decided\") courts follow prior decisions, giving boundary law its stability and predictability. <strong>Statute (legislative) law</strong> is enacted by legislatures and may restrict or define rights, such as the federal PLSS enabling acts or the Texas codes. <strong>Equity</strong> supplies remedies when money damages are inadequate.</p><ul><li><strong>Equitable remedy (relief):</strong> a court-ordered action directing a party to do or not do something, such as an <em>injunction</em> or <em>specific performance</em>, obtained when a legal remedy like money damages cannot adequately redress the injury.</li><li><strong>Ejectment:</strong> a lawsuit brought to remove a party who is wrongfully occupying real property.</li></ul><p>In the United States there are, in most instances, no federal laws describing real-property rights. Real property is governed by the law of the place where the land lies, the <em>lex loci</em>, and English common law is the predominant background law in most states.</p>"}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "info", "text": "Lex loci: real property is exclusively subject to the laws and jurisdiction of the state in which it is located. Transactions are governed by that state's law, except where title is held by the United States or is specifically under federal jurisdiction."}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "warning", "text": "Texas differs: Texas is a common-law state, but its original land titles never came from the United States. Every Texas chain of title traces to one of four 'sovereigns of the soil' - Spain, Mexico, the Republic of Texas, or the State of Texas. Because Texas land was never federal public domain, Texas has no PLSS township-range grid (covered in Lesson 2)."}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Surveyors and lawyers: who decides what</h3><p>Brown draws a sharp division of labor that frames this entire course. <strong>Boundaries do not determine rights in land; they determine the limits of rights in land.</strong> Surveyors determine those limits. Lawyers and courts determine the rights themselves. A useful pair of maxims: <em>where</em> a boundary is located is a question of fact (the surveyor's domain), while <em>what</em> the boundary is, the legal meaning of the words, is a question of law (the court's domain). The surveyor must understand the law well enough to find the facts correctly, but may not rewrite the parties' intent.</p>"}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "Boundary law is ancient; livery of seisin and beating the bounds show how transfer and boundary memory worked before reliable written deeds.",
+            "Three streams of law govern land: common (case) law under stare decisis, statute law, and equity.",
+            "Real property is governed by the lex loci - the law of the state where the land lies.",
+            "Boundaries determine the limits of rights, not the rights themselves; surveyors find facts (where), courts decide law (what).",
+            "Texas is a common-law state, but its titles flow from four sovereigns, not the U.S. federal government."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Stare decisis", "definition": "The common-law doctrine of standing by prior decided cases; courts follow precedent, giving boundary law stability and predictability."},
+        {"term": "Lex loci", "definition": "The law of the place; real property is governed exclusively by the law of the state where the land is located.", "hint_1": "Latin for 'law of the place'."},
+        {"term": "Livery of seisin", "definition": "A medieval English ceremony that effected the transfer of land from one party to another, typically before written deeds were common."},
+        {"term": "Beating the bounds", "definition": "The Ritual of Perambulation - an annual community walk of a parish's boundaries to perpetuate the memory of where the lines ran."},
+        {"term": "Ejectment", "definition": "A lawsuit brought to remove a party who is wrongfully occupying real property."}
+      ],
+      "images_needed": [
+        {"slug": "m1-l1-fig1", "caption": "Timeline from English common law through American and Texas boundary law, marking livery of seisin, the four Texas sovereigns, and statehood (1845).", "kind": "diagram"}
+      ]
+    },
+    {
+      "title": "Lesson 2: How Boundaries Are Created",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Distinguish the three methods of creating a boundary: by action, by words, and by law.",
+        "Differentiate a corner from a monument and natural from artificial monuments.",
+        "Explain the original-survey rule and the doctrines that may later modify a property line."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Three methods of creating a boundary</h3><p>Brown organizes boundary creation into three methods. A landowner has broad freedom to lay out lines, subject only to the rights of adjoiners and senior owners.</p><ul><li><strong>By action (ground survey):</strong> so long as a person does not go beyond their own exterior boundaries, a parcel may be subdivided in any manner the law permits by physically establishing lines on the ground.</li><li><strong>By words (in a deed):</strong> a boundary may be created by words in a legal document - aliquot parts (East 1/2, West 200 feet, North 20 acres) or a metes-and-bounds description. A line created by words is <strong>as binding and as legal as if it had been run on the ground</strong> by a surveyor.</li><li><strong>By law:</strong> this includes statute law (the federal PLSS, and the systems of Texas and Georgia) and common law.</li></ul><p>Under common law there is no requirement that a survey ever be performed to create a valid boundary.</p>"}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "warning", "text": "Texas differs (no PLSS): On annexation in 1845 Texas retained all its vacant and unappropriated public lands (over 200 million acres), administered by the General Land Office (GLO). Because the land was never federal public domain, Texas has no PLSS township-range grid; its tracts are irregular metes-and-bounds parcels identified by original survey name plus a GLO abstract number."}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Method", "How the boundary is fixed", "Example"], "rows": [
+            ["By action", "Lines physically run/marked on the ground within the owner's exterior limits", "A field survey subdividing a tract into lots"],
+            ["By words", "A written description in a deed or will; binding as if run on the ground", "Aliquot parts; a metes-and-bounds call"],
+            ["By law", "Statute law (PLSS, Texas, Georgia) or common law", "PLSS section lines; statutory subdivision rules"]
+          ]}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Corners and monuments</h3><p>Two terms are easy to confuse. A <strong>corner</strong> is any end or change of direction in a boundary; it is a point, a legal concept that exists whether or not anything physical marks it. A <strong>monument</strong> is the physical object at or near a corner that serves as a witness to it.</p><ul><li><strong>Natural monuments:</strong> streams, rivers, roads (as physical features), trees, and the like. A natural feature can evidence a line.</li><li><strong>Artificial monuments:</strong> objects placed by people - a brass cap, an iron pipe, a wooden hub.</li></ul><p>For a corner and its monument to be <strong>controlling</strong> in a description, the corner must be called for in the written conveyance and the monument must have been identified at the time the conveyance was made. A property corner should not be placed on a curved line in a metes-and-bounds description.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Boundaries are fixed; property lines may move</h3><p>A foundational distinction: a <strong>boundary line remains fixed forever where it was originally located</strong>, but a <strong>property line may change</strong> by operation of certain legal doctrines. The original surveyor <em>creates</em> boundaries; all later surveyors <em>ascertain</em> (retrace) them. Once boundaries are created and rights have been distributed according to them, neither the landowner nor a surveyor may alter or modify them.</p><p>The recognized doctrines that may modify or change a property line are:</p><ul><li><strong>Agreement</strong> (written or oral)</li><li><strong>Estoppel</strong></li><li><strong>Acquiescence</strong></li><li><strong>Adverse possession</strong></li><li><strong>Judicial action</strong></li></ul><p>The law does not provide for two original descriptions of the same parcel. Multiple descriptions may exist, but only one is controlling: there is one original boundary survey and description, and every later one is a retracement.</p>"}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "success", "text": "Memory hook: The original surveyor CREATES boundaries. Every other surveyor ASCERTAINS them. Words and meanings in a description are interpreted as of the date the description was written, not as of the date of the retracement."}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "Boundaries are created three ways: by action (ground survey), by words (deed), and by law (statute/common).",
+            "A boundary created by words is as binding as one run on the ground.",
+            "A corner is a point (any end or change of direction); a monument is the physical witness at or near it.",
+            "A boundary is fixed forever at its original location, but a property line may change by agreement, estoppel, acquiescence, adverse possession, or judicial action.",
+            "Texas uses metes-and-bounds keyed to GLO survey + abstract number, not the PLSS township-range grid."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Corner", "definition": "Any end or change of direction in a boundary; a point that exists in law whether or not it is physically marked."},
+        {"term": "Monument", "definition": "A physical object at or near a corner that witnesses it; either natural (stream, tree) or artificial (iron pipe, brass cap)."},
+        {"term": "Creating vs. ascertaining a boundary", "definition": "The original surveyor creates boundaries; all subsequent surveyors merely ascertain (retrace) them.", "hint_1": "Only one survey is 'original'; the rest are retracements."},
+        {"term": "Boundary line vs. property line", "definition": "A boundary line is fixed forever at its original location; a property line may change by agreement, estoppel, acquiescence, adverse possession, or judicial action."},
+        {"term": "Vara (Texas)", "definition": "The Spanish/Mexican unit of length used in Texas surveys, legally fixed at 33 1/3 inches (2.7778 ft); 36 varas = exactly 100 ft.", "hint_1": "About 33.33 inches."},
+        {"term": "Texas League and Labor", "definition": "Spanish/Mexican grant units: a labor is about 177.1 acres (farmland) and a league/sitio about 4,428.4 acres (grazing); a standard married-head-of-family grant was one league plus one labor (~4,605.5 acres)."}
+      ],
+      "images_needed": [
+        {"slug": "m1-l2-fig1", "caption": "Diagram contrasting a corner (the point) with the monument (iron pipe, brass cap, or natural feature) set at or near it.", "kind": "diagram"},
+        {"slug": "m1-l2-fig2", "caption": "Map comparing the PLSS township-range grid (federal states) with a Texas GLO metes-and-bounds survey identified by abstract number.", "kind": "map"}
+      ]
+    },
+    {
+      "title": "Lesson 3: Estates and Interests in Land",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Differentiate freehold from non-freehold (leasehold) estates.",
+        "Define fee simple absolute, fee tail, life estate, and the defeasible fees, and identify the language that creates each.",
+        "Distinguish present interests from future interests (reversion vs. remainder) and apply the Texas presumption that a conveyance passes the whole estate."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>What is an estate?</h3><p>An <strong>estate in land</strong> is a right or interest in property - it may be a fee ownership interest, a lease for a period of years, or some other category. There are two basic ways to acquire a real-property interest: by <strong>deed</strong> (purchase) and by <strong>possession</strong> (unwritten methods, such as adverse possession). Estates are traditionally divided into <strong>freehold</strong> estates (of uncertain duration and historically associated with seisin - fee simple, fee tail, life estate) and <strong>non-freehold</strong> estates (of fixed or determinable duration - the leasehold/tenancy estates).</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Fee simple absolute and fee tail</h3><p><strong>Fee simple absolute</strong> is the highest interest in land a person can hold in the United States. The word <em>fee</em> (from <em>fief</em>) means a freehold estate that can be inherited or devised; <em>simple</em> means without limitation to any particular class of heirs; <em>absolute</em> means without conditions or limitations in time. The holder owns everything except what is reserved by deed, by the U.S. Constitution, or by legislative action. Even fee simple absolute remains subject to four governmental limitations: <strong>eminent domain, escheat, the police power, and taxation</strong>.</p><p><strong>Fee tail</strong> is a freehold estate limited by the grantor to the heirs of the grantee's body (or to a specific class, male or female). If the limiting condition is breached, the land returns to the grantor or the grantor's heirs.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Life estate and the defeasible fees</h3><p>A <strong>life estate</strong> is an estate whose duration is measured by the life of one or more persons, created by deed or will. (Historic spousal forms: <em>curtesy</em>, a husband's right in his deceased wife's real estate, and <em>dower</em>, the corresponding right of a surviving wife.)</p><p><strong>Defeasible fees</strong> are created when a grantor transfers land conditionally:</p><ul><li><strong>Fee simple determinable</strong> - ownership continues only <em>as long as</em> a situation continues; created by words like \"<em>so long as</em>,\" \"<em>until</em>,\" \"<em>while</em>.\" The grantor keeps a <strong>possibility of reverter</strong>; the land returns <strong>automatically</strong> if the stated event occurs or fails to occur - even after several later changes in title.</li><li><strong>Fee upon condition subsequent</strong> - created by conditional language like \"<em>but if</em>,\" \"<em>provided that</em>,\" \"<em>may enter</em>.\" The estate does <strong>not</strong> end automatically; only the grantor holds a <strong>right of re-entry</strong> and must affirmatively exercise it to retake title.</li></ul>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Estate", "Triggering words", "Future interest", "Ends automatically?"], "rows": [
+            ["Fee simple determinable", "so long as, until, while", "Possibility of reverter (grantor)", "Yes - reverts automatically"],
+            ["Fee on condition subsequent", "but if, provided that, may enter", "Right of re-entry / power of termination (grantor)", "No - grantor must act"],
+            ["Life estate, then back to grantor", "(natural end of life)", "Reversion (grantor)", "Yes - at end of measuring life"],
+            ["Life estate, then to third party", "(natural end of life)", "Remainder (third party)", "Yes - at end of measuring life"]
+          ]}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Present interests vs. future interests</h3><p>Every grant of a lesser estate leaves something behind in the future. A <strong>reversion</strong> is the residue of an estate left in the grantor (or the grantor's successors); it is the right to repossess and resume full ownership after a temporary separation. A <strong>remainder</strong> is a future interest created in a third party <em>at the same time</em> and by the <em>same grant</em> as the preceding estate; it takes effect when the prior estate ends. Example: \"to A for life, then to B\" gives A a present life estate and B a remainder; \"to A for life\" alone leaves the grantor a reversion.</p>"}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "warning", "text": "Texas differs: Tex. Prop. Code Section 5.001 presumes a conveyance passes the ENTIRE estate (fee simple) unless a lesser estate is expressly limited or conveyed. Texas also abolished several old common-law canons by Section 5.042 - the Rule in Shelley's Case and the Doctrine of Worthier Title - giving effect to such limitations according to the grantor's intent. (Note: Section 5.042 does NOT abolish destructibility of contingent remainders; Texas rejected that by case law instead.)"}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "Freehold estates (fee simple, fee tail, life estate) historically carried seisin; non-freehold estates are the leaseholds/tenancies.",
+            "Fee simple absolute is the greatest estate but still bows to eminent domain, escheat, police power, and taxation.",
+            "Fee simple determinable ('so long as') reverts automatically (possibility of reverter); fee on condition subsequent ('but if') requires the grantor to exercise a right of re-entry.",
+            "A reversion stays with the grantor; a remainder goes to a third party created by the same grant.",
+            "Texas presumes a conveyance passes the whole fee unless a lesser estate is expressly limited (Section 5.001)."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Fee simple absolute", "definition": "The highest estate in U.S. land: inheritable, without limitation to a class of heirs, and without time conditions; still subject to eminent domain, escheat, police power, and taxation."},
+        {"term": "Freehold vs. non-freehold estate", "definition": "Freehold estates (fee simple, fee tail, life estate) are of uncertain duration and historically carried seisin; non-freehold estates are leaseholds/tenancies of fixed or determinable duration."},
+        {"term": "Fee simple determinable", "definition": "A defeasible fee that lasts only 'so long as'/'until' a stated situation continues; leaves a possibility of reverter and reverts to the grantor automatically."},
+        {"term": "Fee simple on condition subsequent", "definition": "A defeasible fee created by 'but if'/'provided that' language; does not end automatically - the grantor must exercise a right of re-entry to retake title."},
+        {"term": "Reversion", "definition": "The residue of an estate left in the grantor (or successors) - the right to repossess after a temporary separation, e.g., after a life estate."},
+        {"term": "Remainder", "definition": "A future interest created in a third party by the same grant as the preceding estate, taking effect when that prior estate ends."}
+      ],
+      "images_needed": [
+        {"slug": "m1-l3-fig1", "caption": "Tree diagram of estates in land: freehold (fee simple absolute, fee tail, defeasible fees, life estate) vs. non-freehold (leaseholds), with the matching future interests.", "kind": "diagram"}
+      ]
+    },
+    {
+      "title": "Lesson 4: Title, Ownership, and Possession",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Distinguish ownership, possession, and title, and separate title from mere interest.",
+        "Identify the sources of title and the chain of title a surveyor must research.",
+        "Define key interests and instruments: lien, lease, license, mortgage, deed of trust, escrow, and color of title."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Three related but distinct concepts</h3><p>Brown carefully separates three ideas students tend to merge:</p><ul><li><strong>Ownership:</strong> the collection of rights to use and enjoy property, including the right to transmit it to others. Land is often described as a <em>bundle of rights</em>, and those rights may be divided among many people.</li><li><strong>Possession:</strong> the detention and control - the actual or ideal custody - of something for one's use and enjoyment. Possession is about use or control, not paper ownership.</li><li><strong>Title:</strong> the right to, or ownership in, land, and also the <em>evidence</em> of that ownership. Title is the combination of physical and written evidence that vests ownership in a person.</li></ul><p>Title and interest are <strong>not</strong> synonymous: a lienholder has an interest in the land but not title.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Rights, ownership, and interest</h3><p>A practical hierarchy distinguishes who can do what with a parcel:</p><ul><li><strong>Ownership</strong> - can permanently occupy; the owner pays the taxes.</li><li><strong>Right</strong> - can use but not occupy (e.g., an easement); the use cannot be hindered by the owner.</li><li><strong>Interest</strong> - financial stake with no right to use or occupy (e.g., a mortgage or lien).</li></ul><p>A person can legally convey only the quantity and quality of interest to which they hold title: if you own a half interest, you can sell only a half interest.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Sources of title and the chain of title</h3><p>Title can arise from many sources: a <strong>patent</strong> from the state or the United States, a deed, descent or private grant, a will, adverse possession, eminent domain, escheat, dedication, a court judgment, prior appropriation, and water activities. The <strong>chain of title</strong> is the continuous, sequential evidence of title. Here Brown flags a crucial difference in scope: <strong>attorneys</strong> may only have to search back a statutory number of years to perfect marketable title, but <strong>surveyors must research all the way back to the original patent</strong> to perfect the boundary description.</p>"}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "info", "text": "Color of title: a written instrument that appears to transfer ownership but, due to some defect (such as a lack of title in the grantor), does not actually do so - it passes only the appearance, or 'color,' of title. This becomes important for adverse possession in Module 3."}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Instrument / interest", "What it is"], "rows": [
+            ["Lien", "A charge, security, or encumbrance on property to secure a debt."],
+            ["Lease", "A contract conveying an estate for a limited period in exchange for value, while the owner retains ownership."],
+            ["License", "Permission by competent authority to do an act that would otherwise be illegal; not an interest in land."],
+            ["Mortgage", "A conditional conveyance of an estate as a pledge to secure a debt (mortgagee = lender)."],
+            ["Deed of trust", "A three-party security device: trustor (borrower), trustee (holds the deed), and beneficiary (lender)."],
+            ["Escrow", "A deed delivered to a third person to hold until a condition is met, then delivered to the grantee."]
+          ]}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "warning", "text": "Texas differs (BFP / recording): Texas is a pure 'notice' jurisdiction (Tex. Prop. Code Section 13.001-13.002). A subsequent purchaser for value without notice of a prior unrecorded conveyance takes free of it - and prevails even if the prior grantee records first. Possession charges a purchaser with constructive notice only if it is 'visible, open, exclusive, and unequivocal' (Madison v. Gordon). The bona fide purchaser doctrine is developed fully in Module 2."}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "Ownership is the bundle of rights; possession is custody/control; title is ownership plus the evidence of it.",
+            "Title is not the same as interest - a lienholder has interest but not title.",
+            "You can convey only the quantity and quality of interest you hold (own half, sell half).",
+            "Surveyors research the chain of title back to the original patent; attorneys may stop at a statutory number of years.",
+            "Color of title is an instrument that looks like it conveys title but, due to a defect, does not."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "Title", "definition": "The right to or ownership in land, and the evidence of that ownership - the combination of physical and written evidence that vests ownership in a person."},
+        {"term": "Possession", "definition": "The detention and control, or actual or ideal custody, of property for one's use and enjoyment; concerned with use/control, not paper ownership."},
+        {"term": "Bundle of rights", "definition": "The concept that land ownership is a collection of separable rights (use, exclude, convey, mineral, water) that may be divided among many holders."},
+        {"term": "Chain of title", "definition": "The continuous sequential evidence of title; surveyors must research it back to the original patent to perfect the boundary description."},
+        {"term": "Color of title", "definition": "A written instrument that purports to convey ownership but, due to a defect such as the grantor's lack of title, does not - passing only the appearance of title."},
+        {"term": "Lien", "definition": "A charge, security, or encumbrance on property to secure a debt; an interest in the land but not title."}
+      ],
+      "images_needed": [
+        {"slug": "m1-l4-fig1", "caption": "Bundle-of-rights illustration: a parcel broken into separable sticks (surface, mineral, water, easement, lease) to show rights divided among holders.", "kind": "schematic"}
+      ]
+    },
+    {
+      "title": "Lesson 5: Deeds - Types, Covenants, and Requirements",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Identify the principal types of deeds and the warranty each provides.",
+        "List the required elements of a valid deed and the elements that are not required.",
+        "Recognize the standard clauses of a deed (recitals, granting clause, habendum, reservations, exceptions) and apply Texas deed-warranty rules."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>What a deed is</h3><p>A <strong>deed</strong> is a written, signed (and historically sealed) legal instrument used to grant a right in land. The person transferring the property is the <strong>grantor</strong>; the person receiving it is the <strong>grantee</strong>. Title is the bundle of rights conveyed - a party may hold either a legal or an equitable interest. Any oral agreement by the conveying party that purports to change fixed boundaries is, at best, voidable; the Statute of Frauds requires interests in land to be conveyed in writing.</p>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Types of deeds and their warranties</h3><p>Deeds differ chiefly in how much the grantor warrants the title:</p><ul><li><strong>(General) warranty deed:</strong> the grantor warrants the title against defects arising at <em>any</em> time, before or after the grantor's connection to the land - clear title back to the property's origins, with no hidden liens or encumbrances. The broadest protection for the grantee.</li><li><strong>Special (specialty) warranty deed:</strong> warrants the title <em>only</em> against defects arising during the grantor's own period of ownership.</li><li><strong>Quitclaim deed:</strong> conveys whatever interest the grantor possesses, <em>if any</em>, with <strong>no warranty of title</strong>.</li><li><strong>Grant deed:</strong> conveys the fee title owned by the grantor; if the grantor later acquires a better title (after-acquired title), it passes automatically to the grantee without new documents. In most states the word \"grant\" implies certain statutory covenants unless stated otherwise.</li><li><strong>Easement deed:</strong> grants the right of a particular use of a property, not the fee.</li></ul>"}
+        },
+        {
+          "block_type": "table",
+          "content": {"headers": ["Deed type", "Scope of warranty", "Grantee protection"], "rows": [
+            ["General warranty", "Against all defects, entire chain of title", "Greatest"],
+            ["Special warranty", "Only defects arising during grantor's ownership", "Moderate"],
+            ["Grant deed", "Implied statutory covenants; after-acquired title passes", "Moderate"],
+            ["Quitclaim", "None - conveys grantor's interest, if any", "Least"]
+          ]}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "warning", "text": "Texas differs (deed covenants): A Texas general warranty deed gets its broad protection from express 'grant, sold, and conveyed... warrant and forever defend' language (Tex. Prop. Code Section 5.022). Section 5.023 narrows the IMPLIED covenants of 'grant'/'convey' to only two - that the grantor has not previously conveyed the estate and that it is free from encumbrances. Unlike common law, 'grant' in Texas does NOT imply a covenant of seisin (that the grantor actually owns the estate)."}
+        },
+        {
+          "block_type": "accordion",
+          "content": {"sections": [
+            {"title": "The Texas quitclaim peculiarity - grantee usually NOT a bona fide purchaser", "content": "<p>Classic Texas rule: a grantee under a <strong>quitclaim</strong> (and its successors) is generally <strong>not</strong> a bona fide purchaser. The quitclaim is treated as <em>notice</em> that the grantor's title may be defective, so the grantee takes subject to prior outstanding claims even if value was paid without actual notice (<em>Woodward v. Ortiz</em>, 1951). A quitclaim 'is not a conveyance or a muniment of title' (<em>Rogers v. Ricane Enterprises</em>, 1994). Courts examine the whole instrument, not the label: a deed conveying the <em>property itself</em> can support BFP status, while one conveying only the grantor's <em>right, title, and interest</em> cannot (<em>Geodyne v. Newton</em>, 2005).</p><p><strong>2021 softening:</strong> Tex. Prop. Code Section 13.006 (eff. Sept. 1, 2021) provides that after the <em>fourth anniversary</em> of recording, a quitclaim no longer affects the good faith of a subsequent purchaser and is not notice of unrecorded conveyances. So for quitclaims recorded on/after that date there is a four-year cleansing window - but the classic rule still binds the immediate grantee and during the first four years.</p>", "open": false}
+          ]}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Required elements of a valid deed</h3><p>A valid deed generally requires:</p><ul><li><strong>Competent parties and proper subject matter</strong> - a named grantor and a grantee capable of taking title (a deed to a dead person, or to a fictitious person, is void; a deed using an assumed name is valid).</li><li><strong>Consideration</strong> - a sum may be recited to validate the deed in some jurisdictions and need not reflect actual value; at early common law it was required, but in many states it no longer is.</li><li><strong>A written or printed form</strong> - the Statute of Frauds requires a conveyance of any interest in land to be in writing, reasonably explicit as to essential terms.</li><li><strong>Sufficient and legal wording</strong> - a description sufficient to identify the land, meaning one capable of being located by a competent surveyor. Parol evidence may help establish sufficiency or resolve a <em>latent</em> ambiguity, but may never cure a <em>patent</em> ambiguity.</li><li><strong>Delivery</strong> - title does not pass until the deed is delivered; delivery turns on the grantor's <em>intent</em> that the deed be in force, not merely physical handover.</li><li><strong>Acceptance</strong> - completed by the grantee's acceptance, which is presumed when the conveyance benefits the grantee.</li></ul>"}
+        },
+        {
+          "block_type": "text",
+          "content": {"html": "<h3>Standard clauses, and what is NOT required</h3><p>A typical deed contains a date, the names of the parties, <strong>recitals</strong> (statements of fact, often beginning \"Whereas,\" \"Witnesseth,\" or \"Know all men by these presents\"), the <strong>operative words of conveyance</strong> with consideration and receipt, the property <strong>description</strong> with any exceptions or reservations, the <strong>habendum</strong> clause (\"To have and to hold\"), conditions and covenants, execution/signatures/seals, and an acknowledgment.</p><ul><li><strong>Reservation:</strong> a clause creating a <em>new</em> interest in the grantor that had no prior existence (e.g., a reserved easement or rent) - a taking back of an interest.</li><li><strong>Exception:</strong> excludes from the conveyance an <em>already existing</em> part of the thing described (e.g., a house or orchard on the land).</li><li><strong>Habendum:</strong> defines the extent of ownership; it may lessen, explain, or qualify the estate granted, but may not contradict it.</li></ul><p><strong>Not required</strong> for a valid deed: consideration (generally), a date, attestation by witnesses, and notarial acknowledgment. Acknowledgment may be required to <em>record</em> the deed, but recordation itself is not required for the deed to be valid between the parties.</p>"}
+        },
+        {
+          "block_type": "callout",
+          "content": {"type": "info", "text": "Ambiguities: A PATENT ambiguity is obvious on the face of the document (e.g., a township that does not exist in the named county); it cannot be cured by extrinsic evidence and may make the conveyance void or voidable. A LATENT ambiguity does not appear in the words but arises when the description is applied to the ground (e.g., 'to the NE corner of John Smith's corral' when there are two such corrals); parol/extrinsic evidence is admissible to apply, but not to complete, the description."}
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {"title": "Key Takeaways", "items": [
+            "Deeds differ by warranty: general warranty (all defects) > special warranty (grantor's ownership period) > quitclaim (no warranty).",
+            "A grant deed passes after-acquired title automatically and implies statutory covenants.",
+            "Required elements: competent parties, written form, sufficient description, delivery (turns on intent), and acceptance.",
+            "NOT required for validity: consideration (generally), a date, witnesses, or notarial acknowledgment; recordation is not required for validity.",
+            "Texas: warranty comes from express 'warrant and forever defend' language; 'grant' implies only no-prior-conveyance and no-encumbrances (no covenant of seisin)."
+          ]}
+        }
+      ],
+      "flashcards": [
+        {"term": "General warranty deed", "definition": "A deed in which the grantor warrants title against all defects arising at any time, back through the entire chain of title; the broadest grantee protection."},
+        {"term": "Special (specialty) warranty deed", "definition": "A deed warranting title only against defects arising during the grantor's own period of ownership."},
+        {"term": "Quitclaim deed", "definition": "A deed conveying whatever interest the grantor possesses, if any, with no warranty of title; in Texas the grantee is generally not a bona fide purchaser."},
+        {"term": "Grantor vs. grantee", "definition": "The grantor is the person conveying (transferring) the property; the grantee is the person receiving it."},
+        {"term": "Reservation vs. exception", "definition": "A reservation creates a NEW interest in the grantor that had no prior existence; an exception excludes an ALREADY EXISTING part of the thing described."},
+        {"term": "Habendum clause", "definition": "The 'To have and to hold' clause that defines the extent of ownership; it may lessen, explain, or qualify the estate granted but may not contradict it."},
+        {"term": "Patent vs. latent ambiguity", "definition": "A patent ambiguity is obvious on the face of the deed and cannot be cured by extrinsic evidence; a latent ambiguity appears only when the description is applied to the ground and may be explained by parol evidence."}
+      ],
+      "images_needed": [
+        {"slug": "m1-l5-fig1", "caption": "Annotated sample deed showing the standard clauses: recitals, granting clause/consideration, legal description with exceptions/reservations, habendum, and execution/acknowledgment.", "kind": "schematic"}
+      ]
+    }
+  ],
+  "quiz_questions": [
+    {
+      "lesson_index": 0,
+      "question_text": "Under the common-law doctrine of stare decisis, what are courts expected to do?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Follow prior decided cases (precedent) so the law remains stable and predictable",
+        "Apply only statutes enacted by the legislature, ignoring earlier rulings",
+        "Re-decide each boundary dispute from scratch without regard to past cases",
+        "Defer entirely to the surveyor's opinion on the meaning of the deed"
+      ],
+      "correct_answer": "Follow prior decided cases (precedent) so the law remains stable and predictable",
+      "explanation": "Stare decisis ('to stand by things decided') directs courts to follow precedent, which gives boundary law stability. It is not limited to statutes (that is statute law), it does not require re-deciding from scratch, and courts - not surveyors - decide the legal meaning of deed language.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 0,
+      "question_text": "Brown states that 'boundaries do not determine rights in land; they determine the limits of rights in land.' Which professional, by this division of labor, ultimately determines the rights themselves?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The lawyer or the court",
+        "The original surveyor",
+        "The retracing surveyor",
+        "The county recorder"
+      ],
+      "correct_answer": "The lawyer or the court",
+      "explanation": "Surveyors determine the limits of rights (where the line is - a question of fact); lawyers and courts determine the rights and the legal meaning of words (what the line is - a question of law). The recorder merely files instruments.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 0,
+      "question_text": "The principle of lex loci means that real property is governed by the law of the United States as a whole, uniformly across all states.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "Lex loci means 'law of the place': real property is governed by the law of the particular state where the land is located, except where title is in the United States or the matter is specifically under federal jurisdiction. There is generally no uniform federal law of real-property rights.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "A landowner writes a boundary into a deed using a metes-and-bounds description but never has the line physically staked on the ground. What is the legal status of that boundary?",
+      "question_type": "multiple_choice",
+      "options": [
+        "It is as binding and legal as if it had been run on the ground by a surveyor",
+        "It is invalid until a licensed surveyor monuments it on the ground",
+        "It creates only an equitable interest, not a legal boundary",
+        "It is voidable at the option of any adjoining landowner"
+      ],
+      "correct_answer": "It is as binding and legal as if it had been run on the ground by a surveyor",
+      "explanation": "A boundary may be created by words in a legal document, and Brown states that such a line is as binding and as legal as if it were run on the ground. Common law imposes no requirement that a survey ever be performed.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "Which statement correctly distinguishes a corner from a monument?",
+      "question_type": "multiple_choice",
+      "options": [
+        "A corner is any end or change of direction in a boundary; a monument is the physical object at or near that corner",
+        "A monument is any end or change of direction in a boundary; a corner is the physical object marking it",
+        "A corner and a monument are interchangeable terms for the same physical marker",
+        "A corner must always be a natural feature; a monument must always be artificial"
+      ],
+      "correct_answer": "A corner is any end or change of direction in a boundary; a monument is the physical object at or near that corner",
+      "explanation": "A corner is a point - any end or change of direction in the boundary - that exists in law whether or not marked. A monument is the physical witness (natural or artificial) at or near it.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "Which of the following is NOT one of the recognized doctrines by which a property line may be modified or changed after boundaries are created?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Recordation of the deed",
+        "Agreement",
+        "Acquiescence",
+        "Adverse possession"
+      ],
+      "correct_answer": "Recordation of the deed",
+      "explanation": "Brown lists the boundary-modification doctrines as agreement, estoppel, acquiescence, adverse possession, and judicial action. Recordation merely gives public notice; it does not modify a property line.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "Why does Texas have no PLSS township-range grid, unlike most western states?",
+      "question_type": "multiple_choice",
+      "options": [
+        "On annexation in 1845 Texas retained its public lands; the land was never federal public domain, so it was never surveyed into the federal PLSS",
+        "The federal government surveyed Texas late, after the PLSS program had ended",
+        "Texas adopted the PLSS but renamed townships as 'leagues'",
+        "Texas surveyors could not measure accurately enough to lay out a grid"
+      ],
+      "correct_answer": "On annexation in 1845 Texas retained its public lands; the land was never federal public domain, so it was never surveyed into the federal PLSS",
+      "explanation": "Texas was an independent republic and kept its vacant and unappropriated public lands at annexation. Because the land was never federal public domain, the federal PLSS never applied; Texas tracts are metes-and-bounds keyed to a GLO survey and abstract number.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "In Texas surveying units, the vara is legally fixed at how many inches?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "33.333",
+      "explanation": "The vara was legally fixed at 33 1/3 inches (33.333... in, or 2.7778 ft). A handy check: 36 varas equal exactly 100 feet. (Answers of 33.33 or 33 1/3 are equivalent.)",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "Which set of words, used in a conveyance, creates a fee simple determinable?",
+      "question_type": "multiple_choice",
+      "options": [
+        "'so long as,' 'until,' 'while'",
+        "'but if,' 'provided that,' 'may enter'",
+        "'to have and to hold forever'",
+        "'grant, sold, and conveyed'"
+      ],
+      "correct_answer": "'so long as,' 'until,' 'while'",
+      "explanation": "Durational words ('so long as,' 'until,' 'while') create a fee simple determinable, which reverts automatically and leaves the grantor a possibility of reverter. Conditional words ('but if,' 'provided that') create a fee on condition subsequent. The other phrases are habendum and granting language.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "A grant reads: 'to the City, but if the land is ever used for commercial purposes, the grantor may re-enter and retake the property.' Twenty years later the City opens a store on the land. What happens to title?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Nothing automatically; the grantor must affirmatively exercise the right of re-entry to retake title",
+        "Title reverts to the grantor automatically the instant the store opens",
+        "Title is void and escheats to the State",
+        "The City keeps absolute title because the condition is unenforceable"
+      ],
+      "correct_answer": "Nothing automatically; the grantor must affirmatively exercise the right of re-entry to retake title",
+      "explanation": "The 'but if ... may re-enter' language creates a fee simple on condition subsequent, which does not end automatically. Only the grantor holds the right of re-entry and must exercise it. By contrast, a fee simple determinable ('so long as') would revert automatically.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "In the grant 'to A for life, then to B,' what future interest does B hold?",
+      "question_type": "multiple_choice",
+      "options": [
+        "A remainder",
+        "A reversion",
+        "A possibility of reverter",
+        "A right of re-entry"
+      ],
+      "correct_answer": "A remainder",
+      "explanation": "B holds a remainder - a future interest created in a third party by the same grant as the preceding (life) estate, taking effect when the life estate ends. A reversion would be retained by the grantor; the other two interests follow defeasible fees.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "Even fee simple absolute - the greatest estate in U.S. land - remains subject to four governmental limitations. Which list states them correctly?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Eminent domain, escheat, police power, and taxation",
+        "Mortgage, lien, lease, and license",
+        "Dower, curtesy, reversion, and remainder",
+        "Agreement, estoppel, acquiescence, and adverse possession"
+      ],
+      "correct_answer": "Eminent domain, escheat, police power, and taxation",
+      "explanation": "Brown lists the four limitations on fee simple absolute as eminent domain, escheat, the police power, and taxation. The other options are security/interest devices, future interests, or boundary-modification doctrines.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "Under Tex. Prop. Code Section 5.001, a conveyance is presumed to pass only a life estate unless the grantor expressly states that fee simple is intended.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "It is the opposite. Texas presumes a conveyance passes the ENTIRE estate (fee simple) unless a lesser estate is expressly limited or conveyed. This is a key Texas divergence reinforcing grantor intent.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "Explain the difference between a freehold estate and a non-freehold estate, giving one example of each.",
+      "question_type": "short_answer",
+      "options": [],
+      "correct_answer": "A freehold estate is of uncertain duration and historically carried seisin (e.g., fee simple absolute, life estate); a non-freehold estate is of fixed or determinable duration (e.g., a leasehold/tenancy for a term of years).",
+      "explanation": "Freehold estates (fee simple, fee tail, life estate) are the inheritable/uncertain-duration estates that historically carried seisin; non-freehold estates are the leasehold/tenancy estates of fixed or determinable duration. Any correct example of each earns credit.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "A surveyor researching a boundary must trace the chain of title back to which point, and how does this differ from an attorney's typical search?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Back to the original patent; an attorney may stop after a statutory number of years to perfect marketable title",
+        "Back only the statutory number of years; an attorney must go to the original patent",
+        "Back to the most recent deed only; an attorney searches the full chain",
+        "Both must go back exactly 60 years in every state"
+      ],
+      "correct_answer": "Back to the original patent; an attorney may stop after a statutory number of years to perfect marketable title",
+      "explanation": "Surveyors must research to the original patent to perfect the boundary description, while attorneys may only need to search back a statutory number of years to perfect marketable title.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "Maria owns a one-half undivided interest in a tract. She signs a deed purporting to convey the entire fee to a buyer. What can she legally convey?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Only her one-half interest, because a person can convey only the quantity and quality of interest to which she holds title",
+        "The entire fee, because the deed says so",
+        "Nothing, because a co-owner can never convey without the others' signatures",
+        "The entire fee, but only if the buyer pays full market value"
+      ],
+      "correct_answer": "Only her one-half interest, because a person can convey only the quantity and quality of interest to which she holds title",
+      "explanation": "A person can legally convey only the quantity and quality of interest owned. Maria holds a half interest, so she can pass only a half interest regardless of what the deed recites.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "Which best distinguishes ownership, possession, and title?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Ownership is the bundle of rights; possession is custody/control of the property; title is ownership plus the evidence of it",
+        "Ownership and title are identical; possession is a synonym for both",
+        "Possession is the bundle of rights; title is mere custody; ownership is only the written evidence",
+        "Title is custody of the land; ownership is the written deed; possession is the right to exclude"
+      ],
+      "correct_answer": "Ownership is the bundle of rights; possession is custody/control of the property; title is ownership plus the evidence of it",
+      "explanation": "Ownership is the collection (bundle) of rights; possession is the detention/control of the property for use and enjoyment; title is the right to/ownership in land together with the evidence of that ownership. Title and interest are also not synonymous - a lienholder has interest but not title.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "A deed has a defect - the grantor lacked title - so it does not actually transfer ownership, yet it appears on its face to do so. What is this called?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Color of title",
+        "A muniment of title",
+        "Marketable title",
+        "Equitable title"
+      ],
+      "correct_answer": "Color of title",
+      "explanation": "Color of title is the appearance of a legally enforceable right of ownership created by a written instrument that, due to a defect (such as the grantor's lack of title), does not actually transfer ownership. It becomes important in adverse-possession analysis.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "In Texas, a subsequent purchaser for value without notice of a prior unrecorded deed will lose to the prior grantee if the prior grantee records first.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "Texas is a pure 'notice' jurisdiction. A bona fide purchaser for value without notice takes free of a prior unrecorded conveyance and prevails even if the prior grantee records first (or the BFP never records). Recording order does not decide the contest.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_index": 4,
+      "question_text": "Which type of deed warrants title against ALL defects arising at any time, back through the entire chain of title?",
+      "question_type": "multiple_choice",
+      "options": [
+        "General warranty deed",
+        "Special warranty deed",
+        "Quitclaim deed",
+        "Easement deed"
+      ],
+      "correct_answer": "General warranty deed",
+      "explanation": "A general warranty deed warrants against all defects, before or after the grantor's connection to the land. A special warranty deed covers only the grantor's period of ownership; a quitclaim gives no warranty; an easement deed grants a use, not the fee.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 4,
+      "question_text": "Which of the following is NOT required for a deed to be valid?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Notarial acknowledgment",
+        "Competent parties capable of taking title",
+        "A description sufficient to identify the land",
+        "Delivery and acceptance"
+      ],
+      "correct_answer": "Notarial acknowledgment",
+      "explanation": "Acknowledgment by a notary is generally NOT required for a deed's validity (it may be required to record the deed). Competent parties, a sufficient description, and delivery with acceptance are required. Consideration, a date, and witnesses are also generally not required.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 4,
+      "question_text": "A deed describes land 'lying in Nye County, Nevada,' but the township and range cited actually fall in Clark County. The conflict is obvious from the words of the document itself. What kind of ambiguity is this, and may extrinsic evidence cure it?",
+      "question_type": "multiple_choice",
+      "options": [
+        "A patent ambiguity, which cannot be cured by extrinsic evidence and may render the conveyance void or voidable",
+        "A latent ambiguity, which extrinsic evidence may cure",
+        "A patent ambiguity, which extrinsic evidence may freely cure",
+        "No ambiguity at all; the surveyor simply picks the correct county"
+      ],
+      "correct_answer": "A patent ambiguity, which cannot be cured by extrinsic evidence and may render the conveyance void or voidable",
+      "explanation": "A patent ambiguity is obvious on the face of the document (here, the county/township mismatch). It cannot be explained by extrinsic evidence and may make the conveyance void or voidable. A latent ambiguity, by contrast, appears only when the description is applied to the ground and may be explained by parol evidence.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_index": 4,
+      "question_text": "Distinguish a reservation from an exception in a deed.",
+      "question_type": "short_answer",
+      "options": [],
+      "correct_answer": "A reservation creates a new interest in the grantor that had no prior existence (e.g., a reserved easement or rent) - a taking back of an interest; an exception excludes from the conveyance an already-existing part of the thing described (e.g., a house or orchard on the land).",
+      "explanation": "A reservation calls a new interest into being in the grantor (it did not exist before the deed). An exception simply withholds an already-existing portion of the described property from the conveyance.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 4,
+      "question_text": "Under Texas law, the broad protection of a general warranty deed comes from the implied covenant of seisin attached to the word 'grant.'",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "In Texas the broad protection comes from EXPRESS 'warrant and forever defend' language (Section 5.022). Section 5.023 narrows the implied covenants of 'grant'/'convey' to just two - no prior conveyance and no encumbrances - and does NOT imply a covenant of seisin that the grantor actually owns the estate.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_index": 4,
+      "question_text": "In Texas, a person who takes land by quitclaim deed is generally treated how with respect to bona fide purchaser (BFP) status?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Generally NOT a bona fide purchaser, because the quitclaim is treated as notice that the grantor's title may be defective",
+        "Always a bona fide purchaser, exactly like any warranty-deed grantee",
+        "A bona fide purchaser only if the grantor was solvent",
+        "Never able to take any interest at all in the land"
+      ],
+      "correct_answer": "Generally NOT a bona fide purchaser, because the quitclaim is treated as notice that the grantor's title may be defective",
+      "explanation": "The classic Texas rule is that a quitclaim grantee is generally not a BFP - the quitclaim itself is notice that title may be defective, so the grantee takes subject to prior claims. (A 2021 statute, Section 13.006, softens this after four years of recording, but the classic rule still binds the immediate grantee and the first four years.)",
+      "difficulty": "hard"
+    }
+  ],
+  "problem_templates": [],
+  "homework": [
+    {
+      "title": "Homework 1 - Reading deeds: estates, deed type, and clauses",
+      "prompt": "Answer each part in a short paragraph; cite the specific rule or doctrine from Module 1 (and the relevant Texas statute where noted).\n\n**Part A - Identify the estate (3 pts each).** For each conveyance, name the estate created in the grantee AND the future interest (if any) retained by or created in another, and identify the triggering language:\n1. 'Grantor conveys to the School District so long as the premises are used for school purposes.'\n2. 'Grantor conveys to A for life, then to B and B's heirs.'\n3. 'Grantor conveys to the County, but if alcohol is ever sold on the land, Grantor may re-enter and retake the property.'\n\n**Part B - Pick the deed (6 pts).** A seller is willing to convey but refuses to make any promises whatsoever about the condition of the title - she will pass only 'whatever interest, if any' she owns. (1) Which deed type fits, and what warranty (if any) does it carry? (2) Under classic Texas law, why might the buyer NOT qualify as a bona fide purchaser, and (3) how does Tex. Prop. Code Section 13.006 (eff. 2021) change that result over time?\n\n**Part C - Validity check (6 pts).** A deed is signed by a competent grantor, names a real grantee, contains a description a surveyor can locate, and is delivered and accepted - but it recites no consideration, bears no date, has no witnesses, and was never notarized or recorded. Is the deed valid to pass title between the parties? Explain which of these missing items are required and which are not.\n\n**Part D - Texas covenant (5 pts).** Explain how a Texas general warranty deed obtains its broad protection (Section 5.022) and why the word 'grant' in Texas implies only two narrow covenants (Section 5.023) rather than a common-law covenant of seisin.",
+      "type": "written",
+      "images_needed": []
+    },
+    {
+      "title": "Homework 2 - Methods of boundary creation and the surveyor's role",
+      "prompt": "Write a 400-600 word memo to a new survey technician explaining the foundational principles from Module 1. Your memo must address all of the following, citing the relevant rule from Brown and noting Texas-specific differences where they apply:\n\n1. **The three methods of creating a boundary** (by action, by words, by law) - give a concrete example of each, and explain why a boundary 'created by words' in a deed is as binding as one run on the ground.\n2. **Corner vs. monument**, and the rule that for a corner/monument to be controlling in a retracement it must have been called for in the written conveyance and identified when the conveyance was made.\n3. **'Boundaries are fixed; property lines may move.'** Explain this distinction, list the doctrines (agreement, estoppel, acquiescence, adverse possession, judicial action) by which a property line may later change, and explain the maxim that the original surveyor CREATES boundaries while all others ASCERTAIN them.\n4. **Questions of fact vs. law.** Explain why 'where a boundary is' is a question of fact for the surveyor while 'what a boundary is' is a question of law for the court, and why the surveyor may not change the intent expressed in the deed.\n5. **Texas overlay.** Briefly explain why Texas has no PLSS township-range grid, what a GLO patent and abstract number are, and what the vara is (give its value in inches).\n\nEnd with a one-paragraph reflection on why a surveyor must research the chain of title back to the original patent even though an attorney may only search a statutory number of years.",
+      "type": "written",
+      "images_needed": [
+        {"slug": "m1-hw2-fig1", "caption": "Reference diagram for the memo: the three methods of boundary creation with a small example sketch of each.", "kind": "diagram"}
+      ]
+    }
+  ]
+}

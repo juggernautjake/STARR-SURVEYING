@@ -1,0 +1,527 @@
+[
+  {
+    "module": 1,
+    "lesson": "Lesson 1: The Origins of Boundary Law",
+    "slug": "m1-l1-fig1",
+    "caption": "Timeline from English common law through American and Texas boundary law, marking livery of seisin, the four Texas sovereigns, and statehood (1845).",
+    "kind": "diagram"
+  },
+  {
+    "module": 1,
+    "lesson": "Lesson 2: How Boundaries Are Created",
+    "slug": "m1-l2-fig1",
+    "caption": "Diagram contrasting a corner (the point) with the monument (iron pipe, brass cap, or natural feature) set at or near it.",
+    "kind": "diagram"
+  },
+  {
+    "module": 1,
+    "lesson": "Lesson 2: How Boundaries Are Created",
+    "slug": "m1-l2-fig2",
+    "caption": "Map comparing the PLSS township-range grid (federal states) with a Texas GLO metes-and-bounds survey identified by abstract number.",
+    "kind": "map"
+  },
+  {
+    "module": 1,
+    "lesson": "Lesson 3: Estates and Interests in Land",
+    "slug": "m1-l3-fig1",
+    "caption": "Tree diagram of estates in land: freehold (fee simple absolute, fee tail, defeasible fees, life estate) vs. non-freehold (leaseholds), with the matching future interests.",
+    "kind": "diagram"
+  },
+  {
+    "module": 1,
+    "lesson": "Lesson 4: Title, Ownership, and Possession",
+    "slug": "m1-l4-fig1",
+    "caption": "Bundle-of-rights illustration: a parcel broken into separable sticks (surface, mineral, water, easement, lease) to show rights divided among holders.",
+    "kind": "schematic"
+  },
+  {
+    "module": 1,
+    "lesson": "Lesson 5: Deeds - Types, Covenants, and Requirements",
+    "slug": "m1-l5-fig1",
+    "caption": "Annotated sample deed showing the standard clauses: recitals, granting clause/consideration, legal description with exceptions/reservations, habendum, and execution/acknowledgment.",
+    "kind": "schematic"
+  },
+  {
+    "module": 1,
+    "homework": "Homework 2 - Methods of boundary creation and the surveyor's role",
+    "slug": "m1-hw2-fig1",
+    "caption": "Reference diagram for the memo: the three methods of boundary creation with a small example sketch of each.",
+    "kind": "diagram"
+  },
+  {
+    "module": 2,
+    "lesson": "Sources and Hierarchy of Law",
+    "slug": "m2-l1-fig1",
+    "caption": "Pyramid/hierarchy of legal authority: Constitution at top, then statutes, administrative rules, ordinances, with common/case law shown interpreting all levels.",
+    "kind": "diagram"
+  },
+  {
+    "module": 2,
+    "lesson": "The Federal and Texas Court Systems",
+    "slug": "m2-l2-fig1",
+    "caption": "Side-by-side court hierarchy: federal (District -> Courts of Appeals -> U.S. Supreme Court) next to Texas (JP/Municipal/County/District -> Courts of Appeals -> the two high courts: Supreme Court of Texas and Court of Criminal Appeals).",
+    "kind": "diagram"
+  },
+  {
+    "module": 2,
+    "lesson": "How a Case Becomes Law: Precedent and Legal Research",
+    "slug": "m2-l3-fig1",
+    "caption": "Flowchart: suit filed in trial court -> trial ruling (binds only this case) -> appeal on law/procedure -> appellate opinion (binds all courts in jurisdiction = precedent) -> supreme court review.",
+    "kind": "diagram"
+  },
+  {
+    "module": 2,
+    "lesson": "How a Case Becomes Law: Precedent and Legal Research",
+    "slug": "m2-l3-fig2",
+    "caption": "Anatomy of a case citation labeled: style (parties), volume, reporter abbreviation (S.W.3d), page, and (court year) — using a Texas example.",
+    "kind": "schematic"
+  },
+  {
+    "module": 2,
+    "lesson": "Recording Acts, Notice, and the Bona Fide Purchaser",
+    "slug": "m2-l4-fig1",
+    "caption": "Double-conveyance timeline: grantor sells to A (unrecorded), then to B (pays value, no notice); decision tree branching by race / notice / race-notice rules, highlighting the Texas notice outcome where B wins.",
+    "kind": "diagram"
+  },
+  {
+    "module": 2,
+    "lesson": "Presumptions and Inferences in Boundary Law",
+    "slug": "m2-l5-fig1",
+    "caption": "Two-column comparison graphic: PRESUMPTION (imposed by law; rebuttable vs. conclusive) vs. INFERENCE (reasoned from facts), with a boundary example under each.",
+    "kind": "diagram"
+  },
+  {
+    "module": 2,
+    "lesson": "Presumptions and Inferences in Boundary Law",
+    "slug": "m2-l5-fig2",
+    "caption": "Dignity-of-calls ladder showing natural monuments at top descending to quantity/area at bottom, with a note that intent and footsteps override the ladder.",
+    "kind": "diagram"
+  },
+  {
+    "module": 3,
+    "lesson": "What Is an Easement? Definition, Estates, and Classifications",
+    "slug": "m3-l1-fig1",
+    "caption": "Dominant tenement (land benefiting) and servient tenement (land burdened) with the easement site straddling the servient parcel.",
+    "kind": "diagram"
+  },
+  {
+    "module": 3,
+    "lesson": "Creating Easements II: Implied, Necessity, Prescription, and Dedication",
+    "slug": "m3-l3-fig1",
+    "caption": "A tract subdivided into a front and rear lot, with a driveway across the front serving the rear (back) lot — illustrating an implied easement by prior use / by necessity.",
+    "kind": "diagram"
+  },
+  {
+    "module": 3,
+    "lesson": "Related Concepts: Licenses, Encroachments, Covenants, Eminent Domain, and Reversion",
+    "slug": "m3-l5-fig1",
+    "caption": "Reversion rights of lots along a vacated street: perpendicular to centerline on tangents, radial on curves, and by angle bisection at angle points.",
+    "kind": "diagram"
+  },
+  {
+    "module": 3,
+    "homework": "Homework 2 — Adverse Possession Track Selection + Easement Area Computation",
+    "slug": "m3-hw2-easement-strip",
+    "caption": "A 24-ft-wide access easement running 412.5 ft from a county road to a landlocked back lot, with dominant and servient parcels labeled.",
+    "kind": "diagram"
+  },
+  {
+    "module": 4,
+    "lesson": "Resolving Conflicts in Deeds: The Three Basic Elements",
+    "slug": "m4-l1-footsteps",
+    "caption": "A retracing surveyor finding an original iron pipe offset from a modern 'perfect' computed position, with an arrow showing the boundary held at the found monument (footsteps control).",
+    "kind": "diagram"
+  },
+  {
+    "module": 4,
+    "lesson": "Sequential vs. Simultaneous Conveyances",
+    "slug": "m4-l2-overlap",
+    "caption": "Plan view of two sequential deeds sharing an overlap band, with the overlap shaded and labeled 'belongs to senior'; a separate gap band labeled 'belongs to seller / State'.",
+    "kind": "diagram"
+  },
+  {
+    "module": 4,
+    "lesson": "Sequential vs. Simultaneous Conveyances",
+    "slug": "m4-l2-apportion",
+    "caption": "A platted block of equal lots between two found block corners, showing record total vs. measured total and the surplus distributed proportionally to each lot.",
+    "kind": "diagram"
+  },
+  {
+    "module": 4,
+    "lesson": "Senior and Junior Rights in Practice",
+    "slug": "m4-l3-senior-cutback",
+    "caption": "Frontage strip showing senior parcel A holding its full record width and junior parcel B reduced to the remainder, with the deficiency annotated on B.",
+    "kind": "diagram"
+  },
+  {
+    "module": 4,
+    "lesson": "The Dignity (Priority) of Conflicting Calls",
+    "slug": "m4-l4-dignity",
+    "caption": "A vertical ladder/pyramid diagram of the dignity of calls from senior rights at the top down to coordinates at the bottom, with examples beside each rung.",
+    "kind": "diagram"
+  },
+  {
+    "module": 4,
+    "lesson": "The Dignity (Priority) of Conflicting Calls",
+    "slug": "m4-l4-pipe-vs-distance",
+    "caption": "A line 'North 200.00 ft to a 2-inch iron pipe' where the found pipe is at 203.4 ft; arrow shows the corner held at the pipe (monument controls over distance).",
+    "kind": "diagram"
+  },
+  {
+    "module": 4,
+    "lesson": "Reading the Words: Rules of Construction, Parol Evidence, and Errors",
+    "slug": "m4-l5-bearing-correction",
+    "caption": "A deed traverse where one identifiable line's record bearing differs from its measured bearing by a fixed rotation; the same rotation applied to all other courses.",
+    "kind": "diagram"
+  },
+  {
+    "module": 4,
+    "lesson": "Possession as Evidence and the Surveyor's Responsibility",
+    "slug": "m4-l6-record-vs-occupation",
+    "caption": "A residential lot plat showing the deed/record line and an offset fence (line of occupation), both drawn, illustrating the surveyor's duty to disclose the gap rather than pick one.",
+    "kind": "diagram"
+  },
+  {
+    "module": 4,
+    "template": "Junior remainder after senior call is satisfied",
+    "slug": "m4-tmpl-remainder",
+    "caption": "Frontage strip with senior width fixed and junior remainder spanning to the measured end monument",
+    "kind": "diagram"
+  },
+  {
+    "module": 4,
+    "template": "Corrected distance when a monument controls over record distance",
+    "slug": "m4-tmpl-monument-distance",
+    "caption": "A bearing line where the found monument sits beyond the record distance; corner held at the monument",
+    "kind": "diagram"
+  },
+  {
+    "module": 4,
+    "template": "Gap or overlap width between two adjoining deeds",
+    "slug": "m4-tmpl-gap",
+    "caption": "Two adjoining deed lines on a common baseline with the gap (or overlap) width dimensioned between them",
+    "kind": "diagram"
+  },
+  {
+    "module": 4,
+    "template": "Bearing-distance to a corrected corner position (departure and latitude)",
+    "slug": "m4-tmpl-bearing-distance",
+    "caption": "A single course from a found corner with the bearing angle, departure, and latitude triangle drawn to the next corner",
+    "kind": "diagram"
+  },
+  {
+    "module": 4,
+    "homework": "Homework 1 — Sequential Conveyance Retracement and Conflict Resolution",
+    "slug": "m4-hw1-layout",
+    "caption": "Plan of the original O tract subdivided into Parcels A, B, C along County Road 7, showing the two found road-corner monuments, the measured 592.40 ft frontage, and the found iron pipe on A's west line.",
+    "kind": "diagram"
+  },
+  {
+    "module": 4,
+    "homework": "Homework 2 — Dignity of Calls and the Surveyor's Disclosure Duty (written + applied)",
+    "slug": "m4-hw2-fence",
+    "caption": "Residential lot with the deed/record line and a parallel fence offset 1.6 ft inside it, dimensioned, to support the disclosure memo.",
+    "kind": "diagram"
+  },
+  {
+    "module": 5,
+    "lesson": "What Makes a Conveyance Simultaneous",
+    "slug": "m5-l1-plat",
+    "caption": "A recorded subdivision plat showing a parent parcel divided into numbered lots and blocks with streets, captioned to show all lots created at the same instant (equal dignity).",
+    "kind": "diagram"
+  },
+  {
+    "module": 5,
+    "lesson": "What Controls a Subdivision Boundary: The Order of Evidence",
+    "slug": "m5-l2-monument-vs-plat",
+    "caption": "A subdivision block where a found original iron pipe sits offset from the platted lot-line position, with the boundary held at the found monument (map yields to ground).",
+    "kind": "diagram"
+  },
+  {
+    "module": 5,
+    "lesson": "Single Proportionate Measurement: Apportioning a Block",
+    "slug": "m5-l3-single-proportion",
+    "caption": "A block of six 100-ft record lots with the two original concrete end monuments found and a measured total of 596.44 ft, showing each lot corrected to 99.41 ft (record vs measured dimension strip).",
+    "kind": "diagram"
+  },
+  {
+    "module": 5,
+    "lesson": "Excess, Deficiency, Remnants, and Double Proportion",
+    "slug": "m5-l4-lost-corner",
+    "caption": "A line between two found monuments with a lost interior corner, record distances a and b shown above and the proportioned position m·a/(a+b) shown below.",
+    "kind": "diagram"
+  },
+  {
+    "module": 5,
+    "lesson": "Excess, Deficiency, Remnants, and Double Proportion",
+    "slug": "m5-l4-double-proportion",
+    "caption": "A PLSS-style lost section corner restored by double proportion: four surrounding found corners, with E-W and N-S proportioned positions converging on the restored corner.",
+    "kind": "schematic"
+  },
+  {
+    "module": 5,
+    "lesson": "Rules of Construction for Combined Descriptions",
+    "slug": "m5-l5-half-lot",
+    "caption": "A trapezoidal lot with non-parallel east and west side lines, showing the north–south dividing line splitting it into east and west halves, contrasted with a parallel-sided lot split on the mean bearing.",
+    "kind": "diagram"
+  },
+  {
+    "module": 5,
+    "template": "Single proportionate distribution — corrected lot frontage",
+    "slug": "m5-pt-apportion",
+    "caption": "Block of n equal record lots with the two original end monuments found and a measured total differing from record.",
+    "kind": "diagram"
+  },
+  {
+    "module": 5,
+    "template": "Cumulative proportion — distance to an interior lot corner",
+    "slug": "m5-pt-cumulative",
+    "caption": "Block with the corrected distance from a found end monument to an interior lot corner i lots in.",
+    "kind": "diagram"
+  },
+  {
+    "module": 5,
+    "template": "Excess/deficiency — total surplus and per-lot adjustment",
+    "slug": "m5-pt-excess",
+    "caption": "Record vs measured block total with the surplus/shortage labeled and distributed per lot.",
+    "kind": "diagram"
+  },
+  {
+    "module": 5,
+    "template": "Single-proportion restoration of a lost corner between two found corners",
+    "slug": "m5-pt-lost-corner",
+    "caption": "Line between two found monuments with record distances a and b to a lost corner and the proportioned position below.",
+    "kind": "diagram"
+  },
+  {
+    "module": 5,
+    "homework": "Homework 5A — Apportioning the Hermansen Block",
+    "slug": "m5-hw-hermansen-block",
+    "caption": "Six-lot block: top shows record 100-ft lots; middle shows the 596.44-ft measured span with only the two concrete end monuments; bottom shows the surviving cedar stake at the 4/5 corner at 395.23 ft / 201.21 ft.",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "lesson": "Riparian vs. Littoral Rights and the Historical Roots of Water Law",
+    "slug": "m6-l1-riparian-vs-littoral",
+    "caption": "Side-by-side schematic: a riparian lot on a flowing stream vs. a littoral lot on a tidal shore, labeling the watercourse, the upland, and the differing boundary lines.",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "lesson": "Riparian vs. Littoral Rights and the Historical Roots of Water Law",
+    "slug": "m6-l1-sovereign-timeline",
+    "caption": "Timeline of water-law sovereignty: Roman Civil Code, Siete Partidas (winter high water), English common law / De Jure Maris, U.S. equal-footing doctrine, and the four Texas sovereigns.",
+    "kind": "schematic"
+  },
+  {
+    "module": 6,
+    "lesson": "Navigability and Ownership of Beds: The Texas 30-Foot Statute",
+    "slug": "m6-l2-30ft-cross-section",
+    "caption": "Stream cross-section showing average bed width measured cut-bank to cut-bank, with a 30-ft dimension line and a note that the test ignores the day's water level.",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "lesson": "Navigability and Ownership of Beds: The Texas 30-Foot Statute",
+    "slug": "m6-l2-bed-ownership",
+    "caption": "Two plan-view panels: navigable stream (State owns bed, private to gradient boundary) vs. non-navigable stream (owners to center/thread).",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "lesson": "The Texas Gradient Boundary on Navigable Streams",
+    "slug": "m6-l3-gradient-cross-section",
+    "caption": "Cross-section of a navigable stream bank showing the lower water level at the foot of the cut bank, the higher non-overtopping level, and the gradient boundary drawn at the mid-height of the qualified cut bank; State bed below, private upland above.",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "lesson": "The Texas Gradient Boundary on Navigable Streams",
+    "slug": "m6-l3-thread-nonnavigable",
+    "caption": "Plan view of a non-navigable stream with two opposite owners holding to the medium filum aquae (centerline/thread).",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "lesson": "Tidal and Coastal Boundaries: Tides, Datums, and the Dual Standard",
+    "slug": "m6-l4-tidal-datums",
+    "caption": "Beach profile showing MHHW, MHW, MLW, MLLW datum lines and the dry-beach zone, with the dual-rule note (MHHW for Spanish/Mexican grants, MHW for Texas grants).",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "lesson": "Tidal and Coastal Boundaries: Tides, Datums, and the Dual Standard",
+    "slug": "m6-l4-rolling-easement",
+    "caption": "Before/after panels of a beach: gradual vegetation-line migration (easement rolls) vs. avulsive hurricane shift (easement does not automatically roll) per Severance v. Patterson.",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "lesson": "Shoreline Change and Apportionment of New Land",
+    "slug": "m6-l5-accretion-vs-avulsion",
+    "caption": "Two-panel diagram: gradual accretion moving the boundary outward (owner gains) vs. avulsive channel cut leaving the old boundary fixed and an island with its original owner.",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "lesson": "Shoreline Change and Apportionment of New Land",
+    "slug": "m6-l5-apportion-fan",
+    "caption": "Riparian apportionment 'fan': several lots with old frontages on the original shoreline and proportional shares projected to the longer new shoreline.",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "lesson": "Water USE Law: Surface Water Appropriation vs. Groundwater Rule of Capture",
+    "slug": "m6-l6-surface-vs-ground",
+    "caption": "Split schematic contrasting State-owned surface water allocated by TCEQ appropriation permits with landowner-owned groundwater governed by the rule of capture and GCDs.",
+    "kind": "schematic"
+  },
+  {
+    "module": 6,
+    "template": "Statutory navigability of a Texas stream from a vara width",
+    "slug": "m6-tmpl-navtest",
+    "caption": "Stream bed cross-section with average cut-bank-to-cut-bank width labeled in varas and converted to feet, with the 30-ft threshold marked.",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "template": "Apportioning new shoreline by proportionate-shoreline method",
+    "slug": "m6-tmpl-apportion",
+    "caption": "Apportionment fan: three old frontages A, B, C on the original shoreline, with proportional shares projected outward to the longer new shoreline.",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "template": "Area of accreted (riparian) land along a frontage",
+    "slug": "m6-tmpl-accarea",
+    "caption": "Plan view of a riparian lot with its water frontage and the average outward depth of the accreted band, shaded as the new land.",
+    "kind": "diagram"
+  },
+  {
+    "module": 6,
+    "homework": "Homework 1 — Fisherman Acres: Water Boundaries and Shoreline Change",
+    "slug": "m6-hw1-fisherman-acres",
+    "caption": "Fisherman Acres Subdivision plat: Lots A–E around Bass Bay, Trout Lake, Salmon River, and Bear Creek, with Pike Island in the river; lot lines call to the water features.",
+    "kind": "map"
+  },
+  {
+    "module": 6,
+    "homework": "Homework 2 — Parcels A–G: Describing the Water Boundary Line",
+    "slug": "m6-hw2-parcels-ag",
+    "caption": "Diagram of parcels A–G fronting a mix of water features (a navigable river, a non-navigable creek, a lake, a tidal bay/Gulf shore), each with a deed call to its water boundary.",
+    "kind": "map"
+  },
+  {
+    "module": 7,
+    "lesson": "Metes, Bounds, and the Anatomy of a Description",
+    "slug": "m7-l1-anatomy",
+    "caption": "A labeled diagram of a written description broken into its parts: caption, point of commencement, point of beginning, the body of numbered courses around a simple parcel, closing call to the POB, area statement, and certification block.",
+    "kind": "diagram"
+  },
+  {
+    "module": 7,
+    "lesson": "Metes, Bounds, and the Anatomy of a Description",
+    "slug": "m7-l1-metes-vs-bounds",
+    "caption": "Side-by-side plan views of the same parcel: one annotated only with bearings and distances (metes), one annotated only with adjoiner/road/creek bounding calls (bounds).",
+    "kind": "diagram"
+  },
+  {
+    "module": 7,
+    "lesson": "The Caption, the Point of Beginning, and Texas Ties to the GLO Survey",
+    "slug": "m7-l2-poc-pob",
+    "caption": "Plan view showing a found survey/section corner as POC, a dashed tie course to the parcel, the POB at the first true corner, and the parcel perimeter running from the POB.",
+    "kind": "diagram"
+  },
+  {
+    "module": 7,
+    "lesson": "The Caption, the Point of Beginning, and Texas Ties to the GLO Survey",
+    "slug": "m7-l2-texas-abstract",
+    "caption": "Schematic of a parcel located inside an original GLO survey labeled with grantee name and Abstract No., contrasted with a PLSS Section/Township/Range grid crossed out.",
+    "kind": "schematic"
+  },
+  {
+    "module": 7,
+    "lesson": "Bearings, Azimuths, and the Body of Courses",
+    "slug": "m7-l3-bearing-quadrants",
+    "caption": "Bearing quadrant diagram: a compass rose with N–S–E–W axes, the four quadrants labeled NE/SE/SW/NW, one example bearing N 42°10' E drawn, and the equivalent azimuth arc shown clockwise from north.",
+    "kind": "diagram"
+  },
+  {
+    "module": 7,
+    "lesson": "Bearings, Azimuths, and the Body of Courses",
+    "slug": "m7-l3-lat-dep",
+    "caption": "A single course drawn as the hypotenuse of a right triangle, with the latitude (vertical, D·cosβ) and departure (horizontal, D·sinβ) legs labeled and the bearing angle β marked from north.",
+    "kind": "diagram"
+  },
+  {
+    "module": 7,
+    "lesson": "Closure, Sufficiency, and Common Defects",
+    "slug": "m7-l4-misclosure",
+    "caption": "A four-course traverse drawn from the POB; the courses fail to return exactly to the POB, with the small gap dimensioned as the linear misclosure and ΣLat / ΣDep arrows shown.",
+    "kind": "diagram"
+  },
+  {
+    "module": 7,
+    "lesson": "Closure, Sufficiency, and Common Defects",
+    "slug": "m7-l4-dignity",
+    "caption": "A vertical priority-of-calls ladder: natural monument at top, then artificial monument, adjoinder, course, distance, and quantity/area at the bottom, with intent and footsteps shown as overriding both sides.",
+    "kind": "schematic"
+  },
+  {
+    "module": 7,
+    "lesson": "Texas Conventions: Varas, the GLO, and Putting a Description Together",
+    "slug": "m7-l5-vara-conversion",
+    "caption": "A historic field-note course “S 45° E, 950 vrs” shown converting to 2,638.9 ft, with the 1 vara = 33⅓ in = 2.7778 ft scale bar.",
+    "kind": "diagram"
+  },
+  {
+    "module": 7,
+    "lesson": "Texas Conventions: Varas, the GLO, and Putting a Description Together",
+    "slug": "m7-l5-complete-description",
+    "caption": "A finished plat-and-description pairing: a labeled traverse with POC, POB, numbered courses, a curve, and bounding road right-of-way, beside the matching written Texas description with caption, area, basis of bearing, and seal block.",
+    "kind": "diagram"
+  },
+  {
+    "module": 7,
+    "template": "Bearing to azimuth and back-azimuth",
+    "slug": "m7-tmpl-bearing-azimuth",
+    "caption": "Compass rose with the four quadrants and the conversion rule Az = β / 180−β / 180+β / 360−β labeled by quadrant.",
+    "kind": "diagram"
+  },
+  {
+    "module": 7,
+    "template": "Latitude or departure of a single course",
+    "slug": "m7-tmpl-lat-dep",
+    "caption": "A single course as the hypotenuse of a right triangle with latitude (D·cosβ) and departure (D·sinβ) legs labeled.",
+    "kind": "diagram"
+  },
+  {
+    "module": 7,
+    "template": "Linear misclosure of a traverse",
+    "slug": "m7-tmpl-misclosure",
+    "caption": "A traverse that fails to close, with ΣLat and ΣDep drawn as the legs and the misclosure as the hypotenuse gap to the POB.",
+    "kind": "diagram"
+  },
+  {
+    "module": 7,
+    "template": "Area of a triangular parcel in acres",
+    "slug": "m7-tmpl-triangle-area",
+    "caption": "A triangular parcel with its base along a road and the perpendicular height dimensioned, labeled with the area = (b×h)/2 formula.",
+    "kind": "diagram"
+  },
+  {
+    "module": 7,
+    "homework": "Homework 1 — Write and Check a Texas Metes-and-Bounds Description",
+    "slug": "m7-hw1-rectangle",
+    "caption": "Plan of the 4.00-acre square tract inside the John Doe Survey (A-123), showing the found original survey corner as POC, the 250.00-ft tie to the POB, the four iron rods at the tract corners, and the clockwise course directions.",
+    "kind": "diagram"
+  },
+  {
+    "module": 7,
+    "homework": "Homework 2 — Critique a Defective Description (written + applied)",
+    "slug": "m7-hw2-defects",
+    "caption": "A sketch of the flawed parcel showing the gone “old oak” POB, the vague “about 60 rods” course, and the iron pipe found 6 ft past the recited distance, annotated to support the defect audit.",
+    "kind": "diagram"
+  }
+]

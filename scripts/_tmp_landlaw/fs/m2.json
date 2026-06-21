@@ -1,0 +1,960 @@
+{
+ "module_number": 2,
+ "title": "Leveling",
+ "description": "Differential leveling by the height-of-instrument (HI) method, profile and trigonometric leveling, curvature & refraction, collimation/two-peg testing, and loop misclosure adjustment for vertical control. Covers the field data and computations an FS examinee must perform from benchmarks and datums.",
+ "week_range": "Weeks 3-4",
+ "exam_weight_percent": 12,
+ "icon": "📏",
+ "xp_reward": 400,
+ "prerequisite_module": 1,
+ "key_topics": [
+  "Differential leveling (HI method)",
+  "Benchmarks, turning points, and datums (NAVD88)",
+  "Backsight / foresight bookkeeping and the arithmetic check",
+  "Profile and reciprocal leveling",
+  "Trigonometric leveling (Δelev = S·sin V = d·tan V)",
+  "Curvature and refraction correction",
+  "Collimation error and the two-peg test",
+  "Loop misclosure and adjustment / closure tolerances",
+  "Three-wire leveling"
+ ],
+ "key_formulas": [
+  {
+   "name": "Height of instrument",
+   "formula": "HI = Elev_BM + BS"
+  },
+  {
+   "name": "Point elevation",
+   "formula": "Elev = HI − FS"
+  },
+  {
+   "name": "Elevation difference (multi-setup)",
+   "formula": "ΔElev = ΣBS − ΣFS"
+  },
+  {
+   "name": "Arithmetic check",
+   "formula": "Elev_last − Elev_first = ΣBS − ΣFS"
+  },
+  {
+   "name": "Curvature & refraction (rod)",
+   "formula": "C_R = 0.0206·F²   (F in thousands of ft)"
+  },
+  {
+   "name": "Curvature only (rod)",
+   "formula": "C = 0.0240·F²   (F in thousands of ft)"
+  },
+  {
+   "name": "Trigonometric leveling",
+   "formula": "ΔElev = S·sin(V) = d·tan(V)  (+ hi − hr)"
+  },
+  {
+   "name": "Loop misclosure",
+   "formula": "Misclosure = (ΣBS − ΣFS) − (Elev_known_end − Elev_known_start)"
+  },
+  {
+   "name": "Reciprocal leveling Δh",
+   "formula": "Δh = ½[(a₁ − b₁) + (a₂ − b₂)]"
+  },
+  {
+   "name": "Three-wire mean reading",
+   "formula": "Reading = (Upper + Middle + Lower)/3"
+  },
+  {
+   "name": "Collimation correction",
+   "formula": "ΔC = (collimation rate)·(BS dist − FS dist)"
+  }
+ ],
+ "content_sections": [
+  {
+   "type": "overview",
+   "title": "Module Overview",
+   "content": "## Leveling — the backbone of vertical control\n\n**Leveling** is the field operation that determines **elevations** of points relative to a **datum**. On the FS exam, leveling lives in Knowledge Area 5C (Survey Computations) with strong overlap into Area 1 (field procedures) and Area 7 (error/closure). Expect a handful of direct computational items: read a level note and find an elevation, compute a curvature-and-refraction correction, reduce a trigonometric-leveling sight, or distribute a loop misclosure.\n\nThe dominant field technique is **differential leveling** using the **height-of-instrument (HI) method**. A level set up between two points reads a **backsight (BS)** on a point of known elevation (a benchmark or turning point) and a **foresight (FS)** on the next point. Adding the BS to the known elevation gives the line-of-sight elevation, the **HI**; subtracting a FS from the HI gives the new point's elevation. Repeating this from setup to setup carries elevation across long distances.\n\nThree relationships are non-negotiable: **HI = Elev + BS**, **Elev = HI − FS**, and the running check **ΣBS − ΣFS = Elev_last − Elev_first**. Beyond the bookkeeping you must handle systematic effects — **earth curvature and atmospheric refraction**, **instrument collimation** (line-of-sight not level, found by the **two-peg test**) — and quality control through **loop misclosure** against a known datum, then adjusting the observed elevations.\n\nThis module also covers **profile leveling** (elevations along a route for cross-sections and grades), **trigonometric leveling** (elevation from a slope distance and vertical angle), **reciprocal leveling** across obstacles, and **three-wire leveling** for higher precision. Datums you will see named: **NAVD88** (the current US vertical datum) and the older **NGVD29**; elevations are **orthometric heights (H)**, related to GPS ellipsoid heights by H = h − N."
+  },
+  {
+   "type": "concepts",
+   "title": "Key Concepts",
+   "content": "## Datums, benchmarks, and the vertical reference\n\nA **datum** is the reference surface from which elevations are measured; in modern US practice that is the **geoid**, realized as **NAVD88**. A **benchmark (BM)** is a permanently monumented point of published, known elevation. A **turning point (TP)** is a temporary, well-defined point (e.g., a turning plate) used to transfer the line of sight from one instrument setup to the next; the rod is held on the same TP for the FS of one setup and the BS of the next.\n\n## Backsight, foresight, and the HI method\n\n- **Backsight (BS)** — also called a **plus sight (+)**. A rod reading taken on a point of *known* elevation. **HI = Elev + BS.**\n- **Foresight (FS)** — also called a **minus sight (−)**. A rod reading on a point whose elevation you are *determining*. **Elev = HI − FS.**\n- The **HI (height of instrument)** here is the *elevation of the line of sight*, not the height of the telescope above the ground.\n\n<table border=\"1\" cellpadding=\"4\">\n<tr><th>Station</th><th>BS (+)</th><th>HI</th><th>FS (−)</th><th>Elevation</th></tr>\n<tr><td>BM-A</td><td>3.21</td><td>503.21</td><td></td><td>500.00</td></tr>\n<tr><td>TP1</td><td>4.05</td><td>505.10</td><td>2.16</td><td>501.05</td></tr>\n<tr><td>BM-B</td><td></td><td></td><td>1.74</td><td>503.36</td></tr>\n</table>\n\n**Arithmetic check:** ΣBS = 3.21 + 4.05 = 7.26; ΣFS = 2.16 + 1.74 = 3.90; ΣBS − ΣFS = 3.36 = Elev_B − Elev_A = 503.36 − 500.00. The check confirms the *bookkeeping* (not blunders in the field).\n\n## Curvature and refraction\n\nOver a long sight the earth curves away from the level line of sight (**curvature**, makes rod readings read **too high**), and the line of sight bends downward through the atmosphere (**refraction**, partly offsetting curvature). Net, for rod readings in feet with the sight distance **F expressed in thousands of feet**:\n\n- Curvature only: **C = 0.0240·F²** ft\n- Combined curvature & refraction: **C_R = 0.0206·F²** ft\n\nBalancing BS and FS distances **cancels** curvature & refraction in differential leveling — a key reason to keep sight distances equal.\n\n## Collimation error and the two-peg test\n\n**Collimation error** is a line of sight that is not truly horizontal when the bubble is centered. The **two-peg test** detects it: set two pegs A and B a known distance apart; from the midpoint, equal sight distances cancel any collimation and give the *true* ΔElev; then set up near one peg (unequal distances) and re-read — the discrepancy is the collimation error per unit of distance difference. In differential leveling the residual collimation effect is **(collimation rate)·(ΣBS dist − ΣFS dist)**, again zeroed by balancing sights.\n\n## Trigonometric leveling\n\nWhen a slope distance **S** (or horizontal distance **d**) and a **vertical angle V** (above horizontal) are measured, the elevation difference is **ΔElev = S·sin V = d·tan V**, adjusted for instrument height (hi) and rod/target height (hr): ΔElev = S·sin V + hi − hr. For long sights add the C_R correction. (Note: if a **zenith angle z** is measured instead, ΔElev = S·cos z.)\n\n## Loop misclosure and adjustment\n\nA level **loop** returns to a benchmark of known elevation (or closes back on the start). The **misclosure** = observed (ΣBS − ΣFS) minus the known elevation difference. If within tolerance, distribute the correction in proportion to **distance leveled** (or number of setups). Federal/typical order-of-accuracy tolerances scale with √(distance): e.g., third-order ≈ 0.05·√(miles) ft. **Reciprocal leveling** (reading both ends from each bank) cancels curvature/refraction and collimation across rivers/canyons; **three-wire leveling** averages upper/middle/lower crosshair readings for precision and a built-in check."
+  },
+  {
+   "type": "formulas",
+   "title": "Essential Formulas",
+   "content": "## Differential leveling (HI method)\n\n- **Height of instrument:** HI = Elev_BM + BS\n- **Point elevation:** Elev = HI − FS\n- **Net elevation change (multi-setup):** ΔElev = ΣBS − ΣFS\n- **Arithmetic (page) check:** Elev_last − Elev_first = ΣBS − ΣFS\n\n## Curvature & refraction (rod readings, USCS)\n\nWith sight distance **F in thousands of feet**:\n\n- Curvature only: **C = 0.0240·F²** ft\n- Curvature + refraction: **C_R = 0.0206·F²** ft\n- (Metric, K in km: C = 0.0785·K² m; C_R = 0.0675·K² m)\n- Vertical-angle form (handbook): c ≈ 4.905″/1000 ft; (c & r) ≈ 4.244″/1000 ft\n\n## Trigonometric leveling\n\n- **ΔElev = S·sin(V) = d·tan(V)**  (V = vertical angle above horizontal)\n- With instrument/rod heights: **ΔElev = S·sin(V) + hi − hr**\n- Zenith-angle form: ΔElev = S·cos(z)\n- New elevation: Elev_B = Elev_A + ΔElev\n\n## Loop / line misclosure & adjustment\n\n- **Misclosure** = (ΣBS − ΣFS)_observed − (Elev_known_end − Elev_known_start)\n- **Correction at a point** = −Misclosure × (distance to point / total distance)\n- Closure tolerance (typical 3rd order): allowable = 0.05·√(M) ft, M = miles leveled\n\n## Reciprocal & three-wire leveling\n\n- **Reciprocal Δh:** Δh = ½[(a₁ − b₁) + (a₂ − b₂)]\n- **Three-wire mean reading:** R = (Upper + Middle + Lower)/3; half-interval check: (U − M) ≈ (M − L)\n- **Stadia interval → distance:** D ≈ 100·(U − L)\n\n## Collimation\n\n- **Collimation correction:** ΔC = e·(ΣBS dist − ΣFS dist), where e = collimation rate (ft of error per ft of sight, e.g., 0.012/100)\n\n## Orthometric vs ellipsoid height\n\n- **H = h − N** (H orthometric/leveled elevation, h GPS ellipsoid height, N geoid height)"
+  },
+  {
+   "type": "examples",
+   "title": "Worked Examples",
+   "content": "## Example 1 — HI and a point elevation (HI method)\n\n**Given:** BM-A elevation 642.18 ft. The level reads a backsight of **5.42 ft** on BM-A, then a foresight of **7.91 ft** on point P.\n\n**Solve:**\n1. HI = Elev_BM + BS = 642.18 + 5.42 = **647.60 ft**\n2. Elev_P = HI − FS = 647.60 − 7.91 = **639.69 ft**\n\n**Calculator (TI-36X Pro / Casio fx-991):** plain arithmetic — `642.18 + 5.42 =` gives HI, then `Ans − 7.91 =` gives Elev_P. Sanity check: FS > BS, so P is lower than BM-A (639.69 < 642.18). ✓\n\n## Example 2 — Multi-setup elevation and arithmetic check\n\n**Given:** Run from BM-12 (Elev 1004.55 ft) over two turning points to BM-13.\n\n<table border=\"1\" cellpadding=\"4\">\n<tr><th>Station</th><th>BS</th><th>FS</th></tr>\n<tr><td>BM-12</td><td>2.10</td><td></td></tr>\n<tr><td>TP1</td><td>6.34</td><td>1.55</td></tr>\n<tr><td>TP2</td><td>3.02</td><td>8.71</td></tr>\n<tr><td>BM-13</td><td></td><td>4.18</td></tr>\n</table>\n\n**Solve:**\n1. ΣBS = 2.10 + 6.34 + 3.02 = **11.46**; ΣFS = 1.55 + 8.71 + 4.18 = **14.44**\n2. ΔElev = ΣBS − ΣFS = 11.46 − 14.44 = **−2.98 ft**\n3. Elev_BM-13 = 1004.55 + (−2.98) = **1001.57 ft**\n4. **Arithmetic check:** Elev_last − Elev_first = 1001.57 − 1004.55 = −2.98 = ΣBS − ΣFS ✓\n\n**Calculator:** store ΣBS and ΣFS, subtract, add to start. Keep BS and FS columns aligned so you never mix a plus sight with a minus sight.\n\n## Example 3 — Curvature & refraction\n\n**Given:** A single sight of **2,800 ft**. Find the combined curvature-and-refraction correction to the rod reading.\n\n**Solve:** F = 2800/1000 = **2.8** (thousands of ft).\nC_R = 0.0206·F² = 0.0206 × 2.8² = 0.0206 × 7.84 = **0.1615 ft** (read too high; subtract from the rod reading).\n\nCurvature alone would be 0.0240 × 7.84 = 0.188 ft; refraction recovers ≈ 0.027 ft. **Calculator:** `2.8 x² × 0.0206 =`. Note balancing BS = FS distances cancels this entirely.\n\n## Example 4 — Trigonometric leveling\n\n**Given:** From station A (Elev 500.00 ft) a total station measures to a prism at B: horizontal distance **d = 620.0 ft**, vertical angle **V = +3°45′00″** above horizontal, instrument height hi = 5.30 ft, prism height hr = 5.30 ft (equal).\n\n**Solve:**\n1. Convert angle: 3°45′ = 3.75°. `3` `°’”` `45` `°’”` `=` on TI-36X gives 3.75°.\n2. ΔElev = d·tan(V) = 620.0 × tan(3.75°) = 620.0 × 0.065543 = **40.64 ft**\n3. Add hi − hr = 0, so Elev_B = 500.00 + 40.64 = **540.64 ft**\n\n**Check with slope form:** S = d/cos V = 620.0/0.99786 = 621.3 ft; ΔElev = S·sin V = 621.3 × 0.065399 = 40.63 ft ✓ (rounding). **Calculator:** put the calculator in DEG mode; for a zenith angle z use `S × cos(z)` instead.\n\n## Example 5 — Loop misclosure & adjustment\n\n**Given:** A level loop starts on BM-100 (Elev 250.000 ft) and is run through field points back to **BM-101 (published Elev 263.420 ft)**. The notes give ΣBS = 41.275 ft and ΣFS = 27.810 ft over **0.80 miles**.\n\n**Solve:**\n1. Observed ΔElev = ΣBS − ΣFS = 41.275 − 27.810 = **13.465 ft** → observed Elev_BM-101 = 250.000 + 13.465 = 263.465 ft\n2. Misclosure = observed − known = 263.465 − 263.420 = **+0.045 ft**\n3. Allowable (3rd order) = 0.05·√0.80 = 0.05 × 0.894 = 0.045 ft → **just within tolerance**\n4. Distribute −0.045 ft across the run in proportion to distance; the corrected closing elevation becomes the published **263.420 ft**.\n\n**Calculator:** `0.05 × 0.80 √ =` for the tolerance; sign of the misclosure tells you which way to push the elevations."
+  },
+  {
+   "type": "tips",
+   "title": "Exam Tips & Calculator Strategy",
+   "content": "## Strategy for leveling items\n\n- **Memorize the three core relations** so you never look them up: **HI = Elev + BS**, **Elev = HI − FS**, **ΣBS − ΣFS = ΔElev**. These solve the majority of leveling questions in seconds.\n- **BS is always a plus, FS is always a minus.** The single most common trap is swapping them. Write a tiny two-column BS/FS table in the margin even for a one-setup problem.\n- **Always run the arithmetic check** (ΣBS − ΣFS = last − first). If it fails, you mis-added a column — fix it before trusting the elevation.\n- **Watch the units of F in curvature & refraction.** The handbook constants 0.0240 and 0.0206 assume **F in *thousands* of feet**. A 3,000-ft sight is F = 3, not 3000. Forgetting this inflates the answer by 10⁶.\n- **Curvature reads the rod too HIGH; refraction lowers the apparent reading.** Net C_R = 0.0206·F² is *subtracted* from a long FS. Balancing BS and FS distances cancels both — a frequent \"why do we keep sights equal?\" concept question.\n- **Trig leveling:** confirm whether the angle is a **vertical angle** (from horizontal → use sin/tan) or a **zenith angle** (from vertical → use cos). Add hi, subtract hr. Put the calculator in **DEG** mode.\n- **Misclosure sign:** misclosure = observed − known. Corrections have the *opposite* sign and are spread by **distance or setup count**.\n\n## Approved-calculator tricks (TI-36X Pro / Casio fx-991 / HP 33s-35s)\n\n- **DMS entry:** TI-36X Pro — type the degrees, `°’”`, minutes, `°’”`, seconds, `°’”`, then `=`; Casio fx-991 uses the `°’”` key the same way. This converts 3°45′ to 3.75° for the tan() call. HP 35s: enter `3.4500` then `→HR`.\n- **Chaining a level run:** store ΣBS in memory A and ΣFS in memory B as you add the columns, then `RCL A − RCL B` for ΔElev — avoids re-keying.\n- **C_R fast path:** `(F) x² × 0.0206 =`. Keep F in thousands of feet.\n- **Reciprocal leveling:** compute Δh = ½[(a₁−b₁)+(a₂−b₂)] directly; the averaging cancels curvature/refraction and collimation.\n- **Three-wire:** mean = (U+M+L)/3 and check that (U−M) ≈ (M−L); distance ≈ 100·(U−L).\n\n## How the FS Reference Handbook helps\n\n- The handbook's **Curvature and refraction** block gives the 0.0240/0.0206 (ft) and 0.0785/0.0675 (m) constants plus the arc-second forms — search \"curvature\" rather than re-deriving.\n- Leveling bookkeeping (HI, BS, FS) is **not** a boxed formula; you must know it cold. The handbook only supplies the constants and the trig.\n- For trig leveling, use the handbook's **trigonometry / right-triangle** relations; for tolerances, leveling closure follows the supplied **FGCS Geodetic Leveling** standard logic (allowable ∝ √distance)."
+  }
+ ],
+ "questions": [
+  {
+   "question_text": "In differential leveling using the height-of-instrument method, a backsight (BS) is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "A rod reading on a point of known elevation, added to that elevation to get the HI",
+    "A rod reading on a point of unknown elevation, subtracted from the HI",
+    "The horizontal distance from the instrument to the benchmark",
+    "The vertical angle measured to a distant target"
+   ],
+   "correct_answer": "A rod reading on a point of known elevation, added to that elevation to get the HI",
+   "explanation": "A backsight (plus sight) is taken on a point of known elevation. HI = Elev + BS. A foresight is the minus sight taken on a point being determined.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "Which equation gives the elevation of a new point from the height of instrument?",
+   "question_type": "multiple_choice",
+   "options": [
+    "Elev = HI − FS",
+    "Elev = HI + FS",
+    "Elev = HI − BS",
+    "Elev = FS − HI"
+   ],
+   "correct_answer": "Elev = HI − FS",
+   "explanation": "The foresight is subtracted from the line-of-sight elevation (HI): Elev = HI − FS. The backsight is what was added to form the HI.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "BM-A has elevation 318.40 ft. The level reads a backsight of 6.12 ft on BM-A. What is the height of instrument (HI)?",
+   "question_type": "multiple_choice",
+   "options": [
+    "324.52 ft",
+    "312.28 ft",
+    "6.12 ft",
+    "330.64 ft"
+   ],
+   "correct_answer": "324.52 ft",
+   "explanation": "HI = Elev + BS = 318.40 + 6.12 = 324.52 ft.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "With an HI of 324.52 ft, a foresight of 9.30 ft is read on point P. The elevation of P is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "315.22 ft",
+    "333.82 ft",
+    "309.10 ft",
+    "9.30 ft"
+   ],
+   "correct_answer": "315.22 ft",
+   "explanation": "Elev_P = HI − FS = 324.52 − 9.30 = 315.22 ft.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "Over a level run, ΣBS = 18.42 ft and ΣFS = 22.05 ft. The net change in elevation from the first to the last point is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "−3.63 ft",
+    "+3.63 ft",
+    "+40.47 ft",
+    "−40.47 ft"
+   ],
+   "correct_answer": "−3.63 ft",
+   "explanation": "ΔElev = ΣBS − ΣFS = 18.42 − 22.05 = −3.63 ft. The endpoint is lower than the start.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "The arithmetic (page) check on a level note verifies that:",
+   "question_type": "multiple_choice",
+   "options": [
+    "ΣBS − ΣFS equals the last elevation minus the first elevation",
+    "The instrument is in collimation",
+    "Curvature and refraction have been removed",
+    "No field blunders occurred in reading the rod"
+   ],
+   "correct_answer": "ΣBS − ΣFS equals the last elevation minus the first elevation",
+   "explanation": "The check confirms the bookkeeping: ΣBS − ΣFS must equal Elev_last − Elev_first. It does not detect field reading blunders or systematic errors.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A point used to transfer the line of sight from one instrument setup to the next, on which both a foresight and the following backsight are read, is called a:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Turning point (TP)",
+    "Benchmark (BM)",
+    "Backsight station",
+    "Datum point"
+   ],
+   "correct_answer": "Turning point (TP)",
+   "explanation": "A turning point is a temporary, well-defined point used to carry elevation forward. A benchmark is a permanent point of published elevation.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "For a level sight of 4,000 ft, the combined curvature-and-refraction correction (rod reading, ft) is most nearly:",
+   "question_type": "multiple_choice",
+   "options": [
+    "0.33 ft",
+    "0.082 ft",
+    "3.3 ft",
+    "0.021 ft"
+   ],
+   "correct_answer": "0.33 ft",
+   "explanation": "F = 4000/1000 = 4. C_R = 0.0206·F² = 0.0206 × 16 = 0.330 ft.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "In differential leveling, the effect of curvature and refraction is essentially eliminated by:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Balancing (equalizing) backsight and foresight distances",
+    "Using a longer rod",
+    "Reading only the middle crosshair",
+    "Leveling only downhill"
+   ],
+   "correct_answer": "Balancing (equalizing) backsight and foresight distances",
+   "explanation": "When BS and FS distances are equal, the curvature-and-refraction (and collimation) errors are the same magnitude on both sights and cancel in the difference.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "Earth curvature causes a level rod reading at a long distance to appear:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Too high (larger than true)",
+    "Too low (smaller than true)",
+    "Unchanged",
+    "Negative"
+   ],
+   "correct_answer": "Too high (larger than true)",
+   "explanation": "Curvature drops the earth's surface away from the horizontal line of sight, so the line strikes the rod higher, reading too high. Refraction partially offsets this.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A field test that detects collimation error (a line of sight not truly horizontal) is the:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Two-peg test",
+    "Three-wire test",
+    "Stadia test",
+    "Compass rule test"
+   ],
+   "correct_answer": "Two-peg test",
+   "explanation": "The two-peg test compares an equal-distance (cancelling) setup against an unequal-distance setup to isolate the collimation error per unit distance.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "From station A (Elev 600.00 ft) a total station measures a horizontal distance of 500.0 ft to a target at vertical angle +6°00′ (instrument and target heights equal). The elevation of the target is most nearly:",
+   "question_type": "multiple_choice",
+   "options": [
+    "652.6 ft",
+    "547.4 ft",
+    "549.7 ft",
+    "650.3 ft"
+   ],
+   "correct_answer": "652.6 ft",
+   "explanation": "ΔElev = d·tan V = 500.0 × tan(6°) = 500.0 × 0.10510 = 52.55 ft. Elev = 600.00 + 52.55 = 652.55 ≈ 652.6 ft.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "If a total station reads a zenith angle z (measured from the vertical/zenith) and slope distance S, the elevation difference is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "ΔElev = S·cos(z)",
+    "ΔElev = S·sin(z)",
+    "ΔElev = S·tan(z)",
+    "ΔElev = S/cos(z)"
+   ],
+   "correct_answer": "ΔElev = S·cos(z)",
+   "explanation": "A zenith angle is measured down from vertical, so the vertical component is S·cos(z). (For a vertical angle V from horizontal, ΔElev = S·sin V.)",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "The current official vertical datum for the conterminous United States is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "NAVD88",
+    "NAD83",
+    "NGVD29",
+    "WGS84"
+   ],
+   "correct_answer": "NAVD88",
+   "explanation": "NAVD88 is the current US vertical datum (orthometric heights). NGVD29 is its predecessor; NAD83 and WGS84 are horizontal/3-D datums.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "Reciprocal leveling (reading both ends from each bank) is used primarily to:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Cancel curvature, refraction, and collimation across a wide obstacle such as a river",
+    "Speed up leveling by halving the number of setups",
+    "Convert ellipsoid heights to orthometric heights",
+    "Eliminate the need for a level rod"
+   ],
+   "correct_answer": "Cancel curvature, refraction, and collimation across a wide obstacle such as a river",
+   "explanation": "Because equal-distance balancing is impossible across a river, reciprocal observations from each bank are averaged: Δh = ½[(a₁−b₁)+(a₂−b₂)], cancelling the systematic errors.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "In three-wire leveling, the rod reading used for the computation is taken as:",
+   "question_type": "multiple_choice",
+   "options": [
+    "The mean of the upper, middle, and lower crosshair readings",
+    "The upper crosshair only",
+    "The difference of the upper and lower readings",
+    "The lower crosshair only"
+   ],
+   "correct_answer": "The mean of the upper, middle, and lower crosshair readings",
+   "explanation": "Reading = (U + M + L)/3, with the half-interval check (U − M) ≈ (M − L). The stadia interval also gives the sight distance ≈ 100·(U − L).",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A level loop closes with a misclosure of +0.06 ft over a total distance of 1.5 miles. The allowable third-order closure is 0.05·√(miles). Does the loop meet third-order accuracy?",
+   "question_type": "multiple_choice",
+   "options": [
+    "Yes — allowable is 0.061 ft, so 0.06 ft is within tolerance",
+    "No — allowable is 0.05 ft",
+    "Yes — allowable is 0.075 ft",
+    "No — allowable is 0.033 ft"
+   ],
+   "correct_answer": "Yes — allowable is 0.061 ft, so 0.06 ft is within tolerance",
+   "explanation": "Allowable = 0.05·√1.5 = 0.05 × 1.225 = 0.061 ft. The 0.06 ft misclosure is just within the limit.",
+   "difficulty": "hard"
+  },
+  {
+   "question_text": "When distributing a level loop misclosure, the correction at each point is proportional to:",
+   "question_type": "multiple_choice",
+   "options": [
+    "The distance leveled (or number of setups) to that point",
+    "The square of the elevation",
+    "The backsight reading at that point",
+    "The latitude of the point"
+   ],
+   "correct_answer": "The distance leveled (or number of setups) to that point",
+   "explanation": "Random leveling error accumulates with distance, so the correction is distributed in proportion to cumulative distance (or setup count) along the run.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A backsight of 2.55 ft is read on BM-1 (Elev 410.20 ft) and a foresight of 8.40 ft is read on BM-2. The elevation of BM-2 is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "404.35 ft",
+    "421.15 ft",
+    "416.05 ft",
+    "399.25 ft"
+   ],
+   "correct_answer": "404.35 ft",
+   "explanation": "HI = 410.20 + 2.55 = 412.75 ft; Elev_BM-2 = 412.75 − 8.40 = 404.35 ft.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "Orthometric height H (the elevation obtained by leveling) is related to the GPS ellipsoid height h and geoid height N by:",
+   "question_type": "multiple_choice",
+   "options": [
+    "H = h − N",
+    "H = h + N",
+    "H = N − h",
+    "H = h × N"
+   ],
+   "correct_answer": "H = h − N",
+   "explanation": "Leveling yields orthometric heights referenced to the geoid: H = h − N, where h is the ellipsoid height from GPS and N is the geoid undulation.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "Profile leveling is performed primarily to:",
+   "question_type": "multiple_choice",
+   "options": [
+    "Determine elevations of points along a route for plotting a profile and designing grades",
+    "Establish horizontal control coordinates",
+    "Measure angles between two benchmarks",
+    "Convert bearings to azimuths"
+   ],
+   "correct_answer": "Determine elevations of points along a route for plotting a profile and designing grades",
+   "explanation": "Profile leveling collects ground elevations along a centerline (with intermediate foresights) to plot the profile used for vertical-curve and grade design.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "True or False: In differential leveling, intermediate sights (other than turning points) are included in the ΣBS − ΣFS arithmetic check.",
+   "question_type": "true_false",
+   "options": [
+    "True",
+    "False"
+   ],
+   "correct_answer": "False",
+   "explanation": "Only the plus sights (BS) and the turning-point/closing minus sights (FS) carry the line of sight forward and enter ΣBS − ΣFS. Intermediate foresights (e.g., in profile leveling) give point elevations but are not part of the running check.",
+   "difficulty": "hard"
+  },
+  {
+   "question_text": "A sight distance of 1,500 ft gives a curvature-only correction (C = 0.0240·F²) of most nearly:",
+   "question_type": "multiple_choice",
+   "options": [
+    "0.054 ft",
+    "0.36 ft",
+    "0.046 ft",
+    "0.012 ft"
+   ],
+   "correct_answer": "0.054 ft",
+   "explanation": "F = 1.5; C = 0.0240 × 1.5² = 0.0240 × 2.25 = 0.054 ft.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "Which statement about the HI method versus the rise-and-fall method of reducing levels is correct?",
+   "question_type": "multiple_choice",
+   "options": [
+    "The HI method computes a line-of-sight elevation (HI) then subtracts foresights; the rise-and-fall method differences successive readings directly",
+    "The two methods give different final elevations",
+    "The HI method cannot use turning points",
+    "The rise-and-fall method ignores backsights"
+   ],
+   "correct_answer": "The HI method computes a line-of-sight elevation (HI) then subtracts foresights; the rise-and-fall method differences successive readings directly",
+   "explanation": "Both yield identical elevations. The HI method (HI = Elev + BS, Elev = HI − FS) is faster for many intermediate sights; rise-and-fall provides an extra per-leg check.",
+   "difficulty": "medium"
+  }
+ ],
+ "problem_templates": [
+  {
+   "name": "Height of instrument from a benchmark",
+   "category": "FS — Survey Computations",
+   "subcategory": "Leveling",
+   "difficulty": "easy",
+   "question_type": "numeric_input",
+   "question_template": "A level is set up and reads a backsight of {{bs:f2}} ft on benchmark BM-A, whose elevation is {{elevBM:f2}} ft. Compute the height of instrument (HI), in ft.",
+   "parameters": [
+    {
+     "name": "elevBM",
+     "type": "float",
+     "min": 100,
+     "max": 2000,
+     "decimals": 2
+    },
+    {
+     "name": "bs",
+     "type": "float",
+     "min": 0.5,
+     "max": 11.5,
+     "decimals": 2
+    }
+   ],
+   "computed_vars": [],
+   "answer_formula": "elevBM + bs",
+   "answer_format": {
+    "decimals": 2,
+    "unit": "ft",
+    "tolerance": 0.02
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "HI = Elev_BM + BS",
+     "calculation_template": "HI = {{elevBM:f2}} + {{bs:f2}}"
+    },
+    {
+     "step_number": 2,
+     "title": "Result",
+     "result_template": "{{_answer}} ft"
+    }
+   ],
+   "explanation_template": "The backsight is a plus sight added to the known benchmark elevation: HI = {{elevBM:f2}} + {{bs:f2}} = {{_answer}} ft.",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "Point elevation from HI and foresight",
+   "category": "FS — Survey Computations",
+   "subcategory": "Leveling",
+   "difficulty": "easy",
+   "question_type": "numeric_input",
+   "question_template": "Benchmark BM-A has elevation {{elevBM:f2}} ft. The level reads a backsight of {{bs:f2}} ft on BM-A, then a foresight of {{fs:f2}} ft on point P. Compute the elevation of point P, in ft.",
+   "parameters": [
+    {
+     "name": "elevBM",
+     "type": "float",
+     "min": 100,
+     "max": 2000,
+     "decimals": 2
+    },
+    {
+     "name": "bs",
+     "type": "float",
+     "min": 0.5,
+     "max": 11.5,
+     "decimals": 2
+    },
+    {
+     "name": "fs",
+     "type": "float",
+     "min": 0.5,
+     "max": 11.5,
+     "decimals": 2
+    }
+   ],
+   "computed_vars": [
+    {
+     "name": "hi",
+     "formula": "elevBM + bs"
+    }
+   ],
+   "answer_formula": "elevBM + bs - fs",
+   "answer_format": {
+    "decimals": 2,
+    "unit": "ft",
+    "tolerance": 0.02
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "HI = Elev_BM + BS",
+     "calculation_template": "HI = {{elevBM:f2}} + {{bs:f2}} = {{hi:f2}} ft"
+    },
+    {
+     "step_number": 2,
+     "title": "Elev_P = HI − FS",
+     "calculation_template": "Elev_P = {{hi:f2}} − {{fs:f2}}"
+    },
+    {
+     "step_number": 3,
+     "title": "Result",
+     "result_template": "{{_answer}} ft"
+    }
+   ],
+   "explanation_template": "HI = {{elevBM:f2}} + {{bs:f2}} = {{hi:f2}} ft, then Elev_P = HI − FS = {{hi:f2}} − {{fs:f2}} = {{_answer}} ft.",
+   "options_generator": {
+    "method": "none"
+   },
+   "diagram": {
+    "type": "leveling",
+    "bsVar": "bs",
+    "fsVar": "fs",
+    "title": "Differential leveling: HI − FS"
+   }
+  },
+  {
+   "name": "Multi-setup closing elevation (ΣBS − ΣFS)",
+   "category": "FS — Survey Computations",
+   "subcategory": "Leveling",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "A differential level run starts on BM-1 (elevation {{elevBM:f2}} ft). Over the run the sum of backsights is ΣBS = {{sumBS:f2}} ft and the sum of foresights is ΣFS = {{sumFS:f2}} ft. Compute the elevation of the closing point, in ft.",
+   "parameters": [
+    {
+     "name": "elevBM",
+     "type": "float",
+     "min": 100,
+     "max": 1500,
+     "decimals": 2
+    },
+    {
+     "name": "sumBS",
+     "type": "float",
+     "min": 10,
+     "max": 40,
+     "decimals": 2
+    },
+    {
+     "name": "sumFS",
+     "type": "float",
+     "min": 10,
+     "max": 40,
+     "decimals": 2
+    }
+   ],
+   "computed_vars": [
+    {
+     "name": "dElev",
+     "formula": "sumBS - sumFS"
+    }
+   ],
+   "answer_formula": "elevBM + sumBS - sumFS",
+   "answer_format": {
+    "decimals": 2,
+    "unit": "ft",
+    "tolerance": 0.02
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Net change = ΣBS − ΣFS",
+     "calculation_template": "ΔElev = {{sumBS:f2}} − {{sumFS:f2}} = {{dElev:f2}} ft"
+    },
+    {
+     "step_number": 2,
+     "title": "Add to starting elevation",
+     "calculation_template": "Elev = {{elevBM:f2}} + ({{dElev:f2}})"
+    },
+    {
+     "step_number": 3,
+     "title": "Result",
+     "result_template": "{{_answer}} ft"
+    }
+   ],
+   "explanation_template": "ΔElev = ΣBS − ΣFS = {{sumBS:f2}} − {{sumFS:f2}} = {{dElev:f2}} ft. Closing elevation = {{elevBM:f2}} + {{dElev:f2}} = {{_answer}} ft.",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "Curvature & refraction correction",
+   "category": "FS — Survey Computations",
+   "subcategory": "Leveling",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "A level sight is {{distFt}} ft long. Using the combined curvature-and-refraction relation C_R = 0.0206·F² (F in thousands of feet), compute the correction to the rod reading, in ft.",
+   "parameters": [
+    {
+     "name": "distFt",
+     "type": "integer",
+     "min": 1000,
+     "max": 6000
+    }
+   ],
+   "computed_vars": [
+    {
+     "name": "F",
+     "formula": "distFt/1000"
+    }
+   ],
+   "answer_formula": "0.0206 * pow(distFt/1000, 2)",
+   "answer_format": {
+    "decimals": 3,
+    "unit": "ft",
+    "tolerance": 0.005
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Express distance in thousands of feet",
+     "calculation_template": "F = {{distFt}} / 1000 = {{F:f2}}"
+    },
+    {
+     "step_number": 2,
+     "title": "Apply C_R = 0.0206·F²",
+     "calculation_template": "C_R = 0.0206 × ({{F:f2}})²"
+    },
+    {
+     "step_number": 3,
+     "title": "Result",
+     "result_template": "{{_answer}} ft"
+    }
+   ],
+   "explanation_template": "With F = {{distFt}}/1000 = {{F:f2}} thousand ft, C_R = 0.0206·F² = {{_answer}} ft. This correction is subtracted from a long foresight; balancing BS and FS distances cancels it.",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "Trigonometric leveling — elevation of target",
+   "category": "FS — Survey Computations",
+   "subcategory": "Leveling",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "From station A (elevation {{elevA:f2}} ft) a total station measures a horizontal distance of {{dist:f1}} ft to a prism at a vertical angle of {{vAngle:dms}} above horizontal. Instrument and prism heights are equal. Compute the elevation of the prism point, in ft.",
+   "parameters": [
+    {
+     "name": "elevA",
+     "type": "float",
+     "min": 200,
+     "max": 1500,
+     "decimals": 2
+    },
+    {
+     "name": "dist",
+     "type": "float",
+     "min": 200,
+     "max": 900,
+     "decimals": 1
+    },
+    {
+     "name": "vAngle",
+     "type": "angle_dms",
+     "min": 1.5,
+     "max": 9.5
+    }
+   ],
+   "computed_vars": [
+    {
+     "name": "dElev",
+     "formula": "dist * tan(toRad(vAngle))"
+    }
+   ],
+   "answer_formula": "elevA + dist * tan(toRad(vAngle))",
+   "answer_format": {
+    "decimals": 2,
+    "unit": "ft",
+    "tolerance": 0.1
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "ΔElev = d·tan(V)",
+     "calculation_template": "ΔElev = {{dist:f1}} × tan({{vAngle:dms}}) = {{dElev:f2}} ft"
+    },
+    {
+     "step_number": 2,
+     "title": "Add to station elevation (hi = hr)",
+     "calculation_template": "Elev = {{elevA:f2}} + {{dElev:f2}}"
+    },
+    {
+     "step_number": 3,
+     "title": "Result",
+     "result_template": "{{_answer}} ft (calc: DEG mode, °’” key for the angle)"
+    }
+   ],
+   "explanation_template": "With equal instrument and prism heights, ΔElev = d·tan(V) = {{dist:f1}} × tan({{vAngle:dms}}) = {{dElev:f2}} ft, so the prism elevation = {{elevA:f2}} + {{dElev:f2}} = {{_answer}} ft.",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "Loop misclosure against a known benchmark",
+   "category": "FS — Survey Computations",
+   "subcategory": "Leveling",
+   "difficulty": "hard",
+   "question_type": "numeric_input",
+   "question_template": "A level loop starts on BM-100 (elevation {{elevStart:f3}} ft) and is run to BM-101, whose published elevation is {{elevKnown:f3}} ft. The notes give ΣBS = {{sumBS:f3}} ft and ΣFS = {{sumFS:f3}} ft. Compute the loop misclosure (observed closing elevation − published elevation), in ft.",
+   "parameters": [
+    {
+     "name": "elevStart",
+     "type": "float",
+     "min": 200,
+     "max": 600,
+     "decimals": 3
+    },
+    {
+     "name": "sumBS",
+     "type": "float",
+     "min": 20,
+     "max": 50,
+     "decimals": 3
+    },
+    {
+     "name": "sumFS",
+     "type": "float",
+     "min": 20,
+     "max": 50,
+     "decimals": 3
+    },
+    {
+     "name": "misclose",
+     "type": "float",
+     "min": -0.08,
+     "max": 0.08,
+     "decimals": 3
+    }
+   ],
+   "computed_vars": [
+    {
+     "name": "obsClose",
+     "formula": "elevStart + sumBS - sumFS"
+    },
+    {
+     "name": "elevKnown",
+     "formula": "elevStart + sumBS - sumFS - misclose"
+    }
+   ],
+   "answer_formula": "(elevStart + sumBS - sumFS) - (elevStart + sumBS - sumFS - misclose)",
+   "answer_format": {
+    "decimals": 3,
+    "unit": "ft",
+    "tolerance": 0.002
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Observed closing elevation",
+     "calculation_template": "Elev_obs = {{elevStart:f3}} + {{sumBS:f3}} − {{sumFS:f3}} = {{obsClose:f3}} ft"
+    },
+    {
+     "step_number": 2,
+     "title": "Misclosure = observed − published",
+     "calculation_template": "Misclosure = {{obsClose:f3}} − {{elevKnown:f3}}"
+    },
+    {
+     "step_number": 3,
+     "title": "Result",
+     "result_template": "{{_answer}} ft (distribute the opposite correction by distance/setups)"
+    }
+   ],
+   "explanation_template": "Observed closing elevation = {{elevStart:f3}} + ΣBS − ΣFS = {{obsClose:f3}} ft. Misclosure = observed − published = {{obsClose:f3}} − {{elevKnown:f3}} = {{_answer}} ft; the correction (opposite sign) is distributed in proportion to distance leveled.",
+   "options_generator": {
+    "method": "none"
+   }
+  }
+ ],
+ "mock_questions": [
+  {
+   "question_text": "A backsight of 4.78 ft is taken on a benchmark at elevation 521.36 ft; a foresight of 6.90 ft is then read on a turning point. The elevation of the turning point is most nearly:",
+   "options": [
+    "519.24 ft",
+    "523.48 ft",
+    "513.68 ft",
+    "532.04 ft"
+   ],
+   "correct_answer": "519.24 ft",
+   "explanation": "HI = 521.36 + 4.78 = 526.14 ft; Elev_TP = 526.14 − 6.90 = 519.24 ft.",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "In a differential level run, ΣBS = 27.65 ft and ΣFS = 24.10 ft. The closing point relative to the starting benchmark is:",
+   "options": [
+    "3.55 ft higher",
+    "3.55 ft lower",
+    "51.75 ft higher",
+    "Unchanged in elevation"
+   ],
+   "correct_answer": "3.55 ft higher",
+   "explanation": "ΔElev = ΣBS − ΣFS = 27.65 − 24.10 = +3.55 ft, so the closing point is 3.55 ft higher.",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "The combined curvature-and-refraction correction for a 5,000-ft sight (C_R = 0.0206·F², F in thousands of ft) is most nearly:",
+   "options": [
+    "0.52 ft",
+    "0.10 ft",
+    "5.2 ft",
+    "0.026 ft"
+   ],
+   "correct_answer": "0.52 ft",
+   "explanation": "F = 5; C_R = 0.0206 × 25 = 0.515 ≈ 0.52 ft.",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "From a station at elevation 740.00 ft, a horizontal distance of 800.0 ft is measured to a target at a vertical angle of +2°30′ (equal instrument and target heights). The target elevation is most nearly:",
+   "options": [
+    "774.9 ft",
+    "705.1 ft",
+    "769.9 ft",
+    "740.0 ft"
+   ],
+   "correct_answer": "774.9 ft",
+   "explanation": "ΔElev = 800.0 × tan(2.5°) = 800.0 × 0.043661 = 34.93 ft; Elev = 740.00 + 34.93 = 774.93 ≈ 774.9 ft.",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "Why are backsight and foresight distances kept approximately equal in differential leveling?",
+   "options": [
+    "To cancel curvature, refraction, and collimation errors",
+    "To reduce the number of turning points",
+    "To make the rod readings smaller",
+    "To convert orthometric heights to ellipsoid heights"
+   ],
+   "correct_answer": "To cancel curvature, refraction, and collimation errors",
+   "explanation": "Equal sight distances make the systematic errors equal on the BS and FS so they cancel in the difference.",
+   "difficulty": "medium",
+   "area": "principles"
+  },
+  {
+   "question_text": "Which field test is used to determine whether a level's line of sight is truly horizontal when the bubble is centered?",
+   "options": [
+    "The two-peg test",
+    "The stadia test",
+    "The collimation traverse",
+    "The compass rule"
+   ],
+   "correct_answer": "The two-peg test",
+   "explanation": "The two-peg test isolates collimation error by comparing an equal-distance setup with an unequal-distance setup.",
+   "difficulty": "medium",
+   "area": "principles"
+  },
+  {
+   "question_text": "The current official vertical datum used for orthometric elevations in the conterminous United States is:",
+   "options": [
+    "NAVD88",
+    "NGVD29",
+    "NAD83",
+    "WGS84"
+   ],
+   "correct_answer": "NAVD88",
+   "explanation": "NAVD88 is the current US vertical datum; NGVD29 is its predecessor; NAD83 and WGS84 are horizontal/3-D datums.",
+   "difficulty": "easy",
+   "area": "principles"
+  },
+  {
+   "question_text": "A level loop is run 2.0 miles and closes with a misclosure of 0.08 ft. If the third-order allowable closure is 0.05·√(miles), the loop:",
+   "options": [
+    "Fails — allowable is about 0.071 ft",
+    "Passes — allowable is about 0.10 ft",
+    "Passes — allowable is about 0.16 ft",
+    "Fails — allowable is about 0.025 ft"
+   ],
+   "correct_answer": "Fails — allowable is about 0.071 ft",
+   "explanation": "Allowable = 0.05·√2.0 = 0.05 × 1.414 = 0.071 ft. The 0.08-ft misclosure exceeds this, so the loop fails third-order.",
+   "difficulty": "hard",
+   "area": "computations"
+  },
+  {
+   "question_text": "In three-wire leveling the rod reading used in the reduction is:",
+   "options": [
+    "The mean of the upper, middle, and lower crosshair readings",
+    "The middle crosshair only",
+    "The sum of all three readings",
+    "The upper minus the lower reading"
+   ],
+   "correct_answer": "The mean of the upper, middle, and lower crosshair readings",
+   "explanation": "Reading = (U + M + L)/3, providing redundancy and a check (U − M ≈ M − L); the interval also yields the sight distance ≈ 100·(U − L).",
+   "difficulty": "medium",
+   "area": "processes"
+  },
+  {
+   "question_text": "A level note shows ΣBS − ΣFS = +12.43 ft and the starting and closing elevations differ by +12.40 ft. The +0.03-ft difference indicates:",
+   "options": [
+    "An arithmetic or accumulated leveling error to be checked/distributed",
+    "That curvature was not corrected",
+    "A horizontal angle blunder",
+    "That the datum is NGVD29"
+   ],
+   "correct_answer": "An arithmetic or accumulated leveling error to be checked/distributed",
+   "explanation": "ΣBS − ΣFS should equal the elevation difference exactly; a small residual is misclosure (accumulated error) to be verified and, if within tolerance, distributed.",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "Reciprocal leveling is most appropriate when:",
+   "options": [
+    "A wide river or canyon prevents equal backsight and foresight distances",
+    "The benchmark elevation is unknown",
+    "Only one rod is available",
+    "The line of sight is exactly horizontal"
+   ],
+   "correct_answer": "A wide river or canyon prevents equal backsight and foresight distances",
+   "explanation": "When sights cannot be balanced, reading both points from each side and averaging cancels curvature, refraction, and collimation.",
+   "difficulty": "medium",
+   "area": "processes"
+  },
+  {
+   "question_text": "Leveling produces orthometric heights (H). To convert a GPS-derived ellipsoid height (h) to an orthometric height you apply the geoid height (N) using:",
+   "options": [
+    "H = h − N",
+    "H = h + N",
+    "H = N − h",
+    "H = h · N"
+   ],
+   "correct_answer": "H = h − N",
+   "explanation": "Orthometric height equals ellipsoid height minus geoid undulation: H = h − N.",
+   "difficulty": "medium",
+   "area": "principles"
+  },
+  {
+   "question_text": "A surveyor must establish the elevation of a point 0.6 mile from the nearest benchmark, with intermediate ground shots for a road profile. The most appropriate procedure is:",
+   "options": [
+    "Differential and profile leveling carrying turning points from the benchmark",
+    "A single trigonometric sight with no benchmark tie",
+    "GPS RTK without a geoid model",
+    "Taping the slope distance only"
+   ],
+   "correct_answer": "Differential and profile leveling carrying turning points from the benchmark",
+   "explanation": "Differential leveling carries control from the benchmark via turning points; profile leveling adds the intermediate ground shots for the road profile.",
+   "difficulty": "medium",
+   "area": "processes"
+  },
+  {
+   "question_text": "For a 3,000-ft sight, the earth-curvature-only correction (C = 0.0240·F², F in thousands of ft) is most nearly:",
+   "options": [
+    "0.216 ft",
+    "0.185 ft",
+    "0.072 ft",
+    "2.16 ft"
+   ],
+   "correct_answer": "0.216 ft",
+   "explanation": "F = 3; C = 0.0240 × 9 = 0.216 ft. (Combined with refraction it would be 0.0206 × 9 = 0.185 ft.)",
+   "difficulty": "medium",
+   "area": "computations"
+  }
+ ]
+}

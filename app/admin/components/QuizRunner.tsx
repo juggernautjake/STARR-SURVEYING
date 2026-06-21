@@ -15,6 +15,16 @@ interface Question {
   _math_vars?: Record<string, number>;
   _original_type?: string;
   _blank_count?: number;
+  // Dynamic (template-linked) questions: the quiz API generates fresh values per
+  // attempt and returns the per-attempt answer/tolerance/steps on the question.
+  // These must be echoed back on submit so the grader scores against the values
+  // THIS attempt actually saw (server can't recompute them — they're random).
+  _dynamic?: boolean;
+  _template_id?: string;
+  _generated_answer?: string;
+  _solution_steps?: unknown[];
+  _tolerance?: number;
+  _diagram?: string; // inline SVG figure matching this generated problem
 }
 
 interface StudyReference {
@@ -144,6 +154,12 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
             question_id: q.id,
             user_answer: answers[q.id] || '',
             math_vars: q._math_vars || undefined,
+            // Echo back the per-attempt dynamic fields the API generated, so the
+            // grader scores the randomized question against the values shown.
+            _dynamic: q._dynamic || undefined,
+            _generated_answer: q._generated_answer ?? undefined,
+            _tolerance: q._tolerance ?? undefined,
+            _solution_steps: q._solution_steps || undefined,
           })),
         }),
       });
@@ -429,6 +445,11 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
                 {q.question_type === 'essay' && <span className="quiz__question-type-badge">AI-Graded Essay</span>}
               </div>
             </div>
+
+            {/* Generated figure that matches this problem's numbers */}
+            {q._diagram && (
+              <div className="quiz__diagram" style={{ margin: '0.75rem 0', maxWidth: 540 }} dangerouslySetInnerHTML={{ __html: q._diagram }} />
+            )}
 
             {/* Multiple Choice / True-False */}
             {(q.question_type === 'multiple_choice' || q.question_type === 'true_false') && (

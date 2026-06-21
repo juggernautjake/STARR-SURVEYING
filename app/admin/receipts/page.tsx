@@ -356,61 +356,66 @@ export default function ReceiptsApprovalPage() {
         ))}
       </nav>
 
+      {/* receipts-filter-row-alignment-2026-06-20 — separate the
+          labeled inputs from the trailing controls + buttons, then
+          align every control to the same baseline so the row reads
+          as a single line. Filters wrap onto a new line if the
+          screen is narrow; the actions group always sits on the
+          right of whatever row it ends up on. */}
       <div style={styles.filterRow}>
-        <label style={styles.filterLabel}>
-          From
-          <input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            style={styles.input}
-          />
-        </label>
-        <label style={styles.filterLabel}>
-          To
-          <input
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            style={styles.input}
-          />
-        </label>
-        <label style={{ ...styles.filterLabel, flex: 1 }}>
-          Submitter email (optional)
-          <input
-            type="text"
-            placeholder="jacob@starrsurveying.com"
-            value={emailFilter}
-            onChange={(e) => setEmailFilter(e.target.value)}
-            style={styles.input}
-          />
-        </label>
-        <label
-          style={{
-            ...styles.filterLabel,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 6,
-          }}
-          title="Include soft-deleted receipts (Batch CC tombstones) in the list. Useful for IRS audit prep."
-        >
-          <input
-            type="checkbox"
-            checked={showDeleted}
-            onChange={(e) => setShowDeleted(e.target.checked)}
-          />
-          Show deleted
-        </label>
-        <button type="button" onClick={() => void load()} style={styles.refreshButton}>
-          Refresh
-        </button>
-        <a
-          href={buildExportUrl({ status: tab, from, to, email: emailFilter })}
-          style={styles.exportButton}
-          download
-        >
-          Export CSV
-        </a>
+        <div style={styles.filterFieldsGroup}>
+          <label style={styles.filterLabel}>
+            From
+            <input
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              style={styles.input}
+            />
+          </label>
+          <label style={styles.filterLabel}>
+            To
+            <input
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              style={styles.input}
+            />
+          </label>
+          <label style={{ ...styles.filterLabel, flex: 1 }}>
+            Submitter email (optional)
+            <input
+              type="text"
+              placeholder="jacob@starrsurveying.com"
+              value={emailFilter}
+              onChange={(e) => setEmailFilter(e.target.value)}
+              style={styles.input}
+            />
+          </label>
+        </div>
+        <div style={styles.filterActionsGroup}>
+          <label
+            style={styles.toggleControl}
+            title="Include soft-deleted receipts (Batch CC tombstones) in the list. Useful for IRS audit prep."
+          >
+            <input
+              type="checkbox"
+              checked={showDeleted}
+              onChange={(e) => setShowDeleted(e.target.checked)}
+            />
+            <span>Show deleted</span>
+          </label>
+          <button type="button" onClick={() => void load()} style={styles.refreshButton}>
+            Refresh
+          </button>
+          <a
+            href={buildExportUrl({ status: tab, from, to, email: emailFilter })}
+            style={styles.exportButton}
+            download
+          >
+            Export CSV
+          </a>
+        </div>
       </div>
 
       {loading ? (
@@ -2010,10 +2015,29 @@ const styles: Record<string, React.CSSProperties> = {
   tabCount: { opacity: 0.7, fontSize: 12, marginLeft: 6 },
   filterRow: {
     display: 'flex',
-    gap: 12,
+    gap: 16,
     flexWrap: 'wrap',
     alignItems: 'flex-end',
     marginBottom: 16,
+  },
+  // receipts-filter-row-alignment-2026-06-20 — left + right groups
+  // of the row so the inputs cluster together and the action buttons
+  // anchor to the right. Both groups use flex-end so the bottoms of
+  // every control land on the same horizontal line.
+  filterFieldsGroup: {
+    display: 'flex',
+    gap: 12,
+    alignItems: 'flex-end',
+    flexWrap: 'wrap',
+    flex: 1,
+    minWidth: 0,
+  },
+  filterActionsGroup: {
+    display: 'flex',
+    gap: 8,
+    alignItems: 'center',
+    height: 36,
+    flexWrap: 'wrap',
   },
   filterLabel: {
     display: 'flex',
@@ -2028,25 +2052,48 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid #ccc',
     fontSize: 14,
     minWidth: 140,
+    height: 36,
+    boxSizing: 'border-box',
   },
   select: {
     padding: '8px 12px',
     borderRadius: 6,
     border: '1px solid #ccc',
     fontSize: 14,
+    height: 36,
+    boxSizing: 'border-box',
+  },
+  // Inline checkbox + label control sized to match the buttons so
+  // every element in the actions row shares the same baseline.
+  toggleControl: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    height: 36,
+    padding: '0 4px',
+    fontSize: 13,
+    color: '#374151',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
   },
   refreshButton: {
-    padding: '8px 16px',
+    padding: '0 16px',
+    height: 36,
+    boxSizing: 'border-box',
     borderRadius: 6,
     border: '1px solid var(--color-brand-navy)',
     background: 'var(--color-brand-navy)',
-    color: 'var(--color-text-on-brand)',
+    color: '#FFFFFF',
     cursor: 'pointer',
     fontSize: 14,
     fontWeight: 500,
+    display: 'inline-flex',
+    alignItems: 'center',
   },
   exportButton: {
-    padding: '8px 16px',
+    padding: '0 16px',
+    height: 36,
+    boxSizing: 'border-box',
     borderRadius: 6,
     border: '1px solid var(--color-brand-navy)',
     background: 'var(--color-bg-card)',
@@ -2054,8 +2101,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     fontWeight: 500,
     textDecoration: 'none',
-    display: 'inline-block',
-    lineHeight: '20px',
+    display: 'inline-flex',
+    alignItems: 'center',
   },
   empty: {
     padding: 32,

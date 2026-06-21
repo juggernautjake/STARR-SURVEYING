@@ -1,7 +1,18 @@
-// app/admin/research/components/Tooltip.tsx — Reusable tooltip wrapper for research UI
+// app/admin/research/components/Tooltip.tsx — Reusable tooltip wrapper.
+//
+// Slice button-tooltip-portal-2026-06-20 — the tooltip now portals
+// its popup into `document.body` and the CSS lives in
+// AdminLayout.css (loaded for every admin page). The previous
+// implementation rendered the popup as a child of the trigger's
+// inline-flex <span>, and the CSS was scoped to /admin/research/
+// only — so on /admin/jobs the popup rendered as UNSTYLED inline
+// text that shifted the form rows around. Portal + global CSS
+// fixes both at once.
+
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 interface TooltipProps {
   text: string;
@@ -79,7 +90,25 @@ export default function Tooltip({
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, []);
 
+  // SSR / first paint — `document` doesn't exist on the server, so
+  // gate the portal target behind a mount check.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   if (!text) return <>{children}</>;
+
+  const popup = visible && enabled && mounted ? createPortal(
+    <div
+      ref={tipRef}
+      className={`research-tip research-tip--${position}`}
+      style={{ left: coords.x, top: coords.y, maxWidth }}
+      role="tooltip"
+    >
+      {text}
+      {shortcut && <kbd className="research-tip__shortcut">{shortcut}</kbd>}
+    </div>,
+    document.body,
+  ) : null;
 
   return (
     <span
@@ -91,17 +120,7 @@ export default function Tooltip({
       onBlur={hide}
     >
       {children}
-      {visible && enabled && (
-        <div
-          ref={tipRef}
-          className={`research-tip research-tip--${position}`}
-          style={{ left: coords.x, top: coords.y, maxWidth }}
-          role="tooltip"
-        >
-          {text}
-          {shortcut && <kbd className="research-tip__shortcut">{shortcut}</kbd>}
-        </div>
-      )}
+      {popup}
     </span>
   );
 }

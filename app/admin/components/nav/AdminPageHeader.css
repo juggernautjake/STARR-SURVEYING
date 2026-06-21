@@ -3,8 +3,17 @@
  * Breadcrumb header for the V2 admin pages (Phase 3 slice 3d).
  * Phase 5 token sweep migrates inline hex. */
 
+/* page-header-spacing-2026-06-21 — user reported the help (?) +
+ * star icons floated visually directly above page-action buttons
+ * (e.g. /admin/notes "+ New Note", /admin/error-log header) because
+ * the breadcrumb strip had `padding: 0.85rem 2rem 0` (zero bottom)
+ * and ran flush against the next row. Adding bottom padding + a
+ * subtle border makes the strip read as its own section instead of
+ * a floating column of icons stacked on top of the page action. */
 .admin-page-header {
-  padding: 0.85rem 2rem 0;
+  padding: 0.85rem 2rem 0.85rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid #EEF0F4;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 0.78rem;
   color: #6B7280;

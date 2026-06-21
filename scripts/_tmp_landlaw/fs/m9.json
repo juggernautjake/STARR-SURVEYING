@@ -1,0 +1,1139 @@
+{
+ "module_number": 9,
+ "title": "Approved Calculator Mastery & Test Strategy",
+ "description": "Turn your NCEES-approved calculator into a COGO machine: enter and add angles in DMS, convert DMS↔decimal, and use rectangular↔polar (R▸P / P▸R) to solve inverse and forward coordinate geometry in a single keystroke chain — then layer on the pacing, guessing, and handbook-search strategy that wins the timed FS exam.",
+ "week_range": "Ongoing",
+ "exam_weight_percent": 0,
+ "icon": "🧮",
+ "xp_reward": 500,
+ "prerequisite_module": 8,
+ "key_topics": [
+  "The 2026 NCEES approved-calculator list (Casio fx-115/991, HP 33s/35s, TI-30X/36X)",
+  "DMS entry, DMS arithmetic, and DMS↔decimal-degree conversion",
+  "Rectangular↔polar (R▸P / P▸R) as the one-step inverse and forward COGO engine",
+  "Inverse: distance and azimuth between two coordinates via R▸P",
+  "Forward: coordinates of a new point from azimuth + distance via P▸R",
+  "Bearing↔azimuth quadrant rules and back-azimuth",
+  "Memory registers (STO/RCL/SUM) to chain a traverse without re-keying",
+  "Area by coordinates (shoelace / sum of cross-products) on the calculator",
+  "Horizontal-curve quickies (T, L) under time pressure",
+  "FS time management, flag-and-return, guessing, and efficient handbook search"
+ ],
+ "key_formulas": [
+  {
+   "name": "DMS to decimal degrees",
+   "formula": "dec = D + M/60 + S/3600"
+  },
+  {
+   "name": "DMS to total seconds",
+   "formula": "sec = D·3600 + M·60 + S"
+  },
+  {
+   "name": "Inverse distance (R▸P r)",
+   "formula": "D = hypot(ΔN, ΔE) = √(ΔN² + ΔE²)"
+  },
+  {
+   "name": "Inverse azimuth (R▸P θ)",
+   "formula": "Az = (toDeg(atan2(ΔE, ΔN)) + 360) mod 360"
+  },
+  {
+   "name": "Forward latitude (P▸R)",
+   "formula": "ΔN = D·cos(Az)"
+  },
+  {
+   "name": "Forward departure (P▸R)",
+   "formula": "ΔE = D·sin(Az)"
+  },
+  {
+   "name": "Forward coordinates",
+   "formula": "N₂ = N₁ + D·cos(Az);  E₂ = E₁ + D·sin(Az)"
+  },
+  {
+   "name": "Bearing→azimuth (by quadrant)",
+   "formula": "NE: Az = β;  SE: Az = 180 − β;  SW: Az = 180 + β;  NW: Az = 360 − β"
+  },
+  {
+   "name": "Back azimuth",
+   "formula": "Az_back = (Az + 180) mod 360"
+  },
+  {
+   "name": "Area by coordinates (shoelace)",
+   "formula": "A = ½·|Σ (Xᵢ·Y_{i+1} − X_{i+1}·Yᵢ)|"
+  },
+  {
+   "name": "Tangent (curve quickie)",
+   "formula": "T = R·tan(I/2)"
+  },
+  {
+   "name": "Curve length (curve quickie)",
+   "formula": "L = R·I·(π/180)"
+  }
+ ],
+ "content_sections": [
+  {
+   "type": "overview",
+   "title": "Module Overview",
+   "content": "## Speed is a skill — and it is the cheapest points on the FS\n\nThe FS gives you **110 questions in 5 hours 20 minutes — about 2.9 minutes each**. The boundary-law, ethics, and definition items are fast if you know them, but the computational questions (Survey Computations and Applied Math, ~27–41 of the 110) are where time *bleeds*. A surveyor who fumbles a DMS entry, hunts for the polar-conversion key, or hand-cranks an inverse with atan and quadrant bookkeeping will run out of clock before running out of knowledge. A surveyor whose calculator is an extension of their hand banks those points and buys time for the harder items. **Calculator fluency is the single highest-leverage exam skill that costs nothing but practice.**\n\nThis module is not new theory — Modules 4 and 5 already taught the COGO, traverse, area, and curve formulas. Here you learn to **execute** them at speed on an **NCEES-approved calculator**, and to spend the time you save wisely with deliberate test strategy.\n\n## The 2026 approved-calculator list\n\nNCEES limits you to a fixed list, **re-issued every year** (same list for FS, FE, PS, PE). **No programmable, graphing, or CAS calculators.** For **2026**:\n\n- **Casio** — all **fx-115** and **fx-991** models (the name must contain \"fx-115\" or \"fx-991\").\n- **Hewlett Packard** — **HP 33s** and **HP 35s** only (no other HP).\n- **Texas Instruments** — all **TI-30X** and **TI-36X** models (the name must contain \"TI-30X\" or \"TI-36X\").\n\n**Buy and master one of two:** the **TI-36X Pro** (the most-recommended FS/FE calculator — DMS, polar↔rectangular, matrices, stats, solver, two-line MathPrint display) or the **Casio fx-991EX ClassWiz** (fast, large display, excellent DMS/stat, TABLE mode). The HP 33s/35s are **discontinued** and use RPN — great for COGO chaining if you already love RPN, but not worth learning from scratch. **Always confirm the current year's list on ncees.org before your exam**, and bring a **second approved calculator** as a backup."
+  },
+  {
+   "type": "concepts",
+   "title": "Key Concepts",
+   "content": "## The five operations every surveyor must own\n\nMaster these and you can solve almost every FS computational item quickly:\n\n1. **DMS entry & arithmetic** — type, add, and subtract angles in degrees-minutes-seconds.\n2. **DMS ↔ decimal degrees** — convert in one keystroke, both directions.\n3. **Rectangular → polar (R▸P)** — turns (ΔE, ΔN) into (distance, angle): the **inverse** in one step.\n4. **Polar → rectangular (P▸R)** — turns (distance, azimuth) into (ΔE, ΔN): the **forward** in one step.\n5. **Memory registers** — STO/RCL (and SUM where available) to chain a traverse without re-keying coordinates.\n\n## DMS entry, arithmetic, and conversion\n\nSurvey angles are **degrees-minutes-seconds** (e.g., 257°44′10″). Both approved families convert and compute in DMS natively, so you never have to hand-convert.\n\n- **TI-36X Pro:** the angle key is **[2nd][DMS]** (the `°′″` menu). Enter `257°44′10″` as `257 [2nd][DMS]°  44 [2nd][DMS]′  10 [2nd][DMS]″`. To **convert a decimal to DMS**, compute the value then `[2nd][DMS] → ▸DMS`. To go **DMS → decimal**, just enter the DMS value and the calculator already stores it as decimal internally.\n- **Casio fx-991EX:** the key is **[°′″]**. Enter `257 [°′″] 44 [°′″] 10 [°′″]`. Pressing **[°′″]** again (or `SHIFT [°′″]` → `▸DMS`) toggles the **answer** between decimal degrees and D°M′S″.\n- **HP-33S/35S:** store angles as **H.MMSSss** and convert with **→HR** (HMS→decimal) and **→HMS** (decimal→HMS).\n- **Arithmetic in DMS:** you can add/subtract angles directly — e.g., balancing interior angles, or summing a deflection. Enter each angle in DMS and press `+`/`−`; the result displays in DMS (or convert as needed). Keep the calculator in **DEGREE (DEG) mode** so all trig uses degrees.\n\n## Why R▸P / P▸R is the heart of COGO\n\nA survey leg has two equivalent descriptions: **rectangular** (ΔE, ΔN) = (departure, latitude), and **polar** (distance, direction). The calculator's built-in conversions move between them **in one step**, replacing a whole chain of `√`, `atan`, and quadrant logic:\n\n- **Inverse** (two coordinates → distance + azimuth): compute `ΔE = E₂ − E₁` and `ΔN = N₂ − N₁`, feed them to **R▸P**, and read **distance** and **azimuth** directly. The calculator's R▸P returns the angle measured from the x-axis with the correct sign — combine with the handbook quadrant constant (or use `atan2`) to land in 0–360° azimuth.\n- **Forward** (point + azimuth + distance → new coordinates): feed **distance** and **azimuth** to **P▸R** and read **ΔE (departure)** and **ΔN (latitude)** directly, then add to the start point. This *is* `ΔN = D·cos(Az)`, `ΔE = D·sin(Az)` done in one operation.\n\n**Convention used here (matches the RPLS notes):** treat **x = ΔE (Easting/departure)** and **y = ΔN (Northing/latitude)**, with the angle measured as an **azimuth from north**. Some calculators define the polar angle from the x-axis; if yours does, enter ΔN as x and ΔE as y (or swap the read-out) so the angle comes out as an azimuth. Drill *your own* unit until you know which slot is which without thinking.\n\n## Angle modes — keep it in DEG\n\nSet the calculator to **DEGREE (DEG)** mode and confirm the **DEG** indicator before any trig. A calculator left in **RAD** or **GRAD** is the classic silent blunder — answers will be wildly wrong with no error message. Curve, traverse, and inverse work all assume degrees.\n\n## Memory registers — chain a traverse\n\nUse **STO/RCL** (TI: `[sto→]`/`[rcl]`; Casio: `[STO]`/`[RCL]` with variables A,B,C,…,X,Y,M) to hold running Northing and Easting totals so you never re-key a coordinate. On the TI-30Xa the **[SUM+]** key accumulates a value into memory — the basis of the leg-by-leg traverse routine in Part B. Store a constant like the vertical-curve parabola term or a fixed radius once, then reuse it. **Every value you re-key is a chance for a blunder; store it instead.**\n\n## Fractions, reciprocals, and other time-savers\n\n- **Reciprocal `x⁻¹`** reads a scale denominator (e.g., `f/(H−h)` then `x⁻¹`) or converts relative precision to a 1:N ratio.\n- **Fraction entry** (TI MathPrint, Casio Natural display) lets you type `(A₁+A₂)/2` as a stacked fraction, avoiding order-of-operations slips.\n- **Ans** recalls the last result to chain calculations; **parentheses** protect order of operations in long expressions.\n- **Stat mode** (mean, sample σ) handles repeated-measurement and error-propagation items without summing by hand."
+  },
+  {
+   "type": "formulas",
+   "title": "Essential Formulas",
+   "content": "## Each survey task → the calculator operation that solves it\n\n| Survey task | Math | Calculator operation |\n|---|---|---|\n| Convert a field angle to decimal | `dec = D + M/60 + S/3600` | enter in **DMS**, read decimal (toggle) |\n| Convert a decimal answer to DMS | — | **▸DMS** (TI `[2nd][DMS]`, Casio `SHIFT[°′″]`) |\n| Add/subtract angles | balance / deflection sums | enter each in **DMS**, `+` / `−` |\n| **Inverse** (two pts → distance) | `D = hypot(ΔN, ΔE)` | **R▸P**, read r |\n| **Inverse** (two pts → azimuth) | `Az = (toDeg(atan2(ΔE,ΔN)) + 360) mod 360` | **R▸P**, read θ, then quadrant constant |\n| **Forward** (az+dist → coords) | `ΔN = D·cos(Az)`, `ΔE = D·sin(Az)` | **P▸R**, read ΔE and ΔN |\n| Bearing → azimuth | quadrant rule (below) | mental + DMS |\n| Azimuth → bearing | quadrant rule (below) | mental + DMS |\n| Back azimuth | `Az_back = (Az + 180) mod 360` | `±180` |\n| Area from coordinates | `A = ½·|Σ(Xᵢ·Y_{i+1} − X_{i+1}·Yᵢ)|` | sum of cross-products, ÷2, abs |\n| Curve tangent | `T = R·tan(I/2)` | DEG mode, `tan(I/2)` |\n| Curve length | `L = R·I·(π/180)` | `R × I × π ÷ 180` or `(I/D)·100` |\n\n## Bearing ↔ azimuth quadrant rules (memorize)\n\nAzimuth runs **0–360° clockwise from north**. A bearing is a **quadrant letter + acute angle β**:\n\n| Quadrant | Bearing → Azimuth | Azimuth → Bearing |\n|---|---|---|\n| **NE** (Az 0–90) | `Az = β` | `N β E` |\n| **SE** (Az 90–180) | `Az = 180 − β` | `S (180−Az) E` |\n| **SW** (Az 180–270) | `Az = 180 + β` | `S (Az−180) W` |\n| **NW** (Az 270–360) | `Az = 360 − β` | `N (360−Az) W` |\n\nThe **sign of ΔN and ΔE** fixes the quadrant on an inverse: ΔN+/ΔE+ → NE; ΔN−/ΔE+ → SE; ΔN−/ΔE− → SW; ΔN+/ΔE− → NW.\n\n## Inverse — the azimuth, robustly\n\nThe one-line bare-helper form that always lands in 0–360°:\n\n`Az = (toDeg(atan2(ΔE, ΔN)) + 360) − 360·floor((toDeg(atan2(ΔE, ΔN)) + 360)/360)`\n\nNote the argument order **atan2(ΔE, ΔN)** — easting first, northing second — because azimuth is measured from north (the ΔN axis). On the calculator, R▸P does this for you; the formula is the fallback when you key it by hand.\n\n## DMS as total seconds (handy for drills/precision)\n\n`total seconds = D·3600 + M·60 + S`, and back: `D = floor(sec/3600)`, `M = floor((sec mod 3600)/60)`, `S = sec mod 60`.\n\n## Combined-factor and other one-key chains\n\n- **Grid from ground:** `grid = ground × combined factor`; **ground from grid:** `ground = grid / combined factor`. Store the combined factor, multiply/divide.\n- **Scale denominator:** compute the ratio, press `x⁻¹`.\n- **Relative precision:** `misclosure ÷ perimeter`, then `x⁻¹` for 1:N."
+  },
+  {
+   "type": "examples",
+   "title": "Worked Examples",
+   "content": "## Keystroke notation\n\n`[2nd]`, `[SHIFT]`, `[°′″]`, `[R▸P]`, `[P▸R]`, `[x⇄y]`, `[▸DMS]` are calculator keys. **Always confirm DEGREE (DEG) mode first.** Where the TI and Casio differ, both are shown; HP-33S/35S (RPN) is noted where the Part-B resources give it.\n\n<svg width=\"460\" height=\"300\" viewBox=\"0 0 460 300\" xmlns=\"http://www.w3.org/2000/svg\" style=\"background:#fff;border:1px solid #ccc\">\n  <!-- axes: x = E (departure), y = N (latitude) -->\n  <line x1=\"60\" y1=\"250\" x2=\"420\" y2=\"250\" stroke=\"#333\" stroke-width=\"1.5\"/>\n  <line x1=\"110\" y1=\"280\" x2=\"110\" y2=\"30\" stroke=\"#333\" stroke-width=\"1.5\"/>\n  <text x=\"425\" y=\"254\" font-size=\"12\">+E (departure, x)</text>\n  <text x=\"86\" y=\"26\" font-size=\"12\">+N (latitude, y)</text>\n  <!-- leg from P1 to P2 -->\n  <circle cx=\"110\" cy=\"250\" r=\"4\" fill=\"#1c4e80\"/>\n  <text x=\"82\" y=\"266\" font-size=\"12\" fill=\"#1c4e80\">P1</text>\n  <circle cx=\"330\" cy=\"110\" r=\"4\" fill=\"#c0392b\"/>\n  <text x=\"338\" y=\"108\" font-size=\"12\" fill=\"#c0392b\">P2</text>\n  <line x1=\"110\" y1=\"250\" x2=\"330\" y2=\"110\" stroke=\"#c0392b\" stroke-width=\"2\"/>\n  <text x=\"205\" y=\"170\" font-size=\"12\" fill=\"#c0392b\">D (r)</text>\n  <!-- delta E and delta N legs -->\n  <line x1=\"110\" y1=\"250\" x2=\"330\" y2=\"250\" stroke=\"#1a5\" stroke-dasharray=\"4,3\"/>\n  <text x=\"200\" y=\"266\" font-size=\"12\" fill=\"#1a5\">ΔE</text>\n  <line x1=\"330\" y1=\"250\" x2=\"330\" y2=\"110\" stroke=\"#1a5\" stroke-dasharray=\"4,3\"/>\n  <text x=\"336\" y=\"185\" font-size=\"12\" fill=\"#1a5\">ΔN</text>\n  <!-- azimuth arc from north -->\n  <path d=\"M 110 200 A 50 50 0 0 1 145 165\" fill=\"none\" stroke=\"#7a5a2a\" stroke-width=\"1.3\"/>\n  <text x=\"120\" y=\"180\" font-size=\"12\" fill=\"#7a5a2a\">Az</text>\n  <text x=\"150\" y=\"292\" font-size=\"11\" fill=\"#555\">R▸P: (ΔE, ΔN) → (D, Az)   ·   P▸R: (D, Az) → (ΔE, ΔN)</text>\n</svg>\n\n---\n\n## Example 1 — Enter and ADD two angles in DMS\n\nAdd interior angles **48°17′35″** and **63°42′50″** (e.g., checking an angle sum).\n\n**TI-36X Pro:** `48 [2nd][DMS]° 17 [2nd][DMS]′ 35 [2nd][DMS]″  +  63 [2nd][DMS]° 42 [2nd][DMS]′ 50 [2nd][DMS]″  =` → `112.0069°`; press `[2nd][DMS] ▸DMS` → **112°00′25″**.\n\n**Casio fx-991EX:** `48 [°′″] 17 [°′″] 35 [°′″] + 63 [°′″] 42 [°′″] 50 [°′″] =` → toggles to **112°00′25″** (press `[°′″]` to switch the answer form).\n\n**Check:** 35″ + 50″ = 85″ = 1′25″; 17′ + 42′ + 1′ = 60′ = 1°; 48° + 63° + 1° = **112°00′25″**. ✓ Subtraction works identically with `−` (used for angle balancing).\n\n---\n\n## Example 2 — Convert DMS ↔ decimal degrees\n\nConvert **257°44′10″** to decimal, then convert **330.5°** to DMS.\n\n1. **DMS → decimal.** `dec = 257 + 44/60 + 10/3600 = 257 + 0.733333 + 0.002778 = 257.7361°`.\n   - **TI-36X Pro:** enter `257 [2nd][DMS]° 44 ′ 10 ″  =` → reads **257.7361°** (already decimal internally).\n   - **Casio fx-991EX:** `257 [°′″] 44 [°′″] 10 [°′″] =`, then `[°′″]` to show **257.7361°**.\n2. **decimal → DMS.** `330.5°`: 0.5° × 60 = 30′ → **330°30′00″**.\n   - **TI:** `330.5 [2nd][DMS] ▸DMS` → **330°30′00″**. **Casio:** `330.5 = SHIFT[°′″](▸DMS)` → **330°30′00″**. **HP-35S:** `330.5 →HMS` → 330.3000 (read as 330°30′00″).\n\n---\n\n## Example 3 — INVERSE between two coordinates via R▸P (distance + azimuth)\n\nP1 (N 17,095.842, E 44,600.312) and P2 (N 16,917.920, E 43,781.054). Find the distance and azimuth P1→P2.\n\n1. **Differences:** `ΔE = E₂ − E₁ = 43,781.054 − 44,600.312 = −819.258`; `ΔN = N₂ − N₁ = 16,917.920 − 17,095.842 = −177.922`. Both negative → **SW quadrant**.\n2. **Distance:** `D = hypot(ΔN, ΔE) = √(177.922² + 819.258²) = √(31,656 + 671,184) = √702,840 = 838.36 ft`.\n3. **R▸P keystrokes (TI-36X Pro):** `[2nd][R▸P]` with `(ΔE, ΔN)`: enter `−819.258 [,] −177.922 [)] =`; the `r` field reads **838.36** (distance) and the `θ` field reads the angle. Press `[x⇄y]` to read θ.\n   - **Casio fx-991EX:** `[SHIFT][+](Pol)`  `Pol(−819.258 , −177.922) =` → returns `r = 838.36`, `θ`. (Casio Pol takes (x, y); here x = ΔE, y = ΔN.)\n   - **TI-30Xa (Part-B method):** enter `ΔE [2nd][x⇄y] ΔN [2nd][R▸P]` → DIST; `[2nd][x⇄y]` → angle; `[2nd][▸DMS]` for DMS.\n4. **Azimuth:** the bare-helper form `Az = (toDeg(atan2(ΔE, ΔN)) + 360) mod 360 = (toDeg(atan2(−819.258, −177.922)) + 360) mod 360`. atan2(−819.258, −177.922) → −102.256° → +360 = 257.744° → **Az = 257°44′37″** (SW: 180° + bearing 77°44′37″). ✓ matches the Part-B worked sample (~257°44′).\n\n**One inverse = one R▸P.** No separate √, no separate atan, no quadrant table if you trust atan2.\n\n---\n\n## Example 4 — Coordinates of a point from azimuth + distance via P▸R\n\nFrom P1 (N 5,000.00, E 5,000.00), go **azimuth 330°30′00″**, **distance 200.00 ft**. Find the new point.\n\n1. **Latitude/Departure:** `ΔN = D·cos(Az) = 200·cos(330.5°) = 200·0.87036 = +174.07`; `ΔE = D·sin(Az) = 200·sin(330.5°) = 200·(−0.49242) = −98.48` (NW: ΔN+, ΔE−). ✓ matches Part-B sample.\n2. **P▸R keystrokes (TI-36X Pro):** `[2nd][P▸R]`  `P▸R(200 , 330.5) =` → returns the two rectangular components; one is ΔE = **−98.48**, press `[x⇄y]` for ΔN = **+174.07**.\n   - **Casio fx-991EX:** `[SHIFT][−](Rec)`  `Rec(200 , 330.5) =` → `x = +174.07, y = −98.48` (Casio Rec returns (x along the polar axis); map x→ΔN, y→ΔE under the north-azimuth convention — confirm on your unit).\n   - **TI-30Xa (Part-B method):** `200 [2nd][x⇄y] 330.5 [2nd][P▸R]` → DEP (ΔE); `[2nd][x⇄y]` → LAT (ΔN).\n3. **New coordinates:** `N₂ = 5,000.00 + 174.07 = 5,174.07`; `E₂ = 5,000.00 − 98.48 = 4,901.52`.\n\n**P2 ≈ (N 5,174.07, E 4,901.52).** One P▸R replaces two trig calls.\n\n---\n\n## Example 5 — Bearing ↔ azimuth\n\n(a) Convert bearing **S 36°15′ W** to azimuth. SW quadrant → `Az = 180° + β = 180° + 36°15′ =` **216°15′00″**.\n\n(b) Convert azimuth **295°40′** to a bearing. NW quadrant (270–360) → `bearing = N (360° − Az) W = N (360° − 295°40′) W = N 64°20′ W`.\n\n**Keystrokes:** do the `180 +`, `360 −` in **DMS**: e.g., TI `180 [2nd][DMS]° + 36 ° 15 ′ =` → **216°15′00″**; Casio `360 [°′″] − 295 [°′″] 40 [°′″] =` → **64°20′00″**. **Back azimuth** is just `Az ± 180`: 216°15′ → 36°15′; 64°20′ → 244°20′.\n\n---\n\n## Example 6 — AREA by coordinates (sum of cross-products)\n\nFour corners in order — A(N 1,000, E 1,000), B(N 1,000, E 1,400), C(N 1,300, E 1,400), D(N 1,300, E 1,000) — using **X = E, Y = N**.\n\n1. **Cross-products** `Σ(Xᵢ·Y_{i+1} − X_{i+1}·Yᵢ)`:\n   - A→B: 1000·1000 − 1400·1000 = −400,000\n   - B→C: 1400·1300 − 1400·1000 = +420,000\n   - C→D: 1400·1300 − 1000·1300 = +520,000\n   - D→A: 1000·1000 − 1000·1300 = −300,000\n   - Σ = +240,000\n2. **Area:** `A = ½·|240,000| = 120,000 ft²` → ÷ 43,560 = **2.755 acres** (a 400 × 300 rectangle ✓).\n\n**Keystrokes:** chain it on one line with parentheses, or store each `Xᵢ·Y_{i+1} − X_{i+1}·Yᵢ` with `[SUM+]`/`+` into memory, then `[RCL] ÷ 2 [x⇄y]`. On the **HP-33S/35S** the stored **AREA** routine accepts sequential N,E and returns acreage directly. **Tip:** for a quick rectangle, don't run a full routine — just multiply the sides.\n\n---\n\n## Example 7 — Horizontal-curve quickie (T and L)\n\nR = 1,145.92 ft, deflection I = 24°00′00″. Find T and L fast.\n\n1. **Tangent:** `T = R·tan(I/2) = 1145.92·tan(12°) = 1145.92·0.212557 = 243.57 ft`.\n2. **Length:** `L = R·I·(π/180) = 1145.92·(24·π/180) = 1145.92·0.418879 = 480.00 ft` (or `(I/D)·100` with D = 5729.58/R = 5.000° → (24/5)·100 = 480.00 ✓).\n\n**Keystrokes (TI-36X Pro, DEG):** `1145.92 × tan( 24 ÷ 2 ) =` → 243.57; `1145.92 × 24 × π ÷ 180 =` → 480.00. **Casio fx-991EX:** identical. **Time-saver:** when D is given, `(I/D)·100` skips π entirely. Type `I/2` directly into `tan(` — don't compute I/2 separately."
+  },
+  {
+   "type": "tips",
+   "title": "Exam Tips & Calculator Strategy",
+   "content": "## NCEES calculator rules (don't get turned away at the door)\n\n- Your calculator **must be on the current approved list** (2026: Casio fx-115/fx-991, HP 33s/35s, TI-30X/36X). **No programmable, graphing, or CAS** models. The proctor checks it.\n- **Clear all memory** before the exam if your model can store programs/notes — NCEES expects a cleared calculator. Stored COGO programs from the HP program books are **not** allowed on the actual exam (they were study/field references, not test tools).\n- Bring a **second approved calculator** and **fresh batteries** (or solar + light). A dead calculator mid-exam is catastrophic and avoidable.\n- **Confirm the list on ncees.org for your exam year** — it is re-issued annually and a model can drop off.\n\n## Calculator discipline that prevents blunders\n\n- **DEG mode, always** — verify the DEG indicator before any trig. RAD/GRAD is the silent killer.\n- **Store, don't re-key.** Use STO/RCL for running N/E totals and reused constants; every re-typed number is a blunder risk.\n- **One inverse, one R▸P; one forward, one P▸R.** Don't hand-crank √ + atan + quadrant — let the conversion do it, and trust atan2 for the quadrant.\n- **Sanity-check the quadrant** from the signs of ΔN, ΔE (NE/SE/SW/NW). If a point can't be SW of a known point, an azimuth near 200° is wrong.\n- **Round only at the end.** Carry full precision; format with ▸DMS or fixed decimals last.\n- **Use the simplest method.** Don't run a traverse routine to area a rectangle (Part D guidance) — multiply the sides.\n\n## Time management & test strategy (from the Part-D strategies)\n\n- **Pace ≈ 2.9 min/question** (110 in 5 h 20 min). Keep momentum, not raw speed.\n- **7-step flow:** (1) preview the exam, (2) answer the **easiest first**, (3) **flag and skip** hard ones, (4) calculate, (5) **eliminate** wrong answers, (6) **educated guess**, (7) use leftover time to **review**.\n- **Bank the fast points first:** boundary-law, ethics, and definition items are quick if known — don't let a 6-minute COGO problem early in the exam starve them of time.\n- **Read the whole problem before keying anything** — don't enter every given coordinate until you know which corners/lines the question actually needs (Part-D calculation discipline). Solve each inverse/value **once** and store it.\n- **Make a margin sketch** (vicinity sketch) for COGO/traverse/curve items — it prevents quadrant and PC/PT stationing errors.\n\n## Guessing & flag-and-return\n\n- **There is no penalty for wrong answers** — **never leave a question blank.** Answer every one before time expires.\n- **Eliminate with strike-throughs**, then guess among what's left; watch for **distracters** that are too broad/narrow or off by a unit (ft vs. m, 27 vs. 9, 5729.58 vs. 5730).\n- **Clues hide in other questions' preambles** — a definition or value you need may appear elsewhere.\n- **Flag-and-return:** mark long multi-step items, move on, and come back with the time you banked from the quick ones. **Trust your gut** on split decisions; change an answer only with a concrete reason.\n\n## Using the electronic FS Reference Handbook efficiently\n\n- The handbook (**v2.5**) and the standards PDFs are searchable and open the **entire exam** — but the handbook is **big**. **Know where each formula lives** (DMS/trig, Inverse & quadrant constant, Horizontal/Vertical curves, Area formulas, Earthwork, Photogrammetry, Probability & statistics) so you **confirm**, not hunt.\n- **Practice with the actual PDF from MyNCEES** before exam day; learn the search terms that jump to each section.\n- The handbook gives the **inverse quadrant constant C** (0/180/180/360) and the curve formulas verbatim — pair them with your R▸P/P▸R muscle memory so the calculator does the arithmetic and the handbook only confirms the form.\n\n## Common traps\n\n- Calculator in **RAD** instead of DEG. · Mixing **ΔE/ΔN order** into atan2 (azimuth uses atan2(ΔE, ΔN)). · Reading **r** when you wanted **θ** (or vice versa) after R▸P — press `[x⇄y]`. · Forgetting the **quadrant constant** so a SW azimuth reads as NE. · `PT = PC + L` (arc), **not** PC + 2T. · **÷27** for cubic yards, **÷43,560** for acres — don't swap. · Leaving an item **blank** (always guess)."
+  }
+ ],
+ "questions": [
+  {
+   "question_text": "Which calculator operation most directly gives the distance AND azimuth between two known coordinates?",
+   "question_type": "multiple_choice",
+   "options": [
+    "Rectangular-to-polar (R▸P) conversion",
+    "Polar-to-rectangular (P▸R) conversion",
+    "Decimal-to-DMS conversion",
+    "The statistics (mean/σ) mode"
+   ],
+   "correct_answer": "Rectangular-to-polar (R▸P) conversion",
+   "explanation": "Feeding ΔE and ΔN into R▸P returns the distance (r) and direction (θ) in one step — exactly the inverse. P▸R does the reverse (forward) computation; the other modes are unrelated.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "Which calculator operation most directly gives the coordinates of a new point from a known azimuth and distance?",
+   "question_type": "multiple_choice",
+   "options": [
+    "Polar-to-rectangular (P▸R) conversion",
+    "Rectangular-to-polar (R▸P) conversion",
+    "DMS arithmetic",
+    "The reciprocal (x⁻¹) key"
+   ],
+   "correct_answer": "Polar-to-rectangular (P▸R) conversion",
+   "explanation": "P▸R turns (distance, azimuth) into rectangular components (ΔE, ΔN), which you add to the start point. This is the forward computation ΔN = D·cos(Az), ΔE = D·sin(Az) in one operation.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "Before doing any trigonometric (curve, inverse, traverse) computation on an approved calculator, you should verify the calculator is in:",
+   "question_type": "multiple_choice",
+   "options": [
+    "DEGREE (DEG) mode",
+    "RADIAN (RAD) mode",
+    "GRADIAN (GRAD) mode",
+    "Fix-2 display mode"
+   ],
+   "correct_answer": "DEGREE (DEG) mode",
+   "explanation": "Survey angles are in degrees, so the calculator must be in DEG. A calculator left in RAD or GRAD gives wildly wrong trig results with no error message — the classic silent blunder.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "Which calculators are on the NCEES approved list for 2026 exams?",
+   "question_type": "multiple_choice",
+   "options": [
+    "Casio fx-115/fx-991, HP 33s/35s, and TI-30X/TI-36X models",
+    "Any non-graphing scientific calculator",
+    "TI-84 Plus and Casio fx-9750 graphing models",
+    "Only the HP 33s and HP 35s"
+   ],
+   "correct_answer": "Casio fx-115/fx-991, HP 33s/35s, and TI-30X/TI-36X models",
+   "explanation": "The 2026 list permits all Casio fx-115 and fx-991 models, only the HP 33s and HP 35s, and all TI-30X and TI-36X models. No programmable, graphing, or CAS calculators are allowed.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "Under the convention used for COGO on a scientific calculator, which axis represents ΔN (latitude)?",
+   "question_type": "multiple_choice",
+   "options": [
+    "The y-axis (north)",
+    "The x-axis (east)",
+    "The polar radius r",
+    "The z-axis"
+   ],
+   "correct_answer": "The y-axis (north)",
+   "explanation": "By convention x = ΔE (Easting/departure) and y = ΔN (Northing/latitude), with the azimuth measured from north. R▸P and P▸R map between (ΔE, ΔN) and (distance, azimuth).",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "To convert the bearing S 40°00′ W to an azimuth you would compute:",
+   "question_type": "multiple_choice",
+   "options": [
+    "180° + 40° = 220°",
+    "180° − 40° = 140°",
+    "360° − 40° = 320°",
+    "40° directly"
+   ],
+   "correct_answer": "180° + 40° = 220°",
+   "explanation": "A southwest bearing converts by Az = 180° + β. So S 40°00′ W → 180° + 40° = 220°00′ azimuth.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "The back azimuth of a line whose forward azimuth is 312°15′ is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "132°15′",
+    "192°15′",
+    "47°45′",
+    "227°45′"
+   ],
+   "correct_answer": "132°15′",
+   "explanation": "Back azimuth = (Az + 180°) mod 360° = 312°15′ − 180° = 132°15′ (subtract 180° when Az > 180°).",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "When entering an inverse on the calculator, the robust one-line azimuth formula uses which argument order for atan2?",
+   "question_type": "multiple_choice",
+   "options": [
+    "atan2(ΔE, ΔN) — easting first, northing second",
+    "atan2(ΔN, ΔE) — northing first, easting second",
+    "atan2(distance, azimuth)",
+    "atan2(N₂, E₂)"
+   ],
+   "correct_answer": "atan2(ΔE, ΔN) — easting first, northing second",
+   "explanation": "Azimuth is measured clockwise from north (the ΔN axis), so the azimuth is atan2(ΔE, ΔN). Reversing the order gives an angle measured from east instead and produces wrong azimuths.",
+   "difficulty": "hard"
+  },
+  {
+   "question_text": "On a TI-36X Pro / Casio fx-991, after an R▸P conversion you see the distance but need the angle. You should:",
+   "question_type": "multiple_choice",
+   "options": [
+    "press the [x⇄y] (swap) key to read θ",
+    "re-enter both values",
+    "switch to RAD mode",
+    "press the reciprocal x⁻¹ key"
+   ],
+   "correct_answer": "press the [x⇄y] (swap) key to read θ",
+   "explanation": "R▸P returns both r and θ; the swap key (or reading the second output field) displays the angle without re-entering the coordinates.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "Adding the DMS angles 22°45′30″ and 17°20′40″ gives:",
+   "question_type": "multiple_choice",
+   "options": [
+    "40°06′10″",
+    "39°66′70″",
+    "40°05′10″",
+    "39°06′10″"
+   ],
+   "correct_answer": "40°06′10″",
+   "explanation": "30″ + 40″ = 70″ = 1′10″; 45′ + 20′ + 1′ = 66′ = 1°06′; 22° + 17° + 1° = 40°. Result 40°06′10″. The calculator does this directly in DMS mode.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "Why is storing a running coordinate total with STO/RCL preferred over re-typing it on each traverse leg?",
+   "question_type": "multiple_choice",
+   "options": [
+    "It avoids re-keying errors (blunders) and saves time",
+    "It changes the angle mode automatically",
+    "It is required by NCEES rules",
+    "It increases the calculator's display precision"
+   ],
+   "correct_answer": "It avoids re-keying errors (blunders) and saves time",
+   "explanation": "Every re-typed number is a chance to introduce a blunder. Storing running Northing/Easting totals (and reused constants) in memory both prevents transcription errors and speeds up leg-by-leg traversing.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "On a single vertical photo problem you compute f/(H−h) = 1×10⁻⁴ and need the scale denominator. The fastest keystroke is:",
+   "question_type": "multiple_choice",
+   "options": [
+    "press the reciprocal x⁻¹ key to read 10,000",
+    "multiply by 12",
+    "convert to DMS",
+    "press R▸P"
+   ],
+   "correct_answer": "press the reciprocal x⁻¹ key to read 10,000",
+   "explanation": "Scale is a ratio; pressing x⁻¹ turns 1×10⁻⁴ into 10,000, i.e., a scale of 1:10,000. The reciprocal key is also handy for relative-precision 1:N ratios.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "Which statement about programmable/graphing calculators on the FS exam is correct?",
+   "question_type": "multiple_choice",
+   "options": [
+    "They are prohibited; only models on the NCEES approved list may be used",
+    "Any calculator is allowed if its memory is cleared",
+    "Graphing calculators are allowed if they are not used for graphing",
+    "Programmable calculators are allowed if the programs are survey-related"
+   ],
+   "correct_answer": "They are prohibited; only models on the NCEES approved list may be used",
+   "explanation": "NCEES bans programmable, graphing, and CAS calculators outright. Only models on the current approved list (Casio fx-115/991, HP 33s/35s, TI-30X/36X) are permitted, and memory should be cleared.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "Approximately how much time per question does the FS allow (110 questions in 5 h 20 min)?",
+   "question_type": "multiple_choice",
+   "options": [
+    "About 2.9 minutes",
+    "About 6 minutes",
+    "About 1 minute",
+    "About 5 minutes"
+   ],
+   "correct_answer": "About 2.9 minutes",
+   "explanation": "320 minutes ÷ 110 questions ≈ 2.9 minutes each. Banking quick boundary/ethics/definition points buys time for multi-step COGO problems.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "The best test-taking strategy when you reach a long multi-step COGO problem early in the exam is to:",
+   "question_type": "multiple_choice",
+   "options": [
+    "flag it, skip ahead to bank quick points, and return to it later",
+    "spend as long as needed before moving on",
+    "guess immediately without reading it",
+    "skip it permanently and leave it blank"
+   ],
+   "correct_answer": "flag it, skip ahead to bank quick points, and return to it later",
+   "explanation": "Flag-and-return preserves momentum: answer the fast questions first, then come back to the time-consuming problem with the time you banked. Never leave it blank — there is no penalty for guessing.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "Because the FS has no penalty for wrong answers, you should:",
+   "question_type": "multiple_choice",
+   "options": [
+    "answer every question, guessing if necessary, before time expires",
+    "leave hard questions blank to avoid lowering your score",
+    "answer only the questions you are certain about",
+    "randomly fill all answers at the start"
+   ],
+   "correct_answer": "answer every question, guessing if necessary, before time expires",
+   "explanation": "With no penalty for incorrect answers, a blank can only score zero while a guess has a chance. Always answer every question; eliminate wrong options first to improve guess odds.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "The electronic NCEES FS Reference Handbook is most efficiently used during the exam by:",
+   "question_type": "multiple_choice",
+   "options": [
+    "knowing in advance where each formula lives so you confirm rather than hunt",
+    "reading it cover-to-cover during the exam",
+    "ignoring it and working from memory only",
+    "searching it for every single question"
+   ],
+   "correct_answer": "knowing in advance where each formula lives so you confirm rather than hunt",
+   "explanation": "The handbook is searchable but large. Practicing with the actual PDF beforehand so you know where the curve, area, inverse, and statistics formulas sit lets you confirm a formula in seconds instead of burning time hunting.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "A surveyor needs to area a simple 60 ft × 120 ft rectangle. The most efficient calculator approach is to:",
+   "question_type": "multiple_choice",
+   "options": [
+    "multiply the two sides directly",
+    "run a full coordinate (shoelace) routine on all four corners",
+    "use R▸P on each side",
+    "enter all corners into a stored AREA program"
+   ],
+   "correct_answer": "multiply the two sides directly",
+   "explanation": "Part-D calculation discipline: use the simplest method. A rectangle's area is just side × side — running a full traverse/area routine wastes time and invites entry errors.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "On the area-by-coordinates (shoelace) method, which variables are conventionally taken as X and Y?",
+   "question_type": "multiple_choice",
+   "options": [
+    "X = Easting, Y = Northing",
+    "X = Northing, Y = Easting",
+    "X = distance, Y = azimuth",
+    "X = latitude, Y = longitude"
+   ],
+   "correct_answer": "X = Easting, Y = Northing",
+   "explanation": "In the coordinate (shoelace) area method, X is the Easting and Y is the Northing; you sum the cross-products Xᵢ·Y_{i+1} − X_{i+1}·Yᵢ, halve, and take the absolute value.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "Which is the most reliable way to determine the correct quadrant of an inverse azimuth on the calculator?",
+   "question_type": "multiple_choice",
+   "options": [
+    "use atan2(ΔE, ΔN), or read the signs of ΔN and ΔE",
+    "always add 180°",
+    "always use the acute angle from atan",
+    "convert the distance to DMS"
+   ],
+   "correct_answer": "use atan2(ΔE, ΔN), or read the signs of ΔN and ΔE",
+   "explanation": "atan2 returns the angle in the correct quadrant automatically. Equivalently, the signs of ΔN and ΔE place the line in NE/SE/SW/NW, to which you add the handbook quadrant constant. A bare atan loses the quadrant.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "True or False: For the curve-length quickie, when the degree of curve D is given, L = (I/D)·100 lets you avoid using π entirely.",
+   "question_type": "true_false",
+   "options": [
+    "True",
+    "False"
+   ],
+   "correct_answer": "True",
+   "explanation": "True. With D known, L = (I/D)·100 gives the arc length directly in feet without π or radians — a faster keystroke chain than L = R·I·(π/180).",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "True or False: You may use a calculator with stored COGO programs (e.g., an HP traverse routine) on the FS exam as long as it is an HP 35s.",
+   "question_type": "true_false",
+   "options": [
+    "True",
+    "False"
+   ],
+   "correct_answer": "False",
+   "explanation": "False. The HP 35s is on the approved list, but NCEES expects calculator memory to be cleared and prohibits using stored programs/notes during the exam. The HP program books are study/field references, not exam tools.",
+   "difficulty": "medium"
+  },
+  {
+   "question_text": "Convert 132°15′00″ to decimal degrees.",
+   "question_type": "numeric_input",
+   "options": [],
+   "correct_answer": "132.25",
+   "explanation": "dec = 132 + 15/60 + 0/3600 = 132 + 0.25 = 132.25°.",
+   "difficulty": "easy"
+  },
+  {
+   "question_text": "Express 1°30′45″ as a total number of seconds.",
+   "question_type": "numeric_input",
+   "options": [],
+   "correct_answer": "5445",
+   "explanation": "sec = 1·3600 + 30·60 + 45 = 3600 + 1800 + 45 = 5,445 seconds.",
+   "difficulty": "medium"
+  }
+ ],
+ "problem_templates": [
+  {
+   "name": "DMS to total seconds (calculator drill)",
+   "category": "FS — Calculator Skills",
+   "subcategory": "DMS",
+   "difficulty": "easy",
+   "question_type": "numeric_input",
+   "question_template": "CALCULATOR CHALLENGE — Express the angle {{D:f0}}°{{M:f0}}′{{S:f0}}″ as a TOTAL number of seconds.",
+   "parameters": [
+    {
+     "name": "D",
+     "type": "integer",
+     "min": 0,
+     "max": 359
+    },
+    {
+     "name": "M",
+     "type": "integer",
+     "min": 0,
+     "max": 59
+    },
+    {
+     "name": "S",
+     "type": "integer",
+     "min": 0,
+     "max": 59
+    }
+   ],
+   "computed_vars": [],
+   "answer_formula": "D*3600 + M*60 + S",
+   "answer_format": {
+    "decimals": 0,
+    "unit": "sec",
+    "tolerance": 0.5
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Seconds = D·3600 + M·60 + S",
+     "calculation_template": "{{D:f0}}·3600 + {{M:f0}}·60 + {{S:f0}}"
+    },
+    {
+     "step_number": 2,
+     "title": "Result",
+     "result_template": "{{_answer}} seconds"
+    }
+   ],
+   "explanation_template": "Total seconds = D·3600 + M·60 + S = {{D:f0}}·3600 + {{M:f0}}·60 + {{S:f0}} = {{_answer}} seconds. A fast mental/keystroke drill that underlies DMS arithmetic.",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "DMS + DMS angle sum (calculator drill)",
+   "category": "FS — Calculator Skills",
+   "subcategory": "DMS",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "CALCULATOR CHALLENGE — Add the two angles {{D1:f0}}°{{M1:f0}}′{{S1:f0}}″ and {{D2:f0}}°{{M2:f0}}′{{S2:f0}}″ and report the SUM in DECIMAL degrees.",
+   "parameters": [
+    {
+     "name": "D1",
+     "type": "integer",
+     "min": 5,
+     "max": 120
+    },
+    {
+     "name": "M1",
+     "type": "integer",
+     "min": 0,
+     "max": 59
+    },
+    {
+     "name": "S1",
+     "type": "integer",
+     "min": 0,
+     "max": 59
+    },
+    {
+     "name": "D2",
+     "type": "integer",
+     "min": 5,
+     "max": 120
+    },
+    {
+     "name": "M2",
+     "type": "integer",
+     "min": 0,
+     "max": 59
+    },
+    {
+     "name": "S2",
+     "type": "integer",
+     "min": 0,
+     "max": 59
+    }
+   ],
+   "computed_vars": [],
+   "answer_formula": "(D1 + M1/60 + S1/3600) + (D2 + M2/60 + S2/3600)",
+   "answer_format": {
+    "decimals": 4,
+    "unit": "°",
+    "tolerance": 0.001
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Convert each to decimal",
+     "formula": "dec = D + M/60 + S/3600",
+     "calculation_template": "{{D1:f0}}+{{M1:f0}}/60+{{S1:f0}}/3600 and {{D2:f0}}+{{M2:f0}}/60+{{S2:f0}}/3600"
+    },
+    {
+     "step_number": 2,
+     "title": "Add",
+     "result_template": "{{_answer}}°"
+    }
+   ],
+   "explanation_template": "Enter both angles in DMS, press +, and the calculator returns the sum; here in decimal it is ({{D1:f0}}+{{M1:f0}}/60+{{S1:f0}}/3600) + ({{D2:f0}}+{{M2:f0}}/60+{{S2:f0}}/3600) = {{_answer}}°. Toggle ▸DMS for the field-book form.",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "Inverse distance via R▸P (calculator drill)",
+   "category": "FS — Calculator Skills",
+   "subcategory": "COGO",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "CALCULATOR CHALLENGE (R▸P) — Point A is at (N {{nA:f2}}, E {{eA:f2}}) and point B is at (N {{nB:f2}}, E {{eB:f2}}). Using rectangular-to-polar, compute the horizontal DISTANCE A→B (ft).",
+   "parameters": [
+    {
+     "name": "nA",
+     "type": "float",
+     "min": 1000,
+     "max": 5000,
+     "decimals": 2
+    },
+    {
+     "name": "eA",
+     "type": "float",
+     "min": 1000,
+     "max": 5000,
+     "decimals": 2
+    },
+    {
+     "name": "dN",
+     "type": "float",
+     "min": -1500,
+     "max": 1500,
+     "decimals": 2
+    },
+    {
+     "name": "dE",
+     "type": "float",
+     "min": -1500,
+     "max": 1500,
+     "decimals": 2
+    }
+   ],
+   "computed_vars": [
+    {
+     "name": "nB",
+     "formula": "nA+dN"
+    },
+    {
+     "name": "eB",
+     "formula": "eA+dE"
+    }
+   ],
+   "answer_formula": "hypot(dN,dE)",
+   "answer_format": {
+    "decimals": 2,
+    "unit": "ft",
+    "tolerance": 0.1
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Latitude & departure",
+     "calculation_template": "ΔN = {{nB:f2}} − {{nA:f2}} = {{dN:f2}}; ΔE = {{eB:f2}} − {{eA:f2}} = {{dE:f2}}"
+    },
+    {
+     "step_number": 2,
+     "title": "Distance = √(ΔN²+ΔE²) via R▸P",
+     "result_template": "{{_answer}} ft (read r)"
+    }
+   ],
+   "explanation_template": "Compute ΔN = {{dN:f2}} and ΔE = {{dE:f2}}, feed them to R▸P, and read the distance r = hypot(ΔN, ΔE) = {{_answer}} ft. One R▸P replaces the separate √ and atan.",
+   "options_generator": {
+    "method": "none"
+   },
+   "diagram": {
+    "type": "inverse",
+    "aNVar": "nA",
+    "aEVar": "eA",
+    "bNVar": "nB",
+    "bEVar": "eB",
+    "aLabel": "A",
+    "bLabel": "B",
+    "title": "Inverse via R▸P (distance)"
+   }
+  },
+  {
+   "name": "Inverse azimuth via R▸P (calculator drill)",
+   "category": "FS — Calculator Skills",
+   "subcategory": "COGO",
+   "difficulty": "hard",
+   "question_type": "numeric_input",
+   "question_template": "CALCULATOR CHALLENGE (R▸P) — Point A is at (N {{nA:f2}}, E {{eA:f2}}) and point B is at (N {{nB:f2}}, E {{eB:f2}}). Using rectangular-to-polar, compute the AZIMUTH A→B in decimal degrees (0–360°).",
+   "parameters": [
+    {
+     "name": "nA",
+     "type": "float",
+     "min": 1000,
+     "max": 5000,
+     "decimals": 2
+    },
+    {
+     "name": "eA",
+     "type": "float",
+     "min": 1000,
+     "max": 5000,
+     "decimals": 2
+    },
+    {
+     "name": "dN",
+     "type": "float",
+     "min": -1500,
+     "max": 1500,
+     "decimals": 2
+    },
+    {
+     "name": "dE",
+     "type": "float",
+     "min": -1500,
+     "max": 1500,
+     "decimals": 2
+    }
+   ],
+   "computed_vars": [
+    {
+     "name": "nB",
+     "formula": "nA+dN"
+    },
+    {
+     "name": "eB",
+     "formula": "eA+dE"
+    }
+   ],
+   "answer_formula": "(toDeg(atan2(dE,dN))+360) - 360*floor((toDeg(atan2(dE,dN))+360)/360)",
+   "answer_format": {
+    "decimals": 4,
+    "unit": "°",
+    "tolerance": 0.01
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Latitude & departure",
+     "calculation_template": "ΔN = {{dN:f2}}, ΔE = {{dE:f2}} (signs fix the quadrant)"
+    },
+    {
+     "step_number": 2,
+     "title": "Azimuth via atan2 / R▸P θ",
+     "formula": "Az = (toDeg(atan2(ΔE, ΔN)) + 360) mod 360",
+     "result_template": "{{_answer}}°"
+    }
+   ],
+   "explanation_template": "Azimuth is measured from north: Az = atan2(ΔE, ΔN) normalized to 0–360°. With ΔE = {{dE:f2}}, ΔN = {{dN:f2}}, Az = {{_answer}}°. On the calculator, R▸P returns this θ directly — read it with the swap key.",
+   "options_generator": {
+    "method": "none"
+   },
+   "diagram": {
+    "type": "inverse",
+    "aNVar": "nA",
+    "aEVar": "eA",
+    "bNVar": "nB",
+    "bEVar": "eB",
+    "aLabel": "A",
+    "bLabel": "B",
+    "title": "Inverse via R▸P (azimuth)"
+   }
+  },
+  {
+   "name": "Forward coordinate via P▸R (calculator drill)",
+   "category": "FS — Calculator Skills",
+   "subcategory": "COGO",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "CALCULATOR CHALLENGE (P▸R) — From point P (N {{nP:f2}}, E {{eP:f2}}) go azimuth {{az:f2}}° a distance of {{dist:f2}} ft. Using polar-to-rectangular, compute the NORTHING of the new point (ft).",
+   "parameters": [
+    {
+     "name": "nP",
+     "type": "float",
+     "min": 1000,
+     "max": 5000,
+     "decimals": 2
+    },
+    {
+     "name": "eP",
+     "type": "float",
+     "min": 1000,
+     "max": 5000,
+     "decimals": 2
+    },
+    {
+     "name": "az",
+     "type": "float",
+     "min": 0,
+     "max": 359.99,
+     "decimals": 2
+    },
+    {
+     "name": "dist",
+     "type": "float",
+     "min": 50,
+     "max": 1500,
+     "decimals": 2
+    }
+   ],
+   "computed_vars": [
+    {
+     "name": "dN",
+     "formula": "dist*cos(toRad(az))"
+    }
+   ],
+   "answer_formula": "nP + dist*cos(toRad(az))",
+   "answer_format": {
+    "decimals": 2,
+    "unit": "ft",
+    "tolerance": 0.1
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Latitude from P▸R",
+     "formula": "ΔN = D·cos(Az)",
+     "calculation_template": "{{dist:f2}}·cos({{az:f2}}°) = {{dN:f2}}"
+    },
+    {
+     "step_number": 2,
+     "title": "New Northing",
+     "result_template": "N = {{nP:f2}} + {{dN:f2}} = {{_answer}} ft"
+    }
+   ],
+   "explanation_template": "Feed distance {{dist:f2}} and azimuth {{az:f2}}° to P▸R; the latitude ΔN = D·cos(Az) = {{dN:f2}} ft. New Northing = {{nP:f2}} + {{dN:f2}} = {{_answer}} ft.",
+   "options_generator": {
+    "method": "none"
+   },
+   "diagram": {
+    "type": "traverse",
+    "startNVar": "nP",
+    "startEVar": "eP",
+    "legs": [
+     {
+      "azVar": "az",
+      "distVar": "dist",
+      "label": "P→Q"
+     }
+    ],
+    "title": "Forward via P▸R"
+   }
+  },
+  {
+   "name": "Bearing to azimuth (SW quadrant drill)",
+   "category": "FS — Calculator Skills",
+   "subcategory": "Directions",
+   "difficulty": "easy",
+   "question_type": "numeric_input",
+   "question_template": "CALCULATOR CHALLENGE — A line has the bearing S {{beta:f2}}° W. Compute its AZIMUTH (decimal degrees, 0–360°).",
+   "parameters": [
+    {
+     "name": "beta",
+     "type": "float",
+     "min": 1,
+     "max": 89,
+     "decimals": 2
+    }
+   ],
+   "computed_vars": [],
+   "answer_formula": "180 + beta",
+   "answer_format": {
+    "decimals": 2,
+    "unit": "°",
+    "tolerance": 0.01
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "SW quadrant rule",
+     "formula": "Az = 180° + β",
+     "calculation_template": "180 + {{beta:f2}}"
+    },
+    {
+     "step_number": 2,
+     "title": "Result",
+     "result_template": "Az = {{_answer}}°"
+    }
+   ],
+   "explanation_template": "A southwest bearing converts by Az = 180° + β = 180 + {{beta:f2}} = {{_answer}}°. (NE: β; SE: 180−β; SW: 180+β; NW: 360−β.)",
+   "options_generator": {
+    "method": "none"
+   }
+  },
+  {
+   "name": "Area by coordinates (triangle, shoelace drill)",
+   "category": "FS — Calculator Skills",
+   "subcategory": "Area",
+   "difficulty": "medium",
+   "question_type": "numeric_input",
+   "question_template": "CALCULATOR CHALLENGE — A triangular parcel has corners, in order, A (N {{nA:f2}}, E {{eA:f2}}), B (N {{nB:f2}}, E {{eB:f2}}), and C (N {{nC:f2}}, E {{eC:f2}}). Using the coordinate (shoelace) method, compute the area in SQUARE FEET.",
+   "parameters": [
+    {
+     "name": "nA",
+     "type": "float",
+     "min": 1000,
+     "max": 1200,
+     "decimals": 2
+    },
+    {
+     "name": "eA",
+     "type": "float",
+     "min": 1000,
+     "max": 1200,
+     "decimals": 2
+    },
+    {
+     "name": "nB",
+     "type": "float",
+     "min": 1000,
+     "max": 1500,
+     "decimals": 2
+    },
+    {
+     "name": "eB",
+     "type": "float",
+     "min": 1300,
+     "max": 1700,
+     "decimals": 2
+    },
+    {
+     "name": "nC",
+     "type": "float",
+     "min": 1300,
+     "max": 1700,
+     "decimals": 2
+    },
+    {
+     "name": "eC",
+     "type": "float",
+     "min": 1000,
+     "max": 1300,
+     "decimals": 2
+    }
+   ],
+   "computed_vars": [],
+   "answer_formula": "abs((eA*nB-eB*nA)+(eB*nC-eC*nB)+(eC*nA-eA*nC))/2",
+   "answer_format": {
+    "decimals": 1,
+    "unit": "ft²",
+    "tolerance": 1
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Use X = Easting, Y = Northing",
+     "calculation_template": "A({{eA:f2}},{{nA:f2}}), B({{eB:f2}},{{nB:f2}}), C({{eC:f2}},{{nC:f2}})"
+    },
+    {
+     "step_number": 2,
+     "title": "Sum of cross-products, halved, absolute value",
+     "formula": "A = ½|Σ(Xᵢ·Y_{i+1} − X_{i+1}·Yᵢ)|",
+     "result_template": "{{_answer}} ft²"
+    }
+   ],
+   "explanation_template": "Apply the shoelace sum with X = Easting, Y = Northing around A→B→C, halve the absolute value: A = ½|Σ(Xᵢ·Y_{i+1} − X_{i+1}·Yᵢ)| = {{_answer}} ft². Chain the three cross-products with memory/SUM to avoid re-keying.",
+   "options_generator": {
+    "method": "none"
+   },
+   "diagram": {
+    "type": "triangle",
+    "vertices": [
+     {
+      "nVar": "nA",
+      "eVar": "eA",
+      "label": "A"
+     },
+     {
+      "nVar": "nB",
+      "eVar": "eB",
+      "label": "B"
+     },
+     {
+      "nVar": "nC",
+      "eVar": "eC",
+      "label": "C"
+     }
+    ],
+    "title": "Area by coordinates"
+   }
+  },
+  {
+   "name": "Horizontal-curve quickie — tangent T (calculator drill)",
+   "category": "FS — Calculator Skills",
+   "subcategory": "Curves",
+   "difficulty": "easy",
+   "question_type": "numeric_input",
+   "question_template": "CALCULATOR CHALLENGE — A circular curve has R = {{R:f2}} ft and deflection angle I = {{I:f2}}°. In DEGREE mode, compute the tangent distance T (ft).",
+   "parameters": [
+    {
+     "name": "R",
+     "type": "float",
+     "min": 400,
+     "max": 2000,
+     "decimals": 2
+    },
+    {
+     "name": "I",
+     "type": "float",
+     "min": 8,
+     "max": 75,
+     "decimals": 2
+    }
+   ],
+   "computed_vars": [],
+   "answer_formula": "R*tan(toRad(I/2))",
+   "answer_format": {
+    "decimals": 2,
+    "unit": "ft",
+    "tolerance": 0.1
+   },
+   "solution_steps_template": [
+    {
+     "step_number": 1,
+     "title": "Tangent = R·tan(I/2)",
+     "formula": "T = R·tan(I/2)",
+     "calculation_template": "{{R:f2}}·tan({{I:f2}}/2°)"
+    },
+    {
+     "step_number": 2,
+     "title": "Result",
+     "result_template": "T = {{_answer}} ft"
+    }
+   ],
+   "explanation_template": "In DEGREE mode, type I/2 straight into tan: T = R·tan(I/2) = {{R:f2}}·tan({{I:f2}}°/2) = {{_answer}} ft.",
+   "options_generator": {
+    "method": "none"
+   },
+   "diagram": {
+    "type": "curve",
+    "rVar": "R",
+    "iVar": "I",
+    "title": "Horizontal curve: tangent T"
+   }
+  }
+ ],
+ "mock_questions": [
+  {
+   "question_text": "Which single calculator operation most directly returns both the distance and the azimuth between two coordinates?",
+   "options": [
+    "Rectangular-to-polar (R▸P)",
+    "Polar-to-rectangular (P▸R)",
+    "Decimal-to-DMS conversion",
+    "Reciprocal (x⁻¹)"
+   ],
+   "correct_answer": "Rectangular-to-polar (R▸P)",
+   "explanation": "R▸P takes (ΔE, ΔN) and returns (distance r, direction θ) in one step — the inverse computation. P▸R does the reverse.",
+   "difficulty": "easy",
+   "area": "computations"
+  },
+  {
+   "question_text": "To find the coordinates of a new point from a known azimuth and distance, the calculator operation is:",
+   "options": [
+    "Polar-to-rectangular (P▸R)",
+    "Rectangular-to-polar (R▸P)",
+    "DMS arithmetic",
+    "Statistics mode"
+   ],
+   "correct_answer": "Polar-to-rectangular (P▸R)",
+   "explanation": "P▸R converts (distance, azimuth) to rectangular ΔE and ΔN, which add to the start coordinates — the forward computation ΔN = D·cos(Az), ΔE = D·sin(Az).",
+   "difficulty": "easy",
+   "area": "computations"
+  },
+  {
+   "question_text": "Adding 35°50′40″ and 12°15′30″ in DMS mode gives:",
+   "options": [
+    "48°06′10″",
+    "47°66′70″",
+    "48°05′10″",
+    "47°06′10″"
+   ],
+   "correct_answer": "48°06′10″",
+   "explanation": "40″+30″ = 70″ = 1′10″; 50′+15′+1′ = 66′ = 1°06′; 35°+12°+1° = 48°. Result 48°06′10″ — the calculator does this directly in DMS.",
+   "difficulty": "medium",
+   "area": "math"
+  },
+  {
+   "question_text": "Converting the azimuth 215°00′ to a bearing gives:",
+   "options": [
+    "S 35°00′ W",
+    "N 35°00′ E",
+    "S 35°00′ E",
+    "N 35°00′ W"
+   ],
+   "correct_answer": "S 35°00′ W",
+   "explanation": "215° is in the SW quadrant (180–270). Bearing = S (Az − 180°) W = S (215 − 180)° W = S 35°00′ W.",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "The single most important calculator setting to verify before any survey trig is:",
+   "options": [
+    "DEGREE (DEG) angle mode",
+    "Fix-3 decimal display",
+    "Scientific notation on",
+    "Fraction display on"
+   ],
+   "correct_answer": "DEGREE (DEG) angle mode",
+   "explanation": "Survey angles are in degrees; a calculator in RAD or GRAD produces wildly wrong trig with no warning. Always confirm DEG before curve, inverse, or traverse work.",
+   "difficulty": "easy",
+   "area": "processes"
+  },
+  {
+   "question_text": "Computing area from corner coordinates by the shoelace method, the cross-product to accumulate for each edge i is:",
+   "options": [
+    "Xᵢ·Y_{i+1} − X_{i+1}·Yᵢ",
+    "Xᵢ·Yᵢ − X_{i+1}·Y_{i+1}",
+    "Xᵢ + Y_{i+1}",
+    "Xᵢ·X_{i+1} − Yᵢ·Y_{i+1}"
+   ],
+   "correct_answer": "Xᵢ·Y_{i+1} − X_{i+1}·Yᵢ",
+   "explanation": "Area = ½·|Σ(Xᵢ·Y_{i+1} − X_{i+1}·Yᵢ)| with X = Easting, Y = Northing. Accumulate each edge's cross-product, halve, take the absolute value.",
+   "difficulty": "medium",
+   "area": "math"
+  },
+  {
+   "question_text": "A circular curve has R = 600 ft and I = 30°. Its tangent distance T = R·tan(I/2) is most nearly:",
+   "options": [
+    "160.77 ft",
+    "300.00 ft",
+    "321.54 ft",
+    "155.29 ft"
+   ],
+   "correct_answer": "160.77 ft",
+   "explanation": "T = 600·tan(15°) = 600·0.26795 = 160.77 ft. Type I/2 straight into tan in DEGREE mode.",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "On the FS exam (110 questions in 5 h 20 min), the recommended pacing strategy is to:",
+   "options": [
+    "answer easy questions first, flag-and-skip hard ones, and return later",
+    "solve questions strictly in order regardless of difficulty",
+    "spend equal fixed time on every question",
+    "do all computational questions first, in full, before any others"
+   ],
+   "correct_answer": "answer easy questions first, flag-and-skip hard ones, and return later",
+   "explanation": "At ~2.9 min/question, banking the quick boundary/ethics/definition points and flagging long COGO problems preserves momentum and protects time for multi-step items.",
+   "difficulty": "easy",
+   "area": "processes"
+  },
+  {
+   "question_text": "Which calculator is NOT permitted on the FS exam under the 2026 approved list?",
+   "options": [
+    "A TI-84 Plus graphing calculator",
+    "A Casio fx-991EX",
+    "A TI-36X Pro",
+    "An HP 35s"
+   ],
+   "correct_answer": "A TI-84 Plus graphing calculator",
+   "explanation": "Graphing (and programmable/CAS) calculators like the TI-84 are prohibited. The fx-991EX, TI-36X Pro, and HP 35s are all on the approved list.",
+   "difficulty": "easy",
+   "area": "processes"
+  },
+  {
+   "question_text": "After an R▸P conversion shows the distance, the angle (azimuth) is read by:",
+   "options": [
+    "pressing the [x⇄y] swap key (or reading the θ field)",
+    "pressing x⁻¹",
+    "switching to RAD mode",
+    "re-entering ΔE and ΔN"
+   ],
+   "correct_answer": "pressing the [x⇄y] swap key (or reading the θ field)",
+   "explanation": "R▸P outputs both r and θ; the swap key (or the second result field) shows the angle without re-keying the inputs.",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "Because the FS imposes no penalty for wrong answers, the correct exam behavior is to:",
+   "options": [
+    "answer every question, guessing among remaining choices if unsure",
+    "leave uncertain questions blank",
+    "answer only questions you are fully confident about",
+    "guess all answers at the start to save time"
+   ],
+   "correct_answer": "answer every question, guessing among remaining choices if unsure",
+   "explanation": "A blank scores zero; a guess (especially after eliminating wrong options) has a chance. Never leave a question unanswered.",
+   "difficulty": "easy",
+   "area": "processes"
+  },
+  {
+   "question_text": "The most efficient way to use the searchable electronic FS Reference Handbook during the exam is to:",
+   "options": [
+    "know in advance where each formula section lives so you confirm, not hunt",
+    "read it fully during the exam",
+    "memorize it and never open it",
+    "search it from scratch for every question"
+   ],
+   "correct_answer": "know in advance where each formula section lives so you confirm, not hunt",
+   "explanation": "The handbook is large but searchable; practicing with the real PDF so you know where curves, area, inverse, and statistics formulas sit turns a confirmation into seconds rather than a time-consuming hunt.",
+   "difficulty": "medium",
+   "area": "math"
+  },
+  {
+   "question_text": "The back azimuth of a line with forward azimuth 78°30′ is:",
+   "options": [
+    "258°30′",
+    "101°30′",
+    "281°30′",
+    "168°30′"
+   ],
+   "correct_answer": "258°30′",
+   "explanation": "Back azimuth = (Az + 180°) mod 360° = 78°30′ + 180° = 258°30′ (add 180° when Az < 180°).",
+   "difficulty": "medium",
+   "area": "computations"
+  },
+  {
+   "question_text": "To area a simple rectangular lot quickly, the best practice is to:",
+   "options": [
+    "multiply the two side lengths directly rather than run a full COGO/area routine",
+    "always run the stored AREA program",
+    "convert each corner with R▸P first",
+    "compute the diagonal and use Heron's formula"
+   ],
+   "correct_answer": "multiply the two side lengths directly rather than run a full COGO/area routine",
+   "explanation": "Calculation discipline: use the simplest method. A rectangle is side × side; running a full coordinate routine wastes time and invites entry errors.",
+   "difficulty": "easy",
+   "area": "math"
+  }
+ ]
+}

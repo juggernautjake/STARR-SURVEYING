@@ -72,8 +72,11 @@ UPDATE public.learning_modules
  WHERE credential_key IS NULL
    AND lower(title) LIKE '%rpls%';
 
+-- NOTE: the credential catalog (credential_bonuses) keys the FAA drone
+-- credential as 'faa_part107', not 'drone_pilot'. Map drone/UAS/Part-107
+-- modules to that existing key so the FK in step 1 is satisfied.
 UPDATE public.learning_modules
-   SET credential_key = 'drone_pilot'
+   SET credential_key = 'faa_part107'
  WHERE credential_key IS NULL
    AND (lower(title) LIKE '%drone%' OR lower(title) LIKE '%uas%' OR lower(title) LIKE '%part 107%');
 

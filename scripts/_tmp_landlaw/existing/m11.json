@@ -1,0 +1,1255 @@
+{
+  "order_index": 11,
+  "module_id": "c100000b-0000-0000-0000-00000000000b",
+  "title": "GPS/GNSS Surveying",
+  "lessons": [
+    {
+      "lesson_id": "dc0422fa-cbeb-434c-aee0-2e0e8914bcad",
+      "title": "GPS/GNSS Fundamentals",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Explain how a GNSS receiver computes a three-dimensional position by trilateration from satellite ranges.",
+        "Describe the three segments of a satellite positioning system (space, control, user) and the role of the receiver clock as a fourth unknown.",
+        "Distinguish the terms GPS and GNSS and state why a minimum of four satellites is required for an autonomous position."
+      ],
+      "key_takeaways": [
+        "GNSS positioning is satellite trilateration: each satellite range defines a sphere, and the receiver position is the intersection of several spheres.",
+        "Because the inexpensive receiver clock is not perfectly synchronized to satellite time, the clock bias is a fourth unknown, so at least four satellites are needed.",
+        "A GNSS is built from a space segment (satellites), a control segment (ground monitoring/upload stations), and a user segment (receivers); GPS is one of several GNSS constellations."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Positioning from Space</h3><p><strong>GNSS</strong> (Global Navigation Satellite System) is the general term for any constellation of navigation satellites that lets a receiver compute its position anywhere on or near the Earth, at any time, in any weather. <strong>GPS</strong> (the U.S. Global Positioning System) is the original and best-known GNSS, but it is only one of several &mdash; so a modern survey receiver is properly called a <em>GNSS receiver</em>, not just a &lsquo;GPS&rsquo;. The core idea is deceptively simple: each satellite continuously broadcasts its own position and a precise time signal, the receiver measures how long the signal took to arrive, multiplies by the speed of light to get a <strong>range</strong> (distance) to the satellite, and uses several such ranges to locate itself.</p><p>Geometrically this is <strong>trilateration</strong>. A single range places the receiver somewhere on a sphere centered on that satellite. Two ranges narrow the position to a circle, three to a pair of points, and a fourth resolves the ambiguity and &mdash; crucially &mdash; solves for the receiver clock error. The result is a three-dimensional coordinate (latitude, longitude, height, or X, Y, Z) referenced to a global datum.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Why Four Satellites?</h3><p>To turn travel time into distance you must know <em>when</em> the signal left the satellite and <em>when</em> it arrived. Each satellite carries an atomic clock and is tightly synchronized to system time, but the receiver uses a cheap quartz clock that drifts. That receiver <strong>clock bias</strong> appears in every range measurement, so the raw distances are really <em>pseudoranges</em> &mdash; ranges contaminated by a common timing error. The position solution therefore has <strong>four unknowns</strong>: the three position coordinates (X, Y, Z) plus the receiver clock bias. Four equations require four satellites; tracking more than four over-determines the solution and improves accuracy and reliability.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\rho_i = \\sqrt{(X_i - X)^2 + (Y_i - Y)^2 + (Z_i - Z)^2} + c\\,\\delta t",
+            "label": "Pseudorange to satellite i: (X,Y,Z) receiver, (Xi,Yi,Zi) satellite, δt clock bias",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The Three Segments of a GNSS</h3><p>Every GNSS is organized into three parts. The <strong>space segment</strong> is the constellation of satellites broadcasting timing and orbit (ephemeris) data. The <strong>control segment</strong> is a network of ground stations that track the satellites, compute precise orbits and clock corrections, and upload that data to the satellites &mdash; for GPS this is run by the U.S. Space Force, with a master control station and globally distributed monitor stations. The <strong>user segment</strong> is everyone with a receiver, from a phone to a survey-grade dual-frequency rover. Surveyors operate in the user segment but must understand the other two, because orbit and clock quality (from the control segment) and satellite geometry (from the space segment) directly limit the accuracy a receiver can achieve.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Segment", "Contents", "Function"],
+            "rows": [
+              ["Space", "The satellite constellation", "Broadcasts timing signals and ephemeris (orbit) data"],
+              ["Control", "Master + monitor/upload ground stations", "Tracks satellites, computes orbit/clock corrections, uploads to satellites"],
+              ["User", "Receivers (handheld to survey-grade)", "Receives signals, computes position, velocity, time"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Navigation-grade autonomous GPS gives roughly 3–10 m horizontal accuracy. Survey-grade results (centimeter to sub-centimeter) come not from a better single position but from relative/differential techniques and carrier-phase measurements covered later in this module."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Three satellites broadcasting range spheres intersecting at a receiver on the ground, illustrating trilateration",
+            "caption": "Figure: GNSS trilateration. Each measured range defines a sphere about its satellite; the receiver lies at the common intersection, with a fourth satellite resolving the receiver clock bias.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "GNSS is satellite trilateration: range to each satellite defines a sphere; the receiver is at the common intersection.",
+              "Raw distances are pseudoranges because the receiver clock is biased; the clock error is a fourth unknown.",
+              "At least four satellites are needed for an autonomous 3-D position; more satellites improve accuracy and reliability.",
+              "A GNSS has space, control, and user segments; GPS is one GNSS among several.",
+              "Autonomous accuracy is a few meters; centimeter survey accuracy requires the relative and carrier-phase methods covered later."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "GNSS vs. GPS",
+          "definition": "GNSS (Global Navigation Satellite System) is the generic term for any satellite positioning constellation; GPS is the specific U.S. system. A modern receiver that tracks multiple constellations is a GNSS receiver."
+        },
+        {
+          "term": "Pseudorange",
+          "definition": "The raw satellite-to-receiver distance from signal travel time, contaminated by the receiver clock bias (and other errors). The clock bias is solved as a fourth unknown, which is why four satellites are required."
+        },
+        {
+          "term": "GNSS segments",
+          "definition": "Space segment (the satellites), control segment (ground tracking/upload stations that maintain orbits and clocks), and user segment (receivers).",
+          "hint_1": "Think satellites, ground masters, and your rover."
+        }
+      ]
+    },
+    {
+      "lesson_id": "e702897d-97dc-46bb-b473-c364fb27a420",
+      "title": "Satellite Constellations (GPS, GLONASS, Galileo)",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Identify the four major GNSS constellations (GPS, GLONASS, Galileo, BeiDou) and their operators.",
+        "Explain how tracking multiple constellations improves satellite availability, geometry, and reliability for surveying.",
+        "Describe basic orbital characteristics (number of planes, altitude, period) that affect satellite visibility."
+      ],
+      "key_takeaways": [
+        "The four global constellations are GPS (USA), GLONASS (Russia), Galileo (EU), and BeiDou (China); regional systems (QZSS, NavIC) augment them.",
+        "Multi-constellation receivers see far more satellites, improving DOP and giving reliable fixes under canopy and in urban canyons.",
+        "GNSS satellites orbit in Medium Earth Orbit (~20,000 km) in several inclined planes with roughly 12-hour periods, so the visible sky pattern repeats predictably."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>A Crowded Sky</h3><p>For its first decades, satellite surveying meant GPS alone, often supplemented by the Russian <strong>GLONASS</strong>. Today four fully global constellations operate, and modern survey receivers track all of them simultaneously. The U.S. <strong>GPS</strong>, Russia's <strong>GLONASS</strong>, the European Union's <strong>Galileo</strong>, and China's <strong>BeiDou</strong> together place well over a hundred usable satellites in the sky, plus regional augmentation systems such as Japan's <strong>QZSS</strong> and India's <strong>NavIC</strong>. Each system is independently operated, with its own satellites, ground control, and signal plan, but their signals are interoperable enough that a single receiver can blend them into one position solution.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Constellation", "Operator", "Orbit altitude", "Nominal satellites"],
+            "rows": [
+              ["GPS", "United States (Space Force)", "~20,200 km MEO", "31 operational"],
+              ["GLONASS", "Russia", "~19,100 km MEO", "24"],
+              ["Galileo", "European Union", "~23,200 km MEO", "24+ "],
+              ["BeiDou (BDS)", "China", "MEO + IGSO/GEO mix", "30+"],
+              ["QZSS / NavIC", "Japan / India (regional)", "IGSO/GEO", "Regional augmentation"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Why Multi-Constellation Matters</h3><p>For a surveyor the practical payoff of multiple constellations is <strong>more satellites in view, better geometry, and faster, more reliable fixes</strong>. Each constellation puts satellites in <strong>Medium Earth Orbit (MEO)</strong>, roughly 19,000&ndash;23,000 km up, in several inclined orbital planes with periods near 12 hours, so satellites are spread across the whole sky and the pattern repeats predictably each day. When you work under tree canopy, beside buildings, or in an urban canyon, half the sky may be blocked. Tracking GPS alone you might drop below the four satellites needed; tracking GPS + GLONASS + Galileo + BeiDou you may still see 15&ndash;25 satellites, keeping a strong solution where single-constellation work would fail. More satellites also improve <strong>DOP</strong> (dilution of precision &mdash; the geometry factor covered later) and let the receiver reject bad observations.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "GLONASS satellites historically used FDMA (each satellite on a slightly different frequency) while GPS, Galileo, and BeiDou use CDMA (shared frequencies, different codes). This is why some older or lower-cost receivers track GPS-only — handling GLONASS adds complexity. Survey-grade receivers handle all systems."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Multiple inclined orbital planes of GNSS satellites around the Earth at medium earth orbit altitude",
+            "caption": "Figure: GNSS satellites occupy several inclined orbital planes in Medium Earth Orbit, so satellites are distributed across the whole sky and the visibility pattern repeats daily.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Four global GNSS constellations: GPS (USA), GLONASS (Russia), Galileo (EU), BeiDou (China); QZSS and NavIC are regional augmentations.",
+              "GNSS satellites fly in MEO (~20,000 km) in several inclined planes with ~12-hour periods, repeating their sky pattern daily.",
+              "Multi-constellation tracking dramatically increases satellites in view, improving DOP and reliability under canopy and in urban canyons.",
+              "GLONASS uses FDMA; GPS, Galileo, and BeiDou use CDMA — a reason older receivers may be GPS-only.",
+              "Survey-grade receivers blend all constellations into a single, robust position solution."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Galileo and BeiDou",
+          "definition": "The European Union's (Galileo) and China's (BeiDou/BDS) global navigation satellite systems. Together with GPS and GLONASS they form the four global GNSS constellations tracked by modern survey receivers."
+        },
+        {
+          "term": "Medium Earth Orbit (MEO)",
+          "definition": "The orbital band (~19,000–23,000 km altitude) where GNSS navigation satellites fly, with orbital periods near 12 hours and inclined planes that spread satellites across the sky."
+        },
+        {
+          "term": "Multi-constellation advantage",
+          "definition": "Tracking GPS + GLONASS + Galileo + BeiDou puts many more satellites in view, improving geometry (DOP) and giving reliable fixes in obstructed environments where a single constellation would fail."
+        }
+      ]
+    },
+    {
+      "lesson_id": "3e13d01b-282e-419d-8204-e75e67537775",
+      "title": "GPS Signal Structure and Measurement",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Describe the GPS carrier frequencies (L1, L2, L5) and the codes (C/A and P(Y)) modulated onto them.",
+        "Contrast code-phase (pseudorange) and carrier-phase measurements and explain the carrier-phase integer ambiguity.",
+        "Explain why dual-frequency observations are used to remove the ionospheric delay."
+      ],
+      "key_takeaways": [
+        "GPS broadcasts on carrier frequencies L1 (1575.42 MHz), L2 (1227.60 MHz), and L5 (1176.45 MHz), each modulated with ranging codes and the navigation message.",
+        "Code-phase (pseudorange) measurements are robust but meter-level; carrier-phase measurements are millimeter-resolution but carry an unknown integer number of whole cycles (the ambiguity) that must be resolved.",
+        "Observing two frequencies lets the receiver model and remove most of the frequency-dependent ionospheric delay, the largest range error after differencing."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>What the Satellite Broadcasts</h3><p>Each GPS satellite transmits microwave <strong>carrier waves</strong> at precise frequencies derived from its atomic clock. The legacy frequencies are <strong>L1 at 1575.42 MHz</strong> and <strong>L2 at 1227.60 MHz</strong>; modernized satellites add <strong>L5 at 1176.45 MHz</strong> (and new civil codes on L1 and L2). Onto these carriers the satellite <em>modulates</em> two things: ranging <strong>codes</strong> and the <strong>navigation message</strong>. The navigation message carries the satellite's ephemeris (precise orbit), clock corrections, and almanac. The ranging codes are pseudo-random sequences the receiver matches against an internally generated copy to measure signal travel time.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The Ranging Codes: C/A and P(Y)</h3><p>Two principal codes ride on the GPS carriers. The <strong>C/A code</strong> (Coarse/Acquisition) is on L1, repeats every millisecond, and is the basis of standard civilian positioning &mdash; easy to acquire but relatively coarse. The <strong>P code</strong> (Precise), encrypted into the <strong>P(Y) code</strong> for military use, is on both L1 and L2, runs at a much higher chipping rate, and gives finer code-phase ranging. The receiver determines the <strong>code phase</strong> by sliding its replica of the code until it correlates with the incoming signal; the time shift, times the speed of light, is the <strong>pseudorange</strong>. Code-phase positioning is robust and instantaneous but limited to roughly meter-level precision because the code chips are physically long.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Carrier Phase: The Surveyor's Tool</h3><p>For centimeter accuracy, surveyors measure the <strong>carrier phase</strong> rather than the code. The L1 carrier has a wavelength of only about <strong>19 cm</strong> (L2 about 24 cm), and the receiver can measure a fraction of one cycle to better than a millimeter. The catch is the <strong>integer ambiguity</strong>: the receiver can measure the fractional phase and count cycles <em>after</em> lock-on, but it does not initially know the whole number of complete wavelengths between satellite and antenna. Resolving that integer &mdash; &lsquo;fixing the ambiguities&rsquo; &mdash; is what turns a noisy float solution into a centimeter-level <strong>fixed</strong> solution, and is the central problem in static and RTK processing.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\Phi = \\frac{1}{\\lambda}\\,r + N + \\text{(clock, atmosphere terms)}",
+            "label": "Carrier-phase observable: r range, λ wavelength, N unknown integer ambiguity",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Why Two Frequencies?</h3><p>The ionosphere delays the GNSS signal by an amount that depends on <strong>frequency</strong> &mdash; lower frequencies are delayed more. By observing the <em>same</em> satellite on two frequencies (L1 and L2, or L1/L5), the receiver can form a <strong>linear combination</strong> that cancels almost all of the first-order ionospheric delay, the single largest error source over long baselines. This is why survey-grade receivers are <strong>dual-frequency</strong> (now often triple-frequency): the extra frequency is not for redundancy alone but to eliminate the ionosphere and to help resolve the integer ambiguities faster. Single-frequency receivers must instead rely on a broadcast ionosphere model, which leaves larger residual error.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Frequency", "Value", "Approx. wavelength", "Carries"],
+            "rows": [
+              ["L1", "1575.42 MHz", "≈ 19 cm", "C/A code, P(Y), new L1C, nav message"],
+              ["L2", "1227.60 MHz", "≈ 24 cm", "P(Y), civil L2C"],
+              ["L5", "1176.45 MHz", "≈ 25 cm", "Modernized civil safety-of-life signal"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Rule of thumb: code-phase (pseudorange) gives meters and works instantly; carrier-phase gives millimeters but needs the integer ambiguities resolved. Surveying lives on carrier phase; the code is mainly used to get close enough to fix the ambiguities."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Diagram of a GPS carrier wave with code and navigation message modulated onto it, and the carrier wavelength labeled",
+            "caption": "Figure: A GPS signal — the carrier wave (L1/L2/L5) modulated with the ranging code and navigation message. Carrier-phase measurement uses the ~19 cm wavelength for millimeter resolution.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "GPS carriers are L1 (1575.42 MHz), L2 (1227.60 MHz), and L5 (1176.45 MHz), carrying ranging codes and the navigation message.",
+              "The C/A code (civil, L1) and encrypted P(Y) code (L1/L2) support code-phase pseudoranging at meter level.",
+              "Carrier-phase measurement reaches millimeter resolution but carries an unknown integer ambiguity that must be 'fixed.'",
+              "Dual-frequency observation forms a combination that removes most ionospheric delay and speeds ambiguity resolution.",
+              "Surveying relies on carrier phase; the code provides the approximate range used to resolve the integers."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "L1 / L2 / L5",
+          "definition": "The GPS carrier frequencies: L1 = 1575.42 MHz, L2 = 1227.60 MHz, L5 = 1176.45 MHz. Survey receivers use two or more to remove ionospheric delay and resolve ambiguities."
+        },
+        {
+          "term": "C/A code vs. P(Y) code",
+          "definition": "C/A (Coarse/Acquisition) is the civil code on L1, easy to acquire and meter-level. P(Y) is the encrypted Precise code on L1 and L2 with a higher chipping rate for finer code ranging."
+        },
+        {
+          "term": "Integer ambiguity",
+          "definition": "The unknown whole number of carrier-wavelength cycles between satellite and antenna in a carrier-phase measurement. Resolving it ('fixing') converts a float solution into a centimeter-level fixed solution."
+        },
+        {
+          "term": "Carrier phase vs. code phase",
+          "definition": "Code-phase (pseudorange) measurement is robust and instantaneous but meter-level; carrier-phase measurement gives millimeter resolution but requires resolving the integer ambiguity."
+        }
+      ]
+    },
+    {
+      "lesson_id": "dfc1c937-bd48-4033-8cb1-004ac5872e5e",
+      "title": "Static GPS Surveying",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Describe the static and fast-static observation methods and the relative (differential) principle behind them.",
+        "Explain how baseline vectors between simultaneously occupied stations are computed and combined into a network.",
+        "Select appropriate occupation times based on baseline length, satellite geometry, and required accuracy."
+      ],
+      "key_takeaways": [
+        "Static surveying determines high-accuracy baseline vectors between two or more receivers that observe the same satellites simultaneously, cancelling common errors by differencing.",
+        "Longer occupations and dual-frequency data resolve carrier-phase ambiguities reliably; fast-static shortens occupation for short baselines with strong geometry.",
+        "Independent baselines are observed in sessions and combined by a least-squares network adjustment to produce coordinates with statistical quality measures."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The Relative (Differential) Principle</h3><p>Static GPS surveying is the highest-accuracy GNSS method and the backbone of geodetic control. Its power comes from <strong>relative positioning</strong>: two (or more) receivers occupy stations and observe the <em>same satellites at the same time</em>. Because both receivers see nearly identical satellite clock, orbit, and atmospheric errors, <strong>differencing</strong> their observations cancels most of those errors. The product is not an absolute position of each station but a precise <strong>baseline vector</strong> &mdash; the three-dimensional &Delta;X, &Delta;Y, &Delta;Z between the two antennas &mdash; good to a few millimeters plus a small part-per-million term with baseline length.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Static vs. Fast-Static</h3><p>In classic <strong>static</strong> work, receivers occupy each station for a relatively long session &mdash; from twenty minutes on short baselines to several hours on long or high-accuracy ones &mdash; logging carrier-phase data at a fixed epoch interval. The long occupation gives the processing software enough changing geometry and redundant observations to <strong>resolve the integer ambiguities</strong> with confidence, even over tens of kilometers. <strong>Fast-static</strong> (rapid-static) shortens the occupation to a few minutes by exploiting dual-frequency data and good satellite geometry; it suits dense control on short baselines but is less robust on long lines or under poor geometry. Both are <em>post-processed</em>: data is collected in the field and the baselines are computed later in the office.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\sigma_{\\text{baseline}} = a_{mm} + b_{ppm}\\cdot D_{km}",
+            "label": "Typical baseline accuracy: constant term plus a part-per-million term scaling with length D",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>From Baselines to a Network</h3><p>A control survey rarely measures a single baseline. Receivers are moved through a series of <strong>sessions</strong>, each producing several simultaneous baselines, until every station is tied by independent vectors forming a closed network with redundancy. Those baseline vectors, each with its own covariance (error estimate), are then combined in a <strong>least-squares network adjustment</strong>. The adjustment distributes small inconsistencies, holds known control fixed, and yields adjusted coordinates together with statistical measures &mdash; standard deviations and error ellipses &mdash; that document the achieved accuracy. Planning aims for enough redundant, independent baselines that blunders can be detected and the network checked, not just computed.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Method", "Typical occupation", "Best for", "Processing"],
+            "rows": [
+              ["Static", "20 min – several hours", "Long baselines, geodetic control, highest accuracy", "Post-processed"],
+              ["Fast-static", "A few minutes", "Short baselines, dense control, strong geometry", "Post-processed"],
+              ["RTK (next lesson)", "Seconds", "Real-time topo/stakeout", "Real-time"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Planning tip: occupation time scales with baseline length and required accuracy and inversely with satellite geometry. A short, well-observed baseline may fix in minutes; a 30 km geodetic baseline may need an hour or more of dual-frequency data for a reliable fixed solution."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Network of survey stations connected by independent GPS baseline vectors forming closed loops",
+            "caption": "Figure: A static GPS network — independent baseline vectors between simultaneously occupied stations form redundant closed loops, then combine in a least-squares adjustment.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Static surveying uses relative positioning: simultaneous observation lets differencing cancel common satellite, orbit, and atmosphere errors.",
+              "The product is a baseline vector (ΔX, ΔY, ΔZ) accurate to a few mm plus a small ppm term that grows with length.",
+              "Long static occupations reliably fix ambiguities over long baselines; fast-static is shorter but limited to short baselines with strong geometry.",
+              "Both static and fast-static are post-processed in the office, not real-time.",
+              "Independent baselines are observed in sessions and combined by a least-squares network adjustment with statistical quality measures."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Relative (differential) positioning",
+          "definition": "Determining the vector between two simultaneously observing receivers. Because both see nearly the same satellite, orbit, and atmospheric errors, differencing cancels them, yielding a precise baseline."
+        },
+        {
+          "term": "Baseline vector",
+          "definition": "The three-dimensional difference (ΔX, ΔY, ΔZ) between two antennas computed from simultaneous carrier-phase observations. Static networks are built from many independent baselines."
+        },
+        {
+          "term": "Static vs. fast-static",
+          "definition": "Static uses long occupations (20 min to hours) and works on long baselines and geodetic control; fast-static uses a few minutes on short baselines with strong geometry and dual-frequency data. Both are post-processed."
+        }
+      ]
+    },
+    {
+      "lesson_id": "28e3e9ec-70e5-43ba-bf60-0e554e32e613",
+      "title": "Real-Time Kinematic (RTK) Methods",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Explain how RTK delivers centimeter positions in real time using a base station and a data link to the rover.",
+        "Distinguish RTK from PPK (post-processed kinematic) and describe initialization (ambiguity fixing) and 'fixed' vs. 'float' solutions.",
+        "Identify RTK's practical limits: baseline length, data-link reliability, and the need for verification."
+      ],
+      "key_takeaways": [
+        "RTK uses a stationary base broadcasting corrections over a radio or cellular link so the moving rover computes a centimeter position in real time.",
+        "A valid RTK position requires a 'fixed' solution (integer ambiguities resolved); a 'float' solution is only decimeter-level and must not be used for survey points.",
+        "PPK collects the same observations but resolves baselines in the office afterward, trading real-time results for robustness when the data link is unreliable."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Centimeters in Real Time</h3><p><strong>Real-Time Kinematic (RTK)</strong> surveying takes the relative-positioning principle and delivers the answer <em>immediately</em> in the field. A receiver set over a known point &mdash; the <strong>base</strong> &mdash; continuously broadcasts its raw observations or corrections to a moving <strong>rover</strong> over a data link (UHF radio or cellular internet, usually in the RTCM format). The rover combines the base data with its own observations, fixes the carrier-phase ambiguities on the fly, and reports a centimeter-level position several times per second. This makes RTK the workhorse for topographic mapping, stakeout, boundary location, and construction layout where speed matters and baselines are short (typically within a few to ~20 km of the base).</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Fixed vs. Float &mdash; Initialization</h3><p>RTK accuracy hinges on <strong>resolving the integer ambiguities</strong>, a step called <strong>initialization</strong>. While the rover is still solving for the integers it reports a <strong>float</strong> solution &mdash; only decimeter-level and <em>not</em> survey-grade. Once the integers are fixed, the rover reports a <strong>fixed</strong> solution good to roughly 1&ndash;2 cm horizontally and 2&ndash;4 cm vertically. <strong>A surveyor must store points only on a verified fixed solution.</strong> Modern receivers initialize in seconds, but loss of lock (passing under a tree, a bridge, or a building) drops the solution back to float, and the rover must re-fix before reliable points can be measured again.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs / professional standard: GNSS-located boundary and control points must meet the accuracy and procedural standards in the Texas Board of Professional Engineers and Land Surveyors General Rules of Procedures and Practices (22 TAC Ch. 663). Always verify the RTK fix by re-observing key points (independent occupation, different time/satellite geometry) and checking into known control — never trust a single float or unverified fixed reading."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>RTK vs. PPK</h3><p><strong>Post-Processed Kinematic (PPK)</strong> uses the same moving-rover, short-occupation idea but skips the real-time data link: base and rover each log raw data, and the baselines are computed in the office afterward. PPK trades the immediacy of RTK for <strong>robustness</strong> &mdash; there is no radio to fail, the software can process forward and backward in time to recover from cycle slips, and ambiguity fixing can be more rigorous. RTK is preferred when you need the coordinate on the spot (stakeout); PPK shines where a data link is impractical (remote areas, UAS-mounted receivers) or where maximum reliability is wanted. Many systems can do both: collect RTK in the field and reprocess as PPK as a check.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Aspect", "RTK", "PPK"],
+            "rows": [
+              ["Results", "Real-time, in the field", "Computed later in office"],
+              ["Data link", "Required (radio or cellular)", "Not required"],
+              ["Typical accuracy", "1–2 cm H, 2–4 cm V", "Comparable, often more robust"],
+              ["Best for", "Stakeout, on-the-spot location", "Remote areas, UAS, max reliability"]
+            ]
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "RTK base station over a known point broadcasting corrections by radio to a roving GNSS pole receiver",
+            "caption": "Figure: An RTK setup — a base over known control broadcasts corrections to the rover, which fixes the ambiguities and reports a centimeter position in real time.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "RTK delivers centimeter positions in real time using a base, a data link, and a roving receiver.",
+              "Only a verified 'fixed' (ambiguity-resolved) solution is survey-grade; a 'float' solution is decimeter-level and must not be stored as a point.",
+              "Initialization fixes the integers; loss of lock drops to float and requires re-fixing.",
+              "PPK collects the same data but resolves baselines in the office, trading real-time results for robustness and no data-link dependence.",
+              "Always verify GNSS points by re-observation and checks into known control, per professional/Texas standards."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "RTK (Real-Time Kinematic)",
+          "definition": "A GNSS method giving centimeter positions in real time: a base over a known point broadcasts corrections to a rover, which resolves carrier-phase ambiguities on the fly. Used for topo, stakeout, and layout."
+        },
+        {
+          "term": "Fixed vs. float solution",
+          "definition": "A 'fixed' solution has the integer ambiguities resolved and is centimeter-accurate (survey-grade); a 'float' solution is unresolved and only decimeter-level. Only fixed solutions should be stored as survey points."
+        },
+        {
+          "term": "PPK (Post-Processed Kinematic)",
+          "definition": "Kinematic surveying where base and rover log raw data and the baselines are computed later in the office, eliminating the real-time data link and allowing more robust ambiguity resolution."
+        }
+      ]
+    },
+    {
+      "lesson_id": "e0b5a381-0a8a-4663-9c8b-0816e62c44f9",
+      "title": "Network RTK and CORS",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Explain how Network RTK (RTN) and Continuously Operating Reference Stations (CORS) provide corrections without a user-operated base.",
+        "Describe VRS, MAC, and FKP network correction approaches and the role of NGS CORS in the United States.",
+        "State the advantages and limitations of network corrections versus a single local base."
+      ],
+      "key_takeaways": [
+        "A Real-Time Network (RTN) of permanent reference stations models errors across a region and streams corrections to a rover over the internet, so the user needs no base of their own.",
+        "Common methods include the Virtual Reference Station (VRS), Master-Auxiliary Concept (MAC), and FKP; all reduce the distance-dependent error that limits single-base RTK.",
+        "The NGS network of CORS supplies free archived data tied to the National Spatial Reference System for post-processing (e.g., OPUS) and underpins many RTNs."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Beyond a Single Base</h3><p>Single-base RTK has two practical weaknesses: someone must set up and guard a base over known control, and accuracy degrades as the rover moves farther from that base (the distance-dependent ionospheric, tropospheric, and orbit errors grow). <strong>Network RTK</strong> &mdash; also called a <strong>Real-Time Network (RTN)</strong> &mdash; solves both. A region is covered by a permanent grid of <strong>reference stations</strong> spaced tens of kilometers apart. A central server continuously models the atmospheric and orbit errors across the whole network and streams a tailored correction to each rover over a cellular internet link. The surveyor simply turns on one rover, logs into the network, and works at centimeter accuracy with <em>no base of their own</em>.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>How Networks Deliver Corrections</h3><p>Several standard schemes exist. In the <strong>Virtual Reference Station (VRS)</strong> approach the server uses the rover's approximate position to synthesize the observations a nearby imaginary base would record, so the rover behaves as if it had a base just meters away. The <strong>Master-Auxiliary Concept (MAC / MAX)</strong> sends data from a master station plus correction differences from auxiliary stations, letting the rover do more of the interpolation. <strong>FKP</strong> (Fl&auml;chenkorrekturparameter, area correction parameters) broadcasts coefficients describing how the corrections vary with position. All three aim at the same goal: remove the <strong>distance-dependent error</strong> so accuracy stays uniform across the coverage area rather than degrading with distance from a single base.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Method", "How it works", "Key trait"],
+            "rows": [
+              ["VRS", "Server synthesizes a virtual base near the rover", "Rover acts as if base is a few meters away"],
+              ["MAC / MAX", "Master station + auxiliary correction differences", "Rover interpolates; standards-based, broadcastable"],
+              ["FKP", "Area correction parameters streamed to rover", "Coefficients model spatial variation of error"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>CORS and the National Spatial Reference System</h3><p>In the United States the National Geodetic Survey (NGS) coordinates a network of <strong>Continuously Operating Reference Stations (CORS)</strong> &mdash; permanent GNSS stations whose data are freely archived and whose coordinates are tied to the <strong>National Spatial Reference System (NSRS)</strong>. CORS underpin both real-time networks and post-processing. A surveyor can submit a static data file to the free NGS <strong>OPUS</strong> (Online Positioning User Service), which processes it against nearby CORS and returns NSRS coordinates &mdash; an easy way to establish a control point or check a base. Many state and commercial RTNs are built on or referenced to CORS, which is why network results are inherently tied to the official datum.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Texas note: the Texas Department of Transportation and several commercial providers operate RTNs covering most of the state, and numerous NGS CORS sit within Texas. Network RTK is widely used for routine work, but for boundary/control you still verify against published NSRS control and follow the Board's positional-accuracy requirements."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Grid of permanent reference stations across a region streaming corrections through a server to a single rover",
+            "caption": "Figure: A Real-Time Network. Permanent reference stations feed a server that models regional errors and streams a tailored correction (e.g., a VRS) to each rover — no user base required.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Network RTK (RTN) uses a regional grid of permanent reference stations and a server to stream corrections over the internet, removing the need for a user base.",
+              "VRS, MAC/MAX, and FKP are the main network methods; all reduce the distance-dependent error that limits single-base RTK.",
+              "Accuracy stays uniform across the network rather than degrading with distance from one base.",
+              "NGS CORS provide free archived data tied to the NSRS, supporting OPUS post-processing and underpinning many RTNs.",
+              "Network results are tied to the official datum, but boundary/control work must still verify against published control and meet accuracy standards."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Real-Time Network (RTN) / Network RTK",
+          "definition": "A permanent grid of GNSS reference stations whose server models regional errors and streams corrections to rovers over the internet, providing centimeter RTK without a user-operated base."
+        },
+        {
+          "term": "Virtual Reference Station (VRS)",
+          "definition": "A network-RTK method in which the server synthesizes the observations of an imaginary base near the rover's position, so the rover works as though a real base were only meters away."
+        },
+        {
+          "term": "CORS",
+          "definition": "Continuously Operating Reference Stations — permanent GNSS stations (coordinated by NGS in the U.S.) whose freely archived data tie to the National Spatial Reference System, supporting OPUS post-processing and real-time networks."
+        },
+        {
+          "term": "OPUS",
+          "definition": "The NGS Online Positioning User Service: upload a static GNSS data file and it returns NSRS coordinates by processing against nearby CORS — a free way to establish or check a control point."
+        }
+      ]
+    },
+    {
+      "lesson_id": "46586422-2833-4eb7-a4f0-f43afa0daae8",
+      "title": "GPS Data Processing and Adjustment",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Describe the post-processing workflow from raw observations (RINEX) through baseline processing to a least-squares network adjustment.",
+        "Explain the role of differencing, precise ephemerides, and PPP in producing accurate coordinates.",
+        "Interpret adjustment quality measures (residuals, loop closures, error ellipses) and the difference between minimally and fully constrained adjustments."
+      ],
+      "key_takeaways": [
+        "GNSS post-processing goes raw data → baseline vectors (with covariances) → least-squares network adjustment → adjusted coordinates with statistics.",
+        "Differencing (single/double/triple) cancels clocks and aids ambiguity fixing; precise ephemerides and PPP improve absolute accuracy.",
+        "A minimally constrained adjustment tests internal consistency; a fully constrained adjustment ties the network to published datum control."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>From Raw Data to Coordinates</h3><p>Post-processed GNSS surveying produces its accuracy in the office. The workflow starts with <strong>raw observation files</strong>, usually exported in the receiver-independent <strong>RINEX</strong> format so data from mixed equipment can be combined. The processor pairs simultaneously observing receivers and computes each <strong>baseline vector</strong> &mdash; resolving the carrier-phase integer ambiguities and outputting &Delta;X, &Delta;Y, &Delta;Z with a covariance matrix describing its precision. Those baselines, with their covariances, become the observations for a <strong>least-squares network adjustment</strong> that yields final coordinates and rigorous error estimates. Understanding this chain lets the surveyor judge whether a result is trustworthy rather than merely accepting whatever number the software prints.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Differencing and Precise Orbits</h3><p>Baseline processing relies on <strong>differencing</strong> the carrier-phase observations. <strong>Single differences</strong> (between two receivers to one satellite) cancel the satellite clock; <strong>double differences</strong> (between two receivers and two satellites) also cancel the receiver clocks and leave the integer ambiguities as clean unknowns; <strong>triple differences</strong> (across epochs) help detect cycle slips. For the best absolute accuracy, processors replace the broadcast orbit with <strong>precise ephemerides</strong> (e.g., IGS final orbits, available after a short delay) and apply precise clock products. The same precise products power <strong>Precise Point Positioning (PPP)</strong>, which obtains centimeter-to-decimeter absolute coordinates from a <em>single</em> receiver &mdash; no base &mdash; given a long enough observation, a useful option in remote areas.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\nabla\\Delta\\Phi = \\Phi_{1}^{j} - \\Phi_{1}^{k} - \\Phi_{2}^{j} + \\Phi_{2}^{k}",
+            "label": "Double difference (receivers 1,2 and satellites j,k) — cancels receiver and satellite clocks",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The Network Adjustment and Its Statistics</h3><p>With baselines computed, the surveyor runs a <strong>least-squares adjustment</strong> in two stages. A <strong>minimally constrained</strong> adjustment holds just one station fixed; because the network is otherwise free, the residuals and <strong>loop closures</strong> reveal the <em>internal</em> quality of the observations &mdash; this is where you hunt blunders and bad baselines before tying to anything. Once the data are clean, a <strong>fully constrained</strong> adjustment holds all known datum control fixed, distributing any remaining inconsistency and yielding final coordinates referenced to the official datum. The output includes residuals, a variance factor (ideally near 1), standard deviations, and <strong>error ellipses</strong> that visualize each station's positional uncertainty. Large or lopsided residuals point to a problem in the data or the control.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Stage", "What is held fixed", "What it tells you"],
+            "rows": [
+              ["Baseline processing", "—", "ΔX,ΔY,ΔZ vectors + covariances per baseline"],
+              ["Minimally constrained", "One station only", "Internal consistency; finds blunders/bad baselines"],
+              ["Fully constrained", "All known datum control", "Final datum coordinates + error ellipses"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Sequence matters: always pass the minimally constrained adjustment (clean residuals and loop closures) BEFORE adding datum constraints. Constraining to control too early can mask observation blunders by absorbing them into the network, producing pretty coordinates that are quietly wrong."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Network of stations with error ellipses at each point after a least-squares adjustment",
+            "caption": "Figure: A least-squares network adjustment outputs adjusted coordinates with error ellipses showing each station's positional uncertainty.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Post-processing flows from RINEX raw data → baseline vectors with covariances → least-squares network adjustment → coordinates with statistics.",
+              "Double differencing cancels satellite and receiver clocks, leaving ambiguities; triple differences flag cycle slips.",
+              "Precise ephemerides and PPP improve absolute accuracy; PPP yields coordinates from a single receiver without a base.",
+              "Run a minimally constrained adjustment first to test internal consistency and find blunders, then a fully constrained one to tie to datum control.",
+              "Interpret residuals, loop closures, variance factor, and error ellipses to judge whether the result is trustworthy."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "RINEX",
+          "definition": "Receiver Independent Exchange format — a standard text format for raw GNSS observation and navigation data, letting data from different receiver brands be combined and post-processed together."
+        },
+        {
+          "term": "Double differencing",
+          "definition": "Differencing carrier-phase observations between two receivers and two satellites. It cancels both satellite and receiver clock errors, leaving the integer ambiguities as the key unknowns to resolve."
+        },
+        {
+          "term": "Minimally vs. fully constrained adjustment",
+          "definition": "A minimally constrained adjustment fixes only one station to test the network's internal consistency and find blunders; a fully constrained adjustment fixes all known datum control to produce final datum coordinates."
+        },
+        {
+          "term": "Precise Point Positioning (PPP)",
+          "definition": "Absolute positioning of a single receiver (no base) using precise satellite orbit and clock products, achieving centimeter-to-decimeter accuracy with sufficient observation time. Useful in remote areas."
+        }
+      ]
+    },
+    {
+      "lesson_id": "fbe7132a-2992-4500-b21e-33f4f5dc5d69",
+      "title": "GPS Error Sources and Mitigation",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Identify the major GNSS error sources: ionospheric and tropospheric delay, multipath, orbit and clock errors, and receiver/antenna effects.",
+        "Explain Dilution of Precision (DOP) and how satellite geometry scales measurement error into position error.",
+        "Describe field and processing techniques that mitigate each error source."
+      ],
+      "key_takeaways": [
+        "The main range errors are ionospheric delay (removable with dual frequency), tropospheric delay (modeled), multipath (sited away with good antennas), and satellite orbit/clock errors (reduced by differencing and precise products).",
+        "DOP is the geometry multiplier: poor (high) DOP from clustered satellites amplifies range error into large position error even when the ranges are good.",
+        "Estimated position error ≈ UERE × DOP, so good geometry and clean observations both matter."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The Error Budget</h3><p>A GNSS position is only as good as the ranges that feed it, and every range carries error from several sources. The combined effect of all per-satellite range errors is summarized as the <strong>User Equivalent Range Error (UERE)</strong>. The biggest contributors are atmospheric: the <strong>ionosphere</strong> (a dispersive, charged layer ~50&ndash;1000 km up) and the <strong>troposphere</strong> (the lower, wet atmosphere). To these add <strong>multipath</strong> (signals reflecting off nearby surfaces), residual <strong>satellite orbit and clock</strong> errors, and <strong>receiver/antenna</strong> effects such as antenna phase-center variation. Understanding which errors cancel by differencing and which do not is the key to choosing the right method for a given accuracy.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Error source", "Nature", "Mitigation"],
+            "rows": [
+              ["Ionospheric delay", "Frequency-dependent (dispersive)", "Dual-frequency combination; broadcast model (single-freq)"],
+              ["Tropospheric delay", "Not frequency-dependent; weather-driven", "Tropospheric models; estimate in adjustment; short baselines"],
+              ["Multipath", "Reflections off ground/structures", "Good site, choke-ring/calibrated antenna, longer occupation"],
+              ["Orbit (ephemeris) error", "Imperfect broadcast orbit", "Differencing; precise (IGS) ephemerides"],
+              ["Satellite clock error", "Atomic clock drift/model error", "Differencing; precise clock products"],
+              ["Receiver/antenna", "Noise, phase-center variation", "Calibrated antennas, consistent antenna models/heights"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Atmosphere and Multipath</h3><p>The <strong>ionospheric delay</strong> depends on signal frequency, so it is largely removed by combining two frequencies &mdash; the chief reason survey receivers are dual-frequency. The <strong>tropospheric delay</strong> is <em>not</em> frequency-dependent and so cannot be cancelled that way; instead it is reduced by atmospheric models (functions of elevation angle, pressure, temperature, humidity) and by keeping baselines short so the delay is nearly common to both receivers and differences away. <strong>Multipath</strong> &mdash; the signal arriving via reflection from a building, vehicle, water, or the ground &mdash; is insidious because it varies with the site and does not difference out. It is fought in the field: choose open sites, avoid reflective surfaces, raise the elevation mask, use a quality (e.g., choke-ring) antenna, and occupy longer so the geometry changes and the multipath averages down.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>DOP: Geometry Is Everything</h3><p>Even perfect ranges give a poor position if the satellites are badly placed. <strong>Dilution of Precision (DOP)</strong> is the dimensionless factor that maps range error into position error, derived purely from the <em>geometry</em> of the visible satellites. Satellites spread evenly across the sky give a strong (low) DOP; satellites clustered together give a weak (high) DOP and large position error. Variants describe different components: <strong>PDOP</strong> (3-D position), <strong>HDOP</strong> (horizontal), <strong>VDOP</strong> (vertical), <strong>GDOP</strong> (geometry including time). A practical estimate is that the position error roughly equals the <strong>UERE multiplied by DOP</strong>. Crews monitor PDOP and avoid observing when it spikes (e.g., briefly when too few satellites are well distributed).</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "\\sigma_{\\text{position}} \\approx \\text{UERE} \\times \\text{PDOP}",
+            "label": "Estimated position error = User Equivalent Range Error × Dilution of Precision",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "Field rule of thumb: plan observations for low PDOP and good sky visibility, and keep a sensible elevation mask (often ~10–15°) to reject low, multipath- and atmosphere-prone signals. Mission-planning software predicts satellite geometry and PDOP for any site and time."
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Two sky plots: satellites well spread (low DOP) versus clustered (high DOP), with resulting small vs. large position uncertainty",
+            "caption": "Figure: Geometry and DOP. Well-distributed satellites yield low DOP and small error; clustered satellites yield high DOP and large error even with identical range precision.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Major range errors: ionospheric delay (dual-frequency removable), tropospheric delay (modeled), multipath (sited away), and orbit/clock errors (differenced, precise products).",
+              "The ionosphere is frequency-dependent and cancels with two frequencies; the troposphere is not and must be modeled.",
+              "Multipath does not difference out — fight it with good sites, quality antennas, elevation masks, and longer occupations.",
+              "DOP turns satellite geometry into a position-error multiplier; low DOP is good, high DOP is bad.",
+              "Estimated position error ≈ UERE × DOP, so both clean ranges and good geometry are required."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Ionospheric vs. tropospheric delay",
+          "definition": "Ionospheric delay is frequency-dependent (dispersive) and is removed by dual-frequency observation; tropospheric delay is not frequency-dependent and must be reduced by atmospheric models and short baselines."
+        },
+        {
+          "term": "Multipath",
+          "definition": "Range error from a satellite signal arriving via reflection off nearby surfaces. It does not difference out and is mitigated by good site selection, quality antennas, elevation masks, and longer occupations."
+        },
+        {
+          "term": "Dilution of Precision (DOP)",
+          "definition": "A dimensionless factor from satellite geometry that multiplies range error into position error. Low DOP (well-spread satellites) is good; high DOP (clustered satellites) is poor. Variants: PDOP, HDOP, VDOP, GDOP."
+        },
+        {
+          "term": "UERE",
+          "definition": "User Equivalent Range Error — the combined per-satellite range error from all sources. Estimated position error ≈ UERE × DOP."
+        }
+      ]
+    },
+    {
+      "lesson_id": "db07fb79-9728-47d7-8fc0-228e3e527bbf",
+      "title": "Integrating GPS with Conventional Surveys",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Reconcile GNSS heights with conventional (orthometric) elevations using the geoid model (H = h − N).",
+        "Explain datum considerations: NAD83 vs. WGS84/ITRF, and the coming NATRF2022 modernized datums.",
+        "Combine GNSS control with total-station traverses and localize/calibrate a site for construction."
+      ],
+      "key_takeaways": [
+        "GNSS yields ellipsoidal height h; orthometric (elevation) height H is obtained with a geoid model via H = h − N, where N is the geoid height.",
+        "NAD83 and WGS84/ITRF differ by ~1–2 m and are realized differently; mixing them blindly causes systematic errors, so know which datum your data are in.",
+        "GNSS provides strong control and long ties; total stations provide detail and work where the sky is blocked — integrate via shared control and a site localization."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Heights: Ellipsoid vs. Geoid</h3><p>The most common pitfall in integrating GNSS with conventional work is <strong>height</strong>. GNSS directly gives the <strong>ellipsoidal height (h)</strong> &mdash; the distance above the smooth mathematical ellipsoid. But levels, benchmarks, and engineering plans use the <strong>orthometric height (H)</strong> &mdash; elevation above the <strong>geoid</strong>, the equipotential surface approximating mean sea level, which is what water &lsquo;runs downhill&rsquo; relative to. The two differ by the <strong>geoid height (N)</strong>, the separation between ellipsoid and geoid at that point. The relationship is simple and must be applied: <strong>H = h &minus; N</strong>. The geoid height N comes from a published geoid model (in the U.S., NGS GEOID models such as GEOID18). Skipping this conversion produces elevations off by tens of meters &mdash; the value of N in the conterminous U.S. ranges roughly from about &minus;8 m to &minus;53 m.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "H = h - N",
+            "label": "Orthometric height = ellipsoidal height − geoid height",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Datum Considerations</h3><p>GNSS satellites broadcast in a global, Earth-centered frame &mdash; <strong>WGS84</strong> for GPS, aligned closely with the international <strong>ITRF</strong>. U.S. surveying control, however, is published on <strong>NAD83</strong>, which is fixed to the stable North American plate. WGS84/ITRF and NAD83 differ by roughly <strong>1&ndash;2 meters</strong> and, because the plate moves, the difference changes slowly with time. A surveyor must always know which datum (and which realization/epoch) a coordinate is in: feeding raw WGS84 GNSS results into a NAD83 project, or mixing realizations, introduces systematic errors of a meter or more. RTNs and OPUS deliver coordinates explicitly in NAD83 (or ITRF) so the surveyor can keep them consistent.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Coming change: NGS plans to replace NAD83 and NAVD88 with modernized reference frames — the North American Terrestrial Reference Frame of 2022 (NATRF2022) for horizontal and a new geopotential (geoid-based) vertical datum. These will be time-dependent and better tied to ITRF/the geoid, changing published coordinates and elevations. Surveyors must track the rollout and state which datum/epoch every deliverable uses."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Combining GNSS with the Total Station</h3><p>GNSS and conventional instruments are complementary, not competing. <strong>GNSS</strong> excels at establishing widely spaced control quickly, with no need for intervisibility, and at long ties &mdash; but it fails under heavy canopy, indoors, in tunnels, and against tall structures, and its vertical component is weakest. The <strong>total station</strong> gives high relative accuracy over short distances, strong vertical angles, and works where the sky is blocked &mdash; but it needs line of sight and accumulates error over long traverses. The standard integrated workflow uses GNSS to set several control monuments around a project, then runs total-station traverses and detail from that GNSS control, checking back into it. For construction, the GNSS-derived control is tied to the project's coordinate system by a <strong>site localization (calibration)</strong> &mdash; a best-fit transformation onto known site points &mdash; so RTK and total-station measurements share one consistent grid.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Capability", "GNSS", "Total station"],
+            "rows": [
+              ["Needs sky view", "Yes (fails under canopy/indoors)", "No"],
+              ["Needs line of sight", "No", "Yes"],
+              ["Best at", "Control, long ties, fast coverage", "Detail, short high-accuracy, strong vertical"],
+              ["Vertical strength", "Weaker (needs geoid model)", "Strong"]
+            ]
+          }
+        },
+        {
+          "block_type": "accordion",
+          "content": {
+            "sections": [
+              {
+                "title": "Worked idea: GNSS height to elevation",
+                "content": "<p>A GNSS observation gives an ellipsoidal height h = 152.40 m at a point where the geoid model returns a geoid height N = &minus;25.60 m. The orthometric elevation is H = h &minus; N = 152.40 &minus; (&minus;25.60) = <strong>178.00 m</strong>. Note that because N is negative here, subtracting it <em>adds</em> to the elevation &mdash; a common sign-error trap.</p>",
+                "open": false
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Cross-section showing the ellipsoid, the geoid, and a ground point, with h, N, and H labeled illustrating H = h minus N",
+            "caption": "Figure: Ellipsoid, geoid, and ground point. Ellipsoidal height h, geoid height N, and orthometric height H are related by H = h − N.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "GNSS gives ellipsoidal height h; convert to orthometric elevation with a geoid model: H = h − N (watch the sign of N).",
+              "WGS84/ITRF (GNSS broadcast) and NAD83 (U.S. control) differ by ~1–2 m and change with time — always know your datum and epoch.",
+              "The modernized NATRF2022 and a new geoid-based vertical datum will replace NAD83/NAVD88; track the rollout and label deliverables.",
+              "GNSS sets control fast without intervisibility; total stations supply detail and work where the sky is blocked.",
+              "Integrate via shared GNSS control and a site localization (calibration) so GNSS and total-station data share one grid."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Ellipsoidal vs. orthometric height",
+          "definition": "Ellipsoidal height (h) is measured from the reference ellipsoid (what GNSS gives); orthometric height (H) is elevation above the geoid (what levels/benchmarks use). They are related by H = h − N."
+        },
+        {
+          "term": "Geoid height (N)",
+          "definition": "The separation between the ellipsoid and the geoid at a point, taken from a geoid model (e.g., NGS GEOID18). Used to convert GNSS ellipsoidal height to orthometric elevation: H = h − N."
+        },
+        {
+          "term": "NAD83 vs. WGS84/ITRF",
+          "definition": "NAD83 is the U.S. control datum fixed to the North American plate; WGS84/ITRF is the global frame GPS broadcasts in. They differ by ~1–2 m and the difference changes with time, so datum/epoch must be tracked."
+        },
+        {
+          "term": "NATRF2022",
+          "definition": "The North American Terrestrial Reference Frame of 2022 — NGS's planned modernized, time-dependent horizontal datum (with a new geoid-based vertical datum) that will replace NAD83 and NAVD88."
+        },
+        {
+          "term": "Site localization (calibration)",
+          "definition": "A best-fit transformation tying GNSS coordinates to a project's local control points so GNSS (RTK) and total-station measurements share one consistent site grid."
+        }
+      ]
+    }
+  ],
+  "quiz_questions": [
+    {
+      "lesson_id": "dc0422fa-cbeb-434c-aee0-2e0e8914bcad",
+      "question_text": "Why does an autonomous GNSS position require a minimum of four satellites rather than three?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Three satellites cannot reach the receiver simultaneously",
+        "A fourth satellite is needed to solve for the receiver clock bias in addition to the three position coordinates",
+        "The fourth satellite measures velocity",
+        "Three satellites give a 2-D position only by law"
+      ],
+      "correct_answer": "A fourth satellite is needed to solve for the receiver clock bias in addition to the three position coordinates",
+      "explanation": "The receiver clock is not synchronized to satellite time, so its bias is a fourth unknown alongside X, Y, Z. Four pseudoranges solve four unknowns. Three would leave the clock error unresolved.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "dc0422fa-cbeb-434c-aee0-2e0e8914bcad",
+      "question_text": "The ground stations that track satellites, compute precise orbits and clock corrections, and upload them to the satellites make up which GNSS segment?",
+      "question_type": "multiple_choice",
+      "options": ["Space segment", "Control segment", "User segment", "Datum segment"],
+      "correct_answer": "Control segment",
+      "explanation": "The control segment monitors the satellites and uploads orbit/clock corrections. The space segment is the satellites themselves; the user segment is the receivers.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "dc0422fa-cbeb-434c-aee0-2e0e8914bcad",
+      "question_text": "GPS and GNSS are exact synonyms; the terms can always be used interchangeably.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "GNSS is the generic term for any navigation satellite constellation; GPS is the specific U.S. system and only one GNSS among GLONASS, Galileo, and BeiDou.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "e702897d-97dc-46bb-b473-c364fb27a420",
+      "question_text": "Which set correctly lists the four global GNSS constellations and their operators?",
+      "question_type": "multiple_choice",
+      "options": [
+        "GPS (USA), GLONASS (Russia), Galileo (EU), BeiDou (China)",
+        "GPS (USA), QZSS (Japan), NavIC (India), Galileo (EU)",
+        "GPS (USA), GLONASS (China), Galileo (Russia), BeiDou (EU)",
+        "GPS (USA), WAAS (USA), EGNOS (EU), GLONASS (Russia)"
+      ],
+      "correct_answer": "GPS (USA), GLONASS (Russia), Galileo (EU), BeiDou (China)",
+      "explanation": "The four global constellations are GPS (USA), GLONASS (Russia), Galileo (EU), and BeiDou (China). QZSS and NavIC are regional; WAAS/EGNOS are augmentation systems, not standalone GNSS.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "e702897d-97dc-46bb-b473-c364fb27a420",
+      "question_text": "What is the chief surveying benefit of a receiver that tracks multiple constellations rather than GPS alone?",
+      "question_type": "multiple_choice",
+      "options": [
+        "It eliminates the need for a geoid model",
+        "Many more satellites in view, improving geometry (DOP) and reliability in obstructed environments",
+        "It removes the integer ambiguity entirely",
+        "It works without any sky visibility"
+      ],
+      "correct_answer": "Many more satellites in view, improving geometry (DOP) and reliability in obstructed environments",
+      "explanation": "Multi-constellation tracking greatly increases the number of satellites available, improving DOP and giving reliable fixes under canopy and in urban canyons where a single constellation might drop below four.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "3e13d01b-282e-419d-8204-e75e67537775",
+      "question_text": "Which statement correctly contrasts code-phase and carrier-phase measurements?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Code-phase is millimeter-accurate; carrier-phase is meter-level",
+        "Code-phase (pseudorange) is robust but meter-level; carrier-phase is millimeter-resolution but carries an unknown integer ambiguity",
+        "Both are meter-level and identical in practice",
+        "Carrier-phase requires no satellites"
+      ],
+      "correct_answer": "Code-phase (pseudorange) is robust but meter-level; carrier-phase is millimeter-resolution but carries an unknown integer ambiguity",
+      "explanation": "Code-phase ranging is instantaneous and robust but limited by the long code chips to meter level. Carrier-phase resolves to a fraction of a ~19 cm wavelength but must resolve the unknown integer number of whole cycles.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "3e13d01b-282e-419d-8204-e75e67537775",
+      "question_text": "The primary reason survey-grade receivers observe two frequencies (e.g., L1 and L2) is to:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Double the number of visible satellites",
+        "Cancel most of the frequency-dependent ionospheric delay and help fix ambiguities",
+        "Remove multipath completely",
+        "Eliminate the need for a base station"
+      ],
+      "correct_answer": "Cancel most of the frequency-dependent ionospheric delay and help fix ambiguities",
+      "explanation": "Because ionospheric delay depends on frequency, combining two frequencies removes most of it — the largest error over long baselines — and also speeds integer ambiguity resolution.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "3e13d01b-282e-419d-8204-e75e67537775",
+      "question_text": "The L1 GPS carrier frequency is 1575.42 MHz.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "L1 = 1575.42 MHz, L2 = 1227.60 MHz, and L5 = 1176.45 MHz are the GPS carrier frequencies.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "dfc1c937-bd48-4033-8cb1-004ac5872e5e",
+      "question_text": "Static GPS surveying achieves high accuracy primarily because:",
+      "question_type": "multiple_choice",
+      "options": [
+        "A single receiver measures absolute position very precisely",
+        "Simultaneous observation by two receivers lets differencing cancel common satellite, orbit, and atmospheric errors",
+        "It uses only the C/A code",
+        "It avoids carrier-phase measurements"
+      ],
+      "correct_answer": "Simultaneous observation by two receivers lets differencing cancel common satellite, orbit, and atmospheric errors",
+      "explanation": "Static work is relative positioning: two receivers see nearly identical errors, which difference away, leaving a precise baseline vector. Carrier phase is central, not avoided.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "dfc1c937-bd48-4033-8cb1-004ac5872e5e",
+      "question_text": "Compared with classic static, fast-static (rapid-static) is best characterized as:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Longer occupations for very long baselines",
+        "Shorter occupations suited to short baselines with strong geometry and dual-frequency data",
+        "A real-time method needing a radio link",
+        "A single-frequency, navigation-grade technique"
+      ],
+      "correct_answer": "Shorter occupations suited to short baselines with strong geometry and dual-frequency data",
+      "explanation": "Fast-static shortens occupation to a few minutes by exploiting dual-frequency data and good geometry, suiting dense short-baseline control. Both static and fast-static are post-processed, not real-time.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "28e3e9ec-70e5-43ba-bf60-0e554e32e613",
+      "question_text": "In RTK, which solution state should be used to store survey-grade points?",
+      "question_type": "multiple_choice",
+      "options": [
+        "A float solution",
+        "A verified fixed solution (integer ambiguities resolved)",
+        "Any solution with 4+ satellites",
+        "An autonomous solution"
+      ],
+      "correct_answer": "A verified fixed solution (integer ambiguities resolved)",
+      "explanation": "Only a fixed solution, in which the integer ambiguities are resolved, is centimeter-accurate. A float solution is only decimeter-level and must not be stored as a survey point.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "28e3e9ec-70e5-43ba-bf60-0e554e32e613",
+      "question_text": "The key difference between RTK and PPK is that:",
+      "question_type": "multiple_choice",
+      "options": [
+        "PPK gives results in real time; RTK is post-processed",
+        "RTK computes positions in real time via a data link; PPK logs raw data and resolves baselines in the office afterward",
+        "PPK does not use carrier phase",
+        "RTK requires no base station"
+      ],
+      "correct_answer": "RTK computes positions in real time via a data link; PPK logs raw data and resolves baselines in the office afterward",
+      "explanation": "RTK needs a base-to-rover data link and gives positions instantly; PPK skips the link, logging data for office processing, which is more robust where a link is impractical.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "28e3e9ec-70e5-43ba-bf60-0e554e32e613",
+      "question_text": "An RTK rover passes under a tree and loses lock. What must happen before reliable points can be measured again?",
+      "question_type": "short_answer",
+      "options": [],
+      "correct_answer": "The rover drops to a float solution and must re-initialize (re-fix the integer ambiguities) to a verified fixed solution before storing points.",
+      "explanation": "Loss of lock reverts the solution to float; the receiver must resolve the integer ambiguities again to return to a centimeter-level fixed solution.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "e0b5a381-0a8a-4663-9c8b-0816e62c44f9",
+      "question_text": "In a Virtual Reference Station (VRS) network, the central server:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Requires the user to set up a physical base over known control",
+        "Synthesizes the observations of an imaginary base near the rover's position",
+        "Only works for post-processing, never real time",
+        "Eliminates the need for any reference stations"
+      ],
+      "correct_answer": "Synthesizes the observations of an imaginary base near the rover's position",
+      "explanation": "VRS uses the rover's approximate location to generate the data a nearby virtual base would record, so the rover behaves as if a base were only meters away — no user base needed.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "e0b5a381-0a8a-4663-9c8b-0816e62c44f9",
+      "question_text": "What is CORS, and what role does it play in U.S. GNSS surveying?",
+      "question_type": "short_answer",
+      "options": [],
+      "correct_answer": "Continuously Operating Reference Stations — permanent GNSS stations (coordinated by NGS) whose freely archived data are tied to the National Spatial Reference System, supporting post-processing (e.g., OPUS) and real-time networks.",
+      "explanation": "CORS provide datum-tied reference data that underpin both OPUS post-processing and many real-time networks, anchoring user results to the official NSRS datum.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "46586422-2833-4eb7-a4f0-f43afa0daae8",
+      "question_text": "Which adjustment should be run FIRST to detect blunders and bad baselines before tying a GNSS network to published control?",
+      "question_type": "multiple_choice",
+      "options": [
+        "A fully constrained adjustment holding all known control fixed",
+        "A minimally constrained adjustment holding only one station fixed",
+        "No adjustment is needed",
+        "A two-dimensional-only adjustment"
+      ],
+      "correct_answer": "A minimally constrained adjustment holding only one station fixed",
+      "explanation": "A minimally constrained adjustment tests internal consistency (residuals, loop closures) without datum bias, revealing blunders. Constraining to control too early can mask observation errors.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "46586422-2833-4eb7-a4f0-f43afa0daae8",
+      "question_text": "Double differencing of carrier-phase observations is used because it:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Doubles the measurement accuracy automatically",
+        "Cancels both satellite and receiver clock errors, leaving the integer ambiguities as the key unknowns",
+        "Removes multipath entirely",
+        "Eliminates the need for precise ephemerides"
+      ],
+      "correct_answer": "Cancels both satellite and receiver clock errors, leaving the integer ambiguities as the key unknowns",
+      "explanation": "Single differences cancel the satellite clock; double differences (two receivers, two satellites) also cancel receiver clocks, isolating the integer ambiguities for resolution.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "fbe7132a-2992-4500-b21e-33f4f5dc5d69",
+      "question_text": "Which error source is frequency-dependent and therefore removable by combining two GNSS frequencies?",
+      "question_type": "multiple_choice",
+      "options": ["Tropospheric delay", "Ionospheric delay", "Multipath", "Antenna phase-center variation"],
+      "correct_answer": "Ionospheric delay",
+      "explanation": "The ionosphere is dispersive (frequency-dependent), so a dual-frequency combination removes most of it. Tropospheric delay is not frequency-dependent, and multipath/antenna effects do not difference out this way.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "fbe7132a-2992-4500-b21e-33f4f5dc5d69",
+      "question_text": "A high PDOP value indicates:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Excellent satellite geometry and small position error",
+        "Poor satellite geometry that amplifies range error into larger position error",
+        "That the receiver clock is broken",
+        "That ionospheric delay has been removed"
+      ],
+      "correct_answer": "Poor satellite geometry that amplifies range error into larger position error",
+      "explanation": "DOP scales range error into position error from the satellite geometry. High PDOP (clustered satellites) means weak geometry and large position error; low PDOP is desirable.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "fbe7132a-2992-4500-b21e-33f4f5dc5d69",
+      "question_text": "Multipath error can be reliably removed simply by observing two frequencies, just like the ionosphere.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "Multipath is site-specific and does not difference out or cancel with dual frequency. It is mitigated by good site selection, quality antennas, elevation masks, and longer occupations.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "db07fb79-9728-47d7-8fc0-228e3e527bbf",
+      "question_text": "GNSS gives an ellipsoidal height h = 210.00 m at a point where the geoid height is N = −24.00 m. What is the orthometric elevation H (m)?",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "234",
+      "explanation": "H = h − N = 210.00 − (−24.00) = 234.00 m. Because N is negative, subtracting it adds to the elevation — a common sign trap.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "db07fb79-9728-47d7-8fc0-228e3e527bbf",
+      "question_text": "Regarding datums, which statement is correct for U.S. surveying?",
+      "question_type": "multiple_choice",
+      "options": [
+        "WGS84/ITRF and NAD83 are identical, so no conversion is ever needed",
+        "WGS84/ITRF and NAD83 differ by roughly 1–2 m, so the surveyor must track which datum and epoch coordinates are in",
+        "GNSS always outputs NAD83 directly with no datum concern",
+        "NAD83 is a global frame fixed to no plate"
+      ],
+      "correct_answer": "WGS84/ITRF and NAD83 differ by roughly 1–2 m, so the surveyor must track which datum and epoch coordinates are in",
+      "explanation": "NAD83 is fixed to the North American plate; WGS84/ITRF is a global frame. They differ by ~1–2 m and the difference changes with time, so datum/epoch must be tracked to avoid systematic error.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "db07fb79-9728-47d7-8fc0-228e3e527bbf",
+      "question_text": "When integrating GNSS with total-station work on a project, GNSS is typically used to ______ while the total station provides ______.",
+      "question_type": "multiple_choice",
+      "options": [
+        "set detail points; widely spaced control",
+        "establish widely spaced control quickly; detail and measurements where the sky is blocked",
+        "measure indoors; measure under canopy",
+        "replace all conventional measurements; nothing"
+      ],
+      "correct_answer": "establish widely spaced control quickly; detail and measurements where the sky is blocked",
+      "explanation": "GNSS sets control fast without intervisibility but fails under obstruction; the total station supplies detail and works where the sky is blocked. They are integrated through shared control and a site localization.",
+      "difficulty": "medium"
+    }
+  ],
+  "problem_templates": [
+    {
+      "name": "Orthometric height from GNSS ellipsoidal height and geoid height",
+      "category": "GPS/GNSS — Heights",
+      "subcategory": "Geoid model (H = h − N)",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "A GNSS observation gives an ellipsoidal height of h = {{h:f2}} m at a point where the geoid model returns a geoid height of N = {{N:f2}} m. Using H = h − N, what is the orthometric (elevation) height H in meters?",
+      "parameters": [
+        {"name": "h", "type": "float", "min": 80, "max": 400, "decimals": 2},
+        {"name": "N", "type": "float", "min": -53, "max": -8, "decimals": 2}
+      ],
+      "computed_vars": [],
+      "answer_formula": "h - N",
+      "answer_format": {"decimals": 2, "unit": "m", "tolerance": 0.02},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Write the relationship", "formula": "H = h − N", "calculation_template": "H = {{h:f2}} − ({{N:f2}})"},
+        {"step_number": 2, "title": "Subtract the geoid height", "result_template": "{{h:f2}} − ({{N:f2}}) = {{_answer}} m"}
+      ],
+      "explanation_template": "Orthometric height H = h − N = {{h:f2}} − ({{N:f2}}) = {{_answer}} m. Because N is negative, subtracting it adds to the elevation — a common sign trap.",
+      "options_generator": {"method": "none"},
+      "images_needed": [{"slug": "m11-h-eq-h-minus-n", "caption": "Ellipsoid, geoid, and ground point with h, N, and H labeled", "kind": "diagram"}]
+    },
+    {
+      "name": "Estimated position error from UERE and PDOP",
+      "category": "GPS/GNSS — Error Analysis",
+      "subcategory": "DOP",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "The combined per-satellite User Equivalent Range Error (UERE) for an observation is {{uere:f1}} m and the satellite geometry gives a PDOP of {{pdop:f1}}. Estimate the 3-D position error (m) using σ ≈ UERE × PDOP.",
+      "parameters": [
+        {"name": "uere", "type": "float", "min": 0.5, "max": 4.0, "decimals": 1},
+        {"name": "pdop", "type": "float", "min": 1.5, "max": 6.0, "decimals": 1}
+      ],
+      "computed_vars": [],
+      "answer_formula": "uere * pdop",
+      "answer_format": {"decimals": 2, "unit": "m", "tolerance": 0.05},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Write the relationship", "formula": "σ ≈ UERE × PDOP", "calculation_template": "σ ≈ {{uere:f1}} × {{pdop:f1}}"},
+        {"step_number": 2, "title": "Multiply", "result_template": "{{uere:f1}} × {{pdop:f1}} = {{_answer}} m"}
+      ],
+      "explanation_template": "Estimated position error ≈ UERE × PDOP = {{uere:f1}} × {{pdop:f1}} = {{_answer}} m. A high PDOP (weak geometry) inflates the position error even when the ranges themselves are good.",
+      "options_generator": {"method": "none"},
+      "images_needed": [{"slug": "m11-uere-pdop", "caption": "Sky plots contrasting low and high PDOP geometry and resulting error", "kind": "diagram"}]
+    },
+    {
+      "name": "Baseline error from the a + b·ppm model",
+      "category": "GPS/GNSS — Static Surveying",
+      "subcategory": "Baseline accuracy model",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A GNSS baseline accuracy is specified as a constant term of {{a}} mm plus {{b}} ppm of the baseline length. For a baseline of {{D:f1}} km, what is the expected baseline error in MILLIMETERS? (1 ppm = 1 mm per km.)",
+      "parameters": [
+        {"name": "a", "type": "integer", "min": 3, "max": 8},
+        {"name": "b", "type": "integer", "min": 1, "max": 2},
+        {"name": "D", "type": "float", "min": 5, "max": 40, "decimals": 1}
+      ],
+      "computed_vars": [
+        {"name": "ppmTerm", "formula": "b*D"}
+      ],
+      "answer_formula": "a + b*D",
+      "answer_format": {"decimals": 1, "unit": "mm", "tolerance": 0.1},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Compute the ppm term", "formula": "b ppm × D km = b·D mm", "calculation_template": "{{b}} × {{D:f1}} = {{ppmTerm:f1}} mm"},
+        {"step_number": 2, "title": "Add the constant term", "result_template": "{{a}} + {{ppmTerm:f1}} = {{_answer}} mm"}
+      ],
+      "explanation_template": "Baseline error = a + b·D = {{a}} mm + {{b}} ppm × {{D:f1}} km = {{a}} + {{ppmTerm:f1}} = {{_answer}} mm. The constant term dominates on short baselines; the ppm term grows with length.",
+      "options_generator": {"method": "none"},
+      "images_needed": [{"slug": "m11-baseline-error", "caption": "Baseline vector between two stations with a + b·ppm error model annotated", "kind": "diagram"}]
+    }
+  ]
+}

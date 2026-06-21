@@ -64,11 +64,25 @@ export const GET = withErrorHandler(async (req: Request) => {
   // for the current snapshot, and per-day rain chance
   // (`precipitation_probability_max`) for both the headline
   // and each row in the strip.
+  // weather-icon-accuracy-2026-06-19 — also ask for current +
+  // daily wind in mph so the snapshot mapper can refine the icon
+  // (high wind + mild code → 🌬️) and the widget can surface a
+  // wind chip when notable. `windspeed_unit=mph` keeps units in
+  // lockstep with the rest of the surface (temps already °F).
+  //
+  // weather-severity-2026-06-19 — also request the daily
+  // apparent-temperature max/min, max humidity, and wind gusts so
+  // the per-day tooltip can show feels-like / humidity and the
+  // severity engine can fire heat-wave / high-wind / tornado-risk
+  // warnings.
+  // weather-night-icons-2026-06-20 — also ask for `is_day` so the
+  // current snapshot can render moon variants at night.
   const forecast = await fetchJson(
     `${FORECAST_URL}?latitude=${point.latitude}&longitude=${point.longitude}` +
-      '&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code' +
+      '&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day' +
       '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max' +
-      '&temperature_unit=fahrenheit&forecast_days=5&timezone=auto',
+      ',wind_speed_10m_max,wind_gusts_10m_max,apparent_temperature_max,apparent_temperature_min,relative_humidity_2m_max' +
+      '&temperature_unit=fahrenheit&windspeed_unit=mph&forecast_days=5&timezone=auto',
   );
 
   const snapshot = forecast ? toWeatherSnapshot(forecast as OpenMeteoForecast, point.label) : null;

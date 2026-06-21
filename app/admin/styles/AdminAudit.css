@@ -22,15 +22,22 @@
   align-items: center;
   margin: 0 0 1rem;
 }
+/* audit-filter-clip-2026-06-20 — the original height: 2rem on the
+ * input + select clipped the descenders ("g", "p") because 32px
+ * was tighter than the 0.85rem font line-box. Raising to 36px +
+ * adding line-height: 1 (with vertical padding for the text)
+ * keeps the controls compact while leaving room for descenders. */
 .audit-filters input[type="text"] {
   flex: 1 1 auto;
   min-width: 0;
-  height: 2rem;
-  padding: 0 0.6rem;
+  height: 36px;
+  padding: 0 0.7rem;
   border: 1px solid var(--color-border, #D1D5DB);
   border-radius: 6px;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
+  line-height: 1.2;
   background: #fff;
+  box-sizing: border-box;
 }
 .audit-filters input[type="text"]:focus {
   outline: none;
@@ -38,12 +45,27 @@
   box-shadow: 0 0 0 2px rgba(29, 48, 149, 0.15);
 }
 .audit-filters select {
-  height: 2rem;
-  padding: 0 0.4rem;
+  height: 36px;
+  padding: 0 1.75rem 0 0.7rem;
   border: 1px solid var(--color-border, #D1D5DB);
   border-radius: 6px;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
+  line-height: 1.2;
   background: #fff;
+  box-sizing: border-box;
+  /* Reset the native chevron + draw our own with the right room so
+   * the text below the baseline never bumps the caret. */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+}
+.audit-filters select:focus {
+  outline: none;
+  border-color: var(--color-brand-navy, #1D3095);
+  box-shadow: 0 0 0 2px rgba(29, 48, 149, 0.15);
 }
 
 .audit-error,

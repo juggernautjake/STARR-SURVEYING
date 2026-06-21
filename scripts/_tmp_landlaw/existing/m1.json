@@ -1,0 +1,939 @@
+{
+  "order_index": 1,
+  "module_id": "c1000001-0000-0000-0000-000000000001",
+  "title": "Introduction to Land Surveying",
+  "lessons": [
+    {
+      "lesson_id": "22222222-2222-2222-2222-222222222200",
+      "title": "Welcome to Starr Surveying",
+      "estimated_minutes": 20,
+      "learning_objectives": [
+        "Describe the purpose and structure of the Starr Surveying training program and how the modules build on one another.",
+        "Explain what it means to enter the surveying profession at the Surveyor-in-Training (SIT) level.",
+        "Identify the core professional habits — accuracy, documentation, and ethics — expected from the first day."
+      ],
+      "key_takeaways": [
+        "This program builds from foundations (history, math, measurements) toward licensure-level competency.",
+        "You are training toward the Texas SIT-then-RPLS licensing path under TBPELS.",
+        "Surveying rewards precision, careful record-keeping, and unimpeachable ethics from day one."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Welcome</h3><p>Welcome to <strong>Starr Surveying</strong>. You are beginning a structured course of study designed to take you from the fundamentals of the profession toward the knowledge expected of a licensed land surveyor in Texas. Land surveying is one of the oldest of the learned professions and one of the most consequential: the lines you locate define where one person's property ends and another's begins, where a building may legally stand, and where the public's roads and waters lie. A surveyor's signature and seal carry the weight of law.</p><p>This first module lays the foundation. We will define what land surveying actually is, trace its history from the rope-stretchers of ancient Egypt to today's GNSS receivers, survey the kinds of work surveyors perform, and map the path you will follow to become licensed in Texas. Throughout, we flag the ways Texas differs from general U.S. practice, because Texas's land system is genuinely distinctive.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>How This Program Is Organized</h3><p>The curriculum is sequential. You begin with <strong>foundations</strong> — the history and role of the profession (this module), the <strong>mathematics</strong> a surveyor uses daily (trigonometry, coordinate geometry, unit conversions), and <strong>measurement and error theory</strong> (precision versus accuracy, the kinds of error and how to control them). From there you advance to field instruments, traverse computations, area and volume, boundary law, and the legal and ethical framework that governs practice. Each module assumes the ones before it, so master the fundamentals before moving on.</p><p>You are entering at the <strong>Surveyor-in-Training (SIT)</strong> level — the apprenticeship stage of a regulated profession. An SIT works under a licensed surveyor, accumulating supervised experience while building the technical and legal knowledge that the licensing examinations test. Treat every exercise here as preparation for real responsibility.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "info",
+            "text": "This program is written to be Texas-aware. Wherever general U.S. surveying practice differs from Texas (no PLSS grid, the vara as a unit, the Texas General Land Office, and the TBPELS licensing board), you will see a warning callout flagging the difference."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The Professional Habits You Build Now</h3><p>Three habits separate competent surveyors from the rest, and you should cultivate them from the first lesson. First, <strong>accuracy and honesty about uncertainty</strong> — never report a measurement as more certain than it is, and always record the conditions under which it was taken. Second, <strong>documentation</strong> — field notes, sketches, and records are the surveyor's lasting product; a survey that cannot be reconstructed from its records is incomplete. Third, <strong>ethics</strong> — the surveyor occupies a position of public trust, often as a neutral expert between adjoining owners, and that trust depends on integrity that cannot be bought or pressured. These themes recur in every module and culminate in the ethics lesson that closes this one.</p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "The program is sequential: master foundations (history, math, measurements) before advanced topics.",
+              "You are training at the Surveyor-in-Training (SIT) level toward Texas RPLS licensure.",
+              "Accuracy, thorough documentation, and ethics are professional habits to build from day one.",
+              "The content is deliberately Texas-aware, flagging where Texas differs from general U.S. practice."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Surveyor-in-Training (SIT)",
+          "definition": "The pre-licensure stage of the Texas surveying profession. An SIT has passed the Fundamentals exam and works under a licensed surveyor, accumulating supervised experience toward becoming a Registered Professional Land Surveyor.",
+          "hint_1": "The apprenticeship rung on the ladder to RPLS."
+        },
+        {
+          "term": "Seal and signature (surveyor)",
+          "definition": "The licensed surveyor's seal and signature on a plat or survey document, which certify the work as the product of a responsible licensed professional and give it legal weight."
+        }
+      ]
+    },
+    {
+      "lesson_id": "4bf81c35-abfe-4431-9a09-6941789520cb",
+      "title": "What Is Land Surveying?",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Define land surveying and distinguish it from related disciplines such as civil engineering and mapping.",
+        "Explain the dual nature of surveying as both a measurement science and a legal/evidentiary practice.",
+        "Identify the principal products of a survey and the public purposes they serve."
+      ],
+      "key_takeaways": [
+        "Land surveying is the science and art of measuring and locating points, lines, and boundaries on the earth's surface and expressing them in law-recognized terms.",
+        "Surveying is simultaneously a measurement science and an evidentiary/legal practice — locating boundaries means weighing evidence, not just measuring.",
+        "Boundary surveying is a licensed practice because it affects property rights and public safety."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>A Working Definition</h3><p><strong>Land surveying</strong> is the science, art, and profession of determining the relative positions of points on, above, or beneath the surface of the earth, and of locating and describing <strong>boundaries</strong> of land in a manner recognized by law. A surveyor measures distances, angles, and elevations; reduces those measurements to coordinates and areas; and interprets deeds, grants, and prior surveys to reconstruct where boundary lines lie. The deliverable is typically a <strong>plat or map</strong> and a <strong>legal description</strong>, sealed by a licensed professional, that others — owners, lenders, courts, engineers, and government — can rely upon.</p><p>Two ideas in that definition deserve emphasis. Surveying is a <em>measurement science</em>, grounded in geometry, trigonometry, and the theory of errors. But boundary surveying is also a <em>legal and evidentiary practice</em>: locating a property line means weighing physical and documentary evidence under rules of law, not merely reading an instrument.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The Two Faces of the Work</h3><p>Consider what happens when a surveyor retraces an old boundary. The mathematics — converting bearings and distances into coordinates, computing closure and area — is the measurement science. But deciding <em>which</em> evidence controls when an old deed's distance disagrees with an iron pipe found in the ground is a question governed by <strong>rules of law</strong> (the dignity of calls, the footsteps of the original surveyor). A mathematically perfect computation built on the wrong corner is a legally wrong boundary. This is why boundary surveying is a <strong>licensed profession</strong>: the work affects real property rights and public safety, and the public must be able to trust the result.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Discipline", "Primary concern", "Relationship to surveying"],
+            "rows": [
+              ["Land surveying", "Locating points, lines, and boundaries with legal effect", "The profession itself"],
+              ["Civil engineering", "Designing infrastructure (roads, drainage, structures)", "Relies on survey data; often a separate license"],
+              ["Cartography / GIS", "Compiling and displaying spatial data on maps", "Uses survey-grade control; generally not boundary-authoritative"],
+              ["Geodesy", "The size, shape, and gravity field of the earth", "Provides the reference frames (datums) surveyors work in"],
+              ["Photogrammetry / remote sensing", "Measuring from imagery and scans", "A surveying method/tool, often under a surveyor's responsibility"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Why Society Needs Surveyors</h3><p>The products of surveying underpin an orderly society. A <strong>boundary survey</strong> tells an owner exactly what they own and prevents disputes with neighbors. A <strong>plat</strong> turns raw acreage into recorded lots that can be sold, financed, and taxed. <strong>Construction surveys</strong> place buildings and roads where the design and the law allow. <strong>Control surveys</strong> tie everything to a common, accurate coordinate framework. Without reliable surveys, land could not be conveyed with certainty, mortgages could not be secured, and public works could not be built where intended. The surveyor's quiet, exacting work is part of the legal infrastructure of property ownership.</p>"
+          }
+        },
+        {
+          "block_type": "image",
+          "content": {
+            "url": "",
+            "alt": "Diagram showing a surveyor's measurements (angles and distances) being reduced to a plat with a legal description",
+            "caption": "Figure: From field measurement to legal product — angles and distances become coordinates, a plat, and a legal description.",
+            "alignment": "center"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Land surveying determines positions of points and locates legally recognized boundaries.",
+              "It is both a measurement science (geometry, trig, error theory) and an evidentiary/legal practice.",
+              "A mathematically perfect survey built on the wrong evidence is a legally wrong boundary.",
+              "Surveying products (boundary surveys, plats, control, construction) are part of the legal infrastructure of property."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Land surveying",
+          "definition": "The science, art, and profession of determining the relative positions of points on, above, or beneath the earth's surface and of locating and describing land boundaries in a legally recognized manner."
+        },
+        {
+          "term": "Plat",
+          "definition": "A scaled drawing of a parcel or subdivision showing boundaries, dimensions, monuments, and other features, sealed by a licensed surveyor; often recorded to create legally describable lots."
+        },
+        {
+          "term": "Why boundary surveying is licensed",
+          "definition": "Because it affects real property rights and public safety, and requires applying rules of law to evidence. The public must be able to rely on a licensed professional's sealed result.",
+          "hint_1": "Think rights + safety + public trust."
+        }
+      ]
+    },
+    {
+      "lesson_id": "0d4cdb00-24c3-4f32-895c-8979d6babe3d",
+      "title": "Brief History of Surveying (Ancient to Modern)",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Trace the development of surveying from ancient civilizations through the instrument revolutions to modern GNSS.",
+        "Explain the significance of Gunter's chain and the units it standardized.",
+        "Contrast the U.S. Public Land Survey System with Texas's distinct land-grant history."
+      ],
+      "key_takeaways": [
+        "Surveying began with the rope-stretchers of Egypt and the groma of Rome and advanced through the chain, transit, EDM, and GNSS.",
+        "Gunter's chain (66 ft, 100 links) tied distance directly to area: 10 square chains = 1 acre.",
+        "Most of the U.S. is laid out on the federal PLSS township-range grid; Texas is not, because it retained its public lands and granted them itself."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Ancient Origins</h3><p>Surveying is among the oldest applied sciences. In ancient <strong>Egypt</strong>, annual Nile floods erased field boundaries, so officials called <em>harpedonaptae</em> (&lsquo;rope-stretchers&rsquo;) re-established property lines using knotted ropes — likely employing the 3-4-5 right-triangle relationship to lay out square corners long before Pythagoras formalized it. The <strong>Babylonians</strong> recorded land measurements on clay tablets. The <strong>Romans</strong> were master surveyors: their <em>agrimensores</em> used the <strong>groma</strong> (a cross-staff with plumb bobs) to set out perpendicular lines for roads, aqueducts, military camps, and the centuriated division of conquered land — a rectangular land-division scheme that anticipates the modern grid.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Gunter's Chain and the Birth of Modern Units</h3><p>A turning point came in <strong>1620</strong>, when the English clergyman and mathematician <strong>Edmund Gunter</strong> introduced his surveying <strong>chain</strong>. Gunter's chain is <strong>66 feet long, divided into 100 links</strong> (each link 7.92 inches). Its genius was to connect linear measurement directly to <strong>area</strong>: an <strong>acre</strong> is exactly <strong>10 square chains</strong> (66 ft &times; 660 ft = 43,560 sq ft), and there are <strong>80 chains in a mile</strong>. Because of the chain, distances in older American deeds and the entire federal land survey are recorded in <strong>chains and links</strong>. Surveyors carried Gunter's chain, then later steel tapes, for centuries; the unit still appears constantly in retracement work.</p>"
+          }
+        },
+        {
+          "block_type": "equation",
+          "content": {
+            "latex": "1\\ \\text{chain} = 66\\ \\text{ft} = 100\\ \\text{links}; \\quad 1\\ \\text{acre} = 10\\ \\text{sq chains} = 43{,}560\\ \\text{sq ft}",
+            "label": "Gunter's chain relationships",
+            "display": "block"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The Instrument Revolutions</h3><p>The tools advanced in waves. The <strong>compass and circumferentor</strong> let surveyors read magnetic bearings; the <strong>transit and theodolite</strong> (19th century) measured horizontal and vertical angles precisely. The mid-20th century brought <strong>electronic distance measurement (EDM)</strong>, which times a light or microwave signal to a reflector and measures hundreds of feet in seconds, replacing the chain. EDM combined with an electronic theodolite became the <strong>total station</strong>. Finally, satellite positioning — <strong>GPS and the broader GNSS</strong> — lets a surveyor determine coordinates anywhere on earth to centimeter accuracy, and today's <strong>robotic total stations, GNSS-RTK, laser scanners, and drones</strong> define modern practice. Yet the legal principles of boundary retracement have not changed: better instruments locate the original line more precisely; they do not move it.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>American Land: the PLSS — and Texas's Exception</h3><p>After the Revolution, the United States adopted the <strong>Public Land Survey System (PLSS)</strong> under the Land Ordinance of 1785 to divide the western public domain into a rectangular grid of <strong>townships</strong> (6 miles square), <strong>ranges</strong>, and <strong>sections</strong> (1 mile square, ~640 acres), referenced to principal meridians and base lines. Most of the United States west of the original colonies is laid out on this grid, surveyed in chains by federal deputy surveyors. <strong>Texas is the great exception.</strong> Because Texas was first under Spain and Mexico, then an independent republic, then a state that kept its own public lands, Texas land was <em>never</em> federal public domain and was granted by Texas itself — so there is no PLSS township-range grid here.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: Unlike most of the United States, Texas was never part of the federal public domain and has no PLSS township-range-section grid. Texas land descends from Spanish, Mexican, Republic-of-Texas, and State-of-Texas grants, described by metes-and-bounds keyed to an original General Land Office (GLO) survey and abstract number. You cannot read a Texas description in township/range terms."
+          }
+        },
+        {
+          "block_type": "accordion",
+          "content": {
+            "sections": [
+              {
+                "title": "Famous surveyors in history",
+                "content": "<p>Several major figures in American history began as surveyors, underscoring the profession's standing. <strong>George Washington</strong> was a licensed county surveyor in his teens; <strong>Thomas Jefferson</strong> and <strong>Abraham Lincoln</strong> both did survey work. The discipline blends fieldcraft, mathematics, and law in a way that has long attracted careful, civic-minded practitioners.</p>",
+                "open": false
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Surveying runs from Egyptian rope-stretchers and the Roman groma through the chain, transit, EDM, total station, and GNSS.",
+              "Gunter's chain (66 ft, 100 links) standardized distance and tied it to area: 10 sq chains = 1 acre; 80 chains = 1 mile.",
+              "Better instruments locate the original boundary more precisely but never move it.",
+              "Most of the U.S. uses the federal PLSS grid; Texas does not, because it granted its own land and has no federal public domain."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Gunter's chain",
+          "definition": "A surveying chain introduced by Edmund Gunter in 1620: 66 feet long, 100 links of 7.92 inches each. It ties distance to area — 10 square chains equal one acre, and 80 chains equal one mile.",
+          "hint_1": "66 feet, 100 links."
+        },
+        {
+          "term": "Public Land Survey System (PLSS)",
+          "definition": "The federal rectangular system (Land Ordinance of 1785) dividing U.S. public-domain land into townships, ranges, and ~640-acre sections referenced to principal meridians and base lines. Not used in Texas."
+        },
+        {
+          "term": "Total station",
+          "definition": "An instrument combining an electronic theodolite (angles) with electronic distance measurement (EDM), allowing a surveyor to measure angles and distances and compute coordinates in the field."
+        },
+        {
+          "term": "GNSS",
+          "definition": "Global Navigation Satellite System — the umbrella term for satellite positioning (GPS and others) that lets surveyors determine precise coordinates anywhere on earth, often to centimeter level with RTK methods."
+        }
+      ]
+    },
+    {
+      "lesson_id": "f1457d76-60f4-4152-ab1b-d4751101acac",
+      "title": "The Role of the Modern Land Surveyor",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Describe the major types of surveys a modern surveyor performs and the purpose of each.",
+        "Explain the surveyor's lane: locating boundaries and flagging conflicts versus rendering legal title opinions.",
+        "Recognize the team and technology context in which surveyors work today."
+      ],
+      "key_takeaways": [
+        "Common survey types include boundary, topographic, ALTA/NSPS, construction, control, and route surveys.",
+        "Surveyors locate and depict boundaries and physical conditions; they do not adjudicate ownership or opine on title.",
+        "Modern surveyors integrate GNSS, total stations, scanners, drones, and CAD/GIS while remaining responsible for the result."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>What Modern Surveyors Do</h3><p>The modern surveyor is far more than a measurer of distances. On a given project a surveyor researches deeds and prior surveys, recovers and analyzes monuments in the field, reconciles record and measured evidence, computes coordinates and areas, and produces a sealed plat and legal description. Surveyors serve private owners, developers, attorneys, lenders, engineers, and government agencies. They are frequently the <strong>neutral technical expert</strong> in a property dispute and may serve as expert witnesses. The work demands field skill, mathematical rigor, legal knowledge, and sound judgment in equal measure.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The Principal Types of Surveys</h3><p>Surveying work falls into several recognizable categories, each with its own standards and purpose:</p><ul><li><strong>Boundary (cadastral) survey</strong> — locates and marks the legal limits of a parcel; the core of the licensed practice.</li><li><strong>Topographic survey</strong> — maps the elevation and physical features of a site (contours, structures, utilities) for design.</li><li><strong>ALTA/NSPS Land Title Survey</strong> — a detailed, standardized survey for commercial real-estate transactions, combining boundary, title, and improvement information to a national standard.</li><li><strong>Construction (layout/stakeout) survey</strong> — stakes design points so contractors build in the correct location and grade; includes as-built surveys.</li><li><strong>Control survey</strong> — establishes a precise network of horizontal and vertical reference points (a coordinate framework) that other surveys tie into.</li><li><strong>Route survey</strong> — surveys a linear corridor (road, pipeline, transmission line) including alignment and right-of-way.</li></ul>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Survey type", "Primary purpose", "Typical product"],
+            "rows": [
+              ["Boundary / cadastral", "Locate and mark legal property limits", "Boundary plat + legal description"],
+              ["Topographic", "Map terrain and features for design", "Contour/feature map"],
+              ["ALTA/NSPS title", "Support commercial real-estate transactions", "ALTA survey to national standard"],
+              ["Construction layout", "Place improvements per design and grade", "Stakeout + as-built drawings"],
+              ["Control", "Establish a precise coordinate framework", "Network of monumented control points"],
+              ["Route", "Survey a linear corridor and right-of-way", "Alignment + ROW maps"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Staying in the Surveyor's Lane</h3><p>A defining professional boundary is the line between the surveyor's role and the attorney's. A surveyor <strong>locates boundaries</strong> and reports what the evidence shows, including conflicts, gaps, and overlaps. A surveyor does <strong>not</strong> adjudicate who owns a disputed strip, quiet title, or render a legal opinion on the validity of title — that is the work of courts and counsel. When evidence conflicts, the surveyor documents the conflict and the basis for the line shown, then leaves the legal resolution to the parties. Rendering a title opinion, or otherwise practicing law, exposes the surveyor to liability and professional discipline.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: In Texas, boundary and title disputes are civil matters heard in District Court, appealed to a regional Court of Appeals, and finally the Supreme Court of Texas. A Texas surveyor must respect junior/senior rights and the record chain in retracement (TBPELS rules, 22 Texas Administrative Code Ch. 138), but must not opine on title."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Technology and Teamwork</h3><p>The modern surveyor orchestrates a toolkit: <strong>GNSS receivers</strong> for positioning, <strong>robotic total stations</strong> for precise angles and distances, <strong>laser scanners and drones</strong> for dense 3D capture, and <strong>CAD and GIS</strong> software for reduction and mapping. But technology does not replace judgment: the licensed surveyor remains responsible for the methods chosen, the analysis of evidence, and the correctness of the sealed result. A survey crew, office technicians, and the responsible licensee form a team, and the licensee's seal certifies that the entire process met professional standards.</p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Surveyors perform boundary, topographic, ALTA/NSPS, construction, control, and route surveys, among others.",
+              "Boundary (cadastral) surveying is the core licensed practice; control surveys provide the coordinate framework others rely on.",
+              "Surveyors locate boundaries and flag conflicts but do not adjudicate ownership or render title opinions.",
+              "Modern practice integrates GNSS, total stations, scanners, drones, and CAD/GIS, with the licensee responsible for the result."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Boundary (cadastral) survey",
+          "definition": "A survey that locates, retraces, and marks the legal limits of a parcel of land. It is the core of the licensed surveying practice and produces a boundary plat and legal description."
+        },
+        {
+          "term": "ALTA/NSPS Land Title Survey",
+          "definition": "A detailed survey performed to a national standard (set by ALTA and NSPS) for commercial real-estate transactions, combining boundary, title-related, and improvement information for owners, lenders, and title insurers."
+        },
+        {
+          "term": "Control survey",
+          "definition": "A survey establishing a precise network of horizontal and vertical reference points (a coordinate framework) to which other surveys are tied, ensuring consistency and accuracy across a project."
+        },
+        {
+          "term": "Surveyor's lane",
+          "definition": "The principle that a surveyor locates and depicts boundaries and physical conditions and flags conflicts, but does not adjudicate ownership or render legal opinions on title — those belong to courts and attorneys.",
+          "hint_1": "Locate and flag, do not adjudicate."
+        }
+      ]
+    },
+    {
+      "lesson_id": "05a5c66e-807e-4635-a20d-7cd116d829c4",
+      "title": "Land Surveying in Texas — Overview",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Explain why Texas's land system is distinctive: sovereign grants, retained public lands, and no PLSS.",
+        "Describe the role of the Texas General Land Office (GLO) and the survey-and-abstract framework.",
+        "Define the Texas vara and the league and labor, and explain when a surveyor encounters them."
+      ],
+      "key_takeaways": [
+        "Every Texas title traces to one of four sovereigns: Spain, Mexico, the Republic of Texas, or the State of Texas.",
+        "Texas retained its public lands at annexation; the GLO administers them and the original-grant survey records.",
+        "Texas surveyors must understand the vara (33 1/3 in = 2.7778 ft) and the league/labor used in original grants."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The One Idea That Explains Texas</h3><p>Texas surveying is distinctive, and almost every difference flows from a single historical fact: in Texas the chain of title traces to one of <strong>four sovereigns of the soil — Spain, Mexico, the Republic of Texas, or the State of Texas</strong> — and the <strong>State of Texas, not the federal government, was the source of original land grants</strong>. Texas was an independent republic from 1836 to 1845 and, on annexation, <strong>retained all of its vacant and unappropriated public lands</strong>. Because Texas granted its own land, Texas land was never part of the federal public domain. There is therefore <strong>no PLSS</strong> here; Texas land is described by <strong>metes-and-bounds keyed to an original survey and abstract number</strong>.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: This is the single most consequential difference in American land law. Elsewhere the United States was the original grantor and the federal GLO/BLM administered disposal on the PLSS grid. In Texas the sovereign source is the State, administered through the Texas General Land Office (GLO); Texas has very little federal land, and the original grant in any Texas chain is a State (or pre-statehood) grant, never a federal patent."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The Texas General Land Office</h3><p>The <strong>Texas General Land Office (GLO)</strong>, founded on December 22, 1836 by the First Congress of the Republic, is the oldest existing Texas state agency. It maintains the state's land-grant records, produces official maps and surveys, and <strong>issues patents</strong>. Its archive holds roughly <strong>35.5 million land-grant records dating to 1720</strong>, including the <strong>Spanish Collection</strong> — the depository for about 4,200 Spanish and Mexican grants. When a Texas surveyor researches a boundary, the trail very often leads back to a GLO original-grant survey. Once a survey of public land and its field notes are accepted by the GLO, they are legally presumed correct.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Survey Name and Abstract Number</h3><p>In place of the PLSS township/range/section anchor, Texas identifies land by its <strong>original land-grant survey and abstract number</strong>. A Texas legal description typically opens with a caption reciting the county, the original survey (named for the grantee or railroad company that earned the grant), and the GLO-assigned <strong>abstract number</strong> — for example, &lsquo;situated in the H. &amp; T.C.R.R. Co. Survey, Abstract No. ___, in ____ County, Texas.&rsquo; The point of beginning and a controlling corner are tied back to a corner of that original survey, so the parcel can be relocated independently of the surveyor's own monuments. This abstract framework is the direct legacy of the GLO patent system.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Texas Units: the Vara, Labor, and League</h3><p>Because Texas land was originally surveyed under the Spanish/Mexican system, Texas has its own measuring units, which a surveyor still meets in old grants and field notes. The fundamental unit is the <strong>vara</strong>, legally fixed in Texas at <strong>33&frac13; inches</strong> (about 2.7778 ft), so that <strong>36 varas equal exactly 100 feet</strong>. Area grants were sized in the <strong>labor</strong> (1,000,000 square varas, about 177.1 acres) and the <strong>league</strong> or <em>sitio</em> (25,000,000 square varas, about 4,428.4 acres, equal to 25 labors). The standard married-head-of-family colonization grant was a <strong>league and a labor</strong> (about 4,605.5 acres). The vara was legally standardized at 33&frac13; inches in 1919; older historical varas varied slightly, so do not blindly apply a non-Texas vara value to a Texas grant.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Texas unit", "Definition", "Approx. acres"],
+            "rows": [
+              ["Vara", "33 1/3 in = 2.7778 ft (36 varas = 100 ft)", "—"],
+              ["Labor", "1,000,000 sq varas (1,000 varas square)", "~177.1"],
+              ["League / sitio", "25,000,000 sq varas (5,000 varas square) = 25 labors", "~4,428.4"],
+              ["League + labor", "26,000,000 sq varas", "~4,605.5"]
+            ]
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: The vara, labor, and league are Spanish/Mexican units with no PLSS equivalent. Texas kept its metes-and-bounds, survey-and-abstract system and never adopted the federal grid of chains, rods, and 640-acre sections. The two systems are mathematically unrelated."
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "Every Texas title traces to one of four sovereigns: Spain, Mexico, the Republic, or the State of Texas.",
+              "Texas retained its public lands at annexation (1845); it was never federal public domain, so there is no PLSS.",
+              "The Texas GLO (est. 1836) holds the original-grant records, issues patents, and underpins the survey-and-abstract system.",
+              "Texas units: the vara (33 1/3 in = 2.7778 ft; 36 varas = 100 ft), the labor (~177.1 ac), and the league (~4,428.4 ac)."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Sovereigns of the soil (Texas)",
+          "definition": "The four sources of original Texas land title — Spain, Mexico, the Republic of Texas, and the State of Texas. Every Texas chain of title runs back to one of them, never to a federal patent.",
+          "hint_1": "Four, in chronological order."
+        },
+        {
+          "term": "Texas General Land Office (GLO)",
+          "definition": "The oldest Texas state agency (founded 1836). It holds the state's land-grant archives (including the Spanish Collection), produces official maps and surveys, and issues patents."
+        },
+        {
+          "term": "Vara",
+          "definition": "The fundamental Texas/Spanish unit of length, legally fixed in Texas at 33 1/3 inches (2.7778 ft), so that 36 varas equal exactly 100 feet. Encountered in original Texas grants and field notes."
+        },
+        {
+          "term": "League and labor",
+          "definition": "Spanish/Mexican Texas area units. A labor is 1,000,000 sq varas (~177.1 acres); a league (sitio) is 25,000,000 sq varas (~4,428.4 acres, = 25 labors). A league plus a labor (~4,605.5 ac) was the standard family grant."
+        }
+      ]
+    },
+    {
+      "lesson_id": "10a4dc63-93e3-4ba5-b6bb-d420617b01de",
+      "title": "Licensing Path: SIT → RPLS",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Outline the steps from student to Registered Professional Land Surveyor (RPLS) in Texas.",
+        "Identify the licensing authority (TBPELS), the relevant statute, and the examinations involved.",
+        "Explain the role of supervised experience and the SIT credential in the path to licensure."
+      ],
+      "key_takeaways": [
+        "In Texas, surveyors are licensed as Registered Professional Land Surveyors (RPLS) by TBPELS.",
+        "The path is typically: education → pass the Fundamentals exam (become an SIT) → supervised experience → pass the Texas-specific exams → RPLS.",
+        "TBPELS regulates licensure and conduct under the Professional Land Surveying Practices Act (Occupations Code Ch. 1071)."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The Goal: Registered Professional Land Surveyor</h3><p>In Texas the licensed professional who may perform and seal land surveys is a <strong>Registered Professional Land Surveyor (RPLS)</strong>. Reaching that credential is a multi-step process combining <strong>education, examination, and supervised experience</strong>. Along the way you earn the <strong>Surveyor-in-Training (SIT)</strong> designation — the intermediate credential that marks you as having passed the first national examination and as accumulating qualifying experience under a licensed surveyor. The path is demanding by design: an RPLS's seal certifies work that affects property rights, so the state ensures licensees are genuinely competent.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: The Texas licensing board is the Texas Board of Professional Engineers and Land Surveyors (TBPELS). It was created in 2019 (HB 1523, 86th Legislature) by merging the former separate engineering and surveying boards into one. Many states keep a stand-alone surveying board; Texas does not. Licensing rules are in Texas Administrative Code, Title 22, Part 6."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The Steps, in Order</h3><p>The licensure path generally proceeds through these stages:</p><ul><li><strong>Education</strong> — complete the required college-level coursework in surveying and related subjects (the specific degree/credit requirements are set by TBPELS).</li><li><strong>Fundamentals exam</strong> — pass the national <strong>Fundamentals of Surveying (FS)</strong> examination administered through NCEES. Passing it (with the other SIT requirements) earns the <strong>SIT</strong> designation.</li><li><strong>Supervised experience</strong> — accumulate the required period of qualifying surveying experience under the responsible supervision of a licensed surveyor (typically several years).</li><li><strong>Professional exams</strong> — pass the national <strong>Principles and Practice of Surveying (PS)</strong> examination and the <strong>Texas-specific examinations</strong> on Texas law, history, and practice.</li><li><strong>Licensure</strong> — upon satisfying education, experience, and all examinations, apply to TBPELS for the <strong>RPLS</strong> license.</li></ul><p>Because the precise hour, degree, and timing requirements change, always confirm the current rules directly with TBPELS.</p>"
+          }
+        },
+        {
+          "block_type": "table",
+          "content": {
+            "headers": ["Stage", "What it involves", "Credential earned"],
+            "rows": [
+              ["Education", "Required surveying-related college coursework/degree", "Eligibility to test"],
+              ["Fundamentals (FS) exam", "Pass the national NCEES FS exam + SIT requirements", "Surveyor-in-Training (SIT)"],
+              ["Supervised experience", "Qualifying experience under a licensed surveyor", "Progress toward licensure"],
+              ["Principles & Practice (PS) + Texas exams", "Pass national PS and Texas-specific exams", "Eligibility for licensure"],
+              ["Licensure", "Apply to and be licensed by TBPELS", "Registered Professional Land Surveyor (RPLS)"]
+            ]
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Why Supervised Experience Matters</h3><p>The SIT years are not a waiting period; they are the heart of professional formation. Working under an RPLS, you learn what no exam fully tests: how to research a chain of title, how to recover an old monument and weigh it against the record, how to make defensible judgment calls when evidence conflicts, and how to communicate findings clearly and ethically. The supervising licensee takes professional responsibility for your work and certifies your experience to the board. Treat every assignment as preparation for the day your own seal certifies a survey and your own name stands behind it.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The Governing Statute</h3><p>The practice of surveying in Texas is governed by the <strong>Professional Land Surveying Practices Act</strong>, codified in the <strong>Texas Occupations Code, Chapter 1071</strong>, which defines the practice, requires licensure, and empowers TBPELS to license and discipline surveyors. The board's detailed rules — covering licensing requirements, firm registration, and standards of conduct — appear in the <strong>Texas Administrative Code, Title 22 (Examining Boards), Part 6</strong>, including the surveying compliance and professionalism rules in <strong>Chapter 138</strong>. Knowing where these authorities live, and reading the current versions, is itself part of professional competence.</p>"
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "The Texas license is the Registered Professional Land Surveyor (RPLS), issued by TBPELS.",
+              "Path: education → pass the Fundamentals (FS) exam to become an SIT → supervised experience → pass PS and Texas exams → RPLS.",
+              "SIT supervised experience under a licensed surveyor is the core of professional formation.",
+              "Practice is governed by Occupations Code Ch. 1071 and TBPELS rules in 22 Texas Administrative Code, Part 6; confirm current requirements with TBPELS."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "RPLS",
+          "definition": "Registered Professional Land Surveyor — the Texas license authorizing a person to perform and seal land surveys. Issued by TBPELS after the applicant satisfies education, experience, and examination requirements."
+        },
+        {
+          "term": "TBPELS",
+          "definition": "The Texas Board of Professional Engineers and Land Surveyors, the agency that licenses and regulates surveyors (and engineers) in Texas. Created in 2019 by merging the former separate engineering and surveying boards.",
+          "hint_1": "One combined board since 2019."
+        },
+        {
+          "term": "Fundamentals of Surveying (FS) exam",
+          "definition": "The national NCEES examination a candidate passes early in the path; passing it (with other requirements) earns the Surveyor-in-Training (SIT) designation."
+        },
+        {
+          "term": "Professional Land Surveying Practices Act",
+          "definition": "The Texas statute (Occupations Code Ch. 1071) defining the practice of surveying, requiring licensure, and empowering TBPELS to license and discipline land surveyors."
+        }
+      ]
+    },
+    {
+      "lesson_id": "68cfb0d8-ffa2-429a-8a66-01c6d3264403",
+      "title": "Ethics and Professional Responsibility",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Explain the surveyor's duty to the public and the meaning of professional responsibility.",
+        "Identify core ethical obligations: competence, independence, honesty, confidentiality, and respect for the record.",
+        "Describe surveyor liability and the Texas limitations period for suits against surveyors."
+      ],
+      "key_takeaways": [
+        "A surveyor holds the public trust; the paramount duty is to protect the public, not merely to please the client.",
+        "Core duties include competence, independence/objectivity, honesty about uncertainty, and respecting senior/junior rights and the record.",
+        "Surveyors are liable for negligent work; in Texas a suit against a surveyor is governed by Civ. Prac. & Rem. Code 16.011."
+      ],
+      "blocks": [
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>A Profession of Public Trust</h3><p>Licensing exists to protect the public, and with the license comes a duty that outranks the client's wishes: the surveyor's <strong>paramount obligation is to the public and to the integrity of the work</strong>. A surveyor is frequently the neutral expert standing between adjoining owners; if the surveyor can be pressured to move a line to favor whoever is paying, the entire system of property rights is undermined. <strong>Professional responsibility</strong> means accepting that your seal is a public certification, and that you are accountable for it regardless of who hired you or what answer they hoped for.</p>"
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>The Core Ethical Duties</h3><p>Surveying codes of conduct, including the standards TBPELS enforces, converge on a handful of duties:</p><ul><li><strong>Competence</strong> — practice only within your training and experience; the SIT works under supervision precisely because competence must be earned.</li><li><strong>Independence and objectivity</strong> — report the boundary the evidence supports, even when it disappoints the client; never let a fee dictate the result.</li><li><strong>Honesty about uncertainty</strong> — do not overstate precision; disclose conflicts, gaps, overlaps, and the basis for the line shown.</li><li><strong>Respect for the record and prior work</strong> — honor senior/junior rights, the chain of title, and the footsteps of the original surveyor; do not casually overturn a prior monument.</li><li><strong>Confidentiality and loyalty</strong> — protect client information, but never to the point of misrepresenting the public-facing survey.</li><li><strong>Avoiding conflicts of interest</strong> — disclose any interest that could compromise objectivity.</li></ul>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: A Texas surveyor must not opine on title or otherwise practice law — that belongs to attorneys and the courts. TBPELS conduct rules (22 Texas Administrative Code Ch. 138) require Texas surveyors to respect junior/senior rights and the record chain in retracement. Violations can lead to board discipline, not just civil liability."
+          }
+        },
+        {
+          "block_type": "text",
+          "content": {
+            "html": "<h3>Liability: When Things Go Wrong</h3><p>A surveyor who performs work negligently can be held <strong>civilly liable</strong> for the resulting harm — for example, when a misplaced boundary causes a building to encroach or a parcel to be conveyed with a defective description. Liability generally requires a professional duty, a breach of the applicable <strong>standard of care</strong> (what a reasonably prudent surveyor would do), causation, and damages. Surveyors manage this risk through careful procedure, complete records, clear communication of limitations, and professional-liability insurance. The best defense is, and always has been, a thorough and well-documented survey.</p>"
+          }
+        },
+        {
+          "block_type": "callout",
+          "content": {
+            "type": "warning",
+            "text": "Texas differs: The limitations period for a suit against a registered surveyor arising out of the survey is set by Texas Civil Practice & Remedies Code 16.011. Note its placement in the Civil Practice & Remedies Code (not the Occupations or Property Code), and confirm the current period and any statute-of-repose features before relying on it in practice."
+          }
+        },
+        {
+          "block_type": "accordion",
+          "content": {
+            "sections": [
+              {
+                "title": "An ethics scenario",
+                "content": "<p>A developer-client tells you that if your survey shows the disputed strip belonging to the neighbor, the deal falls through — and asks you to &lsquo;find a way&rsquo; to put the line on the favorable side. The found iron pipe and the senior deed both place the line against your client. <strong>The ethical course</strong> is to locate and report the boundary the evidence supports, document the conflict and your basis, and decline to manipulate the result. You may explain the legal avenues available to the parties (negotiation, an attorney, a court), but you neither move the line nor opine on who ultimately owns the strip. Your independence is the whole reason your seal is worth anything.</p>",
+                "open": false
+              }
+            ]
+          }
+        },
+        {
+          "block_type": "key_takeaways",
+          "content": {
+            "title": "Key Takeaways",
+            "items": [
+              "The surveyor's paramount duty is to the public and to the integrity of the work, above the client's wishes.",
+              "Core duties: competence, independence/objectivity, honesty about uncertainty, respect for the record and prior work, and avoiding conflicts.",
+              "Texas surveyors must not opine on title; TBPELS conduct rules (22 TAC Ch. 138) require respecting senior/junior rights and the record.",
+              "Negligent surveying creates civil liability measured against the standard of care; Texas suits against surveyors fall under Civ. Prac. & Rem. Code 16.011."
+            ]
+          }
+        }
+      ],
+      "flashcards": [
+        {
+          "term": "Paramount duty (surveyor ethics)",
+          "definition": "The principle that a surveyor's first obligation is to protect the public and the integrity of the work, even when that conflicts with the interests or wishes of the paying client.",
+          "hint_1": "Public over client."
+        },
+        {
+          "term": "Standard of care",
+          "definition": "The level of skill and diligence a reasonably prudent surveyor would exercise under similar circumstances. Falling below it (and causing harm) is the basis for professional negligence liability."
+        },
+        {
+          "term": "Independence / objectivity",
+          "definition": "The ethical duty to report the boundary the evidence supports, free from the influence of the client's fee or desired outcome. It is what makes a surveyor's neutral expert opinion trustworthy."
+        },
+        {
+          "term": "Civ. Prac. & Rem. Code 16.011",
+          "definition": "The Texas statute setting the limitations period for a suit against a registered land surveyor arising out of a survey. Found in the Civil Practice & Remedies Code, not the Occupations or Property Code."
+        }
+      ]
+    }
+  ],
+  "quiz_questions": [
+    {
+      "lesson_id": "4bf81c35-abfe-4431-9a09-6941789520cb",
+      "question_text": "Which statement best captures why boundary surveying is a licensed profession rather than a pure measurement task?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Because measuring distances requires expensive instruments",
+        "Because locating boundaries means applying rules of law to evidence and affects property rights and public safety",
+        "Because only the government is allowed to measure land",
+        "Because surveyors must always work in teams"
+      ],
+      "correct_answer": "Because locating boundaries means applying rules of law to evidence and affects property rights and public safety",
+      "explanation": "Surveying is both a measurement science and an evidentiary/legal practice. A mathematically perfect computation built on the wrong corner is a legally wrong boundary, so the work affects property rights and public safety and must be entrusted to a licensed professional.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "4bf81c35-abfe-4431-9a09-6941789520cb",
+      "question_text": "A land surveyor's primary distinguishing product, compared with a cartographer or GIS technician, is:",
+      "question_type": "multiple_choice",
+      "options": [
+        "A colorful thematic map",
+        "A legally recognized location of boundaries (a sealed plat and legal description)",
+        "A satellite image",
+        "A spreadsheet of attributes"
+      ],
+      "correct_answer": "A legally recognized location of boundaries (a sealed plat and legal description)",
+      "explanation": "Cartography and GIS compile and display spatial data but are generally not boundary-authoritative. The surveyor produces a legally recognized boundary location, sealed by a licensed professional.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "0d4cdb00-24c3-4f32-895c-8979d6babe3d",
+      "question_text": "How many feet are in one Gunter's chain, and how does it relate to an acre?",
+      "question_type": "multiple_choice",
+      "options": [
+        "100 ft; 1 acre = 1 square chain",
+        "66 ft; 1 acre = 10 square chains",
+        "33 ft; 1 acre = 5 square chains",
+        "80 ft; 1 acre = 8 square chains"
+      ],
+      "correct_answer": "66 ft; 1 acre = 10 square chains",
+      "explanation": "Gunter's chain is 66 feet (100 links). An acre equals 10 square chains (66 ft x 660 ft = 43,560 sq ft), and there are 80 chains in a mile.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "0d4cdb00-24c3-4f32-895c-8979d6babe3d",
+      "question_text": "Which ancient practitioners re-established field boundaries after Nile floods, likely using the 3-4-5 right-triangle relationship?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Roman agrimensores",
+        "Egyptian rope-stretchers (harpedonaptae)",
+        "Babylonian scribes",
+        "Greek geometers"
+      ],
+      "correct_answer": "Egyptian rope-stretchers (harpedonaptae)",
+      "explanation": "The Egyptian harpedonaptae used knotted ropes to re-establish boundaries erased by the annual Nile floods, employing the 3-4-5 relationship to set square corners. The Roman agrimensores used the groma; both are part of surveying's lineage.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "0d4cdb00-24c3-4f32-895c-8979d6babe3d",
+      "question_text": "Better instruments (EDM, GNSS) can relocate an original boundary line more precisely, but they do not move where the original line was actually run.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "Improved technology locates the original line more precisely; the legal principles of retracement hold that the boundary stays where the original surveyor ran and marked it. Instruments do not relocate the boundary.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "05a5c66e-807e-4635-a20d-7cd116d829c4",
+      "question_text": "Why does Texas have no Public Land Survey System (PLSS) township-range grid?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Because Texas surveyors preferred metes-and-bounds for convenience",
+        "Because Texas was never part of the federal public domain and granted its own land",
+        "Because the PLSS grid was lost in a fire at the GLO",
+        "Because Texas adopted the metric system instead"
+      ],
+      "correct_answer": "Because Texas was never part of the federal public domain and granted its own land",
+      "explanation": "Texas was an independent republic that retained its public lands at annexation. Because the State (not the federal government) granted the land, Texas was never federal public domain and never received a PLSS grid; it uses metes-and-bounds keyed to a GLO survey and abstract number.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "05a5c66e-807e-4635-a20d-7cd116d829c4",
+      "question_text": "A Texas vara is legally fixed at 33 1/3 inches. How many varas equal exactly 100 feet?",
+      "question_type": "multiple_choice",
+      "options": ["33 varas", "36 varas", "40 varas", "50 varas"],
+      "correct_answer": "36 varas",
+      "explanation": "A vara is 33 1/3 in = 2.7778 ft. Since 100 ft / 2.7778 ft = 36, exactly 36 varas equal 100 feet.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "05a5c66e-807e-4635-a20d-7cd116d829c4",
+      "question_text": "Which agency holds Texas's original land-grant records, issues patents, and underpins the survey-and-abstract identification system?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The federal Bureau of Land Management (BLM)",
+        "The Texas General Land Office (GLO)",
+        "The Texas Board of Professional Engineers and Land Surveyors (TBPELS)",
+        "The county appraisal district"
+      ],
+      "correct_answer": "The Texas General Land Office (GLO)",
+      "explanation": "The GLO (founded 1836) maintains Texas land-grant records, produces official maps/surveys, and issues patents. TBPELS licenses surveyors; the BLM administers federal land, which is largely absent in Texas.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "05a5c66e-807e-4635-a20d-7cd116d829c4",
+      "question_text": "Every privately held Texas tract traces its title back to a federal land patent issued by the United States.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "False",
+      "explanation": "Texas titles trace to one of four sovereigns of the soil — Spain, Mexico, the Republic of Texas, or the State of Texas — never to a federal patent, because Texas land was never part of the federal public domain.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "f1457d76-60f4-4152-ab1b-d4751101acac",
+      "question_text": "Which survey type is the detailed, standardized survey used for commercial real-estate transactions, combining boundary, title, and improvement information to a national standard?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Topographic survey",
+        "ALTA/NSPS Land Title Survey",
+        "Construction stakeout survey",
+        "Route survey"
+      ],
+      "correct_answer": "ALTA/NSPS Land Title Survey",
+      "explanation": "The ALTA/NSPS Land Title Survey is performed to a national standard set by ALTA and NSPS for commercial transactions. Topographic surveys map terrain; construction surveys lay out design points; route surveys cover linear corridors.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "f1457d76-60f4-4152-ab1b-d4751101acac",
+      "question_text": "A surveyor finds that a record deed distance conflicts with a found iron pipe on a disputed boundary. What is the proper professional action?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Decide who legally owns the disputed strip and state it on the plat",
+        "Locate the boundary the evidence supports, document the conflict, and leave the legal ownership question to the parties' attorneys and the court",
+        "Always favor the client who is paying for the survey",
+        "Refuse to complete any survey when evidence conflicts"
+      ],
+      "correct_answer": "Locate the boundary the evidence supports, document the conflict, and leave the legal ownership question to the parties' attorneys and the court",
+      "explanation": "The surveyor stays in their lane: locate and report the boundary, flag the conflict and the basis for the line, but do not adjudicate ownership or render a title opinion — that belongs to courts and counsel.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "f1457d76-60f4-4152-ab1b-d4751101acac",
+      "question_text": "Which survey establishes a precise network of horizontal and vertical reference points that other surveys tie into?",
+      "question_type": "multiple_choice",
+      "options": ["Boundary survey", "Control survey", "Topographic survey", "ALTA survey"],
+      "correct_answer": "Control survey",
+      "explanation": "A control survey establishes the coordinate framework (a network of accurate reference points) to which other surveys are tied, ensuring consistency and accuracy.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "10a4dc63-93e3-4ba5-b6bb-d420617b01de",
+      "question_text": "In the correct order, what is the typical Texas path to becoming an RPLS?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Pass all exams first, then get a degree, then gain experience",
+        "Education → pass the Fundamentals (FS) exam to become an SIT → supervised experience → pass PS and Texas exams → RPLS",
+        "Gain experience → become an RPLS automatically after 10 years",
+        "Pass the Texas exam only, then apply for the RPLS"
+      ],
+      "correct_answer": "Education → pass the Fundamentals (FS) exam to become an SIT → supervised experience → pass PS and Texas exams → RPLS",
+      "explanation": "The standard path is education, then the national FS exam (earning the SIT designation), then qualifying supervised experience, then the national PS exam and Texas-specific exams, then licensure as an RPLS by TBPELS.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "10a4dc63-93e3-4ba5-b6bb-d420617b01de",
+      "question_text": "Which body licenses and regulates land surveyors in Texas, and what is notable about its 2019 origin?",
+      "question_type": "multiple_choice",
+      "options": [
+        "The GLO; it was split off from the engineering board in 2019",
+        "TBPELS; it was created in 2019 by merging the former engineering and surveying boards into one",
+        "NCEES; it became the Texas licensing board in 2019",
+        "The Texas Supreme Court; it took over surveyor licensing in 2019"
+      ],
+      "correct_answer": "TBPELS; it was created in 2019 by merging the former engineering and surveying boards into one",
+      "explanation": "The Texas Board of Professional Engineers and Land Surveyors (TBPELS) was created in 2019 (HB 1523, 86th Legislature) by consolidating the previously separate engineering and surveying boards.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "10a4dc63-93e3-4ba5-b6bb-d420617b01de",
+      "question_text": "Passing the national Fundamentals of Surveying (FS) exam, with the other requirements, earns the SIT designation.",
+      "question_type": "true_false",
+      "options": ["True", "False"],
+      "correct_answer": "True",
+      "explanation": "Passing the NCEES Fundamentals of Surveying exam (along with the other SIT requirements) earns the Surveyor-in-Training designation, the credential held during the supervised-experience phase.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": "68cfb0d8-ffa2-429a-8a66-01c6d3264403",
+      "question_text": "A client offers to pay a premium if the surveyor will place a disputed boundary line on the client's side, contrary to a found monument and the senior deed. What does professional responsibility require?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Move the line, since the client is paying for the survey",
+        "Report the boundary the evidence supports, document the conflict, and decline to manipulate the result",
+        "Refuse to ever survey for that client again without further action",
+        "Render a legal opinion that the client owns the strip"
+      ],
+      "correct_answer": "Report the boundary the evidence supports, document the conflict, and decline to manipulate the result",
+      "explanation": "The surveyor's paramount duty is to the public and the integrity of the work. Independence and objectivity require reporting the evidence-supported boundary and refusing to let a fee dictate the result; the surveyor does not opine on ultimate ownership.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": "68cfb0d8-ffa2-429a-8a66-01c6d3264403",
+      "question_text": "In Texas, which code contains the limitations period for a suit against a registered land surveyor arising from a survey?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Texas Property Code",
+        "Texas Occupations Code",
+        "Texas Civil Practice & Remedies Code (16.011)",
+        "Texas Natural Resources Code"
+      ],
+      "correct_answer": "Texas Civil Practice & Remedies Code (16.011)",
+      "explanation": "Section 16.011 of the Texas Civil Practice & Remedies Code governs the limitations period for suits against registered surveyors — note it is not in the Occupations or Property Code.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_id": "68cfb0d8-ffa2-429a-8a66-01c6d3264403",
+      "question_text": "The 'standard of care' for a surveyor refers to:",
+      "question_type": "short_answer",
+      "options": [],
+      "correct_answer": "The level of skill and diligence a reasonably prudent surveyor would exercise under similar circumstances.",
+      "explanation": "Professional negligence is measured against the standard of care — what a reasonably prudent surveyor would do under like circumstances. Falling below it and causing harm creates liability.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_id": null,
+      "question_text": "Across the profession, which best describes the dual nature of land surveying introduced in this module?",
+      "question_type": "multiple_choice",
+      "options": [
+        "It is purely a field-labor occupation",
+        "It is both a measurement science and a legal/evidentiary practice",
+        "It is exclusively a branch of civil engineering",
+        "It is only the drafting of maps"
+      ],
+      "correct_answer": "It is both a measurement science and a legal/evidentiary practice",
+      "explanation": "Surveying combines measurement science (geometry, trigonometry, error theory) with legal/evidentiary practice (applying rules of law to physical and record evidence to locate boundaries).",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_id": null,
+      "question_text": "Convert 12 chains to feet (1 chain = 66 ft).",
+      "question_type": "numeric_input",
+      "options": [],
+      "correct_answer": "792",
+      "explanation": "1 chain = 66 ft, so 12 chains x 66 ft/chain = 792 ft.",
+      "difficulty": "easy"
+    }
+  ],
+  "problem_templates": [
+    {
+      "name": "Chains to feet conversion",
+      "category": "Introduction to Surveying — Units",
+      "subcategory": "Chains and feet",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "An old Texas deed records a course length of {{chains:f2}} chains. Using Gunter's chain (1 chain = 66 ft), what is this distance in feet?",
+      "parameters": [
+        {"name": "chains", "type": "float", "min": 2, "max": 40, "decimals": 2}
+      ],
+      "computed_vars": [],
+      "answer_formula": "chains*66",
+      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.05},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Recall the conversion", "calculation_template": "1 chain = 66 ft"},
+        {"step_number": 2, "title": "Multiply", "result_template": "{{chains:f2}} x 66 = {{_answer}} ft"}
+      ],
+      "explanation_template": "Gunter's chain is 66 ft long, so {{chains:f2}} chains x 66 ft/chain = {{_answer}} ft.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Acres to square feet conversion",
+      "category": "Introduction to Surveying — Units",
+      "subcategory": "Acres and square feet",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "A parcel is recorded as {{acres:f3}} acres. How many square feet does it contain? (1 acre = 43,560 sq ft.)",
+      "parameters": [
+        {"name": "acres", "type": "float", "min": 0.25, "max": 25, "decimals": 3}
+      ],
+      "computed_vars": [],
+      "answer_formula": "acres*43560",
+      "answer_format": {"decimals": 1, "unit": "sq ft", "tolerance": 1},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Recall the conversion", "calculation_template": "1 acre = 43,560 sq ft"},
+        {"step_number": 2, "title": "Multiply", "result_template": "{{acres:f3}} x 43,560 = {{_answer}} sq ft"}
+      ],
+      "explanation_template": "One acre is 43,560 sq ft (10 square chains). So {{acres:f3}} acres x 43,560 = {{_answer}} sq ft.",
+      "options_generator": {"method": "none"}
+    },
+    {
+      "name": "Varas to feet conversion (Texas)",
+      "category": "Introduction to Surveying — Units",
+      "subcategory": "Varas and feet",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "An original Texas grant calls a line of {{varas:f1}} varas. Using the Texas vara of 33 1/3 in (2.7778 ft, so 36 varas = 100 ft), what is this length in feet?",
+      "parameters": [
+        {"name": "varas", "type": "float", "min": 50, "max": 1900, "decimals": 1}
+      ],
+      "computed_vars": [],
+      "answer_formula": "varas*(100/36)",
+      "answer_format": {"decimals": 2, "unit": "ft", "tolerance": 0.1},
+      "solution_steps_template": [
+        {"step_number": 1, "title": "Recall the Texas vara", "calculation_template": "36 varas = 100 ft, so 1 vara = 100/36 = 2.7778 ft"},
+        {"step_number": 2, "title": "Multiply", "result_template": "{{varas:f1}} x 2.7778 = {{_answer}} ft"}
+      ],
+      "explanation_template": "The Texas vara is 33 1/3 in = 2.7778 ft (36 varas = 100 ft). So {{varas:f1}} varas x (100/36) = {{_answer}} ft.",
+      "options_generator": {"method": "none"}
+    }
+  ]
+}

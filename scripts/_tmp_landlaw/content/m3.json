@@ -1,0 +1,582 @@
+{
+  "module": {
+    "order_index": 3,
+    "title": "Module 3: Legal Doctrines / Principles in Property Law",
+    "description": "Easements and related non-possessory property interests, the methods by which they are created and terminated, and the Texas-specific rules governing adverse possession, encroachments, licenses, covenants, and dedication. Emphasizes how Texas disfavors prescriptive easements and channels access disputes into express grants and easements by necessity.",
+    "estimated_hours": 3.5,
+    "learning_objectives": [
+      "Define the various types of easements (appurtenant vs. in gross, affirmative vs. negative) and identify the dominant and servient estates.",
+      "Differentiate between the methods of creating easements (express grant/reservation, implied by prior use, necessity, prescription, estoppel, and dedication) and how each terminates.",
+      "Compare and contrast related property-law concepts (license vs. easement, acquiescence vs. adverse possession, statutory vs. common-law dedication, covenant vs. easement).",
+      "Apply the Texas statutory adverse-possession scheme (Civ. Prac. & Rem. Code Ch. 16) and explain why Texas disfavors prescriptive easements."
+    ],
+    "textbook_chapters": "Brown ch. 8; Tex. Civ. Prac. & Rem. Code Ch. 16; Tex. Prop. Code; Tex. Transp. Code Ch. 281"
+  },
+  "lessons": [
+    {
+      "title": "What Is an Easement? Definition, Estates, and Classifications",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "State the legal definition of an easement and explain why it is a non-possessory interest.",
+        "Distinguish appurtenant easements from easements in gross and identify the dominant and servient estates.",
+        "Classify easements as affirmative or negative and identify common surveying easement types."
+      ],
+      "blocks": [
+        {"block_type":"text","content":{"html":"<h3>The Nature of an Easement</h3><p>An <strong>easement</strong> is an <em>incorporeal, nonpossessory</em> right (a hereditament) of one party to use the land of another for a specific, limited purpose. It is <strong>not ownership of the land</strong> &mdash; it is an interest <em>in</em> the land. Several consequences flow from this definition:</p><ul><li>An easement always burdens <strong>the land of another</strong>; you cannot hold an easement over your own land (the two interests merge).</li><li>It is limited to a <strong>special use and purpose</strong> &mdash; the holder may not exceed the scope granted.</li><li>The grantor can convey only the rights the landowner actually has, and <strong>no more</strong>.</li><li>When an easement is granted for a specific purpose, <strong>fee title to the burdened land remains with the grantor</strong>, their heirs, or assigns. The easement is a carve-out of use, not of ownership.</li></ul><p>Between private parties Texas presumes a deed conveys <em>fee simple</em> unless the writing shows a lesser estate was intended (Tex. Prop. Code &sect;5.001). For the public, unless a conveyance or statute says otherwise, the presumption is that the public acquires only an <strong>easement</strong> in highways, not the fee.</p>"}},
+        {"block_type":"text","content":{"html":"<h3>Appurtenant Easements vs. Easements in Gross</h3><p>The single most important classification turns on whether the easement benefits <em>another parcel of land</em> or merely a <em>person/entity</em>.</p><ul><li><strong>Appurtenant easement</strong> &mdash; created to benefit other land. The benefited parcel is the <strong>dominant tenement (estate)</strong>; the burdened parcel is the <strong>servient tenement (estate)</strong>. Appurtenant easements <em>\"run with the land\"</em>: they pass automatically to later owners and do <strong>not</strong> disappear merely because a later deed fails to mention them or because the easement goes unused. A classic example is a private access driveway benefiting a back lot.</li><li><strong>Easement in gross</strong> &mdash; benefits no other land. There is a <strong>servient tenement but no dominant tenement</strong>. Common examples are <em>gas pipeline, electric, and other utility easements</em> held by a company rather than by a neighboring landowner.</li></ul><p>For the surveyor, the practical takeaway is that <strong>all easements involve three things to identify and describe</strong>: (1) the dominant parcel, (2) the servient parcel, and (3) the easement strip itself.</p>"}},
+        {"block_type":"image","content":{"url":"","alt":"Diagram of a dominant tenement and servient tenement separated by an easement strip","caption":"Figure: Dominant tenement (land benefiting) and servient tenement (land burdened), with the easement site straddling the servient parcel.","alignment":"center"}},
+        {"block_type":"table","content":{"headers":["Feature","Appurtenant","In Gross"],"rows":[["Dominant tenement","Yes (benefited land)","None"],["Servient tenement","Yes","Yes"],["Runs with the land?","Yes — passes to later owners","Traditionally personal (utility cos. an exception)"],["Typical example","Access driveway to a back lot","Gas pipeline / utility easement"],["Survives non-use / omission in later deed?","Yes","Depends on terms"]]}},
+        {"block_type":"text","content":{"html":"<h3>Affirmative vs. Negative; Servitudes</h3><p>An <strong>affirmative easement</strong> permits the holder to <em>do</em> some physical act on the servient land (drive across it, run a pipeline). A <strong>negative easement</strong> lets the dominant holder <em>prevent</em> the servient owner from some use of the servient land (for example, an easement of light and air, or a scenic/conservation restriction). Negative easements are far less common and are narrowly recognized.</p><p>The civil-law term <strong>servitude</strong> describes essentially the same idea &mdash; a limited real right over another&rsquo;s property entitling the holder to certain powers of use and enjoyment. In surveying practice the words are used interchangeably with easement.</p>"}},
+        {"block_type":"text","content":{"html":"<h3>Common Easement Types the Surveyor Encounters</h3><p>The <strong>right-of-way</strong> is the easement a land surveyor meets most often. Rights-of-way may serve ingress/egress, utility lines, pipelines, or highways, and may be acquired in <em>fee, by easement, by dedication, or by prescription</em>. A <strong>public</strong> right-of-way (highway, public road) may be used by every citizen; a <strong>private</strong> right-of-way serves a particular person, separate from the general public. Other recurring types include:</p><ul><li><strong>Utility easements</strong> &mdash; common in platted subdivisions for electric, telephone, cable, fiber, and pipelines (poles, wires, and underground lines).</li><li><strong>Drainage easements</strong> &mdash; carry runoff across the land of another.</li><li><strong>Flowage easements</strong> &mdash; the right to flood water onto another&rsquo;s land.</li><li><strong>Slope easements</strong> &mdash; shown on highway parcel maps; permit maintaining cut/fill slopes adjacent to the road. These may <em>terminate</em> when the slope no longer needs maintaining, if the deed so provides.</li></ul>"}},
+        {"block_type":"callout","content":{"type":"info","text":"Surveyor's drafting duty: a legal description for an easement must avoid ambiguity. Include the parent (servient) parcel and easement location, the kind and manner of permitted uses, who the users are, and the purpose of the easement."}},
+        {"block_type":"key_takeaways","content":{"title":"Key Takeaways","items":["An easement is a non-possessory right to use another's land; fee title stays with the servient owner.","Appurtenant easements benefit a dominant estate and run with the land; easements in gross (utilities, pipelines) benefit a person/entity with no dominant estate.","Every easement involves three descriptions: dominant parcel, servient parcel, and the easement strip itself.","Affirmative easements permit an act; negative easements prevent a servient use and are narrowly recognized."]}}
+      ],
+      "flashcards": [
+        {"term":"Easement","definition":"An incorporeal, nonpossessory right to use the land of another for a specific, limited purpose; an interest in land, not ownership of it.","hint_1":"Use, not own."},
+        {"term":"Dominant tenement (estate)","definition":"The parcel of land benefited by an appurtenant easement.","hint_1":"It 'dominates' — it gets the benefit."},
+        {"term":"Servient tenement (estate)","definition":"The parcel of land burdened by an easement.","hint_1":"It 'serves' — it carries the burden."},
+        {"term":"Appurtenant easement","definition":"An easement created to benefit other land; it runs with the land and passes to later owners even if a later deed omits it or it goes unused.","hint_1":"Attached to a benefited parcel."},
+        {"term":"Easement in gross","definition":"An easement that benefits no other land — there is a servient tenement but no dominant tenement (e.g., utility and pipeline easements).","hint_1":"Personal/entity benefit, no dominant estate."},
+        {"term":"Negative easement","definition":"An easement allowing the dominant holder to prevent the servient owner from some use of the servient land (e.g., light and air); narrowly recognized.","hint_1":"It stops a use rather than permitting one."}
+      ],
+      "images_needed": [
+        {"slug":"m3-l1-fig1","caption":"Dominant tenement (land benefiting) and servient tenement (land burdened) with the easement site straddling the servient parcel.","kind":"diagram"}
+      ]
+    },
+    {
+      "title": "Creating Easements I: Express Grants, Reservations, and Estoppel",
+      "estimated_minutes": 30,
+      "learning_objectives": [
+        "Explain why easements fall under the Statute of Frauds and how express easements are created.",
+        "Distinguish an exception from a reservation in a deed.",
+        "Describe easement by estoppel and its elements."
+      ],
+      "blocks": [
+        {"block_type":"text","content":{"html":"<h3>Two Basic Routes to an Easement</h3><p>Because an easement is an interest in land, it falls under the <strong>Statute of Frauds</strong> (in Texas, Tex. Bus. &amp; Com. Code &sect;26.01 &mdash; a conveyance of an interest in land must be in writing and signed). Broadly, easements arise in only two ways:</p><ul><li><strong>Through writings</strong> (express grant, reservation, exception, dedication by written plat); and</li><li><strong>Created at law / by operation of law</strong> (implied by prior use, by necessity, by prescription, or by estoppel).</li></ul><p>For a written easement to be valid, the description must allow the two parcels <em>and</em> the easement to be identified <strong>without ambiguity</strong>.</p>"}},
+        {"block_type":"text","content":{"html":"<h3>Express Easements</h3><p>The <strong>express easement</strong> is a deeded easement and is the <em>most commonly used</em> and most-favored method of creation. The instrument satisfies the Statute of Frauds and is recorded, giving constructive notice to subsequent purchasers. Because Texas courts <em>disfavor</em> the implied and prescriptive routes, Texas access rights are far more often documented <strong>expressly</strong> than created by operation of law &mdash; a recurring theme of this module.</p>"}},
+        {"block_type":"callout","content":{"type":"warning","text":"Texas differs (practical point): Because Texas scrutinizes implied and prescriptive easements strictly, the safest and most common way to secure access in Texas is an express, recorded grant. When in doubt, get it in writing and record it."}},
+        {"block_type":"text","content":{"html":"<h3>Reservation vs. Exception</h3><p>A grantor conveying land can carve out an easement in two related but distinct ways:</p><ul><li><strong>Exception</strong> &mdash; the grantor <em>withholds from the conveyance</em> a part of the land (or interest) that otherwise would have passed. Nothing new is created; an existing thing is simply excluded.</li><li><strong>Reservation</strong> &mdash; the grantor creates and keeps a <em>new right or interest that did not exist before</em> the conveyance (for example, reserving an access easement across the parcel being sold).</li></ul><p>The distinction matters because a reservation creates a fresh interest in the grantor, while an exception merely removes something from the grant.</p>"}},
+        {"block_type":"table","content":{"headers":["Mechanism","What happens","Creates a new interest?"],"rows":[["Express grant","Grantor conveys an easement to the grantee","Yes, in grantee"],["Reservation","Grantor keeps a new easement over land sold","Yes, in grantor"],["Exception","Grantor withholds existing land/interest from the conveyance","No — excludes existing"]]}},
+        {"block_type":"text","content":{"html":"<h3>Easement by Estoppel</h3><p>An <strong>easement by estoppel</strong> arises when one party leads another to reasonably believe an easement exists, and the second party relies on that belief to his detriment. The recognized elements are:</p><ul><li>One party <strong>knows the true situation</strong>;</li><li>That party <strong>remains silent or affirmatively encourages</strong> the other party in an innocent belief;</li><li>The other party <strong>relies</strong> on the actions/representations of the first; and</li><li>It would be inequitable to let the first party <strong>change the position</strong> he led the innocent party to believe.</li></ul><p>Estoppel is an equitable doctrine &mdash; it prevents a landowner from denying an easement after inducing reasonable, detrimental reliance.</p>"}},
+        {"block_type":"key_takeaways","content":{"title":"Key Takeaways","items":["Easements are interests in land governed by the Statute of Frauds; they arise through writings or by operation of law.","The express, recorded easement is the most common and most-favored method — especially important in Texas, which disfavors implied/prescriptive easements.","A reservation creates a new interest kept by the grantor; an exception merely withholds something that already existed.","Easement by estoppel bars a landowner from denying an easement after inducing another's reasonable, detrimental reliance."]}}
+      ],
+      "flashcards": [
+        {"term":"Express easement","definition":"A deeded easement satisfying the Statute of Frauds; the most common and most-favored method of creating an easement.","hint_1":"Written and recorded."},
+        {"term":"Reservation","definition":"A deed mechanism by which the grantor creates and retains a new right or interest (e.g., an easement) that did not exist before the conveyance.","hint_1":"Grantor keeps something NEW."},
+        {"term":"Exception","definition":"A deed mechanism by which the grantor withholds from the conveyance land or an interest that otherwise would have passed.","hint_1":"Excludes something that already existed."},
+        {"term":"Easement by estoppel","definition":"An equitable easement arising when a landowner induces another's reasonable belief that an easement exists and that party detrimentally relies on it.","hint_1":"Silence + reliance = can't take it back."},
+        {"term":"Statute of Frauds (easements)","definition":"Rule (Tex. Bus. & Com. Code §26.01) requiring conveyances of interests in land, including easements, to be in writing and signed.","hint_1":"Land interests must be written."}
+      ],
+      "images_needed": []
+    },
+    {
+      "title": "Creating Easements II: Implied, Necessity, Prescription, and Dedication",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "Distinguish implied easements by prior use from easements by necessity and state their Texas elements.",
+        "Explain the elements of a prescriptive easement and why Texas disfavors them.",
+        "Differentiate statutory from common-law dedication and explain the Texas 1981 limitation on implied dedication."
+      ],
+      "blocks": [
+        {"block_type":"text","content":{"html":"<h3>Implied Easement by Prior Use (Quasi-Easement)</h3><p>An easement may be <em>implied</em> from a prior use existing before a tract is split. Classic example: a tract has a garage at the rear served by a driveway; the owner subdivides and sells the rear portion without mentioning the driveway. An easement is implied so the rear lot keeps its access. These easements are <strong>not recorded</strong>, so the surveyor must watch for their existence. The Texas elements are:</p><ul><li><strong>Unity of ownership</strong> before severance;</li><li>Use <strong>open and apparent</strong> at the time of severance;</li><li>Use <strong>continuous</strong> (so the parties must have intended it to pass); and</li><li>Use <strong>reasonably necessary</strong> &mdash; a <em>lower</em> bar than the strict necessity required for a necessity easement.</li></ul>"}},
+        {"block_type":"accordion","content":{"sections":[{"title":"Case: Hamrick v. Ward, 446 S.W.3d 377 (Tex. 2014)","content":"<p>The Texas Supreme Court <strong>restricted prior-use for roadway/access claims</strong>. A party claiming an implied easement <em>for roadway access</em> to a landlocked, previously unified parcel must now proceed under <strong>easement-by-necessity, NOT prior use</strong>. Prior use still applies to non-access uses (utility lines, drainage) where it remains 'reasonably necessary.' This narrows a doctrine that had been unsettled in Texas for roughly 125 years and pushes landlocked road-access claims into the stricter necessity framework.</p>","open":false}]}},
+        {"block_type":"text","content":{"html":"<h3>Easement by Necessity</h3><p>This type of implied easement is necessary to the very use of the property and is one of the most difficult to obtain. It typically applies to <strong>landlocked parcels</strong>, and it <em>terminates when the necessity ceases</em> (for example, when alternative legal access becomes available). Texas requires <strong>all three</strong> elements:</p><ul><li><strong>Unity of ownership</strong> of the dominant and servient estates <em>prior to severance</em> &mdash; the grantor must have owned both as a single tract or unit;</li><li>Access is a <strong>present strict necessity, not a mere convenience</strong>; and</li><li>The necessity <strong>existed at the time of severance</strong>.</li></ul>"}},
+        {"block_type":"callout","content":{"type":"warning","text":"Texas differs: Texas demands STRICT necessity (a true landlock with no legal access), while many states accept mere 'reasonable' necessity. Texas also enforces the unity-of-ownership element rigorously (Koonce v. Brite Estate, 663 S.W.2d 451 (Tex. 1984)) and terminates the easement when the necessity ends."}},
+        {"block_type":"text","content":{"html":"<h3>Prescriptive Easements &mdash; and Why Texas Disfavors Them</h3><p>A <strong>prescriptive easement</strong> is acquired by long, continued use of another&rsquo;s land for the purpose of the intended easement. Its elements borrow from adverse possession (in Texas, the 10-year period of &sect;16.026): the use must be (1) <strong>open and notorious</strong>, (2) <strong>continuous and uninterrupted</strong>, (3) <strong>adverse/hostile</strong> (permissive use can <em>never</em> ripen), and (4) <strong>exclusive</strong>, for the full statutory period. <strong>Permission cancels the claim</strong>; so does a friendly &ldquo;neighborly accommodation,&rdquo; which is consent personal to those two neighbors and does not bind later owners. Payment of property taxes is not required for a prescriptive <em>easement</em> (as opposed to fee ownership).</p>"}},
+        {"block_type":"callout","content":{"type":"error","text":"THE KEY TEXAS POINT — Exclusivity: In Texas, 'exclusive' means use by the claimant and NOT by the landowner. JOINT or SHARED use DEFEATS the claim. Texas courts hold that 'joint use of a road, no matter how long, cannot ripen into a prescriptive easement.' Under the general common-law/Restatement view an easement is non-possessory, so most states do NOT require exclusivity — Texas is the opposite. Because most driveway/road-sharing fact patterns involve some owner use, Texas prescriptive claims rarely succeed."}},
+        {"block_type":"accordion","content":{"sections":[{"title":"Case: Tran v. Macha, 213 S.W.3d 913 (Tex. 2006)","content":"<p>Neighbors shared a driveway under a mutual mistake about the boundary. The Texas Supreme Court <strong>reversed</strong> the easement, holding that mutual/joint use does <strong>not</strong> support an exclusive, hostile claim. There must be an 'unmistakable assertion of a claim of exclusive ownership.' This is the headline authority for the proposition that Texas disfavors prescriptive easements and that joint use is normally fatal to the exclusivity element.</p>","open":true}]}},
+        {"block_type":"text","content":{"html":"<h3>Dedication: Statutory vs. Common-Law</h3><p><strong>Dedication</strong> gives the public a right of use (often passage). It does <strong>not</strong> burden the municipality with maintenance unless the public body <em>accepts</em> the dedication &mdash; acceptance is a <strong>separate event</strong>, which may be express (official action of the legislative body) or implied (years of public use plus repair by the proper authorities).</p><ul><li><strong>Statutory dedication</strong> &mdash; made by recording a <em>plat/map</em> marking streets/areas for public use under the platting statutes (Tex. Loc. Gov&rsquo;t Code Chs. 212/232; Tex. Prop. Code Ch. 12). Plat approval is <strong>not</strong> automatically acceptance.</li><li><strong>Common-law dedication</strong> &mdash; requires (1) the owner&rsquo;s acts showing <strong>donative intent</strong>, (2) <strong>public reliance/benefit</strong>, and (3) <strong>offer and acceptance</strong> (formal or informal, e.g., the authority grades/repairs the road or the public uses it).</li></ul><p>Note the related <em>implied dedication from a subdivision plat</em>: when an owner subdivides, a purchaser of any lot acquires an easement over the streets shown on the plat, and an implied dedication to the public has occurred.</p>"}},
+        {"block_type":"callout","content":{"type":"warning","text":"Texas differs (CRITICAL — the 1981 statute): Under Tex. Transp. Code Ch. 281 (eff. Aug. 1981), Texas ABOLISHED implied dedication of a public road on private property in counties of 50,000 or fewer. There, public road status can be acquired only by purchase, condemnation, an EXPRESS WRITTEN dedication communicated to the commissioners court, or a final adverse-possession judgment. 'Everyone has always used it' is no longer enough. Not retroactive — roads impliedly dedicated before August 1981 survive."}},
+        {"block_type":"key_takeaways","content":{"title":"Key Takeaways","items":["Implied-by-prior-use needs unity of ownership, open/apparent + continuous use, and reasonable necessity; after Hamrick v. Ward, landlocked road access must go through necessity, not prior use.","Easement by necessity in Texas requires unity of ownership before severance, strict (not mere) necessity, and necessity at severance — and it ends when the necessity ends.","Texas disfavors prescriptive easements; the exclusivity element means joint/shared use defeats the claim (Tran v. Macha).","Statutory dedication is by recorded plat; common-law dedication needs donative intent, reliance, and acceptance. Texas abolished implied dedication of public roads in small counties (Transp. Code Ch. 281, 1981)."]}}
+      ],
+      "flashcards": [
+        {"term":"Implied easement by prior use","definition":"An easement implied when, before a tract is split, a use was open/apparent and continuous and is reasonably necessary to the conveyed parcel; requires prior unity of ownership.","hint_1":"Quasi-easement existing before the split."},
+        {"term":"Easement by necessity (Texas)","definition":"An implied easement requiring unity of ownership before severance, STRICT necessity (true landlock), and that the necessity existed at severance; terminates when the necessity ends.","hint_1":"Landlocked + strict necessity at severance."},
+        {"term":"Prescriptive easement","definition":"A use-right gained by open & notorious, continuous & uninterrupted, adverse/hostile, and exclusive use for the statutory period (10 yr in Texas); permission defeats it.","hint_1":"Like adverse possession, but a USE right."},
+        {"term":"Exclusivity (Texas prescription)","definition":"In Texas, 'exclusive' means use by the claimant and not by the owner; joint or shared use defeats a prescriptive-easement claim (Tran v. Macha).","hint_1":"Sharing the road is fatal in Texas."},
+        {"term":"Neighborly accommodation","definition":"Friendly, implied permission to use one's land; it is personal to those neighbors, does not bind later owners, and prevents the use from being adverse/hostile.","hint_1":"Permission = not hostile."},
+        {"term":"Statutory dedication","definition":"Dedication of streets/areas to public use made by recording a plat or map under the platting statutes; plat approval is not automatic acceptance.","hint_1":"By recorded plat."},
+        {"term":"Common-law dedication","definition":"Dedication requiring the owner's donative intent, public reliance/benefit, and offer and acceptance (formal or informal).","hint_1":"Intent + reliance + acceptance."},
+        {"term":"Tex. Transp. Code Ch. 281 (1981)","definition":"Texas statute abolishing implied dedication of public roads on private land in counties of 50,000 or fewer; public status there requires written dedication, purchase, condemnation, or an adverse-possession judgment.","hint_1":"Kills implied road dedication in small counties."}
+      ],
+      "images_needed": [
+        {"slug":"m3-l3-fig1","caption":"A tract subdivided into a front and rear lot, with a driveway across the front serving the rear (back) lot — illustrating an implied easement by prior use / by necessity.","kind":"diagram"}
+      ]
+    },
+    {
+      "title": "Adverse Possession: Elements and the Texas Statutory Scheme",
+      "estimated_minutes": 40,
+      "learning_objectives": [
+        "List and explain the common-law elements of adverse possession.",
+        "Apply the Texas statutory limitation periods (§§16.024, 16.025, 16.026, 16.028) and their distinct requirements.",
+        "Explain color of title, tacking, and why Texas's tax-payment and acreage-cap rules are distinctive."
+      ],
+      "blocks": [
+        {"block_type":"text","content":{"html":"<h3>The Elements of Adverse Possession</h3><p><strong>Adverse possession</strong> is a method of acquiring title by possession for a statutory period under certain conditions. The general common-law elements require that possession be:</p><ul><li><strong>Actual</strong> &mdash; the claimant physically acts as an owner; mere oral or written claims are not enough.</li><li><strong>Open &amp; notorious</strong> &mdash; possession obvious enough that an owner who investigates would notice the trespass.</li><li><strong>Exclusive</strong> &mdash; the possessor does not share possession with the true owner or the public.</li><li><strong>Hostile</strong> (adverse, under claim of right) &mdash; possession is in opposition to the true owner&rsquo;s rights; <em>permissive</em> use can never be adverse.</li><li><strong>Continuous &amp; uninterrupted</strong> &mdash; all elements must be met at all times throughout the statutory period.</li></ul><p>Government-owned (public) land is generally <strong>exempt</strong> from adverse possession.</p>"}},
+        {"block_type":"callout","content":{"type":"warning","text":"Texas differs — it is WHOLLY STATUTORY: Texas adverse possession lives in Tex. Civ. Prac. & Rem. Code Ch. 16, Subch. B — NOT the Property Code. Instead of one common-law test, Texas offers several distinct limitation periods (3/5/10/25 years), each with its own elements. A claimant pleads under the period whose elements it can meet."}},
+        {"block_type":"text","content":{"html":"<h3>Statutory Definitions (§16.021)</h3><p>The Texas statute defines its terms precisely:</p><ul><li><strong>&ldquo;Adverse possession&rdquo;</strong> = an actual and visible appropriation of real property, commenced and continued under a <em>claim of right</em> inconsistent with and hostile to the claim of another.</li><li><strong>&ldquo;Color of title&rdquo;</strong> = a consecutive chain of transfers to the possessor that is <em>not</em> a regular chain from the sovereign, or a regular chain with a missing or defective link.</li><li><strong>&ldquo;Title&rdquo;</strong> = a regular chain of transfers from or under the sovereignty of the soil.</li><li><strong>&ldquo;Peaceable possession&rdquo;</strong> = continuous possession not interrupted by an adverse suit to recover the property.</li></ul>"}},
+        {"block_type":"table","content":{"headers":["Statute","Period","Core requirement"],"rows":[["§16.024","3 yr","Peaceable & adverse possession under TITLE or COLOR OF TITLE (strongest paper basis → shortest period)"],["§16.025","5 yr","Cultivate/use/enjoy + PAY TAXES + claim under a duly registered deed (excludes quitclaim/forged). A single missed tax year is fatal."],["§16.026","10 yr","Peaceable & adverse, cultivating/using/enjoying; no instrument or taxes needed, but capped at 160 acres unless enclosed or under a recorded deed fixing the boundaries"],["§16.028","25 yr","Under a RECORDED instrument purporting to convey, EVEN IF VOID on its face or in fact (excludes quitclaim/forged); extends to the whole area described"]]}},
+        {"block_type":"text","content":{"html":"<h3>Reading the Scheme</h3><p>Notice the logic: the <strong>stronger the paper basis</strong>, the <strong>shorter the period</strong>. With title or color of title you may perfect in just <strong>3 years</strong> (&sect;16.024). With a registered deed plus tax payments and use, <strong>5 years</strong> (&sect;16.025). With nothing but naked possession and use, <strong>10 years</strong> &mdash; but capped at <strong>160 acres</strong> unless the larger area is enclosed or held under a recorded deed fixing the boundaries (&sect;16.026). A <em>recorded but void</em> instrument supports a <strong>25-year</strong> claim over the whole described area (&sect;16.028). A separate 25-year long-stop (&sect;16.027) runs regardless of legal disability such as minority or unsound mind.</p><p><strong>Tacking:</strong> successive possessors in <em>privity</em> (each transferring possession to the next) may add their periods together to reach the statutory total &mdash; but Texas&rsquo;s statutory prerequisites (taxes, registered deed, recorded instrument) make tacking more formalized than at common law.</p>"}},
+        {"block_type":"callout","content":{"type":"warning","text":"Texas differs (distinctive features): (1) The 5-year track (§16.025) requires PAYING PROPERTY TAXES — absent from traditional common law and a frequent claim-killer. (2) The 10-year track's 160-ACRE CAP (absent enclosure or a recorded deed) has no general common-law analog. (3) The §16.028 VOID-INSTRUMENT track is broader than common-law 'color of title.'"}},
+        {"block_type":"text","content":{"html":"<h3>Acquiescence &mdash; A Related but Different Doctrine</h3><p>If possession was <em>not</em> hostile, a boundary may still shift by <strong>acquiescence</strong>. In acquiescence cases <em>neither neighbor intends to take the other&rsquo;s land</em>; there is a <strong>mutual mistake</strong> about the true line. The requirements typically are good faith plus a long period of recognition: occupation must be visible up to a definite, marked line, and a long time must elapse. When satisfied, <strong>title passes silently</strong> &mdash; the occupied line becomes the boundary. Because acquiescence rests on mutual mistake rather than hostility, it is the counterpoint to adverse possession (which requires hostility).</p>"}},
+        {"block_type":"key_takeaways","content":{"title":"Key Takeaways","items":["Common-law adverse possession requires actual, open & notorious, exclusive, hostile, and continuous possession for the statutory period; permissive use is never hostile.","Texas adverse possession is wholly statutory (Civ. Prac. & Rem. Code Ch. 16) with multiple tracks: 3 yr (color of title), 5 yr (deed + taxes + use), 10 yr (use; 160-acre cap), 25 yr (recorded-but-void instrument).","The stronger the paper/title basis, the shorter the period; the 5-year tax-payment requirement and 10-year acreage cap are distinctively Texan.","Acquiescence (mutual mistake, no hostility) can move a boundary line silently — contrast with hostile adverse possession."]}}
+      ],
+      "flashcards": [
+        {"term":"Adverse possession","definition":"Acquisition of title by actual, open & notorious, exclusive, hostile, and continuous possession for the statutory period under certain conditions.","hint_1":"Possess like an owner long enough to own."},
+        {"term":"Hostile possession","definition":"Possession in opposition to the true owner's rights, under a claim of right; permissive use is not hostile and cannot ripen.","hint_1":"Against the owner's rights, not by permission."},
+        {"term":"Color of title","definition":"A consecutive chain of transfers to the possessor that is not a regular chain from the sovereign, or a regular chain with a missing or defective link.","hint_1":"A defective paper basis."},
+        {"term":"§16.024 (3-year statute)","definition":"Texas adverse-possession period for peaceable, adverse possession held under title or color of title — the shortest period because of the strong paper basis.","hint_1":"Best paper → shortest time."},
+        {"term":"§16.025 (5-year statute)","definition":"Texas adverse-possession period requiring use/cultivation/enjoyment, PAYMENT OF TAXES, and a duly registered deed (no quitclaim/forged); one missed tax year is fatal.","hint_1":"Deed + taxes + use = 5 years."},
+        {"term":"§16.026 (10-year statute)","definition":"Texas adverse-possession period for peaceable, adverse possession with use; no deed or taxes needed but capped at 160 acres unless enclosed or under a recorded deed fixing the boundaries.","hint_1":"Naked possession; 160-acre cap."},
+        {"term":"§16.028 (25-year statute)","definition":"Texas adverse-possession period under a recorded instrument purporting to convey, even if void on its face or in fact; extends to the whole described area.","hint_1":"Recorded but void instrument."},
+        {"term":"Acquiescence","definition":"Boundary doctrine where neighbors, under a mutual mistake about the true line and with no hostility, recognize a marked line for a long period until title passes silently.","hint_1":"Mutual mistake, not hostility."},
+        {"term":"Tacking","definition":"Adding the possession periods of successive possessors who are in privity to satisfy the statutory limitation period.","hint_1":"Chain the years together via privity."}
+      ],
+      "images_needed": []
+    },
+    {
+      "title": "Related Concepts: Licenses, Encroachments, Covenants, Eminent Domain, and Reversion",
+      "estimated_minutes": 35,
+      "learning_objectives": [
+        "Compare and contrast a license with an easement.",
+        "Describe encroachments and the Texas remedies for them.",
+        "Distinguish covenants/restrictions from easements and explain reversion (reversionary) rights along vacated streets."
+      ],
+      "blocks": [
+        {"block_type":"text","content":{"html":"<h3>License vs. Easement</h3><p>A <strong>license</strong> is mere <em>permission</em> to use another&rsquo;s land &mdash; it is <strong>personal</strong>, generally <strong>revocable</strong> at the will of the landowner, and does <strong>not</strong> create an interest in land (so it is not subject to the Statute of Frauds and does not run with the land). An <strong>easement</strong>, by contrast, is an <em>interest in land</em>: it is generally irrevocable within its terms, must satisfy the Statute of Frauds if created expressly, and (if appurtenant) runs with the land. Recall that <strong>permissive</strong> use &mdash; the hallmark of a license &mdash; can never ripen into a prescriptive easement.</p>"}},
+        {"block_type":"table","content":{"headers":["Attribute","License","Easement"],"rows":[["Nature","Personal permission","Interest in land"],["Revocable?","Generally yes, at will","Generally no (within terms)"],["Statute of Frauds?","No","Yes (if express)"],["Runs with the land?","No","Yes, if appurtenant"],["Can ripen by prescription?","No (permissive)","—"]]}},
+        {"block_type":"text","content":{"html":"<h3>Encroachments</h3><p>An <strong>encroachment</strong> is an unauthorized physical intrusion of an improvement &mdash; a fence, building, eave, or driveway &mdash; onto a neighbor&rsquo;s land. Texas remedies include: <strong>trespass to try title / quiet title</strong> (Tex. Prop. Code Ch. 22), an <strong>injunction</strong> to remove the encroachment, or <strong>damages</strong>. A long-standing encroachment can mature into <em>title</em> via adverse possession or into a <em>use-right</em> via prescriptive easement &mdash; but both are hard in Texas because of the strict statutory elements and the exclusivity rule (joint use defeats prescription, <em>Tran v. Macha</em>).</p>"}},
+        {"block_type":"callout","content":{"type":"warning","text":"Texas differs: Texas has no general 'innocent improver' / relative-hardship statute that automatically lets a good-faith encroacher buy the strip. Title passes only through the statutory adverse-possession tracks (though courts may still balance equities for injunctive relief). The surveyor's measured boundary location is typically dispositive, and acquiescence/agreed-boundary doctrines are applied narrowly."}},
+        {"block_type":"text","content":{"html":"<h3>Covenants and Restrictions</h3><p>A <strong>covenant</strong> is an agreement between parties that restricts the use of a freehold &mdash; in effect, a restriction on use by common agreement &mdash; and it is enforceable only if it is <strong>legal</strong>. Restrictive covenants (deed restrictions, subdivision CC&amp;Rs) differ from easements: a covenant <em>limits how the burdened owner may use his own land</em> (e.g., residential-use-only, setback, no commercial activity), whereas an easement <em>grants someone else a right to use</em> the burdened land. A covenant that &ldquo;runs with the land&rdquo; binds successors, much like an appurtenant easement, but its subject is land <em>use restriction</em>, not a right of physical use.</p>"}},
+        {"block_type":"text","content":{"html":"<h3>Eminent Domain and Condemnation</h3><p><strong>Eminent domain</strong> is the power of a sovereign to take, or authorize the taking of, private property for public use without the owner&rsquo;s consent, conditioned on payment of <strong>just compensation</strong>. The formal exercise is <strong>condemnation</strong>. Importantly for surveyors: when land is taken for public use, the condemnor acquires only an <strong>easement</strong> unless the fee is necessary for the purpose, or a statute or deed conveys the fee. So a road or utility taking often leaves <em>underlying fee</em> in the original owner, subject to the public easement.</p>"}},
+        {"block_type":"text","content":{"html":"<h3>Reversion (Reversionary) Rights Along Vacated Streets</h3><p>A <strong>reversionary right</strong> permits an adjacent landowner to gain or regain property rights within a <em>vacated</em> easement (such as an abandoned street). When a public easement is vacated, the old underlying boundary lines revive. The general principle: <em>unless a deed or map creating the easement indicates otherwise, reversion rights extend from the street termini of the property lines to the centerline (or thread) of the street, in a direction at right angles to the centerline.</em> Practical rules:</p><ul><li><strong>Mid-block lots</strong> revert to the centerline; <strong>curved streets</strong> revert <em>radially</em>; <strong>angle points</strong> use the <em>bisection of the angle</em>.</li><li>You <strong>cannot</strong> extend reversion rights beyond the original boundaries.</li><li>Beware a <strong>private</strong> easement underlying a vacated <strong>public</strong> one, and note that some statutes automatically include a utility easement in a public road easement.</li><li>The surveyor should <em>document</em> apparent inconsistent use but <strong>not make legal use decisions</strong> &mdash; the obligation is to notify the client. (This connects to the Module 1&ndash;2 centerline/strip-and-gore presumptions: land bounded &ldquo;by&rdquo; or &ldquo;along&rdquo; a road is presumed to carry title to the center, subject to the public easement, unless clearly excluded.)</li></ul>"}},
+        {"block_type":"image","content":{"url":"","alt":"Diagram showing reversion rights of lots extending to the centerline of a vacated street, with radial lines on a curve and angle bisection at corners","caption":"Figure: Reversion rights extend from the street-side property termini to the centerline of a vacated street — perpendicular on tangents, radial on curves, and by angle bisection at angle points.","alignment":"center"}},
+        {"block_type":"key_takeaways","content":{"title":"Key Takeaways","items":["A license is revocable personal permission and creates no interest in land; an easement is an interest in land that (if appurtenant) runs with the land.","Encroachments are remedied in Texas by trespass-to-try-title/quiet title, injunction, or damages; there is no general innocent-improver statute, and the surveyed boundary usually controls.","Covenants restrict how the burdened owner may use his own land; easements grant another a right to use it.","Eminent-domain takings usually acquire only an easement unless the fee is necessary; vacated-street reversion runs to the centerline (radial on curves, angle-bisected at corners) and cannot exceed original boundaries."]}}
+      ],
+      "flashcards": [
+        {"term":"License (property)","definition":"Revocable, personal permission to use another's land; creates no interest in land and does not run with the land.","hint_1":"Permission you can take back."},
+        {"term":"Encroachment","definition":"An unauthorized physical intrusion of an improvement (fence, building, eave, driveway) onto a neighbor's land.","hint_1":"A structure crossing the line."},
+        {"term":"Covenant / restriction","definition":"An agreement restricting the use of a freehold by common agreement; enforceable only if legal. Limits how the burdened owner may use his own land.","hint_1":"A use restriction, not a use right."},
+        {"term":"Eminent domain","definition":"The sovereign's power to take private property for public use without consent, on payment of just compensation; exercised through condemnation.","hint_1":"Public take + just compensation."},
+        {"term":"Condemnation","definition":"The formal legal process of exercising eminent domain to transfer title (or an easement) from a private owner to the government.","hint_1":"The procedure that effects the taking."},
+        {"term":"Reversionary right","definition":"The right of an adjacent landowner to gain or regain property rights within a vacated easement (e.g., an abandoned street), generally extending to the street centerline.","hint_1":"Get the vacated street strip back to centerline."}
+      ],
+      "images_needed": [
+        {"slug":"m3-l5-fig1","caption":"Reversion rights of lots along a vacated street: perpendicular to centerline on tangents, radial on curves, and by angle bisection at angle points.","kind":"diagram"}
+      ]
+    }
+  ],
+  "quiz_questions": [
+    {
+      "lesson_index": 0,
+      "question_text": "Which statement best describes the legal nature of an easement?",
+      "question_type": "multiple_choice",
+      "options": [
+        "It is a possessory ownership interest equal to fee simple.",
+        "It is a nonpossessory right to use the land of another for a limited purpose.",
+        "It transfers fee title of the burdened land to the easement holder.",
+        "It can be held by an owner over that owner's own land."
+      ],
+      "correct_answer": "It is a nonpossessory right to use the land of another for a limited purpose.",
+      "explanation": "An easement is an incorporeal, nonpossessory interest in another's land for a specific use; fee title remains with the servient owner. You cannot hold an easement over your own land (the interests merge), and it never conveys fee ownership.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 0,
+      "question_text": "A back lot benefits from a driveway easement across a front lot. The benefited back lot is best described as the:",
+      "question_type": "multiple_choice",
+      "options": ["Servient tenement","Dominant tenement","Easement in gross holder","Licensee"],
+      "correct_answer": "Dominant tenement",
+      "explanation": "The parcel benefited by an appurtenant easement is the dominant tenement; the burdened front lot is the servient tenement. This is appurtenant (it benefits land), not in gross, and it is an easement, not a license.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 0,
+      "question_text": "A gas pipeline company holds an easement crossing a ranch. This easement is in gross because:",
+      "question_type": "multiple_choice",
+      "options": [
+        "It benefits the adjoining ranch as a dominant estate.",
+        "There is a servient tenement but no dominant tenement.",
+        "It is revocable at the landowner's will.",
+        "It cannot be recorded."
+      ],
+      "correct_answer": "There is a servient tenement but no dominant tenement.",
+      "explanation": "An easement in gross benefits a person or entity (the pipeline company), not another parcel of land, so there is a servient tenement but no dominant tenement. It is not revocable like a license and is typically recorded.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 0,
+      "question_text": "An appurtenant easement disappears automatically if a later deed of the dominant parcel fails to mention it.",
+      "question_type": "true_false",
+      "options": ["True","False"],
+      "correct_answer": "False",
+      "explanation": "Appurtenant easements run with the land. They do not disappear merely because a subsequent conveyance omits them or because they go unused.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 0,
+      "question_text": "A slope easement shown on a highway parcel map permits the State to maintain a cut/fill slope. What feature is unique to this easement type as described in the source material?",
+      "question_type": "multiple_choice",
+      "options": [
+        "It can never be terminated.",
+        "It may terminate when the slope no longer needs maintaining, if the deed so provides.",
+        "It automatically conveys fee title to the State.",
+        "It is always an easement in gross held by a utility."
+      ],
+      "correct_answer": "It may terminate when the slope no longer needs maintaining, if the deed so provides.",
+      "explanation": "Slope easements may terminate once the slopes no longer need to be maintained, depending on the specific wording of the deed.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "Why does the express, recorded easement remain the most-favored method of creating access rights in Texas in particular?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Texas does not recognize any implied or prescriptive easements at all.",
+        "Texas courts disfavor implied/prescriptive routes, so documenting access expressly is safest.",
+        "Express easements are exempt from the Statute of Frauds.",
+        "Recording is impossible for any other easement type."
+      ],
+      "correct_answer": "Texas courts disfavor implied/prescriptive routes, so documenting access expressly is safest.",
+      "explanation": "Because Texas strictly scrutinizes implied and prescriptive easements, access rights are far more often (and more safely) documented by an express, recorded grant. Express easements must satisfy the Statute of Frauds, and other easement types can also be recorded.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "A grantor sells a parcel but creates and keeps a new access easement across the land conveyed. This is an example of a(n):",
+      "question_type": "multiple_choice",
+      "options": ["Exception","Reservation","License","Dedication"],
+      "correct_answer": "Reservation",
+      "explanation": "A reservation creates a NEW right or interest retained by the grantor that did not exist before. An exception merely withholds something already existing; a license is revocable permission; dedication gives rights to the public.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "In a deed, an 'exception' differs from a 'reservation' in that an exception creates a brand-new interest in the grantor.",
+      "question_type": "true_false",
+      "options": ["True","False"],
+      "correct_answer": "False",
+      "explanation": "It is the reservation that creates a new interest in the grantor. An exception withholds from the conveyance land or an interest that already existed; it creates nothing new.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 1,
+      "question_text": "Which is NOT an element of an easement by estoppel?",
+      "question_type": "multiple_choice",
+      "options": [
+        "One party knows the true situation.",
+        "That party remains silent or encourages the other's innocent belief.",
+        "The other party relies on the first party's actions.",
+        "The claimant pays property taxes for five years."
+      ],
+      "correct_answer": "The claimant pays property taxes for five years.",
+      "explanation": "Tax payment is a feature of the 5-year adverse-possession statute, not estoppel. Easement by estoppel requires knowledge of the true situation, silence/encouragement, reliance, and detrimental change of position.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "After Hamrick v. Ward (Tex. 2014), a party claiming roadway access to a landlocked, previously unified parcel must proceed under which theory?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Implied easement by prior use",
+        "Easement by necessity",
+        "Prescriptive easement",
+        "Easement by estoppel"
+      ],
+      "correct_answer": "Easement by necessity",
+      "explanation": "Hamrick v. Ward channels landlocked road-access claims into the stricter easement-by-necessity framework rather than the easier 'reasonably necessary' prior-use standard. Prior use still applies to non-access uses like utilities or drainage.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "Which set lists the Texas elements of an easement by necessity?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Open & notorious, continuous, exclusive, hostile",
+        "Unity of ownership before severance, strict necessity, necessity at severance",
+        "Donative intent, reliance, acceptance",
+        "Writing, recording, tax payment"
+      ],
+      "correct_answer": "Unity of ownership before severance, strict necessity, necessity at severance",
+      "explanation": "Texas requires all three: unity of ownership of dominant and servient estates before severance, strict (not mere) necessity, and that the necessity existed at the time of severance. The first option lists prescription elements; the third lists common-law dedication; the fourth describes the 5-year adverse-possession track.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "Two neighbors share a single driveway for over 20 years under a mutual mistake about the boundary. Under Texas law (Tran v. Macha), can one neighbor claim a prescriptive easement over the other's portion?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Yes — 20 years exceeds the 10-year period.",
+        "Yes — long use automatically creates the easement.",
+        "No — joint/shared use defeats the exclusivity element.",
+        "No — prescriptive easements do not exist in Texas."
+      ],
+      "correct_answer": "No — joint/shared use defeats the exclusivity element.",
+      "explanation": "Tran v. Macha holds that in Texas 'exclusive' means use by the claimant and not the owner; joint or shared use cannot ripen into a prescriptive easement no matter how long it lasts. Prescriptive easements do exist in Texas but are disfavored and strictly scrutinized.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "Texas requires a claimant to prove the exclusivity element for a prescriptive easement, which is the opposite of the general common-law/Restatement view.",
+      "question_type": "true_false",
+      "options": ["True","False"],
+      "correct_answer": "True",
+      "explanation": "Most jurisdictions do not require exclusivity for a prescriptive easement because an easement is non-possessory; shared use can still create one. Texas is the opposite — it requires exclusivity, so joint use is normally fatal.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "Under Tex. Transp. Code Ch. 281 (eff. 1981), how can the public acquire a road across private land in a county of 50,000 or fewer people?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Only by long public use ('everyone has always used it').",
+        "By purchase, condemnation, express written dedication, or an adverse-possession judgment.",
+        "Automatically when a plat is approved.",
+        "By oral dedication to any county employee."
+      ],
+      "correct_answer": "By purchase, condemnation, express written dedication, or an adverse-possession judgment.",
+      "explanation": "Chapter 281 abolished implied dedication of public roads in small counties. Public road status there requires purchase, condemnation, an express written dedication to the commissioners court, or a final adverse-possession judgment. Mere public use is no longer sufficient.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "Permissive use ('neighborly accommodation') can ripen into a prescriptive easement if it continues long enough.",
+      "question_type": "true_false",
+      "options": ["True","False"],
+      "correct_answer": "False",
+      "explanation": "Permission defeats the adverse/hostile element. A neighborly accommodation is consent personal to those neighbors; it can never ripen into a prescriptive easement no matter how long it lasts.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 2,
+      "question_text": "Statutory dedication is accomplished primarily by which act?",
+      "question_type": "multiple_choice",
+      "options": [
+        "Recording a plat or map marking streets/areas for public use",
+        "Long-continued exclusive possession",
+        "Paying property taxes for five years",
+        "An oral promise to the public"
+      ],
+      "correct_answer": "Recording a plat or map marking streets/areas for public use",
+      "explanation": "Statutory dedication is made by recording a plat/map under the platting statutes. Note that plat approval is not automatically acceptance — acceptance is a separate event.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "Which is NOT one of the common-law elements of adverse possession?",
+      "question_type": "multiple_choice",
+      "options": ["Open and notorious","Hostile","Permissive","Continuous"],
+      "correct_answer": "Permissive",
+      "explanation": "Adverse possession requires actual, open & notorious, exclusive, hostile, and continuous possession. Permissive use is the opposite of hostile and defeats a claim.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "In Texas, the law of adverse possession is found in:",
+      "question_type": "multiple_choice",
+      "options": [
+        "The Texas Property Code",
+        "The Texas Natural Resources Code",
+        "The Texas Civil Practice & Remedies Code, Chapter 16",
+        "The Texas Transportation Code"
+      ],
+      "correct_answer": "The Texas Civil Practice & Remedies Code, Chapter 16",
+      "explanation": "A common trap: Texas adverse possession is wholly statutory and lives in Civ. Prac. & Rem. Code Ch. 16, Subch. B — NOT the Property Code.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "Which Texas adverse-possession statute requires the claimant to pay property taxes and hold under a duly registered deed?",
+      "question_type": "multiple_choice",
+      "options": ["§16.024 (3-year)","§16.025 (5-year)","§16.026 (10-year)","§16.028 (25-year)"],
+      "correct_answer": "§16.025 (5-year)",
+      "explanation": "The 5-year track (§16.025) requires use/cultivation, payment of applicable taxes, and a duly registered deed (no quitclaim or forged deed). A single missed tax year is fatal.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "A claimant has only naked possession (no deed, no tax payments) and uses an unenclosed tract. Under Texas's 10-year statute (§16.026), the area that can be claimed is generally capped at:",
+      "question_type": "multiple_choice",
+      "options": ["40 acres","160 acres","640 acres","No cap"],
+      "correct_answer": "160 acres",
+      "explanation": "Section 16.026 caps the claim at 160 acres unless the larger area is enclosed or possession is under a recorded deed/memorandum fixing the boundaries.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "Under Texas's statutory scheme, the stronger the claimant's paper/title basis, the shorter the limitation period required to perfect.",
+      "question_type": "true_false",
+      "options": ["True","False"],
+      "correct_answer": "True",
+      "explanation": "The scheme rewards a stronger paper basis with a shorter period: title/color of title = 3 yr; registered deed + taxes + use = 5 yr; naked possession = 10 yr.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "Which Texas statute can support a 25-year adverse-possession claim based on a RECORDED instrument that is void on its face?",
+      "question_type": "multiple_choice",
+      "options": ["§16.024","§16.025","§16.026","§16.028"],
+      "correct_answer": "§16.028",
+      "explanation": "Section 16.028 supports a 25-year claim under a recorded instrument purporting to convey, even if void on its face or in fact (excluding quitclaim/forged), extending to the whole described area. This is broader than common-law color of title.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_index": 3,
+      "question_text": "How does acquiescence differ fundamentally from adverse possession?",
+      "question_type": "short_answer",
+      "options": [],
+      "correct_answer": "Acquiescence rests on a mutual mistake about the true boundary with no intent to take and no hostility, whereas adverse possession requires hostile possession against the owner's rights.",
+      "explanation": "In acquiescence neither neighbor intends to take the other's land; there is a mutual mistake about the line, good faith, and long recognition until title passes silently. Adverse possession, by contrast, requires hostility — possession in opposition to the true owner's rights.",
+      "difficulty": "hard"
+    },
+    {
+      "lesson_index": 4,
+      "question_text": "Which feature most clearly distinguishes a license from an easement?",
+      "question_type": "multiple_choice",
+      "options": [
+        "A license is an interest in land that runs with the land.",
+        "A license is revocable personal permission that creates no interest in land.",
+        "A license must satisfy the Statute of Frauds.",
+        "A license can ripen into a prescriptive easement."
+      ],
+      "correct_answer": "A license is revocable personal permission that creates no interest in land.",
+      "explanation": "A license is personal, generally revocable, and creates no interest in land (so it is not subject to the Statute of Frauds and does not run with the land). Permissive use under a license cannot ripen into a prescriptive easement.",
+      "difficulty": "easy"
+    },
+    {
+      "lesson_index": 4,
+      "question_text": "A neighbor's new garage extends two feet over the surveyed property line. The remedies available in Texas for this encroachment include all of the following EXCEPT:",
+      "question_type": "multiple_choice",
+      "options": [
+        "Trespass to try title / quiet title",
+        "Injunction to remove the encroachment",
+        "Damages",
+        "An automatic statutory right for the good-faith encroacher to buy the strip"
+      ],
+      "correct_answer": "An automatic statutory right for the good-faith encroacher to buy the strip",
+      "explanation": "Texas has no general 'innocent improver'/relative-hardship statute that automatically lets a good-faith encroacher buy the strip. Remedies are trespass-to-try-title/quiet title, injunction, or damages; title passes only through the statutory adverse-possession tracks.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 4,
+      "question_text": "How does a restrictive covenant differ from an easement?",
+      "question_type": "multiple_choice",
+      "options": [
+        "A covenant grants another a right to physically use the burdened land; an easement restricts use.",
+        "A covenant restricts how the burdened owner may use his own land; an easement grants another a right to use it.",
+        "A covenant is always revocable at will; an easement never is.",
+        "There is no difference; the terms are interchangeable."
+      ],
+      "correct_answer": "A covenant restricts how the burdened owner may use his own land; an easement grants another a right to use it.",
+      "explanation": "A covenant/restriction limits how the burdened owner may use his own land (e.g., residential-only). An easement grants someone else a right to use the burdened land. They are distinct, and covenants are not revocable at will like a license.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 4,
+      "question_text": "When a public agency condemns land for a road, it acquires only an easement unless the fee is necessary for the purpose or a statute/deed conveys the fee.",
+      "question_type": "true_false",
+      "options": ["True","False"],
+      "correct_answer": "True",
+      "explanation": "When land is taken for public use, the condemnor acquires only an easement unless the fee is necessary for the purpose, or a statutory provision or deed conveys the fee. Thus underlying fee often remains in the original owner.",
+      "difficulty": "medium"
+    },
+    {
+      "lesson_index": 4,
+      "question_text": "Absent contrary language in the creating deed or map, reversion rights along a vacated straight (tangent) street extend from the street-side property termini to:",
+      "question_type": "multiple_choice",
+      "options": [
+        "The far side of the street",
+        "The centerline (thread) of the street, at right angles to it",
+        "A point 10 feet into the street",
+        "Nowhere — the entire street goes to the municipality"
+      ],
+      "correct_answer": "The centerline (thread) of the street, at right angles to it",
+      "explanation": "Unless the creating deed or map says otherwise, reversion rights extend from the street termini of the property lines to the centerline (thread) of the street, in a direction at right angles to the centerline. On curves the lines are radial; at angle points they bisect the angle.",
+      "difficulty": "medium"
+    }
+  ],
+  "problem_templates": [
+    {
+      "name": "Years remaining to perfect adverse possession (10-year statute)",
+      "category": "Property Law — Doctrines",
+      "subcategory": "Adverse Possession",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "A claimant began peaceable, adverse, and continuous possession of an unenclosed Texas tract in {{startYear}}, using it without any deed or tax payments. Proceeding under the 10-year statute (Tex. Civ. Prac. & Rem. Code §16.026), in what calendar year will the limitation period be satisfied so the claim can be perfected?",
+      "parameters": [
+        {"name":"startYear","type":"integer","min":1995,"max":2015}
+      ],
+      "answer_formula": "startYear + 10",
+      "answer_format": {"decimals":0,"unit":"","tolerance":0},
+      "solution_steps_template": [
+        {"step_number":1,"title":"Identify the statutory period","calculation_template":"§16.026 requires 10 years of peaceable, adverse possession (no deed/taxes needed; 160-acre cap)."},
+        {"step_number":2,"title":"Add the period to the start year","result_template":"{{startYear}} + 10 = {{_answer}}"}
+      ],
+      "explanation_template": "Under §16.026, ten years of continuous adverse possession are required. Beginning in {{startYear}}, the period is satisfied in {{_answer}}. (If the tract were larger than 160 acres, the claim would be capped unless enclosed or held under a recorded deed fixing the boundaries.)",
+      "options_generator": {"method":"none"},
+      "images_needed": []
+    },
+    {
+      "name": "Area of a strip easement (length × width)",
+      "category": "Property Law — Doctrines",
+      "subcategory": "Easements",
+      "difficulty": "easy",
+      "question_type": "numeric_input",
+      "question_template": "A utility easement runs as a uniform strip {{width}} ft wide along a property line for a length of {{length}} ft. What is the area of the easement, in square feet?",
+      "parameters": [
+        {"name":"width","type":"integer","min":10,"max":30},
+        {"name":"length","type":"float","min":150,"max":600,"decimals":2}
+      ],
+      "answer_formula": "width * length",
+      "answer_format": {"decimals":2,"unit":"sq ft","tolerance":0.5},
+      "solution_steps_template": [
+        {"step_number":1,"title":"Strip area formula","formula":"A = width × length"},
+        {"step_number":2,"title":"Substitute","result_template":"{{width}} × {{length:f2}} = {{_answer}} sq ft"}
+      ],
+      "explanation_template": "A uniform strip easement is a rectangle, so its area is simply width × length = {{width}} × {{length:f2}} = {{_answer}} sq ft.",
+      "options_generator": {"method":"none"},
+      "images_needed": []
+    },
+    {
+      "name": "Strip easement area converted to acres",
+      "category": "Property Law — Doctrines",
+      "subcategory": "Easements",
+      "difficulty": "medium",
+      "question_type": "numeric_input",
+      "question_template": "A pipeline easement is a uniform strip {{width}} ft wide and {{length}} ft long. Express the easement area in acres (1 acre = 43,560 sq ft).",
+      "parameters": [
+        {"name":"width","type":"integer","min":20,"max":50},
+        {"name":"length","type":"float","min":1000,"max":5000,"decimals":2}
+      ],
+      "computed_vars": [
+        {"name":"areaSqFt","formula":"width * length"}
+      ],
+      "answer_formula": "(width * length) / 43560",
+      "answer_format": {"decimals":3,"unit":"ac","tolerance":0.005},
+      "solution_steps_template": [
+        {"step_number":1,"title":"Strip area in sq ft","formula":"A = width × length","calculation_template":"{{width}} × {{length:f2}} = {{areaSqFt:f2}} sq ft"},
+        {"step_number":2,"title":"Convert to acres","calculation_template":"{{areaSqFt:f2}} ÷ 43,560"},
+        {"step_number":3,"title":"Result","result_template":"= {{_answer}} ac"}
+      ],
+      "explanation_template": "Compute the rectangular strip area ({{width}} × {{length:f2}} = {{areaSqFt:f2}} sq ft), then divide by 43,560 sq ft/acre to get {{_answer}} acres.",
+      "options_generator": {"method":"none"},
+      "images_needed": []
+    }
+  ],
+  "homework": [
+    {
+      "title": "Homework 1 — Easements and Creation Methods (Applied Scenarios)",
+      "prompt": "Answer each part in 3–6 sentences, citing the relevant Texas rule, statute, or case where appropriate.\n\n**Part A — Classification.** A landowner grants the electric cooperative a recorded right to run a power line across the rear 15 ft of her lot. (1) Is this easement appurtenant or in gross? Explain. (2) Identify the servient tenement and whether there is a dominant tenement. (3) Is the easement affirmative or negative?\n\n**Part B — Creation.** A rancher subdivides a large tract and sells a back parcel that is now completely landlocked, making no provision for access in the deed. The buyer wants a road across the rancher's remaining front parcel. (1) Under *Hamrick v. Ward*, which doctrine must the buyer pursue, and why not implied easement by prior use? (2) List the three Texas elements the buyer must prove. (3) When would this easement terminate?\n\n**Part C — Prescription (Texas).** For ten years, two adjoining owners have both driven over a shared gravel lane straddling their common line, each believing it was partly his. One now sues to establish a prescriptive easement over the other's half. Apply *Tran v. Macha* and the Texas exclusivity rule to predict the outcome, and explain how Texas differs from the general common-law/Restatement view.\n\n**Part D — Dedication.** A developer in a Texas county of 30,000 people claims a dirt road across private land became public because the public has used it for 25 years. Under Tex. Transp. Code Ch. 281 (1981), evaluate this claim and state what would have been required instead.",
+      "type": "written",
+      "images_needed": []
+    },
+    {
+      "title": "Homework 2 — Adverse Possession Track Selection + Easement Area Computation",
+      "prompt": "**Part A (written) — Match the statute.** For each fact pattern, state which Texas adverse-possession statute (§16.024, §16.025, §16.026, or §16.028) best fits and justify your choice in 2–3 sentences:\n\n1. Claimant holds a regular chain of title with one defective link (color of title), and has possessed peaceably and adversely for 4 years.\n2. Claimant has used and cultivated the land for 6 years, paid every year's property taxes, and holds under a duly registered (non-quitclaim) deed.\n3. Claimant has openly used an unenclosed 200-acre tract for 11 years with no deed and no tax payments.\n4. Claimant possesses under a recorded deed that turns out to be void on its face, and has done so for 26 years.\n\n**Part B (written) — Distinguish.** In 4–5 sentences, explain the difference between *acquiescence* and *adverse possession*, and why a permissive 'neighborly accommodation' can never support a prescriptive easement.\n\n**Part C (computational) — Easement geometry.** A surveyor must describe a uniform access easement 24 ft wide running 412.50 ft from a county road to a back lot. (1) Compute the easement area in square feet. (2) Convert the area to acres (43,560 sq ft = 1 acre), rounded to three decimals. (3) Briefly list the four items the legal description of this easement should include to avoid ambiguity.",
+      "type": "mixed",
+      "images_needed": [
+        {"slug":"m3-hw2-easement-strip","caption":"A 24-ft-wide access easement running 412.5 ft from a county road to a landlocked back lot, with dominant and servient parcels labeled.","kind":"diagram"}
+      ]
+    }
+  ]
+}
