@@ -436,12 +436,23 @@ per-page note in §6.
     the `scripts/_tmp_landlaw` gen_seed pipeline against current lesson
     ids — a content task, tracked as G4 below.
 
-- [ ] **G4 — Regenerate the empty-lesson curriculum buildout.** ~207 of
-  422 lessons have no blocks. The 332–359 buildout seeds are stale
-  (orphaned lesson ids). Re-run the `scripts/_tmp_landlaw` JSON→gen_seed
-  pipeline against the current live lesson ids to fill the empty lessons,
-  then apply. Separate content workstream from the UI audit; size it
-  before starting. (Was implicitly deferred; surfaced by the D2 apply.)
+- ~~G4 — Regenerate the empty-lesson curriculum buildout~~ — **deferred:
+  not an automated slice; needs content authoring + a non-destructive fill
+  tool.** Assessed 2026-06-21: ~207 of 422 lessons (across ~28 surveying
+  modules — Boundary Law, GPS/GNSS, Traverse Computations, SIT/RPLS exam
+  reviews, etc.) have no blocks. **Two hard blockers:** (1) the only
+  source content in the repo is `scripts/_tmp_landlaw/content/m1–m7.json`
+  (the original *land-law* course) — there is NO source content for the
+  ~28 empty *surveying-curriculum* modules to regenerate from; authoring
+  207 lessons of accurate surveying education is an SME/AI-content-pipeline
+  workstream, not a seed re-run. (2) The only regeneration tool,
+  `gen_seed.js`, does `DELETE FROM learning_lessons` per module, and
+  `user_progress` is **ON DELETE CASCADE** — running it would wipe live
+  user progress. **To actually do this** (future phase doc): build the
+  content (SME or AI-generated + reviewed), then a NON-destructive filler
+  that inserts `lesson_blocks` for empty lessons matched by module+title
+  (never DELETEs lessons), then apply. Cost clearly exceeds what this UI
+  audit can ship; flagged for a dedicated curriculum phase.
 
 - ~~G5 — Data-driven config icons → lucide~~ — deferred: job-title
   (`useJobTitles`) and work-type (`work_types` API) icons are emoji stored
