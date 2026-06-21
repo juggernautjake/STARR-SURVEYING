@@ -476,12 +476,22 @@ per-page note in §6.
   one concrete overflow bug. The rate/tier work-type icons stay = G5.)
 
 - [ ] **W7 — Entity-encoded emoji sweep (follow-up).** The W1–W6 sweeps
-  matched only literal-unicode emoji; **34 admin files also use HTML-entity
-  emoji** (`&#x1F…;` / `&#x26…;`) that were missed (e.g. learn/modules,
-  exam-prep/sit, manage/*, components/QuizRunner/Fieldbook/ArticleEditor).
-  Re-run the emoji→lucide conversion targeting the entity form:
-  `grep -rlE "&#x1F[0-9A-Fa-f]{3};" app/admin --include="*.tsx"`. Same
-  rules (chrome→lucide, content pickers/data-config stay).
+  matched only literal-unicode emoji; **~35 admin files also use HTML-entity
+  emoji** (`&#x1F…;` / `&#x26…;`) that were missed. Re-run the conversion
+  targeting the entity form (`grep -rlE "&#x1F[0-9A-Fa-f]{3};" app/admin
+  --include="*.tsx"`). Same rules (chrome→lucide; content pickers/
+  data-config/decorative stay). **Caution:** several are content editors/
+  viewers (TipTapEditor, ArticleEditor/Reader, FlashcardViewer, QuizRunner,
+  Fieldbook) whose emoji may be content-authoring tools — assess each.
+  - [x] **Navbar** (AdminTopBar hamburger ☰→Menu + XP ⭐→Star; AdminSidebar
+    section arrows ❯→ChevronRight). Verified in harness. Commit `8eeb99b8`.
+  - [ ] Remaining (~33): learn/modules(+[id]/[lessonId]), learn/manage(+
+    question-builder/lesson-builder/media/article-editor), learn/roadmap,
+    learn/exam-prep(+sit/+module/[id]/mock-exam), learn/flashcards(+bank/
+    practice), learn/articles/[id], rewards(+how-it-works/admin), my-notes,
+    users, discussions(+[id]), and components (TipTapEditor, JobFileManager,
+    Fieldbook, FlashcardViewer, QuizRunner, FileViewer, ArticleReader/Editor,
+    SmallScreenBanner). Batch a few per iteration.
 - ~~G3 — Payment seeds 323–327~~ — **deferred: BLOCKED on a human decision
   (live Stripe billing).** Root-caused 2026-06-21: `invoices` is a
   two-feature table-name collision — live = Stripe SaaS billing schema;
