@@ -256,6 +256,51 @@ Smallest high-value first, each shippable on its own:
 
 ## Slice log
 
+### Slice 17 — §9.8 (data layer) Dashboard rollup ✅ (2026-06-21)
+`lib/research/dashboard-rollup.ts` ships `rollupAdapterDashboard(adapters,
+checks, proposals, now, opts?)` — the pure aggregator that turns raw
+seed-371 rows into the per-adapter summary the §9.8 health dashboard
+renders.
+
+  Each `DashboardEntry` carries:
+    - `effective_status` — the customer-facing verdict, taken from the
+      most-recent check (NOT the cached `adapter.status` field, so a
+      passing check after a quarantine flips the dashboard green
+      again). Falls back to `no_record` when no checks exist.
+    - `last_checked_at` + `hours_since_last_check` — for the staleness
+      column.
+    - `last_diff_summary` — slice-7 + slice-8 verdict carried verbatim
+      ("broken: 2 missing (owner.display_name, legal.text)").
+    - `pending_proposal_count` — only `proposed`-status proposals
+      counted; the dashboard's "review queue" badge.
+    - `best_pending_confidence` — clamped to [0,1]; surfaces "we have
+      a 95 %-confident fix waiting" prominently.
+    - `confidence_band` — `green` / `yellow` / `red` / `unknown` for
+      the customer-facing light. One failure trips yellow; three
+      consecutive (within the window) trips red. Configurable via
+      `redBandFailureCount`.
+    - `priority` — composite score (broken-with-proposal → top, then
+      broken-no-proposal, then degraded, then never-checked, then
+      healthy). Sort order so the operator's eyes go to the row that
+      needs them most.
+
+  Window: `recentWindowHours` (default 168 = 7 days) drops stale
+  checks before any roll-up math. Same window primitive as the slice-
+  16 self-heal planner.
+
+  Source-locked with 16 tests in
+  `__tests__/research/dashboard-rollup.test.ts` covering
+  effective-status precedence (live check > cached row > no_record),
+  confidence-band thresholds (green / yellow / red with custom
+  threshold), pending-proposal counting (`proposed` only, not
+  `applied`/`rejected`), confidence clamp, window filtering,
+  priority-sort ordering (broken-with-proposal → … → healthy),
+  never-checked-above-healthy promotion, and passthrough of every
+  display column (county_name, fips, tier, vendor_key, base_url,
+  site_type, hours_since_last_check).
+
+258/258 research tests pass; clean tsc.
+
 ### Slice 16 — §9.6 Failure-triggered self-heal planner ✅ (2026-06-21)
 `lib/research/self-heal-planner.ts` ships `planSelfHealResponse(failure,
 adapter, recent, opts?)` — the pure orchestrator that turns a live
@@ -996,10 +1041,13 @@ itself.
   `RESEARCH_SELF_HEAL_SCHEDULE` env flag that wraps it land in a
   follow-up route slice. Per-host + batch caps + jitter live on the
   kernel; the wrapper just provides the polling cadence + I/O.
-- [ ] **9.8 Health dashboard** — extend `/admin/research/coverage`: per county ×
-  site_type health (healthy/degraded/broken), pending repair proposals with a
-  one-click review (diff + canary result + approve/reject), and last-checked
-  timestamps. This is also the customer-facing "is my county working" view.
+- [~] **9.8 Health dashboard** — data layer ✅ (2026-06-21, Slice 17):
+  `rollupAdapterDashboard()` in `lib/research/dashboard-rollup.ts` is
+  the pure aggregator that produces the per-(adapter / county × site
+  type) summary the table renders. Customer-facing
+  green/yellow/red light, priority sort, pending-proposal review-
+  queue badge, all live. Route handler + the UI extension to
+  `/admin/research/coverage` lands when the dashboard slice ships.
 - [ ] **9.9 Guardrails (outward-facing — non-negotiable)** —
   (a) per-host rate limit + backoff + jitter; (b) respect robots.txt/ToS, honor
   blocks; (c) a global kill-switch env flag; (d) **never** auto-solve captchas
