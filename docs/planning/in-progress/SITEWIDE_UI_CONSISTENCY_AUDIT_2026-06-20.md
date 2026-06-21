@@ -39,7 +39,7 @@
 4. ~~W1 Hub~~ ✅ DONE — Hub pages emoji→lucide + time-off 36px baseline.
 5. ~~W2 Work~~ ✅ DONE — §4 — work, jobs(+new/import/[id]), calendar, field-data
    (+[id]), team, timeline, assignments.
-6. **W3 Equipment** §4 — equipment + inventory/consumables/maintenance/
+6. ~~W3 Equipment~~ ✅ DONE — §4 — equipment + inventory/consumables/maintenance/
    timeline/fleet-valuation/overrides/templates/today/import, vehicles.
 7. **W4 Research & CAD** §4 — research-cad, research(+sub-pages/[id]);
    CAD editor only for icon/cutoff in its title-bar + dialogs.
@@ -310,10 +310,12 @@ per-page note in §6.
     emoji → lucide. Emoji-free. (All W2 list/main pages now done.)
   - [x] **field-data/[id]** — file-type/audio/transcription glyphs → lucide.
   - [x] **jobs/[id]** detail — 10 tab icons + inline buttons → lucide.
-- [ ] **W3 — Equipment workspace.** `equipment` + `inventory`,
+- [x] **W3 — Equipment workspace.** `equipment` + `inventory`,
   `consumables`, `maintenance` (+`[id]`), `timeline`, `fleet-valuation`,
   `overrides`, `templates` (+`new`/`[id]`/`cleanup-queue`), `today`,
-  `import`, `vehicles`.
+  `import`, `vehicles`. DONE — every Equipment page's functional emoji →
+  lucide across 13 pages (toast success strings + the `startsWith('✓')`
+  styling logic intentionally kept).
   - [x] Status-glyph pages → lucide: maintenance, overrides, cleanup-queue,
     templates/new, timeline (⚠/✓/✕). equipment + vehicles had no emoji.
   - [x] **consumables** — error/threshold/on-hand ⚠/✓ + 3 close ✕ → lucide
@@ -323,7 +325,7 @@ per-page note in §6.
   - [x] **today** (condition labels + 5 banners), **import** (banners +
     dry-run), **equipment/[id]** (photo + history errors) → lucide.
     **templates** is toast-string-only (no JSX emoji).
-  - [ ] Remaining: maintenance/[id] (~16), templates/[id] (~13).
+  - [x] maintenance/[id] + templates/[id] → lucide. All Equipment pages done.
 - [ ] **W4 — Research & CAD workspace.** `research-cad`, `research` +
   `new`/`billing`/`coverage`/`library`/`pipeline`/`testing`,
   `research/[id]`. (CAD editor `/admin/cad` owns its own chrome — audit
