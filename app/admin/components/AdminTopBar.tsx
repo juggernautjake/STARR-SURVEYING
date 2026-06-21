@@ -120,6 +120,17 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
             >
               Theme + density
             </Link>
+            {/* Privacy settings — controls what co-workers see about you in
+                the employee directory. Previously orphaned (no inbound link);
+                surfaced here so every user can reach /admin/me/privacy. */}
+            <Link
+              role="menuitem"
+              href="/admin/me/privacy"
+              onClick={() => setOpen(false)}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 0.85rem', textDecoration: 'none', color: 'var(--theme-fg-primary)', fontSize: '0.88rem', borderTop: '1px solid var(--theme-border)' }}
+            >
+              <RouteIcon name="Lock" size={15} /> Privacy
+            </Link>
             {/* Slice 197 — entry into hub edit mode from anywhere in
                 the admin app. /admin/me?edit=1 auto-triggers
                 useHubStore.enterEditMode() in HubMeClient. */}
