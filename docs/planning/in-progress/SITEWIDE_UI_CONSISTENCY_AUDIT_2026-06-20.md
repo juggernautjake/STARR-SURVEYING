@@ -316,9 +316,11 @@ per-page note in §6.
   `import`, `vehicles`.
   - [x] Status-glyph pages → lucide: maintenance, overrides, cleanup-queue,
     templates/new, timeline (⚠/✓/✕). equipment + vehicles had no emoji.
+  - [x] **consumables** — error/threshold/on-hand ⚠/✓ + 3 close ✕ → lucide
+    (toast success strings kept as text).
   - [ ] Remaining (heavier, data-array icons): maintenance/[id] (~16),
-    inventory (~14), templates/[id] (~13), consumables (~12), today (~9),
-    templates (~5), import (~5), equipment/[id] (~4).
+    inventory (~14), templates/[id] (~13), today (~9), templates (~5),
+    import (~5), equipment/[id] (~4).
 - [ ] **W4 — Research & CAD workspace.** `research-cad`, `research` +
   `new`/`billing`/`coverage`/`library`/`pipeline`/`testing`,
   `research/[id]`. (CAD editor `/admin/cad` owns its own chrome — audit
