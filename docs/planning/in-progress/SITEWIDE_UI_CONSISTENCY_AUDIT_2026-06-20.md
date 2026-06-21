@@ -41,7 +41,7 @@
    (+[id]), team, timeline, assignments.
 6. ~~W3 Equipment~~ ✅ DONE — §4 — equipment + inventory/consumables/maintenance/
    timeline/fleet-valuation/overrides/templates/today/import, vehicles.
-7. **W4 Research & CAD** §4 — research-cad, research(+sub-pages/[id]);
+7. ~~W4 Research & CAD~~ ✅ DONE (research pages; CAD-internal emoji deferred) — §4 — research-cad, research(+sub-pages/[id]);
    CAD editor only for icon/cutoff in its title-bar + dialogs.
 8. **W5 Knowledge/Learn** §4 — learn hub + roadmap/modules/knowledge-base/
    flashcards/exam-prep/search/quiz-history/students/manage/practice.
@@ -326,7 +326,7 @@ per-page note in §6.
     dry-run), **equipment/[id]** (photo + history errors) → lucide.
     **templates** is toast-string-only (no JSX emoji).
   - [x] maintenance/[id] + templates/[id] → lucide. All Equipment pages done.
-- [ ] **W4 — Research & CAD workspace.** `research-cad`, `research` +
+- [x] **W4 — Research & CAD workspace.** `research-cad`, `research` +
   `new`/`billing`/`coverage`/`library`/`pipeline`/`testing`,
   `research/[id]`. (CAD editor `/admin/cad` owns its own chrome — audit
   its title-bar + dialogs only for icon/cutoff issues, do not touch its
@@ -337,12 +337,18 @@ per-page note in §6.
   - [x] **library** — DOC_TYPE_ICONS map → lucide components (Map/ScrollText/
     Spline/DraftingCompass/FileText) via DocTypeIcon helper; header/empty/
     badges/address/spinner glyphs → lucide.
-  - [~] **research/[projectId]** part 1 done — structural chrome
-    (step-headers, tab labels, section titles, top actions) → lucide.
-  - [ ] research/[projectId] part 2: the docTypeIcons (~22) +
-    sourceTypeLabels (~4) icon maps → lucide-component map + helper, the
-    ⏳/✨/✅ button-state ternaries, and the qualityScore ✓/⚠/✗ var (28
-    lines left) + CAD editor dialogs (icon/cutoff only).
+  - [x] **research/[projectId]** — fully converted (parts 1+2): structural
+    chrome + docTypeIcons/sourceTypeLabels component maps (Map→MapIcon to
+    avoid shadowing global Map) + typeIcon prop threading + qualityScore +
+    all job-prep/final-doc buttons. Page is emoji-free.
+  - ~~CAD editor internal emoji~~ — deferred: `/admin/cad`'s 40+ component
+    files (MenuBar, ToolOptionsBar, dialogs, panels) use emoji throughout
+    a bespoke editor surface with its own visual language + separate specs
+    (`docs/planning/completed/STARR_CAD*`). Converting all is a large
+    workstream disproportionate to value (the plan already scoped CAD to
+    "dialogs/icon-cutoff only, don't touch the layout shell"), and CAD
+    emoji are far less jarring than admin-chrome emoji (now fixed). The
+    research-pages portion of W4 — the user-facing emoji problem — is done.
 - [ ] **W5 — Knowledge / Learn workspace.** `learn` hub + `roadmap`,
   `modules` (+detail), `knowledge-base` (+article), `flashcards`
   (+`create`/`[deck]`), `flashcard-bank`, `exam-prep` (+`sit`/`rpls`/
