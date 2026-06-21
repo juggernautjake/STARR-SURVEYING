@@ -1,6 +1,7 @@
 // app/admin/messages/page.tsx — Full Messages Inbox with inline conversation view
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { SquarePen, MessageSquare, Users, Check, Smile } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../hooks/usePageError';
 // employee-pond Slice E9b — cross-surface recipient continuity.
@@ -301,7 +302,7 @@ export default function MessagesInboxPage() {
         <div className="msg-page__sidebar-header">
           <h2 className="msg-page__sidebar-title">Messages {totalUnread > 0 && <span className="msg-page__unread-badge">{totalUnread}</span>}</h2>
           <button className="msg-page__new-btn" onClick={() => { setShowNewConv(true); setActiveConv(null); }} title="New conversation">
-            ✏️
+            <SquarePen size={16} strokeWidth={1.75} aria-hidden="true" />
           </button>
         </div>
 
@@ -330,7 +331,7 @@ export default function MessagesInboxPage() {
             <p className="msg-page__empty-text">Loading...</p>
           ) : filteredConversations.length === 0 ? (
             <div className="msg-page__empty">
-              <span>💬</span>
+              <span><MessageSquare size={16} strokeWidth={1.75} /></span>
               <p>{convSearch ? 'No matching conversations' : 'No conversations yet'}</p>
               <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => setShowNewConv(true)}>
                 Start a Chat
@@ -347,7 +348,7 @@ export default function MessagesInboxPage() {
                   onClick={() => openConversation(c)}
                 >
                   <div className="msg-page__conv-avatar">
-                    {c.type === 'group' ? '👥' : displayName(getConvName(c)).charAt(0)}
+                    {c.type === 'group' ? <Users size={16} strokeWidth={1.75} /> : displayName(getConvName(c)).charAt(0)}
                   </div>
                   <div className="msg-page__conv-body">
                     <div className="msg-page__conv-name">{getConvName(c)}</div>
@@ -401,7 +402,7 @@ export default function MessagesInboxPage() {
                     <div className="msg-page__contact-name">{c.name}</div>
                     <div className="msg-page__contact-email">{c.email}</div>
                     {c.is_admin && <span className="msg-page__admin-tag">Admin</span>}
-                    {isSelected && <span className="msg-page__check">✓</span>}
+                    {isSelected && <span className="msg-page__check"><Check size={13} strokeWidth={3} /></span>}
                   </button>
                 );
               })}
@@ -486,7 +487,7 @@ export default function MessagesInboxPage() {
             {/* Compose */}
             <div className="msg-page__compose">
               <div style={{ position: 'relative' }}>
-                <button className="msg-page__tool-btn" onClick={() => setShowEmoji(!showEmoji)}>😊</button>
+                <button className="msg-page__tool-btn" onClick={() => setShowEmoji(!showEmoji)} title="Emoji"><Smile size={16} strokeWidth={1.75} /></button>
                 {showEmoji && (
                   <div className="msg-page__emoji-grid">
                     {QUICK_EMOJIS.map(e => (
@@ -513,7 +514,7 @@ export default function MessagesInboxPage() {
         {/* Empty state when no conversation selected */}
         {!activeConv && !showNewConv && (
           <div className="msg-page__empty-state">
-            <span className="msg-page__empty-icon">💬</span>
+            <span className="msg-page__empty-icon"><MessageSquare size={30} strokeWidth={1.5} /></span>
             <h3>Select a conversation</h3>
             <p>Choose a conversation from the sidebar or start a new one.</p>
             <button className="admin-btn admin-btn--primary" onClick={() => setShowNewConv(true)}>

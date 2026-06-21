@@ -4,6 +4,7 @@ import '../styles/AdminPayroll.css';
 import '../styles/AdminRewards.css';
 
 import { useState, useEffect } from 'react';
+import { Settings, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { computeEffectiveRate, findSeniorityBracket } from '@/lib/payroll/effective-rate';
@@ -2384,7 +2385,7 @@ function SystemConfigPanel() {
   return (
     <div className="pay-prog__section">
       <div className="pay-prog__section-header">
-        <h3 className="pay-prog__section-title">⚙️ System Caps & Constants</h3>
+        <h3 className="pay-prog__section-title"><Settings size={18} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />System Caps & Constants</h3>
         <span className="pay-prog__section-count">{entries.length} keys · admin-only</span>
       </div>
       <p className="pay-prog__section-desc">
@@ -2508,7 +2509,7 @@ function CredentialQueue() {
   return (
     <div className="pay-prog__section">
       <div className="pay-prog__section-header">
-        <h3 className="pay-prog__section-title">🛂 Credential approval queue</h3>
+        <h3 className="pay-prog__section-title"><ShieldCheck size={18} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Credential approval queue</h3>
         <span className="pay-prog__section-count">{queue.length} pending</span>
       </div>
       <p className="pay-prog__section-desc">
@@ -2518,7 +2519,7 @@ function CredentialQueue() {
       </p>
       {queue.length === 0 ? (
         <p className="pay-prog__section-desc" style={{ marginTop: '0.5rem' }}>
-          ✅ Nothing waiting — every earned credential has been verified.
+          <CheckCircle2 size={14} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Nothing waiting — every earned credential has been verified.
         </p>
       ) : (
         <div className="pay-prog__audit-list">
