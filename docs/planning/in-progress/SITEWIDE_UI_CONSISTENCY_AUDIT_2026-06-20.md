@@ -171,11 +171,16 @@ per-workspace sweeps.
   so the chrome can't render the real trail; logic is unit-verified).
 - [ ] **F2 — Icon / emoji consistency in shared chrome.** Replace
   emoji-as-functional-icon with lucide in the always-on shared
-  components first: `AdminTopBar`, `AdminSidebar`, dashboard Quick
-  Links, `FloatingActionMenu`/FAB, `DiscussionThreadButton`,
-  `FloatingMessenger`. Keep emoji only where decorative. Establish a
-  small `iconName → lucide` mapping helper if one doesn't exist. Screenshot
-  before/after.
+  components. Keep emoji only where decorative.
+  - [x] Dashboard cards (🎓📋🔬💰📅) + Quick Links (🎓🃏📝📊🔍📓✏️🔬📐👥🔑)
+    + pending banner (🔔) → lucide (GraduationCap/ClipboardList/Microscope/
+    Wallet/Calendar/Layers/ClipboardCheck/BarChart3/BookOpen/BookMarked/
+    SquarePen/DraftingCompass/Users/KeyRound/Bell). Verified in harness.
+  - [ ] `AdminSidebar` (legacy drawer — 📊🎓🗺️📚… nav icons), `AdminTopBar`,
+    `FloatingActionMenu`/FAB, `DiscussionThreadButton`, `FloatingMessenger`.
+  - [ ] **Follow-up infra:** add a registry-driven `iconName → lucide`
+    resolver (`lib/admin/route-icons.tsx`) so the registry's `iconName`
+    strings render everywhere; IconRail only maps the 6 workspaces today.
 - [ ] **F3 — Control-row + responsive utilities sweep.** Confirm the
   `AdminLayout.css` globals reset covers every input type (text, date,
   time, checkbox, radio, select, file). Verify the 36 px control
