@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { ClipboardList, Award, DollarSign, GraduationCap, ScrollText, type LucideIcon } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
@@ -114,12 +115,12 @@ export default function EmployeeManagePage() {
   }, 0);
   const unearnedCreds = credBonuses.filter((cb) => !earnedCreds.some((ec) => ec.credential_key === cb.credential_key));
 
-  const tabs: { key: Tab; label: string; icon: string }[] = [
-    { key: 'overview', label: 'Overview', icon: '📋' },
-    { key: 'credentials', label: 'Credentials', icon: '🏅' },
-    { key: 'pay', label: 'Pay & Bonuses', icon: '💰' },
-    { key: 'learning', label: 'Learning Credits', icon: '🎓' },
-    { key: 'history', label: 'Change Log', icon: '📜' },
+  const tabs: { key: Tab; label: string; Icon: LucideIcon }[] = [
+    { key: 'overview', label: 'Overview', Icon: ClipboardList },
+    { key: 'credentials', label: 'Credentials', Icon: Award },
+    { key: 'pay', label: 'Pay & Bonuses', Icon: DollarSign },
+    { key: 'learning', label: 'Learning Credits', Icon: GraduationCap },
+    { key: 'history', label: 'Change Log', Icon: ScrollText },
   ];
 
   return (
@@ -175,7 +176,7 @@ export default function EmployeeManagePage() {
       <div className="emp-manage__tabs">
         {tabs.map((t) => (
           <button key={t.key} className={`emp-manage__tab ${tab === t.key ? 'emp-manage__tab--active' : ''}`} onClick={() => setTab(t.key)}>
-            <span>{t.icon}</span> {t.label}
+            <span><t.Icon size={15} strokeWidth={1.75} style={{ verticalAlign: "-2px" }} /></span> {t.label}
           </button>
         ))}
       </div>

@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { Loader2, Settings, CheckCircle2 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import Image from 'next/image';
 
@@ -278,7 +279,7 @@ export default function AdminRewardsPage() {
 
   if (loading) return (
     <div className="admin-empty">
-      <div className="admin-empty__icon">&#x23F3;</div>
+      <div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div>
       <div className="admin-empty__title">Loading Admin Rewards...</div>
     </div>
   );
@@ -302,7 +303,7 @@ export default function AdminRewardsPage() {
   return (
     <>
       <div className="admin-learn__header">
-        <h2 className="admin-learn__title">&#x2699;&#xFE0F; Manage Rewards & Pay System</h2>
+        <h2 className="admin-learn__title"><Settings size={22} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />Manage Rewards & Pay System</h2>
         <p className="admin-learn__subtitle">Full control over store items, pay rates, bonuses, caps, milestones, and more. Changes are reflected immediately on employee pages.</p>
       </div>
 
@@ -318,7 +319,7 @@ export default function AdminRewardsPage() {
       {activeTab === 'purchases' && (
         <div className="mng__section">
           {pendingPurchases.length === 0 ? (
-            <div className="admin-empty"><div className="admin-empty__icon">&#x2705;</div><div className="admin-empty__title">No pending orders</div></div>
+            <div className="admin-empty"><div className="admin-empty__icon"><CheckCircle2 size={30} strokeWidth={1.5} /></div><div className="admin-empty__title">No pending orders</div></div>
           ) : pendingPurchases.map(p => (
             <div key={p.id} className="mng__row">
               <div className="mng__row-info">

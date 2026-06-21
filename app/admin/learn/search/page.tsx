@@ -2,6 +2,7 @@
 'use client';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
+import { Search } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { usePageError } from '../../hooks/usePageError';
@@ -36,7 +37,7 @@ function SearchContent() {
     <>
       <div className="learn__header">
         <Link href="/admin/learn" className="learn__back">← Back to Learning Hub</Link>
-        <h2 className="learn__title">🔎 Search Everything</h2>
+        <h2 className="learn__title"><Search size={20} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Search Everything</h2>
         <p className="learn__subtitle">Search across modules, lessons, topics, articles, and flashcards.</p>
       </div>
       <div className="learn-search__bar" style={{ marginBottom: '1.5rem', display: 'flex', gap: '.5rem', maxWidth: '600px' }}>
@@ -52,7 +53,7 @@ function SearchContent() {
       {loading && <div className="admin-empty"><div className="admin-empty__icon">⏳</div><div className="admin-empty__title">Searching...</div></div>}
 
       {!loading && searched && results.length === 0 && (
-        <div className="admin-empty"><div className="admin-empty__icon">🔍</div><div className="admin-empty__title">No results found</div><div className="admin-empty__desc">Try different keywords or a broader search term.</div></div>
+        <div className="admin-empty"><div className="admin-empty__icon"><Search size={30} strokeWidth={1.5} /></div><div className="admin-empty__title">No results found</div><div className="admin-empty__desc">Try different keywords or a broader search term.</div></div>
       )}
 
       {!loading && results.length > 0 && (

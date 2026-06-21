@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { CheckCircle2, ArrowDown } from 'lucide-react';
 import { decodeUnicodeEscapes } from '@/lib/decodeUnicode';
 
 interface ArticleReaderProps {
@@ -124,7 +125,7 @@ export default function ArticleReader({ article, completed: initialCompleted, co
       <div className="article-reader__completion">
         {completed ? (
           <div className="article-reader__complete-msg">
-            <span className="article-reader__complete-icon">&#x2705;</span>
+            <span className="article-reader__complete-icon"><CheckCircle2 size={16} strokeWidth={2} /></span>
             <div>
               <p className="article-reader__complete-title">Article Completed</p>
               <p className="article-reader__complete-sub">
@@ -149,7 +150,7 @@ export default function ArticleReader({ article, completed: initialCompleted, co
         ) : (
           <div className="article-reader__scroll-hint">
             <p>Scroll to the bottom of the article to mark it as complete.</p>
-            <div className="article-reader__scroll-arrow">&#x2193;</div>
+            <div className="article-reader__scroll-arrow"><ArrowDown size={18} strokeWidth={2} /></div>
           </div>
         )}
       </div>

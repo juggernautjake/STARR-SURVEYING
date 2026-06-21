@@ -2,6 +2,7 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { BookMarked, FileText } from 'lucide-react';
 import { usePageError } from '../../hooks/usePageError';
 
 interface Article { id: string; title: string; slug: string; category: string; tags: string[]; excerpt: string; status: string; updated_at: string; }
@@ -29,7 +30,7 @@ export default function KnowledgeBasePage() {
     <>
       <div className="learn__header">
         <Link href="/admin/learn" className="learn__back">← Back to Learning Hub</Link>
-        <h2 className="learn__title">🔍 Knowledge Base</h2>
+        <h2 className="learn__title"><BookMarked size={20} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Knowledge Base</h2>
         <p className="learn__subtitle">Search for any surveying topic.</p>
       </div>
       <div style={{ marginBottom: '1.5rem' }}>
@@ -41,7 +42,7 @@ export default function KnowledgeBasePage() {
         {CATEGORIES.map((c) => <button key={c} className={`kb__cat-btn ${category === c ? 'kb__cat-btn--active' : ''}`} onClick={() => setCategory(c)}>{c}</button>)}
       </div>
       {filtered.length === 0 ? (
-        <div className="admin-empty"><div className="admin-empty__icon">📄</div><div className="admin-empty__title">{articles.length === 0 ? 'No articles yet' : 'No results'}</div></div>
+        <div className="admin-empty"><div className="admin-empty__icon"><FileText size={30} strokeWidth={1.5} /></div><div className="admin-empty__title">{articles.length === 0 ? 'No articles yet' : 'No results'}</div></div>
       ) : (
         <div className="kb__articles">
           {filtered.map((a) => (

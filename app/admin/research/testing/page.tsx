@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Check, X, Bot } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import PropertyContextBar, { PropertyContextProvider, usePropertyContext } from './components/PropertyContextBar';
 import BranchSelector from './components/BranchSelector';
@@ -131,7 +132,7 @@ function TestingLabContent() {
       {/* Branch operation feedback */}
       {branchMsg && (
         <div className={`testing-lab__branch-msg ${branchMsg.ok ? 'testing-lab__branch-msg--ok' : 'testing-lab__branch-msg--err'}`}>
-          {branchMsg.ok ? '✓' : '✕'} {branchMsg.text}
+          {branchMsg.ok ? <Check size={13} style={{ verticalAlign: "middle" }} /> : <X size={13} style={{ verticalAlign: "middle" }} />} {branchMsg.text}
         </div>
       )}
 
@@ -173,7 +174,7 @@ function TestingLabContent() {
         aria-label="Open AI assistant"
         title="AI Assistant"
       >
-        🤖
+        <Bot size={24} strokeWidth={1.75} aria-hidden="true" />
       </button>
 
       {/* AI Chat panel */}

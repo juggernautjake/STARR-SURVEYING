@@ -154,6 +154,59 @@ fixed in the S2 slice OR explicitly deferred with rationale.
 - **NOT TOUCHED** — out of scope for this audit. Lives parallel
   to the leads inbox; not modified by Phase Q.
 
+## Navigation — every admin page has a back / up affordance (F1)
+
+Do **not** hand-roll per-page "← Back to X" links. The shared
+`AdminPageHeader` (rendered by `AdminLayoutClient` when nav-v2 is on)
+renders a full breadcrumb trail **and** a leading "‹ back" button on
+every route — including detail / `[id]` pages — driven by
+`breadcrumbTrail(pathname)` / `parentCrumb(pathname)` in
+`lib/admin/route-registry.ts`.
+
+- A new top-level page only needs an entry in `ADMIN_ROUTES` (href +
+  label + workspace) to get a labeled crumb; detail pages resolve a
+  derived leaf label automatically.
+- If a page genuinely needs an in-content back link (e.g. a full-bleed
+  editor that bypasses the chrome), use a single consistent affordance,
+  not ad-hoc copy. Don't ship `← Back`, `‹`, and `Back to …` variants
+  on different pages.
+
+## Icons — lucide for function / nav; emoji decorative-only (F2)
+
+Functional and navigational icons are **lucide-react**, never emoji.
+Emoji render differently per OS, don't inherit `currentColor`, and clash
+with the lucide line-icon nav (IconRail, sidebar, breadcrumbs, FABs).
+
+- Use `RouteIcon` from `lib/admin/route-icons.tsx` (maps a lucide name
+  string → component, `Circle` fallback) for registry-driven icons, or
+  import the lucide component directly for one-offs.
+- Emoji are allowed ONLY as decorative content or as the payload of an
+  emoji feature (e.g. the messenger emoji picker / reactions) — never as
+  the sole affordance for an action, nav target, or status.
+- Size nav/inline icons 16–18px, FAB/section icons 22–28px,
+  `strokeWidth` 1.75–2.
+
+## Control rows — the 36px baseline + `.admin-form-row*` (F3)
+
+Every filter / action row uses the `.admin-form-row*` utilities in
+`AdminLayout.css`; do not hand-roll `style={{ display:'flex' }}` filter
+rows (they drift out of alignment when the row narrows).
+
+- Row: `.admin-form-row` (flex, `align-items:flex-end`, wraps).
+- Labeled column: `.admin-form-row__field` (+ `--narrow` / `--fill`).
+- Inputs/selects: `.admin-form-row__input` / `__select` — pinned to
+  **36px** + `box-sizing:border-box` + `line-height:1.2`.
+- Action button: `.admin-form-row__action` (`height:36px`,
+  `flex-shrink:0`, `white-space:nowrap`) so it never drops below the
+  inputs.
+- Pin every `<input type="date|time|datetime-local">` in a row to the
+  same 36px (the reset already does this for `.admin-form-row__input`)
+  so native calendar chrome doesn't overhang siblings.
+- The global reset (`.admin-layout input/textarea/select`,
+  checkbox/radio 16×16, file-input) neutralizes the marketing-form
+  globals — don't re-introduce `width:100%` / `2px` borders / bottom
+  margins on admin controls via inline styles.
+
 ## Lint enforcement
 
 Manual for now. A future improvement (S2c) wires a

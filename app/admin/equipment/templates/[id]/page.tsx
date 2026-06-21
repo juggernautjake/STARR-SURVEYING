@@ -18,6 +18,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, Pin, X } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
@@ -423,7 +424,7 @@ export default function TemplateEditPage() {
             </span>
           </label>
 
-          {error ? <div style={styles.errorBanner}>⚠ {error}</div> : null}
+          {error ? <div style={styles.errorBanner}><AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> {error}</div> : null}
 
           <div style={styles.actions}>
             <button
@@ -501,7 +502,7 @@ export default function TemplateEditPage() {
                       <td style={styles.td}>
                         {item.equipment_inventory_id ? (
                           <span title="Pinned to a specific inventory unit (resolved at apply-time to that exact row)">
-                            <span style={styles.pinBadge}>📌 unit</span>{' '}
+                            <span style={styles.pinBadge}><Pin size={12} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> unit</span>{' '}
                             <code style={styles.code}>
                               {item.equipment_inventory_id.slice(0, 8)}
                             </code>
@@ -759,7 +760,7 @@ function AddItemModal({
             onClick={onClose}
             aria-label="Close"
           >
-            ✕
+            <X size={15} strokeWidth={2.5} aria-hidden="true" />
           </button>
         </header>
 
@@ -918,7 +919,7 @@ function AddItemModal({
             />
           </label>
 
-          {error ? <div style={modalStyles.error}>⚠ {error}</div> : null}
+          {error ? <div style={modalStyles.error}><AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> {error}</div> : null}
         </div>
 
         <footer style={modalStyles.footer}>
@@ -1087,7 +1088,7 @@ function EditItemModal({
             onClick={onClose}
             aria-label="Close"
           >
-            ✕
+            <X size={15} strokeWidth={2.5} aria-hidden="true" />
           </button>
         </header>
 
@@ -1232,7 +1233,7 @@ function EditItemModal({
             />
           </label>
 
-          {error ? <div style={modalStyles.error}>⚠ {error}</div> : null}
+          {error ? <div style={modalStyles.error}><AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> {error}</div> : null}
         </div>
 
         <footer style={modalStyles.footer}>
@@ -1331,7 +1332,7 @@ function DeleteItemModal({
             aria-label="Close"
             disabled={submitting}
           >
-            ✕
+            <X size={15} strokeWidth={2.5} aria-hidden="true" />
           </button>
         </header>
 
@@ -1357,7 +1358,7 @@ function DeleteItemModal({
               <span style={modalStyles.summaryValue}>
                 {item.equipment_inventory_id ? (
                   <>
-                    📌 unit{' '}
+                    <Pin size={12} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> unit{' '}
                     <code style={modalStyles.code}>
                       {item.equipment_inventory_id.slice(0, 8)}…
                     </code>
@@ -1390,7 +1391,7 @@ function DeleteItemModal({
             ) : null}
           </div>
 
-          {error ? <div style={modalStyles.error}>⚠ {error}</div> : null}
+          {error ? <div style={modalStyles.error}><AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> {error}</div> : null}
         </div>
 
         <footer style={modalStyles.footer}>

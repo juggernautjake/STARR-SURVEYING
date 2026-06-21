@@ -9,6 +9,8 @@ import NotificationBell from './NotificationBell';
 import ClockInPill from './ClockInPill';
 
 import type { UserRole } from '@/lib/auth';
+import { RouteIcon } from '@/lib/admin/route-icons';
+import { Menu, Star } from 'lucide-react';
 
 interface AdminTopBarProps { title: string; role: UserRole; onMenuToggle: () => void; }
 
@@ -104,7 +106,7 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
           >
             <Link
               role="menuitem"
-              href="/admin/profile"
+              href="/admin/me?tab=profile"
               onClick={() => setOpen(false)}
               style={{ display: 'block', padding: '0.6rem 0.85rem', textDecoration: 'none', color: 'var(--theme-fg-primary)', fontSize: '0.88rem' }}
             >
@@ -112,11 +114,22 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
             </Link>
             <Link
               role="menuitem"
-              href="/admin/profile?tab=themes"
+              href="/admin/me?tab=profile&sub=themes"
               onClick={() => setOpen(false)}
               style={{ display: 'block', padding: '0.6rem 0.85rem', textDecoration: 'none', color: 'var(--theme-fg-primary)', fontSize: '0.88rem', borderTop: '1px solid var(--theme-border)' }}
             >
               Theme + density
+            </Link>
+            {/* Privacy settings — controls what co-workers see about you in
+                the employee directory. Previously orphaned (no inbound link);
+                surfaced here so every user can reach /admin/me/privacy. */}
+            <Link
+              role="menuitem"
+              href="/admin/me/privacy"
+              onClick={() => setOpen(false)}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 0.85rem', textDecoration: 'none', color: 'var(--theme-fg-primary)', fontSize: '0.88rem', borderTop: '1px solid var(--theme-border)' }}
+            >
+              <RouteIcon name="Lock" size={15} /> Privacy
             </Link>
             {/* Slice 197 — entry into hub edit mode from anywhere in
                 the admin app. /admin/me?edit=1 auto-triggers
@@ -125,9 +138,9 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
               role="menuitem"
               href="/admin/me?edit=1"
               onClick={() => setOpen(false)}
-              style={{ display: 'block', padding: '0.6rem 0.85rem', textDecoration: 'none', color: 'var(--theme-fg-primary)', fontSize: '0.88rem', borderTop: '1px solid var(--theme-border)' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 0.85rem', textDecoration: 'none', color: 'var(--theme-fg-primary)', fontSize: '0.88rem', borderTop: '1px solid var(--theme-border)' }}
             >
-              ✏️ Customize Hub
+              <RouteIcon name="SquarePen" size={15} /> Customize Hub
             </Link>
             <button
               role="menuitem"
@@ -157,7 +170,7 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
   return (
     <header className="admin-topbar">
       <div className="admin-topbar__left">
-        <button className="admin-topbar__hamburger" onClick={onMenuToggle} aria-label="Toggle sidebar">&#x2630;</button>
+        <button className="admin-topbar__hamburger" onClick={onMenuToggle} aria-label="Toggle sidebar"><Menu size={18} strokeWidth={2} /></button>
         <h1 className="admin-topbar__title">{title}</h1>
       </div>
       <div className="admin-topbar__right">
@@ -166,7 +179,7 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
         {/* XP Counter — clickable, links to store */}
         {xp !== null && (
           <Link href="/admin/rewards" className="admin-topbar__xp" title="Click to spend reward points!">
-            <span className="admin-topbar__xp-icon">&#x2B50;</span>
+            <span className="admin-topbar__xp-icon"><Star size={13} strokeWidth={2} fill="currentColor" /></span>
             <span className="admin-topbar__xp-current">{xp.current.toLocaleString()}</span>
             <span className="admin-topbar__xp-sep">/</span>
             <span className="admin-topbar__xp-total">{xp.total.toLocaleString()}</span>

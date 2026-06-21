@@ -1,6 +1,7 @@
 // app/admin/learn/practice/page.tsx
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { usePageError } from '../../hooks/usePageError';
 
@@ -185,7 +186,7 @@ export default function PracticeSessionPage() {
 
   if (loading) return (
     <div className="admin-empty">
-      <div className="admin-empty__icon">&#x23F3;</div>
+      <div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div>
       <div className="admin-empty__title">Loading practice session...</div>
     </div>
   );

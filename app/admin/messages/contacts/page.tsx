@@ -1,6 +1,7 @@
 // app/admin/messages/contacts/page.tsx — Contact Directory
 'use client';
 import { useState, useEffect } from 'react';
+import { Users, Mail } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -123,7 +124,7 @@ export default function ContactsPage() {
 
           {!loading && filtered.length === 0 && (
             <div className="msg-contacts-page__empty">
-              <span className="msg-contacts-page__empty-icon">👥</span>
+              <span className="msg-contacts-page__empty-icon"><Users size={30} strokeWidth={1.5} /></span>
               <p>No contacts found{search ? ` matching "${search}"` : ''}</p>
             </div>
           )}
@@ -146,7 +147,7 @@ export default function ContactsPage() {
                   onClick={() => startDirectMessage(contact.email)}
                   title="Send Direct Message"
                 >
-                  ✉️
+                  <Mail size={16} strokeWidth={1.75} aria-hidden="true" />
                 </button>
               </div>
             </div>

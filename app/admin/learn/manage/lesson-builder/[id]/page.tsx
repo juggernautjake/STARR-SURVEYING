@@ -1,6 +1,13 @@
 // app/admin/learn/manage/lesson-builder/[id]/page.tsx
 'use client';
 import { useState, useEffect, useRef, DragEvent, ChangeEvent } from 'react';
+import {
+  X, FileX, Calculator, Paperclip, FileText, Globe, HelpCircle, Target,
+  Image as ImageIcon, Palette, Type, Code2, Play, Volume2, Lightbulb,
+  Sparkles, Minus, ExternalLink, Table, Images, Link2, Layers, Newspaper,
+  ArrowRight, Sigma, LayoutPanelTop, Rows3, Columns3, ChevronDown, Check,
+  type LucideIcon,
+} from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import SmartSearch from '../../../components/SmartSearch';
 import Image from 'next/image';
@@ -49,30 +56,30 @@ interface LessonMeta {
   content?: string; // Legacy HTML content for seeded lessons
 }
 
-const BLOCK_TYPES: { type: BlockType; label: string; icon: string; description: string; group?: string }[] = [
-  { type: 'text', label: 'Text', icon: 'T', description: 'Rich text with formatting', group: 'Content' },
-  { type: 'html', label: 'HTML', icon: '</>', description: 'Raw HTML code block', group: 'Content' },
-  { type: 'image', label: 'Image', icon: '🖼', description: 'Upload or link an image', group: 'Media' },
-  { type: 'video', label: 'Video', icon: '▶', description: 'YouTube/Vimeo embed', group: 'Media' },
-  { type: 'audio', label: 'Audio', icon: '🔊', description: 'Audio player / podcast', group: 'Media' },
-  { type: 'callout', label: 'Callout', icon: '💡', description: 'Styled info/warning/formula box', group: 'Content' },
-  { type: 'highlight', label: 'Highlight', icon: '✦', description: 'Key term or concept bubble', group: 'Content' },
-  { type: 'key_takeaways', label: 'Takeaways', icon: '🎯', description: 'Key takeaways checklist', group: 'Content' },
-  { type: 'divider', label: 'Divider', icon: '—', description: 'Visual separator', group: 'Layout' },
-  { type: 'quiz', label: 'Quiz', icon: '?', description: 'Inline quiz question', group: 'Interactive' },
-  { type: 'embed', label: 'Embed', icon: '⧉', description: 'External content via URL', group: 'Media' },
-  { type: 'table', label: 'Table', icon: '▦', description: 'Data table', group: 'Content' },
-  { type: 'file', label: 'File', icon: '📎', description: 'Downloadable attachment', group: 'Media' },
-  { type: 'slideshow', label: 'Slideshow', icon: '🎞', description: 'Image slideshow/carousel', group: 'Media' },
-  { type: 'link_reference', label: 'Links / Refs', icon: '🔗', description: 'Curated links & references', group: 'Interactive' },
-  { type: 'flashcard', label: 'Flashcards', icon: '🃏', description: 'Flip-card study deck', group: 'Interactive' },
-  { type: 'popup_article', label: 'Popup Article', icon: '📰', description: 'Expandable summary / article', group: 'Interactive' },
-  { type: 'backend_link', label: 'Page Link', icon: '➡', description: 'Link card to app page', group: 'Interactive' },
-  { type: 'equation', label: 'Equation', icon: 'Σ', description: 'Math formula (LaTeX)', group: 'Content' },
-  { type: 'tabs', label: 'Tabs', icon: '⊞', description: 'Tabbed content panels', group: 'Layout' },
-  { type: 'accordion', label: 'Accordion', icon: '≡', description: 'Collapsible FAQ sections', group: 'Layout' },
-  { type: 'columns', label: 'Columns', icon: '▥', description: '2-3 column layout', group: 'Layout' },
-  { type: 'practice_problem', label: 'Practice Problem', icon: '🧮', description: 'Step-by-step worked problem', group: 'Interactive' },
+const BLOCK_TYPES: { type: BlockType; label: string; Icon: LucideIcon; description: string; group?: string }[] = [
+  { type: 'text', label: 'Text', Icon: Type, description: 'Rich text with formatting', group: 'Content' },
+  { type: 'html', label: 'HTML', Icon: Code2, description: 'Raw HTML code block', group: 'Content' },
+  { type: 'image', label: 'Image', Icon: ImageIcon, description: 'Upload or link an image', group: 'Media' },
+  { type: 'video', label: 'Video', Icon: Play, description: 'YouTube/Vimeo embed', group: 'Media' },
+  { type: 'audio', label: 'Audio', Icon: Volume2, description: 'Audio player / podcast', group: 'Media' },
+  { type: 'callout', label: 'Callout', Icon: Lightbulb, description: 'Styled info/warning/formula box', group: 'Content' },
+  { type: 'highlight', label: 'Highlight', Icon: Sparkles, description: 'Key term or concept bubble', group: 'Content' },
+  { type: 'key_takeaways', label: 'Takeaways', Icon: Target, description: 'Key takeaways checklist', group: 'Content' },
+  { type: 'divider', label: 'Divider', Icon: Minus, description: 'Visual separator', group: 'Layout' },
+  { type: 'quiz', label: 'Quiz', Icon: HelpCircle, description: 'Inline quiz question', group: 'Interactive' },
+  { type: 'embed', label: 'Embed', Icon: ExternalLink, description: 'External content via URL', group: 'Media' },
+  { type: 'table', label: 'Table', Icon: Table, description: 'Data table', group: 'Content' },
+  { type: 'file', label: 'File', Icon: Paperclip, description: 'Downloadable attachment', group: 'Media' },
+  { type: 'slideshow', label: 'Slideshow', Icon: Images, description: 'Image slideshow/carousel', group: 'Media' },
+  { type: 'link_reference', label: 'Links / Refs', Icon: Link2, description: 'Curated links & references', group: 'Interactive' },
+  { type: 'flashcard', label: 'Flashcards', Icon: Layers, description: 'Flip-card study deck', group: 'Interactive' },
+  { type: 'popup_article', label: 'Popup Article', Icon: Newspaper, description: 'Expandable summary / article', group: 'Interactive' },
+  { type: 'backend_link', label: 'Page Link', Icon: ArrowRight, description: 'Link card to app page', group: 'Interactive' },
+  { type: 'equation', label: 'Equation', Icon: Sigma, description: 'Math formula (LaTeX)', group: 'Content' },
+  { type: 'tabs', label: 'Tabs', Icon: LayoutPanelTop, description: 'Tabbed content panels', group: 'Layout' },
+  { type: 'accordion', label: 'Accordion', Icon: Rows3, description: 'Collapsible FAQ sections', group: 'Layout' },
+  { type: 'columns', label: 'Columns', Icon: Columns3, description: '2-3 column layout', group: 'Layout' },
+  { type: 'practice_problem', label: 'Practice Problem', Icon: Calculator, description: 'Step-by-step worked problem', group: 'Interactive' },
 ];
 
 function convertToEmbedUrl(url: string): string {
@@ -923,7 +930,7 @@ export default function LessonBuilderPage() {
   if (!lesson) {
     return (
       <div className="admin-empty">
-        <div className="admin-empty__icon">❌</div>
+        <div className="admin-empty__icon"><FileX size={30} strokeWidth={1.5} /></div>
         <div className="admin-empty__title">Lesson not found</div>
         <Link href="/admin/learn/manage?tab=lessons" className="admin-btn admin-btn--ghost">&larr; Back to Lessons</Link>
       </div>
@@ -1035,7 +1042,7 @@ export default function LessonBuilderPage() {
             <div key={block.id} style={blockWrapStyle}>
               {isCollapsible && (
                 <button className="lesson-builder__collapse-toggle" onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: !isCollapsed }))}>
-                  <span style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0)', display: 'inline-block', transition: 'transform .2s' }}>&#x25BC;</span>
+                  <span style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0)', display: 'inline-block', transition: 'transform .2s' }}><ChevronDown size={14} strokeWidth={2.5} /></span>
                   {' '}{block.style?.collapsedLabel || block.block_type}
                 </button>
               )}
@@ -1128,7 +1135,7 @@ export default function LessonBuilderPage() {
               {block.block_type === 'practice_problem' && (
                 <div className="block-practice">
                   <div className="block-practice__header">
-                    <span className="block-practice__icon">🧮</span>
+                    <span className="block-practice__icon"><Calculator size={18} strokeWidth={1.75} /></span>
                     <div>
                       <h4 className="block-practice__title">{block.content.title || 'Practice Problem'}</h4>
                       {block.content.category && <span className="block-practice__cat">{block.content.category}</span>}
@@ -1191,8 +1198,8 @@ export default function LessonBuilderPage() {
                           <button key={i} className={cls} onClick={() => { if (!revealed) setQuizAnswers(prev => ({ ...prev, [qKey]: i })); }} disabled={revealed}>
                             <span className="block-quiz__option-letter">{String.fromCharCode(65 + i)}</span>
                             <span className="block-quiz__option-text">{opt}</span>
-                            {revealed && isCorrect && <span className="block-quiz__option-icon">&#x2713;</span>}
-                            {revealed && isSelected && !isCorrect && <span className="block-quiz__option-icon">&#x2717;</span>}
+                            {revealed && isCorrect && <span className="block-quiz__option-icon"><Check size={14} strokeWidth={3} /></span>}
+                            {revealed && isSelected && !isCorrect && <span className="block-quiz__option-icon"><X size={14} strokeWidth={3} /></span>}
                           </button>
                         );
                       })}
@@ -1212,7 +1219,7 @@ export default function LessonBuilderPage() {
               })()}
               {block.block_type === 'file' && block.content.url && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem', background: '#F8F9FA', borderRadius: '8px', margin: '1.5rem 0', border: 'var(--border-light)' }}>
-                  <span style={{ fontSize: '1.5rem' }}>📎</span>
+                  <span style={{ display: "inline-flex" }}><Paperclip size={20} strokeWidth={1.75} /></span>
                   <div>
                     <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{block.content.name || 'File'}</div>
                     {block.content.size > 0 && <div style={{ fontSize: '0.78rem', color: 'var(--color-text-tertiary)' }}>{formatFileSize(block.content.size)}</div>}
@@ -1257,7 +1264,7 @@ export default function LessonBuilderPage() {
                   <div className="lesson-resources__list">
                     {(block.content.links || []).map((link: any, i: number) => (
                       <a key={i} href={link.url} target="_blank" rel="noopener noreferrer" className="lesson-resources__link">
-                        {link.type === 'pdf' ? '📄' : link.type === 'website' ? '🌐' : link.type === 'quiz' ? '❓' : link.type === 'practice' ? '🎯' : '📎'} {link.title || link.url}
+                        {link.type === 'pdf' ? <FileText size={14} style={{ verticalAlign: "-2px" }} /> : link.type === 'website' ? <Globe size={14} style={{ verticalAlign: "-2px" }} /> : link.type === 'quiz' ? <HelpCircle size={14} style={{ verticalAlign: "-2px" }} /> : link.type === 'practice' ? <Target size={14} style={{ verticalAlign: "-2px" }} /> : <Paperclip size={14} style={{ verticalAlign: "-2px" }} />} {link.title || link.url}
                         {link.description && <span style={{ fontSize: '.78rem', color: 'var(--color-text-muted)', marginLeft: '.5rem' }}>{link.description}</span>}
                         <span className="lesson-resources__arrow">↗</span>
                       </a>
@@ -1328,7 +1335,7 @@ export default function LessonBuilderPage() {
                       <h4 className="block-popup-article__title">{block.content.title || 'Article'}</h4>
                       <p className="block-popup-article__summary">{block.content.summary || ''}</p>
                     </div>
-                    <span className={`block-popup-article__chevron ${expandedPopups[block.id] ? 'block-popup-article__chevron--open' : ''}`}>&#x25BC;</span>
+                    <span className={`block-popup-article__chevron ${expandedPopups[block.id] ? 'block-popup-article__chevron--open' : ''}`}><ChevronDown size={14} strokeWidth={2.5} /></span>
                   </div>
                   <div className={`block-popup-article__body ${expandedPopups[block.id] ? 'block-popup-article__body--open' : ''}`}>
                     <div className="block-popup-article__content" dangerouslySetInnerHTML={dhtml(block.content.full_content)} />
@@ -1477,11 +1484,11 @@ export default function LessonBuilderPage() {
                   {block.style?.rowGroup && (
                     <button className="lesson-builder__block-btn" onClick={(e) => { e.stopPropagation(); ungroupBlock(block.id); }} title="Remove from row group" style={{ fontSize: '.65rem', color: '#DC2626' }}>Ungroup</button>
                   )}
-                  <button className="lesson-builder__block-btn" onClick={(e) => { e.stopPropagation(); setShowStylePanel(showStylePanel === block.id ? null : block.id); }} title="Style" style={showStylePanel === block.id ? { borderColor: 'var(--color-brand-navy)', color: 'var(--color-brand-navy)' } : undefined}>🎨</button>
+                  <button className="lesson-builder__block-btn" onClick={(e) => { e.stopPropagation(); setShowStylePanel(showStylePanel === block.id ? null : block.id); }} title="Style" style={showStylePanel === block.id ? { borderColor: 'var(--color-brand-navy)', color: 'var(--color-brand-navy)' } : undefined}><Palette size={14} strokeWidth={2} aria-hidden="true" /></button>
                   <button className="lesson-builder__block-btn" onClick={() => moveBlock(block.id, 'up')} disabled={idx === 0} title="Move up">↑</button>
                   <button className="lesson-builder__block-btn" onClick={() => moveBlock(block.id, 'down')} disabled={idx === blocks.length - 1} title="Move down">↓</button>
                   <button className="lesson-builder__block-btn" onClick={() => duplicateBlock(block.id)} title="Duplicate">⧉</button>
-                  <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => removeBlock(block.id)} title="Remove">✕</button>
+                  <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => removeBlock(block.id)} title="Remove"><X size={14} strokeWidth={2.5} aria-hidden="true" /></button>
                 </div>
               </div>
 
@@ -1507,7 +1514,7 @@ export default function LessonBuilderPage() {
                         <Image src={block.content.url} alt={block.content.alt || ''} width={400} height={300} unoptimized style={{ maxWidth: '100%', maxHeight: '300px', height: 'auto', borderRadius: '6px', objectFit: 'contain' }} />
                       ) : (
                         <div className="lesson-builder__drop-zone-text">
-                          <span style={{ fontSize: '2rem' }}>🖼</span>
+                          <span style={{ display: "inline-flex" }}><ImageIcon size={26} strokeWidth={1.75} /></span>
                           <p>Drag & drop an image here, or click to browse</p>
                           <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Or paste a URL below</p>
                         </div>
@@ -1614,7 +1621,7 @@ export default function LessonBuilderPage() {
                               const opts = (block.content.options || []).filter((_: any, i: number) => i !== oi);
                               const correct = block.content.correct >= opts.length ? opts.length - 1 : block.content.correct;
                               updateBlockContent(block.id, { ...block.content, options: opts, correct });
-                            }}>✕</button>
+                            }}><X size={14} strokeWidth={2.5} aria-hidden="true" /></button>
                           )}
                         </div>
                       ))}
@@ -1677,7 +1684,7 @@ export default function LessonBuilderPage() {
                               <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => {
                                 const rows = (block.content.rows || []).filter((_: any, i: number) => i !== ri);
                                 updateBlockContent(block.id, { ...block.content, rows });
-                              }}>✕</button>
+                              }}><X size={14} strokeWidth={2.5} aria-hidden="true" /></button>
                             </td>
                           </tr>
                         ))}
@@ -1714,7 +1721,7 @@ export default function LessonBuilderPage() {
                     >
                       {block.content.url ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                          <span style={{ fontSize: '1.5rem' }}>📎</span>
+                          <span style={{ display: "inline-flex" }}><Paperclip size={20} strokeWidth={1.75} /></span>
                           <div>
                             <div style={{ fontWeight: 600 }}>{block.content.name || 'Uploaded file'}</div>
                             {block.content.size > 0 && <div style={{ fontSize: '0.78rem', color: 'var(--color-text-tertiary)' }}>{formatFileSize(block.content.size)}</div>}
@@ -1722,7 +1729,7 @@ export default function LessonBuilderPage() {
                         </div>
                       ) : (
                         <div className="lesson-builder__drop-zone-text">
-                          <span style={{ fontSize: '2rem' }}>📎</span>
+                          <span style={{ display: "inline-flex" }}><Paperclip size={26} strokeWidth={1.75} /></span>
                           <p>Drag & drop a file here, or click to browse</p>
                         </div>
                       )}
@@ -1769,7 +1776,7 @@ export default function LessonBuilderPage() {
                                 style={{ width: '100%', height: '100%', minHeight: '80px' }}
                               >
                                 <div className="lesson-builder__drop-zone-text" style={{ padding: '0.5rem' }}>
-                                  <span>🖼</span>
+                                  <span style={{ display: "inline-flex" }}><ImageIcon size={16} strokeWidth={1.75} /></span>
                                   <p style={{ fontSize: '0.72rem' }}>Drop image</p>
                                 </div>
                               </div>
@@ -1788,7 +1795,7 @@ export default function LessonBuilderPage() {
                           <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => {
                             const images = (block.content.images || []).filter((_: any, i: number) => i !== ii);
                             updateBlockContent(block.id, { ...block.content, images });
-                          }} style={{ alignSelf: 'flex-start' }}>✕</button>
+                          }} style={{ alignSelf: 'flex-start' }}><X size={14} strokeWidth={2.5} aria-hidden="true" /></button>
                         </div>
                       ))}
                     </div>
@@ -1885,7 +1892,7 @@ export default function LessonBuilderPage() {
                         <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => {
                           const links = (block.content.links || []).filter((_: any, i: number) => i !== li);
                           updateBlockContent(block.id, { ...block.content, links });
-                        }}>✕</button>
+                        }}><X size={14} strokeWidth={2.5} aria-hidden="true" /></button>
                       </div>
                     ))}
                     <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => {
@@ -1929,7 +1936,7 @@ export default function LessonBuilderPage() {
                           <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => {
                             const cards = (block.content.cards || []).filter((_: any, i: number) => i !== ci);
                             updateBlockContent(block.id, { ...block.content, cards });
-                          }}>✕</button>
+                          }}><X size={14} strokeWidth={2.5} aria-hidden="true" /></button>
                         )}
                       </div>
                     ))}
@@ -2011,7 +2018,7 @@ export default function LessonBuilderPage() {
                             const next = [...items]; next[ii] = { ...next[ii], text: e.target.value }; updateItems(next);
                           }} rows={1} placeholder="Key term, formula, or concept... (HTML for sub/sup)" style={{ flex: 1 }} />
                           {items.length > 1 && (
-                            <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => updateItems(items.filter((_, i) => i !== ii))}>✕</button>
+                            <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => updateItems(items.filter((_, i) => i !== ii))}><X size={14} strokeWidth={2.5} aria-hidden="true" /></button>
                           )}
                         </div>
                       ))}
@@ -2034,7 +2041,7 @@ export default function LessonBuilderPage() {
                     <input className="fc-form__input" placeholder="Section title" value={block.content.title || ''} onChange={e => updateBlockContent(block.id, { ...block.content, title: e.target.value })} style={{ marginBottom: '.5rem' }} />
                     {(block.content.items || []).map((item: string, ii: number) => (
                       <div key={ii} style={{ display: 'flex', gap: '.5rem', marginBottom: '.35rem', alignItems: 'center' }}>
-                        <span style={{ color: 'var(--color-success)', fontSize: '.9rem', flexShrink: 0 }}>&#x2713;</span>
+                        <span style={{ color: 'var(--color-success)', fontSize: '.9rem', flexShrink: 0, display: 'inline-flex' }}><Check size={15} strokeWidth={3} /></span>
                         <input className="fc-form__input" value={item} onChange={e => {
                           const items = [...(block.content.items || [])];
                           items[ii] = e.target.value;
@@ -2044,7 +2051,7 @@ export default function LessonBuilderPage() {
                           <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => {
                             const items = (block.content.items || []).filter((_: any, i: number) => i !== ii);
                             updateBlockContent(block.id, { ...block.content, items });
-                          }}>✕</button>
+                          }}><X size={14} strokeWidth={2.5} aria-hidden="true" /></button>
                         )}
                       </div>
                     ))}
@@ -2088,7 +2095,7 @@ export default function LessonBuilderPage() {
                             <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => {
                               const tabs = (block.content.tabs || []).filter((_: any, i: number) => i !== ti);
                               updateBlockContent(block.id, { ...block.content, tabs });
-                            }}>✕</button>
+                            }}><X size={14} strokeWidth={2.5} aria-hidden="true" /></button>
                           )}
                         </div>
                         <textarea className="fc-form__textarea" value={tab.content || ''} onChange={e => {
@@ -2126,7 +2133,7 @@ export default function LessonBuilderPage() {
                             <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => {
                               const sections = (block.content.sections || []).filter((_: any, i: number) => i !== si);
                               updateBlockContent(block.id, { ...block.content, sections });
-                            }}>✕</button>
+                            }}><X size={14} strokeWidth={2.5} aria-hidden="true" /></button>
                           )}
                         </div>
                         <textarea className="fc-form__textarea" value={sec.content || ''} onChange={e => {
@@ -2205,7 +2212,7 @@ export default function LessonBuilderPage() {
                             <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => {
                               const steps = (block.content.steps || []).filter((_: any, i: number) => i !== si);
                               updateBlockContent(block.id, { ...block.content, steps });
-                            }} style={{ marginTop: '.35rem' }}>✕</button>
+                            }} style={{ marginTop: '.35rem' }}><X size={14} strokeWidth={2.5} aria-hidden="true" /></button>
                           )}
                         </div>
                       ))}
@@ -2225,7 +2232,7 @@ export default function LessonBuilderPage() {
                 <div className="lesson-builder__style-panel">
                   <div className="lesson-builder__style-panel-header">
                     <span style={{ fontWeight: 600, fontSize: '.82rem' }}>Block Styling</span>
-                    <button className="lesson-builder__block-btn" onClick={() => setShowStylePanel(null)}>✕</button>
+                    <button className="lesson-builder__block-btn" onClick={() => setShowStylePanel(null)}><X size={14} strokeWidth={2.5} aria-hidden="true" /></button>
                   </div>
                   <div className="lesson-builder__style-panel-body">
                     <div className="lesson-builder__style-row">
@@ -2310,7 +2317,7 @@ export default function LessonBuilderPage() {
           <div className="admin-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '620px' }}>
             <div className="admin-modal__header">
               <h3 className="admin-modal__title">Add Content Block</h3>
-              <button className="admin-modal__close" onClick={() => { setShowBlockPicker(false); setBlockPickerSearch(''); setBlockPickerTab('blocks'); }}>✕</button>
+              <button className="admin-modal__close" onClick={() => { setShowBlockPicker(false); setBlockPickerSearch(''); setBlockPickerTab('blocks'); }}><X size={14} strokeWidth={2.5} aria-hidden="true" /></button>
             </div>
             {/* Tabs: Blocks | Templates */}
             <div className="lesson-builder__picker-tabs">
@@ -2331,7 +2338,7 @@ export default function LessonBuilderPage() {
                         <div className="lesson-builder__block-picker">
                           {groupTypes.map((bt) => (
                             <button key={bt.type} className="lesson-builder__block-option" onClick={() => { addBlock(bt.type); setBlockPickerSearch(''); }}>
-                              <span className="lesson-builder__block-option-icon">{bt.icon}</span>
+                              <span className="lesson-builder__block-option-icon"><bt.Icon size={18} strokeWidth={1.75} /></span>
                               <div>
                                 <div className="lesson-builder__block-option-label">{bt.label}</div>
                                 <div className="lesson-builder__block-option-desc">{bt.description}</div>
@@ -2368,7 +2375,7 @@ export default function LessonBuilderPage() {
                               </div>
                             </button>
                             {!t.is_builtin && (
-                              <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => deleteTemplate(t.id)} title="Delete template" style={{ flexShrink: 0 }}>✕</button>
+                              <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => deleteTemplate(t.id)} title="Delete template" style={{ flexShrink: 0 }}><X size={14} strokeWidth={2.5} aria-hidden="true" /></button>
                             )}
                           </div>
                         ))}
@@ -2388,7 +2395,7 @@ export default function LessonBuilderPage() {
           <div className="admin-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
             <div className="admin-modal__header">
               <h3 className="admin-modal__title">Save as Template</h3>
-              <button className="admin-modal__close" onClick={() => setShowSaveTemplate(false)}>✕</button>
+              <button className="admin-modal__close" onClick={() => setShowSaveTemplate(false)}><X size={14} strokeWidth={2.5} aria-hidden="true" /></button>
             </div>
             <div className="admin-modal__body">
               <p style={{ fontSize: '.82rem', color: 'var(--color-text-tertiary)', marginBottom: '.75rem' }}>

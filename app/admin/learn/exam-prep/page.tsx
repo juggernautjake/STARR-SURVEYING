@@ -1,6 +1,7 @@
 // app/admin/learn/exam-prep/page.tsx
 'use client';
 import { useState, useEffect } from 'react';
+import { Loader2, ClipboardCheck, Target, Star } from 'lucide-react';
 import Link from 'next/link';
 import FieldbookButton from '@/app/admin/components/FieldbookButton';
 import { CalculatorTriggerButton } from '@/app/admin/components/calculator/CalculatorTriggerButton';
@@ -29,7 +30,7 @@ export default function ExamPrepPage() {
 
   if (loading) return (
     <div className="admin-empty">
-      <div className="admin-empty__icon">&#x23F3;</div>
+      <div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div>
       <div className="admin-empty__title">Loading...</div>
     </div>
   );
@@ -39,7 +40,7 @@ export default function ExamPrepPage() {
       <div className="admin-learn__header">
         <Link href="/admin/learn" className="admin-module-detail__back">&larr; Back to Learning Hub</Link>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <h2 className="admin-learn__title">&#x1F4DD; Exam Prep</h2>
+          <h2 className="admin-learn__title"><ClipboardCheck size={22} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />Exam Prep</h2>
           <CalculatorTriggerButton size="sm" title="Open an NCEES-approved calculator (Casio fx-115/991, HP 33s/35s, TI-30X/36X)" />
         </div>
         <p className="admin-learn__subtitle">
@@ -50,7 +51,7 @@ export default function ExamPrepPage() {
       <div className="admin-learn__sections">
         {/* FS Exam Prep Card */}
         <Link href="/admin/learn/exam-prep/sit" className="admin-learn__section-card" style={{ borderColor: 'var(--color-brand-navy)', borderWidth: '2px' }}>
-          <span className="admin-learn__section-icon">&#x1F3AF;</span>
+          <span className="admin-learn__section-icon"><Target size={20} strokeWidth={1.75} /></span>
           <h3 className="admin-learn__section-title">Fundamentals of Surveying (FS)</h3>
           <p className="admin-learn__section-desc">
             Comprehensive 8-module curriculum covering all NCEES FS exam content areas.
@@ -76,7 +77,7 @@ export default function ExamPrepPage() {
         {/* RPLS Card — dedicated RPLS prep isn't built yet, so link to the
             available FS curriculum instead of leaving an inert dead-end. */}
         <Link href="/admin/learn/exam-prep/sit" className="admin-learn__section-card" style={{ opacity: 0.85 }}>
-          <span className="admin-learn__section-icon">&#x2B50;</span>
+          <span className="admin-learn__section-icon"><Star size={20} strokeWidth={1.75} /></span>
           <h3 className="admin-learn__section-title">RPLS Exam (Coming Soon)</h3>
           <p className="admin-learn__section-desc">
             Advanced preparation for the Registered Professional Land Surveyor exam.

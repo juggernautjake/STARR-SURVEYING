@@ -7,6 +7,10 @@
 import '../styles/AdminMyNotes.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
+import {
+  Folder, MapPin, DraftingCompass, Camera, FileText, Mic, Package,
+  Upload, Loader2, FolderOpen, type LucideIcon,
+} from 'lucide-react';
 import { usePageError } from '../hooks/usePageError';
 
 interface UserFile {
@@ -20,14 +24,14 @@ interface UserFile {
   uploaded_at: string;
 }
 
-const FOLDERS = [
-  { key: 'all', label: 'All Files', icon: '📁' },
-  { key: 'field-data', label: 'Field Data', icon: '📡' },
-  { key: 'drawings', label: 'Drawings', icon: '📐' },
-  { key: 'photos', label: 'Photos', icon: '📷' },
-  { key: 'documents', label: 'Documents', icon: '📄' },
-  { key: 'voice-memos', label: 'Voice Memos', icon: '🎤' },
-  { key: 'other', label: 'Other', icon: '📦' },
+const FOLDERS: { key: string; label: string; Icon: LucideIcon }[] = [
+  { key: 'all', label: 'All Files', Icon: Folder },
+  { key: 'field-data', label: 'Field Data', Icon: MapPin },
+  { key: 'drawings', label: 'Drawings', Icon: DraftingCompass },
+  { key: 'photos', label: 'Photos', Icon: Camera },
+  { key: 'documents', label: 'Documents', Icon: FileText },
+  { key: 'voice-memos', label: 'Voice Memos', Icon: Mic },
+  { key: 'other', label: 'Other', Icon: Package },
 ];
 
 function formatFileSize(bytes: number): string {
@@ -147,7 +151,7 @@ export default function MyFilesPanel() {
             onClick={() => setFolderFilter(folderFilter === f.key ? 'all' : f.key)}
             style={{ '--stage-color': 'var(--color-brand-navy)' } as React.CSSProperties}
           >
-            <span className="jobs-page__pipeline-icon">{f.icon}</span>
+            <span className="jobs-page__pipeline-icon"><f.Icon size={16} strokeWidth={1.75} /></span>
             <span className="jobs-page__pipeline-label">{f.label}</span>
             <span className="jobs-page__pipeline-count">
               {f.key === 'all' ? files.length : files.filter(file => file.folder === f.key).length}
@@ -178,7 +182,7 @@ export default function MyFilesPanel() {
         onDrop={e => { e.preventDefault(); setDragActive(false); if (e.dataTransfer.files?.length) void uploadFiles(e.dataTransfer.files); }}
         style={{ marginBottom: '1.5rem', cursor: 'pointer' }}
       >
-        <span style={{ fontSize: '2rem' }}>📁</span>
+        <span style={{ color: 'var(--color-brand-navy, #1D3095)' }}><Upload size={30} strokeWidth={1.75} /></span>
         <p><strong>Drop files here</strong> or click to browse</p>
         <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>
           {folderFilter === 'all' ? 'Uploads go to “Other”.' : `Uploads go to “${FOLDERS.find(f => f.key === folderFilter)?.label}”.`} Supports all file types. Max 50MB per file.
@@ -188,12 +192,12 @@ export default function MyFilesPanel() {
       {/* Files list */}
       {loading ? (
         <div className="jobs-page__empty">
-          <span className="jobs-page__empty-icon">⏳</span>
+          <span className="jobs-page__empty-icon"><Loader2 size={28} className="animate-spin" /></span>
           <h3>Loading files…</h3>
         </div>
       ) : filtered.length === 0 ? (
         <div className="jobs-page__empty">
-          <span className="jobs-page__empty-icon">📁</span>
+          <span className="jobs-page__empty-icon"><FolderOpen size={28} strokeWidth={1.5} /></span>
           <h3>{files.length === 0 ? 'No files yet' : 'No files match your filters'}</h3>
           <p>Upload field data, photos, drawings, and other files.</p>
         </div>

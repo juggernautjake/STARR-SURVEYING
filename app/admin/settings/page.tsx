@@ -1,6 +1,10 @@
 // app/admin/settings/page.tsx — Admin settings (admin only)
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import {
+  Settings, Building2, Lock, Bell, Link2, CreditCard, Check, Satellite,
+  Monitor, Map as MapIcon, Mail, Calendar,
+} from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../hooks/usePageError';
 
@@ -67,18 +71,18 @@ export default function SettingsPage() {
   if (!isAdminUser) return null;
 
   const sections = [
-    { key: 'general', label: 'General', icon: '⚙️' },
-    { key: 'company', label: 'Company', icon: '🏢' },
-    { key: 'users', label: 'User Access', icon: '🔐' },
-    { key: 'notifications', label: 'Notifications', icon: '🔔' },
-    { key: 'integrations', label: 'Integrations', icon: '🔗' },
-    { key: 'billing', label: 'Billing', icon: '💳' },
+    { key: 'general', label: 'General', Icon: Settings },
+    { key: 'company', label: 'Company', Icon: Building2 },
+    { key: 'users', label: 'User Access', Icon: Lock },
+    { key: 'notifications', label: 'Notifications', Icon: Bell },
+    { key: 'integrations', label: 'Integrations', Icon: Link2 },
+    { key: 'billing', label: 'Billing', Icon: CreditCard },
   ];
 
   function SaveBar({ k }: { k: 'general' | 'company' }) {
     return (
       <div className="job-form__actions" style={{ marginTop: '1rem', alignItems: 'center', gap: '0.75rem' }}>
-        {savedKey === k && <span style={{ color: 'var(--color-success)', fontSize: '0.82rem' }}>✓ Saved</span>}
+        {savedKey === k && <span style={{ color: 'var(--color-success)', fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}><Check size={13} strokeWidth={2.5} /> Saved</span>}
         <button
           className="job-form__submit"
           disabled={savingKey === k}
@@ -104,7 +108,7 @@ export default function SettingsPage() {
             className={`job-detail__tab ${activeSection === s.key ? 'job-detail__tab--active' : ''}`}
             onClick={() => setActiveSection(s.key)}
           >
-            <span className="job-detail__tab-icon">{s.icon}</span>
+            <span className="job-detail__tab-icon"><s.Icon size={15} strokeWidth={1.75} /></span>
             {s.label}
           </button>
         ))}
@@ -178,7 +182,7 @@ export default function SettingsPage() {
               Currently, admin access is controlled by the isAdmin() function in /lib/auth.ts.
             </p>
             <div className="job-detail__field-data-empty" style={{ marginTop: '1rem' }}>
-              <span>🔐</span>
+              <span><Lock size={16} strokeWidth={1.75} /></span>
               <p>Role-based access control is configured in code</p>
               <p className="job-detail__field-data-sub">Admin emails are defined in /lib/auth.ts</p>
             </div>
@@ -190,7 +194,7 @@ export default function SettingsPage() {
             <h3>Notification Settings</h3>
             <p className="job-detail__section-desc">Configure email and in-app notifications for various events.</p>
             <div className="job-detail__field-data-empty" style={{ marginTop: '1rem' }}>
-              <span>🔔</span>
+              <span><Bell size={16} strokeWidth={1.75} /></span>
               <p>Per-user messaging notifications live under Messages → Settings</p>
             </div>
           </div>
@@ -202,25 +206,25 @@ export default function SettingsPage() {
             <GoogleCalendarConnectCard />
             <div className="job-detail__integration-cards" style={{ marginTop: '1rem' }}>
               <div className="job-detail__integration-card">
-                <span className="job-detail__integration-icon">📡</span>
+                <span className="job-detail__integration-icon"><Satellite size={20} strokeWidth={1.75} /></span>
                 <h4>Trimble Access</h4>
                 <p>Real-time field data streaming</p>
                 <span className="job-detail__integration-status">Not Connected</span>
               </div>
               <div className="job-detail__integration-card">
-                <span className="job-detail__integration-icon">💻</span>
+                <span className="job-detail__integration-icon"><Monitor size={20} strokeWidth={1.75} /></span>
                 <h4>Trimble Business Center</h4>
                 <p>Data processing and adjustment</p>
                 <span className="job-detail__integration-status">Not Connected</span>
               </div>
               <div className="job-detail__integration-card">
-                <span className="job-detail__integration-icon">🗺️</span>
+                <span className="job-detail__integration-icon"><MapIcon size={20} strokeWidth={1.75} /></span>
                 <h4>Google Maps / Mapbox</h4>
                 <p>Satellite imagery and mapping</p>
                 <span className="job-detail__integration-status">Not Connected</span>
               </div>
               <div className="job-detail__integration-card">
-                <span className="job-detail__integration-icon">📧</span>
+                <span className="job-detail__integration-icon"><Mail size={20} strokeWidth={1.75} /></span>
                 <h4>Email Service</h4>
                 <p>Transactional emails and notifications</p>
                 <span className="job-detail__integration-status">Not Connected</span>
@@ -234,7 +238,7 @@ export default function SettingsPage() {
             <h3>Billing &amp; Subscription</h3>
             <p className="job-detail__section-desc">Subscription, invoices, and plan management live in the Billing area.</p>
             <div className="job-detail__field-data-empty" style={{ marginTop: '1rem' }}>
-              <span>💳</span>
+              <span><CreditCard size={16} strokeWidth={1.75} /></span>
               <p>Open <a href="/admin/billing" style={{ color: 'var(--color-brand-navy)' }}>Billing &amp; Plans &rarr;</a></p>
             </div>
           </div>
@@ -324,7 +328,7 @@ function GoogleCalendarConnectCard() {
   return (
     <div className="job-detail__integration-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        <span className="job-detail__integration-icon" style={{ fontSize: '1.6rem' }}>📅</span>
+        <span className="job-detail__integration-icon"><Calendar size={24} strokeWidth={1.75} /></span>
         <div>
           <h4 style={{ margin: 0 }}>Google Calendar</h4>
           <p style={{ margin: '0.15rem 0 0', color: '#6B7280', fontSize: '0.85rem' }}>

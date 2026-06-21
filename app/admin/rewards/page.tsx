@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Loader2, ShoppingBag, Trophy, ClipboardList, ShoppingCart } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -135,7 +136,7 @@ export default function RewardsPage() {
 
   if (loading) return (
     <div className="admin-empty">
-      <div className="admin-empty__icon">&#x23F3;</div>
+      <div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div>
       <div className="admin-empty__title">Loading Rewards...</div>
     </div>
   );
@@ -178,13 +179,13 @@ export default function RewardsPage() {
       {/* Tabs */}
       <div className="rewards__tabs">
         <button className={`rewards__tab ${activeTab === 'store' ? 'rewards__tab--active' : ''}`} onClick={() => setActiveTab('store')}>
-          &#x1F6CD;&#xFE0F; Company Store
+          <ShoppingBag size={15} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Company Store
         </button>
         <button className={`rewards__tab ${activeTab === 'badges' ? 'rewards__tab--active' : ''}`} onClick={() => setActiveTab('badges')}>
-          &#x1F3C6; Badges
+          <Trophy size={15} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Badges
         </button>
         <button className={`rewards__tab ${activeTab === 'history' ? 'rewards__tab--active' : ''}`} onClick={() => setActiveTab('history')}>
-          &#x1F4CB; Purchase History
+          <ClipboardList size={15} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Purchase History
         </button>
       </div>
 
@@ -319,7 +320,7 @@ export default function RewardsPage() {
         <div className="rewards__history">
           {purchases.length === 0 ? (
             <div className="admin-empty">
-              <div className="admin-empty__icon">&#x1F6D2;</div>
+              <div className="admin-empty__icon"><ShoppingCart size={30} strokeWidth={1.5} /></div>
               <div className="admin-empty__title">No purchases yet</div>
               <div className="admin-empty__desc">Earn XP by completing modules and exams, then redeem them in the store!</div>
             </div>

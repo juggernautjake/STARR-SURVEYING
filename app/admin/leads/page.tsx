@@ -3,6 +3,7 @@
 import '../styles/AdminJobs.css';
 import '../styles/Leads.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Inbox, Check } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -261,7 +262,7 @@ export default function LeadsPage() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="jobs-page__empty">
-          <span className="jobs-page__empty-icon">📨</span>
+          <span className="jobs-page__empty-icon"><Inbox size={30} strokeWidth={1.5} /></span>
           <h3>{leads.length === 0 ? 'No leads yet' : 'No leads match this filter'}</h3>
           <p>Add your first lead to start tracking potential clients.</p>
         </div>
@@ -325,7 +326,7 @@ export default function LeadsPage() {
                       onClick={() => void changeStatus(lead, 'contacted')}
                       title="Mark as contacted + dismiss the new-query notification"
                     >
-                      ✓ Mark contacted
+                      <Check size={13} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Mark contacted
                     </button>
                   )}
                   <Link

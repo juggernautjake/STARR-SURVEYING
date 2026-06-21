@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
+import { BatteryCharging, Battery, Check, Clock, User, Car, Map } from 'lucide-react';
 
 interface ActiveEntry {
   id: string;
@@ -394,8 +395,10 @@ function TeamCard({ member, pinging, onPing }: TeamCardProps) {
                         : 'Battery (not charging)'
                     }
                   >
-                    {lastLoc.is_charging ? '⚡' : '🔋'}
-                    {lastLoc.battery_pct}%
+                    {lastLoc.is_charging
+                      ? <BatteryCharging size={14} strokeWidth={2} style={{ verticalAlign: 'text-bottom' }} />
+                      : <Battery size={14} strokeWidth={2} style={{ verticalAlign: 'text-bottom' }} />}
+                    {' '}{lastLoc.battery_pct}%
                   </span>
                 </>
               ) : null}
@@ -413,8 +416,12 @@ function TeamCard({ member, pinging, onPing }: TeamCardProps) {
               <>
                 <strong>{formatTimeAgo(ping.created_at)}</strong>
                 {' — '}
-                {ping.delivered_at ? '✓ delivered' : '⏳ undelivered'}
-                {ping.read_at ? ' · ✓ read' : ' · — unread'}
+                {ping.delivered_at
+                  ? <><Check size={11} strokeWidth={2.5} style={{ verticalAlign: 'middle' }} /> delivered</>
+                  : <><Clock size={11} strokeWidth={2.5} style={{ verticalAlign: 'middle' }} /> undelivered</>}
+                {ping.read_at
+                  ? <> · <Check size={11} strokeWidth={2.5} style={{ verticalAlign: 'middle' }} /> read</>
+                  : ' · — unread'}
               </>
             ) : (
               <span style={{ color: '#6B7280' }}>none in last 24 h</span>
@@ -441,25 +448,25 @@ function TeamCard({ member, pinging, onPing }: TeamCardProps) {
           onClick={() => onPing('submit_week')}
           style={styles.pingBtnSecondary}
         >
-          ✓ Submit week
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><Check size={14} strokeWidth={2.5} /> Submit week</span>
         </button>
         <a
           href={`/admin/team/${encodeURIComponent(member.email)}`}
           style={{ ...styles.linkBtn, fontWeight: 600 }}
         >
-          📋 Open profile
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><User size={14} strokeWidth={2} /> Open profile</span>
         </a>
         <a
           href={`/admin/mileage?user_email=${encodeURIComponent(member.email)}`}
           style={styles.linkBtn}
         >
-          🚗 Mileage
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><Car size={14} strokeWidth={2} /> Mileage</span>
         </a>
         <a
           href={`/admin/timeline?user=${encodeURIComponent(member.email)}`}
           style={styles.linkBtn}
         >
-          🗺️ Timeline
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><Map size={14} strokeWidth={2} /> Timeline</span>
         </a>
       </div>
     </article>

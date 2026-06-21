@@ -3,6 +3,7 @@
 import '../styles/AdminUsers.css';
 
 import { useState, useEffect, useCallback, Fragment } from 'react';
+import { Lock, Users } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import type { UserRole } from '@/lib/auth';
 
@@ -275,7 +276,7 @@ export default function UsersPage() {
     return (
       <div className="jobs-page">
         <div className="job-detail__field-data-empty">
-          <span>&#x1F512;</span>
+          <span><Lock size={15} strokeWidth={2} /></span>
           <p>Admin access required</p>
         </div>
       </div>
@@ -387,7 +388,7 @@ export default function UsersPage() {
         <div className="job-detail__field-data-empty"><p>Loading users...</p></div>
       ) : filtered.length === 0 ? (
         <div className="job-detail__field-data-empty">
-          <span>&#x1F465;</span>
+          <span><Users size={15} strokeWidth={1.75} /></span>
           <p>{users.length === 0 ? 'No registered users yet' : 'No users match your filters'}</p>
           {users.length === 0 && <p className="job-detail__field-data-sub">Users appear here when they register or sign in with Google</p>}
         </div>

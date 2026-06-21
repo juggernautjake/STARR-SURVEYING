@@ -1,6 +1,7 @@
 // app/admin/learn/flashcard-bank/page.tsx — Flashcard Bank: browse all company + personal flashcards
 'use client';
 import { useState, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { usePageError } from '../../hooks/usePageError';
 import { useToast } from '../../components/Toast';
@@ -189,7 +190,7 @@ export default function FlashcardBankPage() {
 
       {/* Content */}
       {loading ? (
-        <div className="admin-empty"><div className="admin-empty__icon">&#x23F3;</div><div className="admin-empty__title">Loading flashcard bank...</div></div>
+        <div className="admin-empty"><div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div><div className="admin-empty__title">Loading flashcard bank...</div></div>
       ) : filtered.length === 0 ? (
         <div className="admin-empty">
           <div className="admin-empty__icon">{section === 'company' ? '\u{1F3E2}' : '\u{270D}'}</div>

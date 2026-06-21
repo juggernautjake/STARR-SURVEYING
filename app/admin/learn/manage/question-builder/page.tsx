@@ -1,6 +1,7 @@
 // app/admin/learn/manage/question-builder/page.tsx
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Lock, Check, X, HelpCircle, Puzzle } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import FillBlankQuestion from '@/app/admin/components/FillBlankQuestion';
@@ -775,7 +776,7 @@ export default function QuestionBuilderPage() {
   if (!canManage) {
     return (
       <div className="admin-empty">
-        <div className="admin-empty__icon">&#x1F512;</div>
+        <div className="admin-empty__icon"><Lock size={30} strokeWidth={1.5} /></div>
         <div className="admin-empty__title">Content Management Access Required</div>
         <Link href="/admin/learn" className="admin-btn admin-btn--ghost" style={{ marginTop: '1rem' }}>&larr; Back</Link>
       </div>
@@ -1326,8 +1327,8 @@ export default function QuestionBuilderPage() {
                               disabled={simRevealed}
                               style={{ textAlign: 'left', padding: '.45rem .75rem', borderRadius: 6, background: bg, border, fontSize: '.82rem', cursor: simRevealed ? 'default' : 'pointer', fontFamily: 'Inter,sans-serif' }}>
                               <strong style={{ marginRight: '.35rem' }}>{String.fromCharCode(65 + oi)}.</strong> {opt}
-                              {simRevealed && opt === q.correct_answer && <span style={{ marginLeft: '.5rem', color: 'var(--color-success)' }}>&#x2713;</span>}
-                              {simRevealed && opt === answered && !isCorrect && <span style={{ marginLeft: '.5rem', color: 'var(--color-error)' }}>&#x2717;</span>}
+                              {simRevealed && opt === q.correct_answer && <span style={{ marginLeft: '.5rem', color: 'var(--color-success)' }}><Check size={14} strokeWidth={3} /></span>}
+                              {simRevealed && opt === answered && !isCorrect && <span style={{ marginLeft: '.5rem', color: 'var(--color-error)' }}><X size={14} strokeWidth={3} /></span>}
                             </button>
                           );
                         })}
@@ -1378,7 +1379,7 @@ export default function QuestionBuilderPage() {
 
             {filteredQuestions.length === 0 && (
               <div className="admin-empty" style={{ padding: '2rem' }}>
-                <div className="admin-empty__icon">&#x2753;</div>
+                <div className="admin-empty__icon"><HelpCircle size={30} strokeWidth={1.5} /></div>
                 <div className="admin-empty__title">{questions.length === 0 ? 'No questions yet' : 'No matching questions'}</div>
                 <div className="admin-empty__desc">{questions.length === 0 ? 'Create your first question above.' : 'Try adjusting your filters.'}</div>
               </div>
@@ -1692,7 +1693,7 @@ export default function QuestionBuilderPage() {
             </div>
             {filteredTemplates.length === 0 && (
               <div className="admin-empty" style={{ padding: '2rem' }}>
-                <div className="admin-empty__icon">&#x1F9E9;</div>
+                <div className="admin-empty__icon"><Puzzle size={30} strokeWidth={1.5} /></div>
                 <div className="admin-empty__title">No templates yet</div>
                 <div className="admin-empty__desc">Create your first problem template above, or templates will be auto-created when you run the migration.</div>
               </div>

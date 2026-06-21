@@ -9,6 +9,7 @@ import { useSession } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
 // Slice MX1 — "Open in /admin/messages →" header link.
 import Link from 'next/link';
+import { MessageSquare } from 'lucide-react';
 // Slice MX3 — draggable panel via the shared useDraggable hook.
 import { useDraggable } from '@/lib/admin/use-draggable';
 // Slice MX5 — highlight + snippet helpers for the cross-conversation search.
@@ -584,7 +585,7 @@ export default function FloatingMessenger() {
             onClick={() => { setIsOpen(true); setView('list'); fetchConversations(); fetchUnread(); }}
             aria-label="Open messages"
           >
-            💬
+            <MessageSquare size={22} strokeWidth={2} aria-hidden="true" />
             {totalUnread > 0 && (
               <span className="messenger-fab__badge">{totalUnread > 99 ? '99+' : totalUnread}</span>
             )}

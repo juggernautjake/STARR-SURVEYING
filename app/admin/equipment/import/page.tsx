@@ -15,6 +15,7 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
+import { Check, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 
@@ -180,7 +181,7 @@ export default function EquipmentImportPage() {
 
       {executeResult?.mode === 'execute' && executeResult.inserted > 0 ? (
         <div style={styles.successBanner}>
-          ✓ Imported{' '}
+          <Check size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.15rem" }} /> Imported{' '}
           <strong>
             {executeResult.inserted} row
             {executeResult.inserted === 1 ? '' : 's'}
@@ -251,7 +252,7 @@ export default function EquipmentImportPage() {
             {submitting && !dryRun ? 'Validating…' : 'Run dry-run'}
           </button>
           {error && !dryRun ? (
-            <div style={styles.errorBanner}>⚠ {error}</div>
+            <div style={{ ...styles.errorBanner, display: "inline-flex", alignItems: "center", gap: "0.4rem" }}><AlertTriangle size={14} strokeWidth={2} /> {error}</div>
           ) : null}
           {dryRun ? (
             <div
@@ -261,7 +262,7 @@ export default function EquipmentImportPage() {
                   : styles.errorBanner
               }
             >
-              {dryRun.errors.length === 0 ? '✓' : '⚠'} Dry-run:{' '}
+              {dryRun.errors.length === 0 ? <Check size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.15rem" }} /> : <AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.15rem" }} />} Dry-run:{' '}
               <strong>{dryRun.total_rows}</strong> row
               {dryRun.total_rows === 1 ? '' : 's'} parsed,{' '}
               <strong>{dryRun.would_insert}</strong> would insert,{' '}
@@ -318,13 +319,13 @@ export default function EquipmentImportPage() {
           </button>
           {executeResult?.errors && executeResult.errors.length > 0 ? (
             <div style={styles.errorBanner}>
-              ⚠ Execute refused — {executeResult.errors.length} per-row error
+              <AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.15rem" }} /> Execute refused — {executeResult.errors.length} per-row error
               {executeResult.errors.length === 1 ? '' : 's'} in the latest
               run. Re-run dry-run for the latest preview.
             </div>
           ) : null}
           {executeResult?.error && !executeResult.inserted ? (
-            <div style={styles.errorBanner}>⚠ {executeResult.error}</div>
+            <div style={{ ...styles.errorBanner, display: "inline-flex", alignItems: "center", gap: "0.4rem" }}><AlertTriangle size={14} strokeWidth={2} /> {executeResult.error}</div>
           ) : null}
         </div>
       </section>

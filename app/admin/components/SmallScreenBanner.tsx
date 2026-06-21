@@ -1,6 +1,7 @@
 // app/admin/components/SmallScreenBanner.tsx — Dismissible small-screen disclaimer for editor pages
 'use client';
 import { useState, useEffect } from 'react';
+import { Monitor } from 'lucide-react';
 
 interface SmallScreenBannerProps {
   /** Storage key so each page can remember dismissal independently */
@@ -34,7 +35,7 @@ export default function SmallScreenBanner({ storageKey = 'editor-banner-dismisse
   return (
     <div className="small-screen-banner" role="status">
       <div className="small-screen-banner__content">
-        <span className="small-screen-banner__icon" aria-hidden="true">&#x1F4BB;</span>
+        <span className="small-screen-banner__icon" aria-hidden="true"><Monitor size={24} strokeWidth={1.75} /></span>
         <p className="small-screen-banner__text">
           This content editor works best on a larger screen or desktop for the full experience.
         </p>

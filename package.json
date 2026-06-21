@@ -17,6 +17,10 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "db:seed": "node scripts/apply-seeds.mjs",
+    "db:seed:all": "node scripts/apply-seeds.mjs --continue-on-error",
+    "db:seed:reset": "node scripts/apply-seeds.mjs --reset",
+    "db:seed:dry": "node scripts/apply-seeds.mjs --dry-run",
     "e2e": "playwright test",
     "e2e:install": "playwright install --with-deps chromium",
     "ws": "tsx server/ws.ts"

@@ -233,6 +233,32 @@
   opacity: 0.6;
 }
 
+/* file-input-reset-2026-06-21 (F3) — <input type="file"> also inherits the
+ * marketing-form default (full-width, 2px border, 0.875rem padding,
+ * 1.5rem bottom margin), which renders an oversized boxed control that
+ * doesn't line up in a control row. Reset to a compact native picker so
+ * file inputs match the rest of the admin form controls. */
+.admin-layout input[type="file"] {
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+/* date-time-baseline-2026-06-21 (F3, pattern #3) — native date/time
+ * pickers carry built-in calendar/clock chrome that makes their intrinsic
+ * height ~36-40px. When one sits in an `.admin-form-row`, pin it to the
+ * shared 36px baseline so it never overhangs sibling buttons. Pages that
+ * don't use the utility class should add `.admin-form-row__input`. */
+.admin-layout .admin-form-row__input[type="date"],
+.admin-layout .admin-form-row__input[type="time"],
+.admin-layout .admin-form-row__input[type="datetime-local"] {
+  height: 36px;
+  line-height: 1.2;
+}
+
 /* === Portal-rendered tooltip (Tooltip.tsx) =============================
  * button-tooltip-portal-2026-06-20 — these rules were previously in
  * AdminResearch.css which only loads on /admin/research/**, so every
@@ -308,7 +334,7 @@
 .admin-sidebar__link { display:flex; align-items:center; gap:.75rem; padding:.6rem 1.25rem; font-family:'Inter',sans-serif; font-size:.85rem; font-weight:500; color:rgba(255,255,255,.75); text-decoration:none; transition:all .15s; border-left:3px solid transparent; }
 .admin-sidebar__link:hover { background:rgba(255,255,255,.08); color:#FFF; }
 .admin-sidebar__link--active { background:rgba(255,255,255,.12); color:#FFF; border-left-color:var(--color-brand-red); font-weight:600; }
-.admin-sidebar__link-icon { font-size:1.1rem; width:1.5rem; text-align:center; flex-shrink:0; }
+.admin-sidebar__link-icon { width:1.5rem; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; color:inherit; }
 .admin-sidebar__footer { padding:1rem 1.25rem; border-top:1px solid rgba(255,255,255,.1); }
 .admin-sidebar__user { display:flex; align-items:center; gap:.65rem; }
 .admin-sidebar__avatar { width:32px; height:32px; border-radius:50%; border:2px solid rgba(255,255,255,.3); object-fit:cover; }

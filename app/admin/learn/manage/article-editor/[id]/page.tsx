@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Loader2, FileX } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import ArticleEditor from '@/app/admin/components/ArticleEditor';
@@ -52,7 +53,7 @@ export default function ArticleEditorPage() {
   if (loading) {
     return (
       <div className="admin-empty">
-        <div className="admin-empty__icon">&#x23F3;</div>
+        <div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div>
         <div className="admin-empty__title">Loading article...</div>
       </div>
     );
@@ -61,7 +62,7 @@ export default function ArticleEditorPage() {
   if (!article) {
     return (
       <div className="admin-empty">
-        <div className="admin-empty__icon">&#x274C;</div>
+        <div className="admin-empty__icon"><FileX size={30} strokeWidth={1.5} /></div>
         <div className="admin-empty__title">Article not found</div>
         <Link href="/admin/learn/manage?tab=articles" className="admin-btn admin-btn--ghost" style={{ marginTop: '1rem' }}>&larr; Back to Articles</Link>
       </div>

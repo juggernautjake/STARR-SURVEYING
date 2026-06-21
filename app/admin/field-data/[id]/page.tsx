@@ -6,6 +6,10 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import {
+  Image as ImageIcon, FileText, FileSpreadsheet, Paperclip, Mic,
+  Clock, Headphones, AlertTriangle, Check,
+} from 'lucide-react';
 
 import {
   parseAnnotations,
@@ -628,8 +632,8 @@ function FileCardItem({ file }: { file: FileRow }) {
   return (
     <article style={styles.noteCard}>
       <header style={styles.noteHeader}>
-        <span style={styles.noteTemplate}>
-          {isImage ? '🖼' : isPdf ? '📄' : isCsv ? '📊' : '📎'} File
+        <span style={{ ...styles.noteTemplate, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+          {isImage ? <ImageIcon size={14} strokeWidth={1.75} /> : isPdf ? <FileText size={14} strokeWidth={1.75} /> : isCsv ? <FileSpreadsheet size={14} strokeWidth={1.75} /> : <Paperclip size={14} strokeWidth={1.75} />} File
         </span>
         <span style={styles.noteMeta}>
           {uploaderLine(
@@ -1024,7 +1028,7 @@ function PhotoCard({
     return (
       <div style={styles.photoCard}>
         <div style={styles.audioBlock}>
-          <span style={styles.audioGlyph}>🎙</span>
+          <span style={styles.audioGlyph}><Mic size={18} strokeWidth={2} /></span>
           {audioUrl ? (
             <audio controls preload="metadata" style={styles.audioPlayer}>
               <source src={audioUrl} type="audio/mp4" />
@@ -1096,12 +1100,12 @@ function PhotoCard({
                 }
               >
                 {media.transcription_status === 'queued'
-                  ? '⏳ queued'
+                  ? <><Clock size={11} strokeWidth={2.5} style={{ verticalAlign: 'middle' }} /> queued</>
                   : media.transcription_status === 'running'
-                    ? '🎧 transcribing…'
+                    ? <><Headphones size={11} strokeWidth={2.5} style={{ verticalAlign: 'middle' }} /> transcribing…</>
                     : media.transcription_status === 'failed'
-                      ? '⚠ failed'
-                      : '✓ done'}
+                      ? <><AlertTriangle size={11} strokeWidth={2.5} style={{ verticalAlign: 'middle' }} /> failed</>
+                      : <><Check size={11} strokeWidth={2.5} style={{ verticalAlign: 'middle' }} /> done</>}
               </span>
             </div>
           ) : null}

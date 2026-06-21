@@ -19,6 +19,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { X, Camera, AlertTriangle } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 
 import { usePageError } from '../../hooks/usePageError';
@@ -289,7 +290,7 @@ function AddUnitModal({ onClose, onCreated }: AddUnitModalProps) {
             onClick={onClose}
             aria-label="Close"
           >
-            ✕
+            <X size={15} strokeWidth={2.5} aria-hidden="true" />
           </button>
         </header>
 
@@ -800,7 +801,7 @@ function EditUnitModal({ row, onClose, onUpdated }: EditUnitModalProps) {
             onClick={onClose}
             aria-label="Close"
           >
-            ✕
+            <X size={15} strokeWidth={2.5} aria-hidden="true" />
           </button>
         </header>
 
@@ -834,7 +835,7 @@ function EditUnitModal({ row, onClose, onUpdated }: EditUnitModalProps) {
                   style={styles.photoPreview}
                 />
               ) : (
-                <div style={styles.photoPlaceholder}>📷 No photo yet</div>
+                <div style={{ ...styles.photoPlaceholder, display: "inline-flex", alignItems: "center", gap: "0.4rem" }}><Camera size={16} strokeWidth={1.75} /> No photo yet</div>
               )}
               <div style={styles.photoControls}>
                 <input
@@ -1248,7 +1249,7 @@ function RetireRestoreModal({
             onClick={onClose}
             aria-label="Close"
           >
-            ✕
+            <X size={15} strokeWidth={2.5} aria-hidden="true" />
           </button>
         </header>
 
@@ -1772,7 +1773,7 @@ export default function EquipmentInventoryPage() {
                           style={styles.thumbnailFallback}
                           title="Photo on file (signed URL unavailable; refresh)"
                         >
-                          📷
+                          <Camera size={16} strokeWidth={1.75} aria-hidden="true" />
                         </div>
                       ) : (
                         <div
@@ -1859,7 +1860,7 @@ export default function EquipmentInventoryPage() {
                       <span style={isLowStock ? styles.lowStock : undefined}>
                         {row.quantity_on_hand ?? 0}
                         {row.unit ? ` ${row.unit}` : ''}
-                        {isLowStock ? ' ⚠' : ''}
+                        {isLowStock ? <AlertTriangle size={12} strokeWidth={2.5} style={{ verticalAlign: "middle", marginLeft: "0.25rem", color: "var(--color-error, #DC2626)" }} aria-label="Low stock" /> : null}
                       </span>
                     ) : (
                       <span style={styles.muted}>—</span>

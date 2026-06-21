@@ -15,6 +15,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Image as ImageIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 
@@ -252,7 +253,7 @@ export default function FieldDataPage() {
                   />
                 ) : (
                   <div style={styles.thumbPlaceholder}>
-                    {p.media_count > 0 ? '🔄' : '—'}
+                    {p.media_count > 0 ? <ImageIcon size={16} strokeWidth={1.75} /> : '—'}
                   </div>
                 )}
                 {p.media_count > 1 ? (

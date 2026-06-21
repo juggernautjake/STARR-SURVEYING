@@ -11,6 +11,7 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMemo } from 'react';
+import { Lock } from 'lucide-react';
 
 import { BUNDLES, formatBundlePrice, annualPriceCents, type BundleId } from '@/lib/saas/bundles';
 
@@ -54,7 +55,7 @@ export default function BillingUpgradePage() {
     <div className="upgrade-page">
       <div className="upgrade-card">
         <header>
-          <span className="upgrade-pill">🔒 Bundle required</span>
+          <span className="upgrade-pill"><Lock size={13} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Bundle required</span>
           <h1>{bundle.label} unlocks this page</h1>
           <p className="upgrade-tagline">{bundle.tagline}</p>
         </header>

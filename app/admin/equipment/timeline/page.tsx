@@ -19,6 +19,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, X } from 'lucide-react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 
@@ -534,7 +535,7 @@ export default function EquipmentTimelinePage() {
         <div style={styles.extendingToast}>Extending reservation…</div>
       ) : extendError ? (
         <div style={styles.extendErrorToast}>
-          ⚠ {extendError}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><AlertTriangle size={13} strokeWidth={2} /> {extendError}</span>
           <button
             type="button"
             onClick={() => setExtendError(null)}
@@ -598,7 +599,7 @@ function DrilldownDrawer({
             onClick={onClose}
             aria-label="Close"
           >
-            ✕
+            <X size={15} strokeWidth={2.5} aria-hidden="true" />
           </button>
         </header>
 

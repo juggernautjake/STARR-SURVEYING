@@ -2,6 +2,7 @@
 'use client';
 import '../styles/AdminMyNotes.css';
 import { useCallback, useEffect, useState } from 'react';
+import { Pin, StickyNote } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../hooks/usePageError';
 
@@ -116,7 +117,7 @@ export default function CompanyNotesPage() {
             style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
             onClick={() => void togglePin(note)}
           >
-            {note.is_pinned ? '📌 Unpin' : '📌 Pin'}
+            {note.is_pinned ? <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem" }}><Pin size={13} /> Unpin</span> : <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem" }}><Pin size={13} /> Pin</span>}
           </button>
           <button
             className="jobs-page__btn"
@@ -216,7 +217,7 @@ export default function CompanyNotesPage() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="jobs-page__empty">
-          <span className="jobs-page__empty-icon">📝</span>
+          <span className="jobs-page__empty-icon"><StickyNote size={30} strokeWidth={1.5} /></span>
           <h3>{notes.length === 0 ? 'No notes yet' : 'No notes match your filters'}</h3>
           <p>Create company-wide notes for procedures, safety guidelines, and announcements.</p>
         </div>

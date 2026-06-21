@@ -55,35 +55,40 @@ describe('matchesEmployee — pure predicate', () => {
     expect(matchesEmployee(emp(), filter())).toBe(true);
   });
 
-  it('prefix on first name (case-insensitive)', () => {
+  it('prefix-match on name (case-insensitive)', () => {
     expect(matchesEmployee(emp({ name: 'Rachel' }), filter({ query: 'ra' }))).toBe(true);
     expect(matchesEmployee(emp({ name: 'Raphael' }), filter({ query: 'RA' }))).toBe(true);
     expect(matchesEmployee(emp({ name: 'Jacob' }), filter({ query: 'ra' }))).toBe(false);
   });
 
-  it('prefix on last name', () => {
-    // emp-search-prefix-2026-06-21 — typing the start of someone's
-    // last name should surface them even if their first name doesn't
-    // share the same prefix.
-    expect(matchesEmployee(emp({ name: 'Hank Maddux' }), filter({ query: 'mad' }))).toBe(true);
-    expect(matchesEmployee(emp({ name: 'Hank Maddux' }), filter({ query: 'han' }))).toBe(true);
-    expect(matchesEmployee(emp({ name: 'Hank Maddux' }), filter({ query: 'addu' }))).toBe(false);
-  });
-
-  it('prefix on email (the whole string, including @ if typed)', () => {
+  it('prefix-match on email', () => {
     expect(matchesEmployee(emp({ email: 'jacob@x.com' }), filter({ query: 'jacob' }))).toBe(true);
-    expect(matchesEmployee(emp({ email: 'jacob@x.com' }), filter({ query: 'jacob@' }))).toBe(true);
     expect(matchesEmployee(emp({ email: 'hank@x.com' }), filter({ query: 'jacob' }))).toBe(false);
-    // Substring-in-the-middle of the email no longer matches.
-    expect(matchesEmployee(emp({ email: 'jacob@x.com' }), filter({ query: 'x.com' }))).toBe(false);
   });
 
-  it('rejects mid-string substrings (the regression this slice fixed)', () => {
-    // The old `.includes()` implementation matched any letter
-    // appearing anywhere in the name/email. Verify those exact
-    // cases are now rejected.
-    expect(matchesEmployee(emp({ name: 'Jacob' }), filter({ query: 'cob' }))).toBe(false);
-    expect(matchesEmployee(emp({ name: 'Randall' }), filter({ query: 'dall' }))).toBe(false);
+  it('is a PREFIX match, not an out-of-order substring (user spec 2026-06-20)', () => {
+    // "e" must NOT surface Audey / Annie / Henry just because they
+    // contain an "e" somewhere.
+    expect(matchesEmployee(emp({ name: 'Audey' }), filter({ query: 'e' }))).toBe(false);
+    expect(matchesEmployee(emp({ name: 'Annie' }), filter({ query: 'e' }))).toBe(false);
+    expect(matchesEmployee(emp({ name: 'Henry' }), filter({ query: 'e' }))).toBe(false);
+    // …but the leading prefix surfaces exactly the intended person.
+    expect(matchesEmployee(emp({ name: 'Audey' }), filter({ query: 'Au' }))).toBe(true);
+    expect(matchesEmployee(emp({ name: 'Annie' }), filter({ query: 'Ann' }))).toBe(true);
+    expect(matchesEmployee(emp({ name: 'Henry' }), filter({ query: 'Hen' }))).toBe(true);
+    // a single "a" surfaces every A-name (prefix), as the user described.
+    expect(matchesEmployee(emp({ name: 'Andy' }), filter({ query: 'a' }))).toBe(true);
+    expect(matchesEmployee(emp({ name: 'Arnold' }), filter({ query: 'a' }))).toBe(true);
+  });
+
+  it('prefix-matches the LAST name too, not just the first', () => {
+    expect(matchesEmployee(emp({ name: 'Jacob Maddux' }), filter({ query: 'mad' }))).toBe(true);
+    expect(matchesEmployee(emp({ name: 'Jacob Maddux' }), filter({ query: 'add' }))).toBe(false);
+  });
+
+  it('email prefix matches the local part but not a mid-string fragment', () => {
+    expect(matchesEmployee(emp({ email: 'audey@x.com' }), filter({ query: 'aud' }))).toBe(true);
+    expect(matchesEmployee(emp({ email: 'audey@x.com' }), filter({ query: 'dey' }))).toBe(false);
   });
 
   it('trims whitespace before matching so "  ra  " behaves like "ra"', () => {

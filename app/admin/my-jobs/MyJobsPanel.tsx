@@ -10,6 +10,7 @@ import '../styles/AdminJobs.css';
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { FolderOpen } from 'lucide-react';
 import { usePageError } from '../hooks/usePageError';
 import JobCard from '../components/jobs/JobCard';
 
@@ -99,7 +100,7 @@ export default function MyJobsPanel() {
           </div>
         ) : jobs.length === 0 ? (
           <div className="jobs-page__empty">
-            <span className="jobs-page__empty-icon">🗂️</span>
+            <span className="jobs-page__empty-icon"><FolderOpen size={30} strokeWidth={1.5} /></span>
             <h3>No jobs assigned</h3>
             <p>You will see jobs here once you are assigned to a crew.</p>
           </div>

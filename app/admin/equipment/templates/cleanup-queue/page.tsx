@@ -22,6 +22,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Check } from 'lucide-react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 
@@ -119,7 +120,7 @@ export default function CleanupQueuePage() {
       {data ? (
         data.templates.length === 0 ? (
           <div style={styles.empty}>
-            <strong>✓ Nothing to clean up.</strong>
+            <strong style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><Check size={14} strokeWidth={2.5} /> Nothing to clean up.</strong>
             <p style={styles.cleanCopy}>
               Every template item that pins a specific instrument
               points at a unit still in active service. New

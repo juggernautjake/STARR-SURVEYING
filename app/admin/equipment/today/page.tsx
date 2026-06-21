@@ -15,6 +15,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, Wrench, FlaskConical } from 'lucide-react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 
@@ -349,10 +350,10 @@ function PillBadge({ pill }: { pill: StatusPill }) {
 function ConditionBadge({ condition }: { condition: string | null }) {
   if (!condition) return null;
   const map: Record<string, { label: string; style: React.CSSProperties }> = {
-    good: { label: '✓ good', style: styles.condGood },
-    fair: { label: '⚠ fair', style: styles.condFair },
-    damaged: { label: '⚡ damaged', style: styles.condDamaged },
-    lost: { label: '❓ lost', style: styles.condLost },
+    good: { label: 'good', style: styles.condGood },
+    fair: { label: 'fair', style: styles.condFair },
+    damaged: { label: 'damaged', style: styles.condDamaged },
+    lost: { label: 'lost', style: styles.condLost },
   };
   const entry = map[condition];
   if (!entry) return null;
@@ -368,7 +369,7 @@ function BannerStack({
   if (banners.unstaffed_pto.length > 0) {
     items.push(
       <div key="pto" style={styles.bannerRed}>
-        <strong>⚠ {banners.unstaffed_pto.length} PTO/sick today</strong> ·{' '}
+        <strong><AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.15rem" }} /> {banners.unstaffed_pto.length} PTO/sick today</strong> ·{' '}
         {banners.unstaffed_pto
           .slice(0, 3)
           .map((p) => `${p.user_email} (${p.kind})`)
@@ -383,7 +384,7 @@ function BannerStack({
     items.push(
       <div key="lowstock" style={styles.bannerAmber}>
         <strong>
-          ⚠ {banners.low_stock_consumables.length} consumable
+          <AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.15rem" }} /> {banners.low_stock_consumables.length} consumable
           {banners.low_stock_consumables.length === 1 ? '' : 's'} low + reserved
           today
         </strong>
@@ -402,7 +403,7 @@ function BannerStack({
     items.push(
       <div key="maint" style={styles.bannerBlue}>
         <strong>
-          🔧 {banners.maintenance_starting_today.length} maintenance window
+          <Wrench size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.15rem" }} /> {banners.maintenance_starting_today.length} maintenance window
           {banners.maintenance_starting_today.length === 1 ? '' : 's'} today
         </strong>
         {' · '}
@@ -424,7 +425,7 @@ function BannerStack({
       items.push(
         <div key="cert-overdue" style={styles.bannerRed}>
           <strong>
-            ⚠ {overdue.length} calibration cert
+            <AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.15rem" }} /> {overdue.length} calibration cert
             {overdue.length === 1 ? '' : 's'} overdue
           </strong>
           {' · '}
@@ -443,7 +444,7 @@ function BannerStack({
       items.push(
         <div key="cert-upcoming" style={styles.bannerBlue}>
           <strong>
-            🧪 {upcoming.length} calibration cert
+            <FlaskConical size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.15rem" }} /> {upcoming.length} calibration cert
             {upcoming.length === 1 ? '' : 's'} expiring within 60d
           </strong>
           {' · '}

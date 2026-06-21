@@ -34,6 +34,26 @@ QA_CHECKLIST="$REPO_ROOT/docs/planning/QA_CHECKLIST.md"
 # pipe — we don't actually need any field from it right now.
 cat >/dev/null
 
+# Portable JSON-string emitter. The original hook used `jq`, which is NOT
+# installed in every environment (notably Git Bash on Windows) — when it's
+# missing the hook errored ("jq: command not found"), emitted nothing, and
+# the whole auto-continue loop silently no-op'd. Prefer node (always present
+# in this repo's toolchain); fall back to a pure-bash escaper. Prints the
+# value as a quoted, escaped JSON string.
+json_string() {
+  if command -v node >/dev/null 2>&1; then
+    RAW="$1" node -e 'process.stdout.write(JSON.stringify(process.env.RAW))'
+  else
+    local s=$1
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=${s//$'\n'/\\n}
+    s=${s//$'\r'/\\r}
+    s=${s//$'\t'/\\t}
+    printf '"%s"' "$s"
+  fi
+}
+
 remaining_planning_docs=0
 if [ -d "$IN_PROGRESS" ]; then
   remaining_planning_docs=$(find "$IN_PROGRESS" -type f -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
@@ -46,15 +66,15 @@ fi
 
 if [ "$remaining_planning_docs" -gt 0 ]; then
   reason="${remaining_planning_docs} planning doc(s) still in docs/planning/in-progress/. Pick the next one (alphabetical filename order works), read it together with the live state of the code it describes, then ship the smallest meaningful next slice — typecheck + lint, commit, push. Annotate the doc with the slice's completion note. When every action item in a doc is shipped or explicitly deferred with a one-line rationale, MOVE the doc from docs/planning/in-progress/ to docs/planning/completed/ per the rubric in docs/planning/README.md. Do not mark items deferred just to empty the folder; defer only when implementation cost clearly exceeds value, and document the reason inline. Once in-progress/ is empty this hook will route the conversation into the QA phase."
-  jq -n --arg r "$reason" '{decision: "block", reason: $r}'
+  printf '{"decision":"block","reason":%s}\n' "$(json_string "$reason")"
   exit 0
 fi
 
 if [ "$remaining_qa_items" -gt 0 ]; then
   reason="All planning docs shipped. ${remaining_qa_items} QA item(s) still open in docs/planning/QA_CHECKLIST.md. Pick the next unchecked item, do the actual work it names (verify functionality, fix the UX, flesh out the missing page, etc.), run the relevant checks, commit + push. Flip the checkbox to [x] only when the item is genuinely resolved — not just touched. When every \`- [ ]\` is \`- [x]\` the session will stop on the next turn."
-  jq -n --arg r "$reason" '{decision: "block", reason: $r}'
+  printf '{"decision":"block","reason":%s}\n' "$(json_string "$reason")"
   exit 0
 fi
 
-jq -n '{systemMessage: "docs/planning/in-progress/ + QA_CHECKLIST.md both empty — auto-continue loop finished. Session can stop."}'
+printf '{"systemMessage":%s}\n' "$(json_string "docs/planning/in-progress/ + QA_CHECKLIST.md both empty — auto-continue loop finished. Session can stop.")"
 exit 0

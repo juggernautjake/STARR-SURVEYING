@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { Loader2, FileX, Lock, CheckCircle2, ClipboardList, BookOpen, FileText } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import QuizRunner from '@/app/admin/components/QuizRunner';
@@ -115,14 +116,14 @@ export default function FSModulePage() {
 
   if (loading) return (
     <div className="admin-empty">
-      <div className="admin-empty__icon">&#x23F3;</div>
+      <div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div>
       <div className="admin-empty__title">Loading module...</div>
     </div>
   );
 
   if (!module) return (
     <div className="admin-empty">
-      <div className="admin-empty__icon">&#x274C;</div>
+      <div className="admin-empty__icon"><FileX size={30} strokeWidth={1.5} /></div>
       <div className="admin-empty__title">Module not found</div>
       <Link href="/admin/learn/exam-prep/sit" className="admin-btn admin-btn--ghost" style={{ marginTop: '1rem' }}>Back to FS Prep</Link>
     </div>
@@ -130,7 +131,7 @@ export default function FSModulePage() {
 
   if (progress?.status === 'locked') return (
     <div className="admin-empty">
-      <div className="admin-empty__icon">&#x1F512;</div>
+      <div className="admin-empty__icon"><Lock size={30} strokeWidth={1.5} /></div>
       <div className="admin-empty__title">Module Locked</div>
       <div className="admin-empty__desc">Complete the previous module to unlock this one.</div>
       <Link href="/admin/learn/exam-prep/sit" className="admin-btn admin-btn--ghost" style={{ marginTop: '1rem' }}>Back to FS Prep</Link>
@@ -175,7 +176,7 @@ export default function FSModulePage() {
           <span className="fs-module__meta-item">{module.week_range}</span>
           <span className="fs-module__meta-item">{module.exam_weight_percent}% of FS Exam</span>
           <span className="fs-module__meta-item">{questionCount} quiz questions</span>
-          {isCompleted && <span className="fs-module__meta-item fs-module__meta-item--complete">&#x2705; Completed</span>}
+          {isCompleted && <span className="fs-module__meta-item fs-module__meta-item--complete"><CheckCircle2 size={13} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />Completed</span>}
         </div>
       </div>
 
@@ -202,7 +203,7 @@ export default function FSModulePage() {
       {/* Study Recommendations */}
       {weakAreas.length > 0 && !isCompleted && (
         <div className="fs-module__recommendations">
-          <h4>&#x1F4CB; Recommended Review Areas</h4>
+          <h4><ClipboardList size={16} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />Recommended Review Areas</h4>
           <p className="fs-module__rec-desc">Based on your quiz performance, focus on these topics:</p>
           <div className="fs-module__rec-list">
             {weakAreas
@@ -251,7 +252,7 @@ export default function FSModulePage() {
           <div className="fs-module__content-text" dangerouslySetInnerHTML={{ __html: renderMarkdown(contentSection.content) }} />
         ) : (
           <div className="admin-empty" style={{ padding: '2rem' }}>
-            <div className="admin-empty__icon">&#x1F4DA;</div>
+            <div className="admin-empty__icon"><BookOpen size={30} strokeWidth={1.5} /></div>
             <div className="admin-empty__title">Content coming soon</div>
             <div className="admin-empty__desc">This section&apos;s content is being prepared.</div>
           </div>
@@ -272,7 +273,7 @@ export default function FSModulePage() {
 
       {/* Quiz Section */}
       <div className="fs-module__quiz-section">
-        <h3>&#x1F4DD; Module {module.module_number} Quiz</h3>
+        <h3><FileText size={18} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />Module {module.module_number} Quiz</h3>
         <p>
           {questionCount} questions covering all topics in this module.
           You need {module.passing_score}% to pass and unlock the next module.

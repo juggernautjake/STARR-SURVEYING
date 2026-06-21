@@ -1048,3 +1048,288 @@
     height: 32px;
   }
 }
+
+/* ============================================================
+ * Employee LIST view (the non-Interactive tab).
+ * U1 2026-06-20 — the list previously borrowed `.job-card` styling
+ * and looked off. Dedicated, uniform, token-based card grid + a
+ * 36px-baseline search/filter row. Search semantics (prefix-match)
+ * live in lib/admin/employee-search.ts.
+ * ============================================================ */
+.emp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem 2rem 2rem;
+}
+
+/* Summary stat tiles */
+.emp-list__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+.emp-list__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.75rem 1rem;
+  background: var(--color-bg-card, #fff);
+  border: 1px solid var(--color-border, #E5E7EB);
+  border-radius: 10px;
+}
+.emp-list__stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--color-text-primary, #0F1419);
+  line-height: 1;
+}
+.emp-list__stat-label {
+  font-size: 0.72rem;
+  color: var(--color-text-secondary, #6B7280);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Search + filter row — every control pinned to a 36px baseline */
+.emp-list__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.emp-list__search {
+  position: relative;
+  flex: 1 1 240px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+.emp-list__search-icon {
+  position: absolute;
+  left: 0.6rem;
+  color: var(--color-text-muted, #9CA3AF);
+  pointer-events: none;
+}
+.emp-list__search-input {
+  width: 100%;
+  height: 36px;
+  box-sizing: border-box;
+  padding: 0 0.75rem 0 2rem;
+  margin: 0;
+  border: 1px solid var(--color-border, #E5E7EB);
+  border-radius: 8px;
+  background: var(--color-bg-input, #fff);
+  font-size: 0.85rem;
+  line-height: 1.2;
+  color: var(--color-text-primary, #0F1419);
+}
+.emp-list__search-input:focus {
+  outline: none;
+  border-color: var(--color-brand-navy, #1d3095);
+  box-shadow: 0 0 0 3px rgba(29, 48, 149, 0.12);
+}
+.emp-list__select {
+  height: 36px;
+  box-sizing: border-box;
+  width: auto;
+  min-width: 130px;
+  margin: 0;
+  padding: 0 2rem 0 0.7rem;
+  border: 1px solid var(--color-border, #E5E7EB);
+  border-radius: 8px;
+  background: var(--color-bg-input, #fff);
+  font-size: 0.82rem;
+  line-height: 1.2;
+  color: var(--color-text-primary, #0F1419);
+  cursor: pointer;
+}
+.emp-list__select:focus {
+  outline: none;
+  border-color: var(--color-brand-navy, #1d3095);
+  box-shadow: 0 0 0 3px rgba(29, 48, 149, 0.12);
+}
+
+/* Card grid */
+.emp-list__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.85rem;
+}
+
+.emp-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem;
+  background: var(--color-bg-card, #fff);
+  border: 1px solid var(--color-border, #E5E7EB);
+  border-radius: 12px;
+  transition: box-shadow 0.15s, border-color 0.15s, transform 0.15s;
+}
+.emp-card[role='button'] {
+  cursor: pointer;
+}
+.emp-card[role='button']:hover {
+  border-color: var(--color-brand-navy, #1d3095);
+  box-shadow: 0 4px 14px rgba(15, 20, 25, 0.08);
+  transform: translateY(-1px);
+}
+.emp-card[role='button']:focus-visible {
+  outline: none;
+  border-color: var(--color-brand-navy, #1d3095);
+  box-shadow: 0 0 0 3px rgba(29, 48, 149, 0.18);
+}
+.emp-card[data-status='inactive'],
+.emp-card[data-status='banned'] {
+  opacity: 0.72;
+}
+
+.emp-card__top {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.emp-card__avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.emp-card__avatar--initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #E8EBF5 0%, #D7DCEF 100%);
+  color: var(--color-brand-navy, #1d3095);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.emp-card__id {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  flex: 1;
+}
+.emp-card__name {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--color-text-primary, #0F1419);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.emp-card__email {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--color-text-secondary, #6B7280);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.emp-card__status {
+  flex-shrink: 0;
+  align-self: flex-start;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+}
+.emp-card__status--active {
+  color: #047857;
+  background: #ECFDF5;
+}
+.emp-card__status--inactive {
+  color: #6B7280;
+  background: #F3F4F6;
+}
+.emp-card__status--banned {
+  color: var(--color-error, #DC2626);
+  background: var(--color-error-bg, #FEF2F2);
+}
+
+.emp-card__roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.emp-card__title-chip {
+  font-size: 0.66rem;
+  font-weight: 600;
+  padding: 0.12rem 0.45rem;
+  border-radius: 5px;
+  background: var(--color-brand-navy, #1d3095);
+  color: #fff;
+}
+.emp-card__role-chip {
+  font-size: 0.66rem;
+  font-weight: 600;
+  padding: 0.12rem 0.45rem;
+  border-radius: 5px;
+}
+
+.emp-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-border, #EEF0F4);
+  font-size: 0.74rem;
+  color: var(--color-text-secondary, #6B7280);
+}
+.emp-card__rate {
+  font-weight: 600;
+  color: var(--color-text-primary, #0F1419);
+}
+.emp-card__rate--none {
+  font-weight: 500;
+  color: var(--color-text-muted, #9CA3AF);
+}
+
+/* Loading + empty states */
+.emp-list__loading {
+  padding: 2.5rem;
+  text-align: center;
+  color: var(--color-text-secondary, #6B7280);
+}
+.emp-list__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--color-text-secondary, #6B7280);
+}
+.emp-list__empty-icon {
+  color: var(--color-text-muted, #9CA3AF);
+}
+.emp-list__empty h3 {
+  margin: 0.3rem 0 0;
+  font-size: 1rem;
+  color: var(--color-text-primary, #0F1419);
+}
+.emp-list__empty p {
+  margin: 0;
+  font-size: 0.84rem;
+}
+
+@media (max-width: 768px) {
+  .emp-list {
+    padding: 1rem 1rem 2rem;
+  }
+  .emp-list__controls {
+    align-items: stretch;
+  }
+  .emp-list__select {
+    flex: 1 1 auto;
+  }
+}

@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Loader2, Map as MapIcon, ChevronRight, CheckCircle2, Lock } from 'lucide-react';
 import Link from 'next/link';
 
 interface ModuleProgress {
@@ -129,7 +130,7 @@ export default function RoadmapPage() {
   if (loading) {
     return (
       <div className="admin-empty">
-        <div className="admin-empty__icon">&#x23F3;</div>
+        <div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div>
         <div className="admin-empty__title">Loading your roadmap...</div>
       </div>
     );
@@ -138,7 +139,7 @@ export default function RoadmapPage() {
   if (!data) {
     return (
       <div className="admin-empty">
-        <div className="admin-empty__icon">&#x1F5FA;</div>
+        <div className="admin-empty__icon"><MapIcon size={30} strokeWidth={1.5} /></div>
         <div className="admin-empty__title">Roadmap unavailable</div>
         <div className="admin-empty__desc">Could not load curriculum data. Make sure the curriculum has been set up.</div>
       </div>
@@ -156,7 +157,7 @@ export default function RoadmapPage() {
     <>
       <div className="learn__header">
         <Link href="/admin/learn" className="learn__back">&larr; Back to Learning Hub</Link>
-        <h2 className="learn__title">&#x1F5FA; Learning Roadmap</h2>
+        <h2 className="learn__title"><MapIcon size={20} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />Learning Roadmap</h2>
         <p className="learn__subtitle">
           Track your progress through the complete Texas Land Surveying curriculum &mdash; 28 modules from foundations to RPLS exam prep.
         </p>
@@ -228,7 +229,7 @@ export default function RoadmapPage() {
                 onKeyDown={e => { if (e.key === 'Enter') togglePart(part.num); }}
               >
                 <div className="roadmap__part-left">
-                  <span className={`roadmap__part-chevron ${isExpanded ? 'roadmap__part-chevron--open' : ''}`}>&#x276F;</span>
+                  <span className={`roadmap__part-chevron ${isExpanded ? 'roadmap__part-chevron--open' : ''}`}><ChevronRight size={13} strokeWidth={2.5} /></span>
                   <span className="roadmap__part-icon">{partMilestone?.icon || '\u{1F4D8}'}</span>
                   <div>
                     <div className="roadmap__part-title">{part.title}</div>
@@ -250,7 +251,7 @@ export default function RoadmapPage() {
                     </div>
                     <span className="roadmap__part-pct">{partPct}%</span>
                   </div>
-                  {partComplete && <span className="roadmap__part-check">&#x2705;</span>}
+                  {partComplete && <span className="roadmap__part-check"><CheckCircle2 size={15} strokeWidth={2} /></span>}
                 </div>
               </div>
 
@@ -359,7 +360,7 @@ function RoadmapModuleRow({ mod }: { mod: ModuleProgress }) {
             <span className="roadmap__module-pct">{mod.percentage}%</span>
           </>
         )}
-        {isLocked && <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>&#x1F512;</span>}
+        {isLocked && <span style={{ color: 'var(--color-text-muted)', display: 'inline-flex' }}><Lock size={14} strokeWidth={2} /></span>}
       </div>
 
       {/* Lock tooltip */}

@@ -62,6 +62,22 @@ const ErrorContext = createContext<ErrorContextType>({
   errorCount: 0,
 });
 
+/* Benign browser noise that should never become a user-facing error
+ * report. These are non-actionable: the "ResizeObserver loop" warning is
+ * a spec-defined notification (not a crash — see error reports d37ca055 /
+ * bce132e2 on /admin/cad, which had a local suppressor that the GLOBAL
+ * window handler bypassed), and cross-origin "Script error." carries no
+ * stack. Matched against the error message before any report fires. */
+const IGNORABLE_ERROR_PATTERNS: RegExp[] = [
+  /ResizeObserver loop (limit exceeded|completed with undelivered notifications)/i,
+  /^Script error\.?$/i,
+];
+
+function isIgnorableError(message: string | undefined): boolean {
+  if (!message) return false;
+  return IGNORABLE_ERROR_PATTERNS.some((re) => re.test(message));
+}
+
 export function useErrorReporter(): ErrorContextType {
   return useContext(ErrorContext);
 }
@@ -141,8 +157,11 @@ export default function ErrorProvider({ children }: { children: ReactNode }) {
   // Global unhandled error handler
   useEffect(() => {
     function handleError(event: ErrorEvent) {
-      event.preventDefault();
       const { message, stack } = describeError(event.error ?? event);
+      // Drop benign browser noise (ResizeObserver loop, cross-origin
+      // "Script error.") before it ever opens the report dialog.
+      if (isIgnorableError(message) || isIgnorableError(event.message)) return;
+      event.preventDefault();
       const err = new Error(message);
       if (stack) err.stack = stack;
       triggerReport(err, {
@@ -152,8 +171,9 @@ export default function ErrorProvider({ children }: { children: ReactNode }) {
     }
 
     function handleUnhandledRejection(event: PromiseRejectionEvent) {
-      event.preventDefault();
       const { message, stack } = describeError(event.reason);
+      if (isIgnorableError(message)) return;
+      event.preventDefault();
       const err = new Error(message);
       if (stack) err.stack = stack;
       triggerReport(err, { error_type: 'promise' });

@@ -2,6 +2,7 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { Loader2, FileX, Clock, BookOpen, CheckCircle2, Lock } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -160,8 +161,8 @@ export default function ModuleDetailPage() {
     ? Math.round(lessonsWithQuiz.reduce((sum, l) => sum + (l.avg_quiz_score || 0), 0) / lessonsWithQuiz.length)
     : null;
 
-  if (loading) return <div className="admin-empty"><div className="admin-empty__icon">&#x23F3;</div><div className="admin-empty__title">Loading...</div></div>;
-  if (!mod) return <div className="admin-empty"><div className="admin-empty__icon">&#x274C;</div><div className="admin-empty__title">Module not found</div><button onClick={() => router.back()} className="admin-btn admin-btn--ghost admin-btn--sm">&larr; Go Back</button></div>;
+  if (loading) return <div className="admin-empty"><div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div><div className="admin-empty__title">Loading...</div></div>;
+  if (!mod) return <div className="admin-empty"><div className="admin-empty__icon"><FileX size={30} strokeWidth={1.5} /></div><div className="admin-empty__title">Module not found</div><button onClick={() => router.back()} className="admin-btn admin-btn--ghost admin-btn--sm">&larr; Go Back</button></div>;
 
   return (
     <>
@@ -171,9 +172,9 @@ export default function ModuleDetailPage() {
         <p className="learn__subtitle">{mod.description}</p>
         <div className="module-detail__meta">
           <span>Difficulty: {mod.difficulty}</span>
-          <span>&#x23F1; ~{mod.estimated_hours}h</span>
-          <span>&#x1F4D6; {totalCount} lessons</span>
-          {completedCount > 0 && <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>&#x2705; {completedCount}/{totalCount} complete</span>}
+          <span><Clock size={13} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />~{mod.estimated_hours}h</span>
+          <span><BookOpen size={13} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />{totalCount} lessons</span>
+          {completedCount > 0 && <span style={{ color: 'var(--color-success)', fontWeight: 700 }}><CheckCircle2 size={13} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />{completedCount}/{totalCount} complete</span>}
           {moduleAvgQuiz != null && (
             <span className={`quiz-avg-badge ${moduleAvgQuiz >= 70 ? 'quiz-avg-badge--green' : moduleAvgQuiz >= 40 ? 'quiz-avg-badge--yellow' : 'quiz-avg-badge--red'}`}>
               Avg Quiz: {moduleAvgQuiz}%
@@ -238,7 +239,7 @@ export default function ModuleDetailPage() {
 
       {lessons.length === 0 ? (
         <div className="admin-empty">
-          <div className="admin-empty__icon">&#x1F4D6;</div>
+          <div className="admin-empty__icon"><BookOpen size={30} strokeWidth={1.5} /></div>
           <div className="admin-empty__title">No lessons yet</div>
           <div className="admin-empty__desc">{canManage ? 'This module doesn\'t have any lessons.' : 'Content is being prepared for this module.'}</div>
           {canManage && (
@@ -359,7 +360,7 @@ function LessonRow({ lesson, moduleId }: { lesson: EnrichedLesson; moduleId: str
   const tooltip = isLocked && showTip && typeof document !== 'undefined'
     ? createPortal(
         <div className="lock-tooltip" style={{ left: tipPos.x, top: tipPos.y }}>
-          <span className="lock-tooltip__icon">&#x1F512;</span>
+          <span className="lock-tooltip__icon"><Lock size={14} strokeWidth={2} /></span>
           <span className="lock-tooltip__text">{lesson.lock_reason}</span>
         </div>,
         document.body,
