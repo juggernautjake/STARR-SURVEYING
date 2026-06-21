@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Notebook } from 'lucide-react';
+import { Notebook, ArrowUpRight, X, Wrench, List } from 'lucide-react';
 import AudioRecorder from './fieldbook/AudioRecorder';
 import AudioPlayer from './fieldbook/AudioPlayer';
 
@@ -363,8 +363,8 @@ export default function Fieldbook() {
             </div>
             <div className="fb__topbar-right">
               {saving && <span className="fb__saving">Saving...</span>}
-              <Link href="/admin/me?tab=notes" className="fb__expand" onClick={() => setIsOpen(false)} title="My Notes page">&#x2197;</Link>
-              <button className="fb__close" onClick={() => { saveEntry(false); setIsOpen(false); }}>&#x2715;</button>
+              <Link href="/admin/me?tab=notes" className="fb__expand" onClick={() => setIsOpen(false)} title="My Notes page"><ArrowUpRight size={15} strokeWidth={2} /></Link>
+              <button className="fb__close" onClick={() => { saveEntry(false); setIsOpen(false); }}><X size={15} strokeWidth={2.5} /></button>
             </div>
           </div>
 
@@ -386,7 +386,7 @@ export default function Fieldbook() {
               <div className="fb__vis-bar">
                 {isJobNote ? (
                   <span className="fb__vis-badge fb__vis-badge--job">
-                    &#x1F527; Job Note &mdash; Always Public
+                    <Wrench size={13} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />Job Note &mdash; Always Public
                   </span>
                 ) : (
                   <button
@@ -459,7 +459,7 @@ export default function Fieldbook() {
                         <div className="fb__media-link">
                           <span>{m.type === 'image' ? '🖼' : m.type === 'video' ? '🎬' : '🔗'}</span>
                           <span className="fb__media-link-text">{m.name}</span>
-                          <button onClick={() => removeMedia(idx)} title="Remove">&#x2715;</button>
+                          <button onClick={() => removeMedia(idx)} title="Remove"><X size={13} strokeWidth={2.5} /></button>
                         </div>
                       )}
                     </div>
@@ -479,7 +479,7 @@ export default function Fieldbook() {
                 <button className="fb__tool" onClick={() => applyFormat('**', '**')} title="Bold"><strong>B</strong></button>
                 <button className="fb__tool" onClick={() => applyFormat('*', '*')} title="Italic"><em>I</em></button>
                 <button className="fb__tool" onClick={() => applyFormat('__', '__')} title="Underline" style={{ textDecoration: 'underline' }}>U</button>
-                <button className="fb__tool" onClick={() => applyFormat('- ', '')} title="List">&#x2022;</button>
+                <button className="fb__tool" onClick={() => applyFormat('- ', '')} title="List"><List size={15} strokeWidth={2} /></button>
                 <span className="fb__toolbar-sep" />
                 <button className="fb__tool" onClick={() => setShowRecorder(!showRecorder)} title="Record audio">🎙️</button>
                 <button className="fb__tool" onClick={() => fileInputRef.current?.click()} title="Upload file">📎</button>

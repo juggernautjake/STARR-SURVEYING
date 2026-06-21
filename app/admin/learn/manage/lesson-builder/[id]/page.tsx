@@ -5,7 +5,8 @@ import {
   X, FileX, Calculator, Paperclip, FileText, Globe, HelpCircle, Target,
   Image as ImageIcon, Palette, Type, Code2, Play, Volume2, Lightbulb,
   Sparkles, Minus, ExternalLink, Table, Images, Link2, Layers, Newspaper,
-  ArrowRight, Sigma, LayoutPanelTop, Rows3, Columns3, type LucideIcon,
+  ArrowRight, Sigma, LayoutPanelTop, Rows3, Columns3, ChevronDown, Check,
+  type LucideIcon,
 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import SmartSearch from '../../../components/SmartSearch';
@@ -1041,7 +1042,7 @@ export default function LessonBuilderPage() {
             <div key={block.id} style={blockWrapStyle}>
               {isCollapsible && (
                 <button className="lesson-builder__collapse-toggle" onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: !isCollapsed }))}>
-                  <span style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0)', display: 'inline-block', transition: 'transform .2s' }}>&#x25BC;</span>
+                  <span style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0)', display: 'inline-block', transition: 'transform .2s' }}><ChevronDown size={14} strokeWidth={2.5} /></span>
                   {' '}{block.style?.collapsedLabel || block.block_type}
                 </button>
               )}
@@ -1197,8 +1198,8 @@ export default function LessonBuilderPage() {
                           <button key={i} className={cls} onClick={() => { if (!revealed) setQuizAnswers(prev => ({ ...prev, [qKey]: i })); }} disabled={revealed}>
                             <span className="block-quiz__option-letter">{String.fromCharCode(65 + i)}</span>
                             <span className="block-quiz__option-text">{opt}</span>
-                            {revealed && isCorrect && <span className="block-quiz__option-icon">&#x2713;</span>}
-                            {revealed && isSelected && !isCorrect && <span className="block-quiz__option-icon">&#x2717;</span>}
+                            {revealed && isCorrect && <span className="block-quiz__option-icon"><Check size={14} strokeWidth={3} /></span>}
+                            {revealed && isSelected && !isCorrect && <span className="block-quiz__option-icon"><X size={14} strokeWidth={3} /></span>}
                           </button>
                         );
                       })}
@@ -1334,7 +1335,7 @@ export default function LessonBuilderPage() {
                       <h4 className="block-popup-article__title">{block.content.title || 'Article'}</h4>
                       <p className="block-popup-article__summary">{block.content.summary || ''}</p>
                     </div>
-                    <span className={`block-popup-article__chevron ${expandedPopups[block.id] ? 'block-popup-article__chevron--open' : ''}`}>&#x25BC;</span>
+                    <span className={`block-popup-article__chevron ${expandedPopups[block.id] ? 'block-popup-article__chevron--open' : ''}`}><ChevronDown size={14} strokeWidth={2.5} /></span>
                   </div>
                   <div className={`block-popup-article__body ${expandedPopups[block.id] ? 'block-popup-article__body--open' : ''}`}>
                     <div className="block-popup-article__content" dangerouslySetInnerHTML={dhtml(block.content.full_content)} />
@@ -2040,7 +2041,7 @@ export default function LessonBuilderPage() {
                     <input className="fc-form__input" placeholder="Section title" value={block.content.title || ''} onChange={e => updateBlockContent(block.id, { ...block.content, title: e.target.value })} style={{ marginBottom: '.5rem' }} />
                     {(block.content.items || []).map((item: string, ii: number) => (
                       <div key={ii} style={{ display: 'flex', gap: '.5rem', marginBottom: '.35rem', alignItems: 'center' }}>
-                        <span style={{ color: 'var(--color-success)', fontSize: '.9rem', flexShrink: 0 }}>&#x2713;</span>
+                        <span style={{ color: 'var(--color-success)', fontSize: '.9rem', flexShrink: 0, display: 'inline-flex' }}><Check size={15} strokeWidth={3} /></span>
                         <input className="fc-form__input" value={item} onChange={e => {
                           const items = [...(block.content.items || [])];
                           items[ii] = e.target.value;
