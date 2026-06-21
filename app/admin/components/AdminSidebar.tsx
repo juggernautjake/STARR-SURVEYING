@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import type { UserRole } from '@/lib/auth';
 import { RouteIcon } from '@/lib/admin/route-icons';
+import { ChevronRight } from 'lucide-react';
 
 interface AdminSidebarProps {
   role: UserRole;
@@ -280,7 +281,7 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
                   onKeyDown={(e) => { if (e.key === 'Enter') toggleSection(section.label); }}
                 >
                   <span className={`admin-sidebar__section-arrow ${isExpanded ? 'admin-sidebar__section-arrow--expanded' : ''}`}>
-                    &#x276F;
+                    <ChevronRight size={13} strokeWidth={2.5} />
                   </span>
                   {section.label}
                 </div>
