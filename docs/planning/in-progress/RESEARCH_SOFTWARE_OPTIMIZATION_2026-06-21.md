@@ -256,6 +256,49 @@ Smallest high-value first, each shippable on its own:
 
 ## Slice log
 
+### Slice 16 — §9.6 Failure-triggered self-heal planner ✅ (2026-06-21)
+`lib/research/self-heal-planner.ts` ships `planSelfHealResponse(failure,
+adapter, recent, opts?)` — the pure orchestrator that turns a live
+extraction failure into a coordinated response: quarantine the adapter,
+log a failure-triggered health-check row, queue the §9.4 diagnose-and-
+repair agent, set the right retry strategy, and surface a friendly
+user-facing message instead of failing silently.
+
+  Decision walk (in order):
+    1. Adapter already `quarantined` / `broken` → don't re-quarantine,
+       but still log the failure (history reflects every real hit) +
+       trigger diagnose unless the scheduled tick is already running.
+       Retry waits for the §9.4 proposal to be approved.
+    2. Adapter `retired` / `draft` → live pipeline shouldn't have used
+       it; flag ops, no quarantine, retry is manual.
+    3. Active / degraded — the standard self-heal trigger:
+       - quarantine
+       - log + trigger diagnose
+       - **wall hit** (captcha / auth / 401 / 403 / 429 / rate limit
+         keyword) → escalate to ops + route to human review
+       - **chronic** (≥3 broken/error checks in the last 7 days) →
+         same review-path
+       - otherwise → retry after the diagnose check completes
+       - friendly user-facing message tailored to the case
+         ("captcha wall", "repeated failures", "temporary issue")
+         with the county + site-type label woven in when available.
+
+  Time + window inputs are parameters (`failure.occurred_at`,
+  `recentWindowHours`), no `Date.now()` at module scope — so tests
+  freeze time deterministically and the §9.8 dashboard can preview
+  "what would happen if this adapter failed right now?"
+
+  Source-locked with 12 tests in
+  `__tests__/research/self-heal-planner.test.ts` covering: standard
+  active-adapter quarantine + diagnose, scheduled-tick deference,
+  captcha / auth / rate-limit / 401-403-429 escalation, chronic-
+  failure detection within the look-back window, custom
+  `chronicFailureCount`, already-quarantined no-re-quarantine + still-
+  log path, broken/retired/draft handling, and friendly-message
+  composition (county label woven in, retry suffix always present).
+
+241/241 research tests pass; clean tsc.
+
 ### Slice 15 — §9.7 (kernel) Health-check scheduler ✅ (2026-06-21)
 `lib/research/health-check-scheduler.ts` ships
 `planScheduledChecks(adapters, now, policy?)` — the pure decision
@@ -940,10 +983,13 @@ itself.
   canary-pass required, sane thresholds). The route handler that wires
   this into the §9.4 proposal lifecycle + writes the rollback snapshot
   to the proposal row lands when the §9.8 dashboard route ships.
-- [ ] **9.6 Failure-triggered self-heal** — when a *live* extraction fails
-  mid-project, quarantine the adapter (`status=quarantined`), run §9.4
-  immediately, and surface "we're repairing <county> — your run will retry"
-  rather than failing silently.
+- [x] **9.6 Failure-triggered self-heal** ✅ (2026-06-21, Slice 16) —
+  `planSelfHealResponse()` in `lib/research/self-heal-planner.ts` is the
+  pure orchestrator. Quarantines the adapter, queues §9.4, picks the
+  right retry strategy + friendly user message based on whether the
+  failure is a wall (captcha/auth/rate-limit), chronic (≥3 broken in
+  the look-back window), or a one-off. Route wiring lands when the
+  live extractor pipeline gets the corresponding hook.
 - [~] **9.7 Scheduled cadence (GATED)** — kernel ✅ (2026-06-21, Slice 15):
   `planScheduledChecks()` in `lib/research/health-check-scheduler.ts` is
   the deterministic decision function. The cron route + the
