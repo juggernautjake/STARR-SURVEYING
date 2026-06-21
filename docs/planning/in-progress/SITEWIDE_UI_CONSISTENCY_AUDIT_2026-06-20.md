@@ -279,10 +279,17 @@ per-page note in §6.
   work-type grid, role ladder, and timeline still want a deliberate
   design pass (coloring + alignment per the user's "good coloring and
   perfect alignment"). Overlaps with U2 (do U2's overflow fix first).
-- ~~G3 — Payment seeds 323–327~~ — deferred: failed against pre-existing
-  invoices-schema drift on main; rolled back cleanly. Needs human
-  reconciliation of the live `invoices` schema, not an automated slice.
-  Flag to the user; do not auto-apply.
+- ~~G3 — Payment seeds 323–327~~ — **deferred: BLOCKED on a human decision
+  (live Stripe billing).** Root-caused 2026-06-21: `invoices` is a
+  two-feature table-name collision — live = Stripe SaaS billing schema;
+  seed 323 = customer `/pay` job-invoicing schema. Feature B is already
+  broken on live and seeds 323-327 can't apply. The `webhooks/stripe`
+  route uses BOTH meanings, so a blind rename could break real payments.
+  Full turnkey reconciliation spec (exact rename + 18 repoint sites + the
+  required Stripe test) written to `docs/payments-invoices-collision-2026-06-21.md`.
+  Needs the user's go-ahead (rename Feature B → `customer_invoices`, or
+  delete the deprecated `/pay` feature). Not auto-applied — guardrail:
+  hard-to-reverse + outward-facing (live billing).
 
 ## 5.6 Research-software deep analysis (user request 2026-06-21)
 
