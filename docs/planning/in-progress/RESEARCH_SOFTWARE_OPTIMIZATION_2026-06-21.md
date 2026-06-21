@@ -256,6 +256,47 @@ Smallest high-value first, each shippable on its own:
 
 ## Slice log
 
+### Slice 10 — §8.2 ↔ §8.5 Bridge: prefillAdapterFromTemplate ✅ (2026-06-21)
+`lib/research/adapter-draft.ts` ships the pure bridge between slice 6's
+vendor detection and slice 2's adapter row. Given a matched vendor
+template + the pasted URL + the chosen county/site_type, returns the
+`DraftAdapter` shape the §8.1 wizard saves on confirm — **with the
+vendor template's `{placeholders}` already substituted from the URL**.
+
+  - `extractUrlParts(url)` — pulls scheme / host / subdomain / parent
+    domain / pathname / first path segment / query params out of any
+    URL (bare hosts get a synthetic scheme added).
+  - `prefillAdapterFromTemplate({vendor, base_url, county_id,
+    site_type, config_overrides?})` — substitutes `{subdomain}` /
+    `{parent_domain}` / `{base_url}` / `{?param}` etc. in every
+    string leaf of the vendor's `config_template`, then layers
+    user-supplied `config_overrides` on top (deep-merge so a user can
+    override a single nested leaf without restating the whole tree).
+    `field_map_template` is carried through verbatim. Bespoke
+    (vendor = null) is supported for §8.3-probe adapters.
+  - `unresolvedPlaceholders(config)` — returns the unique placeholder
+    names a user still needs to fill in (the §8.4 confirm step
+    prompts on these).
+
+  Concrete win: a user pasting
+  `https://bell.publicsearch.us/search/landrecords` and picking the
+  Tyler publicsearch template gets a draft adapter whose flow step
+  URL is already `https://bell.publicsearch.us/search/landrecords` —
+  zero code change. Registering Hood County is then "paste the URL,
+  pick Tyler publicsearch, pick clerk_deeds, confirm".
+
+  Source-locked with 13 tests in
+  `__tests__/research/adapter-draft.test.ts` covering URL-part
+  extraction (scheme/host/subdomain/parent/path/params + bare hosts +
+  unparseable + 2-label hosts), draft construction for known vendor +
+  bespoke, placeholder substitution in deeply-nested configs,
+  unknown-placeholder preservation, field-map passthrough, override
+  deep-merge, and `unresolvedPlaceholders` ordering.
+
+  166/166 research tests pass; clean tsc. Fully pure — no DB or
+  network — so the wizard route can call it freely from both the
+  client (for the preview) and the server (on save).
+
 ### Slice 9 — §9.2 + §9.3 + §9.4 Health-check data model ✅ (2026-06-21)
 `seeds/371_research_health_check_tables.sql` creates the three tables the
 self-healing loop writes into. All idempotent, all FK'd back to the
@@ -631,10 +672,10 @@ a real property extracts correctly, and it auto-enrolls into health monitoring.
   the live page** (Playwright screenshot + parsed values) for the user to
   confirm/correct each mapping. Inline editing of a selector/field re-runs the
   probe on that field only.
-- [ ] **8.5 Save + auto-enroll** — on confirm: adapter saved `active`; the test
-  property is stored as the adapter's **canary golden record** (§9.2); the
-  `county_data_sources` coverage rollup updates; the adapter appears on the
-  coverage dashboard.
+- [~] **8.5 Save + auto-enroll** — `prefillAdapterFromTemplate()` from
+  slice 10 produces the row a save route would INSERT. Route handler
+  + canary creation + coverage-rollup update land in a follow-up route
+  slice once the §8.1 wizard UI is wired.
 - [ ] **8.6 Generic Playwright fallback** — for portals with no vendor match,
   §8.3's probe builds a bespoke `browser_playwright` adapter from the captured
   flow (recorded steps + selectors), so even oddball county sites are
