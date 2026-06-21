@@ -5,6 +5,11 @@ import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
+import {
+  ClipboardList, CalendarDays, Search, DraftingCompass, HardHat, Folder,
+  Camera, DollarSign, History, MessageSquare, MapPin, Trash2, Download,
+  Circle, type LucideIcon,
+} from 'lucide-react';
 import JobStageTimeline from '../../components/jobs/JobStageTimeline';
 import JobTeamPanel from '../../components/jobs/JobTeamPanel';
 import JobFileManager from '../../components/jobs/JobFileManager';
@@ -75,17 +80,17 @@ interface Job {
   total_hours: number;
 }
 
-const TABS = [
-  { key: 'overview', label: 'Overview', icon: '📋', tip: 'Job summary with property details, client information, team assignments, equipment, and stage checklists. This is your central dashboard for the job.' },
-  { key: 'schedule', label: 'Schedule', icon: '🗓️', tip: 'Pick day(s) for the three job phases — Research, Field Work, Drawing & Deliverables. Each pick lands on the org-wide calendar at /admin/calendar and fires day-before + day-of reminders to the assignee.' },
-  { key: 'research', label: 'Research', icon: '🔍', tip: 'Deed records, plat maps, previous surveys, legal descriptions, and other research documents organized by category. Upload and manage all background research for this job.' },
-  { key: 'cad', label: 'CAD', icon: '📐', tip: 'Draft the survey in the Starr CAD editor. Drawings created here stay linked to the job — open existing ones or start a new drawing in one click.' },
-  { key: 'fieldwork', label: 'Field Work', icon: '🏗️', tip: 'Interactive map showing collected field points, shot log with search, and timeline visualization. View GPS positions, total station data, and field observations.' },
-  { key: 'files', label: 'Files', icon: '📁', tip: 'All uploaded files for this job — drawings, documents, CAD files, and Trimble data. Organized by section with automatic backup tracking.' },
-  { key: 'photos', label: 'Photos', icon: '📷', tip: 'Field photos for this job — corners, monuments, site conditions. Thumbnail gallery with a click-to-enlarge lightbox and drag-and-drop upload.' },
-  { key: 'financial', label: 'Financial', icon: '💰', tip: 'Quote details, payment tracking, and time entries. View revenue summary, record payments, and log hours worked by team members.' },
-  { key: 'activity', label: 'Activity', icon: '🕓', tip: 'Chronological log of everything on this job — stage changes, file/photo uploads, drawings saved, team changes — newest first.' },
-  { key: 'messages', label: 'Messages', icon: '💬', tip: 'Dedicated messaging thread for this job. Coordinate with team members, share updates, and discuss field observations in one place.' },
+const TABS: { key: string; label: string; Icon: LucideIcon; tip: string }[] = [
+  { key: 'overview', label: 'Overview', Icon: ClipboardList, tip: 'Job summary with property details, client information, team assignments, equipment, and stage checklists. This is your central dashboard for the job.' },
+  { key: 'schedule', label: 'Schedule', Icon: CalendarDays, tip: 'Pick day(s) for the three job phases — Research, Field Work, Drawing & Deliverables. Each pick lands on the org-wide calendar at /admin/calendar and fires day-before + day-of reminders to the assignee.' },
+  { key: 'research', label: 'Research', Icon: Search, tip: 'Deed records, plat maps, previous surveys, legal descriptions, and other research documents organized by category. Upload and manage all background research for this job.' },
+  { key: 'cad', label: 'CAD', Icon: DraftingCompass, tip: 'Draft the survey in the Starr CAD editor. Drawings created here stay linked to the job — open existing ones or start a new drawing in one click.' },
+  { key: 'fieldwork', label: 'Field Work', Icon: HardHat, tip: 'Interactive map showing collected field points, shot log with search, and timeline visualization. View GPS positions, total station data, and field observations.' },
+  { key: 'files', label: 'Files', Icon: Folder, tip: 'All uploaded files for this job — drawings, documents, CAD files, and Trimble data. Organized by section with automatic backup tracking.' },
+  { key: 'photos', label: 'Photos', Icon: Camera, tip: 'Field photos for this job — corners, monuments, site conditions. Thumbnail gallery with a click-to-enlarge lightbox and drag-and-drop upload.' },
+  { key: 'financial', label: 'Financial', Icon: DollarSign, tip: 'Quote details, payment tracking, and time entries. View revenue summary, record payments, and log hours worked by team members.' },
+  { key: 'activity', label: 'Activity', Icon: History, tip: 'Chronological log of everything on this job — stage changes, file/photo uploads, drawings saved, team changes — newest first.' },
+  { key: 'messages', label: 'Messages', Icon: MessageSquare, tip: 'Dedicated messaging thread for this job. Coordinate with team members, share updates, and discuss field observations in one place.' },
 ];
 
 export default function JobDetailPage() {
@@ -160,7 +165,7 @@ export default function JobDetailPage() {
   }, [jobId]);
 
   // job-soft-delete Slice 1 — warn, then soft-delete (sets deleted_at;
-  // recoverable for 30 days from the all-jobs "🗑 Deleted" view), then
+  // recoverable for 30 days from the all-jobs "Deleted" view), then
   // route back to the list.
   const [deletingJob, setDeletingJob] = useState(false);
   const handleDeleteJob = useCallback(async () => {
@@ -168,7 +173,7 @@ export default function JobDetailPage() {
     const ok = window.confirm(
       `Delete "${job.name}"?\n\n` +
       `It will be moved to the trash and stays recoverable for 30 days ` +
-      `(restore it from Jobs → "🗑 Deleted"), then it's permanently removed.`,
+      `(restore it from Jobs → "Deleted"), then it's permanently removed.`,
     );
     if (!ok) return;
     setDeletingJob(true);
@@ -434,10 +439,10 @@ export default function JobDetailPage() {
               }}
               title="See every point + photo + voice memo + file the field crew has logged on this job, and download the media in one CSV."
             >
-              📍 View field captures →
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><MapPin size={14} strokeWidth={2} /> View field captures →</span>
             </Link>
             {/* job-soft-delete Slice 1 — delete with a warning; the job
-                is recoverable for 30 days from Jobs → "🗑 Deleted". */}
+                is recoverable for 30 days from Jobs → "Deleted". */}
             <button
               type="button"
               onClick={() => void handleDeleteJob()}
@@ -454,7 +459,7 @@ export default function JobDetailPage() {
                 cursor: 'pointer',
               }}
             >
-              {deletingJob ? 'Deleting…' : '🗑 Delete job'}
+              {deletingJob ? 'Deleting…' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><Trash2 size={14} strokeWidth={2} /> Delete job</span>}
             </button>
           </div>
         </div>
@@ -462,7 +467,7 @@ export default function JobDetailPage() {
           <div>
             <div className="job-detail__number">{job.job_number}</div>
             <h2 className="job-detail__name">
-              {job.is_priority && <span title="Priority">🔴 </span>}
+              {job.is_priority && <Circle size={12} fill="currentColor" style={{ color: 'var(--color-error, #DC2626)', verticalAlign: 'middle', marginRight: '0.3rem' }} aria-label="Priority" />}
               {job.name}
             </h2>
             <p className="job-detail__meta">
@@ -489,7 +494,7 @@ export default function JobDetailPage() {
               })}
               title="Download a one-page job summary PDF"
             >
-              ⬇ Export PDF
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><Download size={14} strokeWidth={2} /> Export PDF</span>
             </button>
             <JobResultControl
               jobId={job.id}
@@ -558,7 +563,7 @@ export default function JobDetailPage() {
                 className={`job-detail__tab ${activeTab === tab.key ? 'job-detail__tab--active' : ''}`}
                 onClick={() => setActiveTab(tab.key)}
               >
-                <span className="job-detail__tab-icon">{tab.icon}</span>
+                <span className="job-detail__tab-icon"><tab.Icon size={15} strokeWidth={1.75} /></span>
                 {tab.label}
                 {typeof count === 'number' && count > 0 && (
                   <span className="job-detail__tab-badge">{count}</span>
@@ -575,11 +580,11 @@ export default function JobDetailPage() {
           <div className="job-detail__overview">
             {/* Quick actions — jump straight into the parts of the job */}
             <div className="job-detail__quick-actions">
-              <button className="job-detail__quick-action" onClick={() => setActiveTab('research')}>🔍 Add research</button>
-              <button className="job-detail__quick-action" onClick={() => setActiveTab('cad')}>📐 Start a drawing</button>
-              <button className="job-detail__quick-action" onClick={() => setActiveTab('files')}>📁 Add files</button>
-              <button className="job-detail__quick-action" onClick={() => setActiveTab('photos')}>📷 Add photos</button>
-              <button className="job-detail__quick-action" onClick={() => setActiveTab('fieldwork')}>🏗️ Field work</button>
+              <button className="job-detail__quick-action" onClick={() => setActiveTab('research')}><Search size={14} strokeWidth={2} /> Add research</button>
+              <button className="job-detail__quick-action" onClick={() => setActiveTab('cad')}><DraftingCompass size={14} strokeWidth={2} /> Start a drawing</button>
+              <button className="job-detail__quick-action" onClick={() => setActiveTab('files')}><Folder size={14} strokeWidth={2} /> Add files</button>
+              <button className="job-detail__quick-action" onClick={() => setActiveTab('photos')}><Camera size={14} strokeWidth={2} /> Add photos</button>
+              <button className="job-detail__quick-action" onClick={() => setActiveTab('fieldwork')}><HardHat size={14} strokeWidth={2} /> Field work</button>
             </div>
             <div className="job-detail__overview-grid">
               <div className="job-detail__overview-main">
