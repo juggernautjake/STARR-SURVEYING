@@ -256,6 +256,43 @@ Smallest high-value first, each shippable on its own:
 
 ## Slice log
 
+### Slice 14 — §7.1 Full 254-county Texas seed ✅ (2026-06-21)
+`seeds/372_research_counties_texas_full.sql` completes §7.1's "Seed all
+254 up front (static data)" acceptance. Every odd Texas county FIPS
+48001-48507 is present, tagged by metro tier 1-4 for the §9.7 scheduled
+health-check cadence (tier 1 = daily, tier 4 = bi-weekly when §9.7
+lights up).
+
+  - Tier 1 (12 rows): the top metros ≥1M MSA pop (Harris, Dallas,
+    Tarrant, Bexar, Travis, Collin, Denton, Fort Bend, Hidalgo,
+    El Paso, Williamson, Montgomery).
+  - Tier 2 (22 rows): mid metros 200K-1M (Cameron, Bell, Brazoria,
+    Galveston, Lubbock, Nueces, McLennan, Webb, Brazos, Smith, Ellis,
+    Hays, Johnson, Comal, Jefferson, Tom Green, Taylor, Midland,
+    Ector, Wichita, Potter, Randall).
+  - Tier 3 (44 rows): small cities 50K-200K.
+  - Tier 4 (176 rows): rural.
+
+  Idempotent — re-running over slice 2's seed-370 10-county subset is
+  safe (those FIPS skip via `ON CONFLICT (fips) DO NOTHING`).
+
+  Source-locked with 7 tests in
+  `__tests__/research/counties-seed.test.ts`:
+    - Exactly 254 rows
+    - Every odd FIPS in `48001..48507` present (catches typos +
+      missing counties)
+    - Every key metro by name
+    - Tier 1 covers the canonical top-10 metros
+    - Tier values are 1-4 only
+    - Transaction wrap + idempotency
+    - No duplicate FIPS codes
+
+  Registering Hood County (FIPS 48221) or Llano County (FIPS 48299)
+  through the §8 wizard now just resolves the existing row instead
+  of failing on a missing FK.
+
+213/213 research tests pass; clean tsc.
+
 ### Slice 13 — §10.4 (first pass) Document segmentation ✅ (2026-06-21)
 `lib/research/document-segmentation.ts` ships
 `segmentMultiParcelDocument(text, context, opts?)` — the cheap first
@@ -744,10 +781,10 @@ Zero runtime deps; importable from server routes, workers, and tests freely.
 Everything below sits on a small registry. Build this first; the three pillars
 all consume it.
 
-- [x] **7.1 `research_counties`** ✅ (2026-06-21, Slice 2) — table created;
-  seed includes the 10 Texas counties already integrated or near-term
-  targets (Bell + top-9 metros). Full 254-county seed deferred to a small
-  data-only follow-up so this schema migration stays auditable.
+- [x] **7.1 `research_counties`** ✅ (2026-06-21, Slices 2 + 14) —
+  table created in slice 2; full 254-county seed shipped in slice 14
+  (seeds/372). Every odd Texas FIPS 48001-48507 is present with metro
+  tier 1-4 assignments for §9.7's scheduled cadence.
 - [x] **7.2 `research_data_vendors`** ✅ (2026-06-21, Slice 2) — table created
   with all four working vendor templates seeded (`bell_cad_arcgis`,
   `trueautomation_propaccess`, `esearch_cad`, `publicsearch_clerk`) including
