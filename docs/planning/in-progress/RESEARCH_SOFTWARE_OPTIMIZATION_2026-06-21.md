@@ -256,6 +256,56 @@ Smallest high-value first, each shippable on its own:
 
 ## Slice log
 
+### Slice 15 — §9.7 (kernel) Health-check scheduler ✅ (2026-06-21)
+`lib/research/health-check-scheduler.ts` ships
+`planScheduledChecks(adapters, now, policy?)` — the pure decision
+function the §9.7 cron (or DO worker, or manual "run checks now"
+button) wraps. Given the registered adapters + their last-verified
+timestamps + the active policy, returns exactly which adapters need a
+check NOW, ranked by priority, capped by host + batch.
+
+  Three result buckets:
+    - `scheduled` — adapters the caller should hit immediately, with
+      `reason` (`never_checked` / `tier_due` / `failed_priority`)
+      and the hours-since-last gap for the §9.8 dashboard.
+    - `deferred` — eligible adapters bumped by `per_host_concurrency_cap`
+      or `batch_cap` (cron picks them up on the next tick — §9.9
+      guardrail against hammering county portals).
+    - `skipped` — `draft` / `retired` status, OR cadence not yet
+      reached.
+
+  Priority sort (high to low):
+    1. `failed_priority` (1000) — `broken` / `quarantined` adapters
+       jump the queue regardless of cadence. §9.6 wires the
+       failure-triggered self-heal into this path.
+    2. `never_checked` (500) — adapters that registered but haven't
+       had their first check.
+    3. `tier_due` (100 + overdue hours) — more-overdue adapters rank
+       above just-due ones so the backlog drains first.
+    4. Alphabetical adapter_id as the final tiebreaker so two
+       identical runs produce identical schedules.
+
+  `DEFAULT_SCHEDULER_POLICY` matches the spec:
+    - tier-1 cadence 24 h, tier-2 84 h (~twice-weekly), tier-3 168 h
+      (weekly), tier-4 336 h (bi-weekly)
+    - `per_host_concurrency_cap` = 2
+    - `batch_cap` = 50
+    - `jitter_seconds` = 600
+    - `skip_statuses` = {draft, retired}
+
+  Time injection: `now` is a parameter, not `new Date()` at module
+  scope, so vitest can freeze it for deterministic assertions.
+
+  Source-locked with 16 tests in
+  `__tests__/research/health-check-scheduler.test.ts` covering cadence
+  per-tier, null-tier defaults to 4, never-checked + status-skip
+  paths, broken/quarantined queue-jumping, host + batch caps,
+  more-overdue-first ordering, alphabetical-id tiebreaker, and the
+  `DEFAULT_SCHEDULER_POLICY` locked invariants (strictly-increasing
+  cadence, draft/retired skipped, conservative concurrency).
+
+228/228 research tests pass; clean tsc.
+
 ### Slice 14 — §7.1 Full 254-county Texas seed ✅ (2026-06-21)
 `seeds/372_research_counties_texas_full.sql` completes §7.1's "Seed all
 254 up front (static data)" acceptance. Every odd Texas county FIPS
@@ -894,11 +944,12 @@ itself.
   mid-project, quarantine the adapter (`status=quarantined`), run §9.4
   immediately, and surface "we're repairing <county> — your run will retry"
   rather than failing silently.
-- [ ] **9.7 Scheduled cadence (GATED)** — a cron (`/api/cron/adapter-health` or
-  the DO worker) checks adapters by `metro_tier` (tier-1 daily, others weekly),
-  jittered + rate-limited per host. Behind `RESEARCH_SELF_HEAL_SCHEDULE` flag so
-  we don't hammer government sites until we choose to. Respect robots/ToS +
-  per-host concurrency caps (§ guardrails).
+- [~] **9.7 Scheduled cadence (GATED)** — kernel ✅ (2026-06-21, Slice 15):
+  `planScheduledChecks()` in `lib/research/health-check-scheduler.ts` is
+  the deterministic decision function. The cron route + the
+  `RESEARCH_SELF_HEAL_SCHEDULE` env flag that wraps it land in a
+  follow-up route slice. Per-host + batch caps + jitter live on the
+  kernel; the wrapper just provides the polling cadence + I/O.
 - [ ] **9.8 Health dashboard** — extend `/admin/research/coverage`: per county ×
   site_type health (healthy/degraded/broken), pending repair proposals with a
   one-click review (diff + canary result + approve/reject), and last-checked
