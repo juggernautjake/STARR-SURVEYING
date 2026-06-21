@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Info, AlertTriangle, AlertCircle, Siren, CheckCircle2, Flag, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import '../styles/AdminDiscussions.css';
 
@@ -24,8 +25,8 @@ const ESCALATION_COLORS: Record<string, string> = {
   low: '#10B981', medium: '#F59E0B', high: 'var(--color-error)', critical: '#7C3AED',
 };
 
-const ESCALATION_ICONS: Record<string, string> = {
-  low: 'ℹ️', medium: '⚠️', high: '🔴', critical: '🚨',
+const ESCALATION_ICONS: Record<string, LucideIcon> = {
+  low: Info, medium: AlertTriangle, high: AlertCircle, critical: Siren,
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -84,10 +85,10 @@ export default function DiscussionsPage() {
         </div>
       ) : threads.length === 0 ? (
         <div className="admin-empty">
-          <div className="admin-empty__icon">✅</div>
+          <div className="admin-empty__icon"><CheckCircle2 size={30} strokeWidth={1.5} /></div>
           <div className="admin-empty__title">No threads found</div>
           <div className="admin-empty__desc">
-            Use the 🚩 button on any page to flag an issue and start a discussion thread.
+            Use the <Flag size={13} style={{ verticalAlign: "-2px" }} /> button on any page to flag an issue and start a discussion thread.
           </div>
         </div>
       ) : (
@@ -104,7 +105,7 @@ export default function DiscussionsPage() {
                     className="discussion-panel__item-escalation"
                     style={{ background: ESCALATION_COLORS[t.escalation_level] || '#888' }}
                   >
-                    {ESCALATION_ICONS[t.escalation_level]} {t.escalation_level.toUpperCase()}
+                    {(() => { const EscIcon = ESCALATION_ICONS[t.escalation_level] ?? Info; return <EscIcon size={13} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />; })()}{t.escalation_level.toUpperCase()}
                   </span>
                   <span className="discussion-panel__item-type">
                     {TYPE_LABELS[t.thread_type] || t.thread_type}
