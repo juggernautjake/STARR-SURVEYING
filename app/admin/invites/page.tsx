@@ -104,8 +104,16 @@ export default function AdminInvitesPage() {
         padding: '1.25rem',
         marginBottom: '1.5rem',
       }}>
+        {/* form-row-alignment-2026-06-20 — the row uses align-items:
+            flex-end so the input bottoms + the button bottom share
+            a baseline. The button has flex-shrink: 0 so it never
+            collapses or wraps onto its own line; the email grows
+            via flex: 1 1 0 so the row can absorb width changes
+            without pushing the button below the inputs. The
+            inputs + button are all 36px tall so the baseline
+            actually lines up. */}
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <label style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+          <label style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 200 }}>
             <span style={{ fontSize: '0.8rem', color: '#4B5563', fontWeight: 600 }}>Email</span>
             <input
               type="email"
@@ -184,17 +192,20 @@ export default function AdminInvitesPage() {
 }
 
 const inputStyle: React.CSSProperties = {
-  padding: '0.5rem 0.75rem',
+  height: 36,
+  padding: '0 0.75rem',
   background: '#FFFFFF',
   border: '1px solid #D1D5DB',
   borderRadius: 6,
   color: '#0F1419',
   fontSize: '0.88rem',
   fontFamily: 'inherit',
+  boxSizing: 'border-box',
 };
 
 const primaryBtnStyle: React.CSSProperties = {
-  padding: '0.55rem 1.1rem',
+  height: 36,
+  padding: '0 1.1rem',
   background: '#FCD34D',
   color: '#0F1419',
   border: 0,
@@ -203,6 +214,13 @@ const primaryBtnStyle: React.CSSProperties = {
   fontSize: '0.88rem',
   cursor: 'pointer',
   fontFamily: 'inherit',
+  boxSizing: 'border-box',
+  flexShrink: 0,
+  // Without this, when the row gets narrow enough the button
+  // wraps to its own line and "floats" right of where the user
+  // expects. Keeping flex-shrink: 0 + a sensible base width means
+  // the button is the LAST thing to wrap, never the first.
+  whiteSpace: 'nowrap',
 };
 
 const revokeBtnStyle: React.CSSProperties = {

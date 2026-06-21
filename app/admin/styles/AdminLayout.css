@@ -54,6 +54,112 @@
 .admin-layout a[class*="-btn--primary"],
 .admin-layout a[class*="-btn--primary"]:hover { color: #FFFFFF; }
 
+/* === Form-row alignment utilities (sitewide) ============================
+ * form-row-alignment-2026-06-20 — user reported "Send invite" button
+ * on /admin/invites floats below the input row instead of lining up
+ * with the Email + Role inputs, and noted that this kind of misalign
+ * happens "all over the website on all kinds of pages". Root cause
+ * is a familiar pattern: a flex row mixing tall labeled-input columns
+ * with bare short buttons / toggles, no consistent control height,
+ * and no explicit wrap behavior on the action button.
+ *
+ * The utility classes below codify the fix:
+ *   - .admin-form-row        flex row, bottom-aligned, wraps cleanly
+ *   - .admin-form-row__field labeled column (label + control), grows
+ *   - .admin-form-row__field--narrow  fixed 180px column
+ *   - .admin-form-row__action bare action control (button / toggle),
+ *                              36px tall, never shrinks, never wraps
+ *   - .admin-form-row__input,
+ *     .admin-form-row__select  36px tall input + select with proper
+ *                              padding + box-sizing
+ *
+ * Apply these from page-level <div className="admin-form-row"> and
+ * every control inside lines up to the same baseline at any width.
+ * Pages migrating off custom inline styles should swap to these
+ * incrementally — the visual result is identical or better.
+ * ====================================================================== */
+.admin-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+.admin-form-row__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1 1 240px;
+  min-width: 200px;
+}
+.admin-form-row__field--narrow { flex: 0 0 180px; min-width: 0; }
+.admin-form-row__field--fill   { flex: 1 1 auto;  min-width: 200px; }
+.admin-form-row__field-label {
+  font-size: 0.8rem;
+  color: #4B5563;
+  font-weight: 600;
+}
+.admin-form-row__input,
+.admin-form-row__select {
+  height: 36px;
+  box-sizing: border-box;
+  padding: 0 0.75rem;
+  background: #FFFFFF;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  color: #0F1419;
+  font-size: 0.88rem;
+  font-family: inherit;
+  line-height: 1.2;
+}
+.admin-form-row__select { padding-right: 2rem; }
+.admin-form-row__input:focus,
+.admin-form-row__select:focus {
+  outline: none;
+  border-color: var(--color-brand-navy, #1D3095);
+  box-shadow: 0 0 0 2px rgba(29, 48, 149, 0.15);
+}
+.admin-form-row__action {
+  height: 36px;
+  box-sizing: border-box;
+  padding: 0 1.1rem;
+  border-radius: 6px;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  /* Never collapse smaller than the text it carries, never wrap
+   * to its own line until every labeled field has already wrapped. */
+  flex-shrink: 0;
+}
+.admin-form-row__action:disabled { opacity: 0.55; cursor: not-allowed; }
+.admin-form-row__action--primary {
+  background: var(--color-brand-navy, #1D3095);
+  color: #FFFFFF;
+}
+.admin-form-row__action--primary:hover:not(:disabled) { background: var(--color-brand-navy-d, #162470); }
+.admin-form-row__action--ghost {
+  background: #FFFFFF;
+  color: var(--color-brand-navy, #1D3095);
+  border: 1px solid var(--color-brand-navy, #1D3095);
+}
+.admin-form-row__action--ghost:hover:not(:disabled) { background: rgba(29, 48, 149, 0.06); }
+/* Inline toggle (checkbox + label) sized to match the row baseline. */
+.admin-form-row__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 36px;
+  padding: 0 0.25rem;
+  font-size: 0.85rem;
+  color: #374151;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 /* === Portal-rendered tooltip (Tooltip.tsx) =============================
  * button-tooltip-portal-2026-06-20 — these rules were previously in
  * AdminResearch.css which only loads on /admin/research/**, so every
