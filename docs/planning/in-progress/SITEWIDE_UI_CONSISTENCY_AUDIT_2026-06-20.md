@@ -354,6 +354,12 @@ per-page note in §6.
   (+`create`/`[deck]`), `flashcard-bank`, `exam-prep` (+`sit`/`rpls`/
   mock-exam), `search`, `quiz-history`, `students` (+detail), `manage`
   (+`question-builder`/`media`/`article-editor`), `practice`.
+  - [x] learn hub + search + quiz-history + knowledge-base +
+    flashcards/create → lucide. Most learn pages are already emoji-light.
+  - [ ] Remaining: manage/lesson-builder/[id] (~40 — large editor),
+    modules/[id]/[lessonId] (~4), and a handful of 1-emoji pages
+    (students, students/[email], modules/[id]/test, knowledge-base/[slug],
+    exam-prep/rpls).
 - [ ] **W6 — Office workspace.** `office`, `billing` (+`invoices`/
   `plan-history`/`upgrade`), `payroll` (+detail), `payout-log`,
   `payouts`, `employees` (+`manage`/history), `users`, `invites`,
