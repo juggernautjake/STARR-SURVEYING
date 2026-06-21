@@ -337,8 +337,12 @@ per-page note in §6.
   - [x] **library** — DOC_TYPE_ICONS map → lucide components (Map/ScrollText/
     Spline/DraftingCompass/FileText) via DocTypeIcon helper; header/empty/
     badges/address/spinner glyphs → lucide.
-  - [ ] Remaining: **research/[projectId]** (~49 emoji — large detail page,
-    needs its own slice) + CAD editor dialogs (icon/cutoff only).
+  - [~] **research/[projectId]** part 1 done — structural chrome
+    (step-headers, tab labels, section titles, top actions) → lucide.
+  - [ ] research/[projectId] part 2: the docTypeIcons (~22) +
+    sourceTypeLabels (~4) icon maps → lucide-component map + helper, the
+    ⏳/✨/✅ button-state ternaries, and the qualityScore ✓/⚠/✗ var (28
+    lines left) + CAD editor dialogs (icon/cutoff only).
 - [ ] **W5 — Knowledge / Learn workspace.** `learn` hub + `roadmap`,
   `modules` (+detail), `knowledge-base` (+article), `flashcards`
   (+`create`/`[deck]`), `flashcard-bank`, `exam-prep` (+`sit`/`rpls`/
