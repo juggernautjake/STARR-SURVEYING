@@ -304,8 +304,10 @@ per-page note in §6.
     emoji-free.
   - [x] **team** (Field Team) — battery ⚡/🔋, delivered/read ✓/⏳, Submit ✓,
     Open profile 📋, Mileage 🚗, Timeline 🗺️ → lucide. Emoji-free.
-  - [ ] Remaining: calendar (⛶/🖨/📅/✕…) emoji→lucide; jobs/[id] +
-    field-data/[id] detail pages.
+  - [x] **calendar** — fullscreen/print/empty/close/create-event/create-job
+    emoji → lucide. Emoji-free. (All W2 list/main pages now done.)
+  - [ ] Remaining: detail pages **jobs/[id]** (~21 emoji) +
+    **field-data/[id]** (~5) emoji→lucide.
 - [ ] **W3 — Equipment workspace.** `equipment` + `inventory`,
   `consumables`, `maintenance` (+`[id]`), `timeline`, `fleet-valuation`,
   `overrides`, `templates` (+`new`/`[id]`/`cleanup-queue`), `today`,
