@@ -37,7 +37,7 @@
    _(legacy detail below)_ §3. Extend `docs/admin-styling-contract.md`
    with the back-nav, icon (lucide vs emoji), and control-height rules.
 4. ~~W1 Hub~~ ✅ DONE — Hub pages emoji→lucide + time-off 36px baseline.
-5. **W2 Work** §4 — work, jobs(+new/import/[id]), calendar, field-data
+5. ~~W2 Work~~ ✅ DONE — §4 — work, jobs(+new/import/[id]), calendar, field-data
    (+[id]), team, timeline, assignments.
 6. **W3 Equipment** §4 — equipment + inventory/consumables/maintenance/
    timeline/fleet-valuation/overrides/templates/today/import, vehicles.
@@ -295,9 +295,11 @@ per-page note in §6.
     config→lucide-name migration + a name→component renderer, not a
     component swap. Tracked as **G5** below. Same for my-notes' emoji
     list-icon picker (a legitimate emoji-picker feature — keep).
-- [ ] **W2 — Work workspace.** `work`, `jobs`, `jobs/new`,
+- [x] **W2 — Work workspace.** `work`, `jobs`, `jobs/new`,
   `jobs/import`, `jobs/[id]` detail, `calendar`, `field-data`,
-  `field-data/[id]`, `team`, `timeline`, `assignments`.
+  `field-data/[id]`, `team`, `timeline`, `assignments`. DONE — every Work
+  page's emoji icons → lucide (jobs list/detail, calendar, team, timeline,
+  field-data list/detail; work/jobs-new/jobs-import had none).
   - [x] **jobs** (All Jobs) — view-toggle ⊞/☰→LayoutGrid/List, delete 🗑→
     Trash2 (×2), empty 📋→Briefcase. work/jobs-new/jobs-import: no emoji.
   - [x] **timeline** (📍→MapPin, 🚗→Car) + **field-data** (🔄→Image) —
@@ -307,7 +309,7 @@ per-page note in §6.
   - [x] **calendar** — fullscreen/print/empty/close/create-event/create-job
     emoji → lucide. Emoji-free. (All W2 list/main pages now done.)
   - [x] **field-data/[id]** — file-type/audio/transcription glyphs → lucide.
-  - [ ] Remaining: **jobs/[id]** detail (~21 emoji) → lucide.
+  - [x] **jobs/[id]** detail — 10 tab icons + inline buttons → lucide.
 - [ ] **W3 — Equipment workspace.** `equipment` + `inventory`,
   `consumables`, `maintenance` (+`[id]`), `timeline`, `fleet-valuation`,
   `overrides`, `templates` (+`new`/`[id]`/`cleanup-queue`), `today`,
