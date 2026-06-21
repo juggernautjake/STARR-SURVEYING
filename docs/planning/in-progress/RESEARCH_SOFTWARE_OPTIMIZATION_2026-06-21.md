@@ -256,6 +256,50 @@ Smallest high-value first, each shippable on its own:
 
 ## Slice log
 
+### Slice 11 — §9.5 + §9.9 Apply policy + reversible swap ✅ (2026-06-21)
+`lib/research/apply-policy.ts` ships the safe-by-default policy engine that
+decides what happens to a §9.4 change proposal — auto-apply, queue for human
+review, or reject — plus the pure state-transition helpers that perform the
+swap reversibly per §9.9.
+
+  - `decideApplyAction(proposal, policy?)` → `{ action, rationale }`.
+    Action is one of `auto_apply` / `queue_for_review` / `reject`. Strict
+    walk:
+      1. canary failed + `require_canary_pass` → **reject**
+      2. confidence below the reviewer threshold → **reject**
+      3. canary not yet tested → **queue_for_review**
+      4. `RESEARCH_SELF_HEAL_AUTOAPPLY` flag OFF → **queue_for_review**
+      5. confidence below the auto-apply threshold → **queue_for_review**
+      6. otherwise → **auto_apply**.
+  - `DEFAULT_APPLY_POLICY` — locked safe-by-default: `autoapply_enabled=
+    false`, `autoapply_confidence_threshold=0.9`,
+    `reviewer_confidence_threshold=0.5`, `require_canary_pass=true`. The
+    source-lock test asserts these values so flipping the default to
+    auto-apply is a deliberate change, not an accident.
+  - `applyProposalToAdapter(current, proposal)` → `{ next,
+    snapshot_for_rollback }`. Pure transform: returns the next adapter
+    state matching the proposal AND a deep-cloned snapshot of the
+    current state (the caller writes this to `prior_config` /
+    `prior_field_map` on the proposal row so rollback is one row update).
+  - `rollbackProposal(proposal)` → returns the captured prior state as a
+    deep clone. Restores the adapter to its pre-apply config when a
+    repair turns out to be wrong.
+
+  Input sanitization: confidence clamps to `[0,1]` with NaN → 0 → reject
+  path so a buggy agent that emits Infinity or NaN can't game the policy.
+  All transforms are JSON-clone-based — no input mutation — so the
+  caller can pass the live db row without defensive copying.
+
+  Source-locked with 17 tests in `__tests__/research/apply-policy.test.ts`
+  covering: default-policy safety (no auto-apply, canary-failed rejected,
+  low-confidence rejected, canary-pending queued), flag-on auto-apply
+  path, the lenient `require_canary_pass=false` override, confidence
+  clamping + NaN handling, snapshot-for-rollback equality, input
+  immutability, deep-clone independence of the rolled-back result, and
+  the locked `DEFAULT_APPLY_POLICY` invariants.
+
+183/183 research tests pass; clean tsc.
+
 ### Slice 10 — §8.2 ↔ §8.5 Bridge: prefillAdapterFromTemplate ✅ (2026-06-21)
 `lib/research/adapter-draft.ts` ships the pure bridge between slice 6's
 vendor detection and slice 2's adapter row. Given a matched vendor
@@ -721,11 +765,13 @@ itself.
   + canary re-test) lands once §8.3's site-probe Playwright harness is
   up; the table contract is locked first so the agent code can write
   to a typed surface from day one.
-- [ ] **9.5 Apply policy (GATED)** — a proposal that **passes the canary golden
-  check** with confidence ≥ threshold may **auto-apply** *only when the
-  `RESEARCH_SELF_HEAL_AUTOAPPLY` flag is on*; otherwise it waits in a review
-  queue. All applies (auto or manual) are versioned + reversible (keep prior
-  `config`), and logged to the audit trail. Default: **review-required**.
+- [x] **9.5 Apply policy (GATED)** ✅ (2026-06-21, Slice 11) —
+  `decideApplyAction()` + `applyProposalToAdapter()` +
+  `rollbackProposal()` in `lib/research/apply-policy.ts`.
+  `DEFAULT_APPLY_POLICY` is locked safe-by-default (autoapply OFF,
+  canary-pass required, sane thresholds). The route handler that wires
+  this into the §9.4 proposal lifecycle + writes the rollback snapshot
+  to the proposal row lands when the §9.8 dashboard route ships.
 - [ ] **9.6 Failure-triggered self-heal** — when a *live* extraction fails
   mid-project, quarantine the adapter (`status=quarantined`), run §9.4
   immediately, and surface "we're repairing <county> — your run will retry"
