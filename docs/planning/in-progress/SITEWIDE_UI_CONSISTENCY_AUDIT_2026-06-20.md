@@ -28,9 +28,7 @@
 
 ## Remaining slices (execution order — work top to bottom)
 
-1. **F2 (FAB remainder)** §3 — `FloatingActionMenu`/FAB,
-   `DiscussionThreadButton`, `FloatingMessenger` emoji → lucide (or
-   confirm the colored FAB styling is intentional and skip with a note).
+1. ~~F2 (FAB remainder)~~ ✅ DONE — all 4 FAB launchers → lucide.
 2. **F3 — control-row + responsive utilities** §3. Audit the 36 page.tsx
    files with inline `style={{display:'flex'}}` filter rows; migrate to
    `.admin-form-row*`; confirm the globals reset + 36px baseline; add
@@ -219,7 +217,8 @@ per-workspace sweeps.
   Mobile rule drops the back-label. Commit `639d5961`. Visual spot-check
   deferred to per-workspace slices (harness `usePathname` is `/ux-harness`
   so the chrome can't render the real trail; logic is unit-verified).
-- [ ] **F2 — Icon / emoji consistency in shared chrome.** Replace
+- [x] **F2 — Icon / emoji consistency in shared chrome.** DONE (resolver +
+  dashboard + sidebar/topbar + all 4 FAB launchers). Replace
   emoji-as-functional-icon with lucide in the always-on shared
   components. Keep emoji only where decorative.
   - [x] Dashboard cards (🎓📋🔬💰📅) + Quick Links (🎓🃏📝📊🔍📓✏️🔬📐👥🔑)
@@ -232,9 +231,12 @@ per-workspace sweeps.
     via `RouteIcon`; icon-span CSS flex-centers the SVG. `AdminTopBar`
     "Customize Hub" → SquarePen. Verified in harness (14/14 visible
     sidebar icons are lucide SVGs, 0 emoji).
-  - [ ] `FloatingActionMenu`/FAB, `DiscussionThreadButton`,
-    `FloatingMessenger` colored-emoji buttons (lower priority — the
-    distinct colored FAB styling may be intentional; revisit in W-sweeps).
+  - [x] FAB launchers → lucide: CalculatorFab (🧮→Calculator),
+    Fieldbook (📓→Notebook), DiscussionThreadButton (🚩→Flag),
+    FloatingMessenger (💬→MessageSquare). Colored button backgrounds kept
+    (intentional brand styling); verified all 4 render lucide SVGs in the
+    harness. Content emoji (the messenger emoji-picker + `QUICK_EMOJIS`)
+    intentionally kept — those are an emoji feature, not nav icons.
 - [ ] **F3 — Control-row + responsive utilities sweep.** Confirm the
   `AdminLayout.css` globals reset covers every input type (text, date,
   time, checkbox, radio, select, file). Verify the 36 px control

@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { Notebook } from 'lucide-react';
 import AudioRecorder from './fieldbook/AudioRecorder';
 import AudioPlayer from './fieldbook/AudioPlayer';
 
@@ -345,7 +346,7 @@ export default function Fieldbook() {
         <div className="fieldbook-fab-wrap">
           <span className="fieldbook-fab-tooltip">Fieldbook</span>
           <button className="fieldbook-fab" onClick={() => setIsOpen(true)} aria-label="Open Fieldbook">
-            📓
+            <Notebook size={22} strokeWidth={2} aria-hidden="true" />
           </button>
         </div>
       )}
