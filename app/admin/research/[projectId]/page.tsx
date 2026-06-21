@@ -1,6 +1,10 @@
 // app/admin/research/[projectId]/page.tsx — Research project hub
 'use client';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import {
+  Upload, Microscope, ClipboardList, HardHat, Search, FolderOpen, MapPin,
+  Pencil, FileText, Paperclip, BarChart3, Home, DraftingCompass, Route, Camera,
+} from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import DOMPurify from 'dompurify';
@@ -1627,7 +1631,7 @@ export default function ResearchProjectPage() {
           <h1 className="research-page__title">{project.name}</h1>
           {project.property_address && (
             <div style={{ color: '#374151', fontSize: '0.9rem', marginTop: '0.25rem' }}>
-              📍 {project.property_address}
+              <MapPin size={15} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />{project.property_address}
               {project.county && (
                 <span className="research-county-badge">
                   {project.county} County{project.state ? `, ${project.state}` : ''}
@@ -1648,7 +1652,7 @@ export default function ResearchProjectPage() {
             style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '0.375rem', padding: '0.375rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem', color: '#374151' }}
             aria-label="Edit project details"
           >
-            ✏️ Edit Details
+            <Pencil size={14} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Edit Details
           </button>
           <button
             onClick={handleArchiveProject}
@@ -1727,7 +1731,7 @@ export default function ResearchProjectPage() {
       {currentStage === 'upload' && (
         <>
           <div className="research-step-header">
-            <span className="research-step-header__icon">📤</span>
+            <span className="research-step-header__icon"><Upload size={18} strokeWidth={1.75} /></span>
             <div className="research-step-header__body">
               <h2 className="research-step-header__title">Property Information</h2>
               <p className="research-step-header__desc">
@@ -1770,7 +1774,7 @@ export default function ResearchProjectPage() {
         <div className="research-stage2">
           <div className="research-stage2__launch">
             <div className="research-step-header" style={{ marginBottom: '1rem' }}>
-              <span className="research-step-header__icon">🔬</span>
+              <span className="research-step-header__icon"><Microscope size={18} strokeWidth={1.75} /></span>
               <div className="research-step-header__body">
                 <h2 className="research-step-header__title">Research &amp; Analysis</h2>
               </div>
@@ -1822,7 +1826,7 @@ export default function ResearchProjectPage() {
         <div className="research-review">
           {/* ── Header ── */}
           <div className="research-step-header">
-            <span className="research-step-header__icon">📋</span>
+            <span className="research-step-header__icon"><ClipboardList size={18} strokeWidth={1.75} /></span>
             <div className="research-step-header__body">
               <h2 className="research-step-header__title">Review Results</h2>
               <p className="research-step-header__desc">
@@ -1927,14 +1931,14 @@ export default function ResearchProjectPage() {
                   className={`review-summary-panel__tab${reviewTab === tab ? ' review-summary-panel__tab--active' : ''}`}
                   onClick={() => setReviewTab(tab as typeof reviewTab)}
                 >
-                  {tab === 'summary'       && '📊 Summary'}
-                  {tab === 'property'      && '🏠 Property Info'}
-                  {tab === 'survey'        && '📐 Survey Data'}
-                  {tab === 'easements'     && '🛤️ Easements'}
+                  {tab === 'summary'       && <><BarChart3 size={14} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Summary</>}
+                  {tab === 'property'      && <><Home size={14} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Property Info</>}
+                  {tab === 'survey'        && <><DraftingCompass size={14} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Survey Data</>}
+                  {tab === 'easements'     && <><Route size={14} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Easements</>}
                   {tab === 'discrepancies' && (
                     <>Discrepancies{stats.discrepancy_count > 0 && <span className="review-summary-panel__tab-badge">{stats.discrepancy_count}</span>}</>
                   )}
-                  {tab === 'artifacts'     && '📸 Artifacts'}
+                  {tab === 'artifacts'     && <><Camera size={14} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Artifacts</>}
                 </button>
               ))}
             </div>
@@ -2698,7 +2702,7 @@ export default function ResearchProjectPage() {
               ══════════════════════════════════════════════════════ */}
           <div className="review-log-section">
             <div className="review-log-section__header">
-              <span className="review-log-section__title">🔍 Research Logs</span>
+              <span className="review-log-section__title"><Search size={15} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Research Logs</span>
               <PipelineProgressStyles />
             </div>
             <PipelineProgressPanel
@@ -2787,7 +2791,7 @@ export default function ResearchProjectPage() {
               <>
                 <div className="review-doc-list">
                   <div className="review-doc-list__header">
-                    <span className="review-doc-list__title">📂 Documents &amp; Sources</span>
+                    <span className="review-doc-list__title"><FolderOpen size={15} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Documents &amp; Sources</span>
                     <span className="review-doc-list__count">{regularDocs.length}</span>
                   </div>
                   {sortedKeys.map(sourceKey => {
@@ -2852,7 +2856,7 @@ export default function ResearchProjectPage() {
       {currentStage === 'jobprep' && (
         <div className="research-jobprep">
           <div className="research-step-header">
-            <span className="research-step-header__icon">🏗️</span>
+            <span className="research-step-header__icon"><HardHat size={18} strokeWidth={1.75} /></span>
             <div className="research-step-header__body">
               <h2 className="research-step-header__title">Job Prep</h2>
               <p className="research-step-header__desc">
@@ -3205,7 +3209,7 @@ export default function ResearchProjectPage() {
           {jobPrepTab === 'fieldplan' && (
             <div>
               <div className="research-step-header" style={{ marginBottom: '1.25rem' }}>
-                <span className="research-step-header__icon">📋</span>
+                <span className="research-step-header__icon"><ClipboardList size={18} strokeWidth={1.75} /></span>
                 <div className="research-step-header__body">
                   <h2 className="research-step-header__title">AI Field Plan</h2>
                   <p className="research-step-header__desc">
@@ -3256,7 +3260,7 @@ export default function ResearchProjectPage() {
                 <div className="research-final-doc__body">
                   {/* Property Summary */}
                   <div className="research-final-doc__section">
-                    <h3 className="research-final-doc__section-title">📍 Property Summary</h3>
+                    <h3 className="research-final-doc__section-title"><MapPin size={16} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Property Summary</h3>
                     <div className="research-final-doc__property-grid">
                       {project.property_address && (
                         <div className="research-final-doc__prop-item">
@@ -3308,7 +3312,7 @@ export default function ResearchProjectPage() {
                   {/* Drawing */}
                   {activeDrawing && sanitizedDrawingSvg && (
                     <div className="research-final-doc__section">
-                      <h3 className="research-final-doc__section-title">✏️ Boundary Drawing</h3>
+                      <h3 className="research-final-doc__section-title"><Pencil size={16} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Boundary Drawing</h3>
                       <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', maxHeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F8FAFC' }}
                         dangerouslySetInnerHTML={{ __html: sanitizedDrawingSvg }}
                       />
@@ -3320,7 +3324,7 @@ export default function ResearchProjectPage() {
                   )}
                   {!activeDrawing && (
                     <div className="research-final-doc__section">
-                      <h3 className="research-final-doc__section-title">✏️ Boundary Drawing</h3>
+                      <h3 className="research-final-doc__section-title"><Pencil size={16} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Boundary Drawing</h3>
                       <div style={{ padding: '2rem', textAlign: 'center', color: '#4B5563', background: '#F9FAFB', border: '1px dashed #D1D5DB', borderRadius: 8 }}>
                         <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📐</div>
                         <div style={{ fontSize: '0.88rem' }}>
@@ -3332,7 +3336,7 @@ export default function ResearchProjectPage() {
 
                   {/* Field Plan */}
                   <div className="research-final-doc__section">
-                    <h3 className="research-final-doc__section-title">📋 AI Field Plan</h3>
+                    <h3 className="research-final-doc__section-title"><ClipboardList size={16} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />AI Field Plan</h3>
                     <SurveyPlanPanel projectId={projectId} />
                   </div>
 
@@ -3430,7 +3434,7 @@ export default function ResearchProjectPage() {
                   {/* ── Editable Job Notes ── */}
                   <div className="research-final-doc__section research-final-doc__section--editable">
                     <h3 className="research-final-doc__section-title">
-                      📝 Job Notes &amp; Field Instructions
+                      <FileText size={15} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Job Notes &amp; Field Instructions
                       <span style={{ marginLeft: '0.5rem', fontSize: '0.72rem', fontWeight: 400, color: '#6B7280', textTransform: 'none', letterSpacing: 0 }}>
                         {savingJobNotes ? '⏳ Saving…' : '(editable — auto-saved)'}
                       </span>
@@ -3447,7 +3451,7 @@ export default function ResearchProjectPage() {
                   {/* Export Options */}
                   {activeDrawing && (
                     <div className="research-final-doc__section">
-                      <h3 className="research-final-doc__section-title">📤 Export Drawing Files</h3>
+                      <h3 className="research-final-doc__section-title"><Upload size={15} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Export Drawing Files</h3>
                       <ExportPanel
                         projectId={projectId}
                         drawingId={activeDrawing.id}
@@ -3467,7 +3471,7 @@ export default function ResearchProjectPage() {
                   {/* Source documents index */}
                   {documents.length > 0 && (
                     <div className="research-final-doc__section">
-                      <h3 className="research-final-doc__section-title">📎 Source Documents ({documents.length})</h3>
+                      <h3 className="research-final-doc__section-title"><Paperclip size={15} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Source Documents ({documents.length})</h3>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                         {documents.map((doc, i) => (
                           <div key={doc.id} style={{ display: 'flex', gap: '0.75rem', fontSize: '0.82rem', padding: '0.4rem 0', borderBottom: i < documents.length - 1 ? '1px solid #F3F4F6' : 'none' }}>
