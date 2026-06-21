@@ -482,31 +482,55 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
   },
   subtitle: { fontSize: 13, color: 'var(--color-text-tertiary)', margin: 0 },
-  headerControls: { display: 'flex', gap: 8, alignItems: 'center' },
+  // equipment-today-row-alignment-2026-06-21 — user reported the
+  // date input + Today + Refresh buttons floated at different
+  // vertical positions. Root cause: the controls had only `padding:
+  // 6px …` and no explicit height, so the native `<input
+  // type="date">` rendered taller (its built-in calendar icon adds
+  // intrinsic height) than the bare text buttons. Pin every control
+  // in the row to height: 32 + box-sizing: border-box so the row
+  // shares one baseline regardless of native widget chrome.
+  headerControls: {
+    display: 'flex',
+    gap: 8,
+    alignItems: 'center',
+    flexShrink: 0,
+  },
   dateInput: {
-    padding: '6px 10px',
+    height: 32,
+    boxSizing: 'border-box',
+    padding: '0 10px',
     border: '1px solid #E2E5EB',
     borderRadius: 6,
     fontSize: 13,
     fontFamily: 'inherit',
+    background: 'var(--color-bg-card, #FFFFFF)',
   },
   todayBtn: {
-    padding: '6px 12px',
+    height: 32,
+    boxSizing: 'border-box',
+    padding: '0 12px',
     border: '1px solid #E2E5EB',
     borderRadius: 6,
     background: 'var(--color-bg-card)',
     fontSize: 13,
+    fontFamily: 'inherit',
     cursor: 'pointer',
+    whiteSpace: 'nowrap',
   },
   refreshBtn: {
-    padding: '6px 12px',
+    height: 32,
+    boxSizing: 'border-box',
+    padding: '0 12px',
     border: 'none',
     borderRadius: 6,
     background: 'var(--color-brand-navy)',
     color: 'var(--color-text-on-brand)',
     fontSize: 13,
+    fontFamily: 'inherit',
     cursor: 'pointer',
     fontWeight: 500,
+    whiteSpace: 'nowrap',
   },
   bannerStack: {
     display: 'flex',
