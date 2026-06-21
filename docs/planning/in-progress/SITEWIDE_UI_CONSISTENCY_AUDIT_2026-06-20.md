@@ -51,7 +51,7 @@
    messages, discussions, hours-approval, rewards, pay-progression.
 10. ~~D1 — dead-button sweep~~ ✅ DONE — 1 dead link fixed; no dead buttons.
 11. ~~G1 — badges + Safety badges~~ ✅ DONE — 6 safety badges + auto-award.
-12. **G2 — Pay Progression visual polish** §5.5.
+12. ~~G2 — Pay Progression polish~~ ✅ DONE — section-title icons → lucide.
 13. **G4 — regenerate empty-lesson curriculum buildout** §5 D2 note
     (gen_seed pipeline; ~207/422 lessons empty).
 14. **R1 — research-software analysis + optimization roadmap** §5.6.
@@ -465,11 +465,23 @@ per-page note in §6.
   (DB-stored content, same class as the G5 config icons). The internal
   **Safety *course* content** (≠ the credentials, which exist) needs the
   gen_seed curriculum pipeline → folded into G4.
-- [ ] **G2 — Pay Progression visual polish.** The broken `AdminRewards.css`
-  import was already fixed so the page renders, but the hero card,
-  work-type grid, role ladder, and timeline still want a deliberate
-  design pass (coloring + alignment per the user's "good coloring and
-  perfect alignment"). Overlaps with U2 (do U2's overflow fix first).
+- [x] **G2 — Pay Progression visual polish.** Iconography pass: the page
+  title + all 10 section headers used HTML-ENTITY emoji (`&#x1F4B0;` etc.)
+  that every unicode scan missed — converted all 13 to lucide (Wallet,
+  HardHat, BarChart3, Calendar, ScrollText, Star, GraduationCap, Target,
+  Calculator, ClipboardList, Loader2). Verified in harness: 10/10 section
+  titles render lucide SVGs; navbar (IconRail + topbar + sidebar) confirmed
+  intact. Commit `69e12c20`. (Deeper layout/spacing redesign of the hero
+  card itself not done blind — the page is data-gated; U2 already fixed the
+  one concrete overflow bug. The rate/tier work-type icons stay = G5.)
+
+- [ ] **W7 — Entity-encoded emoji sweep (follow-up).** The W1–W6 sweeps
+  matched only literal-unicode emoji; **34 admin files also use HTML-entity
+  emoji** (`&#x1F…;` / `&#x26…;`) that were missed (e.g. learn/modules,
+  exam-prep/sit, manage/*, components/QuizRunner/Fieldbook/ArticleEditor).
+  Re-run the emoji→lucide conversion targeting the entity form:
+  `grep -rlE "&#x1F[0-9A-Fa-f]{3};" app/admin --include="*.tsx"`. Same
+  rules (chrome→lucide, content pickers/data-config stay).
 - ~~G3 — Payment seeds 323–327~~ — **deferred: BLOCKED on a human decision
   (live Stripe billing).** Root-caused 2026-06-21: `invoices` is a
   two-feature table-name collision — live = Stripe SaaS billing schema;
