@@ -9,6 +9,7 @@ import NotificationBell from './NotificationBell';
 import ClockInPill from './ClockInPill';
 
 import type { UserRole } from '@/lib/auth';
+import { RouteIcon } from '@/lib/admin/route-icons';
 
 interface AdminTopBarProps { title: string; role: UserRole; onMenuToggle: () => void; }
 
@@ -125,9 +126,9 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
               role="menuitem"
               href="/admin/me?edit=1"
               onClick={() => setOpen(false)}
-              style={{ display: 'block', padding: '0.6rem 0.85rem', textDecoration: 'none', color: 'var(--theme-fg-primary)', fontSize: '0.88rem', borderTop: '1px solid var(--theme-border)' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 0.85rem', textDecoration: 'none', color: 'var(--theme-fg-primary)', fontSize: '0.88rem', borderTop: '1px solid var(--theme-border)' }}
             >
-              ✏️ Customize Hub
+              <RouteIcon name="SquarePen" size={15} /> Customize Hub
             </Link>
             <button
               role="menuitem"

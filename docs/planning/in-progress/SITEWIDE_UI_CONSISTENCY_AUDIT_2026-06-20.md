@@ -176,11 +176,15 @@ per-workspace sweeps.
     + pending banner (🔔) → lucide (GraduationCap/ClipboardList/Microscope/
     Wallet/Calendar/Layers/ClipboardCheck/BarChart3/BookOpen/BookMarked/
     SquarePen/DraftingCompass/Users/KeyRound/Bell). Verified in harness.
-  - [ ] `AdminSidebar` (legacy drawer — 📊🎓🗺️📚… nav icons), `AdminTopBar`,
-    `FloatingActionMenu`/FAB, `DiscussionThreadButton`, `FloatingMessenger`.
-  - [ ] **Follow-up infra:** add a registry-driven `iconName → lucide`
-    resolver (`lib/admin/route-icons.tsx`) so the registry's `iconName`
-    strings render everywhere; IconRail only maps the 6 workspaces today.
+  - [x] **Resolver infra shipped:** `lib/admin/route-icons.tsx`
+    (`RouteIcon` + `iconForName`, ~70 lucide names, Circle fallback).
+  - [x] `AdminSidebar` — all 63 nav `icon:` emoji → lucide names rendered
+    via `RouteIcon`; icon-span CSS flex-centers the SVG. `AdminTopBar`
+    "Customize Hub" → SquarePen. Verified in harness (14/14 visible
+    sidebar icons are lucide SVGs, 0 emoji).
+  - [ ] `FloatingActionMenu`/FAB, `DiscussionThreadButton`,
+    `FloatingMessenger` colored-emoji buttons (lower priority — the
+    distinct colored FAB styling may be intentional; revisit in W-sweeps).
 - [ ] **F3 — Control-row + responsive utilities sweep.** Confirm the
   `AdminLayout.css` globals reset covers every input type (text, date,
   time, checkbox, radio, select, file). Verify the 36 px control
