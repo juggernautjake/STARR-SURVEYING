@@ -256,6 +256,53 @@ Smallest high-value first, each shippable on its own:
 
 ## Slice log
 
+### Slice 8 — §9.1 (structural-layer) DOM fingerprint ✅ (2026-06-21)
+`lib/research/dom-fingerprint.ts` ships `fingerprintHtml(html)` +
+`diffFingerprints(was, now)` — the structural half of §9.1's three-layer
+detection. Pairs with slice 7's semantic-layer canary diff so the §9.3
+health-check writer can stamp two consistent severity buckets per run.
+
+  `fingerprintHtml` produces:
+    - `hash`           — hex SHA-256 of the canonical skeleton string.
+    - `skeleton`       — the canonicalized token sequence (one
+                         structural element per line, attributes sorted
+                         alphabetically), surfaced in the §9.8 dashboard
+                         so reviewers can see exactly what changed.
+    - `element_count`  — how many structural elements we captured;
+                         the §9.4 agent uses this to detect "page now
+                         has 0 forms" without re-parsing.
+
+  Captures: `form`, `input`, `select`, `option`, `textarea`, `button`,
+  `table`, `thead`, `tbody`, `tr`, `th`, `td`, `a`, `nav`, `header`,
+  `footer`, `main`, `section`, `article`, `aside`, `iframe`, `label`,
+  `fieldset`. Keeps only stable attributes (`name`, `id`, `type`, `role`,
+  `href`, `action`, `method`, `value`, `placeholder`, `data-testid`,
+  `data-cy`, `data-test`, `data-qa`). Drops scripts/styles/comments
+  before tokenizing.
+
+  `diffFingerprints(was, now)` returns `{ identical, similarity, removed,
+  added, severity }` — Jaccard similarity on the skeleton-token multiset
+  → `healthy` (≥0.95) / `degraded` (0.7–0.95) / `broken` (<0.7).
+  Thresholds tuned so a small portal tweak (a few elements added or
+  renamed) trips `degraded` while a complete redesign or a captcha
+  interstitial replacing the search form trips `broken`.
+
+Source-locked with 17 tests covering: text-content / random-class-hash /
+whitespace / comment / script-block / attribute-order invariance;
+breakage detection on disappearing fields, renamed inputs, changed form
+actions, added table columns; severity bucketing for identical / small-
+change / completely-different pages; per-token added/removed
+diff for the §9.4 repair agent; and robustness on empty / malformed
+HTML.
+
+135/135 research tests pass; clean tsc.
+
+**§9.1 is now structurally + semantically complete at the pure-logic
+layer.** Visual layer (Playwright screenshot + AI-vision diff) lands
+when the §8.3 site-probe Playwright harness is up — until then the §9.3
+health-check writer can call slices 7 and 8 to produce a two-layer
+verdict.
+
 ### Slice 7 — §9.1 (semantic-layer) Canary diff ✅ (2026-06-21)
 `lib/research/canary-diff.ts` ships `diffAgainstCanary(extracted, canary)` —
 the **strongest breakage signal** in §9.1's three-layer health-check stack.
@@ -560,10 +607,11 @@ itself.
 - [~] **9.1 Three-layer change detection** per adapter run:
   - [x] **Semantic/data** ✅ (2026-06-21, Slice 7) — `diffAgainstCanary` in
     `lib/research/canary-diff.ts` ships the strongest breakage signal.
-    Path-aware normalization, severity bucketing (`healthy` / `degraded` /
-    `broken`), human-readable summary.
-  - [ ] **Structural** — DOM-structure hash vs baseline. Pure-function
-    slice queued.
+    Path-aware normalization, severity bucketing, human-readable summary.
+  - [x] **Structural** ✅ (2026-06-21, Slice 8) — `fingerprintHtml` +
+    `diffFingerprints` in `lib/research/dom-fingerprint.ts`. SHA-256 over a
+    canonicalized skeleton (form/anchor/table tags + stable attributes
+    only), Jaccard-similarity severity bucketing.
   - [ ] **Visual** — Playwright screenshot + AI-vision diff. Needs
     Playwright orchestration + AI-vision integration; lands as its own
     slice once the §8.3 site-probe Playwright harness is up.
