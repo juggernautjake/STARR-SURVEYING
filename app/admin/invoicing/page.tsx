@@ -64,8 +64,8 @@ const PHASE_2_SLICES: SliceRow[] = [
     detail: 'every cleared payment writes its allocation ledger automatically.' },
   { id: '10', label: 'Reports: /admin/invoicing/reports', state: 'in-progress',
     detail: 'Data layer shipped (lib/payments/allocation-reports.ts — rollupAllocationsByCategory + revenueByPeriod). UI page lands when collision fix exposes outstanding-invoices.' },
-  { id: '11', label: 'Category editor: /admin/invoicing/categories', state: 'planned',
-    detail: 'add / archive / set percentages. Sum must equal 100%.' },
+  { id: '11', label: 'Category editor: /admin/invoicing/categories', state: 'in-progress',
+    detail: 'Data layer shipped (lib/payments/category-editor.ts — validateSingleCategory / validateCategorySet / previewEdit / suggestCategoryKey). UI page lands later.' },
   { id: '12', label: 'Mock-customer test harness', state: 'planned',
     detail: 'seeds 8 fake invoices covering every edge case for end-to-end tests.' },
   { id: '13', label: 'Remove under-construction banner + graduate the route', state: 'planned',
@@ -103,7 +103,7 @@ export default function InvoicingPhase2Page(): React.ReactElement {
           <h2 style={styles.gateTitle}>Sign in required</h2>
           <p style={styles.gateBody}>
             The Customer Invoicing Phase 2 dashboard is admin- and developer-only
-            while it's under construction.
+            while it&rsquo;s under construction.
           </p>
           <Link href="/api/auth/signin" style={styles.gateAction}>Sign in</Link>
         </div>
@@ -117,7 +117,7 @@ export default function InvoicingPhase2Page(): React.ReactElement {
         <div style={styles.gate}>
           <h2 style={styles.gateTitle}>Access denied</h2>
           <p style={styles.gateBody}>
-            This route is restricted to admin and developer roles. You're signed
+            This route is restricted to admin and developer roles. You&rsquo;re signed
             in as <code>{session.user.email}</code> with roles{' '}
             <code>{roles.length > 0 ? roles.join(', ') : '(none)'}</code>.
           </p>
@@ -156,7 +156,7 @@ export default function InvoicingPhase2Page(): React.ReactElement {
           <code>/pay</code> customer portal, <code>/admin/invoices/new</code>,
           office close-out, payout batches, Stripe webhook, etc.) is{' '}
           <strong>shipped in code but blocked from going live</strong> by a
-          table-name collision between SaaS-billing's <code>invoices</code>{' '}
+          table-name collision between SaaS-billing&rsquo;s <code>invoices</code>{' '}
           table and the customer-invoicing seed-323 <code>invoices</code>{' '}
           table. The fix (rename to <code>customer_invoices</code> + repoint
           18 code sites) is documented in{' '}
