@@ -3,7 +3,9 @@
 import { useState, useEffect, useRef, DragEvent, ChangeEvent } from 'react';
 import {
   X, FileX, Calculator, Paperclip, FileText, Globe, HelpCircle, Target,
-  Image as ImageIcon, Palette,
+  Image as ImageIcon, Palette, Type, Code2, Play, Volume2, Lightbulb,
+  Sparkles, Minus, ExternalLink, Table, Images, Link2, Layers, Newspaper,
+  ArrowRight, Sigma, LayoutPanelTop, Rows3, Columns3, type LucideIcon,
 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import SmartSearch from '../../../components/SmartSearch';
@@ -53,30 +55,30 @@ interface LessonMeta {
   content?: string; // Legacy HTML content for seeded lessons
 }
 
-const BLOCK_TYPES: { type: BlockType; label: string; icon: string; description: string; group?: string }[] = [
-  { type: 'text', label: 'Text', icon: 'T', description: 'Rich text with formatting', group: 'Content' },
-  { type: 'html', label: 'HTML', icon: '</>', description: 'Raw HTML code block', group: 'Content' },
-  { type: 'image', label: 'Image', icon: '🖼', description: 'Upload or link an image', group: 'Media' },
-  { type: 'video', label: 'Video', icon: '▶', description: 'YouTube/Vimeo embed', group: 'Media' },
-  { type: 'audio', label: 'Audio', icon: '🔊', description: 'Audio player / podcast', group: 'Media' },
-  { type: 'callout', label: 'Callout', icon: '💡', description: 'Styled info/warning/formula box', group: 'Content' },
-  { type: 'highlight', label: 'Highlight', icon: '✦', description: 'Key term or concept bubble', group: 'Content' },
-  { type: 'key_takeaways', label: 'Takeaways', icon: '🎯', description: 'Key takeaways checklist', group: 'Content' },
-  { type: 'divider', label: 'Divider', icon: '—', description: 'Visual separator', group: 'Layout' },
-  { type: 'quiz', label: 'Quiz', icon: '?', description: 'Inline quiz question', group: 'Interactive' },
-  { type: 'embed', label: 'Embed', icon: '⧉', description: 'External content via URL', group: 'Media' },
-  { type: 'table', label: 'Table', icon: '▦', description: 'Data table', group: 'Content' },
-  { type: 'file', label: 'File', icon: '📎', description: 'Downloadable attachment', group: 'Media' },
-  { type: 'slideshow', label: 'Slideshow', icon: '🎞', description: 'Image slideshow/carousel', group: 'Media' },
-  { type: 'link_reference', label: 'Links / Refs', icon: '🔗', description: 'Curated links & references', group: 'Interactive' },
-  { type: 'flashcard', label: 'Flashcards', icon: '🃏', description: 'Flip-card study deck', group: 'Interactive' },
-  { type: 'popup_article', label: 'Popup Article', icon: '📰', description: 'Expandable summary / article', group: 'Interactive' },
-  { type: 'backend_link', label: 'Page Link', icon: '➡', description: 'Link card to app page', group: 'Interactive' },
-  { type: 'equation', label: 'Equation', icon: 'Σ', description: 'Math formula (LaTeX)', group: 'Content' },
-  { type: 'tabs', label: 'Tabs', icon: '⊞', description: 'Tabbed content panels', group: 'Layout' },
-  { type: 'accordion', label: 'Accordion', icon: '≡', description: 'Collapsible FAQ sections', group: 'Layout' },
-  { type: 'columns', label: 'Columns', icon: '▥', description: '2-3 column layout', group: 'Layout' },
-  { type: 'practice_problem', label: 'Practice Problem', icon: '🧮', description: 'Step-by-step worked problem', group: 'Interactive' },
+const BLOCK_TYPES: { type: BlockType; label: string; Icon: LucideIcon; description: string; group?: string }[] = [
+  { type: 'text', label: 'Text', Icon: Type, description: 'Rich text with formatting', group: 'Content' },
+  { type: 'html', label: 'HTML', Icon: Code2, description: 'Raw HTML code block', group: 'Content' },
+  { type: 'image', label: 'Image', Icon: ImageIcon, description: 'Upload or link an image', group: 'Media' },
+  { type: 'video', label: 'Video', Icon: Play, description: 'YouTube/Vimeo embed', group: 'Media' },
+  { type: 'audio', label: 'Audio', Icon: Volume2, description: 'Audio player / podcast', group: 'Media' },
+  { type: 'callout', label: 'Callout', Icon: Lightbulb, description: 'Styled info/warning/formula box', group: 'Content' },
+  { type: 'highlight', label: 'Highlight', Icon: Sparkles, description: 'Key term or concept bubble', group: 'Content' },
+  { type: 'key_takeaways', label: 'Takeaways', Icon: Target, description: 'Key takeaways checklist', group: 'Content' },
+  { type: 'divider', label: 'Divider', Icon: Minus, description: 'Visual separator', group: 'Layout' },
+  { type: 'quiz', label: 'Quiz', Icon: HelpCircle, description: 'Inline quiz question', group: 'Interactive' },
+  { type: 'embed', label: 'Embed', Icon: ExternalLink, description: 'External content via URL', group: 'Media' },
+  { type: 'table', label: 'Table', Icon: Table, description: 'Data table', group: 'Content' },
+  { type: 'file', label: 'File', Icon: Paperclip, description: 'Downloadable attachment', group: 'Media' },
+  { type: 'slideshow', label: 'Slideshow', Icon: Images, description: 'Image slideshow/carousel', group: 'Media' },
+  { type: 'link_reference', label: 'Links / Refs', Icon: Link2, description: 'Curated links & references', group: 'Interactive' },
+  { type: 'flashcard', label: 'Flashcards', Icon: Layers, description: 'Flip-card study deck', group: 'Interactive' },
+  { type: 'popup_article', label: 'Popup Article', Icon: Newspaper, description: 'Expandable summary / article', group: 'Interactive' },
+  { type: 'backend_link', label: 'Page Link', Icon: ArrowRight, description: 'Link card to app page', group: 'Interactive' },
+  { type: 'equation', label: 'Equation', Icon: Sigma, description: 'Math formula (LaTeX)', group: 'Content' },
+  { type: 'tabs', label: 'Tabs', Icon: LayoutPanelTop, description: 'Tabbed content panels', group: 'Layout' },
+  { type: 'accordion', label: 'Accordion', Icon: Rows3, description: 'Collapsible FAQ sections', group: 'Layout' },
+  { type: 'columns', label: 'Columns', Icon: Columns3, description: '2-3 column layout', group: 'Layout' },
+  { type: 'practice_problem', label: 'Practice Problem', Icon: Calculator, description: 'Step-by-step worked problem', group: 'Interactive' },
 ];
 
 function convertToEmbedUrl(url: string): string {
@@ -2335,7 +2337,7 @@ export default function LessonBuilderPage() {
                         <div className="lesson-builder__block-picker">
                           {groupTypes.map((bt) => (
                             <button key={bt.type} className="lesson-builder__block-option" onClick={() => { addBlock(bt.type); setBlockPickerSearch(''); }}>
-                              <span className="lesson-builder__block-option-icon">{bt.icon}</span>
+                              <span className="lesson-builder__block-option-icon"><bt.Icon size={18} strokeWidth={1.75} /></span>
                               <div>
                                 <div className="lesson-builder__block-option-label">{bt.label}</div>
                                 <div className="lesson-builder__block-option-desc">{bt.description}</div>
