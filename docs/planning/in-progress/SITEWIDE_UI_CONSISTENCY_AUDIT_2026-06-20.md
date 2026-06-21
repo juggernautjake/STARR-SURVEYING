@@ -306,8 +306,8 @@ per-page note in §6.
     Open profile 📋, Mileage 🚗, Timeline 🗺️ → lucide. Emoji-free.
   - [x] **calendar** — fullscreen/print/empty/close/create-event/create-job
     emoji → lucide. Emoji-free. (All W2 list/main pages now done.)
-  - [ ] Remaining: detail pages **jobs/[id]** (~21 emoji) +
-    **field-data/[id]** (~5) emoji→lucide.
+  - [x] **field-data/[id]** — file-type/audio/transcription glyphs → lucide.
+  - [ ] Remaining: **jobs/[id]** detail (~21 emoji) → lucide.
 - [ ] **W3 — Equipment workspace.** `equipment` + `inventory`,
   `consumables`, `maintenance` (+`[id]`), `timeline`, `fleet-valuation`,
   `overrides`, `templates` (+`new`/`[id]`/`cleanup-queue`), `today`,
