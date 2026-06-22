@@ -166,11 +166,13 @@ export default function EquipmentImportPage() {
       <header style={styles.header}>
         <h1 style={styles.h1}>Equipment CSV import</h1>
         <p style={styles.subtitle}>
-          System-go-live path: walk the cage with a clipboard, transcribe to a
-          spreadsheet, export CSV, drop it here. Required headers:{' '}
-          <code>name</code> + <code>item_kind</code>. See the sample below for
-          the full optional column list. Atomic — if any row fails the whole
-          batch rolls back.
+          The fastest way to seed your fleet — walk the cage with a
+          clipboard or your phone, type everything into a spreadsheet,
+          export to CSV, and drop it here. Required columns are{' '}
+          <code>name</code> and <code>item_kind</code>; the sample
+          below shows every optional column you can include. The
+          import runs as a single batch, so if any row fails the
+          whole upload rolls back and nothing changes.
         </p>
         <p style={styles.subtitle}>
           ▸ Workflow: pick file → <strong>Run dry-run</strong> → fix
@@ -331,9 +333,9 @@ export default function EquipmentImportPage() {
       </section>
 
       <p style={styles.note}>
-        ▸ Activation gate: <code>seeds/233-237</code> must be applied to live
-        Supabase before this page accepts uploads. Sidebar entry lands in
-        Phase F10.6 alongside the Equipment dashboard group.
+        ▸ The equipment database needs to be set up before uploads
+        can run. If you hit an error, contact your admin to confirm
+        the catalog migrations are in place.
       </p>
     </div>
   );

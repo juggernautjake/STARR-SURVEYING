@@ -261,9 +261,12 @@ export default function EquipmentTimelinePage() {
         <div>
           <h1 style={styles.h1}>Reservations timeline</h1>
           <p style={styles.subtitle}>
-            §5.12.7.2 — every reservation across the window. Drag a
-            <code style={styles.code}>held</code> bar to extend in
-            F10.6-c-iv.
+            A Gantt-style view of every equipment reservation in the
+            selected date range. Each bar shows when a piece of gear
+            is held for a job, who&rsquo;s using it, and when it
+            comes back. Drag the right edge of a &ldquo;held&rdquo;
+            bar to extend the booking; click any bar to jump straight
+            into its reservation details.
           </p>
         </div>
         <div style={styles.headerControls}>

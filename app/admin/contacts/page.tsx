@@ -14,6 +14,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { CONTACT_LABELS, findContactLabel } from '@/lib/contacts/labels';
+import { formatPhone, phoneHref } from '@/lib/format/phone';
 import NewContactDialog from './NewContactDialog';
 
 interface ContactRow {
@@ -191,7 +192,7 @@ export default function ContactsPage() {
                   </td>
                   <td style={tdStyle}>
                     {c.phone ? (
-                      <a href={`tel:${c.phone}`} style={{ color: 'inherit' }}>{c.phone}</a>
+                      <a href={phoneHref(c.phone) ?? `tel:${c.phone}`} style={{ color: 'inherit' }}>{formatPhone(c.phone)}</a>
                     ) : '—'}
                   </td>
                   <td style={tdStyle}>

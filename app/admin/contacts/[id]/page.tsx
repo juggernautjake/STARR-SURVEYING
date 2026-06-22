@@ -14,6 +14,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import InlineEditField from '@/app/admin/components/jobs/InlineEditField';
+import { formatPhone } from '@/lib/format/phone';
 import {
   CONTACT_LABELS,
   findContactLabel,
@@ -251,7 +252,7 @@ export default function ContactProfilePage() {
           <strong>Email:</strong>
           <InlineEditField value={contact.email} type="email" ariaLabel="email" emptyLabel="Add email" onSave={(v) => saveField('email', v)} />
           <strong>Phone:</strong>
-          <InlineEditField value={contact.phone} type="tel" ariaLabel="phone" emptyLabel="Add phone" onSave={(v) => saveField('phone', v)} />
+          <InlineEditField value={contact.phone} type="tel" ariaLabel="phone" emptyLabel="Add phone" onSave={(v) => saveField('phone', v)} display={(v) => formatPhone(v)} />
           <strong>Address:</strong>
           <InlineEditField value={contact.address} ariaLabel="address" emptyLabel="Add address" onSave={(v) => saveField('address', v)} />
           <strong>City:</strong>

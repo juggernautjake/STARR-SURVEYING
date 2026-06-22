@@ -349,7 +349,7 @@ export default function EquipmentDrilldownPage() {
         </Section>
       ) : null}
 
-      <Section title="Cost basis (§5.12.10)">
+      <Section title="Cost basis &amp; depreciation">
         <div style={styles.infoGrid}>
           <Field label="Acquired cost">
             <strong>{dollars(row.acquired_cost_cents)}</strong>
@@ -364,7 +364,7 @@ export default function EquipmentDrilldownPage() {
         </div>
       </Section>
 
-      <Section title="Calibration / warranty (§5.12.7.4)">
+      <Section title="Calibration &amp; warranty">
         <div style={styles.infoGrid}>
           <Field label="Last calibrated">
             {formatDate(row.last_calibrated_at)}

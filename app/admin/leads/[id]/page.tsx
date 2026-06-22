@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../../hooks/usePageError';
+import { formatPhone, phoneHref } from '@/lib/format/phone';
 // lead-reply-2026-06-18 — full email composer launched from the Reply
 // button in the header. The modal owns its own state + posts to the
 // /api/admin/leads/{id}/reply route; this page just opens it.
@@ -326,8 +327,8 @@ export default function LeadDetailPage() {
             label="Phone"
             value={
               lead.phone ? (
-                <a href={`tel:${lead.phone}`} className="lead-detail__link">
-                  {lead.phone}
+                <a href={phoneHref(lead.phone) ?? `tel:${lead.phone}`} className="lead-detail__link">
+                  {formatPhone(lead.phone)}
                 </a>
               ) : (
                 '—'

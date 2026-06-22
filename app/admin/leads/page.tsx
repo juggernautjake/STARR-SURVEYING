@@ -8,6 +8,7 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { usePageError } from '../hooks/usePageError';
+import { formatPhone, phoneHref } from '@/lib/format/phone';
 
 interface Lead {
   id: string;
@@ -296,8 +297,8 @@ export default function LeadsPage() {
                     </a>
                   )}
                   {lead.phone && (
-                    <a href={`tel:${lead.phone}`} onClick={(e) => e.stopPropagation()}>
-                      {lead.phone}
+                    <a href={phoneHref(lead.phone) ?? `tel:${lead.phone}`} onClick={(e) => e.stopPropagation()}>
+                      {formatPhone(lead.phone)}
                     </a>
                   )}
                   {!lead.company && !lead.email && !lead.phone && (
