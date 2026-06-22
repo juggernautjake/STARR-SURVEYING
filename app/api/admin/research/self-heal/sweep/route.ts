@@ -26,6 +26,10 @@ import {
   type SweepRow,
   type SweepStatus,
 } from '@/lib/research/self-heal-sweep';
+import {
+  buildBreakageProposal,
+  shouldProposeRepair,
+} from '@/lib/research/self-heal-proposals';
 
 const FETCH_TIMEOUT_MS = 10_000;
 const PER_HOST_DELAY_MS = 100; // tiny politeness gap when many adapters share a host
@@ -37,6 +41,8 @@ interface AdapterRow {
   site_type: string;
   county_id: string;
   vendor_id: string | null;
+  config: Record<string, unknown>;
+  field_map: Record<string, unknown>;
   // joined columns
   county_name?: string;
   vendor_name?: string | null;
@@ -85,7 +91,7 @@ export const POST = withErrorHandler(async (_req: NextRequest) => {
   //    aren't expected to work.
   const { data: adapters, error: adaptersErr } = await supabaseAdmin
     .from('research_site_adapters')
-    .select('id, base_url, status, site_type, county_id, vendor_id')
+    .select('id, base_url, status, site_type, county_id, vendor_id, config, field_map')
     .in('status', ['active', 'degraded', 'broken', 'quarantined']);
 
   if (adaptersErr) {
@@ -204,7 +210,8 @@ export const POST = withErrorHandler(async (_req: NextRequest) => {
 
     // Record the health-check row. Best-effort — a failure to write
     // the audit row shouldn't abort the entire sweep.
-    void supabaseAdmin
+    let insertedHealthCheckId: string | null = null;
+    const { data: insertedHealth } = await supabaseAdmin
       .from('research_adapter_health_checks')
       .insert({
         adapter_id: adapter.id,
@@ -228,7 +235,31 @@ export const POST = withErrorHandler(async (_req: NextRequest) => {
         duration_ms: duration,
         error_message: error,
       })
-      .then(() => undefined, () => undefined);
+      .select('id')
+      .single();
+    insertedHealthCheckId = insertedHealth?.id ?? null;
+
+    // slice 3 — when the probe trips the breakage thresholds, write a
+    // proposal row so the admin sees this adapter in the review queue.
+    // The proposal carries confidence=0 in slice 3 (no AI fix yet);
+    // apply-policy will keep it 'proposed' until a human triages.
+    if (shouldProposeRepair({ status, fingerprint_match: fingerprintMatch })) {
+      const proposal = buildBreakageProposal({
+        adapter_id: adapter.id,
+        health_check_id: insertedHealthCheckId,
+        status,
+        http_status: httpStatus,
+        fingerprint_match: fingerprintMatch,
+        duration_ms: duration,
+        probe_summary: summary,
+        prior_config: adapter.config ?? {},
+        prior_field_map: adapter.field_map ?? {},
+      });
+      void supabaseAdmin
+        .from('research_adapter_change_proposals')
+        .insert(proposal)
+        .then(() => undefined, () => undefined);
+    }
 
     void bodySnippet; // suppress unused-var; we may keep the snippet later
     if (PER_HOST_DELAY_MS > 0) {

@@ -50,6 +50,10 @@ import {
   type SweepRow,
   type SweepStatus,
 } from '@/lib/research/self-heal-sweep';
+import {
+  buildBreakageProposal,
+  shouldProposeRepair,
+} from '@/lib/research/self-heal-proposals';
 
 const FETCH_TIMEOUT_MS = 10_000;
 
@@ -61,6 +65,8 @@ interface AdapterRow {
   county_id: string;
   vendor_id: string | null;
   last_verified_at: string | null;
+  config: Record<string, unknown>;
+  field_map: Record<string, unknown>;
 }
 
 interface CanaryRow {
@@ -98,7 +104,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   //    planner can apply the per-tier cadence policy.
   const { data: adaptersRaw, error: adaptersErr } = await supabaseAdmin
     .from('research_site_adapters')
-    .select('id, base_url, status, site_type, county_id, vendor_id, last_verified_at');
+    .select('id, base_url, status, site_type, county_id, vendor_id, last_verified_at, config, field_map');
   if (adaptersErr) {
     return NextResponse.json({ error: adaptersErr.message }, { status: 500 });
   }
@@ -223,7 +229,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     });
 
     // Audit row + adapter status update + last_verified_at stamp.
-    void supabaseAdmin
+    let insertedHealthCheckId: string | null = null;
+    const { data: insertedHealth } = await supabaseAdmin
       .from('research_adapter_health_checks')
       .insert({
         adapter_id: adapter.id,
@@ -243,7 +250,29 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         duration_ms: duration,
         error_message: error,
       })
-      .then(() => undefined, () => undefined);
+      .select('id')
+      .single();
+    insertedHealthCheckId = insertedHealth?.id ?? null;
+
+    // slice 3 — surface breakage in the review queue so the next
+    // admin login (or notification) shows pending portals to triage.
+    if (shouldProposeRepair({ status, fingerprint_match: fingerprintMatch })) {
+      const proposal = buildBreakageProposal({
+        adapter_id: adapter.id,
+        health_check_id: insertedHealthCheckId,
+        status,
+        http_status: httpStatus,
+        fingerprint_match: fingerprintMatch,
+        duration_ms: duration,
+        probe_summary: summary,
+        prior_config: adapter.config ?? {},
+        prior_field_map: adapter.field_map ?? {},
+      });
+      void supabaseAdmin
+        .from('research_adapter_change_proposals')
+        .insert(proposal)
+        .then(() => undefined, () => undefined);
+    }
 
     // Bump last_verified_at + status when the planner picked this
     // adapter. Only escalate to broken/degraded; don't auto-promote

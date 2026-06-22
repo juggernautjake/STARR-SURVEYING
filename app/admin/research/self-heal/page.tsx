@@ -56,6 +56,24 @@ interface SweepResponse {
   sweep_finished_at?: string;
 }
 
+interface PendingProposal {
+  id: string;
+  adapter_id: string;
+  confidence: number;
+  rationale: string;
+  diff: { detected?: string[] } | null;
+  status: string;
+  created_at: string;
+  adapter: {
+    id: string;
+    base_url: string;
+    site_type: string;
+    status: string;
+    county: string | null;
+    vendor: string | null;
+  } | null;
+}
+
 const STATUS_TINT: Record<SweepRow['status'], { bg: string; fg: string; label: string }> = {
   healthy:   { bg: '#ECFDF5', fg: '#065F46', label: 'Healthy' },
   degraded:  { bg: '#FFF7ED', fg: '#9A3412', label: 'Degraded' },
@@ -76,6 +94,12 @@ export default function SelfHealPage(): React.ReactElement {
   const [sweepError, setSweepError] = useState<string | null>(null);
   const [sweep, setSweep] = useState<SweepResponse | null>(null);
 
+  const [proposals, setProposals] = useState<PendingProposal[]>([]);
+  const [proposalsCount, setProposalsCount] = useState(0);
+  const [proposalsLoading, setProposalsLoading] = useState(true);
+  const [proposalsError, setProposalsError] = useState<string | null>(null);
+  const [busyProposalId, setBusyProposalId] = useState<string | null>(null);
+
   const loadSettings = useCallback(async () => {
     setSettingsError(null);
     try {
@@ -90,6 +114,42 @@ export default function SelfHealPage(): React.ReactElement {
   }, []);
 
   useEffect(() => { void loadSettings(); }, [loadSettings]);
+
+  const loadProposals = useCallback(async () => {
+    setProposalsLoading(true);
+    setProposalsError(null);
+    try {
+      const res = await fetch('/api/admin/research/self-heal/proposals');
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
+      setProposals((json.proposals ?? []) as PendingProposal[]);
+      setProposalsCount(json.counts?.proposed ?? 0);
+    } catch (err) {
+      setProposalsError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setProposalsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadProposals(); }, [loadProposals]);
+
+  const reviewProposal = useCallback(async (id: string, action: 'approve' | 'reject') => {
+    setBusyProposalId(id);
+    try {
+      const res = await fetch(`/api/admin/research/self-heal/proposals/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
+      await loadProposals();
+    } catch (err) {
+      setProposalsError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusyProposalId(null);
+    }
+  }, [loadProposals]);
 
   const toggleSetting = useCallback(async (key: keyof Settings, next: boolean) => {
     setSettingsSaving(key);
@@ -123,6 +183,7 @@ export default function SelfHealPage(): React.ReactElement {
       if (!res.ok) throw new Error(json?.error ?? `Sweep failed (HTTP ${res.status})`);
       setSweep(json as SweepResponse);
       void loadSettings();
+      void loadProposals();
     } catch (err) {
       setSweepError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -290,6 +351,85 @@ export default function SelfHealPage(): React.ReactElement {
           </div>
         )}
       </section>
+
+      <section style={styles.card}>
+        <div style={styles.proposalsHeader}>
+          <h2 style={styles.sectionTitle}>Review queue</h2>
+          {proposalsCount > 0 && (
+            <span style={styles.queueBadge}>{proposalsCount} pending</span>
+          )}
+        </div>
+        <p style={styles.sectionSubtitle}>
+          When a sweep flags a portal as broken or structurally changed,
+          we file a triage row here so you can confirm + plan a fix.
+          AI-proposed fix content lands in a later slice; for now,
+          approve means &ldquo;acknowledged, will fix manually&rdquo;
+          and reject means &ldquo;false alarm.&rdquo;
+        </p>
+
+        {proposalsError && <p style={styles.error}>{proposalsError}</p>}
+
+        {proposalsLoading ? (
+          <p style={styles.muted}>Loading…</p>
+        ) : proposals.length === 0 ? (
+          <p style={styles.muted}>
+            No pending proposals — every portal is either healthy or
+            already triaged.
+          </p>
+        ) : (
+          <ul style={styles.rowList}>
+            {proposals.map((p) => {
+              const detected = (p.diff?.detected ?? []).join(' ');
+              return (
+                <li key={p.id} style={styles.row}>
+                  <div style={styles.rowHead}>
+                    <span style={{ ...styles.statusChip, background: '#FEF2F2', color: '#991B1B' }}>
+                      Broken
+                    </span>
+                    <span style={styles.rowCounty}>
+                      {p.adapter?.county ?? 'Unknown county'}
+                    </span>
+                    <span style={styles.rowSiteType}>· {p.adapter?.site_type ?? '?'}</span>
+                    {p.adapter?.vendor && <span style={styles.rowVendor}>· {p.adapter.vendor}</span>}
+                    <span style={styles.rowMeta}>
+                      filed {new Date(p.created_at).toLocaleString()}
+                    </span>
+                  </div>
+                  <p style={styles.rowSummary}>{detected || p.rationale}</p>
+                  {p.adapter?.base_url && (
+                    <a
+                      href={p.adapter.base_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={styles.rowUrl}
+                    >
+                      Open live page →
+                    </a>
+                  )}
+                  <div style={styles.proposalActions}>
+                    <button
+                      type="button"
+                      style={styles.proposalApproveBtn}
+                      onClick={() => void reviewProposal(p.id, 'approve')}
+                      disabled={busyProposalId === p.id}
+                    >
+                      Acknowledge
+                    </button>
+                    <button
+                      type="button"
+                      style={styles.proposalRejectBtn}
+                      onClick={() => void reviewProposal(p.id, 'reject')}
+                      disabled={busyProposalId === p.id}
+                    >
+                      Dismiss (false alarm)
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </main>
   );
 }
@@ -442,4 +582,39 @@ const styles: Record<string, React.CSSProperties> = {
   rowUrl: { fontSize: '0.78rem', color: '#1D3095', textDecoration: 'none', wordBreak: 'break-all' },
   empty: { fontSize: '0.9rem', color: '#6B7280' },
   inlineLink: { color: '#1D3095', textDecoration: 'underline' },
+  muted: { color: '#6B7280', fontSize: '0.9rem', margin: 0 },
+  proposalsHeader: { display: 'flex', alignItems: 'center', gap: '0.75rem' },
+  queueBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '0.2rem 0.65rem',
+    borderRadius: 9999,
+    background: '#FEF2F2',
+    color: '#991B1B',
+    fontSize: '0.78rem',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  proposalActions: { display: 'flex', gap: '0.5rem', marginTop: '0.6rem', flexWrap: 'wrap' },
+  proposalApproveBtn: {
+    padding: '0.4rem 0.9rem',
+    borderRadius: 9999,
+    border: 'none',
+    background: '#0F766E',
+    color: '#FFFFFF',
+    fontSize: '0.85rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  proposalRejectBtn: {
+    padding: '0.4rem 0.9rem',
+    borderRadius: 9999,
+    border: '1px solid #D1D5DB',
+    background: 'transparent',
+    color: '#4B5563',
+    fontSize: '0.85rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
 };

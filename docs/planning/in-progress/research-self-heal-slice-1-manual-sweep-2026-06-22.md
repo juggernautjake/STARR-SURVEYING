@@ -17,7 +17,7 @@
 | /admin/research/self-heal page (toggle row + Run-check button + per-row results) | SHIPPED | this commit |
 | Route-registry entry under research-cad workspace ("Site Health") | SHIPPED | this commit |
 | Slice 2 — scheduled cron driven by `schedule_enabled`, using the existing `planScheduledChecks` planner (per-host concurrency cap + batch cap + metro-tier cadence). Daily 06:00 UTC. Idempotent — bails early when the toggle is OFF. Stamps each adapter's `last_verified_at` + auto-promotes degraded→active on recovery. | SHIPPED | follow-up commit |
-| Slice 3 — AI repair proposal generation when sweep flags broken | NOT STARTED. |
+| Slice 3 — Breakage proposal pipeline + review queue. When a probe trips `broken` (or `degraded` with fingerprint mismatch), both the manual sweep and the cron now insert a `research_adapter_change_proposals` row with confidence=0 + a rationale capturing what was detected. The new /admin/research/self-heal Review queue card lists pending proposals with Acknowledge / Dismiss buttons; PATCH /…/proposals/[id] transitions status to approved / rejected with reviewer audit. The actual AI-generated `proposed_config` / `proposed_field_map` (with confidence > 0 + canary re-test) lands in slice 3.5/4 — the framework + queue are live. | SHIPPED | this commit |
 | Slice 4 — auto-apply pathway gated on `autoapply_enabled` + confidence + canary | NOT STARTED — pure `decideApplyAction` already decides; the route that writes proposals + applies them lands later. |
 | Slice 5 — Playwright deep check for JS-rendered portals | NOT STARTED. |
 
