@@ -161,9 +161,12 @@ export default function EquipmentConsumablesPage() {
         <div>
           <h1 style={styles.h1}>Consumables — low-stock + restock</h1>
           <p style={styles.subtitle}>
-            §5.12.7.5 — sorted by days-remaining ASC (lowest rolls
-            float to the top). Burn rate from the trailing 30 days
-            of returned consumables.
+            Everything you go through and have to buy again — flags,
+            paint, lath, batteries, propane, printer ink. The list
+            is sorted by how many days of stock are left (lowest
+            first) using the last 30 days of usage as the burn-rate
+            estimate, so you can reorder before you run out on a
+            job site.
           </p>
         </div>
         <button
@@ -766,9 +769,9 @@ function ThresholdModal({
               style={modalStyles.input}
             />
             <span style={modalStyles.hint}>
-              ▸ Drives the reorder-NOW gate in the F10.3-b
-              availability check + the F10.6-d-i aggregator&apos;s
-              badge tier. Use 0 to remove the floor entirely.
+              ▸ Once on-hand stock drops below this number, this
+              consumable will flag as low-stock on the dashboard.
+              Set to 0 to turn off the warning entirely.
             </span>
           </label>
           {previewBadge ? (
@@ -860,13 +863,11 @@ function DiscontinueModal({
         </header>
         <div style={modalStyles.body}>
           <p style={modalStyles.warningCopy}>
-            Soft-archives <strong>{target.name}</strong>. Sets
-            <code style={modalStyles.code}>retired_at = now()</code>;
-            row drops off this list + the F10.3-b availability
-            check refuses future reservations. Templates that pin
-            this row surface in the §5.12.7.8 cleanup queue
-            (F10.6-f). Reservation history is preserved per the
-            §5.12.11.K chain-of-custody rule.
+            Retires <strong>{target.name}</strong>. It will drop off
+            the active list and can&rsquo;t be reserved on new jobs.
+            Any templates that include it will show up in the
+            cleanup queue so you can swap in a replacement.
+            Reservation history is kept for the audit trail.
           </p>
           {target.current_on_hand > 0 ? (
             <div style={modalStyles.warningBox}>

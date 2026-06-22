@@ -839,7 +839,7 @@ function TransitionModal({
                 ? 'Marking complete stamps completed_at = now() and locks the row terminal. Re-open via the dedicated re-open flow if needed.'
                 : target.state === 'cancelled'
                 ? 'Cancelling locks the row terminal — no further transitions. Drop a note explaining why.'
-                : 'Marking failed_qa surfaces the row in the §5.12.7.1 Today red banner. The EM can re-open via in_progress.'}
+                : 'Marking as failed QA flags the row on the Equipment Today dashboard so the equipment manager can re-open and fix it.'}
             </p>
           ) : (
             <p style={transitionStyles.copy}>
@@ -931,15 +931,9 @@ function TransitionModal({
                 </button>
               </div>
               <span style={transitionStyles.hint}>
-                ▸ Per §5.12.8 the post-cal accuracy check must be
-                logged. &ldquo;Failed&rdquo; auto-routes the event to{' '}
-                <code style={transitionStyles.code}>failed_qa</code>{' '}
-                so the calendar surfaces it for re-work; the PATCH
-                route refuses a silent null with{' '}
-                <code style={transitionStyles.code}>
-                  calibration_requires_qa_decision
-                </code>
-                .
+                ▸ A QA decision is required after every calibration —
+                picking &ldquo;Failed&rdquo; sends the event back to
+                the queue for re-work and flags it on the dashboard.
               </span>
             </div>
           ) : null}
@@ -1246,7 +1240,7 @@ function EditForm({
             disabled={submitting}
           />
           <span style={editStyles.hint}>
-            Drives the F10.7-h recurring-schedule projection.
+            Used to project when the next recurring service is due.
           </span>
         </label>
       </div>
@@ -1333,8 +1327,9 @@ function EditForm({
             <option value="false">No — QA failed</option>
           </select>
           <span style={editStyles.hint}>
-            Setting to false on a complete event auto-routes to
-            failed_qa per §5.12.8.
+            Setting this to &ldquo;No&rdquo; on a completed event
+            automatically flags it as failed QA so it goes back into
+            the maintenance queue.
           </span>
         </label>
       </div>

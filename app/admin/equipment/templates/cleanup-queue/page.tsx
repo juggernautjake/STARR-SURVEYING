@@ -100,11 +100,12 @@ export default function CleanupQueuePage() {
         <div>
           <h1 style={styles.h1}>Templates · cleanup queue</h1>
           <p style={styles.subtitle}>
-            §5.12.7.8 — templates pinning specific instruments
-            that have since been retired or discontinued. Click
-            through to the template edit page to swap each stale
-            line to category-of-kind or pick a replacement
-            instrument.
+            Job templates that are still pointing at specific
+            instruments which have since been retired or
+            discontinued. Open each one to either pick a
+            replacement instrument or switch the line to a
+            generic kind so dispatchers don&rsquo;t hit a dead end
+            when applying the template to a new job.
           </p>
         </div>
         <button
@@ -122,11 +123,10 @@ export default function CleanupQueuePage() {
           <div style={styles.empty}>
             <strong style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><Check size={14} strokeWidth={2.5} /> Nothing to clean up.</strong>
             <p style={styles.cleanCopy}>
-              Every template item that pins a specific instrument
-              points at a unit still in active service. New
-              retirements (F10.1e-i) and discontinue actions
-              (F10.6-d-iii-γ) re-populate this list as they
-              happen.
+              Every template line pinned to a specific instrument
+              still points at a unit that&rsquo;s in active service.
+              This list will repopulate automatically as gear gets
+              retired or discontinued.
             </p>
           </div>
         ) : (

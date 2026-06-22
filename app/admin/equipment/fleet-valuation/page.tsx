@@ -164,9 +164,12 @@ export default function FleetValuationPage() {
         <div>
           <h1 style={styles.h1}>Fleet valuation</h1>
           <p style={styles.subtitle}>
-            §5.12.7.7 — per-asset depreciation rollup. Locked years
-            read from <code style={styles.code}>equipment_tax_elections</code>;
-            unlocked years compute live via §179 / MACRS / straight-line.
+            A per-asset summary of what every piece of equipment in
+            your fleet was worth at the end of each tax year, using
+            IRS depreciation methods (Section 179, MACRS, or
+            straight-line). Pick a year to review the numbers,
+            download a CSV or PDF for your CPA, then lock the year
+            so the figures freeze for filing.
           </p>
         </div>
         {/* fleet-valuation-toolbar-alignment-2026-06-22 — same column
@@ -249,9 +252,9 @@ export default function FleetValuationPage() {
         </div>
       ) : data.assets.length === 0 ? (
         <div style={styles.empty}>
-          No active depreciable assets in {taxYear}. Promote a
-          receipt or wait for the §5.12.10 acquisition path to
-          populate this table.
+          No depreciable equipment showing up for {taxYear} yet.
+          Add purchases through the equipment catalog, or promote
+          a receipt into a fixed asset to populate this list.
         </div>
       ) : (
         <>

@@ -134,10 +134,11 @@ export default function NewTemplatePage() {
       <header style={styles.header}>
         <h1 style={styles.h1}>New equipment template</h1>
         <p style={styles.subtitle}>
-          Create the header now; you&apos;ll add line items (durables /
-          consumables / kits) on the edit page once the template
-          exists. Each item edit bumps version + snapshots into
-          equipment_template_versions per the §5.12.3 audit-trail rule.
+          Set up the template name and job type now. Once it&rsquo;s
+          saved you&rsquo;ll be taken to the edit page to add the
+          actual line items — instruments, kits, and consumables.
+          Every change you make to a template is versioned so the
+          history is always there.
         </p>
       </header>
 

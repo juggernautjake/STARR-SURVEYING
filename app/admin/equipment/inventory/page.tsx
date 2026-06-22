@@ -477,9 +477,10 @@ function AddUnitModal({ onClose, onCreated }: AddUnitModalProps) {
           </label>
 
           <p style={styles.modalHint}>
-            ▸ Cost basis, calibration, warranty, and photo upload
-            land via the inline-edit flow (Phase F10.1d). Use this
-            form for the initial create; open Edit to add the photo.
+            ▸ Cost basis, calibration dates, warranty info, and
+            photos all get added through the Edit screen — use this
+            form for the basic intake, then open Edit once the row
+            is created.
           </p>
 
           {error ? <div style={styles.actionMsgWarn}>{error}</div> : null}
@@ -1005,7 +1006,7 @@ function EditUnitModal({ row, onClose, onUpdated }: EditUnitModalProps) {
           )}
 
           <fieldset style={styles.fieldset}>
-            <legend style={styles.formLabel}>Cost basis (§5.12.10 tax tie-in)</legend>
+            <legend style={styles.formLabel}>Cost basis (for depreciation + tax)</legend>
             <div style={styles.formGrid}>
               <label style={styles.formField}>
                 <span style={styles.formLabel}>Acquired cost (cents)</span>
@@ -1044,7 +1045,7 @@ function EditUnitModal({ row, onClose, onUpdated }: EditUnitModalProps) {
           </fieldset>
 
           <fieldset style={styles.fieldset}>
-            <legend style={styles.formLabel}>Calibration / warranty (§5.12.7.4 calendar)</legend>
+            <legend style={styles.formLabel}>Calibration &amp; warranty dates</legend>
             <div style={styles.formGrid}>
               <label style={styles.formField}>
                 <span style={styles.formLabel}>Next calibration due</span>
@@ -1104,8 +1105,9 @@ function EditUnitModal({ row, onClose, onUpdated }: EditUnitModalProps) {
           </label>
 
           <p style={styles.modalHint}>
-            ▸ Retire / un-retire flows through the dedicated F10.1e
-            action; this form does not edit retired_at.
+            ▸ To retire or un-retire a unit, use the Retire action
+            from the row menu. This form covers edits to active gear
+            only.
           </p>
 
           {error ? <div style={styles.actionMsgWarn}>{error}</div> : null}
@@ -1256,8 +1258,8 @@ function RetireRestoreModal({
         <div style={styles.modalBody}>
           <p style={styles.modalHint}>
             {isRetire
-              ? `Retiring "${row.name ?? '(unnamed)'}" soft-archives the row — it stays in the audit log + depreciation closeout but drops out of the active catalogue. The action writes an equipment_events row (per §5.12.1) so chain-of-custody stays clean. You can restore later.`
-              : `Restoring "${row.name ?? '(unnamed)'}" clears retired_at + retired_reason and flips current_status back to 'available'. The audit log captures the restore so the §5.12.7.3 history tab still shows the full lifecycle.`}
+              ? `Retiring "${row.name ?? '(unnamed)'}" hides this unit from the active catalog and any future reservations. History is preserved for auditing + depreciation purposes — you can restore it later if needed.`
+              : `Restoring "${row.name ?? '(unnamed)'}" brings it back into the active catalog and resets the status to 'available'. The activity history still shows the full retire/restore trail.`}
           </p>
 
           {isRetire ? (
@@ -1505,10 +1507,12 @@ export default function EquipmentInventoryPage() {
       <header style={styles.header}>
         <h1 style={styles.h1}>Equipment inventory</h1>
         <p style={styles.subtitle}>
-          Every durable instrument, consumable SKU, and kit Starr Surveying
-          tracks. Filter by status / kind / retired-toggle, or search by name,
-          model, or serial. Add / edit / retire / QR-print actions land in the
-          next sub-batch (Phase F10.1c-f).
+          The master catalog of every instrument, kit, vehicle
+          accessory, and consumable the firm tracks. Filter by
+          status, type, or whether something has been retired, or
+          search by name, model, or serial number. Use the row
+          actions to add new gear, edit details, retire items, or
+          print a QR sticker for the case.
         </p>
       </header>
 
@@ -1695,9 +1699,8 @@ export default function EquipmentInventoryPage() {
         <div style={styles.empty}>Loading inventory…</div>
       ) : items.length === 0 ? (
         <div style={styles.empty}>
-          No inventory rows match these filters. Apply{' '}
-          <code>seeds/233</code> if this is a fresh database, or import
-          your fleet via the F10.1h CSV importer when it ships.
+          No equipment matches these filters. Try clearing them, or
+          add your first unit with the &ldquo;Add unit&rdquo; button.
         </div>
       ) : (
         <table style={styles.table}>
@@ -1940,11 +1943,6 @@ export default function EquipmentInventoryPage() {
         </table>
       )}
 
-      <p style={styles.note}>
-        ▸ Activation gate: <code>seeds/233-237</code> must be applied to live
-        Supabase before this page renders real data. Sidebar entry lands in
-        Phase F10.6 alongside the rest of the Equipment dashboard group.
-      </p>
     </div>
   );
 }

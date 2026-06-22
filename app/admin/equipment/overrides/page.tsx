@@ -93,9 +93,13 @@ export default function OverridesAuditPage() {
         <div>
           <h1 style={styles.h1}>Override audit</h1>
           <p style={styles.subtitle}>
-            §5.12.7.7 — every soft-override across reservations and
-            personnel assignments. The &ldquo;nothing is silent&rdquo;
-            trail from F10.3-e + F10.4-c.
+            A running log of every time a dispatcher worked around the
+            normal availability rules — reserving equipment that was
+            flagged as busy, assigning a crew member who was already
+            booked, or overlapping a job with someone else&rsquo;s
+            schedule. Use this view to spot patterns, double-check
+            edge cases, and keep an audit trail of who made the call
+            and why.
           </p>
         </div>
         <button
@@ -246,16 +250,10 @@ export default function OverridesAuditPage() {
           )}
 
           <p style={styles.note}>
-            ▸ Equipment-side actor resolves via
-            <code style={styles.code}>
-              reserved_by → registered_users.email
-            </code>
-            . Personnel-side actor is null for now —
-            <code style={styles.code}>job_team</code> has no
-            historical
-            <code style={styles.code}>created_by</code> column;
-            F10.4-c application logs are the audit anchor until a
-            future migration adds the column.
+            ▸ Equipment overrides show who made the change. For crew
+            assignments, we may not have a recorded actor on older
+            entries — the activity history is the source of truth in
+            those cases.
           </p>
         </>
       ) : loading ? (

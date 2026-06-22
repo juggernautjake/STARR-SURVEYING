@@ -163,9 +163,11 @@ export default function MaintenanceCalendarPage() {
         <div>
           <h1 style={styles.h1}>Maintenance · {monthLabel}</h1>
           <p style={styles.subtitle}>
-            §5.12.7.4 — month grid of scheduled / open work + the
-            schedule-driven next-due lookahead. Click any chip for
-            the full event drilldown.
+            A month-at-a-glance calendar of every scheduled and open
+            maintenance task — calibrations coming due, repairs in
+            progress, and recurring services like oil changes. Click
+            any chip on the calendar to open the work order, see
+            history, or close it out.
           </p>
         </div>
         <div style={styles.headerControls}>
@@ -359,8 +361,9 @@ export default function MaintenanceCalendarPage() {
             </h2>
             {data.next_due_per_equipment.length === 0 ? (
               <div style={styles.empty}>
-                No active schedules. Add one in the §5.12.8
-                schedule editor.
+                No recurring maintenance schedules set up yet. Add
+                one from the schedule editor to start seeing
+                upcoming due dates here.
               </div>
             ) : (
               <table style={styles.table}>

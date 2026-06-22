@@ -151,8 +151,11 @@ export default function EquipmentTodayPage() {
             Equipment — {isToday ? 'Today' : date}
           </h1>
           <p style={styles.subtitle}>
-            §5.12.7.1 dispatcher landing page. What&apos;s going out,
-            what&apos;s out now, what&apos;s already back.
+            The dispatcher dashboard for any given day — what&rsquo;s
+            scheduled to roll out, what&rsquo;s currently out in the
+            field, and what&rsquo;s been checked back in. Use this
+            to plan crews, spot conflicts, and make sure nothing
+            slips through.
           </p>
         </div>
         <div style={styles.headerControls}>

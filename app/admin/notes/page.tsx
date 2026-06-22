@@ -1,8 +1,8 @@
 // app/admin/notes/page.tsx — Company Notes (shared company-wide notes board)
 'use client';
-import '../styles/AdminMyNotes.css';
+import '../styles/AdminNotes.css';
 import { useCallback, useEffect, useState } from 'react';
-import { Pin, StickyNote } from 'lucide-react';
+import { Pin, Search, StickyNote, Trash2 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../hooks/usePageError';
 
@@ -18,13 +18,13 @@ interface Note {
 }
 
 const CATEGORIES = [
-  { key: 'general', label: 'General', color: '#6B7280' },
-  { key: 'procedures', label: 'Procedures', color: 'var(--color-brand-navy)' },
-  { key: 'safety', label: 'Safety', color: 'var(--color-error)' },
-  { key: 'equipment', label: 'Equipment', color: '#D97706' },
-  { key: 'legal', label: 'Legal', color: '#7C3AED' },
-  { key: 'hr', label: 'HR', color: '#059669' },
-  { key: 'training', label: 'Training', color: '#0891B2' },
+  { key: 'general',    label: 'General',    color: '#6B7280' },
+  { key: 'procedures', label: 'Procedures', color: '#1D4ED8' },
+  { key: 'safety',     label: 'Safety',     color: '#DC2626' },
+  { key: 'equipment',  label: 'Equipment',  color: '#D97706' },
+  { key: 'legal',      label: 'Legal',      color: '#7C3AED' },
+  { key: 'hr',         label: 'HR',         color: '#059669' },
+  { key: 'training',   label: 'Training',   color: '#0891B2' },
 ];
 
 export default function CompanyNotesPage() {
@@ -103,142 +103,214 @@ export default function CompanyNotesPage() {
   const unpinned = filtered.filter(n => !n.is_pinned);
 
   function NoteCard({ note }: { note: Note }) {
+    const category = CATEGORIES.find(c => c.key === note.category) ?? CATEGORIES[0];
     return (
-      <div className="job-card" style={{ borderLeft: `3px solid ${CATEGORIES.find(c => c.key === note.category)?.color || '#6B7280'}` }}>
-        <h3 className="job-card__name">{note.title}</h3>
-        <p className="job-card__client" style={{ WebkitLineClamp: 3, display: '-webkit-box', WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'pre-wrap' }}>{note.content}</p>
-        <div className="job-card__footer">
-          <span>{CATEGORIES.find(c => c.key === note.category)?.label}</span>
+      <article
+        className="note-card"
+        data-pinned={note.is_pinned ? 'true' : undefined}
+        style={{ ['--note-tint' as string]: category.color }}
+      >
+        <header className="note-card__head">
+          {note.is_pinned && (
+            <span className="note-card__pin" aria-label="Pinned"><Pin size={14} strokeWidth={2.2} /></span>
+          )}
+          <h3 className="note-card__title">{note.title}</h3>
+        </header>
+        <span className="note-card__category">{category.label}</span>
+        <p className="note-card__body">{note.content}</p>
+        <div className="note-card__meta">
+          <span className="note-card__author">{note.created_by}</span>
           <span>{new Date(note.updated_at).toLocaleDateString()}</span>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+        <div className="note-card__actions">
           <button
-            className="jobs-page__btn"
-            style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}
+            type="button"
+            className="note-card__action"
+            data-variant={note.is_pinned ? 'pinned' : undefined}
             onClick={() => void togglePin(note)}
           >
-            {note.is_pinned ? <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem" }}><Pin size={13} /> Unpin</span> : <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem" }}><Pin size={13} /> Pin</span>}
+            <Pin size={13} strokeWidth={2.2} />
+            {note.is_pinned ? 'Unpin' : 'Pin'}
           </button>
           <button
-            className="jobs-page__btn"
-            style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem', color: 'var(--color-error)' }}
+            type="button"
+            className="note-card__action"
+            data-variant="danger"
             onClick={() => void deleteNote(note.id)}
           >
+            <Trash2 size={13} strokeWidth={2.2} />
             Delete
           </button>
         </div>
-      </div>
+      </article>
     );
   }
 
   return (
-    <div className="jobs-page">
-      <div className="jobs-page__header">
-        <div className="jobs-page__header-left">
-          <h2 className="jobs-page__title">Company Notes</h2>
-          <span className="jobs-page__count">{notes.length} notes</span>
+    <main className="notes-page">
+      <header className="notes-page__header">
+        <div className="notes-page__header-text">
+          <h1 className="notes-page__title">Company Notes</h1>
+          <p className="notes-page__subtitle">
+            Shared notes for the whole firm — procedures, safety
+            briefings, equipment guidance, HR reminders, and anything
+            else that everyone should be able to read in one place.
+          </p>
+          <div className="notes-page__stats">
+            <span className="notes-page__stat"><strong>{notes.length}</strong> total</span>
+            <span className="notes-page__stat"><strong>{notes.filter(n => n.is_pinned).length}</strong> pinned</span>
+          </div>
         </div>
-        <button className="jobs-page__btn jobs-page__btn--primary" onClick={() => setShowEditor(!showEditor)}>
-          + New Note
-        </button>
-      </div>
-
-      {/* Category filter */}
-      <div className="jobs-page__pipeline">
         <button
-          className={`jobs-page__pipeline-stage ${categoryFilter === 'all' ? 'jobs-page__pipeline-stage--active' : ''}`}
-          onClick={() => setCategoryFilter('all')}
-          style={{ '--stage-color': '#374151' } as React.CSSProperties}
+          type="button"
+          className="notes-page__new-btn"
+          onClick={() => setShowEditor(!showEditor)}
         >
-          <span className="jobs-page__pipeline-label">All</span>
-          <span className="jobs-page__pipeline-count">{notes.length}</span>
+          + New note
+        </button>
+      </header>
+
+      {/* Category filter chips */}
+      <div className="notes-page__chips" role="tablist" aria-label="Filter by category">
+        <button
+          type="button"
+          className="notes-page__chip"
+          data-active={categoryFilter === 'all' ? 'true' : undefined}
+          onClick={() => setCategoryFilter('all')}
+          style={{ ['--chip-color' as string]: '#1F2937' }}
+          role="tab"
+          aria-selected={categoryFilter === 'all'}
+        >
+          <span className="notes-page__chip-dot" aria-hidden />
+          All
+          <span className="notes-page__chip-count">{notes.length}</span>
         </button>
         {CATEGORIES.map(c => (
           <button
             key={c.key}
-            className={`jobs-page__pipeline-stage ${categoryFilter === c.key ? 'jobs-page__pipeline-stage--active' : ''}`}
+            type="button"
+            className="notes-page__chip"
+            data-active={categoryFilter === c.key ? 'true' : undefined}
             onClick={() => setCategoryFilter(categoryFilter === c.key ? 'all' : c.key)}
-            style={{ '--stage-color': c.color } as React.CSSProperties}
+            style={{ ['--chip-color' as string]: c.color }}
+            role="tab"
+            aria-selected={categoryFilter === c.key}
           >
-            <span className="jobs-page__pipeline-label">{c.label}</span>
-            <span className="jobs-page__pipeline-count">{notes.filter(n => n.category === c.key).length}</span>
+            <span className="notes-page__chip-dot" aria-hidden />
+            {c.label}
+            <span className="notes-page__chip-count">{notes.filter(n => n.category === c.key).length}</span>
           </button>
         ))}
       </div>
 
       {/* Search */}
-      <div className="jobs-page__controls">
-        <form className="jobs-page__search-form" onSubmit={e => e.preventDefault()}>
-          <input
-            className="jobs-page__search"
-            placeholder="Search notes..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-        </form>
+      <div className="notes-page__search-wrap">
+        <Search size={16} className="notes-page__search-icon" aria-hidden />
+        <input
+          className="notes-page__search"
+          placeholder="Search notes…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
       </div>
 
       {/* Note editor */}
       {showEditor && (
-        <div className="job-form" style={{ marginBottom: '1.5rem' }}>
-          <div className="job-form__section">
-            <h3 className="job-form__section-title">New Company Note</h3>
-            <div className="job-form__grid">
-              <div className="job-form__field job-form__field--full">
-                <label className="job-form__label">Title *</label>
-                <input className="job-form__input" value={editorForm.title} onChange={e => setEditorForm(f => ({ ...f, title: e.target.value }))} placeholder="Note title" />
-              </div>
-              <div className="job-form__field">
-                <label className="job-form__label">Category</label>
-                <select className="job-form__select" value={editorForm.category} onChange={e => setEditorForm(f => ({ ...f, category: e.target.value }))}>
-                  {CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
-                </select>
-              </div>
-              <div className="job-form__field job-form__field--full">
-                <label className="job-form__label">Content</label>
-                <textarea className="job-form__textarea" value={editorForm.content} onChange={e => setEditorForm(f => ({ ...f, content: e.target.value }))} rows={6} placeholder="Write your note..." />
-              </div>
-            </div>
-            <div className="job-form__actions">
-              <button className="job-form__cancel" onClick={() => setShowEditor(false)} disabled={saving}>Cancel</button>
-              <button className="job-form__submit" onClick={() => void saveNote()} disabled={saving || !editorForm.title.trim()}>
-                {saving ? 'Saving…' : 'Save Note'}
-              </button>
-            </div>
+        <section className="notes-page__editor">
+          <h2 className="notes-page__editor-title">New company note</h2>
+          <div className="notes-page__editor-grid">
+            <label className="notes-page__field">
+              <span className="notes-page__label">Title</span>
+              <input
+                className="notes-page__input"
+                value={editorForm.title}
+                onChange={e => setEditorForm(f => ({ ...f, title: e.target.value }))}
+                placeholder="Note title"
+                autoFocus
+              />
+            </label>
+            <label className="notes-page__field">
+              <span className="notes-page__label">Category</span>
+              <select
+                className="notes-page__select"
+                value={editorForm.category}
+                onChange={e => setEditorForm(f => ({ ...f, category: e.target.value }))}
+              >
+                {CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+              </select>
+            </label>
           </div>
-        </div>
+          <label className="notes-page__field">
+            <span className="notes-page__label">Content</span>
+            <textarea
+              className="notes-page__textarea"
+              value={editorForm.content}
+              onChange={e => setEditorForm(f => ({ ...f, content: e.target.value }))}
+              rows={6}
+              placeholder="Write your note…"
+            />
+          </label>
+          <div className="notes-page__editor-actions">
+            <button
+              type="button"
+              className="notes-page__btn-cancel"
+              onClick={() => setShowEditor(false)}
+              disabled={saving}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="notes-page__btn-save"
+              onClick={() => void saveNote()}
+              disabled={saving || !editorForm.title.trim()}
+            >
+              {saving ? 'Saving…' : 'Save note'}
+            </button>
+          </div>
+        </section>
       )}
 
       {/* Notes list */}
       {loading ? (
-        <div className="jobs-page__empty">
-          <span className="jobs-page__empty-icon">⏳</span>
-          <h3>Loading notes…</h3>
+        <div className="notes-page__empty">
+          <span className="notes-page__empty-icon"><StickyNote size={26} strokeWidth={1.5} /></span>
+          <h3 className="notes-page__empty-title">Loading notes…</h3>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="jobs-page__empty">
-          <span className="jobs-page__empty-icon"><StickyNote size={30} strokeWidth={1.5} /></span>
-          <h3>{notes.length === 0 ? 'No notes yet' : 'No notes match your filters'}</h3>
-          <p>Create company-wide notes for procedures, safety guidelines, and announcements.</p>
+        <div className="notes-page__empty">
+          <span className="notes-page__empty-icon"><StickyNote size={26} strokeWidth={1.5} /></span>
+          <h3 className="notes-page__empty-title">
+            {notes.length === 0 ? 'No notes yet' : 'No notes match your filters'}
+          </h3>
+          <p className="notes-page__empty-text">
+            {notes.length === 0
+              ? 'Create company-wide notes for procedures, safety guidelines, and announcements.'
+              : 'Try clearing the search or picking a different category.'}
+          </p>
         </div>
       ) : (
         <>
           {pinned.length > 0 && (
-            <div className="jobs-page__section">
-              <h3 className="jobs-page__section-title">Pinned</h3>
-              <div className="jobs-page__grid">
+            <section className="notes-page__section" aria-label="Pinned notes">
+              <h2 className="notes-page__section-title"><Pin size={13} strokeWidth={2.2} /> Pinned</h2>
+              <div className="notes-page__grid">
                 {pinned.map(note => <NoteCard key={note.id} note={note} />)}
               </div>
-            </div>
+            </section>
           )}
-          <div className="jobs-page__section">
-            <h3 className="jobs-page__section-title">All Notes</h3>
-            <div className="jobs-page__grid">
-              {unpinned.map(note => <NoteCard key={note.id} note={note} />)}
-            </div>
-          </div>
+          {unpinned.length > 0 && (
+            <section className="notes-page__section" aria-label="All notes">
+              <h2 className="notes-page__section-title">
+                {pinned.length > 0 ? 'Everything else' : 'All notes'}
+              </h2>
+              <div className="notes-page__grid">
+                {unpinned.map(note => <NoteCard key={note.id} note={note} />)}
+              </div>
+            </section>
+          )}
         </>
       )}
-    </div>
+    </main>
   );
 }

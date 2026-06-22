@@ -245,8 +245,7 @@ export default function TemplatesListPage() {
       ) : items.length === 0 ? (
         <div style={styles.empty}>
           No templates match these filters. Click{' '}
-          <strong>+ New template</strong> to create one — or apply{' '}
-          <code>seeds/237</code> if this is a fresh database.
+          <strong>+ New template</strong> to create your first one.
         </div>
       ) : (
         <table style={styles.table}>
@@ -373,11 +372,6 @@ export default function TemplatesListPage() {
         </table>
       )}
 
-      <p style={styles.note}>
-        ▸ Activation gate: <code>seeds/237</code> must be applied to live
-        Supabase before templates can be created. Sidebar entry lands in
-        Phase F10.6 alongside the rest of the Equipment dashboard group.
-      </p>
     </div>
   );
 }
