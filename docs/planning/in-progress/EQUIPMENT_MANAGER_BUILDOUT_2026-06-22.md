@@ -38,7 +38,7 @@ is what the single equipment manager uses day-to-day; it respects
 return) and writes the `equipment_events` audit log. Intuitive > clever.
 
 ## Slices
-- [ ] **E1 — Assignment data model.** seed `364_equipment_assignments.sql`:
+- [x] **E1 — Assignment data model.** (seed 364 applied) seed `364_equipment_assignments.sql`:
   `equipment_assignments` (id, equipment_id FK, assigned_kind
   crew|vehicle|maintenance|other, assigned_user_id, assigned_vehicle_id,
   assigned_label, checked_out_at, checked_out_by, checkout_condition
@@ -46,19 +46,19 @@ return) and writes the `equipment_events` audit log. Intuitive > clever.
   returned_by, return_condition good|fair|damaged|lost, return_notes,
   consumed_quantity, created_at/updated_at). Partial index for the one OPEN
   assignment per item. Apply to live.
-- [ ] **E2 — Check-out / check-in API.** `POST /api/admin/equipment/[id]/assign`
+- [x] **E2 — Check-out / check-in API.** (assign + return routes, 9 helper tests) `POST /api/admin/equipment/[id]/assign`
   (check out: require available, create open assignment, set status, log event)
   and `POST /api/admin/equipment/[id]/return` (check in: close assignment, set
   available, record condition, decrement consumable `quantity_on_hand` by
   `consumed_quantity`, log event; if returned damaged/lost → create a
   `maintenance_events` triage row + set status maintenance/lost). Pure
   state-machine helper in `lib/equipment/assignment.ts` + unit tests.
-- [ ] **E3 — Check-out / check-in UI.** Per-item **Check out** / **Check in**
+- [x] **E3 — Check-out / check-in UI.** (/admin/equipment/checked-out hub + nav) Per-item **Check out** / **Check in**
   buttons on the inventory list + detail page, opening one clean modal (pick
   crew member / vehicle / maintenance / other + condition + notes + expected
   back). A new **"Checked out"** manager view (`/admin/equipment/checked-out`)
   listing every open assignment with one-click check-in; registered in nav.
-- [ ] **E4 — Record supply usage.** "Use stock" action on the consumables page
+- [x] **E4 — Record supply usage.** ("Use" action on consumables + POST .../use) "Use stock" action on the consumables page
   + per-row on inventory: `POST /api/admin/equipment/[id]/use` decrements
   `quantity_on_hand` by N (guarded ≥ 0), logs an event, reason/notes. Separate
   from check-in so the manager can log usage anytime.
