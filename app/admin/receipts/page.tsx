@@ -394,17 +394,18 @@ export default function ReceiptsApprovalPage() {
             />
           </label>
         </div>
-        {/* receipts-filter-row-alignment-2026-06-22 — give every action
-            control its own field column with an invisible label spacer
-            matching the field-label metrics above, so the action group
-            shares the labeled-field group's column stack and bottoms
-            land on the same horizontal line by construction instead of
-            relying on flex-end stretching a 36px box up to meet a 54px
-            labeled column. */}
+        {/* receipts-filter-row-alignment-2026-06-22-v2 — every action
+            control sits in its own filterLabel column with an invisible
+            `&nbsp;` label. The structure is byte-for-byte identical to
+            the labeled-input columns to the left (same fontSize,
+            inherited line-height, same gap), so the column heights match
+            exactly and the action controls land on the same baseline as
+            the inputs to their left — no spacer-vs-real-label height
+            drift. */}
         <div style={styles.filterActionsGroup}>
-          <div style={styles.actionField}>
-            <span style={styles.actionLabelSpacer} aria-hidden>&nbsp;</span>
-            <label
+          <label style={styles.filterLabel} aria-label="Show deleted receipts">
+            <span aria-hidden>&nbsp;</span>
+            <span
               style={styles.toggleControl}
               title="Include soft-deleted receipts (Batch CC tombstones) in the list. Useful for IRS audit prep."
             >
@@ -414,16 +415,16 @@ export default function ReceiptsApprovalPage() {
                 onChange={(e) => setShowDeleted(e.target.checked)}
               />
               <span>Show deleted</span>
-            </label>
-          </div>
-          <div style={styles.actionField}>
-            <span style={styles.actionLabelSpacer} aria-hidden>&nbsp;</span>
+            </span>
+          </label>
+          <label style={styles.filterLabel} aria-label="Refresh the list">
+            <span aria-hidden>&nbsp;</span>
             <button type="button" onClick={() => void load()} style={styles.refreshButton}>
               Refresh
             </button>
-          </div>
-          <div style={styles.actionField}>
-            <span style={styles.actionLabelSpacer} aria-hidden>&nbsp;</span>
+          </label>
+          <label style={styles.filterLabel} aria-label="Export the list as CSV">
+            <span aria-hidden>&nbsp;</span>
             <a
               href={buildExportUrl({ status: tab, from, to, email: emailFilter })}
               style={styles.exportButton}
@@ -431,7 +432,7 @@ export default function ReceiptsApprovalPage() {
             >
               Export CSV
             </a>
-          </div>
+          </label>
         </div>
       </div>
 
@@ -2049,30 +2050,17 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     minWidth: 0,
   },
-  // receipts-filter-row-alignment-2026-06-22 — flex-end (was 'center'
-  // with a hard 36px height) so the bottoms of each action's field
-  // column land on the same line as the labeled-input column to its
-  // left. Children carry their own 36px control + invisible label
-  // spacer so the row geometry matches.
+  // receipts-filter-row-alignment-2026-06-22-v2 — each action control
+  // sits inside its own filterLabel column (with an invisible `&nbsp;`
+  // label). That column structure is byte-for-byte identical to the
+  // labeled-input columns to the left so the heights match exactly,
+  // no spacer-vs-real-label drift. The group itself only needs to
+  // line its children up by box bottoms.
   filterActionsGroup: {
     display: 'flex',
-    gap: 8,
+    gap: 12,
     alignItems: 'flex-end',
     flexWrap: 'wrap',
-  },
-  // Each action sits in a column that mirrors the labeled-input
-  // column: a spacer that matches the label font metrics + gap, then
-  // the 36px control. With both columns the same height, the visual
-  // baseline of the control reads as aligned with the labeled inputs.
-  actionField: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 4,
-  },
-  actionLabelSpacer: {
-    fontSize: 12,
-    lineHeight: '14px',
-    visibility: 'hidden',
   },
   filterLabel: {
     display: 'flex',

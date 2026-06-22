@@ -22,15 +22,21 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 
+// team-route-column-fix-2026-06-22 — the live job_time_entries table
+// uses `start_time` / `end_time` (verified by payroll, mileage, and
+// the reports consumers). `started_at` / `ended_at` were the names
+// this route was authored against and have never existed in prod,
+// which is why /admin/team has been returning the SQL error
+// "column job_time_entries.started_at does not exist" since launch.
+// `entry_type` / `clock_in_lat` / `clock_in_lon` are also absent
+// from the live schema — kept in the response payload as null so
+// the React page's existing optional rendering doesn't break.
 interface ActiveEntry {
   id: string;
   user_email: string;
   job_id: string | null;
-  started_at: string | null;
+  start_time: string | null;
   duration_minutes: number | null;
-  entry_type: string | null;
-  clock_in_lat: number | null;
-  clock_in_lon: number | null;
 }
 
 interface RegisteredUserLite {
@@ -90,13 +96,13 @@ export const GET = withErrorHandler(async () => {
   const users = (usersRaw ?? []) as RegisteredUserLite[];
 
   // 2) Open clock-in slices — one per user when they're on the clock.
-  //    started_at present + ended_at null = "currently clocked in."
+  //    start_time present + end_time null = "currently clocked in."
   const { data: activeRaw, error: activeErr } = await supabaseAdmin
     .from('job_time_entries')
     .select(
-      'id, user_email, job_id, started_at, duration_minutes, entry_type, clock_in_lat, clock_in_lon'
+      'id, user_email, job_id, start_time, duration_minutes'
     )
-    .is('ended_at', null);
+    .is('end_time', null);
   if (activeErr) {
     return NextResponse.json({ error: activeErr.message }, { status: 500 });
   }
@@ -163,32 +169,37 @@ export const GET = withErrorHandler(async () => {
   }
 
   // 6) Compose. clockedInMinutes is computed live; the row's
-  //    duration_minutes is null while ended_at is null, so we derive
-  //    from started_at.
+  //    duration_minutes is null while end_time is null, so we derive
+  //    from start_time.
   const now = Date.now();
   const team = users.map((u) => {
     const open = activeByEmail.get(u.email) ?? null;
     const lastPing = lastPingByEmail.get(u.email) ?? null;
     const lastLoc = lastLocationByEmail.get(u.email) ?? null;
     const clockedInMinutes =
-      open?.started_at != null
-        ? Math.floor((now - Date.parse(open.started_at)) / 60_000)
+      open?.start_time != null
+        ? Math.floor((now - Date.parse(open.start_time)) / 60_000)
         : null;
     return {
       email: u.email,
       name: u.name,
       roles: u.roles,
       last_sign_in: u.last_sign_in,
-      // null when not currently clocked in.
+      // null when not currently clocked in. `started_at` retained in
+      // the response shape (under its old name) so the React page +
+      // any external consumers keep working; the new column gets
+      // mapped onto it. entry_type / clock_in_lat / clock_in_lon
+      // are nulled out — they aren't in the live schema and the
+      // existing UI renders them conditionally.
       active_entry: open
         ? {
             id: open.id,
             job_id: open.job_id,
-            entry_type: open.entry_type,
-            started_at: open.started_at,
+            entry_type: null,
+            started_at: open.start_time,
             clocked_in_minutes: clockedInMinutes,
-            clock_in_lat: open.clock_in_lat,
-            clock_in_lon: open.clock_in_lon,
+            clock_in_lat: null,
+            clock_in_lon: null,
           }
         : null,
       // null when no log_hours ping in the last 24 h.
