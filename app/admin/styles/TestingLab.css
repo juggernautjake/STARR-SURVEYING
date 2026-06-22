@@ -108,9 +108,7 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+/* `@keyframes spin` is defined once in globals.css (pure rotation). */
 
 /* ── Tabs ──────────────────────────────────────────────────────────────────── */
 

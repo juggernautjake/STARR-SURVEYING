@@ -458,3 +458,30 @@ label {
 .cad-slide-left { animation: slidePanel 200ms cubic-bezier(0.16, 1, 0.3, 1); }
 .cad-slide-right { animation: slidePanelRight 200ms cubic-bezier(0.16, 1, 0.3, 1); }
 .cad-fade-in { animation: fadeIn 200ms ease-out; }
+
+/* ── Canonical loading spinner ─────────────────────────────────────────────
+   ONE global `spin` keyframe for the whole app. Several stylesheets each used
+   to declare their own `@keyframes spin`; because keyframe names are global,
+   the last one in the cascade won for EVERY spinner — and one (AdminLearn) had
+   `translateY(-50%)` baked in, which made unrelated spinners drift/jump while
+   rotating. This is now the single source of truth: a pure rotation, so a
+   spinner's own positioning (margins/top offsets) is never clobbered.
+   transform-origin defaults to center, so square rings spin in place. */
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* Optional shared spinner ring — use for new spinners so they look consistent.
+   Override size/color via inline style or a more specific selector. */
+.app-spinner {
+  display: inline-block;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;                 /* never stretch/shrink inside a flex row */
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  transform-origin: center;
+  animation: spin 0.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-spinner { animation-duration: 1.6s; }
+}
