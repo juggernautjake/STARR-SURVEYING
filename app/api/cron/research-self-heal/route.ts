@@ -54,6 +54,7 @@ import {
   buildBreakageProposal,
   shouldProposeRepair,
 } from '@/lib/research/self-heal-proposals';
+import { runApplyEvaluator } from '@/lib/research/self-heal-apply-runner';
 
 const FETCH_TIMEOUT_MS = 10_000;
 
@@ -298,6 +299,17 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const sweepDuration = Date.now() - sweepStart;
   const summary = summarizeSweep(rows, sweepDuration);
 
+  // slice 4 — after every cron-driven sweep, run the apply
+  // evaluator. With confidence=0 proposals (slice-3 default) this
+  // is a no-op; once an AI fix generator produces confidence > 0
+  // proposals + the autoapply_enabled toggle is ON + the canary
+  // re-test passes, the evaluator auto-applies them in-flight.
+  const applyResult = await runApplyEvaluator(supabaseAdmin, 'cron@research-self-heal')
+    .catch((err) => {
+      console.error('[cron/research-self-heal] apply evaluator failed', err);
+      return null;
+    });
+
   return NextResponse.json({
     ran: rows.length,
     deferred: plan.deferred.length,
@@ -306,5 +318,6 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     description: describeSweep(summary),
     sweep_started_at: new Date(sweepStart).toISOString(),
     sweep_finished_at: new Date().toISOString(),
+    apply: applyResult,
   });
 }, { routeName: 'cron/research-self-heal' });

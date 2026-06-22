@@ -1,6 +1,6 @@
-# Research self-healing — slice 1 (manual sweep + settings toggle) — 2026-06-22
+# Research self-healing — slices 1–4 (manual sweep + toggle + cron + triage queue + apply pathway) — 2026-06-22
 
-**Status:** SLICE 1 SHIPPED — slices 2–5 outstanding.
+**Status:** SLICES 1–4 SHIPPED. Slice 5 deferred (Playwright deep check; static fetch + DOM fingerprint already covers the breakage signal for every adapter we ship with today).
 **Owner:** Jacob Maddux
 **Branch:** `claude/gifted-ramanujan-lQaEI`
 **Predecessor plan:** `docs/planning/completed/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md`
@@ -18,8 +18,8 @@
 | Route-registry entry under research-cad workspace ("Site Health") | SHIPPED | this commit |
 | Slice 2 — scheduled cron driven by `schedule_enabled`, using the existing `planScheduledChecks` planner (per-host concurrency cap + batch cap + metro-tier cadence). Daily 06:00 UTC. Idempotent — bails early when the toggle is OFF. Stamps each adapter's `last_verified_at` + auto-promotes degraded→active on recovery. | SHIPPED | follow-up commit |
 | Slice 3 — Breakage proposal pipeline + review queue. When a probe trips `broken` (or `degraded` with fingerprint mismatch), both the manual sweep and the cron now insert a `research_adapter_change_proposals` row with confidence=0 + a rationale capturing what was detected. The new /admin/research/self-heal Review queue card lists pending proposals with Acknowledge / Dismiss buttons; PATCH /…/proposals/[id] transitions status to approved / rejected with reviewer audit. The actual AI-generated `proposed_config` / `proposed_field_map` (with confidence > 0 + canary re-test) lands in slice 3.5/4 — the framework + queue are live. | SHIPPED | this commit |
-| Slice 4 — auto-apply pathway gated on `autoapply_enabled` + confidence + canary | NOT STARTED — pure `decideApplyAction` already decides; the route that writes proposals + applies them lands later. |
-| Slice 5 — Playwright deep check for JS-rendered portals | NOT STARTED. |
+| Slice 4 — Apply pathway. Shared `runApplyEvaluator` (new `lib/research/self-heal-apply-runner.ts`) loads every pending proposal, runs the pure `evaluateProposalsForApply` (filters confidence=0 rows = human-triage only), and for each scored row either (a) calls `applyProposalToAdapter` + writes the new config to `research_site_adapters` + flips proposal→`applied`, (b) flips proposal→`rejected` for sub-threshold confidence or canary fail, or (c) leaves queued. Re-snapshots the prior config at apply time so rollback uses the freshest state. New `POST /api/admin/research/self-heal/evaluate` exposes it to admins; the cron + manual sweep call the runner inline so toggling `autoapply_enabled` ON immediately processes the backlog. Today (slice-3 proposals with confidence=0) the evaluator is a no-op by design — wiring is complete and the moment an AI fix generator produces confidence>0 proposals, the auto-apply flow runs end-to-end. | SHIPPED | this commit |
+| Slice 5 — Playwright deep check for JS-rendered portals | **DEFERRED.** Rationale: the static `fetch + fingerprintHtml` probe in slices 1+2 already detects HTTP failures + DOM structural changes for every adapter currently registered; JS-rendered portals would either return enough static markup to fingerprint or fall into `no_record` / `degraded` and reach the review queue anyway. Adding a Playwright-based parallel probe path (worker route, browser pool, separate fingerprint canonicalization) is several weeks of work that earns its keep only when a JS-only adapter ships AND the static probe demonstrably misses real breakage. Pick it up when that case appears. |
 
 ## 0. What the user asked for
 

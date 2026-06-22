@@ -30,6 +30,7 @@ import {
   buildBreakageProposal,
   shouldProposeRepair,
 } from '@/lib/research/self-heal-proposals';
+import { runApplyEvaluator } from '@/lib/research/self-heal-apply-runner';
 
 const FETCH_TIMEOUT_MS = 10_000;
 const PER_HOST_DELAY_MS = 100; // tiny politeness gap when many adapters share a host
@@ -282,10 +283,18 @@ export const POST = withErrorHandler(async (_req: NextRequest) => {
     }, { onConflict: 'id' })
     .then(() => undefined, () => undefined);
 
+  // slice 4 — run the apply evaluator so any high-confidence
+  // proposals filed by an upstream AI generator get applied
+  // immediately when autoapply_enabled is ON. With confidence=0
+  // proposals (the slice-3 default), this is a no-op + just stamps
+  // the policy onto the response for the dashboard's status banner.
+  const applyResult = await runApplyEvaluator(supabaseAdmin, g.email).catch(() => null);
+
   return NextResponse.json({
     summary,
     description: describeSweep(summary),
     sweep_started_at: new Date(sweepStart).toISOString(),
     sweep_finished_at: new Date().toISOString(),
+    apply: applyResult,
   });
 }, { routeName: 'admin/research/self-heal/sweep.post' });
