@@ -69,7 +69,8 @@ return) and writes the `equipment_events` audit log. Intuitive > clever.
   `vehicle_condition_logs` history table. UI on `/admin/vehicles`: condition
   badge + odometer + a "Log condition / inspection" modal writing a log row +
   updating the current condition. Surface vehicle maintenance link.
-- [ ] **E6 — Manager hub polish.** Make `/admin/equipment` landing a real
+- [x] **E6 — Manager hub polish.** (command center on /admin/equipment: quick
+  actions + live counts for out-now / supplies-to-reorder / vehicles-attention) Make `/admin/equipment` landing a real
   command center: quick actions (Check out, Check in, Record usage, Add unit),
   and at-a-glance counts (out now, low stock, maintenance due, vehicles needing
   attention). Keep it intuitive for the single power user.
