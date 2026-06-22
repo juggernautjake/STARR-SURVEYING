@@ -45,7 +45,28 @@ export const GET = withErrorHandler(
 
     const { data, error } = await q;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ assignments: data ?? [] });
+
+    const rows = (data ?? []) as Array<{ assigned_user_id: string | null } & Record<string, unknown>>;
+
+    // Resolve the assigned employee (team lead) names — assigned_user_id points
+    // at registered_users, which PostgREST can't embed, so batch-fetch.
+    const userIds = Array.from(new Set(rows.map((r) => r.assigned_user_id).filter((v): v is string => !!v)));
+    const nameById = new Map<string, string>();
+    if (userIds.length > 0) {
+      const { data: users } = await supabaseAdmin
+        .from('registered_users')
+        .select('id, name')
+        .in('id', userIds);
+      for (const u of (users ?? []) as Array<{ id: string; name: string | null }>) {
+        if (u.name) nameById.set(u.id, u.name);
+      }
+    }
+
+    const assignments = rows.map((r) => ({
+      ...r,
+      assigned_user_name: r.assigned_user_id ? (nameById.get(r.assigned_user_id) ?? null) : null,
+    }));
+    return NextResponse.json({ assignments });
   },
   { routeName: 'admin/equipment/assignments' },
 );

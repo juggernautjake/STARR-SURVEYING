@@ -21,6 +21,7 @@ interface Assignment {
   equipment_id: string;
   assigned_kind: string;
   assigned_label: string | null;
+  assigned_user_name: string | null;
   checked_out_at: string;
   checkout_condition: string | null;
   expected_back_at: string | null;
@@ -29,6 +30,7 @@ interface Assignment {
 }
 interface AvailItem { id: string; name: string | null; category: string | null; item_kind: string | null; }
 interface Vehicle { id: string; name: string; }
+interface Employee { id: string; name: string | null; email: string; }
 
 const KIND_LABEL: Record<string, string> = { crew: 'Crew member', vehicle: 'Vehicle', maintenance: 'Maintenance', other: 'Other' };
 
@@ -86,7 +88,7 @@ export default function CheckedOutPage(): React.ReactElement {
               <span>
                 {KIND_LABEL[a.assigned_kind] ?? a.assigned_kind}
                 <span style={{ display: 'block', fontSize: '0.8rem', color: '#6B7280' }}>
-                  {assignmentTargetLabel({ assigned_kind: a.assigned_kind, assigned_label: a.assigned_label, assigned_vehicle_name: a.vehicle?.name })}
+                  {assignmentTargetLabel({ assigned_kind: a.assigned_kind, assigned_label: a.assigned_label, assigned_user_name: a.assigned_user_name, assigned_vehicle_name: a.vehicle?.name })}
                 </span>
               </span>
               <span>{new Date(a.checked_out_at).toLocaleString()}</span>
@@ -118,8 +120,10 @@ export default function CheckedOutPage(): React.ReactElement {
 function CheckOutModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const [items, setItems] = useState<AvailItem[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [equipmentId, setEquipmentId] = useState('');
   const [kind, setKind] = useState<AssignedKind>('crew');
+  const [userId, setUserId] = useState('');   // team lead (crew)
   const [label, setLabel] = useState('');
   const [vehicleId, setVehicleId] = useState('');
   const [condition, setCondition] = useState('good');
@@ -131,6 +135,7 @@ function CheckOutModal({ onClose, onDone }: { onClose: () => void; onDone: () =>
   useEffect(() => {
     void fetch('/api/admin/equipment?status=available&limit=500').then((r) => r.json()).then((j) => setItems((j.items ?? []) as AvailItem[])).catch(() => {});
     void fetch('/api/admin/vehicles').then((r) => r.json()).then((j) => setVehicles((j.vehicles ?? []) as Vehicle[])).catch(() => {});
+    void fetch('/api/admin/employees/options').then((r) => r.json()).then((j) => setEmployees((j.employees ?? []) as Employee[])).catch(() => {});
   }, []);
 
   const selectedItem = useMemo(() => items.find((i) => i.id === equipmentId), [items, equipmentId]);
@@ -138,6 +143,7 @@ function CheckOutModal({ onClose, onDone }: { onClose: () => void; onDone: () =>
   async function submit() {
     setErr(null);
     if (!equipmentId) { setErr('Pick an item to check out.'); return; }
+    if (kind === 'crew' && !userId) { setErr('Pick the team lead to check out with.'); return; }
     setBusy(true);
     const body: Record<string, unknown> = {
       assigned_kind: kind,
@@ -146,7 +152,8 @@ function CheckOutModal({ onClose, onDone }: { onClose: () => void; onDone: () =>
       expected_back_at: expectedBack ? new Date(expectedBack).toISOString() : undefined,
     };
     if (kind === 'vehicle') body.assigned_vehicle_id = vehicleId || undefined;
-    if (kind === 'crew' || kind === 'maintenance' || kind === 'other') body.assigned_label = label || undefined;
+    if (kind === 'crew') { body.assigned_user_id = userId; body.assigned_label = label || undefined; } // label = optional team name
+    if (kind === 'maintenance' || kind === 'other') body.assigned_label = label || undefined;
     const res = await fetch(`/api/admin/equipment/${equipmentId}/assign`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
@@ -172,7 +179,7 @@ function CheckOutModal({ onClose, onDone }: { onClose: () => void; onDone: () =>
         </select>
       </label>
 
-      {kind === 'vehicle' ? (
+      {kind === 'vehicle' && (
         <label style={styles.field}>
           <span>Vehicle</span>
           <select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)} style={styles.input}>
@@ -180,10 +187,28 @@ function CheckOutModal({ onClose, onDone }: { onClose: () => void; onDone: () =>
             {vehicles.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
           </select>
         </label>
-      ) : (
+      )}
+
+      {kind === 'crew' && (
+        <>
+          <label style={styles.field}>
+            <span>Team lead (checked out with)</span>
+            <select value={userId} onChange={(e) => setUserId(e.target.value)} style={styles.input} data-testid="checkout-lead">
+              <option value="">Select the team lead…</option>
+              {employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.name || emp.email}</option>)}
+            </select>
+          </label>
+          <label style={styles.field}>
+            <span>Team name / note (optional)</span>
+            <input value={label} onChange={(e) => setLabel(e.target.value)} style={styles.input} placeholder="e.g. Crew B (Andy + 2)" />
+          </label>
+        </>
+      )}
+
+      {(kind === 'maintenance' || kind === 'other') && (
         <label style={styles.field}>
-          <span>{kind === 'crew' ? 'Crew member / team' : kind === 'maintenance' ? 'Vendor / reason (optional)' : 'Label'}</span>
-          <input value={label} onChange={(e) => setLabel(e.target.value)} style={styles.input} placeholder={kind === 'crew' ? 'e.g. Andy / Crew B' : kind === 'maintenance' ? 'e.g. NIST calibration' : 'e.g. County loaner'} />
+          <span>{kind === 'maintenance' ? 'Vendor / reason (optional)' : 'Label'}</span>
+          <input value={label} onChange={(e) => setLabel(e.target.value)} style={styles.input} placeholder={kind === 'maintenance' ? 'e.g. NIST calibration' : 'e.g. County loaner'} />
         </label>
       )}
 
