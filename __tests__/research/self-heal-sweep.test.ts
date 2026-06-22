@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   classifySweepStatus,
+  describeProbe,
   describeSweep,
   summarizeSweep,
   type SweepRow,
@@ -127,5 +128,33 @@ describe('describeSweep', () => {
   it('zero rows → "No adapters checked."', () => {
     const s = summarizeSweep([], 0);
     expect(describeSweep(s)).toBe('No adapters checked.');
+  });
+});
+
+describe('describeProbe', () => {
+  it('healthy mentions baseline match', () => {
+    expect(describeProbe({
+      status: 'healthy', httpStatus: 200, fingerprintMatch: true, error: null,
+    })).toContain('matches our baseline');
+  });
+  it('broken includes the HTTP status', () => {
+    expect(describeProbe({
+      status: 'broken', httpStatus: 503, fingerprintMatch: null, error: null,
+    })).toContain('503');
+  });
+  it('degraded + fingerprint mismatch points at the portal refresh', () => {
+    expect(describeProbe({
+      status: 'degraded', httpStatus: 200, fingerprintMatch: false, error: null,
+    })).toContain('page structure has changed');
+  });
+  it('no_record mentions the missing baseline', () => {
+    expect(describeProbe({
+      status: 'no_record', httpStatus: 200, fingerprintMatch: null, error: null,
+    })).toContain('no baseline');
+  });
+  it('error includes the error message when present', () => {
+    expect(describeProbe({
+      status: 'error', httpStatus: null, fingerprintMatch: null, error: 'ETIMEDOUT',
+    })).toContain('ETIMEDOUT');
   });
 });

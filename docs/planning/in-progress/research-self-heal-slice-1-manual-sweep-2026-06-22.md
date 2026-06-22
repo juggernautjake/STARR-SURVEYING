@@ -16,7 +16,7 @@
 | /api/admin/research/self-heal/sweep POST (HTTP + DOM-fingerprint compare per adapter, records health-check rows) | SHIPPED | this commit |
 | /admin/research/self-heal page (toggle row + Run-check button + per-row results) | SHIPPED | this commit |
 | Route-registry entry under research-cad workspace ("Site Health") | SHIPPED | this commit |
-| Slice 2 — scheduled cron + per-host concurrency cap | NOT STARTED — `schedule_enabled` toggle is wired but flips a flag with no cron consumer yet. Track as next slice. |
+| Slice 2 — scheduled cron driven by `schedule_enabled`, using the existing `planScheduledChecks` planner (per-host concurrency cap + batch cap + metro-tier cadence). Daily 06:00 UTC. Idempotent — bails early when the toggle is OFF. Stamps each adapter's `last_verified_at` + auto-promotes degraded→active on recovery. | SHIPPED | follow-up commit |
 | Slice 3 — AI repair proposal generation when sweep flags broken | NOT STARTED. |
 | Slice 4 — auto-apply pathway gated on `autoapply_enabled` + confidence + canary | NOT STARTED — pure `decideApplyAction` already decides; the route that writes proposals + applies them lands later. |
 | Slice 5 — Playwright deep check for JS-rendered portals | NOT STARTED. |

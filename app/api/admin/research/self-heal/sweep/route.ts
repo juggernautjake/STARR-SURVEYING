@@ -20,8 +20,9 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { fingerprintHtml } from '@/lib/research/dom-fingerprint';
 import {
   classifySweepStatus,
-  summarizeSweep,
+  describeProbe,
   describeSweep,
+  summarizeSweep,
   type SweepRow,
   type SweepStatus,
 } from '@/lib/research/self-heal-sweep';
@@ -186,7 +187,7 @@ export const POST = withErrorHandler(async (_req: NextRequest) => {
       error,
     });
 
-    const summary = buildSummary({ status, httpStatus, fingerprintMatch, error });
+    const summary = describeProbe({ status, httpStatus, fingerprintMatch, error });
 
     rows.push({
       adapter_id: adapter.id,
@@ -257,28 +258,3 @@ export const POST = withErrorHandler(async (_req: NextRequest) => {
     sweep_finished_at: new Date().toISOString(),
   });
 }, { routeName: 'admin/research/self-heal/sweep.post' });
-
-function buildSummary({
-  status, httpStatus, fingerprintMatch, error,
-}: {
-  status: SweepStatus;
-  httpStatus: number | null;
-  fingerprintMatch: boolean | null;
-  error: string | null;
-}): string {
-  switch (status) {
-    case 'healthy':
-      return 'Site responded 200 and the page structure matches our baseline.';
-    case 'broken':
-      return `Site returned ${httpStatus ?? 'an error'} — the portal is failing.`;
-    case 'degraded':
-      if (fingerprintMatch === false) {
-        return 'Site responded but the page structure has changed since our baseline. Likely a portal refresh; worth a closer look.';
-      }
-      return `Site responded ${httpStatus ?? '4xx'} — the URL still answers but the page isn't what we expect.`;
-    case 'no_record':
-      return 'Site responded 200, but we have no baseline yet to compare against.';
-    case 'error':
-      return error ? `Network failure: ${error}` : 'Network failure with no detail.';
-  }
-}

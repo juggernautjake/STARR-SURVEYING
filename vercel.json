@@ -68,6 +68,10 @@
     {
       "path": "/api/cron/purge-deleted",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/research-self-heal",
+      "schedule": "0 6 * * *"
     }
   ]
 }

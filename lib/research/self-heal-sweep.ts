@@ -153,3 +153,34 @@ export function describeSweep(summary: SweepSummary): string {
   if (summary.broken > 0)  parts.push(`${summary.broken} broken`);
   return parts.join(' · ');
 }
+
+/** Pure. One-line summary describing a single probe outcome. Used by
+ *  both the manual sweep and the scheduled cron when stamping each
+ *  adapter's diff_summary into research_adapter_health_checks. */
+export function describeProbe({
+  status,
+  httpStatus,
+  fingerprintMatch,
+  error,
+}: {
+  status: SweepStatus;
+  httpStatus: number | null;
+  fingerprintMatch: boolean | null;
+  error: string | null;
+}): string {
+  switch (status) {
+    case 'healthy':
+      return 'Site responded 200 and the page structure matches our baseline.';
+    case 'broken':
+      return `Site returned ${httpStatus ?? 'an error'} — the portal is failing.`;
+    case 'degraded':
+      if (fingerprintMatch === false) {
+        return 'Site responded but the page structure has changed since our baseline. Likely a portal refresh; worth a closer look.';
+      }
+      return `Site responded ${httpStatus ?? '4xx'} — the URL still answers but the page isn't what we expect.`;
+    case 'no_record':
+      return 'Site responded 200, but we have no baseline yet to compare against.';
+    case 'error':
+      return error ? `Network failure: ${error}` : 'Network failure with no detail.';
+  }
+}
