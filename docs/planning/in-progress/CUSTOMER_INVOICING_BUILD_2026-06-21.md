@@ -73,7 +73,14 @@ real Stripe money is the owner's call after a Stripe test-mode transaction.
   (Office, FileText icon). 35 registry tests pass. List invoices (status,
   customer, total, balance, upfront-met), links to composer / payments inbox /
   copy-link / view / send. Register the route in `route-registry.ts` (Office).
-- [ ] **S7 — Password gating.** Remove any special-password gate from backend
+- [x] **S7 — Password gating.** Shipped 2026-06-21. Backend admin pages need no
+  extra password (admin login gates them — confirmed none existed). Added a
+  temporary `/pay` launch gate: `app/pay/layout.tsx` wraps all routes in
+  `PayGate`, validated server-side via `/api/public/pay-gate` against
+  `PAY_PORTAL_PASSWORD` (httpOnly hashed cookie). **Gate is OFF when the env var
+  is unset** → removing the wall at launch = clear `PAY_PORTAL_PASSWORD`.
+  **ACTION FOR OWNER:** set `PAY_PORTAL_PASSWORD` in Vercel prod env to turn the
+  wall on (local `.env.local` set to `starr-preview`). 5 source-lock tests pass. Remove any special-password gate from backend
   admin invoice pages (admin login suffices). Add a temporary env-gated password
   wall to the `/pay` portal (+ public invoice view), removable at launch via flag.
 - [ ] **S8 — Mock-customer harness + verify.** Seed a few fixture invoices
