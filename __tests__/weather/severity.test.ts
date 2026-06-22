@@ -73,6 +73,32 @@ describe('computeDaySeverity (priority order)', () => {
     expect(computeDaySeverity({ code: 95 })?.kind).toBe('severe_storm');
   });
 
+  // weather-severity-thunder-gate-2026-06-21 — Open-Meteo emits a
+  // thunderstorm code on summer afternoons with a 0% rain chance
+  // ("could pop up" wins the dominant-code coin flip). The icon
+  // downgrade in describeWeatherWithContext already strips the ⛈️
+  // glyph below RAIN_LIKELY_THRESHOLD_PCT (25%); the severity engine
+  // needs to do the same or the corner badge keeps firing.
+  it('severe_storm is SUPPRESSED when the rain chance is below 25% (the icon-downgrade threshold)', () => {
+    expect(computeDaySeverity({ code: 95, rain_chance_pct:  0 })).toBeNull();
+    expect(computeDaySeverity({ code: 95, rain_chance_pct:  6 })).toBeNull();
+    expect(computeDaySeverity({ code: 95, rain_chance_pct: 24 })).toBeNull();
+    expect(computeDaySeverity({ code: 96, rain_chance_pct: 10 })).toBeNull();
+    expect(computeDaySeverity({ code: 99, rain_chance_pct: 15 })).toBeNull();
+  });
+
+  it('severe_storm STILL fires at 25%+ rain chance', () => {
+    expect(computeDaySeverity({ code: 95, rain_chance_pct: 25 })?.kind).toBe('severe_storm');
+    expect(computeDaySeverity({ code: 96, rain_chance_pct: 70 })?.kind).toBe('severe_storm');
+  });
+
+  it('tornado_risk is SUPPRESSED when the rain chance is low (the underlying storm isn\'t real)', () => {
+    // High gusts on a 0%-rain "could pop up" day shouldn't be a tornado risk.
+    // The high_wind path below covers genuine wind.
+    expect(computeDaySeverity({ code: 96, rain_chance_pct: 5, wind_gust_mph: 60 })?.kind)
+      .not.toBe('tornado_risk');
+  });
+
   it('ice warning fires on a freezing precip code regardless of probability', () => {
     expect(computeDaySeverity({ code: 66, rain_chance_pct: 4 })?.kind).toBe('ice_warning');
   });

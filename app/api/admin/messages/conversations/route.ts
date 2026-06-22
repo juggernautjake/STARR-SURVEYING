@@ -72,19 +72,73 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .in('conversation_id', convIds)
     .is('left_at', null);
 
-  const participantMap: Record<string, unknown[]> = {};
-  (allParticipants || []).forEach((p: { conversation_id: string }) => {
+  // messages-widget-richer-rows-2026-06-21 — enrich participants with a
+  // display_name from registered_users so the widget can render
+  // "Sent to John Harding" instead of "john.harding@…". Falls back to a
+  // humanized email when the user isn't in registered_users (external
+  // contacts, deleted accounts, etc.).
+  const participantEmails = Array.from(
+    new Set((allParticipants ?? []).map((p: { user_email: string }) => p.user_email)),
+  );
+  const { data: registered } = participantEmails.length > 0
+    ? await supabaseAdmin
+        .from('registered_users')
+        .select('email, name')
+        .in('email', participantEmails)
+    : { data: [] as Array<{ email: string; name: string | null }> };
+  const nameByEmail = new Map<string, string>();
+  for (const r of (registered ?? []) as Array<{ email: string; name: string | null }>) {
+    if (r.name && r.name.trim().length > 0) nameByEmail.set(r.email, r.name);
+  }
+
+  const participantMap: Record<string, Array<Record<string, unknown>>> = {};
+  (allParticipants || []).forEach((p: { conversation_id: string; user_email: string }) => {
     if (!participantMap[p.conversation_id]) participantMap[p.conversation_id] = [];
-    participantMap[p.conversation_id].push(p);
+    participantMap[p.conversation_id]!.push({
+      ...p,
+      display_name: nameByEmail.get(p.user_email) ?? humanizeFromEmail(p.user_email),
+    });
   });
+
+  // messages-widget-richer-rows-2026-06-21 — fetch the most-recent
+  // message per conversation so the widget can derive sent / seen /
+  // waiting state from the viewer's perspective.
+  const { data: lastMessages } = await supabaseAdmin
+    .from('messages')
+    .select('conversation_id, sender_email, created_at')
+    .in('conversation_id', convIds)
+    .eq('is_deleted', false)
+    .order('created_at', { ascending: false });
+  const lastSenderByConv = new Map<string, string>();
+  for (const m of (lastMessages ?? []) as Array<{ conversation_id: string; sender_email: string }>) {
+    if (!lastSenderByConv.has(m.conversation_id)) lastSenderByConv.set(m.conversation_id, m.sender_email);
+  }
 
   const conversations = (data || []).map((c: { id: string; [key: string]: unknown }) => ({
     ...c,
     participants: participantMap[c.id] || [],
+    last_sender_email: lastSenderByConv.get(c.id) ?? null,
   }));
 
-  return NextResponse.json({ conversations });
+  return NextResponse.json({
+    conversations,
+    viewer_email: session.user.email,
+  });
 }, { routeName: 'messages/conversations' });
+
+/** Pure. Coerce an email address into a Title-Case display name when
+ *  registered_users doesn't have one yet. `john.harding@firm.com` →
+ *  "John Harding". Falls back to the whole email when the local part
+ *  doesn't look name-shaped. */
+function humanizeFromEmail(email: string): string {
+  const local = email.split('@')[0];
+  if (!local) return email;
+  const tokens = local.split(/[._-]+/).filter(Boolean);
+  if (tokens.length === 0) return email;
+  return tokens
+    .map((t) => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase())
+    .join(' ');
+}
 
 // POST: Create a new conversation
 export const POST = withErrorHandler(async (req: NextRequest) => {
