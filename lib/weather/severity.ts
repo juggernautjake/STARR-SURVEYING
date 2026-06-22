@@ -15,7 +15,7 @@
 //
 // Dependency-free → unit-tested in node.
 
-import { describeWeather } from './wmo';
+import { describeWeather, RAIN_LIKELY_THRESHOLD_PCT } from './wmo';
 
 export type WeatherSeverityKind =
   | 'heat_wave'
@@ -78,8 +78,21 @@ export function computeDaySeverity(day: DayLike): WeatherSeverity | null {
   const gust = numOrNull(day.wind_gust_mph);
   const rain = numOrNull(day.rain_chance_pct);
 
+  // weather-severity-thunder-gate-2026-06-21 — Open-Meteo's daily code
+  // emits thunderstorm (95 / 96 / 99) on summer afternoons even when
+  // the actual rain probability is 0–10% ("could pop up" wins the
+  // dominant-code coin flip). The icon downgrade in
+  // describeWeatherWithContext already strips the ⛈️ glyph below the
+  // RAIN_LIKELY_THRESHOLD_PCT; the severity engine needs the same
+  // gate or the corner badge keeps firing on a 0% rain day. When rain
+  // is set AND below the threshold, fall through to the rest of the
+  // checks (cold / wind / heat still apply).
+  const thunderRainLikely = rain === null || rain >= RAIN_LIKELY_THRESHOLD_PCT;
+
   // Tornado risk first — life-safety. Severe storm + strong gusts.
-  if (SEVERE_STORM_CODES.has(code) && gust !== null && gust >= HIGH_WIND_GUST_MPH) {
+  // Still requires a real rain chance; without one Open-Meteo is just
+  // guessing and the gust check is a separate high_wind path below.
+  if (SEVERE_STORM_CODES.has(code) && thunderRainLikely && gust !== null && gust >= HIGH_WIND_GUST_MPH) {
     return {
       kind: 'tornado_risk',
       label: 'Tornado / severe storm risk',
@@ -87,7 +100,7 @@ export function computeDaySeverity(day: DayLike): WeatherSeverity | null {
       advice: 'Severe thunderstorms with damaging gusts. Watch local alerts and take shelter if a warning fires.',
     };
   }
-  if (SEVERE_STORM_CODES.has(code)) {
+  if (SEVERE_STORM_CODES.has(code) && thunderRainLikely) {
     return {
       kind: 'severe_storm',
       label: 'Severe thunderstorm',
