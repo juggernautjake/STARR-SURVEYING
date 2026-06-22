@@ -53,7 +53,7 @@ export const GET = withErrorHandler(async () => {
   const invoiceMap = new Map<string, RawInvoice>();
   if (invoiceIds.length > 0) {
     const { data: invoices } = await supabaseAdmin
-      .from('invoices')
+      .from('customer_invoices')
       .select('id, invoice_number, customer_name, customer_email, total_cents, status')
       .in('id', invoiceIds);
     for (const inv of (invoices ?? []) as RawInvoice[]) {

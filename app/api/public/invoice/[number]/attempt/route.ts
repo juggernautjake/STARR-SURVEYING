@@ -57,7 +57,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   const { data: invoice } = await supabaseAdmin
-    .from('invoices')
+    .from('customer_invoices')
     .select('id, invoice_number, public_slug, status, total_cents, customer_name')
     .or(`invoice_number.eq.${upper},public_slug.eq.${rawKey}`)
     .maybeSingle();

@@ -13,7 +13,7 @@
 
 WITH expected(table_name, employee_self_read) AS (
   VALUES
-    ('invoices',                   FALSE),
+    ('customer_invoices',          FALSE),
     ('payments',                   FALSE),
     ('payment_intents',            FALSE),
     ('payment_attempts',           FALSE),

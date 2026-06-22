@@ -62,7 +62,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const upper = rawKey.toUpperCase();
 
   const { data: invoice, error } = await supabaseAdmin
-    .from('invoices')
+    .from('customer_invoices')
     .select('invoice_number, public_slug, status, customer_name, subtotal_cents, tax_cents, total_cents, issued_at, due_at, paid_at, line_items')
     .or(`invoice_number.eq.${upper},public_slug.eq.${rawKey}`)
     .maybeSingle();

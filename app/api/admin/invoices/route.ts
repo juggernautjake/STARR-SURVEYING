@@ -35,7 +35,7 @@ export const GET = withErrorHandler(async () => {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   const { data, error } = await supabaseAdmin
-    .from('invoices')
+    .from('customer_invoices')
     .select('id, invoice_number, public_slug, status, customer_name, customer_email, total_cents, issued_at, due_at, paid_at, created_at')
     .order('created_at', { ascending: false })
     .limit(200);
@@ -67,7 +67,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     invoice_number = generateInvoiceNumber(new Date(), Math.random);
     public_slug = generatePublicSlug(Math.random);
     const { data: collision } = await supabaseAdmin
-      .from('invoices')
+      .from('customer_invoices')
       .select('id')
       .or(`invoice_number.eq.${invoice_number},public_slug.eq.${public_slug}`)
       .maybeSingle();
@@ -96,7 +96,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   };
 
   const { data: invoice, error } = await supabaseAdmin
-    .from('invoices')
+    .from('customer_invoices')
     .insert(insertRow)
     .select('id, invoice_number, public_slug, status, customer_name, customer_email, total_cents, due_at, created_at')
     .single();
