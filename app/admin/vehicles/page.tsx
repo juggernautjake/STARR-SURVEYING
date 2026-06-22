@@ -14,10 +14,22 @@ interface VehicleRow {
   license_plate: string | null;
   vin: string | null;
   active: boolean;
+  condition: string | null;
+  odometer_miles: number | null;
+  last_inspected_at: string | null;
+  condition_notes: string | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;
 }
+
+const CONDITION_META: Record<string, { label: string; bg: string }> = {
+  excellent: { label: 'Excellent', bg: '#10B981' },
+  good: { label: 'Good', bg: '#22C55E' },
+  fair: { label: 'Fair', bg: '#F59E0B' },
+  poor: { label: 'Poor', bg: '#EF4444' },
+  out_of_service: { label: 'Out of service', bg: '#7F1D1D' },
+};
 
 interface ListResponse {
   vehicles: VehicleRow[];
@@ -48,6 +60,7 @@ export default function VehiclesPage() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [conditionTarget, setConditionTarget] = useState<VehicleRow | null>(null);
 
   const fetchList = useCallback(async () => {
     if (!session?.user?.email) return;
@@ -286,6 +299,8 @@ export default function VehiclesPage() {
               <th style={styles.th}>Name</th>
               <th style={styles.th}>Plate</th>
               <th style={styles.th}>VIN</th>
+              <th style={styles.th}>Condition</th>
+              <th style={styles.th}>Odometer</th>
               <th style={styles.th}>Status</th>
               <th style={styles.thRight}>Actions</th>
             </tr>
@@ -297,6 +312,19 @@ export default function VehiclesPage() {
                 <td style={styles.td}>{v.license_plate ?? '—'}</td>
                 <td style={styles.tdMono}>{v.vin ?? '—'}</td>
                 <td style={styles.td}>
+                  {v.condition ? (
+                    <span
+                      style={{ ...styles.statusBadge, background: CONDITION_META[v.condition]?.bg ?? '#9CA3AF' }}
+                      title={v.last_inspected_at ? `Inspected ${new Date(v.last_inspected_at).toLocaleDateString()}` : undefined}
+                    >
+                      {CONDITION_META[v.condition]?.label ?? v.condition}
+                    </span>
+                  ) : (
+                    <span style={{ color: '#9CA3AF' }}>Not logged</span>
+                  )}
+                </td>
+                <td style={styles.td}>{v.odometer_miles != null ? `${v.odometer_miles.toLocaleString()} mi` : '—'}</td>
+                <td style={styles.td}>
                   <span
                     style={{
                       ...styles.statusBadge,
@@ -307,6 +335,15 @@ export default function VehiclesPage() {
                   </span>
                 </td>
                 <td style={styles.tdRight}>
+                  <button
+                    type="button"
+                    style={styles.linkBtn}
+                    onClick={() => setConditionTarget(v)}
+                    disabled={busyId === v.id}
+                    data-testid={`condition-${v.id}`}
+                  >
+                    Condition
+                  </button>
                   <button
                     type="button"
                     style={styles.linkBtn}
@@ -340,11 +377,80 @@ export default function VehiclesPage() {
           </tbody>
         </table>
       )}
+
+      {conditionTarget ? (
+        <ConditionModal
+          vehicle={conditionTarget}
+          onClose={() => setConditionTarget(null)}
+          onSaved={() => { setConditionTarget(null); void fetchList(); }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function ConditionModal({
+  vehicle,
+  onClose,
+  onSaved,
+}: {
+  vehicle: VehicleRow;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [condition, setCondition] = useState(vehicle.condition ?? 'good');
+  const [odometer, setOdometer] = useState(vehicle.odometer_miles != null ? String(vehicle.odometer_miles) : '');
+  const [notes, setNotes] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    setErr(null);
+    setBusy(true);
+    const body: Record<string, unknown> = { vehicle_id: vehicle.id, condition, notes: notes || undefined };
+    const odo = parseInt(odometer, 10);
+    if (Number.isFinite(odo) && odo >= 0) body.odometer_miles = odo;
+    const res = await fetch('/api/admin/vehicles/condition', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    setBusy(false);
+    if (!res.ok) { setErr((await res.json().catch(() => ({}))).error ?? 'Save failed.'); return; }
+    onSaved();
+  }
+
+  return (
+    <div style={styles.backdrop} onClick={onClose}>
+      <div style={styles.modal} onClick={(e) => e.stopPropagation()} role="dialog" aria-label={`Log condition — ${vehicle.name}`}>
+        <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px' }}>Log condition — {vehicle.name}</h3>
+        <label style={styles.field}>
+          <span style={styles.fieldLabel}>Condition</span>
+          <select value={condition} onChange={(e) => setCondition(e.target.value)} style={styles.input} data-testid="condition-select">
+            {Object.entries(CONDITION_META).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
+          </select>
+        </label>
+        <label style={styles.field}>
+          <span style={styles.fieldLabel}>Odometer (miles)</span>
+          <input type="number" min={0} value={odometer} onChange={(e) => setOdometer(e.target.value)} style={styles.input} placeholder="e.g. 84210" />
+        </label>
+        <label style={styles.field}>
+          <span style={styles.fieldLabel}>Notes (optional)</span>
+          <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} style={styles.input} placeholder="e.g. new tires, check engine light on" />
+        </label>
+        {err ? <div style={styles.error}>{err}</div> : null}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+          <button type="button" style={styles.linkBtn} onClick={onClose} disabled={busy}>Cancel</button>
+          <button type="button" style={styles.primaryBtn} onClick={submit} disabled={busy} data-testid="condition-submit">
+            {busy ? 'Saving…' : 'Save condition'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
+  backdrop: { position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 },
+  modal: { background: '#fff', borderRadius: 12, padding: 20, width: '100%', maxWidth: 420, boxShadow: '0 12px 40px rgba(0,0,0,0.2)' },
   wrap: {
     padding: '24px',
     maxWidth: 1100,

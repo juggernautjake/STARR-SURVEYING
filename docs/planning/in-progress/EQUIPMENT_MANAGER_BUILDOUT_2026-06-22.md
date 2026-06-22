@@ -62,7 +62,8 @@ return) and writes the `equipment_events` audit log. Intuitive > clever.
   + per-row on inventory: `POST /api/admin/equipment/[id]/use` decrements
   `quantity_on_hand` by N (guarded ≥ 0), logs an event, reason/notes. Separate
   from check-in so the manager can log usage anytime.
-- [ ] **E5 — Vehicle condition tracking.** seed `365_vehicle_condition.sql`:
+- [x] **E5 — Vehicle condition tracking.** (seed 365 applied; condition column +
+  odometer + "Log condition" modal on /admin/vehicles; condition-log API) seed `365_vehicle_condition.sql`:
   add `condition` (excellent|good|fair|poor|out_of_service), `odometer_miles`,
   `last_inspected_at`, `condition_notes`, `status` to `vehicles`, + a
   `vehicle_condition_logs` history table. UI on `/admin/vehicles`: condition
