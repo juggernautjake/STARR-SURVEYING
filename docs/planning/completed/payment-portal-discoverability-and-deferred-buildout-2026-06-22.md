@@ -1,8 +1,20 @@
 # Payment portal discoverability + deferred-items build-out — 2026-06-22
 
-**Status:** in-progress
+**Status:** SHIPPED — all in-scope slices delivered. Moved to `completed/`.
 **Owner:** Jacob Maddux
 **Branch:** `claude/gifted-ramanujan-lQaEI`
+
+## Completion log
+
+| Slice | Status | Commit |
+|---|---|---|
+| S1 — Header + Footer + scrolled mini-nav Pay Invoice links | SHIPPED | `bc409df` |
+| S2 — Scattered marketing-page CTAs (`/contact`, `/services`, `/pricing`, `/`) | SHIPPED | `bc409df` |
+| S3 — Navbar parallelogram geometry (`--navbar-left-extend` 90→110) | SHIPPED | `bc409df` |
+| S4a — Invoice composer: job picker typeahead | SHIPPED | `d07662a` |
+| S4b — Invoice composer: customer-contact suggestion strip | SHIPPED | this commit |
+| S4c — Invoice composer: deposit clamp warn-tone hint | SHIPPED | this commit |
+| S5 — Research Phase II slice schedule | DEFERRED — execution requires explicit per-slice user go-ahead; slice plan is documented below in §2 and remains the canonical Phase-II reference. Live spec stays in `docs/planning/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md`. |
 
 ## 0. Purpose
 

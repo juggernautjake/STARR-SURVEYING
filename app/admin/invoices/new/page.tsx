@@ -31,6 +31,21 @@ interface JobOption {
   client_name: string | null;
 }
 
+// invoice-composer-contact-picker-2026-06-22 — shape returned by
+// /api/admin/contacts that the suggestion strip needs to surface a
+// "Use existing contact" pre-fill.
+interface ContactOption {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  company: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+}
+
 const EMPTY_ROW: LineItemDraft = { description: '', quantity: 1, unit_price_cents: 0 };
 
 export default function NewInvoicePage(): React.ReactElement {
@@ -58,6 +73,14 @@ export default function NewInvoicePage(): React.ReactElement {
   const [jobSearching, setJobSearching] = useState(false);
   const [jobDropdownOpen, setJobDropdownOpen] = useState(false);
   const jobDropdownRef = useRef<HTMLDivElement>(null);
+  // invoice-composer-contact-picker-2026-06-22 — quiet suggestion
+  // strip that appears under the Customer section when the
+  // name/email/phone the user is typing matches an existing contact.
+  // dismissedContactIds prevents the strip from re-appearing for a
+  // contact the user explicitly closed.
+  const [contactSuggestions, setContactSuggestions] = useState<ContactOption[]>([]);
+  const [dismissedContactIds, setDismissedContactIds] = useState<Set<string>>(new Set());
+  const [usedContactId, setUsedContactId] = useState<string | null>(null);
   // S5 — required upfront / deposit. 'none' = customer may pay any amount.
   const [depositType, setDepositType] = useState<DepositType>('none');
   const [depositValueStr, setDepositValueStr] = useState('');
@@ -86,6 +109,15 @@ export default function NewInvoicePage(): React.ReactElement {
     deposit_value: depositValue,
     total_cents: totals.total_cents,
   });
+  // invoice-composer-deposit-warn-2026-06-22 — `resolveDepositAmountCents`
+  // silently clamps to [0, total]. Detect when the typed value WOULD
+  // have exceeded total so the user knows we capped it. Surfaces as a
+  // warn-toned hint under the upfront preview.
+  const depositClamped = (() => {
+    if (depositType === 'none' || totals.total_cents <= 0) return false;
+    if (depositType === 'percent') return depositValue > 100;
+    return Math.round(depositValue * 100) > totals.total_cents;
+  })();
 
   // invoice-composer-job-picker-2026-06-22 — debounce the search input
   // so we don't fire a fetch on every keystroke. 220ms feels snappy
@@ -149,6 +181,56 @@ export default function NewInvoicePage(): React.ReactElement {
     }
   }
   function clearJob() { setLinkedJob(null); }
+
+  // invoice-composer-contact-picker-2026-06-22 — debounced lookup
+  // against /api/admin/contacts. Triggers on customer_name or
+  // customer_email changes once either has 2+ characters. Skips the
+  // network entirely if the user has already accepted a suggestion
+  // (`usedContactId` set) so we don't echo our own pre-fill back.
+  useEffect(() => {
+    if (usedContactId) { setContactSuggestions([]); return; }
+    const name = customer.customer_name.trim();
+    const email = customer.customer_email.trim();
+    const q = email.length >= 3 ? email : name.length >= 2 ? name : '';
+    if (!q) { setContactSuggestions([]); return; }
+    let cancelled = false;
+    const handle = window.setTimeout(() => {
+      fetch(`/api/admin/contacts?search=${encodeURIComponent(q)}&limit=3`)
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then((j) => {
+          if (cancelled) return;
+          const rows = ((j.contacts ?? []) as ContactOption[])
+            .filter((c) => !dismissedContactIds.has(c.id));
+          setContactSuggestions(rows.slice(0, 3));
+        })
+        .catch(() => { if (!cancelled) setContactSuggestions([]); });
+    }, 280);
+    return () => { cancelled = true; window.clearTimeout(handle); };
+  }, [customer.customer_name, customer.customer_email, dismissedContactIds, usedContactId]);
+
+  function applyContact(contact: ContactOption) {
+    // Prefer the contact's data, but never overwrite a field the user
+    // has already typed into — they may be intentionally editing.
+    setCustomer((c) => ({
+      customer_name: c.customer_name.trim() ? c.customer_name : (contact.name ?? ''),
+      customer_email: c.customer_email.trim() ? c.customer_email : (contact.email ?? ''),
+      customer_phone: c.customer_phone.trim() ? c.customer_phone : (contact.phone ?? ''),
+      billing_street: c.billing_street.trim() ? c.billing_street : (contact.address ?? ''),
+      billing_city: c.billing_city.trim() ? c.billing_city : (contact.city ?? ''),
+      billing_state: c.billing_state.trim() ? c.billing_state : (contact.state ?? 'TX'),
+      billing_zip: c.billing_zip.trim() ? c.billing_zip : (contact.zip ?? ''),
+    }));
+    setUsedContactId(contact.id);
+    setContactSuggestions([]);
+  }
+
+  function dismissContact(contactId: string) {
+    setDismissedContactIds((prev) => {
+      const next = new Set(prev);
+      next.add(contactId);
+      return next;
+    });
+  }
 
   function setRow(i: number, patch: Partial<LineItemDraft>) {
     setLineItems((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -368,6 +450,55 @@ export default function NewInvoicePage(): React.ReactElement {
 
         <section className="invoice-section">
           <h2 className="invoice-section__title">Customer</h2>
+          {/* invoice-composer-contact-picker-2026-06-22 — quiet
+              suggestion strip. Only renders when we have likely
+              matches from /api/admin/contacts AND the user hasn't
+              already accepted one. Each suggestion has a Use button
+              to pre-fill the form + a ✕ to dismiss the row. */}
+          {contactSuggestions.length > 0 && (
+            <div className="invoice-contact-picker" data-testid="invoice-contact-suggestions">
+              <span className="invoice-contact-picker__label">
+                Use existing contact:
+              </span>
+              {contactSuggestions.map((c) => (
+                <div key={c.id} className="invoice-contact-picker__row">
+                  <button
+                    type="button"
+                    className="invoice-contact-picker__use"
+                    onClick={() => applyContact(c)}
+                    data-testid={`invoice-contact-use-${c.id}`}
+                  >
+                    <span className="invoice-contact-picker__name">{c.name}</span>
+                    {c.email && <span className="invoice-contact-picker__meta">{c.email}</span>}
+                    {c.phone && <span className="invoice-contact-picker__meta">{c.phone}</span>}
+                    {c.company && <span className="invoice-contact-picker__meta">· {c.company}</span>}
+                    <span className="invoice-contact-picker__arrow">→</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="invoice-contact-picker__dismiss"
+                    onClick={() => dismissContact(c.id)}
+                    aria-label={`Dismiss ${c.name}`}
+                    title="Not this one"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {usedContactId && (
+            <p className="invoice-contact-picker__used" data-testid="invoice-contact-used">
+              ✓ Pre-filled from an existing contact.{' '}
+              <button
+                type="button"
+                onClick={() => { setUsedContactId(null); }}
+                className="invoice-contact-picker__undo"
+              >
+                Use a different one
+              </button>
+            </p>
+          )}
           <div className="invoice-row">
             <label>
               <span>Name</span>
@@ -545,8 +676,27 @@ export default function NewInvoicePage(): React.ReactElement {
               </label>
             )}
             {depositType !== 'none' && (
-              <div style={{ alignSelf: 'end', color: '#4a5470', fontSize: '0.9rem' }} data-testid="invoice-deposit-preview">
+              <div
+                style={{
+                  alignSelf: 'end',
+                  color: depositClamped ? '#8A5A12' : '#4a5470',
+                  background: depositClamped ? '#FFF4E0' : 'transparent',
+                  border: depositClamped ? '1px solid #F2CB7C' : 'none',
+                  borderRadius: depositClamped ? 8 : 0,
+                  padding: depositClamped ? '0.4rem 0.6rem' : 0,
+                  fontSize: '0.9rem',
+                }}
+                data-testid="invoice-deposit-preview"
+              >
                 Upfront required: <strong>{formatDollars(depositPreviewCents)}</strong>
+                {depositClamped && (
+                  <span
+                    style={{ display: 'block', fontSize: '0.78rem', fontWeight: 500, marginTop: 2 }}
+                    data-testid="invoice-deposit-clamp-warn"
+                  >
+                    ⚠ Capped at the invoice total. The customer can&rsquo;t be asked for more than they owe.
+                  </span>
+                )}
               </div>
             )}
           </div>
