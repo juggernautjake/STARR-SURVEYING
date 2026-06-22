@@ -30,7 +30,12 @@ temporary `/pay` password gate.
 real Stripe money is the owner's call after a Stripe test-mode transaction.
 
 ## Slices
-- [ ] **S1 — Un-collision: `invoices` → `customer_invoices`.** Rewrite seed 323
+- [x] **S1 — Un-collision: `invoices` → `customer_invoices`.** Shipped
+  2026-06-21 (commit c0a8e7bb). Seed 323 + 10 routes + rls-allowlist + audit
+  script + 3 test suites repointed; applied to live (5 tables created, Feature-A
+  Stripe `invoices` untouched); 154 payment tests pass. Also ran full idempotent
+  `db:seed:all` — verified all needed seeds applied (skips are pre-existing
+  buckets / already-applied policies / deferred-G4 buildout). Rewrite seed 323
   (table, indexes `idx_customer_invoices_*`, 4 FK refs, trigger array, RLS
   policy). Repoint Feature-B `.from('invoices')` → `customer_invoices`: 5
   `api/public/invoice/*`, 3 `api/admin/invoices/*`, 2 `api/admin/payment-attempts/*`,
