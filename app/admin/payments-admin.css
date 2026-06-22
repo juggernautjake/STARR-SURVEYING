@@ -44,3 +44,144 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* invoice-composer-job-picker-2026-06-22 — typeahead used on
+ * /admin/invoices/new to attach an invoice to an existing job. */
+.invoice-job-picker {
+  position: relative;
+  max-width: 32rem;
+}
+
+.invoice-job-picker__input {
+  font: inherit;
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid #d6d9e3;
+  border-radius: 10px;
+  background: #FFFFFF;
+  color: #1F2937;
+  box-sizing: border-box;
+}
+
+.invoice-job-picker__input:focus {
+  outline: none;
+  border-color: #1D3095;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #1D3095 22%, transparent);
+}
+
+.invoice-job-picker__dropdown {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 22rem;
+  overflow-y: auto;
+  background: #FFFFFF;
+  border: 1px solid #d6d9e3;
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+  padding: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.invoice-job-picker__option {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  color: #1F2937;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.invoice-job-picker__option:hover {
+  background: #EAF0FB;
+  border-color: #B6C6EE;
+}
+
+.invoice-job-picker__option-number {
+  font-family: 'SF Mono', Menlo, monospace;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #1D3095;
+  white-space: nowrap;
+}
+
+.invoice-job-picker__option-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.invoice-job-picker__option-client {
+  font-size: 0.78rem;
+  color: #6B7280;
+  white-space: nowrap;
+}
+
+.invoice-job-picker__hint {
+  font-size: 0.8rem;
+  color: #6B7280;
+  margin: 0;
+  padding: 0.3rem 0.5rem;
+}
+
+.invoice-job-picker__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.85rem 0.55rem 1rem;
+  background: #EAF0FB;
+  border: 1px solid #B6C6EE;
+  border-radius: 9999px;
+  color: #1D3095;
+  font-size: 0.9rem;
+  font-weight: 500;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.invoice-job-picker__pill-number {
+  font-family: 'SF Mono', Menlo, monospace;
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.invoice-job-picker__pill-name {
+  font-weight: 600;
+}
+
+.invoice-job-picker__pill-client {
+  color: #4B5563;
+}
+
+.invoice-job-picker__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 9999px;
+  border: none;
+  background: rgba(29, 48, 149, 0.12);
+  color: #1D3095;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: inherit;
+}
+
+.invoice-job-picker__clear:hover {
+  background: rgba(29, 48, 149, 0.22);
+}

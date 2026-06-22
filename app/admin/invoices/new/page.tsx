@@ -8,7 +8,7 @@
 // customer gets an email with a payment link that routes to
 // /pay/<slug>.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { computeInvoiceTotals, lineItemTotal } from '@/lib/payments/invoice-number';
@@ -20,6 +20,15 @@ interface LineItemDraft {
   description: string;
   quantity: number;
   unit_price_cents: number;
+}
+
+// invoice-composer-job-picker-2026-06-22 — minimal subset of jobs the
+// typeahead needs to render results + commit a job_id.
+interface JobOption {
+  id: string;
+  job_number: string;
+  name: string;
+  client_name: string | null;
 }
 
 const EMPTY_ROW: LineItemDraft = { description: '', quantity: 1, unit_price_cents: 0 };
@@ -39,6 +48,16 @@ export default function NewInvoicePage(): React.ReactElement {
   const [taxDollars, setTaxDollars] = useState('');
   const [dueAt, setDueAt] = useState('');
   const [notes, setNotes] = useState('');
+  // invoice-composer-job-picker-2026-06-22 — link this invoice to an
+  // existing job at create-time. linkedJob is the committed pick; the
+  // typeahead state owns the search-as-you-type results.
+  const [linkedJob, setLinkedJob] = useState<JobOption | null>(null);
+  const [jobSearch, setJobSearch] = useState('');
+  const [jobSearchDebounced, setJobSearchDebounced] = useState('');
+  const [jobOptions, setJobOptions] = useState<JobOption[]>([]);
+  const [jobSearching, setJobSearching] = useState(false);
+  const [jobDropdownOpen, setJobDropdownOpen] = useState(false);
+  const jobDropdownRef = useRef<HTMLDivElement>(null);
   // S5 — required upfront / deposit. 'none' = customer may pay any amount.
   const [depositType, setDepositType] = useState<DepositType>('none');
   const [depositValueStr, setDepositValueStr] = useState('');
@@ -67,6 +86,69 @@ export default function NewInvoicePage(): React.ReactElement {
     deposit_value: depositValue,
     total_cents: totals.total_cents,
   });
+
+  // invoice-composer-job-picker-2026-06-22 — debounce the search input
+  // so we don't fire a fetch on every keystroke. 220ms feels snappy
+  // without flooding the API.
+  useEffect(() => {
+    const t = window.setTimeout(() => setJobSearchDebounced(jobSearch), 220);
+    return () => window.clearTimeout(t);
+  }, [jobSearch]);
+
+  // Fetch matching jobs whenever the debounced query changes (and is
+  // long enough to be useful). Hits the existing /api/admin/jobs GET
+  // which already supports ?search=… across name / job_number /
+  // client_name / address.
+  useEffect(() => {
+    const q = jobSearchDebounced.trim();
+    if (q.length < 2) { setJobOptions([]); return; }
+    let cancelled = false;
+    setJobSearching(true);
+    fetch(`/api/admin/jobs?search=${encodeURIComponent(q)}&limit=8`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((j) => {
+        if (cancelled) return;
+        const rows = ((j.jobs ?? []) as Array<{
+          id: string; job_number: string; name: string; client_name: string | null;
+        }>).map((r) => ({
+          id: r.id,
+          job_number: r.job_number,
+          name: r.name,
+          client_name: r.client_name,
+        }));
+        setJobOptions(rows);
+      })
+      .catch(() => { if (!cancelled) setJobOptions([]); })
+      .finally(() => { if (!cancelled) setJobSearching(false); });
+    return () => { cancelled = true; };
+  }, [jobSearchDebounced]);
+
+  // Click-outside closes the dropdown so the user can click anywhere
+  // to dismiss.
+  useEffect(() => {
+    if (!jobDropdownOpen) return;
+    function onClick(e: MouseEvent) {
+      if (jobDropdownRef.current && !jobDropdownRef.current.contains(e.target as Node)) {
+        setJobDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [jobDropdownOpen]);
+
+  function pickJob(job: JobOption) {
+    setLinkedJob(job);
+    setJobSearch('');
+    setJobDropdownOpen(false);
+    setJobOptions([]);
+    // Auto-fill the customer name from the job's client_name if the
+    // composer doesn't have one yet (don't clobber what the user
+    // already typed).
+    if (!customer.customer_name.trim() && job.client_name) {
+      setCustomer((c) => ({ ...c, customer_name: job.client_name ?? '' }));
+    }
+  }
+  function clearJob() { setLinkedJob(null); }
 
   function setRow(i: number, patch: Partial<LineItemDraft>) {
     setLineItems((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -113,6 +195,9 @@ export default function NewInvoicePage(): React.ReactElement {
       deposit_value: depositType === 'none' ? null : depositValue,
       due_at: dueAt || null,
       notes: notes || null,
+      // invoice-composer-job-picker-2026-06-22 — wire the picked job
+      // through to the API so the dashboard's job badge lights up.
+      job_id: linkedJob?.id ?? null,
     };
 
     const createRes = await fetch('/api/admin/invoices', {
@@ -211,6 +296,75 @@ export default function NewInvoicePage(): React.ReactElement {
         <p className="invoice-page__lede">
           The customer gets an email with a one-click payment link.
         </p>
+
+        {/* invoice-composer-job-picker-2026-06-22 — pick an existing
+            job to link this invoice to. Typeahead hits /api/admin/jobs.
+            Picked jobs show as a pill that can be cleared with ✕. The
+            customer-name field auto-fills from the job's client_name
+            on pick, but doesn't clobber if you've already typed. */}
+        <section className="invoice-section">
+          <h2 className="invoice-section__title">Linked job (optional)</h2>
+          {linkedJob ? (
+            <div className="invoice-job-picker__pill" data-testid="invoice-linked-job">
+              <span className="invoice-job-picker__pill-number">{linkedJob.job_number}</span>
+              <span className="invoice-job-picker__pill-name">{linkedJob.name}</span>
+              {linkedJob.client_name && (
+                <span className="invoice-job-picker__pill-client">· {linkedJob.client_name}</span>
+              )}
+              <button
+                type="button"
+                className="invoice-job-picker__clear"
+                onClick={clearJob}
+                aria-label="Unlink this job"
+                title="Unlink this job"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <div className="invoice-job-picker" ref={jobDropdownRef}>
+              <input
+                type="search"
+                value={jobSearch}
+                onChange={(e) => { setJobSearch(e.target.value); setJobDropdownOpen(true); }}
+                onFocus={() => setJobDropdownOpen(true)}
+                placeholder="Search by job number, name, client, or address…"
+                className="invoice-job-picker__input"
+                autoComplete="off"
+                data-testid="invoice-job-search"
+              />
+              {jobDropdownOpen && jobSearchDebounced.trim().length >= 2 && (
+                <div className="invoice-job-picker__dropdown" role="listbox">
+                  {jobSearching && jobOptions.length === 0 && (
+                    <div className="invoice-job-picker__hint">Searching…</div>
+                  )}
+                  {!jobSearching && jobOptions.length === 0 && (
+                    <div className="invoice-job-picker__hint">No jobs match &ldquo;{jobSearchDebounced}&rdquo;.</div>
+                  )}
+                  {jobOptions.map((job) => (
+                    <button
+                      key={job.id}
+                      type="button"
+                      className="invoice-job-picker__option"
+                      onClick={() => pickJob(job)}
+                      role="option"
+                      aria-selected={false}
+                    >
+                      <span className="invoice-job-picker__option-number">{job.job_number}</span>
+                      <span className="invoice-job-picker__option-name">{job.name}</span>
+                      {job.client_name && (
+                        <span className="invoice-job-picker__option-client">{job.client_name}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <p className="invoice-job-picker__hint" style={{ marginTop: '0.4rem' }}>
+                Linking an invoice to a job lets the dashboard surface them together. Leave blank if this is a standalone invoice.
+              </p>
+            </div>
+          )}
+        </section>
 
         <section className="invoice-section">
           <h2 className="invoice-section__title">Customer</h2>
