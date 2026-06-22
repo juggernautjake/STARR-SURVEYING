@@ -154,7 +154,7 @@ describe('api/public/invoice/[number] — source-lock', () => {
     // The .select() call enumerates exactly the columns the customer
     // gets — no org_id, no billing_address, no customer email, etc.
     expect(SRC).toMatch(
-      /\.select\('invoice_number, public_slug, status, customer_name, subtotal_cents, tax_cents, total_cents, issued_at, due_at, paid_at, line_items'\)/,
+      /\.select\('id, invoice_number, public_slug, status, customer_name, subtotal_cents, tax_cents, total_cents, deposit_amount_cents, issued_at, due_at, paid_at, line_items'\)/,
     );
     // PublicInvoice TS type also excludes the sensitive columns.
     expect(SRC).not.toMatch(/customer_email:/);

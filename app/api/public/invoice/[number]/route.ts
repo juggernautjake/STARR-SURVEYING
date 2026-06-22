@@ -30,6 +30,7 @@ import {
   type LineItemPublic,
   type PublicPaymentSummary,
 } from '@/lib/payments/invoice-public';
+import { decideUpfrontAcceptance } from '@/lib/payments/upfront-rule';
 
 interface PublicInvoice {
   invoice_number: string;
@@ -40,6 +41,14 @@ interface PublicInvoice {
   tax_cents: number;
   total_cents: number;
   balance_cents: number;
+  // S4 — upfront/deposit so /pay can show the banner + clamp the amount input.
+  deposit_amount_cents: number;
+  /** Smallest the next payment may be (cents): the outstanding upfront, or 1. */
+  min_payment_cents: number;
+  /** Largest the next payment may be (cents): the remaining balance. */
+  max_payment_cents: number;
+  /** True while the cumulative paid hasn't yet met the upfront requirement. */
+  upfront_outstanding: boolean;
   issued_at: string | null;
   due_at: string | null;
   paid_at: string | null;
@@ -63,7 +72,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { data: invoice, error } = await supabaseAdmin
     .from('customer_invoices')
-    .select('invoice_number, public_slug, status, customer_name, subtotal_cents, tax_cents, total_cents, issued_at, due_at, paid_at, line_items')
+    .select('id, invoice_number, public_slug, status, customer_name, subtotal_cents, tax_cents, total_cents, deposit_amount_cents, issued_at, due_at, paid_at, line_items')
     .or(`invoice_number.eq.${upper},public_slug.eq.${rawKey}`)
     .maybeSingle();
 
@@ -80,7 +89,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const { data: payments } = await supabaseAdmin
     .from('payments')
     .select('amount_cents, method, status, cleared_at, external_id, payer_email')
-    .eq('invoice_id', (invoice as { id?: string }).id ?? '00000000-0000-0000-0000-000000000000')
+    .eq('invoice_id', invoice.id)
     .order('cleared_at', { ascending: false });
 
   const paid = sumSucceededPayments(payments ?? []);
@@ -89,6 +98,16 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .filter((s: PublicPaymentSummary | null): s is PublicPaymentSummary => s !== null);
   const total = typeof invoice.total_cents === 'number' ? invoice.total_cents : 0;
   const balance = Math.max(0, total - paid);
+
+  // Upfront/deposit envelope for the next payment — reuse the same rule the
+  // payment routes enforce so the UI clamp matches server validation exactly.
+  const deposit = typeof invoice.deposit_amount_cents === 'number' ? invoice.deposit_amount_cents : 0;
+  const envelope = decideUpfrontAcceptance({
+    deposit_amount_cents: deposit,
+    prior_paid_cents: paid,
+    intended_amount_cents: balance, // a known-valid amount → returns min/max
+    total_cents: total,
+  });
 
   const body: PublicInvoice = {
     invoice_number: invoice.invoice_number,
@@ -99,6 +118,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     tax_cents: invoice.tax_cents ?? 0,
     total_cents: total,
     balance_cents: balance,
+    deposit_amount_cents: deposit,
+    min_payment_cents: envelope.min_cents,
+    max_payment_cents: envelope.max_cents,
+    upfront_outstanding: balance > 0 && paid < Math.min(deposit, total),
     issued_at: invoice.issued_at ?? null,
     due_at: invoice.due_at ?? null,
     paid_at: invoice.paid_at ?? null,

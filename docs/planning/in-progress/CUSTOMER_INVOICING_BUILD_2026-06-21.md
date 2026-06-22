@@ -43,7 +43,8 @@ real Stripe money is the owner's call after a Stripe test-mode transaction.
   `lib/payments/rls-allowlist.ts` + the 3 affected test suites
   (payment-foundations, payment-office-closeout, payment-rls-audit). Apply seeds
   323-327 to live; verify all 5 tables exist. Leave Feature-A sites alone.
-- [ ] **S2 — Upfront/deposit columns + resolver.** New seed
+- [x] **S2 — Upfront/deposit columns + resolver.** Shipped 2026-06-21 (adb73f0a).
+  seed 360 applied; upfront-rule.ts (14 tests); create route stores deposit. New seed
   `360_customer_invoice_deposits.sql`: `ALTER TABLE customer_invoices ADD COLUMN
   IF NOT EXISTS deposit_type TEXT CHECK (deposit_type IN ('none','percent','fixed'))
   NOT NULL DEFAULT 'none', deposit_value NUMERIC(12,2), deposit_amount_cents BIGINT
@@ -51,10 +52,16 @@ real Stripe money is the owner's call after a Stripe test-mode transaction.
   `lib/payments/upfront-rule.ts`: `resolveDepositAmountCents` +
   `decideUpfrontAcceptance` (pure, vitest-tested). Wire resolve into invoice
   create so `deposit_amount_cents` is set at create time. Apply seed.
-- [ ] **S3 — Enforce the rule in payment paths.** `intent` + `attempt` routes
+- [x] **S3 — Enforce the rule in payment paths.** Shipped 2026-06-21 (caef4a8c).
+  intent + attempt return 422 + message when below upfront / above balance;
+  intent accepts optional amount_cents. `intent` + `attempt` routes
   call `decideUpfrontAcceptance`; reject with HTTP 422 + message when below the
   upfront on the first payment, or above remaining balance / over total.
-- [ ] **S4 — Customer `/pay` upfront UX.** Banner "Your first payment must be at
+- [x] **S4 — Customer `/pay` upfront UX.** Shipped 2026-06-21. Amount selector
+  (defaults to balance, clamped min=upfront-due / max=balance) + required-upfront
+  banner + inline error mirroring the server rule; also fixed a latent bug where
+  the public GET queried payments with a missing `id` (balance never decreased).
+  Excluded stale `.claude/worktrees` from vitest. Banner "Your first payment must be at
   least $X" when `deposit_amount_cents > 0 && prior_paid < deposit`; constrain
   the amount input min (upfront-due) / max (balance).
 - [ ] **S5 — Composer deposit picker.** `/admin/invoices/new`: none / percent /
