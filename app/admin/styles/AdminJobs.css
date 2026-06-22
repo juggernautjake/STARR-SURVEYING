@@ -59,6 +59,12 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  /* jobs-card-trash-overlap-2026-06-22 — reserve room on the right
+   * edge so the parent's absolute-positioned delete/restore overlay
+   * (jobActionOverlayStyle in app/admin/jobs/page.tsx) never crashes
+   * into the stage pill. 2.5rem covers the 28px round overlay + its
+   * 8px right offset + breathing room. */
+  padding-right: 2.5rem;
 }
 .job-card__number {
   font-size: 0.75rem;

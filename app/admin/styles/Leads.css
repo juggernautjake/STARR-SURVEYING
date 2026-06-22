@@ -121,17 +121,29 @@
   flex-wrap: wrap;
 }
 .lead-card__btn {
-  padding: 0.35rem 0.7rem;
-  border-radius: 0.35rem;
+  /* leads-card-buttons-2026-06-22 — inline-flex + center so the rule
+   * applies to BOTH <button> and <a> (Link renders <a>, which is
+   * inline by default → min-height was being silently ignored, so the
+   * "Open →" link sat shorter than the navy "Mark contacted" button
+   * next to it). gap handles the icon spacing without the
+   * verticalAlign hack that was also bumping the button height. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0 0.85rem;
+  height: 34px;
+  border-radius: 0.45rem;
   border: 1px solid #E5E7EB;
   background: var(--color-bg-card);
   color: var(--color-text-primary, #111827);
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 120ms ease;
-  /* iOS-friendly tap target: 44pt is the Apple HIG minimum. */
-  min-height: 32px;
+  text-decoration: none;
+  white-space: nowrap;
+  box-sizing: border-box;
 }
 .lead-card__btn:hover {
   border-color: var(--color-brand-navy);
@@ -158,13 +170,17 @@
 .lead-card__status-select {
   flex: 1;
   min-width: 7rem;
-  font-size: 0.75rem;
-  padding: 0.3rem 0.45rem;
-  border-radius: 0.35rem;
+  font-size: 0.78rem;
+  padding: 0 0.55rem;
+  border-radius: 0.45rem;
   border: 1px solid #E5E7EB;
   background: var(--color-bg-card);
   color: var(--color-text-primary, #111827);
-  min-height: 32px;
+  /* Match the buttons' explicit height so the toolbar row reads as
+   * a single baseline regardless of which renderer is rendering
+   * the control. */
+  height: 34px;
+  box-sizing: border-box;
 }
 
 /* Tablet — same auto-fit grid as the list parent, but tuned to a

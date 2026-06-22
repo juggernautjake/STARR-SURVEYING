@@ -262,18 +262,16 @@ export default function FinancesPage() {
             maxLength={64}
           />
         </label>
-        {/* finances-toolbar-alignment-2026-06-22 — wrap each action
-            button in the same `styles.field` column shape (label
-            spacer + control) the labeled selects use so every
-            column has identical height + intrinsic baseline. The
-            row's flex-end alignment was bottom-aligning the BOXES
-            but the input vs button intrinsic baselines differ by
-            a few pixels, so the buttons appeared to sit lower.
-            Invisible spacer labels make every column structurally
-            identical → everything lines up regardless of native
-            control baselines. */}
-        <div style={styles.field}>
-          <span style={styles.fieldLabelSpacer} aria-hidden>&nbsp;</span>
+        {/* finances-toolbar-alignment-2026-06-22-v2 — switch from a
+            spacer style (`fieldLabelSpacer`) to the EXACT same
+            `fieldLabel` style as the labeled rows, just with `&nbsp;`
+            as content. Real text and a single nbsp produce slightly
+            different line-box heights in some browsers (descender
+            metrics differ); byte-for-byte identical inline style +
+            element type (`<label>`) eliminates that drift, so the
+            buttons land on the exact same baseline as the inputs. */}
+        <label style={styles.field} aria-label="Refresh the summary">
+          <span style={styles.fieldLabel} aria-hidden>&nbsp;</span>
           <button
             type="button"
             style={styles.refreshBtn}
@@ -282,9 +280,9 @@ export default function FinancesPage() {
           >
             {loading ? 'Loading…' : 'Refresh'}
           </button>
-        </div>
-        <div style={styles.field}>
-          <span style={styles.fieldLabelSpacer} aria-hidden>&nbsp;</span>
+        </label>
+        <label style={styles.field} aria-label="Export the summary as CSV">
+          <span style={styles.fieldLabel} aria-hidden>&nbsp;</span>
           <button
             type="button"
             style={styles.exportBtn}
@@ -298,9 +296,9 @@ export default function FinancesPage() {
           >
             {exporting ? 'Exporting…' : <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><Download size={14} /> Export CSV</span>}
           </button>
-        </div>
-        <div style={styles.field}>
-          <span style={styles.fieldLabelSpacer} aria-hidden>&nbsp;</span>
+        </label>
+        <label style={styles.field} aria-label="Lock this period">
+          <span style={styles.fieldLabel} aria-hidden>&nbsp;</span>
           <button
             type="button"
             style={styles.lockBtn}
@@ -323,7 +321,7 @@ export default function FinancesPage() {
               ? 'Locking…'
               : `🔒 Lock ${data?.receipts?.by_status?.approved?.count ?? 0} into period`}
           </button>
-        </div>
+        </label>
       </div>
 
       {actionMsg ? (
@@ -766,19 +764,6 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     lineHeight: 1.4,
-  },
-  // finances-toolbar-alignment-2026-06-22 — same intrinsic height as
-  // `fieldLabel` so a button column matches a labeled-input column
-  // pixel for pixel. The `&nbsp;` content keeps the line box from
-  // collapsing in browsers that strip empty inline elements.
-  fieldLabelSpacer: {
-    fontSize: 11,
-    fontWeight: 600,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    lineHeight: 1.4,
-    visibility: 'hidden',
-    userSelect: 'none',
   },
   // toolbar-alignment-fix 2026-05-30 — every control in the toolbar
   // shares one explicit height + border-box so the labeled fields and

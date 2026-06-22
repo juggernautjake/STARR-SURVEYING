@@ -208,14 +208,23 @@ export default function FieldDataPage() {
             style={styles.input}
           />
         </label>
-        <button
-          type="button"
-          onClick={() => void fetchData()}
-          style={styles.refreshBtn}
-          disabled={loading}
-        >
-          {loading ? 'Loading…' : 'Refresh'}
-        </button>
+        {/* field-data-toolbar-alignment-2026-06-22 — the Refresh button
+            sits in its own filterLabel-shaped column with an invisible
+            `&nbsp;` label, so its column structure is byte-for-byte
+            identical to the labeled-input columns to its left. The
+            heights match exactly, so the button bottom (and top) land
+            on the same baseline as the inputs. */}
+        <label style={styles.field} aria-label="Refresh the list">
+          <span style={styles.fieldLabel} aria-hidden>&nbsp;</span>
+          <button
+            type="button"
+            onClick={() => void fetchData()}
+            style={styles.refreshBtn}
+            disabled={loading}
+          >
+            {loading ? 'Loading…' : 'Refresh'}
+          </button>
+        </label>
       </div>
 
       {error ? <div style={styles.error}>{error}</div> : null}

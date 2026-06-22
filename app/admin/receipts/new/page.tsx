@@ -5,57 +5,64 @@
 // the user wants to drop in). The page exists so the admin web hub
 // button is no longer a dead "Coming soon" stub.
 //
-// receipt-camera-capture-2026-06-22 — added device-camera capture so
-// the page works as a real PWA-style camera flow on mobile (and on
-// any desktop that exposes a webcam). The pattern relies on the
-// standard HTML `capture="environment"` attribute on a file input
-// rather than getUserMedia + a custom shutter UI, because:
-//   - iOS Safari and Android Chrome BOTH honor `capture` and open the
-//     rear camera directly with a familiar OS shutter UI. getUserMedia
-//     on iOS requires PWA install + an inline-playable <video> dance
-//     that's brittle across iOS versions.
-//   - Desktop Chrome/Edge present a webcam picker when `capture` is
-//     set; Safari/Firefox fall back to a file picker. Acceptable
-//     graceful degradation — the "Choose a file" path is still right
-//     next to the camera button for those users.
+// receipt-camera-getusermedia-2026-06-22 — switched from the
+// `capture="environment"` file-input pattern to a real getUserMedia
+// camera flow. The capture attribute is silently ignored by most
+// desktop browsers (and a chunk of mobile WebViews), so users saw the
+// file picker open even when they clicked "Take a photo". With
+// getUserMedia we render a live <video> preview, a shutter button, and
+// a flip-camera button. The capture-attribute file input is kept as a
+// fallback for browsers/contexts where getUserMedia isn't available
+// (iOS Safari pre-14.3 WebView, http origins without HTTPS, etc.).
 //
 // UX:
-//   - Two prominent action buttons: "Take a photo" (camera) +
-//     "Choose a file" (gallery / disk / PDF).
-//   - Optional job id (free text — bookkeeper reassigns later).
-//   - Optional notes (free text).
-//   - Preview of the picked image before upload (revokes its object
-//     URL on unmount so the blob is GC'd).
-//   - "Upload" POSTs multipart to /api/admin/receipts/upload; on
-//     success navigates back to /admin/receipts so the user sees
-//     their receipt at the top of the pending queue once AI
-//     extraction finishes.
+//   - "Take a photo" → prompts for camera permission, shows a live
+//     viewfinder. Shutter button snaps the frame, converts it to a
+//     JPEG File via <canvas>.toBlob, and lands it in the same preview
+//     + upload flow the file picker uses.
+//   - "Choose a file" → plain file picker, accepts image/* + PDF.
+//   - Preview shows the picked/captured image; clear button retakes.
+//   - Optional job id + notes; "Upload" POSTs to
+//     /api/admin/receipts/upload.
 
 'use client';
 
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const ACCEPTED_TYPES_FILE = 'image/*,application/pdf';
 const ACCEPTED_TYPES_CAMERA = 'image/*';
 const MAX_BYTES = 12 * 1024 * 1024;
+const CAPTURE_JPEG_QUALITY = 0.92;
+
+type FacingMode = 'environment' | 'user';
 
 export default function NewReceiptPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
-  // Two hidden inputs: the camera one carries `capture="environment"`
-  // so mobile devices launch the rear camera; the file one is a plain
-  // picker that also accepts PDFs.
-  const cameraRef = useRef<HTMLInputElement>(null);
+  // Two hidden inputs. The camera one keeps `capture="environment"` so
+  // we have a graceful fallback when getUserMedia is unavailable; the
+  // file one is a plain picker that also accepts PDFs.
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [jobId, setJobId] = useState('');
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Live-camera state. cameraStream holds the active MediaStream when
+  // the viewfinder is open; closing the viewfinder stops every track.
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [cameraStarting, setCameraStarting] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [facingMode, setFacingMode] = useState<FacingMode>('environment');
 
   // Object URL for the preview — revoke on change/unmount so the
   // browser doesn't leak the blob.
@@ -69,12 +76,167 @@ export default function NewReceiptPage() {
     };
   }, [previewUrl]);
 
+  // Attach the active MediaStream to the <video> as soon as it lands.
+  // playsInline is set declaratively below so iOS Safari doesn't go
+  // fullscreen.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (v && cameraStream) {
+      v.srcObject = cameraStream;
+      // Defensive: some Safari versions need an explicit play() after
+      // srcObject assignment.
+      v.play().catch(() => { /* autoplay block — viewfinder still works */ });
+    }
+    return () => {
+      if (v) v.srcObject = null;
+    };
+  }, [cameraStream]);
+
+  // Stop every track on unmount so we never strand the camera light on.
+  useEffect(() => {
+    return () => {
+      cameraStream?.getTracks().forEach((t) => t.stop());
+    };
+  }, [cameraStream]);
+
+  const stopCameraTracks = useCallback((stream: MediaStream | null) => {
+    stream?.getTracks().forEach((t) => t.stop());
+  }, []);
+
+  const startCameraStream = useCallback(async (mode: FacingMode): Promise<MediaStream | null> => {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      return null;
+    }
+    // Try the requested facing mode first; if the device only has one
+    // camera (most laptops), retry with no constraint so we still get a
+    // stream instead of a NotFoundError.
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: mode } },
+        audio: false,
+      });
+    } catch (firstErr) {
+      if (firstErr instanceof DOMException && firstErr.name === 'OverconstrainedError') {
+        return await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
+      throw firstErr;
+    }
+  }, []);
+
+  async function openCamera() {
+    setError(null);
+    setCameraError(null);
+    // Browsers that don't expose getUserMedia at all — fall back to the
+    // file input (it carries `capture="environment"` so mobile WebViews
+    // still get the OS camera).
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      cameraInputRef.current?.click();
+      return;
+    }
+    if (!window.isSecureContext) {
+      setCameraError(
+        'Camera capture requires a secure (HTTPS) context. Use "Choose a file" or open this page over HTTPS.',
+      );
+      return;
+    }
+    setCameraStarting(true);
+    try {
+      const stream = await startCameraStream(facingMode);
+      if (!stream) {
+        cameraInputRef.current?.click();
+        return;
+      }
+      setCameraStream(stream);
+      setCameraOpen(true);
+    } catch (err) {
+      const name = err instanceof DOMException ? err.name : '';
+      if (name === 'NotAllowedError' || name === 'SecurityError') {
+        setCameraError(
+          'Camera permission denied. Grant access in your browser settings, or use "Choose a file" instead.',
+        );
+      } else if (name === 'NotFoundError') {
+        setCameraError('No camera detected on this device. Use "Choose a file" instead.');
+      } else if (name === 'NotReadableError') {
+        setCameraError(
+          'Camera is in use by another app. Close it and try again, or use "Choose a file".',
+        );
+      } else {
+        const msg = err instanceof Error ? err.message : String(err);
+        setCameraError(`Camera not available: ${msg}. Use "Choose a file" instead.`);
+      }
+    } finally {
+      setCameraStarting(false);
+    }
+  }
+
+  function closeCamera() {
+    stopCameraTracks(cameraStream);
+    setCameraStream(null);
+    setCameraOpen(false);
+  }
+
+  async function switchCamera() {
+    if (!cameraStream) return;
+    const next: FacingMode = facingMode === 'environment' ? 'user' : 'environment';
+    stopCameraTracks(cameraStream);
+    setCameraStream(null);
+    setFacingMode(next);
+    try {
+      const stream = await startCameraStream(next);
+      if (!stream) throw new Error('No stream returned');
+      setCameraStream(stream);
+    } catch (err) {
+      setCameraError(
+        `Couldn${"’"}t switch cameras: ${err instanceof Error ? err.message : String(err)}.`,
+      );
+      closeCamera();
+    }
+  }
+
+  function snapPhoto() {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      setCameraError('Camera not ready yet — give it a moment and try again.');
+      return;
+    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      setCameraError('Could not get a canvas context to capture the frame.');
+      return;
+    }
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          setCameraError('Capture failed. Please try again.');
+          return;
+        }
+        if (blob.size > MAX_BYTES) {
+          setCameraError(`Captured photo is ${(blob.size / 1024 / 1024).toFixed(1)} MB — please retry with a smaller image.`);
+          return;
+        }
+        const captured = new File([blob], `receipt-${Date.now()}.jpg`, {
+          type: 'image/jpeg',
+          lastModified: Date.now(),
+        });
+        setFile(captured);
+        closeCamera();
+      },
+      'image/jpeg',
+      CAPTURE_JPEG_QUALITY,
+    );
+  }
+
   function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     setError(null);
     const f = e.target.files?.[0] ?? null;
     // Reset both inputs after every change so picking the same file
     // twice in a row still re-fires `onChange`.
-    if (cameraRef.current) cameraRef.current.value = '';
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
     if (fileRef.current && fileRef.current !== e.target) fileRef.current.value = '';
     if (!f) { setFile(null); return; }
     if (f.size > MAX_BYTES) {
@@ -85,10 +247,6 @@ export default function NewReceiptPage() {
     setFile(f);
   }
 
-  function openCamera() {
-    setError(null);
-    cameraRef.current?.click();
-  }
   function openFilePicker() {
     setError(null);
     fileRef.current?.click();
@@ -96,7 +254,7 @@ export default function NewReceiptPage() {
   function clearFile() {
     setFile(null);
     setError(null);
-    if (cameraRef.current) cameraRef.current.value = '';
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
     if (fileRef.current) fileRef.current.value = '';
   }
 
@@ -148,11 +306,11 @@ export default function NewReceiptPage() {
       <section style={styles.card}>
         <div style={styles.field}>
           <span style={styles.label}>Receipt photo</span>
-          {/* Hidden inputs. The camera one carries `capture="environment"`
-              so mobile launches the rear camera; the file one is a plain
-              picker that also accepts PDFs. Both feed the same handler. */}
+          {/* Fallback hidden inputs — used when getUserMedia is
+              unavailable (older WebViews, http origins, locked-down
+              MDM profiles) or when the user clicks "Choose a file". */}
           <input
-            ref={cameraRef}
+            ref={cameraInputRef}
             type="file"
             accept={ACCEPTED_TYPES_CAMERA}
             capture="environment"
@@ -172,35 +330,53 @@ export default function NewReceiptPage() {
             aria-hidden
             tabIndex={-1}
           />
-          <div style={styles.captureRow}>
-            <button
-              type="button"
-              onClick={openCamera}
-              disabled={busy}
-              style={styles.captureBtnPrimary}
-              aria-label="Take a photo with the device camera"
-            >
-              <span aria-hidden style={styles.captureBtnIcon}>📷</span>
-              <span>Take a photo</span>
-            </button>
-            <button
-              type="button"
-              onClick={openFilePicker}
-              disabled={busy}
-              style={styles.captureBtnSecondary}
-              aria-label="Choose an image or PDF from your device"
-            >
-              <span aria-hidden style={styles.captureBtnIcon}>📁</span>
-              <span>Choose a file</span>
-            </button>
-          </div>
-          <span style={styles.hint}>
-            Camera opens the rear lens on phones and tablets. Max 12 MB.
-            JPEG/PNG/WebP/HEIC and PDF accepted.
-          </span>
+
+          {cameraOpen ? (
+            <CameraViewfinder
+              videoRef={videoRef}
+              canvasRef={canvasRef}
+              onSnap={snapPhoto}
+              onCancel={closeCamera}
+              onSwitch={switchCamera}
+              facingMode={facingMode}
+            />
+          ) : (
+            <>
+              <div style={styles.captureRow}>
+                <button
+                  type="button"
+                  onClick={openCamera}
+                  disabled={busy || cameraStarting}
+                  style={styles.captureBtnPrimary}
+                  aria-label="Take a photo with the device camera"
+                >
+                  <span aria-hidden style={styles.captureBtnIcon}>📷</span>
+                  <span>{cameraStarting ? 'Starting camera…' : 'Take a photo'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={openFilePicker}
+                  disabled={busy}
+                  style={styles.captureBtnSecondary}
+                  aria-label="Choose an image or PDF from your device"
+                >
+                  <span aria-hidden style={styles.captureBtnIcon}>📁</span>
+                  <span>Choose a file</span>
+                </button>
+              </div>
+              {cameraError && (
+                <p role="alert" style={styles.cameraError}>{cameraError}</p>
+              )}
+              <span style={styles.hint}>
+                Camera opens a live viewfinder in your browser. You may
+                need to grant camera permission the first time. Max 12 MB.
+                JPEG/PNG/WebP/HEIC and PDF accepted.
+              </span>
+            </>
+          )}
         </div>
 
-        {previewUrl && (
+        {previewUrl && !cameraOpen && (
           <div style={styles.previewWrap}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={previewUrl} alt="Receipt preview" style={styles.preview} />
@@ -215,7 +391,7 @@ export default function NewReceiptPage() {
             </button>
           </div>
         )}
-        {file && !previewUrl && (
+        {file && !previewUrl && !cameraOpen && (
           <div style={styles.previewWrap}>
             <p style={styles.fileSummary}>
               {file.name} — {(file.size / 1024).toFixed(0)} KB. Preview not
@@ -272,6 +448,70 @@ export default function NewReceiptPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+/** Inline viewfinder — live video + shutter + cancel + switch-camera.
+ *  Off-DOM canvas hosts the captured frame before .toBlob hands it
+ *  back to the upload flow. */
+function CameraViewfinder({
+  videoRef,
+  canvasRef,
+  onSnap,
+  onCancel,
+  onSwitch,
+  facingMode,
+}: {
+  videoRef: React.MutableRefObject<HTMLVideoElement | null>;
+  canvasRef: React.MutableRefObject<HTMLCanvasElement | null>;
+  onSnap: () => void;
+  onCancel: () => void;
+  onSwitch: () => void;
+  facingMode: FacingMode;
+}) {
+  return (
+    <div style={styles.viewfinder}>
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        // `user` facing → mirror so the user sees what they expect.
+        // `environment` facing → no mirror.
+        style={{
+          ...styles.video,
+          transform: facingMode === 'user' ? 'scaleX(-1)' : undefined,
+        }}
+      />
+      <canvas ref={canvasRef} style={{ display: 'none' }} aria-hidden />
+      <div style={styles.viewfinderControls}>
+        <button
+          type="button"
+          onClick={onCancel}
+          style={styles.viewfinderCancel}
+          aria-label="Cancel camera"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onSnap}
+          style={styles.shutterBtn}
+          aria-label="Take photo"
+        >
+          <span aria-hidden style={styles.shutterInner} />
+        </button>
+        <button
+          type="button"
+          onClick={onSwitch}
+          style={styles.viewfinderSwitch}
+          aria-label="Switch camera"
+          title={facingMode === 'environment' ? 'Switch to front camera' : 'Switch to rear camera'}
+        >
+          <span aria-hidden style={styles.viewfinderSwitchIcon}>↺</span>
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -408,6 +648,87 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '0.8rem 0.6rem',
   },
   preview: { maxWidth: '100%', maxHeight: 360, borderRadius: 6 },
+  // ── Live-camera viewfinder ──────────────────────────────────────
+  viewfinder: {
+    position: 'relative',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.6rem',
+    background: '#0b1220',
+    borderRadius: 12,
+    padding: '0.6rem',
+    overflow: 'hidden',
+  },
+  video: {
+    width: '100%',
+    maxHeight: 480,
+    background: '#000',
+    borderRadius: 8,
+    objectFit: 'cover',
+    display: 'block',
+  },
+  viewfinderControls: {
+    display: 'grid',
+    gridTemplateColumns: '1fr auto 1fr',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.25rem 0.5rem 0.5rem',
+  },
+  viewfinderCancel: {
+    justifySelf: 'start',
+    padding: '0.5rem 1rem',
+    borderRadius: 9999,
+    border: '1px solid rgba(255,255,255,0.35)',
+    background: 'transparent',
+    color: '#fff',
+    fontSize: '0.9rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  shutterBtn: {
+    width: 72,
+    height: 72,
+    borderRadius: '50%',
+    border: '4px solid rgba(255,255,255,0.92)',
+    background: 'transparent',
+    cursor: 'pointer',
+    padding: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.45)',
+  },
+  shutterInner: {
+    display: 'block',
+    width: 54,
+    height: 54,
+    borderRadius: '50%',
+    background: '#ffffff',
+    transition: 'transform 80ms ease',
+  },
+  viewfinderSwitch: {
+    justifySelf: 'end',
+    width: 44,
+    height: 44,
+    borderRadius: '50%',
+    border: '1px solid rgba(255,255,255,0.35)',
+    background: 'rgba(255,255,255,0.08)',
+    color: '#fff',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewfinderSwitchIcon: { fontSize: '1.3rem', lineHeight: 1 },
+  cameraError: {
+    margin: '0.25rem 0 0',
+    padding: '0.5rem 0.7rem',
+    background: '#fff7ed',
+    border: '1px solid #fed7aa',
+    color: '#9a3412',
+    borderRadius: 8,
+    fontSize: '0.85rem',
+  },
   error: {
     margin: 0,
     padding: '0.55rem 0.7rem',
