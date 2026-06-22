@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useState, FormEvent, ChangeEvent } from 'react';
+import PayInvoiceCTA from './components/PayInvoiceCTA';
 import { getDirectionsUrl, OFFICE_ADDRESS } from './components/ServiceAreaMap';
 import { trackConversion } from './utils/gtag';
 import {
@@ -784,6 +785,13 @@ export default function HomePage(): React.ReactElement {
             <a href="tel:9366620077" className="home-cta__btn home-cta__btn--secondary">
               Call (936) 662-0077
             </a>
+          </div>
+          {/* payment-portal-discoverability-2026-06-22 — quiet
+              reminder that existing customers can pay online. Sits
+              under the primary "Get Free Estimate" CTA so it
+              doesn't compete with new-lead capture. */}
+          <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center' }}>
+            <PayInvoiceCTA variant="chip" headline="Existing customer?" body="Pay your invoice online" />
           </div>
         </div>
       </section>

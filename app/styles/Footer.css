@@ -248,6 +248,27 @@
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
 }
 
+/* payment-portal-discoverability-2026-06-22 — wrap the existing Quote
+ * CTA + the new Pay invoice CTA so they sit side-by-side, wrapping
+ * to a stacked column on phones. */
+.footer__cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+/* Pay invoice CTA — navy variant so it reads as the existing-customer
+ * counterpart to the red Quote CTA. */
+.footer__cta--pay {
+  background-color: var(--brand-blue, #1d4ed8);
+}
+
+.footer__cta--pay:hover {
+  background-color: #FFFFFF;
+  color: var(--brand-blue, #1d4ed8);
+}
+
 /* =============================================================================
    9.5. LICENSE INFO - Below CTA Button
    ============================================================================= */
@@ -1154,6 +1175,18 @@
 
 .footer__employee-link:hover {
   color: rgba(255, 255, 255, 0.8);
+}
+
+/* payment-portal-discoverability-2026-06-22 — give the Pay variant
+ * more presence than the Employee Login peer (white instead of dim
+ * gray) so it actually reads as a customer affordance. */
+.footer__employee-link--pay {
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 600;
+}
+
+.footer__employee-link--pay:hover {
+  color: #FFFFFF;
 }
 
 /* Responsive adjustments for bottom-right wrapper */

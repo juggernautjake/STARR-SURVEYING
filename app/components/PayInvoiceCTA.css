@@ -1,0 +1,143 @@
+/* app/components/PayInvoiceCTA.css
+ *
+ * payment-portal-discoverability-2026-06-22 — three variants of the
+ * "Need to make a payment? Pay your invoice →" CTA. Brand-aligned
+ * with the red-on-navy palette the rest of the public site uses. */
+
+.pay-cta {
+  font-family: var(--font-body, system-ui, sans-serif);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border-radius: 14px;
+  text-align: left;
+  color: #1F2937;
+}
+
+/* ── Ribbon — full-width hero-style bar ───────────────────────────── */
+.pay-cta--ribbon {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  padding: 1.5rem clamp(1rem, 3vw, 2rem);
+  background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%);
+  border: 1px solid #D6D9E3;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.05);
+}
+
+.pay-cta--ribbon .pay-cta__text { flex: 1 1 320px; min-width: 0; }
+
+.pay-cta--ribbon .pay-cta__headline {
+  margin: 0 0 0.25rem;
+  font-family: var(--font-heading, var(--font-body, system-ui));
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #0F1419;
+}
+
+.pay-cta--ribbon .pay-cta__body {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #4B5563;
+  line-height: 1.5;
+  max-width: 56ch;
+}
+
+/* ── Inline — pill that lives inside flowing copy ─────────────────── */
+.pay-cta--inline {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.85rem;
+  background: #F1F5F9;
+  border: 1px solid #D6D9E3;
+  border-radius: 9999px;
+  font-size: 0.88rem;
+}
+
+.pay-cta--inline .pay-cta__headline {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: #1F2937;
+}
+
+.pay-cta--inline .pay-cta__body { display: none; }
+
+/* ── Chip — low-key footer-style under a hero ─────────────────────── */
+.pay-cta--chip {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.95rem;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(180, 35, 24, 0.25);
+  border-radius: 9999px;
+  font-size: 0.9rem;
+  color: #0F1419;
+  backdrop-filter: blur(4px);
+}
+
+.pay-cta--chip .pay-cta__headline {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.pay-cta--chip .pay-cta__body {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #4B5563;
+}
+
+/* ── Shared CTA link styling ──────────────────────────────────────── */
+.pay-cta__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.7rem 1.3rem;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #B42318 0%, #DC2626 100%);
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.005em;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(180, 35, 24, 0.28);
+  transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
+}
+
+.pay-cta__link:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+  box-shadow: 0 8px 20px rgba(180, 35, 24, 0.35);
+  color: #FFFFFF;
+}
+
+.pay-cta--inline .pay-cta__link {
+  padding: 0.35rem 0.85rem;
+  font-size: 0.82rem;
+  box-shadow: 0 2px 8px rgba(180, 35, 24, 0.22);
+}
+
+.pay-cta--chip .pay-cta__link {
+  padding: 0.4rem 0.95rem;
+  font-size: 0.85rem;
+  box-shadow: 0 2px 8px rgba(180, 35, 24, 0.22);
+}
+
+@media (max-width: 600px) {
+  .pay-cta--ribbon {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.85rem;
+    padding: 1.25rem 1rem;
+  }
+  .pay-cta--ribbon .pay-cta__link {
+    width: 100%;
+    justify-content: center;
+  }
+}

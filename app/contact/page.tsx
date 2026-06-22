@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState, FormEvent, ChangeEvent } from 'react';
+import PayInvoiceCTA from '../components/PayInvoiceCTA';
 import { OFFICE_ADDRESS, OFFICE_ADDRESS_LINE1, OFFICE_ADDRESS_LINE2 } from '../components/ServiceAreaMap';
 import { trackConversion } from '../utils/gtag';
 import {
@@ -658,6 +659,13 @@ export default function ContactPage(): React.ReactElement {
             <a href="mailto:info@starr-surveying.com" className="contact-cta__btn contact-cta__btn--secondary">
               ✉️ Send Email
             </a>
+          </div>
+          {/* payment-portal-discoverability-2026-06-22 — surface the
+              customer payment portal at the bottom of the contact
+              page, since "I need to pay my invoice" is a common
+              reason someone hits Contact. */}
+          <div style={{ marginTop: '2rem' }}>
+            <PayInvoiceCTA variant="ribbon" />
           </div>
         </div>
       </section>

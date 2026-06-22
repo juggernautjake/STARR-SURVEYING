@@ -28,6 +28,11 @@ const Header = (): React.ReactElement => {
     { href: '/resources', label: 'Resources' },
     { href: '/credentials', label: 'Credentials' },
     { href: '/contact', label: 'Contact' },
+    // payment-portal-discoverability-2026-06-22 — customer-facing
+    // payment portal at /pay. Styled as a CTA-flavored link (green
+    // accent below) so it reads as a high-intent action, not just
+    // another regular page.
+    { href: '/pay', label: 'Pay Invoice' },
   ];
 
   useEffect(() => {
@@ -81,7 +86,7 @@ const Header = (): React.ReactElement => {
                 <Link 
                   key={link.href} 
                   href={link.href} 
-                  className={`navbar__link ${link.label === 'Pricing' ? 'navbar__link--pricing' : ''}`}
+                  className={`navbar__link ${link.label === 'Pricing' ? 'navbar__link--pricing' : ''}${link.label === 'Pay Invoice' ? ' navbar__link--pay' : ''}`}
                 >
                   {link.label}
                 </Link>
@@ -111,7 +116,7 @@ const Header = (): React.ReactElement => {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`navbar__dropdown-link ${link.label === 'Pricing' ? 'navbar__dropdown-link--pricing' : ''}`}
+                  className={`navbar__dropdown-link ${link.label === 'Pricing' ? 'navbar__dropdown-link--pricing' : ''}${link.label === 'Pay Invoice' ? ' navbar__dropdown-link--pay' : ''}`}
                   onClick={() => setIsOpen(false)}
                 >
                   {link.label}
@@ -136,6 +141,9 @@ const Header = (): React.ReactElement => {
             />
           </Link>
           <div className="scrolled-right">
+            <Link href="/pay" className="scrolled-pay-btn">
+              Pay Invoice
+            </Link>
             <Link href="/pricing" className="scrolled-quote-btn">
               Get Free Quote
             </Link>
@@ -154,7 +162,7 @@ const Header = (): React.ReactElement => {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`scrolled-dropdown-link ${link.label === 'Pricing' ? 'scrolled-dropdown-link--pricing' : ''}`}
+                  className={`scrolled-dropdown-link ${link.label === 'Pricing' ? 'scrolled-dropdown-link--pricing' : ''}${link.label === 'Pay Invoice' ? ' scrolled-dropdown-link--pay' : ''}`}
                   onClick={() => setIsOpen(false)}
                 >
                   {link.label}

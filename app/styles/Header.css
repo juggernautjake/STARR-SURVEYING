@@ -44,7 +44,11 @@
   --navbar-top-percent: 0.952;
   --navbar-padding-y: 1.5rem;
   --navbar-padding-x: 1.7rem;
-  --navbar-left-extend: 90px;
+  /* payment-portal-discoverability-2026-06-22 — bumped from 90px to
+   * 110px so the parallelogram clip-path still reads as a clear slope
+   * after adding the 9th nav item (Pay Invoice). Without this the
+   * wider nav makes the 10% bottom-left corner look nearly vertical. */
+  --navbar-left-extend: 110px;
   --navbar-radius: 16px;
   --navbar-inner-left-pad: 2.8rem;
   
@@ -211,6 +215,21 @@
   color: var(--green-btn-hover-text);
 }
 
+/* payment-portal-discoverability-2026-06-22 — Pay Invoice link is a
+ * second CTA-flavored item next to Pricing. White-on-navy so it reads
+ * as the "I'm an existing customer" counterpart to the green
+ * "Get a Quote" Pricing link. */
+.navbar__link--pay {
+  background-color: var(--color-blue);
+  border-color: var(--color-white);
+  color: var(--color-white);
+}
+
+.navbar__link--pay:hover {
+  background-color: var(--color-white);
+  color: var(--color-blue);
+}
+
 /* =============================================================================
    7. MOBILE MENU
    ============================================================================= */
@@ -314,6 +333,21 @@
   border-color: var(--green-btn-hover-bg);
 }
 
+/* payment-portal-discoverability-2026-06-22 — Pay Invoice dropdown
+ * row in the mobile menu. Navy CTA treatment to mirror the desktop
+ * .navbar__link--pay pill. */
+.navbar__dropdown-link--pay {
+  background-color: var(--color-blue);
+  border-color: var(--color-blue);
+  color: var(--color-white);
+}
+
+.navbar__dropdown-link--pay:hover {
+  background-color: var(--color-white);
+  color: var(--color-blue);
+  border-color: var(--color-blue);
+}
+
 /* =============================================================================
    8. SCROLLED HEADER (All screen sizes)
    ============================================================================= */
@@ -366,6 +400,31 @@
 .scrolled-quote-btn:hover {
   background-color: var(--green-btn-hover-bg);
   color: var(--green-btn-hover-text);
+}
+
+/* payment-portal-discoverability-2026-06-22 — Pay Invoice pill in the
+ * scrolled mini-nav. Navy fill so it sits next to the green quote
+ * button as a clearly-different action. */
+.scrolled-pay-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  font-weight: bold;
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--color-white);
+  background-color: var(--color-blue);
+  border: 2px solid var(--color-white);
+  border-radius: 6px;
+  text-decoration: none;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.scrolled-pay-btn:hover {
+  background-color: var(--color-white);
+  color: var(--color-blue);
 }
 
 .scrolled-hamburger {
@@ -427,6 +486,19 @@
 
 .scrolled-dropdown-link--pricing:hover {
   background-color: var(--green-btn-hover-bg);
+}
+
+/* payment-portal-discoverability-2026-06-22 — Pay Invoice variant for
+ * the scrolled-state mobile dropdown. Navy fill mirrors the navbar's
+ * Pay treatment. */
+.scrolled-dropdown-link--pay {
+  background-color: var(--color-blue);
+  color: var(--color-white);
+}
+
+.scrolled-dropdown-link--pay:hover {
+  background-color: var(--color-white);
+  color: var(--color-blue);
 }
 
 /* =============================================================================
