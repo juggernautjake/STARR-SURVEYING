@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import PayInvoiceCTA from '../components/PayInvoiceCTA';
 
 // Import Services page styles
 import '../styles/Services.css';
@@ -213,6 +214,18 @@ export default function ServicesPage(): React.ReactElement {
             <a href="tel:9366620077" className="services-cta__btn services-cta__btn--secondary">
               Call (936) 662-0077
             </a>
+          </div>
+          {/* payment-portal-discoverability-2026-06-22 — existing
+              customers reaching the bottom of /services may be
+              there to pay rather than buy more. Quiet ribbon under
+              the call-to-quote pair. */}
+          <div style={{ marginTop: '2rem', maxWidth: 720, marginLeft: 'auto', marginRight: 'auto' }}>
+            <PayInvoiceCTA
+              variant="ribbon"
+              headline="Already a customer?"
+              body="Pay your Starr Surveying invoice online — any time, from any device."
+              ctaLabel="Pay your invoice →"
+            />
           </div>
         </div>
       </section>

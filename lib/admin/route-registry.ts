@@ -155,6 +155,7 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/research-cad',         label: 'Research & CAD',   workspace: 'research-cad', iconName: 'Compass',     description: 'Research projects + CAD drawings landing.', keywords: ['cad', 'research'] },
   { href: '/admin/research',             label: 'Property Research', workspace: 'research-cad', iconName: 'Microscope',  description: 'Property research projects.', roles: [...RESEARCH_ROLES, 'field_crew', 'tech_support'], internalOnly: true, keywords: ['property', 'records'] },
   { href: '/admin/research/testing',     label: 'Testing Lab',      workspace: 'research-cad', iconName: 'FlaskConical', description: 'Test research pipelines + adapters.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['lab', 'experiments'] },
+  { href: '/admin/research/self-heal',   label: 'Site Health',      workspace: 'research-cad', iconName: 'ShieldCheck',  description: 'Run a one-time check across every county portal and toggle automatic self-healing.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['self-heal', 'monitoring', 'sweep', 'adapters', 'health'] },
   // Slice W4 (hub-cad-roles-polish-2026-06-18) — user spec: "If
   // a user does not have the drawing role and clicks the cad
   // button … they are still routed to the cad software. We might

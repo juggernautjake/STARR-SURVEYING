@@ -3,6 +3,7 @@
 
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import PayInvoiceCTA from '../components/PayInvoiceCTA';
 
 // Import Pricing page styles
 import '../styles/Pricing.css';
@@ -216,12 +217,20 @@ export default function PricingPage() {
         </div>
       </section>
 
+      {/* payment-portal-discoverability-2026-06-22 — quiet chip
+          reminding existing customers they can pay their invoice
+          online. Sits above the disclaimer so it doesn't compete
+          with the primary "get a quote" CTA above. */}
+      <section style={{ padding: '1.5rem 1rem', display: 'flex', justifyContent: 'center' }}>
+        <PayInvoiceCTA variant="inline" />
+      </section>
+
       {/* Bottom Disclaimer */}
       <section className="pricing-bottom-disclaimer">
         <div className="pricing-bottom-disclaimer__container">
           <p className="pricing-bottom-disclaimer__text">
-            <strong>Disclaimer:</strong> All pricing is a general guide only and does not constitute a quote. 
-            Actual costs may differ based on site conditions and requirements. Prices subject to change. 
+            <strong>Disclaimer:</strong> All pricing is a general guide only and does not constitute a quote.
+            Actual costs may differ based on site conditions and requirements. Prices subject to change.
             Final pricing provided in formal written quote after consultation.
           </p>
         </div>

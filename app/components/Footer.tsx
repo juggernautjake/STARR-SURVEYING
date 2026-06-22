@@ -66,6 +66,10 @@ const Footer = (): React.ReactElement => {
     { href: '/resources', label: 'Resources' },
     { href: '/credentials', label: 'Credentials' },
     { href: '/contact', label: 'Contact' },
+    // payment-portal-discoverability-2026-06-22 — surface the
+    // customer-facing payment portal in the footer link list so a
+    // customer who lands deep in the site can still find it.
+    { href: '/pay', label: 'Pay an Invoice' },
   ];
 
   const contactInfo: ContactInfo[] = [
@@ -176,11 +180,21 @@ const Footer = (): React.ReactElement => {
                 </div>
               ))}
             </div>
-            
-            {/* CTA Button */}
-            <Link href="/contact" className="footer__cta">
-              Get a Free Quote
-            </Link>
+
+            {/* CTA Button row — quote + pay */}
+            <div className="footer__cta-row">
+              <Link href="/contact" className="footer__cta">
+                Get a Free Quote
+              </Link>
+              {/* payment-portal-discoverability-2026-06-22 — secondary
+                  CTA for existing customers who want to pay their
+                  invoice. Sits next to the quote CTA so first-time
+                  visitors and returning customers both have a clear
+                  call-to-action without one being buried. */}
+              <Link href="/pay" className="footer__cta footer__cta--pay">
+                Pay an Invoice
+              </Link>
+            </div>
             
             {/* Licensed Surveyor Info - Below CTA Button */}
             <div className="footer__license">
@@ -262,6 +276,13 @@ const Footer = (): React.ReactElement => {
             <p className="footer__location">
               Professional Land Surveying • Belton, Texas • RPLS# 6706
             </p>
+            {/* payment-portal-discoverability-2026-06-22 — quiet
+                bottom-bar reminder that an online payment portal
+                exists. Sits next to Employee Login since both are
+                "you know the URL or you don't" affordances. */}
+            <Link href="/pay" className="footer__employee-link footer__employee-link--pay">
+              Pay Invoice →
+            </Link>
             <Link href="/admin/login" className="footer__employee-link">
               Employee Login
             </Link>
