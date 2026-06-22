@@ -10252,7 +10252,7 @@
   animation: spin 0.8s linear infinite;
   margin: 0 auto 0.75rem;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+/* `@keyframes spin` is defined once in globals.css (pure rotation). */
 .artifact-gallery__retry-btn {
   margin-top: 0.5rem;
   padding: 0.4rem 1rem;
