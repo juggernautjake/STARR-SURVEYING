@@ -168,13 +168,17 @@ describe('quick-actions widget — empty-state render', () => {
     // Default = grid, every starter visible.
     expect(html).toContain('New Job');
     expect(html).toContain('Open CAD');
-    expect(html).toContain('Clock In/Out');
+    // quick-actions-wiring-2026-06-22 — the clock tile flips its
+    // visible label based on session state. At SSR, no clock session
+    // is read yet so the label reads "Clock In". The catalog label
+    // ("Clock In/Out") still surfaces in aria-label / sr text.
+    expect(html).toContain('Clock In');
     // Link kind actions render as anchors.
     expect(html).toContain('href="/admin/jobs/new"');
     expect(html).toContain('href="/admin/cad"');
-    // Action kind actions render as disabled buttons.
-    expect(html).toContain('disabled');
-    expect(html).toContain('Coming soon');
+    // quick-actions-wiring-2026-06-22 — Capture Receipt now points at
+    // /admin/receipts/new instead of rendering as a "Coming soon" stub.
+    expect(html).toContain('href="/admin/receipts/new"');
   });
 
   it('list layout renders rows instead of a grid', () => {

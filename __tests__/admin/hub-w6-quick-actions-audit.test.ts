@@ -60,10 +60,22 @@ describe("the live catalog routes to real registry entries (W6)", () => {
     expect(broken).toEqual([]);
   });
 
-  it("the clock-in-out tile is now a real link (W6 converted it from a placeholder action)", () => {
+  it("the clock-in-out tile is a real action handled by the widget (quick-actions-wiring-2026-06-22)", () => {
+    // W6 originally converted this from a placeholder action to a link
+    // at /admin/me?tab=hours, but that tab was archived and the link
+    // went nowhere useful. quick-actions-wiring-2026-06-22 flipped it
+    // back to a real action whose handler in the widget opens the same
+    // ClockInModal / ClockOutModal the top-bar pill uses.
     const entry = QUICK_ACTIONS_CATALOG.find((a) => a.id === 'clock-in-out');
     expect(entry).toBeDefined();
+    expect(entry!.kind).toBe('action');
+    expect(entry!.actionId).toBe('clock-in-out');
+  });
+
+  it("the capture-receipt tile routes to the web upload page (quick-actions-wiring-2026-06-22)", () => {
+    const entry = QUICK_ACTIONS_CATALOG.find((a) => a.id === 'capture-receipt');
+    expect(entry).toBeDefined();
     expect(entry!.kind).toBe('link');
-    expect(entry!.href).toBe('/admin/me?tab=hours');
+    expect(entry!.href).toBe('/admin/receipts/new');
   });
 });

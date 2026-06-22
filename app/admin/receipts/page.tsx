@@ -394,28 +394,45 @@ export default function ReceiptsApprovalPage() {
             />
           </label>
         </div>
+        {/* receipts-filter-row-alignment-2026-06-22-v2 — every action
+            control sits in its own filterLabel column with an invisible
+            `&nbsp;` label. The structure is byte-for-byte identical to
+            the labeled-input columns to the left (same fontSize,
+            inherited line-height, same gap), so the column heights match
+            exactly and the action controls land on the same baseline as
+            the inputs to their left — no spacer-vs-real-label height
+            drift. */}
         <div style={styles.filterActionsGroup}>
-          <label
-            style={styles.toggleControl}
-            title="Include soft-deleted receipts (Batch CC tombstones) in the list. Useful for IRS audit prep."
-          >
-            <input
-              type="checkbox"
-              checked={showDeleted}
-              onChange={(e) => setShowDeleted(e.target.checked)}
-            />
-            <span>Show deleted</span>
+          <label style={styles.filterLabel} aria-label="Show deleted receipts">
+            <span aria-hidden>&nbsp;</span>
+            <span
+              style={styles.toggleControl}
+              title="Include soft-deleted receipts (Batch CC tombstones) in the list. Useful for IRS audit prep."
+            >
+              <input
+                type="checkbox"
+                checked={showDeleted}
+                onChange={(e) => setShowDeleted(e.target.checked)}
+              />
+              <span>Show deleted</span>
+            </span>
           </label>
-          <button type="button" onClick={() => void load()} style={styles.refreshButton}>
-            Refresh
-          </button>
-          <a
-            href={buildExportUrl({ status: tab, from, to, email: emailFilter })}
-            style={styles.exportButton}
-            download
-          >
-            Export CSV
-          </a>
+          <label style={styles.filterLabel} aria-label="Refresh the list">
+            <span aria-hidden>&nbsp;</span>
+            <button type="button" onClick={() => void load()} style={styles.refreshButton}>
+              Refresh
+            </button>
+          </label>
+          <label style={styles.filterLabel} aria-label="Export the list as CSV">
+            <span aria-hidden>&nbsp;</span>
+            <a
+              href={buildExportUrl({ status: tab, from, to, email: emailFilter })}
+              style={styles.exportButton}
+              download
+            >
+              Export CSV
+            </a>
+          </label>
         </div>
       </div>
 
@@ -2033,11 +2050,16 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     minWidth: 0,
   },
+  // receipts-filter-row-alignment-2026-06-22-v2 — each action control
+  // sits inside its own filterLabel column (with an invisible `&nbsp;`
+  // label). That column structure is byte-for-byte identical to the
+  // labeled-input columns to the left so the heights match exactly,
+  // no spacer-vs-real-label drift. The group itself only needs to
+  // line its children up by box bottoms.
   filterActionsGroup: {
     display: 'flex',
-    gap: 8,
-    alignItems: 'center',
-    height: 36,
+    gap: 12,
+    alignItems: 'flex-end',
     flexWrap: 'wrap',
   },
   filterLabel: {

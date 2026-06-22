@@ -8,13 +8,26 @@
 // icon+label), and ⌘1–⌘9 keyboard shortcuts on the first nine tiles.
 //
 // Slice 95 of customizable-hub-and-work-mode-2026-05-28.md.
+//
+// quick-actions-wiring-2026-06-22 — `clock-in-out` is now a real action
+// handler (opens the same ClockInModal/ClockOutModal the top-bar pill
+// uses) rather than a link to an archived hours tab.
 
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket } from '@/lib/hub/size-bucket';
 import { useElementSize } from '@/lib/hub/use-element-size';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
+import { ClockInModal, ClockOutModal } from '@/lib/work-mode/clock-modals';
+import {
+  CLOCK_SESSION_KEY,
+  clearClockSession,
+  elapsedHours,
+  readClockSession,
+  writeClockSession,
+  type ClockSession,
+} from '@/lib/work-mode/clock-session';
 import { gridCapacity, listCapacity, splitForCapacity } from './capacity';
 import {
   moveUp,
@@ -29,6 +42,8 @@ import {
   findQuickAction,
   type QuickActionDef,
 } from '@/lib/hub/quick-actions-catalog';
+
+interface ActivityTag { id: string; label: string; color: string; }
 
 export interface QuickActionsContent extends Record<string, unknown> {
   /** Ordered list of action ids the user wants displayed. Defaults to
@@ -61,6 +76,93 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
   const containerRef = useRef<HTMLDivElement>(null);
   const { widthPx, heightPx } = useElementSize(containerRef);
 
+  // quick-actions-wiring-2026-06-22 — clock-in modal state. Mirrors the
+  // top-bar ClockInPill so the widget tile and the pill stay in sync
+  // through localStorage + the cross-tab `storage` event.
+  const [clockSession, setClockSession] = useState<ClockSession | null>(null);
+  const [clockModal, setClockModal] = useState<'none' | 'in' | 'out'>('none');
+  const [tagCatalog, setTagCatalog] = useState<ActivityTag[]>([]);
+
+  useEffect(() => {
+    setClockSession(readClockSession());
+    function onStorage(e: StorageEvent) {
+      if (e.key === CLOCK_SESSION_KEY) setClockSession(readClockSession());
+    }
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  // Lazy-load the activity-tag catalog the first time a clock modal
+  // opens — same pattern as ClockInPill.
+  useEffect(() => {
+    if (clockModal === 'none' || tagCatalog.length > 0) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/admin/activity-tags');
+        if (!res.ok) return;
+        const data = (await res.json()) as { tags?: ActivityTag[] };
+        if (!cancelled) setTagCatalog(data.tags ?? []);
+      } catch {
+        /* leave catalog empty — modal still works without tags */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [clockModal, tagCatalog.length]);
+
+  const handleClockInSubmit = useCallback(({ jobId, tagIds }: { jobId: string | null; tagIds: string[] }) => {
+    const next: ClockSession = { startedAt: new Date().toISOString(), jobId, tagIds };
+    writeClockSession(next);
+    setClockSession(next);
+    setClockModal('none');
+  }, []);
+
+  const handleClockOutSubmit = useCallback(async ({ perJobAllocations, tagIds, notes }: { perJobAllocations: Record<string, number>; tagIds: string[]; notes: string }) => {
+    if (!clockSession) { setClockModal('none'); return; }
+    const totalAllocated = Object.values(perJobAllocations).reduce((sum, h) => sum + h, 0);
+    const elapsed = elapsedHours(clockSession.startedAt);
+    const today = new Date().toISOString().slice(0, 10);
+    const entries = totalAllocated > 0
+      ? Object.entries(perJobAllocations)
+          .filter(([, h]) => h > 0)
+          .map(([job_id, hours]) => ({
+            log_date: today,
+            work_type: 'general',
+            hours,
+            job_id,
+            description: 'Clock-out entry from Quick Actions widget',
+            notes,
+            activity_tag_ids: [...new Set([...clockSession.tagIds, ...tagIds])],
+          }))
+      : [{
+          log_date: today,
+          work_type: 'general',
+          hours: elapsed,
+          job_id: clockSession.jobId,
+          description: 'Clock-out entry from Quick Actions widget',
+          notes,
+          activity_tag_ids: [...new Set([...clockSession.tagIds, ...tagIds])],
+        }];
+    try {
+      await fetch('/api/admin/time-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entries }),
+      });
+    } catch {
+      /* swallow — clearing the session is the safer outcome than leaving the user "stuck on" */
+    }
+    clearClockSession();
+    setClockSession(null);
+    setClockModal('none');
+  }, [clockSession]);
+
+  const dispatchAction = useCallback((actionId: string) => {
+    if (actionId === 'clock-in-out') {
+      setClockModal(clockSession ? 'out' : 'in');
+    }
+  }, [clockSession]);
+
   // Resolve ids → defs. Skip retired ids gracefully.
   const actions: QuickActionDef[] = settings.actionIds
     .map((id) => findQuickAction(id))
@@ -80,13 +182,13 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
       e.preventDefault();
       if (target.kind === 'link' && target.href) {
         window.location.assign(target.href);
+      } else if (target.kind === 'action' && target.actionId) {
+        dispatchAction(target.actionId);
       }
-      // action-kind handlers wire up in slice 156/159; silently ignored
-      // until then.
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [actions, settings.enableShortcuts]);
+  }, [actions, settings.enableShortcuts, dispatchAction]);
 
   if (actions.length === 0) {
     return (
@@ -113,47 +215,116 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
   });
   const { visible, overflow } = splitForCapacity(actions, cap);
 
+  const clockedIn = !!clockSession;
+
   if (isRowLayout) {
     return (
-      <div ref={containerRef} style={{ height: '100%' }}>
-        <ul role="list" style={listFillStyle}>
-          {visible.map((a) => (
-            <li key={a.id}>
-              <ActionTrigger action={a} displayStyle={rowDisplay} variant="row" />
-            </li>
-          ))}
-          {overflow > 0 && (
-            <li>
-              <OverflowIndicator count={overflow} variant="row" />
-            </li>
-          )}
-        </ul>
-      </div>
+      <>
+        <div ref={containerRef} style={{ height: '100%' }}>
+          <ul role="list" style={listFillStyle}>
+            {visible.map((a) => (
+              <li key={a.id}>
+                <ActionTrigger
+                  action={a}
+                  displayStyle={rowDisplay}
+                  variant="row"
+                  onDispatch={dispatchAction}
+                  clockedIn={clockedIn}
+                />
+              </li>
+            ))}
+            {overflow > 0 && (
+              <li>
+                <OverflowIndicator count={overflow} variant="row" />
+              </li>
+            )}
+          </ul>
+        </div>
+        <ClockModalsHost
+          clockSession={clockSession}
+          modal={clockModal}
+          onClose={() => setClockModal('none')}
+          onClockInSubmit={handleClockInSubmit}
+          onClockOutSubmit={handleClockOutSubmit}
+          catalog={tagCatalog}
+        />
+      </>
     );
   }
 
   return (
-    <div
-      ref={containerRef}
-      role="list"
-      style={{
-        display: 'grid',
-        gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-        gap: 'var(--hub-spc-3, 12px)',
-        alignContent: 'start',
-        height: '100%',
-      }}
-    >
-      {visible.map((a) => (
-        <ActionTrigger
-          key={a.id}
-          action={a}
-          displayStyle={settings.displayStyle}
-          variant="tile"
+    <>
+      <div
+        ref={containerRef}
+        role="list"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+          gap: 'var(--hub-spc-3, 12px)',
+          alignContent: 'start',
+          height: '100%',
+        }}
+      >
+        {visible.map((a) => (
+          <ActionTrigger
+            key={a.id}
+            action={a}
+            displayStyle={settings.displayStyle}
+            variant="tile"
+            onDispatch={dispatchAction}
+            clockedIn={clockedIn}
+          />
+        ))}
+        {overflow > 0 && <OverflowIndicator count={overflow} variant="tile" />}
+      </div>
+      <ClockModalsHost
+        clockSession={clockSession}
+        modal={clockModal}
+        onClose={() => setClockModal('none')}
+        onClockInSubmit={handleClockInSubmit}
+        onClockOutSubmit={handleClockOutSubmit}
+        catalog={tagCatalog}
+      />
+    </>
+  );
+}
+
+/** Hosts the clock-in and clock-out modals + suggested allocations.
+ *  Rendered next to both layout branches so the widget keeps a single
+ *  source of clock state regardless of grid/list rendering. */
+function ClockModalsHost({
+  clockSession,
+  modal,
+  onClose,
+  onClockInSubmit,
+  onClockOutSubmit,
+  catalog,
+}: {
+  clockSession: ClockSession | null;
+  modal: 'none' | 'in' | 'out';
+  onClose: () => void;
+  onClockInSubmit: (data: { jobId: string | null; tagIds: string[] }) => void;
+  onClockOutSubmit: (data: { perJobAllocations: Record<string, number>; tagIds: string[]; notes: string }) => void;
+  catalog: ActivityTag[];
+}) {
+  return (
+    <>
+      <ClockInModal
+        open={modal === 'in'}
+        onClose={onClose}
+        onSubmit={onClockInSubmit}
+        catalog={catalog}
+      />
+      {clockSession && (
+        <ClockOutModal
+          open={modal === 'out'}
+          onClose={onClose}
+          onSubmit={onClockOutSubmit}
+          catalog={catalog}
+          suggestedAllocations={clockSession.jobId ? { [clockSession.jobId]: elapsedHours(clockSession.startedAt) } : {}}
         />
-      ))}
-      {overflow > 0 && <OverflowIndicator count={overflow} variant="tile" />}
-    </div>
+      )}
+    </>
   );
 }
 
@@ -356,21 +527,36 @@ function ActionTrigger({
   action,
   displayStyle,
   variant,
+  onDispatch,
+  clockedIn,
 }: {
   action: QuickActionDef;
   displayStyle: 'icon-label' | 'icon-only';
   variant: 'tile' | 'row';
+  onDispatch: (actionId: string) => void;
+  clockedIn: boolean;
 }) {
   const containerStyle = variant === 'tile' ? tileStyle : rowStyle;
   const tintColor = colorForTint(action.tint);
 
+  // quick-actions-wiring-2026-06-22 — the Clock tile flips its label +
+  // glyph based on whether the user is currently clocked in. "Clock
+  // In/Out" stays the catalog default for screen readers; the visible
+  // label and the tint just track session state.
+  const isClockTile = action.actionId === 'clock-in-out';
+  const displayLabel = isClockTile
+    ? (clockedIn ? 'Clock Out' : 'Clock In')
+    : action.label;
+  const displayIcon = isClockTile && clockedIn ? '■' : emojiForAction(action.iconName);
+  const liveTint = isClockTile && clockedIn ? 'var(--theme-danger)' : tintColor;
+
   const inner = (
     <>
-      <span aria-hidden style={{ fontSize: variant === 'tile' ? '1.25rem' : '1.1rem', color: tintColor, lineHeight: 1 }}>
-        {emojiForAction(action.iconName)}
+      <span aria-hidden style={{ fontSize: variant === 'tile' ? '1.25rem' : '1.1rem', color: liveTint, lineHeight: 1 }}>
+        {displayIcon}
       </span>
       {displayStyle === 'icon-label' && (
-        <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500 }}>{action.label}</span>
+        <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500 }}>{displayLabel}</span>
       )}
     </>
   );
@@ -383,8 +569,26 @@ function ActionTrigger({
     );
   }
 
-  // Command actions render as a disabled-style button until their
-  // handler ships in a later slice.
+  // Action-kind: dispatch via the widget-provided handler. Unknown
+  // action ids still render as a disabled "Coming soon" pill.
+  if (action.kind === 'action' && action.actionId) {
+    const hasHandler = action.actionId === 'clock-in-out';
+    if (hasHandler) {
+      return (
+        <button
+          type="button"
+          role="listitem"
+          onClick={() => onDispatch(action.actionId!)}
+          style={{ ...containerStyle, border: 'none', cursor: 'pointer' }}
+          aria-label={displayLabel}
+          title={action.description}
+        >
+          {inner}
+        </button>
+      );
+    }
+  }
+
   return (
     <button
       type="button"

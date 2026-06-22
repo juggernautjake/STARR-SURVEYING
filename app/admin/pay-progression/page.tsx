@@ -178,19 +178,21 @@ export default function PayProgressionPage() {
 
   return (
     <div className={`pay-prog-page ${editMode ? 'pay-prog-page--edit' : ''}`}>
-      <div className="admin-learn__header">
-        <h2 className="admin-learn__title"><Wallet size={22} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />Pay Progression Roadmap</h2>
-        <p className="admin-learn__subtitle">
-          See how your hourly pay grows through seniority, credentials, education, and XP milestones.
-          Multiple paths to earning more!
-        </p>
-      </div>
-
-      {/* Admin edit-mode toggle (P-9). Floating pill in the top-right.
-       * Toggling sets the .pay-prog-page--edit class on the root, which
-       * Phase 3 slices (P-10..P-14) use to reveal inline pencil icons
-       * next to every editable config value. Hidden for non-admins. */}
-      {isAdmin && (
+      {/* pay-prog-edit-pill-2026-06-22 — moved the Edit pay system pill
+       * INTO the page header as a proper right-aligned action. It was
+       * previously a `position: sticky; float: right` element that
+       * landed inside whatever section was on screen, looking crammed
+       * in the next card's top-right corner. The flex header gives it
+       * natural breathing room from the title + the page edges. */}
+      <div className="admin-learn__header admin-learn__header--with-action">
+        <div className="admin-learn__header-text">
+          <h2 className="admin-learn__title"><Wallet size={22} style={{ verticalAlign: "-3px", marginRight: "0.4rem" }} />Pay Progression Roadmap</h2>
+          <p className="admin-learn__subtitle">
+            See how your hourly pay grows through seniority, credentials, education, and XP milestones.
+            Multiple paths to earning more!
+          </p>
+        </div>
+        {isAdmin && (
         <button
           type="button"
           className={`pay-prog-edit-pill ${editMode ? 'pay-prog-edit-pill--on' : ''}`}
@@ -215,7 +217,8 @@ export default function PayProgressionPage() {
             </>
           )}
         </button>
-      )}
+        )}
+      </div>
 
       {isAdmin && editMode && (
         <>

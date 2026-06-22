@@ -173,26 +173,42 @@
 .pay-prog-page {
   position: relative;
 }
-.pay-prog-edit-pill {
-  position: sticky;
-  top: 0.75rem;
-  margin-left: auto;
+/* pay-prog-edit-pill-2026-06-22 — header layout for the page that
+ * hosts the Edit pay system pill. Title text on the left, action pill
+ * on the right with breathing room from both. The pill itself is now
+ * a normal inline-flex control inside this row rather than the
+ * `position: sticky; float: right` hack that was dropping it into
+ * whatever section was scrolled to. */
+.admin-learn__header--with-action {
   display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+.admin-learn__header-text {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.pay-prog-edit-pill {
+  display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 0.9rem;
+  gap: 0.45rem;
+  padding: 0.55rem 1rem;
+  margin-top: 0.4rem;
   background: var(--color-bg-card);
   border: var(--border-normal);
   border-radius: var(--radius-pill);
   font-family: var(--font-heading);
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: var(--weight-semibold);
   color: var(--color-text-secondary);
   cursor: pointer;
   box-shadow: var(--shadow-sm);
   transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
-  z-index: var(--z-fab);
-  float: right;
+  white-space: nowrap;
+  align-self: flex-start;
 }
 .pay-prog-edit-pill:hover {
   border-color: var(--color-brand-navy);
@@ -240,12 +256,14 @@
 }
 
 @media (max-width: 600px) {
+  .admin-learn__header--with-action {
+    flex-direction: column;
+    align-items: stretch;
+  }
   .pay-prog-edit-pill {
-    float: none;
-    position: static;
     width: 100%;
     justify-content: center;
-    margin: 0 0 1rem;
+    margin: 0;
   }
 }
 

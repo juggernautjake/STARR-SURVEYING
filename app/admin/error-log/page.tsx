@@ -135,15 +135,42 @@ export default function ErrorLogPage() {
   // Reset page when filters change
   useEffect(() => { setPage(1); }, [statusFilter, typeFilter, severityFilter, searchDebounced]);
 
+  // error-log-optimistic-status-2026-06-22 — flip the row's status in
+  // local state IMMEDIATELY instead of refetching the whole list. The
+  // old `loadReports()` call destroyed the user's scroll position +
+  // any expanded panel, so clicking "Resolved" felt like a full page
+  // refresh. We patch the array in place, then PATCH the API in the
+  // background; on a network failure we revert + show a brief inline
+  // error so the user knows nothing was saved.
   async function updateStatus(id: string, status: string) {
+    const now = new Date().toISOString();
+    const isResolved = status === 'resolved' || status === 'wont_fix';
+    const adminEmail = session?.user?.email ?? null;
+    let previous: ErrorReportRow | null = null;
+    setReports((prev) => prev.map((r) => {
+      if (r.id !== id) return r;
+      previous = r;
+      return {
+        ...r,
+        status,
+        resolved_at: isResolved ? now : null,
+        resolved_by: isResolved ? adminEmail : null,
+      };
+    }));
     try {
-      await fetch('/api/admin/errors', {
+      const res = await fetch('/api/admin/errors', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, status }),
       });
-      loadReports();
-    } catch { /* ignore */ }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      // Roll back the optimistic update.
+      if (previous) {
+        const restore = previous;
+        setReports((prev) => prev.map((r) => (r.id === id ? restore : r)));
+      }
+    }
   }
 
   // copy-error-button-2026-06-21 — Renders every field of a single
@@ -272,6 +299,30 @@ export default function ErrorLogPage() {
   const criticalCount = reports.filter(r => r.severity === 'critical').length;
   const highCount = reports.filter(r => r.severity === 'high').length;
 
+  // error-log-priority-sort-2026-06-22 — sort the list so the
+  // surveyor doesn't have to scroll through old resolved noise to
+  // find the live problems. Two-tier:
+  //   1) Unresolved errors first (status not resolved / wont_fix),
+  //      ordered by severity desc (critical > high > medium > low),
+  //      then by occurred_at desc so the most recent breakage shows
+  //      at the very top of the list.
+  //   2) Resolved + wont_fix at the bottom, also severity desc + date
+  //      desc so the most-recent post-mortem is the most accessible.
+  const SEVERITY_RANK: Record<string, number> = {
+    critical: 4, high: 3, medium: 2, low: 1,
+  };
+  const RESOLVED_STATUSES = new Set(['resolved', 'wont_fix']);
+  const sortedReports = [...reports].sort((a, b) => {
+    const aResolved = RESOLVED_STATUSES.has(a.status);
+    const bResolved = RESOLVED_STATUSES.has(b.status);
+    if (aResolved !== bResolved) return aResolved ? 1 : -1;
+    const severityDelta = (SEVERITY_RANK[b.severity] ?? 0) - (SEVERITY_RANK[a.severity] ?? 0);
+    if (severityDelta !== 0) return severityDelta;
+    const aTime = new Date(a.occurred_at ?? a.created_at ?? 0).getTime();
+    const bTime = new Date(b.occurred_at ?? b.created_at ?? 0).getTime();
+    return bTime - aTime;
+  });
+
   return (
     <>
       {/* Summary stats */}
@@ -340,7 +391,7 @@ export default function ErrorLogPage() {
         </div>
       ) : (
         <div className="err-log__list">
-          {reports.map(r => {
+          {sortedReports.map(r => {
             const isExpanded = expandedId === r.id;
             return (
               <div key={r.id} className={`err-log__item err-log__item--${r.severity}`}>

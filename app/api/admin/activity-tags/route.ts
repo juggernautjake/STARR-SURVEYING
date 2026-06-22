@@ -10,6 +10,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { dedupeTagsByLabel, type ActivityTag } from '@/lib/work-mode/activity-tags';
 
 const SELECT_COLS = 'id, label, color, system, work_type_key';
 
@@ -29,5 +30,8 @@ export const GET = withErrorHandler(async () => {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ tags: data ?? [] });
+  // activity-tag-dedupe-2026-06-22 — collapse duplicate-label rows the
+  // old seed produced before seed 375 added the UNIQUE constraint.
+  const tags = dedupeTagsByLabel((data ?? []) as ActivityTag[]);
+  return NextResponse.json({ tags });
 }, { routeName: 'admin/activity-tags' });
