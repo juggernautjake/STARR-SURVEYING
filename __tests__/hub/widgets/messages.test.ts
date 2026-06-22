@@ -6,7 +6,9 @@ import { describe, it, expect } from 'vitest';
 import { getWidget } from '@/lib/hub/widget-registry';
 import {
   capForBucket,
+  deriveConversationStatus,
   filterConversations,
+  formatGroupMemberSubtitle,
   toConversation,
 } from '@/lib/hub/widgets/messages';
 
@@ -94,3 +96,162 @@ describe('messages — filterConversations', () => {
     expect(out.map((x) => x.id)).toEqual(['a']);
   });
 });
+
+// messages-widget-richer-rows-2026-06-21 — viewer-perspective status
+// + group member subtitle.
+describe("deriveConversationStatus — DM perspective", () => {
+  const me = "jacob@firm.com";
+  const them = "john.harding@firm.com";
+
+  it("waiting_from_other when they sent + I have not read", () => {
+    const s = deriveConversationStatus(
+      {
+        id: "c1", type: "direct",
+        last_message_at: "2026-06-21T10:00:00Z",
+        last_sender_email: them,
+        participants: [
+          { user_email: me, last_read_at: "2026-06-20T00:00:00Z" },
+          { user_email: them, display_name: "John Harding" },
+        ],
+      },
+      me,
+    );
+    expect(s.kind).toBe("waiting_from_other");
+    expect(s.label).toBe("Message Waiting from John Harding");
+    expect(s.icon).toBe("🟢");
+  });
+
+  it("seen_from_other when they sent + I have read", () => {
+    const s = deriveConversationStatus(
+      {
+        id: "c2", type: "direct",
+        last_message_at: "2026-06-21T10:00:00Z",
+        last_sender_email: them,
+        participants: [
+          { user_email: me, last_read_at: "2026-06-21T11:00:00Z" },
+          { user_email: them, display_name: "John Harding" },
+        ],
+      },
+      me,
+    );
+    expect(s.kind).toBe("seen_from_other");
+    expect(s.label).toBe("Message Seen From John Harding");
+    expect(s.icon).toBe("✓");
+  });
+
+  it("sent_to_other when I sent + they have not read", () => {
+    const s = deriveConversationStatus(
+      {
+        id: "c3", type: "direct",
+        last_message_at: "2026-06-21T10:00:00Z",
+        last_sender_email: me,
+        participants: [
+          { user_email: me, last_read_at: "2026-06-21T10:00:00Z" },
+          { user_email: them, display_name: "John Harding" },
+        ],
+      },
+      me,
+    );
+    expect(s.kind).toBe("sent_to_other");
+    expect(s.label).toBe("Message Sent to John Harding");
+    expect(s.icon).toBe("✓");
+  });
+
+  it("seen_by_other when I sent + they have read", () => {
+    const s = deriveConversationStatus(
+      {
+        id: "c4", type: "direct",
+        last_message_at: "2026-06-21T10:00:00Z",
+        last_sender_email: me,
+        participants: [
+          { user_email: me, last_read_at: "2026-06-21T10:00:00Z" },
+          { user_email: them, display_name: "John Harding", last_read_at: "2026-06-21T11:00:00Z" },
+        ],
+      },
+      me,
+    );
+    expect(s.kind).toBe("seen_by_other");
+    expect(s.label).toBe("Message Seen by John Harding");
+    expect(s.icon).toBe("✓✓");
+  });
+
+  it("no_messages on an empty conversation", () => {
+    const s = deriveConversationStatus({ id: "c5", type: "direct" }, me);
+    expect(s.kind).toBe("no_messages");
+  });
+});
+
+describe("deriveConversationStatus — group perspective", () => {
+  const me = "jacob@firm.com";
+  const alice = "alice@firm.com";
+  const bob = "bob@firm.com";
+
+  it("waiting from a named sender uses the short \"New from X\" label", () => {
+    const s = deriveConversationStatus(
+      {
+        id: "g1", type: "group", title: "Project Alpha",
+        last_message_at: "2026-06-21T10:00:00Z",
+        last_sender_email: alice,
+        participants: [
+          { user_email: me, last_read_at: "2026-06-20T00:00:00Z" },
+          { user_email: alice, display_name: "Alice Adams" },
+          { user_email: bob, display_name: "Bob Brown" },
+        ],
+      },
+      me,
+    );
+    expect(s.kind).toBe("waiting_from_other");
+    expect(s.label).toBe("New from Alice Adams");
+  });
+
+  it("\"Seen by\" lists who read after the message landed", () => {
+    const s = deriveConversationStatus(
+      {
+        id: "g2", type: "group", title: "Project Alpha",
+        last_message_at: "2026-06-21T10:00:00Z",
+        last_sender_email: me,
+        participants: [
+          { user_email: me, last_read_at: "2026-06-21T10:00:00Z" },
+          { user_email: alice, display_name: "Alice Adams", last_read_at: "2026-06-21T11:00:00Z" },
+          { user_email: bob, display_name: "Bob Brown", last_read_at: "2026-06-20T00:00:00Z" },
+        ],
+      },
+      me,
+    );
+    expect(s.kind).toBe("seen_by_other");
+    expect(s.label).toContain("Alice Adams");
+    expect(s.label).not.toContain("Bob Brown");
+  });
+});
+
+describe("formatGroupMemberSubtitle", () => {
+  const me = "jacob@firm.com";
+
+  it("comma-joins display names of others", () => {
+    expect(formatGroupMemberSubtitle(
+      [
+        { user_email: me, display_name: "Me" },
+        { user_email: "a@x.com", display_name: "Alice" },
+        { user_email: "b@x.com", display_name: "Bob" },
+      ],
+      me,
+    )).toBe("Alice, Bob");
+  });
+
+  it("truncates with \"+ N more\" beyond the cap", () => {
+    const ps = [
+      { user_email: me },
+      { user_email: "a@x.com", display_name: "Alice" },
+      { user_email: "b@x.com", display_name: "Bob" },
+      { user_email: "c@x.com", display_name: "Carol" },
+      { user_email: "d@x.com", display_name: "Dave" },
+      { user_email: "e@x.com", display_name: "Eve" },
+    ];
+    expect(formatGroupMemberSubtitle(ps, me, 3)).toBe("Alice, Bob, Carol + 2 more");
+  });
+
+  it("\"Just you\" when the viewer is the only member", () => {
+    expect(formatGroupMemberSubtitle([{ user_email: me }], me)).toBe("Just you");
+  });
+});
+

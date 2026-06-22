@@ -42,7 +42,17 @@ const DEFAULTS: MessagesContent = {
   messageLimit: 10,
 };
 
-interface Conversation {
+/** messages-widget-richer-rows-2026-06-21 — extended participant
+ *  shape the API now returns (display_name from registered_users +
+ *  last_read_at for status derivation). */
+export interface ConversationParticipant {
+  user_email: string;
+  display_name?: string | null;
+  last_read_at?: string | null;
+  role?: string;
+}
+
+export interface Conversation {
   id: string;
   title?: string | null;
   last_message_at?: string | null;
@@ -53,6 +63,9 @@ interface Conversation {
   type?: string | null;
   /** Used by the team-only filter. */
   is_external?: boolean;
+  /** messages-widget-richer-rows-2026-06-21 — enriched fields. */
+  participants?: ConversationParticipant[];
+  last_sender_email?: string | null;
 }
 
 // hub-widget-excellence-14 R1 — the conversations API returns the raw
@@ -63,12 +76,126 @@ export function toConversation(c: Conversation): Conversation {
   return { ...c, is_group: c.is_group ?? c.type === 'group' };
 }
 
+// ── messages-widget-richer-rows-2026-06-21 — viewer-perspective status
+
+export type ConversationStatusKind =
+  | 'waiting_from_other'   // someone else sent the last message + I haven't read it (🟢)
+  | 'seen_from_other'      // someone else sent the last message + I've read it (✓)
+  | 'seen_by_other'        // I sent the last message + someone else has read it (✓✓)
+  | 'sent_to_other'        // I sent the last message + nobody else has read it yet (✓)
+  | 'no_messages';         // empty conversation
+
+export interface ConversationStatus {
+  kind: ConversationStatusKind;
+  /** Pre-formatted line the widget renders ("Message waiting from John Harding"). */
+  label: string;
+  /** Short status icon — emoji so it renders without a font dep. */
+  icon: string;
+  /** ARIA description for screen readers. */
+  aria: string;
+}
+
+/** Pure. Derive the viewer's perspective status from the conversation
+ *  + viewer email. Source-locked in the widget's test file. */
+export function deriveConversationStatus(
+  conv: Conversation,
+  viewerEmail: string,
+): ConversationStatus {
+  const lastAt = conv.last_message_at ?? null;
+  if (!lastAt || !conv.last_sender_email) {
+    return {
+      kind: 'no_messages',
+      label: 'No messages yet',
+      icon: '•',
+      aria: 'No messages in this conversation yet.',
+    };
+  }
+  const participants = conv.participants ?? [];
+  const others = participants.filter((p) => p.user_email !== viewerEmail);
+  const viewerParticipant = participants.find((p) => p.user_email === viewerEmail);
+  const senderIsViewer = conv.last_sender_email === viewerEmail;
+  const otherName = others[0]?.display_name ?? others[0]?.user_email ?? 'someone';
+
+  const lastMs = Date.parse(lastAt);
+
+  if (senderIsViewer) {
+    // I sent the last message — did any other participant read it?
+    const seenByAnyone = others.some((p) => {
+      if (!p.last_read_at) return false;
+      const readMs = Date.parse(p.last_read_at);
+      return Number.isFinite(readMs) && readMs >= lastMs;
+    });
+    if (seenByAnyone) {
+      const seenBy = others
+        .filter((p) => p.last_read_at && Date.parse(p.last_read_at) >= lastMs)
+        .map((p) => p.display_name ?? p.user_email);
+      const target = (conv.is_group ?? conv.type === 'group') ? 'the group' : otherName;
+      return {
+        kind: 'seen_by_other',
+        label: (conv.is_group ?? conv.type === 'group')
+          ? `Seen by ${seenBy.slice(0, 2).join(', ')}${seenBy.length > 2 ? ` +${seenBy.length - 2}` : ''}`
+          : `Message Seen by ${target}`,
+        icon: '✓✓',
+        aria: `Your message to ${target} has been seen.`,
+      };
+    }
+    const target = (conv.is_group ?? conv.type === 'group') ? (conv.title ?? 'the group') : otherName;
+    return {
+      kind: 'sent_to_other',
+      label: `Message Sent to ${target}`,
+      icon: '✓',
+      aria: `Your message has been sent to ${target} but not yet read.`,
+    };
+  }
+
+  // Someone else sent the last message — have I read it?
+  const viewerReadMs = viewerParticipant?.last_read_at
+    ? Date.parse(viewerParticipant.last_read_at)
+    : 0;
+  const senderName = participants.find((p) => p.user_email === conv.last_sender_email)?.display_name
+    ?? conv.last_sender_email;
+
+  if (Number.isFinite(viewerReadMs) && viewerReadMs >= lastMs) {
+    return {
+      kind: 'seen_from_other',
+      label: (conv.is_group ?? conv.type === 'group')
+        ? `Read · last from ${senderName}`
+        : `Message Seen From ${senderName}`,
+      icon: '✓',
+      aria: `You've read the latest message from ${senderName}.`,
+    };
+  }
+  return {
+    kind: 'waiting_from_other',
+    label: (conv.is_group ?? conv.type === 'group')
+      ? `New from ${senderName}`
+      : `Message Waiting from ${senderName}`,
+    icon: '🟢',
+    aria: `New message from ${senderName} waiting for you to read.`,
+  };
+}
+
+/** Pure. Build the "X, Y, Z + 2 others" subtitle for a group row. */
+export function formatGroupMemberSubtitle(
+  participants: ConversationParticipant[],
+  viewerEmail: string,
+  cap: number = 3,
+): string {
+  const others = participants
+    .filter((p) => p.user_email !== viewerEmail)
+    .map((p) => p.display_name ?? p.user_email);
+  if (others.length === 0) return 'Just you';
+  if (others.length <= cap) return others.join(', ');
+  return `${others.slice(0, cap).join(', ')} + ${others.length - cap} more`;
+}
+
 function MessagesWidget({ size, content }: WidgetProps<MessagesContent>) {
   const settings = { ...DEFAULTS, ...content };
   const bucket = sizeBucket(size.w, size.h);
 
   const [status, setStatus] = useState<'loading' | 'ok' | 'empty' | 'error'>('loading');
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [viewerEmail, setViewerEmail] = useState<string>('');
 
   const { includeGroups, senderFilter, messageLimit } = settings;
   const fetchConversations = useCallback(async () => {
@@ -77,9 +204,10 @@ function MessagesWidget({ size, content }: WidgetProps<MessagesContent>) {
       const params = new URLSearchParams({ limit: String(Math.max(1, Math.min(50, messageLimit))) });
       const res = await fetch(`/api/admin/messages/conversations?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: { conversations?: Conversation[] } = await res.json();
+      const data: { conversations?: Conversation[]; viewer_email?: string } = await res.json();
       const list = filterConversations((data.conversations ?? []).map(toConversation), { includeGroups, senderFilter });
       setConversations(list);
+      setViewerEmail(data.viewer_email ?? '');
       setStatus(list.length === 0 ? 'empty' : 'ok');
     } catch {
       setStatus('error');
@@ -137,46 +265,106 @@ function MessagesWidget({ size, content }: WidgetProps<MessagesContent>) {
   return (
     <ul role="list" style={listStyle}>
       {visible.map((c) => {
-        const hasUnread = (c.unread_count ?? 0) > 0;
+        // messages-widget-richer-rows-2026-06-21 — render shape now
+        // depends on (a) DM vs group, (b) viewer's perspective on the
+        // last message. Status drives the leading indicator color +
+        // the headline; the existing unread_count is folded into the
+        // status derivation (waiting_from_other implies unread).
+        const conversationStatus = deriveConversationStatus(c, viewerEmail);
+        const isUnread = conversationStatus.kind === 'waiting_from_other';
+        const headline = c.is_group
+          ? (c.title ?? 'Group conversation')
+          : (() => {
+              const other = (c.participants ?? []).find((p) => p.user_email !== viewerEmail);
+              return other?.display_name ?? c.title ?? 'Direct message';
+            })();
+        const memberSubtitle = c.is_group
+          ? formatGroupMemberSubtitle(c.participants ?? [], viewerEmail)
+          : null;
+        const indicatorColor = statusIndicatorColor(conversationStatus.kind);
+
         return (
           <li key={c.id}>
-          {/* Row deep link → the conversation thread. */}
-          <Link href={conversationHref(c.id)} style={rowStyle} aria-label={`Open ${c.title ?? 'conversation'}`}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
-              {hasUnread && (
-                <span
-                  aria-label="Unread"
-                  style={{
-                    display: 'inline-block',
-                    width: 8,
-                    height: 8,
-                    borderRadius: 8,
-                    background: 'var(--theme-accent)',
-                    flexShrink: 0,
-                  }}
-                />
-              )}
-              <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+            <Link
+              href={conversationHref(c.id)}
+              style={{
+                ...rowStyle,
+                background: isUnread
+                  ? 'color-mix(in srgb, var(--theme-bg-elevated, #f3f4f6) 75%, var(--theme-accent, #1D3095))'
+                  : 'var(--theme-bg-elevated)',
+              }}
+              aria-label={`${headline} — ${conversationStatus.aria}`}
+              data-status={conversationStatus.kind}
+            >
+              {/* Leading indicator dot — green for waiting, brand for
+                  sent-not-seen, etc. Always present so rows align. */}
+              <span
+                aria-hidden
+                style={{
+                  display: 'inline-block',
+                  width: 10,
+                  height: 10,
+                  borderRadius: 999,
+                  background: indicatorColor,
+                  flexShrink: 0,
+                  border: conversationStatus.kind === 'no_messages' ? '1px solid var(--theme-border)' : 'none',
+                }}
+              />
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
                 <span style={titleStyle}>
-                  {c.title ?? 'Conversation'}
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {headline}
+                  </span>
                   {c.is_group && (
                     <span style={badgeStyle} aria-label="Group conversation">group</span>
                   )}
                 </span>
+                {/* Status line: "Message Sent to John Harding ✓" /
+                    "Message Waiting from John Harding 🟢" / etc. */}
+                <span
+                  style={{
+                    ...previewStyle,
+                    color: isUnread ? 'var(--theme-fg-primary)' : 'var(--theme-fg-secondary)',
+                    fontWeight: isUnread ? 600 : 400,
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                  }}
+                >
+                  <span aria-hidden>{conversationStatus.icon}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {conversationStatus.label}
+                  </span>
+                </span>
+                {/* Group member subtitle — only on group rows. */}
+                {memberSubtitle && (
+                  <span style={{ ...previewStyle, fontSize: 'var(--hub-font-xxs, 0.68rem)' }}>
+                    {memberSubtitle}
+                  </span>
+                )}
+                {/* Message preview — opt-in via settings. */}
                 {renderPreview && c.last_message_preview && (
                   <span style={previewStyle}>{c.last_message_preview}</span>
                 )}
               </span>
-            </span>
-            {c.last_message_at && (
-              <span style={timestampStyle}>{formatRelative(c.last_message_at)}</span>
-            )}
-          </Link>
+              {c.last_message_at && (
+                <span style={timestampStyle}>{formatRelative(c.last_message_at)}</span>
+              )}
+            </Link>
           </li>
         );
       })}
     </ul>
   );
+}
+
+/** Pick the leading-indicator color for a row by status kind. */
+function statusIndicatorColor(kind: ConversationStatusKind): string {
+  switch (kind) {
+    case 'waiting_from_other': return '#10B981'; // green — needs your attention
+    case 'sent_to_other':      return 'var(--theme-accent, #1D3095)'; // sent, awaiting read
+    case 'seen_by_other':      return '#9CA3AF'; // greyed — already seen
+    case 'seen_from_other':    return '#9CA3AF'; // greyed — already read
+    case 'no_messages':        return 'transparent';
+  }
 }
 
 function MessagesSettings({ value, onChange }: WidgetSettingsFormProps<MessagesContent>) {

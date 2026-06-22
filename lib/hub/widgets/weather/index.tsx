@@ -2,6 +2,7 @@
 // Slice 141 of customizable-hub-and-work-mode-2026-05-28.md.
 
 import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
@@ -230,10 +231,14 @@ function WeatherWidget({ size, content }: WidgetProps<WeatherContent>) {
                 key={d.date}
                 data-date={d.date}
                 data-severity={severity?.kind ?? ''}
+                style={{ listStyle: 'none' }}
+              ><Link
+                href={`/admin/weather?date=${d.date}`}
                 title={tooltip}
-                tabIndex={0}
                 aria-label={tooltip}
+                tabIndex={0}
                 style={{
+                  textDecoration: 'none',
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
                   padding: '4px 2px',
                   borderRadius: 6,
@@ -242,7 +247,7 @@ function WeatherWidget({ size, content }: WidgetProps<WeatherContent>) {
                     : 'var(--theme-bg-elevated, transparent)',
                   outline: severity ? '1px solid color-mix(in srgb, var(--theme-fg-secondary, #6B7280) 30%, #f87171)' : 'none',
                   position: 'relative',
-                  cursor: 'help',
+                  cursor: 'pointer',
                   fontSize: 'var(--hub-font-xs, 0.72rem)',
                   color: 'var(--theme-fg-secondary)',
                 }}
@@ -274,7 +279,7 @@ function WeatherWidget({ size, content }: WidgetProps<WeatherContent>) {
                     🌧 {d.rain_chance_pct}%
                   </span>
                 )}
-              </li>
+              </Link></li>
             );
           })}
         </ul>
