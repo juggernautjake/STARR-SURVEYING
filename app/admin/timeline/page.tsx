@@ -205,15 +205,25 @@ export default function TimelinePage() {
             max={todayIso()}
           />
         </label>
-        <button
-          type="button"
-          style={styles.refreshBtn}
-          onClick={() => void fetchTimeline()}
-          disabled={loading || !userEmail}
-        >
-          {loading ? 'Loading…' : 'Refresh'}
-        </button>
-        <button
+        {/* timeline-toolbar-alignment-2026-06-22 — each action button
+            sits inside a filterLabel column with an invisible `&nbsp;`
+            label, byte-for-byte identical to the labeled-input columns
+            above, so the buttons land on the same baseline as the
+            inputs to their left instead of sitting flex-end below them. */}
+        <label style={styles.field} aria-label="Refresh the timeline">
+          <span style={styles.fieldLabel} aria-hidden>&nbsp;</span>
+          <button
+            type="button"
+            style={styles.refreshBtn}
+            onClick={() => void fetchTimeline()}
+            disabled={loading || !userEmail}
+          >
+            {loading ? 'Loading…' : 'Refresh'}
+          </button>
+        </label>
+        <label style={styles.field} aria-label="Recompute the timeline from the latest pings">
+          <span style={styles.fieldLabel} aria-hidden>&nbsp;</span>
+          <button
           type="button"
           style={styles.deriveBtn}
           onClick={() => void onDerive()}
@@ -221,7 +231,8 @@ export default function TimelinePage() {
           title="Re-runs the stop-detection algorithm against the latest pings"
         >
           {deriving ? 'Recomputing…' : 'Recompute'}
-        </button>
+          </button>
+        </label>
       </div>
 
       {error ? <div style={styles.error}>{error}</div> : null}

@@ -222,15 +222,19 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     receiptCountRes,
     dispatcherPingsRes,
   ] = await Promise.all([
+    // team-route-column-fix-2026-06-22 — live job_time_entries uses
+    // start_time / end_time; the entry_type and clock_in_lat/lon
+    // columns aren't in the schema. We project the real columns and
+    // stub the absent ones as null below.
     supabaseAdmin
       .from('job_time_entries')
       .select(
-        'id, job_id, entry_type, started_at, ended_at, duration_minutes, clock_in_lat, clock_in_lon'
+        'id, job_id, start_time, end_time, duration_minutes'
       )
       .eq('user_email', email)
-      .gte('started_at', window.startIso)
-      .lt('started_at', window.endIso)
-      .order('started_at', { ascending: true }),
+      .gte('start_time', window.startIso)
+      .lt('start_time', window.endIso)
+      .order('start_time', { ascending: true }),
     supabaseAdmin
       .from('location_pings')
       .select(
@@ -368,22 +372,22 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   // 4. Build clock-in entries with derived duration for the open
   //    entry. Closed rows use the stored value; open rows compute
-  //    from started_at → now().
+  //    from start_time → now(). team-route-column-fix-2026-06-22 —
+  //    live columns are start_time / end_time; entry_type and
+  //    clock_in_lat/lon aren't in the live schema, so we stub them
+  //    null while keeping the response shape stable.
   const nowMs = Date.now();
   type RawEntry = {
     id: string;
     job_id: string | null;
-    entry_type: string | null;
-    started_at: string | null;
-    ended_at: string | null;
+    start_time: string | null;
+    end_time: string | null;
     duration_minutes: number | null;
-    clock_in_lat: number | null;
-    clock_in_lon: number | null;
   };
   const entries: ClockEntry[] = ((entriesRes.data ?? []) as RawEntry[]).map(
     (e) => {
-      const isActive = !e.ended_at;
-      const startedMs = e.started_at ? Date.parse(e.started_at) : NaN;
+      const isActive = !e.end_time;
+      const startedMs = e.start_time ? Date.parse(e.start_time) : NaN;
       const derivedMin =
         e.duration_minutes ??
         (isActive && Number.isFinite(startedMs)
@@ -395,12 +399,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         job_id: e.job_id,
         job_name: job?.name ?? null,
         job_number: job?.job_number ?? null,
-        entry_type: e.entry_type,
-        started_at: e.started_at,
-        ended_at: e.ended_at,
+        entry_type: null,
+        started_at: e.start_time,
+        ended_at: e.end_time,
         duration_minutes: derivedMin,
-        clock_in_lat: e.clock_in_lat,
-        clock_in_lon: e.clock_in_lon,
+        clock_in_lat: null,
+        clock_in_lon: null,
         is_active: isActive,
       };
     }
