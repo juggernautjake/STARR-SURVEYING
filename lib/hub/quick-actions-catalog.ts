@@ -44,17 +44,17 @@ export interface QuickActionDef {
  *  then secondary navigations. */
 export const QUICK_ACTIONS_CATALOG: ReadonlyArray<QuickActionDef> = [
   {
-    // Slice W6 — converted from a placeholder action to a real
-    // link. `/admin/me?tab=hours` is the canonical timesheet
-    // surface (same href the command palette uses) so the tile
-    // does the correct thing instead of rendering as a disabled
-    // "Coming soon" button.
+    // quick-actions-wiring-2026-06-22 — flipped from a stub link to a
+    // real action. The widget now opens the same ClockInModal /
+    // ClockOutModal the top-bar ClockInPill uses, so the tile actually
+    // toggles the clock session instead of routing to a Hours tab that
+    // was archived in `_archive/components/HubTabs.tsx`.
     id: 'clock-in-out',
     label: 'Clock In/Out',
-    description: 'Open your timesheet to clock in or out.',
+    description: 'Clock in or out without leaving the hub.',
     iconName: 'Clock',
-    kind: 'link',
-    href: '/admin/me?tab=hours',
+    kind: 'action',
+    actionId: 'clock-in-out',
     allowedRoles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'],
     tint: 'success',
   },
@@ -121,12 +121,16 @@ export const QUICK_ACTIONS_CATALOG: ReadonlyArray<QuickActionDef> = [
     tint: 'accent',
   },
   {
+    // quick-actions-wiring-2026-06-22 — flipped from a stub action to a
+    // real link. Web upload page lives at /admin/receipts/new (file
+    // picker + optional job + optional notes). Native capture happens
+    // from the mobile app, which has a dedicated camera flow.
     id: 'capture-receipt',
     label: 'Capture Receipt',
     description: 'Upload a receipt photo for approval.',
     iconName: 'Camera',
-    kind: 'action',
-    actionId: 'capture-receipt',
+    kind: 'link',
+    href: '/admin/receipts/new',
     allowedRoles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'],
     tint: 'info',
   },
