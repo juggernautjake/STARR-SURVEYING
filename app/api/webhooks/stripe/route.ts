@@ -388,7 +388,7 @@ async function handleInvoicePaymentIntentSucceeded(paymentIntent: Record<string,
   }
 
   const { data: invoice } = await supabaseAdmin
-    .from('invoices')
+    .from('customer_invoices')
     .select('id, total_cents, status')
     .eq('id', invoiceId)
     .maybeSingle();
@@ -418,7 +418,7 @@ async function handleInvoicePaymentIntentSucceeded(paymentIntent: Record<string,
   });
 
   await supabaseAdmin
-    .from('invoices')
+    .from('customer_invoices')
     .update({
       status: nextStatus,
       paid_at: nextStatus === 'paid' ? new Date().toISOString() : null,

@@ -28,8 +28,8 @@ describe('PAYMENT_RLS_ALLOWLIST shape', () => {
   it("covers every shipped payment-domain table", () => {
     const tables = PAYMENT_RLS_ALLOWLIST.map((r) => r.table).sort();
     expect(tables).toEqual([
+      'customer_invoices',
       'employee_payment_methods',
-      'invoices',
       'payment_attempts',
       'payment_intents',
       'payment_receipts',
@@ -49,7 +49,7 @@ describe('PAYMENT_RLS_ALLOWLIST shape', () => {
   });
 
   it("never sets employee_self_read on customer-facing tables (no enumeration risk)", () => {
-    const customerFacing = ['invoices', 'payments', 'payment_intents', 'payment_attempts', 'payment_receipts'];
+    const customerFacing = ['customer_invoices', 'payments', 'payment_intents', 'payment_attempts', 'payment_receipts'];
     for (const t of customerFacing) {
       const row = PAYMENT_RLS_ALLOWLIST.find((r) => r.table === t)!;
       expect(row.employee_self_read).toBe('none');
@@ -72,7 +72,7 @@ describe('expectedPolicyNamesForTable (pure)', () => {
   });
 
   it("does NOT include the employee-self-read policy for service-only tables", () => {
-    expect(expectedPolicyNamesForTable('invoices').some((n) => n.startsWith('employee_self_read'))).toBe(false);
+    expect(expectedPolicyNamesForTable('customer_invoices').some((n) => n.startsWith('employee_self_read'))).toBe(false);
     expect(expectedPolicyNamesForTable('payment_secret_reads').some((n) => n.startsWith('employee_self_read'))).toBe(false);
   });
 });

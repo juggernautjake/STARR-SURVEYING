@@ -24,7 +24,7 @@ export interface PaymentRlsRow {
 
 export const PAYMENT_RLS_ALLOWLIST: ReadonlyArray<PaymentRlsRow> = [
   // P1 — invoices + receipts + intents (customer-facing rows)
-  { table: 'invoices',             seed: '323_payment_foundations.sql', employee_self_read: 'none', rationale: 'Customer-facing; route-mediated by invoice_number / public_slug; never employee-self-read.' },
+  { table: 'customer_invoices',    seed: '323_payment_foundations.sql', employee_self_read: 'none', rationale: 'Customer-facing; route-mediated by invoice_number / public_slug; never employee-self-read. Named to avoid colliding with the Stripe SaaS-billing `invoices` table.' },
   { table: 'payments',             seed: '323_payment_foundations.sql', employee_self_read: 'none', rationale: 'Office reconciles; customer sees only sanitized PublicPaymentSummary via the route.' },
   { table: 'payment_intents',      seed: '323_payment_foundations.sql', employee_self_read: 'none', rationale: 'Stripe shadow rows; service-role only.' },
   { table: 'payment_attempts',     seed: '323_payment_foundations.sql', employee_self_read: 'none', rationale: 'Customer-initiated; service-role only — the route gates by invoice number on insert.' },

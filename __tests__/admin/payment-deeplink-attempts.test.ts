@@ -118,10 +118,11 @@ describe('app/pay/[invoice]/page.tsx — deep-link flow (P6)', () => {
     expect(SRC).toMatch(/'pay-attempt-submit'/);
   });
 
-  it("POSTs to /api/public/invoice/<n>/attempt with method + balance + email", () => {
+  it("POSTs to /api/public/invoice/<n>/attempt with method + chosen amount + email", () => {
     expect(SRC).toMatch(/fetch\(`\/api\/public\/invoice\/\$\{encodeURIComponent\(invoice\.invoice_number\)\}\/attempt`/);
     expect(SRC).toMatch(/method: attemptMethod/);
-    expect(SRC).toMatch(/intended_amount_cents: invoice\.balance_cents/);
+    // S4 — the customer's chosen amount (>= upfront, <= balance), not always the full balance.
+    expect(SRC).toMatch(/intended_amount_cents: chosenCents/);
     expect(SRC).toMatch(/payer_email: payerEmail\.trim\(\) \|\| undefined/);
   });
 

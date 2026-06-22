@@ -28,6 +28,7 @@ import {
   type InvoiceForIntent,
 } from '@/lib/payments/stripe';
 import { PUBLIC_BLOCKED_STATUSES, sumSucceededPayments } from '@/lib/payments/invoice-public';
+import { decideUpfrontAcceptance } from '@/lib/payments/upfront-rule';
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!paymentsAreLive()) {
@@ -54,8 +55,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const upper = rawKey.toUpperCase();
 
   const { data: invoice } = await supabaseAdmin
-    .from('invoices')
-    .select('id, invoice_number, public_slug, status, total_cents, customer_email, customer_name')
+    .from('customer_invoices')
+    .select('id, invoice_number, public_slug, status, total_cents, deposit_amount_cents, customer_email, customer_name')
     .or(`invoice_number.eq.${upper},public_slug.eq.${rawKey}`)
     .maybeSingle();
 
@@ -76,11 +77,30 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Invoice is already paid in full.' }, { status: 409 });
   }
 
+  // Customer may pay a partial amount (defaults to the full balance), but it
+  // must clear the upfront on the first payment and never exceed the balance.
+  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const intended = typeof body.amount_cents === 'number'
+    ? Math.round(body.amount_cents)
+    : balance;
+  const decision = decideUpfrontAcceptance({
+    deposit_amount_cents: invoice.deposit_amount_cents ?? 0,
+    prior_paid_cents: paid,
+    intended_amount_cents: intended,
+    total_cents: invoice.total_cents ?? 0,
+  });
+  if (!decision.accepted) {
+    return NextResponse.json(
+      { error: decision.message, reason: decision.reason, min_cents: decision.min_cents, max_cents: decision.max_cents },
+      { status: 422 },
+    );
+  }
+
   const intentInput: InvoiceForIntent = {
     id: invoice.id,
     invoice_number: invoice.invoice_number,
     public_slug: invoice.public_slug,
-    balance_cents: balance,
+    balance_cents: intended,
     customer_email: invoice.customer_email,
     customer_name: invoice.customer_name,
   };
@@ -103,7 +123,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       invoice_id: invoice.id,
       provider: 'stripe',
       external_intent_id: intent.id,
-      amount_cents: balance,
+      amount_cents: intended,
       currency: 'usd',
       status: intent.status,
       client_secret: intent.client_secret,

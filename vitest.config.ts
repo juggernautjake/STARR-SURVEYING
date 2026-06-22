@@ -10,7 +10,10 @@ export default defineConfig({
     // the worker test suite (which has its own `cd worker && npm test`).
     // `**/node_modules/**` (not just the top-level dir) so third-party test
     // files under nested installs (e.g. mobile/node_modules) aren't collected.
-    exclude: ['**/node_modules/**', '.next', 'worker/**'],
+    // `.claude/worktrees/**` holds throwaway git worktrees (stale duplicate
+    // test copies); excluding it stops them double-running + reporting stale
+    // failures against the live tree.
+    exclude: ['**/node_modules/**', '.next', 'worker/**', '.claude/**'],
   },
   resolve: {
     alias: {
