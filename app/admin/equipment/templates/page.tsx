@@ -181,25 +181,40 @@ export default function TemplatesListPage() {
             style={{ ...styles.input, minWidth: 220 }}
           />
         </label>
-        <label style={styles.checkboxField}>
-          <input
-            type="checkbox"
-            checked={includeArchived}
-            onChange={(e) => setIncludeArchived(e.target.checked)}
-          />
-          <span>Include archived</span>
+        {/* equipment-templates-toolbar-alignment-2026-06-22 — same
+            pattern we've been applying everywhere else: wrap every
+            non-labeled action in a styles.field column with an
+            invisible &nbsp; label so the column structure matches
+            the Job type / Search columns to the left and the bottoms
+            line up by construction. */}
+        <label style={styles.field} aria-label="Include archived">
+          <span style={styles.fieldLabel} aria-hidden>&nbsp;</span>
+          <span style={styles.checkboxField}>
+            <input
+              type="checkbox"
+              checked={includeArchived}
+              onChange={(e) => setIncludeArchived(e.target.checked)}
+            />
+            <span>Include archived</span>
+          </span>
         </label>
-        <button
-          type="button"
-          style={styles.refreshBtn}
-          onClick={() => void fetchTemplates()}
-          disabled={loading}
-        >
-          {loading ? 'Loading…' : 'Refresh'}
-        </button>
-        <Link href="/admin/equipment/templates/new" style={styles.addBtn}>
-          + New template
-        </Link>
+        <label style={styles.field} aria-label="Refresh the list">
+          <span style={styles.fieldLabel} aria-hidden>&nbsp;</span>
+          <button
+            type="button"
+            style={styles.refreshBtn}
+            onClick={() => void fetchTemplates()}
+            disabled={loading}
+          >
+            {loading ? 'Loading…' : 'Refresh'}
+          </button>
+        </label>
+        <label style={styles.field} aria-label="Create a new template">
+          <span style={styles.fieldLabel} aria-hidden>&nbsp;</span>
+          <Link href="/admin/equipment/templates/new" style={styles.addBtn}>
+            + New template
+          </Link>
+        </label>
       </div>
 
       {actionMsg ? (
@@ -393,39 +408,56 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  // equipment-templates-toolbar-alignment-2026-06-22 — every control
+  // in the row shares an explicit 36px height + border-box so a 1px
+  // border difference between an <input> and a borderless <button>
+  // can't knock them out of line. The label-spacer wrapper takes care
+  // of vertical column matching; this enforces matching control
+  // height within each column.
   input: {
-    padding: '8px 10px',
+    height: 36,
+    boxSizing: 'border-box',
+    padding: '0 10px',
     border: '1px solid #E2E5EB',
     borderRadius: 8,
     fontSize: 13,
     minWidth: 160,
   },
   checkboxField: {
-    display: 'flex',
+    height: 36,
+    boxSizing: 'border-box',
+    display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
     fontSize: 13,
-    paddingBottom: 8,
+    whiteSpace: 'nowrap',
   },
   refreshBtn: {
+    height: 36,
+    boxSizing: 'border-box',
     background: 'transparent',
     border: '1px solid #E2E5EB',
     borderRadius: 8,
-    padding: '8px 14px',
+    padding: '0 14px',
     cursor: 'pointer',
     fontSize: 13,
+    display: 'inline-flex',
+    alignItems: 'center',
   },
   addBtn: {
+    height: 36,
+    boxSizing: 'border-box',
     background: 'var(--color-brand-navy)',
     color: 'var(--color-text-on-brand)',
     border: 'none',
     borderRadius: 8,
-    padding: '8px 14px',
+    padding: '0 14px',
     cursor: 'pointer',
     fontSize: 13,
     fontWeight: 500,
     textDecoration: 'none',
-    display: 'inline-block',
+    display: 'inline-flex',
+    alignItems: 'center',
   },
   summary: { fontSize: 13, color: 'var(--color-text-tertiary)', marginBottom: 12 },
   actionMsgOk: {
