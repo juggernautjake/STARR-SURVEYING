@@ -27,8 +27,11 @@ CREATE INDEX IF NOT EXISTS idx_activity_tags_system ON public.activity_tags (sys
 ALTER TABLE public.daily_time_logs
   ADD COLUMN IF NOT EXISTS activity_tag_ids uuid[];
 
--- Seed the system tags. Idempotent — re-runs no-op via `ON CONFLICT`
--- on (label, system) so we can re-run the seed safely.
+-- Seed the system tags. The original `ON CONFLICT DO NOTHING` clause
+-- below was a no-op until seed 375 added the matching unique index on
+-- `(label) WHERE system = true`. Once 375 has run, `DO NOTHING` properly
+-- skips re-inserts of these 8 rows; before 375 had run, this seed could
+-- produce duplicates. (See activity-tag-dedupe-2026-06-22.)
 INSERT INTO public.activity_tags (label, color, system, work_type_key)
 VALUES
   ('Field work',     '#10B981', true, 'field'),
