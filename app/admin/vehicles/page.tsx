@@ -43,10 +43,23 @@ interface VehicleRow {
   primary_photo_url: string | null;
   photo_count: number;
   active: boolean;
+  // Condition tracking (E5) — coexists with the operational `status`.
+  condition: string | null;
+  odometer_miles: number | null;
+  last_inspected_at: string | null;
+  condition_notes: string | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;
 }
+
+const CONDITION_META: Record<string, { label: string; bg: string }> = {
+  excellent: { label: 'Excellent', bg: '#10B981' },
+  good: { label: 'Good', bg: '#22C55E' },
+  fair: { label: 'Fair', bg: '#F59E0B' },
+  poor: { label: 'Poor', bg: '#EF4444' },
+  out_of_service: { label: 'Out of service', bg: '#7F1D1D' },
+};
 
 interface VehiclePhoto {
   id: string;
@@ -100,6 +113,7 @@ export default function VehiclesPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [photos, setPhotos] = useState<Record<string, VehiclePhoto[]>>({});
   const [photoBusy, setPhotoBusy] = useState<string | null>(null);
+  const [conditionTarget, setConditionTarget] = useState<VehicleRow | null>(null);
 
   const fetchList = useCallback(async () => {
     if (!session?.user?.email) return;
@@ -554,6 +568,25 @@ export default function VehiclesPage() {
                       <dt style={styles.metaKey}>Photos</dt>
                       <dd style={styles.metaVal}>{v.photo_count ?? 0}</dd>
                     </div>
+                    <div style={styles.metaRow}>
+                      <dt style={styles.metaKey}>Condition</dt>
+                      <dd style={styles.metaVal}>
+                        {v.condition ? (
+                          <span
+                            style={{ ...styles.conditionBadge, background: CONDITION_META[v.condition]?.bg ?? '#9CA3AF' }}
+                            title={v.last_inspected_at ? `Inspected ${new Date(v.last_inspected_at).toLocaleDateString()}` : undefined}
+                          >
+                            {CONDITION_META[v.condition]?.label ?? v.condition}
+                          </span>
+                        ) : (
+                          <span style={{ color: '#9CA3AF' }}>Not logged</span>
+                        )}
+                      </dd>
+                    </div>
+                    <div style={styles.metaRow}>
+                      <dt style={styles.metaKey}>Odometer</dt>
+                      <dd style={styles.metaVal}>{v.odometer_miles != null ? `${v.odometer_miles.toLocaleString()} mi` : '—'}</dd>
+                    </div>
                   </dl>
                   {v.issue_notes && (
                     <div style={styles.notesBox}>
@@ -592,6 +625,15 @@ export default function VehiclesPage() {
                       disabled={busyId === v.id}
                     >
                       Edit
+                    </button>
+                    <button
+                      type="button"
+                      style={styles.linkBtn}
+                      onClick={() => setConditionTarget(v)}
+                      disabled={busyId === v.id}
+                      data-testid={`condition-${v.id}`}
+                    >
+                      Condition
                     </button>
                     <button
                       type="button"
@@ -638,6 +680,73 @@ export default function VehiclesPage() {
           })}
         </div>
       )}
+
+      {conditionTarget ? (
+        <ConditionModal
+          vehicle={conditionTarget}
+          onClose={() => setConditionTarget(null)}
+          onSaved={() => { setConditionTarget(null); void fetchList(); }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function ConditionModal({
+  vehicle,
+  onClose,
+  onSaved,
+}: {
+  vehicle: VehicleRow;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [condition, setCondition] = useState(vehicle.condition ?? 'good');
+  const [odometer, setOdometer] = useState(vehicle.odometer_miles != null ? String(vehicle.odometer_miles) : '');
+  const [notes, setNotes] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    setErr(null);
+    setBusy(true);
+    const body: Record<string, unknown> = { vehicle_id: vehicle.id, condition, notes: notes || undefined };
+    const odo = parseInt(odometer, 10);
+    if (Number.isFinite(odo) && odo >= 0) body.odometer_miles = odo;
+    const res = await fetch('/api/admin/vehicles/condition', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    setBusy(false);
+    if (!res.ok) { setErr((await res.json().catch(() => ({}))).error ?? 'Save failed.'); return; }
+    onSaved();
+  }
+
+  return (
+    <div style={styles.condBackdrop} onClick={onClose}>
+      <div style={styles.condModal} onClick={(e) => e.stopPropagation()} role="dialog" aria-label={`Log condition — ${vehicle.name}`}>
+        <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px' }}>Log condition — {vehicle.name}</h3>
+        <label style={styles.condField}>
+          <span style={styles.condLabel}>Condition</span>
+          <select value={condition} onChange={(e) => setCondition(e.target.value)} style={styles.condInput} data-testid="condition-select">
+            {Object.entries(CONDITION_META).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
+          </select>
+        </label>
+        <label style={styles.condField}>
+          <span style={styles.condLabel}>Odometer (miles)</span>
+          <input type="number" min={0} value={odometer} onChange={(e) => setOdometer(e.target.value)} style={styles.condInput} placeholder="e.g. 84210" />
+        </label>
+        <label style={styles.condField}>
+          <span style={styles.condLabel}>Notes (optional)</span>
+          <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} style={styles.condInput} placeholder="e.g. new tires, check engine light on" />
+        </label>
+        {err ? <div style={styles.condError}>{err}</div> : null}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+          <button type="button" style={styles.linkBtn} onClick={onClose} disabled={busy}>Cancel</button>
+          <button type="button" style={styles.primaryBtn} onClick={submit} disabled={busy} data-testid="condition-submit">
+            {busy ? 'Saving…' : 'Save condition'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1102,5 +1211,55 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
     color: 'var(--color-brand-navy)',
     padding: '4px 6px',
+  },
+  // ── Condition tracking (E5) ───────────────────────────────────────────
+  conditionBadge: {
+    display: 'inline-block',
+    padding: '2px 8px',
+    borderRadius: 9999,
+    fontSize: 11,
+    fontWeight: 600,
+    color: '#fff',
+  },
+  condBackdrop: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(17,24,39,0.4)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+    padding: 16,
+  },
+  condModal: {
+    background: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    width: '100%',
+    maxWidth: 420,
+    boxShadow: '0 12px 40px rgba(0,0,0,0.2)',
+  },
+  condField: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+    fontSize: 13,
+    color: '#4B5563',
+    marginBottom: 10,
+  },
+  condLabel: { fontWeight: 500 },
+  condInput: {
+    font: 'inherit',
+    padding: '8px 10px',
+    border: '1px solid #D6D9E3',
+    borderRadius: 8,
+    color: '#152050',
+  },
+  condError: {
+    background: '#FDECEC',
+    color: '#9C0E13',
+    padding: '8px 10px',
+    borderRadius: 8,
+    fontSize: 13,
   },
 };

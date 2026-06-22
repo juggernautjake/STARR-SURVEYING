@@ -9,7 +9,7 @@
 // Unknown names fall back to a neutral Circle so a typo never crashes nav.
 
 import {
-  Activity, AlertTriangle, Banknote, BarChart3, Bell, BookMarked, BookOpen,
+  Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, BookMarked, BookOpen,
   Briefcase, Brush, Bug, Building, Building2, Calendar, CalendarDays, Car,
   CheckCircle2, Circle, ClipboardCheck, ClipboardList, Clock, Compass, Contact,
   CreditCard, DraftingCompass, FileBarChart, FilePlus, FileText, Files, Folder,
@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 
 const ICONS: Record<string, LucideIcon> = {
-  Activity, AlertTriangle, Banknote, BarChart3, Bell, BookMarked, BookOpen,
+  Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, BookMarked, BookOpen,
   Briefcase, Brush, Bug, Building, Building2, Calendar, CalendarDays, Car,
   CheckCircle2, Circle, ClipboardCheck, ClipboardList, Clock, Compass, Contact,
   CreditCard, DraftingCompass, FileBarChart, FilePlus, FileText, Files, Folder,

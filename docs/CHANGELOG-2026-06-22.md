@@ -1,5 +1,26 @@
 # Shipping log — 2026-06-22
 
+## Equipment Manager build-out — COMPLETE
+
+Audited the whole equipment subsystem and filled the gaps blocking a single
+power-user equipment manager. (The audit found the data model + most pages
+already solid, and equipment CRUD already wired — so this focused on the three
+real gaps.) Plan: `docs/planning/completed/EQUIPMENT_MANAGER_BUILDOUT_2026-06-22.md`.
+
+| Slice | What shipped |
+|------|--------------|
+| E1 | `equipment_assignments` ledger (seed 364) — direct, non-job check-out/in with a partial-unique "one open assignment per item" guard. |
+| E2 | `POST /equipment/[id]/assign` + `/return` + `lib/equipment/assignment.ts` state machine (9 tests). Check out to crew / vehicle / maintenance / other w/ condition; check in frees the item, decrements consumable stock by units used, and auto-opens a maintenance triage event on damaged/lost. |
+| E3 | `/admin/equipment/checked-out` — the Check In / Out hub (item picker + target + condition; one-click check-in of everything that's out). Registered in nav. |
+| E4 | "Use" action on the consumables page + `POST /equipment/[id]/use` — record ad-hoc supply usage anytime (keeps the 30-day burn rate accurate). |
+| E5 | Vehicle condition tracking (seed 365): condition + odometer + inspection history; condition badge + "Log condition" modal on `/admin/vehicles`. |
+| E6 | Command center on `/admin/equipment` — quick actions + live counts (out now / supplies to reorder / vehicles needing attention). |
+
+The existing job-dispatch reservation system was left untouched; the new direct
+flow coexists for day-to-day lending.
+
+---
+
 ## Customer Invoicing + Payment Portal (Phase 2) — COMPLETE
 
 Built the full customer invoicing feature the owner specified: a frontend

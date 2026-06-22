@@ -97,6 +97,7 @@ export default function EquipmentConsumablesPage() {
   const [restockTarget, setRestockTarget] = useState<RestockTarget | null>(null);
   const [thresholdTarget, setThresholdTarget] = useState<ThresholdTarget | null>(null);
   const [discontinueTarget, setDiscontinueTarget] = useState<DiscontinueTarget | null>(null);
+  const [useTarget, setUseTarget] = useState<{ id: string; name: string; unit: string | null; current_on_hand: number } | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
 
   const fetchConsumables = useCallback(async () => {
@@ -306,6 +307,22 @@ export default function EquipmentConsumablesPage() {
                           style={styles.actionBtnSecondary}
                           onClick={() => {
                             setActionMsg(null);
+                            setUseTarget({
+                              id: r.id,
+                              name: r.name ?? r.id,
+                              unit: r.unit,
+                              current_on_hand: r.quantity_on_hand ?? 0,
+                            });
+                          }}
+                          data-testid={`use-${r.id}`}
+                        >
+                          Use
+                        </button>
+                        <button
+                          type="button"
+                          style={styles.actionBtnSecondary}
+                          onClick={() => {
+                            setActionMsg(null);
                             setThresholdTarget({
                               id: r.id,
                               name: r.name ?? r.id,
@@ -399,6 +416,79 @@ export default function EquipmentConsumablesPage() {
           }}
         />
       ) : null}
+
+      {useTarget ? (
+        <UseStockModal
+          target={useTarget}
+          onClose={() => setUseTarget(null)}
+          onUsed={(used, after) => {
+            const t = useTarget;
+            setUseTarget(null);
+            setActionMsg(`✓ Logged ${used} ${t.unit ?? 'units'} used of ${t.name}. ${after} on hand.`);
+            void fetchConsumables();
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function UseStockModal({
+  target,
+  onClose,
+  onUsed,
+}: {
+  target: { id: string; name: string; unit: string | null; current_on_hand: number };
+  onClose: () => void;
+  onUsed: (used: number, after: number) => void;
+}) {
+  const { safeFetch } = usePageError('UseStockModal');
+  const [qty, setQty] = useState('');
+  const [notes, setNotes] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    const n = Math.round(parseFloat(qty));
+    setErr(null);
+    if (!Number.isFinite(n) || n <= 0) { setErr('Enter how many units were used.'); return; }
+    if (n > target.current_on_hand) { setErr(`Only ${target.current_on_hand} on hand.`); return; }
+    setBusy(true);
+    const res = await safeFetch<{ on_hand_after: number }>(
+      `/api/admin/equipment/${target.id}/use`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ quantity: n, notes: notes || undefined }) },
+    );
+    setBusy(false);
+    if (!res) { setErr('Failed to record usage.'); return; }
+    onUsed(n, res.on_hand_after);
+  }
+
+  return (
+    <div style={modalStyles.backdrop} onClick={onClose}>
+      <div style={modalStyles.modal} onClick={(e) => e.stopPropagation()} role="dialog" aria-label={`Record usage — ${target.name}`}>
+        <div style={modalStyles.header}>
+          <h3 style={modalStyles.title}>Record usage — {target.name}</h3>
+          <button type="button" style={modalStyles.close} onClick={onClose} aria-label="Close">×</button>
+        </div>
+        <div style={modalStyles.body}>
+          <p style={modalStyles.subtitle}>{target.current_on_hand} {target.unit ?? 'units'} on hand.</p>
+          <label style={modalStyles.field}>
+            <span style={modalStyles.label}>Units used</span>
+            <input type="number" min={1} max={target.current_on_hand} value={qty} onChange={(e) => setQty(e.target.value)} style={modalStyles.input} data-testid="use-qty" autoFocus />
+          </label>
+          <label style={modalStyles.field}>
+            <span style={modalStyles.label}>Notes (optional)</span>
+            <input value={notes} onChange={(e) => setNotes(e.target.value)} style={modalStyles.input} placeholder="e.g. used on the Johnson boundary job" />
+          </label>
+          {err ? <div style={modalStyles.error} role="alert">{err}</div> : null}
+        </div>
+        <div style={modalStyles.footer}>
+          <button type="button" style={styles.actionBtnSecondary} onClick={onClose} disabled={busy}>Cancel</button>
+          <button type="button" style={modalStyles.primaryBtn} onClick={submit} disabled={busy} data-testid="use-submit">
+            {busy ? 'Saving…' : 'Record usage'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

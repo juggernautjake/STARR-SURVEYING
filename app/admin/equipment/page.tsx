@@ -9,7 +9,15 @@
 // (Mod+3) had nowhere to land.
 
 import WorkspaceLanding from '../components/nav/WorkspaceLanding';
+import EquipmentManagerHub from './EquipmentManagerHub';
 
 export default function EquipmentLanding() {
-  return <WorkspaceLanding workspace="equipment" />;
+  return (
+    <>
+      {/* E6 — equipment-manager command center: quick actions + live counts,
+          above the full route-card grid. */}
+      <EquipmentManagerHub />
+      <WorkspaceLanding workspace="equipment" />
+    </>
+  );
 }
