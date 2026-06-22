@@ -40,8 +40,8 @@
  * not a dash, so `[class*="-btn"]` never matched. Added the
  * `[class*="__btn"]` exclusion so BEM button variants escape the
  * navy-color cascade too. */
-.admin-layout a:not(.btn):not([class*="dashboard-card"]):not([class*="sidebar"]):not([class*="topbar"]):not([class*="admin-rail"]):not([class*="-btn"]):not([class*="__btn"]) { color: var(--color-brand-navy, #1D3095); }
-.admin-layout a:not(.btn):not([class*="dashboard-card"]):not([class*="sidebar"]):not([class*="topbar"]):not([class*="admin-rail"]):not([class*="-btn"]):not([class*="__btn"]):hover { color: var(--color-brand-navy-d, #152050); }
+.admin-layout a:not(.btn):not([class*="dashboard-card"]):not([class*="sidebar"]):not([class*="topbar"]):not([class*="admin-rail"]):not([class*="__btn"]):not([class*="-btn"]) { color: var(--color-brand-navy, #1D3095); }
+.admin-layout a:not(.btn):not([class*="dashboard-card"]):not([class*="sidebar"]):not([class*="topbar"]):not([class*="admin-rail"]):not([class*="__btn"]):not([class*="-btn"]):hover { color: var(--color-brand-navy-d, #152050); }
 
 /* button-tooltip-portal-2026-06-20 — primary `<a>` button class
  * variants (jobs-page__btn--primary, admin-btn--primary, etc.)
