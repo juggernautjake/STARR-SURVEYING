@@ -169,6 +169,11 @@ export default function FleetValuationPage() {
             unlocked years compute live via §179 / MACRS / straight-line.
           </p>
         </div>
+        {/* fleet-valuation-toolbar-alignment-2026-06-22 — same column
+            structure across every control so the row reads as a single
+            baseline. Tax year owns the only visible label; every other
+            column carries a `&nbsp;` placeholder label so its 36px
+            control lines up with the Tax year input. */}
         <div style={styles.controls}>
           <label style={styles.controlLabel}>
             Tax year
@@ -184,38 +189,50 @@ export default function FleetValuationPage() {
               style={styles.yearInput}
             />
           </label>
-          <button
-            type="button"
-            onClick={() => void fetchRollup()}
-            style={styles.refreshBtn}
-            disabled={loading}
-          >
-            {loading ? 'Loading…' : 'Refresh'}
-          </button>
-          <a
-            href={`/api/admin/equipment/asset-detail-schedule?tax_year=${taxYear}&format=csv`}
-            style={styles.exportBtn}
-            download
-          >
-            ⤓ CSV
-          </a>
-          <a
-            href={`/api/admin/equipment/asset-detail-schedule?tax_year=${taxYear}&format=html`}
-            style={styles.exportBtn}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            ⎙ Print PDF
-          </a>
-          {isAdmin ? (
+          <label style={styles.controlLabel} aria-label="Refresh the rollup">
+            <span aria-hidden>&nbsp;</span>
             <button
               type="button"
-              onClick={() => void openLockConfirm()}
-              style={styles.lockBtn}
-              disabled={locking || !data}
+              onClick={() => void fetchRollup()}
+              style={styles.refreshBtn}
+              disabled={loading}
             >
-              {locking ? 'Working…' : `Lock ${taxYear}`}
+              {loading ? 'Loading…' : 'Refresh'}
             </button>
+          </label>
+          <label style={styles.controlLabel} aria-label="Download CSV">
+            <span aria-hidden>&nbsp;</span>
+            <a
+              href={`/api/admin/equipment/asset-detail-schedule?tax_year=${taxYear}&format=csv`}
+              style={styles.exportBtn}
+              download
+            >
+              ⤓ CSV
+            </a>
+          </label>
+          <label style={styles.controlLabel} aria-label="Open the printable schedule">
+            <span aria-hidden>&nbsp;</span>
+            <a
+              href={`/api/admin/equipment/asset-detail-schedule?tax_year=${taxYear}&format=html`}
+              style={styles.exportBtn}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              ⎙ Print PDF
+            </a>
+          </label>
+          {isAdmin ? (
+            <label style={styles.controlLabel} aria-label={`Lock ${taxYear}`}>
+              <span aria-hidden>&nbsp;</span>
+              <button
+                type="button"
+                onClick={() => void openLockConfirm()}
+                style={styles.lockBtn}
+                disabled={locking || !data}
+              >
+                {locking ? 'Working…' : `Lock ${taxYear}`}
+              </button>
+            </label>
           ) : null}
         </div>
       </header>
@@ -492,8 +509,14 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase' as const,
     letterSpacing: '0.04em',
   },
+  // fleet-valuation-toolbar-alignment-2026-06-22 — explicit 36px
+  // height + border-box on every control so a 1px border difference
+  // between an input and a borderless button can't knock them out
+  // of line. The wrapped columns handle vertical column matching.
   yearInput: {
-    padding: '6px 10px',
+    height: 36,
+    boxSizing: 'border-box',
+    padding: '0 10px',
     border: '1px solid #E2E5EB',
     borderRadius: 6,
     fontSize: 13,
@@ -501,7 +524,9 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: 'inherit',
   },
   refreshBtn: {
-    padding: '8px 14px',
+    height: 36,
+    boxSizing: 'border-box',
+    padding: '0 14px',
     border: '1px solid var(--color-brand-navy)',
     background: 'var(--color-bg-card)',
     color: 'var(--color-brand-navy)',
@@ -509,9 +534,13 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     fontWeight: 500,
     cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
   },
   exportBtn: {
-    padding: '8px 14px',
+    height: 36,
+    boxSizing: 'border-box',
+    padding: '0 14px',
     border: '1px solid #E2E5EB',
     background: 'var(--color-bg-card)',
     color: '#374151',
@@ -520,10 +549,13 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
     cursor: 'pointer',
     textDecoration: 'none',
-    display: 'inline-block',
+    display: 'inline-flex',
+    alignItems: 'center',
   },
   lockBtn: {
-    padding: '8px 14px',
+    height: 36,
+    boxSizing: 'border-box',
+    padding: '0 14px',
     border: 'none',
     background: '#7F1D1D',
     color: 'var(--color-text-on-brand)',
@@ -531,6 +563,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
   },
   actionMsg: {
     background: '#DCFCE7',

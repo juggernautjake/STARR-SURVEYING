@@ -35,13 +35,38 @@ export const GET = withErrorHandler(async () => {
   if (!session?.user || !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+  // invoicing-cards-2026-06-22 — include job_id + decorate each row
+  // with the linked job's name + number so the dashboard cards can
+  // render a clickable job badge instead of just an opaque uuid.
   const { data, error } = await supabaseAdmin
     .from('customer_invoices')
-    .select('id, invoice_number, public_slug, status, customer_name, customer_email, total_cents, issued_at, due_at, paid_at, created_at')
+    .select('id, invoice_number, public_slug, status, customer_name, customer_email, total_cents, issued_at, due_at, paid_at, created_at, job_id')
     .order('created_at', { ascending: false })
     .limit(200);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ invoices: data ?? [] });
+
+  const rows = (data ?? []) as Array<{
+    id: string; job_id: string | null; [k: string]: unknown;
+  }>;
+  const jobIds = Array.from(new Set(rows.map((r) => r.job_id).filter((x): x is string => !!x)));
+  const jobByEnvelope = new Map<string, { name: string | null; job_number: string | null }>();
+  if (jobIds.length > 0) {
+    const { data: jobs } = await supabaseAdmin
+      .from('jobs')
+      .select('id, name, job_number')
+      .in('id', jobIds);
+    for (const j of (jobs ?? []) as Array<{ id: string; name: string | null; job_number: string | null }>) {
+      jobByEnvelope.set(j.id, { name: j.name, job_number: j.job_number });
+    }
+  }
+  const invoices = rows.map((r) => {
+    const job = r.job_id ? jobByEnvelope.get(r.job_id) ?? null : null;
+    return {
+      ...r,
+      job: job ? { id: r.job_id, name: job.name, job_number: job.job_number } : null,
+    };
+  });
+  return NextResponse.json({ invoices });
 });
 
 export const POST = withErrorHandler(async (req: NextRequest) => {

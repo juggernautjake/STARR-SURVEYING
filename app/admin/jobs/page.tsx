@@ -41,20 +41,50 @@ interface Job {
 // job-soft-delete Slice 1 — the delete/restore control that overlays
 // the top-right corner of each job card / row. Absolutely positioned
 // as a sibling of the card button so its click never bubbles into
-// navigation.
+// navigation. jobs-card-trash-overlap-2026-06-22 — slimmed to a 28px
+// round icon-only button so it stops crashing into the stage pill.
+// Paired with `padding-right` on `.job-card__header` (AdminJobs.css)
+// that reserves room for this overlay.
 const jobActionOverlayStyle: CSSProperties = {
   position: 'absolute',
-  top: 6,
-  right: 6,
+  top: 8,
+  right: 8,
   zIndex: 2,
-  padding: '2px 8px',
-  borderRadius: 6,
+  width: 28,
+  height: 28,
+  padding: 0,
+  borderRadius: '50%',
   border: '1px solid #FCA5A5',
-  background: 'rgba(255,255,255,0.92)',
+  background: 'rgba(255,255,255,0.96)',
   color: '#B42318',
   cursor: 'pointer',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+};
+// Pill-shaped overlay for the wider Restore label (top-right of
+// soft-deleted cards). Reuses the round overlay's color palette but
+// keeps room for the text — same `top/right` offset so it visually
+// occupies the same corner.
+const jobRestoreOverlayStyle: CSSProperties = {
+  position: 'absolute',
+  top: 8,
+  right: 8,
+  zIndex: 2,
+  height: 28,
+  padding: '0 10px',
+  borderRadius: 14,
+  border: '1px solid #86EFAC',
+  background: 'rgba(255,255,255,0.96)',
+  color: '#15803D',
+  cursor: 'pointer',
   fontSize: 12,
-  lineHeight: 1.6,
+  fontWeight: 600,
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 4,
+  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
 };
 
 export default function AllJobsPage() {
@@ -315,7 +345,7 @@ export default function AllJobsPage() {
                     disabled={busyId === job.id}
                     title="Restore this job"
                     aria-label={`Restore ${job.name}`}
-                    style={{ ...jobActionOverlayStyle, color: '#15803D', borderColor: '#86EFAC' }}
+                    style={jobRestoreOverlayStyle}
                   >
                     ↩ Restore
                   </button>

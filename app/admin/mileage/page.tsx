@@ -204,22 +204,33 @@ export default function MileagePage() {
             style={styles.input}
           />
         </label>
-        <button
-          type="button"
-          style={styles.refreshBtn}
-          onClick={() => void fetchMileage()}
-          disabled={loading}
-        >
-          {loading ? 'Loading…' : 'Refresh'}
-        </button>
-        <button
-          type="button"
-          style={styles.exportBtn}
-          onClick={() => void exportCsv()}
-          disabled={exporting || loading || !data || data.days.length === 0}
-        >
-          {exporting ? 'Exporting…' : 'Export CSV'}
-        </button>
+        {/* mileage-toolbar-alignment-2026-06-22 — each action button
+            sits in its own filterLabel column with an invisible `&nbsp;`
+            label, byte-for-byte identical to the labeled-input columns
+            above, so the buttons land on the same baseline as the
+            inputs to their left. */}
+        <label style={styles.field} aria-label="Refresh the mileage data">
+          <span style={styles.fieldLabel} aria-hidden>&nbsp;</span>
+          <button
+            type="button"
+            style={styles.refreshBtn}
+            onClick={() => void fetchMileage()}
+            disabled={loading}
+          >
+            {loading ? 'Loading…' : 'Refresh'}
+          </button>
+        </label>
+        <label style={styles.field} aria-label="Export the mileage data as CSV">
+          <span style={styles.fieldLabel} aria-hidden>&nbsp;</span>
+          <button
+            type="button"
+            style={styles.exportBtn}
+            onClick={() => void exportCsv()}
+            disabled={exporting || loading || !data || data.days.length === 0}
+          >
+            {exporting ? 'Exporting…' : 'Export CSV'}
+          </button>
+        </label>
       </div>
 
       {error ? <div style={styles.error}>{error}</div> : null}
