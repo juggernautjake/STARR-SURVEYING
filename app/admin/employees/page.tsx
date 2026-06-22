@@ -221,6 +221,7 @@ export default function EmployeesPage() {
           value={roleFilter}
           onChange={e => setRoleFilter(e.target.value as UserRole | 'all')}
           aria-label="Filter by role"
+          style={{ minWidth: '140px', height: 36, boxSizing: 'border-box' }}
         >
           <option value="all">All Roles</option>
           {allEmployeeRoles.map(r => <option key={r} value={r}>{ROLE_LABELS[r as UserRole] || r}</option>)}
@@ -230,6 +231,7 @@ export default function EmployeesPage() {
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
           aria-label="Filter by status"
+          style={{ minWidth: '120px', height: 36, boxSizing: 'border-box' }}
         >
           <option value="all">All Status</option>
           <option value="active">Active</option>
