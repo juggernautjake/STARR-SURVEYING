@@ -6,7 +6,8 @@
 -- (not Postgres ENUMs) so future statuses ship without an ALTER TYPE
 -- dance.
 --
---   1. invoices             — the customer-facing record
+--   1. customer_invoices    — the customer-facing record (named to avoid
+--                             colliding with the Stripe SaaS-billing `invoices`)
 --   2. payments             — completed payment records
 --   3. payment_intents      — Stripe PaymentIntent shadow rows
 --   4. payment_attempts     — every attempt incl. cash/check pledges
@@ -23,7 +24,7 @@
 BEGIN;
 
 -- ── 1. invoices ──────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS public.invoices (
+CREATE TABLE IF NOT EXISTS public.customer_invoices (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   invoice_number  TEXT NOT NULL UNIQUE,
   public_slug     TEXT NOT NULL UNIQUE,
@@ -52,20 +53,20 @@ CREATE TABLE IF NOT EXISTS public.invoices (
   updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-COMMENT ON TABLE public.invoices IS
+COMMENT ON TABLE public.customer_invoices IS
   'Customer-facing invoices. Identified to customers by invoice_number; URL-safe via public_slug.';
 
-CREATE INDEX IF NOT EXISTS idx_invoices_status_issued
-  ON public.invoices (status, issued_at DESC);
-CREATE INDEX IF NOT EXISTS idx_invoices_job
-  ON public.invoices (job_id);
-CREATE INDEX IF NOT EXISTS idx_invoices_customer_email
-  ON public.invoices (customer_email);
+CREATE INDEX IF NOT EXISTS idx_customer_invoices_status_issued
+  ON public.customer_invoices (status, issued_at DESC);
+CREATE INDEX IF NOT EXISTS idx_customer_invoices_job
+  ON public.customer_invoices (job_id);
+CREATE INDEX IF NOT EXISTS idx_customer_invoices_customer_email
+  ON public.customer_invoices (customer_email);
 
 -- ── 2. payments ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.payments (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  invoice_id          UUID NOT NULL REFERENCES public.invoices(id) ON DELETE RESTRICT,
+  invoice_id          UUID NOT NULL REFERENCES public.customer_invoices(id) ON DELETE RESTRICT,
   amount_cents        INTEGER NOT NULL CHECK (amount_cents >= 0),
   method              TEXT NOT NULL
                         CHECK (method IN ('stripe', 'venmo', 'cashapp', 'zelle', 'ach', 'cash', 'check', 'other')),
@@ -98,7 +99,7 @@ CREATE INDEX IF NOT EXISTS idx_payments_external
 -- invoice quickly when an intent succeeds.
 CREATE TABLE IF NOT EXISTS public.payment_intents (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  invoice_id          UUID NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
+  invoice_id          UUID NOT NULL REFERENCES public.customer_invoices(id) ON DELETE CASCADE,
   provider            TEXT NOT NULL DEFAULT 'stripe',
   external_intent_id  TEXT NOT NULL UNIQUE,
   amount_cents        INTEGER NOT NULL,
@@ -125,7 +126,7 @@ CREATE INDEX IF NOT EXISTS idx_payment_intents_status
 --     → office matches the platform tx → `succeeded`)
 CREATE TABLE IF NOT EXISTS public.payment_attempts (
   id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  invoice_id               UUID NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
+  invoice_id               UUID NOT NULL REFERENCES public.customer_invoices(id) ON DELETE CASCADE,
   method                   TEXT NOT NULL
                              CHECK (method IN ('stripe', 'venmo', 'cashapp', 'zelle', 'ach', 'cash', 'check', 'other')),
   intended_amount_cents    INTEGER NOT NULL CHECK (intended_amount_cents >= 0),
@@ -154,7 +155,7 @@ CREATE INDEX IF NOT EXISTS idx_payment_attempts_pending
 CREATE TABLE IF NOT EXISTS public.payment_receipts (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   payment_id          UUID NOT NULL REFERENCES public.payments(id) ON DELETE CASCADE,
-  invoice_id          UUID NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
+  invoice_id          UUID NOT NULL REFERENCES public.customer_invoices(id) ON DELETE CASCADE,
   storage_path        TEXT,    -- path in the (future) receipts bucket
   sent_to_email       TEXT,
   sent_at             TIMESTAMPTZ,
@@ -181,7 +182,7 @@ $$ LANGUAGE plpgsql;
 DO $$
 DECLARE t TEXT;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['invoices', 'payments', 'payment_intents', 'payment_attempts'] LOOP
+  FOREACH t IN ARRAY ARRAY['customer_invoices', 'payments', 'payment_intents', 'payment_attempts'] LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS %I_updated_at ON public.%I', t, t);
     EXECUTE format(
       'CREATE TRIGGER %I_updated_at BEFORE UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.payments_set_updated_at()',
@@ -194,14 +195,14 @@ END $$;
 -- Customer-facing reads route through service-role API endpoints that
 -- gate by invoice_number / public_slug. Service role gets full access;
 -- anon / authenticated direct table access is blocked.
-ALTER TABLE public.invoices         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customer_invoices         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payment_intents  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payment_attempts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payment_receipts ENABLE ROW LEVEL SECURITY;
 
 DO $$ BEGIN
-  CREATE POLICY service_role_full_access_invoices ON public.invoices
+  CREATE POLICY service_role_full_access_customer_invoices ON public.customer_invoices
     FOR ALL TO service_role USING (TRUE) WITH CHECK (TRUE);
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
@@ -233,7 +234,7 @@ END $$;
 COMMIT;
 
 -- Verification:
---   SELECT to_regclass('public.invoices'),
+--   SELECT to_regclass('public.customer_invoices'),
 --          to_regclass('public.payments'),
 --          to_regclass('public.payment_intents'),
 --          to_regclass('public.payment_attempts'),

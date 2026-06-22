@@ -185,9 +185,7 @@
   margin-bottom: 1rem;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+/* `@keyframes spin` is defined once in globals.css (pure rotation). */
 
 /* Texas Background */
 .placeholder-map__texas-bg {

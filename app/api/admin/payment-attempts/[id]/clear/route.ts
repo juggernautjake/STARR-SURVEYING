@@ -70,7 +70,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   const { data: invoice } = await supabaseAdmin
-    .from('invoices')
+    .from('customer_invoices')
     .select('id, invoice_number, public_slug, status, total_cents, customer_name, customer_email')
     .eq('id', attempt.invoice_id)
     .maybeSingle();
@@ -149,7 +149,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     .eq('id', attempt.id);
 
   await supabaseAdmin
-    .from('invoices')
+    .from('customer_invoices')
     .update({
       status: nextStatus,
       paid_at: nextStatus === 'paid' ? new Date().toISOString() : null,

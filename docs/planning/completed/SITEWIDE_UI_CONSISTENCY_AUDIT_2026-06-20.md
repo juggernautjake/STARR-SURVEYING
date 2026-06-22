@@ -532,8 +532,17 @@ per-page note in §6.
 
 ## 5.6 Research-software deep analysis (user request 2026-06-21)
 
-- [ ] **R1 — AI property-research software analysis + optimization
-  roadmap.** After the styling sweep, do a thorough analysis of the
+- [x] **R1 — AI property-research software analysis + optimization
+  roadmap.** DONE 2026-06-21. Deep-mapped `app/admin/research/**`,
+  `app/api/admin/research/**`, `lib/research/**`, the county adapters, the
+  ~12-prompt Claude Sonnet 4.5 pipeline, and the data model; produced the
+  analysis + prioritized roadmap. **Deviation:** the deliverable lives at
+  `docs/planning/RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md` (planning
+  root), NOT `in-progress/`, on purpose — its phases are user-gated
+  product/pricing/county-integration decisions, not autonomous stop-hook
+  slices (guardrail: outward-facing + hard-to-reverse). The roadmap spawns
+  its own phase docs once the user prioritizes. Original spec text:
+  do a thorough analysis of the
   property-research subsystem (`app/admin/research/**`,
   `app/api/admin/research/**`, `lib/research/**`, the recon graph,
   county-data adapters, the AI pipeline, deeds/legal-description/plat

@@ -35,7 +35,7 @@ describe('GET /api/admin/payment-attempts — source-lock', () => {
   });
 
   it("joins invoice context (number / customer / total) via a second query", () => {
-    expect(SRC).toMatch(/\.from\('invoices'\)\s*\.select\('id, invoice_number, customer_name, customer_email, total_cents, status'\)/);
+    expect(SRC).toMatch(/\.from\('customer_invoices'\)\s*\.select\('id, invoice_number, customer_name, customer_email, total_cents, status'\)/);
   });
 });
 

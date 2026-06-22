@@ -25,6 +25,7 @@ import {
   describeInvoiceStatus,
   formatDollars,
 } from '@/lib/payments/live';
+import { decideUpfrontAcceptance } from '@/lib/payments/upfront-rule';
 import PayHeader from '../PayHeader';
 import PaySkeleton from '../PaySkeleton';
 import '../../styles/Pay.css';
@@ -54,6 +55,10 @@ interface PublicInvoice {
   tax_cents: number;
   total_cents: number;
   balance_cents: number;
+  deposit_amount_cents: number;
+  min_payment_cents: number;
+  max_payment_cents: number;
+  upfront_outstanding: boolean;
   issued_at: string | null;
   due_at: string | null;
   paid_at: string | null;
@@ -86,6 +91,9 @@ export default function PayInvoicePage(): React.ReactElement {
   // mailing it or bringing it in person so the confirmation email
   // reads correctly. Defaults: cash → in-person, check → by mail.
   const [pledgeIsMailing, setPledgeIsMailing] = useState(true);
+  // S4 — the customer chooses how much to pay (>= upfront, <= balance).
+  // Initialized to the full balance once the invoice loads.
+  const [amountStr, setAmountStr] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -97,7 +105,9 @@ export default function PayInvoicePage(): React.ReactElement {
       if (res.status === 410) { setError('That invoice is no longer available.'); setLoading(false); return; }
       if (!res.ok) { setError('Something went wrong loading your invoice.'); setLoading(false); return; }
       const json = await res.json();
-      setInvoice(json.invoice as PublicInvoice);
+      const inv = json.invoice as PublicInvoice;
+      setInvoice(inv);
+      setAmountStr((Math.max(0, inv.balance_cents) / 100).toFixed(2));
       setLoading(false);
     }
     if (invoiceKey) load();
@@ -140,15 +150,29 @@ export default function PayInvoicePage(): React.ReactElement {
   const isPaid = invoice.balance_cents === 0 && invoice.total_cents > 0;
   const isZeroDollar = invoice.total_cents === 0;
 
+  // S4 — the chosen payment amount (cents) + the same rule the server enforces,
+  // so the UI clamp/message matches /attempt + /intent exactly.
+  const chosenCents = Math.round((parseFloat(amountStr) || 0) * 100);
+  const priorPaidCents = Math.max(0, invoice.total_cents - invoice.balance_cents);
+  const amountDecision = decideUpfrontAcceptance({
+    deposit_amount_cents: invoice.deposit_amount_cents,
+    prior_paid_cents: priorPaidCents,
+    intended_amount_cents: chosenCents,
+    total_cents: invoice.total_cents,
+  });
+  const amountValid = amountDecision.accepted;
+
   function onMethodClick(method: typeof PAYMENT_METHODS[number]) {
     setAttemptError(null);
     setAttemptRecorded(false);
+    // Don't start a payment for an amount that fails the upfront/total rule.
+    if (!invoice || !amountValid) return;
     if (method.action === 'deeplink') {
       // Open the platform with the amount + note prefilled when the
       // method has a deep-link template. Zelle doesn't (the customer
       // sends through their bank's Zelle app — the info card shows
       // the recipient email instead).
-      const link = buildDeepLink(method, invoice!.invoice_number, invoice!.balance_cents);
+      const link = buildDeepLink(method, invoice.invoice_number, chosenCents);
       if (link) {
         window.open(link, '_blank', 'noopener,noreferrer');
       }
@@ -179,7 +203,7 @@ export default function PayInvoicePage(): React.ReactElement {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         method: attemptMethod,
-        intended_amount_cents: invoice.balance_cents,
+        intended_amount_cents: chosenCents,
         payer_email: payerEmail.trim() || undefined,
         ...(isPledge ? { is_mailing: pledgeIsMailing } : {}),
       }),
@@ -289,9 +313,46 @@ export default function PayInvoicePage(): React.ReactElement {
               <p className="pay-card__hint">
                 Choose any method below. You&rsquo;ll get a receipt the moment the payment clears.
               </p>
+
+              {/* S4 — required-upfront banner + amount selector. The customer
+                  may pay any amount from the required minimum up to the full
+                  balance; the same rule is re-checked server-side. */}
+              {invoice.upfront_outstanding && (
+                <div className="pay-methods__upfront" data-testid="pay-upfront-banner" role="note">
+                  This invoice requires a first payment of at least{' '}
+                  <strong>{formatDollars(invoice.min_payment_cents)}</strong>{' '}
+                  before the balance can be paid down.
+                </div>
+              )}
+              <label className="pay-methods__amount" data-testid="pay-amount-field">
+                <span className="pay-methods__amount-label">How much would you like to pay?</span>
+                <span className="pay-methods__amount-input">
+                  <span aria-hidden="true">$</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min={(invoice.min_payment_cents / 100).toFixed(2)}
+                    max={(invoice.max_payment_cents / 100).toFixed(2)}
+                    value={amountStr}
+                    onChange={(e) => setAmountStr(e.target.value)}
+                    data-testid="pay-amount-input"
+                    aria-label="Payment amount in dollars"
+                  />
+                </span>
+                <span className="pay-methods__amount-hint">
+                  Minimum {formatDollars(invoice.min_payment_cents)} · Balance due {formatDollars(invoice.max_payment_cents)}
+                </span>
+              </label>
+              {!amountValid && (
+                <p className="pay-methods__amount-error" data-testid="pay-amount-error" role="alert">
+                  {amountDecision.message}
+                </p>
+              )}
+
               <div className="pay-methods__grid">
                 {PAYMENT_METHODS.map((method) => {
-                  const deepLink = buildDeepLink(method, invoice.invoice_number, invoice.balance_cents);
+                  const deepLink = buildDeepLink(method, invoice.invoice_number, chosenCents);
                   return (
                     <button
                       key={method.id}
@@ -299,7 +360,8 @@ export default function PayInvoicePage(): React.ReactElement {
                       className="pay-methods__card"
                       data-testid={`pay-method-${method.id}`}
                       onClick={() => onMethodClick(method)}
-                      aria-label={`Pay ${formatDollars(invoice.balance_cents)} with ${method.label}`}
+                      disabled={!amountValid}
+                      aria-label={`Pay ${formatDollars(chosenCents)} with ${method.label}`}
                     >
                       <span className="pay-methods__glyph" aria-hidden="true">{method.glyph}</span>
                       <span className="pay-methods__label">{method.label}</span>
@@ -323,9 +385,9 @@ export default function PayInvoicePage(): React.ReactElement {
                   <div className="pay-methods__confirm" data-testid={isPledge ? 'pay-pledge-confirm' : 'pay-attempt-confirm'} role="status">
                     <p className="pay-methods__confirm-lede">
                       {isPledge ? (
-                        <>Pay <strong>{formatDollars(invoice.balance_cents)}</strong> in {attemptMethod === 'check' ? 'check' : 'cash'}?</>
+                        <>Pay <strong>{formatDollars(chosenCents)}</strong> in {attemptMethod === 'check' ? 'check' : 'cash'}?</>
                       ) : (
-                        <>Did you send <strong>{formatDollars(invoice.balance_cents)}</strong> via {methodLabel}?</>
+                        <>Did you send <strong>{formatDollars(chosenCents)}</strong> via {methodLabel}?</>
                       )}
                     </p>
                     {isPledge && (

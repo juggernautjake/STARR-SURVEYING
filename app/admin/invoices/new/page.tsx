@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { computeInvoiceTotals, lineItemTotal } from '@/lib/payments/invoice-number';
 import { formatDollars } from '@/lib/payments/live';
+import { resolveDepositAmountCents, type DepositType } from '@/lib/payments/upfront-rule';
 import '../../payments-admin.css';
 
 interface LineItemDraft {
@@ -38,6 +39,10 @@ export default function NewInvoicePage(): React.ReactElement {
   const [taxDollars, setTaxDollars] = useState('');
   const [dueAt, setDueAt] = useState('');
   const [notes, setNotes] = useState('');
+  // S5 — required upfront / deposit. 'none' = customer may pay any amount.
+  const [depositType, setDepositType] = useState<DepositType>('none');
+  const [depositValueStr, setDepositValueStr] = useState('');
+  const [linkCopied, setLinkCopied] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{
@@ -55,6 +60,13 @@ export default function NewInvoicePage(): React.ReactElement {
       .map((r) => ({ total_cents: lineItemTotal(r.quantity, r.unit_price_cents) }));
     return computeInvoiceTotals(rows, taxCents);
   }, [lineItems, taxDollars]);
+
+  const depositValue = parseFloat(depositValueStr) || 0;
+  const depositPreviewCents = resolveDepositAmountCents({
+    deposit_type: depositType,
+    deposit_value: depositValue,
+    total_cents: totals.total_cents,
+  });
 
   function setRow(i: number, patch: Partial<LineItemDraft>) {
     setLineItems((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -97,6 +109,8 @@ export default function NewInvoicePage(): React.ReactElement {
         total_cents: lineItemTotal(r.quantity, r.unit_price_cents),
       })),
       tax_cents: Math.round((parseFloat(taxDollars) || 0) * 100),
+      deposit_type: depositType,
+      deposit_value: depositType === 'none' ? null : depositValue,
       due_at: dueAt || null,
       notes: notes || null,
     };
@@ -149,21 +163,39 @@ export default function NewInvoicePage(): React.ReactElement {
             </p>
           )}
           <div className="invoice-page__pay-link">
-            <label>Payment link sent to the customer:</label>
+            <label>Direct payment link — share it with the customer:</label>
             <a href={success.pay_link} target="_blank" rel="noreferrer" data-testid="invoice-pay-link">
               {success.pay_link}
             </a>
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem' }}>
+              <button
+                type="button"
+                className="invoice-btn invoice-btn--ghost"
+                data-testid="invoice-copy-link"
+                onClick={() => {
+                  navigator.clipboard?.writeText(success.pay_link).then(
+                    () => { setLinkCopied(true); window.setTimeout(() => setLinkCopied(false), 2000); },
+                    () => {},
+                  );
+                }}
+              >
+                {linkCopied ? 'Copied ✓' : 'Copy link'}
+              </button>
+              <a href={success.pay_link} target="_blank" rel="noreferrer" className="invoice-btn invoice-btn--ghost">
+                Open customer page
+              </a>
+            </div>
           </div>
           <div className="invoice-page__actions">
             <button
               type="button"
               className="invoice-btn invoice-btn--ghost"
-              onClick={() => { setSuccess(null); setLineItems([{ ...EMPTY_ROW }]); setNotes(''); setTaxDollars(''); }}
+              onClick={() => { setSuccess(null); setLineItems([{ ...EMPTY_ROW }]); setNotes(''); setTaxDollars(''); setDepositType('none'); setDepositValueStr(''); }}
             >
               Create another
             </button>
-            <Link href="/admin/leads" className="invoice-btn">
-              Back to leads
+            <Link href="/admin/invoicing" className="invoice-btn">
+              All invoices
             </Link>
           </div>
         </div>
@@ -324,9 +356,52 @@ export default function NewInvoicePage(): React.ReactElement {
           </label>
         </section>
 
+        <section className="invoice-section">
+          <h2 className="invoice-section__title">Required upfront payment</h2>
+          <p className="invoice-page__lede" style={{ marginBottom: '0.75rem' }}>
+            How much the customer must pay on their first payment. Leave as
+            &ldquo;None&rdquo; to let them pay any amount up to the total.
+          </p>
+          <div className="invoice-section--totals">
+            <label>
+              <span>Upfront type</span>
+              <select
+                value={depositType}
+                onChange={(e) => setDepositType(e.target.value as DepositType)}
+                data-testid="invoice-deposit-type"
+                style={{ font: 'inherit', padding: '0.55rem 0.7rem', border: '1px solid #d6d9e3', borderRadius: 8 }}
+              >
+                <option value="none">None (any amount)</option>
+                <option value="percent">Percentage of total</option>
+                <option value="fixed">Fixed dollar amount</option>
+              </select>
+            </label>
+            {depositType !== 'none' && (
+              <label className="invoice-row__small">
+                <span>{depositType === 'percent' ? 'Percent (%)' : 'Amount ($)'}</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={depositType === 'percent' ? '1' : '0.01'}
+                  value={depositValueStr}
+                  onChange={(e) => setDepositValueStr(e.target.value)}
+                  placeholder={depositType === 'percent' ? '25' : '500.00'}
+                  data-testid="invoice-deposit-value"
+                />
+              </label>
+            )}
+            {depositType !== 'none' && (
+              <div style={{ alignSelf: 'end', color: '#4a5470', fontSize: '0.9rem' }} data-testid="invoice-deposit-preview">
+                Upfront required: <strong>{formatDollars(depositPreviewCents)}</strong>
+              </div>
+            )}
+          </div>
+        </section>
+
         <section className="invoice-totals" data-testid="invoice-totals">
           <div><span>Subtotal</span><strong>{formatDollars(totals.subtotal_cents)}</strong></div>
           {totals.tax_cents > 0 && <div><span>Tax</span><strong>{formatDollars(totals.tax_cents)}</strong></div>}
+          {depositPreviewCents > 0 && <div><span>Upfront</span><strong>{formatDollars(depositPreviewCents)}</strong></div>}
           <div className="invoice-totals__total"><span>Total</span><strong>{formatDollars(totals.total_cents)}</strong></div>
         </section>
 

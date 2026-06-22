@@ -41,7 +41,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const body = (await req.json().catch(() => ({}))) as { to?: string };
 
   const { data: invoice, error } = await supabaseAdmin
-    .from('invoices')
+    .from('customer_invoices')
     .select('id, invoice_number, public_slug, status, customer_name, customer_email, line_items, subtotal_cents, tax_cents, total_cents, due_at, notes')
     .eq('id', invoiceId)
     .maybeSingle();
@@ -126,7 +126,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     updates.issued_at = new Date().toISOString();
   }
   if (Object.keys(updates).length > 0) {
-    await supabaseAdmin.from('invoices').update(updates).eq('id', invoice.id);
+    await supabaseAdmin.from('customer_invoices').update(updates).eq('id', invoice.id);
   }
 
   return NextResponse.json({

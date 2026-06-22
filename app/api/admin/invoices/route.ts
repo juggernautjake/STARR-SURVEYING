@@ -28,6 +28,7 @@ import {
   generatePublicSlug,
   normalizeLineItem,
 } from '@/lib/payments/invoice-number';
+import { resolveDepositAmountCents, type DepositType } from '@/lib/payments/upfront-rule';
 
 export const GET = withErrorHandler(async () => {
   const session = await auth();
@@ -35,7 +36,7 @@ export const GET = withErrorHandler(async () => {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   const { data, error } = await supabaseAdmin
-    .from('invoices')
+    .from('customer_invoices')
     .select('id, invoice_number, public_slug, status, customer_name, customer_email, total_cents, issued_at, due_at, paid_at, created_at')
     .order('created_at', { ascending: false })
     .limit(200);
@@ -60,6 +61,20 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const taxCents = typeof body.tax_cents === 'number' ? body.tax_cents : 0;
   const totals = computeInvoiceTotals(lineItems, taxCents);
 
+  // Upfront / deposit rule — resolve the concrete cents requirement now so the
+  // customer-facing payment math is a plain compare. Defaults to 'none' ($0).
+  const depositType: DepositType =
+    body.deposit_type === 'percent' || body.deposit_type === 'fixed' ? body.deposit_type : 'none';
+  const depositValue =
+    typeof body.deposit_value === 'number' && Number.isFinite(body.deposit_value)
+      ? body.deposit_value
+      : null;
+  const depositAmountCents = resolveDepositAmountCents({
+    deposit_type: depositType,
+    deposit_value: depositValue,
+    total_cents: totals.total_cents,
+  });
+
   // Generate identifiers — retry on the rare slug/number collision.
   let invoice_number = '';
   let public_slug = '';
@@ -67,7 +82,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     invoice_number = generateInvoiceNumber(new Date(), Math.random);
     public_slug = generatePublicSlug(Math.random);
     const { data: collision } = await supabaseAdmin
-      .from('invoices')
+      .from('customer_invoices')
       .select('id')
       .or(`invoice_number.eq.${invoice_number},public_slug.eq.${public_slug}`)
       .maybeSingle();
@@ -88,6 +103,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     subtotal_cents: totals.subtotal_cents,
     tax_cents: totals.tax_cents,
     total_cents: totals.total_cents,
+    deposit_type: depositType,
+    deposit_value: depositValue,
+    deposit_amount_cents: depositAmountCents,
     notes: typeof body.notes === 'string' ? body.notes : null,
     due_at: typeof body.due_at === 'string' ? body.due_at : null,
     job_id: typeof body.job_id === 'string' ? body.job_id : null,
@@ -96,7 +114,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   };
 
   const { data: invoice, error } = await supabaseAdmin
-    .from('invoices')
+    .from('customer_invoices')
     .insert(insertRow)
     .select('id, invoice_number, public_slug, status, customer_name, customer_email, total_cents, due_at, created_at')
     .single();

@@ -378,6 +378,59 @@
 /* -------------------------------------------------------------------------
    Payment methods
    ------------------------------------------------------------------------- */
+/* S4 — required-upfront banner + amount selector */
+.pay-methods__upfront {
+  margin: 0 0 0.85rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid #F2C97D;
+  background: #FFF8EC;
+  border-radius: 10px;
+  font-size: 0.92rem;
+  color: #7A5A12;
+}
+.pay-methods__amount {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0 0 0.5rem;
+}
+.pay-methods__amount-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.pay-methods__amount-input {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 2px solid #E4E7EE;
+  border-radius: 10px;
+  padding: 0.5rem 0.75rem;
+  background: #FFF;
+  max-width: 14rem;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+.pay-methods__amount-input input {
+  border: none;
+  outline: none;
+  font: inherit;
+  width: 100%;
+  background: transparent;
+}
+.pay-methods__amount-hint {
+  font-size: 0.82rem;
+  color: #6A7180;
+}
+.pay-methods__amount-error {
+  margin: 0 0 0.85rem;
+  color: #B42318;
+  font-size: 0.88rem;
+}
+.pay-methods__card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .pay-methods__grid {
   display: grid;
   grid-template-columns: 1fr;

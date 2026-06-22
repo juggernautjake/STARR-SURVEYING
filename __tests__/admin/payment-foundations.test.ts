@@ -20,9 +20,9 @@ const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
 
 const SRC = read('seeds/323_payment_foundations.sql');
 
-describe('seed 323 — payment foundations: invoices', () => {
-  it('creates the invoices table with the customer-facing keys', () => {
-    expect(SRC).toMatch(/CREATE TABLE IF NOT EXISTS public\.invoices/);
+describe('seed 323 — payment foundations: customer_invoices', () => {
+  it('creates the customer_invoices table with the customer-facing keys', () => {
+    expect(SRC).toMatch(/CREATE TABLE IF NOT EXISTS public\.customer_invoices/);
     expect(SRC).toMatch(/invoice_number\s+TEXT NOT NULL UNIQUE/);
     expect(SRC).toMatch(/public_slug\s+TEXT NOT NULL UNIQUE/);
     expect(SRC).toMatch(/job_id\s+UUID REFERENCES public\.jobs\(id\) ON DELETE SET NULL/);
@@ -53,16 +53,16 @@ describe('seed 323 — payment foundations: invoices', () => {
   });
 
   it('indexes invoice lookup paths used by /pay + admin', () => {
-    expect(SRC).toMatch(/CREATE INDEX IF NOT EXISTS idx_invoices_status_issued/);
-    expect(SRC).toMatch(/CREATE INDEX IF NOT EXISTS idx_invoices_job/);
-    expect(SRC).toMatch(/CREATE INDEX IF NOT EXISTS idx_invoices_customer_email/);
+    expect(SRC).toMatch(/CREATE INDEX IF NOT EXISTS idx_customer_invoices_status_issued/);
+    expect(SRC).toMatch(/CREATE INDEX IF NOT EXISTS idx_customer_invoices_job/);
+    expect(SRC).toMatch(/CREATE INDEX IF NOT EXISTS idx_customer_invoices_customer_email/);
   });
 });
 
 describe('seed 323 — payment foundations: payments', () => {
   it('creates payments with the cents-only amount + method CHECK', () => {
     expect(SRC).toMatch(/CREATE TABLE IF NOT EXISTS public\.payments/);
-    expect(SRC).toMatch(/invoice_id\s+UUID NOT NULL REFERENCES public\.invoices\(id\) ON DELETE RESTRICT/);
+    expect(SRC).toMatch(/invoice_id\s+UUID NOT NULL REFERENCES public\.customer_invoices\(id\) ON DELETE RESTRICT/);
     expect(SRC).toMatch(/amount_cents\s+INTEGER NOT NULL CHECK \(amount_cents >= 0\)/);
     expect(SRC).toMatch(
       /method\s+TEXT NOT NULL\s+CHECK \(method IN \('stripe', 'venmo', 'cashapp', 'zelle', 'ach', 'cash', 'check', 'other'\)\)/,
@@ -92,7 +92,7 @@ describe('seed 323 — payment foundations: payments', () => {
 describe('seed 323 — payment foundations: payment_intents', () => {
   it('shadows Stripe PaymentIntents with a unique external id', () => {
     expect(SRC).toMatch(/CREATE TABLE IF NOT EXISTS public\.payment_intents/);
-    expect(SRC).toMatch(/invoice_id\s+UUID NOT NULL REFERENCES public\.invoices\(id\) ON DELETE CASCADE/);
+    expect(SRC).toMatch(/invoice_id\s+UUID NOT NULL REFERENCES public\.customer_invoices\(id\) ON DELETE CASCADE/);
     expect(SRC).toMatch(/provider\s+TEXT NOT NULL DEFAULT 'stripe'/);
     expect(SRC).toMatch(/external_intent_id\s+TEXT NOT NULL UNIQUE/);
     expect(SRC).toMatch(/client_secret\s+TEXT/);
@@ -108,7 +108,7 @@ describe('seed 323 — payment foundations: payment_intents', () => {
 describe('seed 323 — payment foundations: payment_attempts', () => {
   it("creates payment_attempts with the six-state lifecycle", () => {
     expect(SRC).toMatch(/CREATE TABLE IF NOT EXISTS public\.payment_attempts/);
-    expect(SRC).toMatch(/invoice_id\s+UUID NOT NULL REFERENCES public\.invoices\(id\) ON DELETE CASCADE/);
+    expect(SRC).toMatch(/invoice_id\s+UUID NOT NULL REFERENCES public\.customer_invoices\(id\) ON DELETE CASCADE/);
     expect(SRC).toMatch(
       /status\s+TEXT NOT NULL DEFAULT 'started'\s+CHECK \(status IN \('started', 'pledged', 'pending_confirmation', 'succeeded', 'failed', 'abandoned'\)\)/,
     );
@@ -136,7 +136,7 @@ describe('seed 323 — payment foundations: payment_receipts', () => {
   it('creates payment_receipts with the storage + Resend send columns', () => {
     expect(SRC).toMatch(/CREATE TABLE IF NOT EXISTS public\.payment_receipts/);
     expect(SRC).toMatch(/payment_id\s+UUID NOT NULL REFERENCES public\.payments\(id\) ON DELETE CASCADE/);
-    expect(SRC).toMatch(/invoice_id\s+UUID NOT NULL REFERENCES public\.invoices\(id\) ON DELETE CASCADE/);
+    expect(SRC).toMatch(/invoice_id\s+UUID NOT NULL REFERENCES public\.customer_invoices\(id\) ON DELETE CASCADE/);
     expect(SRC).toMatch(/storage_path\s+TEXT/);
     expect(SRC).toMatch(/sent_to_email\s+TEXT/);
     expect(SRC).toMatch(/sent_at\s+TIMESTAMPTZ/);
@@ -152,14 +152,14 @@ describe('seed 323 — RLS + triggers + idempotency', () => {
   });
 
   it('uses CREATE TABLE IF NOT EXISTS for all five tables (re-runnable)', () => {
-    const tables = ['invoices', 'payments', 'payment_intents', 'payment_attempts', 'payment_receipts'];
+    const tables = ['customer_invoices', 'payments', 'payment_intents', 'payment_attempts', 'payment_receipts'];
     for (const t of tables) {
       expect(SRC).toMatch(new RegExp(`CREATE TABLE IF NOT EXISTS public\\.${t}`));
     }
   });
 
   it('enables RLS on every table', () => {
-    expect(SRC).toMatch(/ALTER TABLE public\.invoices\s+ENABLE ROW LEVEL SECURITY/);
+    expect(SRC).toMatch(/ALTER TABLE public\.customer_invoices\s+ENABLE ROW LEVEL SECURITY/);
     expect(SRC).toMatch(/ALTER TABLE public\.payments\s+ENABLE ROW LEVEL SECURITY/);
     expect(SRC).toMatch(/ALTER TABLE public\.payment_intents\s+ENABLE ROW LEVEL SECURITY/);
     expect(SRC).toMatch(/ALTER TABLE public\.payment_attempts ENABLE ROW LEVEL SECURITY/);
@@ -167,7 +167,7 @@ describe('seed 323 — RLS + triggers + idempotency', () => {
   });
 
   it('adds a service_role full-access policy on every table', () => {
-    expect(SRC).toMatch(/CREATE POLICY service_role_full_access_invoices/);
+    expect(SRC).toMatch(/CREATE POLICY service_role_full_access_customer_invoices/);
     expect(SRC).toMatch(/CREATE POLICY service_role_full_access_payments/);
     expect(SRC).toMatch(/CREATE POLICY service_role_full_access_payment_intents/);
     expect(SRC).toMatch(/CREATE POLICY service_role_full_access_payment_attempts/);
@@ -177,7 +177,7 @@ describe('seed 323 — RLS + triggers + idempotency', () => {
   it("ships one shared updated_at trigger function across the mutable tables", () => {
     expect(SRC).toMatch(/CREATE OR REPLACE FUNCTION public\.payments_set_updated_at\(\)/);
     expect(SRC).toMatch(
-      /FOREACH t IN ARRAY ARRAY\['invoices', 'payments', 'payment_intents', 'payment_attempts'\]/,
+      /FOREACH t IN ARRAY ARRAY\['customer_invoices', 'payments', 'payment_intents', 'payment_attempts'\]/,
     );
     expect(SRC).toMatch(/EXECUTE FUNCTION public\.payments_set_updated_at\(\)/);
   });
