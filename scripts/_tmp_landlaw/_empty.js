@@ -1,3 +1,0 @@
-const {Client}=require('pg');(async()=>{const c=new Client({connectionString:process.env.SUPABASE_DB_URL,ssl:{rejectUnauthorized:false}});await c.connect();
-const e=await c.query(`select m.order_index, count(*) filter (where bk.cnt is null or bk.cnt=0) empty, count(*) total from learning_modules m join learning_lessons l on l.module_id=m.id left join (select lesson_id,count(*) cnt from lesson_blocks group by 1) bk on bk.lesson_id=l.id where m.order_index in (1,2,3,8,9) and coalesce(m.is_academic,false)=false group by 1 order by 1`);
-console.log(e.rows.map(r=>`m${r.order_index}: ${r.empty}/${r.total}`).join(', '));await c.end();})().catch(e=>{console.error(e.message);process.exit(1)});
