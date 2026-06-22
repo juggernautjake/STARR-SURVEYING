@@ -130,9 +130,19 @@ export default function AdminInvitesPage() {
               {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
           </label>
-          <button onClick={send} disabled={!email.trim() || submitting} style={primaryBtnStyle}>
-            {submitting ? 'Sending…' : 'Send invite'}
-          </button>
+          {/* invites-row-alignment-2026-06-22 — wrap the Send invite
+              button in a column with the same Email/Role label
+              structure so its 36px control lines up with the inputs'
+              36px controls (the bare button had no label above and
+              flex-end was bottom-aligning the BOX, but the input vs
+              button intrinsic baselines drift a few pixels — same
+              fix as the receipts / mileage / timeline toolbars). */}
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }} aria-label="Send invite">
+            <span style={{ fontSize: '0.8rem', color: '#4B5563', fontWeight: 600 }} aria-hidden>&nbsp;</span>
+            <button onClick={send} disabled={!email.trim() || submitting} style={primaryBtnStyle}>
+              {submitting ? 'Sending…' : 'Send invite'}
+            </button>
+          </label>
         </div>
         {formError && (
           <div style={{ marginTop: '0.6rem', color: '#FCA5A5', fontSize: '0.85rem' }}>{formError}</div>
