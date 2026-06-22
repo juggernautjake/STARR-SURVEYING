@@ -67,7 +67,10 @@ real Stripe money is the owner's call after a Stripe test-mode transaction.
 - [ ] **S5 — Composer deposit picker.** `/admin/invoices/new`: none / percent /
   fixed + value input; show resolved upfront $ live; surface the generated
   invoice number + copyable pay link + send-email action.
-- [ ] **S6 — `/admin/invoicing` dashboard + nav.** List invoices (status,
+- [x] **S6 — `/admin/invoicing` dashboard + nav.** Shipped 2026-06-21. Built the
+  dashboard (list w/ status pills, search, view + copy-link actions, links to
+  composer + payments inbox); registered `/admin/invoicing` in route-registry
+  (Office, FileText icon). 35 registry tests pass. List invoices (status,
   customer, total, balance, upfront-met), links to composer / payments inbox /
   copy-link / view / send. Register the route in `route-registry.ts` (Office).
 - [ ] **S7 — Password gating.** Remove any special-password gate from backend
