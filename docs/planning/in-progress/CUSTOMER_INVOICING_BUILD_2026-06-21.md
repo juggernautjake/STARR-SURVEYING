@@ -83,7 +83,13 @@ real Stripe money is the owner's call after a Stripe test-mode transaction.
   wall on (local `.env.local` set to `starr-preview`). 5 source-lock tests pass. Remove any special-password gate from backend
   admin invoice pages (admin login suffices). Add a temporary env-gated password
   wall to the `/pay` portal (+ public invoice view), removable at launch via flag.
-- [ ] **S8 — Mock-customer harness + verify.** Seed a few fixture invoices
+- [x] **S8 — Mock-customer harness + verify.** Shipped 2026-06-21. seed 363
+  applied to live: 6 `[TEST]`-marked fixtures (no-upfront, 25% percent, $500
+  fixed, zero-dollar, voided, partially-paid w/ a cleared payment) so the owner
+  can click through every state. Cleanup: `DELETE FROM customer_invoices WHERE
+  invoice_number LIKE 'TEST-%';`. Final verify: tsc 0 errors; full admin suite
+  1462 pass. (Pre-existing/unrelated: `nav-store.test` 15 fail — needs a DOM
+  test env (jsdom/happy-dom) that isn't installed; left as-is, not in scope.) Seed a few fixture invoices
   (no-upfront, percent, fixed, partial-rejected, exact-upfront, full-pay,
   overpay-rejected, voided) for end-to-end testing; final typecheck + lint +
   full payment suite.
