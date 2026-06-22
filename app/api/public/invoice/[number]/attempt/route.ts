@@ -37,6 +37,7 @@ import {
   buildPledgeConfirmationText,
 } from '@/lib/payments/invoice-email';
 import { buildInvoicePayLink } from '@/lib/payments/invoice-number';
+import { decideUpfrontAcceptance } from '@/lib/payments/upfront-rule';
 import { OFFICE_ADDRESS_LINE1, OFFICE_ADDRESS_LINE2 } from '@/app/components/ServiceAreaMap';
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
@@ -58,7 +59,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const { data: invoice } = await supabaseAdmin
     .from('customer_invoices')
-    .select('id, invoice_number, public_slug, status, total_cents, customer_name')
+    .select('id, invoice_number, public_slug, status, total_cents, deposit_amount_cents, customer_name')
     .or(`invoice_number.eq.${upper},public_slug.eq.${rawKey}`)
     .maybeSingle();
   if (!invoice) {
@@ -74,13 +75,29 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     .from('payments')
     .select('amount_cents, status')
     .eq('invoice_id', invoice.id);
-  const balance = Math.max(0, (invoice.total_cents ?? 0) - sumSucceededPayments(payments ?? []));
+  const paid = sumSucceededPayments(payments ?? []);
+  const balance = Math.max(0, (invoice.total_cents ?? 0) - paid);
   if (balance === 0) {
     return NextResponse.json({ error: 'Invoice is already paid in full.' }, { status: 409 });
   }
   const intended = typeof body.intended_amount_cents === 'number'
     ? Math.max(0, Math.round(body.intended_amount_cents))
     : balance;
+
+  // Enforce the upfront/total rule on the pledged amount too — a Venmo/cash
+  // pledge below the required upfront (or above the balance) is rejected.
+  const decision = decideUpfrontAcceptance({
+    deposit_amount_cents: invoice.deposit_amount_cents ?? 0,
+    prior_paid_cents: paid,
+    intended_amount_cents: intended,
+    total_cents: invoice.total_cents ?? 0,
+  });
+  if (!decision.accepted) {
+    return NextResponse.json(
+      { error: decision.message, reason: decision.reason, min_cents: decision.min_cents, max_cents: decision.max_cents },
+      { status: 422 },
+    );
+  }
 
   const row = {
     invoice_id: invoice.id,
