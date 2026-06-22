@@ -262,49 +262,68 @@ export default function FinancesPage() {
             maxLength={64}
           />
         </label>
-        <button
-          type="button"
-          style={styles.refreshBtn}
-          onClick={() => void fetchSummary()}
-          disabled={loading}
-        >
-          {loading ? 'Loading…' : 'Refresh'}
-        </button>
-        <button
-          type="button"
-          style={styles.exportBtn}
-          onClick={() => exportCsv()}
-          disabled={exporting || loading || !data?.receipts || data.receipts.count === 0}
-          title={
-            !data?.receipts || data.receipts.count === 0
-              ? 'No receipts in this period to export'
-              : 'Download a tax-prep-friendly CSV (Schedule C lines, mileage, totals)'
-          }
-        >
-          {exporting ? 'Exporting…' : <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><Download size={14} /> Export CSV</span>}
-        </button>
-        <button
-          type="button"
-          style={styles.lockBtn}
-          onClick={() => void lockPeriod()}
-          disabled={
-            locking ||
-            loading ||
-            !data ||
-            (data.receipts?.by_status?.approved?.count ?? 0) === 0
-          }
-          title={
-            !data
-              ? 'Loading…'
-              : (data.receipts?.by_status?.approved?.count ?? 0) === 0
-                ? 'Nothing new to lock — every approved receipt in this window is already filed.'
-                : `Lock ${(data.receipts?.by_status?.approved?.count ?? 0)} approved receipt(s) into "${periodLabel.trim() || String(year)}"`
-          }
-        >
-          {locking
-            ? 'Locking…'
-            : `🔒 Lock ${data?.receipts?.by_status?.approved?.count ?? 0} into period`}
-        </button>
+        {/* finances-toolbar-alignment-2026-06-22 — wrap each action
+            button in the same `styles.field` column shape (label
+            spacer + control) the labeled selects use so every
+            column has identical height + intrinsic baseline. The
+            row's flex-end alignment was bottom-aligning the BOXES
+            but the input vs button intrinsic baselines differ by
+            a few pixels, so the buttons appeared to sit lower.
+            Invisible spacer labels make every column structurally
+            identical → everything lines up regardless of native
+            control baselines. */}
+        <div style={styles.field}>
+          <span style={styles.fieldLabelSpacer} aria-hidden>&nbsp;</span>
+          <button
+            type="button"
+            style={styles.refreshBtn}
+            onClick={() => void fetchSummary()}
+            disabled={loading}
+          >
+            {loading ? 'Loading…' : 'Refresh'}
+          </button>
+        </div>
+        <div style={styles.field}>
+          <span style={styles.fieldLabelSpacer} aria-hidden>&nbsp;</span>
+          <button
+            type="button"
+            style={styles.exportBtn}
+            onClick={() => exportCsv()}
+            disabled={exporting || loading || !data?.receipts || data.receipts.count === 0}
+            title={
+              !data?.receipts || data.receipts.count === 0
+                ? 'No receipts in this period to export'
+                : 'Download a tax-prep-friendly CSV (Schedule C lines, mileage, totals)'
+            }
+          >
+            {exporting ? 'Exporting…' : <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><Download size={14} /> Export CSV</span>}
+          </button>
+        </div>
+        <div style={styles.field}>
+          <span style={styles.fieldLabelSpacer} aria-hidden>&nbsp;</span>
+          <button
+            type="button"
+            style={styles.lockBtn}
+            onClick={() => void lockPeriod()}
+            disabled={
+              locking ||
+              loading ||
+              !data ||
+              (data.receipts?.by_status?.approved?.count ?? 0) === 0
+            }
+            title={
+              !data
+                ? 'Loading…'
+                : (data.receipts?.by_status?.approved?.count ?? 0) === 0
+                  ? 'Nothing new to lock — every approved receipt in this window is already filed.'
+                  : `Lock ${(data.receipts?.by_status?.approved?.count ?? 0)} approved receipt(s) into "${periodLabel.trim() || String(year)}"`
+            }
+          >
+            {locking
+              ? 'Locking…'
+              : `🔒 Lock ${data?.receipts?.by_status?.approved?.count ?? 0} into period`}
+          </button>
+        </div>
       </div>
 
       {actionMsg ? (
@@ -746,6 +765,20 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#6B7280',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    lineHeight: 1.4,
+  },
+  // finances-toolbar-alignment-2026-06-22 — same intrinsic height as
+  // `fieldLabel` so a button column matches a labeled-input column
+  // pixel for pixel. The `&nbsp;` content keeps the line box from
+  // collapsing in browsers that strip empty inline elements.
+  fieldLabelSpacer: {
+    fontSize: 11,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    lineHeight: 1.4,
+    visibility: 'hidden',
+    userSelect: 'none',
   },
   // toolbar-alignment-fix 2026-05-30 — every control in the toolbar
   // shares one explicit height + border-box so the labeled fields and
