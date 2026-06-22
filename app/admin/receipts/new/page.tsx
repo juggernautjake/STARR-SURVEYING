@@ -2,18 +2,34 @@
 //
 // quick-actions-wiring-2026-06-22 — web-side receipt upload page wired
 // from the "Capture Receipt" Quick Actions tile (and any link/button
-// the user wants to drop in). Mobile crews still use the native camera
-// flow in `mobile/app/(tabs)/money/capture.tsx`; this page exists so the
-// admin web hub button is no longer a dead "Coming soon" stub.
+// the user wants to drop in). The page exists so the admin web hub
+// button is no longer a dead "Coming soon" stub.
+//
+// receipt-camera-capture-2026-06-22 — added device-camera capture so
+// the page works as a real PWA-style camera flow on mobile (and on
+// any desktop that exposes a webcam). The pattern relies on the
+// standard HTML `capture="environment"` attribute on a file input
+// rather than getUserMedia + a custom shutter UI, because:
+//   - iOS Safari and Android Chrome BOTH honor `capture` and open the
+//     rear camera directly with a familiar OS shutter UI. getUserMedia
+//     on iOS requires PWA install + an inline-playable <video> dance
+//     that's brittle across iOS versions.
+//   - Desktop Chrome/Edge present a webcam picker when `capture` is
+//     set; Safari/Firefox fall back to a file picker. Acceptable
+//     graceful degradation — the "Choose a file" path is still right
+//     next to the camera button for those users.
 //
 // UX:
-//   - File picker (image/* and application/pdf accepted)
-//   - Optional job id (free text — bookkeeper reassigns later)
-//   - Optional notes (free text)
-//   - Preview of the picked image before upload
-//   - "Upload" POSTs multipart to /api/admin/receipts/upload; on success
-//     navigates back to /admin/receipts so the user sees their receipt
-//     at the top of the pending queue once AI extraction finishes.
+//   - Two prominent action buttons: "Take a photo" (camera) +
+//     "Choose a file" (gallery / disk / PDF).
+//   - Optional job id (free text — bookkeeper reassigns later).
+//   - Optional notes (free text).
+//   - Preview of the picked image before upload (revokes its object
+//     URL on unmount so the blob is GC'd).
+//   - "Upload" POSTs multipart to /api/admin/receipts/upload; on
+//     success navigates back to /admin/receipts so the user sees
+//     their receipt at the top of the pending queue once AI
+//     extraction finishes.
 
 'use client';
 
@@ -22,12 +38,17 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-const ACCEPTED_TYPES = 'image/*,application/pdf';
+const ACCEPTED_TYPES_FILE = 'image/*,application/pdf';
+const ACCEPTED_TYPES_CAMERA = 'image/*';
 const MAX_BYTES = 12 * 1024 * 1024;
 
 export default function NewReceiptPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
+  // Two hidden inputs: the camera one carries `capture="environment"`
+  // so mobile devices launch the rear camera; the file one is a plain
+  // picker that also accepts PDFs.
+  const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
@@ -51,14 +72,32 @@ export default function NewReceiptPage() {
   function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     setError(null);
     const f = e.target.files?.[0] ?? null;
+    // Reset both inputs after every change so picking the same file
+    // twice in a row still re-fires `onChange`.
+    if (cameraRef.current) cameraRef.current.value = '';
+    if (fileRef.current && fileRef.current !== e.target) fileRef.current.value = '';
     if (!f) { setFile(null); return; }
     if (f.size > MAX_BYTES) {
       setError(`That file is ${(f.size / 1024 / 1024).toFixed(1)} MB — please pick something under 12 MB.`);
       setFile(null);
-      if (fileRef.current) fileRef.current.value = '';
       return;
     }
     setFile(f);
+  }
+
+  function openCamera() {
+    setError(null);
+    cameraRef.current?.click();
+  }
+  function openFilePicker() {
+    setError(null);
+    fileRef.current?.click();
+  }
+  function clearFile() {
+    setFile(null);
+    setError(null);
+    if (cameraRef.current) cameraRef.current.value = '';
+    if (fileRef.current) fileRef.current.value = '';
   }
 
   async function onUpload() {
@@ -98,35 +137,100 @@ export default function NewReceiptPage() {
         <div>
           <h1 style={styles.title}>Capture receipt</h1>
           <p style={styles.subtitle}>
-            Pick a photo or PDF and we&rsquo;ll queue it for AI extraction.
-            On a phone? The native app has a one-tap camera flow.
+            Snap a photo with your device camera, or pick a file or PDF
+            from disk. We&rsquo;ll queue it for AI extraction and you&rsquo;ll
+            see it land in the pending queue.
           </p>
         </div>
         <Link href="/admin/receipts" style={styles.cancelLink}>← Back to queue</Link>
       </header>
 
       <section style={styles.card}>
-        <label style={styles.field}>
-          <span style={styles.label}>Photo or PDF</span>
+        <div style={styles.field}>
+          <span style={styles.label}>Receipt photo</span>
+          {/* Hidden inputs. The camera one carries `capture="environment"`
+              so mobile launches the rear camera; the file one is a plain
+              picker that also accepts PDFs. Both feed the same handler. */}
+          <input
+            ref={cameraRef}
+            type="file"
+            accept={ACCEPTED_TYPES_CAMERA}
+            capture="environment"
+            onChange={onPickFile}
+            disabled={busy}
+            style={styles.hiddenInput}
+            aria-hidden
+            tabIndex={-1}
+          />
           <input
             ref={fileRef}
             type="file"
-            accept={ACCEPTED_TYPES}
+            accept={ACCEPTED_TYPES_FILE}
             onChange={onPickFile}
             disabled={busy}
-            style={styles.fileInput}
+            style={styles.hiddenInput}
+            aria-hidden
+            tabIndex={-1}
           />
-          <span style={styles.hint}>Max 12 MB. JPEG/PNG/WebP/HEIC and PDF accepted.</span>
-        </label>
+          <div style={styles.captureRow}>
+            <button
+              type="button"
+              onClick={openCamera}
+              disabled={busy}
+              style={styles.captureBtnPrimary}
+              aria-label="Take a photo with the device camera"
+            >
+              <span aria-hidden style={styles.captureBtnIcon}>📷</span>
+              <span>Take a photo</span>
+            </button>
+            <button
+              type="button"
+              onClick={openFilePicker}
+              disabled={busy}
+              style={styles.captureBtnSecondary}
+              aria-label="Choose an image or PDF from your device"
+            >
+              <span aria-hidden style={styles.captureBtnIcon}>📁</span>
+              <span>Choose a file</span>
+            </button>
+          </div>
+          <span style={styles.hint}>
+            Camera opens the rear lens on phones and tablets. Max 12 MB.
+            JPEG/PNG/WebP/HEIC and PDF accepted.
+          </span>
+        </div>
 
         {previewUrl && (
           <div style={styles.previewWrap}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={previewUrl} alt="Receipt preview" style={styles.preview} />
+            <button
+              type="button"
+              onClick={clearFile}
+              disabled={busy}
+              style={styles.clearBtn}
+              aria-label="Remove the picked photo"
+            >
+              Retake / pick different
+            </button>
           </div>
         )}
         {file && !previewUrl && (
-          <p style={styles.hint}>{file.name} — {(file.size / 1024).toFixed(0)} KB. Preview not available for this file type.</p>
+          <div style={styles.previewWrap}>
+            <p style={styles.fileSummary}>
+              {file.name} — {(file.size / 1024).toFixed(0)} KB. Preview not
+              available for this file type.
+            </p>
+            <button
+              type="button"
+              onClick={clearFile}
+              disabled={busy}
+              style={styles.clearBtn}
+              aria-label="Remove the picked file"
+            >
+              Pick a different file
+            </button>
+          </div>
         )}
 
         <label style={styles.field}>
@@ -200,10 +304,81 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '1rem',
     boxShadow: '0 4px 18px rgba(15, 23, 42, 0.05)',
   },
-  field: { display: 'flex', flexDirection: 'column', gap: '0.35rem' },
+  field: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },
   label: { fontSize: '0.9rem', fontWeight: 600 },
   hint: { fontSize: '0.78rem', color: 'var(--color-text-secondary, #6b7280)' },
-  fileInput: { fontSize: '0.95rem' },
+  // Visually-hidden but still keyboard-reachable when its button label
+  // delegates to it — clip-path keeps it off-screen without removing
+  // it from the accessibility tree. `display: none` would break the
+  // .click() delegation on some Safari versions.
+  hiddenInput: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    padding: 0,
+    margin: -1,
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    border: 0,
+  },
+  captureRow: {
+    display: 'flex',
+    gap: '0.6rem',
+    flexWrap: 'wrap',
+  },
+  // Primary "Take a photo" button — green gradient so the camera path
+  // reads as the encouraged action on mobile. min-width keeps both
+  // buttons readable when they wrap to two lines on narrow viewports.
+  captureBtnPrimary: {
+    flex: '1 1 220px',
+    minHeight: 56,
+    padding: '0.75rem 1rem',
+    borderRadius: 12,
+    border: 'none',
+    background: 'var(--gradient-green, linear-gradient(180deg, #10b981, #059669))',
+    color: '#fff',
+    fontWeight: 600,
+    fontSize: '1rem',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+  },
+  // Secondary "Choose a file" button — outlined navy so it still
+  // reads as actionable but doesn't compete with the camera path.
+  captureBtnSecondary: {
+    flex: '1 1 220px',
+    minHeight: 56,
+    padding: '0.75rem 1rem',
+    borderRadius: 12,
+    border: '1.5px solid var(--color-brand-navy, #1e3a8a)',
+    background: 'var(--color-bg-card, #fff)',
+    color: 'var(--color-brand-navy, #1e3a8a)',
+    fontWeight: 600,
+    fontSize: '1rem',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+  },
+  captureBtnIcon: { fontSize: '1.25rem', lineHeight: 1 },
+  clearBtn: {
+    alignSelf: 'center',
+    marginTop: '0.5rem',
+    padding: '0.35rem 0.85rem',
+    borderRadius: 9999,
+    border: '1px solid var(--color-border, #d1d5db)',
+    background: 'var(--color-bg-card, #fff)',
+    color: 'var(--color-text-secondary, #4b5563)',
+    fontSize: '0.82rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  fileSummary: { margin: 0, fontSize: '0.85rem', color: 'var(--color-text-secondary, #4b5563)' },
   input: {
     padding: '0.55rem 0.7rem',
     borderRadius: 8,
@@ -223,11 +398,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
   previewWrap: {
     display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
     justifyContent: 'center',
+    gap: '0.4rem',
     background: 'var(--color-bg-subtle, #f9fafb)',
     border: '1px dashed var(--color-border, #e5e7eb)',
     borderRadius: 10,
-    padding: '0.6rem',
+    padding: '0.8rem 0.6rem',
   },
   preview: { maxWidth: '100%', maxHeight: 360, borderRadius: 6 },
   error: {
