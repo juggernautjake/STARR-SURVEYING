@@ -196,6 +196,10 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
 
     { label: 'Account', items: [
       { href: '/admin/me?tab=profile', label: 'My Profile', icon: 'User' },
+      // Visible to every signed-in employee (no role/internal gate) — the
+      // mobile app is the field crew's primary tool, and they may sign in
+      // with non-company emails.
+      { href: '/admin/install', label: 'Get the App', icon: 'Smartphone' },
       { href: '/admin/settings', label: 'Settings', icon: 'Settings', roles: ['admin'] },
       { href: '/admin/error-log', label: 'Error Log', icon: 'Bug', roles: ['admin', 'developer', 'tech_support'] },
     ]},

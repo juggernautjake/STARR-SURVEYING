@@ -115,6 +115,7 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/me?tab=notes',    label: 'My Notes',        workspace: 'hub', iconName: 'NotebookPen',    description: 'Personal notes.' },
   { href: '/admin/my-files',        label: 'My Files',        workspace: 'hub', iconName: 'Folder',         description: 'Your file uploads.' },
   { href: '/admin/me?tab=profile',  label: 'My Profile',      workspace: 'hub', iconName: 'User',           description: 'Account, preferences, persona override.' },
+  { href: '/admin/install',         label: 'Get the App',     workspace: 'hub', iconName: 'Smartphone',     description: 'Install the Starr Field mobile app on your phone.', keywords: ['mobile', 'app', 'download', 'install', 'iphone', 'android', 'testflight', 'apk', 'starr field'] },
   { href: '/admin/learn/fieldbook', label: 'My Fieldbook',    workspace: 'hub', iconName: 'BookMarked',     description: 'Field notes + research bookmarks.', keywords: ['notes', 'research'] },
 
   // Work workspace ────────────────────────────────────────────────
