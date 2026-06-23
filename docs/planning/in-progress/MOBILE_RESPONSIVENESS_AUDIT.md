@@ -350,6 +350,21 @@ _Note:_ a `width:100%` table with wrapping cells gets cramped but does not
 overflow; the wrapper makes wide/`nowrap` tables scroll instead of breaking the
 page — safe to apply uniformly regardless.
 
+**Cross-cutting — FIXED MULTI-COLUMN GRIDS.**
+4 grids use fixed px columns summing > 360px and may not collapse on a phone
+(verify each has a mobile `1fr` / scroll override; add one if missing):
+- [ ] `AdminJobs.css:355` — `100px 1fr 120px 120px 120px 100px`
+- [ ] `AdminJobs.css:1048` — `80px 1fr 1fr 80px 1fr 80px`
+- [ ] `AdminResearch.css:10729` — `1fr 200px 80px 36px`
+- [ ] `AdminResearch.css:10889` — `1fr 110px 1.4fr 110px 36px`
+
+**Cross-cutting — CLEARED (no work):**
+- Fixed inline widths ≥400px: only the floating calculator (overridden to
+  `calc(100vw - 24px)` at ≤480px — fine) and CAD panels (desktop-primary).
+- Forms: multi-col form rows collapse to 1 col at ≤768px; inputs are `width:100%`.
+- Large CSS `min-width`s: inside desktop `min-width` media queries or already
+  paired with `overflow-x:auto` (schedule/calendar grids) — fine.
+
 - [ ] **Data-render verification** — list/table/dashboard pages render blank in
   the empty-data harness; seed representative rows for key endpoints so their
   mobile layout can actually be screenshotted (deferred to per-area slices).
@@ -379,3 +394,10 @@ page — safe to apply uniformly regardless.
   fine. Spot-verified (finances/mileage genuinely unwrapped inline-style tables).
   Recorded the full flagged list + uniform fix in §6. This is the single biggest
   mobile-layout backlog item and spans most areas.
+- **2026-06-23 — Slice 3 (fixed-width + forms, all areas):** Audited fixed
+  widths, forms, multi-col grids cross-cutting. **Cleared:** inline fixed widths
+  (only calculator — already mobile-overridden — and CAD), forms (collapse +
+  100% inputs), large CSS min-widths (desktop queries / already scroll-wrapped).
+  **Found:** 4 fixed multi-column grids to verify/collapse (§6). Conclusion: the
+  backend is mobile-mature; concrete backlog = 28 table wrappers + 4 grids.
+  **Audit phase complete for layout/overflow; moving to build-out.**
