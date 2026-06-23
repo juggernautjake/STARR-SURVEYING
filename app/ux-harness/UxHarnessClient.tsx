@@ -94,6 +94,9 @@ const PAGES: Record<string, ComponentType> = {
   orgs: nextDynamic(() => import('@/app/admin/orgs/page'), { ssr: false }),
   payouts: nextDynamic(() => import('@/app/admin/payouts/page'), { ssr: false }),
   support: nextDynamic(() => import('@/app/admin/support/page'), { ssr: false }),
+  learn: nextDynamic(() => import('@/app/admin/learn/page'), { ssr: false }),
+  messages: nextDynamic(() => import('@/app/admin/messages/page'), { ssr: false }),
+  'payout-log': nextDynamic(() => import('@/app/admin/payout-log/page'), { ssr: false }),
 };
 
 const AdminLayoutClient = nextDynamic(
