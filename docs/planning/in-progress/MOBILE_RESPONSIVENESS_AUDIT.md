@@ -324,10 +324,32 @@ and are audited via code review (no harness render without seeded params).
 Populated during audit slices. Each item: `[area] page — issue — fix`. Worked
 during build-out slices.
 
-**Cross-cutting (all areas):**
-- [ ] **Table-wrapper sweep** — confirm every `<table>` (55 files) sits in an
-  `overflow-x: auto` wrapper. Unwrapped tables overflow the page once populated.
-  Build a static check + spot-render with seeded rows. (Primary mobile risk.)
+**Cross-cutting — TABLE-WRAPPER SWEEP (primary mobile risk).**
+Static detector (`scratchpad/table-wrap-check.js`) scanned all 55 `<table>`
+files: **27 already sit in an `overflow-x:auto` wrapper; 28 do NOT** and will
+overflow the page once populated with a wide row. Verified real (finances +
+mileage use inline-style `<table>` directly in a `<section>`, no wrapper).
+**Uniform fix:** add a shared responsive wrapper utility (e.g. `.admin-table-wrap
+{ overflow-x:auto; -webkit-overflow-scrolling:touch }` in AdminResponsive.css)
+and wrap each flagged `<table>`. Then re-run the detector → 0 flagged.
+
+Flagged files by area (build-out targets):
+- **Hub:** `time-off/page.tsx`
+- **Work:** `finances`, `reports`, `reports/job/[jobId]`, `mileage`, `invites`,
+  `components/jobs/FieldWorkView` (FieldWorkView line 993)
+- **Office/Pay:** `payouts`, `billing/invoices`, `audit`,
+  `components/payroll/PayStubView`, `PayRateTable`, `PayrollRunPanel`
+- **Equipment:** `[id]`, `consumables`, `import`, `inventory`, `maintenance`,
+  `maintenance/[id]`, `overrides`, `templates`, `templates/[id]`,
+  `templates/cleanup-queue`
+- **Research/CAD (lower prio — desktop-primary):** `research/[projectId]`,
+  `research/components/DrawingCanvas`, `cad/LayerTransferDialog`, `cad/PerfOverlay`
+- **Rewards:** `rewards/how-it-works`
+
+_Note:_ a `width:100%` table with wrapping cells gets cramped but does not
+overflow; the wrapper makes wide/`nowrap` tables scroll instead of breaking the
+page — safe to apply uniformly regardless.
+
 - [ ] **Data-render verification** — list/table/dashboard pages render blank in
   the empty-data harness; seed representative rows for key endpoints so their
   mobile layout can actually be screenshotted (deferred to per-area slices).
@@ -351,3 +373,9 @@ during build-out slices.
   responsive (3→2→1). Documented two established conventions in §2 (auto-fill
   grids; table-wrap `overflow-x:auto`). Identified the **table-wrapper sweep** as
   the primary cross-cutting mobile risk (empty-data pass can't catch it).
+- **2026-06-23 — Slice 2 (table sweep, all areas):** Built reusable static
+  detector (`scratchpad/table-wrap-check.js`). Scanned all 55 `<table>` files →
+  **28 lack an `overflow-x` wrapper** and will overflow once populated; 27 are
+  fine. Spot-verified (finances/mileage genuinely unwrapped inline-style tables).
+  Recorded the full flagged list + uniform fix in §6. This is the single biggest
+  mobile-layout backlog item and spans most areas.
