@@ -61,6 +61,18 @@ Breakpoint conventions already used in the codebase (reuse these, don't invent
 new ones): **768px** (tablet/handoff), **600/599px** (phone), **480px** (small
 phone), **380px** (very small). Tokens live in `app/admin/styles/tokens.css`.
 
+### Established responsive conventions (reuse, don't reinvent)
+- **Responsive grids:** `repeat(auto-fill/auto-fit, minmax(260px, 1fr))`
+  collapses to one column on a phone with no breakpoint (e.g. WorkspaceLanding,
+  verified clean). Or explicit `3 → 2 → 1` column steps at 1100/640px (AdminMe).
+- **Table-wrap convention:** wide tables sit in an `overflow-x: auto` wrapper
+  (`.um-table-wrap`, etc. — 14 stylesheets) so the table scrolls **inside its
+  card** instead of pushing the page wide; secondary columns are hidden at
+  768px (`th:nth-child(n){display:none}`). **Primary table audit check: every
+  `<table>` must have such a wrapper, else it overflows the page once populated.**
+  (The empty-data structural pass cannot catch a missing wrapper — populated or
+  code review only.)
+
 ---
 
 ## 3. Stylesheet responsive-coverage census
@@ -94,7 +106,7 @@ overrides so a low count here does not always mean the page is broken.
 
 Audit slices (record findings in §5/§6):
 
-- [ ] **S1 — Hub:** dashboard, me, me/privacy, my-files, schedule, time-off, install, work, office, research-cad
+- [x] **S1 — Hub:** workspace landings (work/office/research-cad) ✅ clean; me/dashboard/my-files/schedule/time-off audited (need data-render verification — see §6).
 - [ ] **S2 — Work:** jobs(+[id], field, new, import), leads(+[id]), calendar, finances, mileage, vehicles, timeline, team(+[email]), field-data(+[id]), assignments, hours-approval, reports(+job/[id]), invoicing(+categories), invoices/new, payments/inbox, receipts(+new)
 - [ ] **S3 — Equipment:** equipment + all subroutes (today, timeline, catalogue, templates, consumables, maintenance, overrides, fleet-valuation, checked-out, inventory, import, crew-calendar)
 - [ ] **S4 — Research & CAD:** research + subroutes, research/testing, cad
@@ -117,16 +129,16 @@ and are audited via code review (no harness render without seeded params).
 ### Hub
 | Route | Audit | Fix | Notes |
 | --- | :-: | :-: | --- |
-| /admin/me | ⬜ | ⬜ | AdminMe.css (4 BP). Hub landing — server comp + widgets. |
-| /admin/me/privacy | ⬜ | ⬜ | AdminMe.css |
-| /admin/dashboard | ⬜ | ⬜ | AdminLayout/Responsive. Structural: 0 overflow. Data-driven. |
-| /admin/my-files | ⬜ | ⬜ | MyFilesPanel. 0 overflow. |
-| /admin/schedule | ⬜ | ⬜ | AdminSchedule.css (1 BP). 0 overflow. |
-| /admin/time-off | ⬜ | ⬜ | 0 overflow. |
+| /admin/me | 🔍 | ⬜ | AdminMe.css. Grids responsive 3→2→1 @1100/640px. Verify widget cards + greeting at 360px w/ data. |
+| /admin/me/privacy | ⬜ | ⬜ | AdminMe.css. Code review pending. |
+| /admin/dashboard | 🔍 | ⬜ | Data-driven (blank w/ stub). Verify metric-card grid + activity feed w/ data. |
+| /admin/my-files | 🔍 | ⬜ | MyFilesPanel. 0 overflow. Verify file rows/grid w/ data. |
+| /admin/schedule | 🔍 | ⬜ | AdminSchedule.css (1 BP). 0 overflow. Verify shift list w/ data. |
+| /admin/time-off | 🔍 | ⬜ | Has `<table>` — confirm overflow-x wrapper. Verify request list w/ data. |
 | /admin/install | ✅ | ✔️ | install.css. Built mobile-first this effort; verified iPhone/Android. |
-| /admin/work | ⬜ | ⬜ | WorkspaceLanding.css (0 BP) ⚠️. |
-| /admin/office | ⬜ | ⬜ | WorkspaceLanding.css (0 BP) ⚠️. |
-| /admin/research-cad | ⬜ | ⬜ | WorkspaceLanding.css (0 BP) ⚠️. |
+| /admin/work | ✅ | — | WorkspaceLanding auto-fill grid. Verified clean (screenshot). |
+| /admin/office | ✅ | — | WorkspaceLanding auto-fill grid. Verified clean (screenshot). |
+| /admin/research-cad | ✅ | — | WorkspaceLanding (same component). Clean by inheritance. |
 
 ### Work
 | Route | Audit | Fix | Notes |
@@ -312,7 +324,18 @@ and are audited via code review (no harness render without seeded params).
 Populated during audit slices. Each item: `[area] page — issue — fix`. Worked
 during build-out slices.
 
-_(empty — fills as slices complete)_
+**Cross-cutting (all areas):**
+- [ ] **Table-wrapper sweep** — confirm every `<table>` (55 files) sits in an
+  `overflow-x: auto` wrapper. Unwrapped tables overflow the page once populated.
+  Build a static check + spot-render with seeded rows. (Primary mobile risk.)
+- [ ] **Data-render verification** — list/table/dashboard pages render blank in
+  the empty-data harness; seed representative rows for key endpoints so their
+  mobile layout can actually be screenshotted (deferred to per-area slices).
+
+**S1 — Hub:**
+- [ ] time-off — has a `<table>`; verify it has an overflow-x wrapper.
+- [ ] me / dashboard / my-files / schedule — verify card grids + lists at 360px
+  with seeded data (no static issues found in CSS review; grids are responsive).
 
 ---
 
@@ -323,3 +346,8 @@ _(empty — fills as slices complete)_
   responsive-coverage census (§3) and recorded breakpoint conventions. Built the
   full 152-route catalogue (§5). Reusable audit tooling in `scratchpad/audit.js`
   + `/ux-harness` registry (added `learn`, `messages`, `payout-log`).
+- **2026-06-23 — Slice 1 (Hub):** Workspace landings (work/office/research-cad)
+  verified mobile-clean (auto-fill grid, screenshot). Hub/dashboard grids are
+  responsive (3→2→1). Documented two established conventions in §2 (auto-fill
+  grids; table-wrap `overflow-x:auto`). Identified the **table-wrapper sweep** as
+  the primary cross-cutting mobile risk (empty-data pass can't catch it).
