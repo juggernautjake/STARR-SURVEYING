@@ -33,7 +33,7 @@ async function stubBackend(page: import('@playwright/test').Page) {
 
 const PAGES = [
   'dashboard', 'jobs', 'leads', 'notes', 'receipts', 'payroll',
-  'settings', 'mileage', 'assignments', 'reports', 'equipment', 'invites',
+  'settings', 'install', 'mileage', 'assignments', 'reports', 'equipment', 'invites',
   'my-pay', 'my-hours', 'my-jobs', 'my-notes', 'my-files', 'schedule',
   'team', 'work', 'users', 'discussions', 'hours-approval', 'announcements',
   'audit', 'error-log', 'office', 'org-settings', 'profile', 'timeline',
