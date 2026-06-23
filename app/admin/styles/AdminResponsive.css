@@ -3,6 +3,18 @@
   Breakpoints: 1023px (tablet), 768px (large mobile), 599px (mobile), 480px (small mobile)
 ==============================================================================*/
 
+/* ── Responsive table wrapper (mobile audit 2026-06) ───────────────────────
+   Wrap any wide <table> in <div className="admin-table-wrap"> so it scrolls
+   horizontally INSIDE its card instead of pushing the whole page wider than
+   the viewport. Always-on (harmless on desktop, where tables fit). Generic
+   sibling of the page-specific .um-table-wrap / .pr-table-wrap patterns. */
+.admin-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    TABLET (max-width: 1023px)
    ═══════════════════════════════════════════════════════════════════════════ */

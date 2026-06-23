@@ -265,6 +265,7 @@ export default function MileagePage() {
                 {g.subtotal.toFixed(2)} mi
               </span>
             </header>
+            <div className="admin-table-wrap">
             <table style={styles.table}>
               <thead>
                 <tr>
@@ -395,6 +396,7 @@ export default function MileagePage() {
                 })}
               </tbody>
             </table>
+            </div>
           </section>
         ))
       )}

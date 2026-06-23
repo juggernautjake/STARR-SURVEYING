@@ -134,7 +134,7 @@ and are audited via code review (no harness render without seeded params).
 | /admin/dashboard | 🔍 | ⬜ | Data-driven (blank w/ stub). Verify metric-card grid + activity feed w/ data. |
 | /admin/my-files | 🔍 | ⬜ | MyFilesPanel. 0 overflow. Verify file rows/grid w/ data. |
 | /admin/schedule | 🔍 | ⬜ | AdminSchedule.css (1 BP). 0 overflow. Verify shift list w/ data. |
-| /admin/time-off | 🔍 | ⬜ | Has `<table>` — confirm overflow-x wrapper. Verify request list w/ data. |
+| /admin/time-off | 🔍 | ✔️ | Table wrapped in `.admin-table-wrap`. |
 | /admin/install | ✅ | ✔️ | install.css. Built mobile-first this effort; verified iPhone/Android. |
 | /admin/work | ✅ | — | WorkspaceLanding auto-fill grid. Verified clean (screenshot). |
 | /admin/office | ✅ | — | WorkspaceLanding auto-fill grid. Verified clean (screenshot). |
@@ -152,7 +152,7 @@ and are audited via code review (no harness render without seeded params).
 | /admin/leads/[id] | ⬜ | ⬜ | Leads.css. |
 | /admin/calendar | ⬜ | ⬜ | Calendar.css (7 BP, 1658 lines). |
 | /admin/finances | ⬜ | ⬜ | 0 overflow. |
-| /admin/mileage | ⬜ | ⬜ | 0 overflow. |
+| /admin/mileage | 🔍 | ✔️ | Inline-style table wrapped in `.admin-table-wrap`. |
 | /admin/vehicles | ⬜ | ⬜ | 0 overflow. |
 | /admin/timeline | ⬜ | ⬜ | 0 overflow. |
 | /admin/team | ⬜ | ⬜ | 0 overflow. |
@@ -333,10 +333,14 @@ mileage use inline-style `<table>` directly in a `<section>`, no wrapper).
 { overflow-x:auto; -webkit-overflow-scrolling:touch }` in AdminResponsive.css)
 and wrap each flagged `<table>`. Then re-run the detector → 0 flagged.
 
+**Build-out progress (table wrappers):** added shared `.admin-table-wrap`
+utility to `AdminResponsive.css` (always-on `overflow-x:auto`). Wrapping flagged
+tables in it, area by area. ✔️ done: `time-off`, `mileage`, `invites`.
+
 Flagged files by area (build-out targets):
-- **Hub:** `time-off/page.tsx`
-- **Work:** `finances`, `reports`, `reports/job/[jobId]`, `mileage`, `invites`,
-  `components/jobs/FieldWorkView` (FieldWorkView line 993)
+- **Hub:** ✔️ `time-off/page.tsx`
+- **Work:** `finances`, `reports`, `reports/job/[jobId]`, ✔️ `mileage`,
+  ✔️ `invites`, `components/jobs/FieldWorkView` (FieldWorkView line 993)
 - **Office/Pay:** `payouts`, `billing/invoices`, `audit`,
   `components/payroll/PayStubView`, `PayRateTable`, `PayrollRunPanel`
 - **Equipment:** `[id]`, `consumables`, `import`, `inventory`, `maintenance`,
@@ -401,3 +405,7 @@ page — safe to apply uniformly regardless.
   **Found:** 4 fixed multi-column grids to verify/collapse (§6). Conclusion: the
   backend is mobile-mature; concrete backlog = 28 table wrappers + 4 grids.
   **Audit phase complete for layout/overflow; moving to build-out.**
+- **2026-06-23 — Build-out B1 (table wrappers, Hub+Work start):** Added shared
+  `.admin-table-wrap` utility to AdminResponsive.css. Wrapped tables in
+  `time-off`, `mileage`, `invites` (3/28). ESLint clean. Remaining flagged files
+  wrapped in subsequent build-out slices.

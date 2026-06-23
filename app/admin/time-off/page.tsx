@@ -231,6 +231,7 @@ function RequestTable({
   onDeny?: (id: string) => void;
 }) {
   return (
+    <div className="admin-table-wrap">
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', background: '#FFF', border: '1px solid #E5E7EB', borderRadius: 8 }}>
       <thead style={{ background: '#F9FAFB' }}>
         <tr>
@@ -266,6 +267,7 @@ function RequestTable({
         ))}
       </tbody>
     </table>
+    </div>
   );
 }
 
