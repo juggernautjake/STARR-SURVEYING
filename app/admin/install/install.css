@@ -1,0 +1,227 @@
+/* app/admin/install/install.css
+ *
+ * Styles for the employee-only "Get the Starr Field app" page
+ * (app/admin/install/page.tsx). Uses the shared admin design tokens so
+ * it tracks light/dark theme automatically. The `.admin-btn` classes
+ * are global (AdminLayout.css), so the CTAs reuse them. */
+
+.admin-install {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: var(--space-3, 1rem);
+  font-family: var(--font-body);
+  color: var(--color-text-primary);
+}
+
+.admin-install__header {
+  margin-bottom: var(--space-4, 1.5rem);
+}
+
+.admin-install__title {
+  font-family: var(--font-heading);
+  font-weight: var(--weight-bold, 700);
+  font-size: 1.6rem;
+  color: var(--color-brand-navy);
+  margin: 0 0 0.4rem;
+}
+
+.admin-install__subtitle {
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm, 0.9rem);
+  line-height: 1.55;
+  max-width: 62ch;
+  margin: 0;
+}
+
+.admin-install__version {
+  color: var(--color-text-muted);
+}
+
+.admin-install__muted {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm, 0.9rem);
+}
+
+/* ── Cards ────────────────────────────────────────────────────────── */
+
+.admin-install__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-3, 1rem);
+  margin-bottom: var(--space-4, 1.5rem);
+}
+
+.admin-install__card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md, 0.75rem);
+  padding: var(--space-3, 1.25rem);
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-install__card--detected {
+  border-color: var(--color-brand-navy);
+  box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.08));
+}
+
+.admin-install__card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: var(--space-2, 0.75rem);
+}
+
+.admin-install__card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-sm, 0.5rem);
+  background: var(--color-bg-subtle);
+  color: var(--color-brand-navy);
+  flex-shrink: 0;
+}
+
+.admin-install__card-title {
+  font-family: var(--font-heading);
+  font-weight: var(--weight-semibold, 600);
+  font-size: 1.05rem;
+  margin: 0;
+  color: var(--color-text-primary);
+}
+
+.admin-install__card-sub {
+  margin: 0;
+  font-size: var(--text-xs, 0.78rem);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-install__badge {
+  margin-left: auto;
+  font-size: var(--text-xs, 0.72rem);
+  font-weight: var(--weight-semibold, 600);
+  color: var(--color-text-on-brand, #fff);
+  background: var(--color-brand-navy);
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  white-space: nowrap;
+}
+
+.admin-install__steps {
+  margin: 0 0 var(--space-3, 1rem);
+  padding-left: 1.2rem;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm, 0.9rem);
+  line-height: 1.6;
+}
+
+.admin-install__steps li {
+  margin-bottom: 0.35rem;
+}
+
+.admin-install__steps a {
+  color: var(--color-brand-navy);
+  font-weight: var(--weight-semibold, 600);
+}
+
+.admin-install__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  align-self: flex-start;
+}
+
+/* ── QR ───────────────────────────────────────────────────────────── */
+
+.admin-install__qr {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: var(--space-3, 1rem);
+  padding-top: var(--space-3, 1rem);
+  border-top: 1px dashed var(--border-light);
+}
+
+.admin-install__qr img {
+  width: 96px;
+  height: 96px;
+  border-radius: var(--radius-sm, 0.5rem);
+  background: #fff;
+  padding: 4px;
+  border: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+
+.admin-install__qr span {
+  font-size: var(--text-xs, 0.78rem);
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+/* ── Coming-soon (unconfigured) state ─────────────────────────────── */
+
+.admin-install__soon {
+  background: var(--color-info-bg);
+  border-radius: var(--radius-sm, 0.5rem);
+  padding: var(--space-3, 1rem);
+}
+
+.admin-install__soon-title {
+  font-weight: var(--weight-semibold, 600);
+  margin: 0 0 0.25rem;
+  color: var(--color-text-primary);
+}
+
+.admin-install__operator {
+  margin: 0.6rem 0 0;
+  font-size: var(--text-xs, 0.78rem);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.admin-install__operator code {
+  font-family: var(--lab-mono, monospace);
+  background: var(--color-bg-subtle);
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+/* ── Notes ────────────────────────────────────────────────────────── */
+
+.admin-install__notes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-3, 1rem);
+}
+
+.admin-install__note {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-sm, 0.5rem);
+  padding: var(--space-3, 0.9rem);
+}
+
+.admin-install__note svg {
+  color: var(--color-brand-navy);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.admin-install__note p {
+  margin: 0;
+  font-size: var(--text-sm, 0.88rem);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.admin-install__note strong {
+  color: var(--color-text-primary);
+}

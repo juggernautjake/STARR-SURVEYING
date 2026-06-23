@@ -55,6 +55,7 @@ const PAGES: Record<string, ComponentType> = {
   payroll: nextDynamic(() => import('@/app/admin/payroll/page'), { ssr: false }),
   'pay-progression': nextDynamic(() => import('@/app/admin/pay-progression/page'), { ssr: false }),
   settings: nextDynamic(() => import('@/app/admin/settings/page'), { ssr: false }),
+  install: nextDynamic(() => import('@/app/admin/install/page'), { ssr: false }),
   mileage: nextDynamic(() => import('@/app/admin/mileage/page'), { ssr: false }),
   assignments: nextDynamic(() => import('@/app/admin/assignments/page'), { ssr: false }),
   reports: nextDynamic(() => import('@/app/admin/reports/page'), { ssr: false }),

@@ -17,7 +17,7 @@ import {
   Layers, LayoutDashboard, LifeBuoy, Lightbulb, ListChecks, Lock, Map, MapPin,
   Megaphone, MessageSquare, MessagesSquare, Microscope, Notebook, NotebookPen,
   Package, PaintBucket, Palmtree, Receipt, Route, Satellite, Search, Settings,
-  ShieldCheck, SquarePen, StickyNote, Trash2, TrendingUp, Trophy, Truck, User,
+  ShieldCheck, Smartphone, SquarePen, StickyNote, Trash2, TrendingUp, Trophy, Truck, User,
   UserPlus, Users, Wallet, Wrench, FlaskConical,
   type LucideIcon,
 } from 'lucide-react';
@@ -31,7 +31,7 @@ const ICONS: Record<string, LucideIcon> = {
   Layers, LayoutDashboard, LifeBuoy, Lightbulb, ListChecks, Lock, Map, MapPin,
   Megaphone, MessageSquare, MessagesSquare, Microscope, Notebook, NotebookPen,
   Package, PaintBucket, Palmtree, Receipt, Route, Satellite, Search, Settings,
-  ShieldCheck, SquarePen, StickyNote, Trash2, TrendingUp, Trophy, Truck, User,
+  ShieldCheck, Smartphone, SquarePen, StickyNote, Trash2, TrendingUp, Trophy, Truck, User,
   UserPlus, Users, Wallet, Wrench, FlaskConical,
 };
 
