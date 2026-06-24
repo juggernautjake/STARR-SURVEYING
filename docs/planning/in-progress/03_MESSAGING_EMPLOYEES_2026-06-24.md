@@ -49,9 +49,23 @@ desktop intact; verify mobile at 390px.
   over a 4s active-thread poll for the current mobile-polish goal, so it's recorded
   as a follow-up rather than built now. When the app adds Realtime for one surface,
   revisit messages + notifications (doc 06 N3) together.
-- [ ] **M3 — Attachments.** Wire image/file upload + display in a conversation
+- [x] **M3 — Attachments.** Wire image/file upload + display in a conversation
   (the `attachments` field already exists). Storage + a thumbnail/file row in the
   thread. Mobile-friendly upload (camera/library on phones).
+  _Done 2026-06-24:_ added `POST /api/admin/messages/attachments` — verifies the
+  caller is an active participant, then uploads to a **private**
+  `message-attachments` bucket keyed by `{conversationId}/{uuid}-{name}` (25 MB cap,
+  base64 dataUrl in, `{path,name,type,size}` out). The send GET route now mints a
+  fresh 1-hour **signed URL** per stored attachment (`signAttachments`), so private
+  files are viewable in-thread without a permanent link. Client: a 📎 paperclip in
+  the compose row opens a multi-file picker (`accept="image/*,application/pdf,…"` →
+  camera/library on phones); picked files upload immediately into a staged tray of
+  removable chips, and the next send carries them on `attachments[]` (attachment-
+  only messages get a `📎 name` body since content is required). In the thread,
+  `image/*` attachments render as tappable thumbnails (open full-size) and other
+  files render as a download row (icon + name + KB). Seed `380_message_attachments_
+  bucket.sql` pins the bucket (also created on demand via `ensureStorageBucket`).
+  Verified at 390px: 1 thumbnail + 1 file row + paperclip button, 0px overflow.
 - [ ] **M4 — Compose + receipts polish.** Touch-friendly compose box
   (auto-grow, 44px send), surface read receipts/edited markers cleanly, and make
   "Messages" easy to find on mobile (nav + unread badge). Verify at 390px.

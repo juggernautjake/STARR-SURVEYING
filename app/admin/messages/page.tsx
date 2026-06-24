@@ -1,7 +1,7 @@
 // app/admin/messages/page.tsx — Full Messages Inbox with inline conversation view
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { SquarePen, MessageSquare, Users, Check, Smile } from 'lucide-react';
+import { SquarePen, MessageSquare, Users, Check, Smile, Paperclip, FileText, X } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../hooks/usePageError';
 // employee-pond Slice E9b — cross-surface recipient continuity.
@@ -20,6 +20,14 @@ interface Conversation {
   participants: { user_email: string; role: string }[];
 }
 
+interface Attachment {
+  path: string;
+  name: string;
+  type: string;
+  size: number;
+  url?: string | null;
+}
+
 interface Message {
   id: string;
   sender_email: string;
@@ -27,7 +35,7 @@ interface Message {
   message_type: string;
   created_at: string;
   is_edited: boolean;
-  attachments: unknown[];
+  attachments: Attachment[];
 }
 
 interface Contact {
@@ -77,6 +85,12 @@ export default function MessagesInboxPage() {
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
+
+  // M3 — attachments staged for the next send + upload progress.
+  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [attachError, setAttachError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // New conversation & search
   const [showNewConv, setShowNewConv] = useState(false);
@@ -229,18 +243,62 @@ export default function MessagesInboxPage() {
     fetchMessages(conv.id);
   }
 
+  // M3 — read a File as a base64 data URL for the attachments upload route.
+  function fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error ?? new Error('read failed'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleAttachFiles(files: FileList | null) {
+    if (!files || files.length === 0 || !activeConv) return;
+    setAttachError(null);
+    setUploadingAttachment(true);
+    try {
+      for (const file of Array.from(files)) {
+        const dataUrl = await fileToDataUrl(file);
+        const res = await fetch('/api/admin/messages/attachments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conversation_id: activeConv.id, dataUrl, name: file.name }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.attachment) setPendingAttachments(prev => [...prev, data.attachment]);
+        } else {
+          const data = await res.json().catch(() => ({}));
+          setAttachError(data.error || 'Upload failed');
+        }
+      }
+    } catch {
+      setAttachError('Upload failed');
+    }
+    setUploadingAttachment(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
   async function handleSend() {
-    if (!newMessage.trim() || !activeConv) return;
+    const text = newMessage.trim();
+    if ((!text && pendingAttachments.length === 0) || !activeConv) return;
     setSending(true);
     try {
+      // Attachment-only messages still need non-empty content (API requires it),
+      // so fall back to a paperclip + the first file name as the body.
+      const content = text || `📎 ${pendingAttachments.map(a => a.name).join(', ')}`;
+      const hasImage = pendingAttachments.some(a => a.type.startsWith('image/'));
+      const message_type = pendingAttachments.length > 0 ? (hasImage ? 'image' : 'file') : 'text';
       const res = await fetch('/api/admin/messages/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversation_id: activeConv.id, content: newMessage.trim(), message_type: 'text' }),
+        body: JSON.stringify({ conversation_id: activeConv.id, content, message_type, attachments: pendingAttachments }),
       });
       if (res.ok) {
         setNewMessage('');
         setShowEmoji(false);
+        setPendingAttachments([]);
         fetchMessages(activeConv.id);
         loadConversations();
       }
@@ -506,6 +564,24 @@ export default function MessagesInboxPage() {
                         <div className={`msg-page__msg-bubble ${isOwn ? 'msg-page__msg-bubble--own' : ''}`}>
                           {m.content}
                           {m.is_edited && <span className="msg-page__msg-edited">(edited)</span>}
+                          {Array.isArray(m.attachments) && m.attachments.length > 0 && (
+                            <div className="msg-page__attachments">
+                              {m.attachments.map((a, ai) => (
+                                a.type?.startsWith('image/') && a.url ? (
+                                  <a key={ai} href={a.url} target="_blank" rel="noopener noreferrer" className="msg-page__attach-img-link">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={a.url} alt={a.name} className="msg-page__attach-img" />
+                                  </a>
+                                ) : (
+                                  <a key={ai} href={a.url || '#'} target="_blank" rel="noopener noreferrer" className="msg-page__attach-file">
+                                    <FileText size={16} strokeWidth={1.75} aria-hidden="true" />
+                                    <span className="msg-page__attach-name">{a.name}</span>
+                                    <span className="msg-page__attach-size">{(a.size / 1024).toFixed(0)} KB</span>
+                                  </a>
+                                )
+                              ))}
+                            </div>
+                          )}
                         </div>
                         <span className="msg-page__msg-time">{new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
@@ -515,6 +591,29 @@ export default function MessagesInboxPage() {
               )}
               <div ref={messagesEndRef} />
             </div>
+
+            {/* Staged attachments preview */}
+            {(pendingAttachments.length > 0 || uploadingAttachment || attachError) && (
+              <div className="msg-page__attach-tray">
+                {pendingAttachments.map((a, i) => (
+                  <span key={i} className="msg-page__attach-chip">
+                    {a.type.startsWith('image/')
+                      ? <Paperclip size={13} strokeWidth={1.75} aria-hidden="true" />
+                      : <FileText size={13} strokeWidth={1.75} aria-hidden="true" />}
+                    <span className="msg-page__attach-chip-name">{a.name}</span>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${a.name}`}
+                      onClick={() => setPendingAttachments(prev => prev.filter((_, j) => j !== i))}
+                    >
+                      <X size={12} strokeWidth={2} aria-hidden="true" />
+                    </button>
+                  </span>
+                ))}
+                {uploadingAttachment && <span className="msg-page__attach-uploading">Uploading…</span>}
+                {attachError && <span className="msg-page__attach-error">{attachError}</span>}
+              </div>
+            )}
 
             {/* Compose */}
             <div className="msg-page__compose">
@@ -529,6 +628,23 @@ export default function MessagesInboxPage() {
                 )}
               </div>
               <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                style={{ display: 'none' }}
+                onChange={e => handleAttachFiles(e.target.files)}
+              />
+              <button
+                className="msg-page__tool-btn"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingAttachment}
+                title="Attach a file or photo"
+                aria-label="Attach a file or photo"
+              >
+                <Paperclip size={16} strokeWidth={1.75} />
+              </button>
+              <input
                 ref={inputRef}
                 className="msg-page__compose-input"
                 value={newMessage}
@@ -536,7 +652,7 @@ export default function MessagesInboxPage() {
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                 placeholder="Type a message..."
               />
-              <button className="msg-page__send-btn" onClick={handleSend} disabled={sending || !newMessage.trim()}>
+              <button className="msg-page__send-btn" onClick={handleSend} disabled={sending || (!newMessage.trim() && pendingAttachments.length === 0)}>
                 Send
               </button>
             </div>

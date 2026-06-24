@@ -4,6 +4,25 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { notifyMany } from '@/lib/notifications';
+import { MESSAGE_ATTACHMENTS_BUCKET } from '../attachments/route';
+
+const ATTACHMENT_URL_TTL = 3600; // 1 hour signed URLs for private attachments
+
+/** Stored attachments only carry a storage `path`; mint a fresh signed URL for
+ *  each so the (private) file is viewable in the thread without a permanent link. */
+async function signAttachments(attachments: unknown): Promise<unknown> {
+  if (!Array.isArray(attachments) || attachments.length === 0) return attachments ?? [];
+  return Promise.all(attachments.map(async (a) => {
+    if (a && typeof a === 'object' && 'path' in a && typeof (a as { path: unknown }).path === 'string') {
+      const path = (a as { path: string }).path;
+      const { data: signed } = await supabaseAdmin.storage
+        .from(MESSAGE_ATTACHMENTS_BUCKET)
+        .createSignedUrl(path, ATTACHMENT_URL_TTL);
+      return { ...(a as Record<string, unknown>), url: signed?.signedUrl ?? null };
+    }
+    return a;
+  }));
+}
 
 /** Cheap email → display name fall back, mirroring the messenger client's
  *  `displayName` helper. Pure helper kept inline so the route doesn't grow
@@ -82,11 +101,14 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     reactionMap[r.message_id].push(r);
   });
 
-  const messages = (data || []).map((m: { id: string; [key: string]: unknown }) => ({
-    ...m,
-    read_receipts: receiptMap[m.id] || [],
-    reactions: reactionMap[m.id] || [],
-  }));
+  const messages = await Promise.all(
+    (data || []).map(async (m: { id: string; attachments?: unknown; [key: string]: unknown }) => ({
+      ...m,
+      attachments: await signAttachments(m.attachments),
+      read_receipts: receiptMap[m.id] || [],
+      reactions: reactionMap[m.id] || [],
+    }))
+  );
 
   return NextResponse.json({ messages: messages.reverse() }); // Return in chronological order
 }, { routeName: 'messages/send' });
