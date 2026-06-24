@@ -28,6 +28,12 @@ interface Attachment {
   url?: string | null;
 }
 
+interface ReadReceipt {
+  message_id: string;
+  user_email: string;
+  read_at: string;
+}
+
 interface Message {
   id: string;
   sender_email: string;
@@ -36,6 +42,7 @@ interface Message {
   created_at: string;
   is_edited: boolean;
   attachments: Attachment[];
+  read_receipts?: ReadReceipt[];
 }
 
 interface Contact {
@@ -103,7 +110,15 @@ export default function MessagesInboxPage() {
   const [searchResults, setSearchResults] = useState<{ content: string; sender_email: string; created_at: string; conversation_id: string }[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // M4 — auto-grow the compose box up to a cap so multi-line messages are
+  // comfortable on phones without an external lib.
+  function autoGrow(el: HTMLTextAreaElement | null) {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }
 
   const loadConversations = useCallback(async () => {
     try {
@@ -299,6 +314,7 @@ export default function MessagesInboxPage() {
         setNewMessage('');
         setShowEmoji(false);
         setPendingAttachments([]);
+        if (inputRef.current) inputRef.current.style.height = 'auto';
         fetchMessages(activeConv.id);
         loadConversations();
       }
@@ -551,6 +567,10 @@ export default function MessagesInboxPage() {
                   const prevMsg = i > 0 ? messages[i - 1] : null;
                   const showSender = !isOwn && (!prevMsg || prevMsg.sender_email !== m.sender_email);
                   const showDate = !prevMsg || new Date(m.created_at).toDateString() !== new Date(prevMsg.created_at).toDateString();
+                  // M4 — "Seen" appears only under the last own message, and only
+                  // once someone else has read it (iMessage-style, uncluttered).
+                  const isLastOwn = isOwn && !messages.slice(i + 1).some(n => n.sender_email === userEmail);
+                  const seenByOthers = (m.read_receipts || []).some(r => r.user_email !== userEmail);
 
                   return (
                     <div key={m.id}>
@@ -583,7 +603,10 @@ export default function MessagesInboxPage() {
                             </div>
                           )}
                         </div>
-                        <span className="msg-page__msg-time">{new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="msg-page__msg-time">
+                          {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {isLastOwn && seenByOthers && <span className="msg-page__msg-seen"><Check size={11} strokeWidth={2.5} aria-hidden="true" />Seen</span>}
+                        </span>
                       </div>
                     </div>
                   );
@@ -622,7 +645,7 @@ export default function MessagesInboxPage() {
                 {showEmoji && (
                   <div className="msg-page__emoji-grid">
                     {QUICK_EMOJIS.map(e => (
-                      <button key={e} onClick={() => { setNewMessage(p => p + e); setShowEmoji(false); inputRef.current?.focus(); }}>{e}</button>
+                      <button key={e} onClick={() => { setNewMessage(p => p + e); setShowEmoji(false); inputRef.current?.focus(); autoGrow(inputRef.current); }}>{e}</button>
                     ))}
                   </div>
                 )}
@@ -644,11 +667,12 @@ export default function MessagesInboxPage() {
               >
                 <Paperclip size={16} strokeWidth={1.75} />
               </button>
-              <input
+              <textarea
                 ref={inputRef}
                 className="msg-page__compose-input"
+                rows={1}
                 value={newMessage}
-                onChange={e => setNewMessage(e.target.value)}
+                onChange={e => { setNewMessage(e.target.value); autoGrow(e.target); }}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                 placeholder="Type a message..."
               />

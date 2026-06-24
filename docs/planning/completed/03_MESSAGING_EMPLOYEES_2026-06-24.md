@@ -66,6 +66,20 @@ desktop intact; verify mobile at 390px.
   files render as a download row (icon + name + KB). Seed `380_message_attachments_
   bucket.sql` pins the bucket (also created on demand via `ensureStorageBucket`).
   Verified at 390px: 1 thumbnail + 1 file row + paperclip button, 0px overflow.
-- [ ] **M4 — Compose + receipts polish.** Touch-friendly compose box
+- [x] **M4 — Compose + receipts polish.** Touch-friendly compose box
   (auto-grow, 44px send), surface read receipts/edited markers cleanly, and make
   "Messages" easy to find on mobile (nav + unread badge). Verify at 390px.
+  _Done 2026-06-24:_ swapped the single-line `<input>` for an **auto-grow
+  `<textarea>`** (one line → caps at ~5 lines / 120px via a scrollHeight measure;
+  resets after send; Enter sends, Shift+Enter newlines). The compose row now
+  bottom-aligns its controls so the box grows upward, with **44px send + 40px
+  emoji/attach** touch targets on phones. Added an iMessage-style **"✓ Seen"**
+  marker that shows only under the *last own* message and only once another
+  participant's read receipt exists (uses the `read_receipts` the GET route already
+  returns); the existing **"(edited)"** marker stays. Findability is already covered
+  by the floating Messages FAB (unread badge, visible on every page incl. mobile)
+  plus the sidebar nav item. Verified at 390px: textarea grows 40→88px on 4 lines,
+  Seen + edited render, send=44px / attach=40px, 0px overflow.
+
+## Status: ✅ complete — all slices shipped (M1 single-pane, M2 fast poll,
+## M3 attachments, M4 compose/receipts). Moved to completed/.

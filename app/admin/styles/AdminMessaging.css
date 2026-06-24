@@ -2795,11 +2795,20 @@
   margin-top: .15rem;
   padding: 0 .5rem;
 }
+/* M4 — "Seen" read receipt under the last own message. */
+.msg-page__msg-seen {
+  display: inline-flex;
+  align-items: center;
+  gap: .12rem;
+  margin-left: .4rem;
+  color: var(--color-brand-navy);
+  font-weight: 600;
+}
 
 /* ---------- Compose ---------- */
 .msg-page__compose {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: .5rem;
   padding: .65rem 1.25rem;
   border-top: 1px solid #E5E7EB;
@@ -2847,6 +2856,12 @@
   font-size: .88rem;
   outline: none;
   transition: border-color .15s;
+  /* M4 — auto-grow textarea: one line by default, grows to ~5 lines (JS caps
+     scrollHeight at 120px), no manual resize handle. */
+  resize: none;
+  line-height: 1.35;
+  max-height: 120px;
+  overflow-y: auto;
 }
 .msg-page__compose-input:focus { border-color: var(--color-brand-navy); }
 .msg-page__compose-input::placeholder { color: #9CA3AF; }
@@ -2949,6 +2964,11 @@
      hide it on phones — the conversation list has global search. */
   .msg-page__msg-search { display: none; }
   .msg-page__msg { max-width: 88%; }
+  /* M4 — 44px touch targets in the compose row on phones. */
+  .msg-page__compose { padding: .55rem .75rem; gap: .35rem; }
+  .msg-page__tool-btn { min-width: 40px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+  .msg-page__send-btn { min-height: 44px; padding: .5rem 1rem; }
+  .msg-page__compose-input { min-height: 40px; }
 }
 @media (max-width: 480px) {
   .msg-page__contact-grid { grid-template-columns: 1fr 1fr; gap: .5rem; padding: .75rem; }
