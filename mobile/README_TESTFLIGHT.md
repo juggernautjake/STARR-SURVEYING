@@ -43,10 +43,31 @@ Replace the three `REPLACE_WITH_*` placeholders in
 
 > ⚠️ The `ascAppId` doesn't exist yet — fill it in after Step 2.
 
+### Also fill the Supabase build env (required — the app can't reach the backend without it)
+
+`eas.json`'s `preview` + `production` profiles each carry an `env` block
+with two `REPLACE_WITH_*` placeholders. Set them to the **same public**
+Supabase values the web app uses (anon key is a public JWT — safe to
+embed):
+
+```diff
+   "env": {
+-    "EXPO_PUBLIC_SUPABASE_URL": "REPLACE_WITH_SUPABASE_URL",
+-    "EXPO_PUBLIC_SUPABASE_ANON_KEY": "REPLACE_WITH_SUPABASE_ANON_KEY"
++    "EXPO_PUBLIC_SUPABASE_URL": "https://YOURPROJECT.supabase.co",
++    "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGci..."
+   }
+```
+
+> Never put `SUPABASE_SERVICE_ROLE_KEY` or any `sk_`/`sk-ant` secret
+> here — only `EXPO_PUBLIC_*` values are safe to ship to a phone.
+> (Optional: add `EXPO_PUBLIC_POWERSYNC_URL` / `EXPO_PUBLIC_SENTRY_DSN`
+> to enable offline sync / crash reporting; leave them out to disable.)
+
 The **validator** at `mobile/scripts/check-eas-config.mjs` runs the
 moment you `npm run build:ios` and refuses to invoke EAS if any
-placeholder is still present. Re-run after each edit until it's
-clean:
+placeholder is still present (it now covers both the Apple **and** the
+Supabase env placeholders). Re-run after each edit until it's clean:
 
 ```bash
 cd mobile
