@@ -40,7 +40,7 @@ desktop + 390px.
 
 ## Slice plan
 
-- [ ] **P1 — Gradient + label helper (pure, tested).** Add
+- [x] **P1 — Gradient + label helper (pure, tested).** Add
   `lib/learn/module-progress.ts` with `progressColor(pct)` and
   `progressLabel(module)`. Color: `pct <= 0` → grey (neutral, "no color");
   `0 < pct < 100` → a continuous interpolation **yellow → green → blue** (e.g.
@@ -48,6 +48,14 @@ desktop + 390px.
   intermediate shades); `pct >= 100` → full blue. Label: "Not Started" /
   "Enrolled" at 0, `"{pct}%"` in between, "COMPLETED!" at 100. Unit-test the
   endpoints + a few midpoints (monotonic hue, distinct buckets blend).
+  _Done 2026-06-24:_ added `lib/learn/module-progress.ts` —
+  `progressColor(pct)` (grey at 0; hue interpolated 50°→140° across 1–50% then
+  140°→215° across 50–100%, with a slight sat/light ramp; full blue 215° at 100),
+  plus `progressLabel`, `isComplete`, `normalizePct`, and `progressLabelColor`
+  (dark text on the yellow/green band, white at the deep-blue end). Unit-tested
+  (`__tests__/learn/module-progress.test.ts`, 8 passing): endpoints, **monotonic
+  non-decreasing hue** across 1–100, band checks (yellow/green/blue regions), and
+  **>20 distinct shades** (proves it's a gradient, not 3 buckets).
 - [ ] **P2 — Repurpose the card status element into the progress bar.** Replace
   the static status pill with an **always-present** progress bar: a track with a
   fill of `width: {pct}%` colored via `progressColor`, the label centered on it,
