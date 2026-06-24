@@ -100,7 +100,10 @@ export default function HoursApprovalPage() {
 
   // Filters
   const [filterEmail, setFilterEmail] = useState('');
-  const [filterStatus, setFilterStatus] = useState('pending');
+  // The review queue surfaces everything that needs an admin decision:
+  // pending submissions AND disputed entries (so a dispute can't get stuck
+  // unseen). The comma list is expanded server-side into an IN() filter.
+  const [filterStatus, setFilterStatus] = useState('pending,disputed');
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()).toISOString().split('T')[0]);
 
   // Reject/adjust modal
@@ -405,7 +408,7 @@ export default function HoursApprovalPage() {
 
       {/* Tabs */}
       <div className="tl-tabs">
-        <button className={`tl-tabs__btn ${tab === 'pending' ? 'tl-tabs__btn--active' : ''}`} onClick={() => { setTab('pending'); setFilterStatus('pending'); }}>
+        <button className={`tl-tabs__btn ${tab === 'pending' ? 'tl-tabs__btn--active' : ''}`} onClick={() => { setTab('pending'); setFilterStatus('pending,disputed'); }}>
           Pending {pendingCount > 0 && <span className="tl-tabs__count">{pendingCount}</span>}
         </button>
         <button className={`tl-tabs__btn ${tab === 'history' ? 'tl-tabs__btn--active' : ''}`} onClick={() => { setTab('history'); setFilterStatus('all'); }}>
@@ -501,6 +504,11 @@ export default function HoursApprovalPage() {
                         {log.notes && <div className="tl-approval-entry__meta">Notes: {log.notes}</div>}
                         {log.rejection_reason && <div className="tl-approval-entry__rejection">Rejection: {log.rejection_reason}</div>}
                         {log.adjustment_note && <div className="tl-approval-entry__adjustment">Adjusted to {log.adjusted_hours}h: {log.adjustment_note}</div>}
+                        {log.status === 'disputed' && (
+                          <div className="tl-approval-entry__dispute">
+                            &#9888; Disputed by employee — resolve with Approve, Adjust, or Reject{log.notes ? `: ${log.notes}` : ''}
+                          </div>
+                        )}
 
                         {/* Rate breakdown */}
                         {log.effective_rate && (

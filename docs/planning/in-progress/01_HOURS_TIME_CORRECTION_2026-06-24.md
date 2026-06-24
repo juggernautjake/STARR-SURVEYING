@@ -92,12 +92,21 @@ doc to `docs/planning/completed/`. Keep desktop intact; verify mobile at 390px.
   "add a brand-new entry on an employee's behalf" still routes through the
   employee's own submission today; the by-week adjust/revise + remove covers the
   owner's stated need — a dedicated admin add-on-behalf can land later if wanted._
-- [ ] **H4 — Dispute → resolve loop.** Add an admin **resolve** action for
+- [x] **H4 — Dispute → resolve loop.** Add an admin **resolve** action for
   `disputed` logs: transition disputed → approved or → rejected (with reason),
   notifying the employee. API: extend the PUT/approve route with a `resolve`
   action; UI: a resolve control on disputed rows in `hours-approval`. Acceptance:
   a disputed log can be driven to a terminal state and the employee is notified —
   no more one-way trap.
+  _Done 2026-06-24:_ root cause was visibility, not the transition — the
+  Approve/Adjust/Reject actions already render for `disputed` and the admin PUT
+  resolves any status, but the review queue fetched `status=pending` only, so
+  disputes never appeared. Made the GET `status` accept a comma list
+  (`pending,disputed` → `IN()`), pointed the review queue at `pending,disputed`,
+  and added a purple "Disputed by employee — resolve with Approve, Adjust, or
+  Reject" callout (shows the employee's note). Resolving notifies the employee via
+  H2. Verified at 390px (0 overflow): the disputed entry surfaces in the queue
+  with its callout + resolve buttons.
 - [ ] **H5 — Conflict / totals reconciliation.** Give admins a clear per-employee,
   per-pay-period totals view that flags conflicts: days over a threshold, missing
   clock-out (open `job_time_entries`), week totals that look off, and

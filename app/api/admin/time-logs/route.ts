@@ -186,7 +186,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   if (dateFrom) query = query.gte('log_date', dateFrom);
   if (dateTo) query = query.lte('log_date', dateTo);
-  if (status) query = query.eq('status', status);
+  // `status` accepts a single value or a comma list (e.g. "pending,disputed")
+  // so the review queue can pull everything that needs an admin decision.
+  if (status) {
+    const statuses = status.split(',').map((s) => s.trim()).filter(Boolean);
+    query = statuses.length > 1 ? query.in('status', statuses) : query.eq('status', statuses[0]);
+  }
   if (weekStart) {
     const ws = new Date(weekStart);
     const we = new Date(ws);
