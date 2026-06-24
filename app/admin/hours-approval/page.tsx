@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../hooks/usePageError';
 import { computeHoursFlags } from '@/lib/hours/hours-flags';
+import { useFocusHighlight } from '@/lib/admin/use-focus-highlight';
 
 interface TimeLog {
   id: string;
@@ -99,6 +100,9 @@ export default function HoursApprovalPage() {
   const { safeFetch, safeAction, reportPageError } = usePageError('HoursApprovalPage');
   const [tab, setTab] = useState<ApprovalTab>('pending');
   const [logs, setLogs] = useState<TimeLog[]>([]);
+  // N5 — when arriving from an alert link `?focus=<logId>`, scroll to + flash
+  // that time-log entry once the list has loaded.
+  useFocusHighlight({ deps: [logs.length] });
   const [workTypes, setWorkTypes] = useState<WorkType[]>([]);
   const [advances, setAdvances] = useState<Advance[]>([]);
   const [bonuses, setBonuses] = useState<Bonus[]>([]);
@@ -545,7 +549,7 @@ export default function HoursApprovalPage() {
                   const wt = workTypes.find((w) => w.work_type === log.work_type);
                   const isSelected = selected.has(log.id);
                   return (
-                    <div key={log.id} className={`tl-approval-entry ${isSelected ? 'tl-approval-entry--selected' : ''}`}>
+                    <div key={log.id} data-focus-id={log.id} className={`tl-approval-entry ${isSelected ? 'tl-approval-entry--selected' : ''}`}>
                       {(log.status === 'pending' || log.status === 'disputed') && (
                         <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(log.id)} className="tl-approval-entry__check" />
                       )}

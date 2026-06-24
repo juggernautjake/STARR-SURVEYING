@@ -85,6 +85,20 @@ change → typecheck + lint + commit + push → check box + note. All `[x]` → 
   fixed banner (the shared `Toast` is text-only / no link), top-right on desktop and
   full-width under the bar on phones. Verified at 390px: a new urgent alert pops the
   toast + View button, 0px overflow. tsc + lint clean.
-- [ ] **N5 — Deep-link focus.** Navigating from an alert should land on and
+- [x] **N5 — Deep-link focus.** Navigating from an alert should land on and
   highlight the target (expand the job card / scroll to the row), not just route
   to the page. Findability: bell visible on mobile with a clear unread badge.
+  _Done 2026-06-24:_ added a reusable **`useFocusHighlight()`** hook + a shared
+  **`.focus-flash`** animation: when a page is opened from an alert link carrying
+  `?focus=<id>`, the hook finds `[data-focus-id="<id>"]` (retrying ~3.6s while the
+  list loads), **scrolls it into view and flashes a blue ring/tint** for 2.4s. Wired
+  it into the **hours-approval** page (the prime urgent target — approvals/disputed
+  hours) by stamping `data-focus-id={log.id}` on each entry and calling the hook;
+  any alert linking `…/hours-approval?focus=<logId>` now lands on and highlights that
+  exact row. The hook is generic, so other surfaces adopt it by adding
+  `data-focus-id` + `?focus=` to their links. Findability: the bell sits in the
+  mobile top bar with the N0 red dot. Verified at 390px: `?focus=log-9` scrolled to
+  + flashed the target row (y=514), 0px overflow. tsc + lint clean.
+
+## Status: ✅ complete — all slices shipped (N0 red-dot, N1 mobile sheet, N2 inbox,
+## N3 visibility poll, N4 urgent toast, N5 deep-link focus). Moved to completed/.
