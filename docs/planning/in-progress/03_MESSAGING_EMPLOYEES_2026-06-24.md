@@ -20,10 +20,19 @@ desktop intact; verify mobile at 390px.
 
 ## Slice plan
 
-- [ ] **M1 — Mobile single-pane layout.** On phones the two-pane layout doesn't
+- [x] **M1 — Mobile single-pane layout.** On phones the two-pane layout doesn't
   work. Show the conversation list full-screen; tapping a conversation pushes the
   thread full-screen with a back button; "new chat" is reachable. No horizontal
   overflow at 390px. Desktop two-pane unchanged. Verify via `ux-harness?page=messages`.
+  _Done 2026-06-24:_ replaced the cramped 45vh/55vh mobile stack with a true
+  single pane. The root gets `.msg-page--detail` when a conversation (or the new-
+  chat composer) is open; `@768` CSS shows the list full-screen by default and
+  swaps to the thread full-screen in detail mode (hiding the other pane). Added a
+  ‹ back button (`.msg-page__back`, mobile-only) in the thread header → clears
+  `activeConv`; the composer's existing × returns to the list too. Hid the
+  in-thread search box on phones to declutter the header. Verified at 390px:
+  list mode (thread hidden, no back), detail mode (list hidden, back shown), both
+  0px overflow. Desktop two-pane untouched.
 - [ ] **M2 — Real-time messages.** Replace the 15s poll with Supabase Realtime
   on the messages/conversation tables so new messages + unread counts appear
   instantly; keep a poll fallback. Verify two sessions exchange messages live.

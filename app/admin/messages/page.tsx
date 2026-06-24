@@ -296,7 +296,7 @@ export default function MessagesInboxPage() {
     : contacts;
 
   return (
-    <div className="msg-page">
+    <div className={`msg-page${activeConv || showNewConv ? ' msg-page--detail' : ''}`}>
       {/* Sidebar — conversation list */}
       <div className="msg-page__sidebar">
         <div className="msg-page__sidebar-header">
@@ -421,6 +421,14 @@ export default function MessagesInboxPage() {
           <div className="msg-page__thread">
             {/* Thread header */}
             <div className="msg-page__thread-header">
+              <button
+                type="button"
+                className="msg-page__back"
+                onClick={() => setActiveConv(null)}
+                aria-label="Back to conversations"
+              >
+                ‹
+              </button>
               <div className="msg-page__thread-info">
                 <h3 className="msg-page__thread-name">{getConvName(activeConv)}</h3>
                 <span className="msg-page__thread-members">

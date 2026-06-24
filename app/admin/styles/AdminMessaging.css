@@ -2643,7 +2643,25 @@
   border-bottom: 1px solid #E5E7EB;
   background: #fff;
 }
-.msg-page__thread-info { display: flex; flex-direction: column; }
+/* Mobile-only "back to conversation list" button (shown via the @768 rule). */
+.msg-page__back {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin-right: .25rem;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  background: #fff;
+  color: #4B5563;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.msg-page__back:hover { border-color: var(--color-brand-navy); color: var(--color-brand-navy); }
+.msg-page__thread-info { display: flex; flex-direction: column; min-width: 0; }
 .msg-page__thread-name {
   margin: 0;
   font-family: 'Sora', sans-serif;
@@ -2850,11 +2868,19 @@
 
 /* ---------- Responsive ---------- */
 @media (max-width: 768px) {
-  .msg-page { flex-direction: column; height: auto; min-height: calc(100vh - 120px); }
-  .msg-page__sidebar { width: 100%; min-width: 0; border-right: none; border-bottom: 1px solid #E5E7EB; max-height: 45vh; }
-  .msg-page__main { min-height: 55vh; }
+  /* Single-pane: the conversation list fills the screen; opening a conversation
+     (.msg-page--detail) swaps to the thread full-screen with a back button,
+     instead of cramming both into 45vh/55vh. */
+  .msg-page { flex-direction: column; height: calc(100vh - 120px); }
+  .msg-page__sidebar { width: 100%; min-width: 0; border-right: none; border-bottom: none; max-height: none; flex: 1; }
+  .msg-page__main { flex: 1; min-height: 0; }
+  .msg-page:not(.msg-page--detail) .msg-page__main { display: none; }
+  .msg-page--detail .msg-page__sidebar { display: none; }
+  .msg-page__back { display: inline-flex; }
   .msg-page__contact-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
-  .msg-page__msg-search { width: 160px; }
+  /* The in-thread search box crowds the mobile header (back + name + search);
+     hide it on phones — the conversation list has global search. */
+  .msg-page__msg-search { display: none; }
   .msg-page__msg { max-width: 88%; }
 }
 @media (max-width: 480px) {
