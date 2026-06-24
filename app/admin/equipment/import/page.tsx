@@ -273,7 +273,7 @@ export default function EquipmentImportPage() {
             </div>
           ) : null}
           {dryRun && dryRun.errors.length > 0 ? (
-            <table style={styles.errorsTable}>
+            <div className="admin-table-wrap"><table style={styles.errorsTable}>
               <thead>
                 <tr>
                   <th style={styles.th}>Row</th>
@@ -292,7 +292,7 @@ export default function EquipmentImportPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           ) : null}
         </div>
       </section>

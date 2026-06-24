@@ -335,9 +335,13 @@ and wrap each flagged `<table>`. Then re-run the detector → 0 flagged.
 
 **Build-out progress (table wrappers):** added shared `.admin-table-wrap`
 utility to `AdminResponsive.css` (always-on `overflow-x:auto`). Wrapping flagged
-tables in it, area by area. ✔️ done (6/28): `time-off`, `mileage`, `invites`,
-`payouts`, `billing/invoices`, `audit`. Note: FieldWorkView's main log table is
-already in `.fw__table-scroll` (no work); only its import-preview table remains.
+tables in it, area by area. **✔️ done (16/28 files):** `time-off`, `mileage`,
+`invites`, `payouts`, `billing/invoices`, `audit`, + all 10 Equipment pages (11
+tables, via `scratchpad/wrap-equipment.js` codemod). Detector re-run → **12
+files remain** (finances, reports, reports/job, 3 payroll components,
+research/[projectId], FieldWorkView import-preview, 2 CAD + DrawingCanvas
+[desktop], rewards/how-it-works). Note: FieldWorkView's main log table already
+uses `.fw__table-scroll` (no work).
 
 Flagged files by area (build-out targets):
 - **Hub:** ✔️ `time-off/page.tsx`
@@ -345,8 +349,8 @@ Flagged files by area (build-out targets):
   ✔️ `invites`, `components/jobs/FieldWorkView` (FieldWorkView line 993)
 - **Office/Pay:** ✔️ `payouts`, ✔️ `billing/invoices`, ✔️ `audit`,
   `components/payroll/PayStubView`, `PayRateTable`, `PayrollRunPanel`
-- **Equipment:** `[id]`, `consumables`, `import`, `inventory`, `maintenance`,
-  `maintenance/[id]`, `overrides`, `templates`, `templates/[id]`,
+- **Equipment:** ✔️ ALL done — `[id]`, `consumables`, `import`, `inventory`,
+  `maintenance`, `maintenance/[id]`, `overrides`, `templates`, `templates/[id]`,
   `templates/cleanup-queue`
 - **Research/CAD (lower prio — desktop-primary):** `research/[projectId]`,
   `research/components/DrawingCanvas`, `cad/LayerTransferDialog`, `cad/PerfOverlay`
@@ -414,3 +418,7 @@ page — safe to apply uniformly regardless.
 - **2026-06-23 — Build-out B2 (Office/Pay tables):** Wrapped `payouts`,
   `billing/invoices`, `audit` (6/28 total). Verified FieldWorkView's main log
   table already uses `.fw__table-scroll` (skipped, no change). ESLint clean.
+- **2026-06-23 — Build-out B3 (Equipment tables):** Wrapped all 10 Equipment
+  pages (11 tables) via a safe non-nesting codemod (`scratchpad/wrap-equipment.js`).
+  ESLint clean on all 10. Detector re-run (patched to read the table's own line):
+  **16/28 files done, 12 remain.**

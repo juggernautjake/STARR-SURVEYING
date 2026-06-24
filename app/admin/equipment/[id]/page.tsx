@@ -401,7 +401,7 @@ export default function EquipmentDrilldownPage() {
             No assignments recorded yet for this unit.
           </div>
         ) : (
-          <table style={styles.table}>
+          <div className="admin-table-wrap"><table style={styles.table}>
             <thead>
               <tr>
                 <th style={styles.th}>Job</th>
@@ -459,7 +459,7 @@ export default function EquipmentDrilldownPage() {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         )}
       </Section>
 
@@ -478,7 +478,7 @@ export default function EquipmentDrilldownPage() {
             No maintenance events recorded yet for this unit.
           </div>
         ) : (
-          <table style={styles.table}>
+          <div className="admin-table-wrap"><table style={styles.table}>
             <thead>
               <tr>
                 <th style={styles.th}>State</th>
@@ -545,7 +545,7 @@ export default function EquipmentDrilldownPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </Section>
 

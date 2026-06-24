@@ -216,7 +216,7 @@ export default function EquipmentConsumablesPage() {
               No rows match the current filter.
             </div>
           ) : (
-            <table style={styles.table}>
+            <div className="admin-table-wrap"><table style={styles.table}>
               <thead>
                 <tr>
                   <th style={styles.th}>Status</th>
@@ -357,7 +357,7 @@ export default function EquipmentConsumablesPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
 
           {actionMsg ? <div style={styles.actionMsg}>{actionMsg}</div> : null}

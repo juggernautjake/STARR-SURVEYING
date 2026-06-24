@@ -366,7 +366,7 @@ export default function MaintenanceCalendarPage() {
                 upcoming due dates here.
               </div>
             ) : (
-              <table style={styles.table}>
+              <div className="admin-table-wrap"><table style={styles.table}>
                 <thead>
                   <tr>
                     <th style={styles.th}>Equipment</th>
@@ -410,7 +410,7 @@ export default function MaintenanceCalendarPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </section>
         </>

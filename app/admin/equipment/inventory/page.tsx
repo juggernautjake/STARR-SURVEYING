@@ -1703,7 +1703,7 @@ export default function EquipmentInventoryPage() {
           add your first unit with the &ldquo;Add unit&rdquo; button.
         </div>
       ) : (
-        <table style={styles.table}>
+        <div className="admin-table-wrap"><table style={styles.table}>
           <thead>
             <tr>
               <th style={styles.thCheckbox}>
@@ -1940,7 +1940,7 @@ export default function EquipmentInventoryPage() {
               );
             })}
           </tbody>
-        </table>
+        </table></div>
       )}
 
     </div>
