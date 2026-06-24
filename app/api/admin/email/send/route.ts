@@ -24,6 +24,21 @@ interface SendBody {
 // composer also confirms the count before posting.
 const MAX_RECIPIENTS = 100;
 
+/** EM5 — best-effort audit row; never blocks/fails the send if logging errors. */
+async function logEmailSend(row: {
+  sender_email: string;
+  subject: string;
+  role: string | null;
+  recipient_count: number;
+  sent_count: number;
+  failed_count: number;
+  recipients: string[];
+}): Promise<void> {
+  try {
+    await supabaseAdmin.from('email_send_log').insert(row);
+  } catch { /* logging must never break a send */ }
+}
+
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
@@ -103,6 +118,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     if (process.env.NODE_ENV === 'development') {
       console.log(`[DEV] /admin/email/new send: from=${senderEmail} to=${recipients.join(', ')} subject=${subject}`);
     }
+    await logEmailSend({
+      sender_email: senderEmail, subject, role: role || null,
+      recipient_count: recipients.length, sent_count: recipients.length, failed_count: 0,
+      recipients,
+    });
     return NextResponse.json({ success: true, dev: true, sent_count: recipients.length, recipients });
   }
 
@@ -144,6 +164,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }));
 
   const sentCount = recipients.length - failed.length;
+  await logEmailSend({
+    sender_email: senderEmail, subject, role: role || null,
+    recipient_count: recipients.length, sent_count: sentCount, failed_count: failed.length,
+    recipients,
+  });
   if (sentCount === 0) {
     return NextResponse.json({ error: 'Failed to send email — service error', failed }, { status: 502 });
   }

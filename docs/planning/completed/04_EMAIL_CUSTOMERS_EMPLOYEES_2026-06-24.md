@@ -69,6 +69,19 @@ change → typecheck + lint + commit + push → check box + note. All `[x]` → 
   **count-confirm guard** fires before any send reaching >1 person or a whole role,
   and success reads "✓ Email sent to N recipients." Verified at 390px: role broadcast
   posts `role:field_crew`, confirm fires, success shows the count, 0px overflow.
-- [ ] **EM5 — Sent log + draft autosave.** Persist a record of sent emails
+- [x] **EM5 — Sent log + draft autosave.** Persist a record of sent emails
   (who/when/subject) viewable by admins, and autosave the in-progress draft to
   localStorage so a navigation/refresh doesn't lose it.
+  _Done 2026-06-24:_ added `email_send_log` table (seed `381`) + a best-effort
+  `logEmailSend()` the send route calls after every send (dev + live) recording
+  sender, subject, role, recipient/sent/failed counts + addresses. `GET
+  /api/admin/email/log` (admin-only, falls back to empty if unmigrated) powers a
+  new **`/admin/email/sent`** page — a mobile-first stacked card list (subject,
+  sender · time, "N/M sent" + failed/role pills), linked from a **"Sent"** link in
+  the composer header. Draft autosave: the composer persists `{to,role,subject,body}`
+  to `localStorage` on every change and hydrates once on mount (explicit ?to= still
+  wins), clearing on empty. Verified at 390px: log renders 3 rows incl. a failed
+  pill, 0px overflow; a typed subject+body survives a full page reload.
+
+## Status: ✅ complete — all slices shipped (EM1 mobile composer, EM2 picker,
+## EM3 templates, EM4 multi/role send, EM5 sent log + autosave). Moved to completed/.

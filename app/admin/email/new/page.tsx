@@ -23,6 +23,10 @@ import { EMAIL_TEMPLATES, getEmailTemplate } from '@/lib/email/templates';
 type SendState = 'idle' | 'sending' | 'sent' | 'error';
 interface Recipient { name: string; email: string }
 
+// EM5 — autosave the in-progress draft so a refresh/navigation doesn't lose it.
+const DRAFT_KEY = 'admin/email/new/draft';
+interface EmailDraft { to?: string; role?: string; subject?: string; body?: string }
+
 export default function NewEmailPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -59,6 +63,36 @@ export default function NewEmailPage() {
   useEffect(() => {
     setTo(initialTo());
   }, [initialTo]);
+
+  // EM5 — hydrate a saved draft once on mount. An explicit ?to= / recipient-store
+  // value still wins for the To field; subject/body/role restore from the draft.
+  const draftHydratedRef = useState({ done: false })[0];
+  useEffect(() => {
+    if (draftHydratedRef.done) return;
+    draftHydratedRef.done = true;
+    try {
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(DRAFT_KEY) : null;
+      if (!raw) return;
+      const d = JSON.parse(raw) as EmailDraft;
+      if (d.subject) setSubject(d.subject);
+      if (d.body) setBody(d.body);
+      if (d.role) setRole(d.role);
+      if (d.to) setTo((cur) => cur || d.to || '');
+    } catch { /* ignore malformed draft */ }
+  }, [draftHydratedRef]);
+
+  // Persist the draft on every change (cheap localStorage write). Cleared on
+  // successful send.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (!to && !role && !subject && !body) {
+        window.localStorage.removeItem(DRAFT_KEY);
+      } else {
+        window.localStorage.setItem(DRAFT_KEY, JSON.stringify({ to, role, subject, body }));
+      }
+    } catch { /* storage may be unavailable */ }
+  }, [to, role, subject, body]);
 
   // Load the recipient directory once the picker is first opened (lazy — keeps
   // the initial composer render light when the user types a raw address).
@@ -146,6 +180,7 @@ export default function NewEmailPage() {
         setSendState('sent');
         setSubject('');
         setBody('');
+        setRole('');
       } catch (err) {
         setErrorMsg(err instanceof Error ? err.message : 'Network error');
         setSendState('error');
@@ -167,6 +202,9 @@ export default function NewEmailPage() {
           ← Messages
         </Link>
         <h1 className="email-compose__title">New Email</h1>
+        <Link href="/admin/email/sent" className="email-compose__sent-link" data-testid="email-sent-link">
+          Sent
+        </Link>
       </header>
 
       <form
