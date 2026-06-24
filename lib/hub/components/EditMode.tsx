@@ -19,7 +19,7 @@ import { useHubActions } from '@/lib/hub/use-hub-actions';
  *  to one column. */
 export const HUB_EDIT_MODE_BREAKPOINT_PX = 768;
 
-function useIsMobile(breakpoint: number = HUB_EDIT_MODE_BREAKPOINT_PX): boolean {
+export function useIsMobile(breakpoint: number = HUB_EDIT_MODE_BREAKPOINT_PX): boolean {
   const [mobile, setMobile] = useState(false);
   useEffect(() => {
     function tick() { setMobile(window.innerWidth < breakpoint); }

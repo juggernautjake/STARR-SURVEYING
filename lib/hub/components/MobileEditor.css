@@ -1,0 +1,225 @@
+/* lib/hub/components/MobileEditor.css
+ *
+ * Styles for the mobile hub customization sheet (MobileEditor.tsx).
+ * Themed entirely with the hub --theme-* custom properties (provided by
+ * HubProviders) so it tracks the user's chosen hub theme, with literal
+ * fallbacks for safety. Desktop never mounts this component. */
+
+.hub-msheet {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: var(--theme-bg-page, #ffffff);
+  color: var(--theme-fg-primary, #0f1419);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  overscroll-behavior: contain;
+}
+
+.hub-msheet__bar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  padding-top: max(10px, env(safe-area-inset-top));
+  border-bottom: 1px solid var(--theme-border, #e5e7eb);
+  background: var(--theme-bg-surface, #ffffff);
+}
+
+.hub-msheet__title {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.hub-msheet__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border, #e5e7eb);
+  background: var(--theme-bg-elevated, #f9fafb);
+  color: var(--theme-fg-primary, #0f1419);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.hub-msheet__btn--primary {
+  background: var(--theme-accent, #1d3095);
+  color: var(--theme-accent-fg, #ffffff);
+  border-color: transparent;
+}
+
+.hub-msheet__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hub-msheet__body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px;
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+
+.hub-msheet__hint {
+  margin: 0 0 12px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--theme-fg-secondary, #6b7280);
+}
+
+.hub-msheet__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hub-msheet__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--theme-border, #e5e7eb);
+  border-radius: 10px;
+  background: var(--theme-bg-surface, #ffffff);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  touch-action: manipulation;
+}
+
+.hub-msheet__handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin: -6px 0 -6px -6px;
+  border: none;
+  background: transparent;
+  color: var(--theme-fg-muted, #9ca3af);
+  cursor: grab;
+  touch-action: none;
+  flex-shrink: 0;
+}
+
+.hub-msheet__handle:active {
+  cursor: grabbing;
+}
+
+.hub-msheet__row-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hub-msheet__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--theme-danger, #dc2626);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.hub-msheet__empty,
+.hub-msheet__cat-empty {
+  margin: 8px 0;
+  padding: 14px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--theme-fg-secondary, #6b7280);
+  background: var(--theme-bg-elevated, #f9fafb);
+  border: 1px dashed var(--theme-border, #e5e7eb);
+  border-radius: 10px;
+}
+
+.hub-msheet__add-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 14px;
+  min-height: 44px;
+  border: 1px dashed var(--theme-border-strong, #d1d5db);
+  border-radius: 10px;
+  background: var(--theme-bg-elevated, #f9fafb);
+  color: var(--theme-fg-primary, #0f1419);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.hub-msheet__catalog {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hub-msheet__cat-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--theme-border, #e5e7eb);
+  border-radius: 10px;
+  background: var(--theme-bg-surface, #ffffff);
+  cursor: pointer;
+  text-align: left;
+}
+
+.hub-msheet__cat-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.hub-msheet__cat-label {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--theme-fg-primary, #0f1419);
+}
+
+.hub-msheet__cat-cat {
+  font-size: 0.72rem;
+  color: var(--theme-fg-secondary, #6b7280);
+  text-transform: capitalize;
+}
+
+.hub-msheet__cat-plus {
+  color: var(--theme-accent, #1d3095);
+  flex-shrink: 0;
+}
+
+.hub-msheet__error {
+  padding: 10px 12px;
+  margin: 0 12px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--theme-danger, #dc2626) 12%, var(--theme-bg-surface, #ffffff));
+  color: var(--theme-danger, #dc2626);
+  border: 1px solid var(--theme-danger, #dc2626);
+  font-size: 0.85rem;
+}

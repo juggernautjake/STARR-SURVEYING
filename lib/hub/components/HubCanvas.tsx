@@ -38,7 +38,8 @@ import { useHubActions } from '@/lib/hub/use-hub-actions';
 
 import WidgetGrid from './WidgetGrid';
 import GridEditor from './GridEditor';
-import MobileBanner from './MobileBanner';
+import MobileEditor from './MobileEditor';
+import { useIsMobile } from './EditMode';
 import WelcomeTip from './WelcomeTip';
 import PerfOverlay, { isPerfOverlayActive } from './PerfOverlay';
 
@@ -99,10 +100,13 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
   // behind the modal so save-cancel feedback is visible underneath.
   const displayWidgets = isEditMode && draftWidgets ? draftWidgets : widgets;
 
+  // On phones the 8-col drag-and-drop grid painter is unusable, so we
+  // swap in MobileEditor (a vertical reorder/add/remove sheet). The
+  // breakpoint matches WidgetGrid's single-column collapse.
+  const isMobile = useIsMobile();
+
   return (
     <div className="hub-canvas" style={canvasStyle}>
-      <MobileBanner />
-
       <header style={canvasHeaderStyle}>
         <h1 style={canvasTitleStyle}>Your hub</h1>
         <div style={{ display: 'flex', gap: 'var(--hub-spc-2, 8px)' }}>
@@ -129,12 +133,21 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
 
       <WidgetGrid widgets={displayWidgets} />
 
-      <GridEditor
-        open={isEditMode}
-        onClose={closeEditor}
-        roles={roles}
-        activeBundles={activeBundles}
-      />
+      {isMobile ? (
+        <MobileEditor
+          open={isEditMode}
+          onClose={closeEditor}
+          roles={roles}
+          activeBundles={activeBundles}
+        />
+      ) : (
+        <GridEditor
+          open={isEditMode}
+          onClose={closeEditor}
+          roles={roles}
+          activeBundles={activeBundles}
+        />
+      )}
 
       {perfActive && <PerfOverlay canvasRenderCount={renderCountRef.current} />}
     </div>

@@ -97,6 +97,10 @@ const PAGES: Record<string, ComponentType> = {
   learn: nextDynamic(() => import('@/app/admin/learn/page'), { ssr: false }),
   messages: nextDynamic(() => import('@/app/admin/messages/page'), { ssr: false }),
   'payout-log': nextDynamic(() => import('@/app/admin/payout-log/page'), { ssr: false }),
+  // The Hub (/admin/me) is a server component behind auth; mount the real
+  // canvas via a harness wrapper that seeds a default multi-widget layout
+  // so the mobile customization flow can be exercised + screenshotted.
+  hub: nextDynamic(() => import('@/app/ux-harness/HubHarnessMount'), { ssr: false }),
 };
 
 const AdminLayoutClient = nextDynamic(
