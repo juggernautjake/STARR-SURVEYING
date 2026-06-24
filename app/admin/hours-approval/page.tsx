@@ -5,6 +5,7 @@ import '../styles/AdminTimeLogs.css';
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../hooks/usePageError';
+import { computeHoursFlags } from '@/lib/hours/hours-flags';
 
 interface TimeLog {
   id: string;
@@ -468,6 +469,7 @@ export default function HoursApprovalPage() {
           {[...byEmployee.entries()].map(([email, empLogs]) => {
             const empTotal = empLogs.reduce((s, l) => s + l.hours, 0);
             const empPay = empLogs.reduce((s, l) => s + (l.total_pay || 0), 0);
+            const empFlags = computeHoursFlags(empLogs);
             return (
               <div key={email} className="tl-employee-group">
                 <div className="tl-employee-group__header">
@@ -480,6 +482,16 @@ export default function HoursApprovalPage() {
                     <span>{formatCurrency(empPay)}</span>
                   </div>
                 </div>
+
+                {/* H5 — conflict/totals flags so an admin spots missed clock-outs,
+                    suspect period totals, and unresolved entries at a glance. */}
+                {empFlags.length > 0 && (
+                  <div className="tl-employee-group__flags">
+                    {empFlags.map((f, i) => (
+                      <span key={i} className={`tl-flag tl-flag--${f.kind}`}>&#9888; {f.message}</span>
+                    ))}
+                  </div>
+                )}
 
                 {empLogs.map((log) => {
                   const wt = workTypes.find((w) => w.work_type === log.work_type);

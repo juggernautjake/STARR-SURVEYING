@@ -107,11 +107,20 @@ doc to `docs/planning/completed/`. Keep desktop intact; verify mobile at 390px.
   Reject" callout (shows the employee's note). Resolving notifies the employee via
   H2. Verified at 390px (0 overflow): the disputed entry surfaces in the queue
   with its callout + resolve buttons.
-- [ ] **H5 — Conflict / totals reconciliation.** Give admins a clear per-employee,
+- [x] **H5 — Conflict / totals reconciliation.** Give admins a clear per-employee,
   per-pay-period totals view that flags conflicts: days over a threshold, missing
   clock-out (open `job_time_entries`), week totals that look off, and
   pending/disputed not yet resolved. Make discrepancies actionable (jump to the
   row to adjust/resolve). This is the "resolve conflicts with hour totals" surface.
+  _Done 2026-06-24:_ added a pure, tested `computeHoursFlags` helper
+  (`lib/hours/hours-flags.ts`, 6 tests) and rendered per-employee flag chips in
+  the hours-approval group header: **long_day** (>14h on one day → likely missed
+  clock-out), **high_total** (>60h this period), and **needs_review** (count of
+  pending/disputed). The flagged employee's rows sit right below with
+  Approve/Adjust/Reject so the discrepancy is actionable. Verified at 390px
+  (0 overflow). _Note: long_day uses the day-total heuristic rather than reading
+  open `job_time_entries`; a direct open-session cross-check can be added once
+  C1/H7 land the server clock-in row + the after-hours sweep._
 - [ ] **H6 — Pay-period approval + lock.** Model pay periods (or reuse payroll
   run `pay_period_start/end`) and add an end-of-period **approve & lock** so a
   closed period's logs can't be edited by employees afterward (PUT/DELETE reject
