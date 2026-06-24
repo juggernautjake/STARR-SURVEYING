@@ -26,14 +26,8 @@ import {
   writeClockSession,
   type ClockSession,
 } from '@/lib/work-mode/clock-session';
+import { useActivityTags } from '@/lib/work-mode/use-activity-tags';
 import { formatElapsed } from './greeting-helpers';
-
-/** Activity-tag catalog shape for the reused ClockInModal. */
-interface ActivityTag {
-  id: string;
-  label: string;
-  color: string;
-}
 
 /** Destination workspace for a given work-mode role. Pure + exported
  *  so the routing target is unit-testable without a router. */
@@ -235,7 +229,8 @@ export default function WorkModePrompt({
   );
   const [clock, setClock] = useState<ClockSession | null>(null);
   const [clockInOpen, setClockInOpen] = useState(false);
-  const [catalog, setCatalog] = useState<ActivityTag[]>([]);
+  // Preloaded + shared so the reused ClockInModal opens fully-formed.
+  const catalog = useActivityTags();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const modalRef = useRef<HTMLDivElement | null>(null);
 
@@ -271,21 +266,10 @@ export default function WorkModePrompt({
     router.push(workModeHref(selectedRole));
   }, [router, selectedRole]);
 
-  // "Clock in now?" — reuse the top-bar ClockInModal. Lazy-load the
-  // activity-tag catalog the same way ClockInPill does.
+  // "Clock in now?" — reuse the top-bar ClockInModal. The tag catalog is
+  // preloaded via useActivityTags, so the modal opens fully-formed.
   function startClockIn() {
     setClockInOpen(true);
-    if (catalog.length > 0) return;
-    void (async () => {
-      try {
-        const res = await fetch('/api/admin/activity-tags');
-        if (!res.ok) return;
-        const data = (await res.json()) as { tags?: ActivityTag[] };
-        setCatalog(data.tags ?? []);
-      } catch {
-        /* leave catalog empty — clock-in still works without tags */
-      }
-    })();
   }
 
   // ClockInModal submit → persist the session, then proceed into work

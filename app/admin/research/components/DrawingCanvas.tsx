@@ -2662,7 +2662,7 @@ function ElementInfoTooltip({ element }: { element: DrawingElement }): JSX.Eleme
       <div className="research-canvas__tooltip-title">
         {element.feature_class.replace(/_/g, ' ')}
       </div>
-      <table className="research-canvas__tooltip-table">
+      <div className="admin-table-wrap"><table className="research-canvas__tooltip-table">
         <tbody>
           {rows.map(({ label, value }) => (
             <tr key={label}>
@@ -2671,7 +2671,7 @@ function ElementInfoTooltip({ element }: { element: DrawingElement }): JSX.Eleme
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
     </div>
   );
 }

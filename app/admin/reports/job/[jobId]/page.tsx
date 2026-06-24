@@ -148,7 +148,7 @@ export default function JobReportPage({ params }: PageProps) {
           {' · '}Labor cost: <strong>{fmtMoney(hours.totalLaborCostCents)}</strong>
         </div>
         {hours.perEmployee.length > 0 ? (
-          <table className="job-table">
+          <div className="admin-table-wrap"><table className="job-table">
             <thead>
               <tr><th>Employee</th><th className="right">Regular</th><th className="right">OT</th><th className="right">Labor</th></tr>
             </thead>
@@ -162,7 +162,7 @@ export default function JobReportPage({ params }: PageProps) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         ) : <p className="job-empty">No time entries on this job.</p>}
       </section>
 
@@ -172,7 +172,7 @@ export default function JobReportPage({ params }: PageProps) {
           Total: <strong>{fmtMoney(receipts.totalCents)}</strong>
         </div>
         {receipts.entries.length > 0 ? (
-          <table className="job-table">
+          <div className="admin-table-wrap"><table className="job-table">
             <thead>
               <tr><th>Date</th><th>Vendor</th><th>Category</th><th>Status</th><th className="right">Amount</th></tr>
             </thead>
@@ -187,7 +187,7 @@ export default function JobReportPage({ params }: PageProps) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         ) : <p className="job-empty">No receipts attributed to this job.</p>}
       </section>
 
@@ -198,7 +198,7 @@ export default function JobReportPage({ params }: PageProps) {
           {' · '}Reimbursement: <strong>{fmtMoney(mileage.totalCents)}</strong>
         </div>
         {mileage.entries.length > 0 ? (
-          <table className="job-table">
+          <div className="admin-table-wrap"><table className="job-table">
             <thead>
               <tr><th>Date</th><th>Employee</th><th className="right">Miles</th><th className="right">Dollars</th></tr>
             </thead>
@@ -212,7 +212,7 @@ export default function JobReportPage({ params }: PageProps) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         ) : <p className="job-empty">No mileage entries on this job.</p>}
       </section>
 
@@ -222,7 +222,7 @@ export default function JobReportPage({ params }: PageProps) {
           <div className="job-financial-line">
             Total: <strong>{fmtMoney(payouts.totalCents)}</strong>
           </div>
-          <table className="job-table">
+          <div className="admin-table-wrap"><table className="job-table">
             <thead>
               <tr><th>Paid on</th><th>Employee</th><th>Method</th><th>Reference</th><th className="right">Amount</th></tr>
             </thead>
@@ -237,13 +237,13 @@ export default function JobReportPage({ params }: PageProps) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </section>
       )}
 
       <section className="job-card">
         <h2>Financial Roll-up</h2>
-        <table className="job-table">
+        <div className="admin-table-wrap"><table className="job-table">
           <tbody>
             <tr><td>Revenue (final amount)</td><td className="right">{fmtMoney(financials.revenueCents)}</td></tr>
             <tr><td className="indent">– Labor</td><td className="right">({fmtMoney(hours.totalLaborCostCents)})</td></tr>
@@ -257,7 +257,7 @@ export default function JobReportPage({ params }: PageProps) {
               </td>
             </tr>
           </tbody>
-        </table>
+        </table></div>
       </section>
 
       <style jsx>{`

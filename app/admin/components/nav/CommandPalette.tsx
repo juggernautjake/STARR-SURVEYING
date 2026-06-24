@@ -36,6 +36,7 @@ const ACTIONS: AdminRoute[] = [
   // `roles:` gate). Restore the role list when permissions
   // (W7) lands.
   { href: '/admin/cad',            label: 'Run AI Drawing Engine', workspace: 'research-cad', iconName: 'Sparkles',  description: 'Open the CAD editor + start the AI engine.', keywords: ['ai', 'engine', 'auto', 'draw'], isAction: true, internalOnly: true },
+  { href: '/admin/research?new=1', label: 'Start research',    workspace: 'research-cad', iconName: 'Microscope',    description: 'Create a new AI property research project.', keywords: ['research', 'new', 'create', 'start', 'property', 'recon', 'analyze'], isAction: true, roles: ['admin', 'developer', 'researcher', 'drawer', 'field_crew', 'tech_support'], internalOnly: true },
   { href: '/admin/me?tab=hours',   label: 'Clock in / out',    workspace: 'hub',          iconName: 'Clock',         description: 'Open your timesheet to clock in or out.', keywords: ['clock', 'time', 'shift'],   isAction: true, roles: ['admin', 'developer', 'field_crew', 'tech_support'], internalOnly: true },
 ];
 

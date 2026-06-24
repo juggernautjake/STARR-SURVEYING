@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 interface Notification {
@@ -53,14 +54,25 @@ function timeAgo(dateStr: string): string {
   return `${days}d`;
 }
 
+const TOAST_ESCALATIONS = new Set(['high', 'urgent', 'critical']);
+
 export default function NotificationBell() {
   const { data: session } = useSession();
+  const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // N4 — pop a deep-linking toast when a NEW high/urgent/critical alert arrives
+  // while the app is open. Seed the seen-set on the first fetch so existing
+  // alerts don't toast on mount — only genuinely new ones do.
+  const [toastAlert, setToastAlert] = useState<Notification | null>(null);
+  const seenIdsRef = useRef<Set<string>>(new Set());
+  const firstLoadRef = useRef(true);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchNotifications = useCallback(async () => {
     if (!session?.user?.email) return;
@@ -70,31 +82,65 @@ export default function NotificationBell() {
       if (res.ok) {
         const data = await res.json();
         // Filter out message-type notifications (those go to FloatingMessenger)
-        const nonMessageNotifs = (data.notifications || []).filter(
+        const nonMessageNotifs: Notification[] = (data.notifications || []).filter(
           (n: Notification) => n.source_type !== 'direct_message' && n.source_type !== 'group_message'
         );
         setNotifications(nonMessageNotifs);
         setUnreadCount(data.unread_count || 0);
+
+        // N4 — detect freshly-arrived high/urgent alerts (unread, not seen before).
+        const fresh = nonMessageNotifs.filter(
+          (n) => !n.is_read && TOAST_ESCALATIONS.has(n.escalation_level ?? '') && !seenIdsRef.current.has(n.id),
+        );
+        nonMessageNotifs.forEach((n) => seenIdsRef.current.add(n.id));
+        if (!firstLoadRef.current && fresh.length > 0) {
+          setToastAlert(fresh[0]); // newest (list is desc by created_at)
+          if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+          // Urgent/critical linger longer; high auto-dismisses sooner.
+          const isUrgent = fresh[0].escalation_level === 'urgent' || fresh[0].escalation_level === 'critical';
+          toastTimerRef.current = setTimeout(() => setToastAlert(null), isUrgent ? 20000 : 10000);
+        }
+        firstLoadRef.current = false;
       }
     } catch { /* silent */ }
   }, [session, filter]);
 
-  // Poll every 20 seconds
+  // N3 — near-real-time unread without a full Supabase Realtime stack. Poll
+  // every 15s, but PAUSE while the tab is hidden (no drain in a pocket) and fire
+  // an immediate catch-up fetch the moment the tab returns to foreground so the
+  // dot + unread count are accurate on return.
+  // Deferred — true Supabase Realtime on `notifications`: the app has no browser
+  // realtime client / RLS / publication, and a websocket path is untestable in the
+  // harness; the cost clearly exceeds the value over this poll for now. Revisit
+  // alongside messaging (doc 03 M2) when Realtime is added for one surface.
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 20000);
-    return () => clearInterval(interval);
+    const interval = setInterval(() => {
+      if (!document.hidden) fetchNotifications();
+    }, 15000);
+    const onVisible = () => { if (!document.hidden) fetchNotifications(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [fetchNotifications]);
 
   // Close dropdown on outside click
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
+    function handleClick(e: Event) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
     }
-    if (open) document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    if (open) {
+      document.addEventListener('mousedown', handleClick);
+      document.addEventListener('touchstart', handleClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('touchstart', handleClick);
+    };
   }, [open]);
 
   async function markAllRead() {
@@ -139,25 +185,53 @@ export default function NotificationBell() {
     if (n.link) setOpen(false);
   }
 
+  // N4 — toast actions
+  function openToastAlert() {
+    if (!toastAlert) return;
+    const { id, link } = toastAlert;
+    markRead(id);
+    setToastAlert(null);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    if (link) router.push(link);
+  }
+  function dismissToastAlert() {
+    setToastAlert(null);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+  }
+
   if (!session?.user) return null;
+
+  // Urgent / critical notifications stay "active" (keep the dot) even after
+  // they're read — they clear only when dismissed (i.e. the user has acted on
+  // them). Normal notifications clear as soon as they're read.
+  const hasUrgent = notifications.some(
+    (n) => n.escalation_level === 'urgent' || n.escalation_level === 'critical',
+  );
+  // The dot shows when a new unchecked notification exists, or an unresolved
+  // urgent one remains.
+  const showDot = unreadCount > 0 || hasUrgent;
 
   return (
     <div className="notif-bell" ref={dropdownRef}>
       <button
         className="notif-bell__btn"
         onClick={() => { setOpen(!open); if (!open) fetchNotifications(); }}
-        aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
+        aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}${hasUrgent ? ' — action needed' : ''}`}
       >
         <svg className="notif-bell__icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
-        {unreadCount > 0 && (
-          <span className="notif-bell__badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+        {showDot && (
+          <span className={`notif-bell__dot${hasUrgent ? ' notif-bell__dot--urgent' : ''}`} aria-hidden />
         )}
       </button>
 
       {open && (
+        <>
+        {/* N1 — dim backdrop behind the full-screen sheet on phones (CSS hides
+            it on desktop where the dropdown is a popover). */}
+        <div className="notif-bell__sheet-backdrop" aria-hidden onClick={() => setOpen(false)} />
         <div className="notif-bell__dropdown">
           <div className="notif-bell__header">
             <h4 className="notif-bell__title">Notifications</h4>
@@ -238,13 +312,31 @@ export default function NotificationBell() {
             )}
           </div>
 
-          {notifications.length > 0 && (
-            <div className="notif-bell__footer">
-              <Link href="/admin/assignments" className="notif-bell__view-all" onClick={() => setOpen(false)}>
-                View All Assignments
-              </Link>
-            </div>
+          <div className="notif-bell__footer">
+            <Link href="/admin/notifications" className="notif-bell__view-all" onClick={() => setOpen(false)}>
+              View all notifications
+            </Link>
+          </div>
+        </div>
+        </>
+      )}
+
+      {/* N4 — high/urgent deep-linking toast */}
+      {toastAlert && (
+        <div
+          className={`notif-toast notif-toast--${toastAlert.escalation_level ?? 'high'}`}
+          role="alert"
+          data-testid="notif-toast"
+        >
+          <span className="notif-toast__icon">{toastAlert.icon || TYPE_ICONS[toastAlert.type] || '⚠️'}</span>
+          <div className="notif-toast__body" onClick={openToastAlert}>
+            <span className="notif-toast__title">{toastAlert.title}</span>
+            {toastAlert.body && <span className="notif-toast__text">{toastAlert.body}</span>}
+          </div>
+          {toastAlert.link && (
+            <button className="notif-toast__view" onClick={openToastAlert}>View</button>
           )}
+          <button className="notif-toast__close" aria-label="Dismiss alert" onClick={dismissToastAlert}>✕</button>
         </div>
       )}
     </div>

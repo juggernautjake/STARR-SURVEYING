@@ -383,7 +383,7 @@
 .admin-topbar__left { display:flex; align-items:center; gap:1rem; }
 .admin-topbar__hamburger { display:none; align-items:center; justify-content:center; width:36px; height:36px; background:none; border:2px solid #E5E7EB; border-radius:6px; color:#4B5563; font-size:1.25rem; cursor:pointer; }
 .admin-topbar__hamburger:hover { border-color:var(--color-brand-navy); color:var(--color-brand-navy); }
-.admin-topbar__title { font-family:'Sora',sans-serif; font-size:1.15rem; font-weight:600; color:#0F1419; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.admin-topbar__title { margin:0; font-family:'Sora',sans-serif; font-size:1.15rem; font-weight:600; color:#0F1419; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
 .admin-topbar__right { display:flex; align-items:center; gap:.75rem; min-width:0; flex-shrink:1; }
 .admin-topbar__role-badge { display:inline-flex; align-items:center; padding:.25rem .65rem; border-radius:20px; font-family:'Inter',sans-serif; font-size:.7rem; font-weight:600; text-transform:uppercase; letter-spacing:.3px; }
 .admin-topbar__role-badge--admin { background:#FEF2F2; color:var(--color-brand-red); border:1px solid #FECACA; }
@@ -1008,6 +1008,9 @@
   .admin-topbar { padding:0 1rem; height:56px; }
   .admin-topbar__title { font-size:1rem; }
   .admin-topbar__role-badge { display:none; }
+  /* Keep the clock-in pill + bell + avatar on one uncrowded row when the pill
+     is in its wider "Clock Out · 8h 30m" state (C5). */
+  .admin-topbar__right { gap:.4rem; }
   .admin-layout__content { padding:1rem 1rem 96px 1rem; margin-top:56px; }
   .admin-dashboard__cards { grid-template-columns:1fr; }
   .dashboard-cards { grid-template-columns:1fr; }
@@ -1024,6 +1027,11 @@
 .notif-bell__btn:hover { border-color:var(--color-brand-navy); color:var(--color-brand-navy); background:#F5F7FF; }
 .notif-bell__icon { display:block; }
 .notif-bell__badge { position:absolute; top:-4px; right:-4px; min-width:18px; height:18px; padding:0 5px; background:#EF4444; color:#fff; font-size:.65rem; font-weight:700; border-radius:10px; display:flex; align-items:center; justify-content:center; border:2px solid #fff; line-height:1; font-family:'Inter',sans-serif; }
+/* Simple red dot — shown only when there's a new unread (or unresolved urgent)
+   notification; clears when everything is read/dismissed. */
+.notif-bell__dot { position:absolute; top:-2px; right:-2px; width:10px; height:10px; border-radius:50%; background:#EF4444; border:2px solid #fff; box-sizing:content-box; }
+.notif-bell__dot--urgent { background:#DC2626; animation:notif-dot-pulse 1.6s ease-in-out infinite; }
+@keyframes notif-dot-pulse { 0%,100% { box-shadow:0 0 0 0 rgba(220,38,38,.5); } 50% { box-shadow:0 0 0 4px rgba(220,38,38,0); } }
 .notif-bell__dropdown { position:absolute; top:calc(100% + 8px); right:0; width:360px; max-height:480px; background:#fff; border:1px solid #E5E7EB; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.15); z-index:200; display:flex; flex-direction:column; animation:notifSlideDown .15s ease; }
 @keyframes notifSlideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
 .notif-bell__header { display:flex; align-items:center; justify-content:space-between; padding:.75rem 1rem; border-bottom:1px solid #E5E7EB; }
@@ -1049,7 +1057,111 @@
 .notif-bell__footer { padding:.6rem 1rem; border-top:1px solid #E5E7EB; text-align:center; }
 .notif-bell__view-all { font-size:.78rem; font-weight:600; color:var(--color-brand-navy); text-decoration:none; }
 .notif-bell__view-all:hover { text-decoration:underline; }
-@media(max-width:599px) { .notif-bell__dropdown { width:calc(100vw - 2rem); right:-60px; } }
+/* N1 — Mobile alerts surface. On phones the dropdown becomes a full-screen
+   sheet anchored under the top bar (instead of a cramped, off-screen-shifted
+   popover), with always-visible dismiss buttons + 44px tap targets since touch
+   has no hover. A dim backdrop reads it as a sheet. Desktop dropdown unchanged. */
+@media(max-width:599px) {
+  .notif-bell__sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.35);
+    z-index: 199;
+    animation: notifSlideDown .15s ease;
+  }
+  .notif-bell__dropdown {
+    position: fixed;
+    top: 56px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: calc(100vh - 72px);
+    border-radius: 14px;
+  }
+  .notif-bell__list { max-height: none; flex: 1; }
+  .notif-bell__item { padding: .85rem 1rem; padding-right: 2.75rem; }
+  .notif-bell__item-dismiss {
+    opacity: 1;
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    top: .4rem;
+    right: .4rem;
+  }
+  .notif-bell__header, .notif-bell__footer { padding: .85rem 1rem; }
+  .notif-bell__mark-all { min-height: 36px; }
+}
+/* The desktop-only hover reveal must not hide the button on touch screens. */
+@media(hover:none) { .notif-bell__item-dismiss { opacity: 1; } }
+
+/* N5 — deep-link focus flash. Applied by useFocusHighlight to the element whose
+   data-focus-id matches the alert link's ?focus= param. */
+.focus-flash {
+  animation: focusFlash 2.4s ease-out;
+  border-radius: 10px;
+}
+@keyframes focusFlash {
+  0%   { box-shadow: 0 0 0 0 rgba(37,99,235,.0); background-color: rgba(37,99,235,.16); }
+  15%  { box-shadow: 0 0 0 4px rgba(37,99,235,.45); background-color: rgba(37,99,235,.16); }
+  100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); background-color: transparent; }
+}
+
+/* N4 — high/urgent deep-linking toast. Fixed near the top; deep-links on tap. */
+.notif-toast {
+  position: fixed;
+  top: 64px;
+  right: 16px;
+  left: auto;
+  width: min(380px, calc(100vw - 32px));
+  display: flex;
+  align-items: flex-start;
+  gap: .6rem;
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-left: 4px solid #F59E0B;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.18);
+  padding: .8rem .9rem;
+  z-index: 1000;
+  animation: notifToastIn .2s ease;
+}
+.notif-toast--urgent, .notif-toast--critical { border-left-color: #DC2626; }
+.notif-toast--critical { border-left-color: #7C3AED; }
+@keyframes notifToastIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+.notif-toast__icon { font-size: 1.2rem; line-height: 1.3; flex-shrink: 0; }
+.notif-toast__body { flex: 1; min-width: 0; cursor: pointer; }
+.notif-toast__title { display: block; font-size: .84rem; font-weight: 700; color: #1F2937; line-height: 1.3; }
+.notif-toast__text {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; font-size: .76rem; color: #6B7280; margin-top: .15rem; line-height: 1.4;
+}
+.notif-toast__view {
+  flex-shrink: 0;
+  align-self: center;
+  background: var(--color-brand-navy, #1E3A8A);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: .4rem .7rem;
+  font-size: .76rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 36px;
+}
+.notif-toast__close {
+  flex-shrink: 0;
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: none; color: #9CA3AF; font-size: .85rem; cursor: pointer;
+  border-radius: 6px;
+}
+.notif-toast__close:hover { color: #DC2626; background: #FEE2E2; }
+@media(max-width:599px) {
+  .notif-toast { top: 60px; right: 8px; left: 8px; width: auto; }
+}
 
 /* ── Global Checkbox Styles (circle / dot design) ────────────────────────── */
 

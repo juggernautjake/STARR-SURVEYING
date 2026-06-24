@@ -94,6 +94,20 @@ const PAGES: Record<string, ComponentType> = {
   orgs: nextDynamic(() => import('@/app/admin/orgs/page'), { ssr: false }),
   payouts: nextDynamic(() => import('@/app/admin/payouts/page'), { ssr: false }),
   support: nextDynamic(() => import('@/app/admin/support/page'), { ssr: false }),
+  learn: nextDynamic(() => import('@/app/admin/learn/page'), { ssr: false }),
+  'learn-modules': nextDynamic(() => import('@/app/admin/learn/modules/page'), { ssr: false }),
+  messages: nextDynamic(() => import('@/app/admin/messages/page'), { ssr: false }),
+  email: nextDynamic(() => import('@/app/admin/email/new/page'), { ssr: false }),
+  'email-sent': nextDynamic(() => import('@/app/admin/email/sent/page'), { ssr: false }),
+  notifications: nextDynamic(() => import('@/app/admin/notifications/page'), { ssr: false }),
+  'payout-log': nextDynamic(() => import('@/app/admin/payout-log/page'), { ssr: false }),
+  // The Hub (/admin/me) is a server component behind auth; mount the real
+  // canvas via a harness wrapper that seeds a default multi-widget layout
+  // so the mobile customization flow can be exercised + screenshotted.
+  hub: nextDynamic(() => import('@/app/ux-harness/HubHarnessMount'), { ssr: false }),
+  // Work Mode shell (top bar + a role workspace) — the real route is a
+  // server component behind auth; mount the client pieces for 390px audit.
+  'work-mode': nextDynamic(() => import('@/app/ux-harness/WorkModeHarnessMount'), { ssr: false }),
 };
 
 const AdminLayoutClient = nextDynamic(

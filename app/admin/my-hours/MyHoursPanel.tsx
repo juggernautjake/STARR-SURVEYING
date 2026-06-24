@@ -154,12 +154,16 @@ export default function MyHoursPanel() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Pre-populate entries from existing logs for the selected date
+  // Pre-populate the editable form with this day's EDITABLE logs (pending or
+  // rejected). Approved/adjusted/disputed logs are locked: they're shown
+  // read-only below and must NOT be pre-filled, or re-submitting the day
+  // would create duplicate pending rows alongside the locked ones.
   useEffect(() => {
-    const dateStr = selectedDate;
-    const existing = logs.filter((l) => l.log_date === dateStr);
-    if (existing.length > 0) {
-      setEntries(existing.map((l) => ({
+    const editable = logs.filter(
+      (l) => l.log_date === selectedDate && (l.status === 'pending' || l.status === 'rejected'),
+    );
+    if (editable.length > 0) {
+      setEntries(editable.map((l) => ({
         work_type: l.work_type,
         hours: l.hours,
         description: l.description,
@@ -193,6 +197,13 @@ export default function MyHoursPanel() {
 
   const totalHours = entries.reduce((sum, e) => sum + (Number(e.hours) || 0), 0);
   const existingForDate = logs.filter((l) => l.log_date === selectedDate);
+  // Editable = pending or rejected (the form replaces these on submit).
+  // Locked = approved/adjusted/disputed (shown read-only; only an admin changes them).
+  const editableForDate = existingForDate.filter((l) => l.status === 'pending' || l.status === 'rejected');
+  const lockedForDate = existingForDate.filter(
+    (l) => l.status === 'approved' || l.status === 'adjusted' || l.status === 'disputed',
+  );
+  const hasExistingEditable = editableForDate.length > 0;
   const hasExistingPending = existingForDate.some((l) => l.status === 'pending');
 
   const submitEntries = async () => {
@@ -209,11 +220,11 @@ export default function MyHoursPanel() {
 
     setSubmitting(true);
     try {
-      // Delete existing pending logs for this date first (re-submit)
-      if (hasExistingPending) {
-        for (const log of existingForDate.filter((l) => l.status === 'pending')) {
-          await fetch(`/api/admin/time-logs?id=${log.id}`, { method: 'DELETE' });
-        }
+      // Replace this date's editable (pending/rejected) logs with the freshly
+      // submitted entries. Locked logs (approved/adjusted/disputed) are left
+      // untouched so we never duplicate already-approved hours.
+      for (const log of editableForDate) {
+        await fetch(`/api/admin/time-logs?id=${log.id}`, { method: 'DELETE' });
       }
 
       const res = await fetch('/api/admin/time-logs', {
@@ -409,17 +420,43 @@ export default function MyHoursPanel() {
             <h3>Hours for {formatDate(selectedDate)}</h3>
             {existingForDate.length > 0 && !hasExistingPending && (
               <span className="tl-log-header__note">
-                {existingForDate.some((l) => l.status === 'approved') ? 'Hours approved' :
-                 existingForDate.some((l) => l.status === 'rejected') ? 'Hours rejected — edit and resubmit' :
+                {existingForDate.some((l) => l.status === 'rejected') ? 'Hours rejected — edit and resubmit' :
+                 lockedForDate.length > 0 ? 'Hours submitted' :
                  'Hours submitted'}
               </span>
             )}
           </div>
 
+          <p className="tl-log-help">
+            Forgot to clock in or out? Add or remove hours for any day here, then
+            submit them — your manager approves them at the end of the pay period.
+          </p>
+
+          {/* Locked hours (approved / adjusted / disputed) — read-only. */}
+          {lockedForDate.length > 0 && (
+            <div className="tl-locked-list">
+              {lockedForDate.map((l) => {
+                const badge = STATUS_BADGES[l.status];
+                const shownHours = l.adjusted_hours != null ? l.adjusted_hours : l.hours;
+                return (
+                  <div key={l.id} className="tl-locked-row">
+                    <span className="tl-locked-row__hours">{shownHours.toFixed(2)}h</span>
+                    <span className="tl-locked-row__desc">{l.description}</span>
+                    {badge && <span className={`tl-badge ${badge.cls}`}>{badge.label}</span>}
+                  </div>
+                );
+              })}
+              <p className="tl-locked-note">
+                These hours are locked. To change approved hours, ask your manager
+                to adjust them.
+              </p>
+            </div>
+          )}
+
           {entries.length === 0 && (
             <div className="tl-empty-day">
               <div className="tl-empty-day__icon">&#128203;</div>
-              <p>No hours logged for this day</p>
+              <p>{lockedForDate.length > 0 ? 'Add more hours for this day' : 'No hours logged for this day'}</p>
               <button className="tl-btn tl-btn--primary" onClick={addEntry}>Add Hours</button>
             </div>
           )}
@@ -508,7 +545,7 @@ export default function MyHoursPanel() {
                 onClick={submitEntries}
                 disabled={submitting || totalHours === 0}
               >
-                {submitting ? 'Submitting...' : hasExistingPending ? 'Update & Resubmit' : 'Submit Hours'}
+                {submitting ? 'Submitting...' : hasExistingEditable ? 'Update & Resubmit' : 'Submit Hours'}
               </button>
             </div>
           )}

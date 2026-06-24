@@ -156,6 +156,7 @@ export default function AdminInvitesPage() {
       ) : invites.length === 0 ? (
         <div style={emptyStyle}>No invites yet. Send your first above.</div>
       ) : (
+        <div className="admin-table-wrap">
         <table style={tableStyle}>
           <thead>
             <tr>
@@ -196,6 +197,7 @@ export default function AdminInvitesPage() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );

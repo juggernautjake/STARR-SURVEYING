@@ -175,7 +175,7 @@ export default function OverridesAuditPage() {
               </p>
             </div>
           ) : (
-            <table style={styles.table}>
+            <div className="admin-table-wrap"><table style={styles.table}>
               <thead>
                 <tr>
                   <th style={styles.th}>Kind</th>
@@ -246,7 +246,7 @@ export default function OverridesAuditPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
 
           <p style={styles.note}>

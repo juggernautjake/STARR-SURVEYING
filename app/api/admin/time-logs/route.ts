@@ -3,6 +3,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notify } from '@/lib/notifications';
+import {
+  buildHoursDecisionNotifications,
+  buildHoursAdjustmentNotification,
+} from '@/lib/notifications/hours-decision';
+import { isDateLocked } from '@/lib/hours/period-lock';
+import { canEmployeeEdit, canEmployeeDelete } from '@/lib/hours/permissions';
+
+const LOCKED_MSG =
+  'That pay period is locked. Ask a manager to adjust these hours — they can revise locked entries.';
 
 interface WorkTypeRate { work_type: string; label: string; base_rate: number; icon: string; max_bonus_cap: number | null; bonus_multiplier: number | null }
 interface RoleTier { role_key: string; label: string; base_bonus: number; max_effective_rate: number | null }
@@ -181,7 +191,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   if (dateFrom) query = query.gte('log_date', dateFrom);
   if (dateTo) query = query.lte('log_date', dateTo);
-  if (status) query = query.eq('status', status);
+  // `status` accepts a single value or a comma list (e.g. "pending,disputed")
+  // so the review queue can pull everything that needs an admin decision.
+  if (status) {
+    const statuses = status.split(',').map((s) => s.trim()).filter(Boolean);
+    query = statuses.length > 1 ? query.in('status', statuses) : query.eq('status', statuses[0]);
+  }
   if (weekStart) {
     const ws = new Date(weekStart);
     const we = new Date(ws);
@@ -238,6 +253,15 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   for (const [date, total] of hoursByDate) {
     if (total > 24) {
       return NextResponse.json({ error: `Total hours for ${date} exceed 24 (${total})` }, { status: 400 });
+    }
+  }
+
+  // Employees can't submit/resubmit hours into a locked pay period.
+  if (!isAdmin(session.user.roles)) {
+    for (const date of hoursByDate.keys()) {
+      if (await isDateLocked(date)) {
+        return NextResponse.json({ error: LOCKED_MSG }, { status: 423 });
+      }
     }
   }
 
@@ -360,6 +384,26 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
       });
     } catch { /* ignore */ }
 
+    // Notify the employee of the decision. Single-entry approve/reject/adjust
+    // previously sent nothing (only the bulk approve route notified); adjust in
+    // particular must tell the worker the new hours + reason. Best-effort — a
+    // notification failure must not fail the decision.
+    try {
+      if (action === 'adjust') {
+        const n = buildHoursAdjustmentNotification({
+          user_email: existing.user_email,
+          log_date: existing.log_date,
+          original_hours: existing.hours,
+          adjusted_hours: updates.adjusted_hours,
+          reason: updates.adjustment_note,
+        });
+        if (n) await notify(n);
+      } else if (action === 'approve' || action === 'reject') {
+        const [n] = buildHoursDecisionNotifications([existing], action === 'approve');
+        if (n) await notify(n);
+      }
+    } catch { /* ignore notification failures */ }
+
     return NextResponse.json({ log: data });
   }
 
@@ -383,8 +427,11 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   if (existing.user_email !== session.user.email && !admin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
-  if (existing.status !== 'pending' && existing.status !== 'rejected' && !admin) {
+  if (!admin && !canEmployeeEdit(existing.status)) {
     return NextResponse.json({ error: 'Can only edit pending or rejected entries' }, { status: 400 });
+  }
+  if (!admin && (await isDateLocked(existing.log_date))) {
+    return NextResponse.json({ error: LOCKED_MSG }, { status: 423 });
   }
 
   const editUpdates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -409,7 +456,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   return NextResponse.json({ log: data });
 }, { routeName: 'time-logs' });
 
-// DELETE: Remove a pending time log (employee own, or admin any)
+// DELETE: Remove a pending/rejected time log (employee own, or admin any)
 export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -430,8 +477,15 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   if (!admin && existing.user_email !== session.user.email) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
-  if (!admin && existing.status !== 'pending') {
-    return NextResponse.json({ error: 'Can only delete pending entries' }, { status: 400 });
+  // Employees may remove their own pending OR rejected logs — a rejected
+  // log is theirs to fix (the my-hours "edit & resubmit" flow deletes the
+  // old editable rows and re-creates them). Approved/adjusted/disputed logs
+  // are locked and can only be changed by an admin.
+  if (!admin && !canEmployeeDelete(existing.status)) {
+    return NextResponse.json({ error: 'Can only delete pending or rejected entries' }, { status: 400 });
+  }
+  if (!admin && (await isDateLocked(existing.log_date))) {
+    return NextResponse.json({ error: LOCKED_MSG }, { status: 423 });
   }
 
   const { error } = await supabaseAdmin.from('daily_time_logs').delete().eq('id', id);

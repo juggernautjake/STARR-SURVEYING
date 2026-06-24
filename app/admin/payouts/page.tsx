@@ -249,6 +249,7 @@ export default function PayoutsPage() {
       ) : payouts.length === 0 ? (
         <div className="payouts-empty">No payouts recorded yet.</div>
       ) : (
+        <div className="admin-table-wrap">
         <table className="payouts-table">
           <thead>
             <tr>
@@ -277,6 +278,7 @@ export default function PayoutsPage() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       <style jsx>{`

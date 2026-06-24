@@ -682,6 +682,72 @@ export default function ResearchProjectPage() {
     }
   }
 
+  // ── R1: Start AI analysis from the always-visible action bar ──────────────
+  // Mirrors Stage 1's "Initiate Research & Analysis": seed the search params
+  // from the saved project, flag auto-start, and move to the research stage so
+  // ResearchRunPanel fires the pipeline on mount. The user never has to hunt
+  // for the run control by workflow stage.
+  function handleStartAnalysis() {
+    if (!project) return;
+    setPendingSearchParams({
+      address: project.property_address || '',
+      county: project.county || '',
+      parcelId: project.parcel_id || '',
+      ownerName: (project as unknown as { owner_name?: string }).owner_name || '',
+    });
+    setShouldAutoStartPipeline(true);
+    setHoldOnResearchStage(true);
+    setPipelineHasStarted(false);
+    handleStatusUpdate('configure');
+  }
+
+  // ── R4: One-click results export from the Review stage ───────────────────
+  // Downloads the extracted data points (the core analysis output) as JSON or a
+  // flat CSV, so the user can export data without hopping to a subpage. Drawing
+  // / PDF export stays in Job Prep; this consolidates the *data* export here.
+  const [exportingData, setExportingData] = useState(false);
+  function downloadBlob(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  async function handleExportResultsData(format: 'json' | 'csv') {
+    if (!project || exportingData) return;
+    setExportingData(true);
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/data-points`);
+      if (!res.ok) { showToast('Failed to load data for export', 'error'); setExportingData(false); return; }
+      const data = await res.json();
+      const points: Array<Record<string, unknown>> = data.data_points || [];
+      const slug = (project.name || 'research').replace(/[^\w.-]+/g, '_').slice(0, 60);
+      if (format === 'json') {
+        const payload = {
+          project: { id: projectId, name: project.name, property_address: project.property_address, county: project.county, state: project.state },
+          exported_at: new Date().toISOString(),
+          data_point_count: points.length,
+          data_points: points,
+        };
+        downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }), `${slug}-data.json`);
+      } else {
+        const cols = ['data_category', 'display_value', 'raw_value', 'unit', 'source_page', 'extraction_confidence', 'source_text_excerpt'];
+        const esc = (v: unknown) => {
+          const s = v == null ? '' : String(v);
+          return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+        };
+        const rows = [cols.join(',')];
+        for (const p of points) rows.push(cols.map(c => esc(p[c])).join(','));
+        downloadBlob(new Blob([rows.join('\n')], { type: 'text/csv' }), `${slug}-data.csv`);
+      }
+      showToast(`Exported ${points.length} data point${points.length === 1 ? '' : 's'} as ${format.toUpperCase()}`, 'success');
+    } catch {
+      showToast('Export failed. Please try again.', 'error');
+    }
+    setExportingData(false);
+  }
+
   // Drawing functions
   const loadDrawings = useCallback(async () => {
     try {
@@ -1673,6 +1739,117 @@ export default function ResearchProjectPage() {
         onStageClick={project.status !== 'analyzing' ? handleRevertToStep : undefined}
       />
 
+      {/* R1 — Always-visible primary action: start or re-run the AI pipeline.
+          Label + behavior derive from project.status so the run control is never
+          buried by workflow stage. */}
+      {(() => {
+        const isAnalyzing = project.status === 'analyzing' || currentStage === 'research';
+        const postAnalysis = ['review', 'drawing', 'verifying', 'complete'].includes(project.status);
+        const hasInputs = Boolean(project.property_address || project.parcel_id) || documents.length > 0;
+
+        if (isAnalyzing) {
+          return (
+            <div className="research-action-bar research-action-bar--running" data-testid="research-action-bar">
+              <Loader2 size={18} className="research-action-bar__spin" aria-hidden="true" />
+              <span className="research-action-bar__text">AI analysis is running — live progress is shown below.</span>
+            </div>
+          );
+        }
+        if (postAnalysis) {
+          return (
+            <div className="research-action-bar" data-testid="research-action-bar">
+              <span className="research-action-bar__text">
+                <CheckCircle2 size={16} className="research-action-bar__ok" aria-hidden="true" />
+                Analysis complete. Re-run STARR RECON to refresh with new documents or parameters.
+              </span>
+              <button className="research-action-bar__btn" onClick={() => setShowRerunConfirm(true)}>
+                <Sparkles size={16} aria-hidden="true" /> Re-run analysis
+              </button>
+            </div>
+          );
+        }
+        // upload / configure → start
+        return (
+          <div className="research-action-bar" data-testid="research-action-bar">
+            <span className="research-action-bar__text">
+              {hasInputs
+                ? <>Ready to analyze. STARR RECON will search public records, capture sources, and extract data with AI.</>
+                : <>Add a property address (or parcel id), or upload a document, to start the AI analysis.</>}
+            </span>
+            <button
+              className="research-action-bar__btn"
+              disabled={!hasInputs}
+              title={hasInputs ? 'Start the AI research pipeline' : 'Add an address/parcel id or a document first'}
+              onClick={handleStartAnalysis}
+            >
+              <Sparkles size={16} aria-hidden="true" /> Start AI analysis
+            </button>
+          </div>
+        );
+      })()}
+
+      {/* R1 — Re-run confirmation dialog lifted to the top level so the action
+          bar's "Re-run analysis" works in any post-analysis stage (not just
+          Review). */}
+      {showRerunConfirm && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: 12, padding: '1.5rem 2rem', maxWidth: 480,
+            width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          }}>
+            <h3 style={{ margin: '0 0 0.75rem', fontSize: '1.1rem', color: '#DC2626' }}>
+              Re-run Research &amp; Analysis
+            </h3>
+            <p style={{ margin: '0 0 1rem', fontSize: '0.9rem', color: '#374151', lineHeight: 1.5 }}>
+              <strong>Warning:</strong> All data from the previous run will be permanently deleted, including:
+            </p>
+            <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem', fontSize: '0.85rem', color: '#374151', lineHeight: 1.7 }}>
+              <li>Extracted data points and analysis results</li>
+              <li>Discrepancies found during analysis</li>
+              <li>Pipeline-fetched documents and screenshots</li>
+              <li>Research logs</li>
+            </ul>
+            <p style={{ margin: '0 0 1.25rem', fontSize: '0.85rem', color: '#6B7280' }}>
+              Your manually uploaded documents and job notes will be preserved.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowRerunConfirm(false)}
+                style={{
+                  padding: '0.5rem 1rem', borderRadius: 6, border: '1px solid #D1D5DB',
+                  background: '#fff', color: '#374151', fontSize: '0.85rem', cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleRerunResearch('update')}
+                style={{
+                  padding: '0.5rem 1rem', borderRadius: 6, border: '1px solid #2563EB',
+                  background: '#EFF6FF', color: '#2563EB', fontSize: '0.85rem', fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Update Parameters First
+              </button>
+              <button
+                onClick={() => handleRerunResearch('same')}
+                style={{
+                  padding: '0.5rem 1rem', borderRadius: 6, border: 'none',
+                  background: '#DC2626', color: '#fff', fontSize: '0.85rem', fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Re-run with Same Parameters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Quick stats — actionable buttons (Slice C4). Each tile is
           a proper button so keyboard users get focus + Enter to
           activate, and screen readers announce the destination.
@@ -1862,65 +2039,44 @@ export default function ResearchProjectPage() {
             </button>
           </div>
 
-          {/* ── Re-run confirmation dialog ── */}
-          {showRerunConfirm && (
-            <div style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
-            }}>
-              <div style={{
-                background: '#fff', borderRadius: 12, padding: '1.5rem 2rem', maxWidth: 480,
-                width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-              }}>
-                <h3 style={{ margin: '0 0 0.75rem', fontSize: '1.1rem', color: '#DC2626' }}>
-                  Re-run Research &amp; Analysis
-                </h3>
-                <p style={{ margin: '0 0 1rem', fontSize: '0.9rem', color: '#374151', lineHeight: 1.5 }}>
-                  <strong>Warning:</strong> All data from the previous run will be permanently deleted, including:
-                </p>
-                <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem', fontSize: '0.85rem', color: '#374151', lineHeight: 1.7 }}>
-                  <li>Extracted data points and analysis results</li>
-                  <li>Discrepancies found during analysis</li>
-                  <li>Pipeline-fetched documents and screenshots</li>
-                  <li>Research logs</li>
-                </ul>
-                <p style={{ margin: '0 0 1.25rem', fontSize: '0.85rem', color: '#6B7280' }}>
-                  Your manually uploaded documents and job notes will be preserved.
-                </p>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  <button
-                    onClick={() => setShowRerunConfirm(false)}
-                    style={{
-                      padding: '0.5rem 1rem', borderRadius: 6, border: '1px solid #D1D5DB',
-                      background: '#fff', color: '#374151', fontSize: '0.85rem', cursor: 'pointer',
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => handleRerunResearch('update')}
-                    style={{
-                      padding: '0.5rem 1rem', borderRadius: 6, border: '1px solid #2563EB',
-                      background: '#EFF6FF', color: '#2563EB', fontSize: '0.85rem', fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Update Parameters First
-                  </button>
-                  <button
-                    onClick={() => handleRerunResearch('same')}
-                    style={{
-                      padding: '0.5rem 1rem', borderRadius: 6, border: 'none',
-                      background: '#DC2626', color: '#fff', fontSize: '0.85rem', fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Re-run with Same Parameters
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* R4 — One place to export results: data (JSON/CSV), printable PDF,
+              and a path to the drawing/CAD export in Job Prep. */}
+          <div className="research-export-bar" data-testid="research-export-bar">
+            <span className="research-export-bar__label">Export results:</span>
+            <button
+              className="research-export-bar__btn"
+              onClick={() => handleExportResultsData('csv')}
+              disabled={exportingData || stats.data_point_count === 0}
+              title={stats.data_point_count === 0 ? 'No extracted data yet' : 'Download extracted data as CSV'}
+            >
+              <FileText size={14} aria-hidden="true" /> Data (CSV)
+            </button>
+            <button
+              className="research-export-bar__btn"
+              onClick={() => handleExportResultsData('json')}
+              disabled={exportingData || stats.data_point_count === 0}
+              title={stats.data_point_count === 0 ? 'No extracted data yet' : 'Download extracted data as JSON'}
+            >
+              <FileText size={14} aria-hidden="true" /> Data (JSON)
+            </button>
+            <button
+              className="research-export-bar__btn"
+              onClick={() => window.print()}
+              title="Print or save the results as a PDF"
+            >
+              <Printer size={14} aria-hidden="true" /> Print / PDF
+            </button>
+            <button
+              className="research-export-bar__btn research-export-bar__btn--primary"
+              onClick={() => handleStatusUpdate('drawing')}
+              title="Generate and export the survey drawing / CAD"
+            >
+              <DraftingCompass size={14} aria-hidden="true" /> Drawing &amp; CAD →
+            </button>
+          </div>
+
+          {/* Re-run confirmation dialog now lives at the top level (R1) so it
+              works from both this button and the always-visible action bar. */}
 
           {/* ══════════════════════════════════════════════════════════
               SECTION 1 — Summary Panel with Tabs
@@ -2361,7 +2517,7 @@ export default function ResearchProjectPage() {
                     {hasBoundary ? (
                       <div className="review-data-section" style={{ marginBottom: '1rem' }}>
                         <div className="review-narrative__label">Boundary Bearings &amp; Distances ({boundary.bearingsAndDistances?.length ?? 0} calls)</div>
-                        <table className="review-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem', marginTop: '0.5rem' }}>
+                        <div className="admin-table-wrap"><table className="review-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem', marginTop: '0.5rem' }}>
                           <thead>
                             <tr style={{ borderBottom: '2px solid #1e40af' }}>
                               <th style={{ textAlign: 'left', padding: '0.5rem 0.6rem', color: '#1e3a8a', fontWeight: 700, fontSize: '0.82rem', textTransform: 'uppercase' as const }}>#</th>
@@ -2376,7 +2532,7 @@ export default function ResearchProjectPage() {
                               </tr>
                             ))}
                           </tbody>
-                        </table>
+                        </table></div>
                       </div>
                     ) : (
                       <div style={{ color: '#6b7280', fontStyle: 'italic', padding: '0.5rem 0' }}>
@@ -2439,7 +2595,7 @@ export default function ResearchProjectPage() {
                     {hasChain && (
                       <div className="review-data-section" style={{ marginBottom: '1rem' }}>
                         <div className="review-narrative__label">Chain of Title ({chainOfTitle.length} links)</div>
-                        <table className="review-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                        <div className="admin-table-wrap"><table className="review-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', marginTop: '0.5rem' }}>
                           <thead>
                             <tr style={{ borderBottom: '1px solid #334155' }}>
                               <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#94a3b8' }}>#</th>
@@ -2462,7 +2618,7 @@ export default function ResearchProjectPage() {
                               </tr>
                             ))}
                           </tbody>
-                        </table>
+                        </table></div>
                       </div>
                     )}
 

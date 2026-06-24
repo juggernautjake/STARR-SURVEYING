@@ -1481,6 +1481,12 @@
 @media (max-width: 768px) {
   .jobs-page__header { flex-direction: column; align-items: flex-start; }
   .jobs-page__pipeline { flex-wrap: nowrap; }
+  /* The base flex:0 1 380px caps the search form's WIDTH in the row layout.
+     Once .jobs-page__controls stacks to a column on phones (AdminResponsive
+     @768), that 380px basis is read along the main axis (height) and balloons
+     the form to 380px tall — a big empty gap above the job list. Reset it so
+     the form is content-height again. */
+  .jobs-page__search-form { flex: 0 0 auto; }
   .jobs-page__grid { grid-template-columns: 1fr; }
   .jobs-page__list-item { grid-template-columns: 80px 1fr 80px; }
   .jobs-page__list-item .jobs-page__list-type,
@@ -1490,6 +1496,11 @@
   .job-form__grid { grid-template-columns: 1fr; }
   .job-detail__overview-grid { grid-template-columns: 1fr; }
   .job-detail__financial { grid-template-columns: 1fr; }
+  /* Field-data is a 6-column tabular grid — scroll it horizontally on a
+     phone (keeps all columns readable) instead of squishing them. */
+  .job-detail__field-data-table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .job-detail__field-data-row,
+  .job-detail__field-data-row--header { min-width: 520px; }
   .job-detail__stats { flex-wrap: wrap; gap: 1rem; }
   .job-detail__tabs { gap: 0; }
   .job-detail__tab { padding: 0.5rem 0.65rem; font-size: 0.8rem; }

@@ -18,8 +18,14 @@ import {
   readActiveRecipient,
   saveActiveRecipient,
 } from '@/lib/employee-pond/messenger-recipient';
+import { EMAIL_TEMPLATES, getEmailTemplate } from '@/lib/email/templates';
 
 type SendState = 'idle' | 'sending' | 'sent' | 'error';
+interface Recipient { name: string; email: string }
+
+// EM5 — autosave the in-progress draft so a refresh/navigation doesn't lose it.
+const DRAFT_KEY = 'admin/email/new/draft';
+interface EmailDraft { to?: string; role?: string; subject?: string; body?: string }
 
 export default function NewEmailPage() {
   const { data: session, status } = useSession();
@@ -42,9 +48,69 @@ export default function NewEmailPage() {
   const [sendState, setSendState] = useState<SendState>('idle');
   const [errorMsg, setErrorMsg] = useState<string>('');
 
+  // EM2 — recipient picker (employees + customers). Free-text in the To field
+  // still works; this just lets the sender pick a known contact.
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickerTab, setPickerTab] = useState<'employees' | 'customers'>('employees');
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [employees, setEmployees] = useState<Recipient[]>([]);
+  const [customers, setCustomers] = useState<Recipient[]>([]);
+
+  // EM4 — optional role broadcast (expanded server-side to every non-banned
+  // user with that role).
+  const [role, setRole] = useState<string>('');
+
   useEffect(() => {
     setTo(initialTo());
   }, [initialTo]);
+
+  // EM5 — hydrate a saved draft once on mount. An explicit ?to= / recipient-store
+  // value still wins for the To field; subject/body/role restore from the draft.
+  const draftHydratedRef = useState({ done: false })[0];
+  useEffect(() => {
+    if (draftHydratedRef.done) return;
+    draftHydratedRef.done = true;
+    try {
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(DRAFT_KEY) : null;
+      if (!raw) return;
+      const d = JSON.parse(raw) as EmailDraft;
+      if (d.subject) setSubject(d.subject);
+      if (d.body) setBody(d.body);
+      if (d.role) setRole(d.role);
+      if (d.to) setTo((cur) => cur || d.to || '');
+    } catch { /* ignore malformed draft */ }
+  }, [draftHydratedRef]);
+
+  // Persist the draft on every change (cheap localStorage write). Cleared on
+  // successful send.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (!to && !role && !subject && !body) {
+        window.localStorage.removeItem(DRAFT_KEY);
+      } else {
+        window.localStorage.setItem(DRAFT_KEY, JSON.stringify({ to, role, subject, body }));
+      }
+    } catch { /* storage may be unavailable */ }
+  }, [to, role, subject, body]);
+
+  // Load the recipient directory once the picker is first opened (lazy — keeps
+  // the initial composer render light when the user types a raw address).
+  useEffect(() => {
+    if (!showPicker || (employees.length > 0 || customers.length > 0)) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/email/recipients');
+        if (!res.ok) return;
+        const data = (await res.json()) as { employees?: Recipient[]; customers?: Recipient[] };
+        if (cancelled) return;
+        setEmployees(data.employees ?? []);
+        setCustomers(data.customers ?? []);
+      } catch { /* picker is optional; free-text still works */ }
+    })();
+    return () => { cancelled = true; };
+  }, [showPicker, employees.length, customers.length]);
 
   // Mirror writes back into the shared store so leaving this page
   // for the messenger widget (or /admin/messages) keeps the
@@ -55,33 +121,72 @@ export default function NewEmailPage() {
     saveActiveRecipient(to);
   }, [to]);
 
+  // EM3 — apply a template into subject + body. If the user already typed
+  // something, confirm before overwriting so we don't clobber a draft.
+  const applyTemplate = useCallback((id: string) => {
+    if (!id) return;
+    const tpl = getEmailTemplate(id);
+    if (!tpl) return;
+    const hasDraft = subject.trim() !== '' || body.trim() !== '';
+    if (hasDraft && typeof window !== 'undefined' &&
+        !window.confirm('Replace the current subject and message with this template?')) {
+      return;
+    }
+    setSubject(tpl.subject);
+    setBody(tpl.body);
+  }, [subject, body]);
+
+  const [sentCount, setSentCount] = useState<number>(0);
+
   const handleSubmit = useCallback(
     async (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       if (sendState === 'sending') return;
+
+      // EM4 — count guard. Confirm before any send that reaches more than one
+      // person (multiple typed addresses or a whole-role broadcast).
+      const typedCount = (to.split(/[,;\s]+/).map((s) => s.trim()).filter(Boolean)).length;
+      if (typedCount === 0 && !role) {
+        setErrorMsg('Add at least one recipient, or pick a role.');
+        setSendState('error');
+        return;
+      }
+      const ROLE_NAMES: Record<string, string> = {
+        field_crew: 'Field Crew', employee: 'All Employees', admin: 'Admins',
+        drawer: 'Drawers', researcher: 'Researchers', equipment_manager: 'Equipment Managers',
+      };
+      if ((role || typedCount > 1) && typeof window !== 'undefined') {
+        const parts: string[] = [];
+        if (role) parts.push(`everyone with role "${ROLE_NAMES[role] ?? role}"`);
+        if (typedCount > 0) parts.push(`${typedCount} typed recipient${typedCount === 1 ? '' : 's'}`);
+        if (!window.confirm(`Send this email to ${parts.join(' + ')}?`)) return;
+      }
+
       setErrorMsg('');
       setSendState('sending');
       try {
         const res = await fetch('/api/admin/email/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to, subject, body }),
+          body: JSON.stringify({ to, role: role || undefined, subject, body }),
         });
+        const data = (await res.json().catch(() => ({}))) as { error?: string; sent_count?: number };
         if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
           setErrorMsg(data.error ?? `Server returned ${res.status}`);
           setSendState('error');
           return;
         }
+        setSentCount(data.sent_count ?? (typedCount || 1));
         setSendState('sent');
         setSubject('');
         setBody('');
+        setRole('');
       } catch (err) {
         setErrorMsg(err instanceof Error ? err.message : 'Network error');
         setSendState('error');
       }
     },
-    [sendState, to, subject, body],
+    [sendState, to, role, subject, body],
   );
 
   if (status === 'loading') return null;
@@ -97,6 +202,9 @@ export default function NewEmailPage() {
           ← Messages
         </Link>
         <h1 className="email-compose__title">New Email</h1>
+        <Link href="/admin/email/sent" className="email-compose__sent-link" data-testid="email-sent-link">
+          Sent
+        </Link>
       </header>
 
       <form
@@ -104,17 +212,113 @@ export default function NewEmailPage() {
         onSubmit={handleSubmit}
         data-testid="email-compose-form"
       >
-        <label className="email-compose__field">
+        <div className="email-compose__field">
           <span>To</span>
-          <input
-            type="email"
-            required
-            value={to}
-            data-testid="email-compose-to"
-            onChange={(e) => setTo(e.target.value)}
-            placeholder="recipient@example.com"
-            autoComplete="email"
-          />
+          <div className="email-compose__to-row">
+            <input
+              type="email"
+              multiple
+              value={to}
+              data-testid="email-compose-to"
+              onChange={(e) => setTo(e.target.value)}
+              placeholder="recipient@example.com (separate several with commas)"
+              autoComplete="email"
+            />
+            <button
+              type="button"
+              className="email-compose__pick-btn"
+              data-testid="email-compose-pick"
+              onClick={() => setShowPicker((v) => !v)}
+              aria-expanded={showPicker}
+            >
+              {showPicker ? 'Close' : 'Choose…'}
+            </button>
+          </div>
+
+          {showPicker && (
+            <div className="email-compose__picker" data-testid="email-compose-picker">
+              <div className="email-compose__picker-tabs">
+                <button
+                  type="button"
+                  className={`email-compose__picker-tab${pickerTab === 'employees' ? ' is-active' : ''}`}
+                  onClick={() => setPickerTab('employees')}
+                >
+                  Employees ({employees.length})
+                </button>
+                <button
+                  type="button"
+                  className={`email-compose__picker-tab${pickerTab === 'customers' ? ' is-active' : ''}`}
+                  onClick={() => setPickerTab('customers')}
+                >
+                  Customers ({customers.length})
+                </button>
+              </div>
+              <input
+                type="text"
+                className="email-compose__picker-search"
+                value={pickerSearch}
+                onChange={(e) => setPickerSearch(e.target.value)}
+                placeholder={`Search ${pickerTab}…`}
+                autoFocus
+              />
+              <ul className="email-compose__picker-list">
+                {(() => {
+                  const list = pickerTab === 'employees' ? employees : customers;
+                  const q = pickerSearch.trim().toLowerCase();
+                  const filtered = q
+                    ? list.filter((r) => r.name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q))
+                    : list;
+                  if (filtered.length === 0) {
+                    return <li className="email-compose__picker-empty">No matches</li>;
+                  }
+                  return filtered.slice(0, 100).map((r) => (
+                    <li key={r.email}>
+                      <button
+                        type="button"
+                        className="email-compose__picker-item"
+                        onClick={() => { setTo(r.email); setShowPicker(false); setPickerSearch(''); }}
+                      >
+                        <span className="email-compose__picker-name">{r.name}</span>
+                        <span className="email-compose__picker-email">{r.email}</span>
+                      </button>
+                    </li>
+                  ));
+                })()}
+              </ul>
+            </div>
+          )}
+        </div>
+        <label className="email-compose__field">
+          <span>Or send to a role (optional)</span>
+          <select
+            className="email-compose__template-select"
+            data-testid="email-compose-role"
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+          >
+            <option value="">No role — use the addresses above</option>
+            <option value="field_crew">All Field Crew</option>
+            <option value="employee">All Employees</option>
+            <option value="admin">All Admins</option>
+            <option value="drawer">All Drawers</option>
+            <option value="researcher">All Researchers</option>
+            <option value="equipment_manager">All Equipment Managers</option>
+          </select>
+          {role && <span className="email-compose__role-hint" data-testid="email-compose-role-hint">This will email everyone with that role.</span>}
+        </label>
+        <label className="email-compose__field">
+          <span>Template</span>
+          <select
+            className="email-compose__template-select"
+            data-testid="email-compose-template"
+            defaultValue=""
+            onChange={(e) => { applyTemplate(e.target.value); e.target.value = ''; }}
+          >
+            <option value="">Start from a template…</option>
+            {EMAIL_TEMPLATES.map((t) => (
+              <option key={t.id} value={t.id}>{t.label} — {t.description}</option>
+            ))}
+          </select>
         </label>
         <label className="email-compose__field">
           <span>Subject</span>
@@ -145,7 +349,7 @@ export default function NewEmailPage() {
             role="status"
             data-testid="email-compose-success"
           >
-            ✓ Email sent.
+            ✓ Email sent{sentCount > 1 ? ` to ${sentCount} recipients` : ''}.
           </p>
         )}
         {sendState === 'error' && (

@@ -72,6 +72,10 @@
     {
       "path": "/api/cron/research-self-heal",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/clocked-in-after-hours",
+      "schedule": "0 23,1,3 * * *"
     }
   ]
 }

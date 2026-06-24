@@ -197,7 +197,7 @@ export default function PayrollRunPanel() {
                 {isSelected && stubs.length > 0 && (
                   <div className="payroll-runs__stubs">
                     <h4>Employee Breakdown</h4>
-                    <table className="payroll-runs__stubs-table">
+                    <div className="admin-table-wrap"><table className="payroll-runs__stubs-table">
                       <thead>
                         <tr>
                           <th>Employee</th>
@@ -237,7 +237,7 @@ export default function PayrollRunPanel() {
                           <td></td>
                         </tr>
                       </tfoot>
-                    </table>
+                    </table></div>
                   </div>
                 )}
               </div>

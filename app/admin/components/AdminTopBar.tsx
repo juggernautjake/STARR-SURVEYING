@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import NotificationBell from './NotificationBell';
 import ClockInPill from './ClockInPill';
+import InitialAvatar from './InitialAvatar';
 
 import type { UserRole } from '@/lib/auth';
 import { RouteIcon } from '@/lib/admin/route-icons';
@@ -14,7 +15,7 @@ import { Menu, Star } from 'lucide-react';
 
 interface AdminTopBarProps { title: string; role: UserRole; onMenuToggle: () => void; }
 
-export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarProps) {
+export default function AdminTopBar({ title, onMenuToggle }: AdminTopBarProps) {
   const { data: session } = useSession();
   const pathname = usePathname();
   const [xp, setXp] = useState<{ current: number; total: number } | null>(null);
@@ -42,7 +43,7 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
 
   const userName = session?.user?.name || 'User';
 
-  function UserMenu({ userName, role }: { userName: string; role: UserRole }) {
+  function UserMenu({ userName }: { userName: string }) {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
@@ -68,25 +69,21 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
           type="button"
           aria-haspopup="menu"
           aria-expanded={open}
+          aria-label={`Account menu — ${userName}`}
           onClick={() => setOpen((v) => !v)}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 6,
+            justifyContent: 'center',
+            padding: 0,
+            border: 'none',
             background: 'transparent',
-            border: '1px solid var(--theme-border)',
-            color: 'var(--theme-fg-primary)',
-            padding: '4px 10px',
-            borderRadius: 999,
-            fontSize: '0.85rem',
+            borderRadius: '50%',
             cursor: 'pointer',
+            flexShrink: 0,
           }}
         >
-          <span style={{ fontWeight: 600 }}>{userName}</span>
-          <span className={`admin-topbar__role-badge admin-topbar__role-badge--${role}`} style={{ fontSize: '0.7rem' }}>
-            {role}
-          </span>
-          <span aria-hidden style={{ fontSize: '0.7em', opacity: 0.6 }}>▾</span>
+          <InitialAvatar name={userName} size={34} />
         </button>
         {open && (
           <div
@@ -95,7 +92,7 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
               position: 'absolute',
               top: 'calc(100% + 4px)',
               right: 0,
-              minWidth: 200,
+              minWidth: 220,
               background: 'var(--theme-bg-surface)',
               border: '1px solid var(--theme-border)',
               borderRadius: 8,
@@ -104,6 +101,12 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
               overflow: 'hidden',
             }}
           >
+            {/* Identity header — just the name + avatar. Roles aren't shown in
+                the top bar or this menu; they live in profile / settings. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.7rem 0.85rem', borderBottom: '1px solid var(--theme-border)' }}>
+              <InitialAvatar name={userName} size={32} />
+              <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--theme-fg-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{userName}</div>
+            </div>
             <Link
               role="menuitem"
               href="/admin/me?tab=profile"
@@ -187,7 +190,7 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
           </Link>
         )}
         <NotificationBell />
-        <UserMenu userName={userName} role={role} />
+        <UserMenu userName={userName} />
       </div>
     </header>
   );

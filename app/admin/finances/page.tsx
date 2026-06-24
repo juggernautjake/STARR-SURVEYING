@@ -428,7 +428,7 @@ export default function FinancesPage() {
                 No receipts in this period yet.
               </div>
             ) : (
-              <table style={styles.table}>
+              <div className="admin-table-wrap"><table style={styles.table}>
                 <thead>
                   <tr>
                     <th style={styles.th}>Schedule C line</th>
@@ -475,7 +475,7 @@ export default function FinancesPage() {
                     </td>
                   </tr>
                 </tbody>
-              </table>
+              </table></div>
             )}
           </section>
 
@@ -492,7 +492,7 @@ export default function FinancesPage() {
                 Driver miles only — passenger time excluded.
               </p>
             </header>
-            <table style={styles.table}>
+            <div className="admin-table-wrap"><table style={styles.table}>
               <thead>
                 <tr>
                   <th style={styles.th}>Surveyor</th>
@@ -530,11 +530,11 @@ export default function FinancesPage() {
                   </td>
                 </tr>
               </tbody>
-            </table>
+            </table></div>
             {data.mileage.by_vehicle.length > 0 ? (
               <>
                 <div style={styles.subHeader}>By vehicle</div>
-                <table style={styles.table}>
+                <div className="admin-table-wrap"><table style={styles.table}>
                   <thead>
                     <tr>
                       <th style={styles.th}>Vehicle</th>
@@ -553,7 +553,7 @@ export default function FinancesPage() {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
               </>
             ) : null}
           </section>
@@ -570,7 +570,7 @@ export default function FinancesPage() {
                 tax_deductible_flag misalignment worth investigating.
               </p>
             </header>
-            <table style={styles.table}>
+            <div className="admin-table-wrap"><table style={styles.table}>
               <thead>
                 <tr>
                   <th style={styles.th}>Flag</th>
@@ -601,7 +601,7 @@ export default function FinancesPage() {
                   ))
                 )}
               </tbody>
-            </table>
+            </table></div>
           </section>
 
           {/* Top vendors — useful for spotting patterns
@@ -615,7 +615,7 @@ export default function FinancesPage() {
                 meals into one ranked view.
               </p>
             </header>
-            <table style={styles.table}>
+            <div className="admin-table-wrap"><table style={styles.table}>
               <thead>
                 <tr>
                   <th style={styles.th}>Vendor</th>
@@ -642,7 +642,7 @@ export default function FinancesPage() {
                   ))
                 )}
               </tbody>
-            </table>
+            </table></div>
           </section>
 
           {/* Per-submitter receipts — useful for reimbursement
@@ -656,7 +656,7 @@ export default function FinancesPage() {
                 when crew members pay out of pocket.
               </p>
             </header>
-            <table style={styles.table}>
+            <div className="admin-table-wrap"><table style={styles.table}>
               <thead>
                 <tr>
                   <th style={styles.th}>Submitter</th>
@@ -685,7 +685,7 @@ export default function FinancesPage() {
                   ))
                 )}
               </tbody>
-            </table>
+            </table></div>
           </section>
 
           {/* Prior-export traceback — only renders when the period
@@ -704,7 +704,7 @@ export default function FinancesPage() {
                   been locked yet.
                 </p>
               </header>
-              <table style={styles.table}>
+              <div className="admin-table-wrap"><table style={styles.table}>
                 <thead>
                   <tr>
                     <th style={styles.th}>Filed under period</th>
@@ -723,7 +723,7 @@ export default function FinancesPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             </section>
           ) : null}
         </>

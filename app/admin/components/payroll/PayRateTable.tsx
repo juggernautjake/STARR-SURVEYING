@@ -74,7 +74,7 @@ export default function PayRateTable({ isAdmin }: PayRateTableProps) {
     <div className="payroll-rates">
       <div className="payroll-rates__section">
         <h3 className="payroll-rates__section-title">Standard Pay Rates by Position</h3>
-        <table className="payroll-rates__table">
+        <div className="admin-table-wrap"><table className="payroll-rates__table">
           <thead>
             <tr>
               <th>Position</th>
@@ -170,7 +170,7 @@ export default function PayRateTable({ isAdmin }: PayRateTableProps) {
               );
             })}
           </tbody>
-        </table>
+        </table></div>
       </div>
 
       <div className="payroll-rates__section">
@@ -178,7 +178,7 @@ export default function PayRateTable({ isAdmin }: PayRateTableProps) {
         <p className="payroll-rates__subtitle">
           When an employee fills a higher role on a specific job, they receive an hourly rate adjustment.
         </p>
-        <table className="payroll-rates__table">
+        <div className="admin-table-wrap"><table className="payroll-rates__table">
           <thead>
             <tr>
               <th>Base Position</th>
@@ -208,7 +208,7 @@ export default function PayRateTable({ isAdmin }: PayRateTableProps) {
               <tr><td colSpan={4} className="payroll-rates__empty">No role adjustments configured</td></tr>
             )}
           </tbody>
-        </table>
+        </table></div>
       </div>
     </div>
   );

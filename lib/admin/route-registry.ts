@@ -109,7 +109,7 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // shortcuts. The middleware LEGACY_REDIRECTS table catches external
   // bookmarks at the old URLs.
   { href: '/admin/me?tab=jobs',     label: 'My Jobs',         workspace: 'hub', iconName: 'FolderOpen',     description: 'Jobs assigned to you.', roles: [...WORK_ROLES, 'researcher', 'tech_support'], internalOnly: true },
-  { href: '/admin/me?tab=hours',    label: 'My Hours',        workspace: 'hub', iconName: 'Clock',          description: 'Your clock-in/out log + timesheet.', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true, keywords: ['time', 'timesheet'] },
+  { href: '/admin/me?tab=hours',    label: 'My Hours',        workspace: 'hub', iconName: 'Clock',          description: 'Log, fix, or add your hours — clock-in/out log + timesheet.', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true, keywords: ['time', 'timesheet', 'fix hours', 'edit hours', 'correct hours', 'add hours', 'missed clock out', 'forgot to clock in'] },
   { href: '/admin/time-off',        label: 'Time Off',        workspace: 'hub', iconName: 'Palmtree',       description: 'Request time off + view your PTO balance. Managers see the approval queue here too.', internalOnly: true, keywords: ['pto', 'vacation', 'holiday', 'leave'] },
   { href: '/admin/me?tab=pay',      label: 'My Pay',          workspace: 'hub', iconName: 'Wallet',         description: 'Your paycheck history + progression.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true, keywords: ['paycheck', 'salary', 'wage'] },
   { href: '/admin/me?tab=notes',    label: 'My Notes',        workspace: 'hub', iconName: 'NotebookPen',    description: 'Personal notes.' },

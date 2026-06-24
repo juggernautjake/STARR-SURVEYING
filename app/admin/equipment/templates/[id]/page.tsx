@@ -475,7 +475,7 @@ export default function TemplateEditPage() {
               wires up in F10.2e-ii-c.
             </div>
           ) : (
-            <table style={styles.table}>
+            <div className="admin-table-wrap"><table style={styles.table}>
               <thead>
                 <tr>
                   <th style={styles.thRight}>Order</th>
@@ -562,7 +562,7 @@ export default function TemplateEditPage() {
                     </tr>
                   ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
       </section>

@@ -2643,7 +2643,25 @@
   border-bottom: 1px solid #E5E7EB;
   background: #fff;
 }
-.msg-page__thread-info { display: flex; flex-direction: column; }
+/* Mobile-only "back to conversation list" button (shown via the @768 rule). */
+.msg-page__back {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin-right: .25rem;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  background: #fff;
+  color: #4B5563;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.msg-page__back:hover { border-color: var(--color-brand-navy); color: var(--color-brand-navy); }
+.msg-page__thread-info { display: flex; flex-direction: column; min-width: 0; }
 .msg-page__thread-name {
   margin: 0;
   font-family: 'Sora', sans-serif;
@@ -2777,11 +2795,20 @@
   margin-top: .15rem;
   padding: 0 .5rem;
 }
+/* M4 — "Seen" read receipt under the last own message. */
+.msg-page__msg-seen {
+  display: inline-flex;
+  align-items: center;
+  gap: .12rem;
+  margin-left: .4rem;
+  color: var(--color-brand-navy);
+  font-weight: 600;
+}
 
 /* ---------- Compose ---------- */
 .msg-page__compose {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: .5rem;
   padding: .65rem 1.25rem;
   border-top: 1px solid #E5E7EB;
@@ -2829,6 +2856,12 @@
   font-size: .88rem;
   outline: none;
   transition: border-color .15s;
+  /* M4 — auto-grow textarea: one line by default, grows to ~5 lines (JS caps
+     scrollHeight at 120px), no manual resize handle. */
+  resize: none;
+  line-height: 1.35;
+  max-height: 120px;
+  overflow-y: auto;
 }
 .msg-page__compose-input:focus { border-color: var(--color-brand-navy); }
 .msg-page__compose-input::placeholder { color: #9CA3AF; }
@@ -2848,14 +2881,94 @@
 .msg-page__send-btn:hover { background: #162470; }
 .msg-page__send-btn:disabled { opacity: .45; cursor: not-allowed; }
 
+/* ---------- M3: Attachments ---------- */
+/* In-thread attachment rendering (image thumbnails + file rows). */
+.msg-page__attachments {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  margin-top: .4rem;
+}
+.msg-page__attach-img-link { display: inline-block; line-height: 0; }
+.msg-page__attach-img {
+  max-width: 220px;
+  max-height: 220px;
+  border-radius: 10px;
+  object-fit: cover;
+  display: block;
+}
+.msg-page__attach-file {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .4rem .6rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, .06);
+  color: inherit;
+  text-decoration: none;
+  font-size: .82rem;
+  max-width: 240px;
+}
+.msg-page__msg-bubble--own .msg-page__attach-file { background: rgba(255, 255, 255, .18); }
+.msg-page__attach-file:hover { background: rgba(0, 0, 0, .1); }
+.msg-page__msg-bubble--own .msg-page__attach-file:hover { background: rgba(255, 255, 255, .28); }
+.msg-page__attach-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-page__attach-size { opacity: .7; font-size: .72rem; white-space: nowrap; }
+
+/* Staged attachment tray above the compose box. */
+.msg-page__attach-tray {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .45rem;
+  padding: .5rem 1.25rem 0;
+}
+.msg-page__attach-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .3rem .5rem;
+  border: 1px solid #E5E7EB;
+  border-radius: 16px;
+  background: #fff;
+  font-size: .78rem;
+  max-width: 200px;
+}
+.msg-page__attach-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-page__attach-chip button {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  color: #6B7280;
+}
+.msg-page__attach-chip button:hover { color: #DC2626; }
+.msg-page__attach-uploading { font-size: .78rem; color: #6B7280; }
+.msg-page__attach-error { font-size: .78rem; color: #DC2626; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 768px) {
-  .msg-page { flex-direction: column; height: auto; min-height: calc(100vh - 120px); }
-  .msg-page__sidebar { width: 100%; min-width: 0; border-right: none; border-bottom: 1px solid #E5E7EB; max-height: 45vh; }
-  .msg-page__main { min-height: 55vh; }
+  /* Single-pane: the conversation list fills the screen; opening a conversation
+     (.msg-page--detail) swaps to the thread full-screen with a back button,
+     instead of cramming both into 45vh/55vh. */
+  .msg-page { flex-direction: column; height: calc(100vh - 120px); }
+  .msg-page__sidebar { width: 100%; min-width: 0; border-right: none; border-bottom: none; max-height: none; flex: 1; }
+  .msg-page__main { flex: 1; min-height: 0; }
+  .msg-page:not(.msg-page--detail) .msg-page__main { display: none; }
+  .msg-page--detail .msg-page__sidebar { display: none; }
+  .msg-page__back { display: inline-flex; }
   .msg-page__contact-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
-  .msg-page__msg-search { width: 160px; }
+  /* The in-thread search box crowds the mobile header (back + name + search);
+     hide it on phones — the conversation list has global search. */
+  .msg-page__msg-search { display: none; }
   .msg-page__msg { max-width: 88%; }
+  /* M4 — 44px touch targets in the compose row on phones. */
+  .msg-page__compose { padding: .55rem .75rem; gap: .35rem; }
+  .msg-page__tool-btn { min-width: 40px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+  .msg-page__send-btn { min-height: 44px; padding: .5rem 1rem; }
+  .msg-page__compose-input { min-height: 40px; }
 }
 @media (max-width: 480px) {
   .msg-page__contact-grid { grid-template-columns: 1fr 1fr; gap: .5rem; padding: .75rem; }

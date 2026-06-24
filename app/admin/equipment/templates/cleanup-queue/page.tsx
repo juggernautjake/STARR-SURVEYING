@@ -188,7 +188,7 @@ export default function CleanupQueuePage() {
                   </Link>
                 </header>
 
-                <table style={styles.table}>
+                <div className="admin-table-wrap"><table style={styles.table}>
                   <thead>
                     <tr>
                       <th style={styles.thRight}>#</th>
@@ -241,7 +241,7 @@ export default function CleanupQueuePage() {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
               </section>
             ))}
 

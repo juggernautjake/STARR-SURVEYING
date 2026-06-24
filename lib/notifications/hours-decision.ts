@@ -70,6 +70,40 @@ export function buildHoursDecisionNotifications(
   return out;
 }
 
+/**
+ * Build the "a manager adjusted your hours" notification for a single
+ * adjusted entry. Names the old→new hours and the reason so the worker
+ * knows exactly what changed and why. Returns null without a user_email.
+ */
+export function buildHoursAdjustmentNotification(opts: {
+  user_email?: string | null;
+  log_date?: string | null;
+  original_hours?: number | null;
+  adjusted_hours?: number | null;
+  reason?: string | null;
+}): HoursDecisionNotification | null {
+  const email = opts.user_email?.trim();
+  if (!email) return null;
+
+  const from = typeof opts.original_hours === 'number' && Number.isFinite(opts.original_hours)
+    ? formatHours(opts.original_hours) : null;
+  const to = typeof opts.adjusted_hours === 'number' && Number.isFinite(opts.adjusted_hours)
+    ? formatHours(opts.adjusted_hours) : null;
+  const change = from && to ? `${from} → ${to}` : to ? `to ${to}` : 'changed';
+  const when = opts.log_date ? ` for ${opts.log_date}` : '';
+  const reason = opts.reason && opts.reason.trim() ? ` Reason: ${opts.reason.trim()}` : '';
+
+  return {
+    user_email: email,
+    type: 'approval',
+    title: '✏️ Hours Adjusted',
+    body: `A manager adjusted your hours${when} (${change}).${reason}`,
+    icon: '✏️',
+    link: '/admin/me?tab=hours',
+    source_type: 'hours_decision',
+  };
+}
+
 /** "8h" / "7.5h" — trims a trailing ".0". */
 function formatHours(hours: number): string {
   const rounded = Math.round(hours * 100) / 100;

@@ -173,8 +173,11 @@ function ModalActions({ onCancel, onConfirm, confirmLabel }: { onCancel: () => v
   );
 }
 
-const overlayStyle: React.CSSProperties = { position: 'fixed', inset: 0, background: 'color-mix(in srgb, var(--theme-bg-page) 70%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 };
-const modalStyle: React.CSSProperties = { background: 'var(--theme-bg-surface)', borderRadius: 8, padding: 'var(--hub-spc-4, 16px)', minWidth: 360, maxWidth: 540, boxShadow: '0 12px 40px rgba(0,0,0,0.18)' };
+const overlayStyle: React.CSSProperties = { position: 'fixed', inset: 0, background: 'color-mix(in srgb, var(--theme-bg-page) 70%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 12 };
+// Responsive: full-bleed-ish on phones (no fixed 360px min that overflows a
+// 390px screen), capped at 540px on larger screens, and scrollable when the
+// content (clock-out debrief) is taller than the viewport.
+const modalStyle: React.CSSProperties = { background: 'var(--theme-bg-surface)', borderRadius: 8, padding: 'var(--hub-spc-4, 16px)', width: 'min(540px, calc(100vw - 24px))', maxWidth: '100%', maxHeight: 'calc(100dvh - 24px)', overflowY: 'auto', boxSizing: 'border-box', boxShadow: '0 12px 40px rgba(0,0,0,0.18)' };
 const closeButtonStyle: React.CSSProperties = { background: 'transparent', border: 'none', color: 'var(--theme-fg-secondary)', fontSize: '1.25rem', cursor: 'pointer' };
 const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 };
 const labelStyle: React.CSSProperties = { fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 600 };

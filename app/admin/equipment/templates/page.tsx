@@ -248,7 +248,7 @@ export default function TemplatesListPage() {
           <strong>+ New template</strong> to create your first one.
         </div>
       ) : (
-        <table style={styles.table}>
+        <div className="admin-table-wrap"><table style={styles.table}>
           <thead>
             <tr>
               <th style={styles.th}>Name</th>
@@ -369,7 +369,7 @@ export default function TemplatesListPage() {
               );
             })}
           </tbody>
-        </table>
+        </table></div>
       )}
 
     </div>

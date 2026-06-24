@@ -81,7 +81,7 @@ export default function WorkModeTopBar({ userName }: WorkModeTopBarProps) {
             <p style={{ margin: '8px 0 16px', fontSize: '0.85rem', color: 'var(--theme-fg-secondary)' }}>
               You&apos;ll return to the hub. Do you want to clock out at the same time?
             </p>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <button type="button" onClick={() => setConfirmOpen(false)} style={cancelButtonStyle}>Stay</button>
               <button type="button" onClick={() => handleExit(false)} style={secondaryButtonStyle}>Exit only</button>
               <button type="button" onClick={() => handleExit(true)} style={dangerButtonStyle}>Exit + clock out</button>
@@ -115,6 +115,9 @@ const badgeStyle: React.CSSProperties = {
   padding: '4px 10px', borderRadius: 6,
   background: 'var(--theme-accent)', color: 'var(--theme-accent-fg)',
   fontWeight: 600, fontSize: 'var(--hub-font-sm, 0.875rem)',
+  // Truncate so a long name/email can't push the timer + exit button off a
+  // narrow (390px) screen.
+  minWidth: 0, maxWidth: '50vw', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
 };
 
 const timerStyle: React.CSSProperties = {
@@ -135,7 +138,8 @@ const overlayStyle: React.CSSProperties = {
 
 const modalStyle: React.CSSProperties = {
   background: 'var(--theme-bg-surface)', borderRadius: 8, padding: 'var(--hub-spc-4, 16px)',
-  minWidth: 320, maxWidth: 480, boxShadow: '0 12px 40px rgba(0,0,0,0.18)',
+  width: 'min(480px, calc(100vw - 24px))', maxWidth: '100%', boxSizing: 'border-box',
+  boxShadow: '0 12px 40px rgba(0,0,0,0.18)',
 };
 
 const cancelButtonStyle: React.CSSProperties = {

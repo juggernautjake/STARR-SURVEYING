@@ -5,6 +5,9 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { Loader2, Search, Lock, Clock, BookOpen, CheckCircle2 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import SmartSearch from '../components/SmartSearch';
+import {
+  normalizePct, progressColor, progressLabel, progressLabelColor, isComplete,
+} from '@/lib/learn/module-progress';
 
 interface EnrichedModule {
   id: string; title: string; description: string; difficulty: string;
@@ -305,23 +308,33 @@ function ModuleCard({ mod }: { mod: EnrichedModule }) {
 
       <h3 className="modules__card-title">{mod.title}</h3>
 
-      {/* Status badge */}
-      <div className="modules__card-status" style={{ color: meta.color, background: `${meta.color}15`, borderColor: meta.color }}>
-        {meta.label}
-      </div>
-
-      {/* Progress bar */}
-      {mod.total_lessons > 0 && mod.user_status !== 'not_started' && (
-        <div className="modules__card-progress">
-          <div className="modules__card-progress-bar">
+      {/* Progress bar — always present (replaces the old status pill). The fill
+          walks grey → yellow → green → blue with real completion; 100% shows a
+          white checkmark + "COMPLETED!". */}
+      {(() => {
+        const pct = normalizePct(mod.percentage);
+        const complete = isComplete(mod);
+        const label = progressLabel(mod);
+        return (
+          <div
+            className={`modules__card-progressbar${complete ? ' modules__card-progressbar--complete' : ''}`}
+            role="progressbar"
+            aria-valuenow={pct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`Progress: ${label}`}
+          >
             <div
-              className="modules__card-progress-fill"
-              style={{ width: `${mod.percentage}%`, background: meta.border !== 'transparent' ? meta.border : '#E5E7EB' }}
+              className="modules__card-progressbar-fill"
+              style={{ width: `${complete ? 100 : pct}%`, background: progressColor(pct) }}
             />
+            <span className="modules__card-progressbar-label" style={{ color: progressLabelColor(pct) }}>
+              {complete && <span className="modules__card-progressbar-check" aria-hidden>✓ </span>}
+              {label}
+            </span>
           </div>
-          <span className="modules__card-progress-text">{mod.percentage}%</span>
-        </div>
-      )}
+        );
+      })()}
 
       <p className="modules__card-desc">{mod.description}</p>
 

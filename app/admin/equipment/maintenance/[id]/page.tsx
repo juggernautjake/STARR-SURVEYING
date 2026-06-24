@@ -484,7 +484,7 @@ export default function MaintenanceEventDetailPage() {
             to attach a calibration cert, work order, photo, etc.
           </div>
         ) : (
-          <table style={styles.table}>
+          <div className="admin-table-wrap"><table style={styles.table}>
             <thead>
               <tr>
                 <th style={styles.th}>Kind</th>
@@ -530,7 +530,7 @@ export default function MaintenanceEventDetailPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </section>
 

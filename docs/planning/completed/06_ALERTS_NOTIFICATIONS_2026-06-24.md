@@ -1,0 +1,104 @@
+# Alerts / Notifications — Build-Out & Mobile
+
+**Status:** 🟡 In progress — a notification bell + API + table exist (20s poll,
+desktop dropdown); needs a mobile surface, an inbox page, real-time, and toasts.
+
+## How this doc is driven
+
+Stop-hook driven: next unchecked slice → read live code → smallest shippable
+change → typecheck + lint + commit + push → check box + note. All `[x]` → move to
+`completed/`. Keep desktop intact; verify mobile at 390px.
+
+## Current state (verified 2026-06-24)
+
+- UI: `app/admin/components/NotificationBell.tsx` (top-bar bell + dropdown,
+  All/Unread filter, mark-all-read, per-item dismiss, escalation styling).
+- API: `app/api/admin/notifications/route.ts`; `notifications` table
+  (`user_email, type, source_type, title, body, icon, link, is_read,
+  is_dismissed, escalation_level, created_at, expires_at`). **Polls every 20s.**
+- `notify(opts)` (`lib/notifications/`) is the canonical insert used across crons
+  and approval flows.
+- Gaps: dropdown is cramped on mobile, no dedicated inbox page, no real-time, no
+  toast/banner for urgent alerts.
+
+## Slice plan
+
+- [x] **N1 — Mobile alerts surface.** On phones, render the bell's list as a
+  full-screen sheet (scrollable list, mark-read, dismiss, tap-to-navigate) instead
+  of a cramped dropdown. 44px targets, no overflow at 390px. Desktop dropdown
+  unchanged. Verify in the ux-harness.
+  _Done 2026-06-24:_ at ≤599px the dropdown becomes a **full-screen sheet** anchored
+  under the top bar (`position:fixed; left/right:8px; max-height:calc(100vh-72px)`)
+  with a **dim backdrop** (tap to close) instead of the old off-screen-shifted,
+  `100vw-2rem` popover. Critically, the per-item **dismiss button was hover-only
+  (`opacity:0`)** — invisible/unusable on touch; it's now always visible on touch
+  (`@media(hover:none)` + the sheet block) as a **36px** target, and rows get extra
+  right padding so the × never overlaps text. Added `touchstart` to the outside-tap
+  close handler. Desktop popover unchanged. Verified at 390px: sheet 366px @ x=8,
+  backdrop present, dismiss visible @ 36px, 0px overflow.
+- [x] **N2 — Inbox page.** Add `app/admin/notifications/page.tsx`: full list with
+  filters (source_type, escalation, read/unread, date) and pagination/search, so
+  alerts aren't only reachable through the bell. Link the bell footer to it.
+  _Done 2026-06-24:_ extended the notifications GET with **offset paging +
+  `source_type` / `escalation` / `since` / `q`** (title/body ilike, wildcard-escaped)
+  filters. Built `/admin/notifications` — a mobile-first stacked-card inbox with a
+  debounced search box, **Unread-only / priority / source / date** filters (source
+  options accumulate from loaded pages), per-card mark-read + dismiss, mark-all-read,
+  and **prev/next pagination** (25/page). Urgent/critical cards get a colored left
+  border; source + escalation render as tags. The bell footer link now points here
+  ("View all notifications", always shown) instead of only Assignments. Registered
+  `notifications` in the harness. Verified at 390px: 5 rows, 3 filter selects + search
+  + checkbox, pager shown for 60 total, 0px overflow.
+- [x] **N0 — Red-dot indicator + urgent persistence (owner request).** The bell
+  now shows a single **red dot** (not a count) only when there's a new unread
+  notification; it clears once everything is read. **Urgent/critical** alerts keep
+  the dot (a pulsing variant) even after they're read — they clear only when
+  **dismissed** (i.e. the user has acted on them), so action-required alerts can't
+  be swiped away by a glance. Clicking the bell opens the history dropdown; each
+  item reroutes to its `link`. Verified across states (unread→dot, urgent-read→
+  persistent pulse, all-read→no dot). _Which alerts should be 'urgent': approvals
+  needing sign-off, disputed hours, overdue equipment, still-clocked-in past
+  hours — set `escalation_level:'urgent'` at the `notify()` call site._
+- [x] **N3 — Real-time + accurate unread count.** Replace the 20s poll with a
+  Supabase Realtime subscription on `notifications` for the current user so new
+  alerts and the unread badge update instantly; keep a poll fallback.
+  _Done 2026-06-24:_ shipped a **visibility-aware poll** (consistent with messaging
+  M2): the bell now polls every **15s (was 20s)**, **pauses while `document.hidden`**
+  (no battery/network drain in a pocket), and fires an **immediate catch-up fetch on
+  `visibilitychange`→visible**, so the red dot + unread count are accurate the moment
+  the user returns to the tab. _Deferred — true Supabase Realtime on `notifications`:_
+  the app has no browser realtime client, no RLS, and no `supabase_realtime`
+  publication, and a websocket path is untestable in the ux-harness; the cost (RLS
+  audit + publication + client wiring + anon-key security review) clearly exceeds the
+  value over a 15s visibility-aware poll for now. Tracked as a follow-up to do once
+  Realtime exists for any one surface (revisit with doc 03 M2 together). tsc + lint
+  clean.
+- [x] **N4 — Toast for high/urgent.** When a `high`/`urgent`/`critical` alert
+  arrives while the app is open, pop a dismissible toast/banner that deep-links to
+  the source — don't make the user open the bell to discover it.
+  _Done 2026-06-24:_ the bell now pops a self-contained **deep-linking toast** when a
+  fresh **high/urgent/critical** alert arrives between polls. It tracks seen IDs in a
+  ref and **seeds them on the first fetch** so existing alerts don't toast on mount —
+  only genuinely new ones do. The toast shows icon + title + 2-line body with a
+  **"View"** button (marks read + routes to the alert's `link`) and a × dismiss;
+  urgent/critical linger 20s, high 10s, both colored by escalation. Built as its own
+  fixed banner (the shared `Toast` is text-only / no link), top-right on desktop and
+  full-width under the bar on phones. Verified at 390px: a new urgent alert pops the
+  toast + View button, 0px overflow. tsc + lint clean.
+- [x] **N5 — Deep-link focus.** Navigating from an alert should land on and
+  highlight the target (expand the job card / scroll to the row), not just route
+  to the page. Findability: bell visible on mobile with a clear unread badge.
+  _Done 2026-06-24:_ added a reusable **`useFocusHighlight()`** hook + a shared
+  **`.focus-flash`** animation: when a page is opened from an alert link carrying
+  `?focus=<id>`, the hook finds `[data-focus-id="<id>"]` (retrying ~3.6s while the
+  list loads), **scrolls it into view and flashes a blue ring/tint** for 2.4s. Wired
+  it into the **hours-approval** page (the prime urgent target — approvals/disputed
+  hours) by stamping `data-focus-id={log.id}` on each entry and calling the hook;
+  any alert linking `…/hours-approval?focus=<logId>` now lands on and highlights that
+  exact row. The hook is generic, so other surfaces adopt it by adding
+  `data-focus-id` + `?focus=` to their links. Findability: the bell sits in the
+  mobile top bar with the N0 red dot. Verified at 390px: `?focus=log-9` scrolled to
+  + flashed the target row (y=514), 0px overflow. tsc + lint clean.
+
+## Status: ✅ complete — all slices shipped (N0 red-dot, N1 mobile sheet, N2 inbox,
+## N3 visibility poll, N4 urgent toast, N5 deep-link focus). Moved to completed/.

@@ -17,6 +17,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
   const unreadOnly = searchParams.get('unread') === 'true';
   const limit = Math.min(parseInt(searchParams.get('limit') || '30'), 100);
+  // N2 — inbox filters: offset paging + source_type / escalation / text search.
+  const offset = Math.max(0, parseInt(searchParams.get('offset') || '0'));
+  const sourceType = searchParams.get('source_type');
+  const escalation = searchParams.get('escalation');
+  const since = searchParams.get('since'); // ISO date lower bound
+  const q = (searchParams.get('q') || '').trim();
 
   let query = supabaseAdmin
     .from('notifications')
@@ -24,9 +30,17 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .eq('user_email', session.user.email)
     .eq('is_dismissed', false)
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .range(offset, offset + limit - 1);
 
   if (unreadOnly) query = query.eq('is_read', false);
+  if (sourceType) query = query.eq('source_type', sourceType);
+  if (escalation) query = query.eq('escalation_level', escalation);
+  if (since && Number.isFinite(Date.parse(since))) query = query.gte('created_at', since);
+  if (q) {
+    // Escape PostgREST or-filter wildcards/commas to avoid breaking the query.
+    const safe = q.replace(/[,()%]/g, ' ');
+    query = query.or(`title.ilike.%${safe}%,body.ilike.%${safe}%`);
+  }
 
   const { data, error, count } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

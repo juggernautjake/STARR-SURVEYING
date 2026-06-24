@@ -79,6 +79,7 @@ export default function InvoicesPage() {
           <p>Invoices appear here after your first paid billing cycle.</p>
         </div>
       ) : (
+        <div className="admin-table-wrap">
         <table className="invoices-table">
           <thead>
             <tr>
@@ -128,6 +129,7 @@ export default function InvoicesPage() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       <style jsx>{`

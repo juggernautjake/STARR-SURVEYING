@@ -5,6 +5,8 @@ import '../styles/AdminTimeLogs.css';
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../hooks/usePageError';
+import { computeHoursFlags } from '@/lib/hours/hours-flags';
+import { useFocusHighlight } from '@/lib/admin/use-focus-highlight';
 
 interface TimeLog {
   id: string;
@@ -79,6 +81,12 @@ function getMonday(d: Date): Date {
   return mon;
 }
 
+function addDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().split('T')[0];
+}
+
 function formatDate(iso: string) {
   return new Date(iso + 'T00:00:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 }
@@ -92,6 +100,9 @@ export default function HoursApprovalPage() {
   const { safeFetch, safeAction, reportPageError } = usePageError('HoursApprovalPage');
   const [tab, setTab] = useState<ApprovalTab>('pending');
   const [logs, setLogs] = useState<TimeLog[]>([]);
+  // N5 — when arriving from an alert link `?focus=<logId>`, scroll to + flash
+  // that time-log entry once the list has loaded.
+  useFocusHighlight({ deps: [logs.length] });
   const [workTypes, setWorkTypes] = useState<WorkType[]>([]);
   const [advances, setAdvances] = useState<Advance[]>([]);
   const [bonuses, setBonuses] = useState<Bonus[]>([]);
@@ -100,8 +111,13 @@ export default function HoursApprovalPage() {
 
   // Filters
   const [filterEmail, setFilterEmail] = useState('');
-  const [filterStatus, setFilterStatus] = useState('pending');
+  // The review queue surfaces everything that needs an admin decision:
+  // pending submissions AND disputed entries (so a dispute can't get stuck
+  // unseen). The comma list is expanded server-side into an IN() filter.
+  const [filterStatus, setFilterStatus] = useState('pending,disputed');
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()).toISOString().split('T')[0]);
+  // H6 — whether THIS week (weekStart .. weekStart+6) is locked for editing.
+  const [weekLock, setWeekLock] = useState<{ period_start: string; period_end: string; locked_by: string } | null>(null);
 
   // Reject/adjust modal
   const [actionModal, setActionModal] = useState<{ type: 'reject' | 'adjust'; logId: string } | null>(null);
@@ -143,12 +159,39 @@ export default function HoursApprovalPage() {
         const data = await bonRes.json();
         setBonuses(data.bonuses || []);
       }
+
+      // Lock state for the visible week.
+      const weekEnd = addDays(weekStart, 6);
+      const lockRes = await fetch(`/api/admin/time-logs/lock-period?from=${weekStart}&to=${weekEnd}`);
+      if (lockRes.ok) {
+        const data = await lockRes.json();
+        const exact = (data.locks || []).find(
+          (l: { period_start: string; period_end: string }) => l.period_start === weekStart && l.period_end === weekEnd,
+        );
+        setWeekLock(exact || null);
+      }
     } catch (err) {
       reportPageError(err instanceof Error ? err : new Error('Failed to load'));
     } finally {
       setLoading(false);
     }
   }, [filterEmail, filterStatus, weekStart, reportPageError]);
+
+  const toggleWeekLock = async () => {
+    const weekEnd = addDays(weekStart, 6);
+    if (weekLock) {
+      if (!confirm('Unlock this pay period so employees can edit their hours again?')) return;
+      await fetch(`/api/admin/time-logs/lock-period?period_start=${weekStart}&period_end=${weekEnd}`, { method: 'DELETE' });
+    } else {
+      if (!confirm('Lock this pay period? Employees will no longer be able to edit or add hours for this week (you can still adjust them).')) return;
+      await fetch('/api/admin/time-logs/lock-period', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period_start: weekStart, period_end: weekEnd }),
+      });
+    }
+    await loadData();
+  };
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -211,6 +254,12 @@ export default function HoursApprovalPage() {
       });
       await loadData();
     } else {
+      if (action === 'adjust') {
+        // Pre-fill the current hours so the admin edits from the real value.
+        const log = logs.find((l) => l.id === logId);
+        setAdjustHours(log ? String(log.adjusted_hours ?? log.hours) : '');
+        setAdjustNote('');
+      }
       setActionModal({ type: action, logId });
     }
   };
@@ -224,13 +273,22 @@ export default function HoursApprovalPage() {
         body: JSON.stringify({ id: actionModal.logId, action: 'reject', rejection_reason: rejectReason }),
       });
     } else {
+      const hrs = parseFloat(adjustHours);
+      if (!Number.isFinite(hrs) || hrs <= 0 || hrs > 24) {
+        alert('Enter the corrected hours (between 0 and 24).');
+        return;
+      }
+      if (!adjustNote.trim()) {
+        alert('Please add a reason for the adjustment — the employee is notified of the change and your reason.');
+        return;
+      }
       await fetch('/api/admin/time-logs', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: actionModal.logId, action: 'adjust',
-          adjusted_hours: parseFloat(adjustHours),
-          adjustment_note: adjustNote,
+          adjusted_hours: hrs,
+          adjustment_note: adjustNote.trim(),
         }),
       });
     }
@@ -390,7 +448,7 @@ export default function HoursApprovalPage() {
 
       {/* Tabs */}
       <div className="tl-tabs">
-        <button className={`tl-tabs__btn ${tab === 'pending' ? 'tl-tabs__btn--active' : ''}`} onClick={() => { setTab('pending'); setFilterStatus('pending'); }}>
+        <button className={`tl-tabs__btn ${tab === 'pending' ? 'tl-tabs__btn--active' : ''}`} onClick={() => { setTab('pending'); setFilterStatus('pending,disputed'); }}>
           Pending {pendingCount > 0 && <span className="tl-tabs__count">{pendingCount}</span>}
         </button>
         <button className={`tl-tabs__btn ${tab === 'history' ? 'tl-tabs__btn--active' : ''}`} onClick={() => { setTab('history'); setFilterStatus('all'); }}>
@@ -424,7 +482,20 @@ export default function HoursApprovalPage() {
               <option value="adjusted">Adjusted</option>
             </select>
           )}
+          {/* H6 — approve & lock the pay period (week) so employees can't edit it. */}
+          <button
+            className={`tl-btn tl-btn--sm ${weekLock ? 'tl-btn--danger' : 'tl-btn--primary'} tl-lock-btn`}
+            onClick={toggleWeekLock}
+            title={weekLock ? `Locked by ${weekLock.locked_by}` : 'Lock this week so employees can no longer edit it'}
+          >
+            {weekLock ? '🔒 Week locked — Unlock' : '🔓 Lock this week'}
+          </button>
         </div>
+      )}
+      {weekLock && (tab === 'pending' || tab === 'history') && (
+        <p className="tl-lock-note">
+          This pay period is locked — employees can&apos;t edit these hours. You can still adjust any entry (the employee is notified).
+        </p>
       )}
 
       {loading && <div className="tl-loading">Loading...</div>}
@@ -450,6 +521,7 @@ export default function HoursApprovalPage() {
           {[...byEmployee.entries()].map(([email, empLogs]) => {
             const empTotal = empLogs.reduce((s, l) => s + l.hours, 0);
             const empPay = empLogs.reduce((s, l) => s + (l.total_pay || 0), 0);
+            const empFlags = computeHoursFlags(empLogs);
             return (
               <div key={email} className="tl-employee-group">
                 <div className="tl-employee-group__header">
@@ -463,11 +535,21 @@ export default function HoursApprovalPage() {
                   </div>
                 </div>
 
+                {/* H5 — conflict/totals flags so an admin spots missed clock-outs,
+                    suspect period totals, and unresolved entries at a glance. */}
+                {empFlags.length > 0 && (
+                  <div className="tl-employee-group__flags">
+                    {empFlags.map((f, i) => (
+                      <span key={i} className={`tl-flag tl-flag--${f.kind}`}>&#9888; {f.message}</span>
+                    ))}
+                  </div>
+                )}
+
                 {empLogs.map((log) => {
                   const wt = workTypes.find((w) => w.work_type === log.work_type);
                   const isSelected = selected.has(log.id);
                   return (
-                    <div key={log.id} className={`tl-approval-entry ${isSelected ? 'tl-approval-entry--selected' : ''}`}>
+                    <div key={log.id} data-focus-id={log.id} className={`tl-approval-entry ${isSelected ? 'tl-approval-entry--selected' : ''}`}>
                       {(log.status === 'pending' || log.status === 'disputed') && (
                         <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(log.id)} className="tl-approval-entry__check" />
                       )}
@@ -486,6 +568,11 @@ export default function HoursApprovalPage() {
                         {log.notes && <div className="tl-approval-entry__meta">Notes: {log.notes}</div>}
                         {log.rejection_reason && <div className="tl-approval-entry__rejection">Rejection: {log.rejection_reason}</div>}
                         {log.adjustment_note && <div className="tl-approval-entry__adjustment">Adjusted to {log.adjusted_hours}h: {log.adjustment_note}</div>}
+                        {log.status === 'disputed' && (
+                          <div className="tl-approval-entry__dispute">
+                            &#9888; Disputed by employee — resolve with Approve, Adjust, or Reject{log.notes ? `: ${log.notes}` : ''}
+                          </div>
+                        )}
 
                         {/* Rate breakdown */}
                         {log.effective_rate && (
@@ -497,11 +584,18 @@ export default function HoursApprovalPage() {
                       </div>
 
                       {/* Actions */}
-                      {(log.status === 'pending' || log.status === 'disputed') && (
+                      {(log.status === 'pending' || log.status === 'disputed') ? (
                         <div className="tl-approval-entry__actions">
                           <button className="tl-btn tl-btn--sm tl-btn--primary" onClick={() => singleAction(log.id, 'approve')}>Approve</button>
                           <button className="tl-btn tl-btn--sm" onClick={() => singleAction(log.id, 'adjust')}>Adjust</button>
                           <button className="tl-btn tl-btn--sm tl-btn--danger" onClick={() => singleAction(log.id, 'reject')}>Reject</button>
+                        </div>
+                      ) : (
+                        // Already approved/adjusted/rejected: an admin can still
+                        // revise any employee's hours (with a reason; they're
+                        // notified). H3 of the hours-correction plan.
+                        <div className="tl-approval-entry__actions">
+                          <button className="tl-btn tl-btn--sm" onClick={() => singleAction(log.id, 'adjust')}>Adjust</button>
                         </div>
                       )}
                     </div>
@@ -656,9 +750,10 @@ export default function HoursApprovalPage() {
                   <input type="number" min="0.25" max="24" step="0.25" value={adjustHours} onChange={(e) => setAdjustHours(e.target.value)} placeholder="New hour amount" />
                 </div>
                 <div className="tl-form-group">
-                  <label>Note (explain adjustment)</label>
+                  <label>Reason for adjustment (required)</label>
                   <textarea value={adjustNote} onChange={(e) => setAdjustNote(e.target.value)} placeholder="Explain the adjustment..." rows={2} />
                 </div>
+                <p className="tl-modal__hint">The employee is notified of this change and your reason.</p>
               </>
             )}
             <div className="tl-modal__actions">
