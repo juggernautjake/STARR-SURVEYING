@@ -505,3 +505,15 @@ exceeds value:**
   on the card (lets `1fr` tracks shrink) + trimmed value font/padding, re-asserting
   2-up. Re-measured: 0 offenders. First concrete responsive bug caught by the
   seed-data pass — confirms the value of screenshotting with real data.
+- **2026-06-24 — Seed-data verification batch 3 + bug fix:** Seeded `my-hours`,
+  `my-pay`, `equipment` (`scratchpad/seed-shots3.js`), all **0px overflow**.
+  `my-hours` (week KPIs, day selector, hours form) and `equipment` (KPI badges +
+  workspace nav hub) rendered clean. `my-pay` exposed a **real 380px empty gap on
+  the jobs page** found via a height diagnostic: `.jobs-page__search-form` has a
+  base `flex: 0 1 380px` (a width cap for the row layout); when
+  `.jobs-page__controls` stacks to a column on phones, that basis is read along
+  the main axis (height) and ballooned the form to 380px tall. **Fixed** in
+  `AdminJobs.css @768px` with `.jobs-page__search-form { flex: 0 0 auto }` (page
+  CSS loads after AdminResponsive, so it wins the cascade). (`my-pay` also briefly
+  showed `$NaN` in the BalanceCard — purely an unseeded `/payroll/balance`
+  endpoint; the component has a proper `!summary` guard, so production is fine.)

@@ -1481,6 +1481,12 @@
 @media (max-width: 768px) {
   .jobs-page__header { flex-direction: column; align-items: flex-start; }
   .jobs-page__pipeline { flex-wrap: nowrap; }
+  /* The base flex:0 1 380px caps the search form's WIDTH in the row layout.
+     Once .jobs-page__controls stacks to a column on phones (AdminResponsive
+     @768), that 380px basis is read along the main axis (height) and balloons
+     the form to 380px tall — a big empty gap above the job list. Reset it so
+     the form is content-height again. */
+  .jobs-page__search-form { flex: 0 0 auto; }
   .jobs-page__grid { grid-template-columns: 1fr; }
   .jobs-page__list-item { grid-template-columns: 80px 1fr 80px; }
   .jobs-page__list-item .jobs-page__list-type,
