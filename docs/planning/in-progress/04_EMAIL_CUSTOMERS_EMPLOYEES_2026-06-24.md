@@ -30,9 +30,18 @@ change → typecheck + lint + commit + push → check box + note. All `[x]` → 
   fields + Send fit a phone screen without pushing the form off-view (it still
   grows as you type via `resize: vertical`). Verified at 390px: To/Subject 44px,
   Send 44px full-width (366px), 0px overflow. Desktop 220px box unchanged.
-- [ ] **EM2 — Recipient picker.** Let the sender pick a **customer** (from
+- [x] **EM2 — Recipient picker.** Let the sender pick a **customer** (from
   leads/jobs contacts) or an **employee** (from the users/employees list) instead
   of typing a raw address — with free-text still allowed. Show name + email.
+  _Done 2026-06-24:_ added `GET /api/admin/email/recipients` (admin-only) →
+  `{ employees, customers }`: employees from `registered_users` (non-banned, name
+  or title-cased email), customers from distinct `leads` contacts with an email
+  (most recent 500, de-duped). The composer's To field gained a **Choose…** toggle
+  that opens an inline picker with **Employees / Customers tabs**, a search box, and
+  tappable rows (name + email) that fill the To field; the directory loads lazily on
+  first open. The raw `type="email"` input stays editable so free-text still works.
+  Verified at 390px: picker opens, tab switch swaps lists, tapping a customer fills
+  `to`, 0px overflow.
 - [ ] **EM3 — Templates.** A small set of reusable templates (e.g. job update,
   quote follow-up, schedule reminder) that pre-fill subject + body with simple
   placeholders the sender can edit before sending.

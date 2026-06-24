@@ -81,6 +81,90 @@
   border-color: var(--color-brand-navy);
 }
 
+/* EM2 — recipient picker */
+.email-compose__to-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: stretch;
+}
+.email-compose__to-row input { flex: 1; min-width: 0; }
+.email-compose__pick-btn {
+  flex: 0 0 auto;
+  border: 1px solid #E5E7EB;
+  background: var(--color-bg-input);
+  color: var(--color-brand-navy);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  min-height: 44px;
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.email-compose__pick-btn:hover { border-color: var(--color-brand-navy); }
+.email-compose__picker {
+  margin-top: var(--space-2);
+  border: 1px solid #E5E7EB;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-card, #fff);
+  overflow: hidden;
+}
+.email-compose__picker-tabs {
+  display: flex;
+  border-bottom: 1px solid #E5E7EB;
+}
+.email-compose__picker-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: var(--space-2);
+  min-height: 44px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.email-compose__picker-tab.is-active {
+  color: var(--color-brand-navy);
+  border-bottom-color: var(--color-brand-navy);
+  font-weight: var(--weight-semibold);
+}
+.email-compose__picker-search {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid #E5E7EB;
+  padding: var(--space-2) var(--space-3);
+  min-height: 44px;
+  font: inherit;
+  background: var(--color-bg-input);
+}
+.email-compose__picker-search:focus { outline: none; border-bottom-color: var(--color-brand-navy); }
+.email-compose__picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.email-compose__picker-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid #F3F4F6;
+  padding: var(--space-2) var(--space-3);
+  min-height: 48px;
+  cursor: pointer;
+}
+.email-compose__picker-item:hover { background: var(--color-bg-subtle, #F9FAFB); }
+.email-compose__picker-name { font-weight: var(--weight-semibold); color: var(--color-text-primary); font-size: var(--text-sm); }
+.email-compose__picker-email { color: var(--color-text-tertiary); font-size: var(--text-xs); }
+.email-compose__picker-empty { padding: var(--space-3); color: var(--color-text-tertiary); font-size: var(--text-sm); }
+
 .email-compose__status {
   margin: 0;
   padding: var(--space-2) var(--space-3);

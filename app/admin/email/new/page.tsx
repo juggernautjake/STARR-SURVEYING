@@ -20,6 +20,7 @@ import {
 } from '@/lib/employee-pond/messenger-recipient';
 
 type SendState = 'idle' | 'sending' | 'sent' | 'error';
+interface Recipient { name: string; email: string }
 
 export default function NewEmailPage() {
   const { data: session, status } = useSession();
@@ -42,9 +43,35 @@ export default function NewEmailPage() {
   const [sendState, setSendState] = useState<SendState>('idle');
   const [errorMsg, setErrorMsg] = useState<string>('');
 
+  // EM2 — recipient picker (employees + customers). Free-text in the To field
+  // still works; this just lets the sender pick a known contact.
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickerTab, setPickerTab] = useState<'employees' | 'customers'>('employees');
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [employees, setEmployees] = useState<Recipient[]>([]);
+  const [customers, setCustomers] = useState<Recipient[]>([]);
+
   useEffect(() => {
     setTo(initialTo());
   }, [initialTo]);
+
+  // Load the recipient directory once the picker is first opened (lazy — keeps
+  // the initial composer render light when the user types a raw address).
+  useEffect(() => {
+    if (!showPicker || (employees.length > 0 || customers.length > 0)) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/email/recipients');
+        if (!res.ok) return;
+        const data = (await res.json()) as { employees?: Recipient[]; customers?: Recipient[] };
+        if (cancelled) return;
+        setEmployees(data.employees ?? []);
+        setCustomers(data.customers ?? []);
+      } catch { /* picker is optional; free-text still works */ }
+    })();
+    return () => { cancelled = true; };
+  }, [showPicker, employees.length, customers.length]);
 
   // Mirror writes back into the shared store so leaving this page
   // for the messenger widget (or /admin/messages) keeps the
@@ -104,18 +131,82 @@ export default function NewEmailPage() {
         onSubmit={handleSubmit}
         data-testid="email-compose-form"
       >
-        <label className="email-compose__field">
+        <div className="email-compose__field">
           <span>To</span>
-          <input
-            type="email"
-            required
-            value={to}
-            data-testid="email-compose-to"
-            onChange={(e) => setTo(e.target.value)}
-            placeholder="recipient@example.com"
-            autoComplete="email"
-          />
-        </label>
+          <div className="email-compose__to-row">
+            <input
+              type="email"
+              required
+              value={to}
+              data-testid="email-compose-to"
+              onChange={(e) => setTo(e.target.value)}
+              placeholder="recipient@example.com"
+              autoComplete="email"
+            />
+            <button
+              type="button"
+              className="email-compose__pick-btn"
+              data-testid="email-compose-pick"
+              onClick={() => setShowPicker((v) => !v)}
+              aria-expanded={showPicker}
+            >
+              {showPicker ? 'Close' : 'Choose…'}
+            </button>
+          </div>
+
+          {showPicker && (
+            <div className="email-compose__picker" data-testid="email-compose-picker">
+              <div className="email-compose__picker-tabs">
+                <button
+                  type="button"
+                  className={`email-compose__picker-tab${pickerTab === 'employees' ? ' is-active' : ''}`}
+                  onClick={() => setPickerTab('employees')}
+                >
+                  Employees ({employees.length})
+                </button>
+                <button
+                  type="button"
+                  className={`email-compose__picker-tab${pickerTab === 'customers' ? ' is-active' : ''}`}
+                  onClick={() => setPickerTab('customers')}
+                >
+                  Customers ({customers.length})
+                </button>
+              </div>
+              <input
+                type="text"
+                className="email-compose__picker-search"
+                value={pickerSearch}
+                onChange={(e) => setPickerSearch(e.target.value)}
+                placeholder={`Search ${pickerTab}…`}
+                autoFocus
+              />
+              <ul className="email-compose__picker-list">
+                {(() => {
+                  const list = pickerTab === 'employees' ? employees : customers;
+                  const q = pickerSearch.trim().toLowerCase();
+                  const filtered = q
+                    ? list.filter((r) => r.name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q))
+                    : list;
+                  if (filtered.length === 0) {
+                    return <li className="email-compose__picker-empty">No matches</li>;
+                  }
+                  return filtered.slice(0, 100).map((r) => (
+                    <li key={r.email}>
+                      <button
+                        type="button"
+                        className="email-compose__picker-item"
+                        onClick={() => { setTo(r.email); setShowPicker(false); setPickerSearch(''); }}
+                      >
+                        <span className="email-compose__picker-name">{r.name}</span>
+                        <span className="email-compose__picker-email">{r.email}</span>
+                      </button>
+                    </li>
+                  ));
+                })()}
+              </ul>
+            </div>
+          )}
+        </div>
         <label className="email-compose__field">
           <span>Subject</span>
           <input
