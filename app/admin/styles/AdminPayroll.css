@@ -1674,3 +1674,21 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Phone fit: keep the summary KPIs 2-up without horizontal page overflow. The
+   large value text (e.g. "$239,930.55") set each card's min-content wider than
+   half the viewport, pushing the 2-col grid ~9px past the screen edge. Let the
+   1fr tracks shrink (min-width: 0) and trim the value font/padding so they fit.
+   Also re-asserts 2-up over the dead single-column rule in AdminResponsive. */
+@media (max-width: 600px) {
+  .payroll-summary-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .payroll-summary-card {
+    min-width: 0;
+    padding: 1rem 0.75rem;
+  }
+  .payroll-summary-card__value {
+    font-size: 1.2rem;
+  }
+}

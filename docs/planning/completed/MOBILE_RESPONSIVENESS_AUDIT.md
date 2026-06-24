@@ -493,3 +493,15 @@ exceeds value:**
   FIRST so specific routes (incl. `/api/auth/session`) win — else the session is
   clobbered and pages render their sign-in/admin gate. Validates the wrapper
   approach across all 55 files.
+- **2026-06-24 — Seed-data verification batch 2 + bug fix:** Seeded `jobs`,
+  `payroll`, `finances` (`scratchpad/seed-shots2.js`). `jobs` (scrollable stage
+  filters + cards) and `finances` (Schedule C / mileage / vendors / submitter
+  tables) rendered at **0px overflow**. `payroll` surfaced a **real 9px page
+  overflow**: the `.payroll-summary-cards` 2-col KPI grid couldn't shrink because
+  the large value text (e.g. `$239,930.55`) set each card's min-content wider
+  than half the viewport (and an `AdminPayroll.css` `@768px` `repeat(2,1fr)` rule
+  was overriding the dead single-column rule in `AdminResponsive.css @599px`).
+  **Fixed** in `AdminPayroll.css` with a `@max-width:600px` block: `min-width:0`
+  on the card (lets `1fr` tracks shrink) + trimmed value font/padding, re-asserting
+  2-up. Re-measured: 0 offenders. First concrete responsive bug caught by the
+  seed-data pass — confirms the value of screenshotting with real data.
