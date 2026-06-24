@@ -66,12 +66,17 @@ doc to `docs/planning/completed/`. Keep desktop intact; verify mobile at 390px.
   now lets an owner delete their own rejected logs); employees can still add new
   hours to a day that already has approved entries. Verified at 390px (0 overflow):
   approved day shows the locked list, rejected day shows "Update & Resubmit".
-- [ ] **H2 — Notify employee on admin adjustment.** Make the single-entry
+- [x] **H2 — Notify employee on admin adjustment.** Make the single-entry
   `adjust` action notify the affected employee with the **reason**
   (`adjustment_note`) and old→new hours. Reuse/extend `buildHoursDecisionNotifications`
   (add an `adjusted` variant) and call `notify` from the adjust path (route.ts PUT
   and/or a dedicated adjust handler). Acceptance: adjusting a log drops a bell
   notification to the employee that names the reason.
+  _Done 2026-06-24:_ added `buildHoursAdjustmentNotification` (names old→new hours,
+  date, and reason) in `lib/notifications/hours-decision.ts`; wired `notify` into
+  the single admin PUT path so **adjust/approve/reject** all notify the employee
+  (previously only the bulk approve route did — single adjust sent nothing). 3 new
+  unit tests; suite green; tsc + eslint clean.
 - [ ] **H3 — Admin can adjust ANY employee's hours directly.** Today admin
   adjustment happens from the approval queue. Add the ability for an admin to
   open an employee's timesheet (a given week/day) and adjust/add/remove hours on

@@ -8,6 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildHoursDecisionNotifications,
+  buildHoursAdjustmentNotification,
   type TimeLogRow,
 } from '@/lib/notifications/hours-decision';
 
@@ -71,5 +72,43 @@ describe('buildHoursDecisionNotifications', () => {
 
   it('returns an empty array for no rows', () => {
     expect(buildHoursDecisionNotifications([], true)).toEqual([]);
+  });
+});
+
+describe('buildHoursAdjustmentNotification', () => {
+  it('names the old→new hours, the date, and the reason', () => {
+    const n = buildHoursAdjustmentNotification({
+      user_email: 'a@x.com',
+      log_date: '2026-06-22',
+      original_hours: 8,
+      adjusted_hours: 6.5,
+      reason: 'Lunch break not counted',
+    });
+    expect(n).not.toBeNull();
+    expect(n!).toMatchObject({
+      user_email: 'a@x.com',
+      type: 'approval',
+      icon: '✏️',
+      link: '/admin/me?tab=hours',
+      source_type: 'hours_decision',
+    });
+    expect(n!.title).toContain('Adjusted');
+    expect(n!.body).toContain('8h → 6.5h');
+    expect(n!.body).toContain('2026-06-22');
+    expect(n!.body).toContain('Lunch break not counted');
+  });
+
+  it('handles a missing original (just states the new value) and no reason', () => {
+    const n = buildHoursAdjustmentNotification({
+      user_email: 'a@x.com',
+      adjusted_hours: 5,
+    });
+    expect(n!.body).toContain('to 5h');
+    expect(n!.body).not.toContain('Reason:');
+  });
+
+  it('returns null without a user_email', () => {
+    expect(buildHoursAdjustmentNotification({ user_email: '  ', adjusted_hours: 5 })).toBeNull();
+    expect(buildHoursAdjustmentNotification({ user_email: null, adjusted_hours: 5 })).toBeNull();
   });
 });

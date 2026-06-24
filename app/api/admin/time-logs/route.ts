@@ -3,6 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notify } from '@/lib/notifications';
+import {
+  buildHoursDecisionNotifications,
+  buildHoursAdjustmentNotification,
+} from '@/lib/notifications/hours-decision';
 
 interface WorkTypeRate { work_type: string; label: string; base_rate: number; icon: string; max_bonus_cap: number | null; bonus_multiplier: number | null }
 interface RoleTier { role_key: string; label: string; base_bonus: number; max_effective_rate: number | null }
@@ -359,6 +364,26 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
         metadata: { employee: existing.user_email, action },
       });
     } catch { /* ignore */ }
+
+    // Notify the employee of the decision. Single-entry approve/reject/adjust
+    // previously sent nothing (only the bulk approve route notified); adjust in
+    // particular must tell the worker the new hours + reason. Best-effort — a
+    // notification failure must not fail the decision.
+    try {
+      if (action === 'adjust') {
+        const n = buildHoursAdjustmentNotification({
+          user_email: existing.user_email,
+          log_date: existing.log_date,
+          original_hours: existing.hours,
+          adjusted_hours: updates.adjusted_hours,
+          reason: updates.adjustment_note,
+        });
+        if (n) await notify(n);
+      } else if (action === 'approve' || action === 'reject') {
+        const [n] = buildHoursDecisionNotifications([existing], action === 'approve');
+        if (n) await notify(n);
+      }
+    } catch { /* ignore notification failures */ }
 
     return NextResponse.json({ log: data });
   }
