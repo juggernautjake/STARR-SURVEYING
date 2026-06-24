@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { notifyMany } from '@/lib/notifications';
-import { MESSAGE_ATTACHMENTS_BUCKET } from '../attachments/route';
+import { MESSAGE_ATTACHMENTS_BUCKET } from '@/lib/messages/attachments';
 
 const ATTACHMENT_URL_TTL = 3600; // 1 hour signed URLs for private attachments
 

@@ -15,11 +15,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { MESSAGE_ATTACHMENTS_BUCKET } from '@/lib/messages/attachments';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
 
-export const MESSAGE_ATTACHMENTS_BUCKET = 'message-attachments';
 const MAX_BYTES = 25 * 1024 * 1024; // 25 MB per attachment
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
