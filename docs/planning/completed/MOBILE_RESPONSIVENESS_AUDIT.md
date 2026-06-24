@@ -483,3 +483,13 @@ exceeds value:**
   AdminAudit already cleared). Confirmed tap targets are handled (AdminResponsive
   "TOUCH TARGET" sets `.admin-btn` etc. to 44px on mobile) and modals use
   width caps. No code changes — all clean. **All audit flags closed.**
+- **2026-06-23 — Seed-data visual verification (sample):** Per a follow-up
+  request, seeded representative data for 3 wide-table pages (`users`, `mileage`,
+  `payouts`) and screenshotted at 390px (`scratchpad/seed-shots.js`). Confirmed:
+  `.admin-table-wrap` works — `users` (7-col) and `payouts` wide tables scroll
+  horizontally *inside their card* with **0px page overflow**; `mileage` 5-col
+  tables fit cleanly; buttons full-width/44px, filters stack, nothing overlaps.
+  Harness gotcha recorded: register the Playwright catch-all `**/api/**` route
+  FIRST so specific routes (incl. `/api/auth/session`) win — else the session is
+  clobbered and pages render their sign-in/admin gate. Validates the wrapper
+  approach across all 55 files.
