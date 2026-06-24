@@ -73,9 +73,18 @@ change → typecheck + lint + commit + push → check box + note. All `[x]` → 
   value over a 15s visibility-aware poll for now. Tracked as a follow-up to do once
   Realtime exists for any one surface (revisit with doc 03 M2 together). tsc + lint
   clean.
-- [ ] **N4 — Toast for high/urgent.** When a `high`/`urgent`/`critical` alert
+- [x] **N4 — Toast for high/urgent.** When a `high`/`urgent`/`critical` alert
   arrives while the app is open, pop a dismissible toast/banner that deep-links to
   the source — don't make the user open the bell to discover it.
+  _Done 2026-06-24:_ the bell now pops a self-contained **deep-linking toast** when a
+  fresh **high/urgent/critical** alert arrives between polls. It tracks seen IDs in a
+  ref and **seeds them on the first fetch** so existing alerts don't toast on mount —
+  only genuinely new ones do. The toast shows icon + title + 2-line body with a
+  **"View"** button (marks read + routes to the alert's `link`) and a × dismiss;
+  urgent/critical linger 20s, high 10s, both colored by escalation. Built as its own
+  fixed banner (the shared `Toast` is text-only / no link), top-right on desktop and
+  full-width under the bar on phones. Verified at 390px: a new urgent alert pops the
+  toast + View button, 0px overflow. tsc + lint clean.
 - [ ] **N5 — Deep-link focus.** Navigating from an alert should land on and
   highlight the target (expand the job card / scroll to the row), not just route
   to the page. Findability: bell visible on mobile with a clear unread badge.
