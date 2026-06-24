@@ -36,13 +36,23 @@ in. C1 makes `job_time_entries` the authoritative open-session record.
 
 ## Slice plan
 
-- [ ] **C1 — Clock-in writes the server open-session row.** Verify that clocking
+- [x] **C1 — Clock-in writes the server open-session row.** Verify that clocking
   in creates an open `job_time_entries` row (`end_time IS NULL`) immediately, not
   only at clock-out. If clock-in only writes localStorage, add the server write
   (and hydrate localStorage from the open row on load so cross-device/refresh
   recovers it). This is the dependency for doc 01's 6pm reminder. Acceptance: a
   freshly clocked-in user appears in `job_time_entries` with a null `end_time`,
   and a reload recovers the session.
+  _Done 2026-06-24:_ confirmed clock-in only wrote localStorage and that
+  `job_time_entries` is **job-scoped** (POST requires `job_id`), so it can't hold
+  a job-less work-mode shift. Added the dedicated `active_clock_sessions` table
+  (`seeds/379…`, one open row per user) + `app/api/admin/clock-session` (GET/POST/
+  DELETE). `writeClockSession`/`clearClockSession` now mirror to it best-effort
+  (covers every call site — pill, WorkModePrompt, quick-actions, work-mode topbar),
+  and `hydrateClockSessionFromServer` recovers an open session on load (wired into
+  ClockInPill mount). Repointed the H7 reminder cron from `job_time_entries` to
+  `active_clock_sessions`. tsc + eslint clean. _(DB-dependent; the API GET
+  fail-opens to `session: null` until the migration is applied.)_
 - [ ] **C2 — Clock-out confirmation summary.** After clock-out, show a short
   confirmation ("You worked 4h 30m — logged to Job #42, pending approval") so the
   user knows it saved. Wire to the finalize response.

@@ -2,9 +2,9 @@
 //
 // GET /api/cron/clocked-in-after-hours
 //
-// Slice H7 of docs/planning/in-progress/01_HOURS_TIME_CORRECTION_2026-06-24.md.
-// Evening sweep that reminds anyone STILL clocked in (an open
-// job_time_entries row, end_time IS NULL) to clock out, so a forgotten
+// Slice H7 of the hours-correction plan; reads the active_clock_sessions
+// table added by slice C1 of the clock-in/work-mode plan. Evening sweep that
+// reminds anyone STILL on the work-mode clock to clock out, so a forgotten
 // clock-out doesn't accrue bogus hours.
 //
 // Only fires past 6pm in the business timezone (America/Chicago) and
@@ -53,14 +53,18 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ skipped: 'before 6pm local', localHour: localHour(now) });
   }
 
-  // Everyone currently clocked in (open shift).
+  // Everyone currently on the hub work-mode clock (one open row per user,
+  // written at clock-in by app/api/admin/clock-session). started_at maps to
+  // the builder's start_time.
   const { data: open, error } = await supabaseAdmin
-    .from('job_time_entries')
-    .select('user_email, start_time')
-    .is('end_time', null);
+    .from('active_clock_sessions')
+    .select('user_email, started_at');
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  let reminders = buildAfterHoursClockReminders((open ?? []) as OpenClockEntry[], now.getTime());
+  const openEntries: OpenClockEntry[] = (open ?? []).map(
+    (r: { user_email: string; started_at: string }) => ({ user_email: r.user_email, start_time: r.started_at }),
+  );
+  let reminders = buildAfterHoursClockReminders(openEntries, now.getTime());
 
   // De-dupe: drop anyone already reminded in the dedupe window.
   if (reminders.length > 0) {

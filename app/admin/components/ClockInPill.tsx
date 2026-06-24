@@ -23,6 +23,7 @@ import {
   CLOCK_SESSION_KEY,
   clearClockSession,
   elapsedHours,
+  hydrateClockSessionFromServer,
   readClockSession,
   writeClockSession,
   type ClockSession,
@@ -48,11 +49,17 @@ export default function ClockInPill() {
   // Initial read + cross-tab sync so two tabs of the app stay in step.
   useEffect(() => {
     setActive(readClockSession());
+    // Recover an open session from the server when this device has none
+    // (e.g. clocked in on another device). Best-effort; local wins.
+    let cancelled = false;
+    void hydrateClockSessionFromServer().then((s) => {
+      if (!cancelled && s) setActive(s);
+    });
     function onStorage(e: StorageEvent) {
       if (e.key === CLOCK_SESSION_KEY) setActive(readClockSession());
     }
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    return () => { cancelled = true; window.removeEventListener('storage', onStorage); };
   }, []);
 
   // Tick the elapsed timer every 30s while clocked in.
