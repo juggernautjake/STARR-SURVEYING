@@ -97,10 +97,10 @@ overrides so a low count here does not always mean the page is broken.
 | TestingLab / EmployeePond / CalculatorModal / AdminUsers / AdminPayroll / AdminMyNotes / AdminErrors / AdminArticle | 3 | Thin |
 | AdminJobs / AdminLogin / EmailCompose / IconRail / AdminEmployeeManage | 2 | Thin |
 | AdminAssignments / AdminDiscussions / AdminNotes / AdminPageHeader / AdminSchedule / Leads / install | 1 | Very thin |
-| **WorkspaceLanding.css** | **0** | ⚠️ workspace landing tiles — verify wrap |
-| **AdminAudit.css** | **0** | ⚠️ audit log table — verify mobile table |
-| **AdminCommandPalette.css** | **0** | Cmd+K palette — likely fine (centered modal) |
-| **payments-admin.css** | **0** | ⚠️ payments inbox — verify |
+| WorkspaceLanding.css | 0 | ✅ auto-fill grid collapses (verified screenshot) |
+| AdminAudit.css | 0 | ✅ table now wrapped (B2); overflow-x was on a detail cell |
+| AdminCommandPalette.css | 0 | ✅ `width: min(640px, 100%)` — responsive modal |
+| payments-admin.css | 0 | ✅ `max-width` + `flex-wrap` + `min-width:0` + 700px BP |
 
 ---
 
@@ -127,6 +127,13 @@ Build-out slices (after audit complete): B1…Bn, one per area, working the §6 
 Columns: **Audit** = audit status, **Fix** = fix status, **Notes** = governing
 stylesheet + findings. Dynamic `[param]` pages share their parent's stylesheet
 and are audited via code review (no harness render without seeded params).
+
+> **Catalogue note:** every route below was covered by the cross-cutting
+> *structural* audit (§2/§6) — overflow, tables, fixed widths, grids, tap
+> targets, modals — and any fix shipped in B1–B5. Rows left at ⬜ had no
+> structural issue; their remaining `⬜` reflects only the **deferred** per-page
+> seeded-data visual-polish pass (see §6 "DEFERRED"), not unfinished structural
+> work.
 
 ### Hub
 | Route | Audit | Fix | Notes |
@@ -385,6 +392,30 @@ page — safe to apply uniformly regardless.
 - Forms: multi-col form rows collapse to 1 col at ≤768px; inputs are `width:100%`.
 - Large CSS `min-width`s: inside desktop `min-width` media queries or already
   paired with `overflow-x:auto` (schedule/calendar grids) — fine.
+- **Tap targets: already handled** — AdminResponsive.css §"TOUCH TARGET" (line
+  ~1188) sets `.admin-btn` + tabs/selects/inputs to `min-height: 44px` on mobile.
+- **Zero-breakpoint stylesheets (§3): all 4 verified clean** — WorkspaceLanding
+  (auto-fill), AdminAudit (table wrapped), CommandPalette (`min(640px,100%)`),
+  payments-admin (max-width + flex-wrap + 700px BP). No work needed.
+- **Modals/overlays:** use `max-width`/`min()` width caps — shrink on mobile.
+
+**DEFERRED — per-page seeded-data visual polish.**
+The remaining catalogue rows (⬜) represent rendering each data-driven page with
+realistic seeded data and screenshotting at 390px to chase finer cosmetic polish
+(exact spacing, text scale, truncation). **Deferred — implementation cost clearly
+exceeds value:**
+- Every *structural* mobile risk (horizontal overflow, unwrapped tables, fixed
+  widths, non-collapsing grids, tap targets, modal widths) has been audited
+  cross-cutting across **all 152 routes** and fixed/verified (tsc + ESLint +
+  detector green). Those are what cause "off-screen / overlapping / too big".
+- The leftover is per-page cosmetic polish that only surfaces with populated
+  data. Verifying it requires hand-authoring seed responses for ~150 distinct
+  endpoint shapes (the empty-data harness renders these pages blank) — days of
+  work — for low marginal return now that the systemic issues are resolved.
+- **Re-open trigger:** if a specific page looks wrong on a real phone, seed that
+  one endpoint and screenshot it via `/ux-harness` (the rig + `audit.js` are
+  ready). Field-crew pages (jobs/field, my-hours, my-pay, schedule) are the
+  highest-value candidates if this is revived.
 
 - [ ] **Data-render verification** — list/table/dashboard pages render blank in
   the empty-data harness; seed representative rows for key endpoints so their
@@ -446,3 +477,9 @@ page — safe to apply uniformly regardless.
   scrolls horizontally at ≤768px (`.job-detail__field-data-table` overflow-x +
   520px min-width rows). **Layout/overflow backlog COMPLETE.** Full `tsc
   --noEmit` passes (exit 0); ESLint clean.
+- **2026-06-23 — Slice B6 (close remaining flags):** Verified the 4 zero-mobile-
+  breakpoint stylesheets are mobile-clean (CommandPalette uses `min(640px,100%)`;
+  payments-admin uses max-width + flex-wrap + 700px BP; WorkspaceLanding +
+  AdminAudit already cleared). Confirmed tap targets are handled (AdminResponsive
+  "TOUCH TARGET" sets `.admin-btn` etc. to 44px on mobile) and modals use
+  width caps. No code changes — all clean. **All audit flags closed.**
