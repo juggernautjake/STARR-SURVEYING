@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { Loader2, Map as MapIcon, ChevronRight, CheckCircle2, Lock } from 'lucide-react';
 import Link from 'next/link';
+import { progressColor } from '@/lib/learn/module-progress';
 
 interface ModuleProgress {
   id: string;
@@ -352,8 +353,9 @@ function RoadmapModuleRow({ mod }: { mod: ModuleProgress }) {
               <div
                 className="roadmap__module-bar-fill"
                 style={{
+                  // Doc 07 — same grey→yellow→green→blue gradient as the module cards.
                   width: `${mod.percentage}%`,
-                  background: modComplete ? 'var(--color-success)' : meta.border !== 'transparent' ? meta.border : 'var(--color-brand-navy)',
+                  background: progressColor(mod.percentage),
                 }}
               />
             </div>

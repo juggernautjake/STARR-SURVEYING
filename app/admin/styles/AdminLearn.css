@@ -1964,6 +1964,38 @@
 .modules__card-progress-bar { height: 6px; background: var(--color-bg-subtle); border-radius: 3px; overflow: hidden; }
 .modules__card-progress-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
 .modules__card-progress-text { font-family: 'Inter', sans-serif; font-size: 0.72rem; font-weight: 600; color: var(--color-text-tertiary); margin-top: 0.15rem; display: block; }
+
+/* Doc 07 — always-present module progress bar (grey → yellow → green → blue).
+   A track with a colored fill and a centered label; 100% = full-blue + ✓. */
+.modules__card-progressbar {
+  position: relative;
+  height: 22px;
+  margin-top: 0.4rem;
+  background: #E5E7EB;          /* empty (not-started) track is grey */
+  border-radius: 11px;
+  overflow: hidden;
+}
+.modules__card-progressbar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;            /* left-anchored */
+  height: 100%;
+  border-radius: 11px;
+  transition: width 0.5s ease, background 0.5s ease;
+}
+.modules__card-progressbar-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  z-index: 1;
+}
+.modules__card-progressbar-check { font-weight: 800; margin-right: 0.1rem; }
+.modules__card-progressbar--complete .modules__card-progressbar-label { letter-spacing: 0.04em; }
 .modules__card-lock { position: absolute; top: 0.75rem; right: 0.75rem; z-index: 2; }
 .modules__card-lock-icon { font-size: 1.25rem; }
 /* Cursor-following lock tooltip (used by both module cards and lesson rows) */

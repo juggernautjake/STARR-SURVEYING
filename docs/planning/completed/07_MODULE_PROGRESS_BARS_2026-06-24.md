@@ -56,7 +56,7 @@ desktop + 390px.
   (`__tests__/learn/module-progress.test.ts`, 8 passing): endpoints, **monotonic
   non-decreasing hue** across 1–100, band checks (yellow/green/blue regions), and
   **>20 distinct shades** (proves it's a gradient, not 3 buckets).
-- [ ] **P2 — Repurpose the card status element into the progress bar.** Replace
+- [x] **P2 — Repurpose the card status element into the progress bar.** Replace
   the static status pill with an **always-present** progress bar: a track with a
   fill of `width: {pct}%` colored via `progressColor`, the label centered on it,
   and at 100% a white checkmark + "COMPLETED!" on a full-blue bar. Grey empty
@@ -64,6 +64,23 @@ desktop + 390px.
   every card (incl. not-started) shows the bar. Ensure contrast (readable label
   on yellow/green/blue). Apply on the modules listing; mirror on the roadmap card
   if shared.
-- [ ] **P3 — Verify.** Seed modules at 0 / 15 / 40 / 70 / 100% and screenshot the
+  _Done 2026-06-24:_ replaced the static "Not Started" pill + the gated 6px bar with
+  a single **always-present 22px progress bar** (`.modules__card-progressbar`): a
+  grey track, a left-anchored fill `width:{pct}%` colored by `progressColor(pct)`,
+  and a **centered label** colored by `progressLabelColor` (dark on the yellow/green
+  band, white on the deep-blue end). 0% shows a grey track + "Not Started"; 100%
+  shows a **white ✓ + "COMPLETED!"** on a full-blue bar. The roadmap card's
+  `roadmap__module-bar-fill` now uses the **same gradient** for consistency.
+- [x] **P3 — Verify.** Seed modules at 0 / 15 / 40 / 70 / 100% and screenshot the
   cards at desktop + 390px: confirm the bar fills proportionally, the color walks
   grey→yellow→green→blue smoothly, and 100% shows the checkmark + "COMPLETED!".
+  _Done 2026-06-24:_ harness-verified at **390px and 1280px** with cards at 0/15/40/
+  70/100%. Fills are proportional (0%/15%/40%/70%/100% widths) and the color walks
+  **grey rgb(205,208,213) → yellow-green (172,220,40) → green (32,223,38) → teal
+  (27,218,186) → blue (24,106,220)** — a genuine continuous gradient. Labels read
+  "Not Started", "15%", "40%", "70%", "✓ COMPLETED!"; the 100% card shows the
+  checkmark on a full-blue bar. 0px overflow at both widths.
+
+## Status: ✅ complete — all slices shipped (P1 tested gradient helper, P2 always-
+## present card bar + roadmap, P3 verified 0→100% at desktop + 390px). Moved to
+## completed/.

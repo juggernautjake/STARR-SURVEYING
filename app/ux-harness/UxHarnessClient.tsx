@@ -95,6 +95,7 @@ const PAGES: Record<string, ComponentType> = {
   payouts: nextDynamic(() => import('@/app/admin/payouts/page'), { ssr: false }),
   support: nextDynamic(() => import('@/app/admin/support/page'), { ssr: false }),
   learn: nextDynamic(() => import('@/app/admin/learn/page'), { ssr: false }),
+  'learn-modules': nextDynamic(() => import('@/app/admin/learn/modules/page'), { ssr: false }),
   messages: nextDynamic(() => import('@/app/admin/messages/page'), { ssr: false }),
   email: nextDynamic(() => import('@/app/admin/email/new/page'), { ssr: false }),
   'email-sent': nextDynamic(() => import('@/app/admin/email/sent/page'), { ssr: false }),
