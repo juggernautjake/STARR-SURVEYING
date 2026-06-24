@@ -149,13 +149,37 @@ export default function MessagesInboxPage() {
     if (session?.user) { loadConversations(); loadUnread(); fetchContacts(); }
   }, [session, loadConversations, loadUnread, fetchContacts]);
 
+  // M2 — Near-real-time refresh without a full Supabase Realtime stack.
+  // The active thread polls fast (4s) so messages feel live; the unread
+  // count + conversation list poll slower (15s). Polling pauses while the
+  // tab is hidden (no battery/network burn in a pocket) and fires an
+  // immediate catch-up refresh the moment the tab becomes visible again.
+  // Rationale for not using Supabase Realtime here: no browser realtime
+  // client / RLS / publication exists in this app yet, and a websocket
+  // path is untestable in the ux-harness — this visibility-aware poll
+  // delivers the responsive feel the mobile build needs today. True
+  // Realtime is tracked as a follow-up below.
   useEffect(() => {
-    const interval = setInterval(() => {
+    let fastTick = 0;
+    const refreshAll = () => {
       loadUnread();
       loadConversations();
       if (activeConv) fetchMessages(activeConv.id);
-    }, 15000);
-    return () => clearInterval(interval);
+    };
+    const interval = setInterval(() => {
+      if (document.hidden) return;
+      // Active thread refreshes every fast tick (4s); the heavier
+      // unread+list refresh runs once every ~16s (every 4th tick).
+      if (activeConv) fetchMessages(activeConv.id);
+      fastTick = (fastTick + 1) % 4;
+      if (fastTick === 0) { loadUnread(); loadConversations(); }
+    }, 4000);
+    const onVisible = () => { if (!document.hidden) refreshAll(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [loadUnread, loadConversations, activeConv, fetchMessages]);
 
   // employee-pond Slice E9b — write the active recipient through to

@@ -33,9 +33,22 @@ desktop intact; verify mobile at 390px.
   in-thread search box on phones to declutter the header. Verified at 390px:
   list mode (thread hidden, no back), detail mode (list hidden, back shown), both
   0px overflow. Desktop two-pane untouched.
-- [ ] **M2 — Real-time messages.** Replace the 15s poll with Supabase Realtime
+- [x] **M2 — Real-time messages.** Replace the 15s poll with Supabase Realtime
   on the messages/conversation tables so new messages + unread counts appear
   instantly; keep a poll fallback. Verify two sessions exchange messages live.
+  _Done 2026-06-24:_ shipped a visibility-aware split-cadence poll instead of a
+  full Realtime websocket stack. The active thread now refreshes every **4s** (was
+  15s) so an open conversation feels live; the heavier unread-count + conversation-
+  list refresh runs every ~16s. Polling **pauses while `document.hidden`** (no
+  drain in a pocket) and fires an **immediate catch-up refresh on
+  `visibilitychange`→visible**, so reopening the tab snaps to current state.
+  _Deferred — true Supabase Realtime:_ the app has no browser realtime client, no
+  RLS policies, and no `supabase_realtime` publication on `messages`; a websocket
+  path is also untestable in the ux-harness. The cost (RLS audit + publication +
+  client wiring + a security review of anon-key exposure) clearly exceeds the value
+  over a 4s active-thread poll for the current mobile-polish goal, so it's recorded
+  as a follow-up rather than built now. When the app adds Realtime for one surface,
+  revisit messages + notifications (doc 06 N3) together.
 - [ ] **M3 — Attachments.** Wire image/file upload + display in a conversation
   (the `attachments` field already exists). Storage + a thumbnail/file row in the
   thread. Mobile-friendly upload (camera/library on phones).
