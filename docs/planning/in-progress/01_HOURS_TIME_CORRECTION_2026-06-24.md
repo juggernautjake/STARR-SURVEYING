@@ -139,7 +139,7 @@ doc to `docs/planning/completed/`. Keep desktop intact; verify mobile at 390px.
   locked week shows the Unlock button + banner. _DB enforcement verified by code
   review — the migration applies against the live Supabase, not the harness; the
   helper fail-opens until then._
-- [ ] **H7 — 6pm still-clocked-in reminder.** Add `app/api/cron/clocked-in-after-hours/route.ts`
+- [x] **H7 — 6pm still-clocked-in reminder.** Add `app/api/cron/clocked-in-after-hours/route.ts`
   (copy the assignments-due-reminder pattern: CRON_SECRET bearer auth). Query
   `job_time_entries WHERE end_time IS NULL` whose `start_time` is earlier today and
   now is past 6pm **local time**; `notify` each such user ("You're still clocked in —
@@ -149,6 +149,16 @@ doc to `docs/planning/completed/`. Keep desktop intact; verify mobile at 390px.
   duplicate nags (once per evening per user). NOTE: depends on clock-in writing an
   open `job_time_entries` row — verify that during this slice (see doc 02 C1) and
   add the server write if clock-in only touches localStorage.
+  _Done 2026-06-24:_ added a pure `buildAfterHoursClockReminders` builder
+  (`lib/notifications/after-hours-clock.ts`, 4 tests — one reminder per user,
+  earliest-start elapsed, email guard) and the cron
+  `app/api/cron/clocked-in-after-hours/route.ts`: CRON_SECRET bearer auth, a
+  `localHour >= 18` America/Chicago gate, queries open `job_time_entries`
+  (`end_time IS NULL`), de-dupes against `clock_reminder` notifications sent in the
+  last 6h (one nag per evening), and notifies each. Registered in `vercel.json`
+  (`0 23,1,3 * * *` ≈ 6/8/10pm Central). tsc + eslint + tests green. Depends on
+  C1 (doc 02) ensuring clock-IN writes the open row; the team page already reads
+  these rows, so open shifts exist today.
 - [ ] **H8 — Findability + mobile polish.** Ensure employees can easily FIND hour
   correction: a clear nav/hub entry ("My Hours" / "Fix my hours"), and that
   `my-hours` + `hours-approval` are clean at 390px (no overflow, 44px targets,
