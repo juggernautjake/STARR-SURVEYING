@@ -258,13 +258,11 @@ export default function NotificationBell() {
             )}
           </div>
 
-          {notifications.length > 0 && (
-            <div className="notif-bell__footer">
-              <Link href="/admin/assignments" className="notif-bell__view-all" onClick={() => setOpen(false)}>
-                View All Assignments
-              </Link>
-            </div>
-          )}
+          <div className="notif-bell__footer">
+            <Link href="/admin/notifications" className="notif-bell__view-all" onClick={() => setOpen(false)}>
+              View all notifications
+            </Link>
+          </div>
         </div>
         </>
       )}

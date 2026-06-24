@@ -36,9 +36,19 @@ change → typecheck + lint + commit + push → check box + note. All `[x]` → 
   right padding so the × never overlaps text. Added `touchstart` to the outside-tap
   close handler. Desktop popover unchanged. Verified at 390px: sheet 366px @ x=8,
   backdrop present, dismiss visible @ 36px, 0px overflow.
-- [ ] **N2 — Inbox page.** Add `app/admin/notifications/page.tsx`: full list with
+- [x] **N2 — Inbox page.** Add `app/admin/notifications/page.tsx`: full list with
   filters (source_type, escalation, read/unread, date) and pagination/search, so
   alerts aren't only reachable through the bell. Link the bell footer to it.
+  _Done 2026-06-24:_ extended the notifications GET with **offset paging +
+  `source_type` / `escalation` / `since` / `q`** (title/body ilike, wildcard-escaped)
+  filters. Built `/admin/notifications` — a mobile-first stacked-card inbox with a
+  debounced search box, **Unread-only / priority / source / date** filters (source
+  options accumulate from loaded pages), per-card mark-read + dismiss, mark-all-read,
+  and **prev/next pagination** (25/page). Urgent/critical cards get a colored left
+  border; source + escalation render as tags. The bell footer link now points here
+  ("View all notifications", always shown) instead of only Assignments. Registered
+  `notifications` in the harness. Verified at 390px: 5 rows, 3 filter selects + search
+  + checkbox, pager shown for 60 total, 0px overflow.
 - [x] **N0 — Red-dot indicator + urgent persistence (owner request).** The bell
   now shows a single **red dot** (not a count) only when there's a new unread
   notification; it clears once everything is read. **Urgent/critical** alerts keep
