@@ -701,6 +701,53 @@ export default function ResearchProjectPage() {
     handleStatusUpdate('configure');
   }
 
+  // ── R4: One-click results export from the Review stage ───────────────────
+  // Downloads the extracted data points (the core analysis output) as JSON or a
+  // flat CSV, so the user can export data without hopping to a subpage. Drawing
+  // / PDF export stays in Job Prep; this consolidates the *data* export here.
+  const [exportingData, setExportingData] = useState(false);
+  function downloadBlob(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  async function handleExportResultsData(format: 'json' | 'csv') {
+    if (!project || exportingData) return;
+    setExportingData(true);
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/data-points`);
+      if (!res.ok) { showToast('Failed to load data for export', 'error'); setExportingData(false); return; }
+      const data = await res.json();
+      const points: Array<Record<string, unknown>> = data.data_points || [];
+      const slug = (project.name || 'research').replace(/[^\w.-]+/g, '_').slice(0, 60);
+      if (format === 'json') {
+        const payload = {
+          project: { id: projectId, name: project.name, property_address: project.property_address, county: project.county, state: project.state },
+          exported_at: new Date().toISOString(),
+          data_point_count: points.length,
+          data_points: points,
+        };
+        downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }), `${slug}-data.json`);
+      } else {
+        const cols = ['data_category', 'display_value', 'raw_value', 'unit', 'source_page', 'extraction_confidence', 'source_text_excerpt'];
+        const esc = (v: unknown) => {
+          const s = v == null ? '' : String(v);
+          return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+        };
+        const rows = [cols.join(',')];
+        for (const p of points) rows.push(cols.map(c => esc(p[c])).join(','));
+        downloadBlob(new Blob([rows.join('\n')], { type: 'text/csv' }), `${slug}-data.csv`);
+      }
+      showToast(`Exported ${points.length} data point${points.length === 1 ? '' : 's'} as ${format.toUpperCase()}`, 'success');
+    } catch {
+      showToast('Export failed. Please try again.', 'error');
+    }
+    setExportingData(false);
+  }
+
   // Drawing functions
   const loadDrawings = useCallback(async () => {
     try {
@@ -1989,6 +2036,42 @@ export default function ResearchProjectPage() {
               }}
             >
               Re-run Research
+            </button>
+          </div>
+
+          {/* R4 — One place to export results: data (JSON/CSV), printable PDF,
+              and a path to the drawing/CAD export in Job Prep. */}
+          <div className="research-export-bar" data-testid="research-export-bar">
+            <span className="research-export-bar__label">Export results:</span>
+            <button
+              className="research-export-bar__btn"
+              onClick={() => handleExportResultsData('csv')}
+              disabled={exportingData || stats.data_point_count === 0}
+              title={stats.data_point_count === 0 ? 'No extracted data yet' : 'Download extracted data as CSV'}
+            >
+              <FileText size={14} aria-hidden="true" /> Data (CSV)
+            </button>
+            <button
+              className="research-export-bar__btn"
+              onClick={() => handleExportResultsData('json')}
+              disabled={exportingData || stats.data_point_count === 0}
+              title={stats.data_point_count === 0 ? 'No extracted data yet' : 'Download extracted data as JSON'}
+            >
+              <FileText size={14} aria-hidden="true" /> Data (JSON)
+            </button>
+            <button
+              className="research-export-bar__btn"
+              onClick={() => window.print()}
+              title="Print or save the results as a PDF"
+            >
+              <Printer size={14} aria-hidden="true" /> Print / PDF
+            </button>
+            <button
+              className="research-export-bar__btn research-export-bar__btn--primary"
+              onClick={() => handleStatusUpdate('drawing')}
+              title="Generate and export the survey drawing / CAD"
+            >
+              <DraftingCompass size={14} aria-hidden="true" /> Drawing &amp; CAD →
             </button>
           </div>
 

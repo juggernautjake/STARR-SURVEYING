@@ -68,7 +68,18 @@ change → typecheck + lint + commit + push → check box + note. All `[x]` → 
   return instead of showing stale state. tsc + lint clean. _(Project-page dynamic
   route, not harness-mountable — verified by typecheck/lint + review; reuses existing
   poll plumbing.)_
-- [ ] **R4 — Results & export.** When analysis completes, give one place to review
+- [x] **R4 — Results & export.** When analysis completes, give one place to review
   outputs and export (PDF / drawing / data) without hopping across subpages.
+  _Done 2026-06-24:_ the Review stage is already the single review surface (summary
+  + property/survey/easements/discrepancies/artifacts tabs); added a consolidated
+  **export bar** at the top of it with four one-click actions: **Data (CSV)** and
+  **Data (JSON)** (client downloads of the extracted `data_points` — category,
+  display/raw value, unit, source page, confidence, excerpt — disabled until data
+  exists), **Print / PDF** (`window.print()`, which uses the page's existing print
+  stylesheet), and **Drawing & CAD →** (routes to Job Prep where the existing
+  `ExportPanel` handles PDF/DXF/SVG drawing export). So data + printable results are
+  exportable right where you review them, with a clear path to the drawing export.
+  44px touch targets, full-width buttons on phones. tsc + lint clean. _(Project-page
+  dynamic route — verified by typecheck/lint + review.)_
 - [ ] **R5 — Findability.** Ensure "Research" / "Start research" is an obvious
   entry point (nav + hub/command-palette) and the list page reads well on mobile.
