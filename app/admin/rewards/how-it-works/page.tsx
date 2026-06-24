@@ -73,7 +73,7 @@ export default function HowItWorksPage() {
         <div className="hiw__two-col">
           <div className="hiw__card">
             <h4>How to Earn XP</h4>
-            <table className="hiw__table">
+            <div className="admin-table-wrap"><table className="hiw__table">
               <tbody>
                 <tr><td>Complete a learning module</td><td className="hiw__table-xp">{fmtRange(moduleXpRange.min, moduleXpRange.max)}</td></tr>
                 <tr><td>Complete FS prep course</td><td className="hiw__table-xp">+{fsReadyXp.toLocaleString()} XP</td></tr>
@@ -83,7 +83,7 @@ export default function HowItWorksPage() {
                 <tr><td>Pass a college surveying class</td><td className="hiw__table-xp">+1,000 XP</td></tr>
                 <tr><td>Retake expired module</td><td className="hiw__table-xp">Full XP again</td></tr>
               </tbody>
-            </table>
+            </table></div>
           </div>
 
           <div className="hiw__card">

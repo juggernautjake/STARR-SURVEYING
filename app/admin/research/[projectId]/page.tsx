@@ -2361,7 +2361,7 @@ export default function ResearchProjectPage() {
                     {hasBoundary ? (
                       <div className="review-data-section" style={{ marginBottom: '1rem' }}>
                         <div className="review-narrative__label">Boundary Bearings &amp; Distances ({boundary.bearingsAndDistances?.length ?? 0} calls)</div>
-                        <table className="review-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem', marginTop: '0.5rem' }}>
+                        <div className="admin-table-wrap"><table className="review-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem', marginTop: '0.5rem' }}>
                           <thead>
                             <tr style={{ borderBottom: '2px solid #1e40af' }}>
                               <th style={{ textAlign: 'left', padding: '0.5rem 0.6rem', color: '#1e3a8a', fontWeight: 700, fontSize: '0.82rem', textTransform: 'uppercase' as const }}>#</th>
@@ -2376,7 +2376,7 @@ export default function ResearchProjectPage() {
                               </tr>
                             ))}
                           </tbody>
-                        </table>
+                        </table></div>
                       </div>
                     ) : (
                       <div style={{ color: '#6b7280', fontStyle: 'italic', padding: '0.5rem 0' }}>
@@ -2439,7 +2439,7 @@ export default function ResearchProjectPage() {
                     {hasChain && (
                       <div className="review-data-section" style={{ marginBottom: '1rem' }}>
                         <div className="review-narrative__label">Chain of Title ({chainOfTitle.length} links)</div>
-                        <table className="review-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                        <div className="admin-table-wrap"><table className="review-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', marginTop: '0.5rem' }}>
                           <thead>
                             <tr style={{ borderBottom: '1px solid #334155' }}>
                               <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#94a3b8' }}>#</th>
@@ -2462,7 +2462,7 @@ export default function ResearchProjectPage() {
                               </tr>
                             ))}
                           </tbody>
-                        </table>
+                        </table></div>
                       </div>
                     )}
 

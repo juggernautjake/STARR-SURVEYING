@@ -2132,6 +2132,7 @@ function CodeRemapTable(props: {
           Strip unmapped
         </label>
       </div>
+      <div className="overflow-x-auto">
       <table className="w-full text-[10px] font-mono">
         <thead className="text-gray-500">
           <tr>
@@ -2190,6 +2191,7 @@ function CodeRemapTable(props: {
           })}
         </tbody>
       </table>
+      </div>
       <p className="text-[10px] text-gray-500 leading-snug">
         Mapped codes are rewritten before the strip step. Leave a row blank to either skip (default) or strip via the checkbox above.
       </p>

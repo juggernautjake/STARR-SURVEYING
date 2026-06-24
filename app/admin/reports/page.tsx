@@ -273,7 +273,7 @@ export default function ReportsPage() {
               {' · '}Outstanding: <strong>{fmtMoney(data.jobs.outstandingCents)}</strong>
             </div>
             {data.jobs.details.length > 0 && (
-              <table className="reports-table">
+              <div className="admin-table-wrap"><table className="reports-table">
                 <thead>
                   <tr><th>Job</th><th>Client</th><th>Stage / Result</th><th>Started</th><th>Delivered</th><th className="reports-right">Quote</th><th className="reports-right">Final</th></tr>
                 </thead>
@@ -294,7 +294,7 @@ export default function ReportsPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </section>
 
@@ -310,7 +310,7 @@ export default function ReportsPage() {
               {' · '}Labor cost: <strong>{fmtMoney(data.hours.totalLaborCostCents)}</strong>
             </div>
             {data.hours.perEmployee.length > 0 ? (
-              <table className="reports-table">
+              <div className="admin-table-wrap"><table className="reports-table">
                 <thead>
                   <tr><th>Employee</th><th className="reports-right">Regular</th><th className="reports-right">OT</th><th className="reports-right">Total</th><th className="reports-right">Labor</th></tr>
                 </thead>
@@ -325,7 +325,7 @@ export default function ReportsPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             ) : <p className="reports-empty">No time entries in this window.</p>}
           </section>
 
@@ -351,7 +351,7 @@ export default function ReportsPage() {
               </div>
             )}
             {data.receipts.entries.length > 0 ? (
-              <table className="reports-table">
+              <div className="admin-table-wrap"><table className="reports-table">
                 <thead>
                   <tr><th>Date</th><th>Vendor</th><th>Category</th><th>Status</th><th className="reports-right">Amount</th></tr>
                 </thead>
@@ -366,7 +366,7 @@ export default function ReportsPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             ) : <p className="reports-empty">No receipts in this window.</p>}
           </section>
 
@@ -381,7 +381,7 @@ export default function ReportsPage() {
               {' · '}Reimbursement: <strong>${data.mileage.totalDollars.toFixed(2)}</strong>
             </div>
             {data.mileage.perEmployee.length > 0 ? (
-              <table className="reports-table">
+              <div className="admin-table-wrap"><table className="reports-table">
                 <thead>
                   <tr><th>Employee</th><th className="reports-right">Miles</th><th className="reports-right">Dollars</th></tr>
                 </thead>
@@ -394,7 +394,7 @@ export default function ReportsPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             ) : <p className="reports-empty">No mileage entries in this window.</p>}
           </section>
 
@@ -418,7 +418,7 @@ export default function ReportsPage() {
               )}
             </div>
             {data.payouts.entries.length > 0 ? (
-              <table className="reports-table">
+              <div className="admin-table-wrap"><table className="reports-table">
                 <thead>
                   <tr><th>Paid on</th><th>Employee</th><th>Method</th><th>Reference</th><th className="reports-right">Amount</th></tr>
                 </thead>
@@ -433,7 +433,7 @@ export default function ReportsPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             ) : <p className="reports-empty">No payouts recorded in this window.</p>}
           </section>
           )}
@@ -442,7 +442,7 @@ export default function ReportsPage() {
           {sections.has('financials') && (
           <section className="reports-card">
             <h2>Financial Roll-up</h2>
-            <table className="reports-table reports-finance-table">
+            <div className="admin-table-wrap"><table className="reports-table reports-finance-table">
               <tbody>
                 <tr><td>Revenue (jobs invoiced)</td><td className="reports-right">{fmtMoney(data.financials.revenueCents)}</td></tr>
                 <tr><td className="reports-indent">– Labor cost</td><td className="reports-right">({fmtMoney(data.financials.laborCostCents)})</td></tr>
@@ -459,7 +459,7 @@ export default function ReportsPage() {
                 <tr><td>Quotes pending acceptance</td><td className="reports-right">{fmtMoney(data.financials.pendingQuotesCents)}</td></tr>
                 <tr><td>Payouts recorded (cash out)</td><td className="reports-right">{fmtMoney(data.payouts.totalCents)}</td></tr>
               </tbody>
-            </table>
+            </table></div>
           </section>
           )}
         </>

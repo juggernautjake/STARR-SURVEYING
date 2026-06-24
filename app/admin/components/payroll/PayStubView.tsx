@@ -88,7 +88,7 @@ export default function PayStubView({ email, limit = 10 }: PayStubViewProps) {
                   <div className="payroll-stubs__detail">
                     <div className="payroll-stubs__detail-section">
                       <h4>Earnings</h4>
-                      <table className="payroll-stubs__detail-table">
+                      <div className="admin-table-wrap"><table className="payroll-stubs__detail-table">
                         <tbody>
                           <tr>
                             <td>Regular Hours</td>
@@ -122,12 +122,12 @@ export default function PayStubView({ email, limit = 10 }: PayStubViewProps) {
                             <td><strong>{formatCurrency(stub.gross_pay)}</strong></td>
                           </tr>
                         </tbody>
-                      </table>
+                      </table></div>
                     </div>
 
                     <div className="payroll-stubs__detail-section">
                       <h4>Deductions</h4>
-                      <table className="payroll-stubs__detail-table">
+                      <div className="admin-table-wrap"><table className="payroll-stubs__detail-table">
                         <tbody>
                           <tr><td>Federal Tax</td><td></td><td>-{formatCurrency(stub.federal_tax)}</td></tr>
                           {stub.state_tax > 0 && <tr><td>State Tax</td><td></td><td>-{formatCurrency(stub.state_tax)}</td></tr>}
@@ -140,7 +140,7 @@ export default function PayStubView({ email, limit = 10 }: PayStubViewProps) {
                             <td><strong>-{formatCurrency(stub.total_deductions)}</strong></td>
                           </tr>
                         </tbody>
-                      </table>
+                      </table></div>
                     </div>
 
                     <div className="payroll-stubs__detail-net">
@@ -151,7 +151,7 @@ export default function PayStubView({ email, limit = 10 }: PayStubViewProps) {
                     {stub.job_hours && Array.isArray(stub.job_hours) && stub.job_hours.length > 0 && (
                       <div className="payroll-stubs__detail-section">
                         <h4>Job Breakdown</h4>
-                        <table className="payroll-stubs__detail-table">
+                        <div className="admin-table-wrap"><table className="payroll-stubs__detail-table">
                           <thead>
                             <tr><th>Job</th><th>Role</th><th>Hours</th></tr>
                           </thead>
@@ -164,7 +164,7 @@ export default function PayStubView({ email, limit = 10 }: PayStubViewProps) {
                               </tr>
                             ))}
                           </tbody>
-                        </table>
+                        </table></div>
                       </div>
                     )}
                   </div>

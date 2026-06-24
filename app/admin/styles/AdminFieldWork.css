@@ -255,7 +255,7 @@
 .fw__import-drop { display: flex; align-items: center; gap: 0.75rem; padding: 1rem; border: 2px dashed #D1D5DB; border-radius: 8px; background: #F9FAFB; margin-bottom: 1rem; }
 .fw__import-file-name { font-size: 0.82rem; color: #374151; font-family: monospace; }
 .fw__import-preview { margin-bottom: 1rem; }
-.fw__import-preview-table { max-height: 300px; overflow-y: auto; border: 1px solid #E5E7EB; border-radius: 6px; margin-top: 0.5rem; }
+.fw__import-preview-table { max-height: 300px; overflow-y: auto; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid #E5E7EB; border-radius: 6px; margin-top: 0.5rem; }
 
 /* ── Responsive ── */
 @media (max-width: 899px) {

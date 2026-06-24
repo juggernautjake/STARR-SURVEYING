@@ -324,6 +324,9 @@ and are audited via code review (no harness render without seeded params).
 Populated during audit slices. Each item: `[area] page — issue — fix`. Worked
 during build-out slices.
 
+**✅ TABLE-WRAPPER SWEEP — COMPLETE.** All 55 `<table>` files now wrap their
+tables in a scroll container (detector: 0 flagged). See build-out B1–B4 below.
+
 **Cross-cutting — TABLE-WRAPPER SWEEP (primary mobile risk).**
 Static detector (`scratchpad/table-wrap-check.js`) scanned all 55 `<table>`
 files: **27 already sit in an `overflow-x:auto` wrapper; 28 do NOT** and will
@@ -333,15 +336,12 @@ mileage use inline-style `<table>` directly in a `<section>`, no wrapper).
 { overflow-x:auto; -webkit-overflow-scrolling:touch }` in AdminResponsive.css)
 and wrap each flagged `<table>`. Then re-run the detector → 0 flagged.
 
-**Build-out progress (table wrappers):** added shared `.admin-table-wrap`
-utility to `AdminResponsive.css` (always-on `overflow-x:auto`). Wrapping flagged
-tables in it, area by area. **✔️ done (16/28 files):** `time-off`, `mileage`,
-`invites`, `payouts`, `billing/invoices`, `audit`, + all 10 Equipment pages (11
-tables, via `scratchpad/wrap-equipment.js` codemod). Detector re-run → **12
-files remain** (finances, reports, reports/job, 3 payroll components,
-research/[projectId], FieldWorkView import-preview, 2 CAD + DrawingCanvas
-[desktop], rewards/how-it-works). Note: FieldWorkView's main log table already
-uses `.fw__table-scroll` (no work).
+**Build-out progress (table wrappers): ✅ COMPLETE — 55/55 files, 0 flagged.**
+Added shared `.admin-table-wrap` utility to `AdminResponsive.css` (always-on
+`overflow-x:auto`) and wrapped every flagged table across B1–B4 (Hub, Work,
+Office/Pay, Equipment, Research, Rewards, CAD). FieldWorkView's main log table
+already used `.fw__table-scroll`; its import-preview got `overflow-x:auto` via
+CSS. Verified by re-running `scratchpad/table-wrap-check.js`.
 
 Flagged files by area (build-out targets):
 - **Hub:** ✔️ `time-off/page.tsx`
@@ -422,3 +422,10 @@ page — safe to apply uniformly regardless.
   pages (11 tables) via a safe non-nesting codemod (`scratchpad/wrap-equipment.js`).
   ESLint clean on all 10. Detector re-run (patched to read the table's own line):
   **16/28 files done, 12 remain.**
+- **2026-06-23 — Build-out B4 (finances/reports/payroll/research/CAD):** Codemod
+  wrapped 29 tables across 10 files (finances 7, reports 6, reports/job 5,
+  3 payroll components, research/[projectId] 2, rewards/how-it-works, PerfOverlay,
+  DrawingCanvas). Fixed FieldWorkView import-preview via CSS (`overflow-x:auto` on
+  `.fw__import-preview-table`). Wrapped the CAD LayerTransferDialog table
+  (Tailwind `overflow-x-auto`). **Detector: 55/55 files wrapped, 0 flagged —
+  table-wrapper sweep COMPLETE.** ESLint clean across all touched files.

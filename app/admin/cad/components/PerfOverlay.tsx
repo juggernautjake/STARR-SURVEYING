@@ -242,7 +242,7 @@ export default function PerfOverlay() {
       {status && (
         <div className="mb-2 text-[10px] text-amber-300 font-mono">{status}</div>
       )}
-      <table className="w-full">
+      <div className="admin-table-wrap"><table className="w-full">
         <thead>
           <tr className="border-b border-gray-700 text-left text-gray-400">
             <th className="pr-3 font-normal">phase</th>
@@ -259,7 +259,7 @@ export default function PerfOverlay() {
             <Row key={label} label={label} bucket={profile.byLabel[label]} />
           ))}
         </tbody>
-      </table>
+      </table></div>
       <div className="mt-2 text-[10px] text-gray-500">
         Ctrl+Alt+P · all timings in ms · polled every {POLL_INTERVAL_MS}ms
       </div>
