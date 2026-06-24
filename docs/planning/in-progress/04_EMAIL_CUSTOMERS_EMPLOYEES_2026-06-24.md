@@ -20,9 +20,16 @@ change → typecheck + lint + commit + push → check box + note. All `[x]` → 
 
 ## Slice plan
 
-- [ ] **EM1 — Mobile composer polish.** Full-width stacked fields, auto-sizing
+- [x] **EM1 — Mobile composer polish.** Full-width stacked fields, auto-sizing
   message area, 44px Send, no overflow at 390px. Verify via `ux-harness?page=email`
   (register the page in the harness if needed). Keep desktop unchanged.
+  _Done 2026-06-24:_ registered `email` → `app/admin/email/new/page` in the
+  ux-harness PAGES map so the composer is auditable at 390px. The fields were
+  already stacked + full-width with 44px inputs and a full-width Send on mobile;
+  trimmed the message textarea's mobile `min-height` from 220px → 160px so all
+  fields + Send fit a phone screen without pushing the form off-view (it still
+  grows as you type via `resize: vertical`). Verified at 390px: To/Subject 44px,
+  Send 44px full-width (366px), 0px overflow. Desktop 220px box unchanged.
 - [ ] **EM2 — Recipient picker.** Let the sender pick a **customer** (from
   leads/jobs contacts) or an **employee** (from the users/employees list) instead
   of typing a raw address — with free-text still allowed. Show name + email.

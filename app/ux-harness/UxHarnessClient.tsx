@@ -96,6 +96,7 @@ const PAGES: Record<string, ComponentType> = {
   support: nextDynamic(() => import('@/app/admin/support/page'), { ssr: false }),
   learn: nextDynamic(() => import('@/app/admin/learn/page'), { ssr: false }),
   messages: nextDynamic(() => import('@/app/admin/messages/page'), { ssr: false }),
+  email: nextDynamic(() => import('@/app/admin/email/new/page'), { ssr: false }),
   'payout-log': nextDynamic(() => import('@/app/admin/payout-log/page'), { ssr: false }),
   // The Hub (/admin/me) is a server component behind auth; mount the real
   // canvas via a harness wrapper that seeds a default multi-widget layout

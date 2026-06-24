@@ -123,6 +123,12 @@
   .email-compose {
     padding: var(--space-3);
   }
+  /* EM1 — the 220px desktop message box eats a whole phone screen; trim it so
+     all fields + Send fit without scrolling the form off-screen, and let it
+     grow as the user types. */
+  .email-compose__field textarea {
+    min-height: 160px;
+  }
   .email-compose__send {
     width: 100%;
   }
