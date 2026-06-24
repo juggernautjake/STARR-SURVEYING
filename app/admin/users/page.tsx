@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, Fragment } from 'react';
 import { Lock, Users } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import type { UserRole } from '@/lib/auth';
+import InitialAvatar from '../components/InitialAvatar';
 
 const ALL_ROLES: UserRole[] = [
   'admin', 'developer', 'teacher', 'student', 'researcher',
@@ -415,14 +416,12 @@ export default function UsersPage() {
                     onClick={() => setExpandedUser(expandedUser === user.id ? null : user.id)}
                   >
                     <td className="um-cell-user">
-                      <div className="um-avatar" style={{ background: user.avatar_url ? 'transparent' : undefined }}>
-                        {user.avatar_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={user.avatar_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                        ) : (
-                          (user.name || user.email.split('@')[0]).split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'
-                        )}
-                      </div>
+                      <InitialAvatar
+                        className="um-avatar"
+                        name={user.name || user.email.split('@')[0]}
+                        imageUrl={user.avatar_url}
+                        size={36}
+                      />
                       <div>
                         <div className="um-name">{user.name || user.email.split('@')[0]}</div>
                         <div className="um-email">{user.email}</div>

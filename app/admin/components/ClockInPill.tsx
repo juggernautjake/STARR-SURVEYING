@@ -160,6 +160,10 @@ export default function ClockInPill() {
     color: 'var(--theme-fg-primary)',
     lineHeight: 1.2,
     cursor: 'pointer',
+    // Keep the pill on one clean line (esp. the wider "Clock Out · 8h 30m"
+    // state) and don't let the crowded mobile top bar squeeze it.
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
   };
 
   return (

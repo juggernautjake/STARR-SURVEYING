@@ -85,5 +85,17 @@ in. C1 makes `job_time_entries` the authoritative open-session record.
   off-screen, the Exit-confirm modal is responsive (`min(480px,100vw-24px)`), and
   its 3-button row wraps. Added a `work-mode` ux-harness mount; verified at 390px:
   **0px overflow** for both the workspace and the exit modal, tabs wrap cleanly.
-- [ ] **C5 — Findability.** Ensure "Clock in / out" and "Enter work mode" are
+- [x] **C5 — Findability.** Ensure "Clock in / out" and "Enter work mode" are
   obvious entry points on mobile (top-bar pill visible; hub action present).
+  _Done 2026-06-24:_ verified at 390px that the **clock-in pill is visible** in the
+  top bar (▶ Clock In), the quick-actions widget has a Clock In action, the
+  command palette has "Clock in / out", and the hub greeting has "Enter Work
+  Mode" — all reachable. Fixed a clocked-in crowding bug: the wider "Clock Out ·
+  8h 30m" pill overflowed the mobile top bar by 17px → pill now `nowrap` +
+  `flex-shrink:0`, tighter `__right` gap. Per owner feedback, also reformatted the
+  account menu: the top bar now shows a **circular initial avatar** (shared
+  `InitialAvatar`, 1–2 initials, deterministic color, photo when present) instead
+  of the name + role badge; the name + role moved into the opened menu. Adopted
+  `InitialAvatar` on the users page too for cross-page uniformity (more pages can
+  reuse it). Verified at 390px: avatar renders, 0 overflow. (Notification-bell
+  build-out is tracked in doc 06.)

@@ -1008,6 +1008,9 @@
   .admin-topbar { padding:0 1rem; height:56px; }
   .admin-topbar__title { font-size:1rem; }
   .admin-topbar__role-badge { display:none; }
+  /* Keep the clock-in pill + bell + avatar on one uncrowded row when the pill
+     is in its wider "Clock Out · 8h 30m" state (C5). */
+  .admin-topbar__right { gap:.4rem; }
   .admin-layout__content { padding:1rem 1rem 96px 1rem; margin-top:56px; }
   .admin-dashboard__cards { grid-template-columns:1fr; }
   .dashboard-cards { grid-template-columns:1fr; }
