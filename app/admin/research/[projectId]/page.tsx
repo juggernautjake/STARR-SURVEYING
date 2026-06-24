@@ -682,6 +682,25 @@ export default function ResearchProjectPage() {
     }
   }
 
+  // ── R1: Start AI analysis from the always-visible action bar ──────────────
+  // Mirrors Stage 1's "Initiate Research & Analysis": seed the search params
+  // from the saved project, flag auto-start, and move to the research stage so
+  // ResearchRunPanel fires the pipeline on mount. The user never has to hunt
+  // for the run control by workflow stage.
+  function handleStartAnalysis() {
+    if (!project) return;
+    setPendingSearchParams({
+      address: project.property_address || '',
+      county: project.county || '',
+      parcelId: project.parcel_id || '',
+      ownerName: (project as unknown as { owner_name?: string }).owner_name || '',
+    });
+    setShouldAutoStartPipeline(true);
+    setHoldOnResearchStage(true);
+    setPipelineHasStarted(false);
+    handleStatusUpdate('configure');
+  }
+
   // Drawing functions
   const loadDrawings = useCallback(async () => {
     try {
@@ -1673,6 +1692,117 @@ export default function ResearchProjectPage() {
         onStageClick={project.status !== 'analyzing' ? handleRevertToStep : undefined}
       />
 
+      {/* R1 — Always-visible primary action: start or re-run the AI pipeline.
+          Label + behavior derive from project.status so the run control is never
+          buried by workflow stage. */}
+      {(() => {
+        const isAnalyzing = project.status === 'analyzing' || currentStage === 'research';
+        const postAnalysis = ['review', 'drawing', 'verifying', 'complete'].includes(project.status);
+        const hasInputs = Boolean(project.property_address || project.parcel_id) || documents.length > 0;
+
+        if (isAnalyzing) {
+          return (
+            <div className="research-action-bar research-action-bar--running" data-testid="research-action-bar">
+              <Loader2 size={18} className="research-action-bar__spin" aria-hidden="true" />
+              <span className="research-action-bar__text">AI analysis is running — live progress is shown below.</span>
+            </div>
+          );
+        }
+        if (postAnalysis) {
+          return (
+            <div className="research-action-bar" data-testid="research-action-bar">
+              <span className="research-action-bar__text">
+                <CheckCircle2 size={16} className="research-action-bar__ok" aria-hidden="true" />
+                Analysis complete. Re-run STARR RECON to refresh with new documents or parameters.
+              </span>
+              <button className="research-action-bar__btn" onClick={() => setShowRerunConfirm(true)}>
+                <Sparkles size={16} aria-hidden="true" /> Re-run analysis
+              </button>
+            </div>
+          );
+        }
+        // upload / configure → start
+        return (
+          <div className="research-action-bar" data-testid="research-action-bar">
+            <span className="research-action-bar__text">
+              {hasInputs
+                ? <>Ready to analyze. STARR RECON will search public records, capture sources, and extract data with AI.</>
+                : <>Add a property address (or parcel id), or upload a document, to start the AI analysis.</>}
+            </span>
+            <button
+              className="research-action-bar__btn"
+              disabled={!hasInputs}
+              title={hasInputs ? 'Start the AI research pipeline' : 'Add an address/parcel id or a document first'}
+              onClick={handleStartAnalysis}
+            >
+              <Sparkles size={16} aria-hidden="true" /> Start AI analysis
+            </button>
+          </div>
+        );
+      })()}
+
+      {/* R1 — Re-run confirmation dialog lifted to the top level so the action
+          bar's "Re-run analysis" works in any post-analysis stage (not just
+          Review). */}
+      {showRerunConfirm && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: 12, padding: '1.5rem 2rem', maxWidth: 480,
+            width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          }}>
+            <h3 style={{ margin: '0 0 0.75rem', fontSize: '1.1rem', color: '#DC2626' }}>
+              Re-run Research &amp; Analysis
+            </h3>
+            <p style={{ margin: '0 0 1rem', fontSize: '0.9rem', color: '#374151', lineHeight: 1.5 }}>
+              <strong>Warning:</strong> All data from the previous run will be permanently deleted, including:
+            </p>
+            <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem', fontSize: '0.85rem', color: '#374151', lineHeight: 1.7 }}>
+              <li>Extracted data points and analysis results</li>
+              <li>Discrepancies found during analysis</li>
+              <li>Pipeline-fetched documents and screenshots</li>
+              <li>Research logs</li>
+            </ul>
+            <p style={{ margin: '0 0 1.25rem', fontSize: '0.85rem', color: '#6B7280' }}>
+              Your manually uploaded documents and job notes will be preserved.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowRerunConfirm(false)}
+                style={{
+                  padding: '0.5rem 1rem', borderRadius: 6, border: '1px solid #D1D5DB',
+                  background: '#fff', color: '#374151', fontSize: '0.85rem', cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleRerunResearch('update')}
+                style={{
+                  padding: '0.5rem 1rem', borderRadius: 6, border: '1px solid #2563EB',
+                  background: '#EFF6FF', color: '#2563EB', fontSize: '0.85rem', fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Update Parameters First
+              </button>
+              <button
+                onClick={() => handleRerunResearch('same')}
+                style={{
+                  padding: '0.5rem 1rem', borderRadius: 6, border: 'none',
+                  background: '#DC2626', color: '#fff', fontSize: '0.85rem', fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Re-run with Same Parameters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Quick stats — actionable buttons (Slice C4). Each tile is
           a proper button so keyboard users get focus + Enter to
           activate, and screen readers announce the destination.
@@ -1862,65 +1992,8 @@ export default function ResearchProjectPage() {
             </button>
           </div>
 
-          {/* ── Re-run confirmation dialog ── */}
-          {showRerunConfirm && (
-            <div style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
-            }}>
-              <div style={{
-                background: '#fff', borderRadius: 12, padding: '1.5rem 2rem', maxWidth: 480,
-                width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-              }}>
-                <h3 style={{ margin: '0 0 0.75rem', fontSize: '1.1rem', color: '#DC2626' }}>
-                  Re-run Research &amp; Analysis
-                </h3>
-                <p style={{ margin: '0 0 1rem', fontSize: '0.9rem', color: '#374151', lineHeight: 1.5 }}>
-                  <strong>Warning:</strong> All data from the previous run will be permanently deleted, including:
-                </p>
-                <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem', fontSize: '0.85rem', color: '#374151', lineHeight: 1.7 }}>
-                  <li>Extracted data points and analysis results</li>
-                  <li>Discrepancies found during analysis</li>
-                  <li>Pipeline-fetched documents and screenshots</li>
-                  <li>Research logs</li>
-                </ul>
-                <p style={{ margin: '0 0 1.25rem', fontSize: '0.85rem', color: '#6B7280' }}>
-                  Your manually uploaded documents and job notes will be preserved.
-                </p>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  <button
-                    onClick={() => setShowRerunConfirm(false)}
-                    style={{
-                      padding: '0.5rem 1rem', borderRadius: 6, border: '1px solid #D1D5DB',
-                      background: '#fff', color: '#374151', fontSize: '0.85rem', cursor: 'pointer',
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => handleRerunResearch('update')}
-                    style={{
-                      padding: '0.5rem 1rem', borderRadius: 6, border: '1px solid #2563EB',
-                      background: '#EFF6FF', color: '#2563EB', fontSize: '0.85rem', fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Update Parameters First
-                  </button>
-                  <button
-                    onClick={() => handleRerunResearch('same')}
-                    style={{
-                      padding: '0.5rem 1rem', borderRadius: 6, border: 'none',
-                      background: '#DC2626', color: '#fff', fontSize: '0.85rem', fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Re-run with Same Parameters
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Re-run confirmation dialog now lives at the top level (R1) so it
+              works from both this button and the always-visible action bar. */}
 
           {/* ══════════════════════════════════════════════════════════
               SECTION 1 — Summary Panel with Tabs

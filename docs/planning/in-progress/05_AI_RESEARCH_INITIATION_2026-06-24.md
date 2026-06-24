@@ -23,10 +23,23 @@ change → typecheck + lint + commit + push → check box + note. All `[x]` → 
 
 ## Slice plan
 
-- [ ] **R1 — Clear "Start / Re-run analysis" action.** Surface a single, always-
+- [x] **R1 — Clear "Start / Re-run analysis" action.** Surface a single, always-
   visible primary action on the project page to initiate (or re-run) the AI
   pipeline, with a disabled/explained state when prerequisites (e.g. documents)
   are missing. Don't make the user hunt by workflow stage.
+  _Done 2026-06-24:_ added an always-visible **action bar** directly under the
+  pipeline stepper whose label/behavior derives from `project.status`: pre-analysis
+  → **"Start AI analysis"** (calls a new `handleStartAnalysis` that mirrors Stage 1's
+  initiate — seeds search params, flags auto-start, moves to the research stage so
+  `ResearchRunPanel` fires on mount), **disabled with an explanation** when there's
+  no address/parcel id and no document; while running → a spinner + "analysis is
+  running" note; post-analysis → **"Re-run analysis"**. The re-run confirm dialog was
+  lifted from the Review block to the top level so it works from the action bar in
+  any stage. Added `.research-action-bar` styling (44px button, full-width on
+  phones). tsc + lint clean. _Note: the `[projectId]` page is a dynamic, project-
+  stateful route not mountable in the ux-harness like the list page, so this reuses
+  the already-proven initiate/re-run code paths and is verified by typecheck/lint +
+  review rather than a 390px screenshot._
 - [ ] **R2 — Mobile new-project + upload.** Make the "+ New Research Project"
   form and the document upload usable at 390px (stacked fields, tap-friendly file
   input/drop area, no overflow). Verify via `ux-harness?page=research`.
