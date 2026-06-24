@@ -5,7 +5,9 @@
 > or out of place. Every page, button, field, text, and interface looks good at
 > 360–430px wide.
 
-**Status:** 🟡 In progress — auditing in slices.
+**Status:** 🟢 Audit complete + layout/overflow build-out complete (55/55 tables
+wrapped, all fixed grids handled, tsc+ESLint green). Remaining: optional finer
+visual polish (tap targets, spacing, text scale) via seeded-data screenshots.
 **Owner:** mobile build-out effort (2026-06).
 **Primary viewport:** 390 × 844 (iPhone 12/13/14). **Stress viewport:** 360 × 800 (small Android).
 
