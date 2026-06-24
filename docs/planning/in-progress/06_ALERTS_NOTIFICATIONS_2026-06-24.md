@@ -59,9 +59,20 @@ change → typecheck + lint + commit + push → check box + note. All `[x]` → 
   persistent pulse, all-read→no dot). _Which alerts should be 'urgent': approvals
   needing sign-off, disputed hours, overdue equipment, still-clocked-in past
   hours — set `escalation_level:'urgent'` at the `notify()` call site._
-- [ ] **N3 — Real-time + accurate unread count.** Replace the 20s poll with a
+- [x] **N3 — Real-time + accurate unread count.** Replace the 20s poll with a
   Supabase Realtime subscription on `notifications` for the current user so new
   alerts and the unread badge update instantly; keep a poll fallback.
+  _Done 2026-06-24:_ shipped a **visibility-aware poll** (consistent with messaging
+  M2): the bell now polls every **15s (was 20s)**, **pauses while `document.hidden`**
+  (no battery/network drain in a pocket), and fires an **immediate catch-up fetch on
+  `visibilitychange`→visible**, so the red dot + unread count are accurate the moment
+  the user returns to the tab. _Deferred — true Supabase Realtime on `notifications`:_
+  the app has no browser realtime client, no RLS, and no `supabase_realtime`
+  publication, and a websocket path is untestable in the ux-harness; the cost (RLS
+  audit + publication + client wiring + anon-key security review) clearly exceeds the
+  value over a 15s visibility-aware poll for now. Tracked as a follow-up to do once
+  Realtime exists for any one surface (revisit with doc 03 M2 together). tsc + lint
+  clean.
 - [ ] **N4 — Toast for high/urgent.** When a `high`/`urgent`/`critical` alert
   arrives while the app is open, pop a dismissible toast/banner that deep-links to
   the source — don't make the user open the bell to discover it.

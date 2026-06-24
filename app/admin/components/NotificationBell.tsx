@@ -79,11 +79,25 @@ export default function NotificationBell() {
     } catch { /* silent */ }
   }, [session, filter]);
 
-  // Poll every 20 seconds
+  // N3 — near-real-time unread without a full Supabase Realtime stack. Poll
+  // every 15s, but PAUSE while the tab is hidden (no drain in a pocket) and fire
+  // an immediate catch-up fetch the moment the tab returns to foreground so the
+  // dot + unread count are accurate on return.
+  // Deferred — true Supabase Realtime on `notifications`: the app has no browser
+  // realtime client / RLS / publication, and a websocket path is untestable in the
+  // harness; the cost clearly exceeds the value over this poll for now. Revisit
+  // alongside messaging (doc 03 M2) when Realtime is added for one surface.
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 20000);
-    return () => clearInterval(interval);
+    const interval = setInterval(() => {
+      if (!document.hidden) fetchNotifications();
+    }, 15000);
+    const onVisible = () => { if (!document.hidden) fetchNotifications(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [fetchNotifications]);
 
   // Close dropdown on outside click
