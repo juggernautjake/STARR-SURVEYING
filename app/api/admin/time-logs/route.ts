@@ -409,7 +409,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   return NextResponse.json({ log: data });
 }, { routeName: 'time-logs' });
 
-// DELETE: Remove a pending time log (employee own, or admin any)
+// DELETE: Remove a pending/rejected time log (employee own, or admin any)
 export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -430,8 +430,12 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   if (!admin && existing.user_email !== session.user.email) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
-  if (!admin && existing.status !== 'pending') {
-    return NextResponse.json({ error: 'Can only delete pending entries' }, { status: 400 });
+  // Employees may remove their own pending OR rejected logs — a rejected
+  // log is theirs to fix (the my-hours "edit & resubmit" flow deletes the
+  // old editable rows and re-creates them). Approved/adjusted/disputed logs
+  // are locked and can only be changed by an admin.
+  if (!admin && existing.status !== 'pending' && existing.status !== 'rejected') {
+    return NextResponse.json({ error: 'Can only delete pending or rejected entries' }, { status: 400 });
   }
 
   const { error } = await supabaseAdmin.from('daily_time_logs').delete().eq('id', id);

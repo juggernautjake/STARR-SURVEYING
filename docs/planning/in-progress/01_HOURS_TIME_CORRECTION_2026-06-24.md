@@ -52,12 +52,20 @@ doc to `docs/planning/completed/`. Keep desktop intact; verify mobile at 390px.
 
 ## Slice plan
 
-- [ ] **H1 — Employee "fix my hours" page: verify + make obvious.** Confirm
+- [x] **H1 — Employee "fix my hours" page: verify + make obvious.** Confirm
   end-to-end that an employee can pick **any day** (incl. past days), see existing
   entries pre-filled, add rows, remove rows, and resubmit (MyHoursPanel +
   POST/PUT/DELETE). Tighten the UX so "I forgot to clock in/out — add/remove
   hours" is obvious: clear day picker, an explicit "Add hours" and per-row
   "Remove", and a short helper line. Verify at 390px via `ux-harness?page=my-hours`.
+  _Done 2026-06-24:_ added a "Forgot to clock in/out?" helper line; fixed a
+  duplicate-hours footgun — the form now pre-fills only **editable** (pending/
+  rejected) logs and shows approved/adjusted/disputed logs **read-only** ("ask
+  your manager to adjust") so re-submitting an approved day can't create duplicate
+  pending rows; resubmit now replaces pending **and** rejected rows (DELETE route
+  now lets an owner delete their own rejected logs); employees can still add new
+  hours to a day that already has approved entries. Verified at 390px (0 overflow):
+  approved day shows the locked list, rejected day shows "Update & Resubmit".
 - [ ] **H2 — Notify employee on admin adjustment.** Make the single-entry
   `adjust` action notify the affected employee with the **reason**
   (`adjustment_note`) and old→new hours. Reuse/extend `buildHoursDecisionNotifications`

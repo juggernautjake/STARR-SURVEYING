@@ -536,3 +536,57 @@
   .tl-day-btn__name { font-size: 0.6rem; }
   .tl-day-btn__date { font-size: 0.9rem; }
 }
+
+/* "Fix my hours" helper + read-only locked entries (H1) */
+.tl-log-help {
+  margin: 0 0 0.85rem;
+  padding: 0.6rem 0.75rem;
+  background: #F0F9FF;
+  border: 1px solid #BAE6FD;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: #0C4A6E;
+}
+
+.tl-locked-list {
+  margin: 0 0 0.85rem;
+  padding: 0.5rem 0.6rem;
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+}
+
+.tl-locked-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.1rem;
+}
+
+.tl-locked-row + .tl-locked-row {
+  border-top: 1px solid #F1F5F9;
+}
+
+.tl-locked-row__hours {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: #1F2937;
+}
+
+.tl-locked-row__desc {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #4B5563;
+  font-size: 0.88rem;
+}
+
+.tl-locked-note {
+  margin: 0.4rem 0 0.1rem;
+  font-size: 0.76rem;
+  color: #6B7280;
+}
