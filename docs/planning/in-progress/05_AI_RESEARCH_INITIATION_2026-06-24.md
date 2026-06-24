@@ -40,9 +40,18 @@ change → typecheck + lint + commit + push → check box + note. All `[x]` → 
   stateful route not mountable in the ux-harness like the list page, so this reuses
   the already-proven initiate/re-run code paths and is verified by typecheck/lint +
   review rather than a 390px screenshot._
-- [ ] **R2 — Mobile new-project + upload.** Make the "+ New Research Project"
+- [x] **R2 — Mobile new-project + upload.** Make the "+ New Research Project"
   form and the document upload usable at 390px (stacked fields, tap-friendly file
   input/drop area, no overflow). Verify via `ux-harness?page=research`.
+  _Done 2026-06-24:_ audited at 390px in the harness — the create modal already
+  renders well (358px wide, full-width stacked fields, 45px inputs, City/ZIP +
+  County/State 2-col rows fit, 0px overflow) and the list header buttons/status
+  chips wrap cleanly with 0 overflow, so no layout changes were needed there. For
+  the document upload (project-page `DocumentUploadPanel`): the dropzone is already
+  a large tap target that opens the native picker on tap (`accept` covers PDF/
+  images/HEIC/DOCX, `multiple`), so the only fix was making the copy touch-aware —
+  "**Tap to add files — or drag & drop**" instead of "click to browse". Verified
+  list + modal at 390px (screenshots, 0px overflow). tsc + lint clean.
 - [ ] **R3 — Live progress UI.** Show a clear stage + percentage progress bar and
   status message while the pipeline runs; harden the polling for mobile
   backgrounding (resume on focus) or move to a Supabase Realtime subscription on

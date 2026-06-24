@@ -356,7 +356,7 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
             ? 'Uploading...'
             : dragOver
               ? 'Drop files here'
-              : 'Drop files here or click to browse'}
+              : 'Tap to add files — or drag & drop'}
         </div>
         <div className="research-upload__dropzone-hint">
           PDF, PNG, JPG, TIFF, BMP, GIF, HEIC, DOCX, TXT, RTF — up to 50 MB each
