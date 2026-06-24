@@ -383,7 +383,7 @@
 .admin-topbar__left { display:flex; align-items:center; gap:1rem; }
 .admin-topbar__hamburger { display:none; align-items:center; justify-content:center; width:36px; height:36px; background:none; border:2px solid #E5E7EB; border-radius:6px; color:#4B5563; font-size:1.25rem; cursor:pointer; }
 .admin-topbar__hamburger:hover { border-color:var(--color-brand-navy); color:var(--color-brand-navy); }
-.admin-topbar__title { font-family:'Sora',sans-serif; font-size:1.15rem; font-weight:600; color:#0F1419; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.admin-topbar__title { margin:0; font-family:'Sora',sans-serif; font-size:1.15rem; font-weight:600; color:#0F1419; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
 .admin-topbar__right { display:flex; align-items:center; gap:.75rem; min-width:0; flex-shrink:1; }
 .admin-topbar__role-badge { display:inline-flex; align-items:center; padding:.25rem .65rem; border-radius:20px; font-family:'Inter',sans-serif; font-size:.7rem; font-weight:600; text-transform:uppercase; letter-spacing:.3px; }
 .admin-topbar__role-badge--admin { background:#FEF2F2; color:var(--color-brand-red); border:1px solid #FECACA; }

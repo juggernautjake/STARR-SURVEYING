@@ -9,13 +9,13 @@ import NotificationBell from './NotificationBell';
 import ClockInPill from './ClockInPill';
 import InitialAvatar from './InitialAvatar';
 
-import { ROLE_LABELS, type UserRole } from '@/lib/auth';
+import type { UserRole } from '@/lib/auth';
 import { RouteIcon } from '@/lib/admin/route-icons';
 import { Menu, Star } from 'lucide-react';
 
 interface AdminTopBarProps { title: string; role: UserRole; onMenuToggle: () => void; }
 
-export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarProps) {
+export default function AdminTopBar({ title, onMenuToggle }: AdminTopBarProps) {
   const { data: session } = useSession();
   const pathname = usePathname();
   const [xp, setXp] = useState<{ current: number; total: number } | null>(null);
@@ -43,7 +43,7 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
 
   const userName = session?.user?.name || 'User';
 
-  function UserMenu({ userName, role }: { userName: string; role: UserRole }) {
+  function UserMenu({ userName }: { userName: string }) {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
@@ -101,14 +101,11 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
               overflow: 'hidden',
             }}
           >
-            {/* Identity header — the name + role live here now, not in the
-                top bar (which just shows the circular avatar). */}
+            {/* Identity header — just the name + avatar. Roles aren't shown in
+                the top bar or this menu; they live in profile / settings. */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.7rem 0.85rem', borderBottom: '1px solid var(--theme-border)' }}>
               <InitialAvatar name={userName} size={32} />
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--theme-fg-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userName}</div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--theme-fg-secondary)' }}>{ROLE_LABELS[role] ?? role}</div>
-              </div>
+              <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--theme-fg-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{userName}</div>
             </div>
             <Link
               role="menuitem"
@@ -193,7 +190,7 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
           </Link>
         )}
         <NotificationBell />
-        <UserMenu userName={userName} role={role} />
+        <UserMenu userName={userName} />
       </div>
     </header>
   );
