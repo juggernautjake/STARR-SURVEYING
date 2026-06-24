@@ -81,5 +81,17 @@ change → typecheck + lint + commit + push → check box + note. All `[x]` → 
   exportable right where you review them, with a clear path to the drawing export.
   44px touch targets, full-width buttons on phones. tsc + lint clean. _(Project-page
   dynamic route — verified by typecheck/lint + review.)_
-- [ ] **R5 — Findability.** Ensure "Research" / "Start research" is an obvious
+- [x] **R5 — Findability.** Ensure "Research" / "Start research" is an obvious
   entry point (nav + hub/command-palette) and the list page reads well on mobile.
+  _Done 2026-06-24:_ "Property Research" is already a sidebar nav item; added a
+  **"Start research"** action to the command palette (`/admin/research?new=1`,
+  keywords research/new/create/start/property/recon/analyze, Microscope icon, gated
+  to research-capable roles) so it surfaces as a quick Action, not just a page. The
+  list page now reads `?new=1` and **auto-opens the create modal**, so the palette
+  action drops the user straight into a new project. List mobile readability was
+  confirmed in R2 (wrapping header/chips, stacked cards, 0px overflow). Verified the
+  deep-link opens the modal at 390px. tsc + lint clean.
+
+## Status: ✅ complete — all slices shipped (R1 action bar, R2 mobile new-project/
+## upload, R3 progress bar + resume-on-focus, R4 export bar, R5 findability).
+## Moved to completed/.

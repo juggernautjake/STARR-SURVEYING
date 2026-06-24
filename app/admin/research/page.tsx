@@ -2,7 +2,7 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { usePageError } from '../hooks/usePageError';
 import type { ResearchProject, WorkflowStep } from '@/types/research';
 import { WORKFLOW_STEPS } from '@/types/research';
@@ -22,6 +22,7 @@ const STATUS_LABELS: Record<WorkflowStep, string> = {
 export default function ResearchListPage() {
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { reportPageError } = usePageError('ResearchListPage');
 
   const [projects, setProjects] = useState<ResearchProject[]>([]);
@@ -53,6 +54,12 @@ export default function ResearchListPage() {
       router.replace('/admin/dashboard');
     }
   }, [sessionStatus, canAccessResearch, router]);
+
+  // R5 — findability: the command-palette "Start research" action deep-links
+  // here with ?new=1 to open the create modal straight away.
+  useEffect(() => {
+    if (searchParams?.get('new') === '1') setShowCreate(true);
+  }, [searchParams]);
 
   // Debounced search: auto-reload 400ms after typing stops
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
