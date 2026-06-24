@@ -31,11 +31,22 @@ import {
 import { useActivityTags } from '@/lib/work-mode/use-activity-tags';
 import type { UserRole } from '@/lib/auth';
 
+/** "4h 30m" / "45m" from a number of hours. */
+function formatHoursLabel(hours: number): string {
+  const mins = Math.max(0, Math.round(hours * 60));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  return `${m}m`;
+}
+
 export default function ClockInPill() {
   const { data: session } = useSession();
   const [active, setActive] = useState<ClockSession | null>(null);
   const [now, setNow] = useState<number>(Date.now());
   const [modal, setModal] = useState<'none' | 'in' | 'out'>('none');
+  // Transient "you're clocked out, here's what got logged" confirmation.
+  const [confirmation, setConfirmation] = useState<string | null>(null);
   // Preloaded + cached across all clock surfaces so the modal opens with its
   // tags already present (no empty→filled reflow on open).
   const catalog = useActivityTags();
@@ -103,20 +114,36 @@ export default function ClockInPill() {
           activity_tag_ids: [...new Set([...active.tagIds, ...tagIds])],
         }];
 
+    let ok = false;
     try {
-      await fetch('/api/admin/time-logs', {
+      const res = await fetch('/api/admin/time-logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ entries }),
       });
+      ok = res.ok;
     } catch {
       /* swallow — clearing the session is the safer outcome than leaving the user "stuck on" */
     }
 
+    const totalLogged = totalAllocated > 0 ? totalAllocated : elapsed;
     clearClockSession();
     setActive(null);
     setModal('none');
+    // Confirm it saved so the user knows their hours were recorded.
+    setConfirmation(
+      ok
+        ? `Clocked out — ${formatHoursLabel(totalLogged)} logged. Pending approval.`
+        : `Clocked out — couldn't save your hours. Add them on the My Hours page.`,
+    );
   }, [active]);
+
+  // Auto-dismiss the clock-out confirmation.
+  useEffect(() => {
+    if (!confirmation) return;
+    const t = setTimeout(() => setConfirmation(null), 6000);
+    return () => clearTimeout(t);
+  }, [confirmation]);
 
   if (!isWorkModeEligible(roles)) return null;
 
@@ -184,6 +211,51 @@ export default function ClockInPill() {
           suggestedAllocations={active.jobId ? { [active.jobId]: elapsedHours(active.startedAt) } : {}}
         />
       )}
+
+      {confirmation && (
+        <div role="status" style={confirmToastStyle}>
+          <span aria-hidden style={{ fontSize: '0.9em' }}>✓</span>
+          <span>{confirmation}</span>
+          <button
+            type="button"
+            onClick={() => setConfirmation(null)}
+            aria-label="Dismiss"
+            style={confirmDismissStyle}
+          >
+            ×
+          </button>
+        </div>
+      )}
     </>
   );
 }
+
+const confirmToastStyle: React.CSSProperties = {
+  position: 'fixed',
+  top: 'max(64px, calc(env(safe-area-inset-top) + 56px))',
+  right: 12,
+  left: 'auto',
+  maxWidth: 'min(360px, calc(100vw - 24px))',
+  zIndex: 70,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '10px 12px',
+  borderRadius: 8,
+  background: 'color-mix(in srgb, var(--theme-success, #059669) 14%, var(--theme-bg-surface, #fff))',
+  border: '1px solid var(--theme-success, #059669)',
+  color: 'var(--theme-fg-primary, #0f1419)',
+  fontSize: '0.85rem',
+  boxShadow: '0 6px 20px rgba(0,0,0,0.14)',
+};
+
+const confirmDismissStyle: React.CSSProperties = {
+  marginLeft: 'auto',
+  background: 'transparent',
+  border: 'none',
+  color: 'var(--theme-fg-secondary, #6b7280)',
+  fontSize: '1.05rem',
+  lineHeight: 1,
+  cursor: 'pointer',
+  padding: 2,
+};

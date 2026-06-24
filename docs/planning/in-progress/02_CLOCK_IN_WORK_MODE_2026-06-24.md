@@ -53,9 +53,16 @@ in. C1 makes `job_time_entries` the authoritative open-session record.
   ClockInPill mount). Repointed the H7 reminder cron from `job_time_entries` to
   `active_clock_sessions`. tsc + eslint clean. _(DB-dependent; the API GET
   fail-opens to `session: null` until the migration is applied.)_
-- [ ] **C2 — Clock-out confirmation summary.** After clock-out, show a short
+- [x] **C2 — Clock-out confirmation summary.** After clock-out, show a short
   confirmation ("You worked 4h 30m — logged to Job #42, pending approval") so the
   user knows it saved. Wire to the finalize response.
+  _Done 2026-06-24:_ the top-bar `ClockInPill` clock-out now tracks the finalize
+  `res.ok` and shows a transient, auto-dismissing (6s) toast — "Clocked out — Xh Ym
+  logged. Pending approval." on success, or a "couldn't save — add them on the My
+  Hours page" fallback so a failed POST isn't silent. Themed success toast, fixed
+  top-right, responsive width, dismissible. tsc + eslint clean. _(Verified by
+  review — the harness doesn't surface the AdminLayoutClient top-bar pill for a
+  clean clock-in→out E2E; the toast is simple state-driven UI.)_
 - [x] **C3 — Mobile polish: clock pill + modals.** ClockInModal / ClockOutModal
   and the activity-tag picker must be touch-friendly and fit 390px (full-width
   controls, 44px targets, no horizontal overflow). Verify at 390px.
