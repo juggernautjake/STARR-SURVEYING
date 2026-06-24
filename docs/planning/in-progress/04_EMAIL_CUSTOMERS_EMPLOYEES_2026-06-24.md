@@ -42,9 +42,18 @@ change → typecheck + lint + commit + push → check box + note. All `[x]` → 
   first open. The raw `type="email"` input stays editable so free-text still works.
   Verified at 390px: picker opens, tab switch swaps lists, tapping a customer fills
   `to`, 0px overflow.
-- [ ] **EM3 — Templates.** A small set of reusable templates (e.g. job update,
+- [x] **EM3 — Templates.** A small set of reusable templates (e.g. job update,
   quote follow-up, schedule reminder) that pre-fill subject + body with simple
   placeholders the sender can edit before sending.
+  _Done 2026-06-24:_ added `lib/email/templates.ts` — a pure, unit-tested catalog
+  of 4 templates (job update, quote follow-up, schedule reminder, crew dispatch)
+  with `[Placeholder]` tokens, plus `getEmailTemplate(id)` and a
+  case-insensitive `fillTemplate(text, values)` that leaves unknown/empty
+  placeholders intact (`__tests__/email/templates.test.ts`, 5 passing). The composer
+  gained a **"Start from a template…"** dropdown above Subject; choosing one fills
+  subject + body (confirms before clobbering an existing draft). Verified at 390px:
+  selecting "schedule reminder" populated subject + a 264-char body with
+  placeholders preserved, 0px overflow.
 - [ ] **EM4 — Multi-recipient / role send.** Allow sending to several recipients
   or a role (e.g. all field crew) in one action; record each send. Guard against
   accidental large sends (confirm count).

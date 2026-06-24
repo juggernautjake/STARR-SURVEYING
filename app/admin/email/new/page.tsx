@@ -18,6 +18,7 @@ import {
   readActiveRecipient,
   saveActiveRecipient,
 } from '@/lib/employee-pond/messenger-recipient';
+import { EMAIL_TEMPLATES, getEmailTemplate } from '@/lib/email/templates';
 
 type SendState = 'idle' | 'sending' | 'sent' | 'error';
 interface Recipient { name: string; email: string }
@@ -81,6 +82,21 @@ export default function NewEmailPage() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return;
     saveActiveRecipient(to);
   }, [to]);
+
+  // EM3 — apply a template into subject + body. If the user already typed
+  // something, confirm before overwriting so we don't clobber a draft.
+  const applyTemplate = useCallback((id: string) => {
+    if (!id) return;
+    const tpl = getEmailTemplate(id);
+    if (!tpl) return;
+    const hasDraft = subject.trim() !== '' || body.trim() !== '';
+    if (hasDraft && typeof window !== 'undefined' &&
+        !window.confirm('Replace the current subject and message with this template?')) {
+      return;
+    }
+    setSubject(tpl.subject);
+    setBody(tpl.body);
+  }, [subject, body]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent<HTMLFormElement>) => {
@@ -207,6 +223,20 @@ export default function NewEmailPage() {
             </div>
           )}
         </div>
+        <label className="email-compose__field">
+          <span>Template</span>
+          <select
+            className="email-compose__template-select"
+            data-testid="email-compose-template"
+            defaultValue=""
+            onChange={(e) => { applyTemplate(e.target.value); e.target.value = ''; }}
+          >
+            <option value="">Start from a template…</option>
+            {EMAIL_TEMPLATES.map((t) => (
+              <option key={t.id} value={t.id}>{t.label} — {t.description}</option>
+            ))}
+          </select>
+        </label>
         <label className="email-compose__field">
           <span>Subject</span>
           <input
