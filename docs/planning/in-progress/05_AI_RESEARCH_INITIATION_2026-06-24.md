@@ -52,10 +52,22 @@ change → typecheck + lint + commit + push → check box + note. All `[x]` → 
   images/HEIC/DOCX, `multiple`), so the only fix was making the copy touch-aware —
   "**Tap to add files — or drag & drop**" instead of "click to browse". Verified
   list + modal at 390px (screenshots, 0px overflow). tsc + lint clean.
-- [ ] **R3 — Live progress UI.** Show a clear stage + percentage progress bar and
+- [x] **R3 — Live progress UI.** Show a clear stage + percentage progress bar and
   status message while the pipeline runs; harden the polling for mobile
   backgrounding (resume on focus) or move to a Supabase Realtime subscription on
   the project row. A finished run shows a clear "complete" state.
+  _Done 2026-06-24:_ added a **determinate progress bar** to `ResearchRunPanel`
+  driven by the existing micro-stage model — `progressPct` maps the current stage's
+  index across the 8 `MICRO_STAGES` (clamped 6–96% while running, pinned 100% on
+  success), with a "step N of 8" label, a gradient fill (blue running → green done
+  → red failed) and an accessible `role="progressbar"`. The existing spinner /
+  headline / elapsed timer / animated message / "Research Complete" state stay.
+  Mobile backgrounding hardening: a `visibilitychange` listener fires an **immediate
+  catch-up `pollStatus()` + document fetch** when the tab returns to foreground (phone
+  browsers throttle/suspend `setInterval` when hidden), so progress re-syncs on
+  return instead of showing stale state. tsc + lint clean. _(Project-page dynamic
+  route, not harness-mountable — verified by typecheck/lint + review; reuses existing
+  poll plumbing.)_
 - [ ] **R4 — Results & export.** When analysis completes, give one place to review
   outputs and export (PDF / drawing / data) without hopping across subpages.
 - [ ] **R5 — Findability.** Ensure "Research" / "Start research" is an obvious

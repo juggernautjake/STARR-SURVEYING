@@ -678,6 +678,13 @@ export default function ResearchRunPanel({
   // ── Current Stage Label ────────────────────────────────────────────────────
 
   const stageDef = MICRO_STAGES.find(s => s.id === currentMicroStage) ?? MICRO_STAGES[0];
+  const stageNumber = Math.max(0, MICRO_STAGES.findIndex(s => s.id === currentMicroStage));
+
+  // R3 — determinate progress %: map the current micro-stage to its position in
+  // the ordered MICRO_STAGES list. A finished success pins to 100%.
+  const progressPct = isSuccess
+    ? 100
+    : Math.min(96, Math.max(6, Math.round(((stageNumber + 1) / MICRO_STAGES.length) * 100)));
 
   // Whether the component is in an idle state (no pipeline started, or page refreshed with no active run)
   const isIdle = pipelineStatus === null && !started;
@@ -724,6 +731,22 @@ export default function ResearchRunPanel({
       }
     }
   }, [isDone, fetchDocuments]);
+
+  // R3 — mobile backgrounding hardening. Phone browsers throttle/suspend
+  // setInterval timers when the tab is hidden (screen off, app switch), so the
+  // progress can go stale. When the tab becomes visible again, immediately fire
+  // a catch-up status + documents poll so the user sees current state on return.
+  useEffect(() => {
+    function onVisible() {
+      if (document.hidden) return;
+      if (pipelineStatus === 'running' || pipelineStatus === 'starting') {
+        pollStatus();
+        fetchDocuments(false);
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [pipelineStatus, pollStatus, fetchDocuments]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -840,7 +863,23 @@ export default function ResearchRunPanel({
         </div>
 
         {/* Current micro-stage */}
-        <div className="rrp__progress-stage">{stageDef.label}</div>
+        <div className="rrp__progress-stage">
+          {stageDef.label}
+          {!isDone && <span className="rrp__progress-stage-of"> · step {stageNumber + 1} of {MICRO_STAGES.length}</span>}
+        </div>
+
+        {/* R3 — determinate progress bar */}
+        <div
+          className={`rrp__progressbar${isDone && !isSuccess ? ' rrp__progressbar--failed' : ''}`}
+          role="progressbar"
+          aria-valuenow={progressPct}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Research progress"
+        >
+          <div className="rrp__progressbar-fill" style={{ width: `${progressPct}%` }} />
+          <span className="rrp__progressbar-pct">{progressPct}%</span>
+        </div>
 
         {/* Current message with animated ellipsis */}
         {!isDone && (
@@ -1153,6 +1192,38 @@ export default function ResearchRunPanel({
 }
 .rrp__progress--success .rrp__progress-stage { color: #059669; }
 .rrp__progress--failed  .rrp__progress-stage { color: #dc2626; }
+.rrp__progress-stage-of { color: #94a3b8; font-weight: 500; }
+
+/* R3 — determinate progress bar */
+.rrp__progressbar {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  height: 14px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 0.15rem 0 0.25rem;
+}
+.rrp__progressbar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #2563eb);
+  border-radius: 999px;
+  transition: width 0.5s ease;
+}
+.rrp__progress--success .rrp__progressbar-fill { background: linear-gradient(90deg, #10b981, #059669); }
+.rrp__progressbar--failed .rrp__progressbar-fill { background: linear-gradient(90deg, #f87171, #dc2626); }
+.rrp__progressbar-pct {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #1e293b;
+  font-variant-numeric: tabular-nums;
+}
 
 .rrp__progress-msg {
   font-size: 0.9rem; color: #475569; max-width: 56ch;
