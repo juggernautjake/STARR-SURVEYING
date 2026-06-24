@@ -211,6 +211,12 @@ export default function HoursApprovalPage() {
       });
       await loadData();
     } else {
+      if (action === 'adjust') {
+        // Pre-fill the current hours so the admin edits from the real value.
+        const log = logs.find((l) => l.id === logId);
+        setAdjustHours(log ? String(log.adjusted_hours ?? log.hours) : '');
+        setAdjustNote('');
+      }
       setActionModal({ type: action, logId });
     }
   };
@@ -224,13 +230,22 @@ export default function HoursApprovalPage() {
         body: JSON.stringify({ id: actionModal.logId, action: 'reject', rejection_reason: rejectReason }),
       });
     } else {
+      const hrs = parseFloat(adjustHours);
+      if (!Number.isFinite(hrs) || hrs <= 0 || hrs > 24) {
+        alert('Enter the corrected hours (between 0 and 24).');
+        return;
+      }
+      if (!adjustNote.trim()) {
+        alert('Please add a reason for the adjustment — the employee is notified of the change and your reason.');
+        return;
+      }
       await fetch('/api/admin/time-logs', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: actionModal.logId, action: 'adjust',
-          adjusted_hours: parseFloat(adjustHours),
-          adjustment_note: adjustNote,
+          adjusted_hours: hrs,
+          adjustment_note: adjustNote.trim(),
         }),
       });
     }
@@ -497,11 +512,18 @@ export default function HoursApprovalPage() {
                       </div>
 
                       {/* Actions */}
-                      {(log.status === 'pending' || log.status === 'disputed') && (
+                      {(log.status === 'pending' || log.status === 'disputed') ? (
                         <div className="tl-approval-entry__actions">
                           <button className="tl-btn tl-btn--sm tl-btn--primary" onClick={() => singleAction(log.id, 'approve')}>Approve</button>
                           <button className="tl-btn tl-btn--sm" onClick={() => singleAction(log.id, 'adjust')}>Adjust</button>
                           <button className="tl-btn tl-btn--sm tl-btn--danger" onClick={() => singleAction(log.id, 'reject')}>Reject</button>
+                        </div>
+                      ) : (
+                        // Already approved/adjusted/rejected: an admin can still
+                        // revise any employee's hours (with a reason; they're
+                        // notified). H3 of the hours-correction plan.
+                        <div className="tl-approval-entry__actions">
+                          <button className="tl-btn tl-btn--sm" onClick={() => singleAction(log.id, 'adjust')}>Adjust</button>
                         </div>
                       )}
                     </div>
@@ -656,9 +678,10 @@ export default function HoursApprovalPage() {
                   <input type="number" min="0.25" max="24" step="0.25" value={adjustHours} onChange={(e) => setAdjustHours(e.target.value)} placeholder="New hour amount" />
                 </div>
                 <div className="tl-form-group">
-                  <label>Note (explain adjustment)</label>
+                  <label>Reason for adjustment (required)</label>
                   <textarea value={adjustNote} onChange={(e) => setAdjustNote(e.target.value)} placeholder="Explain the adjustment..." rows={2} />
                 </div>
+                <p className="tl-modal__hint">The employee is notified of this change and your reason.</p>
               </>
             )}
             <div className="tl-modal__actions">

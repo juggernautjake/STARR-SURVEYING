@@ -537,6 +537,13 @@
   .tl-day-btn__date { font-size: 0.9rem; }
 }
 
+/* Adjustment modal hint (H3) */
+.tl-modal__hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  color: #6B7280;
+}
+
 /* "Fix my hours" helper + read-only locked entries (H1) */
 .tl-log-help {
   margin: 0 0 0.85rem;

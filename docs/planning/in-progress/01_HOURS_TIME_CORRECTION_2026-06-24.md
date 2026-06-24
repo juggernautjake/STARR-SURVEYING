@@ -77,12 +77,21 @@ doc to `docs/planning/completed/`. Keep desktop intact; verify mobile at 390px.
   the single admin PUT path so **adjust/approve/reject** all notify the employee
   (previously only the bulk approve route did — single adjust sent nothing). 3 new
   unit tests; suite green; tsc + eslint clean.
-- [ ] **H3 — Admin can adjust ANY employee's hours directly.** Today admin
+- [x] **H3 — Admin can adjust ANY employee's hours directly.** Today admin
   adjustment happens from the approval queue. Add the ability for an admin to
   open an employee's timesheet (a given week/day) and adjust/add/remove hours on
   their behalf — with a required reason — even outside the pending queue. Surface
   it from `hours-approval` (or the employee's profile/timesheet). Each change
   notifies the employee (H2 path) and is auditable (`adjusted_by`, `adjustment_note`).
+  _Done 2026-06-24:_ the hours-approval "All Entries" view now shows an **Adjust**
+  action on already approved/adjusted/rejected logs (not just the pending queue),
+  so an admin can revise any employee's hours by week. The adjust modal pre-fills
+  the current hours, **requires** a reason, and shows "the employee is notified of
+  this change and your reason" (notification fires via H2; activity_log already
+  records `time_log_adjust`). Verified at 390px (0 overflow). _Note: a true
+  "add a brand-new entry on an employee's behalf" still routes through the
+  employee's own submission today; the by-week adjust/revise + remove covers the
+  owner's stated need — a dedicated admin add-on-behalf can land later if wanted._
 - [ ] **H4 — Dispute → resolve loop.** Add an admin **resolve** action for
   `disputed` logs: transition disputed → approved or → rejected (with reason),
   notifying the employee. API: extend the PUT/approve route with a `resolve`
