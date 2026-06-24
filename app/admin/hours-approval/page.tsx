@@ -80,6 +80,12 @@ function getMonday(d: Date): Date {
   return mon;
 }
 
+function addDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().split('T')[0];
+}
+
 function formatDate(iso: string) {
   return new Date(iso + 'T00:00:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 }
@@ -106,6 +112,8 @@ export default function HoursApprovalPage() {
   // unseen). The comma list is expanded server-side into an IN() filter.
   const [filterStatus, setFilterStatus] = useState('pending,disputed');
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()).toISOString().split('T')[0]);
+  // H6 — whether THIS week (weekStart .. weekStart+6) is locked for editing.
+  const [weekLock, setWeekLock] = useState<{ period_start: string; period_end: string; locked_by: string } | null>(null);
 
   // Reject/adjust modal
   const [actionModal, setActionModal] = useState<{ type: 'reject' | 'adjust'; logId: string } | null>(null);
@@ -147,12 +155,39 @@ export default function HoursApprovalPage() {
         const data = await bonRes.json();
         setBonuses(data.bonuses || []);
       }
+
+      // Lock state for the visible week.
+      const weekEnd = addDays(weekStart, 6);
+      const lockRes = await fetch(`/api/admin/time-logs/lock-period?from=${weekStart}&to=${weekEnd}`);
+      if (lockRes.ok) {
+        const data = await lockRes.json();
+        const exact = (data.locks || []).find(
+          (l: { period_start: string; period_end: string }) => l.period_start === weekStart && l.period_end === weekEnd,
+        );
+        setWeekLock(exact || null);
+      }
     } catch (err) {
       reportPageError(err instanceof Error ? err : new Error('Failed to load'));
     } finally {
       setLoading(false);
     }
   }, [filterEmail, filterStatus, weekStart, reportPageError]);
+
+  const toggleWeekLock = async () => {
+    const weekEnd = addDays(weekStart, 6);
+    if (weekLock) {
+      if (!confirm('Unlock this pay period so employees can edit their hours again?')) return;
+      await fetch(`/api/admin/time-logs/lock-period?period_start=${weekStart}&period_end=${weekEnd}`, { method: 'DELETE' });
+    } else {
+      if (!confirm('Lock this pay period? Employees will no longer be able to edit or add hours for this week (you can still adjust them).')) return;
+      await fetch('/api/admin/time-logs/lock-period', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period_start: weekStart, period_end: weekEnd }),
+      });
+    }
+    await loadData();
+  };
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -443,7 +478,20 @@ export default function HoursApprovalPage() {
               <option value="adjusted">Adjusted</option>
             </select>
           )}
+          {/* H6 — approve & lock the pay period (week) so employees can't edit it. */}
+          <button
+            className={`tl-btn tl-btn--sm ${weekLock ? 'tl-btn--danger' : 'tl-btn--primary'} tl-lock-btn`}
+            onClick={toggleWeekLock}
+            title={weekLock ? `Locked by ${weekLock.locked_by}` : 'Lock this week so employees can no longer edit it'}
+          >
+            {weekLock ? '🔒 Week locked — Unlock' : '🔓 Lock this week'}
+          </button>
         </div>
+      )}
+      {weekLock && (tab === 'pending' || tab === 'history') && (
+        <p className="tl-lock-note">
+          This pay period is locked — employees can&apos;t edit these hours. You can still adjust any entry (the employee is notified).
+        </p>
       )}
 
       {loading && <div className="tl-loading">Loading...</div>}

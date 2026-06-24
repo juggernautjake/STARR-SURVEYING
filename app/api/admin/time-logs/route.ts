@@ -8,6 +8,10 @@ import {
   buildHoursDecisionNotifications,
   buildHoursAdjustmentNotification,
 } from '@/lib/notifications/hours-decision';
+import { isDateLocked } from '@/lib/hours/period-lock';
+
+const LOCKED_MSG =
+  'That pay period is locked. Ask a manager to adjust these hours — they can revise locked entries.';
 
 interface WorkTypeRate { work_type: string; label: string; base_rate: number; icon: string; max_bonus_cap: number | null; bonus_multiplier: number | null }
 interface RoleTier { role_key: string; label: string; base_bonus: number; max_effective_rate: number | null }
@@ -251,6 +255,15 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
   }
 
+  // Employees can't submit/resubmit hours into a locked pay period.
+  if (!isAdmin(session.user.roles)) {
+    for (const date of hoursByDate.keys()) {
+      if (await isDateLocked(date)) {
+        return NextResponse.json({ error: LOCKED_MSG }, { status: 423 });
+      }
+    }
+  }
+
   const results = [];
   for (const entry of entries) {
     // Calculate pay rate for this entry
@@ -416,6 +429,9 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   if (existing.status !== 'pending' && existing.status !== 'rejected' && !admin) {
     return NextResponse.json({ error: 'Can only edit pending or rejected entries' }, { status: 400 });
   }
+  if (!admin && (await isDateLocked(existing.log_date))) {
+    return NextResponse.json({ error: LOCKED_MSG }, { status: 423 });
+  }
 
   const editUpdates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (updates.hours !== undefined) editUpdates.hours = updates.hours;
@@ -466,6 +482,9 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   // are locked and can only be changed by an admin.
   if (!admin && existing.status !== 'pending' && existing.status !== 'rejected') {
     return NextResponse.json({ error: 'Can only delete pending or rejected entries' }, { status: 400 });
+  }
+  if (!admin && (await isDateLocked(existing.log_date))) {
+    return NextResponse.json({ error: LOCKED_MSG }, { status: 423 });
   }
 
   const { error } = await supabaseAdmin.from('daily_time_logs').delete().eq('id', id);

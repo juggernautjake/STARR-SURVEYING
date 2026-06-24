@@ -121,12 +121,24 @@ doc to `docs/planning/completed/`. Keep desktop intact; verify mobile at 390px.
   (0 overflow). _Note: long_day uses the day-total heuristic rather than reading
   open `job_time_entries`; a direct open-session cross-check can be added once
   C1/H7 land the server clock-in row + the after-hours sweep._
-- [ ] **H6 — Pay-period approval + lock.** Model pay periods (or reuse payroll
+- [x] **H6 — Pay-period approval + lock.** Model pay periods (or reuse payroll
   run `pay_period_start/end`) and add an end-of-period **approve & lock** so a
   closed period's logs can't be edited by employees afterward (PUT/DELETE reject
   edits to logs in a locked period). Add a `period_locked_at`/`pay_period_id`
   column via a `seeds/` migration. Admin can still adjust locked logs (with reason
   + notify). Acceptance: after lock, employee edits are refused with a clear message.
+  _Done 2026-06-24:_ added `seeds/378_pay_period_locks.sql` (one row per locked
+  `[period_start, period_end]`), `lib/hours/period-lock.ts` (`isDateLocked` /
+  `locksOverlapping`, best-effort/fail-open so the app works pre-migration), and
+  `app/api/admin/time-logs/lock-period/route.ts` (admin GET/POST/DELETE).
+  Enforcement: the time-logs POST/PUT/DELETE now refuse **non-admin** edits whose
+  `log_date` is in a locked period (HTTP 423 + "Ask a manager to adjust these
+  hours"); admins remain able to adjust (via H2/H3, employee notified). UI: a
+  "Lock this week / Week locked — Unlock" toggle + a locked banner on
+  hours-approval, reflecting the visible week. Verified at 390px (0 overflow):
+  locked week shows the Unlock button + banner. _DB enforcement verified by code
+  review — the migration applies against the live Supabase, not the harness; the
+  helper fail-opens until then._
 - [ ] **H7 — 6pm still-clocked-in reminder.** Add `app/api/cron/clocked-in-after-hours/route.ts`
   (copy the assignments-due-reminder pattern: CRON_SECRET bearer auth). Query
   `job_time_entries WHERE end_time IS NULL` whose `start_time` is earlier today and

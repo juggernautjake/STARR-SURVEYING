@@ -537,6 +537,22 @@
   .tl-day-btn__date { font-size: 0.9rem; }
 }
 
+/* Pay-period lock control + note (H6) */
+.tl-lock-btn {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.tl-lock-note {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.75rem;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: #991B1B;
+}
+
 /* Per-employee conflict/totals flags (H5) */
 .tl-employee-group__flags {
   display: flex;
