@@ -56,9 +56,18 @@ in. C1 makes `job_time_entries` the authoritative open-session record.
 - [ ] **C2 — Clock-out confirmation summary.** After clock-out, show a short
   confirmation ("You worked 4h 30m — logged to Job #42, pending approval") so the
   user knows it saved. Wire to the finalize response.
-- [ ] **C3 — Mobile polish: clock pill + modals.** ClockInModal / ClockOutModal
+- [x] **C3 — Mobile polish: clock pill + modals.** ClockInModal / ClockOutModal
   and the activity-tag picker must be touch-friendly and fit 390px (full-width
   controls, 44px targets, no horizontal overflow). Verify at 390px.
+  _Done 2026-06-24:_ also fixed a user-reported "a modal flashes then another
+  renders over it" — root cause was the activity-tag catalog being lazy-fetched
+  **on modal open**, so the modal popped up empty and visibly reflowed as tags
+  arrived. Added a shared, module-cached `useActivityTags` hook that **preloads**
+  on mount and dedupes across all three clock surfaces (pill, WorkModePrompt,
+  quick-actions), so modals open fully-formed. Made the modal shell responsive
+  (`width: min(540px, 100vw-24px)`, scrollable, no 360px min that overflowed a
+  390px screen). Verified at 390px: single dialog, tags present immediately, no
+  overflow.
 - [ ] **C4 — Mobile polish: work-mode workspace.** The `/admin/work-mode/[role]`
   workspace must be usable at 390px (no desktop-only sidebar; responsive nav).
   Verify the enter→work→exit loop on a phone-sized viewport.

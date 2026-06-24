@@ -28,6 +28,7 @@ import {
   writeClockSession,
   type ClockSession,
 } from '@/lib/work-mode/clock-session';
+import { useActivityTags, type ActivityTag } from '@/lib/work-mode/use-activity-tags';
 import { gridCapacity, listCapacity, splitForCapacity } from './capacity';
 import {
   moveUp,
@@ -43,7 +44,6 @@ import {
   type QuickActionDef,
 } from '@/lib/hub/quick-actions-catalog';
 
-interface ActivityTag { id: string; label: string; color: string; }
 
 export interface QuickActionsContent extends Record<string, unknown> {
   /** Ordered list of action ids the user wants displayed. Defaults to
@@ -81,7 +81,8 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
   // through localStorage + the cross-tab `storage` event.
   const [clockSession, setClockSession] = useState<ClockSession | null>(null);
   const [clockModal, setClockModal] = useState<'none' | 'in' | 'out'>('none');
-  const [tagCatalog, setTagCatalog] = useState<ActivityTag[]>([]);
+  // Shared, preloaded catalog so the clock modal opens fully-formed.
+  const tagCatalog = useActivityTags();
 
   useEffect(() => {
     setClockSession(readClockSession());
@@ -91,24 +92,6 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, []);
-
-  // Lazy-load the activity-tag catalog the first time a clock modal
-  // opens — same pattern as ClockInPill.
-  useEffect(() => {
-    if (clockModal === 'none' || tagCatalog.length > 0) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch('/api/admin/activity-tags');
-        if (!res.ok) return;
-        const data = (await res.json()) as { tags?: ActivityTag[] };
-        if (!cancelled) setTagCatalog(data.tags ?? []);
-      } catch {
-        /* leave catalog empty — modal still works without tags */
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [clockModal, tagCatalog.length]);
 
   const handleClockInSubmit = useCallback(({ jobId, tagIds }: { jobId: string | null; tagIds: string[] }) => {
     const next: ClockSession = { startedAt: new Date().toISOString(), jobId, tagIds };

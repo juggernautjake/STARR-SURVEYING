@@ -28,20 +28,17 @@ import {
   writeClockSession,
   type ClockSession,
 } from '@/lib/work-mode/clock-session';
+import { useActivityTags } from '@/lib/work-mode/use-activity-tags';
 import type { UserRole } from '@/lib/auth';
-
-interface ActivityTag {
-  id: string;
-  label: string;
-  color: string;
-}
 
 export default function ClockInPill() {
   const { data: session } = useSession();
   const [active, setActive] = useState<ClockSession | null>(null);
   const [now, setNow] = useState<number>(Date.now());
   const [modal, setModal] = useState<'none' | 'in' | 'out'>('none');
-  const [catalog, setCatalog] = useState<ActivityTag[]>([]);
+  // Preloaded + cached across all clock surfaces so the modal opens with its
+  // tags already present (no empty→filled reflow on open).
+  const catalog = useActivityTags();
 
   const roles: UserRole[] =
     (session?.user?.roles ?? (session?.user?.role ? [session.user.role] : [])) as UserRole[];
@@ -68,23 +65,6 @@ export default function ClockInPill() {
     const t = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(t);
   }, [active]);
-
-  // Lazy-load the activity-tag catalog the first time we need a modal.
-  useEffect(() => {
-    if (modal === 'none' || catalog.length > 0) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch('/api/admin/activity-tags');
-        if (!res.ok) return;
-        const data = (await res.json()) as { tags?: ActivityTag[] };
-        if (!cancelled) setCatalog(data.tags ?? []);
-      } catch {
-        /* leave catalog empty — modal still works without tags */
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [modal, catalog.length]);
 
   const handleClockInSubmit = useCallback(({ jobId, tagIds }: { jobId: string | null; tagIds: string[] }) => {
     const session: ClockSession = { startedAt: new Date().toISOString(), jobId, tagIds };
