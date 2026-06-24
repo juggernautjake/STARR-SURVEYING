@@ -9,6 +9,7 @@ import {
   buildHoursAdjustmentNotification,
 } from '@/lib/notifications/hours-decision';
 import { isDateLocked } from '@/lib/hours/period-lock';
+import { canEmployeeEdit, canEmployeeDelete } from '@/lib/hours/permissions';
 
 const LOCKED_MSG =
   'That pay period is locked. Ask a manager to adjust these hours — they can revise locked entries.';
@@ -426,7 +427,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   if (existing.user_email !== session.user.email && !admin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
-  if (existing.status !== 'pending' && existing.status !== 'rejected' && !admin) {
+  if (!admin && !canEmployeeEdit(existing.status)) {
     return NextResponse.json({ error: 'Can only edit pending or rejected entries' }, { status: 400 });
   }
   if (!admin && (await isDateLocked(existing.log_date))) {
@@ -480,7 +481,7 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   // log is theirs to fix (the my-hours "edit & resubmit" flow deletes the
   // old editable rows and re-creates them). Approved/adjusted/disputed logs
   // are locked and can only be changed by an admin.
-  if (!admin && existing.status !== 'pending' && existing.status !== 'rejected') {
+  if (!admin && !canEmployeeDelete(existing.status)) {
     return NextResponse.json({ error: 'Can only delete pending or rejected entries' }, { status: 400 });
   }
   if (!admin && (await isDateLocked(existing.log_date))) {

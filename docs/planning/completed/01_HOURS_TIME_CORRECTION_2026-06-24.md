@@ -1,8 +1,13 @@
 # Hours Time-Correction System — Build-Out
 
-**Status:** 🟡 In progress. Core editing/approval exists; the correction,
-notification, dispute-resolution, pay-period-lock, and after-hours-reminder
-pieces are partial or missing.
+**Status:** 🟢 Complete (2026-06-24). All nine slices (H1–H9) shipped: clearer
+employee correction flow with the approved-day duplicate footgun fixed,
+notify-on-adjustment, admin adjust-any-employee, dispute→resolve surfaced in the
+queue, per-employee conflict/totals flags, pay-period approve+lock, the 6pm
+still-clocked-in reminder cron, findability + mobile touch targets, and tests.
+The only DB-dependent piece (the `pay_period_locks` enforcement and the cron's
+`job_time_entries` read) applies against the live Supabase; the helpers fail-open
+until the migration is applied.
 
 ## Goal (from the owner)
 
@@ -171,7 +176,14 @@ doc to `docs/planning/completed/`. Keep desktop intact; verify mobile at 390px.
   bumped touch targets on phones — `.tl-btn` 44px, `.tl-btn--sm` 40px, day buttons
   56px, full-width primary submit. Re-verified `my-hours` + `hours-approval` at
   390px across H1–H6 (0 overflow throughout).
-- [ ] **H9 — Tests.** Add/extend tests: employee edit/delete permission matrix
+- [x] **H9 — Tests.** Add/extend tests: employee edit/delete permission matrix
   (pending/rejected editable; approved/adjusted/locked not), adjust-notifies,
   dispute-resolve transitions, and the after-hours reminder builder. Run the hub/
   time-logs suites green.
+  _Done 2026-06-24:_ extracted the permission rule into pure
+  `lib/hours/permissions.ts` (`canEmployeeEdit`/`canEmployeeDelete`), refactored
+  the time-logs PUT/DELETE to use it, and added `__tests__/hours/permissions.test.ts`
+  (the full matrix + null/unknown guard). Combined with the builders already
+  tested across H2 (`buildHoursAdjustmentNotification`), H5 (`computeHoursFlags`),
+  and H7 (`buildAfterHoursClockReminders`), the hours suites are green (30 tests);
+  tsc + eslint clean.
