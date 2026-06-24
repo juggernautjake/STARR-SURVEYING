@@ -360,13 +360,22 @@ _Note:_ a `width:100%` table with wrapping cells gets cramped but does not
 overflow; the wrapper makes wide/`nowrap` tables scroll instead of breaking the
 page — safe to apply uniformly regardless.
 
-**Cross-cutting — FIXED MULTI-COLUMN GRIDS.**
-4 grids use fixed px columns summing > 360px and may not collapse on a phone
-(verify each has a mobile `1fr` / scroll override; add one if missing):
-- [ ] `AdminJobs.css:355` — `100px 1fr 120px 120px 120px 100px`
-- [ ] `AdminJobs.css:1048` — `80px 1fr 1fr 80px 1fr 80px`
-- [ ] `AdminResearch.css:10729` — `1fr 200px 80px 36px`
-- [ ] `AdminResearch.css:10889` — `1fr 110px 1.4fr 110px 36px`
+**Cross-cutting — FIXED MULTI-COLUMN GRIDS. ✅ COMPLETE.**
+4 grids reviewed; all now handled on mobile:
+- [x] `.jobs-page__list-item` (AdminJobs.css:355) — already collapses to
+  `80px 1fr 80px` at ≤768px. No change.
+- [x] `.job-detail__field-data-row` (AdminJobs.css:1048) — had no mobile rule;
+  **fixed**: at ≤768px the `.job-detail__field-data-table` now scrolls
+  horizontally with `min-width:520px` rows (keeps all 6 columns readable).
+- [x] `.research-pipeline__batch-row` (AdminResearch.css:10729) — already
+  re-laid out via grid-template-areas at ≤640px (lines 11012-11026). No change.
+- [x] `.research-pipeline__job-card` (AdminResearch.css:10889) — same ≤640px
+  grid-areas block. No change.
+
+> **Layout/overflow backlog COMPLETE:** 55/55 table files wrapped + all 4 fixed
+> grids handled. tsc + ESLint green. Remaining work is finer visual polish
+> (tap-target sizes, spacing, text scale) best done with seeded-data screenshots
+> per area — tracked as the optional next phase.
 
 **Cross-cutting — CLEARED (no work):**
 - Fixed inline widths ≥400px: only the floating calculator (overridden to
@@ -429,3 +438,9 @@ page — safe to apply uniformly regardless.
   `.fw__import-preview-table`). Wrapped the CAD LayerTransferDialog table
   (Tailwind `overflow-x-auto`). **Detector: 55/55 files wrapped, 0 flagged —
   table-wrapper sweep COMPLETE.** ESLint clean across all touched files.
+- **2026-06-23 — Build-out B5 (fixed grids):** Reviewed all 4 fixed multi-column
+  grids. 3 already had mobile overrides (jobs list-item collapse; research
+  pipeline grid-areas). Fixed the 1 gap — `.job-detail__field-data-row` now
+  scrolls horizontally at ≤768px (`.job-detail__field-data-table` overflow-x +
+  520px min-width rows). **Layout/overflow backlog COMPLETE.** Full `tsc
+  --noEmit` passes (exit 0); ESLint clean.

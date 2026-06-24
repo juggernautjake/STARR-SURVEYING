@@ -1490,6 +1490,11 @@
   .job-form__grid { grid-template-columns: 1fr; }
   .job-detail__overview-grid { grid-template-columns: 1fr; }
   .job-detail__financial { grid-template-columns: 1fr; }
+  /* Field-data is a 6-column tabular grid — scroll it horizontally on a
+     phone (keeps all columns readable) instead of squishing them. */
+  .job-detail__field-data-table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .job-detail__field-data-row,
+  .job-detail__field-data-row--header { min-width: 520px; }
   .job-detail__stats { flex-wrap: wrap; gap: 1rem; }
   .job-detail__tabs { gap: 0; }
   .job-detail__tab { padding: 0.5rem 0.65rem; font-size: 0.8rem; }
