@@ -111,6 +111,7 @@ export default function CustomerAuditPage() {
             : 'No audit entries yet. Actions on your organization will appear here.'}
         </div>
       ) : (
+        <div className="admin-table-wrap">
         <table className="audit-table">
           <thead>
             <tr>
@@ -142,6 +143,7 @@ export default function CustomerAuditPage() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       <footer>

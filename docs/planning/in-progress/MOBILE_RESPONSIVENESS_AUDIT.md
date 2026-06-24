@@ -335,13 +335,15 @@ and wrap each flagged `<table>`. Then re-run the detector → 0 flagged.
 
 **Build-out progress (table wrappers):** added shared `.admin-table-wrap`
 utility to `AdminResponsive.css` (always-on `overflow-x:auto`). Wrapping flagged
-tables in it, area by area. ✔️ done: `time-off`, `mileage`, `invites`.
+tables in it, area by area. ✔️ done (6/28): `time-off`, `mileage`, `invites`,
+`payouts`, `billing/invoices`, `audit`. Note: FieldWorkView's main log table is
+already in `.fw__table-scroll` (no work); only its import-preview table remains.
 
 Flagged files by area (build-out targets):
 - **Hub:** ✔️ `time-off/page.tsx`
 - **Work:** `finances`, `reports`, `reports/job/[jobId]`, ✔️ `mileage`,
   ✔️ `invites`, `components/jobs/FieldWorkView` (FieldWorkView line 993)
-- **Office/Pay:** `payouts`, `billing/invoices`, `audit`,
+- **Office/Pay:** ✔️ `payouts`, ✔️ `billing/invoices`, ✔️ `audit`,
   `components/payroll/PayStubView`, `PayRateTable`, `PayrollRunPanel`
 - **Equipment:** `[id]`, `consumables`, `import`, `inventory`, `maintenance`,
   `maintenance/[id]`, `overrides`, `templates`, `templates/[id]`,
@@ -409,3 +411,6 @@ page — safe to apply uniformly regardless.
   `.admin-table-wrap` utility to AdminResponsive.css. Wrapped tables in
   `time-off`, `mileage`, `invites` (3/28). ESLint clean. Remaining flagged files
   wrapped in subsequent build-out slices.
+- **2026-06-23 — Build-out B2 (Office/Pay tables):** Wrapped `payouts`,
+  `billing/invoices`, `audit` (6/28 total). Verified FieldWorkView's main log
+  table already uses `.fw__table-scroll` (skipped, no change). ESLint clean.
