@@ -75,8 +75,15 @@ in. C1 makes `job_time_entries` the authoritative open-session record.
   (`width: min(540px, 100vw-24px)`, scrollable, no 360px min that overflowed a
   390px screen). Verified at 390px: single dialog, tags present immediately, no
   overflow.
-- [ ] **C4 — Mobile polish: work-mode workspace.** The `/admin/work-mode/[role]`
+- [x] **C4 — Mobile polish: work-mode workspace.** The `/admin/work-mode/[role]`
   workspace must be usable at 390px (no desktop-only sidebar; responsive nav).
   Verify the enter→work→exit loop on a phone-sized viewport.
+  _Done 2026-06-24:_ the layout/shell were already responsive (Work Mode lives
+  outside AdminLayoutClient so there's no admin sidebar; tabs `flex-wrap`). Fixed
+  the `WorkModeTopBar` for phones: the `role · name` badge now truncates
+  (`maxWidth:50vw` + ellipsis) so a long email can't push the timer + Exit button
+  off-screen, the Exit-confirm modal is responsive (`min(480px,100vw-24px)`), and
+  its 3-button row wraps. Added a `work-mode` ux-harness mount; verified at 390px:
+  **0px overflow** for both the workspace and the exit modal, tabs wrap cleanly.
 - [ ] **C5 — Findability.** Ensure "Clock in / out" and "Enter work mode" are
   obvious entry points on mobile (top-bar pill visible; hub action present).

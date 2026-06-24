@@ -101,6 +101,9 @@ const PAGES: Record<string, ComponentType> = {
   // canvas via a harness wrapper that seeds a default multi-widget layout
   // so the mobile customization flow can be exercised + screenshotted.
   hub: nextDynamic(() => import('@/app/ux-harness/HubHarnessMount'), { ssr: false }),
+  // Work Mode shell (top bar + a role workspace) — the real route is a
+  // server component behind auth; mount the client pieces for 390px audit.
+  'work-mode': nextDynamic(() => import('@/app/ux-harness/WorkModeHarnessMount'), { ssr: false }),
 };
 
 const AdminLayoutClient = nextDynamic(
