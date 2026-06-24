@@ -88,13 +88,19 @@ export default function NotificationBell() {
 
   // Close dropdown on outside click
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
+    function handleClick(e: Event) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
     }
-    if (open) document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    if (open) {
+      document.addEventListener('mousedown', handleClick);
+      document.addEventListener('touchstart', handleClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('touchstart', handleClick);
+    };
   }, [open]);
 
   async function markAllRead() {
@@ -168,6 +174,10 @@ export default function NotificationBell() {
       </button>
 
       {open && (
+        <>
+        {/* N1 — dim backdrop behind the full-screen sheet on phones (CSS hides
+            it on desktop where the dropdown is a popover). */}
+        <div className="notif-bell__sheet-backdrop" aria-hidden onClick={() => setOpen(false)} />
         <div className="notif-bell__dropdown">
           <div className="notif-bell__header">
             <h4 className="notif-bell__title">Notifications</h4>
@@ -256,6 +266,7 @@ export default function NotificationBell() {
             </div>
           )}
         </div>
+        </>
       )}
     </div>
   );

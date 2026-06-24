@@ -23,10 +23,19 @@ change → typecheck + lint + commit + push → check box + note. All `[x]` → 
 
 ## Slice plan
 
-- [ ] **N1 — Mobile alerts surface.** On phones, render the bell's list as a
+- [x] **N1 — Mobile alerts surface.** On phones, render the bell's list as a
   full-screen sheet (scrollable list, mark-read, dismiss, tap-to-navigate) instead
   of a cramped dropdown. 44px targets, no overflow at 390px. Desktop dropdown
   unchanged. Verify in the ux-harness.
+  _Done 2026-06-24:_ at ≤599px the dropdown becomes a **full-screen sheet** anchored
+  under the top bar (`position:fixed; left/right:8px; max-height:calc(100vh-72px)`)
+  with a **dim backdrop** (tap to close) instead of the old off-screen-shifted,
+  `100vw-2rem` popover. Critically, the per-item **dismiss button was hover-only
+  (`opacity:0`)** — invisible/unusable on touch; it's now always visible on touch
+  (`@media(hover:none)` + the sheet block) as a **36px** target, and rows get extra
+  right padding so the × never overlaps text. Added `touchstart` to the outside-tap
+  close handler. Desktop popover unchanged. Verified at 390px: sheet 366px @ x=8,
+  backdrop present, dismiss visible @ 36px, 0px overflow.
 - [ ] **N2 — Inbox page.** Add `app/admin/notifications/page.tsx`: full list with
   filters (source_type, escalation, read/unread, date) and pagination/search, so
   alerts aren't only reachable through the bell. Link the bell footer to it.

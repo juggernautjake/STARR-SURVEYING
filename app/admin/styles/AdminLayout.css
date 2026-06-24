@@ -1057,7 +1057,45 @@
 .notif-bell__footer { padding:.6rem 1rem; border-top:1px solid #E5E7EB; text-align:center; }
 .notif-bell__view-all { font-size:.78rem; font-weight:600; color:var(--color-brand-navy); text-decoration:none; }
 .notif-bell__view-all:hover { text-decoration:underline; }
-@media(max-width:599px) { .notif-bell__dropdown { width:calc(100vw - 2rem); right:-60px; } }
+/* N1 — Mobile alerts surface. On phones the dropdown becomes a full-screen
+   sheet anchored under the top bar (instead of a cramped, off-screen-shifted
+   popover), with always-visible dismiss buttons + 44px tap targets since touch
+   has no hover. A dim backdrop reads it as a sheet. Desktop dropdown unchanged. */
+@media(max-width:599px) {
+  .notif-bell__sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.35);
+    z-index: 199;
+    animation: notifSlideDown .15s ease;
+  }
+  .notif-bell__dropdown {
+    position: fixed;
+    top: 56px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: calc(100vh - 72px);
+    border-radius: 14px;
+  }
+  .notif-bell__list { max-height: none; flex: 1; }
+  .notif-bell__item { padding: .85rem 1rem; padding-right: 2.75rem; }
+  .notif-bell__item-dismiss {
+    opacity: 1;
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    top: .4rem;
+    right: .4rem;
+  }
+  .notif-bell__header, .notif-bell__footer { padding: .85rem 1rem; }
+  .notif-bell__mark-all { min-height: 36px; }
+}
+/* The desktop-only hover reveal must not hide the button on touch screens. */
+@media(hover:none) { .notif-bell__item-dismiss { opacity: 1; } }
 
 /* ── Global Checkbox Styles (circle / dot design) ────────────────────────── */
 
