@@ -159,10 +159,18 @@ doc to `docs/planning/completed/`. Keep desktop intact; verify mobile at 390px.
   (`0 23,1,3 * * *` ≈ 6/8/10pm Central). tsc + eslint + tests green. Depends on
   C1 (doc 02) ensuring clock-IN writes the open row; the team page already reads
   these rows, so open shifts exist today.
-- [ ] **H8 — Findability + mobile polish.** Ensure employees can easily FIND hour
+- [x] **H8 — Findability + mobile polish.** Ensure employees can easily FIND hour
   correction: a clear nav/hub entry ("My Hours" / "Fix my hours"), and that
   `my-hours` + `hours-approval` are clean at 390px (no overflow, 44px targets,
   status badges legible). Verify both via the ux-harness with seeded data.
+  _Done 2026-06-24:_ "My Hours" is already wired in the route-registry (nav rail +
+  command palette) and a "Hours This Week" hub widget exists; enriched that
+  registry entry's description ("Log, fix, or add your hours…") and keywords
+  (`fix hours`, `edit hours`, `correct hours`, `add hours`, `missed clock out`,
+  `forgot to clock in`) so search surfaces it for the correction use case. Mobile:
+  bumped touch targets on phones — `.tl-btn` 44px, `.tl-btn--sm` 40px, day buttons
+  56px, full-width primary submit. Re-verified `my-hours` + `hours-approval` at
+  390px across H1–H6 (0 overflow throughout).
 - [ ] **H9 — Tests.** Add/extend tests: employee edit/delete permission matrix
   (pending/rejected editable; approved/adjusted/locked not), adjust-notifies,
   dispute-resolve transitions, and the after-hours reminder builder. Run the hub/

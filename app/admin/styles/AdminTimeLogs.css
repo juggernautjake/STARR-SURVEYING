@@ -525,10 +525,14 @@
   .tl-advance-card__right { flex-direction: row; align-items: center; }
   .tl-week-nav { flex-wrap: wrap; }
   .tl-day-strip { flex-wrap: nowrap; }
-  .tl-day-btn { min-width: 50px; padding: 0.5rem 0.5rem; }
+  .tl-day-btn { min-width: 50px; min-height: 56px; padding: 0.5rem 0.5rem; }
   .tl-tabs__btn { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
   .tl-log-footer { flex-direction: column; align-items: stretch; text-align: center; }
   .tl-bulk-actions { flex-direction: column; align-items: flex-start; }
+  /* H8 — comfortable touch targets for the key hours actions on phones. */
+  .tl-btn { min-height: 44px; }
+  .tl-btn--sm { min-height: 40px; padding: 0.45rem 0.7rem; font-size: 0.82rem; }
+  .tl-log-footer .tl-btn--primary { width: 100%; justify-content: center; }
 }
 
 @media (max-width: 480px) {
