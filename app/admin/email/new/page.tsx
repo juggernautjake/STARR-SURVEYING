@@ -52,6 +52,10 @@ export default function NewEmailPage() {
   const [employees, setEmployees] = useState<Recipient[]>([]);
   const [customers, setCustomers] = useState<Recipient[]>([]);
 
+  // EM4 — optional role broadcast (expanded server-side to every non-banned
+  // user with that role).
+  const [role, setRole] = useState<string>('');
+
   useEffect(() => {
     setTo(initialTo());
   }, [initialTo]);
@@ -98,24 +102,47 @@ export default function NewEmailPage() {
     setBody(tpl.body);
   }, [subject, body]);
 
+  const [sentCount, setSentCount] = useState<number>(0);
+
   const handleSubmit = useCallback(
     async (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       if (sendState === 'sending') return;
+
+      // EM4 — count guard. Confirm before any send that reaches more than one
+      // person (multiple typed addresses or a whole-role broadcast).
+      const typedCount = (to.split(/[,;\s]+/).map((s) => s.trim()).filter(Boolean)).length;
+      if (typedCount === 0 && !role) {
+        setErrorMsg('Add at least one recipient, or pick a role.');
+        setSendState('error');
+        return;
+      }
+      const ROLE_NAMES: Record<string, string> = {
+        field_crew: 'Field Crew', employee: 'All Employees', admin: 'Admins',
+        drawer: 'Drawers', researcher: 'Researchers', equipment_manager: 'Equipment Managers',
+      };
+      if ((role || typedCount > 1) && typeof window !== 'undefined') {
+        const parts: string[] = [];
+        if (role) parts.push(`everyone with role "${ROLE_NAMES[role] ?? role}"`);
+        if (typedCount > 0) parts.push(`${typedCount} typed recipient${typedCount === 1 ? '' : 's'}`);
+        if (!window.confirm(`Send this email to ${parts.join(' + ')}?`)) return;
+      }
+
       setErrorMsg('');
       setSendState('sending');
       try {
         const res = await fetch('/api/admin/email/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to, subject, body }),
+          body: JSON.stringify({ to, role: role || undefined, subject, body }),
         });
+        const data = (await res.json().catch(() => ({}))) as { error?: string; sent_count?: number };
         if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
           setErrorMsg(data.error ?? `Server returned ${res.status}`);
           setSendState('error');
           return;
         }
+        setSentCount(data.sent_count ?? (typedCount || 1));
         setSendState('sent');
         setSubject('');
         setBody('');
@@ -124,7 +151,7 @@ export default function NewEmailPage() {
         setSendState('error');
       }
     },
-    [sendState, to, subject, body],
+    [sendState, to, role, subject, body],
   );
 
   if (status === 'loading') return null;
@@ -152,11 +179,11 @@ export default function NewEmailPage() {
           <div className="email-compose__to-row">
             <input
               type="email"
-              required
+              multiple
               value={to}
               data-testid="email-compose-to"
               onChange={(e) => setTo(e.target.value)}
-              placeholder="recipient@example.com"
+              placeholder="recipient@example.com (separate several with commas)"
               autoComplete="email"
             />
             <button
@@ -224,6 +251,24 @@ export default function NewEmailPage() {
           )}
         </div>
         <label className="email-compose__field">
+          <span>Or send to a role (optional)</span>
+          <select
+            className="email-compose__template-select"
+            data-testid="email-compose-role"
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+          >
+            <option value="">No role — use the addresses above</option>
+            <option value="field_crew">All Field Crew</option>
+            <option value="employee">All Employees</option>
+            <option value="admin">All Admins</option>
+            <option value="drawer">All Drawers</option>
+            <option value="researcher">All Researchers</option>
+            <option value="equipment_manager">All Equipment Managers</option>
+          </select>
+          {role && <span className="email-compose__role-hint" data-testid="email-compose-role-hint">This will email everyone with that role.</span>}
+        </label>
+        <label className="email-compose__field">
           <span>Template</span>
           <select
             className="email-compose__template-select"
@@ -266,7 +311,7 @@ export default function NewEmailPage() {
             role="status"
             data-testid="email-compose-success"
           >
-            ✓ Email sent.
+            ✓ Email sent{sentCount > 1 ? ` to ${sentCount} recipients` : ''}.
           </p>
         )}
         {sendState === 'error' && (

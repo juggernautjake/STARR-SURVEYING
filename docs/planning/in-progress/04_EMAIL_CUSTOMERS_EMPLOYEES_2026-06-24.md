@@ -54,9 +54,21 @@ change → typecheck + lint + commit + push → check box + note. All `[x]` → 
   subject + body (confirms before clobbering an existing draft). Verified at 390px:
   selecting "schedule reminder" populated subject + a 264-char body with
   placeholders preserved, 0px overflow.
-- [ ] **EM4 — Multi-recipient / role send.** Allow sending to several recipients
+- [x] **EM4 — Multi-recipient / role send.** Allow sending to several recipients
   or a role (e.g. all field crew) in one action; record each send. Guard against
   accidental large sends (confirm count).
+  _Done 2026-06-24:_ the send route now parses the To field on commas/semicolons/
+  whitespace and accepts an optional `role`, which it expands server-side to every
+  non-banned `registered_users` row with that role (`.contains('roles', [role])`).
+  Recipients are de-duped, each validated, and **capped at 100/send** (hard 400 over
+  the cap). It sends **one Resend message per recipient** (parallel) so customer
+  addresses are never disclosed to each other, collects per-address failures, and
+  returns `{ sent_count, failed_count, failed }`. Composer: To input is now
+  `multiple` (comma-separated), plus an **"Or send to a role"** select (Field Crew /
+  Employees / Admins / Drawers / Researchers / Equipment Managers) with a hint. A
+  **count-confirm guard** fires before any send reaching >1 person or a whole role,
+  and success reads "✓ Email sent to N recipients." Verified at 390px: role broadcast
+  posts `role:field_crew`, confirm fires, success shows the count, 0px overflow.
 - [ ] **EM5 — Sent log + draft autosave.** Persist a record of sent emails
   (who/when/subject) viewable by admins, and autosave the in-progress draft to
   localStorage so a navigation/refresh doesn't lose it.
