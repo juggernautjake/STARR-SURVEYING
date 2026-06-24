@@ -141,19 +141,29 @@ export default function NotificationBell() {
 
   if (!session?.user) return null;
 
+  // Urgent / critical notifications stay "active" (keep the dot) even after
+  // they're read — they clear only when dismissed (i.e. the user has acted on
+  // them). Normal notifications clear as soon as they're read.
+  const hasUrgent = notifications.some(
+    (n) => n.escalation_level === 'urgent' || n.escalation_level === 'critical',
+  );
+  // The dot shows when a new unchecked notification exists, or an unresolved
+  // urgent one remains.
+  const showDot = unreadCount > 0 || hasUrgent;
+
   return (
     <div className="notif-bell" ref={dropdownRef}>
       <button
         className="notif-bell__btn"
         onClick={() => { setOpen(!open); if (!open) fetchNotifications(); }}
-        aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
+        aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}${hasUrgent ? ' — action needed' : ''}`}
       >
         <svg className="notif-bell__icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
-        {unreadCount > 0 && (
-          <span className="notif-bell__badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+        {showDot && (
+          <span className={`notif-bell__dot${hasUrgent ? ' notif-bell__dot--urgent' : ''}`} aria-hidden />
         )}
       </button>
 

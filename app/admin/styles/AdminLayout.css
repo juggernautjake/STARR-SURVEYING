@@ -1027,6 +1027,11 @@
 .notif-bell__btn:hover { border-color:var(--color-brand-navy); color:var(--color-brand-navy); background:#F5F7FF; }
 .notif-bell__icon { display:block; }
 .notif-bell__badge { position:absolute; top:-4px; right:-4px; min-width:18px; height:18px; padding:0 5px; background:#EF4444; color:#fff; font-size:.65rem; font-weight:700; border-radius:10px; display:flex; align-items:center; justify-content:center; border:2px solid #fff; line-height:1; font-family:'Inter',sans-serif; }
+/* Simple red dot — shown only when there's a new unread (or unresolved urgent)
+   notification; clears when everything is read/dismissed. */
+.notif-bell__dot { position:absolute; top:-2px; right:-2px; width:10px; height:10px; border-radius:50%; background:#EF4444; border:2px solid #fff; box-sizing:content-box; }
+.notif-bell__dot--urgent { background:#DC2626; animation:notif-dot-pulse 1.6s ease-in-out infinite; }
+@keyframes notif-dot-pulse { 0%,100% { box-shadow:0 0 0 0 rgba(220,38,38,.5); } 50% { box-shadow:0 0 0 4px rgba(220,38,38,0); } }
 .notif-bell__dropdown { position:absolute; top:calc(100% + 8px); right:0; width:360px; max-height:480px; background:#fff; border:1px solid #E5E7EB; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.15); z-index:200; display:flex; flex-direction:column; animation:notifSlideDown .15s ease; }
 @keyframes notifSlideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
 .notif-bell__header { display:flex; align-items:center; justify-content:space-between; padding:.75rem 1rem; border-bottom:1px solid #E5E7EB; }

@@ -30,6 +30,16 @@ change → typecheck + lint + commit + push → check box + note. All `[x]` → 
 - [ ] **N2 — Inbox page.** Add `app/admin/notifications/page.tsx`: full list with
   filters (source_type, escalation, read/unread, date) and pagination/search, so
   alerts aren't only reachable through the bell. Link the bell footer to it.
+- [x] **N0 — Red-dot indicator + urgent persistence (owner request).** The bell
+  now shows a single **red dot** (not a count) only when there's a new unread
+  notification; it clears once everything is read. **Urgent/critical** alerts keep
+  the dot (a pulsing variant) even after they're read — they clear only when
+  **dismissed** (i.e. the user has acted on them), so action-required alerts can't
+  be swiped away by a glance. Clicking the bell opens the history dropdown; each
+  item reroutes to its `link`. Verified across states (unread→dot, urgent-read→
+  persistent pulse, all-read→no dot). _Which alerts should be 'urgent': approvals
+  needing sign-off, disputed hours, overdue equipment, still-clocked-in past
+  hours — set `escalation_level:'urgent'` at the `notify()` call site._
 - [ ] **N3 — Real-time + accurate unread count.** Replace the 20s poll with a
   Supabase Realtime subscription on `notifications` for the current user so new
   alerts and the unread badge update instantly; keep a poll fallback.
