@@ -78,9 +78,12 @@ Everything else assumes the live schema exists.
   seeds (370–381) un-applied (214 tables present). **Never ran `000_reset.sql`.**
 - [x] **0.2** ✓ 2026-06-25 — applied 370–381 via `node scripts/apply-seeds.mjs --from 370`
   (`npm i pg --no-save` first); re-audit → **228 tables, 0 real missing**.
-- [ ] **0.3** Confirm storage buckets exist (`message-attachments`, `receipts`,
-  `lead-attachments`, `user-files`) with the service-role policies the seed comments
-  describe (bucket policies are dashboard-side, not SQL) **[you, I provide exact list]**.
+- [x] **0.3** ✓ 2026-06-25 — verified against live Supabase `storage.buckets`: 10 of the 12
+  referenced buckets already exist (`starr-field-receipts/photos/videos/voice/files/
+  equipment-photos`, `message-attachments`, `lead-attachments`, `research-documents`,
+  `cad-images`, `user-files`, `vehicle-photos`); the other two (`maintenance-documents`,
+  `research-exports`) **auto-provision on first upload** via `ensureStorageBucket()` in
+  `lib/supabase.ts`. **No manual owner action needed for storage.**
 
 ### Phase 1 — Finish customer payments code **[me]**
 - [x] **1.1** ✓ 2026-06-25 — shipped `lib/payments/stripe-elements.ts` (pure helpers:
