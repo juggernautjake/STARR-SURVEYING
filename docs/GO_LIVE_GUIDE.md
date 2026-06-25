@@ -63,9 +63,18 @@ usage-based charges for AI/maps/email only if you use those features.
    `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
    `SUPABASE_SERVICE_ROLE_KEY` (keep the service-role key secret).
    - Run the SQL files in `seeds/` (in numeric order) in the Supabase SQL editor
-     to create the tables. Add the Storage buckets noted in the seed comments
-     (e.g. `message-attachments`, `lead-attachments`, `user-files`) with the
-     service-role policy each file describes.
+     to create the tables — or, far faster, run them all in one command with the
+     helper script (needs `psql` + your DB connection string from Supabase →
+     Settings → Database → Connection string → URI):
+     ```bash
+     ./scripts/run-seeds.sh "postgresql://postgres:PASSWORD@db.PROJECT.supabase.co:5432/postgres"
+     ```
+     (Add `--dry-run` first to preview the order. It skips the destructive
+     `000_reset.sql` unless you pass `--with-reset`.)
+   - Then add the Storage buckets noted in the seed comments (e.g.
+     `message-attachments`, `lead-attachments`, `user-files`) with the
+     service-role policy each file describes (storage-object policies are added in
+     the dashboard, not via SQL).
 3. **Create Google OAuth credentials** (Google Cloud Console → Credentials → OAuth
    client → Web). Authorized redirect URL:
    `https://starr-surveying.com/api/auth/callback/google`. Copy
