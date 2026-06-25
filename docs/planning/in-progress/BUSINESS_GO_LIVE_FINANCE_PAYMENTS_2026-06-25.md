@@ -98,8 +98,12 @@ Everything else assumes the live schema exists.
   unclassified subtotal cards, a "1099-NEC needed (≥ $600)" callout, a per-row
   classification chip, and an "unclassified — set on profile" hint. Brand-styled; CSV
   path unchanged; 27 tests green.
-- [ ] **2.1c** Set-side: classification picker on the employee profile (PATCH
-  `worker_classification`) + a classification label on the payout dispatch list.
+- [x] **2.1c** ✓ 2026-06-25 — classification picker: `set_classification` action on
+  `/api/admin/users/[id]` (validated against `WORKER_CLASSIFICATIONS`) + a W-2 / 1099 /
+  Unclassified `<select>` in the `/admin/users` expanded row; users GET returns the column.
+  _Dispatch-list label deferred — low value (classification already shows on the tax report
+  + user management), not worth threading classification through the dispatch query._
+  → **G5 (1099/W-2) complete.**
 - [ ] **2.2** Unified **finance dashboard**: one page that nets revenue (cleared
   `payments`) − payouts (`payout_batch_items` paid) − expenses (approved `receipts`)
   by day/week/month/year, with "where money came from / went" breakdowns. Reuses the
