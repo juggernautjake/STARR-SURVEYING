@@ -113,10 +113,14 @@ Everything else assumes the live schema exists.
   `receipts`.transaction_at → `MoneyEvent[]`) + `/admin/finances/overview` dashboard
   (Money in / Money out / Net cards + per-period table; quick-pins + day/week/month/year),
   brand-styled, linked from `/admin/finances`. → **G2 (money-in/out dashboard) complete.**
-- [ ] **2.3** **Bank reconciliation**: `bank_transactions` table + CSV import (PNC
-  export format; Plaid/Stripe feed deferred), a match engine that links each
-  withdrawal to a payout or receipt (and each deposit to a customer payment), and an
-  **unmatched queue** so nothing is unexplained. Pure matcher + tests.
+- [x] **2.3a** ✓ 2026-06-25 — schema + matcher: seed 383 `bank_transactions` (signed
+  `amount_cents`, status/match columns, dedupe fingerprint index, RLS; **applied live**) +
+  `lib/payments/bank-reconcile.ts` pure helpers (`parsePncCsv` tolerant of signed-amount or
+  debit/credit columns; `scoreMatch`/`bestMatches` = direction + exact-amount + date-proximity;
+  `importFingerprint` dedupe). `__tests__/admin/payment-bank-reconcile.test.ts` (11 green).
+- [ ] **2.3b** Wire 2.3a: `/api/admin/finances/bank-import` (parse + dedupe-insert) +
+  `/api/admin/finances/bank/[id]/match` (confirm/ignore) + a `/admin/finances/reconcile`
+  queue page (upload CSV → unmatched list → suggested matches → one-click confirm).
 - [ ] **2.4** Stripe **Connect payouts** (employee pay via Stripe): add the `stripe`
   dispatch path (transfers to a connected/verified bank), keep Venmo/cash/check.
   Gated on Stripe live + Connect onboarding (Phase 3).
