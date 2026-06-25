@@ -118,9 +118,11 @@ Everything else assumes the live schema exists.
   `lib/payments/bank-reconcile.ts` pure helpers (`parsePncCsv` tolerant of signed-amount or
   debit/credit columns; `scoreMatch`/`bestMatches` = direction + exact-amount + date-proximity;
   `importFingerprint` dedupe). `__tests__/admin/payment-bank-reconcile.test.ts` (11 green).
-- [ ] **2.3b** Wire 2.3a: `/api/admin/finances/bank-import` (parse + dedupe-insert) +
-  `/api/admin/finances/bank/[id]/match` (confirm/ignore) + a `/admin/finances/reconcile`
-  queue page (upload CSV → unmatched list → suggested matches → one-click confirm).
+- [x] **2.3b** ✓ 2026-06-25 — `/api/admin/finances/bank` (GET = unmatched txns + top-3
+  suggested matches from payouts/expenses/payments in a ±7-day window; POST = parse PNC CSV +
+  dedupe-insert by fingerprint) + `/api/admin/finances/bank/[id]/match` (confirm / ignore /
+  reset) + `/admin/finances/reconcile` page (upload CSV → unmatched queue → suggestion chips →
+  one-click Confirm / Ignore), linked from `/admin/finances`. → **G3 (bank reconciliation) complete.**
 - [ ] **2.4** Stripe **Connect payouts** (employee pay via Stripe): add the `stripe`
   dispatch path (transfers to a connected/verified bank), keep Venmo/cash/check.
   Gated on Stripe live + Connect onboarding (Phase 3).

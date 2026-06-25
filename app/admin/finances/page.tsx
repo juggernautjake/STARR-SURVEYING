@@ -238,6 +238,13 @@ export default function FinancesPage() {
         >
           → Money in &amp; out (cash-flow overview)
         </Link>
+        <br />
+        <Link
+          href="/admin/finances/reconcile"
+          style={{ color: '#1D3095', fontWeight: 600, textDecoration: 'none', fontSize: '0.9rem' }}
+        >
+          → Bank reconciliation
+        </Link>
       </header>
 
       <div style={styles.controls}>
