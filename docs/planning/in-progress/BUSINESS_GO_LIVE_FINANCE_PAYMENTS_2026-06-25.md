@@ -108,9 +108,11 @@ Everything else assumes the live schema exists.
   (`summarizeFinances` = revenue/payouts/expenses/outflow/net; `financesByPeriod` =
   day/week/month/year buckets with from/to window), decoupled from DB columns via
   `MoneyEvent`. Source-locked by `__tests__/admin/payment-finance-overview.test.ts` (5 green).
-- [ ] **2.2b** Wire 2.2a into a route + page: `/api/admin/finances/overview` mapping
-  cleared `payments` / paid `payout_batch_items` / approved `receipts` → `MoneyEvent[]`,
-  and a `/admin/finances/overview` dashboard (revenue · payouts · expenses · net, by period).
+- [x] **2.2b** ✓ 2026-06-25 — `/api/admin/finances/overview` (admin-gated; maps cleared
+  `payments`.cleared_at / paid `payout_batch_items`.paid_at / approved+exported
+  `receipts`.transaction_at → `MoneyEvent[]`) + `/admin/finances/overview` dashboard
+  (Money in / Money out / Net cards + per-period table; quick-pins + day/week/month/year),
+  brand-styled, linked from `/admin/finances`. → **G2 (money-in/out dashboard) complete.**
 - [ ] **2.3** **Bank reconciliation**: `bank_transactions` table + CSV import (PNC
   export format; Plaid/Stripe feed deferred), a match engine that links each
   withdrawal to a payout or receipt (and each deposit to a customer payment), and an
