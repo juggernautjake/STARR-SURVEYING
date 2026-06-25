@@ -87,10 +87,15 @@ Everything else assumes the live schema exists.
   `.env.example`. type-check clean; 39 payment tests green.
 
 ### Phase 2 — Financial completeness **[me]**
-- [ ] **2.1** 1099/W-2: add `worker_classification` (`w2` | `contractor_1099`) to the
-  employee/registered-user record (seed); surface on the employee profile + payout
-  rows; split the payout **tax report** by classification; flag any 1099 contractor
-  whose annual paid total ≥ $600 (1099-NEC threshold); label W-2 vs 1099 on dispatch.
+- [x] **2.1a** ✓ 2026-06-25 — data + logic: seed 382 adds
+  `registered_users.worker_classification` (`unclassified|w2|contractor_1099`, CHECK +
+  index, **applied live**); `lib/payouts/worker-classification.ts` pure helpers
+  (`normalizeClassification`, `classificationLabel`, `is1099NecReportable` @ $600,
+  `classifyTaxRows` = split + NEC-reportable list) that compose with the source-locked
+  P16 aggregator without modifying it; `__tests__/admin/payment-worker-classification.test.ts`.
+- [ ] **2.1b** Wire 2.1a into the UI: classification picker on the employee profile,
+  W-2/1099 split + "needs 1099-NEC" badges on `/admin/payouts/tax-report`, and a
+  classification label on the dispatch list.
 - [ ] **2.2** Unified **finance dashboard**: one page that nets revenue (cleared
   `payments`) − payouts (`payout_batch_items` paid) − expenses (approved `receipts`)
   by day/week/month/year, with "where money came from / went" breakdowns. Reuses the
