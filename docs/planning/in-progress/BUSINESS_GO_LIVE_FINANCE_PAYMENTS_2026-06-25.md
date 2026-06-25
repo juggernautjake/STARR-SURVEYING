@@ -123,9 +123,18 @@ Everything else assumes the live schema exists.
   dedupe-insert by fingerprint) + `/api/admin/finances/bank/[id]/match` (confirm / ignore /
   reset) + `/admin/finances/reconcile` page (upload CSV → unmatched queue → suggestion chips →
   one-click Confirm / Ignore), linked from `/admin/finances`. → **G3 (bank reconciliation) complete.**
-- [ ] **2.4** Stripe **Connect payouts** (employee pay via Stripe): add the `stripe`
-  dispatch path (transfers to a connected/verified bank), keep Venmo/cash/check.
-  Gated on Stripe live + Connect onboarding (Phase 3).
+- [x] **2.4a** ✓ 2026-06-25 — gated foundation: `lib/payouts/stripe-payout.ts`
+  (`stripePayoutsLive` flag, `buildPayoutTransferParams` Stripe Transfer shape,
+  `payoutStripeReady`) + `PAYOUTS_STRIPE_LIVE` env; source-locked by
+  `__tests__/admin/payment-stripe-payout.test.ts` (4 green). Ships behind a flag like the
+  customer Stripe path.
+- [⏸] **2.4b** Deferred to the account phase — the live `stripe.transfers.create` call,
+  per-employee Connect onboarding, and dispatch-UI wiring require a provisioned Stripe
+  Connect account (none exists yet) + each employee onboarding a connected account.
+  Employees are already paid via Venmo / cash / ACH-CSV, so this is redundant for go-live;
+  it drops onto 2.4a's foundation when Stripe is live. _Cost (full Connect onboarding
+  subsystem, untestable without the account) clearly exceeds current value._
+  → **G4 foundation shipped; activation account-gated.**
 
 ### Phase 3 — Payment accounts (go-live money) **[you, I prep + guide]**
 - [ ] **3.1** Create **Stripe** account as STARR TECHNICAL SERVICES, INC. (EIN), set
