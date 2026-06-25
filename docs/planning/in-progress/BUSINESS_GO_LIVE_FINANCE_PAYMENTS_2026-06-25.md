@@ -1,6 +1,12 @@
 # Business Go-Live — Payments, Finance, Mobile & Deploy
 
-**Status:** 🟡 In progress — master plan (created 2026-06-25).
+**Status:** 🟢 Engineering complete (2026-06-25) — every build slice shipped: live DB
+migrated (seeds → 383); **G1** Stripe customer card form; **G2** money-in/out dashboard;
+**G3** bank reconciliation; **G5** 1099/W-2 classification; **G4** Stripe-payout foundation
+(live transfers deferred — account-gated). **This doc remains in `in-progress/` because the
+only items left are owner/account-gated activation** — Phase 0.3 (storage buckets) and
+Phases 3–6 (Stripe · Venmo Business · Apple/Expo · D-U-N-S · Vercel deploy). It moves to
+`completed/` once go-live activation is done; those phases below are the activation runbook.
 **Owner:** Jacob (Starr Software / Starr Surveying).
 **Legal entity:** STARR TECHNICAL SERVICES, INC. (EIN on file — never committed).
 **Brands:** *Starr Software* = developer/app brand (bundle `com.starrsoftware.starrfield`); *Starr Surveying* = customer-facing brand (invoices, `/pay`, `@StarrSurveying`).
