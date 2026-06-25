@@ -24,6 +24,11 @@ import {
   totalsAcrossRows,
   type PaidItemForTax,
 } from '@/lib/payouts/tax-report';
+import {
+  classifyTaxRows,
+  normalizeClassification,
+  type WorkerClassification,
+} from '@/lib/payouts/worker-classification';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -75,11 +80,29 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     });
   }
 
+  // G5/2.1b — attach each worker's W-2 / 1099 classification (from
+  // registered_users.worker_classification, seed 382) and roll up the split +
+  // 1099-NEC reportables. Only needed for the JSON view (CSV above is unchanged).
+  const emails = Array.from(new Set(rows.map((r) => r.user_email)));
+  const classByEmail: Record<string, WorkerClassification | undefined> = {};
+  if (emails.length > 0) {
+    const { data: users } = await supabaseAdmin
+      .from('registered_users')
+      .select('email, worker_classification')
+      .in('email', emails);
+    for (const u of (users ?? []) as Array<{ email: string | null; worker_classification: string | null }>) {
+      if (u.email) classByEmail[u.email.toLowerCase()] = normalizeClassification(u.worker_classification);
+    }
+  }
+  const classified = classifyTaxRows(rows, classByEmail);
+
   return NextResponse.json({
     from,
     to,
     range_label: rangeLabel,
-    employees: rows,
+    employees: classified.rows,
+    classification_summary: classified.by_classification,
+    nec_reportable: classified.nec_reportable,
     totals,
   });
 });

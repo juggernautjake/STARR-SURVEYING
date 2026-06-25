@@ -93,9 +93,13 @@ Everything else assumes the live schema exists.
   (`normalizeClassification`, `classificationLabel`, `is1099NecReportable` @ $600,
   `classifyTaxRows` = split + NEC-reportable list) that compose with the source-locked
   P16 aggregator without modifying it; `__tests__/admin/payment-worker-classification.test.ts`.
-- [ ] **2.1b** Wire 2.1a into the UI: classification picker on the employee profile,
-  W-2/1099 split + "needs 1099-NEC" badges on `/admin/payouts/tax-report`, and a
-  classification label on the dispatch list.
+- [x] **2.1b** ✓ 2026-06-25 — tax-report split shipped: `/api/admin/payouts/tax-report`
+  joins `worker_classification` + runs `classifyTaxRows`; the page shows W-2 / 1099 /
+  unclassified subtotal cards, a "1099-NEC needed (≥ $600)" callout, a per-row
+  classification chip, and an "unclassified — set on profile" hint. Brand-styled; CSV
+  path unchanged; 27 tests green.
+- [ ] **2.1c** Set-side: classification picker on the employee profile (PATCH
+  `worker_classification`) + a classification label on the payout dispatch list.
 - [ ] **2.2** Unified **finance dashboard**: one page that nets revenue (cleared
   `payments`) − payouts (`payout_batch_items` paid) − expenses (approved `receipts`)
   by day/week/month/year, with "where money came from / went" breakdowns. Reuses the

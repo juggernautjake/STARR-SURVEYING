@@ -15,6 +15,8 @@ import Link from 'next/link';
 import { formatDollars } from '@/lib/payments/live';
 import '../../payments-admin.css';
 
+type WorkerClassification = 'unclassified' | 'w2' | 'contractor_1099';
+
 interface EmployeeTaxRow {
   user_email: string;
   user_name: string | null;
@@ -23,6 +25,13 @@ interface EmployeeTaxRow {
   payment_count: number;
   first_paid_at: string | null;
   last_paid_at: string | null;
+  classification?: WorkerClassification;
+  nec_reportable?: boolean;
+}
+
+interface ClassBucket {
+  count: number;
+  total_cents: number;
 }
 
 interface ReportResponse {
@@ -30,6 +39,8 @@ interface ReportResponse {
   to: string;
   range_label: string;
   employees: EmployeeTaxRow[];
+  classification_summary?: Record<WorkerClassification, ClassBucket>;
+  nec_reportable?: EmployeeTaxRow[];
   totals: { total_cents: number; payment_count: number };
 }
 
@@ -42,6 +53,10 @@ function quarterRange(year: number, q: 1 | 2 | 3 | 4): { from: string; to: strin
   const start = new Date(Date.UTC(year, startMonth, 1));
   const end = new Date(Date.UTC(year, startMonth + 3, 0));
   return { from: isoDate(start), to: isoDate(end) };
+}
+
+function classLabel(c?: WorkerClassification): string {
+  return c === 'w2' ? 'W-2' : c === 'contractor_1099' ? '1099' : 'Unclassified';
 }
 
 export default function PayoutTaxReportPage(): React.ReactElement {
@@ -128,6 +143,42 @@ export default function PayoutTaxReportPage(): React.ReactElement {
 
       {error && <p className="tax-page__error" data-testid="tax-error" role="alert">{error}</p>}
 
+      {report?.classification_summary && (
+        <section className="tax-class" data-testid="tax-classification">
+          <div className="tax-class__cards">
+            {(['w2', 'contractor_1099', 'unclassified'] as const).map((c) => (
+              <div key={c} className={`tax-class__card tax-class__card--${c}`}>
+                <span className="tax-class__card-label">
+                  {c === 'w2' ? 'W-2 employees' : c === 'contractor_1099' ? '1099 contractors' : 'Unclassified'}
+                </span>
+                <span className="tax-class__card-total">
+                  {formatDollars(report.classification_summary![c].total_cents)}
+                </span>
+                <span className="tax-class__card-count">
+                  {report.classification_summary![c].count} worker
+                  {report.classification_summary![c].count === 1 ? '' : 's'}
+                </span>
+              </div>
+            ))}
+          </div>
+          {report.nec_reportable && report.nec_reportable.length > 0 && (
+            <div className="tax-class__nec" data-testid="tax-nec">
+              <strong>1099-NEC needed (paid &ge; $600):</strong>{' '}
+              {report.nec_reportable
+                .map((r) => `${r.user_name ?? r.user_email} (${formatDollars(r.total_cents)})`)
+                .join(', ')}
+            </div>
+          )}
+          {report.classification_summary.unclassified.count > 0 && (
+            <p className="tax-class__hint">
+              {report.classification_summary.unclassified.count} worker
+              {report.classification_summary.unclassified.count === 1 ? ' is' : 's are'} unclassified — set W-2 or 1099 on
+              the employee profile so the split + 1099-NEC list are accurate.
+            </p>
+          )}
+        </section>
+      )}
+
       {report && (
         <section className="tax-page__table" data-testid="tax-table">
           <header className="tax-page__table-head">
@@ -157,7 +208,17 @@ export default function PayoutTaxReportPage(): React.ReactElement {
               {report.employees.map((r) => (
                 <div className="tax-table__row" key={r.user_email} data-testid={`tax-row-${r.user_email}`}>
                   <div>
-                    <div className="tax-table__email">{r.user_email}</div>
+                    <div className="tax-table__email">
+                      {r.user_email}
+                      {r.classification && (
+                        <span
+                          className={`tax-class-chip tax-class-chip--${r.classification}`}
+                          data-testid={`tax-class-chip-${r.user_email}`}
+                        >
+                          {classLabel(r.classification)}{r.nec_reportable ? ' · 1099-NEC' : ''}
+                        </span>
+                      )}
+                    </div>
                     {r.user_name && <div className="tax-table__name">{r.user_name}</div>}
                     <div className="tax-table__methods">
                       {(['venmo', 'cashapp', 'zelle', 'ach', 'cash', 'stripe', 'other'] as const).map((k) => (
@@ -266,6 +327,37 @@ const styles = `
     font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; color: #1D3095;
     background: rgba(29, 48, 149, 0.08); padding: 0.15rem 0.5rem; border-radius: 999px;
   }
+
+  .tax-class {
+    max-width: 1100px; margin: 0 auto 1rem;
+    background: #fff; border: 1px solid #e4e7ee; border-radius: 14px; padding: 1.25rem 1.5rem;
+  }
+  .tax-class__cards {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.85rem;
+  }
+  .tax-class__card {
+    border: 1px solid #e4e7ee; border-radius: 12px; padding: 0.9rem 1rem;
+    display: flex; flex-direction: column; gap: 0.2rem; background: #fafbfd;
+  }
+  .tax-class__card--w2 { border-left: 4px solid #1D3095; }
+  .tax-class__card--contractor_1099 { border-left: 4px solid #BD1218; }
+  .tax-class__card--unclassified { border-left: 4px solid #c0c5d4; }
+  .tax-class__card-label { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7280; font-weight: 600; }
+  .tax-class__card-total { font-family: 'Sora', sans-serif; font-size: 1.3rem; font-weight: 700; color: #152050; }
+  .tax-class__card-count { font-size: 0.82rem; color: #6b7280; }
+  .tax-class__nec {
+    margin-top: 0.95rem; padding: 0.7rem 0.9rem; border-radius: 10px;
+    background: #fff4e5; border: 1px solid #f3c98b; color: #7a4a12; font-size: 0.9rem; line-height: 1.5;
+  }
+  .tax-class__hint { margin: 0.85rem 0 0; font-size: 0.85rem; color: #6b7280; }
+  .tax-class-chip {
+    display: inline-block; margin-left: 0.5rem; font-size: 0.68rem; font-weight: 700;
+    letter-spacing: 0.03em; text-transform: uppercase; padding: 0.1rem 0.45rem; border-radius: 999px;
+    vertical-align: middle;
+  }
+  .tax-class-chip--w2 { background: #e6e9f6; color: #1D3095; }
+  .tax-class-chip--contractor_1099 { background: #fdecec; color: #BD1218; }
+  .tax-class-chip--unclassified { background: #eef0f4; color: #6b7280; }
 
   @media (max-width: 800px) {
     .tax-table__head { display: none; }
