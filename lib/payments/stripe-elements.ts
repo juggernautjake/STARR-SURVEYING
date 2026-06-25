@@ -1,6 +1,6 @@
 // lib/payments/stripe-elements.ts
 //
-// G1 / Phase 1.1 of docs/planning/in-progress/BUSINESS_GO_LIVE_FINANCE_PAYMENTS_2026-06-25.md
+// G1 / Phase 1.1 of docs/planning/completed/BUSINESS_GO_LIVE_FINANCE_PAYMENTS_2026-06-25.md
 // — pure helpers for the customer-facing Stripe Elements card form. The
 // React component + Stripe SDK calls live in
 // app/pay/[invoice]/StripeCardForm.tsx; the pure, branch-heavy bits stay

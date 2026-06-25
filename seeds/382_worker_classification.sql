@@ -1,6 +1,6 @@
 -- seeds/382_worker_classification.sql
 --
--- G5 / Phase 2.1 of docs/planning/in-progress/BUSINESS_GO_LIVE_FINANCE_PAYMENTS_2026-06-25.md
+-- G5 / Phase 2.1 of docs/planning/completed/BUSINESS_GO_LIVE_FINANCE_PAYMENTS_2026-06-25.md
 -- — worker tax classification on registered_users so payout tax reports can
 -- split W-2 employees from 1099 contractors and flag 1099-NEC reportables
 -- (a contractor paid >= $600 in a calendar year).
