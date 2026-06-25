@@ -104,10 +104,13 @@ Everything else assumes the live schema exists.
   _Dispatch-list label deferred — low value (classification already shows on the tax report
   + user management), not worth threading classification through the dispatch query._
   → **G5 (1099/W-2) complete.**
-- [ ] **2.2** Unified **finance dashboard**: one page that nets revenue (cleared
-  `payments`) − payouts (`payout_batch_items` paid) − expenses (approved `receipts`)
-  by day/week/month/year, with "where money came from / went" breakdowns. Reuses the
-  allocation + finances + payout aggregators; pure helpers + tests.
+- [x] **2.2a** ✓ 2026-06-25 — pure aggregators shipped: `lib/payments/finance-overview.ts`
+  (`summarizeFinances` = revenue/payouts/expenses/outflow/net; `financesByPeriod` =
+  day/week/month/year buckets with from/to window), decoupled from DB columns via
+  `MoneyEvent`. Source-locked by `__tests__/admin/payment-finance-overview.test.ts` (5 green).
+- [ ] **2.2b** Wire 2.2a into a route + page: `/api/admin/finances/overview` mapping
+  cleared `payments` / paid `payout_batch_items` / approved `receipts` → `MoneyEvent[]`,
+  and a `/admin/finances/overview` dashboard (revenue · payouts · expenses · net, by period).
 - [ ] **2.3** **Bank reconciliation**: `bank_transactions` table + CSV import (PNC
   export format; Plaid/Stripe feed deferred), a match engine that links each
   withdrawal to a payout or receipt (and each deposit to a customer payment), and an
