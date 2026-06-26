@@ -113,7 +113,15 @@ slice; verify mobile at 390px and desktop.
   explorer root is listed.
 
 ### F9 — Mount existing sources (read-only) **[me]**
-- [ ] Surface receipts, job files, and finance exports as read-only virtual nodes so "all files" are browsable in one tree (per-source, gated by the source's own access rules).
+- [x] ✓ 2026-06-25 — `lib/files/mounts.ts` surfaces existing sources as **read-only** virtual
+  folders at the explorer root: **Receipts** (`starr-field-receipts`), **Job Files**
+  (`starr-field-files`), **Research Documents** (`research-documents`), **Field Media**
+  (`starr-field-photos`/`-videos`/`-voice`). Synthesized on read (never in `file_nodes`),
+  capped at `download` access so no write path can touch them; each source is role-gated
+  (admins always; e.g. receipts = admin/dev, job files/field media += field_crew, research +=
+  researcher/drawer) and the download route re-validates the gate before signing the source
+  object (`?inline=1` feeds the viewer). Live-validated: Research Documents surfaces 326 docs;
+  buckets confirmed. Finance reports stay generated-on-the-fly (nothing persisted to mount).
 
 ### F10 — QA + polish **[me]**
 - [ ] 3-pass review of every function/feature/style: keyboard nav + ARIA, mobile + desktop, large trees, permission edge cases (deny beats allow? owner vs custom), error/empty states, download/upload integrity.

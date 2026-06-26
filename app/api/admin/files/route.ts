@@ -12,6 +12,7 @@ import { listChildren, accessForNode, siblingNames, NODE_COLS } from '@/lib/file
 import { canEdit, type FileUser } from '@/lib/files/permissions';
 import { sanitizeName, nextAvailableName } from '@/lib/files/tree';
 import { provisionForUser } from '@/lib/files/provision';
+import { MOUNT_PREFIX, mountRootNodes, listMount } from '@/lib/files/mounts';
 
 function sessionUser(session: { user?: { email?: string | null; roles?: string[] } } | null): FileUser | null {
   if (!session?.user?.email) return null;
@@ -27,17 +28,31 @@ export async function GET(req: NextRequest) {
   const raw = new URL(req.url).searchParams.get('parent');
   const parentId = raw && raw !== 'root' ? raw : null;
 
+  // Read-only mounts (receipts, job files, …) live outside file_nodes.
+  if (parentId && parentId.startsWith(MOUNT_PREFIX)) {
+    const m = await listMount(parentId, user, admin);
+    if (!m.ok) return NextResponse.json({ error: m.error }, { status: m.status ?? 500 });
+    return NextResponse.json({
+      parent_id: parentId,
+      parent_access: 'view',
+      breadcrumb: [{ id: parentId, name: m.name }],
+      nodes: m.nodes,
+    });
+  }
+
   // Landing on the root is the natural moment to make sure the system roots and
   // this user's personal folder exist (covers users who joined after seed 385).
   if (parentId === null) await provisionForUser(user, session!.user!.name ?? null);
 
   const result = await listChildren(parentId, user, admin);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status ?? 500 });
+  // Append the read-only source mounts at the top level only.
+  const nodes = parentId === null ? [...mountRootNodes(user, admin), ...(result.nodes ?? [])] : result.nodes;
   return NextResponse.json({
     parent_id: parentId,
     parent_access: result.parentAccess,
     breadcrumb: result.breadcrumb,
-    nodes: result.nodes,
+    nodes,
   });
 }
 
