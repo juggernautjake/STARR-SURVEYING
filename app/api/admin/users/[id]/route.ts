@@ -3,6 +3,11 @@
 import { auth, isAdmin, ALL_ROLES } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  WORKER_CLASSIFICATIONS,
+  classificationLabel,
+  type WorkerClassification,
+} from '@/lib/payouts/worker-classification';
 
 // PATCH - Update user (roles, ban/unban, approve/reject)
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -13,7 +18,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const { id } = params;
   const body = await req.json();
-  const { action, roles, reason } = body;
+  const { action, roles, reason, classification } = body;
 
   // Validate the user exists
   const { data: user, error: fetchErr } = await supabaseAdmin
@@ -118,7 +123,29 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ success: true, message: `Registration for ${user.name} (${user.email}) has been rejected` });
   }
 
-  return NextResponse.json({ error: 'Invalid action. Use: update_roles, ban, unban, approve, or reject' }, { status: 400 });
+  if (action === 'set_classification') {
+    // G5/2.1c — W-2 vs 1099 tax classification (registered_users.worker_classification, seed 382).
+    const allowed = WORKER_CLASSIFICATIONS as readonly string[];
+    if (typeof classification !== 'string' || !allowed.includes(classification)) {
+      return NextResponse.json({ error: `classification must be one of: ${allowed.join(', ')}` }, { status: 400 });
+    }
+    const { error } = await supabaseAdmin
+      .from('registered_users')
+      .update({ worker_classification: classification, updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error setting classification:', error);
+      return NextResponse.json({ error: 'Failed to set classification' }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `${user.name} set to ${classificationLabel(classification as WorkerClassification)}`,
+    });
+  }
+
+  return NextResponse.json({ error: 'Invalid action. Use: update_roles, ban, unban, approve, reject, or set_classification' }, { status: 400 });
 }
 
 // DELETE - Permanently delete a user

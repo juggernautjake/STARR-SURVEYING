@@ -567,6 +567,50 @@
   line-height: 1.4;
 }
 
+/* G1 — Stripe Elements card form. Wrapper mirrors the P6 confirm strip so it
+   sits seamlessly among the other method panels; the Elements fields are brand
+   -themed via the appearance API in StripeCardForm.tsx. */
+.pay-card-form {
+  margin-top: 1rem;
+  background: #F4F5F9;
+  border: 1px solid #d6d9e3;
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+}
+.pay-card-form__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+.pay-card-form__title {
+  font-family: 'Sora', sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--brand-dark, #152050);
+}
+.pay-card-form__secure {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #1f6d3c;
+  white-space: nowrap;
+}
+.pay-card-form__msg {
+  margin: 0 0 0.85rem;
+  font-size: 0.95rem;
+  color: var(--brand-dark, #152050);
+}
+.pay-card-form__foot {
+  margin: 0.85rem 0 0;
+  font-size: 0.76rem;
+  color: var(--text-muted, #6b7280);
+  text-align: center;
+  line-height: 1.4;
+}
+.pay-card-form .pay-methods__confirm-actions { margin-top: 0.95rem; }
+
 /* P7 — pledge delivery selector (mail vs in person) */
 .pay-methods__pledge-delivery {
   border: 0;
