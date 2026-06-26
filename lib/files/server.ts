@@ -284,6 +284,49 @@ export async function copySubtree(
   return { ok: true, node: rootCopy, copied, skipped };
 }
 
+/** Expose the private node→NodeWithGrants adapter for the permissions preview. */
+export function nodeToNWG(row: FileNodeRow, grants: PermissionGrant[]): NodeWithGrants {
+  return toNWG(row, grants);
+}
+
+/** Company-domain people for the permissions user-picker + access preview. */
+export async function listCompanyPeople(): Promise<Array<{ email: string; name: string | null; roles: string[] }>> {
+  const { data } = await supabaseAdmin
+    .from('registered_users')
+    .select('email, name, roles')
+    .ilike('email', '%@starr-surveying.com')
+    .order('name', { ascending: true });
+  return ((data ?? []) as Array<{ email: string; name: string | null; roles: string[] | null }>).map((u) => ({
+    email: u.email,
+    name: u.name,
+    roles: u.roles ?? ['employee'],
+  }));
+}
+
+/** Replace a node's permission mode + grant set in one shot (custom only keeps
+ *  grants; switching to inherit clears them). */
+export async function replaceGrants(
+  nodeId: string,
+  mode: 'inherit' | 'custom',
+  grants: PermissionGrant[],
+): Promise<{ ok: boolean; error?: string }> {
+  const upd = await supabaseAdmin.from('file_nodes').update({ permission_mode: mode }).eq('id', nodeId);
+  if (upd.error) return { ok: false, error: upd.error.message };
+  const del = await supabaseAdmin.from('file_permissions').delete().eq('node_id', nodeId);
+  if (del.error) return { ok: false, error: del.error.message };
+  if (mode === 'custom' && grants.length > 0) {
+    const rows = grants.map((g) => ({
+      node_id: nodeId,
+      grantee_type: g.grantee_type,
+      grantee_value: g.grantee_value,
+      access_level: g.access_level,
+    }));
+    const ins = await supabaseAdmin.from('file_permissions').insert(rows);
+    if (ins.error) return { ok: false, error: ins.error.message };
+  }
+  return { ok: true };
+}
+
 /** Collect a node id + all its live descendant ids (BFS) for subtree ops. */
 export async function collectSubtreeIds(rootId: string): Promise<string[]> {
   const all = new Set<string>([rootId]);

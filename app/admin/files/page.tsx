@@ -29,6 +29,9 @@ import {
   ChevronLeft,
   Home,
   X,
+  Users,
+  Plus,
+  Check,
 } from 'lucide-react';
 
 type AccessLevel = 'none' | 'view' | 'download' | 'edit' | 'manage';
@@ -48,10 +51,39 @@ interface Crumb {
   name: string;
 }
 
+interface Grant {
+  grantee_type: 'everyone' | 'role' | 'user';
+  grantee_value: string | null;
+  access_level: 'view' | 'download' | 'edit' | 'manage';
+}
+interface Person {
+  email: string;
+  name: string | null;
+}
+interface RoleOpt {
+  value: string;
+  label: string;
+}
+
 const NODES_DT = 'application/x-fx-nodes';
 const rank = (a: AccessLevel) => ['none', 'view', 'download', 'edit', 'manage'].indexOf(a);
 const canDownload = (a: AccessLevel) => rank(a) >= rank('download');
 const canEdit = (a: AccessLevel) => rank(a) >= rank('edit');
+const canManage = (a: AccessLevel) => a === 'manage';
+
+const ACCESS_OPTS: Array<{ value: Grant['access_level']; label: string }> = [
+  { value: 'view', label: 'Can view' },
+  { value: 'download', label: 'Can download' },
+  { value: 'edit', label: 'Can edit' },
+  { value: 'manage', label: 'Can manage' },
+];
+const ACCESS_LABEL: Record<AccessLevel, string> = {
+  none: 'No access',
+  view: 'View',
+  download: 'Download',
+  edit: 'Edit',
+  manage: 'Manage',
+};
 
 const isImage = (m: string | null) => !!m && m.startsWith('image/');
 const isPdf = (m: string | null) => m === 'application/pdf';
@@ -102,6 +134,21 @@ export default function FilesPage(): React.ReactElement {
 
   const [viewer, setViewer] = useState<{ node: FileNode; url: string } | null>(null);
   const [viewerLoading, setViewerLoading] = useState(false);
+
+  // Permissions dialog (F7)
+  const [permNode, setPermNode] = useState<FileNode | null>(null);
+  const [permMode, setPermMode] = useState<'inherit' | 'custom'>('inherit');
+  const [permGrants, setPermGrants] = useState<Grant[]>([]);
+  const [permInheritedFrom, setPermInheritedFrom] = useState<string | null>(null);
+  const [permPreview, setPermPreview] = useState<{ rows: Array<{ email: string; name: string | null; access: AccessLevel }>; everyone: AccessLevel } | null>(null);
+  const [permBusy, setPermBusy] = useState(false);
+  const [permError, setPermError] = useState<string | null>(null);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [roleOpts, setRoleOpts] = useState<RoleOpt[]>([]);
+  // New-grant draft
+  const [draftType, setDraftType] = useState<'everyone' | 'role' | 'user'>('user');
+  const [draftValue, setDraftValue] = useState('');
+  const [draftLevel, setDraftLevel] = useState<Grant['access_level']>('view');
 
   const load = useCallback(async (pid: string | null) => {
     setLoading(true);
@@ -273,6 +320,103 @@ export default function FilesPage(): React.ReactElement {
       setError(await errOf(res, 'Could not delete.'));
       return;
     }
+    load(parentId);
+  }
+
+  // ---- permissions dialog (F7) ------------------------------------------
+  async function openPerms(n: FileNode) {
+    setPermError(null);
+    setPermPreview(null);
+    const res = await fetch(`/api/admin/files/${n.id}/permissions`);
+    if (!res.ok) {
+      setError(await errOf(res, 'You cannot manage this item’s permissions.'));
+      return;
+    }
+    const data = await res.json();
+    setPermNode(n);
+    setPermMode(data.node.permission_mode ?? 'inherit');
+    setPermGrants((data.grants ?? []) as Grant[]);
+    setPermInheritedFrom(data.inheritedFrom ?? null);
+    setDraftType('user');
+    setDraftValue('');
+    setDraftLevel('view');
+    if (people.length === 0 || roleOpts.length === 0) {
+      const pr = await fetch('/api/admin/files/people');
+      if (pr.ok) {
+        const pd = await pr.json();
+        setPeople(pd.people ?? []);
+        setRoleOpts(pd.roles ?? []);
+      }
+    }
+  }
+
+  function closePerms() {
+    setPermNode(null);
+    setPermPreview(null);
+    setPermError(null);
+  }
+
+  // Live "who can access" preview whenever the staged grants/mode change.
+  useEffect(() => {
+    if (!permNode) return undefined;
+    let cancelled = false;
+    const run = async () => {
+      const res = await fetch(`/api/admin/files/${permNode.id}/permissions/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ permission_mode: permMode, grants: permMode === 'custom' ? permGrants : [] }),
+      });
+      if (!res.ok || cancelled) return;
+      setPermPreview(await res.json());
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [permNode, permMode, permGrants]);
+
+  function addDraftGrant() {
+    if (draftType !== 'everyone' && !draftValue) {
+      setPermError(draftType === 'role' ? 'Pick a role.' : 'Pick a person.');
+      return;
+    }
+    setPermError(null);
+    const value = draftType === 'everyone' ? null : draftValue;
+    setPermGrants((gs) => {
+      const without = gs.filter((g) => !(g.grantee_type === draftType && (g.grantee_value ?? '') === (value ?? '')));
+      return [...without, { grantee_type: draftType, grantee_value: value, access_level: draftLevel }];
+    });
+    setDraftValue('');
+  }
+  function removeGrant(i: number) {
+    setPermGrants((gs) => gs.filter((_, idx) => idx !== i));
+  }
+  function setGrantLevel(i: number, level: Grant['access_level']) {
+    setPermGrants((gs) => gs.map((g, idx) => (idx === i ? { ...g, access_level: level } : g)));
+  }
+
+  function grantLabel(g: Grant): string {
+    if (g.grantee_type === 'everyone') return 'Everyone (signed in)';
+    if (g.grantee_type === 'role') return roleOpts.find((r) => r.value === g.grantee_value)?.label ?? `Role: ${g.grantee_value}`;
+    const p = people.find((x) => x.email === g.grantee_value);
+    return p ? `${p.name ?? p.email}` : (g.grantee_value ?? 'User');
+  }
+
+  async function savePerms() {
+    if (!permNode) return;
+    setPermBusy(true);
+    setPermError(null);
+    const res = await fetch(`/api/admin/files/${permNode.id}/permissions`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ permission_mode: permMode, grants: permMode === 'custom' ? permGrants : [] }),
+    });
+    setPermBusy(false);
+    if (!res.ok) {
+      setPermError(await errOf(res, 'Could not save permissions.'));
+      return;
+    }
+    closePerms();
     load(parentId);
   }
 
@@ -600,6 +744,11 @@ export default function FilesPage(): React.ReactElement {
                       <Download size={16} />
                     </button>
                   )}
+                  {canManage(n.access) && (
+                    <button type="button" className="fx__icon-btn" onClick={() => openPerms(n)} title="Permissions" aria-label={`Permissions for ${n.name}`} data-testid={`fx-perms-${n.id}`}>
+                      <Users size={16} />
+                    </button>
+                  )}
                   {canEdit(n.access) && (
                     <button type="button" className="fx__icon-btn" onClick={() => duplicate(n)} title="Duplicate" aria-label={`Duplicate ${n.name}`}>
                       <CopyPlus size={16} />
@@ -677,6 +826,141 @@ export default function FilesPage(): React.ReactElement {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {permNode && (
+        <div
+          className="fx__modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Permissions for ${permNode.name}`}
+          data-testid="fx-perms-dialog"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closePerms();
+          }}
+        >
+          <div className="fx__sheet">
+            <div className="fx__sheet-head">
+              <div>
+                <h2 className="fx__sheet-title">Permissions</h2>
+                <p className="fx__sheet-sub">{permNode.name}</p>
+              </div>
+              <button type="button" className="fx__icon-btn" onClick={closePerms} aria-label="Close" data-testid="fx-perms-close">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="fx__sheet-body">
+              {/* Inherit vs custom */}
+              <div className="fx__seg" role="radiogroup" aria-label="Permission mode">
+                <button type="button" role="radio" aria-checked={permMode === 'inherit'} className={`fx__seg-opt${permMode === 'inherit' ? ' is-on' : ''}`} onClick={() => setPermMode('inherit')}>
+                  Inherit
+                </button>
+                <button type="button" role="radio" aria-checked={permMode === 'custom'} className={`fx__seg-opt${permMode === 'custom' ? ' is-on' : ''}`} onClick={() => setPermMode('custom')} data-testid="fx-perms-custom">
+                  Custom
+                </button>
+              </div>
+              {permMode === 'inherit' ? (
+                <p className="fx__hint">
+                  Inherits access from {permInheritedFrom ? <strong>{permInheritedFrom}</strong> : 'the top level'}. The owner and admins
+                  always have full access.
+                </p>
+              ) : (
+                <p className="fx__hint">Only the people and roles below (plus the owner and admins) can reach this item.</p>
+              )}
+
+              {permMode === 'custom' && (
+                <>
+                  <ul className="fx__grants" data-testid="fx-grant-list">
+                    {permGrants.length === 0 && <li className="fx__grant fx__grant--empty">No one added yet — it’s private to the owner and admins.</li>}
+                    {permGrants.map((g, i) => (
+                      <li key={`${g.grantee_type}:${g.grantee_value ?? ''}`} className="fx__grant">
+                        <span className="fx__grant-who" title={g.grantee_type === 'user' ? g.grantee_value ?? '' : undefined}>
+                          {grantLabel(g)}
+                          <span className="fx__grant-kind">{g.grantee_type === 'everyone' ? 'everyone' : g.grantee_type}</span>
+                        </span>
+                        <select className="fx__select" value={g.access_level} onChange={(e) => setGrantLevel(i, e.target.value as Grant['access_level'])} aria-label={`Access for ${grantLabel(g)}`}>
+                          {ACCESS_OPTS.map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                        <button type="button" className="fx__icon-btn fx__icon-btn--danger" onClick={() => removeGrant(i)} aria-label={`Remove ${grantLabel(g)}`}>
+                          <X size={15} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* Add grant */}
+                  <div className="fx__add">
+                    <select className="fx__select" value={draftType} onChange={(e) => { setDraftType(e.target.value as 'everyone' | 'role' | 'user'); setDraftValue(''); }} aria-label="Who to add">
+                      <option value="user">Specific person</option>
+                      <option value="role">Role</option>
+                      <option value="everyone">Everyone</option>
+                    </select>
+                    {draftType === 'user' && (
+                      <select className="fx__select fx__select--grow" value={draftValue} onChange={(e) => setDraftValue(e.target.value)} aria-label="Person">
+                        <option value="">Choose person…</option>
+                        {people.map((p) => (
+                          <option key={p.email} value={p.email}>{p.name ?? p.email}</option>
+                        ))}
+                      </select>
+                    )}
+                    {draftType === 'role' && (
+                      <select className="fx__select fx__select--grow" value={draftValue} onChange={(e) => setDraftValue(e.target.value)} aria-label="Role">
+                        <option value="">Choose role…</option>
+                        {roleOpts.map((r) => (
+                          <option key={r.value} value={r.value}>{r.label}</option>
+                        ))}
+                      </select>
+                    )}
+                    {draftType === 'everyone' && <span className="fx__select--grow fx__hint" style={{ margin: 0 }}>Everyone signed in</span>}
+                    <select className="fx__select" value={draftLevel} onChange={(e) => setDraftLevel(e.target.value as Grant['access_level'])} aria-label="Access level">
+                      {ACCESS_OPTS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                    <button type="button" className="fx-btn fx-btn--ghost" onClick={addDraftGrant} data-testid="fx-grant-add">
+                      <Plus size={15} /> Add
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* Who can access */}
+              <div className="fx__preview">
+                <h3 className="fx__preview-title">Who can access</h3>
+                {!permPreview ? (
+                  <p className="fx__hint">Calculating…</p>
+                ) : (
+                  <ul className="fx__preview-list">
+                    <li className="fx__preview-row">
+                      <span>Everyone else (signed in)</span>
+                      <span className={`fx__badge fx__badge--${permPreview.everyone}`}>{ACCESS_LABEL[permPreview.everyone]}</span>
+                    </li>
+                    {permPreview.rows
+                      .filter((r) => r.access !== 'none')
+                      .map((r) => (
+                        <li key={r.email} className="fx__preview-row">
+                          <span title={r.email}>{r.name ?? r.email}</span>
+                          <span className={`fx__badge fx__badge--${r.access}`}>{ACCESS_LABEL[r.access]}</span>
+                        </li>
+                      ))}
+                  </ul>
+                )}
+              </div>
+
+              {permError && <p className="fx__error" role="alert">{permError}</p>}
+            </div>
+
+            <div className="fx__sheet-foot">
+              <button type="button" className="fx-btn fx-btn--ghost" onClick={closePerms} disabled={permBusy}>Cancel</button>
+              <button type="button" className="fx-btn" onClick={savePerms} disabled={permBusy} data-testid="fx-perms-save">
+                <Check size={16} /> {permBusy ? 'Saving…' : 'Save'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -767,6 +1051,41 @@ const styles = `
   .fx__viewer-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; background: #fff; }
   .fx__viewer-frame { width: 100%; height: 100%; border: none; border-radius: 8px; background: #fff; }
   .fx__viewer-fallback { background: #fff; color: #152050; border-radius: 14px; padding: 2rem 2.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
+
+  .fx__modal { position: fixed; inset: 0; background: rgba(21,32,80,0.5); display: flex; align-items: center; justify-content: center; z-index: 70; padding: 1rem; }
+  .fx__sheet { background: #fff; border-radius: 16px; width: 100%; max-width: 560px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 18px 50px rgba(21,32,80,0.3); }
+  .fx__sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1.1rem 1.25rem 0.75rem; border-bottom: 1px solid #eef0f5; }
+  .fx__sheet-title { font-family: 'Sora', sans-serif; font-size: 1.15rem; font-weight: 700; margin: 0; }
+  .fx__sheet-sub { margin: 0.15rem 0 0; color: #6b7280; font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 24rem; }
+  .fx__sheet-body { padding: 1rem 1.25rem; overflow-y: auto; }
+  .fx__sheet-foot { display: flex; justify-content: flex-end; gap: 0.5rem; padding: 0.85rem 1.25rem; border-top: 1px solid #eef0f5; }
+
+  .fx__seg { display: inline-flex; background: #eef1fb; border-radius: 10px; padding: 0.2rem; gap: 0.2rem; }
+  .fx__seg-opt { font: inherit; font-weight: 700; font-size: 0.85rem; padding: 0.4rem 0.95rem; border: none; background: none; color: #1D3095; border-radius: 8px; cursor: pointer; }
+  .fx__seg-opt.is-on { background: #1D3095; color: #fff; }
+  .fx__hint { color: #6b7280; font-size: 0.85rem; margin: 0.6rem 0 0.9rem; }
+
+  .fx__grants { list-style: none; padding: 0; margin: 0 0 0.75rem; display: flex; flex-direction: column; gap: 0.4rem; }
+  .fx__grant { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 0.5rem; background: #f7f8fc; border: 1px solid #e9ecf4; border-radius: 10px; padding: 0.4rem 0.55rem; }
+  .fx__grant--empty { display: block; color: #6b7280; font-size: 0.85rem; background: none; border: 1px dashed #d6d9e3; }
+  .fx__grant-who { display: flex; align-items: center; gap: 0.45rem; min-width: 0; font-weight: 600; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fx__grant-kind { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.03em; color: #8a90a2; background: #eef1fb; padding: 0.1rem 0.35rem; border-radius: 5px; flex-shrink: 0; }
+
+  .fx__add { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; background: #fbfcff; border: 1px solid #e9ecf4; border-radius: 10px; padding: 0.55rem; }
+  .fx__select { font: inherit; font-size: 0.85rem; padding: 0.4rem 0.5rem; border: 1px solid #d6d9e3; border-radius: 8px; background: #fff; color: #152050; cursor: pointer; }
+  .fx__select--grow { flex: 1; min-width: 8rem; }
+
+  .fx__preview { margin-top: 1.1rem; border-top: 1px solid #eef0f5; padding-top: 0.85rem; }
+  .fx__preview-title { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: #8a90a2; font-weight: 700; margin: 0 0 0.5rem; }
+  .fx__preview-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+  .fx__preview-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; font-size: 0.88rem; padding: 0.25rem 0; }
+  .fx__preview-row > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fx__badge { font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 999px; flex-shrink: 0; }
+  .fx__badge--manage { background: #1D3095; color: #fff; }
+  .fx__badge--edit { background: #dbe2fb; color: #1D3095; }
+  .fx__badge--download { background: #e3f0e6; color: #1c6b34; }
+  .fx__badge--view { background: #f0f1f6; color: #555c70; }
+  .fx__badge--none { background: #f4f5f9; color: #9aa1b4; }
 
   .fx__dropzone { position: fixed; inset: 0; background: rgba(21,32,80,0.35); display: flex; align-items: center; justify-content: center; z-index: 50; pointer-events: none; }
   .fx__dropzone-card { background: #fff; border: 2px dashed #1D3095; border-radius: 16px; padding: 2rem 2.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; color: #1D3095; font-weight: 700; }

@@ -93,7 +93,14 @@ slice; verify mobile at 390px and desktop.
   types. Clicking a previewable file opens the viewer; other files download.
 
 ### F7 — Permissions interface **[me]**
-- [ ] Per folder/file dialog: add/remove grants (everyone / role / specific user) × access level; inherit-vs-custom toggle; live "who can access" effective-access preview.
+- [x] ✓ 2026-06-25 — Per folder/file dialog (manage-gated): inherit-vs-custom segmented toggle,
+  add/remove grants (everyone / role / specific person) × access level (view/download/edit/
+  manage), and a **live "who can access" preview** computed server-side over the real ancestor
+  chain so inheritance + owner/admin overrides are accurate. APIs: `GET`/`PUT
+  /api/admin/files/[id]/permissions` (validated grantees, role allowlist, dedupe; personal
+  roots locked, system folders admin-only), `POST …/permissions/preview`, and `GET
+  /api/admin/files/people` (roster + roles for the pickers). `replaceGrants` +
+  `listCompanyPeople` + `nodeToNWG` in `lib/files/server.ts`.
 
 ### F8 — Personal folders + Shared root **[me]**
 - [ ] Auto-provision a personal root per employee (owner=manage) + a Shared root (everyone=view); protect system folders; backfill existing employees.
