@@ -2019,11 +2019,12 @@
   flex: 1;
   min-height: 0;
 }
+/* Single-pane: the sidebar (conversation list) is the ONLY pane in `list`
+   view, so it fills the whole modal width. */
 .messenger-panel__sidebar {
-  flex: 0 0 240px;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #E5E7EB;
   background: #FAFBFF;
   min-height: 0;
 }
@@ -2051,20 +2052,11 @@
   line-height: 1;
 }
 
-/* Narrow viewport — collapse the sidebar so the main pane fills
- * the popup. The user can still toggle back to the list via the
- * existing back-arrow control. */
+/* Narrow viewport — the modal fills the width. The list ↔ chat are already
+ * single-pane (one view at a time), so no sidebar collapsing is needed. */
 @media (max-width: 720px) {
   .messenger-panel {
     width: calc(100vw - 2rem);
-  }
-  .messenger-panel__sidebar {
-    flex-basis: 200px;
-  }
-}
-@media (max-width: 520px) {
-  .messenger-panel__sidebar {
-    display: none;
   }
 }
 
@@ -2077,7 +2069,31 @@
  * MX1 styles now own these classes outright. .messenger-panel__conv-title
  * (used for the back-view title) wasn't covered by MX1 and stays here.
  */
-.messenger-panel__conv-title { font-family:'Sora',sans-serif; font-size:.88rem; font-weight:600; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#0F172A; }
+/* Title wrapper allows the hover tooltip to escape (overflow visible) while the
+   title text itself still truncates with an ellipsis. */
+.messenger-panel__conv-titlewrap { position:relative; flex:1; min-width:0; }
+.messenger-panel__conv-title { display:block; font-family:'Sora',sans-serif; font-size:.88rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#0F172A; cursor:default; }
+/* Members tooltip — hover the chat title to reveal every participant. */
+.messenger-panel__members-tip {
+  display:none;
+  position:absolute;
+  top:calc(100% + 6px);
+  left:0;
+  z-index:30;
+  min-width:160px;
+  max-width:260px;
+  background:#1E293B;
+  color:#fff;
+  padding:.5rem .65rem;
+  border-radius:8px;
+  font-size:.74rem;
+  line-height:1.4;
+  white-space:normal;
+  box-shadow:0 8px 24px rgba(0,0,0,.22);
+}
+.messenger-panel__members-tip strong { display:block; font-size:.66rem; text-transform:uppercase; letter-spacing:.04em; opacity:.7; margin-bottom:.15rem; }
+.messenger-panel__conv-titlewrap:hover .messenger-panel__members-tip,
+.messenger-panel__conv-titlewrap:focus-within .messenger-panel__members-tip { display:block; }
 
 /* Tabs */
 .messenger-panel__tabs { display:flex; border-bottom:1px solid #E5E7EB; background:#F8F9FA; }
@@ -2106,7 +2122,7 @@
 .messenger-panel__msg { display:flex; flex-direction:column; align-items:flex-start; max-width:85%; }
 .messenger-panel__msg--own { align-self:flex-end; align-items:flex-end; }
 .messenger-panel__msg-sender { font-family:'Inter',sans-serif; font-size:.65rem; font-weight:600; color:#6B7280; margin-bottom:.1rem; padding-left:.5rem; }
-.messenger-panel__msg-bubble { padding:.45rem .75rem; border-radius:12px; font-family:'Inter',sans-serif; font-size:.82rem; line-height:1.4; background:#F3F4F6; color:#0F1419; word-wrap:break-word; }
+.messenger-panel__msg-bubble { padding:.45rem .75rem; border-radius:12px; font-family:'Inter',sans-serif; font-size:.82rem; line-height:1.4; background:#F3F4F6; color:#0F1419; word-wrap:break-word; white-space:pre-wrap; }
 .messenger-panel__msg-bubble--own { background:var(--color-brand-navy); color:#FFF; }
 .messenger-panel__msg-time { font-family:'Inter',sans-serif; font-size:.58rem; color:#9CA3AF; margin-top:.1rem; padding:0 .5rem; }
 
@@ -2114,8 +2130,9 @@
 .messenger-panel__compose { display:flex; align-items:center; gap:.35rem; padding:.5rem .75rem; border-top:1px solid #E5E7EB; background:#FFF; }
 .messenger-panel__tool { background:none; border:none; font-size:1rem; cursor:pointer; padding:.25rem; color:#6B7280; }
 .messenger-panel__tool:hover { color:var(--color-brand-navy); }
-.messenger-panel__input { flex:1; padding:.45rem .65rem; font-family:'Inter',sans-serif; font-size:.82rem; border:1.5px solid #E5E7EB; border-radius:20px; color:#0F1419; }
+.messenger-panel__input { flex:1; min-width:0; padding:.45rem .65rem; font-family:'Inter',sans-serif; font-size:.82rem; border:1.5px solid #E5E7EB; border-radius:20px; color:#0F1419; min-height:20px; max-height:120px; overflow-y:auto; white-space:pre-wrap; word-break:break-word; outline:none; }
 .messenger-panel__input:focus { outline:none; border-color:var(--color-brand-navy); }
+.messenger-panel__input:empty::before { content:attr(data-placeholder); color:#9CA3AF; pointer-events:none; }
 .messenger-panel__send { background:var(--color-brand-navy); color:#FFF; border:none; width:32px; height:32px; border-radius:50%; font-size:.9rem; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 .messenger-panel__send:hover { background:var(--color-brand-navy-d); }
 .messenger-panel__send:disabled { opacity:.4; cursor:not-allowed; }
@@ -2847,8 +2864,11 @@
   border-radius: 6px;
 }
 .msg-page__emoji-grid button:hover { background: #F3F4F6; }
+/* contentEditable rich compose: grows with content, caps + scrolls past ~5
+   lines, preserves pasted formatting + line breaks. */
 .msg-page__compose-input {
   flex: 1;
+  min-width: 0;
   padding: .55rem .85rem;
   border: 1.5px solid #E5E7EB;
   border-radius: 22px;
@@ -2856,15 +2876,29 @@
   font-size: .88rem;
   outline: none;
   transition: border-color .15s;
-  /* M4 — auto-grow textarea: one line by default, grows to ~5 lines (JS caps
-     scrollHeight at 120px), no manual resize handle. */
-  resize: none;
   line-height: 1.35;
+  min-height: 22px;
   max-height: 120px;
   overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .msg-page__compose-input:focus { border-color: var(--color-brand-navy); }
-.msg-page__compose-input::placeholder { color: #9CA3AF; }
+.msg-page__compose-input:empty::before {
+  content: attr(data-placeholder);
+  color: #9CA3AF;
+  pointer-events: none;
+}
+/* Keep pasted rich formatting readable inside the bubble. */
+.msg-rich p { margin: 0 0 .35rem; }
+.msg-rich p:last-child { margin-bottom: 0; }
+.msg-rich ul, .msg-rich ol { margin: .2rem 0; padding-left: 1.2rem; }
+.msg-rich a { color: inherit; text-decoration: underline; }
+.msg-rich code { font-family: ui-monospace, monospace; font-size: .92em; background: rgba(0,0,0,.06); padding: 0 .25em; border-radius: 4px; }
+.msg-rich blockquote { margin: .2rem 0; padding-left: .6rem; border-left: 3px solid rgba(0,0,0,.18); }
+.msg-page__msg-bubble--own .msg-rich code { background: rgba(255,255,255,.18); }
+.msg-page__msg-bubble--own .msg-rich blockquote { border-left-color: rgba(255,255,255,.4); }
+.msg-page__msg-bubble { white-space: pre-wrap; }
 .msg-page__send-btn {
   background: var(--color-brand-navy);
   color: #fff;

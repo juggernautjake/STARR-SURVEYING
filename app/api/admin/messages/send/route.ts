@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { notifyMany } from '@/lib/notifications';
 import { MESSAGE_ATTACHMENTS_BUCKET } from '@/lib/messages/attachments';
+import { htmlToPlainText } from '@/lib/messages/rich-text';
 
 const ATTACHMENT_URL_TTL = 3600; // 1 hour signed URLs for private attachments
 
@@ -158,8 +159,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Update conversation's last_message_at and preview
-  const preview = content.substring(0, 100) + (content.length > 100 ? '...' : '');
+  // Update conversation's last_message_at and preview. Content may be sanitized
+  // HTML (formatted paste), so strip tags for the plain-text preview.
+  const previewText = htmlToPlainText(content);
+  const preview = previewText.substring(0, 100) + (previewText.length > 100 ? '...' : '');
   await supabaseAdmin
     .from('conversations')
     .update({ last_message_at: message.created_at, last_message_preview: preview })
@@ -216,9 +219,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       const groupSuffix = conv?.type === 'group' && conv?.title
         ? ` (${conv.title})`
         : '';
-      const previewBody = content.length > 140
-        ? `${content.slice(0, 139)}…`
-        : content;
+      const notifyText = htmlToPlainText(content);
+      const previewBody = notifyText.length > 140
+        ? `${notifyText.slice(0, 139)}…`
+        : notifyText;
 
       await notifyMany(recipientEmails, {
         type: 'message',

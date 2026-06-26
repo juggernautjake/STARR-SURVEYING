@@ -28,6 +28,9 @@ import {
   readActiveRecipient,
   saveActiveRecipient,
 } from '@/lib/employee-pond/messenger-recipient';
+import RichMessageInput, { type RichMessageInputHandle } from '@/app/admin/components/messaging/RichMessageInput';
+import MessageBody from '@/app/admin/components/messaging/MessageBody';
+import { htmlToPlainText } from '@/lib/messages/rich-text';
 
 interface Conversation {
   id: string;
@@ -186,7 +189,7 @@ export default function FloatingMessenger() {
   const [totalUnread, setTotalUnread] = useState(0);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState('');
+  const [composeEmpty, setComposeEmpty] = useState(true);
   const [sending, setSending] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -204,7 +207,7 @@ export default function FloatingMessenger() {
   const [searching, setSearching] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const richRef = useRef<RichMessageInputHandle>(null);
 
   // Fetch conversations
   // messenger-smoothing-pass2-2026-06-18 — skip the setState call when
@@ -453,8 +456,9 @@ export default function FloatingMessenger() {
   // silently refetch (no skeleton) and the merge dedupes the optimistic
   // row against the server-acked one.
   async function handleSend() {
-    if (!newMessage.trim() || !activeConv || !userEmail) return;
-    const content = newMessage.trim();
+    // Sanitized HTML — a formatted paste keeps its formatting end-to-end.
+    const content = richRef.current?.getHtml() ?? '';
+    if (htmlToPlainText(content).trim() === '' || !activeConv || !userEmail) return;
     const optimisticMsg: Message = {
       id: makeOptimisticId(),
       sender_email: userEmail,
@@ -466,7 +470,8 @@ export default function FloatingMessenger() {
     // Optimistic insert + clear the input + collapse the emoji picker
     // BEFORE the network round-trip so the chat reads as instant.
     setMessages((prev) => [...prev, optimisticMsg]);
-    setNewMessage('');
+    richRef.current?.clear();
+    setComposeEmpty(true);
     setShowEmoji(false);
     setSending(true);
     try {
@@ -490,16 +495,17 @@ export default function FloatingMessenger() {
           if (data?.error && typeof data.error === 'string') detail = data.error;
         } catch { /* response wasn't JSON, keep the status */ }
         addToast(`Couldn't send message — ${detail}`, 'error');
-        // Roll the optimistic message back so the user sees the failure
-        // and can retry by re-typing.
+        // Roll the optimistic message back + restore the draft so the user can retry.
         setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
-        setNewMessage(content);
+        richRef.current?.setHtml(content);
+        setComposeEmpty(false);
       }
     } catch (err) {
       const detail = err instanceof Error ? err.message : 'network error';
       addToast(`Couldn't send message — ${detail}`, 'error');
       setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
-      setNewMessage(content);
+      richRef.current?.setHtml(content);
+      setComposeEmpty(false);
     }
     setSending(false);
   }
@@ -549,6 +555,15 @@ export default function FloatingMessenger() {
     }
     const others = c.participants?.filter(p => p.user_email !== userEmail) || [];
     return others.map(p => displayName(p.user_email)).join(', ') || 'Group';
+  }
+
+  // Every participant's display name (incl. you) — shown in the header tooltip so
+  // a group chat's full membership is one hover away even when the title is
+  // truncated to the first couple of names.
+  function getMemberNames(c: Conversation): string {
+    return (c.participants || [])
+      .map(p => p.user_email === userEmail ? 'You' : displayName(p.user_email))
+      .join(', ');
   }
 
   // Filter conversations
@@ -658,7 +673,15 @@ export default function FloatingMessenger() {
                 <button data-no-drag className="messenger-panel__back" onClick={() => { setView('list'); setActiveConv(null); setMessages([]); }}>
                   &#8592;
                 </button>
-                <span className="messenger-panel__conv-title">{getConvName(activeConv)}</span>
+                <div className="messenger-panel__conv-titlewrap" data-no-drag>
+                  <span className="messenger-panel__conv-title" title={getMemberNames(activeConv)}>
+                    {getConvName(activeConv)}
+                  </span>
+                  <span className="messenger-panel__members-tip" role="tooltip">
+                    <strong>{activeConv.type === 'group' ? 'Members' : 'Conversation'}</strong>
+                    <span>{getMemberNames(activeConv)}</span>
+                  </span>
+                </div>
               </>
             ) : view === 'new' ? (
               <>
@@ -702,7 +725,12 @@ export default function FloatingMessenger() {
               active chat, the new-conversation flow, the search
               results, or an empty-state prompt when no thread is
               selected. */}
+          {/* Single-pane: the conversation list fills the whole modal in `list`
+              view; opening a chat (or new/search) swaps the entire body to that
+              view with a back-arrow in the header. The list + chat are never
+              shown side-by-side. */}
           <div className="messenger-panel__body" data-testid="messenger-panel-body">
+          {view === 'list' && (
           <aside className="messenger-panel__sidebar" data-testid="messenger-panel-sidebar">
               <div className="messenger-panel__actions">
                 <input
@@ -760,23 +788,12 @@ export default function FloatingMessenger() {
                 )}
               </div>
           </aside>
-
-          {/* Slice MX2 — main pane: chat / new / search / empty
-              prompt depending on `view`. */}
-          <section className="messenger-panel__main" data-testid="messenger-panel-main">
-          {view === 'list' && (
-            <div className="messenger-panel__main-empty" data-testid="messenger-panel-main-empty">
-              <span className="messenger-panel__main-empty-icon" aria-hidden>💬</span>
-              <p style={{ margin: 0 }}>Pick a conversation from the left.</p>
-              <button
-                type="button"
-                className="admin-btn admin-btn--primary admin-btn--sm"
-                onClick={() => { setView('new'); fetchContacts(); }}
-              >
-                Start a new chat
-              </button>
-            </div>
           )}
+
+          {/* Main pane — only rendered for chat / new / search (the list view is
+              the full-width sidebar above). Fills the whole modal. */}
+          {view !== 'list' && (
+          <section className="messenger-panel__main" data-testid="messenger-panel-main">
 
           {/* === NEW CONVERSATION VIEW === */}
           {view === 'new' && (
@@ -957,7 +974,7 @@ export default function FloatingMessenger() {
                             </span>
                           )}
                           <div className={`messenger-panel__msg-bubble ${isOwn ? 'messenger-panel__msg-bubble--own' : ''}`}>
-                            {m.content}
+                            <MessageBody content={m.content} />
                           </div>
                           {/* messenger-smoothing-pass2-2026-06-18 —
                               keep the time label the same width whether
@@ -986,30 +1003,30 @@ export default function FloatingMessenger() {
                   {showEmoji && (
                     <div className="messenger-panel__emoji-picker">
                       {QUICK_EMOJIS.map(e => (
-                        <button key={e} onClick={() => { setNewMessage(p => p + e); setShowEmoji(false); inputRef.current?.focus(); }}>{e}</button>
+                        <button key={e} onClick={() => { richRef.current?.insertText(e); setComposeEmpty(false); setShowEmoji(false); }}>{e}</button>
                       ))}
                     </div>
                   )}
                 </div>
-                <input
-                  ref={inputRef}
+                <RichMessageInput
+                  ref={richRef}
                   className="messenger-panel__input"
-                  value={newMessage}
-                  onChange={e => setNewMessage(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                  placeholder="Type a message..."
+                  placeholder="Type a message…"
+                  onEnter={handleSend}
+                  onChange={setComposeEmpty}
                 />
                 <button
                   className="messenger-panel__send"
                   onClick={handleSend}
-                  disabled={sending || !newMessage.trim()}
+                  disabled={sending || composeEmpty}
                 >
                   &#10148;
                 </button>
               </div>
             </>
           )}
-          </section>{/* /.messenger-panel__main */}
+          </section>
+          )}{/* /.messenger-panel__main */}
           </div>{/* /.messenger-panel__body */}
         </div>
         </div>,
