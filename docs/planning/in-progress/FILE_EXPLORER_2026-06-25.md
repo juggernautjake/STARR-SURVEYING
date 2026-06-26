@@ -55,7 +55,12 @@ slice; verify mobile at 390px and desktop.
   copy for files once F3's bucket exists; deep copy for folders).
 
 ### F3 — Upload / download API **[me]**
-- [ ] Signed upload into the `file-explorer` bucket + `file_nodes` row on success; signed download URLs; size/mime validation; per-node download gating.
+- [x] ✓ 2026-06-25 — `lib/files/upload.ts` (validateUpload @100MB cap, buildStoragePath,
+  image/pdf/previewable mime helpers; tests). `POST /api/admin/files/upload` → signed
+  upload URL into the private `file-explorer` bucket (`ensureStorageBucket`, edit-gated);
+  `POST /api/admin/files/upload/complete` → creates the file node; `GET
+  /api/admin/files/[id]/download` → short-lived signed URL (`?inline=1` for the F6 viewer),
+  download-gated. No API body-size limit (client PUTs to the signed URL).
 
 ### F4 — Explorer UI: browse **[me]**
 - [ ] `/admin/files` page — folder tree + main pane (list & grid toggle), breadcrumb nav,
