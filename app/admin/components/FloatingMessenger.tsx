@@ -208,6 +208,10 @@ export default function FloatingMessenger() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const richRef = useRef<RichMessageInputHandle>(null);
+  // The recipient-continuity auto-jump must run AT MOST ONCE per open, otherwise
+  // it fights the back button (back → view:'list' → effect re-opens the saved
+  // conversation). Reset when the panel closes.
+  const didAutoJumpRef = useRef(false);
 
   // Fetch conversations
   // messenger-smoothing-pass2-2026-06-18 — skip the setState call when
@@ -369,8 +373,12 @@ export default function FloatingMessenger() {
   // — we only auto-jump when the user hasn't already landed on a
   // chat view.
   useEffect(() => {
-    if (!isOpen) return;
-    if (view === 'chat' && activeConv) return; // already on a chat
+    // Reset the one-shot when the panel closes so the next open can auto-jump.
+    if (!isOpen) { didAutoJumpRef.current = false; return; }
+    if (didAutoJumpRef.current) return;        // only ever auto-jump once per open
+    if (conversations.length === 0) return;    // wait until conversations load
+    didAutoJumpRef.current = true;             // decide exactly once, now
+    if (view === 'chat' && activeConv) return; // user already landed on a chat
     const saved = readActiveRecipient();
     if (!saved) return;
     const targetEmail = saved.toLowerCase();
