@@ -120,8 +120,10 @@ describe('FloatingMessenger smoothing contract (source-lock)', () => {
     expect(SRC).toMatch(/if \(messages\.length > lastMessageCountRef\.current\)/);
   });
 
-  it('rolls the optimistic row back on a send failure so the user sees + can retry', () => {
-    expect(SRC).toMatch(/setMessages\(\(prev\) => prev\.filter\(\(m\) => m\.id !== optimisticMsg\.id\)\);[\s\S]{0,80}setNewMessage\(content\)/);
+  it('rolls the optimistic row back on a send failure + restores the draft so the user can retry', () => {
+    // The rich-text compose redesign restores the draft via richRef.setHtml
+    // (was setNewMessage before the editor migration).
+    expect(SRC).toMatch(/setMessages\(\(prev\) => prev\.filter\(\(m\) => m\.id !== optimisticMsg\.id\)\);[\s\S]{0,80}richRef\.current\?\.setHtml\(content\)/);
   });
 
   it("flags optimistic bubbles via data-pending + 'Sending…' chip", () => {
