@@ -60,6 +60,22 @@ function displayName(email: string): string {
     .join(' ');
 }
 
+// Compare two message arrays on stable fields only (ignoring the per-fetch
+// signed attachment URLs) so a background poll that returns the same history
+// doesn't replace state → no re-render, no flicker, no scroll jump.
+function sameMessages(a: Message[], b: Message[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i], y = b[i];
+    if (x.id !== y.id) return false;
+    if (x.content !== y.content) return false;
+    if (x.is_edited !== y.is_edited) return false;
+    if ((x.read_receipts?.length || 0) !== (y.read_receipts?.length || 0)) return false;
+    if ((x.attachments?.length || 0) !== (y.attachments?.length || 0)) return false;
+  }
+  return true;
+}
+
 function formatTime(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
@@ -147,13 +163,18 @@ export default function MessagesInboxPage() {
     }
   }, [reportPageError]);
 
-  const fetchMessages = useCallback(async (convId: string) => {
-    setLoadingMessages(true);
+  // `showSkeleton` defaults to true for the initial open / conversation switch.
+  // Background polls pass false so the existing history stays put (no "Loading…"
+  // swap) and `sameMessages` skips the state update when nothing changed.
+  const fetchMessages = useCallback(async (convId: string, opts?: { showSkeleton?: boolean }) => {
+    const showSkeleton = opts?.showSkeleton ?? true;
+    if (showSkeleton) setLoadingMessages(true);
     try {
       const res = await fetch(`/api/admin/messages/send?conversation_id=${convId}&limit=100`);
       if (res.ok) {
         const data = await res.json();
-        setMessages(data.messages || []);
+        const next: Message[] = data.messages || [];
+        setMessages(prev => sameMessages(prev, next) ? prev : next);
         fetch('/api/admin/messages/read', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -161,7 +182,7 @@ export default function MessagesInboxPage() {
         });
       }
     } catch { /* silent */ }
-    setLoadingMessages(false);
+    if (showSkeleton) setLoadingMessages(false);
   }, []);
 
   const fetchContacts = useCallback(async () => {
@@ -193,13 +214,14 @@ export default function MessagesInboxPage() {
     const refreshAll = () => {
       loadUnread();
       loadConversations();
-      if (activeConv) fetchMessages(activeConv.id);
+      if (activeConv) fetchMessages(activeConv.id, { showSkeleton: false });
     };
     const interval = setInterval(() => {
       if (document.hidden) return;
       // Active thread refreshes every fast tick (4s); the heavier
       // unread+list refresh runs once every ~16s (every 4th tick).
-      if (activeConv) fetchMessages(activeConv.id);
+      // showSkeleton:false → the visible history never blanks to "Loading…".
+      if (activeConv) fetchMessages(activeConv.id, { showSkeleton: false });
       fastTick = (fastTick + 1) % 4;
       if (fastTick === 0) { loadUnread(); loadConversations(); }
     }, 4000);
@@ -248,8 +270,16 @@ export default function MessagesInboxPage() {
     continuityHydratedRef.current = true;
   }, [conversations, fetchMessages]);
 
+  // Only auto-scroll when the newest message actually changes (a new message
+  // arrived, or the conversation switched) — not on every poll or read-receipt
+  // tick, which previously caused the history to jump around.
+  const lastMsgIdRef = useRef<string | null>(null);
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const lastId = messages.length ? messages[messages.length - 1].id : null;
+    if (lastId !== lastMsgIdRef.current) {
+      lastMsgIdRef.current = lastId;
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   function openConversation(conv: Conversation) {
@@ -315,7 +345,7 @@ export default function MessagesInboxPage() {
         setShowEmoji(false);
         setPendingAttachments([]);
         if (inputRef.current) inputRef.current.style.height = 'auto';
-        fetchMessages(activeConv.id);
+        fetchMessages(activeConv.id, { showSkeleton: false });
         loadConversations();
       }
     } catch { /* silent */ }
