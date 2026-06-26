@@ -63,10 +63,13 @@ slice; verify mobile at 390px and desktop.
   download-gated. No API body-size limit (client PUTs to the signed URL).
 
 ### F4 — Explorer UI: browse **[me]**
-- [ ] `/admin/files` page — folder tree + main pane (list & grid toggle), breadcrumb nav,
-  create-folder, rename, move, soft-delete, sort, empty/loading/error states. Brand-styled,
-  mobile 390px. **+ entry points: a "Files" item in the admin nav (`route-registry.ts`) and a
-  Hub quick-action**, so it's reachable for all employees.
+- [x] ✓ 2026-06-25 — `/admin/files` page — breadcrumb nav, create-folder, upload (XHR
+  progress), download (signed URL), rename, soft-delete; permission-aware row actions
+  (`canDownload`/`canEdit` per node), brand-styled styled-jsx, mobile-responsive,
+  empty/loading/error states. **Entry point: a "Files" item in the admin nav
+  (`route-registry.ts`, `FolderOpen` icon, `internalOnly`, all employee roles)** so it's
+  reachable for everyone. Grid toggle + drag-move land in F5; the tree pane folds into F5's
+  clipboard/move UX.
 
 ### F5 — Upload / download + clipboard UI **[me]**
 - [ ] Direct upload (drag-and-drop **and** file-picker) with progress; download (single +
