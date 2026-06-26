@@ -26,6 +26,7 @@ import {
   ClipboardPaste,
   CopyPlus,
   ChevronRight,
+  ChevronLeft,
   Home,
   X,
 } from 'lucide-react';
@@ -51,6 +52,10 @@ const NODES_DT = 'application/x-fx-nodes';
 const rank = (a: AccessLevel) => ['none', 'view', 'download', 'edit', 'manage'].indexOf(a);
 const canDownload = (a: AccessLevel) => rank(a) >= rank('download');
 const canEdit = (a: AccessLevel) => rank(a) >= rank('edit');
+
+const isImage = (m: string | null) => !!m && m.startsWith('image/');
+const isPdf = (m: string | null) => m === 'application/pdf';
+const isPreviewable = (n: FileNode) => n.node_type === 'file' && (isImage(n.mime_type) || isPdf(n.mime_type));
 
 function formatSize(bytes: number | null): string {
   if (!bytes || bytes < 0) return '—';
@@ -94,6 +99,9 @@ export default function FilesPage(): React.ReactElement {
   const [dragOverId, setDragOverId] = useState<string | null>(null); // folder/crumb the move would drop into
   const [fileDrag, setFileDrag] = useState(false); // OS files hovering over the page
   const dragDepth = useRef(0);
+
+  const [viewer, setViewer] = useState<{ node: FileNode; url: string } | null>(null);
+  const [viewerLoading, setViewerLoading] = useState(false);
 
   const load = useCallback(async (pid: string | null) => {
     setLoading(true);
@@ -190,6 +198,47 @@ export default function FilesPage(): React.ReactElement {
     const { url } = await res.json();
     window.open(url, '_blank', 'noopener,noreferrer');
   }
+
+  // ---- in-app viewer (F6) -----------------------------------------------
+  const openViewer = useCallback(async (n: FileNode) => {
+    setViewerLoading(true);
+    setError(null);
+    const res = await fetch(`/api/admin/files/${n.id}/download?inline=1`);
+    setViewerLoading(false);
+    if (!res.ok) {
+      setError(await errOf(res, 'Could not open this file.'));
+      return;
+    }
+    const { url } = await res.json();
+    setViewer({ node: n, url });
+  }, []);
+
+  function onNameClick(n: FileNode) {
+    if (n.node_type === 'folder') setParentId(n.id);
+    else if (isPreviewable(n)) openViewer(n);
+    else download(n);
+  }
+
+  const previewList = nodes.filter(isPreviewable);
+  function stepViewer(dir: 1 | -1) {
+    if (!viewer || previewList.length < 2) return;
+    const idx = previewList.findIndex((p) => p.id === viewer.node.id);
+    if (idx === -1) return;
+    const next = previewList[(idx + dir + previewList.length) % previewList.length];
+    openViewer(next);
+  }
+
+  useEffect(() => {
+    if (!viewer) return undefined;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setViewer(null);
+      else if (e.key === 'ArrowRight') stepViewer(1);
+      else if (e.key === 'ArrowLeft') stepViewer(-1);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewer, nodes]);
 
   async function rename(n: FileNode) {
     const name = window.prompt('Rename to:', n.name);
@@ -537,8 +586,8 @@ export default function FilesPage(): React.ReactElement {
                 <button
                   type="button"
                   className="fx__name"
-                  onClick={() => (isFolder ? setParentId(n.id) : download(n))}
-                  title={isFolder ? 'Open folder' : 'Download'}
+                  onClick={() => onNameClick(n)}
+                  title={isFolder ? 'Open folder' : isPreviewable(n) ? 'Preview' : 'Download'}
                 >
                   <Icon size={18} className={isFolder ? 'fx__icon fx__icon--folder' : 'fx__icon'} aria-hidden />
                   <span className="fx__name-text">{n.name}</span>
@@ -571,6 +620,65 @@ export default function FilesPage(): React.ReactElement {
             );
           })}
         </ul>
+      )}
+
+      {viewerLoading && !viewer && (
+        <p className="fx__upload" role="status" data-testid="fx-viewer-loading">Opening…</p>
+      )}
+
+      {viewer && (
+        <div
+          className="fx__viewer"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Preview of ${viewer.node.name}`}
+          data-testid="fx-viewer"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setViewer(null);
+          }}
+        >
+          <div className="fx__viewer-bar">
+            <span className="fx__viewer-name" title={viewer.node.name}>{viewer.node.name}</span>
+            <div className="fx__viewer-tools">
+              {canDownload(viewer.node.access) && (
+                <button type="button" className="fx__viewer-btn" onClick={() => download(viewer.node)} title="Download" aria-label="Download">
+                  <Download size={18} />
+                </button>
+              )}
+              <button type="button" className="fx__viewer-btn" onClick={() => setViewer(null)} title="Close" aria-label="Close preview" data-testid="fx-viewer-close">
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          {previewList.length > 1 && (
+            <button type="button" className="fx__viewer-nav fx__viewer-nav--prev" onClick={() => stepViewer(-1)} aria-label="Previous">
+              <ChevronLeft size={28} />
+            </button>
+          )}
+          {previewList.length > 1 && (
+            <button type="button" className="fx__viewer-nav fx__viewer-nav--next" onClick={() => stepViewer(1)} aria-label="Next">
+              <ChevronRight size={28} />
+            </button>
+          )}
+
+          <div className="fx__viewer-stage">
+            {isImage(viewer.node.mime_type) ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={viewer.url} alt={viewer.node.name} className="fx__viewer-img" />
+            ) : isPdf(viewer.node.mime_type) ? (
+              <iframe src={viewer.url} title={viewer.node.name} className="fx__viewer-frame" />
+            ) : (
+              <div className="fx__viewer-fallback">
+                <FileText size={40} />
+                <p>This file can’t be previewed.</p>
+                <button type="button" className="fx-btn" onClick={() => download(viewer.node)}>
+                  <Download size={16} /> Download
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {fileDrag && (
@@ -644,6 +752,21 @@ const styles = `
   .fx__icon-btn { background: none; border: none; cursor: pointer; color: #6b7280; padding: 0.35rem; border-radius: 8px; display: inline-flex; }
   .fx__icon-btn:hover { background: #eef1fb; color: #1D3095; }
   .fx__icon-btn--danger:hover { background: #fdecec; color: #BD1218; }
+
+  .fx__viewer { position: fixed; inset: 0; background: rgba(21,32,80,0.82); display: flex; flex-direction: column; z-index: 60; padding: 0.75rem; }
+  .fx__viewer-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; color: #fff; padding: 0.35rem 0.5rem 0.6rem; }
+  .fx__viewer-name { font-weight: 700; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fx__viewer-tools { display: inline-flex; gap: 0.25rem; flex-shrink: 0; }
+  .fx__viewer-btn { background: rgba(255,255,255,0.14); border: none; color: #fff; padding: 0.4rem; border-radius: 8px; cursor: pointer; display: inline-flex; }
+  .fx__viewer-btn:hover { background: rgba(255,255,255,0.28); }
+  .fx__viewer-nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.14); border: none; color: #fff; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; z-index: 2; }
+  .fx__viewer-nav:hover { background: rgba(255,255,255,0.3); }
+  .fx__viewer-nav--prev { left: 0.75rem; }
+  .fx__viewer-nav--next { right: 0.75rem; }
+  .fx__viewer-stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+  .fx__viewer-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; background: #fff; }
+  .fx__viewer-frame { width: 100%; height: 100%; border: none; border-radius: 8px; background: #fff; }
+  .fx__viewer-fallback { background: #fff; color: #152050; border-radius: 14px; padding: 2rem 2.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
 
   .fx__dropzone { position: fixed; inset: 0; background: rgba(21,32,80,0.35); display: flex; align-items: center; justify-content: center; z-index: 50; pointer-events: none; }
   .fx__dropzone-card { background: #fff; border: 2px dashed #1D3095; border-radius: 16px; padding: 2rem 2.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; color: #1D3095; font-weight: 700; }

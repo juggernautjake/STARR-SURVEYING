@@ -86,7 +86,11 @@ slice; verify mobile at 390px and desktop.
   surfaced from copy. Device round-trip verified both directions.
 
 ### F6 — In-app viewer **[me]**
-- [ ] PDF viewer + image lightbox (zoom, next/prev) via signed URLs; graceful fallback to download for unsupported types.
+- [x] ✓ 2026-06-25 — Full-screen viewer modal: images render in a lightbox, PDFs embed in an
+  `<iframe>`, both via short-lived `?inline=1` signed URLs. Prev/next cycles the previewable
+  files in the current folder (arrow buttons + ←/→ keys; Esc closes; backdrop click closes),
+  with a download button (download-gated) and a graceful download fallback for unsupported
+  types. Clicking a previewable file opens the viewer; other files download.
 
 ### F7 — Permissions interface **[me]**
 - [ ] Per folder/file dialog: add/remove grants (everyone / role / specific user) × access level; inherit-vs-custom toggle; live "who can access" effective-access preview.
