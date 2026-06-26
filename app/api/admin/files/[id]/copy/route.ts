@@ -23,6 +23,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const user: FileUser = { email: session.user.email, roles: session.user.roles ?? [] };
   const admin = isAdmin(session.user.roles);
   const { id } = params;
+  if (id.startsWith('mnt:')) return NextResponse.json({ error: 'Read-only items can’t be copied here yet.' }, { status: 400 });
 
   const body = (await req.json().catch(() => ({}))) as { parent_id?: string | null; name?: string };
 

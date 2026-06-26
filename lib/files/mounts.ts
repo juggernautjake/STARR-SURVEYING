@@ -71,7 +71,7 @@ export function mountRootNodes(user: FileUser, isAdmin: boolean): MountNode[] {
     name: s.label,
     mime_type: null,
     size_bytes: null,
-    updated_at: new Date(0).toISOString(),
+    updated_at: '', // a source folder, not a dated node → the UI shows “—”
     access: 'view',
   }));
 }

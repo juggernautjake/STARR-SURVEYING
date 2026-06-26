@@ -89,6 +89,12 @@ const isImage = (m: string | null) => !!m && m.startsWith('image/');
 const isPdf = (m: string | null) => m === 'application/pdf';
 const isPreviewable = (n: FileNode) => n.node_type === 'file' && (isImage(n.mime_type) || isPdf(n.mime_type));
 
+function formatDate(s: string | null | undefined): string {
+  if (!s) return '—';
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) || d.getTime() === 0 ? '—' : d.toLocaleDateString();
+}
+
 function formatSize(bytes: number | null): string {
   if (!bytes || bytes < 0) return '—';
   if (bytes < 1024) return `${bytes} B`;
@@ -350,11 +356,21 @@ export default function FilesPage(): React.ReactElement {
     }
   }
 
-  function closePerms() {
+  const closePerms = useCallback(() => {
     setPermNode(null);
     setPermPreview(null);
     setPermError(null);
-  }
+  }, []);
+
+  // Esc closes the permissions dialog.
+  useEffect(() => {
+    if (!permNode) return undefined;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') closePerms();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [permNode, closePerms]);
 
   // Live "who can access" preview whenever the staged grants/mode change.
   useEffect(() => {
@@ -737,7 +753,7 @@ export default function FilesPage(): React.ReactElement {
                   <span className="fx__name-text">{n.name}</span>
                 </button>
                 <span className="fx__meta">{isFolder ? 'Folder' : formatSize(n.size_bytes)}</span>
-                <span className="fx__meta fx__meta--date">{new Date(n.updated_at).toLocaleDateString()}</span>
+                <span className="fx__meta fx__meta--date">{formatDate(n.updated_at)}</span>
                 <span className="fx__row-actions">
                   {!isFolder && canDownload(n.access) && (
                     <button type="button" className="fx__icon-btn" onClick={() => download(n)} title="Download" aria-label={`Download ${n.name}`}>

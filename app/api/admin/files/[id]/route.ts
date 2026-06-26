@@ -17,12 +17,17 @@ function sessionUser(session: { user?: { email?: string | null; roles?: string[]
   return { email: session.user.email, roles: session.user.roles ?? [] };
 }
 
+// Mounted sources (ids prefixed `mnt:`) are read-only — reject writes cleanly.
+const READONLY = NextResponse.json({ error: 'This item is read-only.' }, { status: 400 });
+const isMount = (id: string) => id.startsWith('mnt:');
+
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth();
   const user = sessionUser(session);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const admin = isAdmin(session!.user!.roles);
   const { id } = params;
+  if (isMount(id)) return READONLY;
 
   const { chain, access } = await accessForNode(id, user, admin);
   if (chain.length === 0) return NextResponse.json({ error: 'Item not found.' }, { status: 404 });
@@ -82,6 +87,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const admin = isAdmin(session!.user!.roles);
   const { id } = params;
+  if (isMount(id)) return READONLY;
 
   const { chain, access } = await accessForNode(id, user, admin);
   if (chain.length === 0) return NextResponse.json({ error: 'Item not found.' }, { status: 404 });

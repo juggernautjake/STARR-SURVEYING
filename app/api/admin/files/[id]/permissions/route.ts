@@ -27,6 +27,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const user = sessionUser(session);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const admin = isAdmin(session!.user!.roles);
+  if (params.id.startsWith('mnt:')) return NextResponse.json({ error: 'Read-only items have no editable permissions.' }, { status: 400 });
 
   const { chain, access } = await accessForNode(params.id, user, admin);
   if (chain.length === 0) return NextResponse.json({ error: 'Item not found.' }, { status: 404 });
@@ -66,6 +67,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const user = sessionUser(session);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const admin = isAdmin(session!.user!.roles);
+  if (params.id.startsWith('mnt:')) return NextResponse.json({ error: 'Read-only items have no editable permissions.' }, { status: 400 });
 
   const { chain, access } = await accessForNode(params.id, user, admin);
   if (chain.length === 0) return NextResponse.json({ error: 'Item not found.' }, { status: 404 });

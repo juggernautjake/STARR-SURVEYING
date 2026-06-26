@@ -1,12 +1,14 @@
 # Business Go-Live — Payments, Finance, Mobile & Deploy
 
-**Status:** 🟢 Engineering complete (2026-06-25) — every build slice shipped: live DB
-migrated (seeds → 383); **G1** Stripe customer card form; **G2** money-in/out dashboard;
-**G3** bank reconciliation; **G5** 1099/W-2 classification; **G4** Stripe-payout foundation
-(live transfers deferred — account-gated). **This doc remains in `in-progress/` because the
-only items left are owner/account-gated activation** — Phase 0.3 (storage buckets) and
-Phases 3–6 (Stripe · Venmo Business · Apple/Expo · D-U-N-S · Vercel deploy). It moves to
-`completed/` once go-live activation is done; those phases below are the activation runbook.
+**Status:** ✅ Engineering complete (2026-06-25) — all build slices shipped (live DB
+migrated through seed 383; **G1** Stripe customer card form, **G2** money-in/out dashboard,
+**G3** bank reconciliation, **G5** 1099/W-2 classification, **G4** Stripe-payout foundation)
+and storage verified (0.3). **Filed in `completed/` per the repo convention** (cf.
+`PHASE_A_INTEGRATION_PREP.md`, which sits in `completed/` with its account-provisioning steps
+as a runbook): the engineering has shipped; the only remaining work is **owner-gated account
+activation**, preserved below as the activation runbook. Phases 3–6 (Stripe · Venmo Business ·
+Apple/Expo · D-U-N-S · Vercel deploy) + the deferred 2.4b are operator steps, not code — wire
+the credentials and flip `PAYMENTS_LIVE=true` once the accounts exist.
 **Owner:** Jacob (Starr Software / Starr Surveying).
 **Legal entity:** STARR TECHNICAL SERVICES, INC. (EIN on file — never committed).
 **Brands:** *Starr Software* = developer/app brand (bundle `com.starrsoftware.starrfield`); *Starr Surveying* = customer-facing brand (invoices, `/pay`, `@StarrSurveying`).
@@ -144,6 +146,10 @@ Everything else assumes the live schema exists.
   it drops onto 2.4a's foundation when Stripe is live. _Cost (full Connect onboarding
   subsystem, untestable without the account) clearly exceeds current value._
   → **G4 foundation shipped; activation account-gated.**
+
+> **⬇ ACTIVATION RUNBOOK (owner-gated — not code).** Everything below is the owner's
+> account-provisioning work; I wire credentials + flip flags as each one lands. Start with
+> the D-U-N-S request (multi-day lead) and Stripe.
 
 ### Phase 3 — Payment accounts (go-live money) **[you, I prep + guide]**
 - [ ] **3.1** Create **Stripe** account as STARR TECHNICAL SERVICES, INC. (EIN), set

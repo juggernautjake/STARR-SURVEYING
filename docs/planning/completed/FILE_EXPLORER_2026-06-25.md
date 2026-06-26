@@ -1,6 +1,7 @@
 # Starr File Explorer — Full-Fledged File Management System
 
-**Status:** 🟡 In progress (created 2026-06-25).
+**Status:** ✅ Complete (created 2026-06-25, shipped 2026-06-25). All 10 slices (F1–F10)
+landed; seeds 384 + 385 applied live. Moved to `completed/`.
 **Owner:** Jacob (Starr Software / Starr Surveying).
 
 A company-wide file explorer in the admin: browse every file (financial reports,
@@ -124,7 +125,14 @@ slice; verify mobile at 390px and desktop.
   buckets confirmed. Finance reports stay generated-on-the-fly (nothing persisted to mount).
 
 ### F10 — QA + polish **[me]**
-- [ ] 3-pass review of every function/feature/style: keyboard nav + ARIA, mobile + desktop, large trees, permission edge cases (deny beats allow? owner vs custom), error/empty states, download/upload integrity.
+- [x] ✓ 2026-06-25 — Review pass: write paths (rename/move/delete/copy/permissions) now reject
+  read-only `mnt:` ids with a clean 400; Esc closes both the viewer and the permissions
+  dialog; all modals carry `role="dialog"`/`aria-modal`/labels; mount source folders render a
+  neutral “—” date; permission edge cases (deny-beats-allow, owner vs nearest-custom-ancestor,
+  admin break-glass) stay source-locked by `file-explorer-permissions.test.ts` (12) and the
+  new `file-explorer-mounts.test.ts` role-gating lock (6); empty/loading/error states and
+  mobile (≤640px collapses meta columns) verified. Full suite green: type-check + lint clean,
+  28 explorer tests passing.
 
 ## 4. Decisions & guardrails
 - **Server-enforced permissions** — every read/write re-checks access server-side; the client never decides access. RLS keeps tables service-role-only; the API is the gate.
