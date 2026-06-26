@@ -11,6 +11,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { listChildren, accessForNode, siblingNames, NODE_COLS } from '@/lib/files/server';
 import { canEdit, type FileUser } from '@/lib/files/permissions';
 import { sanitizeName, nextAvailableName } from '@/lib/files/tree';
+import { provisionForUser } from '@/lib/files/provision';
 
 function sessionUser(session: { user?: { email?: string | null; roles?: string[] } } | null): FileUser | null {
   if (!session?.user?.email) return null;
@@ -25,6 +26,10 @@ export async function GET(req: NextRequest) {
 
   const raw = new URL(req.url).searchParams.get('parent');
   const parentId = raw && raw !== 'root' ? raw : null;
+
+  // Landing on the root is the natural moment to make sure the system roots and
+  // this user's personal folder exist (covers users who joined after seed 385).
+  if (parentId === null) await provisionForUser(user, session!.user!.name ?? null);
 
   const result = await listChildren(parentId, user, admin);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status ?? 500 });

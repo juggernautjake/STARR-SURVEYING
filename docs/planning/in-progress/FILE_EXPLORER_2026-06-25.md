@@ -103,7 +103,14 @@ slice; verify mobile at 390px and desktop.
   `listCompanyPeople` + `nodeToNWG` in `lib/files/server.ts`.
 
 ### F8 — Personal folders + Shared root **[me]**
-- [ ] Auto-provision a personal root per employee (owner=manage) + a Shared root (everyone=view); protect system folders; backfill existing employees.
+- [x] ✓ 2026-06-25 — **seed 385 (applied live)** provisions two protected system roots —
+  **Shared** (everyone = edit, collaborative drive) and **Personal** (everyone = view,
+  container) — and backfills a per-user personal root under Personal (owner-only: custom mode,
+  no grants → owner manages, others get nothing, admins break-glass; `is_personal_root` so it
+  can't be renamed/moved/deleted). Verified live: 4 personal roots (Henry/Jacob/John/Michael)
+  + both root grants. `lib/files/provision.ts` (`ensureSystemRoots` / `ensurePersonalRoot` /
+  `provisionForUser`) lazily provisions users who join after the seed, called when the
+  explorer root is listed.
 
 ### F9 — Mount existing sources (read-only) **[me]**
 - [ ] Surface receipts, job files, and finance exports as read-only virtual nodes so "all files" are browsable in one tree (per-source, gated by the source's own access rules).
