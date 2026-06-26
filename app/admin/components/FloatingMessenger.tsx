@@ -551,6 +551,15 @@ export default function FloatingMessenger() {
     return others.map(p => displayName(p.user_email)).join(', ') || 'Group';
   }
 
+  // Every participant's display name (incl. you) — shown in the header tooltip so
+  // a group chat's full membership is one hover away even when the title is
+  // truncated to the first couple of names.
+  function getMemberNames(c: Conversation): string {
+    return (c.participants || [])
+      .map(p => p.user_email === userEmail ? 'You' : displayName(p.user_email))
+      .join(', ');
+  }
+
   // Filter conversations
   const filteredConvs = convSearch
     ? conversations.filter(c => getConvName(c).toLowerCase().includes(convSearch.toLowerCase()))
@@ -658,7 +667,15 @@ export default function FloatingMessenger() {
                 <button data-no-drag className="messenger-panel__back" onClick={() => { setView('list'); setActiveConv(null); setMessages([]); }}>
                   &#8592;
                 </button>
-                <span className="messenger-panel__conv-title">{getConvName(activeConv)}</span>
+                <div className="messenger-panel__conv-titlewrap" data-no-drag>
+                  <span className="messenger-panel__conv-title" title={getMemberNames(activeConv)}>
+                    {getConvName(activeConv)}
+                  </span>
+                  <span className="messenger-panel__members-tip" role="tooltip">
+                    <strong>{activeConv.type === 'group' ? 'Members' : 'Conversation'}</strong>
+                    <span>{getMemberNames(activeConv)}</span>
+                  </span>
+                </div>
               </>
             ) : view === 'new' ? (
               <>
@@ -702,7 +719,12 @@ export default function FloatingMessenger() {
               active chat, the new-conversation flow, the search
               results, or an empty-state prompt when no thread is
               selected. */}
+          {/* Single-pane: the conversation list fills the whole modal in `list`
+              view; opening a chat (or new/search) swaps the entire body to that
+              view with a back-arrow in the header. The list + chat are never
+              shown side-by-side. */}
           <div className="messenger-panel__body" data-testid="messenger-panel-body">
+          {view === 'list' && (
           <aside className="messenger-panel__sidebar" data-testid="messenger-panel-sidebar">
               <div className="messenger-panel__actions">
                 <input
@@ -760,23 +782,12 @@ export default function FloatingMessenger() {
                 )}
               </div>
           </aside>
-
-          {/* Slice MX2 — main pane: chat / new / search / empty
-              prompt depending on `view`. */}
-          <section className="messenger-panel__main" data-testid="messenger-panel-main">
-          {view === 'list' && (
-            <div className="messenger-panel__main-empty" data-testid="messenger-panel-main-empty">
-              <span className="messenger-panel__main-empty-icon" aria-hidden>💬</span>
-              <p style={{ margin: 0 }}>Pick a conversation from the left.</p>
-              <button
-                type="button"
-                className="admin-btn admin-btn--primary admin-btn--sm"
-                onClick={() => { setView('new'); fetchContacts(); }}
-              >
-                Start a new chat
-              </button>
-            </div>
           )}
+
+          {/* Main pane — only rendered for chat / new / search (the list view is
+              the full-width sidebar above). Fills the whole modal. */}
+          {view !== 'list' && (
+          <section className="messenger-panel__main" data-testid="messenger-panel-main">
 
           {/* === NEW CONVERSATION VIEW === */}
           {view === 'new' && (
@@ -1009,7 +1020,8 @@ export default function FloatingMessenger() {
               </div>
             </>
           )}
-          </section>{/* /.messenger-panel__main */}
+          </section>
+          )}{/* /.messenger-panel__main */}
           </div>{/* /.messenger-panel__body */}
         </div>
         </div>,
