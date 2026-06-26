@@ -577,7 +577,7 @@ export default function MessagesInboxPage() {
               <div className="msg-page__search-overlay">
                 {searchResults.filter(r => r.conversation_id === activeConv.id).map((r, i) => (
                   <div key={i} className="msg-page__search-hit">
-                    <strong>{displayName(r.sender_email)}</strong>: {r.content.slice(0, 100)}
+                    <strong>{displayName(r.sender_email)}</strong>: {htmlToPlainText(r.content).slice(0, 100)}
                     <span className="msg-page__search-hit-time">{formatTime(r.created_at)}</span>
                   </div>
                 ))}
