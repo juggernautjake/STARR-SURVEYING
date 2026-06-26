@@ -4,15 +4,20 @@
 // load nodes + their ancestor chains + grants, and resolve a user's effective
 // access. The HTTP routes call these; permission math lives in permissions.ts.
 
+import { randomUUID } from 'crypto';
 import { supabaseAdmin } from '@/lib/supabase';
 import {
   resolveAccess,
   canView,
+  canDownload,
+  canEdit,
   type AccessLevel,
   type NodeWithGrants,
   type PermissionGrant,
   type FileUser,
 } from './permissions';
+import { sanitizeName, nextAvailableName } from './tree';
+import { buildStoragePath } from './upload';
 
 export interface FileNodeRow {
   id: string;
@@ -147,6 +152,136 @@ export async function siblingNames(parentId: string | null, nodeType: 'folder' |
   const base = supabaseAdmin.from('file_nodes').select('name').is('deleted_at', null).eq('node_type', nodeType);
   const { data } = parentId ? await base.eq('parent_id', parentId) : await base.is('parent_id', null);
   return ((data ?? []) as Array<{ name: string }>).map((r) => r.name);
+}
+
+/** Insert a single copy of `src` under `parentId` with the given name. For files,
+ *  the storage object is copied to a fresh key first; copies always start with a
+ *  clean inherited permission set (no grants carried over). */
+async function insertCopy(
+  src: FileNodeRow,
+  parentId: string | null,
+  name: string,
+  user: FileUser,
+): Promise<FileNodeRow | null> {
+  let storageBucket: string | null = null;
+  let storagePath: string | null = null;
+  if (src.node_type === 'file' && src.storage_bucket && src.storage_path) {
+    const newPath = buildStoragePath(randomUUID(), src.name);
+    const { error } = await supabaseAdmin.storage.from(src.storage_bucket).copy(src.storage_path, newPath);
+    if (error) return null;
+    storageBucket = src.storage_bucket;
+    storagePath = newPath;
+  }
+  const { data } = await supabaseAdmin
+    .from('file_nodes')
+    .insert({
+      parent_id: parentId,
+      node_type: src.node_type,
+      name,
+      owner_email: user.email,
+      created_by: user.email,
+      permission_mode: 'inherit',
+      storage_bucket: storageBucket,
+      storage_path: storagePath,
+      mime_type: src.mime_type,
+      size_bytes: src.size_bytes,
+    })
+    .select(NODE_COLS)
+    .single();
+  return (data as FileNodeRow | null) ?? null;
+}
+
+export interface CopyResult {
+  ok: boolean;
+  status?: number;
+  error?: string;
+  node?: FileNodeRow;
+  copied?: number;
+  skipped?: number;
+}
+
+/** Copy a node (and, for folders, its subtree) into `destParentId`. When
+ *  `destParentId` matches the source's own parent this is a "duplicate". Source
+ *  nodes are gated by the user's effective access — files need download, folders
+ *  need view; any descendant the user cannot reach is skipped (never silently
+ *  re-exposed). Copies inherit the destination's permissions. */
+export async function copySubtree(
+  sourceId: string,
+  destParentId: string | null,
+  user: FileUser,
+  isAdmin: boolean,
+  overrideName?: string,
+): Promise<CopyResult> {
+  const src = await accessForNode(sourceId, user, isAdmin);
+  if (src.chain.length === 0) return { ok: false, status: 404, error: 'Item not found.' };
+  const root = src.chain[src.chain.length - 1];
+  if (root.is_system || root.is_personal_root) {
+    return { ok: false, status: 400, error: 'System folders cannot be copied.' };
+  }
+  const rootOk = root.node_type === 'file' ? canDownload(src.access) : canView(src.access);
+  if (!rootOk) return { ok: false, status: 403, error: 'You cannot copy this item.' };
+
+  if (destParentId) {
+    const dest = await accessForNode(destParentId, user, isAdmin);
+    if (dest.chain.length === 0) return { ok: false, status: 404, error: 'Destination not found.' };
+    if (dest.chain[dest.chain.length - 1].node_type !== 'folder') {
+      return { ok: false, status: 400, error: 'Destination is not a folder.' };
+    }
+    if (!canEdit(dest.access)) return { ok: false, status: 403, error: 'You cannot copy into that folder.' };
+  } else if (!isAdmin) {
+    return { ok: false, status: 403, error: 'Only admins can copy to the top level.' };
+  }
+
+  const desired = sanitizeName(overrideName ?? root.name) || root.name;
+  const finalName = nextAvailableName(desired, await siblingNames(destParentId, root.node_type));
+
+  const rootCopy = await insertCopy(root, destParentId, finalName, user);
+  if (!rootCopy) return { ok: false, status: 500, error: 'Could not copy this item.' };
+  let copied = 1;
+  let skipped = 0;
+
+  if (root.node_type === 'folder') {
+    // BFS over the source subtree, carrying the source-chain grants so each
+    // descendant's access is evaluated correctly. Source siblings are unique by
+    // the DB index, so no collision handling is needed inside the new tree.
+    const queue: Array<{ srcId: string; newId: string; chainNWG: NodeWithGrants[] }> = [
+      { srcId: root.id, newId: rootCopy.id, chainNWG: src.nwg },
+    ];
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      const { data } = await supabaseAdmin
+        .from('file_nodes')
+        .select(NODE_COLS)
+        .eq('parent_id', cur.srcId)
+        .is('deleted_at', null);
+      const children = (data ?? []) as FileNodeRow[];
+      const grants = await loadGrants(children.map((c) => c.id));
+      for (const child of children) {
+        if (child.is_system || child.is_personal_root) {
+          skipped++;
+          continue;
+        }
+        const childNWG = toNWG(child, grants.get(child.id) ?? []);
+        const access = resolveAccess([...cur.chainNWG, childNWG], user, isAdmin);
+        const ok = child.node_type === 'file' ? canDownload(access) : canView(access);
+        if (!ok) {
+          skipped++;
+          continue;
+        }
+        const childCopy = await insertCopy(child, cur.newId, child.name, user);
+        if (!childCopy) {
+          skipped++;
+          continue;
+        }
+        copied++;
+        if (child.node_type === 'folder') {
+          queue.push({ srcId: child.id, newId: childCopy.id, chainNWG: [...cur.chainNWG, childNWG] });
+        }
+      }
+    }
+  }
+
+  return { ok: true, node: rootCopy, copied, skipped };
 }
 
 /** Collect a node id + all its live descendant ids (BFS) for subtree ops. */

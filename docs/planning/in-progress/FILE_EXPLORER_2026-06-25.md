@@ -51,8 +51,13 @@ slice; verify mobile at 390px and desktop.
   `collectSubtreeIds`) + name-collision auto-suffix. Pure `lib/files/tree.ts`
   (`sanitizeName`, `nextAvailableName`, `wouldCreateCycle`, `buildBreadcrumb`)
   source-locked by `file-explorer-tree.test.ts` (18 green incl. permissions).
-- [ ] **F2b** `POST /api/admin/files/[id]/copy` — copy **and** duplicate (storage-object
-  copy for files once F3's bucket exists; deep copy for folders).
+- [x] **F2b** ✓ 2026-06-25 — `POST /api/admin/files/[id]/copy` — copy **and** duplicate
+  (`parent_id` omitted = duplicate-in-place, given = paste). `copySubtree` in
+  `lib/files/server.ts`: storage-object copy for files, BFS deep copy for folders, source
+  gated per-node by the caller's effective access (files need download, folders view — any
+  unreachable descendant is skipped, never re-exposed), collision auto-suffix, copies inherit
+  the destination's permissions. Blocks copying system/personal roots; top-level paste is
+  admin-only.
 
 ### F3 — Upload / download API **[me]**
 - [x] ✓ 2026-06-25 — `lib/files/upload.ts` (validateUpload @100MB cap, buildStoragePath,
