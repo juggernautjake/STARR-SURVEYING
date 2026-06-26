@@ -28,6 +28,9 @@ import {
   readActiveRecipient,
   saveActiveRecipient,
 } from '@/lib/employee-pond/messenger-recipient';
+import RichMessageInput, { type RichMessageInputHandle } from '@/app/admin/components/messaging/RichMessageInput';
+import MessageBody from '@/app/admin/components/messaging/MessageBody';
+import { htmlToPlainText } from '@/lib/messages/rich-text';
 
 interface Conversation {
   id: string;
@@ -186,7 +189,7 @@ export default function FloatingMessenger() {
   const [totalUnread, setTotalUnread] = useState(0);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState('');
+  const [composeEmpty, setComposeEmpty] = useState(true);
   const [sending, setSending] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -204,7 +207,7 @@ export default function FloatingMessenger() {
   const [searching, setSearching] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const richRef = useRef<RichMessageInputHandle>(null);
 
   // Fetch conversations
   // messenger-smoothing-pass2-2026-06-18 — skip the setState call when
@@ -453,8 +456,9 @@ export default function FloatingMessenger() {
   // silently refetch (no skeleton) and the merge dedupes the optimistic
   // row against the server-acked one.
   async function handleSend() {
-    if (!newMessage.trim() || !activeConv || !userEmail) return;
-    const content = newMessage.trim();
+    // Sanitized HTML — a formatted paste keeps its formatting end-to-end.
+    const content = richRef.current?.getHtml() ?? '';
+    if (htmlToPlainText(content).trim() === '' || !activeConv || !userEmail) return;
     const optimisticMsg: Message = {
       id: makeOptimisticId(),
       sender_email: userEmail,
@@ -466,7 +470,8 @@ export default function FloatingMessenger() {
     // Optimistic insert + clear the input + collapse the emoji picker
     // BEFORE the network round-trip so the chat reads as instant.
     setMessages((prev) => [...prev, optimisticMsg]);
-    setNewMessage('');
+    richRef.current?.clear();
+    setComposeEmpty(true);
     setShowEmoji(false);
     setSending(true);
     try {
@@ -490,16 +495,17 @@ export default function FloatingMessenger() {
           if (data?.error && typeof data.error === 'string') detail = data.error;
         } catch { /* response wasn't JSON, keep the status */ }
         addToast(`Couldn't send message — ${detail}`, 'error');
-        // Roll the optimistic message back so the user sees the failure
-        // and can retry by re-typing.
+        // Roll the optimistic message back + restore the draft so the user can retry.
         setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
-        setNewMessage(content);
+        richRef.current?.setHtml(content);
+        setComposeEmpty(false);
       }
     } catch (err) {
       const detail = err instanceof Error ? err.message : 'network error';
       addToast(`Couldn't send message — ${detail}`, 'error');
       setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
-      setNewMessage(content);
+      richRef.current?.setHtml(content);
+      setComposeEmpty(false);
     }
     setSending(false);
   }
@@ -968,7 +974,7 @@ export default function FloatingMessenger() {
                             </span>
                           )}
                           <div className={`messenger-panel__msg-bubble ${isOwn ? 'messenger-panel__msg-bubble--own' : ''}`}>
-                            {m.content}
+                            <MessageBody content={m.content} />
                           </div>
                           {/* messenger-smoothing-pass2-2026-06-18 —
                               keep the time label the same width whether
@@ -997,23 +1003,22 @@ export default function FloatingMessenger() {
                   {showEmoji && (
                     <div className="messenger-panel__emoji-picker">
                       {QUICK_EMOJIS.map(e => (
-                        <button key={e} onClick={() => { setNewMessage(p => p + e); setShowEmoji(false); inputRef.current?.focus(); }}>{e}</button>
+                        <button key={e} onClick={() => { richRef.current?.insertText(e); setComposeEmpty(false); setShowEmoji(false); }}>{e}</button>
                       ))}
                     </div>
                   )}
                 </div>
-                <input
-                  ref={inputRef}
+                <RichMessageInput
+                  ref={richRef}
                   className="messenger-panel__input"
-                  value={newMessage}
-                  onChange={e => setNewMessage(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                  placeholder="Type a message..."
+                  placeholder="Type a message…"
+                  onEnter={handleSend}
+                  onChange={setComposeEmpty}
                 />
                 <button
                   className="messenger-panel__send"
                   onClick={handleSend}
-                  disabled={sending || !newMessage.trim()}
+                  disabled={sending || composeEmpty}
                 >
                   &#10148;
                 </button>

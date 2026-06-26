@@ -9,6 +9,9 @@ import {
   readActiveRecipient,
   saveActiveRecipient,
 } from '@/lib/employee-pond/messenger-recipient';
+import RichMessageInput, { type RichMessageInputHandle } from '../components/messaging/RichMessageInput';
+import MessageBody from '../components/messaging/MessageBody';
+import { htmlToPlainText } from '@/lib/messages/rich-text';
 
 interface Conversation {
   id: string;
@@ -105,7 +108,9 @@ export default function MessagesInboxPage() {
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
-  const [newMessage, setNewMessage] = useState('');
+  // Rich compose: the box is contentEditable, so we track only "is it empty?"
+  // for the send-button state; the HTML is read from the ref on send.
+  const [composeEmpty, setComposeEmpty] = useState(true);
   const [sending, setSending] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
 
@@ -126,15 +131,7 @@ export default function MessagesInboxPage() {
   const [searchResults, setSearchResults] = useState<{ content: string; sender_email: string; created_at: string; conversation_id: string }[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  // M4 — auto-grow the compose box up to a cap so multi-line messages are
-  // comfortable on phones without an external lib.
-  function autoGrow(el: HTMLTextAreaElement | null) {
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
-  }
+  const richRef = useRef<RichMessageInputHandle>(null);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -326,13 +323,15 @@ export default function MessagesInboxPage() {
   }
 
   async function handleSend() {
-    const text = newMessage.trim();
-    if ((!text && pendingAttachments.length === 0) || !activeConv) return;
+    // Read sanitized HTML from the rich box; formatting from a paste is preserved.
+    const html = richRef.current?.getHtml() ?? '';
+    const hasText = htmlToPlainText(html).trim() !== '';
+    if ((!hasText && pendingAttachments.length === 0) || !activeConv) return;
     setSending(true);
     try {
       // Attachment-only messages still need non-empty content (API requires it),
       // so fall back to a paperclip + the first file name as the body.
-      const content = text || `📎 ${pendingAttachments.map(a => a.name).join(', ')}`;
+      const content = hasText ? html : `📎 ${pendingAttachments.map(a => a.name).join(', ')}`;
       const hasImage = pendingAttachments.some(a => a.type.startsWith('image/'));
       const message_type = pendingAttachments.length > 0 ? (hasImage ? 'image' : 'file') : 'text';
       const res = await fetch('/api/admin/messages/send', {
@@ -341,10 +340,10 @@ export default function MessagesInboxPage() {
         body: JSON.stringify({ conversation_id: activeConv.id, content, message_type, attachments: pendingAttachments }),
       });
       if (res.ok) {
-        setNewMessage('');
+        richRef.current?.clear();
+        setComposeEmpty(true);
         setShowEmoji(false);
         setPendingAttachments([]);
-        if (inputRef.current) inputRef.current.style.height = 'auto';
         fetchMessages(activeConv.id, { showSkeleton: false });
         loadConversations();
       }
@@ -612,7 +611,7 @@ export default function MessagesInboxPage() {
                       <div className={`msg-page__msg ${isOwn ? 'msg-page__msg--own' : ''}`}>
                         {showSender && <span className="msg-page__msg-sender">{displayName(m.sender_email)}</span>}
                         <div className={`msg-page__msg-bubble ${isOwn ? 'msg-page__msg-bubble--own' : ''}`}>
-                          {m.content}
+                          <MessageBody content={m.content} />
                           {m.is_edited && <span className="msg-page__msg-edited">(edited)</span>}
                           {Array.isArray(m.attachments) && m.attachments.length > 0 && (
                             <div className="msg-page__attachments">
@@ -675,7 +674,7 @@ export default function MessagesInboxPage() {
                 {showEmoji && (
                   <div className="msg-page__emoji-grid">
                     {QUICK_EMOJIS.map(e => (
-                      <button key={e} onClick={() => { setNewMessage(p => p + e); setShowEmoji(false); inputRef.current?.focus(); autoGrow(inputRef.current); }}>{e}</button>
+                      <button key={e} onClick={() => { richRef.current?.insertText(e); setComposeEmpty(false); setShowEmoji(false); }}>{e}</button>
                     ))}
                   </div>
                 )}
@@ -697,16 +696,14 @@ export default function MessagesInboxPage() {
               >
                 <Paperclip size={16} strokeWidth={1.75} />
               </button>
-              <textarea
-                ref={inputRef}
+              <RichMessageInput
+                ref={richRef}
                 className="msg-page__compose-input"
-                rows={1}
-                value={newMessage}
-                onChange={e => { setNewMessage(e.target.value); autoGrow(e.target); }}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                placeholder="Type a message..."
+                placeholder="Type a message…"
+                onEnter={handleSend}
+                onChange={setComposeEmpty}
               />
-              <button className="msg-page__send-btn" onClick={handleSend} disabled={sending || (!newMessage.trim() && pendingAttachments.length === 0)}>
+              <button className="msg-page__send-btn" onClick={handleSend} disabled={sending || (composeEmpty && pendingAttachments.length === 0)}>
                 Send
               </button>
             </div>
