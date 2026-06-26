@@ -2063,9 +2063,20 @@
   }
 }
 @media (max-width: 520px) {
+  /* Single-pane on mobile: the conversation list and the active pane can't
+     both fit, so show ONE at a time and let the header back arrow toggle
+     between them. Fixes the bug where the back arrow returned to a "Pick a
+     conversation from the left" prompt with no visible list. */
   .messenger-panel__sidebar {
-    display: none;
+    flex: 1 1 auto;
+    width: 100%;
+    border-right: none;
   }
+  /* List view → full-width conversation list; hide the (empty) main pane. */
+  .messenger-panel__body[data-view="list"] .messenger-panel__main { display: none; }
+  /* Chat / new / search → that pane full-width; hide the list. The header
+     back arrow sets view back to 'list', which re-reveals the full list. */
+  .messenger-panel__body:not([data-view="list"]) .messenger-panel__sidebar { display: none; }
 }
 
 /* Conv-title carryover from the pre-MX1 header.

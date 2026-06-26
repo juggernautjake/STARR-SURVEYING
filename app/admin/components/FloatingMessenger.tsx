@@ -702,7 +702,7 @@ export default function FloatingMessenger() {
               active chat, the new-conversation flow, the search
               results, or an empty-state prompt when no thread is
               selected. */}
-          <div className="messenger-panel__body" data-testid="messenger-panel-body">
+          <div className="messenger-panel__body" data-view={view} data-testid="messenger-panel-body">
           <aside className="messenger-panel__sidebar" data-testid="messenger-panel-sidebar">
               <div className="messenger-panel__actions">
                 <input
