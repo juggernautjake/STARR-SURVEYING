@@ -77,9 +77,13 @@ slice; verify mobile at 390px and desktop.
   clipboard/move UX.
 
 ### F5 — Upload / download + clipboard UI **[me]**
-- [ ] Direct upload (drag-and-drop **and** file-picker) with progress; download (single +
-  multi-select); **cut / copy / paste, duplicate, rename, and drag-to-move** for files and
-  folders (multi-select aware); device round-trip verified both directions.
+- [x] ✓ 2026-06-25 — Direct upload via **drag-and-drop** (full-page dropzone overlay) **and**
+  the file-picker, with per-file progress; **download** single + **multi-select**; **cut /
+  copy / paste** (header Paste chip, copy→`/copy`, cut→move PATCH), **duplicate**, **rename**,
+  and **drag-to-move** (drag rows onto a folder row or a breadcrumb crumb / Home). All
+  multi-select aware via per-row checkboxes + select-all + a selection toolbar; permission-
+  gated (drag/edit only when `canEdit`, download only when `canDownload`); skipped-item notice
+  surfaced from copy. Device round-trip verified both directions.
 
 ### F6 — In-app viewer **[me]**
 - [ ] PDF viewer + image lightbox (zoom, next/prev) via signed URLs; graceful fallback to download for unsupported types.
