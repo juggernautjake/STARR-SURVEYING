@@ -44,10 +44,15 @@ slice; verify mobile at 390px and desktop.
   `__tests__/admin/file-explorer-permissions.test.ts` (12 green).
 
 ### F2 — Core node API **[me]**
-- [ ] `GET /api/admin/files?parent=<id>` (list children + breadcrumb, permission-filtered),
-  `POST` create folder, `PATCH` rename/move, `POST .../copy` (copy **and** duplicate —
-  storage-object copy for files, deep copy for folders), `DELETE` soft-delete — all
-  permission-enforced; name-collision handling (auto-suffix " (copy)").
+- [x] **F2a** ✓ 2026-06-25 — `GET /api/admin/files` (list children + breadcrumb,
+  permission-filtered), `POST` create folder, `PATCH /api/admin/files/[id]` rename/move
+  (cycle-guarded), `DELETE` soft-delete subtree — all permission-enforced via
+  `lib/files/server.ts` (chain load, grant batching, `resolveAccess`, `listChildren`,
+  `collectSubtreeIds`) + name-collision auto-suffix. Pure `lib/files/tree.ts`
+  (`sanitizeName`, `nextAvailableName`, `wouldCreateCycle`, `buildBreadcrumb`)
+  source-locked by `file-explorer-tree.test.ts` (18 green incl. permissions).
+- [ ] **F2b** `POST /api/admin/files/[id]/copy` — copy **and** duplicate (storage-object
+  copy for files once F3's bucket exists; deep copy for folders).
 
 ### F3 — Upload / download API **[me]**
 - [ ] Signed upload into the `file-explorer` bucket + `file_nodes` row on success; signed download URLs; size/mime validation; per-node download gating.
