@@ -9,6 +9,9 @@ import {
   readActiveRecipient,
   saveActiveRecipient,
 } from '@/lib/employee-pond/messenger-recipient';
+import RichMessageInput, { type RichMessageInputHandle } from '../components/messaging/RichMessageInput';
+import MessageBody from '../components/messaging/MessageBody';
+import { htmlToPlainText } from '@/lib/messages/rich-text';
 
 interface Conversation {
   id: string;
@@ -60,6 +63,22 @@ function displayName(email: string): string {
     .join(' ');
 }
 
+// Compare two message arrays on stable fields only (ignoring the per-fetch
+// signed attachment URLs) so a background poll that returns the same history
+// doesn't replace state → no re-render, no flicker, no scroll jump.
+function sameMessages(a: Message[], b: Message[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i], y = b[i];
+    if (x.id !== y.id) return false;
+    if (x.content !== y.content) return false;
+    if (x.is_edited !== y.is_edited) return false;
+    if ((x.read_receipts?.length || 0) !== (y.read_receipts?.length || 0)) return false;
+    if ((x.attachments?.length || 0) !== (y.attachments?.length || 0)) return false;
+  }
+  return true;
+}
+
 function formatTime(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
@@ -89,7 +108,9 @@ export default function MessagesInboxPage() {
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
-  const [newMessage, setNewMessage] = useState('');
+  // Rich compose: the box is contentEditable, so we track only "is it empty?"
+  // for the send-button state; the HTML is read from the ref on send.
+  const [composeEmpty, setComposeEmpty] = useState(true);
   const [sending, setSending] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
 
@@ -110,15 +131,7 @@ export default function MessagesInboxPage() {
   const [searchResults, setSearchResults] = useState<{ content: string; sender_email: string; created_at: string; conversation_id: string }[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  // M4 — auto-grow the compose box up to a cap so multi-line messages are
-  // comfortable on phones without an external lib.
-  function autoGrow(el: HTMLTextAreaElement | null) {
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
-  }
+  const richRef = useRef<RichMessageInputHandle>(null);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -147,13 +160,18 @@ export default function MessagesInboxPage() {
     }
   }, [reportPageError]);
 
-  const fetchMessages = useCallback(async (convId: string) => {
-    setLoadingMessages(true);
+  // `showSkeleton` defaults to true for the initial open / conversation switch.
+  // Background polls pass false so the existing history stays put (no "Loading…"
+  // swap) and `sameMessages` skips the state update when nothing changed.
+  const fetchMessages = useCallback(async (convId: string, opts?: { showSkeleton?: boolean }) => {
+    const showSkeleton = opts?.showSkeleton ?? true;
+    if (showSkeleton) setLoadingMessages(true);
     try {
       const res = await fetch(`/api/admin/messages/send?conversation_id=${convId}&limit=100`);
       if (res.ok) {
         const data = await res.json();
-        setMessages(data.messages || []);
+        const next: Message[] = data.messages || [];
+        setMessages(prev => sameMessages(prev, next) ? prev : next);
         fetch('/api/admin/messages/read', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -161,7 +179,7 @@ export default function MessagesInboxPage() {
         });
       }
     } catch { /* silent */ }
-    setLoadingMessages(false);
+    if (showSkeleton) setLoadingMessages(false);
   }, []);
 
   const fetchContacts = useCallback(async () => {
@@ -193,13 +211,14 @@ export default function MessagesInboxPage() {
     const refreshAll = () => {
       loadUnread();
       loadConversations();
-      if (activeConv) fetchMessages(activeConv.id);
+      if (activeConv) fetchMessages(activeConv.id, { showSkeleton: false });
     };
     const interval = setInterval(() => {
       if (document.hidden) return;
       // Active thread refreshes every fast tick (4s); the heavier
       // unread+list refresh runs once every ~16s (every 4th tick).
-      if (activeConv) fetchMessages(activeConv.id);
+      // showSkeleton:false → the visible history never blanks to "Loading…".
+      if (activeConv) fetchMessages(activeConv.id, { showSkeleton: false });
       fastTick = (fastTick + 1) % 4;
       if (fastTick === 0) { loadUnread(); loadConversations(); }
     }, 4000);
@@ -248,8 +267,16 @@ export default function MessagesInboxPage() {
     continuityHydratedRef.current = true;
   }, [conversations, fetchMessages]);
 
+  // Only auto-scroll when the newest message actually changes (a new message
+  // arrived, or the conversation switched) — not on every poll or read-receipt
+  // tick, which previously caused the history to jump around.
+  const lastMsgIdRef = useRef<string | null>(null);
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const lastId = messages.length ? messages[messages.length - 1].id : null;
+    if (lastId !== lastMsgIdRef.current) {
+      lastMsgIdRef.current = lastId;
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   function openConversation(conv: Conversation) {
@@ -296,13 +323,15 @@ export default function MessagesInboxPage() {
   }
 
   async function handleSend() {
-    const text = newMessage.trim();
-    if ((!text && pendingAttachments.length === 0) || !activeConv) return;
+    // Read sanitized HTML from the rich box; formatting from a paste is preserved.
+    const html = richRef.current?.getHtml() ?? '';
+    const hasText = htmlToPlainText(html).trim() !== '';
+    if ((!hasText && pendingAttachments.length === 0) || !activeConv) return;
     setSending(true);
     try {
       // Attachment-only messages still need non-empty content (API requires it),
       // so fall back to a paperclip + the first file name as the body.
-      const content = text || `📎 ${pendingAttachments.map(a => a.name).join(', ')}`;
+      const content = hasText ? html : `📎 ${pendingAttachments.map(a => a.name).join(', ')}`;
       const hasImage = pendingAttachments.some(a => a.type.startsWith('image/'));
       const message_type = pendingAttachments.length > 0 ? (hasImage ? 'image' : 'file') : 'text';
       const res = await fetch('/api/admin/messages/send', {
@@ -311,11 +340,11 @@ export default function MessagesInboxPage() {
         body: JSON.stringify({ conversation_id: activeConv.id, content, message_type, attachments: pendingAttachments }),
       });
       if (res.ok) {
-        setNewMessage('');
+        richRef.current?.clear();
+        setComposeEmpty(true);
         setShowEmoji(false);
         setPendingAttachments([]);
-        if (inputRef.current) inputRef.current.style.height = 'auto';
-        fetchMessages(activeConv.id);
+        fetchMessages(activeConv.id, { showSkeleton: false });
         loadConversations();
       }
     } catch { /* silent */ }
@@ -548,7 +577,7 @@ export default function MessagesInboxPage() {
               <div className="msg-page__search-overlay">
                 {searchResults.filter(r => r.conversation_id === activeConv.id).map((r, i) => (
                   <div key={i} className="msg-page__search-hit">
-                    <strong>{displayName(r.sender_email)}</strong>: {r.content.slice(0, 100)}
+                    <strong>{displayName(r.sender_email)}</strong>: {htmlToPlainText(r.content).slice(0, 100)}
                     <span className="msg-page__search-hit-time">{formatTime(r.created_at)}</span>
                   </div>
                 ))}
@@ -582,7 +611,7 @@ export default function MessagesInboxPage() {
                       <div className={`msg-page__msg ${isOwn ? 'msg-page__msg--own' : ''}`}>
                         {showSender && <span className="msg-page__msg-sender">{displayName(m.sender_email)}</span>}
                         <div className={`msg-page__msg-bubble ${isOwn ? 'msg-page__msg-bubble--own' : ''}`}>
-                          {m.content}
+                          <MessageBody content={m.content} />
                           {m.is_edited && <span className="msg-page__msg-edited">(edited)</span>}
                           {Array.isArray(m.attachments) && m.attachments.length > 0 && (
                             <div className="msg-page__attachments">
@@ -645,7 +674,7 @@ export default function MessagesInboxPage() {
                 {showEmoji && (
                   <div className="msg-page__emoji-grid">
                     {QUICK_EMOJIS.map(e => (
-                      <button key={e} onClick={() => { setNewMessage(p => p + e); setShowEmoji(false); inputRef.current?.focus(); autoGrow(inputRef.current); }}>{e}</button>
+                      <button key={e} onClick={() => { richRef.current?.insertText(e); setComposeEmpty(false); setShowEmoji(false); }}>{e}</button>
                     ))}
                   </div>
                 )}
@@ -667,16 +696,14 @@ export default function MessagesInboxPage() {
               >
                 <Paperclip size={16} strokeWidth={1.75} />
               </button>
-              <textarea
-                ref={inputRef}
+              <RichMessageInput
+                ref={richRef}
                 className="msg-page__compose-input"
-                rows={1}
-                value={newMessage}
-                onChange={e => { setNewMessage(e.target.value); autoGrow(e.target); }}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                placeholder="Type a message..."
+                placeholder="Type a message…"
+                onEnter={handleSend}
+                onChange={setComposeEmpty}
               />
-              <button className="msg-page__send-btn" onClick={handleSend} disabled={sending || (!newMessage.trim() && pendingAttachments.length === 0)}>
+              <button className="msg-page__send-btn" onClick={handleSend} disabled={sending || (composeEmpty && pendingAttachments.length === 0)}>
                 Send
               </button>
             </div>
