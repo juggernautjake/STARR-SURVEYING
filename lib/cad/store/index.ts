@@ -28,3 +28,5 @@ export { useSaveTargetStore } from './save-target-store';
 export type { SaveTarget } from './save-target-store';
 export { useCalculatorStore, DEFAULT_CALCULATOR_ID } from './calculator-store';
 export type { CalculatorId } from './calculator-store';
+export { useInverseStore } from './inverse-store';
+export type { InverseEndpoint, InverseMeasurement } from './inverse-store';
