@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
-import { useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
+import { useDrawingStore, useSelectionStore, useUndoStore, useInverseStore } from '@/lib/cad/store';
 import { useMediaStore } from '@/lib/cad/media/media-store';
 import { generateId } from '@/lib/cad/types';
 import type { Feature, FillLayer, FillPattern } from '@/lib/cad/types';
@@ -296,6 +296,8 @@ export default function PropertyPanel() {
   const doc = useDrawingStore((s) => s.document);
   const getFeature = useDrawingStore((s) => s.getFeature);
   const selectedIdsSet = useSelectionStore((s) => s.selectedIds);
+  // INVERSE tool readout — pinned here until a new inverse / tool change.
+  const inverseMeasurement = useInverseStore((s) => s.measurement);
   const undoStore = useUndoStore();
 
   const selectedIds = Array.from(selectedIdsSet);
@@ -562,6 +564,70 @@ export default function PropertyPanel() {
   const labelB = useNE ? 'E' : 'Y';
 
   if (features.length === 0) {
+    // INVERSE readout — when the surveyor has just measured between two points
+    // and nothing is selected, pin the result here (distance, both endpoints,
+    // bearing + azimuth, layer) instead of letting it flash by in the command
+    // bar. Persists until a new inverse / tool change clears the store.
+    if (inverseMeasurement) {
+      const m = inverseMeasurement;
+      const { azimuth, distance } = inverseBearingDistance(m.from.point, m.to.point);
+      const fromD = worldToDisplay(m.from.point.x, m.from.point.y);
+      const toD = worldToDisplay(m.to.point.x, m.to.point.y);
+      const endpoints: { tag: string; name: string | null; a: number; b: number }[] = [
+        { tag: 'From', name: m.from.pointName, a: fromD.a, b: fromD.b },
+        { tag: 'To', name: m.to.pointName, a: toD.a, b: toD.b },
+      ];
+      return (
+        <div className="flex flex-col h-full text-gray-200 text-xs overflow-y-auto">
+          <div className="px-2 py-1 text-gray-400 font-semibold uppercase tracking-wider text-[10px] border-b border-gray-700 flex items-center gap-1">
+            <span aria-hidden>📐</span> Inverse
+          </div>
+          <div className="p-2 space-y-2 animate-[fadeIn_150ms_ease-out]">
+            {/* Distance */}
+            <div className="rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1.5">
+              <div className="text-[10px] uppercase tracking-wider text-amber-300/80">Distance</div>
+              <div className="text-base font-semibold text-amber-200 tabular-nums">{formatDistance(distance, displayPrefs)}</div>
+            </div>
+            {/* Bearing + Azimuth */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded border border-gray-700 bg-gray-900/40 px-2 py-1.5">
+                <div className="text-[10px] uppercase tracking-wider text-gray-400">Bearing</div>
+                <div className="font-mono text-gray-100">{formatBearing(azimuth)}</div>
+              </div>
+              <div className="rounded border border-gray-700 bg-gray-900/40 px-2 py-1.5">
+                <div className="text-[10px] uppercase tracking-wider text-gray-400">Azimuth</div>
+                <div className="font-mono text-gray-100">{formatAzimuth(azimuth)}</div>
+                <div className="text-[10px] text-gray-500 tabular-nums">{azimuth.toFixed(4)}°</div>
+              </div>
+            </div>
+            {/* Endpoints */}
+            <div className="space-y-1.5">
+              {endpoints.map((ep) => (
+                <div key={ep.tag} className="rounded border border-gray-700 bg-gray-900/40 px-2 py-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-wider text-gray-400">{ep.tag}</span>
+                    {ep.name
+                      ? <span className="text-amber-200 font-medium truncate ml-2">Pt {ep.name}</span>
+                      : <span className="text-gray-500 text-[10px] ml-2">coordinate</span>}
+                  </div>
+                  <div className="font-mono text-gray-100 tabular-nums text-[11px] mt-0.5">
+                    {labelA} {ep.a.toFixed(3)} · {labelB} {ep.b.toFixed(3)}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Layer */}
+            <div className="flex items-center justify-between rounded border border-gray-700 bg-gray-900/40 px-2 py-1.5">
+              <span className="text-[10px] uppercase tracking-wider text-gray-400">Layer</span>
+              <span className="text-gray-100 truncate ml-2">{m.layerName}</span>
+            </div>
+            <div className="text-[10px] text-gray-500 pt-0.5">
+              Stays until you start a new inverse or pick another tool.
+            </div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col h-full text-gray-400 text-xs">
         <div className="px-2 py-1 text-gray-400 font-semibold uppercase tracking-wider text-[10px] border-b border-gray-700">

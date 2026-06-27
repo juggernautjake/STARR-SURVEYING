@@ -170,17 +170,18 @@ function buildToolGroups(
         { tool: 'DRAW_LINE', label: 'Line — Dotted', description: 'Draw a dotted line segment.', icon: <GitCommitHorizontal size={14} />, action: () => { toolStore.setTool('DRAW_LINE'); toolStore.setDrawStyle({ lineType: 'DOTTED' }); } },
         { tool: 'DRAW_LINE', label: 'Line — Dash-Dot', description: 'Draw a dash-dot line segment (centerline style).', icon: <SeparatorHorizontal size={14} />, action: () => { toolStore.setTool('DRAW_LINE'); toolStore.setDrawStyle({ lineType: 'DASH_DOT' }); } },
         { tool: 'DRAW_LINE', label: 'Line — Center', description: 'Draw a centerline (long dash – short dash pattern).', icon: <Navigation size={14} />, action: () => { toolStore.setTool('DRAW_LINE'); toolStore.setDrawStyle({ lineType: 'CENTER' }); } },
-        { tool: 'DRAW_LINE', label: 'Construction Line', description: 'Same as Line but intended for reference geometry.', icon: <Slash size={14} />, belowSep: false, action: () => { toolStore.setTool('DRAW_LINE'); toolStore.setDrawStyle({ lineType: 'SOLID' }); } },
+        { tool: 'DRAW_LINE', label: 'Construction Line', description: 'Same as Line but intended for reference geometry.', icon: <Slash size={14} />, belowSep: true, action: () => { toolStore.setTool('DRAW_LINE'); toolStore.setDrawStyle({ lineType: 'SOLID' }); } },
+        { tool: 'DRAW_POLYLINE', label: 'Polyline (multiple lines)', description: 'Draw multiple connected line segments in succession. Each click drops a vertex and starts the next segment; right-click or double-click to finish. Use this instead of the single Line tool when you want a continuous run of lines.', shortcut: 'PL', icon: <Spline size={14} /> },
       ],
     },
     {
       mainTool: 'DRAW_POLYLINE',
       label: 'Polyline',
-      description: 'Draw a multi-segment connected line. Each click adds a vertex. Right-click or double-click to finish.',
+      description: 'Draw multiple connected line segments in succession. Each click adds a vertex and starts the next line; right-click or double-click to finish.',
       shortcut: 'PL',
       icon: <Spline size={16} />,
       variants: [
-        { tool: 'DRAW_POLYLINE', label: 'Polyline (open)', description: 'Multi-segment open polyline. Click each vertex, right-click or double-click to finish.', shortcut: 'PL', icon: <Spline size={14} /> },
+        { tool: 'DRAW_POLYLINE', label: 'Polyline (open)', description: 'Multi-segment open polyline — draw multiple lines in succession. Click each vertex; right-click or double-click to finish.', shortcut: 'PL', icon: <Spline size={14} /> },
       ],
     },
     {
@@ -438,11 +439,11 @@ function buildToolGroups(
     {
       mainTool: 'INVERSE',
       label: 'Inverse',
-      description: 'Continuous measure path. Click points to read bearing + distance + running total per leg. Right-click for Forward Point or Measure Area tools.',
+      description: 'Measure between two points. Click the first point, then the second: the distance, bearing and azimuth show in the Properties panel and the leg stays highlighted. Right-click for Forward Point or Measure Area tools.',
       shortcut: 'INV',
       icon: <ArrowRightLeft size={16} />,
       variants: [
-        { tool: 'INVERSE', label: 'Inverse (bearing & distance)', description: 'Continuous measure path. First click sets the base; each subsequent click logs bearing + distance + running total to the command bar. The chain stays visible on canvas; press Esc to finish.', shortcut: 'INV', icon: <ArrowRightLeft size={14} /> },
+        { tool: 'INVERSE', label: 'Inverse (bearing & distance)', description: 'Two-point measurement. Click a base point, then a second point — the distance, bearing and azimuth (and the points + layer) appear in the Properties panel and the leg is highlighted on the canvas. The tool then returns to Select; the readout stays until you start a new inverse or pick another tool.', shortcut: 'INV', icon: <ArrowRightLeft size={14} /> },
         { tool: 'FORWARD_POINT', label: 'Forward Point', description: 'Click a base point, type bearing and distance in the command bar to place a new point.', shortcut: 'FP', icon: <Navigation size={14} /> },
         { tool: 'MEASURE_AREA', label: 'Measure Area', description: 'Click polygon vertices to compute live perimeter + area (sq ft + acres) in the command bar. Translucent magenta fill previews the polygon as you click; press Esc to finish.', shortcut: 'AA', icon: <Pentagon size={14} /> },
         { tool: 'DIM', label: 'Dimension', description: 'Click two points to place a permanent bearing + distance annotation on the drawing. The TEXT label is positioned at the midpoint, rotated parallel to the dimension line, and offset 6 ft perpendicular so it reads clear of the geometry.', shortcut: 'DI', icon: <ArrowRightLeft size={14} /> },

@@ -43,9 +43,9 @@ describe('renderFeatures — dirty-skip + clear loop', () => {
     expect(SRC).toMatch(/if \(isDirty\) processedDirty\.push\(feature\.id\)/);
   });
 
-  it('needsRedraw fires on identity change, dirty stamp, missing prev, epsilon change, or layer-color change', () => {
+  it('needsRedraw fires on identity change, dirty stamp, camera/viewport move, missing prev, epsilon change, or layer-color change', () => {
     expect(SRC).toMatch(
-      /const needsRedraw =\s*\n\s*freshlyCreated \|\|\s*\n\s*isDirty \|\|\s*\n\s*!prev \|\|\s*\n\s*prev\.feature !== feature \|\|\s*\n\s*prev\.epsilon !== simplifyEpsilon \|\|\s*\n\s*prev\.layerColor !== layerColor;/,
+      /const needsRedraw =\s*\n\s*freshlyCreated \|\|\s*\n\s*isDirty \|\|\s*\n\s*cameraMoved \|\|[^\n]*\n\s*!prev \|\|\s*\n\s*prev\.feature !== feature \|\|\s*\n\s*prev\.epsilon !== simplifyEpsilon \|\|\s*\n\s*prev\.layerColor !== layerColor;/,
     );
   });
 

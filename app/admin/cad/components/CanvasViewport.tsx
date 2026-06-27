@@ -20,6 +20,7 @@ import {
   useTransferStore,
   usePointStore,
   useAnnotationStore,
+  useInverseStore,
   makeAddFeatureEntry,
   makeRemoveFeatureEntry,
   makeBatchEntry,
@@ -849,6 +850,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const imageCacheDocIdRef = useRef<string | null>(null);
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const snapResultRef = useRef<ReturnType<typeof findSnapPoint>>(null);
+  // INVERSE tool — the base point (and its snapped name, if any) captured on
+  // the first click, held until the second click completes the two-point shot.
+  const inverseFromRef = useRef<{ point: { x: number; y: number }; pointName: string | null } | null>(null);
   // Slice W10 — MEASURE_AREA snap-to-foot step. 0 = disabled
   // (default). The AreaMeasureHUD's "Snap to foot" toggle
   // dispatches `cad:setAreaSnap` with `{ enabled, stepFt }`;
@@ -946,7 +950,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // every visible feature. Without this, a continuously-visible point (e.g. the
   // one you're zooming toward) keeps stale screen coords and drifts off-screen as
   // you zoom in — appearing to "disappear".
-  const lastFeatureCameraRef = useRef<{ zoom: number; centerX: number; centerY: number } | null>(null);
+  const lastFeatureCameraRef = useRef<{ zoom: number; centerX: number; centerY: number; screenWidth: number; screenHeight: number } | null>(null);
   const gripDragRef = useRef<{
     featureId: string;
     vertexIndex: number;
@@ -1177,6 +1181,23 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     };
     window.addEventListener('cad:activateTool', handler);
     return () => window.removeEventListener('cad:activateTool', handler);
+  }, []);
+
+  // Persist the INVERSE readout until the surveyor leaves SELECT. The two-point
+  // shot ends by switching to SELECT, so the result survives that transition;
+  // the NEXT tool change (a fresh inverse, or any other tool) clears it. This
+  // is what keeps the Properties-panel readout + on-canvas line pinned instead
+  // of vanishing on a timeout.
+  useEffect(() => {
+    let prevTool = useToolStore.getState().state.activeTool;
+    const unsub = useToolStore.subscribe((s) => {
+      const tool = s.state.activeTool;
+      if (tool !== prevTool) {
+        prevTool = tool;
+        if (tool !== 'SELECT') useInverseStore.getState().clear();
+      }
+    });
+    return unsub;
   }, []);
 
   // Slice W10 — AreaMeasureHUD broadcasts the snap-to-foot
@@ -1938,15 +1959,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
     }
     const culledIds = new Set(culledFeatures.map((f) => f.id));
-    const { zoom, centerX, centerY } = useViewportStore.getState();
-    // Screen-space features must re-tessellate whenever the camera moves.
+    const { zoom, centerX, centerY, screenWidth, screenHeight } = useViewportStore.getState();
+    // Screen-space features must re-tessellate whenever the camera moves OR the
+    // canvas resizes. `w2s` adds screenWidth/2 + screenHeight/2 (the screen-centre
+    // term), so toggling a side panel / the point table, resizing the window, or
+    // entering fullscreen shifts every feature's screen coords. Without tracking
+    // the screen size here, features kept their pre-resize tessellation while the
+    // live overlays (hover highlight, snap marker, selection) redrew at the new
+    // centre — leaving the highlight visibly offset from its object until the next
+    // zoom/pan happened to trip the redraw. Tracking it keeps geometry and overlays
+    // pixel-aligned at all times.
     const lastCam = lastFeatureCameraRef.current;
     const cameraMoved =
       !lastCam ||
       lastCam.zoom !== zoom ||
       lastCam.centerX !== centerX ||
-      lastCam.centerY !== centerY;
-    lastFeatureCameraRef.current = { zoom, centerX, centerY };
+      lastCam.centerY !== centerY ||
+      lastCam.screenWidth !== screenWidth ||
+      lastCam.screenHeight !== screenHeight;
+    lastFeatureCameraRef.current = { zoom, centerX, centerY, screenWidth, screenHeight };
     const worldPerPixel = zoom > 0 ? 1 / zoom : 0;
     // cad-desktop-tauri-and-perf Slice P5 — thread the
     // doc-settings LOD config into every threshold call so a
@@ -5193,6 +5224,35 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   }
 
   // ─────────────────────────────────────────────
+  // Render: persistent INVERSE measurement line
+  // ─────────────────────────────────────────────
+  // Draws the most recent two-point inverse as a bright orange leg with
+  // ringed endpoints. Appended to selectionGraphics AFTER renderSelection
+  // (which clears it) so it persists every frame without its own layer, and
+  // rides the same transform as the geometry it measures — staying pinned to
+  // the two points at any zoom. The numeric readout lives in the Properties
+  // panel; this is just the on-canvas highlight. Cleared from the store when
+  // the surveyor starts a new inverse or switches tools.
+  function renderInverseMeasurement() {
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+    const m = useInverseStore.getState().measurement;
+    if (!m) return;
+    const g = pixi.selectionGraphics;
+    const a = w2s(m.from.point.x, m.from.point.y);
+    const b = w2s(m.to.point.x, m.to.point.y);
+    g.lineStyle(2, 0xffaa33, 0.95);
+    g.moveTo(a.sx, a.sy);
+    g.lineTo(b.sx, b.sy);
+    // Ringed endpoints (dark centre so they read over any line colour).
+    g.lineStyle(1.5, 0xffaa33, 1);
+    g.beginFill(0x1a1f2e, 0.9);
+    g.drawCircle(a.sx, a.sy, 4);
+    g.drawCircle(b.sx, b.sy, 4);
+    g.endFill();
+  }
+
+  // ─────────────────────────────────────────────
   // Render: Tool preview (dashed line)
   // ─────────────────────────────────────────────
   function renderToolPreview() {
@@ -8191,7 +8251,24 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const { sx: x1, sy: y1 } = w2s(lastPt.x, lastPt.y);
     const { sx: x2, sy: y2 } = w2s(previewPoint.x, previewPoint.y);
 
-    // Solid preview line in active layer color
+    // Draw every segment placed so far so a polygon/polyline shows the edges
+    // you've already committed as you click — not just the cursor leg. A
+    // DRAW_POLYGON keeps its vertices in `drawingPoints` and doesn't commit a
+    // real feature until you close, so without this the placed edges were
+    // invisible until completion (the bug being fixed). DRAW_POLYLINE commits
+    // each segment as a real feature too, so re-tracing them here is just a
+    // harmless overlay in the same colour that keeps the preview consistent.
+    if (drawingPoints.length > 1) {
+      g.lineStyle(1.5, previewColor, 0.85);
+      const { sx: s0x, sy: s0y } = w2s(drawingPoints[0].x, drawingPoints[0].y);
+      g.moveTo(s0x, s0y);
+      for (let i = 1; i < drawingPoints.length; i++) {
+        const { sx, sy } = w2s(drawingPoints[i].x, drawingPoints[i].y);
+        g.lineTo(sx, sy);
+      }
+    }
+
+    // Solid rubber-band line from the last placed vertex to the cursor
     g.lineStyle(1.5, previewColor, 0.85);
     g.moveTo(x1, y1);
     g.lineTo(x2, y2);
@@ -8203,10 +8280,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     g.drawCircle(fx, fy, 3.5);
     g.endFill();
 
-    // Draw anchor dot at last committed point (if different from first)
+    // Draw an anchor dot at every committed vertex after the first so each
+    // placed corner reads clearly while drawing.
     if (drawingPoints.length > 1) {
       g.beginFill(previewColor, 0.7);
-      g.drawCircle(x1, y1, 2.5);
+      for (let i = 1; i < drawingPoints.length; i++) {
+        const { sx, sy } = w2s(drawingPoints[i].x, drawingPoints[i].y);
+        g.drawCircle(sx, sy, 2.5);
+      }
       g.endFill();
     }
 
@@ -8487,6 +8568,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       renderAreaAnnotations();
       renderTextFeatures();
       measureRender('renderSelection', renderSelection);
+      // Persistent INVERSE highlight — appended to selectionGraphics after
+      // renderSelection clears it, so it survives every frame.
+      renderInverseMeasurement();
       renderSnapIndicator();
       renderToolPreview();
       renderTransferGhost();
@@ -11375,40 +11459,58 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
 
         case 'INVERSE': {
-          // INVERSE — continuous measure-path. Each click adds
-          // a node to the chain; from the second click onward
-          // we log bearing + distance from the previous node
-          // and accumulate the total. The running chain stays
-          // on canvas as a faint poly until the surveyor hits
-          // Esc (which calls useToolStore.getState().clearDrawingPoints via
-          // resetToolState).
+          // INVERSE — two-point one-shot. Click a base point, then a
+          // second point: we compute the distance + bearing/azimuth
+          // between the two, pin the result to the Properties panel and
+          // a persistent highlight line on the canvas, then hand the
+          // cursor back to SELECT. The readout stays put until the
+          // surveyor starts another inverse or switches tools (the tool
+          // subscription clears useInverseStore). No more running chain.
           const { drawingPoints: dpts } = toolState;
+          // Resolve a point NAME when this click snapped onto an
+          // existing survey point, so the readout can name its ends.
+          const resolveInverseName = (): string | null => {
+            const snap = snapResultRef.current;
+            if (!snap?.featureId) return null;
+            const f = useDrawingStore.getState().getFeature(snap.featureId);
+            if (f && f.geometry.type === 'POINT') {
+              const nm = f.properties?.pointName;
+              if (typeof nm === 'string' && nm.trim()) return nm;
+              const num = f.properties?.pointNumber;
+              if (typeof num === 'number') return String(num);
+            }
+            return null;
+          };
           if (dpts.length === 0) {
+            // First click — set the base point; drop any prior result.
+            useInverseStore.getState().clear();
+            inverseFromRef.current = {
+              point: { x: worldPt.x, y: worldPt.y },
+              pointName: resolveInverseName(),
+            };
             useToolStore.getState().addDrawingPoint(worldPt);
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'INVERSE — base point set. Click again to measure each leg; press Esc to finish.' },
+              detail: { text: 'INVERSE — base point set. Click the second point.' },
             }));
             break;
           }
-          const prev = dpts[dpts.length - 1];
-          const { azimuth, distance } = inverseBearingDistance(prev, worldPt);
-          const bearingStr = formatBearing(azimuth);
-          const distStr = distance.toFixed(2);
-          // Compute running total distance after this leg.
-          let totalLegs = 0;
-          for (let i = 0; i + 1 < dpts.length; i += 1) {
-            totalLegs += Math.hypot(dpts[i + 1].x - dpts[i].x, dpts[i + 1].y - dpts[i].y);
-          }
-          const runningTotal = totalLegs + distance;
+          // Second click — compute + commit the measurement.
+          const from = inverseFromRef.current ?? { point: { x: dpts[0].x, y: dpts[0].y }, pointName: null };
+          const to = { point: { x: worldPt.x, y: worldPt.y }, pointName: resolveInverseName() };
+          const { azimuth, distance } = inverseBearingDistance(from.point, to.point);
+          const ds = useDrawingStore.getState();
+          const layerId = ds.activeLayerId;
+          const layerName = ds.document.layers[layerId]?.name ?? layerId;
+          useInverseStore.getState().setMeasurement({ from, to, layerId, layerName });
+          // Make sure the Properties panel is open so the readout is visible.
+          if (!useUIStore.getState().showPropertyPanel) useUIStore.getState().togglePropertyPanel();
           window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-            detail: {
-              text: `INVERSE leg ${dpts.length} — Bearing: ${bearingStr}  Distance: ${distStr}′  (Total: ${runningTotal.toFixed(2)}′)`,
-            },
+            detail: { text: `INVERSE — ${formatBearing(azimuth)}  ${distance.toFixed(2)}′  (details in Properties panel)` },
           }));
-          // Advance the chain so the next click measures from
-          // here. The surveyor can chain as many legs as they
-          // want; Esc clears.
-          useToolStore.getState().addDrawingPoint(worldPt);
+          // One-shot: clear the in-progress point + hand back to SELECT.
+          inverseFromRef.current = null;
+          useToolStore.getState().clearDrawingPoints();
+          useToolStore.getState().setTool('SELECT');
           break;
         }
 
