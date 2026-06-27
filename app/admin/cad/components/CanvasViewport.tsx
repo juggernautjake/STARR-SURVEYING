@@ -9936,6 +9936,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       switch (activeTool) {
         case 'SELECT': {
+          // Inverse dismiss-on-click: after a two-point inverse the tool drops
+          // back to SELECT and the orange leg + Properties readout stay pinned.
+          // The next left-click in SELECT (selecting a feature, or clicking
+          // empty space) clears them — they persist only until you act again.
+          // Pan (middle / space-drag) and right-click returned early above, so
+          // looking around doesn't dismiss it; and the completing inverse click
+          // runs under the INVERSE tool, so it never reaches here.
+          if (useInverseStore.getState().measurement) useInverseStore.getState().clear();
           // We've confirmed no TB element was hit (those return early above), so clear TB selection
           useSelectionStore.getState().setSelectedTBElem(null);
           // Ctrl/Cmd (or Shift) make a click additive: toggle the hit
@@ -11494,19 +11502,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             }));
             break;
           }
-          // Second click — compute + commit the measurement.
+          // Second click — compute + commit the measurement. The numeric
+          // readout lives ONLY in the Properties panel now; we deliberately do
+          // NOT echo it to the command bar, which would otherwise flash the
+          // bearing/distance in green below the viewer and then vanish on a
+          // timeout — duplicating (and contradicting) the persistent panel.
           const from = inverseFromRef.current ?? { point: { x: dpts[0].x, y: dpts[0].y }, pointName: null };
           const to = { point: { x: worldPt.x, y: worldPt.y }, pointName: resolveInverseName() };
-          const { azimuth, distance } = inverseBearingDistance(from.point, to.point);
           const ds = useDrawingStore.getState();
           const layerId = ds.activeLayerId;
           const layerName = ds.document.layers[layerId]?.name ?? layerId;
           useInverseStore.getState().setMeasurement({ from, to, layerId, layerName });
           // Make sure the Properties panel is open so the readout is visible.
           if (!useUIStore.getState().showPropertyPanel) useUIStore.getState().togglePropertyPanel();
-          window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-            detail: { text: `INVERSE — ${formatBearing(azimuth)}  ${distance.toFixed(2)}′  (details in Properties panel)` },
-          }));
           // One-shot: clear the in-progress point + hand back to SELECT.
           inverseFromRef.current = null;
           useToolStore.getState().clearDrawingPoints();
