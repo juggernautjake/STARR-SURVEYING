@@ -4,9 +4,10 @@
 import { useState, useRef } from 'react';
 import { Eye, EyeOff, Lock, LockOpen, Plus, Settings, EyeOff as EyeOffIcon, RotateCw, ChevronDown, ChevronRight, Layers, X, Send, Sparkles } from 'lucide-react';
 import { useEffect } from 'react';
-import { useDrawingStore } from '@/lib/cad/store';
+import { useDrawingStore, useUndoStore, makeBatchEntry } from '@/lib/cad/store';
 import { useSelectionStore } from '@/lib/cad/store';
 import { useUIStore } from '@/lib/cad/store';
+import { DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
 import { useMediaStore } from '@/lib/cad/media/media-store';
 import { confirmAction } from './ConfirmDialog';
 import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
@@ -25,17 +26,18 @@ import NewLayerDialog from './NewLayerDialog';
 // group rows (and, in future slices, feature rows + layer rows).
 import TargetContextMenu, { type ContextMenuTarget } from './TargetContextMenu';
 
-// Accessible palette for new layers — visually distinct, good contrast
-const LAYER_COLOR_PALETTE = [
-  '#E53E3E', '#DD6B20', '#D69E2E', '#38A169', '#3182CE',
-  '#805AD5', '#D53F8C', '#00B5D8', '#2D3748', '#718096',
-];
-let paletteIndex = 0;
+// New layers default to BLACK. Surveyors want a clean black drawing and then
+// recolour deliberately — not an auto-assigned palette colour per layer. The
+// New Layer dialog still lets the user pick any colour before creating.
 function nextLayerColor(): string {
-  const color = LAYER_COLOR_PALETTE[paletteIndex % LAYER_COLOR_PALETTE.length];
-  paletteIndex++;
-  return color;
+  return '#000000';
 }
+
+// Feature types that draw as a stroke ("lines / objects"), as opposed to
+// POINT / TEXT / IMAGE. Used by the per-layer "Set lines color" action.
+const LINE_LIKE_TYPES = new Set<string>([
+  'LINE', 'POLYLINE', 'POLYGON', 'ARC', 'CIRCLE', 'ELLIPSE', 'SPLINE',
+]);
 
 /** Number of default survey info elements always present in the SURVEY-INFO layer. */
 const SURVEY_INFO_ELEM_COUNT = 4;
@@ -250,9 +252,9 @@ export default function LayerPanel() {
 
   // Opening the New Layer modal (§11). The actual layer is created in
   // `createLayerFromDialog` once the surveyor confirms. The default name is the
-  // lowest free "Layer N" starting at 1 — so the FIRST layer a surveyor adds to a
-  // new drawing is "Layer 1", not "Layer 3" (the seeded "Layer 0" + "Survey Info"
-  // no longer inflate the count).
+  // lowest free "Layer N" starting at 1. A new drawing already has "Layer 1"
+  // (the seeded working layer), so the first one the surveyor adds is "Layer 2",
+  // then "Layer 3", … — a clean, gap-free sequence.
   function handleNewLayer() {
     setPanelMenu(null);
     const existingNames = new Set(Object.values(doc.layers).map((l) => l.name));
@@ -454,6 +456,46 @@ export default function LayerPanel() {
     input.onchange = () => {
       useDrawingStore.getState().updateLayer(layerId, { color: input.value });
     };
+    input.click();
+  }
+
+  // ── Bulk recolour a layer's points / lines ──────────────────────────────
+  // "Set points color" / "Set lines color" recolour every existing feature of
+  // that kind on the layer in ONE undo step. Distinct from "Change Color"
+  // above, which sets the layer's own swatch + the default for NEW geometry.
+  // "Lines" = anything that draws as a stroke (line, polyline, polygon, arc,
+  // circle, ellipse, spline); "points" = POINT features.
+  function layerColorTargets(layerId: string, kind: 'POINT' | 'LINE') {
+    return Object.values(doc.features).filter(
+      (f) =>
+        f.layerId === layerId &&
+        (kind === 'POINT' ? f.type === 'POINT' : LINE_LIKE_TYPES.has(f.type)),
+    );
+  }
+
+  function setLayerFeaturesColor(layerId: string, kind: 'POINT' | 'LINE', color: string) {
+    const targets = layerColorTargets(layerId, kind);
+    if (targets.length === 0) return;
+    const ops: { type: 'MODIFY_FEATURE'; data: { id: string; before: Record<string, unknown>; after: Record<string, unknown> } }[] = [];
+    for (const f of targets) {
+      const before = { style: f.style };
+      const after = { style: { ...DEFAULT_FEATURE_STYLE, ...f.style, color, isOverride: true } };
+      useDrawingStore.getState().updateFeature(f.id, after);
+      ops.push({ type: 'MODIFY_FEATURE', data: { id: f.id, before, after } });
+    }
+    const layerName = doc.layers[layerId]?.name ?? layerId;
+    useUndoStore.getState().pushUndo(
+      makeBatchEntry(`Set ${kind === 'POINT' ? 'points' : 'lines'} color in ${layerName} (${ops.length})`, ops),
+    );
+  }
+
+  function handleSetLayerColor(layerId: string, kind: 'POINT' | 'LINE') {
+    setContextMenu(null);
+    if (layerColorTargets(layerId, kind).length === 0) return; // nothing to recolour
+    const input = document.createElement('input');
+    input.type = 'color';
+    input.value = doc.layers[layerId]?.color ?? '#000000';
+    input.onchange = () => setLayerFeaturesColor(layerId, kind, input.value);
     input.click();
   }
 
@@ -1328,12 +1370,31 @@ export default function LayerPanel() {
           >
             {doc.layers[contextMenu.layerId]?.locked ? 'Unlock' : 'Lock'}
           </button>
+          <div className="my-1 border-t border-gray-700" />
           <button
             className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
             onClick={() => handleChangeColor(contextMenu.layerId)}
+            title="Set this layer's swatch color and the default color for new geometry drawn on it"
           >
-            Change Color
+            Layer color…
           </button>
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100 disabled:opacity-40 disabled:hover:bg-transparent"
+            onClick={() => handleSetLayerColor(contextMenu.layerId, 'POINT')}
+            disabled={layerColorTargets(contextMenu.layerId, 'POINT').length === 0}
+            title="Recolor every point on this layer"
+          >
+            Set points color…
+          </button>
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100 disabled:opacity-40 disabled:hover:bg-transparent"
+            onClick={() => handleSetLayerColor(contextMenu.layerId, 'LINE')}
+            disabled={layerColorTargets(contextMenu.layerId, 'LINE').length === 0}
+            title="Recolor every line/object on this layer"
+          >
+            Set lines color…
+          </button>
+          <div className="my-1 border-t border-gray-700" />
           <button
             className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
             onClick={() => openLayerPreferences(contextMenu.layerId)}

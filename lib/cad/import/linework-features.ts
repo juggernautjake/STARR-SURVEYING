@@ -42,7 +42,9 @@ export function buildLineworkFeatures(
       layerId: layerFor(pts[0]),
       style: {
         ...DEFAULT_FEATURE_STYLE,
-        color: codeDef?.defaultColor ?? '#000000',
+        // Black by default — linework is recoloured deliberately, not tinted
+        // by the survey code. (Line weight still follows the code default.)
+        color: '#000000',
         lineWeight: codeDef?.defaultLineWeight ?? null,
       },
       properties: {

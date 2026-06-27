@@ -23,6 +23,8 @@ import {
 } from '@/lib/cad/points/point-rows';
 import { findNameReferences } from '@/lib/cad/points/point-rename';
 import { matchesQueryTokens, tokenizeSearch, type SearchField } from '@/lib/cad/points/move-points-filters';
+import ColorSwatchInput from './ColorSwatchInput';
+import { DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
 import { generateLabelsForFeature } from '@/lib/cad/labels';
 import type { Feature } from '@/lib/cad/types';
 import { readPanelSize, writePanelSize } from '@/lib/cad/ui/panel-size';
@@ -273,6 +275,22 @@ export default function PointDataViewer({
     if (ops.length) pushUndo(makeBatchEntry(`Send ${ops.length} point(s) to ${document.layers[layerId]?.name ?? layerId}`, ops));
   }
 
+  /** Recolor every picked point (single undo batch). Works with the search +
+   *  layer filter + select-all to recolor all points in a layer, or with a
+   *  manual checkbox selection of individual points. */
+  function bulkSetColor(color: string) {
+    const ops: { type: 'MODIFY_FEATURE'; data: { id: string; before: Record<string, unknown>; after: Record<string, unknown> } }[] = [];
+    for (const id of picked) {
+      const f = getFeature(id);
+      if (!f) continue;
+      const before = { style: f.style };
+      const after = { style: { ...DEFAULT_FEATURE_STYLE, ...f.style, color, isOverride: true } };
+      updateFeature(id, after);
+      ops.push({ type: 'MODIFY_FEATURE', data: { id, before, after } });
+    }
+    if (ops.length) pushUndo(makeBatchEntry(`Recolor ${ops.length} point(s)`, ops));
+  }
+
   /** Delete every picked point (single undo batch). */
   function bulkDelete() {
     const feats = [...picked].map((id) => getFeature(id)).filter((f): f is Feature => !!f);
@@ -491,6 +509,15 @@ export default function PointDataViewer({
               return lyr ? <option key={lid} value={lid}>{lyr.name}</option> : null;
             })}
           </select>
+          <label className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-800 border border-gray-600" title="Set the color of the selected points">
+            <span className="text-gray-300">Color</span>
+            <ColorSwatchInput
+              value={(() => { const first = getFeature([...picked][0] ?? ''); return first?.style.color ?? '#000000'; })()}
+              onChange={(c) => bulkSetColor(c)}
+              className="h-4 w-6"
+              aria-label="Set the color of the selected points"
+            />
+          </label>
           <button type="button" onClick={bulkAskAI} className="px-2 py-0.5 rounded bg-gray-800 border border-gray-600 hover:bg-gray-700" title="Select these points on the canvas and open the AI to ask about them">Ask AI</button>
           <button type="button" onClick={bulkExport} className="px-2 py-0.5 rounded bg-gray-800 border border-gray-600 hover:bg-gray-700" title="Export the selected points to CSV">Export CSV</button>
           <button type="button" onClick={bulkDelete} className="px-2 py-0.5 rounded bg-red-900/50 border border-red-800 text-red-200 hover:bg-red-900" title="Delete the selected points">Delete</button>
