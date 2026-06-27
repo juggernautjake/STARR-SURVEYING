@@ -12,6 +12,7 @@ import {
 import RichMessageInput, { type RichMessageInputHandle } from '../components/messaging/RichMessageInput';
 import MessageBody from '../components/messaging/MessageBody';
 import { htmlToPlainText } from '@/lib/messages/rich-text';
+import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 
 interface Conversation {
   id: string;
@@ -267,19 +268,29 @@ export default function MessagesInboxPage() {
     continuityHydratedRef.current = true;
   }, [conversations, fetchMessages]);
 
-  // Only auto-scroll when the newest message actually changes (a new message
-  // arrived, or the conversation switched) — not on every poll or read-receipt
-  // tick, which previously caused the history to jump around.
+  // When a conversation FIRST loads, jump to the bottom INSTANTLY (before paint)
+  // so it opens on the latest messages with no top→bottom scroll animation. Only
+  // a genuinely new message in the open thread scrolls smoothly; polls / read-
+  // receipt ticks don't scroll at all.
   const lastMsgIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    const lastId = messages.length ? messages[messages.length - 1].id : null;
-    if (lastId !== lastMsgIdRef.current) {
+  const scrolledConvRef = useRef<string | null>(null);
+  useIsomorphicLayoutEffect(() => {
+    const convId = activeConv?.id ?? null;
+    if (!convId || messages.length === 0) { lastMsgIdRef.current = null; return; }
+    const lastId = messages[messages.length - 1].id;
+    const isInitial = scrolledConvRef.current !== convId;
+    if (isInitial) {
+      scrolledConvRef.current = convId;
       lastMsgIdRef.current = lastId;
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current?.scrollIntoView({ block: 'end' }); // instant, no animation
+    } else if (lastId !== lastMsgIdRef.current) {
+      lastMsgIdRef.current = lastId;
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
-  }, [messages]);
+  }, [messages, activeConv?.id]);
 
   function openConversation(conv: Conversation) {
+    setMessages([]);          // clean slate so the new thread opens at its bottom
     setActiveConv(conv);
     setShowNewConv(false);
     fetchMessages(conv.id);
