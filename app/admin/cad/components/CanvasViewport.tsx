@@ -939,6 +939,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
     >
   >(new Map());
+  // Features are tessellated in SCREEN space (drawFeature bakes the camera via
+  // w2s) and the feature container has no pan/zoom transform — so any camera
+  // move requires re-tessellation. This tracks the camera used at the last
+  // renderFeatures pass; when it changes, the P3b redraw-gate forces a redraw of
+  // every visible feature. Without this, a continuously-visible point (e.g. the
+  // one you're zooming toward) keeps stale screen coords and drifts off-screen as
+  // you zoom in — appearing to "disappear".
+  const lastFeatureCameraRef = useRef<{ zoom: number; centerX: number; centerY: number } | null>(null);
   const gripDragRef = useRef<{
     featureId: string;
     vertexIndex: number;
@@ -1930,7 +1938,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
     }
     const culledIds = new Set(culledFeatures.map((f) => f.id));
-    const { zoom } = useViewportStore.getState();
+    const { zoom, centerX, centerY } = useViewportStore.getState();
+    // Screen-space features must re-tessellate whenever the camera moves.
+    const lastCam = lastFeatureCameraRef.current;
+    const cameraMoved =
+      !lastCam ||
+      lastCam.zoom !== zoom ||
+      lastCam.centerX !== centerX ||
+      lastCam.centerY !== centerY;
+    lastFeatureCameraRef.current = { zoom, centerX, centerY };
     const worldPerPixel = zoom > 0 ? 1 / zoom : 0;
     // cad-desktop-tauri-and-perf Slice P5 — thread the
     // doc-settings LOD config into every threshold call so a
@@ -2038,6 +2054,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const needsRedraw =
         freshlyCreated ||
         isDirty ||
+        cameraMoved ||              // camera pan/zoom → screen-space coords stale
         !prev ||
         prev.feature !== feature ||
         prev.epsilon !== simplifyEpsilon ||
