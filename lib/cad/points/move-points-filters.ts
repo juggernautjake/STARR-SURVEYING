@@ -54,13 +54,25 @@ export function tokenizeSearch(raw: string): string[] {
 }
 
 /** A row matches the query when ANY token is a substring of the row's
- *  chosen field. An empty token list matches every row (so the
+ *  chosen field(s). An empty token list matches every row (so the
  *  caller's "no filter" path is just `tokenizeSearch(q).length === 0`
- *  → skip the filter). */
+ *  → skip the filter).
+ *
+ *  CODE searches the survey code AND the description: a point's
+ *  description is free-text context attached to its code (e.g. code
+ *  `IRF` with description "found, fence corner"), so a surveyor
+ *  searching by code expects to find it on either. NAME searches the
+ *  point name/number only. */
 export function matchesQueryTokens(row: PointRow, field: SearchField, tokens: ReadonlyArray<string>): boolean {
   if (tokens.length === 0) return true;
-  const haystack = (field === 'CODE' ? row.code : row.name).toLowerCase();
-  for (const token of tokens) if (haystack.includes(token)) return true;
+  const haystacks = field === 'CODE'
+    ? [row.code.toLowerCase(), row.description.toLowerCase()]
+    : [row.name.toLowerCase()];
+  for (const token of tokens) {
+    for (const haystack of haystacks) {
+      if (haystack.includes(token)) return true;
+    }
+  }
   return false;
 }
 
