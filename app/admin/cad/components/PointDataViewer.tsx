@@ -22,6 +22,7 @@ import {
   type PointRowField,
 } from '@/lib/cad/points/point-rows';
 import { findNameReferences } from '@/lib/cad/points/point-rename';
+import { matchesQueryTokens, tokenizeSearch, type SearchField } from '@/lib/cad/points/move-points-filters';
 import { generateLabelsForFeature } from '@/lib/cad/labels';
 import type { Feature } from '@/lib/cad/types';
 import { readPanelSize, writePanelSize } from '@/lib/cad/ui/panel-size';
@@ -108,7 +109,9 @@ export default function PointDataViewer({
 
   const [layerFilter, setLayerFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
-  const [searchBy, setSearchBy] = useState<'ALL' | 'NAME' | 'CODE'>('ALL');
+  // Search by ONE field at a time — name or code, never both (the surveyor
+  // picks the field with the Name/Code toggle). Defaults to Name.
+  const [searchBy, setSearchBy] = useState<SearchField>('NAME');
   const [colVis, setColVis] = useState<Record<ColKey, boolean>>(loadColVis);
   const [colMenuOpen, setColMenuOpen] = useState(false);
   const [edit, setEdit] = useState<{ id: string; field: ColKey } | null>(null);
@@ -135,20 +138,24 @@ export default function PointDataViewer({
   }, [rows, document.layers]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    // Search the ONE chosen field (name OR code) via the shared, unit-tested
+    // matcher — which also supports comma-separated tokens (e.g. "23set, 22fnd"
+    // matches either). The layer dropdown narrows further.
+    const tokens = tokenizeSearch(search);
     return rows.filter((r) => {
       if (layerFilter !== 'ALL' && r.layerId !== layerFilter) return false;
-      if (!q) return true;
-      if (searchBy === 'NAME') return r.name.toLowerCase().includes(q);
-      if (searchBy === 'CODE') return r.code.toLowerCase().includes(q);
-      // ALL: name, code, or description.
-      return (
-        r.name.toLowerCase().includes(q) ||
-        r.code.toLowerCase().includes(q) ||
-        r.description.toLowerCase().includes(q)
-      );
+      return matchesQueryTokens(r, searchBy, tokens);
     });
   }, [rows, layerFilter, search, searchBy]);
+
+  // A NEW search starts fresh: whenever the query text or the search field
+  // changes, drop any previously-picked points so the next selection only ever
+  // contains points from the current results — never leftovers from the last
+  // search. Deliberately keyed on search + searchBy only (not the picks
+  // themselves), so picking points doesn't re-trigger it.
+  useEffect(() => {
+    setPicked(new Set());
+  }, [search, searchBy]);
 
   // Original snapshot per row (if any edits have been made). Drives the
   // "edited" indicator, original-value tooltips, and Revert.
@@ -396,23 +403,25 @@ export default function PointDataViewer({
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-700 shrink-0">
         <span className="font-semibold text-gray-100">Point Data</span>
         <span className="text-gray-500">{filtered.length} pts</span>
-        <div className="flex rounded border border-gray-600 overflow-hidden shrink-0">
-          {(['ALL', 'NAME', 'CODE'] as const).map((m) => (
+        {/* Search field selector — one field at a time, never both. */}
+        <div className="flex rounded border border-gray-600 overflow-hidden shrink-0" role="group" aria-label="Search field">
+          {(['NAME', 'CODE'] as const).map((m) => (
             <button
               key={m}
               type="button"
               onClick={() => setSearchBy(m)}
+              aria-pressed={searchBy === m}
               className={`px-2 py-0.5 text-[11px] ${searchBy === m ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}
-              title={m === 'ALL' ? 'Search name, code, and description' : m === 'NAME' ? 'Search by point name/number only' : 'Search by survey code only'}
+              title={m === 'NAME' ? 'Search by point name/number only' : 'Search by survey code only'}
             >
-              {m === 'ALL' ? 'All' : m === 'NAME' ? 'Name' : 'Code'}
+              {m === 'NAME' ? 'Name' : 'Code'}
             </button>
           ))}
         </div>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder={searchBy === 'CODE' ? 'Search by code…' : searchBy === 'NAME' ? 'Search by name…' : 'Search name / code / desc…'}
+          placeholder={searchBy === 'CODE' ? 'Search by code…' : 'Search by name…'}
           className="flex-1 min-w-0 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs"
         />
         <div className="relative">
@@ -485,7 +494,7 @@ export default function PointDataViewer({
           <button type="button" onClick={bulkAskAI} className="px-2 py-0.5 rounded bg-gray-800 border border-gray-600 hover:bg-gray-700" title="Select these points on the canvas and open the AI to ask about them">Ask AI</button>
           <button type="button" onClick={bulkExport} className="px-2 py-0.5 rounded bg-gray-800 border border-gray-600 hover:bg-gray-700" title="Export the selected points to CSV">Export CSV</button>
           <button type="button" onClick={bulkDelete} className="px-2 py-0.5 rounded bg-red-900/50 border border-red-800 text-red-200 hover:bg-red-900" title="Delete the selected points">Delete</button>
-          <button type="button" onClick={clearPicks} className="ml-auto px-2 py-0.5 rounded text-gray-400 hover:text-gray-200" title="Clear selection">Clear</button>
+          <button type="button" onClick={clearPicks} className="ml-auto px-2 py-0.5 rounded border border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700" title="Deselect every currently selected point">Deselect all</button>
         </div>
       )}
 
