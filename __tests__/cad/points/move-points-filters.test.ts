@@ -94,6 +94,15 @@ describe('matchesQueryTokens', () => {
     expect(matchesQueryTokens(row({ code: 'BC03', name: 'NeverMatched' }), 'CODE', ['bc'])).toBe(true);
     expect(matchesQueryTokens(row({ code: 'XX' }), 'CODE', ['bc'])).toBe(false);
   });
+
+  it('CODE field: also matches the description, not just the code', () => {
+    // A token that only appears in the description still matches under CODE.
+    expect(matchesQueryTokens(row({ code: 'IRF', description: 'found, fence corner' }), 'CODE', ['fence'])).toBe(true);
+    // Still false when the token is in neither code nor description.
+    expect(matchesQueryTokens(row({ code: 'IRF', description: 'found, fence corner' }), 'CODE', ['curb'])).toBe(false);
+    // NAME stays name-only — a description-only token must NOT match.
+    expect(matchesQueryTokens(row({ name: 'P1', description: 'fence corner' }), 'NAME', ['fence'])).toBe(false);
+  });
 });
 
 describe('isMasterPointRow', () => {

@@ -412,7 +412,7 @@ export default function PointDataViewer({
               onClick={() => setSearchBy(m)}
               aria-pressed={searchBy === m}
               className={`px-2 py-0.5 text-[11px] ${searchBy === m ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}
-              title={m === 'NAME' ? 'Search by point name/number only' : 'Search by survey code only'}
+              title={m === 'NAME' ? 'Search by point name/number only' : 'Search by survey code and description'}
             >
               {m === 'NAME' ? 'Name' : 'Code'}
             </button>
@@ -421,7 +421,7 @@ export default function PointDataViewer({
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder={searchBy === 'CODE' ? 'Search by code…' : 'Search by name…'}
+          placeholder={searchBy === 'CODE' ? 'Search by code / description…' : 'Search by name…'}
           className="flex-1 min-w-0 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs"
         />
         <div className="relative">
