@@ -821,7 +821,11 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
         layerId: targetLayerId ?? pt.layerId,
         style: {
           ...DEFAULT_FEATURE_STYLE,
-          color: pt.codeDefinition?.defaultColor ?? '#000000',
+          // Import points BLACK by default rather than tinting them by survey
+          // code. Surveyors want a clean black drawing they can recolour
+          // deliberately (per point, or all points in a layer) — not an
+          // automatic rainbow keyed off the code library.
+          color: '#000000',
         },
         properties: {
           pointId: pt.id,

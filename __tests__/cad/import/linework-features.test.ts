@@ -26,10 +26,12 @@ describe('buildLineworkFeatures', () => {
     expect(f.geometry.vertices).toEqual([
       { x: 10, y: 20 }, { x: 110, y: 20 }, { x: 110, y: 90 },
     ]);
-    // Carries linkage metadata + adopts the code's style.
+    // Carries linkage metadata. Linework imports BLACK by default (no longer
+    // tinted by the survey code); line weight still follows the code default.
     expect(f.properties?.lineStringId).toBe('L1');
     expect(f.properties?.codeBase).toBe('FN');
-    expect(f.style.color).toBe('#00ff00');
+    expect(f.style.color).toBe('#000000');
+    expect(f.style.lineWeight).toBe(0.7);
     // The line is its OWN feature (distinct from any point) — deletable
     // without touching the points.
     expect(f.id).toBeTruthy();
