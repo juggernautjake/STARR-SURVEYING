@@ -32,6 +32,7 @@ import RichMessageInput, { type RichMessageInputHandle } from '@/app/admin/compo
 import MessageBody from '@/app/admin/components/messaging/MessageBody';
 import { htmlToPlainText } from '@/lib/messages/rich-text';
 import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
+import { emitConversationRead } from '@/lib/messages/read-sync';
 
 interface Conversation {
   id: string;
@@ -294,7 +295,7 @@ export default function FloatingMessenger() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ conversation_id: convId }),
-        });
+        }).then(() => emitConversationRead(convId)).catch(() => {});
       }
     } catch { /* silent */ }
     if (showSkeleton) setLoadingMessages(false);

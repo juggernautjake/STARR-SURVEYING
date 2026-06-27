@@ -13,6 +13,7 @@ import RichMessageInput, { type RichMessageInputHandle } from '../components/mes
 import MessageBody from '../components/messaging/MessageBody';
 import { htmlToPlainText } from '@/lib/messages/rich-text';
 import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
+import { emitConversationRead } from '@/lib/messages/read-sync';
 
 interface Conversation {
   id: string;
@@ -177,7 +178,7 @@ export default function MessagesInboxPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ conversation_id: convId }),
-        });
+        }).then(() => emitConversationRead(convId)).catch(() => {});
       }
     } catch { /* silent */ }
     if (showSkeleton) setLoadingMessages(false);
