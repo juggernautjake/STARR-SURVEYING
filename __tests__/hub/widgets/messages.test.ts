@@ -118,7 +118,8 @@ describe("deriveConversationStatus — DM perspective", () => {
     );
     expect(s.kind).toBe("waiting_from_other");
     expect(s.label).toBe("Message Waiting from John Harding");
-    expect(s.icon).toBe("🟢");
+    // No status icon — the green leading dot is the sole "waiting" indicator.
+    expect(s.icon).toBe("");
   });
 
   it("seen_from_other when they sent + I have read", () => {

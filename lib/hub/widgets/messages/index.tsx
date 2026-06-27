@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import { conversationHref } from '@/lib/hub/widgets/_shared/widget-links';
+import { MESSAGES_READ_EVENT } from '@/lib/messages/read-sync';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import WidgetError from '@/lib/hub/components/WidgetError';
@@ -167,10 +168,12 @@ export function deriveConversationStatus(
   }
   return {
     kind: 'waiting_from_other',
+    // No status icon — the green leading dot is the single "waiting" indicator.
+    // (Previously '🟢', which duplicated the dot → two green circles per row.)
     label: (conv.is_group ?? conv.type === 'group')
       ? `New from ${senderName}`
       : `Message Waiting from ${senderName}`,
-    icon: '🟢',
+    icon: '',
     aria: `New message from ${senderName} waiting for you to read.`,
   };
 }
@@ -198,8 +201,8 @@ function MessagesWidget({ size, content }: WidgetProps<MessagesContent>) {
   const [viewerEmail, setViewerEmail] = useState<string>('');
 
   const { includeGroups, senderFilter, messageLimit } = settings;
-  const fetchConversations = useCallback(async () => {
-    setStatus('loading');
+  const fetchConversations = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setStatus('loading');
     try {
       const params = new URLSearchParams({ limit: String(Math.max(1, Math.min(50, messageLimit))) });
       const res = await fetch(`/api/admin/messages/conversations?${params}`);
@@ -210,12 +213,27 @@ function MessagesWidget({ size, content }: WidgetProps<MessagesContent>) {
       setViewerEmail(data.viewer_email ?? '');
       setStatus(list.length === 0 ? 'empty' : 'ok');
     } catch {
-      setStatus('error');
+      if (!opts?.silent) setStatus('error');
     }
   }, [includeGroups, senderFilter, messageLimit]);
 
   useEffect(() => {
     fetchConversations();
+  }, [fetchConversations]);
+
+  // Cross-surface read sync: when a conversation is marked read anywhere (the
+  // popup messenger or the /admin/messages page), refresh silently so this
+  // widget's unread dot/highlight clears instantly — no page reload. Also catch
+  // up when the tab returns to the foreground.
+  useEffect(() => {
+    const onRead = () => fetchConversations({ silent: true });
+    const onVisible = () => { if (!document.hidden) fetchConversations({ silent: true }); };
+    window.addEventListener(MESSAGES_READ_EVENT, onRead);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener(MESSAGES_READ_EVENT, onRead);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [fetchConversations]);
 
   if (status === 'loading') {
@@ -329,7 +347,7 @@ function MessagesWidget({ size, content }: WidgetProps<MessagesContent>) {
                     display: 'inline-flex', alignItems: 'center', gap: 4,
                   }}
                 >
-                  <span aria-hidden>{conversationStatus.icon}</span>
+                  {conversationStatus.icon && <span aria-hidden>{conversationStatus.icon}</span>}
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {conversationStatus.label}
                   </span>

@@ -90,6 +90,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
   const overdue = (data ?? []) as OverdueRow[];
 
+  // No gear is overdue → send NOTHING. Previously this still fanned out an
+  // "all clear" digest to every admin/EM every night, which read as a daily
+  // "gear is due" alert even for orgs with no equipment assigned. Owners only
+  // want a gear alert when there's actually overdue gear to act on.
+  if (overdue.length === 0) {
+    console.log('[cron/equipment-overdue-digest] nothing overdue — skipping digest (no noise)');
+    return NextResponse.json({ recipients: 0, rows: 0, sent: 0, skipped: 0, reason: 'no_overdue' });
+  }
+
   // ── Recipients: every admin + equipment_manager ─────────────
   let recipients: string[] = [];
   try {

@@ -31,6 +31,8 @@ import {
 import RichMessageInput, { type RichMessageInputHandle } from '@/app/admin/components/messaging/RichMessageInput';
 import MessageBody from '@/app/admin/components/messaging/MessageBody';
 import { htmlToPlainText } from '@/lib/messages/rich-text';
+import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
+import { emitConversationRead } from '@/lib/messages/read-sync';
 
 interface Conversation {
   id: string;
@@ -293,7 +295,7 @@ export default function FloatingMessenger() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ conversation_id: convId }),
-        });
+        }).then(() => emitConversationRead(convId)).catch(() => {});
       }
     } catch { /* silent */ }
     if (showSkeleton) setLoadingMessages(false);
@@ -341,16 +343,25 @@ export default function FloatingMessenger() {
   }, [fetchConversations, fetchUnread, activeConv, fetchMessages]);
 
   // Scroll to bottom when the message count grows.
-  // messenger-smoothing-2026-06-18 — only react to length deltas so a
-  // polled refresh that mutates the array reference but keeps the same
-  // ids doesn't trigger a smooth-scroll animation every cycle.
+  // Scroll behavior: when a conversation FIRST loads, jump straight to the
+  // bottom INSTANTLY (before paint) so it opens showing the latest messages with
+  // no top→bottom animation. Only a genuinely new message in the already-open
+  // thread scrolls smoothly. A polled refresh that keeps the same messages
+  // doesn't scroll at all.
   const lastMessageCountRef = useRef<number>(0);
-  useEffect(() => {
-    if (messages.length > lastMessageCountRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrolledConvRef = useRef<string | null>(null);
+  useIsomorphicLayoutEffect(() => {
+    const convId = activeConv?.id ?? null;
+    if (!convId || messages.length === 0) { lastMessageCountRef.current = messages.length; return; }
+    const isInitial = scrolledConvRef.current !== convId;
+    if (isInitial) {
+      scrolledConvRef.current = convId;
+      messagesEndRef.current?.scrollIntoView({ block: 'end' }); // instant, no animation
+    } else if (messages.length > lastMessageCountRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
     lastMessageCountRef.current = messages.length;
-  }, [messages.length]);
+  }, [messages.length, activeConv?.id]);
 
   // employee-pond Slice E9b — persist the active recipient whenever
   // a direct conversation is opened so the dedicated /admin/messages
@@ -452,6 +463,7 @@ export default function FloatingMessenger() {
 
   // Open a conversation
   function openConversation(conv: Conversation) {
+    setMessages([]);          // clean slate so the new thread opens at its bottom
     setActiveConv(conv);
     setView('chat');
     fetchMessages(conv.id);

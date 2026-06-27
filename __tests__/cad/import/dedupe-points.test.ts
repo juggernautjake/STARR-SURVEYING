@@ -80,17 +80,37 @@ describe('dedupePointNumbers — Slice 1', () => {
   it('skips suffixes already in use by the source (existing :1 stays, new dup gets :2)', () => {
     const points = [
       mk({ id: 'a', pointNumber: 23, pointName: '23', layerId: 'A' }),
-      mk({ id: 'b', pointNumber: 23, pointName: '23:1', layerId: 'A' }), // not a name collision YET
+      mk({ id: 'b', pointNumber: 23, pointName: '23:1', layerId: 'A' }), // distinct name — NOT a collision
       mk({ id: 'c', pointNumber: 23, pointName: '23', layerId: 'B' }),
     ];
     const { renamed, renames } = dedupePointNumbers(points);
-    // `a` keeps `23`, `b` is the second occurrence of pointNumber 23
-    // and already named `23:1` — but pointNumber collision triggers a
-    // rename. The next free suffix is `:2` since `23:1` is used.
+    // `a` keeps `23`. `b` is named `23:1` — a DISTINCT name, so it is
+    // left untouched (no collision on name). `c` is the second `23`,
+    // so it collides; the next free suffix is `:2` since `23:1` is
+    // already taken by `b`.
     expect(renamed[0].pointName).toBe('23');
-    expect(renamed[1].pointName).toBe('23:2');
-    expect(renamed[2].pointName).toBe('23:3');
-    expect(renames).toHaveLength(2);
+    expect(renamed[1].pointName).toBe('23:1');
+    expect(renamed[2].pointName).toBe('23:2');
+    expect(renames).toHaveLength(1);
+  });
+
+  it('keeps distinct codes that share leading digits (the user\'s 23calc/23cald/23set case)', () => {
+    // Regression: the parser derives pointNumber from leading digits,
+    // so "23calc", "23cald" and "23set" all become pointNumber 23.
+    // Dedup must key on the displayed NAME, not the number — these are
+    // three genuinely different point codes and must import as-is.
+    const points = [
+      mk({ id: 'a', pointNumber: 23, pointName: '23calc', layerId: 'A' }),
+      mk({ id: 'b', pointNumber: 23, pointName: '23cald', layerId: 'A' }),
+      mk({ id: 'c', pointNumber: 23, pointName: '23set', layerId: 'A' }),
+      mk({ id: 'd', pointNumber: 24, pointName: '24calc', layerId: 'A' }),
+      mk({ id: 'e', pointNumber: 24, pointName: '24cald', layerId: 'A' }),
+    ];
+    const { renamed, renames } = dedupePointNumbers(points);
+    expect(renames).toEqual([]);
+    expect(renamed.map((p) => p.pointName)).toEqual([
+      '23calc', '23cald', '23set', '24calc', '24cald',
+    ]);
   });
 
   it('preserves source order in the renamed array', () => {

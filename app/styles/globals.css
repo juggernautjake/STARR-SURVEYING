@@ -459,6 +459,48 @@ label {
 .cad-slide-right { animation: slidePanelRight 200ms cubic-bezier(0.16, 1, 0.3, 1); }
 .cad-fade-in { animation: fadeIn 200ms ease-out; }
 
+/* ── CAD editor scrollbars ─────────────────────────────────────────────────
+   The CAD editor chrome is dark (gray-800 #1f2937 sidebars, gray-700 #374151
+   borders, an #1a1f2e toolbar accent). The browser's default light scrollbar
+   on the tool rail + side panels clashed with that. Scope a dark-track /
+   grey-thumb scrollbar to every scroll container inside `.cad-root` so the
+   tool sidebar, layer/property panels, point table, etc. all match without
+   each component opting in.
+
+   Palette pick (per the CAD chrome): track = #1a1f2e (the dark toolbar accent,
+   one notch darker than the gray-800 panels so it reads as a recessed gutter);
+   thumb = #4b5563 (gray-600, the "greyish bar"); hover = #6b7280 (gray-500). */
+.cad-root {
+  /* Firefox — `scrollbar-color` inherits, so this themes all descendants. */
+  scrollbar-width: thin;
+  scrollbar-color: #4b5563 #1a1f2e;
+}
+.cad-root ::-webkit-scrollbar,
+.cad-root::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.cad-root ::-webkit-scrollbar-track,
+.cad-root::-webkit-scrollbar-track {
+  background: #1a1f2e;
+}
+.cad-root ::-webkit-scrollbar-thumb,
+.cad-root::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 6px;
+  /* Inset border in the track colour gives the thumb breathing room so it
+     reads as a rounded pill rather than filling the gutter edge-to-edge. */
+  border: 2px solid #1a1f2e;
+}
+.cad-root ::-webkit-scrollbar-thumb:hover,
+.cad-root::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+.cad-root ::-webkit-scrollbar-corner,
+.cad-root::-webkit-scrollbar-corner {
+  background: #1a1f2e;
+}
+
 /* ── Canonical loading spinner ─────────────────────────────────────────────
    ONE global `spin` keyframe for the whole app. Several stylesheets each used
    to declare their own `@keyframes spin`; because keyframe names are global,
