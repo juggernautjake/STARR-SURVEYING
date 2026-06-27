@@ -6,8 +6,6 @@
 import { useState } from 'react';
 import { FileText, Upload, FolderOpen } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
-import { generateId } from '@/lib/cad/types';
-import { PHASE3_DEFAULT_LAYERS } from '@/lib/cad/styles/default-layers';
 import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 
 interface Props {
@@ -33,37 +31,23 @@ export default function NewDrawingDialog({ onClose, onImport }: Props) {
   const [scale, setScale] = useState(50);
 
   function handleCreate() {
-    // Reset to blank document
+    // Reset to a blank document. newDocument() already seeds the standard
+    // starting layers — the protected "Survey Info" layer + the working layer
+    // named "Layer 1" (id DEFAULT). The old code instead added an extra layer
+    // literally named "Layer 0", which is why a brand-new drawing showed no
+    // "Layer 1". We now reuse the seeded "Layer 1" and just make it active so
+    // geometry lands there out of the box.
     drawingStore.newDocument();
     drawingStore.updateDocumentName(drawingName.trim() || 'Untitled Drawing');
     drawingStore.updateSettings({ paperSize, paperOrientation: orientation, drawingScale: scale });
 
-    // Add one default working layer
-    const layerId = generateId();
-    drawingStore.addLayer({
-      id: layerId,
-      name: 'Layer 0',
-      visible: true,
-      locked: false,
-      frozen: false,
-      color: '#000000',
-      lineWeight: 0.75,
-      lineTypeId: 'SOLID',
-      opacity: 1,
-      groupId: null,
-      sortOrder: 0,
-      isDefault: false,
-      isProtected: false,
-      autoAssignCodes: [],
-    });
-
-    // Add the SURVEY-INFO protected layer (title block / north arrow)
-    const surveyInfoDef = PHASE3_DEFAULT_LAYERS.find((l) => l.id === 'SURVEY-INFO');
-    if (surveyInfoDef) {
-      drawingStore.addLayer({ ...surveyInfoDef, groupId: null });
-    }
-
-    drawingStore.setActiveLayer(layerId);
+    // Activate the seeded "Layer 1" working layer (falls back to the first
+    // non-protected layer should the default id ever change).
+    const freshDoc = useDrawingStore.getState().document;
+    const workingLayer =
+      freshDoc.layers['DEFAULT'] ??
+      freshDoc.layerOrder.map((id) => freshDoc.layers[id]).find((l) => l && !l.isProtected);
+    drawingStore.setActiveLayer(workingLayer?.id ?? freshDoc.layerOrder[0] ?? '');
 
     // cad-trv-fidelity Slice 9 — a brand-new drawing the surveyor
     // hasn't touched yet must NOT count as unsaved. Setting it up

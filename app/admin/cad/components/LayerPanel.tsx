@@ -252,9 +252,9 @@ export default function LayerPanel() {
 
   // Opening the New Layer modal (§11). The actual layer is created in
   // `createLayerFromDialog` once the surveyor confirms. The default name is the
-  // lowest free "Layer N" starting at 1 — so the FIRST layer a surveyor adds to a
-  // new drawing is "Layer 1", not "Layer 3" (the seeded "Layer 0" + "Survey Info"
-  // no longer inflate the count).
+  // lowest free "Layer N" starting at 1. A new drawing already has "Layer 1"
+  // (the seeded working layer), so the first one the surveyor adds is "Layer 2",
+  // then "Layer 3", … — a clean, gap-free sequence.
   function handleNewLayer() {
     setPanelMenu(null);
     const existingNames = new Set(Object.values(doc.layers).map((l) => l.name));

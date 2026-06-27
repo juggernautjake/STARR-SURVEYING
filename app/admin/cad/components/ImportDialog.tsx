@@ -702,7 +702,7 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
   const undoStore = useUndoStore();
   const [importResult, setImportResult] = useState<ReturnType<typeof processImport> | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  // Default: import everything into one visible "Survey Points" layer.
+  // Default: import everything onto the starter "Layer 1".
   // Opt-in: split into per-code layers (the old behaviour).
   const [autoGenerateLayers, setAutoGenerateLayers] = useState(false);
   // Off by default: import just the points. Line-coded points are connected
@@ -763,11 +763,16 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
   const handleExecuteImport = () => {
     if (!importResult) return;
 
-    // Layer setup. Default: one visible "Survey Points" layer holds
-    // every imported point + linework. Opt-in (autoGenerateLayers):
-    // split into the per-code default layers.
+    // Layer setup. Default: land every imported point + linework on the
+    // standard starter layer "Layer 1", so imports follow the SAME Layer-N
+    // naming as manually-created layers (Layer 1, Layer 2, …) instead of a
+    // one-off "Survey Points" layer that left the seeded "Layer 1" empty and
+    // pushed the next manual layer to "Layer 2"/"Layer 3". Opt-in
+    // (autoGenerateLayers): split into the per-code default layers instead.
     const existingLayers = drawingStore.document.layers;
-    const SINGLE_LAYER_ID = 'SURVEY-POINTS';
+
+    // Where features land this import.
+    let targetLayerId: string | null = null;
 
     if (autoGenerateLayers) {
       // Add only the default layers actually referenced by the import,
@@ -783,28 +788,38 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
           ? importResult.points[0].layerId
           : 'MISC',
       );
-    } else if (!existingLayers[SINGLE_LAYER_ID]) {
-      // Create the single target layer once.
-      drawingStore.addLayer({
-        id: SINGLE_LAYER_ID,
-        name: 'Survey Points',
-        visible: true,
-        locked: false,
-        frozen: false,
-        color: '#000000',
-        lineWeight: 0.5,
-        lineTypeId: 'SOLID',
-        opacity: 1,
-        groupId: null,
-        sortOrder: 0,
-        isDefault: false,
-        isProtected: false,
-        autoAssignCodes: [],
-      });
+    } else {
+      // Reuse the seeded starter "Layer 1" if it's still around; otherwise
+      // create the lowest free "Layer N" (so a drawing whose "Layer 1" was
+      // renamed/deleted still gets a clean "Layer 1" for the import).
+      const starter = Object.values(existingLayers).find((l) => l.name === 'Layer 1');
+      if (starter) {
+        targetLayerId = starter.id;
+      } else {
+        const names = new Set(Object.values(existingLayers).map((l) => l.name));
+        let n = 1;
+        while (names.has(`Layer ${n}`)) n++;
+        const newId = generateId();
+        drawingStore.addLayer({
+          id: newId,
+          name: `Layer ${n}`,
+          visible: true,
+          locked: false,
+          frozen: false,
+          color: '#000000',
+          lineWeight: 0.5,
+          lineTypeId: 'SOLID',
+          opacity: 1,
+          groupId: null,
+          sortOrder: Object.keys(existingLayers).length,
+          isDefault: false,
+          isProtected: false,
+          autoAssignCodes: [],
+        });
+        targetLayerId = newId;
+      }
+      drawingStore.setActiveLayer(targetLayerId);
     }
-    // Where features land this import.
-    const targetLayerId = autoGenerateLayers ? null : SINGLE_LAYER_ID;
-    if (!autoGenerateLayers) drawingStore.setActiveLayer(SINGLE_LAYER_ID);
 
     // Add points to point store
     pointStore.importPoints(importResult);
@@ -986,7 +1001,7 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
                 </label>
               )}
               {isLastDataStep && (
-                <label className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer mr-1 select-none" title="On: split points into separate layers by survey code. Off (default): import everything into one 'Survey Points' layer.">
+                <label className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer mr-1 select-none" title="On: split points into separate layers by survey code. Off (default): import everything onto Layer 1.">
                   <input
                     type="checkbox"
                     checked={autoGenerateLayers}
