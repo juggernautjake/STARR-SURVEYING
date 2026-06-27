@@ -11938,29 +11938,46 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 newW = Math.max(newW, 0.1);
                 newH = Math.max(newH, 0.1);
 
-                // Ctrl on a CORNER grip → keep the original aspect ratio
-                // (use the larger proposed change so the corner tracks the
-                // cursor).
+                // Aspect-ratio rules:
+                //   • CORNER grips (0–3) keep the original proportions by
+                //     DEFAULT — drag a corner to scale the image uniformly.
+                //   • EDGE grips (4–7: top/bottom/left/right mids) stretch
+                //     freely (distort) by default.
+                //   • Holding Ctrl forces proportions on ANY grip.
                 const isCorner = vertexIndex >= 0 && vertexIndex <= 3;
-                if (e.ctrlKey && isCorner && h0 > 0) {
+                const isWidthEdge = vertexIndex === 5 || vertexIndex === 7;   // right / left mid
+                const isHeightEdge = vertexIndex === 4 || vertexIndex === 6;  // bottom / top mid
+                const lockAspect = isCorner || e.ctrlKey;
+                if (lockAspect && w0 > 0 && h0 > 0) {
                   const aspect = w0 / h0;
-                  if (newW >= newH * aspect) newH = newW / aspect;
-                  else newW = newH * aspect;
+                  if (isWidthEdge) {
+                    newH = newW / aspect;          // a side grip drives width
+                  } else if (isHeightEdge) {
+                    newW = newH * aspect;          // a top/bottom grip drives height
+                  } else {
+                    // corner: whichever axis the cursor pushed harder drives
+                    if (newW / w0 >= newH / h0) newH = newW / aspect;
+                    else newW = newH * aspect;
+                  }
                 }
 
-                // New bottom-left in the local frame, derived from which
-                // edge stays fixed for this grip.
+                // New bottom-left in the local frame, derived from which edge
+                // stays fixed for this grip. For EDGE grips the perpendicular
+                // axis is centred about the fixed edge so an aspect-locked side
+                // drag grows symmetrically; with no lock the perpendicular
+                // dimension is unchanged and the centring is a no-op (identical
+                // to the prior free-stretch behaviour).
                 let blX: number;
                 let blY: number;
                 switch (vertexIndex) {
-                  case 0: blX = w0 - newW; blY = h0 - newH; break; // fixed TR
-                  case 1: blX = 0;         blY = h0 - newH; break; // fixed TL
-                  case 2: blX = 0;         blY = 0;         break; // fixed BL
-                  case 3: blX = w0 - newW; blY = 0;         break; // fixed BR
-                  case 4: blX = 0;         blY = h0 - newH; break; // fixed top
-                  case 5: blX = 0;         blY = 0;         break; // fixed left
-                  case 6: blX = 0;         blY = 0;         break; // fixed bottom
-                  case 7: blX = w0 - newW; blY = 0;         break; // fixed right
+                  case 0: blX = w0 - newW;         blY = h0 - newH;         break; // fixed TR
+                  case 1: blX = 0;                 blY = h0 - newH;         break; // fixed TL
+                  case 2: blX = 0;                 blY = 0;                 break; // fixed BL
+                  case 3: blX = w0 - newW;         blY = 0;                 break; // fixed BR
+                  case 4: blX = w0 / 2 - newW / 2; blY = h0 - newH;         break; // bottom-mid: top fixed
+                  case 5: blX = 0;                 blY = h0 / 2 - newH / 2; break; // right-mid: left fixed
+                  case 6: blX = w0 / 2 - newW / 2; blY = 0;                 break; // top-mid: bottom fixed
+                  case 7: blX = w0 - newW;         blY = h0 / 2 - newH / 2; break; // left-mid: right fixed
                   default: blX = 0; blY = 0;
                 }
                 const newPos = imageLocalToWorld(startImg, { x: blX, y: blY });
@@ -12077,12 +12094,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           }
           useDrawingStore.getState().updateFeatureGeometry(featureId, geom);
 
-          // While resizing an image, float a hint at the cursor with
-          // the live size and the Ctrl=keep-aspect tip (corner grips).
+          // While resizing an image, float a hint at the cursor with the live
+          // size and the aspect rule for the grip being dragged: corners keep
+          // proportions, edges distort, and Ctrl locks proportions on any grip.
           if (geom.type === 'IMAGE' && geom.image) {
             const isCorner = vertexIndex >= 0 && vertexIndex <= 3;
             const lines = [`${geom.image.width.toFixed(1)} × ${geom.image.height.toFixed(1)} ft`];
-            if (isCorner) lines.push(e.ctrlKey ? 'Aspect locked (Ctrl)' : 'Hold Ctrl = keep aspect');
+            if (isCorner) {
+              lines.push('Proportional (corner)');
+            } else {
+              lines.push(e.ctrlKey ? 'Aspect locked (Ctrl)' : 'Stretch · Ctrl = keep aspect');
+            }
             setHud({ sx: sx + 18, sy: sy - 10, lines });
           }
         }
