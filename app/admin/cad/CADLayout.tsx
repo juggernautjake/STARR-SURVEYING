@@ -880,7 +880,7 @@ export default function CADLayout() {
   return (
     <TooltipProvider>
     <div
-      className="flex flex-col h-screen w-full overflow-hidden bg-white select-none"
+      className="cad-root flex flex-col h-screen w-full overflow-hidden bg-white select-none"
       onContextMenu={(e) => {
         // The CAD app owns right-click (feature/layer/canvas menus). Suppress
         // the browser's native context menu everywhere EXCEPT real text fields,

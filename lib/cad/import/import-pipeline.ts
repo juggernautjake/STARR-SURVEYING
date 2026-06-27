@@ -119,11 +119,14 @@ export function processImport(
   }
 
   // Step 1b: cad-duplicate-point-handling Slice 3 — auto-rename
-  // pointNumber collisions before any downstream step looks at
-  // pointName. Cross-layer (`23` on Topo + `23` on Boundaries)
-  // and same-layer dupes both step to `:1`, `:2`, … per Traverse
-  // PC's own convention. The renames flow through to the result
-  // so the Validate step can show "N points were auto-renamed".
+  // duplicate point NAMES before any downstream step looks at
+  // pointName. Only points that share the exact same displayed name
+  // collide; distinct codes that merely share leading digits
+  // ("23calc" vs "23cald") are left alone. Cross-layer (`23` on
+  // Topo + `23` on Boundaries) and same-layer dupes both step to
+  // `:1`, `:2`, … per Traverse PC's own convention. The renames
+  // flow through to the result so the Validate step can show "N
+  // points were auto-renamed".
   const { renamed: dedupedPoints, renames: pointRenames } = dedupePointNumbers(points);
   points.splice(0, points.length, ...dedupedPoints);
   if (pointRenames.length > 0) {

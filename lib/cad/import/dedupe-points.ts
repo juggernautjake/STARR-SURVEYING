@@ -1,17 +1,27 @@
 // lib/cad/import/dedupe-points.ts
 //
 // cad-duplicate-point-handling Slice 1 — pure deduper for
-// collisions where two `SurveyPoint`s share a `pointNumber`.
+// collisions where two `SurveyPoint`s share a `pointName`.
 // Matches Traverse PC's own `:N` convention so a re-export
 // lands in a format Traverse PC recognises.
 //
+// Why key on `pointName` and not `pointNumber`: the parser
+// derives `pointNumber` from any LEADING digits of the raw name
+// (so "23calc", "23cald" and "23set" all collapse to 23) while
+// keeping the full alphanumeric `pointName` as the real, displayed
+// identifier. Grouping by `pointNumber` therefore treated those
+// three DISTINCT codes as duplicates and silently renamed them to
+// "23calc", "23calc:1", "23calc:2". A collision only matters when
+// two points truly share the SAME displayed name, so we dedupe on
+// `pointName` — distinct codes import with their true names.
+//
 // Rules (deterministic, source-order based):
 //
-//   1. Group every point by its `pointNumber`.
+//   1. Group every point by its `pointName`.
 //   2. The FIRST occurrence keeps the bare `pointName`.
-//   3. Later occurrences are renamed to `<baseName>:1`,
-//      `<baseName>:2`, ..., using the next id not already in
-//      use by ANY point in the input (so a source that
+//   3. Later occurrences (same exact name) are renamed to
+//      `<baseName>:1`, `<baseName>:2`, ..., using the next id not
+//      already in use by ANY point in the input (so a source that
 //      already has `23` + `23:1` keeps both + new collisions
 //      step to `:2`, `:3`).
 //   4. Cross-layer collisions (`23` on layer Topo + `23` on
@@ -60,25 +70,27 @@ export interface DedupedSurveyPoint extends SurveyPoint {
   originalPointName?: string;
 }
 
-/** Auto-rename colliding `pointNumber`s using the `:N` convention.
- *  Source order is preserved; the first occurrence of each number
- *  keeps the bare name, later occurrences are suffixed. */
+/** Auto-rename colliding `pointName`s using the `:N` convention.
+ *  Source order is preserved; the first occurrence of each name
+ *  keeps the bare name, later occurrences (same exact name) are
+ *  suffixed. Distinct names — even ones that share leading digits,
+ *  e.g. "23calc" vs "23cald" — are never treated as collisions. */
 export function dedupePointNumbers(points: ReadonlyArray<SurveyPoint>): DedupeResult {
   // Collect every existing name so the deduper can skip IDs that
   // are already in use (e.g. a source already containing `23:1`).
   const usedNames = new Set<string>(points.map((p) => p.pointName));
 
-  // First-seen `pointName` per `pointNumber` (the one that keeps
-  // the bare name).
-  const baseByNumber = new Map<number, { layerId: string; pointName: string }>();
+  // First-seen occurrence per `pointName` (the one that keeps the
+  // bare name).
+  const baseByName = new Map<string, { layerId: string; pointName: string }>();
 
   const renamed: SurveyPoint[] = [];
   const renames: PointRename[] = [];
 
   for (const pt of points) {
-    const base = baseByNumber.get(pt.pointNumber);
+    const base = baseByName.get(pt.pointName);
     if (!base) {
-      baseByNumber.set(pt.pointNumber, { layerId: pt.layerId, pointName: pt.pointName });
+      baseByName.set(pt.pointName, { layerId: pt.layerId, pointName: pt.pointName });
       renamed.push(pt);
       continue;
     }
