@@ -14103,6 +14103,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
         onMouseLeave={() => {
+          // If an image body-drag is in flight when the cursor leaves the
+          // canvas, cancel it cleanly: drop the ghost and let the original
+          // restore to where it was (the in-place sprite un-dims on the next
+          // render). This prevents the image getting stuck faded or dropped at
+          // a surprising spot off the edge — just re-grab to try again.
+          if (imageBodyDragRef.current) {
+            imageBodyDragRef.current = null;
+            destroyImageGhost();
+            setHud(null);
+          }
           // Clear hover state when cursor exits the canvas
           if (hoveredIdRef.current !== null) {
             hoveredIdRef.current = null;

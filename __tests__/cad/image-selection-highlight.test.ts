@@ -68,4 +68,13 @@ describe('CanvasViewport — IMAGE body-drag clarity', () => {
     expect(SRC).toMatch(/bodyDrag\?\.featureId === feature\.id && bodyDrag\.moved/);
     expect(SRC).toMatch(/sprite\.alpha = beingBodyDragged \?/);
   });
+
+  it('cancels a body-drag when the cursor leaves the canvas (no stuck-faded image)', () => {
+    // onMouseLeave must clear the body-drag ref + ghost so the dimmed original
+    // restores and never gets orphaned (mouseup is bound to the canvas only).
+    const start = SRC.indexOf('onMouseLeave');
+    expect(start).toBeGreaterThan(-1);
+    const block = SRC.slice(start, start + 600);
+    expect(block).toMatch(/if \(imageBodyDragRef\.current\) \{[\s\S]*?imageBodyDragRef\.current = null;[\s\S]*?destroyImageGhost\(\);/);
+  });
 });
