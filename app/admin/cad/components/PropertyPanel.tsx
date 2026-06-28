@@ -16,6 +16,7 @@ import {
 import { DEFAULT_FEATURE_STYLE, DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { formatBearing, formatAzimuth, inverseBearingDistance, parseBearing, forwardPoint } from '@/lib/cad/geometry/bearing';
 import { formatDistance, feetToLinearUnit, linearUnitToFeet, linearUnitLabel } from '@/lib/cad/geometry/units';
+import { setImageRotationAroundCenter, normalizeDeg } from '@/lib/cad/geometry/image';
 import { computeFeatureArea } from '@/lib/cad/geometry/area';
 import { segmentCount, toggleHiddenSegment } from '@/lib/cad/geometry/segment-visibility';
 import ColorSwatchInput from './ColorSwatchInput';
@@ -318,6 +319,9 @@ export default function PropertyPanel() {
   // Multi-select editor: active per-type tab + which bulk picker is open.
   const [multiTab, setMultiTab] = useState<string | null>(null);
   const [bulkPicker, setBulkPicker] = useState<'lineType' | 'symbol' | null>(null);
+  // IMAGE: when locked, editing width or height scales the other to keep the
+  // original proportions (uniform scale).
+  const [imageLockAspect, setImageLockAspect] = useState(true);
   // Snapshot of the feature taken when a style edit begins, so live edits can
   // render immediately while a single undo entry is pushed on blur.
   const styleBeforeRef = useRef<Feature | null>(null);
@@ -332,7 +336,7 @@ export default function PropertyPanel() {
   const featureMedia = single ? (mediaByOwner[single.id] ?? []) : [];
   const displayColor = editColor ?? (single?.style.color ?? '#000000');
   const displayWeight = editWeight ?? (single ? String(single.style.lineWeight) : '1');
-  const displayOpacity = editOpacity ?? (single ? String(Math.round(single.style.opacity * 100)) : '100');
+  const displayOpacity = editOpacity ?? (single ? String(Math.round((single.style.opacity ?? 1) * 100)) : '100');
 
   // Capture the pre-edit feature once, when a style edit starts (input focus).
   function beginStyleEdit() {
@@ -1163,6 +1167,84 @@ export default function PropertyPanel() {
                     applyGeometry({ ...geom, ellipse: { ...geom.ellipse!, radiusY: linearUnitToFeet(v, displayPrefs) / 2 } }, 'Edit ellipse length');
                   }}
                 />
+              </div>
+            );
+          })()}
+
+          {/* Editable Width / Height / Rotation / Mirror for an IMAGE. These
+              numeric controls work at any zoom — including zoomed in so far the
+              on-canvas grips and rotate handle are off-screen. */}
+          {geom.type === 'IMAGE' && geom.image && (() => {
+            const im = geom.image!;
+            const unit = linearUnitLabel(displayPrefs);
+            const dp = displayPrefs.linearDecimalPlaces;
+            const rotDeg = normalizeDeg((im.rotation * 180) / Math.PI);
+            return (
+              <div className="space-y-1">
+                <div className="text-gray-500 text-[9px] uppercase">Dimensions</div>
+                <label className="flex items-center gap-1.5 text-[10px] text-gray-300 cursor-pointer select-none py-0.5">
+                  <input
+                    type="checkbox"
+                    checked={imageLockAspect}
+                    onChange={(e) => setImageLockAspect(e.target.checked)}
+                    className="accent-blue-500"
+                  />
+                  Lock aspect (uniform scale)
+                </label>
+                <LineDimField
+                  label={`Width (${unit})`}
+                  value={feetToLinearUnit(im.width, displayPrefs).toFixed(dp)}
+                  onCommit={(raw) => {
+                    const v = parseFloat(raw);
+                    if (isNaN(v) || v <= 0) return;
+                    const w = linearUnitToFeet(v, displayPrefs);
+                    const h = imageLockAspect && im.width > 0 ? im.height * (w / im.width) : im.height;
+                    applyGeometry({ ...geom, image: { ...im, width: w, height: h } }, 'Edit image width');
+                  }}
+                />
+                <LineDimField
+                  label={`Height (${unit})`}
+                  value={feetToLinearUnit(im.height, displayPrefs).toFixed(dp)}
+                  onCommit={(raw) => {
+                    const v = parseFloat(raw);
+                    if (isNaN(v) || v <= 0) return;
+                    const h = linearUnitToFeet(v, displayPrefs);
+                    const w = imageLockAspect && im.height > 0 ? im.width * (h / im.height) : im.width;
+                    applyGeometry({ ...geom, image: { ...im, width: w, height: h } }, 'Edit image height');
+                  }}
+                />
+                <LineDimField
+                  label="Rotation (°)"
+                  value={rotDeg.toFixed(2)}
+                  onCommit={(raw) => {
+                    const v = parseFloat(raw);
+                    if (isNaN(v)) return;
+                    // Rotate about the image center so it stays put.
+                    const rotated = setImageRotationAroundCenter(im, (v * Math.PI) / 180);
+                    applyGeometry({ ...geom, image: rotated }, 'Edit image rotation');
+                  }}
+                />
+                <div className="flex items-center gap-3 pt-0.5">
+                  <label className="flex items-center gap-1.5 text-[10px] text-gray-300 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={im.mirrorX}
+                      onChange={(e) => applyGeometry({ ...geom, image: { ...im, mirrorX: e.target.checked } }, 'Mirror image X')}
+                      className="accent-blue-500"
+                    />
+                    Mirror X
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[10px] text-gray-300 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={im.mirrorY}
+                      onChange={(e) => applyGeometry({ ...geom, image: { ...im, mirrorY: e.target.checked } }, 'Mirror image Y')}
+                      className="accent-blue-500"
+                    />
+                    Mirror Y
+                  </label>
+                </div>
+                <p className="text-gray-500 text-[9px] pt-0.5">Opacity is in the Style section above.</p>
               </div>
             );
           })()}

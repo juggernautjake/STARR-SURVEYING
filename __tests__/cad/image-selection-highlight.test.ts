@@ -78,3 +78,34 @@ describe('CanvasViewport — IMAGE body-drag clarity', () => {
     expect(block).toMatch(/if \(imageBodyDragRef\.current\) \{[\s\S]*?imageBodyDragRef\.current = null;[\s\S]*?destroyImageGhost\(\);/);
   });
 });
+
+describe('CanvasViewport — IMAGE drags never snap (no stray snap glyph)', () => {
+  it('image resize uses the RAW cursor point, not the snapped one', () => {
+    // The IMAGE grip-resize maps a raw screenToDrawingWorld point into the
+    // image local frame — NOT the shared snapped `worldPt` — so a corner can't
+    // jump to a distant survey point.
+    expect(SRC).toMatch(/const rawWorld = screenToDrawingWorld\(sx, sy\);[\s\S]{0,120}worldToImageLocal\(startImg, \{ x: rawWorld\.wx, y: rawWorld\.wy \}\)/);
+  });
+
+  it('image resize / rotate / body-drag each clear the snap indicator', () => {
+    // snapResultRef is cleared in all three image drag paths so the yellow
+    // NEAREST glyph never appears away from the image. Each path is marked with
+    // a unique "Images never snap" comment immediately above its clear.
+    expect(SRC).toMatch(/Images never snap to survey geometry . clear any snap/); // rotate
+    expect(SRC).toMatch(/Images never snap to survey geometry: resize follows the RAW/); // resize
+    expect(SRC).toMatch(/Images never snap . drop any snap glyph/); // body-drag
+    // pre-existing snap clears (1) + the three image paths = at least 4.
+    const clears = SRC.match(/snapResultRef\.current = null;/g) ?? [];
+    expect(clears.length).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe('CanvasViewport — IMAGE grips are easy to grab', () => {
+  it('hitTestGrip uses a larger (>=12px) hit target for images', () => {
+    expect(SRC).toMatch(/const isImage = feature\.geometry\.type === 'IMAGE';/);
+    expect(SRC).toMatch(/const hit = isImage \? Math\.max\(gripHitSize, 12\) : gripHitSize;/);
+    // the generic vertex loop + rotate handle use `hit`, not the raw size.
+    expect(SRC).toMatch(/Math\.abs\(sx - gx\) <= hit && Math\.abs\(sy - gy\) <= hit/);
+    expect(SRC).toMatch(/handle\.sx, sy - handle\.sy\) <= hit \+ 2/);
+  });
+});
