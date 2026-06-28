@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Download } from 'lucide-react';
 import { useSession } from 'next-auth/react';
+import Link from 'next/link';
 
 import { usePageError } from '../hooks/usePageError';
 
@@ -231,6 +232,19 @@ export default function FinancesPage() {
           <strong>Lock period</strong> to mark this year&apos;s approved
           receipts as filed so they aren&apos;t double-counted next year.
         </p>
+        <Link
+          href="/admin/finances/overview"
+          style={{ color: '#1D3095', fontWeight: 600, textDecoration: 'none', fontSize: '0.9rem' }}
+        >
+          → Money in &amp; out (cash-flow overview)
+        </Link>
+        <br />
+        <Link
+          href="/admin/finances/reconcile"
+          style={{ color: '#1D3095', fontWeight: 600, textDecoration: 'none', fontSize: '0.9rem' }}
+        >
+          → Bank reconciliation
+        </Link>
       </header>
 
       <div style={styles.controls}>

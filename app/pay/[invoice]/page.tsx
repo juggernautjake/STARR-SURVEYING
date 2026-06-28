@@ -26,6 +26,8 @@ import {
   formatDollars,
 } from '@/lib/payments/live';
 import { decideUpfrontAcceptance } from '@/lib/payments/upfront-rule';
+import { cardPaymentConfigured } from '@/lib/payments/stripe-elements';
+import StripeCardForm from './StripeCardForm';
 import PayHeader from '../PayHeader';
 import PaySkeleton from '../PaySkeleton';
 import '../../styles/Pay.css';
@@ -94,6 +96,9 @@ export default function PayInvoicePage(): React.ReactElement {
   // S4 — the customer chooses how much to pay (>= upfront, <= balance).
   // Initialized to the full balance once the invoice loads.
   const [amountStr, setAmountStr] = useState('');
+  // G1 — when true, the Stripe Elements card form is shown in place of the
+  // method picker's stub. Only opened when a publishable key is configured.
+  const [cardOpen, setCardOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,6 +170,7 @@ export default function PayInvoicePage(): React.ReactElement {
   function onMethodClick(method: typeof PAYMENT_METHODS[number]) {
     setAttemptError(null);
     setAttemptRecorded(false);
+    setCardOpen(false);
     // Don't start a payment for an amount that fails the upfront/total rule.
     if (!invoice || !amountValid) return;
     if (method.action === 'deeplink') {
@@ -188,9 +194,16 @@ export default function PayInvoicePage(): React.ReactElement {
       setPendingMethod(null);
       return;
     }
-    // Stripe: still stubbed per P4 — the form ships in a later slice.
+    // Stripe (G1): open the Elements card form when a publishable key is
+    // configured; otherwise fall back to the not-yet-wired toast (pre-go-live,
+    // no NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY set).
     setAttemptMethod(null);
-    setPendingMethod(method.id);
+    if (cardPaymentConfigured()) {
+      setPendingMethod(null);
+      setCardOpen(true);
+    } else {
+      setPendingMethod(method.id);
+    }
   }
 
   async function recordAttempt() {
@@ -373,6 +386,14 @@ export default function PayInvoicePage(): React.ReactElement {
                   );
                 })}
               </div>
+
+              {cardOpen && (
+                <StripeCardForm
+                  invoiceNumber={invoice.invoice_number}
+                  amountCents={chosenCents}
+                  onCancel={() => setCardOpen(false)}
+                />
+              )}
 
               {/* P6 — deep-link confirmation strip / P7 — cash + check
                   pledge strip. After the customer opens Venmo / CashApp

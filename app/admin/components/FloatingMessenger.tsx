@@ -738,13 +738,6 @@ export default function FloatingMessenger() {
             <button data-no-drag className="messenger-panel__close" onClick={() => { setIsOpen(false); setView('list'); setActiveConv(null); }}>&#10005;</button>
           </div>
 
-          {/* Slice MX2 — two-pane layout. Sidebar always renders
-              the conversation list (search + actions + rows) so
-              the user can switch conversations without backing
-              out into a separate view. Main pane shows the
-              active chat, the new-conversation flow, the search
-              results, or an empty-state prompt when no thread is
-              selected. */}
           {/* Single-pane: the conversation list fills the whole modal in `list`
               view; opening a chat (or new/search) swaps the entire body to that
               view with a back-arrow in the header. The list + chat are never

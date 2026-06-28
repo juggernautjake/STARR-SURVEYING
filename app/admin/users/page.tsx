@@ -67,6 +67,7 @@ interface RegisteredUser {
   auth_provider: string | null;
   avatar_url: string | null;
   last_sign_in: string | null;
+  worker_classification?: 'unclassified' | 'w2' | 'contractor_1099';
   created_at: string;
   updated_at: string;
 }
@@ -489,7 +490,22 @@ export default function UsersPage() {
                           {user.is_banned && user.banned_at && <div><strong>Banned On:</strong> {formatDate(user.banned_at)}</div>}
                         </div>
                         {canEdit && !user.is_banned && user.is_approved && (
-                          <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem' }}>
+                          <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontSize: '.8rem', fontWeight: 600, color: '#374151' }}>
+                              Tax class:
+                              <select
+                                className="job-form__input"
+                                style={{ width: 'auto', fontSize: '.82rem', padding: '.35rem .5rem' }}
+                                value={user.worker_classification || 'unclassified'}
+                                onChange={e => handleAction(user.id, 'set_classification', { classification: e.target.value })}
+                                disabled={actionLoading === user.id}
+                                data-testid={`um-classification-${user.id}`}
+                              >
+                                <option value="unclassified">Unclassified</option>
+                                <option value="w2">W-2 employee</option>
+                                <option value="contractor_1099">1099 contractor</option>
+                              </select>
+                            </label>
                             <button className="um-btn um-btn--sm um-btn--primary" onClick={() => setEditingRoles({ userId: user.id, roles: [...user.roles] })}>Edit Roles</button>
                             <button className="um-btn um-btn--sm um-btn--danger" onClick={() => setConfirmAction({ userId: user.id, action: 'delete', userName: user.name })}>Delete User</button>
                           </div>
