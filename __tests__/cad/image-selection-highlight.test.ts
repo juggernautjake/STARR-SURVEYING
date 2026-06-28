@@ -99,3 +99,13 @@ describe('CanvasViewport — IMAGE drags never snap (no stray snap glyph)', () =
     expect(clears.length).toBeGreaterThanOrEqual(4);
   });
 });
+
+describe('CanvasViewport — IMAGE grips are easy to grab', () => {
+  it('hitTestGrip uses a larger (>=12px) hit target for images', () => {
+    expect(SRC).toMatch(/const isImage = feature\.geometry\.type === 'IMAGE';/);
+    expect(SRC).toMatch(/const hit = isImage \? Math\.max\(gripHitSize, 12\) : gripHitSize;/);
+    // the generic vertex loop + rotate handle use `hit`, not the raw size.
+    expect(SRC).toMatch(/Math\.abs\(sx - gx\) <= hit && Math\.abs\(sy - gy\) <= hit/);
+    expect(SRC).toMatch(/handle\.sx, sy - handle\.sy\) <= hit \+ 2/);
+  });
+});

@@ -9449,10 +9449,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const feature = useDrawingStore.getState().getFeature(featureId);
       if (!feature) continue;
 
+      // Images get a more forgiving grip target (corners/edges/rotate handle)
+      // so they're easy to grab — at least 12px regardless of the grip-size
+      // preference.
+      const isImage = feature.geometry.type === 'IMAGE';
+      const hit = isImage ? Math.max(gripHitSize, 12) : gripHitSize;
+
       // IMAGE rotation handle takes priority over the resize grips.
       if (feature.geometry.type === 'IMAGE' && feature.geometry.image) {
         const { handle } = imageRotateHandleScreen(feature.geometry.image);
-        if (Math.hypot(sx - handle.sx, sy - handle.sy) <= gripHitSize + 2) {
+        if (Math.hypot(sx - handle.sx, sy - handle.sy) <= hit + 2) {
           return { featureId, vertexIndex: IMAGE_ROTATE_GRIP, gripType: 'ROTATE' };
         }
       }
@@ -9474,7 +9480,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const verts = getFeatureVertices(feature);
       for (let i = 0; i < verts.length; i++) {
         const { sx: gx, sy: gy } = w2s(verts[i].x, verts[i].y);
-        if (Math.abs(sx - gx) <= gripHitSize && Math.abs(sy - gy) <= gripHitSize) {
+        if (Math.abs(sx - gx) <= hit && Math.abs(sy - gy) <= hit) {
           return { featureId, vertexIndex: i };
         }
       }
