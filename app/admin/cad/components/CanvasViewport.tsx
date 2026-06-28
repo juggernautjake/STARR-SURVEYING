@@ -12038,6 +12038,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // Interactive image rotation (rotate-handle drag): spin around
           // the image center so the grabbed handle follows the cursor.
           if (gripDragRef.current.type === 'ROTATE') {
+            // Images never snap to survey geometry — clear any snap the shared
+            // getSnappedWorld computed this move so no stray glyph shows.
+            snapResultRef.current = null;
             const session = imageRotateRef.current;
             const startImg = gripStartRef.current?.geometry.image;
             if (session && startImg) {
@@ -12069,9 +12072,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               // held fixed and the new bottom-left is mapped back to world.
               const startImg = gripStartRef.current?.geometry.image;
               if (geom.image && startImg) {
+                // Images never snap to survey geometry: resize follows the RAW
+                // cursor so a corner can't jump to a distant point — and clear
+                // any snap glyph the shared getSnappedWorld set this move (this
+                // was the stray "orange" marker that appeared away from the
+                // image during a resize).
+                snapResultRef.current = null;
                 const w0 = startImg.width;
                 const h0 = startImg.height;
-                const lc = worldToImageLocal(startImg, worldPt);
+                const rawWorld = screenToDrawingWorld(sx, sy);
+                const lc = worldToImageLocal(startImg, { x: rawWorld.wx, y: rawWorld.wy });
                 let newW: number;
                 let newH: number;
                 switch (vertexIndex) {
@@ -12266,6 +12276,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // release (so origin + target are both visible). Starts after a few
       // pixels of travel so a plain click stays a select.
       if (imageBodyDragRef.current && !gripDragRef.current) {
+        // Images never snap — drop any snap glyph the shared getSnappedWorld
+        // computed so the move reads cleanly.
+        snapResultRef.current = null;
         const drag = imageBodyDragRef.current;
         const down = mouseDownPosRef.current;
         const movedPx = down ? Math.hypot(sx - down.x, sy - down.y) : 999;
