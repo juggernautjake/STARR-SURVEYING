@@ -2604,8 +2604,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // Rotation: world CCW positive → screen CW positive (invert)
       sprite.rotation = -img.rotation;
 
-      // Opacity from feature style
-      sprite.alpha = feature.style.opacity ?? 1;
+      // Opacity from feature style. While this image's body is being dragged,
+      // fade the in-place original right down so only the translucent ghost
+      // reads at the cursor — no confusing "two copies" during the move.
+      const bodyDrag = imageBodyDragRef.current;
+      const beingBodyDragged = bodyDrag?.featureId === feature.id && bodyDrag.moved;
+      sprite.alpha = beingBodyDragged ? 0.12 : (feature.style.opacity ?? 1);
 
       // Stack by layer panel order (top of panel → on top), same as graphics.
       sprite.zIndex = imgLayerZ.get(feature.layerId) ?? 0;
@@ -4842,6 +4846,23 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               if (geom.spline) drawSplineCurve(g as unknown as GraphicsLike, geom.spline, w2s);
               break;
             }
+            case 'IMAGE': {
+              // Hover glow traces the (possibly rotated) image box so it's
+              // obvious the whole image is one grabbable object.
+              if (geom.image) {
+                const { bl, br, tr, tl } = imageCorners(geom.image);
+                const a = w2s(bl.x, bl.y);
+                const b = w2s(br.x, br.y);
+                const c = w2s(tr.x, tr.y);
+                const d = w2s(tl.x, tl.y);
+                g.moveTo(a.sx, a.sy);
+                g.lineTo(b.sx, b.sy);
+                g.lineTo(c.sx, c.sy);
+                g.lineTo(d.sx, d.sy);
+                g.closePath();
+              }
+              break;
+            }
           }
         };
 
@@ -4925,6 +4946,24 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
         case 'SPLINE': {
           if (geom.spline) drawSplineCurve(g as unknown as GraphicsLike, geom.spline, w2s);
+          break;
+        }
+        case 'IMAGE': {
+          // Bright selection outline around the (possibly rotated) image box.
+          // Drawn from the rotated corners so the highlight always wraps the
+          // image exactly where it sits — including after a rotation.
+          if (geom.image) {
+            const { bl, br, tr, tl } = imageCorners(geom.image);
+            const a = w2s(bl.x, bl.y);
+            const b = w2s(br.x, br.y);
+            const c = w2s(tr.x, tr.y);
+            const d = w2s(tl.x, tl.y);
+            g.moveTo(a.sx, a.sy);
+            g.lineTo(b.sx, b.sy);
+            g.lineTo(c.sx, c.sy);
+            g.lineTo(d.sx, d.sy);
+            g.closePath();
+          }
           break;
         }
       }
@@ -14064,6 +14103,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
         onMouseLeave={() => {
+          // If an image body-drag is in flight when the cursor leaves the
+          // canvas, cancel it cleanly: drop the ghost and let the original
+          // restore to where it was (the in-place sprite un-dims on the next
+          // render). This prevents the image getting stuck faded or dropped at
+          // a surprising spot off the edge — just re-grab to try again.
+          if (imageBodyDragRef.current) {
+            imageBodyDragRef.current = null;
+            destroyImageGhost();
+            setHud(null);
+          }
           // Clear hover state when cursor exits the canvas
           if (hoveredIdRef.current !== null) {
             hoveredIdRef.current = null;
