@@ -1052,6 +1052,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     moved: boolean;
   } | null>(null);
   const imageGhostSpriteRef = useRef<import('pixi.js').Sprite | null>(null);
+  // WebGL context-loss safety net — handlers registered on the canvas so the
+  // unmount cleanup (and StrictMode double-mount) can remove them cleanly.
+  const ctxHandlersRef = useRef<{
+    canvas: HTMLCanvasElement;
+    onLost: (e: Event) => void;
+    onRestored: (e: Event) => void;
+  } | null>(null);
   // Text label drag tracking
   const labelDragRef = useRef<{
     featureId: string;
@@ -1435,6 +1442,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           autoDensity: true,
         });
 
+        // ── WebGL context-loss safety net ──────────────────────────────
+        // The GPU can drop the WebGL context (driver hiccup, memory
+        // pressure, OS sleep). By default the browser will NOT try to
+        // restore it — the canvas goes permanently blank and the app
+        // looks "crashed". Calling preventDefault() on the lost event
+        // tells the browser to attempt restoration. On restore we drop
+        // the image texture cache so every sprite re-uploads from source
+        // on the next frame instead of rendering from a dead GL handle.
+        const onLost = (e: Event) => {
+          e.preventDefault();
+          cadLog.error('CanvasViewport', 'WebGL context lost — attempting recovery');
+        };
+        const onRestored = () => {
+          cadLog.info('CanvasViewport', 'WebGL context restored — rebuilding image textures');
+          // Force renderImageFeatures() into its rebuild branch next frame.
+          imageCacheDocIdRef.current = null;
+        };
+        canvas.addEventListener('webglcontextlost', onLost, false);
+        canvas.addEventListener('webglcontextrestored', onRestored, false);
+        ctxHandlersRef.current = { canvas, onLost, onRestored };
+
         // paperLayer is NOT rotated — the paper rectangle stays fixed
         const paperLayer = new PIXI.Container();
         // drawingRotContainer holds everything that visually rotates with the drawing
@@ -1616,8 +1644,37 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     return () => {
       cancelled = true;
       cancelAnimationFrame(rafRef.current);
-      if (pixiRef.current) {
-        pixiRef.current.app.destroy(false);
+      // Cancel any queued coalesced mouse-move frame so it can't run after
+      // teardown (processMouseMove guards on canvasRef, but don't even fire).
+      if (mouseMoveRafRef.current !== null) {
+        cancelAnimationFrame(mouseMoveRafRef.current);
+        mouseMoveRafRef.current = null;
+      }
+      // Remove the WebGL context-loss listeners from the canvas.
+      const handlers = ctxHandlersRef.current;
+      if (handlers) {
+        handlers.canvas.removeEventListener('webglcontextlost', handlers.onLost, false);
+        handlers.canvas.removeEventListener('webglcontextrestored', handlers.onRestored, false);
+        ctxHandlersRef.current = null;
+      }
+      // Tear down the drag ghost if a move was in flight.
+      destroyImageGhost();
+      const pixi = pixiRef.current;
+      if (pixi) {
+        // app.destroy(false) leaves our cached sprites/textures alive on the
+        // GPU. Explicitly destroy them first — same pattern as the
+        // document-switch cleanup — so leaving and re-entering the editor
+        // doesn't leak GPU memory each time.
+        for (const [, sprite] of pixi.imageSprites) {
+          sprite.parent?.removeChild(sprite);
+          try { sprite.destroy(); } catch { /* already torn down */ }
+        }
+        pixi.imageSprites.clear();
+        for (const [, tex] of pixi.imageTextures) {
+          try { tex.destroy(true); } catch { /* texture may be shared/already gone */ }
+        }
+        pixi.imageTextures.clear();
+        pixi.app.destroy(false);
         pixiRef.current = null;
       }
     };
@@ -2549,11 +2606,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     );
     const activeIds = new Set(visibleFeatures.map((f) => f.id));
 
-    // Remove sprites for features no longer visible
+    // Remove sprites for features no longer visible. destroy() the sprite —
+    // removeChild alone leaves the Pixi object (and its GPU buffers) alive,
+    // so repeatedly hiding/deleting images leaks until the WebGL context
+    // dies. Passing no options keeps the shared texture intact (it lives in
+    // imageTextures, keyed by imageId, and may back other sprites).
     for (const [fid, sprite] of pixi.imageSprites) {
       if (!activeIds.has(fid)) {
         pixi.featureLayer.removeChild(sprite);
+        try { sprite.destroy(); } catch { /* already torn down */ }
         pixi.imageSprites.delete(fid);
+      }
+    }
+
+    // Prune textures for images no longer in this document's library. These
+    // can never be referenced again (a feature without a projectImages entry
+    // is skipped below), so holding their GPU memory is a pure leak.
+    const knownImageIds = new Set(Object.keys(doc.projectImages ?? {}));
+    for (const [imageId, tex] of pixi.imageTextures) {
+      if (!knownImageIds.has(imageId)) {
+        try { tex.destroy(true); } catch { /* texture may be shared/already gone */ }
+        pixi.imageTextures.delete(imageId);
       }
     }
 
@@ -11908,9 +11981,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     [],
   );
 
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
-      const rect = canvasRef.current!.getBoundingClientRect();
+  // Coalesced pointer-move processing. The raw onMouseMove fires far more
+  // often than we can usefully act on (high-Hz mice emit 500–1000 events/s);
+  // handleMouseMove below throttles to one run per animation frame using the
+  // LATEST cursor position, so hit-testing + snap + store writes happen at
+  // most ~60×/s instead of per raw event. Drags stay precise because we
+  // always process the most recent coordinates, and rendering is per-frame
+  // anyway. This function reads only the four event primitives it needs.
+  const processMouseMove = useCallback(
+    (e: { clientX: number; clientY: number; shiftKey: boolean; ctrlKey: boolean }) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return; // unmounted between the rAF schedule and its callback
+      const rect = canvas.getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
 
@@ -12609,6 +12691,30 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
+  );
+
+  // rAF-coalesced wrapper for the React onMouseMove. Stores the latest cursor
+  // primitives and runs processMouseMove at most once per frame.
+  const mouseMoveRafRef = useRef<number | null>(null);
+  const latestMoveRef = useRef<{
+    clientX: number; clientY: number; shiftKey: boolean; ctrlKey: boolean;
+  } | null>(null);
+  const handleMouseMove = useCallback(
+    (ev: React.MouseEvent<HTMLCanvasElement>) => {
+      // Capture only the primitives processMouseMove reads — never retain the
+      // React event across the rAF boundary.
+      latestMoveRef.current = {
+        clientX: ev.clientX, clientY: ev.clientY,
+        shiftKey: ev.shiftKey, ctrlKey: ev.ctrlKey,
+      };
+      if (mouseMoveRafRef.current !== null) return; // a frame is already queued
+      mouseMoveRafRef.current = requestAnimationFrame(() => {
+        mouseMoveRafRef.current = null;
+        const m = latestMoveRef.current;
+        if (m) processMouseMove(m);
+      });
+    },
+    [processMouseMove],
   );
 
   const handleMouseUp = useCallback(
