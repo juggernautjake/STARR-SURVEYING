@@ -8,8 +8,14 @@
 // put while it turns. Tracks pan/zoom by subscribing to the viewport
 // store. (Position assumes no global drawing rotation, the common case;
 // the value shown is always correct regardless.)
-import { useState } from 'react';
-import { RotateCw } from 'lucide-react';
+//
+// The box can be dragged out of the way by its grip handle — the offset
+// is remembered until the selection changes. While the surveyor is
+// actively manipulating the image on the canvas (resize / rotate / move),
+// `suppressPointer` makes the whole widget pointer-transparent so a
+// gesture that crosses the box is not swallowed / cancelled.
+import { useEffect, useRef, useState } from 'react';
+import { RotateCw, GripVertical } from 'lucide-react';
 
 import {
   useSelectionStore,
@@ -24,7 +30,7 @@ import {
 } from '@/lib/cad/geometry/image';
 import { generateId } from '@/lib/cad/types';
 
-export function ImageRotationField() {
+export function ImageRotationField({ suppressPointer = false }: { suppressPointer?: boolean }) {
   const selectedIds = useSelectionStore((s) => s.selectedIds);
   const document = useDrawingStore((s) => s.document);
   // Subscribe to camera fields so the widget follows pan / zoom.
@@ -35,10 +41,22 @@ export function ImageRotationField() {
   const screenHeight = useViewportStore((s) => s.screenHeight);
 
   const [draft, setDraft] = useState<string | null>(null);
+  // Manual drag offset (px, screen space) so the surveyor can park the box
+  // away from the image. Reset whenever the selected image changes.
+  const [dragOffset, setDragOffset] = useState({ dx: 0, dy: 0 });
+  const dragRef = useRef<{ startX: number; startY: number; baseDx: number; baseDy: number } | null>(null);
 
   const ids = Array.from(selectedIds);
   const feature = ids.length === 1 ? document.features[ids[0]] : null;
   const img = feature?.geometry.type === 'IMAGE' ? feature.geometry.image : undefined;
+  const activeId = feature && img ? ids[0] : null;
+
+  // Reset the parked offset whenever the active image changes (or selection
+  // clears) so the box re-centers over the next image.
+  useEffect(() => {
+    setDragOffset({ dx: 0, dy: 0 });
+  }, [activeId]);
+
   if (!feature || !img) {
     // Reset any stale draft when the selection changes away from an image.
     if (draft !== null) setDraft(null);
@@ -81,14 +99,55 @@ export function ImageRotationField() {
     apply(currentDeg + delta);
   }
 
+  // ── Drag-to-reposition the box itself (window-level tracking so the
+  // gesture survives the cursor leaving the small handle). ─────────────
+  function onHandleDown(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      baseDx: dragOffset.dx,
+      baseDy: dragOffset.dy,
+    };
+    const onMove = (ev: MouseEvent) => {
+      const d = dragRef.current;
+      if (!d) return;
+      setDragOffset({
+        dx: d.baseDx + (ev.clientX - d.startX),
+        dy: d.baseDy + (ev.clientY - d.startY),
+      });
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
   return (
     <div
-      className="absolute z-30 pointer-events-auto"
-      style={{ left: sx, top: sy - 52, transform: 'translate(-50%, -100%)' }}
+      className={`absolute z-30 ${suppressPointer ? 'pointer-events-none' : 'pointer-events-auto'}`}
+      style={{
+        left: sx + dragOffset.dx,
+        top: sy - 52 + dragOffset.dy,
+        transform: 'translate(-50%, -100%)',
+      }}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center gap-1 rounded-md bg-gray-800/95 border border-gray-600 shadow-lg px-1.5 py-1 text-gray-200">
+        <button
+          type="button"
+          onMouseDown={onHandleDown}
+          className="flex items-center justify-center -ml-0.5 text-gray-500 hover:text-gray-300 cursor-grab active:cursor-grabbing focus:outline-none"
+          aria-label="Drag rotation box"
+          title="Drag to move this box"
+        >
+          <GripVertical size={12} />
+        </button>
         <RotateCw size={12} className="text-blue-400 shrink-0" />
         <input
           type="number"

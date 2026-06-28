@@ -170,18 +170,9 @@ function buildToolGroups(
         { tool: 'DRAW_LINE', label: 'Line — Dotted', description: 'Draw a dotted line segment.', icon: <GitCommitHorizontal size={14} />, action: () => { toolStore.setTool('DRAW_LINE'); toolStore.setDrawStyle({ lineType: 'DOTTED' }); } },
         { tool: 'DRAW_LINE', label: 'Line — Dash-Dot', description: 'Draw a dash-dot line segment (centerline style).', icon: <SeparatorHorizontal size={14} />, action: () => { toolStore.setTool('DRAW_LINE'); toolStore.setDrawStyle({ lineType: 'DASH_DOT' }); } },
         { tool: 'DRAW_LINE', label: 'Line — Center', description: 'Draw a centerline (long dash – short dash pattern).', icon: <Navigation size={14} />, action: () => { toolStore.setTool('DRAW_LINE'); toolStore.setDrawStyle({ lineType: 'CENTER' }); } },
+        { tool: 'DRAW_CURVED_LINE', label: 'Curved Line', description: 'Click to place fit points with tangent handles. Right-click or double-click to finish. Creates smooth bezier curves.', shortcut: 'CL', icon: <Waves size={14} /> },
         { tool: 'DRAW_LINE', label: 'Construction Line', description: 'Same as Line but intended for reference geometry.', icon: <Slash size={14} />, belowSep: true, action: () => { toolStore.setTool('DRAW_LINE'); toolStore.setDrawStyle({ lineType: 'SOLID' }); } },
         { tool: 'DRAW_POLYLINE', label: 'Polyline (multiple lines)', description: 'Draw multiple connected line segments in succession. Each click drops a vertex and starts the next segment; right-click or double-click to finish. Use this instead of the single Line tool when you want a continuous run of lines.', shortcut: 'PL', icon: <Spline size={14} /> },
-      ],
-    },
-    {
-      mainTool: 'DRAW_POLYLINE',
-      label: 'Polyline',
-      description: 'Draw multiple connected line segments in succession. Each click adds a vertex and starts the next line; right-click or double-click to finish.',
-      shortcut: 'PL',
-      icon: <Spline size={16} />,
-      variants: [
-        { tool: 'DRAW_POLYLINE', label: 'Polyline (open)', description: 'Multi-segment open polyline — draw multiple lines in succession. Click each vertex; right-click or double-click to finish.', shortcut: 'PL', icon: <Spline size={14} /> },
       ],
     },
     {
@@ -420,7 +411,6 @@ function buildToolGroups(
       icon: <GitCommitHorizontal size={16} />,
       variants: [
         { tool: 'DRAW_ARC', label: 'Arc (3-point)', description: 'Click PC, mid-point, PT to define an arc.', shortcut: 'A', icon: <GitCommitHorizontal size={14} /> },
-        { tool: 'DRAW_CURVED_LINE', label: 'Curved Line', description: 'Click to place fit points with tangent handles. Right-click or double-click to finish. Creates smooth bezier curves.', shortcut: 'CL', icon: <Waves size={14} /> },
         { tool: 'DRAW_SPLINE_FIT', label: 'Spline (fit-point)', description: 'Click fit-points for a smooth Fusion 360-style spline. Double-click to finish.', shortcut: 'SF', icon: <Waves size={14} /> },
         { tool: 'DRAW_SPLINE_CONTROL', label: 'Spline (NURBS control-point)', description: 'Click control points for a NURBS spline. Double-click to finish.', shortcut: 'SN', icon: <Spline size={14} /> },
       ],
