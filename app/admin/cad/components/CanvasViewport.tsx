@@ -1042,6 +1042,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     startWorld: Point2D;
     originals: Map<string, Feature>;
   } | null>(null);
+  // Image body-drag: grab an image's interior to move it. `moved` flips true
+  // once the cursor passes the click-vs-drag threshold so a plain click stays a
+  // select. The ghost sprite is a translucent preview that follows the cursor.
+  const imageBodyDragRef = useRef<{
+    featureId: string;
+    startWorld: Point2D;
+    original: Feature;
+    moved: boolean;
+  } | null>(null);
+  const imageGhostSpriteRef = useRef<import('pixi.js').Sprite | null>(null);
   // Text label drag tracking
   const labelDragRef = useRef<{
     featureId: string;
@@ -2018,12 +2028,24 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
     }
 
-    // Update per-layer container rotations (paper-center pivot)
+    // Layer draw order: the layer nearest the TOP of the layer panel
+    // (doc.layerOrder[0]) draws ON TOP of the layers listed below it. Map each
+    // layer to a zIndex (higher = on top) and let PIXI sort featureLayer's
+    // children, so e.g. points on a higher layer cover an image on a lower
+    // layer, and dragging a layer up/down in the panel restacks the canvas.
+    // (PIXI's zIndex setter only flags a re-sort when the value actually
+    // changes, so re-applying the same value each frame is a no-op.)
+    const layerZ = new Map<string, number>();
+    doc.layerOrder.forEach((id, i) => layerZ.set(id, doc.layerOrder.length - i));
+    pixi.featureLayer.sortableChildren = true;
+
+    // Update per-layer container rotations (paper-center pivot) + z-order.
     const { cx, cy } = getPaperDimensions();
     const { sx: pcSx, sy: pcSy } = w2s(cx, cy);
     for (const [layerId, lc] of layerContainers) {
       const layer = doc.layers[layerId];
       const layerRotDeg = layer?.rotationDeg ?? 0;
+      lc.zIndex = layerZ.get(layerId) ?? 0;
       if (!layerRotDeg) {
         lc.pivot.set(0, 0);
         lc.position.set(0, 0);
@@ -2071,6 +2093,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         parentContainer.addChild(g);
       }
       g.visible = true;
+      // Stack by layer panel order (top of panel → on top).
+      g.zIndex = layerZ.get(feature.layerId) ?? 0;
 
       // cad-desktop-tauri-and-perf Slice P3b — skip drawFeature when
       // nothing affecting the tessellation has changed. We compare
@@ -2099,6 +2123,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         });
         if (isDirty) processedDirty.push(feature.id);
       }
+    }
+
+    // Fill-pattern overlays (tex + mask) live alongside their feature graphic
+    // in featureLayer, so they need the SAME layer zIndex — otherwise enabling
+    // sortableChildren would shove every fill behind all geometry. Same zIndex
+    // as the graphic keeps the fill's existing within-layer position (ties break
+    // by insertion order) while still stacking correctly across layers.
+    for (const [id, tx] of pixi.featureTextures) {
+      const z = layerZ.get(doc.features[id]?.layerId ?? '') ?? 0;
+      tx.tex.zIndex = z;
+      tx.mask.zIndex = z;
     }
 
     // Drop drawStateRef entries for features that no longer have a
@@ -2435,12 +2470,56 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // ─────────────────────────────────────────────
   // Render: IMAGE features (PixiJS Sprites)
   // ─────────────────────────────────────────────
+  // ── Image body-drag ghost ───────────────────────────────────────────────
+  // A translucent clone of the image being dragged, following the cursor so
+  // the surveyor can see where it will land. Reuses the already-loaded texture;
+  // positioned in screen space exactly like the real sprite (anchor bottom-left,
+  // width/height × zoom, rotation inverted) but offset by the drag delta.
+  function updateImageGhost(original: Feature, dx: number, dy: number) {
+    const pixi = pixiRef.current;
+    if (!pixi || original.geometry.type !== 'IMAGE' || !original.geometry.image) return;
+    const img = original.geometry.image;
+    const tex = pixi.imageTextures.get(img.imageId);
+    if (!tex) return; // texture not loaded yet — skip the ghost, move still works
+    let ghost = imageGhostSpriteRef.current;
+    if (!ghost) {
+      ghost = new pixi.SpriteClass(tex);
+      ghost.anchor.set(0, 1);
+      ghost.alpha = 0.5;
+      pixi.toolPreviewLayer.addChild(ghost);
+      imageGhostSpriteRef.current = ghost;
+    }
+    const { zoom } = useViewportStore.getState();
+    const { sx, sy } = w2s(img.position.x + dx, img.position.y + dy);
+    ghost.position.set(sx, sy);
+    const scaleX = (img.width * zoom) / (tex.width || 1);
+    const scaleY = (img.height * zoom) / (tex.height || 1);
+    ghost.scale.set(img.mirrorX ? -scaleX : scaleX, img.mirrorY ? -scaleY : scaleY);
+    ghost.rotation = -img.rotation;
+  }
+
+  function destroyImageGhost() {
+    const ghost = imageGhostSpriteRef.current;
+    if (ghost) {
+      ghost.parent?.removeChild(ghost);
+      try { ghost.destroy(); } catch { /* already torn down */ }
+      imageGhostSpriteRef.current = null;
+    }
+  }
+
   function renderImageFeatures() {
     const pixi = pixiRef.current;
     if (!pixi) return;
 
     const doc = useDrawingStore.getState().document;
     const { zoom } = useViewportStore.getState();
+
+    // Image sprites share featureLayer with feature graphics, so they obey the
+    // same layer-panel stacking — a higher layer's points/lines draw over an
+    // image on a lower layer. (Computed here too since renderImageFeatures runs
+    // independently of renderFeatures.)
+    const imgLayerZ = new Map<string, number>();
+    doc.layerOrder.forEach((id, i) => imgLayerZ.set(id, doc.layerOrder.length - i));
 
     // On a document switch (open / load), drop every cached sprite +
     // texture so images are rebuilt from THIS document's projectImages.
@@ -2527,6 +2606,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       // Opacity from feature style
       sprite.alpha = feature.style.opacity ?? 1;
+
+      // Stack by layer panel order (top of panel → on top), same as graphics.
+      sprite.zIndex = imgLayerZ.get(feature.layerId) ?? 0;
     }
   }
 
@@ -9494,6 +9576,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       lastMouseRef.current = { x: sx, y: sy };
       mouseDownPosRef.current = { x: sx, y: sy };
 
+      // Defensive: clear a stale image-drag ghost if a prior drag's mouseup
+      // was lost (e.g. released off-canvas) before this fresh press.
+      if (imageBodyDragRef.current) { imageBodyDragRef.current = null; destroyImageGhost(); }
+
       // Middle mouse or Space+left → start panning
       if (e.button === 1 || (e.button === 0 && isSpaceDownRef.current)) {
         isPanningRef.current = true;
@@ -10031,6 +10117,31 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
           const hit = hitTest(sx, sy);
           if (hit) {
+            // ── Image body-drag ──────────────────────────────────────────
+            // Grabbing an image's interior (no resize grip was hit above)
+            // starts a move with a translucent ghost that follows the cursor.
+            // Only IMAGES are body-draggable — survey geometry stays
+            // click-to-select (use the Move tool) so real coordinates can't be
+            // nudged by accident. A press that never passes the drag threshold
+            // is treated as a plain select on mouseup.
+            const bodyFeat = useDrawingStore.getState().getFeature(hit);
+            if (
+              bodyFeat?.geometry.type === 'IMAGE' &&
+              !useDrawingStore.getState().document.layers[bodyFeat.layerId]?.locked
+            ) {
+              useSelectionStore.getState().select(hit, additive ? 'TOGGLE' : 'REPLACE');
+              const bw = screenToDrawingWorld(sx, sy);
+              imageBodyDragRef.current = {
+                featureId: hit,
+                startWorld: { x: bw.wx, y: bw.wy },
+                original: bodyFeat,
+                moved: false,
+              };
+              clickHitFeatureRef.current = true;
+              setCursorStyle('grabbing');
+              useToolStore.getState().setBoxSelect(null, null, false);
+              return;
+            }
             clickHitFeatureRef.current = true;
             const hitFeature = useDrawingStore.getState().getFeature(hit);
             const polylineGid = hitFeature?.properties?.polylineGroupId as string | undefined;
@@ -12111,6 +12222,23 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return; // actively dragging a grip — skip hover/move logic
       }
 
+      // Image body-drag: float a translucent ghost at the cursor so the
+      // surveyor sees where the image will land. The real image stays put until
+      // release (so origin + target are both visible). Starts after a few
+      // pixels of travel so a plain click stays a select.
+      if (imageBodyDragRef.current && !gripDragRef.current) {
+        const drag = imageBodyDragRef.current;
+        const down = mouseDownPosRef.current;
+        const movedPx = down ? Math.hypot(sx - down.x, sy - down.y) : 999;
+        if (drag.moved || movedPx > 3) {
+          drag.moved = true;
+          const cur = screenToDrawingWorld(sx, sy);
+          updateImageGhost(drag.original, cur.wx - drag.startWorld.x, cur.wy - drag.startWorld.y);
+          setHud({ sx: sx + 18, sy: sy - 10, lines: ['Drag to place — release to drop'] });
+        }
+        return;
+      }
+
       // RO tool live-follow on a single image (no button held): the image
       // spins to track the cursor around its center until the next click.
       if (useToolStore.getState().state.activeTool === 'ROTATE' && imageRotateRef.current?.viaTool) {
@@ -12424,6 +12552,35 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const rect = canvasRef.current!.getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
+
+      // Image body-drag commit: drop the image at the cursor (translate by the
+      // drag delta) and record ONE undo entry. A press that never passed the
+      // drag threshold is just a select — no move, no undo.
+      if (imageBodyDragRef.current) {
+        const { featureId, startWorld, original, moved } = imageBodyDragRef.current;
+        imageBodyDragRef.current = null;
+        destroyImageGhost();
+        setHud(null);
+        if (moved && original.geometry.image) {
+          const upWorld = screenToDrawingWorld(sx, sy);
+          const dx = upWorld.wx - startWorld.x;
+          const dy = upWorld.wy - startWorld.y;
+          if (Math.abs(dx) > 1e-9 || Math.abs(dy) > 1e-9) {
+            const movedFeat = transformFeature(original, (p) => translate(p, dx, dy));
+            useDrawingStore.getState().updateFeatureGeometry(featureId, movedFeat.geometry);
+            const after = useDrawingStore.getState().getFeature(featureId);
+            if (after) {
+              useUndoStore.getState().pushUndo(
+                makeBatchEntry('Move image', [
+                  { type: 'MODIFY_FEATURE', data: { id: featureId, before: original, after } },
+                ]),
+              );
+            }
+          }
+        }
+        setCursorStyle(hitTest(sx, sy) ? 'grab' : 'default');
+        return;
+      }
 
       // PAN tool: stop panning. A click that didn't drag (no real
       // movement) on empty canvas clears the current selection —
