@@ -127,12 +127,14 @@ describe('FloatingMessenger — E9b persist + hydrate wiring', () => {
   });
 
   it('on open, hydrates by jumping to an existing direct conv with the saved recipient', () => {
-    expect(SRC).toMatch(/if \(!isOpen\) return;[\s\S]*?const saved = readActiveRecipient\(\);/);
+    // The back-button fix made auto-jump one-shot per open: the open guard now
+    // resets didAutoJumpRef on close. Hydration still reads the saved recipient.
+    expect(SRC).toMatch(/if \(!isOpen\) \{ didAutoJumpRef\.current = false; return; \}[\s\S]*?const saved = readActiveRecipient\(\);/);
     expect(SRC).toMatch(/const existing = conversations\.find\(\(c\) => \{[\s\S]*?others\.includes\(targetEmail\)/);
   });
 
   it("hydrate skips when the user is already on a chat (don't override their active context)", () => {
-    expect(SRC).toMatch(/if \(view === 'chat' && activeConv\) return; \/\/ already on a chat/);
+    expect(SRC).toMatch(/if \(view === 'chat' && activeConv\) return; \/\/ user already landed on a chat/);
   });
 });
 

@@ -98,7 +98,9 @@ describe('/admin/leads/[id] — responsive detail page', () => {
 
   it('phone + email render as tel:/mailto: links for one-tap contact on phone', () => {
     expect(SRC).toMatch(/href=\{`mailto:\$\{lead\.email\}`\}/);
-    expect(SRC).toMatch(/href=\{`tel:\$\{lead\.phone\}`\}/);
+    // Phone now routes through phoneHref() (normalises digits for the dialler)
+    // with a raw `tel:${lead.phone}` fallback — still a one-tap tel: link.
+    expect(SRC).toMatch(/href=\{phoneHref\(lead\.phone\) \?\? `tel:\$\{lead\.phone\}`\}/);
   });
 
   it('shows the customer notes verbatim with white-space: pre-wrap so newlines survive', () => {

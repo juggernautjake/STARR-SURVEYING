@@ -31,6 +31,17 @@ describe('Messenger panel CSS — single-pane shell', () => {
   it('the main pane fills the body when it is the active pane', () => {
     expect(CSS).toMatch(/\.messenger-panel__main\s*\{[\s\S]*?flex:\s*1/);
   });
+
+  it("the empty-prompt pane centers its content vertically + horizontally", () => {
+    expect(CSS).toMatch(/\.messenger-panel__main-empty\s*\{[\s\S]*?align-items:\s*center[\s\S]*?justify-content:\s*center/);
+  });
+
+  it("single-pane: no fixed 240px sidebar column to collapse", () => {
+    // The old two-pane layout pinned the sidebar to 240px and hid it under
+    // 520px. Single-pane shows one full-width pane at a time, so there's no
+    // fixed-width sidebar (and no collapse media query needed).
+    expect(CSS).not.toMatch(/\.messenger-panel__sidebar\s*\{[\s\S]*?flex:\s*0 0 240px/);
+  });
 });
 
 describe('FloatingMessenger JSX — single-pane wiring', () => {
