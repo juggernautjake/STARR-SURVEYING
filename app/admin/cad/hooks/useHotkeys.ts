@@ -174,6 +174,10 @@ export function useHotkeys(options: UseHotkeysOptions = {}): void {
     engineRef.current = engine;
 
     let lastPrefix = '';
+    // Tracks the deferred chord-prefix refresh so each keystroke supersedes the
+    // previous pending timer (instead of stacking one per keypress) and the
+    // effect cleanup can cancel it on unmount.
+    let prefixTimeout: number | null = null;
     const emitPrefix = () => {
       const next = engine.getBufferedPrefix();
       if (next !== lastPrefix) {
@@ -226,7 +230,8 @@ export function useHotkeys(options: UseHotkeysOptions = {}): void {
       // reading right after gives the canonical post-keystroke
       // prefix. A timeout covers the chord-timeout auto-clear.
       emitPrefix();
-      window.setTimeout(emitPrefix, 1100);
+      if (prefixTimeout !== null) window.clearTimeout(prefixTimeout);
+      prefixTimeout = window.setTimeout(emitPrefix, 1100);
     };
 
     const onBlur = () => engine.flushPending();
@@ -244,6 +249,7 @@ export function useHotkeys(options: UseHotkeysOptions = {}): void {
     return () => {
       window.removeEventListener('keydown', onKeyDown, true);
       window.removeEventListener('blur', onBlur);
+      if (prefixTimeout !== null) window.clearTimeout(prefixTimeout);
       engineRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
