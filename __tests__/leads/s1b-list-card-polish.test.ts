@@ -37,7 +37,9 @@ describe('leads list page — S1b card polish', () => {
 
   it('phone / email render as tel:/mailto: links for one-tap contact', () => {
     expect(SRC).toMatch(/href=\{`mailto:\$\{lead\.email\}`\}/);
-    expect(SRC).toMatch(/href=\{`tel:\$\{lead\.phone\}`\}/);
+    // Phone now routes through phoneHref() (normalises digits for the dialler)
+    // with a raw `tel:${lead.phone}` fallback — still a one-tap tel: link.
+    expect(SRC).toMatch(/href=\{phoneHref\(lead\.phone\) \?\? `tel:\$\{lead\.phone\}`\}/);
   });
 
   it('exposes an Open → link to the detail page on every card', () => {

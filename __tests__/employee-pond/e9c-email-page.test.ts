@@ -41,8 +41,10 @@ describe('/admin/email/new — composer page', () => {
     expect(SRC).toMatch(/data-testid="email-compose-body"/);
   });
 
-  it('Send button POSTs to /api/admin/email/send with { to, subject, body }', () => {
-    expect(SRC).toMatch(/fetch\('\/api\/admin\/email\/send', \{[\s\S]*?body: JSON\.stringify\(\{ to, subject, body \}\)/);
+  it('Send button POSTs to /api/admin/email/send with { to, role, subject, body }', () => {
+    // EM4 added optional role-broadcast, so the payload now carries `role`
+    // (omitted when empty) alongside to/subject/body.
+    expect(SRC).toMatch(/fetch\('\/api\/admin\/email\/send', \{[\s\S]*?body: JSON\.stringify\(\{ to, role: role \|\| undefined, subject, body \}\)/);
   });
 
   it('reports sent / error states via role="status" / role="alert"', () => {
@@ -64,7 +66,9 @@ describe('/api/admin/email/send — POST endpoint', () => {
   });
 
   it('validates the email shape + requires subject + body', () => {
-    expect(SRC).toMatch(/Recipient \(to\) is required/);
+    // EM4 made the route multi-recipient, so the "to" guard is now phrased as
+    // "At least one recipient is required" (after parsing the address field).
+    expect(SRC).toMatch(/At least one recipient is required/);
     expect(SRC).toMatch(/Recipient email looks invalid/);
     expect(SRC).toMatch(/Subject is required/);
     expect(SRC).toMatch(/Body is required/);
@@ -72,7 +76,9 @@ describe('/api/admin/email/send — POST endpoint', () => {
 
   it('dev-mode short-circuits without a real Resend key (so the UI flow is reachable)', () => {
     expect(SRC).toMatch(/if \(!RESEND_API_KEY \|\| RESEND_API_KEY === 'your_resend_api_key'\)/);
-    expect(SRC).toMatch(/return NextResponse\.json\(\{ success: true, dev: true \}\)/);
+    // The dev short-circuit still returns success+dev; EM4/EM5 added send-count
+    // + recipients to the payload, so match the prefix rather than the exact `}`.
+    expect(SRC).toMatch(/return NextResponse\.json\(\{ success: true, dev: true/);
   });
 
   it("POSTs Resend with reply_to set to the sender's email so recipient → reply lands correctly", () => {
@@ -80,8 +86,13 @@ describe('/api/admin/email/send — POST endpoint', () => {
   });
 
   it('handles Resend non-2xx + network errors with a 502 + clean message', () => {
+    // EM4 batches one send per recipient. A non-2xx response AND a thrown
+    // network error are both caught and counted in `failed`; if every recipient
+    // fails the route returns a single 502 with a clean "service error" message
+    // (the provider's raw error is never leaked to the client).
+    expect(SRC).toMatch(/if \(!response\.ok\)[\s\S]*?failed\.push\(addr\)/);
+    expect(SRC).toMatch(/catch \(err\)[\s\S]*?failed\.push\(addr\)/);
     expect(SRC).toMatch(/Failed to send email — service error[\s\S]*?status: 502/);
-    expect(SRC).toMatch(/Failed to send email — network error[\s\S]*?status: 502/);
   });
 
   it('escapes user HTML so a hostile body can\'t inject markup', () => {
