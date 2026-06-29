@@ -30,6 +30,7 @@ import type {
   LeaderAnnotation,
 } from '../labels/annotation-types';
 import type { Feature, Point2D } from '../types';
+import { imageCorners } from './image';
 import {
   createSpatialIndex,
   type SpatialIndex,
@@ -151,10 +152,16 @@ export function computeFeatureBBox(f: Feature): BoundingBox {
   }
   if (g.spline) for (const v of g.spline.controlPoints) visit(v);
   if (g.image) {
-    const w = g.image.width;
-    const h = g.image.height;
-    visit(g.image.position);
-    visit({ x: g.image.position.x + w, y: g.image.position.y + h });
+    // Visit all four ROTATED corners so the bbox matches the image you
+    // actually see. The old code visited only the un-rotated bottom-left
+    // and top-right, so a rotated image's spatial-index footprint was wrong
+    // — clicks over the visible-but-out-of-naive-box regions missed it,
+    // which got worse when zoomed in (tiny hit-query box → single cell).
+    const { bl, br, tr, tl } = imageCorners(g.image);
+    visit(bl);
+    visit(br);
+    visit(tr);
+    visit(tl);
   }
 
   if (minX === Number.POSITIVE_INFINITY) {

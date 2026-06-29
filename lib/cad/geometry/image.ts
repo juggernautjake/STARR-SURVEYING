@@ -24,7 +24,8 @@ export function imageCorners(img: ImageGeometry): {
   tr: Point2D;
   tl: Point2D;
 } {
-  const { position: p, width: w, height: h, rotation: t } = img;
+  const { position: p, width: w, height: h } = img;
+  const t = img.rotation ?? 0; // legacy images may predate the rotation field
   const r = (vx: number, vy: number) => {
     const rv = rotateVec({ x: vx, y: vy }, t);
     return { x: p.x + rv.x, y: p.y + rv.y };
