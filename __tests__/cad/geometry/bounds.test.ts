@@ -96,11 +96,26 @@ describe('featureBounds — geometry types', () => {
     } as Feature['geometry']))).toEqual({ minX: 0, minY: 0, maxX: 10, maxY: 10 });
   });
 
-  it('IMAGE — bbox is position + width/height', () => {
+  it('IMAGE — unrotated bbox is position + width/height', () => {
     expect(featureBounds(feat('i', {
       type: 'IMAGE',
-      image: { position: point(2, 3), width: 100, height: 50 },
+      image: { position: point(2, 3), width: 100, height: 50, rotation: 0 },
     } as Feature['geometry']))).toEqual({ minX: 2, minY: 3, maxX: 102, maxY: 53 });
+  });
+
+  it('IMAGE — rotated bbox uses the rotated corners, not the naive box', () => {
+    // 90° CCW about the bottom-left anchor: a 100×50 image at (0,0) sweeps
+    // into x∈[-50,0], y∈[0,100]. The old naive bbox would have wrongly
+    // reported x∈[0,100], y∈[0,50] — the bug that made rotated images
+    // un-grabbable when zoomed in.
+    const bb = featureBounds(feat('i', {
+      type: 'IMAGE',
+      image: { position: point(0, 0), width: 100, height: 50, rotation: Math.PI / 2 },
+    } as Feature['geometry']));
+    expect(bb.minX).toBeCloseTo(-50);
+    expect(bb.maxX).toBeCloseTo(0);
+    expect(bb.minY).toBeCloseTo(0);
+    expect(bb.maxY).toBeCloseTo(100);
   });
 
   it('TEXT uses the anchor point as a degenerate bbox', () => {
