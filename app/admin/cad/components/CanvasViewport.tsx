@@ -1129,6 +1129,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const [initError, setInitError] = useState<string | null>(null);
   // HUD: floating operation info panel near cursor
   const [hud, setHud] = useState<{ sx: number; sy: number; lines: string[] } | null>(null);
+  // True while the user is actively dragging geometry on the canvas (resize /
+  // rotate / move). Floating overlays (the image rotation field) go
+  // pointer-events:none while this is set so the cursor crossing them can't
+  // steal the drag and cancel the action.
+  const [manipulating, setManipulating] = useState(false);
   const [textInputState, setTextInputState] = useState<{ sx: number; sy: number; wx: number; wy: number } | null>(null);
   // Label attribute editor state (double-click on a bearing/distance label)
   const [labelEditState, setLabelEditState] = useState<{ featureId: string; labelId: string; sx: number; sy: number } | null>(null);
@@ -5255,6 +5260,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   }
 
   function drawSidebarHoverRing(g: import('pixi.js').Graphics): void {
+    // Never draw the AI-sidebar bounding ring while the surveyor is actively
+    // manipulating geometry on the canvas (resize / rotate / move / pan). During
+    // a drag the canvas hover hit-test is paused, so hoveredIdRef goes stale and
+    // diverges from hoveredFeatureId — which would otherwise mistake the
+    // in-progress feature for a sidebar hover and flash a burnt-orange AABB box
+    // around it (drawn from the STALE cached bbox, so it lags the live image).
+    if (
+      gripDragRef.current ||
+      imageRotateRef.current ||
+      imageBodyDragRef.current ||
+      interactiveOpRef.current ||
+      rotateGrabRef.current ||
+      dragFeatureRef.current ||
+      isPanningRef.current
+    ) return;
     const hoveredId = useUIStore.getState().hoveredFeatureId;
     if (!hoveredId) return;
     // When the cursor is hovering this feature ON THE CANVAS, the
@@ -5294,9 +5314,46 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // CSS resize cursor for an IMAGE grip by index (0=BL,1=BR,2=TR,3=TL,
   // 4=Bottom-mid,5=Right-mid,6=Top-mid,7=Left-mid). World→screen flips
   // Y, so BL/TR map to the NE-SW diagonal and BR/TL to the NW-SE one.
-  function imageGripCursor(idx: number): string {
+  // Pick the double-headed resize cursor whose axis matches a screen-space
+  // direction. Folds the angle to [0,180) (the cursors are symmetric) and
+  // bins it to the nearest 45°. Screen y is downward, so a vector pointing
+  // down-right (dx>0, dy>0) lies on the "\" diagonal → nwse-resize.
+  function resizeCursorForScreenAngle(dx: number, dy: number): string {
+    if (dx === 0 && dy === 0) return 'move';
+    let deg = (Math.atan2(dy, dx) * 180) / Math.PI;
+    if (deg < 0) deg += 180; // fold — the cursor is bidirectional
+    if (deg < 22.5 || deg >= 157.5) return 'ew-resize';
+    if (deg < 67.5) return 'nwse-resize';
+    if (deg < 112.5) return 'ns-resize';
+    return 'nesw-resize';
+  }
+
+  // Resize cursor for an image grip. The fixed index→cursor mapping is only
+  // right for an un-rotated box, so derive the cursor from the grip's actual
+  // screen direction out of the image center — correct at any rotation.
+  function imageGripCursor(idx: number, img?: ImageGeometry): string {
+    if (idx === IMAGE_ROTATE_GRIP) return 'grab'; // rotation handle
+    if (img && idx >= 0) {
+      // Grip world position — same ordering as getFeatureVertices: 4 corners
+      // then 4 edge midpoints.
+      const { bl, br, tr, tl } = imageCorners(img);
+      const grips: Point2D[] = [
+        bl, br, tr, tl,
+        { x: (bl.x + br.x) / 2, y: (bl.y + br.y) / 2 },
+        { x: (br.x + tr.x) / 2, y: (br.y + tr.y) / 2 },
+        { x: (tl.x + tr.x) / 2, y: (tl.y + tr.y) / 2 },
+        { x: (bl.x + tl.x) / 2, y: (bl.y + tl.y) / 2 },
+      ];
+      const grip = grips[idx];
+      if (grip) {
+        const c = imageCenter(img);
+        const gs = w2s(grip.x, grip.y);
+        const cs = w2s(c.x, c.y);
+        return resizeCursorForScreenAngle(gs.sx - cs.sx, gs.sy - cs.sy);
+      }
+    }
+    // Fallback: legacy fixed mapping (un-rotated assumption).
     switch (idx) {
-      case IMAGE_ROTATE_GRIP: return 'grab'; // rotation handle
       case 0: case 2: return 'nesw-resize';
       case 1: case 3: return 'nwse-resize';
       case 4: case 6: return 'ns-resize';
@@ -9873,6 +9930,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             // stray rotation after this grab-drag commits.
             if (toolState.rotateCenter) useToolStore.getState().setRotateCenter(null);
             rotateGrabRef.current = { pivot: h.pivot, startAngle, originals };
+            // HUD pointer-transparent for the duration of the rotate-handle drag.
+            setManipulating(true);
             setCursorStyle('grabbing');
             return;
           }
@@ -10073,6 +10132,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             : grip.gripType === 'ROTATE' ? 'ROTATE'
             : 'VERTEX';
           gripDragRef.current = { featureId: grip.featureId, vertexIndex: grip.vertexIndex, type: gType };
+          // Tell the floating rotation HUD to go pointer-transparent so the
+          // surveyor can drag a grip / spin the handle straight through it
+          // without the box swallowing the gesture.
+          setManipulating(true);
           const startFeat = useDrawingStore.getState().getFeature(grip.featureId) ?? null;
           gripStartRef.current = startFeat;
           // Begin an image-rotation session so the handle follows the cursor.
@@ -10255,6 +10318,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 original: bodyFeat,
                 moved: false,
               };
+              // HUD goes pointer-transparent so dragging the image to a new
+              // position works even when the cursor crosses the rotation box.
+              setManipulating(true);
               clickHitFeatureRef.current = true;
               setCursorStyle('grabbing');
               useToolStore.getState().setBoxSelect(null, null, false);
@@ -12479,7 +12545,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               const gripFeat = useDrawingStore.getState().getFeature(onGrip.featureId);
               setCursorStyle(
                 gripFeat?.geometry.type === 'IMAGE'
-                  ? imageGripCursor(onGrip.vertexIndex)
+                  ? imageGripCursor(onGrip.vertexIndex, gripFeat.geometry.image)
                   : 'move',
               );
             } else if (labelHover) {
@@ -12661,6 +12727,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
 
       if (e.button !== 0) return;
+
+      // Any left-button release ends an active manipulation, so restore the
+      // rotation HUD's pointer interactivity (it was made transparent while a
+      // grip / body / rotate drag was in flight).
+      setManipulating(false);
 
       // Slice W11 — DRAW_FREEHAND pointer-up commits the
       // captured stroke as a POLYLINE feature. The current
@@ -14343,7 +14414,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       )}
 
       {/* Numeric rotation field for a single selected image */}
-      <ImageRotationField />
+      <ImageRotationField suppressPointer={manipulating} />
 
       {/* Floating operation HUD — shows live numeric values near cursor during operations */}
       {hud && (

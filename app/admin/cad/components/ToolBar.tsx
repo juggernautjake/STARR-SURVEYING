@@ -178,16 +178,6 @@ function buildToolGroups(
       ],
     },
     {
-      mainTool: 'DRAW_POLYLINE',
-      label: 'Polyline',
-      description: 'Draw multiple connected line segments in succession. Each click adds a vertex and starts the next line; right-click or double-click to finish.',
-      shortcut: 'PL',
-      icon: <Spline size={16} />,
-      variants: [
-        { tool: 'DRAW_POLYLINE', label: 'Polyline (open)', description: 'Multi-segment open polyline — draw multiple lines in succession. Click each vertex; right-click or double-click to finish.', shortcut: 'PL', icon: <Spline size={14} /> },
-      ],
-    },
-    {
       // Slice W11 — free-hand pen tool. Drag the pointer to
       // record a stroke; release to commit a POLYLINE feature
       // carrying the current drawStyle (color / opacity /
