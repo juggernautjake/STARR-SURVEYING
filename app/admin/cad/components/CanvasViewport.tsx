@@ -164,6 +164,7 @@ import {
   type GraphicsLike,
 } from '@/lib/cad/geometry/curve-render';
 import { simplifyPolyline as simplifyPolylineFn } from '@/lib/cad/geometry/simplify';
+import { splineNodeIndices, closestPointOnSpline } from '@/lib/cad/geometry/spline-edit';
 import { renderLineWithType } from '@/lib/cad/styles/linetype-renderer';
 // cad-trv-fidelity Slice 7 — render assigned point symbols (monument /
 // utility / vegetation glyphs) on POINT features.
@@ -6606,17 +6607,23 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       let bestId: string | null = null;
       let bestChain: Point2D[] | null = null;
       let bestIsClosed = false;
+      let bestIsSpline = false;
       let bestVertexIdx = -1;
       let bestVertexDist = Infinity;
       for (const f of all) {
         const fg = f.geometry;
         let chain: Point2D[] | null = null;
         let isClosed = false;
+        let isSpline = false;
         if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
         else if (fg.type === 'MIXED_GEOMETRY' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
         else if (fg.type === 'POLYGON' && fg.vertices && fg.vertices.length >= 3) {
           chain = fg.vertices;
           isClosed = true;
+        } else if (fg.type === 'SPLINE' && fg.spline) {
+          // Treat the spline's on-curve nodes as the editable "vertices".
+          const idx = splineNodeIndices(fg.spline);
+          if (idx.length >= 2) { chain = idx.map((j) => fg.spline!.controlPoints[j]); isSpline = true; }
         }
         if (!chain) continue;
         for (let i = 0; i < chain.length; i += 1) {
@@ -6628,6 +6635,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             bestId = f.id;
             bestChain = chain;
             bestIsClosed = isClosed;
+            bestIsSpline = isSpline;
             bestVertexIdx = i;
           }
         }
@@ -6639,24 +6647,29 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         g.endFill();
         return;
       }
-      // Outline the chosen feature in faint red
-      g.lineStyle(2, 0xff5566, 0.45);
-      const sp0 = w2s(bestChain[0].x, bestChain[0].y);
-      g.moveTo(sp0.sx, sp0.sy);
-      for (let i = 1; i < bestChain.length; i += 1) {
-        const sp = w2s(bestChain[i].x, bestChain[i].y);
-        g.lineTo(sp.sx, sp.sy);
+      // Outline the chosen feature in faint red. For splines we skip the
+      // straight control-polygon outline (it would draw chords across the
+      // curve); the curved feature itself is already visible underneath.
+      if (!bestIsSpline) {
+        g.lineStyle(2, 0xff5566, 0.45);
+        const sp0 = w2s(bestChain[0].x, bestChain[0].y);
+        g.moveTo(sp0.sx, sp0.sy);
+        for (let i = 1; i < bestChain.length; i += 1) {
+          const sp = w2s(bestChain[i].x, bestChain[i].y);
+          g.lineTo(sp.sx, sp.sy);
+        }
+        if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
       }
-      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
-      // Existing vertices — small dim red dots
+      // Existing vertices / nodes — small dim red dots
       g.beginFill(0xff5566, 0.55);
       for (const v of bestChain) {
         const sp = w2s(v.x, v.y);
         g.drawCircle(sp.sx, sp.sy, 3);
       }
       g.endFill();
-      // Target vertex — bright X (or grey ring when at min count)
-      const minVerts = bestIsClosed ? 3 : 2;
+      // Target vertex — bright X (or grey ring when at min count). Splines need
+      // 3 nodes to remove one (keeps ≥2); polylines 2, polygons 3.
+      const minVerts = bestIsSpline ? 2 : (bestIsClosed ? 3 : 2);
       const blocked = bestChain.length <= minVerts;
       const tv = bestChain[bestVertexIdx];
       const tvS = w2s(tv.x, tv.y);
@@ -6681,10 +6694,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       let bestId: string | null = null;
       let bestChain: Point2D[] | null = null;
       let bestIsClosed = false;
+      let bestIsSpline = false;
       let bestDist = Infinity;
       let bestInsertPt: Point2D | null = null;
       for (const f of all) {
         const fg = f.geometry;
+        if (fg.type === 'SPLINE' && fg.spline) {
+          // Closest point ON the curve is where the new node will land.
+          const cps = closestPointOnSpline(fg.spline, previewPoint);
+          if (cps) {
+            const dPx = cps.dist * useViewportStore.getState().zoom;
+            if (dPx < bestDist && dPx < 14) {
+              bestDist = dPx;
+              bestId = f.id;
+              bestChain = splineNodeIndices(fg.spline).map((j) => fg.spline!.controlPoints[j]);
+              bestIsClosed = false;
+              bestIsSpline = true;
+              bestInsertPt = cps.point;
+            }
+          }
+          continue;
+        }
         let chain: Point2D[] | null = null;
         let isClosed = false;
         if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
@@ -6713,6 +6743,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             bestId = f.id;
             bestChain = chain;
             bestIsClosed = isClosed;
+            bestIsSpline = false;
             bestInsertPt = { x: px, y: py };
           }
         }
@@ -6724,16 +6755,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         g.endFill();
         return;
       }
-      // Faint outline of the source
-      g.lineStyle(2, 0x44ddff, 0.45);
-      const sp0 = w2s(bestChain[0].x, bestChain[0].y);
-      g.moveTo(sp0.sx, sp0.sy);
-      for (let i = 1; i < bestChain.length; i += 1) {
-        const sp = w2s(bestChain[i].x, bestChain[i].y);
-        g.lineTo(sp.sx, sp.sy);
+      // Faint outline of the source (skipped for splines — chords would
+      // cut across the visible curve; we just dot the nodes + landing point).
+      if (!bestIsSpline) {
+        g.lineStyle(2, 0x44ddff, 0.45);
+        const sp0 = w2s(bestChain[0].x, bestChain[0].y);
+        g.moveTo(sp0.sx, sp0.sy);
+        for (let i = 1; i < bestChain.length; i += 1) {
+          const sp = w2s(bestChain[i].x, bestChain[i].y);
+          g.lineTo(sp.sx, sp.sy);
+        }
+        if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
       }
-      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
-      // Existing vertices — small dim dots
+      // Existing vertices / nodes — small dim dots
       g.beginFill(0x44ddff, 0.45);
       for (const v of bestChain) {
         const sp = w2s(v.x, v.y);
@@ -11166,11 +11200,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const ok = removeVertexAt(hit, worldPt, pickRadiusWorld);
           if (!ok) {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'REMOVE VERTEX — click within 14 px of a vertex on a POLYLINE / POLYGON. Cannot drop below 2 (line) / 3 (polygon) vertices.' },
+              detail: { text: 'REMOVE NODE — click within 14 px of a node on a POLYLINE / POLYGON / SPLINE. Cannot drop below 2 (line / spline) / 3 (polygon) nodes. Survey points under a node are not affected.' },
             }));
           } else {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'REMOVE VERTEX — vertex deleted.' },
+              detail: { text: 'REMOVE NODE — node deleted.' },
             }));
           }
           break;
@@ -11274,11 +11308,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const ok = insertVertexAt(hit, worldPt);
           if (!ok) {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'INSERT VERTEX — pick a POLYLINE or POLYGON edge (clicks on existing vertices are no-ops).' },
+              detail: { text: 'INSERT NODE — pick a POLYLINE / POLYGON edge or a SPLINE curve (clicks on existing nodes are no-ops).' },
             }));
           } else {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'INSERT VERTEX — vertex inserted on the closest segment.' },
+              detail: { text: 'INSERT NODE — node inserted on the closest segment.' },
             }));
           }
           break;
