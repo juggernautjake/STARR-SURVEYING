@@ -94,7 +94,10 @@ import {
   useReviewWorkflowStore,
   useTransferStore,
   useImportStore,
+  useSaveTargetStore,
 } from '@/lib/cad/store';
+import { saveDrawingToCloud } from '@/lib/cad/persistence/cloud-save';
+import { healInlineImages, isInlineImage } from '@/lib/cad/persistence/heal-inline-images';
 import type { CompletenessSummary } from '@/lib/cad/delivery';
 import { useRouter } from 'next/navigation';
 import { useUnsavedChangesGuard, requestDiscard } from './hooks/useUnsavedChangesGuard';
@@ -939,6 +942,58 @@ export default function CADLayout() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── One-time inline-image heal ───────────────────────────────────────────────
+  // Move legacy / fallback base64 images (dataUrl, no bucket url) into the image
+  // bucket so the document stops carrying multi-MB strings — the serialization
+  // pressure behind image-heavy-drawing crashes. Runs once per loaded drawing.
+  const healedDocsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const docId = drawingStore.document.id;
+    if (healedDocsRef.current.has(docId)) return;
+    const images = Object.values(drawingStore.document.projectImages ?? {});
+    if (!images.some(isInlineImage)) return;
+    healedDocsRef.current.add(docId);
+
+    let cancelled = false;
+    void (async () => {
+      const healedCount = await healInlineImages(images, (healed) => {
+        // Bail if the surveyor switched drawings mid-upload.
+        if (cancelled || useDrawingStore.getState().document.id !== docId) return;
+        // addProjectImage replaces the entry by id with the bucket-backed
+        // version (dataUrl dropped) and marks the doc dirty.
+        useDrawingStore.getState().addProjectImage(healed);
+      });
+      if (cancelled || healedCount === 0) return;
+      if (useDrawingStore.getState().document.id !== docId) return;
+      cadLog.info('ImageHeal', `Moved ${healedCount} inline image(s) to the bucket for "${drawingStore.document.name}"`);
+
+      // Persist the lightened document so the heal sticks and reopening doesn't
+      // re-upload. A cloud-backed drawing re-saves silently (which also avoids a
+      // spurious "recover unsaved work?" prompt next open); otherwise we leave it
+      // dirty so the next manual save — and the recovery autosave — capture it.
+      const target = useSaveTargetStore.getState().targetFor(docId);
+      if (target && target.kind === 'cloud') {
+        try {
+          const latest = useDrawingStore.getState().document;
+          const { id, name } = await saveDrawingToCloud(latest, {
+            id: target.cloudId,
+            name: target.name,
+            description: target.description,
+          });
+          useSaveTargetStore.getState().setCloudTarget(docId, id, name, target.description);
+          useDrawingStore.getState().markClean();
+          void clearAutosave(docId);
+          cadLog.info('ImageHeal', `Re-saved lightened drawing to the cloud: "${name}"`);
+        } catch (err) {
+          cadLog.warn('ImageHeal', 'Could not re-save healed drawing to cloud — left dirty for manual save', err);
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawingStore.document.id]);
 
   // Periodic autosave — interval driven by the user's autoSaveIntervalSec setting
   useEffect(() => {
