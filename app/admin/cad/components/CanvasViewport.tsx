@@ -164,6 +164,7 @@ import {
   type GraphicsLike,
 } from '@/lib/cad/geometry/curve-render';
 import { simplifyPolyline as simplifyPolylineFn } from '@/lib/cad/geometry/simplify';
+import { splineNodeIndices, closestPointOnSpline } from '@/lib/cad/geometry/spline-edit';
 import { renderLineWithType } from '@/lib/cad/styles/linetype-renderer';
 // cad-trv-fidelity Slice 7 — render assigned point symbols (monument /
 // utility / vegetation glyphs) on POINT features.
@@ -307,6 +308,14 @@ const MIN_LABEL_FONT_SIZE_PX = 4;
 // §13 — labels scale with zoom × drawingScale; without an upper bound they
 // balloon when zoomed in and clutter the drawing. Cap the on-screen size.
 const MAX_LABEL_FONT_SIZE_PX = 26;
+// Hover treatment for a feature's labels — when the cursor is over a point (or
+// any feature), its name / code / description / elevation labels go BOLD in a
+// dark accent colour and get a translucent highlight pill behind them, so it's
+// obvious which labels belong to the thing under the cursor.
+const HOVER_LABEL_TEXT_COLOR = '#1d4ed8'; // blue-700, reads on white + the pill
+const HOVER_LABEL_PILL_COLOR = '#bfdbfe'; // blue-200
+const HOVER_LABEL_PILL_ALPHA = 0.8;
+const HOVER_LABEL_PILL_PADDING = 2;
 // §13 — feature strokes are drawn in screen px from `lineWeight`; thin
 // weights (e.g. 0.75) render as near-invisible hairlines. Floor the
 // on-screen stroke so lines stay legible (never caps bold weights).
@@ -1184,6 +1193,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const polylineGroupIdRef = useRef<string | null>(null);
   // Track last segment feature ID for dblclick cleanup
   const lastPolylineSegmentIdRef = useRef<string | null>(null);
+  // All segment feature IDs created for the in-progress polyline, so their
+  // separate per-segment undo entries can be coalesced into one on finish —
+  // a single undo then removes the whole polyline (not one segment at a time).
+  const polylineSegmentIdsRef = useRef<string[]>([]);
   // Track whether the text input overlay was explicitly cancelled (Escape) to suppress onBlur commit
   const textInputCancelledRef = useRef(false);
 
@@ -2359,8 +2372,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             : 14;
           renderSymbol(g, symbol, sx, sy, symPx, feature.style.symbolRotation ?? 0, color, alpha);
         } else {
-          const size = 4;
-          g.lineStyle(weight, color, alpha);
+          // Plain "file point" crosshair. Size is user-tunable via the
+          // Point Size display preference (Prefs panel) so points can be
+          // made bigger / easier to grab; a bolder stroke floor keeps them
+          // readable even when the feature's line weight is hairline-thin.
+          const size = useDrawingStore.getState().document.settings.displayPreferences?.pointSize ?? 6;
+          const ptWeight = Math.max(weight, 2);
+          g.lineStyle(ptWeight, color, alpha);
           g.moveTo(sx - size, sy);
           g.lineTo(sx + size, sy);
           g.moveTo(sx, sy - size);
@@ -4117,6 +4135,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     bgColor: string | null,
     borderColor: string | null,
     borderWidth: number | null,
+    fillAlpha: number = 1,
   ) {
     g.clear();
     const bounds = textObj.getLocalBounds();
@@ -4134,7 +4153,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
     if (bgColor) {
       const fi = toInt(bgColor);
-      if (Number.isFinite(fi)) g.beginFill(fi, 1);
+      if (Number.isFinite(fi)) g.beginFill(fi, fillAlpha);
     }
     g.drawRect(x, y, w, h);
     if (bgColor) g.endFill();
@@ -4584,7 +4603,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         // the one under the cursor) so a point's name + description light
         // up as a unit with the marker.
         const isHovered = hoveredIdRef.current === feature.id;
-        const textColor = isHovered ? '#3b82f6' : (label.style.color ?? layer.color ?? '#000000');
+        const textColor = isHovered ? HOVER_LABEL_TEXT_COLOR : (label.style.color ?? layer.color ?? '#000000');
+        // Bold the hovered feature's labels for an unmistakable cue.
+        const labelFontWeight = isHovered ? 'bold' : label.style.fontWeight;
         // Scale font size: label.style.fontSize is in "points on paper"
         // 1 pt = 1/72 inch; 1 inch = drawingScale world units → world units → screen pixels
         const drawingScale = doc.settings.drawingScale ?? 50;
@@ -4598,7 +4619,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const style = new pixi.TextStyleClass({
             fontFamily: label.style.fontFamily,
             fontSize,
-            fontWeight: label.style.fontWeight,
+            fontWeight: labelFontWeight,
             fontStyle: label.style.fontStyle,
             fill: textColor,
             align: 'center',
@@ -4616,7 +4637,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const s = textObj.style as import('pixi.js').TextStyle;
           s.fontFamily = label.style.fontFamily;
           s.fontSize = fontSize;
-          s.fontWeight = label.style.fontWeight;
+          s.fontWeight = labelFontWeight;
           s.fontStyle = label.style.fontStyle;
           s.fill = textColor;
         }
@@ -4639,7 +4660,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         // null = transparent (default), so existing drawings stay bare
         // until the surveyor opts in via the label editor (Slice 234).
         const bgKey = `label:${labelKey}`;
-        if (label.style.backgroundColor) {
+        // An explicit per-label background wins; otherwise a hovered label gets
+        // a translucent highlight pill so it clearly reads as belonging to the
+        // feature under the cursor.
+        const drawHoverPill = isHovered && !label.style.backgroundColor;
+        if (label.style.backgroundColor || drawHoverPill) {
           let bgGfx = pixi.labelBackgrounds.get(bgKey);
           if (!bgGfx) {
             bgGfx = new pixi.GraphicsClass();
@@ -4649,10 +4674,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           drawLabelBackgroundRect(
             bgGfx,
             textObj,
-            label.style.padding,
-            label.style.backgroundColor,
-            label.style.borderColor,
-            label.style.borderWidth,
+            label.style.backgroundColor ? label.style.padding : HOVER_LABEL_PILL_PADDING,
+            label.style.backgroundColor ?? HOVER_LABEL_PILL_COLOR,
+            label.style.backgroundColor ? label.style.borderColor : null,
+            label.style.backgroundColor ? label.style.borderWidth : null,
+            label.style.backgroundColor ? 1 : HOVER_LABEL_PILL_ALPHA,
           );
         } else {
           const existing = pixi.labelBackgrounds.get(bgKey);
@@ -4875,7 +4901,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           switch (geom.type) {
             case 'POINT': {
               const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
-              g.drawCircle(sx, sy, 7);
+              const ps = useDrawingStore.getState().document.settings.displayPreferences?.pointSize ?? 6;
+              g.drawCircle(sx, sy, Math.max(7, ps + 3));
               break;
             }
             case 'LINE': {
@@ -4977,7 +5004,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       switch (geom.type) {
         case 'POINT': {
           const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
-          g.drawRect(sx - 5, sy - 5, 10, 10);
+          const ps = useDrawingStore.getState().document.settings.displayPreferences?.pointSize ?? 6;
+          const half = Math.max(5, ps + 2);
+          g.drawRect(sx - half, sy - half, half * 2, half * 2);
           break;
         }
         case 'LINE': {
@@ -6598,17 +6627,23 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       let bestId: string | null = null;
       let bestChain: Point2D[] | null = null;
       let bestIsClosed = false;
+      let bestIsSpline = false;
       let bestVertexIdx = -1;
       let bestVertexDist = Infinity;
       for (const f of all) {
         const fg = f.geometry;
         let chain: Point2D[] | null = null;
         let isClosed = false;
+        let isSpline = false;
         if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
         else if (fg.type === 'MIXED_GEOMETRY' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
         else if (fg.type === 'POLYGON' && fg.vertices && fg.vertices.length >= 3) {
           chain = fg.vertices;
           isClosed = true;
+        } else if (fg.type === 'SPLINE' && fg.spline) {
+          // Treat the spline's on-curve nodes as the editable "vertices".
+          const idx = splineNodeIndices(fg.spline);
+          if (idx.length >= 2) { chain = idx.map((j) => fg.spline!.controlPoints[j]); isSpline = true; }
         }
         if (!chain) continue;
         for (let i = 0; i < chain.length; i += 1) {
@@ -6620,6 +6655,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             bestId = f.id;
             bestChain = chain;
             bestIsClosed = isClosed;
+            bestIsSpline = isSpline;
             bestVertexIdx = i;
           }
         }
@@ -6631,24 +6667,29 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         g.endFill();
         return;
       }
-      // Outline the chosen feature in faint red
-      g.lineStyle(2, 0xff5566, 0.45);
-      const sp0 = w2s(bestChain[0].x, bestChain[0].y);
-      g.moveTo(sp0.sx, sp0.sy);
-      for (let i = 1; i < bestChain.length; i += 1) {
-        const sp = w2s(bestChain[i].x, bestChain[i].y);
-        g.lineTo(sp.sx, sp.sy);
+      // Outline the chosen feature in faint red. For splines we skip the
+      // straight control-polygon outline (it would draw chords across the
+      // curve); the curved feature itself is already visible underneath.
+      if (!bestIsSpline) {
+        g.lineStyle(2, 0xff5566, 0.45);
+        const sp0 = w2s(bestChain[0].x, bestChain[0].y);
+        g.moveTo(sp0.sx, sp0.sy);
+        for (let i = 1; i < bestChain.length; i += 1) {
+          const sp = w2s(bestChain[i].x, bestChain[i].y);
+          g.lineTo(sp.sx, sp.sy);
+        }
+        if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
       }
-      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
-      // Existing vertices — small dim red dots
+      // Existing vertices / nodes — small dim red dots
       g.beginFill(0xff5566, 0.55);
       for (const v of bestChain) {
         const sp = w2s(v.x, v.y);
         g.drawCircle(sp.sx, sp.sy, 3);
       }
       g.endFill();
-      // Target vertex — bright X (or grey ring when at min count)
-      const minVerts = bestIsClosed ? 3 : 2;
+      // Target vertex — bright X (or grey ring when at min count). Splines need
+      // 3 nodes to remove one (keeps ≥2); polylines 2, polygons 3.
+      const minVerts = bestIsSpline ? 2 : (bestIsClosed ? 3 : 2);
       const blocked = bestChain.length <= minVerts;
       const tv = bestChain[bestVertexIdx];
       const tvS = w2s(tv.x, tv.y);
@@ -6673,10 +6714,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       let bestId: string | null = null;
       let bestChain: Point2D[] | null = null;
       let bestIsClosed = false;
+      let bestIsSpline = false;
       let bestDist = Infinity;
       let bestInsertPt: Point2D | null = null;
       for (const f of all) {
         const fg = f.geometry;
+        if (fg.type === 'SPLINE' && fg.spline) {
+          // Closest point ON the curve is where the new node will land.
+          const cps = closestPointOnSpline(fg.spline, previewPoint);
+          if (cps) {
+            const dPx = cps.dist * useViewportStore.getState().zoom;
+            if (dPx < bestDist && dPx < 14) {
+              bestDist = dPx;
+              bestId = f.id;
+              bestChain = splineNodeIndices(fg.spline).map((j) => fg.spline!.controlPoints[j]);
+              bestIsClosed = false;
+              bestIsSpline = true;
+              bestInsertPt = cps.point;
+            }
+          }
+          continue;
+        }
         let chain: Point2D[] | null = null;
         let isClosed = false;
         if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
@@ -6705,6 +6763,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             bestId = f.id;
             bestChain = chain;
             bestIsClosed = isClosed;
+            bestIsSpline = false;
             bestInsertPt = { x: px, y: py };
           }
         }
@@ -6716,16 +6775,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         g.endFill();
         return;
       }
-      // Faint outline of the source
-      g.lineStyle(2, 0x44ddff, 0.45);
-      const sp0 = w2s(bestChain[0].x, bestChain[0].y);
-      g.moveTo(sp0.sx, sp0.sy);
-      for (let i = 1; i < bestChain.length; i += 1) {
-        const sp = w2s(bestChain[i].x, bestChain[i].y);
-        g.lineTo(sp.sx, sp.sy);
+      // Faint outline of the source (skipped for splines — chords would
+      // cut across the visible curve; we just dot the nodes + landing point).
+      if (!bestIsSpline) {
+        g.lineStyle(2, 0x44ddff, 0.45);
+        const sp0 = w2s(bestChain[0].x, bestChain[0].y);
+        g.moveTo(sp0.sx, sp0.sy);
+        for (let i = 1; i < bestChain.length; i += 1) {
+          const sp = w2s(bestChain[i].x, bestChain[i].y);
+          g.lineTo(sp.sx, sp.sy);
+        }
+        if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
       }
-      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
-      // Existing vertices — small dim dots
+      // Existing vertices / nodes — small dim dots
       g.beginFill(0x44ddff, 0.45);
       for (const v of bestChain) {
         const sp = w2s(v.x, v.y);
@@ -8947,12 +9009,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           return feature.id;
         }
       }
-      // IMAGE hit testing — point inside the (possibly rotated) box.
-      // Map the cursor into the image's local frame so rotation is
-      // respected; BL=(0,0), TR=(width,height).
+    }
+
+    // IMAGE hit testing runs LAST — after every thin-geometry type above —
+    // so a line / spline / polyline / point / text drawn over (or behind) an
+    // image always wins the click. Images are big filled rectangles; without
+    // this they'd swallow clicks meant for the geometry on top of them. An
+    // image is only picked when nothing else is hit (e.g. clicking an empty
+    // part of it). Point-in-(possibly-rotated)-box test in the image's local
+    // frame: BL=(0,0), TR=(width,height).
+    for (const feature of features) {
+      const geom = feature.geometry;
       if (geom.type === 'IMAGE' && geom.image) {
         const img = geom.image;
-        const { wx, wy } = screenToDrawingWorld(sx, sy);
         const lp = worldToImageLocal(img, { x: wx, y: wy });
         if (lp.x >= 0 && lp.x <= img.width && lp.y >= 0 && lp.y <= img.height) {
           return feature.id;
@@ -9346,8 +9415,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const drawingPoints = overridePoints ?? useToolStore.getState().state.drawingPoints;
 
     if (type === 'POLYLINE') {
-      // Polyline: already created as individual LINE segments during drawing.
-      // Just reset drawing state; undo is already recorded per segment.
+      // Polyline is drawn as individual LINE segments (grouped by
+      // polylineGroupId). Each segment recorded its own undo entry while
+      // drawing — collapse them into ONE so a single undo removes the whole
+      // polyline instead of peeling off one segment at a time.
+      const segIds = polylineSegmentIdsRef.current;
+      if (segIds.length >= 2) {
+        useUndoStore.getState().coalesceEntries(segIds, 'Draw polyline');
+      }
+      polylineSegmentIdsRef.current = [];
       polylineGroupIdRef.current = null;
       lastPolylineSegmentIdRef.current = null;
       useToolStore.getState().clearDrawingPoints();
@@ -10434,6 +10510,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (prevPoints.length === 0) {
             // First click: start a new polyline group
             polylineGroupIdRef.current = generateId();
+            polylineSegmentIdsRef.current = [];
             useToolStore.getState().addDrawingPoint(worldPt);
           } else {
             const lastPt = prevPoints[prevPoints.length - 1];
@@ -10444,6 +10521,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               useDrawingStore.getState().addFeature(withAutoLabels(segment));
               useUndoStore.getState().pushUndo(makeAddFeatureEntry(segment));
               lastPolylineSegmentIdRef.current = segment.id;
+              polylineSegmentIdsRef.current.push(segment.id);
               useToolStore.getState().addDrawingPoint(worldPt);
             }
           }
@@ -11151,11 +11229,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const ok = removeVertexAt(hit, worldPt, pickRadiusWorld);
           if (!ok) {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'REMOVE VERTEX — click within 14 px of a vertex on a POLYLINE / POLYGON. Cannot drop below 2 (line) / 3 (polygon) vertices.' },
+              detail: { text: 'REMOVE NODE — click within 14 px of a node on a POLYLINE / POLYGON / SPLINE. Cannot drop below 2 (line / spline) / 3 (polygon) nodes. Survey points under a node are not affected.' },
             }));
           } else {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'REMOVE VERTEX — vertex deleted.' },
+              detail: { text: 'REMOVE NODE — node deleted.' },
             }));
           }
           break;
@@ -11259,11 +11337,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const ok = insertVertexAt(hit, worldPt);
           if (!ok) {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'INSERT VERTEX — pick a POLYLINE or POLYGON edge (clicks on existing vertices are no-ops).' },
+              detail: { text: 'INSERT NODE — pick a POLYLINE / POLYGON edge or a SPLINE curve (clicks on existing nodes are no-ops).' },
             }));
           } else {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'INSERT VERTEX — vertex inserted on the closest segment.' },
+              detail: { text: 'INSERT NODE — node inserted on the closest segment.' },
             }));
           }
           break;
@@ -14165,6 +14243,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // Cancel — no segments yet
           polylineGroupIdRef.current = null;
           lastPolylineSegmentIdRef.current = null;
+          polylineSegmentIdsRef.current = [];
           useToolStore.getState().clearDrawingPoints();
           useToolStore.getState().setTool('SELECT');
         }

@@ -339,6 +339,20 @@ export default function DisplayPreferencesPanel({ open, onClose }: Props) {
           </div>
         </Section>
 
+        {/* ── Points / Markers ─────────────────────────────────────────────── */}
+        <Section title="Points">
+          <NumInput
+            label="Point Size"
+            value={prefs.pointSize ?? 6}
+            onChange={(v) => update({ pointSize: Math.max(2, Math.min(24, Math.round(v))) })}
+            min={2}
+            max={24}
+            step={1}
+            tooltip="On-screen size of the crosshair drawn for plain survey points (e.g. imported file points without a monument symbol). Larger = easier to see and click. Default: 6. Points that carry a monument symbol use their own symbol size instead."
+            width="w-14"
+          />
+        </Section>
+
         {/* ── Selection Behavior ──────────────────────────────────────────── */}
         <Section title="Selection">
           <div className="space-y-1">
