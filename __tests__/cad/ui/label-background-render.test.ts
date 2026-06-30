@@ -45,7 +45,7 @@ describe('Slice 233 — labelBackgrounds Map declared + initialized', () => {
 
 describe('Slice 233 — drawLabelBackgroundRect helper', () => {
   it('declares a helper that takes Graphics + Text + padding + colors', () => {
-    expect(SRC).toMatch(/function drawLabelBackgroundRect\(\s*g: import\('pixi\.js'\)\.Graphics,\s*textObj: import\('pixi\.js'\)\.Text,\s*padding: number,\s*bgColor: string \| null,\s*borderColor: string \| null,\s*borderWidth: number \| null,\s*\)/);
+    expect(SRC).toMatch(/function drawLabelBackgroundRect\(\s*g: import\('pixi\.js'\)\.Graphics,\s*textObj: import\('pixi\.js'\)\.Text,\s*padding: number,\s*bgColor: string \| null,\s*borderColor: string \| null,\s*borderWidth: number \| null,\s*fillAlpha: number = 1,\s*\)/);
   });
 
   it('reads textObj.getLocalBounds() and pads the rect on every side', () => {
@@ -81,7 +81,10 @@ describe('Slice 233 — renderLabels per-feature TextLabel background branch', (
   });
 
   it('reads style.padding / style.backgroundColor / style.borderColor / style.borderWidth', () => {
-    expect(SRC).toMatch(/drawLabelBackgroundRect\([\s\S]*?bgGfx,[\s\S]*?textObj,[\s\S]*?label\.style\.padding,[\s\S]*?label\.style\.backgroundColor,[\s\S]*?label\.style\.borderColor,[\s\S]*?label\.style\.borderWidth,[\s\S]*?\);/);
+    // The call wraps each field in a conditional now (explicit per-label bg vs
+    // the hover-highlight pill), so match the field references without
+    // requiring a trailing comma immediately after each.
+    expect(SRC).toMatch(/drawLabelBackgroundRect\([\s\S]*?bgGfx,[\s\S]*?textObj,[\s\S]*?label\.style\.padding[\s\S]*?label\.style\.backgroundColor[\s\S]*?label\.style\.borderColor[\s\S]*?label\.style\.borderWidth[\s\S]*?\);/);
   });
 
   it('cleans up the rect when the label leaves the layer-visible set', () => {
