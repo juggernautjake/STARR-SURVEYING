@@ -18,6 +18,7 @@ export const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
   coordMode: 'NE',
   originNorthing: 0,
   originEasting: 0,
+  pointSize: 6,
 };
 
 export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {

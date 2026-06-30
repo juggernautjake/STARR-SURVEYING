@@ -2359,8 +2359,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             : 14;
           renderSymbol(g, symbol, sx, sy, symPx, feature.style.symbolRotation ?? 0, color, alpha);
         } else {
-          const size = 4;
-          g.lineStyle(weight, color, alpha);
+          // Plain "file point" crosshair. Size is user-tunable via the
+          // Point Size display preference (Prefs panel) so points can be
+          // made bigger / easier to grab; a bolder stroke floor keeps them
+          // readable even when the feature's line weight is hairline-thin.
+          const size = useDrawingStore.getState().document.settings.displayPreferences?.pointSize ?? 6;
+          const ptWeight = Math.max(weight, 2);
+          g.lineStyle(ptWeight, color, alpha);
           g.moveTo(sx - size, sy);
           g.lineTo(sx + size, sy);
           g.moveTo(sx, sy - size);
@@ -4875,7 +4880,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           switch (geom.type) {
             case 'POINT': {
               const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
-              g.drawCircle(sx, sy, 7);
+              const ps = useDrawingStore.getState().document.settings.displayPreferences?.pointSize ?? 6;
+              g.drawCircle(sx, sy, Math.max(7, ps + 3));
               break;
             }
             case 'LINE': {
@@ -4977,7 +4983,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       switch (geom.type) {
         case 'POINT': {
           const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
-          g.drawRect(sx - 5, sy - 5, 10, 10);
+          const ps = useDrawingStore.getState().document.settings.displayPreferences?.pointSize ?? 6;
+          const half = Math.max(5, ps + 2);
+          g.drawRect(sx - half, sy - half, half * 2, half * 2);
           break;
         }
         case 'LINE': {
@@ -8947,12 +8955,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           return feature.id;
         }
       }
-      // IMAGE hit testing — point inside the (possibly rotated) box.
-      // Map the cursor into the image's local frame so rotation is
-      // respected; BL=(0,0), TR=(width,height).
+    }
+
+    // IMAGE hit testing runs LAST — after every thin-geometry type above —
+    // so a line / spline / polyline / point / text drawn over (or behind) an
+    // image always wins the click. Images are big filled rectangles; without
+    // this they'd swallow clicks meant for the geometry on top of them. An
+    // image is only picked when nothing else is hit (e.g. clicking an empty
+    // part of it). Point-in-(possibly-rotated)-box test in the image's local
+    // frame: BL=(0,0), TR=(width,height).
+    for (const feature of features) {
+      const geom = feature.geometry;
       if (geom.type === 'IMAGE' && geom.image) {
         const img = geom.image;
-        const { wx, wy } = screenToDrawingWorld(sx, sy);
         const lp = worldToImageLocal(img, { x: wx, y: wy });
         if (lp.x >= 0 && lp.x <= img.width && lp.y >= 0 && lp.y <= img.height) {
           return feature.id;

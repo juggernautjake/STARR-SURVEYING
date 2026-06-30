@@ -68,6 +68,13 @@ export interface DisplayPreferences {
    */
   originNorthing: number;
   originEasting: number;
+  /**
+   * On-screen half-size (px) of the crosshair drawn for plain POINT
+   * features that don't carry a monument symbol — i.e. how big "file
+   * points" appear. Bigger = easier to see and click. Default: 6.
+   * (Points with an assigned symbol use their own symbolSize.)
+   */
+  pointSize?: number;
 }
 
 // --- DRAWING DOCUMENT ---
