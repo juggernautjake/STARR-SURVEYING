@@ -1320,7 +1320,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         // selection. Result is enqueued as a ghost-previewed AI
         // proposal that they accept or skip.
         {
-          label: 'Calc Point (4th corner, parallel, etc)…',
+          label: 'Calc Point (dist–dist, bearing–dist, bearing–bearing, 4th corner)…',
           action: () => {
             window.dispatchEvent(new CustomEvent('cad:openCalcPointDialog'));
             setOpenMenu(null);

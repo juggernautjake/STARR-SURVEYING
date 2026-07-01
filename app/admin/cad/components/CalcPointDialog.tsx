@@ -31,24 +31,38 @@ import {
   calcPointParallelToLine,
   type SolverResult,
 } from '@/lib/cad/geometry/solver';
+import { computeCogoSolutions } from '@/lib/cad/geometry/cogo';
+import { parseBearing } from '@/lib/cad/geometry/bearing';
 import { buildSolverPointProposal } from '@/lib/cad/ai/solver-proposal';
 import { selectedPoints } from '@/lib/cad/ai/selection-points';
 
-type Method = 'FOURTH_CORNER' | 'BEARING_DISTANCE' | 'TWO_BEARINGS' | 'PARALLEL';
+type Method =
+  | 'DIST_DIST'
+  | 'BRG_DIST'
+  | 'TWO_BEARINGS'
+  | 'FOURTH_CORNER'
+  | 'BEARING_DISTANCE'
+  | 'PARALLEL';
 
 interface Props { onClose: () => void }
 
 export default function CalcPointDialog({ onClose }: Props): React.ReactElement {
-  const [method, setMethod] = useState<Method>('FOURTH_CORNER');
+  const [method, setMethod] = useState<Method>('DIST_DIST');
   const [bearingA, setBearingA] = useState('');
   const [bearingB, setBearingB] = useState('');
-  const [distance, setDistance] = useState('');
+  const [distance, setDistance] = useState('');   // distance from point 1
+  const [distanceB, setDistanceB] = useState(''); // distance from point 2
+  const [swapBrgDist, setSwapBrgDist] = useState(false); // bearing from pt2 instead of pt1
   const [perpDistance, setPerpDistance] = useState('');
   const [alongDistance, setAlongDistance] = useState('');
   const [side, setSide] = useState<'LEFT' | 'RIGHT'>('RIGHT');
   const [code, setCode] = useState('CALC');
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<Point2D | null>(null);
+  // Candidate solution(s). Distance–distance and bearing–distance can yield
+  // two; the surveyor picks which via selectedIdx.
+  const [candidates, setCandidates] = useState<Point2D[]>([]);
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const result: Point2D | null = candidates[selectedIdx] ?? null;
 
   // Pull POINT-typed selected features. The dialogue only acts on
   // points; LINE / POLYLINE selections are ignored on purpose so
@@ -61,65 +75,107 @@ export default function CalcPointDialog({ onClose }: Props): React.ReactElement 
 
   // Required point counts per method.
   const requiredPoints: Record<Method, number> = {
+    DIST_DIST: 2,
+    BRG_DIST: 2,
+    TWO_BEARINGS: 2,
     FOURTH_CORNER: 3,
     BEARING_DISTANCE: 1,
-    TWO_BEARINGS: 2,
     PARALLEL: 3, // origin + refStart + refEnd
   };
   const have = points.length;
   const need = requiredPoints[method];
   const enough = have >= need;
 
+  function fail(msg: string): void {
+    setCandidates([]);
+    setSelectedIdx(0);
+    setError(msg);
+  }
+
+  function succeed(pts: Point2D[]): void {
+    setError(null);
+    setSelectedIdx(0);
+    setCandidates(pts);
+  }
+
   function compute(): void {
     setError(null);
-    setResult(null);
-    let r: SolverResult | null = null;
+    setCandidates([]);
+    setSelectedIdx(0);
     try {
-      if (method === 'FOURTH_CORNER') {
-        if (have < 3) return setError('Select three POINT features first (Adjacent, Opposite, Adjacent).');
+      // ── Two-reference-point intersections (0, 1, or 2 solutions) ──────────
+      if (method === 'DIST_DIST') {
+        if (have < 2) return fail('Select two POINTs, then enter the distance from each to the new point.');
+        const dA = parseFloat(distance);
+        const dB = parseFloat(distanceB);
+        if (!Number.isFinite(dA) || dA <= 0 || !Number.isFinite(dB) || dB <= 0) {
+          return fail('Enter a positive distance from each point.');
+        }
+        const sols = computeCogoSolutions({ method: 'DIST_DIST', a: points[0].point, b: points[1].point, distA: dA, distB: dB });
+        if (sols.length === 0) return fail('No solution — those distance circles don’t reach each other. Check the distances.');
+        return succeed(sols);
+      }
+      if (method === 'BRG_DIST') {
+        if (have < 2) return fail('Select two POINTs: one supplies the bearing, the other the distance.');
+        const az = parseBearing(bearingA);
+        const dB = parseFloat(distanceB);
+        if (az === null) return fail('Enter a valid bearing (e.g. N45°30′E, 45-30-00, or 45.5).');
+        if (!Number.isFinite(dB) || dB <= 0) return fail('Enter a positive distance.');
+        // swapBrgDist flips which selected point carries the bearing vs distance.
+        const brgPt = swapBrgDist ? points[1].point : points[0].point;
+        const distPt = swapBrgDist ? points[0].point : points[1].point;
+        const sols = computeCogoSolutions({ method: 'BRG_DIST', a: brgPt, b: distPt, azA: az, distB: dB });
+        if (sols.length === 0) return fail('No solution — the bearing ray never reaches that distance circle. Check the bearing/distance.');
+        return succeed(sols);
+      }
+
+      // ── Single-solution solvers (existing) ───────────────────────────────
+      let r: SolverResult | null = null;
+      if (method === 'TWO_BEARINGS') {
+        if (have < 2) return fail('Select two origin POINTs (originA, originB).');
+        const bA = parseBearing(bearingA);
+        const bB = parseBearing(bearingB);
+        if (bA === null || bB === null) return fail('Enter both bearings (e.g. N45°30′E or 45.5).');
+        r = calcPointFromTwoBearings(points[0].point, bA, points[1].point, bB);
+      } else if (method === 'FOURTH_CORNER') {
+        if (have < 3) return fail('Select three POINT features first (Adjacent, Opposite, Adjacent).');
         const [p1, p2, p3] = points;
         r = calcFourthParallelogramCorner(p1.point, p2.point, p3.point);
       } else if (method === 'BEARING_DISTANCE') {
-        if (have < 1) return setError('Select one origin POINT first.');
+        if (have < 1) return fail('Select one origin POINT first.');
         const dist = parseFloat(distance);
-        const bear = parseFloat(bearingA);
-        if (!Number.isFinite(dist) || dist <= 0) return setError('Enter a positive distance.');
-        if (!Number.isFinite(bear)) return setError('Enter a numeric bearing (azimuth in degrees, 0=N).');
+        const bear = parseBearing(bearingA);
+        if (!Number.isFinite(dist) || dist <= 0) return fail('Enter a positive distance.');
+        if (bear === null) return fail('Enter a valid bearing (e.g. N45°30′E or 45.5).');
         r = calcPointFromBearingDistance(points[0].point, bear, dist);
-      } else if (method === 'TWO_BEARINGS') {
-        if (have < 2) return setError('Select two origin POINTs (originA, originB).');
-        const bA = parseFloat(bearingA);
-        const bB = parseFloat(bearingB);
-        if (!Number.isFinite(bA) || !Number.isFinite(bB)) return setError('Enter both bearings as numeric azimuths.');
-        r = calcPointFromTwoBearings(points[0].point, bA, points[1].point, bB);
       } else if (method === 'PARALLEL') {
-        if (have < 3) return setError('Select three POINTs: origin, refStart, refEnd.');
+        if (have < 3) return fail('Select three POINTs: origin, refStart, refEnd.');
         const pd = parseFloat(perpDistance);
-        if (!Number.isFinite(pd)) return setError('Enter a perpendicular distance.');
+        if (!Number.isFinite(pd)) return fail('Enter a perpendicular distance.');
         const ad = alongDistance.trim() === '' ? 0 : parseFloat(alongDistance);
-        if (!Number.isFinite(ad)) return setError('Along-distance must be numeric or blank.');
+        if (!Number.isFinite(ad)) return fail('Along-distance must be numeric or blank.');
         r = calcPointParallelToLine(points[0].point, points[1].point, points[2].point, pd, side, ad);
       } else {
-        // Exhaustiveness guard: every `Method` in the union above is handled.
-        // If a new method is added to the type without a branch here, this
-        // line fails to compile — so the dialog can never silently no-op.
+        // Exhaustiveness guard: every single-solution `Method` is handled above.
         const unhandled: never = method;
-        return setError(`Unsupported calc method: ${String(unhandled)}.`);
+        return fail(`Unsupported calc method: ${String(unhandled)}.`);
       }
+      if (!r) return fail('No result — check the selected points and inputs, then try again.');
+      if (!r.ok) return fail(r.reason);
+      return succeed([r.point]);
     } catch (e) {
-      return setError(e instanceof Error ? e.message : 'Solver threw an unexpected error.');
+      return fail(e instanceof Error ? e.message : 'Solver threw an unexpected error.');
     }
-    if (!r) return setError('No result — check the selected points and inputs, then try again.');
-    if (!r.ok) return setError(r.reason);
-    setResult(r.point);
   }
 
   function suggest(): void {
     if (!result) return;
     const label =
-      method === 'FOURTH_CORNER' ? 'Calc 4th corner'
-      : method === 'BEARING_DISTANCE' ? 'Calc from bearing+distance'
+      method === 'DIST_DIST' ? 'Calc from distance–distance'
+      : method === 'BRG_DIST' ? 'Calc from bearing–distance'
       : method === 'TWO_BEARINGS' ? 'Calc from two bearings'
+      : method === 'FOURTH_CORNER' ? 'Calc 4th corner'
+      : method === 'BEARING_DISTANCE' ? 'Calc from bearing+distance'
       : 'Calc on parallel offset';
     const proposal = buildSolverPointProposal({
       point: result,
@@ -147,14 +203,20 @@ export default function CalcPointDialog({ onClose }: Props): React.ReactElement 
             <span className="text-gray-600 dark:text-gray-300 font-medium">Method</span>
             <select
               value={method}
-              onChange={(e) => { setMethod(e.target.value as Method); setResult(null); setError(null); }}
+              onChange={(e) => { setMethod(e.target.value as Method); setCandidates([]); setSelectedIdx(0); setError(null); }}
               className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
               data-testid="calc-point-method"
             >
-              <option value="FOURTH_CORNER">4th corner of parallelogram (3 selected points)</option>
-              <option value="BEARING_DISTANCE">Bearing + distance from a point (1 selected)</option>
-              <option value="TWO_BEARINGS">Intersect of two bearings (2 selected)</option>
-              <option value="PARALLEL">Parallel offset from a line (3 selected: origin, refStart, refEnd)</option>
+              <optgroup label="From two selected points">
+                <option value="DIST_DIST">Distance–distance (2 selected: dist from each)</option>
+                <option value="BRG_DIST">Bearing–distance (2 selected: bearing from one, distance from the other)</option>
+                <option value="TWO_BEARINGS">Bearing–bearing (2 selected: a bearing from each)</option>
+              </optgroup>
+              <optgroup label="Other">
+                <option value="FOURTH_CORNER">4th corner of parallelogram (3 selected points)</option>
+                <option value="BEARING_DISTANCE">Bearing + distance from a point (1 selected)</option>
+                <option value="PARALLEL">Parallel offset from a line (3 selected: origin, refStart, refEnd)</option>
+              </optgroup>
             </select>
           </label>
 
@@ -173,6 +235,38 @@ export default function CalcPointDialog({ onClose }: Props): React.ReactElement 
           </div>
 
           {/* Method-specific inputs */}
+          {method === 'DIST_DIST' && (
+            <div className="grid grid-cols-2 gap-2">
+              <label>
+                <span className="text-gray-600 dark:text-gray-300">Distance from {points[0]?.name ?? 'point 1'}</span>
+                <input value={distance} onChange={(e) => setDistance(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" inputMode="decimal" data-testid="calc-point-dist-a" />
+              </label>
+              <label>
+                <span className="text-gray-600 dark:text-gray-300">Distance from {points[1]?.name ?? 'point 2'}</span>
+                <input value={distanceB} onChange={(e) => setDistanceB(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" inputMode="decimal" data-testid="calc-point-dist-b" />
+              </label>
+            </div>
+          )}
+
+          {method === 'BRG_DIST' && (
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
+                <input type="checkbox" checked={swapBrgDist} onChange={(e) => setSwapBrgDist(e.target.checked)} />
+                Swap which point carries the bearing
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <label>
+                  <span className="text-gray-600 dark:text-gray-300">Bearing from {(swapBrgDist ? points[1]?.name : points[0]?.name) ?? (swapBrgDist ? 'point 2' : 'point 1')}</span>
+                  <input value={bearingA} onChange={(e) => setBearingA(e.target.value)} placeholder="N45°30′E or 45.5" className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" data-testid="calc-point-brgdist-bearing" />
+                </label>
+                <label>
+                  <span className="text-gray-600 dark:text-gray-300">Distance from {(swapBrgDist ? points[0]?.name : points[1]?.name) ?? (swapBrgDist ? 'point 1' : 'point 2')}</span>
+                  <input value={distanceB} onChange={(e) => setDistanceB(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" inputMode="decimal" data-testid="calc-point-brgdist-distance" />
+                </label>
+              </div>
+            </div>
+          )}
+
           {method === 'BEARING_DISTANCE' && (
             <div className="grid grid-cols-2 gap-2">
               <label>
@@ -227,6 +321,23 @@ export default function CalcPointDialog({ onClose }: Props): React.ReactElement 
           {error && (
             <div className="rounded border border-red-500 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-200 px-2 py-1" role="alert">
               {error}
+            </div>
+          )}
+
+          {candidates.length > 1 && (
+            <div className="rounded border border-blue-500/60 px-2 py-1.5 space-y-1" data-testid="calc-point-candidates">
+              <div className="text-gray-600 dark:text-gray-300">Two solutions — pick the one you want:</div>
+              <div className="flex gap-2">
+                {candidates.map((c, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setSelectedIdx(i)}
+                    className={`flex-1 px-2 py-1 rounded border font-mono text-left ${i === selectedIdx ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-100' : 'border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                  >
+                    #{i + 1} ({c.x.toFixed(2)}, {c.y.toFixed(2)})
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
