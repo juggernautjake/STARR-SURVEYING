@@ -9582,7 +9582,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         useDrawingStore.getState().document.features,
         useDrawingStore.getState().document.layers
       );
-      const worldRadius = settings.snapRadius / Math.max(0.0001, useViewportStore.getState().zoom);
+      // Catch the snap at the SAME cursor radius as the hover highlight
+      // (HIT_TOLERANCE_PX) so the green snap glyph and the blue hover glow
+      // light up together — the snap no longer engages earlier than the
+      // highlight as you move toward a point. (settings.snapRadius still wins
+      // if the surveyor set it even tighter.)
+      const snapRadiusPx = Math.min(settings.snapRadius, HIT_TOLERANCE_PX);
+      const worldRadius = snapRadiusPx / Math.max(0.0001, useViewportStore.getState().zoom);
       const queryBox: LodBoundingBox = {
         minX: cursor.x - worldRadius,
         minY: cursor.y - worldRadius,
@@ -9597,7 +9603,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const snap = findSnapPoint(
         cursor,
         candidates,
-        settings.snapRadius,
+        snapRadiusPx,
         useViewportStore.getState().zoom,
         settings.snapTypes,
         settings.gridMajorSpacing / settings.gridMinorDivisions,
