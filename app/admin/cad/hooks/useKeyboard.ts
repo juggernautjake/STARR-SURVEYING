@@ -185,7 +185,9 @@ export function useKeyboard() {
             ts.activeTool === 'DRAW_POLYLINE' ||
             ts.activeTool === 'DRAW_POLYGON')
         ) {
-          toolStore.popDrawingPoint();
+          // CanvasViewport owns the per-tool logic: for POLYLINE it also removes
+          // the committed segment feature, not just the point.
+          window.dispatchEvent(new CustomEvent('cad:undoDrawVertex'));
           break;
         }
         undoStore.undo();

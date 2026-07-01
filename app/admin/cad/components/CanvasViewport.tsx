@@ -13537,8 +13537,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
       tStore.clearDrawingPoints();
     };
+    // Mid-draw "undo last vertex" (Ctrl+Z while drawing). POLYLINE commits a
+    // LINE segment per placed point, so backing out a vertex must ALSO remove
+    // that segment feature + its history entry — not just pop the point (the
+    // old bug where the mistaken line stayed on screen while the tool rewound).
+    // Other multi-point draws (polygon / spline / curved line) don't commit a
+    // feature per point, so they just drop the last point.
+    const onUndoDrawVertex = () => {
+      const toolState = useToolStore.getState().state;
+      if (toolState.drawingPoints.length === 0) return;
+      if (toolState.activeTool === 'DRAW_POLYLINE' && polylineSegmentIdsRef.current.length > 0) {
+        const segId = polylineSegmentIdsRef.current.pop()!;
+        useDrawingStore.getState().removeFeature(segId);
+        useUndoStore.getState().dropAddEntry(segId);
+        lastPolylineSegmentIdRef.current =
+          polylineSegmentIdsRef.current[polylineSegmentIdsRef.current.length - 1] ?? null;
+      }
+      useToolStore.getState().popDrawingPoint();
+    };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('cad:undoDrawVertex', onUndoDrawVertex);
     window.addEventListener('cad:confirm', onConfirm);
     window.addEventListener('cad:zoomExtents', onZoomExtents);
     window.addEventListener('cad:zoomToPaper', onZoomToPaper);
@@ -13956,6 +13975,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('cad:undoDrawVertex', onUndoDrawVertex);
       window.removeEventListener('cad:confirm', onConfirm);
       window.removeEventListener('cad:zoomExtents', onZoomExtents);
       window.removeEventListener('cad:zoomToPaper', onZoomToPaper);
