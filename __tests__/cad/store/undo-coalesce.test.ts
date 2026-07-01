@@ -58,3 +58,27 @@ describe('undoStore.coalesceEntries', () => {
     expect(stack[0].operations[0].type).toBe('ADD_FEATURE');
   });
 });
+
+describe('undoStore.dropAddEntry', () => {
+  beforeEach(() => useUndoStore.getState().clear());
+
+  it('removes the matching ADD entry from the stack without touching redo', () => {
+    const s = useUndoStore.getState();
+    s.pushUndo(makeAddFeatureEntry(feat('a')));
+    s.pushUndo(makeAddFeatureEntry(feat('b')));
+
+    useUndoStore.getState().dropAddEntry('b');
+
+    const st = useUndoStore.getState();
+    expect(st.undoStack).toHaveLength(1);
+    expect((st.undoStack[0].operations[0].data as Feature).id).toBe('a');
+    expect(st.redoStack).toHaveLength(0); // not redoable — fully discarded
+  });
+
+  it('is a no-op when no entry matches', () => {
+    const s = useUndoStore.getState();
+    s.pushUndo(makeAddFeatureEntry(feat('a')));
+    useUndoStore.getState().dropAddEntry('zzz');
+    expect(useUndoStore.getState().undoStack).toHaveLength(1);
+  });
+});

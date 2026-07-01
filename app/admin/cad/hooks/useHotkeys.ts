@@ -329,7 +329,9 @@ export function dispatchDefaultAction(action: BindableAction): void {
           ts.state.activeTool === 'DRAW_POLYLINE' ||
           ts.state.activeTool === 'DRAW_POLYGON')
       ) {
-        ts.popDrawingPoint();
+        // CanvasViewport owns the per-tool logic: for POLYLINE it also removes
+        // the committed segment feature, not just the point.
+        window.dispatchEvent(new CustomEvent('cad:undoDrawVertex'));
         return;
       }
       useUndoStore.getState().undo();
