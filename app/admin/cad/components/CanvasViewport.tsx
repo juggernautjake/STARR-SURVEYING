@@ -940,6 +940,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         feature: Feature;
         epsilon: number;
         layerColor: string;
+        pointSize: number;
       }
     >
   >(new Map());
@@ -2004,6 +2005,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const simplifyEpsilon = lodActive
       ? lodSimplificationThreshold(worldPerPixel, lodConfig)
       : 0;
+    // Global point-marker size — a change must re-tessellate every point's
+    // crosshair, so it participates in the per-feature redraw gate below.
+    const pointSize = doc.settings.pointSize ?? 4;
 
     // Lazily-maintained per-layer sub-containers (for per-layer rotation)
     const layerContainers = pixi._layerContainers;
@@ -2118,13 +2122,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         !prev ||
         prev.feature !== feature ||
         prev.epsilon !== simplifyEpsilon ||
-        prev.layerColor !== layerColor;
+        prev.layerColor !== layerColor ||
+        prev.pointSize !== pointSize;
       if (needsRedraw) {
         drawFeature(g, feature, simplifyEpsilon);
         drawStateRef.current.set(feature.id, {
           feature,
           epsilon: simplifyEpsilon,
           layerColor,
+          pointSize,
         });
         if (isDirty) processedDirty.push(feature.id);
       }
@@ -2302,8 +2308,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             : 14;
           renderSymbol(g, symbol, sx, sy, symPx, feature.style.symbolRotation ?? 0, color, alpha);
         } else {
-          const size = 4;
-          g.lineStyle(weight, color, alpha);
+          // Point-marker size is a global setting (default 4). Bigger points
+          // also draw a thicker crosshair so "make points bigger" reads as
+          // bolder too, not just longer hairlines.
+          const size = doc.settings.pointSize ?? 4;
+          const pointWeight = Math.max(weight, size * 0.45);
+          g.lineStyle(pointWeight, color, alpha);
           g.moveTo(sx - size, sy);
           g.lineTo(sx + size, sy);
           g.moveTo(sx, sy - size);
@@ -4798,7 +4808,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           switch (geom.type) {
             case 'POINT': {
               const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
-              g.drawCircle(sx, sy, 7);
+              // Ring hugs the marker: point half-size + a few px of breathing room.
+              g.drawCircle(sx, sy, (docSettings.pointSize ?? 4) + 3);
               break;
             }
             case 'LINE': {
@@ -4883,7 +4894,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       switch (geom.type) {
         case 'POINT': {
           const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
-          g.drawRect(sx - 5, sy - 5, 10, 10);
+          // Selection box tracks the point size (marker half-size + 1px margin).
+          const ph = (docSettings.pointSize ?? 4) + 1;
+          g.drawRect(sx - ph, sy - ph, ph * 2, ph * 2);
           break;
         }
         case 'LINE': {

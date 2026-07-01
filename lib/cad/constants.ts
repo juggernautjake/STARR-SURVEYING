@@ -58,6 +58,9 @@ export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
   gripColor: '#0088ff',
   gripFillColor: '#ffffff',
 
+  // Point marker appearance
+  pointSize: 4,
+
   // Hover & highlight
   hoverGlowEnabled: true,
   hoverGlowIntensity: 1.0,

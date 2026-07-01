@@ -224,6 +224,10 @@ export interface DrawingSettings {
   gripColor: string;           // Grip square color, default matches selectionColor
   gripFillColor: string;       // Grip square fill color (default: '#ffffff')
 
+  // Point marker appearance
+  pointSize?: number;          // Half-length of the point crosshair in px; also thickens the
+                               // marker and scales its hover / selection highlights (2–16, default: 4)
+
   // Hover & highlight
   hoverGlowEnabled: boolean;   // Show multi-layer glow on hover (default: true)
   hoverGlowIntensity: number;  // Glow intensity multiplier 0.5–2.0 (default: 1.0)
