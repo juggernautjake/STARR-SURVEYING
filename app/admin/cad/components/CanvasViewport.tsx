@@ -9557,8 +9557,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const { wx, wy } = screenToDrawingWorld(sx, sy);
     const cursor = { x: wx, y: wy };
     const { settings } = useDrawingStore.getState().document;
+    const activeTool = useToolStore.getState().state.activeTool;
 
-    if (settings.snapEnabled) {
+    // Object snap is a placement aid — it tells you where your NEXT click will
+    // land. In SELECT a click just selects (nothing snaps), so running snap
+    // there only paints a green ENDPOINT square + label on every point you pass
+    // over, competing with the real hover highlight. Skip it in SELECT so
+    // hovering a point shows a single, clear highlight. (Moving a selection
+    // still snaps via endpointSnapDelta, which is independent of this.)
+    // Exception: the "snap point to another point" pick mode runs under SELECT
+    // and genuinely needs the snap marker to aim the pick.
+    const snapAllowed = activeTool !== 'SELECT' || snapPickRef.current !== null;
+    if (settings.snapEnabled && snapAllowed) {
       // §19.1 — narrow the feature list with the spatial
       // index before handing it to the snap engine. We pad
       // the query bbox by `snapRadius / zoom` so segments
