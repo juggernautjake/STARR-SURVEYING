@@ -56,6 +56,8 @@ import SurveyDescriptionPanel from './components/SurveyDescriptionPanel';
 import DeliveryHydrator from './components/DeliveryHydrator';
 import RecentRecoveriesDialog from './components/RecentRecoveriesDialog';
 import FileManagerDialog from './components/FileManagerDialog';
+import BranchDialog from './components/BranchDialog';
+import PointFileLibraryDialog from './components/PointFileLibraryDialog';
 import SealPickerModal from './components/SealPickerModal';
 import CodeStylePanel from './components/CodeStylePanel';
 import AISidebar from './components/AISidebar';
@@ -230,6 +232,10 @@ export default function CADLayout() {
   const [showDescriptionPanel, setShowDescriptionPanel] = useState(false);
   const [showRecentRecoveries, setShowRecentRecoveries] = useState(false);
   const [showFileManager, setShowFileManager] = useState(false);
+  // cad-branching — Branches & Reviews dialog + shared point-file library.
+  const [showBranchDialog, setShowBranchDialog] = useState(false);
+  const [branchDialogTab, setBranchDialogTab] = useState<'overview' | 'branches' | 'reviews'>('overview');
+  const [showPointLibrary, setShowPointLibrary] = useState(false);
   const [showSealPicker, setShowSealPicker] = useState(false);
   const [showCodeStylePanel, setShowCodeStylePanel] = useState(false);
   const [compassNotice, setCompassNotice] =
@@ -393,6 +399,31 @@ export default function CADLayout() {
     const handler = () => setShowFileManager(true);
     window.addEventListener('cad:openFileManager', handler);
     return () => window.removeEventListener('cad:openFileManager', handler);
+  }, []);
+
+  // cad-branching — Branches & Reviews dialog (optional detail.tab) and the
+  // shared point-file library.
+  useEffect(() => {
+    const onBranch = (e: Event) => {
+      const tab = (e as CustomEvent).detail?.tab as 'overview' | 'branches' | 'reviews' | undefined;
+      setBranchDialogTab(tab ?? 'overview');
+      setShowBranchDialog(true);
+    };
+    const onLibrary = () => setShowPointLibrary(true);
+    window.addEventListener('cad:openBranchDialog', onBranch);
+    window.addEventListener('cad:openPointFileLibrary', onLibrary);
+    return () => {
+      window.removeEventListener('cad:openBranchDialog', onBranch);
+      window.removeEventListener('cad:openPointFileLibrary', onLibrary);
+    };
+  }, []);
+
+  // cad-branching — a branch-review notification deep-links with ?reviews=1;
+  // pop the Reviews tab once the target drawing has had a moment to load.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('reviews') !== '1') return;
+    const t = setTimeout(() => { setBranchDialogTab('reviews'); setShowBranchDialog(true); }, 600);
+    return () => clearTimeout(t);
   }, []);
 
   // Open the official-seal picker (clicking the seal in the signature block).
@@ -1519,6 +1550,14 @@ export default function CADLayout() {
       {/* Shared file manager — folders/subfolders + all saved drawings */}
       {showFileManager && (
         <FileManagerDialog onClose={() => setShowFileManager(false)} />
+      )}
+
+      {/* cad-branching — Branches & Reviews + shared point-file library */}
+      {showBranchDialog && (
+        <BranchDialog onClose={() => setShowBranchDialog(false)} initialTab={branchDialogTab} />
+      )}
+      {showPointLibrary && (
+        <PointFileLibraryDialog onClose={() => setShowPointLibrary(false)} />
       )}
 
       {/* Official-seal picker — local upload + shared cloud seal library */}
