@@ -9,6 +9,7 @@
  * button. (Distinct from `<Placeholder>`, which marks an entire
  * not-yet-built screen.)
  */
+import type { ReactNode } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { controls, colors } from './theme';
@@ -19,11 +20,15 @@ interface EmptyStateProps {
   message?: string;
   /** Optional emoji/glyph shown above the title. */
   glyph?: string;
-  /** Optional call-to-action button. */
+  /** Simple call-to-action button (rendered with the accent color). Use
+   *  `children` instead when you need a specific shared <Button> variant. */
   action?: { label: string; onPress: () => void };
+  /** Custom action node (e.g. an app <Button variant="secondary" />).
+   *  Rendered in the action slot; takes precedence over `action`. */
+  children?: ReactNode;
 }
 
-export function EmptyState({ title, message, glyph, action }: EmptyStateProps) {
+export function EmptyState({ title, message, glyph, action, children }: EmptyStateProps) {
   const scheme = useResolvedScheme();
   const palette = colors[scheme];
 
@@ -34,7 +39,9 @@ export function EmptyState({ title, message, glyph, action }: EmptyStateProps) {
       {message ? (
         <Text style={[styles.message, { color: palette.muted }]}>{message}</Text>
       ) : null}
-      {action ? (
+      {children ? (
+        <View style={styles.actionSlot}>{children}</View>
+      ) : action ? (
         <TouchableOpacity
           style={[styles.action, { backgroundColor: palette.accent }]}
           onPress={action.onPress}
@@ -57,6 +64,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   glyph: { fontSize: 40, marginBottom: 2 },
+  actionSlot: { marginTop: 8, minWidth: 200 },
   title: { fontSize: 20, fontWeight: '700', textAlign: 'center' },
   message: {
     fontSize: 15,
