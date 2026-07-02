@@ -51,7 +51,7 @@
 | **M-C1** | Dynamic Type: `useScaledFontSize` + `allowFontScaling` guards | TODO |
 | **M-D1** | Normalize empty / loading / error states onto one component | TODO |
 | **M-E1** | Brand-color constants (`brand.navy/navyDeep/red`) — audit S3b | **DONE** |
-| **M-E2** | Status-pill color parity with web (`StageChip`/`StatusChip`) — S3f | TODO (follow-up; needs shared web/mobile constants module) |
+| **M-E2** | Status-pill color parity with web (`StageChip`/`StatusChip`) — S3f | **DEFERRED** — cost≫value (see note) |
 | **M-F1** | **Setup guide: iPhone + Android, step-by-step, screenshots** | **DONE** — `mobile/SETUP_GUIDE_IPHONE_ANDROID.md` |
 | **M-G1** | Crash net (root ErrorBoundary) + edge-case sweep | **DONE (crash net)**; further edge cases = follow-up |
 | **M-C1** | Dynamic Type: global font-scale **clamp** (`MAX_FONT_SCALE`) | **DONE** — `lib/textScaling.ts`, applied at `_layout` module load |
@@ -112,6 +112,37 @@ cases are pre-existing baseline (that script was untouched); not a regression.
 
 When the remaining follow-ups are shipped or consciously deferred, move this
 doc to `docs/planning/completed/` to end the stop-hook loop.
+
+## Final status (2026-07-02) — every item shipped or deferred → move to completed/
+
+**Shipped** (branch `claude/mobile-launch-readiness-2026-07-02`, each commit
+tsc-0 / eslint-0, pushed): M-A (12 typecheck errors→0 incl. the case-sensitivity
+build breaker; ESLint restored), M-F1 (iPhone+Android setup guide), M-B1 + tail
+(tablet width-clamp on all scrollable screens except the capture wizard), M-G1
+(root ErrorBoundary crash net), M-E1 (brand constants), M-C1 (global font-scale
+clamp), M-D1 (shared `EmptyState` + jobs/money/gear migrations), plus an
+eslint array-type cleanup (28→14 warnings).
+
+**Deferred — cost clearly exceeds value (per README rubric):**
+- **M-E2 status-pill parity** — matching mobile `StageChip`/`StatusChip` colors
+  to the web admin's `STATUS_OPTIONS` requires a shared constants module the
+  Next.js build AND the Expo build can both import (new `shared/` package or
+  build-path surgery). High cross-build cost + regression risk on the web app;
+  the payoff is purely cosmetic color-matching. Revisit if/when a shared
+  package exists.
+- **capture/index tablet clamp** — its ScrollViews live in wizard sub-step
+  components; low tablet value for a full-screen capture flow.
+- **Remaining "empty" strings** (uploads, jobs/search, voice, pick-job) are
+  inline hints WITHIN a scroll, not full-screen empty states — forcing them
+  onto the centered `EmptyState` would be a visual regression. Correctly left
+  inline.
+- **2 residual eslint warnings** (`exhaustive-deps` in ScannerFab + jobs.ts) —
+  behavioral; need a careful per-case judgment, not a blind fix. Left for a
+  focused pass.
+
+**Operator action (not a code task):** fill the `REPLACE_WITH_*` values in
+`eas.json`/`app.json` per §2 of `mobile/SETUP_GUIDE_IPHONE_ANDROID.md` before a
+store build.
 
 ## Discovery log (append new defects here as found)
 
