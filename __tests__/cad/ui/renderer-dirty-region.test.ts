@@ -22,7 +22,7 @@ const SRC = fs.readFileSync(
 describe('drawStateRef — per-feature tessellation cache', () => {
   it('declares a Map keyed by feature id with the comparison fields', () => {
     expect(SRC).toMatch(
-      /const drawStateRef = useRef<\s*\n\s*Map<\s*\n\s*string,\s*\n\s*\{\s*\n\s*feature: Feature;\s*\n\s*epsilon: number;\s*\n\s*layerColor: string;/,
+      /const drawStateRef = useRef<\s*\n\s*Map<\s*\n\s*string,\s*\n\s*\{\s*\n\s*feature: Feature;\s*\n\s*epsilon: number;\s*\n\s*layerColor: string;\s*\n\s*pointSize: number;/,
     );
   });
 
@@ -43,15 +43,15 @@ describe('renderFeatures — dirty-skip + clear loop', () => {
     expect(SRC).toMatch(/if \(isDirty\) processedDirty\.push\(feature\.id\)/);
   });
 
-  it('needsRedraw fires on identity change, dirty stamp, camera/viewport move, missing prev, epsilon change, or layer-color change', () => {
+  it('needsRedraw fires on identity change, dirty stamp, camera/viewport move, missing prev, epsilon change, layer-color change, or point-size change', () => {
     expect(SRC).toMatch(
-      /const needsRedraw =\s*\n\s*freshlyCreated \|\|\s*\n\s*isDirty \|\|\s*\n\s*cameraMoved \|\|[^\n]*\n\s*!prev \|\|\s*\n\s*prev\.feature !== feature \|\|\s*\n\s*prev\.epsilon !== simplifyEpsilon \|\|\s*\n\s*prev\.layerColor !== layerColor;/,
+      /const needsRedraw =\s*\n\s*freshlyCreated \|\|\s*\n\s*isDirty \|\|\s*\n\s*cameraMoved \|\|[^\n]*\n\s*!prev \|\|\s*\n\s*prev\.feature !== feature \|\|\s*\n\s*prev\.epsilon !== simplifyEpsilon \|\|\s*\n\s*prev\.layerColor !== layerColor \|\|\s*\n\s*prev\.pointSize !== pointSize;/,
     );
   });
 
   it('runs drawFeature ONLY when needsRedraw is true (the perf win)', () => {
     expect(SRC).toMatch(
-      /if \(needsRedraw\) \{\s*\n\s*drawFeature\(g, feature, simplifyEpsilon\);[\s\S]*?drawStateRef\.current\.set\(feature\.id, \{[\s\S]*?feature,\s*\n\s*epsilon: simplifyEpsilon,\s*\n\s*layerColor,\s*\n\s*\}\);/,
+      /if \(needsRedraw\) \{\s*\n\s*drawFeature\(g, feature, simplifyEpsilon\);[\s\S]*?drawStateRef\.current\.set\(feature\.id, \{[\s\S]*?feature,\s*\n\s*epsilon: simplifyEpsilon,\s*\n\s*layerColor,\s*\n\s*pointSize,\s*\n\s*\}\);/,
     );
   });
 

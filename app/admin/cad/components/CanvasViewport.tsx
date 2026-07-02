@@ -949,6 +949,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         feature: Feature;
         epsilon: number;
         layerColor: string;
+        pointSize: number;
       }
     >
   >(new Map());
@@ -2074,6 +2075,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const simplifyEpsilon = lodActive
       ? lodSimplificationThreshold(worldPerPixel, lodConfig)
       : 0;
+    // Point-marker size (a display preference) — a change must re-tessellate
+    // every point's crosshair, so it participates in the per-feature redraw
+    // gate below (otherwise a size change wouldn't repaint until the next
+    // pan / edit busted the cache).
+    const pointSize = doc.settings.displayPreferences?.pointSize ?? 6;
 
     // Lazily-maintained per-layer sub-containers (for per-layer rotation)
     const layerContainers = pixi._layerContainers;
@@ -2188,13 +2194,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         !prev ||
         prev.feature !== feature ||
         prev.epsilon !== simplifyEpsilon ||
-        prev.layerColor !== layerColor;
+        prev.layerColor !== layerColor ||
+        prev.pointSize !== pointSize;
       if (needsRedraw) {
         drawFeature(g, feature, simplifyEpsilon);
         drawStateRef.current.set(feature.id, {
           feature,
           epsilon: simplifyEpsilon,
           layerColor,
+          pointSize,
         });
         if (isDirty) processedDirty.push(feature.id);
       }
@@ -2376,7 +2384,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // Point Size display preference (Prefs panel) so points can be
           // made bigger / easier to grab; a bolder stroke floor keeps them
           // readable even when the feature's line weight is hairline-thin.
-          const size = useDrawingStore.getState().document.settings.displayPreferences?.pointSize ?? 6;
+          const size = doc.settings.displayPreferences?.pointSize ?? 6;
           const ptWeight = Math.max(weight, 2);
           g.lineStyle(ptWeight, color, alpha);
           g.moveTo(sx - size, sy);

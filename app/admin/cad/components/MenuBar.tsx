@@ -1018,6 +1018,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         // drawings-collaboration Slice 4 — notes thread for the current
         // drawing. The RPLS / drawer / job-overseer dialog.
         { label: '💬 Drawing notes…', action: () => { window.dispatchEvent(new CustomEvent('cad:openDrawingNotes')); setOpenMenu(null); } },
+        // cad-branching — GitHub-style branch / review workflow for the shared
+        // drawing, and the shared point-file library.
+        { label: '🔀 Branches & Reviews…', action: () => { window.dispatchEvent(new CustomEvent('cad:openBranchDialog')); setOpenMenu(null); } },
+        { label: '📍 Point File Library…', action: () => { window.dispatchEvent(new CustomEvent('cad:openPointFileLibrary')); setOpenMenu(null); } },
         { label: 'Recover unsaved drawings…', action: () => { onOpenRecentRecoveries?.(); setOpenMenu(null); } },
         { separator: true },
         { label: 'Save', shortcut: 'Ctrl+S', action: () => { void saveDocument(); setOpenMenu(null); } },
@@ -1054,6 +1058,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
           label: 'Import',
           submenu: [
             { label: 'Import Survey Data (CSV / RW5 / JobXML)…', action: () => { onOpenImport?.(); setOpenMenu(null); } },
+            { label: '📍 From Shared Point-File Library…', action: () => { window.dispatchEvent(new CustomEvent('cad:openPointFileLibrary')); setOpenMenu(null); } },
             { label: 'Import DXF…', action: () => { void openDxf(); setOpenMenu(null); } },
             { label: 'Import GeoJSON…', action: () => { void openGeoJson(); setOpenMenu(null); } },
             // cad-trv-import-export Slice 4 — opens a file picker,
