@@ -55,7 +55,7 @@
 | **M-F1** | **Setup guide: iPhone + Android, step-by-step, screenshots** | **DONE** — `mobile/SETUP_GUIDE_IPHONE_ANDROID.md` |
 | **M-G1** | Crash net (root ErrorBoundary) + edge-case sweep | **DONE (crash net)**; further edge cases = follow-up |
 | **M-C1** | Dynamic Type: global font-scale **clamp** (`MAX_FONT_SCALE`) | **DONE** — `lib/textScaling.ts`, applied at `_layout` module load |
-| **M-D1** | Normalize empty/loading/error states onto one component | TODO (follow-up; states exist, just inconsistent) |
+| **M-D1** | Shared `<EmptyState>` component + jobs-list migration (pattern set) | **DONE (component + 1 migration)**; remaining list screens = incremental follow-up |
 
 ## M-A2 — typecheck error breakdown (12)
 
