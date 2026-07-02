@@ -724,7 +724,7 @@ function TransactionDateField({
 
 type TaxFlag = 'full' | 'partial_50' | 'none' | 'review';
 
-const TAX_FLAG_OPTIONS: ReadonlyArray<TaxFlag> = ['full', 'partial_50', 'none', 'review'];
+const TAX_FLAG_OPTIONS: readonly TaxFlag[] = ['full', 'partial_50', 'none', 'review'];
 
 const TAX_FLAG_LABEL: Record<TaxFlag, string> = {
   full: 'Full',

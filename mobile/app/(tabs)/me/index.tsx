@@ -455,7 +455,7 @@ export default function MeScreen() {
                     { key: 'light', label: 'Light' },
                     { key: 'dark', label: 'Dark' },
                     { key: 'sun', label: '☀ Sun' },
-                  ] as Array<{ key: ThemePreference; label: string }>
+                  ] as { key: ThemePreference; label: string }[]
                 ).map((opt) => {
                   const active = themePref === opt.key;
                   return (

@@ -116,7 +116,7 @@ export function usePinnedStorageStats(): {
  *  Powers the optional Me-tab "Pinned files" panel where the user
  *  can review + bulk-unpin. */
 export function usePinnedFilesWithMeta(): {
-  rows: Array<PinnedRow & { name: string | null; content_type: string | null }>;
+  rows: (PinnedRow & { name: string | null; content_type: string | null })[];
   isLoading: boolean;
 } {
   const { data, isLoading } = useQuery<

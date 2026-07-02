@@ -75,14 +75,14 @@ interface CorrectionDraft {
   notes: string;
 }
 
-const MONUMENT_TYPES: Array<MonumentDraft['monument_type']> = [
+const MONUMENT_TYPES: MonumentDraft['monument_type'][] = [
   'rebar',
   'pipe',
   'stone',
   'concrete',
   'other',
 ];
-const SEVERITIES: Array<HazardDraft['severity']> = ['low', 'med', 'high'];
+const SEVERITIES: HazardDraft['severity'][] = ['low', 'med', 'high'];
 
 export default function AddNoteScreen() {
   const scheme = useResolvedScheme();

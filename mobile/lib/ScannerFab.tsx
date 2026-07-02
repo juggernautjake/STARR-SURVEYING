@@ -164,11 +164,11 @@ export function ScannerFab({ bottomInset = 80 }: ScannerFabProps) {
           [cancelButton]
         );
       } else {
-        const buttons: Array<{
+        const buttons: {
           text: string;
           style?: 'cancel' | 'destructive' | 'default';
           onPress?: () => void;
-        }> = [cancelButton];
+        }[] = [cancelButton];
         if (currentJobId) {
           buttons.push({
             text: 'Borrow',

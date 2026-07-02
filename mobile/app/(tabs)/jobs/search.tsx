@@ -322,7 +322,7 @@ function HighlightedText({
   // rendered segments — only the index alignment is lower-cased.
   const lc = text.toLowerCase();
   const lq = query.toLowerCase();
-  const segments: Array<{ text: string; match: boolean }> = [];
+  const segments: { text: string; match: boolean }[] = [];
   let cursor = 0;
   while (cursor < text.length) {
     const idx = lc.indexOf(lq, cursor);

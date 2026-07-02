@@ -171,7 +171,7 @@ export function useEquipmentList(filter?: EquipmentListFilter): {
   error: Error | undefined;
 } {
   const clauses: string[] = [];
-  const params: Array<string | number> = [];
+  const params: (string | number)[] = [];
   if (!filter?.includeRetired) {
     clauses.push('retired_at IS NULL');
   }
