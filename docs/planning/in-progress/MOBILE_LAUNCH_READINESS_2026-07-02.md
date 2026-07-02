@@ -52,7 +52,7 @@
 | **M-D1** | Normalize empty / loading / error states onto one component | TODO |
 | **M-E1** | Brand-color constants (`BRAND_NAVY`/`_D`/`RED`) — audit S3b | TODO |
 | **M-E2** | Status-pill color parity with web (`StageChip`/`StatusChip`) — S3f | TODO |
-| **M-F1** | **Setup guide: iPhone + Android, step-by-step, screenshots** | TODO |
+| **M-F1** | **Setup guide: iPhone + Android, step-by-step, screenshots** | **DONE** — `mobile/SETUP_GUIDE_IPHONE_ANDROID.md` |
 | **M-G1** | QA sweep: offline / permission-denied / empty-data edge cases | TODO |
 
 ## M-A2 — typecheck error breakdown (12)
