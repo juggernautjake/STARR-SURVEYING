@@ -520,16 +520,6 @@ export default function SettingsDialog({ onClose }: Props) {
                   unit="px"
                   tooltip="Size of the small square handles that appear at vertices and control points of selected features. Larger grips are easier to click but take up more visual space. Default: 6px"
                 />
-                <SliderInput
-                  label="Point Size"
-                  value={settings.pointSize ?? 4}
-                  onChange={(v) => drawingStore.updateSettings({ pointSize: Math.round(v) })}
-                  min={2}
-                  max={16}
-                  step={1}
-                  unit="px"
-                  tooltip="Size of point markers (the crosshair) on the canvas. Larger points also draw a bolder crosshair and grow their hover/selection highlights to match. Affects every point in the drawing. Default: 4px"
-                />
               </div>
 
               <div className="border-t border-gray-700 pt-3">
@@ -567,7 +557,6 @@ export default function SettingsDialog({ onClose }: Props) {
                       gripFillColor: '#ffffff',
                       selectionLineWidth: 1.5,
                       gripSize: 6,
-                      pointSize: 4,
                       hoverGlowEnabled: true,
                       hoverGlowIntensity: 1.0,
                     });

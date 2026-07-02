@@ -1,5 +1,6 @@
 // lib/cad/geometry/bounds.ts — Bounding box utilities
 import type { Point2D, BoundingBox, Feature } from '../types';
+import { imageCorners } from './image';
 
 /** Compute bounding box of a set of points */
 export function computeBounds(points: Point2D[]): BoundingBox {
@@ -77,8 +78,11 @@ export function featureBounds(feature: Feature): BoundingBox {
     }
     case 'IMAGE':
       if (geom.image) {
-        const { position: p, width: w, height: h } = geom.image;
-        return { minX: p.x, minY: p.y, maxX: p.x + w, maxY: p.y + h };
+        // Use the four ROTATED corners so a rotated image's bounds match
+        // its on-screen footprint (selection frame, zoom-to-fit, and the
+        // spatial index that drives click hit-testing).
+        const { bl, br, tr, tl } = imageCorners(geom.image);
+        return computeBounds([bl, br, tr, tl]);
       }
       return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
     case 'TEXT':

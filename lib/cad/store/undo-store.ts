@@ -12,6 +12,21 @@ interface UndoStore {
   redoStack: UndoEntry[];
 
   pushUndo: (entry: UndoEntry) => void;
+  /**
+   * Merge the separate ADD_FEATURE undo entries for `featureIds` into a single
+   * BATCH entry, so one undo reverses them all at once. Used when a gesture
+   * commits many features incrementally (e.g. a polyline drawn as per-click
+   * LINE segments) but should undo as one unit. Entries not currently on the
+   * stack (already undone) are ignored; a no-op when fewer than 2 match.
+   */
+  coalesceEntries: (featureIds: string[], description: string) => void;
+  /**
+   * Remove the most-recent single-op ADD_FEATURE entry for `featureId` from the
+   * undo stack entirely (NOT moved to redo). For backing a just-placed
+   * in-progress feature out — e.g. a polyline segment during a mid-draw vertex
+   * undo, where the feature is deleted directly and shouldn't be redoable.
+   */
+  dropAddEntry: (featureId: string) => void;
   undo: () => void;
   redo: () => void;
   clear: () => void;
@@ -81,6 +96,48 @@ export const useUndoStore = create<UndoStore>((set, get) => ({
       undoStack: [...state.undoStack.slice(-MAX_UNDO_STACK + 1), entry],
       redoStack: [], // New action clears redo stack
     })),
+
+  coalesceEntries: (featureIds, description) =>
+    set((state) => {
+      const idSet = new Set(featureIds);
+      const pulled: UndoOperation[] = [];
+      const remaining: UndoEntry[] = [];
+      for (const entry of state.undoStack) {
+        const op = entry.operations[0];
+        if (
+          entry.operations.length === 1 &&
+          op.type === 'ADD_FEATURE' &&
+          idSet.has((op.data as Feature).id)
+        ) {
+          pulled.push(op);
+        } else {
+          remaining.push(entry);
+        }
+      }
+      if (pulled.length < 2) return {}; // nothing meaningful to merge
+      // The pulled entries were the most-recent pushes (a draw gesture is
+      // uninterrupted), so appending the batch keeps it at the top of the
+      // stack — one undo now reverses the whole gesture.
+      return { undoStack: [...remaining, makeBatchEntry(description, pulled)] };
+    }),
+
+  dropAddEntry: (featureId) =>
+    set((state) => {
+      for (let i = state.undoStack.length - 1; i >= 0; i -= 1) {
+        const entry = state.undoStack[i];
+        const op = entry.operations[0];
+        if (
+          entry.operations.length === 1 &&
+          op.type === 'ADD_FEATURE' &&
+          (op.data as Feature).id === featureId
+        ) {
+          const next = state.undoStack.slice();
+          next.splice(i, 1);
+          return { undoStack: next };
+        }
+      }
+      return {};
+    }),
 
   undo: () => {
     const { undoStack, redoStack } = get();

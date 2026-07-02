@@ -18,6 +18,7 @@ export const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
   coordMode: 'NE',
   originNorthing: 0,
   originEasting: 0,
+  pointSize: 6,
 };
 
 export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
@@ -57,9 +58,6 @@ export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
   gripSize: 6,
   gripColor: '#0088ff',
   gripFillColor: '#ffffff',
-
-  // Point marker appearance
-  pointSize: 4,
 
   // Hover & highlight
   hoverGlowEnabled: true,

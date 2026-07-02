@@ -113,6 +113,11 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
     if (submenuCloseTimer.current) clearTimeout(submenuCloseTimer.current);
     submenuCloseTimer.current = setTimeout(() => setOpenSubmenu(null), 180);
   };
+  // Clear any pending submenu-close timer on unmount so it can't fire
+  // setOpenSubmenu after the menu bar is gone.
+  useEffect(() => () => {
+    if (submenuCloseTimer.current) clearTimeout(submenuCloseTimer.current);
+  }, []);
   const [dbDialog, setDbDialog] = useState<'save' | 'open' | null>(null);
   const [exportLayersOpen, setExportLayersOpen] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -1320,7 +1325,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         // selection. Result is enqueued as a ghost-previewed AI
         // proposal that they accept or skip.
         {
-          label: 'Calc Point (4th corner, parallel, etc)…',
+          label: 'Calc Point (dist–dist, bearing–dist, bearing–bearing, 4th corner)…',
           action: () => {
             window.dispatchEvent(new CustomEvent('cad:openCalcPointDialog'));
             setOpenMenu(null);

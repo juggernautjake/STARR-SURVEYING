@@ -161,7 +161,7 @@ function buildToolGroups(
     {
       mainTool: 'DRAW_LINE',
       label: 'Line',
-      description: 'Draw a single line segment. Click the start point, then the end point. Right-click for line type variants.',
+      description: 'Draw a single line segment. Click the start point, then the end point. Right-click for line type variants, the polyline, and the curved / spline / NURBS line tools.',
       shortcut: 'L',
       icon: <Minus size={16} />,
       variants: [
@@ -170,9 +170,11 @@ function buildToolGroups(
         { tool: 'DRAW_LINE', label: 'Line — Dotted', description: 'Draw a dotted line segment.', icon: <GitCommitHorizontal size={14} />, action: () => { toolStore.setTool('DRAW_LINE'); toolStore.setDrawStyle({ lineType: 'DOTTED' }); } },
         { tool: 'DRAW_LINE', label: 'Line — Dash-Dot', description: 'Draw a dash-dot line segment (centerline style).', icon: <SeparatorHorizontal size={14} />, action: () => { toolStore.setTool('DRAW_LINE'); toolStore.setDrawStyle({ lineType: 'DASH_DOT' }); } },
         { tool: 'DRAW_LINE', label: 'Line — Center', description: 'Draw a centerline (long dash – short dash pattern).', icon: <Navigation size={14} />, action: () => { toolStore.setTool('DRAW_LINE'); toolStore.setDrawStyle({ lineType: 'CENTER' }); } },
-        { tool: 'DRAW_CURVED_LINE', label: 'Curved Line', description: 'Click to place fit points with tangent handles. Right-click or double-click to finish. Creates smooth bezier curves.', shortcut: 'CL', icon: <Waves size={14} /> },
         { tool: 'DRAW_LINE', label: 'Construction Line', description: 'Same as Line but intended for reference geometry.', icon: <Slash size={14} />, belowSep: true, action: () => { toolStore.setTool('DRAW_LINE'); toolStore.setDrawStyle({ lineType: 'SOLID' }); } },
-        { tool: 'DRAW_POLYLINE', label: 'Polyline (multiple lines)', description: 'Draw multiple connected line segments in succession. Each click drops a vertex and starts the next segment; right-click or double-click to finish. Use this instead of the single Line tool when you want a continuous run of lines.', shortcut: 'PL', icon: <Spline size={14} /> },
+        { tool: 'DRAW_POLYLINE', label: 'Polyline (multiple lines)', description: 'Draw multiple connected line segments in succession. Each click drops a vertex and starts the next segment; right-click or double-click to finish. Use this instead of the single Line tool when you want a continuous run of lines.', shortcut: 'PL', icon: <Spline size={14} />, belowSep: true },
+        { tool: 'DRAW_CURVED_LINE', label: 'Curved Line', description: 'Click to place fit points with tangent handles. Right-click or double-click to finish. Creates smooth bezier curves.', shortcut: 'CL', icon: <Waves size={14} /> },
+        { tool: 'DRAW_SPLINE_FIT', label: 'Spline (fit-point)', description: 'Click fit-points for a smooth Fusion 360-style spline. Double-click to finish.', shortcut: 'SF', icon: <Waves size={14} /> },
+        { tool: 'DRAW_SPLINE_CONTROL', label: 'Spline (NURBS control-point)', description: 'Click control points for a NURBS spline. Double-click to finish.', shortcut: 'SN', icon: <Spline size={14} /> },
       ],
     },
     {
@@ -395,8 +397,8 @@ function buildToolGroups(
         { tool: 'PERPENDICULAR', label: 'Perpendicular', description: 'Draw a line off an existing line. Hover a LINE / POLYLINE / POLYGON to lock the start point onto it (slides along the segment, snaps to vertices), click to anchor, then drag away — perpendicular (90°) by default — and click to set the length. A floating panel sets an exact length and an angle off the line or an absolute azimuth; the far end snaps onto another line it meets. Useful for setbacks, offsets, and ties between lines.', shortcut: 'PR', icon: <CornerRightDown size={14} /> },
         { tool: 'SMOOTH_POLYLINE', label: 'Smooth (Polyline → Spline)', description: 'Convert a POLYLINE / POLYGON with ≥ 3 vertices into a smooth SPLINE that interpolates the same vertex set. Useful for imported topo / contour traces and road centerlines that came in as linear segments. Replaces the source feature; style + properties carry over.', shortcut: 'SM', icon: <Waves size={14} /> },
         { tool: 'SIMPLIFY_POLYLINE', label: 'Simplify (RDP)', description: 'Drop redundant vertices from a POLYLINE / POLYGON via Ramer-Douglas-Peucker. Surveyors use it to clean up noisy GPS traces, scanned-PDF traces, polygons-from-pixel-trace, etc. Tolerance in feet — vertices closer than this to the line through their kept neighbours get pruned.', shortcut: 'SI', icon: <Pentagon size={14} /> },
-        { tool: 'INSERT_VERTEX', label: 'Insert Vertex', description: 'Click on any POLYLINE or POLYGON edge to insert a new vertex at the click point. Useful when an imported polyline is missing a corner (a property monument call-out partway down a leg, an HOA boundary that needs a new bend). Cyan ring marks where the new vertex will land before clicking.', shortcut: 'IV', icon: <Crosshair size={14} /> },
-        { tool: 'REMOVE_VERTEX', label: 'Remove Vertex', description: 'Click within 14 px of a vertex on a POLYLINE or POLYGON to delete it. Won’t drop the chain below 2 (line) / 3 (polygon) vertices. Red X marks the doomed vertex; grey ring marks vertices that can’t be removed without violating the minimum.', shortcut: 'RX', icon: <Eraser size={14} /> },
+        { tool: 'INSERT_VERTEX', label: 'Insert Node', description: 'Add a node to a POLYLINE / POLYGON edge or a SPLINE curve at the click point. On a spline the curve shape is preserved exactly (de Casteljau split) — you just gain an editable node. Useful when an imported line is missing a corner, or you want another handle to reshape a curve. Cyan ring marks where the node will land. Survey points under the line are never affected.', shortcut: 'IV', icon: <Crosshair size={14} /> },
+        { tool: 'REMOVE_VERTEX', label: 'Remove Node', description: 'Click within 14 px of a node on a POLYLINE / POLYGON / SPLINE to delete just that node (the feature stays). Won’t drop below 2 (line / spline) / 3 (polygon) nodes. Red X marks the node to remove; grey ring marks ones at the minimum. Does NOT delete any survey/file POINT feature that happens to sit under the node.', shortcut: 'RX', icon: <Eraser size={14} /> },
         { tool: 'LIST', label: 'List (probe feature)', description: 'Click any feature to print a comprehensive description to the command bar — type, layer, vertex count, length / area, key style + properties. Useful for verifying imported geometry without diving through the property panel.', shortcut: 'LI', icon: <MousePointer2 size={14} /> },
       ],
     },
@@ -406,13 +408,11 @@ function buildToolGroups(
     {
       mainTool: 'DRAW_ARC',
       label: 'Arc',
-      description: 'Draw a true circular arc. Right-click for spline drawing tools.',
+      description: 'Draw a true circular arc. Click PC, mid-point, then PT. The curved / spline / NURBS line tools now live under the Line tool (right-click it).',
       shortcut: 'A',
       icon: <GitCommitHorizontal size={16} />,
       variants: [
         { tool: 'DRAW_ARC', label: 'Arc (3-point)', description: 'Click PC, mid-point, PT to define an arc.', shortcut: 'A', icon: <GitCommitHorizontal size={14} /> },
-        { tool: 'DRAW_SPLINE_FIT', label: 'Spline (fit-point)', description: 'Click fit-points for a smooth Fusion 360-style spline. Double-click to finish.', shortcut: 'SF', icon: <Waves size={14} /> },
-        { tool: 'DRAW_SPLINE_CONTROL', label: 'Spline (NURBS control-point)', description: 'Click control points for a NURBS spline. Double-click to finish.', shortcut: 'SN', icon: <Spline size={14} /> },
       ],
     },
     {

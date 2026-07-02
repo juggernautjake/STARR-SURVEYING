@@ -164,6 +164,7 @@ import {
   type GraphicsLike,
 } from '@/lib/cad/geometry/curve-render';
 import { simplifyPolyline as simplifyPolylineFn } from '@/lib/cad/geometry/simplify';
+import { splineNodeIndices, closestPointOnSpline } from '@/lib/cad/geometry/spline-edit';
 import { renderLineWithType } from '@/lib/cad/styles/linetype-renderer';
 // cad-trv-fidelity Slice 7 — render assigned point symbols (monument /
 // utility / vegetation glyphs) on POINT features.
@@ -307,6 +308,14 @@ const MIN_LABEL_FONT_SIZE_PX = 4;
 // §13 — labels scale with zoom × drawingScale; without an upper bound they
 // balloon when zoomed in and clutter the drawing. Cap the on-screen size.
 const MAX_LABEL_FONT_SIZE_PX = 26;
+// Hover treatment for a feature's labels — when the cursor is over a point (or
+// any feature), its name / code / description / elevation labels go BOLD in a
+// dark accent colour and get a translucent highlight pill behind them, so it's
+// obvious which labels belong to the thing under the cursor.
+const HOVER_LABEL_TEXT_COLOR = '#1d4ed8'; // blue-700, reads on white + the pill
+const HOVER_LABEL_PILL_COLOR = '#bfdbfe'; // blue-200
+const HOVER_LABEL_PILL_ALPHA = 0.8;
+const HOVER_LABEL_PILL_PADDING = 2;
 // §13 — feature strokes are drawn in screen px from `lineWeight`; thin
 // weights (e.g. 0.75) render as near-invisible hairlines. Floor the
 // on-screen stroke so lines stay legible (never caps bold weights).
@@ -1053,6 +1062,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     moved: boolean;
   } | null>(null);
   const imageGhostSpriteRef = useRef<import('pixi.js').Sprite | null>(null);
+  // WebGL context-loss safety net — handlers registered on the canvas so the
+  // unmount cleanup (and StrictMode double-mount) can remove them cleanly.
+  const ctxHandlersRef = useRef<{
+    canvas: HTMLCanvasElement;
+    onLost: (e: Event) => void;
+    onRestored: (e: Event) => void;
+  } | null>(null);
   // Text label drag tracking
   const labelDragRef = useRef<{
     featureId: string;
@@ -1178,6 +1194,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const polylineGroupIdRef = useRef<string | null>(null);
   // Track last segment feature ID for dblclick cleanup
   const lastPolylineSegmentIdRef = useRef<string | null>(null);
+  // All segment feature IDs created for the in-progress polyline, so their
+  // separate per-segment undo entries can be coalesced into one on finish —
+  // a single undo then removes the whole polyline (not one segment at a time).
+  const polylineSegmentIdsRef = useRef<string[]>([]);
   // Track whether the text input overlay was explicitly cancelled (Escape) to suppress onBlur commit
   const textInputCancelledRef = useRef(false);
 
@@ -1436,6 +1456,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           autoDensity: true,
         });
 
+        // ── WebGL context-loss safety net ──────────────────────────────
+        // The GPU can drop the WebGL context (driver hiccup, memory
+        // pressure, OS sleep). By default the browser will NOT try to
+        // restore it — the canvas goes permanently blank and the app
+        // looks "crashed". Calling preventDefault() on the lost event
+        // tells the browser to attempt restoration. On restore we drop
+        // the image texture cache so every sprite re-uploads from source
+        // on the next frame instead of rendering from a dead GL handle.
+        const onLost = (e: Event) => {
+          e.preventDefault();
+          cadLog.error('CanvasViewport', 'WebGL context lost — attempting recovery');
+        };
+        const onRestored = () => {
+          cadLog.info('CanvasViewport', 'WebGL context restored — rebuilding image textures');
+          // Force renderImageFeatures() into its rebuild branch next frame.
+          imageCacheDocIdRef.current = null;
+        };
+        canvas.addEventListener('webglcontextlost', onLost, false);
+        canvas.addEventListener('webglcontextrestored', onRestored, false);
+        ctxHandlersRef.current = { canvas, onLost, onRestored };
+
         // paperLayer is NOT rotated — the paper rectangle stays fixed
         const paperLayer = new PIXI.Container();
         // drawingRotContainer holds everything that visually rotates with the drawing
@@ -1617,8 +1658,37 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     return () => {
       cancelled = true;
       cancelAnimationFrame(rafRef.current);
-      if (pixiRef.current) {
-        pixiRef.current.app.destroy(false);
+      // Cancel any queued coalesced mouse-move frame so it can't run after
+      // teardown (processMouseMove guards on canvasRef, but don't even fire).
+      if (mouseMoveRafRef.current !== null) {
+        cancelAnimationFrame(mouseMoveRafRef.current);
+        mouseMoveRafRef.current = null;
+      }
+      // Remove the WebGL context-loss listeners from the canvas.
+      const handlers = ctxHandlersRef.current;
+      if (handlers) {
+        handlers.canvas.removeEventListener('webglcontextlost', handlers.onLost, false);
+        handlers.canvas.removeEventListener('webglcontextrestored', handlers.onRestored, false);
+        ctxHandlersRef.current = null;
+      }
+      // Tear down the drag ghost if a move was in flight.
+      destroyImageGhost();
+      const pixi = pixiRef.current;
+      if (pixi) {
+        // app.destroy(false) leaves our cached sprites/textures alive on the
+        // GPU. Explicitly destroy them first — same pattern as the
+        // document-switch cleanup — so leaving and re-entering the editor
+        // doesn't leak GPU memory each time.
+        for (const [, sprite] of pixi.imageSprites) {
+          sprite.parent?.removeChild(sprite);
+          try { sprite.destroy(); } catch { /* already torn down */ }
+        }
+        pixi.imageSprites.clear();
+        for (const [, tex] of pixi.imageTextures) {
+          try { tex.destroy(true); } catch { /* texture may be shared/already gone */ }
+        }
+        pixi.imageTextures.clear();
+        pixi.app.destroy(false);
         pixiRef.current = null;
       }
     };
@@ -2005,9 +2075,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const simplifyEpsilon = lodActive
       ? lodSimplificationThreshold(worldPerPixel, lodConfig)
       : 0;
-    // Global point-marker size — a change must re-tessellate every point's
-    // crosshair, so it participates in the per-feature redraw gate below.
-    const pointSize = doc.settings.pointSize ?? 4;
+    // Point-marker size (a display preference) — a change must re-tessellate
+    // every point's crosshair, so it participates in the per-feature redraw
+    // gate below (otherwise a size change wouldn't repaint until the next
+    // pan / edit busted the cache).
+    const pointSize = doc.settings.displayPreferences?.pointSize ?? 6;
 
     // Lazily-maintained per-layer sub-containers (for per-layer rotation)
     const layerContainers = pixi._layerContainers;
@@ -2308,12 +2380,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             : 14;
           renderSymbol(g, symbol, sx, sy, symPx, feature.style.symbolRotation ?? 0, color, alpha);
         } else {
-          // Point-marker size is a global setting (default 4). Bigger points
-          // also draw a thicker crosshair so "make points bigger" reads as
-          // bolder too, not just longer hairlines.
-          const size = doc.settings.pointSize ?? 4;
-          const pointWeight = Math.max(weight, size * 0.45);
-          g.lineStyle(pointWeight, color, alpha);
+          // Plain "file point" crosshair. Size is user-tunable via the
+          // Point Size display preference (Prefs panel) so points can be
+          // made bigger / easier to grab; a bolder stroke floor keeps them
+          // readable even when the feature's line weight is hairline-thin.
+          const size = doc.settings.displayPreferences?.pointSize ?? 6;
+          const ptWeight = Math.max(weight, 2);
+          g.lineStyle(ptWeight, color, alpha);
           g.moveTo(sx - size, sy);
           g.lineTo(sx + size, sy);
           g.moveTo(sx, sy - size);
@@ -2559,11 +2632,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     );
     const activeIds = new Set(visibleFeatures.map((f) => f.id));
 
-    // Remove sprites for features no longer visible
+    // Remove sprites for features no longer visible. destroy() the sprite —
+    // removeChild alone leaves the Pixi object (and its GPU buffers) alive,
+    // so repeatedly hiding/deleting images leaks until the WebGL context
+    // dies. Passing no options keeps the shared texture intact (it lives in
+    // imageTextures, keyed by imageId, and may back other sprites).
     for (const [fid, sprite] of pixi.imageSprites) {
       if (!activeIds.has(fid)) {
         pixi.featureLayer.removeChild(sprite);
+        try { sprite.destroy(); } catch { /* already torn down */ }
         pixi.imageSprites.delete(fid);
+      }
+    }
+
+    // Prune textures for images no longer in this document's library. These
+    // can never be referenced again (a feature without a projectImages entry
+    // is skipped below), so holding their GPU memory is a pure leak.
+    const knownImageIds = new Set(Object.keys(doc.projectImages ?? {}));
+    for (const [imageId, tex] of pixi.imageTextures) {
+      if (!knownImageIds.has(imageId)) {
+        try { tex.destroy(true); } catch { /* texture may be shared/already gone */ }
+        pixi.imageTextures.delete(imageId);
       }
     }
 
@@ -2619,8 +2708,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // Rotation: world CCW positive → screen CW positive (invert)
       sprite.rotation = -img.rotation;
 
-      // Opacity from feature style
-      sprite.alpha = feature.style.opacity ?? 1;
+      // Opacity from feature style. While this image's body is being dragged,
+      // fade the in-place original right down so only the translucent ghost
+      // reads at the cursor — no confusing "two copies" during the move.
+      const bodyDrag = imageBodyDragRef.current;
+      const beingBodyDragged = bodyDrag?.featureId === feature.id && bodyDrag.moved;
+      sprite.alpha = beingBodyDragged ? 0.12 : (feature.style.opacity ?? 1);
 
       // Stack by layer panel order (top of panel → on top), same as graphics.
       sprite.zIndex = imgLayerZ.get(feature.layerId) ?? 0;
@@ -4050,6 +4143,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     bgColor: string | null,
     borderColor: string | null,
     borderWidth: number | null,
+    fillAlpha: number = 1,
   ) {
     g.clear();
     const bounds = textObj.getLocalBounds();
@@ -4067,7 +4161,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
     if (bgColor) {
       const fi = toInt(bgColor);
-      if (Number.isFinite(fi)) g.beginFill(fi, 1);
+      if (Number.isFinite(fi)) g.beginFill(fi, fillAlpha);
     }
     g.drawRect(x, y, w, h);
     if (bgColor) g.endFill();
@@ -4517,7 +4611,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         // the one under the cursor) so a point's name + description light
         // up as a unit with the marker.
         const isHovered = hoveredIdRef.current === feature.id;
-        const textColor = isHovered ? '#3b82f6' : (label.style.color ?? layer.color ?? '#000000');
+        const textColor = isHovered ? HOVER_LABEL_TEXT_COLOR : (label.style.color ?? layer.color ?? '#000000');
+        // Bold the hovered feature's labels for an unmistakable cue.
+        const labelFontWeight = isHovered ? 'bold' : label.style.fontWeight;
         // Scale font size: label.style.fontSize is in "points on paper"
         // 1 pt = 1/72 inch; 1 inch = drawingScale world units → world units → screen pixels
         const drawingScale = doc.settings.drawingScale ?? 50;
@@ -4531,7 +4627,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const style = new pixi.TextStyleClass({
             fontFamily: label.style.fontFamily,
             fontSize,
-            fontWeight: label.style.fontWeight,
+            fontWeight: labelFontWeight,
             fontStyle: label.style.fontStyle,
             fill: textColor,
             align: 'center',
@@ -4549,7 +4645,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const s = textObj.style as import('pixi.js').TextStyle;
           s.fontFamily = label.style.fontFamily;
           s.fontSize = fontSize;
-          s.fontWeight = label.style.fontWeight;
+          s.fontWeight = labelFontWeight;
           s.fontStyle = label.style.fontStyle;
           s.fill = textColor;
         }
@@ -4572,7 +4668,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         // null = transparent (default), so existing drawings stay bare
         // until the surveyor opts in via the label editor (Slice 234).
         const bgKey = `label:${labelKey}`;
-        if (label.style.backgroundColor) {
+        // An explicit per-label background wins; otherwise a hovered label gets
+        // a translucent highlight pill so it clearly reads as belonging to the
+        // feature under the cursor.
+        const drawHoverPill = isHovered && !label.style.backgroundColor;
+        if (label.style.backgroundColor || drawHoverPill) {
           let bgGfx = pixi.labelBackgrounds.get(bgKey);
           if (!bgGfx) {
             bgGfx = new pixi.GraphicsClass();
@@ -4582,10 +4682,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           drawLabelBackgroundRect(
             bgGfx,
             textObj,
-            label.style.padding,
-            label.style.backgroundColor,
-            label.style.borderColor,
-            label.style.borderWidth,
+            label.style.backgroundColor ? label.style.padding : HOVER_LABEL_PILL_PADDING,
+            label.style.backgroundColor ?? HOVER_LABEL_PILL_COLOR,
+            label.style.backgroundColor ? label.style.borderColor : null,
+            label.style.backgroundColor ? label.style.borderWidth : null,
+            label.style.backgroundColor ? 1 : HOVER_LABEL_PILL_ALPHA,
           );
         } else {
           const existing = pixi.labelBackgrounds.get(bgKey);
@@ -4808,8 +4909,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           switch (geom.type) {
             case 'POINT': {
               const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
-              // Ring hugs the marker: point half-size + a few px of breathing room.
-              g.drawCircle(sx, sy, (docSettings.pointSize ?? 4) + 3);
+              const ps = useDrawingStore.getState().document.settings.displayPreferences?.pointSize ?? 6;
+              g.drawCircle(sx, sy, Math.max(7, ps + 3));
               break;
             }
             case 'LINE': {
@@ -4858,6 +4959,23 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               if (geom.spline) drawSplineCurve(g as unknown as GraphicsLike, geom.spline, w2s);
               break;
             }
+            case 'IMAGE': {
+              // Hover glow traces the (possibly rotated) image box so it's
+              // obvious the whole image is one grabbable object.
+              if (geom.image) {
+                const { bl, br, tr, tl } = imageCorners(geom.image);
+                const a = w2s(bl.x, bl.y);
+                const b = w2s(br.x, br.y);
+                const c = w2s(tr.x, tr.y);
+                const d = w2s(tl.x, tl.y);
+                g.moveTo(a.sx, a.sy);
+                g.lineTo(b.sx, b.sy);
+                g.lineTo(c.sx, c.sy);
+                g.lineTo(d.sx, d.sy);
+                g.closePath();
+              }
+              break;
+            }
           }
         };
 
@@ -4894,9 +5012,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       switch (geom.type) {
         case 'POINT': {
           const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
-          // Selection box tracks the point size (marker half-size + 1px margin).
-          const ph = (docSettings.pointSize ?? 4) + 1;
-          g.drawRect(sx - ph, sy - ph, ph * 2, ph * 2);
+          const ps = useDrawingStore.getState().document.settings.displayPreferences?.pointSize ?? 6;
+          const half = Math.max(5, ps + 2);
+          g.drawRect(sx - half, sy - half, half * 2, half * 2);
           break;
         }
         case 'LINE': {
@@ -4943,6 +5061,24 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
         case 'SPLINE': {
           if (geom.spline) drawSplineCurve(g as unknown as GraphicsLike, geom.spline, w2s);
+          break;
+        }
+        case 'IMAGE': {
+          // Bright selection outline around the (possibly rotated) image box.
+          // Drawn from the rotated corners so the highlight always wraps the
+          // image exactly where it sits — including after a rotation.
+          if (geom.image) {
+            const { bl, br, tr, tl } = imageCorners(geom.image);
+            const a = w2s(bl.x, bl.y);
+            const b = w2s(br.x, br.y);
+            const c = w2s(tr.x, tr.y);
+            const d = w2s(tl.x, tl.y);
+            g.moveTo(a.sx, a.sy);
+            g.lineTo(b.sx, b.sy);
+            g.lineTo(c.sx, c.sy);
+            g.lineTo(d.sx, d.sy);
+            g.closePath();
+          }
           break;
         }
       }
@@ -6499,17 +6635,23 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       let bestId: string | null = null;
       let bestChain: Point2D[] | null = null;
       let bestIsClosed = false;
+      let bestIsSpline = false;
       let bestVertexIdx = -1;
       let bestVertexDist = Infinity;
       for (const f of all) {
         const fg = f.geometry;
         let chain: Point2D[] | null = null;
         let isClosed = false;
+        let isSpline = false;
         if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
         else if (fg.type === 'MIXED_GEOMETRY' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
         else if (fg.type === 'POLYGON' && fg.vertices && fg.vertices.length >= 3) {
           chain = fg.vertices;
           isClosed = true;
+        } else if (fg.type === 'SPLINE' && fg.spline) {
+          // Treat the spline's on-curve nodes as the editable "vertices".
+          const idx = splineNodeIndices(fg.spline);
+          if (idx.length >= 2) { chain = idx.map((j) => fg.spline!.controlPoints[j]); isSpline = true; }
         }
         if (!chain) continue;
         for (let i = 0; i < chain.length; i += 1) {
@@ -6521,6 +6663,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             bestId = f.id;
             bestChain = chain;
             bestIsClosed = isClosed;
+            bestIsSpline = isSpline;
             bestVertexIdx = i;
           }
         }
@@ -6532,24 +6675,29 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         g.endFill();
         return;
       }
-      // Outline the chosen feature in faint red
-      g.lineStyle(2, 0xff5566, 0.45);
-      const sp0 = w2s(bestChain[0].x, bestChain[0].y);
-      g.moveTo(sp0.sx, sp0.sy);
-      for (let i = 1; i < bestChain.length; i += 1) {
-        const sp = w2s(bestChain[i].x, bestChain[i].y);
-        g.lineTo(sp.sx, sp.sy);
+      // Outline the chosen feature in faint red. For splines we skip the
+      // straight control-polygon outline (it would draw chords across the
+      // curve); the curved feature itself is already visible underneath.
+      if (!bestIsSpline) {
+        g.lineStyle(2, 0xff5566, 0.45);
+        const sp0 = w2s(bestChain[0].x, bestChain[0].y);
+        g.moveTo(sp0.sx, sp0.sy);
+        for (let i = 1; i < bestChain.length; i += 1) {
+          const sp = w2s(bestChain[i].x, bestChain[i].y);
+          g.lineTo(sp.sx, sp.sy);
+        }
+        if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
       }
-      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
-      // Existing vertices — small dim red dots
+      // Existing vertices / nodes — small dim red dots
       g.beginFill(0xff5566, 0.55);
       for (const v of bestChain) {
         const sp = w2s(v.x, v.y);
         g.drawCircle(sp.sx, sp.sy, 3);
       }
       g.endFill();
-      // Target vertex — bright X (or grey ring when at min count)
-      const minVerts = bestIsClosed ? 3 : 2;
+      // Target vertex — bright X (or grey ring when at min count). Splines need
+      // 3 nodes to remove one (keeps ≥2); polylines 2, polygons 3.
+      const minVerts = bestIsSpline ? 2 : (bestIsClosed ? 3 : 2);
       const blocked = bestChain.length <= minVerts;
       const tv = bestChain[bestVertexIdx];
       const tvS = w2s(tv.x, tv.y);
@@ -6574,10 +6722,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       let bestId: string | null = null;
       let bestChain: Point2D[] | null = null;
       let bestIsClosed = false;
+      let bestIsSpline = false;
       let bestDist = Infinity;
       let bestInsertPt: Point2D | null = null;
       for (const f of all) {
         const fg = f.geometry;
+        if (fg.type === 'SPLINE' && fg.spline) {
+          // Closest point ON the curve is where the new node will land.
+          const cps = closestPointOnSpline(fg.spline, previewPoint);
+          if (cps) {
+            const dPx = cps.dist * useViewportStore.getState().zoom;
+            if (dPx < bestDist && dPx < 14) {
+              bestDist = dPx;
+              bestId = f.id;
+              bestChain = splineNodeIndices(fg.spline).map((j) => fg.spline!.controlPoints[j]);
+              bestIsClosed = false;
+              bestIsSpline = true;
+              bestInsertPt = cps.point;
+            }
+          }
+          continue;
+        }
         let chain: Point2D[] | null = null;
         let isClosed = false;
         if (fg.type === 'POLYLINE' && fg.vertices && fg.vertices.length >= 2) chain = fg.vertices;
@@ -6606,6 +6771,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             bestId = f.id;
             bestChain = chain;
             bestIsClosed = isClosed;
+            bestIsSpline = false;
             bestInsertPt = { x: px, y: py };
           }
         }
@@ -6617,16 +6783,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         g.endFill();
         return;
       }
-      // Faint outline of the source
-      g.lineStyle(2, 0x44ddff, 0.45);
-      const sp0 = w2s(bestChain[0].x, bestChain[0].y);
-      g.moveTo(sp0.sx, sp0.sy);
-      for (let i = 1; i < bestChain.length; i += 1) {
-        const sp = w2s(bestChain[i].x, bestChain[i].y);
-        g.lineTo(sp.sx, sp.sy);
+      // Faint outline of the source (skipped for splines — chords would
+      // cut across the visible curve; we just dot the nodes + landing point).
+      if (!bestIsSpline) {
+        g.lineStyle(2, 0x44ddff, 0.45);
+        const sp0 = w2s(bestChain[0].x, bestChain[0].y);
+        g.moveTo(sp0.sx, sp0.sy);
+        for (let i = 1; i < bestChain.length; i += 1) {
+          const sp = w2s(bestChain[i].x, bestChain[i].y);
+          g.lineTo(sp.sx, sp.sy);
+        }
+        if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
       }
-      if (bestIsClosed) g.lineTo(sp0.sx, sp0.sy);
-      // Existing vertices — small dim dots
+      // Existing vertices / nodes — small dim dots
       g.beginFill(0x44ddff, 0.45);
       for (const v of bestChain) {
         const sp = w2s(v.x, v.y);
@@ -8848,12 +9017,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           return feature.id;
         }
       }
-      // IMAGE hit testing — point inside the (possibly rotated) box.
-      // Map the cursor into the image's local frame so rotation is
-      // respected; BL=(0,0), TR=(width,height).
+    }
+
+    // IMAGE hit testing runs LAST — after every thin-geometry type above —
+    // so a line / spline / polyline / point / text drawn over (or behind) an
+    // image always wins the click. Images are big filled rectangles; without
+    // this they'd swallow clicks meant for the geometry on top of them. An
+    // image is only picked when nothing else is hit (e.g. clicking an empty
+    // part of it). Point-in-(possibly-rotated)-box test in the image's local
+    // frame: BL=(0,0), TR=(width,height).
+    for (const feature of features) {
+      const geom = feature.geometry;
       if (geom.type === 'IMAGE' && geom.image) {
         const img = geom.image;
-        const { wx, wy } = screenToDrawingWorld(sx, sy);
         const lp = worldToImageLocal(img, { x: wx, y: wy });
         if (lp.x >= 0 && lp.x <= img.width && lp.y >= 0 && lp.y <= img.height) {
           return feature.id;
@@ -9247,8 +9423,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const drawingPoints = overridePoints ?? useToolStore.getState().state.drawingPoints;
 
     if (type === 'POLYLINE') {
-      // Polyline: already created as individual LINE segments during drawing.
-      // Just reset drawing state; undo is already recorded per segment.
+      // Polyline is drawn as individual LINE segments (grouped by
+      // polylineGroupId). Each segment recorded its own undo entry while
+      // drawing — collapse them into ONE so a single undo removes the whole
+      // polyline instead of peeling off one segment at a time.
+      const segIds = polylineSegmentIdsRef.current;
+      if (segIds.length >= 2) {
+        useUndoStore.getState().coalesceEntries(segIds, 'Draw polyline');
+      }
+      polylineSegmentIdsRef.current = [];
       polylineGroupIdRef.current = null;
       lastPolylineSegmentIdRef.current = null;
       useToolStore.getState().clearDrawingPoints();
@@ -9382,8 +9565,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const { wx, wy } = screenToDrawingWorld(sx, sy);
     const cursor = { x: wx, y: wy };
     const { settings } = useDrawingStore.getState().document;
+    const activeTool = useToolStore.getState().state.activeTool;
 
-    if (settings.snapEnabled) {
+    // Object snap is a placement aid — it tells you where your NEXT click will
+    // land. In SELECT a click just selects (nothing snaps), so running snap
+    // there only paints a green ENDPOINT square + label on every point you pass
+    // over, competing with the real hover highlight. Skip it in SELECT so
+    // hovering a point shows a single, clear highlight. (Moving a selection
+    // still snaps via endpointSnapDelta, which is independent of this.)
+    // Exception: the "snap point to another point" pick mode runs under SELECT
+    // and genuinely needs the snap marker to aim the pick.
+    const snapAllowed = activeTool !== 'SELECT' || snapPickRef.current !== null;
+    if (settings.snapEnabled && snapAllowed) {
       // §19.1 — narrow the feature list with the spatial
       // index before handing it to the snap engine. We pad
       // the query bbox by `snapRadius / zoom` so segments
@@ -9397,7 +9590,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         useDrawingStore.getState().document.features,
         useDrawingStore.getState().document.layers
       );
-      const worldRadius = settings.snapRadius / Math.max(0.0001, useViewportStore.getState().zoom);
+      // Catch the snap at the SAME cursor radius as the hover highlight
+      // (HIT_TOLERANCE_PX) so the green snap glyph and the blue hover glow
+      // light up together — the snap no longer engages earlier than the
+      // highlight as you move toward a point. (settings.snapRadius still wins
+      // if the surveyor set it even tighter.)
+      const snapRadiusPx = Math.min(settings.snapRadius, HIT_TOLERANCE_PX);
+      const worldRadius = snapRadiusPx / Math.max(0.0001, useViewportStore.getState().zoom);
       const queryBox: LodBoundingBox = {
         minX: cursor.x - worldRadius,
         minY: cursor.y - worldRadius,
@@ -9412,7 +9611,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const snap = findSnapPoint(
         cursor,
         candidates,
-        settings.snapRadius,
+        snapRadiusPx,
         useViewportStore.getState().zoom,
         settings.snapTypes,
         settings.gridMajorSpacing / settings.gridMinorDivisions,
@@ -9480,10 +9679,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const feature = useDrawingStore.getState().getFeature(featureId);
       if (!feature) continue;
 
+      // Images get a more forgiving grip target (corners/edges/rotate handle)
+      // so they're easy to grab — at least 12px regardless of the grip-size
+      // preference.
+      const isImage = feature.geometry.type === 'IMAGE';
+      const hit = isImage ? Math.max(gripHitSize, 12) : gripHitSize;
+
       // IMAGE rotation handle takes priority over the resize grips.
       if (feature.geometry.type === 'IMAGE' && feature.geometry.image) {
         const { handle } = imageRotateHandleScreen(feature.geometry.image);
-        if (Math.hypot(sx - handle.sx, sy - handle.sy) <= gripHitSize + 2) {
+        if (Math.hypot(sx - handle.sx, sy - handle.sy) <= hit + 2) {
           return { featureId, vertexIndex: IMAGE_ROTATE_GRIP, gripType: 'ROTATE' };
         }
       }
@@ -9505,7 +9710,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const verts = getFeatureVertices(feature);
       for (let i = 0; i < verts.length; i++) {
         const { sx: gx, sy: gy } = w2s(verts[i].x, verts[i].y);
-        if (Math.abs(sx - gx) <= gripHitSize && Math.abs(sy - gy) <= gripHitSize) {
+        if (Math.abs(sx - gx) <= hit && Math.abs(sy - gy) <= hit) {
           return { featureId, vertexIndex: i };
         }
       }
@@ -10329,6 +10534,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (prevPoints.length === 0) {
             // First click: start a new polyline group
             polylineGroupIdRef.current = generateId();
+            polylineSegmentIdsRef.current = [];
             useToolStore.getState().addDrawingPoint(worldPt);
           } else {
             const lastPt = prevPoints[prevPoints.length - 1];
@@ -10339,6 +10545,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               useDrawingStore.getState().addFeature(withAutoLabels(segment));
               useUndoStore.getState().pushUndo(makeAddFeatureEntry(segment));
               lastPolylineSegmentIdRef.current = segment.id;
+              polylineSegmentIdsRef.current.push(segment.id);
               useToolStore.getState().addDrawingPoint(worldPt);
             }
           }
@@ -11046,11 +11253,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const ok = removeVertexAt(hit, worldPt, pickRadiusWorld);
           if (!ok) {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'REMOVE VERTEX — click within 14 px of a vertex on a POLYLINE / POLYGON. Cannot drop below 2 (line) / 3 (polygon) vertices.' },
+              detail: { text: 'REMOVE NODE — click within 14 px of a node on a POLYLINE / POLYGON / SPLINE. Cannot drop below 2 (line / spline) / 3 (polygon) nodes. Survey points under a node are not affected.' },
             }));
           } else {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'REMOVE VERTEX — vertex deleted.' },
+              detail: { text: 'REMOVE NODE — node deleted.' },
             }));
           }
           break;
@@ -11154,11 +11361,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const ok = insertVertexAt(hit, worldPt);
           if (!ok) {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'INSERT VERTEX — pick a POLYLINE or POLYGON edge (clicks on existing vertices are no-ops).' },
+              detail: { text: 'INSERT NODE — pick a POLYLINE / POLYGON edge or a SPLINE curve (clicks on existing nodes are no-ops).' },
             }));
           } else {
             window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'INSERT VERTEX — vertex inserted on the closest segment.' },
+              detail: { text: 'INSERT NODE — node inserted on the closest segment.' },
             }));
           }
           break;
@@ -11876,9 +12083,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     [],
   );
 
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
-      const rect = canvasRef.current!.getBoundingClientRect();
+  // Coalesced pointer-move processing. The raw onMouseMove fires far more
+  // often than we can usefully act on (high-Hz mice emit 500–1000 events/s);
+  // handleMouseMove below throttles to one run per animation frame using the
+  // LATEST cursor position, so hit-testing + snap + store writes happen at
+  // most ~60×/s instead of per raw event. Drags stay precise because we
+  // always process the most recent coordinates, and rendering is per-frame
+  // anyway. This function reads only the four event primitives it needs.
+  const processMouseMove = useCallback(
+    (e: { clientX: number; clientY: number; shiftKey: boolean; ctrlKey: boolean }) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return; // unmounted between the rAF schedule and its callback
+      const rect = canvas.getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
 
@@ -12078,6 +12294,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // Interactive image rotation (rotate-handle drag): spin around
           // the image center so the grabbed handle follows the cursor.
           if (gripDragRef.current.type === 'ROTATE') {
+            // Images never snap to survey geometry — clear any snap the shared
+            // getSnappedWorld computed this move so no stray glyph shows.
+            snapResultRef.current = null;
             const session = imageRotateRef.current;
             const startImg = gripStartRef.current?.geometry.image;
             if (session && startImg) {
@@ -12109,9 +12328,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               // held fixed and the new bottom-left is mapped back to world.
               const startImg = gripStartRef.current?.geometry.image;
               if (geom.image && startImg) {
+                // Images never snap to survey geometry: resize follows the RAW
+                // cursor so a corner can't jump to a distant point — and clear
+                // any snap glyph the shared getSnappedWorld set this move (this
+                // was the stray "orange" marker that appeared away from the
+                // image during a resize).
+                snapResultRef.current = null;
                 const w0 = startImg.width;
                 const h0 = startImg.height;
-                const lc = worldToImageLocal(startImg, worldPt);
+                const rawWorld = screenToDrawingWorld(sx, sy);
+                const lc = worldToImageLocal(startImg, { x: rawWorld.wx, y: rawWorld.wy });
                 let newW: number;
                 let newH: number;
                 switch (vertexIndex) {
@@ -12306,6 +12532,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // release (so origin + target are both visible). Starts after a few
       // pixels of travel so a plain click stays a select.
       if (imageBodyDragRef.current && !gripDragRef.current) {
+        // Images never snap — drop any snap glyph the shared getSnappedWorld
+        // computed so the move reads cleanly.
+        snapResultRef.current = null;
         const drag = imageBodyDragRef.current;
         const down = mouseDownPosRef.current;
         const movedPx = down ? Math.hypot(sx - down.x, sy - down.y) : 999;
@@ -12564,6 +12793,30 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
+  );
+
+  // rAF-coalesced wrapper for the React onMouseMove. Stores the latest cursor
+  // primitives and runs processMouseMove at most once per frame.
+  const mouseMoveRafRef = useRef<number | null>(null);
+  const latestMoveRef = useRef<{
+    clientX: number; clientY: number; shiftKey: boolean; ctrlKey: boolean;
+  } | null>(null);
+  const handleMouseMove = useCallback(
+    (ev: React.MouseEvent<HTMLCanvasElement>) => {
+      // Capture only the primitives processMouseMove reads — never retain the
+      // React event across the rAF boundary.
+      latestMoveRef.current = {
+        clientX: ev.clientX, clientY: ev.clientY,
+        shiftKey: ev.shiftKey, ctrlKey: ev.ctrlKey,
+      };
+      if (mouseMoveRafRef.current !== null) return; // a frame is already queued
+      mouseMoveRafRef.current = requestAnimationFrame(() => {
+        mouseMoveRafRef.current = null;
+        const m = latestMoveRef.current;
+        if (m) processMouseMove(m);
+      });
+    },
+    [processMouseMove],
   );
 
   const handleMouseUp = useCallback(
@@ -13298,8 +13551,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
       tStore.clearDrawingPoints();
     };
+    // Mid-draw "undo last vertex" (Ctrl+Z while drawing). POLYLINE commits a
+    // LINE segment per placed point, so backing out a vertex must ALSO remove
+    // that segment feature + its history entry — not just pop the point (the
+    // old bug where the mistaken line stayed on screen while the tool rewound).
+    // Other multi-point draws (polygon / spline / curved line) don't commit a
+    // feature per point, so they just drop the last point.
+    const onUndoDrawVertex = () => {
+      const toolState = useToolStore.getState().state;
+      if (toolState.drawingPoints.length === 0) return;
+      if (toolState.activeTool === 'DRAW_POLYLINE' && polylineSegmentIdsRef.current.length > 0) {
+        const segId = polylineSegmentIdsRef.current.pop()!;
+        useDrawingStore.getState().removeFeature(segId);
+        useUndoStore.getState().dropAddEntry(segId);
+        lastPolylineSegmentIdRef.current =
+          polylineSegmentIdsRef.current[polylineSegmentIdsRef.current.length - 1] ?? null;
+      }
+      useToolStore.getState().popDrawingPoint();
+    };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('cad:undoDrawVertex', onUndoDrawVertex);
     window.addEventListener('cad:confirm', onConfirm);
     window.addEventListener('cad:zoomExtents', onZoomExtents);
     window.addEventListener('cad:zoomToPaper', onZoomToPaper);
@@ -13717,6 +13989,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('cad:undoDrawVertex', onUndoDrawVertex);
       window.removeEventListener('cad:confirm', onConfirm);
       window.removeEventListener('cad:zoomExtents', onZoomExtents);
       window.removeEventListener('cad:zoomToPaper', onZoomToPaper);
@@ -14014,6 +14287,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // Cancel — no segments yet
           polylineGroupIdRef.current = null;
           lastPolylineSegmentIdRef.current = null;
+          polylineSegmentIdsRef.current = [];
           useToolStore.getState().clearDrawingPoints();
           useToolStore.getState().setTool('SELECT');
         }
@@ -14148,6 +14422,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
         onMouseLeave={() => {
+          // If an image body-drag is in flight when the cursor leaves the
+          // canvas, cancel it cleanly: drop the ghost and let the original
+          // restore to where it was (the in-place sprite un-dims on the next
+          // render). This prevents the image getting stuck faded or dropped at
+          // a surprising spot off the edge — just re-grab to try again.
+          if (imageBodyDragRef.current) {
+            imageBodyDragRef.current = null;
+            destroyImageGhost();
+            setHud(null);
+          }
           // Clear hover state when cursor exits the canvas
           if (hoveredIdRef.current !== null) {
             hoveredIdRef.current = null;

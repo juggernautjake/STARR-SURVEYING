@@ -11,6 +11,7 @@ import { computeBounds } from './geometry/bounds';
 import { closestPointOnSegment } from './geometry/point';
 import { segmentSegmentIntersection, lineLineIntersection } from './geometry/intersection';
 import { fitPointsToBezier } from './geometry/curve-render';
+import { insertSplineNode, removeSplineNode } from './geometry/spline-edit';
 import { simplifyPolyline } from './geometry/simplify';
 import {
   offsetPolyline,
@@ -609,6 +610,20 @@ export function removeVertexAt(
   else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 3) {
     chain = g.vertices.slice();
     isClosed = true;
+  } else if (g.type === 'SPLINE' && g.spline) {
+    // SPLINE: drop the nearest on-curve node and merge its segments. Only the
+    // spline's own control points change — survey POINT features under a node
+    // are untouched.
+    const newSpline = removeSplineNode(g.spline, worldPt, pickRadiusWorld);
+    if (!newSpline) return false;
+    const before = f;
+    drawingStore.updateFeatureGeometry(featureId, { ...g, spline: newSpline });
+    const after = drawingStore.getFeature(featureId);
+    if (!after) return false;
+    undoStore.pushUndo(makeBatchEntry('Remove Node', [
+      { type: 'MODIFY_FEATURE', data: { id: featureId, before, after } },
+    ]));
+    return true;
   } else {
     return false;
   }
@@ -675,6 +690,19 @@ export function insertVertexAt(featureId: string, worldPt: Point2D): boolean {
   else if (g.type === 'POLYGON' && g.vertices && g.vertices.length >= 2) {
     chain = g.vertices.slice();
     isClosed = true;
+  } else if (g.type === 'SPLINE' && g.spline) {
+    // SPLINE: split the segment under the cursor with exact de Casteljau
+    // subdivision — adds an editable node without changing the curve shape.
+    const newSpline = insertSplineNode(g.spline, worldPt);
+    if (!newSpline) return false;
+    const before = f;
+    drawingStore.updateFeatureGeometry(featureId, { ...g, spline: newSpline });
+    const after = drawingStore.getFeature(featureId);
+    if (!after) return false;
+    undoStore.pushUndo(makeBatchEntry('Insert Node', [
+      { type: 'MODIFY_FEATURE', data: { id: featureId, before, after } },
+    ]));
+    return true;
   } else {
     return false;
   }

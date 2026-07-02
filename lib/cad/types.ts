@@ -68,6 +68,13 @@ export interface DisplayPreferences {
    */
   originNorthing: number;
   originEasting: number;
+  /**
+   * On-screen half-size (px) of the crosshair drawn for plain POINT
+   * features that don't carry a monument symbol — i.e. how big "file
+   * points" appear. Bigger = easier to see and click. Default: 6.
+   * (Points with an assigned symbol use their own symbolSize.)
+   */
+  pointSize?: number;
 }
 
 // --- DRAWING DOCUMENT ---
@@ -223,10 +230,6 @@ export interface DrawingSettings {
   gripSize: number;            // Size of selection grip squares in pixels (3–12, default: 6)
   gripColor: string;           // Grip square color, default matches selectionColor
   gripFillColor: string;       // Grip square fill color (default: '#ffffff')
-
-  // Point marker appearance
-  pointSize?: number;          // Half-length of the point crosshair in px; also thickens the
-                               // marker and scales its hover / selection highlights (2–16, default: 4)
 
   // Hover & highlight
   hoverGlowEnabled: boolean;   // Show multi-layer glow on hover (default: true)

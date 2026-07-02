@@ -96,7 +96,10 @@ import {
   useReviewWorkflowStore,
   useTransferStore,
   useImportStore,
+  useSaveTargetStore,
 } from '@/lib/cad/store';
+import { saveDrawingToCloud } from '@/lib/cad/persistence/cloud-save';
+import { healInlineImages, isInlineImage } from '@/lib/cad/persistence/heal-inline-images';
 import type { CompletenessSummary } from '@/lib/cad/delivery';
 import { useRouter } from 'next/navigation';
 import { useUnsavedChangesGuard, requestDiscard } from './hooks/useUnsavedChangesGuard';
@@ -151,8 +154,43 @@ const CanvasViewport = dynamic(() => import('./components/CanvasViewport'), {
 
 /** Fallback periodic interval (ms) — overridden by autoSaveIntervalSec setting */
 const DEFAULT_AUTOSAVE_INTERVAL_MS = 60_000;
-/** Debounce delay (ms) after a document change before writing to IndexedDB */
-const AUTOSAVE_DEBOUNCE_MS = 5_000;
+/** Debounce delay (ms) after a document change before writing the recovery
+ *  snapshot. Short so a brief pause captures the latest state quickly. */
+const AUTOSAVE_DEBOUNCE_MS = 1_500;
+/** Hard ceiling (ms) between recovery writes during CONTINUOUS editing. The
+ *  debounce above keeps resetting while you drag/resize without pausing, so on
+ *  its own it would never fire mid-gesture. This bound forces a write once the
+ *  last successful save is older than this — capping how much work a crash can
+ *  cost to ~this interval even during a non-stop editing spree. */
+const AUTOSAVE_MAX_WAIT_MS = 15_000;
+
+/** The drawing-document shape as held by the store. */
+type StoreDocument = ReturnType<typeof useDrawingStore.getState>['document'];
+
+/** Build the document persisted as a crash-recovery snapshot. For images backed
+ *  by a bucket URL we drop the redundant base64 `dataUrl` — the bitmap reloads
+ *  from `url` on restore (the renderer reads `url ?? dataUrl`). This keeps the
+ *  snapshot small even with many large images, so the frequent recovery writes
+ *  stay cheap and avoid the main-thread serialization jank that big base64
+ *  payloads cause. Legacy images with no `url` keep their `dataUrl` so recovery
+ *  is never lossy. */
+function toRecoverySnapshot(doc: StoreDocument): StoreDocument {
+  const images = doc.projectImages;
+  if (!images) return doc;
+  let stripped = false;
+  const slim: typeof images = {};
+  for (const [id, img] of Object.entries(images)) {
+    if (img.dataUrl && img.url) {
+      const rest = { ...img };
+      delete rest.dataUrl;
+      slim[id] = rest;
+      stripped = true;
+    } else {
+      slim[id] = img;
+    }
+  }
+  return stripped ? { ...doc, projectImages: slim } : doc;
+}
 
 export default function CADLayout() {
   const { showLayerPanel, showPropertyPanel } = useUIStore();
@@ -868,35 +906,125 @@ export default function CADLayout() {
 
   // ─── Autosave helpers ────────────────────────────────────────────────────────
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Wall-clock of the last successful recovery write — drives the max-wait
+   *  ceiling so continuous editing still produces periodic snapshots. */
+  const lastAutosaveAtRef = useRef<number>(0);
 
+  // Reads the live store via getState() rather than the render-time closure so
+  // it's safe to call from the unload / visibility flush handlers (which run
+  // with stale closures). Writing the recovery snapshot is the SAME IndexedDB
+  // (or Tauri filesystem) slot the crash-recovery dialog reads on load.
   async function performAutosave() {
-    if (!drawingStore.document.settings.autoSaveEnabled) return;
+    const st = useDrawingStore.getState();
+    if (!st.document.settings.autoSaveEnabled) return;
+    if (!st.isDirty) return;
     try {
       const payload = {
         version: '1.0',
         application: 'starr-cad',
         savedAt: new Date().toISOString(),
-        document: drawingStore.document,
+        document: toRecoverySnapshot(st.document),
       };
       // Per-doc keying — switching drawings no longer kicks
       // the prior autosave out of the slot.
-      await writeAutosave(drawingStore.document.id, payload);
+      await writeAutosave(st.document.id, payload);
+      lastAutosaveAtRef.current = Date.now();
       setAutoSaveFailed(false);
-      cadLog.debug('AutoSave', `Auto-saved drawing: ${drawingStore.document.name}`);
+      cadLog.debug('AutoSave', `Auto-saved drawing: ${st.document.name}`);
     } catch (err) {
       setAutoSaveFailed(true);
       cadLog.warn('AutoSave', 'Auto-save failed', err);
     }
   }
 
-  // Debounced autosave — fires 5 s after every document change
+  // Recovery snapshot on every document change — including undo/redo, which
+  // mutate `document` through the drawing store and so re-fire this effect.
+  // Normally debounced (write 1.5 s after activity settles), but if the last
+  // successful save is already older than AUTOSAVE_MAX_WAIT_MS we write
+  // immediately so a non-stop drag/resize spree can't outrun the snapshot.
   useEffect(() => {
     if (!drawingStore.isDirty) return;
+    if (Date.now() - lastAutosaveAtRef.current >= AUTOSAVE_MAX_WAIT_MS) {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      void performAutosave();
+      return;
+    }
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => { void performAutosave(); }, AUTOSAVE_DEBOUNCE_MS);
     return () => { if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawingStore.document]);
+
+  // Flush the recovery snapshot the moment the tab is hidden, backgrounded, or
+  // closed — the most reliable hook we get just before a crash / navigation /
+  // close. visibilitychange→hidden fires while the page is still alive long
+  // enough for the async IndexedDB write to land; pagehide covers reloads and
+  // closes. Without this, a crash inside the debounce window loses recent work.
+  useEffect(() => {
+    const flush = () => { void performAutosave(); };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', flush);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', flush);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── One-time inline-image heal ───────────────────────────────────────────────
+  // Move legacy / fallback base64 images (dataUrl, no bucket url) into the image
+  // bucket so the document stops carrying multi-MB strings — the serialization
+  // pressure behind image-heavy-drawing crashes. Runs once per loaded drawing.
+  const healedDocsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const docId = drawingStore.document.id;
+    if (healedDocsRef.current.has(docId)) return;
+    const images = Object.values(drawingStore.document.projectImages ?? {});
+    if (!images.some(isInlineImage)) return;
+    healedDocsRef.current.add(docId);
+
+    let cancelled = false;
+    void (async () => {
+      const healedCount = await healInlineImages(images, (healed) => {
+        // Bail if the surveyor switched drawings mid-upload.
+        if (cancelled || useDrawingStore.getState().document.id !== docId) return;
+        // addProjectImage replaces the entry by id with the bucket-backed
+        // version (dataUrl dropped) and marks the doc dirty.
+        useDrawingStore.getState().addProjectImage(healed);
+      });
+      if (cancelled || healedCount === 0) return;
+      if (useDrawingStore.getState().document.id !== docId) return;
+      cadLog.info('ImageHeal', `Moved ${healedCount} inline image(s) to the bucket for "${drawingStore.document.name}"`);
+
+      // Persist the lightened document so the heal sticks and reopening doesn't
+      // re-upload. A cloud-backed drawing re-saves silently (which also avoids a
+      // spurious "recover unsaved work?" prompt next open); otherwise we leave it
+      // dirty so the next manual save — and the recovery autosave — capture it.
+      const target = useSaveTargetStore.getState().targetFor(docId);
+      if (target && target.kind === 'cloud') {
+        try {
+          const latest = useDrawingStore.getState().document;
+          const { id, name } = await saveDrawingToCloud(latest, {
+            id: target.cloudId,
+            name: target.name,
+            description: target.description,
+          });
+          useSaveTargetStore.getState().setCloudTarget(docId, id, name, target.description);
+          useDrawingStore.getState().markClean();
+          void clearAutosave(docId);
+          cadLog.info('ImageHeal', `Re-saved lightened drawing to the cloud: "${name}"`);
+        } catch (err) {
+          cadLog.warn('ImageHeal', 'Could not re-save healed drawing to cloud — left dirty for manual save', err);
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawingStore.document.id]);
 
   // Periodic autosave — interval driven by the user's autoSaveIntervalSec setting
   useEffect(() => {

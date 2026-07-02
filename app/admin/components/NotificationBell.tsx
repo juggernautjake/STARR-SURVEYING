@@ -123,6 +123,9 @@ export default function NotificationBell() {
     return () => {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisible);
+      // Cancel any pending toast auto-dismiss so it can't fire setState
+      // after the bell unmounts.
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, [fetchNotifications]);
 

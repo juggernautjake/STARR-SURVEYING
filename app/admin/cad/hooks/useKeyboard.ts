@@ -81,6 +81,12 @@ const PHASE_1_SHORTCUTS: Record<string, string> = {
   'shift+arrowright': 'edit.nudge.right10',
 };
 
+/** On-screen pixels an IMAGE moves per plain arrow-key nudge. Converted to
+ *  world units via the live zoom so the hop looks identical at any zoom level
+ *  (Shift multiplies it 10×). Survey geometry ignores this — it nudges a
+ *  fixed real-world step instead. */
+const IMAGE_NUDGE_BASE_PX = 5;
+
 /** Serialize a KeyboardEvent into a key combo string */
 function serializeKey(e: KeyboardEvent): string {
   const parts: string[] = [];
@@ -179,7 +185,9 @@ export function useKeyboard() {
             ts.activeTool === 'DRAW_POLYLINE' ||
             ts.activeTool === 'DRAW_POLYGON')
         ) {
-          toolStore.popDrawingPoint();
+          // CanvasViewport owns the per-tool logic: for POLYLINE it also removes
+          // the committed segment feature, not just the point.
+          window.dispatchEvent(new CustomEvent('cad:undoDrawVertex'));
           break;
         }
         undoStore.undo();
@@ -354,11 +362,20 @@ export function useKeyboard() {
   }
 
   /**
-   * Arrow-key nudge for the active selection. Step size respects
-   * the snap state:
+   * Arrow-key nudge for the active selection.
+   *
+   * Survey geometry (points/lines/etc.) nudges a FIXED real-world step so
+   * precise CAD edits stay exact:
    *   - grid visible → minor-grid spacing (`gridMajorSpacing / gridMinorDivisions`)
    *   - grid hidden  → 1 ft (the most common surveyor unit)
-   * Shift+arrow scales the step 10× for power-user nudging.
+   *
+   * IMAGE features instead nudge a CONSTANT on-screen distance — the world
+   * step scales with 1/zoom, so the image moves further (in world units)
+   * when you're zoomed out and less when zoomed in, but always looks like
+   * the same little hop on screen. This matches how surveyors fine-tune a
+   * scanned plat overlay regardless of how far they've zoomed.
+   *
+   * Shift+arrow scales either step 10× for power-user nudging.
    */
   function nudgeSelection(action: string) {
     const selectionStore = useSelectionStore.getState();
@@ -373,26 +390,40 @@ export function useKeyboard() {
         : 1;
     const step = settings.gridVisible ? baseMinor : 1;
     const multiplier = action.endsWith('10') ? 10 : 1;
-    const amount = step * multiplier;
-    let dx = 0;
-    let dy = 0;
-    if (action.includes('.up')) dy = amount;
-    else if (action.includes('.down')) dy = -amount;
-    else if (action.includes('.left')) dx = -amount;
-    else if (action.includes('.right')) dx = amount;
+    // Fixed world step for survey geometry.
+    const fixedAmount = step * multiplier;
+    // Constant-on-screen step for images: IMAGE_NUDGE_BASE_PX screen pixels
+    // converted to world units via the current zoom (world = screen / zoom).
+    const zoom = Math.max(0.0001, useViewportStore.getState().zoom);
+    const imageAmount = (IMAGE_NUDGE_BASE_PX * multiplier) / zoom;
+    // Unit direction from the pressed arrow.
+    let ux = 0;
+    let uy = 0;
+    if (action.includes('.up')) uy = 1;
+    else if (action.includes('.down')) uy = -1;
+    else if (action.includes('.left')) ux = -1;
+    else if (action.includes('.right')) ux = 1;
     const ops: Array<{
       type: 'MODIFY_FEATURE';
       data: { id: string; before: Feature; after: Feature };
     }> = [];
+    let movedNonImage = false;
     for (const id of ids) {
       const f = drawingStore.getFeature(id);
       if (!f) continue;
+      const amount = f.geometry.type === 'IMAGE' ? imageAmount : fixedAmount;
+      if (f.geometry.type !== 'IMAGE') movedNonImage = true;
+      const dx = ux * amount;
+      const dy = uy * amount;
       const newF = transformFeature(f, (p) => translate(p, dx, dy));
       drawingStore.updateFeature(id, { geometry: newF.geometry });
       ops.push({ type: 'MODIFY_FEATURE', data: { id, before: f, after: newF } });
     }
     if (ops.length > 0) {
-      undoStore.pushUndo(makeBatchEntry(`Nudge ${amount.toFixed(2)} ft`, ops));
+      // Label with the geometry step when any survey feature moved, else the
+      // image step — both are world feet at this moment.
+      const labelAmount = movedNonImage ? fixedAmount : imageAmount;
+      undoStore.pushUndo(makeBatchEntry(`Nudge ${labelAmount.toFixed(2)} ft`, ops));
     }
   }
 
