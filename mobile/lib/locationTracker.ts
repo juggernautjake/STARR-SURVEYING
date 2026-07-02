@@ -185,16 +185,6 @@ interface TaskData {
   locations: Location.LocationObject[];
 }
 
-interface TaskError {
-  code?: string;
-  message?: string;
-}
-
-interface TaskExecutorBody {
-  data?: TaskData;
-  error?: TaskError | null;
-}
-
 /**
  * The headless task body. expo-task-manager calls this in a JS
  * context detached from the React tree; we can't use hooks here.
@@ -207,7 +197,7 @@ interface TaskExecutorBody {
  */
 TaskManager.defineTask(
   TASK_NAME,
-  async ({ data, error }: TaskExecutorBody) => {
+  async ({ data, error }: TaskManager.TaskManagerTaskBody<TaskData | undefined>) => {
     if (error) {
       logWarn('locationTracker.task', 'task fired with error', undefined, {
         code: error.code ?? null,

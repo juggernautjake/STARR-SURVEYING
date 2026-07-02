@@ -145,7 +145,7 @@ export function ScannerFab({ bottomInset = 80 }: ScannerFabProps) {
       // someone's personal kit (row.is_personal === 0). Both
       // optional buttons stack into one Alert; if neither applies
       // we keep the original "hand it to the EM" fallback.
-      const currentJobId = activeTimeEntry?.job_id ?? null;
+      const currentJobId = activeTimeEntry?.entry.job_id ?? null;
       const cancelButton = {
         text: 'Cancel',
         style: 'cancel' as const,
@@ -200,7 +200,7 @@ export function ScannerFab({ bottomInset = 80 }: ScannerFabProps) {
     pendingCode,
     row,
     summary.items,
-    activeTimeEntry?.job_id,
+    activeTimeEntry?.entry.job_id,
   ]);
 
   // F10.8 — borrow submitter. Inserts a `borrowed_during_field_

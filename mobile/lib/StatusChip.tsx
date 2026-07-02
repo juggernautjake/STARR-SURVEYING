@@ -24,9 +24,16 @@ import { StyleSheet, Text, View } from 'react-native';
 import { type Palette, colors } from './theme';
 import { useResolvedScheme } from './themePreference';
 
+/** Palette keys whose value is a plain color string (excludes the
+ *  structured `warningCallout` object) — the only ones a chip's
+ *  border/text color can be. */
+type ColorKey = {
+  [K in keyof Palette]: Palette[K] extends string ? K : never;
+}[keyof Palette];
+
 interface StatusInfo {
   label: string;
-  fg: keyof Palette;
+  fg: ColorKey;
 }
 
 const STATUS_INFO: Record<string, StatusInfo> = {

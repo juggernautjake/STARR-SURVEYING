@@ -70,6 +70,10 @@ Notifications.setNotificationHandler({
     return {
       // Admin pings have an in-app banner already; everything else
       // (still-working prompts, future schedules) shows the OS banner.
+      // `shouldShowAlert` is the legacy field still required by the
+      // installed expo-notifications types; keep it in sync with
+      // `shouldShowBanner` so old + new SDK paths behave identically.
+      shouldShowAlert: !isAdminPing,
       shouldShowBanner: !isAdminPing,
       shouldShowList: true,
       shouldPlaySound: true,

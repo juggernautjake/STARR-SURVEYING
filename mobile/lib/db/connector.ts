@@ -62,8 +62,9 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     return {
       endpoint,
       token: data.session.access_token,
-      // userID hint — purely diagnostic; sync rules read JWT claims
-      userID: data.session.user.id,
+      // Sync rules read the user id from the JWT claims, so no
+      // userID field is needed here (it was dropped from
+      // PowerSyncCredentials in the SDK's newer typings).
     };
   }
 

@@ -1,4 +1,5 @@
 {
+  "root": true,
   "extends": ["expo", "prettier"],
   "ignorePatterns": ["/dist/*", ".expo/*", "node_modules/*"],
   "rules": {

@@ -44,8 +44,8 @@
 
 | Slice | What | Status |
 |---|---|---|
-| **M-A1** | Fix mobile ESLint (`root: true`) so lint/CI runs at all | TODO |
-| **M-A2** | Clear all 12 typecheck errors (see breakdown) | TODO |
+| **M-A1** | Fix mobile ESLint (`root: true`) so lint/CI runs at all | **DONE** |
+| **M-A2** | Clear all 12 typecheck errors + 2 rules-of-hooks lint errors | **DONE** |
 | **M-B1** | Tablet width-constrain the ~32 full-bleed screens | TODO |
 | **M-B2** | Safe-area audit — screens missing notch/home-indicator insets | TODO |
 | **M-C1** | Dynamic Type: `useScaledFontSize` + `allowFontScaling` guards | TODO |
