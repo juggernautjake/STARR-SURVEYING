@@ -21,6 +21,7 @@ import {
 import Sentry, { initSentry } from '@/lib/sentry';
 import { useCheckForUpdatesOnLaunch } from '@/lib/otaUpdates';
 import { usePinnedFilesReconciler } from '@/lib/pinnedFiles';
+import { applyGlobalFontScaleClamp } from '@/lib/textScaling';
 import { ThemePreferenceProvider } from '@/lib/themePreference';
 import { useUploadQueueDrainer } from '@/lib/uploadQueue';
 import { usePowerSync } from '@powersync/react';
@@ -36,7 +37,11 @@ import { usePowerSync } from '@powersync/react';
 //      SQLite is open, so we go native splash → ready UI with no
 //      empty-screen flash. Per plan §7.1 rule 4 ("speed over
 //      decoration").
+//   3. applyGlobalFontScaleClamp() — cap OS Dynamic Type / font scale so
+//      dense field layouts survive a maxed-out accessibility text size
+//      while still honoring larger-text preferences up to the cap.
 initSentry();
+applyGlobalFontScaleClamp();
 
 void SplashScreen.preventAutoHideAsync().catch(() => {
   // Already hidden (hot-reload, etc.) — safe to ignore.

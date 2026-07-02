@@ -54,7 +54,7 @@
 | **M-E2** | Status-pill color parity with web (`StageChip`/`StatusChip`) — S3f | TODO (follow-up; needs shared web/mobile constants module) |
 | **M-F1** | **Setup guide: iPhone + Android, step-by-step, screenshots** | **DONE** — `mobile/SETUP_GUIDE_IPHONE_ANDROID.md` |
 | **M-G1** | Crash net (root ErrorBoundary) + edge-case sweep | **DONE (crash net)**; further edge cases = follow-up |
-| **M-C1** | Dynamic Type: `useScaledFontSize` + `allowFontScaling` guards | TODO (follow-up; ergonomics, not a launch blocker) |
+| **M-C1** | Dynamic Type: global font-scale **clamp** (`MAX_FONT_SCALE`) | **DONE** — `lib/textScaling.ts`, applied at `_layout` module load |
 | **M-D1** | Normalize empty/loading/error states onto one component | TODO (follow-up; states exist, just inconsistent) |
 
 ## M-A2 — typecheck error breakdown (12)
