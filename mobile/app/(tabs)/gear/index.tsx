@@ -29,6 +29,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/lib/auth';
+import { EmptyState } from '@/lib/EmptyState';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { ScreenHeader } from '@/lib/ScreenHeader';
 import { useIsEquipmentManager } from '@/lib/myRoles';
@@ -93,15 +94,11 @@ export default function GearIndexScreen() {
         style={[styles.safe, { backgroundColor: palette.background }]}
         edges={['top']}
       >
-        <View style={styles.empty}>
-          <Text style={[styles.emptyTitle, { color: palette.text }]}>
-            Gear tab is for Equipment Managers
-          </Text>
-          <Text style={[styles.emptyCaption, { color: palette.muted }]}>
-            Ask an admin to add the &ldquo;equipment_manager&rdquo;
-            role to your account if you should see this.
-          </Text>
-        </View>
+        <EmptyState
+          glyph="🛠"
+          title="Gear tab is for Equipment Managers"
+          message="Ask an admin to add the “equipment_manager” role to your account if you should see this."
+        />
       </SafeAreaView>
     );
   }
@@ -337,22 +334,5 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     marginTop: 16,
     lineHeight: 16,
-  },
-  empty: {
-    flex: 1,
-    padding: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  emptyCaption: {
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 19,
   },
 });
