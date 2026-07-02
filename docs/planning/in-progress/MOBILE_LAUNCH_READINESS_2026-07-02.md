@@ -82,6 +82,35 @@
 3. **M-B1** — biggest user-visible / review risk (iPad full-bleed).
 4. **M-C1 / M-D1 / M-E1 / M-E2 / M-G1** — polish + robustness as time allows.
 
+## Handoff snapshot (2026-07-02 ~12:05)
+
+**Shipped this session (branch `claude/mobile-launch-readiness-2026-07-02`,
+each commit tsc-0 / eslint-0, pushed):**
+- **M-A** — 12 typecheck errors → 0, and ESLint restored (was un-runnable).
+  Included the `Timesheet.tsx`/`timesheet.ts` casing bug that breaks
+  case-sensitive iOS/Android/CI builds. **This was the real "make it build"
+  blocker.**
+- **M-F1** — `mobile/SETUP_GUIDE_IPHONE_ANDROID.md` (the explicit deliverable):
+  full iPhone + Android step-by-step, local iteration, OTA, screenshots convention.
+- **M-B1** — tablet width-constrained ~9 primary screens (iPad).
+- **M-G1** — root `ErrorBoundary` crash net (was none).
+- **M-E1** — named brand constants for pre/failed-provider surfaces.
+
+**Remaining (all follow-ups, NOT launch blockers) — the loop keeps these live:**
+- **M-C1** Dynamic Type (`useScaledFontSize` + `allowFontScaling`) — ergonomics.
+- **M-D1** normalize empty/loading/error states onto one component.
+- **M-E2** status-pill color parity web↔mobile (needs a shared constants module).
+- **M-B1 tail** — 4 low-traffic screens (capture wizard, photos, files preview,
+  time/edit) + the shared `<ScreenScroll>` wrapper refactor.
+- **Operator config** (`REPLACE_WITH_*` in `eas.json`/`app.json`) — filled by
+  the person running the build, per §2 of the setup guide (not a code task).
+
+**Note:** the 4 failing `__tests__/mobile-runbook/check-eas-config.test.ts`
+cases are pre-existing baseline (that script was untouched); not a regression.
+
+When the remaining follow-ups are shipped or consciously deferred, move this
+doc to `docs/planning/completed/` to end the stop-hook loop.
+
 ## Discovery log (append new defects here as found)
 
 - _(start)_ Baseline blockers captured above.
