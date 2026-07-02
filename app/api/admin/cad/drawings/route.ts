@@ -40,6 +40,59 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ drawing: data });
   }
 
+  // ─── Branch listing modes (cad-branching) ──────────────────────────────
+  // A branch is a cad_drawings row with parent_id set. Three modes:
+  //   ?parent_id=<id>      → branches forked from that drawing
+  //   ?branches_mine=true  → my branches across all drawings
+  //   ?review_inbox=true   → branches awaiting MY review (I own the parent)
+  const parentId = searchParams.get('parent_id');
+  const branchesMine = searchParams.get('branches_mine') === 'true';
+  const reviewInbox = searchParams.get('review_inbox') === 'true';
+
+  if (parentId || branchesMine || reviewInbox) {
+    const branchCols =
+      'id, parent_id, name, description, created_by, branch_status, branch_note, ' +
+      'forked_at, forked_from_updated_at, review_requested_at, reviewed_at, reviewed_by, ' +
+      'feature_count, layer_count, created_at, updated_at';
+    let bq = supabaseAdmin
+      .from('cad_drawings')
+      .select(branchCols)
+      .is('deleted_at', null)
+      .not('parent_id', 'is', null);
+
+    if (parentId) bq = bq.eq('parent_id', parentId).order('updated_at', { ascending: false });
+    else if (branchesMine) bq = bq.eq('created_by', session.user.email).order('updated_at', { ascending: false });
+    else bq = bq.eq('branch_status', 'in_review').order('review_requested_at', { ascending: false });
+
+    const { data: branchRows, error: branchErr } = await bq;
+    if (branchErr) return NextResponse.json({ error: branchErr.message }, { status: 500 });
+
+    // Attach parent metadata (name / owner / updated_at) in one round trip so
+    // the UI can show which drawing a branch belongs to and warn when the
+    // parent drifted after the fork.
+    type BranchRow = Record<string, unknown> & { parent_id?: string | null };
+    const rows = (branchRows ?? []) as BranchRow[];
+    const parentIds = [...new Set(rows.map((r) => r.parent_id).filter(Boolean))] as string[];
+    const parentMap = new Map<string, { name: string | null; created_by: string | null; updated_at: string | null }>();
+    if (parentIds.length > 0) {
+      const { data: parents } = await supabaseAdmin
+        .from('cad_drawings')
+        .select('id, name, created_by, updated_at')
+        .in('id', parentIds);
+      for (const p of (parents ?? []) as Array<{ id: string; name: string | null; created_by: string | null; updated_at: string | null }>) {
+        parentMap.set(p.id, { name: p.name, created_by: p.created_by, updated_at: p.updated_at });
+      }
+    }
+    let out = rows.map((r) => {
+      const p = r.parent_id ? parentMap.get(r.parent_id) : undefined;
+      return { ...r, parent_name: p?.name ?? null, parent_owner: p?.created_by ?? null, parent_updated_at: p?.updated_at ?? null };
+    });
+    // The review inbox only surfaces branches whose parent I own.
+    if (reviewInbox) out = out.filter((r) => r.parent_owner === session.user!.email);
+
+    return NextResponse.json({ branches: out });
+  }
+
   // Return list — only metadata columns, not the full document JSONB.
   // Shared across all CAD users (no owner filter). Optionally scope to a
   // single job (the job-detail CAD tab passes ?job_id= to show only that
@@ -55,7 +108,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const deleted = searchParams.get('deleted') === 'true';
   let query = supabaseAdmin
     .from('cad_drawings')
-    .select('id, name, description, feature_count, layer_count, job_id, folder_id, created_by, created_at, updated_at, deleted_at, jobs(name, job_number)');
+    .select('id, name, description, feature_count, layer_count, job_id, folder_id, created_by, created_at, updated_at, deleted_at, jobs(name, job_number)')
+    // cad-branching — branches (parent_id set) are their own rows; keep them
+    // out of the main drawings list so the file manager only shows mains.
+    .is('parent_id', null);
   if (deleted) {
     query = query.not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
   } else {
