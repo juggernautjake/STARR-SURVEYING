@@ -1,10 +1,11 @@
 import * as Notifications from 'expo-notifications';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, type ErrorBoundaryProps } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { AppErrorScreen } from '@/lib/AppErrorScreen';
 import { NotificationBanner } from '@/lib/NotificationBanner';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { DatabaseProvider } from '@/lib/db';
@@ -331,6 +332,16 @@ function RootLayout() {
       </ThemePreferenceProvider>
     </SafeAreaProvider>
   );
+}
+
+/**
+ * expo-router picks up a named `ErrorBoundary` export from a layout and
+ * renders it when any descendant throws during render — our app-wide crash
+ * net. `ErrorBoundaryProps` gives us `{ error, retry }`; `retry` re-mounts
+ * the failed segment so the surveyor can recover without killing the app.
+ */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  return <AppErrorScreen error={error} retry={retry} />;
 }
 
 export default Sentry.wrap(RootLayout);
