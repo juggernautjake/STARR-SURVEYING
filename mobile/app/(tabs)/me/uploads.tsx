@@ -47,12 +47,15 @@ import {
 } from '@/lib/uploadQueue';
 import { colors } from '@/lib/theme';
 import { useResolvedScheme } from '@/lib/themePreference';
+import { tabletContainerStyle, useResponsiveLayout } from '@/lib/responsive';
 
 type Filter = 'pending' | 'failed';
 
 export default function UploadsScreen() {
   const scheme = useResolvedScheme();
   const palette = colors[scheme];
+  const { isTablet } = useResponsiveLayout();
+  const tabletStyle = tabletContainerStyle(isTablet);
   const db = usePowerSync();
 
   const [filter, setFilter] = useState<Filter>('pending');
@@ -141,7 +144,7 @@ export default function UploadsScreen() {
         />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, tabletStyle]}>
         {rows.length === 0 ? (
           <Text style={[styles.empty, { color: palette.muted }]}>
             {filter === 'pending'

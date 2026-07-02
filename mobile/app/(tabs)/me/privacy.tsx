@@ -47,10 +47,13 @@ import {
 import { ScreenHeader } from '@/lib/ScreenHeader';
 import { colors } from '@/lib/theme';
 import { useResolvedScheme } from '@/lib/themePreference';
+import { tabletContainerStyle, useResponsiveLayout } from '@/lib/responsive';
 
 export default function PrivacyScreen() {
   const scheme = useResolvedScheme();
   const palette = colors[scheme];
+  const { isTablet } = useResponsiveLayout();
+  const tabletStyle = tabletContainerStyle(isTablet);
 
   // Last 24 h of raw pings. The Me-tab summary uses the same hook;
   // both stay in sync via PowerSync's reactive query layer.
@@ -70,7 +73,7 @@ export default function PrivacyScreen() {
     >
       <ScreenHeader back title="Privacy & Tracking" />
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, tabletStyle]}>
         <View
           style={[
             styles.disclosure,

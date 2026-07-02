@@ -39,6 +39,7 @@ import {
 } from '@/lib/receipts';
 import { formatLocalShortDate, formatLocalTime } from '@/lib/timeFormat';
 import { type Palette, colors } from '@/lib/theme';
+import { tabletContainerStyle, useResponsiveLayout } from '@/lib/responsive';
 import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
@@ -110,6 +111,8 @@ interface ReceiptFormProps {
 }
 
 function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
+  const { isTablet } = useResponsiveLayout();
+  const tabletStyle = tabletContainerStyle(isTablet);
   const updateReceipt = useUpdateReceipt();
   const deleteReceipt = useDeleteReceipt();
   const photoUrl = useReceiptPhotoUrl(receipt);
@@ -341,7 +344,7 @@ function ReceiptForm({ receipt, palette }: ReceiptFormProps) {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[styles.scroll, tabletStyle]}
           keyboardShouldPersistTaps="handled"
         >
           <ScreenHeader

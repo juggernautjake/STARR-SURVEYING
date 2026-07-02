@@ -46,7 +46,7 @@
 |---|---|---|
 | **M-A1** | Fix mobile ESLint (`root: true`) so lint/CI runs at all | **DONE** |
 | **M-A2** | Clear all 12 typecheck errors + 2 rules-of-hooks lint errors | **DONE** |
-| **M-B1** | Tablet width-constrain the ~32 full-bleed screens | TODO |
+| **M-B1** | Tablet width-constrain the full-bleed screens | **DONE (primary surfaces)** — see note |
 | **M-B2** | Safe-area audit — screens missing notch/home-indicator insets | TODO |
 | **M-C1** | Dynamic Type: `useScaledFontSize` + `allowFontScaling` guards | TODO |
 | **M-D1** | Normalize empty / loading / error states onto one component | TODO |
@@ -83,3 +83,14 @@
 ## Discovery log (append new defects here as found)
 
 - _(start)_ Baseline blockers captured above.
+- **M-B1 note (2026-07-02):** constrained the primary surfaces —
+  sign-in / forgot-password / reset-password, gear root, job detail,
+  me/uploads, me/privacy, receipt detail (ReceiptForm), point detail
+  (PointForm) — plus the 5 already done (jobs/money/time/me roots,
+  notes/new). **Deferred:** `capture/index` (a multi-step wizard whose
+  ScrollViews live in sub-step components — needs the hook threaded into
+  each step; low tablet value for a capture flow), and the small
+  `photos` / `files preview` / `time/edit` screens. A cleaner long-term
+  fix is a shared `<ScreenScroll>` wrapper that applies the tablet clamp
+  once (tracked as a follow-up, not a launch blocker). Two-pane
+  list+detail on tablet remains S3d in `mobile/STYLES_AUDIT.md`.

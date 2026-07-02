@@ -34,6 +34,7 @@ import { ScreenHeader } from '@/lib/ScreenHeader';
 import { useIsEquipmentManager } from '@/lib/myRoles';
 import { colors, type Palette } from '@/lib/theme';
 import { useResolvedScheme } from '@/lib/themePreference';
+import { tabletContainerStyle, useResponsiveLayout } from '@/lib/responsive';
 import { useQuery } from '@powersync/react';
 
 const ADMIN_WEB_BASE =
@@ -42,6 +43,8 @@ const ADMIN_WEB_BASE =
 export default function GearIndexScreen() {
   const scheme = useResolvedScheme();
   const palette = colors[scheme];
+  const { isTablet } = useResponsiveLayout();
+  const tabletStyle = tabletContainerStyle(isTablet);
   const { session } = useAuth();
   const { isEquipmentManager, isLoading: rolesLoading } = useIsEquipmentManager();
 
@@ -110,7 +113,7 @@ export default function GearIndexScreen() {
       style={[styles.safe, { backgroundColor: palette.background }]}
       edges={['top']}
     >
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, tabletStyle]}>
         <ScreenHeader title="Equipment" subtitle={emEmail} />
 
         <View style={styles.grid}>

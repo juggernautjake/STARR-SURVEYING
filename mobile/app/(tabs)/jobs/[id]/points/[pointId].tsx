@@ -56,6 +56,7 @@ import {
   usePointMedia,
 } from '@/lib/fieldMedia';
 import { colors, type Palette } from '@/lib/theme';
+import { tabletContainerStyle, useResponsiveLayout } from '@/lib/responsive';
 import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
@@ -98,6 +99,8 @@ interface PointFormProps {
 }
 
 function PointForm({ point, palette }: PointFormProps) {
+  const { isTablet } = useResponsiveLayout();
+  const tabletStyle = tabletContainerStyle(isTablet);
   const updatePoint = useUpdateDataPoint();
   const deletePoint = useDeleteDataPoint();
   const deleteMedia = useDeleteMedia();
@@ -289,7 +292,7 @@ function PointForm({ point, palette }: PointFormProps) {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[styles.scroll, tabletStyle]}
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.metaBlock}>

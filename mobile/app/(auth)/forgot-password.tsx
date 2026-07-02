@@ -15,6 +15,7 @@ import { TextField } from '@/lib/TextField';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { useResolvedScheme } from '@/lib/themePreference';
+import { tabletContainerStyle, useResponsiveLayout } from '@/lib/responsive';
 
 /**
  * Request a password-reset email. Supabase sends a deep-link to
@@ -30,6 +31,8 @@ import { useResolvedScheme } from '@/lib/themePreference';
 export default function ForgotPasswordScreen() {
   const scheme = useResolvedScheme();
   const palette = colors[scheme];
+  const { isTablet } = useResponsiveLayout();
+  const tabletStyle = tabletContainerStyle(isTablet);
   const { resetPassword } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -62,7 +65,7 @@ export default function ForgotPasswordScreen() {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={[styles.scroll, tabletStyle]} keyboardShouldPersistTaps="handled">
           <View style={styles.headerBlock}>
             <Text style={[styles.title, { color: palette.text }]}>Reset password</Text>
             <Text style={[styles.subtitle, { color: palette.muted }]}>
