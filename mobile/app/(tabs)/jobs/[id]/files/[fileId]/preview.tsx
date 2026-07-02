@@ -47,6 +47,7 @@ import { useOpenJobFile } from '@/lib/pinnedFiles';
 import { supabase } from '@/lib/supabase';
 import { usePowerSync, useQuery } from '@powersync/react';
 import { colors } from '@/lib/theme';
+import { tabletContainerStyle, useResponsiveLayout } from '@/lib/responsive';
 import { useResolvedScheme } from '@/lib/themePreference';
 
 interface CsvPreviewState {
@@ -61,6 +62,8 @@ interface CsvPreviewState {
 export default function CsvPreviewScreen() {
   const scheme = useResolvedScheme();
   const palette = colors[scheme];
+  const { isTablet } = useResponsiveLayout();
+  const tabletStyle = tabletContainerStyle(isTablet);
   const db = usePowerSync();
   const openFile = useOpenJobFile();
 
@@ -315,7 +318,7 @@ export default function CsvPreviewScreen() {
           />
         </View>
       ) : state.result ? (
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView contentContainerStyle={[styles.scroll, tabletStyle]}>
           {/* Stats bar */}
           <View
             style={[

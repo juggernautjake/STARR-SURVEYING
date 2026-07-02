@@ -28,6 +28,7 @@ import {
   usePointMedia,
 } from '@/lib/fieldMedia';
 import { type Palette, colors } from '@/lib/theme';
+import { tabletContainerStyle, useResponsiveLayout } from '@/lib/responsive';
 import { useResolvedScheme } from '@/lib/themePreference';
 
 /**
@@ -57,6 +58,8 @@ import { useResolvedScheme } from '@/lib/themePreference';
 export default function PointPhotosScreen() {
   const scheme = useResolvedScheme();
   const palette = colors[scheme];
+  const { isTablet } = useResponsiveLayout();
+  const tabletStyle = tabletContainerStyle(isTablet);
 
   const { pointId } = useLocalSearchParams<{ pointId: string }>();
   const { point, isLoading } = useDataPoint(pointId);
@@ -322,7 +325,7 @@ export default function PointPhotosScreen() {
       edges={['top']}
     >
       <ScreenHeader back title={point.name ?? 'Point'} />
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, tabletStyle]}>
         <View style={styles.metaBlock}>
           <View style={[styles.tag, { backgroundColor: prefixInfo.color }]}>
             <Text style={styles.tagText}>{point.code_category ?? '—'}</Text>

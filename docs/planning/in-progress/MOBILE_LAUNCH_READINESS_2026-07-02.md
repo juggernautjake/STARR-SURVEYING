@@ -100,8 +100,10 @@ each commit tsc-0 / eslint-0, pushed):**
 - **M-C1** Dynamic Type (`useScaledFontSize` + `allowFontScaling`) — ergonomics.
 - **M-D1** normalize empty/loading/error states onto one component.
 - **M-E2** status-pill color parity web↔mobile (needs a shared constants module).
-- **M-B1 tail** — 4 low-traffic screens (capture wizard, photos, files preview,
-  time/edit) + the shared `<ScreenScroll>` wrapper refactor.
+- **M-B1 tail** — DONE for photos, files preview, time/edit (2026-07-02).
+  Only `capture/index` (multi-step wizard) remains deferred — its ScrollViews
+  live in sub-step components; low tablet value for a capture flow. The shared
+  `<ScreenScroll>` wrapper refactor is still a nice-to-have follow-up.
 - **Operator config** (`REPLACE_WITH_*` in `eas.json`/`app.json`) — filled by
   the person running the build, per §2 of the setup guide (not a code task).
 
