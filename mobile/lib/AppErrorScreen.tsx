@@ -16,6 +16,7 @@
 import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { logError } from './log';
+import { brand } from './theme';
 
 interface Props {
   error: Error;
@@ -56,12 +57,8 @@ export function AppErrorScreen({ error, retry }: Props) {
   );
 }
 
-// Brand navy / white — intentional literals (pre/failed-provider fallback).
-const BRAND_NAVY = '#152050';
-const BRAND_ACCENT = '#1D3095';
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: BRAND_NAVY },
+  safe: { flex: 1, backgroundColor: brand.navyDeep },
   center: {
     flex: 1,
     alignItems: 'center',
@@ -87,7 +84,7 @@ const styles = StyleSheet.create({
   },
   button: {
     marginTop: 12,
-    backgroundColor: BRAND_ACCENT,
+    backgroundColor: brand.navy,
     minHeight: 56,
     paddingHorizontal: 40,
     borderRadius: 10,

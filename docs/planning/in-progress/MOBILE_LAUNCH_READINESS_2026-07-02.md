@@ -50,10 +50,12 @@
 | **M-B2** | Safe-area audit — screens missing notch/home-indicator insets | TODO |
 | **M-C1** | Dynamic Type: `useScaledFontSize` + `allowFontScaling` guards | TODO |
 | **M-D1** | Normalize empty / loading / error states onto one component | TODO |
-| **M-E1** | Brand-color constants (`BRAND_NAVY`/`_D`/`RED`) — audit S3b | TODO |
-| **M-E2** | Status-pill color parity with web (`StageChip`/`StatusChip`) — S3f | TODO |
+| **M-E1** | Brand-color constants (`brand.navy/navyDeep/red`) — audit S3b | **DONE** |
+| **M-E2** | Status-pill color parity with web (`StageChip`/`StatusChip`) — S3f | TODO (follow-up; needs shared web/mobile constants module) |
 | **M-F1** | **Setup guide: iPhone + Android, step-by-step, screenshots** | **DONE** — `mobile/SETUP_GUIDE_IPHONE_ANDROID.md` |
-| **M-G1** | QA sweep: offline / permission-denied / empty-data edge cases | TODO |
+| **M-G1** | Crash net (root ErrorBoundary) + edge-case sweep | **DONE (crash net)**; further edge cases = follow-up |
+| **M-C1** | Dynamic Type: `useScaledFontSize` + `allowFontScaling` guards | TODO (follow-up; ergonomics, not a launch blocker) |
+| **M-D1** | Normalize empty/loading/error states onto one component | TODO (follow-up; states exist, just inconsistent) |
 
 ## M-A2 — typecheck error breakdown (12)
 

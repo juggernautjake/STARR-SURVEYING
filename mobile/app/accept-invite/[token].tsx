@@ -17,6 +17,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { brand } from '@/lib/theme';
+
 export default function AcceptInviteScreen() {
   const { token } = useLocalSearchParams<{ token?: string }>();
   const router = useRouter();
@@ -63,7 +65,7 @@ export default function AcceptInviteScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#152050' },
+  container: { flex: 1, backgroundColor: brand.navyDeep },
   content: { flex: 1, justifyContent: 'center', padding: 24 },
   heading: {
     fontSize: 28,
@@ -95,7 +97,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   btnPrimaryText: {
-    color: '#1D3095',
+    color: brand.navy,
     fontSize: 16,
     fontWeight: '600',
   },

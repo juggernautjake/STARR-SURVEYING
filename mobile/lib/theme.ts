@@ -58,6 +58,23 @@ export const controls = {
   paddingHButton: 24,
 } as const;
 
+/**
+ * S3b — named brand constants for the handful of surfaces that render
+ * BEFORE (or instead of) the theme provider and so can't read `colors`:
+ * the pre-provider accept-invite splash and the failed-provider crash
+ * screen. Everything else should use the scheme-aware `colors[scheme]`.
+ * Keeping these named (not bare hex) means the brand navy/red live in one
+ * place even for those exceptions.
+ */
+export const brand = {
+  /** Primary brand blue — same as `palette.accent`. */
+  navy: '#1D3095',
+  /** Deep navy used for full-bleed splash backgrounds. */
+  navyDeep: '#152050',
+  /** Brand red (alerts / accent). */
+  red: '#BD1218',
+} as const;
+
 export const colors: Record<Scheme, Palette> = {
   light: {
     background: '#FFFFFF',
