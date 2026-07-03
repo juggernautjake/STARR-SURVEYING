@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 320" role="img" aria-label="Reference card for converting between degrees-minutes-seconds and decimal degrees">
+  <style>
+    .ttl{font:700 16px 'Segoe UI',sans-serif;fill:#0b1220}
+    .h{font:600 14px 'Segoe UI',sans-serif;fill:#1d3095}
+    .t{font:13px 'Segoe UI',sans-serif;fill:#334155}
+    .mono{font:600 13px 'JetBrains Mono',monospace;fill:#0b1220}
+    .box{fill:#f7f8fa;stroke:#e2e5eb;stroke-width:1}
+  </style>
+  <rect width="620" height="320" fill="#ffffff"/>
+  <text class="ttl" x="20" y="30">DMS  ↔  Decimal degrees</text>
+  <rect class="box" x="20" y="46" width="280" height="120" rx="8"/>
+  <text class="h" x="34" y="72">DMS → Decimal</text>
+  <text class="mono" x="34" y="98">dd = D + M/60 + S/3600</text>
+  <text class="t" x="34" y="126">Example: 45°30&#39;15&quot;</text>
+  <text class="mono" x="34" y="150">= 45 + 30/60 + 15/3600 = 45.5042&#176;</text>
+  <rect class="box" x="320" y="46" width="280" height="120" rx="8"/>
+  <text class="h" x="334" y="72">Decimal → DMS</text>
+  <text class="mono" x="334" y="98">D = int(dd)</text>
+  <text class="mono" x="334" y="120">M = int((dd − D)·60)</text>
+  <text class="mono" x="334" y="142">S = ((dd − D)·60 − M)·60</text>
+  <rect class="box" x="20" y="182" width="580" height="112" rx="8"/>
+  <text class="h" x="34" y="208">On the exam calculator</text>
+  <text class="t" x="34" y="234">• Many approved calculators have a °&#39;&quot; (DMS) key — enter angles directly and</text>
+  <text class="t" x="34" y="254">  let the calculator convert; confirm the mode (DEG, not RAD) before trig.</text>
+  <text class="t" x="34" y="274">• Carry full precision through the work; round only the final answer.</text>
+</svg>

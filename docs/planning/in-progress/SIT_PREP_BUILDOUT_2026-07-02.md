@@ -124,3 +124,14 @@ Difficulty levels per genre: **1 Foundational · 2 Standard(exam) · 3 Challenge
 
 ## Discovery log
 - _(start)_ Baseline captured above. Key enabler = renderMarkdown image support (S1).
+- **Data issue (found near end, 2026-07-02):** `fs_study_modules.exam_weight_percent`
+  for modules 1–8 sums to **121**, not 100 — an internal inconsistency (and the
+  module prose quotes different figures, e.g. Photogrammetry "~7%" vs the stored
+  12). Handled safely: the S17 study-priority chart is framed as *relative /
+  approximate emphasis* (ranking), not a literal "% of exam", with an on-figure
+  caveat to confirm the official NCEES FS split. **Not silently "fixed"** —
+  fabricating exact NCEES percentages would be worse; flagged here for the
+  office to reconcile against the current official spec.
+- **S17 (done):** all **10/10 modules now illustrated** — added the exam-emphasis
+  chart (module 10) and a DMS↔decimal calculator card (module 9). 16 image refs
+  total (11 diagrams + 5 photos), 0 missing on disk.
