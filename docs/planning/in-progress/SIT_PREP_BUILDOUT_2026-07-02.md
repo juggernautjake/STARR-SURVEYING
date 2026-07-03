@@ -179,3 +179,10 @@ Difficulty levels per genre: **1 Foundational · 2 Standard(exam) · 3 Challenge
   for `is_dynamic` rows loads the template via `dbRowToTemplate` +
   `generateDynamicQuestion`. All 105 new questions qualify; the 18 dynamic ones
   regenerate fresh each attempt. **Student-facing quiz path confirmed end-to-end.**
+- **Reverted a low-value addition (S31/S32 → seed 395):** briefly appended worked
+  examples to modules 1/2/3 (their examples sections looked "thin" by char count).
+  A quality spot-read showed those sections **already held 5–6 worked examples**
+  covering the same topics (dense prose, not thin) — the additions were duplicates.
+  Stripped them (seed 395) and removed seeds 393/394. Net: no redundant content;
+  examples restored to their original comprehensive state. Lesson: judge lesson
+  depth by content, not character count.
