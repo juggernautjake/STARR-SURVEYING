@@ -66,9 +66,15 @@
 | **S5** | 18 hand-verified premade problems across 9 genres × 3 levels (question_bank) | **DONE** — templates deferred (31 generators already exist) |
 | **S6** | Correctness — every numeric answer checked vs a node computation | **DONE** |
 | **S7** | Apply seed to live Supabase + verify | **DONE** (18 Qs, figures in mods 2-5 verified) |
-| **S8** | Sourced photos (instruments/monuments) via Playwright w/ credit | TODO |
-| **S9** | Currency/correctness pass (Texas-applicable; NCEES FS spec current) | ongoing |
-| **S10** | More diagrams (vertical curve, PLSS section, coordinate area) + inject into modules 1/6/7/8; +more genres (photogrammetry, boundary-legal, challenge tier) | TODO |
+| **S8** | Sourced photo (geodetic monument, CC BY 2.5) via Playwright + sharp, injected into module 1 w/ credit | **DONE** |
+| **S9** | Correctness/currency — every answer node-checked; MC↔option + numeric-format integrity (0 issues); all 10 images exist on disk; full `tsc` clean; Texas nuances handled (varas tagged `texas`; PLSS framed as national FS content, not TX) | **DONE** |
+| **S10** | +5 diagrams (vertical curve, PLSS, coordinate area, photo scale, GNSS heights) → **8/8 modules illustrated**; +genres photogrammetry/boundary-legal/gnss + per-genre difficulty fill (39 problems, most easy/medium/hard) | **DONE** |
+
+### Final tally (2026-07-02)
+- **Images:** 9 authored SVG diagrams + 1 sourced CC-BY photo, all sized + captioned + referenced; **8/8 study modules illustrated**; `renderMarkdown` now supports `![caption](url "credit")` (full `tsc` clean).
+- **Problems:** **39 new** hand-verified premade problems across **11 genres × up to 3 difficulty levels** (easy 12 / medium 20 / hard 7); 0 MC/numeric integrity issues; each has explanation + study reference + `genre:*` tag. Applied to live DB (seeds 369–373) + verified.
+- **Generator:** the 31 existing dynamic generators already cover all genres; no new templates needed this pass (noted as strong existing coverage).
+- **Optional follow-ups (not blockers):** more sourced photos (instruments); dynamic problem_templates with attached diagrams; deepen module 8 (Photogrammetry/Construction) prose.
 
 ## Figure markdown syntax (introduced in S1)
 
