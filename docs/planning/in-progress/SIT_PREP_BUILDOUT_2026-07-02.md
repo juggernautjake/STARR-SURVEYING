@@ -95,7 +95,7 @@
   CC BY-SA 4.0, USGS aerial PD) — all sized, captioned, referenced; saved to
   `public/lessons/fs/` + the SIT Prep resources folder; `renderMarkdown`
   supports figures (full `tsc` clean). **0 missing on disk.**
-- **Problems:** **74 new** (60 hand-verified static + **14 dynamic generator
+- **Problems:** **81 new** (67 hand-verified static + **14 dynamic generator
   templates with matched diagrams**) across **11 genres, EVERY genre spanning
   all 3 difficulty levels (easy/medium/hard)** — a complete genre×difficulty
   matrix. Mix of numeric + conceptual multiple-choice, incl. current Texas
