@@ -2,6 +2,7 @@
 'use client';
 import { useState } from 'react';
 import Image from 'next/image';
+import MessageBody from './MessageBody';
 
 interface Attachment {
   url: string;
@@ -106,7 +107,7 @@ export default function MessageBubble({
           </div>
         )}
 
-        <div className="msg-bubble__content">{content}</div>
+        <div className="msg-bubble__content"><MessageBody content={content} /></div>
 
         {/* File attachments */}
         {attachments.filter(a => !a.type.startsWith('image/')).length > 0 && (

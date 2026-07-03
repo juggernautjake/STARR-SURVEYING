@@ -2909,6 +2909,7 @@
   pointer-events: none;
 }
 /* Keep pasted rich formatting readable inside the bubble. */
+.msg-rich { white-space: pre-wrap; overflow-wrap: anywhere; }
 .msg-rich p { margin: 0 0 .35rem; }
 .msg-rich p:last-child { margin-bottom: 0; }
 .msg-rich ul, .msg-rich ol { margin: .2rem 0; padding-left: 1.2rem; }
