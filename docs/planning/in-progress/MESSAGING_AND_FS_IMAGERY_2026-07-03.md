@@ -126,3 +126,21 @@ right module/section with a caption + credit → re-verify it renders in-context
   (28 refs); all messaging tables present (conversations, participants w/
   last_read_at, messages w/ attachments+reply_to_id, message_read_receipts,
   message_reactions, messaging_preferences). Data layer ready for Track B.
+
+## Diagram QA revision log (2026-07-03)
+- **Text readability (root cause + fix):** SVG text was hard to read / looked
+  outlined because the module renders diagrams as `<img src=svg>` (isolated
+  context) and 'Segoe UI' Semibold isn't available there → faux-bold outline +
+  thin/light strokes. FIXED: switched ALL diagram text to **Arial** (universal,
+  real 400/700 faces), weight **700**, min **12px**, dark **#111827**,
+  `text{stroke:none}`. Verified dark + crisp via actual `<img>` render.
+- **Overlaps:** programmatic getBoundingClientRect audit across all 22 diagrams.
+  Fixed coordinate-area (D-coordinate; shoelace formula vs point C),
+  horizontal-curve (M⟷L), average-end-area (L line vs station labels).
+  **Final: 0 text overlaps.**
+- **Overflow/clipping:** fixed survey-units + stereo-overlap captions.
+  **Final: 0 text overflow** (transform-aware screen-coord check).
+- **A10 + A13: DONE** — every diagram triple-checked (readability + overlap +
+  overflow + correctness), verified programmatically + visually.
+- **Still TODO:** subscripts audit (mostly using Unicode ₁₂ already); mobile
+  render check of figures; A11 (more diagrams to fully populate); Track B messaging.
