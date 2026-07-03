@@ -79,9 +79,10 @@
 ### Continued buildout (time remaining before 9:00pm)
 | Slice | What | Status |
 |---|---|---|
-| **S11** | Source 3–4 more real instrument photos (total station, level, GNSS receiver) via Playwright w/ attribution; inject into modules 2/3/6 | TODO |
-| **S12** | Add dynamic `problem_templates` (parametric, with attached `diagram` specs) so the generator produces fresh varied problems w/ figures | TODO |
-| **S13** | Second problem batch — deepen thin genres to a full easy/med/hard set each | TODO |
+| **S11** | 3 more sourced instrument photos (total station/level/GNSS) into modules 2/3/6 | **DONE** — 13 image refs, all on disk |
+| **S12** | 4 dynamic `problem_templates` w/ diagrams (inverse, curve T, latitude, arc L) + quiz wiring | **DONE** — engine-verified |
+| **S13** | 5 more dynamic templates (departure, external E, middle ordinate M, temp corr, triangle area) | **DONE** — 9 dynamic total; 48 new problems |
+| **S14** | Deepen module 8 (Photogrammetry & Construction) prose if thin | TODO |
 
 ## Figure markdown syntax (introduced in S1)
 
