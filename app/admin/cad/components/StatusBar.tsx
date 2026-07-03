@@ -6,6 +6,7 @@ import { useDrawingStore, useViewportStore, useSelectionStore, useToolStore, use
 // cad-desktop-tauri-and-perf Slice P6 — extracted cursor pill so
 // mousemove ticks don't reconcile the whole StatusBar subtree.
 import StatusBarCursorPill from './StatusBarCursorPill';
+import ErrorReportStatusButton from './ErrorReportStatusButton';
 import { DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { listAutosaves } from '@/lib/cad/persistence/autosave';
 import type { SnapType } from '@/lib/cad/types';
@@ -527,6 +528,12 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
       <span className="text-gray-500 shrink-0" title="Drawing scale">
         1″={drawingScale}′
       </span>
+
+      {/* Errors & warnings pill — pushed to the far right. Only appears
+          once something has been captured; opens the copyable modal. */}
+      <div className="ml-auto flex items-center gap-4 shrink-0">
+        <ErrorReportStatusButton />
+      </div>
     </div>
   );
 }
