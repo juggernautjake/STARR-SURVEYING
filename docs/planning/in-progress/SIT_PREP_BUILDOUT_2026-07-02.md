@@ -95,11 +95,15 @@
   CC BY-SA 4.0, USGS aerial PD) — all sized, captioned, referenced; saved to
   `public/lessons/fs/` + the SIT Prep resources folder; `renderMarkdown`
   supports figures (full `tsc` clean). **0 missing on disk.**
-- **Problems:** **57 new** (48 hand-verified static + **9 dynamic generator
-  templates with matched diagrams**) across **11 genres × up to 3 difficulty
-  levels**. Integrity: **0 MC/option mismatches, 0 numeric-format issues, 0
-  non-finite dynamic templates** (dynamic ones round-tripped through the live
-  engine). Each carries an explanation + study reference + `genre:*` tag.
+- **Problems:** **74 new** (60 hand-verified static + **14 dynamic generator
+  templates with matched diagrams**) across **11 genres, EVERY genre spanning
+  all 3 difficulty levels (easy/medium/hard)** — a complete genre×difficulty
+  matrix. Mix of numeric + conceptual multiple-choice, incl. current Texas
+  boundary law (adverse-possession statute ladder, priority of conflicting
+  calls) and GNSS/photogrammetry concepts (DOP, stereo overlap). Integrity:
+  **0 MC/option mismatches, 0 numeric-format issues, 0 non-finite dynamic
+  templates** (dynamic ones round-tripped through the live engine). Each carries
+  an explanation + study reference + `genre:*` tag.
 - **Texas-current:** varas + PLSS (framed as national FS content, not TX);
   aligned to the current NCEES FS specification.
 - **Delivery:** seeds 369–378 applied to the live Supabase DB + verified.
