@@ -28,10 +28,10 @@ Must be **cancelable/closable** and **intuitive**.
 | # | What | Status |
 |---|---|---|
 | **T1** | API route `POST /api/admin/learn/ai-tutor` — accepts {highlightedText, module ctx, messages[]}; builds a rigorous tutor system prompt; fetches related practice problems from the DB; calls Claude; returns {reply, relatedProblems}. 503 without key. | **DONE** — accuracy-first prompt + related-problem lookup + 503 guard |
-| **T2** | `AITutorPanel` — side drawer chat UI: shows the highlighted excerpt, message thread, input, related-problem links, close. Reuses the messaging chat styling idiom. | TODO |
-| **T3** | `DeeperLearningTutor` — launcher button + highlight-mode banner + floating "Take me deeper" on selection (re-highlightable, explicit start) + cancel; orchestrates the panel. | TODO |
-| **T4** | Wire into the FS module page (`.../sit/module/[id]`); works on all study tabs. Mobile-responsive. | TODO |
-| **T5** | Polish: loading/typing state, error banner (AI offline), keyboard (Esc closes), accuracy guardrails in the prompt, resource links open new tab. | TODO |
+| **T2** | `AITutorPanel` — side drawer chat UI: shows the highlighted excerpt, message thread, input, related-problem links, close. Reuses the messaging chat styling idiom. | **DONE** — chat drawer, topic chip, markdown replies, related-problem card |
+| **T3** | `DeeperLearningTutor` — launcher button + highlight-mode banner + floating "Take me deeper" on selection (re-highlightable, explicit start) + cancel; orchestrates the panel. | **DONE** — launcher + banner + floating "Take me deeper" + cancel/Esc |
+| **T4** | Wire into the FS module page (`.../sit/module/[id]`); works on all study tabs. Mobile-responsive. | **DONE** — wired into FS module page (all tabs); responsive |
+| **T5** | Polish: loading/typing state, error banner (AI offline), keyboard (Esc closes), accuracy guardrails in the prompt, resource links open new tab. | **DONE** — typing state, error banner, Esc close, safe markdown, accuracy prompt, resources |
 | **T6** | (Optional) generalize to other learn surfaces (lesson pages) if cheap. | TODO |
 
 ## Discovery log
