@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 300" role="img" aria-label="Traditional survey units drawn to scale: one foot, one Texas vara equals 2.78 feet, one rod equals 16.5 feet, and one Gunter's chain equals 66 feet.">
+  <style>
+    .ttl{font:700 15px 'Segoe UI',sans-serif;fill:#0b1220}
+    .bar{fill:#1d3095}
+    .barv{fill:#b45309}
+    .lbl{font:600 12px 'Segoe UI',sans-serif;fill:#0b1220}
+    .val{font:600 12px 'Segoe UI',sans-serif;fill:#334155}
+    .inbar{font:700 12px 'Segoe UI',sans-serif;fill:#ffffff}
+    .note{font:12px 'Segoe UI',sans-serif;fill:#334155}
+  </style>
+  <rect width="620" height="300" fill="#ffffff"/>
+  <text class="ttl" x="20" y="26">Traditional survey units (drawn to scale)</text>
+
+  <!-- scale: 6 px per foot; bars start x=150 -->
+  <!-- 1 foot -> 6px -->
+  <text class="lbl" x="140" y="66" text-anchor="end">1 foot</text>
+  <rect class="bar" x="150" y="56" width="6" height="14"/>
+  <text class="val" x="164" y="66">1.00 ft</text>
+
+  <!-- 1 vara (Texas) 2.7778 ft -> 17px -->
+  <text class="lbl" x="140" y="104" text-anchor="end">1 vara (TX)</text>
+  <rect class="barv" x="150" y="94" width="17" height="14"/>
+  <text class="val" x="175" y="104">2.78 ft (33⅓ in)</text>
+
+  <!-- 1 rod 16.5 ft -> 99px -->
+  <text class="lbl" x="140" y="142" text-anchor="end">1 rod / pole</text>
+  <rect class="bar" x="150" y="132" width="99" height="14"/>
+  <text class="val" x="257" y="142">16.5 ft</text>
+
+  <!-- 1 chain 66 ft -> 396px -->
+  <text class="lbl" x="140" y="180" text-anchor="end">1 chain</text>
+  <rect class="bar" x="150" y="170" width="396" height="14"/>
+  <text class="inbar" x="348" y="181" text-anchor="middle">66 ft</text>
+  <text class="val" x="556" y="180">= 4 rods</text>
+
+  <text class="note" x="20" y="240">A Gunter's chain = 66 ft = 4 rods = 100 links; 80 chains = 1 mile; 10 square chains = 1 acre (43,560 ft²).</text>
+  <text class="note" x="20" y="266">Texas land grants use the vara (33⅓ in = 2.7778 ft); 1 acre ≈ 5,645 square varas.</text>
+</svg>
