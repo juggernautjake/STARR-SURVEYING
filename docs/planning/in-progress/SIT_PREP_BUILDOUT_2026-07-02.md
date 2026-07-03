@@ -82,7 +82,31 @@
 | **S11** | 3 more sourced instrument photos (total station/level/GNSS) into modules 2/3/6 | **DONE** — 13 image refs, all on disk |
 | **S12** | 4 dynamic `problem_templates` w/ diagrams (inverse, curve T, latitude, arc L) + quiz wiring | **DONE** — engine-verified |
 | **S13** | 5 more dynamic templates (departure, external E, middle ordinate M, temp corr, triangle area) | **DONE** — 9 dynamic total; 48 new problems |
-| **S14** | Deepen module 8 (Photogrammetry & Construction) prose if thin | TODO |
+| **S14** | Deepen module 8 prose | **DONE — already robust** (~18K chars, 5 sections incl. calc strategy) |
+| **S15** | +9 homework problems (batch 3) — 57 new total, balanced difficulty | **DONE** |
+| **S16** | Public-domain USGS aerial photo → module 8 | **DONE** — 14 images total |
+
+### FINAL VERIFIED TALLY (2026-07-02, ~8:00pm)
+- **Lessons:** 10 FS modules, each with the full 5-section structure (overview/
+  concepts/formulas/examples/tips) — structurally complete + consistent.
+  **Modules 1–8 illustrated** (14 image refs).
+- **Images:** 9 authored SVG diagrams + **5 sourced photos** (1 geodetic
+  monument CC BY 2.5, total station PD, level CC BY 2.0, GNSS receiver
+  CC BY-SA 4.0, USGS aerial PD) — all sized, captioned, referenced; saved to
+  `public/lessons/fs/` + the SIT Prep resources folder; `renderMarkdown`
+  supports figures (full `tsc` clean). **0 missing on disk.**
+- **Problems:** **57 new** (48 hand-verified static + **9 dynamic generator
+  templates with matched diagrams**) across **11 genres × up to 3 difficulty
+  levels**. Integrity: **0 MC/option mismatches, 0 numeric-format issues, 0
+  non-finite dynamic templates** (dynamic ones round-tripped through the live
+  engine). Each carries an explanation + study reference + `genre:*` tag.
+- **Texas-current:** varas + PLSS (framed as national FS content, not TX);
+  aligned to the current NCEES FS specification.
+- **Delivery:** seeds 369–378 applied to the live Supabase DB + verified.
+
+All planned + continued-buildout items are shipped and verified. Optional
+future polish (non-blocking): figures for modules 9–10 (calc-strategy/review),
+still more problems, more instrument photos.
 
 ## Figure markdown syntax (introduced in S1)
 
