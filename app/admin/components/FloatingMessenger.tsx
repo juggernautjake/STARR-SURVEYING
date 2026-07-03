@@ -199,6 +199,9 @@ export default function FloatingMessenger() {
   const [sending, setSending] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const [viewerMedia, setViewerMedia] = useState<MediaItem | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<{ url?: string; name?: string; type?: string; size?: number }[]>([]);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [loadingMessages, setLoadingMessages] = useState(false);
 
   // Search / new conversation
@@ -480,18 +483,56 @@ export default function FloatingMessenger() {
   // tick. The server confirm runs in the background; once it returns we
   // silently refetch (no skeleton) and the merge dedupes the optimistic
   // row against the server-acked one.
+  // Upload picked files (images/video/mp3/mp4/any) to the message-attachments
+  // bucket, staging them until the next send.
+  async function handleAttachFiles(files: FileList | null) {
+    if (!files || files.length === 0 || !activeConv) return;
+    setUploadingAttachment(true);
+    try {
+      for (const file of Array.from(files)) {
+        const dataUrl: string = await new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(String(r.result));
+          r.onerror = () => reject(r.error ?? new Error('read failed'));
+          r.readAsDataURL(file);
+        });
+        const res = await fetch('/api/admin/messages/attachments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conversation_id: activeConv.id, dataUrl, name: file.name }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.attachment) setPendingAttachments((prev) => [...prev, data.attachment]);
+        } else {
+          const data = await res.json().catch(() => ({}));
+          addToast(`Upload failed — ${data.error || `HTTP ${res.status}`}`, 'error');
+        }
+      }
+    } catch {
+      addToast('Upload failed', 'error');
+    }
+    setUploadingAttachment(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
   async function handleSend() {
     // Sanitized HTML — a formatted paste keeps its formatting end-to-end.
     const content = richRef.current?.getHtml() ?? '';
-    if (htmlToPlainText(content).trim() === '' || !activeConv || !userEmail) return;
+    const hasText = htmlToPlainText(content).trim() !== '';
+    if ((!hasText && pendingAttachments.length === 0) || !activeConv || !userEmail) return;
+    const atts = pendingAttachments;
+    const hasImage = atts.some((a) => (a.type || '').startsWith('image/'));
+    const message_type = atts.length > 0 ? (hasImage ? 'image' : 'file') : 'text';
     const optimisticMsg: Message = {
       id: makeOptimisticId(),
       sender_email: userEmail,
       content,
-      message_type: 'text',
+      message_type,
       created_at: new Date().toISOString(),
-      attachments: [],
+      attachments: atts,
     };
+    setPendingAttachments([]);
     // Optimistic insert + clear the input + collapse the emoji picker
     // BEFORE the network round-trip so the chat reads as instant.
     setMessages((prev) => [...prev, optimisticMsg]);
@@ -503,7 +544,7 @@ export default function FloatingMessenger() {
       const res = await fetch('/api/admin/messages/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversation_id: activeConv.id, content, message_type: 'text' }),
+        body: JSON.stringify({ conversation_id: activeConv.id, content, message_type, attachments: atts }),
       });
       if (res.ok) {
         // Silent refetch so the optimistic row dissolves into the
@@ -520,10 +561,11 @@ export default function FloatingMessenger() {
           if (data?.error && typeof data.error === 'string') detail = data.error;
         } catch { /* response wasn't JSON, keep the status */ }
         addToast(`Couldn't send message — ${detail}`, 'error');
-        // Roll the optimistic message back + restore the draft so the user can retry.
+        // Roll the optimistic message back + restore the draft + attachments so the user can retry.
         setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
         richRef.current?.setHtml(content);
         setComposeEmpty(false);
+        if (atts.length > 0) setPendingAttachments(atts);
       }
     } catch (err) {
       const detail = err instanceof Error ? err.message : 'network error';
@@ -1064,7 +1106,21 @@ export default function FloatingMessenger() {
               </div>
 
               {/* Compose */}
+              {/* Pending attachment chips (staged, not yet sent) */}
+              {(pendingAttachments.length > 0 || uploadingAttachment) && (
+                <div className="messenger-panel__pending">
+                  {pendingAttachments.map((a, ai) => (
+                    <span key={ai} className="messenger-panel__pending-chip">
+                      {(a.type || '').startsWith('image/') ? '🖼' : (a.type || '').startsWith('video/') ? '🎬' : (a.type || '').startsWith('audio/') ? '🎵' : '📎'} {a.name}
+                      <button type="button" onClick={() => setPendingAttachments((prev) => prev.filter((_, i) => i !== ai))} aria-label="Remove">×</button>
+                    </span>
+                  ))}
+                  {uploadingAttachment && <span className="messenger-panel__pending-chip">Uploading…</span>}
+                </div>
+              )}
               <div className="messenger-panel__compose">
+                <input ref={fileInputRef} type="file" multiple accept="image/*,video/*,audio/*" style={{ display: 'none' }} onChange={(e) => handleAttachFiles(e.target.files)} />
+                <button className="messenger-panel__tool" onClick={() => fileInputRef.current?.click()} title="Attach a photo, video, or file" disabled={!activeConv || uploadingAttachment}>📎</button>
                 <div style={{ position: 'relative' }}>
                   <button className="messenger-panel__tool" onClick={() => setShowEmoji(!showEmoji)} title="Emoji">😊</button>
                   {showEmoji && (
@@ -1083,7 +1139,7 @@ export default function FloatingMessenger() {
                 <button
                   className="messenger-panel__send"
                   onClick={handleSend}
-                  disabled={sending || composeEmpty}
+                  disabled={sending || (composeEmpty && pendingAttachments.length === 0)}
                 >
                   &#10148;
                 </button>

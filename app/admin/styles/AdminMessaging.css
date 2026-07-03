@@ -3153,3 +3153,8 @@
 .messenger-panel__attach-audio { width:220px; max-width:100%; height:34px; margin-top:.3rem; }
 .messenger-panel__attach-file { display:inline-block; font-size:.78rem; color:inherit; text-decoration:none; background:rgba(0,0,0,.06); padding:.3rem .5rem; border-radius:8px; }
 .messenger-panel__msg-bubble--own .messenger-panel__attach-file { background:rgba(255,255,255,.18); }
+
+/* Popup composer — staged attachment chips */
+.messenger-panel__pending { display:flex; flex-wrap:wrap; gap:.3rem; padding:.35rem .65rem 0; }
+.messenger-panel__pending-chip { display:inline-flex; align-items:center; gap:.25rem; font-size:.72rem; background:#EFF6FF; color:#1e3a8a; border:1px solid #dbeafe; border-radius:12px; padding:.15rem .5rem; max-width:180px; }
+.messenger-panel__pending-chip button { background:none; border:none; cursor:pointer; color:#1e3a8a; font-size:.9rem; line-height:1; padding:0 0 0 .1rem; }
