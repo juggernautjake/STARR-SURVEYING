@@ -228,6 +228,17 @@
 .msg-bubble__edited {
   font-style: italic;
 }
+.msg-bubble__receipt {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.msg-bubble__receipt--seen {
+  color: #2563EB;
+}
+.msg-bubble--own .msg-bubble__receipt--seen {
+  color: #bfdbfe;
+}
 .msg-bubble__reactions {
   display: flex;
   gap: 0.25rem;
@@ -2125,6 +2136,14 @@
 .messenger-panel__msg-bubble { padding:.45rem .75rem; border-radius:12px; font-family:'Inter',sans-serif; font-size:.82rem; line-height:1.4; background:#F3F4F6; color:#0F1419; word-wrap:break-word; white-space:pre-wrap; }
 .messenger-panel__msg-bubble--own { background:var(--color-brand-navy); color:#FFF; }
 .messenger-panel__msg-time { font-family:'Inter',sans-serif; font-size:.58rem; color:#9CA3AF; margin-top:.1rem; padding:0 .5rem; }
+/* "Seen"/"Sent" read receipt under my most recent sent message (own bubbles are
+   right-aligned, so this sits at the right edge). */
+.messenger-panel__msg-receipt {
+  font-family:'Inter',sans-serif; font-size:.58rem; color:#9CA3AF;
+  margin-top:.05rem; padding:0 .5rem; align-self:flex-end; font-weight:600;
+  letter-spacing:.01em;
+}
+.messenger-panel__msg-receipt--seen { color:#2563EB; }
 
 /* Compose */
 .messenger-panel__compose { display:flex; align-items:center; gap:.35rem; padding:.5rem .75rem; border-top:1px solid #E5E7EB; background:#FFF; }

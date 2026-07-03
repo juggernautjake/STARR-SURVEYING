@@ -26,6 +26,10 @@ interface MessageBubbleProps {
   attachments?: Attachment[];
   reactions?: Reaction[];
   isEdited?: boolean;
+  /** Show a read receipt under this bubble (only for my most recent sent one). */
+  isLastOwn?: boolean;
+  /** Whether at least one other participant has seen this message. */
+  seen?: boolean;
   replyTo?: { content: string; senderName: string } | null;
   onReact?: (messageId: string, emoji: string) => void;
   onReply?: (messageId: string) => void;
@@ -48,7 +52,7 @@ const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🎉'];
 
 export default function MessageBubble({
   id, content, senderEmail, senderName, timestamp, isOwn, messageType,
-  attachments = [], reactions = [], isEdited = false, replyTo = null,
+  attachments = [], reactions = [], isEdited = false, isLastOwn = false, seen = false, replyTo = null,
   onReact, onReply, onEdit, onDelete,
 }: MessageBubbleProps) {
   const [showActions, setShowActions] = useState(false);
@@ -136,10 +140,15 @@ export default function MessageBubble({
         </div>
       )}
 
-      {/* Timestamp & edited indicator */}
+      {/* Timestamp, edited indicator & read receipt */}
       <div className="msg-bubble__meta">
         <span className="msg-bubble__time">{formatTime(timestamp)}</span>
         {isEdited && <span className="msg-bubble__edited">(edited)</span>}
+        {isOwn && isLastOwn && (
+          <span className={`msg-bubble__receipt ${seen ? 'msg-bubble__receipt--seen' : ''}`}>
+            {seen ? '✓✓ Seen' : '✓ Sent'}
+          </span>
+        )}
       </div>
 
       {/* Hover actions */}

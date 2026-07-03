@@ -52,6 +52,9 @@ export interface Message {
   message_type: string;
   created_at: string;
   attachments: unknown[];
+  // Read receipts (who has seen this message) — returned by the messages GET.
+  // Used to show a "Seen" indicator under my most recent sent message.
+  read_receipts?: { user_email: string; read_at: string }[];
 }
 
 interface Contact {
@@ -961,6 +964,12 @@ export default function FloatingMessenger() {
                     const prevMsg = i > 0 ? messages[i - 1] : null;
                     const showSender = !isOwn && (!prevMsg || prevMsg.sender_email !== m.sender_email);
                     const showDate = !prevMsg || new Date(m.created_at).toDateString() !== new Date(prevMsg.created_at).toDateString();
+                    // "Seen" receipt: show a status line under my LAST sent message only
+                    // (iMessage-style). Seen = at least one OTHER participant has a read receipt.
+                    const isLastOwn = isOwn && !messages.slice(i + 1).some(mm => mm.sender_email === userEmail);
+                    const seenByOthers = (m.read_receipts || []).some(
+                      r => r.user_email.toLowerCase() !== userEmail.toLowerCase()
+                    );
 
                     return (
                       <div key={m.id}>
@@ -1001,6 +1010,14 @@ export default function FloatingMessenger() {
                               <span aria-label="Sending" title="Sending…" style={{ marginLeft: 4 }}>⏳</span>
                             )}
                           </span>
+                          {isLastOwn && !m.id.startsWith('optimistic:') && (
+                            <span
+                              className={`messenger-panel__msg-receipt ${seenByOthers ? 'messenger-panel__msg-receipt--seen' : ''}`}
+                              title={seenByOthers ? 'Seen' : 'Sent'}
+                            >
+                              {seenByOthers ? '✓✓ Seen' : '✓ Sent'}
+                            </span>
+                          )}
                         </div>
                       </div>
                     );
