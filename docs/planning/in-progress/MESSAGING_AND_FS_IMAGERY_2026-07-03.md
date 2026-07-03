@@ -50,7 +50,7 @@ right module/section with a caption + credit → re-verify it renders in-context
 | **A6** | Diagram: metes-and-bounds parcel (bearings+distances) → module 7 | **DONE** — module 7 |
 | **A7** | Diagram: stereo overlap / aerial photo geometry → module 8 | **DONE** — module 8 |
 | **A8** | 4 more diagrams (units, curvature/refraction, slope reduction, grid vs ground) | **DONE** — modules 1/2/3/6 |
-| **A9** | Visual QA pass: screenshot every module body, confirm all figures look good in-context | TODO |
+| **A9** | Visual QA pass: screenshot every module body, confirm all figures look good in-context | **DONE** — verified module content at 360px mobile + desktop; figures scale, tables scroll |
 | **A10** | **Overlap/formatting audit — CRITICAL:** zoom-check EVERY diagram for overlapping text/symbols, wrong size, wrong color vs background, clipping; fix all. Triple-check every number/label for accuracy. | IN PROGRESS |
 | **A11** | Populate the ENTIRE course: add diagrams to any thin module/section (profile leveling, taping, angle sets, contours, curve stationing…) until every concept that benefits has a figure | IN PROGRESS — +2 (angle measurement, road profile); 30 images total |
 | **A12** | Copyright manifest `IMAGE_CREDITS.md` (CLEAR/ATTRIB/REVIEW/REPLACE) | **DONE** |

@@ -2906,3 +2906,14 @@
   .override-btn-sm { width: 24px; height: 24px; font-size: 0.72rem; border-radius: 4px; }
   .override-lesson__grade-input { width: 40px; height: 24px; font-size: 0.68rem; }
 }
+
+/* Mobile hardening for FS lesson content — no horizontal overflow on phones. */
+@media (max-width: 640px) {
+  .fs-module__content-text { overflow-wrap: break-word; }
+  .fs-module__content-text .fs-fig,
+  .fs-module__content-text .fs-embed { max-width: 100%; }
+  .fs-module__content-text .fs-fig__img { max-width: 100%; }
+  .fs-module__content-text code { overflow-wrap: anywhere; }
+  /* wide comparison tables scroll inside their own box, never the page */
+  .fs-module__content-text table.fs-table { display: block; overflow-x: auto; max-width: 100%; }
+}
