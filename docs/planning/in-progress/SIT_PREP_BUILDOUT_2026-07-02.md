@@ -76,6 +76,13 @@
 - **Generator:** the 31 existing dynamic generators already cover all genres; no new templates needed this pass (noted as strong existing coverage).
 - **Optional follow-ups (not blockers):** more sourced photos (instruments); dynamic problem_templates with attached diagrams; deepen module 8 (Photogrammetry/Construction) prose.
 
+### Continued buildout (time remaining before 9:00pm)
+| Slice | What | Status |
+|---|---|---|
+| **S11** | Source 3–4 more real instrument photos (total station, level, GNSS receiver) via Playwright w/ attribution; inject into modules 2/3/6 | TODO |
+| **S12** | Add dynamic `problem_templates` (parametric, with attached `diagram` specs) so the generator produces fresh varied problems w/ figures | TODO |
+| **S13** | Second problem batch — deepen thin genres to a full easy/med/hard set each | TODO |
+
 ## Figure markdown syntax (introduced in S1)
 
 `![Caption text](/lessons/fs/diagrams/traverse-closure.svg "Credit: original diagram")`
