@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 320" role="img" aria-label="Reducing a slope distance to horizontal: a right triangle whose hypotenuse is the slope distance S at vertical angle alpha, with horizontal distance H equals S cosine alpha and vertical difference V equals S sine alpha.">
+  <style>text{stroke:none;paint-order:fill}
+    .ttl{font:700 15px Arial,Helvetica,sans-serif;fill:#111827}
+    .tri{fill:#eef2ff;stroke:#1d3095;stroke-width:2.5}
+    .side{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
+    .f{font:700 13px Arial,Helvetica,sans-serif;fill:#1d3095}
+    .ang{fill:none;stroke:#dc2626;stroke-width:2}
+    .lab{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
+    .pt{fill:#1d3095}
+  </style>
+  <rect width="560" height="320" fill="#ffffff"/>
+  <text class="ttl" x="20" y="26">Slope distance → horizontal distance</text>
+
+  <!-- right triangle: A(90,240) bottom-left, B(430,240) bottom-right, C(430,90) top-right -->
+  <polygon class="tri" points="90,240 430,240 430,90"/>
+  <circle class="pt" cx="90" cy="240" r="4"/>
+  <circle class="pt" cx="430" cy="90" r="4"/>
+
+  <!-- hypotenuse = slope distance -->
+  <text class="side" x="240" y="150" text-anchor="middle" transform="rotate(-24 240 150)" fill="#1d3095">S = slope distance</text>
+  <!-- horizontal -->
+  <text class="side" x="260" y="262" text-anchor="middle">H = horizontal</text>
+  <!-- vertical -->
+  <text class="side" x="446" y="170" text-anchor="middle" transform="rotate(90 446 170)">V = vertical</text>
+
+  <!-- angle alpha at A -->
+  <path class="ang" d="M 130 240 A 40 40 0 0 0 126 222"/>
+  <text class="side" x="150" y="230" fill="#dc2626">α</text>
+  <!-- right-angle mark at B -->
+  <rect x="414" y="224" width="16" height="16" fill="none" stroke="#1d3095" stroke-width="1.5"/>
+
+  <!-- formulas -->
+  <text class="f" x="300" y="296" text-anchor="middle">H = S·cos α   •   V = S·sin α</text>
+  <text class="lab" x="300" y="315" text-anchor="middle">α is the vertical angle above horizontal (use the zenith angle z as α = 90° − z)</text>
+</svg>

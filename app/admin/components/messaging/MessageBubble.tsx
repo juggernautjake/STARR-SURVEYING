@@ -1,7 +1,8 @@
 // app/admin/components/messaging/MessageBubble.tsx
 'use client';
 import { useState } from 'react';
-import Image from 'next/image';
+import MessageBody from './MessageBody';
+import MediaViewer, { type MediaItem } from '../MediaViewer';
 
 interface Attachment {
   url: string;
@@ -26,6 +27,10 @@ interface MessageBubbleProps {
   attachments?: Attachment[];
   reactions?: Reaction[];
   isEdited?: boolean;
+  /** Show a read receipt under this bubble (only for my most recent sent one). */
+  isLastOwn?: boolean;
+  /** Whether at least one other participant has seen this message. */
+  seen?: boolean;
   replyTo?: { content: string; senderName: string } | null;
   onReact?: (messageId: string, emoji: string) => void;
   onReply?: (messageId: string) => void;
@@ -48,11 +53,12 @@ const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🎉'];
 
 export default function MessageBubble({
   id, content, senderEmail, senderName, timestamp, isOwn, messageType,
-  attachments = [], reactions = [], isEdited = false, replyTo = null,
+  attachments = [], reactions = [], isEdited = false, isLastOwn = false, seen = false, replyTo = null,
   onReact, onReply, onEdit, onDelete,
 }: MessageBubbleProps) {
   const [showActions, setShowActions] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
+  const [viewerMedia, setViewerMedia] = useState<MediaItem | null>(null);
 
   if (messageType === 'system') {
     return (
@@ -94,31 +100,57 @@ export default function MessageBubble({
 
       {/* Message content */}
       <div className="msg-bubble__body">
-        {messageType === 'image' && attachments.length > 0 && (
-          <div className="msg-bubble__image-grid">
-            {attachments.filter(a => a.type.startsWith('image/')).map((att, i) => (
-              <Image key={i} src={att.url} alt={att.name} width={400} height={300} className="msg-bubble__image" unoptimized />
-            ))}
-          </div>
-        )}
+        {content && <div className="msg-bubble__content"><MessageBody content={content} /></div>}
 
-        <div className="msg-bubble__content">{content}</div>
-
-        {/* File attachments */}
-        {attachments.filter(a => !a.type.startsWith('image/')).length > 0 && (
+        {/* Attachments — images/videos open the zoomable viewer, audio plays
+            inline, everything else is a download link. */}
+        {attachments.length > 0 && (
           <div className="msg-bubble__attachments">
-            {attachments.filter(a => !a.type.startsWith('image/')).map((att, i) => (
-              <a key={i} href={att.url} download={att.name} className="msg-bubble__file">
-                <span className="msg-bubble__file-icon">📎</span>
-                <div className="msg-bubble__file-info">
-                  <span className="msg-bubble__file-name">{att.name}</span>
-                  <span className="msg-bubble__file-size">{formatFileSize(att.size)}</span>
-                </div>
-              </a>
-            ))}
+            {attachments.map((att, i) => {
+              const t = (att.type || '').toLowerCase();
+              if (t.startsWith('image/')) {
+                return (
+                  <button key={i} type="button" className="msg-bubble__media-thumb"
+                    onClick={() => setViewerMedia({ url: att.url, name: att.name, type: att.type })}
+                    aria-label={`Open image ${att.name}`}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={att.url} alt={att.name} className="msg-bubble__image" loading="lazy" />
+                  </button>
+                );
+              }
+              if (t.startsWith('video/')) {
+                return (
+                  <button key={i} type="button" className="msg-bubble__media-thumb msg-bubble__media-thumb--video"
+                    onClick={() => setViewerMedia({ url: att.url, name: att.name, type: att.type })}
+                    aria-label={`Play video ${att.name}`}>
+                    <video src={att.url} className="msg-bubble__image" muted preload="metadata" />
+                    <span className="msg-bubble__play" aria-hidden="true">▶</span>
+                  </button>
+                );
+              }
+              if (t.startsWith('audio/')) {
+                return (
+                  <div key={i} className="msg-bubble__audio">
+                    <span className="msg-bubble__file-name">{att.name}</span>
+                    {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                    <audio src={att.url} controls preload="none" />
+                  </div>
+                );
+              }
+              return (
+                <a key={i} href={att.url} download={att.name} className="msg-bubble__file" target="_blank" rel="noopener noreferrer">
+                  <span className="msg-bubble__file-icon">📎</span>
+                  <div className="msg-bubble__file-info">
+                    <span className="msg-bubble__file-name">{att.name}</span>
+                    <span className="msg-bubble__file-size">{formatFileSize(att.size)}</span>
+                  </div>
+                </a>
+              );
+            })}
           </div>
         )}
       </div>
+      <MediaViewer media={viewerMedia} onClose={() => setViewerMedia(null)} />
 
       {/* Reactions display */}
       {Object.keys(reactionGroups).length > 0 && (
@@ -136,10 +168,15 @@ export default function MessageBubble({
         </div>
       )}
 
-      {/* Timestamp & edited indicator */}
+      {/* Timestamp, edited indicator & read receipt */}
       <div className="msg-bubble__meta">
         <span className="msg-bubble__time">{formatTime(timestamp)}</span>
         {isEdited && <span className="msg-bubble__edited">(edited)</span>}
+        {isOwn && isLastOwn && (
+          <span className={`msg-bubble__receipt ${seen ? 'msg-bubble__receipt--seen' : ''}`}>
+            {seen ? '✓✓ Seen' : '✓ Sent'}
+          </span>
+        )}
       </div>
 
       {/* Hover actions */}

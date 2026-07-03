@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 380" role="img" aria-label="A closed-loop traverse A-B-C-D-A with interior angles and course bearings and distances, and a small closure error at the start point.">
+  <style>text{stroke:none;paint-order:fill}
+    .edge{fill:none;stroke:#1d3095;stroke-width:2.5}
+    .pt{fill:#1d3095}
+    .lbl{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
+    .crs{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
+    .ttl{font:700 15px Arial,Helvetica,sans-serif;fill:#111827}
+    .err{fill:none;stroke:#dc2626;stroke-width:2}
+  </style>
+  <rect width="560" height="380" fill="#ffffff"/>
+  <text class="ttl" x="20" y="26">Closed-loop traverse (A→B→C→D→A)</text>
+  <!-- vertices -->
+  <!-- A(110,320) B(430,300) C(470,120) D(180,90) -->
+  <polygon class="edge" points="110,320 430,300 470,120 180,90" />
+  <circle class="pt" cx="110" cy="320" r="4.5"/><text class="lbl" x="92" y="338">A</text>
+  <circle class="pt" cx="430" cy="300" r="4.5"/><text class="lbl" x="438" y="316">B</text>
+  <circle class="pt" cx="470" cy="120" r="4.5"/><text class="lbl" x="478" y="118">C</text>
+  <circle class="pt" cx="180" cy="90"  r="4.5"/><text class="lbl" x="162" y="84">D</text>
+  <!-- course labels (bearing / distance) at edge midpoints -->
+  <text class="crs" x="255" y="326" text-anchor="middle">AB  N 86°E  320.4′</text>
+  <text class="crs" x="470" y="215" text-anchor="middle" transform="rotate(90 470 215)">BC  N 12°W  183.4′</text>
+  <text class="crs" x="320" y="98" text-anchor="middle">CD  S 82°W  291.6′</text>
+  <text class="crs" x="135" y="205" text-anchor="middle" transform="rotate(-77 135 205)">DA  S 10°E  231.1′</text>
+  <!-- closure error callout at A -->
+  <circle class="err" cx="110" cy="320" r="13"/>
+  <text class="crs" x="30" y="300" fill="#dc2626">closure</text>
+  <text class="crs" x="20" y="360">Latitudes + departures should sum to 0; the leftover is the linear misclosure.</text>
+</svg>

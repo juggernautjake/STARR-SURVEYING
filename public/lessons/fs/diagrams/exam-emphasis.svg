@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 430" role="img" aria-label="Approximate emphasis of each Fundamentals of Surveying topic, ranked, to guide study priority">
+  <style>text{stroke:none;paint-order:fill}
+    .ttl{font:700 16px Arial,Helvetica,sans-serif;fill:#111827}
+    .sub{font:700 12px Arial,Helvetica,sans-serif;fill:#334155}
+    .lab{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
+    .val{font:700 12px Arial,Helvetica,sans-serif;fill:#ffffff}
+    .bar{fill:#1d3095}
+    .bar2{fill:#3752b8}
+  </style>
+  <rect width="640" height="430" fill="#ffffff"/>
+  <text class="ttl" x="20" y="30">FS exam — approximate topic emphasis</text>
+  <text class="sub" x="20" y="50">Relative weight; use it to prioritize study time (heaviest topics first).</text>
+  <!-- bars: value*13 px width; label at left (x=200), bar starts x=210 -->
+  <!-- Boundary 20 -->
+  <text class="lab" x="196" y="86" text-anchor="end">Boundary Law &amp; Public Lands</text>
+  <rect class="bar" x="210" y="72" width="260" height="20" rx="3"/>
+  <text class="val" x="220" y="86">20</text>
+  <!-- Traverse 18 -->
+  <text class="lab" x="196" y="118" text-anchor="end">Traversing &amp; COGO</text>
+  <rect class="bar" x="210" y="104" width="234" height="20" rx="3"/>
+  <text class="val" x="220" y="118">18</text>
+  <!-- Fundamentals 15 -->
+  <text class="lab" x="196" y="150" text-anchor="end">Fundamentals of Surveying</text>
+  <rect class="bar2" x="210" y="136" width="195" height="20" rx="3"/>
+  <text class="val" x="220" y="150">15</text>
+  <!-- Distance & Angle 15 -->
+  <text class="lab" x="196" y="182" text-anchor="end">Distance &amp; Angle Measurement</text>
+  <rect class="bar2" x="210" y="168" width="195" height="20" rx="3"/>
+  <text class="val" x="220" y="182">15</text>
+  <!-- Areas & Curves 15 -->
+  <text class="lab" x="196" y="214" text-anchor="end">Areas, Volumes &amp; Curves</text>
+  <rect class="bar2" x="210" y="200" width="195" height="20" rx="3"/>
+  <text class="val" x="220" y="214">15</text>
+  <!-- GNSS 14 -->
+  <text class="lab" x="196" y="246" text-anchor="end">GNSS/GPS &amp; Geodesy</text>
+  <rect class="bar2" x="210" y="232" width="182" height="20" rx="3"/>
+  <text class="val" x="220" y="246">14</text>
+  <!-- Leveling 12 -->
+  <text class="lab" x="196" y="278" text-anchor="end">Leveling</text>
+  <rect class="bar2" x="210" y="264" width="156" height="20" rx="3"/>
+  <text class="val" x="220" y="278">12</text>
+  <!-- Photogrammetry 12 -->
+  <text class="lab" x="196" y="310" text-anchor="end">Photogrammetry &amp; Construction</text>
+  <rect class="bar2" x="210" y="296" width="156" height="20" rx="3"/>
+  <text class="val" x="220" y="310">12</text>
+  <text class="sub" x="20" y="360">Traversing/COGO and Boundary carry the most weight — master them first.</text>
+  <text class="sub" x="20" y="380">Figures are relative and approximate; always confirm the current split on the</text>
+  <text class="sub" x="20" y="398">official NCEES FS exam specification before exam day.</text>
+</svg>

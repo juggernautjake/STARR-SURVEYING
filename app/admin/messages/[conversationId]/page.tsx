@@ -268,10 +268,15 @@ export default function ConversationPage() {
           </div>
         )}
 
-        {messages.map((msg) => {
+        {messages.map((msg, idx) => {
           const dateLabel = getDateLabel(msg.created_at);
           const showDateSep = dateLabel !== lastDate;
           lastDate = dateLabel;
+          // "Seen" receipt under my most recent sent message only.
+          const isOwn = msg.sender_email === currentEmail;
+          const isLastOwn = isOwn && !messages.slice(idx + 1).some(n => n.sender_email === currentEmail);
+          const seen = ((msg.read_receipts as { user_email: string }[] | undefined) || [])
+            .some(r => r.user_email.toLowerCase() !== currentEmail.toLowerCase());
 
           return (
             <div key={msg.id}>
@@ -286,11 +291,13 @@ export default function ConversationPage() {
                 senderEmail={msg.sender_email}
                 senderName={getDisplayName(msg.sender_email)}
                 timestamp={msg.created_at}
-                isOwn={msg.sender_email === currentEmail}
+                isOwn={isOwn}
                 messageType={msg.message_type}
                 attachments={msg.attachments}
                 reactions={msg.reactions}
                 isEdited={msg.is_edited}
+                isLastOwn={isLastOwn}
+                seen={seen}
                 replyTo={msg.reply_to_id ? (() => {
                   const parent = messages.find(m => m.id === msg.reply_to_id);
                   return parent ? { content: parent.content, senderName: getDisplayName(parent.sender_email) } : null;

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360" role="img" aria-label="Relationship between ellipsoidal height, orthometric height, and geoid separation from GNSS positioning">
+  <style>text{stroke:none;paint-order:fill}
+    .terrain{fill:#eef2f7;stroke:#7c8a99;stroke-width:1.6}
+    .geoid{fill:none;stroke:#1d3095;stroke-width:2}
+    .ellip{fill:none;stroke:#bd1218;stroke-width:2;stroke-dasharray:8 5}
+    .dimA{stroke:#0b1220;stroke-width:1.6}
+    .lbl{font:700 14px Arial,Helvetica,sans-serif;fill:#111827}
+    .h{font:700 13px Arial,Helvetica,sans-serif;fill:#1d3095}
+    .note{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
+    .sat{font:700 12px Arial,Helvetica,sans-serif;fill:#334155}
+  </style>
+  <rect width="600" height="360" fill="#ffffff"/>
+  <!-- a satellite + signal, to signal this is GNSS-derived -->
+  <g transform="translate(470,30)">
+    <rect x="-10" y="-6" width="20" height="12" rx="2" fill="#0b1220"/>
+    <rect x="-20" y="-3" width="8" height="6" fill="#475569"/>
+    <rect x="12" y="-3" width="8" height="6" fill="#475569"/>
+    <text class="sat" x="24" y="4">GNSS satellite</text>
+    <line x1="-6" y1="8" x2="-160" y2="150" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3 3"/>
+  </g>
+  <!-- terrain -->
+  <path class="terrain" d="M 40 150 Q 150 120 300 150 T 560 150 L 560 175 Q 430 200 300 178 T 40 178 Z"/>
+  <text class="lbl" x="60" y="140">Terrain (ground surface)</text>
+  <!-- geoid -->
+  <path class="geoid" d="M 40 250 Q 200 238 360 250 T 560 252"/>
+  <text class="h" x="452" y="244">Geoid (MSL)</text>
+  <!-- ellipsoid -->
+  <path class="ellip" d="M 40 300 Q 300 296 560 300"/>
+  <text class="h" x="452" y="318" fill="#bd1218">Ellipsoid</text>
+  <!-- receiver point P on terrain -->
+  <circle cx="300" cy="150" r="5" fill="#0b1220"/>
+  <text class="lbl" x="308" y="146">P (GNSS receiver)</text>
+  <!-- vertical dimension line from P down to ellipsoid -->
+  <line class="dimA" x1="300" y1="150" x2="300" y2="300"/>
+  <line x1="294" y1="150" x2="306" y2="150" stroke="#0b1220"/>
+  <line x1="294" y1="250" x2="306" y2="250" stroke="#1d3095"/>
+  <line x1="294" y1="300" x2="306" y2="300" stroke="#bd1218"/>
+  <!-- height labels (offset) -->
+  <text class="h" x="196" y="205">H = orthometric</text>
+  <text class="h" x="220" y="222">(above geoid)</text>
+  <text class="h" x="316" y="280" fill="#bd1218">N = geoid separation</text>
+  <text class="h" x="356" y="230" fill="#0b1220">h = ellipsoidal height</text>
+  <!-- relationship -->
+  <g transform="translate(30,332)">
+    <text class="lbl" x="0" y="0">h = H + N,&#160; so&#160; H = h &#8722; N&#160;&#160;&#8212;&#160; GNSS gives h; a geoid model gives N.</text>
+  </g>
+</svg>

@@ -1560,6 +1560,87 @@
 .fs-module__content-text ul { margin: 0.5rem 0; padding-left: 1.5rem; }
 .fs-module__content-text li { margin-bottom: 0.3rem; }
 
+/* Lesson figures (diagrams + photos). Centered, capped width, subtle frame,
+   with a caption + small credit line. SVG diagrams scale crisply; raster
+   photos are constrained so they never blow out the reading column. */
+.fs-fig {
+  margin: 1.25rem auto;
+  max-width: 560px;
+  text-align: center;
+}
+.fs-fig__img { cursor: zoom-in;
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  margin: 0 auto;
+  background: #ffffff;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+}
+.fs-fig__cap {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--color-text-secondary, #6b7280);
+  font-style: italic;
+}
+.fs-fig__credit {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.72rem;
+  font-style: normal;
+  color: #9ca3af;
+}
+
+/* Study-content tables (e.g. the error-type comparison). Replaces the raw
+   border="1" tables that rendered cramped. Horizontally scrollable on narrow
+   screens so wide comparison tables never overflow the lesson column. */
+.fs-module__content-text table.fs-table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 1.1rem 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+.fs-module__content-text table.fs-table th,
+.fs-module__content-text table.fs-table td {
+  border: 1px solid var(--color-border, #e5e7eb);
+  padding: 0.5rem 0.7rem;
+  text-align: left;
+  vertical-align: top;
+}
+.fs-module__content-text table.fs-table th {
+  background: #f3f4f6;
+  color: #111827;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.fs-module__content-text table.fs-table tr:nth-child(even) td {
+  background: #fafbfc;
+}
+.fs-module__content-text table.fs-table td b,
+.fs-module__content-text table.fs-table td strong {
+  color: #111827;
+}
+
+/* Inline SVG diagrams embedded directly in the lesson prose. */
+.fs-module__content-text .fs-embed {
+  margin: 1.1rem auto;
+  max-width: 620px;
+  text-align: center;
+}
+.fs-module__content-text .fs-embed svg {
+  max-width: 100%;
+  height: auto;
+}
+
 /* Formulas Grid */
 .fs-module__formulas-grid h3 {
   font-family: 'Sora', sans-serif; font-size: 1rem; font-weight: 600;
@@ -2830,4 +2911,15 @@
   .override-lesson__actions { gap: 0.2rem; }
   .override-btn-sm { width: 24px; height: 24px; font-size: 0.72rem; border-radius: 4px; }
   .override-lesson__grade-input { width: 40px; height: 24px; font-size: 0.68rem; }
+}
+
+/* Mobile hardening for FS lesson content — no horizontal overflow on phones. */
+@media (max-width: 640px) {
+  .fs-module__content-text { overflow-wrap: break-word; }
+  .fs-module__content-text .fs-fig,
+  .fs-module__content-text .fs-embed { max-width: 100%; }
+  .fs-module__content-text .fs-fig__img { max-width: 100%; }
+  .fs-module__content-text code { overflow-wrap: anywhere; }
+  /* wide comparison tables scroll inside their own box, never the page */
+  .fs-module__content-text table.fs-table { display: block; overflow-x: auto; max-width: 100%; }
 }

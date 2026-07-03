@@ -1,6 +1,7 @@
 // app/admin/components/messaging/ComposeBox.tsx
 'use client';
 import { useState, useRef, KeyboardEvent, ChangeEvent } from 'react';
+import EmojiPicker from './EmojiPicker';
 
 interface ComposeBoxProps {
   onSend: (content: string, attachments?: File[]) => void;
@@ -16,8 +17,6 @@ export default function ComposeBox({ onSend, replyTo, onCancelReply, placeholder
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const QUICK_EMOJIS = ['😀', '😂', '😍', '🤔', '👍', '👎', '🎉', '🔥', '❤️', '💯', '✅', '❌', '📋', '📌', '🗺️', '📐'];
 
   function handleSend() {
     const trimmed = message.trim();
@@ -104,12 +103,8 @@ export default function ComposeBox({ onSend, replyTo, onCancelReply, placeholder
             😊
           </button>
           {showEmojiPicker && (
-            <div className="msg-compose__emoji-picker">
-              {QUICK_EMOJIS.map(emoji => (
-                <button key={emoji} className="msg-compose__emoji-option" onClick={() => insertEmoji(emoji)}>
-                  {emoji}
-                </button>
-              ))}
+            <div className="msg-compose__emoji-pop">
+              <EmojiPicker onPick={insertEmoji} />
             </div>
           )}
         </div>

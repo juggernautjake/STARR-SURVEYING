@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Differential leveling: backsight to a benchmark and foresight to a turning point define the height of instrument">
+  <style>text{stroke:none;paint-order:fill}
+    .g{stroke:#7c8a99;stroke-width:2;fill:none}
+    .rod{fill:#e2e8f0;stroke:#334155;stroke-width:1.5}
+    .hi{stroke:#1d3095;stroke-width:1.6;stroke-dasharray:7 5}
+    .sight{stroke:#bd1218;stroke-width:1.4;stroke-dasharray:3 3}
+    .lbl{font:700 14px Arial,Helvetica,sans-serif;fill:#111827}
+    .val{font:700 13px Arial,Helvetica,sans-serif;fill:#1d3095}
+    .note{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
+  </style>
+  <rect width="640" height="360" fill="#ffffff"/>
+  <!-- ground -->
+  <path class="g" d="M 20 300 Q 160 290 320 300 T 620 300"/>
+  <!-- HI line of sight -->
+  <line class="hi" x1="70" y1="150" x2="570" y2="150"/>
+  <text class="val" x="250" y="142">Height of Instrument (HI)</text>
+  <!-- instrument (level on tripod) -->
+  <g transform="translate(320,150)">
+    <rect x="-18" y="-8" width="36" height="14" rx="3" fill="#0b1220"/>
+    <circle cx="0" cy="-1" r="4" fill="#e2e8f0"/>
+    <line x1="0" y1="6" x2="-24" y2="150" stroke="#334155" stroke-width="2"/>
+    <line x1="0" y1="6" x2="0" y2="150" stroke="#334155" stroke-width="2"/>
+    <line x1="0" y1="6" x2="24" y2="150" stroke="#334155" stroke-width="2"/>
+  </g>
+  <!-- Backsight rod on the benchmark (left) -->
+  <rect class="rod" x="112" y="150" width="16" height="150"/>
+  <line class="sight" x1="120" y1="150" x2="305" y2="150"/>
+  <circle cx="120" cy="150" r="4" fill="#bd1218"/>
+  <polygon points="120,300 110,315 130,315" fill="#0b1220"/>
+  <text class="lbl" x="86" y="335">BM (known)</text>
+  <text class="val" x="60" y="140">BS = 6.42</text>
+  <!-- Foresight rod on the turning point (right) -->
+  <rect class="rod" x="512" y="150" width="16" height="150"/>
+  <line class="sight" x1="335" y1="150" x2="520" y2="150"/>
+  <circle cx="520" cy="150" r="4" fill="#bd1218"/>
+  <polygon points="520,300 510,315 530,315" fill="#0b1220"/>
+  <text class="lbl" x="486" y="335">TP (unknown)</text>
+  <text class="val" x="536" y="140">FS = 3.87</text>
+  <!-- formulas -->
+  <g transform="translate(20,26)">
+    <text class="lbl" x="0" y="0">HI = Elev(BM) + BS</text>
+    <text class="lbl" x="0" y="22">Elev(TP) = HI &#8722; FS</text>
+    <text class="note" x="0" y="44">Check: &#931;BS &#8722; &#931;FS = Elev(last) &#8722; Elev(first)</text>
+  </g>
+</svg>

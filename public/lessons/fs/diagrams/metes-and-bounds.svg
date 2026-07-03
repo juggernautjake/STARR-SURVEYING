@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 400" role="img" aria-label="A metes-and-bounds parcel described by bearing-and-distance calls from a point of beginning, closing back on itself.">
+  <style>text{stroke:none;paint-order:fill}
+    .edge{fill:none;stroke:#1d3095;stroke-width:2.5}
+    .fill{fill:#eef2ff}
+    .pt{fill:#1d3095}
+    .pob{fill:#dc2626}
+    .call{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
+    .lbl{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
+    .ttl{font:700 15px Arial,Helvetica,sans-serif;fill:#111827}
+    .n{font:700 12px Arial,Helvetica,sans-serif;fill:#334155}
+  </style>
+  <rect width="560" height="400" fill="#ffffff"/>
+  <text class="ttl" x="20" y="26">Metes-and-bounds description</text>
+  <!-- north arrow -->
+  <line x1="510" y1="80" x2="510" y2="45" stroke="#64748b" stroke-width="1.5"/>
+  <polygon points="510,40 506,50 514,50" fill="#334155"/>
+  <text class="n" x="510" y="96" text-anchor="middle">N</text>
+
+  <!-- parcel: POB(120,340) → (400,320) → (440,150) → (230,70) → back -->
+  <polygon class="fill" points="120,340 400,320 440,150 230,70"/>
+  <polygon class="edge" points="120,340 400,320 440,150 230,70"/>
+  <!-- POB -->
+  <circle class="pob" cx="120" cy="340" r="5.5"/><text class="lbl" x="70" y="356" fill="#dc2626">POB</text>
+  <circle class="pt" cx="400" cy="320" r="4"/>
+  <circle class="pt" cx="440" cy="150" r="4"/>
+  <circle class="pt" cx="230" cy="70" r="4"/>
+
+  <!-- calls -->
+  <text class="call" x="260" y="344" text-anchor="middle">N 86°00′ E, 281.7 ft</text>
+  <text class="call" x="452" y="235" text-anchor="middle" transform="rotate(78 452 235)">N 13°00′ W, 174.6 ft</text>
+  <text class="call" x="330" y="100" text-anchor="middle">S 69°00′ W, 224.4 ft</text>
+  <text class="call" x="150" y="205" text-anchor="middle" transform="rotate(-69 150 205)">S 21°00′ E, 279.3 ft</text>
+
+  <text class="call" x="20" y="386">Bearing-and-distance calls run from the POB around the tract and must close back on it.</text>
+</svg>

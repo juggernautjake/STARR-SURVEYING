@@ -23,6 +23,28 @@ export function looksLikeHtml(s: string): boolean {
   return /<\/?[a-z][\s\S]*>/i.test(s);
 }
 
+/** Escape HTML so a plain-text string is safe to render as innerHTML. */
+export function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/** Turn bare URLs in a PLAIN-TEXT string into clickable links that open in a new
+ *  tab. Input is HTML-escaped first, so the result is safe to render as
+ *  innerHTML (and is still run through DOMPurify by the caller). Newlines are
+ *  preserved (bubbles use white-space:pre-wrap). */
+export function linkifyPlainText(s: string): string {
+  const esc = escapeHtml(s);
+  return esc.replace(
+    /\b((?:https?:\/\/|www\.)[^\s<]+[^\s<.,;:!?)\]}"'])/gi,
+    (url) => {
+      const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+    },
+  );
+}
+
 const NAMED_ENTITIES: Record<string, string> = {
   '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'",
   '&apos;': "'", '&nbsp;': ' ',

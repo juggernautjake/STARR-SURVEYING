@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360" role="img" aria-label="GNSS trilateration: a receiver's position is fixed by measured ranges to four satellites; a fourth range solves the receiver clock error.">
+  <style>text{stroke:none;paint-order:fill}
+    .ttl{font:700 15px Arial,Helvetica,sans-serif;fill:#111827}
+    .sat{fill:#1d3095}
+    .rng{stroke:#94a3b8;stroke-width:1.4;stroke-dasharray:5 4;fill:none}
+    .lab{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
+    .rx{fill:#059669}
+    .grd{stroke:#8b5e34;stroke-width:2}
+  </style>
+  <rect width="600" height="360" fill="#ffffff"/>
+  <text class="ttl" x="20" y="26">GNSS positioning by trilateration</text>
+
+  <!-- ground -->
+  <line class="grd" x1="40" y1="300" x2="560" y2="300"/>
+  <!-- receiver on ground -->
+  <circle class="rx" cx="300" cy="300" r="6"/>
+  <text class="lab" x="300" y="326" text-anchor="middle" fill="#059669">receiver (unknown X, Y, Z, clock)</text>
+
+  <!-- satellites -->
+  <g>
+    <circle class="sat" cx="120" cy="70" r="8"/><text class="lab" x="120" y="58" text-anchor="middle">SV1</text>
+    <circle class="sat" cx="290" cy="45" r="8"/><text class="lab" x="290" y="33" text-anchor="middle">SV2</text>
+    <circle class="sat" cx="460" cy="75" r="8"/><text class="lab" x="460" y="63" text-anchor="middle">SV3</text>
+    <circle class="sat" cx="510" cy="180" r="8"/><text class="lab" x="524" y="176" text-anchor="start">SV4</text>
+  </g>
+  <!-- ranges -->
+  <line class="rng" x1="120" y1="78" x2="296" y2="296"/>
+  <line class="rng" x1="290" y1="53" x2="300" y2="294"/>
+  <line class="rng" x1="460" y1="83" x2="304" y2="296"/>
+  <line class="rng" x1="510" y1="188" x2="305" y2="296"/>
+  <!-- range label -->
+  <text class="lab" x="205" y="200" transform="rotate(52 205 200)">ρ = range</text>
+
+  <text class="lab" x="300" y="348" text-anchor="middle">Three ranges fix position (X, Y, Z); a fourth solves the receiver clock bias.</text>
+</svg>

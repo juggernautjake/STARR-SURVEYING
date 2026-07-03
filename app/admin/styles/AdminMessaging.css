@@ -228,6 +228,17 @@
 .msg-bubble__edited {
   font-style: italic;
 }
+.msg-bubble__receipt {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.msg-bubble__receipt--seen {
+  color: #2563EB;
+}
+.msg-bubble--own .msg-bubble__receipt--seen {
+  color: #bfdbfe;
+}
 .msg-bubble__reactions {
   display: flex;
   gap: 0.25rem;
@@ -2125,6 +2136,14 @@
 .messenger-panel__msg-bubble { padding:.45rem .75rem; border-radius:12px; font-family:'Inter',sans-serif; font-size:.82rem; line-height:1.4; background:#F3F4F6; color:#0F1419; word-wrap:break-word; white-space:pre-wrap; }
 .messenger-panel__msg-bubble--own { background:var(--color-brand-navy); color:#FFF; }
 .messenger-panel__msg-time { font-family:'Inter',sans-serif; font-size:.58rem; color:#9CA3AF; margin-top:.1rem; padding:0 .5rem; }
+/* "Seen"/"Sent" read receipt under my most recent sent message (own bubbles are
+   right-aligned, so this sits at the right edge). */
+.messenger-panel__msg-receipt {
+  font-family:'Inter',sans-serif; font-size:.58rem; color:#9CA3AF;
+  margin-top:.05rem; padding:0 .5rem; align-self:flex-end; font-weight:600;
+  letter-spacing:.01em;
+}
+.messenger-panel__msg-receipt--seen { color:#2563EB; }
 
 /* Compose */
 .messenger-panel__compose { display:flex; align-items:center; gap:.35rem; padding:.5rem .75rem; border-top:1px solid #E5E7EB; background:#FFF; }
@@ -2141,6 +2160,8 @@
 .messenger-panel__emoji-picker { position:absolute; bottom:calc(100% + 4px); left:0; background:#FFF; border:1px solid #E5E7EB; border-radius:8px; padding:.35rem; display:grid; grid-template-columns:repeat(6,1fr); gap:.2rem; box-shadow:0 4px 12px rgba(0,0,0,.12); z-index:10; }
 .messenger-panel__emoji-picker button { background:none; border:none; font-size:1.1rem; cursor:pointer; padding:.25rem; border-radius:4px; }
 .messenger-panel__emoji-picker button:hover { background:#F3F4F6; }
+/* Popover wrapper for the full searchable EmojiPicker in the messenger compose. */
+.messenger-panel__emoji-pop { position:absolute; bottom:calc(100% + 6px); left:0; z-index:20; }
 
 /* Actions bar */
 .messenger-panel__actions { display:flex; align-items:center; gap:.35rem; padding:.4rem .65rem; border-bottom:1px solid #E5E7EB; background:#F8F9FA; }
@@ -2890,6 +2911,7 @@
   pointer-events: none;
 }
 /* Keep pasted rich formatting readable inside the bubble. */
+.msg-rich { white-space: pre-wrap; overflow-wrap: anywhere; }
 .msg-rich p { margin: 0 0 .35rem; }
 .msg-rich p:last-child { margin-bottom: 0; }
 .msg-rich ul, .msg-rich ol { margin: .2rem 0; padding-left: 1.2rem; }
@@ -3009,3 +3031,130 @@
   .msg-page__compose-input { font-size: .82rem; }
   .msg-page__msg-search { width: 120px; font-size: .78rem; }
 }
+
+/* ── MediaViewer — reusable full-screen image/video/audio viewer ─────────── */
+.media-viewer {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(8, 10, 18, 0.94);
+  display: flex; flex-direction: column;
+  padding-top: env(safe-area-inset-top, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  animation: mv-fade 120ms ease-out;
+}
+@keyframes mv-fade { from { opacity: 0 } to { opacity: 1 } }
+.media-viewer__bar {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .5rem .75rem; color: #e5e7eb; flex: 0 0 auto;
+}
+.media-viewer__name { flex: 1; font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .85; }
+.media-viewer__actions { display: flex; align-items: center; gap: .25rem; }
+.media-viewer__btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border: none; border-radius: 8px;
+  background: rgba(255,255,255,.08); color: #e5e7eb; cursor: pointer;
+  transition: background .15s; text-decoration: none;
+}
+.media-viewer__btn:hover { background: rgba(255,255,255,.18); }
+.media-viewer__btn--close { background: rgba(255,255,255,.12); }
+.media-viewer__stage {
+  flex: 1 1 auto; display: flex; align-items: center; justify-content: center;
+  overflow: hidden; position: relative; touch-action: none; user-select: none;
+}
+.media-viewer__img {
+  max-width: 100%; max-height: 100%; object-fit: contain;
+  transition: transform 60ms linear; will-change: transform;
+}
+.media-viewer__video { max-width: 100%; max-height: 100%; background: #000; border-radius: 6px; }
+.media-viewer__audio-wrap { display: flex; flex-direction: column; gap: .75rem; align-items: center; color: #e5e7eb; padding: 1.5rem; max-width: 90vw; }
+.media-viewer__audio-name { font-size: .95rem; opacity: .9; text-align: center; word-break: break-word; }
+.media-viewer__audio { width: min(420px, 82vw); }
+@media (max-width: 480px) {
+  .media-viewer__btn { width: 44px; height: 44px; } /* larger touch targets on phones */
+  .media-viewer__name { font-size: .78rem; }
+}
+
+/* MessageBubble media attachments (open MediaViewer / inline players) */
+.msg-bubble__media-thumb {
+  position: relative; display: inline-block; padding: 0; border: none;
+  background: none; cursor: pointer; border-radius: 10px; overflow: hidden;
+  max-width: 260px; line-height: 0;
+}
+.msg-bubble__media-thumb .msg-bubble__image {
+  max-width: 260px; max-height: 240px; width: auto; height: auto;
+  object-fit: cover; border-radius: 10px; display: block;
+}
+.msg-bubble__media-thumb--video .msg-bubble__play {
+  position: absolute; inset: 0; margin: auto; width: 52px; height: 52px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.55); color: #fff; border-radius: 50%;
+  font-size: 1.2rem; padding-left: 4px;
+}
+.msg-bubble__audio {
+  display: flex; flex-direction: column; gap: .3rem; margin-top: .35rem;
+  max-width: 300px;
+}
+.msg-bubble__audio audio { width: 100%; height: 36px; }
+
+/* ── Emoji picker (searchable, categorized) ─────────────────────────────── */
+.emoji-picker {
+  width: 300px; max-width: 92vw; background: #fff;
+  border: 1px solid #E5E7EB; border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(16,24,40,.16); overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.emoji-picker__search {
+  margin: .5rem; padding: .45rem .6rem; border: 1px solid #E5E7EB;
+  border-radius: 8px; font-size: .85rem; outline: none;
+}
+.emoji-picker__search:focus { border-color: #2563EB; }
+.emoji-picker__tabs {
+  display: flex; gap: 2px; padding: 0 .4rem .3rem; overflow-x: auto;
+  border-bottom: 1px solid #F3F4F6;
+}
+.emoji-picker__tab {
+  flex: 0 0 auto; width: 32px; height: 32px; border: none; background: none;
+  border-radius: 8px; cursor: pointer; font-size: 1.1rem; line-height: 1;
+  opacity: .6; transition: background .12s, opacity .12s;
+}
+.emoji-picker__tab:hover { background: #F3F4F6; opacity: 1; }
+.emoji-picker__tab--active { background: #EFF6FF; opacity: 1; }
+.emoji-picker__grid {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px;
+  padding: .4rem; max-height: 240px; overflow-y: auto;
+}
+.emoji-picker__emoji {
+  border: none; background: none; cursor: pointer; font-size: 1.35rem;
+  line-height: 1; padding: .2rem 0; border-radius: 6px; transition: background .1s;
+}
+.emoji-picker__emoji:hover { background: #F3F4F6; }
+.emoji-picker__empty { grid-column: 1 / -1; text-align: center; color: #9CA3AF; font-size: .82rem; padding: 1rem; }
+@media (max-width: 480px) {
+  .emoji-picker__grid { grid-template-columns: repeat(6, 1fr); }
+  .emoji-picker__emoji { font-size: 1.5rem; } /* bigger touch targets on phones */
+}
+/* Popover wrapper for the full searchable EmojiPicker in ComposeBox. */
+.msg-compose__emoji-pop { position:absolute; bottom:calc(100% + 6px); left:0; z-index:20; }
+
+/* Full-page message attachments → MediaViewer thumbnails + inline audio */
+.msg-page__attach-img-link { display:inline-block; padding:0; border:none; background:none; cursor:pointer; border-radius:10px; overflow:hidden; line-height:0; position:relative; }
+.msg-page__attach-video .msg-page__attach-play {
+  position:absolute; inset:0; margin:auto; width:48px; height:48px;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(0,0,0,.55); color:#fff; border-radius:50%; font-size:1.1rem; padding-left:4px;
+}
+.msg-page__attach-audio { display:flex; flex-direction:column; gap:.25rem; margin-top:.3rem; max-width:320px; }
+.msg-page__attach-audio audio { width:100%; height:34px; }
+
+/* FloatingMessenger popup — attachment display (reuses MediaViewer) */
+.messenger-panel__attachments { display:flex; flex-wrap:wrap; gap:.35rem; margin-top:.35rem; }
+.messenger-panel__attach-thumb { position:relative; padding:0; border:none; background:none; cursor:pointer; border-radius:8px; overflow:hidden; line-height:0; }
+.messenger-panel__attach-thumb img, .messenger-panel__attach-thumb video { max-width:180px; max-height:160px; width:auto; height:auto; object-fit:cover; border-radius:8px; display:block; }
+.messenger-panel__attach-thumb--video span { position:absolute; inset:0; margin:auto; width:40px; height:40px; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.55); color:#fff; border-radius:50%; padding-left:3px; }
+.messenger-panel__attach-audio { width:220px; max-width:100%; height:34px; margin-top:.3rem; }
+.messenger-panel__attach-file { display:inline-block; font-size:.78rem; color:inherit; text-decoration:none; background:rgba(0,0,0,.06); padding:.3rem .5rem; border-radius:8px; }
+.messenger-panel__msg-bubble--own .messenger-panel__attach-file { background:rgba(255,255,255,.18); }
+
+/* Popup composer — staged attachment chips */
+.messenger-panel__pending { display:flex; flex-wrap:wrap; gap:.3rem; padding:.35rem .65rem 0; }
+.messenger-panel__pending-chip { display:inline-flex; align-items:center; gap:.25rem; font-size:.72rem; background:#EFF6FF; color:#1e3a8a; border:1px solid #dbeafe; border-radius:12px; padding:.15rem .5rem; max-width:180px; }
+.messenger-panel__pending-chip button { background:none; border:none; cursor:pointer; color:#1e3a8a; font-size:.9rem; line-height:1; padding:0 0 0 .1rem; }

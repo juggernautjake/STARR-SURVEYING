@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 360" role="img" aria-label="Equal-tangent vertical crest curve showing BVC, PVI, EVC, entering and exiting grades, length, and high point">
+  <style>text{stroke:none;paint-order:fill}
+    .tan{stroke:#94a3b8;stroke-width:1.6;stroke-dasharray:6 4}
+    .vc{stroke:#1d3095;stroke-width:3;fill:none}
+    .pt{fill:#bd1218}
+    .lbl{font:700 14px Arial,Helvetica,sans-serif;fill:#111827}
+    .dim{font:700 13px Arial,Helvetica,sans-serif;fill:#1d3095}
+    .note{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
+    .grd{font:700 13px Arial,Helvetica,sans-serif;fill:#334155}
+  </style>
+  <rect width="620" height="360" fill="#ffffff"/>
+  <!-- tangents -->
+  <line class="tan" x1="100" y1="260" x2="310" y2="150"/>
+  <line class="tan" x1="310" y1="150" x2="520" y2="205"/>
+  <!-- station/length baseline -->
+  <line x1="100" y1="300" x2="520" y2="300" stroke="#cbd5e1" stroke-width="1.4"/>
+  <line x1="100" y1="296" x2="100" y2="304" stroke="#cbd5e1"/>
+  <line x1="310" y1="296" x2="310" y2="304" stroke="#cbd5e1"/>
+  <line x1="520" y1="296" x2="520" y2="304" stroke="#cbd5e1"/>
+  <text class="dim" x="180" y="318">L/2</text>
+  <text class="dim" x="390" y="318">L/2</text>
+  <text class="note" x="270" y="336">L = full curve length (BVC to EVC)</text>
+  <!-- the parabola: quadratic Bezier with control point at the PVI -->
+  <path class="vc" d="M 100 260 Q 310 150 520 205"/>
+  <!-- grades -->
+  <text class="grd" x="150" y="210" transform="rotate(-27.6 150 210)">g&#8321; (entering, +)</text>
+  <text class="grd" x="405" y="176" transform="rotate(14.7 405 176)">g&#8322; (exiting, &#8722;)</text>
+  <!-- key points -->
+  <circle class="pt" cx="100" cy="260" r="5"/>
+  <circle class="pt" cx="310" cy="150" r="5"/>
+  <circle class="pt" cx="520" cy="205" r="5"/>
+  <circle cx="380" cy="187" r="5" fill="#0f9d58"/>
+  <text class="lbl" x="70" y="252">BVC</text>
+  <text class="lbl" x="292" y="142">PVI</text>
+  <text class="lbl" x="528" y="204">EVC</text>
+  <text class="note" x="352" y="180" fill="#0f9d58">high point</text>
+  <!-- formulas -->
+  <g transform="translate(20,24)">
+    <text class="lbl" x="0" y="0">Equal-tangent vertical curve</text>
+    <text class="note" x="0" y="22">Rate of change r = (g&#8322; &#8722; g&#8321;) / L   (per station or per ft)</text>
+    <text class="note" x="0" y="42">High/low point from BVC:  x = &#8722;g&#8321; / r  =  &#8722;g&#8321;&#183;L / (g&#8322; &#8722; g&#8321;)</text>
+    <text class="note" x="0" y="62">Curve elev:  y = Elev(BVC) + g&#8321;&#183;x + (r/2)&#183;x&#178;</text>
+  </g>
+</svg>

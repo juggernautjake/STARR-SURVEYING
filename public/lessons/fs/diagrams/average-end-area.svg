@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 340" role="img" aria-label="Average end area method: two cross-sections of area A1 and A2 separated by distance L, volume equals the mean area times L.">
+  <style>text{stroke:none;paint-order:fill}
+    .ttl{font:700 15px Arial,Helvetica,sans-serif;fill:#111827}
+    .sec{fill:#c7d2fe;stroke:#1d3095;stroke-width:2}
+    .ground{stroke:#8b5e34;stroke-width:2;fill:none}
+    .dim{stroke:#64748b;stroke-width:1}
+    .lab{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
+    .lblb{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
+    .f{font:700 13px Arial,Helvetica,sans-serif;fill:#1d3095}
+  </style>
+  <rect width="600" height="340" fill="#ffffff"/>
+  <text class="ttl" x="20" y="26">Volume by the average-end-area method</text>
+
+  <!-- Section 1 (left) -->
+  <g transform="translate(70,80)">
+    <polygon class="sec" points="0,120 30,40 90,25 120,120"/>
+    <text class="lblb" x="60" y="150" text-anchor="middle">A₁</text>
+    <text class="lab" x="60" y="170" text-anchor="middle">station 10+00</text>
+  </g>
+  <!-- Section 2 (right, larger) -->
+  <g transform="translate(410,60)">
+    <polygon class="sec" points="0,140 25,45 100,20 130,140"/>
+    <text class="lblb" x="65" y="170" text-anchor="middle">A₂</text>
+    <text class="lab" x="65" y="190" text-anchor="middle">station 11+00</text>
+  </g>
+
+  <!-- distance L between sections (below the station labels so nothing overlaps) -->
+  <line class="dim" x1="130" y1="274" x2="470" y2="274"/>
+  <line class="dim" x1="130" y1="268" x2="130" y2="280"/>
+  <line class="dim" x1="470" y1="268" x2="470" y2="280"/>
+  <text class="lblb" x="300" y="266" text-anchor="middle">L (distance between sections)</text>
+
+  <!-- formula -->
+  <text class="f" x="300" y="300" text-anchor="middle">V = ½ · (A₁ + A₂) · L</text>
+  <text class="lab" x="300" y="322" text-anchor="middle">the mean of the two end areas, times the distance between them</text>
+</svg>

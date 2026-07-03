@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 340" role="img" aria-label="Aerial photo overlap: successive photos along a flight line share about 60 percent end lap so every point appears on two photos for stereo viewing; adjacent strips share about 30 percent side lap.">
+  <style>text{stroke:none;paint-order:fill}
+    .ttl{font:700 15px Arial,Helvetica,sans-serif;fill:#111827}
+    .plane{fill:#111827}
+    .photo{fill:#c7d2fe;stroke:#1d3095;stroke-width:1.5;fill-opacity:0.55}
+    .overlap{fill:#4338ca;fill-opacity:0.35}
+    .lab{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
+    .lblb{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
+    .path{stroke:#94a3b8;stroke-width:1.4;stroke-dasharray:6 4}
+  </style>
+  <rect width="620" height="340" fill="#ffffff"/>
+  <text class="ttl" x="20" y="26">Aerial photo overlap (stereo coverage)</text>
+
+  <!-- flight line -->
+  <line class="path" x1="60" y1="70" x2="580" y2="70"/>
+  <polygon class="plane" points="120,64 140,70 120,76 126,70"/>
+  <polygon class="plane" points="300,64 320,70 300,76 306,70"/>
+  <polygon class="plane" points="470,64 490,70 470,76 476,70"/>
+  <text class="lab" x="320" y="56" text-anchor="middle">flight line — exposures at fixed intervals</text>
+
+  <!-- three photo footprints on the ground, overlapping ~60% -->
+  <rect class="photo" x="90"  y="150" width="200" height="130"/>
+  <rect class="photo" x="210" y="150" width="200" height="130"/>
+  <rect class="photo" x="330" y="150" width="200" height="130"/>
+  <!-- overlap zones (~60%) -->
+  <rect class="overlap" x="210" y="150" width="80" height="130"/>
+  <rect class="overlap" x="330" y="150" width="80" height="130"/>
+
+  <text class="lblb" x="250" y="220" text-anchor="middle">~60%</text>
+  <text class="lblb" x="370" y="220" text-anchor="middle">~60%</text>
+  <text class="lab" x="190" y="170" text-anchor="middle">photo 1</text>
+  <text class="lab" x="310" y="170" text-anchor="middle">photo 2</text>
+  <text class="lab" x="430" y="170" text-anchor="middle">photo 3</text>
+
+  <text class="lab" x="310" y="308" text-anchor="middle">~60% forward (end) lap → every point on ≥2 photos for stereo; ~30% side lap between strips.</text>
+</svg>
