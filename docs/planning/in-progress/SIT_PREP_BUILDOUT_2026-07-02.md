@@ -186,3 +186,12 @@ Difficulty levels per genre: **1 Foundational · 2 Standard(exam) · 3 Challenge
   Stripped them (seed 395) and removed seeds 393/394. Net: no redundant content;
   examples restored to their original comprehensive state. Lesson: judge lesson
   depth by content, not character count.
+- **Bug fixed (S33, seed 396):** the buildout's `study_references` used
+  `{type:"module", id:"<number>"}`, which QuizRunner renders as a link to
+  `/admin/learn/modules/{id}` — the wrong route for FS modules (they live in
+  `fs_study_modules` at a different path) and keyed by UUID, not number, so those
+  study-hint links (shown on wrong answers) resolved to an empty page. Original FS
+  questions carry no study_references, so there was no canonical format to match.
+  Normalized every buildout ref to a safe label-only form ("📚 Review: <topic>",
+  href='') — no broken navigation. **A defect the buildout introduced, caught by
+  tracing the actual render path and fixed.**
