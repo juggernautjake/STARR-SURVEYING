@@ -150,5 +150,16 @@ Difficulty levels per genre: **1 Foundational · 2 Standard(exam) · 3 Challenge
   dynamic), **99 FS templates all valid (0 invalid, 0 non-finite)**, 16 images,
   10/10 modules illustrated, complete 11-genre × 3-level matrix — all applied to
   the live DB (seeds 369–388) and verified. **Every integrity check = 0 defects.**
-- **S25 (in progress):** add sourced photos to the diagram-only modules
-  (4 traverse, 5 curves, 7 boundary) for full visual parity.
+- **S25 (done):** field-survey photo → module 4. Modules 5 & 7 kept diagram-only
+  (their SVG diagrams already cover them; clean-licensed boundary/curve photos
+  didn't turn up). 17 image refs (11 diagrams + 6 photos), 0 missing.
+- **Currency verification vs the source PDFs (S27, done):** spot-checked content
+  against the authoritative resources the user supplied. (a) The **official NCEES
+  FS Reference Handbook v2.5** lists exactly the topic areas built here (Horizontal
+  Circular Curves, Vertical Curve Formulas, Photogrammetry, Curvature & Refraction,
+  Geodesy, State Plane Coordinates, EDM, Area/Earthwork Formulas, Probability &
+  Statistics) — the 11 genres map cleanly. (b) **Kavanagh §2.3** gives curvature &
+  refraction as `c + r = 0.0675·K²` (K in km); the `0.0206·F²` used here (F in
+  thousands of ft) is the exact imperial equivalent (`0.0675·0.3048² = 0.0206`).
+  Enhanced the C&R template + question explanations to show both forms (seed 391).
+  **No content errors found; the buildout aligns with the official FS handbook.**
