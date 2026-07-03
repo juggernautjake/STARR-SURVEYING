@@ -20,6 +20,7 @@ import { highlightSegments, snippetAroundMatch } from '@/lib/admin/messenger-sea
 // …" toast when the unread count rises between polls.
 import { useToast } from '@/app/admin/components/Toast';
 import EmojiPicker from '@/app/admin/components/messaging/EmojiPicker';
+import MediaViewer, { type MediaItem } from '@/app/admin/components/MediaViewer';
 
 const MESSENGER_PANEL_WIDTH = 640;
 const MESSENGER_PANEL_HEIGHT = 600;
@@ -52,7 +53,7 @@ export interface Message {
   content: string;
   message_type: string;
   created_at: string;
-  attachments: unknown[];
+  attachments: { url?: string; name?: string; type?: string; size?: number }[];
   // Read receipts (who has seen this message) — returned by the messages GET.
   // Used to show a "Seen" indicator under my most recent sent message.
   read_receipts?: { user_email: string; read_at: string }[];
@@ -197,6 +198,7 @@ export default function FloatingMessenger() {
   const [composeEmpty, setComposeEmpty] = useState(true);
   const [sending, setSending] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
+  const [viewerMedia, setViewerMedia] = useState<MediaItem | null>(null);
   const [loadingMessages, setLoadingMessages] = useState(false);
 
   // Search / new conversation
@@ -996,7 +998,41 @@ export default function FloatingMessenger() {
                             </span>
                           )}
                           <div className={`messenger-panel__msg-bubble ${isOwn ? 'messenger-panel__msg-bubble--own' : ''}`}>
-                            <MessageBody content={m.content} />
+                            {m.content && <MessageBody content={m.content} />}
+                            {Array.isArray(m.attachments) && m.attachments.length > 0 && (
+                              <div className="messenger-panel__attachments">
+                                {m.attachments.map((att, ai) => {
+                                  const at = (att.type || '').toLowerCase();
+                                  if (at.startsWith('image/') && att.url) {
+                                    return (
+                                      <button key={ai} type="button" className="messenger-panel__attach-thumb"
+                                        onClick={() => setViewerMedia({ url: att.url!, name: att.name, type: att.type })} aria-label={`Open image ${att.name || ''}`}>
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img src={att.url} alt={att.name || 'image'} loading="lazy" />
+                                      </button>
+                                    );
+                                  }
+                                  if (at.startsWith('video/') && att.url) {
+                                    return (
+                                      <button key={ai} type="button" className="messenger-panel__attach-thumb messenger-panel__attach-thumb--video"
+                                        onClick={() => setViewerMedia({ url: att.url!, name: att.name, type: att.type })} aria-label={`Play video ${att.name || ''}`}>
+                                        <video src={att.url} muted preload="metadata" />
+                                        <span aria-hidden="true">▶</span>
+                                      </button>
+                                    );
+                                  }
+                                  if (at.startsWith('audio/') && att.url) {
+                                    // eslint-disable-next-line jsx-a11y/media-has-caption
+                                    return <audio key={ai} src={att.url} controls preload="none" className="messenger-panel__attach-audio" />;
+                                  }
+                                  return (
+                                    <a key={ai} href={att.url || '#'} download={att.name} target="_blank" rel="noopener noreferrer" className="messenger-panel__attach-file">
+                                      📎 {att.name || 'file'}
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
                           {/* messenger-smoothing-pass2-2026-06-18 —
                               keep the time label the same width whether
@@ -1024,6 +1060,7 @@ export default function FloatingMessenger() {
                   })
                 )}
                 <div ref={messagesEndRef} />
+                <MediaViewer media={viewerMedia} onClose={() => setViewerMedia(null)} />
               </div>
 
               {/* Compose */}
