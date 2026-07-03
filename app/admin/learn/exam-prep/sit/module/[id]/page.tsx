@@ -88,8 +88,28 @@ export default function FSModulePage() {
   useEffect(() => { fetchModule(); }, [fetchModule]);
 
   function renderMarkdown(text: string): string {
-    // Simple markdown-to-HTML for study content
+    // Escape a string for safe insertion into an HTML attribute/text node.
+    const esc = (s: string) =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    // Simple markdown-to-HTML for study content.
     return text
+      // Figures FIRST so the caption/credit text isn't touched by the inline
+      // transforms below. Syntax: ![Caption](/path.svg "Credit / reference").
+      // The optional quoted title becomes a small credit line under the caption
+      // so every diagram + photo carries an attribution as the user requires.
+      .replace(
+        /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g,
+        (_m, alt: string, url: string, credit?: string) => {
+          const cap = esc(alt || '');
+          const creditHtml = credit
+            ? `<span class="fs-fig__credit">${esc(credit)}</span>`
+            : '';
+          const figcap = cap || credit
+            ? `<figcaption class="fs-fig__cap">${cap}${creditHtml}</figcaption>`
+            : '';
+          return `<figure class="fs-fig"><img class="fs-fig__img" loading="lazy" src="${esc(url)}" alt="${cap}"/>${figcap}</figure>`;
+        }
+      )
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
       .replace(/`(.*?)`/g, '<code>$1</code>')
@@ -99,7 +119,11 @@ export default function FSModulePage() {
       .replace(/^- (.*$)/gm, '<li>$1</li>')
       .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
       .replace(/\n\n/g, '</p><p>')
-      .replace(/\n/g, '<br/>');
+      .replace(/\n/g, '<br/>')
+      // A figure is block-level; drop stray <br/> immediately around it so it
+      // isn't wrapped awkwardly between line breaks.
+      .replace(/<br\/>\s*(<figure)/g, '$1')
+      .replace(/(<\/figure>)\s*<br\/>/g, '$1');
   }
 
   function getContentForTab(tab: string): ContentSection | undefined {

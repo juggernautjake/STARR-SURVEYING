@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 420" role="img" aria-label="Simple circular horizontal curve showing PC, PI, PT, radius, tangent, external and middle ordinate">
+  <style>
+    .t{stroke:#334155;stroke-width:2;fill:none}
+    .r{stroke:#94a3b8;stroke-width:1.3;stroke-dasharray:5 4;fill:none}
+    .curve{stroke:#1d3095;stroke-width:3;fill:none}
+    .pt{fill:#bd1218}
+    .lbl{font:600 14px 'Segoe UI',sans-serif;fill:#0b1220}
+    .dim{font:600 13px 'Segoe UI',sans-serif;fill:#1d3095}
+    .note{font:13px 'Segoe UI',sans-serif;fill:#334155}
+  </style>
+  <rect width="620" height="420" fill="#ffffff"/>
+  <!-- tangents: back tangent PC->PI, forward tangent PI->PT -->
+  <line class="t" x1="130" y1="245" x2="310" y2="162"/>
+  <line class="t" x1="310" y1="162" x2="490" y2="245"/>
+  <!-- radii to PC and PT and to mid -->
+  <line class="r" x1="310" y1="370" x2="220" y2="214"/>
+  <line class="r" x1="310" y1="370" x2="400" y2="214"/>
+  <line class="r" x1="310" y1="370" x2="310" y2="190"/>
+  <!-- external (PI to curve top) and middle ordinate (chord mid to curve top) -->
+  <line class="r" x1="310" y1="162" x2="310" y2="190" stroke="#bd1218" stroke-dasharray="0"/>
+  <line class="r" x1="220" y1="214" x2="400" y2="214" stroke="#94a3b8"/>
+  <!-- the curve -->
+  <path class="curve" d="M 220 214 A 180 180 0 0 1 400 214"/>
+  <!-- delta angle arc at PI -->
+  <path d="M 292 170 A 40 40 0 0 0 328 170" fill="none" stroke="#64748b" stroke-width="1.3"/>
+  <!-- points -->
+  <circle class="pt" cx="220" cy="214" r="5"/>
+  <circle class="pt" cx="400" cy="214" r="5"/>
+  <circle class="pt" cx="310" cy="162" r="5"/>
+  <circle cx="310" cy="370" r="4" fill="#0b1220"/>
+  <!-- labels -->
+  <text class="lbl" x="188" y="210">PC</text>
+  <text class="lbl" x="408" y="210">PT</text>
+  <text class="lbl" x="298" y="152">PI</text>
+  <text class="lbl" x="300" y="392">O</text>
+  <text class="dim" x="252" y="300">R</text>
+  <text class="dim" x="360" y="300">R</text>
+  <text class="dim" x="150" y="196">T</text>
+  <text class="dim" x="452" y="196">T</text>
+  <text class="dim" x="316" y="180">E</text>
+  <text class="note" x="300" y="200" fill="#64748b">M</text>
+  <text class="note" x="298" y="150" text-anchor="end" fill="#64748b">&#916;</text>
+  <text class="dim" x="300" y="205" fill="#1d3095">L</text>
+  <!-- legend -->
+  <g transform="translate(20,20)">
+    <text class="lbl" x="0" y="0">Circular curve elements</text>
+    <text class="note" x="0" y="22">T = R&#183;tan(&#916;/2)</text>
+    <text class="note" x="0" y="42">L = R&#183;&#916;&#183;&#960;/180  (&#916; in degrees)</text>
+    <text class="note" x="0" y="62">E = R&#183;(sec(&#916;/2) &#8722; 1)</text>
+    <text class="note" x="0" y="82">M = R&#183;(1 &#8722; cos(&#916;/2))</text>
+    <text class="note" x="0" y="102">LC = 2R&#183;sin(&#916;/2)  (long chord)</text>
+  </g>
+</svg>

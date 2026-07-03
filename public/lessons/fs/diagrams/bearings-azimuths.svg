@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 420" role="img" aria-label="Bearings versus azimuths on a compass quadrant diagram">
+  <style>
+    .axis{stroke:#94a3b8;stroke-width:1.5}
+    .lbl{font:600 15px 'Segoe UI',sans-serif;fill:#0b1220}
+    .q{font:600 13px 'Segoe UI',sans-serif;fill:#64748b}
+    .note{font:13px 'Segoe UI',sans-serif;fill:#334155}
+    .ray{stroke:#1d3095;stroke-width:2.5;fill:none}
+    .rayb{stroke:#bd1218;stroke-width:2.5;fill:none}
+    .arc{fill:none;stroke:#1d3095;stroke-width:1.5}
+    .arcb{fill:none;stroke:#bd1218;stroke-width:1.5}
+  </style>
+  <rect width="620" height="420" fill="#ffffff"/>
+  <!-- center + axes -->
+  <g transform="translate(230,210)">
+    <line class="axis" x1="0" y1="-165" x2="0" y2="165"/>
+    <line class="axis" x1="-165" y1="0" x2="165" y2="0"/>
+    <circle cx="0" cy="0" r="4" fill="#0b1220"/>
+    <text class="lbl" x="-6" y="-172">N</text>
+    <text class="lbl" x="-6" y="188">S</text>
+    <text class="lbl" x="172" y="5">E</text>
+    <text class="lbl" x="-186" y="5">W</text>
+    <text class="q" x="70" y="-120">NE</text>
+    <text class="q" x="70" y="130">SE</text>
+    <text class="q" x="-90" y="130">SW</text>
+    <text class="q" x="-90" y="-120">NW</text>
+    <!-- Azimuth ray (from North, clockwise) 60 deg -->
+    <line class="ray" x1="0" y1="0" x2="129.9" y2="-75"/>
+    <path class="arc" d="M 0 -55 A 55 55 0 0 1 47.6 -27.5"/>
+    <text class="note" x="18" y="-58" fill="#1d3095">Az = 60&#176;</text>
+    <!-- Bearing label for same ray: N60E -->
+    <text class="note" x="96" y="-84" fill="#1d3095">N 60&#176; E</text>
+    <!-- Bearing ray in SE (azimuth 135) -->
+    <line class="rayb" x1="0" y1="0" x2="113.1" y2="113.1"/>
+    <path class="arcb" d="M 0 55 A 55 55 0 0 0 38.9 38.9"/>
+    <text class="note" x="14" y="70" fill="#bd1218">45&#176;</text>
+    <text class="note" x="66" y="108" fill="#bd1218">S 45&#176; E = Az 135&#176;</text>
+  </g>
+  <!-- conversion key -->
+  <g transform="translate(430,70)">
+    <text class="lbl" x="0" y="0">Bearing &#8594; Azimuth</text>
+    <text class="note" x="0" y="26">NE:  Az = Bearing</text>
+    <text class="note" x="0" y="48">SE:  Az = 180&#176; &#8722; Bearing</text>
+    <text class="note" x="0" y="70">SW:  Az = 180&#176; + Bearing</text>
+    <text class="note" x="0" y="92">NW:  Az = 360&#176; &#8722; Bearing</text>
+    <text class="q" x="0" y="124">Azimuths run clockwise</text>
+    <text class="q" x="0" y="142">from North, 0&#176;&#8211;360&#176;.</text>
+    <text class="q" x="0" y="164">Bearings are &#8804; 90&#176; from</text>
+    <text class="q" x="0" y="182">N or S toward E or W.</text>
+  </g>
+</svg>
