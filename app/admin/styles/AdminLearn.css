@@ -1596,6 +1596,51 @@
   color: #9ca3af;
 }
 
+/* Study-content tables (e.g. the error-type comparison). Replaces the raw
+   border="1" tables that rendered cramped. Horizontally scrollable on narrow
+   screens so wide comparison tables never overflow the lesson column. */
+.fs-module__content-text table.fs-table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 1.1rem 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+.fs-module__content-text table.fs-table th,
+.fs-module__content-text table.fs-table td {
+  border: 1px solid var(--color-border, #e5e7eb);
+  padding: 0.5rem 0.7rem;
+  text-align: left;
+  vertical-align: top;
+}
+.fs-module__content-text table.fs-table th {
+  background: #f3f4f6;
+  color: #111827;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.fs-module__content-text table.fs-table tr:nth-child(even) td {
+  background: #fafbfc;
+}
+.fs-module__content-text table.fs-table td b,
+.fs-module__content-text table.fs-table td strong {
+  color: #111827;
+}
+
+/* Inline SVG diagrams embedded directly in the lesson prose. */
+.fs-module__content-text .fs-embed {
+  margin: 1.1rem auto;
+  max-width: 620px;
+  text-align: center;
+}
+.fs-module__content-text .fs-embed svg {
+  max-width: 100%;
+  height: auto;
+}
+
 /* Formulas Grid */
 .fs-module__formulas-grid h3 {
   font-family: 'Sora', sans-serif; font-size: 1rem; font-weight: 600;
