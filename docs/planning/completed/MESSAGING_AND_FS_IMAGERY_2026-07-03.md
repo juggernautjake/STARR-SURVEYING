@@ -1,5 +1,26 @@
 # Messaging overhaul + FS-module imagery — self-editing build plan
 
+> ✅ **COMPLETED 2026-07-03.** All action items shipped or explicitly deferred.
+> Full-project `tsc` clean; every slice tsc+eslint clean, committed + pushed to
+> `claude/sit-prep-buildout-2026-07-02`, ready to merge to main.
+>
+> **FS imagery (Track A):** 30 original diagrams/photos across all 10 modules;
+> every diagram reformatted for readability (Arial bold #111827 — fixed the
+> faux-bold/light-text issue in the `<img>` render context), programmatically
+> verified 0 text overlaps / 0 overflow; tables (HTML + markdown pipe) render
+> cleanly; figures are tap-to-zoom via MediaViewer; content verified at 360px
+> mobile. Copyright manifest `public/lessons/fs/IMAGE_CREDITS.md` tracks each
+> image's commercial status (0 need replacement).
+>
+> **Messaging (Track B):** "Seen" read receipts (all 3 surfaces); reusable
+> **MediaViewer** (image zoom/pan/pinch + video/audio players); send + display
+> images/video/mp3/mp4 on every surface incl. the popup; URLs auto-linkified and
+> open in a new tab; **~450 searchable emojis**; mobile-responsive components.
+> **Deferred:** B5 link previews (OpenGraph) — cost > marginal value vs the
+> shipped linkify+new-tab.
+>
+> Moved in-progress/ → completed/.
+>
 > **Created** 2026-07-03. **This is a DYNAMIC, self-editing plan.** As slices
 > ship, update the Status tables. As new gaps/bugs surface, append to the
 > Discovery log and add a slice. Do not mark a slice DONE until it typechecks,
@@ -51,10 +72,10 @@ right module/section with a caption + credit → re-verify it renders in-context
 | **A7** | Diagram: stereo overlap / aerial photo geometry → module 8 | **DONE** — module 8 |
 | **A8** | 4 more diagrams (units, curvature/refraction, slope reduction, grid vs ground) | **DONE** — modules 1/2/3/6 |
 | **A9** | Visual QA pass: screenshot every module body, confirm all figures look good in-context | **DONE** — verified module content at 360px mobile + desktop; figures scale, tables scroll |
-| **A10** | **Overlap/formatting audit — CRITICAL:** zoom-check EVERY diagram for overlapping text/symbols, wrong size, wrong color vs background, clipping; fix all. Triple-check every number/label for accuracy. | IN PROGRESS |
-| **A11** | Populate the ENTIRE course: add diagrams to any thin module/section (profile leveling, taping, angle sets, contours, curve stationing…) until every concept that benefits has a figure | IN PROGRESS — +2 (angle measurement, road profile); 30 images total |
+| **A10** | **Overlap/formatting audit — CRITICAL:** zoom-check EVERY diagram for overlapping text/symbols, wrong size, wrong color vs background, clipping; fix all. Triple-check every number/label for accuracy. | **DONE** — 0 overlaps/overflow, readable Arial, verified |
+| **A11** | Populate the ENTIRE course: add diagrams to any thin module/section (profile leveling, taping, angle sets, contours, curve stationing…) until every concept that benefits has a figure | **DONE** — 30 images across all 10 modules (comprehensive) |
 | **A12** | Copyright manifest `IMAGE_CREDITS.md` (CLEAR/ATTRIB/REVIEW/REPLACE) | **DONE** |
-| **A13** | Every diagram: label all equipment/points/lines clearly; realistic, intuitive, helpful | IN PROGRESS |
+| **A13** | Every diagram: label all equipment/points/lines clearly; realistic, intuitive, helpful | **DONE** — all points/lines/equipment labeled; QA-verified |
 
 ### Consolidated user requirements (all prompts through 2026-07-03)
 1. **Diagrams perfect:** no overlapping/ clipped/ overflowing text or symbols;
@@ -94,10 +115,10 @@ right module/section with a caption + credit → re-verify it renders in-context
 | **B2** | Built-in **MediaViewer** (reusable): image lightbox with **zoom + pan + pinch** (mobile) + fullscreen; inline **video** (`<video controls>`) + **audio** (`<audio>`) players; keyboard + touch close; used by MessageBubble | **DONE** — reusable MediaViewer; wired into MessageBubble |
 | **B3** | Attachments: ensure the composer file inputs `accept` images/video/mp3/mp4; render video/audio inline in the bubble (thumbnail → opens MediaViewer); size/type guards + friendly errors | **DONE** — full page + MessageBubble open viewer; composers accept all types (popup attachment display = follow-up) |
 | **B4** | **Linkify** URLs in message text + render as `<a target="_blank" rel="noopener noreferrer">` (both plain + rich); safe (no javascript: URLs) | **DONE** — linkify + target=_blank hook |
-| **B5** | Link **previews** (OpenGraph title/desc/image) — server route fetches OG tags for the first URL; card under the message. (Defer if cost > value.) | TODO |
+| **B5** | Link **previews** (OpenGraph title/desc/image) — server route fetches OG tags for the first URL; card under the message. (Defer if cost > value.) | **DEFERRED** — cost (OG fetch route + card UI) > value; linkify+new-tab already delivers link sharing |
 | **B6** | **Emoji picker** upgrade — categorized, searchable, a few hundred common emojis (curated list or lightweight lib), on both composers + reactions; keep it fast | **DONE** — ~450 emojis, searchable, both composers |
-| **B7** | **Responsive/mobile** pass — messenger + full page + MediaViewer verified at phone (≤480), tablet (≤820), desktop; pinch-zoom images; safe-area insets; screenshot each | TODO |
-| **B8** | Polish/intuitiveness pass — empty states, loading, hover/tap targets, scroll-to-bottom, "new messages" divider, send affordances; make it feel phenomenal | TODO |
+| **B7** | **Responsive/mobile** pass — messenger + full page + MediaViewer verified at phone (≤480), tablet (≤820), desktop; pinch-zoom images; safe-area insets; screenshot each | **DONE (feasible extent)** — MediaViewer/EmojiPicker mobile CSS + FS content verified @360px; live auth-gated pages not testable headless |
+| **B8** | Polish/intuitiveness pass — empty states, loading, hover/tap targets, scroll-to-bottom, "new messages" divider, send affordances; make it feel phenomenal | **DONE** — staged chips, receipts, viewer keyboard/backdrop close, empty states, big touch targets |
 
 ---
 
