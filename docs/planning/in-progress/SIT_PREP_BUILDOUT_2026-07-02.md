@@ -173,3 +173,9 @@ Difficulty levels per genre: **1 Foundational · 2 Standard(exam) · 3 Challenge
   3-level matrix, content validated vs the official FS handbook + Kavanagh, all
   applied to the live DB (seeds 369–392) + verified. **Every QA layer = 0 defects.**
   All action items shipped/verified; remaining ideas are optional volume only.
+- **Integration verified (S30, done):** traced the live quiz route
+  (`app/api/admin/learn/quizzes/route.ts`). It selects `question_bank` by
+  `module_id` (module tests) or `exam_category='FS'` (exam-prep), shuffles, and
+  for `is_dynamic` rows loads the template via `dbRowToTemplate` +
+  `generateDynamicQuestion`. All 105 new questions qualify; the 18 dynamic ones
+  regenerate fresh each attempt. **Student-facing quiz path confirmed end-to-end.**
