@@ -163,3 +163,13 @@ Difficulty levels per genre: **1 Foundational · 2 Standard(exam) · 3 Challenge
   thousands of ft) is the exact imperial equivalent (`0.0675·0.3048² = 0.0206`).
   Enhanced the C&R template + question explanations to show both forms (seed 391).
   **No content errors found; the buildout aligns with the official FS handbook.**
+- **End-to-end render QA (S29, done):** replicated the page's exact
+  `renderMarkdown` figure transform and ran it over all 10 modules' live content.
+  **17 figures render; 0 unbalanced `<figure>` tags, 0 missing image sources, 0
+  figures without a caption, 0 unexpected paths.** The student-facing lesson
+  render is verified correct for every image.
+- **FINAL STATE (2026-07-02 ~8:10pm):** 105 new problems (87 static + 18 dynamic),
+  99 FS templates all valid, 17 images across 10/10 modules, complete 11-genre ×
+  3-level matrix, content validated vs the official FS handbook + Kavanagh, all
+  applied to the live DB (seeds 369–392) + verified. **Every QA layer = 0 defects.**
+  All action items shipped/verified; remaining ideas are optional volume only.
