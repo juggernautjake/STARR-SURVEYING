@@ -95,7 +95,7 @@ right module/section with a caption + credit → re-verify it renders in-context
 | **B3** | Attachments: ensure the composer file inputs `accept` images/video/mp3/mp4; render video/audio inline in the bubble (thumbnail → opens MediaViewer); size/type guards + friendly errors | TODO |
 | **B4** | **Linkify** URLs in message text + render as `<a target="_blank" rel="noopener noreferrer">` (both plain + rich); safe (no javascript: URLs) | **DONE** — linkify + target=_blank hook |
 | **B5** | Link **previews** (OpenGraph title/desc/image) — server route fetches OG tags for the first URL; card under the message. (Defer if cost > value.) | TODO |
-| **B6** | **Emoji picker** upgrade — categorized, searchable, a few hundred common emojis (curated list or lightweight lib), on both composers + reactions; keep it fast | TODO |
+| **B6** | **Emoji picker** upgrade — categorized, searchable, a few hundred common emojis (curated list or lightweight lib), on both composers + reactions; keep it fast | **DONE** — ~450 emojis, searchable, both composers |
 | **B7** | **Responsive/mobile** pass — messenger + full page + MediaViewer verified at phone (≤480), tablet (≤820), desktop; pinch-zoom images; safe-area insets; screenshot each | TODO |
 | **B8** | Polish/intuitiveness pass — empty states, loading, hover/tap targets, scroll-to-bottom, "new messages" divider, send affordances; make it feel phenomenal | TODO |
 

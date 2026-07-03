@@ -2160,6 +2160,8 @@
 .messenger-panel__emoji-picker { position:absolute; bottom:calc(100% + 4px); left:0; background:#FFF; border:1px solid #E5E7EB; border-radius:8px; padding:.35rem; display:grid; grid-template-columns:repeat(6,1fr); gap:.2rem; box-shadow:0 4px 12px rgba(0,0,0,.12); z-index:10; }
 .messenger-panel__emoji-picker button { background:none; border:none; font-size:1.1rem; cursor:pointer; padding:.25rem; border-radius:4px; }
 .messenger-panel__emoji-picker button:hover { background:#F3F4F6; }
+/* Popover wrapper for the full searchable EmojiPicker in the messenger compose. */
+.messenger-panel__emoji-pop { position:absolute; bottom:calc(100% + 6px); left:0; z-index:20; }
 
 /* Actions bar */
 .messenger-panel__actions { display:flex; align-items:center; gap:.35rem; padding:.4rem .65rem; border-bottom:1px solid #E5E7EB; background:#F8F9FA; }
@@ -3092,3 +3094,43 @@
   max-width: 300px;
 }
 .msg-bubble__audio audio { width: 100%; height: 36px; }
+
+/* ── Emoji picker (searchable, categorized) ─────────────────────────────── */
+.emoji-picker {
+  width: 300px; max-width: 92vw; background: #fff;
+  border: 1px solid #E5E7EB; border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(16,24,40,.16); overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.emoji-picker__search {
+  margin: .5rem; padding: .45rem .6rem; border: 1px solid #E5E7EB;
+  border-radius: 8px; font-size: .85rem; outline: none;
+}
+.emoji-picker__search:focus { border-color: #2563EB; }
+.emoji-picker__tabs {
+  display: flex; gap: 2px; padding: 0 .4rem .3rem; overflow-x: auto;
+  border-bottom: 1px solid #F3F4F6;
+}
+.emoji-picker__tab {
+  flex: 0 0 auto; width: 32px; height: 32px; border: none; background: none;
+  border-radius: 8px; cursor: pointer; font-size: 1.1rem; line-height: 1;
+  opacity: .6; transition: background .12s, opacity .12s;
+}
+.emoji-picker__tab:hover { background: #F3F4F6; opacity: 1; }
+.emoji-picker__tab--active { background: #EFF6FF; opacity: 1; }
+.emoji-picker__grid {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px;
+  padding: .4rem; max-height: 240px; overflow-y: auto;
+}
+.emoji-picker__emoji {
+  border: none; background: none; cursor: pointer; font-size: 1.35rem;
+  line-height: 1; padding: .2rem 0; border-radius: 6px; transition: background .1s;
+}
+.emoji-picker__emoji:hover { background: #F3F4F6; }
+.emoji-picker__empty { grid-column: 1 / -1; text-align: center; color: #9CA3AF; font-size: .82rem; padding: 1rem; }
+@media (max-width: 480px) {
+  .emoji-picker__grid { grid-template-columns: repeat(6, 1fr); }
+  .emoji-picker__emoji { font-size: 1.5rem; } /* bigger touch targets on phones */
+}
+/* Popover wrapper for the full searchable EmojiPicker in ComposeBox. */
+.msg-compose__emoji-pop { position:absolute; bottom:calc(100% + 6px); left:0; z-index:20; }

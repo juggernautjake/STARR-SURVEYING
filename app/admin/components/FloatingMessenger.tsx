@@ -19,6 +19,7 @@ import { highlightSegments, snippetAroundMatch } from '@/lib/admin/messenger-sea
 // catch made the messenger feel "stuck") and pop a "💬 New message from
 // …" toast when the unread count rises between polls.
 import { useToast } from '@/app/admin/components/Toast';
+import EmojiPicker from '@/app/admin/components/messaging/EmojiPicker';
 
 const MESSENGER_PANEL_WIDTH = 640;
 const MESSENGER_PANEL_HEIGHT = 600;
@@ -65,7 +66,6 @@ interface Contact {
 
 type PanelView = 'list' | 'chat' | 'new' | 'search';
 
-const QUICK_EMOJIS = ['😀', '😂', '😍', '🤔', '👍', '👎', '🎉', '🔥', '❤️', '💯', '✅', '❌'];
 
 function displayName(email: string): string {
   return email.split('@')[0]
@@ -1031,10 +1031,8 @@ export default function FloatingMessenger() {
                 <div style={{ position: 'relative' }}>
                   <button className="messenger-panel__tool" onClick={() => setShowEmoji(!showEmoji)} title="Emoji">😊</button>
                   {showEmoji && (
-                    <div className="messenger-panel__emoji-picker">
-                      {QUICK_EMOJIS.map(e => (
-                        <button key={e} onClick={() => { richRef.current?.insertText(e); setComposeEmpty(false); setShowEmoji(false); }}>{e}</button>
-                      ))}
+                    <div className="messenger-panel__emoji-pop">
+                      <EmojiPicker onPick={(e) => { richRef.current?.insertText(e); setComposeEmpty(false); }} />
                     </div>
                   )}
                 </div>
