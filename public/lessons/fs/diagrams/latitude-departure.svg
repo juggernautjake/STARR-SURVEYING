@@ -1,19 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 420" role="img" aria-label="Latitude and departure as the north-south and east-west components of a traverse leg">
-  <style>
+  <style>text{stroke:none;paint-order:fill}
     .axis{stroke:#94a3b8;stroke-width:1.4}
     .leg{stroke:#1d3095;stroke-width:3}
     .comp{stroke:#bd1218;stroke-width:2;stroke-dasharray:6 4}
-    .lbl{font:600 15px 'Segoe UI',sans-serif;fill:#0b1220}
-    .val{font:600 13px 'Segoe UI',sans-serif;fill:#1d3095}
-    .red{font:600 13px 'Segoe UI',sans-serif;fill:#bd1218}
-    .note{font:13px 'Segoe UI',sans-serif;fill:#334155}
+    .lbl{font:700 15px Arial,Helvetica,sans-serif;fill:#111827}
+    .val{font:700 13px Arial,Helvetica,sans-serif;fill:#1d3095}
+    .red{font:700 13px Arial,Helvetica,sans-serif;fill:#bd1218}
+    .note{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
   </style>
   <rect width="560" height="420" fill="#ffffff"/>
   <!-- station A at lower-left -->
   <g transform="translate(120,330)">
     <!-- north arrow -->
     <line class="axis" x1="0" y1="0" x2="0" y2="-260"/>
-    <polygon points="0,-262 -6,-250 6,-250" fill="#94a3b8"/>
+    <polygon points="0,-262 -6,-250 6,-250" fill="#475569"/>
     <text class="lbl" x="-6" y="-268">N</text>
     <line class="axis" x1="0" y1="0" x2="320" y2="0"/>
     <text class="lbl" x="326" y="5">E</text>

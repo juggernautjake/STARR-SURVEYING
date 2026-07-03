@@ -1,19 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 400" role="img" aria-label="Area of a closed figure by the coordinate (shoelace) method using station northings and eastings">
-  <style>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 400" role="img" aria-label="Area of a closed figure by the coordinate (shoelace) method using station northings and eastings">
+  <style>text{stroke:none;paint-order:fill}
     .axis{stroke:#cbd5e1;stroke-width:1.2}
     .poly{fill:#1d30951a;stroke:#1d3095;stroke-width:2.5}
     .pt{fill:#bd1218}
-    .lbl{font:600 13px 'Segoe UI',sans-serif;fill:#0b1220}
-    .co{font:12px 'Segoe UI',sans-serif;fill:#334155}
-    .note{font:13px 'Segoe UI',sans-serif;fill:#334155}
+    .lbl{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
+    .co{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
+    .note{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
   </style>
-  <rect width="520" height="400" fill="#ffffff"/>
+  <rect width="680" height="400" fill="#ffffff"/>
   <!-- axes -->
   <g transform="translate(60,340)">
     <line class="axis" x1="0" y1="0" x2="300" y2="0"/>
     <line class="axis" x1="0" y1="0" x2="0" y2="-280"/>
-    <polygon points="0,-282 -5,-270 5,-270" fill="#cbd5e1"/>
-    <polygon points="302,0 290,-5 290,5" fill="#cbd5e1"/>
+    <polygon points="0,-282 -5,-270 5,-270" fill="#64748b"/>
+    <polygon points="302,0 290,-5 290,5" fill="#64748b"/>
     <text class="lbl" x="-6" y="-286">N</text>
     <text class="lbl" x="306" y="4">E</text>
     <!-- polygon A(40,30) B(250,60) C(210,230) D(70,180) in E,N (px = value) -->
@@ -28,11 +28,11 @@
     <text class="co" x="196" y="-46">(E 250, N 60)</text>
     <text class="lbl" x="216" y="-232">C</text>
     <text class="co" x="216" y="-232" dy="16">(E 210, N 230)</text>
-    <text class="lbl" x="48" y="-184">D</text>
-    <text class="co" x="-6" y="-190">(E 70, N 180)</text>
+    <text class="lbl" x="56" y="-176">D</text>
+    <text class="co" x="-52" y="-186">(E 70, N 180)</text>
   </g>
   <!-- formula -->
-  <g transform="translate(300,60)">
+  <g transform="translate(410,80)">
     <text class="lbl" x="0" y="0">Coordinate (shoelace) area</text>
     <text class="note" x="0" y="24">2A = &#931; ( E&#7522; &#183; (N&#7522;&#8330;&#8321; &#8722; N&#7522;&#8331;&#8321;) )</text>
     <text class="note" x="0" y="46">Area = &#189; &#183; | 2A |</text>

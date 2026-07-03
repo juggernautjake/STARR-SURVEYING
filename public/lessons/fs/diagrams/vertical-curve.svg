@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 360" role="img" aria-label="Equal-tangent vertical crest curve showing BVC, PVI, EVC, entering and exiting grades, length, and high point">
-  <style>
+  <style>text{stroke:none;paint-order:fill}
     .tan{stroke:#94a3b8;stroke-width:1.6;stroke-dasharray:6 4}
     .vc{stroke:#1d3095;stroke-width:3;fill:none}
     .pt{fill:#bd1218}
-    .lbl{font:600 14px 'Segoe UI',sans-serif;fill:#0b1220}
-    .dim{font:600 13px 'Segoe UI',sans-serif;fill:#1d3095}
-    .note{font:13px 'Segoe UI',sans-serif;fill:#334155}
-    .grd{font:600 13px 'Segoe UI',sans-serif;fill:#64748b}
+    .lbl{font:700 14px Arial,Helvetica,sans-serif;fill:#111827}
+    .dim{font:700 13px Arial,Helvetica,sans-serif;fill:#1d3095}
+    .note{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
+    .grd{font:700 13px Arial,Helvetica,sans-serif;fill:#334155}
   </style>
   <rect width="620" height="360" fill="#ffffff"/>
   <!-- tangents -->

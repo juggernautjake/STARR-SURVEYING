@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 420" role="img" aria-label="Simple circular horizontal curve showing PC, PI, PT, radius, tangent, external and middle ordinate">
-  <style>
+  <style>text{stroke:none;paint-order:fill}
     .t{stroke:#334155;stroke-width:2;fill:none}
     .r{stroke:#94a3b8;stroke-width:1.3;stroke-dasharray:5 4;fill:none}
     .curve{stroke:#1d3095;stroke-width:3;fill:none}
     .pt{fill:#bd1218}
-    .lbl{font:600 14px 'Segoe UI',sans-serif;fill:#0b1220}
-    .dim{font:600 13px 'Segoe UI',sans-serif;fill:#1d3095}
-    .note{font:13px 'Segoe UI',sans-serif;fill:#334155}
+    .lbl{font:700 14px Arial,Helvetica,sans-serif;fill:#111827}
+    .dim{font:700 13px Arial,Helvetica,sans-serif;fill:#1d3095}
+    .note{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
   </style>
   <rect width="620" height="420" fill="#ffffff"/>
   <!-- tangents: back tangent PC->PI, forward tangent PI->PT -->
@@ -38,9 +38,9 @@
   <text class="dim" x="150" y="196">T</text>
   <text class="dim" x="452" y="196">T</text>
   <text class="dim" x="316" y="180">E</text>
-  <text class="note" x="300" y="200" fill="#64748b">M</text>
-  <text class="note" x="298" y="150" text-anchor="end" fill="#64748b">&#916;</text>
-  <text class="dim" x="300" y="205" fill="#1d3095">L</text>
+  <text class="note" x="288" y="206" fill="#111827">M</text>
+  <text class="note" x="298" y="150" text-anchor="end" fill="#111827">&#916;</text>
+  <text class="dim" x="248" y="184" fill="#1d3095">L (arc)</text>
   <!-- legend -->
   <g transform="translate(20,20)">
     <text class="lbl" x="0" y="0">Circular curve elements</text>

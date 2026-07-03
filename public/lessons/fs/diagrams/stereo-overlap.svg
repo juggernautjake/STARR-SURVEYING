@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 340" role="img" aria-label="Aerial photo overlap: successive photos along a flight line share about 60 percent end lap so every point appears on two photos for stereo viewing; adjacent strips share about 30 percent side lap.">
-  <style>
-    .ttl{font:700 15px 'Segoe UI',sans-serif;fill:#0b1220}
-    .plane{fill:#0b1220}
+  <style>text{stroke:none;paint-order:fill}
+    .ttl{font:700 15px Arial,Helvetica,sans-serif;fill:#111827}
+    .plane{fill:#111827}
     .photo{fill:#c7d2fe;stroke:#1d3095;stroke-width:1.5;fill-opacity:0.55}
     .overlap{fill:#4338ca;fill-opacity:0.35}
-    .lab{font:12px 'Segoe UI',sans-serif;fill:#334155}
-    .lblb{font:700 12px 'Segoe UI',sans-serif;fill:#0b1220}
+    .lab{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
+    .lblb{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
     .path{stroke:#94a3b8;stroke-width:1.4;stroke-dasharray:6 4}
   </style>
   <rect width="620" height="340" fill="#ffffff"/>
@@ -32,5 +32,5 @@
   <text class="lab" x="310" y="170" text-anchor="middle">photo 2</text>
   <text class="lab" x="430" y="170" text-anchor="middle">photo 3</text>
 
-  <text class="lab" x="310" y="308" text-anchor="middle">~60% forward (end) lap → every ground point is on ≥2 photos for stereo; adjacent strips overlap ~30% (side lap).</text>
+  <text class="lab" x="310" y="308" text-anchor="middle">~60% forward (end) lap → every point on ≥2 photos for stereo; ~30% side lap between strips.</text>
 </svg>

@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 400" role="img" aria-label="Vertical aerial photograph scale as the ratio of focal length to flying height above the terrain">
-  <style>
+  <style>text{stroke:none;paint-order:fill}
     .ground{fill:#eef2f7;stroke:#7c8a99;stroke-width:1.6}
     .ray{stroke:#bd1218;stroke-width:1.4;stroke-dasharray:4 3}
     .dimline{stroke:#1d3095;stroke-width:1.4}
-    .lens{fill:#0b1220}
-    .lbl{font:600 14px 'Segoe UI',sans-serif;fill:#0b1220}
-    .dim{font:600 13px 'Segoe UI',sans-serif;fill:#1d3095}
-    .note{font:13px 'Segoe UI',sans-serif;fill:#334155}
+    .lens{fill:#111827}
+    .lbl{font:700 14px Arial,Helvetica,sans-serif;fill:#111827}
+    .dim{font:700 13px Arial,Helvetica,sans-serif;fill:#1d3095}
+    .note{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
   </style>
   <rect width="560" height="400" fill="#ffffff"/>
   <!-- ground/terrain -->
@@ -19,7 +19,7 @@
   <text class="dim" x="250" y="210">H = flying height</text>
   <text class="note" x="250" y="228">above ground</text>
   <!-- image plane just below lens (focal length f) -->
-  <rect x="180" y="110" width="120" height="8" fill="#cbd5e1" stroke="#94a3b8"/>
+  <rect x="180" y="110" width="120" height="8" fill="#64748b" stroke="#94a3b8"/>
   <line class="dimline" x1="330" y1="90" x2="330" y2="114"/>
   <line class="dimline" x1="324" y1="90" x2="336" y2="90"/>
   <line class="dimline" x1="324" y1="114" x2="336" y2="114"/>

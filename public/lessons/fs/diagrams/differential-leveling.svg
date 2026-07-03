@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Differential leveling: backsight to a benchmark and foresight to a turning point define the height of instrument">
-  <style>
+  <style>text{stroke:none;paint-order:fill}
     .g{stroke:#7c8a99;stroke-width:2;fill:none}
     .rod{fill:#e2e8f0;stroke:#334155;stroke-width:1.5}
     .hi{stroke:#1d3095;stroke-width:1.6;stroke-dasharray:7 5}
     .sight{stroke:#bd1218;stroke-width:1.4;stroke-dasharray:3 3}
-    .lbl{font:600 14px 'Segoe UI',sans-serif;fill:#0b1220}
-    .val{font:600 13px 'Segoe UI',sans-serif;fill:#1d3095}
-    .note{font:13px 'Segoe UI',sans-serif;fill:#334155}
+    .lbl{font:700 14px Arial,Helvetica,sans-serif;fill:#111827}
+    .val{font:700 13px Arial,Helvetica,sans-serif;fill:#1d3095}
+    .note{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
   </style>
   <rect width="640" height="360" fill="#ffffff"/>
   <!-- ground -->

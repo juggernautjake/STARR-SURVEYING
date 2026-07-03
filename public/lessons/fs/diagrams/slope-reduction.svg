@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 320" role="img" aria-label="Reducing a slope distance to horizontal: a right triangle whose hypotenuse is the slope distance S at vertical angle alpha, with horizontal distance H equals S cosine alpha and vertical difference V equals S sine alpha.">
-  <style>
-    .ttl{font:700 15px 'Segoe UI',sans-serif;fill:#0b1220}
+  <style>text{stroke:none;paint-order:fill}
+    .ttl{font:700 15px Arial,Helvetica,sans-serif;fill:#111827}
     .tri{fill:#eef2ff;stroke:#1d3095;stroke-width:2.5}
-    .side{font:600 13px 'Segoe UI',sans-serif;fill:#0b1220}
-    .f{font:600 13px 'Segoe UI',sans-serif;fill:#1d3095}
+    .side{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
+    .f{font:700 13px Arial,Helvetica,sans-serif;fill:#1d3095}
     .ang{fill:none;stroke:#dc2626;stroke-width:2}
-    .lab{font:12px 'Segoe UI',sans-serif;fill:#334155}
+    .lab{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
     .pt{fill:#1d3095}
   </style>
   <rect width="560" height="320" fill="#ffffff"/>

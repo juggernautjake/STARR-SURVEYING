@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 460" role="img" aria-label="PLSS section subdivided into aliquot parts with acreages: a 640-acre section, quarter sections of 160 acres, and quarter-quarter sections of 40 acres">
-  <style>
+  <style>text{stroke:none;paint-order:fill}
     .sec{fill:none;stroke:#0b1220;stroke-width:2.5}
     .q{fill:none;stroke:#334155;stroke-width:1.6}
     .qq{fill:none;stroke:#94a3b8;stroke-width:1}
-    .nm{font:600 13px 'Segoe UI',sans-serif;fill:#0b1220}
-    .ac{font:12px 'Segoe UI',sans-serif;fill:#1d3095}
-    .qqn{font:600 11px 'Segoe UI',sans-serif;fill:#0b1220}
-    .qqa{font:10px 'Segoe UI',sans-serif;fill:#1d3095}
-    .dim{font:12px 'Segoe UI',sans-serif;fill:#64748b}
+    .nm{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
+    .ac{font:700 12px Arial,Helvetica,sans-serif;fill:#1d3095}
+    .qqn{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
+    .qqa{font:700 12px Arial,Helvetica,sans-serif;fill:#1d3095}
+    .dim{font:700 12px Arial,Helvetica,sans-serif;fill:#334155}
   </style>
   <rect width="460" height="460" fill="#ffffff"/>
   <!-- section outline 40..400 -->

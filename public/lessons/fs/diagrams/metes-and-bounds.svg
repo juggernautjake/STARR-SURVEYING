@@ -1,19 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 400" role="img" aria-label="A metes-and-bounds parcel described by bearing-and-distance calls from a point of beginning, closing back on itself.">
-  <style>
+  <style>text{stroke:none;paint-order:fill}
     .edge{fill:none;stroke:#1d3095;stroke-width:2.5}
     .fill{fill:#eef2ff}
     .pt{fill:#1d3095}
     .pob{fill:#dc2626}
-    .call{font:11px 'Segoe UI',sans-serif;fill:#334155}
-    .lbl{font:700 12px 'Segoe UI',sans-serif;fill:#0b1220}
-    .ttl{font:700 15px 'Segoe UI',sans-serif;fill:#0b1220}
-    .n{font:700 12px 'Segoe UI',sans-serif;fill:#64748b}
+    .call{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
+    .lbl{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
+    .ttl{font:700 15px Arial,Helvetica,sans-serif;fill:#111827}
+    .n{font:700 12px Arial,Helvetica,sans-serif;fill:#334155}
   </style>
   <rect width="560" height="400" fill="#ffffff"/>
   <text class="ttl" x="20" y="26">Metes-and-bounds description</text>
   <!-- north arrow -->
   <line x1="510" y1="80" x2="510" y2="45" stroke="#64748b" stroke-width="1.5"/>
-  <polygon points="510,40 506,50 514,50" fill="#64748b"/>
+  <polygon points="510,40 506,50 514,50" fill="#334155"/>
   <text class="n" x="510" y="96" text-anchor="middle">N</text>
 
   <!-- parcel: POB(120,340) → (400,320) → (440,150) → (230,70) → back -->

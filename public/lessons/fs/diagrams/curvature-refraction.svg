@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 300" role="img" aria-label="Curvature and refraction in leveling: the earth curves away from a level line of sight, making distant rod readings too high, while atmospheric refraction bends the sight back down by about one seventh.">
-  <style>
-    .ttl{font:700 15px 'Segoe UI',sans-serif;fill:#0b1220}
+  <style>text{stroke:none;paint-order:fill}
+    .ttl{font:700 15px Arial,Helvetica,sans-serif;fill:#111827}
     .earth{fill:#eaf4ea;stroke:#4d7c4d;stroke-width:2}
     .sight{fill:none;stroke:#1d3095;stroke-width:2}
     .refr{fill:none;stroke:#059669;stroke-width:2;stroke-dasharray:6 4}
-    .instr{fill:#0b1220}
-    .lab{font:12px 'Segoe UI',sans-serif;fill:#334155}
-    .lblb{font:700 12px 'Segoe UI',sans-serif;fill:#0b1220}
+    .instr{fill:#111827}
+    .lab{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
+    .lblb{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
     .dim{stroke:#dc2626;stroke-width:1.5}
   </style>
   <rect width="620" height="300" fill="#ffffff"/>

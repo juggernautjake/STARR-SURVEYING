@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 380" role="img" aria-label="A closed-loop traverse A-B-C-D-A with interior angles and course bearings and distances, and a small closure error at the start point.">
-  <style>
+  <style>text{stroke:none;paint-order:fill}
     .edge{fill:none;stroke:#1d3095;stroke-width:2.5}
     .pt{fill:#1d3095}
-    .lbl{font:700 13px 'Segoe UI',sans-serif;fill:#0b1220}
-    .crs{font:11px 'Segoe UI',sans-serif;fill:#334155}
-    .ttl{font:700 15px 'Segoe UI',sans-serif;fill:#0b1220}
+    .lbl{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
+    .crs{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
+    .ttl{font:700 15px Arial,Helvetica,sans-serif;fill:#111827}
     .err{fill:none;stroke:#dc2626;stroke-width:2}
   </style>
   <rect width="560" height="380" fill="#ffffff"/>

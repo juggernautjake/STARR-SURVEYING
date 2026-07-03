@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 430" role="img" aria-label="Approximate emphasis of each Fundamentals of Surveying topic, ranked, to guide study priority">
-  <style>
-    .ttl{font:700 16px 'Segoe UI',sans-serif;fill:#0b1220}
-    .sub{font:12px 'Segoe UI',sans-serif;fill:#64748b}
-    .lab{font:13px 'Segoe UI',sans-serif;fill:#0b1220}
-    .val{font:600 12px 'Segoe UI',sans-serif;fill:#ffffff}
+  <style>text{stroke:none;paint-order:fill}
+    .ttl{font:700 16px Arial,Helvetica,sans-serif;fill:#111827}
+    .sub{font:700 12px Arial,Helvetica,sans-serif;fill:#334155}
+    .lab{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
+    .val{font:700 12px Arial,Helvetica,sans-serif;fill:#ffffff}
     .bar{fill:#1d3095}
     .bar2{fill:#3752b8}
   </style>

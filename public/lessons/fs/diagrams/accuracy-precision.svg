@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 250" role="img" aria-label="Four targets contrasting accuracy and precision: accurate and precise, precise but not accurate, accurate on average but not precise, and neither.">
-  <style>
-    .ttl{font:700 15px 'Segoe UI',sans-serif;fill:#0b1220}
-    .cap{font:12px 'Segoe UI',sans-serif;fill:#374151}
+  <style>text{stroke:none;paint-order:fill}
+    .ttl{font:700 15px Arial,Helvetica,sans-serif;fill:#111827}
+    .cap{font:700 12px Arial,Helvetica,sans-serif;fill:#374151}
     .ring{fill:none;stroke:#cbd5e1;stroke-width:2}
     .bull{fill:#fde68a;stroke:#d97706;stroke-width:1.5}
     .shot{fill:#1d3095}

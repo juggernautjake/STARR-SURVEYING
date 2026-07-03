@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 320" role="img" aria-label="Grid versus ground distance: the ground distance is scaled to the ellipsoid by the elevation factor, and the ellipsoid distance is scaled to the state-plane grid by the scale factor; the product is the combined factor.">
-  <style>
-    .ttl{font:700 15px 'Segoe UI',sans-serif;fill:#0b1220}
+  <style>text{stroke:none;paint-order:fill}
+    .ttl{font:700 15px Arial,Helvetica,sans-serif;fill:#111827}
     .lvl{stroke-width:2.5;fill:none}
     .g1{stroke:#8b5e34}
     .g2{stroke:#0891b2}
     .g3{stroke:#1d3095}
-    .lblb{font:700 12px 'Segoe UI',sans-serif;fill:#0b1220}
-    .lab{font:12px 'Segoe UI',sans-serif;fill:#334155}
-    .f{font:600 12px 'Segoe UI',sans-serif;fill:#1d3095}
+    .lblb{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
+    .lab{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
+    .f{font:700 12px Arial,Helvetica,sans-serif;fill:#1d3095}
     .arr{stroke:#dc2626;stroke-width:1.5}
   </style>
   <rect width="720" height="320" fill="#ffffff"/>

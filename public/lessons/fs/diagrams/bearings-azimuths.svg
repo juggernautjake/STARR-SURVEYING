@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 420" role="img" aria-label="Bearings versus azimuths on a compass quadrant diagram">
-  <style>
+  <style>text{stroke:none;paint-order:fill}
     .axis{stroke:#94a3b8;stroke-width:1.5}
-    .lbl{font:600 15px 'Segoe UI',sans-serif;fill:#0b1220}
-    .q{font:600 13px 'Segoe UI',sans-serif;fill:#64748b}
-    .note{font:13px 'Segoe UI',sans-serif;fill:#334155}
+    .lbl{font:700 15px Arial,Helvetica,sans-serif;fill:#111827}
+    .q{font:700 13px Arial,Helvetica,sans-serif;fill:#334155}
+    .note{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
     .ray{stroke:#1d3095;stroke-width:2.5;fill:none}
     .rayb{stroke:#bd1218;stroke-width:2.5;fill:none}
     .arc{fill:none;stroke:#1d3095;stroke-width:1.5}

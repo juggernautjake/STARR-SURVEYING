@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 320" role="img" aria-label="The normal (Gaussian) distribution of random errors, showing that about 68.3% of errors fall within one standard deviation, 95.4% within two, and 99.7% within three.">
-  <style>
-    .ttl{font:700 15px 'Segoe UI',sans-serif;fill:#0b1220}
+  <style>text{stroke:none;paint-order:fill}
+    .ttl{font:700 15px Arial,Helvetica,sans-serif;fill:#111827}
     .ax{stroke:#94a3b8;stroke-width:1.5}
     .tick{stroke:#cbd5e1;stroke-width:1}
-    .lab{font:12px 'Segoe UI',sans-serif;fill:#334155}
-    .pct{font:600 12px 'Segoe UI',sans-serif;fill:#0b1220}
+    .lab{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
+    .pct{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
     .curve{fill:none;stroke:#1d3095;stroke-width:2.5}
   </style>
   <rect width="640" height="320" fill="#ffffff"/>

@@ -1,20 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360" role="img" aria-label="Relationship between ellipsoidal height, orthometric height, and geoid separation from GNSS positioning">
-  <style>
+  <style>text{stroke:none;paint-order:fill}
     .terrain{fill:#eef2f7;stroke:#7c8a99;stroke-width:1.6}
     .geoid{fill:none;stroke:#1d3095;stroke-width:2}
     .ellip{fill:none;stroke:#bd1218;stroke-width:2;stroke-dasharray:8 5}
     .dimA{stroke:#0b1220;stroke-width:1.6}
-    .lbl{font:600 14px 'Segoe UI',sans-serif;fill:#0b1220}
-    .h{font:600 13px 'Segoe UI',sans-serif;fill:#1d3095}
-    .note{font:13px 'Segoe UI',sans-serif;fill:#334155}
-    .sat{font:11px 'Segoe UI',sans-serif;fill:#64748b}
+    .lbl{font:700 14px Arial,Helvetica,sans-serif;fill:#111827}
+    .h{font:700 13px Arial,Helvetica,sans-serif;fill:#1d3095}
+    .note{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
+    .sat{font:700 12px Arial,Helvetica,sans-serif;fill:#334155}
   </style>
   <rect width="600" height="360" fill="#ffffff"/>
   <!-- a satellite + signal, to signal this is GNSS-derived -->
   <g transform="translate(470,30)">
     <rect x="-10" y="-6" width="20" height="12" rx="2" fill="#0b1220"/>
-    <rect x="-20" y="-3" width="8" height="6" fill="#94a3b8"/>
-    <rect x="12" y="-3" width="8" height="6" fill="#94a3b8"/>
+    <rect x="-20" y="-3" width="8" height="6" fill="#475569"/>
+    <rect x="12" y="-3" width="8" height="6" fill="#475569"/>
     <text class="sat" x="24" y="4">GNSS satellite</text>
     <line x1="-6" y1="8" x2="-160" y2="150" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3 3"/>
   </g>

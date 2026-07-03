@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 320" role="img" aria-label="Reference card for converting between degrees-minutes-seconds and decimal degrees">
-  <style>
-    .ttl{font:700 16px 'Segoe UI',sans-serif;fill:#0b1220}
-    .h{font:600 14px 'Segoe UI',sans-serif;fill:#1d3095}
-    .t{font:13px 'Segoe UI',sans-serif;fill:#334155}
-    .mono{font:600 13px 'JetBrains Mono',monospace;fill:#0b1220}
+  <style>text{stroke:none;paint-order:fill}
+    .ttl{font:700 16px Arial,Helvetica,sans-serif;fill:#111827}
+    .h{font:700 14px Arial,Helvetica,sans-serif;fill:#1d3095}
+    .t{font:700 13px Arial,Helvetica,sans-serif;fill:#111827}
+    .mono{font:700 13px 'JetBrains Mono',monospace;fill:#111827}
     .box{fill:#f7f8fa;stroke:#e2e5eb;stroke-width:1}
   </style>
   <rect width="620" height="320" fill="#ffffff"/>
