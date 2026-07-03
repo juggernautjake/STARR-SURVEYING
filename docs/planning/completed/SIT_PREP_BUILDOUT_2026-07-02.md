@@ -1,5 +1,19 @@
 # SIT / FS exam-prep buildout — richer lessons, images, robust problem generator
 
+> ✅ **COMPLETED 2026-07-02 ~8:25pm.** All action items (S1–S33) shipped +
+> verified to the live Supabase DB (seeds 369–392, 395, 396); seeds 393/394
+> reverted as redundant. **Final verification = 0 defects across every layer:**
+> 105 new problems (87 static + 18 dynamic generators) spanning a complete
+> 11-genre × 3-difficulty matrix; 99 FS templates all valid; 17 images across
+> 10/10 illustrated modules; figure render, quiz-route integration, dynamic
+> diagram render, study-references, and MC option quality all verified; content
+> confirmed current against the official NCEES FS Reference Handbook + Kavanagh.
+> Three real defects found + fixed (2 pre-existing aliquot templates; broken
+> study-ref links); one open data note flagged for the office (exam_weight_percent
+> sums to 121, not 100 — surfaced, not fabricated). Remaining ideas (yet more
+> problems/photos) are optional volume, explicitly deferred: cost now exceeds
+> marginal value. Moved in-progress/ → completed/.
+>
 > **Created** 2026-07-02 ~7:15pm. **Deadline** tonight **9:00 pm** — self-edit
 > this plan until 9:00pm, then stop self-editing and just finish the remaining
 > listed items. Near the end, if any serious bug / error / contradiction shows
