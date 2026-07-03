@@ -59,15 +59,16 @@
 
 | Slice | What | Status |
 |---|---|---|
-| **S1** | Extend `renderMarkdown` for images `![caption](url "credit")` + `.fs-fig` CSS | TODO |
-| **S2** | Author core SVG diagram library (angles/bearings, traverse, curves, leveling, DMD area, vertical curve, contours) | TODO |
-| **S3** | Genre × difficulty **taxonomy** (canonical genres + 3 levels each) — doc + apply as `category`/`difficulty`/`tags` | TODO |
-| **S4** | New seed `369_fs_prep_buildout_v2.sql`: wire figures into modules' `content_sections` (images + references) | TODO |
-| **S5** | New varied **problem_templates** across genres × difficulties, each with correct formula + steps + diagram + references | TODO |
-| **S6** | Correctness harness — eval every new template's `answer_formula`; verify solution steps | TODO |
-| **S7** | Apply seed to live Supabase (node-pg) + verify (PostgREST); commit | TODO |
-| **S8** | Sourced photos (instruments/monuments) via Playwright w/ credit, placed | TODO |
-| **S9** | Currency/correctness pass (Texas-applicable; NCEES FS spec current) | TODO |
+| **S1** | `renderMarkdown` image support + `.fs-fig` CSS | **DONE** |
+| **S2** | Core SVG diagrams (bearings/azimuths, horizontal curve, differential leveling, latitude/departure) | **DONE (4)** — +more in S10 |
+| **S3** | Genre × difficulty **taxonomy** (9 genres, easy/medium/hard) via `genre:*` tags + difficulty | **DONE** |
+| **S4** | Seed `369` injects figures into modules 2/3/4/5 (idempotent `fs_add_figure`) | **DONE** |
+| **S5** | 18 hand-verified premade problems across 9 genres × 3 levels (question_bank) | **DONE** — templates deferred (31 generators already exist) |
+| **S6** | Correctness — every numeric answer checked vs a node computation | **DONE** |
+| **S7** | Apply seed to live Supabase + verify | **DONE** (18 Qs, figures in mods 2-5 verified) |
+| **S8** | Sourced photos (instruments/monuments) via Playwright w/ credit | TODO |
+| **S9** | Currency/correctness pass (Texas-applicable; NCEES FS spec current) | ongoing |
+| **S10** | More diagrams (vertical curve, PLSS section, coordinate area) + inject into modules 1/6/7/8; +more genres (photogrammetry, boundary-legal, challenge tier) | TODO |
 
 ## Figure markdown syntax (introduced in S1)
 

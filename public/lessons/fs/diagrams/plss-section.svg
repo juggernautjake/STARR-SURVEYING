@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 460" role="img" aria-label="PLSS section subdivided into aliquot parts with acreages: a 640-acre section, quarter sections of 160 acres, and quarter-quarter sections of 40 acres">
+  <style>
+    .sec{fill:none;stroke:#0b1220;stroke-width:2.5}
+    .q{fill:none;stroke:#334155;stroke-width:1.6}
+    .qq{fill:none;stroke:#94a3b8;stroke-width:1}
+    .nm{font:600 13px 'Segoe UI',sans-serif;fill:#0b1220}
+    .ac{font:12px 'Segoe UI',sans-serif;fill:#1d3095}
+    .qqn{font:600 11px 'Segoe UI',sans-serif;fill:#0b1220}
+    .qqa{font:10px 'Segoe UI',sans-serif;fill:#1d3095}
+    .dim{font:12px 'Segoe UI',sans-serif;fill:#64748b}
+  </style>
+  <rect width="460" height="460" fill="#ffffff"/>
+  <!-- section outline 40..400 -->
+  <rect class="sec" x="40" y="60" width="360" height="360"/>
+  <!-- quarter lines -->
+  <line class="q" x1="220" y1="60" x2="220" y2="420"/>
+  <line class="q" x1="40" y1="240" x2="400" y2="240"/>
+  <!-- NW quarter -->
+  <text class="nm" x="98" y="146">NW 1/4</text>
+  <text class="ac" x="108" y="164">160 ac</text>
+  <!-- SW quarter -->
+  <text class="nm" x="100" y="326">SW 1/4</text>
+  <text class="ac" x="108" y="344">160 ac</text>
+  <!-- SE quarter -->
+  <text class="nm" x="280" y="326">SE 1/4</text>
+  <text class="ac" x="288" y="344">160 ac</text>
+  <!-- NE quarter subdivided into four quarter-quarters -->
+  <line class="qq" x1="310" y1="60" x2="310" y2="240"/>
+  <line class="qq" x1="220" y1="150" x2="400" y2="150"/>
+  <text class="qqn" x="238" y="102">NW1/4</text>
+  <text class="qqn" x="243" y="116">NE1/4</text>
+  <text class="qqa" x="252" y="132">40 ac</text>
+  <text class="qqn" x="330" y="102">NE1/4</text>
+  <text class="qqn" x="335" y="116">NE1/4</text>
+  <text class="qqa" x="342" y="132">40 ac</text>
+  <text class="qqn" x="238" y="192">SW1/4</text>
+  <text class="qqn" x="243" y="206">NE1/4</text>
+  <text class="qqa" x="252" y="222">40 ac</text>
+  <text class="qqn" x="330" y="192">SE1/4</text>
+  <text class="qqn" x="335" y="206">NE1/4</text>
+  <text class="qqa" x="342" y="222">40 ac</text>
+  <!-- dimension: 1 mile per side -->
+  <text class="dim" x="180" y="52">1 mile = 80 chains = 5280 ft</text>
+  <text class="dim" x="8" y="244" transform="rotate(-90 12 240)">1 mile</text>
+  <!-- title -->
+  <text class="nm" x="40" y="446">Section = 640 acres. Quarter = 160 ac; quarter-quarter = 40 ac.</text>
+</svg>
