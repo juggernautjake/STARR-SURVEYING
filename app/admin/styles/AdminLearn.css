@@ -1568,7 +1568,7 @@
   max-width: 560px;
   text-align: center;
 }
-.fs-fig__img {
+.fs-fig__img { cursor: zoom-in;
   display: block;
   width: 100%;
   height: auto;
