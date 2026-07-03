@@ -42,13 +42,13 @@ right module/section with a caption + credit → re-verify it renders in-context
 
 | Slice | What | Status |
 |---|---|---|
-| **A1** | Diagram: accuracy vs precision (4 targets) → module 1 concepts | IN PROGRESS (SVG authored, needs eval + inject) |
-| **A2** | Diagram: normal error curve w/ 68-95-99.7 bands → module 1 concepts | TODO |
-| **A3** | Diagram: full closed traverse (legs, closure) → module 4 | TODO |
-| **A4** | Diagram: earthwork average-end-area cross-section → module 5 | TODO |
-| **A5** | Diagram: GNSS trilateration / constellation → module 6 | TODO |
-| **A6** | Diagram: metes-and-bounds parcel (bearings+distances) → module 7 | TODO |
-| **A7** | Diagram: stereo overlap / aerial photo geometry → module 8 | TODO |
+| **A1** | Diagram: accuracy vs precision (4 targets) → module 1 concepts | **DONE** — module 1 |
+| **A2** | Diagram: normal error curve w/ 68-95-99.7 bands → module 1 concepts | **DONE** — module 1 |
+| **A3** | Diagram: full closed traverse (legs, closure) → module 4 | **DONE** — module 4 |
+| **A4** | Diagram: earthwork average-end-area cross-section → module 5 | **DONE** — module 5 |
+| **A5** | Diagram: GNSS trilateration / constellation → module 6 | **DONE** — module 6 |
+| **A6** | Diagram: metes-and-bounds parcel (bearings+distances) → module 7 | **DONE** — module 7 |
+| **A7** | Diagram: stereo overlap / aerial photo geometry → module 8 | **DONE** — module 8 |
 | **A8** | Source 2–3 more PD/CC photos (contour map, plat, dumpy vs total station) | TODO |
 | **A9** | Visual QA pass: screenshot every module body, confirm all figures look good in-context | TODO |
 
