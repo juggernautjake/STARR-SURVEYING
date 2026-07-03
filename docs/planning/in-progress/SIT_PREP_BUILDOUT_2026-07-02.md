@@ -139,3 +139,13 @@ Difficulty levels per genre: **1 Foundational · 2 Standard(exam) · 3 Challenge
 - **S17 (done):** all **10/10 modules now illustrated** — added the exam-emphasis
   chart (module 10) and a DMS↔decimal calculator card (module 9). 16 image refs
   total (11 diagrams + 5 photos), 0 missing on disk.
+- **Bug fixed (final QA, seed 385):** a `validateTemplate` sweep over all 95 FS
+  `problem_templates` flagged **2 pre-existing invalid** generators (aliquot /
+  section-area) — their divisor vars were listed both in `computed_vars` and as
+  formula-less `computed` parameters. Removed the redundant parameter entries;
+  both now validate and yield correct aliquot acreages. **Final sweep: 0 invalid,
+  0 non-finite templates; 0 orphaned dynamic questions; 0 missing module refs; 0
+  duplicate problems; 0 MC answer-not-in-options.**
+- **Running totals:** 81 new problems (67 static + 14 dynamic), 16 images,
+  10/10 modules illustrated, complete 11-genre × 3-level matrix — all applied to
+  the live DB (seeds 369–385) and verified.
