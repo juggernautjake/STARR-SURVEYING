@@ -49,8 +49,24 @@ right module/section with a caption + credit → re-verify it renders in-context
 | **A5** | Diagram: GNSS trilateration / constellation → module 6 | **DONE** — module 6 |
 | **A6** | Diagram: metes-and-bounds parcel (bearings+distances) → module 7 | **DONE** — module 7 |
 | **A7** | Diagram: stereo overlap / aerial photo geometry → module 8 | **DONE** — module 8 |
-| **A8** | Source 2–3 more PD/CC photos (contour map, plat, dumpy vs total station) | TODO |
+| **A8** | 4 more diagrams (units, curvature/refraction, slope reduction, grid vs ground) | **DONE** — modules 1/2/3/6 |
 | **A9** | Visual QA pass: screenshot every module body, confirm all figures look good in-context | TODO |
+| **A10** | **Overlap/formatting audit — CRITICAL:** zoom-check EVERY diagram for overlapping text/symbols, wrong size, wrong color vs background, clipping; fix all. Triple-check every number/label for accuracy. | IN PROGRESS |
+| **A11** | Populate the ENTIRE course: add diagrams to any thin module/section (profile leveling, taping, angle sets, contours, curve stationing…) until every concept that benefits has a figure | TODO |
+| **A12** | Copyright manifest `IMAGE_CREDITS.md` (CLEAR/ATTRIB/REVIEW/REPLACE) | **DONE** |
+| **A13** | Every diagram: label all equipment/points/lines clearly; realistic, intuitive, helpful | IN PROGRESS |
+
+### Consolidated user requirements (all prompts through 2026-07-03)
+1. **Diagrams perfect:** no overlapping/ clipped/ overflowing text or symbols;
+   correct size; readable color vs background; **all equipment, points, and lines
+   labeled**; realistic + intuitive + helpful; every number/label **triple-checked**.
+2. **Populate the ENTIRE FS course** with helpful images — generate originals +
+   source PD/CC; personal-use capture OK if flagged in `IMAGE_CREDITS.md`.
+3. **Messaging (Track B):** "seen" receipts + checkmarks; send pictures/videos/
+   mp3/mp4/links; more emojis; built-in image/video/audio **viewer with zoom**;
+   links open **new tab**; fully **responsive** (desktop/tablet/phone); phenomenal.
+4. **DB equipped** for all of it (verified 2026-07-03).
+5. **Build fully + triple-check**; keep going until complete, even past 3:30.
 
 ## Track B — Messaging overhaul
 
