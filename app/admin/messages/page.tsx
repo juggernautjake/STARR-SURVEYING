@@ -11,6 +11,7 @@ import {
 } from '@/lib/employee-pond/messenger-recipient';
 import RichMessageInput, { type RichMessageInputHandle } from '../components/messaging/RichMessageInput';
 import MessageBody from '../components/messaging/MessageBody';
+import MediaViewer, { type MediaItem } from '../components/MediaViewer';
 import { htmlToPlainText } from '@/lib/messages/rich-text';
 import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { emitConversationRead } from '@/lib/messages/read-sync';
@@ -115,6 +116,7 @@ export default function MessagesInboxPage() {
   const [composeEmpty, setComposeEmpty] = useState(true);
   const [sending, setSending] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
+  const [viewerMedia, setViewerMedia] = useState<MediaItem | null>(null);
 
   // M3 — attachments staged for the next send + upload progress.
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
@@ -627,20 +629,43 @@ export default function MessagesInboxPage() {
                           {m.is_edited && <span className="msg-page__msg-edited">(edited)</span>}
                           {Array.isArray(m.attachments) && m.attachments.length > 0 && (
                             <div className="msg-page__attachments">
-                              {m.attachments.map((a, ai) => (
-                                a.type?.startsWith('image/') && a.url ? (
-                                  <a key={ai} href={a.url} target="_blank" rel="noopener noreferrer" className="msg-page__attach-img-link">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={a.url} alt={a.name} className="msg-page__attach-img" />
-                                  </a>
-                                ) : (
+                              {m.attachments.map((a, ai) => {
+                                const t = (a.type || '').toLowerCase();
+                                if (t.startsWith('image/') && a.url) {
+                                  return (
+                                    <button key={ai} type="button" className="msg-page__attach-img-link"
+                                      onClick={() => setViewerMedia({ url: a.url!, name: a.name, type: a.type })} aria-label={`Open image ${a.name}`}>
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img src={a.url} alt={a.name} className="msg-page__attach-img" loading="lazy" />
+                                    </button>
+                                  );
+                                }
+                                if (t.startsWith('video/') && a.url) {
+                                  return (
+                                    <button key={ai} type="button" className="msg-page__attach-img-link msg-page__attach-video"
+                                      onClick={() => setViewerMedia({ url: a.url!, name: a.name, type: a.type })} aria-label={`Play video ${a.name}`}>
+                                      <video src={a.url} className="msg-page__attach-img" muted preload="metadata" />
+                                      <span className="msg-page__attach-play" aria-hidden="true">▶</span>
+                                    </button>
+                                  );
+                                }
+                                if (t.startsWith('audio/') && a.url) {
+                                  return (
+                                    <div key={ai} className="msg-page__attach-audio">
+                                      <span className="msg-page__attach-name">{a.name}</span>
+                                      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                                      <audio src={a.url} controls preload="none" />
+                                    </div>
+                                  );
+                                }
+                                return (
                                   <a key={ai} href={a.url || '#'} target="_blank" rel="noopener noreferrer" className="msg-page__attach-file">
                                     <FileText size={16} strokeWidth={1.75} aria-hidden="true" />
                                     <span className="msg-page__attach-name">{a.name}</span>
                                     <span className="msg-page__attach-size">{(a.size / 1024).toFixed(0)} KB</span>
                                   </a>
-                                )
-                              ))}
+                                );
+                              })}
                             </div>
                           )}
                         </div>
@@ -734,6 +759,7 @@ export default function MessagesInboxPage() {
           </div>
         )}
       </div>
+      <MediaViewer media={viewerMedia} onClose={() => setViewerMedia(null)} />
     </div>
   );
 }

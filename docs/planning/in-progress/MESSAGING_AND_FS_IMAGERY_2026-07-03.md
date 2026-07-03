@@ -92,7 +92,7 @@ right module/section with a caption + credit → re-verify it renders in-context
 |---|---|---|
 | **B1** | "Seen" read receipts UI — show Sent/Delivered/Seen (+ avatars/✓✓) under my last sent message, from `message_read_receipts`/`last_read_at`; verify GET returns the data both surfaces need | **DONE** — popup + MessageBubble; full page already had it |
 | **B2** | Built-in **MediaViewer** (reusable): image lightbox with **zoom + pan + pinch** (mobile) + fullscreen; inline **video** (`<video controls>`) + **audio** (`<audio>`) players; keyboard + touch close; used by MessageBubble | **DONE** — reusable MediaViewer; wired into MessageBubble |
-| **B3** | Attachments: ensure the composer file inputs `accept` images/video/mp3/mp4; render video/audio inline in the bubble (thumbnail → opens MediaViewer); size/type guards + friendly errors | TODO |
+| **B3** | Attachments: ensure the composer file inputs `accept` images/video/mp3/mp4; render video/audio inline in the bubble (thumbnail → opens MediaViewer); size/type guards + friendly errors | **DONE** — full page + MessageBubble open viewer; composers accept all types (popup attachment display = follow-up) |
 | **B4** | **Linkify** URLs in message text + render as `<a target="_blank" rel="noopener noreferrer">` (both plain + rich); safe (no javascript: URLs) | **DONE** — linkify + target=_blank hook |
 | **B5** | Link **previews** (OpenGraph title/desc/image) — server route fetches OG tags for the first URL; card under the message. (Defer if cost > value.) | TODO |
 | **B6** | **Emoji picker** upgrade — categorized, searchable, a few hundred common emojis (curated list or lightweight lib), on both composers + reactions; keep it fast | **DONE** — ~450 emojis, searchable, both composers |
