@@ -52,7 +52,7 @@ right module/section with a caption + credit → re-verify it renders in-context
 | **A8** | 4 more diagrams (units, curvature/refraction, slope reduction, grid vs ground) | **DONE** — modules 1/2/3/6 |
 | **A9** | Visual QA pass: screenshot every module body, confirm all figures look good in-context | TODO |
 | **A10** | **Overlap/formatting audit — CRITICAL:** zoom-check EVERY diagram for overlapping text/symbols, wrong size, wrong color vs background, clipping; fix all. Triple-check every number/label for accuracy. | IN PROGRESS |
-| **A11** | Populate the ENTIRE course: add diagrams to any thin module/section (profile leveling, taping, angle sets, contours, curve stationing…) until every concept that benefits has a figure | TODO |
+| **A11** | Populate the ENTIRE course: add diagrams to any thin module/section (profile leveling, taping, angle sets, contours, curve stationing…) until every concept that benefits has a figure | IN PROGRESS — +2 (angle measurement, road profile); 30 images total |
 | **A12** | Copyright manifest `IMAGE_CREDITS.md` (CLEAR/ATTRIB/REVIEW/REPLACE) | **DONE** |
 | **A13** | Every diagram: label all equipment/points/lines clearly; realistic, intuitive, helpful | IN PROGRESS |
 

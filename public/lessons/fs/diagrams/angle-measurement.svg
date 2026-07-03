@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 360" role="img" aria-label="Measuring a horizontal angle: the instrument occupies station B, sights the backsight A, then the foresight C; the clockwise angle from A to C is the measured angle.">
+  <style>
+    text{stroke:none}
+    .ttl{font:700 15px Arial,Helvetica,sans-serif;fill:#111827}
+    .lbl{font:700 14px Arial,Helvetica,sans-serif;fill:#111827}
+    .lab{font:700 12px Arial,Helvetica,sans-serif;fill:#111827}
+    .line{stroke:#1d3095;stroke-width:2.5;fill:none}
+    .pt{fill:#bd1218}
+    .arc{fill:none;stroke:#059669;stroke-width:2.5}
+    .instr{fill:#111827}
+  </style>
+  <rect width="560" height="360" fill="#ffffff"/>
+  <text class="ttl" x="20" y="28">Measuring a horizontal angle at station B</text>
+
+  <!-- sight lines from B(280,250) to A(80,250) and C(470,90) -->
+  <line class="line" x1="280" y1="250" x2="80" y2="250"/>
+  <line class="line" x1="280" y1="250" x2="470" y2="90"/>
+
+  <!-- instrument at B -->
+  <rect class="instr" x="270" y="236" width="20" height="10"/>
+  <line x1="280" y1="246" x2="280" y2="266" stroke="#111827" stroke-width="2.5"/>
+  <line x1="268" y1="266" x2="292" y2="266" stroke="#111827" stroke-width="2.5"/>
+
+  <!-- stations -->
+  <circle class="pt" cx="80" cy="250" r="5.5"/>
+  <circle class="pt" cx="470" cy="90" r="5.5"/>
+  <text class="lbl" x="66" y="242">A</text>
+  <text class="lab" x="40" y="272">(backsight)</text>
+  <text class="lbl" x="478" y="86">C</text>
+  <text class="lab" x="452" y="72">(foresight)</text>
+  <text class="lbl" x="286" y="286">B</text>
+  <text class="lab" x="286" y="304">(instrument)</text>
+
+  <!-- angle arc between BA and BC, opening clockwise from A to C -->
+  <path class="arc" d="M 200 250 A 80 80 0 0 1 335 205"/>
+  <text class="lbl" x="215" y="212" fill="#059669">angle</text>
+
+  <text class="lab" x="20" y="338">Sight A, then C — the clockwise angle A→C is the measured angle.</text>
+</svg>
