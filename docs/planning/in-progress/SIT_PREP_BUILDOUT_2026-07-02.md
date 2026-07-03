@@ -146,7 +146,7 @@ Difficulty levels per genre: **1 Foundational · 2 Standard(exam) · 3 Challenge
   both now validate and yield correct aliquot acreages. **Final sweep: 0 invalid,
   0 non-finite templates; 0 orphaned dynamic questions; 0 missing module refs; 0
   duplicate problems; 0 MC answer-not-in-options.**
-- **Running totals (2026-07-02 ~8:00pm):** **95 new problems** (77 static + 18
+- **Running totals (2026-07-02 ~8:00pm):** **102 new problems** (84 static + 18
   dynamic), **99 FS templates all valid (0 invalid, 0 non-finite)**, 16 images,
   10/10 modules illustrated, complete 11-genre × 3-level matrix — all applied to
   the live DB (seeds 369–388) and verified. **Every integrity check = 0 defects.**
