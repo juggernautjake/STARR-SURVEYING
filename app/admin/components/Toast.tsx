@@ -1,6 +1,6 @@
 // app/admin/components/Toast.tsx — Global toast notification system
 'use client';
-import { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, useCallback, createContext, useContext, type MouseEvent, type ReactNode } from 'react';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -70,6 +70,7 @@ function ToastContainer({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id
 
 function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string) => void }) {
   const [exiting, setExiting] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (toast.duration > 0) {
@@ -79,6 +80,25 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
     return undefined;
   }, [toast.duration]);
 
+  // Errors + warnings are the ones people need to paste into a bug report, so
+  // they get a copy button. (Success/info are transient confirmations.)
+  const copyable = toast.type === 'error' || toast.type === 'warning';
+
+  const handleCopy = async (e: MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(toast.message);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = toast.message; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch { /* ignore */ }
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
   return (
     <div
       className={`toast-item toast-item--${toast.type} ${exiting ? 'toast-item--exit' : ''}`}
@@ -87,6 +107,16 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
     >
       <span className="toast-item__icon">{ICONS[toast.type]}</span>
       <span className="toast-item__message">{toast.message}</span>
+      {copyable && (
+        <button
+          className="toast-item__copy"
+          onClick={handleCopy}
+          aria-label="Copy message"
+          title="Copy this message"
+        >
+          {copied ? '✓' : '⧉'}
+        </button>
+      )}
       <button
         className="toast-item__close"
         onClick={(e) => { e.stopPropagation(); setExiting(true); setTimeout(() => onDismiss(toast.id), 200); }}

@@ -15,19 +15,60 @@ interface State {
   hasError: boolean;
   message: string;
   stack: string;
+  copied: boolean;
 }
 
 export default class CADErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, message: '', stack: '' };
+    this.state = { hasError: false, message: '', stack: '', copied: false };
   }
 
   static getDerivedStateFromError(error: unknown): State {
     const message = error instanceof Error ? error.message : String(error);
     const stack   = error instanceof Error ? (error.stack ?? '') : '';
-    return { hasError: true, message, stack };
+    return { hasError: true, message, stack, copied: false };
   }
+
+  /** Build a full, paste-ready report: the crash message + stack plus the
+   *  recent CAD log ring-buffer (errors/warnings/context leading up to it). */
+  private buildReport = (): string => {
+    const lines = [
+      'STARR CAD — crash report',
+      `when: ${new Date().toISOString()}`,
+      `url:  ${typeof window !== 'undefined' ? window.location.href : ''}`,
+      '',
+      `error: ${this.state.message}`,
+      '',
+      this.state.stack || '(no stack)',
+    ];
+    try {
+      const entries = cadLog.getEntries();
+      if (entries.length) {
+        lines.push('', '── recent CAD log (oldest→newest) ──');
+        for (const e of entries) {
+          const ts = new Date(e.timestamp).toISOString().slice(11, 23);
+          lines.push(`[${ts}] [${e.level}] [${e.context}] ${e.message}`);
+        }
+      }
+    } catch { /* logger unavailable — message + stack are enough */ }
+    return lines.join('\n');
+  };
+
+  private handleCopy = async () => {
+    const text = this.buildReport();
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch { /* ignore */ }
+      document.body.removeChild(ta);
+    }
+    this.setState({ copied: true });
+    setTimeout(() => this.setState({ copied: false }), 2000);
+  };
 
   override componentDidCatch(error: unknown, info: React.ErrorInfo) {
     cadLog.error(
@@ -43,7 +84,7 @@ export default class CADErrorBoundary extends React.Component<Props, State> {
   };
 
   private handleDismiss = () => {
-    this.setState({ hasError: false, message: '', stack: '' });
+    this.setState({ hasError: false, message: '', stack: '', copied: false });
   };
 
   override render() {
@@ -75,6 +116,13 @@ export default class CADErrorBoundary extends React.Component<Props, State> {
               Reload Editor
             </button>
             <button
+              onClick={this.handleCopy}
+              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded text-sm transition-colors"
+              title="Copy the error, stack trace, and recent CAD log to the clipboard"
+            >
+              {this.state.copied ? 'Copied!' : 'Copy details'}
+            </button>
+            <button
               onClick={this.handleDismiss}
               className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded text-sm transition-colors"
             >
@@ -83,8 +131,8 @@ export default class CADErrorBoundary extends React.Component<Props, State> {
           </div>
 
           <p className="text-gray-600 text-xs">
-            Open the browser console (F12) for full details. Check{' '}
-            <code className="text-gray-400">cadLog.getEntries()</code> in the console.
+            “Copy details” grabs the error, stack trace, and recent CAD log for a
+            bug report. Full details are also in the browser console (F12).
           </p>
         </div>
       </div>

@@ -36,6 +36,10 @@ export interface ErrorReportStoreState {
   /** Push an entry. The store auto-generates an id + timestamp +
    *  flips `open` to true so the modal surfaces. */
   report: (input: Omit<ErrorReportEntry, 'id' | 'timestamp'>) => string;
+  /** Silently append an entry WITHOUT opening the modal — used to
+   *  mirror every cadLog error/warning so it is captured + copyable
+   *  on demand, without a disruptive pop-up on each one. */
+  capture: (input: Omit<ErrorReportEntry, 'id' | 'timestamp'>) => string;
   /** Remove a single entry by id. */
   dismiss: (id: string) => void;
   /** Wipe all entries (keeps `open` as-is so the user can choose
@@ -48,6 +52,10 @@ export interface ErrorReportStoreState {
 let idCounter = 0;
 const nextId = () => `err-${Date.now()}-${++idCounter}`;
 
+// Cap the buffer so a long session (or a runaway warning) can't grow
+// the array without bound. Newest are kept at the front.
+const MAX_ENTRIES = 500;
+
 export const useErrorReportStore = create<ErrorReportStoreState>((set) => ({
   entries: [],
   open: false,
@@ -58,7 +66,13 @@ export const useErrorReportStore = create<ErrorReportStoreState>((set) => ({
       id,
       timestamp: Date.now(),
     };
-    set((state) => ({ entries: [entry, ...state.entries], open: true }));
+    set((state) => ({ entries: [entry, ...state.entries].slice(0, MAX_ENTRIES), open: true }));
+    return id;
+  },
+  capture: (input) => {
+    const id = nextId();
+    const entry: ErrorReportEntry = { ...input, id, timestamp: Date.now() };
+    set((state) => ({ entries: [entry, ...state.entries].slice(0, MAX_ENTRIES) }));
     return id;
   },
   dismiss: (id) => set((state) => ({ entries: state.entries.filter((e) => e.id !== id) })),

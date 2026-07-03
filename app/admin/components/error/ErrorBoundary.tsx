@@ -36,6 +36,7 @@ interface State {
   userCause: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
   submitting: boolean;
+  copied: boolean;
 }
 
 export default class ErrorBoundary extends Component<Props, State> {
@@ -50,6 +51,33 @@ export default class ErrorBoundary extends Component<Props, State> {
     userCause: '',
     severity: 'high',
     submitting: false,
+    copied: false,
+  };
+
+  private handleCopy = async () => {
+    const { error, errorInfo } = this.state;
+    const text = [
+      'STARR — error report',
+      `when: ${new Date().toISOString()}`,
+      `page: ${this.props.pageName ?? '(unknown)'}`,
+      `url:  ${typeof window !== 'undefined' ? window.location.href : ''}`,
+      '',
+      `error: ${error?.message ?? 'Unknown error'}`,
+      '',
+      error?.stack ?? '(no stack)',
+      errorInfo?.componentStack ? `\n── component stack ──${errorInfo.componentStack}` : '',
+    ].join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch { /* ignore */ }
+      document.body.removeChild(ta);
+    }
+    this.setState({ copied: true });
+    setTimeout(() => this.setState({ copied: false }), 2000);
   };
 
   static getDerivedStateFromError(error: Error): Partial<State> {
@@ -154,6 +182,9 @@ export default class ErrorBoundary extends Component<Props, State> {
             </button>
             <button className="err-boundary__btn" onClick={() => window.location.href = '/admin/dashboard'}>
               Go to Dashboard
+            </button>
+            <button className="err-boundary__btn" onClick={this.handleCopy} title="Copy the error message + stack trace to the clipboard">
+              {this.state.copied ? 'Copied!' : 'Copy error'}
             </button>
             {!reportSubmitted && !showNotes && (
               <button className="err-boundary__btn err-boundary__btn--outline" onClick={() => this.setState({ showNotes: true })}>

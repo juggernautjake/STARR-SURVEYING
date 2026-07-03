@@ -2350,6 +2350,12 @@
   transition: opacity 0.15s;
 }
 .toast-item__close:hover { opacity: 1; }
+.toast-item__copy {
+  background: none; border: none; cursor: pointer; font-size: 0.95rem;
+  color: inherit; opacity: 0.55; padding: 0 0.2rem; line-height: 1;
+  transition: opacity 0.15s;
+}
+.toast-item__copy:hover { opacity: 1; }
 @keyframes toast-slide-in {
   from { opacity: 0; transform: translateX(40px); }
   to { opacity: 1; transform: translateX(0); }
