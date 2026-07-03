@@ -42,6 +42,6 @@
   <text class="h" x="356" y="230" fill="#0b1220">h = ellipsoidal height</text>
   <!-- relationship -->
   <g transform="translate(30,332)">
-    <text class="lbl" x="0" y="0">h = H + N&#160;&#160;&#8594;&#160;&#160;H = h &#8722; N&#160;&#160;(GNSS gives h; a geoid model gives N; H is the elevation used for design)</text>
+    <text class="lbl" x="0" y="0">h = H + N,&#160; so&#160; H = h &#8722; N&#160;&#160;&#8212;&#160; GNSS gives h; a geoid model gives N.</text>
   </g>
 </svg>

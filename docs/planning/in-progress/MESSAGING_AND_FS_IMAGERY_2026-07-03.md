@@ -96,3 +96,17 @@ right module/section with a caption + credit → re-verify it renders in-context
   pdftoppm/gs/mutool all missing; pdfjs embedded-image extraction hangs) AND is
   copyright-unsafe. Resolution: generate original SVG diagrams (crisp, free) +
   source PD/CC photos; evaluate each visually before shipping.
+- **Diagram QA (2026-07-03):** screenshot-reviewed ALL 22 authored diagrams
+  (originals + both new batches) for correctness AND readability. All technically
+  correct. Fixed: caption overflow (curvature-refraction), clipped factor labels
+  (grid-ground → viewBox widened), a misleading "to scale" bar chart (survey-units
+  now truly proportional + readable in-bar label), and a clipped gnss-heights
+  caption. Batches injected → 28 image refs, 10/10 modules, 0 missing.
+- **Copyright/licensing (2026-07-03):** added `public/lessons/fs/IMAGE_CREDITS.md`
+  — every image flagged CLEAR / ATTRIB / REVIEW(share-alike) / REPLACE. Currently
+  0 REPLACE (all originals or PD/CC); 2 CC BY-SA photos flagged REVIEW for
+  commercial. Any future copyrighted capture is personal-use + gets a 🔴 REPLACE flag.
+- **DB readiness (2026-07-03):** verified — FS imagery stored in content_sections
+  (28 refs); all messaging tables present (conversations, participants w/
+  last_read_at, messages w/ attachments+reply_to_id, message_read_receipts,
+  message_reactions, messaging_preferences). Data layer ready for Track B.
