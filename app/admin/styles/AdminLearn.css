@@ -3002,3 +3002,40 @@ a.ai-tutor__related-item:hover { background:#eef2ff; }
   .ai-tutor__panel { width:100vw; top:auto; height:86vh; border-radius:16px 16px 0 0; }
   .ai-tutor__banner { font-size:.8rem; }
 }
+
+/* ── Interactive practice ProblemCard (inside the AI tutor chat) ─────────── */
+.problem-card { border:1px solid #dbe1ea; border-radius:12px; background:#fbfcff; padding:.75rem; margin:.2rem 0; }
+.problem-card__head { display:flex; align-items:center; gap:.4rem; margin-bottom:.4rem; }
+.problem-card__badge { font:700 .62rem 'Segoe UI',sans-serif; text-transform:uppercase; letter-spacing:.04em; color:#4338ca; background:#eef2ff; border-radius:6px; padding:2px 7px; }
+.problem-card__diff { font:700 .62rem 'Segoe UI',sans-serif; text-transform:uppercase; color:#6b7280; }
+.problem-card__q { font-size:.9rem; color:#111827; line-height:1.5; margin-bottom:.55rem; white-space:pre-wrap; }
+.problem-card__diagram { margin:.35rem 0 .55rem; text-align:center; }
+.problem-card__diagram svg { max-width:100%; height:auto; }
+.problem-card__options { display:flex; flex-direction:column; gap:.35rem; }
+.problem-card__option { display:flex; align-items:center; gap:.5rem; border:1px solid #d1d5db; border-radius:9px; padding:.45rem .6rem; cursor:pointer; font-size:.88rem; transition:background .1s,border-color .1s; }
+.problem-card__option:hover { background:#f3f4f6; }
+.problem-card__option.is-chosen { border-color:#1d3095; background:#eef2ff; }
+.problem-card__option.is-right { border-color:#16a34a; background:#ecfdf3; }
+.problem-card__option.is-wrong { border-color:#dc2626; background:#fef2f2; }
+.problem-card__option input { accent-color:#1d3095; }
+.problem-card__input, .problem-card__textarea { width:100%; border:1px solid #d1d5db; border-radius:9px; padding:.5rem .65rem; font-size:.9rem; font-family:inherit; outline:none; }
+.problem-card__input:focus, .problem-card__textarea:focus { border-color:#1d3095; }
+.problem-card__textarea { resize:vertical; }
+.problem-card__error { color:#b91c1c; font-size:.8rem; margin-top:.4rem; }
+.problem-card__actions { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.6rem; }
+.problem-card__submit { background:#1d3095; color:#fff; border:none; border-radius:9px; padding:.45rem .85rem; font:600 .84rem 'Segoe UI',sans-serif; cursor:pointer; }
+.problem-card__submit:disabled { opacity:.45; cursor:not-allowed; }
+.problem-card__result { display:flex; align-items:center; gap:.4rem; margin-top:.6rem; padding:.5rem .65rem; border-radius:9px; font-size:.86rem; font-weight:600; }
+.problem-card__result.is-correct { background:#ecfdf3; color:#15803d; }
+.problem-card__result.is-incorrect { background:#fef2f2; color:#b91c1c; }
+.problem-card__result.is-written { background:#eff6ff; color:#1e40af; font-weight:500; }
+.problem-card__steps { margin-top:.5rem; }
+.problem-card__steps-toggle { display:inline-flex; align-items:center; gap:.3rem; background:none; border:none; color:#1d3095; font:600 .82rem 'Segoe UI',sans-serif; cursor:pointer; padding:.2rem 0; }
+.problem-card__steps-toggle .rot { transform:rotate(180deg); }
+.problem-card__steps-body { margin-top:.4rem; border-left:3px solid #dbe1ea; padding-left:.7rem; display:flex; flex-direction:column; gap:.5rem; }
+.problem-card__step-title { font-weight:600; font-size:.82rem; color:#111827; }
+.problem-card__step-calc { font-family:ui-monospace,monospace; font-size:.8rem; color:#374151; }
+.problem-card__step-res { font-size:.82rem; color:#1d3095; font-weight:600; }
+.problem-card__explain { font-size:.83rem; color:#374151; line-height:1.5; }
+.problem-card__ai, .problem-card__again { display:inline-flex; align-items:center; gap:.35rem; border:1px solid #c7d2fe; background:#eef2ff; color:#1e3a8a; border-radius:9px; padding:.4rem .7rem; font:600 .8rem 'Segoe UI',sans-serif; cursor:pointer; }
+.problem-card__ai:hover, .problem-card__again:hover { background:#e0e7ff; }
