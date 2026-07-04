@@ -2978,6 +2978,11 @@
 .ai-tutor__bubble--typing { display:inline-flex; align-items:center; gap:.4rem; color:#6b7280; }
 .ai-tutor__spin { animation:aitSpin 1s linear infinite; }
 @keyframes aitSpin { to { transform:rotate(360deg); } }
+.ai-tutor__dots { display:inline-flex; align-items:flex-end; gap:3px; margin-left:3px; }
+.ai-tutor__dots span { width:5px; height:5px; border-radius:50%; background:currentColor; animation:aitBlink 1.4s infinite ease-in-out both; }
+.ai-tutor__dots span:nth-child(2) { animation-delay:.2s; }
+.ai-tutor__dots span:nth-child(3) { animation-delay:.4s; }
+@keyframes aitBlink { 0%,80%,100% { opacity:.25; transform:translateY(0); } 40% { opacity:1; transform:translateY(-3px); } }
 .ai-tutor__error { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; padding:.5rem .7rem; border-radius:8px; font-size:.82rem; }
 .ai-tutor__related { border:1px solid #e5e7eb; border-radius:10px; padding:.5rem .6rem; background:#fbfcfe; }
 .ai-tutor__related-head { display:flex; align-items:center; gap:.35rem; font-weight:700; font-size:.78rem; color:#1d3095; margin-bottom:.35rem; }

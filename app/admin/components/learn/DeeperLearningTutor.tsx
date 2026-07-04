@@ -11,7 +11,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Sparkles, GraduationCap, X, Send, Loader2, BookOpen } from 'lucide-react';
+import { Sparkles, GraduationCap, X, Send, BookOpen } from 'lucide-react';
 
 export interface TutorContext {
   moduleId?: string;
@@ -179,7 +179,10 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
               ))}
               {loading && (
                 <div className="ai-tutor__msg ai-tutor__msg--assistant">
-                  <div className="ai-tutor__bubble ai-tutor__bubble--typing"><Loader2 size={14} className="ai-tutor__spin" /> Thinking…</div>
+                  <div className="ai-tutor__bubble ai-tutor__bubble--typing" aria-label="Thinking">
+                    <span>Thinking</span>
+                    <span className="ai-tutor__dots"><span></span><span></span><span></span></span>
+                  </div>
                 </div>
               )}
               {error && <div className="ai-tutor__error">{error}</div>}
