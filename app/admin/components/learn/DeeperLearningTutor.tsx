@@ -76,6 +76,8 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   const [listening, setListening] = useState(false);
   const [sttSupported, setSttSupported] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const premiumTtsRef = useRef<boolean | null>(null); // null=unknown, false=unavailable
   const [convoMode, setConvoMode] = useState(false);
   const convoModeRef = useRef(convoMode);
   useEffect(() => { convoModeRef.current = convoMode; }, [convoMode]);
@@ -112,15 +114,42 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
     setListening(false);
   }
 
-  // Read a reply aloud with the browser's speech synthesis (markdown stripped).
-  // onEnd fires when speaking finishes — used by conversation mode to auto-listen.
-  function speakText(md: string, onEnd?: () => void) {
-    if (typeof window === 'undefined' || !window.speechSynthesis) { onEnd?.(); return; }
+  // Read a reply aloud (markdown stripped). Prefers a premium cloud voice via
+  // /api/admin/learn/tts and falls back to the browser voice when no provider key
+  // is configured (503), on error, or if autoplay is blocked. onEnd fires when
+  // speaking finishes — used by conversation mode to auto-listen.
+  async function speakText(md: string, onEnd?: () => void) {
     const plain = md
       .replace(/```[\s\S]*?```/g, ' ').replace(/`([^`]*)`/g, '$1')
       .replace(/\*\*(.*?)\*\*/g, '$1').replace(/[*_#>]/g, '')
       .replace(/^\s*[-•]\s*/gm, '').replace(/\s+/g, ' ').trim();
     if (!plain) { onEnd?.(); return; }
+    stopSpeaking();
+
+    // Premium voice first (unless a previous call already found it unavailable).
+    if (premiumTtsRef.current !== false) {
+      try {
+        const res = await fetch('/api/admin/learn/tts', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: plain }),
+        });
+        if (res.ok) {
+          premiumTtsRef.current = true;
+          const url = URL.createObjectURL(await res.blob());
+          const audio = new Audio(url);
+          audioRef.current = audio;
+          audio.onended = () => { URL.revokeObjectURL(url); if (audioRef.current === audio) audioRef.current = null; onEnd?.(); };
+          try { await audio.play(); return; }
+          catch { URL.revokeObjectURL(url); if (audioRef.current === audio) audioRef.current = null; /* fall back */ }
+        } else {
+          premiumTtsRef.current = false; // 503/502 → don't retry the network each reply
+        }
+      } catch { /* network error → fall back */ }
+    }
+    browserSpeak(plain, onEnd);
+  }
+  function browserSpeak(plain: string, onEnd?: () => void) {
+    if (typeof window === 'undefined' || !window.speechSynthesis) { onEnd?.(); return; }
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(plain);
     u.lang = 'en-US';
@@ -130,6 +159,7 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   }
   function stopSpeaking() {
     if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
+    if (audioRef.current) { try { audioRef.current.pause(); } catch { /* noop */ } audioRef.current = null; }
   }
 
   // Track the live text selection while highlighting.
@@ -162,9 +192,10 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   }, [mode]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [thread, loading]);
-  // Stop any speech + dictation if the component unmounts mid-utterance.
+  // Stop any speech + audio + dictation if the component unmounts mid-utterance.
   useEffect(() => () => {
     if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
+    try { audioRef.current?.pause(); } catch { /* noop */ }
     try { recognitionRef.current?.stop(); } catch { /* noop */ }
   }, []);
 
