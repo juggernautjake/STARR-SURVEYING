@@ -1,5 +1,12 @@
 # "Deeper learning with AI" — highlight-to-tutor for the learning platform
 
+> ✅ **COMPLETED 2026-07-03.** All slices T1–T6 shipped + the animated three-dot
+> "Thinking..." indicator. Highlight any passage on the FS modules or the general
+> lesson pages → explicit "Take me deeper" → accuracy-first tutor chat that cites
+> reputable resources and links related platform practice problems; cancel/close
+> via button/backdrop/Esc; mobile-responsive. Needs ANTHROPIC_API_KEY (503 + friendly
+> banner otherwise). tsc + eslint clean; committed + pushed. Moved to completed/.
+
 > **Created** 2026-07-03. Self-editing plan; update Status as slices ship. Do not
 > mark a slice DONE until it typechecks/lints and is committed. Branch
 > `claude/sit-prep-buildout-2026-07-02` (keeps FS work together; PR to main).
