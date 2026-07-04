@@ -1,5 +1,10 @@
 # FS modules — click a highlighted term for a definition popup
 
+> ✅ **COMPLETED 2026-07-03.** Highlighted terms are clickable → stylized anchored
+> definition popup with a close button (outside-click/Esc too). Curated ~70-term FS
+> glossary for instant definitions + AI fallback (/api/admin/learn/define) so any
+> highlighted word works. tsc clean; committed + pushed. Moved to completed/.
+
 > **Created** 2026-07-03. Self-editing plan. Branch `claude/sit-prep-buildout-2026-07-02`.
 
 ## Goal (user)
