@@ -12,6 +12,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Sparkles, GraduationCap, X, Send, BookOpen, Volume2, VolumeX } from 'lucide-react';
+import ProblemCard, { type ProblemData, type GradeResult } from '@/app/admin/components/learn/ProblemCard';
 
 export interface TutorContext {
   moduleId?: string;
@@ -25,6 +26,9 @@ export interface TutorContext {
 
 interface Msg { role: 'user' | 'assistant'; content: string }
 interface RelatedProblem { id: string; question_text: string; difficulty: string }
+type ThreadItem =
+  | { kind: 'msg'; role: 'user' | 'assistant'; content: string }
+  | { kind: 'card'; cardId: string; problem: ProblemData; answerToken: string };
 type Mode = 'idle' | 'selecting' | 'chatting';
 
 /** Minimal, XSS-safe markdown → HTML for the tutor's replies (escape first). */
@@ -47,8 +51,9 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   const [selText, setSelText] = useState('');
   const [selPos, setSelPos] = useState<{ x: number; y: number } | null>(null);
   const [topic, setTopic] = useState('');
-  const [messages, setMessages] = useState<Msg[]>([]);
+  const [thread, setThread] = useState<ThreadItem[]>([]);
   const [related, setRelated] = useState<RelatedProblem[]>([]);
+  const cardSeq = useRef(0);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,7 +109,7 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
     return () => window.removeEventListener('keydown', onKey);
   }, [mode]);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, loading]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [thread, loading]);
   // Stop any speech if the component unmounts mid-utterance.
   useEffect(() => () => { if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel(); }, []);
 
@@ -114,11 +119,16 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   }
   function closeChat() {
     stopSpeaking();
-    setMode('idle'); setMessages([]); setRelated([]); setTopic(''); setError(null); setInput('');
+    setMode('idle'); setThread([]); setRelated([]); setTopic(''); setError(null); setInput('');
   }
   function toggleSpeak() {
     setSpeak((s) => { if (s) stopSpeaking(); return !s; });
   }
+
+  // The chat transcript (messages only) that the tutor API needs as history.
+  const threadMsgs = (): Msg[] =>
+    thread.filter((it): it is Extract<ThreadItem, { kind: 'msg' }> => it.kind === 'msg')
+      .map((m) => ({ role: m.role, content: m.content }));
 
   async function ask(history: Msg[], forTopic: string) {
     setLoading(true); setError(null);
@@ -138,7 +148,7 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setError(data.error || `Request failed (${res.status})`); setLoading(false); return; }
       const replyText = String(data.reply || '');
-      setMessages((prev) => [...prev, { role: 'assistant', content: replyText }]);
+      setThread((prev) => [...prev, { kind: 'msg', role: 'assistant', content: replyText }]);
       if (speakRef.current) speakText(replyText);
       if (Array.isArray(data.relatedProblems)) setRelated(data.relatedProblems);
     } catch {
@@ -150,7 +160,7 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   function startChat() {
     const t = selText.trim();
     if (!t) return;
-    setTopic(t); setMode('chatting'); setMessages([]); setRelated([]); setError(null); setSelPos(null);
+    setTopic(t); setMode('chatting'); setThread([]); setRelated([]); setError(null); setSelPos(null);
     window.getSelection()?.removeAllRanges();
     ask([], t); // empty history → the route seeds the opening explanation
   }
@@ -158,9 +168,33 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   function sendFollowup() {
     const t = input.trim();
     if (!t || loading) return;
-    const next: Msg[] = [...messages, { role: 'user', content: t }];
-    setMessages(next); setInput('');
-    ask(next, topic);
+    setThread((prev) => [...prev, { kind: 'msg', role: 'user', content: t }]);
+    setInput('');
+    ask([...threadMsgs(), { role: 'user', content: t }], topic);
+  }
+
+  // Load a practice problem into the thread (from a suggestion, or "another").
+  async function spawnCard(action: 'fetch' | 'another', questionId: string) {
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/learn/tutor-problem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, questionId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.problem) { setError(data.error || 'Could not load the problem.'); return; }
+      cardSeq.current += 1;
+      setThread((prev) => [...prev, { kind: 'card', cardId: `c${cardSeq.current}`, problem: data.problem, answerToken: data.answerToken }]);
+    } catch { setError('Network error — please try again.'); }
+  }
+
+  // "Explain with AI": ask the tutor to walk through the problem (shows a short
+  // user line in the thread but sends the full problem context to the model).
+  function handleExplain(problem: ProblemData, studentAnswer: string, result: GradeResult | null) {
+    const detail = `Please explain this practice problem step by step and show the worked solution:\n\n"${problem.question_text}"\n\nMy answer was: ${studentAnswer || '(blank)'}.${result?.correctAnswer ? ` The correct answer is ${result.correctAnswer}.` : ''}`;
+    setThread((prev) => [...prev, { kind: 'msg', role: 'user', content: 'Explain this problem for me.' }]);
+    ask([...threadMsgs(), { role: 'user', content: detail }], topic);
   }
 
   return (
@@ -205,13 +239,18 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
               “{topic.length > 260 ? topic.slice(0, 260) + '…' : topic}”
             </div>
             <div className="ai-tutor__thread">
-              {messages.map((m, i) => (
-                <div key={i} className={`ai-tutor__msg ai-tutor__msg--${m.role}`}>
-                  {m.role === 'assistant'
-                    ? <div className="ai-tutor__bubble" dangerouslySetInnerHTML={{ __html: '<p>' + renderReply(m.content) + '</p>' }} />
-                    : <div className="ai-tutor__bubble">{m.content}</div>}
-                </div>
-              ))}
+              {thread.map((it, i) =>
+                it.kind === 'card' ? (
+                  <ProblemCard key={it.cardId} problem={it.problem} answerToken={it.answerToken}
+                    onExplain={handleExplain} onAnother={(id) => spawnCard('another', id)} />
+                ) : (
+                  <div key={i} className={`ai-tutor__msg ai-tutor__msg--${it.role}`}>
+                    {it.role === 'assistant'
+                      ? <div className="ai-tutor__bubble" dangerouslySetInnerHTML={{ __html: '<p>' + renderReply(it.content) + '</p>' }} />
+                      : <div className="ai-tutor__bubble">{it.content}</div>}
+                  </div>
+                )
+              )}
               {loading && (
                 <div className="ai-tutor__msg ai-tutor__msg--assistant">
                   <div className="ai-tutor__bubble ai-tutor__bubble--typing" aria-label="Thinking">
@@ -223,15 +262,12 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
               {error && <div className="ai-tutor__error">{error}</div>}
               {related.length > 0 && (
                 <div className="ai-tutor__related">
-                  <div className="ai-tutor__related-head"><BookOpen size={14} /> Practice these on the platform</div>
+                  <div className="ai-tutor__related-head"><BookOpen size={14} /> Practice these — tap to try it here</div>
                   {related.map((p) => (
-                    context.quizHref
-                      ? <a key={p.id} className="ai-tutor__related-item" href={context.quizHref}>
-                          <span className="ai-tutor__related-diff">{p.difficulty}</span> {p.question_text}
-                        </a>
-                      : <div key={p.id} className="ai-tutor__related-item">
-                          <span className="ai-tutor__related-diff">{p.difficulty}</span> {p.question_text}
-                        </div>
+                    <button key={p.id} type="button" className="ai-tutor__related-item ai-tutor__related-item--btn"
+                      onClick={() => spawnCard('fetch', p.id)}>
+                      <span className="ai-tutor__related-diff">{p.difficulty}</span> {p.question_text}
+                    </button>
                   ))}
                 </div>
               )}
