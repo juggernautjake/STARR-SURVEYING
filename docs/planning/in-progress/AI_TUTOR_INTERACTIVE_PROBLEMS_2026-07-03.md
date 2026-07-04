@@ -51,7 +51,7 @@ numeric, true/false, or written) and get **graded**. The tutor must be able to
 | **P6** | Written/essay grading — use the existing `/api/admin/learn/ai-grade` route for a rubric-style score + feedback, or graceful self-assessment when no reference answer. | **DONE** — written answers → "Get AI feedback" grades via the tutor (correct/missing/ideal) |
 | **V1** | **Voice output (TTS):** a 🔊 "Read aloud" toggle in the tutor that speaks each AI reply via the browser `speechSynthesis` API (pick a clear en-US voice; strip markdown before speaking; stop on close). Free, client-side, no key. | **DONE** — 🔊 read-aloud toggle via speechSynthesis; mute/close/unmount stop it |
 | **V2** | **Voice input (STT):** a 🎤 mic button on the composer that dictates into the input via `SpeechRecognition`/`webkitSpeechRecognition` (Chrome/Edge; hide gracefully where unsupported); interim + final transcript; tap again to stop. | **DONE** — 🎤 mic dictation (interim+final), pulsing state, hidden when unsupported |
-| **V3** | Voice polish: "conversation mode" (auto-read replies + auto-listen after speaking for hands-free back-and-forth), a mute control, and clear unsupported-browser fallback. (Higher-fidelity server TTS e.g. ElevenLabs/OpenAI = optional future, needs a key.) | TODO |
+| **V3** | Voice polish: "conversation mode" (auto-read replies + auto-listen after speaking for hands-free back-and-forth), a mute control, and clear unsupported-browser fallback. (Higher-fidelity server TTS e.g. ElevenLabs/OpenAI = optional future, needs a key.) | **DONE** — 🎧 hands-free mode: auto-read reply then auto-listen (echo-safe); server TTS deferred |
 
 ## Discovery log
 - _(start)_ Reuse problemEngine (`generateDynamicQuestion` gives worked `solution_steps`)

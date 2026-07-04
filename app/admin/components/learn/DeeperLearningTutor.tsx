@@ -11,7 +11,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Sparkles, GraduationCap, X, Send, BookOpen, Volume2, VolumeX, Mic } from 'lucide-react';
+import { Sparkles, GraduationCap, X, Send, BookOpen, Volume2, VolumeX, Mic, Headphones } from 'lucide-react';
 import ProblemCard, { type ProblemData, type GradeResult } from '@/app/admin/components/learn/ProblemCard';
 
 export interface TutorContext {
@@ -76,14 +76,16 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   const [listening, setListening] = useState(false);
   const [sttSupported, setSttSupported] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const [convoMode, setConvoMode] = useState(false);
+  const convoModeRef = useRef(convoMode);
+  useEffect(() => { convoModeRef.current = convoMode; }, [convoMode]);
   useEffect(() => { setSttSupported(!!getSpeechRecognition()); }, []);
   const endRef = useRef<HTMLDivElement>(null);
 
   // Dictate into the composer via the browser's speech recognition.
-  function toggleMic() {
-    if (listening) { recognitionRef.current?.stop(); return; }
+  function startListening() {
     const SR = getSpeechRecognition();
-    if (!SR) return;
+    if (!SR || recognitionRef.current) return;
     const rec = new SR();
     rec.lang = 'en-US';
     rec.interimResults = true;
@@ -100,6 +102,10 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
     setListening(true);
     rec.start();
   }
+  function toggleMic() {
+    if (listening) { stopListening(); return; }
+    startListening();
+  }
   function stopListening() {
     try { recognitionRef.current?.stop(); } catch { /* already stopped */ }
     recognitionRef.current = null;
@@ -107,17 +113,19 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   }
 
   // Read a reply aloud with the browser's speech synthesis (markdown stripped).
-  function speakText(md: string) {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+  // onEnd fires when speaking finishes — used by conversation mode to auto-listen.
+  function speakText(md: string, onEnd?: () => void) {
+    if (typeof window === 'undefined' || !window.speechSynthesis) { onEnd?.(); return; }
     const plain = md
       .replace(/```[\s\S]*?```/g, ' ').replace(/`([^`]*)`/g, '$1')
       .replace(/\*\*(.*?)\*\*/g, '$1').replace(/[*_#>]/g, '')
       .replace(/^\s*[-•]\s*/gm, '').replace(/\s+/g, ' ').trim();
-    if (!plain) return;
+    if (!plain) { onEnd?.(); return; }
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(plain);
     u.lang = 'en-US';
     u.rate = 1;
+    if (onEnd) u.onend = onEnd;
     window.speechSynthesis.speak(u);
   }
   function stopSpeaking() {
@@ -166,10 +174,19 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   }
   function closeChat() {
     stopSpeaking(); stopListening();
-    setMode('idle'); setThread([]); setRelated([]); setTopic(''); setError(null); setInput('');
+    setMode('idle'); setThread([]); setRelated([]); setTopic(''); setError(null); setInput(''); setConvoMode(false);
   }
   function toggleSpeak() {
     setSpeak((s) => { if (s) stopSpeaking(); return !s; });
+  }
+  // Hands-free: read replies aloud, then auto-listen. Turning it on enables speak.
+  function toggleConvo() {
+    setConvoMode((c) => {
+      const next = !c;
+      if (next) setSpeak(true);
+      else { stopSpeaking(); stopListening(); }
+      return next;
+    });
   }
 
   // The chat transcript (messages only) that the tutor API needs as history.
@@ -196,7 +213,11 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
       if (!res.ok) { setError(data.error || `Request failed (${res.status})`); setLoading(false); return; }
       const replyText = String(data.reply || '');
       setThread((prev) => [...prev, { kind: 'msg', role: 'assistant', content: replyText }]);
-      if (speakRef.current) speakText(replyText);
+      // Conversation mode: read the reply, then auto-open the mic so the student
+      // can just speak back (listen only AFTER speaking, to avoid mic/TTS echo).
+      if (speakRef.current || convoModeRef.current) {
+        speakText(replyText, convoModeRef.current ? () => startListening() : undefined);
+      }
       if (Array.isArray(data.relatedProblems)) setRelated(data.relatedProblems);
     } catch {
       setError('Network error — please try again.');
@@ -280,6 +301,12 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
             <div className="ai-tutor__head">
               <div className="ai-tutor__title"><GraduationCap size={18} /> Deeper learning</div>
               <div className="ai-tutor__head-actions">
+                {sttSupported && (
+                  <button className={`ai-tutor__icon-btn ${convoMode ? 'ai-tutor__icon-btn--on' : ''}`} onClick={toggleConvo}
+                    aria-pressed={convoMode} title={convoMode ? 'Hands-free conversation on — click to stop' : 'Hands-free conversation (reads replies, then listens)'}>
+                    <Headphones size={17} />
+                  </button>
+                )}
                 <button className={`ai-tutor__icon-btn ${speak ? 'ai-tutor__icon-btn--on' : ''}`} onClick={toggleSpeak}
                   aria-pressed={speak} title={speak ? 'Reading replies aloud — click to mute' : 'Read replies aloud'}>
                   {speak ? <Volume2 size={17} /> : <VolumeX size={17} />}
