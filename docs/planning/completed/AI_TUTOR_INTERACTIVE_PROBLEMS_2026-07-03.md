@@ -1,5 +1,14 @@
 # AI tutor — interactive practice problems in the chat
 
+> ✅ **COMPLETED 2026-07-03.** All slices shipped (P1–P6 interactive problems +
+> V1–V3 voice). Suggested problems are tap-to-try cards in the chat that grade any
+> type, show worked steps + explanation, "Explain with AI", and "Try another like
+> this"; written answers get AI feedback. Voice: read-aloud, mic dictation, and a
+> hands-free conversation mode. Deferred: higher-fidelity server TTS (ElevenLabs/
+> OpenAI) — needs a key; browser Web Speech is the free baseline. Needs
+> ANTHROPIC_API_KEY for the tutor/grading. tsc clean; committed + pushed. Moved to
+> completed/.
+
 > **Created** 2026-07-03. Self-editing plan; update Status as slices ship. Do not
 > mark DONE until it typechecks/lints and is committed. Branch
 > `claude/sit-prep-buildout-2026-07-02`. Builds on the shipped AI-tutor feature
