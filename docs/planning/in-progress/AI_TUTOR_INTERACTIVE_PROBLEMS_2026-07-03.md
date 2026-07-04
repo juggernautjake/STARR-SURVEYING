@@ -43,7 +43,7 @@ numeric, true/false, or written) and get **graded**. The tutor must be able to
 ## Slices
 | # | What | Status |
 |---|---|---|
-| **P1** | `POST /api/admin/learn/tutor-problem` — actions `fetch` (id → rendered problem + answerToken, answer hidden), `grade` (token+answer → {correct, correctAnswer, explanation, solutionSteps}), `another` (id → a fresh problem of the same kind: same template if dynamic, else another `question_bank` row sharing the module + a `genre:*` tag). Handles static + dynamic + all question types. | TODO |
+| **P1** | `POST /api/admin/learn/tutor-problem` — actions `fetch` (id → rendered problem + answerToken, answer hidden), `grade` (token+answer → {correct, correctAnswer, explanation, solutionSteps}), `another` (id → a fresh problem of the same kind: same template if dynamic, else another `question_bank` row sharing the module + a `genre:*` tag). Handles static + dynamic + all question types. | **DONE** — fetch/grade/another; static+dynamic; all types; answerToken |
 | **P2** | `ProblemCard.tsx` — renders any question type (MC/true-false radios, numeric field, textarea), Submit, result banner (✓/✗ + correct answer), collapsible **worked steps** + explanation, diagram, **"Explain with AI"**, **"Try another like this"**. | TODO |
 | **P3** | Refactor `DeeperLearningTutor` thread to an ordered `items` list (chat messages + problem cards interleaved); make each suggested-problem chip clickable → append a `ProblemCard`; keep the chat + cards scrolling together. | TODO |
 | **P4** | "Explain with AI" / worked-steps wiring — button posts the problem context + student's answer to `/api/admin/learn/ai-tutor` (extend it to accept an optional `problemContext`) and appends the reply into the thread. | TODO |
