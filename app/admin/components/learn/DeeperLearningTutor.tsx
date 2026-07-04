@@ -11,7 +11,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Sparkles, GraduationCap, X, Send, BookOpen, Volume2, VolumeX } from 'lucide-react';
+import { Sparkles, GraduationCap, X, Send, BookOpen, Volume2, VolumeX, Mic } from 'lucide-react';
 import ProblemCard, { type ProblemData, type GradeResult } from '@/app/admin/components/learn/ProblemCard';
 
 export interface TutorContext {
@@ -30,6 +30,19 @@ type ThreadItem =
   | { kind: 'msg'; role: 'user' | 'assistant'; content: string }
   | { kind: 'card'; cardId: string; problem: ProblemData; answerToken: string };
 type Mode = 'idle' | 'selecting' | 'chatting';
+
+// Minimal shape of the Web Speech API (not in the standard TS lib DOM types).
+interface SpeechRecognitionLike {
+  lang: string; interimResults: boolean; continuous: boolean;
+  onresult: ((e: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onend: (() => void) | null; onerror: (() => void) | null;
+  start(): void; stop(): void;
+}
+function getSpeechRecognition(): (new () => SpeechRecognitionLike) | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const w = window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike; webkitSpeechRecognition?: new () => SpeechRecognitionLike };
+  return w.SpeechRecognition || w.webkitSpeechRecognition;
+}
 
 /** Minimal, XSS-safe markdown → HTML for the tutor's replies (escape first). */
 function renderReply(text: string): string {
@@ -60,7 +73,38 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   const [speak, setSpeak] = useState(false);
   const speakRef = useRef(speak);
   useEffect(() => { speakRef.current = speak; }, [speak]);
+  const [listening, setListening] = useState(false);
+  const [sttSupported, setSttSupported] = useState(false);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  useEffect(() => { setSttSupported(!!getSpeechRecognition()); }, []);
   const endRef = useRef<HTMLDivElement>(null);
+
+  // Dictate into the composer via the browser's speech recognition.
+  function toggleMic() {
+    if (listening) { recognitionRef.current?.stop(); return; }
+    const SR = getSpeechRecognition();
+    if (!SR) return;
+    const rec = new SR();
+    rec.lang = 'en-US';
+    rec.interimResults = true;
+    rec.continuous = false;
+    const base = input.trim() ? input.trim() + ' ' : '';
+    rec.onresult = (e) => {
+      let txt = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) txt += e.results[i][0]?.transcript ?? '';
+      setInput(base + txt);
+    };
+    rec.onend = () => { setListening(false); recognitionRef.current = null; };
+    rec.onerror = () => { setListening(false); recognitionRef.current = null; };
+    recognitionRef.current = rec;
+    setListening(true);
+    rec.start();
+  }
+  function stopListening() {
+    try { recognitionRef.current?.stop(); } catch { /* already stopped */ }
+    recognitionRef.current = null;
+    setListening(false);
+  }
 
   // Read a reply aloud with the browser's speech synthesis (markdown stripped).
   function speakText(md: string) {
@@ -110,15 +154,18 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   }, [mode]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [thread, loading]);
-  // Stop any speech if the component unmounts mid-utterance.
-  useEffect(() => () => { if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel(); }, []);
+  // Stop any speech + dictation if the component unmounts mid-utterance.
+  useEffect(() => () => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
+    try { recognitionRef.current?.stop(); } catch { /* noop */ }
+  }, []);
 
   function cancelSelecting() {
     setMode('idle'); setSelText(''); setSelPos(null);
     window.getSelection()?.removeAllRanges();
   }
   function closeChat() {
-    stopSpeaking();
+    stopSpeaking(); stopListening();
     setMode('idle'); setThread([]); setRelated([]); setTopic(''); setError(null); setInput('');
   }
   function toggleSpeak() {
@@ -168,6 +215,7 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   function sendFollowup() {
     const t = input.trim();
     if (!t || loading) return;
+    if (listening) stopListening();
     setThread((prev) => [...prev, { kind: 'msg', role: 'user', content: t }]);
     setInput('');
     ask([...threadMsgs(), { role: 'user', content: t }], topic);
@@ -274,7 +322,14 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
               <div ref={endRef} />
             </div>
             <div className="ai-tutor__compose">
-              <textarea className="ai-tutor__input" value={input} rows={1} placeholder="Ask a follow-up question…"
+              {sttSupported && (
+                <button className={`ai-tutor__mic ${listening ? 'is-listening' : ''}`} onClick={toggleMic}
+                  aria-pressed={listening} title={listening ? 'Stop dictation' : 'Dictate your message'}>
+                  <Mic size={16} />
+                </button>
+              )}
+              <textarea className="ai-tutor__input" value={input} rows={1}
+                placeholder={listening ? 'Listening… speak now' : 'Ask a follow-up question…'}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendFollowup(); } }} />
               <button className="ai-tutor__send" onClick={sendFollowup} disabled={loading || !input.trim()} aria-label="Send">

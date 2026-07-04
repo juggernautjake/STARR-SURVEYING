@@ -3000,6 +3000,10 @@ a.ai-tutor__related-item:hover { background:#eef2ff; }
 .ai-tutor__input:focus { border-color:#1d3095; }
 .ai-tutor__send { flex:0 0 auto; width:40px; height:40px; border:none; border-radius:10px; background:#1d3095; color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 .ai-tutor__send:disabled { opacity:.4; cursor:not-allowed; }
+.ai-tutor__mic { flex:0 0 auto; width:40px; height:40px; border:1px solid #d1d5db; border-radius:10px; background:#fff; color:#374151; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.ai-tutor__mic:hover { background:#f3f4f6; }
+.ai-tutor__mic.is-listening { background:#fee2e2; border-color:#fca5a5; color:#dc2626; animation:aitPulse 1.2s ease-in-out infinite; }
+@keyframes aitPulse { 0%,100% { box-shadow:0 0 0 0 rgba(220,38,38,.4); } 50% { box-shadow:0 0 0 5px rgba(220,38,38,0); } }
 @media (max-width: 560px) {
   .ai-tutor__panel { width:100vw; top:auto; height:86vh; border-radius:16px 16px 0 0; }
   .ai-tutor__banner { font-size:.8rem; }
