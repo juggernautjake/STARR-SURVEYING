@@ -2964,6 +2964,10 @@
 .ai-tutor__title { display:flex; align-items:center; gap:.45rem; font:700 1rem 'Segoe UI',sans-serif; color:#1d3095; }
 .ai-tutor__close { background:none; border:none; cursor:pointer; color:#6b7280; padding:.25rem; border-radius:8px; }
 .ai-tutor__close:hover { background:#f3f4f6; color:#111827; }
+.ai-tutor__head-actions { display:flex; align-items:center; gap:.15rem; }
+.ai-tutor__icon-btn { background:none; border:none; cursor:pointer; color:#6b7280; padding:.3rem; border-radius:8px; display:flex; }
+.ai-tutor__icon-btn:hover { background:#f3f4f6; color:#111827; }
+.ai-tutor__icon-btn--on { color:#1d3095; background:#eef2ff; }
 .ai-tutor__topic { padding:.6rem .9rem; background:#f8f9fc; border-bottom:1px solid #eef0f4; font-size:.82rem; color:#374151; font-style:italic; }
 .ai-tutor__topic-label { font-style:normal; font-weight:700; color:#1d3095; margin-right:.35rem; text-transform:uppercase; font-size:.68rem; letter-spacing:.03em; }
 .ai-tutor__thread { flex:1; overflow-y:auto; padding:.9rem; display:flex; flex-direction:column; gap:.7rem; }

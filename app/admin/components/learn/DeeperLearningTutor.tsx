@@ -11,7 +11,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Sparkles, GraduationCap, X, Send, BookOpen } from 'lucide-react';
+import { Sparkles, GraduationCap, X, Send, BookOpen, Volume2, VolumeX } from 'lucide-react';
 
 export interface TutorContext {
   moduleId?: string;
@@ -52,7 +52,28 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [speak, setSpeak] = useState(false);
+  const speakRef = useRef(speak);
+  useEffect(() => { speakRef.current = speak; }, [speak]);
   const endRef = useRef<HTMLDivElement>(null);
+
+  // Read a reply aloud with the browser's speech synthesis (markdown stripped).
+  function speakText(md: string) {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    const plain = md
+      .replace(/```[\s\S]*?```/g, ' ').replace(/`([^`]*)`/g, '$1')
+      .replace(/\*\*(.*?)\*\*/g, '$1').replace(/[*_#>]/g, '')
+      .replace(/^\s*[-•]\s*/gm, '').replace(/\s+/g, ' ').trim();
+    if (!plain) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(plain);
+    u.lang = 'en-US';
+    u.rate = 1;
+    window.speechSynthesis.speak(u);
+  }
+  function stopSpeaking() {
+    if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
+  }
 
   // Track the live text selection while highlighting.
   useEffect(() => {
@@ -84,13 +105,19 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   }, [mode]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, loading]);
+  // Stop any speech if the component unmounts mid-utterance.
+  useEffect(() => () => { if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel(); }, []);
 
   function cancelSelecting() {
     setMode('idle'); setSelText(''); setSelPos(null);
     window.getSelection()?.removeAllRanges();
   }
   function closeChat() {
+    stopSpeaking();
     setMode('idle'); setMessages([]); setRelated([]); setTopic(''); setError(null); setInput('');
+  }
+  function toggleSpeak() {
+    setSpeak((s) => { if (s) stopSpeaking(); return !s; });
   }
 
   async function ask(history: Msg[], forTopic: string) {
@@ -110,7 +137,9 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setError(data.error || `Request failed (${res.status})`); setLoading(false); return; }
-      setMessages((prev) => [...prev, { role: 'assistant', content: String(data.reply || '') }]);
+      const replyText = String(data.reply || '');
+      setMessages((prev) => [...prev, { role: 'assistant', content: replyText }]);
+      if (speakRef.current) speakText(replyText);
       if (Array.isArray(data.relatedProblems)) setRelated(data.relatedProblems);
     } catch {
       setError('Network error — please try again.');
@@ -163,7 +192,13 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
           <div className="ai-tutor__panel" role="dialog" aria-modal="true" aria-label="AI tutor conversation">
             <div className="ai-tutor__head">
               <div className="ai-tutor__title"><GraduationCap size={18} /> Deeper learning</div>
-              <button className="ai-tutor__close" onClick={closeChat} aria-label="Close conversation"><X size={18} /></button>
+              <div className="ai-tutor__head-actions">
+                <button className={`ai-tutor__icon-btn ${speak ? 'ai-tutor__icon-btn--on' : ''}`} onClick={toggleSpeak}
+                  aria-pressed={speak} title={speak ? 'Reading replies aloud — click to mute' : 'Read replies aloud'}>
+                  {speak ? <Volume2 size={17} /> : <VolumeX size={17} />}
+                </button>
+                <button className="ai-tutor__close" onClick={closeChat} aria-label="Close conversation"><X size={18} /></button>
+              </div>
             </div>
             <div className="ai-tutor__topic">
               <span className="ai-tutor__topic-label">Exploring</span>
