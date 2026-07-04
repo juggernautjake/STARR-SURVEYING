@@ -8,6 +8,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { decodeUnicodeEscapes } from '@/lib/decodeUnicode';
+import DeeperLearningTutor from '@/app/admin/components/learn/DeeperLearningTutor';
 
 /** Shorthand for dangerouslySetInnerHTML with unicode escape decoding */
 function dhtml(html: string) { return { __html: decodeUnicodeEscapes(html || '') }; }
@@ -381,6 +382,16 @@ export default function LessonViewerPage() {
           {lesson.tags?.length > 0 && <span><Tag size={13} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />{lesson.tags.join(', ')}</span>}
           {completed && <span style={{ color: 'var(--color-success)', fontWeight: 600 }}><CheckCircle2 size={13} style={{ verticalAlign: "-2px", marginRight: "0.25rem" }} />Completed</span>}
         </div>
+      </div>
+
+      {/* Deeper learning with AI — highlight any passage to open a tutor chat */}
+      <div className="fs-module__tutor-bar">
+        <DeeperLearningTutor context={{
+          moduleId,
+          moduleTitle: lesson.title,
+          getSectionTitle: () => lesson.title,
+          quizHref: quizCount > 0 && canTakeQuiz ? `/admin/learn/modules/${moduleId}/${lessonId}/quiz` : undefined,
+        }} />
       </div>
 
       {/* Content Interaction Tracker */}
