@@ -83,6 +83,40 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   useEffect(() => { convoModeRef.current = convoMode; }, [convoMode]);
   useEffect(() => { setSttSupported(!!getSpeechRecognition()); }, []);
   const endRef = useRef<HTMLDivElement>(null);
+  const lastItemRef = useRef<HTMLDivElement>(null);
+  // Draggable panel width (persisted). Text reflows to whatever width is set.
+  const [panelWidth, setPanelWidth] = useState(420);
+  const panelWidthRef = useRef(420);
+  useEffect(() => {
+    try {
+      const s = localStorage.getItem('aiTutorPanelWidth');
+      const w = s ? parseInt(s, 10) : NaN;
+      if (!Number.isNaN(w) && w >= 340) { setPanelWidth(w); panelWidthRef.current = w; }
+    } catch { /* ignore */ }
+  }, []);
+
+  function startResize(e: React.MouseEvent | React.TouchEvent) {
+    e.preventDefault();
+    const move = (ev: MouseEvent | TouchEvent) => {
+      const clientX = 'touches' in ev ? ev.touches[0]?.clientX ?? 0 : ev.clientX;
+      const w = Math.max(340, Math.min(window.innerWidth - 40, window.innerWidth - clientX));
+      panelWidthRef.current = w;
+      setPanelWidth(w);
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      document.removeEventListener('touchmove', move);
+      document.removeEventListener('touchend', up);
+      document.body.style.userSelect = '';
+      try { localStorage.setItem('aiTutorPanelWidth', String(Math.round(panelWidthRef.current))); } catch { /* ignore */ }
+    };
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+    document.addEventListener('touchmove', move, { passive: false });
+    document.addEventListener('touchend', up);
+  }
 
   // Dictate into the composer via the browser's speech recognition.
   function startListening() {
@@ -191,7 +225,18 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
     return () => window.removeEventListener('keydown', onKey);
   }, [mode]);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [thread, loading]);
+  // Scrolling: when the AI's reply arrives, align the TOP of that reply to the
+  // top of the view so the student reads from the beginning (not the end). For a
+  // new user message / the thinking indicator / a problem card, keep the newest
+  // content in view at the bottom.
+  useEffect(() => {
+    const last = thread[thread.length - 1];
+    if (!loading && last && last.kind === 'msg' && last.role === 'assistant') {
+      lastItemRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [thread, loading]);
   // Stop any speech + audio + dictation if the component unmounts mid-utterance.
   useEffect(() => () => {
     if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
@@ -328,7 +373,10 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
       {mode === 'chatting' && (
         <>
           <div className="ai-tutor__scrim" onClick={closeChat} />
-          <div className="ai-tutor__panel" role="dialog" aria-modal="true" aria-label="AI tutor conversation">
+          <div className="ai-tutor__panel" role="dialog" aria-modal="true" aria-label="AI tutor conversation"
+            style={{ ['--ai-tutor-w' as string]: `${panelWidth}px` } as React.CSSProperties}>
+            <div className="ai-tutor__resize" onMouseDown={startResize} onTouchStart={startResize}
+              role="separator" aria-label="Drag to resize the panel" title="Drag to resize" />
             <div className="ai-tutor__head">
               <div className="ai-tutor__title"><GraduationCap size={18} /> Deeper learning</div>
               <div className="ai-tutor__head-actions">
@@ -355,7 +403,8 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
                   <ProblemCard key={it.cardId} problem={it.problem} answerToken={it.answerToken}
                     onExplain={handleExplain} onAnother={(id) => spawnCard('another', id)} />
                 ) : (
-                  <div key={i} className={`ai-tutor__msg ai-tutor__msg--${it.role}`}>
+                  <div key={i} ref={i === thread.length - 1 ? lastItemRef : undefined}
+                    className={`ai-tutor__msg ai-tutor__msg--${it.role}`}>
                     {it.role === 'assistant'
                       ? <div className="ai-tutor__bubble" dangerouslySetInnerHTML={{ __html: '<p>' + renderReply(it.content) + '</p>' }} />
                       : <div className="ai-tutor__bubble">{it.content}</div>}
