@@ -1,5 +1,11 @@
 # AI tutor — saved conversations, history menu, and safe open/close
 
+> ✅ **COMPLETED 2026-07-04.** Conversations persist to learn_tutor_conversations
+> (auto-save + on close); a 🕘 history menu opens/deletes past chats; the panel is a
+> non-modal drawer so a stray click never loses it; the launcher is a menu with
+> "Open a chat" / "Highlight & explore" / "Past conversations". tsc clean;
+> committed + pushed. Moved to completed/.
+
 > **Created** 2026-07-04. Self-editing plan. Branch `claude/sit-prep-buildout-2026-07-02`.
 
 ## Goal (user)
