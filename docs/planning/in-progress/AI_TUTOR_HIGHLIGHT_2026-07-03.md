@@ -32,7 +32,7 @@ Must be **cancelable/closable** and **intuitive**.
 | **T3** | `DeeperLearningTutor` — launcher button + highlight-mode banner + floating "Take me deeper" on selection (re-highlightable, explicit start) + cancel; orchestrates the panel. | **DONE** — launcher + banner + floating "Take me deeper" + cancel/Esc |
 | **T4** | Wire into the FS module page (`.../sit/module/[id]`); works on all study tabs. Mobile-responsive. | **DONE** — wired into FS module page (all tabs); responsive |
 | **T5** | Polish: loading/typing state, error banner (AI offline), keyboard (Esc closes), accuracy guardrails in the prompt, resource links open new tab. | **DONE** — typing state, error banner, Esc close, safe markdown, accuracy prompt, resources |
-| **T6** | (Optional) generalize to other learn surfaces (lesson pages) if cheap. | TODO |
+| **T6** | (Optional) generalize to other learn surfaces (lesson pages) if cheap. | **DONE** — wired into the general lesson pages too; prompt broadened to all surveying |
 
 ## Discovery log
 - _(start)_ Reuse element-chat pattern; learn auth = any signed-in user; model claude-sonnet-4-5.

@@ -83,7 +83,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   const system = [
-    'You are an expert tutor for the NCEES Fundamentals of Surveying (FS) exam — the Texas Surveyor-In-Training (SIT) path — and for land surveying, geomatics, and boundary law generally.',
+    'You are an expert tutor in land surveying, geomatics, boundary law, and the NCEES Fundamentals of Surveying (FS) exam (the Texas Surveyor-In-Training path). Adapt to the module/course context given below.',
     'A student is studying and has HIGHLIGHTED a passage they want to understand more deeply. Have a focused, encouraging, back-and-forth learning conversation about exactly that.',
     '',
     'RULES:',
