@@ -3047,3 +3047,45 @@ a.ai-tutor__related-item:hover { background:#eef2ff; }
 .problem-card__ai:hover, .problem-card__again:hover { background:#e0e7ff; }
 .problem-card__ai--primary { background:#1d3095; color:#fff; border-color:#1d3095; }
 .problem-card__ai--primary:hover { background:#24379f; }
+
+/* ── Clickable highlighted terms + definition popup ─────────────────────── */
+.fs-module__content-text .fs-term {
+  cursor: pointer;
+  border-bottom: 1px dotted #6366f1;
+  transition: background .12s, border-color .12s;
+}
+.fs-module__content-text .fs-term:hover { background: #eef2ff; border-bottom-color: #1d3095; }
+
+.term-pop {
+  position: fixed; z-index: 500; transform: translateX(-50%);
+  width: 300px; max-width: calc(100vw - 24px);
+  background: #fff; border: 1px solid #e2e6ee; border-radius: 12px;
+  box-shadow: 0 10px 34px rgba(16,24,40,.20);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  animation: termPop .12s ease-out;
+}
+@keyframes termPop { from { opacity: 0; transform: translateX(-50%) translateY(-4px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+.term-pop__arrow {
+  position: absolute; left: 50%; margin-left: -7px; top: -7px;
+  width: 13px; height: 13px; background: #fff;
+  border-left: 1px solid #e2e6ee; border-top: 1px solid #e2e6ee;
+  transform: rotate(45deg);
+}
+.term-pop--up .term-pop__arrow { top: auto; bottom: -7px; transform: rotate(225deg); }
+.term-pop__head {
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+  padding: .5rem .65rem; border-bottom: 1px solid #f0f2f6;
+}
+.term-pop__title {
+  display: inline-flex; align-items: center; gap: .35rem;
+  font-weight: 700; font-size: .82rem; color: #1d3095; text-transform: capitalize;
+}
+.term-pop__close { background: none; border: none; cursor: pointer; color: #6b7280; padding: .15rem; border-radius: 6px; display: flex; }
+.term-pop__close:hover { background: #f3f4f6; color: #111827; }
+.term-pop__body { padding: .6rem .7rem; font-size: .84rem; line-height: 1.5; color: #1f2937; }
+.term-pop__error { color: #b91c1c; }
+.term-pop__loading { color: #6b7280; display: inline-flex; align-items: center; }
+.term-pop__dots { display: inline-flex; align-items: flex-end; gap: 3px; margin-left: 5px; }
+.term-pop__dots span { width: 4px; height: 4px; border-radius: 50%; background: currentColor; animation: aitBlink 1.4s infinite ease-in-out both; }
+.term-pop__dots span:nth-child(2) { animation-delay: .2s; }
+.term-pop__dots span:nth-child(3) { animation-delay: .4s; }
