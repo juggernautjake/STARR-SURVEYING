@@ -1,5 +1,10 @@
 # AI tutor — premium (natural) voice output
 
+> ✅ **COMPLETED 2026-07-03.** Provider-agnostic TTS route (OpenAI/ElevenLabs) +
+> premium-first client playback with automatic browser-voice fallback and
+> availability caching; env documented. No behavior change until a provider key is
+> added. tsc clean; committed + pushed. Moved to completed/.
+
 > **Created** 2026-07-03. Self-editing plan. Branch `claude/sit-prep-buildout-2026-07-02`.
 > Builds on the shipped tutor voice (browser Web Speech). User picked a
 > **provider-agnostic** build: OpenAI **or** ElevenLabs via one adapter, defaulting
