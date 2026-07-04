@@ -3045,3 +3045,5 @@ a.ai-tutor__related-item:hover { background:#eef2ff; }
 .problem-card__explain { font-size:.83rem; color:#374151; line-height:1.5; }
 .problem-card__ai, .problem-card__again { display:inline-flex; align-items:center; gap:.35rem; border:1px solid #c7d2fe; background:#eef2ff; color:#1e3a8a; border-radius:9px; padding:.4rem .7rem; font:600 .8rem 'Segoe UI',sans-serif; cursor:pointer; }
 .problem-card__ai:hover, .problem-card__again:hover { background:#e0e7ff; }
+.problem-card__ai--primary { background:#1d3095; color:#fff; border-color:#1d3095; }
+.problem-card__ai--primary:hover { background:#24379f; }

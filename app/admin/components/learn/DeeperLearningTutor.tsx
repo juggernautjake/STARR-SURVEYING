@@ -240,8 +240,13 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   // "Explain with AI": ask the tutor to walk through the problem (shows a short
   // user line in the thread but sends the full problem context to the model).
   function handleExplain(problem: ProblemData, studentAnswer: string, result: GradeResult | null) {
-    const detail = `Please explain this practice problem step by step and show the worked solution:\n\n"${problem.question_text}"\n\nMy answer was: ${studentAnswer || '(blank)'}.${result?.correctAnswer ? ` The correct answer is ${result.correctAnswer}.` : ''}`;
-    setThread((prev) => [...prev, { kind: 'msg', role: 'user', content: 'Explain this problem for me.' }]);
+    // Written/essay answers can't be auto-graded — ask the tutor to grade them.
+    const written = result != null && result.gradable === false;
+    const detail = written
+      ? `I answered this practice question in writing. Please grade my answer: say what is correct, what is missing or wrong, and then give the ideal answer.\n\nQuestion: "${problem.question_text}"\n\nMy written answer: ${studentAnswer || '(blank)'}\n\nModel answer for reference: ${result?.correctAnswer || '(none on file — use your own expertise)'}`
+      : `Please explain this practice problem step by step and show the worked solution:\n\n"${problem.question_text}"\n\nMy answer was: ${studentAnswer || '(blank)'}.${result?.correctAnswer ? ` The correct answer is ${result.correctAnswer}.` : ''}`;
+    const userLine = written ? 'Please grade my written answer.' : 'Explain this problem for me.';
+    setThread((prev) => [...prev, { kind: 'msg', role: 'user', content: userLine }]);
     ask([...threadMsgs(), { role: 'user', content: detail }], topic);
   }
 

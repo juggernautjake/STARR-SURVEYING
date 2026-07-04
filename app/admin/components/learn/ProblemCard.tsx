@@ -133,8 +133,8 @@ export default function ProblemCard({
           )}
 
           <div className="problem-card__actions">
-            <button className="problem-card__ai" onClick={() => onExplain(problem, answer, result)}>
-              <Sparkles size={14} /> Explain with AI
+            <button className={`problem-card__ai ${!result.gradable ? 'problem-card__ai--primary' : ''}`} onClick={() => onExplain(problem, answer, result)}>
+              <Sparkles size={14} /> {result.gradable ? 'Explain with AI' : 'Get AI feedback on my answer'}
             </button>
             <button className="problem-card__again" onClick={() => onAnother(problem.id)}>
               <RefreshCw size={14} /> Try another like this
