@@ -30,8 +30,8 @@
 |---|---|---|
 | **H1** | Seed `learn_tutor_conversations` table (jsonb thread, user_email, title, topic, module, timestamps, index); apply to live Supabase. | **DONE** — table applied + verified live |
 | **H2** | API `GET/POST/DELETE /api/admin/learn/tutor-conversations` (list/get/save/delete, user-scoped). | **DONE** — list/get/save/delete, user-scoped |
-| **H3** | Client persistence: keep `conversationId`; auto-save (debounced) on each assistant reply + on close; derive a title from the topic/first message. | TODO |
-| **H4** | Non-destructive close: drop the modal scrim so an outside click never loses the chat; keep × (saves) + Esc off the destructive path (Esc closes but it's saved). | TODO |
-| **H5** | History menu: 📋 button → panel listing past conversations; open loads thread; delete removes. | TODO |
-| **H6** | Launcher menu: "Open chat" (start a general conversation with no highlight) + "Highlight & explore" + "Past conversations". | TODO |
-| **H7** | CSS + verify (desktop + mobile); ensure highlight flow + resize + top-scroll still work. | TODO |
+| **H3** | Client persistence: keep `conversationId`; auto-save (debounced) on each assistant reply + on close; derive a title from the topic/first message. | **DONE** |
+| **H4** | Non-destructive close: drop the modal scrim so an outside click never loses the chat; keep × (saves) + Esc off the destructive path (Esc closes but it's saved). | **DONE** |
+| **H5** | History menu: 📋 button → panel listing past conversations; open loads thread; delete removes. | **DONE** |
+| **H6** | Launcher menu: "Open chat" (start a general conversation with no highlight) + "Highlight & explore" + "Past conversations". | **DONE** |
+| **H7** | CSS + verify (desktop + mobile); ensure highlight flow + resize + top-scroll still work. | **DONE** |
