@@ -17,6 +17,7 @@ import { parseAuthCallbackUrl } from '@/lib/parseAuthUrl';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
 import { useResolvedScheme } from '@/lib/themePreference';
+import { tabletContainerStyle, useResponsiveLayout } from '@/lib/responsive';
 
 /**
  * Password-reset deep-link handler.
@@ -40,6 +41,8 @@ import { useResolvedScheme } from '@/lib/themePreference';
 export default function ResetPasswordScreen() {
   const scheme = useResolvedScheme();
   const palette = colors[scheme];
+  const { isTablet } = useResponsiveLayout();
+  const tabletStyle = tabletContainerStyle(isTablet);
 
   const url = Linking.useURL();
   const consumedRef = useRef(false);
@@ -127,7 +130,7 @@ export default function ResetPasswordScreen() {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={[styles.scroll, tabletStyle]} keyboardShouldPersistTaps="handled">
           <View style={styles.headerBlock}>
             <Text style={[styles.title, { color: palette.text }]}>Set new password</Text>
             <Text style={[styles.caption, { color: palette.muted }]}>

@@ -1,5 +1,10 @@
 # TestFlight runbook — Starr Field on iPhone
 
+> 👉 **Looking for the full setup?** [`SETUP_GUIDE_IPHONE_ANDROID.md`](SETUP_GUIDE_IPHONE_ANDROID.md)
+> is the current step-by-step guide and covers **both iPhone and Android**
+> (plus fast local iteration + OTA updates), with screenshot callouts. This
+> file is the original iPhone-only runbook, kept for reference.
+
 > **Audience.** Operator running the first internal TestFlight build of
 > Starr Field for Hank + Jacob Maddux to use in the field.
 >

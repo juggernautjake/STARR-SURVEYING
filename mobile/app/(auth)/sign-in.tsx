@@ -17,6 +17,7 @@ import { TextField } from '@/lib/TextField';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { useResolvedScheme } from '@/lib/themePreference';
+import { tabletContainerStyle, useResponsiveLayout } from '@/lib/responsive';
 
 /**
  * Email + password sign-in plus alternative flows: magic link (email
@@ -31,6 +32,8 @@ import { useResolvedScheme } from '@/lib/themePreference';
 export default function SignInScreen() {
   const scheme = useResolvedScheme();
   const palette = colors[scheme];
+  const { isTablet } = useResponsiveLayout();
+  const tabletStyle = tabletContainerStyle(isTablet);
   const { signIn, signInWithMagicLink } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -82,7 +85,7 @@ export default function SignInScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[styles.scroll, tabletStyle]}
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.headerBlock}>

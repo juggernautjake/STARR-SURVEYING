@@ -1,10 +1,11 @@
 import * as Notifications from 'expo-notifications';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, type ErrorBoundaryProps } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { AppErrorScreen } from '@/lib/AppErrorScreen';
 import { NotificationBanner } from '@/lib/NotificationBanner';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { DatabaseProvider } from '@/lib/db';
@@ -20,6 +21,7 @@ import {
 import Sentry, { initSentry } from '@/lib/sentry';
 import { useCheckForUpdatesOnLaunch } from '@/lib/otaUpdates';
 import { usePinnedFilesReconciler } from '@/lib/pinnedFiles';
+import { applyGlobalFontScaleClamp } from '@/lib/textScaling';
 import { ThemePreferenceProvider } from '@/lib/themePreference';
 import { useUploadQueueDrainer } from '@/lib/uploadQueue';
 import { usePowerSync } from '@powersync/react';
@@ -35,7 +37,11 @@ import { usePowerSync } from '@powersync/react';
 //      SQLite is open, so we go native splash → ready UI with no
 //      empty-screen flash. Per plan §7.1 rule 4 ("speed over
 //      decoration").
+//   3. applyGlobalFontScaleClamp() — cap OS Dynamic Type / font scale so
+//      dense field layouts survive a maxed-out accessibility text size
+//      while still honoring larger-text preferences up to the cap.
 initSentry();
+applyGlobalFontScaleClamp();
 
 void SplashScreen.preventAutoHideAsync().catch(() => {
   // Already hidden (hot-reload, etc.) — safe to ignore.
@@ -70,6 +76,10 @@ Notifications.setNotificationHandler({
     return {
       // Admin pings have an in-app banner already; everything else
       // (still-working prompts, future schedules) shows the OS banner.
+      // `shouldShowAlert` is the legacy field still required by the
+      // installed expo-notifications types; keep it in sync with
+      // `shouldShowBanner` so old + new SDK paths behave identically.
+      shouldShowAlert: !isAdminPing,
       shouldShowBanner: !isAdminPing,
       shouldShowList: true,
       shouldPlaySound: true,
@@ -327,6 +337,16 @@ function RootLayout() {
       </ThemePreferenceProvider>
     </SafeAreaProvider>
   );
+}
+
+/**
+ * expo-router picks up a named `ErrorBoundary` export from a layout and
+ * renders it when any descendant throws during render — our app-wide crash
+ * net. `ErrorBoundaryProps` gives us `{ error, retry }`; `retry` re-mounts
+ * the failed segment so the surveyor can recover without killing the app.
+ */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  return <AppErrorScreen error={error} retry={retry} />;
 }
 
 export default Sentry.wrap(RootLayout);

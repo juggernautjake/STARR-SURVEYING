@@ -18,7 +18,7 @@ import { LoadingSplash } from '@/lib/LoadingSplash';
 import { ScreenHeader } from '@/lib/ScreenHeader';
 import * as haptics from '@/lib/haptics';
 import { logError } from '@/lib/log';
-import { Timesheet } from '@/lib/Timesheet';
+import { Timesheet } from '@/lib/TimesheetList';
 import {
   entryTypeLabel,
   useActiveTimeEntry,
@@ -64,6 +64,16 @@ export default function TimeScreen() {
   const [clockingOut, setClockingOut] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  // Pull-to-refresh state. Declared here (above the early return below)
+  // so the hook order is stable every render — hooks must never sit
+  // after a conditional `return`.
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Tablet layout: clamp scroll content to a comfortable reading width
+  // so cards don't span the full iPad screen. No-op on phones. Also a
+  // hook, so it lives above the early return.
+  const { isTablet } = useResponsiveLayout();
+  const tabletStyle = tabletContainerStyle(isTablet);
 
   // Only block on the active-entry query — the timesheet query can
   // arrive a beat later and the section gracefully shows "No history
@@ -200,15 +210,9 @@ export default function TimeScreen() {
     }
   };
 
-  // Tablet layout: clamp scroll content to a comfortable reading
-  // width so cards don't span the full iPad screen. No-op on phones.
-  const { isTablet } = useResponsiveLayout();
-  const tabletStyle = tabletContainerStyle(isTablet);
-
   // Pull-to-refresh: feel-good gesture only. The live duration counter
   // updates every tick and PowerSync delivers timesheet changes
   // continuously, so this just confirms "I asked for fresh data".
-  const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
     setRefreshing(true);
     await new Promise((r) => setTimeout(r, 600));

@@ -6,10 +6,10 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
-  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { EmptyState } from '@/lib/EmptyState';
 import { JobCard } from '@/lib/JobCard';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { ScreenHeader } from '@/lib/ScreenHeader';
@@ -92,16 +92,11 @@ export default function JobsScreen() {
       />
 
       {jobs.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={[styles.emptyTitle, { color: palette.text }]}>
-            No jobs yet
-          </Text>
-          <Text style={[styles.emptyBody, { color: palette.muted }]}>
-            Jobs are created in the office at /admin/jobs. Once they
-            sync, they show up here. Creating a job from the field
-            isn&apos;t supported yet.
-          </Text>
-        </View>
+        <EmptyState
+          glyph="📋"
+          title="No jobs yet"
+          message="Jobs are created in the office at /admin/jobs. Once they sync, they show up here. Creating a job from the field isn't supported yet."
+        />
       ) : (
         <FlatList
           data={jobs}
@@ -135,22 +130,6 @@ function keyForJob(job: Job): string {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  empty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  emptyBody: {
-    fontSize: 15,
-    lineHeight: 22,
-    textAlign: 'center',
-  },
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 24,

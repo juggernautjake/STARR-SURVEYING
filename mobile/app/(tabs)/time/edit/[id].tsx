@@ -41,6 +41,7 @@ import {
 import { entryTypeLabel } from '@/lib/timeTracking';
 import { useQuery } from '@powersync/react';
 import { colors, type Palette } from '@/lib/theme';
+import { tabletContainerStyle, useResponsiveLayout } from '@/lib/responsive';
 import { useResolvedScheme } from '@/lib/themePreference';
 
 interface JobTimeEntryRow {
@@ -112,6 +113,8 @@ interface EditFormProps {
 }
 
 function EditForm({ row, palette }: EditFormProps) {
+  const { isTablet } = useResponsiveLayout();
+  const tabletStyle = tabletContainerStyle(isTablet);
   const dayStatus: DailyLogStatus = row._log_status ?? 'open';
   const dayLocked = isDayLocked(dayStatus);
 
@@ -223,7 +226,7 @@ function EditForm({ row, palette }: EditFormProps) {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[styles.scroll, tabletStyle]}
           keyboardShouldPersistTaps="handled"
         >
           <ScreenHeader

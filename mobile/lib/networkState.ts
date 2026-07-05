@@ -14,7 +14,10 @@
  * treat null `isInternetReachable` as online because some Android
  * configurations never resolve it but still have working network.
  */
-import NetInfo, { type NetInfoState } from '@react-native-community/netinfo';
+import NetInfo, {
+  type NetInfoState,
+  NetInfoStateType,
+} from '@react-native-community/netinfo';
 import { useEffect, useState } from 'react';
 
 import { logInfo } from './log';
@@ -103,7 +106,7 @@ export function isOnlineNow(): boolean {
  *  'ethernet' as "no cellular budget concern"; everything else is
  *  cellular-or-unknown and held back when the upload queue's row
  *  is flagged require_wifi. */
-let lastKnownType: NetInfoState['type'] = 'unknown';
+let lastKnownType: NetInfoState['type'] = NetInfoStateType.unknown;
 
 NetInfo.addEventListener((state) => {
   lastKnownType = state.type;

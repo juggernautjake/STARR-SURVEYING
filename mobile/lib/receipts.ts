@@ -61,7 +61,7 @@ export type ReceiptCategory =
   | 'client_entertainment'
   | 'other';
 
-export const RECEIPT_CATEGORIES: ReadonlyArray<ReceiptCategory> = [
+export const RECEIPT_CATEGORIES: readonly ReceiptCategory[] = [
   'fuel',
   'meals',
   'supplies',
@@ -362,7 +362,7 @@ export interface JobReceiptRollup {
   /** Count of non-rejected receipts. */
   count: number;
   /** Cents broken out by category, sorted descending by amount. */
-  byCategory: Array<{ category: ReceiptCategory | 'uncategorized'; cents: number; count: number }>;
+  byCategory: { category: ReceiptCategory | 'uncategorized'; cents: number; count: number }[];
   /** Most recent receipt timestamp on this job, ISO string or null. */
   lastReceiptAt: string | null;
 }

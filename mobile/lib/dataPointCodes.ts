@@ -32,7 +32,7 @@ export interface CodePrefix {
   description: string;
 }
 
-export const CODE_PREFIXES: ReadonlyArray<CodePrefix> = [
+export const CODE_PREFIXES: readonly CodePrefix[] = [
   // Monuments + corners
   { prefix: 'BM',       label: 'Benchmark',          color: '#0EA5E9', description: 'Permanent elevation reference (USGS, NOS, county)' },
   { prefix: 'IR',       label: 'Iron rod',           color: '#0891B2', description: 'Set / found iron rod or pipe' },
@@ -170,7 +170,7 @@ export function isKnownPrefix(prefix: string | null | undefined): boolean {
  */
 export function suggestNextName(
   prefix: string,
-  existingNames: ReadonlyArray<string>
+  existingNames: readonly string[]
 ): string {
   const upper = prefix.toUpperCase();
   let highest = 0;

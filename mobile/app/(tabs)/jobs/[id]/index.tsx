@@ -17,6 +17,7 @@ import { useJob, useJobTodayRollup } from '@/lib/jobs';
 import { useJobReceiptRollup } from '@/lib/receipts';
 import { colors, type Palette } from '@/lib/theme';
 import { useResolvedScheme } from '@/lib/themePreference';
+import { tabletContainerStyle, useResponsiveLayout } from '@/lib/responsive';
 
 /**
  * Job detail — F1 #2 lands a minimal read-only view (header, stage,
@@ -27,6 +28,8 @@ import { useResolvedScheme } from '@/lib/themePreference';
 export default function JobDetailScreen() {
   const scheme = useResolvedScheme();
   const palette = colors[scheme];
+  const { isTablet } = useResponsiveLayout();
+  const tabletStyle = tabletContainerStyle(isTablet);
 
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useAuth();
@@ -72,7 +75,7 @@ export default function JobDetailScreen() {
         back
         title={job.name?.trim() || '(unnamed job)'}
       />
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, tabletStyle]}>
 
         <View style={styles.stageRow}>
           <StageChip stage={job.stage} />

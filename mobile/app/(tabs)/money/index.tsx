@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/lib/Button';
+import { EmptyState } from '@/lib/EmptyState';
 import { LoadingSplash } from '@/lib/LoadingSplash';
 import { ReceiptCard } from '@/lib/ReceiptCard';
 import { ScreenHeader } from '@/lib/ScreenHeader';
@@ -148,39 +149,29 @@ export default function MoneyScreen() {
 
       {receipts.length === 0 ? (
         filter === 'needs-review' ? (
-          <View style={styles.empty}>
-            <Text style={[styles.emptyTitle, { color: palette.text }]}>
-              All caught up
-            </Text>
-            <Text style={[styles.emptyBody, { color: palette.muted }]}>
-              Nothing left to review. Tap clear to see all your
-              receipts again.
-            </Text>
-            <View style={styles.emptyButton}>
-              <Button
-                variant="secondary"
-                label="Clear filter"
-                onPress={() => setFilter('all')}
-              />
-            </View>
-          </View>
+          <EmptyState
+            glyph="✅"
+            title="All caught up"
+            message="Nothing left to review. Tap clear to see all your receipts again."
+          >
+            <Button
+              variant="secondary"
+              label="Clear filter"
+              onPress={() => setFilter('all')}
+            />
+          </EmptyState>
         ) : (
-          <View style={styles.empty}>
-            <Text style={[styles.emptyTitle, { color: palette.text }]}>
-              No receipts yet
-            </Text>
-            <Text style={[styles.emptyBody, { color: palette.muted }]}>
-              Snap your first receipt — Starr Field auto-extracts the vendor,
-              total, and category so you don&apos;t have to retype anything.
-            </Text>
-            <View style={styles.emptyButton}>
-              <Button
-                label="+ Add receipt"
-                onPress={onAddReceipt}
-                accessibilityHint="Opens the camera to capture a new receipt"
-              />
-            </View>
-          </View>
+          <EmptyState
+            glyph="🧾"
+            title="No receipts yet"
+            message="Snap your first receipt — Starr Field auto-extracts the vendor, total, and category so you don't have to retype anything."
+          >
+            <Button
+              label="+ Add receipt"
+              onPress={onAddReceipt}
+              accessibilityHint="Opens the camera to capture a new receipt"
+            />
+          </EmptyState>
         )
       ) : (
         <>
@@ -257,27 +248,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '300',
     lineHeight: 18,
-  },
-  empty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  emptyBody: {
-    fontSize: 15,
-    lineHeight: 22,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  emptyButton: {
-    width: '100%',
-    maxWidth: 320,
   },
   listContent: {
     paddingHorizontal: 16,

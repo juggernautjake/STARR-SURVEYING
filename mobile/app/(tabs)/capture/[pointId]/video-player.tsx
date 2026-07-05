@@ -175,7 +175,8 @@ export default function VideoPlayerScreen() {
             onLoad={() => setLoading(false)}
             onError={(err) => {
               setLoading(false);
-              const msg = err instanceof Error ? err.message : String(err);
+              // expo-av's onError hands us a string, not an Error.
+              const msg = typeof err === 'string' ? err : String(err);
               setError(msg);
               logError('videoPlayer.onError', 'playback error', err, {
                 media_id: media.id,

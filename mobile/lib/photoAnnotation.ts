@@ -26,7 +26,7 @@ export interface PenStroke {
   /** Normalised 0..1 over the shorter image edge. v1 hardcodes
    *  ~0.008 (≈8 px on a 1000-px-wide photo). */
   width: number;
-  points: Array<{ x: number; y: number }>;
+  points: { x: number; y: number }[];
 }
 
 /** Future primitives — schema reserved so v1 readers don't choke
@@ -128,11 +128,11 @@ export const DEFAULT_PEN_COLOR = '#FF1744';
 /** Available annotation colours — paired with default-pen-width
  *  for v1. Red is the default; yellow + black are alternates for
  *  high-contrast scenes (yellow on dark soil, black on snow). */
-export const ANNOTATION_COLORS: ReadonlyArray<{
+export const ANNOTATION_COLORS: readonly {
   id: string;
   hex: string;
   label: string;
-}> = [
+}[] = [
   { id: 'red', hex: '#FF1744', label: 'Red' },
   { id: 'yellow', hex: '#FFD600', label: 'Yellow' },
   { id: 'cyan', hex: '#00E5FF', label: 'Cyan' },
