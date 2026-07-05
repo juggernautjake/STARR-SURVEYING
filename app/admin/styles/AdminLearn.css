@@ -1670,6 +1670,48 @@
 }
 
 /* Quiz Section */
+/* ── Practice panel (untimed drilling for a module) ──────────────────────── */
+.fs-module__practice { padding: .25rem 0; }
+.fs-practice__head { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:1rem; }
+.fs-practice__intro h3 { font-family:'Sora',sans-serif; font-size:1.05rem; font-weight:600; color:var(--color-brand-navy); margin:0 0 .25rem; }
+.fs-practice__intro p { font-size:.85rem; color:var(--color-text-muted); margin:0; max-width:46ch; }
+.fs-practice__stat { font-size:.8rem; color:var(--color-text-muted); white-space:nowrap; background:#f3f6fb; border:1px solid #e3e8f2; border-radius:8px; padding:.4rem .6rem; }
+.fs-practice__stat-num { font-weight:700; color:var(--color-brand-navy); }
+.fs-practice__stat-sep { margin:0 .35rem; opacity:.5; }
+.fs-practice__filters { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; margin-bottom:1rem; }
+.fs-practice__chips { display:flex; gap:.35rem; flex-wrap:wrap; }
+.fs-practice__chip { font-size:.8rem; padding:.35rem .7rem; border-radius:999px; border:1px solid #d7dbe6; background:#fff; color:#334155; cursor:pointer; transition:all .12s; }
+.fs-practice__chip:hover { border-color:var(--color-brand-navy); }
+.fs-practice__chip.is-active { background:var(--color-brand-navy); border-color:var(--color-brand-navy); color:#fff; }
+.fs-practice__diff { font-size:.8rem; color:var(--color-text-muted); display:inline-flex; align-items:center; gap:.4rem; }
+.fs-practice__diff select { font-size:.8rem; padding:.3rem .5rem; border-radius:8px; border:1px solid #d7dbe6; background:#fff; color:#334155; }
+.fs-practice__loading { display:flex; align-items:center; gap:.5rem; color:var(--color-text-muted); padding:2rem; justify-content:center; }
+.fs-practice__loading .spin, .fs-module__practice .spin { animation:aitSpin 1s linear infinite; }
+.fs-practice__nav { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-top:1rem; }
+.fs-practice__pos { font-size:.8rem; color:var(--color-text-muted); font-variant-numeric:tabular-nums; }
+
+/* ── Flashcards panel (per-module) ───────────────────────────────────────── */
+.fs-module__flashcards { padding: .25rem 0; }
+.fs-flash__head { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:1rem; }
+.fs-flash__intro h3 { font-family:'Sora',sans-serif; font-size:1.05rem; font-weight:600; color:var(--color-brand-navy); margin:0 0 .25rem; }
+.fs-flash__intro p { font-size:.85rem; color:var(--color-text-muted); margin:0; max-width:46ch; }
+.fs-flash__actions { display:flex; gap:.5rem; flex-wrap:wrap; }
+.fs-flash__create { background:#f8fafc; border:1px solid #e3e8f2; border-radius:10px; padding:.85rem; margin-bottom:1rem; display:flex; flex-direction:column; gap:.5rem; }
+.fs-flash__input { width:100%; font-size:.85rem; padding:.5rem .6rem; border:1px solid #d7dbe6; border-radius:8px; font-family:inherit; resize:vertical; }
+.fs-flash__input:focus { outline:none; border-color:var(--color-brand-navy); }
+.fs-flash__create-actions { display:flex; gap:.5rem; }
+.fs-flash__list { display:flex; flex-direction:column; gap:.4rem; }
+.fs-flash__list-meta { font-size:.78rem; color:var(--color-text-muted); margin-bottom:.25rem; }
+.fs-flash__row { display:grid; grid-template-columns:auto minmax(120px,1fr) 2fr auto; align-items:center; gap:.6rem; padding:.5rem .6rem; border:1px solid #eef0f4; border-radius:8px; background:#fff; }
+.fs-flash__src { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:.1rem .4rem; border-radius:5px; white-space:nowrap; }
+.fs-flash__src--builtin { background:#eef1f8; color:#1e3a8a; }
+.fs-flash__src--user { background:#e7f6ee; color:#047857; }
+.fs-flash__term { font-weight:600; color:#1f2937; font-size:.85rem; }
+.fs-flash__def { font-size:.82rem; color:var(--color-text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fs-flash__del { border:none; background:none; color:#9ca3af; cursor:pointer; padding:.25rem; border-radius:6px; }
+.fs-flash__del:hover { color:var(--color-error); background:#fef2f2; }
+@media (max-width:560px) { .fs-flash__row { grid-template-columns:auto 1fr auto; } .fs-flash__def { display:none; } }
+
 .fs-module__quiz-section {
   background: #FFF; border: 2px solid var(--color-brand-navy); border-radius: 12px;
   padding: 1.5rem; margin-bottom: 1.5rem;

@@ -21,12 +21,16 @@ interface Step { step_number?: number; title?: string; calculation?: string; cal
 export interface GradeResult { correct: boolean; gradable: boolean; correctAnswer: string; explanation: string; solutionSteps: Step[] }
 
 export default function ProblemCard({
-  problem, answerToken, onExplain, onAnother,
+  problem, answerToken, onExplain, onAnother, onGraded,
 }: {
   problem: ProblemData;
   answerToken: string;
-  onExplain: (p: ProblemData, studentAnswer: string, result: GradeResult | null) => void;
-  onAnother: (fromId: string) => void;
+  // Optional so the card can be reused outside the tutor thread (e.g. the FS
+  // module Practice panel), where "Explain with AI" / "Try another" aren't wired.
+  onExplain?: (p: ProblemData, studentAnswer: string, result: GradeResult | null) => void;
+  onAnother?: (fromId: string) => void;
+  // Fires once, right after the card grades — lets a host record practice progress.
+  onGraded?: (p: ProblemData, result: GradeResult) => void;
 }) {
   const [answer, setAnswer] = useState('');
   const [grading, setGrading] = useState(false);
@@ -51,6 +55,7 @@ export default function ProblemCard({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setError(data.error || 'Could not grade'); setGrading(false); return; }
       setResult(data as GradeResult);
+      onGraded?.(problem, data as GradeResult);
     } catch { setError('Network error — please try again.'); }
     setGrading(false);
   }
@@ -133,14 +138,20 @@ export default function ProblemCard({
             </div>
           )}
 
-          <div className="problem-card__actions">
-            <button className={`problem-card__ai ${!result.gradable ? 'problem-card__ai--primary' : ''}`} onClick={() => onExplain(problem, answer, result)}>
-              <Sparkles size={14} /> {result.gradable ? 'Explain with AI' : 'Get AI feedback on my answer'}
-            </button>
-            <button className="problem-card__again" onClick={() => onAnother(problem.id)}>
-              <RefreshCw size={14} /> Try another like this
-            </button>
-          </div>
+          {(onExplain || onAnother) && (
+            <div className="problem-card__actions">
+              {onExplain && (
+                <button className={`problem-card__ai ${!result.gradable ? 'problem-card__ai--primary' : ''}`} onClick={() => onExplain(problem, answer, result)}>
+                  <Sparkles size={14} /> {result.gradable ? 'Explain with AI' : 'Get AI feedback on my answer'}
+                </button>
+              )}
+              {onAnother && (
+                <button className="problem-card__again" onClick={() => onAnother(problem.id)}>
+                  <RefreshCw size={14} /> Try another like this
+                </button>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>
