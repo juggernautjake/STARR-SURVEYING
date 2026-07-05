@@ -95,7 +95,7 @@ and extend `gen_fs.js` to emit `flashcards` INSERTs (namespaced/idempotent), OR 
 | **P1** | `fs_practice_progress` + `fs_section_progress` tables (seed) + DDL capture of flashcard/fs tables (`401`) | **DONE** — `seeds/401_...`; applied to live |
 | **P2** | `GET/POST /api/admin/learn/exam-prep/fs/practice` (queue + attempt record) | **DONE** — route added; tsc clean |
 | **P3** | `PracticePanel` component (ProblemCard-driven, filters, next/another, progress) | **DONE** — `PracticePanel.tsx` + **Practice tab** added to the module page; `ProblemCard` gained optional `onGraded`/optional `onExplain`+`onAnother`; CSS added. tsc + lint clean. (Practice half of P5 shipped here.) |
-| **P4** | `FlashcardsPanel` (module-scoped review + create-your-own) reusing flashcards API + `FlashcardViewer` | TODO |
+| **P4** | `FlashcardsPanel` (module-scoped review + create-your-own) reusing flashcards API + `FlashcardViewer` | **DONE** — `FlashcardsPanel.tsx` + **Flashcards tab**; lists module cards, study via `FlashcardViewer`, create/delete your own (`?discovered=false`). tsc + lint clean. Note: 0 built-in FS cards until P7 (empty state prompts create-your-own). SM‑2 rating from this tab deferred to a follow-up (global flashcards page handles SRS). |
 | **P5** | Add **Practice** + **Flashcards** tabs to the FS module page; section-read tracking + reading indicator; flashcard discovery on open | TODO |
 | **P6** | Wire module quiz pass → `fs complete_quiz` unlock (`QuizRunner.onComplete`) | TODO |
 | **P7** | Author FS flashcards (~15–25/module via `m<N>.json` + `gen_fs.js`), seed + apply | TODO |
