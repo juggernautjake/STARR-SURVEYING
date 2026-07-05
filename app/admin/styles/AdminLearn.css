@@ -2959,8 +2959,14 @@
 
 .ai-tutor__scrim { position:fixed; inset:0; background:rgba(8,10,18,.35); z-index:400; animation:aitFade .12s; }
 .ai-tutor__panel {
-  position:fixed; top:0; right:0; bottom:0; width:var(--ai-tutor-w, 420px); max-width:100vw; z-index:401;
+  /* Stop short of the bottom so the floating green .fab-menu dock (Messages,
+     Calculator, Notes, Flag-an-issue) stays visible + clickable beneath the
+     panel instead of being covered. 104px clears the ~90px-tall dock (bottom
+     1.5rem + ~66px) with a small gap. The lifted corner is rounded so it reads
+     as an intentional floating panel. */
+  position:fixed; top:0; right:0; bottom:104px; width:var(--ai-tutor-w, 420px); max-width:100vw; z-index:401;
   background:#fff; box-shadow:-8px 0 30px rgba(16,24,40,.18);
+  border-bottom-left-radius:16px;
   display:flex; flex-direction:column;
   padding-bottom:env(safe-area-inset-bottom,0);
   animation:aitSlide .18s ease-out;
@@ -3054,7 +3060,9 @@ a.ai-tutor__related-item:hover { background:#eef2ff; }
 .ai-tutor__mic.is-listening { background:#fee2e2; border-color:#fca5a5; color:#dc2626; animation:aitPulse 1.2s ease-in-out infinite; }
 @keyframes aitPulse { 0%,100% { box-shadow:0 0 0 0 rgba(220,38,38,.4); } 50% { box-shadow:0 0 0 5px rgba(220,38,38,0); } }
 @media (max-width: 560px) {
-  .ai-tutor__panel { width:100vw; top:auto; height:86vh; border-radius:16px 16px 0 0; }
+  /* Phones use a full-width bottom sheet flush to the bottom (reset the desktop
+     FAB clearance); on this layout the dock is hidden behind the sheet by design. */
+  .ai-tutor__panel { width:100vw; top:auto; bottom:0; height:86vh; border-radius:16px 16px 0 0; }
   .ai-tutor__resize { display:none; } /* bottom sheet on phones — no side resize */
   .ai-tutor__banner { font-size:.8rem; }
 }
