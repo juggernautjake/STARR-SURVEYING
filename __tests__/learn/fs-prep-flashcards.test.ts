@@ -64,6 +64,26 @@ describe('seeds/402 — FS built-in flashcards', () => {
   });
 });
 
+describe('seeds/368 — FS lesson content completeness (P8 spot-check)', () => {
+  const content = fs.readFileSync(path.join(ROOT, 'seeds', '368_fs_prep_buildout.sql'), 'utf8');
+
+  it('upserts all 10 FS study modules', () => {
+    expect((content.match(/INSERT INTO fs_study_modules /g) ?? []).length).toBe(10);
+  });
+
+  it('every module carries all five lesson sections', () => {
+    for (const type of ['overview', 'concepts', 'formulas', 'examples', 'tips']) {
+      const count = (content.match(new RegExp(`"type": ?"${type}"`, 'g')) ?? []).length;
+      expect(count, `section "${type}"`).toBe(10);
+    }
+  });
+
+  it('content is substantial (not stub rows)', () => {
+    // ~14k-26k chars/module of rich content → a large committed seed.
+    expect(content.length).toBeGreaterThan(200_000);
+  });
+});
+
 describe('FS-prep route/page wiring (P5 + P6)', () => {
   const route = fs.readFileSync(
     path.join(ROOT, 'app', 'api', 'admin', 'learn', 'exam-prep', 'fs', 'route.ts'),
