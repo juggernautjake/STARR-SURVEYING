@@ -61,12 +61,17 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     const { data: weakAreas } = await supabaseAdmin.from('fs_weak_areas')
       .select('*').eq('user_email', userEmail).eq('module_number', mod.module_number);
 
+    // Which lesson sections has the student already read? (drives the reading indicator)
+    const { data: sectionsRead } = await supabaseAdmin.from('fs_section_progress')
+      .select('section_type').eq('user_email', userEmail).eq('module_id', moduleId);
+
     return NextResponse.json({
       module: mod,
       progress: progress || { status: mod.module_number === 1 ? 'available' : 'locked', quiz_best_score: 0, quiz_attempts_count: 0 },
       question_count: questions?.length || 0,
       recent_attempts: attempts || [],
       weak_areas: weakAreas || [],
+      sections_read: (sectionsRead || []).map((s: { section_type: string }) => s.section_type),
     });
   }
 
@@ -162,7 +167,24 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const userEmail = session.user.email;
   const body = await req.json();
-  const { action, module_id, quiz_score, weak_topics } = body;
+  const { action, module_id, quiz_score, weak_topics, section_type } = body;
+
+  if (action === 'mark_section_read') {
+    // Record that the student viewed a lesson section (idempotent per triple).
+    // Best-effort: never block the UI on this write.
+    if (!module_id || !section_type) {
+      return NextResponse.json({ error: 'module_id and section_type required' }, { status: 400 });
+    }
+    const { error } = await supabaseAdmin.from('fs_section_progress')
+      .upsert({
+        user_email: userEmail,
+        module_id,
+        section_type,
+        viewed_at: new Date().toISOString(),
+      }, { onConflict: 'user_email,module_id,section_type' });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
 
   if (action === 'start_module') {
     // Mark module as in_progress
