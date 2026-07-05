@@ -15,7 +15,7 @@ import { Sparkles, GraduationCap, X, Send, BookOpen, Volume2, VolumeX, Mic, Head
 import ProblemCard, { type ProblemData, type GradeResult } from '@/app/admin/components/learn/ProblemCard';
 import MessageAudioPlayer from '@/app/admin/components/learn/MessageAudioPlayer';
 import { renderStudyMarkdown } from '@/lib/learn/study-markdown';
-import { speakableText } from '@/lib/learn/speakable';
+import { speakableText, scriptToSpeech } from '@/lib/learn/speakable';
 
 export interface TutorContext {
   moduleId?: string;
@@ -30,7 +30,7 @@ export interface TutorContext {
 interface Msg { role: 'user' | 'assistant'; content: string }
 interface RelatedProblem { id: string; question_text: string; difficulty: string }
 type ThreadItem =
-  | { kind: 'msg'; role: 'user' | 'assistant'; content: string }
+  | { kind: 'msg'; role: 'user' | 'assistant'; content: string; voiceScript?: string }
   | { kind: 'card'; cardId: string; problem: ProblemData; answerToken: string };
 type Mode = 'idle' | 'selecting' | 'chatting';
 interface ConversationSummary { id: string; title: string; topic: string | null; module_title: string | null; updated_at: string; message_count: number }
@@ -163,8 +163,10 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   // /api/admin/learn/tts and falls back to the browser voice when no provider key
   // is configured (503), on error, or if autoplay is blocked. onEnd fires when
   // speaking finishes — used by conversation mode to auto-listen.
-  async function speakText(md: string, figureGroup?: number, onEnd?: () => void) {
-    const plain = speakableText(md, { figureGroup });
+  // Speaks the tutor's purpose-built teaching script when one exists (isScript),
+  // else normalizes the display reply as a fallback.
+  async function speakText(text: string, figureGroup?: number, onEnd?: () => void, isScript = false) {
+    const plain = isScript ? scriptToSpeech(text, { figureGroup }) : speakableText(text, { figureGroup });
     if (!plain) { onEnd?.(); return; }
     stopSpeaking();
 
@@ -378,15 +380,18 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setError(data.error || `Request failed (${res.status})`); setLoading(false); return; }
       const replyText = String(data.reply || '');
+      // The purpose-built teaching narration (may be absent → fall back to the reply).
+      const voiceScript = typeof data.voiceScript === 'string' && data.voiceScript.trim()
+        ? String(data.voiceScript) : undefined;
       // Figure group = this reply's ordinal among assistant messages, so spoken
       // labels ("figure 2A") match the on-screen badges rendered for the same reply.
       const replyOrdinal = thread.filter((it) => it.kind === 'msg' && it.role === 'assistant').length + 1;
-      setThread((prev) => [...prev, { kind: 'msg', role: 'assistant', content: replyText }]);
+      setThread((prev) => [...prev, { kind: 'msg', role: 'assistant', content: replyText, voiceScript }]);
       // Conversation mode: read the reply, then auto-open the mic so the student
       // can just speak back (listen only AFTER speaking, to avoid mic/TTS echo).
       if (speakRef.current || convoModeRef.current) {
         setActiveAudio(null); // global read-aloud takes over — pause any per-message players
-        speakText(replyText, replyOrdinal, convoModeRef.current ? () => startListening() : undefined);
+        speakText(voiceScript ?? replyText, replyOrdinal, convoModeRef.current ? () => startListening() : undefined, !!voiceScript);
       }
       if (Array.isArray(data.relatedProblems)) setRelated(data.relatedProblems);
     } catch {
@@ -558,7 +563,7 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
                           return (
                             <div className="ai-tutor__msg-col">
                               <div className="ai-tutor__bubble study-md" dangerouslySetInnerHTML={{ __html: renderStudyMarkdown(it.content, { figureGroup }) }} />
-                              <MessageAudioPlayer text={it.content} active={activeAudio === i} figureGroup={figureGroup}
+                              <MessageAudioPlayer text={it.content} script={it.voiceScript} active={activeAudio === i} figureGroup={figureGroup}
                                 onActivate={() => { setActiveAudio(i); stopSpeaking(); }} />
                             </div>
                           );

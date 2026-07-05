@@ -26,6 +26,35 @@ describe('speakable — units & symbols read naturally', () => {
     expect(speakableText('area is 50%')).toContain('percent');
   });
 
+  it('speaks "=" as the word "equals" even in plain prose (no $…$)', () => {
+    const out = speakableText('The area A = length times width.');
+    expect(out).toContain('equals');
+    expect(out).not.toContain('=');
+  });
+
+  it('handles compound comparison operators written as ASCII', () => {
+    expect(speakableText('require ratio >= 1 here')).toContain('greater than or equal to');
+    expect(speakableText('keep error <= 0.1 max')).toContain('less than or equal to');
+    expect(speakableText('when a != b then')).toContain('not equal to');
+    // must not leave a stray "="
+    expect(speakableText('so x >= y today')).not.toContain('=');
+  });
+
+  it('speaks decimal fractions digit-by-digit so runs of zeros survive', () => {
+    const out = speakableText('The tolerance is 0.000025 meters.');
+    expect(out).toContain('0 point zero zero zero zero two five');
+    // no raw multi-zero run left for the voice to mangle
+    expect(out).not.toContain('000025');
+  });
+
+  it('keeps the integer part as a number, only the fraction is spelled', () => {
+    expect(speakableText('measured 1450.25 units')).toContain('1450 point two five');
+  });
+
+  it('handles a leading-dot decimal', () => {
+    expect(speakableText('a value of .5 here')).toContain('zero point five');
+  });
+
   it('speaks degrees-minutes-seconds as angles, not feet/inches', () => {
     const out = speakableText('The bearing is 35°12′30″ here.');
     expect(out).toContain('35 degrees');
