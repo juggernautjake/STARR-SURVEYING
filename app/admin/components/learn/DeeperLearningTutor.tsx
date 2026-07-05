@@ -15,6 +15,7 @@ import { Sparkles, GraduationCap, X, Send, BookOpen, Volume2, VolumeX, Mic, Head
 import ProblemCard, { type ProblemData, type GradeResult } from '@/app/admin/components/learn/ProblemCard';
 import MessageAudioPlayer from '@/app/admin/components/learn/MessageAudioPlayer';
 import { renderStudyMarkdown } from '@/lib/learn/study-markdown';
+import { speakableText } from '@/lib/learn/speakable';
 
 export interface TutorContext {
   moduleId?: string;
@@ -162,11 +163,8 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   // /api/admin/learn/tts and falls back to the browser voice when no provider key
   // is configured (503), on error, or if autoplay is blocked. onEnd fires when
   // speaking finishes — used by conversation mode to auto-listen.
-  async function speakText(md: string, onEnd?: () => void) {
-    const plain = md
-      .replace(/```[\s\S]*?```/g, ' ').replace(/`([^`]*)`/g, '$1')
-      .replace(/\*\*(.*?)\*\*/g, '$1').replace(/[*_#>]/g, '')
-      .replace(/^\s*[-•]\s*/gm, '').replace(/\s+/g, ' ').trim();
+  async function speakText(md: string, figureGroup?: number, onEnd?: () => void) {
+    const plain = speakableText(md, { figureGroup });
     if (!plain) { onEnd?.(); return; }
     stopSpeaking();
 
@@ -380,12 +378,15 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setError(data.error || `Request failed (${res.status})`); setLoading(false); return; }
       const replyText = String(data.reply || '');
+      // Figure group = this reply's ordinal among assistant messages, so spoken
+      // labels ("figure 2A") match the on-screen badges rendered for the same reply.
+      const replyOrdinal = thread.filter((it) => it.kind === 'msg' && it.role === 'assistant').length + 1;
       setThread((prev) => [...prev, { kind: 'msg', role: 'assistant', content: replyText }]);
       // Conversation mode: read the reply, then auto-open the mic so the student
       // can just speak back (listen only AFTER speaking, to avoid mic/TTS echo).
       if (speakRef.current || convoModeRef.current) {
         setActiveAudio(null); // global read-aloud takes over — pause any per-message players
-        speakText(replyText, convoModeRef.current ? () => startListening() : undefined);
+        speakText(replyText, replyOrdinal, convoModeRef.current ? () => startListening() : undefined);
       }
       if (Array.isArray(data.relatedProblems)) setRelated(data.relatedProblems);
     } catch {
@@ -549,13 +550,19 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
                   <div key={i} ref={i === thread.length - 1 ? lastItemRef : undefined}
                     className={`ai-tutor__msg ai-tutor__msg--${it.role}`}>
                     {it.role === 'assistant'
-                      ? (
-                        <div className="ai-tutor__msg-col">
-                          <div className="ai-tutor__bubble study-md" dangerouslySetInnerHTML={{ __html: renderStudyMarkdown(it.content) }} />
-                          <MessageAudioPlayer text={it.content} active={activeAudio === i}
-                            onActivate={() => { setActiveAudio(i); stopSpeaking(); }} />
-                        </div>
-                      )
+                      ? (() => {
+                          // This reply's ordinal among assistant messages drives figure
+                          // labels ("figure 2A") — identical in the render and the voice.
+                          const figureGroup = thread.slice(0, i + 1)
+                            .filter((t) => t.kind === 'msg' && t.role === 'assistant').length;
+                          return (
+                            <div className="ai-tutor__msg-col">
+                              <div className="ai-tutor__bubble study-md" dangerouslySetInnerHTML={{ __html: renderStudyMarkdown(it.content, { figureGroup }) }} />
+                              <MessageAudioPlayer text={it.content} active={activeAudio === i} figureGroup={figureGroup}
+                                onActivate={() => { setActiveAudio(i); stopSpeaking(); }} />
+                            </div>
+                          );
+                        })()
                       : <div className="ai-tutor__bubble">{it.content}</div>}
                   </div>
                 )
