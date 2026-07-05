@@ -11,8 +11,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Sparkles, GraduationCap, X, Send, BookOpen, Volume2, VolumeX, Mic, Headphones, History, MessageCircle, ChevronLeft, Plus, Trash2, Square } from 'lucide-react';
+import { Sparkles, GraduationCap, X, Send, BookOpen, Volume2, VolumeX, Mic, Headphones, History, MessageCircle, ChevronLeft, Plus, Trash2 } from 'lucide-react';
 import ProblemCard, { type ProblemData, type GradeResult } from '@/app/admin/components/learn/ProblemCard';
+import MessageAudioPlayer from '@/app/admin/components/learn/MessageAudioPlayer';
 import { renderStudyMarkdown } from '@/lib/learn/study-markdown';
 
 export interface TutorContext {
@@ -86,7 +87,7 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const premiumTtsRef = useRef<boolean | null>(null); // null=unknown, false=unavailable
-  const [playingIdx, setPlayingIdx] = useState<number | null>(null);
+  const [activeAudio, setActiveAudio] = useState<number | null>(null);
   const [convoMode, setConvoMode] = useState(false);
   const convoModeRef = useRef(convoMode);
   useEffect(() => { convoModeRef.current = convoMode; }, [convoMode]);
@@ -205,13 +206,6 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
     if (audioRef.current) { try { audioRef.current.pause(); } catch { /* noop */ } audioRef.current = null; }
   }
 
-  // Per-message replay: click to play a specific reply aloud (premium voice, then
-  // browser fallback); click again to stop. Replayable as many times as you like.
-  function playMessage(idx: number, content: string) {
-    if (playingIdx === idx) { stopSpeaking(); setPlayingIdx(null); return; }
-    setPlayingIdx(idx);
-    speakText(content, () => setPlayingIdx(null)); // speakText stops any current audio first
-  }
 
   // Track the live text selection while highlighting.
   useEffect(() => {
@@ -268,7 +262,7 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   }
   function closeChat() {
     void saveConversation(); // captures the current thread before it's cleared
-    stopSpeaking(); stopListening(); setPlayingIdx(null);
+    stopSpeaking(); stopListening(); setActiveAudio(null);
     setMode('idle'); setShowHistory(false); setMenuOpen(false);
     setThread([]); setRelated([]); setTopic(''); setError(null); setInput(''); setConvoMode(false);
     setConversationId(null); convIdRef.current = null;
@@ -387,6 +381,7 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
       // Conversation mode: read the reply, then auto-open the mic so the student
       // can just speak back (listen only AFTER speaking, to avoid mic/TTS echo).
       if (speakRef.current || convoModeRef.current) {
+        setActiveAudio(null); // global read-aloud takes over — pause any per-message players
         speakText(replyText, convoModeRef.current ? () => startListening() : undefined);
       }
       if (Array.isArray(data.relatedProblems)) setRelated(data.relatedProblems);
@@ -554,12 +549,8 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
                       ? (
                         <div className="ai-tutor__msg-col">
                           <div className="ai-tutor__bubble study-md" dangerouslySetInnerHTML={{ __html: renderStudyMarkdown(it.content) }} />
-                          <button className={`ai-tutor__play ${playingIdx === i ? 'is-playing' : ''}`}
-                            onClick={() => playMessage(i, it.content)}
-                            title={playingIdx === i ? 'Stop playback' : 'Play this reply aloud'}>
-                            {playingIdx === i ? <Square size={12} /> : <Volume2 size={12} />}
-                            {playingIdx === i ? 'Stop' : 'Play'}
-                          </button>
+                          <MessageAudioPlayer text={it.content} active={activeAudio === i}
+                            onActivate={() => { setActiveAudio(i); stopSpeaking(); }} />
                         </div>
                       )
                       : <div className="ai-tutor__bubble">{it.content}</div>}
