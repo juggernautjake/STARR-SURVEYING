@@ -92,8 +92,8 @@ and extend `gen_fs.js` to emit `flashcards` INSERTs (namespaced/idempotent), OR 
 ## Slices
 | # | What | Status |
 |---|---|---|
-| **P1** | `fs_practice_progress` + `fs_section_progress` tables (seed) + DDL capture of flashcard/fs tables (`401`) | TODO |
-| **P2** | `GET/POST /api/admin/learn/exam-prep/fs/practice` (queue + attempt record) | TODO |
+| **P1** | `fs_practice_progress` + `fs_section_progress` tables (seed) + DDL capture of flashcard/fs tables (`401`) | **DONE** — `seeds/401_...`; applied to live |
+| **P2** | `GET/POST /api/admin/learn/exam-prep/fs/practice` (queue + attempt record) | **DONE** — route added; tsc clean |
 | **P3** | `PracticePanel` component (ProblemCard-driven, filters, next/another, progress) | TODO |
 | **P4** | `FlashcardsPanel` (module-scoped review + create-your-own) reusing flashcards API + `FlashcardViewer` | TODO |
 | **P5** | Add **Practice** + **Flashcards** tabs to the FS module page; section-read tracking + reading indicator; flashcard discovery on open | TODO |
