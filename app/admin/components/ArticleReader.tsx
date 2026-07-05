@@ -4,6 +4,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { CheckCircle2, ArrowDown } from 'lucide-react';
 import { decodeUnicodeEscapes } from '@/lib/decodeUnicode';
+import { renderMathInHtml } from '@/lib/learn/math';
 
 interface ArticleReaderProps {
   article: {
@@ -115,7 +116,7 @@ export default function ArticleReader({ article, completed: initialCompleted, co
       <div
         ref={contentRef}
         className="article-reader__content"
-        dangerouslySetInnerHTML={{ __html: decodeUnicodeEscapes(article.content || '') }}
+        dangerouslySetInnerHTML={{ __html: renderMathInHtml(decodeUnicodeEscapes(article.content || '')) }}
       />
 
       {/* Bottom sentinel for IntersectionObserver */}

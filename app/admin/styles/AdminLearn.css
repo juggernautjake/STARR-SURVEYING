@@ -2991,6 +2991,31 @@
 .ai-tutor__bubble code { background:rgba(0,0,0,.06); padding:1px 5px; border-radius:4px; font-size:.9em; }
 .ai-tutor__bubble--typing { display:inline-flex; align-items:center; gap:.4rem; color:#6b7280; }
 .ai-tutor__spin { animation:aitSpin 1s linear infinite; }
+
+/* ── AI tutor rendered markdown (study-md) + KaTeX math ─────────────────── */
+.ai-tutor__bubble ol { margin:.3rem 0; padding-left:1.35rem; }
+.ai-tutor__bubble h2, .ai-tutor__bubble h3, .ai-tutor__bubble h4, .ai-tutor__bubble h5 { margin:.6rem 0 .35rem; line-height:1.25; font-weight:700; }
+.ai-tutor__bubble h2 { font-size:1.05rem; }
+.ai-tutor__bubble h3 { font-size:1rem; }
+.ai-tutor__bubble h4 { font-size:.95rem; }
+.ai-tutor__bubble h5 { font-size:.9rem; color:#374151; }
+.ai-tutor__bubble hr { border:none; border-top:1px solid #d7dbe6; margin:.7rem 0; }
+.ai-tutor__bubble blockquote { margin:.4rem 0; padding:.2rem .7rem; border-left:3px solid #1d3095; background:rgba(29,48,149,.05); color:#374151; }
+.study-md__pre { margin:.5rem 0; padding:.6rem .7rem; background:#0f172a; color:#e2e8f0; border-radius:8px; overflow-x:auto; font-size:.82rem; }
+.study-md__pre code { background:none; padding:0; color:inherit; }
+.study-md__table { border-collapse:collapse; margin:.5rem 0; font-size:.85rem; display:block; max-width:100%; overflow-x:auto; }
+.study-md__table th, .study-md__table td { border:1px solid #d7dbe6; padding:.35rem .55rem; text-align:left; vertical-align:top; }
+.study-md__table thead th { background:#eef1f8; font-weight:700; }
+
+/* Keep long displayed equations from overflowing the panel / column — scroll
+   inside their own box instead. Applies everywhere math renders in Learn. */
+.ai-tutor__bubble .katex-display,
+.admin-lesson__body .katex-display,
+.lesson-builder__equation-rendered .katex-display,
+.fs-module__content-text .katex-display,
+.article-reader__content .katex-display,
+.problem-card .katex-display,
+.lesson__body .katex-display { overflow-x:auto; overflow-y:hidden; padding:.25rem 0; margin:.5rem 0; }
 @keyframes aitSpin { to { transform:rotate(360deg); } }
 .ai-tutor__dots { display:inline-flex; align-items:flex-end; gap:3px; margin-left:3px; }
 .ai-tutor__dots span { width:5px; height:5px; border-radius:50%; background:currentColor; animation:aitBlink 1.4s infinite ease-in-out both; }

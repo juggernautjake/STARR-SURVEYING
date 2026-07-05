@@ -17,6 +17,7 @@ import { usePageError } from '../../../../hooks/usePageError';
 import { useToast } from '../../../../components/Toast';
 import SmallScreenBanner from '../../../../components/SmallScreenBanner';
 import { decodeUnicodeEscapes } from '@/lib/decodeUnicode';
+import { renderMath } from '@/lib/learn/math';
 
 /** Shorthand for dangerouslySetInnerHTML with unicode escape decoding */
 function dhtml(html: string) { return { __html: decodeUnicodeEscapes(html || '') }; }
@@ -99,44 +100,15 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / 1048576).toFixed(1)} MB`;
 }
 
-// Lightweight LaTeX to HTML renderer for common math notation
+// Equation-block preview — render the stored LaTeX with KaTeX (display mode),
+// stripping a single wrapping $$…$$ / \[…\] if the author typed the delimiters.
 function renderLatex(tex: string): string {
   if (!tex) return '';
-  let html = tex
-    // Escape HTML first
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    // Fractions: \frac{a}{b}
-    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '<span class="eq-frac"><span class="eq-num">$1</span><span class="eq-den">$2</span></span>')
-    // Square root: \sqrt{x}
-    .replace(/\\sqrt\{([^}]+)\}/g, '<span class="eq-sqrt">&radic;<span style="text-decoration:overline">$1</span></span>')
-    // Superscript: ^{...} or ^x
-    .replace(/\^\{([^}]+)\}/g, '<sup>$1</sup>')
-    .replace(/\^([a-zA-Z0-9])/g, '<sup>$1</sup>')
-    // Subscript: _{...} or _x
-    .replace(/_\{([^}]+)\}/g, '<sub>$1</sub>')
-    .replace(/_([a-zA-Z0-9])/g, '<sub>$1</sub>')
-    // Greek letters
-    .replace(/\\alpha/g, '&alpha;').replace(/\\beta/g, '&beta;').replace(/\\gamma/g, '&gamma;')
-    .replace(/\\delta/g, '&delta;').replace(/\\epsilon/g, '&epsilon;').replace(/\\theta/g, '&theta;')
-    .replace(/\\lambda/g, '&lambda;').replace(/\\mu/g, '&mu;').replace(/\\pi/g, '&pi;')
-    .replace(/\\sigma/g, '&sigma;').replace(/\\phi/g, '&phi;').replace(/\\omega/g, '&omega;')
-    .replace(/\\Delta/g, '&Delta;').replace(/\\Sigma/g, '&Sigma;').replace(/\\Omega/g, '&Omega;')
-    .replace(/\\Theta/g, '&Theta;').replace(/\\Pi/g, '&Pi;')
-    // Operators
-    .replace(/\\times/g, '&times;').replace(/\\div/g, '&divide;').replace(/\\pm/g, '&plusmn;')
-    .replace(/\\cdot/g, '&middot;').replace(/\\leq/g, '&le;').replace(/\\geq/g, '&ge;')
-    .replace(/\\neq/g, '&ne;').replace(/\\approx/g, '&asymp;').replace(/\\infty/g, '&infin;')
-    .replace(/\\sum/g, '&Sigma;').replace(/\\prod/g, '&Pi;').replace(/\\int/g, '&int;')
-    .replace(/\\partial/g, '&part;').replace(/\\nabla/g, '&nabla;')
-    // Arrows
-    .replace(/\\rightarrow/g, '&rarr;').replace(/\\leftarrow/g, '&larr;')
-    .replace(/\\Rightarrow/g, '&rArr;').replace(/\\Leftarrow/g, '&lArr;')
-    // Spacing and text
-    .replace(/\\quad/g, '&emsp;').replace(/\\,/g, '&thinsp;')
-    .replace(/\\text\{([^}]+)\}/g, '<span style="font-style:normal;font-family:Inter,sans-serif">$1</span>')
-    // Remaining backslash commands (show symbol name in italic as fallback)
-    .replace(/\\([a-zA-Z]+)/g, '<em>$1</em>');
-  return html;
+  const stripped = tex.trim()
+    .replace(/^\$\$([\s\S]*?)\$\$$/, '$1')
+    .replace(/^\\\[([\s\S]*?)\\\]$/, '$1')
+    .trim();
+  return renderMath(stripped, true);
 }
 
 // Smart HTML-to-blocks parser: splits seeded lesson HTML into discrete block types

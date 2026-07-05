@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { FileX } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { usePageError } from '../../../hooks/usePageError';
+import { renderMathInHtml } from '@/lib/learn/math';
 
 interface ArticleDetail { id: string; title: string; slug: string; category: string; tags: string[]; content: string; updated_at: string; }
 
@@ -31,7 +32,7 @@ export default function ArticleDetailPage() {
           Updated {new Date(article.updated_at).toLocaleDateString()}{article.tags.length > 0 && ` · Tags: ${article.tags.join(', ')}`}
         </p>
       </div>
-      <div className="lesson__body" dangerouslySetInnerHTML={{ __html: article.content }} />
+      <div className="lesson__body" dangerouslySetInnerHTML={{ __html: renderMathInHtml(article.content) }} />
     </>
   );
 }

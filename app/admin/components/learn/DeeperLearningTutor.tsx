@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Sparkles, GraduationCap, X, Send, BookOpen, Volume2, VolumeX, Mic, Headphones, History, MessageCircle, ChevronLeft, Plus, Trash2 } from 'lucide-react';
 import ProblemCard, { type ProblemData, type GradeResult } from '@/app/admin/components/learn/ProblemCard';
+import { renderStudyMarkdown } from '@/lib/learn/study-markdown';
 
 export interface TutorContext {
   moduleId?: string;
@@ -43,21 +44,6 @@ function getSpeechRecognition(): (new () => SpeechRecognitionLike) | undefined {
   if (typeof window === 'undefined') return undefined;
   const w = window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike; webkitSpeechRecognition?: new () => SpeechRecognitionLike };
   return w.SpeechRecognition || w.webkitSpeechRecognition;
-}
-
-/** Minimal, XSS-safe markdown → HTML for the tutor's replies (escape first). */
-function renderReply(text: string): string {
-  const esc = text
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  return esc
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`(.+?)`/g, '<code>$1</code>')
-    .replace(/^\s*[-*]\s+(.*)$/gm, '<li>$1</li>')
-    .replace(/(<li>[\s\S]*?<\/li>)(?!\s*<li>)/g, '<ul>$1</ul>')
-    .replace(/\n{2,}/g, '</p><p>')
-    .replace(/\n/g, '<br/>')
-    .replace(/<br\/>\s*(<ul>)/g, '$1')
-    .replace(/(<\/ul>)\s*<br\/>/g, '$1');
 }
 
 /** Compact relative time for the conversation history list. */
@@ -556,7 +542,7 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
                   <div key={i} ref={i === thread.length - 1 ? lastItemRef : undefined}
                     className={`ai-tutor__msg ai-tutor__msg--${it.role}`}>
                     {it.role === 'assistant'
-                      ? <div className="ai-tutor__bubble" dangerouslySetInnerHTML={{ __html: '<p>' + renderReply(it.content) + '</p>' }} />
+                      ? <div className="ai-tutor__bubble study-md" dangerouslySetInnerHTML={{ __html: renderStudyMarkdown(it.content) }} />
                       : <div className="ai-tutor__bubble">{it.content}</div>}
                   </div>
                 )
