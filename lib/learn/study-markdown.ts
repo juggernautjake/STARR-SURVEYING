@@ -12,6 +12,7 @@
 // injected via dangerouslySetInnerHTML.
 
 import { protectMath } from './math';
+import { figureLetter } from './speakable';
 
 function escapeHtml(s: string): string {
   return s
@@ -32,12 +33,21 @@ function inline(s: string): string {
     .replace(/`([^`]+?)`/g, '<code>$1</code>');
 }
 
-// GitHub pipe tables → styled HTML. Runs before the newline pass so the
-// multi-line <table> survives (a lone `\n → <br/>` inside a table is exactly
-// what made the error-type table look broken).
-function convertPipeTables(src: string): string {
+// A caption line the tutor emits after a table, e.g. "*Figure: what it shows*".
+// Kept in sync with lib/learn/speakable.ts so the on-screen badge and the spoken
+// reference use the same caption.
+const CAPTION_RE =
+  /^\s*(?:[>*_]+\s*)?(?:figure|fig\.?|caption|chart|table|spreadsheet|diagram)\b\s*\d*\s*[:.\-–—]\s*(.+?)[*_\s]*$/i;
+
+// GitHub pipe tables → styled HTML wrapped in a <figure> with a "Figure 1A"
+// caption. `figureGroup` is the reply's ordinal so the label matches the voice
+// ("figure 1A" spoken == "Figure 1A" shown). Runs before the newline pass so the
+// multi-line <table> survives (a lone `\n → <br/>` inside a table is exactly what
+// made the error-type table look broken).
+function convertPipeTables(src: string, figureGroup: number): string {
   const lines = src.split('\n');
   const acc: string[] = [];
+  let figIdx = 0;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (line.includes('|') && i + 1 < lines.length && isSepRow(lines[i + 1])) {
@@ -48,12 +58,34 @@ function convertPipeTables(src: string): string {
         rows.push(splitCells(lines[j]));
         j++;
       }
+      const label = `${figureGroup}${figureLetter(figIdx)}`;
+      figIdx++;
+
+      // Caption: look forward past blank lines, else back at the previous line.
+      let caption = '';
+      let consumeUpto = j - 1; // last table row; extended if a caption follows
+      let c = j;
+      while (c < lines.length && lines[c].trim() === '') c++;
+      const mAfter = c < lines.length ? CAPTION_RE.exec(lines[c]) : null;
+      if (mAfter && mAfter[1].trim()) {
+        caption = mAfter[1].trim();
+        consumeUpto = c; // swallow the caption line (and any blank lines) too
+      } else {
+        for (let k = acc.length - 1; k >= 0 && k >= acc.length - 2; k--) {
+          if (acc[k].trim() === '') continue;
+          const mBefore = CAPTION_RE.exec(acc[k]);
+          if (mBefore && mBefore[1].trim()) { caption = mBefore[1].trim(); acc[k] = ''; }
+          break;
+        }
+      }
+
       const th = head.map((h) => `<th>${inline(h)}</th>`).join('');
       const body = rows
-        .map((r) => `<tr>${r.map((c) => `<td>${inline(c)}</td>`).join('')}</tr>`)
+        .map((r) => `<tr>${r.map((cell) => `<td>${inline(cell)}</td>`).join('')}</tr>`)
         .join('');
-      acc.push(`<table class="study-md__table"><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table>`);
-      i = j - 1;
+      const cap = `<figcaption class="study-md__figcap"><span class="study-md__figlabel">Figure ${label}</span>${caption ? ` — ${inline(caption)}` : ''}</figcaption>`;
+      acc.push(`<figure class="study-md__figure">${cap}<table class="study-md__table"><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table></figure>`);
+      i = consumeUpto;
     } else {
       acc.push(line);
     }
@@ -62,8 +94,9 @@ function convertPipeTables(src: string): string {
 }
 
 /** Render AI study markdown (with LaTeX math) to safe HTML. */
-export function renderStudyMarkdown(input: string): string {
+export function renderStudyMarkdown(input: string, opts: { figureGroup?: number } = {}): string {
   if (!input) return '';
+  const figureGroup = opts.figureGroup ?? 1;
   const { text, restore } = protectMath(input);
 
   // Multi-line blocks (code / tables) are swapped for an alnum placeholder so
@@ -80,8 +113,8 @@ export function renderStudyMarkdown(input: string): string {
       keep(`<pre class="study-md__pre"><code>${(code as string).replace(/\n$/, '')}</code></pre>`))
     .replace(/^&gt; ?(.*)$/gm, '<blockquote>$1</blockquote>');
 
-  // GFM pipe tables → HTML, then stash them.
-  out = convertPipeTables(out).replace(/<table[\s\S]*?<\/table>/gi, (m) => keep(m));
+  // GFM pipe tables → <figure> HTML, then stash the whole figure.
+  out = convertPipeTables(out, figureGroup).replace(/<figure[\s\S]*?<\/figure>/gi, (m) => keep(m));
 
   out = out
     // headings (#### … #)

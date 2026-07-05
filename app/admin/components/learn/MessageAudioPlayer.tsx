@@ -10,22 +10,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Play, Pause, RotateCcw, Rewind, FastForward } from 'lucide-react';
-
-/** Strip markdown + LaTeX so the voice reads clean prose, not raw source. */
-function toSpeakable(md: string): string {
-  return md
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/`([^`]*)`/g, '$1')
-    .replace(/\$\$[\s\S]*?\$\$/g, ' ')       // drop display math (unreadable aloud)
-    .replace(/\$([^$\n]*?)\$/g, ' ')          // drop inline math
-    .replace(/\\\[[\s\S]*?\\\]/g, ' ')
-    .replace(/\\\([\s\S]*?\\\)/g, ' ')
-    .replace(/\*\*(.*?)\*\*/g, '$1')
-    .replace(/[*_#>|]/g, '')
-    .replace(/^\s*[-•]\s*/gm, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+import { speakableText } from '@/lib/learn/speakable';
 
 function fmt(s: number): string {
   if (!Number.isFinite(s) || s < 0) s = 0;
@@ -35,11 +20,12 @@ function fmt(s: number): string {
 }
 
 export default function MessageAudioPlayer({
-  text, active, onActivate,
+  text, active, onActivate, figureGroup,
 }: {
   text: string;
   active: boolean;      // is this the currently-playing message (others pause)
   onActivate: () => void; // called when this player starts (stops other audio)
+  figureGroup?: number; // number half of figure labels (1 → "figure 1A"); matches the on-screen badge
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const urlRef = useRef<string | null>(null);
@@ -67,7 +53,7 @@ export default function MessageAudioPlayer({
     try {
       const res = await fetch('/api/admin/learn/tts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: toSpeakable(text) }),
+        body: JSON.stringify({ text: speakableText(text, { figureGroup }) }),
       });
       if (!res.ok) { setStatus('browser'); return null; } // 503 → no premium provider
       const url = URL.createObjectURL(await res.blob());
@@ -115,7 +101,7 @@ export default function MessageAudioPlayer({
     if (playing) { ss.cancel(); setPlaying(false); return; }
     onActivate();
     ss.cancel();
-    const u = new SpeechSynthesisUtterance(toSpeakable(text));
+    const u = new SpeechSynthesisUtterance(speakableText(text, { figureGroup }));
     u.lang = 'en-US';
     u.onend = () => setPlaying(false);
     u.onerror = () => setPlaying(false);

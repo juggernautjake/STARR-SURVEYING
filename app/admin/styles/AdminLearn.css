@@ -3014,6 +3014,12 @@
 .study-md__table { border-collapse:collapse; margin:.5rem 0; font-size:.85rem; display:block; max-width:100%; overflow-x:auto; }
 .study-md__table th, .study-md__table td { border:1px solid #d7dbe6; padding:.35rem .55rem; text-align:left; vertical-align:top; }
 .study-md__table thead th { background:#eef1f8; font-weight:700; }
+/* Figure wrapper + caption badge. The label ("Figure 1A") matches the reference
+   the read-aloud voice speaks instead of reading the grid cell-by-cell. */
+.study-md__figure { margin:.6rem 0; }
+.study-md__figcap { font-size:.78rem; color:#475569; margin-bottom:.25rem; line-height:1.35; }
+.study-md__figlabel { display:inline-block; font-weight:700; color:#1e3a8a; background:#eef1f8; border:1px solid #d7dbe6; border-radius:6px; padding:.05rem .4rem; margin-right:.15rem; }
+.study-md__figure .study-md__table { margin:0; }
 
 /* Keep long displayed equations from overflowing the panel / column — scroll
    inside their own box instead. Applies everywhere math renders in Learn. */

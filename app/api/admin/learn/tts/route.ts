@@ -39,10 +39,25 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   try {
     if (useEleven) {
       const voiceId = body?.voice || process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM'; // "Rachel"
+      // Optional native pronunciation dictionary (alias/phoneme rules) — a
+      // persistent, tunable backstop for the in-app speakable normalizer. Set
+      // ELEVENLABS_PRONUNCIATION_DICTIONARY_ID (and optionally _VERSION_ID) to
+      // enable; absent → omitted, so behavior is unchanged until you add one.
+      const dictId = process.env.ELEVENLABS_PRONUNCIATION_DICTIONARY_ID;
+      const elevenBody: Record<string, unknown> = {
+        text: input,
+        model_id: process.env.ELEVENLABS_MODEL || 'eleven_turbo_v2_5',
+      };
+      if (dictId) {
+        elevenBody.pronunciation_dictionary_locators = [{
+          pronunciation_dictionary_id: dictId,
+          version_id: process.env.ELEVENLABS_PRONUNCIATION_DICTIONARY_VERSION_ID || 'latest',
+        }];
+      }
       const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
         method: 'POST',
         headers: { 'xi-api-key': elevenKey as string, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
-        body: JSON.stringify({ text: input, model_id: process.env.ELEVENLABS_MODEL || 'eleven_turbo_v2_5' }),
+        body: JSON.stringify(elevenBody),
       });
       if (!r.ok) return NextResponse.json({ error: `ElevenLabs error ${r.status}` }, { status: 502 });
       return new NextResponse(await r.arrayBuffer(), { headers: AUDIO_HEADERS });

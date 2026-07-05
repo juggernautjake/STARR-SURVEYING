@@ -94,6 +94,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     '- If practice problems on THIS platform relate to the topic (listed below), encourage the student to try them — the UI shows them as clickable links.',
     '- Keep replies focused and readable: short paragraphs, bullet lists, and a guiding follow-up question when it aids learning.',
     '- FORMATTING: write in Markdown. Wrap ALL math in LaTeX with dollar-sign delimiters — inline math as $ ... $ and displayed equations as $$ ... $$ (never \\( \\) or \\[ \\], never bare unicode like x̄). Example: the mean is $\\bar{x} = \\frac{\\sum x_i}{n}$. Use Markdown pipe tables for tabular comparisons and ### for sub-headings. Do NOT wrap the whole reply in a code block.',
+    '- FIGURE CAPTIONS: this content is also read aloud by a text-to-speech tutor that does NOT read tables cell-by-cell. So whenever you include a Markdown table, put a caption on the very next line in the exact form: "*Figure: <one concise sentence saying what the table shows or proves>*" (you may use "*Chart: ...*" or "*Spreadsheet: ...*" instead when that word fits better). The caption is what the voice speaks in place of the numbers, so make it self-contained and meaningful. One caption per table.',
     '',
     `MODULE CONTEXT: ${body.moduleTitle ? `Module ${body.moduleNumber ?? ''} — ${body.moduleTitle}` : 'general study'}${body.sectionTitle ? ` (section: ${body.sectionTitle})` : ''}.`,
     '',
