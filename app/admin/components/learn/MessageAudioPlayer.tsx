@@ -10,7 +10,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Play, Pause, RotateCcw, Rewind, FastForward } from 'lucide-react';
-import { speakableText } from '@/lib/learn/speakable';
+import { speakableText, scriptToSpeech } from '@/lib/learn/speakable';
 
 function fmt(s: number): string {
   if (!Number.isFinite(s) || s < 0) s = 0;
@@ -20,13 +20,17 @@ function fmt(s: number): string {
 }
 
 export default function MessageAudioPlayer({
-  text, active, onActivate, figureGroup,
+  text, script, active, onActivate, figureGroup,
 }: {
   text: string;
+  script?: string;      // purpose-built teaching narration; preferred over `text` when present
   active: boolean;      // is this the currently-playing message (others pause)
   onActivate: () => void; // called when this player starts (stops other audio)
   figureGroup?: number; // number half of figure labels (1 → "figure 1A"); matches the on-screen badge
 }) {
+  // What the voice actually says: the teaching script if we have one, else the
+  // normalized display reply.
+  const spoken = () => (script && script.trim() ? scriptToSpeech(script, { figureGroup }) : speakableText(text, { figureGroup }));
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const urlRef = useRef<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'browser' | 'error'>('idle');
@@ -53,7 +57,7 @@ export default function MessageAudioPlayer({
     try {
       const res = await fetch('/api/admin/learn/tts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: speakableText(text, { figureGroup }) }),
+        body: JSON.stringify({ text: spoken() }),
       });
       if (!res.ok) { setStatus('browser'); return null; } // 503 → no premium provider
       const url = URL.createObjectURL(await res.blob());
@@ -101,7 +105,7 @@ export default function MessageAudioPlayer({
     if (playing) { ss.cancel(); setPlaying(false); return; }
     onActivate();
     ss.cancel();
-    const u = new SpeechSynthesisUtterance(speakableText(text, { figureGroup }));
+    const u = new SpeechSynthesisUtterance(spoken());
     u.lang = 'en-US';
     u.onend = () => setPlaying(false);
     u.onerror = () => setPlaying(false);

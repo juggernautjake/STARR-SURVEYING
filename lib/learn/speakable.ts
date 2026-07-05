@@ -344,41 +344,68 @@ function normalizeNumbersAndSymbols(text: string): string {
 }
 
 /**
- * Turn study Markdown into a clean spoken string (+ the figures it referenced).
+ * The shared prose→speech pipeline: LaTeX math → words, markdown stripped,
+ * angles/units/numbers/symbols expanded, lone variables enunciated, then a
+ * safety-net cleanup. Input should already have tables removed (or be
+ * table-free prose like a voice script).
  */
-export function toSpeakable(markdown: string, opts: SpeakableOptions = {}): SpeakableResult {
-  if (!markdown || !markdown.trim()) return { text: '', figures: [] };
-  const figureGroup = opts.figureGroup ?? 1;
-
-  // 1) tables/charts → reference sentences (drops the dense grids)
-  const { text: noTables, figures } = extractFigures(markdown.replace(/\r\n?/g, '\n'), figureGroup);
-
-  // 2) LaTeX math → words (reuses the same span-finder as the KaTeX renderer,
-  //    incl. its currency guard so "$5" is left for the currency rule below)
-  let s = replaceMathSpans(noTables, (latex) => latexToSpeech(latex));
-
-  // 3) prose cleanup, then domain expansion
+function normalizeProse(input: string): string {
+  // LaTeX math → words (reuses the KaTeX span-finder incl. its currency guard).
+  let s = replaceMathSpans(input, (latex) => latexToSpeech(latex));
   s = stripMarkdown(s);
   s = expandAngles(s);
   s = expandUnits(s);
   s = normalizeNumbersAndSymbols(s);
-
-  // 4) lone-variable enunciation (after everything else so "n squared" → "en …")
+  // lone-variable enunciation last, so "n squared" → "en …" etc.
   s = enunciateLoneLetters(s);
-
-  // 5) safety net: strip any leftover math/table glyphs and tidy whitespace
-  s = s
+  // safety net: strip leftover math/table glyphs and tidy whitespace
+  return s
     .replace(/[\\{}$|~^]/g, ' ')
     .replace(/\s*\n\s*/g, ' ')
     .replace(/[ \t]{2,}/g, ' ')
     .replace(/\s+([,.;:!?])/g, '$1')
     .replace(/([,.;:!?]){2,}/g, '$1')
     .trim();
+}
 
-  return { text: s, figures };
+/**
+ * Turn study Markdown into a clean spoken string (+ the figures it referenced).
+ * Used to read a display reply directly when no purpose-built voice script
+ * exists (fallback / saved conversations).
+ */
+export function toSpeakable(markdown: string, opts: SpeakableOptions = {}): SpeakableResult {
+  if (!markdown || !markdown.trim()) return { text: '', figures: [] };
+  const figureGroup = opts.figureGroup ?? 1;
+  // tables/charts → reference sentences (drops the dense grids), then normalize.
+  const { text: noTables, figures } = extractFigures(markdown.replace(/\r\n?/g, '\n'), figureGroup);
+  return { text: normalizeProse(noTables), figures };
 }
 
 /** Convenience: just the spoken string. */
 export function speakableText(markdown: string, opts?: SpeakableOptions): string {
   return toSpeakable(markdown, opts).text;
+}
+
+// Figure-reference token the tutor emits inside a VOICE SCRIPT — [[FIG1]] means
+// "the first table/chart in this reply". We resolve it here to the SAME label
+// the display renderer shows ("figure 1A"), so the spoken reference and the
+// on-screen badge always agree.
+const FIG_TOKEN_RE = /\[\[\s*FIG\s*(\d+)\s*\]\]/gi;
+
+/**
+ * Render a model-authored teaching script (already plain-spoken prose, but may
+ * contain [[FIGn]] tokens + the odd stray symbol/variable) into the final spoken
+ * string. Resolves figure tokens to on-screen labels, then runs the same
+ * normalizer as a safety net.
+ */
+export function scriptToSpeech(script: string, opts: SpeakableOptions = {}): string {
+  if (!script || !script.trim()) return '';
+  const figureGroup = opts.figureGroup ?? 1;
+  const resolved = script
+    .replace(/\r\n?/g, '\n')
+    .replace(FIG_TOKEN_RE, (_m, n: string) => {
+      const idx = Math.max(0, (parseInt(n, 10) || 1) - 1);
+      return ` figure ${figureGroup} ${figureLetter(idx)} `;
+    });
+  return normalizeProse(resolved);
 }
