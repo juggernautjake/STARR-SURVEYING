@@ -4,13 +4,21 @@ import { createClient } from '@supabase/supabase-js';
 // module evaluation when env vars are absent. At runtime the real env vars
 // are always required — any Supabase call with placeholder credentials will
 // fail loudly at the network level rather than crashing at module load.
+// The public (anon) client. Give it an explicit storageKey so it owns exactly
+// one GoTrue auth slot in the browser.
 export const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key',
+  { auth: { storageKey: 'starr-sb-auth', persistSession: true, autoRefreshToken: true } },
 );
+// The service-role client is used only in server code (API routes). It must NOT
+// register a second GoTrueClient/auth-storage listener — that's what triggers
+// the "Multiple GoTrueClient instances detected" browser warning when this
+// module is pulled into a client bundle. persistSession:false makes it stateless.
 export const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
   process.env.SUPABASE_SERVICE_ROLE_KEY || 'placeholder-service-key',
+  { auth: { persistSession: false, autoRefreshToken: false } },
 );
 
 // ── Storage Bucket Utilities ─────────────────────────────────────────────────

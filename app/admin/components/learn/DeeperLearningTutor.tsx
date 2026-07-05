@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Sparkles, GraduationCap, X, Send, BookOpen, Volume2, VolumeX, Mic, Headphones, History, MessageCircle, ChevronLeft, Plus, Trash2 } from 'lucide-react';
 import ProblemCard, { type ProblemData, type GradeResult } from '@/app/admin/components/learn/ProblemCard';
+import MessageAudioPlayer from '@/app/admin/components/learn/MessageAudioPlayer';
 import { renderStudyMarkdown } from '@/lib/learn/study-markdown';
 
 export interface TutorContext {
@@ -86,6 +87,7 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const premiumTtsRef = useRef<boolean | null>(null); // null=unknown, false=unavailable
+  const [activeAudio, setActiveAudio] = useState<number | null>(null);
   const [convoMode, setConvoMode] = useState(false);
   const convoModeRef = useRef(convoMode);
   useEffect(() => { convoModeRef.current = convoMode; }, [convoMode]);
@@ -204,6 +206,7 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
     if (audioRef.current) { try { audioRef.current.pause(); } catch { /* noop */ } audioRef.current = null; }
   }
 
+
   // Track the live text selection while highlighting.
   useEffect(() => {
     if (mode !== 'selecting') return;
@@ -259,7 +262,7 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   }
   function closeChat() {
     void saveConversation(); // captures the current thread before it's cleared
-    stopSpeaking(); stopListening();
+    stopSpeaking(); stopListening(); setActiveAudio(null);
     setMode('idle'); setShowHistory(false); setMenuOpen(false);
     setThread([]); setRelated([]); setTopic(''); setError(null); setInput(''); setConvoMode(false);
     setConversationId(null); convIdRef.current = null;
@@ -378,6 +381,7 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
       // Conversation mode: read the reply, then auto-open the mic so the student
       // can just speak back (listen only AFTER speaking, to avoid mic/TTS echo).
       if (speakRef.current || convoModeRef.current) {
+        setActiveAudio(null); // global read-aloud takes over — pause any per-message players
         speakText(replyText, convoModeRef.current ? () => startListening() : undefined);
       }
       if (Array.isArray(data.relatedProblems)) setRelated(data.relatedProblems);
@@ -542,7 +546,13 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
                   <div key={i} ref={i === thread.length - 1 ? lastItemRef : undefined}
                     className={`ai-tutor__msg ai-tutor__msg--${it.role}`}>
                     {it.role === 'assistant'
-                      ? <div className="ai-tutor__bubble study-md" dangerouslySetInnerHTML={{ __html: renderStudyMarkdown(it.content) }} />
+                      ? (
+                        <div className="ai-tutor__msg-col">
+                          <div className="ai-tutor__bubble study-md" dangerouslySetInnerHTML={{ __html: renderStudyMarkdown(it.content) }} />
+                          <MessageAudioPlayer text={it.content} active={activeAudio === i}
+                            onActivate={() => { setActiveAudio(i); stopSpeaking(); }} />
+                        </div>
+                      )
                       : <div className="ai-tutor__bubble">{it.content}</div>}
                   </div>
                 )
