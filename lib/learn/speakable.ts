@@ -146,7 +146,7 @@ const MATH_COMMANDS: Record<string, string> = {
   mp: ' minus or plus ', approx: ' approximately ', neq: ' not equal to ',
   leq: ' less than or equal to ', le: ' less than or equal to ',
   geq: ' greater than or equal to ', ge: ' greater than or equal to ',
-  equiv: ' equivalent to ', propto: ' proportional to ', sim: ' about ',
+  ne: ' not equal to ', equiv: ' equivalent to ', propto: ' proportional to ', sim: ' about ',
   sum: ' the sum of ', prod: ' the product of ', int: ' the integral of ',
   infty: ' infinity ', partial: ' partial ', nabla: ' del ', angle: ' angle ',
   cong: ' congruent to ', perp: ' perpendicular to ', parallel: ' parallel to ',
@@ -298,6 +298,12 @@ function stripMarkdown(text: string): string {
     .replace(/^\s*(?:---|\*\*\*|___)\s*$/gm, ' ');
 }
 
+const DIGIT_WORD: Record<string, string> = {
+  '0': 'zero', '1': 'one', '2': 'two', '3': 'three', '4': 'four',
+  '5': 'five', '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine',
+};
+const speakDigits = (s: string): string => s.split('').map((d) => DIGIT_WORD[d] ?? d).join(' ');
+
 function normalizeNumbersAndSymbols(text: string): string {
   let s = text;
   for (const [re, rep] of UNICODE) s = s.replace(re, rep);
@@ -307,6 +313,14 @@ function normalizeNumbersAndSymbols(text: string): string {
     .replace(/\bvs\.?\b/gi, 'versus')
     .replace(/\betc\.\b/gi, 'etcetera')
     .replace(/\bapprox\.\b/gi, 'approximately')
+    // comparison / equals operators written as bare ASCII in prose (e.g. the
+    // tutor writes "a = b" without $…$). Math spans are already handled in
+    // latexToSpeech; this catches the plain-text ones the voice would otherwise
+    // read as a raw "=" glyph. Compound forms first, then a lone "=".
+    .replace(/\s*>=\s*/g, ' greater than or equal to ')
+    .replace(/\s*<=\s*/g, ' less than or equal to ')
+    .replace(/\s*!=\s*/g, ' not equal to ')
+    .replace(/\s*=+\s*/g, ' equals ')
     // ² ³ that slipped through (e.g. "x²")
     .replace(/²/g, ' squared ').replace(/³/g, ' cubed ')
     // ranges between numbers → "to"
@@ -318,8 +332,12 @@ function normalizeNumbersAndSymbols(text: string): string {
     .replace(/\$\s*(\d[\d,]*(?:\.\d+)?)/g, '$1 dollars')
     // negative sign directly before a number
     .replace(/(^|[\s(])[-−]\s*(?=\d)/g, '$1negative ')
-    // decimals: keep the point but say it
-    .replace(/(\d)\.(\d)/g, '$1 point $2')
+    // decimals: read the integer part as a normal number but speak the
+    // fractional digits ONE AT A TIME, so runs of zeros survive intact —
+    // "0.000025" → "0 point zero zero zero zero two five" (not a mangled
+    // "point 000025" the voice trips over). Handles a leading-dot form too.
+    .replace(/(\d[\d,]*)\.(\d+)/g, (_m, intPart: string, frac: string) => `${intPart} point ${speakDigits(frac)}`)
+    .replace(/(^|[^\w.])\.(\d+)/g, (_m, pre: string, frac: string) => `${pre}zero point ${speakDigits(frac)}`)
     // stray percent / ampersand
     .replace(/%/g, ' percent ').replace(/\s&\s/g, ' and ');
   return s;
