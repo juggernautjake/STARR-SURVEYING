@@ -186,6 +186,30 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ ok: true });
   }
 
+  if (action === 'discover_module_cards') {
+    // Auto-discover this module's built-in flashcards so they flow into the
+    // student's global "due" queue — the "practice as you go" behavior.
+    // Mirrors app/api/admin/learn/progress/route.ts. Best-effort; a no-op until
+    // FS cards are authored (P7). Idempotent via the user_email,card_id conflict.
+    if (!module_id) return NextResponse.json({ error: 'module_id required' }, { status: 400 });
+    try {
+      const { data: cards } = await supabaseAdmin.from('flashcards')
+        .select('id').eq('module_id', module_id);
+      if (cards && cards.length > 0) {
+        const discoveries = cards.map((c: { id: string }) => ({
+          user_email: userEmail,
+          card_id: c.id,
+          card_source: 'builtin',
+          module_id,
+          next_yearly_review_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        }));
+        await supabaseAdmin.from('user_flashcard_discovery')
+          .upsert(discoveries, { onConflict: 'user_email,card_id' });
+      }
+    } catch { /* discovery is optional */ }
+    return NextResponse.json({ ok: true });
+  }
+
   if (action === 'start_module') {
     // Mark module as in_progress
     const { data, error } = await supabaseAdmin.from('fs_module_progress')
