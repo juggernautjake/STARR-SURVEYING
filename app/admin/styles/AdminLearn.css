@@ -2985,6 +2985,11 @@
 .ai-tutor__msg--user { justify-content:flex-end; }
 .ai-tutor__bubble { max-width:88%; padding:.6rem .75rem; border-radius:12px; font-size:.9rem; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; }
 .ai-tutor__msg--assistant .ai-tutor__bubble { background:#f1f3f9; color:#111827; border-bottom-left-radius:4px; white-space:normal; }
+.ai-tutor__msg-col { display:flex; flex-direction:column; align-items:flex-start; gap:2px; max-width:90%; min-width:0; }
+.ai-tutor__msg-col .ai-tutor__bubble { max-width:100%; }
+.ai-tutor__play { display:inline-flex; align-items:center; gap:.25rem; margin-left:2px; background:none; border:none; cursor:pointer; color:#6b7280; font:600 .68rem 'Segoe UI',system-ui,sans-serif; padding:.12rem .35rem; border-radius:6px; }
+.ai-tutor__play:hover { background:#eef2ff; color:#1d3095; }
+.ai-tutor__play.is-playing { color:#1d3095; background:#eef2ff; }
 .ai-tutor__msg--user .ai-tutor__bubble { background:#1d3095; color:#fff; border-bottom-right-radius:4px; }
 .ai-tutor__bubble p { margin:0 0 .5rem; } .ai-tutor__bubble p:last-child { margin:0; }
 .ai-tutor__bubble ul { margin:.3rem 0; padding-left:1.15rem; } .ai-tutor__bubble li { margin:.15rem 0; }

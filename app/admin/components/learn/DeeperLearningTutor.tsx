@@ -11,7 +11,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Sparkles, GraduationCap, X, Send, BookOpen, Volume2, VolumeX, Mic, Headphones, History, MessageCircle, ChevronLeft, Plus, Trash2 } from 'lucide-react';
+import { Sparkles, GraduationCap, X, Send, BookOpen, Volume2, VolumeX, Mic, Headphones, History, MessageCircle, ChevronLeft, Plus, Trash2, Square } from 'lucide-react';
 import ProblemCard, { type ProblemData, type GradeResult } from '@/app/admin/components/learn/ProblemCard';
 import { renderStudyMarkdown } from '@/lib/learn/study-markdown';
 
@@ -86,6 +86,7 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const premiumTtsRef = useRef<boolean | null>(null); // null=unknown, false=unavailable
+  const [playingIdx, setPlayingIdx] = useState<number | null>(null);
   const [convoMode, setConvoMode] = useState(false);
   const convoModeRef = useRef(convoMode);
   useEffect(() => { convoModeRef.current = convoMode; }, [convoMode]);
@@ -204,6 +205,14 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
     if (audioRef.current) { try { audioRef.current.pause(); } catch { /* noop */ } audioRef.current = null; }
   }
 
+  // Per-message replay: click to play a specific reply aloud (premium voice, then
+  // browser fallback); click again to stop. Replayable as many times as you like.
+  function playMessage(idx: number, content: string) {
+    if (playingIdx === idx) { stopSpeaking(); setPlayingIdx(null); return; }
+    setPlayingIdx(idx);
+    speakText(content, () => setPlayingIdx(null)); // speakText stops any current audio first
+  }
+
   // Track the live text selection while highlighting.
   useEffect(() => {
     if (mode !== 'selecting') return;
@@ -259,7 +268,7 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
   }
   function closeChat() {
     void saveConversation(); // captures the current thread before it's cleared
-    stopSpeaking(); stopListening();
+    stopSpeaking(); stopListening(); setPlayingIdx(null);
     setMode('idle'); setShowHistory(false); setMenuOpen(false);
     setThread([]); setRelated([]); setTopic(''); setError(null); setInput(''); setConvoMode(false);
     setConversationId(null); convIdRef.current = null;
@@ -542,7 +551,17 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
                   <div key={i} ref={i === thread.length - 1 ? lastItemRef : undefined}
                     className={`ai-tutor__msg ai-tutor__msg--${it.role}`}>
                     {it.role === 'assistant'
-                      ? <div className="ai-tutor__bubble study-md" dangerouslySetInnerHTML={{ __html: renderStudyMarkdown(it.content) }} />
+                      ? (
+                        <div className="ai-tutor__msg-col">
+                          <div className="ai-tutor__bubble study-md" dangerouslySetInnerHTML={{ __html: renderStudyMarkdown(it.content) }} />
+                          <button className={`ai-tutor__play ${playingIdx === i ? 'is-playing' : ''}`}
+                            onClick={() => playMessage(i, it.content)}
+                            title={playingIdx === i ? 'Stop playback' : 'Play this reply aloud'}>
+                            {playingIdx === i ? <Square size={12} /> : <Volume2 size={12} />}
+                            {playingIdx === i ? 'Stop' : 'Play'}
+                          </button>
+                        </div>
+                      )
                       : <div className="ai-tutor__bubble">{it.content}</div>}
                   </div>
                 )
