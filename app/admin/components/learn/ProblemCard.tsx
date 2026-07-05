@@ -7,6 +7,7 @@
 
 import { useState } from 'react';
 import { Check, X, ChevronDown, Sparkles, RefreshCw } from 'lucide-react';
+import { renderMathText } from '@/lib/learn/math';
 
 export interface ProblemData {
   id: string;
@@ -63,7 +64,7 @@ export default function ProblemCard({
         {problem.difficulty && <span className="problem-card__diff">{problem.difficulty}</span>}
       </div>
 
-      <div className="problem-card__q">{problem.question_text}</div>
+      <div className="problem-card__q" dangerouslySetInnerHTML={{ __html: renderMathText(problem.question_text) }} />
 
       {problem.diagram && (
         <div className="problem-card__diagram" dangerouslySetInnerHTML={{ __html: problem.diagram }} />
@@ -122,11 +123,11 @@ export default function ProblemCard({
                   {result.solutionSteps?.map((s, i) => (
                     <div key={i} className="problem-card__step">
                       {s.title && <div className="problem-card__step-title">{s.step_number ? `${s.step_number}. ` : ''}{s.title}</div>}
-                      {(s.calculation || s.calculation_template) && <div className="problem-card__step-calc">{s.calculation || s.calculation_template}</div>}
-                      {(s.result || s.result_template) && <div className="problem-card__step-res">{s.result || s.result_template}</div>}
+                      {(s.calculation || s.calculation_template) && <div className="problem-card__step-calc" dangerouslySetInnerHTML={{ __html: renderMathText((s.calculation || s.calculation_template) as string) }} />}
+                      {(s.result || s.result_template) && <div className="problem-card__step-res" dangerouslySetInnerHTML={{ __html: renderMathText((s.result || s.result_template) as string) }} />}
                     </div>
                   ))}
-                  {result.explanation && <div className="problem-card__explain">{result.explanation}</div>}
+                  {result.explanation && <div className="problem-card__explain" dangerouslySetInnerHTML={{ __html: renderMathText(result.explanation) }} />}
                 </div>
               )}
             </div>

@@ -9,9 +9,13 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { decodeUnicodeEscapes } from '@/lib/decodeUnicode';
 import DeeperLearningTutor from '@/app/admin/components/learn/DeeperLearningTutor';
+import { renderMath, renderMathInHtml } from '@/lib/learn/math';
 
-/** Shorthand for dangerouslySetInnerHTML with unicode escape decoding */
-function dhtml(html: string) { return { __html: decodeUnicodeEscapes(html || '') }; }
+/** Shorthand for dangerouslySetInnerHTML with unicode escape decoding.
+ *  Also renders any inline/block LaTeX ($…$ / $$…$$) in the block content, so
+ *  every rich block (text, callout, table cell, tabs, columns…) shows real
+ *  math instead of raw source. */
+function dhtml(html: string) { return { __html: renderMathInHtml(decodeUnicodeEscapes(html || '')) }; }
 
 /* ── Confetti burst (lightweight CSS-only, no deps) ── */
 function ConfettiBurst({ onDone }: { onDone: () => void }) {
@@ -59,32 +63,16 @@ function getBlockRows(blockList: LessonBlock[]): { rowGroup: string | null; bloc
   return rows;
 }
 
-// Lightweight LaTeX to HTML renderer for common math notation
+// Equation blocks are stored as a bare LaTeX string; render them with KaTeX
+// (display mode). Strips a single wrapping $$…$$ / \[…\] if the author included
+// the delimiters. Inline math inside prose blocks is handled by dhtml() above.
 function renderLatex(tex: string): string {
   if (!tex) return '';
-  let html = tex
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '<span class="eq-frac"><span class="eq-num">$1</span><span class="eq-den">$2</span></span>')
-    .replace(/\\sqrt\{([^}]+)\}/g, '<span class="eq-sqrt">&radic;<span style="text-decoration:overline">$1</span></span>')
-    .replace(/\^\{([^}]+)\}/g, '<sup>$1</sup>').replace(/\^([a-zA-Z0-9])/g, '<sup>$1</sup>')
-    .replace(/_\{([^}]+)\}/g, '<sub>$1</sub>').replace(/_([a-zA-Z0-9])/g, '<sub>$1</sub>')
-    .replace(/\\alpha/g, '&alpha;').replace(/\\beta/g, '&beta;').replace(/\\gamma/g, '&gamma;')
-    .replace(/\\delta/g, '&delta;').replace(/\\epsilon/g, '&epsilon;').replace(/\\theta/g, '&theta;')
-    .replace(/\\lambda/g, '&lambda;').replace(/\\mu/g, '&mu;').replace(/\\pi/g, '&pi;')
-    .replace(/\\sigma/g, '&sigma;').replace(/\\phi/g, '&phi;').replace(/\\omega/g, '&omega;')
-    .replace(/\\Delta/g, '&Delta;').replace(/\\Sigma/g, '&Sigma;').replace(/\\Omega/g, '&Omega;')
-    .replace(/\\Theta/g, '&Theta;').replace(/\\Pi/g, '&Pi;')
-    .replace(/\\times/g, '&times;').replace(/\\div/g, '&divide;').replace(/\\pm/g, '&plusmn;')
-    .replace(/\\cdot/g, '&middot;').replace(/\\leq/g, '&le;').replace(/\\geq/g, '&ge;')
-    .replace(/\\neq/g, '&ne;').replace(/\\approx/g, '&asymp;').replace(/\\infty/g, '&infin;')
-    .replace(/\\sum/g, '&Sigma;').replace(/\\prod/g, '&Pi;').replace(/\\int/g, '&int;')
-    .replace(/\\partial/g, '&part;').replace(/\\nabla/g, '&nabla;')
-    .replace(/\\rightarrow/g, '&rarr;').replace(/\\leftarrow/g, '&larr;')
-    .replace(/\\Rightarrow/g, '&rArr;').replace(/\\Leftarrow/g, '&lArr;')
-    .replace(/\\quad/g, '&emsp;').replace(/\\,/g, '&thinsp;')
-    .replace(/\\text\{([^}]+)\}/g, '<span style="font-style:normal;font-family:Inter,sans-serif">$1</span>')
-    .replace(/\\([a-zA-Z]+)/g, '<em>$1</em>');
-  return html;
+  const stripped = tex.trim()
+    .replace(/^\$\$([\s\S]*?)\$\$$/, '$1')
+    .replace(/^\\\[([\s\S]*?)\\\]$/, '$1')
+    .trim();
+  return renderMath(stripped, true);
 }
 
 export default function LessonViewerPage() {
