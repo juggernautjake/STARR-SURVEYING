@@ -186,9 +186,12 @@ export default function DeeperLearningTutor({ context }: { context: TutorContext
           try { await audio.play(); return; }
           catch { URL.revokeObjectURL(url); if (audioRef.current === audio) audioRef.current = null; /* fall back */ }
         } else {
-          premiumTtsRef.current = false; // 503/502 → don't retry the network each reply
+          // Only give up on premium permanently when the server says no provider
+          // is configured (503). Transient errors (502, etc.) fall back just this
+          // once but retry premium on the next reply.
+          if (res.status === 503) premiumTtsRef.current = false;
         }
-      } catch { /* network error → fall back */ }
+      } catch { /* network error → fall back this once, keep trying next time */ }
     }
     browserSpeak(plain, onEnd);
   }
