@@ -193,14 +193,15 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     // FS cards are authored (P7). Idempotent via the user_email,card_id conflict.
     if (!module_id) return NextResponse.json({ error: 'module_id required' }, { status: 400 });
     try {
+      // FS built-in cards are scoped by category (module_id FKs a different course).
       const { data: cards } = await supabaseAdmin.from('flashcards')
-        .select('id').eq('module_id', module_id);
+        .select('id').eq('category', `fs:${module_id}`);
       if (cards && cards.length > 0) {
         const discoveries = cards.map((c: { id: string }) => ({
           user_email: userEmail,
           card_id: c.id,
           card_source: 'builtin',
-          module_id,
+          // module_id omitted: it FKs learning_modules, not fs_study_modules.
           next_yearly_review_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
         }));
         await supabaseAdmin.from('user_flashcard_discovery')

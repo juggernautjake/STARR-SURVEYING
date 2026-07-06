@@ -33,7 +33,8 @@ export default function FlashcardsPanel({ moduleId, moduleNumber }: { moduleId: 
     try {
       // discovered=false → show ALL of this module's built-in cards (the student
       // is actively studying the module), alongside their own cards.
-      const res = await fetch(`/api/admin/learn/flashcards?module_id=${moduleId}&discovered=false`);
+      // FS built-in cards are scoped by category (module_id FKs a different course).
+      const res = await fetch(`/api/admin/learn/flashcards?category=fs:${moduleId}&discovered=false`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setError(data.error || 'Could not load flashcards.'); }
       else setCards(data.cards || []);
@@ -49,7 +50,7 @@ export default function FlashcardsPanel({ moduleId, moduleNumber }: { moduleId: 
     try {
       const res = await fetch('/api/admin/learn/flashcards', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source: 'user', module_id: moduleId, term, definition, hint_1: hint || undefined }),
+        body: JSON.stringify({ source: 'user', category: `fs:${moduleId}`, term, definition, hint_1: hint || undefined }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) setError(data.error || 'Could not save the card.');

@@ -51,16 +51,17 @@ describe('seeds/402 — FS built-in flashcards', () => {
     }
   });
 
-  it('links every card to its FS module id and namespacing tags', () => {
+  it('scopes every card to its FS module via category=fs:<uuid> (module_id NULL, FK-safe)', () => {
     for (let n = 1; n <= 10; n++) {
       const modId = `f500000${n.toString(16)}-0000-0000-0000-${n.toString(16).padStart(12, '0')}`;
-      expect(SEED, `module ${n} id`).toContain(`'${modId}'`);
+      expect(SEED, `module ${n} category`).toContain(`'fs:${modId}'`);
     }
+    // module_id is left NULL for every insert (it FKs a different course's table)
+    expect((SEED.match(/, NULL, ARRAY\[/g) ?? []).length).toBe(190);
     // every insert carries the shared namespace tag
-    const tagged = SEED.match(/'fs-flashcards'/g) ?? [];
-    expect(tagged.length).toBeGreaterThanOrEqual(190);
-    // published + approved so they surface in the learner UI
-    expect((SEED.match(/, true, 'approved'\);/g) ?? []).length).toBe(190);
+    expect((SEED.match(/'fs-flashcards'/g) ?? []).length).toBeGreaterThanOrEqual(190);
+    // published + approved with a valid difficulty domain so they surface in the UI
+    expect((SEED.match(/'(beginner|intermediate|advanced|expert)', true, 'approved'\);/g) ?? []).length).toBe(190);
   });
 });
 
