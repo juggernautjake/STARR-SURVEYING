@@ -13,12 +13,15 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const isCadHarness = pathname.startsWith('/cad-harness');
   // The env-gated admin UX-audit harness renders admin pages bare.
   const isUxHarness = pathname.startsWith('/ux-harness');
+  // The hidden /dnd D&D platform owns its own chrome (Hextech DM UI +
+  // full-viewport bespoke character sheets) — no marketing header/footer.
+  const isDnd = pathname.startsWith('/dnd');
 
   // Marketing Header + Footer are intentionally suppressed on the
   // admin shell, the operator console, and the bare auth pages —
   // each of those owns its own chrome (AdminLayoutClient /
   // PlatformLayoutClient / etc.).
-  if (isAdmin || isPlatform || isAuthPage || isCadHarness || isUxHarness) {
+  if (isAdmin || isPlatform || isAuthPage || isCadHarness || isUxHarness || isDnd) {
     return <>{children}</>;
   }
 

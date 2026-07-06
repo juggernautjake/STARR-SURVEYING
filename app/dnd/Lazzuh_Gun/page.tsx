@@ -1,29 +1,23 @@
+// app/dnd/Lazzuh_Gun/page.tsx — the Lazzuh Gun character sheet, rendered NATIVELY
+// (Phase C6). This replaces the old static-SPA iframe (public/dnd-sheet/) with the
+// vendored, CSS-scoped sheet running as a real Next client component.
+//
+// It stays public + localStorage-backed here, preserving the hidden personal
+// sheet's exact behavior (no login needed, per-browser persistence). Upgrading it
+// to DB-backed + login-gated (render `<SheetRoot characterId={LAZZUH_CHARACTER_ID} />`,
+// drop the middleware exemption) is the C6b follow-up — deferred pending the
+// public-vs-login decision so we don't lock the owner out of their own sheet or
+// silently drop anonymous edits.
 import type { Metadata } from 'next';
+import SheetRoot from '@/app/dnd/_sheet/SheetRoot';
 
-// Hidden personal page — the Lazzuh Gun D&D 2024 character sheet.
-// Reachable ONLY at /dnd/Lazzuh_Gun (not linked in any nav, not in the sitemap).
-// The sheet is a self-contained SPA served statically from /public/dnd-sheet/ and
-// mounted in a full-viewport iframe so its global CSS/JS can't collide with the
-// rest of the site. Rebuild it with `node scripts/build-dnd-sheet.mjs`.
 export const metadata: Metadata = {
   title: 'Lazzuh Gun',
   robots: { index: false, follow: false },
 };
+export const dynamic = 'force-dynamic';
 
 export default function LazzuhGunSheetPage() {
-  return (
-    <iframe
-      src="/dnd-sheet/index.html"
-      title="Lazzuh Gun — Character Sheet"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        width: '100vw',
-        height: '100vh',
-        border: 'none',
-        zIndex: 100000,
-        background: '#080512',
-      }}
-    />
-  );
+  // sheet_type 'lazzuh' → the neon skin + the Surge/forms module (C7/C8 registry).
+  return <SheetRoot sheetType="lazzuh" />;
 }

@@ -85,8 +85,58 @@ function matchesRoute(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(prefix + '/');
 }
 
+// ── /dnd (hidden D&D platform) gate — Phase B, B6 ──
+// The /dnd area has its OWN cookie-based auth (lib/dnd/auth.ts), separate from
+// staff next-auth. Middleware runs on the Edge runtime, where the node:crypto
+// HMAC verify used by the session lib isn't available — so here we only do a
+// cheap PRESENCE check on the `dnd_session` cookie for a fast redirect. Full
+// signature verification still happens server-side in every /dnd page/route
+// via getDndUser() (a forged/expired cookie passes this gate but resolves to
+// null there and bounces to login), so this layer is UX, not the security
+// boundary.
+function dndGate(req: Parameters<Parameters<typeof auth>[0]>[0]): NextResponse | null {
+  const { pathname } = req.nextUrl;
+  if (!pathname.startsWith('/dnd')) return null;
+
+  // Access model (user decision 2026-07-06): /dnd is PUBLIC by default — reachable by
+  // direct link only (noindex + no marketing links in). Let every /dnd route through;
+  // pages that still need an identity redirect themselves (the visitor enters via a
+  // roster card first). The invite/login flow (B1–B7) is retained and re-enabled by
+  // setting DND_REQUIRE_LOGIN=1, which falls through to the cookie gate below.
+  if (process.env.DND_REQUIRE_LOGIN !== '1') return NextResponse.next();
+
+  // Public within /dnd: the sign-in + invite-acceptance pages, and the Lazzuh_Gun
+  // sheet — both the legacy iframe bridge and the C2 native preview at
+  // /dnd/Lazzuh_Gun/native (this sheet has always been hidden-by-URL, not
+  // auth-gated; C6 consolidates it and retires the iframe).
+  const isPublic =
+    pathname === '/dnd/login' ||
+    pathname.startsWith('/dnd/join') ||
+    pathname === '/dnd/Lazzuh_Gun' ||
+    pathname.startsWith('/dnd/Lazzuh_Gun/');
+
+  const hasSession = Boolean(req.cookies.get('dnd_session')?.value);
+
+  // Signed-in user hitting login/join → send them into the app.
+  if (hasSession && (pathname === '/dnd/login' || pathname.startsWith('/dnd/join'))) {
+    return NextResponse.redirect(new URL('/dnd', req.url));
+  }
+  if (isPublic) return NextResponse.next();
+  if (!hasSession) {
+    const loginUrl = new URL('/dnd/login', req.url);
+    loginUrl.searchParams.set('next', pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+  return NextResponse.next();
+}
+
 export default auth((req) => {
   const { pathname } = req.nextUrl;
+
+  // /dnd runs its own auth; handle it before the staff /admin logic.
+  const dnd = dndGate(req);
+  if (dnd) return dnd;
+
   if (!pathname.startsWith('/admin')) return NextResponse.next();
 
   // consolidation Slice 2 (2026-05-30) — legacy URL redirects run
@@ -165,4 +215,4 @@ export default auth((req) => {
   return NextResponse.next();
 });
 
-export const config = { matcher: ['/admin/:path*'] };
+export const config = { matcher: ['/admin/:path*', '/dnd/:path*'] };

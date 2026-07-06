@@ -1,0 +1,184 @@
+import { useEffect, useRef, useState } from 'react'
+import { useChar } from '../state/store'
+import type { RollEntry } from '../state/store'
+import { tick, blip, errorBuzz, tada, whoosh, isMuted, primeAudio } from '../lib/audio'
+
+const NEON = [
+  '#ff2d8b', '#ff5fb0', '#22e0e0', '#12b6b6', '#ffcc3f', '#a78bfa', '#8b5cf6',
+  '#4ade80', '#ff7a3d', '#60a5fa', '#f472b6', '#22d3ee', '#a3e635', '#fb7185', '#38bdf8', '#e879f9',
+]
+const FONTS = [
+  "'Orbitron'", "'Audiowide'", "'Chakra Petch'", "'Rajdhani'", "'Syncopate'", "'Michroma'", "'JetBrains Mono'", "'Oswald'",
+]
+const WEIGHTS = [500, 600, 700, 800, 900]
+
+function randOf<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
+}
+function randInt(min: number, max: number): number {
+  if (max < min) max = min
+  return Math.floor(Math.random() * (max - min + 1)) + min
+}
+
+interface DisplayStyle {
+  color: string
+  fontFamily: string
+  fontWeight: number
+  rotate: number
+}
+
+export default function RollStage() {
+  const { activeRoll, commitRoll } = useChar()
+  const [display, setDisplay] = useState<number | string>('—')
+  const [style, setStyle] = useState<DisplayStyle>({ color: '#22e0e0', fontFamily: "'Orbitron'", fontWeight: 800, rotate: 0 })
+  const [phase, setPhase] = useState<'idle' | 'spinning' | 'crit' | 'fumble' | 'done'>('idle')
+  const [reveal, setReveal] = useState<{ total: number; breakdown: string; label: string; tag?: string; isD20: boolean } | null>(null)
+  const timer = useRef<number | null>(null)
+  const lastToken = useRef<number>(-1)
+  const pending = useRef<{ entry: Omit<RollEntry, 'id'>; done: boolean } | null>(null)
+
+  // commit any not-yet-logged roll (called before starting a new spin so rapid
+  // clicks never drop entries and nothing gets stuck mid-animation)
+  const flush = () => {
+    if (pending.current && !pending.current.done) {
+      commitRoll(pending.current.entry)
+      pending.current.done = true
+    }
+  }
+
+  // reset to idle when the stage is cleared
+  useEffect(() => {
+    if (activeRoll === null) {
+      if (timer.current) window.clearTimeout(timer.current)
+      flush()
+      pending.current = null
+      lastToken.current = -1
+      setPhase('idle')
+      setDisplay('—')
+      setReveal(null)
+      setStyle({ color: '#22e0e0', fontFamily: "'Orbitron'", fontWeight: 800, rotate: 0 })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRoll])
+
+  useEffect(() => {
+    if (!activeRoll || activeRoll.token === lastToken.current) return
+    lastToken.current = activeRoll.token
+    const { landing, min, max, crit, fumble, entry } = activeRoll
+
+    if (timer.current) window.clearTimeout(timer.current)
+    flush() // log the previous roll if it was still pending
+    pending.current = { entry, done: false }
+    setReveal(null)
+    setPhase('spinning')
+    // Wake the audio context immediately on the click. Browsers resume it
+    // asynchronously, so on the first roll after idle it isn't running yet —
+    // hence a short warm-up delay before the spin so the ticks land in sync
+    // with the numbers instead of trailing behind them.
+    primeAudio()
+    const WARMUP = 200
+
+    const steps = 15 + Math.floor(Math.random() * 10) // 15..24, varied each roll
+    let i = 0
+
+    const run = () => {
+      const progress = i / steps
+      if (i < steps) {
+        setDisplay(randInt(min, max))
+        setStyle({ color: randOf(NEON), fontFamily: randOf(FONTS), fontWeight: randOf(WEIGHTS), rotate: (Math.random() - 0.5) * 10 })
+        tick(progress)
+        i++
+        const ease = Math.pow(progress, 2.4)
+        const delay = 32 + ease * 210 + Math.random() * 26
+        timer.current = window.setTimeout(run, delay)
+      } else {
+        setDisplay(landing)
+        setStyle({
+          color: fumble ? '#ff3b3b' : crit ? '#8fe3ff' : randOf(NEON),
+          fontFamily: fumble ? "'Oswald'" : crit ? "'Orbitron'" : randOf(FONTS),
+          fontWeight: 900,
+          rotate: 0,
+        })
+        if (fumble) {
+          setPhase('fumble')
+          errorBuzz()
+        } else if (crit) {
+          setPhase('crit')
+          tada()
+        } else {
+          setPhase('done')
+          blip()
+        }
+        setReveal({ total: entry.total, breakdown: entry.breakdown, label: entry.label, tag: entry.tag, isD20: activeRoll.isD20 })
+        timer.current = window.setTimeout(() => {
+          commitRoll(entry)
+          if (pending.current) pending.current.done = true
+        }, 620)
+      }
+    }
+
+    // Kick off after the warm-up: the whoosh and first tick fire together with
+    // the first spinning number, once the audio context has had time to resume.
+    timer.current = window.setTimeout(() => {
+      whoosh()
+      run()
+    }, WARMUP)
+
+    return () => {
+      if (timer.current) window.clearTimeout(timer.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRoll?.token])
+
+  const spinning = phase === 'spinning'
+
+  return (
+    <div className={`stage stage-${phase}`}>
+      <svg className="stage-wires" viewBox="0 0 340 150" preserveAspectRatio="none" aria-hidden>
+        <path className="wire w1" d="M0,26 H120 L140,46 H240 L262,26 H340" />
+        <path className="wire w2" d="M0,120 H90 L112,100 H210 L232,120 H340" />
+        <path className="wire w3" d="M0,74 H60 L80,74 M260,74 L280,74 H340" />
+        <circle className="node n1" cx="140" cy="46" r="3.5" />
+        <circle className="node n2" cx="112" cy="100" r="3.5" />
+        <circle className="node n3" cx="262" cy="26" r="3.5" />
+        <circle className="node n4" cx="232" cy="120" r="3.5" />
+      </svg>
+
+      <div className="stage-scan" />
+      <div className="stage-label">{reveal ? reveal.label : phase === 'spinning' ? 'ROLLING…' : 'DICE CORE'}</div>
+
+      <div className="stage-core">
+        <div
+          className="stage-number"
+          style={{
+            color: style.color,
+            fontFamily: style.fontFamily,
+            fontWeight: style.fontWeight,
+            transform: `rotate(${style.rotate}deg)`,
+            textShadow: spinning ? `0 0 10px ${style.color}` : `0 0 18px ${style.color}, 0 0 42px ${style.color}`,
+          }}
+        >
+          {display}
+        </div>
+      </div>
+
+      <div className="stage-reveal">
+        {reveal && phase !== 'spinning' ? (
+          <>
+            {phase === 'crit' && <span className="rv-flag crit">★ NAT 20 · CRITICAL ★</span>}
+            {phase === 'fumble' && <span className="rv-flag fumble">✖ NAT 1 · FUMBLE ✖</span>}
+            <div className="rv-line">
+              <span className="rv-break">{reveal.breakdown}</span>
+              {reveal.isD20 && reveal.total !== display && <span className="rv-total">= {reveal.total}</span>}
+            </div>
+            {reveal.tag && <div className="rv-tag">{reveal.tag}</div>}
+          </>
+        ) : (
+          <span className="rv-idle">{phase === 'spinning' ? '· · ·' : 'tap a stat to roll'}</span>
+        )}
+      </div>
+
+      {isMuted() && <div className="stage-mute">muted</div>}
+    </div>
+  )
+}

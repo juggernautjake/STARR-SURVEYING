@@ -232,12 +232,18 @@ ALTER TABLE dnd_handouts ENABLE ROW LEVEL SECURITY;
 CREATE TABLE IF NOT EXISTS dnd_stream_state (
   character_id uuid PRIMARY KEY REFERENCES dnd_characters(id) ON DELETE CASCADE,
   is_live      boolean NOT NULL DEFAULT false,
-  viewer_count integer NOT NULL DEFAULT 0,
+  viewer_count bigint NOT NULL DEFAULT 0,
   chat_speed   integer NOT NULL DEFAULT 3,
   active_spam  jsonb,
   updated_at   timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE dnd_stream_state ENABLE ROW LEVEL SECURITY;
+-- J10: viewer_count widened integer→bigint so the DM can set audiences up to
+-- quadrillions (idempotent; a no-op once already bigint).
+ALTER TABLE dnd_stream_state ALTER COLUMN viewer_count TYPE bigint;
+-- J11 (patron-influence meter): DM-controlled chat engagement 0–100. Combined with the
+-- viewer count it drives the character's "resist the chat" DC. Idempotent.
+ALTER TABLE dnd_stream_state ADD COLUMN IF NOT EXISTS engagement integer NOT NULL DEFAULT 50;
 
 CREATE TABLE IF NOT EXISTS dnd_stream_messages (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -289,6 +295,31 @@ CREATE TABLE IF NOT EXISTS dnd_sounds (
 );
 ALTER TABLE dnd_sounds ENABLE ROW LEVEL SECURITY;
 CREATE INDEX IF NOT EXISTS idx_dnd_sounds_tab ON dnd_sounds (tab_id, sort_order);
+
+-- ── User-created characters via AI import (Phase M) ──────────────────────────
+ALTER TABLE dnd_characters
+  ADD COLUMN IF NOT EXISTS under_construction boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS import_notes text,   -- info the AI couldn't map onto the sheet
+  ADD COLUMN IF NOT EXISTS style_notes  text;   -- owner's requested vibe/mechanics for the later custom build
+
+-- Uploaded source files for an imported character (kept for reference + later custom build).
+CREATE TABLE IF NOT EXISTS dnd_character_uploads (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  character_id uuid NOT NULL REFERENCES dnd_characters(id) ON DELETE CASCADE,
+  url          text NOT NULL,
+  filename     text,
+  mime         text,
+  kind         text NOT NULL DEFAULT 'source' CHECK (kind IN ('source','art','reference','other')),
+  notes        text,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE dnd_character_uploads ENABLE ROW LEVEL SECURITY;
+CREATE INDEX IF NOT EXISTS idx_dnd_char_uploads ON dnd_character_uploads (character_id, created_at);
+
+-- Legendary actions on initiative entries (Phase L7 / K4 extra).
+ALTER TABLE dnd_initiative_entries
+  ADD COLUMN IF NOT EXISTS legendary_max  integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS legendary_used integer NOT NULL DEFAULT 0;
 
 SELECT 'dnd schema: ' || count(*) || ' dnd_* tables' AS status
 FROM information_schema.tables WHERE table_schema='public' AND table_name LIKE 'dnd\_%';

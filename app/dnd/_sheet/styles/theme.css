@@ -1,0 +1,2013 @@
+/* ===================================================================
+   NEON ODYSSEY — design system
+   Ported from Lazzuh Gun dossier: void-black space-tech + neon accents.
+   Vendored from ../neon-odyssey-sheet/src/styles/theme.css and machine-scoped
+   under `.dnd-sheet` (Phase C1b) so none of it leaks onto the Starr site.
+   Regenerate with the postcss scope transform, not by hand. Fonts moved here
+   from the standalone index.html <link>.
+   =================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Barlow+Condensed:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@400;500;700;900&family=Audiowide&family=Chakra+Petch:wght@400;600;700&family=Rajdhani:wght@500;600;700&family=Syncopate:wght@400;700&family=Michroma&display=swap');
+
+.dnd-sheet {
+  --void: #080512;
+  --void-2: #0c0818;
+  --panel: #130a20;
+  --panel-2: #1b0f30;
+  --panel-3: #241541;
+  --ink: #f2ecff;
+  --muted: #a99bc9;
+  --muted-2: #8b7fb0;
+  --pink: #ff5fb0;
+  --hotpink: #ff2d8b;
+  --violet: #8b5cf6;
+  --violet-2: #a78bfa;
+  --teal: #12b6b6;
+  --tealbright: #22e0e0;
+  --gold: #ffcc3f;
+  --danger: #ff5252;
+  --good: #4ade80;
+  --line: rgba(139, 92, 246, 0.28);
+  --line-strong: rgba(139, 92, 246, 0.55);
+  --shadow: 0 18px 50px -22px rgba(0, 0, 0, 0.85);
+
+  --font-display: 'Oswald', 'Arial Narrow', sans-serif;
+  --font-body: 'Barlow Condensed', 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+}
+
+.dnd-sheet, .dnd-sheet * {
+  box-sizing: border-box;
+}
+.dnd-sheet {
+  scroll-behavior: smooth;
+}
+.dnd-sheet {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 520px at 82% -8%, rgba(18, 182, 182, 0.16), transparent 60%),
+    radial-gradient(760px 500px at -8% 18%, rgba(255, 45, 139, 0.15), transparent 55%),
+    radial-gradient(1100px 700px at 50% 120%, rgba(139, 92, 246, 0.12), transparent 60%),
+    var(--void);
+  background-attachment: fixed;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 18px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.dnd-sheet ::selection {
+  background: rgba(255, 45, 139, 0.35);
+  color: #fff;
+}
+.dnd-sheet a {
+  color: var(--tealbright);
+}
+
+/* thin neon scrollbar */
+.dnd-sheet ::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+.dnd-sheet ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dnd-sheet ::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--violet), var(--hotpink));
+  border-radius: 999px;
+  border: 3px solid var(--void);
+}
+
+.dnd-sheet .wrap {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 22px 30px 120px;
+}
+@media (max-width: 640px) {
+  .dnd-sheet .wrap {
+    padding: 18px 14px 200px;
+  }
+}
+
+/* two-column app layout: content + docked Dice Core */
+.dnd-sheet .appgrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  align-items: stretch;
+}
+.dnd-sheet .maincol {
+  flex: 1 1 600px;
+  min-width: 0;
+}
+.dnd-sheet .sidecol {
+  flex: 1 1 340px;
+  max-width: 400px;
+}
+@media (max-width: 1000px) {
+  .dnd-sheet .sidecol {
+    max-width: none;
+    width: 100%;
+  }
+}
+
+/* ------------------------------------------------------------------ HERO */
+.dnd-sheet .hero {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 32px 32px 26px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  background: linear-gradient(155deg, rgba(27, 15, 48, 0.92), rgba(8, 5, 18, 0.75));
+  box-shadow: var(--shadow);
+}
+.dnd-sheet .hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(118deg, transparent 0 24px, rgba(18, 182, 182, 0.05) 24px 25px);
+}
+.dnd-sheet .hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  position: relative;
+}
+.dnd-sheet .kicker {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--tealbright);
+  margin: 0 0 10px;
+}
+.dnd-sheet h1.name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(44px, 8vw, 82px);
+  line-height: 0.9;
+  letter-spacing: 0.01em;
+  margin: 0;
+  text-transform: uppercase;
+  background: linear-gradient(94deg, #fff 0%, var(--pink) 48%, var(--teal) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 16px rgba(255, 95, 176, 0.28));
+}
+.dnd-sheet .hero .role {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 22px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 12px 0 0;
+}
+.dnd-sheet .tagchips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+  position: relative;
+}
+.dnd-sheet .chip {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(139, 92, 246, 0.1);
+  color: var(--ink);
+}
+.dnd-sheet .chip.pink {
+  border-color: var(--hotpink);
+  color: #ffd6e8;
+  background: rgba(255, 45, 139, 0.12);
+}
+.dnd-sheet .chip.teal {
+  border-color: var(--teal);
+  color: #bff6f6;
+  background: rgba(18, 182, 182, 0.12);
+}
+.dnd-sheet .chip.gold {
+  border-color: rgba(255, 204, 63, 0.55);
+  color: #ffe9a8;
+  background: rgba(255, 204, 63, 0.1);
+}
+
+/* ------------------------------------------------------------------ BUTTONS */
+.dnd-sheet .btn {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 8px 14px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: rgba(139, 92, 246, 0.12);
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform 0.08s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+.dnd-sheet .btn:hover {
+  border-color: var(--line-strong);
+  background: rgba(139, 92, 246, 0.22);
+}
+.dnd-sheet .btn:active {
+  transform: translateY(1px);
+}
+.dnd-sheet .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.dnd-sheet .btn.pink {
+  border-color: var(--hotpink);
+  background: rgba(255, 45, 139, 0.14);
+  color: #ffd6e8;
+}
+.dnd-sheet .btn.pink:hover {
+  background: rgba(255, 45, 139, 0.28);
+  box-shadow: 0 0 18px -4px rgba(255, 45, 139, 0.6);
+}
+.dnd-sheet .btn.teal {
+  border-color: var(--teal);
+  background: rgba(18, 182, 182, 0.14);
+  color: #bff6f6;
+}
+.dnd-sheet .btn.teal:hover {
+  background: rgba(18, 182, 182, 0.28);
+  box-shadow: 0 0 18px -4px rgba(34, 224, 224, 0.6);
+}
+.dnd-sheet .btn.gold {
+  border-color: rgba(255, 204, 63, 0.6);
+  background: rgba(255, 204, 63, 0.12);
+  color: #ffe9a8;
+}
+.dnd-sheet .btn.danger {
+  border-color: var(--danger);
+  background: rgba(255, 82, 82, 0.14);
+  color: #ffc4c4;
+}
+.dnd-sheet .btn.solid {
+  background: var(--hotpink);
+  color: var(--void);
+  border-color: var(--hotpink);
+  font-weight: 700;
+}
+.dnd-sheet .btn.solid:hover {
+  box-shadow: 0 0 22px -4px rgba(255, 45, 139, 0.8);
+}
+.dnd-sheet .btn.tiny {
+  padding: 4px 9px;
+  font-size: 10px;
+}
+.dnd-sheet .btn.ghost {
+  background: transparent;
+}
+.dnd-sheet .btn.active {
+  border-color: var(--tealbright);
+  background: rgba(34, 224, 224, 0.2);
+  color: #d7ffff;
+  box-shadow: inset 0 0 0 1px rgba(34, 224, 224, 0.4);
+}
+.dnd-sheet .btn.active.pink {
+  border-color: var(--hotpink);
+  background: rgba(255, 45, 139, 0.28);
+  color: #ffe0ee;
+  box-shadow: inset 0 0 0 1px rgba(255, 45, 139, 0.5);
+}
+.dnd-sheet .btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+/* icon-ish square stepper button */
+.dnd-sheet .step {
+  font-family: var(--font-mono);
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(139, 92, 246, 0.12);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  user-select: none;
+}
+.dnd-sheet .step:hover {
+  border-color: var(--line-strong);
+  background: rgba(139, 92, 246, 0.24);
+}
+.dnd-sheet .step:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ------------------------------------------------------------------ QUICKBAR */
+.dnd-sheet .quickbar {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  margin: 16px 0;
+}
+@media (max-width: 760px) {
+  .dnd-sheet .quickbar {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 440px) {
+  .dnd-sheet .quickbar {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.dnd-sheet .stat {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  padding: 12px 8px;
+  text-align: center;
+  position: relative;
+}
+.dnd-sheet .stat .lab {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.dnd-sheet .stat .big {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 30px;
+  line-height: 1;
+  color: #fff;
+  margin: 4px 0 2px;
+}
+.dnd-sheet .stat .sub {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--tealbright);
+}
+.dnd-sheet .stat.hp .big {
+  color: var(--good);
+}
+.dnd-sheet .stat.hp.bloodied .big {
+  color: var(--gold);
+}
+.dnd-sheet .stat.hp.critical .big {
+  color: var(--danger);
+}
+
+/* ------------------------------------------------------------------ SECTIONS */
+.dnd-sheet section {
+  margin-top: 34px;
+  scroll-margin-top: 80px;
+}
+.dnd-sheet .sec-head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 10px;
+}
+.dnd-sheet .sec-num {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--hotpink);
+  letter-spacing: 0.2em;
+}
+.dnd-sheet h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: clamp(23px, 4vw, 31px);
+  margin: 0;
+  color: #fff;
+}
+.dnd-sheet p.lead {
+  color: var(--muted);
+  font-size: 18px;
+  margin: 0 0 18px;
+}
+.dnd-sheet strong {
+  color: #fff;
+  font-weight: 600;
+}
+.dnd-sheet em.term {
+  color: var(--tealbright);
+  font-style: normal;
+  font-weight: 500;
+}
+.dnd-sheet .rage-only {
+  color: var(--hotpink);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ CARDS */
+.dnd-sheet .card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  padding: 20px 22px;
+  margin-bottom: 14px;
+}
+.dnd-sheet .card h3 {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 21px;
+  margin: 0 0 10px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dnd-sheet .card h3 .lvl {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--void);
+  background: var(--gold);
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+.dnd-sheet .card p {
+  margin: 0 0 10px;
+}
+.dnd-sheet .card p:last-child {
+  margin-bottom: 0;
+}
+.dnd-sheet .two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.dnd-sheet .three {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 680px) {
+  .dnd-sheet .two,
+  .dnd-sheet .three {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ------------------------------------------------------------------ ABILITIES */
+.dnd-sheet .abils {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+}
+@media (max-width: 680px) {
+  .dnd-sheet .abils {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+.dnd-sheet .ab {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-2);
+  text-align: center;
+  padding: 12px 6px 10px;
+  position: relative;
+}
+.dnd-sheet .ab .name {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.dnd-sheet .ab .score {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 34px;
+  line-height: 1;
+  color: #fff;
+  margin: 3px 0;
+}
+.dnd-sheet .ab .mod {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  color: var(--tealbright);
+  font-weight: 700;
+}
+.dnd-sheet .ab.primary {
+  border-color: var(--hotpink);
+  box-shadow: inset 0 0 22px -14px var(--hotpink);
+}
+.dnd-sheet .ab.primary .mod {
+  color: var(--pink);
+}
+.dnd-sheet .ab .roll-mini {
+  margin-top: 8px;
+  width: 100%;
+}
+.dnd-sheet .ab .score-edit {
+  width: 66px;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------------ ROLLABLE ROWS (skills/saves) */
+.dnd-sheet .rowlist {
+  display: flex;
+  flex-direction: column;
+}
+.dnd-sheet .rrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 4px;
+  border-top: 1px dashed var(--line);
+}
+.dnd-sheet .rrow:first-child {
+  border-top: none;
+}
+.dnd-sheet .rrow .prof-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  flex: 0 0 auto;
+  cursor: pointer;
+  background: transparent;
+}
+.dnd-sheet .rrow .prof-dot.on {
+  background: var(--tealbright);
+  border-color: var(--tealbright);
+  box-shadow: 0 0 8px -1px var(--tealbright);
+}
+.dnd-sheet .rrow .prof-dot.exp {
+  background: var(--hotpink);
+  border-color: var(--hotpink);
+  box-shadow: 0 0 8px -1px var(--hotpink);
+}
+.dnd-sheet .rrow .rlabel {
+  flex: 1;
+  font-size: 16px;
+}
+.dnd-sheet .rrow .rlabel .rabil {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  margin-left: 6px;
+}
+.dnd-sheet .rrow .rmod {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--gold);
+  min-width: 34px;
+  text-align: right;
+}
+.dnd-sheet .rollbtn {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(34, 224, 224, 0.08);
+  color: var(--tealbright);
+  cursor: pointer;
+  min-width: 58px;
+  text-align: center;
+  transition: all 0.12s ease;
+}
+.dnd-sheet .rollbtn:hover {
+  border-color: var(--tealbright);
+  background: rgba(34, 224, 224, 0.2);
+  box-shadow: 0 0 14px -4px var(--tealbright);
+}
+.dnd-sheet .rollbtn.pink {
+  color: var(--pink);
+  background: rgba(255, 45, 139, 0.08);
+}
+.dnd-sheet .rollbtn.pink:hover {
+  border-color: var(--hotpink);
+  background: rgba(255, 45, 139, 0.2);
+  box-shadow: 0 0 14px -4px var(--hotpink);
+}
+.dnd-sheet .rollbtn.gold {
+  color: var(--gold);
+  background: rgba(255, 204, 63, 0.08);
+}
+
+/* ------------------------------------------------------------------ TABLE */
+.dnd-sheet .table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.dnd-sheet table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 560px;
+  font-size: 15px;
+}
+.dnd-sheet th,
+.dnd-sheet td {
+  padding: 11px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.dnd-sheet th {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 13px;
+  color: var(--tealbright);
+  background: rgba(18, 182, 182, 0.08);
+}
+.dnd-sheet td {
+  color: var(--ink);
+}
+.dnd-sheet tr:last-child td {
+  border-bottom: none;
+}
+.dnd-sheet td.mono {
+  font-family: var(--font-mono);
+  color: var(--gold);
+  font-weight: 600;
+}
+.dnd-sheet tr.here {
+  background: rgba(255, 45, 139, 0.07);
+}
+
+/* ------------------------------------------------------------------ CALLOUTS */
+.dnd-sheet .callout {
+  border-left: 3px solid var(--tealbright);
+  background: rgba(34, 224, 224, 0.06);
+  border-radius: 0 12px 12px 0;
+  padding: 15px 20px;
+  margin: 16px 0;
+}
+.dnd-sheet .callout.warn {
+  border-color: var(--gold);
+  background: rgba(255, 204, 63, 0.07);
+}
+.dnd-sheet .callout.pink {
+  border-color: var(--hotpink);
+  background: rgba(255, 45, 139, 0.07);
+}
+.dnd-sheet .callout h4 {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 14px;
+  margin: 0 0 6px;
+  color: var(--tealbright);
+}
+.dnd-sheet .callout.warn h4 {
+  color: var(--gold);
+}
+.dnd-sheet .callout.pink h4 {
+  color: var(--pink);
+}
+.dnd-sheet .callout p {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.dnd-sheet .callout p:last-child {
+  margin-bottom: 0;
+}
+
+/* ------------------------------------------------------------------ CLEAN LIST */
+.dnd-sheet ul.clean {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dnd-sheet ul.clean li {
+  padding: 8px 0 8px 22px;
+  position: relative;
+  border-top: 1px dashed var(--line);
+  font-size: 16px;
+}
+.dnd-sheet ul.clean li:first-child {
+  border-top: none;
+}
+.dnd-sheet ul.clean li::before {
+  content: '▸';
+  position: absolute;
+  left: 2px;
+  color: var(--hotpink);
+  font-size: 13px;
+  top: 9px;
+}
+
+/* ------------------------------------------------------------------ FORM LADDER */
+.dnd-sheet .form {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  background: linear-gradient(150deg, var(--panel-2), var(--panel));
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.dnd-sheet .form.locked {
+  opacity: 0.62;
+}
+.dnd-sheet .form.activeform {
+  border-color: var(--hotpink);
+  box-shadow: 0 0 34px -10px rgba(255, 45, 139, 0.55);
+}
+.dnd-sheet .form-bar {
+  height: 5px;
+  width: 100%;
+}
+.dnd-sheet .f-base .form-bar {
+  background: linear-gradient(90deg, #5b6b8c, #8b9dc4);
+}
+.dnd-sheet .f-brute .form-bar {
+  background: linear-gradient(90deg, #ff2d8b, #ff7a3d);
+}
+.dnd-sheet .f-titan .form-bar {
+  background: linear-gradient(90deg, #8b5cf6, #ff2d8b);
+}
+.dnd-sheet .f-apex .form-bar {
+  background: linear-gradient(90deg, #22e0e0, #8b5cf6);
+}
+.dnd-sheet .f-true .form-bar {
+  background: linear-gradient(90deg, #ffcc3f, #ff2d8b, #22e0e0);
+}
+.dnd-sheet .form-body {
+  padding: 20px 22px;
+}
+.dnd-sheet .form-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.dnd-sheet .form-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 23px;
+  color: #fff;
+  letter-spacing: 0.02em;
+  margin: 0;
+}
+.dnd-sheet .form-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.dnd-sheet .badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 5px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+}
+.dnd-sheet .badge.lv {
+  color: var(--gold);
+  border-color: rgba(255, 204, 63, 0.5);
+}
+.dnd-sheet .badge.at-will {
+  color: var(--tealbright);
+  border-color: rgba(34, 224, 224, 0.5);
+}
+.dnd-sheet .badge.timed {
+  color: var(--hotpink);
+  border-color: rgba(255, 45, 139, 0.5);
+}
+.dnd-sheet .badge.now {
+  color: var(--void);
+  background: var(--hotpink);
+  border-color: var(--hotpink);
+  font-weight: 700;
+}
+.dnd-sheet .form-flavor {
+  color: var(--muted);
+  font-style: italic;
+  margin: 10px 0 12px;
+  font-size: 16px;
+}
+
+/* ------------------------------------------------------------------ RESOURCE PIPS */
+.dnd-sheet .pips {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.dnd-sheet .pip {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  position: relative;
+}
+.dnd-sheet .pip:hover {
+  border-color: var(--pink);
+}
+.dnd-sheet .pip.filled {
+  background: radial-gradient(circle at 35% 30%, var(--pink), var(--hotpink));
+  border-color: var(--hotpink);
+  box-shadow: 0 0 10px -2px var(--hotpink);
+}
+.dnd-sheet .pip.teal.filled {
+  background: radial-gradient(circle at 35% 30%, var(--tealbright), var(--teal));
+  border-color: var(--tealbright);
+  box-shadow: 0 0 10px -2px var(--tealbright);
+}
+.dnd-sheet .pip.gold.filled {
+  background: radial-gradient(circle at 35% 30%, #ffe082, var(--gold));
+  border-color: var(--gold);
+  box-shadow: 0 0 10px -2px var(--gold);
+}
+.dnd-sheet .pip.round {
+  border-radius: 50%;
+}
+.dnd-sheet .res-block {
+  margin-bottom: 16px;
+}
+.dnd-sheet .res-block:last-child {
+  margin-bottom: 0;
+}
+.dnd-sheet .res-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.dnd-sheet .res-head .rn {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 16px;
+  color: #fff;
+}
+.dnd-sheet .res-head .rc {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------------ EDITABLE FIELDS / INPUTS */
+.dnd-sheet input,
+.dnd-sheet textarea,
+.dnd-sheet select {
+  font-family: var(--font-body);
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--void-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+}
+.dnd-sheet input:focus,
+.dnd-sheet textarea:focus,
+.dnd-sheet select:focus {
+  outline: none;
+  border-color: var(--tealbright);
+  box-shadow: 0 0 0 2px rgba(34, 224, 224, 0.18);
+}
+.dnd-sheet input.mono {
+  font-family: var(--font-mono);
+}
+.dnd-sheet label.fieldlabel {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* ------------------------------------------------------------------ DICE TRAY (sticky) */
+.dnd-sheet .tray-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 60;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(160deg, var(--panel-2), var(--panel));
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+  box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.8), 0 0 22px -6px var(--hotpink);
+  animation: fabpulse 2.4s ease-in-out infinite;
+}
+@keyframes fabpulse {
+  0%,
+  100% {
+    box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.8), 0 0 22px -8px var(--hotpink);
+  }
+  50% {
+    box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.8), 0 0 30px -4px var(--tealbright);
+  }
+}
+.dnd-sheet .tray {
+  position: sticky;
+  top: 12px;
+  width: 100%;
+  max-width: calc(100vw - 28px);
+  z-index: 60;
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  background: linear-gradient(160deg, rgba(27, 15, 48, 0.98), rgba(8, 5, 18, 0.98));
+  box-shadow: 0 22px 60px -18px rgba(0, 0, 0, 0.9), 0 0 40px -20px var(--hotpink);
+  backdrop-filter: blur(6px);
+  overflow: hidden;
+}
+.dnd-sheet .tray.floating {
+  position: fixed;
+  width: 366px;
+}
+.dnd-sheet .tray-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(139, 92, 246, 0.1);
+}
+.dnd-sheet .tray-title {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 15px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dnd-sheet .tray-toggles {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.dnd-sheet .adv-seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.dnd-sheet .adv-seg button {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  padding: 5px 9px;
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  cursor: pointer;
+}
+.dnd-sheet .adv-seg button.on-adv {
+  background: rgba(74, 222, 128, 0.22);
+  color: var(--good);
+}
+.dnd-sheet .adv-seg button.on-dis {
+  background: rgba(255, 82, 82, 0.22);
+  color: #ffc4c4;
+}
+.dnd-sheet .adv-seg button.on-flat {
+  background: rgba(139, 92, 246, 0.28);
+  color: #fff;
+}
+.dnd-sheet .tray-surge {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.dnd-sheet .tray-surge .surge-state {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--pink);
+}
+.dnd-sheet .exh-chip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: #ffc4c4;
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  padding: 3px 8px;
+  background: rgba(255, 82, 82, 0.12);
+}
+.dnd-sheet .add-check {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+.dnd-sheet .add-check input {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+.dnd-sheet .add-check select {
+  flex: 0 0 auto;
+}
+.dnd-sheet .ability-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 4px;
+  border-top: 1px dashed var(--line);
+}
+.dnd-sheet .ability-row:first-child {
+  border-top: none;
+}
+.dnd-sheet .ability-main {
+  flex: 1;
+  min-width: 0;
+}
+.dnd-sheet .ability-name {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 17px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.dnd-sheet .tray-dice {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.dnd-sheet .tray-dice .btn {
+  flex: 1 1 auto;
+  justify-content: center;
+  min-width: 38px;
+}
+.dnd-sheet .dice-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.dnd-sheet .dice-count .step {
+  width: 24px;
+  height: 24px;
+  font-size: 15px;
+}
+.dnd-sheet .dice-count .dc-n {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold);
+  min-width: 26px;
+  text-align: center;
+}
+.dnd-sheet .tray-log {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 8px 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dnd-sheet .tray-empty {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-align: center;
+  padding: 24px 8px;
+}
+.dnd-sheet .roll-entry {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 11px;
+  background: var(--panel);
+  animation: pop 0.25s ease;
+}
+@keyframes pop {
+  from {
+    transform: translateY(-6px) scale(0.98);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.dnd-sheet .roll-entry .re-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.dnd-sheet .roll-entry .re-label {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 14px;
+  color: #fff;
+}
+.dnd-sheet .roll-entry .re-total {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--tealbright);
+}
+.dnd-sheet .roll-entry.crit .re-total {
+  color: var(--good);
+  filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.7));
+}
+.dnd-sheet .roll-entry.fumble .re-total {
+  color: var(--danger);
+}
+.dnd-sheet .roll-entry.dmg .re-total {
+  color: var(--gold);
+}
+.dnd-sheet .roll-entry .re-break {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 5px;
+}
+.dnd-sheet .roll-entry .re-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--hotpink);
+}
+.dnd-sheet .crit-flag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--good);
+  text-transform: uppercase;
+}
+.dnd-sheet .fumble-flag {
+  color: var(--danger);
+}
+
+/* toast for state toggles */
+.dnd-sheet .statebar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 4px 0 0;
+}
+
+/* ------------------------------------------------------------------ INVENTORY */
+.dnd-sheet .inv-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 4px;
+  border-top: 1px dashed var(--line);
+}
+.dnd-sheet .inv-row:first-child {
+  border-top: none;
+}
+.dnd-sheet .inv-name {
+  font-weight: 600;
+  color: #fff;
+}
+.dnd-sheet .inv-desc {
+  color: var(--muted);
+  font-size: 14px;
+}
+.dnd-sheet .inv-qty {
+  font-family: var(--font-mono);
+  color: var(--gold);
+  min-width: 42px;
+  text-align: right;
+}
+.dnd-sheet .tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.dnd-sheet .tag.equipped {
+  color: var(--tealbright);
+  border-color: rgba(34, 224, 224, 0.5);
+  background: rgba(34, 224, 224, 0.08);
+}
+.dnd-sheet .tag.consumable {
+  color: var(--gold);
+  border-color: rgba(255, 204, 63, 0.5);
+}
+.dnd-sheet .tag.weapon {
+  color: var(--pink);
+  border-color: rgba(255, 45, 139, 0.5);
+}
+
+.dnd-sheet .currency-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+@media (max-width: 520px) {
+  .dnd-sheet .currency-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.dnd-sheet .cur {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+  padding: 10px;
+  text-align: center;
+}
+.dnd-sheet .cur .cl {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.dnd-sheet .cur .cv {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--gold);
+}
+
+/* ------------------------------------------------------------------ NAV DOTS */
+.dnd-sheet .topnav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  margin: -26px -20px 0;
+  background: linear-gradient(180deg, rgba(8, 5, 18, 0.96), rgba(8, 5, 18, 0.7));
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+.dnd-sheet .topnav a {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+}
+.dnd-sheet .topnav a:hover {
+  color: var(--ink);
+  border-color: var(--line);
+  background: rgba(139, 92, 246, 0.12);
+}
+
+/* ------------------------------------------------------------------ MODAL */
+.dnd-sheet .modal-back {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 2, 10, 0.72);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.dnd-sheet .modal {
+  width: 100%;
+  max-width: 480px;
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  background: linear-gradient(160deg, var(--panel-2), var(--panel));
+  box-shadow: var(--shadow);
+  max-height: 88vh;
+  overflow-y: auto;
+}
+.dnd-sheet .modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.dnd-sheet .modal-body {
+  padding: 18px 20px;
+}
+.dnd-sheet .field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.dnd-sheet .field-grid .full {
+  grid-column: 1 / -1;
+}
+
+/* ------------------------------------------------------------------ FOOTER */
+.dnd-sheet .footer {
+  margin-top: 50px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------------ ROLL STAGE (digital dice core) */
+.dnd-sheet .stage {
+  position: relative;
+  height: 178px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: radial-gradient(120% 120% at 50% 0%, #150a26 0%, #0a0616 70%, #060310 100%);
+  border: 1px solid var(--line-strong);
+  box-shadow: inset 0 0 40px -10px rgba(139, 92, 246, 0.5), inset 0 0 0 1px rgba(34, 224, 224, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.dnd-sheet .stage-core {
+  position: relative;
+  z-index: 3;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 2px 8px;
+}
+.dnd-sheet .stage-wires {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.75;
+}
+.dnd-sheet .stage-wires .wire {
+  fill: none;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-dasharray: 6 10;
+  animation: wireflow 2.4s linear infinite;
+}
+.dnd-sheet .stage-wires .w1 {
+  stroke: rgba(34, 224, 224, 0.55);
+}
+.dnd-sheet .stage-wires .w2 {
+  stroke: rgba(255, 45, 139, 0.5);
+  animation-duration: 3.1s;
+  animation-direction: reverse;
+}
+.dnd-sheet .stage-wires .w3 {
+  stroke: rgba(167, 139, 250, 0.55);
+  animation-duration: 1.8s;
+}
+@keyframes wireflow {
+  to {
+    stroke-dashoffset: -32;
+  }
+}
+.dnd-sheet .stage-wires .node {
+  animation: nodepulse 1.6s ease-in-out infinite;
+}
+.dnd-sheet .stage-wires .n1 {
+  fill: var(--tealbright);
+}
+.dnd-sheet .stage-wires .n2 {
+  fill: var(--hotpink);
+  animation-delay: 0.3s;
+}
+.dnd-sheet .stage-wires .n3 {
+  fill: var(--gold);
+  animation-delay: 0.6s;
+}
+.dnd-sheet .stage-wires .n4 {
+  fill: var(--violet-2);
+  animation-delay: 0.9s;
+}
+@keyframes nodepulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    r: 3;
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 5px currentColor);
+    r: 4.5;
+  }
+}
+.dnd-sheet .stage-scan {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(rgba(34, 224, 224, 0.05) 1px, transparent 1px);
+  background-size: 100% 4px;
+  mix-blend-mode: overlay;
+  animation: scanmove 6s linear infinite;
+}
+@keyframes scanmove {
+  to {
+    background-position: 0 -120px;
+  }
+}
+.dnd-sheet .stage-label {
+  position: relative;
+  z-index: 3;
+  text-align: center;
+  padding-top: 9px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+.dnd-sheet .stage-number {
+  font-size: 68px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  transition: transform 0.08s ease;
+  will-change: transform, color;
+}
+.dnd-sheet .stage-spinning .stage-number {
+  animation: jitter 0.09s steps(2) infinite;
+}
+@keyframes jitter {
+  0% {
+    transform: translateY(-1px) scale(1.02);
+  }
+  100% {
+    transform: translateY(1px) scale(0.99);
+  }
+}
+.dnd-sheet .stage-crit {
+  border-color: #8fe3ff;
+  box-shadow: inset 0 0 60px -8px rgba(96, 165, 250, 0.6), 0 0 40px -6px rgba(143, 227, 255, 0.7);
+  animation: critflash 0.5s ease;
+}
+.dnd-sheet .stage-crit .stage-number {
+  animation: critpulse 0.7s ease-in-out infinite;
+}
+@keyframes critpulse {
+  0%,
+  100% {
+    transform: scale(1);
+    text-shadow: 0 0 18px #8fe3ff, 0 0 44px #60a5fa;
+  }
+  50% {
+    transform: scale(1.16);
+    text-shadow: 0 0 30px #bff0ff, 0 0 70px #8fe3ff;
+  }
+}
+@keyframes critflash {
+  0% {
+    background: radial-gradient(120% 120% at 50% 50%, rgba(143, 227, 255, 0.5), transparent 60%);
+  }
+}
+.dnd-sheet .stage-fumble {
+  border-color: var(--danger);
+  box-shadow: inset 0 0 60px -6px rgba(255, 40, 40, 0.55), 0 0 40px -6px rgba(255, 60, 60, 0.6);
+  animation: fumbleshake 0.5s ease 0.1s;
+}
+.dnd-sheet .stage-fumble .stage-number {
+  animation: fumblegrow 1.2s ease forwards, shake 0.35s ease-in-out 0.4s 3;
+}
+@keyframes fumblegrow {
+  0% {
+    transform: scale(1);
+    color: #ffb3b3;
+  }
+  100% {
+    transform: scale(1.35);
+    color: #ff2222;
+    text-shadow: 0 0 30px #ff2222, 0 0 70px #b00000;
+  }
+}
+@keyframes shake {
+  0%,
+  100% {
+    margin-left: 0;
+  }
+  20% {
+    margin-left: -8px;
+  }
+  40% {
+    margin-left: 7px;
+  }
+  60% {
+    margin-left: -5px;
+  }
+  80% {
+    margin-left: 4px;
+  }
+}
+@keyframes fumbleshake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+.dnd-sheet .stage-reveal {
+  position: relative;
+  z-index: 3;
+  flex: 0 0 auto;
+  min-height: 40px;
+  text-align: center;
+  width: 100%;
+  padding: 4px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.dnd-sheet .rv-flag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+.dnd-sheet .rv-flag.crit {
+  color: #8fe3ff;
+  text-shadow: 0 0 10px #60a5fa;
+}
+.dnd-sheet .rv-flag.fumble {
+  color: var(--danger);
+}
+.dnd-sheet .rv-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 100%;
+}
+.dnd-sheet .rv-break {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  word-break: break-word;
+}
+.dnd-sheet .rv-total {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--gold);
+}
+.dnd-sheet .rv-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--hotpink);
+  text-transform: uppercase;
+}
+.dnd-sheet .rv-idle {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+  opacity: 0.7;
+}
+.dnd-sheet .stage-mute {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.dnd-sheet .hp-editline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.dnd-sheet .hp-editline input {
+  width: 52px;
+  text-align: center;
+  padding: 3px 4px;
+  font-family: var(--font-mono);
+}
+/* clickable cards / press feedback / button shine */
+.dnd-sheet .ab.clickable,
+.dnd-sheet button.stat {
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.dnd-sheet .ab.clickable:hover,
+.dnd-sheet button.stat:hover {
+  transform: translateY(-3px);
+  border-color: var(--tealbright);
+  box-shadow: 0 10px 26px -14px var(--tealbright), inset 0 0 24px -18px var(--tealbright);
+}
+.dnd-sheet .ab.clickable:active,
+.dnd-sheet button.stat:active {
+  transform: translateY(0);
+}
+.dnd-sheet .ab.primary.clickable:hover {
+  border-color: var(--hotpink);
+  box-shadow: 0 10px 26px -14px var(--hotpink), inset 0 0 22px -14px var(--hotpink);
+}
+.dnd-sheet button.stat {
+  font: inherit;
+  color: inherit;
+}
+.dnd-sheet .rollbtn:active {
+  transform: scale(0.94);
+}
+/* shine sweep on solid/rollbtn buttons */
+.dnd-sheet .btn.solid,
+.dnd-sheet .rollbtn {
+  position: relative;
+  overflow: hidden;
+}
+.dnd-sheet .btn.solid::after,
+.dnd-sheet .rollbtn::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.5s ease;
+}
+.dnd-sheet .btn.solid:hover::after,
+.dnd-sheet .rollbtn:hover::after {
+  left: 130%;
+}
+
+/* STICKY HEADER (stat rail + tabs) */
+.dnd-sheet .stickyhead {
+  position: sticky;
+  top: 0;
+  z-index: 45;
+  margin: 12px 0 8px;
+  padding: 10px 0 4px;
+  background: linear-gradient(180deg, var(--void) 60%, rgba(8, 5, 18, 0.82));
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+
+/* stat rail */
+.dnd-sheet .statrail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dnd-sheet .rail-vitals,
+.dnd-sheet .rail-abils {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dnd-sheet .vpill,
+.dnd-sheet .apill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 13px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  font: inherit;
+  color: var(--ink);
+}
+.dnd-sheet .vpill .vk,
+.dnd-sheet .apill .ak {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.dnd-sheet .vpill .vv {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  color: #fff;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+}
+.dnd-sheet .vpill .vslash,
+.dnd-sheet .apill .vslash {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0 1px;
+}
+.dnd-sheet .vpill .vtemp {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--tealbright);
+}
+.dnd-sheet .vpill.hp.ok .vv {
+  color: var(--good);
+}
+.dnd-sheet .vpill.hp.warn .vv {
+  color: var(--gold);
+}
+.dnd-sheet .vpill.hp.crit .vv {
+  color: var(--danger);
+}
+.dnd-sheet .vpill.click,
+.dnd-sheet .apill {
+  cursor: pointer;
+  transition: transform 0.1s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.dnd-sheet .vpill.click:hover,
+.dnd-sheet .apill:hover {
+  transform: translateY(-2px);
+  border-color: var(--tealbright);
+  box-shadow: 0 8px 20px -12px var(--tealbright);
+}
+.dnd-sheet .apill {
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 14px;
+  min-width: 64px;
+}
+.dnd-sheet .apill .asc {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  color: #fff;
+  line-height: 1;
+}
+.dnd-sheet .apill .am {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--tealbright);
+}
+.dnd-sheet .apill.primary {
+  border-color: var(--hotpink);
+  box-shadow: inset 0 0 20px -14px var(--hotpink);
+}
+.dnd-sheet .apill.primary:hover {
+  border-color: var(--hotpink);
+  box-shadow: 0 8px 20px -12px var(--hotpink);
+}
+.dnd-sheet .apill.primary .am {
+  color: var(--pink);
+}
+
+/* level control pill */
+.dnd-sheet .vpill.level {
+  border-color: var(--gold);
+  background: rgba(255, 204, 63, 0.08);
+}
+.dnd-sheet .vpill.level .vk {
+  color: #ffe9a8;
+}
+.dnd-sheet .lvl-ctrl {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.dnd-sheet .lvl-ctrl .vv,
+.dnd-sheet .vpill.level .vv {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--gold);
+  min-width: 18px;
+  text-align: center;
+}
+.dnd-sheet .lvl-ctrl .step {
+  width: 26px;
+  height: 26px;
+  font-size: 16px;
+  border-color: rgba(255, 204, 63, 0.5);
+}
+
+/* locked feature / attack styling */
+.dnd-sheet .feature-locked {
+  opacity: 0.62;
+  border-style: dashed;
+}
+.dnd-sheet .lock-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+/* inline editable numbers */
+.dnd-sheet .inline-num {
+  cursor: text;
+  border-radius: 4px;
+  padding: 0 1px;
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+.dnd-sheet .inline-num:hover {
+  background: rgba(34, 224, 224, 0.14);
+  box-shadow: inset 0 -2px 0 var(--tealbright);
+}
+.dnd-sheet .inline-num.is-temp {
+  color: var(--gold);
+  background: rgba(255, 204, 63, 0.14);
+  box-shadow: inset 0 -2px 0 var(--gold);
+  border-radius: 4px;
+  padding: 0 3px;
+}
+.dnd-sheet .temp-revert {
+  font-size: 10px;
+  margin-left: 3px;
+  padding: 0 3px;
+  border: 1px solid var(--gold);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--gold);
+  cursor: pointer;
+  vertical-align: middle;
+}
+.dnd-sheet .temp-revert:hover {
+  background: rgba(255, 204, 63, 0.2);
+}
+.dnd-sheet .inline-edit {
+  width: 3.2ch;
+  min-width: 2.4ch;
+  padding: 1px 3px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: inherit;
+  text-align: center;
+  background: var(--void-2);
+  border: 1px solid var(--tealbright);
+  border-radius: 5px;
+  color: #fff;
+}
+
+/* TABS */
+.dnd-sheet .tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 8px;
+  margin: 8px 0 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(19, 10, 32, 0.9), rgba(8, 5, 18, 0.6));
+  z-index: 40;
+}
+.dnd-sheet .tab {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 14px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  padding: 8px 14px;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.dnd-sheet .tab:hover {
+  color: var(--ink);
+  background: rgba(139, 92, 246, 0.12);
+}
+.dnd-sheet .tab.on {
+  color: #fff;
+  border-color: var(--line-strong);
+  background: rgba(255, 45, 139, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(255, 45, 139, 0.25), 0 0 18px -8px var(--hotpink);
+}
+.dnd-sheet .tab.on::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 3px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--hotpink), var(--tealbright));
+  box-shadow: 0 0 8px var(--hotpink);
+}
+.dnd-sheet .tab .tab-emoji {
+  font-size: 13px;
+}
+.dnd-sheet .tabpane {
+  animation: fadein 0.35s ease;
+}
+@keyframes fadein {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.dnd-sheet .atk-name {
+  cursor: pointer;
+  border-bottom: 1px dotted var(--line-strong);
+  transition: color 0.15s ease, text-shadow 0.15s ease;
+}
+.dnd-sheet .atk-name:hover {
+  color: var(--pink);
+  text-shadow: 0 0 12px rgba(255, 45, 139, 0.6);
+}
+.dnd-sheet .muted {
+  color: var(--muted);
+}
+.dnd-sheet .flex {
+  display: flex;
+}
+.dnd-sheet .between {
+  justify-content: space-between;
+}
+.dnd-sheet .center {
+  align-items: center;
+}
+.dnd-sheet .gap {
+  gap: 10px;
+}
+.dnd-sheet .wrap-gap {
+  flex-wrap: wrap;
+}
+.dnd-sheet .mt {
+  margin-top: 12px;
+}
+.dnd-sheet .hidden {
+  display: none;
+}
