@@ -28,6 +28,9 @@ The existing Lazzuh Gun sheet is the first character; it becomes fully operation
   animations, and some layout**, plus the **occasional character-only mechanic** (see §6.8).
 - **Mobile-first**: 4–10 players, some on **phone browsers at the table** — every sheet and DM tool
   must work well and be touch-friendly on a small screen, not just desktop.
+- **Two visual worlds**: **player character sheets** are bespoke per-character (§6.8); the entire
+  **DM management interface** uses a **Hextech / League-of-Legends aesthetic** (§6.19) — dark navy,
+  Hextech gold + teal, ornate framed panels, serif caps.
 
 ## 3. Architecture (decided)
 This is a substantial step up from today's setup. Right now Lazzuh is a **static SPA in an iframe**
@@ -374,6 +377,48 @@ adding/editing an item, feat, spell, ability, attack, or raw number writes struc
 speed, resistances) updates live for both player and DM. Temp/permanent overrides sit *on top of* the
 computed layer, with revert (so the DM can force a number and still snap back to the computed value).
 
+### 6.19 DM interface visual style — Hextech / League-of-Legends aesthetic (decided)
+**All DM-side management pages and systems** (dashboard, campaign pages, session console, initiative
+tracker, NPC builder, soundboard, hotbar, settings, AI tools) use a **League-of-Legends client
+("Hextech") aesthetic** — ornate, dark, gold-and-teal, premium. *(Player character sheets keep their
+own bespoke per-character themes from §6.8; this style is the DM's world.)*
+
+**Reference surfaces to draw from** (the LoL/League client): the **Home** screen, **Champion Select**,
+**Champion/collection & profile** pages, **stat/scoreboard** screens, and **Settings** — for their
+framed cards, portrait tokens, tabbed panels, ornamental dividers, and gold-bordered controls.
+
+**Palette (Hextech):**
+- Backgrounds: near-black navy — `#010A13`, `#0A1428`, `#091428`; panel greys `#1E2328`, `#3C3C41`.
+- **Hextech gold** accents/borders: gradient `#785A28 → #C89B3C → #C8AA6E → #F0E6D2` (frames, headers,
+  primary buttons, active states).
+- **Hextech blue/teal** magic accents: `#0AC8B9`, `#0397AB`, `#0596AA`, deep `#005A82` (interactive
+  glows, links, "magic" highlights).
+- Text: warm parchment `#F0E6D2`, muted `#A09B8C`, disabled `#5B5A56`.
+- States: victory/positive teal, defeat/danger red `#C6403B`.
+
+**Typography:** display/headers use an elegant **Roman-serif caps** face (LoL "Beaufort" → Google
+**Cinzel** or **Marcellus**), UPPERCASE with wide letter-spacing; body uses a clean humanist sans (LoL
+"Spiegel" → **Inter**, or **Chakra Petch** for a techier feel). Numbers/stats can use a tabular mono.
+
+**Components & motifs:**
+- **Framed panels** — dark fill, thin **gold hairline borders with chamfered/angular corners** (not
+  round), a gold top-accent bar, subtle inner glow, faint diagonal/**hex texture**.
+- **Ornamental dividers** — a gold line with a **center diamond/filigree**; section headers flanked by
+  small ornaments.
+- **Buttons** — angular, gold-bordered, dark fill, UPPERCASE; hover → **gold glow + brighten**; primary
+  CTA = gold-gradient fill with dark text; disabled = desaturated. Teal variant for "magic" actions.
+- **Portrait/token frames** — champion-select-style **gold hex/round frames** for character & NPC
+  tokens; the **current initiative turn** gets a glowing animated gold frame (like the active pick).
+- **Tabs & nav** — dark bar, gold **underline/indicator** on the active tab, hover sheen.
+- **FX** — restrained animated gold shimmer on hover, teal energy glow on interactive/AI elements,
+  hextech "loading" spinners (rotating gold gears/hexes).
+- **Mobile** — the ornaments simplify gracefully (thinner frames, collapsible panels) but keep the
+  gold/teal palette and serif headers so it still reads as Hextech on a phone.
+
+**Delivery:** a reusable **Hextech design system** (CSS tokens + framed-panel / button / divider /
+portrait-frame / tab primitives) built once (first DM-UI slice), then every DM page composes from it —
+scoped so it never touches the Starr marketing site or the player sheets.
+
 ## 7. Realtime channels (Supabase, draft)
 `campaign:{id}:party` · `:dm` · `:initiative` · `:reveal` · `:audio` (soundboard) ·
 `character:{id}:stream` · `presence:{campaign}`.
@@ -391,7 +436,8 @@ computed layer, with revert (so the DM can force a number and still snap back to
   the rules & effects engine (§6.18): derived-stat pipeline, effects system, equipment management,
   custom-content builder, attack/roll integration, and AI real-time control.**
 - **Phase D — Character media:** art, editable descriptions, round token, character/party/campaign galleries.
-- **Phase E — Campaigns/sessions + DM dashboard** + character creation/assignment.
+- **Phase E — Campaigns/sessions + DM dashboard** in the **Hextech / League-of-Legends style
+  (§6.19)** (design system first), + character creation/assignment.
 - **Phase F — Messaging/chat** (party + direct + groups) + presence + image attachments.
 - **Phase G — NPCs + initiative:** NPCs as full-sheet DM-owned characters (manual + AI, library),
   **dynamic initiative tracker**, **quick sheet** + **quick-actions ⋮ menu**, open-full-sheet-anytime,
@@ -446,8 +492,8 @@ All schema shipped as **`seeds/410_dnd_schema.sql`** (20 tables, RLS on all) + *
 ### Phase B — Invite-only auth
 | # | Slice | Done when | Status |
 |---|---|---|---|
-| B1 | Auth lib: session model + password hashing (or magic-link) + `lib/dnd/auth.ts` | unit-tested helpers | TODO |
-| B2 | Auth API routes: register(via invite)/login/logout/session | routes return correct states | TODO |
+| B1 | Auth lib: session model + password hashing + `lib/dnd/auth.ts` | unit-tested helpers | **DONE** (bcryptjs + HMAC cookie; 6 tests) |
+| B2 | Auth API routes: register(via invite)/login/logout/session | routes return correct states | **DONE** (`app/api/dnd/auth/*`) |
 | B3 | `/dnd/login` page (mobile-first) | can sign in | TODO |
 | B4 | `/dnd/join/[code]` invite acceptance → account creation | invited user registers | TODO |
 | B5 | DM invite generation UI + API (create/revoke codes) | DM mints a working invite | TODO |
@@ -490,16 +536,17 @@ All schema shipped as **`seeds/410_dnd_schema.sql`** (20 tables, RLS on all) + *
 | D5 | **Party gallery** (all members’ art + tokens) | roster view | TODO |
 | D6 | **Campaign gallery** (all campaign media) | grid | TODO |
 
-### Phase E — Campaigns / sessions / DM dashboard
+### Phase E — Campaigns / sessions / DM dashboard  *(Hextech style, §6.19)*
 | # | Slice | Done when | Status |
 |---|---|---|---|
-| E1 | DM dashboard: campaign list + create | DM creates a campaign | TODO |
-| E2 | Campaign page: members, characters, sessions list | shows roster + sessions | TODO |
-| E3 | Session CRUD + **session console shell** (tabbed panels) | console opens per session | TODO |
-| E4 | Session prep: notes editor (private + shareable) | notes persist | TODO |
-| E5 | Session prep: map/image uploads to the session | images attach | TODO |
-| E6 | **Character creation + assign to a player** (DM creates a `dnd_characters` shell of a `sheet_type` and sets `owner_user_id`; or an invite pre-assigns one) | a player logs in and sees *their* character | TODO |
-| E7 | Session status flow (prep → live → done) + "go live" | console reflects state | TODO |
+| E1 | **Hextech DM design system** (§6.19): scoped CSS tokens + fonts (Cinzel/Inter) + primitives — framed panels, angular gold buttons, ornamental dividers, portrait/token frames, tabs, hex FX; mobile-graceful | primitives render on a demo page | TODO |
+| E2 | DM dashboard: campaign list + create (Hextech home/card style) | DM creates a campaign | TODO |
+| E3 | Campaign page: members, characters, sessions list (framed panels) | shows roster + sessions | TODO |
+| E4 | Session CRUD + **session console shell** (Hextech tabbed panels) | console opens per session | TODO |
+| E5 | Session prep: notes editor (private + shareable) | notes persist | TODO |
+| E6 | Session prep: map/image uploads to the session | images attach | TODO |
+| E7 | **Character creation + assign to a player** (DM creates a `dnd_characters` shell of a `sheet_type` and sets `owner_user_id`; or an invite pre-assigns one) | a player logs in and sees *their* character | TODO |
+| E8 | Session status flow (prep → live → done) + "go live" | console reflects state | TODO |
 
 ### Phase F — Messaging / chat
 | # | Slice | Done when | Status |
