@@ -57,6 +57,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const dueCount = searchParams.get('due_count');
   const moduleId = searchParams.get('module_id');
   const lessonId = searchParams.get('lesson_id');
+  const category = searchParams.get('category'); // FS cards are scoped by category (e.g. fs:<module-uuid>)
   const discoveredOnly = searchParams.get('discovered') !== 'false'; // Default to discovered only
 
   // Return just the count of due cards
@@ -90,6 +91,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   if (!source || source === 'builtin') {
     let q = supabaseAdmin.from('flashcards').select('*');
+    if (category) q = q.eq('category', category);
     if (moduleId) q = q.eq('module_id', moduleId);
     if (lessonId) q = q.eq('lesson_id', lessonId);
     const { data } = await q.order('created_at', { ascending: true });
@@ -98,6 +100,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   if (!source || source === 'user') {
     let q = supabaseAdmin.from('user_flashcards').select('*').eq('user_email', session.user.email);
+    if (category) q = q.eq('category', category);
     if (moduleId) q = q.eq('module_id', moduleId);
     if (lessonId) q = q.eq('lesson_id', lessonId);
     const { data } = await q.order('created_at', { ascending: false });
@@ -163,7 +166,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { term, definition, hint_1, hint_2, hint_3, keywords, tags, module_id, lesson_id, source: requestedSource } = body;
+  const { term, definition, hint_1, hint_2, hint_3, keywords, tags, module_id, lesson_id, category, source: requestedSource } = body;
 
   if (!term?.trim() || !definition?.trim()) {
     return NextResponse.json({ error: 'Term and definition are required' }, { status: 400 });
@@ -181,6 +184,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       tags: tags || [],
       module_id: module_id || null,
       lesson_id: lesson_id || null,
+      category: category || null,
     }).select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ card: { ...data, source: 'builtin' } });
@@ -197,6 +201,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     tags: tags || [],
     module_id: module_id || null,
     lesson_id: lesson_id || null,
+    category: category || null,
   }).select().single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

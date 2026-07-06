@@ -66,9 +66,12 @@ interface QuizRunnerProps {
   backLabel: string;
   nextLessonUrl?: string;
   nextLessonLabel?: string;
+  // Fires once when the quiz is graded — lets a host react to the score
+  // (e.g. the FS module page unlocking the next module on a pass).
+  onComplete?: (summary: { score_percent: number; passed: boolean; correct_answers: number; total_questions: number }) => void;
 }
 
-export default function QuizRunner({ type, lessonId, moduleId, examCategory, questionCount = 5, title, backUrl, backLabel, nextLessonUrl, nextLessonLabel }: QuizRunnerProps) {
+export default function QuizRunner({ type, lessonId, moduleId, examCategory, questionCount = 5, title, backUrl, backLabel, nextLessonUrl, nextLessonLabel, onComplete }: QuizRunnerProps) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [results, setResults] = useState<{
@@ -167,6 +170,10 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
       if (res.ok) {
         const data = await res.json();
         setResults(data);
+        onComplete?.({
+          score_percent: data.score_percent, passed: data.passed,
+          correct_answers: data.correct_answers, total_questions: data.total_questions,
+        });
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     } catch { /* ignore */ }

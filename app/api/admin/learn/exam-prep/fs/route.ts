@@ -61,12 +61,17 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     const { data: weakAreas } = await supabaseAdmin.from('fs_weak_areas')
       .select('*').eq('user_email', userEmail).eq('module_number', mod.module_number);
 
+    // Which lesson sections has the student already read? (drives the reading indicator)
+    const { data: sectionsRead } = await supabaseAdmin.from('fs_section_progress')
+      .select('section_type').eq('user_email', userEmail).eq('module_id', moduleId);
+
     return NextResponse.json({
       module: mod,
       progress: progress || { status: mod.module_number === 1 ? 'available' : 'locked', quiz_best_score: 0, quiz_attempts_count: 0 },
       question_count: questions?.length || 0,
       recent_attempts: attempts || [],
       weak_areas: weakAreas || [],
+      sections_read: (sectionsRead || []).map((s: { section_type: string }) => s.section_type),
     });
   }
 
@@ -162,7 +167,49 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const userEmail = session.user.email;
   const body = await req.json();
-  const { action, module_id, quiz_score, weak_topics } = body;
+  const { action, module_id, quiz_score, weak_topics, section_type } = body;
+
+  if (action === 'mark_section_read') {
+    // Record that the student viewed a lesson section (idempotent per triple).
+    // Best-effort: never block the UI on this write.
+    if (!module_id || !section_type) {
+      return NextResponse.json({ error: 'module_id and section_type required' }, { status: 400 });
+    }
+    const { error } = await supabaseAdmin.from('fs_section_progress')
+      .upsert({
+        user_email: userEmail,
+        module_id,
+        section_type,
+        viewed_at: new Date().toISOString(),
+      }, { onConflict: 'user_email,module_id,section_type' });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (action === 'discover_module_cards') {
+    // Auto-discover this module's built-in flashcards so they flow into the
+    // student's global "due" queue — the "practice as you go" behavior.
+    // Mirrors app/api/admin/learn/progress/route.ts. Best-effort; a no-op until
+    // FS cards are authored (P7). Idempotent via the user_email,card_id conflict.
+    if (!module_id) return NextResponse.json({ error: 'module_id required' }, { status: 400 });
+    try {
+      // FS built-in cards are scoped by category (module_id FKs a different course).
+      const { data: cards } = await supabaseAdmin.from('flashcards')
+        .select('id').eq('category', `fs:${module_id}`);
+      if (cards && cards.length > 0) {
+        const discoveries = cards.map((c: { id: string }) => ({
+          user_email: userEmail,
+          card_id: c.id,
+          card_source: 'builtin',
+          // module_id omitted: it FKs learning_modules, not fs_study_modules.
+          next_yearly_review_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        }));
+        await supabaseAdmin.from('user_flashcard_discovery')
+          .upsert(discoveries, { onConflict: 'user_email,card_id' });
+      }
+    } catch { /* discovery is optional */ }
+    return NextResponse.json({ ok: true });
+  }
 
   if (action === 'start_module') {
     // Mark module as in_progress
