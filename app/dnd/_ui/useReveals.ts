@@ -7,7 +7,10 @@ import { useCallback, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 
 export interface RevealPayload {
-  imageUrl: string
+  imageUrl?: string | null // optional — a reveal can be text-only
+  title?: string | null // shown ABOVE the image
+  body?: string | null // shown BELOW the image
+  /** @deprecated use `body` — kept so older broadcasts still render. */
   caption?: string | null
   recipientIds: string[] | null // null = everyone
   fromName?: string | null
@@ -25,7 +28,8 @@ export function useReveals(campaignId: string | null, selfId: string | null, onR
     const ch = supabase.channel(`dnd:campaign:${campaignId}:reveals`, { config: { broadcast: { self: false } } })
     ch.on('broadcast', { event: 'reveal' }, (m) => {
       const p = m.payload as RevealPayload
-      if (!p?.imageUrl) return
+      // A reveal needs at least an image, a title, or body text.
+      if (!p || (!p.imageUrl && !p.title && !p.body && !p.caption)) return
       if (p.recipientIds === null || (selfId != null && p.recipientIds.includes(selfId))) onRef.current(p)
     }).subscribe()
     chRef.current = ch
