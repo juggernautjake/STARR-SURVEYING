@@ -1,6 +1,6 @@
 // __tests__/dnd/stream-influence.test.ts — patron-influence meter math (J11).
 import { describe, it, expect } from 'vitest';
-import { viewerFactor, computeInfluence, resistDC, isMaxed, MAX_INFLUENCE, engagementBoostFor, ENGAGEMENT_BOOST_CAP } from '@/lib/dnd/stream-influence';
+import { viewerFactor, computeInfluence, viewerDC, MAX_DC, engagementBoostFor, ENGAGEMENT_BOOST_CAP } from '@/lib/dnd/stream-influence';
 
 describe('viewerFactor', () => {
   it('is 0 for an empty/tiny audience and approaches 1 at quadrillions', () => {
@@ -25,18 +25,35 @@ describe('computeInfluence', () => {
   });
 });
 
-describe('resistDC', () => {
-  it('maps empty chat to an easy DC (2) and a maxed chat to the DC 25 ceiling', () => {
-    expect(resistDC(0)).toBe(2);
-    expect(resistDC(1)).toBe(25);
-    expect(resistDC(0.5)).toBeGreaterThan(12);
+describe('viewerDC', () => {
+  it('sets the DC purely by the viewer-count tier table (2–25)', () => {
+    // floor + first tier
+    expect(viewerDC(0)).toBe(2);
+    expect(viewerDC(1)).toBe(2);
+    expect(viewerDC(100)).toBe(2);
+    // tier boundaries are inclusive-max: 101 rolls to the next tier
+    expect(viewerDC(101)).toBe(3);
+    expect(viewerDC(500)).toBe(3);
+    expect(viewerDC(501)).toBe(4);
+    expect(viewerDC(1000)).toBe(4);
+    expect(viewerDC(1001)).toBe(5);
+    // a few milestones from the DM's table
+    expect(viewerDC(200_000)).toBe(11);
+    expect(viewerDC(1_000_000)).toBe(14);
+    expect(viewerDC(10_000_000)).toBe(18);
+    expect(viewerDC(100_000_000)).toBe(21);
+    // last explicit tier vs the ceiling
+    expect(viewerDC(1_000_000_000)).toBe(24);
+    expect(viewerDC(1_000_000_001)).toBe(MAX_DC);
+    expect(viewerDC(1e15)).toBe(25);
   });
-});
-
-describe('isMaxed', () => {
-  it('flips at the max threshold', () => {
-    expect(isMaxed(MAX_INFLUENCE)).toBe(true);
-    expect(isMaxed(0.5)).toBe(false);
+  it('is monotonic non-decreasing in viewers', () => {
+    let prev = 0;
+    for (const v of [0, 250, 900, 4000, 60000, 300000, 3_000_000, 60_000_000, 3e9]) {
+      const dc = viewerDC(v);
+      expect(dc).toBeGreaterThanOrEqual(prev);
+      prev = dc;
+    }
   });
 });
 

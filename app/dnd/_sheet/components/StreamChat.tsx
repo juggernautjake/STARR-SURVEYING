@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { makeUsernames, type ChatUser } from '@/lib/dnd/stream-names'
 import { parseEmotes } from '@/lib/dnd/stream-emotes'
 import { allowedInMode, modeIntervalFactor, formatModAction, type ChatMode, type ModActionType, CHAT_MODES } from '@/lib/dnd/stream-mod'
-import { computeInfluence, resistDC } from '@/lib/dnd/stream-influence'
+import { viewerDC } from '@/lib/dnd/stream-influence'
 import InfluenceMeter from './InfluenceMeter'
 import { useLiveEngagement } from './useLiveEngagement'
 import { useChar } from '../state/store'
@@ -358,11 +358,11 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
   if (!stream?.is_live) return null
   const modeMeta = CHAT_MODES.find((m) => m.id === chatMode)
 
-  // Live engagement = DM floor + decaying activity boost (J13). Drives both the meter
-  // and the resist DC so donations/raids/reactions momentarily make her harder to resist.
+  // The resist DC is set purely by the live viewer count (the tier table). Engagement +
+  // the decaying activity boost (J13) only feed the meter's visual energy, not the DC.
   const viewers = stream.viewer_count ?? 0
   const effEngagement = Math.min(100, (stream.engagement ?? 50) + boost)
-  const resistDc = resistDC(computeInfluence(viewers, effEngagement))
+  const resistDc = viewerDC(viewers)
 
   // "Resist the chat" — a proficient Wisdom (willpower) save vs the patron's current DC.
   // Posts to the sheet log + the shared roll feed, and flashes a result banner.

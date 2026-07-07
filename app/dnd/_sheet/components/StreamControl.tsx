@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useChar } from '../state/store'
 import type { AlertType, StreamAlert } from '@/lib/dnd/stream-alerts'
 import { CHAT_MODES, type ChatMode, type ModActionType } from '@/lib/dnd/stream-mod'
-import { computeInfluence, resistDC, isMaxed } from '@/lib/dnd/stream-influence'
+import { viewerDC, MAX_DC } from '@/lib/dnd/stream-influence'
 
 // Streamer-chat DM control (Phase J2) — toggle the character "live", set a viewer
 // count and chat speed. Lives in the DM panel; the fake chat overlay (J3+) reads this
@@ -153,11 +153,11 @@ export default function StreamControl() {
   const engagement = stream?.engagement ?? 50
   const speed = stream?.chat_speed ?? 3
 
-  // Live influence readout so the DM can see exactly what the meter/DC will do as he
-  // drags — no need to open the sheet to check.
-  const influence = computeInfluence(viewers, engagement)
-  const dc = resistDC(influence)
-  const maxed = isMaxed(influence)
+  // The resist DC is set purely by the live viewer count (the tier table); the engagement
+  // dial below only drives the meter's visual energy. Shown live so the DM sees the DC as
+  // he bumps viewers — no need to open the sheet to check.
+  const dc = viewerDC(viewers)
+  const maxed = dc >= MAX_DC
 
   // Smooth setter for the sliders: update local state instantly (so the thumb tracks
   // the cursor 1:1) and debounce a single fire-and-forget PATCH. Crucially it does NOT
@@ -323,22 +323,22 @@ export default function StreamControl() {
         </label>
       </div>
 
-      {/* Patron-influence dial (J11) — drives the influence meter + the resist DC. Its
-          own bordered block with a live DC readout + named presets so it's easy to find
-          and adjust without opening the sheet. */}
+      {/* Patron-influence block (J11). The resist DC is set purely by the VIEWER COUNT
+          (raise viewers above to raise the DC); the 🌈 dial only sets the meter's visual
+          energy. Live DC readout so it's easy to see without opening the sheet. */}
       <div style={{ marginTop: 10, padding: '8px 10px', border: `1px solid ${maxed ? '#ff10f0' : 'var(--line, rgba(255,255,255,0.14))'}`, borderRadius: 8, background: maxed ? 'rgba(255,16,240,0.08)' : 'rgba(255,255,255,0.02)' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
           <span style={{ fontSize: 11, letterSpacing: '0.1em', color: 'var(--gold, #c89b3c)', fontWeight: 700 }}>PATRON INFLUENCE</span>
           <span style={{ fontSize: 12, color: 'var(--muted, #9aa)' }}>
             she must beat{' '}
             <strong style={{ color: maxed ? '#ff10f0' : '#7ab8ff', textShadow: `0 0 8px ${maxed ? '#ff10f0' : '#7ab8ff'}` }}>DC {dc}</strong>
-            {' '}to resist chat · {Math.round(influence * 100)}% influence
+            {' '}to resist chat · set by {viewers.toLocaleString()} viewers
           </span>
           {maxed && <span style={{ fontSize: 10, fontWeight: 800, color: '#ff10f0', letterSpacing: '0.06em' }}>MAXED — IRRESISTIBLE</span>}
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <label style={{ fontSize: 12, color: 'var(--muted, #9aa)', display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 200 }}>
-            🌈
+          <label style={{ fontSize: 12, color: 'var(--muted, #9aa)', display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 200 }} title="Chat energy — how hard the meter bobs. Visual only; the DC is set by viewer count.">
+            🌈 Energy
             <input
               type="range"
               min={0}

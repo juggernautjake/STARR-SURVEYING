@@ -144,7 +144,7 @@ export function streamerCharacter(name: string): Character {
       'Open with **Hex** (bonus action) then **Eldritch Blast** — Agonizing Blast adds CHA to each beam, Repelling Blast shoves 10 ft. Poke, curse, and control from 120 ft.',
       '**Camera Focus** one priority target after a blast, then lean on **Vicious Mockery** and **Suggestion** to steer the fight.',
       '**Mask of Many Faces** (at-will *Disguise Self*) is your whole social/utility kit — infiltrate, grift, or slip away.',
-      'Mind the **influence meter**: the more hyped chat is, the higher the DC to resist their demands. Spend Pact slots freely — **Magical Cunning** buys one refill per day.',
+      'Mind the **influence meter**: the more people watching, the higher the DC to resist chat’s demands (DC 2 at a handful of viewers up to DC 25 at a billion-plus). Spend Pact slots freely — **Magical Cunning** buys one refill per day.',
     ],
   };
 
@@ -174,6 +174,6 @@ export function streamerCharacter(name: string): Character {
   // Default to the pink colorway; the Style switch flips to blue.
   c.skinVariant = 'pink';
 
-  c.dmNote = 'live now — her patron is the chat. Use the STREAM // Chat panel to run viewers, engagement, alerts, and the AI chat director; the influence meter sets the DC she must beat to resist chat’s demands.';
+  c.dmNote = 'live now — her patron is the chat. Use the STREAM // Chat panel to run viewers, engagement, alerts, and the AI chat director; the resist DC she must beat scales with her live viewer count (DC 2 → 25).';
   return c;
 }
