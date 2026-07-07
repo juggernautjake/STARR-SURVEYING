@@ -14,20 +14,27 @@ async function ensureDemoStreamer(): Promise<void> {
   try {
     const { data: existing } = await supabaseAdmin
       .from('dnd_characters')
-      .select('id')
+      .select('id, sheet_type')
       .eq('id', DEMO_STREAMER.characterId)
       .maybeSingle();
-    if (!existing) {
-      await supabaseAdmin.from('dnd_characters').insert({
-        id: DEMO_STREAMER.characterId,
-        campaign_id: DEMO_CAMPAIGN_ID,
-        owner_user_id: DEMO_DM_USER_ID,
-        name: DEMO_STREAMER.characterName,
-        sheet_type: DEMO_STREAMER.sheetType,
-        is_npc: true,
-        visibility: 'campaign',
-        data: streamerCharacter(DEMO_STREAMER.characterName),
-      });
+    const row = existing as { id: string; sheet_type: string } | null;
+    const streamerRow = {
+      campaign_id: DEMO_CAMPAIGN_ID,
+      owner_user_id: DEMO_DM_USER_ID,
+      name: DEMO_STREAMER.characterName,
+      sheet_type: DEMO_STREAMER.sheetType,
+      is_npc: true,
+      visibility: 'campaign',
+      data: streamerCharacter(DEMO_STREAMER.characterName),
+    };
+    if (!row) {
+      // Missing entirely → create her.
+      await supabaseAdmin.from('dnd_characters').insert({ id: DEMO_STREAMER.characterId, ...streamerRow });
+    } else if (row.sheet_type !== DEMO_STREAMER.sheetType) {
+      // A leftover row occupies this id (e.g. the old "Nova Vex", generic + is_npc=false)
+      // → convert it into the DM-run streamer NPC with her full statted sheet. Only runs
+      // until she's on the `streamer` skin, so DM edits to the streamer are preserved.
+      await supabaseAdmin.from('dnd_characters').update(streamerRow).eq('id', DEMO_STREAMER.characterId);
     }
     // Put her live so the chat + influence meter run when opened (don't overwrite an
     // existing state).

@@ -130,12 +130,50 @@ export function streamerCharacter(name: string): Character {
       '**xxRainbowKittenUwU37xx** (AKA *Cleoar J.*) — an **Isotron** code-based lifeform who streams from inside the Feed. Her patron is literally **the chat**.',
       'Bubblegum pixels, cat-ear headset, chaotic-good energy at all hours. The more hyped the audience, the harder it is to resist what they demand.',
     ],
-    appearance: [],
-    personality: [],
-    background: '',
-    playTips: [],
+    appearance: [
+      'A translucent, faintly-pixelated cat-girl rendered in bubblegum light — cat-ear headset, an oversized hoodie that flickers with subscriber emotes, and a soft CRT scanline haze around the edges of her.',
+      'Her irises are tiny loading-spinners when she is thinking; little hearts and *UwU*s bloom in the air above her whenever the chat spikes. Flip her **Style** to blue and the whole rig recolors to electric cyan.',
+    ],
+    personality: [
+      'Relentlessly upbeat on-stream, genuinely kind off it. Lives for the bit. Would do almost anything for the audience — which is the problem, because the audience is her god.',
+      'Chaotic good: she *wants* to do the right thing, but a hyped-enough chat can talk her into just about anything (see the influence meter + the resist save).',
+    ],
+    background:
+      'Streamer (Noble). She was a stray process loose in the Feed until a handful of viewers started watching — and paying. Every donation made her a little more real, until she bootstrapped herself into a person with a face, a name, and a following across the planes. The chat granted her power through the Pact of the Patreon; the chat expects a show. Proficiencies: History, Persuasion, Dice, and any Computer activity.',
+    playTips: [
+      'Open with **Hex** (bonus action) then **Eldritch Blast** — Agonizing Blast adds CHA to each beam, Repelling Blast shoves 10 ft. Poke, curse, and control from 120 ft.',
+      '**Camera Focus** one priority target after a blast, then lean on **Vicious Mockery** and **Suggestion** to steer the fight.',
+      '**Mask of Many Faces** (at-will *Disguise Self*) is your whole social/utility kit — infiltrate, grift, or slip away.',
+      'Mind the **influence meter**: the more hyped chat is, the higher the DC to resist their demands. Spend Pact slots freely — **Magical Cunning** buys one refill per day.',
+    ],
   };
 
-  c.dmNote = 'live now';
+  c.balance = {
+    synergies: [
+      'Agonizing + Repelling Blast turns a single cantrip into reliable ranged damage *and* battlefield control.',
+      'Hex stacks +1d6 on every Eldritch Blast beam and slaps disadvantage on an ability of your choice.',
+      'Digisoul expertise + Speak with Technology makes her the party face for anything computerized.',
+      'Mask of Many Faces = infinite disguises for social play and infiltration.',
+    ],
+    weaknesses: [
+      'Fragile: AC 11, 20 HP, STR & DEX 9 — she folds in melee.',
+      'Vulnerable to **lightning** (code-based lifeform).',
+      'Only **2 Pact slots**; once they are gone she leans on cantrips (Magical Cunning refills once per long rest).',
+      'Concentration-dependent (Hex / Suggestion) on a low-HP body — one solid hit can drop the curse.',
+    ],
+  };
+
+  // Warlock progression (relabelled columns via progressionMeta so it isn't barbarian).
+  c.progressionMeta = { title: 'Progression · Warlock 1–3', lead: 'Her Pact-of-the-Patreon Warlock progression. The highlighted row is her current level.', col3: 'Cantrips', col4: 'Slots' };
+  c.progression = [
+    { level: 1, prof: '+2', rages: '4', rageDmg: '1 · Lv1', features: 'Pact Magic, Eldritch Invocations (Agonizing + Repelling Blast), Isotron traits' },
+    { level: 2, prof: '+2', rages: '4', rageDmg: '2 · Lv1', features: 'Magical Cunning, 3rd invocation (Mask of Many Faces)' },
+    { level: 3, prof: '+2', rages: '5', rageDmg: '2 · Lv2', features: 'Pact of the Patreon subclass — Camera Focus, Ask Chat', here: true },
+  ];
+
+  // Default to the pink colorway; the Style switch flips to blue.
+  c.skinVariant = 'pink';
+
+  c.dmNote = 'live now — her patron is the chat. Use the STREAM // Chat panel to run viewers, engagement, alerts, and the AI chat director; the influence meter sets the DC she must beat to resist chat’s demands.';
   return c;
 }

@@ -155,6 +155,9 @@ export interface Character {
   attacks: Attack[]
   features: FeatureBlock[]
   progression: ProgressionRow[]
+  /** Optional per-character labels for the progression table (defaults to Lazzuh's
+   *  barbarian columns). Lets non-barbarians relabel the two middle columns + lead. */
+  progressionMeta?: { title?: string; lead?: string; col3?: string; col4?: string }
   inventory: InvItem[]
   currency: { credits: number; harmonyte: number; scrip: number }
   bio: {
