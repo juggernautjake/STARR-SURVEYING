@@ -169,4 +169,8 @@ export interface Character {
     weaknesses: string[]
   }
   dmNote: string
+  /** How the round token/icon is cropped from the token/art image (D2). `x`/`y` are
+   *  the focus point (0–100% of the image) centered in the circle; `zoom` (≥1) tightens
+   *  the crop. Omitted → sensible default (centered, or top for full-body art). */
+  tokenFocus?: { x: number; y: number; zoom: number }
 }

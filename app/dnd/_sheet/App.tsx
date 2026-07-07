@@ -29,6 +29,7 @@ import Bio from './components/Bio'
 import DiceTray from './components/DiceTray'
 import DmOverridePanel from './components/DmOverridePanel'
 import SheetArtUploader from './components/SheetArtUploader'
+import TokenFramer from './components/TokenFramer'
 import DescriptionsPanel from './components/DescriptionsPanel'
 import CharacterGallery from './components/CharacterGallery'
 import { md } from './lib/inline'
@@ -99,19 +100,32 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
           (her face) when no dedicated token is uploaded — so a full-body art still
           gives a face icon. */}
       {(media.tokenUrl || media.artUrl) && (
-        <div className="token-frame" style={{ marginBottom: 12 }}>
+        <div
+          className="token-frame"
+          style={{
+            marginBottom: 12,
+            width: 76,
+            height: 76,
+            borderRadius: '50%',
+            overflow: 'hidden',
+            border: '2px solid var(--violet-2)',
+            boxShadow: '0 0 12px rgba(139, 92, 246, 0.5)',
+          }}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={media.tokenUrl ?? media.artUrl ?? ''}
             alt={`${char.meta.name} — token`}
             style={{
-              width: 76,
-              height: 76,
-              borderRadius: '50%',
+              width: '100%',
+              height: '100%',
+              display: 'block',
               objectFit: 'cover',
-              objectPosition: media.tokenUrl ? 'center' : '50% 8%',
-              border: '2px solid var(--violet-2)',
-              boxShadow: '0 0 12px rgba(139, 92, 246, 0.5)',
+              // Adjustable framing (D2): focus point + zoom set via the token framer;
+              // default centers a token, or shows the top of a full-body art (face).
+              objectPosition: char.tokenFocus ? `${char.tokenFocus.x}% ${char.tokenFocus.y}%` : media.tokenUrl ? 'center' : '50% 8%',
+              transform: char.tokenFocus && char.tokenFocus.zoom > 1 ? `scale(${char.tokenFocus.zoom})` : undefined,
+              transformOrigin: char.tokenFocus ? `${char.tokenFocus.x}% ${char.tokenFocus.y}%` : 'center',
             }}
           />
         </div>
@@ -141,6 +155,8 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
 
       {/* Owner-DM art/token uploader — sets the images shown above + in the gallery (D1/D2). */}
       <SheetArtUploader />
+      {/* Adjust which part of the image the round token crops from (D2). */}
+      <TokenFramer />
 
       {/* DM control panel — renders only in DM mode (§6.8.1 / C10). Stream controls
           inside it show only for characters with the `stream` module. */}

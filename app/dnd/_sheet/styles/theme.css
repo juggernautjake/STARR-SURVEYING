@@ -2317,11 +2317,11 @@
     repeating-linear-gradient(90deg, rgba(90, 16, 80, 0.1) 0 1px, transparent 1px 3px);
   mix-blend-mode: multiply;
 }
-.dnd-sheet.skin-streamer .token-frame img {
-  image-rendering: pixelated;
+.dnd-sheet.skin-streamer .token-frame {
   border-color: var(--hotpink) !important;
   box-shadow: 0 0 14px rgba(255, 30, 156, 0.55) !important;
 }
+.dnd-sheet.skin-streamer .token-frame img { image-rendering: pixelated; }
 
 /* ---- Influence meter: bright segmented pink→gold data bar ---- */
 .dnd-sheet.skin-streamer [data-influence-meter] {
