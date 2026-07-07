@@ -52,8 +52,8 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
             </div>
           )}
 
-          {/* Your character shortcut */}
-          {data.myCharacterId && (
+          {/* Your character — open it, or create one if you haven't yet (onboarding) */}
+          {data.myCharacterId ? (
             <a
               href={`/dnd/characters/${data.myCharacterId}`}
               className={`${styles.hexBtn} ${styles.hexBtnPrimary}`}
@@ -61,6 +61,21 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
             >
               ▶ Open your character sheet
             </a>
+          ) : (
+            <div className={styles.framedPanel} style={{ display: 'grid', gap: 8, padding: '16px 18px', borderColor: 'var(--hx-gold-1)' }}>
+              <h2 className={styles.panelTitle} style={{ margin: 0, fontSize: 15 }}>Create your character</h2>
+              <p style={{ margin: 0, fontSize: 12.5, color: 'var(--hx-muted)', lineHeight: 1.5 }}>
+                Review the campaign details above, then build your character — upload a sheet, PDF, or art for the AI to
+                build it out, or start blank and fill it in yourself.
+              </p>
+              <a
+                href={`/dnd/characters/new?campaignId=${data.id}`}
+                className={`${styles.hexBtn} ${styles.hexBtnPrimary}`}
+                style={{ justifyContent: 'center', padding: '12px', fontSize: 15, textDecoration: 'none' }}
+              >
+                ＋ Create your character
+              </a>
+            </div>
           )}
 
           {/* Roster: DM + all characters */}

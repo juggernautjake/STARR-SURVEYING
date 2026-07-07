@@ -8,6 +8,7 @@ import CampaignDashboard from './_ui/CampaignDashboard';
 import CampaignsHome from './_ui/CampaignsHome';
 import HubSignIn from './_ui/HubSignIn';
 import MyTable from './_ui/MyTable';
+import NotificationsPanel from './_ui/NotificationsPanel';
 import styles from './_ui/hextech.module.css';
 import { loadAllCampaignSummaries, loadUserProfile } from '@/lib/dnd/campaign-summary';
 
@@ -30,6 +31,7 @@ export default async function DndHubPage() {
               <p className={styles.subtitle}>Sign in to track your table, or pick any campaign to open it.</p>
             </div>
             <HubSignIn displayName={session?.displayName ?? null} />
+            {session && <NotificationsPanel />}
             {profile && <MyTable profile={profile} />}
             <CampaignsHome campaigns={await loadAllCampaignSummaries()} embedded />
           </div>

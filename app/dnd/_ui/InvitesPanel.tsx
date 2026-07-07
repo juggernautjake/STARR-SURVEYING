@@ -12,11 +12,16 @@ export interface Invite {
   used_by?: string | null
   expires_at?: string | null
   created_at?: string
+  invited_user_id?: string | null
+  invitedDisplayName?: string | null
+  status?: string | null
 }
 
 function statusOf(iv: Invite): { label: string; color: string } {
-  if (iv.used_by) return { label: 'Used', color: 'var(--hx-muted)' }
+  if (iv.status === 'accepted' || iv.used_by) return { label: 'Accepted', color: 'var(--hx-muted)' }
+  if (iv.status === 'declined') return { label: 'Declined', color: 'var(--hx-danger)' }
   if (iv.expires_at && new Date(iv.expires_at).getTime() < Date.now()) return { label: 'Expired', color: 'var(--hx-danger)' }
+  if (iv.invited_user_id) return { label: 'Pending', color: 'var(--hx-gold-2)' }
   return { label: 'Active', color: 'var(--hx-teal-1)' }
 }
 
@@ -26,6 +31,8 @@ export default function InvitesPanel({ campaignId, initialInvites }: { campaignI
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
+  const [inviteName, setInviteName] = useState('')
+  const [notice, setNotice] = useState<string | null>(null)
 
   useEffect(() => {
     if (initialInvites) return
@@ -67,6 +74,33 @@ export default function InvitesPanel({ campaignId, initialInvites }: { campaignI
     }
   }
 
+  async function inviteByName() {
+    const name = inviteName.trim()
+    if (!name || busy) return
+    setBusy(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const res = await fetch('/api/dnd/invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaignId, role, invitedUserName: name }),
+      })
+      const j = await res.json()
+      if (!res.ok) {
+        setError(j.error || 'Could not send invite.')
+        return
+      }
+      setInvites((iv) => [j.invite, ...iv])
+      setNotice(`Invite sent to ${j.invite.invitedDisplayName || name}. They'll see it on their hub.`)
+      setInviteName('')
+    } catch {
+      setError('Network error — please try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function copy(code: string) {
     try {
       await navigator.clipboard.writeText(`${window.location.origin}${joinPath(code)}`)
@@ -92,8 +126,9 @@ export default function InvitesPanel({ campaignId, initialInvites }: { campaignI
       <h2 className={styles.panelTitle}>Invites</h2>
 
       {error && <div className={styles.error}>{error}</div>}
+      {notice && <p style={{ color: 'var(--hx-teal-1)', fontSize: 13, margin: '0 0 10px' }}>✓ {notice}</p>}
 
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
         <select
           value={role}
           onChange={(e) => setRole(e.target.value as 'player' | 'dm')}
@@ -103,8 +138,22 @@ export default function InvitesPanel({ campaignId, initialInvites }: { campaignI
           <option value="player">Player</option>
           <option value="dm">Co-DM</option>
         </select>
-        <button className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} onClick={generate} disabled={busy}>
-          {busy ? 'Generating…' : '+ Generate Invite'}
+        <input
+          className={styles.input}
+          style={{ width: 'auto', flex: 1, minWidth: 150, padding: '8px 10px' }}
+          placeholder="Invite by name…"
+          value={inviteName}
+          onChange={(e) => setInviteName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && inviteByName()}
+        />
+        <button className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} onClick={inviteByName} disabled={busy || !inviteName.trim()}>
+          {busy ? 'Sending…' : '✉ Invite'}
+        </button>
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+        <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>or share a link:</span>
+        <button className={styles.hexBtn} onClick={generate} disabled={busy}>
+          {busy ? 'Generating…' : '+ Generate link invite'}
         </button>
       </div>
 
@@ -120,9 +169,13 @@ export default function InvitesPanel({ campaignId, initialInvites }: { campaignI
                 style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 10px', background: 'rgba(1,10,19,0.4)', border: '1px solid var(--hx-line)', flexWrap: 'wrap' }}
               >
                 <span style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: iv.role === 'dm' ? 'var(--hx-gold-2)' : 'var(--hx-teal-1)' }}>{iv.role}</span>
-                <code style={{ color: 'var(--hx-text)', fontSize: 12.5, flex: 1, minWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{joinPath(iv.code)}</code>
+                {iv.invited_user_id ? (
+                  <span style={{ color: 'var(--hx-text)', fontSize: 13, flex: 1, minWidth: 120 }}>✉ {iv.invitedDisplayName ?? 'Invited user'}</span>
+                ) : (
+                  <code style={{ color: 'var(--hx-text)', fontSize: 12.5, flex: 1, minWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{joinPath(iv.code)}</code>
+                )}
                 <span style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: st.color }}>{st.label}</span>
-                {!iv.used_by && (
+                {!iv.used_by && !iv.invited_user_id && (
                   <button className={styles.hexBtn} style={{ padding: '6px 11px' }} onClick={() => copy(iv.code)}>
                     {copied === iv.code ? 'Copied!' : 'Copy'}
                   </button>
