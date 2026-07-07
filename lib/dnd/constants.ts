@@ -30,3 +30,11 @@ export const DEMO_PLAYERS = [
   { userId: '1a2200aa-0000-4000-8000-0000000000a4', name: 'Nyx Vale', characterId: '1a2200aa-0000-4000-8000-0000000000c3', characterName: 'Sprocket', sheetType: 'generic' },
 ] as const;
 
+// The DM-run streamer NPC (Nova Vex, id c4) — not a player entry, owned by the DM.
+// Her bespoke `nova` sheet skin (§6.9) rides on this row's sheet_type.
+export const DEMO_STREAMER = {
+  characterId: DEMO_STREAMER_CHARACTER_ID,
+  characterName: 'Nova Vex',
+  sheetType: 'nova',
+} as const;
+

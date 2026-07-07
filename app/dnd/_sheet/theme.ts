@@ -51,6 +51,50 @@ export const lazzuhTheme: SheetTheme = {
   },
 };
 
+// Nova Vex — the peppy, hot-pink digital-being streamer (§6.9). She reads as a
+// creature made of bright-pink pixels (a happy, neon Cortana), so her palette leans
+// into hot magenta + holographic cyan on a deep indigo "screen" void. The pixel/CRT
+// texture, scanlines, glitch and 8-bit fonts come from the `skin-nova` class in
+// theme.css; these tokens carry the color/typography half of the look.
+export const novaTheme: SheetTheme = {
+  colors: {
+    // Nova runs a BRIGHT "magical-girl broadcast" palette: white + hot pink with
+    // gold and purple accents (matching her art). It's a light theme, so `void`/
+    // `panel` are pale and `ink` is a deep plum for readable text; the `skin-nova`
+    // CSS flips the base sheet's hardcoded white headings to `ink` to suit.
+    void: '#fff0fa',
+    'void-2': '#ffe8f6',
+    panel: '#fffafe',
+    'panel-2': '#fdeaf8',
+    'panel-3': '#f5e2ff',
+    ink: '#5a1050',
+    muted: '#a24f92',
+    'muted-2': '#b877ab',
+    pink: '#ff4fb8',
+    hotpink: '#ff1e9c',
+    violet: '#a94dff',
+    'violet-2': '#7d2ecf',
+    // "teal"/"tealbright" are repurposed away from cyan: teal → purple accent,
+    // tealbright → a deep gold that stays legible on the light panels (it backs
+    // links, ability mods, table headers, etc. in the base sheet).
+    teal: '#9b3fd0',
+    tealbright: '#c98a0a',
+    gold: '#e0a400',
+    danger: '#e5344f',
+    good: '#1c9e63',
+    line: 'rgba(255, 30, 156, 0.30)',
+    'line-strong': 'rgba(255, 30, 156, 0.58)',
+  },
+  fonts: {
+    // Pixelify Sans reads as clean pixel-art at display sizes; VT323 is a CRT
+    // terminal face for the HUD/mono bits; Chakra Petch keeps body copy techy but
+    // legible. All three are imported at the top of theme.css.
+    display: "'Pixelify Sans', 'Oswald', 'Arial Narrow', sans-serif",
+    body: "'Chakra Petch', 'Barlow Condensed', 'Segoe UI', sans-serif",
+    mono: "'VT323', 'JetBrains Mono', 'Consolas', monospace",
+  },
+};
+
 // Map a SheetTheme to the CSS custom properties theme.css consumes. Returns a
 // style object suitable for the `.dnd-sheet` root; an empty/undefined theme yields
 // no overrides (the stylesheet's Lazzuh defaults apply).

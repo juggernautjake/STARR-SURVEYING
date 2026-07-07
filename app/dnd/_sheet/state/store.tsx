@@ -65,6 +65,8 @@ interface Ctx {
   pb: number
   /** DM mode (§6.8.1): unlocks the DM override panel + full edit control. */
   isDM: boolean
+  /** Viewer can edit this character (owner OR DM) — gates owner-level tools. */
+  canWrite: boolean
   /** The DB-backed character id (null in localStorage/preview mode) — used by the
    *  DM edit log (C11a) and realtime sync (C11b). */
   characterId: string | null
@@ -74,6 +76,9 @@ interface Ctx {
   campaignId: string | null
   /** Character media (art/token) from the DB row (Phase D1/D2). */
   media: { artUrl: string | null; tokenUrl: string | null }
+  /** Update the in-memory art/token pointers after an upload so the sheet reflects
+   *  the new image immediately (the DB row is written by the media endpoint). */
+  setMedia: (m: { artUrl: string | null; tokenUrl: string | null }) => void
   /** Editable descriptions from the DB `bio` column (Phase D3). */
   bio: Record<string, string>
   /** Merge-patch the descriptions and persist to the `bio` column (DB mode). */
@@ -183,6 +188,7 @@ export function CharacterProvider({
   characterId,
   campaignId,
   isDM = false,
+  canWrite,
 }: {
   children: React.ReactNode
   /** When set (C3), the sheet loads/saves `dnd_characters.data` via the API for
@@ -193,6 +199,9 @@ export function CharacterProvider({
   campaignId?: string
   /** DM mode (§6.8.1) — surfaces the DM override panel + full edit control. */
   isDM?: boolean
+  /** Whether the viewer can edit this character (owner OR DM). Gates owner-level
+   *  tools like the art/token uploader; defaults to DM when not supplied. */
+  canWrite?: boolean
 }) {
   const dbMode = !!characterId
   const [char, setCharState] = useState<Character>(() =>
@@ -734,9 +743,11 @@ export function CharacterProvider({
     offline,
     pb,
     isDM,
+    canWrite: canWrite ?? isDM,
     characterId: characterId ?? null,
     campaignId: campaignId ?? null,
     media,
+    setMedia,
     bio,
     saveDescriptions,
     advMode,

@@ -36,21 +36,23 @@ export default function InfluenceMeter({ viewers, engagement }: { viewers: numbe
   const dc = resistDC(base)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, userSelect: 'none', flexShrink: 0 }}>
+    <div data-influence-meter="" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, userSelect: 'none', flexShrink: 0 }}>
       <div style={{ fontSize: 10, letterSpacing: '0.12em', color: 'var(--muted, #9aa)' }}>RESIST</div>
       <div
         style={{
-          fontFamily: "'Cinzel', var(--hx-font-display, serif)",
+          // Colors are CSS-var driven so a sheet skin can recolor the meter; the
+          // hardcoded values are the default (unskinned) look.
+          fontFamily: 'var(--inf-font, "Cinzel", var(--hx-font-display, serif))',
           fontSize: 21,
           fontWeight: 800,
-          color: maxed ? '#ff10f0' : '#7ab8ff',
-          textShadow: maxed ? '0 0 12px #ff10f0' : '0 0 8px #7ab8ff',
+          color: maxed ? 'var(--inf-max, #ff10f0)' : 'var(--inf-dc, #7ab8ff)',
+          textShadow: maxed ? '0 0 12px var(--inf-max, #ff10f0)' : '0 0 8px var(--inf-dc, #7ab8ff)',
         }}
       >
         DC {dc}
       </div>
-      <div className={`${styles.influenceTrack} ${maxed ? styles.influenceTrackMax : ''}`}>
-        <div className={`${styles.influenceFill} ${maxed ? styles.influenceFillMax : ''}`} style={{ height: `${Math.round(level * 100)}%` }} />
+      <div data-inf-track="" className={`${styles.influenceTrack} ${maxed ? styles.influenceTrackMax : ''}`}>
+        <div data-inf-fill="" className={`${styles.influenceFill} ${maxed ? styles.influenceFillMax : ''}`} style={{ height: `${Math.round(level * 100)}%` }} />
       </div>
       <div style={{ fontSize: 9.5, letterSpacing: '0.06em', color: maxed ? '#ff10f0' : 'var(--muted, #9aa)', textAlign: 'center', maxWidth: 66, lineHeight: 1.25 }}>
         {maxed ? 'MAXED — IRRESISTIBLE!' : 'CHAT INFLUENCE'}

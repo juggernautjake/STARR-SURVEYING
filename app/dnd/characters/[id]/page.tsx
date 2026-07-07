@@ -18,7 +18,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
 
   const res = await getCharacterAccess(params.id);
   if (!res.access) redirect('/dnd'); // no access → back to the hub
-  const { character, isDM } = res.access;
+  const { character, isDM, canWrite } = res.access;
 
   let banner = null;
   if (character.under_construction) {
@@ -35,7 +35,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
   return (
     <>
       {banner}
-      <SheetRoot characterId={character.id} campaignId={character.campaign_id ?? undefined} sheetType={character.sheet_type} isDM={isDM} />
+      <SheetRoot characterId={character.id} campaignId={character.campaign_id ?? undefined} sheetType={character.sheet_type} isDM={isDM} canWrite={canWrite} />
       {character.campaign_id && <SheetChatPanel campaignId={character.campaign_id} actorName={character.name} />}
     </>
   );

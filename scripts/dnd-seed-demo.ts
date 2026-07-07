@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 // @ts-expect-error - no type declarations for 'pg'
 import pg from 'pg';
 import { blankCharacter } from '../app/dnd/_sheet/data/blank';
-import { DEMO_CAMPAIGN_ID, DEMO_DM_USER_ID, DEMO_GUEST_USER_ID, DEMO_PLAYERS, LAZZUH_CHARACTER_ID } from '../lib/dnd/constants';
+import { DEMO_CAMPAIGN_ID, DEMO_DM_USER_ID, DEMO_GUEST_USER_ID, DEMO_PLAYERS, DEMO_STREAMER, LAZZUH_CHARACTER_ID } from '../lib/dnd/constants';
 
 const { Client } = pg;
 const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -88,10 +88,19 @@ async function main() {
       await client.query(
         `INSERT INTO dnd_characters (id, campaign_id, owner_user_id, name, sheet_type, data, visibility, is_npc)
            VALUES ($1, $2, $3, $4, $5, $6::jsonb, 'campaign', false)
-         ON CONFLICT (id) DO UPDATE SET campaign_id = EXCLUDED.campaign_id, owner_user_id = EXCLUDED.owner_user_id, name = EXCLUDED.name`,
+         ON CONFLICT (id) DO UPDATE SET campaign_id = EXCLUDED.campaign_id, owner_user_id = EXCLUDED.owner_user_id, name = EXCLUDED.name, sheet_type = EXCLUDED.sheet_type`,
         [p.characterId, DEMO_CAMPAIGN_ID, p.userId, p.characterName, p.sheetType, JSON.stringify(blankCharacter(p.characterName))],
       );
     }
+
+    // Nova Vex — the DM-run streamer NPC (her fake-Twitch chat is DM-controlled).
+    // Owned by the DM, flagged is_npc, and carrying the bespoke `nova` pixel skin.
+    await client.query(
+      `INSERT INTO dnd_characters (id, campaign_id, owner_user_id, name, sheet_type, data, visibility, is_npc)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, 'campaign', true)
+       ON CONFLICT (id) DO UPDATE SET campaign_id = EXCLUDED.campaign_id, owner_user_id = EXCLUDED.owner_user_id, name = EXCLUDED.name, sheet_type = EXCLUDED.sheet_type, is_npc = EXCLUDED.is_npc`,
+      [DEMO_STREAMER.characterId, DEMO_CAMPAIGN_ID, DEMO_DM_USER_ID, DEMO_STREAMER.characterName, DEMO_STREAMER.sheetType, JSON.stringify(blankCharacter(DEMO_STREAMER.characterName))],
+    );
 
     const { rows } = await client.query(
       `SELECT c.name, u.display_name AS owner, m.role FROM dnd_characters c
