@@ -9,15 +9,15 @@ import { useChar } from '../state/store'
 type Kind = 'art' | 'token'
 
 export default function SheetArtUploader() {
-  const { characterId, isDM, media, setMedia } = useChar()
+  const { characterId, canWrite, media, setMedia } = useChar()
   const [busy, setBusy] = useState<Kind | null>(null)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const artRef = useRef<HTMLInputElement>(null)
   const tokenRef = useRef<HTMLInputElement>(null)
 
-  // Only the DM gets the control here (the DM always has write access); a player
-  // editing their own sheet keeps using their existing art tools.
-  if (!isDM || !characterId) return null
+  // Anyone who can edit this character (its owner or the DM) can set the art/token
+  // — mirrors the media endpoint's own permission check.
+  if (!canWrite || !characterId) return null
 
   async function upload(kind: Kind, file: File) {
     setBusy(kind)

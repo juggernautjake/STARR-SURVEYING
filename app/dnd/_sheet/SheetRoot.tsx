@@ -17,6 +17,7 @@ export default function SheetRoot({
   sheetType,
   theme,
   isDM,
+  canWrite,
 }: {
   characterId?: string;
   campaignId?: string;
@@ -24,9 +25,11 @@ export default function SheetRoot({
   theme?: SheetTheme;
   /** DM mode (§6.8.1) — surfaces the DM override panel + full edit control. */
   isDM?: boolean;
+  /** Viewer can edit this character (owner OR DM) — enables the art uploader. */
+  canWrite?: boolean;
 }) {
   return (
-    <CharacterProvider characterId={characterId} campaignId={campaignId} isDM={isDM}>
+    <CharacterProvider characterId={characterId} campaignId={campaignId} isDM={isDM} canWrite={canWrite}>
       <App sheetType={sheetType} theme={theme} />
     </CharacterProvider>
   );
