@@ -35,7 +35,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
   return (
     <>
       {banner}
-      <SheetRoot characterId={character.id} sheetType={character.sheet_type} isDM={isDM} />
+      <SheetRoot characterId={character.id} campaignId={character.campaign_id ?? undefined} sheetType={character.sheet_type} isDM={isDM} />
       {character.campaign_id && <SheetChatPanel campaignId={character.campaign_id} actorName={character.name} />}
     </>
   );

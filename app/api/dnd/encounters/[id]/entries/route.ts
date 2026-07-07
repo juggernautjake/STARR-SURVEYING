@@ -23,15 +23,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   try {
     const { characterId, name, initiative, hp, maxHp, tokenUrl } = await req.json();
 
-    // Derive display fields from the character when one is referenced and not overridden.
+    // Derive display fields + HP from the character when one is referenced and not
+    // overridden (G6: PC/NPC HP auto-seeds from the sheet's combat block on add).
     let finalName = name ? String(name).trim() : '';
     let finalToken = tokenUrl ?? null;
+    let finalHp = hp == null ? null : Number(hp);
+    let finalMax = maxHp == null ? null : Number(maxHp);
     if (characterId) {
-      const { data: ch } = await supabaseAdmin.from('dnd_characters').select('name, token_url').eq('id', characterId).maybeSingle();
-      const c = ch as { name: string; token_url: string | null } | null;
+      const { data: ch } = await supabaseAdmin.from('dnd_characters').select('name, token_url, data').eq('id', characterId).maybeSingle();
+      const c = ch as { name: string; token_url: string | null; data?: { combat?: { currentHp?: number; maxHp?: number } } } | null;
       if (c) {
         if (!finalName) finalName = c.name;
         if (!finalToken) finalToken = c.token_url;
+        const combat = c.data?.combat;
+        if (finalMax == null && combat?.maxHp != null) finalMax = Number(combat.maxHp);
+        if (finalHp == null && combat?.currentHp != null) finalHp = Number(combat.currentHp);
       }
     }
     if (!finalName) return NextResponse.json({ error: 'A combatant name (or character) is required.' }, { status: 400 });
@@ -46,8 +52,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         name: finalName,
         token_url: finalToken,
         initiative: initiative == null ? null : Number(initiative),
-        hp: hp == null ? null : Number(hp),
-        max_hp: maxHp == null ? null : Number(maxHp),
+        hp: finalHp,
+        max_hp: finalMax,
         sort_order: count ?? 0,
       })
       .select('*')

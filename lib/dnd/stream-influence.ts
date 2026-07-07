@@ -29,3 +29,26 @@ export const MAX_INFLUENCE = 0.97;
 export function isMaxed(influence: number): boolean {
   return influence >= MAX_INFLUENCE;
 }
+
+// ── Live-activity engagement boost ──────────────────────────────────────────────
+// The DM's engagement dial is the *floor*; live activity (reactions, subs/donations/
+// raids, and chat volume) transiently pushes engagement — and thus the resist DC —
+// higher, then decays back down. This is what makes the meter bob organically off real
+// audience energy, not just the slider.
+export type EngagementEvent = 'reaction' | 'sub' | 'resub' | 'donation' | 'raid' | 'chat';
+
+export function engagementBoostFor(kind: EngagementEvent): number {
+  switch (kind) {
+    case 'raid': return 20;
+    case 'donation': return 15;
+    case 'resub': return 10;
+    case 'sub': return 8;
+    case 'reaction': return 2.5;
+    case 'chat': return 0.4;
+  }
+}
+
+/** Max transient boost stacked on top of the DM's engagement floor. */
+export const ENGAGEMENT_BOOST_CAP = 60;
+/** Per-tick (~400 ms) multiplicative decay of the boost back toward 0. */
+export const ENGAGEMENT_DECAY = 0.9;

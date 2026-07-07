@@ -13,18 +13,20 @@ import type { SheetTheme } from './theme';
 // characterId for the static preview.
 export default function SheetRoot({
   characterId,
+  campaignId,
   sheetType,
   theme,
   isDM,
 }: {
   characterId?: string;
+  campaignId?: string;
   sheetType?: string;
   theme?: SheetTheme;
   /** DM mode (§6.8.1) — surfaces the DM override panel + full edit control. */
   isDM?: boolean;
 }) {
   return (
-    <CharacterProvider characterId={characterId} isDM={isDM}>
+    <CharacterProvider characterId={characterId} campaignId={campaignId} isDM={isDM}>
       <App sheetType={sheetType} theme={theme} />
     </CharacterProvider>
   );

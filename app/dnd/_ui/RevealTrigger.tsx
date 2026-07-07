@@ -12,7 +12,8 @@ export default function RevealTrigger({ campaignId, maps, selfId, initialMembers
   const [members, setMembers] = useState<Member[]>(initialMembers ?? [])
   const [handouts, setHandouts] = useState<Img[]>(initialHandouts ?? [])
   const [selected, setSelected] = useState<string | null>(null)
-  const [audience, setAudience] = useState<string>('everyone')
+  // Empty = everyone; otherwise the specific recipient user-ids (H2 group multi-select).
+  const [groupIds, setGroupIds] = useState<string[]>([])
   const [caption, setCaption] = useState('')
   const [flash, setFlash] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -52,25 +53,33 @@ export default function RevealTrigger({ campaignId, maps, selfId, initialMembers
   const seen = new Set<string>()
   const images: Img[] = [...handouts, ...maps].filter((m) => (seen.has(m.url) ? false : (seen.add(m.url), true)))
 
+  const toggleMember = (id: string) => setGroupIds((g) => (g.includes(id) ? g.filter((x) => x !== id) : [...g, id]))
+
   function reveal() {
     if (!selected) return
-    const recipientIds = audience === 'everyone' ? null : [audience]
+    const toEveryone = groupIds.length === 0
+    const recipientIds = toEveryone ? null : groupIds
     broadcastReveal({ imageUrl: selected, caption: caption || null, recipientIds, fromName: 'DM' })
-    // Save into the relevant chat (H2) so it's re-viewable later: everyone → party,
-    // an individual → the DM↔player direct thread. (The message model carries image_url.)
+    // Save into the relevant chat (H2) so it's re-viewable later: everyone → party, one
+    // recipient → the DM↔player direct thread, several → a group thread.
+    const channel = toEveryone ? 'party' : groupIds.length === 1 ? 'direct' : 'group'
     fetch('/api/dnd/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         campaignId,
-        channel: audience === 'everyone' ? 'party' : 'direct',
+        channel,
         body: caption || null,
         imageUrl: selected,
         toUserIds: recipientIds ?? undefined,
         isReveal: true,
       }),
     }).catch(() => {})
-    const who = audience === 'everyone' ? 'everyone' : members.find((m) => m.userId === audience)?.displayName ?? 'a player'
+    const who = toEveryone
+      ? 'everyone'
+      : groupIds.length === 1
+        ? members.find((m) => m.userId === groupIds[0])?.displayName ?? 'a player'
+        : `${groupIds.length} players`
     setFlash(`Revealed to ${who} · saved to chat.`)
     setTimeout(() => setFlash(null), 2600)
   }
@@ -117,15 +126,30 @@ export default function RevealTrigger({ campaignId, maps, selfId, initialMembers
 
       <input className={styles.input} style={{ padding: '8px 10px', marginBottom: 8 }} placeholder="Caption (optional) — shown on the reveal + saved to chat" value={caption} onChange={(e) => setCaption(e.target.value)} />
 
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
         <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>Audience:</span>
-        <select className={styles.input} style={{ width: 'auto', padding: '8px 10px' }} value={audience} onChange={(e) => setAudience(e.target.value)}>
-          <option value="everyone">Everyone</option>
-          {members.filter((m) => m.userId !== selfId).map((m) => (
-            <option key={m.userId} value={m.userId}>{m.displayName}{m.role === 'dm' ? ' (DM)' : ''}</option>
-          ))}
-        </select>
-        <button className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} disabled={!selected} onClick={reveal}>✨ Reveal</button>
+        <button
+          onClick={() => setGroupIds([])}
+          className={`${styles.hexBtn} ${groupIds.length === 0 ? styles.hexBtnPrimary : ''}`}
+          style={{ fontSize: 12 }}
+        >
+          Everyone
+        </button>
+        {members.filter((m) => m.userId !== selfId).map((m) => (
+          <button
+            key={m.userId}
+            onClick={() => toggleMember(m.userId)}
+            className={`${styles.hexBtn} ${groupIds.includes(m.userId) ? styles.hexBtnPrimary : ''}`}
+            style={{ fontSize: 12 }}
+          >
+            {groupIds.includes(m.userId) ? '✓ ' : ''}{m.displayName}{m.role === 'dm' ? ' (DM)' : ''}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} disabled={!selected} onClick={reveal}>
+          ✨ Reveal{groupIds.length > 1 ? ` to ${groupIds.length}` : ''}
+        </button>
         {flash && <span style={{ fontSize: 13, color: 'var(--hx-teal-1)' }}>{flash}</span>}
       </div>
     </div>

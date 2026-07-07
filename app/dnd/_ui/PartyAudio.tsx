@@ -12,6 +12,7 @@ interface PlayPayload { url?: string; volume?: number; loop?: boolean; kind?: 's
 export default function PartyAudio({ campaignId }: { campaignId: string }) {
   const [enabled, setEnabled] = useState(false)
   const musicRef = useRef<HTMLAudioElement | null>(null)
+  const sfxRef = useRef<Set<HTMLAudioElement>>(new Set()) // overlapping one-shots
   const chanRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
   const stopAll = useCallback(() => {
@@ -19,13 +20,16 @@ export default function PartyAudio({ campaignId }: { campaignId: string }) {
       musicRef.current.pause()
       musicRef.current = null
     }
+    // Stop every in-flight SFX too (not just the music bed).
+    sfxRef.current.forEach((a) => a.pause())
+    sfxRef.current.clear()
   }, [])
 
   const playSound = useCallback((p: PlayPayload) => {
     if (!p?.url) return
     const vol = Math.max(0, Math.min(1, p.volume ?? 1))
     if (p.kind === 'music' || p.loop) {
-      stopAll()
+      if (musicRef.current) musicRef.current.pause()
       const a = new Audio(p.url)
       a.loop = !!p.loop
       a.volume = vol
@@ -34,9 +38,11 @@ export default function PartyAudio({ campaignId }: { campaignId: string }) {
     } else {
       const a = new Audio(p.url)
       a.volume = vol
+      sfxRef.current.add(a)
+      a.addEventListener('ended', () => sfxRef.current.delete(a))
       void a.play().catch(() => {})
     }
-  }, [stopAll])
+  }, [])
 
   useEffect(() => {
     if (!enabled) return

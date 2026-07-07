@@ -68,6 +68,10 @@ interface Ctx {
   /** The DB-backed character id (null in localStorage/preview mode) — used by the
    *  DM edit log (C11a) and realtime sync (C11b). */
   characterId: string | null
+  /** The character's campaign id (null in preview / for a campaign-less character) —
+   *  lets on-sheet stream tools post to the shared roll feed + subscribe to campaign
+   *  reactions for the live influence meter. */
+  campaignId: string | null
   /** Character media (art/token) from the DB row (Phase D1/D2). */
   media: { artUrl: string | null; tokenUrl: string | null }
   /** Editable descriptions from the DB `bio` column (Phase D3). */
@@ -177,6 +181,7 @@ function freshUses(c: Character, formId: string | null): Record<string, number> 
 export function CharacterProvider({
   children,
   characterId,
+  campaignId,
   isDM = false,
 }: {
   children: React.ReactNode
@@ -184,6 +189,8 @@ export function CharacterProvider({
    *  that row. When omitted, it falls back to localStorage (the C2 static preview
    *  / standalone mode). */
   characterId?: string
+  /** The character's campaign (enables on-sheet stream→feed + reaction wiring). */
+  campaignId?: string
   /** DM mode (§6.8.1) — surfaces the DM override panel + full edit control. */
   isDM?: boolean
 }) {
@@ -728,6 +735,7 @@ export function CharacterProvider({
     pb,
     isDM,
     characterId: characterId ?? null,
+    campaignId: campaignId ?? null,
     media,
     bio,
     saveDescriptions,

@@ -1,6 +1,6 @@
 // __tests__/dnd/stream-influence.test.ts — patron-influence meter math (J11).
 import { describe, it, expect } from 'vitest';
-import { viewerFactor, computeInfluence, resistDC, isMaxed, MAX_INFLUENCE } from '@/lib/dnd/stream-influence';
+import { viewerFactor, computeInfluence, resistDC, isMaxed, MAX_INFLUENCE, engagementBoostFor, ENGAGEMENT_BOOST_CAP } from '@/lib/dnd/stream-influence';
 
 describe('viewerFactor', () => {
   it('is 0 for an empty/tiny audience and approaches 1 at quadrillions', () => {
@@ -37,5 +37,19 @@ describe('isMaxed', () => {
   it('flips at the max threshold', () => {
     expect(isMaxed(MAX_INFLUENCE)).toBe(true);
     expect(isMaxed(0.5)).toBe(false);
+  });
+});
+
+describe('engagementBoostFor', () => {
+  it('ranks big hype events above small ones', () => {
+    expect(engagementBoostFor('raid')).toBeGreaterThan(engagementBoostFor('donation'));
+    expect(engagementBoostFor('donation')).toBeGreaterThan(engagementBoostFor('sub'));
+    expect(engagementBoostFor('sub')).toBeGreaterThan(engagementBoostFor('reaction'));
+    expect(engagementBoostFor('reaction')).toBeGreaterThan(engagementBoostFor('chat'));
+  });
+  it('a single event never exceeds the boost cap', () => {
+    for (const k of ['reaction', 'sub', 'resub', 'donation', 'raid', 'chat'] as const) {
+      expect(engagementBoostFor(k)).toBeLessThanOrEqual(ENGAGEMENT_BOOST_CAP);
+    }
   });
 });

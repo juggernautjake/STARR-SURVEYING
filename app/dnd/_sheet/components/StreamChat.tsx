@@ -8,7 +8,13 @@ import { supabase } from '@/lib/supabase'
 import { makeUsernames, type ChatUser } from '@/lib/dnd/stream-names'
 import { parseEmotes } from '@/lib/dnd/stream-emotes'
 import { allowedInMode, modeIntervalFactor, formatModAction, type ChatMode, type ModActionType, CHAT_MODES } from '@/lib/dnd/stream-mod'
+import { computeInfluence, resistDC } from '@/lib/dnd/stream-influence'
 import InfluenceMeter from './InfluenceMeter'
+import { useLiveEngagement } from './useLiveEngagement'
+import { useChar } from '../state/store'
+import { rollD20 } from '../lib/dice'
+import { abilityMod } from '../rules/dnd'
+import { postRoll } from '@/app/dnd/_ui/RollFeed'
 
 interface StreamState { is_live: boolean; chat_speed: number; viewer_count: number; engagement?: number }
 interface Line { id: number | string; user: ChatUser; body: string; system?: boolean }
@@ -69,9 +75,12 @@ const PHRASES = [
   'thplt hkkk vao', 'za za glorp', 'wubba wub nak', 'skree onk onk', 'glorptax has spoken',
 ]
 
-export default function StreamChat({ characterId, initialStream }: { characterId: string; initialStream?: StreamState }) {
+export default function StreamChat({ characterId, campaignId, initialStream }: { characterId: string; campaignId?: string | null; initialStream?: StreamState }) {
+  const { char, pb, commitRoll, isDM } = useChar()
+  const { boost, bumpChat } = useLiveEngagement(characterId, campaignId ?? null)
   const [stream, setStream] = useState<StreamState | null>(initialStream ?? null)
   const [lines, setLines] = useState<Line[]>([])
+  const [resist, setResist] = useState<{ text: string; ok: boolean } | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const crowdRef = useRef<ChatUser[]>([])
   const idRef = useRef(0)
@@ -129,7 +138,7 @@ export default function StreamChat({ characterId, initialStream }: { characterId
       const crowd = crowdRef.current
       const batch = Array.from({ length: burst }, () => ({ id: idRef.current++, user: crowd[Math.floor(Math.random() * crowd.length)], body: makeBody() }))
         .filter((l) => !banned.has(l.user.name) && allowedInMode({ badges: l.user.badges, hasEmote: hasEmote(l.body) }, chatMode))
-      if (batch.length) setLines((m) => [...m, ...batch].slice(-80))
+      if (batch.length) { setLines((m) => [...m, ...batch].slice(-80)); bumpChat(batch.length) }
 
       // Gap so that (this burst) / gap ≈ perSec on average, then randomized hard so the
       // pacing feels human: sometimes a rapid cluster, sometimes a noticeable pause.
@@ -140,7 +149,7 @@ export default function StreamChat({ characterId, initialStream }: { characterId
     }
     timer = setTimeout(tick, 300)
     return () => { stop = true; clearTimeout(timer) }
-  }, [stream?.is_live, stream?.chat_speed, chatMode, banned, localSpeed])
+  }, [stream?.is_live, stream?.chat_speed, chatMode, banned, localSpeed, bumpChat])
 
   // Clear (J6): the DM's "Clear chat" wipes the visible feed on this client too.
   useEffect(() => {
@@ -201,6 +210,7 @@ export default function StreamChat({ characterId, initialStream }: { characterId
           const fresh = (j.messages ?? []).filter((m: { id: string }) => !seenRef.current.has(m.id))
           if (fresh.length === 0) return
           fresh.forEach((m: { id: string }) => seenRef.current.add(m.id))
+          bumpChat(fresh.length)
           setLines((prev) => [
             ...prev,
             ...fresh.map((m: { id: string; username: string; body: string; color: string | null; badges: string[] | null }) => ({
@@ -214,7 +224,7 @@ export default function StreamChat({ characterId, initialStream }: { characterId
     poll()
     const t = setInterval(poll, 2500)
     return () => { stop = true; clearInterval(t) }
-  }, [stream?.is_live, characterId])
+  }, [stream?.is_live, characterId, bumpChat])
 
   // Authoritative visibility pass (J10): system lines always show; everything else is
   // gated by the ban list + the active mode, so changing a mode/ban re-filters the feed.
@@ -227,6 +237,28 @@ export default function StreamChat({ characterId, initialStream }: { characterId
 
   if (!stream?.is_live) return null
   const modeMeta = CHAT_MODES.find((m) => m.id === chatMode)
+
+  // Live engagement = DM floor + decaying activity boost (J13). Drives both the meter
+  // and the resist DC so donations/raids/reactions momentarily make her harder to resist.
+  const viewers = stream.viewer_count ?? 0
+  const effEngagement = Math.min(100, (stream.engagement ?? 50) + boost)
+  const resistDc = resistDC(computeInfluence(viewers, effEngagement))
+
+  // "Resist the chat" — a proficient Wisdom (willpower) save vs the patron's current DC.
+  // Posts to the sheet log + the shared roll feed, and flashes a result banner.
+  const rollResist = () => {
+    const mod = abilityMod(char.abilities.wis) + pb
+    const r = rollD20(mod, 'flat')
+    const ok = r.total >= resistDc
+    const label = `Resist the Chat (DC ${resistDc})`
+    const tag = ok ? 'RESISTED' : 'GAVE IN'
+    commitRoll({ label, kind: 'save', total: r.total, breakdown: r.breakdown, crit: r.crit, fumble: r.fumble, tag })
+    setResist({ ok, text: ok ? `✊ RESISTED! ${r.total} vs DC ${resistDc}` : `😵 GAVE IN… ${r.total} vs DC ${resistDc}` })
+    setTimeout(() => setResist(null), 5000)
+    if (campaignId) {
+      void postRoll({ campaignId, characterId, actorName: char.meta.name, label, result: r.total, breakdown: r.breakdown, crit: r.crit, fumble: r.fumble })
+    }
+  }
 
   return (
     <section className="card" style={{ marginTop: 16 }}>
@@ -251,7 +283,34 @@ export default function StreamChat({ characterId, initialStream }: { characterId
           />
           🐇 {localSpeed}×
         </label>
+        {isDM && (
+          <button
+            onClick={rollResist}
+            title="Roll a Wisdom save to resist what chat is demanding"
+            style={{ fontSize: 12, padding: '4px 10px', cursor: 'pointer', color: '#7ab8ff', background: 'rgba(0,0,0,0.35)', border: '1px solid #7ab8ff', borderRadius: 4, fontWeight: 700 }}
+          >
+            🎲 Resist (DC {resistDc})
+          </button>
+        )}
       </div>
+      {resist && (
+        <div
+          role="status"
+          style={{
+            margin: '0 0 8px',
+            padding: '6px 10px',
+            fontWeight: 800,
+            letterSpacing: '0.04em',
+            textAlign: 'center',
+            color: resist.ok ? '#0ac8b9' : '#ff10f0',
+            border: `1px solid ${resist.ok ? '#0ac8b9' : '#ff10f0'}`,
+            background: resist.ok ? 'rgba(10,200,185,0.1)' : 'rgba(255,16,240,0.1)',
+            textShadow: `0 0 10px ${resist.ok ? '#0ac8b9' : '#ff10f0'}`,
+          }}
+        >
+          {resist.text}
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
       <div style={{ flex: 1, minWidth: 0, height: 260, overflowY: 'auto', border: '1px solid var(--line, rgba(255,255,255,0.12))', background: 'rgba(0,0,0,0.35)', padding: '6px 10px', fontSize: 13, lineHeight: 1.5 }}>
         {visibleLines.length === 0 ? (
@@ -282,7 +341,7 @@ export default function StreamChat({ characterId, initialStream }: { characterId
         )}
         <div ref={endRef} />
       </div>
-        <InfluenceMeter viewers={stream.viewer_count ?? 0} engagement={stream.engagement ?? 50} />
+        <InfluenceMeter viewers={viewers} engagement={effEngagement} />
       </div>
     </section>
   )

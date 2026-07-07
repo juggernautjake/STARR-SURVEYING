@@ -50,7 +50,7 @@ type TabId = (typeof TABS)[number]['id']
 
 export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetType?: string }) {
   const [tab, setTab] = useState<TabId>('overview')
-  const { char, media, characterId, isDM, offline } = useChar()
+  const { char, media, characterId, campaignId, isDM, offline } = useChar()
 
   // Registry-driven config for this character's sheet_type (C8): which bespoke
   // skin + which character-only modules to render.
@@ -211,7 +211,7 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
 
       {characterId && <StreamAlert characterId={characterId} />}
       {characterId && <StreamPoll characterId={characterId} isController={isDM} />}
-      {characterId && <StreamChat characterId={characterId} />}
+      {characterId && <StreamChat characterId={characterId} campaignId={campaignId} />}
       </div>
     </div>
   )
