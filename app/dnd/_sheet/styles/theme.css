@@ -2170,8 +2170,11 @@
 .dnd-sheet.skin-streamer h1.name {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(38px, 7vw, 68px);
-  letter-spacing: 0.02em;
+  /* Smaller base so a long single-word username fits; Hero's fit-to-width shrinks
+     it further if needed and keeps it on one line. */
+  font-size: clamp(24px, 4.4vw, 40px);
+  letter-spacing: 0.01em;
+  line-height: 1.05;
   background: linear-gradient(94deg, var(--hotpink) 0%, var(--violet) 52%, var(--gold) 100%);
   -webkit-background-clip: text;
   background-clip: text;
