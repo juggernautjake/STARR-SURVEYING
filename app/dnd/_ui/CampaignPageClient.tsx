@@ -171,11 +171,16 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 12 }}>
                     {data.characters.map((c) => (
-                      <div key={c.id} style={{ textAlign: 'center' }}>
+                      <button
+                        key={c.id}
+                        onClick={() => router.push(`/dnd/characters/${c.id}`)}
+                        title={`Open ${c.name}'s sheet${data.campaign.role === 'dm' ? ' (DM controls)' : ''}`}
+                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 0, background: 'transparent', border: '1px solid transparent', borderRadius: 6, padding: '8px 4px', cursor: 'pointer', color: 'inherit' }}
+                      >
                         <Avatar url={c.token_url} name={c.name} size={56} />
                         <div style={{ marginTop: 6, fontSize: 13, color: 'var(--hx-text)' }}>{c.name}</div>
                         <span style={{ fontSize: 9.5, letterSpacing: '0.1em', color: c.is_npc ? 'var(--hx-gold-2)' : 'var(--hx-teal-1)' }}>{c.is_npc ? 'NPC' : 'PC'}</span>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}

@@ -4,6 +4,7 @@
 // filled in by later phases (Notes E5, Maps E6, Chat F, Initiative/NPCs G,
 // Reveals H). "Console opens per session" is this slice's bar.
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import styles from './hextech.module.css'
 import Gallery, { type GalleryItem } from '../_sheet/components/Gallery'
 import Chat from './Chat'
@@ -42,6 +43,7 @@ type TabId = (typeof TABS)[number]['id']
 const STATUS_COLOR: Record<string, string> = { prep: 'var(--hx-muted)', live: 'var(--hx-teal-1)', done: 'var(--hx-gold-2)' }
 
 export default function SessionConsole({ campaignId, sessionId, selfId, initialSession }: { campaignId: string; sessionId: string; selfId?: string; initialSession?: SessionInfo }) {
+  const router = useRouter()
   const [session, setSession] = useState<SessionInfo | null>(initialSession ?? null)
   const [tab, setTab] = useState<TabId>('overview')
   const [busy, setBusy] = useState(false)
@@ -120,6 +122,35 @@ export default function SessionConsole({ campaignId, sessionId, selfId, initialS
     }
   }
 
+  async function resetSession() {
+    if (busy) return
+    if (!window.confirm('Reset this session? This clears its initiative/encounters, AI recaps, roll log, and DM notes, and sets it back to Prep. The session itself stays.')) return
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/dnd/sessions/${sessionId}/reset`, { method: 'POST' })
+      const j = await res.json().catch(() => ({}))
+      if (res.ok && j.session) {
+        setSession((s) => (s ? { ...s, status: j.session.status, dm_notes: null } : s))
+        setTab('overview')
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function deleteSession() {
+    if (busy) return
+    if (!window.confirm('Delete this session permanently? This removes it and all its data. This cannot be undone.')) return
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/dnd/sessions/${sessionId}`, { method: 'DELETE' })
+      if (res.ok) router.push(`/dnd/campaigns/${campaignId}`)
+      else setBusy(false)
+    } catch {
+      setBusy(false)
+    }
+  }
+
   const active = TABS.find((t) => t.id === tab)!
 
   return (
@@ -157,7 +188,7 @@ export default function SessionConsole({ campaignId, sessionId, selfId, initialS
               )}
             </div>
             {session && (
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {session.status === 'prep' && (
                   <button className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} disabled={busy} onClick={() => setStatus('live')}>Go Live</button>
                 )}
@@ -166,6 +197,12 @@ export default function SessionConsole({ campaignId, sessionId, selfId, initialS
                 )}
                 {session.status === 'done' && (
                   <button className={styles.hexBtn} disabled={busy} onClick={() => setStatus('prep')}>Reopen</button>
+                )}
+                {session.role === 'dm' && (
+                  <>
+                    <button className={styles.hexBtn} disabled={busy} onClick={resetSession} title="Clear this session's data and set it back to Prep">↺ Reset</button>
+                    <button className={styles.hexBtn} disabled={busy} onClick={deleteSession} title="Delete this session permanently" style={{ color: 'var(--hx-danger)', borderColor: 'var(--hx-danger)' }}>🗑 Delete</button>
+                  </>
                 )}
               </div>
             )}

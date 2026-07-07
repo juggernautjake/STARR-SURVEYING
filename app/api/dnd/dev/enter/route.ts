@@ -8,15 +8,22 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { setDndSession, isDndOpenAccess } from '@/lib/dnd/auth';
 import { DEMO_DM_USER_ID, DEMO_GUEST_USER_ID, DEMO_PLAYERS } from '@/lib/dnd/constants';
 
-const ROSTER = new Set<string>([DEMO_DM_USER_ID, DEMO_GUEST_USER_ID, ...DEMO_PLAYERS.map((p) => p.userId)]);
+const DEMO_ROSTER = new Set<string>([DEMO_DM_USER_ID, DEMO_GUEST_USER_ID, ...DEMO_PLAYERS.map((p) => p.userId)]);
 
 export async function POST(req: NextRequest) {
   if (!isDndOpenAccess()) return NextResponse.json({ error: 'Open access is disabled.' }, { status: 403 });
 
   const { userId } = await req.json().catch(() => ({}));
-  if (!userId || !ROSTER.has(String(userId))) {
-    return NextResponse.json({ error: 'Unknown identity.' }, { status: 400 });
+  if (!userId) return NextResponse.json({ error: 'Unknown identity.' }, { status: 400 });
+
+  // Allow the seeded demo roster (fast path) OR any member of any campaign — so the
+  // per-campaign lobby can "enter as" that campaign's players/DM. Still not a general
+  // passwordless login: the id must belong to a real campaign participant.
+  if (!DEMO_ROSTER.has(String(userId))) {
+    const { data: mem } = await supabaseAdmin.from('dnd_campaign_members').select('user_id').eq('user_id', String(userId)).limit(1);
+    if (!mem || mem.length === 0) return NextResponse.json({ error: 'Unknown identity.' }, { status: 400 });
   }
+
   const { data } = await supabaseAdmin.from('dnd_users').select('id, email, display_name').eq('id', userId).maybeSingle();
   const user = data as { id: string; email: string; display_name: string } | null;
   if (!user) return NextResponse.json({ error: 'Identity not found.' }, { status: 404 });
