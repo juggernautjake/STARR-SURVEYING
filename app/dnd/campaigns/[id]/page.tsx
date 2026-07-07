@@ -1,7 +1,8 @@
-// app/dnd/campaigns/[id]/page.tsx — campaign detail (Phase E3 / N).
-// Open-access: the DM (a DM session in this campaign) sees the management control panel;
-// everyone else sees the lobby (pick who to enter as → sheet / DM panel). Login mode:
-// members see the management page; anyone else is sent to login.
+// app/dnd/campaigns/[id]/page.tsx — the campaign LOBBY / identity picker (Phase N).
+// Open-access: this is ALWAYS the "who am I acting as?" picker — even if a session
+// cookie exists — so switching characters/roles is explicit every time you open a
+// campaign. Entering routes to the sheet (player) or /manage (DM). Login mode: a member
+// goes straight to the management page; otherwise sign in.
 import { redirect } from 'next/navigation';
 import { getDndUser, getCampaignRole, isDndOpenAccess } from '@/lib/dnd/auth';
 import { loadCampaignLobby } from '@/lib/dnd/campaign-summary';
@@ -11,21 +12,16 @@ import CampaignLobby from '@/app/dnd/_ui/CampaignLobby';
 export const dynamic = 'force-dynamic';
 
 export default async function CampaignPage({ params }: { params: { id: string } }) {
-  const openAccess = isDndOpenAccess();
-  const user = await getDndUser();
-  const role = user ? await getCampaignRole(params.id) : null;
-
-  // The DM of this campaign gets the management/control panel.
-  if (role === 'dm') return <CampaignPageClient campaignId={params.id} />;
-
-  // Open-access: show the "enter as" lobby for this campaign.
-  if (openAccess) {
-    const lobby = await loadCampaignLobby(params.id);
+  if (isDndOpenAccess()) {
+    const [lobby, user] = await Promise.all([loadCampaignLobby(params.id), getDndUser()]);
     if (!lobby) redirect('/dnd');
-    return <CampaignLobby data={lobby} />;
+    return <CampaignLobby data={lobby} currentName={user?.display_name ?? null} />;
   }
 
-  // Login mode: a member sees the page; otherwise sign in.
+  // Login mode: a member sees the management page; otherwise sign in.
+  const user = await getDndUser();
   if (!user) redirect(`/dnd/login?next=/dnd/campaigns/${params.id}`);
+  const role = await getCampaignRole(params.id);
+  if (role === null) redirect('/dnd');
   return <CampaignPageClient campaignId={params.id} />;
 }
