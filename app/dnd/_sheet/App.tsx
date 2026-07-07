@@ -28,6 +28,7 @@ import Inventory from './components/Inventory'
 import Bio from './components/Bio'
 import DiceTray from './components/DiceTray'
 import DmOverridePanel from './components/DmOverridePanel'
+import SheetArtUploader from './components/SheetArtUploader'
 import DescriptionsPanel from './components/DescriptionsPanel'
 import CharacterGallery from './components/CharacterGallery'
 import { md } from './lib/inline'
@@ -110,6 +111,9 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
       )}
 
       <Hero />
+
+      {/* Owner-DM art/token uploader — sets the images shown just below (D1/D2). */}
+      <SheetArtUploader />
 
       {/* Character art (D1) — shown when the DB-backed character has hero art. */}
       {media.artUrl && (

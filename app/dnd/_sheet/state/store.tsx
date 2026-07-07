@@ -74,6 +74,9 @@ interface Ctx {
   campaignId: string | null
   /** Character media (art/token) from the DB row (Phase D1/D2). */
   media: { artUrl: string | null; tokenUrl: string | null }
+  /** Update the in-memory art/token pointers after an upload so the sheet reflects
+   *  the new image immediately (the DB row is written by the media endpoint). */
+  setMedia: (m: { artUrl: string | null; tokenUrl: string | null }) => void
   /** Editable descriptions from the DB `bio` column (Phase D3). */
   bio: Record<string, string>
   /** Merge-patch the descriptions and persist to the `bio` column (DB mode). */
@@ -737,6 +740,7 @@ export function CharacterProvider({
     characterId: characterId ?? null,
     campaignId: campaignId ?? null,
     media,
+    setMedia,
     bio,
     saveDescriptions,
     advMode,

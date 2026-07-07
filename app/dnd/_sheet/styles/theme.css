@@ -2037,6 +2037,40 @@
   background-attachment: fixed;
   image-rendering: pixelated;
   color: var(--ink);
+  isolation: isolate;
+}
+/* Floating pixel-cube aura — the pink/purple squares "dissolving" off Nova in her
+   art. A fixed field of hard-edged cubes behind the content (z-index below the
+   sheet body), gently drifting. Non-interactive. */
+.dnd-sheet.skin-nova::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.62;
+  background:
+    linear-gradient(var(--hotpink), var(--hotpink)) 10% 30% / 10px 10px no-repeat,
+    linear-gradient(var(--violet), var(--violet)) 18% 62% / 8px 8px no-repeat,
+    linear-gradient(rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.9)) 26% 20% / 6px 6px no-repeat,
+    linear-gradient(var(--hotpink), var(--hotpink)) 33% 78% / 12px 12px no-repeat,
+    linear-gradient(var(--violet), var(--violet)) 41% 44% / 7px 7px no-repeat,
+    linear-gradient(var(--pink), var(--pink)) 52% 66% / 9px 9px no-repeat,
+    linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)) 60% 28% / 6px 6px no-repeat,
+    linear-gradient(var(--violet), var(--violet)) 68% 82% / 10px 10px no-repeat,
+    linear-gradient(var(--hotpink), var(--hotpink)) 76% 52% / 8px 8px no-repeat,
+    linear-gradient(var(--gold), var(--gold)) 84% 34% / 7px 7px no-repeat,
+    linear-gradient(var(--pink), var(--pink)) 90% 72% / 9px 9px no-repeat,
+    linear-gradient(var(--violet), var(--violet)) 7% 84% / 8px 8px no-repeat,
+    linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)) 46% 90% / 6px 6px no-repeat,
+    linear-gradient(var(--hotpink), var(--hotpink)) 88% 12% / 8px 8px no-repeat,
+    linear-gradient(var(--violet), var(--violet)) 30% 10% / 7px 7px no-repeat,
+    linear-gradient(var(--gold), var(--gold)) 63% 93% / 6px 6px no-repeat;
+  animation: nova-cubefloat 6s ease-in-out infinite;
+}
+@keyframes nova-cubefloat {
+  0%, 100% { transform: translateY(0); opacity: 0.5; }
+  50% { transform: translateY(-10px); opacity: 0.72; }
 }
 /* Sparkle field + a whisper of scanline, drifting slowly. Non-interactive. */
 .dnd-sheet.skin-nova::after {
@@ -2116,9 +2150,22 @@
   box-shadow: 0 18px 50px -26px rgba(255, 30, 156, 0.5), 0 0 0 1px rgba(224, 164, 0, 0.18), inset 0 0 60px rgba(255, 30, 156, 0.05);
 }
 .dnd-sheet.skin-nova .hero::before {
+  /* Focal pixel-cube cluster in her identity zone (behind the name), plus the
+     faint data-grid — reads as Nova dissolving into pixels, like her art. */
   background:
+    linear-gradient(var(--hotpink), var(--hotpink)) 58% 22% / 11px 11px no-repeat,
+    linear-gradient(var(--violet), var(--violet)) 70% 44% / 9px 9px no-repeat,
+    linear-gradient(rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.9)) 64% 66% / 7px 7px no-repeat,
+    linear-gradient(var(--hotpink), var(--hotpink)) 82% 30% / 13px 13px no-repeat,
+    linear-gradient(var(--violet), var(--violet)) 90% 58% / 8px 8px no-repeat,
+    linear-gradient(var(--pink), var(--pink)) 50% 82% / 10px 10px no-repeat,
+    linear-gradient(var(--gold), var(--gold)) 76% 78% / 7px 7px no-repeat,
+    linear-gradient(var(--violet), var(--violet)) 44% 40% / 8px 8px no-repeat,
+    linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)) 88% 84% / 6px 6px no-repeat,
+    linear-gradient(var(--hotpink), var(--hotpink)) 40% 12% / 8px 8px no-repeat,
     repeating-linear-gradient(0deg, rgba(255, 30, 156, 0.06) 0 1px, transparent 1px 8px),
     repeating-linear-gradient(90deg, rgba(169, 77, 255, 0.05) 0 1px, transparent 1px 8px);
+  animation: nova-cubefloat 5s ease-in-out infinite;
 }
 .dnd-sheet.skin-nova h1.name {
   font-family: var(--font-display);
@@ -2298,6 +2345,7 @@
 
 /* Respect reduced-motion: keep the vibe, drop the movement. */
 @media (prefers-reduced-motion: reduce) {
+  .dnd-sheet.skin-nova::before,
   .dnd-sheet.skin-nova::after,
   .dnd-sheet.skin-nova h1.name,
   .dnd-sheet.skin-nova .kicker::after,
