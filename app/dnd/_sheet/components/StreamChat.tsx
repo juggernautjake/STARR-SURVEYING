@@ -312,7 +312,7 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
         </div>
       )}
       <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
-      <div style={{ flex: 1, minWidth: 0, height: 260, overflowY: 'auto', border: '1px solid var(--line, rgba(255,255,255,0.12))', background: 'rgba(0,0,0,0.35)', padding: '6px 10px', fontSize: 13, lineHeight: 1.5 }}>
+      <div data-stream-feed="" style={{ flex: 1, minWidth: 0, height: 260, overflowY: 'auto', border: '1px solid var(--line, rgba(255,255,255,0.12))', background: 'rgba(0,0,0,0.35)', padding: '6px 10px', fontSize: 13, lineHeight: 1.5 }}>
         {visibleLines.length === 0 ? (
           <p style={{ color: 'var(--muted, #9aa)', fontSize: 12 }}>Chat is warming up…</p>
         ) : (

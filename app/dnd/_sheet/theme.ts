@@ -58,26 +58,32 @@ export const lazzuhTheme: SheetTheme = {
 // theme.css; these tokens carry the color/typography half of the look.
 export const novaTheme: SheetTheme = {
   colors: {
-    void: '#0a0616',
-    'void-2': '#0f0820',
-    panel: '#170a26',
-    'panel-2': '#210f38',
-    'panel-3': '#301652',
-    ink: '#ffe9f8',
-    muted: '#d59ad9',
-    'muted-2': '#b07fc4',
-    pink: '#ff5fc8',
-    hotpink: '#ff2d9e',
-    violet: '#c74bff',
-    'violet-2': '#e59bff',
-    // "teal" is repurposed as Nova's holographic cyan — the second neon.
-    teal: '#22c9ff',
-    tealbright: '#7af0ff',
-    gold: '#ffd94b',
-    danger: '#ff4d74',
-    good: '#4dffcf',
-    line: 'rgba(255, 45, 158, 0.30)',
-    'line-strong': 'rgba(255, 45, 158, 0.62)',
+    // Nova runs a BRIGHT "magical-girl broadcast" palette: white + hot pink with
+    // gold and purple accents (matching her art). It's a light theme, so `void`/
+    // `panel` are pale and `ink` is a deep plum for readable text; the `skin-nova`
+    // CSS flips the base sheet's hardcoded white headings to `ink` to suit.
+    void: '#fff0fa',
+    'void-2': '#ffe8f6',
+    panel: '#fffafe',
+    'panel-2': '#fdeaf8',
+    'panel-3': '#f5e2ff',
+    ink: '#5a1050',
+    muted: '#a24f92',
+    'muted-2': '#b877ab',
+    pink: '#ff4fb8',
+    hotpink: '#ff1e9c',
+    violet: '#a94dff',
+    'violet-2': '#7d2ecf',
+    // "teal"/"tealbright" are repurposed away from cyan: teal → purple accent,
+    // tealbright → a deep gold that stays legible on the light panels (it backs
+    // links, ability mods, table headers, etc. in the base sheet).
+    teal: '#9b3fd0',
+    tealbright: '#c98a0a',
+    gold: '#e0a400',
+    danger: '#e5344f',
+    good: '#1c9e63',
+    line: 'rgba(255, 30, 156, 0.30)',
+    'line-strong': 'rgba(255, 30, 156, 0.58)',
   },
   fonts: {
     // Pixelify Sans reads as clean pixel-art at display sizes; VT323 is a CRT
