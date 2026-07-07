@@ -19,7 +19,7 @@ const ABILITIES: { key: keyof Character['abilities']; label: string }[] = [
   { key: 'cha', label: 'CHA' },
 ]
 
-export default function DmOverridePanel() {
+export default function DmOverridePanel({ hasStream = false }: { hasStream?: boolean }) {
   const { char, setChar, isDM, tempMode, setTempMode, clearAllOverrides, setLevel, characterId } = useChar()
   if (!isDM) return null
 
@@ -137,7 +137,9 @@ export default function DmOverridePanel() {
       </div>
 
       <AiSheetEdit />
-      <StreamControl />
+      {/* Stream controls (go live, viewers, chat/spam, polls, alerts, moderation)
+          only for characters that register the `stream` module (§6.9). */}
+      {hasStream && <StreamControl />}
     </section>
   )
 }
