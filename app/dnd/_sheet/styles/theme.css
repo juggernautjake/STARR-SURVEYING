@@ -2150,7 +2150,8 @@
   color: var(--ink);
 }
 /* Text that sits on a saturated accent fill stays white. */
-.dnd-sheet.skin-streamer .btn.solid { color: #fff; text-shadow: none; }
+.dnd-sheet.skin-streamer .btn.solid { color: #fff; text-shadow: none; background: var(--hotpink); border-color: var(--hotpink); box-shadow: 3px 3px 0 rgba(var(--sk-accent), 0.4); }
+.dnd-sheet.skin-streamer .btn.solid:hover { filter: brightness(1.06); }
 .dnd-sheet.skin-streamer .card h3 .lvl { color: var(--sk-onaccent-ink); }
 .dnd-sheet.skin-streamer .adv-seg button.on-dis { color: var(--danger); }
 

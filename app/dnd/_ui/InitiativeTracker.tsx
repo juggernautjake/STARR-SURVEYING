@@ -2,7 +2,8 @@
 // Dynamic initiative tracker (Phase G5) — the DM adds PCs/NPCs, sets initiative,
 // and advances turns; the list reorders (G4 order) and highlights whose turn it is.
 // Consumes the G4 API. Players see the order live (realtime hookup is G11).
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { supabase } from '@/lib/supabase'
 import styles from './hextech.module.css'
 import { useCampaignChannel } from './useCampaignChannel'
 import QuickSheet from './QuickSheet'
@@ -34,6 +35,8 @@ export default function InitiativeTracker({ sessionId, campaignId, isDM, initial
   const [cond, setCond] = useState<Record<string, string>>({})
   const [leg, setLeg] = useState<Record<string, string>>({})
   const [quickOpen, setQuickOpen] = useState<string | null>(null)
+  const [requested, setRequested] = useState(false)
+  const initRollChanRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
   const loadEncounter = useCallback(async (encId: string) => {
     const r = await fetch(`/api/dnd/encounters/${encId}`)
@@ -69,6 +72,23 @@ export default function InitiativeTracker({ sessionId, campaignId, isDM, initial
   // Realtime (G11): the DM's changes broadcast on the 'initiative' channel; other
   // clients refetch to see the reordered list + current turn.
   const { ping } = useCampaignChannel(campaignId, 'initiative', () => { void refresh() })
+
+  // Broadcast an "roll for initiative" prompt to the table (G-init). Every player's
+  // sheet dims and shows the dice roller (with their bonus); as they submit, entries
+  // fill in and the order reorders on the resulting pings.
+  useEffect(() => {
+    if (!campaignId) return
+    const ch = supabase.channel(`dnd:campaign:${campaignId}:initroll`).subscribe()
+    initRollChanRef.current = ch
+    return () => { initRollChanRef.current = null; void supabase.removeChannel(ch) }
+  }, [campaignId])
+  const requestRolls = () => {
+    if (!encounter) return
+    const characterIds = entries.filter((e) => e.character_id).map((e) => e.character_id as string)
+    initRollChanRef.current?.send({ type: 'broadcast', event: 'request', payload: { encounterId: encounter.id, characterIds } })
+    setRequested(true)
+    setTimeout(() => setRequested(false), 2500)
+  }
 
   async function createEncounter() {
     const r = await fetch(`/api/dnd/sessions/${sessionId}/encounters`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Encounter' }) })
@@ -149,8 +169,11 @@ export default function InitiativeTracker({ sessionId, campaignId, isDM, initial
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
         <span style={{ fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)', letterSpacing: '0.1em' }}>ROUND {encounter.round}</span>
         {isDM && (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className={styles.hexBtn} onClick={rollInitiative} disabled={!entries.some((e) => e.initiative == null)} title="Roll a d20 initiative for every combatant that doesn't have one yet">🎲 Roll Init</button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className={`${styles.hexBtn} ${styles.hexBtnTeal}`} onClick={requestRolls} disabled={!entries.some((e) => e.character_id)} title="Dim every player's screen and send them the initiative dice roller">
+              {requested ? '📣 Sent!' : '📣 Request Rolls'}
+            </button>
+            <button className={styles.hexBtn} onClick={rollInitiative} disabled={!entries.some((e) => e.initiative == null)} title="Roll a d20 initiative for every combatant that doesn't have one yet (NPCs, or players who didn't roll)">🎲 Roll Init</button>
             <button className={styles.hexBtn} onClick={() => turn('prev')} disabled={entries.length === 0}>‹ Prev</button>
             <button className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} onClick={() => turn('next')} disabled={entries.length === 0}>Next ›</button>
           </div>

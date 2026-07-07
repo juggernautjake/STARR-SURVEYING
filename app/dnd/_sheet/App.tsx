@@ -31,6 +31,7 @@ import DmOverridePanel from './components/DmOverridePanel'
 import SheetArtUploader from './components/SheetArtUploader'
 import TokenFramer from './components/TokenFramer'
 import SkinSwitch from './components/SkinSwitch'
+import InitiativePrompt from './components/InitiativePrompt'
 import DescriptionsPanel from './components/DescriptionsPanel'
 import CharacterGallery from './components/CharacterGallery'
 import { md } from './lib/inline'
@@ -273,6 +274,10 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
       {hasStream && characterId && <StreamAlert characterId={characterId} />}
       {hasStream && characterId && <StreamPoll characterId={characterId} isController={isDM} />}
       {hasStream && characterId && <StreamChat characterId={characterId} campaignId={campaignId} />}
+
+      {/* DM-broadcast initiative roller — dims the screen + rolls with this
+          character's bonus when the DM sends it out (all sheets). */}
+      {characterId && campaignId && <InitiativePrompt />}
       </div>
     </div>
   )
