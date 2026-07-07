@@ -36,6 +36,7 @@ export default function InitiativeTracker({ sessionId, campaignId, isDM, initial
   const [leg, setLeg] = useState<Record<string, string>>({})
   const [quickOpen, setQuickOpen] = useState<string | null>(null)
   const [requested, setRequested] = useState(false)
+  const [initEdit, setInitEdit] = useState<Record<string, string>>({})
   const initRollChanRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
   const loadEncounter = useCallback(async (encId: string) => {
@@ -187,7 +188,28 @@ export default function InitiativeTracker({ sessionId, campaignId, isDM, initial
           return (
             <div key={e.id} style={{ border: '1px solid', borderColor: current ? 'var(--hx-gold-1)' : 'var(--hx-line)', background: current ? 'rgba(200,155,60,0.12)' : 'rgba(1,10,19,0.4)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px' }}>
-                <span style={{ width: 30, textAlign: 'center', fontFamily: 'var(--hx-font-display)', fontSize: 16, color: 'var(--hx-gold-2)' }}>{e.initiative ?? '—'}</span>
+                {isDM ? (
+                  <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 2, width: 42, flexShrink: 0 }}>
+                    <input
+                      className={styles.input}
+                      style={{ width: 42, padding: '2px 2px', textAlign: 'center', fontSize: 14, fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)' }}
+                      inputMode="numeric"
+                      placeholder="—"
+                      title="Type this combatant's initiative"
+                      value={initEdit[e.id] ?? (e.initiative != null ? String(e.initiative) : '')}
+                      onChange={(ev) => setInitEdit((s) => ({ ...s, [e.id]: ev.target.value }))}
+                      onBlur={(ev) => {
+                        const v = ev.target.value.trim()
+                        setInitEdit((s) => { const n = { ...s }; delete n[e.id]; return n })
+                        if (v !== '' && Number(v) !== e.initiative) patchEntry(e.id, { initiative: Number(v) })
+                      }}
+                      onKeyDown={(ev) => { if (ev.key === 'Enter') (ev.target as HTMLInputElement).blur() }}
+                    />
+                    <button className={styles.hexBtn} style={{ padding: '1px 6px', fontSize: 11 }} title="Roll a d20 for this combatant" onClick={() => patchEntry(e.id, { initiative: Math.floor(Math.random() * 20) + 1 })}>🎲</button>
+                  </span>
+                ) : (
+                  <span style={{ width: 30, textAlign: 'center', fontFamily: 'var(--hx-font-display)', fontSize: 16, color: 'var(--hx-gold-2)' }}>{e.initiative ?? '—'}</span>
+                )}
                 {e.token_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img className={`${styles.portrait} ${current ? styles.portraitActive : ''}`} src={e.token_url} alt="" style={{ width: 34, height: 34 }} />

@@ -276,8 +276,8 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
       {hasStream && characterId && <StreamChat characterId={characterId} campaignId={campaignId} />}
 
       {/* DM-broadcast initiative roller — dims the screen + rolls with this
-          character's bonus when the DM sends it out (all sheets). */}
-      {characterId && campaignId && <InitiativePrompt />}
+          character's bonus when the DM sends it out; flavor per sheet_type. */}
+      {characterId && campaignId && <InitiativePrompt flavor={config.initiative} />}
       </div>
     </div>
   )

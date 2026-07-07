@@ -11,8 +11,9 @@ import { useChar } from '../state/store'
 import { abilityMod } from '../rules/dnd'
 import { rollD20 } from '../lib/dice'
 import { useCampaignChannel } from '@/app/dnd/_ui/useCampaignChannel'
+import { DEFAULT_INITIATIVE, type InitiativeFlavor } from '../registry'
 
-export default function InitiativePrompt() {
+export default function InitiativePrompt({ flavor = DEFAULT_INITIATIVE }: { flavor?: InitiativeFlavor }) {
   const { char, characterId, campaignId } = useChar()
   const [encounterId, setEncounterId] = useState<string | null>(null)
   const [manual, setManual] = useState(false)
@@ -69,16 +70,16 @@ export default function InitiativePrompt() {
       aria-label="Roll for initiative"
       style={{ position: 'fixed', inset: 0, zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, background: 'rgba(2,4,10,0.86)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)' }}
     >
-      <div className="card" style={{ maxWidth: 430, width: '100%', textAlign: 'center', padding: '26px 24px', border: '2px solid var(--line-strong)', boxShadow: '0 0 44px -8px var(--hotpink)' }}>
-        <div className="sec-num" style={{ fontSize: 13 }}>ENCOUNTER {'//'} INITIATIVE</div>
-        <h2 style={{ margin: '6px 0 2px', fontFamily: 'var(--font-display)' }}>Roll for Initiative!</h2>
+      <div className="card" style={{ maxWidth: 430, width: '100%', textAlign: 'center', padding: '26px 24px', border: '2px solid var(--line-strong)', boxShadow: `0 0 44px -8px ${flavor.accent}` }}>
+        <div className="sec-num" style={{ fontSize: 13 }}>{flavor.kicker}</div>
+        <h2 style={{ margin: '6px 0 2px', fontFamily: 'var(--font-display)' }}>{flavor.title}</h2>
         <p style={{ color: 'var(--muted)', margin: '0 0 16px', fontSize: 14 }}>
           {char.meta.name} · bonus <strong>{bonusStr}</strong>
         </p>
 
         {locked != null ? (
           <div>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: 56, lineHeight: 1, color: 'var(--hotpink)', textShadow: '0 0 18px var(--hotpink)' }}>{locked}</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 56, lineHeight: 1, color: flavor.accent, textShadow: `0 0 18px ${flavor.accent}` }}>{locked}</div>
             <p style={{ color: 'var(--good)', marginTop: 10, fontWeight: 700 }}>Locked in! Waiting for the table…</p>
           </div>
         ) : (
@@ -90,7 +91,7 @@ export default function InitiativePrompt() {
 
             {!manual ? (
               <div>
-                <button className="btn solid" style={{ fontSize: 16, padding: '12px 22px' }} onClick={doRoll}>{roll ? '↻ Reroll d20' : '🎲 Roll d20'}</button>
+                <button className="btn solid" style={{ fontSize: 16, padding: '12px 22px' }} onClick={doRoll}>{roll ? '↻ Reroll' : flavor.rollLabel}</button>
                 {roll && (
                   <div style={{ marginTop: 14 }}>
                     <div style={{ fontFamily: 'var(--font-display)', fontSize: 52, lineHeight: 1, color: 'var(--ink)' }}>{roll.total}</div>
@@ -124,7 +125,7 @@ export default function InitiativePrompt() {
               disabled={total == null || busy}
               onClick={submit}
             >
-              {busy ? 'Submitting…' : total == null ? 'Roll first' : `Lock in ${total}`}
+              {busy ? 'Submitting…' : total == null ? 'Roll first' : `${flavor.lockLabel} ${total}`}
             </button>
           </>
         )}
