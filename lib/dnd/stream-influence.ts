@@ -42,6 +42,56 @@ export function viewerDC(viewers: number): number {
 /** The DC ceiling — at/above this the meter goes neon-pink + shakes ("irresistible"). */
 export const MAX_DC = 25;
 
+// Average ambient chat throughput (messages/second) at each resist DC — and since the DC
+// is itself set by the viewer count, this makes the chat's PACE scale with the audience.
+// Anchored to the DM's spec: DC 15 ≈ 1 msg/sec, DC 20 ≈ 2 msg/sec. A lonely DC-2 chat
+// barely trickles (~1 every 30s); a maxed DC-25 chat is a steady flood. The caller adds
+// burstiness + jitter on top so the pacing never feels metronomic.
+const RATE_BY_DC: Readonly<Record<number, number>> = {
+  2: 0.03, 3: 0.06, 4: 0.1, 5: 0.15, 6: 0.22, 7: 0.3, 8: 0.4, 9: 0.5, 10: 0.6, 11: 0.7,
+  12: 0.8, 13: 0.88, 14: 0.94, 15: 1, 16: 1.2, 17: 1.4, 18: 1.6, 19: 1.8, 20: 2,
+  21: 2.3, 22: 2.6, 23: 2.9, 24: 3.2, 25: 3.5,
+};
+
+/** Average ambient messages/second for a given resist DC (2–25). */
+export function chatRatePerSec(dc: number): number {
+  const d = Math.max(2, Math.min(MAX_DC, Math.round(dc)));
+  return RATE_BY_DC[d] ?? 0;
+}
+
+/** Average ambient messages/second for a given live viewer count (0 viewers → 0). */
+export function viewerChatRatePerSec(viewers: number): number {
+  if ((viewers || 0) <= 0) return 0;
+  return chatRatePerSec(viewerDC(viewers));
+}
+
+/** [min, max] viewer bounds of the DC tier containing `viewers`. Used to keep the shown
+ *  (organically fluctuating) viewer count inside its tier, so the DC/pace never flicker.
+ *  The top tier (1,000,000,001+) returns MAX_SAFE_INTEGER as its max. */
+export function viewerTierBounds(viewers: number): [number, number] {
+  const v = Math.max(0, Math.floor(viewers || 0));
+  let prevMax = 0;
+  for (const [maxV] of DC_TIERS) {
+    if (v <= maxV) return [prevMax + 1, maxV];
+    prevMax = maxV;
+  }
+  return [prevMax + 1, Number.MAX_SAFE_INTEGER];
+}
+
+/** The organically-fluctuating "revealed" viewer count the audience sees. It hovers
+ *  around the DM's set value (viewers come + go) but is CLAMPED to the current tier so it
+ *  never changes the DC/pace. 0 stays 0 and 1–15 stay exact (we track those handles by
+ *  name); only 16+ drifts, by up to ~8% (a floor of ±2 for small counts). `rnd` is the
+ *  caller's random in [0,1) so this stays pure/testable. */
+export function fluctuateViewers(base: number, rnd: number): number {
+  const v = Math.max(0, Math.floor(base || 0));
+  if (v <= 15) return v;
+  const [tmin, tmax] = viewerTierBounds(v);
+  const spread = Math.max(2, Math.round(v * 0.08));
+  const delta = Math.round((rnd * 2 - 1) * spread);
+  return Math.min(tmax, Math.max(tmin, v + delta));
+}
+
 // ── Live-activity engagement boost ──────────────────────────────────────────────
 // The DM's engagement dial is the *floor*; live activity (reactions, subs/donations/
 // raids, and chat volume) transiently pushes engagement — and thus the resist DC —

@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useChar } from '../state/store'
 import type { AlertType, StreamAlert } from '@/lib/dnd/stream-alerts'
 import { CHAT_MODES, type ChatMode, type ModActionType } from '@/lib/dnd/stream-mod'
-import { viewerDC, MAX_DC } from '@/lib/dnd/stream-influence'
+import { viewerDC, MAX_DC, chatRatePerSec } from '@/lib/dnd/stream-influence'
 
 // Streamer-chat DM control (Phase J2) — toggle the character "live", set a viewer
 // count and chat speed. Lives in the DM panel; the fake chat overlay (J3+) reads this
@@ -39,6 +39,7 @@ export default function StreamControl() {
   const [stream, setStream] = useState<Stream | null>(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const [sendAs, setSendAs] = useState('')
   const [sending, setSending] = useState(false)
   const [spam, setSpam] = useState('')
   const [spamming, setSpamming] = useState(false)
@@ -83,23 +84,49 @@ export default function StreamControl() {
   // Flush any pending slider PATCH on unmount so a value you just dragged isn't lost.
   useEffect(() => () => { if (patchTimer.current) clearTimeout(patchTimer.current) }, [])
 
-  // Persistent AI trend engine: while a trend is set and the stream is live, keep the
-  // chat riffing on that focus — fire an on-trend AI burst immediately, then every ~20s.
-  // The /stream/direct route AI-writes the lines (or falls back to procedural variations),
-  // so the DM's chosen vibe visibly persists and evolves instead of being a one-off.
+  // Immediate sync: push every stream-state change to the chat overlay on this client so
+  // viewer/pause edits take effect instantly (the overlay also polls as a remote fallback).
+  useEffect(() => {
+    if (!characterId || !stream) return
+    window.dispatchEvent(new CustomEvent('dnd-stream-state', { detail: { characterId, stream } }))
+  }, [stream, characterId])
+
+  // AI FOCUS session. When the DM aims the AI at a topic, the chat becomes almost entirely
+  // about THAT: premade chatter is nearly silenced (overlay honors the focus window) while
+  // the AI floods on-topic lines every ~8s for ~4 minutes, then premade fades back over the
+  // next ~90s until the chat looks normal again. Setting a new topic restarts the session.
+  const FOCUS_SUPPRESS_MS = 240_000
+  const FOCUS_RAMP_MS = 90_000
   useEffect(() => {
     const live = stream?.is_live ?? false
     if (!trend || !live || !characterId) return
+    const startedAt = Date.now()
+    // Tell overlays: kill premade chat now, start fading it back after SUPPRESS.
+    window.dispatchEvent(new CustomEvent('dnd-stream-focus', {
+      detail: { characterId, suppressUntil: startedAt + FOCUS_SUPPRESS_MS, rampUntil: startedAt + FOCUS_SUPPRESS_MS + FOCUS_RAMP_MS },
+    }))
     const fire = () =>
-      void fetch(`/api/dnd/characters/${characterId}/stream/direct`, {
+      fetch(`/api/dnd/characters/${characterId}/stream/direct`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ directive: trend, count: 10 }),
-      }).catch(() => {})
+        body: JSON.stringify({ directive: trend, count: 12 }),
+      })
+        .then(() => window.dispatchEvent(new CustomEvent('dnd-stream-poll', { detail: characterId })))
+        .catch(() => {})
     fire()
-    trendTimer.current = setInterval(fire, 20000)
+    trendTimer.current = setInterval(() => {
+      if (Date.now() - startedAt >= FOCUS_SUPPRESS_MS) { if (trendTimer.current) clearInterval(trendTimer.current); setTrend(''); return }
+      fire()
+    }, 8000)
     return () => { if (trendTimer.current) clearInterval(trendTimer.current) }
   }, [trend, stream?.is_live, characterId])
+
+  // Stop the focus early: clear the topic and tell overlays to start fading premade back now.
+  const stopFocus = () => {
+    setTrend('')
+    const now = Date.now()
+    window.dispatchEvent(new CustomEvent('dnd-stream-focus', { detail: { characterId, suppressUntil: now, rampUntil: now + FOCUS_RAMP_MS } }))
+  }
 
   // Mod broadcast channel (J10) — chat modes + timeout/ban actions push to viewers.
   useEffect(() => {
@@ -151,7 +178,8 @@ export default function StreamControl() {
   const live = stream?.is_live ?? false
   const viewers = stream?.viewer_count ?? 0
   const engagement = stream?.engagement ?? 50
-  const speed = stream?.chat_speed ?? 3
+  // Ambient chat is globally paused when chat_speed is 0 (the pace itself is viewer-driven).
+  const paused = (stream?.chat_speed ?? 3) <= 0
 
   // The resist DC is set purely by the live viewer count (the tier table); the engagement
   // dial below only drives the meter's visual energy. Shown live so the DM sees the DC as
@@ -179,7 +207,6 @@ export default function StreamControl() {
     }, 250)
   }
   const setEngagement = (value: number) => liveSet({ engagement: value }, { engagement: value })
-  const setSpeed = (value: number) => liveSet({ chat_speed: value }, { chatSpeed: value })
 
   // Engagement presets — named "how hyped is chat" steps so the DM can dial the vibe
   // in one click instead of hunting for a number.
@@ -191,13 +218,17 @@ export default function StreamControl() {
     { label: 'Feral', icon: '💥', value: 100 },
   ]
 
+  // Tell the chat overlay on this client to fetch RIGHT NOW, so DM/AI-injected lines show
+  // the instant the request returns instead of waiting for the next poll tick.
+  const notifyPoll = () => window.dispatchEvent(new CustomEvent('dnd-stream-poll', { detail: characterId }))
+
   const sendDemand = (lines: string[]) => {
     const body = lines[Math.floor(Math.random() * lines.length)]
     void fetch(`/api/dnd/characters/${characterId}/stream/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ body }),
-    }).catch(() => {})
+    }).then(notifyPoll).catch(() => {})
   }
 
   const sendFromChat = async () => {
@@ -205,12 +236,16 @@ export default function StreamControl() {
     if (!body || sending) return
     setSending(true)
     try {
+      // A chosen sender name (optional) posts the line as that exact handle; blank = a
+      // random viewer. The message endpoint derives a stable color/badges from the name.
+      const name = sendAs.trim()
       await fetch(`/api/dnd/characters/${characterId}/stream/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body }),
+        body: JSON.stringify(name ? { body, username: name } : { body }),
       })
       setMsg('')
+      notifyPoll()
     } finally {
       setSending(false)
     }
@@ -255,6 +290,7 @@ export default function StreamControl() {
         body: JSON.stringify({ phrase }),
       })
       setSpam('')
+      notifyPoll()
     } finally {
       setSpamming(false)
     }
@@ -271,6 +307,7 @@ export default function StreamControl() {
         body: JSON.stringify({ directive: note, count: 16 }),
       })
       setDirective('')
+      notifyPoll()
     } finally {
       setDirecting(false)
     }
@@ -285,42 +322,45 @@ export default function StreamControl() {
           onClick={() => patch({ isLive: !live })}
           disabled={busy}
           style={{ color: live ? '#ff4d4d' : undefined }}
+          title={live ? 'End the stream — hides the chat + influence meter for everyone' : 'Go live — shows the streamer chat, influence meter, and these controls'}
         >
           {live ? '● LIVE — end' : '○ Go Live'}
         </button>
 
-        <label style={{ fontSize: 12, color: 'var(--muted, #9aa)', display: 'flex', alignItems: 'center', gap: 4 }}>
+        <label style={{ fontSize: 12, color: 'var(--muted, #9aa)', display: 'flex', alignItems: 'center', gap: 4 }} title="Live viewer count. This ALONE sets the chat pace and the resist DC — type an exact number or use the quick-add buttons. Takes effect instantly.">
           Viewers
           <input
             type="number"
             min={0}
             value={viewers}
-            disabled={busy}
-            onChange={(e) => setStream((s) => (s ? { ...s, viewer_count: Number(e.target.value) } : s))}
-            onBlur={(e) => patch({ viewerCount: Number(e.target.value) })}
-            style={{ width: 80, padding: '4px 6px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--line, rgba(255,255,255,0.15))', color: 'inherit' }}
+            onChange={(e) => liveSet({ viewer_count: Math.max(0, Number(e.target.value) || 0) }, { viewerCount: Math.max(0, Number(e.target.value) || 0) })}
+            style={{ width: 90, padding: '4px 6px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--line, rgba(255,255,255,0.15))', color: 'inherit' }}
           />
         </label>
-        <button className="btn tiny" onClick={() => patch({ viewerCount: viewers + 1000 })} disabled={busy}>+1k</button>
-        <button className="btn tiny" onClick={() => patch({ viewerCount: viewers + 1e6 })} disabled={busy}>+1M</button>
-        <button className="btn tiny" onClick={() => patch({ viewerCount: viewers + 1e9 })} disabled={busy}>+1B</button>
-        <button className="btn tiny" onClick={() => patch({ viewerCount: viewers + 1e12 })} disabled={busy}>+1T</button>
-        <button className="btn tiny" onClick={() => patch({ viewerCount: 1e15 })} disabled={busy} title="One quadrillion viewers">🪐 1Q</button>
-        <button className="btn tiny" onClick={() => patch({ viewerCount: 0 })} disabled={busy} title="Reset viewers">↺ 0</button>
-        {live && <button className="btn tiny" onClick={clearChat} disabled={busy} title="Delete all chat lines">🧹 Clear</button>}
+        <button className="btn tiny" onClick={() => liveSet({ viewer_count: viewers + 1000 }, { viewerCount: viewers + 1000 })} title="Add 1,000 viewers">+1k</button>
+        <button className="btn tiny" onClick={() => liveSet({ viewer_count: viewers + 1e6 }, { viewerCount: viewers + 1e6 })} title="Add 1 million viewers">+1M</button>
+        <button className="btn tiny" onClick={() => liveSet({ viewer_count: viewers + 1e9 }, { viewerCount: viewers + 1e9 })} title="Add 1 billion viewers (DC 24–25 territory)">+1B</button>
+        <button className="btn tiny" onClick={() => liveSet({ viewer_count: viewers + 1e12 }, { viewerCount: viewers + 1e12 })} title="Add 1 trillion viewers">+1T</button>
+        <button className="btn tiny" onClick={() => liveSet({ viewer_count: 1e15 }, { viewerCount: 1e15 })} title="One quadrillion viewers — maxes the DC at 25">🪐 1Q</button>
+        <button className="btn tiny" onClick={() => liveSet({ viewer_count: 0 }, { viewerCount: 0 })} title="Reset to 0 viewers — chat goes completely silent">↺ 0</button>
 
-        <label style={{ fontSize: 12, color: 'var(--muted, #9aa)', display: 'flex', alignItems: 'center', gap: 6 }} title="How fast ambient chat scrolls (1 = trickle, 10 = flood)">
-          Speed
-          <input
-            type="range"
-            min={1}
-            max={10}
-            value={speed}
-            onChange={(e) => setSpeed(Number(e.target.value))}
-            style={{ width: 110 }}
-          />
-          <span style={{ width: 34, textAlign: 'right' }}>{speed}×</span>
-        </label>
+        {live && (
+          <button
+            className={`btn tiny ${paused ? 'on' : ''}`}
+            onClick={() => patch({ chatSpeed: paused ? 3 : 0 })}
+            disabled={busy}
+            style={{ color: paused ? '#ffb84d' : undefined }}
+            title={paused ? 'Resume ambient chat for everyone' : 'Pause ambient chat for EVERYONE (you can still send individual messages while paused)'}
+          >
+            {paused ? '▶ Resume chat' : '⏸ Pause chat'}
+          </button>
+        )}
+        {live && <button className="btn tiny" onClick={clearChat} disabled={busy} title="Delete every chat line for everyone (wipes the feed)">🧹 Clear</button>}
+        {live && (
+          <span style={{ fontSize: 11, color: 'var(--muted, #9aa)' }} title="Current ambient pace, derived from the viewer count (DC). Deliberately bursty around this average.">
+            pace ~{chatRatePerSec(dc)}/s
+          </span>
+        )}
       </div>
 
       {/* Patron-influence block (J11). The resist DC is set purely by the VIEWER COUNT
@@ -384,16 +424,26 @@ export default function StreamControl() {
       )}
 
       {live && (
-        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+          <input
+            value={sendAs}
+            onChange={(e) => setSendAs(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && sendFromChat()}
+            placeholder="from… (name)"
+            disabled={sending}
+            title="Optional: the exact username this message posts as. Leave blank to post as a random viewer. Reuse the same name to make a recurring 'regular'."
+            style={{ width: 130, padding: '6px 8px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--line, rgba(255,255,255,0.15))', color: 'inherit', fontSize: 13 }}
+          />
           <input
             value={msg}
             onChange={(e) => setMsg(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && sendFromChat()}
-            placeholder="Send a message from chat (as a random viewer)…"
+            placeholder={sendAs.trim() ? `Send one message as ${sendAs.trim()}…` : 'Send one message from chat (as a random viewer)…'}
             disabled={sending}
-            style={{ flex: 1, padding: '6px 8px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--line, rgba(255,255,255,0.15))', color: 'inherit', fontSize: 13 }}
+            title="Type a single chat line and hit Send (or Enter) to drop it into the live chat."
+            style={{ flex: 1, minWidth: 160, padding: '6px 8px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--line, rgba(255,255,255,0.15))', color: 'inherit', fontSize: 13 }}
           />
-          <button className="btn tiny" onClick={sendFromChat} disabled={sending || !msg.trim()}>{sending ? '…' : 'Send'}</button>
+          <button className="btn tiny" onClick={sendFromChat} disabled={sending || !msg.trim()} title="Post this one message to the live chat">{sending ? '…' : 'Send'}</button>
         </div>
       )}
 
@@ -425,12 +475,13 @@ export default function StreamControl() {
         </div>
       )}
 
-      {/* Persistent AI trend/vibe — the DM's ongoing control over the focus of chat. */}
+      {/* AI FOCUS — the DM aims the AI at a topic and the chat becomes almost entirely about
+          it for a few minutes, then premade chatter fades back in. Full sway over the chat. */}
       {live && (
         <div style={{ marginTop: 8, padding: '8px 10px', border: `1px solid ${trend ? '#0ac8b9' : 'var(--line, rgba(255,255,255,0.14))'}`, borderRadius: 8, background: trend ? 'rgba(10,200,185,0.08)' : 'rgba(255,255,255,0.02)' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, letterSpacing: '0.1em', color: '#0ac8b9', fontWeight: 700 }}>🤖 AI CHAT TREND</span>
-            <span style={{ fontSize: 11, color: 'var(--muted, #9aa)' }}>set the ongoing vibe &amp; focus — chat keeps riffing on it every ~20s</span>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }} title="Aim the AI at a topic. Premade chatter goes nearly silent and the AI floods on-topic lines for ~4 minutes, then normal chat fades back in. Pick a new topic to restart.">
+            <span style={{ fontSize: 11, letterSpacing: '0.1em', color: '#0ac8b9', fontWeight: 700 }}>🤖 AI CHAT FOCUS</span>
+            <span style={{ fontSize: 11, color: 'var(--muted, #9aa)' }}>make chat obsess over a topic — premade chats vanish for ~4 min, then fade back</span>
           </div>
           <div style={{ display: 'flex', gap: 6, marginTop: 7, flexWrap: 'wrap' }}>
             {TRENDS.map((t) => {
@@ -439,8 +490,8 @@ export default function StreamControl() {
                 <button
                   key={t.label}
                   className={`btn tiny ${on ? 'on' : ''}`}
-                  onClick={() => { setTrend(on ? '' : t.note); setTrendInput(t.note) }}
-                  title={on ? 'Click to stop this trend' : t.note}
+                  onClick={() => (on ? stopFocus() : (setTrend(t.note), setTrendInput(t.note)))}
+                  title={on ? 'Stop this focus (premade chat fades back in)' : `Make the whole chat focus on: ${t.note}`}
                   style={{ color: on ? '#0ac8b9' : undefined }}
                 >
                   {t.icon} {t.label}
@@ -453,18 +504,19 @@ export default function StreamControl() {
               value={trendInput}
               onChange={(e) => setTrendInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && trendInput.trim()) setTrend(trendInput.trim()) }}
-              placeholder="Custom vibe/trend… (e.g. everyone thinks she's about to clutch the boss)"
+              placeholder="Custom focus… (e.g. everyone is convinced the merchant is the villain)"
+              title="Type any topic and hit Focus. Chat will flood with clean, in-world lines about it."
               style={{ flex: 1, padding: '6px 8px', fontSize: 13 }}
             />
             {trend ? (
-              <button className="btn tiny" onClick={() => setTrend('')} style={{ color: '#ff5252' }} title="Stop the running trend">■ Stop</button>
+              <button className="btn tiny" onClick={stopFocus} style={{ color: '#ff5252' }} title="Stop the focus now — premade chatter fades back in over ~90s">■ Stop</button>
             ) : (
-              <button className="btn tiny" onClick={() => trendInput.trim() && setTrend(trendInput.trim())} disabled={!trendInput.trim()} style={{ color: '#0ac8b9' }} title="Start this trend">▶ Start</button>
+              <button className="btn tiny" onClick={() => trendInput.trim() && setTrend(trendInput.trim())} disabled={!trendInput.trim()} style={{ color: '#0ac8b9' }} title="Aim the AI at this topic">▶ Focus</button>
             )}
           </div>
           {trend && (
             <div style={{ fontSize: 11, color: 'var(--muted, #9aa)', marginTop: 6 }}>
-              <span style={{ color: '#0ac8b9', fontWeight: 700 }}>● TRENDING:</span> {trend}
+              <span style={{ color: '#0ac8b9', fontWeight: 700 }}>● CHAT IS OBSESSED WITH:</span> {trend}
             </div>
           )}
         </div>

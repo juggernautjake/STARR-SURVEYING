@@ -1240,19 +1240,27 @@
   padding: 7px 10px;
   border-bottom: 1px solid var(--line);
 }
-.dnd-sheet .stream-dock-tools .sd-speed {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: #c9c3dd;
-  flex: 1;
-  min-width: 0;
+.dnd-sheet .stream-dock-tools .sd-pause {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  cursor: pointer;
+  color: #f2effa;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  white-space: nowrap;
 }
-.dnd-sheet .stream-dock-tools .sd-speed input[type='range'] {
-  flex: 1;
-  min-width: 90px;
-  max-width: 220px;
+.dnd-sheet .stream-dock-tools .sd-pause:hover { background: rgba(255, 255, 255, 0.16); }
+.dnd-sheet .stream-dock-tools .sd-pause.on {
+  color: #fff;
+  background: linear-gradient(160deg, #ff6b6b, #d32f2f);
+  border-color: #ff6b6b;
+}
+.dnd-sheet .stream-dock-tools .sd-rate {
+  font-size: 11px;
+  color: #9c96b0;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Custom range sliders for the stream UI (chat speed, DM speed, engagement). Native
@@ -2457,6 +2465,9 @@
 .dnd-sheet.skin-streamer h1.name {
   font-family: var(--font-display);
   font-weight: 700;
+  /* Her handle is a case-sensitive username (xxRainbowKittenUwU37xx), so keep the exact
+     casing instead of the sheet-wide uppercase. The glitch animation below is unaffected. */
+  text-transform: none;
   /* Smaller base so a long single-word username fits; Hero's fit-to-width shrinks
      it further if needed and keeps it on one line. */
   font-size: clamp(24px, 4.4vw, 40px);

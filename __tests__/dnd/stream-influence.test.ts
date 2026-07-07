@@ -1,6 +1,48 @@
 // __tests__/dnd/stream-influence.test.ts — patron-influence meter math (J11).
 import { describe, it, expect } from 'vitest';
-import { viewerFactor, computeInfluence, viewerDC, MAX_DC, engagementBoostFor, ENGAGEMENT_BOOST_CAP } from '@/lib/dnd/stream-influence';
+import { viewerFactor, computeInfluence, viewerDC, MAX_DC, chatRatePerSec, viewerTierBounds, fluctuateViewers, engagementBoostFor, ENGAGEMENT_BOOST_CAP } from '@/lib/dnd/stream-influence';
+
+describe('chatRatePerSec', () => {
+  it('anchors to the DM spec (DC 15 ≈ 1/sec, DC 20 ≈ 2/sec) and is monotonic', () => {
+    expect(chatRatePerSec(15)).toBe(1);
+    expect(chatRatePerSec(20)).toBe(2);
+    expect(chatRatePerSec(2)).toBeLessThan(0.1); // a lonely chat barely trickles
+    expect(chatRatePerSec(25)).toBeGreaterThan(chatRatePerSec(20));
+    let prev = 0;
+    for (let dc = 2; dc <= 25; dc++) { expect(chatRatePerSec(dc)).toBeGreaterThanOrEqual(prev); prev = chatRatePerSec(dc); }
+  });
+});
+
+describe('viewerTierBounds', () => {
+  it('returns the [min,max] of the DC tier containing the count', () => {
+    expect(viewerTierBounds(16)).toEqual([1, 100]);
+    expect(viewerTierBounds(200_000)).toEqual([125_001, 250_000]);
+    expect(viewerTierBounds(2e9)[0]).toBe(1_000_000_001);
+  });
+});
+
+describe('fluctuateViewers', () => {
+  it('never fluctuates 0, and keeps 1–15 exact', () => {
+    for (const r of [0, 0.5, 0.999]) {
+      expect(fluctuateViewers(0, r)).toBe(0);
+      expect(fluctuateViewers(1, r)).toBe(1);
+      expect(fluctuateViewers(15, r)).toBe(15);
+    }
+  });
+  it('16+ drifts but stays inside its DC tier (DC never changes)', () => {
+    for (let i = 0; i < 200; i++) {
+      const r = i / 200;
+      const f16 = fluctuateViewers(16, r);
+      expect(f16).toBeGreaterThanOrEqual(1);
+      expect(f16).toBeLessThanOrEqual(100); // still DC 2
+      expect(viewerDC(f16)).toBe(viewerDC(16));
+      const f200k = fluctuateViewers(200_000, r);
+      expect(f200k).toBeGreaterThanOrEqual(125_001);
+      expect(f200k).toBeLessThanOrEqual(250_000);
+      expect(viewerDC(f200k)).toBe(viewerDC(200_000));
+    }
+  });
+});
 
 describe('viewerFactor', () => {
   it('is 0 for an empty/tiny audience and approaches 1 at quadrillions', () => {
