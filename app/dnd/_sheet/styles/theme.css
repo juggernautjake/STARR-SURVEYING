@@ -2027,17 +2027,48 @@
 /* Bright screen: white→pink→lavender wash + pink/gold/purple glows + a faint
    pixel data-grid (dark-alpha lines so they read on the light ground). */
 .dnd-sheet.skin-streamer {
+  /* Accent RGB triplets + light-base gradient + monitor darks. The PINK variant is
+     the default; `.variant-blue` swaps these (the color TOKENS — --hotpink etc. —
+     are swapped separately by the theme applied in App). */
+  --sk-accent: 255, 30, 156;
+  --sk-accent2: 169, 77, 255;
+  --sk-accent3: 224, 164, 0;
+  --sk-dark: 90, 16, 80;
+  --sk-base: linear-gradient(168deg, #fff5fc 0%, #ffe3f4 34%, #f6e2ff 68%, #fff0e6 100%);
+  --sk-hero: linear-gradient(155deg, #fffafe 0%, #ffe9f7 55%, #f7e6ff 100%);
+  --sk-panel-soft: #fffafe;
+  --sk-panel-soft2: #ffe9f7;
+  --sk-scroll-edge: #ffe3f4;
+  --sk-monitor: linear-gradient(180deg, #2a0725, #170214);
+  --sk-onaccent-ink: #4a0b40;
+  --sk-inf-max: #ff0a86;
   background:
-    repeating-linear-gradient(0deg, rgba(255, 30, 156, 0.05) 0 1px, transparent 1px 9px),
-    repeating-linear-gradient(90deg, rgba(169, 77, 255, 0.045) 0 1px, transparent 1px 9px),
-    radial-gradient(760px 460px at 84% -6%, rgba(224, 164, 0, 0.22), transparent 60%),
-    radial-gradient(820px 520px at -6% 12%, rgba(255, 30, 156, 0.28), transparent 58%),
-    radial-gradient(1000px 700px at 50% 118%, rgba(169, 77, 255, 0.22), transparent 62%),
-    linear-gradient(168deg, #fff5fc 0%, #ffe3f4 34%, #f6e2ff 68%, #fff0e6 100%);
+    repeating-linear-gradient(0deg, rgba(var(--sk-accent), 0.05) 0 1px, transparent 1px 9px),
+    repeating-linear-gradient(90deg, rgba(var(--sk-accent2), 0.045) 0 1px, transparent 1px 9px),
+    radial-gradient(760px 460px at 84% -6%, rgba(var(--sk-accent3), 0.22), transparent 60%),
+    radial-gradient(820px 520px at -6% 12%, rgba(var(--sk-accent), 0.28), transparent 58%),
+    radial-gradient(1000px 700px at 50% 118%, rgba(var(--sk-accent2), 0.22), transparent 62%),
+    var(--sk-base);
   background-attachment: fixed;
   image-rendering: pixelated;
   color: var(--ink);
   isolation: isolate;
+}
+/* BLUE variant — swap the accent triplets + the light/dark backing colors. Paired
+   with the blue color tokens applied on the root by App (streamerThemeBlue). */
+.dnd-sheet.skin-streamer.variant-blue {
+  --sk-accent: 43, 127, 255;
+  --sk-accent2: 34, 196, 255;
+  --sk-accent3: 224, 164, 0;
+  --sk-dark: 16, 42, 96;
+  --sk-base: linear-gradient(168deg, #f2f7ff 0%, #e3edff 34%, #e2f3ff 68%, #eef6ff 100%);
+  --sk-hero: linear-gradient(155deg, #f8fbff 0%, #e8f1ff 55%, #e6f4ff 100%);
+  --sk-panel-soft: #f8fbff;
+  --sk-panel-soft2: #e8f1ff;
+  --sk-scroll-edge: #dcecff;
+  --sk-monitor: linear-gradient(180deg, #071a3a, #04102a);
+  --sk-onaccent-ink: #0a2450;
+  --sk-inf-max: #2b7fff;
 }
 /* Floating pixel-cube aura — the pink/purple squares "dissolving" off the streamer
    in her art. A fixed field of hard-edged cubes behind the content (z-index below the
@@ -2082,8 +2113,8 @@
   opacity: 0.7;
   background:
     radial-gradient(circle, rgba(255, 255, 255, 0.95) 0.6px, transparent 1.7px) 0 0 / 26px 26px,
-    radial-gradient(circle, rgba(224, 164, 0, 0.8) 0.6px, transparent 1.7px) 13px 13px / 52px 52px,
-    radial-gradient(circle, rgba(255, 30, 156, 0.6) 0.6px, transparent 1.7px) 7px 19px / 40px 40px,
+    radial-gradient(circle, rgba(var(--sk-accent3), 0.8) 0.6px, transparent 1.7px) 13px 13px / 52px 52px,
+    radial-gradient(circle, rgba(var(--sk-accent), 0.6) 0.6px, transparent 1.7px) 7px 19px / 40px 40px,
     repeating-linear-gradient(0deg, rgba(120, 20, 90, 0.05) 0 1px, transparent 1px 4px);
   animation: streamer-drift 9s linear infinite;
 }
@@ -2091,10 +2122,10 @@
   from { background-position: 0 0, 13px 13px, 7px 19px, 0 0; }
   to   { background-position: 26px 26px, 39px 39px, 47px 19px, 0 0; }
 }
-.dnd-sheet.skin-streamer ::selection { background: rgba(255, 30, 156, 0.28); color: var(--ink); }
+.dnd-sheet.skin-streamer ::selection { background: rgba(var(--sk-accent), 0.28); color: var(--ink); }
 .dnd-sheet.skin-streamer ::-webkit-scrollbar-thumb {
   background: linear-gradient(var(--gold), var(--hotpink));
-  border: 3px solid #ffe3f4;
+  border: 3px solid var(--sk-scroll-edge);
   border-radius: 0;
 }
 
@@ -2120,17 +2151,17 @@
 }
 /* Text that sits on a saturated accent fill stays white. */
 .dnd-sheet.skin-streamer .btn.solid { color: #fff; text-shadow: none; }
-.dnd-sheet.skin-streamer .card h3 .lvl { color: #4a0b40; }
+.dnd-sheet.skin-streamer .card h3 .lvl { color: var(--sk-onaccent-ink); }
 .dnd-sheet.skin-streamer .adv-seg button.on-dis { color: var(--danger); }
 
 /* De-cyan the faint accent tints in tables/callouts/focus; make them pink. */
-.dnd-sheet.skin-streamer th { background: rgba(255, 30, 156, 0.08); }
-.dnd-sheet.skin-streamer .callout { border-left-color: var(--hotpink); background: rgba(255, 30, 156, 0.06); }
+.dnd-sheet.skin-streamer th { background: rgba(var(--sk-accent), 0.08); }
+.dnd-sheet.skin-streamer .callout { border-left-color: var(--hotpink); background: rgba(var(--sk-accent), 0.06); }
 .dnd-sheet.skin-streamer input:not([type='range']):focus,
 .dnd-sheet.skin-streamer textarea:focus,
 .dnd-sheet.skin-streamer select:focus {
   border-color: var(--hotpink);
-  box-shadow: 0 0 0 2px rgba(255, 30, 156, 0.2);
+  box-shadow: 0 0 0 2px rgba(var(--sk-accent), 0.2);
 }
 /* Light input fields (also overrides the stream-control inline dark inputs). */
 .dnd-sheet.skin-streamer input:not([type='range']),
@@ -2146,8 +2177,8 @@
 .dnd-sheet.skin-streamer .hero {
   border-radius: 4px;
   border-color: var(--line-strong);
-  background: linear-gradient(155deg, #fffafe 0%, #ffe9f7 55%, #f7e6ff 100%);
-  box-shadow: 0 18px 50px -26px rgba(255, 30, 156, 0.5), 0 0 0 1px rgba(224, 164, 0, 0.18), inset 0 0 60px rgba(255, 30, 156, 0.05);
+  background: var(--sk-hero);
+  box-shadow: 0 18px 50px -26px rgba(var(--sk-accent), 0.5), 0 0 0 1px rgba(var(--sk-accent3), 0.18), inset 0 0 60px rgba(var(--sk-accent), 0.05);
 }
 .dnd-sheet.skin-streamer .hero::before {
   /* Focal pixel-cube cluster in her identity zone (behind the name), plus the
@@ -2163,8 +2194,8 @@
     linear-gradient(var(--violet), var(--violet)) 44% 40% / 8px 8px no-repeat,
     linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)) 88% 84% / 6px 6px no-repeat,
     linear-gradient(var(--hotpink), var(--hotpink)) 40% 12% / 8px 8px no-repeat,
-    repeating-linear-gradient(0deg, rgba(255, 30, 156, 0.06) 0 1px, transparent 1px 8px),
-    repeating-linear-gradient(90deg, rgba(169, 77, 255, 0.05) 0 1px, transparent 1px 8px);
+    repeating-linear-gradient(0deg, rgba(var(--sk-accent), 0.06) 0 1px, transparent 1px 8px),
+    repeating-linear-gradient(90deg, rgba(var(--sk-accent2), 0.05) 0 1px, transparent 1px 8px);
   animation: streamer-cubefloat 5s ease-in-out infinite;
 }
 .dnd-sheet.skin-streamer h1.name {
@@ -2180,10 +2211,10 @@
   background-clip: text;
   color: transparent;
   filter:
-    drop-shadow(2px 0 0 rgba(169, 77, 255, 0.5))
-    drop-shadow(-2px 0 0 rgba(255, 30, 156, 0.5))
+    drop-shadow(2px 0 0 rgba(var(--sk-accent2), 0.5))
+    drop-shadow(-2px 0 0 rgba(var(--sk-accent), 0.5))
     drop-shadow(0 3px 0 rgba(255, 255, 255, 0.9))
-    drop-shadow(0 0 16px rgba(255, 30, 156, 0.3));
+    drop-shadow(0 0 16px rgba(var(--sk-accent), 0.3));
   animation: streamer-glitch 4.5s steps(1) infinite;
 }
 @keyframes streamer-glitch {
@@ -2223,8 +2254,8 @@
   border-radius: 2px;
   border-width: 2px;
   color: var(--ink);
-  background: rgba(255, 30, 156, 0.08);
-  box-shadow: 2px 2px 0 rgba(255, 30, 156, 0.22);
+  background: rgba(var(--sk-accent), 0.08);
+  box-shadow: 2px 2px 0 rgba(var(--sk-accent), 0.22);
 }
 
 /* ---- Chunky pressable pixel buttons ---- */
@@ -2236,17 +2267,17 @@
   border-width: 2px;
   border-color: var(--line-strong);
   color: var(--ink);
-  background: rgba(255, 30, 156, 0.09);
-  box-shadow: 3px 3px 0 rgba(255, 30, 156, 0.3);
+  background: rgba(var(--sk-accent), 0.09);
+  box-shadow: 3px 3px 0 rgba(var(--sk-accent), 0.3);
   transition: transform 0.06s steps(2), box-shadow 0.06s steps(2), background 0.15s ease, border-color 0.15s ease;
 }
 .dnd-sheet.skin-streamer .btn:hover {
-  background: rgba(255, 30, 156, 0.18);
-  box-shadow: 3px 3px 0 rgba(224, 164, 0, 0.5);
+  background: rgba(var(--sk-accent), 0.18);
+  box-shadow: 3px 3px 0 rgba(var(--sk-accent3), 0.5);
 }
 .dnd-sheet.skin-streamer .btn:active { transform: translate(3px, 3px); box-shadow: 0 0 0 rgba(0, 0, 0, 0); }
-.dnd-sheet.skin-streamer .btn.tiny { font-size: 13px; box-shadow: 2px 2px 0 rgba(255, 30, 156, 0.28); }
-.dnd-sheet.skin-streamer .btn.gold { box-shadow: 3px 3px 0 rgba(224, 164, 0, 0.45); }
+.dnd-sheet.skin-streamer .btn.tiny { font-size: 13px; box-shadow: 2px 2px 0 rgba(var(--sk-accent), 0.28); }
+.dnd-sheet.skin-streamer .btn.gold { box-shadow: 3px 3px 0 rgba(var(--sk-accent3), 0.45); }
 .dnd-sheet.skin-streamer .btn.teal { box-shadow: 3px 3px 0 rgba(169, 77, 208, 0.42); }
 
 /* ---- Section labels / card frames ---- */
@@ -2257,8 +2288,8 @@
   border-width: 2px;
   border-color: var(--line);
   background-color: var(--panel);
-  background-image: repeating-linear-gradient(0deg, rgba(255, 30, 156, 0.028) 0 1px, transparent 1px 5px);
-  box-shadow: 0 0 0 1px rgba(224, 164, 0, 0.14), 4px 4px 0 rgba(255, 30, 156, 0.12);
+  background-image: repeating-linear-gradient(0deg, rgba(var(--sk-accent), 0.028) 0 1px, transparent 1px 5px);
+  box-shadow: 0 0 0 1px rgba(var(--sk-accent3), 0.14), 4px 4px 0 rgba(var(--sk-accent), 0.12);
 }
 .dnd-sheet.skin-streamer .card h3 { font-family: var(--font-display); letter-spacing: 0.02em; text-shadow: 0 1px 0 #fff; }
 .dnd-sheet.skin-streamer .card h3 .lvl { border-radius: 2px; font-family: var(--font-mono); }
@@ -2268,14 +2299,14 @@
 .dnd-sheet.skin-streamer .tabs {
   border-radius: 4px;
   border-width: 2px;
-  background: linear-gradient(180deg, #fff3fb, #ffe6f6);
+  background: linear-gradient(180deg, var(--sk-panel-soft), var(--sk-panel-soft2));
 }
 .dnd-sheet.skin-streamer .tab { font-family: var(--font-display); font-size: 15px; border-radius: 2px; color: var(--muted); }
-.dnd-sheet.skin-streamer .tab:hover { color: var(--ink); background: rgba(255, 30, 156, 0.1); }
+.dnd-sheet.skin-streamer .tab:hover { color: var(--ink); background: rgba(var(--sk-accent), 0.1); }
 .dnd-sheet.skin-streamer .tab.on {
   color: var(--ink);
-  background: rgba(255, 30, 156, 0.16);
-  box-shadow: inset 0 0 0 2px rgba(255, 30, 156, 0.42), 0 0 14px -6px var(--hotpink);
+  background: rgba(var(--sk-accent), 0.16);
+  box-shadow: inset 0 0 0 2px rgba(var(--sk-accent), 0.42), 0 0 14px -6px var(--hotpink);
 }
 .dnd-sheet.skin-streamer .tab.on::before {
   background: repeating-linear-gradient(90deg, var(--hotpink) 0 4px, transparent 4px 6px);
@@ -2292,8 +2323,8 @@
 
 /* ---- Dice tray: light frosted panel ---- */
 .dnd-sheet.skin-streamer .tray {
-  background: linear-gradient(160deg, #fffafe, #ffe9f7);
-  box-shadow: 0 22px 60px -26px rgba(255, 30, 156, 0.45), 0 0 40px -22px var(--hotpink);
+  background: linear-gradient(160deg, var(--sk-panel-soft), var(--sk-panel-soft2));
+  box-shadow: 0 22px 60px -26px rgba(var(--sk-accent), 0.45), 0 0 40px -22px var(--hotpink);
 }
 .dnd-sheet.skin-streamer .tray-fab { background: linear-gradient(160deg, var(--pink), var(--hotpink)); color: #fff; }
 
@@ -2312,28 +2343,28 @@
   pointer-events: none;
   border-radius: 3px;
   background:
-    linear-gradient(115deg, rgba(255, 30, 156, 0.16), transparent 42%, rgba(224, 164, 0, 0.16)),
-    repeating-linear-gradient(0deg, rgba(90, 16, 80, 0.14) 0 1px, transparent 1px 3px),
-    repeating-linear-gradient(90deg, rgba(90, 16, 80, 0.1) 0 1px, transparent 1px 3px);
+    linear-gradient(115deg, rgba(var(--sk-accent), 0.16), transparent 42%, rgba(var(--sk-accent3), 0.16)),
+    repeating-linear-gradient(0deg, rgba(var(--sk-dark), 0.14) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgba(var(--sk-dark), 0.1) 0 1px, transparent 1px 3px);
   mix-blend-mode: multiply;
 }
 .dnd-sheet.skin-streamer .token-frame {
   border-color: var(--hotpink) !important;
-  box-shadow: 0 0 14px rgba(255, 30, 156, 0.55) !important;
+  box-shadow: 0 0 14px rgba(var(--sk-accent), 0.55) !important;
 }
 .dnd-sheet.skin-streamer .token-frame img { image-rendering: pixelated; }
 
 /* ---- Influence meter: bright segmented pink→gold data bar ---- */
 .dnd-sheet.skin-streamer [data-influence-meter] {
   --inf-dc: var(--hotpink);
-  --inf-max: #ff0a86;
+  --inf-max: var(--sk-inf-max);
   --inf-font: var(--font-display), sans-serif;
 }
 .dnd-sheet.skin-streamer [data-inf-track] {
   border-radius: 2px;
   border-color: var(--hotpink);
   background: rgba(255, 255, 255, 0.55);
-  box-shadow: inset 0 0 12px rgba(255, 30, 156, 0.22);
+  box-shadow: inset 0 0 12px rgba(var(--sk-accent), 0.22);
 }
 .dnd-sheet.skin-streamer [data-inf-fill] {
   background:
@@ -2342,8 +2373,8 @@
   animation: streamer-fillpulse 1.4s ease-in-out infinite;
 }
 @keyframes streamer-fillpulse {
-  0%, 100% { box-shadow: 0 0 10px 1px rgba(255, 30, 156, 0.5); }
-  50% { box-shadow: 0 0 20px 5px rgba(224, 164, 0, 0.6); }
+  0%, 100% { box-shadow: 0 0 10px 1px rgba(var(--sk-accent), 0.5); }
+  50% { box-shadow: 0 0 20px 5px rgba(var(--sk-accent3), 0.6); }
 }
 
 /* Respect reduced-motion: keep the vibe, drop the movement. */
@@ -2360,11 +2391,11 @@
 /* Stream-chat feed reads as the streamer.s neon broadcast monitor — a deep plum screen
    framed in hot pink so the bright chat colors stay legible on the light sheet. */
 .dnd-sheet.skin-streamer [data-stream-feed] {
-  background: linear-gradient(180deg, #2a0725, #170214) !important;
+  background: var(--sk-monitor) !important;
   border-color: var(--hotpink) !important;
   border-width: 2px;
   border-radius: 3px;
-  box-shadow: inset 0 0 18px rgba(255, 30, 156, 0.28);
+  box-shadow: inset 0 0 18px rgba(var(--sk-accent), 0.28);
   /* light text on the dark monitor: chat bodies inherit --ink, which is dark on
      this light skin, so force a soft-white here to keep the live chat readable. */
   color: #ffe9f8;
