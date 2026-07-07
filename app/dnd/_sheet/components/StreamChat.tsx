@@ -73,6 +73,27 @@ const PHRASES = [
   'bloop znak morp', 'grxnthal!!', 'yeet vix qua', 'n gai n gai thakl', 'oomox thrapl', 'vex ka droon',
   'zizzl pop wubwub', 'kra thok mal vess', 'flooble crank', 'meep morp zeep', 'nyoom blblbl',
   'thplt hkkk vao', 'za za glorp', 'wubba wub nak', 'skree onk onk', 'glorptax has spoken',
+  // more current slang / reactions
+  'yapping', 'lock in', 'he is locked in', 'crash out', 'she crashed out', 'cooked him', 'ate that up',
+  'no because', 'not the', 'the way she', 'be so fr', 'lowkey fire', 'highkey cooked', 'delulu',
+  'it is giving', 'not giving', 'ate and left no crumbs', 'devious', 'nefarious', 'goofy ahh',
+  'chat is this loss', 'chat explain', 'chat do something', 'save her chat', 'we cooking today',
+  'first time?', 'oh he mad', 'she is unwell', 'get him', 'let her cook', 'respectfully insane',
+  'this is peak', 'holy skibidi', 'gyatt', 'rizzler', 'the ohio experience', 'so demure', 'mindful',
+  'buffering irl', 'clip that NOW', 'that was clean', 'insane gameplay', 'W streamer', 'L take chat',
+  // more D&D table energy
+  'ROLL FOR IT', 'nat 20 pog', 'crit fail LMAO', 'the dice hate her', 'blessed dice', 'cursed dice',
+  'cast fireball', 'just cast fireball', 'why no fireball', 'attack the darkness', 'i attack the merchant',
+  'loot the body', 'search for traps', 'i cast detect chat', 'roll perception', 'roll a save',
+  'the bard is flirting again', 'not the tavern', 'kill the goblin', 'pet the goblin', 'romance arc?',
+  'DM is cooking', 'DM said no', 'rules lawyer incoming', 'that is not RAW', 'homebrew moment',
+  'she needs a long rest', 'short rest chat', 'out of spell slots oh no', 'hex him', 'eldritch blast him',
+  // hype / spam-ish
+  'PANIC', 'AAAAAA', 'SHEEEESH', 'GOOOO', 'LFG', 'LFGGG', 'nooo', 'YESSS', 'omg omg', 'HYPERS',
+  'raid raid raid', 'sub hype', 'donate to save her', 'mods do something', 'where mods', 'copium refill',
+  // more alien gibberish
+  'blorbo fren shik', 'nak nak vroom', 'zzt zzt kaplow', 'oomf skree tak', 'vwoop vwoop na',
+  'grbl mrbl florb', 'ket ket zoon', 'plip plop zharn', 'yeeb norb quazz', 'shloop da woop',
 ]
 
 export default function StreamChat({ characterId, campaignId, initialStream }: { characterId: string; campaignId?: string | null; initialStream?: StreamState }) {
@@ -82,9 +103,20 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
   const [lines, setLines] = useState<Line[]>([])
   const [resist, setResist] = useState<{ text: string; ok: boolean } | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
+  const feedRef = useRef<HTMLDivElement>(null)
+  // Whether the feed is scrolled (near) to the bottom — only then do we auto-follow new
+  // lines, so reading back-scroll isn't yanked away and the PAGE never scrolls.
+  const stickRef = useRef(true)
   const crowdRef = useRef<ChatUser[]>([])
   const idRef = useRef(0)
   const seenRef = useRef<Set<string>>(new Set())
+  // ── Floating dock (draggable + resizable, like the dice tray) ──────────────────
+  const dockRef = useRef<HTMLDivElement>(null)
+  const dragOff = useRef<{ dx: number; dy: number } | null>(null)
+  const resizeRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
+  const [open, setOpen] = useState(true)
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  const [size, setSize] = useState<{ w: number; h: number }>({ w: 360, h: 420 })
   // J10 moderation: active chat mode + banned handles (both DM-controlled, live).
   const [chatMode, setChatMode] = useState<ChatMode>('off')
   const [banned, setBanned] = useState<Set<string>>(new Set())
@@ -233,7 +265,95 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
     [lines, banned, chatMode],
   )
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [visibleLines])
+  // Auto-follow new lines by scrolling the FEED CONTAINER only (never the page) — and
+  // only when the reader is already near the bottom, so scrolling up to read holds.
+  useEffect(() => {
+    const el = feedRef.current
+    if (el && stickRef.current) el.scrollTop = el.scrollHeight
+  }, [visibleLines])
+  const onFeedScroll = () => {
+    const el = feedRef.current
+    if (el) stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
+  }
+
+  // Restore saved dock position/size/minimized state (per character).
+  const dockKey = characterId ? `dnd-stream-dock:${characterId}` : null
+  useEffect(() => {
+    if (!dockKey) return
+    try {
+      const raw = localStorage.getItem(dockKey)
+      if (!raw) return
+      const saved = JSON.parse(raw) as { pos?: { x: number; y: number } | null; size?: { w: number; h: number }; open?: boolean }
+      if (saved.size) setSize(saved.size)
+      if (saved.pos) setPos(saved.pos)
+      if (typeof saved.open === 'boolean') setOpen(saved.open)
+    } catch { /* ignore bad saved state */ }
+  }, [dockKey])
+  useEffect(() => {
+    if (!dockKey) return
+    try { localStorage.setItem(dockKey, JSON.stringify({ pos, size, open })) } catch { /* quota */ }
+  }, [dockKey, pos, size, open])
+
+  // Keep the dock on-screen when the window shrinks.
+  useEffect(() => {
+    const onResize = () =>
+      setPos((p) => (p ? { x: Math.min(p.x, window.innerWidth - 80), y: Math.min(p.y, window.innerHeight - 44) } : p))
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  // Drag from the header. Converts a corner-anchored dock to explicit left/top first
+  // (same trick as the dice tray) so it moves 1:1 with the pointer.
+  const onDragStart = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest('button, input, select, a')) return
+    const el = dockRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    dragOff.current = { dx: e.clientX - r.left, dy: e.clientY - r.top }
+    setPos({ x: r.left, y: r.top })
+    window.addEventListener('pointermove', onDragMove)
+    window.addEventListener('pointerup', onDragEnd)
+  }
+  const onDragMove = (e: PointerEvent) => {
+    if (!dragOff.current) return
+    const el = dockRef.current
+    const w = el?.offsetWidth ?? size.w
+    const x = Math.min(window.innerWidth - w - 6, Math.max(6, e.clientX - dragOff.current.dx))
+    const y = Math.min(window.innerHeight - 44, Math.max(6, e.clientY - dragOff.current.dy))
+    setPos({ x, y })
+  }
+  const onDragEnd = () => {
+    dragOff.current = null
+    window.removeEventListener('pointermove', onDragMove)
+    window.removeEventListener('pointerup', onDragEnd)
+  }
+
+  // Resize from the bottom-right handle. Anchors the dock to explicit left/top first so
+  // the top-left corner stays put while the bottom-right grows.
+  const MIN_W = 260, MIN_H = 240
+  const onResizeStart = (e: React.PointerEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const el = dockRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    if (!pos) setPos({ x: r.left, y: r.top })
+    resizeRef.current = { x: e.clientX, y: e.clientY, w: r.width, h: r.height }
+    window.addEventListener('pointermove', onResizeMove)
+    window.addEventListener('pointerup', onResizeEnd)
+  }
+  const onResizeMove = (e: PointerEvent) => {
+    const s = resizeRef.current
+    if (!s) return
+    const w = Math.max(MIN_W, Math.min(window.innerWidth - 12, s.w + (e.clientX - s.x)))
+    const h = Math.max(MIN_H, Math.min(window.innerHeight - 12, s.h + (e.clientY - s.y)))
+    setSize({ w, h })
+  }
+  const onResizeEnd = () => {
+    resizeRef.current = null
+    window.removeEventListener('pointermove', onResizeMove)
+    window.removeEventListener('pointerup', onResizeEnd)
+  }
 
   if (!stream?.is_live) return null
   const modeMeta = CHAT_MODES.find((m) => m.id === chatMode)
@@ -260,89 +380,98 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
     }
   }
 
+  // Minimized → a pulsing FAB (mirrors the dice tray) that reopens the chat.
+  if (!open) {
+    return (
+      <button className="stream-fab" onClick={() => setOpen(true)} title="Open stream chat">
+        💬
+        <span className="stream-fab-dot" />
+      </button>
+    )
+  }
+
+  const dockStyle: React.CSSProperties = {
+    position: 'fixed',
+    width: size.w,
+    height: size.h,
+    ...(pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' } : { right: 20, bottom: 20 }),
+  }
+
   return (
-    <section className="card" style={{ marginTop: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-        <span style={{ color: '#ff4d4d', fontWeight: 700, letterSpacing: '0.08em' }}>● LIVE</span>
-        <span style={{ fontSize: 12, color: 'var(--muted, #9aa)' }}>Stream Chat · {(stream.viewer_count ?? 0).toLocaleString()} watching</span>
+    <div className="stream-dock" ref={dockRef} style={dockStyle}>
+      <div className="stream-dock-head" onPointerDown={onDragStart} title="Drag to move">
+        <span className="sd-live">● LIVE</span>
+        <span className="sd-count">{viewers.toLocaleString()} watching</span>
         {chatMode !== 'off' && modeMeta && (
-          <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, border: '1px solid var(--gold, #c89b3c)', color: 'var(--gold, #c89b3c)' }}>
-            {modeMeta.icon} {modeMeta.label} mode
-          </span>
+          <span className="sd-mode">{modeMeta.icon} {modeMeta.label}</span>
         )}
-        <label style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted, #9aa)', display: 'flex', alignItems: 'center', gap: 5 }} title="Chat speed (your view)">
+        <button className="sd-min" onClick={() => setOpen(false)} title="Minimize chat">▾</button>
+      </div>
+
+      <div className="stream-dock-tools">
+        <label className="sd-speed" title="Chat speed (your view only)">
           🐢
           <input
             type="range"
-            min={0.25}
-            max={4}
-            step={0.25}
+            min={0.5}
+            max={5}
+            step={0.5}
             value={localSpeed}
             onChange={(e) => setLocalSpeed(Number(e.target.value))}
-            style={{ width: 90 }}
           />
           🐇 {localSpeed}×
         </label>
         {isDM && (
           <button
+            className="sd-resist"
             onClick={rollResist}
             title="Roll a Wisdom save to resist what chat is demanding"
-            style={{ fontSize: 12, padding: '4px 10px', cursor: 'pointer', color: '#7ab8ff', background: 'rgba(0,0,0,0.35)', border: '1px solid #7ab8ff', borderRadius: 4, fontWeight: 700 }}
           >
-            🎲 Resist (DC {resistDc})
+            🎲 Resist · DC {resistDc}
           </button>
         )}
       </div>
+
       {resist && (
-        <div
-          role="status"
-          style={{
-            margin: '0 0 8px',
-            padding: '6px 10px',
-            fontWeight: 800,
-            letterSpacing: '0.04em',
-            textAlign: 'center',
-            color: resist.ok ? '#0ac8b9' : '#ff10f0',
-            border: `1px solid ${resist.ok ? '#0ac8b9' : '#ff10f0'}`,
-            background: resist.ok ? 'rgba(10,200,185,0.1)' : 'rgba(255,16,240,0.1)',
-            textShadow: `0 0 10px ${resist.ok ? '#0ac8b9' : '#ff10f0'}`,
-          }}
-        >
+        <div className={`sd-resist-banner ${resist.ok ? 'ok' : 'bad'}`} role="status">
           {resist.text}
         </div>
       )}
-      <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
-      <div data-stream-feed="" style={{ flex: 1, minWidth: 0, height: 260, overflowY: 'auto', border: '1px solid var(--line, rgba(255,255,255,0.12))', background: 'rgba(0,0,0,0.35)', padding: '6px 10px', fontSize: 13, lineHeight: 1.5 }}>
-        {visibleLines.length === 0 ? (
-          <p style={{ color: 'var(--muted, #9aa)', fontSize: 12 }}>Chat is warming up…</p>
-        ) : (
-          visibleLines.map((l) => l.system ? (
-            <div key={l.id} style={{ wordBreak: 'break-word', color: '#e0a83a', fontStyle: 'italic', fontSize: 12, padding: '2px 0' }}>
-              {l.body}
-            </div>
+
+      <div className="stream-dock-body">
+        <div className="stream-feed" data-stream-feed="" ref={feedRef} onScroll={onFeedScroll}>
+          {visibleLines.length === 0 ? (
+            <p style={{ color: 'var(--muted, #9aa)', fontSize: 12 }}>Chat is warming up…</p>
           ) : (
-            <div key={l.id} style={{ wordBreak: 'break-word' }}>
-              {l.user.badges.map((b) => (
-                <span key={b} title={b} style={{ display: 'inline-block', fontSize: 9, padding: '0 3px', marginRight: 3, borderRadius: 3, background: b === 'mod' ? '#00ad03' : b === 'vip' ? '#e005b9' : b === 'prime' ? '#4d6bff' : '#8205b4', color: '#fff', verticalAlign: 'middle' }}>{b[0].toUpperCase()}</span>
-              ))}
-              <span style={{ color: l.user.color, fontWeight: 700 }}>{l.user.name}</span>
-              <span style={{ color: 'var(--muted, #9aa)' }}>: </span>
-              <span>
-                {parseEmotes(l.body).map((seg, i) =>
-                  seg.type === 'emote' ? (
-                    <span key={i} title={seg.name} style={{ display: 'inline-block', padding: '0 2px', margin: '0 1px', borderRadius: 3, background: 'rgba(200,155,60,0.18)' }}>{seg.glyph}</span>
-                  ) : (
-                    <span key={i}>{seg.value}</span>
-                  ),
-                )}
-              </span>
-            </div>
-          ))
-        )}
-        <div ref={endRef} />
-      </div>
+            visibleLines.map((l) => l.system ? (
+              <div key={l.id} style={{ wordBreak: 'break-word', color: '#f0c46a', fontStyle: 'italic', fontSize: 12, padding: '2px 0' }}>
+                {l.body}
+              </div>
+            ) : (
+              <div key={l.id} style={{ wordBreak: 'break-word' }}>
+                {l.user.badges.map((b) => (
+                  <span key={b} title={b} style={{ display: 'inline-block', fontSize: 9, padding: '0 3px', marginRight: 3, borderRadius: 3, background: b === 'mod' ? '#00ad03' : b === 'vip' ? '#e005b9' : b === 'prime' ? '#4d6bff' : '#8205b4', color: '#fff', verticalAlign: 'middle' }}>{b[0].toUpperCase()}</span>
+                ))}
+                <span style={{ color: l.user.color, fontWeight: 700, textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}>{l.user.name}</span>
+                <span style={{ color: 'var(--muted, #9aa)' }}>: </span>
+                <span style={{ color: '#f2effa' }}>
+                  {parseEmotes(l.body).map((seg, i) =>
+                    seg.type === 'emote' ? (
+                      <span key={i} title={seg.name} style={{ display: 'inline-block', padding: '0 2px', margin: '0 1px', borderRadius: 3, background: 'rgba(200,155,60,0.18)' }}>{seg.glyph}</span>
+                    ) : (
+                      <span key={i}>{seg.value}</span>
+                    ),
+                  )}
+                </span>
+              </div>
+            ))
+          )}
+          <div ref={endRef} />
+        </div>
         <InfluenceMeter viewers={viewers} engagement={effEngagement} />
       </div>
-    </section>
+
+      <div className="stream-resize" onPointerDown={onResizeStart} title="Drag to resize">⤡</div>
+    </div>
   )
 }

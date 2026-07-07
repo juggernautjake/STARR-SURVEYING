@@ -18,13 +18,14 @@ export function computeInfluence(viewers: number, engagement: number): number {
   return Math.max(0, Math.min(1, 0.45 * v + 0.55 * e));
 }
 
-/** Resist DC: an empty, dead chat is trivial to ignore (DC 5); a maxed, roaring chat is
- *  nearly impossible to resist (DC 30). */
+/** Resist DC (2–25): an empty, dead chat is trivial to ignore (DC 2); a maxed, roaring
+ *  chat of quadrillions is nearly impossible to resist (DC 25). Scales continuously with
+ *  both the viewer count and the engagement dial via `influence`. */
 export function resistDC(influence: number): number {
-  return Math.round(5 + Math.max(0, Math.min(1, influence)) * 25);
+  return Math.round(2 + Math.max(0, Math.min(1, influence)) * 23);
 }
 
-/** At/above this the meter is "maxed" — neon pink + violent shake, DC pinned at 30. */
+/** At/above this the meter is "maxed" — neon pink + violent shake, DC at its 25 ceiling. */
 export const MAX_INFLUENCE = 0.97;
 export function isMaxed(influence: number): boolean {
   return influence >= MAX_INFLUENCE;

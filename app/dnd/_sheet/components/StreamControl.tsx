@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useChar } from '../state/store'
 import type { AlertType, StreamAlert } from '@/lib/dnd/stream-alerts'
 import { CHAT_MODES, type ChatMode, type ModActionType } from '@/lib/dnd/stream-mod'
+import { computeInfluence, resistDC, isMaxed } from '@/lib/dnd/stream-influence'
 
 // Streamer-chat DM control (Phase J2) — toggle the character "live", set a viewer
 // count and chat speed. Lives in the DM panel; the fake chat overlay (J3+) reads this
@@ -18,6 +19,21 @@ const DEMANDS: { label: string; icon: string; lines: string[] }[] = [
   { label: 'Chaos', icon: '🤪', lines: ['LICK THE DOOR 👅', 'romance the goblin chat commands it', 'yeet the artifact 🛸', 'start a bar fight NOW', 'pet the dragon do it do it'] },
 ]
 
+// Persistent AI trend presets — one tap sets the ongoing vibe/focus of chat. The note is
+// fed to the AI chat director on a loop so the whole room keeps riffing on it.
+const TRENDS: { label: string; icon: string; note: string }[] = [
+  { label: 'Hype Train', icon: '🚂', note: 'chat is losing it — pure hype, spamming W, POG, LETS GO and emotes, hyping her up' },
+  { label: 'Backseat', icon: '🪑', note: 'chat is backseat gaming hard, everyone telling her exactly what to do and second-guessing her' },
+  { label: 'Simp Arc', icon: '😍', note: 'chat is down bad, simping and gassing her up with compliments and hearts' },
+  { label: 'Clown Roast', icon: '🤡', note: 'chat is playfully roasting her, calling it peak comedy, laughing at her plays (lighthearted, not mean)' },
+  { label: 'Boss Panic', icon: '😱', note: 'chat is panicking about the fight, screaming RUN and warning her about danger' },
+  { label: 'Donate Beg', icon: '💸', note: 'chat is begging everyone to donate, sub, and raid to save her' },
+  { label: 'Ship It', icon: '💍', note: 'chat is shipping her with an NPC — romance arc hype, kiss kiss, they want them together' },
+  { label: 'Copium', icon: '🧪', note: 'chat is coping hard, huffing copium, insisting it is fine and she totally meant to do that' },
+  { label: 'Conspiracy', icon: '🕵️', note: 'chat has wild conspiracy theories about the plot, calling everything a canon event and foreshadowing' },
+  { label: 'Touch Grass', icon: '🌱', note: 'chat is telling everyone (and her) to touch grass, roasting the terminally online energy' },
+]
+
 export default function StreamControl() {
   const { characterId, isDM } = useChar()
   const [stream, setStream] = useState<Stream | null>(null)
@@ -28,6 +44,10 @@ export default function StreamControl() {
   const [spamming, setSpamming] = useState(false)
   const [directive, setDirective] = useState('')
   const [directing, setDirecting] = useState(false)
+  // Persistent AI "trend/vibe" — while set, chat keeps riffing on this focus (J12+).
+  const [trend, setTrend] = useState('')
+  const [trendInput, setTrendInput] = useState('')
+  const trendTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const [pollQ, setPollQ] = useState('')
   const [pollOpts, setPollOpts] = useState('')
   const [polling, setPolling] = useState(false)
@@ -35,7 +55,10 @@ export default function StreamControl() {
   const [alertUser, setAlertUser] = useState('')
   const [alertDetail, setAlertDetail] = useState('')
   const alertChanRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
-  const engTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Smooth-slider plumbing: one debounce timer + an accumulating patch body, so
+  // dragging updates local state instantly and only fires one PATCH after you settle.
+  const patchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingPatch = useRef<Record<string, unknown>>({})
   // J10 moderation: active chat mode + a mod-action target (timeout/ban a handle).
   const [chatMode, setChatMode] = useState<ChatMode>('off')
   const [modUser, setModUser] = useState('')
@@ -56,6 +79,27 @@ export default function StreamControl() {
     alertChanRef.current = ch
     return () => { alertChanRef.current = null; void supabase.removeChannel(ch) }
   }, [characterId])
+
+  // Flush any pending slider PATCH on unmount so a value you just dragged isn't lost.
+  useEffect(() => () => { if (patchTimer.current) clearTimeout(patchTimer.current) }, [])
+
+  // Persistent AI trend engine: while a trend is set and the stream is live, keep the
+  // chat riffing on that focus — fire an on-trend AI burst immediately, then every ~20s.
+  // The /stream/direct route AI-writes the lines (or falls back to procedural variations),
+  // so the DM's chosen vibe visibly persists and evolves instead of being a one-off.
+  useEffect(() => {
+    const live = stream?.is_live ?? false
+    if (!trend || !live || !characterId) return
+    const fire = () =>
+      void fetch(`/api/dnd/characters/${characterId}/stream/direct`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directive: trend, count: 10 }),
+      }).catch(() => {})
+    fire()
+    trendTimer.current = setInterval(fire, 20000)
+    return () => { if (trendTimer.current) clearInterval(trendTimer.current) }
+  }, [trend, stream?.is_live, characterId])
 
   // Mod broadcast channel (J10) — chat modes + timeout/ban actions push to viewers.
   useEffect(() => {
@@ -107,20 +151,45 @@ export default function StreamControl() {
   const live = stream?.is_live ?? false
   const viewers = stream?.viewer_count ?? 0
   const engagement = stream?.engagement ?? 50
+  const speed = stream?.chat_speed ?? 3
 
-  // Engagement persists debounced (covers keyboard + drag) without toggling `busy`, so
-  // the slider never disables mid-drag and we don't storm the API with per-tick PATCHes.
-  const setEngagement = (value: number) => {
-    setStream((s) => (s ? { ...s, engagement: value } : s))
-    if (engTimerRef.current) clearTimeout(engTimerRef.current)
-    engTimerRef.current = setTimeout(() => {
+  // Live influence readout so the DM can see exactly what the meter/DC will do as he
+  // drags — no need to open the sheet to check.
+  const influence = computeInfluence(viewers, engagement)
+  const dc = resistDC(influence)
+  const maxed = isMaxed(influence)
+
+  // Smooth setter for the sliders: update local state instantly (so the thumb tracks
+  // the cursor 1:1) and debounce a single fire-and-forget PATCH. Crucially it does NOT
+  // toggle `busy` (which used to disable the slider mid-drag) and does NOT overwrite
+  // local state from the response (which used to make the thumb jump). Patches
+  // accumulate so dragging speed then engagement still persists both.
+  const liveSet = (local: Partial<Stream>, body: Record<string, unknown>) => {
+    setStream((s) => (s ? { ...s, ...local } : s))
+    pendingPatch.current = { ...pendingPatch.current, ...body }
+    if (patchTimer.current) clearTimeout(patchTimer.current)
+    patchTimer.current = setTimeout(() => {
+      const payload = pendingPatch.current
+      pendingPatch.current = {}
       void fetch(`/api/dnd/characters/${characterId}/stream`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ engagement: value }),
+        body: JSON.stringify(payload),
       }).catch(() => {})
-    }, 300)
+    }, 250)
   }
+  const setEngagement = (value: number) => liveSet({ engagement: value }, { engagement: value })
+  const setSpeed = (value: number) => liveSet({ chat_speed: value }, { chatSpeed: value })
+
+  // Engagement presets — named "how hyped is chat" steps so the DM can dial the vibe
+  // in one click instead of hunting for a number.
+  const ENGAGEMENT_PRESETS: { label: string; icon: string; value: number }[] = [
+    { label: 'Dead', icon: '💤', value: 0 },
+    { label: 'Chill', icon: '😌', value: 30 },
+    { label: 'Rowdy', icon: '🎉', value: 60 },
+    { label: 'Hyped', icon: '🔥', value: 85 },
+    { label: 'Feral', icon: '💥', value: 100 },
+  ]
 
   const sendDemand = (lines: string[]) => {
     const body = lines[Math.floor(Math.random() * lines.length)]
@@ -208,7 +277,7 @@ export default function StreamControl() {
   }
 
   return (
-    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line, rgba(255,255,255,0.12))' }}>
+    <div className="stream-control" style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line, rgba(255,255,255,0.12))' }}>
       <span className="sec-num" style={{ color: 'var(--gold)', fontSize: 12 }}>STREAM {'//'} Chat</span>
       <div style={{ display: 'flex', gap: 8, marginTop: 6, alignItems: 'center', flexWrap: 'wrap' }}>
         <button
@@ -240,36 +309,66 @@ export default function StreamControl() {
         <button className="btn tiny" onClick={() => patch({ viewerCount: 0 })} disabled={busy} title="Reset viewers">↺ 0</button>
         {live && <button className="btn tiny" onClick={clearChat} disabled={busy} title="Delete all chat lines">🧹 Clear</button>}
 
-        <label style={{ fontSize: 12, color: 'var(--muted, #9aa)', display: 'flex', alignItems: 'center', gap: 4 }}>
+        <label style={{ fontSize: 12, color: 'var(--muted, #9aa)', display: 'flex', alignItems: 'center', gap: 6 }} title="How fast ambient chat scrolls (1 = trickle, 10 = flood)">
           Speed
           <input
             type="range"
             min={1}
             max={10}
-            value={stream?.chat_speed ?? 3}
-            disabled={busy}
-            onChange={(e) => patch({ chatSpeed: Number(e.target.value) })}
+            value={speed}
+            onChange={(e) => setSpeed(Number(e.target.value))}
+            style={{ width: 110 }}
           />
+          <span style={{ width: 34, textAlign: 'right' }}>{speed}×</span>
         </label>
       </div>
 
-      {/* Engagement dial (J11) — drives the patron-influence meter + the resist DC. */}
-      <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <label style={{ fontSize: 12, color: 'var(--muted, #9aa)', display: 'flex', alignItems: 'center', gap: 6 }}>
-          🌈 Engagement
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={engagement}
-            onChange={(e) => setEngagement(Number(e.target.value))}
-            style={{ width: 140 }}
-          />
-          <span style={{ width: 28, textAlign: 'right' }}>{engagement}</span>
-        </label>
-        <button className="btn tiny" onClick={() => patch({ engagement: Math.max(0, engagement - 15) })} disabled={busy}>− Calm</button>
-        <button className="btn tiny" onClick={() => patch({ engagement: Math.min(100, engagement + 15) })} disabled={busy}>+ Hype</button>
-        <button className="btn tiny" onClick={() => patch({ engagement: 100 })} disabled={busy} style={{ color: '#ff10f0' }} title="Max the influence meter">💥 MAX HYPE</button>
+      {/* Patron-influence dial (J11) — drives the influence meter + the resist DC. Its
+          own bordered block with a live DC readout + named presets so it's easy to find
+          and adjust without opening the sheet. */}
+      <div style={{ marginTop: 10, padding: '8px 10px', border: `1px solid ${maxed ? '#ff10f0' : 'var(--line, rgba(255,255,255,0.14))'}`, borderRadius: 8, background: maxed ? 'rgba(255,16,240,0.08)' : 'rgba(255,255,255,0.02)' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+          <span style={{ fontSize: 11, letterSpacing: '0.1em', color: 'var(--gold, #c89b3c)', fontWeight: 700 }}>PATRON INFLUENCE</span>
+          <span style={{ fontSize: 12, color: 'var(--muted, #9aa)' }}>
+            she must beat{' '}
+            <strong style={{ color: maxed ? '#ff10f0' : '#7ab8ff', textShadow: `0 0 8px ${maxed ? '#ff10f0' : '#7ab8ff'}` }}>DC {dc}</strong>
+            {' '}to resist chat · {Math.round(influence * 100)}% influence
+          </span>
+          {maxed && <span style={{ fontSize: 10, fontWeight: 800, color: '#ff10f0', letterSpacing: '0.06em' }}>MAXED — IRRESISTIBLE</span>}
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ fontSize: 12, color: 'var(--muted, #9aa)', display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 200 }}>
+            🌈
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={engagement}
+              onChange={(e) => setEngagement(Number(e.target.value))}
+              style={{ flex: 1, minWidth: 120, accentColor: maxed ? '#ff10f0' : '#8b5cf6' }}
+            />
+            <span style={{ width: 32, textAlign: 'right', fontWeight: 700, color: '#fff' }}>{engagement}</span>
+          </label>
+          <button className="btn tiny" onClick={() => setEngagement(Math.max(0, engagement - 10))} title="Cool the room by 10">−10</button>
+          <button className="btn tiny" onClick={() => setEngagement(Math.min(100, engagement + 10))} title="Hype the room by 10">+10</button>
+        </div>
+        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 10, letterSpacing: '0.08em', color: 'var(--muted, #9aa)' }}>VIBE</span>
+          {ENGAGEMENT_PRESETS.map((p) => {
+            const on = engagement === p.value
+            return (
+              <button
+                key={p.label}
+                className={`btn tiny ${on ? 'on' : ''}`}
+                onClick={() => setEngagement(p.value)}
+                title={`Set engagement to ${p.value}`}
+                style={{ color: on ? (p.value === 100 ? '#ff10f0' : 'var(--gold)') : undefined }}
+              >
+                {p.icon} {p.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Chat demands (J11) — inject what the patron chat is telling her to do. */}
@@ -318,11 +417,56 @@ export default function StreamControl() {
             value={directive}
             onChange={(e) => setDirective(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && directChat()}
-            placeholder='🤖 Tell the AI what chat should say (e.g. "she is pretty but about to get busted up")…'
+            placeholder='🤖 One-off: tell the AI what chat should say right now (e.g. "she is pretty but about to get busted up")…'
             disabled={directing}
-            style={{ flex: 1, padding: '6px 8px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--line, rgba(255,255,255,0.15))', color: 'inherit', fontSize: 13 }}
+            style={{ flex: 1, padding: '6px 8px', fontSize: 13 }}
           />
           <button className="btn tiny" onClick={directChat} disabled={directing || !directive.trim()} style={{ color: '#0ac8b9' }}>{directing ? '…' : '🤖 Direct'}</button>
+        </div>
+      )}
+
+      {/* Persistent AI trend/vibe — the DM's ongoing control over the focus of chat. */}
+      {live && (
+        <div style={{ marginTop: 8, padding: '8px 10px', border: `1px solid ${trend ? '#0ac8b9' : 'var(--line, rgba(255,255,255,0.14))'}`, borderRadius: 8, background: trend ? 'rgba(10,200,185,0.08)' : 'rgba(255,255,255,0.02)' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, letterSpacing: '0.1em', color: '#0ac8b9', fontWeight: 700 }}>🤖 AI CHAT TREND</span>
+            <span style={{ fontSize: 11, color: 'var(--muted, #9aa)' }}>set the ongoing vibe &amp; focus — chat keeps riffing on it every ~20s</span>
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 7, flexWrap: 'wrap' }}>
+            {TRENDS.map((t) => {
+              const on = trend === t.note
+              return (
+                <button
+                  key={t.label}
+                  className={`btn tiny ${on ? 'on' : ''}`}
+                  onClick={() => { setTrend(on ? '' : t.note); setTrendInput(t.note) }}
+                  title={on ? 'Click to stop this trend' : t.note}
+                  style={{ color: on ? '#0ac8b9' : undefined }}
+                >
+                  {t.icon} {t.label}
+                </button>
+              )
+            })}
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 7 }}>
+            <input
+              value={trendInput}
+              onChange={(e) => setTrendInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && trendInput.trim()) setTrend(trendInput.trim()) }}
+              placeholder="Custom vibe/trend… (e.g. everyone thinks she's about to clutch the boss)"
+              style={{ flex: 1, padding: '6px 8px', fontSize: 13 }}
+            />
+            {trend ? (
+              <button className="btn tiny" onClick={() => setTrend('')} style={{ color: '#ff5252' }} title="Stop the running trend">■ Stop</button>
+            ) : (
+              <button className="btn tiny" onClick={() => trendInput.trim() && setTrend(trendInput.trim())} disabled={!trendInput.trim()} style={{ color: '#0ac8b9' }} title="Start this trend">▶ Start</button>
+            )}
+          </div>
+          {trend && (
+            <div style={{ fontSize: 11, color: 'var(--muted, #9aa)', marginTop: 6 }}>
+              <span style={{ color: '#0ac8b9', fontWeight: 700 }}>● TRENDING:</span> {trend}
+            </div>
+          )}
         </div>
       )}
 

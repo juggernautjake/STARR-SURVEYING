@@ -3,7 +3,7 @@
 // chat is the character's patron deity: the higher the influence (driven by the DM's
 // viewer count + engagement dial), the higher the DC to resist chat's demands. The bar
 // is always bobbing; it's a glowing rainbow until influence maxes out, then it flips to
-// neon pink and shakes violently (DC pinned at 30 — "irresistible"). Pure math in
+// neon pink and shakes violently (DC at its 25 ceiling — "irresistible"). Pure math in
 // lib/dnd/stream-influence; the DM controls both inputs from StreamControl.
 import { useEffect, useRef, useState } from 'react'
 import { computeInfluence, resistDC, isMaxed } from '@/lib/dnd/stream-influence'
