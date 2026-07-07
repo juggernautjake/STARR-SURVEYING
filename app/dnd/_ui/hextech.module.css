@@ -383,7 +383,9 @@
 .hexBtn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  box-sizing: border-box;
   cursor: pointer;
   border: 1px solid var(--hx-gold-1);
   background: linear-gradient(180deg, rgba(30, 35, 40, 0.9), rgba(10, 20, 40, 0.9));
@@ -391,9 +393,12 @@
   font-family: var(--hx-font-body);
   font-weight: 600;
   font-size: 12px;
+  line-height: 1.15;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  padding: 9px 16px;
+  /* Vertical padding tuned so a default hexBtn matches the ~37–39px height of the
+     row inputs/selects it sits beside — keeps control rows vertically aligned. */
+  padding: 11px 16px;
   clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
   transition: box-shadow 0.15s, color 0.15s, filter 0.15s;
 }

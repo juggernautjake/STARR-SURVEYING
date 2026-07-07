@@ -186,27 +186,27 @@ export default function InitiativeTracker({ sessionId, campaignId, isDM, initial
               </div>
               {isDM && (
                 <div style={{ display: 'flex', gap: 5, padding: '0 10px 8px 10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <input className={styles.input} style={{ width: 52, padding: '5px 7px', fontSize: 13 }} placeholder="±" inputMode="numeric" value={amt[e.id] ?? ''} onChange={(ev) => setAmt((a) => ({ ...a, [e.id]: ev.target.value }))} />
-                  <button className={styles.hexBtn} style={{ padding: '4px 9px' }} onClick={() => applyHp(e, -1)}>− Dmg</button>
-                  <button className={styles.hexBtn} style={{ padding: '4px 9px' }} onClick={() => applyHp(e, 1)}>+ Heal</button>
-                  <input className={styles.input} style={{ width: 90, padding: '5px 7px', fontSize: 13 }} placeholder="condition" value={cond[e.id] ?? ''} onChange={(ev) => setCond((s) => ({ ...s, [e.id]: ev.target.value }))} onKeyDown={(ev) => ev.key === 'Enter' && addCondition(e)} />
-                  <button className={styles.hexBtn} style={{ padding: '4px 9px' }} onClick={() => addCondition(e)}>+ Cond</button>
+                  <input className={styles.input} style={{ width: 52, padding: '6px 7px', fontSize: 13 }} placeholder="±" inputMode="numeric" value={amt[e.id] ?? ''} onChange={(ev) => setAmt((a) => ({ ...a, [e.id]: ev.target.value }))} />
+                  <button className={styles.hexBtn} style={{ padding: '6px 10px' }} onClick={() => applyHp(e, -1)}>− Dmg</button>
+                  <button className={styles.hexBtn} style={{ padding: '6px 10px' }} onClick={() => applyHp(e, 1)}>+ Heal</button>
+                  <input className={styles.input} style={{ width: 90, padding: '6px 7px', fontSize: 13 }} placeholder="condition" value={cond[e.id] ?? ''} onChange={(ev) => setCond((s) => ({ ...s, [e.id]: ev.target.value }))} onKeyDown={(ev) => ev.key === 'Enter' && addCondition(e)} />
+                  <button className={styles.hexBtn} style={{ padding: '6px 10px' }} onClick={() => addCondition(e)}>+ Cond</button>
                   <span title="Legendary actions per round" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                     <span style={{ fontSize: 11, color: 'var(--hx-gold-2)' }}>◆</span>
-                    <input className={styles.input} style={{ width: 38, padding: '5px 4px', fontSize: 13 }} placeholder="0" inputMode="numeric" value={leg[e.id] ?? String(e.legendary_max ?? 0)} onChange={(ev) => setLeg((s) => ({ ...s, [e.id]: ev.target.value }))} onBlur={(ev) => patchEntry(e.id, { legendaryMax: Number(ev.target.value) || 0 })} />
+                    <input className={styles.input} style={{ width: 38, padding: '6px 4px', fontSize: 13 }} placeholder="0" inputMode="numeric" value={leg[e.id] ?? String(e.legendary_max ?? 0)} onChange={(ev) => setLeg((s) => ({ ...s, [e.id]: ev.target.value }))} onBlur={(ev) => patchEntry(e.id, { legendaryMax: Number(ev.target.value) || 0 })} />
                   </span>
                   {(e.legendary_max ?? 0) > 0 && (
-                    <button className={styles.hexBtn} style={{ padding: '4px 9px' }} onClick={() => patchEntry(e.id, { legendarySpend: 1 })} disabled={(e.legendary_max ?? 0) - (e.legendary_used ?? 0) <= 0} title="Spend a legendary action">Spend ◆</button>
+                    <button className={styles.hexBtn} style={{ padding: '6px 10px' }} onClick={() => patchEntry(e.id, { legendarySpend: 1 })} disabled={(e.legendary_max ?? 0) - (e.legendary_used ?? 0) <= 0} title="Spend a legendary action">Spend ◆</button>
                   )}
                   {e.character_id && (
                     // Quick sheet (G7) — one-tap rolls without opening the full sheet.
-                    <button className={styles.hexBtn} style={{ padding: '4px 9px', marginLeft: 'auto' }} onClick={() => setQuickOpen(quickOpen === e.id ? null : e.id)}>⚡ Quick</button>
+                    <button className={styles.hexBtn} style={{ padding: '6px 10px', marginLeft: 'auto' }} onClick={() => setQuickOpen(quickOpen === e.id ? null : e.id)}>⚡ Quick</button>
                   )}
                   {e.character_id && (
                     // Open the combatant's full character sheet (G9) — view/edit everything.
-                    <a className={styles.hexBtn} style={{ padding: '4px 9px' }} href={`/dnd/characters/${e.character_id}`} target="_blank" rel="noreferrer">⤢ Sheet</a>
+                    <a className={styles.hexBtn} style={{ padding: '6px 10px' }} href={`/dnd/characters/${e.character_id}`} target="_blank" rel="noreferrer">⤢ Sheet</a>
                   )}
-                  <button className={styles.hexBtn} style={{ padding: '4px 9px', borderColor: 'var(--hx-danger)', color: 'var(--hx-danger)', marginLeft: e.character_id ? 0 : 'auto' }} onClick={() => removeEntry(e.id)}>✕</button>
+                  <button className={styles.hexBtn} style={{ padding: '6px 10px', borderColor: 'var(--hx-danger)', color: 'var(--hx-danger)', marginLeft: e.character_id ? 0 : 'auto' }} onClick={() => removeEntry(e.id)}>✕</button>
                 </div>
               )}
               {isDM && quickOpen === e.id && e.character_id && (

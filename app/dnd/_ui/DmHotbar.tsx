@@ -60,7 +60,7 @@ export default function DmHotbar({ campaignId, selfId, initialHandouts }: { camp
       <span style={{ width: 1, height: 22, background: 'var(--hx-line)', flexShrink: 0 }} />
 
       {CANNED.map((c) => (
-        <button key={c} className={styles.hexBtn} style={{ padding: '4px 9px', fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0 }} onClick={() => sendCanned(c)}>{c}</button>
+        <button key={c} className={styles.hexBtn} style={{ padding: '6px 12px', fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0 }} onClick={() => sendCanned(c)}>{c}</button>
       ))}
 
       {flash && <span style={{ fontSize: 12, color: 'var(--hx-teal-1)', whiteSpace: 'nowrap', marginLeft: 'auto', flexShrink: 0 }}>{flash}</span>}

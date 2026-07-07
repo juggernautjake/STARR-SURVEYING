@@ -47,7 +47,7 @@ export default function AiNotesBox({ sessionId, onInsert }: { sessionId: string;
       <div style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--hx-gold-2)', marginBottom: 8 }}>✨ AI PREP ASSISTANT</div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
         {PRESETS.map((p) => (
-          <button key={p.label} className={styles.hexBtn} style={{ padding: '4px 9px', fontSize: 12 }} onClick={() => generate(p.prompt)} disabled={busy}>{p.label}</button>
+          <button key={p.label} className={styles.hexBtn} style={{ padding: '6px 12px', fontSize: 12 }} onClick={() => generate(p.prompt)} disabled={busy}>{p.label}</button>
         ))}
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>

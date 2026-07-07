@@ -79,10 +79,10 @@ export default function RecapPanel({ sessionId, campaignId, isDM, initialRecap }
         {!editing && (
           <div style={{ display: 'flex', gap: 6 }}>
             {text && (
-              <button className={styles.hexBtn} style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => { setEditText(text); setEditing(true) }}>✎ Edit</button>
+              <button className={styles.hexBtn} style={{ padding: '6px 11px', fontSize: 12 }} onClick={() => { setEditText(text); setEditing(true) }}>✎ Edit</button>
             )}
             {isDM && (
-              <button className={styles.hexBtn} style={{ padding: '4px 10px', fontSize: 12 }} onClick={generate} disabled={busy}>
+              <button className={styles.hexBtn} style={{ padding: '6px 11px', fontSize: 12 }} onClick={generate} disabled={busy}>
                 {busy ? 'Generating…' : recap ? '↻ Regenerate' : '✨ Generate draft'}
               </button>
             )}
