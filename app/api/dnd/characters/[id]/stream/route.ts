@@ -41,7 +41,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // Clamp to [0, 9e15] — a bigint column, but capped under JS's exact-integer limit
   // (2^53) so quadrillion-scale counts round-trip precisely.
   if (body.viewerCount != null) patch.viewer_count = Math.max(0, Math.min(9e15, Math.round(Number(body.viewerCount)) || 0));
-  if (body.chatSpeed != null) patch.chat_speed = Math.max(1, Math.min(10, Math.round(Number(body.chatSpeed)) || 3));
+  // chat_speed is now a pause flag: 0 = ambient paused for everyone, >0 = running (the
+  // pace itself is viewer-driven). Allow 0 explicitly (don't let `|| 3` swallow it).
+  if (body.chatSpeed != null) {
+    const cs = Math.round(Number(body.chatSpeed));
+    patch.chat_speed = Number.isFinite(cs) ? Math.max(0, Math.min(10, cs)) : 3;
+  }
   if (body.engagement != null) patch.engagement = Math.max(0, Math.min(100, Math.round(Number(body.engagement)) || 0));
   if (Object.keys(patch).length <= 2) return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 });
 

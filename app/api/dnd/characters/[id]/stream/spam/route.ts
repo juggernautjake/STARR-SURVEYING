@@ -33,8 +33,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (dndAiConfigured()) {
     try {
       const out = await dndCompleteJSON<string[]>({
-        system: 'You generate Twitch-chat spam: short stylized variations of a phrase — case flips, emoji, char repeats, and reactions. Return ONLY a JSON array of strings, each under 60 chars.',
-        user: `Give me ${n} spam variations of: "${String(phrase).trim()}"`,
+        system:
+          'You generate live-chat spam for a fantasy-world streamer: short stylized variations of a phrase — case flips, ' +
+          'emoji, char repeats, and hyped reactions. HARD RULES: completely CLEAN (NO profanity/cussing of any kind, ' +
+          'no slurs, nothing sexual, no threats, and NO taking the Lord\'s name in vain / religious references like ' +
+          '"god"/"omg"/"gosh"); and IN-WORLD only — never reference D&D, dice, rolls, the DM, or any game mechanic. ' +
+          'Return ONLY a JSON array of strings, each under 60 chars.',
+        user: `Give me ${n} clean, hyped spam variations of: "${String(phrase).trim()}"`,
         maxTokens: 800,
         temperature: 1,
       });
