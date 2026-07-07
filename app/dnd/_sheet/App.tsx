@@ -29,6 +29,7 @@ import Bio from './components/Bio'
 import DiceTray from './components/DiceTray'
 import DmOverridePanel from './components/DmOverridePanel'
 import SheetArtUploader from './components/SheetArtUploader'
+import TokenFramer from './components/TokenFramer'
 import DescriptionsPanel from './components/DescriptionsPanel'
 import CharacterGallery from './components/CharacterGallery'
 import { md } from './lib/inline'
@@ -58,6 +59,9 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
   const config = getSheetConfig(sheetType)
   const hasForms = config.modules.includes('forms')
   const hasStream = config.modules.includes('stream')
+  // All sheets use the portrait layout when the character has art: name + info on the
+  // left, full-body art on the right (wraps to stacked on narrow screens).
+  const artBeside = !!media.artUrl
   const visibleTabs = TABS.filter((t) => !('module' in t) || config.modules.includes(t.module))
   // An explicit theme prop wins; otherwise fall back to the sheet_type's theme (C7).
   const effectiveTheme = theme ?? config.theme
@@ -67,8 +71,6 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
   // registered `skin` adds a `skin-<id>` class that unlocks its bespoke CSS treatment
   // (pixel frames, scanlines, glitch…) scoped under `.dnd-sheet.skin-<id>` (C8).
   const rootClass = `dnd-sheet${config.skin ? ` skin-${config.skin}` : ''}`
-  // The streamer skin shows the full-body art beside the hero (portrait layout).
-  const streamerArtBeside = config.skin === 'streamer' && !!media.artUrl
   return (
     <div className={rootClass} style={themeToCssVars(effectiveTheme)}>
       <div className="wrap">
@@ -98,38 +100,52 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
           (her face) when no dedicated token is uploaded — so a full-body art still
           gives a face icon. */}
       {(media.tokenUrl || media.artUrl) && (
-        <div className="token-frame" style={{ marginBottom: 12 }}>
+        <div
+          className="token-frame"
+          style={{
+            marginBottom: 12,
+            width: 76,
+            height: 76,
+            borderRadius: '50%',
+            overflow: 'hidden',
+            border: '2px solid var(--violet-2)',
+            boxShadow: '0 0 12px rgba(139, 92, 246, 0.5)',
+          }}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={media.tokenUrl ?? media.artUrl ?? ''}
             alt={`${char.meta.name} — token`}
             style={{
-              width: 76,
-              height: 76,
-              borderRadius: '50%',
+              width: '100%',
+              height: '100%',
+              display: 'block',
               objectFit: 'cover',
-              objectPosition: media.tokenUrl ? 'center' : '50% 8%',
-              border: '2px solid var(--violet-2)',
-              boxShadow: '0 0 12px rgba(139, 92, 246, 0.5)',
+              // Adjustable framing (D2): focus point + zoom set via the token framer;
+              // default centers a token, or shows the top of a full-body art (face).
+              objectPosition: char.tokenFocus ? `${char.tokenFocus.x}% ${char.tokenFocus.y}%` : media.tokenUrl ? 'center' : '50% 8%',
+              transform: char.tokenFocus && char.tokenFocus.zoom > 1 ? `scale(${char.tokenFocus.zoom})` : undefined,
+              transformOrigin: char.tokenFocus ? `${char.tokenFocus.x}% ${char.tokenFocus.y}%` : 'center',
             }}
           />
         </div>
       )}
 
-      {/* Hero. For the streamer skin, the full-body art sits to the RIGHT of the
-          name / race / stats block (portrait layout); other sheets keep the art in a
-          card below (further down). */}
-      {streamerArtBeside ? (
+      {/* Header: name / race / info on the LEFT, full-body character art on the RIGHT
+          (portrait layout, same for every sheet). Wraps to stacked on narrow screens.
+          Falls back to just the hero when the character has no art yet. */}
+      {artBeside ? (
         <div className="hero-portrait" style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 4 }}>
           <div style={{ flex: '1 1 360px', minWidth: 0 }}>
             <Hero />
           </div>
-          <div className="card art-frame" style={{ flex: '0 1 300px', padding: 8, alignSelf: 'stretch', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="card art-frame" style={{ flex: '0 1 320px', padding: 8, alignSelf: 'flex-start', textAlign: 'center' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={media.artUrl ?? ''}
               alt={`${char.meta.name} — character art`}
-              style={{ width: '100%', maxHeight: 560, objectFit: 'contain', display: 'block', borderRadius: 4 }}
+              // Scale to fit the frame, keep aspect ratio, show the whole image.
+              style={{ display: 'inline-block', maxWidth: '100%', maxHeight: 560, width: 'auto', height: 'auto', borderRadius: 4 }}
             />
           </div>
         </div>
@@ -137,20 +153,10 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
         <Hero />
       )}
 
-      {/* Owner-DM art/token uploader — sets the images shown here + in the gallery (D1/D2). */}
+      {/* Owner-DM art/token uploader — sets the images shown above + in the gallery (D1/D2). */}
       <SheetArtUploader />
-
-      {/* Character art (D1) — card below the hero for non-portrait layouts. */}
-      {media.artUrl && !streamerArtBeside && (
-        <div className="card art-frame" style={{ padding: 8, marginBottom: 14 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={media.artUrl}
-            alt={`${char.meta.name} — character art`}
-            style={{ width: '100%', maxHeight: 440, objectFit: 'cover', display: 'block', borderRadius: 4 }}
-          />
-        </div>
-      )}
+      {/* Adjust which part of the image the round token crops from (D2). */}
+      <TokenFramer />
 
       {/* DM control panel — renders only in DM mode (§6.8.1 / C10). Stream controls
           inside it show only for characters with the `stream` module. */}

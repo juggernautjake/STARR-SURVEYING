@@ -104,6 +104,15 @@ async function main() {
       [DEMO_STREAMER.characterId, DEMO_CAMPAIGN_ID, DEMO_DM_USER_ID, DEMO_STREAMER.characterName, DEMO_STREAMER.sheetType, JSON.stringify(streamerCharacter(DEMO_STREAMER.characterName))],
     );
 
+    // Put the streamer LIVE by default so her chat + influence meter are running the
+    // moment you open her sheet (the DM can still toggle it from Stream controls).
+    await client.query(
+      `INSERT INTO dnd_stream_state (character_id, is_live, viewer_count, chat_speed, engagement)
+         VALUES ($1, true, 1337, 4, 65)
+       ON CONFLICT (character_id) DO UPDATE SET is_live = true, viewer_count = EXCLUDED.viewer_count, chat_speed = EXCLUDED.chat_speed, engagement = EXCLUDED.engagement`,
+      [DEMO_STREAMER.characterId],
+    );
+
     const { rows } = await client.query(
       `SELECT c.name, u.display_name AS owner, m.role FROM dnd_characters c
          JOIN dnd_campaign_members m ON m.user_id = c.owner_user_id AND m.campaign_id = c.campaign_id

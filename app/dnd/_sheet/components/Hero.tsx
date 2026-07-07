@@ -1,10 +1,38 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useChar } from '../state/store'
 import type { Character } from '../types'
 
 export default function Hero() {
   const { char, setChar, editMode, setEditMode, tempMode, setTempMode, clearAllOverrides, reset, importChar } = useChar()
   const fileRef = useRef<HTMLInputElement>(null)
+  const nameRef = useRef<HTMLHeadingElement>(null)
+
+  // Shrink the display name to fit its column on one line rather than overflow — so
+  // a long single-word handle (e.g. the streamer's username) or a big name in the
+  // narrower portrait column never spills. Only shrinks when it would overflow;
+  // re-runs on resize, name change, and once web fonts finish loading.
+  useEffect(() => {
+    const el = nameRef.current
+    const parent = el?.parentElement
+    if (!el || !parent) return
+    const singleWord = !/\s/.test(char.meta.name.trim())
+    const fit = () => {
+      el.style.whiteSpace = singleWord ? 'nowrap' : ''
+      el.style.fontSize = ''
+      let size = parseFloat(getComputedStyle(el).fontSize) || 40
+      let guard = 0
+      while (el.scrollWidth > parent.clientWidth + 1 && size > 12 && guard++ < 90) {
+        size -= 1
+        el.style.fontSize = `${size}px`
+      }
+    }
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(parent)
+    // Re-fit after the display font loads (metrics change once it swaps in).
+    ;(document as Document & { fonts?: { ready: Promise<unknown> } }).fonts?.ready.then(fit).catch(() => {})
+    return () => ro.disconnect()
+  }, [char.meta.name])
   const tempCount = Object.keys(char.tempOverrides ?? {}).length
 
   function exportJson() {
@@ -50,7 +78,7 @@ export default function Hero() {
               onChange={(e) => setChar((c) => ({ ...c, meta: { ...c.meta, name: e.target.value } }))}
             />
           ) : (
-            <h1 className="name">{renderName(char.meta.name)}</h1>
+            <h1 className="name" ref={nameRef}>{renderName(char.meta.name)}</h1>
           )}
         </div>
         <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
