@@ -14,7 +14,8 @@ export default function RevealTrigger({ campaignId, maps, selfId, initialMembers
   const [selected, setSelected] = useState<string | null>(null)
   // Empty = everyone; otherwise the specific recipient user-ids (H2 group multi-select).
   const [groupIds, setGroupIds] = useState<string[]>([])
-  const [caption, setCaption] = useState('')
+  const [title, setTitle] = useState('')
+  const [body, setBody] = useState('')
   const [flash, setFlash] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -56,21 +57,23 @@ export default function RevealTrigger({ campaignId, maps, selfId, initialMembers
   const toggleMember = (id: string) => setGroupIds((g) => (g.includes(id) ? g.filter((x) => x !== id) : [...g, id]))
 
   function reveal() {
-    if (!selected) return
+    const hasContent = !!selected || !!title.trim() || !!body.trim()
+    if (!hasContent) return
     const toEveryone = groupIds.length === 0
     const recipientIds = toEveryone ? null : groupIds
-    broadcastReveal({ imageUrl: selected, caption: caption || null, recipientIds, fromName: 'DM' })
+    broadcastReveal({ imageUrl: selected ?? null, title: title.trim() || null, body: body.trim() || null, recipientIds, fromName: 'DM' })
     // Save into the relevant chat (H2) so it's re-viewable later: everyone → party, one
     // recipient → the DM↔player direct thread, several → a group thread.
     const channel = toEveryone ? 'party' : groupIds.length === 1 ? 'direct' : 'group'
+    const msgBody = [title.trim(), body.trim()].filter(Boolean).join(' — ') || null
     fetch('/api/dnd/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         campaignId,
         channel,
-        body: caption || null,
-        imageUrl: selected,
+        body: msgBody,
+        imageUrl: selected ?? undefined,
         toUserIds: recipientIds ?? undefined,
         isReveal: true,
       }),
@@ -88,7 +91,7 @@ export default function RevealTrigger({ campaignId, maps, selfId, initialMembers
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <p style={{ color: 'var(--hx-muted)', margin: 0, fontSize: 13 }}>
-          Pick an image, choose who sees it, and reveal — full-screen for the audience. Handouts reuse across sessions.
+          Upload/pick an image (optional), add a title + text, choose who sees it, and reveal — full-screen for the audience. Text-only, image-only, or both. Handouts reuse across sessions.
         </p>
         <label className={styles.hexBtn} style={{ whiteSpace: 'nowrap' }}>
           {uploading ? 'Uploading…' : '+ Handout'}
@@ -113,9 +116,9 @@ export default function RevealTrigger({ campaignId, maps, selfId, initialMembers
           {images.map((m) => (
             <button
               key={m.url}
-              onClick={() => setSelected(m.url)}
+              onClick={() => setSelected((cur) => (cur === m.url ? null : m.url))}
               style={{ padding: 0, border: '2px solid', borderColor: selected === m.url ? 'var(--hx-teal-1)' : 'var(--hx-line)', background: 'transparent', cursor: 'pointer', aspectRatio: '1', overflow: 'hidden' }}
-              title={m.label ?? undefined}
+              title={selected === m.url ? 'Click to deselect' : (m.label ?? undefined)}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={m.url} alt={m.label ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -124,7 +127,8 @@ export default function RevealTrigger({ campaignId, maps, selfId, initialMembers
         </div>
       )}
 
-      <input className={styles.input} style={{ padding: '8px 10px', marginBottom: 8 }} placeholder="Caption (optional) — shown on the reveal + saved to chat" value={caption} onChange={(e) => setCaption(e.target.value)} />
+      <input className={styles.input} style={{ padding: '8px 10px', marginBottom: 8 }} placeholder="Title (optional) — shown ABOVE the image" value={title} onChange={(e) => setTitle(e.target.value)} />
+      <textarea className={styles.input} style={{ padding: '8px 10px', marginBottom: 8, minHeight: 60, resize: 'vertical', fontFamily: 'var(--hx-font-body)' }} placeholder="Text (optional) — shown BELOW the image" value={body} onChange={(e) => setBody(e.target.value)} />
 
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
         <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>Audience:</span>
@@ -147,7 +151,7 @@ export default function RevealTrigger({ campaignId, maps, selfId, initialMembers
         ))}
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <button className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} disabled={!selected} onClick={reveal}>
+        <button className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} disabled={!selected && !title.trim() && !body.trim()} onClick={reveal}>
           ✨ Reveal{groupIds.length > 1 ? ` to ${groupIds.length}` : ''}
         </button>
         {flash && <span style={{ fontSize: 13, color: 'var(--hx-teal-1)' }}>{flash}</span>}

@@ -98,7 +98,20 @@
 > stop-all now stops overlapping SFX**, **reveal audience is multi-select groups** (H2 — everyone / one /
 > N players → party/direct/group chat), and **PC/NPC HP auto-seeds from the sheet** when added to
 > initiative (G6). **115 dnd unit tests green; typecheck + eslint clean; `/dnd` renders HTTP 200.**
-> Remaining are user-blocked only (real player concepts K1–K3) or verified-on-deploy (K6).
+>
+> **Session 2026-07-06 (d) — hub restructure + reveals + session lifecycle** (committed). **Phase N — public
+> multi-campaign hub**: `/dnd` now lists **every campaign** (`CampaignsHome` + `loadAllCampaignSummaries`) with
+> its setting, DM, players + characters; clicking a campaign opens a per-campaign **lobby** (`CampaignLobby`)
+> where players enter into their sheet and the DM enters into the control panel (campaign management page).
+> Character cards on the campaign page are now clickable → open the sheet (DM opens the streamer sheet →
+> `DmOverridePanel`→`StreamControl` to run the chat). `dev/enter` broadened to any campaign member.
+> **Reveals upgraded**: image is now **optional** + a **title (above)** and **body text (below)** — text-only,
+> image-only, or both (`RevealPayload.title/body`, overlay + trigger + CSS). **Session lifecycle**: **Reset**
+> (`sessions/[id]/reset` — wipes encounters/recaps/roll-log + notes → prep) and **Delete** buttons in the
+> console (DM-gated). **CSS**: campaign-page character names now center under their circles. **Roster fixed to
+> match reality**: Neon Odyssey DM = **Andrew Ash**; **Jacob Maddux → Lazzuh Gun**; Mira Sol → Vera Kade; Nyx
+> Vale → Sprocket; **Nova Vex (streamer) is DM-run** (applied live). **115 dnd unit tests green; typecheck +
+> eslint clean; hub/lobby render HTTP 200.** Remaining are user-blocked only (K1–K3) or verify-on-deploy (K6).
 
 ## 0. Build status audit (2026-07-06)
 Snapshot of what physically exists in the repo vs. the slice plan, so the build can be resumed

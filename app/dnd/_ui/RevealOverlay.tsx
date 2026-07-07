@@ -11,12 +11,16 @@ export default function RevealOverlay({ campaignId, selfId, initialReveal }: { c
   useReveals(campaignId, selfId, (p) => setActive(p))
 
   if (!active) return null
+  const body = active.body ?? active.caption ?? null // `caption` kept for old broadcasts
   return (
     <div className={styles.revealBackdrop} onClick={() => setActive(null)} role="button" tabIndex={0} aria-label="Dismiss reveal">
       <div className={styles.revealFrame}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className={styles.revealImg} src={active.imageUrl} alt={active.caption ?? 'Revealed image'} />
-        {active.caption && <div className={styles.revealCaption}>{active.caption}</div>}
+        {active.title && <div className={styles.revealTitle}>{active.title}</div>}
+        {active.imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img className={styles.revealImg} src={active.imageUrl} alt={active.title ?? 'Revealed image'} />
+        )}
+        {body && <div className={styles.revealBody}>{body}</div>}
       </div>
       <div className={styles.revealHint}>Click anywhere to dismiss</div>
     </div>
