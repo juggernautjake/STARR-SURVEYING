@@ -121,8 +121,8 @@ export default function NpcLibrary({ campaignId, isDM, initialNpcs }: { campaign
               )}
               <span style={{ flex: 1, color: 'var(--hx-text)', fontSize: 14 }}>{n.name}</span>
               {n.is_library && <span style={{ fontSize: 10, color: 'var(--hx-gold-2)', border: '1px solid currentColor', padding: '1px 5px' }}>★ Library</span>}
-              {isDM && <button className={styles.hexBtn} style={{ padding: '4px 9px' }} onClick={() => toggleLibrary(n)}>{n.is_library ? 'Unpin' : '★ Library'}</button>}
-              <a className={styles.hexBtn} style={{ padding: '4px 9px' }} href={`/dnd/characters/${n.id}`}>Open</a>
+              {isDM && <button className={styles.hexBtn} style={{ padding: '6px 11px' }} onClick={() => toggleLibrary(n)}>{n.is_library ? 'Unpin' : '★ Library'}</button>}
+              <a className={styles.hexBtn} style={{ padding: '6px 11px' }} href={`/dnd/characters/${n.id}`}>Open</a>
             </div>
           ))}
         </div>

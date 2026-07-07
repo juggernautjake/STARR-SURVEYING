@@ -205,7 +205,7 @@ export default function Chat({ campaignId, initialMembers, selfId }: { campaignI
         <div ref={endRef} />
       </div>
 
-      <form onSubmit={send} style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+      <form onSubmit={send} style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
         <label className={styles.hexBtn} style={{ cursor: (channel !== 'party' && recipients.length === 0) ? 'default' : 'pointer', opacity: uploading ? 0.6 : 1 }} title="Attach an image">
           {uploading ? '…' : '📎'}
           <input
@@ -222,7 +222,7 @@ export default function Chat({ campaignId, initialMembers, selfId }: { campaignI
         </label>
         <input
           className={styles.input}
-          style={{ flex: 1, padding: '10px 12px' }}
+          style={{ flex: 1, padding: '9px 12px' }}
           placeholder={channel === 'party' ? 'Message the party…' : recipients.length ? 'Message…' : 'Pick recipient(s) above…'}
           value={text}
           onChange={(e) => setText(e.target.value)}

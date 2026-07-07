@@ -123,11 +123,11 @@ export default function InvitesPanel({ campaignId, initialInvites }: { campaignI
                 <code style={{ color: 'var(--hx-text)', fontSize: 12.5, flex: 1, minWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{joinPath(iv.code)}</code>
                 <span style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: st.color }}>{st.label}</span>
                 {!iv.used_by && (
-                  <button className={styles.hexBtn} style={{ padding: '5px 10px' }} onClick={() => copy(iv.code)}>
+                  <button className={styles.hexBtn} style={{ padding: '6px 11px' }} onClick={() => copy(iv.code)}>
                     {copied === iv.code ? 'Copied!' : 'Copy'}
                   </button>
                 )}
-                <button className={styles.hexBtn} style={{ padding: '5px 10px', borderColor: 'var(--hx-danger)', color: 'var(--hx-danger)' }} onClick={() => revoke(iv.id)}>
+                <button className={styles.hexBtn} style={{ padding: '6px 11px', borderColor: 'var(--hx-danger)', color: 'var(--hx-danger)' }} onClick={() => revoke(iv.id)}>
                   Revoke
                 </button>
               </div>
