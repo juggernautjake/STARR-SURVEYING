@@ -26,10 +26,10 @@ describe('computeInfluence', () => {
 });
 
 describe('resistDC', () => {
-  it('maps empty chat to an easy DC and a maxed chat to DC 30', () => {
-    expect(resistDC(0)).toBe(5);
-    expect(resistDC(1)).toBe(30);
-    expect(resistDC(0.5)).toBeGreaterThan(15);
+  it('maps empty chat to an easy DC (2) and a maxed chat to the DC 25 ceiling', () => {
+    expect(resistDC(0)).toBe(2);
+    expect(resistDC(1)).toBe(25);
+    expect(resistDC(0.5)).toBeGreaterThan(12);
   });
 });
 

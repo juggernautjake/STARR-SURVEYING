@@ -289,6 +289,34 @@
   color: #ffe0ee;
   box-shadow: inset 0 0 0 1px rgba(255, 45, 139, 0.5);
 }
+/* Toggled-on buttons (Go Live, chat mode, vibe presets) — a clear, readable filled
+   state so the active choice reads at a glance on any skin. */
+.dnd-sheet .btn.on {
+  border-color: var(--gold, #c89b3c);
+  background: rgba(255, 204, 63, 0.22);
+  color: #fff3d1;
+  box-shadow: inset 0 0 0 1px rgba(255, 204, 63, 0.45);
+}
+
+/* ── Stream DM controls: legible form fields on any skin ───────────────────────
+   The inputs sit on dark (rgba(0,0,0,…)) fills, but their inline color was `inherit`,
+   which on the streamer's LIGHT skin rendered dark-text-on-dark. Force a light field
+   text + a real dark fill, and give <option>s their own readable palette (options
+   can't be styled inline at all). */
+.dnd-sheet .stream-control input:not([type='range']),
+.dnd-sheet .stream-control select,
+.dnd-sheet .stream-control textarea {
+  color: #f4f1fb !important;
+  background: rgba(6, 4, 14, 0.62) !important;
+  border: 1px solid var(--line-strong, rgba(255, 255, 255, 0.24)) !important;
+  border-radius: 6px;
+}
+.dnd-sheet .stream-control select option {
+  color: #f4f1fb;
+  background: #140d26;
+}
+.dnd-sheet .stream-control input::placeholder { color: #a9a2bf; opacity: 1; }
+.dnd-sheet .stream-control input[type='range'] { accent-color: var(--hotpink, #ff2d8b); }
 .dnd-sheet .btn-row {
   display: flex;
   flex-wrap: wrap;
@@ -914,20 +942,29 @@
 }
 
 /* ------------------------------------------------------------------ DICE TRAY (sticky) */
-.dnd-sheet .tray-fab {
+/* The dice tray + stream chat both collapse to round FABs pinned bottom-right. They
+   share one size/shape and sit in a neat row: dice on the right (20px), chat just to its
+   left (86px) so they never overlap and read as a matched pair. */
+.dnd-sheet .tray-fab,
+.dnd-sheet .stream-fab {
   position: fixed;
-  right: 20px;
   bottom: 20px;
-  z-index: 60;
-  width: 58px;
-  height: 58px;
+  z-index: 61;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   border: 1px solid var(--line-strong);
-  background: linear-gradient(160deg, var(--panel-2), var(--panel));
   color: #fff;
-  font-size: 24px;
+  font-size: 23px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.8), 0 0 22px -6px var(--hotpink);
+}
+.dnd-sheet .tray-fab {
+  right: 20px;
+  background: linear-gradient(160deg, var(--panel-2), var(--panel));
   animation: fabpulse 2.4s ease-in-out infinite;
 }
 @keyframes fabpulse {
@@ -1119,6 +1156,224 @@
   text-align: center;
   padding: 24px 8px;
 }
+/* ── Floating stream-chat dock (draggable + resizable, like the dice tray) ─────── */
+/* Base FAB size/shape is shared with .tray-fab above; here we only place it to the
+   left of the dice FAB and give it the stream's pink fill. */
+.dnd-sheet .stream-fab {
+  right: 86px;
+  background: linear-gradient(160deg, var(--pink, #ff5fa2), var(--hotpink));
+}
+.dnd-sheet .stream-fab .stream-fab-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff3b3b;
+  box-shadow: 0 0 8px 1px #ff3b3b;
+  animation: fabpulse 1.6s ease-in-out infinite;
+}
+.dnd-sheet .stream-dock {
+  z-index: 61;
+  display: flex;
+  flex-direction: column;
+  min-width: 260px;
+  min-height: 240px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  overflow: hidden;
+  background: linear-gradient(160deg, rgba(20, 12, 38, 0.98), rgba(8, 5, 16, 0.99));
+  box-shadow: 0 24px 64px -18px rgba(0, 0, 0, 0.92), 0 0 40px -22px var(--hotpink);
+  backdrop-filter: blur(6px);
+  color: #f2effa;
+}
+.dnd-sheet .stream-dock-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: grab;
+  touch-action: none;
+  border-bottom: 1px solid var(--line);
+  background: rgba(139, 92, 246, 0.14);
+}
+.dnd-sheet .stream-dock-head:active { cursor: grabbing; }
+.dnd-sheet .stream-dock-head .sd-live {
+  color: #ff5252;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  font-size: 13px;
+  text-shadow: 0 0 8px rgba(255, 60, 60, 0.5);
+}
+.dnd-sheet .stream-dock-head .sd-count {
+  font-size: 12px;
+  color: #c9c3dd;
+}
+.dnd-sheet .stream-dock-head .sd-mode {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--gold, #c89b3c);
+  color: #2a1c02;
+  background: var(--gold, #c89b3c);
+}
+.dnd-sheet .stream-dock-head .sd-min {
+  margin-left: auto;
+  width: 26px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.dnd-sheet .stream-dock-head .sd-min:hover { background: rgba(255, 255, 255, 0.12); }
+.dnd-sheet .stream-dock-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.dnd-sheet .stream-dock-tools .sd-speed {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #c9c3dd;
+  flex: 1;
+  min-width: 0;
+}
+.dnd-sheet .stream-dock-tools .sd-speed input[type='range'] {
+  flex: 1;
+  min-width: 90px;
+  max-width: 220px;
+}
+
+/* Custom range sliders for the stream UI (chat speed, DM speed, engagement). Native
+   accent-color sliders inset the thumb so it can't reach the track ends ("stops short");
+   with appearance:none + an explicit track/thumb the thumb centers on the value and
+   travels the FULL width, so 0.5×…5× (and the DM dials) reach both extremes cleanly. */
+.dnd-sheet .stream-dock input[type='range'],
+.dnd-sheet .stream-control input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 16px;
+  background: transparent;
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+  vertical-align: middle;
+}
+.dnd-sheet .stream-dock input[type='range']::-webkit-slider-runnable-track,
+.dnd-sheet .stream-control input[type='range']::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.22);
+}
+.dnd-sheet .stream-dock input[type='range']::-moz-range-track,
+.dnd-sheet .stream-control input[type='range']::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.22);
+}
+.dnd-sheet .stream-dock input[type='range']::-webkit-slider-thumb,
+.dnd-sheet .stream-control input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  margin-top: -4.5px;
+  border-radius: 50%;
+  background: var(--hotpink, #ff2d8b);
+  border: 1px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.dnd-sheet .stream-dock input[type='range']::-moz-range-thumb,
+.dnd-sheet .stream-control input[type='range']::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--hotpink, #ff2d8b);
+  border: 1px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.dnd-sheet .stream-dock-tools .sd-resist {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  padding: 5px 12px;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(160deg, #4d8dff, #1d4ed8);
+  border: 1px solid #93c5fd;
+  border-radius: 7px;
+  white-space: nowrap;
+  box-shadow: 0 2px 10px -3px rgba(37, 99, 235, 0.7);
+}
+.dnd-sheet .stream-dock-tools .sd-resist:hover { filter: brightness(1.12); }
+.dnd-sheet .sd-resist-banner {
+  margin: 6px 8px 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-align: center;
+  font-size: 13px;
+}
+.dnd-sheet .sd-resist-banner.ok {
+  color: #d6fff9;
+  border: 1px solid #0ac8b9;
+  background: rgba(10, 200, 185, 0.18);
+  text-shadow: 0 0 10px rgba(10, 200, 185, 0.7);
+}
+.dnd-sheet .sd-resist-banner.bad {
+  color: #ffe1fb;
+  border: 1px solid #ff10f0;
+  background: rgba(255, 16, 240, 0.18);
+  text-shadow: 0 0 10px rgba(255, 16, 240, 0.7);
+}
+.dnd-sheet .stream-dock-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+}
+.dnd-sheet .stream-feed {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.42);
+  padding: 6px 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.dnd-sheet .stream-resize {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: nwse-resize;
+  color: var(--muted, #9aa);
+  font-size: 12px;
+  touch-action: none;
+  user-select: none;
+}
+.dnd-sheet .stream-resize:hover { color: #fff; }
+
 .dnd-sheet .roll-entry {
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -2328,6 +2583,16 @@
   box-shadow: 0 22px 60px -26px rgba(var(--sk-accent), 0.45), 0 0 40px -22px var(--hotpink);
 }
 .dnd-sheet.skin-streamer .tray-fab { background: linear-gradient(160deg, var(--pink), var(--hotpink)); color: #fff; }
+
+/* ---- Stream dock: kept dark (Twitch-chat readability) with her accent chrome ---- */
+.dnd-sheet.skin-streamer .stream-dock-head { background: rgba(var(--sk-accent), 0.2); }
+.dnd-sheet.skin-streamer .stream-dock { box-shadow: 0 24px 64px -18px rgba(0, 0, 0, 0.92), 0 0 40px -20px var(--hotpink); }
+.dnd-sheet.skin-streamer .stream-fab,
+.dnd-sheet.skin-streamer .stream-dock-tools .sd-resist {
+  background: linear-gradient(160deg, var(--pink), var(--hotpink));
+  border-color: var(--hotpink);
+  color: #fff;
+}
 
 /* ---- Footer: terminal status line ---- */
 .dnd-sheet.skin-streamer .footer { font-family: var(--font-mono); font-size: 15px; letter-spacing: 0.08em; color: var(--muted); }
