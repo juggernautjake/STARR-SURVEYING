@@ -3,7 +3,44 @@
 // service-role client; these summaries are public in the open-access model (the /dnd
 // hub is reachable by direct link only), so no membership check.
 import { supabaseAdmin } from '@/lib/supabase';
-import { DEMO_CAMPAIGN_ID, DEMO_GUEST_USER_ID } from '@/lib/dnd/constants';
+import { DEMO_CAMPAIGN_ID, DEMO_DM_USER_ID, DEMO_GUEST_USER_ID, DEMO_STREAMER } from '@/lib/dnd/constants';
+import { streamerCharacter } from '@/app/dnd/_sheet/data/streamer';
+
+// Self-heal for the open-access demo: make sure the DM-run streamer NPC
+// (xxRainbowKittenUwU37xx) exists with her full statted `streamer` sheet + a live
+// stream, so she shows in the lobby without anyone re-running the seed script.
+// Idempotent + best-effort (swallows errors); only touches the fixed demo ids.
+async function ensureDemoStreamer(): Promise<void> {
+  try {
+    const { data: existing } = await supabaseAdmin
+      .from('dnd_characters')
+      .select('id')
+      .eq('id', DEMO_STREAMER.characterId)
+      .maybeSingle();
+    if (!existing) {
+      await supabaseAdmin.from('dnd_characters').insert({
+        id: DEMO_STREAMER.characterId,
+        campaign_id: DEMO_CAMPAIGN_ID,
+        owner_user_id: DEMO_DM_USER_ID,
+        name: DEMO_STREAMER.characterName,
+        sheet_type: DEMO_STREAMER.sheetType,
+        is_npc: true,
+        visibility: 'campaign',
+        data: streamerCharacter(DEMO_STREAMER.characterName),
+      });
+    }
+    // Put her live so the chat + influence meter run when opened (don't overwrite an
+    // existing state).
+    await supabaseAdmin
+      .from('dnd_stream_state')
+      .upsert(
+        { character_id: DEMO_STREAMER.characterId, is_live: true, viewer_count: 1337, chat_speed: 4, engagement: 65 },
+        { onConflict: 'character_id', ignoreDuplicates: true },
+      );
+  } catch {
+    /* best-effort demo self-heal */
+  }
+}
 
 export interface CampaignCard {
   id: string;
@@ -83,6 +120,9 @@ export async function loadCampaignLobby(campaignId: string): Promise<CampaignLob
   const { data: camp } = await supabaseAdmin.from('dnd_campaigns').select('id, name, blurb').eq('id', campaignId).maybeSingle();
   const campaign = camp as { id: string; name: string; blurb: string | null } | null;
   if (!campaign) return null;
+
+  // Demo self-heal: ensure the streamer NPC exists before we list the roster.
+  if (campaignId === DEMO_CAMPAIGN_ID) await ensureDemoStreamer();
 
   const [{ data: mems }, { data: chars }] = await Promise.all([
     supabaseAdmin.from('dnd_campaign_members').select('campaign_id, user_id, role').eq('campaign_id', campaignId),
