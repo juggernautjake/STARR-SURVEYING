@@ -71,6 +71,30 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 }
 
+// PUT — point art_url/token_url at an image the character ALREADY has (from the gallery),
+// no upload. Body: { kind: 'art'|'token', url }. Owner/DM only.
+export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  const session = getDndSession();
+  if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  const access = await getCharacterAccess(params.id);
+  if (!access.access) return NextResponse.json({ error: access.error }, { status: access.status });
+  if (!access.access.canWrite) return NextResponse.json({ error: 'You cannot edit this character.' }, { status: 403 });
+
+  const { kind: rawKind, url } = await req.json().catch(() => ({}));
+  const kind = parseKind(rawKind);
+  if (!kind) return NextResponse.json({ error: "kind must be 'art' or 'token'." }, { status: 400 });
+  if (!url || typeof url !== 'string') return NextResponse.json({ error: 'A url is required.' }, { status: 400 });
+
+  const { data: character, error } = await supabaseAdmin
+    .from('dnd_characters')
+    .update({ [COLUMN[kind]]: url, updated_at: new Date().toISOString() })
+    .eq('id', params.id)
+    .select('id, art_url, token_url')
+    .single();
+  if (error || !character) return NextResponse.json({ error: error?.message ?? 'Could not update.' }, { status: 500 });
+  return NextResponse.json({ ok: true, kind, url, character });
+}
+
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
