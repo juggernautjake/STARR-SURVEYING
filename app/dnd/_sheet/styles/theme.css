@@ -7,6 +7,8 @@
    from the standalone index.html <link>.
    =================================================================== */
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Barlow+Condensed:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@400;500;700;900&family=Audiowide&family=Chakra+Petch:wght@400;600;700&family=Rajdhani:wght@500;600;700&family=Syncopate:wght@400;700&family=Michroma&display=swap');
+/* Pixel / CRT-terminal faces for bespoke "digital being" skins (e.g. Nova Vex). */
+@import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=VT323&family=Silkscreen:wght@400;700&family=Press+Start+2P&display=swap');
 
 .dnd-sheet {
   --void: #080512;
@@ -2010,4 +2012,264 @@
 }
 .dnd-sheet .hidden {
   display: none;
+}
+
+/* ===================================================================
+   SKIN: NOVA — "PIXEL://STREAM" (§6.9)
+   Nova Vex is a peppy digital being literally made of hot-pink pixels (a
+   happy neon Cortana). This skin layers a CRT/pixel treatment on top of her
+   color tokens (theme.ts → novaTheme): a data-grid + scanline screen, 8-bit
+   pixel type, chunky pressable pixel buttons, glitching holo-gradient name,
+   and a segmented hot-pink influence bar. Everything is scoped to
+   `.dnd-sheet.skin-nova` so it never touches Lazzuh or other characters.
+   =================================================================== */
+
+/* Screen: her tokens + a faint pixel data-grid baked into the background. */
+.dnd-sheet.skin-nova {
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 45, 158, 0.045) 0 1px, transparent 1px 8px),
+    repeating-linear-gradient(90deg, rgba(34, 201, 255, 0.04) 0 1px, transparent 1px 8px),
+    radial-gradient(900px 520px at 84% -8%, rgba(34, 201, 255, 0.18), transparent 60%),
+    radial-gradient(780px 500px at -8% 14%, rgba(255, 45, 158, 0.2), transparent 55%),
+    radial-gradient(1100px 760px at 50% 120%, rgba(199, 75, 255, 0.14), transparent 60%),
+    var(--void);
+  image-rendering: pixelated;
+}
+/* CRT scanlines + a slow rolling scan bar, drawn over everything (non-interactive). */
+.dnd-sheet.skin-nova::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(255, 100, 200, 0.05), transparent 18%) 0 0 / 100% 220px,
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px);
+  mix-blend-mode: soft-light;
+  animation: nova-scan 7s linear infinite;
+}
+@keyframes nova-scan {
+  from { background-position: 0 -220px, 0 0; }
+  to   { background-position: 0 100vh, 0 0; }
+}
+.dnd-sheet.skin-nova ::selection {
+  background: rgba(255, 45, 158, 0.45);
+  color: #fff;
+}
+.dnd-sheet.skin-nova ::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--teal), var(--hotpink));
+  border-radius: 0;
+}
+
+/* ---- HERO: glitching holo-name + terminal kicker ---- */
+.dnd-sheet.skin-nova .hero {
+  border-radius: 4px;
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow), 0 0 0 1px rgba(34, 201, 255, 0.15), inset 0 0 60px rgba(255, 45, 158, 0.06);
+}
+.dnd-sheet.skin-nova .hero::before {
+  /* denser pixel-grid wash instead of the diagonal neon rails */
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 45, 158, 0.06) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(90deg, rgba(34, 201, 255, 0.05) 0 1px, transparent 1px 7px);
+}
+.dnd-sheet.skin-nova h1.name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(38px, 7vw, 68px);
+  letter-spacing: 0.02em;
+  background: linear-gradient(94deg, #fff 0%, var(--pink) 40%, var(--tealbright) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  /* chromatic-split holo shadow so the pixels read as "glitching" */
+  filter:
+    drop-shadow(2px 0 0 rgba(34, 201, 255, 0.55))
+    drop-shadow(-2px 0 0 rgba(255, 45, 158, 0.55))
+    drop-shadow(0 0 18px rgba(255, 45, 158, 0.35));
+  animation: nova-glitch 4.5s steps(1) infinite;
+}
+@keyframes nova-glitch {
+  0%, 92%, 100% { transform: translate(0, 0); }
+  93% { transform: translate(-2px, 1px); }
+  94% { transform: translate(3px, -1px); }
+  95% { transform: translate(-3px, 0); }
+  96% { transform: translate(2px, 1px); }
+  97% { transform: translate(-1px, -1px); }
+}
+.dnd-sheet.skin-nova .kicker {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  letter-spacing: 0.22em;
+  color: var(--tealbright);
+  text-shadow: 0 0 10px rgba(34, 201, 255, 0.5);
+}
+.dnd-sheet.skin-nova .kicker::before { content: '▸ '; color: var(--hotpink); }
+.dnd-sheet.skin-nova .kicker::after {
+  content: '▮';
+  margin-left: 2px;
+  animation: nova-blink 1.1s steps(1) infinite;
+}
+@keyframes nova-blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+.dnd-sheet.skin-nova .hero .role {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  letter-spacing: 0.08em;
+  color: var(--pink);
+}
+
+/* ---- Pixel chips / tags ---- */
+.dnd-sheet.skin-nova .chip {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  border-radius: 2px;
+  border-width: 2px;
+  box-shadow: 2px 2px 0 rgba(255, 45, 158, 0.28);
+}
+
+/* ---- Chunky pressable pixel buttons ---- */
+.dnd-sheet.skin-nova .btn {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  border-radius: 2px;
+  border-width: 2px;
+  border-color: var(--line-strong);
+  background: rgba(255, 45, 158, 0.1);
+  box-shadow: 3px 3px 0 rgba(255, 45, 158, 0.35);
+  transition: transform 0.06s steps(2), box-shadow 0.06s steps(2), background 0.15s ease, border-color 0.15s ease;
+}
+.dnd-sheet.skin-nova .btn:hover {
+  background: rgba(255, 45, 158, 0.22);
+  box-shadow: 3px 3px 0 rgba(34, 201, 255, 0.5);
+}
+.dnd-sheet.skin-nova .btn:active {
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+}
+.dnd-sheet.skin-nova .btn.tiny { font-size: 13px; box-shadow: 2px 2px 0 rgba(255, 45, 158, 0.32); }
+.dnd-sheet.skin-nova .btn.teal { box-shadow: 3px 3px 0 rgba(34, 201, 255, 0.4); }
+.dnd-sheet.skin-nova .btn.solid { color: var(--void); font-weight: 700; text-shadow: none; }
+
+/* ---- Section labels / card frames ---- */
+.dnd-sheet.skin-nova .sec-num {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  letter-spacing: 0.14em;
+}
+.dnd-sheet.skin-nova .sec-num::before { content: '// '; color: var(--tealbright); }
+.dnd-sheet.skin-nova .card {
+  border-radius: 3px;
+  border-width: 2px;
+  border-color: var(--line);
+  background-image: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 4px);
+  box-shadow: 0 0 0 1px rgba(34, 201, 255, 0.1), 4px 4px 0 rgba(255, 45, 158, 0.14);
+}
+.dnd-sheet.skin-nova .card h3 {
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 12px rgba(255, 45, 158, 0.35);
+}
+.dnd-sheet.skin-nova .card h3 .lvl { border-radius: 2px; font-family: var(--font-mono); }
+.dnd-sheet.skin-nova h2 { font-family: var(--font-display); }
+
+/* ---- Tabs as a pixel HUD ---- */
+.dnd-sheet.skin-nova .tabs {
+  border-radius: 4px;
+  border-width: 2px;
+  background: linear-gradient(180deg, rgba(33, 15, 56, 0.92), rgba(10, 6, 22, 0.7));
+}
+.dnd-sheet.skin-nova .tab {
+  font-family: var(--font-display);
+  font-size: 15px;
+  border-radius: 2px;
+}
+.dnd-sheet.skin-nova .tab.on {
+  background: rgba(255, 45, 158, 0.16);
+  box-shadow: inset 0 0 0 2px rgba(255, 45, 158, 0.4), 0 0 16px -6px var(--hotpink);
+}
+.dnd-sheet.skin-nova .tab.on::before {
+  background: repeating-linear-gradient(90deg, var(--hotpink) 0 4px, transparent 4px 6px);
+  box-shadow: 0 0 6px var(--hotpink);
+}
+
+/* ---- Stat rail readouts ---- */
+.dnd-sheet.skin-nova .vpill,
+.dnd-sheet.skin-nova .apill {
+  border-radius: 2px;
+  border-color: var(--line-strong);
+}
+.dnd-sheet.skin-nova .vpill .vv,
+.dnd-sheet.skin-nova .apill .asc,
+.dnd-sheet.skin-nova .apill .am,
+.dnd-sheet.skin-nova .stat .big {
+  font-family: var(--font-mono);
+}
+
+/* ---- Footer: terminal status line ---- */
+.dnd-sheet.skin-nova .footer {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.dnd-sheet.skin-nova .footer::before { content: '> '; color: var(--tealbright); }
+
+/* ---- Character art / token: give the (non-pixel) art a "made of pixels" screen ---- */
+.dnd-sheet.skin-nova .art-frame,
+.dnd-sheet.skin-nova .token-frame { position: relative; }
+.dnd-sheet.skin-nova .art-frame img {
+  image-rendering: pixelated;
+  filter: saturate(1.12) contrast(1.03);
+}
+/* pixel screen-door + scanline + hot-pink holo wash over the art */
+.dnd-sheet.skin-nova .art-frame::after {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  pointer-events: none;
+  border-radius: 3px;
+  background:
+    linear-gradient(115deg, rgba(255, 45, 158, 0.16), transparent 42%, rgba(34, 201, 255, 0.16)),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.14) 0 1px, transparent 1px 3px);
+  mix-blend-mode: overlay;
+}
+.dnd-sheet.skin-nova .token-frame img {
+  image-rendering: pixelated;
+  border-color: var(--hotpink) !important;
+  box-shadow: 0 0 14px rgba(255, 45, 158, 0.6) !important;
+}
+
+/* ---- Influence meter: recolor to a segmented hot-pink/cyan data bar ---- */
+.dnd-sheet.skin-nova [data-influence-meter] {
+  --inf-dc: var(--tealbright);
+  --inf-max: var(--hotpink);
+  --inf-font: var(--font-display), sans-serif;
+}
+.dnd-sheet.skin-nova [data-inf-track] {
+  border-radius: 2px;
+  border-color: var(--hotpink);
+  box-shadow: inset 0 0 12px rgba(255, 45, 158, 0.25);
+}
+.dnd-sheet.skin-nova [data-inf-fill] {
+  /* dark segment lines over a cyan→pink climb = "pixel segments" */
+  background:
+    repeating-linear-gradient(0deg, rgba(6, 3, 14, 0.55) 0 2px, transparent 2px 9px),
+    linear-gradient(to top, var(--teal), var(--pink) 55%, var(--hotpink));
+  animation: nova-fillpulse 1.4s ease-in-out infinite;
+}
+@keyframes nova-fillpulse {
+  0%, 100% { box-shadow: 0 0 10px 1px rgba(255, 45, 158, 0.55); }
+  50% { box-shadow: 0 0 20px 5px rgba(34, 201, 255, 0.7); }
+}
+
+/* Respect reduced-motion: keep the vibe, drop the movement. */
+@media (prefers-reduced-motion: reduce) {
+  .dnd-sheet.skin-nova::after,
+  .dnd-sheet.skin-nova h1.name,
+  .dnd-sheet.skin-nova .kicker::after,
+  .dnd-sheet.skin-nova [data-inf-fill] {
+    animation: none;
+  }
 }

@@ -51,6 +51,44 @@ export const lazzuhTheme: SheetTheme = {
   },
 };
 
+// Nova Vex — the peppy, hot-pink digital-being streamer (§6.9). She reads as a
+// creature made of bright-pink pixels (a happy, neon Cortana), so her palette leans
+// into hot magenta + holographic cyan on a deep indigo "screen" void. The pixel/CRT
+// texture, scanlines, glitch and 8-bit fonts come from the `skin-nova` class in
+// theme.css; these tokens carry the color/typography half of the look.
+export const novaTheme: SheetTheme = {
+  colors: {
+    void: '#0a0616',
+    'void-2': '#0f0820',
+    panel: '#170a26',
+    'panel-2': '#210f38',
+    'panel-3': '#301652',
+    ink: '#ffe9f8',
+    muted: '#d59ad9',
+    'muted-2': '#b07fc4',
+    pink: '#ff5fc8',
+    hotpink: '#ff2d9e',
+    violet: '#c74bff',
+    'violet-2': '#e59bff',
+    // "teal" is repurposed as Nova's holographic cyan — the second neon.
+    teal: '#22c9ff',
+    tealbright: '#7af0ff',
+    gold: '#ffd94b',
+    danger: '#ff4d74',
+    good: '#4dffcf',
+    line: 'rgba(255, 45, 158, 0.30)',
+    'line-strong': 'rgba(255, 45, 158, 0.62)',
+  },
+  fonts: {
+    // Pixelify Sans reads as clean pixel-art at display sizes; VT323 is a CRT
+    // terminal face for the HUD/mono bits; Chakra Petch keeps body copy techy but
+    // legible. All three are imported at the top of theme.css.
+    display: "'Pixelify Sans', 'Oswald', 'Arial Narrow', sans-serif",
+    body: "'Chakra Petch', 'Barlow Condensed', 'Segoe UI', sans-serif",
+    mono: "'VT323', 'JetBrains Mono', 'Consolas', monospace",
+  },
+};
+
 // Map a SheetTheme to the CSS custom properties theme.css consumes. Returns a
 // style object suitable for the `.dnd-sheet` root; an empty/undefined theme yields
 // no overrides (the stylesheet's Lazzuh defaults apply).

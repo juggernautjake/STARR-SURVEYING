@@ -61,9 +61,12 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
   const effectiveTheme = theme ?? config.theme
 
   // A per-character theme overrides the stylesheet's default CSS variables here on
-  // the scope root; omitted tokens keep the Lazzuh defaults from theme.css (C7).
+  // the scope root; omitted tokens keep the Lazzuh defaults from theme.css (C7). A
+  // registered `skin` adds a `skin-<id>` class that unlocks its bespoke CSS treatment
+  // (pixel frames, scanlines, glitch…) scoped under `.dnd-sheet.skin-<id>` (C8).
+  const rootClass = `dnd-sheet${config.skin ? ` skin-${config.skin}` : ''}`
   return (
-    <div className="dnd-sheet" style={themeToCssVars(effectiveTheme)}>
+    <div className={rootClass} style={themeToCssVars(effectiveTheme)}>
       <div className="wrap">
       {/* Offline indicator (L10) — the DB is unreachable; edits are cached locally and
           will sync automatically when it returns. */}
@@ -89,7 +92,7 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
       )}
       {/* Round profile token (D2) — sheet header, shown when the DB character has one. */}
       {media.tokenUrl && (
-        <div style={{ marginBottom: 12 }}>
+        <div className="token-frame" style={{ marginBottom: 12 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={media.tokenUrl}
@@ -110,7 +113,7 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
 
       {/* Character art (D1) — shown when the DB-backed character has hero art. */}
       {media.artUrl && (
-        <div className="card" style={{ padding: 8, marginBottom: 14 }}>
+        <div className="card art-frame" style={{ padding: 8, marginBottom: 14 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={media.artUrl}
@@ -198,9 +201,17 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
           </div>
 
           <div className="footer">
-            LAZZUH GUN · JENOVAN BARBARIAN 3 · PATH OF THE RAMPAGER · NEON ODYSSEY · {char.dmNote.toUpperCase()}
+            {[
+              char.meta.name,
+              [char.meta.species, char.meta.className, char.meta.level].filter(Boolean).join(' '),
+              char.meta.subclass,
+              char.dmNote,
+            ]
+              .filter((s) => s != null && String(s).trim() !== '')
+              .join(' · ')
+              .toUpperCase()}
             <br />
-            Built for Jacob · click a stat to roll · double-click to edit · Adv / Rage / Reckless auto-apply
+            click a stat to roll · double-click to edit
           </div>
         </div>
 

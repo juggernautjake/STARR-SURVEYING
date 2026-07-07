@@ -22,6 +22,6 @@ export const DEMO_PLAYERS = [
   { userId: '1a2200aa-0000-4000-8000-0000000000a1', name: 'Andrew Ash', characterId: LAZZUH_CHARACTER_ID, characterName: 'Lazzuh Gun', sheetType: 'lazzuh' },
   { userId: '1a2200aa-0000-4000-8000-0000000000a2', name: 'Jacob Maddux', characterId: '1a2200aa-0000-4000-8000-0000000000c2', characterName: 'Vera Kade', sheetType: 'generic' },
   { userId: '1a2200aa-0000-4000-8000-0000000000a3', name: 'Mira Sol', characterId: '1a2200aa-0000-4000-8000-0000000000c3', characterName: 'Sprocket', sheetType: 'generic' },
-  { userId: '1a2200aa-0000-4000-8000-0000000000a4', name: 'Nyx Vale', characterId: '1a2200aa-0000-4000-8000-0000000000c4', characterName: 'Nova Vex', sheetType: 'generic' },
+  { userId: '1a2200aa-0000-4000-8000-0000000000a4', name: 'Nyx Vale', characterId: '1a2200aa-0000-4000-8000-0000000000c4', characterName: 'Nova Vex', sheetType: 'nova' },
 ] as const;
 

@@ -88,7 +88,7 @@ async function main() {
       await client.query(
         `INSERT INTO dnd_characters (id, campaign_id, owner_user_id, name, sheet_type, data, visibility, is_npc)
            VALUES ($1, $2, $3, $4, $5, $6::jsonb, 'campaign', false)
-         ON CONFLICT (id) DO UPDATE SET campaign_id = EXCLUDED.campaign_id, owner_user_id = EXCLUDED.owner_user_id, name = EXCLUDED.name`,
+         ON CONFLICT (id) DO UPDATE SET campaign_id = EXCLUDED.campaign_id, owner_user_id = EXCLUDED.owner_user_id, name = EXCLUDED.name, sheet_type = EXCLUDED.sheet_type`,
         [p.characterId, DEMO_CAMPAIGN_ID, p.userId, p.characterName, p.sheetType, JSON.stringify(blankCharacter(p.characterName))],
       );
     }
