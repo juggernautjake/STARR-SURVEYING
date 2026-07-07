@@ -12,29 +12,30 @@ export const LAZZUH_CHARACTER_ID = '1a2200aa-0000-4000-8000-000000000001';
 // these identities by clicking their card (no password).
 export const DEMO_CAMPAIGN_ID = '1a2200aa-0000-4000-8000-0000000000c1';
 // The DM of the Neon Odyssey demo is Andrew Ash (id a1). He also runs the streamer
-// NPC "Nova Vex" (DM-controlled chat). Reconfigured 2026-07-06 (was "Game Master" d1).
+// NPC "xxRainbowKittenUwU37xx" (DM-controlled chat). Reconfigured 2026-07-06 (was "Game Master" d1).
 export const DEMO_DM_USER_ID = '1a2200aa-0000-4000-8000-0000000000a1';
 export const DEMO_DM_NAME = 'Andrew Ash';
 // The streamer character Andrew runs (its fake-Twitch chat is DM-controlled).
-export const DEMO_STREAMER_CHARACTER_ID = '1a2200aa-0000-4000-8000-0000000000c4'; // Nova Vex
+export const DEMO_STREAMER_CHARACTER_ID = '1a2200aa-0000-4000-8000-0000000000c4'; // xxRainbowKittenUwU37xx
 // Shared identity for open-access "＋ New Character" — visitors create + own imported
 // characters as Guest (real accounts come with auth later).
 export const DEMO_GUEST_USER_ID = '1a2200aa-0000-4000-8000-0000000000e0';
 
 // Each player: a dnd_user id + the character they own. `lazzuh` reuses the canonical
-// Lazzuh row (owned by Jacob Maddux). Nova Vex (the streamer) is DM-run, so it's not a
-// player entry. The 3 non-Lazzuh sheets are placeholders to flesh out later.
+// Lazzuh row (owned by Jacob Maddux). The streamer (xxRainbowKittenUwU37xx) is DM-run,
+// so it's not a player entry. The 3 non-Lazzuh sheets are placeholders to flesh out later.
 export const DEMO_PLAYERS = [
   { userId: '1a2200aa-0000-4000-8000-0000000000a2', name: 'Jacob Maddux', characterId: LAZZUH_CHARACTER_ID, characterName: 'Lazzuh Gun', sheetType: 'lazzuh' },
   { userId: '1a2200aa-0000-4000-8000-0000000000a3', name: 'Mira Sol', characterId: '1a2200aa-0000-4000-8000-0000000000c2', characterName: 'Vera Kade', sheetType: 'generic' },
   { userId: '1a2200aa-0000-4000-8000-0000000000a4', name: 'Nyx Vale', characterId: '1a2200aa-0000-4000-8000-0000000000c3', characterName: 'Sprocket', sheetType: 'generic' },
 ] as const;
 
-// The DM-run streamer NPC (Nova Vex, id c4) — not a player entry, owned by the DM.
-// Her bespoke `nova` sheet skin (§6.9) rides on this row's sheet_type.
+// The DM-run streamer NPC (xxRainbowKittenUwU37xx, id c4) — not a player entry,
+// owned by the DM. Her bespoke `streamer` sheet skin (§6.9) rides on this row's
+// sheet_type; scripts/dnd-seed-demo.ts seeds her a full statted sheet.
 export const DEMO_STREAMER = {
   characterId: DEMO_STREAMER_CHARACTER_ID,
-  characterName: 'Nova Vex',
-  sheetType: 'nova',
+  characterName: 'xxRainbowKittenUwU37xx',
+  sheetType: 'streamer',
 } as const;
 

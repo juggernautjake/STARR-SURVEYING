@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 // @ts-expect-error - no type declarations for 'pg'
 import pg from 'pg';
 import { blankCharacter } from '../app/dnd/_sheet/data/blank';
+import { streamerCharacter } from '../app/dnd/_sheet/data/streamer';
 import { DEMO_CAMPAIGN_ID, DEMO_DM_USER_ID, DEMO_GUEST_USER_ID, DEMO_PLAYERS, DEMO_STREAMER, LAZZUH_CHARACTER_ID } from '../lib/dnd/constants';
 
 const { Client } = pg;
@@ -93,13 +94,14 @@ async function main() {
       );
     }
 
-    // Nova Vex — the DM-run streamer NPC (her fake-Twitch chat is DM-controlled).
-    // Owned by the DM, flagged is_npc, and carrying the bespoke `nova` pixel skin.
+    // xxRainbowKittenUwU37xx — the DM-run streamer NPC (fake-Twitch chat + influence
+    // meter are DM-controlled). Owned by the DM, flagged is_npc, with a full statted
+    // streamer sheet and the bespoke `streamer` pixel skin.
     await client.query(
       `INSERT INTO dnd_characters (id, campaign_id, owner_user_id, name, sheet_type, data, visibility, is_npc)
          VALUES ($1, $2, $3, $4, $5, $6::jsonb, 'campaign', true)
-       ON CONFLICT (id) DO UPDATE SET campaign_id = EXCLUDED.campaign_id, owner_user_id = EXCLUDED.owner_user_id, name = EXCLUDED.name, sheet_type = EXCLUDED.sheet_type, is_npc = EXCLUDED.is_npc`,
-      [DEMO_STREAMER.characterId, DEMO_CAMPAIGN_ID, DEMO_DM_USER_ID, DEMO_STREAMER.characterName, DEMO_STREAMER.sheetType, JSON.stringify(blankCharacter(DEMO_STREAMER.characterName))],
+       ON CONFLICT (id) DO UPDATE SET campaign_id = EXCLUDED.campaign_id, owner_user_id = EXCLUDED.owner_user_id, name = EXCLUDED.name, sheet_type = EXCLUDED.sheet_type, data = EXCLUDED.data, is_npc = EXCLUDED.is_npc`,
+      [DEMO_STREAMER.characterId, DEMO_CAMPAIGN_ID, DEMO_DM_USER_ID, DEMO_STREAMER.characterName, DEMO_STREAMER.sheetType, JSON.stringify(streamerCharacter(DEMO_STREAMER.characterName))],
     );
 
     const { rows } = await client.query(
