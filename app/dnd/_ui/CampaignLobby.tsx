@@ -59,6 +59,26 @@ export default function CampaignLobby({ data }: { data: CampaignLobbyData }) {
               </button>
             ))}
 
+            {/* DM-run NPCs (e.g. the streamer) — open their sheet by entering as the DM. */}
+            {data.dm && data.npcs.map((n) => (
+              <button
+                key={n.characterId}
+                className={styles.framedPanel}
+                onClick={() => enter(data.dm!.userId, `/dnd/characters/${n.characterId}`)}
+                disabled={!!entering}
+                style={{ cursor: 'pointer', textAlign: 'center', padding: '18px 12px', opacity: entering && entering !== data.dm!.userId ? 0.5 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
+              >
+                {n.portrait ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img className={styles.portrait} src={n.portrait} alt="" style={{ width: 84, height: 84 }} />
+                ) : (
+                  <span className={styles.portrait} style={{ width: 84, height: 84, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 34, fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)' }}>{initial(n.name)}</span>
+                )}
+                <span style={{ fontFamily: 'var(--hx-font-display)', fontSize: 15, color: 'var(--hx-gold-2)', letterSpacing: '0.03em', wordBreak: 'break-word' }}>{n.name}</span>
+                <span style={{ fontSize: 11, letterSpacing: '0.1em', color: 'var(--hx-teal-1)' }}>NPC · DM-RUN</span>
+              </button>
+            ))}
+
             {data.guestUserId && (
               <button
                 className={styles.framedPanel}
