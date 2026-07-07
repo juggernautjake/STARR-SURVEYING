@@ -51,17 +51,17 @@ export const lazzuhTheme: SheetTheme = {
   },
 };
 
-// Nova Vex — the peppy, hot-pink digital-being streamer (§6.9). She reads as a
-// creature made of bright-pink pixels (a happy, neon Cortana), so her palette leans
-// into hot magenta + holographic cyan on a deep indigo "screen" void. The pixel/CRT
-// texture, scanlines, glitch and 8-bit fonts come from the `skin-nova` class in
-// theme.css; these tokens carry the color/typography half of the look.
-export const novaTheme: SheetTheme = {
+// Streamer skin (§6.9) — a bright, peppy magical-girl broadcaster palette (worn by
+// xxRainbowKittenUwU37xx): white + hot pink with gold and purple accents. It's a
+// LIGHT theme, so `void`/`panel` are pale and `ink` is a deep plum for readable text;
+// the `skin-streamer` class in theme.css flips the base sheet's hardcoded white
+// headings to `ink` and layers the pixel/CRT texture on top.
+export const streamerTheme: SheetTheme = {
   colors: {
-    // Nova runs a BRIGHT "magical-girl broadcast" palette: white + hot pink with
-    // gold and purple accents (matching her art). It's a light theme, so `void`/
-    // `panel` are pale and `ink` is a deep plum for readable text; the `skin-nova`
-    // CSS flips the base sheet's hardcoded white headings to `ink` to suit.
+    // A BRIGHT "magical-girl broadcast" palette: white + hot pink with gold and
+    // purple accents. It's a light theme, so `void`/`panel` are pale and `ink` is a
+    // deep plum for readable text; the `skin-streamer` CSS flips the base sheet's
+    // hardcoded white headings to `ink` to suit.
     void: '#fff0fa',
     'void-2': '#ffe8f6',
     panel: '#fffafe',

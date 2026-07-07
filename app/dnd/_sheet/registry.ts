@@ -8,7 +8,7 @@
 // The engine (App) renders a module's tab/content only when the character's
 // sheet_type registers it, so new characters are "a theme + data (+ maybe a
 // module)" rather than a fork.
-import { lazzuhTheme, novaTheme, type SheetTheme } from './theme';
+import { lazzuhTheme, streamerTheme, type SheetTheme } from './theme';
 
 // Known character-only mechanic modules. Add an id here when a new bespoke
 // mechanic is built (e.g. the streamer's live 'chat' panel — §6.9).
@@ -17,7 +17,7 @@ export type SheetModuleId = 'forms';
 // A `skin` is a bespoke visual treatment beyond color/font tokens — the extra CSS
 // (pixel frames, scanlines, glitch, etc.) lives under `.dnd-sheet.skin-<id>` in
 // theme.css. The engine appends `skin-<id>` to the sheet root when set.
-export type SheetSkinId = 'nova';
+export type SheetSkinId = 'streamer';
 
 export interface SheetTypeConfig {
   label: string;
@@ -30,8 +30,8 @@ export interface SheetTypeConfig {
 export const SHEET_REGISTRY: Record<string, SheetTypeConfig> = {
   // The Lazzuh Gun reference sheet: neon skin + the Surge/forms module.
   lazzuh: { label: 'Lazzuh Gun', theme: lazzuhTheme, modules: ['forms'] },
-  // Nova Vex: hot-pink pixel/CRT "digital being" streamer skin (§6.9).
-  nova: { label: 'Nova Vex', theme: novaTheme, skin: 'nova', modules: [] },
+  // Bright hot-pink pixel/CRT magical-girl streamer skin (§6.9) — e.g. xxRainbowKittenUwU37xx.
+  streamer: { label: 'Streamer', theme: streamerTheme, skin: 'streamer', modules: [] },
   // Fallback for a character with no bespoke skin/modules yet.
   generic: { label: 'Generic', modules: [] },
 };

@@ -151,7 +151,7 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                     <select className={styles.input} style={{ width: 'auto', padding: '8px 10px' }} value={newChar.sheetType} onChange={(e) => setNewChar((c) => ({ ...c, sheetType: e.target.value }))}>
                       <option value="generic">Generic</option>
                       <option value="lazzuh">Lazzuh</option>
-                      <option value="nova">Nova Vex</option>
+                      <option value="streamer">Streamer</option>
                     </select>
                     <select className={styles.input} style={{ width: 'auto', padding: '8px 10px' }} value={newChar.isNpc ? 'npc' : 'pc'} onChange={(e) => setNewChar((c) => ({ ...c, isNpc: e.target.value === 'npc' }))}>
                       <option value="pc">PC</option>
