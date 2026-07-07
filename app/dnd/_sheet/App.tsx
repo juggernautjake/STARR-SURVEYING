@@ -57,6 +57,7 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
   // skin + which character-only modules to render.
   const config = getSheetConfig(sheetType)
   const hasForms = config.modules.includes('forms')
+  const hasStream = config.modules.includes('stream')
   const visibleTabs = TABS.filter((t) => !('module' in t) || config.modules.includes(t.module))
   // An explicit theme prop wins; otherwise fall back to the sheet_type's theme (C7).
   const effectiveTheme = theme ?? config.theme
@@ -151,8 +152,9 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
         </div>
       )}
 
-      {/* DM control panel — renders only in DM mode (§6.8.1 / C10). */}
-      <DmOverridePanel />
+      {/* DM control panel — renders only in DM mode (§6.8.1 / C10). Stream controls
+          inside it show only for characters with the `stream` module. */}
+      <DmOverridePanel hasStream={hasStream} />
 
       <div className="appgrid">
         <div className="maincol">
@@ -248,9 +250,11 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
         </div>
       </div>
 
-      {characterId && <StreamAlert characterId={characterId} />}
-      {characterId && <StreamPoll characterId={characterId} isController={isDM} />}
-      {characterId && <StreamChat characterId={characterId} campaignId={campaignId} />}
+      {/* Live-stream feature (chat + influence meter + alerts/polls) — only for
+          characters whose sheet_type registers the `stream` module (§6.9). */}
+      {hasStream && characterId && <StreamAlert characterId={characterId} />}
+      {hasStream && characterId && <StreamPoll characterId={characterId} isController={isDM} />}
+      {hasStream && characterId && <StreamChat characterId={characterId} campaignId={campaignId} />}
       </div>
     </div>
   )

@@ -11,8 +11,9 @@
 import { lazzuhTheme, streamerTheme, type SheetTheme } from './theme';
 
 // Known character-only mechanic modules. Add an id here when a new bespoke
-// mechanic is built (e.g. the streamer's live 'chat' panel — §6.9).
-export type SheetModuleId = 'forms';
+// mechanic is built. `stream` = the live streamer chat + influence meter + the
+// DM's stream controls (§6.9); only characters that register it get those.
+export type SheetModuleId = 'forms' | 'stream';
 
 // A `skin` is a bespoke visual treatment beyond color/font tokens — the extra CSS
 // (pixel frames, scanlines, glitch, etc.) lives under `.dnd-sheet.skin-<id>` in
@@ -31,7 +32,8 @@ export const SHEET_REGISTRY: Record<string, SheetTypeConfig> = {
   // The Lazzuh Gun reference sheet: neon skin + the Surge/forms module.
   lazzuh: { label: 'Lazzuh Gun', theme: lazzuhTheme, modules: ['forms'] },
   // Bright hot-pink pixel/CRT magical-girl streamer skin (§6.9) — e.g. xxRainbowKittenUwU37xx.
-  streamer: { label: 'Streamer', theme: streamerTheme, skin: 'streamer', modules: [] },
+  // The `stream` module unlocks the live chat, influence meter, and DM stream controls.
+  streamer: { label: 'Streamer', theme: streamerTheme, skin: 'streamer', modules: ['stream'] },
   // Fallback for a character with no bespoke skin/modules yet.
   generic: { label: 'Generic', modules: [] },
 };
