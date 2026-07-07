@@ -68,6 +68,22 @@ export function setDndSession(user: { id: string; email: string; display_name: s
   });
 }
 
+// Access model (user decision 2026-07-06): /dnd is PUBLIC by default — a hidden hub
+// reachable by direct link only (noindex, no links in from the marketing site). The
+// home page is a public roster picker and clicking a card "enters as" that identity
+// (no password). The full invite/login infrastructure (B1–B7) is retained and can be
+// switched back on for the future by setting DND_REQUIRE_LOGIN=1, which flips the
+// middleware gate + the page-level redirects back to the login flow.
+export function isDndLoginRequired(): boolean {
+  return process.env.DND_REQUIRE_LOGIN === '1';
+}
+
+/** True when /dnd is running open (the default). Kept as the name the pages already
+ *  use; it's simply the inverse of the opt-in login gate. */
+export function isDndOpenAccess(): boolean {
+  return !isDndLoginRequired();
+}
+
 export function getDndSession(): DndSession | null {
   const token = cookies().get(COOKIE)?.value;
   if (!token) return null;
