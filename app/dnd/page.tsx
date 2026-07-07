@@ -2,19 +2,40 @@
 // A DM (of any campaign) lands on the dashboard; a player with exactly one
 // character goes straight to their sheet; everyone else gets the dashboard.
 import { redirect } from 'next/navigation';
-import { getDndUser, isDndOpenAccess } from '@/lib/dnd/auth';
+import { getDndSession, getDndUser, isDndOpenAccess } from '@/lib/dnd/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import CampaignDashboard from './_ui/CampaignDashboard';
 import CampaignsHome from './_ui/CampaignsHome';
-import { loadAllCampaignSummaries } from '@/lib/dnd/campaign-summary';
+import HubSignIn from './_ui/HubSignIn';
+import MyTable from './_ui/MyTable';
+import styles from './_ui/hextech.module.css';
+import { loadAllCampaignSummaries, loadUserProfile } from '@/lib/dnd/campaign-summary';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DndHubPage() {
-  // Open-access hub (Phase N): the /dnd home lists every campaign; clicking one opens
-  // that campaign's lobby (players → sheets, DM → control panel).
+  // Open-access hub (Phase N/P): the /dnd home lists every campaign; anyone can also
+  // "sign in" with the pseudo-login (name + password) to track their own characters and
+  // the campaigns they're in or running.
   if (isDndOpenAccess()) {
-    return <CampaignsHome campaigns={await loadAllCampaignSummaries()} />;
+    const session = getDndSession();
+    const profile = session ? await loadUserProfile(session.userId) : null;
+    return (
+      <div className={styles.root}>
+        <div className={styles.screen} style={{ alignItems: 'flex-start' }}>
+          <div style={{ width: '100%', maxWidth: 960, display: 'grid', gap: 22, margin: '0 auto' }}>
+            <div style={{ textAlign: 'center' }}>
+              <p className={styles.brand}>Starr Tabletop</p>
+              <h1 className={styles.title}>Campaigns</h1>
+              <p className={styles.subtitle}>Sign in to track your table, or pick any campaign to open it.</p>
+            </div>
+            <HubSignIn displayName={session?.displayName ?? null} />
+            {profile && <MyTable profile={profile} />}
+            <CampaignsHome campaigns={await loadAllCampaignSummaries()} embedded />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const user = await getDndUser();

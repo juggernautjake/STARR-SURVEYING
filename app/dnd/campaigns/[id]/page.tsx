@@ -4,8 +4,9 @@
 // members see the management page; anyone else is sent to login.
 import { redirect } from 'next/navigation';
 import { getDndUser, getCampaignRole, isDndOpenAccess } from '@/lib/dnd/auth';
-import { loadCampaignLobby } from '@/lib/dnd/campaign-summary';
+import { loadCampaignLobby, loadCampaignHub } from '@/lib/dnd/campaign-summary';
 import CampaignPageClient from '@/app/dnd/_ui/CampaignPageClient';
+import CampaignHub from '@/app/dnd/_ui/CampaignHub';
 import CampaignLobby from '@/app/dnd/_ui/CampaignLobby';
 
 export const dynamic = 'force-dynamic';
@@ -15,17 +16,26 @@ export default async function CampaignPage({ params }: { params: { id: string } 
   const user = await getDndUser();
   const role = user ? await getCampaignRole(params.id) : null;
 
-  // The DM of this campaign gets the management/control panel.
+  // The DM of this campaign gets the full management/control panel — all the DM-only
+  // features (roster editing, soundboard, private messaging, streamer controls via each
+  // sheet in DM mode). Players never see these (Phase P).
   if (role === 'dm') return <CampaignPageClient campaignId={params.id} />;
 
-  // Open-access: show the "enter as" lobby for this campaign.
+  // A signed-in player who belongs to the campaign gets the player-facing hub:
+  // roster + DM, campaign art, chat + whisper-the-DM, read-only summaries.
+  if (role === 'player' && user) {
+    const hub = await loadCampaignHub(params.id, user.id, 'player');
+    if (!hub) redirect('/dnd');
+    return <CampaignHub data={hub} selfId={user.id} />;
+  }
+
+  // Open-access, not a member: show the "enter as" lobby for this campaign.
   if (openAccess) {
     const lobby = await loadCampaignLobby(params.id);
     if (!lobby) redirect('/dnd');
     return <CampaignLobby data={lobby} />;
   }
 
-  // Login mode: a member sees the page; otherwise sign in.
-  if (!user) redirect(`/dnd/login?next=/dnd/campaigns/${params.id}`);
-  return <CampaignPageClient campaignId={params.id} />;
+  // Login mode, not a member: sign in first.
+  redirect(`/dnd/login?next=/dnd/campaigns/${params.id}`);
 }

@@ -55,3 +55,35 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     sessions: sessions ?? [],
   });
 }
+
+// PATCH — DM-only campaign edits (Phase P): name, blurb, and the campaign art banner
+// (stored in the `theme` jsonb as `artUrl`). Only the fields provided are changed.
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const session = getDndSession();
+  if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  if ((await getCampaignRole(params.id)) !== 'dm') {
+    return NextResponse.json({ error: 'Only the DM can edit the campaign.' }, { status: 403 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const patch: Record<string, unknown> = {};
+  if (typeof body.name === 'string' && body.name.trim()) patch.name = body.name.trim();
+  if (typeof body.blurb === 'string') patch.blurb = body.blurb;
+
+  if ('artUrl' in body) {
+    const { data: cur } = await supabaseAdmin.from('dnd_campaigns').select('theme').eq('id', params.id).maybeSingle();
+    const theme = ((cur?.theme as Record<string, unknown> | null) ?? {}) as Record<string, unknown>;
+    patch.theme = { ...theme, artUrl: body.artUrl ? String(body.artUrl) : null };
+  }
+
+  if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 });
+
+  const { data, error } = await supabaseAdmin
+    .from('dnd_campaigns')
+    .update(patch)
+    .eq('id', params.id)
+    .select('id, name, blurb, theme')
+    .single();
+  if (error || !data) return NextResponse.json({ error: error?.message ?? 'Update failed.' }, { status: 500 });
+  return NextResponse.json({ campaign: data });
+}

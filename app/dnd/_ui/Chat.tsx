@@ -25,9 +25,9 @@ const CHANNELS: { id: ChannelKind; label: string }[] = [
   { id: 'group', label: 'Group' },
 ]
 
-export default function Chat({ campaignId, initialMembers, selfId }: { campaignId: string; initialMembers?: { id: string; name: string }[]; selfId?: string }) {
-  const [channel, setChannel] = useState<ChannelKind>('party')
-  const [recipients, setRecipients] = useState<string[]>([])
+export default function Chat({ campaignId, initialMembers, selfId, initialChannel, initialRecipients }: { campaignId: string; initialMembers?: { id: string; name: string }[]; selfId?: string; initialChannel?: ChannelKind; initialRecipients?: string[] }) {
+  const [channel, setChannel] = useState<ChannelKind>(initialChannel ?? 'party')
+  const [recipients, setRecipients] = useState<string[]>(initialRecipients ?? [])
   const [messages, setMessages] = useState<Msg[]>([])
   const [names, setNames] = useState<Record<string, string>>(initialMembers ? Object.fromEntries(initialMembers.map((m) => [m.id, m.name])) : {})
   const [members, setMembers] = useState<{ id: string; name: string }[]>(initialMembers ?? [])
