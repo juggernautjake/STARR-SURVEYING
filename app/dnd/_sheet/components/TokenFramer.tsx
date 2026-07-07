@@ -13,12 +13,12 @@ function clamp(n: number, lo = 0, hi = 100) {
   return Math.max(lo, Math.min(hi, n))
 }
 
-export default function TokenFramer() {
+export default function TokenFramer({ src: srcProp }: { src?: string }) {
   const { char, setChar, canWrite, media } = useChar()
   const [open, setOpen] = useState(false)
   const boxRef = useRef<HTMLDivElement>(null)
 
-  const src = media.tokenUrl ?? media.artUrl ?? null
+  const src = srcProp ?? media.tokenUrl ?? media.artUrl ?? null
   if (!canWrite || !src) return null
 
   const focus = char.tokenFocus ?? DEFAULT

@@ -20,20 +20,53 @@ export type SheetModuleId = 'forms' | 'stream';
 // theme.css. The engine appends `skin-<id>` to the sheet root when set.
 export type SheetSkinId = 'streamer';
 
+// Per-character flavor for the "roll for initiative" prompt (§6 initiative). Purely
+// cosmetic copy + accent; the roll math (d20 + the character's init bonus) is shared.
+export interface InitiativeFlavor {
+  kicker: string;
+  title: string;
+  rollLabel: string;
+  lockLabel: string;
+  /** CSS color (a var() is fine) for the prompt's glow + result. */
+  accent: string;
+}
+
+export const DEFAULT_INITIATIVE: InitiativeFlavor = {
+  kicker: 'ENCOUNTER // INITIATIVE',
+  title: 'Roll for Initiative!',
+  rollLabel: '🎲 Roll d20',
+  lockLabel: 'Lock in',
+  accent: 'var(--hotpink)',
+};
+
 export interface SheetTypeConfig {
   label: string;
   theme?: SheetTheme;
   /** Extra visual treatment class (adds `.skin-<id>` to the sheet root). */
   skin?: SheetSkinId;
   modules: SheetModuleId[];
+  /** Bespoke copy/accent for the initiative prompt (falls back to DEFAULT). */
+  initiative?: InitiativeFlavor;
 }
 
 export const SHEET_REGISTRY: Record<string, SheetTypeConfig> = {
-  // The Lazzuh Gun reference sheet: neon skin + the Surge/forms module.
-  lazzuh: { label: 'Lazzuh Gun', theme: lazzuhTheme, modules: ['forms'] },
+  // The Lazzuh Gun reference sheet: neon skin + the Surge/forms module. His initiative
+  // prompt leans into the Jenovan-barbarian rage/surge vibe with a cyan neon glow.
+  lazzuh: {
+    label: 'Lazzuh Gun',
+    theme: lazzuhTheme,
+    modules: ['forms'],
+    initiative: { kicker: 'NEON ODYSSEY // COMBAT', title: 'Surge Initiative!', rollLabel: '⚡ Roll the Surge', lockLabel: 'Surge in', accent: 'var(--tealbright)' },
+  },
   // Bright hot-pink pixel/CRT magical-girl streamer skin (§6.9) — e.g. xxRainbowKittenUwU37xx.
   // The `stream` module unlocks the live chat, influence meter, and DM stream controls.
-  streamer: { label: 'Streamer', theme: streamerTheme, skin: 'streamer', modules: ['stream'] },
+  streamer: {
+    label: 'Streamer',
+    theme: streamerTheme,
+    skin: 'streamer',
+    modules: ['stream'],
+    initiative: { kicker: 'ENCOUNTER // INITIATIVE', title: 'Roll for Initiative!', rollLabel: '🎲 Roll d20', lockLabel: 'Lock in', accent: 'var(--hotpink)' },
+  },
   // Fallback for a character with no bespoke skin/modules yet.
   generic: { label: 'Generic', modules: [] },
 };

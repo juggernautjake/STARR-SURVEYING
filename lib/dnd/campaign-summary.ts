@@ -22,12 +22,20 @@ export interface LobbyPlayer {
   portrait: string | null;
 }
 
+export interface LobbyNpc {
+  characterId: string;
+  name: string;
+  portrait: string | null;
+}
+
 export interface CampaignLobbyData {
   id: string;
   name: string;
   setting: string | null;
   dm: { userId: string; name: string } | null;
   players: LobbyPlayer[];
+  /** DM-run NPCs (e.g. the streamer) — shown so they can be opened from the lobby. */
+  npcs: LobbyNpc[];
   guestUserId: string | null;
 }
 
@@ -98,12 +106,17 @@ export async function loadCampaignLobby(campaignId: string): Promise<CampaignLob
       };
     });
 
+  const npcs: LobbyNpc[] = characters
+    .filter((ch) => ch.is_npc)
+    .map((ch) => ({ characterId: ch.id, name: ch.name, portrait: ch.token_url ?? ch.art_url ?? null }));
+
   return {
     id: campaign.id,
     name: campaign.name,
     setting: campaign.blurb,
     dm: dmMem ? { userId: dmMem.user_id, name: names.get(dmMem.user_id) ?? 'Dungeon Master' } : null,
     players,
+    npcs,
     guestUserId: campaignId === DEMO_CAMPAIGN_ID ? DEMO_GUEST_USER_ID : null,
   };
 }

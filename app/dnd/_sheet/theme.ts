@@ -95,6 +95,39 @@ export const streamerTheme: SheetTheme = {
   },
 };
 
+// Blue variant of the streamer skin — the same bright, pixel/CRT look mirrored into
+// electric blue + cyan (with gold + white). Paired with `.skin-streamer.variant-blue`
+// in theme.css, which swaps the accent triplets + backing colors to match.
+export const streamerThemeBlue: SheetTheme = {
+  colors: {
+    void: '#eef5ff',
+    'void-2': '#e2edff',
+    panel: '#f8fbff',
+    'panel-2': '#e8f1ff',
+    'panel-3': '#e2ecff',
+    ink: '#0d2a5a',
+    muted: '#4f6aa2',
+    'muted-2': '#6f88bd',
+    pink: '#4f8bff',
+    hotpink: '#2b7fff',
+    violet: '#22c0ff',
+    'violet-2': '#1d6fc0',
+    // "teal" → periwinkle accent; "tealbright" → gold (kept legible on light blue).
+    teal: '#5a7fd0',
+    tealbright: '#c98a0a',
+    gold: '#e0a400',
+    danger: '#e5344f',
+    good: '#1c9e63',
+    line: 'rgba(43, 127, 255, 0.30)',
+    'line-strong': 'rgba(43, 127, 255, 0.58)',
+  },
+  fonts: {
+    display: "'Pixelify Sans', 'Oswald', 'Arial Narrow', sans-serif",
+    body: "'Chakra Petch', 'Barlow Condensed', 'Segoe UI', sans-serif",
+    mono: "'VT323', 'JetBrains Mono', 'Consolas', monospace",
+  },
+};
+
 // Map a SheetTheme to the CSS custom properties theme.css consumes. Returns a
 // style object suitable for the `.dnd-sheet` root; an empty/undefined theme yields
 // no overrides (the stylesheet's Lazzuh defaults apply).

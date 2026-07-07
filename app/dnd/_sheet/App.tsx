@@ -5,7 +5,7 @@
 // scrollbars) apply here without leaking onto the rest of the Starr site.
 import { useState } from 'react'
 import './styles/theme.css'
-import { themeToCssVars, type SheetTheme } from './theme'
+import { themeToCssVars, streamerThemeBlue, type SheetTheme } from './theme'
 import { getSheetConfig, type SheetModuleId } from './registry'
 import { useChar } from './state/store'
 import StreamChat from './components/StreamChat'
@@ -30,6 +30,8 @@ import DiceTray from './components/DiceTray'
 import DmOverridePanel from './components/DmOverridePanel'
 import SheetArtUploader from './components/SheetArtUploader'
 import TokenFramer from './components/TokenFramer'
+import SkinSwitch from './components/SkinSwitch'
+import InitiativePrompt from './components/InitiativePrompt'
 import DescriptionsPanel from './components/DescriptionsPanel'
 import CharacterGallery from './components/CharacterGallery'
 import { md } from './lib/inline'
@@ -59,18 +61,27 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
   const config = getSheetConfig(sheetType)
   const hasForms = config.modules.includes('forms')
   const hasStream = config.modules.includes('stream')
-  // All sheets use the portrait layout when the character has art: name + info on the
-  // left, full-body art on the right (wraps to stacked on narrow screens).
-  const artBeside = !!media.artUrl
   const visibleTabs = TABS.filter((t) => !('module' in t) || config.modules.includes(t.module))
-  // An explicit theme prop wins; otherwise fall back to the sheet_type's theme (C7).
-  const effectiveTheme = theme ?? config.theme
+
+  // Streamer skin variant (pink | blue) — the player toggles it; it swaps the color
+  // theme, the `.variant-<id>` class, AND the character art/token (§6.9).
+  const supportsVariants = config.skin === 'streamer'
+  const variant = supportsVariants ? char.skinVariant ?? 'pink' : 'pink'
+  // An explicit theme prop wins; otherwise the variant's theme, else the sheet_type's.
+  const effectiveTheme = theme ?? (supportsVariants && variant === 'blue' ? streamerThemeBlue : config.theme)
+
+  // Per-variant art/token, falling back to the single DB art_url/token_url (media).
+  const vArt = supportsVariants ? char.variantArt?.[variant] : undefined
+  const artUrl = vArt?.art ?? media.artUrl
+  const tokenUrl = vArt?.token ?? media.tokenUrl
+  // Portrait layout when the character has art: name/info left, full-body art right.
+  const artBeside = !!artUrl
 
   // A per-character theme overrides the stylesheet's default CSS variables here on
   // the scope root; omitted tokens keep the Lazzuh defaults from theme.css (C7). A
-  // registered `skin` adds a `skin-<id>` class that unlocks its bespoke CSS treatment
-  // (pixel frames, scanlines, glitch…) scoped under `.dnd-sheet.skin-<id>` (C8).
-  const rootClass = `dnd-sheet${config.skin ? ` skin-${config.skin}` : ''}`
+  // registered `skin` adds a `skin-<id>` class (+ `variant-<id>` for the streamer)
+  // that unlocks its bespoke CSS treatment scoped under `.dnd-sheet.skin-<id>` (C8).
+  const rootClass = `dnd-sheet${config.skin ? ` skin-${config.skin}` : ''}${supportsVariants ? ` variant-${variant}` : ''}`
   return (
     <div className={rootClass} style={themeToCssVars(effectiveTheme)}>
       <div className="wrap">
@@ -99,7 +110,7 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
       {/* Round profile token (D2). Falls back to the hero art cropped to the top
           (her face) when no dedicated token is uploaded — so a full-body art still
           gives a face icon. */}
-      {(media.tokenUrl || media.artUrl) && (
+      {(tokenUrl || artUrl) && (
         <div
           className="token-frame"
           style={{
@@ -114,7 +125,7 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={media.tokenUrl ?? media.artUrl ?? ''}
+            src={tokenUrl ?? artUrl ?? ''}
             alt={`${char.meta.name} — token`}
             style={{
               width: '100%',
@@ -123,7 +134,7 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
               objectFit: 'cover',
               // Adjustable framing (D2): focus point + zoom set via the token framer;
               // default centers a token, or shows the top of a full-body art (face).
-              objectPosition: char.tokenFocus ? `${char.tokenFocus.x}% ${char.tokenFocus.y}%` : media.tokenUrl ? 'center' : '50% 8%',
+              objectPosition: char.tokenFocus ? `${char.tokenFocus.x}% ${char.tokenFocus.y}%` : tokenUrl ? 'center' : '50% 8%',
               transform: char.tokenFocus && char.tokenFocus.zoom > 1 ? `scale(${char.tokenFocus.zoom})` : undefined,
               transformOrigin: char.tokenFocus ? `${char.tokenFocus.x}% ${char.tokenFocus.y}%` : 'center',
             }}
@@ -142,7 +153,7 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
           <div className="card art-frame" style={{ flex: '0 1 320px', padding: 8, alignSelf: 'flex-start', textAlign: 'center' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={media.artUrl ?? ''}
+              src={artUrl ?? ''}
               alt={`${char.meta.name} — character art`}
               // Scale to fit the frame, keep aspect ratio, show the whole image.
               style={{ display: 'inline-block', maxWidth: '100%', maxHeight: 560, width: 'auto', height: 'auto', borderRadius: 4 }}
@@ -153,10 +164,12 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
         <Hero />
       )}
 
-      {/* Owner-DM art/token uploader — sets the images shown above + in the gallery (D1/D2). */}
-      <SheetArtUploader />
-      {/* Adjust which part of the image the round token crops from (D2). */}
-      <TokenFramer />
+      {/* Pink/blue style switch (streamer skin only) — swaps theme, class, and art. */}
+      {supportsVariants && <SkinSwitch />}
+      {/* Owner-DM art/token uploader — per-variant when the skin has variants (D1/D2). */}
+      <SheetArtUploader variant={supportsVariants ? variant : undefined} />
+      {/* Adjust which part of the (variant-aware) image the round token crops from (D2). */}
+      <TokenFramer src={tokenUrl ?? artUrl ?? undefined} />
 
       {/* DM control panel — renders only in DM mode (§6.8.1 / C10). Stream controls
           inside it show only for characters with the `stream` module. */}
@@ -261,6 +274,10 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
       {hasStream && characterId && <StreamAlert characterId={characterId} />}
       {hasStream && characterId && <StreamPoll characterId={characterId} isController={isDM} />}
       {hasStream && characterId && <StreamChat characterId={characterId} campaignId={campaignId} />}
+
+      {/* DM-broadcast initiative roller — dims the screen + rolls with this
+          character's bonus when the DM sends it out; flavor per sheet_type. */}
+      {characterId && campaignId && <InitiativePrompt flavor={config.initiative} />}
       </div>
     </div>
   )
