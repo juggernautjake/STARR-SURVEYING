@@ -70,10 +70,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (typeof body.name === 'string' && body.name.trim()) patch.name = body.name.trim();
   if (typeof body.blurb === 'string') patch.blurb = body.blurb;
 
-  if ('artUrl' in body) {
+  // Art banner + campaign notes all live in the `theme` jsonb. `notes` is the
+  // player-visible campaign info; `dmNotes` is the DM's private prep (never sent to
+  // players). Merge so unspecified keys are preserved.
+  const themeKeys = ['artUrl', 'notes', 'dmNotes'] as const;
+  if (themeKeys.some((k) => k in body)) {
     const { data: cur } = await supabaseAdmin.from('dnd_campaigns').select('theme').eq('id', params.id).maybeSingle();
     const theme = ((cur?.theme as Record<string, unknown> | null) ?? {}) as Record<string, unknown>;
-    patch.theme = { ...theme, artUrl: body.artUrl ? String(body.artUrl) : null };
+    if ('artUrl' in body) theme.artUrl = body.artUrl ? String(body.artUrl) : null;
+    if ('notes' in body) theme.notes = typeof body.notes === 'string' ? body.notes : '';
+    if ('dmNotes' in body) theme.dmNotes = typeof body.dmNotes === 'string' ? body.dmNotes : '';
+    patch.theme = theme;
   }
 
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 });

@@ -199,15 +199,26 @@ export interface HubRecap {
   markdown: string;
 }
 
+export interface HubMedia {
+  id: string;
+  url: string;
+  kind: string;
+  label: string | null;
+}
+
 export interface CampaignHubData {
   id: string;
   name: string;
   setting: string | null;
   artUrl: string | null;
+  /** Player-visible campaign notes/summary (theme.notes). */
+  notes: string | null;
   dm: { userId: string; name: string } | null;
   members: { userId: string; name: string; role: 'dm' | 'player' }[];
   characters: HubCharacter[];
   recaps: HubRecap[];
+  /** Player-visible campaign gallery (DM-only images excluded). */
+  gallery: HubMedia[];
   /** The viewer's own character in this campaign (for the "your character" shortcut). */
   myCharacterId: string | null;
   viewerRole: 'dm' | 'player';
@@ -223,10 +234,11 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
 
   if (campaignId === DEMO_CAMPAIGN_ID) await ensureDemoStreamer();
 
-  const [{ data: mems }, { data: chars }, { data: sess }] = await Promise.all([
+  const [{ data: mems }, { data: chars }, { data: sess }, { data: mediaRows }] = await Promise.all([
     supabaseAdmin.from('dnd_campaign_members').select('user_id, role').eq('campaign_id', campaignId),
     supabaseAdmin.from('dnd_characters').select('id, name, is_npc, owner_user_id, token_url, art_url, sheet_type').eq('campaign_id', campaignId).order('is_npc', { ascending: true }),
     supabaseAdmin.from('dnd_sessions').select('id, title, sort_order').eq('campaign_id', campaignId).order('sort_order', { ascending: true }),
+    supabaseAdmin.from('dnd_media').select('id, url, kind, label, gallery_tags').eq('campaign_id', campaignId).order('created_at', { ascending: false }),
   ]);
   const members = (mems ?? []) as { user_id: string; role: string }[];
   const characters = (chars ?? []) as {
@@ -254,12 +266,19 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
       .filter((r): r is HubRecap => r !== null);
   }
 
+  // Player-visible gallery: campaign media not tagged `dm-only`.
+  const gallery: HubMedia[] = ((mediaRows ?? []) as { id: string; url: string; kind: string; label: string | null; gallery_tags: string[] | null }[])
+    .filter((m) => !(m.gallery_tags ?? []).includes('dm-only'))
+    .map((m) => ({ id: m.id, url: m.url, kind: m.kind, label: m.label }));
+
   const dmMem = members.find((m) => m.role === 'dm');
   return {
     id: campaign.id,
     name: campaign.name,
     setting: campaign.blurb,
     artUrl: typeof campaign.theme?.artUrl === 'string' ? (campaign.theme.artUrl as string) : null,
+    notes: typeof campaign.theme?.notes === 'string' && (campaign.theme.notes as string).trim() ? (campaign.theme.notes as string) : null,
+    gallery,
     dm: dmMem ? { userId: dmMem.user_id, name: names.get(dmMem.user_id) ?? 'Dungeon Master' } : null,
     members: members.map((m) => ({ userId: m.user_id, name: names.get(m.user_id) ?? 'Player', role: (m.role === 'dm' ? 'dm' : 'player') as 'dm' | 'player' })),
     characters: characters.map((ch) => ({

@@ -52,6 +52,35 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
             </div>
           )}
 
+          {/* Campaign info the DM shared with players */}
+          {data.notes && (
+            <section className={styles.framedPanel}>
+              <div className={styles.framedPanelTop} />
+              <h2 className={styles.panelTitle}>Campaign Info</h2>
+              <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.55, color: 'var(--hx-text)' }}>{data.notes}</div>
+            </section>
+          )}
+
+          {/* Player-visible gallery (maps, setting art, item art, handouts) */}
+          {data.gallery.length > 0 && (
+            <section className={styles.framedPanel}>
+              <div className={styles.framedPanelTop} />
+              <h2 className={styles.panelTitle}>Gallery &amp; Maps</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+                {data.gallery.map((m) => (
+                  <a key={m.id} href={m.url} target="_blank" rel="noreferrer" style={{ border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.4)', padding: 6, display: 'grid', gap: 4, textDecoration: 'none' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={m.url} alt={m.label ?? ''} style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 3 }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--hx-muted)' }}>
+                      <span>{m.kind}</span>
+                    </div>
+                    {m.label && <div style={{ fontSize: 12, color: 'var(--hx-text)', wordBreak: 'break-word' }}>{m.label}</div>}
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* Your character — open it, or create one if you haven't yet (onboarding) */}
           {data.myCharacterId ? (
             <a
