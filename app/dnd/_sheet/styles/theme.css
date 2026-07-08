@@ -2695,3 +2695,74 @@
   color: #ffe9f8;
 }
 .dnd-sheet.skin-streamer [data-stream-feed] p { color: #ffd6ef; }
+
+/* ── Mobile refinements (Phase P) ──────────────────────────────────────────────
+   Tighten the character sheet on phones and, crucially, turn the streamer's
+   floating chat dock into a full-width bottom sheet (a 360px dock clips off a
+   ~375px screen). Applies to every sheet (Lazzuh, the streamer, generics). */
+@media (max-width: 640px) {
+  /* HERO — less padding (the JS name-fit then renders the name larger), and stack
+     the title above the action buttons instead of squeezing them side by side. */
+  .dnd-sheet .hero {
+    padding: 18px 15px 16px;
+    border-radius: 14px;
+  }
+  .dnd-sheet .hero-top {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .dnd-sheet .hero-top > .btn-row {
+    justify-content: flex-start !important;
+    width: 100%;
+  }
+  .dnd-sheet .hero .role {
+    font-size: 16px;
+  }
+  .dnd-sheet h1.name {
+    line-height: 0.95;
+  }
+
+  /* Portrait header (name/info left + full-body art right) stacks; cap the art
+     height so it doesn't eat the whole first screen. */
+  .dnd-sheet .hero-portrait > .art-frame {
+    flex-basis: 100% !important;
+  }
+  .dnd-sheet .hero-portrait .art-frame img {
+    max-height: 340px !important;
+  }
+
+  /* TABS — a touch tighter so more fit per row. */
+  .dnd-sheet .tabs {
+    padding: 6px;
+    gap: 3px;
+  }
+  .dnd-sheet .tab {
+    padding: 7px 10px;
+    font-size: 12.5px;
+    gap: 5px;
+  }
+
+  /* STREAMER CHAT — full-width bottom sheet instead of a clipped floating dock.
+     Overrides the inline width/height/left/top the drag + resize handlers set;
+     dragging/resizing are off on mobile (it's docked to the bottom edge). */
+  .dnd-sheet .stream-dock {
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+    top: auto !important;
+    bottom: 8px !important;
+    height: min(62vh, 460px) !important;
+    min-width: 0 !important;
+  }
+  .dnd-sheet .stream-dock-head {
+    cursor: default;
+  }
+  .dnd-sheet .stream-resize {
+    display: none;
+  }
+  /* The floating "open chat" FAB sits just above the bottom edge, clear of thumbs. */
+  .dnd-sheet .stream-fab {
+    right: 14px;
+    bottom: 14px;
+  }
+}
