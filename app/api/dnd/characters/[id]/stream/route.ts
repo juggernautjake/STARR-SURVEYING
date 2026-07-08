@@ -68,7 +68,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     patch.moods = body.moods.filter((m: unknown) => typeof m === 'string').slice(0, 12);
   }
   // Aggressive-focus window (K): topic + when it ends + 1–5 intensity. Null topic clears it.
-  if (body.focusTopic !== undefined) patch.focus_topic = body.focusTopic ? String(body.focusTopic).slice(0, 240) : null;
+  // The focus text can be a paragraph / a pasted transcript of the players' dialogue.
+  if (body.focusTopic !== undefined) patch.focus_topic = body.focusTopic ? String(body.focusTopic).slice(0, 4000) : null;
   if (body.focusUntil !== undefined) patch.focus_until = body.focusUntil ? new Date(body.focusUntil).toISOString() : null;
   if (body.focusIntensity != null) patch.focus_intensity = Math.max(1, Math.min(5, Math.round(Number(body.focusIntensity)) || 3));
   // AI mood-line cache refresh (K) + idle auto-end bookkeeping.

@@ -51,7 +51,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           'Examples for a note like "she is about to walk into a trap": ' +
           '["ITS A TRAP GIRL","dont go in there 😭","NOOO turn around","she is so gonna step on it","behind you!!","run run RUN","not the trap 💀","chat do something","weeeee here she goes"]. ' +
           'Return ONLY a JSON array of strings, each under 60 chars.',
-        user: `Chat should be reacting to: "${String(directive).trim()}". Write ${n} short, clean, in-world chat lines all about that.`,
+        user: `The DM's note / pasted text (analyze it and react to what's happening or being said in it): """${String(directive).trim()}""". Write ${n} short, clean, in-world chat lines all about that — and VARY the aggressiveness across the batch: some calm/observational, some rowdy, some absolutely feral all-caps spam.`,
         maxTokens: 700,
         temperature: 1,
       });

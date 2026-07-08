@@ -12,8 +12,9 @@ import ReplyInbox from './stream/ReplyInbox'
 
 // Streamer-chat DM control (Phase K, revamped + decluttered). Exactly the tools the DM
 // needs, in one clear stack: go live + viewers + resist-DC (auto/manual), chat moods,
-// send-as-alias, AI director, a timed aggressive focus flood, chat search, a reply inbox,
-// and the utilities (polls / alerts / mod) tucked behind a "More" toggle. DM-only.
+// send-as-alias, one merged AI chat-focus field (type/paste text → chat reacts, with a
+// play/stop + aggressiveness + duration), chat search, a reply inbox, and the utilities
+// (polls / alerts / mod) tucked behind a "More" toggle. DM-only.
 interface Stream {
   is_live: boolean; viewer_count: number; chat_speed: number; engagement: number
   dc_mode: 'auto' | 'manual'; dc_manual: number | null; moods: string[]
@@ -39,13 +40,21 @@ export default function StreamControl() {
   const { characterId, isDM } = useChar()
   const [stream, setStream] = useState<Stream | null>(null)
   const [busy, setBusy] = useState(false)
-  const [directive, setDirective] = useState('')
-  const [directing, setDirecting] = useState(false)
-  // Focus flood controls.
-  const [focusTopic, setFocusTopic] = useState('')
+  // One merged AI chat-focus field: the DM types/pastes text (a topic, or a transcript of
+  // the players' dialogue) and hits ▶ Play; the AI analyses it and floods the chat with
+  // reactions across all aggressiveness levels until ■ Stop (or the timer, unless it's set
+  // to run indefinitely). Playing unselects the moods; stopping reverts to mood chat.
+  const [focusText, setFocusText] = useState('')
+  // The text the AI is CURRENTLY generating from (set on Play + Refresh). When the field
+  // differs from this, the "Refresh AI" button lights up; matching it again dims it.
+  const [activeText, setActiveText] = useState('')
   const [focusIntensity, setFocusIntensity] = useState(3)
   const [focusMin, setFocusMin] = useState(10)
+  const [focusIndefinite, setFocusIndefinite] = useState(false)
   const focusTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+  const focusTextRef = useRef('')
+  const focusIntensityRef = useRef(3)
+  const focusUntilRef = useRef(0)
   const [more, setMore] = useState(false)
   // Donations / superchats (R).
   const [donateAmt, setDonateAmt] = useState(10000)
@@ -150,8 +159,6 @@ export default function StreamControl() {
     return () => { stop = true; if (donoTimer.current) clearTimeout(donoTimer.current) }
   }, [characterId, live, donationsOn, generosity])
 
-  if (!isDM || !characterId) return null
-
   const patch = async (body: Record<string, unknown>) => {
     setBusy(true)
     try {
@@ -205,39 +212,93 @@ export default function StreamControl() {
     setStream((s) => (s ? { ...s, moods: next } : s)); void patch({ moods: next })
   }
 
-  const directChat = async () => {
-    const note = directive.trim(); if (!note || directing) return
-    setDirecting(true)
-    try {
-      await fetch(`/api/dnd/characters/${characterId}/stream/direct`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ directive: note, count: 16 }) })
-      setDirective(''); notifyPoll()
-    } finally { setDirecting(false) }
-  }
-
-  // ── Aggressive focus flood: chat obsesses over a topic for N minutes, then fades back ──
-  const startFocus = () => {
-    const topic = focusTopic.trim(); if (!topic || !characterId) return
-    const until = Date.now() + focusMin * 60_000
-    const i = Math.max(1, Math.min(5, focusIntensity))
-    void patch({ focusTopic: topic, focusUntil: new Date(until).toISOString(), focusIntensity: i })
-    window.dispatchEvent(new CustomEvent('dnd-stream-focus', { detail: { characterId, suppressUntil: until, rampUntil: until + FOCUS_RAMP_MS } }))
-    const fire = () => fetch(`/api/dnd/characters/${characterId}/stream/direct`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ directive: topic, count: FOCUS_COUNT[i - 1] }),
+  // ── Merged AI chat-focus: play/stop the AI reacting to the DM's text ──────────────
+  const INDEF_MS = 365 * 24 * 60 * 60 * 1000 // "indefinite" = a far-future end the Stop button clears
+  const focusActive = !!focusTimer.current || !!stream?.focus_topic
+  // One burst of AI reactions to the current text (count scales with aggressiveness).
+  const fireFocus = () => {
+    const text = focusTextRef.current
+    if (!text || !characterId) return
+    void fetch(`/api/dnd/characters/${characterId}/stream/direct`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ directive: text, count: FOCUS_COUNT[focusIntensityRef.current - 1] }),
     }).then(notifyPoll).catch(() => {})
-    fire()
+  }
+  // (Re)arm the repeating flood at the current aggressiveness pace.
+  const armFocusTimer = () => {
     if (focusTimer.current) clearInterval(focusTimer.current)
     focusTimer.current = setInterval(() => {
-      if (Date.now() >= until) { stopFocus(); return }
-      fire()
-    }, FOCUS_GAP[i - 1])
+      if (Date.now() >= focusUntilRef.current) { stopFocus(); return }
+      fireFocus()
+    }, FOCUS_GAP[focusIntensityRef.current - 1])
   }
+  // ▶ Play: analyse the text + flood chat with reactions; unselect all moods.
+  const playFocus = () => {
+    const text = focusText.trim()
+    if (!text || !characterId) return
+    const i = Math.max(1, Math.min(5, focusIntensity))
+    const until = Date.now() + (focusIndefinite ? INDEF_MS : focusMin * 60_000)
+    focusTextRef.current = text; focusIntensityRef.current = i; focusUntilRef.current = until
+    setActiveText(text)
+    const untilIso = new Date(until).toISOString()
+    setStream((s) => (s ? { ...s, moods: [], focus_topic: text, focus_until: untilIso, focus_intensity: i } : s))
+    void patch({ moods: [], focusTopic: text, focusUntil: untilIso, focusIntensity: i })
+    window.dispatchEvent(new CustomEvent('dnd-stream-focus', { detail: { characterId, suppressUntil: until, rampUntil: until + FOCUS_RAMP_MS } }))
+    fireFocus()
+    armFocusTimer()
+  }
+  // ↻ Refresh: the DM edited/appended the text — re-analyse it and switch the flood over
+  // to the updated context (keeps everything else running). Enabled only when the field
+  // differs from what's currently generating.
+  const focusDirty = focusActive && !!focusText.trim() && focusText.trim() !== activeText
+  const refreshFocus = () => {
+    const text = focusText.trim()
+    if (!text || !focusActive) return
+    focusTextRef.current = text
+    setActiveText(text)
+    setStream((s) => (s ? { ...s, focus_topic: text } : s))
+    void patch({ focusTopic: text })
+    fireFocus()
+  }
+  // ■ Stop: back to mood-based generic chat.
   const stopFocus = () => {
     if (focusTimer.current) { clearInterval(focusTimer.current); focusTimer.current = null }
+    focusUntilRef.current = 0
+    setActiveText('')
     const now = Date.now()
+    setStream((s) => (s ? { ...s, focus_topic: null, focus_until: null } : s))
     void patch({ focusTopic: null, focusUntil: null })
     window.dispatchEvent(new CustomEvent('dnd-stream-focus', { detail: { characterId, suppressUntil: now, rampUntil: now + FOCUS_RAMP_MS } }))
   }
-  const focusActive = !!focusTimer.current || (!!stream?.focus_until && new Date(stream.focus_until).getTime() > Date.now())
+  // Live aggressiveness change — updates the pace immediately if a focus is running.
+  const changeIntensity = (i: number) => {
+    const v = Math.max(1, Math.min(5, i))
+    setFocusIntensity(v); focusIntensityRef.current = v
+    if (focusActive) { void patch({ focusIntensity: v }); armFocusTimer() }
+  }
+
+  // On load, if a focus is already running (e.g. the DM reloaded mid-flood, or it's set to
+  // run indefinitely), rehydrate the field + refs and re-arm the flood timer so it keeps
+  // going on this client.
+  const focusHydrated = useRef(false)
+  useEffect(() => {
+    if (focusHydrated.current || !stream?.focus_topic) return
+    const until = stream.focus_until ? new Date(stream.focus_until).getTime() : 0
+    if (until <= Date.now()) return // expired — leave it for the poll/stop to clear
+    focusHydrated.current = true
+    setFocusText(stream.focus_topic)
+    setActiveText(stream.focus_topic)
+    setFocusIntensity(stream.focus_intensity || 3)
+    setFocusIndefinite(until - Date.now() > INDEF_MS - 60_000)
+    focusTextRef.current = stream.focus_topic
+    focusIntensityRef.current = stream.focus_intensity || 3
+    focusUntilRef.current = until
+    if (!focusTimer.current) armFocusTimer()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stream?.focus_topic])
+
+  // All hooks are declared above; bail out of the render for a non-DM / character-less mount.
+  if (!isDM || !characterId) return null
 
   const clearChat = async () => {
     if (busy) return
@@ -383,35 +444,54 @@ export default function StreamControl() {
       {/* 5 — Send as (alias) */}
       {live && <AliasBar characterId={characterId} onSent={notifyPoll} />}
 
-      {/* 6 — AI director */}
-      {live && (
-        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-          <input value={directive} onChange={(e) => setDirective(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && directChat()} placeholder='🤖 Tell the AI what chat should talk about right now…' disabled={directing} style={{ ...inp, flex: 1 }} />
-          <button className="btn tiny" onClick={directChat} disabled={directing || !directive.trim()} style={{ color: '#0ac8b9' }}>{directing ? '…' : 'Send to chat'}</button>
-        </div>
-      )}
-
-      {/* 7 — Aggressive focus flood (topic + intensity + duration) */}
+      {/* 6 — AI chat focus (merged): DM types/pastes text → AI floods chat with reactions
+             across all aggressiveness levels; ▶ Play unselects moods, ■ Stop reverts. */}
       {live && (
         <div style={{ ...box, borderColor: focusActive ? '#0ac8b9' : undefined, background: focusActive ? 'rgba(10,200,185,0.07)' : undefined }}>
-          <span style={{ ...label, color: '#0ac8b9' }}>🎯 FOCUS FLOOD</span>
-          <span style={{ fontSize: 11, color: 'var(--muted,#9aa)', marginLeft: 8 }}>chat obsesses over one topic, then fades back</span>
-          <input value={focusTopic} onChange={(e) => setFocusTopic(e.target.value)} placeholder="topic (e.g. the merchant is definitely the villain)…" disabled={focusActive} style={{ ...inp, width: '100%', marginTop: 7 }} />
-          <div style={{ display: 'flex', gap: 10, marginTop: 7, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ ...label, color: '#0ac8b9' }}>🤖 AI CHAT FOCUS</span>
+          <span style={{ fontSize: 11, color: 'var(--muted,#9aa)', marginLeft: 8 }}>type or paste text (a topic, or the party’s dialogue) — chat reacts to it</span>
+          <textarea
+            value={focusText}
+            onChange={(e) => { setFocusText(e.target.value); const t = e.target; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 320) + 'px' }}
+            placeholder="e.g. paste what the party just said, or “the merchant is definitely the villain and everyone should be suspicious of him”…"
+            rows={2}
+            style={{ ...inp, width: '100%', marginTop: 7, resize: 'none', minHeight: 54, lineHeight: 1.45, overflowY: 'auto' }}
+          />
+          <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <label style={{ ...label, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400 }}>Aggressiveness
-              <input type="range" min={1} max={5} value={focusIntensity} onChange={(e) => setFocusIntensity(Number(e.target.value))} disabled={focusActive} style={{ accentColor: '#0ac8b9' }} />
+              <input type="range" min={1} max={5} value={focusIntensity} onChange={(e) => changeIntensity(Number(e.target.value))} style={{ accentColor: '#0ac8b9' }} />
               <strong>{focusIntensity}</strong>
             </label>
-            <label style={{ ...label, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400 }}>Minutes
-              <input type="number" min={1} max={60} value={focusMin} onChange={(e) => setFocusMin(Math.max(1, Math.min(60, Number(e.target.value) || 1)))} disabled={focusActive} style={{ ...inp, width: 60 }} />
+            <label style={{ ...label, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400, opacity: focusIndefinite ? 0.4 : 1 }}>Minutes
+              <input type="number" min={1} max={240} value={focusMin} onChange={(e) => setFocusMin(Math.max(1, Math.min(240, Number(e.target.value) || 1)))} disabled={focusIndefinite || focusActive} style={{ ...inp, width: 64 }} />
             </label>
+            <label style={{ ...label, display: 'flex', alignItems: 'center', gap: 5, fontWeight: 400, cursor: 'pointer' }} title="Keep chat on this text until you hit Stop">
+              <input type="checkbox" checked={focusIndefinite} onChange={(e) => setFocusIndefinite(e.target.checked)} disabled={focusActive} /> ∞ Indefinite
+            </label>
+            <span style={{ flex: 1 }} />
             {focusActive ? (
-              <button className="btn tiny" onClick={stopFocus} style={{ color: '#ff5252' }}>■ Stop</button>
+              <>
+                <button
+                  className="btn tiny"
+                  onClick={refreshFocus}
+                  disabled={!focusDirty}
+                  title={focusDirty ? 'Re-analyze the updated text and refresh the chat with the new info' : 'Edit or append to the text above to enable'}
+                  style={focusDirty ? { color: '#0ac8b9', fontWeight: 700, boxShadow: '0 0 10px rgba(10,200,185,0.55)' } : undefined}
+                >
+                  ↻ Refresh AI
+                </button>
+                <button className="btn tiny" onClick={stopFocus} style={{ color: '#ff5252' }}>■ Stop</button>
+              </>
             ) : (
-              <button className="btn tiny" onClick={startFocus} disabled={!focusTopic.trim()} style={{ color: '#0ac8b9' }}>▶ Start</button>
+              <button className="btn tiny" onClick={playFocus} disabled={!focusText.trim()} style={{ color: '#0ac8b9' }}>▶ Play</button>
             )}
           </div>
-          {focusActive && stream?.focus_topic && <div style={{ fontSize: 11, color: '#0ac8b9', marginTop: 6 }}>● CHAT IS OBSESSED WITH: {stream.focus_topic}</div>}
+          {focusActive && stream?.focus_topic && (
+            <div style={{ fontSize: 11, color: '#0ac8b9', marginTop: 6 }}>
+              ● CHAT IS FOCUSED ON: {stream.focus_topic.length > 90 ? stream.focus_topic.slice(0, 90) + '…' : stream.focus_topic}
+              {stream.focus_until && new Date(stream.focus_until).getTime() - Date.now() > INDEF_MS - 60_000 ? ' · indefinitely' : ''}
+            </div>
+          )}
         </div>
       )}
 
