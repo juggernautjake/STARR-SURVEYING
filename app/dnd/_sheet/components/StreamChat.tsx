@@ -416,10 +416,20 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
     return visibleLines.filter((l) => !l.system && (l.user.name.toLowerCase().includes(q) || l.body.toLowerCase().includes(q)))
   }, [visibleLines, filter])
 
+  // Using a chat function (mod / resist / message) counts as interaction, so it holds off
+  // the 1h idle auto-end. Only the owner/DM may write stream state; ambient/AI never calls this.
+  const touchActivity = () => {
+    if (!characterId || !(canWrite || isDM)) return
+    void fetch(`/api/dnd/characters/${characterId}/stream`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ touchActivity: true }),
+    }).catch(() => {})
+  }
+
   // Owner timeout/ban (broadcast to everyone + applied locally), reusing the mod channel.
   const ownerMod = (type: ModActionType, username: string) => {
     modSendRef.current?.send({ type: 'broadcast', event: 'action', payload: { type, username } })
     window.dispatchEvent(new CustomEvent('dnd-stream-mod', { detail: { characterId, kind: 'action', type, username } }))
+    touchActivity()
   }
 
   // Tap-a-name actions are available to the streamer (owner) AND the DM.
@@ -439,7 +449,7 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chatterUsername: username, chatterMessage: lastLine, replyBody: body, postToChat: false }),
       })
-      if (r.ok) { setPm(''); setPmNote(`Sent to the DM — they’ll decide how ${username} replies.`) }
+      if (r.ok) { setPm(''); setPmNote(`Sent to the DM — they’ll decide how ${username} replies.`); touchActivity() }
       else { const j = await r.json().catch(() => ({})); setPmNote(j.error || 'Could not send.') }
     } finally { setPmBusy(false) }
   }
@@ -584,6 +594,7 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
     if (campaignId) {
       void postRoll({ campaignId, characterId, actorName: char.meta.name, label, result: r.total, breakdown: r.breakdown, crit: r.crit, fumble: r.fumble })
     }
+    touchActivity()
   }
 
   // Minimized → a pulsing FAB (mirrors the dice tray) that reopens the chat.

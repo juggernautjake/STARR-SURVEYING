@@ -23,9 +23,14 @@ interface Stream {
 }
 
 const FOCUS_RAMP_MS = 90_000
-const IDLE_END_MS = 2 * 60 * 60 * 1000   // auto-end after 2h with no DM engagement
-const WARN_GRACE_MS = 10 * 60 * 1000     // …then 10 min after the warning to auto-close
+// Idle auto-end: if NObody (DM or player) touches the chat or its functions for an hour,
+// the AI stops and the stream ends. A warning shows 10 min before that (at 50 min idle).
+const IDLE_END_MS = 60 * 60 * 1000       // end 1h after the last DM/player interaction
+const WARN_BEFORE_MS = 10 * 60 * 1000    // warn this long before the auto-end (at 50 min)
 const MOOD_REFRESH_MS = 15 * 60 * 1000   // AI freshens mood lines every 15 min while live
+// Every 15 min the AI refreshes EVERY mood (not just the selected ones), across all
+// aggressiveness levels — so whatever vibe the DM switches to has fresh lines ready.
+const ALL_MOOD_IDS = MOODS.map((m) => m.id)
 // Focus flood cadence + burst by intensity (1–5).
 const FOCUS_GAP = [12000, 9000, 7000, 5000, 3500]
 const FOCUS_COUNT = [6, 8, 10, 12, 16]
@@ -100,13 +105,19 @@ export default function StreamControl() {
         const now = Date.now()
         const lastAct = s.last_activity_at ? new Date(s.last_activity_at).getTime() : now
         const warnedAt = s.end_warning_at ? new Date(s.end_warning_at).getTime() : 0
-        if (warnedAt && now - warnedAt >= WARN_GRACE_MS) { await patch({ isLive: false, endWarningAt: null }); return }
-        if (!warnedAt && now - lastAct >= IDLE_END_MS) { await patch({ endWarningAt: new Date().toISOString() }) }
-        // 15-min AI mood-line refresh.
-        if (s.moods?.length && now - moodRefreshAt.current >= MOOD_REFRESH_MS) {
+        const idle = now - lastAct
+        // Idle handling: end at 1h; warn 10 min before; clear a stale warning if
+        // interaction resumed. These automated patches pass touchActivity:false so they
+        // don't reset the idle clock they're driving.
+        if (idle >= IDLE_END_MS) { await patch({ isLive: false, endWarningAt: null, touchActivity: false }); return }
+        else if (idle >= IDLE_END_MS - WARN_BEFORE_MS && !warnedAt) { await patch({ endWarningAt: new Date().toISOString(), touchActivity: false }) }
+        else if (warnedAt && idle < IDLE_END_MS - WARN_BEFORE_MS) { await patch({ endWarningAt: null, touchActivity: false }) }
+        // 15-min AI refresh — EVERY mood, all aggressiveness levels (keeps generating
+        // while anyone's still interacting; stops once the idle auto-end fires above).
+        if (now - moodRefreshAt.current >= MOOD_REFRESH_MS) {
           moodRefreshAt.current = now
           void fetch(`/api/dnd/characters/${characterId}/stream/mood-refresh`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ moods: s.moods }),
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ moods: ALL_MOOD_IDS, allLevels: true }),
           }).catch(() => {})
         }
       } catch { /* ignore */ }

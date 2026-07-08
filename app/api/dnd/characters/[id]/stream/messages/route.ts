@@ -88,5 +88,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .select('id, username, body, badges, color, created_at, kind, amount, sender_user_id')
     .single();
   if (error || !data) return NextResponse.json({ error: error?.message ?? 'Could not post.' }, { status: 500 });
+  // A human posting in chat is interaction — keep the idle auto-end at bay (no-op if this
+  // character has no stream_state row). AI/ambient lines are inserted elsewhere, so they
+  // don't reset the idle timer.
+  void supabaseAdmin.from('dnd_stream_state').update({ last_activity_at: new Date().toISOString() }).eq('character_id', params.id);
   return NextResponse.json({ message: data });
 }

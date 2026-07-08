@@ -76,7 +76,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     patch.ai_mood_lines = body.aiMoodLines;
     patch.ai_lines_at = new Date().toISOString();
   }
-  if (body.touchActivity) patch.last_activity_at = new Date().toISOString();
+  if (body.touchActivity === true) patch.last_activity_at = new Date().toISOString();
   if (body.endWarningAt !== undefined) patch.end_warning_at = body.endWarningAt ? new Date(body.endWarningAt).toISOString() : null;
   // Donations/superchats (R): off by default; the DM flips them on + picks generosity.
   if (typeof body.donationsEnabled === 'boolean') patch.donations_enabled = body.donationsEnabled;
@@ -84,8 +84,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.kibblesEarned != null) patch.kibbles_earned = Math.max(0, Math.floor(Number(body.kibblesEarned)) || 0);
 
   if (Object.keys(patch).length <= 2) return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 });
-  // Any DM action counts as engagement for the idle auto-end clock (unless already set above).
-  if (patch.last_activity_at === undefined) patch.last_activity_at = new Date().toISOString();
+  // Any DM action counts as engagement for the idle auto-end clock — EXCEPT the automated
+  // idle-machinery patches (warning set/clear + the idle end itself), which pass
+  // `touchActivity: false` so they don't reset the very timer they're driving.
+  if (patch.last_activity_at === undefined && body.touchActivity !== false) patch.last_activity_at = new Date().toISOString();
 
   const { data, error } = await supabaseAdmin
     .from('dnd_stream_state')
