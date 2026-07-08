@@ -214,7 +214,7 @@ export default function Chat({ campaignId, initialMembers, selfId, initialChanne
       </div>
 
       <form onSubmit={send} style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
-        <label className={styles.hexBtn} style={{ cursor: (channel !== 'party' && recipients.length === 0) ? 'default' : 'pointer', opacity: uploading ? 0.6 : 1 }} title="Attach an image">
+        <label className={styles.hexBtn} style={{ cursor: (channel !== 'party' && recipients.length === 0) ? 'default' : 'pointer', opacity: uploading ? 0.6 : 1, width: 38, height: 38, padding: 0, flexShrink: 0, fontSize: 16 }} title="Attach an image">
           {uploading ? '…' : '📎'}
           <input
             ref={fileRef}

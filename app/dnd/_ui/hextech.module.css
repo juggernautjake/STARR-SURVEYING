@@ -460,6 +460,20 @@ select.input {
   box-shadow: 0 0 16px rgba(10, 200, 185, 0.35);
 }
 
+/* Control-row height parity — buttons, inputs and native <select>s that share a
+   horizontal row (NPC build, notes, invites, characters, sessions, initiative,
+   chat composer) all resolve to one height so a row lines up on a single
+   baseline. Native selects otherwise render ~2px taller than sibling inputs.
+   Full-size action buttons (no inline padding) get a firm floor; compact
+   .hexBtn variants (AI chips, inline +/− and hotbar controls) set their own
+   inline padding and keep their smaller size. */
+select.input {
+  height: 38px;
+}
+.hexBtn:not([style*='padding']) {
+  min-height: 38px;
+}
+
 /* Portrait / token frame — champion-select-style gold ring for character & NPC
    tokens; the active one (current initiative turn) gets an animated glow. */
 .portrait {
