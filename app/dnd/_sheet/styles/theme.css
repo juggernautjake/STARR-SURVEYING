@@ -317,6 +317,16 @@
 }
 .dnd-sheet .stream-control input::placeholder { color: #a9a2bf; opacity: 1; }
 .dnd-sheet .stream-control input[type='range'] { accent-color: var(--hotpink, #ff2d8b); }
+/* Uniform control height (32px) so the viewer count input, selects, and every button
+   (including .btn.tiny, which is otherwise ~22px) line up exactly in each control row.
+   Inline ad-hoc paddings no longer leave the small buttons short. */
+.dnd-sheet .stream-control .btn {
+  min-height: 32px;
+}
+.dnd-sheet .stream-control input:not([type='range']),
+.dnd-sheet .stream-control select {
+  min-height: 32px;
+}
 .dnd-sheet .btn-row {
   display: flex;
   flex-wrap: wrap;

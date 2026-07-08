@@ -139,6 +139,12 @@
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
+/* Uniform control height so inputs/selects line up exactly with the gold .hexBtn
+   (which shares min-height: 38px) in every control row. Excludes textareas, which
+   size to their content. Ad-hoc inline vertical padding no longer changes the height. */
+.input:not(textarea) {
+  height: 38px;
+}
 .input:focus {
   border-color: var(--hx-gold-1);
   box-shadow: 0 0 0 1px var(--hx-gold-0), 0 0 14px rgba(200, 155, 60, 0.25);
@@ -396,9 +402,12 @@
   line-height: 1.15;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  /* Vertical padding tuned so a default hexBtn matches the ~37–39px height of the
-     row inputs/selects it sits beside — keeps control rows vertically aligned. */
+  /* Vertical padding tuned so a default hexBtn matches the 38px height of the row
+     inputs/selects it sits beside — keeps control rows vertically aligned. min-height
+     pins the default height to exactly 38px; taller CTA buttons (more padding / larger
+     font) grow past it as before. */
   padding: 11px 16px;
+  min-height: 38px;
   clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
   transition: box-shadow 0.15s, color 0.15s, filter 0.15s;
 }
