@@ -6,9 +6,14 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import styles from './hextech.module.css'
 import InvitesPanel from './InvitesPanel'
+import Chat from './Chat'
+import Soundboard from './Soundboard'
+import CampaignArtControl from './CampaignArtControl'
+import CampaignGalleryDm from './CampaignGalleryDm'
+import CampaignNotesDm from './CampaignNotesDm'
 
 export interface CampaignDetail {
-  campaign: { id: string; name: string; blurb?: string | null; role: string }
+  campaign: { id: string; name: string; blurb?: string | null; role: string; theme?: { artUrl?: string | null; notes?: string | null; dmNotes?: string | null } | null }
   members: { userId: string; role: string; displayName: string; avatarUrl?: string | null }[]
   characters: { id: string; name: string; token_url?: string | null; is_npc: boolean; sheet_type?: string }[]
   sessions: { id: string; title: string; status: string; sort_order: number }[]
@@ -136,6 +141,16 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
               {/* Invite UI — DM only (B5b). */}
               {data.campaign.role === 'dm' && <InvitesPanel campaignId={campaignId} />}
 
+              {/* Campaign builder — DM only (Phase P): art banner, gallery/maps with
+                  per-image player visibility, and player-visible + private notes. */}
+              {data.campaign.role === 'dm' && (
+                <>
+                  <CampaignArtControl campaignId={campaignId} initialArtUrl={data.campaign.theme?.artUrl ?? null} />
+                  <CampaignGalleryDm campaignId={campaignId} />
+                  <CampaignNotesDm campaignId={campaignId} initialNotes={data.campaign.theme?.notes ?? ''} initialDmNotes={data.campaign.theme?.dmNotes ?? ''} />
+                </>
+              )}
+
               <section className={styles.framedPanel}>
                 <div className={styles.framedPanelTop} />
                 <h2 className={styles.panelTitle}>Characters</h2>
@@ -218,6 +233,21 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                     ))}
                   </div>
                 )}
+              </section>
+
+              {/* Party chat + private whispers to individual players — DM only surface
+                  here (players use their own hub). Direct channel = private message. */}
+              <section className={styles.framedPanel}>
+                <div className={styles.framedPanelTop} />
+                <h2 className={styles.panelTitle}>Chat &amp; Private Messages</h2>
+                <Chat campaignId={campaignId} initialMembers={data.members.map((m) => ({ id: m.userId, name: m.displayName }))} />
+              </section>
+
+              {/* Soundboard — a DM-only mechanic (ambience/SFX) players can't see. */}
+              <section className={styles.framedPanel}>
+                <div className={styles.framedPanelTop} />
+                <h2 className={styles.panelTitle}>Soundboard</h2>
+                <Soundboard campaignId={campaignId} />
               </section>
             </>
           )}

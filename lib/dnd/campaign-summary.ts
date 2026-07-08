@@ -122,6 +122,188 @@ export async function loadAllCampaignSummaries(): Promise<CampaignCard[]> {
   });
 }
 
+export interface UserCharacter {
+  id: string;
+  name: string;
+  campaignId: string | null;
+  campaignName: string | null;
+  sheetType: string | null;
+  portrait: string | null;
+}
+
+export interface UserCampaign {
+  id: string;
+  name: string;
+  role: 'dm' | 'player';
+}
+
+export interface UserProfile {
+  characters: UserCharacter[];
+  campaigns: UserCampaign[];
+}
+
+/** The signed-in user's own stuff: characters they own + campaigns they belong to
+ *  (flagged dm/player). Powers the "My table" panel on the pseudo-login hub. */
+export async function loadUserProfile(userId: string): Promise<UserProfile> {
+  const [{ data: chars }, { data: mems }] = await Promise.all([
+    supabaseAdmin
+      .from('dnd_characters')
+      .select('id, name, campaign_id, sheet_type, token_url, art_url')
+      .eq('owner_user_id', userId)
+      .order('created_at', { ascending: true }),
+    supabaseAdmin
+      .from('dnd_campaign_members')
+      .select('campaign_id, role')
+      .eq('user_id', userId),
+  ]);
+
+  const characters = (chars ?? []) as {
+    id: string; name: string; campaign_id: string | null; sheet_type: string | null; token_url: string | null; art_url: string | null;
+  }[];
+  const members = (mems ?? []) as { campaign_id: string; role: string }[];
+
+  const campIds = Array.from(
+    new Set([...members.map((m) => m.campaign_id), ...characters.map((c) => c.campaign_id).filter((v): v is string => !!v)]),
+  );
+  const campNames = new Map<string, string>();
+  if (campIds.length) {
+    const { data: camps } = await supabaseAdmin.from('dnd_campaigns').select('id, name').in('id', campIds);
+    for (const c of (camps ?? []) as { id: string; name: string }[]) campNames.set(c.id, c.name);
+  }
+
+  return {
+    characters: characters.map((c) => ({
+      id: c.id,
+      name: c.name,
+      campaignId: c.campaign_id,
+      campaignName: c.campaign_id ? campNames.get(c.campaign_id) ?? null : null,
+      sheetType: c.sheet_type,
+      portrait: c.token_url ?? c.art_url ?? null,
+    })),
+    campaigns: members.map((m) => ({
+      id: m.campaign_id,
+      name: campNames.get(m.campaign_id) ?? 'Campaign',
+      role: (m.role === 'dm' ? 'dm' : 'player') as 'dm' | 'player',
+    })),
+  };
+}
+
+export interface HubCharacter {
+  id: string;
+  name: string;
+  ownerUserId: string | null;
+  ownerName: string | null;
+  isNpc: boolean;
+  sheetType: string | null;
+  portrait: string | null;
+  mine: boolean;
+}
+
+export interface HubRecap {
+  sessionId: string;
+  sessionTitle: string;
+  status: string;
+  markdown: string;
+}
+
+export interface HubMedia {
+  id: string;
+  url: string;
+  kind: string;
+  label: string | null;
+}
+
+export interface CampaignHubData {
+  id: string;
+  name: string;
+  setting: string | null;
+  artUrl: string | null;
+  /** Player-visible campaign notes/summary (theme.notes). */
+  notes: string | null;
+  dm: { userId: string; name: string } | null;
+  members: { userId: string; name: string; role: 'dm' | 'player' }[];
+  characters: HubCharacter[];
+  recaps: HubRecap[];
+  /** Player-visible campaign gallery (DM-only images excluded). */
+  gallery: HubMedia[];
+  /** The viewer's own character in this campaign (for the "your character" shortcut). */
+  myCharacterId: string | null;
+  viewerRole: 'dm' | 'player';
+}
+
+/** The shared campaign hub (Phase P) for a signed-in member: roster + DM, campaign art,
+ *  chat is mounted client-side, and read-only session summaries. `viewerId` is the
+ *  current user (used to flag their own character). */
+export async function loadCampaignHub(campaignId: string, viewerId: string, viewerRole: 'dm' | 'player'): Promise<CampaignHubData | null> {
+  const { data: camp } = await supabaseAdmin.from('dnd_campaigns').select('id, name, blurb, theme').eq('id', campaignId).maybeSingle();
+  const campaign = camp as { id: string; name: string; blurb: string | null; theme: Record<string, unknown> | null } | null;
+  if (!campaign) return null;
+
+  if (campaignId === DEMO_CAMPAIGN_ID) await ensureDemoStreamer();
+
+  const [{ data: mems }, { data: chars }, { data: sess }, { data: mediaRows }] = await Promise.all([
+    supabaseAdmin.from('dnd_campaign_members').select('user_id, role').eq('campaign_id', campaignId),
+    supabaseAdmin.from('dnd_characters').select('id, name, is_npc, owner_user_id, token_url, art_url, sheet_type').eq('campaign_id', campaignId).order('is_npc', { ascending: true }),
+    supabaseAdmin.from('dnd_sessions').select('id, title, sort_order').eq('campaign_id', campaignId).order('sort_order', { ascending: true }),
+    supabaseAdmin.from('dnd_media').select('id, url, kind, label, gallery_tags').eq('campaign_id', campaignId).order('created_at', { ascending: false }),
+  ]);
+  const members = (mems ?? []) as { user_id: string; role: string }[];
+  const characters = (chars ?? []) as {
+    id: string; name: string; is_npc: boolean; owner_user_id: string | null; token_url: string | null; art_url: string | null; sheet_type: string | null;
+  }[];
+  const sessions = (sess ?? []) as { id: string; title: string; sort_order: number }[];
+  const names = await nameMap(
+    Array.from(new Set([...members.map((m) => m.user_id), ...characters.map((c) => c.owner_user_id).filter((v): v is string => !!v)])),
+  );
+
+  // Read-only session summaries (final recap preferred, else the draft).
+  let recaps: HubRecap[] = [];
+  if (sessions.length) {
+    const { data: recapRows } = await supabaseAdmin
+      .from('dnd_recaps')
+      .select('session_id, draft_markdown, final_markdown, status')
+      .in('session_id', sessions.map((s) => s.id));
+    const bySession = new Map(((recapRows ?? []) as { session_id: string; draft_markdown: string | null; final_markdown: string | null; status: string }[]).map((r) => [r.session_id, r]));
+    recaps = sessions
+      .map((s) => {
+        const r = bySession.get(s.id);
+        const markdown = r?.final_markdown || r?.draft_markdown || '';
+        return markdown ? { sessionId: s.id, sessionTitle: s.title, status: r?.status ?? 'draft', markdown } : null;
+      })
+      .filter((r): r is HubRecap => r !== null);
+  }
+
+  // Player-visible gallery: campaign media not tagged `dm-only`.
+  const gallery: HubMedia[] = ((mediaRows ?? []) as { id: string; url: string; kind: string; label: string | null; gallery_tags: string[] | null }[])
+    .filter((m) => !(m.gallery_tags ?? []).includes('dm-only'))
+    .map((m) => ({ id: m.id, url: m.url, kind: m.kind, label: m.label }));
+
+  const dmMem = members.find((m) => m.role === 'dm');
+  return {
+    id: campaign.id,
+    name: campaign.name,
+    setting: campaign.blurb,
+    artUrl: typeof campaign.theme?.artUrl === 'string' ? (campaign.theme.artUrl as string) : null,
+    notes: typeof campaign.theme?.notes === 'string' && (campaign.theme.notes as string).trim() ? (campaign.theme.notes as string) : null,
+    gallery,
+    dm: dmMem ? { userId: dmMem.user_id, name: names.get(dmMem.user_id) ?? 'Dungeon Master' } : null,
+    members: members.map((m) => ({ userId: m.user_id, name: names.get(m.user_id) ?? 'Player', role: (m.role === 'dm' ? 'dm' : 'player') as 'dm' | 'player' })),
+    characters: characters.map((ch) => ({
+      id: ch.id,
+      name: ch.name,
+      ownerUserId: ch.owner_user_id,
+      ownerName: ch.owner_user_id ? names.get(ch.owner_user_id) ?? null : null,
+      isNpc: ch.is_npc,
+      sheetType: ch.sheet_type,
+      portrait: ch.token_url ?? ch.art_url ?? null,
+      mine: ch.owner_user_id === viewerId,
+    })),
+    recaps,
+    myCharacterId: characters.find((ch) => ch.owner_user_id === viewerId && !ch.is_npc)?.id ?? characters.find((ch) => ch.owner_user_id === viewerId)?.id ?? null,
+    viewerRole,
+  };
+}
+
 /** The lobby for one campaign: the DM + each player's PC, for the "enter as" picker. */
 export async function loadCampaignLobby(campaignId: string): Promise<CampaignLobbyData | null> {
   const { data: camp } = await supabaseAdmin.from('dnd_campaigns').select('id, name, blurb').eq('id', campaignId).maybeSingle();
