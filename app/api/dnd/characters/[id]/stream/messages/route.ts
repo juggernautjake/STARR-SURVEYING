@@ -58,11 +58,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!access) return NextResponse.json({ error: 'Character not found.' }, { status: 404 });
   if (!access.isDM && !access.isOwner) return NextResponse.json({ error: 'Only the DM or owner can post to chat.' }, { status: 403 });
 
-  const { body, username } = await req.json().catch(() => ({}));
+  const { body, username, color, badges } = await req.json().catch(() => ({}));
   if (!body || !String(body).trim()) return NextResponse.json({ error: 'A message is required.' }, { status: 400 });
 
+  // A given username posts as that exact handle. An alias may pass its saved color/badges
+  // so it always looks the same; otherwise the style is derived from the name. No username
+  // → a random viewer handle (the ambient/AI crowd never uses the DM's aliases).
   const user = username
-    ? { name: String(username).slice(0, 24), ...styleForName(String(username)) }
+    ? {
+        name: String(username).slice(0, 24),
+        color: (typeof color === 'string' && color) || styleForName(String(username)).color,
+        badges: Array.isArray(badges) ? badges.filter((b) => typeof b === 'string').slice(0, 4) : styleForName(String(username)).badges,
+      }
     : makeUsernames(1, Math.floor(Math.random() * 100000))[0];
 
   const { data, error } = await supabaseAdmin
