@@ -8,6 +8,7 @@ import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import styles from './hextech.module.css'
 import Chat from './Chat'
+import Lightbox from './Lightbox'
 import type { CampaignHubData } from '@/lib/dnd/campaign-summary'
 
 function Portrait({ url, name, size }: { url: string | null; name: string; size: number }) {
@@ -26,6 +27,7 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
   const router = useRouter()
   const [messagingDm, setMessagingDm] = useState(false)
   const [claiming, setClaiming] = useState<string | null>(null)
+  const [lightbox, setLightbox] = useState<string | null>(null)
   const chatRef = useRef<HTMLDivElement>(null)
   const members = data.members.map((m) => ({ id: m.userId, name: m.name }))
 
@@ -82,14 +84,14 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
               <h2 className={styles.panelTitle}>Gallery &amp; Maps</h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
                 {data.gallery.map((m) => (
-                  <a key={m.id} href={m.url} target="_blank" rel="noreferrer" style={{ border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.4)', padding: 6, display: 'grid', gap: 4, textDecoration: 'none' }}>
+                  <button key={m.id} onClick={() => setLightbox(m.url)} title="Click to expand" style={{ border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.4)', padding: 6, display: 'grid', gap: 4, textAlign: 'left', cursor: 'zoom-in', color: 'inherit' }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={m.url} alt={m.label ?? ''} style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 3 }} />
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--hx-muted)' }}>
                       <span>{m.kind}</span>
                     </div>
                     {m.label && <div style={{ fontSize: 12, color: 'var(--hx-text)', wordBreak: 'break-word' }}>{m.label}</div>}
-                  </a>
+                  </button>
                 ))}
               </div>
             </section>
@@ -211,6 +213,7 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
           </section>
         </div>
       </div>
+      {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </div>
   )
 }
