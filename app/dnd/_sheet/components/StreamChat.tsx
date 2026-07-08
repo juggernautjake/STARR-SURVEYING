@@ -10,7 +10,6 @@ import { parseEmotes } from '@/lib/dnd/stream-emotes'
 import { allowedInMode, modeIntervalFactor, formatModAction, type ChatMode, type ModActionType, CHAT_MODES } from '@/lib/dnd/stream-mod'
 import { viewerDC, resolveDC, chatRatePerSec, fluctuateViewers } from '@/lib/dnd/stream-influence'
 import { buildMoodPool } from '@/lib/dnd/stream-moods'
-import ChatSearchPanel from './stream/ChatSearchPanel'
 import InfluenceMeter from './InfluenceMeter'
 import { useLiveEngagement } from './useLiveEngagement'
 import { useChar } from '../state/store'
@@ -133,9 +132,12 @@ const PHRASES = [
 
 export default function StreamChat({ characterId, campaignId, initialStream }: { characterId: string; campaignId?: string | null; initialStream?: StreamState }) {
   const { char, pb, commitRoll, isDM, canWrite } = useChar()
-  // Owner (the streamer player) gets the chat-search panel too — the DM has it in the
-  // control panel, so here it's only for a non-DM owner.
-  const [showSearch, setShowSearch] = useState(false)
+  // The streamer (owner) gets a built-in filter that narrows the live feed by handle or
+  // keyword, with inline timeout/ban on the matches. The DM keeps his full search panel
+  // (in the control panel), so this is only for a non-DM owner (e.g. Susie).
+  const isOwnerMod = canWrite && !isDM
+  const [filter, setFilter] = useState('')
+  const modSendRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const { boost, bumpChat } = useLiveEngagement(characterId, campaignId ?? null)
   const [stream, setStream] = useState<StreamState | null>(initialStream ?? null)
   const [lines, setLines] = useState<Line[]>([])
@@ -333,6 +335,7 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
         if (p?.type && p.username) applyAction(p.type, p.username)
       })
       .subscribe()
+    modSendRef.current = ch // reused by the owner's inline timeout/ban
     const onLocal = (e: Event) => {
       const d = (e as CustomEvent).detail as { characterId?: string; kind?: string; mode?: ChatMode; type?: ModActionType; username?: string }
       if (d?.characterId !== characterId) return
@@ -340,7 +343,7 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
       else if (d.kind === 'action' && d.type && d.username) applyAction(d.type, d.username)
     }
     window.addEventListener('dnd-stream-mod', onLocal)
-    return () => { window.removeEventListener('dnd-stream-mod', onLocal); void supabase.removeChannel(ch) }
+    return () => { window.removeEventListener('dnd-stream-mod', onLocal); modSendRef.current = null; void supabase.removeChannel(ch) }
   }, [characterId])
 
   // Poll persisted lines (DM-sent J4 + AI spam/trend J5/J12) and weave them into the feed.
@@ -393,12 +396,25 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
     [lines, banned, chatMode],
   )
 
+  // The owner's built-in filter: narrow the feed to lines whose handle or text matches.
+  const feedLines = useMemo(() => {
+    const q = filter.trim().toLowerCase()
+    if (!q) return visibleLines
+    return visibleLines.filter((l) => !l.system && (l.user.name.toLowerCase().includes(q) || l.body.toLowerCase().includes(q)))
+  }, [visibleLines, filter])
+
+  // Owner timeout/ban (broadcast to everyone + applied locally), reusing the mod channel.
+  const ownerMod = (type: ModActionType, username: string) => {
+    modSendRef.current?.send({ type: 'broadcast', event: 'action', payload: { type, username } })
+    window.dispatchEvent(new CustomEvent('dnd-stream-mod', { detail: { characterId, kind: 'action', type, username } }))
+  }
+
   // Auto-follow new lines by scrolling the FEED CONTAINER only (never the page) — and
   // only when the reader is already near the bottom, so scrolling up to read holds.
   useEffect(() => {
     const el = feedRef.current
     if (el && stickRef.current) el.scrollTop = el.scrollHeight
-  }, [visibleLines])
+  }, [feedLines])
   const onFeedScroll = () => {
     const el = feedRef.current
     if (el) stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
@@ -550,11 +566,6 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
         <span className="sd-rate" title={`Chat pace is set by the audience size — more viewers = faster chat. Right now ~${chatRatePerSec(paceDc)} messages/sec.`}>
           {viewers <= 0 ? 'silent' : `~${chatRatePerSec(paceDc) < 1 ? chatRatePerSec(paceDc).toFixed(2) : chatRatePerSec(paceDc)}/s`}
         </span>
-        {canWrite && !isDM && (
-          <button className={`sd-pause ${showSearch ? 'on' : ''}`} onClick={() => setShowSearch((s) => !s)} title="Search chat by username or keyword">
-            🔍 Search
-          </button>
-        )}
         {isDM && (
           <button
             className="sd-resist"
@@ -566,9 +577,16 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
         )}
       </div>
 
-      {canWrite && !isDM && showSearch && (
-        <div style={{ padding: '0 8px 8px' }}>
-          <ChatSearchPanel characterId={characterId} isDM={false} />
+      {/* Owner's built-in chat filter — narrows the live feed by handle or keyword. */}
+      {isOwnerMod && (
+        <div style={{ display: 'flex', gap: 6, padding: '2px 8px 6px', alignItems: 'center' }}>
+          <input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="🔍 filter chat by name or keyword…"
+            style={{ flex: 1, padding: '5px 8px', fontSize: 12, background: 'rgba(0,0,0,0.35)', border: '1px solid var(--line, rgba(255,255,255,0.18))', color: 'inherit', borderRadius: 4 }}
+          />
+          {filter && <button className="sd-pause" onClick={() => setFilter('')} title="Clear filter">✕</button>}
         </div>
       )}
 
@@ -580,10 +598,10 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
 
       <div className="stream-dock-body">
         <div className="stream-feed" data-stream-feed="" ref={feedRef} onScroll={onFeedScroll}>
-          {visibleLines.length === 0 ? (
-            <p style={{ color: 'var(--muted, #9aa)', fontSize: 12 }}>Chat is warming up…</p>
+          {feedLines.length === 0 ? (
+            <p style={{ color: 'var(--muted, #9aa)', fontSize: 12 }}>{filter.trim() ? 'No chat lines match your filter.' : 'Chat is warming up…'}</p>
           ) : (
-            visibleLines.map((l) => l.system ? (
+            feedLines.map((l) => l.system ? (
               <div key={l.id} style={{ wordBreak: 'break-word', color: '#f0c46a', fontStyle: 'italic', fontSize: 12, padding: '2px 0' }}>
                 {l.body}
               </div>
@@ -603,12 +621,19 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
                     ),
                   )}
                 </span>
+                {/* While the owner is filtering, offer inline timeout/ban on each match. */}
+                {isOwnerMod && filter.trim() && (
+                  <span style={{ marginLeft: 6, whiteSpace: 'nowrap' }}>
+                    <button onClick={() => ownerMod('timeout', l.user.name)} title={`Time out ${l.user.name}`} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, padding: '0 2px' }}>⛔</button>
+                    <button onClick={() => ownerMod('ban', l.user.name)} title={`Ban ${l.user.name}`} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, padding: '0 2px', color: '#ff6b6b' }}>🔨</button>
+                  </span>
+                )}
               </div>
             ))
           )}
           <div ref={endRef} />
         </div>
-        <InfluenceMeter viewers={viewers} engagement={effEngagement} />
+        <InfluenceMeter viewers={viewers} engagement={effEngagement} dcMode={stream.dc_mode} dcManual={stream.dc_manual} />
       </div>
 
       <div className="stream-resize" onPointerDown={onResizeStart} title="Drag to resize">⤡</div>

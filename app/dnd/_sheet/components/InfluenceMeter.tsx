@@ -6,13 +6,21 @@
 // neon pink and shakes violently (DC at its 25 ceiling — "irresistible"). Pure math in
 // lib/dnd/stream-influence; the DM controls both inputs from StreamControl.
 import { useEffect, useRef, useState } from 'react'
-import { computeInfluence, viewerDC, MAX_DC } from '@/lib/dnd/stream-influence'
+import { computeInfluence, resolveDC, MAX_DC, MIN_DC } from '@/lib/dnd/stream-influence'
 import styles from '@/app/dnd/_ui/hextech.module.css'
 
-export default function InfluenceMeter({ viewers, engagement }: { viewers: number; engagement: number }) {
-  // The DC (and the bar's resting height) come straight from the viewer-count tier table.
-  const dc = viewerDC(viewers)
-  const base = (dc - 2) / (MAX_DC - 2) // 0..1 fill from the DC tier
+export default function InfluenceMeter({
+  viewers, engagement, dcMode, dcManual,
+}: {
+  viewers: number
+  engagement: number
+  dcMode?: 'auto' | 'manual'
+  dcManual?: number | null
+}) {
+  // The DC (and the bar's resting height) honor the DM's mode: auto = viewers + engagement,
+  // or a pinned manual value — matching the "Resist" button exactly (fixes the stale meter).
+  const dc = resolveDC({ mode: dcMode, manual: dcManual, viewers, engagement })
+  const base = (dc - MIN_DC) / (MAX_DC - MIN_DC) // 0..1 fill from the resolved DC
   // Engagement (+ viewers) only drives how energetically the bar bobs — a busier, more
   // hyped chat visibly shakes harder — but it no longer changes the DC.
   const energy = computeInfluence(viewers, engagement)
@@ -45,11 +53,13 @@ export default function InfluenceMeter({ viewers, engagement }: { viewers: numbe
     <div data-influence-meter="" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, userSelect: 'none', flexShrink: 0 }}>
       <div style={{ fontSize: 10, letterSpacing: '0.12em', color: 'var(--muted, #9aa)' }}>RESIST</div>
       <div
+        data-inf-dc=""
         style={{
-          // Colors are CSS-var driven so a sheet skin can recolor the meter; the
-          // hardcoded values are the default (unskinned) look.
+          // Colors + font are CSS-var driven so a sheet skin can recolor/reface the meter;
+          // the hardcoded values are the default (unskinned) look. A skin can override the
+          // size via the [data-inf-dc] hook (e.g. the streamer's pixel face).
           fontFamily: 'var(--inf-font, "Cinzel", var(--hx-font-display, serif))',
-          fontSize: 21,
+          fontSize: 'var(--inf-dc-size, 21px)',
           fontWeight: 800,
           color: maxed ? 'var(--inf-max, #ff10f0)' : 'var(--inf-dc, #7ab8ff)',
           textShadow: maxed ? '0 0 12px var(--inf-max, #ff10f0)' : '0 0 8px var(--inf-dc, #7ab8ff)',
