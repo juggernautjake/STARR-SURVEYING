@@ -1872,8 +1872,11 @@
 }
 .dnd-sheet .rv-break {
   font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--muted);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  opacity: 0.92;
   word-break: break-word;
 }
 .dnd-sheet .rv-total {

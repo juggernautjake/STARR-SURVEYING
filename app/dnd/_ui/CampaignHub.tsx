@@ -149,12 +149,13 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
                 {data.characters.map((c) => {
                   const canClaim = c.claimable && !c.mine
+                  const watchStream = c.sheetType === 'streamer' && !c.mine && !canClaim
                   return (
                     <button
                       key={c.id}
-                      onClick={() => (canClaim ? claim(c.id, c.name) : router.push(`/dnd/characters/${c.id}`))}
+                      onClick={() => (canClaim ? claim(c.id, c.name) : watchStream ? router.push(`/dnd/stream/${c.id}`) : router.push(`/dnd/characters/${c.id}`))}
                       disabled={claiming === c.id}
-                      title={canClaim ? `Claim ${c.name} as your character` : `Open ${c.name}'s sheet`}
+                      title={canClaim ? `Claim ${c.name} as your character` : watchStream ? `Watch ${c.name}'s live stream` : `Open ${c.name}'s sheet`}
                       style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 6,
                         padding: '14px 8px', cursor: 'pointer', color: 'inherit',
@@ -164,8 +165,8 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
                     >
                       <Portrait url={c.portrait} name={c.name} size={64} />
                       <span style={{ fontSize: 13.5, color: 'var(--hx-text)', wordBreak: 'break-word' }}>{c.name}</span>
-                      <span style={{ fontSize: 9.5, letterSpacing: '0.1em', color: canClaim ? 'var(--hx-gold-2)' : c.isNpc ? 'var(--hx-gold-2)' : 'var(--hx-teal-1)' }}>
-                        {claiming === c.id ? 'CLAIMING…' : canClaim ? '⭐ CLAIM THIS' : c.mine ? 'YOUR CHARACTER' : c.isNpc ? 'NPC' : c.ownerName ? c.ownerName.toUpperCase() : 'PC'}
+                      <span style={{ fontSize: 9.5, letterSpacing: '0.1em', color: watchStream ? '#ff4d4d' : canClaim ? 'var(--hx-gold-2)' : c.isNpc ? 'var(--hx-gold-2)' : 'var(--hx-teal-1)' }}>
+                        {claiming === c.id ? 'CLAIMING…' : canClaim ? '⭐ CLAIM THIS' : watchStream ? '🔴 WATCH STREAM' : c.mine ? 'YOUR CHARACTER' : c.isNpc ? 'NPC' : c.ownerName ? c.ownerName.toUpperCase() : 'PC'}
                       </span>
                     </button>
                   )

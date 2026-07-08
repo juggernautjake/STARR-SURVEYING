@@ -10,6 +10,7 @@ import { parseEmotes } from '@/lib/dnd/stream-emotes'
 import { allowedInMode, modeIntervalFactor, formatModAction, type ChatMode, type ModActionType, CHAT_MODES } from '@/lib/dnd/stream-mod'
 import { viewerDC, resolveDC, chatRatePerSec, fluctuateViewers } from '@/lib/dnd/stream-influence'
 import { buildMoodPool } from '@/lib/dnd/stream-moods'
+import { formatKibbles } from '@/lib/dnd/stream-currency'
 import InfluenceMeter from './InfluenceMeter'
 import { useLiveEngagement } from './useLiveEngagement'
 import { useChar } from '../state/store'
@@ -18,7 +19,7 @@ import { abilityMod } from '../rules/dnd'
 import { postRoll } from '@/app/dnd/_ui/RollFeed'
 
 interface StreamState { is_live: boolean; chat_speed: number; viewer_count: number; engagement?: number; moods?: string[]; ai_mood_lines?: Record<string, string[]>; dc_mode?: 'auto' | 'manual'; dc_manual?: number | null }
-interface Line { id: number | string; user: ChatUser; body: string; system?: boolean }
+interface Line { id: number | string; user: ChatUser; body: string; system?: boolean; kind?: string; amount?: number | null; senderId?: string | null }
 
 function hasEmote(body: string): boolean {
   return parseEmotes(body).some((s) => s.type === 'emote')
@@ -130,8 +131,14 @@ const PHRASES = [
   'grbl mrbl florb', 'ket ket zoon', 'plip plop zharn', 'yeeb norb quazz', 'shloop da woop',
 ]
 
-export default function StreamChat({ characterId, campaignId, initialStream }: { characterId: string; campaignId?: string | null; initialStream?: StreamState }) {
+export default function StreamChat({ characterId, campaignId, initialStream, viewerCanChat }: { characterId: string; campaignId?: string | null; initialStream?: StreamState; viewerCanChat?: boolean }) {
   const { char, pb, commitRoll, isDM, canWrite } = useChar()
+  // A fellow player watching the stream (not the streamer/DM) can chat as a viewer.
+  const [viewerMsg, setViewerMsg] = useState('')
+  const [viewerSending, setViewerSending] = useState(false)
+  // Click a username → their message history this session.
+  const [historyOf, setHistoryOf] = useState<string | null>(null)
+  const [history, setHistory] = useState<{ body: string; created_at: string; kind?: string; amount?: number | null }[] | null>(null)
   // The streamer (owner) gets a built-in filter that narrows the live feed by handle or
   // keyword, with inline timeout/ban on the matches. The DM keeps his full search panel
   // (in the control panel), so this is only for a non-DM owner (e.g. Susie).
@@ -371,10 +378,13 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
           bumpChat(fresh.length)
           setLines((prev) => [
             ...prev,
-            ...fresh.map((m: { id: string; username: string; body: string; color: string | null; badges: string[] | null }) => ({
+            ...fresh.map((m: { id: string; username: string; body: string; color: string | null; badges: string[] | null; kind?: string; amount?: number | null; sender_user_id?: string | null }) => ({
               id: `p-${m.id}`,
               user: { name: m.username, color: m.color ?? '#fff', badges: m.badges ?? [] },
               body: m.body,
+              kind: m.kind,
+              amount: m.amount,
+              senderId: m.sender_user_id,
             })),
           ].slice(-60))
         })
@@ -407,6 +417,30 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
   const ownerMod = (type: ModActionType, username: string) => {
     modSendRef.current?.send({ type: 'broadcast', event: 'action', payload: { type, username } })
     window.dispatchEvent(new CustomEvent('dnd-stream-mod', { detail: { characterId, kind: 'action', type, username } }))
+  }
+
+  // A watching player chats as themselves (server tags it PARTY so it stands out).
+  const postAsViewer = async () => {
+    const body = viewerMsg.trim()
+    if (!body || viewerSending) return
+    setViewerSending(true)
+    try {
+      await fetch(`/api/dnd/characters/${characterId}/stream/messages`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body }),
+      })
+      setViewerMsg('')
+      window.dispatchEvent(new CustomEvent('dnd-stream-poll', { detail: characterId }))
+    } finally { setViewerSending(false) }
+  }
+
+  // Click a username → pull their whole history in this session.
+  const openHistory = async (username: string) => {
+    setHistoryOf(username); setHistory(null)
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}/stream/messages?user=${encodeURIComponent(username)}&limit=200`)
+      const j = await r.json().catch(() => ({}))
+      setHistory(r.ok ? (j.messages ?? []) : [])
+    } catch { setHistory([]) }
   }
 
   // Auto-follow new lines by scrolling the FEED CONTAINER only (never the page) — and
@@ -601,40 +635,91 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
           {feedLines.length === 0 ? (
             <p style={{ color: 'var(--muted, #9aa)', fontSize: 12 }}>{filter.trim() ? 'No chat lines match your filter.' : 'Chat is warming up…'}</p>
           ) : (
-            feedLines.map((l) => l.system ? (
-              <div key={l.id} style={{ wordBreak: 'break-word', color: '#f0c46a', fontStyle: 'italic', fontSize: 12, padding: '2px 0' }}>
-                {l.body}
-              </div>
-            ) : (
-              <div key={l.id} style={{ wordBreak: 'break-word' }}>
-                {l.user.badges.map((b) => (
-                  <span key={b} title={b} style={{ display: 'inline-block', fontSize: 9, padding: '0 3px', marginRight: 3, borderRadius: 3, background: b === 'mod' ? '#00ad03' : b === 'vip' ? '#e005b9' : b === 'prime' ? '#4d6bff' : '#8205b4', color: '#fff', verticalAlign: 'middle' }}>{b[0].toUpperCase()}</span>
-                ))}
-                <span style={{ color: l.user.color, fontWeight: 700, textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}>{l.user.name}</span>
-                <span style={{ color: 'var(--muted, #9aa)' }}>: </span>
-                <span style={{ color: '#f2effa' }}>
-                  {parseEmotes(l.body).map((seg, i) =>
-                    seg.type === 'emote' ? (
-                      <span key={i} title={seg.name} style={{ display: 'inline-block', padding: '0 2px', margin: '0 1px', borderRadius: 3, background: 'rgba(200,155,60,0.18)' }}>{seg.glyph}</span>
-                    ) : (
-                      <span key={i}>{seg.value}</span>
-                    ),
-                  )}
-                </span>
-                {/* While the owner is filtering, offer inline timeout/ban on each match. */}
-                {isOwnerMod && filter.trim() && (
-                  <span style={{ marginLeft: 6, whiteSpace: 'nowrap' }}>
-                    <button onClick={() => ownerMod('timeout', l.user.name)} title={`Time out ${l.user.name}`} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, padding: '0 2px' }}>⛔</button>
-                    <button onClick={() => ownerMod('ban', l.user.name)} title={`Ban ${l.user.name}`} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, padding: '0 2px', color: '#ff6b6b' }}>🔨</button>
+            feedLines.map((l) => {
+              if (l.system) return (
+                <div key={l.id} style={{ wordBreak: 'break-word', color: '#f0c46a', fontStyle: 'italic', fontSize: 12, padding: '2px 0' }}>{l.body}</div>
+              )
+              const isDonation = l.kind === 'donation' || l.kind === 'superchat'
+              const isParty = !!l.senderId || l.user.badges.includes('party')
+              const nameEl = (
+                <span onClick={() => openHistory(l.user.name)} title={`See ${l.user.name}'s messages this session`}
+                  style={{ color: l.user.color, fontWeight: 700, textShadow: '0 1px 2px rgba(0,0,0,0.9)', cursor: 'pointer' }}>{l.user.name}</span>
+              )
+              // Superchat / donation → a pinned, tier-coloured card.
+              if (isDonation) return (
+                <div key={l.id} style={{ margin: '4px 0', borderRadius: 7, overflow: 'hidden', border: `1px solid ${l.user.color}`, boxShadow: `0 0 10px ${l.user.color}66` }}>
+                  <div style={{ background: l.user.color, color: '#0a0510', fontWeight: 800, fontSize: 12, padding: '3px 8px', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                    <span onClick={() => openHistory(l.user.name)} style={{ cursor: 'pointer' }}>{l.user.name}</span>
+                    <span>{formatKibbles(l.amount ?? 0)}</span>
+                  </div>
+                  <div style={{ padding: '4px 8px', fontSize: 13, background: `${l.user.color}1f`, color: '#fff' }}>{l.body}</div>
+                </div>
+              )
+              return (
+                <div key={l.id} style={{ wordBreak: 'break-word', ...(isParty ? { background: 'rgba(255,210,63,0.14)', borderLeft: '3px solid #ffd23f', padding: '2px 6px', borderRadius: 3, margin: '2px 0' } : {}) }}>
+                  {l.user.badges.map((b) => (
+                    <span key={b} title={b} style={{ display: 'inline-block', fontSize: 9, padding: '0 3px', marginRight: 3, borderRadius: 3, background: b === 'party' ? '#ffd23f' : b === 'mod' ? '#00ad03' : b === 'vip' ? '#e005b9' : b === 'prime' ? '#4d6bff' : '#8205b4', color: b === 'party' ? '#0a0510' : '#fff', fontWeight: b === 'party' ? 800 : 400, verticalAlign: 'middle' }}>{b === 'party' ? 'PLAYER' : b[0].toUpperCase()}</span>
+                  ))}
+                  {nameEl}
+                  <span style={{ color: 'var(--muted, #9aa)' }}>: </span>
+                  <span style={{ color: '#f2effa' }}>
+                    {parseEmotes(l.body).map((seg, i) =>
+                      seg.type === 'emote' ? (
+                        <span key={i} title={seg.name} style={{ display: 'inline-block', padding: '0 2px', margin: '0 1px', borderRadius: 3, background: 'rgba(200,155,60,0.18)' }}>{seg.glyph}</span>
+                      ) : (
+                        <span key={i}>{seg.value}</span>
+                      ),
+                    )}
                   </span>
-                )}
-              </div>
-            ))
+                  {isOwnerMod && filter.trim() && (
+                    <span style={{ marginLeft: 6, whiteSpace: 'nowrap' }}>
+                      <button onClick={() => ownerMod('timeout', l.user.name)} title={`Time out ${l.user.name}`} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, padding: '0 2px' }}>⛔</button>
+                      <button onClick={() => ownerMod('ban', l.user.name)} title={`Ban ${l.user.name}`} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, padding: '0 2px', color: '#ff6b6b' }}>🔨</button>
+                    </span>
+                  )}
+                </div>
+              )
+            })
           )}
           <div ref={endRef} />
         </div>
         <InfluenceMeter viewers={viewers} engagement={effEngagement} dcMode={stream.dc_mode} dcManual={stream.dc_manual} />
       </div>
+
+      {/* A watching player's chat box — posts stand out as PLAYER lines for the streamer. */}
+      {viewerCanChat && (
+        <div style={{ display: 'flex', gap: 6, padding: '6px 8px', borderTop: '1px solid rgba(255,255,255,0.12)' }}>
+          <input
+            value={viewerMsg}
+            onChange={(e) => setViewerMsg(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && postAsViewer()}
+            placeholder="Say something in chat…"
+            maxLength={240}
+            style={{ flex: 1, padding: '6px 8px', fontSize: 13, background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.18)', color: 'inherit', borderRadius: 4 }}
+          />
+          <button className="sd-pause" onClick={postAsViewer} disabled={viewerSending || !viewerMsg.trim()}>{viewerSending ? '…' : 'Chat'}</button>
+        </div>
+      )}
+
+      {/* Click-a-name history popover. */}
+      {historyOf && (
+        <div style={{ position: 'absolute', inset: 8, top: 40, background: 'rgba(10,6,18,0.97)', border: '1px solid var(--gold, #c89b3c)', borderRadius: 8, zIndex: 5, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 10px', borderBottom: '1px solid rgba(255,255,255,0.12)' }}>
+            <strong style={{ fontSize: 13, color: 'var(--gold, #c89b3c)' }}>🗒 {historyOf}</strong>
+            <button className="sd-pause" onClick={() => { setHistoryOf(null); setHistory(null) }}>✕</button>
+          </div>
+          <div style={{ overflow: 'auto', padding: '6px 10px', fontSize: 12.5, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {history === null ? <span style={{ color: 'var(--muted,#9aa)' }}>Loading…</span>
+              : history.length === 0 ? <span style={{ color: 'var(--muted,#9aa)' }}>No saved messages from this handle. (Ambient chatter isn’t recorded — only DM, AI, players, and donations are.)</span>
+              : history.map((h, i) => (
+                <div key={i}>
+                  {(h.kind === 'donation' || h.kind === 'superchat') && <span style={{ color: '#ffd23f', fontWeight: 700 }}>{formatKibbles(h.amount ?? 0)} </span>}
+                  <span style={{ color: '#f2effa' }}>{h.body}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
 
       <div className="stream-resize" onPointerDown={onResizeStart} title="Drag to resize">⤡</div>
     </div>

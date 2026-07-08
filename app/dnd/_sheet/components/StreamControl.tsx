@@ -5,6 +5,7 @@ import type { AlertType, StreamAlert } from '@/lib/dnd/stream-alerts'
 import { CHAT_MODES, type ChatMode, type ModActionType } from '@/lib/dnd/stream-mod'
 import { resolveDC, MAX_DC, MIN_DC, chatRatePerSec } from '@/lib/dnd/stream-influence'
 import { MOODS } from '@/lib/dnd/stream-moods'
+import { GENEROSITY, GENEROSITY_LEVELS, rollDonationAmount, formatKibbles, kibblesToGold, type Generosity } from '@/lib/dnd/stream-currency'
 import AliasBar from './stream/AliasBar'
 import ChatSearchPanel from './stream/ChatSearchPanel'
 import ReplyInbox from './stream/ReplyInbox'
@@ -18,6 +19,7 @@ interface Stream {
   dc_mode: 'auto' | 'manual'; dc_manual: number | null; moods: string[]
   focus_topic: string | null; focus_until: string | null; focus_intensity: number
   ai_mood_lines?: Record<string, string[]>; last_activity_at?: string | null; end_warning_at?: string | null
+  donations_enabled?: boolean; generosity?: Generosity; kibbles_earned?: number
 }
 
 const FOCUS_RAMP_MS = 90_000
@@ -40,6 +42,10 @@ export default function StreamControl() {
   const [focusMin, setFocusMin] = useState(10)
   const focusTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const [more, setMore] = useState(false)
+  // Donations / superchats (R).
+  const [donateAmt, setDonateAmt] = useState(100)
+  const [donateUser, setDonateUser] = useState('')
+  const donoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Utilities (polls / alerts / mod).
   const [pollQ, setPollQ] = useState(''); const [pollOpts, setPollOpts] = useState(''); const [polling, setPolling] = useState(false)
   const [alertType, setAlertType] = useState<AlertType>('sub'); const [alertUser, setAlertUser] = useState(''); const [alertDetail, setAlertDetail] = useState('')
@@ -109,6 +115,29 @@ export default function StreamControl() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [characterId, live])
 
+  // Ambient donations (R): while live + donations ON, fire viewer superchats at the DM's
+  // generosity pace (persisted so everyone sees them; they add to the streamer's stash).
+  const donationsOn = stream?.donations_enabled ?? false
+  const generosity: Generosity = stream?.generosity ?? 'off'
+  useEffect(() => {
+    if (!characterId || !live || !donationsOn || generosity === 'off') return
+    const cfg = GENEROSITY[generosity]
+    if (cfg.perMin <= 0) return
+    let stop = false
+    const fire = () => {
+      const amt = rollDonationAmount(generosity, Math.random(), Math.random())
+      if (amt > 0) fetch(`/api/dnd/characters/${characterId}/stream/donate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: amt }),
+      }).then(() => window.dispatchEvent(new CustomEvent('dnd-stream-poll', { detail: characterId }))).catch(() => {})
+    }
+    const schedule = () => {
+      const gap = (60_000 / cfg.perMin) * (0.5 + Math.random())
+      donoTimer.current = setTimeout(() => { if (!stop) { fire(); schedule() } }, gap)
+    }
+    schedule()
+    return () => { stop = true; if (donoTimer.current) clearTimeout(donoTimer.current) }
+  }, [characterId, live, donationsOn, generosity])
+
   if (!isDM || !characterId) return null
 
   const patch = async (body: Record<string, unknown>) => {
@@ -132,6 +161,21 @@ export default function StreamControl() {
   }
 
   const notifyPoll = () => window.dispatchEvent(new CustomEvent('dnd-stream-poll', { detail: characterId }))
+
+  const earned = stream?.kibbles_earned ?? 0
+  const fireDonation = (kind: 'superchat' | 'donation') => {
+    const amount = Math.max(1, Math.round(donateAmt) || 1)
+    fetch(`/api/dnd/characters/${characterId}/stream/donate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount, username: donateUser.trim() || undefined, kind }),
+    }).then((r) => r.json()).then((j) => { if (j?.kibblesEarned != null) setStream((s) => (s ? { ...s, kibbles_earned: j.kibblesEarned } : s)); notifyPoll() }).catch(() => {})
+  }
+  const convertKibbles = async () => {
+    const r = await fetch(`/api/dnd/characters/${characterId}/stream/convert`, { method: 'POST' })
+    const j = await r.json().catch(() => ({}))
+    if (r.ok) { setStream((s) => (s ? { ...s, kibbles_earned: j.kibblesLeft } : s)); window.alert(`💰 Converted ${j.creditsAdded} credits onto the sheet. ${j.kibblesLeft} Kibbles left over.`) }
+    else window.alert(j.error || 'Could not convert.')
+  }
 
   const viewers = stream?.viewer_count ?? 0
   const engagement = stream?.engagement ?? 50
@@ -284,6 +328,41 @@ export default function StreamControl() {
           {moods.length > 0 && <button className="btn tiny" onClick={() => { setStream((s) => (s ? { ...s, moods: [] } : s)); void patch({ moods: [] }) }} title="Clear moods">✕ clear</button>}
         </div>
       </div>
+
+      {/* 4b — Donations / superchats (off by default) */}
+      {live && (
+        <div style={{ ...box, borderColor: donationsOn ? '#ffd23f' : undefined, background: donationsOn ? 'rgba(255,210,63,0.06)' : undefined }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ ...label, color: '#ffd23f' }}>🐟 DONATIONS</span>
+            <button className={`btn tiny ${donationsOn ? 'on' : ''}`} onClick={() => patch({ donationsEnabled: !donationsOn })} style={{ color: donationsOn ? '#ffd23f' : undefined }}>
+              {donationsOn ? 'ON' : 'OFF'}
+            </button>
+            <span style={{ flex: 1 }} />
+            <span style={{ fontSize: 11, color: 'var(--muted,#9aa)' }}>earned {formatKibbles(earned)} → {kibblesToGold(earned)} credits</span>
+            <button className="btn tiny" onClick={convertKibbles} disabled={kibblesToGold(earned) < 1} title="Convert whole credits onto the sheet">💰 Convert</button>
+          </div>
+          {donationsOn && (
+            <>
+              <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ ...label, fontWeight: 400 }}>chat is</span>
+                {GENEROSITY_LEVELS.map((g) => (
+                  <button key={g} className={`btn tiny ${generosity === g ? 'on' : ''}`} onClick={() => patch({ generosity: g })} style={{ color: generosity === g ? '#ffd23f' : undefined }}>
+                    {GENEROSITY[g].label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <label style={{ ...label, fontWeight: 400, display: 'flex', alignItems: 'center', gap: 4 }}>🐟
+                  <input type="number" min={1} value={donateAmt} onChange={(e) => setDonateAmt(Math.max(1, Number(e.target.value) || 1))} style={{ ...inp, width: 90 }} />
+                </label>
+                <input value={donateUser} onChange={(e) => setDonateUser(e.target.value)} placeholder="from… (blank = random)" style={{ ...inp, width: 150 }} />
+                <button className="btn tiny" onClick={() => fireDonation('superchat')} style={{ color: '#ffd23f' }}>💬 Superchat</button>
+                <button className="btn tiny" onClick={() => fireDonation('donation')}>🎁 Donate</button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* 5 — Send as (alias) */}
       {live && <AliasBar characterId={characterId} onSent={notifyPoll} />}
