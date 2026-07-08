@@ -554,7 +554,8 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
     const tag = ok ? 'RESISTED' : 'GAVE IN'
     commitRoll({ label, kind: 'save', total: r.total, breakdown: r.breakdown, crit: r.crit, fumble: r.fumble, tag })
     setResist({ ok, text: ok ? `✊ RESISTED! ${r.total} vs DC ${resistDc}` : `😵 GAVE IN… ${r.total} vs DC ${resistDc}` })
-    setTimeout(() => setResist(null), 5000)
+    // Persist until dismissed (the ✕ on the banner) — no auto-timeout, so it never
+    // vanishes out from under you, especially while the meter is maxed + shaking.
     if (campaignId) {
       void postRoll({ campaignId, characterId, actorName: char.meta.name, label, result: r.total, breakdown: r.breakdown, crit: r.crit, fumble: r.fumble })
     }
@@ -625,8 +626,16 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
       )}
 
       {resist && (
-        <div className={`sd-resist-banner ${resist.ok ? 'ok' : 'bad'}`} role="status">
-          {resist.text}
+        <div className={`sd-resist-banner ${resist.ok ? 'ok' : 'bad'}`} role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, position: 'relative' }}>
+          <span>{resist.text}</span>
+          <button
+            onClick={() => setResist(null)}
+            title="Dismiss"
+            aria-label="Dismiss result"
+            style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 14, fontWeight: 800, lineHeight: 1, opacity: 0.85 }}
+          >
+            ✕
+          </button>
         </div>
       )}
 
