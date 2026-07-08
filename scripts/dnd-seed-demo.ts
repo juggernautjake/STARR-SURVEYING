@@ -73,16 +73,12 @@ async function main() {
         [DEMO_CAMPAIGN_ID, p.userId],
       );
     }
-    // Shared Guest identity for "＋ New Character" (owns visitor-created imports).
+    // Shared Guest identity for "＋ New Character" (owns visitor-created imports). It is
+    // intentionally NOT a member of Neon Odyssey — the roster is Andrew, Jacob, Susie.
     await client.query(
       `INSERT INTO dnd_users (id, email, display_name) VALUES ($1, 'guest@neon.local', 'Guest')
        ON CONFLICT (id) DO UPDATE SET display_name = EXCLUDED.display_name`,
       [DEMO_GUEST_USER_ID],
-    );
-    await client.query(
-      `INSERT INTO dnd_campaign_members (campaign_id, user_id, role) VALUES ($1, $2, 'player')
-       ON CONFLICT (campaign_id, user_id) DO UPDATE SET role = 'player'`,
-      [DEMO_CAMPAIGN_ID, DEMO_GUEST_USER_ID],
     );
 
     // 3. Characters. Lazzuh: attach its canonical row to Jacob as a PRIVATE sheet (only

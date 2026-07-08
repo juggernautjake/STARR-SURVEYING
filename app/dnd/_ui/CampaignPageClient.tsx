@@ -44,6 +44,8 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
   const [error, setError] = useState<string | null>(null)
   const [newSession, setNewSession] = useState('')
   const [newChar, setNewChar] = useState<{ name: string; sheetType: string; isNpc: boolean; ownerUserId: string }>({ name: '', sheetType: 'generic', isNpc: false, ownerUserId: '' })
+  const [newPlayer, setNewPlayer] = useState('')
+  const [memberErr, setMemberErr] = useState<string | null>(null)
 
   async function createCharacter() {
     if (!newChar.name.trim() || !data) return
@@ -67,6 +69,29 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
     } catch {
       /* ignore */
     }
+  }
+
+  // Add a player to the campaign by their sign-in name.
+  async function addPlayer() {
+    const name = newPlayer.trim()
+    if (!name || !data) return
+    setMemberErr(null)
+    const res = await fetch(`/api/dnd/campaigns/${data.campaign.id}/members`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
+    })
+    const j = await res.json().catch(() => ({}))
+    if (res.ok && j.member) {
+      setData((d) => (d ? { ...d, members: [...d.members, { userId: j.member.userId, role: 'player', displayName: j.member.displayName }] } : d))
+      setNewPlayer('')
+    } else setMemberErr(j.error || 'Could not add that player.')
+  }
+
+  // Remove a player from the campaign (their characters stay for the DM to reassign).
+  async function removePlayer(userId: string, name: string) {
+    if (!data || !window.confirm(`Remove ${name} from this campaign?`)) return
+    const res = await fetch(`/api/dnd/campaigns/${data.campaign.id}/members/${userId}`, { method: 'DELETE' })
+    if (res.ok) setData((d) => (d ? { ...d, members: d.members.filter((m) => m.userId !== userId) } : d))
+    else { const j = await res.json().catch(() => ({})); setMemberErr(j.error || 'Could not remove that player.') }
   }
 
   // Toggle whether a character (even an NPC you built) may be claimed by a player.
@@ -141,9 +166,37 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                         <div style={{ color: 'var(--hx-text)', fontSize: 14 }}>{m.displayName}</div>
                         <RoleBadge role={m.role} />
                       </div>
+                      {data.campaign.role === 'dm' && m.role !== 'dm' && (
+                        <button
+                          onClick={() => removePlayer(m.userId, m.displayName)}
+                          title={`Remove ${m.displayName} from the campaign`}
+                          style={{ fontSize: 11, padding: '2px 6px', cursor: 'pointer', color: '#ff6b6b', background: 'transparent', border: '1px solid var(--hx-line)', borderRadius: 4 }}
+                        >
+                          ✕ remove
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
+                {data.campaign.role === 'dm' && (
+                  <div style={{ marginTop: 14 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <input
+                        className={styles.input}
+                        style={{ width: 'auto', flex: '1 1 200px', padding: '8px 10px' }}
+                        placeholder="Add player by their sign-in name…"
+                        value={newPlayer}
+                        onChange={(e) => { setNewPlayer(e.target.value); setMemberErr(null) }}
+                        onKeyDown={(e) => e.key === 'Enter' && addPlayer()}
+                      />
+                      <button className={styles.hexBtn} style={{ padding: '8px 16px' }} onClick={addPlayer} disabled={!newPlayer.trim()}>＋ Add player</button>
+                    </div>
+                    {memberErr && <div className={styles.error} style={{ marginTop: 8 }}>{memberErr}</div>}
+                    <p style={{ margin: '6px 0 0', fontSize: 11.5, color: 'var(--hx-muted)' }}>
+                      They need to have signed in at least once (so their name exists). To invite someone new, use the invite panel below.
+                    </p>
+                  </div>
+                )}
               </section>
 
               {/* Invite UI — DM only (B5b). */}
