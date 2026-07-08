@@ -8,7 +8,9 @@ import { supabase } from '@/lib/supabase'
 import { makeUsernames, type ChatUser } from '@/lib/dnd/stream-names'
 import { parseEmotes } from '@/lib/dnd/stream-emotes'
 import { allowedInMode, modeIntervalFactor, formatModAction, type ChatMode, type ModActionType, CHAT_MODES } from '@/lib/dnd/stream-mod'
-import { viewerDC, chatRatePerSec, fluctuateViewers } from '@/lib/dnd/stream-influence'
+import { viewerDC, resolveDC, chatRatePerSec, fluctuateViewers } from '@/lib/dnd/stream-influence'
+import { buildMoodPool } from '@/lib/dnd/stream-moods'
+import ChatSearchPanel from './stream/ChatSearchPanel'
 import InfluenceMeter from './InfluenceMeter'
 import { useLiveEngagement } from './useLiveEngagement'
 import { useChar } from '../state/store'
@@ -16,7 +18,7 @@ import { rollD20 } from '../lib/dice'
 import { abilityMod } from '../rules/dnd'
 import { postRoll } from '@/app/dnd/_ui/RollFeed'
 
-interface StreamState { is_live: boolean; chat_speed: number; viewer_count: number; engagement?: number }
+interface StreamState { is_live: boolean; chat_speed: number; viewer_count: number; engagement?: number; moods?: string[]; ai_mood_lines?: Record<string, string[]>; dc_mode?: 'auto' | 'manual'; dc_manual?: number | null }
 interface Line { id: number | string; user: ChatUser; body: string; system?: boolean }
 
 function hasEmote(body: string): boolean {
@@ -30,15 +32,16 @@ function rand<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
 
-// Build one chat line's body: a phrase with a heavy sprinkle of emojis, and every so
-// often a pure-spam burst (repeated emoji / hype word).
-function makeBody(): string {
+// Build one chat line's body from the active phrase pool (default, or mood-biased): a
+// phrase with a heavy sprinkle of emojis, and every so often a pure-spam burst (repeated
+// emoji / hype word). The pool is chosen by the DM's selected moods (see buildMoodPool).
+function makeBody(pool: readonly string[]): string {
   if (Math.random() < 0.16) {
     const reps = 3 + Math.floor(Math.random() * 7)
     const token = Math.random() < 0.6 ? rand(EMOJIS) : rand(['LETS GOOO', 'SPAM', 'POG', 'W', 'HYPE', 'AAAAA'])
     return Array.from({ length: reps }, () => token).join(' ')
   }
-  let body = rand(PHRASES)
+  let body = rand(pool as string[])
   const n = Math.floor(Math.random() * 4) // 0–3 trailing emojis
   for (let i = 0; i < n; i++) body += ' ' + rand(EMOJIS)
   if (Math.random() < 0.3) body = rand(EMOJIS) + ' ' + body // sometimes lead with one too
@@ -129,7 +132,10 @@ const PHRASES = [
 ]
 
 export default function StreamChat({ characterId, campaignId, initialStream }: { characterId: string; campaignId?: string | null; initialStream?: StreamState }) {
-  const { char, pb, commitRoll, isDM } = useChar()
+  const { char, pb, commitRoll, isDM, canWrite } = useChar()
+  // Owner (the streamer player) gets the chat-search panel too — the DM has it in the
+  // control panel, so here it's only for a non-DM owner.
+  const [showSearch, setShowSearch] = useState(false)
   const { boost, bumpChat } = useLiveEngagement(characterId, campaignId ?? null)
   const [stream, setStream] = useState<StreamState | null>(initialStream ?? null)
   const [lines, setLines] = useState<Line[]>([])
@@ -156,6 +162,10 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
   const [pausedLocal, setPausedLocal] = useState(false)
   // Big procedural crowd (only used past 15 viewers, where handles vary widely).
   const bigCrowdRef = useRef<ChatUser[]>([])
+  // Active ambient phrase pool — default (broad PHRASES) or biased by the DM's selected
+  // moods (+ any AI-refreshed lines). Held in a ref so mood changes take effect on the
+  // next line WITHOUT restarting the ambient loop/timers.
+  const poolRef = useRef<string[]>(PHRASES)
   // When DM/AI messages land, ambient chatter is suppressed for a moment so the curated
   // lines dominate the feed (the AI/DM has "full sway" over what chat is saying).
   const dampenUntilRef = useRef(0)
@@ -207,6 +217,11 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
 
   // Organic "N watching" fluctuation. Re-centres immediately whenever the DM's set count
   // changes (0 stays 0, 1–15 stay exact; 16+ drifts within its tier).
+  // Keep the ambient pool in sync with the DM's selected moods + AI-refreshed lines.
+  useEffect(() => {
+    poolRef.current = buildMoodPool(PHRASES, stream?.moods, stream?.ai_mood_lines)
+  }, [stream?.moods, stream?.ai_mood_lines])
+
   useEffect(() => {
     const base = Math.max(0, Math.floor(stream?.viewer_count ?? 0))
     setDisplayViewers(fluctuateViewers(base, Math.random()))
@@ -266,7 +281,7 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
         4 + Math.floor(Math.random() * 5)             // 4–8
       burst = Math.min(burst, maxBurst)
 
-      const batch = Array.from({ length: burst }, () => ({ id: idRef.current++, user: crowd[Math.floor(Math.random() * crowd.length)], body: makeBody() }))
+      const batch = Array.from({ length: burst }, () => ({ id: idRef.current++, user: crowd[Math.floor(Math.random() * crowd.length)], body: makeBody(poolRef.current) }))
         .filter((l) => l.user && !banned.has(l.user.name) && allowedInMode({ badges: l.user.badges, hasEmote: hasEmote(l.body) }, chatMode))
       if (batch.length) { setLines((m) => [...m, ...batch].slice(-80)); bumpChat(batch.length) }
 
@@ -471,11 +486,13 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
   if (!stream?.is_live) return null
   const modeMeta = CHAT_MODES.find((m) => m.id === chatMode)
 
-  // The resist DC is set purely by the live viewer count (the tier table). Engagement +
-  // the decaying activity boost (J13) only feed the meter's visual energy, not the DC.
+  // Ambient PACE is still set by the live audience (the tier table). The RESIST DC now
+  // honors the DM's choice: auto (viewers + engagement) or a pinned manual value (K). The
+  // decaying activity boost (J13) still nudges the auto DC + the meter's visual energy.
   const viewers = stream.viewer_count ?? 0
   const effEngagement = Math.min(100, (stream.engagement ?? 50) + boost)
-  const resistDc = viewerDC(viewers)
+  const paceDc = viewerDC(viewers)
+  const resistDc = resolveDC({ mode: stream.dc_mode, manual: stream.dc_manual, viewers, engagement: effEngagement })
 
   // "Resist the chat" — a proficient Wisdom (willpower) save vs the patron's current DC.
   // Posts to the sheet log + the shared roll feed, and flashes a result banner.
@@ -530,19 +547,30 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
         >
           {pausedLocal ? '▶ Resume' : '⏸ Pause'}
         </button>
-        <span className="sd-rate" title={`Chat pace is set purely by the audience size — more viewers = faster chat. Right now ~${chatRatePerSec(resistDc)} messages/sec.`}>
-          {viewers <= 0 ? 'silent' : `~${chatRatePerSec(resistDc) < 1 ? chatRatePerSec(resistDc).toFixed(2) : chatRatePerSec(resistDc)}/s`}
+        <span className="sd-rate" title={`Chat pace is set by the audience size — more viewers = faster chat. Right now ~${chatRatePerSec(paceDc)} messages/sec.`}>
+          {viewers <= 0 ? 'silent' : `~${chatRatePerSec(paceDc) < 1 ? chatRatePerSec(paceDc).toFixed(2) : chatRatePerSec(paceDc)}/s`}
         </span>
+        {canWrite && !isDM && (
+          <button className={`sd-pause ${showSearch ? 'on' : ''}`} onClick={() => setShowSearch((s) => !s)} title="Search chat by username or keyword">
+            🔍 Search
+          </button>
+        )}
         {isDM && (
           <button
             className="sd-resist"
             onClick={rollResist}
-            title={`Roll her Wisdom save to resist what chat is demanding (must beat DC ${resistDc}, set by the ${viewers.toLocaleString()} viewers)`}
+            title={`Roll her Wisdom save to resist what chat is demanding (must beat DC ${resistDc})`}
           >
             🎲 Resist · DC {resistDc}
           </button>
         )}
       </div>
+
+      {canWrite && !isDM && showSearch && (
+        <div style={{ padding: '0 8px 8px' }}>
+          <ChatSearchPanel characterId={characterId} isDM={false} />
+        </div>
+      )}
 
       {resist && (
         <div className={`sd-resist-banner ${resist.ok ? 'ok' : 'bad'}`} role="status">

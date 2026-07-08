@@ -1,6 +1,6 @@
 // __tests__/dnd/stream-influence.test.ts — patron-influence meter math (J11).
 import { describe, it, expect } from 'vitest';
-import { viewerFactor, computeInfluence, viewerDC, MAX_DC, chatRatePerSec, viewerTierBounds, fluctuateViewers, engagementBoostFor, ENGAGEMENT_BOOST_CAP } from '@/lib/dnd/stream-influence';
+import { viewerFactor, computeInfluence, viewerDC, MAX_DC, MIN_DC, chatRatePerSec, viewerTierBounds, fluctuateViewers, engagementBoostFor, ENGAGEMENT_BOOST_CAP, organicDC, resolveDC, DC_ENGAGEMENT_NUDGE } from '@/lib/dnd/stream-influence';
 
 describe('chatRatePerSec', () => {
   it('anchors to the DM spec (DC 15 ≈ 1/sec, DC 20 ≈ 2/sec) and is monotonic', () => {
@@ -96,6 +96,34 @@ describe('viewerDC', () => {
       expect(dc).toBeGreaterThanOrEqual(prev);
       prev = dc;
     }
+  });
+});
+
+describe('organicDC', () => {
+  it('neutral engagement (50) leaves the viewer-tier DC unchanged', () => {
+    for (const v of [0, 1000, 200_000, 1e9]) expect(organicDC(v, 50)).toBe(viewerDC(v));
+  });
+  it('max engagement nudges the DC up, zero nudges it down — within the cap', () => {
+    const base = viewerDC(200_000); // 11
+    expect(organicDC(200_000, 100)).toBe(Math.min(MAX_DC, base + DC_ENGAGEMENT_NUDGE));
+    expect(organicDC(200_000, 0)).toBe(Math.max(MIN_DC, base - DC_ENGAGEMENT_NUDGE));
+  });
+  it('stays clamped to [MIN_DC, MAX_DC] at the extremes', () => {
+    expect(organicDC(0, 0)).toBe(MIN_DC);            // DC 2 floor, can't go below
+    expect(organicDC(1e15, 100)).toBe(MAX_DC);       // DC 25 ceiling, can't go above
+  });
+});
+
+describe('resolveDC', () => {
+  it('manual mode pins the DM value, clamped 2–25', () => {
+    expect(resolveDC({ mode: 'manual', manual: 17, viewers: 5, engagement: 50 })).toBe(17);
+    expect(resolveDC({ mode: 'manual', manual: 999, viewers: 5, engagement: 50 })).toBe(MAX_DC);
+    expect(resolveDC({ mode: 'manual', manual: -3, viewers: 5, engagement: 50 })).toBe(MIN_DC);
+  });
+  it('falls back to organic when manual is missing or mode is auto', () => {
+    expect(resolveDC({ mode: 'manual', manual: null, viewers: 200_000, engagement: 50 })).toBe(viewerDC(200_000));
+    expect(resolveDC({ mode: 'auto', viewers: 200_000, engagement: 100 })).toBe(organicDC(200_000, 100));
+    expect(resolveDC({ viewers: 1000, engagement: 50 })).toBe(viewerDC(1000));
   });
 });
 
