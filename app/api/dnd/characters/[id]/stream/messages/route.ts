@@ -67,6 +67,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // A fellow player posting → forced to their own display name with a bright PARTY badge +
   // colour + their user id, so the streamer spots a real teammate's line instantly. The
   // DM/owner may instead post as any handle (or a random viewer if none given).
+  // Every posted-by-a-person line carries the sender's user id so it's trackable in the
+  // click-a-name history (DM/aliases + players + donors); the ambient/AI crowd has none,
+  // so those handles aren't clickable. The bright PARTY badge is for actual players only.
   const user =
     !privileged
       ? { name: String(session.displayName).slice(0, 24), color: '#ffd23f', badges: ['party'], senderId: session.userId }
@@ -75,9 +78,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             name: String(username).slice(0, 24),
             color: (typeof color === 'string' && color) || styleForName(String(username)).color,
             badges: Array.isArray(badges) ? badges.filter((b) => typeof b === 'string').slice(0, 4) : styleForName(String(username)).badges,
-            senderId: null as string | null,
+            senderId: session.userId as string | null,
           }
-        : { ...makeUsernames(1, Math.floor(Math.random() * 100000))[0], senderId: null as string | null };
+        : { ...makeUsernames(1, Math.floor(Math.random() * 100000))[0], senderId: session.userId as string | null };
 
   const { data, error } = await supabaseAdmin
     .from('dnd_stream_messages')

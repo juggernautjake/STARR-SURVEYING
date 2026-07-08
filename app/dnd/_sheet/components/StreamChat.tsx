@@ -640,10 +640,16 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
                 <div key={l.id} style={{ wordBreak: 'break-word', color: '#f0c46a', fontStyle: 'italic', fontSize: 12, padding: '2px 0' }}>{l.body}</div>
               )
               const isDonation = l.kind === 'donation' || l.kind === 'superchat'
-              const isParty = !!l.senderId || l.user.badges.includes('party')
-              const nameEl = (
+              const isParty = l.user.badges.includes('party')
+              // Only real identities are clickable for history: the DM's own lines/aliases
+              // and other players (both carry senderId), plus donors (money events). The
+              // random AI/ambient crowd isn't trackable.
+              const trackable = !!l.senderId || isDonation
+              const nameEl = trackable ? (
                 <span onClick={() => openHistory(l.user.name)} title={`See ${l.user.name}'s messages this session`}
                   style={{ color: l.user.color, fontWeight: 700, textShadow: '0 1px 2px rgba(0,0,0,0.9)', cursor: 'pointer' }}>{l.user.name}</span>
+              ) : (
+                <span style={{ color: l.user.color, fontWeight: 700, textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}>{l.user.name}</span>
               )
               // Superchat / donation → a pinned, tier-coloured card.
               if (isDonation) return (
