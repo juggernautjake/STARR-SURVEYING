@@ -61,7 +61,7 @@ export default function CampaignLobby({ data, currentName }: { data: CampaignLob
                 className={styles.framedPanel}
                 onClick={() => (p.characterId ? enter(p.userId, `/dnd/characters/${p.characterId}`) : undefined)}
                 disabled={!!entering || !p.characterId}
-                style={{ cursor: p.characterId ? 'pointer' : 'default', textAlign: 'center', padding: '18px 12px', opacity: entering && entering !== p.userId ? 0.5 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
+                style={{ cursor: p.characterId ? 'pointer' : 'default', textAlign: 'center', padding: '18px 12px', opacity: entering && entering !== p.userId ? 0.5 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, minWidth: 0 }}
               >
                 {p.portrait ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -69,8 +69,8 @@ export default function CampaignLobby({ data, currentName }: { data: CampaignLob
                 ) : (
                   <span className={`${styles.portrait} ${styles.portraitActive}`} style={{ width: 84, height: 84, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 34, fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)' }}>{initial(p.characterName ?? p.playerName)}</span>
                 )}
-                <span style={{ fontFamily: 'var(--hx-font-display)', fontSize: 17, color: 'var(--hx-gold-2)', letterSpacing: '0.03em' }}>{entering === p.userId ? 'Entering…' : (p.characterName ?? 'No character')}</span>
-                <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{p.playerName}</span>
+                <span style={{ width: '100%', maxWidth: '100%', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: 1.15, fontFamily: 'var(--hx-font-display)', fontSize: 15, color: 'var(--hx-gold-2)', letterSpacing: '0.02em' }}>{entering === p.userId ? 'Entering…' : (p.characterName ?? 'No character')}</span>
+                <span style={{ width: '100%', overflowWrap: 'anywhere', fontSize: 12, color: 'var(--hx-muted)' }}>{p.playerName}</span>
               </button>
             ))}
 
@@ -81,7 +81,7 @@ export default function CampaignLobby({ data, currentName }: { data: CampaignLob
                 className={styles.framedPanel}
                 onClick={() => enter(data.dm!.userId, `/dnd/characters/${n.characterId}`)}
                 disabled={!!entering}
-                style={{ cursor: 'pointer', textAlign: 'center', padding: '18px 12px', opacity: entering && entering !== data.dm!.userId ? 0.5 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
+                style={{ cursor: 'pointer', textAlign: 'center', padding: '18px 12px', opacity: entering && entering !== data.dm!.userId ? 0.5 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, minWidth: 0 }}
               >
                 {n.portrait ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -89,7 +89,7 @@ export default function CampaignLobby({ data, currentName }: { data: CampaignLob
                 ) : (
                   <span className={styles.portrait} style={{ width: 84, height: 84, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 34, fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)' }}>{initial(n.name)}</span>
                 )}
-                <span style={{ fontFamily: 'var(--hx-font-display)', fontSize: 15, color: 'var(--hx-gold-2)', letterSpacing: '0.03em', wordBreak: 'break-word' }}>{n.name}</span>
+                <span style={{ width: '100%', maxWidth: '100%', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: 1.15, fontFamily: 'var(--hx-font-display)', fontSize: 15, color: 'var(--hx-gold-2)', letterSpacing: '0.02em' }}>{n.name}</span>
                 <span style={{ fontSize: 11, letterSpacing: '0.1em', color: 'var(--hx-teal-1)' }}>NPC · DM-RUN</span>
               </button>
             ))}
