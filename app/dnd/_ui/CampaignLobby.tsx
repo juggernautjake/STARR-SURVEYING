@@ -59,8 +59,8 @@ export default function CampaignLobby({ data, currentName }: { data: CampaignLob
               <button
                 key={p.userId}
                 className={styles.framedPanel}
-                onClick={() => (p.characterId ? enter(p.userId, `/dnd/characters/${p.characterId}`) : undefined)}
-                disabled={!!entering || !p.characterId}
+                onClick={() => (p.locked ? router.push('/dnd') : (p.characterId ? enter(p.userId, `/dnd/characters/${p.characterId}`) : undefined))}
+                disabled={!!entering || (!p.characterId && !p.locked)}
                 style={{ cursor: p.characterId ? 'pointer' : 'default', textAlign: 'center', padding: '18px 12px', opacity: entering && entering !== p.userId ? 0.5 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
               >
                 {p.portrait ? (
@@ -70,11 +70,12 @@ export default function CampaignLobby({ data, currentName }: { data: CampaignLob
                   <span className={`${styles.portrait} ${styles.portraitActive}`} style={{ width: 84, height: 84, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 34, fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)' }}>{initial(p.characterName ?? p.playerName)}</span>
                 )}
                 <span style={{ fontFamily: 'var(--hx-font-display)', fontSize: 17, color: 'var(--hx-gold-2)', letterSpacing: '0.03em' }}>{entering === p.userId ? 'Entering…' : (p.characterName ?? 'No character')}</span>
-                <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{p.playerName}</span>
+                <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{p.playerName}{p.locked ? ' · 🔒 sign in' : ''}</span>
               </button>
             ))}
 
-            {/* DM-run NPCs (e.g. the streamer) — open their sheet by entering as the DM. */}
+            {/* Any DM-run NPCs — open their sheet by entering as the DM. (The streamer is a
+                player character, so she appears above with the players, not here.) */}
             {data.dm && data.npcs.map((n) => (
               <button
                 key={n.characterId}
@@ -113,10 +114,10 @@ export default function CampaignLobby({ data, currentName }: { data: CampaignLob
               <button
                 className={`${styles.hexBtn} ${styles.hexBtnPrimary}`}
                 style={{ padding: '12px 26px', fontSize: 15 }}
-                onClick={() => enter(data.dm!.userId, `/dnd/campaigns/${data.id}/manage`)}
+                onClick={() => (data.dm!.locked ? router.push('/dnd') : enter(data.dm!.userId, `/dnd/campaigns/${data.id}/manage`))}
                 disabled={!!entering}
               >
-                {entering === data.dm.userId ? 'Entering…' : `⚔️ Enter as ${data.dm.name} (DM)`}
+                {entering === data.dm.userId ? 'Entering…' : data.dm.locked ? `🔒 Sign in as ${data.dm.name} (DM)` : `⚔️ Enter as ${data.dm.name} (DM)`}
               </button>
             </div>
           )}

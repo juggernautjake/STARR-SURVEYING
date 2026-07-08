@@ -24,10 +24,18 @@ export async function POST(req: NextRequest) {
     if (!mem || mem.length === 0) return NextResponse.json({ error: 'Unknown identity.' }, { status: 400 });
   }
 
-  const { data } = await supabaseAdmin.from('dnd_users').select('id, email, display_name').eq('id', userId).maybeSingle();
-  const user = data as { id: string; email: string; display_name: string } | null;
+  const { data } = await supabaseAdmin.from('dnd_users').select('id, email, display_name, password_hash').eq('id', userId).maybeSingle();
+  const user = data as { id: string; email: string; display_name: string; password_hash: string | null } | null;
   if (!user) return NextResponse.json({ error: 'Identity not found.' }, { status: 404 });
 
-  setDndSession(user);
+  // A password-protected account may NOT be entered passwordlessly — that would defeat the
+  // whole point of assigning private characters to a person. Those accounts must sign in
+  // with their name + password (the pseudo-login). Only passwordless identities (e.g. the
+  // shared Guest used for "＋ New Character") can be entered directly.
+  if (user.password_hash) {
+    return NextResponse.json({ error: 'This account is password-protected — sign in with your name and password.' }, { status: 403 });
+  }
+
+  setDndSession({ id: user.id, email: user.email, display_name: user.display_name });
   return NextResponse.json({ ok: true });
 }
