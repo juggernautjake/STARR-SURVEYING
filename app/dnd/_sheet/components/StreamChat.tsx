@@ -12,6 +12,7 @@ import { viewerDC, resolveDC, chatRatePerSec, fluctuateViewers } from '@/lib/dnd
 import { buildMoodPool } from '@/lib/dnd/stream-moods'
 import { formatNuggets } from '@/lib/dnd/stream-currency'
 import InfluenceMeter from './InfluenceMeter'
+import StreamTip from './StreamTip'
 import { useLiveEngagement } from './useLiveEngagement'
 import { useChar } from '../state/store'
 import { rollD20 } from '../lib/dice'
@@ -758,6 +759,9 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
           <button className="sd-pause" onClick={postAsViewer} disabled={viewerSending || !viewerMsg.trim()}>{viewerSending ? '…' : 'Chat'}</button>
         </div>
       )}
+
+      {/* A watching player can also tip the streamer their own notes → NeoNuggets. */}
+      {viewerCanChat && <StreamTip characterId={characterId} />}
 
       {/* Click-a-name history popover. */}
       {historyOf && (

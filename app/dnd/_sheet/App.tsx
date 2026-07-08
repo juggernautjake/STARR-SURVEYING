@@ -55,7 +55,7 @@ type TabId = (typeof TABS)[number]['id']
 
 export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetType?: string }) {
   const [tab, setTab] = useState<TabId>('overview')
-  const { char, media, characterId, campaignId, isDM, offline } = useChar()
+  const { char, media, characterId, campaignId, isDM, canWrite, offline } = useChar()
 
   // Registry-driven config for this character's sheet_type (C8): which bespoke
   // skin + which character-only modules to render.
@@ -278,7 +278,9 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
           characters whose sheet_type registers the `stream` module (§6.9). */}
       {hasStream && characterId && <StreamAlert characterId={characterId} />}
       {hasStream && characterId && <StreamPoll characterId={characterId} isController={isDM} />}
-      {hasStream && characterId && <StreamChat characterId={characterId} campaignId={campaignId} />}
+      {/* A fellow party member watching this stream (not the streamer/owner or DM) can
+          chat as a viewer and tip the streamer their own notes. */}
+      {hasStream && characterId && <StreamChat characterId={characterId} campaignId={campaignId} viewerCanChat={!isDM && !canWrite} />}
 
       {/* DM-broadcast initiative roller — dims the screen + rolls with this
           character's bonus when the DM sends it out; flavor per sheet_type. */}
