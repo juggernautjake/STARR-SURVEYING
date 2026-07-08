@@ -3,7 +3,7 @@
 // emoji, spacing, leetspeak, and reaction wrappers. Pure + deterministic so it's
 // unit-tested and serves as the always-available fallback when the AI variant is off.
 
-const EMOJI = ['🔥', '💀', '😭', '🗿', '💅', '🐐', '⚔️', '🎲', '👑', '😂', '🙏', '⭐', '💯', '🤨'];
+const EMOJI = ['🔥', '💀', '😭', '🗿', '💅', '🐐', '⚔️', '👑', '😂', '🙏', '⭐', '💯', '🤨', '👀', '😳'];
 const REACT = [
   'OMG {p}', '{p} LMAOOO', 'not {p} 💀', 'chat is this {p}?', '{p} actual cinema', 'W {p}',
   '{p} on god', 'bro said {p}', '{p}????', 'sir this is a {p}', '{p} is CRAZY', 'yo {p}',

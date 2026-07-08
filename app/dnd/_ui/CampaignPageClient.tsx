@@ -108,7 +108,7 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
       <div className={styles.screen} style={{ alignItems: 'flex-start' }}>
         <div style={{ width: '100%', maxWidth: 900, display: 'grid', gap: 16 }}>
           <div>
-            <a className={styles.hexBtn} href="/dnd" style={{ marginBottom: 10 }}>← Campaigns</a>
+            <a className={styles.hexBtn} href={`/dnd/campaigns/${campaignId}`} style={{ marginBottom: 10 }}>← Lobby (switch role)</a>
             <h1 className={styles.title} style={{ textAlign: 'left', margin: '8px 0 0' }}>{data?.campaign.name ?? '…'}</h1>
             {data?.campaign.blurb && <p style={{ color: 'var(--hx-muted)', margin: '4px 0 0' }}>{data.campaign.blurb}</p>}
           </div>

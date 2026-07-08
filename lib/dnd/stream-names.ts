@@ -7,14 +7,32 @@ const ADJ = [
   'Epic', 'Salty', 'Toxic', 'Based', 'Cracked', 'Sweaty', 'Grim', 'Shadow', 'Pixel', 'Noob',
   'Pro', 'Dark', 'Mega', 'Ultra', 'Turbo', 'Lil', 'Big', 'Old', 'Mad', 'Sir',
   'Lord', 'Captain', 'Silent', 'Frost', 'Blaze', 'Iron', 'Golden', 'Crimson', 'Void', 'Feral',
+  // expanded pool — more flavors of chatter
+  'Cursed', 'Blessed', 'Hyper', 'Cosmic', 'Neon', 'Glitchy', 'Sneaky', 'Chunky', 'Spicy', 'Cozy',
+  'Zesty', 'Goofy', 'Sleepy', 'Angry', 'Rabid', 'Radiant', 'Rusty', 'Vapor', 'Quantum', 'Elder',
+  'Baby', 'Uncle', 'Auntie', 'Grandpa', 'Emo', 'Goth', 'Sigma', 'Alpha', 'Beta', 'Certified',
+  'Boiled', 'Fried', 'Frozen', 'Molten', 'Astral', 'Feral', 'Sussy', 'Wholesome', 'Chaotic', 'Lawful',
+  'Undead', 'Eternal', 'Broke', 'Rich', 'Tiny', 'Giga', 'Nano', 'Retro', 'Cyber', 'Holy',
 ];
 const NOUN = [
   'Gamer', 'Slayer', 'Wizard', 'Goblin', 'Knight', 'Dragon', 'Sniper', 'Warrior', 'Bard', 'Rogue',
   'Mage', 'Orc', 'Wolf', 'Raven', 'Ghost', 'Viking', 'Ninja', 'Potato', 'Cheese', 'Waffle',
   'Toast', 'Wizard420', 'Kobold', 'Lich', 'Paladin', 'Druid', 'Gremlin', 'Yeti', 'Phoenix', 'Kraken',
+  // expanded pool — critters, snacks, roles, and internet nouns
+  'Beholder', 'Tiefling', 'Warlock', 'Cleric', 'Ranger', 'Barbarian', 'Sorcerer', 'Monk', 'Artificer', 'Necromancer',
+  'Slime', 'Mimic', 'Owlbear', 'Basilisk', 'Wyvern', 'Griffin', 'Imp', 'Demon', 'Angel', 'Fairy',
+  'Nugget', 'Pickle', 'Muffin', 'Noodle', 'Biscuit', 'Pancake', 'Burrito', 'Taco', 'Gyro', 'Pretzel',
+  'Frog', 'Cat', 'Goose', 'Duck', 'Racoon', 'Possum', 'Hamster', 'Capybara', 'Axolotl', 'Sloth',
+  'Streamer', 'Vtuber', 'Mod', 'Lurker', 'Simp', 'Chad', 'Gremblin', 'Menace', 'Legend', 'Enjoyer',
 ];
-const SUFFIX = ['', '69', '420', '_TV', 'XD', '_YT', '99', '007', '2000', '_gg', 'Live', 'HD', '_', 'xoxo', '1337'];
-const COLORS = ['#ff4d4d', '#4da3ff', '#4dff88', '#ffd24d', '#c14dff', '#ff4dbb', '#4dfff0', '#ff884d', '#8cff4d', '#4d6bff'];
+const SUFFIX = [
+  '', '69', '420', '_TV', 'XD', '_YT', '99', '007', '2000', '_gg', 'Live', 'HD', '_', 'xoxo', '1337',
+  '_ttv', 'uwu', 'OwO', '_exe', '3000', 'x', 'zzz', '_real', '_official', '42', '77', '_irl', 'GG', '_69', '_main',
+];
+const COLORS = [
+  '#ff4d4d', '#4da3ff', '#4dff88', '#ffd24d', '#c14dff', '#ff4dbb', '#4dfff0', '#ff884d', '#8cff4d', '#4d6bff',
+  '#ff6ec7', '#7ce7ff', '#ffe14d', '#b28dff', '#5effa1', '#ff9f4d', '#69d2ff', '#ff5e9e', '#9dff5e', '#ffcf5e',
+];
 const LEET: Record<string, string> = { a: '4', e: '3', o: '0', i: '1', s: '5' };
 
 function hash(s: string): number {

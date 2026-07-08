@@ -8,9 +8,10 @@ import { useRouter } from 'next/navigation'
 import styles from './hextech.module.css'
 import type { CampaignLobbyData } from '@/lib/dnd/campaign-summary'
 
-export default function CampaignLobby({ data }: { data: CampaignLobbyData }) {
+export default function CampaignLobby({ data, currentName }: { data: CampaignLobbyData; currentName?: string | null }) {
   const router = useRouter()
   const [entering, setEntering] = useState<string | null>(null)
+  const [acting, setActing] = useState<string | null>(currentName ?? null)
 
   async function enter(userId: string, target: string) {
     if (entering) return
@@ -26,6 +27,12 @@ export default function CampaignLobby({ data }: { data: CampaignLobbyData }) {
     }
   }
 
+  async function logout() {
+    await fetch('/api/dnd/auth/logout', { method: 'POST' }).catch(() => {})
+    setActing(null)
+    router.refresh()
+  }
+
   const initial = (s: string) => (s || '?').charAt(0).toUpperCase()
 
   return (
@@ -34,9 +41,17 @@ export default function CampaignLobby({ data }: { data: CampaignLobbyData }) {
         <div style={{ width: '100%', maxWidth: 900, display: 'grid', gap: 20, margin: '0 auto' }}>
           <div style={{ textAlign: 'center' }}>
             <a className={styles.hexBtn} href="/dnd" style={{ float: 'left' }}>← Campaigns</a>
-            <p className={styles.brand}>{data.setting ? 'Campaign' : 'Neon Odyssey'}</p>
+            {acting && (
+              <button className={styles.hexBtn} onClick={logout} style={{ float: 'right' }} title="Clear who you're acting as">
+                Log out{acting ? ` (${acting})` : ''}
+              </button>
+            )}
+            <p className={styles.brand}>Choose who you&apos;re playing</p>
             <h1 className={styles.title}>{data.name}</h1>
             {data.setting && <p className={styles.subtitle}>{data.setting}</p>}
+            <p style={{ color: 'var(--hx-muted)', fontSize: 13, marginTop: 6 }}>
+              {acting ? <>Currently acting as <span style={{ color: 'var(--hx-gold-2)' }}>{acting}</span> — pick again to switch.</> : 'Pick your character to open its sheet, or enter as the Dungeon Master.'}
+            </p>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 14 }}>
@@ -98,7 +113,7 @@ export default function CampaignLobby({ data }: { data: CampaignLobbyData }) {
               <button
                 className={`${styles.hexBtn} ${styles.hexBtnPrimary}`}
                 style={{ padding: '12px 26px', fontSize: 15 }}
-                onClick={() => enter(data.dm!.userId, `/dnd/campaigns/${data.id}`)}
+                onClick={() => enter(data.dm!.userId, `/dnd/campaigns/${data.id}/manage`)}
                 disabled={!!entering}
               >
                 {entering === data.dm.userId ? 'Entering…' : `⚔️ Enter as ${data.dm.name} (DM)`}

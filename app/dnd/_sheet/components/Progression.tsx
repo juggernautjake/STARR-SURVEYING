@@ -4,18 +4,22 @@ import SectionHead from './ui/SectionHead'
 
 export default function Progression() {
   const { char } = useChar()
+  // Hide entirely when the character has no progression rows (keeps non-barbarian
+  // sheets from showing an empty, Lazzuh-flavored table).
+  if (!char.progression || char.progression.length === 0) return null
+  const meta = char.progressionMeta
   return (
     <section id="progression">
-      <SectionHead num="11" title="Progression · Levels 1–7" />
-      <p className="lead">Everything Lazzuh gains from level 1 through 7. The highlighted row is your current level; rows above it are still ahead.</p>
+      <SectionHead num="11" title={meta?.title ?? 'Progression · Levels 1–7'} />
+      <p className="lead">{meta?.lead ?? 'Everything Lazzuh gains from level 1 through 7. The highlighted row is your current level; rows above it are still ahead.'}</p>
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
               <th>Lvl</th>
               <th>Prof</th>
-              <th>Rages</th>
-              <th>Rage Dmg</th>
+              <th>{meta?.col3 ?? 'Rages'}</th>
+              <th>{meta?.col4 ?? 'Rage Dmg'}</th>
               <th>Features Gained</th>
             </tr>
           </thead>

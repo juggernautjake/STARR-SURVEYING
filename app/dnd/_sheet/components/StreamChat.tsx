@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { makeUsernames, type ChatUser } from '@/lib/dnd/stream-names'
 import { parseEmotes } from '@/lib/dnd/stream-emotes'
 import { allowedInMode, modeIntervalFactor, formatModAction, type ChatMode, type ModActionType, CHAT_MODES } from '@/lib/dnd/stream-mod'
-import { computeInfluence, resistDC } from '@/lib/dnd/stream-influence'
+import { viewerDC, chatRatePerSec, fluctuateViewers } from '@/lib/dnd/stream-influence'
 import InfluenceMeter from './InfluenceMeter'
 import { useLiveEngagement } from './useLiveEngagement'
 import { useChar } from '../state/store'
@@ -24,7 +24,7 @@ function hasEmote(body: string): boolean {
 }
 
 // Big emoji pool — chat leans HARD on emojis (per design).
-const EMOJIS = ['🔥', '💀', '😂', '😭', '🎉', '⚔️', '🐉', '🎲', '👑', '✨', '🤣', '😱', '💯', '🙌', '👀', '🗿', '🧠', '🫡', '😎', '🥶', '💥', '⭐', '🎯', '🛡️', '🤯', '🥵', '😹', '🫠', '👏', '🚀', '💜', '🤪', '👽', '🛸', '🧙', '⚡', '🍿', '📈', '📉', '🤠']
+const EMOJIS = ['🔥', '💀', '😂', '😭', '🎉', '⚔️', '🐉', '👑', '✨', '🤣', '😱', '💯', '🙌', '👀', '🗿', '🧠', '🫡', '😎', '🥶', '💥', '⭐', '🛡️', '🤯', '🥵', '😹', '🫠', '👏', '🚀', '💜', '🤪', '👽', '🛸', '⚡', '🍿', '📈', '📉', '🤠']
 
 function rand<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
@@ -45,34 +45,87 @@ function makeBody(): string {
   return body
 }
 
-// Ambient chatter — kept clean (SFW). A mix of current slang, classic/old-school memes,
-// D&D table reactions, and some "alien language" gibberish that pops in now and then.
+// Ambient chatter — kept clean (SFW). This is the streamer girl's LIVE CHAT reacting to
+// what's happening in HER world/adventure (danger, NPCs, scenery, loot, her) plus generic
+// stream-culture slang/hype and some "alien language" gibberish. Deliberately NOT meta:
+// nothing here references D&D, dice/rolls/initiative, the DM, spells, or party classes —
+// the viewers are watching her stream, not a tabletop game.
 const PHRASES = [
-  // current slang / newer memes
-  'LMAO', 'lets gooo', 'W', 'L', 'no cap', 'based', 'sheeeesh', 'bussin', 'it', 'W dm',
-  'certified W', 'ratio', 'L + ratio', 'touch grass', 'he cooked', 'let him cook', 'cooked',
-  'goated', 'mid tbh', 'peak fiction', 'actual cinema', 'we are so back', 'its so over',
-  'caught in 4k', 'canon event', 'npc behavior', 'main character energy', 'understood the assignment',
-  'vibe check passed', 'aura +1000', 'that is crazy aura', 'he is HIM', 'she is HER', 'unc status',
-  'new response just dropped', 'chat we won', 'chat we lost', 'holy hell', 'fr fr', 'on god',
-  'deadass', 'no shot', 'down bad', 'slay', 'the rizz is immaculate', 'skibidi roll', 'sigma move',
-  // classic / old-school memes (clean)
-  'POGGERS', 'Pog', 'PogChamp', 'KEKW', 'OMEGALUL', 'monkaS', 'PepeLaugh', 'FeelsGoodMan',
-  'FeelsBadMan', '5Head', 'big brain play', 'EZ Clap', 'GIGACHAD', 'copium', 'hopium', 'malding',
-  'this is fine', 'such roll. many crit. wow', 'over 9000!!', 'leeroy jenkinsss', 'one does not simply',
-  'shut up and take my money', 'y u no crit', 'not bad', 'first', 'clip it', 'clip it and ship it',
-  'mods asleep post frogs', 'do a barrel roll', 'the cake is a lie', 'all your base', 'press F',
-  // D&D table reactions
-  'F', 'o7', 'nat 20 lets goooo', 'NAT ONE LMAO', 'roll for it', 'roll initiative!!', '+2 to that',
-  'rip the bard', 'not the goblins again', 'they DIED??', 'GG', 'GG ez', 'run it back', 'hold up',
-  'no wayyy', 'chat is this real?', 'this DM is cracked', 'dm went crazy with that one', 'loot it',
-  'inspiration dice babyyy', 'that is a crit fail', 'crit that goblin', 'save vs charm challenge',
-  'the wizard is cooking', 'rogue sneak attack lets go', 'cleric save us', 'tavern brawl incoming',
-  // "alien language" gibberish (clean)
+  // stream-culture slang / hype (fits any live stream)
+  'LMAO', 'lets gooo', 'W', 'L', 'no cap', 'based', 'sheeeesh', 'bussin', 'W streamer', 'certified W',
+  'ratio', 'L + ratio', 'touch grass', 'he cooked', 'let him cook', 'cooked', 'goated', 'mid tbh',
+  'peak fiction', 'actual cinema', 'we are so back', 'its so over', 'caught in 4k', 'main character energy',
+  'understood the assignment', 'vibe check passed', 'aura +1000', 'that is crazy aura', 'she is HER',
+  'new response just dropped', 'chat we won', 'chat we lost', 'no wayyy', 'fr fr', 'for real', 'deadass',
+  'no shot', 'down bad', 'slay', 'the rizz is immaculate', 'sigma', 'yapping', 'lock in', 'she is locked in',
+  'crash out', 'she crashed out', 'ate that up', 'no because', 'the way she', 'be so fr', 'lowkey fire',
+  'delulu', 'it is giving', 'ate and left no crumbs', 'respectfully insane', 'this is peak', 'so demure',
+  'clip that NOW', 'that was clean', 'W moment', 'L take chat', 'first', 'clip it', 'o7', 'F', 'GG', 'GG ez',
+  'no wayyy', 'hold up', 'run it back', 'POGGERS', 'Pog', 'KEKW', 'OMEGALUL', 'monkaS', 'PepeLaugh',
+  'FeelsGoodMan', 'FeelsBadMan', '5Head', 'big brain play', 'EZ Clap', 'GIGACHAD', 'copium', 'hopium',
+  'malding', 'this is fine', 'over 9000!!', 'not bad', 'clip it and ship it', 'press F', 'do a barrel roll',
+  'yooo', 'YESSS', 'nooo', 'LFG', 'LFGGG', 'HYPERS', 'PANIC', 'AAAAAA', 'GOOOO',
+  // in-world reactions — chat watching HER adventure (danger / NPCs / scenery / loot / her)
+  'BEHIND YOU', 'look out!!', 'RUN GIRL RUN', 'nooo dont go in there', 'its a trap', 'ITS A TRAP',
+  'trust no one', 'that guy is SO shady', 'he is lying to you', 'dont trust him', 'she is lying',
+  'who is that guy', 'who IS she', 'get out of there', 'GET OUT', 'she is so brave', 'protect her',
+  'not the scary door', 'open it open it', 'dont open it', 'pick it up!!', 'grab the loot', 'TAKE IT',
+  'leave it its cursed', 'that thing is cursed', 'is that a dragon??', 'ITS A DRAGON', 'the castle is gorgeous',
+  'this place is creepy', 'bad vibes here', 'somethings wrong', 'i feel danger', 'she should NOT be here',
+  'turn around', 'look up!!', 'check the corner', 'that guy is sus', 'sus guy alert', 'he did NOT just say that',
+  'the audacity of this man', 'she pulled up SO clean', 'her outfit is fire', 'the drip is immaculate',
+  'pretty!!', 'she is so pretty', 'queen behavior', 'not her doing that', 'talk to the merchant',
+  'buy it buy it', 'dont pay that much', 'haggle him down', 'ask about the map', 'the music slaps',
+  'the lore is crazy', 'plot twist incoming', 'i called it', 'knew it', 'she is cracked at this',
+  'how is she so good', 'carry us queen', 'we believe in you', 'you got this!!', 'clutch it', 'save the puppy',
+  'pet the animal', 'feed the cat', 'befriend it', 'romance who??', 'ship it ship it', 'the villain kinda right',
+  'free him', 'lock him up', 'justice for her', 'dont cry ill cry too', 'she ate that', 'behind the pillar!!',
+  'dont look back', 'someone is following her', 'call for help', 'where is everyone', 'this is a setup',
+  // funnier situational bits — chat clowning on what she's doing right now
+  'she named the horse and now im emotionally invested', 'not him monologuing AGAIN',
+  'bro said that with his whole chest', 'the king is SO dramatic', 'this guard has zero thoughts',
+  'she pet the monster im crying', 'the potion guy is SCAMMING her', 'run he has a knife 😭',
+  'the vibes in this cave are terrible', 'she walked right past the lever', 'THE DOOR WAS OPEN THE WHOLE TIME',
+  'bro fell in the water LMAOO', 'she tripped on flat ground', 'the merchant is lowkey fine tho',
+  'she has NO sense of direction', 'why did she eat that', 'DONT EAT THE MUSHROOM', 'not the mushroom 💀',
+  'shes gonna pet the dragon isnt she', 'this castle has terrible security', 'the guards are so bad at their job',
+  'she stole that in broad daylight', 'girl that is CLEARLY a trap', 'he is evil i can smell it',
+  'not the villain being kinda hot', 'she needs a snack fr', 'the sword is bigger than her',
+  'why is EVERYTHING trying to kill her', 'this forest is so haunted', 'she made a friend!! 🥹',
+  'the goblin was just misunderstood', 'kiss him. no wait he is evil', 'she is so unserious rn',
+  'mans pulled the lever without reading the sign', 'the treasure was NOT worth it', 'she really said no thoughts head empty',
+  'that torch is her only personality', 'she keeps talking to the statue', 'the statue MOVED did yall see that',
+  'nobody move theres a monster', 'why is the soup glowing', 'do NOT drink the glowing soup',
+  // pop-culture quotes chat loves to spam — Nacho Libre
+  'get that corn outta my face', 'its the best!', 'these are my recreational pants',
+  'i wanna win some of that Ludacris speed', 'beneath the man we find his nucleus',
+  'when you are a man sometimes you wear stretchy pants', 'i ate some bad shrimp',
+  'was it not obvious?? i let heem win', 'take it easy baby, now', 'ORPHAN!', 'PRECISELY',
+  // League of Legends
+  'DEMACIA!', 'the cycle of life and death continues', 'death is like the wind, always by my side',
+  'follow the wind, but watch your back', 'its trollin time', 'welcome to the League of Draven',
+  'rules are made to be broken. like buildings', 'get jinxed!', 'never one, without the other',
+  'a swords poor company for a long road', 'the ground is unstable', 'fear the assassin',
+  // Star Wars
+  'i have a bad feeling about this', 'this is the way', 'these arent the droids youre looking for',
+  'do or do not, there is no try', 'hello there', 'the force is strong with this one',
+  'help me obi-wan youre my only hope', 'you were the chosen one!', 'i am your father', 'it is treason then',
+  // Lord of the Rings
+  'YOU SHALL NOT PASS', 'one does not simply walk in there', 'and my axe!', 'you have my sword',
+  'they are taking the hobbits to isengard', 'not all those who wander are lost', 'my precious',
+  'PO-TA-TOES', 'boil em mash em stick em in a stew', 'fly you fools', 'a wizard is never late',
+  'even the smallest person can change the course of the future',
+  // Doctor Who
+  'ALLONS-Y!', 'geronimo!', 'wibbly wobbly timey wimey', 'EXTERMINATE', 'are you my mummy?',
+  'bow ties are cool', 'fantastic!', 'DONT BLINK', 'hello sweetie', 'the angels have the phone box',
+  'would you like a jelly baby?', 'spoilers', 'reverse the polarity', 'im the doctor, run',
+  // "alien language" gibberish (clean flavor)
   'zorp gl!bnak', 'xhel toth vroom', 'blrgh na kai', 'quztl keverne', 'vrr naktal', 'sk thara zzz',
   'bloop znak morp', 'grxnthal!!', 'yeet vix qua', 'n gai n gai thakl', 'oomox thrapl', 'vex ka droon',
   'zizzl pop wubwub', 'kra thok mal vess', 'flooble crank', 'meep morp zeep', 'nyoom blblbl',
   'thplt hkkk vao', 'za za glorp', 'wubba wub nak', 'skree onk onk', 'glorptax has spoken',
+  'blorbo fren shik', 'nak nak vroom', 'zzt zzt kaplow', 'oomf skree tak', 'vwoop vwoop na',
+  'grbl mrbl florb', 'ket ket zoon', 'plip plop zharn', 'yeeb norb quazz', 'shloop da woop',
 ]
 
 export default function StreamChat({ characterId, campaignId, initialStream }: { characterId: string; campaignId?: string | null; initialStream?: StreamState }) {
@@ -82,17 +135,39 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
   const [lines, setLines] = useState<Line[]>([])
   const [resist, setResist] = useState<{ text: string; ok: boolean } | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
+  const feedRef = useRef<HTMLDivElement>(null)
+  // Whether the feed is scrolled (near) to the bottom — only then do we auto-follow new
+  // lines, so reading back-scroll isn't yanked away and the PAGE never scrolls.
+  const stickRef = useRef(true)
   const crowdRef = useRef<ChatUser[]>([])
   const idRef = useRef(0)
   const seenRef = useRef<Set<string>>(new Set())
+  // ── Floating dock (draggable + resizable, like the dice tray) ──────────────────
+  const dockRef = useRef<HTMLDivElement>(null)
+  const dragOff = useRef<{ dx: number; dy: number } | null>(null)
+  const resizeRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
+  const [open, setOpen] = useState(true)
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  const [size, setSize] = useState<{ w: number; h: number }>({ w: 360, h: 420 })
   // J10 moderation: active chat mode + banned handles (both DM-controlled, live).
   const [chatMode, setChatMode] = useState<ChatMode>('off')
   const [banned, setBanned] = useState<Set<string>>(new Set())
-  // Viewer-facing speed control — any viewer (player or DM) can speed up / slow down
-  // the chat in their own view. Multiplies the DM's base chat_speed; 0.25×…4×.
-  const [localSpeed, setLocalSpeed] = useState(1)
+  // Local pause — freezes THIS viewer's feed (ambient + incoming) so they can read.
+  const [pausedLocal, setPausedLocal] = useState(false)
+  // Big procedural crowd (only used past 15 viewers, where handles vary widely).
+  const bigCrowdRef = useRef<ChatUser[]>([])
+  // When DM/AI messages land, ambient chatter is suppressed for a moment so the curated
+  // lines dominate the feed (the AI/DM has "full sway" over what chat is saying).
+  const dampenUntilRef = useRef(0)
+  // AI FOCUS takeover: when the DM aims the AI at a topic, premade chatter is almost fully
+  // suppressed until `focusSuppressUntil`, then ramps back to normal by `focusRampUntil`.
+  const focusSuppressUntilRef = useRef(0)
+  const focusRampUntilRef = useRef(0)
+  // The "revealed" viewer count the audience sees — organically fluctuates around the DM's
+  // set value (viewers coming/going), clamped to the tier so the DC/pace never flicker.
+  const [displayViewers, setDisplayViewers] = useState(0)
 
-  // Poll the stream state (live toggle + speed) unless a fixed state was injected.
+  // Poll the stream state (live toggle + viewers + pause) unless a fixed state was injected.
   useEffect(() => {
     if (initialStream || !characterId) return
     let stop = false
@@ -102,54 +177,109 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
         .then((j) => { if (!stop && j?.stream) setStream(j.stream) })
         .catch(() => {})
     load()
-    const t = setInterval(load, 8000)
+    const t = setInterval(load, 4000)
     return () => { stop = true; clearInterval(t) }
   }, [characterId, initialStream])
 
-  // Ambient chatter while live. Deliberately self-paced + bursty for realism: instead
-  // of a fixed interval, each tick emits a random-sized cluster (often 1–3, sometimes a
-  // 10–14 flood) and schedules the next tick after a randomized gap — so you get "ten
-  // fast, a pause, three, one, a pause, six, fourteen at once", etc.
-  //
-  // IMPORTANT: the viewer_count is a VANITY number only — it does NOT change throughput.
-  // A quadrillion viewers looks huge but the real chat rate stays capped (≤ ~200/min),
-  // scaled only by the DM's chat_speed × the viewer's own localSpeed (and slow-mode).
+  // Immediate cross-component sync: when the DM changes viewers/pause in StreamControl it
+  // dispatches this, so this overlay reflects it instantly instead of waiting for a poll.
   useEffect(() => {
-    if (!stream?.is_live) return
-    if (crowdRef.current.length === 0) crowdRef.current = makeUsernames(200)
+    const onState = (e: Event) => {
+      const d = (e as CustomEvent).detail as { characterId?: string; stream?: StreamState }
+      if (d?.characterId === characterId && d.stream) setStream((prev) => ({ ...prev, ...d.stream } as StreamState))
+    }
+    window.addEventListener('dnd-stream-state', onState)
+    return () => window.removeEventListener('dnd-stream-state', onState)
+  }, [characterId])
+
+  // AI FOCUS window: the DM aiming the AI at a topic broadcasts when premade chatter should
+  // stay suppressed until, and when it should be fully faded back in.
+  useEffect(() => {
+    const onFocus = (e: Event) => {
+      const d = (e as CustomEvent).detail as { characterId?: string; suppressUntil?: number; rampUntil?: number }
+      if (d?.characterId !== characterId) return
+      focusSuppressUntilRef.current = d.suppressUntil ?? 0
+      focusRampUntilRef.current = d.rampUntil ?? 0
+    }
+    window.addEventListener('dnd-stream-focus', onFocus)
+    return () => window.removeEventListener('dnd-stream-focus', onFocus)
+  }, [characterId])
+
+  // Organic "N watching" fluctuation. Re-centres immediately whenever the DM's set count
+  // changes (0 stays 0, 1–15 stay exact; 16+ drifts within its tier).
+  useEffect(() => {
+    const base = Math.max(0, Math.floor(stream?.viewer_count ?? 0))
+    setDisplayViewers(fluctuateViewers(base, Math.random()))
+    if (base <= 15) return
+    const t = setInterval(() => setDisplayViewers(fluctuateViewers(base, Math.random())), 2600)
+    return () => clearInterval(t)
+  }, [stream?.viewer_count])
+
+  // Ambient chatter while live. The PACE is set entirely by the audience: the resist DC
+  // (a function of the viewer count) maps to an average messages/second (DC 15 ≈ 1/sec,
+  // DC 20 ≈ 2/sec), and the crowd of usernames scales with viewers too:
+  //   • 0 viewers      → no chat at all
+  //   • 1–15 viewers   → exactly that many FIXED handles, reused for every line, and the
+  //                      rate is a slow trickle (a lone viewer only chats every ~30s)
+  //   • 16+ viewers    → too many to track, so handles are drawn from a large varied pool
+  // On top of that the pace is deliberately bursty + jittered so it never feels metronomic,
+  // it pauses on the local ⏸ or the DM's global pause (chat_speed 0), respects slow-mode,
+  // and is suppressed for a moment after DM/AI messages so curated lines dominate.
+  useEffect(() => {
+    if (!stream?.is_live || pausedLocal) return
+    const viewers = Math.max(0, Math.floor(stream.viewer_count ?? 0))
+    if (viewers <= 0) return // nobody watching → dead chat
+    if ((stream.chat_speed ?? 3) <= 0) return // DM global pause
+
+    const dc = viewerDC(viewers)
+    const trackCount = Math.min(viewers, 15)
+    const big = viewers > 15
+    if (big && bigCrowdRef.current.length === 0) bigCrowdRef.current = makeUsernames(200)
+    // ≤15 viewers: a fixed set of exactly `trackCount` handles (deterministic, reused).
+    const crowd = big ? bigCrowdRef.current : makeUsernames(trackCount)
+
+    const basePerSec = chatRatePerSec(dc) / modeIntervalFactor(chatMode) // slow-mode thins it
+    const maxBurst = big ? 12 : Math.max(1, trackCount)
     let stop = false
     let timer: ReturnType<typeof setTimeout>
 
-    const MAX_PER_MIN = 200
-    const speedFactor = ((stream.chat_speed ?? 3) / 3) * localSpeed // ~1 at defaults
-    const targetPerMin = Math.min(MAX_PER_MIN, 45 * speedFactor) / modeIntervalFactor(chatMode)
-    const perSec = Math.max(0.25, targetPerMin / 60) // avg messages/sec (drives the gaps)
-
     const tick = () => {
       if (stop) return
-      // Cluster size: usually small, occasionally a big flood.
-      const r = Math.random()
-      const burst =
-        r < 0.55 ? 1 + Math.floor(Math.random() * 3) : // 1–3 (common)
-        r < 0.85 ? 3 + Math.floor(Math.random() * 5) : // 3–7
-        r < 0.97 ? 6 + Math.floor(Math.random() * 6) : // 6–11
-        10 + Math.floor(Math.random() * 5)             // 10–14 (rare flood)
+      // Suppression: a fresh curated burst briefly quiets ambient (perBurst); an active AI
+      // FOCUS almost fully silences premade chatter, then ramps it back over the fade window.
+      const now = Date.now()
+      const perBurst = dampenUntilRef.current > now ? 0.06 : 1
+      let focusMul = 1
+      if (now < focusSuppressUntilRef.current) focusMul = 0.02
+      else if (now < focusRampUntilRef.current) {
+        const span = Math.max(1, focusRampUntilRef.current - focusSuppressUntilRef.current)
+        focusMul = 0.02 + 0.98 * ((now - focusSuppressUntilRef.current) / span)
+      }
+      const perSec = Math.max(0.01, basePerSec * Math.min(perBurst, focusMul))
 
-      const crowd = crowdRef.current
+      // Cluster size: mostly singles, occasional small clusters, rare flood at big crowds.
+      const r = Math.random()
+      let burst =
+        perSec < 0.5 ? 1 : // a quiet chat speaks one at a time
+        r < 0.62 ? 1 :
+        r < 0.9 ? 2 + Math.floor(Math.random() * 3) : // 2–4
+        4 + Math.floor(Math.random() * 5)             // 4–8
+      burst = Math.min(burst, maxBurst)
+
       const batch = Array.from({ length: burst }, () => ({ id: idRef.current++, user: crowd[Math.floor(Math.random() * crowd.length)], body: makeBody() }))
-        .filter((l) => !banned.has(l.user.name) && allowedInMode({ badges: l.user.badges, hasEmote: hasEmote(l.body) }, chatMode))
+        .filter((l) => l.user && !banned.has(l.user.name) && allowedInMode({ badges: l.user.badges, hasEmote: hasEmote(l.body) }, chatMode))
       if (batch.length) { setLines((m) => [...m, ...batch].slice(-80)); bumpChat(batch.length) }
 
-      // Gap so that (this burst) / gap ≈ perSec on average, then randomized hard so the
-      // pacing feels human: sometimes a rapid cluster, sometimes a noticeable pause.
-      let gap = (burst / perSec) * 1000 * (0.4 + Math.random() * 1.4)
-      if (Math.random() < 0.25) gap *= 0.3 // rapid-fire cluster
-      if (Math.random() < 0.12) gap += 800 + Math.random() * 1800 // a lull
+      // Gap so (burst / gap) ≈ perSec on average, jittered hard so it feels human:
+      // sometimes a rapid cluster, sometimes a noticeable lull.
+      let gap = (burst / perSec) * 1000 * (0.5 + Math.random())
+      if (Math.random() < 0.2) gap *= 0.4 // rapid-fire cluster
+      if (Math.random() < 0.12) gap += 1000 + Math.random() * 2500 // a lull
       timer = setTimeout(tick, Math.max(120, gap))
     }
-    timer = setTimeout(tick, 300)
+    timer = setTimeout(tick, 400)
     return () => { stop = true; clearTimeout(timer) }
-  }, [stream?.is_live, stream?.chat_speed, chatMode, banned, localSpeed, bumpChat])
+  }, [stream?.is_live, stream?.viewer_count, stream?.chat_speed, chatMode, banned, pausedLocal, bumpChat])
 
   // Clear (J6): the DM's "Clear chat" wipes the visible feed on this client too.
   useEffect(() => {
@@ -198,18 +328,28 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
     return () => { window.removeEventListener('dnd-stream-mod', onLocal); void supabase.removeChannel(ch) }
   }, [characterId])
 
-  // Poll persisted lines (DM-sent J4 + AI spam J5) and weave them into the feed.
+  // Poll persisted lines (DM-sent J4 + AI spam/trend J5/J12) and weave them into the feed.
+  // Fresh curated lines open a suppression window so ambient chatter backs off and the
+  // DM/AI content dominates — this is what gives the AI "full sway" over the chat. The
+  // poll is fast (1.2s), and a `dnd-stream-poll` event (fired the instant the DM's AI/Send
+  // request returns) triggers an immediate fetch so generated lines show up right away.
   useEffect(() => {
-    if (!stream?.is_live || !characterId) return
+    if (!stream?.is_live || !characterId || pausedLocal) return
     let stop = false
-    const poll = () =>
-      fetch(`/api/dnd/characters/${characterId}/stream/messages?limit=50`)
+    let inFlight = false
+    const poll = () => {
+      if (inFlight) return
+      inFlight = true
+      return fetch(`/api/dnd/characters/${characterId}/stream/messages?limit=50`)
         .then((r) => (r.ok ? r.json() : { messages: [] }))
         .then((j) => {
           if (stop) return
           const fresh = (j.messages ?? []).filter((m: { id: string }) => !seenRef.current.has(m.id))
           if (fresh.length === 0) return
           fresh.forEach((m: { id: string }) => seenRef.current.add(m.id))
+          // Suppress ambient for a few seconds so the curated burst stands out (longer for
+          // a bigger burst — a full AI trend drop briefly takes over the whole chat).
+          dampenUntilRef.current = Date.now() + Math.min(14000, 3000 + fresh.length * 700)
           bumpChat(fresh.length)
           setLines((prev) => [
             ...prev,
@@ -221,10 +361,15 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
           ].slice(-60))
         })
         .catch(() => {})
+        .finally(() => { inFlight = false })
+    }
     poll()
-    const t = setInterval(poll, 2500)
-    return () => { stop = true; clearInterval(t) }
-  }, [stream?.is_live, characterId, bumpChat])
+    const t = setInterval(poll, 1200)
+    // Instant fetch when the DM injects AI/Send content on this client.
+    const onPollNow = (e: Event) => { if ((e as CustomEvent).detail === characterId) poll() }
+    window.addEventListener('dnd-stream-poll', onPollNow)
+    return () => { stop = true; clearInterval(t); window.removeEventListener('dnd-stream-poll', onPollNow) }
+  }, [stream?.is_live, characterId, pausedLocal, bumpChat])
 
   // Authoritative visibility pass (J10): system lines always show; everything else is
   // gated by the ban list + the active mode, so changing a mode/ban re-filters the feed.
@@ -233,16 +378,104 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
     [lines, banned, chatMode],
   )
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [visibleLines])
+  // Auto-follow new lines by scrolling the FEED CONTAINER only (never the page) — and
+  // only when the reader is already near the bottom, so scrolling up to read holds.
+  useEffect(() => {
+    const el = feedRef.current
+    if (el && stickRef.current) el.scrollTop = el.scrollHeight
+  }, [visibleLines])
+  const onFeedScroll = () => {
+    const el = feedRef.current
+    if (el) stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
+  }
+
+  // Restore saved dock position/size/minimized state (per character).
+  const dockKey = characterId ? `dnd-stream-dock:${characterId}` : null
+  useEffect(() => {
+    if (!dockKey) return
+    try {
+      const raw = localStorage.getItem(dockKey)
+      if (!raw) return
+      const saved = JSON.parse(raw) as { pos?: { x: number; y: number } | null; size?: { w: number; h: number }; open?: boolean }
+      if (saved.size) setSize(saved.size)
+      if (saved.pos) setPos(saved.pos)
+      if (typeof saved.open === 'boolean') setOpen(saved.open)
+    } catch { /* ignore bad saved state */ }
+  }, [dockKey])
+  useEffect(() => {
+    if (!dockKey) return
+    try { localStorage.setItem(dockKey, JSON.stringify({ pos, size, open })) } catch { /* quota */ }
+  }, [dockKey, pos, size, open])
+
+  // Keep the dock on-screen when the window shrinks.
+  useEffect(() => {
+    const onResize = () =>
+      setPos((p) => (p ? { x: Math.min(p.x, window.innerWidth - 80), y: Math.min(p.y, window.innerHeight - 44) } : p))
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  // Drag from the header. Converts a corner-anchored dock to explicit left/top first
+  // (same trick as the dice tray) so it moves 1:1 with the pointer.
+  const onDragStart = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest('button, input, select, a')) return
+    const el = dockRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    dragOff.current = { dx: e.clientX - r.left, dy: e.clientY - r.top }
+    setPos({ x: r.left, y: r.top })
+    window.addEventListener('pointermove', onDragMove)
+    window.addEventListener('pointerup', onDragEnd)
+  }
+  const onDragMove = (e: PointerEvent) => {
+    if (!dragOff.current) return
+    const el = dockRef.current
+    const w = el?.offsetWidth ?? size.w
+    const x = Math.min(window.innerWidth - w - 6, Math.max(6, e.clientX - dragOff.current.dx))
+    const y = Math.min(window.innerHeight - 44, Math.max(6, e.clientY - dragOff.current.dy))
+    setPos({ x, y })
+  }
+  const onDragEnd = () => {
+    dragOff.current = null
+    window.removeEventListener('pointermove', onDragMove)
+    window.removeEventListener('pointerup', onDragEnd)
+  }
+
+  // Resize from the bottom-right handle. Anchors the dock to explicit left/top first so
+  // the top-left corner stays put while the bottom-right grows.
+  const MIN_W = 260, MIN_H = 240
+  const onResizeStart = (e: React.PointerEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const el = dockRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    if (!pos) setPos({ x: r.left, y: r.top })
+    resizeRef.current = { x: e.clientX, y: e.clientY, w: r.width, h: r.height }
+    window.addEventListener('pointermove', onResizeMove)
+    window.addEventListener('pointerup', onResizeEnd)
+  }
+  const onResizeMove = (e: PointerEvent) => {
+    const s = resizeRef.current
+    if (!s) return
+    const w = Math.max(MIN_W, Math.min(window.innerWidth - 12, s.w + (e.clientX - s.x)))
+    const h = Math.max(MIN_H, Math.min(window.innerHeight - 12, s.h + (e.clientY - s.y)))
+    setSize({ w, h })
+  }
+  const onResizeEnd = () => {
+    resizeRef.current = null
+    window.removeEventListener('pointermove', onResizeMove)
+    window.removeEventListener('pointerup', onResizeEnd)
+  }
 
   if (!stream?.is_live) return null
   const modeMeta = CHAT_MODES.find((m) => m.id === chatMode)
 
-  // Live engagement = DM floor + decaying activity boost (J13). Drives both the meter
-  // and the resist DC so donations/raids/reactions momentarily make her harder to resist.
+  // The resist DC is set purely by the live viewer count (the tier table). Engagement +
+  // the decaying activity boost (J13) only feed the meter's visual energy, not the DC.
   const viewers = stream.viewer_count ?? 0
   const effEngagement = Math.min(100, (stream.engagement ?? 50) + boost)
-  const resistDc = resistDC(computeInfluence(viewers, effEngagement))
+  const resistDc = viewerDC(viewers)
 
   // "Resist the chat" — a proficient Wisdom (willpower) save vs the patron's current DC.
   // Posts to the sheet log + the shared roll feed, and flashes a result banner.
@@ -260,89 +493,97 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
     }
   }
 
+  // Minimized → a pulsing FAB (mirrors the dice tray) that reopens the chat.
+  if (!open) {
+    return (
+      <button className="stream-fab" onClick={() => setOpen(true)} title="Open stream chat">
+        💬
+        <span className="stream-fab-dot" />
+      </button>
+    )
+  }
+
+  const dockStyle: React.CSSProperties = {
+    position: 'fixed',
+    width: size.w,
+    height: size.h,
+    ...(pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' } : { right: 20, bottom: 20 }),
+  }
+
   return (
-    <section className="card" style={{ marginTop: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-        <span style={{ color: '#ff4d4d', fontWeight: 700, letterSpacing: '0.08em' }}>● LIVE</span>
-        <span style={{ fontSize: 12, color: 'var(--muted, #9aa)' }}>Stream Chat · {(stream.viewer_count ?? 0).toLocaleString()} watching</span>
+    <div className="stream-dock" ref={dockRef} style={dockStyle}>
+      <div className="stream-dock-head" onPointerDown={onDragStart} title="Drag to move">
+        <span className="sd-live">● LIVE</span>
+        <span className="sd-count" title="Live viewers (fluctuates as people come and go)">{displayViewers.toLocaleString()} watching</span>
+        {pausedLocal && <span className="sd-mode" style={{ background: '#ff5252', color: '#fff', borderColor: '#ff5252' }}>⏸ paused</span>}
         {chatMode !== 'off' && modeMeta && (
-          <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, border: '1px solid var(--gold, #c89b3c)', color: 'var(--gold, #c89b3c)' }}>
-            {modeMeta.icon} {modeMeta.label} mode
-          </span>
+          <span className="sd-mode">{modeMeta.icon} {modeMeta.label}</span>
         )}
-        <label style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted, #9aa)', display: 'flex', alignItems: 'center', gap: 5 }} title="Chat speed (your view)">
-          🐢
-          <input
-            type="range"
-            min={0.25}
-            max={4}
-            step={0.25}
-            value={localSpeed}
-            onChange={(e) => setLocalSpeed(Number(e.target.value))}
-            style={{ width: 90 }}
-          />
-          🐇 {localSpeed}×
-        </label>
+        <button className="sd-min" onClick={() => setOpen(false)} title="Minimize the chat to a floating button">▾</button>
+      </div>
+
+      <div className="stream-dock-tools">
+        <button
+          className={`sd-pause ${pausedLocal ? 'on' : ''}`}
+          onClick={() => setPausedLocal((p) => !p)}
+          title={pausedLocal ? 'Resume the chat feed in your view' : 'Pause the chat feed in your view so you can read it (does not stop the stream for others)'}
+        >
+          {pausedLocal ? '▶ Resume' : '⏸ Pause'}
+        </button>
+        <span className="sd-rate" title={`Chat pace is set purely by the audience size — more viewers = faster chat. Right now ~${chatRatePerSec(resistDc)} messages/sec.`}>
+          {viewers <= 0 ? 'silent' : `~${chatRatePerSec(resistDc) < 1 ? chatRatePerSec(resistDc).toFixed(2) : chatRatePerSec(resistDc)}/s`}
+        </span>
         {isDM && (
           <button
+            className="sd-resist"
             onClick={rollResist}
-            title="Roll a Wisdom save to resist what chat is demanding"
-            style={{ fontSize: 12, padding: '4px 10px', cursor: 'pointer', color: '#7ab8ff', background: 'rgba(0,0,0,0.35)', border: '1px solid #7ab8ff', borderRadius: 4, fontWeight: 700 }}
+            title={`Roll her Wisdom save to resist what chat is demanding (must beat DC ${resistDc}, set by the ${viewers.toLocaleString()} viewers)`}
           >
-            🎲 Resist (DC {resistDc})
+            🎲 Resist · DC {resistDc}
           </button>
         )}
       </div>
+
       {resist && (
-        <div
-          role="status"
-          style={{
-            margin: '0 0 8px',
-            padding: '6px 10px',
-            fontWeight: 800,
-            letterSpacing: '0.04em',
-            textAlign: 'center',
-            color: resist.ok ? '#0ac8b9' : '#ff10f0',
-            border: `1px solid ${resist.ok ? '#0ac8b9' : '#ff10f0'}`,
-            background: resist.ok ? 'rgba(10,200,185,0.1)' : 'rgba(255,16,240,0.1)',
-            textShadow: `0 0 10px ${resist.ok ? '#0ac8b9' : '#ff10f0'}`,
-          }}
-        >
+        <div className={`sd-resist-banner ${resist.ok ? 'ok' : 'bad'}`} role="status">
           {resist.text}
         </div>
       )}
-      <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
-      <div data-stream-feed="" style={{ flex: 1, minWidth: 0, height: 260, overflowY: 'auto', border: '1px solid var(--line, rgba(255,255,255,0.12))', background: 'rgba(0,0,0,0.35)', padding: '6px 10px', fontSize: 13, lineHeight: 1.5 }}>
-        {visibleLines.length === 0 ? (
-          <p style={{ color: 'var(--muted, #9aa)', fontSize: 12 }}>Chat is warming up…</p>
-        ) : (
-          visibleLines.map((l) => l.system ? (
-            <div key={l.id} style={{ wordBreak: 'break-word', color: '#e0a83a', fontStyle: 'italic', fontSize: 12, padding: '2px 0' }}>
-              {l.body}
-            </div>
+
+      <div className="stream-dock-body">
+        <div className="stream-feed" data-stream-feed="" ref={feedRef} onScroll={onFeedScroll}>
+          {visibleLines.length === 0 ? (
+            <p style={{ color: 'var(--muted, #9aa)', fontSize: 12 }}>Chat is warming up…</p>
           ) : (
-            <div key={l.id} style={{ wordBreak: 'break-word' }}>
-              {l.user.badges.map((b) => (
-                <span key={b} title={b} style={{ display: 'inline-block', fontSize: 9, padding: '0 3px', marginRight: 3, borderRadius: 3, background: b === 'mod' ? '#00ad03' : b === 'vip' ? '#e005b9' : b === 'prime' ? '#4d6bff' : '#8205b4', color: '#fff', verticalAlign: 'middle' }}>{b[0].toUpperCase()}</span>
-              ))}
-              <span style={{ color: l.user.color, fontWeight: 700 }}>{l.user.name}</span>
-              <span style={{ color: 'var(--muted, #9aa)' }}>: </span>
-              <span>
-                {parseEmotes(l.body).map((seg, i) =>
-                  seg.type === 'emote' ? (
-                    <span key={i} title={seg.name} style={{ display: 'inline-block', padding: '0 2px', margin: '0 1px', borderRadius: 3, background: 'rgba(200,155,60,0.18)' }}>{seg.glyph}</span>
-                  ) : (
-                    <span key={i}>{seg.value}</span>
-                  ),
-                )}
-              </span>
-            </div>
-          ))
-        )}
-        <div ref={endRef} />
-      </div>
+            visibleLines.map((l) => l.system ? (
+              <div key={l.id} style={{ wordBreak: 'break-word', color: '#f0c46a', fontStyle: 'italic', fontSize: 12, padding: '2px 0' }}>
+                {l.body}
+              </div>
+            ) : (
+              <div key={l.id} style={{ wordBreak: 'break-word' }}>
+                {l.user.badges.map((b) => (
+                  <span key={b} title={b} style={{ display: 'inline-block', fontSize: 9, padding: '0 3px', marginRight: 3, borderRadius: 3, background: b === 'mod' ? '#00ad03' : b === 'vip' ? '#e005b9' : b === 'prime' ? '#4d6bff' : '#8205b4', color: '#fff', verticalAlign: 'middle' }}>{b[0].toUpperCase()}</span>
+                ))}
+                <span style={{ color: l.user.color, fontWeight: 700, textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}>{l.user.name}</span>
+                <span style={{ color: 'var(--muted, #9aa)' }}>: </span>
+                <span style={{ color: '#f2effa' }}>
+                  {parseEmotes(l.body).map((seg, i) =>
+                    seg.type === 'emote' ? (
+                      <span key={i} title={seg.name} style={{ display: 'inline-block', padding: '0 2px', margin: '0 1px', borderRadius: 3, background: 'rgba(200,155,60,0.18)' }}>{seg.glyph}</span>
+                    ) : (
+                      <span key={i}>{seg.value}</span>
+                    ),
+                  )}
+                </span>
+              </div>
+            ))
+          )}
+          <div ref={endRef} />
+        </div>
         <InfluenceMeter viewers={viewers} engagement={effEngagement} />
       </div>
-    </section>
+
+      <div className="stream-resize" onPointerDown={onResizeStart} title="Drag to resize">⤡</div>
+    </div>
   )
 }

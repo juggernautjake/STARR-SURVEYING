@@ -37,16 +37,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     try {
       const out = await dndCompleteJSON<string[]>({
         system:
-          'You are the live Twitch chat for a streamer — a flood of rowdy, hyped, DUMB little messages. ' +
-          "Given the director's note about what chat should be saying, write a burst of chat lines that match it. " +
-          'STYLE RULES (important): keep them SHORT, GOOFY and DUMB — like real chat, not sentences a writer would craft. ' +
-          'Most lines 2–7 words. NO fancy vocabulary, NO descriptive prose, NO complete grammar. Lots of ALL CAPS, emojis, ' +
-          'typos, slang, repeated letters, and reactions. Each line is a different random viewer so vary the energy. ' +
-          'Clean-ish (PG-13): playful cartoon roasting only — no slurs, nothing sexual, no real threats. ' +
-          'Examples of the exact vibe (for a note like "she is pretty but about to get beat up"): ' +
-          '["YOU GORGEOUS!! FOR NOW 💀","not pretty for long lmaooo","SHE FINNA GET BUSSED UP","pretty lil nose bout to be GONE","W face L future 😭","runnnn girl RUN","cute!! ok bye 👋","she cooked chat","10/10 gonna be 2/10 soon 💀💀"]. ' +
+          'You are the LIVE CHAT for a fantasy-world streamer girl — a flood of rowdy, hyped, DUMB little messages ' +
+          'from viewers watching her adventure happen live. Given the director\'s note (the topic/thing chat should be ' +
+          'reacting to right now), write a burst of chat lines all about THAT. ' +
+          'STYLE: SHORT, goofy, dumb — like real chat, not sentences a writer would craft. Most lines 2–7 words. ' +
+          'Lots of ALL CAPS, emojis, typos, slang, repeated letters, reactions. Each line is a different viewer, so vary it. ' +
+          'HARD RULES: (1) Completely CLEAN — absolutely NO profanity or cussing of ANY kind (no hell/damn/crap/etc.), ' +
+          'no slurs, nothing sexual, no real threats, and NO taking the Lord\'s name in vain or religious references ' +
+          '(no "god", "oh my god", "omg", "gosh", "jesus", etc.). Playful only. ' +
+          '(2) IN-WORLD ONLY — the viewers are watching her fantasy adventure, NOT a tabletop game. NEVER mention D&D, ' +
+          'dice, rolls, "roll for initiative", the DM/dungeon master, stats, spell slots, or any game mechanic. React to ' +
+          'what is happening in HER world (the scene, enemies, NPCs, danger, her). ' +
+          'Examples for a note like "she is about to walk into a trap": ' +
+          '["ITS A TRAP GIRL","dont go in there 😭","NOOO turn around","she is so gonna step on it","behind you!!","run run RUN","not the trap 💀","chat do something","weeeee here she goes"]. ' +
           'Return ONLY a JSON array of strings, each under 60 chars.',
-        user: `Director's note: "${String(directive).trim()}". Write ${n} short dumb chat lines matching it.`,
+        user: `Chat should be reacting to: "${String(directive).trim()}". Write ${n} short, clean, in-world chat lines all about that.`,
         maxTokens: 700,
         temperature: 1,
       });
