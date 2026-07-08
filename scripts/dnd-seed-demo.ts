@@ -18,7 +18,7 @@ const { Client } = pg;
 
 // Shallow pseudo-login passwords (name + password; keyed by the account's quick:<name>
 // email). Not real security — just so a character/campaign belongs to a specific person.
-const PW: Record<string, string> = { 'quick:andrew': 'leage', 'quick:jacob': '1234', 'quick:susie': '0987' };
+const PW: Record<string, string> = { 'quick:andrew': 'league', 'quick:jacob': '1234', 'quick:susie': '0987' };
 const hash = (pw: string) => bcrypt.hash(pw, 10);
 const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
