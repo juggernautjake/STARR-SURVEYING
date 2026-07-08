@@ -11,10 +11,12 @@ const DEFAULT_STATE = {
   dc_mode: 'auto', dc_manual: null, moods: [] as string[],
   focus_topic: null, focus_until: null, focus_intensity: 3,
   ai_mood_lines: {}, ai_lines_at: null, last_activity_at: null, end_warning_at: null,
+  donations_enabled: false, generosity: 'off', kibbles_earned: 0,
 };
 const COLS =
   'is_live, viewer_count, chat_speed, engagement, active_spam, dc_mode, dc_manual, moods, ' +
-  'focus_topic, focus_until, focus_intensity, ai_mood_lines, ai_lines_at, last_activity_at, end_warning_at, updated_at';
+  'focus_topic, focus_until, focus_intensity, ai_mood_lines, ai_lines_at, last_activity_at, end_warning_at, ' +
+  'donations_enabled, generosity, kibbles_earned, updated_at';
 
 async function characterAccess(id: string, userId: string) {
   const { data } = await supabaseAdmin.from('dnd_characters').select('campaign_id, owner_user_id').eq('id', id).maybeSingle();
@@ -76,6 +78,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
   if (body.touchActivity) patch.last_activity_at = new Date().toISOString();
   if (body.endWarningAt !== undefined) patch.end_warning_at = body.endWarningAt ? new Date(body.endWarningAt).toISOString() : null;
+  // Donations/superchats (R): off by default; the DM flips them on + picks generosity.
+  if (typeof body.donationsEnabled === 'boolean') patch.donations_enabled = body.donationsEnabled;
+  if (['off', 'stingy', 'normal', 'generous', 'overgiving'].includes(body.generosity)) patch.generosity = body.generosity;
+  if (body.kibblesEarned != null) patch.kibbles_earned = Math.max(0, Math.floor(Number(body.kibblesEarned)) || 0);
 
   if (Object.keys(patch).length <= 2) return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 });
   // Any DM action counts as engagement for the idle auto-end clock (unless already set above).
