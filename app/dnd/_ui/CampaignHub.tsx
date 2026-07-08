@@ -25,8 +25,22 @@ function Portrait({ url, name, size }: { url: string | null; name: string; size:
 export default function CampaignHub({ data, selfId }: { data: CampaignHubData; selfId: string }) {
   const router = useRouter()
   const [messagingDm, setMessagingDm] = useState(false)
+  const [claiming, setClaiming] = useState<string | null>(null)
   const chatRef = useRef<HTMLDivElement>(null)
   const members = data.members.map((m) => ({ id: m.userId, name: m.name }))
+
+  // Claim an available character (DM-permitted or ownerless) → it becomes your private PC.
+  async function claim(id: string, name: string) {
+    if (claiming) return
+    if (!window.confirm(`Claim "${name}" as your character?`)) return
+    setClaiming(id)
+    try {
+      const r = await fetch(`/api/dnd/characters/${id}/claim`, { method: 'POST' })
+      const j = await r.json().catch(() => ({}))
+      if (r.ok) { router.push(`/dnd/characters/${id}`); router.refresh() }
+      else { window.alert(j.error || 'Could not claim this character.'); setClaiming(null) }
+    } catch { setClaiming(null) }
+  }
 
   function messageDm() {
     setMessagingDm(true)
@@ -133,25 +147,30 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
               <p style={{ color: 'var(--hx-muted)' }}>No characters yet.</p>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
-                {data.characters.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => router.push(`/dnd/characters/${c.id}`)}
-                    title={`Open ${c.name}'s sheet`}
-                    style={{
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 6,
-                      padding: '14px 8px', cursor: 'pointer', color: 'inherit',
-                      background: c.mine ? 'rgba(45,193,167,0.08)' : 'rgba(1,10,19,0.4)',
-                      border: `1px solid ${c.mine ? 'var(--hx-teal-1)' : 'var(--hx-line)'}`,
-                    }}
-                  >
-                    <Portrait url={c.portrait} name={c.name} size={64} />
-                    <span style={{ fontSize: 13.5, color: 'var(--hx-text)', wordBreak: 'break-word' }}>{c.name}</span>
-                    <span style={{ fontSize: 9.5, letterSpacing: '0.1em', color: c.isNpc ? 'var(--hx-gold-2)' : 'var(--hx-teal-1)' }}>
-                      {c.mine ? 'YOUR CHARACTER' : c.isNpc ? 'NPC' : c.ownerName ? c.ownerName.toUpperCase() : 'PC'}
-                    </span>
-                  </button>
-                ))}
+                {data.characters.map((c) => {
+                  const canClaim = c.claimable && !c.mine
+                  const watchStream = c.sheetType === 'streamer' && !c.mine && !canClaim
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => (canClaim ? claim(c.id, c.name) : watchStream ? router.push(`/dnd/stream/${c.id}`) : router.push(`/dnd/characters/${c.id}`))}
+                      disabled={claiming === c.id}
+                      title={canClaim ? `Claim ${c.name} as your character` : watchStream ? `Watch ${c.name}'s live stream` : `Open ${c.name}'s sheet`}
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 6,
+                        padding: '14px 8px', cursor: 'pointer', color: 'inherit',
+                        background: canClaim ? 'rgba(200,155,60,0.1)' : c.mine ? 'rgba(45,193,167,0.08)' : 'rgba(1,10,19,0.4)',
+                        border: `1px solid ${canClaim ? 'var(--hx-gold-1)' : c.mine ? 'var(--hx-teal-1)' : 'var(--hx-line)'}`,
+                      }}
+                    >
+                      <Portrait url={c.portrait} name={c.name} size={64} />
+                      <span style={{ fontSize: 13.5, color: 'var(--hx-text)', wordBreak: 'break-word' }}>{c.name}</span>
+                      <span style={{ fontSize: 9.5, letterSpacing: '0.1em', color: watchStream ? '#ff4d4d' : canClaim ? 'var(--hx-gold-2)' : c.isNpc ? 'var(--hx-gold-2)' : 'var(--hx-teal-1)' }}>
+                        {claiming === c.id ? 'CLAIMING…' : canClaim ? '⭐ CLAIM THIS' : watchStream ? '🔴 WATCH STREAM' : c.mine ? 'YOUR CHARACTER' : c.isNpc ? 'NPC' : c.ownerName ? c.ownerName.toUpperCase() : 'PC'}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
             )}
           </section>

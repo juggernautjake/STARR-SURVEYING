@@ -1882,8 +1882,11 @@
 }
 .dnd-sheet .rv-break {
   font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--muted);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  opacity: 0.92;
   word-break: break-word;
 }
 .dnd-sheet .rv-total {
@@ -2645,8 +2648,12 @@
 .dnd-sheet.skin-streamer [data-influence-meter] {
   --inf-dc: var(--hotpink);
   --inf-max: var(--sk-inf-max);
-  --inf-font: var(--font-display), sans-serif;
+  /* True 8-bit arcade face for the DC readout (was the plain display sans). Sized down
+     so "DC 25" fits the compact meter column. */
+  --inf-font: 'Press Start 2P', 'Silkscreen', monospace;
+  --inf-dc-size: 12px;
 }
+.dnd-sheet.skin-streamer [data-inf-dc] { letter-spacing: 0; line-height: 1.5; }
 .dnd-sheet.skin-streamer [data-inf-track] {
   border-radius: 2px;
   border-color: var(--hotpink);

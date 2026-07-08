@@ -74,7 +74,8 @@ export default function CampaignLobby({ data, currentName }: { data: CampaignLob
               </button>
             ))}
 
-            {/* DM-run NPCs (e.g. the streamer) — open their sheet by entering as the DM. */}
+            {/* Any DM-run NPCs — open their sheet by entering as the DM. (The streamer is a
+                player character, so she appears above with the players, not here.) */}
             {data.dm && data.npcs.map((n) => (
               <button
                 key={n.characterId}
@@ -113,10 +114,10 @@ export default function CampaignLobby({ data, currentName }: { data: CampaignLob
               <button
                 className={`${styles.hexBtn} ${styles.hexBtnPrimary}`}
                 style={{ padding: '12px 26px', fontSize: 15 }}
-                onClick={() => enter(data.dm!.userId, `/dnd/campaigns/${data.id}/manage`)}
+                onClick={() => (data.dm!.locked ? router.push('/dnd') : enter(data.dm!.userId, `/dnd/campaigns/${data.id}/manage`))}
                 disabled={!!entering}
               >
-                {entering === data.dm.userId ? 'Entering…' : `⚔️ Enter as ${data.dm.name} (DM)`}
+                {entering === data.dm.userId ? 'Entering…' : data.dm.locked ? `🔒 Sign in as ${data.dm.name} (DM)` : `⚔️ Enter as ${data.dm.name} (DM)`}
               </button>
             </div>
           )}

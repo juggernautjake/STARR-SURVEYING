@@ -8,7 +8,9 @@ import { supabase } from '@/lib/supabase'
 import { makeUsernames, type ChatUser } from '@/lib/dnd/stream-names'
 import { parseEmotes } from '@/lib/dnd/stream-emotes'
 import { allowedInMode, modeIntervalFactor, formatModAction, type ChatMode, type ModActionType, CHAT_MODES } from '@/lib/dnd/stream-mod'
-import { viewerDC, chatRatePerSec, fluctuateViewers } from '@/lib/dnd/stream-influence'
+import { viewerDC, resolveDC, chatRatePerSec, fluctuateViewers } from '@/lib/dnd/stream-influence'
+import { buildMoodPool } from '@/lib/dnd/stream-moods'
+import { formatKibbles } from '@/lib/dnd/stream-currency'
 import InfluenceMeter from './InfluenceMeter'
 import { useLiveEngagement } from './useLiveEngagement'
 import { useChar } from '../state/store'
@@ -16,8 +18,8 @@ import { rollD20 } from '../lib/dice'
 import { abilityMod } from '../rules/dnd'
 import { postRoll } from '@/app/dnd/_ui/RollFeed'
 
-interface StreamState { is_live: boolean; chat_speed: number; viewer_count: number; engagement?: number }
-interface Line { id: number | string; user: ChatUser; body: string; system?: boolean }
+interface StreamState { is_live: boolean; chat_speed: number; viewer_count: number; engagement?: number; moods?: string[]; ai_mood_lines?: Record<string, string[]>; dc_mode?: 'auto' | 'manual'; dc_manual?: number | null }
+interface Line { id: number | string; user: ChatUser; body: string; system?: boolean; kind?: string; amount?: number | null; senderId?: string | null }
 
 function hasEmote(body: string): boolean {
   return parseEmotes(body).some((s) => s.type === 'emote')
@@ -30,15 +32,16 @@ function rand<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
 
-// Build one chat line's body: a phrase with a heavy sprinkle of emojis, and every so
-// often a pure-spam burst (repeated emoji / hype word).
-function makeBody(): string {
+// Build one chat line's body from the active phrase pool (default, or mood-biased): a
+// phrase with a heavy sprinkle of emojis, and every so often a pure-spam burst (repeated
+// emoji / hype word). The pool is chosen by the DM's selected moods (see buildMoodPool).
+function makeBody(pool: readonly string[]): string {
   if (Math.random() < 0.16) {
     const reps = 3 + Math.floor(Math.random() * 7)
     const token = Math.random() < 0.6 ? rand(EMOJIS) : rand(['LETS GOOO', 'SPAM', 'POG', 'W', 'HYPE', 'AAAAA'])
     return Array.from({ length: reps }, () => token).join(' ')
   }
-  let body = rand(PHRASES)
+  let body = rand(pool as string[])
   const n = Math.floor(Math.random() * 4) // 0–3 trailing emojis
   for (let i = 0; i < n; i++) body += ' ' + rand(EMOJIS)
   if (Math.random() < 0.3) body = rand(EMOJIS) + ' ' + body // sometimes lead with one too
@@ -128,8 +131,20 @@ const PHRASES = [
   'grbl mrbl florb', 'ket ket zoon', 'plip plop zharn', 'yeeb norb quazz', 'shloop da woop',
 ]
 
-export default function StreamChat({ characterId, campaignId, initialStream }: { characterId: string; campaignId?: string | null; initialStream?: StreamState }) {
-  const { char, pb, commitRoll, isDM } = useChar()
+export default function StreamChat({ characterId, campaignId, initialStream, viewerCanChat }: { characterId: string; campaignId?: string | null; initialStream?: StreamState; viewerCanChat?: boolean }) {
+  const { char, pb, commitRoll, isDM, canWrite } = useChar()
+  // A fellow player watching the stream (not the streamer/DM) can chat as a viewer.
+  const [viewerMsg, setViewerMsg] = useState('')
+  const [viewerSending, setViewerSending] = useState(false)
+  // Click a username → their message history this session.
+  const [historyOf, setHistoryOf] = useState<string | null>(null)
+  const [history, setHistory] = useState<{ body: string; created_at: string; kind?: string; amount?: number | null }[] | null>(null)
+  // The streamer (owner) gets a built-in filter that narrows the live feed by handle or
+  // keyword, with inline timeout/ban on the matches. The DM keeps his full search panel
+  // (in the control panel), so this is only for a non-DM owner (e.g. Susie).
+  const isOwnerMod = canWrite && !isDM
+  const [filter, setFilter] = useState('')
+  const modSendRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const { boost, bumpChat } = useLiveEngagement(characterId, campaignId ?? null)
   const [stream, setStream] = useState<StreamState | null>(initialStream ?? null)
   const [lines, setLines] = useState<Line[]>([])
@@ -156,6 +171,10 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
   const [pausedLocal, setPausedLocal] = useState(false)
   // Big procedural crowd (only used past 15 viewers, where handles vary widely).
   const bigCrowdRef = useRef<ChatUser[]>([])
+  // Active ambient phrase pool — default (broad PHRASES) or biased by the DM's selected
+  // moods (+ any AI-refreshed lines). Held in a ref so mood changes take effect on the
+  // next line WITHOUT restarting the ambient loop/timers.
+  const poolRef = useRef<string[]>(PHRASES)
   // When DM/AI messages land, ambient chatter is suppressed for a moment so the curated
   // lines dominate the feed (the AI/DM has "full sway" over what chat is saying).
   const dampenUntilRef = useRef(0)
@@ -207,6 +226,11 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
 
   // Organic "N watching" fluctuation. Re-centres immediately whenever the DM's set count
   // changes (0 stays 0, 1–15 stay exact; 16+ drifts within its tier).
+  // Keep the ambient pool in sync with the DM's selected moods + AI-refreshed lines.
+  useEffect(() => {
+    poolRef.current = buildMoodPool(PHRASES, stream?.moods, stream?.ai_mood_lines)
+  }, [stream?.moods, stream?.ai_mood_lines])
+
   useEffect(() => {
     const base = Math.max(0, Math.floor(stream?.viewer_count ?? 0))
     setDisplayViewers(fluctuateViewers(base, Math.random()))
@@ -266,7 +290,7 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
         4 + Math.floor(Math.random() * 5)             // 4–8
       burst = Math.min(burst, maxBurst)
 
-      const batch = Array.from({ length: burst }, () => ({ id: idRef.current++, user: crowd[Math.floor(Math.random() * crowd.length)], body: makeBody() }))
+      const batch = Array.from({ length: burst }, () => ({ id: idRef.current++, user: crowd[Math.floor(Math.random() * crowd.length)], body: makeBody(poolRef.current) }))
         .filter((l) => l.user && !banned.has(l.user.name) && allowedInMode({ badges: l.user.badges, hasEmote: hasEmote(l.body) }, chatMode))
       if (batch.length) { setLines((m) => [...m, ...batch].slice(-80)); bumpChat(batch.length) }
 
@@ -318,6 +342,7 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
         if (p?.type && p.username) applyAction(p.type, p.username)
       })
       .subscribe()
+    modSendRef.current = ch // reused by the owner's inline timeout/ban
     const onLocal = (e: Event) => {
       const d = (e as CustomEvent).detail as { characterId?: string; kind?: string; mode?: ChatMode; type?: ModActionType; username?: string }
       if (d?.characterId !== characterId) return
@@ -325,7 +350,7 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
       else if (d.kind === 'action' && d.type && d.username) applyAction(d.type, d.username)
     }
     window.addEventListener('dnd-stream-mod', onLocal)
-    return () => { window.removeEventListener('dnd-stream-mod', onLocal); void supabase.removeChannel(ch) }
+    return () => { window.removeEventListener('dnd-stream-mod', onLocal); modSendRef.current = null; void supabase.removeChannel(ch) }
   }, [characterId])
 
   // Poll persisted lines (DM-sent J4 + AI spam/trend J5/J12) and weave them into the feed.
@@ -353,10 +378,13 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
           bumpChat(fresh.length)
           setLines((prev) => [
             ...prev,
-            ...fresh.map((m: { id: string; username: string; body: string; color: string | null; badges: string[] | null }) => ({
+            ...fresh.map((m: { id: string; username: string; body: string; color: string | null; badges: string[] | null; kind?: string; amount?: number | null; sender_user_id?: string | null }) => ({
               id: `p-${m.id}`,
               user: { name: m.username, color: m.color ?? '#fff', badges: m.badges ?? [] },
               body: m.body,
+              kind: m.kind,
+              amount: m.amount,
+              senderId: m.sender_user_id,
             })),
           ].slice(-60))
         })
@@ -378,12 +406,49 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
     [lines, banned, chatMode],
   )
 
+  // The owner's built-in filter: narrow the feed to lines whose handle or text matches.
+  const feedLines = useMemo(() => {
+    const q = filter.trim().toLowerCase()
+    if (!q) return visibleLines
+    return visibleLines.filter((l) => !l.system && (l.user.name.toLowerCase().includes(q) || l.body.toLowerCase().includes(q)))
+  }, [visibleLines, filter])
+
+  // Owner timeout/ban (broadcast to everyone + applied locally), reusing the mod channel.
+  const ownerMod = (type: ModActionType, username: string) => {
+    modSendRef.current?.send({ type: 'broadcast', event: 'action', payload: { type, username } })
+    window.dispatchEvent(new CustomEvent('dnd-stream-mod', { detail: { characterId, kind: 'action', type, username } }))
+  }
+
+  // A watching player chats as themselves (server tags it PARTY so it stands out).
+  const postAsViewer = async () => {
+    const body = viewerMsg.trim()
+    if (!body || viewerSending) return
+    setViewerSending(true)
+    try {
+      await fetch(`/api/dnd/characters/${characterId}/stream/messages`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body }),
+      })
+      setViewerMsg('')
+      window.dispatchEvent(new CustomEvent('dnd-stream-poll', { detail: characterId }))
+    } finally { setViewerSending(false) }
+  }
+
+  // Click a username → pull their whole history in this session.
+  const openHistory = async (username: string) => {
+    setHistoryOf(username); setHistory(null)
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}/stream/messages?user=${encodeURIComponent(username)}&limit=200`)
+      const j = await r.json().catch(() => ({}))
+      setHistory(r.ok ? (j.messages ?? []) : [])
+    } catch { setHistory([]) }
+  }
+
   // Auto-follow new lines by scrolling the FEED CONTAINER only (never the page) — and
   // only when the reader is already near the bottom, so scrolling up to read holds.
   useEffect(() => {
     const el = feedRef.current
     if (el && stickRef.current) el.scrollTop = el.scrollHeight
-  }, [visibleLines])
+  }, [feedLines])
   const onFeedScroll = () => {
     const el = feedRef.current
     if (el) stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
@@ -471,11 +536,13 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
   if (!stream?.is_live) return null
   const modeMeta = CHAT_MODES.find((m) => m.id === chatMode)
 
-  // The resist DC is set purely by the live viewer count (the tier table). Engagement +
-  // the decaying activity boost (J13) only feed the meter's visual energy, not the DC.
+  // Ambient PACE is still set by the live audience (the tier table). The RESIST DC now
+  // honors the DM's choice: auto (viewers + engagement) or a pinned manual value (K). The
+  // decaying activity boost (J13) still nudges the auto DC + the meter's visual energy.
   const viewers = stream.viewer_count ?? 0
   const effEngagement = Math.min(100, (stream.engagement ?? 50) + boost)
-  const resistDc = viewerDC(viewers)
+  const paceDc = viewerDC(viewers)
+  const resistDc = resolveDC({ mode: stream.dc_mode, manual: stream.dc_manual, viewers, engagement: effEngagement })
 
   // "Resist the chat" — a proficient Wisdom (willpower) save vs the patron's current DC.
   // Posts to the sheet log + the shared roll feed, and flashes a result banner.
@@ -487,7 +554,8 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
     const tag = ok ? 'RESISTED' : 'GAVE IN'
     commitRoll({ label, kind: 'save', total: r.total, breakdown: r.breakdown, crit: r.crit, fumble: r.fumble, tag })
     setResist({ ok, text: ok ? `✊ RESISTED! ${r.total} vs DC ${resistDc}` : `😵 GAVE IN… ${r.total} vs DC ${resistDc}` })
-    setTimeout(() => setResist(null), 5000)
+    // Persist until dismissed (the ✕ on the banner) — no auto-timeout, so it never
+    // vanishes out from under you, especially while the meter is maxed + shaking.
     if (campaignId) {
       void postRoll({ campaignId, characterId, actorName: char.meta.name, label, result: r.total, breakdown: r.breakdown, crit: r.crit, fumble: r.fumble })
     }
@@ -530,58 +598,143 @@ export default function StreamChat({ characterId, campaignId, initialStream }: {
         >
           {pausedLocal ? '▶ Resume' : '⏸ Pause'}
         </button>
-        <span className="sd-rate" title={`Chat pace is set purely by the audience size — more viewers = faster chat. Right now ~${chatRatePerSec(resistDc)} messages/sec.`}>
-          {viewers <= 0 ? 'silent' : `~${chatRatePerSec(resistDc) < 1 ? chatRatePerSec(resistDc).toFixed(2) : chatRatePerSec(resistDc)}/s`}
+        <span className="sd-rate" title={`Chat pace is set by the audience size — more viewers = faster chat. Right now ~${chatRatePerSec(paceDc)} messages/sec.`}>
+          {viewers <= 0 ? 'silent' : `~${chatRatePerSec(paceDc) < 1 ? chatRatePerSec(paceDc).toFixed(2) : chatRatePerSec(paceDc)}/s`}
         </span>
         {isDM && (
           <button
             className="sd-resist"
             onClick={rollResist}
-            title={`Roll her Wisdom save to resist what chat is demanding (must beat DC ${resistDc}, set by the ${viewers.toLocaleString()} viewers)`}
+            title={`Roll her Wisdom save to resist what chat is demanding (must beat DC ${resistDc})`}
           >
             🎲 Resist · DC {resistDc}
           </button>
         )}
       </div>
 
+      {/* Owner's built-in chat filter — narrows the live feed by handle or keyword. */}
+      {isOwnerMod && (
+        <div style={{ display: 'flex', gap: 6, padding: '2px 8px 6px', alignItems: 'center' }}>
+          <input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="🔍 filter chat by name or keyword…"
+            style={{ flex: 1, padding: '5px 8px', fontSize: 12, background: 'rgba(0,0,0,0.35)', border: '1px solid var(--line, rgba(255,255,255,0.18))', color: 'inherit', borderRadius: 4 }}
+          />
+          {filter && <button className="sd-pause" onClick={() => setFilter('')} title="Clear filter">✕</button>}
+        </div>
+      )}
+
       {resist && (
-        <div className={`sd-resist-banner ${resist.ok ? 'ok' : 'bad'}`} role="status">
-          {resist.text}
+        <div className={`sd-resist-banner ${resist.ok ? 'ok' : 'bad'}`} role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, position: 'relative' }}>
+          <span>{resist.text}</span>
+          <button
+            onClick={() => setResist(null)}
+            title="Dismiss"
+            aria-label="Dismiss result"
+            style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 14, fontWeight: 800, lineHeight: 1, opacity: 0.85 }}
+          >
+            ✕
+          </button>
         </div>
       )}
 
       <div className="stream-dock-body">
         <div className="stream-feed" data-stream-feed="" ref={feedRef} onScroll={onFeedScroll}>
-          {visibleLines.length === 0 ? (
-            <p style={{ color: 'var(--muted, #9aa)', fontSize: 12 }}>Chat is warming up…</p>
+          {feedLines.length === 0 ? (
+            <p style={{ color: 'var(--muted, #9aa)', fontSize: 12 }}>{filter.trim() ? 'No chat lines match your filter.' : 'Chat is warming up…'}</p>
           ) : (
-            visibleLines.map((l) => l.system ? (
-              <div key={l.id} style={{ wordBreak: 'break-word', color: '#f0c46a', fontStyle: 'italic', fontSize: 12, padding: '2px 0' }}>
-                {l.body}
-              </div>
-            ) : (
-              <div key={l.id} style={{ wordBreak: 'break-word' }}>
-                {l.user.badges.map((b) => (
-                  <span key={b} title={b} style={{ display: 'inline-block', fontSize: 9, padding: '0 3px', marginRight: 3, borderRadius: 3, background: b === 'mod' ? '#00ad03' : b === 'vip' ? '#e005b9' : b === 'prime' ? '#4d6bff' : '#8205b4', color: '#fff', verticalAlign: 'middle' }}>{b[0].toUpperCase()}</span>
-                ))}
+            feedLines.map((l) => {
+              if (l.system) return (
+                <div key={l.id} style={{ wordBreak: 'break-word', color: '#f0c46a', fontStyle: 'italic', fontSize: 12, padding: '2px 0' }}>{l.body}</div>
+              )
+              const isDonation = l.kind === 'donation' || l.kind === 'superchat'
+              const isParty = l.user.badges.includes('party')
+              // Only real identities are clickable for history: the DM's own lines/aliases
+              // and other players (both carry senderId), plus donors (money events). The
+              // random AI/ambient crowd isn't trackable.
+              const trackable = !!l.senderId || isDonation
+              const nameEl = trackable ? (
+                <span onClick={() => openHistory(l.user.name)} title={`See ${l.user.name}'s messages this session`}
+                  style={{ color: l.user.color, fontWeight: 700, textShadow: '0 1px 2px rgba(0,0,0,0.9)', cursor: 'pointer' }}>{l.user.name}</span>
+              ) : (
                 <span style={{ color: l.user.color, fontWeight: 700, textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}>{l.user.name}</span>
-                <span style={{ color: 'var(--muted, #9aa)' }}>: </span>
-                <span style={{ color: '#f2effa' }}>
-                  {parseEmotes(l.body).map((seg, i) =>
-                    seg.type === 'emote' ? (
-                      <span key={i} title={seg.name} style={{ display: 'inline-block', padding: '0 2px', margin: '0 1px', borderRadius: 3, background: 'rgba(200,155,60,0.18)' }}>{seg.glyph}</span>
-                    ) : (
-                      <span key={i}>{seg.value}</span>
-                    ),
+              )
+              // Superchat / donation → a pinned, tier-coloured card.
+              if (isDonation) return (
+                <div key={l.id} style={{ margin: '4px 0', borderRadius: 7, overflow: 'hidden', border: `1px solid ${l.user.color}`, boxShadow: `0 0 10px ${l.user.color}66` }}>
+                  <div style={{ background: l.user.color, color: '#0a0510', fontWeight: 800, fontSize: 12, padding: '3px 8px', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                    <span onClick={() => openHistory(l.user.name)} style={{ cursor: 'pointer' }}>{l.user.name}</span>
+                    <span>{formatKibbles(l.amount ?? 0)}</span>
+                  </div>
+                  <div style={{ padding: '4px 8px', fontSize: 13, background: `${l.user.color}1f`, color: '#fff' }}>{l.body}</div>
+                </div>
+              )
+              return (
+                <div key={l.id} style={{ wordBreak: 'break-word', ...(isParty ? { background: 'rgba(255,210,63,0.14)', borderLeft: '3px solid #ffd23f', padding: '2px 6px', borderRadius: 3, margin: '2px 0' } : {}) }}>
+                  {l.user.badges.map((b) => (
+                    <span key={b} title={b} style={{ display: 'inline-block', fontSize: 9, padding: '0 3px', marginRight: 3, borderRadius: 3, background: b === 'party' ? '#ffd23f' : b === 'mod' ? '#00ad03' : b === 'vip' ? '#e005b9' : b === 'prime' ? '#4d6bff' : '#8205b4', color: b === 'party' ? '#0a0510' : '#fff', fontWeight: b === 'party' ? 800 : 400, verticalAlign: 'middle' }}>{b === 'party' ? 'PLAYER' : b[0].toUpperCase()}</span>
+                  ))}
+                  {nameEl}
+                  <span style={{ color: 'var(--muted, #9aa)' }}>: </span>
+                  <span style={{ color: '#f2effa' }}>
+                    {parseEmotes(l.body).map((seg, i) =>
+                      seg.type === 'emote' ? (
+                        <span key={i} title={seg.name} style={{ display: 'inline-block', padding: '0 2px', margin: '0 1px', borderRadius: 3, background: 'rgba(200,155,60,0.18)' }}>{seg.glyph}</span>
+                      ) : (
+                        <span key={i}>{seg.value}</span>
+                      ),
+                    )}
+                  </span>
+                  {isOwnerMod && filter.trim() && (
+                    <span style={{ marginLeft: 6, whiteSpace: 'nowrap' }}>
+                      <button onClick={() => ownerMod('timeout', l.user.name)} title={`Time out ${l.user.name}`} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, padding: '0 2px' }}>⛔</button>
+                      <button onClick={() => ownerMod('ban', l.user.name)} title={`Ban ${l.user.name}`} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, padding: '0 2px', color: '#ff6b6b' }}>🔨</button>
+                    </span>
                   )}
-                </span>
-              </div>
-            ))
+                </div>
+              )
+            })
           )}
           <div ref={endRef} />
         </div>
-        <InfluenceMeter viewers={viewers} engagement={effEngagement} />
+        <InfluenceMeter viewers={viewers} engagement={effEngagement} dcMode={stream.dc_mode} dcManual={stream.dc_manual} />
       </div>
+
+      {/* A watching player's chat box — posts stand out as PLAYER lines for the streamer. */}
+      {viewerCanChat && (
+        <div style={{ display: 'flex', gap: 6, padding: '6px 8px', borderTop: '1px solid rgba(255,255,255,0.12)' }}>
+          <input
+            value={viewerMsg}
+            onChange={(e) => setViewerMsg(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && postAsViewer()}
+            placeholder="Say something in chat…"
+            maxLength={240}
+            style={{ flex: 1, padding: '6px 8px', fontSize: 13, background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.18)', color: 'inherit', borderRadius: 4 }}
+          />
+          <button className="sd-pause" onClick={postAsViewer} disabled={viewerSending || !viewerMsg.trim()}>{viewerSending ? '…' : 'Chat'}</button>
+        </div>
+      )}
+
+      {/* Click-a-name history popover. */}
+      {historyOf && (
+        <div style={{ position: 'absolute', inset: 8, top: 40, background: 'rgba(10,6,18,0.97)', border: '1px solid var(--gold, #c89b3c)', borderRadius: 8, zIndex: 5, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 10px', borderBottom: '1px solid rgba(255,255,255,0.12)' }}>
+            <strong style={{ fontSize: 13, color: 'var(--gold, #c89b3c)' }}>🗒 {historyOf}</strong>
+            <button className="sd-pause" onClick={() => { setHistoryOf(null); setHistory(null) }}>✕</button>
+          </div>
+          <div style={{ overflow: 'auto', padding: '6px 10px', fontSize: 12.5, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {history === null ? <span style={{ color: 'var(--muted,#9aa)' }}>Loading…</span>
+              : history.length === 0 ? <span style={{ color: 'var(--muted,#9aa)' }}>No saved messages from this handle. (Ambient chatter isn’t recorded — only DM, AI, players, and donations are.)</span>
+              : history.map((h, i) => (
+                <div key={i}>
+                  {(h.kind === 'donation' || h.kind === 'superchat') && <span style={{ color: '#ffd23f', fontWeight: 700 }}>{formatKibbles(h.amount ?? 0)} </span>}
+                  <span style={{ color: '#f2effa' }}>{h.body}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
 
       <div className="stream-resize" onPointerDown={onResizeStart} title="Drag to resize">⤡</div>
     </div>

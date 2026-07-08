@@ -41,6 +41,41 @@ export function viewerDC(viewers: number): number {
 
 /** The DC ceiling — at/above this the meter goes neon-pink + shakes ("irresistible"). */
 export const MAX_DC = 25;
+/** The DC floor — a lonely chat is trivial to ignore, but never free. */
+export const MIN_DC = 2;
+
+// ── Resist-DC resolution: auto (organic) vs manual (Phase K) ──────────────────────
+// The DM picks how the "resist the chat" DC is set: AUTO blends the audience with the
+// room's energy (viewers set the baseline tier, engagement nudges it a few points either
+// way); MANUAL pins an exact DC the DM types. Pure so it's unit-tested + shared by the
+// meter UI and the resist roll.
+
+/** Max points the engagement dial can shift the viewer-based DC in auto mode.
+ *  Engagement 50 is neutral (no shift); 100 → +MAX, 0 → −MAX. */
+export const DC_ENGAGEMENT_NUDGE = 4;
+
+/** Auto (organic) resist DC: the viewer-count tier sets the baseline and the engagement
+ *  dial nudges it ±DC_ENGAGEMENT_NUDGE (50 = neutral). Clamped to [MIN_DC, MAX_DC]. */
+export function organicDC(viewers: number, engagement: number): number {
+  const base = viewerDC(viewers);
+  const e = Math.max(0, Math.min(100, engagement || 0));
+  const nudge = Math.round(((e - 50) / 50) * DC_ENGAGEMENT_NUDGE);
+  return Math.max(MIN_DC, Math.min(MAX_DC, base + nudge));
+}
+
+/** The effective resist DC for the current stream state. In manual mode the DM's exact
+ *  value wins (clamped 2–25); otherwise it's the organic viewers+engagement blend. */
+export function resolveDC(opts: {
+  mode?: 'auto' | 'manual' | null;
+  manual?: number | null;
+  viewers: number;
+  engagement: number;
+}): number {
+  if (opts.mode === 'manual' && opts.manual != null && Number.isFinite(Number(opts.manual))) {
+    return Math.max(MIN_DC, Math.min(MAX_DC, Math.round(Number(opts.manual))));
+  }
+  return organicDC(opts.viewers, opts.engagement);
+}
 
 // Average ambient chat throughput (messages/second) at each resist DC — and since the DC
 // is itself set by the viewer count, this makes the chat's PACE scale with the audience.

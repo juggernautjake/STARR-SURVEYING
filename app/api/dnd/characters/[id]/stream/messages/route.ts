@@ -22,13 +22,20 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   if (!access) return NextResponse.json({ error: 'Character not found.' }, { status: 404 });
   if (!access.isMember) return NextResponse.json({ error: 'No access.' }, { status: 403 });
 
-  const limit = Math.min(100, Math.max(1, Number(req.nextUrl.searchParams.get('limit') ?? 50)));
-  const { data, error } = await supabaseAdmin
-    .from('dnd_stream_messages')
-    .select('id, username, body, badges, color, created_at')
-    .eq('character_id', params.id)
-    .order('created_at', { ascending: false })
-    .limit(limit);
+  // `q` matches a username OR body (K, search panel). `user` fetches one handle's whole
+  // history this session (R, click-a-name). Anyone in the campaign may read the feed.
+  const q = (req.nextUrl.searchParams.get('q') ?? '').trim();
+  const exactUser = (req.nextUrl.searchParams.get('user') ?? '').trim();
+  const limit = Math.min(200, Math.max(1, Number(req.nextUrl.searchParams.get('limit') ?? 50)));
+  const COLS = 'id, username, body, badges, color, created_at, kind, amount, sender_user_id';
+  let query = supabaseAdmin.from('dnd_stream_messages').select(COLS).eq('character_id', params.id);
+  if (exactUser) {
+    query = query.eq('username', exactUser.slice(0, 24));
+  } else if (q) {
+    const safe = q.replace(/[,()*]/g, ' ').trim();
+    if (safe) query = query.or(`username.ilike.%${safe}%,body.ilike.%${safe}%`);
+  }
+  const { data, error } = await query.order('created_at', { ascending: false }).limit(limit);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ messages: (data ?? []).reverse() });
 }
@@ -49,19 +56,36 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
   const access = await characterAccess(params.id, session.userId);
   if (!access) return NextResponse.json({ error: 'Character not found.' }, { status: 404 });
-  if (!access.isDM && !access.isOwner) return NextResponse.json({ error: 'Only the DM or owner can post to chat.' }, { status: 403 });
+  // Any campaign MEMBER can chat in the stream like a viewer; only the DM/owner can post
+  // AS an arbitrary handle (aliases, regulars, injected lines).
+  if (!access.isMember) return NextResponse.json({ error: 'Join the campaign to chat.' }, { status: 403 });
+  const privileged = access.isDM || access.isOwner;
 
-  const { body, username } = await req.json().catch(() => ({}));
+  const { body, username, color, badges } = await req.json().catch(() => ({}));
   if (!body || !String(body).trim()) return NextResponse.json({ error: 'A message is required.' }, { status: 400 });
 
-  const user = username
-    ? { name: String(username).slice(0, 24), ...styleForName(String(username)) }
-    : makeUsernames(1, Math.floor(Math.random() * 100000))[0];
+  // A fellow player posting → forced to their own display name with a bright PARTY badge +
+  // colour + their user id, so the streamer spots a real teammate's line instantly. The
+  // DM/owner may instead post as any handle (or a random viewer if none given).
+  // Every posted-by-a-person line carries the sender's user id so it's trackable in the
+  // click-a-name history (DM/aliases + players + donors); the ambient/AI crowd has none,
+  // so those handles aren't clickable. The bright PARTY badge is for actual players only.
+  const user =
+    !privileged
+      ? { name: String(session.displayName).slice(0, 24), color: '#ffd23f', badges: ['party'], senderId: session.userId }
+      : username
+        ? {
+            name: String(username).slice(0, 24),
+            color: (typeof color === 'string' && color) || styleForName(String(username)).color,
+            badges: Array.isArray(badges) ? badges.filter((b) => typeof b === 'string').slice(0, 4) : styleForName(String(username)).badges,
+            senderId: session.userId as string | null,
+          }
+        : { ...makeUsernames(1, Math.floor(Math.random() * 100000))[0], senderId: session.userId as string | null };
 
   const { data, error } = await supabaseAdmin
     .from('dnd_stream_messages')
-    .insert({ character_id: params.id, username: user.name, body: String(body).slice(0, 240), badges: user.badges, color: user.color })
-    .select('id, username, body, badges, color, created_at')
+    .insert({ character_id: params.id, username: user.name, body: String(body).slice(0, 240), badges: user.badges, color: user.color, sender_user_id: user.senderId, kind: 'chat' })
+    .select('id, username, body, badges, color, created_at, kind, amount, sender_user_id')
     .single();
   if (error || !data) return NextResponse.json({ error: error?.message ?? 'Could not post.' }, { status: 500 });
   return NextResponse.json({ message: data });

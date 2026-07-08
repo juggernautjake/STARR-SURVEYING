@@ -33,7 +33,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   const { data: characters } = await supabaseAdmin
     .from('dnd_characters')
-    .select('id, name, token_url, art_url, owner_user_id, is_npc, sheet_type')
+    .select('id, name, token_url, art_url, owner_user_id, is_npc, sheet_type, claimable')
     .eq('campaign_id', params.id)
     .order('is_npc', { ascending: true });
 
