@@ -219,6 +219,8 @@ export interface HubCharacter {
   sheetType: string | null;
   portrait: string | null;
   mine: boolean;
+  /** The DM permits a player to claim this one (or it has no owner yet). */
+  claimable: boolean;
 }
 
 export interface HubRecap {
@@ -265,13 +267,13 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
 
   const [{ data: mems }, { data: chars }, { data: sess }, { data: mediaRows }] = await Promise.all([
     supabaseAdmin.from('dnd_campaign_members').select('user_id, role').eq('campaign_id', campaignId),
-    supabaseAdmin.from('dnd_characters').select('id, name, is_npc, owner_user_id, token_url, art_url, sheet_type').eq('campaign_id', campaignId).order('is_npc', { ascending: true }),
+    supabaseAdmin.from('dnd_characters').select('id, name, is_npc, owner_user_id, token_url, art_url, sheet_type, claimable').eq('campaign_id', campaignId).order('is_npc', { ascending: true }),
     supabaseAdmin.from('dnd_sessions').select('id, title, sort_order').eq('campaign_id', campaignId).order('sort_order', { ascending: true }),
     supabaseAdmin.from('dnd_media').select('id, url, kind, label, gallery_tags').eq('campaign_id', campaignId).order('created_at', { ascending: false }),
   ]);
   const members = (mems ?? []) as { user_id: string; role: string }[];
   const characters = (chars ?? []) as {
-    id: string; name: string; is_npc: boolean; owner_user_id: string | null; token_url: string | null; art_url: string | null; sheet_type: string | null;
+    id: string; name: string; is_npc: boolean; owner_user_id: string | null; token_url: string | null; art_url: string | null; sheet_type: string | null; claimable: boolean;
   }[];
   const sessions = (sess ?? []) as { id: string; title: string; sort_order: number }[];
   const names = await nameMap(
@@ -319,6 +321,7 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
       sheetType: ch.sheet_type,
       portrait: ch.token_url ?? ch.art_url ?? null,
       mine: ch.owner_user_id === viewerId,
+      claimable: !!ch.claimable || ch.owner_user_id === null,
     })),
     recaps,
     myCharacterId: characters.find((ch) => ch.owner_user_id === viewerId && !ch.is_npc)?.id ?? characters.find((ch) => ch.owner_user_id === viewerId)?.id ?? null,

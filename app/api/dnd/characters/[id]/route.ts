@@ -14,7 +14,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
 // Fields a PATCH may set. `data` is the whole sheet state (the primary payload);
 // the rest cover media/descriptions/theme edits. Unknown keys are ignored.
-const WRITABLE = ['data', 'bio', 'name', 'theme', 'art_url', 'token_url', 'visibility', 'quick_stats', 'is_library'] as const;
+const WRITABLE = ['data', 'bio', 'name', 'theme', 'art_url', 'token_url', 'visibility', 'quick_stats', 'is_library', 'claimable'] as const;
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const res = await getCharacterAccess(params.id);
@@ -42,6 +42,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
   if ('visibility' in patch && !['private', 'campaign', 'public'].includes(String(patch.visibility))) {
     return NextResponse.json({ error: 'Invalid visibility.' }, { status: 400 });
+  }
+  // Only the DM decides whether a character may be claimed by a player.
+  if ('claimable' in patch) {
+    if (!res.access.isDM) return NextResponse.json({ error: 'Only the DM can mark a character claimable.' }, { status: 403 });
+    patch.claimable = !!patch.claimable;
   }
   patch.updated_at = new Date().toISOString();
 
