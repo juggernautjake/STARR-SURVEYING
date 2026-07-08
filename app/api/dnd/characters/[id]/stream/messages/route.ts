@@ -22,13 +22,20 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   if (!access) return NextResponse.json({ error: 'Character not found.' }, { status: 404 });
   if (!access.isMember) return NextResponse.json({ error: 'No access.' }, { status: 403 });
 
+  // Optional search (K): `q` matches a username or message body (case-insensitive). Used
+  // by the DM/owner chat-search panel to find a handle or keyword across the live feed.
+  const q = (req.nextUrl.searchParams.get('q') ?? '').trim();
   const limit = Math.min(100, Math.max(1, Number(req.nextUrl.searchParams.get('limit') ?? 50)));
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('dnd_stream_messages')
     .select('id, username, body, badges, color, created_at')
-    .eq('character_id', params.id)
-    .order('created_at', { ascending: false })
-    .limit(limit);
+    .eq('character_id', params.id);
+  if (q) {
+    // Escape PostgREST or() reserved characters in the user term, then match name OR body.
+    const safe = q.replace(/[,()*]/g, ' ').trim();
+    if (safe) query = query.or(`username.ilike.%${safe}%,body.ilike.%${safe}%`);
+  }
+  const { data, error } = await query.order('created_at', { ascending: false }).limit(limit);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ messages: (data ?? []).reverse() });
 }
