@@ -28,6 +28,7 @@ import Inventory from './components/Inventory'
 import Bio from './components/Bio'
 import DiceTray from './components/DiceTray'
 import DmOverridePanel from './components/DmOverridePanel'
+import StreamOwnerControls from './components/StreamOwnerControls'
 import SheetArtUploader from './components/SheetArtUploader'
 import TokenFramer from './components/TokenFramer'
 import SkinSwitch from './components/SkinSwitch'
@@ -170,6 +171,10 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
       <SheetArtUploader variant={supportsVariants ? variant : undefined} />
       {/* Adjust which part of the (variant-aware) image the round token crops from (D2). */}
       <TokenFramer src={tokenUrl ?? artUrl ?? undefined} />
+
+      {/* The streamer's own controls (go live + NeoNuggets exchange) — renders only for a
+          non-DM owner on a stream character (returns null otherwise). */}
+      {hasStream && <StreamOwnerControls />}
 
       {/* DM control panel — renders only in DM mode (§6.8.1 / C10). Stream controls
           inside it show only for characters with the `stream` module. */}

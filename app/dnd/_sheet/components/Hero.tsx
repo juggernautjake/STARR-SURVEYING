@@ -3,7 +3,7 @@ import { useChar } from '../state/store'
 import type { Character } from '../types'
 
 export default function Hero() {
-  const { char, setChar, editMode, setEditMode, tempMode, setTempMode, clearAllOverrides, reset, importChar } = useChar()
+  const { char, setChar, editMode, setEditMode, tempMode, setTempMode, clearAllOverrides, reset, importChar, isDM } = useChar()
   const fileRef = useRef<HTMLInputElement>(null)
   const nameRef = useRef<HTMLHeadingElement>(null)
 
@@ -89,14 +89,18 @@ export default function Hero() {
           >
             {char.inspiration ? '✦ INSPIRED' : '✧ Inspiration'}
           </button>
-          <button
-            className={`btn ${tempMode ? 'active' : ''}`}
-            onClick={() => setTempMode(!tempMode)}
-            title="Temp mode: number edits become reversible (a ⟲ appears next to changed values)"
-          >
-            {tempMode ? '⏲ TEMP ON' : '⏲ Temp'}
-          </button>
-          {tempCount > 0 && (
+          {/* Temp-stat control is a DM tool: only the DM can toggle Temp mode or revert
+              temporary changes. Players (incl. the streamer, Susie) don't get it. */}
+          {isDM && (
+            <button
+              className={`btn ${tempMode ? 'active' : ''}`}
+              onClick={() => setTempMode(!tempMode)}
+              title="Temp mode: number edits become reversible (a ⟲ appears next to changed values)"
+            >
+              {tempMode ? '⏲ TEMP ON' : '⏲ Temp'}
+            </button>
+          )}
+          {isDM && tempCount > 0 && (
             <button className="btn danger" onClick={clearAllOverrides} title="Revert every temporary change to its original value">
               ⟲ Revert {tempCount}
             </button>

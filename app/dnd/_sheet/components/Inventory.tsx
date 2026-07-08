@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useChar } from '../state/store'
 import type { InvItem } from '../types'
 import SectionHead from './ui/SectionHead'
+import NeoNuggetsBalance from './NeoNuggetsBalance'
 
 function labels() {
   // "Notes" is the campaign's base currency (≈ $1 each) — the streamer converts her
@@ -80,6 +81,8 @@ export default function Inventory() {
             )}
           </div>
         ))}
+        {/* Every character can see their NeoNuggets (stream super-chat currency). */}
+        <NeoNuggetsBalance />
       </div>
 
       <div className="card">
