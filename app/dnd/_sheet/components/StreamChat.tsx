@@ -10,7 +10,7 @@ import { parseEmotes } from '@/lib/dnd/stream-emotes'
 import { allowedInMode, modeIntervalFactor, formatModAction, type ChatMode, type ModActionType, CHAT_MODES } from '@/lib/dnd/stream-mod'
 import { viewerDC, resolveDC, chatRatePerSec, fluctuateViewers } from '@/lib/dnd/stream-influence'
 import { buildMoodPool } from '@/lib/dnd/stream-moods'
-import { formatKibbles } from '@/lib/dnd/stream-currency'
+import { formatNuggets } from '@/lib/dnd/stream-currency'
 import InfluenceMeter from './InfluenceMeter'
 import { useLiveEngagement } from './useLiveEngagement'
 import { useChar } from '../state/store'
@@ -665,7 +665,7 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
                 <div key={l.id} style={{ margin: '4px 0', borderRadius: 7, overflow: 'hidden', border: `1px solid ${l.user.color}`, boxShadow: `0 0 10px ${l.user.color}66` }}>
                   <div style={{ background: l.user.color, color: '#0a0510', fontWeight: 800, fontSize: 12, padding: '3px 8px', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                     <span onClick={() => openHistory(l.user.name)} style={{ cursor: 'pointer' }}>{l.user.name}</span>
-                    <span>{formatKibbles(l.amount ?? 0)}</span>
+                    <span>{formatNuggets(l.amount ?? 0)}</span>
                   </div>
                   <div style={{ padding: '4px 8px', fontSize: 13, background: `${l.user.color}1f`, color: '#fff' }}>{l.body}</div>
                 </div>
@@ -728,7 +728,7 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
               : history.length === 0 ? <span style={{ color: 'var(--muted,#9aa)' }}>No saved messages from this handle. (Ambient chatter isn’t recorded — only DM, AI, players, and donations are.)</span>
               : history.map((h, i) => (
                 <div key={i}>
-                  {(h.kind === 'donation' || h.kind === 'superchat') && <span style={{ color: '#ffd23f', fontWeight: 700 }}>{formatKibbles(h.amount ?? 0)} </span>}
+                  {(h.kind === 'donation' || h.kind === 'superchat') && <span style={{ color: '#ffd23f', fontWeight: 700 }}>{formatNuggets(h.amount ?? 0)} </span>}
                   <span style={{ color: '#f2effa' }}>{h.body}</span>
                 </div>
               ))}

@@ -4,7 +4,9 @@ import type { InvItem } from '../types'
 import SectionHead from './ui/SectionHead'
 
 function labels() {
-  return { credits: 'Credits', harmonyte: 'Harmonyte', scrip: 'Scrip' }
+  // "Notes" is the campaign's base currency (≈ $1 each) — the streamer converts her
+  // earned NeoNuggets into these. Stored on the `credits` key for back-compat.
+  return { credits: 'Notes', harmonyte: 'Harmonyte', scrip: 'Scrip' }
 }
 
 export default function Inventory() {

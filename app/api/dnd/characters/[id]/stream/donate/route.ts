@@ -1,8 +1,9 @@
-// app/api/dnd/characters/[id]/stream/donate/route.ts — superchats & donations (Phase R).
-// Throws Kibbles 🐟 into the stream: the DM/owner can fire one from a random or a specific
-// handle; a fellow player (campaign member) can donate as themselves once the DM has
-// switched donations ON. Each donation posts a highlighted superchat line and adds to the
-// streamer's convertible Kibble stash (dnd_stream_state.kibbles_earned).
+// app/api/dnd/characters/[id]/stream/donate/route.ts — super chats & donations (Phase R).
+// Throws NeoNuggets 🪙 into the stream with an optional message: the DM/owner can fire one
+// from a random or a specific handle; a fellow player (campaign member) can donate as
+// themselves once the DM has switched donations ON. Each posts a highlighted super chat
+// card (message + amount) and adds to the streamer's convertible NeoNugget stash
+// (dnd_stream_state.kibbles_earned — the column name is kept for back-compat).
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';

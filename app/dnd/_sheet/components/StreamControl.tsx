@@ -5,7 +5,7 @@ import type { AlertType, StreamAlert } from '@/lib/dnd/stream-alerts'
 import { CHAT_MODES, type ChatMode, type ModActionType } from '@/lib/dnd/stream-mod'
 import { resolveDC, MAX_DC, MIN_DC, chatRatePerSec } from '@/lib/dnd/stream-influence'
 import { MOODS } from '@/lib/dnd/stream-moods'
-import { GENEROSITY, GENEROSITY_LEVELS, rollDonationAmount, formatKibbles, kibblesToGold, type Generosity } from '@/lib/dnd/stream-currency'
+import { GENEROSITY, GENEROSITY_LEVELS, rollDonationAmount, formatNuggets, nuggetsToNotes, type Generosity } from '@/lib/dnd/stream-currency'
 import AliasBar from './stream/AliasBar'
 import ChatSearchPanel from './stream/ChatSearchPanel'
 import ReplyInbox from './stream/ReplyInbox'
@@ -43,8 +43,9 @@ export default function StreamControl() {
   const focusTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const [more, setMore] = useState(false)
   // Donations / superchats (R).
-  const [donateAmt, setDonateAmt] = useState(100)
+  const [donateAmt, setDonateAmt] = useState(10000)
   const [donateUser, setDonateUser] = useState('')
+  const [donateMsg, setDonateMsg] = useState('')
   const donoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Utilities (polls / alerts / mod).
   const [pollQ, setPollQ] = useState(''); const [pollOpts, setPollOpts] = useState(''); const [polling, setPolling] = useState(false)
@@ -167,13 +168,13 @@ export default function StreamControl() {
     const amount = Math.max(1, Math.round(donateAmt) || 1)
     fetch(`/api/dnd/characters/${characterId}/stream/donate`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount, username: donateUser.trim() || undefined, kind }),
-    }).then((r) => r.json()).then((j) => { if (j?.kibblesEarned != null) setStream((s) => (s ? { ...s, kibbles_earned: j.kibblesEarned } : s)); notifyPoll() }).catch(() => {})
+      body: JSON.stringify({ amount, username: donateUser.trim() || undefined, message: donateMsg.trim() || undefined, kind }),
+    }).then((r) => r.json()).then((j) => { if (j?.kibblesEarned != null) setStream((s) => (s ? { ...s, kibbles_earned: j.kibblesEarned } : s)); setDonateMsg(''); notifyPoll() }).catch(() => {})
   }
-  const convertKibbles = async () => {
+  const convertNuggets = async () => {
     const r = await fetch(`/api/dnd/characters/${characterId}/stream/convert`, { method: 'POST' })
     const j = await r.json().catch(() => ({}))
-    if (r.ok) { setStream((s) => (s ? { ...s, kibbles_earned: j.kibblesLeft } : s)); window.alert(`💰 Converted ${j.creditsAdded} credits onto the sheet. ${j.kibblesLeft} Kibbles left over.`) }
+    if (r.ok) { setStream((s) => (s ? { ...s, kibbles_earned: j.nuggetsLeft } : s)); window.alert(`💰 Converted ${j.notesAdded} notes onto the sheet. ${(j.nuggetsLeft ?? 0).toLocaleString()} NeoNuggets left over.`) }
     else window.alert(j.error || 'Could not convert.')
   }
 
@@ -338,8 +339,8 @@ export default function StreamControl() {
               {donationsOn ? 'ON' : 'OFF'}
             </button>
             <span style={{ flex: 1 }} />
-            <span style={{ fontSize: 11, color: 'var(--muted,#9aa)' }}>earned {formatKibbles(earned)} → {kibblesToGold(earned)} credits</span>
-            <button className="btn tiny" onClick={convertKibbles} disabled={kibblesToGold(earned) < 1} title="Convert whole credits onto the sheet">💰 Convert</button>
+            <span style={{ fontSize: 11, color: 'var(--muted,#9aa)' }}>earned {formatNuggets(earned)} → {nuggetsToNotes(earned)} notes</span>
+            <button className="btn tiny" onClick={convertNuggets} disabled={nuggetsToNotes(earned) < 1} title="Convert whole notes onto the sheet (10,000 NeoNuggets = 1 note)">💰 Convert</button>
           </div>
           {donationsOn && (
             <>
@@ -352,12 +353,16 @@ export default function StreamControl() {
                 ))}
               </div>
               <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                <label style={{ ...label, fontWeight: 400, display: 'flex', alignItems: 'center', gap: 4 }}>🐟
-                  <input type="number" min={1} value={donateAmt} onChange={(e) => setDonateAmt(Math.max(1, Number(e.target.value) || 1))} style={{ ...inp, width: 90 }} />
+                <label style={{ ...label, fontWeight: 400, display: 'flex', alignItems: 'center', gap: 4 }} title="NeoNuggets in this super chat (10,000 = 1 note)">🪙
+                  <input type="number" min={1} step={10000} value={donateAmt} onChange={(e) => setDonateAmt(Math.max(1, Number(e.target.value) || 1))} style={{ ...inp, width: 110 }} />
                 </label>
-                <input value={donateUser} onChange={(e) => setDonateUser(e.target.value)} placeholder="from… (blank = random)" style={{ ...inp, width: 150 }} />
+                <span style={{ fontSize: 10.5, color: 'var(--muted,#9aa)' }}>≈ {(donateAmt / 10000).toLocaleString(undefined, { maximumFractionDigits: 2 })} note{donateAmt === 10000 ? '' : 's'}</span>
+                <input value={donateUser} onChange={(e) => setDonateUser(e.target.value)} placeholder="from… (blank = random)" style={{ ...inp, width: 130 }} />
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                <input value={donateMsg} onChange={(e) => setDonateMsg(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && donateMsg.trim() && fireDonation('superchat')} placeholder="super chat message… (shown in the card)" style={{ ...inp, flex: 1, minWidth: 160 }} />
                 <button className="btn tiny" onClick={() => fireDonation('superchat')} style={{ color: '#ffd23f' }}>💬 Superchat</button>
-                <button className="btn tiny" onClick={() => fireDonation('donation')}>🎁 Donate</button>
+                <button className="btn tiny" onClick={() => fireDonation('donation')} title="A gift with no message">🎁 Donate</button>
               </div>
             </>
           )}

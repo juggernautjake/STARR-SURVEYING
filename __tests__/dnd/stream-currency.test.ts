@@ -1,30 +1,31 @@
-// __tests__/dnd/stream-currency.test.ts — chat currency + donations (Phase R).
+// __tests__/dnd/stream-currency.test.ts — chat currency + super chats (Phase R).
 import { describe, it, expect } from 'vitest';
 import {
-  KIBBLES_PER_GOLD, kibblesToGold, kibblesRemainder, goldToKibbles,
-  superTier, SUPER_TIERS, rollDonationAmount, GENEROSITY, formatKibbles,
+  NUGGETS_PER_NOTE, nuggetsToNotes, nuggetsRemainder, notesToNuggets,
+  superTier, SUPER_TIERS, rollDonationAmount, GENEROSITY, formatNuggets,
 } from '@/lib/dnd/stream-currency';
 
-describe('kibbles ↔ gold', () => {
-  it('converts whole gold with a remainder', () => {
-    expect(kibblesToGold(250)).toBe(2);
-    expect(kibblesRemainder(250)).toBe(50);
-    expect(kibblesToGold(99)).toBe(0);
-    expect(goldToKibbles(3)).toBe(3 * KIBBLES_PER_GOLD);
+describe('NeoNuggets ↔ notes', () => {
+  it('converts whole notes with a remainder (10,000 per note)', () => {
+    expect(NUGGETS_PER_NOTE).toBe(10_000);
+    expect(nuggetsToNotes(25_000)).toBe(2);
+    expect(nuggetsRemainder(25_000)).toBe(5_000);
+    expect(nuggetsToNotes(9_999)).toBe(0);
+    expect(notesToNuggets(3)).toBe(3 * NUGGETS_PER_NOTE);
   });
   it('never goes negative', () => {
-    expect(kibblesToGold(-100)).toBe(0);
-    expect(kibblesRemainder(-5)).toBe(0);
+    expect(nuggetsToNotes(-100)).toBe(0);
+    expect(nuggetsRemainder(-5)).toBe(0);
   });
 });
 
 describe('superTier', () => {
   it('bands by amount and is monotonic', () => {
     expect(superTier(1).label).toBe('Blue');
-    expect(superTier(49).label).toBe('Blue');
-    expect(superTier(50).label).toBe('Teal');
-    expect(superTier(20000).label).toBe('Red');
-    expect(superTier(1e9).label).toBe('Red'); // caps at the top tier
+    expect(superTier(9_999).label).toBe('Blue');
+    expect(superTier(10_000).label).toBe('Teal'); // one note
+    expect(superTier(5_000_000).label).toBe('Red');
+    expect(superTier(1e12).label).toBe('Red'); // caps at the top tier
     let prevMin = -1;
     for (const t of SUPER_TIERS) { expect(t.min).toBeGreaterThan(prevMin); prevMin = t.min; }
   });
@@ -54,10 +55,10 @@ describe('generosity config', () => {
   });
 });
 
-describe('formatKibbles', () => {
-  it('compacts big numbers with the 🐟 symbol', () => {
-    expect(formatKibbles(50)).toBe('🐟 50');
-    expect(formatKibbles(1500)).toBe('🐟 1.5K');
-    expect(formatKibbles(2_000_000)).toBe('🐟 2M');
+describe('formatNuggets', () => {
+  it('compacts big numbers with the 🪙 symbol', () => {
+    expect(formatNuggets(50)).toBe('🪙 50');
+    expect(formatNuggets(1500)).toBe('🪙 1.5K');
+    expect(formatNuggets(2_000_000)).toBe('🪙 2M');
   });
 });
