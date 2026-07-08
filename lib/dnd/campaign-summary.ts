@@ -3,38 +3,57 @@
 // service-role client; these summaries are public in the open-access model (the /dnd
 // hub is reachable by direct link only), so no membership check.
 import { supabaseAdmin } from '@/lib/supabase';
-import { DEMO_CAMPAIGN_ID, DEMO_DM_USER_ID, DEMO_GUEST_USER_ID, DEMO_STREAMER } from '@/lib/dnd/constants';
+import { DEMO_CAMPAIGN_ID, DEMO_GUEST_USER_ID, DEMO_STREAMER } from '@/lib/dnd/constants';
 import { streamerCharacter } from '@/app/dnd/_sheet/data/streamer';
 
-// Self-heal for the open-access demo: make sure the DM-run streamer NPC
-// (xxRainbowKittenUwU37xx) exists with her full statted `streamer` sheet + a live
-// stream, so she shows in the lobby without anyone re-running the seed script.
-// Idempotent + best-effort (swallows errors); only touches the fixed demo ids.
+// Self-heal for the Neon Odyssey demo: make sure the streamer (xxRainbowKittenUwU37xx)
+// exists with her full statted `streamer` sheet + a live stream, owned by Susie as a
+// PRIVATE player character (only Susie + the DM can open it; only her chat is DM-run).
+// Idempotent + best-effort (swallows errors); only touches the fixed demo ids. Note: it
+// never sets a password (that's done once by the seed / DB setup and preserved here).
 async function ensureDemoStreamer(): Promise<void> {
   try {
+    // Susie's account + campaign membership, so she shows as a normal playable card.
+    await supabaseAdmin.from('dnd_users').upsert(
+      { id: DEMO_STREAMER.playerUserId, email: DEMO_STREAMER.playerEmail, display_name: DEMO_STREAMER.playerName },
+      { onConflict: 'id', ignoreDuplicates: true },
+    );
+    await supabaseAdmin.from('dnd_campaign_members').upsert(
+      { campaign_id: DEMO_CAMPAIGN_ID, user_id: DEMO_STREAMER.playerUserId, role: 'player' },
+      { onConflict: 'campaign_id,user_id', ignoreDuplicates: true },
+    );
+
     const { data: existing } = await supabaseAdmin
       .from('dnd_characters')
-      .select('id, sheet_type')
+      .select('id, sheet_type, is_npc, owner_user_id, visibility')
       .eq('id', DEMO_STREAMER.characterId)
       .maybeSingle();
-    const row = existing as { id: string; sheet_type: string } | null;
+    const row = existing as { id: string; sheet_type: string; is_npc: boolean; owner_user_id: string | null; visibility: string } | null;
     const streamerRow = {
       campaign_id: DEMO_CAMPAIGN_ID,
-      owner_user_id: DEMO_DM_USER_ID,
+      owner_user_id: DEMO_STREAMER.playerUserId,
       name: DEMO_STREAMER.characterName,
       sheet_type: DEMO_STREAMER.sheetType,
-      is_npc: true,
-      visibility: 'campaign',
+      is_npc: false,
+      visibility: 'private',
       data: streamerCharacter(DEMO_STREAMER.characterName),
     };
     if (!row) {
-      // Missing entirely → create her.
+      // Missing entirely → create her as a private player character.
       await supabaseAdmin.from('dnd_characters').insert({ id: DEMO_STREAMER.characterId, ...streamerRow });
     } else if (row.sheet_type !== DEMO_STREAMER.sheetType) {
-      // A leftover row occupies this id (e.g. the old "Nova Vex", generic + is_npc=false)
-      // → convert it into the DM-run streamer NPC with her full statted sheet. Only runs
-      // until she's on the `streamer` skin, so DM edits to the streamer are preserved.
+      // A leftover row occupies this id (e.g. the old "Nova Vex") → convert it into the
+      // full statted streamer. Only runs until she's on the `streamer` skin, so DM edits
+      // to her sheet are preserved thereafter.
       await supabaseAdmin.from('dnd_characters').update(streamerRow).eq('id', DEMO_STREAMER.characterId);
+    } else if (row.is_npc || row.owner_user_id !== DEMO_STREAMER.playerUserId || row.visibility !== 'private') {
+      // She already has her streamer sheet but was still the old DM-run NPC / campaign-
+      // visible → flip her to Susie's PRIVATE player character WITHOUT touching her sheet
+      // `data` (preserve any DM edits).
+      await supabaseAdmin
+        .from('dnd_characters')
+        .update({ is_npc: false, owner_user_id: DEMO_STREAMER.playerUserId, visibility: 'private' })
+        .eq('id', DEMO_STREAMER.characterId);
     }
     // Put her live so the chat + influence meter run when opened (don't overwrite an
     // existing state).
@@ -64,6 +83,8 @@ export interface LobbyPlayer {
   characterId: string | null;
   characterName: string | null;
   portrait: string | null;
+  /** Password-protected account → can't be entered passwordlessly; must sign in. */
+  locked: boolean;
 }
 
 export interface LobbyNpc {
@@ -76,9 +97,10 @@ export interface CampaignLobbyData {
   id: string;
   name: string;
   setting: string | null;
-  dm: { userId: string; name: string } | null;
+  dm: { userId: string; name: string; locked: boolean } | null;
   players: LobbyPlayer[];
-  /** DM-run NPCs (e.g. the streamer) — shown so they can be opened from the lobby. */
+  /** Any DM-run NPCs — shown so they can be opened from the lobby. (The streamer is a
+   *  player character, so she's in `players`, not here.) */
   npcs: LobbyNpc[];
   guestUserId: string | null;
 }
@@ -197,6 +219,8 @@ export interface HubCharacter {
   sheetType: string | null;
   portrait: string | null;
   mine: boolean;
+  /** The DM permits a player to claim this one (or it has no owner yet). */
+  claimable: boolean;
 }
 
 export interface HubRecap {
@@ -243,13 +267,13 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
 
   const [{ data: mems }, { data: chars }, { data: sess }, { data: mediaRows }] = await Promise.all([
     supabaseAdmin.from('dnd_campaign_members').select('user_id, role').eq('campaign_id', campaignId),
-    supabaseAdmin.from('dnd_characters').select('id, name, is_npc, owner_user_id, token_url, art_url, sheet_type').eq('campaign_id', campaignId).order('is_npc', { ascending: true }),
+    supabaseAdmin.from('dnd_characters').select('id, name, is_npc, owner_user_id, token_url, art_url, sheet_type, claimable').eq('campaign_id', campaignId).order('is_npc', { ascending: true }),
     supabaseAdmin.from('dnd_sessions').select('id, title, sort_order').eq('campaign_id', campaignId).order('sort_order', { ascending: true }),
     supabaseAdmin.from('dnd_media').select('id, url, kind, label, gallery_tags').eq('campaign_id', campaignId).order('created_at', { ascending: false }),
   ]);
   const members = (mems ?? []) as { user_id: string; role: string }[];
   const characters = (chars ?? []) as {
-    id: string; name: string; is_npc: boolean; owner_user_id: string | null; token_url: string | null; art_url: string | null; sheet_type: string | null;
+    id: string; name: string; is_npc: boolean; owner_user_id: string | null; token_url: string | null; art_url: string | null; sheet_type: string | null; claimable: boolean;
   }[];
   const sessions = (sess ?? []) as { id: string; title: string; sort_order: number }[];
   const names = await nameMap(
@@ -297,6 +321,7 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
       sheetType: ch.sheet_type,
       portrait: ch.token_url ?? ch.art_url ?? null,
       mine: ch.owner_user_id === viewerId,
+      claimable: !!ch.claimable || ch.owner_user_id === null,
     })),
     recaps,
     myCharacterId: characters.find((ch) => ch.owner_user_id === viewerId && !ch.is_npc)?.id ?? characters.find((ch) => ch.owner_user_id === viewerId)?.id ?? null,
@@ -321,6 +346,16 @@ export async function loadCampaignLobby(campaignId: string): Promise<CampaignLob
   const characters = (chars ?? []) as CharRow[];
   const names = await nameMap(members.map((m) => m.user_id));
 
+  // Which member accounts are password-protected (can't be entered passwordlessly).
+  const locked = new Set<string>();
+  if (members.length) {
+    const { data: pw } = await supabaseAdmin
+      .from('dnd_users')
+      .select('id, password_hash')
+      .in('id', members.map((m) => m.user_id));
+    for (const u of ((pw ?? []) as { id: string; password_hash: string | null }[])) if (u.password_hash) locked.add(u.id);
+  }
+
   const dmMem = members.find((m) => m.role === 'dm');
   const players: LobbyPlayer[] = members
     .filter((m) => m.role !== 'dm')
@@ -332,6 +367,7 @@ export async function loadCampaignLobby(campaignId: string): Promise<CampaignLob
         characterId: pc?.id ?? null,
         characterName: pc?.name ?? null,
         portrait: pc?.token_url ?? pc?.art_url ?? null,
+        locked: locked.has(m.user_id),
       };
     });
 
@@ -343,7 +379,7 @@ export async function loadCampaignLobby(campaignId: string): Promise<CampaignLob
     id: campaign.id,
     name: campaign.name,
     setting: campaign.blurb,
-    dm: dmMem ? { userId: dmMem.user_id, name: names.get(dmMem.user_id) ?? 'Dungeon Master' } : null,
+    dm: dmMem ? { userId: dmMem.user_id, name: names.get(dmMem.user_id) ?? 'Dungeon Master', locked: locked.has(dmMem.user_id) } : null,
     players,
     npcs,
     guestUserId: campaignId === DEMO_CAMPAIGN_ID ? DEMO_GUEST_USER_ID : null,
