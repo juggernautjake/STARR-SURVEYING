@@ -35,7 +35,11 @@ export default function Chat({ campaignId, initialMembers, selfId, initialChanne
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const endRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  // Only auto-follow new messages while the reader is already near the bottom of the chat
+  // list — and scroll the LIST container, never the page (a no-op if the list isn't its
+  // own scroller, so opening a campaign keeps the view at the top).
+  const stickRef = useRef(true)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(() => {
@@ -83,7 +87,8 @@ export default function Chat({ campaignId, initialMembers, selfId, initialChanne
   const ping = channel === 'party' ? party.ping : channel === 'direct' ? direct.ping : group.ping
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = listRef.current
+    if (el && stickRef.current) el.scrollTop = el.scrollHeight
   }, [messages])
 
   function pickRecipient(id: string) {
@@ -178,7 +183,11 @@ export default function Chat({ campaignId, initialMembers, selfId, initialChanne
         </div>
       )}
 
-      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 4 }}>
+      <div
+        ref={listRef}
+        onScroll={() => { const el = listRef.current; if (el) stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60 }}
+        style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 4 }}
+      >
         {messages.length === 0 ? (
           <p style={{ color: 'var(--hx-muted)', fontSize: 14 }}>{channel === 'party' ? 'No messages yet — say hello to the party.' : 'No messages in this channel yet.'}</p>
         ) : (
@@ -202,7 +211,6 @@ export default function Chat({ campaignId, initialMembers, selfId, initialChanne
             )
           })
         )}
-        <div ref={endRef} />
       </div>
 
       <form onSubmit={send} style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
