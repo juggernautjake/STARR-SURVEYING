@@ -133,7 +133,7 @@ export default function Hero() {
         <button
           className="btn tiny danger"
           onClick={() => {
-            if (confirm('Reset Lazzuh to the original build? This wipes your saved changes.')) reset()
+            if (confirm(`Reset ${char.meta.name} to the original build? This wipes your saved changes.`)) reset()
           }}
         >
           ⟲ Reset
