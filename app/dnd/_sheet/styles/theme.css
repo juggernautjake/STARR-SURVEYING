@@ -9,6 +9,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Barlow+Condensed:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@400;500;700;900&family=Audiowide&family=Chakra+Petch:wght@400;600;700&family=Rajdhani:wght@500;600;700&family=Syncopate:wght@400;700&family=Michroma&display=swap');
 /* Pixel / CRT-terminal faces for bespoke streamer skins (e.g. skin-streamer). */
 @import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=VT323&family=Silkscreen:wght@400;700&family=Press+Start+2P&display=swap');
+/* Rounded "brand deck" faces for the bespoke MLM skin (skin-donata). */
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Poppins:ital,wght@0,400;0,500;0,600;0,700;1,500&family=Space+Mono:wght@400;700&display=swap');
 
 .dnd-sheet {
   --void: #080512;
@@ -2801,4 +2803,166 @@
   .dnd-sheet .stream-fab.solo {
     bottom: 14px;
   }
+}
+
+/* =========================================================================
+   BESPOKE SKIN — skin-donata  (Donata Dime · Mighty Mojo's Mighty Magic Maguffins)
+   A pearlescent holographic "girlboss-glam x prehistoric-saurian x MLM-flash" skin.
+   LIGHT theme, so we flip the base sheet's hardcoded white headings to --ink.
+   Every selector is prefixed .dnd-sheet.skin-donata so it touches nothing else.
+   ========================================================================= */
+.dnd-sheet.skin-donata {
+  --sk-accent: 224, 20, 140;    /* mojo magenta */
+  --sk-accent2: 139, 63, 240;   /* electric violet */
+  --sk-accent3: 201, 138, 10;   /* diamond gold */
+  --sk-harmony: 11, 183, 201;   /* harmonyte cyan (used sparingly) */
+  --sk-base: linear-gradient(165deg, #fff5fd 0%, #fbe9ff 32%, #f3e6ff 60%, #fff2f9 100%);
+  --sk-panel-soft: #fffafe;
+  --sk-scroll-edge: #f7e2ff;
+  --sk-onaccent-ink: #4a0b40;
+  background:
+    repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.10) 0 2px, transparent 2px 8px),
+    radial-gradient(720px 460px at 86% -6%, rgba(var(--sk-accent3), 0.20), transparent 60%),
+    radial-gradient(820px 520px at -6% 10%, rgba(var(--sk-accent), 0.24), transparent 58%),
+    radial-gradient(900px 640px at 50% 116%, rgba(var(--sk-accent2), 0.20), transparent 62%),
+    radial-gradient(520px 420px at 22% 58%, rgba(var(--sk-harmony), 0.10), transparent 60%),
+    var(--sk-base);
+  background-attachment: fixed;
+  color: var(--ink);
+  isolation: isolate;
+}
+/* Floating gem/sparkle aura behind the content — "manifested abundance." */
+.dnd-sheet.skin-donata::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.55;
+  background:
+    radial-gradient(circle at 12% 30%, rgba(var(--sk-accent), 0.9) 0 3px, transparent 4px),
+    radial-gradient(circle at 26% 20%, rgba(255, 255, 255, 0.95) 0 2px, transparent 3px),
+    radial-gradient(circle at 33% 78%, rgba(var(--sk-accent2), 0.9) 0 3px, transparent 4px),
+    radial-gradient(circle at 52% 66%, rgba(var(--sk-accent3), 0.95) 0 3px, transparent 4px),
+    radial-gradient(circle at 68% 82%, rgba(var(--sk-accent2), 0.85) 0 2px, transparent 3px),
+    radial-gradient(circle at 84% 34%, rgba(var(--sk-accent3), 0.9) 0 3px, transparent 4px),
+    radial-gradient(circle at 90% 72%, rgba(var(--sk-accent), 0.85) 0 2px, transparent 3px),
+    radial-gradient(circle at 7% 84%, rgba(255, 255, 255, 0.9) 0 2px, transparent 3px),
+    radial-gradient(circle at 46% 90%, rgba(var(--sk-accent), 0.8) 0 2px, transparent 3px),
+    radial-gradient(circle at 63% 12%, rgba(var(--sk-accent2), 0.85) 0 3px, transparent 4px);
+  animation: donata-float 7s ease-in-out infinite;
+}
+@keyframes donata-float {
+  0%, 100% { transform: translateY(0); opacity: 0.42; }
+  50% { transform: translateY(-9px); opacity: 0.6; }
+}
+/* Fine sparkle field + a diagonal holo-foil shimmer, drifting. Non-interactive. */
+.dnd-sheet.skin-donata::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  pointer-events: none;
+  opacity: 0.5;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.95) 0.6px, transparent 1.7px) 0 0 / 30px 30px,
+    radial-gradient(circle, rgba(var(--sk-accent3), 0.8) 0.6px, transparent 1.7px) 15px 15px / 60px 60px,
+    linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.14) 48%, rgba(var(--sk-harmony), 0.10) 52%, transparent 60%);
+  background-size: 30px 30px, 60px 60px, 300% 300%;
+  animation: donata-drift 9s linear infinite, donata-shimmer 8s ease-in-out infinite;
+}
+@keyframes donata-drift { from { background-position: 0 0, 15px 15px, 0 0; } to { background-position: 30px 30px, 45px 45px, 0 0; } }
+@keyframes donata-shimmer { 0%, 100% { background-position: 0 0, 15px 15px, 0% 50%; } 50% { background-position: 0 0, 15px 15px, 100% 50%; } }
+.dnd-sheet.skin-donata ::selection { background: rgba(var(--sk-accent), 0.26); color: var(--ink); }
+.dnd-sheet.skin-donata ::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--gold), var(--hotpink));
+  border: 3px solid var(--sk-scroll-edge);
+  border-radius: 999px;
+}
+
+/* Flip the base sheet's hardcoded white headings/values to the deep-aubergine ink. */
+.dnd-sheet.skin-donata .stat .big,
+.dnd-sheet.skin-donata h2,
+.dnd-sheet.skin-donata strong,
+.dnd-sheet.skin-donata .card h3,
+.dnd-sheet.skin-donata .ab .score,
+.dnd-sheet.skin-donata .form-name,
+.dnd-sheet.skin-donata .res-head .rn,
+.dnd-sheet.skin-donata .tray-fab,
+.dnd-sheet.skin-donata .tray-title,
+.dnd-sheet.skin-donata .ability-name,
+.dnd-sheet.skin-donata .roll-entry .re-label,
+.dnd-sheet.skin-donata .inv-name,
+.dnd-sheet.skin-donata .vpill .vv,
+.dnd-sheet.skin-donata .apill .asc,
+.dnd-sheet.skin-donata .inline-edit,
+.dnd-sheet.skin-donata .adv-seg button.on-flat {
+  color: var(--ink);
+}
+
+/* Panels get a soft rounded, glossy "brand card" treatment. */
+.dnd-sheet.skin-donata .card {
+  background: linear-gradient(170deg, var(--sk-panel-soft), #fdeeff);
+  border: 1px solid rgba(var(--sk-accent), 0.28);
+  border-radius: 16px;
+  box-shadow: 0 14px 34px -20px rgba(var(--sk-accent2), 0.7);
+}
+.dnd-sheet.skin-donata .card::before { border-radius: 16px 16px 0 0; }
+
+/* Buttons: glossy magenta->violet pill with a sweep. */
+.dnd-sheet.skin-donata .btn.solid {
+  color: #fff;
+  text-shadow: none;
+  background: linear-gradient(120deg, var(--hotpink), var(--violet));
+  border-color: transparent;
+  border-radius: 999px;
+  box-shadow: 0 8px 18px -8px rgba(var(--sk-accent2), 0.8);
+}
+.dnd-sheet.skin-donata .btn.solid:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.dnd-sheet.skin-donata .btn { border-radius: 999px; }
+.dnd-sheet.skin-donata .card h3 .lvl { color: var(--sk-onaccent-ink); }
+.dnd-sheet.skin-donata .adv-seg button.on-dis { color: var(--danger); }
+
+/* De-cyan tints -> magenta; glossy focus rings. */
+.dnd-sheet.skin-donata th { background: rgba(var(--sk-accent), 0.09); }
+.dnd-sheet.skin-donata .callout { border-left-color: var(--hotpink); background: rgba(var(--sk-accent), 0.06); }
+.dnd-sheet.skin-donata input:not([type='range']):focus,
+.dnd-sheet.skin-donata textarea:focus,
+.dnd-sheet.skin-donata select:focus {
+  border-color: var(--hotpink);
+  box-shadow: 0 0 0 2px rgba(var(--sk-accent), 0.22);
+}
+
+/* Chips read as shiny enamel pins. */
+.dnd-sheet.skin-donata .chip {
+  border-radius: 999px;
+  border: 1px solid rgba(var(--sk-accent), 0.4);
+  box-shadow: inset 0 -2px 6px rgba(var(--sk-accent), 0.12);
+}
+
+/* Hero name: iridescent holo-foil gradient text with a slow shimmer. */
+.dnd-sheet.skin-donata h1.name {
+  background: linear-gradient(100deg, #ff49c0, #a855f7 42%, #0bb7c9 74%, #f5c542);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: donata-name 9s linear infinite;
+}
+@keyframes donata-name { to { background-position: 300% 0; } }
+.dnd-sheet.skin-donata .kicker { color: var(--violet); letter-spacing: 0.16em; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dnd-sheet.skin-donata::before,
+  .dnd-sheet.skin-donata::after,
+  .dnd-sheet.skin-donata h1.name { animation: none; }
+}
+
+/* Hero reads as a premium branded "conference stage" banner framing the holo name. */
+.dnd-sheet.skin-donata .kicker { color: var(--gold); }
+.dnd-sheet.skin-donata .hero {
+  background: linear-gradient(135deg, #33103f, #4a0b40 52%, #241246);
+  border: 1px solid rgba(var(--sk-accent3), 0.45);
+  border-radius: 18px;
+  box-shadow: 0 16px 40px -22px rgba(var(--sk-accent), 0.8);
 }
