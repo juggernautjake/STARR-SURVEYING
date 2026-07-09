@@ -598,11 +598,19 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
     touchActivity()
   }
 
-  // Minimized → a pulsing FAB (mirrors the dice tray) that reopens the chat.
+  // Minimized → a clearly-labelled chat bubble pinned bottom-right that reopens the chat.
+  // `solo` (a pure viewer on the watch page, no dice tray) sits in the true corner;
+  // otherwise it tucks clear of the dice tray FAB. Always visible so chat is never lost.
   if (!open) {
     return (
-      <button className="stream-fab" onClick={() => setOpen(true)} title="Open stream chat">
-        💬
+      <button
+        className={`stream-fab${viewerCanChat ? ' solo' : ''}`}
+        onClick={() => { setOpen(true); touchActivity() }}
+        title="Open the stream chat"
+        aria-label="Open the stream chat"
+      >
+        <span className="stream-fab-icon" aria-hidden>💬</span>
+        <span className="stream-fab-label">Chat</span>
         <span className="stream-fab-dot" />
       </button>
     )
