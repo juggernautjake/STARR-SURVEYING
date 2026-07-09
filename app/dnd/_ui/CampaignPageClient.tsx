@@ -15,7 +15,10 @@ import CampaignNotesDm from './CampaignNotesDm'
 export interface CampaignDetail {
   campaign: { id: string; name: string; blurb?: string | null; role: string; theme?: { artUrl?: string | null; notes?: string | null; dmNotes?: string | null } | null }
   members: { userId: string; role: string; displayName: string; avatarUrl?: string | null }[]
-  characters: { id: string; name: string; token_url?: string | null; is_npc: boolean; sheet_type?: string; claimable?: boolean }[]
+  characters: {
+    id: string; name: string; token_url?: string | null; is_npc: boolean; sheet_type?: string;
+    ownerUserId?: string | null; ownerName?: string | null; playedByUserId?: string | null; playedByName?: string | null;
+  }[]
   sessions: { id: string; title: string; status: string; sort_order: number }[]
 }
 
@@ -46,6 +49,9 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
   const [newChar, setNewChar] = useState<{ name: string; sheetType: string; isNpc: boolean; ownerUserId: string }>({ name: '', sheetType: 'generic', isNpc: false, ownerUserId: '' })
   const [newPlayer, setNewPlayer] = useState('')
   const [memberErr, setMemberErr] = useState<string | null>(null)
+  // "Add an existing character I own" picker (my characters not already in this campaign).
+  const [myChars, setMyChars] = useState<{ id: string; name: string }[]>([])
+  const [addPick, setAddPick] = useState('')
 
   async function createCharacter() {
     if (!newChar.name.trim() || !data) return
@@ -63,7 +69,15 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
       })
       const j = await res.json()
       if (res.ok && j.character) {
-        setData((d) => (d ? { ...d, characters: [...d.characters, j.character] } : d))
+        // The POST returns snake_case list columns; normalize to the roster's camelCase
+        // shape so the owner/played labels render correctly without a reload.
+        const ownerName = j.character.owner_user_id ? data.members.find((m) => m.userId === j.character.owner_user_id)?.displayName ?? null : null
+        const normalized = {
+          id: j.character.id, name: j.character.name, token_url: j.character.token_url ?? j.character.art_url ?? null,
+          is_npc: j.character.is_npc, sheet_type: j.character.sheet_type,
+          ownerUserId: j.character.owner_user_id ?? null, ownerName, playedByUserId: null, playedByName: null,
+        }
+        setData((d) => (d ? { ...d, characters: [...d.characters, normalized] } : d))
         setNewChar({ name: '', sheetType: 'generic', isNpc: false, ownerUserId: '' })
       }
     } catch {
@@ -94,12 +108,29 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
     else { const j = await res.json().catch(() => ({})); setMemberErr(j.error || 'Could not remove that player.') }
   }
 
-  // Toggle whether a character (even an NPC you built) may be claimed by a player.
-  async function toggleClaimable(id: string, next: boolean) {
-    setData((d) => (d ? { ...d, characters: d.characters.map((c) => (c.id === id ? { ...c, claimable: next } : c)) } : d))
+  // Assign who plays a character (ownership never changes). '' = the owner plays it.
+  async function assignPlayer(id: string, userId: string) {
+    const player = data?.members.find((m) => m.userId === userId)
+    setData((d) => (d ? { ...d, characters: d.characters.map((c) => (c.id === id ? { ...c, playedByUserId: userId || null, playedByName: player?.displayName ?? null } : c)) } : d))
     await fetch(`/api/dnd/characters/${id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ claimable: next }),
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ played_by_user_id: userId || null }),
     }).catch(() => {})
+  }
+
+  // Remove a character from THIS campaign (it stays with its owner; ownership untouched).
+  async function removeFromCampaign(id: string, name: string) {
+    if (!data || !window.confirm(`Remove "${name}" from this campaign? The owner keeps the character — it just leaves this table.`)) return
+    const res = await fetch(`/api/dnd/campaigns/${data.campaign.id}/characters/${id}`, { method: 'DELETE' })
+    if (res.ok) setData((d) => (d ? { ...d, characters: d.characters.filter((c) => c.id !== id) } : d))
+  }
+
+  // Add one of the DM's own existing characters into this campaign (multi-campaign).
+  async function addExistingCharacter() {
+    if (!addPick || !data) return
+    const res = await fetch(`/api/dnd/campaigns/${data.campaign.id}/characters`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ characterId: addPick }),
+    })
+    if (res.ok) { setAddPick(''); router.refresh() }
   }
 
   async function createSession() {
@@ -119,6 +150,22 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
       /* ignore */
     }
   }
+
+  // Load the DM's own characters (owned by them) so they can add existing ones that
+  // aren't already in this campaign into the roster.
+  useEffect(() => {
+    if (!data || data.campaign.role !== 'dm') return
+    let cancelled = false
+    fetch('/api/dnd/characters')
+      .then((r) => (r.ok ? r.json() : { characters: [] }))
+      .then((j) => {
+        if (cancelled) return
+        const here = new Set(data.characters.map((c) => c.id))
+        setMyChars(((j.characters ?? []) as { id: string; name: string }[]).filter((c) => !here.has(c.id)).map((c) => ({ id: c.id, name: c.name })))
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [data])
 
   useEffect(() => {
     if (initialData) return
@@ -239,35 +286,82 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                         <option key={m.userId} value={m.userId}>{m.displayName}</option>
                       ))}
                     </select>
-                    <button className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} onClick={createCharacter}>+ Add</button>
+                    <button
+                      className={`${styles.hexBtn} ${styles.hexBtnPrimary}`}
+                      onClick={createCharacter}
+                      title="Create a brand-new character in this campaign. Leave the player as “Unassigned” to keep it as your own (a DM PC/NPC), or pick a player to hand it to them — you can also assign a player later."
+                    >
+                      + Add
+                    </button>
+                  </div>
+                )}
+                {/* Bring in a character you already own that isn't in this campaign yet. */}
+                {data.campaign.role === 'dm' && myChars.length > 0 && (
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <select
+                      className={styles.input}
+                      style={{ width: 'auto', flex: '1 1 200px', padding: '8px 10px' }}
+                      value={addPick}
+                      onChange={(e) => setAddPick(e.target.value)}
+                      title="Add one of your existing characters into this campaign. Characters can be in several campaigns at once — this just links it here without changing who owns it."
+                    >
+                      <option value="">Add an existing character you own…</option>
+                      {myChars.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <button
+                      className={styles.hexBtn}
+                      style={{ padding: '8px 16px' }}
+                      onClick={addExistingCharacter}
+                      disabled={!addPick}
+                      title="Link the selected character to this campaign."
+                    >
+                      ＋ Add existing
+                    </button>
                   </div>
                 )}
                 {data.characters.length === 0 ? (
                   <p style={{ color: 'var(--hx-muted)' }}>No characters yet.</p>
                 ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 12 }}>
-                    {data.characters.map((c) => (
-                      <div key={c.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                        <button
-                          onClick={() => router.push(`/dnd/characters/${c.id}`)}
-                          title={`Open ${c.name}'s sheet (DM controls)`}
-                          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 0, background: 'transparent', border: '1px solid transparent', borderRadius: 6, padding: '8px 4px', cursor: 'pointer', color: 'inherit' }}
-                        >
-                          <Avatar url={c.token_url} name={c.name} size={56} />
-                          <div style={{ marginTop: 6, fontSize: 13, color: 'var(--hx-text)' }}>{c.name}</div>
-                          <span style={{ fontSize: 9.5, letterSpacing: '0.1em', color: c.is_npc ? 'var(--hx-gold-2)' : 'var(--hx-teal-1)' }}>{c.is_npc ? 'NPC' : 'PC'}</span>
-                        </button>
-                        <button
-                          onClick={() => toggleClaimable(c.id, !c.claimable)}
-                          title={c.claimable
-                            ? 'CLAIMABLE is ON: any player in this campaign can claim this character from their campaign hub and it becomes their own private PC (owner set to them, only they + you can open it). Click to turn OFF and lock it.'
-                            : 'CLAIMABLE is OFF. Click to turn it ON so a player can claim this pre-built character from their campaign hub to play as — handy for handing a made-up PC/NPC to a player.'}
-                          style={{ fontSize: 9.5, letterSpacing: '0.08em', padding: '2px 6px', cursor: 'pointer', color: c.claimable ? 'var(--hx-gold-2)' : 'var(--hx-muted)', background: c.claimable ? 'rgba(200,155,60,0.12)' : 'transparent', border: `1px solid ${c.claimable ? 'var(--hx-gold-1)' : 'var(--hx-line)'}`, borderRadius: 4 }}
-                        >
-                          {c.claimable ? '⭐ CLAIMABLE' : 'CLAIM: OFF'}
-                        </button>
-                      </div>
-                    ))}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+                    {data.characters.map((c) => {
+                      const players = data.members.filter((m) => m.role !== 'dm')
+                      const playedBy = c.playedByUserId && c.playedByUserId !== c.ownerUserId ? c.playedByName : null
+                      return (
+                        <div key={c.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '10px 6px', border: '1px solid var(--hx-line)', borderRadius: 6, background: 'rgba(1,10,19,0.4)' }}>
+                          <button
+                            onClick={() => router.push(`/dnd/characters/${c.id}`)}
+                            title={`Open ${c.name}'s sheet (DM controls)`}
+                            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 0, background: 'transparent', border: '1px solid transparent', borderRadius: 6, padding: '2px 4px', cursor: 'pointer', color: 'inherit' }}
+                          >
+                            <Avatar url={c.token_url} name={c.name} size={56} />
+                            <div style={{ marginTop: 6, fontSize: 13, color: 'var(--hx-text)', wordBreak: 'break-word' }}>{c.name}</div>
+                            <span style={{ fontSize: 9, letterSpacing: '0.1em', color: c.is_npc ? 'var(--hx-gold-2)' : 'var(--hx-teal-1)' }}>{c.is_npc ? 'NPC' : 'PC'}</span>
+                          </button>
+                          <div style={{ fontSize: 10, color: 'var(--hx-muted)', textAlign: 'center', lineHeight: 1.4 }} title="Ownership never changes — it belongs to whoever created it. You can pick who plays it below.">
+                            Owner: <span style={{ color: 'var(--hx-text)' }}>{c.ownerName ?? (c.ownerUserId ? 'Player' : 'You (DM)')}</span>
+                            {playedBy && <><br />Played by: <span style={{ color: 'var(--hx-teal-1)' }}>{playedBy}</span></>}
+                          </div>
+                          {/* Assign who plays this character (owner-owned; play only). */}
+                          <select
+                            className={styles.input}
+                            style={{ width: '100%', padding: '4px 8px', fontSize: 11 }}
+                            value={c.playedByUserId ?? ''}
+                            onChange={(e) => assignPlayer(c.id, e.target.value)}
+                            title="Choose who plays this character in this campaign. This does NOT transfer ownership — it just lets that player open and run the character. Leave blank for the owner to play it."
+                          >
+                            <option value="">Played by owner</option>
+                            {players.map((m) => <option key={m.userId} value={m.userId}>Played by {m.displayName}</option>)}
+                          </select>
+                          <button
+                            onClick={() => removeFromCampaign(c.id, c.name)}
+                            title="Remove this character from THIS campaign only. The owner keeps it — it just leaves this table. (A character can be in several campaigns.)"
+                            style={{ fontSize: 10, letterSpacing: '0.06em', padding: '2px 8px', cursor: 'pointer', color: '#ff6b6b', background: 'transparent', border: '1px solid var(--hx-line)', borderRadius: 4 }}
+                          >
+                            ✕ remove from campaign
+                          </button>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </section>

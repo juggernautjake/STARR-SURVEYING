@@ -5,6 +5,7 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { DEMO_CAMPAIGN_ID, DEMO_GUEST_USER_ID, DEMO_STREAMER } from '@/lib/dnd/constants';
 import { streamerCharacter } from '@/app/dnd/_sheet/data/streamer';
+import { characterIdsInCampaign } from '@/lib/dnd/characters';
 
 // Self-heal for the Neon Odyssey demo: make sure the streamer (xxRainbowKittenUwU37xx)
 // exists with her full statted `streamer` sheet + a live stream, owned by Susie as a
@@ -215,12 +216,14 @@ export interface HubCharacter {
   name: string;
   ownerUserId: string | null;
   ownerName: string | null;
+  /** Who plays this character in the campaign (null = the owner plays it). */
+  playedByUserId: string | null;
+  playedByName: string | null;
   isNpc: boolean;
   sheetType: string | null;
   portrait: string | null;
+  /** The viewer owns OR plays this character. */
   mine: boolean;
-  /** The DM permits a player to claim this one (or it has no owner yet). */
-  claimable: boolean;
 }
 
 export interface HubRecap {
@@ -265,19 +268,26 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
 
   if (campaignId === DEMO_CAMPAIGN_ID) await ensureDemoStreamer();
 
+  const charIds = await characterIdsInCampaign(campaignId);
   const [{ data: mems }, { data: chars }, { data: sess }, { data: mediaRows }] = await Promise.all([
     supabaseAdmin.from('dnd_campaign_members').select('user_id, role').eq('campaign_id', campaignId),
-    supabaseAdmin.from('dnd_characters').select('id, name, is_npc, owner_user_id, token_url, art_url, sheet_type, claimable').eq('campaign_id', campaignId).order('is_npc', { ascending: true }),
+    charIds.length
+      ? supabaseAdmin.from('dnd_characters').select('id, name, is_npc, owner_user_id, played_by_user_id, token_url, art_url, sheet_type').in('id', charIds).order('is_npc', { ascending: true })
+      : Promise.resolve({ data: [] as unknown[] }),
     supabaseAdmin.from('dnd_sessions').select('id, title, sort_order').eq('campaign_id', campaignId).order('sort_order', { ascending: true }),
     supabaseAdmin.from('dnd_media').select('id, url, kind, label, gallery_tags').eq('campaign_id', campaignId).order('created_at', { ascending: false }),
   ]);
   const members = (mems ?? []) as { user_id: string; role: string }[];
   const characters = (chars ?? []) as {
-    id: string; name: string; is_npc: boolean; owner_user_id: string | null; token_url: string | null; art_url: string | null; sheet_type: string | null; claimable: boolean;
+    id: string; name: string; is_npc: boolean; owner_user_id: string | null; played_by_user_id: string | null; token_url: string | null; art_url: string | null; sheet_type: string | null;
   }[];
   const sessions = (sess ?? []) as { id: string; title: string; sort_order: number }[];
   const names = await nameMap(
-    Array.from(new Set([...members.map((m) => m.user_id), ...characters.map((c) => c.owner_user_id).filter((v): v is string => !!v)])),
+    Array.from(new Set([
+      ...members.map((m) => m.user_id),
+      ...characters.map((c) => c.owner_user_id).filter((v): v is string => !!v),
+      ...characters.map((c) => c.played_by_user_id).filter((v): v is string => !!v),
+    ])),
   );
 
   // Read-only session summaries (final recap preferred, else the draft).
@@ -317,14 +327,20 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
       name: ch.name,
       ownerUserId: ch.owner_user_id,
       ownerName: ch.owner_user_id ? names.get(ch.owner_user_id) ?? null : null,
+      playedByUserId: ch.played_by_user_id ?? null,
+      playedByName: ch.played_by_user_id ? names.get(ch.played_by_user_id) ?? null : null,
       isNpc: ch.is_npc,
       sheetType: ch.sheet_type,
       portrait: ch.token_url ?? ch.art_url ?? null,
-      mine: ch.owner_user_id === viewerId,
-      claimable: !!ch.claimable || ch.owner_user_id === null,
+      // "Mine" = the viewer owns it or plays it (either grants a sheet to open).
+      mine: ch.owner_user_id === viewerId || ch.played_by_user_id === viewerId,
     })),
     recaps,
-    myCharacterId: characters.find((ch) => ch.owner_user_id === viewerId && !ch.is_npc)?.id ?? characters.find((ch) => ch.owner_user_id === viewerId)?.id ?? null,
+    // The viewer's character to open: one they play, else one they own (PC preferred).
+    myCharacterId:
+      characters.find((ch) => (ch.played_by_user_id === viewerId || ch.owner_user_id === viewerId) && !ch.is_npc)?.id ??
+      characters.find((ch) => ch.played_by_user_id === viewerId || ch.owner_user_id === viewerId)?.id ??
+      null,
     viewerRole,
   };
 }
@@ -338,12 +354,15 @@ export async function loadCampaignLobby(campaignId: string): Promise<CampaignLob
   // Demo self-heal: ensure the streamer NPC exists before we list the roster.
   if (campaignId === DEMO_CAMPAIGN_ID) await ensureDemoStreamer();
 
+  const charIds = await characterIdsInCampaign(campaignId);
   const [{ data: mems }, { data: chars }] = await Promise.all([
     supabaseAdmin.from('dnd_campaign_members').select('campaign_id, user_id, role').eq('campaign_id', campaignId),
-    supabaseAdmin.from('dnd_characters').select('id, campaign_id, name, is_npc, owner_user_id, token_url, art_url').eq('campaign_id', campaignId),
+    charIds.length
+      ? supabaseAdmin.from('dnd_characters').select('id, campaign_id, name, is_npc, owner_user_id, played_by_user_id, token_url, art_url').in('id', charIds)
+      : Promise.resolve({ data: [] as unknown[] }),
   ]);
   const members = (mems ?? []) as MemberRow[];
-  const characters = (chars ?? []) as CharRow[];
+  const characters = (chars ?? []) as (CharRow & { played_by_user_id: string | null })[];
   const names = await nameMap(members.map((m) => m.user_id));
 
   // Which member accounts are password-protected (can't be entered passwordlessly).
@@ -360,7 +379,9 @@ export async function loadCampaignLobby(campaignId: string): Promise<CampaignLob
   const players: LobbyPlayer[] = members
     .filter((m) => m.role !== 'dm')
     .map((m) => {
-      const pc = characters.find((ch) => ch.owner_user_id === m.user_id && !ch.is_npc) ?? characters.find((ch) => ch.owner_user_id === m.user_id);
+      // The character this player plays (played_by) or owns — PC preferred.
+      const mine = (ch: CharRow & { played_by_user_id: string | null }) => ch.played_by_user_id === m.user_id || ch.owner_user_id === m.user_id;
+      const pc = characters.find((ch) => mine(ch) && !ch.is_npc) ?? characters.find((ch) => mine(ch));
       return {
         userId: m.user_id,
         playerName: names.get(m.user_id) ?? 'Player',

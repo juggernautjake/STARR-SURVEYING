@@ -50,6 +50,16 @@ export async function POST(req: NextRequest) {
     if (cErr || !created) return NextResponse.json({ error: cErr?.message ?? 'Could not create character.' }, { status: 500 });
     const characterId = created.id as string;
 
+    // Roster link for the multi-campaign model (Phase S). The player automatically owns
+    // the character they just made; this places it in the campaign they built it for.
+    try {
+      await supabaseAdmin
+        .from('dnd_campaign_characters')
+        .upsert({ campaign_id: campaignId, character_id: characterId, added_by: session.userId }, { onConflict: 'campaign_id,character_id', ignoreDuplicates: true });
+    } catch {
+      /* join table not present yet */
+    }
+
     await ensureStorageBucket(BUCKET, { public: true });
     const uploads: { url: string; filename: string; mime: string; kind: string }[] = [];
 

@@ -82,6 +82,15 @@ export async function POST(req: NextRequest) {
       .select(LIST_COLS)
       .single();
     if (error || !data) return NextResponse.json({ error: error?.message ?? 'Could not create character.' }, { status: 500 });
+    // Add the campaign roster link (Phase S multi-campaign). Best-effort: if the join
+    // table isn't migrated yet the home campaign_id above still lists it in the campaign.
+    try {
+      await supabaseAdmin
+        .from('dnd_campaign_characters')
+        .upsert({ campaign_id: campaignId, character_id: (data as { id: string }).id, added_by: session.userId }, { onConflict: 'campaign_id,character_id', ignoreDuplicates: true });
+    } catch {
+      /* join table not present yet */
+    }
     return NextResponse.json({ character: data });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Create failed.' }, { status: 500 });
