@@ -95,6 +95,44 @@ export const streamerTheme: SheetTheme = {
   },
 };
 
+// Donata Dime — the bespoke MLM/holographic skin (worn only by Donata). A BRIGHT,
+// pearlescent "girlboss-glam × prehistoric-saurian × corporate-flash" palette: hot Mojo
+// magenta + electric violet + Diamond gold on iridescent lavender grounds, with a deep
+// aubergine ink for readable text. Light theme, so the `skin-donata` CSS flips the base
+// sheet's hardcoded white headings to `ink`. `teal`/`tealbright` are repurposed away from
+// cyan (they back links/mods/table-headers in the base sheet) to violet + legible gold.
+export const donataTheme: SheetTheme = {
+  colors: {
+    void: '#fdf2ff',
+    'void-2': '#f7e7ff',
+    panel: '#fffafe',
+    'panel-2': '#fbecff',
+    'panel-3': '#f3e2ff',
+    ink: '#3a0f4d',
+    muted: '#8a5aa0',
+    'muted-2': '#a97fc0',
+    pink: '#e0148c',
+    hotpink: '#c50f79',
+    violet: '#8b3ff0',
+    'violet-2': '#6d28c9',
+    // repurposed away from cyan → violet accent + a legible dark gold
+    teal: '#9333ea',
+    tealbright: '#a8710a',
+    gold: '#c98a0a',
+    danger: '#d6336c',
+    good: '#1c9e63',
+    line: 'rgba(224, 20, 140, 0.28)',
+    'line-strong': 'rgba(224, 20, 140, 0.55)',
+  },
+  fonts: {
+    // Fredoka = rounded, friendly, "brand deck" display; Poppins = clean geometric body;
+    // Space Mono = the receipt/fine-print mono. All three @imported at the top of theme.css.
+    display: "'Fredoka', 'Poppins', 'Oswald', 'Arial Narrow', sans-serif",
+    body: "'Poppins', 'Segoe UI', sans-serif",
+    mono: "'Space Mono', 'JetBrains Mono', 'Consolas', monospace",
+  },
+};
+
 // Blue variant of the streamer skin — the same bright, pixel/CRT look mirrored into
 // electric blue + cyan (with gold + white). Paired with `.skin-streamer.variant-blue`
 // in theme.css, which swaps the accent triplets + backing colors to match.

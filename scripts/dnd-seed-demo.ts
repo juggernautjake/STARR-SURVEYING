@@ -12,13 +12,14 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import bcrypt from 'bcryptjs';
 import { streamerCharacter } from '../app/dnd/_sheet/data/streamer';
-import { DEMO_CAMPAIGN_ID, DEMO_DM_EMAIL, DEMO_DM_NAME, DEMO_DM_USER_ID, DEMO_GUEST_USER_ID, DEMO_PLAYERS, DEMO_STREAMER, LAZZUH_CHARACTER_ID } from '../lib/dnd/constants';
+import { donataDime } from '../app/dnd/_sheet/data/donata';
+import { DEMO_CAMPAIGN_ID, DEMO_DM_EMAIL, DEMO_DM_NAME, DEMO_DM_USER_ID, DEMO_DONATA, DEMO_GUEST_USER_ID, DEMO_PLAYERS, DEMO_STREAMER, LAZZUH_CHARACTER_ID } from '../lib/dnd/constants';
 
 const { Client } = pg;
 
 // Shallow pseudo-login passwords (name + password; keyed by the account's quick:<name>
 // email). Not real security — just so a character/campaign belongs to a specific person.
-const PW: Record<string, string> = { 'quick:andrew': 'league', 'quick:jacob': '1234', 'quick:susie': '0987' };
+const PW: Record<string, string> = { 'quick:andrew': 'league', 'quick:jacob': '1234', 'quick:susie': '0987', 'quick:sarah': 'mojo' };
 const hash = (pw: string) => bcrypt.hash(pw, 10);
 const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -116,6 +117,25 @@ async function main() {
          VALUES ($1, true, 1337, 4, 65)
        ON CONFLICT (character_id) DO UPDATE SET is_live = true, viewer_count = EXCLUDED.viewer_count, chat_speed = EXCLUDED.chat_speed, engagement = EXCLUDED.engagement`,
       [DEMO_STREAMER.characterId],
+    );
+
+    // Donata Dime — Sarah's PLAYER character on the bespoke `donata` MLM skin, PRIVATE
+    // (only Sarah + the DM can open it). First ensure Sarah's account + membership.
+    await client.query(
+      `INSERT INTO dnd_users (id, email, display_name, password_hash) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, display_name = EXCLUDED.display_name, password_hash = EXCLUDED.password_hash`,
+      [DEMO_DONATA.playerUserId, DEMO_DONATA.playerEmail, DEMO_DONATA.playerName, await hash(PW[DEMO_DONATA.playerEmail])],
+    );
+    await client.query(
+      `INSERT INTO dnd_campaign_members (campaign_id, user_id, role) VALUES ($1, $2, 'player')
+       ON CONFLICT (campaign_id, user_id) DO UPDATE SET role = 'player'`,
+      [DEMO_CAMPAIGN_ID, DEMO_DONATA.playerUserId],
+    );
+    await client.query(
+      `INSERT INTO dnd_characters (id, campaign_id, owner_user_id, name, sheet_type, data, visibility, is_npc)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, 'private', false)
+       ON CONFLICT (id) DO UPDATE SET campaign_id = EXCLUDED.campaign_id, owner_user_id = EXCLUDED.owner_user_id, name = EXCLUDED.name, sheet_type = EXCLUDED.sheet_type, data = EXCLUDED.data, is_npc = EXCLUDED.is_npc, visibility = EXCLUDED.visibility`,
+      [DEMO_DONATA.characterId, DEMO_CAMPAIGN_ID, DEMO_DONATA.playerUserId, DEMO_DONATA.characterName, DEMO_DONATA.sheetType, JSON.stringify(donataDime(DEMO_DONATA.characterName))],
     );
 
     const { rows } = await client.query(
