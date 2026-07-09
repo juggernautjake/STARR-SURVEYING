@@ -28,6 +28,7 @@ import Inventory from './components/Inventory'
 import Bio from './components/Bio'
 import DiceTray from './components/DiceTray'
 import DmOverridePanel from './components/DmOverridePanel'
+import StreamOwnerControls from './components/StreamOwnerControls'
 import SheetArtUploader from './components/SheetArtUploader'
 import TokenFramer from './components/TokenFramer'
 import SkinSwitch from './components/SkinSwitch'
@@ -54,7 +55,7 @@ type TabId = (typeof TABS)[number]['id']
 
 export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetType?: string }) {
   const [tab, setTab] = useState<TabId>('overview')
-  const { char, media, characterId, campaignId, isDM, offline } = useChar()
+  const { char, media, characterId, campaignId, isDM, canWrite, offline } = useChar()
 
   // Registry-driven config for this character's sheet_type (C8): which bespoke
   // skin + which character-only modules to render.
@@ -171,6 +172,10 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
       {/* Adjust which part of the (variant-aware) image the round token crops from (D2). */}
       <TokenFramer src={tokenUrl ?? artUrl ?? undefined} />
 
+      {/* The streamer's own controls (go live + NeoNuggets exchange) — renders only for a
+          non-DM owner on a stream character (returns null otherwise). */}
+      {hasStream && <StreamOwnerControls />}
+
       {/* DM control panel — renders only in DM mode (§6.8.1 / C10). Stream controls
           inside it show only for characters with the `stream` module. */}
       <DmOverridePanel hasStream={hasStream} />
@@ -273,7 +278,9 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
           characters whose sheet_type registers the `stream` module (§6.9). */}
       {hasStream && characterId && <StreamAlert characterId={characterId} />}
       {hasStream && characterId && <StreamPoll characterId={characterId} isController={isDM} />}
-      {hasStream && characterId && <StreamChat characterId={characterId} campaignId={campaignId} />}
+      {/* A fellow party member watching this stream (not the streamer/owner or DM) can
+          chat as a viewer and tip the streamer their own notes. */}
+      {hasStream && characterId && <StreamChat characterId={characterId} campaignId={campaignId} viewerCanChat={!isDM && !canWrite} />}
 
       {/* DM-broadcast initiative roller — dims the screen + rolls with this
           character's bonus when the DM sends it out; flavor per sheet_type. */}

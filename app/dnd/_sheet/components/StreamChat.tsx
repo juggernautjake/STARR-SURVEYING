@@ -10,15 +10,16 @@ import { parseEmotes } from '@/lib/dnd/stream-emotes'
 import { allowedInMode, modeIntervalFactor, formatModAction, type ChatMode, type ModActionType, CHAT_MODES } from '@/lib/dnd/stream-mod'
 import { viewerDC, resolveDC, chatRatePerSec, fluctuateViewers } from '@/lib/dnd/stream-influence'
 import { buildMoodPool } from '@/lib/dnd/stream-moods'
-import { formatKibbles } from '@/lib/dnd/stream-currency'
+import { formatNuggets } from '@/lib/dnd/stream-currency'
 import InfluenceMeter from './InfluenceMeter'
+import StreamTip from './StreamTip'
 import { useLiveEngagement } from './useLiveEngagement'
 import { useChar } from '../state/store'
 import { rollD20 } from '../lib/dice'
 import { abilityMod } from '../rules/dnd'
 import { postRoll } from '@/app/dnd/_ui/RollFeed'
 
-interface StreamState { is_live: boolean; chat_speed: number; viewer_count: number; engagement?: number; moods?: string[]; ai_mood_lines?: Record<string, string[]>; dc_mode?: 'auto' | 'manual'; dc_manual?: number | null }
+interface StreamState { is_live: boolean; chat_speed: number; viewer_count: number; engagement?: number; moods?: string[]; ai_mood_lines?: Record<string, string[]>; dc_mode?: 'auto' | 'manual'; dc_manual?: number | null; kibbles_earned?: number }
 interface Line { id: number | string; user: ChatUser; body: string; system?: boolean; kind?: string; amount?: number | null; senderId?: string | null }
 
 function hasEmote(body: string): boolean {
@@ -231,11 +232,14 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
     poolRef.current = buildMoodPool(PHRASES, stream?.moods, stream?.ai_mood_lines)
   }, [stream?.moods, stream?.ai_mood_lines])
 
+  // The "N watching" count hovers around the DM's set value and never settles — it keeps
+  // ticking a bit above/below as long as anyone is watching, and re-centres instantly when
+  // the DM changes the count. (0 → static 0.)
   useEffect(() => {
     const base = Math.max(0, Math.floor(stream?.viewer_count ?? 0))
     setDisplayViewers(fluctuateViewers(base, Math.random()))
-    if (base <= 15) return
-    const t = setInterval(() => setDisplayViewers(fluctuateViewers(base, Math.random())), 2600)
+    if (base <= 0) return
+    const t = setInterval(() => setDisplayViewers(fluctuateViewers(base, Math.random())), 1800)
     return () => clearInterval(t)
   }, [stream?.viewer_count])
 
@@ -413,10 +417,42 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
     return visibleLines.filter((l) => !l.system && (l.user.name.toLowerCase().includes(q) || l.body.toLowerCase().includes(q)))
   }, [visibleLines, filter])
 
+  // Using a chat function (mod / resist / message) counts as interaction, so it holds off
+  // the 1h idle auto-end. Only the owner/DM may write stream state; ambient/AI never calls this.
+  const touchActivity = () => {
+    if (!characterId || !(canWrite || isDM)) return
+    void fetch(`/api/dnd/characters/${characterId}/stream`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ touchActivity: true }),
+    }).catch(() => {})
+  }
+
   // Owner timeout/ban (broadcast to everyone + applied locally), reusing the mod channel.
   const ownerMod = (type: ModActionType, username: string) => {
     modSendRef.current?.send({ type: 'broadcast', event: 'action', payload: { type, username } })
     window.dispatchEvent(new CustomEvent('dnd-stream-mod', { detail: { characterId, kind: 'action', type, username } }))
+    touchActivity()
+  }
+
+  // Tap-a-name actions are available to the streamer (owner) AND the DM.
+  const canModThis = isDM || isOwnerMod
+  // Message a viewer: filed to the DM's reply inbox (NOT posted to chat) so the DM can
+  // choose to answer AS that viewer or ignore it. `pm` is the popover message draft.
+  const [pm, setPm] = useState('')
+  const [pmNote, setPmNote] = useState<string | null>(null)
+  const [pmBusy, setPmBusy] = useState(false)
+  const messageUser = async (username: string) => {
+    const body = pm.trim()
+    if (!body || pmBusy) return
+    setPmBusy(true)
+    try {
+      const lastLine = (history ?? []).slice(-1)[0]?.body
+      const r = await fetch(`/api/dnd/characters/${characterId}/stream/replies`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatterUsername: username, chatterMessage: lastLine, replyBody: body, postToChat: false }),
+      })
+      if (r.ok) { setPm(''); setPmNote(`Sent to the DM — they’ll decide how ${username} replies.`); touchActivity() }
+      else { const j = await r.json().catch(() => ({})); setPmNote(j.error || 'Could not send.') }
+    } finally { setPmBusy(false) }
   }
 
   // A watching player chats as themselves (server tags it PARTY so it stands out).
@@ -433,9 +469,9 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
     } finally { setViewerSending(false) }
   }
 
-  // Click a username → pull their whole history in this session.
+  // Click a username → pull their whole history in this session (+ reset the PM draft).
   const openHistory = async (username: string) => {
-    setHistoryOf(username); setHistory(null)
+    setHistoryOf(username); setHistory(null); setPm(''); setPmNote(null)
     try {
       const r = await fetch(`/api/dnd/characters/${characterId}/stream/messages?user=${encodeURIComponent(username)}&limit=200`)
       const j = await r.json().catch(() => ({}))
@@ -559,6 +595,7 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
     if (campaignId) {
       void postRoll({ campaignId, characterId, actorName: char.meta.name, label, result: r.total, breakdown: r.breakdown, crit: r.crit, fumble: r.fumble })
     }
+    touchActivity()
   }
 
   // Minimized → a pulsing FAB (mirrors the dice tray) that reopens the chat.
@@ -583,6 +620,11 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
       <div className="stream-dock-head" onPointerDown={onDragStart} title="Drag to move">
         <span className="sd-live">● LIVE</span>
         <span className="sd-count" title="Live viewers (fluctuates as people come and go)">{displayViewers.toLocaleString()} watching</span>
+        {(isOwnerMod || isDM) && (
+          <span className="sd-count" title="Your NeoNuggets from super chats — exchange them for notes on your sheet (10,000 = 1 note)" style={{ color: '#ffd23f', fontWeight: 700 }}>
+            {formatNuggets(stream.kibbles_earned ?? 0)}
+          </span>
+        )}
         {pausedLocal && <span className="sd-mode" style={{ background: '#ff5252', color: '#fff', borderColor: '#ff5252' }}>⏸ paused</span>}
         {chatMode !== 'off' && modeMeta && (
           <span className="sd-mode">{modeMeta.icon} {modeMeta.label}</span>
@@ -601,11 +643,11 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
         <span className="sd-rate" title={`Chat pace is set by the audience size — more viewers = faster chat. Right now ~${chatRatePerSec(paceDc)} messages/sec.`}>
           {viewers <= 0 ? 'silent' : `~${chatRatePerSec(paceDc) < 1 ? chatRatePerSec(paceDc).toFixed(2) : chatRatePerSec(paceDc)}/s`}
         </span>
-        {isDM && (
+        {(isDM || isOwnerMod) && (
           <button
             className="sd-resist"
             onClick={rollResist}
-            title={`Roll her Wisdom save to resist what chat is demanding (must beat DC ${resistDc})`}
+            title={`Roll ${isDM ? 'her' : 'your'} Wisdom save to resist what chat is demanding (must beat DC ${resistDc})`}
           >
             🎲 Resist · DC {resistDc}
           </button>
@@ -653,9 +695,11 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
               // Only real identities are clickable for history: the DM's own lines/aliases
               // and other players (both carry senderId), plus donors (money events). The
               // random AI/ambient crowd isn't trackable.
-              const trackable = !!l.senderId || isDonation
+              // The streamer/DM can tap ANY handle to open its actions (message/mod);
+              // regular viewers can only click "trackable" identities to see history.
+              const trackable = !!l.senderId || isDonation || canModThis
               const nameEl = trackable ? (
-                <span onClick={() => openHistory(l.user.name)} title={`See ${l.user.name}'s messages this session`}
+                <span onClick={() => openHistory(l.user.name)} title={canModThis ? `Options for ${l.user.name}` : `See ${l.user.name}'s messages this session`}
                   style={{ color: l.user.color, fontWeight: 700, textShadow: '0 1px 2px rgba(0,0,0,0.9)', cursor: 'pointer' }}>{l.user.name}</span>
               ) : (
                 <span style={{ color: l.user.color, fontWeight: 700, textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}>{l.user.name}</span>
@@ -665,7 +709,7 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
                 <div key={l.id} style={{ margin: '4px 0', borderRadius: 7, overflow: 'hidden', border: `1px solid ${l.user.color}`, boxShadow: `0 0 10px ${l.user.color}66` }}>
                   <div style={{ background: l.user.color, color: '#0a0510', fontWeight: 800, fontSize: 12, padding: '3px 8px', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                     <span onClick={() => openHistory(l.user.name)} style={{ cursor: 'pointer' }}>{l.user.name}</span>
-                    <span>{formatKibbles(l.amount ?? 0)}</span>
+                    <span>{formatNuggets(l.amount ?? 0)}</span>
                   </div>
                   <div style={{ padding: '4px 8px', fontSize: 13, background: `${l.user.color}1f`, color: '#fff' }}>{l.body}</div>
                 </div>
@@ -716,6 +760,9 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
         </div>
       )}
 
+      {/* A watching player can also tip the streamer their own notes → NeoNuggets. */}
+      {viewerCanChat && <StreamTip characterId={characterId} />}
+
       {/* Click-a-name history popover. */}
       {historyOf && (
         <div style={{ position: 'absolute', inset: 8, top: 40, background: 'rgba(10,6,18,0.97)', border: '1px solid var(--gold, #c89b3c)', borderRadius: 8, zIndex: 5, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -723,12 +770,36 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
             <strong style={{ fontSize: 13, color: 'var(--gold, #c89b3c)' }}>🗒 {historyOf}</strong>
             <button className="sd-pause" onClick={() => { setHistoryOf(null); setHistory(null) }}>✕</button>
           </div>
+
+          {/* Streamer/DM actions on this handle: message them (→ DM inbox) or moderate. */}
+          {canModThis && (
+            <div style={{ padding: '6px 10px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  value={pm}
+                  onChange={(e) => setPm(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && messageUser(historyOf)}
+                  placeholder={`Message ${historyOf}…`}
+                  style={{ flex: 1, padding: '5px 7px', fontSize: 12.5, background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.18)', color: 'inherit', borderRadius: 4 }}
+                />
+                <button className="sd-pause" onClick={() => messageUser(historyOf)} disabled={pmBusy || !pm.trim()} title="Send to the DM — they decide how this viewer replies">✉ Message</button>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <button className="sd-pause" onClick={() => ownerMod('timeout', historyOf)} title={`Time out ${historyOf}`}>⛔ Timeout</button>
+                {banned.has(historyOf)
+                  ? <button className="sd-pause" onClick={() => ownerMod('unban', historyOf)} title={`Unban ${historyOf}`}>♻️ Unban</button>
+                  : <button className="sd-pause" onClick={() => ownerMod('ban', historyOf)} style={{ color: '#ff6b6b' }} title={`Ban ${historyOf}`}>🔨 Ban</button>}
+              </div>
+              {pmNote && <div style={{ fontSize: 11, color: '#0ac8b9' }}>{pmNote}</div>}
+            </div>
+          )}
+
           <div style={{ overflow: 'auto', padding: '6px 10px', fontSize: 12.5, display: 'flex', flexDirection: 'column', gap: 3 }}>
             {history === null ? <span style={{ color: 'var(--muted,#9aa)' }}>Loading…</span>
               : history.length === 0 ? <span style={{ color: 'var(--muted,#9aa)' }}>No saved messages from this handle. (Ambient chatter isn’t recorded — only DM, AI, players, and donations are.)</span>
               : history.map((h, i) => (
                 <div key={i}>
-                  {(h.kind === 'donation' || h.kind === 'superchat') && <span style={{ color: '#ffd23f', fontWeight: 700 }}>{formatKibbles(h.amount ?? 0)} </span>}
+                  {(h.kind === 'donation' || h.kind === 'superchat') && <span style={{ color: '#ffd23f', fontWeight: 700 }}>{formatNuggets(h.amount ?? 0)} </span>}
                   <span style={{ color: '#f2effa' }}>{h.body}</span>
                 </div>
               ))}

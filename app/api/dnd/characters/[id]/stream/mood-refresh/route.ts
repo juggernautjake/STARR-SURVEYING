@@ -1,8 +1,9 @@
 // app/api/dnd/characters/[id]/stream/mood-refresh/route.ts — periodic AI mood lines (K).
-// Ambient chat is mostly procedural, but every ~15 min while live the DM client calls this
-// to freshen the pool: for each selected mood the AI writes new in-world lines, which we
-// MERGE with a slice of the previous ones (some old kept) and cache on the stream state
-// (ai_mood_lines) for buildMoodPool to fold in. Best-effort + DM/owner-gated.
+// Ambient chat is mostly procedural, but every ~15 min while live the client calls this to
+// freshen the pool: for EVERY mood the AI writes new in-world lines spanning the full range
+// of aggressiveness (calm → rowdy → feral), which we MERGE with a slice of the previous
+// ones (some old kept) and cache on the stream state (ai_mood_lines) for buildMoodPool to
+// fold in. Best-effort + DM/owner-gated.
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
@@ -33,7 +34,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const ids = (Array.isArray(moods) ? moods : []).filter((m: unknown) => typeof m === 'string' && moodById(m as string));
   if (ids.length === 0) return NextResponse.json({ ok: false, skipped: 'no-moods' });
 
-  const { data: state } = await supabaseAdmin.from('dnd_stream_state').select('ai_mood_lines').eq('character_id', params.id).maybeSingle();
+  const { data: state } = await supabaseAdmin.from('dnd_stream_state').select('ai_mood_lines, ai_lines_at').eq('character_id', params.id).maybeSingle();
+  // Dedupe across clients: both the DM's and the streamer's client poll for the 15-min
+  // refresh, so skip if we already generated in the last ~13 min (whoever fired first wins).
+  const lastAt = (state as { ai_lines_at?: string | null } | null)?.ai_lines_at;
+  if (lastAt && Date.now() - new Date(lastAt).getTime() < 13 * 60 * 1000) {
+    return NextResponse.json({ ok: false, skipped: 'recent' });
+  }
   const prev = ((state as { ai_mood_lines?: Record<string, string[]> } | null)?.ai_mood_lines) ?? {};
   const next: Record<string, string[]> = { ...prev };
 
@@ -47,7 +54,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           'religious references / taking the Lord\'s name in vain — no "god"/"omg"/"gosh"); and IN-WORLD only — ' +
           'never mention D&D, dice, rolls, the DM, or any game mechanic. Match the given MOOD. Mostly 2–7 words, ' +
           'ALL CAPS/emojis/slang welcome. Return ONLY a JSON array of strings, each under 60 chars.',
-        user: `Mood: ${mood.label} — ${mood.lines.slice(0, 4).join(' / ')}. Write ${NEW_PER} fresh chat lines in this mood.`,
+        user: `Mood: ${mood.label} — examples: ${mood.lines.slice(0, 4).join(' / ')}. Write ${NEW_PER} fresh chat lines in this mood, spanning the FULL range of aggressiveness/energy — some calm and low-key, some rowdy, some absolutely feral all-caps spam. Vary the intensity line to line.`,
         maxTokens: 500,
         temperature: 1,
       });

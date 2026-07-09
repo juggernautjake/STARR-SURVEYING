@@ -152,6 +152,26 @@
 .input::placeholder {
   color: #5b6472;
 }
+/* Native <select>s: strip the OS chrome so their height is exactly the 38px of the
+   inputs/buttons beside them in EVERY browser (native selects otherwise size a few px
+   taller), and draw a gold chevron. */
+select.input {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  /* !important so the chevron always has clearance even over the components' inline
+     `padding: 8px 10px` (which only affects text position; height stays 38px). */
+  padding-right: 30px !important;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8'><path d='M1 1l5 5 5-5' fill='none' stroke='%23c8aa6e' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+}
+/* The opened dropdown list: dark background + light text (native option lists render
+   white-on-white otherwise, hard to read on the dark theme). */
+.input option {
+  background-color: var(--hx-panel);
+  color: var(--hx-text);
+}
 
 .button {
   width: 100%;

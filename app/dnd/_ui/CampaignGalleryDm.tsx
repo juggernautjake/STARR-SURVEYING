@@ -5,6 +5,7 @@
 // via the campaign media API.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import styles from './hextech.module.css'
+import Lightbox from './Lightbox'
 
 interface MediaItem { id: string; url: string; kind: string; label: string | null; gallery_tags: string[] }
 const KINDS = ['map', 'art', 'handout', 'token', 'reveal', 'avatar'] as const
@@ -17,6 +18,7 @@ export default function CampaignGalleryDm({ campaignId }: { campaignId: string }
   const [isPrivate, setIsPrivate] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [lightbox, setLightbox] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(() => {
@@ -90,7 +92,7 @@ export default function CampaignGalleryDm({ campaignId }: { campaignId: string }
             return (
               <div key={m.id} style={{ border: `1px solid ${priv ? 'var(--hx-danger)' : 'var(--hx-teal-1)'}`, background: 'rgba(1,10,19,0.4)', padding: 6, display: 'grid', gap: 6 }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={m.url} alt={m.label ?? ''} style={{ width: '100%', height: 96, objectFit: 'cover', borderRadius: 3 }} />
+                <img src={m.url} alt={m.label ?? ''} onClick={() => setLightbox(m.url)} title="Click to expand" style={{ width: '100%', height: 96, objectFit: 'cover', borderRadius: 3, cursor: 'zoom-in' }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--hx-muted)' }}>
                   <span>{m.kind}</span>
                   <span style={{ color: priv ? 'var(--hx-danger)' : 'var(--hx-teal-1)' }}>{priv ? 'DM-only' : 'Players'}</span>
@@ -105,6 +107,7 @@ export default function CampaignGalleryDm({ campaignId }: { campaignId: string }
           })}
         </div>
       )}
+      {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </section>
   )
 }

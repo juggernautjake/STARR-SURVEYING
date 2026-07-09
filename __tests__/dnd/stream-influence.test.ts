@@ -22,12 +22,21 @@ describe('viewerTierBounds', () => {
 });
 
 describe('fluctuateViewers', () => {
-  it('never fluctuates 0, and keeps 1–15 exact', () => {
-    for (const r of [0, 0.5, 0.999]) {
-      expect(fluctuateViewers(0, r)).toBe(0);
-      expect(fluctuateViewers(1, r)).toBe(1);
-      expect(fluctuateViewers(15, r)).toBe(15);
+  it('keeps 0 at 0, and hovers small counts by a gentle ±spread (never below 1)', () => {
+    for (const r of [0, 0.5, 0.999]) expect(fluctuateViewers(0, r)).toBe(0);
+    // small crowds hover around the set value (a bit more, a bit less) but never below 1
+    for (let i = 0; i < 200; i++) {
+      const r = i / 200;
+      const f10 = fluctuateViewers(10, r);
+      expect(f10).toBeGreaterThanOrEqual(1);
+      expect(f10).toBeLessThanOrEqual(12); // 10 ± max(1, round(1.5)=2)
+      const f15 = fluctuateViewers(15, r);
+      expect(f15).toBeGreaterThanOrEqual(13);
+      expect(f15).toBeLessThanOrEqual(17);
     }
+    // it actually moves off the set value at the extremes of the random range
+    expect(fluctuateViewers(10, 0)).toBeLessThan(10);
+    expect(fluctuateViewers(10, 0.999)).toBeGreaterThan(10);
   });
   it('16+ drifts but stays inside its DC tier (DC never changes)', () => {
     for (let i = 0; i < 200; i++) {

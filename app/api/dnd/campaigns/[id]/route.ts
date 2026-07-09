@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
+import { characterIdsInCampaign } from '@/lib/dnd/characters';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
@@ -25,17 +26,30 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     .eq('campaign_id', params.id);
   const members = (memberRows ?? []) as { user_id: string; role: string }[];
 
-  const userIds = members.map((m) => m.user_id);
-  const { data: userRows } = userIds.length
-    ? await supabaseAdmin.from('dnd_users').select('id, display_name, avatar_url').in('id', userIds)
+  // Roster = every character in this campaign (join table ∪ legacy home-campaign column).
+  const charIds = await characterIdsInCampaign(params.id);
+  const { data: charRows } = charIds.length
+    ? await supabaseAdmin
+        .from('dnd_characters')
+        .select('id, name, token_url, art_url, owner_user_id, played_by_user_id, is_npc, sheet_type')
+        .in('id', charIds)
+        .order('is_npc', { ascending: true })
+    : { data: [] };
+  const characters = (charRows ?? []) as {
+    id: string; name: string; token_url: string | null; art_url: string | null;
+    owner_user_id: string | null; played_by_user_id: string | null; is_npc: boolean; sheet_type: string | null;
+  }[];
+
+  // Names for members + character owners/players (owners may not be campaign members).
+  const nameIds = Array.from(new Set([
+    ...members.map((m) => m.user_id),
+    ...characters.map((c) => c.owner_user_id).filter((v): v is string => !!v),
+    ...characters.map((c) => c.played_by_user_id).filter((v): v is string => !!v),
+  ]));
+  const { data: userRows } = nameIds.length
+    ? await supabaseAdmin.from('dnd_users').select('id, display_name, avatar_url').in('id', nameIds)
     : { data: [] };
   const userById = new Map(((userRows ?? []) as { id: string; display_name: string; avatar_url: string | null }[]).map((u) => [u.id, u]));
-
-  const { data: characters } = await supabaseAdmin
-    .from('dnd_characters')
-    .select('id, name, token_url, art_url, owner_user_id, is_npc, sheet_type, claimable')
-    .eq('campaign_id', params.id)
-    .order('is_npc', { ascending: true });
 
   const { data: sessions } = await supabaseAdmin
     .from('dnd_sessions')
@@ -51,7 +65,17 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       displayName: userById.get(m.user_id)?.display_name ?? 'Unknown',
       avatarUrl: userById.get(m.user_id)?.avatar_url ?? null,
     })),
-    characters: characters ?? [],
+    characters: characters.map((c) => ({
+      id: c.id,
+      name: c.name,
+      token_url: c.token_url ?? c.art_url ?? null,
+      is_npc: c.is_npc,
+      sheet_type: c.sheet_type ?? undefined,
+      ownerUserId: c.owner_user_id,
+      ownerName: c.owner_user_id ? userById.get(c.owner_user_id)?.display_name ?? null : null,
+      playedByUserId: c.played_by_user_id ?? null,
+      playedByName: c.played_by_user_id ? userById.get(c.played_by_user_id)?.display_name ?? null : null,
+    })),
     sessions: sessions ?? [],
   });
 }

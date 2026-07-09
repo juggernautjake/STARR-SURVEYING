@@ -108,7 +108,7 @@ export function streamerCharacter(name: string): Character {
     },
     {
       id: 'noble', name: 'Streamer (Noble Background)', source: 'Background',
-      body: ['You broadcast to a devoted audience across the planes. Proficiencies: **History**, **Persuasion**, **Dice**, and **any Computer activity**. Gear: fine clothes, a signature perfume, and 44 gp of donations.'],
+      body: ['You broadcast to a devoted audience across the planes. Proficiencies: **History**, **Persuasion**, **Dice**, and **any Computer activity**. Gear: fine clothes, a signature perfume, and 44 notes cashed out from chat’s NeoNuggets 🪙.'],
     },
   ];
 

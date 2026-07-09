@@ -2,9 +2,12 @@ import { useState } from 'react'
 import { useChar } from '../state/store'
 import type { InvItem } from '../types'
 import SectionHead from './ui/SectionHead'
+import NeoNuggetsBalance from './NeoNuggetsBalance'
 
 function labels() {
-  return { credits: 'Credits', harmonyte: 'Harmonyte', scrip: 'Scrip' }
+  // "Notes" is the campaign's base currency (≈ $1 each) — the streamer converts her
+  // earned NeoNuggets into these. Stored on the `credits` key for back-compat.
+  return { credits: 'Notes', harmonyte: 'Harmonyte', scrip: 'Scrip' }
 }
 
 export default function Inventory() {
@@ -78,6 +81,8 @@ export default function Inventory() {
             )}
           </div>
         ))}
+        {/* Every character can see their NeoNuggets (stream super-chat currency). */}
+        <NeoNuggetsBalance />
       </div>
 
       <div className="card">

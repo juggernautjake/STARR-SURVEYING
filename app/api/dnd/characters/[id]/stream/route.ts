@@ -68,7 +68,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     patch.moods = body.moods.filter((m: unknown) => typeof m === 'string').slice(0, 12);
   }
   // Aggressive-focus window (K): topic + when it ends + 1–5 intensity. Null topic clears it.
-  if (body.focusTopic !== undefined) patch.focus_topic = body.focusTopic ? String(body.focusTopic).slice(0, 240) : null;
+  // The focus text can be a paragraph / a pasted transcript of the players' dialogue.
+  if (body.focusTopic !== undefined) patch.focus_topic = body.focusTopic ? String(body.focusTopic).slice(0, 4000) : null;
   if (body.focusUntil !== undefined) patch.focus_until = body.focusUntil ? new Date(body.focusUntil).toISOString() : null;
   if (body.focusIntensity != null) patch.focus_intensity = Math.max(1, Math.min(5, Math.round(Number(body.focusIntensity)) || 3));
   // AI mood-line cache refresh (K) + idle auto-end bookkeeping.
@@ -76,7 +77,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     patch.ai_mood_lines = body.aiMoodLines;
     patch.ai_lines_at = new Date().toISOString();
   }
-  if (body.touchActivity) patch.last_activity_at = new Date().toISOString();
+  if (body.touchActivity === true) patch.last_activity_at = new Date().toISOString();
   if (body.endWarningAt !== undefined) patch.end_warning_at = body.endWarningAt ? new Date(body.endWarningAt).toISOString() : null;
   // Donations/superchats (R): off by default; the DM flips them on + picks generosity.
   if (typeof body.donationsEnabled === 'boolean') patch.donations_enabled = body.donationsEnabled;
@@ -84,8 +85,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.kibblesEarned != null) patch.kibbles_earned = Math.max(0, Math.floor(Number(body.kibblesEarned)) || 0);
 
   if (Object.keys(patch).length <= 2) return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 });
-  // Any DM action counts as engagement for the idle auto-end clock (unless already set above).
-  if (patch.last_activity_at === undefined) patch.last_activity_at = new Date().toISOString();
+  // Any DM action counts as engagement for the idle auto-end clock — EXCEPT the automated
+  // idle-machinery patches (warning set/clear + the idle end itself), which pass
+  // `touchActivity: false` so they don't reset the very timer they're driving.
+  if (patch.last_activity_at === undefined && body.touchActivity !== false) patch.last_activity_at = new Date().toISOString();
 
   const { data, error } = await supabaseAdmin
     .from('dnd_stream_state')

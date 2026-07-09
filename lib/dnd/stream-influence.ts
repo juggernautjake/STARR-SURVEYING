@@ -113,18 +113,23 @@ export function viewerTierBounds(viewers: number): [number, number] {
   return [prevMax + 1, Number.MAX_SAFE_INTEGER];
 }
 
-/** The organically-fluctuating "revealed" viewer count the audience sees. It hovers
- *  around the DM's set value (viewers come + go) but is CLAMPED to the current tier so it
- *  never changes the DC/pace. 0 stays 0 and 1–15 stay exact (we track those handles by
- *  name); only 16+ drifts, by up to ~8% (a floor of ±2 for small counts). `rnd` is the
- *  caller's random in [0,1) so this stays pure/testable. */
+/** The organically-fluctuating "revealed" viewer count the audience sees. It never
+ *  settles: it hovers a little ABOVE the DM's set value and a little BELOW it, re-centring
+ *  whenever the DM changes the count. Small crowds nudge by ~1–2; crowds past 15 swing more
+ *  (~8%) but stay CLAMPED to the current DC tier so the resist DC / chat pace (derived from
+ *  the *set* count) never flicker. 0 stays 0. `rnd` is the caller's random in [0,1) so this
+ *  stays pure/testable. */
 export function fluctuateViewers(base: number, rnd: number): number {
   const v = Math.max(0, Math.floor(base || 0));
-  if (v <= 15) return v;
-  const [tmin, tmax] = viewerTierBounds(v);
-  const spread = Math.max(2, Math.round(v * 0.08));
+  if (v === 0) return 0; // nobody watching → dead silent
+  const spread = v > 15 ? Math.max(2, Math.round(v * 0.08)) : Math.max(1, Math.round(v * 0.15));
   const delta = Math.round((rnd * 2 - 1) * spread);
-  return Math.min(tmax, Math.max(tmin, v + delta));
+  let out = v + delta;
+  if (v > 15) {
+    const [tmin, tmax] = viewerTierBounds(v);
+    out = Math.min(tmax, Math.max(tmin, out));
+  }
+  return Math.max(1, out); // at least 1 while anyone is watching
 }
 
 // ── Live-activity engagement boost ──────────────────────────────────────────────

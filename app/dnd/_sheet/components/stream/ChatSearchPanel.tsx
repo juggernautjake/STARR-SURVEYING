@@ -35,6 +35,9 @@ export default function ChatSearchPanel({ characterId, isDM }: { characterId: st
     } finally { setBusy(false) }
   }
 
+  // Clear the query + results so the panel returns to its empty state.
+  const clearSearch = () => { setQ(''); setHits(null); setNote(''); setReplyTo(null); setReplyText('') }
+
   const mod = (type: ModActionType, username: string) => {
     modChan.current?.send({ type: 'broadcast', event: 'action', payload: { type, username } })
     window.dispatchEvent(new CustomEvent('dnd-stream-mod', { detail: { characterId, kind: 'action', type, username } }))
@@ -57,9 +60,12 @@ export default function ChatSearchPanel({ characterId, isDM }: { characterId: st
         <span style={{ fontSize: 11, letterSpacing: '0.08em', color: 'var(--gold,#c89b3c)', fontWeight: 700 }}>🔍 CHAT SEARCH</span>
       </div>
       <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-        <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()}
+        <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') search(); if (e.key === 'Escape') clearSearch() }}
           placeholder="username or keyword…" style={{ flex: 1, padding: '6px 8px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--line, rgba(255,255,255,0.15))', color: 'inherit', fontSize: 13 }} />
         <button className="btn tiny" onClick={search} disabled={busy}>{busy ? '…' : 'Search'}</button>
+        {(hits !== null || q.trim()) && (
+          <button className="btn tiny" onClick={clearSearch} title="Clear the search and results">✕ Clear</button>
+        )}
       </div>
       {note && <div style={{ fontSize: 11, color: '#0ac8b9', marginTop: 6 }}>{note}</div>}
 

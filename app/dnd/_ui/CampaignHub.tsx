@@ -4,10 +4,11 @@
 // + the DM), the party chat with a one-click "Message the DM" (private whisper), and the
 // read-only session summaries. Their own character is highlighted and opens their sheet.
 // (The DM gets the richer control panel instead — see the campaign route.)
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import styles from './hextech.module.css'
 import Chat from './Chat'
+import Lightbox from './Lightbox'
 import type { CampaignHubData } from '@/lib/dnd/campaign-summary'
 
 function Portrait({ url, name, size }: { url: string | null; name: string; size: number }) {
@@ -22,24 +23,49 @@ function Portrait({ url, name, size }: { url: string | null; name: string; size:
   )
 }
 
+type MyCharacter = { id: string; name: string }
+
 export default function CampaignHub({ data, selfId }: { data: CampaignHubData; selfId: string }) {
   const router = useRouter()
   const [messagingDm, setMessagingDm] = useState(false)
-  const [claiming, setClaiming] = useState<string | null>(null)
+  const [lightbox, setLightbox] = useState<string | null>(null)
+  // "Bring one of my characters" picker: the viewer's own characters not already here.
+  const [myChars, setMyChars] = useState<MyCharacter[] | null>(null)
+  const [addPick, setAddPick] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [addErr, setAddErr] = useState<string | null>(null)
   const chatRef = useRef<HTMLDivElement>(null)
   const members = data.members.map((m) => ({ id: m.userId, name: m.name }))
 
-  // Claim an available character (DM-permitted or ownerless) → it becomes your private PC.
-  async function claim(id: string, name: string) {
-    if (claiming) return
-    if (!window.confirm(`Claim "${name}" as your character?`)) return
-    setClaiming(id)
+  // Load the characters this player OWNS but hasn't brought into this campaign yet.
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/dnd/characters')
+      .then((r) => (r.ok ? r.json() : { characters: [] }))
+      .then((j) => {
+        if (cancelled) return
+        const here = new Set(data.characters.map((c) => c.id))
+        const mine = ((j.characters ?? []) as { id: string; name: string; owner_user_id?: string | null }[])
+          .filter((c) => !here.has(c.id))
+          .map((c) => ({ id: c.id, name: c.name }))
+        setMyChars(mine)
+      })
+      .catch(() => { if (!cancelled) setMyChars([]) })
+    return () => { cancelled = true }
+  }, [data.characters])
+
+  // Bring one of your own characters into this campaign (you keep ownership).
+  async function addMyCharacter() {
+    if (!addPick || adding) return
+    setAdding(true); setAddErr(null)
     try {
-      const r = await fetch(`/api/dnd/characters/${id}/claim`, { method: 'POST' })
+      const r = await fetch(`/api/dnd/campaigns/${data.id}/characters`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ characterId: addPick }),
+      })
       const j = await r.json().catch(() => ({}))
-      if (r.ok) { router.push(`/dnd/characters/${id}`); router.refresh() }
-      else { window.alert(j.error || 'Could not claim this character.'); setClaiming(null) }
-    } catch { setClaiming(null) }
+      if (r.ok) { setAddPick(''); router.refresh() }
+      else setAddErr(j.error || 'Could not add that character.')
+    } catch { setAddErr('Could not add that character.') } finally { setAdding(false) }
   }
 
   function messageDm() {
@@ -82,14 +108,14 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
               <h2 className={styles.panelTitle}>Gallery &amp; Maps</h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
                 {data.gallery.map((m) => (
-                  <a key={m.id} href={m.url} target="_blank" rel="noreferrer" style={{ border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.4)', padding: 6, display: 'grid', gap: 4, textDecoration: 'none' }}>
+                  <button key={m.id} onClick={() => setLightbox(m.url)} title="Click to expand" style={{ border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.4)', padding: 6, display: 'grid', gap: 4, textAlign: 'left', cursor: 'zoom-in', color: 'inherit' }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={m.url} alt={m.label ?? ''} style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 3 }} />
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--hx-muted)' }}>
                       <span>{m.kind}</span>
                     </div>
                     {m.label && <div style={{ fontSize: 12, color: 'var(--hx-text)', wordBreak: 'break-word' }}>{m.label}</div>}
-                  </a>
+                  </button>
                 ))}
               </div>
             </section>
@@ -148,29 +174,73 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
                 {data.characters.map((c) => {
-                  const canClaim = c.claimable && !c.mine
-                  const watchStream = c.sheetType === 'streamer' && !c.mine && !canClaim
+                  const watchStream = c.sheetType === 'streamer' && !c.mine
+                  // Who plays it: label the player when someone other than the owner runs it.
+                  const playedBy = c.playedByName && c.playedByUserId !== c.ownerUserId ? c.playedByName : null
+                  const label = c.mine
+                    ? 'YOUR CHARACTER'
+                    : watchStream
+                      ? '🔴 WATCH STREAM'
+                      : c.isNpc
+                        ? 'NPC'
+                        : (playedBy ?? c.ownerName ?? 'PC').toUpperCase()
+                  const tip = c.mine
+                    ? `Open ${c.name}'s sheet — you play this character`
+                    : watchStream
+                      ? `Watch ${c.name}'s live stream`
+                      : `${c.name} — owned by ${c.ownerName ?? 'someone'}${playedBy ? `, played by ${playedBy}` : ''}. Open to view.`
                   return (
                     <button
                       key={c.id}
-                      onClick={() => (canClaim ? claim(c.id, c.name) : watchStream ? router.push(`/dnd/stream/${c.id}`) : router.push(`/dnd/characters/${c.id}`))}
-                      disabled={claiming === c.id}
-                      title={canClaim ? `Claim ${c.name} as your character` : watchStream ? `Watch ${c.name}'s live stream` : `Open ${c.name}'s sheet`}
+                      onClick={() => (watchStream ? router.push(`/dnd/stream/${c.id}`) : router.push(`/dnd/characters/${c.id}`))}
+                      title={tip}
                       style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 6,
                         padding: '14px 8px', cursor: 'pointer', color: 'inherit',
-                        background: canClaim ? 'rgba(200,155,60,0.1)' : c.mine ? 'rgba(45,193,167,0.08)' : 'rgba(1,10,19,0.4)',
-                        border: `1px solid ${canClaim ? 'var(--hx-gold-1)' : c.mine ? 'var(--hx-teal-1)' : 'var(--hx-line)'}`,
+                        background: c.mine ? 'rgba(45,193,167,0.08)' : 'rgba(1,10,19,0.4)',
+                        border: `1px solid ${c.mine ? 'var(--hx-teal-1)' : 'var(--hx-line)'}`,
                       }}
                     >
                       <Portrait url={c.portrait} name={c.name} size={64} />
                       <span style={{ fontSize: 13.5, color: 'var(--hx-text)', wordBreak: 'break-word' }}>{c.name}</span>
-                      <span style={{ fontSize: 9.5, letterSpacing: '0.1em', color: watchStream ? '#ff4d4d' : canClaim ? 'var(--hx-gold-2)' : c.isNpc ? 'var(--hx-gold-2)' : 'var(--hx-teal-1)' }}>
-                        {claiming === c.id ? 'CLAIMING…' : canClaim ? '⭐ CLAIM THIS' : watchStream ? '🔴 WATCH STREAM' : c.mine ? 'YOUR CHARACTER' : c.isNpc ? 'NPC' : c.ownerName ? c.ownerName.toUpperCase() : 'PC'}
+                      <span style={{ fontSize: 9.5, letterSpacing: '0.1em', color: watchStream ? '#ff4d4d' : c.mine ? 'var(--hx-teal-1)' : c.isNpc ? 'var(--hx-gold-2)' : 'var(--hx-muted)' }}>
+                        {label}
                       </span>
                     </button>
                   )
                 })}
+              </div>
+            )}
+
+            {/* Bring one of your own characters into this campaign — you keep ownership,
+                the character just joins this table too (it can be in many campaigns). */}
+            {myChars && myChars.length > 0 && (
+              <div style={{ marginTop: 14, borderTop: '1px solid var(--hx-line)', paddingTop: 12 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <select
+                    className={styles.input}
+                    style={{ width: 'auto', flex: '1 1 200px', padding: '8px 10px' }}
+                    value={addPick}
+                    onChange={(e) => { setAddPick(e.target.value); setAddErr(null) }}
+                    title="Pick one of your own characters to bring into this campaign. You stay the owner — the character simply joins this table as well, and a character can be in several campaigns at once."
+                  >
+                    <option value="">Bring one of your characters…</option>
+                    {myChars.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <button
+                    className={styles.hexBtn}
+                    style={{ padding: '8px 16px' }}
+                    onClick={addMyCharacter}
+                    disabled={!addPick || adding}
+                    title="Add the selected character to this campaign. You keep ownership; you can remove it again anytime."
+                  >
+                    {adding ? 'Adding…' : '＋ Add to campaign'}
+                  </button>
+                </div>
+                {addErr && <div className={styles.error} style={{ marginTop: 8 }}>{addErr}</div>}
+                <p style={{ margin: '6px 0 0', fontSize: 11.5, color: 'var(--hx-muted)' }}>
+                  You own your characters. Bringing one here lets you play it in this campaign too — the same character can live in several campaigns.
+                </p>
               </div>
             )}
           </section>
@@ -211,6 +281,7 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
           </section>
         </div>
       </div>
+      {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </div>
   )
 }

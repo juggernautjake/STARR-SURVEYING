@@ -10,6 +10,8 @@ export interface DndCharacterRow {
   id: string;
   campaign_id: string | null;
   owner_user_id: string | null;
+  /** Who plays this character (null = the owner plays it). Ownership never transfers. */
+  played_by_user_id?: string | null;
   name: string;
   sheet_type: string;
   theme: Record<string, unknown>;
@@ -33,6 +35,8 @@ export interface DndCharacterRow {
 export interface CharacterAccess {
   character: DndCharacterRow;
   isOwner: boolean;
+  /** True for whoever plays the character (the owner, or the player they handed it to). */
+  isPlayer: boolean;
   isDM: boolean;
   canWrite: boolean;
 }
@@ -41,6 +45,37 @@ export interface AccessResult {
   status: number;
   error?: string;
   access?: CharacterAccess;
+}
+
+/** Every campaign a character is in: its "home" campaign_id plus any join rows (Phase S).
+ *  Defensive: if the join table isn't migrated yet, this is just the home campaign. */
+export async function campaignsForCharacter(id: string, homeCampaignId: string | null): Promise<string[]> {
+  const ids = new Set<string>();
+  if (homeCampaignId) ids.add(homeCampaignId);
+  try {
+    const { data } = await supabaseAdmin.from('dnd_campaign_characters').select('campaign_id').eq('character_id', id);
+    for (const r of (data ?? []) as { campaign_id: string }[]) ids.add(r.campaign_id);
+  } catch {
+    /* join table not present yet — fall back to the home campaign only */
+  }
+  return Array.from(ids);
+}
+
+/** Every character id in a campaign: join-table members ∪ any legacy home-campaign rows
+ *  (Phase S). A character can now live in several campaigns, so the roster is the union —
+ *  the join table is the source of truth once migrated, with the legacy `campaign_id`
+ *  column folded in so nothing disappears before/after the backfill. */
+export async function characterIdsInCampaign(campaignId: string): Promise<string[]> {
+  const ids = new Set<string>();
+  try {
+    const { data } = await supabaseAdmin.from('dnd_campaign_characters').select('character_id').eq('campaign_id', campaignId);
+    for (const r of (data ?? []) as { character_id: string }[]) ids.add(r.character_id);
+  } catch {
+    /* join table not present yet — fall back to the home-campaign column only */
+  }
+  const { data: legacy } = await supabaseAdmin.from('dnd_characters').select('id').eq('campaign_id', campaignId);
+  for (const r of (legacy ?? []) as { id: string }[]) ids.add(r.id);
+  return Array.from(ids);
 }
 
 // Resolve the current user's access to a character. `status` is 200 on success;
@@ -57,18 +92,25 @@ export async function getCharacterAccess(id: string): Promise<AccessResult> {
   if (!character) return { status: 404, error: 'Character not found.' };
 
   const row = character as DndCharacterRow;
-  const role = row.campaign_id != null ? await getCampaignRole(row.campaign_id) : null;
+  // The character may be in several campaigns now; the caller is a DM/member if they hold
+  // that role in ANY of them.
+  const campaignIds = await campaignsForCharacter(id, row.campaign_id);
+  let isDM = false;
+  let isMember = false;
+  for (const cid of campaignIds) {
+    const r = await getCampaignRole(cid);
+    if (r !== null) isMember = true;
+    if (r === 'dm') isDM = true;
+  }
   const isOwner = row.owner_user_id != null && row.owner_user_id === session.userId;
-  const isDM = role === 'dm';
-  const isMember = role !== null;
+  const isPlayer = row.played_by_user_id != null && row.played_by_user_id === session.userId;
 
-  // Write: owner or DM only. Read: also a `public` character (any signed-in user)
-  // or a `campaign`-visible character the caller is a member of. `private` stays
-  // owner/DM-only.
-  const canWrite = isOwner || isDM;
+  // Write: the owner, the assigned player, or a DM of a campaign it's in. Read: also a
+  // `public` character (any signed-in user) or a `campaign`-visible one a member can see.
+  const canWrite = isOwner || isPlayer || isDM;
   const canRead =
     canWrite || row.visibility === 'public' || (row.visibility === 'campaign' && isMember);
   if (!canRead) return { status: 403, error: 'You do not have access to this character.' };
 
-  return { status: 200, access: { character: row, isOwner, isDM, canWrite } };
+  return { status: 200, access: { character: row, isOwner, isPlayer, isDM, canWrite } };
 }
