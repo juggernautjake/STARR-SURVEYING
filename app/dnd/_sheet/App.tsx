@@ -277,7 +277,7 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
       {/* Live-stream feature (chat + influence meter + alerts/polls) — only for
           characters whose sheet_type registers the `stream` module (§6.9). */}
       {hasStream && characterId && <StreamAlert characterId={characterId} />}
-      {hasStream && characterId && <StreamPoll characterId={characterId} isController={isDM} />}
+      {hasStream && characterId && <StreamPoll characterId={characterId} isController={isDM} isOwner={canWrite && !isDM} campaignId={campaignId ?? undefined} />}
       {/* A fellow party member watching this stream (not the streamer/owner or DM) can
           chat as a viewer and tip the streamer their own notes. */}
       {hasStream && characterId && <StreamChat characterId={characterId} campaignId={campaignId} viewerCanChat={!isDM && !canWrite} />}

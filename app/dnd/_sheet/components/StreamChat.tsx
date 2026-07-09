@@ -13,6 +13,7 @@ import { buildMoodPool } from '@/lib/dnd/stream-moods'
 import { formatNuggets } from '@/lib/dnd/stream-currency'
 import InfluenceMeter from './InfluenceMeter'
 import StreamTip from './StreamTip'
+import StreamPollCreate from './StreamPollCreate'
 import { useLiveEngagement } from './useLiveEngagement'
 import { useChar } from '../state/store'
 import { rollD20 } from '../lib/dice'
@@ -661,6 +662,13 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
           </button>
         )}
       </div>
+
+      {/* Streamer's poll starter — she proposes it; the DM decides the outcome. */}
+      {isOwnerMod && (
+        <div style={{ padding: '0 8px 4px' }}>
+          <StreamPollCreate characterId={characterId} />
+        </div>
+      )}
 
       {/* Owner's built-in chat filter — narrows the live feed by handle or keyword. */}
       {isOwnerMod && (
