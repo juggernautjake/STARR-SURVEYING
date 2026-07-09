@@ -8,17 +8,18 @@
 // The engine (App) renders a module's tab/content only when the character's
 // sheet_type registers it, so new characters are "a theme + data (+ maybe a
 // module)" rather than a fork.
-import { lazzuhTheme, streamerTheme, type SheetTheme } from './theme';
+import { lazzuhTheme, streamerTheme, donataTheme, type SheetTheme } from './theme';
 
 // Known character-only mechanic modules. Add an id here when a new bespoke
 // mechanic is built. `stream` = the live streamer chat + influence meter + the
 // DM's stream controls (§6.9); only characters that register it get those.
-export type SheetModuleId = 'forms' | 'stream';
+// `mlm` = Donata Dime's downline tracker + Rank=Level ladder + pyramid/product panels.
+export type SheetModuleId = 'forms' | 'stream' | 'mlm';
 
 // A `skin` is a bespoke visual treatment beyond color/font tokens — the extra CSS
 // (pixel frames, scanlines, glitch, etc.) lives under `.dnd-sheet.skin-<id>` in
 // theme.css. The engine appends `skin-<id>` to the sheet root when set.
-export type SheetSkinId = 'streamer';
+export type SheetSkinId = 'streamer' | 'donata';
 
 // Per-character flavor for the "roll for initiative" prompt (§6 initiative). Purely
 // cosmetic copy + accent; the roll math (d20 + the character's init bonus) is shared.
@@ -66,6 +67,15 @@ export const SHEET_REGISTRY: Record<string, SheetTypeConfig> = {
     skin: 'streamer',
     modules: ['stream'],
     initiative: { kicker: 'ENCOUNTER // INITIATIVE', title: 'Roll for Initiative!', rollLabel: '🎲 Roll d20', lockLabel: 'Lock in', accent: 'var(--hotpink)' },
+  },
+  // Donata Dime — bespoke MLM/holographic skin + the `mlm` module (downline tracker,
+  // Rank=Level ladder, pyramid/products). Her initiative is a sales "opportunity."
+  donata: {
+    label: 'Donata Dime',
+    theme: donataTheme,
+    skin: 'donata',
+    modules: ['mlm'],
+    initiative: { kicker: 'OPPORTUNITY // INITIATIVE', title: 'Seize the Opportunity!', rollLabel: '💎 Roll d20', lockLabel: 'Lock in the sale', accent: 'var(--gold)' },
   },
   // Fallback for a character with no bespoke skin/modules yet.
   generic: { label: 'Generic', modules: [] },

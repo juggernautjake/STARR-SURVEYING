@@ -8,6 +8,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import { streamerCharacter } from '@/app/dnd/_sheet/data/streamer';
+import { donataDime } from '@/app/dnd/_sheet/data/donata';
 
 const LIST_COLS = 'id, campaign_id, owner_user_id, name, sheet_type, token_url, art_url, visibility, is_npc, is_library, updated_at';
 
@@ -67,7 +68,10 @@ export async function POST(req: NextRequest) {
     // NPCs are DM-owned and hidden by default; PCs are campaign-visible. New sheets
     // are seeded with a real character so they render on the engine (G1) — the
     // `streamer` type comes pre-statted (placeholder streamer build); others blank.
-    const seedData = sheet_type === 'streamer' ? streamerCharacter(cleanName) : blankCharacter(cleanName);
+    const seedData =
+      sheet_type === 'streamer' ? streamerCharacter(cleanName)
+      : sheet_type === 'donata' ? donataDime(cleanName)
+      : blankCharacter(cleanName);
     const { data, error } = await supabaseAdmin
       .from('dnd_characters')
       .insert({
