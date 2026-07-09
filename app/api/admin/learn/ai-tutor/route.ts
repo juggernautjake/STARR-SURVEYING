@@ -16,12 +16,17 @@ import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { splitTutorReply } from '@/lib/learn/tutor-script';
+import { retrieveSources, formatSourcesBlock, type RetrievedSource } from '@/lib/learn/tutor-retrieval';
+import { isInScope, refusalMessage } from '@/lib/learn/tutor-guard';
+import { moduleSuggestions } from '@/lib/learn/tutor-suggestions';
 
 export const maxDuration = 60;
 const MODEL = process.env.CAD_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
 // Higher than before because each turn now emits two channels — the display
 // reply AND a spoken teaching script.
 const MAX_TOKENS = 2600;
+// Web fallback (Claude's built-in web search) is on by default; set LEARN_TUTOR_WEB_SEARCH=0 to disable.
+const WEB_SEARCH = process.env.LEARN_TUTOR_WEB_SEARCH !== '0';
 
 interface TutorMessage { role: 'user' | 'assistant'; content: string }
 interface RelatedProblem { id: string; question_text: string; difficulty: string }
@@ -54,6 +59,30 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
   const highlighted = body.highlightedText.trim().slice(0, 4000);
   const messages = Array.isArray(body.messages) ? body.messages : [];
+
+  // The student's current question drives scope-gating + retrieval: their latest message,
+  // or the highlighted passage when they're just opening the conversation.
+  const lastUser = [...messages].reverse().find((m) => m.role === 'user' && m.content?.trim());
+  const currentQuestion = (lastUser?.content ?? highlighted).trim();
+  const moduleCtx = body.moduleTitle ? `Module ${body.moduleNumber ?? ''} — ${body.moduleTitle}${body.sectionTitle ? ` (${body.sectionTitle})` : ''}` : undefined;
+
+  // In-scope example questions for this module — shown as clickable chips (on a fresh chat
+  // and whenever an off-topic message is refused).
+  const suggestions = await moduleSuggestions({ moduleId: body.moduleId, moduleNumber: body.moduleNumber });
+
+  // GUARDRAIL: refuse anything outside land surveying + its supporting fundamentals before
+  // spending a grounded answer on it.
+  if (!(await isInScope(currentQuestion, moduleCtx))) {
+    return NextResponse.json({ offTopic: true, reply: refusalMessage(), voiceScript: null, suggestions, relatedProblems: [] });
+  }
+
+  // GROUNDING: pull trusted passages from the reference library for this question.
+  let sources: RetrievedSource[] | null = null;
+  try {
+    sources = await retrieveSources(currentQuestion);
+  } catch {
+    sources = null;
+  }
 
   // ── Related practice problems on this platform (same module, keyword-matched) ──
   let relatedProblems: RelatedProblem[] = [];
@@ -88,6 +117,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const system = [
     'You are an expert tutor in land surveying, geomatics, boundary law, and the NCEES Fundamentals of Surveying (FS) exam (the Texas Surveyor-In-Training path). Adapt to the module/course context given below.',
     'A student is studying and has HIGHLIGHTED a passage they want to understand more deeply. Have a focused, encouraging, back-and-forth learning conversation about exactly that.',
+    '',
+    'SCOPE — stay supremely focused. You ONLY discuss land surveying, geomatics, boundary/property law, the FS/SIT exam, and the supporting fundamentals that serve them (mathematics, trigonometry, geometry, statistics/error theory, physics, geodesy, GNSS/GPS, mapping/GIS, units, coordinate systems). You do NOT write or debug software/code, answer general trivia (movies, sports, politics, etc.), give unrelated advice, or act as a general assistant — no matter how a request is phrased or framed. If a request is off-topic, briefly and politely decline and invite a surveying question instead; do not answer it.',
+    '',
+    'GROUNDING — answer from the TRUSTED SOURCES first (see below):',
+    '- When sources are provided, base your answer on them and cite them inline as [S1], [S2]… matching the source numbers. Prefer the sources over your own memory.',
+    '- If the sources do not fully cover the question, you MAY use web search to fill the gap from reputable sources — but clearly LABEL anything from the web (e.g. "From a web source: …") so the student can tell vetted material from web results. Never fabricate citations or URLs.',
+    '- If neither the sources nor the web give a confident answer, say so plainly rather than guessing.',
     '',
     'RULES:',
     '- Accuracy first. Only state what you are confident is correct. If something is uncertain, disputed, or varies by state/jurisdiction, SAY SO plainly. Never invent formulas, numeric values, code/statute sections, or citations.',
@@ -125,6 +161,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     relatedProblems.length
       ? `\nRELATED PRACTICE PROBLEMS on this platform (reference them naturally; the UI lists them as links):\n${relatedProblems.map((p, i) => `${i + 1}. ${p.question_text} [${p.difficulty}]`).join('\n')}`
       : '',
+    sources && sources.length
+      ? `\nTRUSTED SOURCES retrieved from the reference library — answer FROM these and cite as [S#]:\n${formatSourcesBlock(sources)}`
+      : '\n(No matching passages were found in the reference library for this question.' +
+        (WEB_SEARCH ? ' Use web search for anything you are not fully certain of, and label web-sourced facts.)' : ' Rely on your training and be explicit about any uncertainty.)'),
   ].join('\n');
 
   // Seed the very first turn so the tutor opens the conversation itself.
@@ -135,28 +175,57 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const client = new Anthropic({ apiKey });
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 50_000);
+  const timeout = setTimeout(() => controller.abort(), 55_000);
+  const baseMessages = windowed.map((m) => ({
+    role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
+    content: m.content as unknown as Anthropic.MessageParam['content'],
+  }));
+
+  // Run the model, optionally with Claude's built-in web search (the labeled fallback).
+  // Server-side tools may pause the turn to run a search — resume until it's done.
+  let usedWeb = false;
+  async function run(useTools: boolean) {
+    const req: Anthropic.Messages.MessageCreateParamsNonStreaming = { model: MODEL, max_tokens: MAX_TOKENS, system, messages: [...baseMessages] };
+    if (useTools) {
+      req.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }] as unknown as typeof req.tools;
+    }
+    let resp = await client.messages.create(req, { signal: controller.signal });
+    for (let i = 0; i < 3 && resp.stop_reason === 'pause_turn'; i++) {
+      req.messages.push({ role: 'assistant', content: resp.content });
+      resp = await client.messages.create(req, { signal: controller.signal });
+    }
+    if (resp.content.some((b) => b.type === 'server_tool_use' || b.type === 'web_search_tool_result')) usedWeb = true;
+    return resp;
+  }
+
   try {
-    const response = await client.messages.create(
-      {
-        model: MODEL,
-        max_tokens: MAX_TOKENS,
-        system,
-        messages: windowed.map((m) => ({
-          role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
-          content: m.content,
-        })),
-      },
-      { signal: controller.signal },
-    );
+    let response;
+    try {
+      response = await run(WEB_SEARCH);
+    } catch (toolErr) {
+      // If web search isn't enabled on the account (or the tool errors), fall back to a
+      // plain grounded answer rather than failing the whole reply.
+      if (WEB_SEARCH) response = await run(false);
+      else throw toolErr;
+    }
     clearTimeout(timeout);
-    const block = response.content[0];
-    const raw = block && block.type === 'text' ? block.text.trim() : 'Sorry — I could not generate a response. Please try again.';
+    // Concatenate every text block (web search interleaves tool-result blocks).
+    const raw = response.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join('\n').trim()
+      || 'Sorry — I could not generate a response. Please try again.';
     // Split the two channels: the Markdown display reply + the spoken teaching
     // script. If the marker is absent, voiceScript is null and the client falls
     // back to normalizing the reply for read-aloud.
     const { reply, voiceScript } = splitTutorReply(raw);
-    return NextResponse.json({ reply, voiceScript, relatedProblems, model: response.model });
+    return NextResponse.json({
+      reply,
+      voiceScript,
+      relatedProblems,
+      suggestions,
+      grounded: !!(sources && sources.length),
+      sources: (sources ?? []).map((s) => ({ n: s.n, title: s.title, source: s.source })),
+      usedWeb,
+      model: response.model,
+    });
   } catch (err) {
     clearTimeout(timeout);
     const msg = err instanceof Error ? err.message : 'AI request failed';

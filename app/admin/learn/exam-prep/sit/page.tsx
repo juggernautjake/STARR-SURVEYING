@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, Target, ClipboardCheck, Zap, Info } from 'lucide-react';
+import { Loader2, Target, ClipboardCheck, Zap, Info, BookOpen } from 'lucide-react';
 import Link from 'next/link';
 import { usePageError } from '../../../hooks/usePageError';
 
@@ -140,6 +140,9 @@ export default function FSPrepHubPage() {
           Comprehensive preparation for the NCEES Fundamentals of Surveying (FS) exam.
           Complete all 8 modules, pass each quiz, then take the full mock exam.
         </p>
+        <Link href="/admin/learn/references" className="admin-module-detail__back" style={{ display: 'inline-flex', alignItems: 'center', gap: '.35rem' }}>
+          <BookOpen size={15} style={{ verticalAlign: '-2px' }} /> Manage the tutor&apos;s reference library
+        </Link>
       </div>
 
       {/* Overall Readiness Card */}
