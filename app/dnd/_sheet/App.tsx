@@ -29,6 +29,7 @@ import Bio from './components/Bio'
 import DiceTray from './components/DiceTray'
 import DmOverridePanel from './components/DmOverridePanel'
 import StreamOwnerControls from './components/StreamOwnerControls'
+import MlmPanel from './components/MlmPanel'
 import SheetArtUploader from './components/SheetArtUploader'
 import TokenFramer from './components/TokenFramer'
 import SkinSwitch from './components/SkinSwitch'
@@ -46,6 +47,7 @@ const TABS = [
   { id: 'attacks', label: 'Attacks', emoji: '✦' },
   { id: 'forms', label: 'Forms', emoji: '⇡', module: 'forms' },
   { id: 'features', label: 'Features', emoji: '✧' },
+  { id: 'business', label: 'Business', emoji: '💎', module: 'mlm' },
   { id: 'gear', label: 'Gear', emoji: '❖' },
   { id: 'story', label: 'Story', emoji: '❯' },
   { id: 'gallery', label: 'Gallery', emoji: '◲' },
@@ -62,6 +64,7 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
   const config = getSheetConfig(sheetType)
   const hasForms = config.modules.includes('forms')
   const hasStream = config.modules.includes('stream')
+  const hasMlm = config.modules.includes('mlm')
   const visibleTabs = TABS.filter((t) => !('module' in t) || config.modules.includes(t.module))
 
   // Streamer skin variant (pink | blue) — the player toggles it; it swaps the color
@@ -241,6 +244,8 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
             <Progression />
           </>
         )}
+
+            {tab === 'business' && hasMlm && <MlmPanel />}
 
             {tab === 'gear' && <Inventory />}
 
