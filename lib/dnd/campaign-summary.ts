@@ -3,8 +3,9 @@
 // service-role client; these summaries are public in the open-access model (the /dnd
 // hub is reachable by direct link only), so no membership check.
 import { supabaseAdmin } from '@/lib/supabase';
-import { DEMO_CAMPAIGN_ID, DEMO_GUEST_USER_ID, DEMO_STREAMER } from '@/lib/dnd/constants';
+import { DEMO_CAMPAIGN_ID, DEMO_GUEST_USER_ID, DEMO_STREAMER, DEMO_DONATA } from '@/lib/dnd/constants';
 import { streamerCharacter } from '@/app/dnd/_sheet/data/streamer';
+import { donataDime } from '@/app/dnd/_sheet/data/donata';
 import { characterIdsInCampaign } from '@/lib/dnd/characters';
 
 // Self-heal for the Neon Odyssey demo: make sure the streamer (xxRainbowKittenUwU37xx)
@@ -64,6 +65,57 @@ async function ensureDemoStreamer(): Promise<void> {
         { character_id: DEMO_STREAMER.characterId, is_live: true, viewer_count: 1337, chat_speed: 4, engagement: 65 },
         { onConflict: 'character_id', ignoreDuplicates: true },
       );
+  } catch {
+    /* best-effort demo self-heal */
+  }
+}
+
+// Self-heal for Donata Dime (Sarah's MLM cleric) in Neon Odyssey: ensure Sarah's account +
+// membership exist and Donata's character row is present on her bespoke `donata` skin, owned
+// by Sarah (so Sarah edits as owner, Andrew edits via his DM role). Idempotent + best-effort;
+// only creates/converts — never overwrites an existing `donata` row, so owner/DM edits persist.
+async function ensureDonata(): Promise<void> {
+  try {
+    await supabaseAdmin.from('dnd_users').upsert(
+      { id: DEMO_DONATA.playerUserId, email: DEMO_DONATA.playerEmail, display_name: DEMO_DONATA.playerName },
+      { onConflict: 'id', ignoreDuplicates: true },
+    );
+    await supabaseAdmin.from('dnd_campaign_members').upsert(
+      { campaign_id: DEMO_CAMPAIGN_ID, user_id: DEMO_DONATA.playerUserId, role: 'player' },
+      { onConflict: 'campaign_id,user_id', ignoreDuplicates: true },
+    );
+
+    const { data: existing } = await supabaseAdmin
+      .from('dnd_characters')
+      .select('id, sheet_type')
+      .eq('id', DEMO_DONATA.characterId)
+      .maybeSingle();
+    const row = existing as { id: string; sheet_type: string } | null;
+    const donataRow = {
+      campaign_id: DEMO_CAMPAIGN_ID,
+      owner_user_id: DEMO_DONATA.playerUserId,
+      name: DEMO_DONATA.characterName,
+      sheet_type: DEMO_DONATA.sheetType,
+      is_npc: false,
+      visibility: 'private',
+      data: donataDime(DEMO_DONATA.characterName),
+    };
+    if (!row) {
+      await supabaseAdmin.from('dnd_characters').insert({ id: DEMO_DONATA.characterId, ...donataRow });
+    } else if (row.sheet_type !== DEMO_DONATA.sheetType) {
+      // A leftover row occupies this id → convert it to her full donata build. Runs only
+      // until she's on the `donata` skin, so owner/DM edits to her sheet are preserved after.
+      await supabaseAdmin.from('dnd_characters').update(donataRow).eq('id', DEMO_DONATA.characterId);
+    }
+    // Multi-campaign roster link (Phase S) — best-effort (join table may be unmigrated).
+    try {
+      await supabaseAdmin.from('dnd_campaign_characters').upsert(
+        { campaign_id: DEMO_CAMPAIGN_ID, character_id: DEMO_DONATA.characterId, added_by: DEMO_DONATA.playerUserId },
+        { onConflict: 'campaign_id,character_id', ignoreDuplicates: true },
+      );
+    } catch {
+      /* join table not present yet */
+    }
   } catch {
     /* best-effort demo self-heal */
   }
@@ -266,7 +318,7 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
   const campaign = camp as { id: string; name: string; blurb: string | null; theme: Record<string, unknown> | null } | null;
   if (!campaign) return null;
 
-  if (campaignId === DEMO_CAMPAIGN_ID) await ensureDemoStreamer();
+  if (campaignId === DEMO_CAMPAIGN_ID) { await ensureDemoStreamer(); await ensureDonata(); }
 
   const charIds = await characterIdsInCampaign(campaignId);
   const [{ data: mems }, { data: chars }, { data: sess }, { data: mediaRows }] = await Promise.all([
@@ -352,7 +404,7 @@ export async function loadCampaignLobby(campaignId: string): Promise<CampaignLob
   if (!campaign) return null;
 
   // Demo self-heal: ensure the streamer NPC exists before we list the roster.
-  if (campaignId === DEMO_CAMPAIGN_ID) await ensureDemoStreamer();
+  if (campaignId === DEMO_CAMPAIGN_ID) { await ensureDemoStreamer(); await ensureDonata(); }
 
   const charIds = await characterIdsInCampaign(campaignId);
   const [{ data: mems }, { data: chars }] = await Promise.all([

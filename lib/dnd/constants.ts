@@ -22,6 +22,14 @@ export const DEMO_STREAMER_CHARACTER_ID = '1a2200aa-0000-4000-8000-0000000000c4'
 export const DEMO_STREAMER_PLAYER_USER_ID = '1a2200aa-0000-4000-8000-0000000000a5';
 export const DEMO_STREAMER_PLAYER_NAME = 'Susie';
 export const DEMO_STREAMER_PLAYER_EMAIL = 'quick:susie';
+// Donata Dime — a PLAYER character owned by Sarah (a6), on the bespoke `donata` MLM skin.
+// A Cleric of the pyramid-scheme founder "Mighty Mojo." Andrew (DM) can edit her via his
+// campaign DM role; Sarah edits her as the owner.
+export const DEMO_DONATA_CHARACTER_ID = '1a2200aa-0000-4000-8000-0000000000c5';
+export const DEMO_DONATA_PLAYER_USER_ID = '1a2200aa-0000-4000-8000-0000000000a6';
+export const DEMO_DONATA_PLAYER_NAME = 'Sarah';
+export const DEMO_DONATA_PLAYER_EMAIL = 'quick:sarah';
+
 // Shared identity for open-access "＋ New Character" — visitors create + own imported
 // characters as Guest (has no password, so it's the only passwordless enter-as identity).
 export const DEMO_GUEST_USER_ID = '1a2200aa-0000-4000-8000-0000000000e0';
@@ -41,5 +49,15 @@ export const DEMO_STREAMER = {
   playerUserId: DEMO_STREAMER_PLAYER_USER_ID,
   playerName: DEMO_STREAMER_PLAYER_NAME,
   playerEmail: DEMO_STREAMER_PLAYER_EMAIL,
+} as const;
+
+// Donata Dime (id c5) — a PLAYER character on the bespoke `donata` MLM skin, owned by Sarah.
+export const DEMO_DONATA = {
+  characterId: DEMO_DONATA_CHARACTER_ID,
+  characterName: 'Donata Dime',
+  sheetType: 'donata',
+  playerUserId: DEMO_DONATA_PLAYER_USER_ID,
+  playerName: DEMO_DONATA_PLAYER_NAME,
+  playerEmail: DEMO_DONATA_PLAYER_EMAIL,
 } as const;
 
