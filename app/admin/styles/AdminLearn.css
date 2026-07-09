@@ -3092,6 +3092,13 @@ a.ai-tutor__related-item:hover { background:#eef2ff; }
 .ai-tutor__related-item--btn { width:100%; text-align:left; border:1px solid transparent; background:none; cursor:pointer; font:inherit; }
 .ai-tutor__related-item--btn:hover { background:#eef2ff; border-color:#c7d2fe; }
 .ai-tutor__related-diff { display:inline-block; font-size:.64rem; font-weight:700; text-transform:uppercase; color:#4338ca; background:#eef2ff; border-radius:6px; padding:1px 6px; margin-right:.4rem; }
+/* Clickable "what you could ask" chips (fresh chat + off-topic refusals) */
+.ai-tutor__suggestions { display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.5rem; }
+.ai-tutor__suggestions-head { flex-basis:100%; font-size:.72rem; font-weight:700; letter-spacing:.02em; text-transform:uppercase; color:#64748b; margin-bottom:.1rem; }
+.ai-tutor__suggestion { font:inherit; font-size:.82rem; line-height:1.25; text-align:left; color:#1d3095; background:#eef2ff; border:1px solid #c7d2fe; border-radius:999px; padding:.34rem .7rem; cursor:pointer; transition:background .12s,border-color .12s; }
+.ai-tutor__suggestion:hover:not(:disabled) { background:#e0e7ff; border-color:#a5b4fc; }
+.ai-tutor__suggestion:disabled { opacity:.55; cursor:default; }
+
 .ai-tutor__compose { display:flex; gap:.5rem; align-items:flex-end; padding:.6rem .75rem; border-top:1px solid #eef0f4; }
 .ai-tutor__input { flex:1; resize:none; max-height:120px; border:1px solid #d1d5db; border-radius:10px; padding:.5rem .65rem; font-size:.9rem; font-family:inherit; outline:none; }
 .ai-tutor__input:focus { border-color:#1d3095; }
