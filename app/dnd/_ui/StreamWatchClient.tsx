@@ -6,6 +6,7 @@
 // chat box so they can post as a PLAYER (highlighted for the streamer).
 import { CharacterProvider } from '@/app/dnd/_sheet/state/store'
 import StreamChat from '@/app/dnd/_sheet/components/StreamChat'
+import StreamPoll from '@/app/dnd/_sheet/components/StreamPoll'
 import styles from './hextech.module.css'
 import '@/app/dnd/_sheet/styles/theme.css'
 
@@ -29,6 +30,9 @@ export default function StreamWatchClient({
         </p>
       </div>
       <CharacterProvider characterId={characterId} campaignId={campaignId} isDM={false} canWrite={false}>
+        <div style={{ maxWidth: 720, margin: '16px auto 0' }}>
+          <StreamPoll characterId={characterId} isController={false} isOwner={false} campaignId={campaignId} />
+        </div>
         <StreamChat characterId={characterId} campaignId={campaignId} viewerCanChat />
       </CharacterProvider>
     </div>
