@@ -931,6 +931,12 @@
   border-radius: 8px;
   padding: 7px 10px;
 }
+/* Readable opened dropdown lists on EVERY sheet (Lazzuh, generic, and the streamer):
+   a dark list with light text — native option lists otherwise render white + faint. */
+.dnd-sheet select option {
+  background: #140d26;
+  color: #f4f1fb;
+}
 .dnd-sheet input:focus,
 .dnd-sheet textarea:focus,
 .dnd-sheet select:focus {

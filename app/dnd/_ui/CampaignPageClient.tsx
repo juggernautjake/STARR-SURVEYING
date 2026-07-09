@@ -180,7 +180,7 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                 </div>
                 {data.campaign.role === 'dm' && (
                   <div style={{ marginTop: 14 }}>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                       <input
                         className={styles.input}
                         style={{ width: 'auto', flex: '1 1 200px', padding: '8px 10px' }}
@@ -259,7 +259,9 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                         </button>
                         <button
                           onClick={() => toggleClaimable(c.id, !c.claimable)}
-                          title={c.claimable ? 'Players can claim this character — click to lock it' : 'Let a player claim this character to play as it'}
+                          title={c.claimable
+                            ? 'CLAIMABLE is ON: any player in this campaign can claim this character from their campaign hub and it becomes their own private PC (owner set to them, only they + you can open it). Click to turn OFF and lock it.'
+                            : 'CLAIMABLE is OFF. Click to turn it ON so a player can claim this pre-built character from their campaign hub to play as — handy for handing a made-up PC/NPC to a player.'}
                           style={{ fontSize: 9.5, letterSpacing: '0.08em', padding: '2px 6px', cursor: 'pointer', color: c.claimable ? 'var(--hx-gold-2)' : 'var(--hx-muted)', background: c.claimable ? 'rgba(200,155,60,0.12)' : 'transparent', border: `1px solid ${c.claimable ? 'var(--hx-gold-1)' : 'var(--hx-line)'}`, borderRadius: 4 }}
                         >
                           {c.claimable ? '⭐ CLAIMABLE' : 'CLAIM: OFF'}
@@ -274,7 +276,7 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                 <div className={styles.framedPanelTop} />
                 <h2 className={styles.panelTitle}>Sessions</h2>
                 {data.campaign.role === 'dm' && (
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                     <input
                       className={styles.input}
                       style={{ width: 'auto', flex: 1, minWidth: 160, padding: '8px 10px' }}
