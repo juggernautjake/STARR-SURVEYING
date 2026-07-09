@@ -224,3 +224,29 @@ load even before the SQL is applied — but the SQL is the durable, reviewable h
 - **Balance:** the Abundance Domain is homebrew; numbers mirror official cleric power budgets but are
   DM-tunable (all editable on the sheet).
 - **Bespoke panels** are additive and module-gated; they never affect other characters' sheets.
+
+---
+
+## 11. Ship log (2026-07-09)
+
+All code slices shipped, typecheck + lint clean, tests green. Branch
+`claude/dnd-styling-alignment-3eegio`.
+
+- **Slice 0 — Planning doc** ✅ `7e2712e`.
+- **Slice 1 — Character data + registration** ✅ `8c3459d` — `data/donata.ts` `donataDime()`,
+  `donataTheme`, registered `sheet_type 'donata'` (skin + `mlm` module), create-route seeding.
+- **Slice 2 — Bespoke `skin-donata` CSS** ✅ `a1c602b` — holographic light skin scoped to her
+  sheet; verified via headless render.
+- **Slice 3 — Custom `mlm` panels** ✅ `366338d` — `MlmPanel` (downline / Rank=Level / pyramid /
+  products) mounted as a "Business" tab.
+- **Slice 4 — Neon Odyssey wiring** ✅ `e686145` — Sarah account + Donata character (owner Sarah),
+  constants, `ensureDonata()` self-heal, demo-seed update.
+- **Slice 5 — Seed file** ✅ `e72ca95` — `seeds/420_dnd_donata_dime.sql` (full serialized build).
+- **Slice 6 — Regression tests** ✅ — `__tests__/dnd/donata.test.ts` (9 tests) lock the build + registration.
+
+**Deferred to the table (not code):** applying `seeds/420_dnd_donata_dime.sql` to the live DB, and
+opening the sheet against a live database for the final visual confirmation — both require live-DB
+access the build environment doesn't have. The `ensureDonata()` self-heal also creates her on the
+next Neon Odyssey load as a backstop. Sarah signs in via the pseudo-login as **"Sarah" / "mojo"**.
+
+Every code action item is shipped → doc moved to `completed/`.

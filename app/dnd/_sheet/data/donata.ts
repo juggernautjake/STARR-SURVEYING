@@ -4,7 +4,7 @@
 // Maguffins." Backline support; every class feature is a reskinned pyramid-scheme
 // mechanic. She levels by climbing the company, not by fighting — and has been stuck at
 // Level 3 for six years with unshakable faith. Built on the blank skeleton so it stays a
-// valid Character; pure data (safe server-side). See docs/planning/in-progress/DND_DONATA_DIME.
+// valid Character; pure data (safe server-side). See docs/planning/completed/DND_DONATA_DIME.
 import type { Character } from '../types';
 import { blankCharacter } from './blank';
 
