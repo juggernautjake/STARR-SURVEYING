@@ -254,7 +254,7 @@ build slice in **Appendix A**.
 | **S5** | Curve + tower-height renderers. | **DONE** (a911227a) — enriched `renderCurve` with full element set (T, LC, E, M, R, I) + tangent-chord = I/2 (existing curve templates upgrade automatically); added `renderTowerTwoAngles` (h = d/(cotα−cotβ), fails soft when β≤α) + `towerTwoAngles` spec type; 8 vitest cases (44 total). Content wiring: Q37 in S14, Q46 in S13. |
 | **S6** | Profile + cross-section renderers. | **DONE** (431a173f) — `renderProfile` (independent-axis grade/invert line, X+YY.YY station labels, "cut = ?" marker; Q6) + `renderCrossSection` (road CL + side slope s:1, cut/fill; Q7); `profile`/`crossSection` spec types + dispatcher + `staLabel`; 14 diagram tests. Content wiring in S17. |
 | **S7** | Plat + rounded-corner-lot renderers. | **DONE** (62a12bd7) — `renderPlat` (lot strip: numbered lots, frontage dims incl. "±" remainder, monuments, street name; Q19/Q20) + `renderRoundedCornerLot` (rectangle with a 90° corner arc, uniform-scaled; Q36); `plat`/`roundedLot` spec types + dispatcher; 19 diagram tests. Content wiring in S14/S16. |
-| **S8** | `renderTiltedPhoto` (Q13) + `renderHeightRelations` (Q28, expose drop-zones/regions for S3/S4). Snapshot tests. | **TODO** |
+| **S8** | Height-relations + tilted-photo renderers + static-question figures. | **DONE** (f12373f9) — `renderHeightRelations` (h=H+N; Q28) + `renderTiltedPhoto` (Q13); added `question_bank.diagram` jsonb + route resolves it to `_diagram` for static drag_label/hotspot/standard rows; seeds/425 back-fills the Q13 & Q28 figures (applied + verified); 23 diagram tests. |
 | **S9** | `renderContourMap` (Q9) — synthetic surface + marching-squares; label index contours. Fallback to 2–3 static house-style variants if over-budget. | **TODO** |
 
 ### Phase C — Business Concepts module (NCEES Cat 6)
@@ -324,6 +324,12 @@ build slice in **Appendix A**.
   universal `checkAnswer` dispatch and authored content were missing for S1.
 - **Seed numbering:** assigned in **build order** starting 421 (S1 = 421). The
   per-slice numbers in the Status table are indicative; use the next free number.
+- **2026-07-10 — S8 static-figure mechanism:** added a `question_bank.diagram`
+  jsonb column + `staticDiagram()` in the quiz route so **any static question can
+  carry a fixed figure** (spec with literal values, resolved via
+  `buildDiagramFromSpec(spec,{})`). Reuse this for other conceptual figure
+  questions; computational ones get their figure via the dynamic template's
+  `diagram` spec instead.
 - **2026-07-10 — user additions:** (1) Course must end with a **full 110-question
   FS Exam Simulator** imitating the real exam → added slice **S24** with the
   blueprint (BL 23/SC 20/SP 17/MP 15/Prin 14/Bus 11/Math 10 = 110, all within
