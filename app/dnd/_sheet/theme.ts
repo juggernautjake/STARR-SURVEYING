@@ -102,7 +102,7 @@ export const streamerTheme: SheetTheme = {
 // panels; saturated tokens are used as BACKGROUNDS only where the skin-donata CSS sets an
 // explicit readable text color. `teal`/`tealbright` are repurposed away from cyan (they back
 // links/mods/table-headers in the base sheet) to a candy teal + a legible deep teal.
-// Spec: docs/planning/in-progress/DND_DONATA_SHEET_REDESIGN_2026-07-09.md
+// Spec: docs/planning/completed/DND_DONATA_SHEET_REDESIGN_2026-07-09.md
 export const donataTheme: SheetTheme = {
   colors: {
     void: '#fdf4e3',      // warm parchment page

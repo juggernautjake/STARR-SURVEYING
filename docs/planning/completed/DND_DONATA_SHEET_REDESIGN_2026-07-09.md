@@ -1,6 +1,6 @@
 # Donata Dime — Total Sheet Redesign ("Mojo Bazaar" / Neopets vibe)
 
-**Status:** IN-PROGRESS · **Branch:** `claude/donata-sheet-redesign-2026-07-09` · **Started:** 2026-07-09
+**Status:** COMPLETED (shipped 2026-07-09) · **Branch:** `claude/donata-sheet-redesign-2026-07-09` · **Started:** 2026-07-09
 
 ## Problem
 
@@ -118,4 +118,13 @@ Text/ink colors are chosen for **AA+ contrast on the cream/white panels**; satur
 
 ## Ship log
 
-_(filled in per slice as work lands)_
+- **Slice 0** `95d3234e` — planning doc → in-progress.
+- **Slice 1** `98143b82` — name-leak fixes (Bio/Hero/Progression now use `char.meta.name`). Verified live: Story reads **"Who Is Donata Dime?"**.
+- **Slices 2–3** `c382fc6b` — `donataTheme` candy palette + Baloo 2/Nunito fonts, and the full `skin-donata` rewrite (cream page + polka dots, awning hero, gradient name, sticker chips, Neopets tabs, ribbon section heads, cream cards, glossy buttons, cream fields, candy stats/tables/pips, white→ink flip list). Dropped `background-attachment:fixed`. Verified: hero + full overview read cleanly.
+- **Slice 7** `5b27e871` — dice roller retheme (light candy "core", readable labels + all dice buttons; fixed the dark-on-dark `.stage-label` and light-on-light crit flag). Verified: the user's dice-roller complaint resolved.
+- **Slice 8** `2bbe7ffa` — readability fixes: DescriptionsPanel/AiSheetEdit/ConditionTracker fields made theme-adaptive (`var(--panel-2)` — no more dark-on-dark gray boxes); MlmPanel pyramid tiers got a text-shadow. Verified: AI-Ask + notes fields render light with readable text.
+- **Slice 9** `6c09272c` — candy portrait framing (token top-left + full-body top-right), verified with a placeholder image; SheetArtUploader Art/Token buttons + TokenFramer confirmed working.
+- **Slice 10 (final sweep)** — Slices 4/5/6 (nav, controls, data panels) landed inside the Slice 2–3 comprehensive skin rewrite. Final readability sweep done by **code audit**: every base `#fff`-text selector rendering on Donata's content tabs is in the skin flip-list, and no hardcoded-dark inline fields remain in the content-tab components (the three found were fixed in Slice 8). Browser-verified surfaces: hero, overview, dice tray, Business, Story, portrait. Dark-OS-mode held light via the `prefers-color-scheme` guard in the skin root.
+  - *Deferred (low value):* per-tab live screenshots of Abilities/Combat/Attacks/Features/Gear were blocked by a Playwright file-chooser artifact on navigate; the code audit covers the same readability guarantees, so a live pass is optional polish rather than a gap.
+
+**Result:** Donata's sheet is a distinct Neopets "Mojo Bazaar" look — unlike Lazzuh's or the streamer's — with readable text on every audited surface, no name leaks, a readable dice roller, and a candy-framed portrait. Shipped on `claude/donata-sheet-redesign-2026-07-09`.

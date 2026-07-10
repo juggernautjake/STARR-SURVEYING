@@ -2812,7 +2812,7 @@
    engine hard-codes white on many headings, so we flip ALL of them to --ink, and
    every saturated background sets its own readable text color (no light-on-light,
    no dark-on-dark). Every selector is prefixed .dnd-sheet.skin-donata.
-   Spec: docs/planning/in-progress/DND_DONATA_SHEET_REDESIGN_2026-07-09.md
+   Spec: docs/planning/completed/DND_DONATA_SHEET_REDESIGN_2026-07-09.md
    ========================================================================= */
 .dnd-sheet.skin-donata {
   --sk-rasp: 194, 24, 91;      /* raspberry (primary) */
