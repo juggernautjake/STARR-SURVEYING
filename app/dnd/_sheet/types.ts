@@ -94,9 +94,13 @@ export interface ArmorStats {
 
 export interface ConsumableStats {
   effect: {
-    kind: 'heal' | 'temp' | 'status' | 'custom'
-    dice?: string // for heal/temp, e.g. '2d4+2'
-    status?: string // condition name for kind 'status'
+    /** heal = restore HP · temp = grant temp HP · status = apply a condition · buff = grant
+     *  temporary Effects (spell DC, ability, AC…) · custom = note-only, DM adjudicates. */
+    kind: 'heal' | 'temp' | 'status' | 'buff' | 'custom'
+    dice?: string // heal/temp: dice rolled, e.g. '2d4+2'
+    status?: string // status: condition granted, e.g. 'Invisible', 'Blessed'
+    duration?: string // status/buff: how long, e.g. '10 minutes', '3 rounds', '1 hour'
+    effects?: Effect[] // buff: temporary bonuses (e.g. +1 spell save DC, +2 DEX)
     note?: string
   }
 }
@@ -113,6 +117,7 @@ export interface InvItem {
   kind?: ItemKind
   equipped?: boolean
   attuned?: boolean
+  image?: string // uploaded item artwork URL (dnd-media bucket, kind='item')
   weapon?: WeaponStats
   armor?: ArmorStats
   consumable?: ConsumableStats

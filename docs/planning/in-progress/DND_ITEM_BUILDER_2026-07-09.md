@@ -52,7 +52,14 @@ consumable?: {
   effect: { kind: 'heal' | 'temp' | 'status' | 'custom'; dice?: string; status?: string; note?: string }
 }
 effects?: Effect[]   // reuse engine Effect — passive bonuses while equipped/attuned (ac, saves, abilities, skills)
+image?: string       // uploaded item artwork (dnd-media bucket, kind='item'); shown in Inventory
 ```
+
+**Item images:** each item can carry an uploaded picture. The `/api/dnd/characters/[id]/media`
+endpoint now accepts `kind: 'item'` — it uploads to the `dnd-media` bucket and returns the URL
+**without** touching a character column (the URL is stored on `item.image` inside the `data`
+blob, persisted by the whole-`char` autosave). The builder (Slice 4) adds a per-item upload
+button; Inventory renders the thumbnail.
 (The legacy `use?` stays working; new consumables use `consumable.effect`.)
 
 ### Typed damage (the new dice primitive)
@@ -77,8 +84,8 @@ The builder UI (a form/modal with many fields, dropdowns, dice inputs) must be *
 - [ ] **Slice 3 — Roll action + weapon roll button.** `store.tsx` `rollWeaponDamage(item, opts)`; a **Roll / Crit** button on weapon items in Inventory (and mirror into Attacks) that shows the per-type breakdown in the dice log. Verify a 2d8+1d6-poison weapon rolls and breaks down correctly.
 - [ ] **Slice 4 — The builder UI.** Replace Inventory's minimal add-form with a real **Item Builder**: pick a `kind`, fill title/description/qty, then kind-specific fields (weapon dice+type+bonus-dice rows; armor category+AC; consumable effect; wondrous effects). Edit existing items through the same builder. Robust validation. Readable on all skins.
 - [ ] **Slice 5 — Armor/shield → AC.** A `useMemo(computeAC)` over equipped armor + shield + AC `effects` (reuse `engine/armor.ts`), surfaced in `CombatPanel` with a source note; equip/unequip updates AC live. Keep a manual-AC override escape hatch.
-- [ ] **Slice 6 — Effects → derived stats.** Apply equipped/attuned item `effects` (bonuses to saves/abilities/skills) via the engine resolvers, shown where those stats render. Gate by `equipped`/`attuned`.
-- [ ] **Slice 7 — Consumables.** `consumable.effect` Use flow: heal / temp HP / apply a **status** (into the condition tracker) / custom note; decrement qty; log the result.
+- [ ] **Slice 6 — Effects → derived stats + an Active-Effects tracker.** Apply equipped/attuned item `effects` (bonuses to saves/abilities/skills/AC) via the engine resolvers so they're **actually calculated** into the displayed numbers and rolls. Add an **Active Effects** panel listing every currently-applied effect (from equipped items, attuned items, consumed buffs, and conditions) with its source + duration, each with a **remove button usable by the player or the DM** (removing a consumable buff clears its temporary effect; unequipping an item drops its effects). Gate passive item effects by `equipped`/`attuned`.
+- [ ] **Slice 7 — Consumables.** `consumable.effect` Use flow — actually applies on consume: **heal** (roll dice → adjust HP), **temp** HP, **status** (apply a condition into the tracker, with a `duration` note e.g. "Invisible · 1 hour / 3 rounds"), and **buff** (grant temporary `Effect[]` — e.g. a Potion of Giant Strength that **sets STR to 25** `{target:'str_score',operation:'set',value:25}`, or +1 spell save DC / +2 an ability). Decrement qty; log the result. Timed effects are tracked with their duration so the DM/player can end them.
 - [ ] **Slice 8 — Cross-sheet QA + polish.** Verify create→roll→equip→use on Lazzuh, Donata, and a generic sheet; regression tests; final readability + UX pass; retire this doc to `completed/`.
 
 ## Risks / notes
