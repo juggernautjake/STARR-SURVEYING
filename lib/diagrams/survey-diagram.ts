@@ -218,7 +218,7 @@ function renderCurve(R: number, I: number, title?: string): string {
   g += `<text x="${cx + 8}" y="${(pi.y + apex.y) / 2 + 3}" font-size="10" fill="#c0392b">E = ${f2(E)}'</text>`;
   g += `<text x="${cx + 8}" y="${(apex.y + chordMid.y) / 2 + 3}" font-size="10" fill="#c0392b">M = ${f2(M)}'</text>`;
   g += `<text x="${cx}" y="${cy + 15}" text-anchor="middle" font-size="11" fill="#333">R = ${f2(R)}'</text>`;
-  g += `<text x="${pi.x}" y="${pi.y - 8}" text-anchor="middle" font-size="11" fill="#333">I = ${formatAzimuth(I)}</text>`;
+  g += `<text x="${pi.x}" y="${pi.y - 22}" text-anchor="middle" font-size="11" fill="#333">I = ${formatAzimuth(I)}</text>`;
   // tangent–chord (deflection) angle at PC = I/2
   g += `<text x="${pc.x - 4}" y="${pc.y + 18}" text-anchor="end" font-size="10" fill="#1D3095" font-weight="700">∠(T,LC) = I/2</text>`;
   return svgWrap(g, title || 'Horizontal Curve');
@@ -248,10 +248,10 @@ export function renderTowerTwoAngles(d: number, alphaDeg: number, betaDeg: numbe
   // rays
   g += `<line x1="${S1.x}" y1="${S1.y}" x2="${Tp.x}" y2="${Tp.y}" stroke="#888" stroke-width="1.4" stroke-dasharray="5 4"/>`;
   g += `<line x1="${S2.x}" y1="${S2.y}" x2="${Tp.x}" y2="${Tp.y}" stroke="#888" stroke-width="1.4" stroke-dasharray="5 4"/>`;
-  // stations + labels
-  g += dot(S1.x, S1.y, '1') + dot(S2.x, S2.y, '2') + dot(Tp.x, Tp.y, '');
-  g += `<text x="${S1.x + 4}" y="${S1.y + 16}" font-size="11" fill="#1D3095">A = ${formatAzimuth(alphaDeg)}</text>`;
-  g += `<text x="${S2.x + 4}" y="${S2.y - 8}" font-size="11" fill="#1D3095">B = ${formatAzimuth(betaDeg)}</text>`;
+  // stations + labels (angle labels below the line so they don't collide)
+  g += dot(S1.x, S1.y, '') + dot(S2.x, S2.y, '') + dot(Tp.x, Tp.y, '');
+  g += `<text x="${S1.x}" y="${S1.y + 16}" text-anchor="middle" font-size="11" fill="#1D3095">A = ${formatAzimuth(alphaDeg)}</text>`;
+  g += `<text x="${S2.x}" y="${S2.y + 16}" text-anchor="middle" font-size="11" fill="#1D3095">B = ${formatAzimuth(betaDeg)}</text>`;
   g += `<text x="${(S1.x + S2.x) / 2}" y="${B.y + 30}" text-anchor="middle" font-size="11" fill="#333">${f2(d)}'</text>`;
   g += `<text x="${Tp.x + 8}" y="${(B.y + Tp.y) / 2}" font-size="12" fill="#c0392b" font-weight="700">h = ?</text>`;
   g += `<text x="${W / 2}" y="${H - 12}" text-anchor="middle" font-size="10" fill="#888">NOT TO SCALE</text>`;

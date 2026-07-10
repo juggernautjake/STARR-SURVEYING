@@ -17,6 +17,7 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "verify:fs-figures": "tsx scripts/verify-fs-figures.ts",
     "db:seed": "node scripts/apply-seeds.mjs",
     "db:seed:all": "node scripts/apply-seeds.mjs --continue-on-error",
     "db:seed:reset": "node scripts/apply-seeds.mjs --reset",
