@@ -213,7 +213,7 @@ build slice in **Appendix A**.
 ### Phase A — Engine: the 4 missing interaction types
 | Slice | What | Status |
 |---|---|---|
-| **S1** | `multi_select` type: engine generation (fixed/`choice`-rotated option set, N-correct), `solutionChecker` set-equality grading (partial-credit optional), render + submit in `QuizRunner.tsx` + `ProblemCard.tsx`; migrate Q1 as first author. Vitest for grader. | **TODO** |
+| **S1** | `multi_select` type. | **DONE** (1e9b77de) — found it was already wired in the quiz path (QuizRunner + `gradeMultiSelect` in the quizzes route); added `checkMultiSelect` + `multi_select` case to the universal `checkAnswer` (latent bug), 7 vitest cases (28 pass), seeds/421 with 3 select-all questions (Q1 mirror + siblings) applied to live DB + verified. |
 | **S2** | `ordering` type (drag/rank): engine (store correct sequence, shuffle for display), `solutionChecker` sequence grading, drag-reorder UI (keyboard-accessible fallback = number inputs); author Q32, Q21, Q17. Vitest. | **TODO** |
 | **S3** | `drag_label` type: engine (labels + target ids), diagram renderers expose named drop-zones, `solutionChecker` mapping grade, drag-onto-figure UI (+ dropdown fallback per target); author Q13. Vitest. | **TODO** |
 | **S4** | `hotspot` type: engine (clickable regions on a diagram, correct region id + tolerance), `solutionChecker`, click-on-figure UI (+ labeled-choice fallback); author Q28. Vitest. | **TODO** |
@@ -281,6 +281,17 @@ build slice in **Appendix A**.
   captured SVGs are glyph-outline (0 `<text>`) → generate-fresh, not edit. Next
   seed number = **421**. Engine lacks multi-select/ordering/drag-label/hotspot.
   Business Concepts (Cat 6) has zero coverage.
+- **2026-07-10 — S1 scope correction:** `multi_select` (and `fill_blank`) are
+  actually **already wired in the quiz DELIVERY path** — `QuizRunner.tsx` renders
+  + stores a JSON array of chosen option strings (with keyboard fallback), and
+  `app/api/admin/learn/quizzes/route.ts` grades via `gradeMultiSelect`
+  (set-equality + `partial_score`). The research agent's "unsupported" finding was
+  about the *dynamic template generator* (`problemEngine`), a separate path.
+  Implication: **S2–S4 (ordering/drag-label/hotspot) may likewise be partly
+  wired — check the quizzes route + QuizRunner first before building.** Only the
+  universal `checkAnswer` dispatch and authored content were missing for S1.
+- **Seed numbering:** assigned in **build order** starting 421 (S1 = 421). The
+  per-slice numbers in the Status table are indicative; use the next free number.
 
 ---
 
