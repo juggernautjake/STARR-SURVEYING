@@ -3,6 +3,7 @@ import { useChar } from '../state/store'
 import type { InvItem } from '../types'
 import SectionHead from './ui/SectionHead'
 import NeoNuggetsBalance from './NeoNuggetsBalance'
+import ItemBuilder from './ItemBuilder'
 
 function labels() {
   // "Notes" is the campaign's base currency (≈ $1 each) — the streamer converts her
@@ -19,11 +20,21 @@ function weaponDamageSummary(it: InvItem): string {
 }
 
 export default function Inventory() {
-  const { char, setChar, editMode, rollExpr, adjustHp, rollWeaponDamage } = useChar()
+  const { char, setChar, characterId, editMode, rollExpr, adjustHp, rollWeaponDamage } = useChar()
   const [adding, setAdding] = useState(false)
-  const [draft, setDraft] = useState<Partial<InvItem>>({ name: '', desc: '', qty: 1 })
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   const curLabels = labels()
+
+  // Add a new item or replace an existing one (by id) — the ItemBuilder emits a full InvItem.
+  function upsert(item: InvItem) {
+    setChar((c) => {
+      const exists = c.inventory.some((x) => x.id === item.id)
+      return { ...c, inventory: exists ? c.inventory.map((x) => (x.id === item.id ? item : x)) : [...c.inventory, item] }
+    })
+    setAdding(false)
+    setEditingId(null)
+  }
 
   function setQty(id: string, delta: number) {
     setChar((c) => ({
@@ -37,20 +48,6 @@ export default function Inventory() {
   function setCurrency(k: keyof typeof curLabels, v: number) {
     setChar((c) => ({ ...c, currency: { ...c.currency, [k]: Math.max(0, v) } }))
   }
-  function add() {
-    if (!draft.name) return
-    const item: InvItem = {
-      id: `i-${Date.now()}`,
-      name: draft.name!,
-      desc: draft.desc ?? '',
-      qty: draft.qty ?? 1,
-      tags: ['tech'],
-    }
-    setChar((c) => ({ ...c, inventory: [...c.inventory, item] }))
-    setDraft({ name: '', desc: '', qty: 1 })
-    setAdding(false)
-  }
-
   function useItem(it: InvItem) {
     if (!it.use) return
     if (it.use.kind === 'heal') {
@@ -133,30 +130,31 @@ export default function Inventory() {
               <span className="inv-qty">×{it.qty}</span>
             )}
             {editMode ? (
-              <button className="btn tiny danger" onClick={() => remove(it.id)}>
-                ✕
-              </button>
+              <div className="flex center gap">
+                <button className="btn tiny" title="Edit this item" onClick={() => { setEditingId(it.id); setAdding(false) }}>✎</button>
+                <button className="btn tiny danger" onClick={() => remove(it.id)}>✕</button>
+              </div>
             ) : (
               <span />
             )}
           </div>
         ))}
 
-        {editMode && !adding && (
-          <button className="btn tiny teal" style={{ marginTop: 12 }} onClick={() => setAdding(true)}>
-            + Add item
-          </button>
+        {editMode && editingId && (
+          <ItemBuilder
+            characterId={characterId ?? undefined}
+            initial={char.inventory.find((x) => x.id === editingId)}
+            onSave={upsert}
+            onCancel={() => setEditingId(null)}
+          />
         )}
-        {editMode && adding && (
-          <div className="mt" style={{ display: 'grid', gap: 8 }}>
-            <input placeholder="Item name" value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} />
-            <input placeholder="Description" value={draft.desc} onChange={(e) => setDraft((d) => ({ ...d, desc: e.target.value }))} />
-            <div className="btn-row">
-              <input type="number" placeholder="Qty" value={draft.qty} onChange={(e) => setDraft((d) => ({ ...d, qty: Number(e.target.value) || 1 }))} style={{ width: 80 }} />
-              <button className="btn tiny teal" onClick={add}>Save</button>
-              <button className="btn tiny" onClick={() => setAdding(false)}>Cancel</button>
-            </div>
-          </div>
+        {editMode && adding && !editingId && (
+          <ItemBuilder characterId={characterId ?? undefined} onSave={upsert} onCancel={() => setAdding(false)} />
+        )}
+        {editMode && !adding && !editingId && (
+          <button className="btn tiny teal" style={{ marginTop: 12 }} onClick={() => { setAdding(true); setEditingId(null) }}>
+            + Build an item
+          </button>
         )}
       </div>
     </section>
