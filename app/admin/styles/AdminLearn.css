@@ -103,6 +103,16 @@
 .quiz__option--multi { display:flex; align-items:center; gap:.75rem; text-align:left; }
 .quiz__option-check { width:22px; height:22px; border:2px solid #D1D5DB; border-radius:4px; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:.8rem; font-weight:700; color:var(--color-brand-navy); transition:all .15s; }
 .quiz__option--selected .quiz__option-check { border-color:var(--color-brand-navy); background:var(--color-brand-navy); color:#FFF; }
+/* Ordering (put-in-order) */
+.quiz__ordering { display:flex; flex-direction:column; gap:.5rem; }
+.quiz__ordering-item { display:flex; align-items:center; gap:.75rem; padding:.7rem 1rem; border:2px solid #E5E7EB; border-radius:8px; background:#FFF; }
+.quiz__ordering-rank { width:26px; height:26px; flex-shrink:0; border-radius:50%; background:var(--color-brand-navy); color:#FFF; font-weight:700; font-size:.85rem; display:flex; align-items:center; justify-content:center; }
+.quiz__ordering-label { flex:1; text-align:left; font-family:'Inter',sans-serif; font-size:.9rem; color:#374151; }
+.quiz__ordering-controls { display:flex; flex-direction:column; gap:.15rem; flex-shrink:0; }
+.quiz__ordering-btn { width:28px; height:22px; border:1px solid #D1D5DB; border-radius:5px; background:#F9FAFB; color:var(--color-brand-navy); cursor:pointer; font-size:.7rem; line-height:1; display:flex; align-items:center; justify-content:center; transition:all .15s; }
+.quiz__ordering-btn:hover:not(:disabled) { border-color:var(--color-brand-navy); background:#FAFBFF; }
+.quiz__ordering-btn:disabled { opacity:.35; cursor:not-allowed; }
+.quiz__ordering-btn:focus-visible { outline:2px solid var(--color-brand-navy); outline-offset:1px; }
 .quiz__text-input { width:100%; padding:.65rem .85rem; font-family:'Inter',sans-serif; font-size:.9rem; border:2px solid #E5E7EB; border-radius:8px; background:#FFF; color:var(--color-text-primary); transition:border-color .15s; }
 .quiz__text-input:focus { outline:none; border-color:var(--color-brand-navy); }
 .quiz__text-input--numeric { max-width:300px; }

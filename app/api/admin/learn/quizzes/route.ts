@@ -176,6 +176,23 @@ function gradeMultiSelect(userAnswer: string, correctAnswer: string): { is_corre
   return { is_correct, partial_score };
 }
 
+// Ordering: both answers are JSON arrays; grade is exact sequence equality
+// (case-insensitive). partial_score = fraction of positions matching, for
+// callers that want partial credit.
+function gradeOrdering(userAnswer: string, correctAnswer: string): { is_correct: boolean; partial_score: number } {
+  let userArr: string[];
+  let correctArr: string[];
+  try { userArr = JSON.parse(userAnswer); } catch { userArr = []; }
+  try { correctArr = JSON.parse(correctAnswer); } catch { correctArr = [correctAnswer]; }
+  const norm = (s: unknown) => String(s).toLowerCase().trim();
+  const u = userArr.map(norm);
+  const c = correctArr.map(norm);
+  const positionsCorrect = c.filter((val, i) => u[i] === val).length;
+  const is_correct = c.length > 0 && u.length === c.length && positionsCorrect === c.length;
+  const partial_score = c.length > 0 ? positionsCorrect / c.length : 0;
+  return { is_correct, partial_score };
+}
+
 function gradeNumeric(userAnswer: string, correctAnswer: string, tolerance: number = 0.01): { is_correct: boolean } {
   const userNum = parseFloat(userAnswer);
   const correctNum = parseFloat(correctAnswer);
@@ -493,6 +510,20 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     // Multi select
     if (qType === 'multi_select') {
       const result = gradeMultiSelect(a.user_answer, q.correct_answer);
+      totalScore += result.is_correct ? 1 : 0;
+      return {
+        question_id: a.question_id,
+        user_answer: a.user_answer,
+        is_correct: result.is_correct,
+        correct_answer: q.correct_answer,
+        explanation: q.explanation || '',
+        partial_score: result.partial_score,
+      };
+    }
+
+    // Ordering (put in order)
+    if (qType === 'ordering') {
+      const result = gradeOrdering(a.user_answer, q.correct_answer);
       totalScore += result.is_correct ? 1 : 0;
       return {
         question_id: a.question_id,

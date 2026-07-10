@@ -226,6 +226,39 @@ export function checkMultiSelect(
 }
 
 /**
+ * Check an "ordering" (put-in-order) answer. Both answers are JSON arrays;
+ * grading is exact sequence equality (order matters, case-insensitive).
+ * `partial_score` = fraction of positions in the correct slot.
+ */
+export function checkOrdering(
+  userAnswer: string,
+  correctAnswer: string
+): CheckResult & { partial_score: number } {
+  const parseArr = (s: string): string[] => {
+    try {
+      const v = JSON.parse(s);
+      return Array.isArray(v) ? v.map(x => String(x)) : [String(v)];
+    } catch {
+      return (s || '').split(',').map(x => x.trim()).filter(Boolean);
+    }
+  };
+  const u = parseArr(userAnswer).map(s => s.toLowerCase().trim());
+  const c = parseArr(correctAnswer).map(s => s.toLowerCase().trim());
+  const positionsCorrect = c.filter((val, i) => u[i] === val).length;
+  const is_correct = c.length > 0 && u.length === c.length && positionsCorrect === c.length;
+  const partial_score = c.length > 0 ? positionsCorrect / c.length : 0;
+  return {
+    is_correct,
+    is_close: false,
+    user_answer: userAnswer,
+    correct_answer: correctAnswer,
+    difference: null,
+    feedback: is_correct ? 'Correct!' : 'Incorrect. The items are not all in the right order.',
+    partial_score,
+  };
+}
+
+/**
  * Universal answer checker that picks the right method based on question type
  */
 export function checkAnswer(
@@ -243,6 +276,8 @@ export function checkAnswer(
       return checkMultipleChoice(userAnswer, correctAnswer);
     case 'multi_select':
       return checkMultiSelect(userAnswer, correctAnswer);
+    case 'ordering':
+      return checkOrdering(userAnswer, correctAnswer);
     case 'short_answer':
       return checkTextAnswer(userAnswer, correctAnswer, true);
     case 'fill_blank':

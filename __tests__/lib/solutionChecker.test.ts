@@ -11,6 +11,7 @@ import {
   checkTextAnswer,
   checkMultipleChoice,
   checkMultiSelect,
+  checkOrdering,
   checkAnswer,
 } from '@/lib/solutionChecker';
 
@@ -151,6 +152,33 @@ describe('checkMultiSelect', () => {
   });
 });
 
+describe('checkOrdering', () => {
+  it('marks the exact sequence correct', () => {
+    const r = checkOrdering('["A","B","C"]', '["A","B","C"]');
+    expect(r.is_correct).toBe(true);
+    expect(r.partial_score).toBe(1);
+  });
+
+  it('is order-SENSITIVE (a swap is wrong)', () => {
+    const r = checkOrdering('["B","A","C"]', '["A","B","C"]');
+    expect(r.is_correct).toBe(false);
+    // only position 3 (C) is in the right slot → 1/3
+    expect(r.partial_score).toBeCloseTo(1 / 3);
+  });
+
+  it('is case- and whitespace-insensitive on the items', () => {
+    expect(checkOrdering('[" a ","b","c"]', '["A","B","C"]').is_correct).toBe(true);
+  });
+
+  it('is wrong when lengths differ', () => {
+    expect(checkOrdering('["A","B"]', '["A","B","C"]').is_correct).toBe(false);
+  });
+
+  it('tolerates a comma-delimited answer', () => {
+    expect(checkOrdering('A,B,C', '["A","B","C"]').is_correct).toBe(true);
+  });
+});
+
 describe('checkAnswer (dispatch)', () => {
   it('routes numeric_input and math_template to the numeric checker', () => {
     expect(checkAnswer('1.0', '1.0', 'numeric_input').is_correct).toBe(true);
@@ -165,6 +193,11 @@ describe('checkAnswer (dispatch)', () => {
   it('routes multi_select to the set-equality checker (not text match)', () => {
     expect(checkAnswer('["D","B"]', '["B","D"]', 'multi_select').is_correct).toBe(true);
     expect(checkAnswer('["B"]', '["B","D"]', 'multi_select').is_correct).toBe(false);
+  });
+
+  it('routes ordering to the sequence checker (order matters)', () => {
+    expect(checkAnswer('["A","B","C"]', '["A","B","C"]', 'ordering').is_correct).toBe(true);
+    expect(checkAnswer('["A","C","B"]', '["A","B","C"]', 'ordering').is_correct).toBe(false);
   });
 
   it('routes short_answer to text checker with partial matching on', () => {

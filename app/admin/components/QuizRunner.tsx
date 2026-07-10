@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Loader2, FileText } from 'lucide-react';
 import FillBlankQuestion from './FillBlankQuestion';
 
-type QuestionType = 'multiple_choice' | 'true_false' | 'short_answer' | 'fill_blank' | 'multi_select' | 'numeric_input' | 'math_template' | 'essay';
+type QuestionType = 'multiple_choice' | 'true_false' | 'short_answer' | 'fill_blank' | 'multi_select' | 'ordering' | 'numeric_input' | 'math_template' | 'essay';
 
 interface Question {
   id: string;
@@ -113,6 +113,29 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
     fetchQuiz();
   }, [fetchQuiz]);
 
+  // Seed a starting order for `ordering` questions once, shuffled so the stored
+  // option order is never a giveaway. The seeded order IS the current answer
+  // until the student rearranges it.
+  useEffect(() => {
+    if (questions.length === 0) return;
+    setAnswers(prev => {
+      let changed = false;
+      const next = { ...prev };
+      for (const q of questions) {
+        if (q.question_type === 'ordering' && !next[q.id]) {
+          const shuffled = [...(q.options || [])];
+          for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+          }
+          next[q.id] = JSON.stringify(shuffled);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [questions]);
+
   function isQuestionAnswered(q: Question): boolean {
     const ans = answers[q.id];
     if (!ans) return false;
@@ -127,6 +150,12 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
         try {
           const arr = JSON.parse(ans) as string[];
           return arr.length > 0;
+        } catch { return false; }
+      }
+      case 'ordering': {
+        try {
+          const arr = JSON.parse(ans) as string[];
+          return arr.length === (q.options?.length || 0) && arr.length > 0;
         } catch { return false; }
       }
       default:
@@ -230,6 +259,23 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
       const arr = JSON.parse(answers[qId] || '[]') as string[];
       return arr.includes(opt);
     } catch { return false; }
+  }
+
+  // Ordering: read the current arrangement (falls back to option order).
+  function getOrdering(qId: string, options: string[]): string[] {
+    try {
+      const arr = JSON.parse(answers[qId] || '[]') as string[];
+      return arr.length === options.length ? arr : [...options];
+    } catch { return [...options]; }
+  }
+
+  // Move an item up (dir -1) or down (dir +1) in the ordering.
+  function moveOrderingItem(qId: string, options: string[], index: number, dir: -1 | 1) {
+    const arr = getOrdering(qId, options);
+    const target = index + dir;
+    if (target < 0 || target >= arr.length) return;
+    [arr[index], arr[target]] = [arr[target], arr[index]];
+    setAnswers(prev => ({ ...prev, [qId]: JSON.stringify(arr) }));
   }
 
   // Fill blank
@@ -449,6 +495,7 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
                 <span className={`quiz__question-diff quiz__question-diff--${q.difficulty}`}>{q.difficulty}</span>
                 {q.question_type === 'fill_blank' && <span className="quiz__question-type-badge">Fill in the Blank</span>}
                 {q.question_type === 'multi_select' && <span className="quiz__question-type-badge">Select All That Apply</span>}
+                {q.question_type === 'ordering' && <span className="quiz__question-type-badge">Put In Order</span>}
                 {(q.question_type === 'numeric_input' || q._original_type === 'math_template') && <span className="quiz__question-type-badge">Numeric Answer</span>}
                 {q.question_type === 'essay' && <span className="quiz__question-type-badge">AI-Graded Essay</span>}
               </div>
@@ -496,6 +543,37 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
                     >
                       <span className="quiz__option-check">{isMultiSelected(q.id, opt) ? '\u2713' : ''}</span>
                       {opt}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Ordering — arrange items top (first) to bottom (last) */}
+            {q.question_type === 'ordering' && (
+              <>
+                <p className="quiz__question-text">{q.question_text}</p>
+                <div className="quiz__ordering" role="list">
+                  {getOrdering(q.id, q.options).map((opt, oi, arr) => (
+                    <div key={opt} className="quiz__ordering-item" role="listitem">
+                      <span className="quiz__ordering-rank">{oi + 1}</span>
+                      <span className="quiz__ordering-label">{opt}</span>
+                      <span className="quiz__ordering-controls">
+                        <button
+                          type="button"
+                          className="quiz__ordering-btn"
+                          aria-label={`Move "${opt}" up`}
+                          disabled={oi === 0}
+                          onClick={() => moveOrderingItem(q.id, q.options, oi, -1)}
+                        >{'▲'}</button>
+                        <button
+                          type="button"
+                          className="quiz__ordering-btn"
+                          aria-label={`Move "${opt}" down`}
+                          disabled={oi === arr.length - 1}
+                          onClick={() => moveOrderingItem(q.id, q.options, oi, 1)}
+                        >{'▼'}</button>
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -584,6 +662,9 @@ function formatUserAnswer(answer: string, qType: QuestionType): string {
   if (qType === 'multi_select') {
     try { return (JSON.parse(answer) as string[]).join(', '); } catch { return answer; }
   }
+  if (qType === 'ordering') {
+    try { return (JSON.parse(answer) as string[]).map((s, i) => `${i + 1}. ${s}`).join('  →  '); } catch { return answer; }
+  }
   return answer || '(blank)';
 }
 
@@ -593,6 +674,9 @@ function formatCorrectAnswer(answer: string, qType: QuestionType): string {
   }
   if (qType === 'fill_blank') {
     try { return (JSON.parse(answer) as string[]).join(', '); } catch { return answer; }
+  }
+  if (qType === 'ordering') {
+    try { return (JSON.parse(answer) as string[]).map((s, i) => `${i + 1}. ${s}`).join('  →  '); } catch { return answer; }
   }
   return answer;
 }
