@@ -10,6 +10,7 @@ import {
   checkNumericAnswer,
   checkTextAnswer,
   checkMultipleChoice,
+  checkMultiSelect,
   checkAnswer,
 } from '@/lib/solutionChecker';
 
@@ -117,6 +118,39 @@ describe('checkMultipleChoice', () => {
   });
 });
 
+describe('checkMultiSelect', () => {
+  it('marks the exact set correct, order-insensitive', () => {
+    const r = checkMultiSelect('["D","B"]', '["B","D"]');
+    expect(r.is_correct).toBe(true);
+    expect(r.partial_score).toBe(1);
+  });
+
+  it('is case- and whitespace-insensitive', () => {
+    expect(checkMultiSelect('[" b ","d"]', '["B","D"]').is_correct).toBe(true);
+  });
+
+  it('rejects a missing correct option (partial, not full credit)', () => {
+    const r = checkMultiSelect('["B"]', '["B","D"]');
+    expect(r.is_correct).toBe(false);
+    expect(r.partial_score).toBeCloseTo(0.5);
+  });
+
+  it('rejects an extra (false-positive) option', () => {
+    const r = checkMultiSelect('["B","D","A"]', '["B","D"]');
+    expect(r.is_correct).toBe(false);
+    // 2 hits − 1 false positive = 1 / 2 correct = 0.5
+    expect(r.partial_score).toBeCloseTo(0.5);
+  });
+
+  it('tolerates a bare comma-delimited answer string', () => {
+    expect(checkMultiSelect('B,D', '["B","D"]').is_correct).toBe(true);
+  });
+
+  it('is not correct against an empty correct set', () => {
+    expect(checkMultiSelect('["B"]', '[]').is_correct).toBe(false);
+  });
+});
+
 describe('checkAnswer (dispatch)', () => {
   it('routes numeric_input and math_template to the numeric checker', () => {
     expect(checkAnswer('1.0', '1.0', 'numeric_input').is_correct).toBe(true);
@@ -126,6 +160,11 @@ describe('checkAnswer (dispatch)', () => {
   it('routes multiple_choice and true_false to the multiple-choice checker', () => {
     expect(checkAnswer('a', 'A', 'multiple_choice').is_correct).toBe(true);
     expect(checkAnswer('true', 'TRUE', 'true_false').is_correct).toBe(true);
+  });
+
+  it('routes multi_select to the set-equality checker (not text match)', () => {
+    expect(checkAnswer('["D","B"]', '["B","D"]', 'multi_select').is_correct).toBe(true);
+    expect(checkAnswer('["B"]', '["B","D"]', 'multi_select').is_correct).toBe(false);
   });
 
   it('routes short_answer to text checker with partial matching on', () => {
