@@ -273,6 +273,8 @@ export function checkAnswer(
       return checkNumericAnswer(userAnswer, correctAnswer, tolerance);
     case 'multiple_choice':
     case 'true_false':
+    case 'hotspot':
+      // hotspot answers are a single region id — plain string match.
       return checkMultipleChoice(userAnswer, correctAnswer);
     case 'multi_select':
       return checkMultiSelect(userAnswer, correctAnswer);

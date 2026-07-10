@@ -384,6 +384,21 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       };
     }
 
+    // hotspot options are an object { regions:[{id,label}] }; shuffle the region
+    // order for display but keep the object shape.
+    if (q.question_type === 'hotspot') {
+      const raw = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options || {});
+      const regions = Array.isArray(raw.regions) ? [...raw.regions].sort(() => Math.random() - 0.5) : [];
+      return {
+        id: q.id,
+        question_text: q.question_text,
+        question_type: q.question_type,
+        options: { regions },
+        difficulty: q.difficulty,
+        tags: q.tags,
+      };
+    }
+
     // Standard question types
     const opts = q.question_type === 'short_answer' || q.question_type === 'numeric_input'
       ? []
@@ -564,6 +579,20 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         correct_answer: q.correct_answer,
         explanation: q.explanation || '',
         partial_score: result.partial_score,
+      };
+    }
+
+    // Hotspot — the answer is the chosen region id; grade as a plain
+    // (case-insensitive) string match against the correct region id.
+    if (qType === 'hotspot') {
+      const isCorrect = (a.user_answer || '').trim().toLowerCase() === (q.correct_answer || '').trim().toLowerCase();
+      totalScore += isCorrect ? 1 : 0;
+      return {
+        question_id: a.question_id,
+        user_answer: a.user_answer,
+        is_correct: isCorrect,
+        correct_answer: q.correct_answer,
+        explanation: q.explanation || '',
       };
     }
 

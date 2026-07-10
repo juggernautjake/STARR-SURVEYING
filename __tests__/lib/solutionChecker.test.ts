@@ -200,6 +200,12 @@ describe('checkAnswer (dispatch)', () => {
     expect(checkAnswer('["A","C","B"]', '["A","B","C"]', 'ordering').is_correct).toBe(false);
   });
 
+  it('routes hotspot to a region-id string match', () => {
+    expect(checkAnswer('N', 'N', 'hotspot').is_correct).toBe(true);
+    expect(checkAnswer(' n ', 'N', 'hotspot').is_correct).toBe(true);
+    expect(checkAnswer('H', 'N', 'hotspot').is_correct).toBe(false);
+  });
+
   it('routes drag_label position-wise (each target must match)', () => {
     // arrays are parallel to the targets: [target0 term, target1 term, ...]
     expect(checkAnswer('["Plumb line","Optical axis"]', '["Plumb line","Optical axis"]', 'drag_label').is_correct).toBe(true);

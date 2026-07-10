@@ -5,12 +5,18 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Loader2, FileText } from 'lucide-react';
 import FillBlankQuestion from './FillBlankQuestion';
 
-type QuestionType = 'multiple_choice' | 'true_false' | 'short_answer' | 'fill_blank' | 'multi_select' | 'ordering' | 'drag_label' | 'numeric_input' | 'math_template' | 'essay';
+type QuestionType = 'multiple_choice' | 'true_false' | 'short_answer' | 'fill_blank' | 'multi_select' | 'ordering' | 'drag_label' | 'hotspot' | 'numeric_input' | 'math_template' | 'essay';
 
 // For drag_label questions the API sends `options` as an object (terms +
 // target prompts) instead of a string[]. This shape is client-visible; the
 // correct term-per-target mapping stays server-side in correct_answer.
 interface DragLabelOptions { terms: string[]; targets: string[] }
+
+// For hotspot questions `options` is an object listing the selectable regions
+// (id + human label). The answer is the chosen region id; the correct region id
+// stays server-side in correct_answer (graded like multiple_choice).
+interface HotspotRegion { id: string; label: string }
+interface HotspotOptions { regions: HotspotRegion[] }
 
 interface Question {
   id: string;
@@ -311,6 +317,15 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
   function pickDragTerm(qId: string, term: string) {
     setDragPick(prev => ({ ...prev, [qId]: prev[qId] === term ? '' : term }));
   }
+
+  // Hotspot: `options` is a { regions:[{id,label}] } object.
+  function getHotspotRegions(q: Question): HotspotRegion[] {
+    const o = q.options as unknown as HotspotOptions | string[];
+    if (o && !Array.isArray(o) && Array.isArray((o as HotspotOptions).regions)) {
+      return (o as HotspotOptions).regions || [];
+    }
+    return [];
+  }
   // Tap a target slot: place the picked term (moving it off any other slot), or
   // if nothing is picked and the slot is filled, clear it back to the pool.
   function placeDragLabel(q: Question, targetIdx: number) {
@@ -546,6 +561,8 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
                 {q.question_type === 'fill_blank' && <span className="quiz__question-type-badge">Fill in the Blank</span>}
                 {q.question_type === 'multi_select' && <span className="quiz__question-type-badge">Select All That Apply</span>}
                 {q.question_type === 'ordering' && <span className="quiz__question-type-badge">Put In Order</span>}
+                {q.question_type === 'drag_label' && <span className="quiz__question-type-badge">Label the Diagram</span>}
+                {q.question_type === 'hotspot' && <span className="quiz__question-type-badge">Select the Element</span>}
                 {(q.question_type === 'numeric_input' || q._original_type === 'math_template') && <span className="quiz__question-type-badge">Numeric Answer</span>}
                 {q.question_type === 'essay' && <span className="quiz__question-type-badge">AI-Graded Essay</span>}
               </div>
@@ -665,6 +682,35 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
                       >
                         <span className="quiz__drag-target-prompt">{prompt}</span>
                         <span className="quiz__drag-target-slot">{assign[ti] || '—'}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
+
+            {/* Hotspot — click the region on the figure that answers the prompt */}
+            {q.question_type === 'hotspot' && (() => {
+              const regions = getHotspotRegions(q);
+              const chosen = answers[q.id] || '';
+              return (
+                <>
+                  <p className="quiz__question-text">{q.question_text}</p>
+                  {q._diagram && (
+                    <div className="quiz__diagram" style={{ margin: '0.75rem 0', maxWidth: 540 }} dangerouslySetInnerHTML={{ __html: q._diagram }} />
+                  )}
+                  <div className="quiz__hotspot-regions" role="radiogroup" aria-label="Select the correct element">
+                    {regions.map(r => (
+                      <button
+                        type="button"
+                        key={r.id}
+                        role="radio"
+                        aria-checked={chosen === r.id}
+                        className={`quiz__hotspot-region ${chosen === r.id ? 'quiz__hotspot-region--selected' : ''}`}
+                        onClick={() => setAnswers(prev => ({ ...prev, [q.id]: r.id }))}
+                      >
+                        <span className="quiz__hotspot-id">{r.id}</span>
+                        <span className="quiz__hotspot-label">{r.label}</span>
                       </button>
                     ))}
                   </div>
