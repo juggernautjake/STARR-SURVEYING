@@ -9,8 +9,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Barlow+Condensed:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@400;500;700;900&family=Audiowide&family=Chakra+Petch:wght@400;600;700&family=Rajdhani:wght@500;600;700&family=Syncopate:wght@400;700&family=Michroma&display=swap');
 /* Pixel / CRT-terminal faces for bespoke streamer skins (e.g. skin-streamer). */
 @import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=VT323&family=Silkscreen:wght@400;700&family=Press+Start+2P&display=swap');
-/* Rounded "brand deck" faces for the bespoke MLM skin (skin-donata). */
-@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Poppins:ital,wght@0,400;0,500;0,600;0,700;1,500&family=Space+Mono:wght@400;700&display=swap');
+/* Rounded, chunky "candy scrapbook" faces for the bespoke MLM skin (skin-donata / Mojo Bazaar). */
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Nunito:ital,wght@0,400;0,600;0,700;0,800;1,600&family=Fredoka:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap');
 
 .dnd-sheet {
   --void: #080512;
@@ -2806,89 +2806,56 @@
 }
 
 /* =========================================================================
-   BESPOKE SKIN — skin-donata  (Donata Dime · Mighty Mojo's Mighty Magic Maguffins)
-   A pearlescent holographic "girlboss-glam x prehistoric-saurian x MLM-flash" skin.
-   LIGHT theme, so we flip the base sheet's hardcoded white headings to --ink.
-   Every selector is prefixed .dnd-sheet.skin-donata so it touches nothing else.
+   BESPOKE SKIN — skin-donata  ·  "MOJO BAZAAR"  (Donata Dime)
+   A classic-Neopets candy-scrapbook look: warm parchment page, glossy rounded
+   chunky chrome, sticker badges, cheerful candy accents. LIGHT theme — the base
+   engine hard-codes white on many headings, so we flip ALL of them to --ink, and
+   every saturated background sets its own readable text color (no light-on-light,
+   no dark-on-dark). Every selector is prefixed .dnd-sheet.skin-donata.
+   Spec: docs/planning/in-progress/DND_DONATA_SHEET_REDESIGN_2026-07-09.md
    ========================================================================= */
 .dnd-sheet.skin-donata {
-  --sk-accent: 224, 20, 140;    /* mojo magenta */
-  --sk-accent2: 139, 63, 240;   /* electric violet */
-  --sk-accent3: 201, 138, 10;   /* diamond gold */
-  --sk-harmony: 11, 183, 201;   /* harmonyte cyan (used sparingly) */
-  --sk-base: linear-gradient(165deg, #fff5fd 0%, #fbe9ff 32%, #f3e6ff 60%, #fff2f9 100%);
-  --sk-panel-soft: #fffafe;
-  --sk-scroll-edge: #f7e2ff;
-  --sk-onaccent-ink: #4a0b40;
+  --sk-rasp: 194, 24, 91;      /* raspberry (primary) */
+  --sk-grape: 123, 44, 191;    /* grape violet */
+  --sk-teal: 13, 143, 126;     /* deep candy teal */
+  --sk-gold: 184, 115, 10;     /* amber */
+  --sk-cream: #fffef9;
+  --sk-cream-2: #fbf3e0;
+  --sk-ink: #3a2140;
   background:
-    repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.10) 0 2px, transparent 2px 8px),
-    radial-gradient(720px 460px at 86% -6%, rgba(var(--sk-accent3), 0.20), transparent 60%),
-    radial-gradient(820px 520px at -6% 10%, rgba(var(--sk-accent), 0.24), transparent 58%),
-    radial-gradient(900px 640px at 50% 116%, rgba(var(--sk-accent2), 0.20), transparent 62%),
-    radial-gradient(520px 420px at 22% 58%, rgba(var(--sk-harmony), 0.10), transparent 60%),
-    var(--sk-base);
-  background-attachment: fixed;
+    /* faint tiled polka-dot pattern (two offset grids) */
+    radial-gradient(circle, rgba(var(--sk-rasp), 0.06) 1.5px, transparent 2px) 0 0 / 26px 26px,
+    radial-gradient(circle, rgba(var(--sk-grape), 0.05) 1.5px, transparent 2px) 13px 13px / 26px 26px,
+    /* soft warm candy wash */
+    radial-gradient(900px 560px at 88% -8%, rgba(var(--sk-teal), 0.10), transparent 60%),
+    radial-gradient(820px 520px at -6% 8%, rgba(var(--sk-rasp), 0.10), transparent 58%),
+    linear-gradient(168deg, #fdf4e3 0%, #fdeef2 45%, #eefaf3 100%);
+  /* NOT fixed — the sheet is very tall; a scroll-attached background covers its full
+     height so the footer never falls onto the dark site chrome behind it. */
+  min-height: 100vh;
   color: var(--ink);
   isolation: isolate;
 }
-/* Floating gem/sparkle aura behind the content — "manifested abundance." */
-.dnd-sheet.skin-donata::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0.55;
-  background:
-    radial-gradient(circle at 12% 30%, rgba(var(--sk-accent), 0.9) 0 3px, transparent 4px),
-    radial-gradient(circle at 26% 20%, rgba(255, 255, 255, 0.95) 0 2px, transparent 3px),
-    radial-gradient(circle at 33% 78%, rgba(var(--sk-accent2), 0.9) 0 3px, transparent 4px),
-    radial-gradient(circle at 52% 66%, rgba(var(--sk-accent3), 0.95) 0 3px, transparent 4px),
-    radial-gradient(circle at 68% 82%, rgba(var(--sk-accent2), 0.85) 0 2px, transparent 3px),
-    radial-gradient(circle at 84% 34%, rgba(var(--sk-accent3), 0.9) 0 3px, transparent 4px),
-    radial-gradient(circle at 90% 72%, rgba(var(--sk-accent), 0.85) 0 2px, transparent 3px),
-    radial-gradient(circle at 7% 84%, rgba(255, 255, 255, 0.9) 0 2px, transparent 3px),
-    radial-gradient(circle at 46% 90%, rgba(var(--sk-accent), 0.8) 0 2px, transparent 3px),
-    radial-gradient(circle at 63% 12%, rgba(var(--sk-accent2), 0.85) 0 3px, transparent 4px);
-  animation: donata-float 7s ease-in-out infinite;
+@media (prefers-color-scheme: dark) {
+  /* The skin is a light theme; keep it light even under a dark OS theme so text
+     never lands dark-on-dark. */
+  .dnd-sheet.skin-donata { color: var(--ink); }
 }
-@keyframes donata-float {
-  0%, 100% { transform: translateY(0); opacity: 0.42; }
-  50% { transform: translateY(-9px); opacity: 0.6; }
-}
-/* Fine sparkle field + a diagonal holo-foil shimmer, drifting. Non-interactive. */
-.dnd-sheet.skin-donata::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 55;
-  pointer-events: none;
-  opacity: 0.5;
-  background:
-    radial-gradient(circle, rgba(255, 255, 255, 0.95) 0.6px, transparent 1.7px) 0 0 / 30px 30px,
-    radial-gradient(circle, rgba(var(--sk-accent3), 0.8) 0.6px, transparent 1.7px) 15px 15px / 60px 60px,
-    linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.14) 48%, rgba(var(--sk-harmony), 0.10) 52%, transparent 60%);
-  background-size: 30px 30px, 60px 60px, 300% 300%;
-  animation: donata-drift 9s linear infinite, donata-shimmer 8s ease-in-out infinite;
-}
-@keyframes donata-drift { from { background-position: 0 0, 15px 15px, 0 0; } to { background-position: 30px 30px, 45px 45px, 0 0; } }
-@keyframes donata-shimmer { 0%, 100% { background-position: 0 0, 15px 15px, 0% 50%; } 50% { background-position: 0 0, 15px 15px, 100% 50%; } }
-.dnd-sheet.skin-donata ::selection { background: rgba(var(--sk-accent), 0.26); color: var(--ink); }
+.dnd-sheet.skin-donata ::selection { background: rgba(var(--sk-rasp), 0.22); color: var(--ink); }
 .dnd-sheet.skin-donata ::-webkit-scrollbar-thumb {
-  background: linear-gradient(var(--gold), var(--hotpink));
-  border: 3px solid var(--sk-scroll-edge);
+  background: linear-gradient(var(--pink), var(--violet));
+  border: 3px solid #fbe9f2;
   border-radius: 999px;
 }
 
-/* Flip the base sheet's hardcoded white headings/values to the deep-aubergine ink. */
-.dnd-sheet.skin-donata .stat .big,
+/* --- Flip every base white/dark-on-dark heading & value to the deep-plum ink --- */
 .dnd-sheet.skin-donata h2,
 .dnd-sheet.skin-donata strong,
 .dnd-sheet.skin-donata .card h3,
+.dnd-sheet.skin-donata .stat .big,
 .dnd-sheet.skin-donata .ab .score,
 .dnd-sheet.skin-donata .form-name,
 .dnd-sheet.skin-donata .res-head .rn,
-.dnd-sheet.skin-donata .tray-fab,
 .dnd-sheet.skin-donata .tray-title,
 .dnd-sheet.skin-donata .ability-name,
 .dnd-sheet.skin-donata .roll-entry .re-label,
@@ -2896,73 +2863,279 @@
 .dnd-sheet.skin-donata .vpill .vv,
 .dnd-sheet.skin-donata .apill .asc,
 .dnd-sheet.skin-donata .inline-edit,
-.dnd-sheet.skin-donata .adv-seg button.on-flat {
+.dnd-sheet.skin-donata .re-total,
+.dnd-sheet.skin-donata .dc-n {
   color: var(--ink);
 }
+.dnd-sheet.skin-donata h2 { text-transform: none; letter-spacing: 0.005em; }
+.dnd-sheet.skin-donata .card h3 { text-transform: none; letter-spacing: 0.005em; }
 
-/* Panels get a soft rounded, glossy "brand card" treatment. */
-.dnd-sheet.skin-donata .card {
-  background: linear-gradient(170deg, var(--sk-panel-soft), #fdeeff);
-  border: 1px solid rgba(var(--sk-accent), 0.28);
-  border-radius: 16px;
-  box-shadow: 0 14px 34px -20px rgba(var(--sk-accent2), 0.7);
+/* ------------------------------------------------------------------ HERO
+   A cream "shop-awning" banner: cream ground + a candy gradient top strip,
+   chunky rounded border, soft shadow, faint star sprinkle. Dark text throughout. */
+.dnd-sheet.skin-donata .hero {
+  background:
+    radial-gradient(circle at 18% 26%, rgba(var(--sk-rasp), 0.10) 0 4px, transparent 5px),
+    radial-gradient(circle at 78% 70%, rgba(var(--sk-teal), 0.12) 0 4px, transparent 5px),
+    radial-gradient(circle at 62% 20%, rgba(var(--sk-gold), 0.12) 0 3px, transparent 4px),
+    linear-gradient(180deg, #fffdf6, #fdeef4);
+  border: 3px solid #fff;
+  outline: 2px solid rgba(var(--sk-grape), 0.5);
+  border-radius: 22px;
+  box-shadow: 0 14px 34px -20px rgba(var(--sk-grape), 0.6);
 }
-.dnd-sheet.skin-donata .card::before { border-radius: 16px 16px 0 0; }
+/* candy "awning" strip across the top of the hero */
+.dnd-sheet.skin-donata .hero::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 10px;
+  background: repeating-linear-gradient(90deg, var(--hotpink) 0 26px, var(--violet) 26px 52px, var(--teal) 52px 78px, var(--gold) 78px 104px);
+  opacity: 0.9;
+}
+.dnd-sheet.skin-donata h1.name {
+  font-weight: 800;
+  letter-spacing: 0.005em;
+  text-transform: none;
+  background: linear-gradient(96deg, #c2185b 0%, #7b2cbf 40%, #0d8f7e 72%, #b8730a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 0 rgba(255, 255, 255, 0.8)) drop-shadow(0 3px 6px rgba(var(--sk-grape), 0.25));
+}
+.dnd-sheet.skin-donata .kicker {
+  font-family: var(--font-mono);
+  color: var(--violet-2);
+  letter-spacing: 0.18em;
+}
+.dnd-sheet.skin-donata .hero .role {
+  text-transform: none;
+  color: var(--ink);
+  font-weight: 600;
+  opacity: 0.92;
+}
 
-/* Buttons: glossy magenta->violet pill with a sweep. */
-.dnd-sheet.skin-donata .btn.solid {
-  color: #fff;
-  text-shadow: none;
-  background: linear-gradient(120deg, var(--hotpink), var(--violet));
-  border-color: transparent;
+/* ------------------------------------------------------------------ CHIPS
+   Sticker / enamel-pin badges: pastel fill, chunky candy border, dark text. */
+.dnd-sheet.skin-donata .chip {
+  font-family: var(--font-body);
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-weight: 700;
+  color: var(--ink);
+  background: #fff;
+  border: 2px solid rgba(var(--sk-grape), 0.45);
   border-radius: 999px;
-  box-shadow: 0 8px 18px -8px rgba(var(--sk-accent2), 0.8);
+  box-shadow: 0 2px 0 rgba(var(--sk-grape), 0.18);
 }
-.dnd-sheet.skin-donata .btn.solid:hover { filter: brightness(1.06); transform: translateY(-1px); }
-.dnd-sheet.skin-donata .btn { border-radius: 999px; }
-.dnd-sheet.skin-donata .card h3 .lvl { color: var(--sk-onaccent-ink); }
-.dnd-sheet.skin-donata .adv-seg button.on-dis { color: var(--danger); }
+.dnd-sheet.skin-donata .chip.pink { background: #ffe3f0; border-color: var(--hotpink); color: #8a1042; }
+.dnd-sheet.skin-donata .chip.teal { background: #d7f6ef; border-color: var(--tealbright); color: #0a5e52; }
+.dnd-sheet.skin-donata .chip.gold { background: #fdeecb; border-color: var(--gold); color: #7a4d06; }
 
-/* De-cyan tints -> magenta; glossy focus rings. */
-.dnd-sheet.skin-donata th { background: rgba(var(--sk-accent), 0.09); }
-.dnd-sheet.skin-donata .callout { border-left-color: var(--hotpink); background: rgba(var(--sk-accent), 0.06); }
+/* ------------------------------------------------------------------ TABS
+   Rounded chunky "shop tabs"; active tab lifts with a candy gradient + white text. */
+.dnd-sheet.skin-donata .tabs { gap: 6px; border-bottom: none; }
+.dnd-sheet.skin-donata .tab {
+  background: #fff;
+  color: var(--violet-2);
+  border: 2px solid rgba(var(--sk-grape), 0.3);
+  border-bottom: none;
+  border-radius: 14px 14px 0 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+.dnd-sheet.skin-donata .tab:hover { background: #fdeef4; color: var(--hotpink); }
+.dnd-sheet.skin-donata .tab.on {
+  background: linear-gradient(160deg, var(--hotpink), var(--violet));
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 -3px 12px -4px rgba(var(--sk-rasp), 0.6);
+}
+.dnd-sheet.skin-donata .tab.on::before { display: none; }
+.dnd-sheet.skin-donata .tab .tab-emoji { filter: none; }
+
+/* ------------------------------------------------------------- SECTION HEADS
+   A friendly ribbon: a raspberry number-pill + a plum title + a candy underline. */
+.dnd-sheet.skin-donata .sec-head {
+  border-bottom: 3px dotted rgba(var(--sk-grape), 0.4);
+  align-items: center;
+}
+.dnd-sheet.skin-donata .sec-num {
+  font-family: var(--font-mono);
+  color: #fff;
+  background: linear-gradient(160deg, var(--hotpink), var(--violet));
+  padding: 3px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+.dnd-sheet.skin-donata p.lead { color: var(--muted); }
+
+/* ------------------------------------------------------------------ CARDS
+   Cream "brand cards": rounded, chunky pastel border, soft shadow, candy top rule. */
+.dnd-sheet.skin-donata .card {
+  background: var(--sk-cream);
+  border: 2px solid rgba(var(--sk-grape), 0.22);
+  border-radius: 18px;
+  box-shadow: 0 10px 26px -18px rgba(var(--sk-grape), 0.55);
+}
+.dnd-sheet.skin-donata .card h3 {
+  padding-bottom: 8px;
+  border-bottom: 2px solid rgba(var(--sk-rasp), 0.18);
+}
+.dnd-sheet.skin-donata .card h3 .lvl {
+  color: #fff;
+  background: linear-gradient(160deg, var(--hotpink), var(--violet));
+  border-radius: 999px;
+}
+
+/* ------------------------------------------------------------------ BUTTONS
+   Glossy web-2.0 gradient pills with a top sheen; readable text on every variant. */
+.dnd-sheet.skin-donata .btn {
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  color: var(--violet-2);
+  background: #fff;
+  border: 2px solid rgba(var(--sk-grape), 0.4);
+  position: relative;
+  overflow: hidden;
+}
+.dnd-sheet.skin-donata .btn::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 55% 0;
+  background: linear-gradient(rgba(255, 255, 255, 0.5), transparent);
+  pointer-events: none;
+}
+.dnd-sheet.skin-donata .btn:hover { background: #fdeef4; color: var(--hotpink); transform: translateY(-1px); }
+.dnd-sheet.skin-donata .btn.solid { color: #fff; background: linear-gradient(160deg, var(--hotpink), var(--violet)); border-color: transparent; }
+.dnd-sheet.skin-donata .btn.pink { color: #fff; background: linear-gradient(160deg, #ff5fa8, var(--hotpink)); border-color: transparent; }
+.dnd-sheet.skin-donata .btn.teal { color: #fff; background: linear-gradient(160deg, var(--teal), var(--tealbright)); border-color: transparent; }
+.dnd-sheet.skin-donata .btn.gold { color: #4a2f04; background: linear-gradient(160deg, #f5c542, #e0951a); border-color: transparent; }
+.dnd-sheet.skin-donata .btn.danger { color: #fff; background: linear-gradient(160deg, #f0577a, var(--danger)); border-color: transparent; }
+.dnd-sheet.skin-donata .btn.ghost { background: transparent; color: var(--violet-2); }
+.dnd-sheet.skin-donata .btn.solid:hover,
+.dnd-sheet.skin-donata .btn.pink:hover,
+.dnd-sheet.skin-donata .btn.teal:hover,
+.dnd-sheet.skin-donata .btn.gold:hover,
+.dnd-sheet.skin-donata .btn.danger:hover { filter: brightness(1.05); transform: translateY(-1px); }
+.dnd-sheet.skin-donata .btn.active,
+.dnd-sheet.skin-donata .btn.on { color: #fff; background: linear-gradient(160deg, var(--hotpink), var(--violet)); border-color: transparent; }
+.dnd-sheet.skin-donata .btn:disabled { opacity: 0.5; }
+
+/* ------------------------------------------------------------ INPUTS / FIELDS */
+.dnd-sheet.skin-donata input:not([type='range']),
+.dnd-sheet.skin-donata textarea,
+.dnd-sheet.skin-donata select {
+  background: #fff;
+  color: var(--ink);
+  border: 2px solid rgba(var(--sk-grape), 0.3);
+  border-radius: 10px;
+}
+.dnd-sheet.skin-donata input::placeholder,
+.dnd-sheet.skin-donata textarea::placeholder { color: var(--muted-2); }
 .dnd-sheet.skin-donata input:not([type='range']):focus,
 .dnd-sheet.skin-donata textarea:focus,
 .dnd-sheet.skin-donata select:focus {
   border-color: var(--hotpink);
-  box-shadow: 0 0 0 2px rgba(var(--sk-accent), 0.22);
+  box-shadow: 0 0 0 3px rgba(var(--sk-rasp), 0.18);
+  outline: none;
 }
 
-/* Chips read as shiny enamel pins. */
-.dnd-sheet.skin-donata .chip {
-  border-radius: 999px;
-  border: 1px solid rgba(var(--sk-accent), 0.4);
-  box-shadow: inset 0 -2px 6px rgba(var(--sk-accent), 0.12);
+/* --------------------------------------------------------- STATS / ABILITIES */
+.dnd-sheet.skin-donata .stat {
+  background: var(--panel-2);
+  border: 2px solid rgba(var(--sk-rasp), 0.2);
+  border-radius: 14px;
 }
+.dnd-sheet.skin-donata .stat .lab { color: var(--muted); }
+.dnd-sheet.skin-donata .stat .big { color: var(--hotpink); }
+.dnd-sheet.skin-donata .stat .sub { color: var(--muted); }
+.dnd-sheet.skin-donata .ab {
+  background: var(--panel-3);
+  border: 2px solid rgba(var(--sk-teal), 0.22);
+  border-radius: 14px;
+}
+.dnd-sheet.skin-donata .ab .name { color: var(--muted); }
+.dnd-sheet.skin-donata .ab .score { color: var(--ink); }
+.dnd-sheet.skin-donata .ab .mod { color: var(--tealbright); }
+.dnd-sheet.skin-donata .ab.primary { border-color: var(--hotpink); }
+.dnd-sheet.skin-donata .ab.primary .mod { color: var(--hotpink); }
 
-/* Hero name: iridescent holo-foil gradient text with a slow shimmer. */
-.dnd-sheet.skin-donata h1.name {
-  background: linear-gradient(100deg, #ff49c0, #a855f7 42%, #0bb7c9 74%, #f5c542);
-  background-size: 300% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: donata-name 9s linear infinite;
+/* ------------------------------------------------------------------ TABLES */
+.dnd-sheet.skin-donata .table-wrap {
+  border: 2px solid rgba(var(--sk-grape), 0.22);
+  border-radius: 14px;
+  overflow: hidden;
 }
-@keyframes donata-name { to { background-position: 300% 0; } }
-.dnd-sheet.skin-donata .kicker { color: var(--violet); letter-spacing: 0.16em; }
+.dnd-sheet.skin-donata th {
+  background: var(--panel-3);
+  color: var(--tealbright);
+  text-transform: none;
+  letter-spacing: 0.01em;
+  border-bottom: 2px solid rgba(var(--sk-teal), 0.25);
+}
+.dnd-sheet.skin-donata td { color: var(--ink); }
+.dnd-sheet.skin-donata tr.here { background: rgba(var(--sk-rasp), 0.1); }
+.dnd-sheet.skin-donata tr.here td { color: var(--ink); }
+
+/* ------------------------------------------------------------- RESOURCE PIPS */
+.dnd-sheet.skin-donata .pip { border-radius: 7px; border-color: rgba(var(--sk-grape), 0.4); }
+.dnd-sheet.skin-donata .pip.filled { background: var(--hotpink); border-color: var(--hotpink); }
+.dnd-sheet.skin-donata .pip.teal.filled { background: var(--tealbright); border-color: var(--tealbright); }
+.dnd-sheet.skin-donata .pip.gold.filled { background: var(--gold); border-color: var(--gold); }
+.dnd-sheet.skin-donata .res-head .rc { color: var(--muted); }
+
+/* ------------------------------------------------------------------ CALLOUTS */
+.dnd-sheet.skin-donata .callout {
+  background: var(--panel-2);
+  border-left: 4px solid var(--hotpink);
+  border-radius: 0 12px 12px 0;
+  color: var(--ink);
+}
+.dnd-sheet.skin-donata .callout.warn { border-left-color: var(--gold); }
+.dnd-sheet.skin-donata .callout h4 { color: var(--ink); }
+
+/* --------------------------------------------------------------- DICE TRAY
+   The dice roller must be crisply readable — cream panel, dark labels, candy
+   buttons with white/dark text (no light-on-light). */
+.dnd-sheet.skin-donata .tray,
+.dnd-sheet.skin-donata .tray.floating {
+  background: var(--sk-cream);
+  border: 2px solid rgba(var(--sk-grape), 0.3);
+  border-radius: 18px;
+  box-shadow: 0 14px 34px -18px rgba(var(--sk-grape), 0.6);
+  color: var(--ink);
+}
+.dnd-sheet.skin-donata .tray-head { background: linear-gradient(160deg, var(--hotpink), var(--violet)); border-radius: 16px 16px 0 0; }
+.dnd-sheet.skin-donata .tray-title { color: #fff; text-transform: none; }
+.dnd-sheet.skin-donata .tray-fab {
+  background: linear-gradient(160deg, var(--hotpink), var(--violet));
+  color: #fff;
+  border: 2px solid #fff;
+  box-shadow: 0 8px 18px -8px rgba(var(--sk-rasp), 0.8);
+}
+.dnd-sheet.skin-donata .adv-seg { background: #f4e8f6; border-radius: 999px; }
+.dnd-sheet.skin-donata .adv-seg button { color: var(--violet-2); background: transparent; }
+.dnd-sheet.skin-donata .adv-seg button.on-adv { background: var(--good); color: #fff; }
+.dnd-sheet.skin-donata .adv-seg button.on-dis { background: var(--danger); color: #fff; }
+.dnd-sheet.skin-donata .adv-seg button.on-flat { background: #fff; color: var(--ink); }
+.dnd-sheet.skin-donata .tray-dice .btn { color: var(--violet-2); background: #fff; }
+.dnd-sheet.skin-donata .tray-dice .btn.solid,
+.dnd-sheet.skin-donata .tray-dice .btn.solid.pink { color: #fff; }
+.dnd-sheet.skin-donata .dice-count { color: var(--ink); }
+.dnd-sheet.skin-donata .dice-count .step { color: var(--violet-2); background: #fff; border: 2px solid rgba(var(--sk-grape), 0.35); }
+.dnd-sheet.skin-donata .re-label,
+.dnd-sheet.skin-donata .re-tag,
+.dnd-sheet.skin-donata .re-total { color: var(--ink); }
+.dnd-sheet.skin-donata .re-top { color: var(--muted); }
+.dnd-sheet.skin-donata .exh-chip { background: var(--panel-2); color: var(--ink); border: 1px solid rgba(var(--sk-grape), 0.3); }
 
 @media (prefers-reduced-motion: reduce) {
-  .dnd-sheet.skin-donata::before,
-  .dnd-sheet.skin-donata::after,
-  .dnd-sheet.skin-donata h1.name { animation: none; }
-}
-
-/* Hero reads as a premium branded "conference stage" banner framing the holo name. */
-.dnd-sheet.skin-donata .kicker { color: var(--gold); }
-.dnd-sheet.skin-donata .hero {
-  background: linear-gradient(135deg, #33103f, #4a0b40 52%, #241246);
-  border: 1px solid rgba(var(--sk-accent3), 0.45);
-  border-radius: 18px;
-  box-shadow: 0 16px 40px -22px rgba(var(--sk-accent), 0.8);
+  .dnd-sheet.skin-donata .btn { transition: none; }
 }
