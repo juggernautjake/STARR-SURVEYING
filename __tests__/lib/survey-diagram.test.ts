@@ -5,7 +5,7 @@
 // (null / empty frame) rather than throw, so a bad figure never breaks a quiz.
 
 import { describe, it, expect } from 'vitest';
-import { buildDiagramFromSpec, renderTowerTwoAngles, renderProfile, renderCrossSection } from '@/lib/diagrams/survey-diagram';
+import { buildDiagramFromSpec, renderTowerTwoAngles, renderProfile, renderCrossSection, renderPlat, renderRoundedCornerLot } from '@/lib/diagrams/survey-diagram';
 
 describe('renderCurve (enriched) via buildDiagramFromSpec', () => {
   const svg = buildDiagramFromSpec({ type: 'curve', rVar: 'R', iVar: 'I' }, { R: 500, I: 60 }) || '';
@@ -114,5 +114,52 @@ describe('renderCrossSection', () => {
 
   it('returns null on invalid inputs', () => {
     expect(buildDiagramFromSpec({ type: 'crossSection', halfWidthVar: 'w', slopeVar: 's' }, { w: 12 })).toBeNull();
+  });
+});
+
+describe('renderPlat', () => {
+  it('draws lots with numbers, frontage dims (incl. a "±" remainder) and monuments', () => {
+    const svg = renderPlat(
+      [{ width: 50, label: '1' }, { width: 50, label: '2' }, { width: 50, label: '3' },
+       { width: 50, label: '4' }, { width: 32.3, label: '5', dim: '30±' }],
+      { streetName: 'First Street', monA: 'A', monB: 'B' },
+    );
+    expect(svg).toContain('<svg');
+    expect(svg).toContain('First Street');
+    expect(svg).toContain('30±');       // remainder-lot dimension label
+    expect(svg).toContain('>A<');       // monument A label
+  });
+
+  it('reaches through the dispatcher', () => {
+    const svg = buildDiagramFromSpec({
+      type: 'plat',
+      platLots: [{ widthVar: 'w1', label: '1' }, { widthVar: 'w2', label: '2' }],
+      streetName: 'Easy Street',
+    }, { w1: 50, w2: 60 }) || '';
+    expect(svg).toContain('Easy Street');
+  });
+});
+
+describe('renderRoundedCornerLot', () => {
+  it('labels the sides, radius and 90° and draws an arc', () => {
+    const svg = renderRoundedCornerLot(120, 60, 20);
+    expect(svg).toContain('<svg');
+    expect(svg).toContain("120.00'");
+    expect(svg).toContain("60.00'");
+    expect(svg).toContain('r = 20.00');
+    expect(svg).toContain('90°');
+    expect(svg).toMatch(/ A [\d.]+ [\d.]+ 0 0 0/); // an SVG arc segment
+  });
+
+  it('reaches through the dispatcher', () => {
+    const svg = buildDiagramFromSpec(
+      { type: 'roundedLot', lengthVar: 'L', widthVar: 'W', radiusVar: 'r' },
+      { L: 120, W: 60, r: 20 },
+    ) || '';
+    expect(svg).toContain('r = 20.00');
+  });
+
+  it('fails soft when the radius exceeds a side', () => {
+    expect(renderRoundedCornerLot(120, 60, 80)).not.toContain('90°');
   });
 });

@@ -18,7 +18,7 @@ import type { Point2D } from '../cad/types';
 // ────────────────────────────────────────────────────────────────────────────
 export interface TraverseLegSpec { azVar?: string; az?: number; distVar?: string; dist?: number; label?: string; }
 export interface DiagramSpec {
-  type: 'traverse' | 'inverse' | 'triangle' | 'curve' | 'leveling' | 'compass' | 'towerTwoAngles' | 'profile' | 'crossSection';
+  type: 'traverse' | 'inverse' | 'triangle' | 'curve' | 'leveling' | 'compass' | 'towerTwoAngles' | 'profile' | 'crossSection' | 'plat' | 'roundedLot';
   // traverse
   startNVar?: string; startEVar?: string;
   legs?: TraverseLegSpec[];
@@ -42,6 +42,11 @@ export interface DiagramSpec {
   cutStaVar?: string; cutSta?: number; cutLabel?: string;
   // crossSection: road half-width + side-slope ratio + cut/fill mode
   halfWidthVar?: string; slopeVar?: string; cutFill?: 'cut' | 'fill';
+  // plat: lots along a frontage (width by var or literal, optional dim label)
+  platLots?: { widthVar?: string; width?: number; label?: string; dim?: string }[];
+  streetName?: string; monA?: string; monB?: string;
+  // roundedLot: rectangle len × wid with one corner cut by an arc of radius
+  lengthVar?: string; widthVar?: string; radiusVar?: string;
   title?: string;
 }
 
@@ -313,6 +318,53 @@ export function renderCrossSection(halfWidth: number, slope: number, mode: 'cut'
   return svgWrap(g, title || 'Typical Cross-Section');
 }
 
+// Recorded plat — a strip of lots along a street frontage. Each lot is drawn to
+// its (scaled) width with its number inside and a frontage dimension below;
+// monuments mark the ends of the run. Supports excess/deficiency & remainder-lot
+// questions (Q20) and represents a subdivision block (Q19).
+export function renderPlat(
+  lots: { width: number; label?: string; dim?: string }[],
+  opts: { streetName?: string; monA?: string; monB?: string; title?: string } = {},
+): string {
+  if (!lots.length) return svgWrap('', opts.title || 'Plat');
+  const total = lots.reduce((s, l) => s + (l.width > 0 ? l.width : 0), 0) || 1;
+  const L = 60, Rr = W - 40, streetY = H - 96, depth = 108;
+  const scale = (Rr - L) / total;
+  let x = L, g = '';
+  for (const lot of lots) {
+    const w = Math.max(lot.width, 0) * scale;
+    g += `<rect x="${x}" y="${streetY - depth}" width="${w}" height="${depth}" fill="#1D309508" stroke="#1D3095" stroke-width="1.6"/>`;
+    if (lot.label) g += `<text x="${x + w / 2}" y="${streetY - depth / 2 + 4}" text-anchor="middle" font-size="13" font-weight="700" fill="#1D3095">${esc(lot.label)}</text>`;
+    g += `<text x="${x + w / 2}" y="${streetY + 18}" text-anchor="middle" font-size="10" fill="#333">${esc(lot.dim || `${f2(lot.width)}'`)}</text>`;
+    x += w;
+  }
+  g += `<line x1="${L}" y1="${streetY}" x2="${x}" y2="${streetY}" stroke="#333" stroke-width="2.5"/>`;
+  g += `<rect x="${L - 4}" y="${streetY - 4}" width="8" height="8" fill="#c0392b"/>`;
+  g += `<rect x="${x - 4}" y="${streetY - 4}" width="8" height="8" fill="#c0392b"/>`;
+  g += `<text x="${L}" y="${streetY + 34}" text-anchor="middle" font-size="11" font-weight="700" fill="#c0392b">${esc(opts.monA || 'A')}</text>`;
+  g += `<text x="${x}" y="${streetY + 34}" text-anchor="middle" font-size="11" font-weight="700" fill="#c0392b">${esc(opts.monB || 'B')}</text>`;
+  if (opts.streetName) g += `<text x="${(L + x) / 2}" y="${streetY + 50}" text-anchor="middle" font-size="11" font-style="italic" fill="#555">${esc(opts.streetName)}</text>`;
+  return svgWrap(g, opts.title || 'Recorded Plat');
+}
+
+// Rectangular lot (len × wid) with one corner replaced by a 90° arc of radius
+// `rad`. Uniform scale keeps the arc circular. Labels the sides, radius and 90°.
+export function renderRoundedCornerLot(len: number, wid: number, rad: number, title?: string): string {
+  if (!(len > 0) || !(wid > 0) || !(rad > 0) || rad >= len || rad >= wid) return svgWrap('', title || 'Lot');
+  const xf = fitTransform([{ x: 0, y: 0 }, { x: len, y: 0 }, { x: len, y: wid }, { x: 0, y: wid }]);
+  const scale = Math.abs(xf.sx(1) - xf.sx(0));
+  const P = (e: number, n: number) => ({ x: xf.sx(e), y: xf.sy(n) });
+  const BL = P(0, 0), BR = P(len, 0), TR = P(len, wid), topArc = P(rad, wid), leftArc = P(0, wid - rad), ctr = P(rad, wid - rad);
+  const sr = rad * scale;
+  let g = `<path d="M ${BL.x} ${BL.y} L ${BR.x} ${BR.y} L ${TR.x} ${TR.y} L ${topArc.x} ${topArc.y} A ${sr} ${sr} 0 0 0 ${leftArc.x} ${leftArc.y} Z" fill="#1D309508" stroke="#1D3095" stroke-width="2"/>`;
+  g += `<line x1="${ctr.x}" y1="${ctr.y}" x2="${topArc.x}" y2="${topArc.y}" stroke="#c0392b" stroke-width="1" stroke-dasharray="3 2"/>`;
+  g += `<text x="${(ctr.x + topArc.x) / 2 + 4}" y="${(ctr.y + topArc.y) / 2}" font-size="10" fill="#c0392b">r = ${f2(rad)}'</text>`;
+  g += `<text x="${ctr.x + 5}" y="${ctr.y - 4}" font-size="9" fill="#c0392b">90°</text>`;
+  g += `<text x="${(BL.x + BR.x) / 2}" y="${BL.y + 16}" text-anchor="middle" font-size="11" fill="#333">${f2(len)}'</text>`;
+  g += `<text x="${TR.x + 8}" y="${(BR.y + TR.y) / 2}" font-size="11" fill="#333">${f2(wid)}'</text>`;
+  return svgWrap(g, title || 'Lot with Rounded Corner');
+}
+
 function renderLeveling(bs: number, fs: number, title?: string): string {
   const groundY = H - 70, instrX = W / 2;
   let g = `<line x1="30" y1="${groundY}" x2="${W - 30}" y2="${groundY}" stroke="#7a5230" stroke-width="2"/>`;
@@ -414,6 +466,18 @@ export function buildDiagramFromSpec(spec: DiagramSpec | undefined | null, vars:
         const hw = rv(spec.halfWidthVar), sl = rv(spec.slopeVar);
         if (hw == null || sl == null || !isFinite(hw) || !isFinite(sl) || hw <= 0 || sl <= 0) return null;
         return renderCrossSection(hw, sl, spec.cutFill === 'cut' ? 'cut' : 'fill', spec.title);
+      }
+      case 'plat': {
+        const lots = (spec.platLots || [])
+          .map(l => ({ width: num(rv(l.widthVar, l.width)), label: l.label, dim: l.dim }))
+          .filter(l => isFinite(l.width) && l.width > 0);
+        if (lots.length < 1) return null;
+        return renderPlat(lots, { streetName: spec.streetName, monA: spec.monA, monB: spec.monB, title: spec.title });
+      }
+      case 'roundedLot': {
+        const len = rv(spec.lengthVar), wid = rv(spec.widthVar), rad = rv(spec.radiusVar);
+        if ([len, wid, rad].some(v => v == null || !isFinite(v as number))) return null;
+        return renderRoundedCornerLot(len as number, wid as number, rad as number, spec.title);
       }
       default:
         return null;
