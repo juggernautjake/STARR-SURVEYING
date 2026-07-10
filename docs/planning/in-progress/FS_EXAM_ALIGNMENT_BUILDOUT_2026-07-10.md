@@ -267,7 +267,7 @@ build slice in **Appendix A**.
 ### Phase D — Every exam question → template/variant-pool (by category)
 | Slice | What | Status |
 |---|---|---|
-| **S13** | **Applied Math & Stats (Cat 7):** Q47 std-dev-of-mean, Q48 error-propagation(perimeter), Q46 two-angle height (+figure), Q29 spherical triangle, Q49 ft-in→decimal, Q39 order-of-operations. Parametric templates + linked bank rows. Seed `424_*`. | **TODO** |
+| **S13** | Applied Math & Stats templates. | **DONE** (8468601b) — 5 regenerable templates (verified 40/40): Q48 perimeter error-prop (0.50), Q46 two-angle tower height + `towerTwoAngles` figure attaching 40/40, Q29 spherical triangle, Q49 ft-in→decimal, Q39 order-of-ops; + static Q47 std-dev-of-mean mirror (±0.9"). Seed 429, applied to live DB. |
 | **S14** | **Survey Computations (Cat 5):** Q35 fractional-lot area, Q36 rounded-corner area (+figure), Q37 curve angle (+figure), Q38 vertical-curve low point, Q33 trig leveling, Q40 slope→horizontal, Q32 traverse-order (ordering). Seed `425_*`. | **TODO** |
 | **S15** | **GNSS/Geodesy (Cat 4 / M6):** Q2 antenna height, Q3 geoid-limiting, Q4 ellipsoid heights, Q26 NGS source, Q27 historical scale factor, Q28 geoid-height (hotspot+figure), Q30 Lambert lines, Q31 SPCS "projected". Templates + variant pools. Seed `426_*`. | **TODO** |
 | **S16** | **Boundary Law (Cat 3 / M7):** Q16 warranty deed, Q17 priority-of-calls (ordering), Q18 easement, Q19 simultaneous conveyance (+plat figure), Q20 remainder lot (+plat figure, parametric excess/deficiency), Q21 metes&bounds parts (ordering), Q22 obliterated corner, Q23 tidal datum, Q24 tax maps, Q25 recording dates. Seed `427_*`. | **TODO** |
