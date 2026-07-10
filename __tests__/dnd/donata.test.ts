@@ -6,8 +6,23 @@ import { getSheetConfig } from '@/app/dnd/_sheet/registry';
 describe('donataDime — the bespoke MLM cleric build', () => {
   const c = donataDime('Donata Dime');
 
+  it('has her cleric spellcasting + full defined spell list', () => {
+    expect(c.spellcasting?.ability).toBe('wis');
+    expect(c.spellcasting?.preparedCap).toBe(6);
+    expect(c.spellcasting?.slots?.[1]?.max).toBe(4);
+    const spells = c.spells ?? [];
+    expect(spells.length).toBeGreaterThanOrEqual(15);
+    expect(spells.some((s) => s.level === 0)).toBe(true); // cantrips
+    const gb = spells.find((s) => s.id === 'guiding-bolt');
+    expect(gb?.attack).toBe(true);
+    expect(gb?.damage?.[0]).toEqual({ dice: '4d6', type: 'radiant' });
+    expect(spells.find((s) => s.id === 'healing-word')?.heal).toBe('1d4');
+    // Domain spells are always prepared (don't count against the cap).
+    expect(spells.find((s) => s.id === 'suggestion')?.alwaysPrepared).toBe(true);
+  });
+
   it('is a structurally valid Character (blank keys + progressionMeta)', () => {
-    const expected = new Set([...Object.keys(blankCharacter('x')), 'progressionMeta']);
+    const expected = new Set([...Object.keys(blankCharacter('x')), 'progressionMeta', 'spells', 'spellcasting']);
     for (const k of Object.keys(c)) expect(expected.has(k)).toBe(true);
     // The always-present blank keys must all still be there.
     for (const k of Object.keys(blankCharacter('x'))) expect(k in c).toBe(true);
