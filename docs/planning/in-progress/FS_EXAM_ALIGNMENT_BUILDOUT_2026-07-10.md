@@ -34,6 +34,36 @@
 
 ---
 
+## FS exam facts (NCEES — authoritative, per user 2026-07-10)
+- **Fee** $225. **Computer-based** at Pearson VUE, year-round.
+- **Attempt limits:** 1 per testing window (calendar quarters Jan–Mar, Apr–Jun,
+  Jul–Sep, Oct–Dec); **max 3 per 12 months** (NOT unlimited).
+- **Format:** **110 questions** (~100 scored + ~10 unscored pretest), **5h20m**
+  working time, ~5h55m appointment, **two halves + a 25-min scheduled break**.
+  Closed book with an on-screen searchable **FS Reference Handbook**. **SI + US
+  units.**
+- **Scoring:** pass/fail, scaled (passing score not published — psychometric
+  standard-setting); **no penalty for wrong answers**; results in 7–10 days.
+- **Blueprint — 7 knowledge areas (scored-Q ranges):** Boundary Law & Real
+  Property **19–29**; Survey Computations & Computer Apps **17–26**; Surveying
+  Processes & Methods **16–24**; Mapping Processes & Methods **14–21**; Surveying
+  Principles **13–20**; Business Concepts **11–17**; Applied Math & Statistics
+  **10–15**. (Range minimums sum to exactly 100.)
+
+**Our 110-question simulator blueprint** (all within NCEES ranges, sums to 110):
+| Knowledge area | Sim count |
+|---|---|
+| Boundary Law & Real Property | 23 |
+| Survey Computations & Computer Apps | 20 |
+| Surveying Processes & Methods | 17 |
+| Mapping Processes & Methods | 15 |
+| Surveying Principles | 14 |
+| Business Concepts | 11 |
+| Applied Mathematics & Statistics | 10 |
+| **Total** | **110** |
+
+---
+
 ## 0. TL;DR — the answer to the user's core questions
 
 1. **Can we generate the exam-style figures programmatically, parameterized by
@@ -215,7 +245,7 @@ build slice in **Appendix A**.
 |---|---|---|
 | **S1** | `multi_select` type. | **DONE** (1e9b77de) — found it was already wired in the quiz path (QuizRunner + `gradeMultiSelect` in the quizzes route); added `checkMultiSelect` + `multi_select` case to the universal `checkAnswer` (latent bug), 7 vitest cases (28 pass), seeds/421 with 3 select-all questions (Q1 mirror + siblings) applied to live DB + verified. |
 | **S2** | `ordering` type. | **DONE** (9f286d43) — built end-to-end (none existed): QuizRunner shuffle-on-load + ▲/▼ reorder list (keyboard-accessible) + styling, `gradeOrdering` in quizzes route, `checkOrdering` + dispatch + 6 vitest (34 pass), widened question_type CHECK constraint (also admits drag_label/hotspot for S3/S4), seeds/422 with Q32/Q21/Q17 applied to live DB + verified. |
-| **S3** | `drag_label` type: engine (labels + target ids), diagram renderers expose named drop-zones, `solutionChecker` mapping grade, drag-onto-figure UI (+ dropdown fallback per target); author Q13. Vitest. | **TODO** |
+| **S3** | `drag_label` type. | **DONE** (69ae25f7) — built end-to-end: options is a `{terms,targets}` object, tap-a-term-then-tap-a-target UI (touch + keyboard accessible) + styling, client shaping shuffles terms/keeps targets, position-wise grading (reuses ordering grader), dispatch + vitest (35 pass), seeds/423 Q13 (tilted-photo geometry) applied + verified. Figure attaches in S8. |
 | **S4** | `hotspot` type: engine (clickable regions on a diagram, correct region id + tolerance), `solutionChecker`, click-on-figure UI (+ labeled-choice fallback); author Q28. Vitest. | **TODO** |
 
 ### Phase B — Diagram renderers
@@ -250,12 +280,14 @@ build slice in **Appendix A**.
 | **S19** | Flashcards + glossary for thin topics (GIS topology, LiDAR LAS, NSSDA 1.7308/1.9600, FEMA Elevation Certificate, Lambert vs TM, spherical trig, geoid height, obliterated vs lost corner). Seed `430_*`. | **TODO** |
 | **S20** | Inject generated/house-style figures into text-only lesson sections (M8 contour/tilted-photo, M6 geoid heights, M7 plat, M5 cross-section/curve, M3/M7 two-angle height). Seed `431_*`. | **TODO** |
 
-### Phase F — Exam-mirror set, verification, wrap
+### Phase F — Exam-mirror set, full simulator, verification, wrap
 | Slice | What | Status |
 |---|---|---|
-| **S21** | Author an **"FS Exam Mirror"** 50-question practice set (`exam_category='FS-MIRROR'`) mirroring the real blueprint & the 7-category mix, drawing the new templates/pools, incl. every new interaction type. Surface it in the SIT mock/practice UI. Seed `432_*`. | **TODO** |
-| **S22** | Apply all seeds `421–432` to **live Supabase** (node-pg), verify counts/render via PostgREST + SQL; run `type-check`, `lint`, `vitest` (engine + diagram snapshots); smoke-test each new question type + each new figure in the quiz route. Record verification in Discovery log. | **TODO** |
-| **S23** | Final QA sweep vs Appendix A (all 50 covered); flip header **Status → ✅ COMPLETED**; `git mv` doc to `completed/`; update README/cross-links; open PR / merge per user direction. | **TODO** |
+| **S21** | Author a short **"FS Exam Mirror"** 50-question practice set (`exam_category='FS-MIRROR'`) mirroring the blueprint proportions and drawing the new templates/pools incl. every interaction type. Surface it in the SIT practice UI. | **TODO** |
+| **S24** | **Full-length end-of-course "FS Exam Simulator" — 110 questions** (`exam_category='FS-SIM'`) built to the blueprint table above (BL 23 / SC 20 / SP 17 / MP 15 / Prin 14 / Bus 11 / Math 10), mixing all question types (MC, multi-select, numeric, ordering, drag-label, hotspot) and SI + US-unit items. Delivery UI: a dedicated **timed** simulator (target 5h20m, two halves + a 25-min break, no wrong-answer penalty, on-screen reference-handbook link), placed at the very end of the course (Module 10 / a new capstone). Reuse the existing mock-exam surface; extend for timing/halves/break. Regenerate on each attempt where items are dynamic. | **TODO** |
+| **S25** | **Exam logistics & strategy lesson** — encode the NCEES facts (fee, quarterly attempt limits / max 3 per 12 mo, 110-Q / 5h20m / two-halves+break format, closed-book searchable handbook, SI+US units, pass/fail scaled scoring, no wrong-answer penalty, blueprint weights) into Module 9/10 `content_sections` + a few flashcards, so students know what to expect. | **TODO** |
+| **S22** | Apply all new seeds to **live Supabase** (node-pg), verify counts/render via PostgREST + SQL; run `type-check`, `lint`, `vitest` (engine + diagram snapshots); smoke-test each new question type + each new figure in the quiz route; run one full 110-Q simulator end-to-end. Record verification in Discovery log. | **TODO** |
+| **S23** | Final QA sweep vs Appendix A (all 50 covered) + simulator built to blueprint; flip header **Status → ✅ COMPLETED**; `git mv` doc to `completed/`; update README/cross-links; merge to main per user authorization. | **TODO** |
 
 ---
 
@@ -292,6 +324,17 @@ build slice in **Appendix A**.
   universal `checkAnswer` dispatch and authored content were missing for S1.
 - **Seed numbering:** assigned in **build order** starting 421 (S1 = 421). The
   per-slice numbers in the Status table are indicative; use the next free number.
+- **2026-07-10 — user additions:** (1) Course must end with a **full 110-question
+  FS Exam Simulator** imitating the real exam → added slice **S24** with the
+  blueprint (BL 23/SC 20/SP 17/MP 15/Prin 14/Bus 11/Math 10 = 110, all within
+  NCEES ranges). (2) Received authoritative **NCEES exam facts** (fee, quarterly
+  attempt limits, 110-Q/5h20m/two-halves+break format, searchable handbook,
+  SI+US, pass/fail no-penalty scoring, blueprint ranges) — captured in the "FS
+  exam facts" block above and added slice **S25** to teach them in-course.
+- **2026-07-10 — S3:** `drag_label` built full-stack. Its `options` is an OBJECT
+  `{terms,targets}` (not a string[]), so the quiz API's client-shaping had to be
+  guarded (it blindly `.sort()`ed options — would crash on the object). Grading
+  reuses the ordering grader (answers are parallel arrays). Figure attaches in S8.
 - **2026-07-10 — S2:** `ordering` did not exist anywhere; built full-stack. The
   live `question_bank_question_type_check` constraint blocked new types — seed
   422 now widens it to also admit `drag_label` + `hotspot`, so **S3/S4 need not
