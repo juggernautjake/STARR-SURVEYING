@@ -6,6 +6,7 @@ import { setMuted, isMuted, primeAudio } from '../lib/audio'
 export default function DiceTray() {
   const { log, clearLog, resetStage, activeRoll, advMode, setAdvMode, transformActive, topFormId, transform, endTransform, nextTurn, recklessActive, toggleReckless, rollCheck, rollExpr, char } = useChar()
   const [open, setOpen] = useState(true)
+  const [histOpen, setHistOpen] = useState(true)   // collapse/expand the roll history
   const [diceCount, setDiceCount] = useState(1)
   const [muted, setMutedState] = useState(isMuted())
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
@@ -158,6 +159,17 @@ export default function DiceTray() {
         </button>
       </div>
 
+      <button
+        type="button"
+        className="tray-hist-head"
+        onClick={() => setHistOpen((v) => !v)}
+        aria-expanded={histOpen}
+        title={histOpen ? 'Hide roll history' : 'Show roll history'}
+      >
+        <span>{histOpen ? '▾' : '▸'} Roll history{log.length ? ` (${log.length})` : ''}</span>
+      </button>
+
+      {histOpen && (
       <div className="tray-log">
         {log.length === 0 && (
           <div className="tray-empty">
@@ -185,6 +197,7 @@ export default function DiceTray() {
           </div>
         ))}
       </div>
+      )}
     </div>
   )
 }
