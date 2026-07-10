@@ -214,7 +214,7 @@ build slice in **Appendix A**.
 | Slice | What | Status |
 |---|---|---|
 | **S1** | `multi_select` type. | **DONE** (1e9b77de) — found it was already wired in the quiz path (QuizRunner + `gradeMultiSelect` in the quizzes route); added `checkMultiSelect` + `multi_select` case to the universal `checkAnswer` (latent bug), 7 vitest cases (28 pass), seeds/421 with 3 select-all questions (Q1 mirror + siblings) applied to live DB + verified. |
-| **S2** | `ordering` type (drag/rank): engine (store correct sequence, shuffle for display), `solutionChecker` sequence grading, drag-reorder UI (keyboard-accessible fallback = number inputs); author Q32, Q21, Q17. Vitest. | **TODO** |
+| **S2** | `ordering` type. | **DONE** (9f286d43) — built end-to-end (none existed): QuizRunner shuffle-on-load + ▲/▼ reorder list (keyboard-accessible) + styling, `gradeOrdering` in quizzes route, `checkOrdering` + dispatch + 6 vitest (34 pass), widened question_type CHECK constraint (also admits drag_label/hotspot for S3/S4), seeds/422 with Q32/Q21/Q17 applied to live DB + verified. |
 | **S3** | `drag_label` type: engine (labels + target ids), diagram renderers expose named drop-zones, `solutionChecker` mapping grade, drag-onto-figure UI (+ dropdown fallback per target); author Q13. Vitest. | **TODO** |
 | **S4** | `hotspot` type: engine (clickable regions on a diagram, correct region id + tolerance), `solutionChecker`, click-on-figure UI (+ labeled-choice fallback); author Q28. Vitest. | **TODO** |
 
@@ -292,6 +292,13 @@ build slice in **Appendix A**.
   universal `checkAnswer` dispatch and authored content were missing for S1.
 - **Seed numbering:** assigned in **build order** starting 421 (S1 = 421). The
   per-slice numbers in the Status table are indicative; use the next free number.
+- **2026-07-10 — S2:** `ordering` did not exist anywhere; built full-stack. The
+  live `question_bank_question_type_check` constraint blocked new types — seed
+  422 now widens it to also admit `drag_label` + `hotspot`, so **S3/S4 need not
+  touch the constraint.** New interaction types follow a clear recipe: (1) add to
+  QuizRunner QuestionType union + render + answered-check + results formatter,
+  (2) add `gradeX` in `app/api/admin/learn/quizzes/route.ts` + type handler, (3)
+  add `checkX` + dispatch in `lib/solutionChecker.ts` + vitest, (4) seed content.
 
 ---
 
