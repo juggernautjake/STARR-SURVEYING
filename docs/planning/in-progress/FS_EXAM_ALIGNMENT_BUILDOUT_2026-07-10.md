@@ -279,7 +279,7 @@ build slice in **Appendix A**.
 | Slice | What | Status |
 |---|---|---|
 | **S19** | Thin-topic flashcards + glossary. | **DONE** (2f6edda1) — 14 flashcards across M6/M7/M8 (Lambert/TM, spherical trig, geoid height, obliterated/lost corner, tidal datum, GIS topology, LAS, NSSDA 1.7308/1.9600, FEMA cert, relief displacement, raster/vector, USGS DEM) + 12 glossary terms. Applied to live DB (224 FS flashcards). Seed 435. |
-| **S20** | Inject generated/house-style figures into text-only lesson sections (M8 contour/tilted-photo, M6 geoid heights, M7 plat, M5 cross-section/curve, M3/M7 two-angle height). Seed `431_*`. | **TODO** |
+| **S20** | Embed generated figures into lessons. | **DONE** (b3782849) — `scripts/gen-lesson-figures.ts` renders 9 static SVGs from the parametric renderers into `public/lessons/fs/diagrams/`; seed 436 embeds them into M3/M5/M6/M7/M8 lesson `concepts` via idempotent `fs_add_figure`. Applied to live DB (9 figures). **Phase E complete.** |
 
 ### Phase F — Exam-mirror set, full simulator, verification, wrap
 | Slice | What | Status |
