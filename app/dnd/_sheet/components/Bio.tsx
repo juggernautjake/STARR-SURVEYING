@@ -10,7 +10,7 @@ export default function Bio() {
     <section id="story">
       <SectionHead num="13" title="Story & Roleplay" />
       <div className="card">
-        <h3>Who Is Lazzuh Gun?</h3>
+        <h3>Who Is {char.meta.name}?</h3>
         {bio.intro.map((p, i) => (
           <p key={i}>{md(p)}</p>
         ))}
@@ -37,11 +37,11 @@ export default function Bio() {
 
       <div className="two">
         <div className="card">
-          <h3>Background — Lab Escapee</h3>
+          <h3>Background</h3>
           <p>{md(bio.background)}</p>
         </div>
         <div className="card">
-          <h3>Playing Lazzuh</h3>
+          <h3>Playing {char.meta.name.split(' ')[0]}</h3>
           <ul className="clean">
             {bio.playTips.map((b, i) => (
               <li key={i}>{md(b)}</li>

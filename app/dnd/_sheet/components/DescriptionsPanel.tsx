@@ -35,7 +35,9 @@ export default function DescriptionsPanel() {
               width: '100%',
               boxSizing: 'border-box',
               marginTop: 4,
-              background: 'rgba(1, 10, 19, 0.5)',
+              // Theme-adaptive field bg (was a hardcoded dark rgba → dark-on-dark on the
+              // light skins). --panel-2 is dark on Lazzuh, cream on Donata; --ink flips to match.
+              background: 'var(--panel-2)',
               border: '1px solid var(--line)',
               color: 'var(--ink)',
               fontFamily: 'var(--font-body)',

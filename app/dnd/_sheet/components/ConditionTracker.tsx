@@ -31,7 +31,7 @@ export default function ConditionTracker() {
             <input
               value={conc}
               onChange={(e) => setConc(e.target.value)}
-              style={{ width: 160, padding: '4px 8px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--line, rgba(255,255,255,0.15))', color: 'inherit', fontSize: 13 }}
+              style={{ width: 160, padding: '4px 8px', background: 'var(--panel-2)', border: '1px solid var(--line, rgba(255,255,255,0.15))', color: 'inherit', fontSize: 13 }}
             />
             <button className="btn tiny" onClick={() => setConc('')} title="Break concentration">✕</button>
           </span>
@@ -52,7 +52,7 @@ export default function ConditionTracker() {
       {adding && (
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 8 }}>
           {CONDITIONS.filter((c) => !active.includes(c)).map((c) => (
-            <button key={c} onClick={() => { toggleCond(c); setAdding(false) }} style={{ ...chip, borderColor: 'var(--line, rgba(255,255,255,0.2))', color: 'inherit', background: 'rgba(0,0,0,0.25)' }}>{c}</button>
+            <button key={c} onClick={() => { toggleCond(c); setAdding(false) }} style={{ ...chip, borderColor: 'var(--line, rgba(255,255,255,0.2))', color: 'inherit', background: 'var(--panel-2)' }}>{c}</button>
           ))}
         </div>
       )}

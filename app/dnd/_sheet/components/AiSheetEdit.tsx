@@ -48,7 +48,7 @@ export default function AiSheetEdit() {
           onKeyDown={(e) => e.key === 'Enter' && ask()}
           placeholder={'e.g. "give them a greatsword & +2 STR", "add a Multiattack feature", "level to 10"'}
           disabled={busy}
-          style={{ flex: 1, minWidth: 220, padding: '8px 10px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--line, rgba(255,255,255,0.15))', color: 'inherit', fontSize: 14 }}
+          style={{ flex: 1, minWidth: 220, padding: '8px 10px', background: 'var(--panel-2)', border: '1px solid var(--line, rgba(255,255,255,0.15))', color: 'inherit', fontSize: 14 }}
         />
         <button className="btn" onClick={ask} disabled={busy || !instruction.trim()}>
           {busy ? 'Thinking…' : 'Ask AI'}
