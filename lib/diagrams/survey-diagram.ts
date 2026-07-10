@@ -18,7 +18,7 @@ import type { Point2D } from '../cad/types';
 // ────────────────────────────────────────────────────────────────────────────
 export interface TraverseLegSpec { azVar?: string; az?: number; distVar?: string; dist?: number; label?: string; }
 export interface DiagramSpec {
-  type: 'traverse' | 'inverse' | 'triangle' | 'curve' | 'leveling' | 'compass';
+  type: 'traverse' | 'inverse' | 'triangle' | 'curve' | 'leveling' | 'compass' | 'towerTwoAngles';
   // traverse
   startNVar?: string; startEVar?: string;
   legs?: TraverseLegSpec[];
@@ -35,6 +35,8 @@ export interface DiagramSpec {
   bsVar?: string; fsVar?: string; biLabel?: string;
   // compass: a single azimuth to illustrate
   azVar?: string;
+  // towerTwoAngles: baseline distance + two elevation angles (deg)
+  dVar?: string; alphaVar?: string; betaVar?: string;
   title?: string;
 }
 
@@ -163,25 +165,77 @@ function renderTriangle(verts: { n: number; e: number; label?: string }[], title
 }
 
 function renderCurve(R: number, I: number, title?: string): string {
-  // Build PC, PI, PT geometry around a circle; central angle I (deg)
-  const cx = W / 2, cy = H / 2 + 40, r = Math.min(W, H) * 0.30;
+  // Build PC, PI, PT geometry around a circle; central angle I (deg).
+  // Labels the full element set: T (tangent), LC (long chord), E (external),
+  // M (middle ordinate), R, I, and the tangent–chord (deflection) angle = I/2.
+  const cx = W / 2, cy = H / 2 + 54, r = Math.min(W, H) * 0.28;
   const half = (I * Math.PI / 180) / 2;
   const a0 = -Math.PI / 2 - half, a1 = -Math.PI / 2 + half; // symmetric about top
   const pc = { x: cx + r * Math.cos(a0), y: cy + r * Math.sin(a0) };
   const pt = { x: cx + r * Math.cos(a1), y: cy + r * Math.sin(a1) };
-  // tangents meet at PI
-  const T = r * Math.tan(half);
-  // tangent direction at PC is perpendicular to radius
-  const ti = { x: cx, y: cy - r / Math.cos(half) }; // PI on the symmetry axis
+  const pi = { x: cx, y: cy - r / Math.cos(half) };  // PI on the symmetry axis
+  const apex = { x: cx, y: cy - r };                 // midpoint of the arc
+  const chordMid = { x: cx, y: (pc.y + pt.y) / 2 };  // midpoint of long chord
+  // true element lengths (for labels)
+  const T = R * Math.tan(half);
+  const LC = 2 * R * Math.sin(half);
+  const E = R / Math.cos(half) - R;
+  const M = R * (1 - Math.cos(half));
   let g = `<path d="M ${pc.x} ${pc.y} A ${r} ${r} 0 0 1 ${pt.x} ${pt.y}" fill="none" stroke="#1D3095" stroke-width="2.5"/>`;
-  g += `<line x1="${pc.x}" y1="${pc.y}" x2="${ti.x}" y2="${ti.y}" stroke="#888" stroke-width="1.4" stroke-dasharray="5 4"/>`;
-  g += `<line x1="${pt.x}" y1="${pt.y}" x2="${ti.x}" y2="${ti.y}" stroke="#888" stroke-width="1.4" stroke-dasharray="5 4"/>`;
+  // tangents PC→PI and PT→PI
+  g += `<line x1="${pc.x}" y1="${pc.y}" x2="${pi.x}" y2="${pi.y}" stroke="#888" stroke-width="1.4" stroke-dasharray="5 4"/>`;
+  g += `<line x1="${pt.x}" y1="${pt.y}" x2="${pi.x}" y2="${pi.y}" stroke="#888" stroke-width="1.4" stroke-dasharray="5 4"/>`;
+  // long chord PC→PT
+  g += `<line x1="${pc.x}" y1="${pc.y}" x2="${pt.x}" y2="${pt.y}" stroke="#0a7a5a" stroke-width="1.6"/>`;
+  // radii to PC/PT + E and M along the symmetry axis
   g += `<line x1="${cx}" y1="${cy}" x2="${pc.x}" y2="${pc.y}" stroke="#bbb" stroke-width="1"/>`;
   g += `<line x1="${cx}" y1="${cy}" x2="${pt.x}" y2="${pt.y}" stroke="#bbb" stroke-width="1"/>`;
-  g += dot(pc.x, pc.y, 'PC') + dot(pt.x, pt.y, 'PT') + dot(ti.x, ti.y, 'PI') + dot(cx, cy, 'O', '#999');
-  g += `<text x="${cx}" y="${cy + 16}" text-anchor="middle" font-size="11" fill="#333">R = ${f2(R)}'</text>`;
-  g += `<text x="${ti.x}" y="${ti.y - 8}" text-anchor="middle" font-size="11" fill="#333">I = ${formatAzimuth(I)}</text>`;
+  g += `<line x1="${pi.x}" y1="${pi.y}" x2="${chordMid.x}" y2="${chordMid.y}" stroke="#c0392b" stroke-width="1" stroke-dasharray="3 3"/>`;
+  g += dot(pc.x, pc.y, 'PC') + dot(pt.x, pt.y, 'PT') + dot(pi.x, pi.y, 'PI') + dot(cx, cy, 'O', '#999');
+  // element labels
+  g += legLabel(pc.x, pc.y, pi.x, pi.y, `T = ${f2(T)}'`);
+  g += `<text x="${cx}" y="${(pc.y + pt.y) / 2 + 16}" text-anchor="middle" font-size="11" fill="#0a7a5a">LC = ${f2(LC)}'</text>`;
+  g += `<text x="${cx + 8}" y="${(pi.y + apex.y) / 2 + 3}" font-size="10" fill="#c0392b">E = ${f2(E)}'</text>`;
+  g += `<text x="${cx + 8}" y="${(apex.y + chordMid.y) / 2 + 3}" font-size="10" fill="#c0392b">M = ${f2(M)}'</text>`;
+  g += `<text x="${cx}" y="${cy + 15}" text-anchor="middle" font-size="11" fill="#333">R = ${f2(R)}'</text>`;
+  g += `<text x="${pi.x}" y="${pi.y - 8}" text-anchor="middle" font-size="11" fill="#333">I = ${formatAzimuth(I)}</text>`;
+  // tangent–chord (deflection) angle at PC = I/2
+  g += `<text x="${pc.x - 4}" y="${pc.y + 18}" text-anchor="end" font-size="10" fill="#1D3095" font-weight="700">∠(T,LC) = I/2</text>`;
   return svgWrap(g, title || 'Horizontal Curve');
+}
+
+// Height of an inaccessible point from two angle stations on a level baseline
+// `d` apart. α is the (smaller) elevation angle at the far station, β the
+// (larger) angle at the near station. h = d / (cot α − cot β).
+export function renderTowerTwoAngles(d: number, alphaDeg: number, betaDeg: number, title?: string): string {
+  const a = alphaDeg * Math.PI / 180, b = betaDeg * Math.PI / 180;
+  const cotA = 1 / Math.tan(a), cotB = 1 / Math.tan(b);
+  const denom = cotA - cotB;
+  if (!(denom > 0) || !(alphaDeg > 0) || !(betaDeg > alphaDeg) || betaDeg >= 90) return svgWrap('', title || 'Height from two angles');
+  const h = d / denom;                 // height of the top above the baseline
+  const x2 = h * cotB;                 // near station → base
+  const x1 = h * cotA;                 // far station → base  (x1 = x2 + d)
+  // world points: base at origin, top above it, stations to the left
+  const base = { x: 0, y: 0 }, top = { x: 0, y: h }, s2 = { x: -x2, y: 0 }, s1 = { x: -x1, y: 0 };
+  const xf = fitTransform([top, s1, base]);
+  const P = (p: { x: number; y: number }) => ({ x: xf.sx(p.x), y: xf.sy(p.y) });
+  const B = P(base), Tp = P(top), S2 = P(s2), S1 = P(s1);
+  let g = '';
+  // ground line
+  g += `<line x1="${S1.x - 14}" y1="${B.y}" x2="${B.x + 24}" y2="${B.y}" stroke="#7a5230" stroke-width="2"/>`;
+  // tower
+  g += `<line x1="${B.x}" y1="${B.y}" x2="${Tp.x}" y2="${Tp.y}" stroke="#1D3095" stroke-width="3"/>`;
+  // rays
+  g += `<line x1="${S1.x}" y1="${S1.y}" x2="${Tp.x}" y2="${Tp.y}" stroke="#888" stroke-width="1.4" stroke-dasharray="5 4"/>`;
+  g += `<line x1="${S2.x}" y1="${S2.y}" x2="${Tp.x}" y2="${Tp.y}" stroke="#888" stroke-width="1.4" stroke-dasharray="5 4"/>`;
+  // stations + labels
+  g += dot(S1.x, S1.y, '1') + dot(S2.x, S2.y, '2') + dot(Tp.x, Tp.y, '');
+  g += `<text x="${S1.x + 4}" y="${S1.y + 16}" font-size="11" fill="#1D3095">A = ${formatAzimuth(alphaDeg)}</text>`;
+  g += `<text x="${S2.x + 4}" y="${S2.y - 8}" font-size="11" fill="#1D3095">B = ${formatAzimuth(betaDeg)}</text>`;
+  g += `<text x="${(S1.x + S2.x) / 2}" y="${B.y + 30}" text-anchor="middle" font-size="11" fill="#333">${f2(d)}'</text>`;
+  g += `<text x="${Tp.x + 8}" y="${(B.y + Tp.y) / 2}" font-size="12" fill="#c0392b" font-weight="700">h = ?</text>`;
+  g += `<text x="${W / 2}" y="${H - 12}" text-anchor="middle" font-size="10" fill="#888">NOT TO SCALE</text>`;
+  return svgWrap(g, title || 'Height from two angles');
 }
 
 function renderLeveling(bs: number, fs: number, title?: string): string {
@@ -267,6 +321,11 @@ export function buildDiagramFromSpec(spec: DiagramSpec | undefined | null, vars:
         const az = rv(spec.azVar);
         if (az == null || !isFinite(az)) return null;
         return renderCompass(az, spec.title);
+      }
+      case 'towerTwoAngles': {
+        const d = rv(spec.dVar), alpha = rv(spec.alphaVar), beta = rv(spec.betaVar);
+        if ([d, alpha, beta].some(v => v == null || !isFinite(v as number)) || (d as number) <= 0) return null;
+        return renderTowerTwoAngles(d as number, alpha as number, beta as number, spec.title);
       }
       default:
         return null;
