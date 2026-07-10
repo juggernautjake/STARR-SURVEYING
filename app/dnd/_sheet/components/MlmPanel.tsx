@@ -129,6 +129,8 @@ export default function MlmPanel() {
               <div key={i} style={{
                 width: `min(${34 + i * 11}ch, ${42 + i * 10}%)`, color: '#fff', fontWeight: 800, textAlign: 'center',
                 borderRadius: 9, padding: '9px 8px', background: `linear-gradient(120deg, ${t.c}, color-mix(in srgb, ${t.c} 55%, #000))`,
+                // Keep the white tier labels legible even on the lightest (Sparklers) tier.
+                textShadow: '0 1px 2px rgba(0,0,0,0.45)',
               }}>
                 <span style={{ fontSize: 13.5 }}>{t.n}</span>
                 <span style={{ display: 'block', fontSize: 11, opacity: 0.9, fontWeight: 600 }}>{t.d}</span>
