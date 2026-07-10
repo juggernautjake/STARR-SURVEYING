@@ -4,42 +4,69 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
 import { awardXP } from '@/lib/xp';
+import { checkAnswer } from '@/lib/solutionChecker';
 
-/* GET — Generate a mock exam (110 questions from FS-MOCK category) */
+// NCEES FS knowledge-area blueprint — target scored-question count per area,
+// summing to 110, each within the published NCEES range.
+const BLUEPRINT: Record<string, number> = { '1': 17, '2': 15, '3': 23, '4': 14, '5': 20, '6': 11, '7': 10 };
+const CAT_NAMES: Record<string, string> = {
+  '1': 'Surveying Processes & Methods',
+  '2': 'Mapping Processes & Methods',
+  '3': 'Boundary Law & Real Property',
+  '4': 'Surveying Principles',
+  '5': 'Survey Computations & Computer Apps',
+  '6': 'Business Concepts',
+  '7': 'Applied Mathematics & Statistics',
+};
+const catOf = (tags: string[] | null | undefined): string | null => {
+  const t = (tags || []).find(x => x.startsWith('ncees-cat:'));
+  return t ? t.slice('ncees-cat:'.length) : null;
+};
+
+/* GET — Assemble a blueprint-balanced 110-question FS exam simulator */
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Fetch all FS mock exam questions
-  const { data: allQuestions, error } = await supabaseAdmin.from('question_bank')
+  // Draw from the combined static FS + FS-MOCK bank (dynamic template questions
+  // are practiced in the module quizzes; the simulator grades fixed items).
+  const { data: pool, error } = await supabaseAdmin.from('question_bank')
     .select('id, question_text, question_type, options, difficulty, tags')
-    .eq('exam_category', 'FS-MOCK');
+    .in('exam_category', ['FS', 'FS-MOCK'])
+    .eq('is_dynamic', false)
+    .in('question_type', ['multiple_choice', 'true_false', 'numeric_input', 'short_answer']);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!allQuestions || allQuestions.length === 0) {
-    return NextResponse.json({ questions: [], message: 'No mock exam questions available yet.' });
+  if (!pool || pool.length === 0) {
+    return NextResponse.json({ questions: [], message: 'No exam questions available yet.' });
   }
 
-  // Shuffle and select up to 110 questions
-  const shuffled = allQuestions.sort(() => Math.random() - 0.5);
-  const selected = shuffled.slice(0, Math.min(110, shuffled.length));
+  type Q = { id: string; question_text: string; question_type: string; options: string[] | string; difficulty: string; tags: string[] };
+  const buckets: Record<string, Q[]> = {};
+  for (const q of pool as Q[]) { const c = catOf(q.tags); if (c) (buckets[c] ||= []).push(q); }
 
-  // Strip correct answers for client
-  const clientQuestions = selected.map((q: {
-    id: string;
-    question_text: string;
-    question_type: string;
-    options: string[] | string;
-    difficulty: string;
-    tags: string[];
-  }) => {
+  // Sample the blueprint count from each area (shuffled); top up from the
+  // remaining pool if any area is short so we always reach 110.
+  const chosen: Q[] = [];
+  const usedIds = new Set<string>();
+  for (const [cat, need] of Object.entries(BLUEPRINT)) {
+    const arr = (buckets[cat] || []).slice().sort(() => Math.random() - 0.5).slice(0, need);
+    for (const q of arr) { chosen.push(q); usedIds.add(q.id); }
+  }
+  if (chosen.length < 110) {
+    const rest = (pool as Q[]).filter(q => !usedIds.has(q.id)).sort(() => Math.random() - 0.5);
+    for (const q of rest) { if (chosen.length >= 110) break; chosen.push(q); usedIds.add(q.id); }
+  }
+  chosen.sort(() => Math.random() - 0.5);
+
+  const clientQuestions = chosen.slice(0, 110).map((q) => {
     const opts = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options || []);
     return {
       id: q.id,
       question_text: q.question_text,
       question_type: q.question_type,
       options: q.question_type === 'multiple_choice' || q.question_type === 'true_false'
-        ? opts.sort(() => Math.random() - 0.5) : opts,
+        ? (opts as string[]).sort(() => Math.random() - 0.5) : opts,
       difficulty: q.difficulty,
       tags: q.tags,
     };
@@ -47,8 +74,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   return NextResponse.json({
     questions: clientQuestions,
-    total_available: allQuestions.length,
-    time_limit_seconds: 19200, // 320 minutes
+    total_available: pool.length,
+    time_limit_seconds: 19200, // 320 minutes (5h20m) — matches the real FS exam
+    blueprint: Object.fromEntries(Object.entries(BLUEPRINT).map(([k, v]) => [CAT_NAMES[k], v])),
   });
 }, { routeName: 'learn/exam-prep/fs/mock-exam' });
 
@@ -67,47 +95,30 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // Fetch correct answers
   const questionIds = answers.map((a: { question_id: string }) => a.question_id);
   const { data: questions, error } = await supabaseAdmin.from('question_bank')
-    .select('id, question_type, correct_answer, explanation, tags')
+    .select('id, question_type, correct_answer, explanation, tags, tolerance')
     .in('id', questionIds);
 
   if (error || !questions) {
     return NextResponse.json({ error: 'Failed to grade exam' }, { status: 500 });
   }
 
-  const qMap = new Map<string, {
-    id: string;
-    question_type: string;
-    correct_answer: string;
-    explanation: string;
-    tags: string[];
-  }>(questions.map((q: {
-    id: string;
-    question_type: string;
-    correct_answer: string;
-    explanation: string;
-    tags: string[];
-  }) => [q.id, q]));
+  type GradeQ = { id: string; question_type: string; correct_answer: string; explanation: string; tags: string[]; tolerance: number | null };
+  const qMap = new Map<string, GradeQ>((questions as GradeQ[]).map(q => [q.id, q]));
 
-  // Grade each answer and track by category
+  // Grade each answer (all question types, with numeric tolerance) and track by
+  // NCEES knowledge area.
   const categoryScores: Record<string, { correct: number; total: number }> = {};
   const graded = answers.map((a: { question_id: string; user_answer: string }) => {
     const q = qMap.get(a.question_id);
     if (!q) return { question_id: a.question_id, user_answer: a.user_answer, is_correct: false, correct_answer: '', explanation: '' };
 
-    // Determine category from tags
-    const tags = q.tags || [];
-    let category = 'general';
-    for (const tag of tags) {
-      if (tag.startsWith('fs-mock-')) {
-        category = tag.replace('fs-mock-', '');
-        break;
-      }
-    }
+    const catNum = catOf(q.tags);
+    const category = catNum ? CAT_NAMES[catNum] : 'General';
 
     if (!categoryScores[category]) categoryScores[category] = { correct: 0, total: 0 };
     categoryScores[category].total++;
 
-    const isCorrect = a.user_answer?.toLowerCase().trim() === q.correct_answer?.toLowerCase().trim();
+    const isCorrect = checkAnswer(a.user_answer || '', q.correct_answer || '', q.question_type, q.tolerance || 0.01).is_correct;
     if (isCorrect) categoryScores[category].correct++;
 
     return {

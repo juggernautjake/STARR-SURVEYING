@@ -11,6 +11,15 @@ import {
   dbRowToTemplate,
   evalFormula as evalFormulaEngine,
 } from '@/lib/problemEngine';
+import { buildDiagramFromSpec } from '@/lib/diagrams/survey-diagram';
+
+// Resolve a fixed figure stored on a STATIC question_bank row (q.diagram is a
+// DiagramSpec with literal values). Returns the inline SVG or undefined.
+function staticDiagram(q: { diagram?: unknown }): string | undefined {
+  if (!q || !q.diagram) return undefined;
+  const svg = buildDiagramFromSpec(q.diagram as never, {});
+  return svg || undefined;
+}
 
 /* ============= MATH TEMPLATE HELPERS (legacy) ============= */
 
@@ -173,6 +182,23 @@ function gradeMultiSelect(userAnswer: string, correctAnswer: string): { is_corre
   const falsePositives = [...userSet].filter(a => !correctSet.has(a)).length;
   const is_correct = hits === correctSet.size && falsePositives === 0;
   const partial_score = correctSet.size > 0 ? Math.max(0, (hits - falsePositives) / correctSet.size) : 0;
+  return { is_correct, partial_score };
+}
+
+// Ordering: both answers are JSON arrays; grade is exact sequence equality
+// (case-insensitive). partial_score = fraction of positions matching, for
+// callers that want partial credit.
+function gradeOrdering(userAnswer: string, correctAnswer: string): { is_correct: boolean; partial_score: number } {
+  let userArr: string[];
+  let correctArr: string[];
+  try { userArr = JSON.parse(userAnswer); } catch { userArr = []; }
+  try { correctArr = JSON.parse(correctAnswer); } catch { correctArr = [correctAnswer]; }
+  const norm = (s: unknown) => String(s).toLowerCase().trim();
+  const u = userArr.map(norm);
+  const c = correctArr.map(norm);
+  const positionsCorrect = c.filter((val, i) => u[i] === val).length;
+  const is_correct = c.length > 0 && u.length === c.length && positionsCorrect === c.length;
+  const partial_score = c.length > 0 ? positionsCorrect / c.length : 0;
   return { is_correct, partial_score };
 }
 
@@ -351,6 +377,39 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       };
     }
 
+    // drag_label options are an object { terms, targets }; shuffle the term
+    // pool but keep the target order, and never call array ops on the object.
+    if (q.question_type === 'drag_label') {
+      const raw = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options || {});
+      const terms = Array.isArray(raw.terms) ? [...raw.terms].sort(() => Math.random() - 0.5) : [];
+      const targets = Array.isArray(raw.targets) ? raw.targets : [];
+      return {
+        id: q.id,
+        question_text: q.question_text,
+        question_type: q.question_type,
+        options: { terms, targets },
+        difficulty: q.difficulty,
+        tags: q.tags,
+        _diagram: staticDiagram(q),
+      };
+    }
+
+    // hotspot options are an object { regions:[{id,label}] }; shuffle the region
+    // order for display but keep the object shape.
+    if (q.question_type === 'hotspot') {
+      const raw = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options || {});
+      const regions = Array.isArray(raw.regions) ? [...raw.regions].sort(() => Math.random() - 0.5) : [];
+      return {
+        id: q.id,
+        question_text: q.question_text,
+        question_type: q.question_type,
+        options: { regions },
+        difficulty: q.difficulty,
+        tags: q.tags,
+        _diagram: staticDiagram(q),
+      };
+    }
+
     // Standard question types
     const opts = q.question_type === 'short_answer' || q.question_type === 'numeric_input'
       ? []
@@ -364,6 +423,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       options: opts,
       difficulty: q.difficulty,
       tags: q.tags,
+      _diagram: staticDiagram(q),
     };
   });
 
@@ -501,6 +561,50 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         correct_answer: q.correct_answer,
         explanation: q.explanation || '',
         partial_score: result.partial_score,
+      };
+    }
+
+    // Ordering (put in order)
+    if (qType === 'ordering') {
+      const result = gradeOrdering(a.user_answer, q.correct_answer);
+      totalScore += result.is_correct ? 1 : 0;
+      return {
+        question_id: a.question_id,
+        user_answer: a.user_answer,
+        is_correct: result.is_correct,
+        correct_answer: q.correct_answer,
+        explanation: q.explanation || '',
+        partial_score: result.partial_score,
+      };
+    }
+
+    // Drag-label — user_answer & correct_answer are arrays parallel to the
+    // targets; each placed term must equal the correct term (position-wise), so
+    // the ordering grader applies directly.
+    if (qType === 'drag_label') {
+      const result = gradeOrdering(a.user_answer, q.correct_answer);
+      totalScore += result.is_correct ? 1 : 0;
+      return {
+        question_id: a.question_id,
+        user_answer: a.user_answer,
+        is_correct: result.is_correct,
+        correct_answer: q.correct_answer,
+        explanation: q.explanation || '',
+        partial_score: result.partial_score,
+      };
+    }
+
+    // Hotspot — the answer is the chosen region id; grade as a plain
+    // (case-insensitive) string match against the correct region id.
+    if (qType === 'hotspot') {
+      const isCorrect = (a.user_answer || '').trim().toLowerCase() === (q.correct_answer || '').trim().toLowerCase();
+      totalScore += isCorrect ? 1 : 0;
+      return {
+        question_id: a.question_id,
+        user_answer: a.user_answer,
+        is_correct: isCorrect,
+        correct_answer: q.correct_answer,
+        explanation: q.explanation || '',
       };
     }
 
