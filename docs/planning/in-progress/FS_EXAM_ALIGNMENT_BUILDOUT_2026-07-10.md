@@ -260,7 +260,7 @@ build slice in **Appendix A**.
 ### Phase C — Business Concepts module (NCEES Cat 6)
 | Slice | What | Status |
 |---|---|---|
-| **S10** | New `fs_study_modules` **Module 11 "Business, Ethics & Professional Practice"** (`content_sections`: business entities, contracts & consideration, engineering economics, NCEES Model Rules/ethics, OSHA & field safety, project mgmt). Wire into SIT module list + readiness stats; note exam_weight. Seed `421_*`. | **TODO** |
+| **S10** | Business Concepts module. | **DONE** (e04a6597) — new `fs_study_modules` Module 11 (id `f500000b…0b`, weight 13) with full 5-section lesson (entities, contracts/consideration, engineering economics, Model Rules ethics, liability/standard of care, OSHA confined spaces) + 6 econ formulas + 12 topics. Applied to live DB (11 modules); SIT API lists it automatically. Seed 426. |
 | **S11** | Business `question_bank` + `problem_templates`: Q41 (declining-balance interest, parametric), Q42 (confined space, multi-select), Q43/Q44 (entities/contracts, variant pools), Q45 (ethics), + ~15 siblings across easy/med/hard. Seed `422_*`. | **TODO** |
 | **S12** | Business flashcards (~20) + glossary terms (partnership, corporation, consideration, lien, NFIP, Model Rules, confined space, engineering economics). Seed `423_*`. | **TODO** |
 
