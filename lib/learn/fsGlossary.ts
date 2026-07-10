@@ -95,6 +95,19 @@ const ENTRIES: GlossaryEntry[] = [
   { term: 'depreciation', definition: 'The systematic loss of an asset’s value over its useful life. Straight-line: D = (cost − salvage) / life, the same amount each year.' },
   { term: 'nfip', definition: 'The National Flood Insurance Program (FEMA). The FEMA Elevation Certificate provides the elevation data used to rate structures for flood insurance.' },
   { term: 'one-call', definition: 'The 811 utility-locate service. Surveyors and contractors must notify One-Call before digging so existing underground utilities are marked, preventing strikes.' },
+  // Thin-topic terms (mapping, geodesy, boundary)
+  { term: 'las', definition: 'The binary public interchange format for LiDAR point clouds (the LAS/LASer file format). Preferred over ASCII for size and speed.' },
+  { term: 'nssda', definition: 'National Standard for Spatial Data Accuracy. Accuracy at 95% confidence = RMSE × 1.7308 (horizontal) or × 1.9600 (vertical).' },
+  { term: 'elevation certificate', definition: 'A FEMA/NFIP form documenting a structure’s elevation relative to the base flood elevation; used to rate flood insurance and support map amendments.' },
+  { term: 'lambert conformal conic', definition: 'A conic map projection used for State Plane zones that are wider east–west; meridians converge to a central point and parallels are concentric arcs.' },
+  { term: 'transverse mercator', definition: 'A cylindrical map projection used for State Plane zones that are longer north–south (and for UTM); it minimizes distortion along a central meridian.' },
+  { term: 'spherical trigonometry', definition: 'Trigonometry of triangles on a sphere. Law of cosines for sides: cos c = cos a cos b + sin a sin b cos C — used in geodetic/astronomic computations.' },
+  { term: 'obliterated corner', definition: 'A PLSS corner with no remaining monument traces but whose position is recoverable from reliable testimony and acceptable evidence (contrast: lost corner).' },
+  { term: 'lost corner', definition: 'A PLSS corner whose position cannot be recovered from evidence or testimony and must be re-established by proportionate measurement (single/double proportion).' },
+  { term: 'relief displacement', definition: 'On a vertical aerial photo, the radial shift of a tall object’s image away from the principal point; it increases with object height and radial distance.' },
+  { term: 'raster', definition: 'A GIS data model representing the world as a regular grid of cells (pixels), each holding a value — well suited to continuous surfaces and imagery.' },
+  { term: 'vector', definition: 'A GIS data model representing discrete features as points, lines, and polygons defined by coordinates (as opposed to a raster grid).' },
+  { term: 'topology', definition: 'In GIS, the geometric relationships among spatial features — connectivity, adjacency, and containment — independent of display attributes like color.' },
 ];
 
 // Common aliases / plurals → canonical key.
