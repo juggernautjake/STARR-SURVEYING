@@ -6,7 +6,7 @@
 // initializer wrapped in try/catch → SSR-safe (falls back to the bundled `lazzuh`).
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { Character, InvItem, ActiveEffect } from '../types'
+import type { Character, InvItem, ActiveEffect, Spell } from '../types'
 import { lazzuh } from '../data/lazzuh'
 import { profBonusForLevel, abilityMod, ragesForLevel, rageDamageForLevel, maxHpForLevel, speedForLevel, MAX_BUILT_LEVEL } from '../rules/dnd'
 import { rollD20, rollDamage, parseDice, rollDie, rollTyped, weaponSegments, type Advantage } from '../lib/dice'
@@ -117,6 +117,7 @@ interface Ctx {
   rollDmg: (label: string, diceExpr: string, opts?: RollDmgOpts) => void
   rollWeaponDamage: (item: InvItem, opts?: { crit?: boolean }) => void
   rollExpr: (label: string, expr: string, kind?: RollEntry['kind']) => void
+  castSpell: (spell: Spell) => void
 
   adjustHp: (delta: number) => void
   addActiveEffect: (ae: ActiveEffect) => void
@@ -553,6 +554,40 @@ export function CharacterProvider({
     [stage],
   )
 
+  // Cast a spell: spend the level's slot (cantrips are free), roll the spell attack and/or
+  // typed damage, roll healing, or log a save/utility cast with its DC.
+  const castSpell = useCallback(
+    (spell: Spell) => {
+      const sc = char.spellcasting
+      const mod = sc ? abilityMod(char.abilities[sc.ability]) : 0
+      const pb = profBonusForLevel(char.meta.level)
+      const saveDC = char.combat.saveDCOverride ?? 8 + pb + mod
+      const label = spell.alias ? `${spell.name} (“${spell.alias}”)` : spell.name
+      if (spell.level > 0) {
+        setCharState((c) => {
+          const slot = c.spellcasting?.slots?.[spell.level as 1]
+          if (!slot || slot.current <= 0) return c
+          return { ...c, spellcasting: { ...c.spellcasting!, slots: { ...c.spellcasting!.slots, [spell.level]: { ...slot, current: slot.current - 1 } } } }
+        })
+      }
+      if (spell.attack) rollCheck(`${label} — spell attack`, pb + mod, { kind: 'attack' })
+      if (spell.damage && spell.damage.length) {
+        const typed = rollTyped(spell.damage.map((d) => ({ dice: d.dice, type: d.type })))
+        const tag = spell.save ? `${spell.save.ability.toUpperCase()} save DC ${saveDC}` : undefined
+        const maxV = spell.damage.reduce((s, d) => { const p = parseDice(d.dice); return s + p.groups.reduce((g2, g) => g2 + Math.abs(g.count) * g.sides, 0) + Math.max(0, p.flat) }, 0)
+        stage(
+          { label: `${label} — damage`, kind: 'damage', total: typed.total, breakdown: typed.breakdown, tag },
+          { landing: typed.total, min: 1, max: Math.max(2, maxV), isD20: false },
+        )
+      } else if (spell.heal) {
+        rollExpr(`${label} — heal`, spell.heal, 'heal')
+      } else if (!spell.attack) {
+        commitRoll({ label: `${label} — cast`, kind: 'raw', total: 0, breakdown: spell.save ? `${spell.save.ability.toUpperCase()} save DC ${saveDC}` : spell.level > 0 ? `L${spell.level} slot spent` : 'cantrip' })
+      }
+    },
+    [char.spellcasting, char.abilities, char.meta.level, char.combat.saveDCOverride, rollCheck, rollExpr, stage, commitRoll],
+  )
+
   const clearLog = useCallback(() => setLog([]), [])
   const resetStage = useCallback(() => setActiveRoll(null), [])
 
@@ -820,6 +855,7 @@ export function CharacterProvider({
     rollDmg,
     rollWeaponDamage,
     rollExpr,
+    castSpell,
     adjustHp,
     addActiveEffect,
     removeActiveEffect,

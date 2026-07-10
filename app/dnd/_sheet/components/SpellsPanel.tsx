@@ -20,9 +20,14 @@ function damageLine(s: Spell): string {
 }
 
 export default function SpellsPanel() {
-  const { char } = useChar()
+  const { char, setChar, editMode, castSpell } = useChar()
   const sc = char.spellcasting
   const spells = char.spells ?? []
+
+  function togglePrepared(id: string) {
+    setChar((c) => ({ ...c, spells: (c.spells ?? []).map((s) => (s.id === id ? { ...s, prepared: !s.prepared } : s)) }))
+  }
+
   if (!sc || spells.length === 0) return null
 
   const mod = abilityMod(char.abilities[sc.ability])
@@ -100,6 +105,21 @@ export default function SpellsPanel() {
                     </div>
                   )}
                   {s.higher && <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 3 }}>Higher levels: {s.higher}</div>}
+                  <div className="flex" style={{ gap: 6, marginTop: 7, flexWrap: 'wrap' }}>
+                    <button
+                      className="btn tiny solid"
+                      disabled={s.level > 0 && (!slot || slot.current <= 0)}
+                      onClick={() => castSpell(s)}
+                      title={s.level > 0 ? (slot && slot.current > 0 ? `Cast — spends a level-${s.level} slot` : 'No slots left') : 'Cast (cantrip — free)'}
+                    >
+                      ✨ Cast{s.level > 0 ? ` (L${s.level})` : ''}
+                    </button>
+                    {editMode && s.level > 0 && !s.alwaysPrepared && (
+                      <button className={`btn tiny ${s.prepared ? 'active' : ''}`} onClick={() => togglePrepared(s.id)}>
+                        {s.prepared ? '✓ Prepared' : 'Prepare'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
               {atLevel.length === 0 && <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>No spells known at this level yet.</div>}
