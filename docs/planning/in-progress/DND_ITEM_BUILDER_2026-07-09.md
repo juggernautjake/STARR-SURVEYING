@@ -71,8 +71,8 @@ The builder UI (a form/modal with many fields, dropdowns, dice inputs) must be *
 
 ## Slice plan
 
-- [ ] **Slice 0 — Planning doc** (this file).
-- [ ] **Slice 1 — Data model.** Extend `InvItem` (`types.ts`) with the optional fields above; reuse/import the engine `Effect` type. No behavior change yet; existing items still render. Typecheck + a type-level test.
+- [x] **Slice 0 — Planning doc** (this file).
+- [x] **Slice 1 — Data model.** Extend `InvItem` (`types.ts`) with the optional fields above; reuse/import the engine `Effect` type. No behavior change yet; existing items still render. Typecheck + a type-level test.
 - [ ] **Slice 2 — Typed dice engine.** `lib/dice.ts`: typed `DieResult`/`DamageRoll` + `rollTyped()`; unit tests covering `2d8 slashing + 1d6 poison`, crit doubling per segment, flat mod attribution, and single-type back-compat.
 - [ ] **Slice 3 — Roll action + weapon roll button.** `store.tsx` `rollWeaponDamage(item, opts)`; a **Roll / Crit** button on weapon items in Inventory (and mirror into Attacks) that shows the per-type breakdown in the dice log. Verify a 2d8+1d6-poison weapon rolls and breaks down correctly.
 - [ ] **Slice 4 — The builder UI.** Replace Inventory's minimal add-form with a real **Item Builder**: pick a `kind`, fill title/description/qty, then kind-specific fields (weapon dice+type+bonus-dice rows; armor category+AC; consumable effect; wondrous effects). Edit existing items through the same builder. Robust validation. Readable on all skins.
@@ -90,4 +90,4 @@ The builder UI (a form/modal with many fields, dropdowns, dice inputs) must be *
 
 ## Ship log
 
-_(filled in per slice as work lands)_
+- **Slice 1** — Extended `InvItem` in `types.ts` with `kind`/`equipped`/`attuned`/`weapon`/`armor`/`consumable`/`effects` (+ `TypedDamage`, `WeaponStats`, `ArmorStats`, `ConsumableStats`, `ItemKind`), reusing the engine `Effect` type. All fields optional → legacy items and old exports still valid. Persists automatically via the whole-`char` autosave. Type-lock test `__tests__/dnd/item-builder-types.test.ts` (4 tests, green); tsc clean.

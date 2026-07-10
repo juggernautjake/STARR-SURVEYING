@@ -1,4 +1,5 @@
 import type { AbilityKey, ProfLevel } from './rules/dnd'
+import type { Effect } from './engine/effects'
 
 export interface Attack {
   id: string
@@ -65,6 +66,41 @@ export interface Resource {
   note?: string
 }
 
+/** One typed damage component, e.g. { dice: '2d8', type: 'slashing' }. Reused by the weapon
+ *  builder and the typed dice roller so a weapon can deal 2d8 slashing + 1d6 poison. */
+export interface TypedDamage {
+  dice: string
+  type: string
+}
+
+export type ItemKind = 'weapon' | 'armor' | 'shield' | 'consumable' | 'wondrous' | 'gear'
+
+export interface WeaponStats {
+  ability?: AbilityKey // to-hit + damage ability (default STR; DEX if finesse/ranged)
+  proficient?: boolean
+  toHitBonus?: number
+  range?: string
+  damage: TypedDamage // primary damage
+  bonus?: TypedDamage[] // extra typed dice, e.g. [{ dice: '1d6', type: 'poison' }]
+  properties?: string[] // finesse, versatile, thrown, two-handed, …
+}
+
+export interface ArmorStats {
+  category: 'light' | 'medium' | 'heavy' | 'shield'
+  baseAC?: number // body-armor base AC, or a shield's flat bonus
+  dexCap?: number | null // medium = 2, heavy = 0, light = null (uncapped)
+  stealthDisadvantage?: boolean
+}
+
+export interface ConsumableStats {
+  effect: {
+    kind: 'heal' | 'temp' | 'status' | 'custom'
+    dice?: string // for heal/temp, e.g. '2d4+2'
+    status?: string // condition name for kind 'status'
+    note?: string
+  }
+}
+
 export interface InvItem {
   id: string
   name: string
@@ -72,6 +108,15 @@ export interface InvItem {
   qty: number
   tags: ('equipped' | 'weapon' | 'consumable' | 'tech' | 'flavor')[]
   use?: { label: string; expr: string; kind: 'heal' | 'temp' | 'damage' }
+  // ── Homebrew item-builder fields (Phase: DND_ITEM_BUILDER). All optional so existing
+  //    items and old exports keep working; readers must be defensive.
+  kind?: ItemKind
+  equipped?: boolean
+  attuned?: boolean
+  weapon?: WeaponStats
+  armor?: ArmorStats
+  consumable?: ConsumableStats
+  effects?: Effect[] // passive bonuses while equipped/attuned (engine Effect shape)
 }
 
 export interface SkillState {
