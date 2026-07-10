@@ -5,7 +5,7 @@
 // (null / empty frame) rather than throw, so a bad figure never breaks a quiz.
 
 import { describe, it, expect } from 'vitest';
-import { buildDiagramFromSpec, renderTowerTwoAngles } from '@/lib/diagrams/survey-diagram';
+import { buildDiagramFromSpec, renderTowerTwoAngles, renderProfile, renderCrossSection } from '@/lib/diagrams/survey-diagram';
 
 describe('renderCurve (enriched) via buildDiagramFromSpec', () => {
   const svg = buildDiagramFromSpec({ type: 'curve', rVar: 'R', iVar: 'I' }, { R: 500, I: 60 }) || '';
@@ -63,5 +63,56 @@ describe('renderTowerTwoAngles', () => {
       { type: 'towerTwoAngles', dVar: 'd', alphaVar: 'a', betaVar: 'b' },
       { d: 100, a: 22 },
     )).toBeNull();
+  });
+});
+
+describe('renderProfile', () => {
+  it('labels the invert elevations and stations (with X+YY.YY format)', () => {
+    const svg = renderProfile(
+      [{ sta: 0, elev: 1228.69, label: 'MH1' }, { sta: 247.55, elev: 1229.27, label: 'MH2' }],
+      { cutSta: 125 },
+    );
+    expect(svg).toContain('<svg');
+    expect(svg).toContain('MH1');
+    expect(svg).toContain('1228.69');
+    expect(svg).toContain('2+47.55'); // station format
+    expect(svg).toContain('1+25.00'); // cut station
+    expect(svg).toContain('cut = ?');
+  });
+
+  it('reaches through the dispatcher with var refs', () => {
+    const svg = buildDiagramFromSpec({
+      type: 'profile',
+      profilePoints: [{ staVar: 's0', elevVar: 'e0', label: 'MH1' }, { staVar: 's1', elevVar: 'e1', label: 'MH2' }],
+      cutStaVar: 'cs',
+    }, { s0: 0, e0: 1228.69, s1: 247.55, e1: 1229.27, cs: 125 }) || '';
+    expect(svg).toContain('MH2');
+    expect(svg).toContain('cut = ?');
+  });
+});
+
+describe('renderCrossSection', () => {
+  it('draws a fill section with the slope ratio and half-width', () => {
+    const svg = renderCrossSection(12, 4, 'fill');
+    expect(svg).toContain('<svg');
+    expect(svg).toContain('4.00 : 1');
+    expect(svg).toContain("12.00' to edge");
+    expect(svg).toContain('FILL');
+  });
+
+  it('draws a cut section', () => {
+    expect(renderCrossSection(12, 2, 'cut')).toContain('CUT');
+  });
+
+  it('reaches through the dispatcher and honors cutFill', () => {
+    const svg = buildDiagramFromSpec(
+      { type: 'crossSection', halfWidthVar: 'w', slopeVar: 's', cutFill: 'fill' },
+      { w: 12, s: 4 },
+    ) || '';
+    expect(svg).toContain('4.00 : 1');
+  });
+
+  it('returns null on invalid inputs', () => {
+    expect(buildDiagramFromSpec({ type: 'crossSection', halfWidthVar: 'w', slopeVar: 's' }, { w: 12 })).toBeNull();
   });
 });

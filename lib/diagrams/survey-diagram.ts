@@ -18,7 +18,7 @@ import type { Point2D } from '../cad/types';
 // ────────────────────────────────────────────────────────────────────────────
 export interface TraverseLegSpec { azVar?: string; az?: number; distVar?: string; dist?: number; label?: string; }
 export interface DiagramSpec {
-  type: 'traverse' | 'inverse' | 'triangle' | 'curve' | 'leveling' | 'compass' | 'towerTwoAngles';
+  type: 'traverse' | 'inverse' | 'triangle' | 'curve' | 'leveling' | 'compass' | 'towerTwoAngles' | 'profile' | 'crossSection';
   // traverse
   startNVar?: string; startEVar?: string;
   legs?: TraverseLegSpec[];
@@ -37,6 +37,11 @@ export interface DiagramSpec {
   azVar?: string;
   // towerTwoAngles: baseline distance + two elevation angles (deg)
   dVar?: string; alphaVar?: string; betaVar?: string;
+  // profile: connected invert/grade points + optional cut callout station
+  profilePoints?: { staVar?: string; sta?: number; elevVar?: string; elev?: number; label?: string }[];
+  cutStaVar?: string; cutSta?: number; cutLabel?: string;
+  // crossSection: road half-width + side-slope ratio + cut/fill mode
+  halfWidthVar?: string; slopeVar?: string; cutFill?: 'cut' | 'fill';
   title?: string;
 }
 
@@ -68,6 +73,8 @@ function fitTransform(pts: Point2D[]): Xf {
 
 const esc = (s: string) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const f2 = (n: number) => (Math.round(n * 100) / 100).toFixed(2);
+// stationing format: 247.55 → "2+47.55", 125 → "1+25.00", 0 → "0+00.00"
+const staLabel = (s: number) => `${Math.floor(s / 100)}+${(((s % 100) + 100) % 100).toFixed(2).padStart(5, '0')}`;
 
 function svgWrap(inner: string, title?: string): string {
   const t = title ? `<text x="${W / 2}" y="20" text-anchor="middle" font-size="14" font-weight="700" fill="#1D3095">${esc(title)}</text>` : '';
@@ -238,6 +245,74 @@ export function renderTowerTwoAngles(d: number, alphaDeg: number, betaDeg: numbe
   return svgWrap(g, title || 'Height from two angles');
 }
 
+// Longitudinal profile / grade line — stationing on x, elevation on y with
+// independent (vertically-exaggerated) scaling. Draws the connected invert/grade
+// line with elevation + station callouts and an optional "cut = ?" marker at an
+// intermediate station (Q6-style sewer grade problems).
+export function renderProfile(
+  pts: { sta: number; elev: number; label?: string }[],
+  opts: { title?: string; cutSta?: number; cutLabel?: string } = {},
+): string {
+  if (pts.length < 2) return svgWrap('', opts.title || 'Profile');
+  const stas = pts.map(p => p.sta), elevs = pts.map(p => p.elev);
+  const minSta = Math.min(...stas), maxSta = Math.max(...stas);
+  let minEl = Math.min(...elevs), maxEl = Math.max(...elevs);
+  const elPad = (maxEl - minEl) * 0.6 || 1;
+  minEl -= elPad; maxEl += elPad * 0.5;
+  const spanSta = (maxSta - minSta) || 1, spanEl = (maxEl - minEl) || 1;
+  const L = 64, Rr = W - 28, Tb = 64, Bb = H - 54;
+  const sx = (s: number) => L + (s - minSta) / spanSta * (Rr - L);
+  const sy = (e: number) => Bb - (e - minEl) / spanEl * (Bb - Tb);
+  const invertAt = (s: number): number => {
+    for (let i = 0; i < pts.length - 1; i++) {
+      if (s >= pts[i].sta && s <= pts[i + 1].sta) {
+        const t = (s - pts[i].sta) / ((pts[i + 1].sta - pts[i].sta) || 1);
+        return pts[i].elev + t * (pts[i + 1].elev - pts[i].elev);
+      }
+    }
+    return pts[pts.length - 1].elev;
+  };
+  let g = `<line x1="${L}" y1="${Bb}" x2="${Rr}" y2="${Bb}" stroke="#bbb" stroke-width="1"/>`;
+  const scr = pts.map(p => ({ x: sx(p.sta), y: sy(p.elev), p }));
+  g += `<polyline points="${scr.map(s => `${s.x},${s.y}`).join(' ')}" fill="none" stroke="#1D3095" stroke-width="2.5"/>`;
+  for (const s of scr) {
+    g += dot(s.x, s.y, '');
+    if (s.p.label) g += `<text x="${s.x}" y="${s.y - 10}" text-anchor="middle" font-size="11" font-weight="600" fill="#111">${esc(s.p.label)}</text>`;
+    g += `<text x="${s.x}" y="${s.y + 16}" text-anchor="middle" font-size="10" fill="#c0392b">${f2(s.p.elev)}</text>`;
+    g += `<text x="${s.x}" y="${Bb + 15}" text-anchor="middle" font-size="10" fill="#555">${staLabel(s.p.sta)}</text>`;
+  }
+  if (opts.cutSta != null && opts.cutSta >= minSta && opts.cutSta <= maxSta) {
+    const cx = sx(opts.cutSta), cy = sy(invertAt(opts.cutSta));
+    g += `<line x1="${cx}" y1="${Tb - 4}" x2="${cx}" y2="${cy}" stroke="#c0392b" stroke-width="1.2" stroke-dasharray="4 3"/>`;
+    g += `<text x="${cx}" y="${Tb - 8}" text-anchor="middle" font-size="11" fill="#c0392b" font-weight="700">${esc(opts.cutLabel || 'cut = ?')}</text>`;
+    g += `<text x="${cx}" y="${Bb + 15}" text-anchor="middle" font-size="10" fill="#c0392b">${staLabel(opts.cutSta)}</text>`;
+  }
+  return svgWrap(g, opts.title || 'Profile / Grade Line');
+}
+
+// Road cross-section: centerline, road surface out to the edge, and a single
+// side slope at ratio s:1 (H:V) as fill (down-and-out) or cut (up-and-out),
+// with the existing-ground line and labels. Schematic (honors the slope ratio).
+export function renderCrossSection(halfWidth: number, slope: number, mode: 'cut' | 'fill', title?: string): string {
+  if (!(halfWidth > 0) || !(slope > 0)) return svgWrap('', title || 'Typical Cross-Section');
+  const roadY = H * 0.42, xCL = 100;
+  const wPx = Math.max(40, Math.min(150, halfWidth * 4));
+  const xEdge = xCL + wPx;
+  const run = 190, V = run / Math.max(slope, 0.5);
+  const toe = { x: xEdge + run, y: mode === 'fill' ? roadY + V : roadY - V };
+  let g = `<line x1="${xCL}" y1="${roadY - 74}" x2="${xCL}" y2="${roadY + 96}" stroke="#888" stroke-width="1" stroke-dasharray="4 4"/>`;
+  g += `<text x="${xCL}" y="${roadY - 80}" text-anchor="middle" font-size="10" fill="#555">CL</text>`;
+  g += `<line x1="${xCL}" y1="${roadY}" x2="${xEdge}" y2="${roadY}" stroke="#333" stroke-width="2.5"/>`;
+  g += `<line x1="${xEdge}" y1="${roadY}" x2="${toe.x}" y2="${toe.y}" stroke="#1D3095" stroke-width="2.5"/>`;
+  g += `<line x1="${xCL - 12}" y1="${toe.y}" x2="${W - 18}" y2="${toe.y}" stroke="#7a5230" stroke-width="1.5" stroke-dasharray="3 2"/>`;
+  g += `<text x="${W - 18}" y="${toe.y - 6}" text-anchor="end" font-size="10" fill="#7a5230">existing ground</text>`;
+  g += `<text x="${(xCL + xEdge) / 2}" y="${roadY - 8}" text-anchor="middle" font-size="10" fill="#333">${f2(halfWidth)}' to edge</text>`;
+  g += dot(xEdge, roadY, '') + dot(toe.x, toe.y, '');
+  g += `<text x="${(xEdge + toe.x) / 2 + 6}" y="${(roadY + toe.y) / 2}" font-size="12" fill="#1D3095" font-weight="700">${f2(slope)} : 1</text>`;
+  g += `<text x="${W / 2}" y="${H - 12}" text-anchor="middle" font-size="10" fill="#888">Typical ${mode === 'fill' ? 'FILL' : 'CUT'} section — NOT TO SCALE</text>`;
+  return svgWrap(g, title || 'Typical Cross-Section');
+}
+
 function renderLeveling(bs: number, fs: number, title?: string): string {
   const groundY = H - 70, instrX = W / 2;
   let g = `<line x1="30" y1="${groundY}" x2="${W - 30}" y2="${groundY}" stroke="#7a5230" stroke-width="2"/>`;
@@ -326,6 +401,19 @@ export function buildDiagramFromSpec(spec: DiagramSpec | undefined | null, vars:
         const d = rv(spec.dVar), alpha = rv(spec.alphaVar), beta = rv(spec.betaVar);
         if ([d, alpha, beta].some(v => v == null || !isFinite(v as number)) || (d as number) <= 0) return null;
         return renderTowerTwoAngles(d as number, alpha as number, beta as number, spec.title);
+      }
+      case 'profile': {
+        const pts = (spec.profilePoints || [])
+          .map(p => ({ sta: num(rv(p.staVar, p.sta)), elev: num(rv(p.elevVar, p.elev)), label: p.label }))
+          .filter(p => isFinite(p.sta) && isFinite(p.elev));
+        if (pts.length < 2) return null;
+        const cutSta = rv(spec.cutStaVar, spec.cutSta);
+        return renderProfile(pts, { title: spec.title, cutSta: cutSta != null && isFinite(cutSta) ? cutSta : undefined, cutLabel: spec.cutLabel });
+      }
+      case 'crossSection': {
+        const hw = rv(spec.halfWidthVar), sl = rv(spec.slopeVar);
+        if (hw == null || sl == null || !isFinite(hw) || !isFinite(sl) || hw <= 0 || sl <= 0) return null;
+        return renderCrossSection(hw, sl, spec.cutFill === 'cut' ? 'cut' : 'fill', spec.title);
       }
       default:
         return null;
