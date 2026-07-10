@@ -175,5 +175,22 @@ export function streamerCharacter(name: string): Character {
   c.skinVariant = 'pink';
 
   c.dmNote = 'live now — her patron is the chat. Use the STREAM // Chat panel to run viewers, engagement, alerts, and the AI chat director; the resist DC she must beat scales with her live viewer count (DC 2 → 25).';
+  // ── Pact Magic (Warlock · CHA · Spell save DC 14 · Spell attack +4 · 2× 2nd-level slots) ──
+  // Warlocks upcast every leveled spell to their pact-slot level, so her known leveled spells
+  // are modeled at level 2 (their base level is noted) — casting then spends a pact slot.
+  c.spellcasting = { ability: 'cha', slots: { 2: { max: 2, current: 2 } } };
+  c.spells = [
+    // Cantrips
+    { id: 'eldritch-blast', name: 'Eldritch Blast', alias: 'Superchat Beam', level: 0, school: 'Evocation', prepared: true, castTime: '1 action', range: '120 ft', components: 'V, S', duration: 'Instant', description: 'A beam of crackling energy (one beam at level 3, +1 at Lv5/11/17).', attack: true, damage: [{ dice: '1d10', type: 'force' }] },
+    { id: 'vicious-mockery', name: 'Vicious Mockery', alias: "Ratio'd", level: 0, school: 'Enchantment', prepared: true, castTime: '1 action', range: '60 ft', components: 'V', duration: 'Instant', description: 'A string of insults; on a fail the target also has disadvantage on its next attack.', save: { ability: 'wis', effect: 'no effect on a save' }, damage: [{ dice: '1d4', type: 'psychic' }] },
+    { id: 'mage-hand', name: 'Mage Hand', alias: 'Mod Hand', level: 0, school: 'Conjuration', prepared: true, castTime: '1 action', range: '30 ft', components: 'V, S', duration: '1 min', description: 'A spectral hand you can move to manipulate objects — your invisible moderator.' },
+    { id: 'minor-illusion', name: 'Minor Illusion', alias: 'Green Screen', level: 0, school: 'Illusion', prepared: true, castTime: '1 action', range: '30 ft', components: 'S, M', duration: '1 min', description: 'Create a sound or an image of an object — instant set dressing.' },
+    // Known leveled spells (cast via a 2nd-level Pact slot)
+    { id: 'hex', name: 'Hex', alias: 'Shadowban', level: 2, school: 'Enchantment', prepared: true, castTime: '1 bonus action', range: '90 ft', components: 'V, S, M', duration: 'Conc, up to 1 hour', concentration: true, description: 'Base 1st-level spell. Curse a target: your attacks deal **+1d6 necrotic** and it has disadvantage on one ability.', damage: [{ dice: '1d6', type: 'necrotic' }] },
+    { id: 'charm-person', name: 'Charm Person', alias: 'Parasocial Bond', level: 2, school: 'Enchantment', prepared: true, castTime: '1 action', range: '30 ft', components: 'V, S', duration: '1 hour', description: 'Base 1st-level spell, upcast: charms up to 2 humanoids who regard you as a friend.', save: { ability: 'wis', effect: 'unaffected on a save' } },
+    { id: 'suggestion', name: 'Suggestion', alias: 'Smash That Button', level: 2, school: 'Enchantment', prepared: true, castTime: '1 action', range: '30 ft', components: 'V, M', duration: 'Conc, up to 8 hours', concentration: true, description: 'Suggest a reasonable course of activity the target pursues.', save: { ability: 'wis', effect: 'unaffected on a save' } },
+    { id: 'hold-person', name: 'Hold Person', alias: 'Buffering', level: 2, school: 'Enchantment', prepared: true, castTime: '1 action', range: '60 ft', components: 'V, S, M', duration: 'Conc, up to 1 min', concentration: true, description: 'Paralyzes a humanoid; it repeats the save each turn.', save: { ability: 'wis', effect: 'unaffected on a save' } },
+  ];
+
   return c;
 }

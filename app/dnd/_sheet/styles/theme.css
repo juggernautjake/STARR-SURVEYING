@@ -1159,6 +1159,26 @@
   min-width: 26px;
   text-align: center;
 }
+/* Collapsible roll-history header — theme-token driven so it reads on every skin. */
+.dnd-sheet .tray-hist-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  margin: 2px 0 0;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+.dnd-sheet .tray-hist-head:hover { color: var(--tealbright); }
 .dnd-sheet .tray-log {
   max-height: 320px;
   overflow-y: auto;

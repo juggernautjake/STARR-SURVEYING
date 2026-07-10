@@ -12,6 +12,7 @@ import StreamChat from './components/StreamChat'
 import StreamPoll from './components/StreamPoll'
 import StreamAlert from './components/StreamAlert'
 import ConditionTracker from './components/ConditionTracker'
+import ActiveEffects from './components/ActiveEffects'
 import Hero from './components/Hero'
 import StatRail from './components/StatRail'
 import Abilities from './components/Abilities'
@@ -19,6 +20,7 @@ import SavesSkills from './components/SavesSkills'
 import CombatPanel from './components/CombatPanel'
 import Resources from './components/Resources'
 import Attacks from './components/Attacks'
+import SpellsPanel from './components/SpellsPanel'
 import Forms from './components/Forms'
 import FormAbilities from './components/FormAbilities'
 import Features from './components/Features'
@@ -45,6 +47,7 @@ const TABS = [
   { id: 'abilities', label: 'Abilities', emoji: '⬡' },
   { id: 'combat', label: 'Combat', emoji: '❤' },
   { id: 'attacks', label: 'Attacks', emoji: '✦' },
+  { id: 'spells', label: 'Spells', emoji: '✨' },
   { id: 'forms', label: 'Forms', emoji: '⇡', module: 'forms' },
   { id: 'features', label: 'Features', emoji: '✧' },
   { id: 'business', label: 'Business', emoji: '💎', module: 'mlm' },
@@ -65,7 +68,11 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
   const hasForms = config.modules.includes('forms')
   const hasStream = config.modules.includes('stream')
   const hasMlm = config.modules.includes('mlm')
-  const visibleTabs = TABS.filter((t) => !('module' in t) || config.modules.includes(t.module))
+  // Module tabs gate on sheet_type; the Spells tab is DATA-gated — shown only for casters
+  // (characters that actually have spells), so martials like Lazzuh don't get an empty tab.
+  const visibleTabs = TABS.filter(
+    (t) => (!('module' in t) || config.modules.includes(t.module)) && (t.id !== 'spells' || (char.spells?.length ?? 0) > 0),
+  )
 
   // Streamer skin variant (pink | blue) — the player toggles it; it swaps the color
   // theme, the `.variant-<id>` class, AND the character art/token (§6.9).
@@ -198,6 +205,7 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
           </div>
 
           <ConditionTracker />
+          <ActiveEffects />
 
           <div className="tabpane" key={tab}>
             {tab === 'overview' && (
@@ -229,6 +237,7 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
         )}
 
         {tab === 'attacks' && <Attacks />}
+        {tab === 'spells' && <SpellsPanel />}
 
         {tab === 'forms' && hasForms && (
           <>

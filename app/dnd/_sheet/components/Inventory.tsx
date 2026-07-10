@@ -3,6 +3,7 @@ import { useChar } from '../state/store'
 import type { InvItem } from '../types'
 import SectionHead from './ui/SectionHead'
 import NeoNuggetsBalance from './NeoNuggetsBalance'
+import ItemBuilder from './ItemBuilder'
 
 function labels() {
   // "Notes" is the campaign's base currency (≈ $1 each) — the streamer converts her
@@ -10,12 +11,30 @@ function labels() {
   return { credits: 'Notes', harmonyte: 'Harmonyte', scrip: 'Scrip' }
 }
 
+/** Compact "2d8 slashing + 1d6 poison" summary for a weapon item's Roll button. */
+function weaponDamageSummary(it: InvItem): string {
+  const w = it.weapon
+  if (!w) return ''
+  const parts = [`${w.damage.dice} ${w.damage.type}`.trim(), ...(w.bonus ?? []).filter((b) => b?.dice?.trim()).map((b) => `${b.dice} ${b.type}`.trim())]
+  return parts.join(' + ')
+}
+
 export default function Inventory() {
-  const { char, setChar, editMode, rollExpr, adjustHp } = useChar()
+  const { char, setChar, characterId, editMode, rollExpr, adjustHp, rollWeaponDamage, addActiveEffect } = useChar()
   const [adding, setAdding] = useState(false)
-  const [draft, setDraft] = useState<Partial<InvItem>>({ name: '', desc: '', qty: 1 })
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   const curLabels = labels()
+
+  // Add a new item or replace an existing one (by id) — the ItemBuilder emits a full InvItem.
+  function upsert(item: InvItem) {
+    setChar((c) => {
+      const exists = c.inventory.some((x) => x.id === item.id)
+      return { ...c, inventory: exists ? c.inventory.map((x) => (x.id === item.id ? item : x)) : [...c.inventory, item] }
+    })
+    setAdding(false)
+    setEditingId(null)
+  }
 
   function setQty(id: string, delta: number) {
     setChar((c) => ({
@@ -29,24 +48,10 @@ export default function Inventory() {
   function setCurrency(k: keyof typeof curLabels, v: number) {
     setChar((c) => ({ ...c, currency: { ...c.currency, [k]: Math.max(0, v) } }))
   }
-  function add() {
-    if (!draft.name) return
-    const item: InvItem = {
-      id: `i-${Date.now()}`,
-      name: draft.name!,
-      desc: draft.desc ?? '',
-      qty: draft.qty ?? 1,
-      tags: ['tech'],
-    }
-    setChar((c) => ({ ...c, inventory: [...c.inventory, item] }))
-    setDraft({ name: '', desc: '', qty: 1 })
-    setAdding(false)
-  }
-
-  function useItem(it: InvItem) {
+  // Legacy `use` field (kept working for existing data).
+  function applyUse(it: InvItem) {
     if (!it.use) return
     if (it.use.kind === 'heal') {
-      // roll and apply to HP
       const roll = evalAndHeal(it.use.expr, adjustHp)
       rollExpr(`${it.name} — ${it.use.label}`, `${roll.total}`, 'heal')
     } else if (it.use.kind === 'temp') {
@@ -57,6 +62,38 @@ export default function Inventory() {
       rollExpr(`${it.name} — ${it.use.label}`, it.use.expr, 'damage')
     }
     if (it.qty > 0) setQty(it.id, -1)
+  }
+
+  // New consumable model — actually applies the effect on consume, then decrements qty.
+  function consume(it: InvItem) {
+    const eff = it.consumable?.effect
+    if (!eff) return
+    if (eff.kind === 'heal' && eff.dice) {
+      const total = rollExprValue(eff.dice)
+      adjustHp(total)
+      rollExpr(`${it.name} — heal`, `${total}`, 'heal')
+    } else if (eff.kind === 'temp' && eff.dice) {
+      const total = rollExprValue(eff.dice)
+      setChar((c) => ({ ...c, combat: { ...c.combat, tempHp: Math.max(c.combat.tempHp, total) } }))
+      rollExpr(`${it.name} — temp HP`, `${total}`, 'temp')
+    } else if (eff.kind === 'status' && eff.status) {
+      // A timed condition (e.g. Invisible · 1 hour) — tracked in Active Effects, removable.
+      addActiveEffect({ id: `ae-${Date.now()}-${Math.floor(Math.random() * 1e6)}`, label: eff.status, effects: [], duration: eff.duration, source: it.name })
+    } else if (eff.kind === 'buff') {
+      addActiveEffect({ id: `ae-${Date.now()}-${Math.floor(Math.random() * 1e6)}`, label: it.name, effects: eff.effects ?? [], duration: eff.duration, source: it.name })
+    }
+    // 'custom' = note-only (DM adjudicates); still consumes.
+    if (it.qty > 0) setQty(it.id, -1)
+  }
+
+  function consumeLabel(it: InvItem): string {
+    const eff = it.consumable?.effect
+    if (!eff) return 'Use'
+    if (eff.kind === 'heal') return `Heal ${eff.dice ?? ''}`.trim()
+    if (eff.kind === 'temp') return `Temp HP ${eff.dice ?? ''}`.trim()
+    if (eff.kind === 'status') return `Apply ${eff.status ?? 'effect'}`
+    if (eff.kind === 'buff') return 'Apply buff'
+    return 'Use'
   }
 
   return (
@@ -98,10 +135,24 @@ export default function Inventory() {
             <div>
               <div className="inv-name">{it.name}</div>
               <div className="inv-desc">{it.desc}</div>
+              {it.weapon && (
+                <div className="flex" style={{ gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                  <button className="btn tiny solid" onClick={() => rollWeaponDamage(it)} title="Roll this weapon's damage (typed breakdown in the log)">
+                    🎲 Roll {weaponDamageSummary(it)}
+                  </button>
+                  <button className="btn tiny" onClick={() => rollWeaponDamage(it, { crit: true })} title="Roll damage as a critical hit (double the dice)">
+                    ✷ Crit
+                  </button>
+                </div>
+              )}
               {it.use && (
-                // eslint-disable-next-line react-hooks/rules-of-hooks -- useItem is a store action, not a hook
-                <button className="btn tiny gold" style={{ marginTop: 6 }} onClick={() => useItem(it)} disabled={it.qty <= 0}>
+                <button className="btn tiny gold" style={{ marginTop: 6 }} onClick={() => applyUse(it)} disabled={it.qty <= 0}>
                   ⚡ {it.use.label} ({it.use.expr})
+                </button>
+              )}
+              {it.consumable && (
+                <button className="btn tiny gold" style={{ marginTop: 6 }} onClick={() => consume(it)} disabled={it.qty <= 0} title="Consume this item and apply its effect">
+                  ⚗ {consumeLabel(it)}{it.consumable.effect.duration ? ` · ${it.consumable.effect.duration}` : ''}
                 </button>
               )}
             </div>
@@ -115,30 +166,31 @@ export default function Inventory() {
               <span className="inv-qty">×{it.qty}</span>
             )}
             {editMode ? (
-              <button className="btn tiny danger" onClick={() => remove(it.id)}>
-                ✕
-              </button>
+              <div className="flex center gap">
+                <button className="btn tiny" title="Edit this item" onClick={() => { setEditingId(it.id); setAdding(false) }}>✎</button>
+                <button className="btn tiny danger" onClick={() => remove(it.id)}>✕</button>
+              </div>
             ) : (
               <span />
             )}
           </div>
         ))}
 
-        {editMode && !adding && (
-          <button className="btn tiny teal" style={{ marginTop: 12 }} onClick={() => setAdding(true)}>
-            + Add item
-          </button>
+        {editMode && editingId && (
+          <ItemBuilder
+            characterId={characterId ?? undefined}
+            initial={char.inventory.find((x) => x.id === editingId)}
+            onSave={upsert}
+            onCancel={() => setEditingId(null)}
+          />
         )}
-        {editMode && adding && (
-          <div className="mt" style={{ display: 'grid', gap: 8 }}>
-            <input placeholder="Item name" value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} />
-            <input placeholder="Description" value={draft.desc} onChange={(e) => setDraft((d) => ({ ...d, desc: e.target.value }))} />
-            <div className="btn-row">
-              <input type="number" placeholder="Qty" value={draft.qty} onChange={(e) => setDraft((d) => ({ ...d, qty: Number(e.target.value) || 1 }))} style={{ width: 80 }} />
-              <button className="btn tiny teal" onClick={add}>Save</button>
-              <button className="btn tiny" onClick={() => setAdding(false)}>Cancel</button>
-            </div>
-          </div>
+        {editMode && adding && !editingId && (
+          <ItemBuilder characterId={characterId ?? undefined} onSave={upsert} onCancel={() => setAdding(false)} />
+        )}
+        {editMode && !adding && !editingId && (
+          <button className="btn tiny teal" style={{ marginTop: 12 }} onClick={() => { setAdding(true); setEditingId(null) }}>
+            + Build an item
+          </button>
         )}
       </div>
     </section>

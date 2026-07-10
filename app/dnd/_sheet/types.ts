@@ -1,4 +1,5 @@
 import type { AbilityKey, ProfLevel } from './rules/dnd'
+import type { Effect } from './engine/effects'
 
 export interface Attack {
   id: string
@@ -29,6 +30,15 @@ export interface FeatureBlock {
   body: string[] // paragraphs (markdown-lite: **bold**, *em*)
   flavor?: string
   tone?: 'default' | 'pink' | 'teal' | 'gold'
+  /** Makes the feature USABLE from the sheet: spend a resource (by id) and/or roll a die,
+   *  applying heal/temp HP. Shown as a button on the feature card. */
+  use?: {
+    label: string
+    resourceId?: string // resource whose `current` decrements on use
+    roll?: string // dice expr to roll, e.g. '1d8+3'
+    rollKind?: 'damage' | 'heal' | 'temp' | 'raw'
+    note?: string // shown in the log for non-dice uses
+  }
 }
 
 export interface FormAbility {
@@ -65,6 +75,45 @@ export interface Resource {
   note?: string
 }
 
+/** One typed damage component, e.g. { dice: '2d8', type: 'slashing' }. Reused by the weapon
+ *  builder and the typed dice roller so a weapon can deal 2d8 slashing + 1d6 poison. */
+export interface TypedDamage {
+  dice: string
+  type: string
+}
+
+export type ItemKind = 'weapon' | 'armor' | 'shield' | 'consumable' | 'wondrous' | 'gear'
+
+export interface WeaponStats {
+  ability?: AbilityKey // to-hit + damage ability (default STR; DEX if finesse/ranged)
+  proficient?: boolean
+  toHitBonus?: number
+  range?: string
+  damage: TypedDamage // primary damage
+  bonus?: TypedDamage[] // extra typed dice, e.g. [{ dice: '1d6', type: 'poison' }]
+  properties?: string[] // finesse, versatile, thrown, two-handed, …
+}
+
+export interface ArmorStats {
+  category: 'light' | 'medium' | 'heavy' | 'shield'
+  baseAC?: number // body-armor base AC, or a shield's flat bonus
+  dexCap?: number | null // medium = 2, heavy = 0, light = null (uncapped)
+  stealthDisadvantage?: boolean
+}
+
+export interface ConsumableStats {
+  effect: {
+    /** heal = restore HP · temp = grant temp HP · status = apply a condition · buff = grant
+     *  temporary Effects (spell DC, ability, AC…) · custom = note-only, DM adjudicates. */
+    kind: 'heal' | 'temp' | 'status' | 'buff' | 'custom'
+    dice?: string // heal/temp: dice rolled, e.g. '2d4+2'
+    status?: string // status: condition granted, e.g. 'Invisible', 'Blessed'
+    duration?: string // status/buff: how long, e.g. '10 minutes', '3 rounds', '1 hour'
+    effects?: Effect[] // buff: temporary bonuses (e.g. +1 spell save DC, +2 DEX)
+    note?: string
+  }
+}
+
 export interface InvItem {
   id: string
   name: string
@@ -72,6 +121,61 @@ export interface InvItem {
   qty: number
   tags: ('equipped' | 'weapon' | 'consumable' | 'tech' | 'flavor')[]
   use?: { label: string; expr: string; kind: 'heal' | 'temp' | 'damage' }
+  // ── Homebrew item-builder fields (Phase: DND_ITEM_BUILDER). All optional so existing
+  //    items and old exports keep working; readers must be defensive.
+  kind?: ItemKind
+  equipped?: boolean
+  attuned?: boolean
+  image?: string // uploaded item artwork URL (dnd-media bucket, kind='item')
+  weapon?: WeaponStats
+  armor?: ArmorStats
+  consumable?: ConsumableStats
+  effects?: Effect[] // passive bonuses while equipped/attuned (engine Effect shape)
+}
+
+/** A temporary effect currently applied to the character (from a consumed buff/potion or a
+ *  DM boon). Shown in the Active-Effects tracker; removable by the player or DM. */
+export interface ActiveEffect {
+  id: string
+  label: string // e.g. "Potion of Storm Giant Strength"
+  effects: Effect[] // the bonuses granted while active
+  duration?: string // e.g. "1 hour", "3 rounds"
+  source?: string // where it came from (item name)
+}
+
+export type SpellLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 // 0 = cantrip
+
+/** A defined, castable spell (DND_SPELLS_AND_ABILITIES). Damage is typed so it reuses the
+ *  item-builder's typed roller; save/attack drive how casting resolves. */
+export interface Spell {
+  id: string
+  name: string
+  level: SpellLevel
+  school?: string
+  /** Prepared/known and usable. Cantrips + domain/feat spells are effectively always on. */
+  prepared?: boolean
+  /** Domain/feat spells that don't count against the prepared cap. */
+  alwaysPrepared?: boolean
+  castTime?: string
+  range?: string
+  components?: string
+  duration?: string
+  concentration?: boolean
+  ritual?: boolean
+  description: string
+  alias?: string // display alias, e.g. "Spotlight" for Guiding Bolt
+  attack?: boolean // spell attack roll (castingMod + PB)
+  save?: { ability: AbilityKey; effect: string } // targets save vs your spell DC
+  damage?: TypedDamage[] // typed damage components
+  heal?: string // healing dice, e.g. "1d4"
+  higher?: string // "at higher levels" scaling text
+}
+
+export interface SpellcastingInfo {
+  ability: AbilityKey
+  preparedCap?: number // WIS mod + level, etc.
+  /** Spell slots per level (1–9); cantrips don't use slots. */
+  slots?: Partial<Record<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, { max: number; current: number }>>
 }
 
 export interface SkillState {
@@ -153,12 +257,19 @@ export interface Character {
   forms: CharForm[]
   activeFormId: string
   attacks: Attack[]
+  /** Defined, castable spells (optional — non-casters omit). Managed in the Spells tab. */
+  spells?: Spell[]
+  spellcasting?: SpellcastingInfo
   features: FeatureBlock[]
   progression: ProgressionRow[]
   /** Optional per-character labels for the progression table (defaults to Lazzuh's
    *  barbarian columns). Lets non-barbarians relabel the two middle columns + lead. */
   progressionMeta?: { title?: string; lead?: string; col3?: string; col4?: string }
   inventory: InvItem[]
+  /** Temporary effects currently active on the character — from a consumed buff/potion or a
+   *  DM-granted boon. Each is removable by the player or DM (Active-Effects tracker). Passive
+   *  item effects come from equipped/attuned `inventory` items, not this list. */
+  activeEffects?: ActiveEffect[]
   currency: { credits: number; harmonyte: number; scrip: number }
   bio: {
     intro: string[]

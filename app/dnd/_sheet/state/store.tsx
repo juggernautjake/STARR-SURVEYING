@@ -6,10 +6,10 @@
 // initializer wrapped in try/catch → SSR-safe (falls back to the bundled `lazzuh`).
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { Character } from '../types'
+import type { Character, InvItem, ActiveEffect, Spell, FeatureBlock } from '../types'
 import { lazzuh } from '../data/lazzuh'
 import { profBonusForLevel, abilityMod, ragesForLevel, rageDamageForLevel, maxHpForLevel, speedForLevel, MAX_BUILT_LEVEL } from '../rules/dnd'
-import { rollD20, rollDamage, parseDice, rollDie, type Advantage } from '../lib/dice'
+import { rollD20, rollDamage, parseDice, rollDie, rollTyped, weaponSegments, type Advantage } from '../lib/dice'
 
 const STORAGE_KEY = 'neon-odyssey:lazzuh:v7'
 
@@ -115,9 +115,14 @@ interface Ctx {
 
   rollCheck: (label: string, mod: number, opts?: RollD20Opts) => void
   rollDmg: (label: string, diceExpr: string, opts?: RollDmgOpts) => void
+  rollWeaponDamage: (item: InvItem, opts?: { crit?: boolean }) => void
   rollExpr: (label: string, expr: string, kind?: RollEntry['kind']) => void
+  castSpell: (spell: Spell) => void
+  activateFeature: (f: FeatureBlock) => void
 
   adjustHp: (delta: number) => void
+  addActiveEffect: (ae: ActiveEffect) => void
+  removeActiveEffect: (id: string) => void
   setResource: (id: string, current: number) => void
   shortRest: () => void
   longRest: () => void
@@ -508,6 +513,35 @@ export function CharacterProvider({
     [char.combat.transformActive, char.combat.rageDamageBonus, stage],
   )
 
+  // Roll a homebrew weapon's damage: primary (typed, + ability mod) plus any typed bonus dice
+  // (e.g. +1d6 poison). Reports a per-type breakdown so the log shows how much of the hit was
+  // each damage type. Adds surge/rage to the primary type when the weapon is rageable + surged.
+  const rollWeaponDamage = useCallback(
+    (item: InvItem, opts: { crit?: boolean } = {}) => {
+      const w = item.weapon
+      if (!w) return
+      const abilityKey = w.ability ?? 'str'
+      const mod = abilityMod(char.abilities[abilityKey])
+      const rage = item.tags?.includes('weapon') && char.combat.transformActive ? char.combat.rageDamageBonus : 0
+      const flat = mod + rage
+      const segments = weaponSegments(w.damage, w.bonus, flat)
+      const typed = rollTyped(segments, opts.crit)
+      const tags: string[] = []
+      if (opts.crit) tags.push('CRIT ×2 DICE')
+      if (rage) tags.push('SURGED')
+      // spin range roughly covers plausible totals across all segments
+      const maxV = segments.reduce((s, seg) => {
+        const p = parseDice(seg.dice)
+        return s + p.groups.reduce((g2, g) => g2 + Math.abs(g.count) * g.sides * (opts.crit ? 2 : 1), 0) + Math.max(0, p.flat)
+      }, 0)
+      stage(
+        { label: `${item.name} — damage`, kind: 'damage', total: typed.total, breakdown: typed.breakdown, tag: tags.join(' · ') || undefined },
+        { landing: typed.total, min: Math.max(1, flat + 1), max: Math.max(2, maxV), isD20: false },
+      )
+    },
+    [char.abilities, char.combat.transformActive, char.combat.rageDamageBonus, stage],
+  )
+
   const rollExpr = useCallback(
     (label: string, expr: string, kind: RollEntry['kind'] = 'raw') => {
       const dmg = rollDamage(expr)
@@ -519,6 +553,64 @@ export function CharacterProvider({
       )
     },
     [stage],
+  )
+
+  // Cast a spell: spend the level's slot (cantrips are free), roll the spell attack and/or
+  // typed damage, roll healing, or log a save/utility cast with its DC.
+  const castSpell = useCallback(
+    (spell: Spell) => {
+      const sc = char.spellcasting
+      const mod = sc ? abilityMod(char.abilities[sc.ability]) : 0
+      const pb = profBonusForLevel(char.meta.level)
+      const saveDC = char.combat.saveDCOverride ?? 8 + pb + mod
+      const label = spell.alias ? `${spell.name} (“${spell.alias}”)` : spell.name
+      if (spell.level > 0) {
+        setCharState((c) => {
+          const slot = c.spellcasting?.slots?.[spell.level as 1]
+          if (!slot || slot.current <= 0) return c
+          return { ...c, spellcasting: { ...c.spellcasting!, slots: { ...c.spellcasting!.slots, [spell.level]: { ...slot, current: slot.current - 1 } } } }
+        })
+      }
+      if (spell.attack) rollCheck(`${label} — spell attack`, pb + mod, { kind: 'attack' })
+      if (spell.damage && spell.damage.length) {
+        const typed = rollTyped(spell.damage.map((d) => ({ dice: d.dice, type: d.type })))
+        const tag = spell.save ? `${spell.save.ability.toUpperCase()} save DC ${saveDC}` : undefined
+        const maxV = spell.damage.reduce((s, d) => { const p = parseDice(d.dice); return s + p.groups.reduce((g2, g) => g2 + Math.abs(g.count) * g.sides, 0) + Math.max(0, p.flat) }, 0)
+        stage(
+          { label: `${label} — damage`, kind: 'damage', total: typed.total, breakdown: typed.breakdown, tag },
+          { landing: typed.total, min: 1, max: Math.max(2, maxV), isD20: false },
+        )
+      } else if (spell.heal) {
+        rollExpr(`${label} — heal`, spell.heal, 'heal')
+      } else if (!spell.attack) {
+        commitRoll({ label: `${label} — cast`, kind: 'raw', total: 0, breakdown: spell.save ? `${spell.save.ability.toUpperCase()} save DC ${saveDC}` : spell.level > 0 ? `L${spell.level} slot spent` : 'cantrip' })
+      }
+    },
+    [char.spellcasting, char.abilities, char.meta.level, char.combat.saveDCOverride, rollCheck, rollExpr, stage, commitRoll],
+  )
+
+  // Use a class feature: spend its resource (if any) and roll/apply its effect (heal/temp HP
+  // are applied; damage/raw just roll to the log). Makes Channel Divinity, Sponsorship, etc. usable.
+  const activateFeature = useCallback(
+    (f: FeatureBlock) => {
+      const u = f.use
+      if (!u) return
+      if (u.resourceId) {
+        setCharState((c) => ({ ...c, resources: c.resources.map((r) => (r.id === u.resourceId ? { ...r, current: Math.max(0, r.current - 1) } : r)) }))
+      }
+      const title = `${f.name} — ${u.label}`
+      if (u.roll && (u.rollKind === 'heal' || u.rollKind === 'temp')) {
+        const total = rollDamage(u.roll).total
+        if (u.rollKind === 'heal') setCharState((c) => ({ ...c, combat: { ...c.combat, currentHp: Math.min(c.combat.maxHp, c.combat.currentHp + total) } }))
+        else setCharState((c) => ({ ...c, combat: { ...c.combat, tempHp: Math.max(c.combat.tempHp, total) } }))
+        commitRoll({ label: title, kind: u.rollKind, total, breakdown: `${u.roll} → ${u.rollKind === 'heal' ? `+${total} HP` : `${total} temp HP`}` })
+      } else if (u.roll) {
+        rollExpr(title, u.roll, u.rollKind === 'damage' ? 'damage' : 'raw')
+      } else {
+        commitRoll({ label: title, kind: 'raw', total: 0, breakdown: u.note ?? 'used' })
+      }
+    },
+    [rollExpr, commitRoll],
   )
 
   const clearLog = useCallback(() => setLog([]), [])
@@ -640,6 +732,14 @@ export function CharacterProvider({
         resources: c.resources.map((r) => ({ ...r, current: r.max })),
       }
     })
+  }, [])
+
+  // Active temporary effects (consumed buffs / DM boons) — the Active-Effects tracker.
+  const addActiveEffect = useCallback((ae: ActiveEffect) => {
+    setCharState((c) => ({ ...c, activeEffects: [...(c.activeEffects ?? []), ae] }))
+  }, [])
+  const removeActiveEffect = useCallback((id: string) => {
+    setCharState((c) => ({ ...c, activeEffects: (c.activeEffects ?? []).filter((e) => e.id !== id) }))
   }, [])
 
   const adjustHp = useCallback((delta: number) => {
@@ -778,8 +878,13 @@ export function CharacterProvider({
     resetStage,
     rollCheck,
     rollDmg,
+    rollWeaponDamage,
     rollExpr,
+    castSpell,
+    activateFeature,
     adjustHp,
+    addActiveEffect,
+    removeActiveEffect,
     setResource,
     shortRest,
     longRest,
