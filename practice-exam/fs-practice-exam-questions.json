@@ -1,0 +1,441 @@
+{
+  "meta": {
+    "source": "NCEES BenchPrep FS Exam (Fundamentals of Surveying) — 50-question full-length practice test",
+    "exam_url": "https://ncees.benchprep.com/app/fs#exams/details/296913",
+    "captured": "2026-07-10",
+    "captured_by": "Claude (browser automation, Review Answer mode ON)",
+    "total_questions": 50,
+    "official_score": "92% (46/50)",
+    "image_source_pattern": "https://s3.amazonaws.com/wmx-api-production/courses/92292/images/FS_<questionNumber>.svg",
+    "figure_questions": [6, 7, 9, 13, 19, 20, 28, 36, 37, 46],
+    "ncees_categories": {
+      "1": "Surveying Processes and Methods",
+      "2": "Mapping Processes and Methods",
+      "3": "Boundary Law and Real Property Principles",
+      "4": "Surveying Principles",
+      "5": "Survey Computations and Computer Applications",
+      "6": "Business Concepts",
+      "7": "Applied Mathematics and Statistics"
+    },
+    "category_scores": {
+      "1": {"complete": "8/8", "pct": 88},
+      "2": {"complete": "7/7", "pct": 86},
+      "3": {"complete": "10/10", "pct": 90},
+      "4": {"complete": "6/6", "pct": 83},
+      "5": {"complete": "9/9", "pct": 100},
+      "6": {"complete": "5/5", "pct": 100},
+      "7": {"complete": "5/5", "pct": 100}
+    },
+    "question_types": ["mc_single", "mc_multi", "numeric", "drag_order", "drag_label", "hotspot"],
+    "notes": "ncees_category is a best-guess mapping by Claude; topic is a finer descriptive tag. correct is letter(s) for MC, value/range for numeric, ordered list for drag_order, mapping for drag_label/hotspot."
+  },
+  "questions": [
+    {
+      "number": 1, "type": "mc_multi", "ncees_category": 1, "topic": "Leveling / curvature & refraction",
+      "stem": "What effects must be taken into consideration when performing differential leveling over long distances? (Select the two that apply.)",
+      "options": {"A": "Focal length of the instrument", "B": "Curvature of the earth", "C": "Latitude of the observations", "D": "Atmospheric refraction", "E": "Latitude of observer"},
+      "correct": ["B", "D"],
+      "explanation": "Curvature of the earth and atmospheric refraction both affect the path of light over distance.",
+      "has_figure": false, "figure_file": null, "claude_answer": ["B", "D"], "result": "correct", "difficulty": "easy"
+    },
+    {
+      "number": 2, "type": "mc_single", "ncees_category": 1, "topic": "GNSS field procedures",
+      "stem": "What is the most important measurement in Global Navigation Satellite System (GNSS) survey procedures?",
+      "options": {"A": "Barometric pressure", "B": "Relative humidity", "C": "Antenna height", "D": "Distance between base and rover"},
+      "correct": "C",
+      "explanation": "Antenna height is critical because the position solution requires the true position of the antenna relative to the center of the earth.",
+      "has_figure": false, "figure_file": null, "claude_answer": "C", "result": "correct", "difficulty": "easy"
+    },
+    {
+      "number": 3, "type": "mc_single", "ncees_category": 4, "topic": "GNSS / geodesy height systems",
+      "stem": "When elevations are produced for a survey project using GNSS, the limiting factor is a:",
+      "options": {"A": "clear line of sight", "B": "precise ellipsoid model", "C": "precise geoid model", "D": "precise gravimetric model"},
+      "correct": "C",
+      "explanation": "GNSS gives ellipsoidal heights; converting to orthometric heights (relative to the geoid) requires a precise geoid model.",
+      "has_figure": false, "figure_file": null, "claude_answer": "C", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 4, "type": "mc_single", "ncees_category": 4, "topic": "Geodesy / height reference",
+      "stem": "Geodetic heights obtained with satellite surveys are:",
+      "options": {"A": "presented in geocentric coordinates", "B": "presented in state plane coordinates", "C": "measured with respect to the geoid", "D": "measured with respect to the ellipsoid"},
+      "correct": "D",
+      "explanation": "GNSS satellites orbit the center of mass of the earth and provide measurements referenced to the ellipsoid (geodetic/ellipsoidal height).",
+      "has_figure": false, "figure_file": null, "claude_answer": "D", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 5, "type": "mc_single", "ncees_category": 1, "topic": "Types of surveys",
+      "stem": "The most effective way to link the proposed infrastructure of a development to the existing adjacent infrastructure is determined by a:",
+      "options": {"A": "boundary survey", "B": "topographic survey", "C": "control survey", "D": "geodetic survey"},
+      "correct": "B",
+      "explanation": "Topographic surveys show natural terrain and man-made features (roads, drains), linking proposed infrastructure to existing adjacent infrastructure.",
+      "has_figure": false, "figure_file": null, "claude_answer": "C", "result": "incorrect", "difficulty": "medium",
+      "notes": "Exam trap: 'link to existing adjacent infrastructure' points to a topo survey, not a control survey."
+    },
+    {
+      "number": 6, "type": "mc_single", "ncees_category": 5, "topic": "Construction staking / grade & cut",
+      "stem": "A survey party set offset stakes for an 8-in. sewer. When the existing 12-in. sewer is uncovered at MH1, the actual flow line elevation is 1,228.69 ft rather than the design 1,228.47 ft. The gradient is revised, holding flow line 1,229.27 ft at MH2. If the grade stake at Sta. 1+25 is 1,235.06 ft, the cut (ft) to the flow line is most nearly:",
+      "options": {"A": "5.98", "B": "6.08", "C": "6.18", "D": "6.25"},
+      "correct": "B",
+      "explanation": "Revised gradient = (1,229.27-1,228.69)/247.55 = 0.00234. Flow line at Sta 1+25 = 1,228.69 + 125*0.00234 = 1,228.98. Cut = 1,235.06 - 1,228.98 = 6.08 ft.",
+      "has_figure": true, "figure_file": "images/Q06_sewer-grade-cut-profile.svg", "claude_answer": "B", "result": "correct", "difficulty": "hard"
+    },
+    {
+      "number": 7, "type": "mc_single", "ncees_category": 5, "topic": "Slope staking",
+      "stem": "Setting slope stakes: at Sta. 2+00 finish grade = 110.31 ft at edge of road, distance CL to edge = 12.0 ft. Rod held 28.5 ft from CL, rod reading 12.1 ft, HI = 119.77 ft. Your next step is to:",
+      "options": {"A": "move in about 6 ft and try again", "B": "move in about 10 ft and try again", "C": "move out about 6 ft and try again", "D": "drive in a stake since you are at the slope stake"},
+      "correct": "A",
+      "explanation": "Ground elev = 119.77-12.1 = 107.67. Road edge above ground by 2.64 ft => FILL, use 4:1. Catch point = 12.0 + 2.64*4 = 22.56 ft from CL. Rod at 28.5 => move IN ~6 ft.",
+      "has_figure": true, "figure_file": "images/Q07_cut-fill-slope-sections.svg", "claude_answer": "A", "result": "correct", "difficulty": "hard"
+    },
+    {
+      "number": 8, "type": "mc_single", "ncees_category": 2, "topic": "Floodplain / FEMA",
+      "stem": "Which document is typically used to rate structures located in or near a floodplain for the purpose of flood insurance?",
+      "options": {"A": "Elevation Form", "B": "Wetlands Evaluation", "C": "Floodproofing Certificate", "D": "Elevation Certificate"},
+      "correct": "D",
+      "explanation": "The FEMA Elevation Certificate is an NFIP tool used to determine insurance premium rates and support LOMA/LOMR requests.",
+      "has_figure": false, "figure_file": null, "claude_answer": "D", "result": "correct", "difficulty": "easy"
+    },
+    {
+      "number": 9, "type": "numeric", "ncees_category": 2, "topic": "Topographic mapping / contours",
+      "stem": "The elevation (ft) of the highest contour line on the map shown is _____.",
+      "options": null,
+      "correct": "1800",
+      "explanation": "Contours between 1,000 and 1,500 give an interval of 100 ft. The hill has a closed 1,500-ft contour with three higher contours inside => highest = 1,800 ft.",
+      "has_figure": true, "figure_file": "images/Q09_contour-map-highest-contour.svg", "claude_answer": "1800", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 10, "type": "mc_single", "ncees_category": 2, "topic": "Photogrammetry / scale",
+      "stem": "On a vertical aerial photograph a bridge measures 6.75 in. On a map at scale 1:12,000 the same bridge measures 8.10 in. At the bridge site, the aerial photograph scale is most nearly:",
+      "options": {"A": "1/833", "B": "1/1,200", "C": "1/10,000", "D": "1/14,400"},
+      "correct": "D",
+      "explanation": "Ground distance = (8.10/12)*12,000 = 8,100 ft. Photo scale = (6.75/12)/8,100 = 1/14,400.",
+      "has_figure": false, "figure_file": null, "claude_answer": "D", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 11, "type": "mc_single", "ncees_category": 2, "topic": "GIS / topology",
+      "stem": "Which of the following is not related to topology in a GIS?",
+      "options": {"A": "Connectivity", "B": "Adjacency", "C": "Polygon", "D": "Color"},
+      "correct": "D",
+      "explanation": "Topology is the geometric relationship of spatial objects (connectivity, adjacency, containment/polygons). Color does not apply to topological relationships.",
+      "has_figure": false, "figure_file": null, "claude_answer": "D", "result": "correct", "difficulty": "easy"
+    },
+    {
+      "number": 12, "type": "numeric", "ncees_category": 2, "topic": "Spatial data accuracy (NSSDA)",
+      "stem": "To compute the vertical accuracy of an elevation data file using the National Standard for Spatial Data Accuracy (NSSDA), the RMSE is multiplied by _____.",
+      "options": null,
+      "correct": "1.9600",
+      "explanation": "NSSDA multiplies RMSE by the standard error of the mean at the 95% confidence level: 1.7308 for horizontal accuracy, 1.9600 for vertical accuracy.",
+      "has_figure": false, "figure_file": null, "claude_answer": "1.96", "result": "correct", "difficulty": "medium",
+      "notes": "Memorize both: horizontal 1.7308, vertical 1.9600."
+    },
+    {
+      "number": 13, "type": "drag_label", "ncees_category": 2, "topic": "Photogrammetry / tilted photo geometry",
+      "stem": "Label the nadir diagram. Drag each term to the correct location on the figure. Terms: Optical axis, Plumb line, Principal line, Tilted photo.",
+      "options": {"terms": ["Optical axis", "Plumb line", "Principal line", "Tilted photo"]},
+      "correct": {"Plumb line": "vertical line to NADIR", "Optical axis": "tilted line through principal point (perpendicular to photo at lens)", "Tilted photo": "the parallelogram photo plane", "Principal line": "line in the photo through principal point and photo nadir point"},
+      "explanation": "Standard tilted-photograph geometry. Plumb line = vertical to nadir; optical axis = perpendicular to photo through lens; tilted photo = photo plane; principal line = through principal point and photo nadir point.",
+      "has_figure": true, "figure_file": "images/Q13_tilted-photo-nadir-diagram.svg", "claude_answer": "matched", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 14, "type": "mc_single", "ncees_category": 2, "topic": "Photogrammetry / scale",
+      "stem": "An airplane carrying a camera with a 6-in. focal length is flying at 10,000 ft above MSL. If the average terrain is 1,500 ft above MSL, the average scale of the photo is most nearly:",
+      "options": {"A": "1:16,000", "B": "1:17,000", "C": "1:18,000", "D": "1:20,000"},
+      "correct": "B",
+      "explanation": "Scale = focal length / height above mean terrain = 6 in / [(10,000-1,500)*12 in] = 6/(8,500*12) = 1:17,000.",
+      "has_figure": false, "figure_file": null, "claude_answer": "B", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 15, "type": "mc_single", "ncees_category": 2, "topic": "LiDAR / data formats",
+      "stem": "A binary public file format used to interchange three-dimensional light detection and ranging data is called:",
+      "options": {"A": "ASCI", "B": "LAS", "C": "USGS DEM", "D": "TIFF"},
+      "correct": "B",
+      "explanation": "LAS is the binary public format for LiDAR. ASCII is not binary; USGS DEM stores raster DEMs; TIFF is a tagged imagery file.",
+      "has_figure": false, "figure_file": null, "claude_answer": "B", "result": "correct", "difficulty": "easy"
+    },
+    {
+      "number": 16, "type": "mc_single", "ncees_category": 3, "topic": "Property transfer / deeds",
+      "stem": "A warranty deed is an example of:",
+      "options": {"A": "possession insurance", "B": "a Torrens title", "C": "a title guarantee", "D": "an agreement between owners to fix a disputed boundary line"},
+      "correct": "C",
+      "explanation": "A warranty deed is a document in which the grantor guarantees clear title to the grantee (free of liens/claims) — a title guarantee.",
+      "has_figure": false, "figure_file": null, "claude_answer": "C", "result": "correct", "difficulty": "easy"
+    },
+    {
+      "number": 17, "type": "drag_order", "ncees_category": 3, "topic": "Priority of conflicting title elements",
+      "stem": "List the following title elements in order of importance from most important to least important. Elements: Area, Called-for monument, Senior rights, Right of possession, Distance.",
+      "options": {"items": ["Area", "Called-for monument", "Senior rights", "Right of possession", "Distance"]},
+      "correct": ["Right of possession", "Senior rights", "Called-for monument", "Distance", "Area"],
+      "explanation": "NCEES key ranks Right of possession as MOST important, above Senior rights, then Called-for monument > Distance > Area.",
+      "has_figure": false, "figure_file": null, "claude_answer": ["Senior rights", "Right of possession", "Called-for monument", "Distance", "Area"], "result": "incorrect", "difficulty": "hard",
+      "notes": "Contentious: NCEES puts Right of possession above Senior rights, deviating from the classic Brown 'senior rights first' hierarchy."
+    },
+    {
+      "number": 18, "type": "mc_single", "ncees_category": 3, "topic": "Easements",
+      "stem": "Under which of the following circumstances would a road easement be extinguished?",
+      "options": {"A": "The servient tenement is sold to another.", "B": "The dominant and servient tenement is under one ownership.", "C": "The easement is not actively in use.", "D": "A fence is constructed across the easement."},
+      "correct": "B",
+      "explanation": "Merger of title between the dominant and servient tenement extinguishes the easement (it merges into fee ownership).",
+      "has_figure": false, "figure_file": null, "claude_answer": "B", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 19, "type": "mc_single", "ncees_category": 3, "topic": "Senior rights / simultaneous conveyances",
+      "stem": "A recorded subdivision plat with found monuments and measurements. Lot 22 conveyed by subdivider to Smith on June 7, 1979; Lot 23 sold to same person June 8, 1979. It can be said that:",
+      "options": {"A": "Lots 22 and 23 have equal rights because the grantee is the same person.", "B": "Lot 22 has senior rights to Lot 23 because it was platted first.", "C": "Lot 22 has senior rights to Lot 23 because it was sold first.", "D": "Lots 22 and 23 have equal rights within a recorded subdivision."},
+      "correct": "D",
+      "explanation": "Simultaneous conveyances: all lots in a recorded subdivision are created at the same instant (plat recording), so none is senior regardless of sale dates. The reason is the recorded subdivision, not the shared grantee.",
+      "has_figure": true, "figure_file": "images/Q19_subdivision-plat-senior-rights.svg", "claude_answer": "D", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 20, "type": "mc_single", "ncees_category": 3, "topic": "Excess & deficiency (remainder lot)",
+      "stem": "A recorded plat; monuments A and B found 232.30 ft apart with no other lot corners found. Lots 1-4 each = 50.00 ft record frontage, Lot 5 = 30± ft. The frontage (ft) of Lot 5 is most nearly:",
+      "options": {"A": "30.0", "B": "30.30", "C": "32.30", "D": "33.20"},
+      "correct": "C",
+      "explanation": "The '±' marks Lot 5 as the remainder lot. Lots 1-4 hold record (4*50 = 200). Lot 5 = 232.30 - 200 = 32.30 ft (not proportioned).",
+      "has_figure": true, "figure_file": "images/Q20_recorded-plat-remainder-lot.svg", "claude_answer": "C", "result": "correct", "difficulty": "hard",
+      "notes": "Contrast remainder (32.30) vs proportionate distribution (30.30, option B). The '±' is the tell."
+    },
+    {
+      "number": 21, "type": "drag_order", "ncees_category": 3, "topic": "Legal descriptions / structure",
+      "stem": "Place the parts of metes-and-bounds legal descriptions in the correct order of appearance. Terms: Qualifying clauses, Augmenting clauses, Caption or heading, Body.",
+      "options": {"items": ["Qualifying clauses", "Augmenting clauses", "Caption or heading", "Body"]},
+      "correct": ["Caption or heading", "Body", "Qualifying clauses", "Augmenting clauses"],
+      "explanation": "Order of a written description: caption/heading, body (the metes and bounds), qualifying clauses, augmenting clauses.",
+      "has_figure": false, "figure_file": null, "claude_answer": ["Caption or heading", "Body", "Qualifying clauses", "Augmenting clauses"], "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 22, "type": "mc_single", "ncees_category": 3, "topic": "PLSS / corner restoration",
+      "stem": "In a dependent resurvey in the PLSS, corners are existent, obliterated, or lost. An obliterated corner is one whose location can be determined by:",
+      "options": {"A": "double proportion", "B": "single proportion", "C": "reliable testimony", "D": "secondary methods"},
+      "correct": "C",
+      "explanation": "An obliterated corner (no remaining monument traces but recoverable) is determined by reliable testimony/evidence. Proportioning and secondary methods are for LOST corners.",
+      "has_figure": false, "figure_file": null, "claude_answer": "C", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 23, "type": "numeric", "ncees_category": 3, "topic": "Tidal boundaries / tidal datums",
+      "stem": "The standard determination of the principal tidal datums (e.g., mean high water) in the U.S. is based on the average observations of a period (full years) of _____.",
+      "options": null,
+      "correct": "19",
+      "explanation": "Principal tidal datums are averaged over a 19-year period (the National Tidal Datum Epoch, NTDE).",
+      "has_figure": false, "figure_file": null, "claude_answer": "19", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 24, "type": "mc_single", "ncees_category": 3, "topic": "Public records / tax maps",
+      "stem": "Which statement best describes the importance of parcel maps produced by county tax offices (tax maps)?",
+      "options": {"A": "They are official records of landownership.", "B": "They do not have an official use; they are just advisory.", "C": "They are an important form of parcel location evidence for a surveyor to follow.", "D": "They only govern parcel identification for tax purposes."},
+      "correct": "D",
+      "explanation": "Tax maps are not dimensionally accurate; they exist only to support parcel identification for tax collection — not authoritative boundary/ownership evidence.",
+      "has_figure": false, "figure_file": null, "claude_answer": "D", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 25, "type": "mc_single", "ncees_category": 3, "topic": "Research / senior rights",
+      "stem": "When performing project research, it is necessary to review the historical recording dates of all deeds for the subject property and adjoining properties to determine:",
+      "options": {"A": "order of conveyance", "B": "transcription errors", "C": "the parties' intent", "D": "the basis for declination"},
+      "correct": "A",
+      "explanation": "Creation and recording dates determine the order of conveyance — establishing senior rights and whether conveyances were sequential or simultaneous.",
+      "has_figure": false, "figure_file": null, "claude_answer": "A", "result": "correct", "difficulty": "easy"
+    },
+    {
+      "number": 26, "type": "mc_single", "ncees_category": 4, "topic": "Control networks (NGS)",
+      "stem": "A survey references boundaries to the state plane coordinate system with directions to grid north. You can obtain a list of control monuments and coordinates from the:",
+      "options": {"A": "National Society of Professional Surveyors", "B": "National Bureau of Standards", "C": "National Geodetic Survey", "D": "Bureau of Land Management"},
+      "correct": "C",
+      "explanation": "NOAA's National Geodetic Survey (NGS) provides the framework for positioning in the U.S. — the source for control monuments and state plane coordinates.",
+      "has_figure": false, "figure_file": null, "claude_answer": "C", "result": "correct", "difficulty": "easy"
+    },
+    {
+      "number": 27, "type": "mc_single", "ncees_category": 1, "topic": "Retracement / scale factor",
+      "stem": "Modern measurements may not agree with historical measurements due to old equipment and systematic errors. Which allows surveyors to relate original record distances to resurvey measurements, to assist a resurvey, or to find original monuments?",
+      "options": {"A": "Elevation factor", "B": "Grid factor", "C": "Scale factor", "D": "Zone constant"},
+      "correct": "C",
+      "explanation": "A historical scale factor is found by measuring between two found undisturbed original monuments and dividing the record distance by the measured distance; apply it to locate other originals.",
+      "has_figure": false, "figure_file": null, "claude_answer": "C", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 28, "type": "hotspot", "ncees_category": 4, "topic": "Geodesy / height systems (h = H + N)",
+      "stem": "Click the geoid height on the elevation view shown.",
+      "options": {"labels_on_figure": {"h": "ellipsoidal height (ellipsoid->terrain)", "H": "orthometric height (geoid->terrain)", "N": "geoid height/undulation (ellipsoid->geoid)", "r": "geocentric radius (ellipsoid->earth center)"}},
+      "correct": "N (segment between ellipsoid and geoid)",
+      "explanation": "Geoid height (geoid undulation) N is the separation between the ellipsoid and the geoid. Relationship: h = H + N.",
+      "has_figure": true, "figure_file": "images/Q28_geoid-ellipsoid-height-diagram.svg", "claude_answer": "N", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 29, "type": "mc_single", "ncees_category": 7, "topic": "Spherical trigonometry",
+      "stem": "On a spherical triangle, a = 76 deg, b = 58 deg, C = 118 deg. The measurement for c is most nearly:",
+      "options": {"A": "104 deg 57' 28\"", "B": "59 deg 14' 19\"", "C": "14 deg 28' 22\"", "D": "-14 deg 57' 28\""},
+      "correct": "A",
+      "explanation": "Law of cosines for sides: cos c = cos a cos b + sin a sin b cos C = 0.128199 - 0.386308 = -0.258109 => c = 104 deg 57' 28\".",
+      "has_figure": false, "figure_file": null, "claude_answer": "A", "result": "correct", "difficulty": "hard"
+    },
+    {
+      "number": 30, "type": "mc_single", "ncees_category": 2, "topic": "Map projections / Lambert Conformal Conic",
+      "stem": "In a Lambert projection, all the lines that are equal distance apart are:",
+      "options": {"A": "straight lines", "B": "standard parallels", "C": "central meridians", "D": "meridians"},
+      "correct": "B",
+      "explanation": "Per the key: meridians converge to a central point (not equal distance apart); by elimination the answer is standard parallels.",
+      "has_figure": false, "figure_file": null, "claude_answer": "D", "result": "incorrect", "difficulty": "hard",
+      "notes": "Ambiguous/poorly-worded; low-confidence official answer. Flag for review."
+    },
+    {
+      "number": 31, "type": "mc_single", "ncees_category": 2, "topic": "State Plane Coordinate System",
+      "stem": "The term projected as it relates to the State Plane Coordinate System means that the:",
+      "options": {"A": "survey is inaccurate and needs to be corrected", "B": "survey points from found monuments need to undergo a unit conversion", "C": "handwritten coordinates are entered into computer software", "D": "earth's curvature needs to be taken into account for survey calculations"},
+      "correct": "D",
+      "explanation": "SPCS uses map projections (Lambert conformal conic or transverse Mercator) to transform the curved earth surface onto a flat plane, accounting for curvature.",
+      "has_figure": false, "figure_file": null, "claude_answer": "D", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 32, "type": "drag_order", "ncees_category": 5, "topic": "Traverse computation & adjustment",
+      "stem": "When using the compass/transit rule to complete a traverse adjustment, drag the steps into the correct order.",
+      "options": {"items": ["Calculate the lengths and azimuths of the traverse lines after adjustment.", "Adjust the latitudes and departures for misclosure.", "Calculate departures and latitudes.", "Determine the azimuths of the traverse sides.", "Adjust the angles to fixed geometric conditions."]},
+      "correct": ["Adjust the angles to fixed geometric conditions.", "Determine the azimuths of the traverse sides.", "Calculate departures and latitudes.", "Adjust the latitudes and departures for misclosure.", "Calculate the lengths and azimuths of the traverse lines after adjustment."],
+      "explanation": "Balance angles -> compute azimuths -> compute lat/dep -> adjust lat/dep for misclosure -> compute adjusted lengths/azimuths.",
+      "has_figure": false, "figure_file": null, "claude_answer": "matched", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 33, "type": "mc_single", "ncees_category": 5, "topic": "Trigonometric leveling",
+      "stem": "A total station is set up 5.00 ft above a benchmark at elevation 820.50 ft. A slope angle -3 deg 15' and slope distance 645.90 ft are measured to a reflector 4.25 ft above a hub at Point B. Ignore curvature and refraction. Elevation (ft) of the hub at Point B is most nearly:",
+      "options": {"A": "785.76", "B": "784.63", "C": "783.88", "D": "779.63"},
+      "correct": "B",
+      "explanation": "ELEV_B = 820.50 + 5.00 - 645.90*sin(3.25 deg) - 4.25 = 820.50 + 5.00 - 36.62 - 4.25 = 784.63 ft.",
+      "has_figure": false, "figure_file": null, "claude_answer": "B", "result": "correct", "difficulty": "hard"
+    },
+    {
+      "number": 34, "type": "mc_single", "ncees_category": 5, "topic": "Least squares / error analysis",
+      "stem": "In least squares adjustments, error ellipses depict a two-dimensional representation of uncertainties of the:",
+      "options": {"A": "adjusted coordinates", "B": "adjusted angles", "C": "measurements", "D": "unadjusted coordinates"},
+      "correct": "A",
+      "explanation": "Error ellipses represent the uncertainty/precision of the ADJUSTED coordinates — the area where the true point is likely to fall.",
+      "has_figure": false, "figure_file": null, "claude_answer": "A", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 35, "type": "mc_single", "ncees_category": 5, "topic": "PLSS area computation (chains & acres)",
+      "stem": "A fractional lot in the NW quarter of Section 5: north side 19.83, east side 19.09, west side 19.31, south side 20.14 (chains). The area (acres) on the original township plat is most nearly:",
+      "options": {"A": "38.33", "B": "38.35", "C": "38.37", "D": "38.39"},
+      "correct": "C",
+      "explanation": "Trapezoid area = [(19.31+19.09)/2]*[(19.83+20.14)/2] = 19.20*19.985 = 383.71 sq ch. Divide by 10 sq ch/acre = 38.37 acres.",
+      "has_figure": false, "figure_file": null, "claude_answer": "C", "result": "correct", "difficulty": "hard",
+      "notes": "1 acre = 10 square chains."
+    },
+    {
+      "number": 36, "type": "mc_single", "ncees_category": 5, "topic": "Areas / composite figures",
+      "stem": "One corner of a 60-ft x 120-ft lot, otherwise rectangular, is a curve with radius 20 ft and central angle 90 deg. The area (ft^2) of the lot is most nearly:",
+      "options": {"A": "6,872", "B": "6,886", "C": "7,114", "D": "7,200"},
+      "correct": "C",
+      "explanation": "Area = (60)(120) - [(20)(20) - pi(20^2)/4] = 7,200 - [400 - 314.2] = 7,114 ft^2.",
+      "has_figure": true, "figure_file": "images/Q36_rounded-corner-lot-area.svg", "claude_answer": "C", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 37, "type": "mc_single", "ncees_category": 5, "topic": "Horizontal curves / geometry",
+      "stem": "The angle between Lines T (PC to PI) and LC (PC to PT), as shown, is:",
+      "options": {"A": "I/2", "B": "D/2", "C": "d/2", "D": "(E+M)/LC"},
+      "correct": "A",
+      "explanation": "The tangent-chord (deflection) angle at PC between the back tangent and the long chord equals half the central angle = I/2.",
+      "has_figure": true, "figure_file": "images/Q37_horizontal-curve-elements.svg", "claude_answer": "A", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 38, "type": "mc_single", "ncees_category": 5, "topic": "Vertical curves",
+      "stem": "A symmetrical 400-ft sag vertical curve with PC Sta. 1+00, initial grade -1.00%, final grade +3.00%. The station of the low point is most nearly:",
+      "options": {"A": "1+50", "B": "2+00", "C": "2+33", "D": "3+00"},
+      "correct": "B",
+      "explanation": "x = g1*L/(g1-g2) = (-1)(400)/(-1-3) = 100 ft from PC. Low point = 1+00 + 100 = 2+00.",
+      "has_figure": false, "figure_file": null, "claude_answer": "B", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 39, "type": "mc_single", "ncees_category": 5, "topic": "Order of operations",
+      "stem": "A = B*C + D/C^2 where B=2, C=0.5, D=127 (* multiply, / divide, ^ exponent). Executed by a spreadsheet/computer, A is most nearly:",
+      "options": {"A": "509", "B": "512", "C": "130,050", "D": "299,081"},
+      "correct": "A",
+      "explanation": "Precedence: exponent -> mult/div -> add. A = 2*0.5 + 127/(0.5^2) = 1 + 127/0.25 = 1 + 508 = 509.",
+      "has_figure": false, "figure_file": null, "claude_answer": "A", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 40, "type": "mc_single", "ncees_category": 5, "topic": "Distance / slope reduction",
+      "stem": "A crew tapes 2,000.00 ft along a straight railroad rail on a 5% grade. Reduced to horizontal, the distance (ft) is most nearly:",
+      "options": {"A": "1,997.50", "B": "1,999.25", "C": "1,999.97", "D": "2,002.50"},
+      "correct": "A",
+      "explanation": "Vertical = 5% * 2,000 = 100 ft. Horizontal = sqrt(2,000^2 - 100^2) = sqrt(3,990,000) = 1,997.50 ft.",
+      "has_figure": false, "figure_file": null, "claude_answer": "A", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 41, "type": "mc_single", "ncees_category": 6, "topic": "Engineering economics",
+      "stem": "A $40,000 total station financed at 8% simple interest, $8,000 principal plus interest due at end of each year for 5 years. The additional cost for financing vs paying cash is most nearly:",
+      "options": {"A": "$2,000", "B": "$3,200", "C": "$9,600", "D": "$16,000"},
+      "correct": "C",
+      "explanation": "Interest on declining balance: 3,200 + 2,560 + 1,920 + 1,280 + 640 = $9,600.",
+      "has_figure": false, "figure_file": null, "claude_answer": "C", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 42, "type": "mc_multi", "ncees_category": 6, "topic": "Safety / OSHA confined spaces",
+      "stem": "Which of the following characteristics describe a confined space? (Select the three that apply.)",
+      "options": {"A": "Large enough for an employee to enter fully and perform assigned work", "B": "Designed for continuous occupancy by the employee", "C": "Has a limited or restricted means of entry or exit", "D": "Contains recognized serious safety or health hazards", "E": "Has concrete floors"},
+      "correct": ["A", "C", "D"],
+      "explanation": "OSHA confined space = large enough to enter & work (A) + NOT designed for continuous occupancy + limited/restricted entry-exit (C). Permit-required adds recognized serious hazards (D). B inverts the definition; E is irrelevant.",
+      "has_figure": false, "figure_file": null, "claude_answer": ["A", "C", "D"], "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 43, "type": "mc_single", "ncees_category": 6, "topic": "Entity types",
+      "stem": "Which of the following is true of a partnership?",
+      "options": {"A": "It can sell stocks or shares.", "B": "It exists independently of the people who own and manage it.", "C": "It is the most common type of business.", "D": "It is a business owned by two or more people working for a profit."},
+      "correct": "D",
+      "explanation": "A partnership is a business owned by two or more people for profit. A = private corporation; B = corporation; C = sole proprietorship.",
+      "has_figure": false, "figure_file": null, "claude_answer": "D", "result": "correct", "difficulty": "easy"
+    },
+    {
+      "number": 44, "type": "mc_single", "ncees_category": 6, "topic": "Contract law",
+      "stem": "Which of the following is included in the consideration portion of a valid contract?",
+      "options": {"A": "Ability to sign for an entity", "B": "Legal subject matter", "C": "Names of the parties", "D": "Value"},
+      "correct": "D",
+      "explanation": "Consideration is something of value exchanged between the parties (not necessarily monetary) that both bargained for.",
+      "has_figure": false, "figure_file": null, "claude_answer": "D", "result": "correct", "difficulty": "medium"
+    },
+    {
+      "number": 45, "type": "mc_single", "ncees_category": 6, "topic": "Professional ethics / Model Rules",
+      "stem": "The first and foremost responsibility of a professional surveyor is to the:",
+      "options": {"A": "client", "B": "employer", "C": "public welfare", "D": "surveying association"},
+      "correct": "C",
+      "explanation": "NCEES Model Rules 240.15 (A1): licensees' first and foremost responsibility is to safeguard the health, safety, and welfare of the public.",
+      "has_figure": false, "figure_file": null, "claude_answer": "C", "result": "correct", "difficulty": "easy"
+    },
+    {
+      "number": 46, "type": "numeric", "ncees_category": 7, "topic": "Trigonometry / inaccessible height",
+      "stem": "To determine the height of a tower on a building, a surveyor measures Angle A = 22 deg, moves the theodolite 100 ft toward the tower, and measures Angle B = 42 deg. Assume the tower is vertical. The height (ft) of the tower is _____.",
+      "options": null,
+      "correct": "73.1-73.5 (range)",
+      "explanation": "H = d/(cot A - cot B) = 100/(cot 22 - cot 42) = 100/(2.47509 - 1.11061) = 73.29 ft. (Official law-of-sines method gives 73.5 ft.)",
+      "has_figure": true, "figure_file": "images/Q46_tower-height-two-angles.svg", "claude_answer": "73.29", "result": "correct", "difficulty": "hard"
+    },
+    {
+      "number": 47, "type": "mc_single", "ncees_category": 7, "topic": "Error theory / statistics",
+      "stem": "An angle measured 12 times: 223 deg 14' 56\", 52\", 58\", 59\", 53\", 55\", 223 deg 15' 02\", 15' 00\", 14' 58\", 59\", 55\", 54\". The standard deviation of the mean is most nearly:",
+      "options": {"A": "+/-0.9\"", "B": "+/-1.5\"", "C": "+/-2.8\"", "D": "+/-3.3\""},
+      "correct": "A",
+      "explanation": "n=12, mean = 56.75\". Single-obs std dev sigma = 3.04\". Std dev of mean = sigma/sqrt(n) = 3.04/sqrt(12) = 0.880 => +/-0.9\".",
+      "has_figure": false, "figure_file": null, "claude_answer": "A", "result": "correct", "difficulty": "hard",
+      "notes": "Distinguish sigma (single obs) from sigma of the mean (sigma/sqrt(n))."
+    },
+    {
+      "number": 48, "type": "mc_single", "ncees_category": 7, "topic": "Error propagation",
+      "stem": "A rectangular lot's two adjacent sides are 75.18 +/- 0.15 ft and 102.79 +/- 0.20 ft (independent). The uncertainty (ft) in the perimeter is most nearly:",
+      "options": {"A": "0.59", "B": "0.50", "C": "0.35", "D": "0.25"},
+      "correct": "B",
+      "explanation": "Perimeter = 2L + 2W. sigma = sqrt[(2*0.15)^2 + (2*0.20)^2] = sqrt(0.09 + 0.16) = sqrt(0.25) = 0.50 ft.",
+      "has_figure": false, "figure_file": null, "claude_answer": "B", "result": "correct", "difficulty": "hard"
+    },
+    {
+      "number": 49, "type": "mc_single", "ncees_category": 7, "topic": "Unit conversion",
+      "stem": "An architectural plan shows 475 ft 4 5/8 in. out-to-out for a foundation wall. The dimension (ft) you should use is most nearly:",
+      "options": {"A": "475.63", "B": "475.46", "C": "475.39", "D": "475.33"},
+      "correct": "C",
+      "explanation": "4 5/8 in = 4.625 in; 4.625/12 = 0.3854 ft; 475 + 0.3854 = 475.3854 ~ 475.39 ft.",
+      "has_figure": false, "figure_file": null, "claude_answer": "C", "result": "correct", "difficulty": "easy"
+    },
+    {
+      "number": 50, "type": "mc_single", "ncees_category": 4, "topic": "Least squares / redundancy",
+      "stem": "As the instrument person taking a redundant observation to assist a least squares analysis of the field traverse network, one way to do this is to:",
+      "options": {"A": "Turn an extra angle between two control points that were not traversed sequentially.", "B": "Determine the prism offset for your instrument.", "C": "Relevel the instrument.", "D": "Check the optical plumb of the tribrach."},
+      "correct": "A",
+      "explanation": "Redundancy = extra observations that strengthen the network. Turning an extra angle between non-sequential control points adds a redundant observation. B/C/D are setup/calibration tasks.",
+      "has_figure": false, "figure_file": null, "claude_answer": "A", "result": "correct", "difficulty": "medium"
+    }
+  ]
+}
