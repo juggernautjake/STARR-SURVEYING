@@ -277,6 +277,9 @@ export function checkAnswer(
     case 'multi_select':
       return checkMultiSelect(userAnswer, correctAnswer);
     case 'ordering':
+    case 'drag_label':
+      // drag_label answers are arrays parallel to the targets; each placed term
+      // must equal the correct term position-wise — identical to ordering.
       return checkOrdering(userAnswer, correctAnswer);
     case 'short_answer':
       return checkTextAnswer(userAnswer, correctAnswer, true);

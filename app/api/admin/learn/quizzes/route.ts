@@ -368,6 +368,22 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       };
     }
 
+    // drag_label options are an object { terms, targets }; shuffle the term
+    // pool but keep the target order, and never call array ops on the object.
+    if (q.question_type === 'drag_label') {
+      const raw = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options || {});
+      const terms = Array.isArray(raw.terms) ? [...raw.terms].sort(() => Math.random() - 0.5) : [];
+      const targets = Array.isArray(raw.targets) ? raw.targets : [];
+      return {
+        id: q.id,
+        question_text: q.question_text,
+        question_type: q.question_type,
+        options: { terms, targets },
+        difficulty: q.difficulty,
+        tags: q.tags,
+      };
+    }
+
     // Standard question types
     const opts = q.question_type === 'short_answer' || q.question_type === 'numeric_input'
       ? []
@@ -523,6 +539,22 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
     // Ordering (put in order)
     if (qType === 'ordering') {
+      const result = gradeOrdering(a.user_answer, q.correct_answer);
+      totalScore += result.is_correct ? 1 : 0;
+      return {
+        question_id: a.question_id,
+        user_answer: a.user_answer,
+        is_correct: result.is_correct,
+        correct_answer: q.correct_answer,
+        explanation: q.explanation || '',
+        partial_score: result.partial_score,
+      };
+    }
+
+    // Drag-label — user_answer & correct_answer are arrays parallel to the
+    // targets; each placed term must equal the correct term (position-wise), so
+    // the ordering grader applies directly.
+    if (qType === 'drag_label') {
       const result = gradeOrdering(a.user_answer, q.correct_answer);
       totalScore += result.is_correct ? 1 : 0;
       return {

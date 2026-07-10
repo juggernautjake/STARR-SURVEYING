@@ -200,6 +200,13 @@ describe('checkAnswer (dispatch)', () => {
     expect(checkAnswer('["A","C","B"]', '["A","B","C"]', 'ordering').is_correct).toBe(false);
   });
 
+  it('routes drag_label position-wise (each target must match)', () => {
+    // arrays are parallel to the targets: [target0 term, target1 term, ...]
+    expect(checkAnswer('["Plumb line","Optical axis"]', '["Plumb line","Optical axis"]', 'drag_label').is_correct).toBe(true);
+    expect(checkAnswer('["Optical axis","Plumb line"]', '["Plumb line","Optical axis"]', 'drag_label').is_correct).toBe(false);
+    expect(checkAnswer('["Plumb line",""]', '["Plumb line","Optical axis"]', 'drag_label').is_correct).toBe(false);
+  });
+
   it('routes short_answer to text checker with partial matching on', () => {
     expect(checkAnswer('hello there', 'hello', 'short_answer').is_correct).toBe(true);
   });
