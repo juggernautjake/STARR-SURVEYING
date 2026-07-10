@@ -161,17 +161,23 @@ export default function MockExamPage() {
         <div className="admin-learn__header">
           <Link href="/admin/learn/exam-prep/sit" className="admin-module-detail__back">&larr; Back to FS Prep</Link>
           <h2 className="admin-learn__title">
-            {isQuickMode ? '\u26A1 FS Readiness Check' : '\uD83D\uDCDD FS Mock Exam'}
+            {isQuickMode ? '\u26A1 FS Readiness Check' : '\uD83C\uDF93 FS Exam Simulator'}
           </h2>
         </div>
 
         <div className="fs-mock__intro">
           <div className="fs-mock__intro-card">
-            <h3>{isQuickMode ? 'Quick Readiness Check' : 'Full NCEES FS Practice Exam'}</h3>
+            <h3>{isQuickMode ? 'Quick Readiness Check' : 'Full-Length FS Exam Simulator'}</h3>
+            {!isQuickMode && (
+              <p style={{ color: 'var(--color-text-secondary)', fontSize: '.9rem', marginTop: '-.25rem' }}>
+                110 questions balanced across the seven NCEES knowledge areas, mirroring the real
+                computer-based FS exam as closely as possible.
+              </p>
+            )}
             <div className="fs-mock__intro-details">
               <div className="fs-mock__intro-detail">
                 <strong>Questions</strong>
-                <span>{isQuickMode ? '20' : '110'}</span>
+                <span>{isQuickMode ? '20' : '110 (NCEES blueprint)'}</span>
               </div>
               <div className="fs-mock__intro-detail">
                 <strong>Time Limit</strong>
@@ -179,23 +185,31 @@ export default function MockExamPage() {
               </div>
               <div className="fs-mock__intro-detail">
                 <strong>Passing Score</strong>
-                <span>70%</span>
+                <span>70% (practice target)</span>
               </div>
               <div className="fs-mock__intro-detail">
-                <strong>Format</strong>
-                <span>Multiple choice, True/False, Numeric</span>
+                <strong>Units</strong>
+                <span>SI and US customary</span>
               </div>
             </div>
 
             <div className="fs-mock__intro-rules">
-              <h4>Exam Rules</h4>
+              <h4>{isQuickMode ? 'Rules' : 'About the real FS exam'}</h4>
               <ul>
-                <li>The timer starts when you click &ldquo;Begin Exam&rdquo;</li>
-                <li>You can navigate between questions using the sidebar</li>
-                <li>Unanswered questions are marked as incorrect</li>
-                <li>The exam auto-submits when time expires</li>
-                <li>You&apos;ll see detailed results with category breakdowns after submission</li>
+                {!isQuickMode && <li>The real exam is <strong>110 questions</strong> (~100 scored + ~10 unscored pretest) over <strong>5 h 20 m</strong> of working time, delivered in <strong>two halves with a scheduled 25-minute break</strong>.</li>}
+                {!isQuickMode && <li>It is <strong>closed-book</strong> with an on-screen <strong>searchable FS Reference Handbook</strong>; there is <strong>no penalty for wrong answers</strong> (never leave a question blank).</li>}
+                {!isQuickMode && <li>Scoring is pass/fail on a scaled score; questions span <strong>SI and US customary units</strong>.</li>}
+                <li>The timer starts when you click &ldquo;Begin Exam&rdquo;; it auto-submits when time expires.</li>
+                <li>Navigate between questions with the sidebar; unanswered questions are marked incorrect.</li>
+                <li>You&apos;ll see detailed results with a per-knowledge-area breakdown after submission.</li>
               </ul>
+              {!isQuickMode && (
+                <p style={{ fontSize: '.82rem', color: 'var(--color-text-secondary)' }}>
+                  Reference: the official{' '}
+                  <a href="https://ncees.org/exams/fs-exam/" target="_blank" rel="noopener noreferrer">NCEES FS Reference Handbook</a>{' '}
+                  is free to download from your MyNCEES account &mdash; practice with it open, as on exam day.
+                </p>
+              )}
             </div>
 
             <button
