@@ -124,6 +124,8 @@ interface Ctx {
   addActiveEffect: (ae: ActiveEffect) => void
   removeActiveEffect: (id: string) => void
   setResource: (id: string, current: number) => void
+  setSpellSlot: (level: number, current: number) => void
+  restoreSpellSlots: () => void
   shortRest: () => void
   longRest: () => void
   rollDeathSave: () => void
@@ -765,6 +767,20 @@ export function CharacterProvider({
     }))
   }, [])
 
+  // Spell-slot management: set one level's remaining slots, or restore all to max.
+  const setSpellSlot = useCallback((level: number, current: number) => {
+    setCharState((c) => {
+      const slot = c.spellcasting?.slots?.[level as 1]
+      if (!slot) return c
+      return { ...c, spellcasting: { ...c.spellcasting!, slots: { ...c.spellcasting!.slots, [level]: { ...slot, current: Math.max(0, Math.min(slot.max, current)) } } } }
+    })
+  }, [])
+  const restoreSpellSlots = useCallback(() => {
+    setCharState((c) => (c.spellcasting?.slots
+      ? { ...c, spellcasting: { ...c.spellcasting, slots: Object.fromEntries(Object.entries(c.spellcasting.slots).map(([lvl, s]) => [lvl, { ...s!, current: s!.max }])) } }
+      : c))
+  }, [])
+
   const shortRest = useCallback(() => {
     setCharState((c) => ({
       ...c,
@@ -791,6 +807,10 @@ export function CharacterProvider({
       },
       activeFormId: highestHeldId(c),
       resources: c.resources.map((r) => ({ ...r, current: r.max })),
+      // Long rest restores every spell slot.
+      spellcasting: c.spellcasting?.slots
+        ? { ...c.spellcasting, slots: Object.fromEntries(Object.entries(c.spellcasting.slots).map(([lvl, s]) => [lvl, { ...s!, current: s!.max }])) }
+        : c.spellcasting,
     }))
   }, [])
 
@@ -886,6 +906,8 @@ export function CharacterProvider({
     addActiveEffect,
     removeActiveEffect,
     setResource,
+    setSpellSlot,
+    restoreSpellSlots,
     shortRest,
     longRest,
     rollDeathSave,

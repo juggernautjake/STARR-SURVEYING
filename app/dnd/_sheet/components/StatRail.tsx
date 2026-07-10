@@ -3,7 +3,7 @@ import { ABILITIES, abilityMod, signed } from '../rules/dnd'
 import InlineNumber from './ui/InlineNumber'
 
 export default function StatRail() {
-  const { char, pb, setChar, rollCheck, setLevel, maxLevel } = useChar()
+  const { char, pb, setChar, rollCheck, setLevel, maxLevel, setExhaustion, canWrite } = useChar()
   const { combat } = char
   const level = char.meta.level
   const feralInstinct = level >= 7 // Advantage on Initiative
@@ -83,10 +83,16 @@ export default function StatRail() {
           </span>
         </div>
 
-        {combat.exhaustion > 0 && (
-          <div className="vpill" title="Exhaustion — −2 to all d20 rolls per level">
+        {(combat.exhaustion > 0 || canWrite) && (
+          <div className="vpill" title="Exhaustion — −2 to all d20 rolls per level (max 6)">
             <span className="vk">Exhaustion</span>
-            <span className="vv" style={{ color: 'var(--danger)' }}>{combat.exhaustion}</span>
+            {canWrite && (
+              <button className="step" style={{ marginRight: 2 }} onClick={() => setExhaustion(Math.max(0, combat.exhaustion - 1))} title="Reduce exhaustion">−</button>
+            )}
+            <span className="vv" style={{ color: combat.exhaustion > 0 ? 'var(--danger)' : 'var(--muted)' }}>{combat.exhaustion}</span>
+            {canWrite && (
+              <button className="step" style={{ marginLeft: 2 }} onClick={() => setExhaustion(Math.min(6, combat.exhaustion + 1))} title="Add exhaustion">+</button>
+            )}
           </div>
         )}
       </div>

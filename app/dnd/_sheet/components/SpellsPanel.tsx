@@ -20,7 +20,7 @@ function damageLine(s: Spell): string {
 }
 
 export default function SpellsPanel() {
-  const { char, setChar, editMode, castSpell } = useChar()
+  const { char, setChar, editMode, canWrite, castSpell, setSpellSlot, restoreSpellSlots } = useChar()
   const sc = char.spellcasting
   const spells = char.spells ?? []
 
@@ -58,9 +58,12 @@ export default function SpellsPanel() {
             </div>
           ))}
         </div>
-        <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '10px 0 0' }}>
-          Domain/feat spells are always prepared and don’t count against the cap. Cantrips are always available.
-        </p>
+        <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+          <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: 0 }}>
+            Domain/feat spells are always prepared and don’t count against the cap. Cantrips are always available.
+          </p>
+          {canWrite && <button className="btn tiny solid" onClick={restoreSpellSlots} title="Restore every spell slot (e.g. after a long rest)">↻ Restore slots</button>}
+        </div>
       </div>
 
       {levels.map((lvl) => {
@@ -71,10 +74,15 @@ export default function SpellsPanel() {
             <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <h3 style={{ margin: 0 }}>{ORDINAL[lvl]}</h3>
               {slot && (
-                <div className="flex" style={{ gap: 4, alignItems: 'center' }} title={`${slot.current} of ${slot.max} slots left`}>
+                <div className="flex" style={{ gap: 4, alignItems: 'center' }} title={canWrite ? 'Click a pip to spend or restore a slot' : `${slot.current} of ${slot.max} slots left`}>
                   <span style={{ ...lab, marginRight: 4 }}>Slots</span>
                   {Array.from({ length: slot.max }).map((_, i) => (
-                    <span key={i} className={`pip ${i < slot.current ? 'filled' : ''}`} />
+                    <span
+                      key={i}
+                      className={`pip ${i < slot.current ? 'filled' : ''}`}
+                      style={canWrite ? { cursor: 'pointer' } : undefined}
+                      onClick={canWrite ? () => setSpellSlot(lvl, i < slot.current ? i : i + 1) : undefined}
+                    />
                   ))}
                 </div>
               )}
