@@ -5,7 +5,7 @@
 // (null / empty frame) rather than throw, so a bad figure never breaks a quiz.
 
 import { describe, it, expect } from 'vitest';
-import { buildDiagramFromSpec, renderTowerTwoAngles, renderProfile, renderCrossSection, renderPlat, renderRoundedCornerLot, renderHeightRelations, renderTiltedPhoto } from '@/lib/diagrams/survey-diagram';
+import { buildDiagramFromSpec, renderTowerTwoAngles, renderProfile, renderCrossSection, renderPlat, renderRoundedCornerLot, renderHeightRelations, renderTiltedPhoto, renderContourMap } from '@/lib/diagrams/survey-diagram';
 
 describe('renderCurve (enriched) via buildDiagramFromSpec', () => {
   const svg = buildDiagramFromSpec({ type: 'curve', rVar: 'R', iVar: 'I' }, { R: 500, I: 60 }) || '';
@@ -195,5 +195,32 @@ describe('renderTiltedPhoto', () => {
 
   it('reaches through the dispatcher with a literal tilt', () => {
     expect(buildDiagramFromSpec({ type: 'tiltedPhoto', tilt: 18 }, {}) || '').toContain('Tilted photo');
+  });
+});
+
+describe('renderContourMap', () => {
+  const svg = renderContourMap(1000, 100, 1875); // interval 100, index at 1000 & 1500, highest = 1800
+
+  it('renders contour paths', () => {
+    expect(svg).toContain('<svg');
+    expect((svg.match(/<path /g) || []).length).toBeGreaterThan(3);
+  });
+
+  it('labels the two lowest index contours (1,000 and 1,500) but not the peak', () => {
+    expect(svg).toContain('>1,000<');
+    expect(svg).toContain('>1,500<');
+    expect(svg).not.toContain('>1,800<'); // student must deduce the highest contour
+  });
+
+  it('reaches through the dispatcher with var refs', () => {
+    const s = buildDiagramFromSpec(
+      { type: 'contour', baseElevVar: 'b', intervalVar: 'i', peakElevVar: 'p' },
+      { b: 1000, i: 100, p: 1875 },
+    ) || '';
+    expect(s).toContain('>1,500<');
+  });
+
+  it('returns null on invalid inputs (peak ≤ base)', () => {
+    expect(buildDiagramFromSpec({ type: 'contour', baseElev: 1000, interval: 100, peakElev: 900 }, {})).toBeNull();
   });
 });

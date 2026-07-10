@@ -18,7 +18,7 @@ import type { Point2D } from '../cad/types';
 // ────────────────────────────────────────────────────────────────────────────
 export interface TraverseLegSpec { azVar?: string; az?: number; distVar?: string; dist?: number; label?: string; }
 export interface DiagramSpec {
-  type: 'traverse' | 'inverse' | 'triangle' | 'curve' | 'leveling' | 'compass' | 'towerTwoAngles' | 'profile' | 'crossSection' | 'plat' | 'roundedLot' | 'heightRelations' | 'tiltedPhoto';
+  type: 'traverse' | 'inverse' | 'triangle' | 'curve' | 'leveling' | 'compass' | 'towerTwoAngles' | 'profile' | 'crossSection' | 'plat' | 'roundedLot' | 'heightRelations' | 'tiltedPhoto' | 'contour';
   // traverse
   startNVar?: string; startEVar?: string;
   legs?: TraverseLegSpec[];
@@ -51,6 +51,8 @@ export interface DiagramSpec {
   orthoHVar?: string; orthoH?: number; ellipHVar?: string; ellipH?: number; geoidNVar?: string; geoidN?: number;
   // tiltedPhoto: tilt of the photo from vertical (deg)
   tiltVar?: string; tilt?: number;
+  // contour: base index elevation, interval, and peak (summit) elevation
+  baseElevVar?: string; baseElev?: number; intervalVar?: string; interval?: number; peakElevVar?: string; peakElev?: number;
   title?: string;
 }
 
@@ -84,6 +86,8 @@ const esc = (s: string) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'
 const f2 = (n: number) => (Math.round(n * 100) / 100).toFixed(2);
 // stationing format: 247.55 → "2+47.55", 125 → "1+25.00", 0 → "0+00.00"
 const staLabel = (s: number) => `${Math.floor(s / 100)}+${(((s % 100) + 100) % 100).toFixed(2).padStart(5, '0')}`;
+// deterministic thousands grouping (locale-independent): 1500 → "1,500"
+const grp = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 function svgWrap(inner: string, title?: string): string {
   const t = title ? `<text x="${W / 2}" y="20" text-anchor="middle" font-size="14" font-weight="700" fill="#1D3095">${esc(title)}</text>` : '';
@@ -481,6 +485,60 @@ export function renderTiltedPhoto(tiltDeg: number, title?: string): string {
   return svgWrap(g, title || 'Tilted photograph geometry');
 }
 
+// Topographic contour map (Q9). Builds a synthetic Gaussian-hill surface and
+// extracts contour lines with marching squares. Index contours (every 5th from
+// baseElev) are bolder; the two lowest index contours are labelled (as on the
+// real exam), leaving the student to deduce the interval and the highest
+// (innermost) contour. peakElev sets the summit → highest contour is the
+// greatest baseElev+k·interval below peakElev.
+export function renderContourMap(baseElev: number, interval: number, peakElev: number, title?: string): string {
+  if (!(interval > 0) || !(peakElev > baseElev)) return svgWrap('', title || 'Contour Map');
+  const x0 = 40, y0 = 74, x1 = W - 40, y1 = H - 34;
+  const n = 48, gw = (x1 - x0) / n, gh = (y1 - y0) / n;
+  const cx = x0 + (x1 - x0) * 0.56, cyc = y0 + (y1 - y0) * 0.44, sigma = (x1 - x0) * 0.24;
+  const baseMin = baseElev - interval * 0.6, amp = peakElev - baseMin;
+  const elevAt = (px: number, py: number) => baseMin + amp * Math.exp(-(((px - cx) ** 2 + (py - cyc) ** 2) / (2 * sigma * sigma)));
+  const Z: number[][] = [];
+  for (let j = 0; j <= n; j++) { Z[j] = []; for (let i = 0; i <= n; i++) Z[j][i] = elevAt(x0 + i * gw, y0 + j * gh); }
+  const ix = (t: number, a: number, b: number) => a + t * (b - a);
+  const crs = (lv: number, a: number, b: number) => (Math.abs(b - a) < 1e-9 ? 0.5 : (lv - a) / (b - a));
+  let g = '', labeled = 0;
+  for (let L = baseElev; L < peakElev; L += interval) {
+    const isIndex = Math.round((L - baseElev) / interval) % 5 === 0;
+    let path = '';
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const a = Z[j][i], b = Z[j][i + 1], c = Z[j + 1][i + 1], d = Z[j + 1][i];
+      const idx = (a > L ? 8 : 0) | (b > L ? 4 : 0) | (c > L ? 2 : 0) | (d > L ? 1 : 0);
+      if (idx === 0 || idx === 15) continue;
+      const px = x0 + i * gw, py = y0 + j * gh;
+      const top = () => ({ x: ix(crs(L, a, b), px, px + gw), y: py });
+      const right = () => ({ x: px + gw, y: ix(crs(L, b, c), py, py + gh) });
+      const bottom = () => ({ x: ix(crs(L, d, c), px, px + gw), y: py + gh });
+      const left = () => ({ x: px, y: ix(crs(L, a, d), py, py + gh) });
+      const seg = (p: { x: number; y: number }, q: { x: number; y: number }) => { path += `M${p.x.toFixed(1)} ${p.y.toFixed(1)}L${q.x.toFixed(1)} ${q.y.toFixed(1)}`; };
+      switch (idx) {
+        case 1: case 14: seg(left(), bottom()); break;
+        case 2: case 13: seg(bottom(), right()); break;
+        case 3: case 12: seg(left(), right()); break;
+        case 4: case 11: seg(top(), right()); break;
+        case 6: case 9: seg(top(), bottom()); break;
+        case 7: case 8: seg(left(), top()); break;
+        case 5: seg(left(), top()); seg(bottom(), right()); break;
+        case 10: seg(top(), right()); seg(left(), bottom()); break;
+      }
+    }
+    g += `<path d="${path}" fill="none" stroke="${isIndex ? '#5b6b8c' : '#c8cfdf'}" stroke-width="${isIndex ? 1.5 : 0.8}"/>`;
+    // label the two lowest index contours on the left flank (radial surface)
+    if (isIndex && labeled < 2 && L - baseMin > 0 && L - baseMin < amp) {
+      const rho = sigma * Math.sqrt(2 * Math.log(amp / (L - baseMin)));
+      g += `<text x="${(cx - rho).toFixed(0)}" y="${cyc}" text-anchor="middle" font-size="11" font-weight="700" fill="#334">${grp(L)}</text>`;
+      labeled++;
+    }
+  }
+  g += `<text x="${W / 2}" y="${H - 10}" text-anchor="middle" font-size="10" fill="#888">NOT TO SCALE</text>`;
+  return svgWrap(g, title || 'Contour Map');
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Spec → SVG (resolves var names against generated vars)
 // ────────────────────────────────────────────────────────────────────────────
@@ -569,6 +627,11 @@ export function buildDiagramFromSpec(spec: DiagramSpec | undefined | null, vars:
         const tilt = rv(spec.tiltVar, spec.tilt);
         if (tilt == null || !isFinite(tilt)) return null;
         return renderTiltedPhoto(tilt, spec.title);
+      }
+      case 'contour': {
+        const be = rv(spec.baseElevVar, spec.baseElev), iv = rv(spec.intervalVar, spec.interval), pk = rv(spec.peakElevVar, spec.peakElev);
+        if ([be, iv, pk].some(v => v == null || !isFinite(v as number)) || (iv as number) <= 0 || (pk as number) <= (be as number)) return null;
+        return renderContourMap(be as number, iv as number, pk as number, spec.title);
       }
       default:
         return null;
