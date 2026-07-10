@@ -3136,6 +3136,24 @@
 .dnd-sheet.skin-donata .re-top { color: var(--muted); }
 .dnd-sheet.skin-donata .exh-chip { background: var(--panel-2); color: var(--ink); border: 1px solid rgba(var(--sk-grape), 0.3); }
 
+/* Dice-roll stage — a bright candy "core" (was a dark sci-fi box; its --muted label was
+   dark-on-dark and unreadable). Light ground → the dark base tokens now read cleanly. */
+.dnd-sheet.skin-donata .stage {
+  background: radial-gradient(120% 120% at 50% 0%, #fff6fb 0%, #fdeef4 55%, #eafaf3 100%);
+  border: 2px solid rgba(var(--sk-grape), 0.35);
+  box-shadow: inset 0 0 26px -14px rgba(var(--sk-rasp), 0.35);
+}
+.dnd-sheet.skin-donata .stage-scan { display: none; }          /* overlay scanline muddies a light bg */
+.dnd-sheet.skin-donata .stage-wires { opacity: 0.4; }
+.dnd-sheet.skin-donata .stage-label { color: var(--violet-2); }
+.dnd-sheet.skin-donata .stage-number { color: var(--hotpink); }
+.dnd-sheet.skin-donata .rv-flag.crit { color: var(--good); text-shadow: none; }  /* was light-blue → light-on-light */
+.dnd-sheet.skin-donata .rv-total { color: var(--gold); }
+.dnd-sheet.skin-donata .rv-idle,
+.dnd-sheet.skin-donata .stage-mute { color: var(--muted); }
+/* Tray-head action buttons sit on the magenta gradient — keep them white. */
+.dnd-sheet.skin-donata .tray-head .btn { color: #fff; border-color: rgba(255, 255, 255, 0.6); background: rgba(255, 255, 255, 0.14); }
+
 @media (prefers-reduced-motion: reduce) {
   .dnd-sheet.skin-donata .btn { transition: none; }
 }
