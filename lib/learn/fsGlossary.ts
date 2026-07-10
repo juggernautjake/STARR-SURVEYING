@@ -77,6 +77,24 @@ const ENTRIES: GlossaryEntry[] = [
   { term: 'fill', definition: 'Earthwork where the proposed grade is above existing ground and material must be added (embankment).' },
   { term: 'residual', definition: 'In an adjustment, the difference between an adjusted (most-probable) value and the corresponding observation.' },
   { term: 'meridian', definition: 'A north–south reference line. Directions (azimuths/bearings) are measured from a meridian (true, grid, magnetic, or assumed).' },
+  // Business, ethics & professional practice (NCEES Category 6)
+  { term: 'sole proprietorship', definition: 'The simplest, most common business form: one owner who is legally the same as the business and has unlimited personal liability.' },
+  { term: 'partnership', definition: 'A business owned by two or more people working for a profit. In a general partnership the partners have unlimited, joint-and-several liability.' },
+  { term: 'corporation', definition: 'A legal entity that exists independently of its owners (shareholders); it can issue stock, and owner liability is generally limited to their investment.' },
+  { term: 'llc', definition: 'Limited Liability Company — a flexible entity that limits owners’ (members’) liability to their investment. A PLLC is the professional form for licensed practice.' },
+  { term: 'consideration', definition: 'The value each party exchanges in a contract (money, goods, services, or a promise) and bargains for. One of the required elements of a valid contract.' },
+  { term: 'standard of care', definition: 'The degree of skill and diligence a reasonably prudent surveyor would exercise under similar conditions. Falling below it and causing damage is negligence.' },
+  { term: 'negligence', definition: 'Failure to meet the standard of care, resulting in harm. A surveyor is liable for negligence — not for failing to achieve perfection.' },
+  { term: 'model rules', definition: 'The NCEES Model Rules of Professional Conduct, the template most state boards adopt; they make protecting the public’s health, safety and welfare a licensee’s first duty.' },
+  { term: 'conflict of interest', definition: 'A situation where a professional’s obligations could be compromised. The Model Rules require avoiding conflicts and, if unavoidable, disclosing them fully to all affected parties.' },
+  { term: 'confined space', definition: 'A space large enough to enter and work, with limited/restricted means of entry-exit, that is not designed for continuous occupancy (e.g., a manhole or vault).' },
+  { term: 'permit-required confined space', definition: 'A confined space that also contains, or could contain, a hazardous atmosphere, engulfment risk, entrapment configuration, or other recognized serious hazard.' },
+  { term: 'simple interest', definition: 'Interest charged only on the original principal (or on the remaining balance): I = P·i·n. It does not compound.' },
+  { term: 'compound interest', definition: 'Interest earned on both principal and previously accumulated interest: future worth F = P(1 + i)^n.' },
+  { term: 'present worth', definition: 'The value today of a future amount, discounted at the interest rate: P = F / (1 + i)^n.' },
+  { term: 'depreciation', definition: 'The systematic loss of an asset’s value over its useful life. Straight-line: D = (cost − salvage) / life, the same amount each year.' },
+  { term: 'nfip', definition: 'The National Flood Insurance Program (FEMA). The FEMA Elevation Certificate provides the elevation data used to rate structures for flood insurance.' },
+  { term: 'one-call', definition: 'The 811 utility-locate service. Surveyors and contractors must notify One-Call before digging so existing underground utilities are marked, preventing strikes.' },
 ];
 
 // Common aliases / plurals → canonical key.
