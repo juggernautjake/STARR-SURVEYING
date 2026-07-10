@@ -3154,6 +3154,19 @@
 /* Tray-head action buttons sit on the magenta gradient — keep them white. */
 .dnd-sheet.skin-donata .tray-head .btn { color: #fff; border-color: rgba(255, 255, 255, 0.6); background: rgba(255, 255, 255, 0.14); }
 
+/* Portrait: round token (top-left) + full-body art card (top-right) — candy framing.
+   The token-frame carries inline border/shadow, so override with a touch of !important. */
+.dnd-sheet.skin-donata .token-frame {
+  border-color: var(--hotpink) !important;
+  box-shadow: 0 6px 16px -6px rgba(var(--sk-rasp), 0.7) !important;
+}
+.dnd-sheet.skin-donata .art-frame {
+  background: var(--sk-cream);
+  border-radius: 20px;
+  padding: 10px;
+}
+.dnd-sheet.skin-donata .art-frame img { border-radius: 12px; }
+
 @media (prefers-reduced-motion: reduce) {
   .dnd-sheet.skin-donata .btn { transition: none; }
 }
