@@ -255,7 +255,7 @@ build slice in **Appendix A**.
 | **S6** | Profile + cross-section renderers. | **DONE** (431a173f) — `renderProfile` (independent-axis grade/invert line, X+YY.YY station labels, "cut = ?" marker; Q6) + `renderCrossSection` (road CL + side slope s:1, cut/fill; Q7); `profile`/`crossSection` spec types + dispatcher + `staLabel`; 14 diagram tests. Content wiring in S17. |
 | **S7** | Plat + rounded-corner-lot renderers. | **DONE** (62a12bd7) — `renderPlat` (lot strip: numbered lots, frontage dims incl. "±" remainder, monuments, street name; Q19/Q20) + `renderRoundedCornerLot` (rectangle with a 90° corner arc, uniform-scaled; Q36); `plat`/`roundedLot` spec types + dispatcher; 19 diagram tests. Content wiring in S14/S16. |
 | **S8** | Height-relations + tilted-photo renderers + static-question figures. | **DONE** (f12373f9) — `renderHeightRelations` (h=H+N; Q28) + `renderTiltedPhoto` (Q13); added `question_bank.diagram` jsonb + route resolves it to `_diagram` for static drag_label/hotspot/standard rows; seeds/425 back-fills the Q13 & Q28 figures (applied + verified); 23 diagram tests. |
-| **S9** | `renderContourMap` (Q9) — synthetic surface + marching-squares; label index contours. Fallback to 2–3 static house-style variants if over-budget. | **TODO** |
+| **S9** | Contour-map renderer. | **DONE** (828fab3c) — `renderContourMap`: synthetic Gaussian-hill surface + marching-squares extraction; bolder index contours, two lowest index contours labelled, peak unlabelled (student deduces interval + highest contour); `contour` spec type; 27 diagram tests. **Phase B complete** — 10 exam-figure families generate parametrically. Content wiring in S17. |
 
 ### Phase C — Business Concepts module (NCEES Cat 6)
 | Slice | What | Status |
