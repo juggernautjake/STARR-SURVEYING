@@ -251,7 +251,7 @@ build slice in **Appendix A**.
 ### Phase B — Diagram renderers
 | Slice | What | Status |
 |---|---|---|
-| **S5** | Enrich `renderCurve` (T/E/M/LC + deflection labels) for Q37; add `renderTowerTwoAngles` (Q46). House-style pass (brand colors, `<text>`). Vitest snapshot of SVG for given inputs. | **TODO** |
+| **S5** | Curve + tower-height renderers. | **DONE** (a911227a) — enriched `renderCurve` with full element set (T, LC, E, M, R, I) + tangent-chord = I/2 (existing curve templates upgrade automatically); added `renderTowerTwoAngles` (h = d/(cotα−cotβ), fails soft when β≤α) + `towerTwoAngles` spec type; 8 vitest cases (44 total). Content wiring: Q37 in S14, Q46 in S13. |
 | **S6** | `renderProfile` (Q6) + `renderCrossSection` (Q7) with `fitTransform`; extend `DiagramSpec`. Snapshot tests. | **TODO** |
 | **S7** | `renderPlat` (Q19/Q20) + `renderRoundedCornerLot` (Q36). Snapshot tests. | **TODO** |
 | **S8** | `renderTiltedPhoto` (Q13) + `renderHeightRelations` (Q28, expose drop-zones/regions for S3/S4). Snapshot tests. | **TODO** |
