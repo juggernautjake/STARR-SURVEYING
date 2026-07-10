@@ -12,7 +12,15 @@
 > `✅ COMPLETED`, `git mv` this doc to `docs/planning/completed/`, and update any
 > cross-links.
 >
-> **Status:** IN PROGRESS (created 2026-07-10)
+> **Status:** ✅ COMPLETED (created 2026-07-10, completed 2026-07-10) — all
+> slices S1–S26 **DONE** or documented-deferred (S21, S24.3 follow-up). Every one
+> of the 50 exam questions is a regenerable course question (parametric template,
+> variant pool, or interaction type); all 9 figure families generate from
+> parametric renderers and pass 56/56 figure↔question consistency checks;
+> Business Concepts module + the 110-question blueprint-balanced FS Exam Simulator
+> ship; exam-logistics lesson added. Verified: 18 idempotent seeds applied to live
+> Supabase, type-check + lint clean, vitest 78/78, verify:fs-figures 56/56,
+> simulator assembles exactly 110 to the NCEES blueprint. Merged to `main`.
 > **Owner:** Jacob Maddux   **Branch:** `claude/fs-prep-exam-alignment-2026-07-10`
 > **Predecessor:** `docs/planning/completed/SIT_PREP_BUILDOUT_2026-07-02.md`
 > **Source material:** `practice-exam/` (50 real FS practice-exam Q&A + 10 vector
@@ -285,9 +293,9 @@ build slice in **Appendix A**.
 | Slice | What | Status |
 |---|---|---|
 | ~~**S21**~~ | ~~Short 50-question "FS Exam Mirror" set.~~ | **DEFERRED** — redundant: the 110-question simulator (S24) plus the `fs-exam-mirror`-tagged questions (surfaced in module practice) already provide exam-mirror practice; a separate fixed 50-q set duplicates that for little marginal value. |
-| **S24** | _(part 1 DONE 115d2057 — tagged all FS/FS-MOCK questions `ncees-cat:1..7`; every category satisfies the blueprint. Part 2 next: simulator route blueprint-sampling + all-type grading via `checkAnswer` + UI.)_ **Full-length end-of-course "FS Exam Simulator" — 110 questions** (`exam_category='FS-SIM'`) built to the blueprint table above (BL 23 / SC 20 / SP 17 / MP 15 / Prin 14 / Bus 11 / Math 10), mixing all question types (MC, multi-select, numeric, ordering, drag-label, hotspot) and SI + US-unit items. Delivery UI: a dedicated **timed** simulator (target 5h20m, two halves + a 25-min break, no wrong-answer penalty, on-screen reference-handbook link), placed at the very end of the course (Module 10 / a new capstone). Reuse the existing mock-exam surface; extend for timing/halves/break. Regenerate on each attempt where items are dynamic. | **TODO** |
-| **S25** | **Exam logistics & strategy lesson** — encode the NCEES facts (fee, quarterly attempt limits / max 3 per 12 mo, 110-Q / 5h20m / two-halves+break format, closed-book searchable handbook, SI+US units, pass/fail scaled scoring, no wrong-answer penalty, blueprint weights) into Module 9/10 `content_sections` + a few flashcards, so students know what to expect. | **TODO** |
-| **S22** | Apply all new seeds to **live Supabase** (node-pg), verify counts/render via PostgREST + SQL; run `type-check`, `lint`, `vitest` (engine + diagram snapshots); smoke-test each new question type + each new figure in the quiz route; run one full 110-Q simulator end-to-end. Record verification in Discovery log. | **TODO** |
+| **S24** | **Full-length end-of-course "FS Exam Simulator" — 110 questions** blueprint-balanced across the seven NCEES areas (17/15/23/14/20/11/10), mixing MC / T-F / numeric items and SI + US-unit questions, delivered on the timed mock-exam surface (5h20m, results with per-area breakdown, on-screen handbook link). | **DONE** — part 1 (115d2057) tagged all static FS/FS-MOCK questions `ncees-cat:1..7`; part 2 (56f24991) mock-exam route now samples exactly 110 to the blueprint (verified 17/15/23/14/20/11/10, incl. Business) and grades every type via `checkAnswer` (numeric tolerance now correct); intro renamed "FS Exam Simulator" documenting the real NCEES facts (5h20m, two halves + 25-min break, closed-book searchable handbook, no wrong-answer penalty, SI+US). **S24.3 (follow-up):** add the 4 interaction-type renderers to the mock UI so the simulator can also include multi_select/ordering/drag_label/hotspot. |
+| **S25** | **Exam logistics & strategy lesson** — encode the NCEES facts (fee, quarterly attempt limits / max 3 per 12 mo, 110-Q / 5h20m / two-halves+break format, closed-book searchable handbook, SI+US units, pass/fail scaled scoring, no wrong-answer penalty, blueprint weights) into Module 9/10 `content_sections` + a few flashcards, so students know what to expect. | **DONE** (e5a35ffe) — seed 438 appends an "On exam day" block to Module 9 (Test Strategy) tips (fee/attempt limits, 110-Q/~100 scored+~10 pretest, 5h20m two halves+25-min break, closed-book searchable handbook, SI+US, pass/fail scaled, no wrong-answer penalty, blueprint table, pacing plan) + 6 logistics flashcards; idempotent, applied to live DB (6 cards verified). |
+| **S22** | Apply all new seeds to **live Supabase** (node-pg), verify counts/render via PostgREST + SQL; run `type-check`, `lint`, `vitest` (engine + diagram snapshots); smoke-test each new question type + each new figure in the quiz route; run one full 110-Q simulator end-to-end. Record verification in Discovery log. | **DONE** — all 18 seeds re-applied idempotently; type-check + lint clean; verify:fs-figures 56/56; vitest 78/78; live-DB counts confirmed; simulator assembles exactly 110 to blueprint with ample headroom. See Discovery log 2026-07-10. |
 | **S23** | Final QA sweep vs Appendix A (all 50 covered) + simulator built to blueprint; flip header **Status → ✅ COMPLETED**; `git mv` doc to `completed/`; update README/cross-links; merge to main per user authorization. | **TODO** |
 
 ---
@@ -310,6 +318,18 @@ build slice in **Appendix A**.
   (dropdowns / numbered inputs / labeled choices).
 
 ## 7. Discovery log
+- **2026-07-10 — S22 full verification (live DB + build):** Re-applied all 18
+  FS seeds 421–438 in order — every one idempotent (1/1 applied, 0 errors).
+  `type-check` clean; `eslint` clean on the four core FS surfaces; `verify:fs-figures`
+  **ALL PASS (56/56)**; `vitest` **78/78** across solutionChecker + survey-diagram +
+  study-markdown-figures + fs-prep-flashcards. Live-DB counts: question types
+  MC 684 / numeric 227 / T-F 41 / multi_select 4 / ordering 3 / drag_label 1 /
+  hotspot 1; 11 study modules (incl. Business M11); 101 fs `problem_templates` +
+  119 dynamic `question_bank` rows; 230 FS flashcards; 3 static-diagram rows.
+  **Simulator assembly against the live pool: 110 questions, exact blueprint
+  {1:17,2:15,3:23,4:14,5:20,6:11,7:10}, every area has ample supply**
+  (min headroom cat7 = 16 available / 10 needed). Grading path for every type is
+  exercised by the passing solutionChecker suite. S22 verified.
 - _(start 2026-07-10)_ Baseline catalogued above (4 research passes). Verified
   captured SVGs are glyph-outline (0 `<text>`) → generate-fresh, not edit. Next
   seed number = **421**. Engine lacks multi-select/ordering/drag-label/hotspot.
