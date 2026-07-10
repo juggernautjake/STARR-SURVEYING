@@ -731,11 +731,34 @@ function generateId(): string {
   return 'gen-' + Math.random().toString(36).substring(2, 10) + '-' + Date.now().toString(36);
 }
 
+// Some template columns (notably `answer_format`) are stored as TEXT, so the
+// driver hands them back as JSON strings rather than parsed objects. Parse a
+// value that may be either an object/array already or a JSON string, falling
+// back to `fallback` on anything unparseable. This is what makes each
+// template's intended decimals / tolerance / unit actually take effect (without
+// it, every answer silently rounds to 2 decimals with a 0.01 tolerance).
+function parseJsonish<T>(value: unknown, fallback: T): T {
+  if (value == null) return fallback;
+  if (typeof value === 'string') {
+    const s = value.trim();
+    if (!s) return fallback;
+    try { return JSON.parse(s) as T; } catch { return fallback; }
+  }
+  return value as T;
+}
+
 /**
  * Convert a DB row to a ProblemTemplate object.
  * Use when fetching templates from Supabase.
  */
 export function dbRowToTemplate(row: Record<string, unknown>): ProblemTemplate {
+  const answerFormat = parseJsonish<AnswerFormat>(row.answer_format, {});
+  const parameters = parseJsonish<TemplateParameter[]>(row.parameters, []);
+  const computedVars = parseJsonish<ComputedVar[]>(row.computed_vars, []);
+  const solutionSteps = parseJsonish<SolutionStepTemplate[]>(row.solution_steps_template, []);
+  const optionsGenerator = parseJsonish<OptionsGenerator>(row.options_generator, { method: 'none' });
+  const studyRefs = parseJsonish<{ type: string; id: string; label: string }[]>(row.study_references, []);
+  const diagram = parseJsonish<DiagramSpec | undefined>(row.diagram, undefined);
   return {
     id: String(row.id || ''),
     name: String(row.name || ''),
@@ -746,24 +769,20 @@ export function dbRowToTemplate(row: Record<string, unknown>): ProblemTemplate {
     difficulty: String(row.difficulty || 'medium'),
     question_template: String(row.question_template || ''),
     answer_formula: String(row.answer_formula || ''),
-    answer_format: (typeof row.answer_format === 'object' ? row.answer_format : {}) as AnswerFormat,
-    parameters: Array.isArray(row.parameters) ? row.parameters as TemplateParameter[] : [],
-    computed_vars: Array.isArray(row.computed_vars) ? row.computed_vars as ComputedVar[] : [],
-    solution_steps_template: Array.isArray(row.solution_steps_template)
-      ? row.solution_steps_template as SolutionStepTemplate[]
-      : [],
-    options_generator: (typeof row.options_generator === 'object' ? row.options_generator : { method: 'none' }) as OptionsGenerator,
+    answer_format: answerFormat,
+    parameters: Array.isArray(parameters) ? parameters : [],
+    computed_vars: Array.isArray(computedVars) ? computedVars : [],
+    solution_steps_template: Array.isArray(solutionSteps) ? solutionSteps : [],
+    options_generator: optionsGenerator || { method: 'none' },
     explanation_template: row.explanation_template ? String(row.explanation_template) : undefined,
     module_id: row.module_id ? String(row.module_id) : undefined,
     lesson_id: row.lesson_id ? String(row.lesson_id) : undefined,
     topic_id: row.topic_id ? String(row.topic_id) : undefined,
     exam_category: row.exam_category ? String(row.exam_category) : undefined,
     tags: Array.isArray(row.tags) ? row.tags as string[] : [],
-    study_references: Array.isArray(row.study_references)
-      ? row.study_references as { type: string; id: string; label: string }[]
-      : [],
+    study_references: Array.isArray(studyRefs) ? studyRefs : [],
     generator_id: row.generator_id ? String(row.generator_id) : undefined,
-    diagram: (row.diagram && typeof row.diagram === 'object') ? row.diagram as DiagramSpec : undefined,
+    diagram: (diagram && typeof diagram === 'object') ? diagram : undefined,
     is_active: row.is_active !== false,
   };
 }
