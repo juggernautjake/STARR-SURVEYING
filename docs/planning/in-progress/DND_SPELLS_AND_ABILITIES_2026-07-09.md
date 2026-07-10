@@ -61,7 +61,7 @@ Casting: **WIS**, save **DC 13**, attack **+5**. Slots: 4× L1, 2× L2. Prepared
 
 ## Content — Lazzuh & Susie
 - **Lazzuh** (barbarian, non-caster): the tab surfaces his **usable abilities** — Rage/Surge (already a resource + toggle), Weapon Mastery, Reckless — with use-buttons; no spell list. Confirm his feats are all represented + usable.
-- **Susie** (streamer): flesh out her class abilities similarly; add spells only if her class is a caster (TBD in Slice 1 by reading her data).
+- **Susie** (streamer = **Warlock, Pact of the Patreon** — confirmed in Slice 1): a caster, so she gets structured spell content — her Pact Magic cantrips + her (few, high-level) Pact slots + known spells, themed to the patron. Add her spellcasting via the same model.
 
 ## Readability contract & verification
 Same as the item builder: the Spells tab + spell cards must be readable on every skin (no light-on-light / dark-on-dark). Every slice: tsc + eslint + tests; drive casting in the running app (Playwright) — cast a spell, confirm the slot decrements and the typed roll appears in the log; audit contrast on a light and a dark skin.
@@ -69,7 +69,9 @@ Same as the item builder: the Spells tab + spell cards must be readable on every
 ## Slice plan
 
 - [ ] **Slice 0 — Planning doc** (this file).
-- [ ] **Slice 1 — Model + audit.** Add `Spell`/`spells`/`spellcasting` to `types.ts`; decide slot storage; read Lazzuh/Susie/Donata data to confirm what each has. No UI yet.
+- [x] **Slice 1 — Model + audit.** Add `Spell`/`spells`/`spellcasting` to `types.ts`; decide slot storage; read Lazzuh/Susie/Donata data to confirm what each has. No UI yet.
+  - *Audit:* **Donata = Cleric** (WIS · DC 13 · +5; slots in `resources`; spells listed in `features`) → full caster. **Susie = Warlock** (Pact of the Patreon) → **also a caster** (Pact Magic: cantrips + a few high-level slots) — she needs spell content too. **Lazzuh = Barbarian** → non-caster; his tab surfaces usable abilities (Rage/Surge/Weapon Mastery), no spell list.
+  - *Slot storage:* new structured `spellcasting.slots` (per-level max/current) for the tab; existing resource-based slot pips stay (no breaking change) and can be reconciled later.
 - [ ] **Slice 2 — Donata's spell content.** Populate her full cantrip/prepared/domain list as structured `Spell[]` (typed damage, saves, heals) in her data + seed. Verify it loads.
 - [ ] **Slice 3 — Spells tab (read).** New tab rendering cantrips + per-level sections + slots + DC/attack header. Readable on all skins.
 - [ ] **Slice 4 — Casting.** Cast button: spend the level's slot, roll attack/save + typed damage or apply heal via the roll API; log it. Prepare/unprepare in edit mode with the cap enforced.
@@ -82,4 +84,4 @@ Same as the item builder: the Spells tab + spell cards must be readable on every
 
 ## Ship log
 
-_(filled in per slice as work lands)_
+- **Slice 1** — Added `Spell` / `SpellLevel` / `SpellcastingInfo` to `types.ts` (typed damage reuses `TypedDamage`; save/attack/heal/higher fields; display `alias`), plus optional `Character.spells` / `Character.spellcasting`. Structured `spellcasting.slots` (per-level max/current) chosen for the tab; existing resource slot pips untouched. Audit: Donata = Cleric, **Susie = Warlock (caster too)**, Lazzuh = non-caster. Type-lock test `__tests__/dnd/spell-types.test.ts` (3 pass); tsc + eslint clean.

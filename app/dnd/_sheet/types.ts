@@ -134,6 +134,41 @@ export interface ActiveEffect {
   source?: string // where it came from (item name)
 }
 
+export type SpellLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 // 0 = cantrip
+
+/** A defined, castable spell (DND_SPELLS_AND_ABILITIES). Damage is typed so it reuses the
+ *  item-builder's typed roller; save/attack drive how casting resolves. */
+export interface Spell {
+  id: string
+  name: string
+  level: SpellLevel
+  school?: string
+  /** Prepared/known and usable. Cantrips + domain/feat spells are effectively always on. */
+  prepared?: boolean
+  /** Domain/feat spells that don't count against the prepared cap. */
+  alwaysPrepared?: boolean
+  castTime?: string
+  range?: string
+  components?: string
+  duration?: string
+  concentration?: boolean
+  ritual?: boolean
+  description: string
+  alias?: string // display alias, e.g. "Spotlight" for Guiding Bolt
+  attack?: boolean // spell attack roll (castingMod + PB)
+  save?: { ability: AbilityKey; effect: string } // targets save vs your spell DC
+  damage?: TypedDamage[] // typed damage components
+  heal?: string // healing dice, e.g. "1d4"
+  higher?: string // "at higher levels" scaling text
+}
+
+export interface SpellcastingInfo {
+  ability: AbilityKey
+  preparedCap?: number // WIS mod + level, etc.
+  /** Spell slots per level (1–9); cantrips don't use slots. */
+  slots?: Partial<Record<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, { max: number; current: number }>>
+}
+
 export interface SkillState {
   prof: ProfLevel
   misc: number
@@ -213,6 +248,9 @@ export interface Character {
   forms: CharForm[]
   activeFormId: string
   attacks: Attack[]
+  /** Defined, castable spells (optional — non-casters omit). Managed in the Spells tab. */
+  spells?: Spell[]
+  spellcasting?: SpellcastingInfo
   features: FeatureBlock[]
   progression: ProgressionRow[]
   /** Optional per-character labels for the progression table (defaults to Lazzuh's
