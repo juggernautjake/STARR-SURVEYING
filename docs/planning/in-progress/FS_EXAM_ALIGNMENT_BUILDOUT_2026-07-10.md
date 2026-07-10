@@ -278,7 +278,7 @@ build slice in **Appendix A**.
 ### Phase E — Fill thin topics (flashcards, glossary, lesson figures)
 | Slice | What | Status |
 |---|---|---|
-| **S19** | Flashcards + glossary for thin topics (GIS topology, LiDAR LAS, NSSDA 1.7308/1.9600, FEMA Elevation Certificate, Lambert vs TM, spherical trig, geoid height, obliterated vs lost corner). Seed `430_*`. | **TODO** |
+| **S19** | Thin-topic flashcards + glossary. | **DONE** (2f6edda1) — 14 flashcards across M6/M7/M8 (Lambert/TM, spherical trig, geoid height, obliterated/lost corner, tidal datum, GIS topology, LAS, NSSDA 1.7308/1.9600, FEMA cert, relief displacement, raster/vector, USGS DEM) + 12 glossary terms. Applied to live DB (224 FS flashcards). Seed 435. |
 | **S20** | Inject generated/house-style figures into text-only lesson sections (M8 contour/tilted-photo, M6 geoid heights, M7 plat, M5 cross-section/curve, M3/M7 two-angle height). Seed `431_*`. | **TODO** |
 
 ### Phase F — Exam-mirror set, full simulator, verification, wrap
