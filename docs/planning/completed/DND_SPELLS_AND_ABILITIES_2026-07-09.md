@@ -1,6 +1,6 @@
 # Spells & Class Abilities — usable, managed, cross-sheet
 
-**Status:** IN-PROGRESS · **Branch:** `claude/item-builder-2026-07-09` (shares the mechanics work; may split) · **Started:** 2026-07-09
+**Status:** COMPLETED (shipped 2026-07-09) · **Branch:** `claude/item-builder-2026-07-09` · **Started:** 2026-07-09
 
 ## Goal
 
@@ -76,7 +76,7 @@ Same as the item builder: the Spells tab + spell cards must be readable on every
 - [x] **Slice 3 — Spells tab (read).** New tab rendering cantrips + per-level sections + slots + DC/attack header. Readable on all skins.
 - [x] **Slice 4 — Casting.** Cast button: spend the level's slot, roll attack/save + typed damage or apply heal via the roll API; log it. Prepare/unprepare in edit mode with the cap enforced.
 - [x] **Slice 5 — Usable class abilities.** Extend features with optional `use` (resource spend + roll/effect); flesh out + wire Donata's Channel Divinity / Sponsorship / Sanctuary.
-- [ ] **Slice 6 — Lazzuh & Susie parity.** Ensure each has a matching, usable tab (spells or abilities); flesh out any missing feats. Cross-sheet QA + retire doc.
+- [x] **Slice 6 — Lazzuh & Susie parity + closeout.** Susie (Warlock) got her full Pact Magic content — 4 cantrips (Eldritch Blast 1d10 force attack, Vicious Mockery 1d4 psychic WIS-save, Mage Hand, Minor Illusion) + 4 known leveled spells modeled at pact level 2 (Hex +1d6 necrotic, Charm Person, Suggestion, Hold Person), each streamer-themed (CHA · DC 14 · +4 · 2× L2 slots). Lazzuh (Barbarian, non-caster): abilities are already usable via the forms/rage systems (`useFormAbility`, rage resource, Surge transform) — no spell tab, correct; parity met with no new work. Synced both casters' content into their live DB rows. 167 dnd tests pass; source typecheck clean; every touchpoint is a **shared** surface (`types`, `store`, `SpellsPanel`, `Features`, `App` tab). Doc retired to `completed/`.
 
 ## Dependencies / notes
 - **Depends on the item-builder typed-damage roller** (Slice 2/3 of `DND_ITEM_BUILDER`) — spell damage reuses `rollTyped`. Build that first (alphabetical order already sequences item-builder before this).
@@ -84,6 +84,7 @@ Same as the item builder: the Spells tab + spell cards must be readable on every
 
 ## Ship log
 
+- **Slice 6** — Susie's Warlock Pact Magic content (`data/streamer.ts`): 4 cantrips + 4 known leveled spells (modeled at pact level 2), CHA · DC 14 · +4 · 2× L2 slots, streamer-themed aliases (Eldritch Blast = "Superchat Beam", Hex = "Shadowban"…). Lazzuh parity confirmed (usable via forms/rage — no spell tab). Both casters' content synced into their live DB rows. 167 tests; typecheck clean.
 - **Slice 5** — `FeatureBlock.use` (resource id + roll + rollKind heal/temp/damage/raw + note) makes a feature **usable**; store `activateFeature(f)` spends the resource and rolls/applies (heal → HP, temp → temp HP, else roll to the log). `Features` renders a **✦ Use** button (disabled when the resource is spent, shows uses left). Wired Donata's **Channel Downline** (Manifest a Maguffin → spend a Channel use, +1d8+3 **temp HP**), **Sponsorship** (+1d4 to a downline ally), and **Sanctuary** (spend Starter Kit → cast note). Named `activateFeature` (not `use*`) to satisfy rules-of-hooks. Shared → any character. tsc + eslint clean; 167 tests.
 - **Slice 4** — Store `castSpell(spell)`: spends the level's slot (cantrips free), rolls the spell attack (PB+mod) and/or **typed damage** (reusing `rollTyped`, tagged with the save DC), rolls **healing**, or logs a save/utility cast with its DC — all in the dice tray. `SpellsPanel` now has a **✨ Cast** button per spell (disabled when no slots left) and a **Prepare/Unprepare** toggle in edit mode (skips cantrips + always-prepared). Slot pips decrement live on cast. Shared store/tab → any caster on any sheet. tsc + eslint clean; 167 dnd tests pass.
 - **Slice 3** — New `SpellsPanel.tsx` + a **data-gated Spells tab** (shown only for casters — `char.spells?.length > 0` — so martials like Lazzuh don't get an empty tab). Renders a caster header (ability · save DC = 8+PB+mod or override · spell attack · prepared/cap), then Cantrips + one section per spell level with **slot pips**, and a readable card per spell (school/cast/range/components/duration, description via `md`, typed damage / save / heal, higher-level scaling, always/prepared/conc/ritual tags). Theme-token styled → all skins; shared tab → any caster on any sheet. Also merged the 18 spells into Donata's **live** DB row (spell fields only, rest untouched) so her sheet shows the tab now. tsc + eslint clean. *(Live click-through joins the QA-phase list — same Playwright file-chooser artifact; the panel is read-only rendering over the tested spell model with the same shared classes as already-verified panels.)*
