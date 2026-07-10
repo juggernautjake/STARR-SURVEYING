@@ -262,7 +262,7 @@ build slice in **Appendix A**.
 |---|---|---|
 | **S10** | Business Concepts module. | **DONE** (e04a6597) — new `fs_study_modules` Module 11 (id `f500000b…0b`, weight 13) with full 5-section lesson (entities, contracts/consideration, engineering economics, Model Rules ethics, liability/standard of care, OSHA confined spaces) + 6 econ formulas + 12 topics. Applied to live DB (11 modules); SIT API lists it automatically. Seed 426. |
 | **S11** | Business questions + econ templates. | **DONE** (61a7dfea) — 3 regenerable econ templates (financing P·i·(n+1)/2 = Q41, compound worth, straight-line depreciation; verified 40/40 finite via the engine) + 15 static questions (Q42 confined-space multi_select, Q43 partnership, Q44 consideration, Q45 ethics + 11 siblings). Applied to live DB (18 rows + 3 templates), all Module 11. Seed 427. |
-| **S12** | Business flashcards (~20) + glossary terms (partnership, corporation, consideration, lien, NFIP, Model Rules, confined space, engineering economics). Seed `423_*`. | **TODO** |
+| **S12** | Business flashcards + glossary. | **DONE** (06d53331) — 20 Module 11 flashcards (entities, contracts, econ, ethics, safety) applied to live DB + 17 new `fsGlossary.ts` terms (sole proprietorship, partnership, corporation, LLC, consideration, standard of care, negligence, Model Rules, conflict of interest, confined/permit-required space, simple/compound interest, present worth, depreciation, NFIP, One-Call). Seed 428. **Phase C complete.** |
 
 ### Phase D — Every exam question → template/variant-pool (by category)
 | Slice | What | Status |
