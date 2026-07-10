@@ -124,6 +124,16 @@ export interface InvItem {
   effects?: Effect[] // passive bonuses while equipped/attuned (engine Effect shape)
 }
 
+/** A temporary effect currently applied to the character (from a consumed buff/potion or a
+ *  DM boon). Shown in the Active-Effects tracker; removable by the player or DM. */
+export interface ActiveEffect {
+  id: string
+  label: string // e.g. "Potion of Storm Giant Strength"
+  effects: Effect[] // the bonuses granted while active
+  duration?: string // e.g. "1 hour", "3 rounds"
+  source?: string // where it came from (item name)
+}
+
 export interface SkillState {
   prof: ProfLevel
   misc: number
@@ -209,6 +219,10 @@ export interface Character {
    *  barbarian columns). Lets non-barbarians relabel the two middle columns + lead. */
   progressionMeta?: { title?: string; lead?: string; col3?: string; col4?: string }
   inventory: InvItem[]
+  /** Temporary effects currently active on the character — from a consumed buff/potion or a
+   *  DM-granted boon. Each is removable by the player or DM (Active-Effects tracker). Passive
+   *  item effects come from equipped/attuned `inventory` items, not this list. */
+  activeEffects?: ActiveEffect[]
   currency: { credits: number; harmonyte: number; scrip: number }
   bio: {
     intro: string[]

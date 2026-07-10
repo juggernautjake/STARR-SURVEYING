@@ -12,6 +12,7 @@ import StreamChat from './components/StreamChat'
 import StreamPoll from './components/StreamPoll'
 import StreamAlert from './components/StreamAlert'
 import ConditionTracker from './components/ConditionTracker'
+import ActiveEffects from './components/ActiveEffects'
 import Hero from './components/Hero'
 import StatRail from './components/StatRail'
 import Abilities from './components/Abilities'
@@ -198,6 +199,7 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
           </div>
 
           <ConditionTracker />
+          <ActiveEffects />
 
           <div className="tabpane" key={tab}>
             {tab === 'overview' && (

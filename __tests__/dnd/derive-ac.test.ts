@@ -46,4 +46,11 @@ describe('deriveAc', () => {
     const r = deriveAc([armor({ name: 'Ring', kind: 'wondrous', equipped: false, attuned: false, effects: [{ target: 'ac', operation: 'add', value: 5 }] })], 2, 12);
     expect(r.ac).toBe(12);
   });
+
+  it('counts +ac from a consumed active buff', () => {
+    const r = deriveAc([], 2, 15, [{ id: 'a1', label: 'Shield of Faith', effects: [{ target: 'ac', operation: 'add', value: 2 }], duration: '10 min' }]);
+    expect(r.ac).toBe(17);
+    expect(r.effectBonus).toBe(2);
+    expect(r.source).toContain('Shield of Faith');
+  });
 });

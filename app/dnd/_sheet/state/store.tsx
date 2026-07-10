@@ -6,7 +6,7 @@
 // initializer wrapped in try/catch → SSR-safe (falls back to the bundled `lazzuh`).
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { Character, InvItem } from '../types'
+import type { Character, InvItem, ActiveEffect } from '../types'
 import { lazzuh } from '../data/lazzuh'
 import { profBonusForLevel, abilityMod, ragesForLevel, rageDamageForLevel, maxHpForLevel, speedForLevel, MAX_BUILT_LEVEL } from '../rules/dnd'
 import { rollD20, rollDamage, parseDice, rollDie, rollTyped, weaponSegments, type Advantage } from '../lib/dice'
@@ -119,6 +119,8 @@ interface Ctx {
   rollExpr: (label: string, expr: string, kind?: RollEntry['kind']) => void
 
   adjustHp: (delta: number) => void
+  addActiveEffect: (ae: ActiveEffect) => void
+  removeActiveEffect: (id: string) => void
   setResource: (id: string, current: number) => void
   shortRest: () => void
   longRest: () => void
@@ -672,6 +674,14 @@ export function CharacterProvider({
     })
   }, [])
 
+  // Active temporary effects (consumed buffs / DM boons) — the Active-Effects tracker.
+  const addActiveEffect = useCallback((ae: ActiveEffect) => {
+    setCharState((c) => ({ ...c, activeEffects: [...(c.activeEffects ?? []), ae] }))
+  }, [])
+  const removeActiveEffect = useCallback((id: string) => {
+    setCharState((c) => ({ ...c, activeEffects: (c.activeEffects ?? []).filter((e) => e.id !== id) }))
+  }, [])
+
   const adjustHp = useCallback((delta: number) => {
     setCharState((c) => {
       let cur = c.combat.currentHp
@@ -811,6 +821,8 @@ export function CharacterProvider({
     rollWeaponDamage,
     rollExpr,
     adjustHp,
+    addActiveEffect,
+    removeActiveEffect,
     setResource,
     shortRest,
     longRest,

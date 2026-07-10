@@ -4,7 +4,7 @@
 //     heavy = base (no DEX). No equipped body armor → the character's manual AC is the base.
 //   • an equipped shield adds its bonus.
 //   • every equipped/attuned item's `ac`-add effects stack on top (e.g. Ring of Protection +1).
-import type { InvItem } from '../types'
+import type { InvItem, ActiveEffect } from '../types'
 
 export interface AcResult {
   ac: number
@@ -30,13 +30,23 @@ function acEffectBonus(items: InvItem[]): { bonus: number; sources: string[] } {
   return { bonus, sources }
 }
 
-/** Compute AC from the inventory. `manualAc` is the character's hand-set / unarmored value,
- *  used as the base when no body armor is equipped. */
-export function deriveAc(inventory: InvItem[] | undefined, dexMod: number, manualAc: number): AcResult {
+/** Compute AC from the inventory + any active temporary effects. `manualAc` is the
+ *  character's hand-set / unarmored value, used as the base when no body armor is equipped. */
+export function deriveAc(inventory: InvItem[] | undefined, dexMod: number, manualAc: number, activeEffects?: ActiveEffect[]): AcResult {
   const items = inventory ?? []
   const bodyArmor = items.find((i) => i.kind === 'armor' && i.equipped && i.armor)
   const shieldItem = items.find((i) => i.kind === 'shield' && i.equipped && i.armor)
-  const { bonus: effectBonus, sources: effectSources } = acEffectBonus(items)
+  const itemEff = acEffectBonus(items)
+  // Active temporary effects (consumed buffs / DM boons) contribute their +ac too.
+  let activeBonus = 0
+  const activeSources: string[] = []
+  for (const ae of activeEffects ?? []) {
+    for (const e of ae.effects ?? []) {
+      if (e.target === 'ac' && e.operation === 'add' && typeof e.value === 'number') { activeBonus += e.value; activeSources.push(ae.label) }
+    }
+  }
+  const effectBonus = itemEff.bonus + activeBonus
+  const effectSources = [...itemEff.sources, ...activeSources]
 
   let base = manualAc
   let baseSource = 'unarmored / manual'

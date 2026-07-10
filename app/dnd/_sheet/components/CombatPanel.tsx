@@ -11,8 +11,8 @@ export default function CombatPanel() {
   // AC from equipped armor/shield + item AC-effects; falls back to the manual combat.ac when
   // nothing is equipped (so hand-set AC still works). Recomputes when inventory/DEX/AC change.
   const acInfo = useMemo(
-    () => deriveAc(char.inventory, abilityMod(char.abilities.dex), combat.ac),
-    [char.inventory, char.abilities.dex, combat.ac],
+    () => deriveAc(char.inventory, abilityMod(char.abilities.dex), combat.ac, char.activeEffects),
+    [char.inventory, char.abilities.dex, combat.ac, char.activeEffects],
   )
 
   const dying = combat.currentHp <= 0
