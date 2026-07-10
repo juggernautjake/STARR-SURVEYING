@@ -128,6 +128,21 @@ export function rollTyped(segments: TypedSegmentInput[], crit = false): TypedDam
   return { total, parts, crit, breakdown }
 }
 
+/** Build the typed segments for a weapon roll: the primary damage with `flat` (ability mod
+ *  + rage/surge) folded into its dice string, followed by each typed bonus die. Pure so the
+ *  store and tests share it. Skips blank bonus entries. */
+export function weaponSegments(
+  primary: { dice: string; type: string },
+  bonus: { dice: string; type: string }[] | undefined,
+  flat: number,
+): TypedSegmentInput[] {
+  const primaryDice = flat !== 0 ? `${primary.dice}${flat > 0 ? `+${flat}` : `${flat}`}` : primary.dice
+  return [
+    { dice: primaryDice, type: primary.type || 'untyped' },
+    ...(bonus ?? []).filter((b) => b?.dice?.trim()).map((b) => ({ dice: b.dice, type: b.type || 'untyped' })),
+  ]
+}
+
 export type Advantage = 'flat' | 'adv' | 'dis'
 
 export interface D20Roll {

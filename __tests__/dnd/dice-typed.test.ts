@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rollTyped, type TypedSegmentInput } from '@/app/dnd/_sheet/lib/dice';
+import { rollTyped, weaponSegments, type TypedSegmentInput } from '@/app/dnd/_sheet/lib/dice';
 
 // Slice 2 of DND_ITEM_BUILDER: typed multi-part damage. Assertions are range/structure
 // based (rollDie uses Math.random) — bounds are exact so there's no flakiness.
@@ -64,5 +64,33 @@ describe('rollTyped — per-damage-type breakdown', () => {
     expect(r.parts[0].type).toBe('untyped');
     expect(r.total).toBeGreaterThanOrEqual(1);
     expect(r.total).toBeLessThanOrEqual(10);
+  });
+});
+
+describe('weaponSegments — item → typed roll composition (as rollWeaponDamage uses it)', () => {
+  it('folds the flat (ability mod + rage) into the primary type and appends typed bonus dice', () => {
+    // A sword: 2d8 slashing + 1d6 poison, drinker has STR mod +3.
+    const segs = weaponSegments({ dice: '2d8', type: 'slashing' }, [{ dice: '1d6', type: 'poison' }], 3);
+    expect(segs).toEqual<TypedSegmentInput[]>([
+      { dice: '2d8+3', type: 'slashing' },
+      { dice: '1d6', type: 'poison' },
+    ]);
+    // And the full roll produces a slashing part (incl. +3) and a separate poison part.
+    const r = rollTyped(segs);
+    expect(r.parts.map((p) => p.type)).toEqual(['slashing', 'poison']);
+    expect(r.parts[0].total).toBeGreaterThanOrEqual(5); // 2d8 min 2 + 3
+    expect(r.parts[1].total).toBeGreaterThanOrEqual(1); // 1d6, no mod
+  });
+
+  it('omits the flat when zero and skips blank bonus dice', () => {
+    expect(weaponSegments({ dice: '1d6', type: 'bludgeoning' }, [{ dice: '', type: 'fire' }], 0)).toEqual([
+      { dice: '1d6', type: 'bludgeoning' },
+    ]);
+  });
+
+  it('applies a negative flat correctly', () => {
+    expect(weaponSegments({ dice: '1d4', type: 'piercing' }, undefined, -1)).toEqual([
+      { dice: '1d4-1', type: 'piercing' },
+    ]);
   });
 });

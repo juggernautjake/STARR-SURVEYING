@@ -10,8 +10,16 @@ function labels() {
   return { credits: 'Notes', harmonyte: 'Harmonyte', scrip: 'Scrip' }
 }
 
+/** Compact "2d8 slashing + 1d6 poison" summary for a weapon item's Roll button. */
+function weaponDamageSummary(it: InvItem): string {
+  const w = it.weapon
+  if (!w) return ''
+  const parts = [`${w.damage.dice} ${w.damage.type}`.trim(), ...(w.bonus ?? []).filter((b) => b?.dice?.trim()).map((b) => `${b.dice} ${b.type}`.trim())]
+  return parts.join(' + ')
+}
+
 export default function Inventory() {
-  const { char, setChar, editMode, rollExpr, adjustHp } = useChar()
+  const { char, setChar, editMode, rollExpr, adjustHp, rollWeaponDamage } = useChar()
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState<Partial<InvItem>>({ name: '', desc: '', qty: 1 })
 
@@ -98,6 +106,16 @@ export default function Inventory() {
             <div>
               <div className="inv-name">{it.name}</div>
               <div className="inv-desc">{it.desc}</div>
+              {it.weapon && (
+                <div className="flex" style={{ gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                  <button className="btn tiny solid" onClick={() => rollWeaponDamage(it)} title="Roll this weapon's damage (typed breakdown in the log)">
+                    🎲 Roll {weaponDamageSummary(it)}
+                  </button>
+                  <button className="btn tiny" onClick={() => rollWeaponDamage(it, { crit: true })} title="Roll damage as a critical hit (double the dice)">
+                    ✷ Crit
+                  </button>
+                </div>
+              )}
               {it.use && (
                 // eslint-disable-next-line react-hooks/rules-of-hooks -- useItem is a store action, not a hook
                 <button className="btn tiny gold" style={{ marginTop: 6 }} onClick={() => useItem(it)} disabled={it.qty <= 0}>

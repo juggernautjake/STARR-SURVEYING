@@ -6,10 +6,10 @@
 // initializer wrapped in try/catch → SSR-safe (falls back to the bundled `lazzuh`).
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { Character } from '../types'
+import type { Character, InvItem } from '../types'
 import { lazzuh } from '../data/lazzuh'
 import { profBonusForLevel, abilityMod, ragesForLevel, rageDamageForLevel, maxHpForLevel, speedForLevel, MAX_BUILT_LEVEL } from '../rules/dnd'
-import { rollD20, rollDamage, parseDice, rollDie, type Advantage } from '../lib/dice'
+import { rollD20, rollDamage, parseDice, rollDie, rollTyped, weaponSegments, type Advantage } from '../lib/dice'
 
 const STORAGE_KEY = 'neon-odyssey:lazzuh:v7'
 
@@ -115,6 +115,7 @@ interface Ctx {
 
   rollCheck: (label: string, mod: number, opts?: RollD20Opts) => void
   rollDmg: (label: string, diceExpr: string, opts?: RollDmgOpts) => void
+  rollWeaponDamage: (item: InvItem, opts?: { crit?: boolean }) => void
   rollExpr: (label: string, expr: string, kind?: RollEntry['kind']) => void
 
   adjustHp: (delta: number) => void
@@ -508,6 +509,35 @@ export function CharacterProvider({
     [char.combat.transformActive, char.combat.rageDamageBonus, stage],
   )
 
+  // Roll a homebrew weapon's damage: primary (typed, + ability mod) plus any typed bonus dice
+  // (e.g. +1d6 poison). Reports a per-type breakdown so the log shows how much of the hit was
+  // each damage type. Adds surge/rage to the primary type when the weapon is rageable + surged.
+  const rollWeaponDamage = useCallback(
+    (item: InvItem, opts: { crit?: boolean } = {}) => {
+      const w = item.weapon
+      if (!w) return
+      const abilityKey = w.ability ?? 'str'
+      const mod = abilityMod(char.abilities[abilityKey])
+      const rage = item.tags?.includes('weapon') && char.combat.transformActive ? char.combat.rageDamageBonus : 0
+      const flat = mod + rage
+      const segments = weaponSegments(w.damage, w.bonus, flat)
+      const typed = rollTyped(segments, opts.crit)
+      const tags: string[] = []
+      if (opts.crit) tags.push('CRIT ×2 DICE')
+      if (rage) tags.push('SURGED')
+      // spin range roughly covers plausible totals across all segments
+      const maxV = segments.reduce((s, seg) => {
+        const p = parseDice(seg.dice)
+        return s + p.groups.reduce((g2, g) => g2 + Math.abs(g.count) * g.sides * (opts.crit ? 2 : 1), 0) + Math.max(0, p.flat)
+      }, 0)
+      stage(
+        { label: `${item.name} — damage`, kind: 'damage', total: typed.total, breakdown: typed.breakdown, tag: tags.join(' · ') || undefined },
+        { landing: typed.total, min: Math.max(1, flat + 1), max: Math.max(2, maxV), isD20: false },
+      )
+    },
+    [char.abilities, char.combat.transformActive, char.combat.rageDamageBonus, stage],
+  )
+
   const rollExpr = useCallback(
     (label: string, expr: string, kind: RollEntry['kind'] = 'raw') => {
       const dmg = rollDamage(expr)
@@ -778,6 +808,7 @@ export function CharacterProvider({
     resetStage,
     rollCheck,
     rollDmg,
+    rollWeaponDamage,
     rollExpr,
     adjustHp,
     setResource,
