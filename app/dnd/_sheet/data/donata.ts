@@ -96,6 +96,7 @@ export function donataDime(name: string): Character {
         '**Recruitment Pitch** *(Magic action)* — each creature of your choice within **30 ft** makes a **WIS save (DC 13)** or is **Charmed** for 1 minute and treats you as a beloved sponsor: it has disadvantage on attacks against you and your recruits. It repeats the save at the end of each of its turns and whenever it takes damage.',
         '**Manifest a Maguffin** *(Bonus action)* — conjure a dazzling Magic Maguffin for an ally within 30 ft: they gain **Temp HP = 1d8 + 3**. ✨ It **expires at the end of your next turn** whether used or not. The product does not actually work.',
       ],
+      use: { label: 'Manifest a Maguffin (Temp HP)', resourceId: 'channel', roll: '1d8+3', rollKind: 'temp' },
     },
     {
       id: 'abundance', name: 'Abundance Domain — Sponsorship', level: '3', source: 'Signature', tone: 'pink',
@@ -104,6 +105,7 @@ export function donataDime(name: string): Character {
         '**Sponsorship** — designate allies as your **downline**. Once per turn, when a downline ally within **30 ft** makes an attack roll, ability check, or save, you can add **1d4** to it (branded Bless). When they **succeed**, you skim a **commission**: gain 2 temporary HP, *or* move 5 ft without provoking opportunity attacks.',
         'The more your team grinds, the stronger you get. Pyramid economics, as a class feature.',
       ],
+      use: { label: 'Sponsor an ally (+1d4)', roll: '1d4', rollKind: 'raw' },
     },
     {
       id: 'saurian', name: 'Saurian — Tyrasaur Lineage', source: 'Species', tone: 'gold',
@@ -120,6 +122,7 @@ export function donataDime(name: string): Character {
         'Your Acolyte origin feat: **2 bonus cantrips** — *Light* (“Spotlight”) and *Mending* (“Fix the Returns”) — and one free **1st-level** spell, **Sanctuary** (“VIP Protection”), castable **1×/long rest** without a slot (or with a slot thereafter).',
         'Naturally, she wards **herself** first.',
       ],
+      use: { label: 'Cast Sanctuary', resourceId: 'starterkit', note: 'WIS save DC 13 or the attacker must choose a new target' },
     },
     {
       id: 'ranklevel', name: 'Rank = Level (leveling mechanic)', source: 'Table Rule', tone: 'gold',

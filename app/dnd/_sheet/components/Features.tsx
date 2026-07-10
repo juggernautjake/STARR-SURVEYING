@@ -14,8 +14,9 @@ function sourceColor(source: string) {
 }
 
 export default function Features() {
-  const { char } = useChar()
+  const { char, activateFeature } = useChar()
   const level = char.meta.level
+  const resourceLeft = (id?: string) => (id ? (char.resources.find((r) => r.id === id)?.current ?? 0) : 1)
 
   const sorted = [...char.features].sort((a, b) => (a.unlockLevel ?? 1) - (b.unlockLevel ?? 1))
 
@@ -62,6 +63,17 @@ export default function Features() {
               <p className="muted" style={{ fontStyle: 'italic', fontSize: 15 }}>
                 {f.flavor}
               </p>
+            )}
+            {f.use && (
+              <button
+                className="btn tiny solid"
+                style={{ marginTop: 4 }}
+                disabled={!!f.use.resourceId && resourceLeft(f.use.resourceId) <= 0}
+                onClick={() => activateFeature(f)}
+                title={f.use.resourceId ? `Uses 1 — ${resourceLeft(f.use.resourceId)} left` : 'Use this feature'}
+              >
+                ✦ {f.use.label}{f.use.resourceId ? ` (${resourceLeft(f.use.resourceId)})` : ''}
+              </button>
             )}
           </div>
         )

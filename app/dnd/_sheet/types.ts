@@ -30,6 +30,15 @@ export interface FeatureBlock {
   body: string[] // paragraphs (markdown-lite: **bold**, *em*)
   flavor?: string
   tone?: 'default' | 'pink' | 'teal' | 'gold'
+  /** Makes the feature USABLE from the sheet: spend a resource (by id) and/or roll a die,
+   *  applying heal/temp HP. Shown as a button on the feature card. */
+  use?: {
+    label: string
+    resourceId?: string // resource whose `current` decrements on use
+    roll?: string // dice expr to roll, e.g. '1d8+3'
+    rollKind?: 'damage' | 'heal' | 'temp' | 'raw'
+    note?: string // shown in the log for non-dice uses
+  }
 }
 
 export interface FormAbility {

@@ -6,7 +6,7 @@
 // initializer wrapped in try/catch → SSR-safe (falls back to the bundled `lazzuh`).
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { Character, InvItem, ActiveEffect, Spell } from '../types'
+import type { Character, InvItem, ActiveEffect, Spell, FeatureBlock } from '../types'
 import { lazzuh } from '../data/lazzuh'
 import { profBonusForLevel, abilityMod, ragesForLevel, rageDamageForLevel, maxHpForLevel, speedForLevel, MAX_BUILT_LEVEL } from '../rules/dnd'
 import { rollD20, rollDamage, parseDice, rollDie, rollTyped, weaponSegments, type Advantage } from '../lib/dice'
@@ -118,6 +118,7 @@ interface Ctx {
   rollWeaponDamage: (item: InvItem, opts?: { crit?: boolean }) => void
   rollExpr: (label: string, expr: string, kind?: RollEntry['kind']) => void
   castSpell: (spell: Spell) => void
+  activateFeature: (f: FeatureBlock) => void
 
   adjustHp: (delta: number) => void
   addActiveEffect: (ae: ActiveEffect) => void
@@ -588,6 +589,30 @@ export function CharacterProvider({
     [char.spellcasting, char.abilities, char.meta.level, char.combat.saveDCOverride, rollCheck, rollExpr, stage, commitRoll],
   )
 
+  // Use a class feature: spend its resource (if any) and roll/apply its effect (heal/temp HP
+  // are applied; damage/raw just roll to the log). Makes Channel Divinity, Sponsorship, etc. usable.
+  const activateFeature = useCallback(
+    (f: FeatureBlock) => {
+      const u = f.use
+      if (!u) return
+      if (u.resourceId) {
+        setCharState((c) => ({ ...c, resources: c.resources.map((r) => (r.id === u.resourceId ? { ...r, current: Math.max(0, r.current - 1) } : r)) }))
+      }
+      const title = `${f.name} — ${u.label}`
+      if (u.roll && (u.rollKind === 'heal' || u.rollKind === 'temp')) {
+        const total = rollDamage(u.roll).total
+        if (u.rollKind === 'heal') setCharState((c) => ({ ...c, combat: { ...c.combat, currentHp: Math.min(c.combat.maxHp, c.combat.currentHp + total) } }))
+        else setCharState((c) => ({ ...c, combat: { ...c.combat, tempHp: Math.max(c.combat.tempHp, total) } }))
+        commitRoll({ label: title, kind: u.rollKind, total, breakdown: `${u.roll} → ${u.rollKind === 'heal' ? `+${total} HP` : `${total} temp HP`}` })
+      } else if (u.roll) {
+        rollExpr(title, u.roll, u.rollKind === 'damage' ? 'damage' : 'raw')
+      } else {
+        commitRoll({ label: title, kind: 'raw', total: 0, breakdown: u.note ?? 'used' })
+      }
+    },
+    [rollExpr, commitRoll],
+  )
+
   const clearLog = useCallback(() => setLog([]), [])
   const resetStage = useCallback(() => setActiveRoll(null), [])
 
@@ -856,6 +881,7 @@ export function CharacterProvider({
     rollWeaponDamage,
     rollExpr,
     castSpell,
+    activateFeature,
     adjustHp,
     addActiveEffect,
     removeActiveEffect,
