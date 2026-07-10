@@ -253,7 +253,7 @@ build slice in **Appendix A**.
 |---|---|---|
 | **S5** | Curve + tower-height renderers. | **DONE** (a911227a) — enriched `renderCurve` with full element set (T, LC, E, M, R, I) + tangent-chord = I/2 (existing curve templates upgrade automatically); added `renderTowerTwoAngles` (h = d/(cotα−cotβ), fails soft when β≤α) + `towerTwoAngles` spec type; 8 vitest cases (44 total). Content wiring: Q37 in S14, Q46 in S13. |
 | **S6** | Profile + cross-section renderers. | **DONE** (431a173f) — `renderProfile` (independent-axis grade/invert line, X+YY.YY station labels, "cut = ?" marker; Q6) + `renderCrossSection` (road CL + side slope s:1, cut/fill; Q7); `profile`/`crossSection` spec types + dispatcher + `staLabel`; 14 diagram tests. Content wiring in S17. |
-| **S7** | `renderPlat` (Q19/Q20) + `renderRoundedCornerLot` (Q36). Snapshot tests. | **TODO** |
+| **S7** | Plat + rounded-corner-lot renderers. | **DONE** (62a12bd7) — `renderPlat` (lot strip: numbered lots, frontage dims incl. "±" remainder, monuments, street name; Q19/Q20) + `renderRoundedCornerLot` (rectangle with a 90° corner arc, uniform-scaled; Q36); `plat`/`roundedLot` spec types + dispatcher; 19 diagram tests. Content wiring in S14/S16. |
 | **S8** | `renderTiltedPhoto` (Q13) + `renderHeightRelations` (Q28, expose drop-zones/regions for S3/S4). Snapshot tests. | **TODO** |
 | **S9** | `renderContourMap` (Q9) — synthetic surface + marching-squares; label index contours. Fallback to 2–3 static house-style variants if over-budget. | **TODO** |
 
