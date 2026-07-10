@@ -1,0 +1,49 @@
+import { describe, it, expect } from 'vitest';
+import { deriveAc } from '@/app/dnd/_sheet/lib/derive-ac';
+import type { InvItem } from '@/app/dnd/_sheet/types';
+
+// Slice 5 of DND_ITEM_BUILDER: equipped armor/shield/effects → AC.
+const armor = (over: Partial<InvItem>): InvItem => ({ id: 'x', name: 'Item', desc: '', qty: 1, tags: [], ...over });
+
+describe('deriveAc', () => {
+  it('falls back to the manual AC when nothing is equipped', () => {
+    const r = deriveAc([], 3, 16);
+    expect(r.ac).toBe(16);
+    expect(r.fromEquipment).toBe(false);
+  });
+
+  it('light armor adds full DEX', () => {
+    const r = deriveAc([armor({ name: 'Leather', kind: 'armor', equipped: true, armor: { category: 'light', baseAC: 11 } })], 3, 10);
+    expect(r.ac).toBe(14); // 11 + 3
+    expect(r.fromEquipment).toBe(true);
+    expect(r.source).toContain('Leather');
+  });
+
+  it('medium armor caps DEX at 2', () => {
+    const r = deriveAc([armor({ name: 'Breastplate', kind: 'armor', equipped: true, armor: { category: 'medium', baseAC: 14, dexCap: 2 } })], 4, 10);
+    expect(r.ac).toBe(16); // 14 + min(4,2)
+  });
+
+  it('heavy armor ignores DEX', () => {
+    const r = deriveAc([armor({ name: 'Plate', kind: 'armor', equipped: true, armor: { category: 'heavy', baseAC: 18 } })], 4, 10);
+    expect(r.ac).toBe(18);
+  });
+
+  it('adds a shield bonus and stacking +ac item effects', () => {
+    const items: InvItem[] = [
+      armor({ name: 'Breastplate', kind: 'armor', equipped: true, armor: { category: 'medium', baseAC: 14, dexCap: 2 } }),
+      armor({ id: 's', name: 'Shield', kind: 'shield', equipped: true, armor: { category: 'shield', baseAC: 2 } }),
+      armor({ id: 'r', name: 'Ring of Protection', kind: 'wondrous', attuned: true, effects: [{ target: 'ac', operation: 'add', value: 1 }] }),
+    ];
+    const r = deriveAc(items, 3, 10);
+    expect(r.ac).toBe(14 + 2 + 2 + 1); // base(14+min(3,2)=16) + shield 2 + ring 1 = 19
+    expect(r.ac).toBe(19);
+    expect(r.shield).toBe(2);
+    expect(r.effectBonus).toBe(1);
+  });
+
+  it('ignores AC effects from unequipped items', () => {
+    const r = deriveAc([armor({ name: 'Ring', kind: 'wondrous', equipped: false, attuned: false, effects: [{ target: 'ac', operation: 'add', value: 5 }] })], 2, 12);
+    expect(r.ac).toBe(12);
+  });
+});

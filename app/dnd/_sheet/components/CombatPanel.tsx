@@ -1,12 +1,19 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useChar } from '../state/store'
 import { abilityMod, signed } from '../rules/dnd'
+import { deriveAc } from '../lib/derive-ac'
 import SectionHead from './ui/SectionHead'
 
 export default function CombatPanel() {
   const { char, setChar, editMode, adjustHp, rollDeathSave, spendHitDie, shortRest, longRest } = useChar()
   const { combat } = char
   const [amt, setAmt] = useState(5)
+  // AC from equipped armor/shield + item AC-effects; falls back to the manual combat.ac when
+  // nothing is equipped (so hand-set AC still works). Recomputes when inventory/DEX/AC change.
+  const acInfo = useMemo(
+    () => deriveAc(char.inventory, abilityMod(char.abilities.dex), combat.ac),
+    [char.inventory, char.abilities.dex, combat.ac],
+  )
 
   const dying = combat.currentHp <= 0
 
@@ -147,7 +154,8 @@ export default function CombatPanel() {
           <h3>Defenses</h3>
           <ul className="clean">
             <li>
-              <strong>Armor Class {combat.ac}</strong> — {combat.acNote}
+              <strong>Armor Class {acInfo.ac}</strong> — {acInfo.fromEquipment ? `from ${acInfo.source}` : combat.acNote}
+              {acInfo.fromEquipment && combat.ac !== acInfo.ac && <span className="rage-only"> (manual base {combat.ac})</span>}
             </li>
             <li>
               <strong>Initiative {signed(abilityMod(char.abilities.dex) + combat.initiativeMisc)}</strong> — DEX-based; roll it from the quick bar.
