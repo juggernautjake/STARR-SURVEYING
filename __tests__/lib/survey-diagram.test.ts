@@ -5,7 +5,7 @@
 // (null / empty frame) rather than throw, so a bad figure never breaks a quiz.
 
 import { describe, it, expect } from 'vitest';
-import { buildDiagramFromSpec, renderTowerTwoAngles, renderProfile, renderCrossSection, renderPlat, renderRoundedCornerLot } from '@/lib/diagrams/survey-diagram';
+import { buildDiagramFromSpec, renderTowerTwoAngles, renderProfile, renderCrossSection, renderPlat, renderRoundedCornerLot, renderHeightRelations, renderTiltedPhoto } from '@/lib/diagrams/survey-diagram';
 
 describe('renderCurve (enriched) via buildDiagramFromSpec', () => {
   const svg = buildDiagramFromSpec({ type: 'curve', rVar: 'R', iVar: 'I' }, { R: 500, I: 60 }) || '';
@@ -161,5 +161,39 @@ describe('renderRoundedCornerLot', () => {
 
   it('fails soft when the radius exceeds a side', () => {
     expect(renderRoundedCornerLot(120, 60, 80)).not.toContain('90°');
+  });
+});
+
+describe('renderHeightRelations', () => {
+  it('labels terrain/geoid/ellipsoid, the h/H/N segments and h = H + N', () => {
+    const svg = renderHeightRelations(150, 190, 40);
+    expect(svg).toContain('<svg');
+    expect(svg).toContain('Terrain');
+    expect(svg).toContain('Geoid');
+    expect(svg).toContain('Ellipsoid');
+    expect(svg).toContain('h = H + N');
+  });
+
+  it('reaches through the dispatcher with literal values (static question)', () => {
+    const svg = buildDiagramFromSpec(
+      { type: 'heightRelations', orthoH: 150, ellipH: 190, geoidN: 40 },
+      {},
+    ) || '';
+    expect(svg).toContain('h = H + N');
+  });
+});
+
+describe('renderTiltedPhoto', () => {
+  it('labels the plumb line, optical axis, tilted photo and principal line', () => {
+    const svg = renderTiltedPhoto(18);
+    expect(svg).toContain('<svg');
+    expect(svg).toContain('Plumb line');
+    expect(svg).toContain('Optical axis');
+    expect(svg).toContain('Tilted photo');
+    expect(svg).toContain('Principal line');
+  });
+
+  it('reaches through the dispatcher with a literal tilt', () => {
+    expect(buildDiagramFromSpec({ type: 'tiltedPhoto', tilt: 18 }, {}) || '').toContain('Tilted photo');
   });
 });

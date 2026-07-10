@@ -11,6 +11,15 @@ import {
   dbRowToTemplate,
   evalFormula as evalFormulaEngine,
 } from '@/lib/problemEngine';
+import { buildDiagramFromSpec } from '@/lib/diagrams/survey-diagram';
+
+// Resolve a fixed figure stored on a STATIC question_bank row (q.diagram is a
+// DiagramSpec with literal values). Returns the inline SVG or undefined.
+function staticDiagram(q: { diagram?: unknown }): string | undefined {
+  if (!q || !q.diagram) return undefined;
+  const svg = buildDiagramFromSpec(q.diagram as never, {});
+  return svg || undefined;
+}
 
 /* ============= MATH TEMPLATE HELPERS (legacy) ============= */
 
@@ -381,6 +390,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         options: { terms, targets },
         difficulty: q.difficulty,
         tags: q.tags,
+        _diagram: staticDiagram(q),
       };
     }
 
@@ -396,6 +406,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         options: { regions },
         difficulty: q.difficulty,
         tags: q.tags,
+        _diagram: staticDiagram(q),
       };
     }
 
@@ -412,6 +423,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       options: opts,
       difficulty: q.difficulty,
       tags: q.tags,
+      _diagram: staticDiagram(q),
     };
   });
 

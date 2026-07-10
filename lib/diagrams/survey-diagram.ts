@@ -18,7 +18,7 @@ import type { Point2D } from '../cad/types';
 // ────────────────────────────────────────────────────────────────────────────
 export interface TraverseLegSpec { azVar?: string; az?: number; distVar?: string; dist?: number; label?: string; }
 export interface DiagramSpec {
-  type: 'traverse' | 'inverse' | 'triangle' | 'curve' | 'leveling' | 'compass' | 'towerTwoAngles' | 'profile' | 'crossSection' | 'plat' | 'roundedLot';
+  type: 'traverse' | 'inverse' | 'triangle' | 'curve' | 'leveling' | 'compass' | 'towerTwoAngles' | 'profile' | 'crossSection' | 'plat' | 'roundedLot' | 'heightRelations' | 'tiltedPhoto';
   // traverse
   startNVar?: string; startEVar?: string;
   legs?: TraverseLegSpec[];
@@ -47,6 +47,10 @@ export interface DiagramSpec {
   streetName?: string; monA?: string; monB?: string;
   // roundedLot: rectangle len × wid with one corner cut by an arc of radius
   lengthVar?: string; widthVar?: string; radiusVar?: string;
+  // heightRelations: orthometric H, ellipsoidal h, geoid height N
+  orthoHVar?: string; orthoH?: number; ellipHVar?: string; ellipH?: number; geoidNVar?: string; geoidN?: number;
+  // tiltedPhoto: tilt of the photo from vertical (deg)
+  tiltVar?: string; tilt?: number;
   title?: string;
 }
 
@@ -400,6 +404,83 @@ function renderCompass(az: number, title?: string): string {
   return svgWrap(g, title || 'Direction');
 }
 
+// Height-system relations: terrain, geoid and ellipsoid surfaces with the
+// vertical separations h (ellipsoidal), H (orthometric) and N (geoid height),
+// illustrating h = H + N (Q28). Schematic — segment sizes are proportional
+// (clamped) to |H| and |N|.
+export function renderHeightRelations(H: number, h: number, N: number, title?: string): string {
+  const cx = W * 0.42, leftX = 40, rightX = W - 30, topY = 96, ellY = 300;
+  let Nseg = Math.max(38, Math.abs(N)), Hseg = Math.max(38, Math.abs(H));
+  const avail = ellY - topY;
+  if (Nseg + Hseg > avail) { const k = avail / (Nseg + Hseg); Nseg *= k; Hseg *= k; }
+  const geoidY = ellY - Nseg, terrY = geoidY - Hseg;
+  const wave = (y: number, amp: number, seed: number) => {
+    let d = `M ${leftX} ${y}`;
+    for (let i = 1; i <= 8; i++) { const x = leftX + (rightX - leftX) * i / 8; d += ` L ${x} ${y + Math.sin(i * 1.3 + seed) * amp}`; }
+    return d;
+  };
+  let g = `<path d="${wave(ellY, 0, 0)}" fill="none" stroke="#888" stroke-width="1.6"/>`;
+  g += `<text x="${rightX}" y="${ellY + 14}" text-anchor="end" font-size="11" fill="#888">Ellipsoid</text>`;
+  g += `<path d="${wave(geoidY, 4, 0.6)}" fill="none" stroke="#0a7a5a" stroke-width="1.6"/>`;
+  g += `<text x="${rightX}" y="${geoidY - 6}" text-anchor="end" font-size="11" fill="#0a7a5a">Geoid</text>`;
+  g += `<path d="${wave(terrY, 9, 1.1)}" fill="none" stroke="#7a5230" stroke-width="1.8"/>`;
+  g += `<text x="${rightX}" y="${terrY - 6}" text-anchor="end" font-size="11" fill="#7a5230">Terrain</text>`;
+  // vertical separations at the measurement line
+  const seg = (x: number, y1: number, y2: number, color: string) =>
+    `<line x1="${x}" y1="${y1}" x2="${x}" y2="${y2}" stroke="${color}" stroke-width="1.6"/>`
+    + `<line x1="${x - 4}" y1="${y1}" x2="${x + 4}" y2="${y1}" stroke="${color}" stroke-width="1.2"/>`
+    + `<line x1="${x - 4}" y1="${y2}" x2="${x + 4}" y2="${y2}" stroke="${color}" stroke-width="1.2"/>`;
+  g += seg(cx, ellY, geoidY, '#1D3095');   // N
+  g += seg(cx, geoidY, terrY, '#c0392b');   // H
+  g += seg(cx + 26, ellY, terrY, '#111');   // h
+  g += dot(cx, terrY, '') + dot(cx, geoidY, '') + dot(cx, ellY, '');
+  g += `<text x="${cx - 8}" y="${(ellY + geoidY) / 2 + 4}" text-anchor="end" font-size="12" font-weight="700" fill="#1D3095">N</text>`;
+  g += `<text x="${cx - 8}" y="${(geoidY + terrY) / 2 + 4}" text-anchor="end" font-size="12" font-weight="700" fill="#c0392b">H</text>`;
+  g += `<text x="${cx + 32}" y="${(ellY + terrY) / 2 + 4}" font-size="12" font-weight="700" fill="#111">h</text>`;
+  // geocentric radius r (down arrow toward earth center)
+  g += `<line x1="${leftX + 26}" y1="${ellY}" x2="${leftX + 26}" y2="${ellY + 30}" stroke="#999" stroke-width="1.2"/>`;
+  g += `<path d="M ${leftX + 26} ${ellY + 36} L ${leftX + 22} ${ellY + 28} L ${leftX + 30} ${ellY + 28} Z" fill="#999"/>`;
+  g += `<text x="${leftX + 32}" y="${ellY + 26}" font-size="11" fill="#999">r</text>`;
+  g += `<text x="${W / 2}" y="${H - 12}" text-anchor="middle" font-size="10" fill="#555">h = H + N</text>`;
+  return svgWrap(g, title || 'Height systems (h = H + N)');
+}
+
+// Tilted-photograph geometry (Q13): exposure station L, the plumb line to the
+// ground nadir, the optical axis (tilted by `tiltDeg` from vertical), the tilted
+// photo plane, and the principal (o) and nadir (n) points + principal line.
+export function renderTiltedPhoto(tiltDeg: number, title?: string): string {
+  const t = Math.min(Math.max(tiltDeg, 4), 35) * Math.PI / 180;
+  const L = { x: W * 0.44, y: 74 }, groundY = H - 46;
+  const axis = { x: Math.sin(t), y: Math.cos(t) };            // optical-axis dir (down)
+  const perp = { x: Math.cos(t), y: -Math.sin(t) };           // photo plane dir
+  const tGround = (groundY - L.y) / axis.y;
+  const axisEnd = { x: L.x + axis.x * tGround, y: groundY };
+  const o = { x: L.x + axis.x * tGround * 0.44, y: L.y + axis.y * tGround * 0.44 }; // principal point
+  const ph = 78;
+  const pA = { x: o.x - perp.x * ph, y: o.y - perp.y * ph };
+  const pB = { x: o.x + perp.x * ph, y: o.y + perp.y * ph };
+  // nadir point n = where the vertical through L meets the photo plane
+  const s = (L.x - o.x) / perp.x;
+  const n = { x: o.x + perp.x * s, y: o.y + perp.y * s };
+  let g = '';
+  g += `<line x1="30" y1="${groundY}" x2="${W - 30}" y2="${groundY}" stroke="#7a5230" stroke-width="2"/>`;
+  // plumb line (vertical)
+  g += `<line x1="${L.x}" y1="${L.y}" x2="${L.x}" y2="${groundY}" stroke="#1D3095" stroke-width="1.8"/>`;
+  g += `<text x="${L.x - 6}" y="${(L.y + groundY) / 2}" text-anchor="end" font-size="11" fill="#1D3095">Plumb line</text>`;
+  // optical axis
+  g += `<line x1="${L.x}" y1="${L.y}" x2="${axisEnd.x}" y2="${axisEnd.y}" stroke="#888" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+  g += `<text x="${(L.x + axisEnd.x) / 2 + 6}" y="${(L.y + axisEnd.y) / 2}" font-size="11" fill="#555">Optical axis</text>`;
+  // tilted photo plane
+  g += `<line x1="${pA.x}" y1="${pA.y}" x2="${pB.x}" y2="${pB.y}" stroke="#1D3095" stroke-width="2.5"/>`;
+  g += `<text x="${pB.x + 4}" y="${pB.y}" font-size="11" fill="#1D3095">Tilted photo</text>`;
+  // principal line (o→n on the photo)
+  g += `<line x1="${o.x}" y1="${o.y}" x2="${n.x}" y2="${n.y}" stroke="#c0392b" stroke-width="2.5"/>`;
+  g += `<text x="${(o.x + n.x) / 2}" y="${(o.y + n.y) / 2 - 6}" text-anchor="middle" font-size="10" fill="#c0392b">Principal line</text>`;
+  g += dot(L.x, L.y, 'L') + dot(o.x, o.y, 'o') + dot(n.x, n.y, 'n') + dot(L.x, groundY, 'N');
+  g += `<text x="${W / 2}" y="${H - 10}" text-anchor="middle" font-size="10" fill="#888">NOT TO SCALE</text>`;
+  return svgWrap(g, title || 'Tilted photograph geometry');
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Spec → SVG (resolves var names against generated vars)
 // ────────────────────────────────────────────────────────────────────────────
@@ -478,6 +559,16 @@ export function buildDiagramFromSpec(spec: DiagramSpec | undefined | null, vars:
         const len = rv(spec.lengthVar), wid = rv(spec.widthVar), rad = rv(spec.radiusVar);
         if ([len, wid, rad].some(v => v == null || !isFinite(v as number))) return null;
         return renderRoundedCornerLot(len as number, wid as number, rad as number, spec.title);
+      }
+      case 'heightRelations': {
+        const Hh = rv(spec.orthoHVar, spec.orthoH), hh = rv(spec.ellipHVar, spec.ellipH), Nn = rv(spec.geoidNVar, spec.geoidN);
+        if ([Hh, hh, Nn].some(v => v == null || !isFinite(v as number))) return null;
+        return renderHeightRelations(Hh as number, hh as number, Nn as number, spec.title);
+      }
+      case 'tiltedPhoto': {
+        const tilt = rv(spec.tiltVar, spec.tilt);
+        if (tilt == null || !isFinite(tilt)) return null;
+        return renderTiltedPhoto(tilt, spec.title);
       }
       default:
         return null;
