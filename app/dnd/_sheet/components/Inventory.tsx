@@ -20,7 +20,7 @@ function weaponDamageSummary(it: InvItem): string {
 }
 
 export default function Inventory() {
-  const { char, setChar, characterId, editMode, rollExpr, adjustHp, rollWeaponDamage } = useChar()
+  const { char, setChar, characterId, editMode, rollExpr, adjustHp, rollWeaponDamage, addActiveEffect } = useChar()
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
 
@@ -48,10 +48,10 @@ export default function Inventory() {
   function setCurrency(k: keyof typeof curLabels, v: number) {
     setChar((c) => ({ ...c, currency: { ...c.currency, [k]: Math.max(0, v) } }))
   }
-  function useItem(it: InvItem) {
+  // Legacy `use` field (kept working for existing data).
+  function applyUse(it: InvItem) {
     if (!it.use) return
     if (it.use.kind === 'heal') {
-      // roll and apply to HP
       const roll = evalAndHeal(it.use.expr, adjustHp)
       rollExpr(`${it.name} — ${it.use.label}`, `${roll.total}`, 'heal')
     } else if (it.use.kind === 'temp') {
@@ -62,6 +62,38 @@ export default function Inventory() {
       rollExpr(`${it.name} — ${it.use.label}`, it.use.expr, 'damage')
     }
     if (it.qty > 0) setQty(it.id, -1)
+  }
+
+  // New consumable model — actually applies the effect on consume, then decrements qty.
+  function consume(it: InvItem) {
+    const eff = it.consumable?.effect
+    if (!eff) return
+    if (eff.kind === 'heal' && eff.dice) {
+      const total = rollExprValue(eff.dice)
+      adjustHp(total)
+      rollExpr(`${it.name} — heal`, `${total}`, 'heal')
+    } else if (eff.kind === 'temp' && eff.dice) {
+      const total = rollExprValue(eff.dice)
+      setChar((c) => ({ ...c, combat: { ...c.combat, tempHp: Math.max(c.combat.tempHp, total) } }))
+      rollExpr(`${it.name} — temp HP`, `${total}`, 'temp')
+    } else if (eff.kind === 'status' && eff.status) {
+      // A timed condition (e.g. Invisible · 1 hour) — tracked in Active Effects, removable.
+      addActiveEffect({ id: `ae-${Date.now()}-${Math.floor(Math.random() * 1e6)}`, label: eff.status, effects: [], duration: eff.duration, source: it.name })
+    } else if (eff.kind === 'buff') {
+      addActiveEffect({ id: `ae-${Date.now()}-${Math.floor(Math.random() * 1e6)}`, label: it.name, effects: eff.effects ?? [], duration: eff.duration, source: it.name })
+    }
+    // 'custom' = note-only (DM adjudicates); still consumes.
+    if (it.qty > 0) setQty(it.id, -1)
+  }
+
+  function consumeLabel(it: InvItem): string {
+    const eff = it.consumable?.effect
+    if (!eff) return 'Use'
+    if (eff.kind === 'heal') return `Heal ${eff.dice ?? ''}`.trim()
+    if (eff.kind === 'temp') return `Temp HP ${eff.dice ?? ''}`.trim()
+    if (eff.kind === 'status') return `Apply ${eff.status ?? 'effect'}`
+    if (eff.kind === 'buff') return 'Apply buff'
+    return 'Use'
   }
 
   return (
@@ -114,9 +146,13 @@ export default function Inventory() {
                 </div>
               )}
               {it.use && (
-                // eslint-disable-next-line react-hooks/rules-of-hooks -- useItem is a store action, not a hook
-                <button className="btn tiny gold" style={{ marginTop: 6 }} onClick={() => useItem(it)} disabled={it.qty <= 0}>
+                <button className="btn tiny gold" style={{ marginTop: 6 }} onClick={() => applyUse(it)} disabled={it.qty <= 0}>
                   ⚡ {it.use.label} ({it.use.expr})
+                </button>
+              )}
+              {it.consumable && (
+                <button className="btn tiny gold" style={{ marginTop: 6 }} onClick={() => consume(it)} disabled={it.qty <= 0} title="Consume this item and apply its effect">
+                  ⚗ {consumeLabel(it)}{it.consumable.effect.duration ? ` · ${it.consumable.effect.duration}` : ''}
                 </button>
               )}
             </div>
