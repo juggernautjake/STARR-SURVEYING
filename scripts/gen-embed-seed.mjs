@@ -28,11 +28,24 @@ const PLACE = [
   { file: 'm10-field-survey-scene.jpg',    m: 10, s: 'concepts', after: 1, cap: 'A surveyor operating a total station. The FS exam pulls from every field and office skill practiced across these modules — this review ties them together.' },
   { file: 'm11-plat-map.jpg',              m: 11, s: 'concepts', after: 1, cap: 'A recorded plat. The plat is the legal drawing that documents a survey and creates the parcels — where professional practice, boundary law, and business meet.' },
   { file: 'm11-site-safety.jpg',           m: 11, s: 'overview', after: 1, cap: 'A surveyor in high-visibility PPE working near traffic. Professional practice includes job-site safety, OSHA compliance, and the standard of care owed to the public.' },
+
+  // Authentic Starr Surveying field photos (own work) — placed in previously
+  // image-free sections to make the material concrete and on-brand.
+  { file: 'starr-branded-crew.jpg',            m: 1,  s: 'tips',     after: 1, cap: 'A Starr Surveying crew member running a total station in the field — the everyday reality behind the theory you are studying.' },
+  { file: 'starr-tape-check.jpg',              m: 1,  s: 'examples', after: 1, cap: 'Checking a measurement by hand with a steel tape. Even in the electronic era, a good surveyor verifies distances directly in the field.' },
+  { file: 'starr-total-station-sighting.jpg',  m: 3,  s: 'tips',     after: 1, cap: 'Sighting through the total station to turn a precise angle — steady setup, careful pointing, and a check angle are what keep angular error small.' },
+  { file: 'starr-crew-directing.jpg',          m: 4,  s: 'tips',     after: 1, cap: 'Directing the rod person from an occupied station during a traverse. Clear communication and good station geometry make a clean, checkable traverse.' },
+  { file: 'starr-gnss-rover.jpg',              m: 6,  s: 'tips',     after: 1, cap: 'A Starr Surveying GNSS rover with data collector. RTK positioning fixes coordinates in seconds — but you still need to understand datums, geoid height, and check shots.' },
+  { file: 'starr-total-station-setup.jpg',     m: 10, s: 'examples', after: 1, cap: 'A total station set and leveled over a point, ready to observe. Every field problem in this review starts with a correct instrument setup.' },
+  { file: 'starr-total-station-operate.jpg',   m: 10, s: 'tips',     after: 1, cap: 'Operating the instrument on a Starr Surveying job. On exam day, picture the real field task behind each question — it keeps the computations grounded.' },
 ];
 
 function credit(file) {
   const c = CREDITS[file];
   if (!c) return 'Wikimedia Commons';
+  if (/starr/i.test(String(c.license || '')) || /starr surveying field photo/i.test(String(c.source || ''))) {
+    return 'Photo: Starr Surveying (field photo)';
+  }
   let artist = String(c.artist || '').replace(/\s*\(\s*$/, '').replace(/[,;]\s*$/, '').trim();
   // trim over-long / messy artist strings
   if (artist.length > 46) artist = artist.slice(0, 44).trim() + '…';

@@ -178,5 +178,54 @@
     "query": "GPS surveying receiver",
     "width": 1500,
     "height": 3888
+  },
+  "starr-gnss-rover.jpg": {
+    "title": "IMG_3842.jpeg",
+    "artist": "Starr Surveying",
+    "license": "Starr Surveying (own work)",
+    "source": "Starr Surveying field photo",
+    "query": "local"
+  },
+  "starr-tape-check.jpg": {
+    "title": "IMG_3847.jpeg",
+    "artist": "Starr Surveying",
+    "license": "Starr Surveying (own work)",
+    "source": "Starr Surveying field photo",
+    "query": "local"
+  },
+  "starr-total-station-setup.jpg": {
+    "title": "IMG_4056.jpeg",
+    "artist": "Starr Surveying",
+    "license": "Starr Surveying (own work)",
+    "source": "Starr Surveying field photo",
+    "query": "local"
+  },
+  "starr-crew-directing.jpg": {
+    "title": "IMG_4058.jpeg",
+    "artist": "Starr Surveying",
+    "license": "Starr Surveying (own work)",
+    "source": "Starr Surveying field photo",
+    "query": "local"
+  },
+  "starr-total-station-sighting.jpg": {
+    "title": "IMG_4059.jpeg",
+    "artist": "Starr Surveying",
+    "license": "Starr Surveying (own work)",
+    "source": "Starr Surveying field photo",
+    "query": "local"
+  },
+  "starr-branded-crew.jpg": {
+    "title": "IMG_4062.jpeg",
+    "artist": "Starr Surveying",
+    "license": "Starr Surveying (own work)",
+    "source": "Starr Surveying field photo",
+    "query": "local"
+  },
+  "starr-total-station-operate.jpg": {
+    "title": "IMG_4066.jpeg",
+    "artist": "Starr Surveying",
+    "license": "Starr Surveying (own work)",
+    "source": "Starr Surveying field photo",
+    "query": "local"
   }
 }
