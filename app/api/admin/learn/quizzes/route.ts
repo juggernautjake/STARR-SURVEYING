@@ -6,48 +6,13 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { awardXP } from '@/lib/xp';
 import { notify } from '@/lib/notifications';
 import { buildQuizResultNotification } from '@/lib/notifications/quiz-result';
+import { dbRowToTemplate } from '@/lib/problemEngine';
 import {
-  generateDynamicQuestion,
-  dbRowToTemplate,
-  evalFormula as evalFormulaEngine,
-} from '@/lib/problemEngine';
-import { buildDiagramFromSpec } from '@/lib/diagrams/survey-diagram';
-
-// Resolve a fixed figure stored on a STATIC question_bank row (q.diagram is a
-// DiagramSpec with literal values). Returns the inline SVG or undefined.
-function staticDiagram(q: { diagram?: unknown }): string | undefined {
-  if (!q || !q.diagram) return undefined;
-  const svg = buildDiagramFromSpec(q.diagram as never, {});
-  return svg || undefined;
-}
-
-/* ============= MATH TEMPLATE HELPERS (legacy) ============= */
-
-function parseMathVars(text: string): { name: string; min: number; max: number }[] {
-  const regex = /\{\{(\w+):(\d+):(\d+)\}\}/g;
-  const vars: { name: string; min: number; max: number }[] = [];
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    vars.push({ name: match[1], min: parseInt(match[2]), max: parseInt(match[3]) });
-  }
-  return vars;
-}
-
-function generateMathVars(varDefs: { name: string; min: number; max: number }[]): Record<string, number> {
-  const result: Record<string, number> = {};
-  for (const v of varDefs) {
-    result[v.name] = Math.floor(Math.random() * (v.max - v.min + 1)) + v.min;
-  }
-  return result;
-}
-
-function substituteMathVars(text: string, vars: Record<string, number>): string {
-  return text.replace(/\{\{(\w+):\d+:\d+\}\}/g, (_match, name) => String(vars[name] ?? name));
-}
-
-function evalFormula(formula: string, vars: Record<string, number>): number {
-  return evalFormulaEngine(formula, vars);
-}
+  shapeQuestion,
+  neededTemplateIds,
+  gradeQuestionSync,
+  type RawQuestion,
+} from '@/lib/learn/questionDelivery';
 
 /* ============= AI ESSAY GRADING ============= */
 
@@ -146,69 +111,6 @@ ${studentAnswer}`;
   }
 }
 
-/* ============= GRADING HELPERS ============= */
-
-function gradeFillBlank(userAnswer: string, correctAnswer: string): {
-  is_correct: boolean; partial_score: number; blank_results: boolean[]; correct_answers: string[];
-} {
-  let userBlanks: string[];
-  let correctBlanks: string[];
-  try { userBlanks = JSON.parse(userAnswer); } catch { userBlanks = []; }
-  try { correctBlanks = JSON.parse(correctAnswer); } catch { correctBlanks = [correctAnswer]; }
-
-  const blank_results = correctBlanks.map((correct, i) => {
-    const user = (userBlanks[i] || '').toLowerCase().trim();
-    return user === correct.toLowerCase().trim();
-  });
-  const correctCount = blank_results.filter(Boolean).length;
-  const total = correctBlanks.length;
-  return {
-    is_correct: correctCount === total,
-    partial_score: total > 0 ? correctCount / total : 0,
-    blank_results,
-    correct_answers: correctBlanks,
-  };
-}
-
-function gradeMultiSelect(userAnswer: string, correctAnswer: string): { is_correct: boolean; partial_score: number } {
-  let userArr: string[];
-  let correctArr: string[];
-  try { userArr = JSON.parse(userAnswer); } catch { userArr = []; }
-  try { correctArr = JSON.parse(correctAnswer); } catch { correctArr = [correctAnswer]; }
-
-  const userSet = new Set(userArr.map(s => s.toLowerCase().trim()));
-  const correctSet = new Set(correctArr.map(s => s.toLowerCase().trim()));
-  const hits = [...correctSet].filter(a => userSet.has(a)).length;
-  const falsePositives = [...userSet].filter(a => !correctSet.has(a)).length;
-  const is_correct = hits === correctSet.size && falsePositives === 0;
-  const partial_score = correctSet.size > 0 ? Math.max(0, (hits - falsePositives) / correctSet.size) : 0;
-  return { is_correct, partial_score };
-}
-
-// Ordering: both answers are JSON arrays; grade is exact sequence equality
-// (case-insensitive). partial_score = fraction of positions matching, for
-// callers that want partial credit.
-function gradeOrdering(userAnswer: string, correctAnswer: string): { is_correct: boolean; partial_score: number } {
-  let userArr: string[];
-  let correctArr: string[];
-  try { userArr = JSON.parse(userAnswer); } catch { userArr = []; }
-  try { correctArr = JSON.parse(correctAnswer); } catch { correctArr = [correctAnswer]; }
-  const norm = (s: unknown) => String(s).toLowerCase().trim();
-  const u = userArr.map(norm);
-  const c = correctArr.map(norm);
-  const positionsCorrect = c.filter((val, i) => u[i] === val).length;
-  const is_correct = c.length > 0 && u.length === c.length && positionsCorrect === c.length;
-  const partial_score = c.length > 0 ? positionsCorrect / c.length : 0;
-  return { is_correct, partial_score };
-}
-
-function gradeNumeric(userAnswer: string, correctAnswer: string, tolerance: number = 0.01): { is_correct: boolean } {
-  const userNum = parseFloat(userAnswer);
-  const correctNum = parseFloat(correctAnswer);
-  if (isNaN(userNum) || isNaN(correctNum)) return { is_correct: false };
-  return { is_correct: Math.abs(userNum - correctNum) <= tolerance };
-}
-
 /* ============= GET — Quiz / History ============= */
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -295,15 +197,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   const shuffled = allQuestions.sort(() => Math.random() - 0.5);
-  const selected = shuffled.slice(0, count);
+  const selected = shuffled.slice(0, count) as RawQuestion[];
 
-  // Fetch templates for any dynamic questions that reference them
-  const templateIds = [...new Set(
-    selected
-      .filter((q: any) => q.is_dynamic && q.template_id)
-      .map((q: any) => q.template_id)
-  )];
-  const templateMap = new Map<string, any>();
+  // Fetch templates for any dynamic questions that reference them.
+  const templateIds = neededTemplateIds(selected);
+  const templateMap = new Map<string, ReturnType<typeof dbRowToTemplate>>();
   if (templateIds.length > 0) {
     const { data: templates } = await supabaseAdmin.from('problem_templates')
       .select('*').in('id', templateIds);
@@ -312,120 +210,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     }
   }
 
-  const clientQuestions = selected.map((q: any) => {
-    // Handle dynamic template-linked questions: generate fresh values
-    if (q.is_dynamic && q.template_id && templateMap.has(q.template_id)) {
-      const template = templateMap.get(q.template_id);
-      const generated = generateDynamicQuestion(q, template);
-      if (generated) {
-        return {
-          id: q.id,
-          question_text: generated.question_text,
-          question_type: template.question_type === 'multiple_choice' ? 'multiple_choice' : 'numeric_input',
-          options: generated.options || [],
-          difficulty: q.difficulty,
-          tags: q.tags,
-          _dynamic: true,
-          _template_id: q.template_id,
-          _generated_answer: generated.correct_answer,
-          _solution_steps: generated.solution_steps,
-          _tolerance: template.answer_format?.tolerance || q.tolerance || 0.01,
-          _diagram: generated.diagram,
-        };
-      }
-    }
-
-    // Handle math_template: generate concrete values (legacy)
-    if (q.question_type === 'math_template') {
-      const varDefs = parseMathVars(q.question_text);
-      const vars = generateMathVars(varDefs);
-      const concreteText = substituteMathVars(q.question_text, vars);
-      return {
-        id: q.id,
-        question_text: concreteText,
-        question_type: 'numeric_input' as const,
-        options: [],
-        difficulty: q.difficulty,
-        tags: q.tags,
-        _math_vars: vars,
-        _original_type: 'math_template',
-      };
-    }
-
-    // For fill_blank, don't shuffle options (order matters for pool display)
-    if (q.question_type === 'fill_blank') {
-      const opts = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options || []);
-      return {
-        id: q.id,
-        question_text: q.question_text,
-        question_type: q.question_type,
-        options: opts.sort(() => Math.random() - 0.5),
-        difficulty: q.difficulty,
-        tags: q.tags,
-      };
-    }
-
-    // Essay questions — no options, don't expose reference answer
-    if (q.question_type === 'essay') {
-      return {
-        id: q.id,
-        question_text: q.question_text,
-        question_type: 'essay',
-        options: [],
-        difficulty: q.difficulty,
-        tags: q.tags,
-      };
-    }
-
-    // drag_label options are an object { terms, targets }; shuffle the term
-    // pool but keep the target order, and never call array ops on the object.
-    if (q.question_type === 'drag_label') {
-      const raw = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options || {});
-      const terms = Array.isArray(raw.terms) ? [...raw.terms].sort(() => Math.random() - 0.5) : [];
-      const targets = Array.isArray(raw.targets) ? raw.targets : [];
-      return {
-        id: q.id,
-        question_text: q.question_text,
-        question_type: q.question_type,
-        options: { terms, targets },
-        difficulty: q.difficulty,
-        tags: q.tags,
-        _diagram: staticDiagram(q),
-      };
-    }
-
-    // hotspot options are an object { regions:[{id,label}] }; shuffle the region
-    // order for display but keep the object shape.
-    if (q.question_type === 'hotspot') {
-      const raw = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options || {});
-      const regions = Array.isArray(raw.regions) ? [...raw.regions].sort(() => Math.random() - 0.5) : [];
-      return {
-        id: q.id,
-        question_text: q.question_text,
-        question_type: q.question_type,
-        options: { regions },
-        difficulty: q.difficulty,
-        tags: q.tags,
-        _diagram: staticDiagram(q),
-      };
-    }
-
-    // Standard question types
-    const opts = q.question_type === 'short_answer' || q.question_type === 'numeric_input'
-      ? []
-      : (typeof q.options === 'string' ? JSON.parse(q.options) : (q.options || []))
-          .sort(() => Math.random() - 0.5);
-
-    return {
-      id: q.id,
-      question_text: q.question_text,
-      question_type: q.question_type,
-      options: opts,
-      difficulty: q.difficulty,
-      tags: q.tags,
-      _diagram: staticDiagram(q),
-    };
-  });
+  // Shape every row for the client via the shared delivery lib (dynamic values,
+  // matching figures, per-type option handling) — identical to the simulator.
+  const clientQuestions = selected.map((q) =>
+    shapeQuestion(q, q.template_id ? templateMap.get(q.template_id) : undefined));
 
   return NextResponse.json({ questions: clientQuestions, total_available: allQuestions.length });
 }, { routeName: 'learn/quizzes' });
@@ -456,7 +244,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const qMap = new Map<string, any>(questions.map((q: any) => [q.id, q]));
   let totalScore = 0;
 
-  // Grade all answers (essay questions require async AI grading)
+  // Grade all answers. Every type EXCEPT essay is graded synchronously by the
+  // shared delivery lib (identical logic to the FS Exam Simulator); essay
+  // questions need async AI grading, handled inline below.
   const graded = await Promise.all(answers.map(async (a: any) => {
     const q = qMap.get(a.question_id);
     if (!q) {
@@ -469,188 +259,48 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       };
     }
 
-    // For dynamic template questions, use the generated answer from the quiz session
-    const isDynamic = a._dynamic || (q.is_dynamic && q.template_id);
-    const dynamicAnswer = a._generated_answer;
-    const dynamicTolerance = a._tolerance || q.tolerance;
-    const dynamicSteps = a._solution_steps;
-
-    // If this was a dynamically generated question, grade using the generated answer
-    if (isDynamic && dynamicAnswer) {
-      const tol = dynamicTolerance || 0.01;
-      const userNum = parseFloat(a.user_answer);
-      const correctNum = parseFloat(dynamicAnswer);
-      const isCorrect = !isNaN(userNum) && !isNaN(correctNum) && Math.abs(userNum - correctNum) <= tol;
-      totalScore += isCorrect ? 1 : 0;
-      return {
-        question_id: a.question_id,
-        user_answer: a.user_answer,
-        is_correct: isCorrect,
-        correct_answer: dynamicAnswer,
-        explanation: q.explanation || '',
-        solution_steps: dynamicSteps || [],
-        tolerance: tol,
-      };
+    const sync = gradeQuestionSync(a, q as RawQuestion);
+    if (sync) {
+      // fill_blank contributes partial credit; every other type is all-or-nothing.
+      totalScore += q.question_type === 'fill_blank' ? (sync.partial_score ?? 0) : (sync.is_correct ? 1 : 0);
+      return sync;
     }
 
-    const qType = q.question_type as string;
-
-    // Essay — AI grading
-    if (qType === 'essay') {
-      const aiResult = await gradeEssay(
-        q.question_text || '',
-        q.correct_answer || '',
-        a.user_answer || '',
-        10
-      );
-      if (aiResult) {
-        const normalized = aiResult.percentage / 100; // 0-1 scale for total score
-        totalScore += normalized;
-        return {
-          question_id: a.question_id,
-          user_answer: a.user_answer,
-          is_correct: aiResult.is_passing,
-          correct_answer: q.correct_answer,
-          explanation: q.explanation || '',
-          partial_score: normalized,
-          ai_feedback: aiResult,
-        };
-      }
-      // Fallback if AI unavailable
-      totalScore += 0.5;
+    // Essay — AI grading (sync grader returned null).
+    const aiResult = await gradeEssay(
+      q.question_text || '',
+      q.correct_answer || '',
+      a.user_answer || '',
+      10
+    );
+    if (aiResult) {
+      const normalized = aiResult.percentage / 100; // 0-1 scale for total score
+      totalScore += normalized;
       return {
         question_id: a.question_id,
         user_answer: a.user_answer,
-        is_correct: false,
+        is_correct: aiResult.is_passing,
         correct_answer: q.correct_answer,
         explanation: q.explanation || '',
-        partial_score: 0.5,
-        ai_feedback: {
-          score: 5, max_points: 10, percentage: 50,
-          feedback: 'AI grading is temporarily unavailable. Your answer has been recorded and will be reviewed.',
-          strengths: ['Response submitted'], improvements: ['Manual review pending'],
-          is_passing: false,
-        },
+        partial_score: normalized,
+        ai_feedback: aiResult,
       };
     }
-
-    // Fill in the blank - partial grading
-    if (qType === 'fill_blank') {
-      const result = gradeFillBlank(a.user_answer, q.correct_answer);
-      totalScore += result.partial_score;
-      return {
-        question_id: a.question_id,
-        user_answer: a.user_answer,
-        is_correct: result.is_correct,
-        correct_answer: q.correct_answer,
-        explanation: q.explanation || '',
-        partial_score: result.partial_score,
-        blank_results: result.blank_results,
-        correct_answers: result.correct_answers,
-      };
-    }
-
-    // Multi select
-    if (qType === 'multi_select') {
-      const result = gradeMultiSelect(a.user_answer, q.correct_answer);
-      totalScore += result.is_correct ? 1 : 0;
-      return {
-        question_id: a.question_id,
-        user_answer: a.user_answer,
-        is_correct: result.is_correct,
-        correct_answer: q.correct_answer,
-        explanation: q.explanation || '',
-        partial_score: result.partial_score,
-      };
-    }
-
-    // Ordering (put in order)
-    if (qType === 'ordering') {
-      const result = gradeOrdering(a.user_answer, q.correct_answer);
-      totalScore += result.is_correct ? 1 : 0;
-      return {
-        question_id: a.question_id,
-        user_answer: a.user_answer,
-        is_correct: result.is_correct,
-        correct_answer: q.correct_answer,
-        explanation: q.explanation || '',
-        partial_score: result.partial_score,
-      };
-    }
-
-    // Drag-label — user_answer & correct_answer are arrays parallel to the
-    // targets; each placed term must equal the correct term (position-wise), so
-    // the ordering grader applies directly.
-    if (qType === 'drag_label') {
-      const result = gradeOrdering(a.user_answer, q.correct_answer);
-      totalScore += result.is_correct ? 1 : 0;
-      return {
-        question_id: a.question_id,
-        user_answer: a.user_answer,
-        is_correct: result.is_correct,
-        correct_answer: q.correct_answer,
-        explanation: q.explanation || '',
-        partial_score: result.partial_score,
-      };
-    }
-
-    // Hotspot — the answer is the chosen region id; grade as a plain
-    // (case-insensitive) string match against the correct region id.
-    if (qType === 'hotspot') {
-      const isCorrect = (a.user_answer || '').trim().toLowerCase() === (q.correct_answer || '').trim().toLowerCase();
-      totalScore += isCorrect ? 1 : 0;
-      return {
-        question_id: a.question_id,
-        user_answer: a.user_answer,
-        is_correct: isCorrect,
-        correct_answer: q.correct_answer,
-        explanation: q.explanation || '',
-      };
-    }
-
-    // Numeric input
-    if (qType === 'numeric_input') {
-      const tolerance = q.tolerance || 0.01;
-      const result = gradeNumeric(a.user_answer, q.correct_answer, tolerance);
-      totalScore += result.is_correct ? 1 : 0;
-      return {
-        question_id: a.question_id,
-        user_answer: a.user_answer,
-        is_correct: result.is_correct,
-        correct_answer: q.correct_answer,
-        explanation: q.explanation || '',
-        solution_steps: q.solution_steps || [],
-      };
-    }
-
-    // Math template - evaluate formula with submitted vars
-    if (qType === 'math_template') {
-      const mathVars = a.math_vars || {};
-      let formulaStr = q.correct_answer || '';
-      if (formulaStr.startsWith('formula:')) formulaStr = formulaStr.slice(8);
-      const expected = evalFormula(formulaStr, mathVars);
-      const tolerance = q.tolerance || 0.5;
-      const userNum = parseFloat(a.user_answer);
-      const isCorrect = !isNaN(expected) && !isNaN(userNum) && Math.abs(userNum - expected) <= tolerance;
-      totalScore += isCorrect ? 1 : 0;
-      return {
-        question_id: a.question_id,
-        user_answer: a.user_answer,
-        is_correct: isCorrect,
-        correct_answer: String(isNaN(expected) ? 'Error computing' : expected),
-        explanation: q.explanation || '',
-      };
-    }
-
-    // Standard: multiple_choice, true_false, short_answer
-    const isCorrect = a.user_answer?.toLowerCase().trim() === q.correct_answer?.toLowerCase().trim();
-    totalScore += isCorrect ? 1 : 0;
+    // Fallback if AI unavailable
+    totalScore += 0.5;
     return {
       question_id: a.question_id,
       user_answer: a.user_answer,
-      is_correct: isCorrect,
+      is_correct: false,
       correct_answer: q.correct_answer,
       explanation: q.explanation || '',
+      partial_score: 0.5,
+      ai_feedback: {
+        score: 5, max_points: 10, percentage: 50,
+        feedback: 'AI grading is temporarily unavailable. Your answer has been recorded and will be reviewed.',
+        strengths: ['Response submitted'], improvements: ['Manual review pending'],
+        is_passing: false,
+      },
     };
   }));
 

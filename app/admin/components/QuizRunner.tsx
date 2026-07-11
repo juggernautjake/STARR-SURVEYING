@@ -3,26 +3,15 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Loader2, FileText } from 'lucide-react';
-import FillBlankQuestion from './FillBlankQuestion';
+import QuestionBody, { isAnswered, type DragLabelOptions, type HotspotOptions } from './QuestionBody';
 
 type QuestionType = 'multiple_choice' | 'true_false' | 'short_answer' | 'fill_blank' | 'multi_select' | 'ordering' | 'drag_label' | 'hotspot' | 'numeric_input' | 'math_template' | 'essay';
-
-// For drag_label questions the API sends `options` as an object (terms +
-// target prompts) instead of a string[]. This shape is client-visible; the
-// correct term-per-target mapping stays server-side in correct_answer.
-interface DragLabelOptions { terms: string[]; targets: string[] }
-
-// For hotspot questions `options` is an object listing the selectable regions
-// (id + human label). The answer is the chosen region id; the correct region id
-// stays server-side in correct_answer (graded like multiple_choice).
-interface HotspotRegion { id: string; label: string }
-interface HotspotOptions { regions: HotspotRegion[] }
 
 interface Question {
   id: string;
   question_text: string;
   question_type: QuestionType;
-  options: string[];
+  options: string[] | DragLabelOptions | HotspotOptions;
   difficulty: string;
   _math_vars?: Record<string, number>;
   _original_type?: string;
@@ -85,8 +74,6 @@ interface QuizRunnerProps {
 export default function QuizRunner({ type, lessonId, moduleId, examCategory, questionCount = 5, title, backUrl, backLabel, nextLessonUrl, nextLessonLabel, onComplete }: QuizRunnerProps) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  // Transient "picked term" per drag_label question (tap-a-term then tap-a-slot).
-  const [dragPick, setDragPick] = useState<Record<string, string>>({});
   const [results, setResults] = useState<{
     results: GradedResult[];
     score_percent: number;
@@ -126,64 +113,7 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
     fetchQuiz();
   }, [fetchQuiz]);
 
-  // Seed a starting order for `ordering` questions once, shuffled so the stored
-  // option order is never a giveaway. The seeded order IS the current answer
-  // until the student rearranges it.
-  useEffect(() => {
-    if (questions.length === 0) return;
-    setAnswers(prev => {
-      let changed = false;
-      const next = { ...prev };
-      for (const q of questions) {
-        if (q.question_type === 'ordering' && !next[q.id]) {
-          const shuffled = [...(q.options || [])];
-          for (let i = shuffled.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-          }
-          next[q.id] = JSON.stringify(shuffled);
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [questions]);
-
-  function isQuestionAnswered(q: Question): boolean {
-    const ans = answers[q.id];
-    if (!ans) return false;
-    switch (q.question_type) {
-      case 'fill_blank': {
-        try {
-          const arr = JSON.parse(ans) as string[];
-          return arr.length > 0 && arr.every(a => a !== '');
-        } catch { return false; }
-      }
-      case 'multi_select': {
-        try {
-          const arr = JSON.parse(ans) as string[];
-          return arr.length > 0;
-        } catch { return false; }
-      }
-      case 'ordering': {
-        try {
-          const arr = JSON.parse(ans) as string[];
-          return arr.length === (q.options?.length || 0) && arr.length > 0;
-        } catch { return false; }
-      }
-      case 'drag_label': {
-        try {
-          const arr = JSON.parse(ans) as string[];
-          const n = getDragLabelOpts(q).targets.length;
-          return n > 0 && arr.length === n && arr.every(x => x !== '');
-        } catch { return false; }
-      }
-      default:
-        return ans.trim() !== '';
-    }
-  }
-
-  const answeredCount = questions.filter(q => isQuestionAnswered(q)).length;
+  const answeredCount = questions.filter(q => isAnswered(q, answers[q.id])).length;
 
   async function submit() {
     if (answeredCount < questions.length) {
@@ -258,98 +188,6 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
     setHistoricalAvg(null);
     setLoading(true);
     fetchQuiz();
-  }
-
-  // Multi-select toggle
-  function toggleMultiSelect(qId: string, opt: string) {
-    const current: string[] = (() => {
-      try { return JSON.parse(answers[qId] || '[]'); } catch { return []; }
-    })();
-    const idx = current.indexOf(opt);
-    if (idx >= 0) {
-      current.splice(idx, 1);
-    } else {
-      current.push(opt);
-    }
-    setAnswers(prev => ({ ...prev, [qId]: JSON.stringify(current) }));
-  }
-
-  function isMultiSelected(qId: string, opt: string): boolean {
-    try {
-      const arr = JSON.parse(answers[qId] || '[]') as string[];
-      return arr.includes(opt);
-    } catch { return false; }
-  }
-
-  // Ordering: read the current arrangement (falls back to option order).
-  function getOrdering(qId: string, options: string[]): string[] {
-    try {
-      const arr = JSON.parse(answers[qId] || '[]') as string[];
-      return arr.length === options.length ? arr : [...options];
-    } catch { return [...options]; }
-  }
-
-  // Move an item up (dir -1) or down (dir +1) in the ordering.
-  function moveOrderingItem(qId: string, options: string[], index: number, dir: -1 | 1) {
-    const arr = getOrdering(qId, options);
-    const target = index + dir;
-    if (target < 0 || target >= arr.length) return;
-    [arr[index], arr[target]] = [arr[target], arr[index]];
-    setAnswers(prev => ({ ...prev, [qId]: JSON.stringify(arr) }));
-  }
-
-  // Drag-label: `options` is a { terms, targets } object for these questions.
-  function getDragLabelOpts(q: Question): DragLabelOptions {
-    const o = q.options as unknown as DragLabelOptions | string[];
-    if (o && !Array.isArray(o) && Array.isArray((o as DragLabelOptions).terms)) {
-      return { terms: (o as DragLabelOptions).terms || [], targets: (o as DragLabelOptions).targets || [] };
-    }
-    return { terms: Array.isArray(o) ? o : [], targets: [] };
-  }
-  // Current assignment: array parallel to targets, each entry a placed term or ''.
-  function getDragAssign(qId: string, nTargets: number): string[] {
-    try {
-      const arr = JSON.parse(answers[qId] || '[]') as string[];
-      if (arr.length === nTargets) return arr;
-    } catch { /* fall through */ }
-    return Array(nTargets).fill('');
-  }
-  function pickDragTerm(qId: string, term: string) {
-    setDragPick(prev => ({ ...prev, [qId]: prev[qId] === term ? '' : term }));
-  }
-
-  // Hotspot: `options` is a { regions:[{id,label}] } object.
-  function getHotspotRegions(q: Question): HotspotRegion[] {
-    const o = q.options as unknown as HotspotOptions | string[];
-    if (o && !Array.isArray(o) && Array.isArray((o as HotspotOptions).regions)) {
-      return (o as HotspotOptions).regions || [];
-    }
-    return [];
-  }
-  // Tap a target slot: place the picked term (moving it off any other slot), or
-  // if nothing is picked and the slot is filled, clear it back to the pool.
-  function placeDragLabel(q: Question, targetIdx: number) {
-    const { targets } = getDragLabelOpts(q);
-    const assign = getDragAssign(q.id, targets.length);
-    const picked = dragPick[q.id] || '';
-    if (picked) {
-      for (let i = 0; i < assign.length; i++) if (assign[i] === picked) assign[i] = '';
-      assign[targetIdx] = picked;
-      setAnswers(prev => ({ ...prev, [q.id]: JSON.stringify(assign) }));
-      setDragPick(prev => ({ ...prev, [q.id]: '' }));
-    } else if (assign[targetIdx]) {
-      assign[targetIdx] = '';
-      setAnswers(prev => ({ ...prev, [q.id]: JSON.stringify(assign) }));
-    }
-  }
-
-  // Fill blank
-  function getFillBlanks(qId: string): string[] {
-    try { return JSON.parse(answers[qId] || '[]'); } catch { return []; }
-  }
-
-  function setFillBlanks(qId: string, blanks: string[]) {
-    setAnswers(prev => ({ ...prev, [qId]: JSON.stringify(blanks) }));
   }
 
   if (loading) return <div className="admin-empty"><div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div><div className="admin-empty__title">Loading questions...</div></div>;
@@ -568,213 +406,11 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
               </div>
             </div>
 
-            {/* Generated figure that matches this problem's numbers */}
-            {q._diagram && (
-              <div className="quiz__diagram" style={{ margin: '0.75rem 0', maxWidth: 540 }} dangerouslySetInnerHTML={{ __html: q._diagram }} />
-            )}
-
-            {/* Multiple Choice / True-False */}
-            {(q.question_type === 'multiple_choice' || q.question_type === 'true_false') && (
-              <>
-                <p className="quiz__question-text">{q.question_text}</p>
-                <div className="quiz__options">
-                  {q.options.map((opt, oi) => (
-                    <div
-                      key={oi}
-                      className={`quiz__option ${answers[q.id] === opt ? 'quiz__option--selected' : ''}`}
-                      onClick={() => setAnswers(prev => ({ ...prev, [q.id]: opt }))}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAnswers(prev => ({ ...prev, [q.id]: opt })); } }}
-                    >
-                      {opt}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* Multi Select */}
-            {q.question_type === 'multi_select' && (
-              <>
-                <p className="quiz__question-text">{q.question_text}</p>
-                <div className="quiz__options">
-                  {q.options.map((opt, oi) => (
-                    <div
-                      key={oi}
-                      className={`quiz__option quiz__option--multi ${isMultiSelected(q.id, opt) ? 'quiz__option--selected' : ''}`}
-                      onClick={() => toggleMultiSelect(q.id, opt)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleMultiSelect(q.id, opt); } }}
-                    >
-                      <span className="quiz__option-check">{isMultiSelected(q.id, opt) ? '\u2713' : ''}</span>
-                      {opt}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* Ordering — arrange items top (first) to bottom (last) */}
-            {q.question_type === 'ordering' && (
-              <>
-                <p className="quiz__question-text">{q.question_text}</p>
-                <div className="quiz__ordering" role="list">
-                  {getOrdering(q.id, q.options).map((opt, oi, arr) => (
-                    <div key={opt} className="quiz__ordering-item" role="listitem">
-                      <span className="quiz__ordering-rank">{oi + 1}</span>
-                      <span className="quiz__ordering-label">{opt}</span>
-                      <span className="quiz__ordering-controls">
-                        <button
-                          type="button"
-                          className="quiz__ordering-btn"
-                          aria-label={`Move "${opt}" up`}
-                          disabled={oi === 0}
-                          onClick={() => moveOrderingItem(q.id, q.options, oi, -1)}
-                        >{'▲'}</button>
-                        <button
-                          type="button"
-                          className="quiz__ordering-btn"
-                          aria-label={`Move "${opt}" down`}
-                          disabled={oi === arr.length - 1}
-                          onClick={() => moveOrderingItem(q.id, q.options, oi, 1)}
-                        >{'▼'}</button>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* Drag-label — pick a term, then tap the target it belongs to */}
-            {q.question_type === 'drag_label' && (() => {
-              const { terms, targets } = getDragLabelOpts(q);
-              const assign = getDragAssign(q.id, targets.length);
-              const picked = dragPick[q.id] || '';
-              const placed = new Set(assign.filter(Boolean));
-              return (
-                <>
-                  <p className="quiz__question-text">{q.question_text}</p>
-                  {q._diagram && (
-                    <div className="quiz__diagram" style={{ margin: '0.75rem 0', maxWidth: 540 }} dangerouslySetInnerHTML={{ __html: q._diagram }} />
-                  )}
-                  <p className="quiz__drag-hint">Tap a term to pick it up, then tap the box it belongs to. Tap a filled box to return its term.</p>
-                  <div className="quiz__drag-pool">
-                    {terms.filter(t => !placed.has(t)).map(t => (
-                      <button
-                        type="button"
-                        key={t}
-                        className={`quiz__drag-term ${picked === t ? 'quiz__drag-term--picked' : ''}`}
-                        aria-pressed={picked === t}
-                        onClick={() => pickDragTerm(q.id, t)}
-                      >{t}</button>
-                    ))}
-                  </div>
-                  <div className="quiz__drag-targets">
-                    {targets.map((prompt, ti) => (
-                      <button
-                        type="button"
-                        key={ti}
-                        className={`quiz__drag-target ${assign[ti] ? 'quiz__drag-target--filled' : ''} ${picked ? 'quiz__drag-target--active' : ''}`}
-                        aria-label={`${prompt}${assign[ti] ? `, currently: ${assign[ti]}` : ', empty'}`}
-                        onClick={() => placeDragLabel(q, ti)}
-                      >
-                        <span className="quiz__drag-target-prompt">{prompt}</span>
-                        <span className="quiz__drag-target-slot">{assign[ti] || '—'}</span>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              );
-            })()}
-
-            {/* Hotspot — click the region on the figure that answers the prompt */}
-            {q.question_type === 'hotspot' && (() => {
-              const regions = getHotspotRegions(q);
-              const chosen = answers[q.id] || '';
-              return (
-                <>
-                  <p className="quiz__question-text">{q.question_text}</p>
-                  {q._diagram && (
-                    <div className="quiz__diagram" style={{ margin: '0.75rem 0', maxWidth: 540 }} dangerouslySetInnerHTML={{ __html: q._diagram }} />
-                  )}
-                  <div className="quiz__hotspot-regions" role="radiogroup" aria-label="Select the correct element">
-                    {regions.map(r => (
-                      <button
-                        type="button"
-                        key={r.id}
-                        role="radio"
-                        aria-checked={chosen === r.id}
-                        className={`quiz__hotspot-region ${chosen === r.id ? 'quiz__hotspot-region--selected' : ''}`}
-                        onClick={() => setAnswers(prev => ({ ...prev, [q.id]: r.id }))}
-                      >
-                        <span className="quiz__hotspot-id">{r.id}</span>
-                        <span className="quiz__hotspot-label">{r.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              );
-            })()}
-
-            {/* Short Answer */}
-            {q.question_type === 'short_answer' && (
-              <>
-                <p className="quiz__question-text">{q.question_text}</p>
-                <input
-                  type="text"
-                  className="quiz__text-input"
-                  placeholder="Type your answer..."
-                  value={answers[q.id] || ''}
-                  onChange={e => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
-                />
-              </>
-            )}
-
-            {/* Numeric Input */}
-            {(q.question_type === 'numeric_input' || q.question_type === 'math_template') && (
-              <>
-                <p className="quiz__question-text">{q.question_text}</p>
-                <div className="quiz__numeric-wrap">
-                  <input
-                    type="number"
-                    step="any"
-                    className="quiz__text-input quiz__text-input--numeric"
-                    placeholder="Enter your numeric answer..."
-                    value={answers[q.id] || ''}
-                    onChange={e => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
-                  />
-                </div>
-              </>
-            )}
-
-            {/* Essay / Paragraph */}
-            {q.question_type === 'essay' && (
-              <>
-                <p className="quiz__question-text">{q.question_text}</p>
-                <textarea
-                  className="quiz__essay-input"
-                  placeholder="Write your response here... Be thorough and explain your reasoning."
-                  rows={6}
-                  value={answers[q.id] || ''}
-                  onChange={e => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
-                />
-                <span className="quiz__essay-hint">
-                  {(answers[q.id] || '').length} characters &mdash; Aim for a detailed, well-structured response
-                </span>
-              </>
-            )}
-
-            {/* Fill in the Blank */}
-            {q.question_type === 'fill_blank' && (
-              <FillBlankQuestion
-                questionText={q.question_text}
-                options={q.options}
-                blanks={getFillBlanks(q.id)}
-                onChange={b => setFillBlanks(q.id, b)}
-              />
-            )}
+            <QuestionBody
+              question={q}
+              answer={answers[q.id]}
+              onAnswer={next => setAnswers(prev => ({ ...prev, [q.id]: next }))}
+            />
           </div>
         ))}
       </div>

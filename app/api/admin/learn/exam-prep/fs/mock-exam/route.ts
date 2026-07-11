@@ -4,7 +4,13 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
 import { awardXP } from '@/lib/xp';
-import { checkAnswer } from '@/lib/solutionChecker';
+import { dbRowToTemplate } from '@/lib/problemEngine';
+import {
+  shapeQuestion,
+  neededTemplateIds,
+  gradeQuestionSync,
+  type RawQuestion,
+} from '@/lib/learn/questionDelivery';
 
 // NCEES FS knowledge-area blueprint — target scored-question count per area,
 // summing to 110, each within the published NCEES range.
@@ -23,58 +29,66 @@ const catOf = (tags: string[] | null | undefined): string | null => {
   return t ? t.slice('ncees-cat:'.length) : null;
 };
 
-/* GET — Assemble a blueprint-balanced 110-question FS exam simulator */
+/* GET — Assemble a blueprint-balanced 110-question FS exam simulator.
+ * Draws from the full FS + FS-MOCK bank across EVERY question type — static
+ * multiple-choice / true-false / numeric / short-answer, the interaction types
+ * (multi_select / ordering / drag_label / hotspot), AND dynamic template
+ * questions whose numbers + matching figures are regenerated every attempt.
+ * Essay (needs AI) and the legacy math_template format are excluded. */
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Draw from the combined static FS + FS-MOCK bank (dynamic template questions
-  // are practiced in the module quizzes; the simulator grades fixed items).
   const { data: pool, error } = await supabaseAdmin.from('question_bank')
-    .select('id, question_text, question_type, options, difficulty, tags')
+    .select('id, question_text, question_type, options, difficulty, tags, is_dynamic, template_id, tolerance, diagram')
     .in('exam_category', ['FS', 'FS-MOCK'])
-    .eq('is_dynamic', false)
-    .in('question_type', ['multiple_choice', 'true_false', 'numeric_input', 'short_answer']);
+    .not('question_type', 'in', '(essay,math_template)');
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!pool || pool.length === 0) {
     return NextResponse.json({ questions: [], message: 'No exam questions available yet.' });
   }
 
-  type Q = { id: string; question_text: string; question_type: string; options: string[] | string; difficulty: string; tags: string[] };
-  const buckets: Record<string, Q[]> = {};
-  for (const q of pool as Q[]) { const c = catOf(q.tags); if (c) (buckets[c] ||= []).push(q); }
+  const rawRows = pool as RawQuestion[];
+
+  // Resolve every template referenced by a dynamic row up front, then drop any
+  // dynamic row whose template is missing/inactive so the simulator never serves
+  // a broken generator (it would otherwise fall back to the placeholder answer).
+  const templateIds = neededTemplateIds(rawRows);
+  const templateMap = new Map<string, ReturnType<typeof dbRowToTemplate>>();
+  if (templateIds.length > 0) {
+    const { data: templates } = await supabaseAdmin.from('problem_templates')
+      .select('*').in('id', templateIds).eq('is_active', true);
+    for (const t of (templates || [])) templateMap.set(t.id, dbRowToTemplate(t));
+  }
+  const rows = rawRows.filter(q => !(q.is_dynamic && q.template_id) || templateMap.has(q.template_id as string));
+
+  const buckets: Record<string, RawQuestion[]> = {};
+  for (const q of rows) { const c = catOf(q.tags); if (c) (buckets[c] ||= []).push(q); }
 
   // Sample the blueprint count from each area (shuffled); top up from the
   // remaining pool if any area is short so we always reach 110.
-  const chosen: Q[] = [];
+  const chosen: RawQuestion[] = [];
   const usedIds = new Set<string>();
   for (const [cat, need] of Object.entries(BLUEPRINT)) {
     const arr = (buckets[cat] || []).slice().sort(() => Math.random() - 0.5).slice(0, need);
     for (const q of arr) { chosen.push(q); usedIds.add(q.id); }
   }
   if (chosen.length < 110) {
-    const rest = (pool as Q[]).filter(q => !usedIds.has(q.id)).sort(() => Math.random() - 0.5);
+    const rest = rows.filter(q => !usedIds.has(q.id)).sort(() => Math.random() - 0.5);
     for (const q of rest) { if (chosen.length >= 110) break; chosen.push(q); usedIds.add(q.id); }
   }
   chosen.sort(() => Math.random() - 0.5);
+  const finalRows = chosen.slice(0, 110);
 
-  const clientQuestions = chosen.slice(0, 110).map((q) => {
-    const opts = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options || []);
-    return {
-      id: q.id,
-      question_text: q.question_text,
-      question_type: q.question_type,
-      options: q.question_type === 'multiple_choice' || q.question_type === 'true_false'
-        ? (opts as string[]).sort(() => Math.random() - 0.5) : opts,
-      difficulty: q.difficulty,
-      tags: q.tags,
-    };
-  });
+  // Shape every question exactly as the quiz surfaces do (dynamic values,
+  // matching figures, per-type option handling).
+  const clientQuestions = finalRows.map((q) =>
+    shapeQuestion(q, q.template_id ? templateMap.get(q.template_id) : undefined));
 
   return NextResponse.json({
     questions: clientQuestions,
-    total_available: pool.length,
+    total_available: rows.length,
     time_limit_seconds: 19200, // 320 minutes (5h20m) — matches the real FS exam
     blueprint: Object.fromEntries(Object.entries(BLUEPRINT).map(([k, v]) => [CAT_NAMES[k], v])),
   });
@@ -92,40 +106,43 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'No answers provided' }, { status: 400 });
   }
 
-  // Fetch correct answers
+  // Fetch grading data for every answered question.
   const questionIds = answers.map((a: { question_id: string }) => a.question_id);
   const { data: questions, error } = await supabaseAdmin.from('question_bank')
-    .select('id, question_type, correct_answer, explanation, tags, tolerance')
+    .select('id, question_type, correct_answer, explanation, tags, tolerance, is_dynamic, template_id')
     .in('id', questionIds);
 
   if (error || !questions) {
     return NextResponse.json({ error: 'Failed to grade exam' }, { status: 500 });
   }
 
-  type GradeQ = { id: string; question_type: string; correct_answer: string; explanation: string; tags: string[]; tolerance: number | null };
-  const qMap = new Map<string, GradeQ>((questions as GradeQ[]).map(q => [q.id, q]));
+  const qMap = new Map<string, RawQuestion>((questions as RawQuestion[]).map(q => [q.id, q]));
 
-  // Grade each answer (all question types, with numeric tolerance) and track by
-  // NCEES knowledge area.
+  // Grade every answer through the shared delivery lib (all question types,
+  // with numeric tolerance and dynamic echo-back) and track by NCEES area.
   const categoryScores: Record<string, { correct: number; total: number }> = {};
-  const graded = answers.map((a: { question_id: string; user_answer: string }) => {
+  const graded = answers.map((a: {
+    question_id: string; user_answer: string;
+    _dynamic?: boolean; _generated_answer?: string; _tolerance?: number; _solution_steps?: unknown[];
+  }) => {
     const q = qMap.get(a.question_id);
-    if (!q) return { question_id: a.question_id, user_answer: a.user_answer, is_correct: false, correct_answer: '', explanation: '' };
+    if (!q) return { question_id: a.question_id, user_answer: a.user_answer, is_correct: false, correct_answer: '', explanation: '', category: 'General' };
 
     const catNum = catOf(q.tags);
     const category = catNum ? CAT_NAMES[catNum] : 'General';
-
     if (!categoryScores[category]) categoryScores[category] = { correct: 0, total: 0 };
     categoryScores[category].total++;
 
-    const isCorrect = checkAnswer(a.user_answer || '', q.correct_answer || '', q.question_type, q.tolerance || 0.01).is_correct;
+    // Essay would return null (no AI grading in the simulator) → count wrong.
+    const result = gradeQuestionSync(a, q);
+    const isCorrect = result ? result.is_correct : false;
     if (isCorrect) categoryScores[category].correct++;
 
     return {
       question_id: a.question_id,
       user_answer: a.user_answer,
       is_correct: isCorrect,
-      correct_answer: q.correct_answer,
+      correct_answer: result?.correct_answer ?? (q.correct_answer || ''),
       explanation: q.explanation || '',
       category,
     };
