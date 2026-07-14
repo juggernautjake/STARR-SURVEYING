@@ -93,13 +93,22 @@ export default function CampaignMapsDm({ campaignId }: { campaignId: string }) {
         <div style={{ border: '1px solid var(--hx-gold-1)', borderRadius: 8, padding: 14, background: 'rgba(200,155,60,0.06)' }}>
           <div style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--hx-gold-2)', marginBottom: 8 }}>Build a galaxy map</div>
           <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--hx-muted)' }}>Generate planets, systems, sectors, stars &amp; nebulas, drop points of interest, and publish an interactive map.</p>
-          <button
-            className={`${styles.hexBtn} ${styles.hexBtnPrimary}`}
-            onClick={() => router.push(`/dnd/campaigns/${campaignId}/map-studio`)}
-            title="Open the built-in galaxy map maker"
-          >
-            ✦ Open Map Maker
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              className={`${styles.hexBtn} ${styles.hexBtnPrimary}`}
+              onClick={() => router.push(`/dnd/campaigns/${campaignId}/map-studio`)}
+              title="Open the built-in galaxy map maker"
+            >
+              ✦ Open Map Maker
+            </button>
+            <button
+              className={styles.hexBtn}
+              onClick={() => router.push(`/dnd/campaigns/${campaignId}/planet-forge`)}
+              title="Sculpt a real 3D planet, then export it into the Map Maker's 3D tab"
+            >
+              🪐 3D Planet Forge
+            </button>
+          </div>
         </div>
       </div>
 

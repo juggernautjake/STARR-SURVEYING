@@ -173,3 +173,10 @@ panels adopt the framed-panel / `.hexBtn` treatment. The map canvas keeps a deep
   built map if none is named) via `loadMap()`, and hides the localStorage "Load campaign" control.
   The campaign hub's "✦ Open the interactive map" button (built maps) now resolves to a real page.
   Verified headless: the console loads a mocked DB map (title updates), button hidden, no errors.
+- **Slice 5 — 3D Planet Forge surfaced** ✅ — a DM-gated route `/dnd/campaigns/[id]/planet-forge`
+  embeds the retinted `planet-3d.html` (Three.js via its own CDN import-map). A **🪐 3D Planet Forge**
+  launcher sits beside **✦ Open Map Maker** in DM Map Management. The generator's handoff is
+  file-based by design — it exports a baked `.planet3d` sprite-sheet the DM imports in Map Studio's
+  **3D** tab — so there is no DB seam to wire; the map itself stays WebGL-free. The standalone
+  **Galaxy Forge** page remains an explicit optional deferral (its differential-spin spiral engine
+  is already inlined in Map Studio, so galaxy generation is fully covered inside the editor).
