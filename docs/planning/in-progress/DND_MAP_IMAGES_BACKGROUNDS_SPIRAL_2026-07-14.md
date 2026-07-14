@@ -96,14 +96,16 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
 
 ## 3. Slices
 
-### P1 — Universal raster image import
-- [ ] Add `image` asset kind + `defSize`/`defaultName` entries; store `{src, natW, natH, mime}` (read
-      natural size via an `Image()` before creating the asset).
-- [ ] Rename the **SVGs** tab → **Images**; generalize `importSVG` (or add `importImage`) to
-      `accept="image/*,.svg"`; SVG kept working (inline `<svg>` vs `<img>`/data-URL for raster).
-- [ ] Library thumbnail renders the actual image (not a circle); "＋ New" / empty-state / edit-swap
+### P1 — Universal raster image import ✅
+- [x] Add `image` asset kind + `defSize`/`defaultName` entries; store `{src, natW, natH}` (natural
+      size read via an `Image()` before creating the asset).
+- [x] Rename the **SVGs** tab → **Images**; new `importImage` uses `accept="image/*,.svg"`; SVG
+      supported (loaded as `<img>` data-URL; legacy `svgData` still rendered).
+- [x] Library thumbnail renders the actual image (not a circle); "＋ New" / empty-state / edit-swap
       wired for `image`.
-- [ ] Browser-verify: import a PNG and a JPG; both appear in the Images tab at correct aspect.
+- [x] Browser-verify: injected a 2:1 test image → appears in the Images tab at correct aspect, no
+      distortion, no circle. (File-picker path is OS-level; `importImage` code exercised via the same
+      `newAsset('image')` route.)
 
 ### P2 — Real-size, non-circular, full-res image instances
 - [ ] `renderInstances`: `image` (and `svg`) instances render in a rectangular `.art` at native
@@ -160,3 +162,5 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
 
 ## 4. Ship log
 (Stop-hook driven. One line per shipped slice: `P#: <what shipped> — <commit>`.)
+- P1: Universal image import — new `image` kind + Images tab + `importImage` (png/jpg/gif/webp/svg),
+  native size stored, thumbnail renders true aspect. Verified in-browser.

@@ -557,7 +557,7 @@ const TABS=[
   {id:"system",ic:"⬡",label:"Systems",kind:"system"},
   {id:"galaxy",ic:"🌀",label:"Galaxy",kind:"galaxy"},
   {id:"spingalaxy",ic:"🌌",label:"Spin Gx",kind:"spingalaxy"},
-  {id:"svg",ic:"⬆",label:"SVGs",kind:"svg"},
+  {id:"image",ic:"🖼",label:"Images",kind:"image"},
   {id:"background",ic:"▦",label:"Backdrop",kind:"background"},
 ];
 const PTYPES={
@@ -597,6 +597,12 @@ function art(a,animate){
   if(k==="svg"){
     if(a.svgData) return `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">${a.svgData}</div>`;
     return `<svg viewBox="0 0 200 200" style="width:100%;height:100%"><rect x="20" y="20" width="160" height="160" rx="12" fill="none" stroke="#8f78e6" stroke-width="3" stroke-dasharray="8 6"/><text x="100" y="106" text-anchor="middle" fill="#8f78e6" font-size="18" font-family="monospace">SVG</text></svg>`;
+  }
+  if(k==="image"){
+    const fit=a._fit||"contain",pos=a._pos||"center";
+    if(a.src) return `<img src="${a.src}" draggable="false" style="width:100%;height:100%;display:block;object-fit:${fit};object-position:${pos};pointer-events:none">`;
+    if(a.svgData) return `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">${a.svgData}</div>`;
+    return `<svg viewBox="0 0 200 200" style="width:100%;height:100%"><rect x="20" y="20" width="160" height="160" rx="12" fill="none" stroke="#8f78e6" stroke-width="3" stroke-dasharray="8 6"/><text x="100" y="106" text-anchor="middle" fill="#8f78e6" font-size="16" font-family="monospace">IMG</text></svg>`;
   }
   if(k==="planet3d"){
     if(a.sheet) return `<svg viewBox="0 0 200 200" style="width:100%;height:100%"><defs><clipPath id="p3${id}"><circle cx="100" cy="100" r="98"/></clipPath></defs><image href="${a.sheet}" x="0" y="0" width="${200*(a.cols||1)}" height="${200*(a.rows||1)}" clip-path="url(#p3${id})"/></svg>`;
@@ -724,11 +730,12 @@ function newAsset(kind,opts={}){
   else if(kind==="spingalaxy"){a.image=opts.image||null;a.dsCfg=opts.dsCfg||{rings:6,master:1.0,feather:0.12};a.c1=opts.c1||"#c88aff";a.c2=opts.c2||"#6a3aaa";}
   else if(kind==="system"){a.c1=opts.c1||"#5fbf7a";a.c2=opts.c2||"#2a6a45";a.c3=opts.c3||"#a8e8c0";a.creed=opts.creed||"";}
   else if(kind==="svg"){a.svgData=opts.svgData||null;a.c1="#8f78e6";a.c2="#6a3aaa";a.c3="#c8b8ff";}
+  else if(kind==="image"){a.src=opts.src||null;a.svgData=opts.svgData||null;a.natW=opts.natW||100;a.natH=opts.natH||100;a.c1="#8f78e6";a.c2="#6a3aaa";a.c3="#c8b8ff";}
   else if(kind==="planet3d"){a.sheet=opts.sheet||null;a.cols=opts.cols||1;a.rows=opts.rows||1;a.frames=opts.frames||1;a.cfg3d=opts.cfg3d||null;a.pois3d=opts.pois3d||[];a.c1=opts.c1||"#5aa0e8";a.c2=opts.c2||"#274f7c";a.c3=opts.c3||"#e8c060";}
   return a;
 }
-function defSize(k){return {planet:70,moon:38,star:82,station:52,debris:56,galaxy:200,spingalaxy:260,background:240,system:120,svg:70,planet3d:88}[k]||60;}
-function defaultName(k){return {planet:"New Planet",moon:"New Moon",star:"New Star",station:"New Station",debris:"Debris Field",galaxy:"New Galaxy",spingalaxy:"Spinning Galaxy",background:"Starfield",system:"New System",svg:"Imported SVG",planet3d:"3D World"}[k]||"New Object";}
+function defSize(k){return {planet:70,moon:38,star:82,station:52,debris:56,galaxy:200,spingalaxy:260,background:240,system:120,svg:70,image:160,planet3d:88}[k]||60;}
+function defaultName(k){return {planet:"New Planet",moon:"New Moon",star:"New Star",station:"New Station",debris:"Debris Field",galaxy:"New Galaxy",spingalaxy:"Spinning Galaxy",background:"Starfield",system:"New System",svg:"Imported SVG",image:"Image",planet3d:"3D World"}[k]||"New Object";}
 
 (function seed(){
   if(state.assets.length)return;
@@ -758,11 +765,11 @@ function renderLibrary(){
   const grid=$("#libGrid");grid.innerHTML="";
   const list=assetsOfTab(curTab);
   if(t.kind==="spingalaxy"){$("#libSub").innerHTML='Upload a galaxy image (or import a config from the Diff-Spin tool). It slices into rings that spin independently.';}
-  if(t.kind==="svg"){$("#libSub").innerHTML='Upload your own SVG art — it becomes a placeable, styleable map object.';}
+  if(t.kind==="image"){$("#libSub").innerHTML='Drop in any image — <b>png, jpg, gif, webp, svg</b>. It places at full size and can be scaled, rotated, and made transparent.';}
   if(t.kind==="planet3d"){$("#libSub").innerHTML='Build a world in the <b>3D Planet Generator</b>, export it as a <b>.planet3d</b>, then import it here. It spins on the map as a real 3D model.';}
   if(!list.length){
     if(t.kind==="spingalaxy"){grid.innerHTML=`<div class="libempty"><div class="big">🌌</div>No spinning galaxies yet.<br><br><button class="dsimport" id="dsImportEmpty">↑ Import / upload image…</button></div>`;const b=$("#dsImportEmpty");if(b)b.onclick=()=>importSpinGalaxy();updateTabBadges();mountDiffspinLibrary();return;}
-    if(t.kind==="svg"){grid.innerHTML=`<div class="libempty"><div class="big">⬆</div>No SVGs imported yet.<br><br><button class="dsimport" id="svgImportEmpty">↑ Upload an SVG file…</button></div>`;const b=$("#svgImportEmpty");if(b)b.onclick=()=>importSVG();updateTabBadges();return;}
+    if(t.kind==="image"){grid.innerHTML=`<div class="libempty"><div class="big">🖼</div>No images yet.<br><br><button class="dsimport" id="imgImportEmpty">↑ Import an image (png/jpg/gif/svg)…</button></div>`;const b=$("#imgImportEmpty");if(b)b.onclick=()=>importImage();updateTabBadges();return;}
     if(t.kind==="planet3d"){grid.innerHTML=`<div class="libempty"><div class="big">🌐</div>No 3D worlds yet.<br><br><button class="dsimport" id="p3ImportEmpty">↑ Import a .planet3d file…</button></div>`;const b=$("#p3ImportEmpty");if(b)b.onclick=()=>importPlanet3D();updateTabBadges();return;}
     grid.innerHTML=`<div class="libempty"><div class="big">${t.ic}</div>No ${t.label.toLowerCase()} yet.<br>Click <b>＋ New</b> or <b>⛭ Template</b> to build one.</div>`;updateTabBadges();return;
   }
@@ -774,6 +781,9 @@ function renderLibrary(){
     } else if(a.kind==="planet3d"){
       el.innerHTML=`<div class="thumb"><canvas class="p3libcv" data-p3lib="${a.id}" style="width:100%;height:100%;border-radius:50%"></canvas></div><div class="an">${esc(a.name)}</div><button class="edit" title="Replace with another .planet3d">✎</button>`;
       el.querySelector(".edit").onclick=e=>{e.stopPropagation();importPlanet3D(a);};
+    } else if(a.kind==="image"){
+      el.innerHTML=`<div class="thumb">${art(a,false)}</div><div class="an">${esc(a.name)}</div><button class="edit" title="Replace image">✎</button>`;
+      el.querySelector(".edit").onclick=e=>{e.stopPropagation();importImage(a);};
     } else {
       el.innerHTML=`<div class="thumb">${art(a,false)}</div><div class="an">${esc(a.name)}</div><button class="edit" title="Edit a copy">✎</button>`;
       el.querySelector(".edit").onclick=e=>{e.stopPropagation();openEditor(a,"edit");};
@@ -833,6 +843,21 @@ function addOrUpdateSpinGalaxy(existing,data,name){pushUndo();
   else{const a=newAsset("spingalaxy",{name:name||"Spinning Galaxy",image:data.image,dsCfg:data.dsCfg});state.assets.push(a);toast("Added “"+a.name+"” — drag it onto the map");}
   renderLibrary();markDirty();}
 
+// Universal raster/vector image import (png/jpg/gif/webp/svg) at native size.
+function importImage(existing){
+  const inp=document.createElement("input");inp.type="file";inp.accept="image/*,.svg";
+  inp.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
+    r.onload=ev=>{const src=ev.target.result;const img=new Image();
+      img.onload=()=>{const natW=img.naturalWidth||img.width||100,natH=img.naturalHeight||img.height||100;
+        pushUndo();
+        if(existing){existing.src=src;existing.svgData=null;existing.natW=natW;existing.natH=natH;toast("Updated “"+existing.name+"”");}
+        else{const a=newAsset("image",{name:f.name.replace(/\.[^.]+$/,""),src,natW,natH});state.assets.push(a);toast("Imported “"+a.name+"” — drag it onto the map");}
+        renderLibrary();markDirty();};
+      img.onerror=()=>{toast("Couldn't load that image file");};
+      img.src=src;};
+    r.readAsDataURL(f);};
+  inp.click();
+}
 function importSVG(existing){
   const inp=$("#svgUpload");inp.value="";
   inp.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
@@ -846,7 +871,7 @@ function importSVG(existing){
   inp.click();
 }
 
-$("#btnNew").onclick=()=>{const k=tabDef(curTab).kind;if(k==="spingalaxy"){importSpinGalaxy();return;}if(k==="svg"){importSVG();return;}if(k==="planet3d"){importPlanet3D();return;}openEditor(newAsset(k),"new");};
+$("#btnNew").onclick=()=>{const k=tabDef(curTab).kind;if(k==="spingalaxy"){importSpinGalaxy();return;}if(k==="image"){importImage();return;}if(k==="planet3d"){importPlanet3D();return;}openEditor(newAsset(k),"new");};
 $("#btnTemplate").onclick=()=>openTemplatePicker();
 
 /* ============================================================ TOOLS ============================================================ */
