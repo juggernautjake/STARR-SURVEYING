@@ -133,8 +133,13 @@ existing save/publish → DB path (no schema/API change — `dnd_maps.data` alre
   from `#labelLayer`. POI `desc` and `label` ride inside instances so they persist. Verified
   headless: caption shows only when enabled (with glow), hidden by default, desc appears in the
   readout, and both round-trip through `mapData`.
-- **Slice 6 — Console parity:** include `labels.js`; render instance/sector/text labels identically
-  for players; POI click populates the CRT `.scr-desc` viewer with the POI's title + description.
+- **Slice 6 — Console parity** ✅ — the player Console now renders a `labelSVG` overlay
+  (`buildLabelLayer`) in `#viewport` mirroring the studio: sector names, body names, free text
+  objects, and opt-in POI captions all render with the DM's exact formatting (the old DOM
+  `.sector-label`/`.bname` retired; text-kind objects are skipped as bodies). POI descriptions
+  already surface in the CRT `.scr-desc` readout via `poiBlock` (clicking a body or its POI shows
+  them). Verified headless + screenshot: curved/glowing sector caps, Audiowide body label on a
+  plate, POI caption, outlined label, and a rotated glowing text object — identical to the editor.
 - **Slice 7 — Verify + polish:** tsc + eslint + `vitest run __tests__/dnd`; headless renders of a
   map exercising every label feature in both Studio and Console; move this doc to `completed/`.
 
@@ -169,3 +174,17 @@ annotate this doc. No DB migration needed; the existing `seeds/421_dnd_maps.sql`
   names render as SVG text, UPPERCASE/curve(textPath)/pulse(@keyframes)/glow all apply, layer
   transform synced, zero errors; screenshot confirms Cinzel+outline, curved+glow, and rotated
   handwritten labels on the map.
+- **Slice 7 — Verify + polish** ✅ — `tsc --noEmit` clean; ESLint clean on /dnd (only the 3
+  pre-existing StreamPoll warnings, unrelated); `vitest run __tests__/dnd` 147/147. Headless
+  end-to-end across both tools exercised every feature; screenshots of the Studio and the Console
+  confirm identical rendering. All changes are in the vanilla map tools + `labels.js` (not
+  typechecked), with no TS/API/DB impact.
+
+### Status: COMPLETE
+Map objects — **planets, systems, locations (free text), and POIs** — are now fully labelable and
+formattable: custom **fonts/sizes**, **bold/italics**, independent **font vs. effect colors**,
+letter-spacing, UPPERCASE, multi-line **wrap**, **curve**, **rotate**, **outline**, **glow**,
+animated **pulse**, **drop shadow**, and a background **plate**. **POI descriptions** appear in the
+bottom info viewer (studio play readout + Console CRT). Shared `labels.js` keeps the DM editor and
+the player Console pixel-identical. No new migration — labels persist in the existing
+`dnd_maps.data` (`stardust-map`) via the save/publish → DB path.

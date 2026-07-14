@@ -432,6 +432,32 @@ function poiLayerHTML(i){if(!i.pois||!i.pois.length)return "";const sz=i.size,ic
   return `<div class="poilayer">`+i.pois.map(p=>{const lx=(0.5+(p.ax||0)*0.42)*100,ly=(0.5+(p.ay||0)*0.42)*100;
     return `<div class="poi" data-poi="${p.id}" data-body="${i.id}" title="${esc(p.title)} — ${poiType(p.type).label}" style="left:${lx}%;top:${ly}%">${poiIconSVG(p.type,iconPx)}</div>`;}).join("")+`</div>`;}
 
+/* Rich-label styling — mirrors map-studio so players see exactly what the DM formatted. */
+const BODY_LABEL_DEFAULT={font:'Rajdhani',size:13,weight:600,color:'#e8e6ff',tracking:0.4,shadow:true};
+const SECTOR_LABEL_DEFAULT={font:'Cinzel',weight:600,tracking:2,shadow:true};
+const TEXT_LABEL_DEFAULT={font:'Cinzel',size:28,weight:600,color:'#f0e6d2',tracking:1,align:'middle',shadow:true};
+function bodyLabelStyle(i){return mergeLabelStyle(Object.assign({},BODY_LABEL_DEFAULT,i.label||{}));}
+function sectorLabelStyle(s){const isSub=!!s.parent;const base=Object.assign({size:s.meta?22:isSub?15:20,color:s.color,opacity:isSub?0.85:0.98},SECTOR_LABEL_DEFAULT);return mergeLabelStyle(Object.assign(base,s.label||{}));}
+function textLabelStyle(i){return mergeLabelStyle(Object.assign({},TEXT_LABEL_DEFAULT,i.label||{}));}
+function poiCaptionStyle(p){return mergeLabelStyle(Object.assign({show:false,font:'Rajdhani',size:12,weight:600,color:poiType(p.type).color,tracking:0.3},p.label||{}));}
+function buildLabelLayer(B,W,H){
+  const ll=document.createElementNS(NS,"svg");ll.setAttribute("width",W);ll.setAttribute("height",H);
+  ll.style.cssText=`position:absolute;left:${B.minX}px;top:${B.minY}px;overflow:visible;z-index:20;pointer-events:none;`;
+  const ox=B.minX,oy=B.minY;let out="";
+  (MAP.sectors||[]).forEach(s=>{const st=sectorLabelStyle(s);if(st.show===false)return;const r=labelSVG(s.name,st);if(!r.g)return;
+    const c=polyCentroid(s.points),area=polyArea(s.points);const cy=c.y-Math.sqrt(area)*0.42-st.size*0.4;
+    out+=`<g transform="translate(${(c.x-ox).toFixed(1)},${(cy-oy).toFixed(1)})">${r.g}</g>`;});
+  (MAP.instances||[]).forEach(i=>{
+    if(i.kind==="text"){const st=textLabelStyle(i);if(st.show===false)return;const rot=st.rotate||0;const r=labelSVG(i.name||"Text",Object.assign({},st,{rotate:0}));if(!r.g)return;
+      out+=`<g transform="translate(${(i.x-ox).toFixed(1)},${(i.y-oy).toFixed(1)})${rot?` rotate(${rot})`:''}">${r.g}</g>`;return;}
+    const st=bodyLabelStyle(i);
+    if(st.show!==false){const r=labelSVG(i.name,st);if(r.g){const cx=i.x+i.size/2,ay=i.y+i.size+4;out+=`<g transform="translate(${(cx-ox).toFixed(1)},${(ay-oy).toFixed(1)})">${r.g}</g>`;}}
+    (i.pois||[]).forEach(p=>{const ls=poiCaptionStyle(p);if(ls.show===false)return;const r2=labelSVG(p.title,ls);if(!r2.g)return;
+      const wx=i.x+(0.5+(p.ax||0)*0.42)*i.size,wy=i.y+(0.5+(p.ay||0)*0.42)*i.size+Math.min(Math.max(i.size*0.14,8),20);
+      out+=`<g transform="translate(${(wx-ox).toFixed(1)},${(wy-oy).toFixed(1)})">${r2.g}</g>`;});
+  });
+  ll.innerHTML=out;return ll;
+}
 function render(){
   viewport.innerHTML="";dsCenter=null;
   const B=worldBounds(),W=B.maxX-B.minX,H=B.maxY-B.minY;
@@ -456,20 +482,21 @@ function render(){
     if(s.fx&&s.fx.sparkle){const rng=mulberry(seedFrom(s.id)*7);for(let k=0;k<14;k++){const wx=Math.min(...s.points.map(p=>p.x))+rng()*(Math.max(...s.points.map(p=>p.x))-Math.min(...s.points.map(p=>p.x))),wy=Math.min(...s.points.map(p=>p.y))+rng()*(Math.max(...s.points.map(p=>p.y))-Math.min(...s.points.map(p=>p.y)));if(!pointInPoly({x:wx,y:wy},s.points))continue;inner+=`<circle cx="${(wx-B.minX).toFixed(0)}" cy="${(wy-B.minY).toFixed(0)}" r="${(0.6+rng()*1.6).toFixed(1)}" fill="#fff" style="animation:twinkle ${(1.4+rng()*2).toFixed(1)}s ease-in-out infinite;animation-delay:${(rng()*3).toFixed(1)}s"/>`;}}
   });
   svg.innerHTML=inner;viewport.appendChild(svg);
-  // sector labels
-  sorted.forEach(({s,area,c})=>{const el=document.createElement("div");el.className="sector-label";el.style.cssText=`left:${c.x}px;top:${(c.y-Math.sqrt(area)*0.42)}px;color:${s.color};font-size:${s.meta?22:s.parent?12:17}px;z-index:3;`;if(s.parent)el.style.opacity=.8;el.textContent=s.name;viewport.appendChild(el);});
+  // sector names, body names, text objects & POI captions are drawn in the rich label overlay below
   // bodies
-  (MAP.instances||[]).forEach(i=>{const el=document.createElement("div");el.className="body"+(selectedId===i.id?" selected":"");el.dataset.id=i.id;el.style.cssText=`left:${i.x}px;top:${i.y}px;width:${i.size}px;height:${i.size}px;z-index:${i.kind==='galaxy'?4:10};`;
-    const secColor=(MAP.sectors.find(s=>s.id===i.sector)||{}).color||"#88aaff";const isCap=i.role==="capital";
+  (MAP.instances||[]).forEach(i=>{if(i.kind==="text")return;   // text objects are pure labels (overlay)
+    const el=document.createElement("div");el.className="body"+(selectedId===i.id?" selected":"");el.dataset.id=i.id;el.style.cssText=`left:${i.x}px;top:${i.y}px;width:${i.size}px;height:${i.size}px;z-index:${i.kind==='galaxy'?4:10};`;
+    const secColor=(MAP.sectors.find(s=>s.id===i.sector)||{}).color||"#88aaff";
     const look=i.look||i;
     const bodyHTML=i.kind==="planet3d"?`<canvas class="p3canvas" style="width:100%;height:100%;display:block;border-radius:50%"></canvas>`:art(look,true);
-    el.innerHTML=`<div class="halo" style="background:radial-gradient(circle,${secColor}66,transparent 62%)"></div><div class="selring"></div><div class="art">${fxOverlay(i.fx,look&&look.seed)}${bodyHTML}</div>${i.kind==="planet3d"?"":poiLayerHTML(i)}<div class="bname ${isCap?'cap':''}">${esc(i.name)}</div>`;
+    el.innerHTML=`<div class="halo" style="background:radial-gradient(circle,${secColor}66,transparent 62%)"></div><div class="selring"></div><div class="art">${fxOverlay(i.fx,look&&look.seed)}${bodyHTML}</div>${i.kind==="planet3d"?"":poiLayerHTML(i)}`;
     if(i.kind==="planet3d")el.dataset.p3=i.id;
     el.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});};
     el.querySelectorAll(".poi").forEach(p=>p.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});});
     viewport.appendChild(el);});
   // sector click handlers
   svg.querySelectorAll("[data-sector]").forEach(p=>p.onclick=e=>{e.stopPropagation();select({type:"sector",id:p.dataset.sector});});
+  viewport.appendChild(buildLabelLayer(B,W,H));   // rich formatted labels on top
   mountSpriteInstances();buildLegend();
 }
 const spriteLive={};
