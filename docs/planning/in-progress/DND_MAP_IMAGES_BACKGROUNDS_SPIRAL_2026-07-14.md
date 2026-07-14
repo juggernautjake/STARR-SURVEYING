@@ -145,15 +145,15 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
 - [x] Browser-verify: image spiralized → 7 layers each with its own speed/dir; renders + spins.
       (instances serialize whole, so dsCfg persists.)
 
-### P6 — 3D world live round-trip (New → editor → import back)
-- [ ] `planet-3d.html`: when opened with a round-trip flag (e.g. `?returnTo=studio` / `window.opener`),
-      add a "Send to Map" action (and/or on export) that `postMessage`s the `.planet3d` payload to
-      `window.opener`.
-- [ ] Map Studio: "New" on the **3D Worlds** tab opens `planet-3d.html` (popup, same origin) in
-      round-trip mode; a `message` listener imports the returned world directly as a `planet3d` asset
-      (dedupe with `importPlanet3D`). File import remains as fallback.
-- [ ] Browser-verify: New → build a world → Send to Map → it appears on the map spinning, no file
-      save/import step.
+### P6 — 3D world live round-trip (New → editor → import back) ✅
+- [x] `planet-3d.html?studio=1` (with `window.opener`): shows a "✦ Send to Map" button that
+      `postMessage`s the built `.planet3d` payload to the opener; also accepts a `planet3d-load`
+      message to `applyConfig` for editing. No-op (safe) when opened standalone.
+- [x] Map Studio: "New" on the **3D Worlds** tab opens the editor popup; a `message` listener imports
+      the returned world directly as a `planet3d` asset (no file step). File import still available.
+- [x] Browser-verify: posted `stardust-planet3d` message → asset created with `cfg3d` preserved;
+      both pages load clean; `?studio=1` handlers active only with an opener. (Full popup handshake is
+      cross-window; each half verified independently.)
 
 ### P7 — Console parity, persistence, final verify
 - [ ] Mirror render-affecting additions into `console.html`: `image` instances (real size/aspect,
@@ -168,13 +168,14 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
 - [x] Per-instance **spin** control for `planet3d` (inspector slider; `p3spin` field). Default spin
       comes from the `.planet3d` JSON's `cfg3d.spin` ("spin defined in the JSON"); fps derived from
       it (1× ≈ 8s/rotation) — fixes "all the same / way too fast" (was fixed fps 16). Verified.
-- [ ] "✎ Open in editor" on a `planet3d` asset/instance opens `planet-3d.html` (round-trip, P6) with
-      its `cfg3d` **loaded**, so tilt / sun-shadow / atmosphere / clouds / colors / planet type / spin
-      are all editable; "Send to Map" replaces the asset in place (re-bakes sprite-sheet).
-- [ ] Confirm CSS/SVG planets, moons, stars, etc. can be **created in Map Studio and placed
-      immediately** (openEditor "New" path) with no download/reupload; verify the 3D "New" path (P6).
-- [ ] Browser-verify: import a `.planet3d`, change its spin in the inspector; open in editor, change
-      tilt/clouds/atmosphere/colors, send back → map updates.
+- [x] "✎ Open in editor" on a `planet3d` instance opens `planet-3d.html?studio=1` with its `cfg3d`
+      **loaded** (via `planet3d-ready`→`planet3d-load` handshake), so tilt / sun / atmosphere / clouds
+      / colors / planet type / spin are all editable; "Send to Map" replaces the asset **and its live
+      instances** in place.
+- [x] CSS/SVG planets, moons, stars, etc. already create-in-studio + place immediately (openEditor
+      "New"); the 3D "New" path now opens the editor and imports back (P6) — no download/reupload.
+- [x] Browser-verify: studio receives an edited world and updates the target asset + instances;
+      spin control from P8a. (cross-window popup handshake verified per-half.)
 
 ### P9 — Draggable title labels on the map ✅
 - [x] Body and sector name labels get a `.lblhit` drag rect; dragging updates `label.dx/dy` (offset

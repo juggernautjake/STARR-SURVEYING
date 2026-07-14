@@ -908,7 +908,24 @@ function importSVG(existing){
   inp.click();
 }
 
-$("#btnNew").onclick=()=>{const k=tabDef(curTab).kind;if(k==="spingalaxy"){importSpinGalaxy();return;}if(k==="image"){importImage();return;}if(k==="planet3d"){importPlanet3D();return;}openEditor(newAsset(k),"new");};
+$("#btnNew").onclick=()=>{const k=tabDef(curTab).kind;if(k==="spingalaxy"){importSpinGalaxy();return;}if(k==="image"){importImage();return;}if(k==="planet3d"){openPlanet3DEditor();return;}openEditor(newAsset(k),"new");};
+// 3D world live round-trip: open the WebGL editor in a popup; it posts the built world straight back.
+let p3EditTarget=null,p3PendingCfg=null;
+function openPlanet3DEditor(existingAsset){
+  p3EditTarget=existingAsset||null;p3PendingCfg=(existingAsset&&existingAsset.cfg3d)?existingAsset.cfg3d:null;
+  const w=window.open("planet-3d.html?studio=1","stardust_planet3d","width=1200,height=820");
+  if(!w){toast("Allow popups to open the 3D editor (or use ↑ Import a .planet3d file)");return;}
+  toast("3D editor opened — build a world, then click ✦ Send to Map");
+}
+window.addEventListener("message",ev=>{const d=ev.data;if(!d||typeof d!=="object")return;
+  if(d.type==="planet3d-ready"){if(p3PendingCfg&&ev.source){try{ev.source.postMessage({type:"planet3d-load",config:p3PendingCfg},"*");}catch(e){}}return;}
+  if(d.type==="stardust-planet3d"&&d.sheet){pushUndo();
+    if(p3EditTarget&&p3EditTarget.kind==="planet3d"){const a=p3EditTarget;a.sheet=d.sheet;a.cols=d.cols;a.rows=d.rows;a.frames=d.frames;a.cfg3d=d.config;a.pois3d=d.pois||[];if(p3Lib[a.id])p3Lib[a.id].__sheet=null;
+      state.instances.forEach(i=>{if(i.assetId===a.id&&i.look){i.look.sheet=d.sheet;i.look.cols=d.cols;i.look.rows=d.rows;i.look.frames=d.frames;i.look.cfg3d=d.config;if(spriteLive[i.id])spriteLive[i.id].sheet=null;}});
+      toast("Updated “"+a.name+"” from the 3D editor");}
+    else{const a=newAsset("planet3d",{name:d.name||"3D World",sheet:d.sheet,cols:d.cols,rows:d.rows,frames:d.frames,cfg3d:d.config,pois3d:d.pois||[]});state.assets.push(a);setTab("planet3d");toast("Imported “"+a.name+"” — drag it onto the map");}
+    p3EditTarget=null;p3PendingCfg=null;renderLibrary();renderAll();markDirty();}
+});
 $("#btnTemplate").onclick=()=>openTemplatePicker();
 
 /* ============================================================ TOOLS ============================================================ */
@@ -1533,7 +1550,9 @@ function renderInstanceInspector(){
   $("#iOp").oninput=e=>{i.opacity=+e.target.value/100;$("#iOpV").textContent=Math.round(i.opacity*100)+"%";renderInstances();markDirty();};
   if(i.kind==="planet3d"){const sp=$("#iSpin");if(sp)sp.oninput=e=>{i.p3spin=+e.target.value/10;$("#iSpinV").textContent=i.p3spin.toFixed(1)+"×";mountSpriteInstances();markDirty();};}
   if(i.kind==="spingalaxy")wireSpinGalaxyControls(i);
-  $("#iEdit").onclick=()=>{const a=state.assets.find(x=>x.id===i.assetId)||{...i.look,name:i.name,kind:i.kind,size:i.size,id:uid()};openEditor(a,"edit",i);};
+  $("#iEdit").onclick=()=>{
+    if(i.kind==="planet3d"){const a=state.assets.find(x=>x.id===i.assetId)||{id:i.assetId||uid(),kind:"planet3d",name:i.name,cfg3d:i.look&&i.look.cfg3d,sheet:i.look&&i.look.sheet};openPlanet3DEditor(a);return;}
+    const a=state.assets.find(x=>x.id===i.assetId)||{...i.look,name:i.name,kind:i.kind,size:i.size,id:uid()};openEditor(a,"edit",i);};
   $("#iDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;if(c.pois)c.pois.forEach(p=>p.id=uid());reassoc(c);state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
   $("#iDel").onclick=()=>{pushUndo();state.instances=state.instances.filter(x=>x.id!==i.id);selection=null;renderAll();markDirty();};
   $("#poiAdd").onclick=()=>openPoiTypePicker(i,0,0);

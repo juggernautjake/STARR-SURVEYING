@@ -521,8 +521,9 @@ async function renderSheet(cell){
   return {dataURL:sheet.toDataURL("image/png"),cols,rows,N,cell};
 }
 $("#expSheet").onclick=async()=>{const s=await renderSheet(256);download(`planet_${S.type}_${S.seed}_sheet_${s.cols}x${s.rows}.png`,s.dataURL);toast(`Sprite-sheet exported (${s.cols}×${s.rows}, ${s.N} frames)`);};
-$("#expMap").onclick=async()=>{const s=await renderSheet(200);const out={type:"stardust-planet3d",version:1,name:`${S.type[0].toUpperCase()+S.type.slice(1)} World`,config:config(),
-    sheet:s.dataURL,cols:s.cols,rows:s.rows,frames:s.N,pois:config().pois,savedAt:new Date().toISOString()};
+async function buildPlanet3D(){const s=await renderSheet(200);return {type:"stardust-planet3d",version:1,name:`${S.type[0].toUpperCase()+S.type.slice(1)} World`,config:config(),
+    sheet:s.dataURL,cols:s.cols,rows:s.rows,frames:s.N,pois:config().pois,savedAt:new Date().toISOString()};}
+$("#expMap").onclick=async()=>{const out=await buildPlanet3D();
   download(`planet_${S.type}_${S.seed}.planet3d`,URL.createObjectURL(new Blob([JSON.stringify(out)],{type:"application/json"})));
   toast("Exported .planet3d — import it in Map Studio's 3D tab");};
 $("#expConfig").onclick=()=>{download(`planet_${S.type}_${S.seed}.json`,URL.createObjectURL(new Blob([JSON.stringify(config(),null,2)],{type:"application/json"})));toast("Config saved");};
@@ -549,6 +550,17 @@ function applyConfig(c){
 try{ applySun();rebuild();refreshPOIs();$("#loadNote").textContent="Ready — sculpt a world, drop some POIs, then export it.";setTimeout(()=>$("#loadNote").style.opacity=0,3400);}
 catch(err){const n=$("#loadNote");n.style.opacity=1;n.style.borderColor="#e0685a";n.style.color="#ffb0a0";n.textContent="⚠ 3D init error: "+(err&&err.message?err.message:err);console.error(err);}
 window.addEventListener("resize",()=>{if(capturing)return;camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+
+/* ---------- Map Studio round-trip: open from Studio (?studio=1), edit, send the world straight back ---------- */
+(function(){
+  if(!(new URLSearchParams(location.search).has("studio")&&window.opener))return;
+  const b=document.createElement("button");b.textContent="✦ Send to Map";
+  b.style.cssText="position:fixed;top:14px;right:14px;z-index:60;padding:10px 16px;border-radius:8px;border:1px solid #0ac8b9;background:linear-gradient(90deg,#3a2a66,#2a2450);color:#fff;font:600 13px 'Rajdhani',system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.5)";
+  b.onclick=async()=>{b.disabled=true;b.textContent="Baking…";try{const out=await buildPlanet3D();window.opener.postMessage(out,"*");toast("Sent to Map Studio");}catch(e){toast("Couldn't reach Map Studio");}b.disabled=false;b.textContent="✦ Send to Map";};
+  document.body.appendChild(b);
+  window.addEventListener("message",ev=>{const d=ev.data;if(d&&d.type==="planet3d-load"&&d.config){try{applyConfig(d.config);toast("Loaded from Map Studio — edit, then Send to Map");}catch(e){}}});
+  try{window.opener.postMessage({type:"planet3d-ready"},"*");}catch(e){}
+})();
 </script>
 </body>
 </html>
