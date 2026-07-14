@@ -52,11 +52,13 @@ the completed `DND_MAP_IMAGES_BACKGROUNDS_SPIRAL_2026-07-14` buildout on branch
       thickness. Persisted in `mapData`/`cleanState`/`loadMap`/autosave; applied on init + load.
 - [x] Browser-verify: 6px solid red → selected planet outline = rgb(255,45,45), 6px, solid.
 
-### Q4 — Edge fade for images + spinning images
-- [ ] Instance fields `fade` (0–100 edge transparency) + `fadeSpread` (0–100 distance inward); helper
-      `fadeMask(i)` → radial `-webkit-mask-image`/`mask-image` on the `.art` div.
-- [ ] Inspector controls for `image` and `spingalaxy` (fades the whole element incl. outer ring).
-- [ ] Browser-verify: an image and a spinning galaxy fade at the edges; spread widens the gradient.
+### Q4 — Edge fade for images + spinning images ✅
+- [x] Instance fields `fade` (0–100) + `fadeSpread` (0–100) + `fadeShape` (radial | edges); `fadeMask(i)`
+      → mask on the `.art` div (radial = rounded from centre; edges = straight rectangular via two
+      linear masks + `mask-composite:intersect`).
+- [x] Inspector controls for `image` and `spingalaxy` (masks the whole `.art` incl. outer ring).
+- [x] Browser-verify: radial rounds a square image's corners to transparent (stars show through);
+      edges keeps it square with a straight edge-vignette.
 
 ### Q5 — Star shine-lines toggle
 - [ ] `art()` star gate on `a.rays!==false` (studio + console); `newAsset('star')` `rays`; snapshotLook
@@ -87,3 +89,5 @@ the completed `DND_MAP_IMAGES_BACKGROUNDS_SPIRAL_2026-07-14` buildout on branch
   so a sector can be drawn over an image without selecting it. Verified.
 - Q3: Customizable selection border — `state.selStyle` (width/style/color) → CSS vars on `.inst.sel`;
   Effects-panel UI; persisted everywhere. Verified (6px solid red).
+- Q4: Edge fade — `fadeMask` masks image/spingalaxy `.art` with amount + spread + shape (radial
+  rounded / edges straight). Verified both shapes; blends squares into the background.

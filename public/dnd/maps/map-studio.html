@@ -1125,11 +1125,11 @@ function renderInstances(){
     const iw=i.w||i.size,ih=i.h||i.size,rot=i.rot||0,op=i.opacity!=null?i.opacity:1;
     el.style.cssText=`left:${i.x}px;top:${i.y}px;width:${iw}px;height:${ih}px;transform:translate(-50%,-50%) rotate(${rot}deg);opacity:${op};z-index:${i.z||0};`;
     const fxo=fxOverlay(i.fx,i.look&&i.look.seed);
-    if(i.kind==="spingalaxy"){el.innerHTML=`<div class="art">${fxo}<canvas class="dscanvas" style="width:100%;height:100%;display:block;border-radius:50%"></canvas></div>${poiLayerHTML(i)}`;el.dataset.ds=i.id;}
+    if(i.kind==="spingalaxy"){el.innerHTML=`<div class="art" style="${fadeMask(i)}">${fxo}<canvas class="dscanvas" style="width:100%;height:100%;display:block;border-radius:50%"></canvas></div>${poiLayerHTML(i)}`;el.dataset.ds=i.id;}
     else if(i.kind==="planet3d"){el.innerHTML=`<div class="art">${fxo}<canvas class="p3canvas" style="width:100%;height:100%;display:block;border-radius:50%"></canvas></div>`;el.dataset.p3=i.id;}
     else if(i.kind==="image"){const L=i.look||i,src=L.src,fit=i.imgFit||"contain",px=i.imgPosX!=null?i.imgPosX:50,py=i.imgPosY!=null?i.imgPosY:50;
       const inner=src?`<img src="${src}" draggable="false" style="width:100%;height:100%;display:block;object-fit:${fit};object-position:${px}% ${py}%;pointer-events:none">`:(L.svgData?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">${L.svgData}</div>`:art(L,true));
-      el.innerHTML=`<div class="art" style="overflow:hidden">${fxo}${inner}</div>${poiLayerHTML(i)}`;}
+      el.innerHTML=`<div class="art" style="overflow:hidden;${fadeMask(i)}">${fxo}${inner}</div>${poiLayerHTML(i)}`;}
     else{el.innerHTML=`<div class="art">${fxo}${art(i.look||i,true)}</div>${poiLayerHTML(i)}`;}
     el.addEventListener("mousedown",e=>{if(e.target.closest(".poi")||e.target.closest(".ihandle"))return;e.stopPropagation();onInstDown(e,i);});
     el.addEventListener("dblclick",e=>{if(mode!=="dm")return;e.stopPropagation();const a=state.assets.find(x=>x.id===i.assetId)||{...i.look,name:i.name,kind:i.kind,size:i.size};openEditor(a,"edit");});
@@ -1517,6 +1517,31 @@ function wireLayerControls(list,item){
   document.querySelectorAll("#inspBody [data-lz]").forEach(b=>b.onclick=()=>reorderZ(list,item,b.dataset.lz));
   const bh=document.getElementById("iBehind");if(bh)bh.onchange=e=>{item.behind=e.target.checked;renderAll();markDirty();};
 }
+/* ---- edge fade (feather image/spingalaxy edges to transparent) ---- */
+function fadeMask(i){const f=i.fade||0;if(f<=0)return "";
+  const spread=Math.max(1,i.fadeSpread!=null?i.fadeSpread:35),endA=(1-f/100).toFixed(3);
+  if((i.fadeShape||"radial")==="edges"){ // straight fade in from each edge (rectangular)
+    const s=Math.min(49,spread/2);
+    const h=`linear-gradient(to right, rgba(0,0,0,${endA}) 0%, #000 ${s}%, #000 ${100-s}%, rgba(0,0,0,${endA}) 100%)`;
+    const v=`linear-gradient(to bottom, rgba(0,0,0,${endA}) 0%, #000 ${s}%, #000 ${100-s}%, rgba(0,0,0,${endA}) 100%)`;
+    return `-webkit-mask-image:${h},${v};-webkit-mask-composite:source-in;mask-image:${h},${v};mask-composite:intersect;`;
+  }
+  const start=Math.max(0,100-spread); // radial from centre → rounded fade
+  const m=`radial-gradient(closest-side, #000 ${start}%, rgba(0,0,0,${endA}) 100%)`;
+  return `-webkit-mask-image:${m};mask-image:${m};`;
+}
+function fadeControlsHTML(i){const f=i.fade||0,sp=i.fadeSpread!=null?i.fadeSpread:35,shape=i.fadeShape||"radial";
+  return `<h4>Edge fade</h4>
+    <div class="field"><label>Fade amount <span style="float:right;color:var(--gold)" id="iFadeV">${f}%</span></label><div class="slider"><input type="range" id="iFade" min="0" max="100" value="${f}"></div></div>
+    <div class="field"><label>Fade spread <span style="float:right;color:var(--gold)" id="iFadeSpV">${sp}%</span></label><div class="slider"><input type="range" id="iFadeSp" min="1" max="100" value="${sp}"></div></div>
+    <div class="rowc"><div class="field"><label>Shape</label><select id="iFadeShape"><option value="radial" ${shape==="radial"?"selected":""}>radial (rounded)</option><option value="edges" ${shape==="edges"?"selected":""}>edges (straight)</option></select></div></div>
+    <div style="font-size:11px;color:var(--faint)">Fades the outer edge to transparent so it blends into the background.</div>`;
+}
+function wireFadeControls(i){
+  const a=$("#iFade");if(a)a.oninput=e=>{i.fade=+e.target.value;$("#iFadeV").textContent=i.fade+"%";renderInstances();markDirty();};
+  const s=$("#iFadeSp");if(s)s.oninput=e=>{i.fadeSpread=+e.target.value;$("#iFadeSpV").textContent=i.fadeSpread+"%";renderInstances();markDirty();};
+  const sh=$("#iFadeShape");if(sh)sh.onchange=e=>{i.fadeShape=e.target.value;renderInstances();markDirty();};
+}
 // Normalize a spingalaxy instance's diffspin config to concrete per-layer speed/dir arrays, syncing
 // from the live engine when present so the UI reflects reality.
 function dsCfgOf(i){
@@ -1597,6 +1622,7 @@ function renderInstanceInspector(){
       <div class="rowc" id="iImgPosRow" style="${i.imgFit==="cover"?"":"display:none"}"><div class="field"><label>Crop X <span style="float:right;color:var(--gold)" id="iPxV">${i.imgPosX!=null?i.imgPosX:50}%</span></label><div class="slider"><input type="range" id="iPx" min="0" max="100" value="${i.imgPosX!=null?i.imgPosX:50}"></div></div><div class="field"><label>Crop Y <span style="float:right;color:var(--gold)" id="iPyV">${i.imgPosY!=null?i.imgPosY:50}%</span></label><div class="slider"><input type="range" id="iPy" min="0" max="100" value="${i.imgPosY!=null?i.imgPosY:50}"></div></div></div>
       <div style="font-size:11px;color:var(--faint)">“cover” crops to fill the box; drag Crop X/Y to choose the visible part. Resize handles change the crop shape.</div>
       <div class="actionbtns"><button id="iSpiralize">🌀 Apply layered spin</button></div>`:""}
+    ${(i.kind==="image"||i.kind==="spingalaxy")?fadeControlsHTML(i):""}
     ${layerControlsHTML(true,i.behind)}
     <div class="actionbtns"><button class="gold" id="iEdit">✎ Open in editor</button></div>
     <div class="actionbtns"><button id="iDupe">Duplicate</button><button class="danger" id="iDel">Delete</button></div>`;
@@ -1611,6 +1637,7 @@ function renderInstanceInspector(){
   $("#iOp").oninput=e=>{i.opacity=+e.target.value/100;$("#iOpV").textContent=Math.round(i.opacity*100)+"%";renderInstances();markDirty();};
   if(i.kind==="planet3d"){const sp=$("#iSpin");if(sp)sp.oninput=e=>{i.p3spin=+e.target.value/10;$("#iSpinV").textContent=i.p3spin.toFixed(1)+"×";mountSpriteInstances();markDirty();};}
   if(i.kind==="spingalaxy")wireSpinGalaxyControls(i);
+  if(i.kind==="image"||i.kind==="spingalaxy")wireFadeControls(i);
   wireLayerControls(state.instances,i);
   if(i.kind==="image"){const sb=$("#iSpiralize");if(sb)sb.onclick=()=>applySpinToInstance(i);
     const ff=$("#iImgFit");if(ff)ff.onchange=e=>{i.imgFit=e.target.value;const row=$("#iImgPosRow");if(row)row.style.display=i.imgFit==="cover"?"":"none";renderInstances();markDirty();};
