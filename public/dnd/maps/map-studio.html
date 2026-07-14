@@ -1507,6 +1507,11 @@ function wireSpinGalaxyControls(i){const cfg=i.look.dsCfg;const apply=()=>{mount
 }
 // Apply the differential-spin (layered spiral) treatment to any imported image.
 function spiralizeImage(a){if(!a||!a.src){toast("Import an image first");return;}addOrUpdateSpinGalaxy(null,{image:a.src,dsCfg:{rings:6,master:1.0,feather:0.12}},(a.name||"Image")+" spiral");setTab("spingalaxy");}
+// Convert a placed image instance into a layered spinning galaxy in place.
+function applySpinToInstance(i){const src=i.look&&(i.look.src||i.look.image);if(!src){toast("No image on this object");return;}
+  pushUndo();i.kind="spingalaxy";i.look=i.look||{};i.look.kind="spingalaxy";i.look.image=src;i.look.dsCfg=i.look.dsCfg||{rings:6,master:1,feather:0.12};
+  i.size=Math.max(i.w||i.size,i.h||i.size,120);delete i.w;delete i.h;
+  selection={type:"instance",id:i.id};renderAll();markDirty();toast("Layered spin applied — edit the layers below");}
 function renderInstanceInspector(){
   const box=$("#inspBody");const i=state.instances.find(x=>x.id===selection.id);if(!i){box.innerHTML="";return;}
   if(i.kind==="text")return renderTextInspector();
@@ -1537,6 +1542,7 @@ function renderInstanceInspector(){
       <div class="field"><label>Spin speed <span style="float:right;color:var(--gold)" id="iSpinV">${(i.p3spin!=null?i.p3spin:1).toFixed(1)}×</span></label><div class="slider"><input type="range" id="iSpin" min="0" max="30" value="${Math.round((i.p3spin!=null?i.p3spin:1)*10)}"></div></div>
       <div style="font-size:11px;color:var(--faint)">0 = paused. Each 3D world keeps its own spin (its exported speed sets the default).</div>`:``}
     ${i.kind==="spingalaxy"?spinGalaxyControlsHTML(i):""}
+    ${i.kind==="image"?`<div class="actionbtns"><button id="iSpiralize">🌀 Apply layered spin</button></div><div style="font-size:11px;color:var(--faint)">Turns this image into a differential-spin galaxy — then edit its layers here.</div>`:""}
     <div class="actionbtns"><button class="gold" id="iEdit">✎ Open in editor</button></div>
     <div class="actionbtns"><button id="iDupe">Duplicate</button><button class="danger" id="iDel">Delete</button></div>`;
   $("#iName").oninput=e=>{i.name=e.target.value;renderInstances();renderLabels();markDirty();};
@@ -1550,6 +1556,7 @@ function renderInstanceInspector(){
   $("#iOp").oninput=e=>{i.opacity=+e.target.value/100;$("#iOpV").textContent=Math.round(i.opacity*100)+"%";renderInstances();markDirty();};
   if(i.kind==="planet3d"){const sp=$("#iSpin");if(sp)sp.oninput=e=>{i.p3spin=+e.target.value/10;$("#iSpinV").textContent=i.p3spin.toFixed(1)+"×";mountSpriteInstances();markDirty();};}
   if(i.kind==="spingalaxy")wireSpinGalaxyControls(i);
+  if(i.kind==="image"){const sb=$("#iSpiralize");if(sb)sb.onclick=()=>applySpinToInstance(i);}
   $("#iEdit").onclick=()=>{
     if(i.kind==="planet3d"){const a=state.assets.find(x=>x.id===i.assetId)||{id:i.assetId||uid(),kind:"planet3d",name:i.name,cfg3d:i.look&&i.look.cfg3d,sheet:i.look&&i.look.sheet};openPlanet3DEditor(a);return;}
     const a=state.assets.find(x=>x.id===i.assetId)||{...i.look,name:i.name,kind:i.kind,size:i.size,id:uid()};openEditor(a,"edit",i);};

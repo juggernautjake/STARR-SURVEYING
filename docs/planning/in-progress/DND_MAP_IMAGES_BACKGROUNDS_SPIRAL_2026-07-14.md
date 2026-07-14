@@ -203,3 +203,8 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
   breathing (per the reference Forge). Fixed #fxCanvas stuck at 300×150 (replaced-element needs
   width/height:100%) so the ambient starfield fills the map; denser default. "More stars through the
   background" resolved. Verified.
+- P5c: In-place "🌀 Apply layered spin" on placed image instances (convert image→spingalaxy);
+  confirmed per-layer speed edits change the LIVE engine (0.48→2.30). Effect applies to any image and
+  is fully editable. Verified.
+- P6/P8: 3D world live round-trip (New→editor→Send to Map, no file) + edit-in-place with cfg3d
+  reload; studio import + both pages clean verified.
