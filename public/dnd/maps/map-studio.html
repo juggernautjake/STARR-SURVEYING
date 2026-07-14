@@ -940,7 +940,15 @@ const sectorById=()=>{const m={};state.sectors.forEach(s=>m[s.id]=s);return m;};
 /* ============================================================ VIEW / RENDER ============================================================ */
 function toWorld(sx,sy){const r=$("#canvas").getBoundingClientRect();return {x:(sx-r.left-view.x)/view.scale,y:(sy-r.top-view.y)/view.scale};}
 function applyView(){const tf=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;$("#svg").style.transform=tf;$("#svg").style.transformOrigin="0 0";$("#bodyLayer").style.transform=tf;const ll=$("#labelLayer");if(ll){ll.style.transform=tf;ll.style.transformOrigin="0 0";}$("#zVal").textContent=Math.round(view.scale*100)+"%";if(pending)positionGhostWorld();}
-function sectorPath(pts){if(!pts.length)return "";return "M "+pts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" L ")+" Z";}
+function sectorPath(pts,curved){if(!pts.length)return "";
+  if(curved&&pts.length>=3){ // closed Catmull-Rom spline through the nodes → smooth sector edges
+    const n=pts.length,f=v=>v.toFixed(1);let d=`M ${f(pts[0].x)},${f(pts[0].y)}`;
+    for(let i=0;i<n;i++){const p0=pts[(i-1+n)%n],p1=pts[i],p2=pts[(i+1)%n],p3=pts[(i+2)%n];
+      const c1x=p1.x+(p2.x-p0.x)/6,c1y=p1.y+(p2.y-p0.y)/6,c2x=p2.x-(p3.x-p1.x)/6,c2y=p2.y-(p3.y-p1.y)/6;
+      d+=` C ${f(c1x)},${f(c1y)} ${f(c2x)},${f(c2y)} ${f(p2.x)},${f(p2.y)}`;}
+    return d+" Z";
+  }
+  return "M "+pts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" L ")+" Z";}
 function bbox(pts){let a={x:1e9,y:1e9},b={x:-1e9,y:-1e9};pts.forEach(p=>{a.x=Math.min(a.x,p.x);a.y=Math.min(a.y,p.y);b.x=Math.max(b.x,p.x);b.y=Math.max(b.y,p.y);});return {x:a.x,y:a.y,w:b.x-a.x,h:b.y-a.y};}
 
 function renderSectors(){
@@ -950,7 +958,7 @@ function renderSectors(){
     // per-sector nebula fill (clipped to polygon)
     if(s.fx&&s.fx.nebula){
       const clipId="clip"+s.id;const cp=document.createElementNS(NS,"clipPath");cp.setAttribute("id",clipId);
-      const cpp=document.createElementNS(NS,"path");cpp.setAttribute("d",sectorPath(s.points));cp.appendChild(cpp);svg.appendChild(cp);
+      const cpp=document.createElementNS(NS,"path");cpp.setAttribute("d",sectorPath(s.points,s.curved));cp.appendChild(cpp);svg.appendChild(cp);
       const gwrap=document.createElementNS(NS,"g");gwrap.setAttribute("clip-path",`url(#${clipId})`);
       gwrap.innerHTML=nebulaSVG(bb.w,bb.h,s.fx.nebulaColor||s.color,D(s.fx.nebulaColor||s.color,30),(s.id.charCodeAt(2)||3),0.7).replace(/cx="([\d.]+)"/g,(m,n)=>`cx="${(+n+bb.x).toFixed(0)}"`).replace(/cy="([\d.]+)"/g,(m,n)=>`cy="${(+n+bb.y).toFixed(0)}"`);
       svg.appendChild(gwrap);
@@ -958,10 +966,12 @@ function renderSectors(){
     const bstyle=s.borderStyle||"dashed";const bwidth=s.borderWidth!=null?s.borderWidth:(isSub?1.6:2.2);const fop=s.fillOpacity!=null?s.fillOpacity:(isSub?0.14:0.09);
     const dashFor=(st,w)=>st==="dotted"?`${(w*0.5).toFixed(1)} ${(w*2.2).toFixed(1)}`:st==="dashed"?"8 7":"none";
     const sel=selection&&selection.type==="sector"&&selection.id===s.id;
-    const p=document.createElementNS(NS,"path");p.setAttribute("d",sectorPath(s.points));
+    const p=document.createElementNS(NS,"path");p.setAttribute("d",sectorPath(s.points,s.curved));
     p.setAttribute("fill",`rgba(${r},${g},${b2},${fop})`);p.setAttribute("stroke",bstyle==="none"&&!sel?"none":s.color);
     p.setAttribute("stroke-width",sel?Math.max(bwidth,2.6):bwidth);p.setAttribute("stroke-dasharray",sel?(bstyle==="dotted"?dashFor("dotted",bwidth):"none"):dashFor(bstyle,bwidth));p.style.cursor="pointer";
-    p.addEventListener("mousedown",e=>{if(tool==="pen")return;e.stopPropagation();onSectorDown(e,s);});svg.appendChild(p);
+    p.addEventListener("mousedown",e=>{if(tool==="pen")return;e.stopPropagation();onSectorDown(e,s);});
+    if(sel&&mode==="dm")p.addEventListener("dblclick",e=>{e.stopPropagation();insertVertexAt(s,toWorld(e.clientX,e.clientY));});
+    svg.appendChild(p);
     // per-sector sparkles
     if(s.fx&&s.fx.sparkle){const rng=mulberry((s.id.charCodeAt(3)||5)*7);for(let i=0;i<14;i++){const x=bb.x+rng()*bb.w,y=bb.y+rng()*bb.h;if(!pointInPoly({x,y},s.points))continue;
       const c=document.createElementNS(NS,"circle");c.setAttribute("cx",x.toFixed(0));c.setAttribute("cy",y.toFixed(0));c.setAttribute("r",(0.6+rng()*1.6).toFixed(1));c.setAttribute("fill","#fff");c.style.animation=`twinkle ${(1.4+rng()*2).toFixed(1)}s ease-in-out infinite`;c.style.animationDelay=(rng()*3).toFixed(1)+"s";c.style.pointerEvents="none";svg.appendChild(c);}}
@@ -970,7 +980,7 @@ function renderSectors(){
       const vs=view.scale,hs=10/vs,off=44/vs,sw=1.5/vs;
       let mnx=1e9,mny=1e9,mxx=-1e9,mxy=-1e9;s.points.forEach(pt=>{mnx=Math.min(mnx,pt.x);mny=Math.min(mny,pt.y);mxx=Math.max(mxx,pt.x);mxy=Math.max(mxy,pt.y);});
       const box=document.createElementNS(NS,"rect");box.setAttribute("x",mnx);box.setAttribute("y",mny);box.setAttribute("width",mxx-mnx);box.setAttribute("height",mxy-mny);box.setAttribute("fill","none");box.setAttribute("stroke",s.color);box.setAttribute("stroke-opacity",".35");box.setAttribute("stroke-width",1/vs);box.setAttribute("stroke-dasharray",`${5/vs} ${5/vs}`);box.style.pointerEvents="none";svg.appendChild(box);
-      s.points.forEach((pt,i)=>{const h=document.createElementNS(NS,"rect");h.setAttribute("x",pt.x-hs/2);h.setAttribute("y",pt.y-hs/2);h.setAttribute("width",hs);h.setAttribute("height",hs);h.setAttribute("fill","#06040f");h.setAttribute("stroke",s.color);h.setAttribute("stroke-width",sw);h.style.cursor="grab";h.addEventListener("mousedown",e=>{e.stopPropagation();onVertexDown(e,s,i);});svg.appendChild(h);});
+      s.points.forEach((pt,i)=>{const h=document.createElementNS(NS,"rect");h.setAttribute("x",pt.x-hs/2);h.setAttribute("y",pt.y-hs/2);h.setAttribute("width",hs);h.setAttribute("height",hs);h.setAttribute("fill","#06040f");h.setAttribute("stroke",s.color);h.setAttribute("stroke-width",sw);h.style.cursor="grab";h.addEventListener("mousedown",e=>{e.stopPropagation();onVertexDown(e,s,i);});h.addEventListener("contextmenu",e=>{e.preventDefault();e.stopPropagation();deleteVertex(s,i);});svg.appendChild(h);});
       [[mnx,mny,"nwse-resize"],[mxx,mny,"nesw-resize"],[mxx,mxy,"nwse-resize"],[mnx,mxy,"nesw-resize"]].forEach(([cxp,cyp,cur])=>{const h=document.createElementNS(NS,"rect");h.setAttribute("x",cxp-hs/2);h.setAttribute("y",cyp-hs/2);h.setAttribute("width",hs);h.setAttribute("height",hs);h.setAttribute("fill",s.color);h.setAttribute("stroke","#06040f");h.setAttribute("stroke-width",1/vs);h.style.cursor=cur;h.addEventListener("mousedown",e=>{e.stopPropagation();onScaleDown(e,s);});svg.appendChild(h);});
       const cxm=(mnx+mxx)/2,topy=mny-off;
       const ln=document.createElementNS(NS,"line");ln.setAttribute("x1",cxm);ln.setAttribute("y1",mny);ln.setAttribute("x2",cxm);ln.setAttribute("y2",topy);ln.setAttribute("stroke",s.color);ln.setAttribute("stroke-opacity",".5");ln.setAttribute("stroke-width",1/vs);ln.style.pointerEvents="none";svg.appendChild(ln);
@@ -1129,6 +1139,14 @@ function onSectorDown(e,s){
   drag={move:ev=>{const w=toWorld(ev.clientX,ev.clientY),dx=w.x-start.x,dy=w.y-start.y;s.points=orig.map(p=>({x:p.x+dx,y:p.y+dy}));computeSectorParents();reassociateAll();renderSectors();renderInstances();},up:()=>{renderInspector();}};
 }
 function onVertexDown(e,s,idx){pushUndo();drag={move:ev=>{const w=toWorld(ev.clientX,ev.clientY);s.points[idx]={x:w.x,y:w.y};computeSectorParents();reassociateAll();renderSectors();renderInstances();},up:()=>{renderInspector();}};}
+function deleteVertex(s,idx){if(s.points.length<=3){toast("A sector needs at least 3 nodes");return;}pushUndo();s.points.splice(idx,1);computeSectorParents();reassociateAll();renderAll();markDirty();}
+function insertVertexAt(s,pt){ // insert a node on the outline edge nearest the click, so the perimeter can be extended
+  const n=s.points.length;let best=0,bd=Infinity,bp=pt;
+  for(let i=0;i<n;i++){const a=s.points[i],b=s.points[(i+1)%n];const dx=b.x-a.x,dy=b.y-a.y,len2=dx*dx+dy*dy||1;
+    let t=((pt.x-a.x)*dx+(pt.y-a.y)*dy)/len2;t=Math.max(0,Math.min(1,t));
+    const px=a.x+dx*t,py=a.y+dy*t,d=Math.hypot(px-pt.x,py-pt.y);
+    if(d<bd){bd=d;best=i;bp={x:px,y:py};}}
+  pushUndo();s.points.splice(best+1,0,{x:bp.x,y:bp.y});computeSectorParents();reassociateAll();renderAll();markDirty();}
 function onScaleDown(e,s){pushUndo();const c=s._centroid||polyCentroid(s.points);const start=toWorld(e.clientX,e.clientY);const sd=Math.hypot(start.x-c.x,start.y-c.y)||1;const orig=s.points.map(p=>({x:p.x,y:p.y}));
   drag={move:ev=>{const w=toWorld(ev.clientX,ev.clientY);let f=clamp(Math.hypot(w.x-c.x,w.y-c.y)/sd,0.15,12);s.points=orig.map(p=>({x:c.x+(p.x-c.x)*f,y:c.y+(p.y-c.y)*f}));computeSectorParents();reassociateAll();renderSectors();renderInstances();},up:()=>{renderInspector();}};}
 function onRotateDown(e,s){pushUndo();const c=s._centroid||polyCentroid(s.points);const start=toWorld(e.clientX,e.clientY);const sa=Math.atan2(start.y-c.y,start.x-c.x);const orig=s.points.map(p=>({x:p.x,y:p.y}));
@@ -1271,7 +1289,8 @@ function renderSectorInspector(){
     <div class="rowc"><div class="field"><label>Border style</label><select id="sBStyle">${["solid","dashed","dotted","none"].map(o=>`<option value="${o}" ${(s.borderStyle||"dashed")===o?"selected":""}>${o}</option>`).join("")}</select></div>
     <div class="field"><label>Border width <span style="float:right;color:var(--gold)" id="sBWV">${(s.borderWidth!=null?s.borderWidth:(s.parent?1.6:2.2)).toFixed(1)}</span></label><div class="slider"><input type="range" id="sBW" min="5" max="90" value="${Math.round((s.borderWidth!=null?s.borderWidth:(s.parent?1.6:2.2))*10)}"></div></div></div>
     <div class="field"><label>Fill transparency <span style="float:right;color:var(--gold)" id="sFOV">${Math.round((s.fillOpacity!=null?s.fillOpacity:(s.parent?0.14:0.09))*100)}%</span></label><div class="slider"><input type="range" id="sFO" min="0" max="70" value="${Math.round((s.fillOpacity!=null?s.fillOpacity:(s.parent?0.14:0.09))*100)}"></div></div>
-    <div style="font-size:11px;color:var(--faint);margin-top:4px">On the map: drag the <b>box corners</b> to scale, the <b>top handle</b> to rotate, or any <b>dot</b> to reshape the outline.</div>
+    <label class="chk" style="display:flex;align-items:center;gap:7px;font-size:12px;padding:4px 0;cursor:pointer"><input type="checkbox" id="sCurved" ${s.curved?"checked":""}> Curved edges (smooth outline)</label>
+    <div style="font-size:11px;color:var(--faint);margin-top:4px">On the map: drag the <b>box corners</b> to scale, the <b>top handle</b> to rotate, or any <b>dot</b> to reshape. <b>Right-click a dot</b> to delete it; <b>double-click the outline</b> to add one.</div>
     <h4>Effects</h4>${fxControls(s,()=>{renderSectors();markDirty();},false)}
     <h4>Contents (${contents.length}${subs.length?` · ${subs.length} sub`:""})</h4>
     ${subs.map(x=>`<div class="assoc" style="margin-bottom:5px;cursor:pointer" data-sec="${x.id}"><span class="cd" style="background:${x.color}"></span>◵ ${esc(x.name)} <span style="color:var(--faint);font-size:10px;margin-left:auto">sub-system</span></div>`).join('')}
@@ -1285,6 +1304,7 @@ function renderSectorInspector(){
   $("#sBStyle").onchange=e=>{s.borderStyle=e.target.value;renderSectors();markDirty();};
   $("#sBW").oninput=e=>{s.borderWidth=+e.target.value/10;$("#sBWV").textContent=s.borderWidth.toFixed(1);renderSectors();markDirty();};
   $("#sFO").oninput=e=>{s.fillOpacity=+e.target.value/100;$("#sFOV").textContent=Math.round(s.fillOpacity*100)+"%";renderSectors();markDirty();};
+  $("#sCurved").onchange=e=>{s.curved=e.target.checked;renderSectors();markDirty();};
   $("#sDel").onclick=()=>{pushUndo();state.sectors=state.sectors.filter(x=>x.id!==s.id);selection=null;computeSectorParents();reassociateAll();renderAll();markDirty();};
   box.querySelectorAll("[data-inst]").forEach(el=>el.onclick=()=>{selection={type:"instance",id:el.dataset.inst};renderAll();});
   box.querySelectorAll("[data-sec]").forEach(el=>el.onclick=()=>{selection={type:"sector",id:el.dataset.sec};renderAll();});
@@ -1481,7 +1501,7 @@ const CAMP_KEY="stardust-campaigns";
 function loadCampaigns(){try{return JSON.parse(localStorage.getItem(CAMP_KEY)||"[]");}catch(e){return [];}}
 function saveCampaigns(list){try{localStorage.setItem(CAMP_KEY,JSON.stringify(list));}catch(e){toast("Storage full — export to a file instead");}}
 function mapData(){return {type:"stardust-map",version:2,meta:state.meta,background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,
-  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label})),
+  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved})),
   instances:state.instances,assets:state.assets};}
 function stamp(){const d=new Date();return d.toISOString();}
 function publishCurrent(name){
@@ -1522,7 +1542,7 @@ function applyMapData(m){resetDiffspin();
 
 /* ============================================================ HISTORY + SAVE/LOAD ============================================================ */
 function cleanState(){return JSON.stringify({assets:state.assets,instances:state.instances,
-  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label})),
+  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved})),
   background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,meta:state.meta});}
 function snap(){return cleanState();}
 function pushUndo(){undoStack.push(snap());if(undoStack.length>60)undoStack.shift();redoStack=[];markDirty();updUndo();}
