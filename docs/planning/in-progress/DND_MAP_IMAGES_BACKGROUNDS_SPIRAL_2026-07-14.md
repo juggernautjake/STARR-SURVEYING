@@ -197,3 +197,7 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
   adjustable per instance (inspector slider); default slowed from fixed fps16 to ~8s/rotation. Verified.
 - P5: Spiralize any image (🌀) → layered DiffSpin galaxy; spingalaxy inspector exposes layer count
   (up to 9), master speed, edge blend, and per-layer speed + direction. Verified (7 layers).
+- P5b: Galaxy inspector gains rotation presets (realistic/hypnotic/vortex/counter/lazy/chaos) + core
+  breathing (per the reference Forge). Fixed #fxCanvas stuck at 300×150 (replaced-element needs
+  width/height:100%) so the ambient starfield fills the map; denser default. "More stars through the
+  background" resolved. Verified.
