@@ -1,8 +1,9 @@
 // app/dnd/campaigns/[id]/map-studio/page.tsx — the DM's galaxy Map Maker (Phase U).
 // Embeds the restyled Stardust Map Studio (a same-origin static tool under /public) so it
 // runs its proven vanilla engine unchanged, retinted to the hextech palette. DM-gated. The
-// campaign id (+ optional map id) are passed through so a later slice can wire the tool's
-// save/publish to the campaign maps API; today it persists to same-origin browser storage.
+// campaign id (+ optional map id) are passed through; the tool's embedded campaign bridge
+// wires "Save to campaign" / "Publish to players" to the /api/dnd/campaigns/[id]/maps API,
+// so built maps persist in Postgres and the player Console can load the published one.
 import { redirect } from 'next/navigation';
 import { getDndUser, getCampaignRole, isDndOpenAccess } from '@/lib/dnd/auth';
 

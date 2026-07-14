@@ -160,3 +160,10 @@ panels adopt the framed-panel / `.hexBtn` treatment. The map canvas keeps a deep
   retinted to the hextech palette (navy/gold/teal, verified via headless render); the DM `map-studio`
   route now embeds the restyled editor in a same-origin iframe. The editor is fully functional today
   and persists to same-origin browser storage; the DB swap is Slice 3.
+- **Slice 3 — Map Studio DB persistence** ✅ — a same-origin **campaign bridge** injected into
+  `public/dnd/maps/map-studio.html` activates when the tool is embedded with `?campaign=<id>`. It
+  hides the localStorage-only campaign controls and adds **☁ Save to campaign** (POST the
+  `stardust-map` JSON → create/update a `dnd_maps` row, tracking the id in the URL) and
+  **✦ Publish to players** (save + PATCH `published:true`). Opening with `?map=<id>` GETs the row
+  and `applyMapData()`s it. The native Save-file / Open-file (export/import) flows are untouched.
+  Verified headless: both DB buttons mount, native ones hidden, no script errors.

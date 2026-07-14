@@ -1458,5 +1458,94 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
   renderLibrary();applyView();renderAll();updUndo();updateCampChip();fitAll();
 })();
 </script>
+<!-- ============================================================
+     CAMPAIGN DB BRIDGE (platform integration — Phase U, slice 3)
+     When this tool is embedded under /dnd with ?campaign=<id> it swaps the
+     localStorage "publish" flow for the campaign maps API. The native
+     Save-file / Open-file (export/import) flows are left intact; only the
+     campaign persistence seam is redirected to Postgres so the DM's maps
+     survive across devices and the player Console can load them.
+============================================================ -->
+<script>
+(function campaignBridge(){
+  const qs = new URLSearchParams(location.search);
+  const campaign = qs.get("campaign");
+  if(!campaign) return;                       // stand-alone use → unchanged
+  const api = "/api/dnd/campaigns/"+encodeURIComponent(campaign)+"/maps";
+  let dbMapId = qs.get("map") || null;        // the row we're editing (null = unsaved)
+
+  // Reflect the current db map id in the URL without reloading (so refresh keeps it).
+  function syncUrl(){
+    const u = new URL(location.href);
+    if(dbMapId) u.searchParams.set("map", dbMapId); else u.searchParams.delete("map");
+    history.replaceState(null, "", u.toString());
+  }
+
+  // POST the current map JSON → create or update the campaign's built-map row.
+  async function saveToCampaign(){
+    const name = (state.meta && state.meta.name) || "Untitled Map";
+    const payload = { name, kind: "built", data: mapData() };
+    if(dbMapId) payload.id = dbMapId;
+    const r = await fetch(api, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(payload) });
+    if(!r.ok){ const e = await r.json().catch(()=>({})); throw new Error(e.error || ("Save failed ("+r.status+")")); }
+    const j = await r.json();
+    if(j.map && j.map.id){ dbMapId = j.map.id; syncUrl(); }
+    return j.map;
+  }
+
+  // PATCH published:true (saving first so players get the latest state).
+  async function publishToPlayers(){
+    await saveToCampaign();
+    const r = await fetch(api, { method:"PATCH", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ id: dbMapId, published: true }) });
+    if(!r.ok){ const e = await r.json().catch(()=>({})); throw new Error(e.error || ("Publish failed ("+r.status+")")); }
+    return (await r.json()).map;
+  }
+
+  // Load an existing campaign map into the editor on open.
+  async function loadFromCampaign(id){
+    const r = await fetch(api + "?mapId=" + encodeURIComponent(id));
+    if(!r.ok) return;                          // unmigrated / missing → keep local state
+    const j = await r.json();
+    if(j.map && j.map.data){
+      applyMapData(j.map.data);
+      if(state.meta) state.meta.name = j.map.name || state.meta.name;
+      toast('Opened “'+(j.map.name||"map")+'” from the campaign');
+    }
+  }
+
+  // ── UI: swap the local-only campaign controls for DB-backed ones ──
+  const bar = document.querySelector(".top");
+  const nativeCamp = document.getElementById("campBtn");
+  const nativePublish = document.getElementById("publishBtn");
+  if(nativeCamp) nativeCamp.style.display = "none";       // localStorage campaign list — not used on the platform
+  if(nativePublish) nativePublish.style.display = "none"; // replaced by "Publish to players" below
+
+  function mkBtn(id, cls, label){
+    const b = document.createElement("button");
+    b.id = id; b.className = "tbtn" + (cls ? " " + cls : ""); b.textContent = label;
+    return b;
+  }
+  const saveBtn = mkBtn("dbSaveBtn", "", "☁ Save to campaign");
+  const pubBtn  = mkBtn("dbPublishBtn", "aether", "✦ Publish to players");
+  saveBtn.title = "Save this map to the campaign (visible to you; players see it only after Publish).";
+  pubBtn.title  = "Save + make this the map players see in the campaign hub.";
+  if(bar){
+    if(nativePublish) bar.insertBefore(saveBtn, nativePublish);
+    else bar.appendChild(saveBtn);
+    bar.insertBefore(pubBtn, saveBtn.nextSibling);
+  }
+
+  async function guard(btn, label, fn){
+    const orig = btn.textContent; btn.disabled = true; btn.textContent = "… saving";
+    try{ await fn(); toast(label); }
+    catch(err){ toast(err.message || "Something went wrong"); }
+    finally{ btn.disabled = false; btn.textContent = orig; }
+  }
+  saveBtn.onclick = () => guard(saveBtn, "Saved to the campaign", saveToCampaign);
+  pubBtn.onclick  = () => guard(pubBtn, "Published — players can open it now", publishToPlayers);
+
+  if(dbMapId) loadFromCampaign(dbMapId);
+})();
+</script>
 </body>
 </html>
