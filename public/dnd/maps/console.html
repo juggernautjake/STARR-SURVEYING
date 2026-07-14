@@ -308,7 +308,7 @@ function art(a,animate){
   if(k==="planet3d"){if(a.sheet)return `<svg viewBox="0 0 200 200" style="width:100%;height:100%"><defs><clipPath id="p3${id}"><circle cx="100" cy="100" r="98"/></clipPath></defs><image href="${a.sheet}" x="0" y="0" width="${200*(a.cols||1)}" height="${200*(a.rows||1)}" clip-path="url(#p3${id})"/></svg>`;return `<svg viewBox="0 0 200 200" style="width:100%;height:100%"><circle cx="100" cy="100" r="90" fill="none" stroke="#5aa0e8" stroke-width="3" stroke-dasharray="6 6"/></svg>`;}
   if(k==="spingalaxy"){if(a.image)return `<svg viewBox="0 0 200 200" style="width:100%;height:100%"><defs><clipPath id="cl${id}"><circle cx="100" cy="100" r="98"/></clipPath></defs><image href="${a.image}" x="0" y="0" width="200" height="200" preserveAspectRatio="xMidYMid slice" clip-path="url(#cl${id})"/></svg>`;return "";}
   if(k==="galaxy"){return spiralSVG({arms:a.arms||2,turns:a.turns||1.1,tight:a.tight!=null?a.tight:0.9,spread:a.spread!=null?a.spread:0.7,len:a.len!=null?a.len:1,c1:c1||"#c89aff",c2:c2||"#6a3aff",core:c3||"#fff2c8",seed:a.seed||7,animate:anim,spinDur:a.spinDur||60});}
-  if(k==="star"){return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><defs><radialGradient id="s${id}" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff"/><stop offset="35%" stop-color="${L(c1,50)}"/><stop offset="70%" stop-color="${c1}"/><stop offset="100%" stop-color="${D(c1,20)}"/></radialGradient><radialGradient id="co${id}" cx="50%" cy="50%" r="50%"><stop offset="35%" stop-color="${c3}" stop-opacity=".55"/><stop offset="100%" stop-color="${c3}" stop-opacity="0"/></radialGradient></defs><circle cx="${cx}" cy="${cy}" r="96" fill="url(#co${id})" style="${anim?'animation:breathe 5s ease-in-out infinite;transform-origin:center':''}"/><g style="${anim?'animation:cspin 40s linear infinite;transform-origin:center':''}">${[...Array(14)].map((_,i)=>{const an=i/14*Math.PI*2;return `<line x1="${cx+Math.cos(an)*54}" y1="${cy+Math.sin(an)*54}" x2="${cx+Math.cos(an)*(66+rng()*14)}" y2="${cy+Math.sin(an)*(66+rng()*14)}" stroke="${c3}" stroke-width="2" opacity=".5"/>`;}).join("")}</g><circle cx="${cx}" cy="${cy}" r="50" fill="url(#s${id})"/></svg>`;}
+  if(k==="star"){return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><defs><radialGradient id="s${id}" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff"/><stop offset="35%" stop-color="${L(c1,50)}"/><stop offset="70%" stop-color="${c1}"/><stop offset="100%" stop-color="${D(c1,20)}"/></radialGradient><radialGradient id="co${id}" cx="50%" cy="50%" r="50%"><stop offset="35%" stop-color="${c3}" stop-opacity=".55"/><stop offset="100%" stop-color="${c3}" stop-opacity="0"/></radialGradient></defs><circle cx="${cx}" cy="${cy}" r="96" fill="url(#co${id})" style="${anim?'animation:breathe 5s ease-in-out infinite;transform-origin:center':''}"/>${a.rays!==false?`<g style="${anim?'animation:cspin 40s linear infinite;transform-origin:center':''}">${[...Array(14)].map((_,i)=>{const an=i/14*Math.PI*2;return `<line x1="${cx+Math.cos(an)*54}" y1="${cy+Math.sin(an)*54}" x2="${cx+Math.cos(an)*(66+rng()*14)}" y2="${cy+Math.sin(an)*(66+rng()*14)}" stroke="${c3}" stroke-width="2" opacity=".5"/>`;}).join("")}</g>`:""}<circle cx="${cx}" cy="${cy}" r="50" fill="url(#s${id})"/></svg>`;}
   if(k==="station"){const st=a.stype||"ring";let inner="";
     let spinDur=(26+rng()*18).toFixed(0),blink=true,broken=false,extra="";
     if(st==="starfort"){let pts="";for(let i=0;i<12;i++){const an=i/12*Math.PI*2,rr=i%2?66:40;pts+=`${cx+Math.cos(an)*rr},${cy+Math.sin(an)*rr} `;}inner=`<polygon points="${pts}" fill="${c1}" stroke="${c2}" stroke-width="3"/><circle cx="${cx}" cy="${cy}" r="24" fill="${c2}"/><circle cx="${cx}" cy="${cy}" r="10" fill="${c3}"/>`;}
@@ -649,11 +649,12 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
   const campBtn = document.getElementById("campBtn");
   if(campBtn) campBtn.style.display = "none";   // localStorage list — not used on the platform
 
+  let mapId = null, lastStamp = null;
+  const liveSig = arr => (arr||[]).filter(x=>x.live).map(x=>x.id+":"+Math.round(x.x)+":"+Math.round(x.y)).sort().join("|");
   async function load(){
     try{
-      let mapId = wanted;
+      mapId = wanted;
       if(!mapId){
-        // No explicit map → find the campaign's published built map.
         const lr = await fetch(api);
         if(!lr.ok) return;
         const { maps } = await lr.json();
@@ -664,10 +665,28 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
       const r = await fetch(api + "?mapId=" + encodeURIComponent(mapId));
       if(!r.ok) return;
       const { map } = await r.json();
-      if(map && map.data){ loadMap(map.data); toast('◈ '+((map.name||"Campaign map")).toUpperCase()); }
+      if(map && map.data){ loadMap(map.data); lastStamp = map.updated_at||null; toast('◈ '+((map.name||"Campaign map")).toUpperCase()); }
     }catch(e){ /* offline / unmigrated → sample map stays */ }
   }
-  load();
+  // Poll for DM-moved "live" elements; update only those (keep the player's pan/zoom + selection).
+  async function poll(){
+    if(!mapId) return;
+    try{
+      const r = await fetch(api + "?mapId=" + encodeURIComponent(mapId));
+      if(!r.ok) return;
+      const { map } = await r.json();
+      if(!map || !map.data) return;
+      if(map.updated_at && map.updated_at === lastStamp) return;
+      lastStamp = map.updated_at || lastStamp;
+      if(liveSig(map.data.instances) === liveSig(MAP.instances)) return;   // no live change
+      const newInst = map.data.instances || [];
+      newInst.filter(n=>n.live).forEach(n=>{ const cur=(MAP.instances||[]).find(x=>x.id===n.id);
+        if(cur){ cur.x=n.x; cur.y=n.y; cur.live=true; } else { MAP.instances.push(n); } });
+      MAP.instances = (MAP.instances||[]).filter(ci => !(ci.live && !newInst.some(n=>n.id===ci.id && n.live)));
+      render();   // rebuild bodies/labels at the current view
+    }catch(e){}
+  }
+  load().then(()=>{ setInterval(poll, 4000); });
 })();
 </script>
 </body>
