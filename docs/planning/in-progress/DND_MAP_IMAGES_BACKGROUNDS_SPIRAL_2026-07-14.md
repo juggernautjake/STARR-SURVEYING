@@ -164,8 +164,9 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
 ---
 
 ### P8 — Edit 3D worlds in place + spin control + build bodies in-studio
-- [ ] Per-instance **spin** control for `planet3d` in Map Studio (SpriteSpinner fps + direction) in
-      the inspector — the user's "really need to control the spin of the planet."
+- [x] Per-instance **spin** control for `planet3d` (inspector slider; `p3spin` field). Default spin
+      comes from the `.planet3d` JSON's `cfg3d.spin` ("spin defined in the JSON"); fps derived from
+      it (1× ≈ 8s/rotation) — fixes "all the same / way too fast" (was fixed fps 16). Verified.
 - [ ] "✎ Open in editor" on a `planet3d` asset/instance opens `planet-3d.html` (round-trip, P6) with
       its `cfg3d` **loaded**, so tilt / sun-shadow / atmosphere / clouds / colors / planet type / spin
       are all editable; "Send to Map" replaces the asset in place (re-bakes sprite-sheet).
@@ -191,3 +192,5 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
   edit/spin) + P9 (draggable labels) to the plan.
 - P4: Image backgrounds — `#bgLayer` renders image backdrops behind everything (fixes "doesn't show
   up"); Backdrop panel with import/built-in-starfield/fit/size/opacity/remove; size honored. Verified.
+- P8a: Per-instance 3D spin — planet3d spin now derives from the exported JSON's cfg3d.spin and is
+  adjustable per instance (inspector slider); default slowed from fixed fps16 to ~8s/rotation. Verified.

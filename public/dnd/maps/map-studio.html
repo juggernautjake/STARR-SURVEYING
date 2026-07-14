@@ -950,6 +950,7 @@ $("#placeConfirm").onclick=()=>{
   else{const inst={id:uid(),assetId:a.id,kind:a.kind,x:pending.x,y:pending.y,size:a.size,rot:0,opacity:1,name:a.name,desc:"",
       orbitParent:"",orbitRadius:0,orbitSpeed:0,sector:null,pois:[],fx:{sparkle:false,nebula:false,nebulaColor:"#8f78e6",shoot:false,color:"#ffffff"},look:snapshotLook(a)};
     if(a.kind==="image"){const maxDim=440,nw=a.natW||160,nh=a.natH||160,sc=Math.min(1,maxDim/Math.max(nw,nh));inst.w=Math.max(8,Math.round(nw*sc));inst.h=Math.max(8,Math.round(nh*sc));inst.size=Math.max(inst.w,inst.h);}
+    if(a.kind==="planet3d"){inst.p3spin=(a.cfg3d&&a.cfg3d.spin!=null)?clamp(+a.cfg3d.spin,0,3):1;}
     if(a.kind==="planet3d"&&a.pois3d&&a.pois3d.length){inst.pois=a.pois3d.map(p=>({id:uid(),type:(POI_TYPES[p.cat]?p.cat:"city"),title:p.title||"",desc:p.desc||"",ax:clamp(p.lon||0,-1,1),ay:clamp(-(p.lat||0),-1,1)}));}
     inst.sector=sectorAt({x:inst.x,y:inst.y});state.instances.push(inst);selection={type:"instance",id:inst.id};}
   clearPending();renderAll();markDirty();toast("Placed "+a.name);
@@ -1111,9 +1112,11 @@ function mountSpriteInstances(){
   Object.keys(spriteLive).forEach(id=>{if(!liveIds.has(id)){try{spriteLive[id].sp.destroy();}catch(e){}delete spriteLive[id];}});
   document.querySelectorAll('[data-p3]').forEach(el=>{const id=el.dataset.p3;const inst=state.instances.find(x=>x.id===id);if(!inst)return;const cv=el.querySelector('canvas.p3canvas');if(!cv)return;
     const look=inst.look||inst;if(!look.sheet)return;let rec=spriteLive[id];
-    if(!rec){rec=spriteLive[id]={sp:new SpriteSpinner(cv,{sheet:look.sheet,cols:look.cols,rows:look.rows,frames:look.frames,fps:16}),cv:null,sheet:null};}
+    if(!rec){rec=spriteLive[id]={sp:new SpriteSpinner(cv,{sheet:look.sheet,cols:look.cols,rows:look.rows,frames:look.frames,fps:3}),cv:null,sheet:null};}
     if(rec.cv!==cv){rec.sp.cv=cv;rec.sp.ctx=cv.getContext('2d');rec.sp._fit();rec.cv=cv;}
     if(rec.sheet!==look.sheet){rec.sheet=look.sheet;rec.sp.setSheet({sheet:look.sheet,cols:look.cols,rows:look.rows,frames:look.frames});}
+    // per-instance spin: fps derived from p3spin (1 = ~8s/rotation, a gentle default); 0 = paused
+    const spin=inst.p3spin!=null?inst.p3spin:1;rec.sp.fps=Math.max(0,(look.frames||24)/8*spin);
     rec.sp.start();});
 }
 function poiLayerHTML(i){
@@ -1452,6 +1455,9 @@ function renderInstanceInspector(){
     <div class="field"><label>Rotation <span style="float:right;color:var(--gold)" id="iRotV">${i.rot||0}°</span></label><div class="slider"><input type="range" id="iRot" min="-180" max="180" value="${i.rot||0}"></div></div>
     <div class="field"><label>Opacity <span style="float:right;color:var(--gold)" id="iOpV">${Math.round((i.opacity!=null?i.opacity:1)*100)}%</span></label><div class="slider"><input type="range" id="iOp" min="0" max="100" value="${Math.round((i.opacity!=null?i.opacity:1)*100)}"></div></div>
     <div style="font-size:11px;color:var(--faint);margin-top:2px">On the map: drag the <b>corner dots</b> to scale, the <b>top dot</b> to rotate (hold Shift to snap).</div>
+    ${i.kind==="planet3d"?`<h4>3D spin</h4>
+      <div class="field"><label>Spin speed <span style="float:right;color:var(--gold)" id="iSpinV">${(i.p3spin!=null?i.p3spin:1).toFixed(1)}×</span></label><div class="slider"><input type="range" id="iSpin" min="0" max="30" value="${Math.round((i.p3spin!=null?i.p3spin:1)*10)}"></div></div>
+      <div style="font-size:11px;color:var(--faint)">0 = paused. Each 3D world keeps its own spin (its exported speed sets the default).</div>`:``}
     <div class="actionbtns"><button class="gold" id="iEdit">✎ Open in editor</button></div>
     <div class="actionbtns"><button id="iDupe">Duplicate</button><button class="danger" id="iDel">Delete</button></div>`;
   $("#iName").oninput=e=>{i.name=e.target.value;renderInstances();renderLabels();markDirty();};
@@ -1463,6 +1469,7 @@ function renderInstanceInspector(){
   $("#iSize").oninput=e=>{const nv=+e.target.value,f=nv/(i.size||nv);i.size=nv;if(i.w!=null){i.w=Math.max(6,Math.round(i.w*f));i.h=Math.max(6,Math.round(i.h*f));}$("#iSzV").textContent=i.size;renderInstances();renderLabels();markDirty();};
   $("#iRot").oninput=e=>{i.rot=+e.target.value;$("#iRotV").textContent=i.rot+"°";renderInstances();renderLabels();markDirty();};
   $("#iOp").oninput=e=>{i.opacity=+e.target.value/100;$("#iOpV").textContent=Math.round(i.opacity*100)+"%";renderInstances();markDirty();};
+  if(i.kind==="planet3d"){const sp=$("#iSpin");if(sp)sp.oninput=e=>{i.p3spin=+e.target.value/10;$("#iSpinV").textContent=i.p3spin.toFixed(1)+"×";mountSpriteInstances();markDirty();};}
   $("#iEdit").onclick=()=>{const a=state.assets.find(x=>x.id===i.assetId)||{...i.look,name:i.name,kind:i.kind,size:i.size,id:uid()};openEditor(a,"edit",i);};
   $("#iDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;if(c.pois)c.pois.forEach(p=>p.id=uid());reassoc(c);state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
   $("#iDel").onclick=()=>{pushUndo();state.instances=state.instances.filter(x=>x.id!==i.id);selection=null;renderAll();markDirty();};
