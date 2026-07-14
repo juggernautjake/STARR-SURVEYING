@@ -69,6 +69,12 @@
   #fxCanvas{position:absolute;inset:0;pointer-events:none;z-index:3;}
   #svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:1;}
   .bodyLayer{position:absolute;inset:0;transform-origin:0 0;z-index:2;}
+  #labelLayer{position:absolute;inset:0;width:100%;height:100%;overflow:visible;transform-origin:0 0;z-index:4;pointer-events:none;}
+  #labelLayer .lblhit{pointer-events:auto;cursor:move;}
+  details.lblsec{margin:8px 0;border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:var(--panel2);}
+  details.lblsec>summary{cursor:pointer;font-family:"Orbitron";font-size:11px;letter-spacing:1px;color:var(--gold);list-style:none;padding:3px 0;}
+  details.lblsec>summary::-webkit-details-marker{display:none;}
+  details.lblsec>summary::before{content:"▸ ";}details.lblsec[open]>summary::before{content:"▾ ";}
   .inst{position:absolute;transform:translate(-50%,-50%);cursor:move;}
   .inst .art{width:100%;height:100%;pointer-events:none;position:relative;}
   .inst .poilayer{position:absolute;inset:0;pointer-events:none;z-index:5;}
@@ -223,7 +229,7 @@
       <button data-tool="poi" title="Click a planet, then click to drop a POI (O)">◈ Drop POI</button>
       <button data-tool="fx" title="Map ambience & effects">✧ Effects</button>
     </div>
-    <div id="canvas"><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><canvas id="fxCanvas"></canvas></div>
+    <div id="canvas"><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><canvas id="fxCanvas"></canvas><svg id="labelLayer"></svg></div>
   </div>
   <div class="insp">
     <div class="ihead" id="inspHead">◈ INSPECTOR</div>
@@ -931,7 +937,7 @@ const sectorById=()=>{const m={};state.sectors.forEach(s=>m[s.id]=s);return m;};
 
 /* ============================================================ VIEW / RENDER ============================================================ */
 function toWorld(sx,sy){const r=$("#canvas").getBoundingClientRect();return {x:(sx-r.left-view.x)/view.scale,y:(sy-r.top-view.y)/view.scale};}
-function applyView(){$("#svg").style.transform=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;$("#svg").style.transformOrigin="0 0";$("#bodyLayer").style.transform=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;$("#zVal").textContent=Math.round(view.scale*100)+"%";if(pending)positionGhostWorld();}
+function applyView(){const tf=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;$("#svg").style.transform=tf;$("#svg").style.transformOrigin="0 0";$("#bodyLayer").style.transform=tf;const ll=$("#labelLayer");if(ll){ll.style.transform=tf;ll.style.transformOrigin="0 0";}$("#zVal").textContent=Math.round(view.scale*100)+"%";if(pending)positionGhostWorld();}
 function sectorPath(pts){if(!pts.length)return "";return "M "+pts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" L ")+" Z";}
 function bbox(pts){let a={x:1e9,y:1e9},b={x:-1e9,y:-1e9};pts.forEach(p=>{a.x=Math.min(a.x,p.x);a.y=Math.min(a.y,p.y);b.x=Math.max(b.x,p.x);b.y=Math.max(b.y,p.y);});return {x:a.x,y:a.y,w:b.x-a.x,h:b.y-a.y};}
 
@@ -977,9 +983,9 @@ function renderInstances(){
     const el=document.createElement("div");el.className="inst"+(selection&&selection.type==="instance"&&selection.id===i.id?" sel":"");
     el.style.cssText=`left:${i.x}px;top:${i.y}px;width:${i.size}px;height:${i.size}px;`;
     const fxo=fxOverlay(i.fx,i.look&&i.look.seed);
-    if(i.kind==="spingalaxy"){el.innerHTML=`<div class="art">${fxo}<canvas class="dscanvas" style="width:100%;height:100%;display:block;border-radius:50%"></canvas></div>${poiLayerHTML(i)}<div class="nm">${esc(i.name)}</div>`;el.dataset.ds=i.id;}
-    else if(i.kind==="planet3d"){el.innerHTML=`<div class="art">${fxo}<canvas class="p3canvas" style="width:100%;height:100%;display:block;border-radius:50%"></canvas></div><div class="nm">${esc(i.name)}</div>`;el.dataset.p3=i.id;}
-    else{el.innerHTML=`<div class="art">${fxo}${art(i.look||i,true)}</div>${poiLayerHTML(i)}<div class="nm">${esc(i.name)}</div>`;}
+    if(i.kind==="spingalaxy"){el.innerHTML=`<div class="art">${fxo}<canvas class="dscanvas" style="width:100%;height:100%;display:block;border-radius:50%"></canvas></div>${poiLayerHTML(i)}`;el.dataset.ds=i.id;}
+    else if(i.kind==="planet3d"){el.innerHTML=`<div class="art">${fxo}<canvas class="p3canvas" style="width:100%;height:100%;display:block;border-radius:50%"></canvas></div>`;el.dataset.p3=i.id;}
+    else{el.innerHTML=`<div class="art">${fxo}${art(i.look||i,true)}</div>${poiLayerHTML(i)}`;}
     el.addEventListener("mousedown",e=>{if(e.target.closest(".poi"))return;e.stopPropagation();onInstDown(e,i);});
     el.addEventListener("dblclick",e=>{if(mode!=="dm")return;e.stopPropagation();const a=state.assets.find(x=>x.id===i.assetId)||{...i.look,name:i.name,kind:i.kind,size:i.size};openEditor(a,"edit");});
     // POI interactions
@@ -990,6 +996,7 @@ function renderInstances(){
     layer.appendChild(el);
   });
   mountDiffspinInstances();mountSpriteInstances();
+  renderLabels();   // labels live in the overlay layer; keep them in lockstep with the bodies
 }
 const spriteLive={};
 function mountSpriteInstances(){
@@ -1010,6 +1017,21 @@ function poiLayerHTML(i){
     const selc=selection&&selection.type==="poi"&&selection.poi===p.id?" sel":"";
     return `<div class="poi${selc}" data-poi="${p.id}" title="${esc(p.title)} — ${poiType(p.type).label}" style="left:${lx}%;top:${ly}%">${poiIconSVG(p.type,iconPx)}</div>`;
   }).join("")+`</div>`;
+}
+// Body name labels default a little smaller/cooler than a title; the DM can override everything.
+const BODY_LABEL_DEFAULT={font:'Rajdhani',size:13,weight:600,color:'#e8e6ff',tracking:0.4,shadow:true};
+function bodyLabelStyle(i){return mergeLabelStyle(Object.assign({},BODY_LABEL_DEFAULT,i.label||{}));}
+function renderLabels(){
+  const layer=$("#labelLayer");if(!layer||typeof labelSVG!=="function"){if(layer)layer.innerHTML="";return;}
+  let out="";
+  state.instances.forEach(i=>{
+    if(i.kind==="text")return;                 // free text objects are their own kind (later slice)
+    const st=bodyLabelStyle(i);if(st.show===false)return;
+    const r=labelSVG(i.name,st);if(!r.g)return;
+    const cx=i.x+i.size/2, ay=i.y+i.size+4;    // just beneath the body, centered
+    out+=`<g transform="translate(${cx.toFixed(1)},${ay.toFixed(1)})">${r.g}</g>`;
+  });
+  layer.innerHTML=out;
 }
 function renderAll(){renderSectors();renderInstances();renderInspector();updateStatus();updateTabBadges();}
 
@@ -1205,6 +1227,7 @@ function renderInstanceInspector(){
   const sm=sectorById();const sec=i.sector?sm[i.sector]:null;const others=state.instances.filter(x=>x.id!==i.id);
   $("#inspHead").textContent="◈ "+i.kind.toUpperCase();
   if(mode!=="dm"){box.innerHTML=playReadout(i.name,i.kind,sec?sec.name:"",i.desc,[],[],sec?sec.color:"#8f78e6",i.pois);return;}
+  i.label=i.label||Object.assign({},BODY_LABEL_DEFAULT);
   box.innerHTML=`
     <div class="field"><label>Name</label><input id="iName" value="${esc(i.name)}"></div>
     <h4>Association</h4>
@@ -1218,15 +1241,17 @@ function renderInstanceInspector(){
     <h4>Effects</h4>${fxControls(i,()=>{renderInstances();markDirty();},true)}
     <h4>Info</h4>
     <div class="field"><label>Description</label><textarea id="iDesc" placeholder="Lore, notes, hover text…">${esc(i.desc)}</textarea></div>
+    <details class="lblsec"><summary>◈ Label &amp; text formatting</summary><div style="font-size:11px;color:var(--faint);margin:4px 0 8px">The label shows the body's <b>name</b> on the map. Format its font, size, color, effects, and shape.</div>${labelControlsHTML(i.label,'il')}</details>
     <div class="field"><label>Size <span style="float:right;color:var(--gold)" id="iSzV">${i.size}</span></label><div class="slider"><input type="range" id="iSize" min="20" max="200" value="${i.size}"></div></div>
     <div class="actionbtns"><button class="gold" id="iEdit">✎ Open in editor</button></div>
     <div class="actionbtns"><button id="iDupe">Duplicate</button><button class="danger" id="iDel">Delete</button></div>`;
-  $("#iName").oninput=e=>{i.name=e.target.value;renderInstances();markDirty();};
+  $("#iName").oninput=e=>{i.name=e.target.value;renderInstances();renderLabels();markDirty();};
   $("#iParent").onchange=e=>{i.orbitParent=e.target.value;markDirty();};
   $("#iRad").oninput=e=>{i.orbitRadius=+e.target.value;markDirty();};
   $("#iSpd").oninput=e=>{i.orbitSpeed=+e.target.value;markDirty();};
   $("#iDesc").oninput=e=>{i.desc=e.target.value;markDirty();};
-  $("#iSize").oninput=e=>{i.size=+e.target.value;$("#iSzV").textContent=i.size;renderInstances();markDirty();};
+  wireLabelControls('il',i.label,()=>{renderLabels();markDirty();});
+  $("#iSize").oninput=e=>{i.size=+e.target.value;$("#iSzV").textContent=i.size;renderInstances();renderLabels();markDirty();};
   $("#iEdit").onclick=()=>{const a=state.assets.find(x=>x.id===i.assetId)||{...i.look,name:i.name,kind:i.kind,size:i.size,id:uid()};openEditor(a,"edit",i);};
   $("#iDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;if(c.pois)c.pois.forEach(p=>p.id=uid());reassoc(c);state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
   $("#iDel").onclick=()=>{pushUndo();state.instances=state.instances.filter(x=>x.id!==i.id);selection=null;renderAll();markDirty();};

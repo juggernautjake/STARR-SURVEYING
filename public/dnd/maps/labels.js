@@ -47,7 +47,8 @@
     curve: 0,           // -100..100 arc amount (0 = straight); positive = arch up
     rotate: 0,          // degrees
     outline: 0, outlineColor: '#010a13',      // stroke halo width (px)
-    glow: 0, glowColor: '#0ac8b9',            // blur radius (px)
+    glow: 0, glowColor: '#0ac8b9',            // glow radius (px), color independent of the font
+    pulse: false, pulseSpeed: 1.6,            // animate the glow (or opacity) so the label breathes
     shadow: true,                              // soft drop shadow
     plate: false, plateColor: '#0b1a2c', plateOpacity: 0.7,
     dx: 0, dy: 0
@@ -124,37 +125,47 @@
       ' letter-spacing="' + (st.tracking || 0) + '"' +
       ' fill="' + st.color + '"';
 
-    // effect filter (glow + shadow), applied to the text only
-    var filterDef = '', filterAttr = '';
-    if ((st.glow && st.glow > 0) || st.shadow) {
-      var prims = '';
-      if (st.glow && st.glow > 0) {
-        prims += '<feGaussianBlur in="SourceAlpha" stdDeviation="' + st.glow + '" result="gb"/>' +
-                 '<feFlood flood-color="' + st.glowColor + '" flood-opacity="0.95" result="gc"/>' +
-                 '<feComposite in="gc" in2="gb" operator="in" result="glow"/>';
+    // effects → CSS filter on the text (drop-shadow glow, independently colored, animatable for
+    // pulse); outline is a paint-order stroke halo. Font color and effect colors are independent.
+    var shadowFilter = st.shadow ? 'drop-shadow(0 1px 1.4px rgba(0,0,0,0.85))' : '';
+    var filters = [];
+    if (st.shadow) filters.push('drop-shadow(0 1px 1.4px rgba(0,0,0,0.85))');
+    var animCss = '', animRule = '';
+    if (st.glow && st.glow > 0) {
+      var g = st.glow, gc = st.glowColor;
+      filters.push('drop-shadow(0 0 ' + g + 'px ' + gc + ')');
+      filters.push('drop-shadow(0 0 ' + (g * 0.5).toFixed(1) + 'px ' + gc + ')');
+      if (st.pulse) {
+        var an = 'plz' + id, spd = st.pulseSpeed || 1.6, sp = shadowFilter ? shadowFilter + ' ' : '';
+        var dim = sp + 'drop-shadow(0 0 ' + (g * 0.5).toFixed(1) + 'px ' + gc + ')';
+        var bright = sp + 'drop-shadow(0 0 ' + (g * 1.9).toFixed(1) + 'px ' + gc + ') drop-shadow(0 0 ' + (g * 1.0).toFixed(1) + 'px ' + gc + ')';
+        animCss = '<style>@keyframes ' + an + '{0%,100%{filter:' + dim + ';}50%{filter:' + bright + ';}}</style>';
+        animRule = 'animation:' + an + ' ' + spd + 's ease-in-out infinite';
       }
-      if (st.shadow) {
-        prims += '<feDropShadow dx="0" dy="1" stdDeviation="1.4" flood-color="#000000" flood-opacity="0.85" result="sh"/>';
-      }
-      var merges = (st.glow && st.glow > 0 ? '<feMergeNode in="glow"/>' : '') +
-                   (st.shadow ? '<feMergeNode in="sh"/>' : '') +
-                   '<feMergeNode in="SourceGraphic"/>';
-      filterDef = '<filter id="f' + id + '" x="-60%" y="-60%" width="220%" height="220%">' + prims + '<feMerge>' + merges + '</feMerge></filter>';
-      filterAttr = ' filter="url(#f' + id + ')"';
+    } else if (st.pulse) {
+      // pulse with no glow → gentle opacity breathe
+      var an2 = 'plo' + id, spd2 = st.pulseSpeed || 1.6;
+      animCss = '<style>@keyframes ' + an2 + '{0%,100%{opacity:1;}50%{opacity:0.45;}}</style>';
+      animRule = 'animation:' + an2 + ' ' + spd2 + 's ease-in-out infinite';
     }
+    var styleParts = [];
+    if (st.outline && st.outline > 0) styleParts.push('paint-order:stroke');
+    if (filters.length) styleParts.push('filter:' + filters.join(' '));
+    if (animRule) styleParts.push(animRule);
+    var styleAttr = styleParts.length ? ' style="' + styleParts.join(';') + '"' : '';
     var outlineAttr = (st.outline && st.outline > 0)
-      ? ' stroke="' + st.outlineColor + '" stroke-width="' + (st.outline * 2) + '" stroke-linejoin="round" style="paint-order:stroke"'
+      ? ' stroke="' + st.outlineColor + '" stroke-width="' + (st.outline * 2) + '" stroke-linejoin="round"'
       : '';
 
-    var body, w, h;
+    var body, w, h, defs = '';
     if (st.curve && st.curve !== 0) {
       // curved → single line following an arc
       var line = raw.replace(/\n/g, ' ');
       w = measure(line, st);
       var arc = arcPath(w, st.curve);
       h = st.size * 1.3 + Math.abs(arc.rise || 0);
-      filterDef = '<defs>' + filterDef + '<path id="p' + id + '" d="' + arc.d + '"/></defs>';
-      body = '<text' + common + outlineAttr + filterAttr + ' dominant-baseline="middle">' +
+      defs = '<defs><path id="p' + id + '" d="' + arc.d + '"/></defs>';
+      body = animCss + '<text' + common + outlineAttr + styleAttr + ' dominant-baseline="middle">' +
                 '<textPath href="#p' + id + '" xlink:href="#p' + id + '" startOffset="50%" text-anchor="middle">' + esc(line) + '</textPath>' +
              '</text>';
     } else {
@@ -162,14 +173,12 @@
       var lh = (st.lineHeight || 1.18) * st.size;
       w = 0; for (var i = 0; i < lines.length; i++) w = Math.max(w, measure(lines[i], st));
       h = lines.length * lh;
-      var x0 = 0;
       var tspans = '';
       for (var j = 0; j < lines.length; j++) {
         var dy = j === 0 ? st.size * 0.82 : lh;
-        tspans += '<tspan x="' + x0 + '" dy="' + dy.toFixed(2) + '">' + (lines[j] === '' ? '&#8203;' : esc(lines[j])) + '</tspan>';
+        tspans += '<tspan x="0" dy="' + dy.toFixed(2) + '">' + (lines[j] === '' ? '&#8203;' : esc(lines[j])) + '</tspan>';
       }
-      if (filterDef) filterDef = '<defs>' + filterDef + '</defs>';
-      body = '<text' + common + outlineAttr + filterAttr + ' text-anchor="' + textAnchor + '">' + tspans + '</text>';
+      body = animCss + '<text' + common + outlineAttr + styleAttr + ' text-anchor="' + textAnchor + '">' + tspans + '</text>';
     }
 
     // optional background plate (straight text only)
@@ -182,7 +191,7 @@
               '" fill="' + st.plateColor + '" fill-opacity="' + st.plateOpacity + '"/>';
     }
 
-    var inner = filterDef + plate + body;
+    var inner = defs + plate + body;
     var xform = 'translate(' + (st.dx || 0) + ',' + (st.dy || 0) + ')' + (st.rotate ? ' rotate(' + st.rotate + ')' : '');
     var g = '<g transform="' + xform + '" opacity="' + (st.opacity != null ? st.opacity : 1) + '">' + inner + '</g>';
     return { g: g, w: w, h: h };
@@ -215,6 +224,8 @@
       '<div class="field" style="margin:2px 0 8px"><label>Outline color</label><input type="color" id="' + p + 'OutlineC" value="' + st.outlineColor + '"></div>' +
       slider('Glow', 'Glow', 0, 12, st.glow, 'px') +
       '<div class="field" style="margin:2px 0 8px"><label>Glow color</label><input type="color" id="' + p + 'GlowC" value="' + st.glowColor + '"></div>' +
+      '<label class="chk"><input type="checkbox" id="' + p + 'Pulse"' + (st.pulse ? ' checked' : '') + '> ✦ Pulse (animated glow)</label>' +
+      slider('PulseSpd', 'Pulse speed', 4, 60, Math.round(st.pulseSpeed * 10), '') +
       '<label class="chk"><input type="checkbox" id="' + p + 'Shadow"' + (st.shadow ? ' checked' : '') + '> Drop shadow</label>' +
       '<label class="chk"><input type="checkbox" id="' + p + 'Plate"' + (st.plate ? ' checked' : '') + '> Background plate</label>' +
       '<div class="field" style="margin:2px 0 8px"><label>Plate color</label><input type="color" id="' + p + 'PlateC" value="' + st.plateColor + '"></div>' +
@@ -237,6 +248,8 @@
     num('Wrap', 'wrap', 'WrapV', 'px'); num('Curve', 'curve', 'CurveV', ''); num('Rotate', 'rotate', 'RotateV', '°');
     num('Outline', 'outline', 'OutlineV', 'px'); on($('OutlineC'), 'oninput', function (e) { style.outlineColor = e.target.value; onChange(); });
     num('Glow', 'glow', 'GlowV', 'px'); on($('GlowC'), 'oninput', function (e) { style.glowColor = e.target.value; onChange(); });
+    on($('Pulse'), 'onchange', function (e) { style.pulse = e.target.checked; onChange(); });
+    on($('PulseSpd'), 'oninput', function (e) { style.pulseSpeed = (+e.target.value) / 10; var v = $('PulseSpdV'); if (v) v.textContent = style.pulseSpeed.toFixed(1); onChange(); });
     on($('Shadow'), 'onchange', function (e) { style.shadow = e.target.checked; onChange(); });
     on($('Plate'), 'onchange', function (e) { style.plate = e.target.checked; onChange(); });
     on($('PlateC'), 'oninput', function (e) { style.plateColor = e.target.value; onChange(); });

@@ -139,3 +139,16 @@ annotate this doc. No DB migration needed; the existing `seeds/421_dnd_maps.sql`
   an optional background **plate**. Verified headless in-browser: straight→text+tspan, wrap→4 lines,
   curve→textPath+path, rotate→transform, glow→feGaussianBlur filter, outline→paint-order, plate→rect,
   `show:false`→empty, and mounts into a live SVG with no parse errors.
+  - **Follow-up (per user):** added animated **pulse** — a breathing glow (or opacity breathe when
+    no glow) via embedded `@keyframes`, with a Pulse toggle + speed control. Effects moved to CSS
+    `filter: drop-shadow` (animatable, independently colored) rather than an SVG filter; font color,
+    glow color, and outline color are all independent. Bold = weight slider; italic = toggle.
+- **Slice 2 — Instance labels (Studio)** ✅ — added a `#labelLayer` SVG overlay inside `#canvas`
+  (z-above bodies, same world transform as `applyView`); body names now render through `labelSVG`
+  into it (the plain `.nm` div retired), so every body label is fully formattable. A collapsible
+  **"◈ Label & text formatting"** section (shared `labelControlsHTML`/`wireLabelControls`) was added
+  to the instance inspector, writing to `i.label` (persists via whole-instance serialization).
+  `renderInstances` refreshes labels in lockstep so they track drags/resizes. Verified headless:
+  names render as SVG text, UPPERCASE/curve(textPath)/pulse(@keyframes)/glow all apply, layer
+  transform synced, zero errors; screenshot confirms Cinzel+outline, curved+glow, and rotated
+  handwritten labels on the map.
