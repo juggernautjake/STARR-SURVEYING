@@ -191,6 +191,17 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
 - [x] Works for planets/bodies and systems/sectors; persists (label saved on the object).
 - [x] Browser-verify: planet name offset via drag path renders at the new position.
 
+### P10 — Late asks (smooth spin, stylized cursor)
+- [x] Smooth 3D spin: cross-fade frame interpolation in both SpriteSpinners + sprite frames 12–180
+      (default 72), persisted in config. (see ship log)
+- [ ] Stylized cursor sync: **investigated — no custom mouse-following cursor exists** in
+      `public/dnd/maps/*.html` or `app/dnd/**` (no `cursor:none`, no cursor-follow element). The only
+      pointer-tracking stylized element is the Map Studio placement **ghost** (`.ghost`, fixed,
+      centered on the pointer via `translate(-50%,-50%)`), shown while dragging a library asset onto
+      the canvas. **Blocked on user input:** which screen/action shows the mis-synced cursor? If it's
+      the placement ghost, it already centers on the cursor (offset is intentional so the asset drops
+      centered) — confirm whether it should tip-anchor instead.
+
 ## 4. Ship log
 (Stop-hook driven. One line per shipped slice: `P#: <what shipped> — <commit>`.)
 - P1: Universal image import — new `image` kind + Images tab + `importImage` (png/jpg/gif/webp/svg),
