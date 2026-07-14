@@ -194,13 +194,12 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
 ### P10 — Late asks (smooth spin, stylized cursor)
 - [x] Smooth 3D spin: cross-fade frame interpolation in both SpriteSpinners + sprite frames 12–180
       (default 72), persisted in config. (see ship log)
-- [ ] Stylized cursor sync: **investigated — no custom mouse-following cursor exists** in
-      `public/dnd/maps/*.html` or `app/dnd/**` (no `cursor:none`, no cursor-follow element). The only
-      pointer-tracking stylized element is the Map Studio placement **ghost** (`.ghost`, fixed,
-      centered on the pointer via `translate(-50%,-50%)`), shown while dragging a library asset onto
-      the canvas. **Blocked on user input:** which screen/action shows the mis-synced cursor? If it's
-      the placement ghost, it already centers on the cursor (offset is intentional so the asset drops
-      centered) — confirm whether it should tip-anchor instead.
+- [x] Stylized cursor sync: investigated — no custom mouse-following cursor exists in the map tools
+      or `/dnd` (repo-wide search: 0 matches; no `cursor:none`). Only the placement ghost tracks the
+      pointer. **Dropped per user ("forget about the cursor").**
+- [x] Delete assets from library tabs: every library thumbnail (3D worlds, images, spingalaxies,
+      planets, …) gets a ✕ delete button → `deleteAsset` removes it from `state.assets` (and tears
+      down its live preview engine); placed instances keep their look snapshot. Verified.
 
 ## 4. Ship log
 (Stop-hook driven. One line per shipped slice: `P#: <what shipped> — <commit>`.)
@@ -233,3 +232,5 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
   an image background with dense stars renders for players.
 - Smooth spin: cross-fade frame interpolation in both SpriteSpinners + sprite frames raised to 12–180
   (default 72) so slowed 3D planets stay smooth. Verified both pages load clean.
+- P11: Library asset delete — ✕ button on every thumbnail removes it from the library (placed copies
+  kept). Verified. Stylized-cursor item dropped per user.
