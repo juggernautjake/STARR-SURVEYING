@@ -154,7 +154,8 @@
     <div class="exportnote">Bundles a spinning sprite-sheet + this planet's settings + its POIs. Import it in Map Studio's <b>3D</b> tab to place a spinning 3D world on your campaign map.</div>
     <button class="btn good" id="expPNG">⬇ High-res PNG (still)</button>
     <button class="btn" id="expSheet">⬇ Rotating sprite-sheet (PNG)</button>
-    <div class="field" style="margin-top:8px"><label>Sprite frames <span class="v" id="framesV">24</span></label><div class="slider"><input type="range" id="frames" min="8" max="48" step="4" value="24"></div></div>
+    <div class="field" style="margin-top:8px"><label>Sprite frames <span class="v" id="framesV">72</span></label><div class="slider"><input type="range" id="frames" min="12" max="180" step="4" value="72"></div></div>
+    <div class="exportnote">More frames = smoother, slower spin (frames are cross-fade interpolated on the map). Higher counts make bigger files.</div>
     <button class="btn" id="expConfig">⬇ Save config (JSON)</button>
     <button class="btn" id="loadConfig">↑ Load config / .planet3d</button>
     <div class="exportnote">Config is a tiny recipe that regenerates this exact planet (and its POIs) anywhere.</div>
@@ -350,7 +351,7 @@ function config(){return {v:1,type:S.type,seed:S.seed,sea:+$("#sea").value/100,c
   cloudDef:+$("#clDef").value/100,cloudSwirl:+$("#clSwirl").value/100,cloudBand:+$("#clBand").value/100,cloudBandN:+$("#clBandN").value,cloudShear:+$("#clShear").value/100,
   storms:+$("#clStorms").value,stormI:+$("#clStormI").value/100,lightOn:$("#lightOn").checked,lightRate:+$("#lightRate").value/100,lightColor:$("#cLight").value,
   ringOn:$("#ringOn").checked,ringColor:$("#cRing").value,ringW:+$("#ringW").value/100,
-  sun:+$("#sun").value,tilt:+$("#tilt").value,spin:+$("#spin").value/10,
+  sun:+$("#sun").value,tilt:+$("#tilt").value,spin:+$("#spin").value/10,frames:+$("#frames").value,
   pois:pois.map(p=>({lon:p.lon,lat:p.lat,title:p.title,desc:p.desc,icon:p.icon,color:p.color,cat:p.cat}))};}
 
 function rebuild(){
@@ -541,7 +542,7 @@ function applyConfig(c){
   setVal("clDef",Math.round((c.cloudDef??0.5)*100));setVal("clSwirl",Math.round((c.cloudSwirl??0.3)*100));setVal("clBand",Math.round((c.cloudBand??0.4)*100));setVal("clBandN",c.cloudBandN??7);setVal("clShear",Math.round((c.cloudShear??0.35)*100));
   setVal("clStorms",c.storms??2);setVal("clStormI",Math.round((c.stormI??0.65)*100));setVal("lightOn",c.lightOn!==false);setVal("lightRate",Math.round((c.lightRate??0.5)*100));if(c.lightColor)setVal("cLight",c.lightColor);
   setVal("ringOn",!!c.ringOn);if(c.ringColor)setVal("cRing",c.ringColor);setVal("ringW",Math.round((c.ringW??0.5)*100));
-  setVal("sun",c.sun??30);setVal("tilt",c.tilt??18);setVal("spin",Math.round((c.spin??1)*10));
+  setVal("sun",c.sun??30);setVal("tilt",c.tilt??18);setVal("spin",Math.round((c.spin??1)*10));if(c.frames)setVal("frames",c.frames);
   pois=(c.pois||[]).map(p=>({id:uid(),...p}));selectPOI(null);
   rebuild();refreshPOIs();
 }

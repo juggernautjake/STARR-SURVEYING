@@ -155,12 +155,19 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
       both pages load clean; `?studio=1` handlers active only with an opener. (Full popup handshake is
       cross-window; each half verified independently.)
 
-### P7 — Console parity, persistence, final verify
-- [ ] Mirror render-affecting additions into `console.html`: `image` instances (real size/aspect,
-      opacity, rotation), image background (mode/fit/size/opacity), 7-layer spin.
-- [ ] Confirm serialization round-trips every new field (`mapData`, `cleanState`, sector list if
-      touched); publish a map in Studio and confirm the Console shows images + background + spins.
-- [ ] Browser-verify end-to-end: Studio publish → Console load renders everything identically.
+### P7 — Console parity, persistence, final verify ✅
+- [x] `console.html` mirrors: `image` instances (real w/h, aspect, rotation, opacity, crop via
+      object-fit/position + `art()` image case), image background (`#bgLayer`, same fit/size/opacity),
+      planet3d spin from `p3spin`, and the `#fxCanvas` full-size fix (dense stars). Spingalaxy still
+      renders its static galaxy image in the console (live per-layer diffspin for placed instances is
+      a follow-up; center-galaxy already animates).
+- [x] New fields ride on `instances`/`background` which serialize whole (studio `mapData`), so they
+      round-trip; sector `curved` added to the explicit sector list + cleanState.
+- [x] Browser-verify: a map with an image instance (rotated, semi-transparent) + image background +
+      dense stars renders in the Console. (screenshot in session)
+- [x] Smooth spin: SpriteSpinner cross-fades adjacent frames (fractional position) in studio +
+      console so any speed is smooth; planet-3d sprite frames raised to 12–180 (default 72) + frames
+      persisted in config. Fixes "jerky when slowed."
 
 ---
 
@@ -210,3 +217,8 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
   reload; studio import + both pages clean verified.
 - P12: Image crop/fit — instance Fit (contain/cover/fill) + Crop X/Y (object-position) in the
   inspector; verified cover-crop of a wide image into a square box. Completes resize/crop/transparency.
+- P7: Console parity — images (size/aspect/rotation/opacity/crop), image backgrounds, planet3d spin,
+  fxCanvas full-size star fix ported to console.html. Verified: rotated semi-transparent image over
+  an image background with dense stars renders for players.
+- Smooth spin: cross-fade frame interpolation in both SpriteSpinners + sprite frames raised to 12–180
+  (default 72) so slowed 3D planets stay smooth. Verified both pages load clean.
