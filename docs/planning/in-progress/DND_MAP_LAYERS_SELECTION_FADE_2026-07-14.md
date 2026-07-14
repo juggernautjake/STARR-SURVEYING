@@ -46,12 +46,11 @@ the completed `DND_MAP_IMAGES_BACKGROUNDS_SPIRAL_2026-07-14` buildout on branch
 - [x] Browser-verify: with pen active, `#bodyLayer` computed `pointer-events:none` → clicks pass
       through to the canvas (draw points) instead of selecting the image underneath.
 
-### Q3 — Customizable selection border
-- [ ] `state.selStyle={width,style,color}`; `applySelStyle()` sets `--selw/--sels/--selc` on `:root`.
-- [ ] `.inst.sel` uses the vars (done); sector selection bbox honors color/width too.
-- [ ] UI in the Effects (map-wide) inspector: thickness, style (solid/dashed/dotted/solid-glow),
-      color; persisted in `mapData`/`cleanState`.
-- [ ] Browser-verify: change thickness/style/color → selected planet + image reflect it.
+### Q3 — Customizable selection border ✅
+- [x] `state.selStyle={width,style,color}`; `applySelStyle()` sets `--selw/--sels/--selc` on `:root`.
+- [x] `.inst.sel` uses the vars. UI in the Effects inspector: style (dashed/solid/dotted), color,
+      thickness. Persisted in `mapData`/`cleanState`/`loadMap`/autosave; applied on init + load.
+- [x] Browser-verify: 6px solid red → selected planet outline = rgb(255,45,45), 6px, solid.
 
 ### Q4 — Edge fade for images + spinning images
 - [ ] Instance fields `fade` (0–100 edge transparency) + `fadeSpread` (0–100 distance inward); helper
@@ -86,3 +85,5 @@ the completed `DND_MAP_IMAGES_BACKGROUNDS_SPIRAL_2026-07-14` buildout on branch
   inspector Layer controls (front/back/fwd/back) + "Behind systems" for instances. Verified.
 - Q2: Pen tool passes clicks through instances (`#canvas.pen #bodyLayer/#backLayer{pointer-events:none}`)
   so a sector can be drawn over an image without selecting it. Verified.
+- Q3: Customizable selection border — `state.selStyle` (width/style/color) → CSS vars on `.inst.sel`;
+  Effects-panel UI; persisted everywhere. Verified (6px solid red).

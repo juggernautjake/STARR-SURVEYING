@@ -593,6 +593,7 @@ const CLOUD_STYLES=["none","wispy","banded","storm","heavy"];
 
 /* ============================================================ STATE ============================================================ */
 let state={assets:[],instances:[],sectors:[],background:null,centerGalaxy:null,
+  selStyle:{width:1.5,style:"dashed",color:"#c89b3c"},
   mapFx:{sparkles:true,shooting:false,nebula:true,density:0.72,speed:1,rate:0.35,color:"#cbd6ff",nebColor:"#2a1a5a",nebColor2:"#1a1240"},
   meta:{name:"Untitled Map",campaign:null,published:false}};
 let view={x:0,y:0,scale:1};
@@ -1390,8 +1391,15 @@ function renderInspector(){
       <div class="field"><label>Sparkle color</label><input type="color" id="mfCol" value="${f.color}"></div>
       <h4>Nebula backdrop tint</h4>
       <label class="chk"><input type="checkbox" id="mfNeb" ${f.nebula?"checked":""}> Enable nebula tint</label>
-      <div class="rowc"><div class="field"><label>Color A</label><input type="color" id="mfNc1" value="${f.nebColor}"></div><div class="field"><label>Color B</label><input type="color" id="mfNc2" value="${f.nebColor2}"></div></div>`;
+      <div class="rowc"><div class="field"><label>Color A</label><input type="color" id="mfNc1" value="${f.nebColor}"></div><div class="field"><label>Color B</label><input type="color" id="mfNc2" value="${f.nebColor2}"></div></div>
+      <h4>Selection border</h4>
+      <div style="font-size:11px;color:var(--faint);margin-bottom:6px">The outline drawn around any selected element.</div>
+      <div class="rowc"><div class="field"><label>Style</label><select id="mfSelStyle">${["dashed","solid","dotted"].map(o=>`<option value="${o}" ${(state.selStyle.style||"dashed")===o?"selected":""}>${o}</option>`).join("")}</select></div><div class="field"><label>Color</label><input type="color" id="mfSelColor" value="${state.selStyle.color||"#c89b3c"}"></div></div>
+      <div class="field"><label>Thickness <span style="float:right;color:var(--gold)" id="mfSelWV">${(state.selStyle.width||1.5).toFixed(1)}px</span></label><div class="slider"><input type="range" id="mfSelW" min="5" max="80" value="${Math.round((state.selStyle.width||1.5)*10)}"></div></div>`;
     const upd=()=>{applyMapFx();markDirty();};
+    $("#mfSelStyle").onchange=e=>{state.selStyle.style=e.target.value;applySelStyle();markDirty();};
+    $("#mfSelColor").oninput=e=>{state.selStyle.color=e.target.value;applySelStyle();markDirty();};
+    $("#mfSelW").oninput=e=>{state.selStyle.width=+e.target.value/10;$("#mfSelWV").textContent=state.selStyle.width.toFixed(1)+"px";applySelStyle();markDirty();};
     $("#mfSp").onchange=e=>{f.sparkles=e.target.checked;upd();};
     $("#mfSh").onchange=e=>{f.shooting=e.target.checked;upd();};
     $("#mfRate").oninput=e=>{f.rate=+e.target.value/100;$("#mfRateV").textContent=f.rate.toFixed(2)+"/s";upd();};
@@ -1748,6 +1756,9 @@ function openTemplatePicker(){
 let ambient=null;
 function ensureAmbient(){if(!ambient)ambient=new AmbientFX($("#fxCanvas"));return ambient;}
 function applyMapFx(){const f=state.mapFx;const a=ensureAmbient();a.set({sparkles:f.sparkles,shooting:f.shooting,density:f.density,speed:f.speed,rate:f.rate,color:f.color});if(f.sparkles||f.shooting)a.start();else a.stop();applyNebulaTint();}
+// selection-border look (applies to .inst.sel + sector selection) via CSS vars
+function applySelStyle(){const s=state.selStyle||(state.selStyle={width:1.5,style:"dashed",color:"#c89b3c"});const r=document.documentElement.style;
+  r.setProperty("--selw",(s.width||1.5)+"px");r.setProperty("--sels",s.style||"dashed");r.setProperty("--selc",s.color||"#c89b3c");}
 function applyNebulaTint(){const w=document.querySelector('.canvaswrap');const f=state.mapFx;
   if(f.nebula&&!state.background){w.style.background=`radial-gradient(ellipse 62% 52% at 50% 42%, ${f.nebColor}, ${f.nebColor2} 55%, #06040f)`;}
   else if(!state.background){w.style.background='';}}
@@ -1756,7 +1767,7 @@ function applyNebulaTint(){const w=document.querySelector('.canvaswrap');const f
 const CAMP_KEY="stardust-campaigns";
 function loadCampaigns(){try{return JSON.parse(localStorage.getItem(CAMP_KEY)||"[]");}catch(e){return [];}}
 function saveCampaigns(list){try{localStorage.setItem(CAMP_KEY,JSON.stringify(list));}catch(e){toast("Storage full — export to a file instead");}}
-function mapData(){return {type:"stardust-map",version:2,meta:state.meta,background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,
+function mapData(){return {type:"stardust-map",version:2,meta:state.meta,background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,selStyle:state.selStyle,
   sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved,z:s.z})),
   instances:state.instances,assets:state.assets};}
 function stamp(){const d=new Date();return d.toISOString();}
@@ -1793,17 +1804,18 @@ function applyMapData(m){resetDiffspin();
   state.background=m.background||null;state.centerGalaxy=m.centerGalaxy||null;
   state.mapFx=Object.assign({sparkles:true,shooting:false,nebula:true,density:0.72,speed:1,rate:0.35,color:"#cbd6ff",nebColor:"#2a1a5a",nebColor2:"#1a1240"},m.mapFx||{});
   state.meta=Object.assign({name:"Untitled Map",campaign:null,published:false},m.meta||{});
-  selection=null;undoStack=[];redoStack=[];computeSectorParents();reassociateAll();applyMapFx();renderLibrary();renderAll();fitAll();updateCampChip();
+  if(m.selStyle)state.selStyle=m.selStyle;
+  selection=null;undoStack=[];redoStack=[];computeSectorParents();reassociateAll();applyMapFx();applySelStyle();renderLibrary();renderAll();fitAll();updateCampChip();
 }
 
 /* ============================================================ HISTORY + SAVE/LOAD ============================================================ */
 function cleanState(){return JSON.stringify({assets:state.assets,instances:state.instances,
   sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved,z:s.z})),
-  background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,meta:state.meta});}
+  background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,selStyle:state.selStyle,meta:state.meta});}
 function snap(){return cleanState();}
 function pushUndo(){undoStack.push(snap());if(undoStack.length>60)undoStack.shift();redoStack=[];markDirty();updUndo();}
 function resetDiffspin(){Object.values(diffspinLive).forEach(r=>{try{r.engine.destroy();}catch(e){}});Object.keys(diffspinLive).forEach(k=>delete diffspinLive[k]);Object.values(diffspinLib).forEach(e=>{try{e.destroy();}catch(e){}});Object.keys(diffspinLib).forEach(k=>delete diffspinLib[k]);Object.values(spriteLive).forEach(r=>{try{r.sp.destroy();}catch(e){}});Object.keys(spriteLive).forEach(k=>delete spriteLive[k]);Object.values(p3Lib).forEach(s=>{try{s.destroy();}catch(e){}});Object.keys(p3Lib).forEach(k=>delete p3Lib[k]);}
-function restore(s){resetDiffspin();const o=JSON.parse(s);state.assets=o.assets||[];state.instances=o.instances||[];state.sectors=o.sectors||[];state.background=o.background||null;state.centerGalaxy=o.centerGalaxy||null;state.mapFx=o.mapFx||state.mapFx;state.meta=o.meta||state.meta;computeSectorParents();reassociateAll();applyMapFx();}
+function restore(s){resetDiffspin();const o=JSON.parse(s);state.assets=o.assets||[];state.instances=o.instances||[];state.sectors=o.sectors||[];state.background=o.background||null;state.centerGalaxy=o.centerGalaxy||null;state.mapFx=o.mapFx||state.mapFx;if(o.selStyle)state.selStyle=o.selStyle;state.meta=o.meta||state.meta;computeSectorParents();reassociateAll();applyMapFx();applySelStyle();}
 function undo(){if(!undoStack.length)return;redoStack.push(snap());restore(undoStack.pop());selection=null;renderLibrary();renderAll();updUndo();}
 function redo(){if(!redoStack.length)return;undoStack.push(snap());restore(redoStack.pop());selection=null;renderLibrary();renderAll();updUndo();}
 function updUndo(){$("#undoBtn").style.opacity=undoStack.length?1:.4;$("#redoBtn").style.opacity=redoStack.length?1:.4;}
@@ -1836,9 +1848,9 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
 
 /* ============================================================ INIT ============================================================ */
 (function init(){
-  try{const saved=localStorage.getItem("stardust-map-studio");if(saved){const o=JSON.parse(saved);state.assets=o.assets||state.assets;state.instances=(o.instances||[]).map(i=>({pois:[],fx:{sparkle:false,nebula:false,nebulaColor:"#8f78e6",shoot:false},...i}));state.sectors=(o.sectors||[]).map(s=>({fx:{sparkle:false,nebula:false,nebulaColor:s.color,shoot:false},...s}));state.background=o.background||null;state.centerGalaxy=o.centerGalaxy||null;if(o.mapFx)state.mapFx=Object.assign(state.mapFx,o.mapFx);if(o.meta)state.meta=Object.assign(state.meta,o.meta);}}catch(e){}
+  try{const saved=localStorage.getItem("stardust-map-studio");if(saved){const o=JSON.parse(saved);state.assets=o.assets||state.assets;state.instances=(o.instances||[]).map(i=>({pois:[],fx:{sparkle:false,nebula:false,nebulaColor:"#8f78e6",shoot:false},...i}));state.sectors=(o.sectors||[]).map(s=>({fx:{sparkle:false,nebula:false,nebulaColor:s.color,shoot:false},...s}));state.background=o.background||null;state.centerGalaxy=o.centerGalaxy||null;if(o.mapFx)state.mapFx=Object.assign(state.mapFx,o.mapFx);if(o.selStyle)state.selStyle=o.selStyle;if(o.meta)state.meta=Object.assign(state.meta,o.meta);}}catch(e){}
   computeSectorParents();reassociateAll();
-  ensureAmbient();applyMapFx();
+  ensureAmbient();applyMapFx();applySelStyle();
   renderLibrary();applyView();renderAll();updUndo();updateCampChip();fitAll();
 })();
 </script>
