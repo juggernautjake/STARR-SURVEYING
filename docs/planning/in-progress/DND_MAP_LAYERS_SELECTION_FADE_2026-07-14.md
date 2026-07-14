@@ -60,10 +60,10 @@ the completed `DND_MAP_IMAGES_BACKGROUNDS_SPIRAL_2026-07-14` buildout on branch
 - [x] Browser-verify: radial rounds a square image's corners to transparent (stars show through);
       edges keeps it square with a straight edge-vignette.
 
-### Q5 — Star shine-lines toggle
-- [ ] `art()` star gate on `a.rays!==false` (studio + console); `newAsset('star')` `rays`; snapshotLook
-      includes `rays`; star editor gets a "Shine lines" checkbox.
-- [ ] Browser-verify: a star renders with rays off, then on.
+### Q5 — Star shine-lines toggle ✅
+- [x] `art()` star gates the rays `<g>` on `a.rays!==false` (studio + console); `newAsset('star')`
+      `rays`; `snapshotLook` includes `rays`; star editor has a "✦ Shine lines (rays)" checkbox.
+- [x] Browser-verify: `art(star,rays:false)` → 0 `<line>`; `rays:true` → 14.
 
 ### Q6 — Live DM-moved elements ("keep updated" / party ship) — real-time to players
 - [ ] A **"Keep updated (live)"** toggle on any instance (image/ship/element). DM uploads a ship image,
@@ -91,3 +91,5 @@ the completed `DND_MAP_IMAGES_BACKGROUNDS_SPIRAL_2026-07-14` buildout on branch
   Effects-panel UI; persisted everywhere. Verified (6px solid red).
 - Q4: Edge fade — `fadeMask` masks image/spingalaxy `.art` with amount + spread + shape (radial
   rounded / edges straight). Verified both shapes; blends squares into the background.
+- Q5: Star shine-lines toggle — `a.rays` gates the ray `<g>` (studio + console); star editor checkbox.
+  Verified (0 vs 14 lines).

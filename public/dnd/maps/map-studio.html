@@ -639,7 +639,7 @@ function art(a,animate){
       <radialGradient id="s${id}" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff"/><stop offset="35%" stop-color="${L(c1,50)}"/><stop offset="70%" stop-color="${c1}"/><stop offset="100%" stop-color="${D(c1,20)}"/></radialGradient>
       <radialGradient id="co${id}" cx="50%" cy="50%" r="50%"><stop offset="35%" stop-color="${c3}" stop-opacity=".55"/><stop offset="100%" stop-color="${c3}" stop-opacity="0"/></radialGradient></defs>
       <circle cx="${cx}" cy="${cy}" r="96" fill="url(#co${id})" style="${anim?'animation:breathe 5s ease-in-out infinite;transform-origin:center':''}"/>
-      <g style="${anim?'animation:cspin 40s linear infinite;transform-origin:center':''}">${[...Array(14)].map((_,i)=>{const an=i/14*Math.PI*2;return `<line x1="${cx+Math.cos(an)*54}" y1="${cy+Math.sin(an)*54}" x2="${cx+Math.cos(an)*(66+rng()*14)}" y2="${cy+Math.sin(an)*(66+rng()*14)}" stroke="${c3}" stroke-width="2" opacity=".5"/>`;}).join("")}</g>
+      ${a.rays!==false?`<g style="${anim?'animation:cspin 40s linear infinite;transform-origin:center':''}">${[...Array(14)].map((_,i)=>{const an=i/14*Math.PI*2;return `<line x1="${cx+Math.cos(an)*54}" y1="${cy+Math.sin(an)*54}" x2="${cx+Math.cos(an)*(66+rng()*14)}" y2="${cy+Math.sin(an)*(66+rng()*14)}" stroke="${c3}" stroke-width="2" opacity=".5"/>`;}).join("")}</g>`:""}
       <circle cx="${cx}" cy="${cy}" r="50" fill="url(#s${id})"/></svg>`;
   }
   if(k==="station"){
@@ -740,7 +740,7 @@ function newAsset(kind,opts={}){
     a.cloudStyle=opts.cloudStyle||(["terran","ocean","jungle","toxic"].includes(a.ptype)?"wispy":"none");a.cloudColor=opts.cloudColor||"#ffffff";a.cloudAmount=opts.cloudAmount!=null?opts.cloudAmount:0.5;
     a.atmo=opts.atmo!=null?opts.atmo:["terran","ocean","toxic","gas","jungle"].includes(a.ptype);a.atmoColor=opts.atmoColor||"";a.atmoThick=opts.atmoThick!=null?opts.atmoThick:0.55;}
   else if(kind==="moon"){a.mtype=opts.mtype||"rocky";const p=MOON_TYPES[a.mtype];a.c1=opts.c1||p[0];a.c2=opts.c2||p[1];a.c3=opts.c3||p[2];a.cloudStyle="none";}
-  else if(kind==="star"){a.stype=opts.stype||"yellow";const p=STAR_TYPES[a.stype];a.c1=opts.c1||p[0];a.c2=opts.c2||p[1];a.c3=opts.c3||p[2];}
+  else if(kind==="star"){a.stype=opts.stype||"yellow";const p=STAR_TYPES[a.stype];a.c1=opts.c1||p[0];a.c2=opts.c2||p[1];a.c3=opts.c3||p[2];a.rays=opts.rays!==false;}
   else if(kind==="station"){a.stype=opts.stype||"ring";const sp=STATION_PALETTES[a.stype]||["#b8c0d0","#5a6a8a","#ffd86b"];a.c1=opts.c1||sp[0];a.c2=opts.c2||sp[1];a.c3=opts.c3||sp[2];}
   else if(kind==="debris"){a.dtype=opts.dtype||"field";a.c1=opts.c1||"#8a8a9a";a.c2=opts.c2||"#5a5a62";a.c3=opts.c3||"#c8c8d0";}
   else if(kind==="galaxy"){a.c1=opts.c1||"#c89aff";a.c2=opts.c2||"#6a3aff";a.c3=opts.c3||"#fff2c8";a.arms=opts.arms||2;a.turns=opts.turns||1.1;a.tight=opts.tight!=null?opts.tight:0.9;a.spread=opts.spread!=null?opts.spread:0.7;a.len=opts.len!=null?opts.len:1;a.spinDur=opts.spinDur||60;}
@@ -996,8 +996,8 @@ $("#placeConfirm").onclick=()=>{
 };
 $("#placeCancel").onclick=clearPending;
 function clearPending(){pending=null;ghost.style.display="none";$("#placeBar").classList.remove("show");}
-function snapshotLook(a){const {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,image,src,natW,natH,dsCfg,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames}=a;
-  return {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,image,src,natW,natH,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames,dsCfg:dsCfg?JSON.parse(JSON.stringify(dsCfg)):undefined};}
+function snapshotLook(a){const {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,image,src,natW,natH,dsCfg,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames}=a;
+  return {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,image,src,natW,natH,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames,dsCfg:dsCfg?JSON.parse(JSON.stringify(dsCfg)):undefined};}
 function applyBackground(a){pushUndo();state.background=snapshotLook(a);renderAll();markDirty();toast("Backdrop set");}
 // Render an image backdrop into #bgLayer (screen-space, behind everything). "size" scales it so the
 // backdrop size the user picks actually changes what's shown; opacity lets the gradient show through.
@@ -1688,7 +1688,7 @@ function renderEditor(){
       <div class="field"><label>Thickness <span style="float:right;color:var(--gold)" id="edAtmoThV">${(edWork.atmoThick!=null?edWork.atmoThick:0.55).toFixed(2)}</span></label><div class="slider"><input type="range" id="edAtmoTh" min="10" max="100" value="${Math.round((edWork.atmoThick!=null?edWork.atmoThick:0.55)*100)}"></div></div></div>`;
   }
   else if(k==="moon"){html+=`<h4>Type</h4><div class="seg four" id="edMtype">${Object.keys(MOON_TYPES).map(t=>`<button data-t="${t}" class="${edWork.mtype===t?'on':''}">${t}</button>`).join('')}</div>`;}
-  else if(k==="star"){html+=`<h4>Class</h4><div class="seg" id="edStype">${Object.keys(STAR_TYPES).map(t=>`<button data-t="${t}" class="${edWork.stype===t?'on':''}">${t}</button>`).join('')}</div>`;}
+  else if(k==="star"){html+=`<h4>Class</h4><div class="seg" id="edStype">${Object.keys(STAR_TYPES).map(t=>`<button data-t="${t}" class="${edWork.stype===t?'on':''}">${t}</button>`).join('')}</div><label class="chk" style="display:flex;align-items:center;gap:7px;font-size:12px;padding:6px 0;cursor:pointer"><input type="checkbox" id="edRays" ${edWork.rays!==false?"checked":""}> ✦ Shine lines (rays)</label>`;}
   else if(k==="station"){html+=`<h4>Structure</h4><div class="seg five" id="edSttype">${STATION_TYPES.map(t=>`<button data-t="${t}" class="${edWork.stype===t?'on':''}">${STATION_LABELS[t]||t}</button>`).join('')}</div>`;}
   else if(k==="debris"){html+=`<h4>Kind</h4><div class="seg four" id="edDtype">${Object.keys(DEBRIS_TYPES).map(t=>`<button data-t="${t}" class="${edWork.dtype===t?'on':''}">${t}</button>`).join('')}</div>`;}
   else if(k==="system"){html+=`<div class="field"><label>Creed / motto</label><input id="edCreed" value="${esc(edWork.creed)}"></div>`;}
@@ -1721,6 +1721,7 @@ function wireEditor(){
   const seg=(id,prop,palettes)=>{const el=$("#"+id);if(!el)return;el.querySelectorAll("button").forEach(b=>b.onclick=()=>{el.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");edWork[prop]=b.dataset.t;if(palettes&&palettes[b.dataset.t]){const p=palettes[b.dataset.t];edWork.c1=p[0];edWork.c2=p[1];edWork.c3=p[2];if($("#edC1"))$("#edC1").value=p[0];if($("#edC2"))$("#edC2").value=p[1];if($("#edC3"))$("#edC3").value=p[2];}edPreview();if(k!=="svg"&&k!=="spingalaxy"&&k!=="planet3d")genIterations();});};
   seg("edPtype","ptype",PTYPES);seg("edMtype","mtype",MOON_TYPES);seg("edStype","stype",STAR_TYPES);seg("edSttype","stype",STATION_PALETTES);seg("edDtype","dtype",null);seg("edCloud","cloudStyle",null);
   if($("#edRing"))$("#edRing").onchange=e=>{edWork.ring=e.target.checked;edPreview();};
+  if($("#edRays"))$("#edRays").onchange=e=>{edWork.rays=e.target.checked;edPreview();};
   if($("#edCreed"))$("#edCreed").oninput=e=>edWork.creed=e.target.value;
   if($("#edCloudCol"))$("#edCloudCol").oninput=e=>{edWork.cloudColor=e.target.value;edPreview();};
   if($("#edCloudAmt"))$("#edCloudAmt").oninput=e=>{edWork.cloudAmount=+e.target.value/100;$("#edCloudAmtV").textContent=edWork.cloudAmount.toFixed(2);edPreview();};
