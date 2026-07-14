@@ -1030,6 +1030,8 @@ function sectorLabelStyle(s){const isSub=!!s.parent;const base=Object.assign({si
 // Free-floating text objects (kind:'text') — "locations", routes, region names, notes.
 const TEXT_LABEL_DEFAULT={font:'Cinzel',size:28,weight:600,color:'#f0e6d2',tracking:1,align:'middle',shadow:true};
 function textLabelStyle(i){return mergeLabelStyle(Object.assign({},TEXT_LABEL_DEFAULT,i.label||{}));}
+// Optional on-map POI title caption (off by default; colored by the POI type unless overridden).
+function poiCaptionStyle(p){return mergeLabelStyle(Object.assign({show:false,font:'Rajdhani',size:12,weight:600,color:poiType(p.type).color,tracking:0.3},p.label||{}));}
 function addTextObject(){
   if(mode!=="dm")return;
   pushUndo();
@@ -1052,10 +1054,15 @@ function renderLabels(){
   });
   state.instances.forEach(i=>{
     if(i.kind==="text")return;                 // free text objects handled in their own pass below
-    const st=bodyLabelStyle(i);if(st.show===false)return;
-    const r=labelSVG(i.name,st);if(!r.g)return;
-    const cx=i.x+i.size/2, ay=i.y+i.size+4;    // just beneath the body, centered
-    out+=`<g transform="translate(${cx.toFixed(1)},${ay.toFixed(1)})">${r.g}</g>`;
+    const st=bodyLabelStyle(i);
+    if(st.show!==false){const r=labelSVG(i.name,st);if(r.g){const cx=i.x+i.size/2, ay=i.y+i.size+4;out+=`<g transform="translate(${cx.toFixed(1)},${ay.toFixed(1)})">${r.g}</g>`;}}
+    // optional POI title captions, anchored under each POI icon
+    (i.pois||[]).forEach(p=>{
+      const ls=poiCaptionStyle(p);if(ls.show===false)return;
+      const r2=labelSVG(p.title,ls);if(!r2.g)return;
+      const wx=i.x+(0.5+(p.ax||0)*0.42)*i.size, wy=i.y+(0.5+(p.ay||0)*0.42)*i.size+Math.min(Math.max(i.size*0.14,8),20);
+      out+=`<g transform="translate(${wx.toFixed(1)},${wy.toFixed(1)})">${r2.g}</g>`;
+    });
   });
   // free-floating text objects — draggable in DM mode via a transparent hit rect
   state.instances.forEach(i=>{
@@ -1221,11 +1228,20 @@ function renderPoiInspector(){
   const p=(i.pois||[]).find(x=>x.id===selection.poi);if(!p){selection={type:"instance",id:i.id};return renderInspector();}
   const d=poiType(p.type);
   $("#inspHead").textContent="◈ POINT OF INTEREST";
+  if(mode!=="dm"){
+    box.innerHTML=`<div class="assoc" style="margin-bottom:12px">${poiIconSVG(p.type,26)}<div style="flex:1"><div style="font-size:15px;font-weight:600">${esc(p.title)}</div><div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:1px">${esc(d.label)} · on ${esc(i.name)}</div></div></div>
+      <div style="font-size:13.5px;line-height:1.5;color:var(--dim);white-space:pre-wrap">${esc(p.desc)||"<span style='color:var(--faint)'>No description.</span>"}</div>
+      <div class="actionbtns"><button id="poiBack">← Back to ${esc(i.name)}</button></div>`;
+    $("#poiBack").onclick=()=>{selection={type:"instance",id:i.id};renderAll();};
+    return;
+  }
+  p.label=p.label||{show:false};
   box.innerHTML=`<div class="assoc" style="margin-bottom:12px">${poiIconSVG(p.type,22)}<div style="flex:1"><div style="font-size:12px;font-weight:600">${d.label}</div><div style="font-size:11px;color:var(--faint)">on ${esc(i.name)}</div></div></div>
     <div class="actionbtns" style="margin-top:0"><button id="poiChType">⟳ Change type</button></div>
     <h4>Info</h4>
     <div class="field"><label>Title</label><input id="poiTitle" value="${esc(p.title)}"></div>
-    <div class="field"><label>Description</label><textarea id="poiDesc" placeholder="What is here? Lore, hooks, status…">${esc(p.desc)}</textarea></div>
+    <div class="field"><label>Description <span style="color:var(--faint);font-weight:400">— shows in the info viewer</span></label><textarea id="poiDesc" placeholder="What is here? Lore, hooks, status…">${esc(p.desc)}</textarea></div>
+    <details class="lblsec"><summary>◈ Show a title caption on the map</summary><div style="font-size:11px;color:var(--faint);margin:4px 0 8px">Turn on <b>Show label on map</b> to print this POI's title beside its icon, then format it.</div>${labelControlsHTML(poiCaptionStyle(p),'pl')}</details>
     <h4>Position on body</h4>
     <div class="field"><label>Horizontal <span style="float:right;color:var(--gold)" id="poiaxV">${(p.ax||0).toFixed(2)}</span></label><div class="slider"><input type="range" id="poiAx" min="-95" max="95" value="${Math.round((p.ax||0)*100)}"></div></div>
     <div class="field"><label>Vertical <span style="float:right;color:var(--gold)" id="poiayV">${(p.ay||0).toFixed(2)}</span></label><div class="slider"><input type="range" id="poiAy" min="-95" max="95" value="${Math.round((p.ay||0)*100)}"></div></div>
@@ -1233,6 +1249,7 @@ function renderPoiInspector(){
   $("#poiChType").onclick=()=>openPoiTypePicker(i,p.ax,p.ay,p);
   $("#poiTitle").oninput=e=>{p.title=e.target.value;renderInstances();markDirty();};
   $("#poiDesc").oninput=e=>{p.desc=e.target.value;markDirty();};
+  wireLabelControls('pl',p.label,()=>{renderLabels();markDirty();});
   $("#poiAx").oninput=e=>{p.ax=+e.target.value/100;$("#poiaxV").textContent=p.ax.toFixed(2);renderInstances();markDirty();};
   $("#poiAy").oninput=e=>{p.ay=+e.target.value/100;$("#poiayV").textContent=p.ay.toFixed(2);renderInstances();markDirty();};
   $("#poiBack").onclick=()=>{selection={type:"instance",id:i.id};renderAll();};
@@ -1328,7 +1345,7 @@ function playReadout(name,kind,creed,desc,contents,subs,color,pois){
   return `<div class="assoc" style="margin-bottom:12px"><span class="cd" style="background:${color}"></span><div><div style="font-size:15px;font-weight:600">${esc(name)}</div><div style="font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:1px">${esc(kind)}</div></div></div>
     ${creed?`<div style="font-style:italic;color:var(--cyan);font-size:13px;margin-bottom:10px">“${esc(creed)}”</div>`:""}
     <div style="font-size:13.5px;line-height:1.5;color:var(--dim)">${esc(desc)||"<span style='color:var(--faint)'>No description.</span>"}</div>
-    ${pois&&pois.length?`<h4>◈ Points of Interest</h4>${pois.map(p=>`<div class="poiitem" data-poi="${p.id}"><div class="pic">${poiIconSVG(p.type,22)}</div><div class="pt"><div class="n">${esc(p.title)}</div><div class="t">${poiType(p.type).label}</div></div></div>`).join('')}`:""}
+    ${pois&&pois.length?`<h4>◈ Points of Interest</h4>${pois.map(p=>`<div class="poiitem" data-poi="${p.id}" style="align-items:flex-start;cursor:pointer"><div class="pic">${poiIconSVG(p.type,22)}</div><div class="pt"><div class="n">${esc(p.title)}</div><div class="t">${poiType(p.type).label}</div>${p.desc?`<div style="font-size:12px;color:var(--dim);line-height:1.45;margin-top:3px;white-space:pre-wrap">${esc(p.desc)}</div>`:""}</div></div>`).join('')}`:""}
     ${subs&&subs.length?`<h4>Sub-systems</h4>${subs.map(x=>`<div class="assoc" style="margin-bottom:5px;cursor:pointer" data-sec="${x.id}"><span class="cd" style="background:${x.color}"></span>${esc(x.name)}</div>`).join('')}`:""}
     ${contents&&contents.length?`<h4>Bodies (${contents.length})</h4>${contents.map(i=>`<div class="assoc" style="margin-bottom:5px;cursor:pointer" data-inst="${i.id}"><span class="cd" style="background:${(i.look||i).c1}"></span>${esc(i.name)}</div>`).join('')}`:""}`;
 }
@@ -1528,7 +1545,7 @@ function setMode(m){mode=m;document.body.classList.toggle("playmode",m==="play")
   else{$("#inspHead").textContent="◈ INSPECTOR";}
   renderAll();
 }
-$("#inspBody").addEventListener("click",e=>{if(mode!=="play")return;const pi=e.target.closest("[data-inst]");const ps=e.target.closest("[data-sec]");if(pi){selection={type:"instance",id:pi.dataset.inst};renderAll();}else if(ps){selection={type:"sector",id:ps.dataset.sec};renderAll();}});
+$("#inspBody").addEventListener("click",e=>{if(mode!=="play")return;const pp=e.target.closest("[data-poi]");const pi=e.target.closest("[data-inst]");const ps=e.target.closest("[data-sec]");if(pp){const bid=selection&&selection.type==="instance"?selection.id:null;if(bid){selection={type:"poi",id:bid,poi:pp.dataset.poi};renderAll();}}else if(pi){selection={type:"instance",id:pi.dataset.inst};renderAll();}else if(ps){selection={type:"sector",id:ps.dataset.sec};renderAll();}});
 window.addEventListener("keydown",e=>{if(/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))return;const meta=e.ctrlKey||e.metaKey;
   if(meta&&e.key.toLowerCase()==="z"&&!e.shiftKey){e.preventDefault();undo();}
   else if(meta&&(e.key.toLowerCase()==="y"||(e.key.toLowerCase()==="z"&&e.shiftKey))){e.preventDefault();redo();}

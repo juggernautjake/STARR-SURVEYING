@@ -125,8 +125,14 @@ existing save/publish → DB path (no schema/API change — `dnd_maps.data` alre
   plus the full formatting controls, duplicate, and delete; the object's text is its `name` and
   serializes whole. Verified headless: add→state, renders + hit-rect + selection outline, multiline
   (tspans), outer-group rotate, pulse, and full round-trip through `mapData`.
-- **Slice 5 — POI descriptions + labels (Studio):** POI click → description in the play-mode
-  readout; optional formatted POI caption on the map; POI title/desc formatting controls.
+- **Slice 5 — POI descriptions + labels (Studio)** ✅ — the play-mode body readout now prints each
+  POI's **description** inline (not just title/type), and clicking a POI (on the map or in the list)
+  opens a focused **read-only POI card** with its full description in the info viewer. The POI
+  inspector gained an opt-in **"Show a title caption on the map"** section (shared label controls,
+  default off, colored by the POI type) that prints the POI title beside its icon via `labelSVG`
+  from `#labelLayer`. POI `desc` and `label` ride inside instances so they persist. Verified
+  headless: caption shows only when enabled (with glow), hidden by default, desc appears in the
+  readout, and both round-trip through `mapData`.
 - **Slice 6 — Console parity:** include `labels.js`; render instance/sector/text labels identically
   for players; POI click populates the CRT `.scr-desc` viewer with the POI's title + description.
 - **Slice 7 — Verify + polish:** tsc + eslint + `vitest run __tests__/dnd`; headless renders of a
