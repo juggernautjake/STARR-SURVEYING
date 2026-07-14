@@ -6,14 +6,23 @@ import { Clock } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { usePageError } from '../../../../hooks/usePageError';
+import QuestionBody, { isAnswered, type DragLabelOptions, type HotspotOptions } from '../../../../components/QuestionBody';
 
 interface Question {
   id: string;
   question_text: string;
   question_type: string;
-  options: string[];
+  options: string[] | DragLabelOptions | HotspotOptions;
   difficulty: string;
   tags: string[];
+  // Dynamic (template-linked) questions carry per-attempt fields echoed back at
+  // grade time so the server scores the numbers THIS attempt actually saw.
+  _diagram?: string;
+  _original_type?: string;
+  _dynamic?: boolean;
+  _generated_answer?: string;
+  _tolerance?: number;
+  _solution_steps?: unknown[];
 }
 
 interface GradedResult {
@@ -63,7 +72,7 @@ export default function MockExamPage() {
   const handleSubmit = useCallback(async (autoSubmit = false) => {
     if (submitting) return;
     if (!autoSubmit) {
-      const unanswered = questions.filter(q => !answers[q.id]);
+      const unanswered = questions.filter(q => !isAnswered(q, answers[q.id]));
       if (unanswered.length > 0) {
         const proceed = confirm(`You have ${unanswered.length} unanswered question${unanswered.length > 1 ? 's' : ''}. Submit anyway?`);
         if (!proceed) return;
@@ -83,6 +92,11 @@ export default function MockExamPage() {
           answers: questions.map(q => ({
             question_id: q.id,
             user_answer: answers[q.id] || '',
+            // Echo per-attempt dynamic fields so the grader scores the values shown.
+            _dynamic: q._dynamic || undefined,
+            _generated_answer: q._generated_answer ?? undefined,
+            _tolerance: q._tolerance ?? undefined,
+            _solution_steps: q._solution_steps || undefined,
           })),
           time_spent_seconds: elapsed,
         }),
@@ -152,7 +166,7 @@ export default function MockExamPage() {
     return 'var(--color-brand-navy)';
   }
 
-  const answeredCount = questions.filter(q => answers[q.id]).length;
+  const answeredCount = questions.filter(q => isAnswered(q, answers[q.id])).length;
 
   // ============= INTRO PHASE =============
   if (phase === 'intro') {
@@ -161,17 +175,23 @@ export default function MockExamPage() {
         <div className="admin-learn__header">
           <Link href="/admin/learn/exam-prep/sit" className="admin-module-detail__back">&larr; Back to FS Prep</Link>
           <h2 className="admin-learn__title">
-            {isQuickMode ? '\u26A1 FS Readiness Check' : '\uD83D\uDCDD FS Mock Exam'}
+            {isQuickMode ? '\u26A1 FS Readiness Check' : '\uD83C\uDF93 FS Exam Simulator'}
           </h2>
         </div>
 
         <div className="fs-mock__intro">
           <div className="fs-mock__intro-card">
-            <h3>{isQuickMode ? 'Quick Readiness Check' : 'Full NCEES FS Practice Exam'}</h3>
+            <h3>{isQuickMode ? 'Quick Readiness Check' : 'Full-Length FS Exam Simulator'}</h3>
+            {!isQuickMode && (
+              <p style={{ color: 'var(--color-text-secondary)', fontSize: '.9rem', marginTop: '-.25rem' }}>
+                110 questions balanced across the seven NCEES knowledge areas, mirroring the real
+                computer-based FS exam as closely as possible.
+              </p>
+            )}
             <div className="fs-mock__intro-details">
               <div className="fs-mock__intro-detail">
                 <strong>Questions</strong>
-                <span>{isQuickMode ? '20' : '110'}</span>
+                <span>{isQuickMode ? '20' : '110 (NCEES blueprint)'}</span>
               </div>
               <div className="fs-mock__intro-detail">
                 <strong>Time Limit</strong>
@@ -179,23 +199,31 @@ export default function MockExamPage() {
               </div>
               <div className="fs-mock__intro-detail">
                 <strong>Passing Score</strong>
-                <span>70%</span>
+                <span>70% (practice target)</span>
               </div>
               <div className="fs-mock__intro-detail">
-                <strong>Format</strong>
-                <span>Multiple choice, True/False, Numeric</span>
+                <strong>Units</strong>
+                <span>SI and US customary</span>
               </div>
             </div>
 
             <div className="fs-mock__intro-rules">
-              <h4>Exam Rules</h4>
+              <h4>{isQuickMode ? 'Rules' : 'About the real FS exam'}</h4>
               <ul>
-                <li>The timer starts when you click &ldquo;Begin Exam&rdquo;</li>
-                <li>You can navigate between questions using the sidebar</li>
-                <li>Unanswered questions are marked as incorrect</li>
-                <li>The exam auto-submits when time expires</li>
-                <li>You&apos;ll see detailed results with category breakdowns after submission</li>
+                {!isQuickMode && <li>The real exam is <strong>110 questions</strong> (~100 scored + ~10 unscored pretest) over <strong>5 h 20 m</strong> of working time, delivered in <strong>two halves with a scheduled 25-minute break</strong>.</li>}
+                {!isQuickMode && <li>It is <strong>closed-book</strong> with an on-screen <strong>searchable FS Reference Handbook</strong>; there is <strong>no penalty for wrong answers</strong> (never leave a question blank).</li>}
+                {!isQuickMode && <li>Scoring is pass/fail on a scaled score; questions span <strong>SI and US customary units</strong>.</li>}
+                <li>The timer starts when you click &ldquo;Begin Exam&rdquo;; it auto-submits when time expires.</li>
+                <li>Navigate between questions with the sidebar; unanswered questions are marked incorrect.</li>
+                <li>You&apos;ll see detailed results with a per-knowledge-area breakdown after submission.</li>
               </ul>
+              {!isQuickMode && (
+                <p style={{ fontSize: '.82rem', color: 'var(--color-text-secondary)' }}>
+                  Reference: the official{' '}
+                  <a href="https://ncees.org/exams/fs-exam/" target="_blank" rel="noopener noreferrer">NCEES FS Reference Handbook</a>{' '}
+                  is free to download from your MyNCEES account &mdash; practice with it open, as on exam day.
+                </p>
+              )}
             </div>
 
             <button
@@ -353,7 +381,7 @@ export default function MockExamPage() {
               {questions.map((q, i) => (
                 <button
                   key={q.id}
-                  className={`fs-mock__nav-btn ${i === currentQ ? 'fs-mock__nav-btn--current' : ''} ${answers[q.id] ? 'fs-mock__nav-btn--answered' : ''}`}
+                  className={`fs-mock__nav-btn ${i === currentQ ? 'fs-mock__nav-btn--current' : ''} ${isAnswered(q, answers[q.id]) ? 'fs-mock__nav-btn--answered' : ''}`}
                   onClick={() => setCurrentQ(i)}
                 >
                   {i + 1}
@@ -372,55 +400,20 @@ export default function MockExamPage() {
             </span>
           </div>
 
-          <p className="fs-mock__question-text">{currentQuestion.question_text}</p>
-
-          {/* Multiple Choice / True-False Options */}
-          {(currentQuestion.question_type === 'multiple_choice' || currentQuestion.question_type === 'true_false') && (
-            <div className="quiz__options">
-              {currentQuestion.options.map((opt, oi) => (
-                <div
-                  key={oi}
-                  className={`quiz__option ${answers[currentQuestion.id] === opt ? 'quiz__option--selected' : ''}`}
-                  onClick={() => setAnswers(prev => ({ ...prev, [currentQuestion.id]: opt }))}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setAnswers(prev => ({ ...prev, [currentQuestion.id]: opt }));
-                    }
-                  }}
-                >
-                  {opt}
-                </div>
-              ))}
-            </div>
+          {currentQuestion.question_type !== 'fill_blank' && (
+            <p className="fs-mock__question-text">{currentQuestion.question_text}</p>
           )}
 
-          {/* Numeric Input */}
-          {currentQuestion.question_type === 'numeric_input' && (
-            <div className="quiz__numeric-wrap">
-              <input
-                type="number"
-                step="any"
-                className="quiz__text-input quiz__text-input--numeric"
-                placeholder="Enter your numeric answer..."
-                value={answers[currentQuestion.id] || ''}
-                onChange={e => setAnswers(prev => ({ ...prev, [currentQuestion.id]: e.target.value }))}
-              />
-            </div>
-          )}
-
-          {/* Short Answer */}
-          {currentQuestion.question_type === 'short_answer' && (
-            <input
-              type="text"
-              className="quiz__text-input"
-              placeholder="Type your answer..."
-              value={answers[currentQuestion.id] || ''}
-              onChange={e => setAnswers(prev => ({ ...prev, [currentQuestion.id]: e.target.value }))}
-            />
-          )}
+          {/* Every question type renders through the shared QuestionBody so the
+              simulator supports the same interaction types and generated figures
+              as the practice quizzes (MC, T/F, multi-select, ordering, drag-label,
+              hotspot, numeric, short answer, fill-in-the-blank). */}
+          <QuestionBody
+            question={currentQuestion}
+            answer={answers[currentQuestion.id]}
+            onAnswer={next => setAnswers(prev => ({ ...prev, [currentQuestion.id]: next }))}
+            showText={false}
+          />
 
           {/* Navigation */}
           <div className="fs-mock__question-nav">

@@ -64,10 +64,18 @@ export async function extractReferenceText(buffer: Buffer, mime: string, filenam
   }
 
   // PDF: fast text-layer extraction first, OCR fallback for scans.
+  // pdf-parse@2 is class-based: `new PDFParse({ data }).getText()` → { text }.
   let pdfText = '';
   try {
-    const pdfParse = (await import('pdf-parse')).default as unknown as (buf: Buffer) => Promise<{ text: string }>;
-    pdfText = (await pdfParse(buffer)).text || '';
+    const { PDFParse } = (await import('pdf-parse')) as unknown as {
+      PDFParse: new (opts: { data: Buffer }) => { getText: () => Promise<{ text: string }>; destroy: () => Promise<void> };
+    };
+    const parser = new PDFParse({ data: buffer });
+    try {
+      pdfText = (await parser.getText()).text || '';
+    } finally {
+      await parser.destroy().catch(() => {});
+    }
   } catch {
     /* encrypted/corrupted text layer — fall through to OCR */
   }

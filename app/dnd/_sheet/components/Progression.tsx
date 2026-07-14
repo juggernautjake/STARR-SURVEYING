@@ -11,7 +11,7 @@ export default function Progression() {
   return (
     <section id="progression">
       <SectionHead num="11" title={meta?.title ?? 'Progression · Levels 1–7'} />
-      <p className="lead">{meta?.lead ?? 'Everything Lazzuh gains from level 1 through 7. The highlighted row is your current level; rows above it are still ahead.'}</p>
+      <p className="lead">{meta?.lead ?? `Everything ${char.meta.name} gains as levels rise. The highlighted row is your current level; rows above it are still ahead.`}</p>
       <div className="table-wrap">
         <table>
           <thead>

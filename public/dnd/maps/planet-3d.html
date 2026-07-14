@@ -101,11 +101,26 @@
     <div class="field"><label>Coastline definition <span class="v" id="coastV">.5</span></label><div class="slider"><input type="range" id="coast" min="0" max="100" value="50"></div></div>
     <div class="field"><label>Ice caps <span class="v" id="iceV">.15</span></label><div class="slider"><input type="range" id="icecap" min="0" max="50" value="15"></div></div>
 
-    <h4>Atmosphere &amp; clouds</h4>
+    <h4>Atmosphere</h4>
     <label class="chk"><input type="checkbox" id="atmoOn" checked> Atmosphere</label>
     <div class="row2"><div class="field"><label>Color</label><input type="color" id="cAtmo" value="#5aa0e8"></div><div class="field"><label>Density <span class="v" id="atmoV">1.0</span></label><div class="slider"><input type="range" id="atmoStr" min="0" max="250" value="100"></div></div></div>
+
+    <h4>Clouds</h4>
     <label class="chk"><input type="checkbox" id="cloudsOn" checked> Clouds</label>
     <div class="row2"><div class="field"><label>Coverage <span class="v" id="covV">.5</span></label><div class="slider"><input type="range" id="cov" min="0" max="100" value="50"></div></div><div class="field"><label>Tint</label><input type="color" id="cCloud" value="#ffffff"></div></div>
+    <div class="row2"><div class="field"><label>Opacity <span class="v" id="clOpV">.9</span></label><div class="slider"><input type="range" id="clOp" min="0" max="100" value="90"></div></div><div class="field"><label>Drift speed <span class="v" id="clSpdV">1.2</span></label><div class="slider"><input type="range" id="clSpd" min="0" max="40" value="12"></div></div></div>
+    <div class="row2"><div class="field"><label>Cloud scale <span class="v" id="clScaleV">2.6</span></label><div class="slider"><input type="range" id="clScale" min="10" max="80" value="26"></div></div><div class="field"><label>Detail <span class="v" id="clDetailV">5</span></label><div class="slider"><input type="range" id="clDetail" min="2" max="7" value="5"></div></div></div>
+    <div class="row2"><div class="field"><label>Definition <span class="v" id="clDefV">.5</span></label><div class="slider"><input type="range" id="clDef" min="0" max="100" value="50"></div></div><div class="field"><label>Swirl <span class="v" id="clSwirlV">.3</span></label><div class="slider"><input type="range" id="clSwirl" min="0" max="100" value="30"></div></div></div>
+    <div class="row2"><div class="field"><label>Banding <span class="v" id="clBandV">.4</span></label><div class="slider"><input type="range" id="clBand" min="0" max="100" value="40"></div></div><div class="field"><label>Band count <span class="v" id="clBandNV">7</span></label><div class="slider"><input type="range" id="clBandN" min="2" max="16" value="7"></div></div></div>
+    <div class="field"><label>Wind shear (banding stretch) <span class="v" id="clShearV">.35</span></label><div class="slider"><input type="range" id="clShear" min="0" max="100" value="35"></div></div>
+
+    <h4>Storms &amp; lightning</h4>
+    <div class="row2"><div class="field"><label>Storm cells <span class="v" id="clStormsV">2</span></label><div class="slider"><input type="range" id="clStorms" min="0" max="8" value="2"></div></div><div class="field"><label>Storm intensity <span class="v" id="clStormIV">.65</span></label><div class="slider"><input type="range" id="clStormI" min="0" max="100" value="65"></div></div></div>
+    <label class="chk"><input type="checkbox" id="lightOn" checked> Lightning in storms</label>
+    <div class="row2"><div class="field"><label>Strike rate <span class="v" id="lightRateV">.5</span></label><div class="slider"><input type="range" id="lightRate" min="0" max="100" value="50"></div></div><div class="field"><label>Bolt color</label><input type="color" id="cLight" value="#bfe0ff"></div></div>
+    <button class="btn" id="reseedClouds">🌀 New weather (reseed clouds)</button>
+
+    <h4>Surface</h4>
     <label class="chk"><input type="checkbox" id="cityOn" checked> Night-side city lights</label>
 
     <h4>Ring</h4>
@@ -139,7 +154,8 @@
     <div class="exportnote">Bundles a spinning sprite-sheet + this planet's settings + its POIs. Import it in Map Studio's <b>3D</b> tab to place a spinning 3D world on your campaign map.</div>
     <button class="btn good" id="expPNG">⬇ High-res PNG (still)</button>
     <button class="btn" id="expSheet">⬇ Rotating sprite-sheet (PNG)</button>
-    <div class="field" style="margin-top:8px"><label>Sprite frames <span class="v" id="framesV">24</span></label><div class="slider"><input type="range" id="frames" min="8" max="48" step="4" value="24"></div></div>
+    <div class="field" style="margin-top:8px"><label>Sprite frames <span class="v" id="framesV">72</span></label><div class="slider"><input type="range" id="frames" min="12" max="180" step="4" value="72"></div></div>
+    <div class="exportnote">More frames = smoother, slower spin (frames are cross-fade interpolated on the map). Higher counts make bigger files.</div>
     <button class="btn" id="expConfig">⬇ Save config (JSON)</button>
     <button class="btn" id="loadConfig">↑ Load config / .planet3d</button>
     <div class="exportnote">Config is a tiny recipe that regenerates this exact planet (and its POIs) anywhere.</div>
@@ -217,7 +233,70 @@ function genPlanet(type,seed){
   return {tex:ctex(cv),specTex:ctex(scv),land,W,H};
 }
 function genCity(land,W,H,seed,color){const cv=document.createElement("canvas");cv.width=W;cv.height=H;const ctx=cv.getContext("2d");ctx.fillStyle="#000";ctx.fillRect(0,0,W,H);const n=makeNoise(seed+7),[r,g,b]=hx(color);const img=ctx.getImageData(0,0,W,H),d=img.data,rng=mulberry(seed+3);for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x,idx=i*4;if(land[i]){const cl=fbm(n,x/W,y/H,8,4);if(cl>0.72&&rng()<0.5){const br=0.5+rng()*0.5;d[idx]=r*br;d[idx+1]=g*br;d[idx+2]=b*br;d[idx+3]=255;}}}ctx.putImageData(img,0,0);return ctex(cv);}
-function genClouds(seed,cov,tint){const W=1024,H=512,cv=document.createElement("canvas");cv.width=W;cv.height=H;const ctx=cv.getContext("2d");const img=ctx.createImageData(W,H),d=img.data,noise=makeNoise(seed),[r,g,b]=hx(tint||"#ffffff");for(let y=0;y<H;y++){const lat=y/H;for(let x=0;x<W;x++){const lon=x/W,idx=(y*W+x)*4;const band=0.6+0.4*Math.sin(lat*Math.PI*7);const c=fbm(noise,lon,lat*1.5,2.6,5)*band;const a=Math.max(0,(c-(1-cov))/(cov||0.001));d[idx]=r;d[idx+1]=g;d[idx+2]=b;d[idx+3]=Math.min(1,a)*230;}}ctx.putImageData(img,0,0);return ctex(cv);}
+// Deterministic storm cells: each is a cyclonic spiral placed away from the poles.
+// u,v are texture-space [0,1] (v = canvas row, 0 = north). dir = rotation sense (cyclonic
+// by hemisphere). Reused by both the cloud texture (spiral density) and the lightning layer.
+function genStorms(seed,count,intensity){
+  const rng=mulberry((seed|0)+555),out=[];
+  for(let i=0;i<count;i++){
+    const u=rng(), v=0.22+rng()*0.56;
+    out.push({
+      u, v,
+      rad:0.10+rng()*0.10+intensity*0.14,   // radius in latitude-units (v-span = π)
+      dir:v<0.5?1:-1,                        // cyclonic: N counter-clockwise, S clockwise
+      arms:2+Math.floor(rng()*3),            // 2–4 spiral arms
+      tight:5+intensity*12,                  // spiral tightness
+      eye:0.12+rng()*0.10,                   // clear eye fraction
+    });
+  }
+  return out;
+}
+// texture-space storm (u,v) → unit direction on the sphere (matches SphereGeometry UVs;
+// CanvasTexture flipY means canvas row 0 → north pole, hence v→1-v here).
+function stormDir(st){
+  const theta=st.u*Math.PI*2, polar=(1-st.v)*Math.PI, sp=Math.sin(polar);
+  return new THREE.Vector3(-Math.cos(theta)*sp, Math.cos(polar), Math.sin(theta)*sp);
+}
+// Rich cloud texture: sheared latitude banding + domain-warp swirl + cyclonic storm cells,
+// with a definition-controlled edge ramp and density-based brightness so clouds read as
+// pronounced, layered forms. p = cloudParams() (+ p.storms).
+function genClouds(p){
+  const W=1024,H=512,cv=document.createElement("canvas");cv.width=W;cv.height=H;
+  const ctx=cv.getContext("2d"),img=ctx.createImageData(W,H),d=img.data;
+  const noise=makeNoise(p.seed),wn=makeNoise(p.seed+4242),[r,g,b]=hx(p.tint||"#ffffff");
+  const cov=p.cov,def=p.def,band=p.band,bandN=p.bandN,shear=p.shear,swirl=p.swirl,scale=p.scale,det=p.detail;
+  const storms=p.storms||[],nSt=storms.length;
+  const thresh=1-cov, edge=0.32*(1-def)+0.02;
+  for(let y=0;y<H;y++){
+    const lat=y/H, latScale=Math.sin(lat*Math.PI)||1e-4;
+    for(let x=0;x<W;x++){
+      const lon=x/W, idx=(y*W+x)*4;
+      // wind shear offsets alternate bands in longitude; domain warp curls the field
+      const lonS=lon+shear*0.14*Math.sin(lat*Math.PI*bandN);
+      const wx=fbm(wn,lon,lat,scale*0.35,3)-0.5, wy=fbm(wn,lon+3.3,lat+1.7,scale*0.35,3)-0.5;
+      let c=fbm(noise,lonS+wx*swirl,lat*1.4+wy*swirl,scale,det);
+      // latitude banding (softened by a little noise on the band edges)
+      let bf=0.5+0.5*Math.sin(lat*Math.PI*bandN)+(fbm(noise,lon+5,lat+5,scale*0.6,2)-0.5)*0.35;
+      bf=bf<0?0:bf>1?1:bf;
+      c*=1-band*(1-bf);
+      // storm cells — cyclonic spiral, denser toward the core, hollow eye
+      for(let s=0;s<nSt;s++){const st=storms[s];
+        let dlon=lon-st.u; if(dlon>0.5)dlon-=1; else if(dlon<-0.5)dlon+=1;
+        const dx=dlon*2*latScale, dy=lat-st.v, rr=Math.sqrt(dx*dx+dy*dy);
+        if(rr<st.rad){const t=rr/st.rad;
+          const spiral=0.5+0.5*Math.sin(Math.atan2(dy,dx)*st.arms+st.dir*t*st.tight);
+          let sv=(1-t)*(0.55+0.45*spiral)*(0.55+0.9*p.stormI);
+          if(t<st.eye)sv*=t/st.eye;
+          if(sv>c)c=sv;
+        }
+      }
+      const a=Math.max(0,Math.min(1,(c-(thresh-edge))/(2*edge)));
+      const bright=0.62+0.38*Math.min(1,Math.max(0,(c-thresh)/0.32));
+      d[idx]=r*bright;d[idx+1]=g*bright;d[idx+2]=b*bright;d[idx+3]=a*255;
+    }
+  }
+  ctx.putImageData(img,0,0);return ctex(cv);
+}
 
 /* ---------- meshes ---------- */
 const core=new THREE.Group();scene.add(core);
@@ -227,6 +306,34 @@ const nightMat=new THREE.MeshBasicMaterial({transparent:true,blending:THREE.Addi
 nightMat.onBeforeCompile=sh=>{sh.uniforms.sunDir={value:new THREE.Vector3(1,0,0)};sh.vertexShader=sh.vertexShader.replace("#include <common>","#include <common>\nvarying vec3 vWN;").replace("#include <begin_vertex>","#include <begin_vertex>\nvWN=normalize(mat3(modelMatrix)*normal);");sh.fragmentShader=sh.fragmentShader.replace("#include <common>","#include <common>\nuniform vec3 sunDir;\nvarying vec3 vWN;").replace("#include <dithering_fragment>","#include <dithering_fragment>\nfloat n=clamp(-dot(normalize(vWN),normalize(sunDir))*1.6+0.25,0.0,1.0);\ngl_FragColor.rgb*=n;gl_FragColor.a*=n;");nightMat.userData.shader=sh;};
 const night=new THREE.Mesh(new THREE.SphereGeometry(R+0.002,128,128),nightMat);core.add(night);
 const clouds=new THREE.Mesh(new THREE.SphereGeometry(R+0.03,96,96),new THREE.MeshStandardMaterial({transparent:true,depthWrite:false,roughness:1}));core.add(clouds);
+/* lightning — additive flashes localized to storm cells, rotates with the cloud layer */
+const MAXST=8;
+const lightMat=new THREE.ShaderMaterial({transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,
+  uniforms:{uTime:{value:0},uCount:{value:0},uColor:{value:new THREE.Color(0xbfe0ff)},
+    uPos:{value:Array.from({length:MAXST},()=>new THREE.Vector3(0,1,0))},
+    uRad:{value:new Float32Array(MAXST).fill(0.3)},uFlash:{value:new Float32Array(MAXST)}},
+  vertexShader:`varying vec3 vN;void main(){vN=normalize(normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`precision highp float;varying vec3 vN;
+   uniform float uTime;uniform int uCount;uniform vec3 uColor;
+   uniform vec3 uPos[${MAXST}];uniform float uRad[${MAXST}];uniform float uFlash[${MAXST}];
+   float h(vec2 p){return fract(sin(dot(p,vec2(41.3,289.1)))*43758.5453);}
+   void main(){vec3 n=normalize(vN);float glow=0.0;
+     for(int i=0;i<${MAXST};i++){
+       if(i>=uCount)break; if(uFlash[i]<=0.001)continue;
+       float d=distance(n,uPos[i]),r=uRad[i]; if(d>r)continue;
+       float t=d/r;
+       float flick=0.6+0.4*sin(uTime*70.0+float(i)*13.0);
+       float bloom=exp(-t*t*4.0);                                   // soft cloud-top flash (dominant)
+       // sparse short forks around the flash, localized in a mid-radius band (not a full fan)
+       float ang=atan(n.y-uPos[i].y,n.x-uPos[i].x);
+       float fork=step(0.84,h(vec2(floor(ang*5.0),floor(uTime*13.0)+float(i)*3.0)));
+       fork*=smoothstep(0.42,0.0,abs(t-0.35));
+       glow+=uFlash[i]*flick*(bloom+0.5*fork);
+     }
+     glow=clamp(glow,0.0,1.5); if(glow<=0.001)discard;
+     gl_FragColor=vec4(uColor*glow,glow);}`});
+const lightning=new THREE.Mesh(new THREE.SphereGeometry(R+0.032,96,96),lightMat);core.add(lightning);lightning.visible=false;
+let curStormN=0, stormFlash=new Float32Array(MAXST);
 const atmoMat=new THREE.ShaderMaterial({transparent:true,side:THREE.BackSide,blending:THREE.AdditiveBlending,depthWrite:false,uniforms:{c:{value:new THREE.Color(0x5aa0e8)},density:{value:1},sunDir:{value:new THREE.Vector3(1,0,0)}},vertexShader:`varying vec3 vN;varying vec3 vWP;void main(){vN=normalize(mat3(modelMatrix)*normal);vWP=(modelMatrix*vec4(position,1.)).xyz;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,fragmentShader:`varying vec3 vN;varying vec3 vWP;uniform vec3 c;uniform float density;uniform vec3 sunDir;void main(){vec3 V=normalize(cameraPosition-vWP);float f=pow(1.0-abs(dot(vN,V)),2.4);float s=clamp(dot(normalize(vN),normalize(sunDir))*0.5+0.5,0.0,1.0);gl_FragColor=vec4(c,f*density*mix(0.4,1.0,s));}`});
 const atmo=new THREE.Mesh(new THREE.SphereGeometry(R*1.14,64,64),atmoMat);core.add(atmo);
 /* planetary ring */
@@ -236,12 +343,15 @@ const ringGeo=new THREE.RingGeometry(R*1.4,R*2.3,128);
 const ring=new THREE.Mesh(ringGeo,new THREE.MeshBasicMaterial({map:makeRingTex("#c8b48a"),side:THREE.DoubleSide,transparent:true,depthWrite:false,opacity:0.9}));
 ring.rotation.x=Math.PI/2;core.add(ring);ring.visible=false;
 
-let S={type:"terran",seed:1,spin:1.0};
+let S={type:"terran",seed:1,spin:1.0,cloudSeed:12,cloudSpd:1.2};
 function config(){return {v:1,type:S.type,seed:S.seed,sea:+$("#sea").value/100,cscale:+$("#cscale").value/10,coast:+$("#coast").value/100,ice:+$("#icecap").value/100,
   atmoOn:$("#atmoOn").checked,atmoColor:$("#cAtmo").value,atmoDensity:+$("#atmoStr").value/100,
   cloudsOn:$("#cloudsOn").checked,cloudCov:+$("#cov").value/100,cloudTint:$("#cCloud").value,cityOn:$("#cityOn").checked,
+  cloudSeed:S.cloudSeed,cloudOpacity:+$("#clOp").value/100,cloudSpd:+$("#clSpd").value/10,cloudScale:+$("#clScale").value/10,cloudDetail:+$("#clDetail").value,
+  cloudDef:+$("#clDef").value/100,cloudSwirl:+$("#clSwirl").value/100,cloudBand:+$("#clBand").value/100,cloudBandN:+$("#clBandN").value,cloudShear:+$("#clShear").value/100,
+  storms:+$("#clStorms").value,stormI:+$("#clStormI").value/100,lightOn:$("#lightOn").checked,lightRate:+$("#lightRate").value/100,lightColor:$("#cLight").value,
   ringOn:$("#ringOn").checked,ringColor:$("#cRing").value,ringW:+$("#ringW").value/100,
-  sun:+$("#sun").value,tilt:+$("#tilt").value,spin:+$("#spin").value/10,
+  sun:+$("#sun").value,tilt:+$("#tilt").value,spin:+$("#spin").value/10,frames:+$("#frames").value,
   pois:pois.map(p=>({lon:p.lon,lat:p.lat,title:p.title,desc:p.desc,icon:p.icon,color:p.color,cat:p.cat}))};}
 
 function rebuild(){
@@ -249,9 +359,26 @@ function rebuild(){
   planet.material.map=tex;planet.material.metalnessMap=specTex;planet.material.needsUpdate=true;
   const T=TYPES[S.type];
   night.material.map=genCity(land,W,H,S.seed,"#ffd98a");night.material.needsUpdate=true;night.visible=$("#cityOn").checked&&T.city>0;
-  clouds.material.map=genClouds(S.seed+11,+$("#cov").value/100,$("#cCloud").value);clouds.material.needsUpdate=true;clouds.visible=$("#cloudsOn").checked&&!T.bands;
+  rebuildClouds();
   atmo.visible=$("#atmoOn").checked;
   applyRing();applyTilt();
+}
+function cloudParams(){return {seed:S.cloudSeed,cov:+$("#cov").value/100,tint:$("#cCloud").value,
+  scale:+$("#clScale").value/10,detail:+$("#clDetail").value,def:+$("#clDef").value/100,
+  band:+$("#clBand").value/100,bandN:+$("#clBandN").value,shear:+$("#clShear").value/100,
+  swirl:+$("#clSwirl").value/100*0.7,stormI:+$("#clStormI").value/100};}
+function rebuildClouds(){
+  const T=TYPES[S.type],p=cloudParams();
+  const storms=genStorms(S.cloudSeed,T.bands?0:+$("#clStorms").value,p.stormI);
+  p.storms=storms;
+  clouds.material.map=genClouds(p);clouds.material.opacity=+$("#clOp").value/100;clouds.material.needsUpdate=true;
+  clouds.visible=$("#cloudsOn").checked&&!T.bands;
+  // lightning setup
+  curStormN=Math.min(MAXST,storms.length);stormFlash.fill(0);
+  for(let i=0;i<curStormN;i++){const dir=stormDir(storms[i]);lightMat.uniforms.uPos.value[i].copy(dir);
+    lightMat.uniforms.uRad.value[i]=Math.min(1.1,2*Math.sin(Math.min(0.85,storms[i].rad*Math.PI*0.62)/2));}
+  lightMat.uniforms.uCount.value=curStormN;lightMat.uniforms.uColor.value.set($("#cLight").value);
+  lightMat.uniforms.uFlash.value.fill(0);
 }
 function applyTilt(){core.rotation.z=(+$("#tilt").value)*Math.PI/180;}
 function applySun(){const a=(+$("#sun").value)*Math.PI/180;sun.position.set(Math.cos(a)*5,1.4,Math.sin(a)*5);}
@@ -308,7 +435,22 @@ bind("sea",v=>(v/100).toFixed(2),"#seaV",rebuild);
 bind("cscale",v=>(v/10).toFixed(1),"#scaleV",rebuild);
 bind("coast",v=>(v/100).toFixed(2),"#coastV",rebuild);
 bind("icecap",v=>(v/100).toFixed(2),"#iceV",rebuild);
-bind("cov",v=>(v/100).toFixed(1),"#covV",()=>{clouds.material.map=genClouds(S.seed+11,+$("#cov").value/100,$("#cCloud").value);clouds.material.needsUpdate=true;});
+bind("cov",v=>(v/100).toFixed(1),"#covV",rebuildClouds);
+bind("clScale",v=>(v/10).toFixed(1),"#clScaleV",rebuildClouds);
+bind("clDetail",v=>v,"#clDetailV",rebuildClouds);
+bind("clDef",v=>(v/100).toFixed(2),"#clDefV",rebuildClouds);
+bind("clSwirl",v=>(v/100).toFixed(2),"#clSwirlV",rebuildClouds);
+bind("clBand",v=>(v/100).toFixed(2),"#clBandV",rebuildClouds);
+bind("clBandN",v=>v,"#clBandNV",rebuildClouds);
+bind("clShear",v=>(v/100).toFixed(2),"#clShearV",rebuildClouds);
+bind("clStorms",v=>v,"#clStormsV",rebuildClouds);
+bind("clStormI",v=>(v/100).toFixed(2),"#clStormIV",rebuildClouds);
+bind("clOp",v=>(v/100).toFixed(2),"#clOpV",v=>clouds.material.opacity=v/100);
+bind("clSpd",v=>(v/10).toFixed(1),"#clSpdV",v=>S.cloudSpd=v/10);
+bind("lightRate",v=>(v/100).toFixed(2),"#lightRateV");
+$("#lightOn").onchange=()=>{};
+$("#cLight").oninput=e=>lightMat.uniforms.uColor.value.set(e.target.value);
+$("#reseedClouds").onclick=()=>{S.cloudSeed=Math.floor(Math.random()*99999);rebuildClouds();};
 bind("atmoStr",v=>(v/100).toFixed(1),"#atmoV",v=>atmoMat.uniforms.density.value=v/100);
 bind("ringW",v=>(v/100).toFixed(1),"#ringWV",applyRing);
 bind("sun",v=>v+"°","#sunV",applySun);
@@ -318,10 +460,10 @@ bind("frames",v=>v,"#framesV");
 $("#atmoOn").onchange=e=>atmo.visible=e.target.checked;
 $("#cAtmo").oninput=e=>atmoMat.uniforms.c.value.set(e.target.value);
 $("#cloudsOn").onchange=e=>clouds.visible=e.target.checked&&!TYPES[S.type].bands;
-$("#cCloud").oninput=()=>{clouds.material.map=genClouds(S.seed+11,+$("#cov").value/100,$("#cCloud").value);clouds.material.needsUpdate=true;};
+$("#cCloud").oninput=rebuildClouds;
 $("#cityOn").onchange=()=>rebuild();
 $("#ringOn").onchange=applyRing;$("#cRing").oninput=applyRing;
-$("#regen").onclick=()=>{S.seed=Math.floor(Math.random()*99999);rebuild();};
+$("#regen").onclick=()=>{S.seed=Math.floor(Math.random()*99999);S.cloudSeed=Math.floor(Math.random()*99999);rebuild();};
 $("#resetView").onclick=()=>{rx=0.15;ry=0;camDist=6;};
 
 /* ---------- camera + click-to-drop ---------- */
@@ -343,7 +485,12 @@ let capturing=false, last=performance.now(),frames=0,fpsT=performance.now();
 function updateShaderSun(){const sw=sun.position.clone().normalize();atmoMat.uniforms.sunDir.value.copy(sw);if(nightMat.userData.shader){core.updateWorldMatrix(true,false);const inv=new THREE.Matrix3().setFromMatrix4(core.matrixWorld).invert();nightMat.userData.shader.uniforms.sunDir.value.copy(sw.clone().applyMatrix3(inv).applyAxisAngle(new THREE.Vector3(0,1,0),-planet.rotation.y).normalize());}}
 function animate(){requestAnimationFrame(animate);if(capturing)return;const now=performance.now(),dt=Math.min(0.05,(now-last)/1000);last=now;
   const rd=camDist;camera.position.x=Math.sin(ry)*Math.cos(rx)*rd;camera.position.y=Math.sin(rx)*rd;camera.position.z=Math.cos(ry)*Math.cos(rx)*rd;camera.lookAt(0,0,0);
-  planet.rotation.y+=S.spin*0.12*dt;night.rotation.y=planet.rotation.y;clouds.rotation.y+=(S.spin*0.12+0.05)*dt;
+  planet.rotation.y+=S.spin*0.12*dt;night.rotation.y=planet.rotation.y;clouds.rotation.y+=(S.spin*0.12*S.cloudSpd+0.02)*dt;
+  if($("#lightOn").checked&&$("#cloudsOn").checked&&curStormN>0&&!TYPES[S.type].bands){
+    lightning.visible=true;lightning.rotation.y=clouds.rotation.y;lightMat.uniforms.uTime.value+=dt;lightMat.uniforms.uCount.value=curStormN;
+    const rate=+$("#lightRate").value/100;
+    for(let i=0;i<curStormN;i++){stormFlash[i]=Math.max(0,stormFlash[i]-dt*7);if(Math.random()<rate*rate*3.2*dt)stormFlash[i]=0.7+Math.random()*0.55;lightMat.uniforms.uFlash.value[i]=stormFlash[i];}
+  }else lightning.visible=false;
   updateShaderSun();updatePins();
   renderer.render(scene,camera);frames++;if(now-fpsT>500){$("#fps").textContent=Math.round(frames*1000/(now-fpsT));frames=0;fpsT=now;}}
 animate();
@@ -363,6 +510,7 @@ async function renderSheet(cell){
   const sheet=document.createElement("canvas");sheet.width=cols*cell;sheet.height=rows*cell;const sctx=sheet.getContext("2d");
   sctx.imageSmoothingEnabled=true;sctx.imageSmoothingQuality="high";   // clean supersample downscale into each cell
   capturing=true;$("#prog").classList.add("show");
+  const litPrev=lightning.visible;lightning.visible=false;
   const savedCam=camera.position.clone();camera.position.set(0,0,6);camera.lookAt(0,0,0);
   // force 2× supersampling regardless of the display's devicePixelRatio, so baked frames are
   // anti-aliased (jagged edges are what shimmer/jitter worst when the sprite rotates)
@@ -374,12 +522,14 @@ async function renderSheet(cell){
     const c=i%cols,r=Math.floor(i/cols);sctx.drawImage(renderer.domElement,c*cell,r*cell,cell,cell);
     $("#progBar").style.width=Math.round((i+1)/N*100)+"%";$("#progLbl").textContent=`Rendering frame ${i+1} / ${N}…`;await new Promise(res=>setTimeout(res,8));}
   renderer.setPixelRatio(oldPR);renderer.setSize(old.x,old.y,false);camera.position.copy(savedCam);camera.aspect=old.x/old.y;camera.updateProjectionMatrix();planet.rotation.y=startRot;night.rotation.y=startRot;
+  lightning.visible=litPrev;
   capturing=false;$("#prog").classList.remove("show");
   return {dataURL:sheet.toDataURL("image/png"),cols,rows,N,cell};
 }
 $("#expSheet").onclick=async()=>{const s=await renderSheet(256);download(`planet_${S.type}_${S.seed}_sheet_${s.cols}x${s.rows}.png`,s.dataURL);toast(`Sprite-sheet exported (${s.cols}×${s.rows}, ${s.N} frames)`);};
-$("#expMap").onclick=async()=>{const s=await renderSheet(200);const out={type:"stardust-planet3d",version:1,name:`${S.type[0].toUpperCase()+S.type.slice(1)} World`,config:config(),
-    sheet:s.dataURL,cols:s.cols,rows:s.rows,frames:s.N,pois:config().pois,savedAt:new Date().toISOString()};
+async function buildPlanet3D(){const s=await renderSheet(200);return {type:"stardust-planet3d",version:1,name:`${S.type[0].toUpperCase()+S.type.slice(1)} World`,config:config(),
+    sheet:s.dataURL,cols:s.cols,rows:s.rows,frames:s.N,pois:config().pois,savedAt:new Date().toISOString()};}
+$("#expMap").onclick=async()=>{const out=await buildPlanet3D();
   download(`planet_${S.type}_${S.seed}.planet3d`,URL.createObjectURL(new Blob([JSON.stringify(out)],{type:"application/json"})));
   toast("Exported .planet3d — import it in Map Studio's 3D tab");};
 $("#expConfig").onclick=()=>{download(`planet_${S.type}_${S.seed}.json`,URL.createObjectURL(new Blob([JSON.stringify(config(),null,2)],{type:"application/json"})));toast("Config saved");};
@@ -392,8 +542,12 @@ function applyConfig(c){
   setVal("sea",Math.round((c.sea??0.52)*100));setVal("cscale",Math.round((c.cscale??2.2)*10));setVal("coast",Math.round((c.coast??0.5)*100));setVal("icecap",Math.round((c.ice??0.15)*100));
   setVal("atmoOn",c.atmoOn!==false);if(c.atmoColor)setVal("cAtmo",c.atmoColor);setVal("atmoStr",Math.round((c.atmoDensity??1)*100));
   setVal("cloudsOn",c.cloudsOn!==false);setVal("cov",Math.round((c.cloudCov??0.5)*100));if(c.cloudTint)setVal("cCloud",c.cloudTint);setVal("cityOn",c.cityOn!==false);
+  S.cloudSeed=c.cloudSeed!=null?c.cloudSeed:(S.seed+11);
+  setVal("clOp",Math.round((c.cloudOpacity??0.9)*100));setVal("clSpd",Math.round((c.cloudSpd??1.2)*10));setVal("clScale",Math.round((c.cloudScale??2.6)*10));setVal("clDetail",c.cloudDetail??5);
+  setVal("clDef",Math.round((c.cloudDef??0.5)*100));setVal("clSwirl",Math.round((c.cloudSwirl??0.3)*100));setVal("clBand",Math.round((c.cloudBand??0.4)*100));setVal("clBandN",c.cloudBandN??7);setVal("clShear",Math.round((c.cloudShear??0.35)*100));
+  setVal("clStorms",c.storms??2);setVal("clStormI",Math.round((c.stormI??0.65)*100));setVal("lightOn",c.lightOn!==false);setVal("lightRate",Math.round((c.lightRate??0.5)*100));if(c.lightColor)setVal("cLight",c.lightColor);
   setVal("ringOn",!!c.ringOn);if(c.ringColor)setVal("cRing",c.ringColor);setVal("ringW",Math.round((c.ringW??0.5)*100));
-  setVal("sun",c.sun??30);setVal("tilt",c.tilt??18);setVal("spin",Math.round((c.spin??1)*10));
+  setVal("sun",c.sun??30);setVal("tilt",c.tilt??18);setVal("spin",Math.round((c.spin??1)*10));if(c.frames)setVal("frames",c.frames);
   pois=(c.pois||[]).map(p=>({id:uid(),...p}));selectPOI(null);
   rebuild();refreshPOIs();
 }
@@ -402,6 +556,17 @@ function applyConfig(c){
 try{ applySun();rebuild();refreshPOIs();$("#loadNote").textContent="Ready — sculpt a world, drop some POIs, then export it.";setTimeout(()=>$("#loadNote").style.opacity=0,3400);}
 catch(err){const n=$("#loadNote");n.style.opacity=1;n.style.borderColor="#e0685a";n.style.color="#ffb0a0";n.textContent="⚠ 3D init error: "+(err&&err.message?err.message:err);console.error(err);}
 window.addEventListener("resize",()=>{if(capturing)return;camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+
+/* ---------- Map Studio round-trip: open from Studio (?studio=1), edit, send the world straight back ---------- */
+(function(){
+  if(!(new URLSearchParams(location.search).has("studio")&&window.opener))return;
+  const b=document.createElement("button");b.textContent="✦ Send to Map";
+  b.style.cssText="position:fixed;top:14px;right:14px;z-index:60;padding:10px 16px;border-radius:8px;border:1px solid #0ac8b9;background:linear-gradient(90deg,#3a2a66,#2a2450);color:#fff;font:600 13px 'Rajdhani',system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.5)";
+  b.onclick=async()=>{b.disabled=true;b.textContent="Baking…";try{const out=await buildPlanet3D();window.opener.postMessage(out,"*");toast("Sent to Map Studio");}catch(e){toast("Couldn't reach Map Studio");}b.disabled=false;b.textContent="✦ Send to Map";};
+  document.body.appendChild(b);
+  window.addEventListener("message",ev=>{const d=ev.data;if(d&&d.type==="planet3d-load"&&d.config){try{applyConfig(d.config);toast("Loaded from Map Studio — edit, then Send to Map");}catch(e){}}});
+  try{window.opener.postMessage({type:"planet3d-ready"},"*");}catch(e){}
+})();
 </script>
 </body>
 </html>

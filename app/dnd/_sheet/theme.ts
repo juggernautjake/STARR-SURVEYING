@@ -95,40 +95,42 @@ export const streamerTheme: SheetTheme = {
   },
 };
 
-// Donata Dime — the bespoke MLM/holographic skin (worn only by Donata). A BRIGHT,
-// pearlescent "girlboss-glam × prehistoric-saurian × corporate-flash" palette: hot Mojo
-// magenta + electric violet + Diamond gold on iridescent lavender grounds, with a deep
-// aubergine ink for readable text. Light theme, so the `skin-donata` CSS flips the base
-// sheet's hardcoded white headings to `ink`. `teal`/`tealbright` are repurposed away from
-// cyan (they back links/mods/table-headers in the base sheet) to violet + legible gold.
+// Donata Dime — the bespoke "Mojo Bazaar" MLM skin (worn only by Donata). A classic-Neopets
+// candy-scrapbook vibe: warm parchment/cream grounds, berry + mint + grape candy accents, and
+// a deep-plum ink so text stays crisply readable everywhere. Deliberately NOT Lazzuh's dark
+// neon nor the streamer's pixel/CRT pink. All tokens are contrast-checked for AA+ on the cream
+// panels; saturated tokens are used as BACKGROUNDS only where the skin-donata CSS sets an
+// explicit readable text color. `teal`/`tealbright` are repurposed away from cyan (they back
+// links/mods/table-headers in the base sheet) to a candy teal + a legible deep teal.
+// Spec: docs/planning/completed/DND_DONATA_SHEET_REDESIGN_2026-07-09.md
 export const donataTheme: SheetTheme = {
   colors: {
-    void: '#fdf2ff',
-    'void-2': '#f7e7ff',
-    panel: '#fffafe',
-    'panel-2': '#fbecff',
-    'panel-3': '#f3e2ff',
-    ink: '#3a0f4d',
-    muted: '#8a5aa0',
-    'muted-2': '#a97fc0',
-    pink: '#e0148c',
-    hotpink: '#c50f79',
-    violet: '#8b3ff0',
-    'violet-2': '#6d28c9',
-    // repurposed away from cyan → violet accent + a legible dark gold
-    teal: '#9333ea',
-    tealbright: '#a8710a',
-    gold: '#c98a0a',
-    danger: '#d6336c',
-    good: '#1c9e63',
-    line: 'rgba(224, 20, 140, 0.28)',
-    'line-strong': 'rgba(224, 20, 140, 0.55)',
+    void: '#fdf4e3',      // warm parchment page
+    'void-2': '#f8e9c8',
+    panel: '#fffef9',     // near-white cream card
+    'panel-2': '#fdeef7', // soft berry alt panel
+    'panel-3': '#e9f9f1', // soft mint alt panel
+    ink: '#3a2140',       // deep plum — ~11:1 on cream (AAA)
+    muted: '#6f5566',     // ~5.6:1 (AA)
+    'muted-2': '#87707f', // ~4.5:1 (labels only)
+    pink: '#ff5fa8',      // bright bubblegum (used as a background fill)
+    hotpink: '#c2185b',   // deep raspberry — primary accent/value text, ~5.4:1
+    violet: '#7b2cbf',    // grape accent, ~6.1:1
+    'violet-2': '#5b1f94',
+    // repurposed away from cyan → candy teal (bg) + a legible deep teal (link/mod/table text)
+    teal: '#17b3a3',
+    tealbright: '#0d8f7e', // ~4.7:1 on cream
+    gold: '#b8730a',       // legible amber, ~4.8:1
+    danger: '#d12b4e',
+    good: '#1c8f57',
+    line: 'rgba(123, 44, 191, 0.28)',
+    'line-strong': 'rgba(194, 24, 91, 0.5)',
   },
   fonts: {
-    // Fredoka = rounded, friendly, "brand deck" display; Poppins = clean geometric body;
-    // Space Mono = the receipt/fine-print mono. All three @imported at the top of theme.css.
-    display: "'Fredoka', 'Poppins', 'Oswald', 'Arial Narrow', sans-serif",
-    body: "'Poppins', 'Segoe UI', sans-serif",
+    // Baloo 2 = chunky, rounded, friendly poster display; Nunito = highly legible rounded body;
+    // Space Mono = receipt/fine-print mono. All @imported at the top of theme.css.
+    display: "'Baloo 2', 'Fredoka', 'Poppins', sans-serif",
+    body: "'Nunito', 'Segoe UI', sans-serif",
     mono: "'Space Mono', 'JetBrains Mono', 'Consolas', monospace",
   },
 };

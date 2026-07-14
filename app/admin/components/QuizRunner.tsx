@@ -3,15 +3,15 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Loader2, FileText } from 'lucide-react';
-import FillBlankQuestion from './FillBlankQuestion';
+import QuestionBody, { isAnswered, type DragLabelOptions, type HotspotOptions } from './QuestionBody';
 
-type QuestionType = 'multiple_choice' | 'true_false' | 'short_answer' | 'fill_blank' | 'multi_select' | 'numeric_input' | 'math_template' | 'essay';
+type QuestionType = 'multiple_choice' | 'true_false' | 'short_answer' | 'fill_blank' | 'multi_select' | 'ordering' | 'drag_label' | 'hotspot' | 'numeric_input' | 'math_template' | 'essay';
 
 interface Question {
   id: string;
   question_text: string;
   question_type: QuestionType;
-  options: string[];
+  options: string[] | DragLabelOptions | HotspotOptions;
   difficulty: string;
   _math_vars?: Record<string, number>;
   _original_type?: string;
@@ -113,28 +113,7 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
     fetchQuiz();
   }, [fetchQuiz]);
 
-  function isQuestionAnswered(q: Question): boolean {
-    const ans = answers[q.id];
-    if (!ans) return false;
-    switch (q.question_type) {
-      case 'fill_blank': {
-        try {
-          const arr = JSON.parse(ans) as string[];
-          return arr.length > 0 && arr.every(a => a !== '');
-        } catch { return false; }
-      }
-      case 'multi_select': {
-        try {
-          const arr = JSON.parse(ans) as string[];
-          return arr.length > 0;
-        } catch { return false; }
-      }
-      default:
-        return ans.trim() !== '';
-    }
-  }
-
-  const answeredCount = questions.filter(q => isQuestionAnswered(q)).length;
+  const answeredCount = questions.filter(q => isAnswered(q, answers[q.id])).length;
 
   async function submit() {
     if (answeredCount < questions.length) {
@@ -209,36 +188,6 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
     setHistoricalAvg(null);
     setLoading(true);
     fetchQuiz();
-  }
-
-  // Multi-select toggle
-  function toggleMultiSelect(qId: string, opt: string) {
-    const current: string[] = (() => {
-      try { return JSON.parse(answers[qId] || '[]'); } catch { return []; }
-    })();
-    const idx = current.indexOf(opt);
-    if (idx >= 0) {
-      current.splice(idx, 1);
-    } else {
-      current.push(opt);
-    }
-    setAnswers(prev => ({ ...prev, [qId]: JSON.stringify(current) }));
-  }
-
-  function isMultiSelected(qId: string, opt: string): boolean {
-    try {
-      const arr = JSON.parse(answers[qId] || '[]') as string[];
-      return arr.includes(opt);
-    } catch { return false; }
-  }
-
-  // Fill blank
-  function getFillBlanks(qId: string): string[] {
-    try { return JSON.parse(answers[qId] || '[]'); } catch { return []; }
-  }
-
-  function setFillBlanks(qId: string, blanks: string[]) {
-    setAnswers(prev => ({ ...prev, [qId]: JSON.stringify(blanks) }));
   }
 
   if (loading) return <div className="admin-empty"><div className="admin-empty__icon"><Loader2 size={30} strokeWidth={2} className="animate-spin" /></div><div className="admin-empty__title">Loading questions...</div></div>;
@@ -449,116 +398,19 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
                 <span className={`quiz__question-diff quiz__question-diff--${q.difficulty}`}>{q.difficulty}</span>
                 {q.question_type === 'fill_blank' && <span className="quiz__question-type-badge">Fill in the Blank</span>}
                 {q.question_type === 'multi_select' && <span className="quiz__question-type-badge">Select All That Apply</span>}
+                {q.question_type === 'ordering' && <span className="quiz__question-type-badge">Put In Order</span>}
+                {q.question_type === 'drag_label' && <span className="quiz__question-type-badge">Label the Diagram</span>}
+                {q.question_type === 'hotspot' && <span className="quiz__question-type-badge">Select the Element</span>}
                 {(q.question_type === 'numeric_input' || q._original_type === 'math_template') && <span className="quiz__question-type-badge">Numeric Answer</span>}
                 {q.question_type === 'essay' && <span className="quiz__question-type-badge">AI-Graded Essay</span>}
               </div>
             </div>
 
-            {/* Generated figure that matches this problem's numbers */}
-            {q._diagram && (
-              <div className="quiz__diagram" style={{ margin: '0.75rem 0', maxWidth: 540 }} dangerouslySetInnerHTML={{ __html: q._diagram }} />
-            )}
-
-            {/* Multiple Choice / True-False */}
-            {(q.question_type === 'multiple_choice' || q.question_type === 'true_false') && (
-              <>
-                <p className="quiz__question-text">{q.question_text}</p>
-                <div className="quiz__options">
-                  {q.options.map((opt, oi) => (
-                    <div
-                      key={oi}
-                      className={`quiz__option ${answers[q.id] === opt ? 'quiz__option--selected' : ''}`}
-                      onClick={() => setAnswers(prev => ({ ...prev, [q.id]: opt }))}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAnswers(prev => ({ ...prev, [q.id]: opt })); } }}
-                    >
-                      {opt}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* Multi Select */}
-            {q.question_type === 'multi_select' && (
-              <>
-                <p className="quiz__question-text">{q.question_text}</p>
-                <div className="quiz__options">
-                  {q.options.map((opt, oi) => (
-                    <div
-                      key={oi}
-                      className={`quiz__option quiz__option--multi ${isMultiSelected(q.id, opt) ? 'quiz__option--selected' : ''}`}
-                      onClick={() => toggleMultiSelect(q.id, opt)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleMultiSelect(q.id, opt); } }}
-                    >
-                      <span className="quiz__option-check">{isMultiSelected(q.id, opt) ? '\u2713' : ''}</span>
-                      {opt}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* Short Answer */}
-            {q.question_type === 'short_answer' && (
-              <>
-                <p className="quiz__question-text">{q.question_text}</p>
-                <input
-                  type="text"
-                  className="quiz__text-input"
-                  placeholder="Type your answer..."
-                  value={answers[q.id] || ''}
-                  onChange={e => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
-                />
-              </>
-            )}
-
-            {/* Numeric Input */}
-            {(q.question_type === 'numeric_input' || q.question_type === 'math_template') && (
-              <>
-                <p className="quiz__question-text">{q.question_text}</p>
-                <div className="quiz__numeric-wrap">
-                  <input
-                    type="number"
-                    step="any"
-                    className="quiz__text-input quiz__text-input--numeric"
-                    placeholder="Enter your numeric answer..."
-                    value={answers[q.id] || ''}
-                    onChange={e => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
-                  />
-                </div>
-              </>
-            )}
-
-            {/* Essay / Paragraph */}
-            {q.question_type === 'essay' && (
-              <>
-                <p className="quiz__question-text">{q.question_text}</p>
-                <textarea
-                  className="quiz__essay-input"
-                  placeholder="Write your response here... Be thorough and explain your reasoning."
-                  rows={6}
-                  value={answers[q.id] || ''}
-                  onChange={e => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
-                />
-                <span className="quiz__essay-hint">
-                  {(answers[q.id] || '').length} characters &mdash; Aim for a detailed, well-structured response
-                </span>
-              </>
-            )}
-
-            {/* Fill in the Blank */}
-            {q.question_type === 'fill_blank' && (
-              <FillBlankQuestion
-                questionText={q.question_text}
-                options={q.options}
-                blanks={getFillBlanks(q.id)}
-                onChange={b => setFillBlanks(q.id, b)}
-              />
-            )}
+            <QuestionBody
+              question={q}
+              answer={answers[q.id]}
+              onAnswer={next => setAnswers(prev => ({ ...prev, [q.id]: next }))}
+            />
           </div>
         ))}
       </div>
@@ -584,6 +436,12 @@ function formatUserAnswer(answer: string, qType: QuestionType): string {
   if (qType === 'multi_select') {
     try { return (JSON.parse(answer) as string[]).join(', '); } catch { return answer; }
   }
+  if (qType === 'ordering') {
+    try { return (JSON.parse(answer) as string[]).map((s, i) => `${i + 1}. ${s}`).join('  →  '); } catch { return answer; }
+  }
+  if (qType === 'drag_label') {
+    try { return (JSON.parse(answer) as string[]).map((s, i) => `${i + 1}. ${s || '(blank)'}`).join(' · '); } catch { return answer; }
+  }
   return answer || '(blank)';
 }
 
@@ -593,6 +451,12 @@ function formatCorrectAnswer(answer: string, qType: QuestionType): string {
   }
   if (qType === 'fill_blank') {
     try { return (JSON.parse(answer) as string[]).join(', '); } catch { return answer; }
+  }
+  if (qType === 'ordering') {
+    try { return (JSON.parse(answer) as string[]).map((s, i) => `${i + 1}. ${s}`).join('  →  '); } catch { return answer; }
+  }
+  if (qType === 'drag_label') {
+    try { return (JSON.parse(answer) as string[]).map((s, i) => `${i + 1}. ${s}`).join(' · '); } catch { return answer; }
   }
   return answer;
 }

@@ -18,7 +18,7 @@ import type { Point2D } from '../cad/types';
 // ────────────────────────────────────────────────────────────────────────────
 export interface TraverseLegSpec { azVar?: string; az?: number; distVar?: string; dist?: number; label?: string; }
 export interface DiagramSpec {
-  type: 'traverse' | 'inverse' | 'triangle' | 'curve' | 'leveling' | 'compass';
+  type: 'traverse' | 'inverse' | 'triangle' | 'curve' | 'leveling' | 'compass' | 'towerTwoAngles' | 'profile' | 'crossSection' | 'plat' | 'roundedLot' | 'heightRelations' | 'tiltedPhoto' | 'contour';
   // traverse
   startNVar?: string; startEVar?: string;
   legs?: TraverseLegSpec[];
@@ -35,6 +35,24 @@ export interface DiagramSpec {
   bsVar?: string; fsVar?: string; biLabel?: string;
   // compass: a single azimuth to illustrate
   azVar?: string;
+  // towerTwoAngles: baseline distance + two elevation angles (deg)
+  dVar?: string; alphaVar?: string; betaVar?: string;
+  // profile: connected invert/grade points + optional cut callout station
+  profilePoints?: { staVar?: string; sta?: number; elevVar?: string; elev?: number; label?: string }[];
+  cutStaVar?: string; cutSta?: number; cutLabel?: string;
+  // crossSection: road half-width + side-slope ratio + cut/fill mode
+  halfWidthVar?: string; slopeVar?: string; cutFill?: 'cut' | 'fill';
+  // plat: lots along a frontage (width by var or literal, optional dim label)
+  platLots?: { widthVar?: string; width?: number; label?: string; dim?: string }[];
+  streetName?: string; monA?: string; monB?: string;
+  // roundedLot: rectangle len × wid with one corner cut by an arc of radius
+  lengthVar?: string; widthVar?: string; radiusVar?: string;
+  // heightRelations: orthometric H, ellipsoidal h, geoid height N
+  orthoHVar?: string; orthoH?: number; ellipHVar?: string; ellipH?: number; geoidNVar?: string; geoidN?: number;
+  // tiltedPhoto: tilt of the photo from vertical (deg)
+  tiltVar?: string; tilt?: number;
+  // contour: base index elevation, interval, and peak (summit) elevation
+  baseElevVar?: string; baseElev?: number; intervalVar?: string; interval?: number; peakElevVar?: string; peakElev?: number;
   title?: string;
 }
 
@@ -66,6 +84,10 @@ function fitTransform(pts: Point2D[]): Xf {
 
 const esc = (s: string) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const f2 = (n: number) => (Math.round(n * 100) / 100).toFixed(2);
+// stationing format: 247.55 → "2+47.55", 125 → "1+25.00", 0 → "0+00.00"
+const staLabel = (s: number) => `${Math.floor(s / 100)}+${(((s % 100) + 100) % 100).toFixed(2).padStart(5, '0')}`;
+// deterministic thousands grouping (locale-independent): 1500 → "1,500"
+const grp = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 function svgWrap(inner: string, title?: string): string {
   const t = title ? `<text x="${W / 2}" y="20" text-anchor="middle" font-size="14" font-weight="700" fill="#1D3095">${esc(title)}</text>` : '';
@@ -163,25 +185,192 @@ function renderTriangle(verts: { n: number; e: number; label?: string }[], title
 }
 
 function renderCurve(R: number, I: number, title?: string): string {
-  // Build PC, PI, PT geometry around a circle; central angle I (deg)
-  const cx = W / 2, cy = H / 2 + 40, r = Math.min(W, H) * 0.30;
+  // Build PC, PI, PT geometry around a circle; central angle I (deg).
+  // Labels the full element set: T (tangent), LC (long chord), E (external),
+  // M (middle ordinate), R, I, and the tangent–chord (deflection) angle = I/2.
+  const cx = W / 2, cy = H / 2 + 54, r = Math.min(W, H) * 0.28;
   const half = (I * Math.PI / 180) / 2;
   const a0 = -Math.PI / 2 - half, a1 = -Math.PI / 2 + half; // symmetric about top
   const pc = { x: cx + r * Math.cos(a0), y: cy + r * Math.sin(a0) };
   const pt = { x: cx + r * Math.cos(a1), y: cy + r * Math.sin(a1) };
-  // tangents meet at PI
-  const T = r * Math.tan(half);
-  // tangent direction at PC is perpendicular to radius
-  const ti = { x: cx, y: cy - r / Math.cos(half) }; // PI on the symmetry axis
+  const pi = { x: cx, y: cy - r / Math.cos(half) };  // PI on the symmetry axis
+  const apex = { x: cx, y: cy - r };                 // midpoint of the arc
+  const chordMid = { x: cx, y: (pc.y + pt.y) / 2 };  // midpoint of long chord
+  // true element lengths (for labels)
+  const T = R * Math.tan(half);
+  const LC = 2 * R * Math.sin(half);
+  const E = R / Math.cos(half) - R;
+  const M = R * (1 - Math.cos(half));
   let g = `<path d="M ${pc.x} ${pc.y} A ${r} ${r} 0 0 1 ${pt.x} ${pt.y}" fill="none" stroke="#1D3095" stroke-width="2.5"/>`;
-  g += `<line x1="${pc.x}" y1="${pc.y}" x2="${ti.x}" y2="${ti.y}" stroke="#888" stroke-width="1.4" stroke-dasharray="5 4"/>`;
-  g += `<line x1="${pt.x}" y1="${pt.y}" x2="${ti.x}" y2="${ti.y}" stroke="#888" stroke-width="1.4" stroke-dasharray="5 4"/>`;
+  // tangents PC→PI and PT→PI
+  g += `<line x1="${pc.x}" y1="${pc.y}" x2="${pi.x}" y2="${pi.y}" stroke="#888" stroke-width="1.4" stroke-dasharray="5 4"/>`;
+  g += `<line x1="${pt.x}" y1="${pt.y}" x2="${pi.x}" y2="${pi.y}" stroke="#888" stroke-width="1.4" stroke-dasharray="5 4"/>`;
+  // long chord PC→PT
+  g += `<line x1="${pc.x}" y1="${pc.y}" x2="${pt.x}" y2="${pt.y}" stroke="#0a7a5a" stroke-width="1.6"/>`;
+  // radii to PC/PT + E and M along the symmetry axis
   g += `<line x1="${cx}" y1="${cy}" x2="${pc.x}" y2="${pc.y}" stroke="#bbb" stroke-width="1"/>`;
   g += `<line x1="${cx}" y1="${cy}" x2="${pt.x}" y2="${pt.y}" stroke="#bbb" stroke-width="1"/>`;
-  g += dot(pc.x, pc.y, 'PC') + dot(pt.x, pt.y, 'PT') + dot(ti.x, ti.y, 'PI') + dot(cx, cy, 'O', '#999');
-  g += `<text x="${cx}" y="${cy + 16}" text-anchor="middle" font-size="11" fill="#333">R = ${f2(R)}'</text>`;
-  g += `<text x="${ti.x}" y="${ti.y - 8}" text-anchor="middle" font-size="11" fill="#333">I = ${formatAzimuth(I)}</text>`;
+  g += `<line x1="${pi.x}" y1="${pi.y}" x2="${chordMid.x}" y2="${chordMid.y}" stroke="#c0392b" stroke-width="1" stroke-dasharray="3 3"/>`;
+  g += dot(pc.x, pc.y, 'PC') + dot(pt.x, pt.y, 'PT') + dot(pi.x, pi.y, 'PI') + dot(cx, cy, 'O', '#999');
+  // element labels
+  g += legLabel(pc.x, pc.y, pi.x, pi.y, `T = ${f2(T)}'`);
+  g += `<text x="${cx}" y="${(pc.y + pt.y) / 2 + 16}" text-anchor="middle" font-size="11" fill="#0a7a5a">LC = ${f2(LC)}'</text>`;
+  g += `<text x="${cx + 8}" y="${(pi.y + apex.y) / 2 + 3}" font-size="10" fill="#c0392b">E = ${f2(E)}'</text>`;
+  g += `<text x="${cx + 8}" y="${(apex.y + chordMid.y) / 2 + 3}" font-size="10" fill="#c0392b">M = ${f2(M)}'</text>`;
+  g += `<text x="${cx}" y="${cy + 15}" text-anchor="middle" font-size="11" fill="#333">R = ${f2(R)}'</text>`;
+  g += `<text x="${pi.x}" y="${pi.y - 22}" text-anchor="middle" font-size="11" fill="#333">I = ${formatAzimuth(I)}</text>`;
+  // tangent–chord (deflection) angle at PC = I/2
+  g += `<text x="${pc.x - 4}" y="${pc.y + 18}" text-anchor="end" font-size="10" fill="#1D3095" font-weight="700">∠(T,LC) = I/2</text>`;
   return svgWrap(g, title || 'Horizontal Curve');
+}
+
+// Height of an inaccessible point from two angle stations on a level baseline
+// `d` apart. α is the (smaller) elevation angle at the far station, β the
+// (larger) angle at the near station. h = d / (cot α − cot β).
+export function renderTowerTwoAngles(d: number, alphaDeg: number, betaDeg: number, title?: string): string {
+  const a = alphaDeg * Math.PI / 180, b = betaDeg * Math.PI / 180;
+  const cotA = 1 / Math.tan(a), cotB = 1 / Math.tan(b);
+  const denom = cotA - cotB;
+  if (!(denom > 0) || !(alphaDeg > 0) || !(betaDeg > alphaDeg) || betaDeg >= 90) return svgWrap('', title || 'Height from two angles');
+  const h = d / denom;                 // height of the top above the baseline
+  const x2 = h * cotB;                 // near station → base
+  const x1 = h * cotA;                 // far station → base  (x1 = x2 + d)
+  // world points: base at origin, top above it, stations to the left
+  const base = { x: 0, y: 0 }, top = { x: 0, y: h }, s2 = { x: -x2, y: 0 }, s1 = { x: -x1, y: 0 };
+  const xf = fitTransform([top, s1, base]);
+  const P = (p: { x: number; y: number }) => ({ x: xf.sx(p.x), y: xf.sy(p.y) });
+  const B = P(base), Tp = P(top), S2 = P(s2), S1 = P(s1);
+  let g = '';
+  // ground line
+  g += `<line x1="${S1.x - 14}" y1="${B.y}" x2="${B.x + 24}" y2="${B.y}" stroke="#7a5230" stroke-width="2"/>`;
+  // tower
+  g += `<line x1="${B.x}" y1="${B.y}" x2="${Tp.x}" y2="${Tp.y}" stroke="#1D3095" stroke-width="3"/>`;
+  // rays
+  g += `<line x1="${S1.x}" y1="${S1.y}" x2="${Tp.x}" y2="${Tp.y}" stroke="#888" stroke-width="1.4" stroke-dasharray="5 4"/>`;
+  g += `<line x1="${S2.x}" y1="${S2.y}" x2="${Tp.x}" y2="${Tp.y}" stroke="#888" stroke-width="1.4" stroke-dasharray="5 4"/>`;
+  // stations + labels (angle labels below the line so they don't collide)
+  g += dot(S1.x, S1.y, '') + dot(S2.x, S2.y, '') + dot(Tp.x, Tp.y, '');
+  g += `<text x="${S1.x}" y="${S1.y + 16}" text-anchor="middle" font-size="11" fill="#1D3095">A = ${formatAzimuth(alphaDeg)}</text>`;
+  g += `<text x="${S2.x}" y="${S2.y + 16}" text-anchor="middle" font-size="11" fill="#1D3095">B = ${formatAzimuth(betaDeg)}</text>`;
+  g += `<text x="${(S1.x + S2.x) / 2}" y="${B.y + 30}" text-anchor="middle" font-size="11" fill="#333">${f2(d)}'</text>`;
+  g += `<text x="${Tp.x + 8}" y="${(B.y + Tp.y) / 2}" font-size="12" fill="#c0392b" font-weight="700">h = ?</text>`;
+  g += `<text x="${W / 2}" y="${H - 12}" text-anchor="middle" font-size="10" fill="#888">NOT TO SCALE</text>`;
+  return svgWrap(g, title || 'Height from two angles');
+}
+
+// Longitudinal profile / grade line — stationing on x, elevation on y with
+// independent (vertically-exaggerated) scaling. Draws the connected invert/grade
+// line with elevation + station callouts and an optional "cut = ?" marker at an
+// intermediate station (Q6-style sewer grade problems).
+export function renderProfile(
+  pts: { sta: number; elev: number; label?: string }[],
+  opts: { title?: string; cutSta?: number; cutLabel?: string } = {},
+): string {
+  if (pts.length < 2) return svgWrap('', opts.title || 'Profile');
+  const stas = pts.map(p => p.sta), elevs = pts.map(p => p.elev);
+  const minSta = Math.min(...stas), maxSta = Math.max(...stas);
+  let minEl = Math.min(...elevs), maxEl = Math.max(...elevs);
+  const elPad = (maxEl - minEl) * 0.6 || 1;
+  minEl -= elPad; maxEl += elPad * 0.5;
+  const spanSta = (maxSta - minSta) || 1, spanEl = (maxEl - minEl) || 1;
+  const L = 64, Rr = W - 28, Tb = 64, Bb = H - 54;
+  const sx = (s: number) => L + (s - minSta) / spanSta * (Rr - L);
+  const sy = (e: number) => Bb - (e - minEl) / spanEl * (Bb - Tb);
+  const invertAt = (s: number): number => {
+    for (let i = 0; i < pts.length - 1; i++) {
+      if (s >= pts[i].sta && s <= pts[i + 1].sta) {
+        const t = (s - pts[i].sta) / ((pts[i + 1].sta - pts[i].sta) || 1);
+        return pts[i].elev + t * (pts[i + 1].elev - pts[i].elev);
+      }
+    }
+    return pts[pts.length - 1].elev;
+  };
+  let g = `<line x1="${L}" y1="${Bb}" x2="${Rr}" y2="${Bb}" stroke="#bbb" stroke-width="1"/>`;
+  const scr = pts.map(p => ({ x: sx(p.sta), y: sy(p.elev), p }));
+  g += `<polyline points="${scr.map(s => `${s.x},${s.y}`).join(' ')}" fill="none" stroke="#1D3095" stroke-width="2.5"/>`;
+  for (const s of scr) {
+    g += dot(s.x, s.y, '');
+    if (s.p.label) g += `<text x="${s.x}" y="${s.y - 10}" text-anchor="middle" font-size="11" font-weight="600" fill="#111">${esc(s.p.label)}</text>`;
+    g += `<text x="${s.x}" y="${s.y + 16}" text-anchor="middle" font-size="10" fill="#c0392b">${f2(s.p.elev)}</text>`;
+    g += `<text x="${s.x}" y="${Bb + 15}" text-anchor="middle" font-size="10" fill="#555">${staLabel(s.p.sta)}</text>`;
+  }
+  if (opts.cutSta != null && opts.cutSta >= minSta && opts.cutSta <= maxSta) {
+    const cx = sx(opts.cutSta), cy = sy(invertAt(opts.cutSta));
+    g += `<line x1="${cx}" y1="${Tb - 4}" x2="${cx}" y2="${cy}" stroke="#c0392b" stroke-width="1.2" stroke-dasharray="4 3"/>`;
+    g += `<text x="${cx}" y="${Tb - 8}" text-anchor="middle" font-size="11" fill="#c0392b" font-weight="700">${esc(opts.cutLabel || 'cut = ?')}</text>`;
+    g += `<text x="${cx}" y="${Bb + 15}" text-anchor="middle" font-size="10" fill="#c0392b">${staLabel(opts.cutSta)}</text>`;
+  }
+  return svgWrap(g, opts.title || 'Profile / Grade Line');
+}
+
+// Road cross-section: centerline, road surface out to the edge, and a single
+// side slope at ratio s:1 (H:V) as fill (down-and-out) or cut (up-and-out),
+// with the existing-ground line and labels. Schematic (honors the slope ratio).
+export function renderCrossSection(halfWidth: number, slope: number, mode: 'cut' | 'fill', title?: string): string {
+  if (!(halfWidth > 0) || !(slope > 0)) return svgWrap('', title || 'Typical Cross-Section');
+  const roadY = H * 0.42, xCL = 100;
+  const wPx = Math.max(40, Math.min(150, halfWidth * 4));
+  const xEdge = xCL + wPx;
+  const run = 190, V = run / Math.max(slope, 0.5);
+  const toe = { x: xEdge + run, y: mode === 'fill' ? roadY + V : roadY - V };
+  let g = `<line x1="${xCL}" y1="${roadY - 74}" x2="${xCL}" y2="${roadY + 96}" stroke="#888" stroke-width="1" stroke-dasharray="4 4"/>`;
+  g += `<text x="${xCL}" y="${roadY - 80}" text-anchor="middle" font-size="10" fill="#555">CL</text>`;
+  g += `<line x1="${xCL}" y1="${roadY}" x2="${xEdge}" y2="${roadY}" stroke="#333" stroke-width="2.5"/>`;
+  g += `<line x1="${xEdge}" y1="${roadY}" x2="${toe.x}" y2="${toe.y}" stroke="#1D3095" stroke-width="2.5"/>`;
+  g += `<line x1="${xCL - 12}" y1="${toe.y}" x2="${W - 18}" y2="${toe.y}" stroke="#7a5230" stroke-width="1.5" stroke-dasharray="3 2"/>`;
+  g += `<text x="${W - 18}" y="${toe.y - 6}" text-anchor="end" font-size="10" fill="#7a5230">existing ground</text>`;
+  g += `<text x="${(xCL + xEdge) / 2}" y="${roadY - 8}" text-anchor="middle" font-size="10" fill="#333">${f2(halfWidth)}' to edge</text>`;
+  g += dot(xEdge, roadY, '') + dot(toe.x, toe.y, '');
+  g += `<text x="${(xEdge + toe.x) / 2 + 6}" y="${(roadY + toe.y) / 2}" font-size="12" fill="#1D3095" font-weight="700">${f2(slope)} : 1</text>`;
+  g += `<text x="${W / 2}" y="${H - 12}" text-anchor="middle" font-size="10" fill="#888">Typical ${mode === 'fill' ? 'FILL' : 'CUT'} section — NOT TO SCALE</text>`;
+  return svgWrap(g, title || 'Typical Cross-Section');
+}
+
+// Recorded plat — a strip of lots along a street frontage. Each lot is drawn to
+// its (scaled) width with its number inside and a frontage dimension below;
+// monuments mark the ends of the run. Supports excess/deficiency & remainder-lot
+// questions (Q20) and represents a subdivision block (Q19).
+export function renderPlat(
+  lots: { width: number; label?: string; dim?: string }[],
+  opts: { streetName?: string; monA?: string; monB?: string; title?: string } = {},
+): string {
+  if (!lots.length) return svgWrap('', opts.title || 'Plat');
+  const total = lots.reduce((s, l) => s + (l.width > 0 ? l.width : 0), 0) || 1;
+  const L = 60, Rr = W - 40, streetY = H - 96, depth = 108;
+  const scale = (Rr - L) / total;
+  let x = L, g = '';
+  for (const lot of lots) {
+    const w = Math.max(lot.width, 0) * scale;
+    g += `<rect x="${x}" y="${streetY - depth}" width="${w}" height="${depth}" fill="#1D309508" stroke="#1D3095" stroke-width="1.6"/>`;
+    if (lot.label) g += `<text x="${x + w / 2}" y="${streetY - depth / 2 + 4}" text-anchor="middle" font-size="13" font-weight="700" fill="#1D3095">${esc(lot.label)}</text>`;
+    g += `<text x="${x + w / 2}" y="${streetY + 18}" text-anchor="middle" font-size="10" fill="#333">${esc(lot.dim || `${f2(lot.width)}'`)}</text>`;
+    x += w;
+  }
+  g += `<line x1="${L}" y1="${streetY}" x2="${x}" y2="${streetY}" stroke="#333" stroke-width="2.5"/>`;
+  g += `<rect x="${L - 4}" y="${streetY - 4}" width="8" height="8" fill="#c0392b"/>`;
+  g += `<rect x="${x - 4}" y="${streetY - 4}" width="8" height="8" fill="#c0392b"/>`;
+  g += `<text x="${L}" y="${streetY + 34}" text-anchor="middle" font-size="11" font-weight="700" fill="#c0392b">${esc(opts.monA || 'A')}</text>`;
+  g += `<text x="${x}" y="${streetY + 34}" text-anchor="middle" font-size="11" font-weight="700" fill="#c0392b">${esc(opts.monB || 'B')}</text>`;
+  if (opts.streetName) g += `<text x="${(L + x) / 2}" y="${streetY + 50}" text-anchor="middle" font-size="11" font-style="italic" fill="#555">${esc(opts.streetName)}</text>`;
+  return svgWrap(g, opts.title || 'Recorded Plat');
+}
+
+// Rectangular lot (len × wid) with one corner replaced by a 90° arc of radius
+// `rad`. Uniform scale keeps the arc circular. Labels the sides, radius and 90°.
+export function renderRoundedCornerLot(len: number, wid: number, rad: number, title?: string): string {
+  if (!(len > 0) || !(wid > 0) || !(rad > 0) || rad >= len || rad >= wid) return svgWrap('', title || 'Lot');
+  const xf = fitTransform([{ x: 0, y: 0 }, { x: len, y: 0 }, { x: len, y: wid }, { x: 0, y: wid }]);
+  const scale = Math.abs(xf.sx(1) - xf.sx(0));
+  const P = (e: number, n: number) => ({ x: xf.sx(e), y: xf.sy(n) });
+  const BL = P(0, 0), BR = P(len, 0), TR = P(len, wid), topArc = P(rad, wid), leftArc = P(0, wid - rad), ctr = P(rad, wid - rad);
+  const sr = rad * scale;
+  let g = `<path d="M ${BL.x} ${BL.y} L ${BR.x} ${BR.y} L ${TR.x} ${TR.y} L ${topArc.x} ${topArc.y} A ${sr} ${sr} 0 0 0 ${leftArc.x} ${leftArc.y} Z" fill="#1D309508" stroke="#1D3095" stroke-width="2"/>`;
+  g += `<line x1="${ctr.x}" y1="${ctr.y}" x2="${topArc.x}" y2="${topArc.y}" stroke="#c0392b" stroke-width="1" stroke-dasharray="3 2"/>`;
+  g += `<text x="${(ctr.x + topArc.x) / 2 + 4}" y="${(ctr.y + topArc.y) / 2}" font-size="10" fill="#c0392b">r = ${f2(rad)}'</text>`;
+  g += `<text x="${ctr.x + 5}" y="${ctr.y - 4}" font-size="9" fill="#c0392b">90°</text>`;
+  g += `<text x="${(BL.x + BR.x) / 2}" y="${BL.y + 16}" text-anchor="middle" font-size="11" fill="#333">${f2(len)}'</text>`;
+  g += `<text x="${TR.x + 8}" y="${(BR.y + TR.y) / 2}" font-size="11" fill="#333">${f2(wid)}'</text>`;
+  return svgWrap(g, title || 'Lot with Rounded Corner');
 }
 
 function renderLeveling(bs: number, fs: number, title?: string): string {
@@ -217,6 +406,137 @@ function renderCompass(az: number, title?: string): string {
   g += dot(cx, cy, '', '#333');
   g += `<text x="${cx}" y="${cy + r + 34}" text-anchor="middle" font-size="12" fill="#333">Azimuth ${formatAzimuth(az)}  =  ${formatBearing(az)}</text>`;
   return svgWrap(g, title || 'Direction');
+}
+
+// Height-system relations: terrain, geoid and ellipsoid surfaces with the
+// vertical separations h (ellipsoidal), H (orthometric) and N (geoid height),
+// illustrating h = H + N (Q28). Schematic — segment sizes are proportional
+// (clamped) to |H| and |N|.
+export function renderHeightRelations(H: number, h: number, N: number, title?: string): string {
+  const cx = W * 0.42, leftX = 40, rightX = W - 30, topY = 96, ellY = 300;
+  let Nseg = Math.max(38, Math.abs(N)), Hseg = Math.max(38, Math.abs(H));
+  const avail = ellY - topY;
+  if (Nseg + Hseg > avail) { const k = avail / (Nseg + Hseg); Nseg *= k; Hseg *= k; }
+  const geoidY = ellY - Nseg, terrY = geoidY - Hseg;
+  const wave = (y: number, amp: number, seed: number) => {
+    let d = `M ${leftX} ${y}`;
+    for (let i = 1; i <= 8; i++) { const x = leftX + (rightX - leftX) * i / 8; d += ` L ${x} ${y + Math.sin(i * 1.3 + seed) * amp}`; }
+    return d;
+  };
+  let g = `<path d="${wave(ellY, 0, 0)}" fill="none" stroke="#888" stroke-width="1.6"/>`;
+  g += `<text x="${rightX}" y="${ellY + 14}" text-anchor="end" font-size="11" fill="#888">Ellipsoid</text>`;
+  g += `<path d="${wave(geoidY, 4, 0.6)}" fill="none" stroke="#0a7a5a" stroke-width="1.6"/>`;
+  g += `<text x="${rightX}" y="${geoidY - 6}" text-anchor="end" font-size="11" fill="#0a7a5a">Geoid</text>`;
+  g += `<path d="${wave(terrY, 9, 1.1)}" fill="none" stroke="#7a5230" stroke-width="1.8"/>`;
+  g += `<text x="${rightX}" y="${terrY - 6}" text-anchor="end" font-size="11" fill="#7a5230">Terrain</text>`;
+  // vertical separations at the measurement line
+  const seg = (x: number, y1: number, y2: number, color: string) =>
+    `<line x1="${x}" y1="${y1}" x2="${x}" y2="${y2}" stroke="${color}" stroke-width="1.6"/>`
+    + `<line x1="${x - 4}" y1="${y1}" x2="${x + 4}" y2="${y1}" stroke="${color}" stroke-width="1.2"/>`
+    + `<line x1="${x - 4}" y1="${y2}" x2="${x + 4}" y2="${y2}" stroke="${color}" stroke-width="1.2"/>`;
+  g += seg(cx, ellY, geoidY, '#1D3095');   // N
+  g += seg(cx, geoidY, terrY, '#c0392b');   // H
+  g += seg(cx + 26, ellY, terrY, '#111');   // h
+  g += dot(cx, terrY, '') + dot(cx, geoidY, '') + dot(cx, ellY, '');
+  g += `<text x="${cx - 8}" y="${(ellY + geoidY) / 2 + 4}" text-anchor="end" font-size="12" font-weight="700" fill="#1D3095">N</text>`;
+  g += `<text x="${cx - 8}" y="${(geoidY + terrY) / 2 + 4}" text-anchor="end" font-size="12" font-weight="700" fill="#c0392b">H</text>`;
+  g += `<text x="${cx + 32}" y="${(ellY + terrY) / 2 + 4}" font-size="12" font-weight="700" fill="#111">h</text>`;
+  // geocentric radius r (down arrow toward earth center)
+  g += `<line x1="${leftX + 26}" y1="${ellY}" x2="${leftX + 26}" y2="${ellY + 30}" stroke="#999" stroke-width="1.2"/>`;
+  g += `<path d="M ${leftX + 26} ${ellY + 36} L ${leftX + 22} ${ellY + 28} L ${leftX + 30} ${ellY + 28} Z" fill="#999"/>`;
+  g += `<text x="${leftX + 32}" y="${ellY + 26}" font-size="11" fill="#999">r</text>`;
+  g += `<text x="${W / 2}" y="${H - 12}" text-anchor="middle" font-size="10" fill="#555">h = H + N</text>`;
+  return svgWrap(g, title || 'Height systems (h = H + N)');
+}
+
+// Tilted-photograph geometry (Q13): exposure station L, the plumb line to the
+// ground nadir, the optical axis (tilted by `tiltDeg` from vertical), the tilted
+// photo plane, and the principal (o) and nadir (n) points + principal line.
+export function renderTiltedPhoto(tiltDeg: number, title?: string): string {
+  const t = Math.min(Math.max(tiltDeg, 4), 35) * Math.PI / 180;
+  const L = { x: W * 0.44, y: 74 }, groundY = H - 46;
+  const axis = { x: Math.sin(t), y: Math.cos(t) };            // optical-axis dir (down)
+  const perp = { x: Math.cos(t), y: -Math.sin(t) };           // photo plane dir
+  const tGround = (groundY - L.y) / axis.y;
+  const axisEnd = { x: L.x + axis.x * tGround, y: groundY };
+  const o = { x: L.x + axis.x * tGround * 0.44, y: L.y + axis.y * tGround * 0.44 }; // principal point
+  const ph = 78;
+  const pA = { x: o.x - perp.x * ph, y: o.y - perp.y * ph };
+  const pB = { x: o.x + perp.x * ph, y: o.y + perp.y * ph };
+  // nadir point n = where the vertical through L meets the photo plane
+  const s = (L.x - o.x) / perp.x;
+  const n = { x: o.x + perp.x * s, y: o.y + perp.y * s };
+  let g = '';
+  g += `<line x1="30" y1="${groundY}" x2="${W - 30}" y2="${groundY}" stroke="#7a5230" stroke-width="2"/>`;
+  // plumb line (vertical)
+  g += `<line x1="${L.x}" y1="${L.y}" x2="${L.x}" y2="${groundY}" stroke="#1D3095" stroke-width="1.8"/>`;
+  g += `<text x="${L.x - 6}" y="${(L.y + groundY) / 2}" text-anchor="end" font-size="11" fill="#1D3095">Plumb line</text>`;
+  // optical axis
+  g += `<line x1="${L.x}" y1="${L.y}" x2="${axisEnd.x}" y2="${axisEnd.y}" stroke="#888" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+  g += `<text x="${(L.x + axisEnd.x) / 2 + 6}" y="${(L.y + axisEnd.y) / 2}" font-size="11" fill="#555">Optical axis</text>`;
+  // tilted photo plane
+  g += `<line x1="${pA.x}" y1="${pA.y}" x2="${pB.x}" y2="${pB.y}" stroke="#1D3095" stroke-width="2.5"/>`;
+  g += `<text x="${pB.x + 4}" y="${pB.y}" font-size="11" fill="#1D3095">Tilted photo</text>`;
+  // principal line (o→n on the photo)
+  g += `<line x1="${o.x}" y1="${o.y}" x2="${n.x}" y2="${n.y}" stroke="#c0392b" stroke-width="2.5"/>`;
+  g += `<text x="${(o.x + n.x) / 2}" y="${(o.y + n.y) / 2 - 6}" text-anchor="middle" font-size="10" fill="#c0392b">Principal line</text>`;
+  g += dot(L.x, L.y, 'L') + dot(o.x, o.y, 'o') + dot(n.x, n.y, 'n') + dot(L.x, groundY, 'N');
+  g += `<text x="${W / 2}" y="${H - 10}" text-anchor="middle" font-size="10" fill="#888">NOT TO SCALE</text>`;
+  return svgWrap(g, title || 'Tilted photograph geometry');
+}
+
+// Topographic contour map (Q9). Builds a synthetic Gaussian-hill surface and
+// extracts contour lines with marching squares. Index contours (every 5th from
+// baseElev) are bolder; the two lowest index contours are labelled (as on the
+// real exam), leaving the student to deduce the interval and the highest
+// (innermost) contour. peakElev sets the summit → highest contour is the
+// greatest baseElev+k·interval below peakElev.
+export function renderContourMap(baseElev: number, interval: number, peakElev: number, title?: string): string {
+  if (!(interval > 0) || !(peakElev > baseElev)) return svgWrap('', title || 'Contour Map');
+  const x0 = 40, y0 = 74, x1 = W - 40, y1 = H - 34;
+  const n = 48, gw = (x1 - x0) / n, gh = (y1 - y0) / n;
+  const cx = x0 + (x1 - x0) * 0.56, cyc = y0 + (y1 - y0) * 0.44, sigma = (x1 - x0) * 0.24;
+  const baseMin = baseElev - interval * 0.6, amp = peakElev - baseMin;
+  const elevAt = (px: number, py: number) => baseMin + amp * Math.exp(-(((px - cx) ** 2 + (py - cyc) ** 2) / (2 * sigma * sigma)));
+  const Z: number[][] = [];
+  for (let j = 0; j <= n; j++) { Z[j] = []; for (let i = 0; i <= n; i++) Z[j][i] = elevAt(x0 + i * gw, y0 + j * gh); }
+  const ix = (t: number, a: number, b: number) => a + t * (b - a);
+  const crs = (lv: number, a: number, b: number) => (Math.abs(b - a) < 1e-9 ? 0.5 : (lv - a) / (b - a));
+  let g = '', labeled = 0;
+  for (let L = baseElev; L < peakElev; L += interval) {
+    const isIndex = Math.round((L - baseElev) / interval) % 5 === 0;
+    let path = '';
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const a = Z[j][i], b = Z[j][i + 1], c = Z[j + 1][i + 1], d = Z[j + 1][i];
+      const idx = (a > L ? 8 : 0) | (b > L ? 4 : 0) | (c > L ? 2 : 0) | (d > L ? 1 : 0);
+      if (idx === 0 || idx === 15) continue;
+      const px = x0 + i * gw, py = y0 + j * gh;
+      const top = () => ({ x: ix(crs(L, a, b), px, px + gw), y: py });
+      const right = () => ({ x: px + gw, y: ix(crs(L, b, c), py, py + gh) });
+      const bottom = () => ({ x: ix(crs(L, d, c), px, px + gw), y: py + gh });
+      const left = () => ({ x: px, y: ix(crs(L, a, d), py, py + gh) });
+      const seg = (p: { x: number; y: number }, q: { x: number; y: number }) => { path += `M${p.x.toFixed(1)} ${p.y.toFixed(1)}L${q.x.toFixed(1)} ${q.y.toFixed(1)}`; };
+      switch (idx) {
+        case 1: case 14: seg(left(), bottom()); break;
+        case 2: case 13: seg(bottom(), right()); break;
+        case 3: case 12: seg(left(), right()); break;
+        case 4: case 11: seg(top(), right()); break;
+        case 6: case 9: seg(top(), bottom()); break;
+        case 7: case 8: seg(left(), top()); break;
+        case 5: seg(left(), top()); seg(bottom(), right()); break;
+        case 10: seg(top(), right()); seg(left(), bottom()); break;
+      }
+    }
+    g += `<path d="${path}" fill="none" stroke="${isIndex ? '#5b6b8c' : '#c8cfdf'}" stroke-width="${isIndex ? 1.5 : 0.8}"/>`;
+    // label the two lowest index contours on the left flank (radial surface)
+    if (isIndex && labeled < 2 && L - baseMin > 0 && L - baseMin < amp) {
+      const rho = sigma * Math.sqrt(2 * Math.log(amp / (L - baseMin)));
+      g += `<text x="${(cx - rho).toFixed(0)}" y="${cyc}" text-anchor="middle" font-size="11" font-weight="700" fill="#334">${grp(L)}</text>`;
+      labeled++;
+    }
+  }
+  g += `<text x="${W / 2}" y="${H - 10}" text-anchor="middle" font-size="10" fill="#888">NOT TO SCALE</text>`;
+  return svgWrap(g, title || 'Contour Map');
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -267,6 +587,51 @@ export function buildDiagramFromSpec(spec: DiagramSpec | undefined | null, vars:
         const az = rv(spec.azVar);
         if (az == null || !isFinite(az)) return null;
         return renderCompass(az, spec.title);
+      }
+      case 'towerTwoAngles': {
+        const d = rv(spec.dVar), alpha = rv(spec.alphaVar), beta = rv(spec.betaVar);
+        if ([d, alpha, beta].some(v => v == null || !isFinite(v as number)) || (d as number) <= 0) return null;
+        return renderTowerTwoAngles(d as number, alpha as number, beta as number, spec.title);
+      }
+      case 'profile': {
+        const pts = (spec.profilePoints || [])
+          .map(p => ({ sta: num(rv(p.staVar, p.sta)), elev: num(rv(p.elevVar, p.elev)), label: p.label }))
+          .filter(p => isFinite(p.sta) && isFinite(p.elev));
+        if (pts.length < 2) return null;
+        const cutSta = rv(spec.cutStaVar, spec.cutSta);
+        return renderProfile(pts, { title: spec.title, cutSta: cutSta != null && isFinite(cutSta) ? cutSta : undefined, cutLabel: spec.cutLabel });
+      }
+      case 'crossSection': {
+        const hw = rv(spec.halfWidthVar), sl = rv(spec.slopeVar);
+        if (hw == null || sl == null || !isFinite(hw) || !isFinite(sl) || hw <= 0 || sl <= 0) return null;
+        return renderCrossSection(hw, sl, spec.cutFill === 'cut' ? 'cut' : 'fill', spec.title);
+      }
+      case 'plat': {
+        const lots = (spec.platLots || [])
+          .map(l => ({ width: num(rv(l.widthVar, l.width)), label: l.label, dim: l.dim }))
+          .filter(l => isFinite(l.width) && l.width > 0);
+        if (lots.length < 1) return null;
+        return renderPlat(lots, { streetName: spec.streetName, monA: spec.monA, monB: spec.monB, title: spec.title });
+      }
+      case 'roundedLot': {
+        const len = rv(spec.lengthVar), wid = rv(spec.widthVar), rad = rv(spec.radiusVar);
+        if ([len, wid, rad].some(v => v == null || !isFinite(v as number))) return null;
+        return renderRoundedCornerLot(len as number, wid as number, rad as number, spec.title);
+      }
+      case 'heightRelations': {
+        const Hh = rv(spec.orthoHVar, spec.orthoH), hh = rv(spec.ellipHVar, spec.ellipH), Nn = rv(spec.geoidNVar, spec.geoidN);
+        if ([Hh, hh, Nn].some(v => v == null || !isFinite(v as number))) return null;
+        return renderHeightRelations(Hh as number, hh as number, Nn as number, spec.title);
+      }
+      case 'tiltedPhoto': {
+        const tilt = rv(spec.tiltVar, spec.tilt);
+        if (tilt == null || !isFinite(tilt)) return null;
+        return renderTiltedPhoto(tilt, spec.title);
+      }
+      case 'contour': {
+        const be = rv(spec.baseElevVar, spec.baseElev), iv = rv(spec.intervalVar, spec.interval), pk = rv(spec.peakElevVar, spec.peakElev);
+        if ([be, iv, pk].some(v => v == null || !isFinite(v as number)) || (iv as number) <= 0 || (pk as number) <= (be as number)) return null;
+        return renderContourMap(be as number, iv as number, pk as number, spec.title);
       }
       default:
         return null;

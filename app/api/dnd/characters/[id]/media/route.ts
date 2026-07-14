@@ -23,6 +23,12 @@ function parseKind(v: unknown): MediaKind | null {
   return v === 'art' || v === 'token' ? v : null;
 }
 
+// Upload kinds that DON'T point a character column — the returned URL is stored elsewhere
+// (e.g. an inventory item's `image`, saved inside the character's `data` blob). 'item' here.
+function parseUploadKind(v: unknown): MediaKind | 'item' | null {
+  return v === 'item' ? 'item' : parseKind(v);
+}
+
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
@@ -33,8 +39,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   try {
     const form = await req.formData();
-    const kind = parseKind(form.get('kind'));
-    if (!kind) return NextResponse.json({ error: "kind must be 'art' or 'token'." }, { status: 400 });
+    const kind = parseUploadKind(form.get('kind'));
+    if (!kind) return NextResponse.json({ error: "kind must be 'art', 'token', or 'item'." }, { status: 400 });
     const file = form.get('file');
     if (!(file instanceof File)) return NextResponse.json({ error: 'No file provided.' }, { status: 400 });
     const ext = ALLOWED[file.type];
@@ -48,24 +54,33 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
     const url = supabaseAdmin.storage.from(BUCKET).getPublicUrl(key).data.publicUrl;
 
-    const { data: character, error: uErr } = await supabaseAdmin
-      .from('dnd_characters')
-      .update({ [COLUMN[kind]]: url, updated_at: new Date().toISOString() })
-      .eq('id', params.id)
-      .select('id, campaign_id, art_url, token_url')
-      .single();
-    if (uErr || !character) return NextResponse.json({ error: uErr?.message ?? 'Saved image but could not update character.' }, { status: 500 });
+    // 'item' images don't point a character column — the URL is stored on the inventory item
+    // inside the character's `data` blob by the client. art/token update their column here.
+    let campaignId: string | null = null;
+    if (kind === 'art' || kind === 'token') {
+      const { data: character, error: uErr } = await supabaseAdmin
+        .from('dnd_characters')
+        .update({ [COLUMN[kind]]: url, updated_at: new Date().toISOString() })
+        .eq('id', params.id)
+        .select('id, campaign_id, art_url, token_url')
+        .single();
+      if (uErr || !character) return NextResponse.json({ error: uErr?.message ?? 'Saved image but could not update character.' }, { status: 500 });
+      campaignId = character.campaign_id;
+    } else {
+      const { data: character } = await supabaseAdmin.from('dnd_characters').select('campaign_id').eq('id', params.id).maybeSingle();
+      campaignId = character?.campaign_id ?? null;
+    }
 
-    // Record a media-library row (best-effort; the pointer above is the source of truth).
+    // Record a media-library row (best-effort; for art/token the column pointer is the source of truth).
     await supabaseAdmin.from('dnd_media').insert({
-      campaign_id: character.campaign_id,
+      campaign_id: campaignId,
       character_id: params.id,
       url,
       kind,
       uploaded_by: session.userId,
     });
 
-    return NextResponse.json({ url, kind, character });
+    return NextResponse.json({ url, kind });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Upload failed.' }, { status: 500 });
   }

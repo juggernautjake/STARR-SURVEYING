@@ -183,6 +183,82 @@ export function checkMultipleChoice(
 }
 
 /**
+ * Check a "select all that apply" (multi-select) answer.
+ *
+ * Both answers are JSON arrays of the chosen option strings/letters (the shape
+ * QuizRunner stores and seeds author). Grading is order-insensitive set
+ * equality: every correct option must be chosen and no extra option may be
+ * chosen. `partial_score` = (hits − falsePositives) / correctCount, floored at
+ * 0, for callers that want partial credit; `is_correct` requires a perfect set.
+ */
+export function checkMultiSelect(
+  userAnswer: string,
+  correctAnswer: string
+): CheckResult & { partial_score: number } {
+  const parseArr = (s: string): string[] => {
+    try {
+      const v = JSON.parse(s);
+      return Array.isArray(v) ? v.map(x => String(x)) : [String(v)];
+    } catch {
+      // Tolerate a bare/comma-delimited string too (e.g. "B,D" or "B").
+      return (s || '').split(',').map(x => x.trim()).filter(Boolean);
+    }
+  };
+  const userSet = new Set(parseArr(userAnswer).map(s => s.toLowerCase().trim()));
+  const correctSet = new Set(parseArr(correctAnswer).map(s => s.toLowerCase().trim()));
+  const hits = [...correctSet].filter(a => userSet.has(a)).length;
+  const falsePositives = [...userSet].filter(a => !correctSet.has(a)).length;
+  const is_correct = correctSet.size > 0 && hits === correctSet.size && falsePositives === 0;
+  const partial_score = correctSet.size > 0
+    ? Math.max(0, (hits - falsePositives) / correctSet.size)
+    : 0;
+  return {
+    is_correct,
+    is_close: false,
+    user_answer: userAnswer,
+    correct_answer: correctAnswer,
+    difference: null,
+    feedback: is_correct
+      ? 'Correct!'
+      : `Incorrect. You must select exactly the correct set (${[...correctSet].join(', ')}).`,
+    partial_score,
+  };
+}
+
+/**
+ * Check an "ordering" (put-in-order) answer. Both answers are JSON arrays;
+ * grading is exact sequence equality (order matters, case-insensitive).
+ * `partial_score` = fraction of positions in the correct slot.
+ */
+export function checkOrdering(
+  userAnswer: string,
+  correctAnswer: string
+): CheckResult & { partial_score: number } {
+  const parseArr = (s: string): string[] => {
+    try {
+      const v = JSON.parse(s);
+      return Array.isArray(v) ? v.map(x => String(x)) : [String(v)];
+    } catch {
+      return (s || '').split(',').map(x => x.trim()).filter(Boolean);
+    }
+  };
+  const u = parseArr(userAnswer).map(s => s.toLowerCase().trim());
+  const c = parseArr(correctAnswer).map(s => s.toLowerCase().trim());
+  const positionsCorrect = c.filter((val, i) => u[i] === val).length;
+  const is_correct = c.length > 0 && u.length === c.length && positionsCorrect === c.length;
+  const partial_score = c.length > 0 ? positionsCorrect / c.length : 0;
+  return {
+    is_correct,
+    is_close: false,
+    user_answer: userAnswer,
+    correct_answer: correctAnswer,
+    difference: null,
+    feedback: is_correct ? 'Correct!' : 'Incorrect. The items are not all in the right order.',
+    partial_score,
+  };
+}
+
+/**
  * Universal answer checker that picks the right method based on question type
  */
 export function checkAnswer(
@@ -197,7 +273,16 @@ export function checkAnswer(
       return checkNumericAnswer(userAnswer, correctAnswer, tolerance);
     case 'multiple_choice':
     case 'true_false':
+    case 'hotspot':
+      // hotspot answers are a single region id — plain string match.
       return checkMultipleChoice(userAnswer, correctAnswer);
+    case 'multi_select':
+      return checkMultiSelect(userAnswer, correctAnswer);
+    case 'ordering':
+    case 'drag_label':
+      // drag_label answers are arrays parallel to the targets; each placed term
+      // must equal the correct term position-wise — identical to ordering.
+      return checkOrdering(userAnswer, correctAnswer);
     case 'short_answer':
       return checkTextAnswer(userAnswer, correctAnswer, true);
     case 'fill_blank':

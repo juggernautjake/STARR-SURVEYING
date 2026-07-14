@@ -4,51 +4,93 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
 import { awardXP } from '@/lib/xp';
+import { dbRowToTemplate } from '@/lib/problemEngine';
+import {
+  shapeQuestion,
+  neededTemplateIds,
+  gradeQuestionSync,
+  type RawQuestion,
+} from '@/lib/learn/questionDelivery';
 
-/* GET — Generate a mock exam (110 questions from FS-MOCK category) */
+// NCEES FS knowledge-area blueprint — target scored-question count per area,
+// summing to 110, each within the published NCEES range.
+const BLUEPRINT: Record<string, number> = { '1': 17, '2': 15, '3': 23, '4': 14, '5': 20, '6': 11, '7': 10 };
+const CAT_NAMES: Record<string, string> = {
+  '1': 'Surveying Processes & Methods',
+  '2': 'Mapping Processes & Methods',
+  '3': 'Boundary Law & Real Property',
+  '4': 'Surveying Principles',
+  '5': 'Survey Computations & Computer Apps',
+  '6': 'Business Concepts',
+  '7': 'Applied Mathematics & Statistics',
+};
+const catOf = (tags: string[] | null | undefined): string | null => {
+  const t = (tags || []).find(x => x.startsWith('ncees-cat:'));
+  return t ? t.slice('ncees-cat:'.length) : null;
+};
+
+/* GET — Assemble a blueprint-balanced 110-question FS exam simulator.
+ * Draws from the full FS + FS-MOCK bank across EVERY question type — static
+ * multiple-choice / true-false / numeric / short-answer, the interaction types
+ * (multi_select / ordering / drag_label / hotspot), AND dynamic template
+ * questions whose numbers + matching figures are regenerated every attempt.
+ * Essay (needs AI) and the legacy math_template format are excluded. */
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Fetch all FS mock exam questions
-  const { data: allQuestions, error } = await supabaseAdmin.from('question_bank')
-    .select('id, question_text, question_type, options, difficulty, tags')
-    .eq('exam_category', 'FS-MOCK');
+  const { data: pool, error } = await supabaseAdmin.from('question_bank')
+    .select('id, question_text, question_type, options, difficulty, tags, is_dynamic, template_id, tolerance, diagram')
+    .in('exam_category', ['FS', 'FS-MOCK'])
+    .not('question_type', 'in', '(essay,math_template)');
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!allQuestions || allQuestions.length === 0) {
-    return NextResponse.json({ questions: [], message: 'No mock exam questions available yet.' });
+  if (!pool || pool.length === 0) {
+    return NextResponse.json({ questions: [], message: 'No exam questions available yet.' });
   }
 
-  // Shuffle and select up to 110 questions
-  const shuffled = allQuestions.sort(() => Math.random() - 0.5);
-  const selected = shuffled.slice(0, Math.min(110, shuffled.length));
+  const rawRows = pool as RawQuestion[];
 
-  // Strip correct answers for client
-  const clientQuestions = selected.map((q: {
-    id: string;
-    question_text: string;
-    question_type: string;
-    options: string[] | string;
-    difficulty: string;
-    tags: string[];
-  }) => {
-    const opts = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options || []);
-    return {
-      id: q.id,
-      question_text: q.question_text,
-      question_type: q.question_type,
-      options: q.question_type === 'multiple_choice' || q.question_type === 'true_false'
-        ? opts.sort(() => Math.random() - 0.5) : opts,
-      difficulty: q.difficulty,
-      tags: q.tags,
-    };
-  });
+  // Resolve every template referenced by a dynamic row up front, then drop any
+  // dynamic row whose template is missing/inactive so the simulator never serves
+  // a broken generator (it would otherwise fall back to the placeholder answer).
+  const templateIds = neededTemplateIds(rawRows);
+  const templateMap = new Map<string, ReturnType<typeof dbRowToTemplate>>();
+  if (templateIds.length > 0) {
+    const { data: templates } = await supabaseAdmin.from('problem_templates')
+      .select('*').in('id', templateIds).eq('is_active', true);
+    for (const t of (templates || [])) templateMap.set(t.id, dbRowToTemplate(t));
+  }
+  const rows = rawRows.filter(q => !(q.is_dynamic && q.template_id) || templateMap.has(q.template_id as string));
+
+  const buckets: Record<string, RawQuestion[]> = {};
+  for (const q of rows) { const c = catOf(q.tags); if (c) (buckets[c] ||= []).push(q); }
+
+  // Sample the blueprint count from each area (shuffled); top up from the
+  // remaining pool if any area is short so we always reach 110.
+  const chosen: RawQuestion[] = [];
+  const usedIds = new Set<string>();
+  for (const [cat, need] of Object.entries(BLUEPRINT)) {
+    const arr = (buckets[cat] || []).slice().sort(() => Math.random() - 0.5).slice(0, need);
+    for (const q of arr) { chosen.push(q); usedIds.add(q.id); }
+  }
+  if (chosen.length < 110) {
+    const rest = rows.filter(q => !usedIds.has(q.id)).sort(() => Math.random() - 0.5);
+    for (const q of rest) { if (chosen.length >= 110) break; chosen.push(q); usedIds.add(q.id); }
+  }
+  chosen.sort(() => Math.random() - 0.5);
+  const finalRows = chosen.slice(0, 110);
+
+  // Shape every question exactly as the quiz surfaces do (dynamic values,
+  // matching figures, per-type option handling).
+  const clientQuestions = finalRows.map((q) =>
+    shapeQuestion(q, q.template_id ? templateMap.get(q.template_id) : undefined));
 
   return NextResponse.json({
     questions: clientQuestions,
-    total_available: allQuestions.length,
-    time_limit_seconds: 19200, // 320 minutes
+    total_available: rows.length,
+    time_limit_seconds: 19200, // 320 minutes (5h20m) — matches the real FS exam
+    blueprint: Object.fromEntries(Object.entries(BLUEPRINT).map(([k, v]) => [CAT_NAMES[k], v])),
   });
 }, { routeName: 'learn/exam-prep/fs/mock-exam' });
 
@@ -64,57 +106,43 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'No answers provided' }, { status: 400 });
   }
 
-  // Fetch correct answers
+  // Fetch grading data for every answered question.
   const questionIds = answers.map((a: { question_id: string }) => a.question_id);
   const { data: questions, error } = await supabaseAdmin.from('question_bank')
-    .select('id, question_type, correct_answer, explanation, tags')
+    .select('id, question_type, correct_answer, explanation, tags, tolerance, is_dynamic, template_id')
     .in('id', questionIds);
 
   if (error || !questions) {
     return NextResponse.json({ error: 'Failed to grade exam' }, { status: 500 });
   }
 
-  const qMap = new Map<string, {
-    id: string;
-    question_type: string;
-    correct_answer: string;
-    explanation: string;
-    tags: string[];
-  }>(questions.map((q: {
-    id: string;
-    question_type: string;
-    correct_answer: string;
-    explanation: string;
-    tags: string[];
-  }) => [q.id, q]));
+  const qMap = new Map<string, RawQuestion>((questions as RawQuestion[]).map(q => [q.id, q]));
 
-  // Grade each answer and track by category
+  // Grade every answer through the shared delivery lib (all question types,
+  // with numeric tolerance and dynamic echo-back) and track by NCEES area.
   const categoryScores: Record<string, { correct: number; total: number }> = {};
-  const graded = answers.map((a: { question_id: string; user_answer: string }) => {
+  const graded = answers.map((a: {
+    question_id: string; user_answer: string;
+    _dynamic?: boolean; _generated_answer?: string; _tolerance?: number; _solution_steps?: unknown[];
+  }) => {
     const q = qMap.get(a.question_id);
-    if (!q) return { question_id: a.question_id, user_answer: a.user_answer, is_correct: false, correct_answer: '', explanation: '' };
+    if (!q) return { question_id: a.question_id, user_answer: a.user_answer, is_correct: false, correct_answer: '', explanation: '', category: 'General' };
 
-    // Determine category from tags
-    const tags = q.tags || [];
-    let category = 'general';
-    for (const tag of tags) {
-      if (tag.startsWith('fs-mock-')) {
-        category = tag.replace('fs-mock-', '');
-        break;
-      }
-    }
-
+    const catNum = catOf(q.tags);
+    const category = catNum ? CAT_NAMES[catNum] : 'General';
     if (!categoryScores[category]) categoryScores[category] = { correct: 0, total: 0 };
     categoryScores[category].total++;
 
-    const isCorrect = a.user_answer?.toLowerCase().trim() === q.correct_answer?.toLowerCase().trim();
+    // Essay would return null (no AI grading in the simulator) → count wrong.
+    const result = gradeQuestionSync(a, q);
+    const isCorrect = result ? result.is_correct : false;
     if (isCorrect) categoryScores[category].correct++;
 
     return {
       question_id: a.question_id,
       user_answer: a.user_answer,
       is_correct: isCorrect,
-      correct_answer: q.correct_answer,
+      correct_answer: result?.correct_answer ?? (q.correct_answer || ''),
       explanation: q.explanation || '',
       category,
     };

@@ -80,6 +80,69 @@ export function rollDamage(expr: string, crit = false): DamageRoll {
   return { total, dice, flat: parsed.flat, crit, breakdown: parts.join(' ') || '0' }
 }
 
+// ── Typed damage (DND_ITEM_BUILDER) ────────────────────────────────────────────────
+// A weapon/spell can deal several typed components at once (e.g. 2d8 slashing + 1d6 poison).
+// rollTyped rolls each and reports a per-type subtotal so the log can show how much of the
+// hit was each damage type. Same-type segments are merged into one part.
+
+export interface TypedSegmentInput {
+  /** dice expression for this component, e.g. '2d8', '1d6', or '2d8+3' */
+  dice: string
+  /** damage type, e.g. 'slashing', 'poison', 'radiant' */
+  type: string
+}
+
+export interface TypedDamagePart {
+  type: string
+  total: number
+  breakdown: string // e.g. 'd8[3,5] +3'
+}
+
+export interface TypedDamageRoll {
+  total: number
+  parts: TypedDamagePart[] // one per distinct damage type, in first-seen order
+  crit: boolean
+  breakdown: string // combined, e.g. 'slashing d8[3,5]+3 (11) · poison d6[4] (4)'
+}
+
+/** Roll several typed damage components. Empty/invalid segments are skipped. If crit, each
+ *  segment's dice counts are doubled (via rollDamage). Same-type segments merge. */
+export function rollTyped(segments: TypedSegmentInput[], crit = false): TypedDamageRoll {
+  const order: string[] = []
+  const byType = new Map<string, { total: number; breakdowns: string[] }>()
+  for (const seg of segments) {
+    if (!seg || !seg.dice || !seg.dice.trim()) continue
+    const type = (seg.type || 'untyped').trim() || 'untyped'
+    const roll = rollDamage(seg.dice, crit)
+    if (!byType.has(type)) { byType.set(type, { total: 0, breakdowns: [] }); order.push(type) }
+    const acc = byType.get(type)!
+    acc.total += roll.total
+    acc.breakdowns.push(roll.breakdown)
+  }
+  const parts: TypedDamagePart[] = order.map((type) => {
+    const acc = byType.get(type)!
+    return { type, total: acc.total, breakdown: acc.breakdowns.join(' + ') }
+  })
+  const total = parts.reduce((s, p) => s + p.total, 0)
+  const breakdown = parts.map((p) => `${p.type} ${p.breakdown} (${p.total})`).join(' · ')
+  return { total, parts, crit, breakdown }
+}
+
+/** Build the typed segments for a weapon roll: the primary damage with `flat` (ability mod
+ *  + rage/surge) folded into its dice string, followed by each typed bonus die. Pure so the
+ *  store and tests share it. Skips blank bonus entries. */
+export function weaponSegments(
+  primary: { dice: string; type: string },
+  bonus: { dice: string; type: string }[] | undefined,
+  flat: number,
+): TypedSegmentInput[] {
+  const primaryDice = flat !== 0 ? `${primary.dice}${flat > 0 ? `+${flat}` : `${flat}`}` : primary.dice
+  return [
+    { dice: primaryDice, type: primary.type || 'untyped' },
+    ...(bonus ?? []).filter((b) => b?.dice?.trim()).map((b) => ({ dice: b.dice, type: b.type || 'untyped' })),
+  ]
+}
+
 export type Advantage = 'flat' | 'adv' | 'dis'
 
 export interface D20Roll {

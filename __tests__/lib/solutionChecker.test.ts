@@ -10,6 +10,8 @@ import {
   checkNumericAnswer,
   checkTextAnswer,
   checkMultipleChoice,
+  checkMultiSelect,
+  checkOrdering,
   checkAnswer,
 } from '@/lib/solutionChecker';
 
@@ -117,6 +119,66 @@ describe('checkMultipleChoice', () => {
   });
 });
 
+describe('checkMultiSelect', () => {
+  it('marks the exact set correct, order-insensitive', () => {
+    const r = checkMultiSelect('["D","B"]', '["B","D"]');
+    expect(r.is_correct).toBe(true);
+    expect(r.partial_score).toBe(1);
+  });
+
+  it('is case- and whitespace-insensitive', () => {
+    expect(checkMultiSelect('[" b ","d"]', '["B","D"]').is_correct).toBe(true);
+  });
+
+  it('rejects a missing correct option (partial, not full credit)', () => {
+    const r = checkMultiSelect('["B"]', '["B","D"]');
+    expect(r.is_correct).toBe(false);
+    expect(r.partial_score).toBeCloseTo(0.5);
+  });
+
+  it('rejects an extra (false-positive) option', () => {
+    const r = checkMultiSelect('["B","D","A"]', '["B","D"]');
+    expect(r.is_correct).toBe(false);
+    // 2 hits − 1 false positive = 1 / 2 correct = 0.5
+    expect(r.partial_score).toBeCloseTo(0.5);
+  });
+
+  it('tolerates a bare comma-delimited answer string', () => {
+    expect(checkMultiSelect('B,D', '["B","D"]').is_correct).toBe(true);
+  });
+
+  it('is not correct against an empty correct set', () => {
+    expect(checkMultiSelect('["B"]', '[]').is_correct).toBe(false);
+  });
+});
+
+describe('checkOrdering', () => {
+  it('marks the exact sequence correct', () => {
+    const r = checkOrdering('["A","B","C"]', '["A","B","C"]');
+    expect(r.is_correct).toBe(true);
+    expect(r.partial_score).toBe(1);
+  });
+
+  it('is order-SENSITIVE (a swap is wrong)', () => {
+    const r = checkOrdering('["B","A","C"]', '["A","B","C"]');
+    expect(r.is_correct).toBe(false);
+    // only position 3 (C) is in the right slot → 1/3
+    expect(r.partial_score).toBeCloseTo(1 / 3);
+  });
+
+  it('is case- and whitespace-insensitive on the items', () => {
+    expect(checkOrdering('[" a ","b","c"]', '["A","B","C"]').is_correct).toBe(true);
+  });
+
+  it('is wrong when lengths differ', () => {
+    expect(checkOrdering('["A","B"]', '["A","B","C"]').is_correct).toBe(false);
+  });
+
+  it('tolerates a comma-delimited answer', () => {
+    expect(checkOrdering('A,B,C', '["A","B","C"]').is_correct).toBe(true);
+  });
+});
+
 describe('checkAnswer (dispatch)', () => {
   it('routes numeric_input and math_template to the numeric checker', () => {
     expect(checkAnswer('1.0', '1.0', 'numeric_input').is_correct).toBe(true);
@@ -126,6 +188,29 @@ describe('checkAnswer (dispatch)', () => {
   it('routes multiple_choice and true_false to the multiple-choice checker', () => {
     expect(checkAnswer('a', 'A', 'multiple_choice').is_correct).toBe(true);
     expect(checkAnswer('true', 'TRUE', 'true_false').is_correct).toBe(true);
+  });
+
+  it('routes multi_select to the set-equality checker (not text match)', () => {
+    expect(checkAnswer('["D","B"]', '["B","D"]', 'multi_select').is_correct).toBe(true);
+    expect(checkAnswer('["B"]', '["B","D"]', 'multi_select').is_correct).toBe(false);
+  });
+
+  it('routes ordering to the sequence checker (order matters)', () => {
+    expect(checkAnswer('["A","B","C"]', '["A","B","C"]', 'ordering').is_correct).toBe(true);
+    expect(checkAnswer('["A","C","B"]', '["A","B","C"]', 'ordering').is_correct).toBe(false);
+  });
+
+  it('routes hotspot to a region-id string match', () => {
+    expect(checkAnswer('N', 'N', 'hotspot').is_correct).toBe(true);
+    expect(checkAnswer(' n ', 'N', 'hotspot').is_correct).toBe(true);
+    expect(checkAnswer('H', 'N', 'hotspot').is_correct).toBe(false);
+  });
+
+  it('routes drag_label position-wise (each target must match)', () => {
+    // arrays are parallel to the targets: [target0 term, target1 term, ...]
+    expect(checkAnswer('["Plumb line","Optical axis"]', '["Plumb line","Optical axis"]', 'drag_label').is_correct).toBe(true);
+    expect(checkAnswer('["Optical axis","Plumb line"]', '["Plumb line","Optical axis"]', 'drag_label').is_correct).toBe(false);
+    expect(checkAnswer('["Plumb line",""]', '["Plumb line","Optical axis"]', 'drag_label').is_correct).toBe(false);
   });
 
   it('routes short_answer to text checker with partial matching on', () => {

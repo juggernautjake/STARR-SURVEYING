@@ -96,6 +96,7 @@ export function donataDime(name: string): Character {
         '**Recruitment Pitch** *(Magic action)* — each creature of your choice within **30 ft** makes a **WIS save (DC 13)** or is **Charmed** for 1 minute and treats you as a beloved sponsor: it has disadvantage on attacks against you and your recruits. It repeats the save at the end of each of its turns and whenever it takes damage.',
         '**Manifest a Maguffin** *(Bonus action)* — conjure a dazzling Magic Maguffin for an ally within 30 ft: they gain **Temp HP = 1d8 + 3**. ✨ It **expires at the end of your next turn** whether used or not. The product does not actually work.',
       ],
+      use: { label: 'Manifest a Maguffin (Temp HP)', resourceId: 'channel', roll: '1d8+3', rollKind: 'temp' },
     },
     {
       id: 'abundance', name: 'Abundance Domain — Sponsorship', level: '3', source: 'Signature', tone: 'pink',
@@ -104,6 +105,7 @@ export function donataDime(name: string): Character {
         '**Sponsorship** — designate allies as your **downline**. Once per turn, when a downline ally within **30 ft** makes an attack roll, ability check, or save, you can add **1d4** to it (branded Bless). When they **succeed**, you skim a **commission**: gain 2 temporary HP, *or* move 5 ft without provoking opportunity attacks.',
         'The more your team grinds, the stronger you get. Pyramid economics, as a class feature.',
       ],
+      use: { label: 'Sponsor an ally (+1d4)', roll: '1d4', rollKind: 'raw' },
     },
     {
       id: 'saurian', name: 'Saurian — Tyrasaur Lineage', source: 'Species', tone: 'gold',
@@ -120,6 +122,7 @@ export function donataDime(name: string): Character {
         'Your Acolyte origin feat: **2 bonus cantrips** — *Light* (“Spotlight”) and *Mending* (“Fix the Returns”) — and one free **1st-level** spell, **Sanctuary** (“VIP Protection”), castable **1×/long rest** without a slot (or with a slot thereafter).',
         'Naturally, she wards **herself** first.',
       ],
+      use: { label: 'Cast Sanctuary', resourceId: 'starterkit', note: 'WIS save DC 13 or the attacker must choose a new target' },
     },
     {
       id: 'ranklevel', name: 'Rank = Level (leveling mechanic)', source: 'Table Rule', tone: 'gold',
@@ -203,5 +206,31 @@ export function donataDime(name: string): Character {
   ];
 
   c.dmNote = 'Backline MLM cleric; her deity is the pyramid-scheme founder Mighty Mojo. She levels by hitting company objectives (recruits / volume), which YOU adjudicate as promotions — she has been stuck at Lvl 3 for six years. The MY DOWNLINE / RANK = LEVEL panels track it. Both Sarah (owner) and you (DM) can edit this sheet.';
+  // ── Spellcasting (Cleric · WIS · Spell save DC 13 · Spell attack +5) ──
+  c.spellcasting = { ability: 'wis', preparedCap: 6, slots: { 1: { max: 4, current: 4 }, 2: { max: 2, current: 2 } } };
+  c.spells = [
+    // Cantrips
+    { id: 'guidance', name: 'Guidance', alias: 'Affirmation', level: 0, school: 'Divination', prepared: true, castTime: '1 action', range: 'Touch', components: 'V, S', duration: 'Conc, 1 min', concentration: true, description: 'Touch a willing creature; once before the spell ends it adds **1d4** to one ability check.' },
+    { id: 'sacred-flame', name: 'Sacred Flame', alias: 'Karmic Refund', level: 0, school: 'Evocation', prepared: true, castTime: '1 action', range: '60 ft', components: 'V, S', duration: 'Instant', description: 'Radiant flame descends on a creature. Ignores cover.', save: { ability: 'dex', effect: 'no damage on a save' }, damage: [{ dice: '1d8', type: 'radiant' }], higher: '2d8 at Lv5, 3d8 at Lv11, 4d8 at Lv17.' },
+    { id: 'toll-the-dead', name: 'Toll the Dead', alias: 'One-Star Review', level: 0, school: 'Necromancy', prepared: true, castTime: '1 action', range: '60 ft', components: 'V, S', duration: 'Instant', description: 'A dolorous bell tolls. Deals **1d12** instead of 1d8 if the target is already wounded.', save: { ability: 'wis', effect: 'no damage on a save' }, damage: [{ dice: '1d8', type: 'necrotic' }], higher: 'Die scales at Lv5/11/17.' },
+    { id: 'thaumaturgy', name: 'Thaumaturgy', alias: 'Razzle-Dazzle', level: 0, school: 'Transmutation', prepared: true, castTime: '1 action', range: '30 ft', components: 'V', duration: 'Up to 1 min', description: 'A minor wonder: booming voice, flickering lights, tremors — for closing the sale.' },
+    { id: 'light', name: 'Light', alias: 'Spotlight', level: 0, school: 'Evocation', prepared: true, castTime: '1 action', range: 'Touch', components: 'V, M', duration: '1 hour', description: 'An object sheds bright light in a 20-ft radius (Magic Initiate).' },
+    { id: 'mending', name: 'Mending', alias: 'Fix the Returns', level: 0, school: 'Transmutation', prepared: true, castTime: '1 min', range: 'Touch', components: 'V, S, M', duration: 'Instant', description: 'Repairs a single break or tear in an object (Magic Initiate).' },
+    // 1st level
+    { id: 'bless', name: 'Bless', alias: 'Blessed & Highly Favored', level: 1, school: 'Enchantment', prepared: true, castTime: '1 action', range: '30 ft', components: 'V, S, M', duration: 'Conc, 1 min', concentration: true, description: 'Up to three creatures add **1d4** to attack rolls and saving throws.' },
+    { id: 'healing-word', name: 'Healing Word', alias: 'Wellness Shot', level: 1, school: 'Abjuration', prepared: true, castTime: '1 bonus action', range: '60 ft', components: 'V', duration: 'Instant', description: 'A word of comfort heals a creature you can see.', heal: '1d4', higher: '+1d4 per slot level above 1st.' },
+    { id: 'guiding-bolt', name: 'Guiding Bolt', alias: 'Spotlight', level: 1, school: 'Evocation', prepared: true, castTime: '1 action', range: '120 ft', components: 'V, S', duration: '1 round', description: 'A flash of light streaks toward a creature; the next attack against it has advantage.', attack: true, damage: [{ dice: '4d6', type: 'radiant' }], higher: '+1d6 per slot level above 1st.' },
+    { id: 'command', name: 'Command', alias: 'Just Say Yes', level: 1, school: 'Enchantment', prepared: true, castTime: '1 action', range: '60 ft', components: 'V', duration: '1 round', description: 'Speak a one-word command a creature must obey.', save: { ability: 'wis', effect: 'unaffected on a save' } },
+    { id: 'charm-person', name: 'Charm Person', alias: 'Hey Hun 💎', level: 1, school: 'Enchantment', alwaysPrepared: true, castTime: '1 action', range: '30 ft', components: 'V, S', duration: '1 hour', description: 'Domain spell. Charms a humanoid, who regards you as a friendly acquaintance.', save: { ability: 'wis', effect: 'unaffected on a save' } },
+    { id: 'heroism', name: 'Heroism', alias: "You're a Boss Babe!", level: 1, school: 'Enchantment', alwaysPrepared: true, castTime: '1 action', range: 'Touch', components: 'V, S', duration: 'Conc, 1 min', concentration: true, description: 'Domain spell. A creature is immune to Frightened and gains temp HP = your WIS mod each turn.' },
+    { id: 'sanctuary', name: 'Sanctuary', alias: 'VIP Protection', level: 1, school: 'Abjuration', alwaysPrepared: true, castTime: '1 bonus action', range: '30 ft', components: 'V, S, M', duration: '1 min', description: 'Feat (Magic Initiate). Attackers must make a WIS save or choose a new target. Free 1×/long rest.', save: { ability: 'wis', effect: 'may attack the warded creature on a save' } },
+    // 2nd level
+    { id: 'aid', name: 'Aid', alias: 'Team Support', level: 2, school: 'Abjuration', prepared: true, castTime: '1 action', range: '30 ft', components: 'V, S, M', duration: '8 hours', description: 'Up to three creatures gain **+5 max & current HP** for the duration.', higher: '+5 HP per slot level above 2nd.' },
+    { id: 'prayer-of-healing', name: 'Prayer of Healing', alias: 'Self-Care Sunday', level: 2, school: 'Abjuration', prepared: true, castTime: '10 min', range: '30 ft', components: 'V', duration: 'Instant', description: 'Up to six creatures regain hit points.', heal: '2d8', higher: '+1d8 per slot level above 2nd.' },
+    { id: 'suggestion', name: 'Suggestion', alias: 'It basically sells itself', level: 2, school: 'Enchantment', alwaysPrepared: true, castTime: '1 action', range: '30 ft', components: 'V, M', duration: 'Conc, 8 hours', concentration: true, description: 'Domain spell. Suggest a reasonable course of activity a creature pursues.', save: { ability: 'wis', effect: 'unaffected on a save' } },
+    { id: 'enthrall', name: 'Enthrall', alias: 'The Zoom Party', level: 2, school: 'Enchantment', alwaysPrepared: true, castTime: '1 action', range: '60 ft', components: 'V, S', duration: '1 min', description: 'Domain spell. Creatures have disadvantage on Perception checks to notice anything but you.', save: { ability: 'wis', effect: 'unaffected on a save' } },
+    { id: 'hold-person', name: 'Hold Person', alias: 'Analysis Paralysis', level: 2, school: 'Enchantment', prepared: false, castTime: '1 action', range: '60 ft', components: 'V, S, M', duration: 'Conc, 1 min', concentration: true, description: 'Swap option. Paralyzes a humanoid; it repeats the save each turn.', save: { ability: 'wis', effect: 'unaffected on a save' } },
+  ];
+
   return c;
 }
