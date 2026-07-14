@@ -1,30 +1,34 @@
 // app/dnd/campaigns/[id]/map-studio/page.tsx — the DM's galaxy Map Maker (Phase U).
-// Placeholder shell (slice 1): DM-gated route so "Open Map Maker" resolves. The full
-// Stardust Map Studio editor (restyled + DB-wired) lands in a later slice and replaces
-// this body. Non-DM members are bounced back to the campaign.
+// Embeds the restyled Stardust Map Studio (a same-origin static tool under /public) so it
+// runs its proven vanilla engine unchanged, retinted to the hextech palette. DM-gated. The
+// campaign id (+ optional map id) are passed through so a later slice can wire the tool's
+// save/publish to the campaign maps API; today it persists to same-origin browser storage.
 import { redirect } from 'next/navigation';
 import { getDndUser, getCampaignRole, isDndOpenAccess } from '@/lib/dnd/auth';
 
 export const dynamic = 'force-dynamic';
 
-export default async function MapStudioPage({ params }: { params: { id: string } }) {
+export default async function MapStudioPage({ params, searchParams }: { params: { id: string }; searchParams: { map?: string } }) {
   const user = await getDndUser();
   if (!user) redirect(isDndOpenAccess() ? '/dnd' : `/dnd/login?next=/dnd/campaigns/${params.id}/map-studio`);
   if ((await getCampaignRole(params.id)) !== 'dm') redirect(`/dnd/campaigns/${params.id}`);
 
+  const q = new URLSearchParams({ campaign: params.id });
+  if (searchParams.map) q.set('map', searchParams.map);
+  const src = `/dnd/maps/map-studio.html?${q.toString()}`;
+
   return (
-    <div style={{ minHeight: '70vh', display: 'grid', placeItems: 'center', padding: 24, textAlign: 'center', color: '#f0e6d2', fontFamily: "'Inter', system-ui, sans-serif" }}>
-      <div style={{ maxWidth: 560 }}>
-        <div style={{ fontSize: 40, marginBottom: 10 }}>✦</div>
-        <h1 style={{ fontFamily: "'Cinzel', Georgia, serif", color: '#c8aa6e', letterSpacing: '0.06em', margin: '0 0 10px' }}>Galaxy Map Maker</h1>
-        <p style={{ color: '#a09b8c', lineHeight: 1.6, margin: '0 0 20px' }}>
-          The interactive map builder — planets, systems, sectors, stars, nebulas, stations and points of interest — is being wired into the campaign backend.
-          For now, you can upload a premade map image from <b style={{ color: '#f0e6d2' }}>Map Management</b> on the campaign page, and it&apos;ll show up for your players.
-        </p>
-        <a href={`/dnd/campaigns/${params.id}`} style={{ display: 'inline-block', padding: '10px 18px', borderRadius: 6, border: '1px solid #785a28', color: '#c8aa6e', textDecoration: 'none', background: 'rgba(200,155,60,0.08)' }}>
-          ← Back to campaign
-        </a>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 8px)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 14px', borderBottom: '1px solid #1e2d3d', background: '#0b1a2c', color: '#f0e6d2', fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <a href={`/dnd/campaigns/${params.id}`} style={{ color: '#c8aa6e', textDecoration: 'none', fontSize: 13 }}>← Campaign</a>
+        <span style={{ fontFamily: "'Cinzel', Georgia, serif", color: '#c8aa6e', letterSpacing: '0.06em', fontSize: 14 }}>✦ Galaxy Map Maker</span>
+        <a href={`/dnd/maps/map-studio.html?${q.toString()}`} target="_blank" rel="noreferrer" style={{ marginLeft: 'auto', color: '#a09b8c', textDecoration: 'none', fontSize: 12 }}>Open full-screen ↗</a>
       </div>
+      <iframe
+        src={src}
+        title="Galaxy Map Maker"
+        style={{ flex: 1, width: '100%', border: 0, background: '#010a13' }}
+      />
     </div>
   );
 }

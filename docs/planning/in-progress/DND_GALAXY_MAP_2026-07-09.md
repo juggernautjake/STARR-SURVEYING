@@ -142,3 +142,21 @@ panels adopt the framed-panel / `.hexBtn` treatment. The map canvas keeps a deep
   `jsonb` and push raw uploaded images to the `dnd-media` bucket (not inline) to stay well under
   row-size limits.
 - **Auth:** map read/write reuses `getCampaignRole` (DM writes, members read) — no new auth surface.
+
+---
+
+## 7. Build notes / ship log
+
+- **Architecture firmed (Decision A):** rather than hand-porting ~2,000 lines of vanilla JS into
+  React, the tools ship as **same-origin static assets** under `public/dnd/maps/` and mount in
+  platform routes via `<iframe>`. This preserves the proven engine verbatim (zero port risk) and the
+  hextech restyle is achieved by retinting each file's `:root` CSS variables (every component style
+  references them). localStorage → DB persistence is swapped at the tools' handful of storage seams
+  in the editor/console slices.
+- **Slice 0 — Planning doc** ✅.
+- **Slice 1 — Maps DB + DM Map Management (image path)** ✅ (`seeds/421_dnd_maps.sql`, maps API,
+  Map Management section, hub display of the published image map).
+- **Slice 2 — Tools into the platform, retinted** ✅ — `public/dnd/maps/{map-studio,console,planet-3d}.html`
+  retinted to the hextech palette (navy/gold/teal, verified via headless render); the DM `map-studio`
+  route now embeds the restyled editor in a same-origin iframe. The editor is fully functional today
+  and persists to same-origin browser storage; the DB swap is Slice 3.
