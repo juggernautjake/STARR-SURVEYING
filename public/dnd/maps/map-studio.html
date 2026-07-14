@@ -227,6 +227,7 @@
       <button data-tool="select" class="on" title="Select & move (V)">⌖ Select</button>
       <button data-tool="pen" title="Draw a sector/system polygon (P)">✐ Draw sector</button>
       <button data-tool="poi" title="Click a planet, then click to drop a POI (O)">◈ Drop POI</button>
+      <button id="btnAddText" title="Add a free-floating text label — name a location, route, or region">🅣 Text</button>
       <button data-tool="fx" title="Map ambience & effects">✧ Effects</button>
     </div>
     <div id="canvas"><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><canvas id="fxCanvas"></canvas><svg id="labelLayer"></svg></div>
@@ -850,7 +851,8 @@ $("#btnTemplate").onclick=()=>openTemplatePicker();
 
 /* ============================================================ TOOLS ============================================================ */
 const toolRow=$("#toolRow");
-toolRow.querySelectorAll("button").forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
+toolRow.querySelectorAll("button[data-tool]").forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
+$("#btnAddText").onclick=addTextObject;
 function setTool(t){
   if(t==="pen"){ if(tool==="pen"){cancelDraw();} tool="pen";startDraw(); }
   else { if(tool==="pen")cancelDraw(); tool=t; }
@@ -980,6 +982,7 @@ function renderInstances(){
   const layer=$("#bodyLayer");layer.innerHTML="";
   $("#canvas").style.background=state.background?`radial-gradient(ellipse 70% 60% at 50% 45%, ${state.background.c1}55, ${state.background.c2}33 55%, #06040f)`:"";
   state.instances.forEach(i=>{
+    if(i.kind==="text")return;   // free text objects live entirely in the label layer
     const el=document.createElement("div");el.className="inst"+(selection&&selection.type==="instance"&&selection.id===i.id?" sel":"");
     el.style.cssText=`left:${i.x}px;top:${i.y}px;width:${i.size}px;height:${i.size}px;`;
     const fxo=fxOverlay(i.fx,i.look&&i.look.seed);
@@ -1024,6 +1027,18 @@ function bodyLabelStyle(i){return mergeLabelStyle(Object.assign({},BODY_LABEL_DE
 // System labels default to the sector's own color (unless the DM overrides it) and Cinzel caps feel.
 const SECTOR_LABEL_DEFAULT={font:'Cinzel',weight:600,tracking:2,shadow:true};
 function sectorLabelStyle(s){const isSub=!!s.parent;const base=Object.assign({size:isSub?15:20,color:s.color,opacity:isSub?0.85:0.98},SECTOR_LABEL_DEFAULT);return mergeLabelStyle(Object.assign(base,s.label||{}));}
+// Free-floating text objects (kind:'text') — "locations", routes, region names, notes.
+const TEXT_LABEL_DEFAULT={font:'Cinzel',size:28,weight:600,color:'#f0e6d2',tracking:1,align:'middle',shadow:true};
+function textLabelStyle(i){return mergeLabelStyle(Object.assign({},TEXT_LABEL_DEFAULT,i.label||{}));}
+function addTextObject(){
+  if(mode!=="dm")return;
+  pushUndo();
+  const r=$("#canvas").getBoundingClientRect();const c=toWorld(r.left+r.width/2,r.top+r.height/2);
+  const t={id:uid(),kind:"text",name:"New label",x:c.x,y:c.y,size:0,look:{},pois:[],label:Object.assign({},TEXT_LABEL_DEFAULT)};
+  state.instances.push(t);selection={type:"instance",id:t.id};
+  if(tool!=="select")setTool("select");
+  renderAll();markDirty();toast("Text added — type your text and format it in the inspector");
+}
 function renderLabels(){
   const layer=$("#labelLayer");if(!layer||typeof labelSVG!=="function"){if(layer)layer.innerHTML="";return;}
   let out="";
@@ -1036,13 +1051,35 @@ function renderLabels(){
     out+=`<g transform="translate(${c.x.toFixed(1)},${cy.toFixed(1)})">${r.g}</g>`;
   });
   state.instances.forEach(i=>{
-    if(i.kind==="text")return;                 // free text objects are their own kind (later slice)
+    if(i.kind==="text")return;                 // free text objects handled in their own pass below
     const st=bodyLabelStyle(i);if(st.show===false)return;
     const r=labelSVG(i.name,st);if(!r.g)return;
     const cx=i.x+i.size/2, ay=i.y+i.size+4;    // just beneath the body, centered
     out+=`<g transform="translate(${cx.toFixed(1)},${ay.toFixed(1)})">${r.g}</g>`;
   });
+  // free-floating text objects — draggable in DM mode via a transparent hit rect
+  state.instances.forEach(i=>{
+    if(i.kind!=="text")return;
+    const st=textLabelStyle(i);if(st.show===false)return;
+    const rot=st.rotate||0;
+    const r=labelSVG(i.name||"Text",Object.assign({},st,{rotate:0}));   // rotate handled on the outer group so the hit box turns too
+    if(!r.g)return;
+    const sel=selection&&selection.type==="instance"&&selection.id===i.id;
+    const left=st.align==="start"?0:st.align==="end"?-r.w:-r.w/2;const pad=6;
+    const hit=mode==="dm"?`<rect class="lblhit" data-textid="${i.id}" x="${(left-pad).toFixed(1)}" y="${(-pad).toFixed(1)}" width="${(r.w+pad*2).toFixed(1)}" height="${(r.h+pad*2).toFixed(1)}" fill="transparent"${sel?' stroke="#0ac8b9" stroke-width="1.5" stroke-dasharray="6 5"':''}/>`:"";
+    out+=`<g transform="translate(${i.x.toFixed(1)},${i.y.toFixed(1)})${rot?` rotate(${rot})`:''}">${hit}${r.g}</g>`;
+  });
   layer.innerHTML=out;
+  if(mode==="dm"){
+    layer.querySelectorAll(".lblhit[data-textid]").forEach(rect=>{
+      rect.addEventListener("mousedown",e=>{
+        e.stopPropagation();const inst=state.instances.find(x=>x.id===rect.dataset.textid);if(!inst)return;
+        selection={type:"instance",id:inst.id};renderAll();
+        pushUndo();const start=toWorld(e.clientX,e.clientY),ox=inst.x,oy=inst.y;
+        drag={move:ev=>{const w=toWorld(ev.clientX,ev.clientY);inst.x=ox+(w.x-start.x);inst.y=oy+(w.y-start.y);renderLabels();updateStatus();},up:()=>{renderInspector();}};
+      });
+    });
+  }
 }
 function renderAll(){renderSectors();renderInstances();renderInspector();updateStatus();updateTabBadges();}
 
@@ -1235,8 +1272,23 @@ function renderSectorInspector(){
   box.querySelectorAll("[data-inst]").forEach(el=>el.onclick=()=>{selection={type:"instance",id:el.dataset.inst};renderAll();});
   box.querySelectorAll("[data-sec]").forEach(el=>el.onclick=()=>{selection={type:"sector",id:el.dataset.sec};renderAll();});
 }
+function renderTextInspector(){
+  const box=$("#inspBody");const i=state.instances.find(x=>x.id===selection.id);if(!i){box.innerHTML="";return;}
+  $("#inspHead").textContent="◈ TEXT LABEL";
+  if(mode!=="dm"){box.innerHTML=`<div style="font-size:14px;line-height:1.5;color:var(--dim);white-space:pre-wrap">${esc(i.name)}</div>`;return;}
+  i.label=i.label||Object.assign({},TEXT_LABEL_DEFAULT);
+  box.innerHTML=`<div class="field"><label>Text</label><textarea id="txtVal" rows="3" placeholder="Type your label… line breaks make multiple lines.">${esc(i.name)}</textarea></div>
+    <div style="font-size:11px;color:var(--faint);margin-bottom:6px">Drag it anywhere on the map. Format its font, size, color, effects, wrap, curve, and rotation below.</div>
+    ${labelControlsHTML(i.label,"tx")}
+    <div class="actionbtns"><button id="txtDupe">Duplicate</button><button class="danger" id="txtDel">Delete</button></div>`;
+  $("#txtVal").oninput=e=>{i.name=e.target.value;renderLabels();markDirty();};
+  wireLabelControls("tx",i.label,()=>{renderLabels();markDirty();});
+  $("#txtDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
+  $("#txtDel").onclick=()=>{pushUndo();state.instances=state.instances.filter(x=>x.id!==i.id);selection=null;renderAll();markDirty();};
+}
 function renderInstanceInspector(){
   const box=$("#inspBody");const i=state.instances.find(x=>x.id===selection.id);if(!i){box.innerHTML="";return;}
+  if(i.kind==="text")return renderTextInspector();
   const sm=sectorById();const sec=i.sector?sm[i.sector]:null;const others=state.instances.filter(x=>x.id!==i.id);
   $("#inspHead").textContent="◈ "+i.kind.toUpperCase();
   if(mode!=="dm"){box.innerHTML=playReadout(i.name,i.kind,sec?sec.name:"",i.desc,[],[],sec?sec.color:"#8f78e6",i.pois);return;}

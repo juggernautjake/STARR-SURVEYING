@@ -117,8 +117,14 @@ existing save/publish → DB path (no schema/API change — `dnd_maps.data` alre
   color dynamically. `label` was added to the sector serialization whitelist in **both** `mapData()`
   and `cleanState()`. Verified headless: sector names render (incl. curved/uppercase/glow), old
   inline text gone, `s.label` round-trips, untouched sectors stay clean.
-- **Slice 4 — Text/Label object kind (Studio):** new "Text" tab + `kind:'text'` placeable for
-  **locations**/annotations; place/move/rotate; full formatting inspector; select/delete/duplicate.
+- **Slice 4 — Text/Label object kind (Studio)** ✅ — a **🅣 Text** toolbar button adds a free
+  `kind:'text'` object at the view center for **locations**/routes/region names/notes. Text objects
+  live entirely in `#labelLayer` (skipped by `renderInstances`): rendered via `labelSVG` with a
+  transparent `.lblhit` rect for select/drag (DM only), rotation applied on the outer group so the
+  hit box turns with the text. A dedicated **TEXT LABEL** inspector gives a multi-line text area
+  plus the full formatting controls, duplicate, and delete; the object's text is its `name` and
+  serializes whole. Verified headless: add→state, renders + hit-rect + selection outline, multiline
+  (tspans), outer-group rotate, pulse, and full round-trip through `mapData`.
 - **Slice 5 — POI descriptions + labels (Studio):** POI click → description in the play-mode
   readout; optional formatted POI caption on the map; POI title/desc formatting controls.
 - **Slice 6 — Console parity:** include `labels.js`; render instance/sector/text labels identically
