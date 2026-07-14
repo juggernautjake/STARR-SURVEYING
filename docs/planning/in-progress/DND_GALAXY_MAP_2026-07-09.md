@@ -167,3 +167,9 @@ panels adopt the framed-panel / `.hexBtn` treatment. The map canvas keeps a deep
   **✦ Publish to players** (save + PATCH `published:true`). Opening with `?map=<id>` GETs the row
   and `applyMapData()`s it. The native Save-file / Open-file (export/import) flows are untouched.
   Verified headless: both DB buttons mount, native ones hidden, no script errors.
+- **Slice 4 — Console player viewer DB-loaded** ✅ — a member-gated route
+  `/dnd/campaigns/[id]/console` embeds the retinted `console.html`. Its injected campaign bridge
+  loads the campaign's published built-map from the maps API (the `?map=<id>` row, or the published
+  built map if none is named) via `loadMap()`, and hides the localStorage "Load campaign" control.
+  The campaign hub's "✦ Open the interactive map" button (built maps) now resolves to a real page.
+  Verified headless: the console loads a mocked DB map (title updates), button hidden, no errors.

@@ -581,5 +581,43 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
 /* ---- init: last published campaign, else sample ---- */
 (function init(){const list=loadCampaigns();if(list.length){const latest=list.slice().sort((a,b)=>new Date(b.savedAt)-new Date(a.savedAt))[0];loadMap(latest.map);}else{loadMap(sampleMap());}})();
 </script>
+<!-- ============================================================
+     CAMPAIGN DB BRIDGE (platform integration — Phase U, slice 4)
+     When the Console is embedded under /dnd with ?campaign=<id> it loads the
+     campaign's published map from the maps API instead of localStorage. With
+     ?map=<id> it opens that specific row; otherwise it picks the campaign's
+     published map. The localStorage "Load campaign" button is hidden.
+============================================================ -->
+<script>
+(function consoleBridge(){
+  const qs = new URLSearchParams(location.search);
+  const campaign = qs.get("campaign");
+  if(!campaign) return;                        // stand-alone use → unchanged
+  const api = "/api/dnd/campaigns/" + encodeURIComponent(campaign) + "/maps";
+  const wanted = qs.get("map");
+  const campBtn = document.getElementById("campBtn");
+  if(campBtn) campBtn.style.display = "none";   // localStorage list — not used on the platform
+
+  async function load(){
+    try{
+      let mapId = wanted;
+      if(!mapId){
+        // No explicit map → find the campaign's published built map.
+        const lr = await fetch(api);
+        if(!lr.ok) return;
+        const { maps } = await lr.json();
+        const pub = (maps || []).find(m => m.published && m.kind === "built");
+        if(!pub) return;                        // nothing to show → keep sample
+        mapId = pub.id;
+      }
+      const r = await fetch(api + "?mapId=" + encodeURIComponent(mapId));
+      if(!r.ok) return;
+      const { map } = await r.json();
+      if(map && map.data){ loadMap(map.data); toast('◈ '+((map.name||"Campaign map")).toUpperCase()); }
+    }catch(e){ /* offline / unmigrated → sample map stays */ }
+  }
+  load();
+})();
+</script>
 </body>
 </html>
