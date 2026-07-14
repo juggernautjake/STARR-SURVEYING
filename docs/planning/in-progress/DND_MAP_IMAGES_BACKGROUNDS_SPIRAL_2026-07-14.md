@@ -136,13 +136,14 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
 - [x] Browser-verify: image backdrop fills at cover; size 40% visibly shrinks it; panel controls
       present. (screenshots in session)
 
-### P5 — Spiralize any image + 7-layer spiral with per-layer speed
-- [ ] Add "Spiralize" (apply DiffSpin) to any `image` asset → produces a spinning layered instance.
-- [ ] Expand spin/galaxy layer control to **up to 7 layers**; expose an independent **speed** (and
-      direction) per layer in the editor; wire through DiffSpin ring config + serialization.
-- [ ] Global spin-speed master still works; per-layer speeds compose with it.
-- [ ] Browser-verify: an imported photo spiralized with 7 layers, each layer visibly at a different
-      speed; reload preserves per-layer speeds.
+### P5 — Spiralize any image + 7-layer spiral with per-layer speed ✅
+- [x] "🌀 Spiralize" button on any `image` asset → creates a spingalaxy (DiffSpin) from its src.
+- [x] Spingalaxy inspector: **Layers** (2–9, ≥7 supported), **Master speed**, **Edge blend**, and a
+      **per-layer speed slider + direction toggle** for each layer; wired through `dsCfg` + engine
+      `fromConfig`/`toConfig` (serialized on the instance's `look`).
+- [x] Master speed composes with per-layer speeds (engine multiplies `dirs[i]*speeds[i]*master`).
+- [x] Browser-verify: image spiralized → 7 layers each with its own speed/dir; renders + spins.
+      (instances serialize whole, so dsCfg persists.)
 
 ### P6 — 3D world live round-trip (New → editor → import back)
 - [ ] `planet-3d.html`: when opened with a round-trip flag (e.g. `?returnTo=studio` / `window.opener`),
@@ -194,3 +195,5 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
   up"); Backdrop panel with import/built-in-starfield/fit/size/opacity/remove; size honored. Verified.
 - P8a: Per-instance 3D spin — planet3d spin now derives from the exported JSON's cfg3d.spin and is
   adjustable per instance (inspector slider); default slowed from fixed fps16 to ~8s/rotation. Verified.
+- P5: Spiralize any image (🌀) → layered DiffSpin galaxy; spingalaxy inspector exposes layer count
+  (up to 9), master speed, edge blend, and per-layer speed + direction. Verified (7 layers).
