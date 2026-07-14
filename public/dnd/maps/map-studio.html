@@ -1106,6 +1106,9 @@ function renderInstances(){
     const fxo=fxOverlay(i.fx,i.look&&i.look.seed);
     if(i.kind==="spingalaxy"){el.innerHTML=`<div class="art">${fxo}<canvas class="dscanvas" style="width:100%;height:100%;display:block;border-radius:50%"></canvas></div>${poiLayerHTML(i)}`;el.dataset.ds=i.id;}
     else if(i.kind==="planet3d"){el.innerHTML=`<div class="art">${fxo}<canvas class="p3canvas" style="width:100%;height:100%;display:block;border-radius:50%"></canvas></div>`;el.dataset.p3=i.id;}
+    else if(i.kind==="image"){const L=i.look||i,src=L.src,fit=i.imgFit||"contain",px=i.imgPosX!=null?i.imgPosX:50,py=i.imgPosY!=null?i.imgPosY:50;
+      const inner=src?`<img src="${src}" draggable="false" style="width:100%;height:100%;display:block;object-fit:${fit};object-position:${px}% ${py}%;pointer-events:none">`:(L.svgData?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">${L.svgData}</div>`:art(L,true));
+      el.innerHTML=`<div class="art" style="overflow:hidden">${fxo}${inner}</div>${poiLayerHTML(i)}`;}
     else{el.innerHTML=`<div class="art">${fxo}${art(i.look||i,true)}</div>${poiLayerHTML(i)}`;}
     el.addEventListener("mousedown",e=>{if(e.target.closest(".poi")||e.target.closest(".ihandle"))return;e.stopPropagation();onInstDown(e,i);});
     el.addEventListener("dblclick",e=>{if(mode!=="dm")return;e.stopPropagation();const a=state.assets.find(x=>x.id===i.assetId)||{...i.look,name:i.name,kind:i.kind,size:i.size};openEditor(a,"edit");});
@@ -1542,7 +1545,11 @@ function renderInstanceInspector(){
       <div class="field"><label>Spin speed <span style="float:right;color:var(--gold)" id="iSpinV">${(i.p3spin!=null?i.p3spin:1).toFixed(1)}×</span></label><div class="slider"><input type="range" id="iSpin" min="0" max="30" value="${Math.round((i.p3spin!=null?i.p3spin:1)*10)}"></div></div>
       <div style="font-size:11px;color:var(--faint)">0 = paused. Each 3D world keeps its own spin (its exported speed sets the default).</div>`:``}
     ${i.kind==="spingalaxy"?spinGalaxyControlsHTML(i):""}
-    ${i.kind==="image"?`<div class="actionbtns"><button id="iSpiralize">🌀 Apply layered spin</button></div><div style="font-size:11px;color:var(--faint)">Turns this image into a differential-spin galaxy — then edit its layers here.</div>`:""}
+    ${i.kind==="image"?`<h4>Crop &amp; fit</h4>
+      <div class="rowc"><div class="field"><label>Fit</label><select id="iImgFit">${["contain","cover","fill"].map(o=>`<option value="${o}" ${(i.imgFit||"contain")===o?"selected":""}>${o}</option>`).join("")}</select></div></div>
+      <div class="rowc" id="iImgPosRow" style="${i.imgFit==="cover"?"":"display:none"}"><div class="field"><label>Crop X <span style="float:right;color:var(--gold)" id="iPxV">${i.imgPosX!=null?i.imgPosX:50}%</span></label><div class="slider"><input type="range" id="iPx" min="0" max="100" value="${i.imgPosX!=null?i.imgPosX:50}"></div></div><div class="field"><label>Crop Y <span style="float:right;color:var(--gold)" id="iPyV">${i.imgPosY!=null?i.imgPosY:50}%</span></label><div class="slider"><input type="range" id="iPy" min="0" max="100" value="${i.imgPosY!=null?i.imgPosY:50}"></div></div></div>
+      <div style="font-size:11px;color:var(--faint)">“cover” crops to fill the box; drag Crop X/Y to choose the visible part. Resize handles change the crop shape.</div>
+      <div class="actionbtns"><button id="iSpiralize">🌀 Apply layered spin</button></div>`:""}
     <div class="actionbtns"><button class="gold" id="iEdit">✎ Open in editor</button></div>
     <div class="actionbtns"><button id="iDupe">Duplicate</button><button class="danger" id="iDel">Delete</button></div>`;
   $("#iName").oninput=e=>{i.name=e.target.value;renderInstances();renderLabels();markDirty();};
@@ -1556,7 +1563,10 @@ function renderInstanceInspector(){
   $("#iOp").oninput=e=>{i.opacity=+e.target.value/100;$("#iOpV").textContent=Math.round(i.opacity*100)+"%";renderInstances();markDirty();};
   if(i.kind==="planet3d"){const sp=$("#iSpin");if(sp)sp.oninput=e=>{i.p3spin=+e.target.value/10;$("#iSpinV").textContent=i.p3spin.toFixed(1)+"×";mountSpriteInstances();markDirty();};}
   if(i.kind==="spingalaxy")wireSpinGalaxyControls(i);
-  if(i.kind==="image"){const sb=$("#iSpiralize");if(sb)sb.onclick=()=>applySpinToInstance(i);}
+  if(i.kind==="image"){const sb=$("#iSpiralize");if(sb)sb.onclick=()=>applySpinToInstance(i);
+    const ff=$("#iImgFit");if(ff)ff.onchange=e=>{i.imgFit=e.target.value;const row=$("#iImgPosRow");if(row)row.style.display=i.imgFit==="cover"?"":"none";renderInstances();markDirty();};
+    const px=$("#iPx");if(px)px.oninput=e=>{i.imgPosX=+e.target.value;$("#iPxV").textContent=i.imgPosX+"%";renderInstances();markDirty();};
+    const py=$("#iPy");if(py)py.oninput=e=>{i.imgPosY=+e.target.value;$("#iPyV").textContent=i.imgPosY+"%";renderInstances();markDirty();};}
   $("#iEdit").onclick=()=>{
     if(i.kind==="planet3d"){const a=state.assets.find(x=>x.id===i.assetId)||{id:i.assetId||uid(),kind:"planet3d",name:i.name,cfg3d:i.look&&i.look.cfg3d,sheet:i.look&&i.look.sheet};openPlanet3DEditor(a);return;}
     const a=state.assets.find(x=>x.id===i.assetId)||{...i.look,name:i.name,kind:i.kind,size:i.size,id:uid()};openEditor(a,"edit",i);};

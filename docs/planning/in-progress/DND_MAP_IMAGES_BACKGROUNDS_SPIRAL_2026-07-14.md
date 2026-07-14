@@ -208,3 +208,5 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
   is fully editable. Verified.
 - P6/P8: 3D world live round-trip (New→editor→Send to Map, no file) + edit-in-place with cfg3d
   reload; studio import + both pages clean verified.
+- P12: Image crop/fit — instance Fit (contain/cover/fill) + Crop X/Y (object-position) in the
+  inspector; verified cover-crop of a wide image into a square box. Completes resize/crop/transparency.
