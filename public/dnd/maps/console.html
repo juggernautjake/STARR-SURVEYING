@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Stardust Rhapsody — Galactic Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Caveat:wght@500;700&family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Michroma&family=Orbitron:wght@500;600;700&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script src="labels.js"></script>
+<style>
+  :root{--void:#010a13;--ink:#f0e6d2;--dim:#a09b8c;--faint:#6d6a5f;--gold:#c89b3c;--aether:#c8aa6e;--scan:#0ac8b9;--amber:#c8aa6e;--red:#c6403b;--green:#0ac8b9;
+    --steel:#0b1a2c;--steel2:#10233b;--steelhi:#16304a;--bezel:#010a13;--screen:#02121a;--screenglow:#0ac8b9;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--void);}
+  body{font-family:"Rajdhani",system-ui,sans-serif;color:var(--ink);display:flex;flex-direction:column;}
+  #mapPane{position:relative;flex:1;min-height:0;overflow:hidden;background:radial-gradient(ellipse 62% 60% at 50% 46%,#1a1240 0%,#0c0820 42%,#04030a 82%);}
+  #stage{position:absolute;inset:0;cursor:grab;}
+  #stage.grabbing{cursor:grabbing;}
+  #viewport{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;}
+  #viewport.animate{transition:transform .85s cubic-bezier(.55,.05,.2,1);}
+  #fxCanvas{position:absolute;inset:0;pointer-events:none;z-index:5;}
+  .titlecard{position:absolute;top:16px;left:0;right:0;text-align:center;z-index:20;pointer-events:none;}
+  .titlecard h1{margin:0;font-family:"Cinzel",serif;font-weight:700;font-size:22px;letter-spacing:9px;color:#fff;text-shadow:0 0 26px rgba(200,138,255,.5),0 2px 8px #000;}
+  .titlecard .tag{font-family:"Share Tech Mono",monospace;font-size:11px;letter-spacing:4px;color:var(--scan);opacity:.8;margin-top:3px;}
+  .legend{position:absolute;top:14px;left:14px;z-index:20;background:rgba(8,10,22,.7);border:1px solid rgba(120,140,200,.2);border-radius:10px;padding:10px 12px;backdrop-filter:blur(8px);max-width:200px;max-height:44vh;overflow-y:auto;}
+  .legend h3{margin:0 0 7px;font-family:"Orbitron";font-size:9px;letter-spacing:2px;color:var(--scan);font-weight:600;}
+  .legrow{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--dim);padding:2px 0;cursor:pointer;line-height:1.15;}
+  .legrow:hover{color:var(--ink);}
+  .legrow .dot{width:9px;height:9px;border-radius:2px;flex:none;border:1px solid rgba(255,255,255,.2);}
+  .legrow.sub{padding-left:12px;font-size:11px;}
+  .legdiv{height:1px;background:rgba(120,140,200,.18);margin:6px 0;}
+  .mapnav{position:absolute;top:14px;right:14px;z-index:20;display:flex;flex-direction:column;gap:5px;}
+  .mapnav button{width:34px;height:34px;border-radius:8px;background:rgba(20,26,48,.85);border:1px solid rgba(120,140,200,.28);color:var(--ink);font-size:15px;cursor:pointer;backdrop-filter:blur(6px);transition:.12s;font-family:"Orbitron";}
+  .mapnav button:hover{border-color:var(--scan);color:var(--scan);}
+  .campbtn{position:absolute;top:14px;right:60px;z-index:21;background:rgba(20,26,48,.85);border:1px solid rgba(200,138,255,.4);color:var(--aether);border-radius:8px;padding:8px 13px;font-size:12px;cursor:pointer;backdrop-filter:blur(6px);letter-spacing:.5px;}
+  .campbtn:hover{border-color:var(--aether);color:#fff;}
+  .sector-label{position:absolute;transform:translate(-50%,-50%);font-family:"Cinzel",serif;font-weight:600;letter-spacing:3px;text-transform:uppercase;pointer-events:none;text-align:center;white-space:nowrap;text-shadow:0 0 16px currentColor,0 2px 7px #000;}
+  .body{position:absolute;transform:translate(-50%,-50%);cursor:pointer;}
+  .body .art{width:100%;height:100%;pointer-events:none;position:relative;}
+  .body .poilayer{position:absolute;inset:0;pointer-events:none;z-index:6;}
+  .body .poi{position:absolute;transform:translate(-50%,-50%);filter:drop-shadow(0 1px 3px #000);pointer-events:auto;cursor:pointer;}
+  .body .poi svg{display:block;}
+  .body .halo{position:absolute;inset:-35%;border-radius:50%;opacity:0;transition:opacity .25s;pointer-events:none;}
+  .body:hover .halo{opacity:.85;}
+  .body.selected .halo{opacity:1;}
+  .body .bname{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:5px;font-family:"Rajdhani";font-weight:600;font-size:12px;letter-spacing:.5px;color:#eaf2ff;white-space:nowrap;text-shadow:0 1px 6px #000,0 0 12px #000;pointer-events:none;opacity:.9;}
+  .body .bname.cap{color:var(--gold);}
+  .body:hover{z-index:200 !important;}
+  .body.selected{z-index:150 !important;}
+  .selring{position:absolute;inset:-22%;border-radius:50%;border:1.5px solid var(--scan);opacity:0;pointer-events:none;box-shadow:0 0 14px var(--scan),inset 0 0 14px rgba(67,224,200,.3);}
+  .body.selected .selring{opacity:.9;animation:selspin 8s linear infinite;}
+  @keyframes selspin{to{transform:rotate(360deg);}}
+  @keyframes spin{to{transform:rotate(360deg);}}@keyframes cspin{to{transform:rotate(-360deg);}}
+  @keyframes breathe{0%,100%{opacity:.72;transform:scale(1);}50%{opacity:1;transform:scale(1.05);}}
+  @keyframes twinkle{0%,100%{opacity:.45;}50%{opacity:1;}}
+  @media (prefers-reduced-motion:reduce){*{animation:none !important;}#viewport.animate{transition:none;}}
+  #console{flex:none;height:246px;position:relative;z-index:30;background:linear-gradient(180deg,#0c1020 0%,#141a30 8%,#191f38 100%);border-top:2px solid #000;box-shadow:0 -1px 0 rgba(120,140,200,.15) inset, 0 -20px 40px rgba(0,0,0,.5);display:flex;align-items:stretch;padding:12px 14px;gap:12px;}
+  #console::before{content:"";position:absolute;top:6px;left:0;right:0;height:3px;background:repeating-linear-gradient(90deg,transparent 0 26px,rgba(120,140,200,.25) 26px 28px);pointer-events:none;}
+  .bank{width:118px;flex:none;background:linear-gradient(160deg,var(--steel2),var(--steel));border:1px solid #000;border-radius:9px;padding:9px;display:flex;flex-direction:column;gap:7px;box-shadow:inset 0 1px 0 rgba(140,160,220,.15), inset 0 0 20px rgba(0,0,0,.4);}
+  .bank .bh{font-family:"Orbitron";font-size:8px;letter-spacing:1.5px;color:var(--faint);text-align:center;margin-bottom:1px;}
+  .lamp{display:flex;align-items:center;gap:7px;font-family:"Share Tech Mono";font-size:9.5px;color:var(--dim);letter-spacing:.5px;}
+  .lamp .led{width:9px;height:9px;border-radius:50%;flex:none;background:#20263c;box-shadow:inset 0 0 3px #000;transition:.3s;}
+  .lamp.on .led{box-shadow:0 0 8px currentColor,0 0 3px #fff inset;}
+  .lamp.g.on .led{background:var(--green);color:var(--green);}
+  .lamp.a.on .led{background:var(--amber);color:var(--amber);}
+  .lamp.r.on .led{background:var(--red);color:var(--red);}
+  .lamp.c.on .led{background:var(--scan);color:var(--scan);}
+  .toggles{margin-top:auto;display:flex;gap:6px;justify-content:space-around;}
+  .tgl{width:22px;height:34px;border-radius:5px;background:linear-gradient(180deg,#0a0e1a,#161d34);border:1px solid #000;position:relative;box-shadow:inset 0 0 6px #000;}
+  .tgl::after{content:"";position:absolute;left:3px;right:3px;height:13px;top:3px;border-radius:3px;background:linear-gradient(180deg,#5a6690,#2f3a5e);transition:.18s;box-shadow:0 1px 2px #000;}
+  .tgl.up::after{top:3px;background:linear-gradient(180deg,#7de0b0,#3aa070);}
+  .tgl:not(.up)::after{top:18px;}
+  .screenframe{flex:1;min-width:0;background:linear-gradient(160deg,#141a30,#0c1020);border:1px solid #000;border-radius:11px;padding:9px;box-shadow:inset 0 1px 0 rgba(140,160,220,.12);display:flex;flex-direction:column;}
+  .screen{flex:1;min-height:0;position:relative;border-radius:8px;overflow:hidden;background:radial-gradient(ellipse at 50% 30%,#053029,#02110f 75%);border:2px solid #000;box-shadow:inset 0 0 40px rgba(0,0,0,.7), inset 0 0 12px rgba(10,255,206,.12), 0 0 0 1px rgba(10,255,206,.15);}
+  .screen::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:5;background:repeating-linear-gradient(0deg,rgba(10,255,206,.05) 0 1px,transparent 1px 3px);}
+  .screen::after{content:"";position:absolute;left:0;right:0;height:40px;top:-40px;z-index:6;pointer-events:none;background:linear-gradient(180deg,transparent,rgba(10,255,206,.08),transparent);animation:scanline 6s linear infinite;}
+  @keyframes scanline{to{top:100%;}}
+  .scr-inner{position:absolute;inset:0;z-index:4;padding:14px 18px;overflow:hidden;color:#7dffe0;font-family:"Rajdhani";display:flex;flex-direction:column;}
+  .scr-idle{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:8px;text-align:center;}
+  .scr-idle .lg{font-family:"Orbitron";font-size:15px;letter-spacing:5px;color:var(--scan);text-shadow:0 0 12px var(--scan);}
+  .scr-idle .sm{font-family:"Share Tech Mono";font-size:11px;color:#3a9a86;letter-spacing:2px;}
+  .scr-idle .blink{animation:blink 1.3s steps(1) infinite;}
+  @keyframes blink{50%{opacity:0;}}
+  .scr-head{display:flex;align-items:flex-start;gap:12px;flex:none;border-bottom:1px solid rgba(10,255,206,.2);padding-bottom:8px;margin-bottom:8px;}
+  .scr-portrait{width:74px;height:74px;flex:none;border-radius:8px;border:1px solid rgba(10,255,206,.3);background:radial-gradient(circle at 50% 45%,rgba(10,255,206,.08),transparent);display:flex;align-items:center;justify-content:center;overflow:visible;}
+  .scr-titles{flex:1;min-width:0;}
+  .scr-kicker{font-family:"Share Tech Mono";font-size:10px;letter-spacing:2px;color:var(--amber);text-transform:uppercase;}
+  .scr-name{font-family:"Orbitron";font-size:19px;font-weight:700;color:#eafffb;text-shadow:0 0 14px rgba(10,255,206,.5);line-height:1.1;margin:1px 0 2px;}
+  .scr-creed{font-family:"Rajdhani";font-style:italic;font-size:13px;color:var(--scan);}
+  .scr-cols{flex:1;min-height:0;display:flex;gap:16px;}
+  .scr-desc{flex:1;font-size:13.5px;line-height:1.5;color:#a8e8d8;overflow-y:auto;padding-right:6px;}
+  .scr-stats{width:158px;flex:none;font-family:"Share Tech Mono";font-size:11px;display:flex;flex-direction:column;gap:5px;overflow-y:auto;}
+  .scr-stat{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dotted rgba(10,255,206,.15);padding-bottom:3px;}
+  .scr-stat .k{color:#3a9a86;}.scr-stat .v{color:#9dffe8;text-align:right;}
+  .scr-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
+  .scr-chip{font-family:"Share Tech Mono";font-size:10px;padding:2px 7px;border:1px solid rgba(10,255,206,.3);border-radius:10px;color:#9dffe8;cursor:pointer;transition:.12s;}
+  .scr-chip:hover{background:rgba(10,255,206,.15);}
+  .scr-chip .cd{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px;vertical-align:middle;}
+  .scr-poi{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dotted rgba(10,255,206,.12);cursor:pointer;}
+  .scr-poi:hover{background:rgba(10,255,206,.06);}
+  .scr-poi .pic{width:22px;height:22px;flex:none;}
+  .scr-poi .pn{font-size:13px;color:#c8fff0;font-weight:600;}
+  .scr-poi .pt{font-size:10px;color:#3a9a86;font-family:"Share Tech Mono";}
+  .scr-poi .pd{font-size:11.5px;color:#8fd0c4;line-height:1.35;}
+  .scr-desc::-webkit-scrollbar,.scr-stats::-webkit-scrollbar{width:6px;}
+  .scr-desc::-webkit-scrollbar-thumb,.scr-stats::-webkit-scrollbar-thumb{background:rgba(10,255,206,.25);border-radius:3px;}
+  .rcluster{width:158px;flex:none;background:linear-gradient(160deg,var(--steel2),var(--steel));border:1px solid #000;border-radius:9px;padding:10px;display:flex;flex-direction:column;gap:8px;box-shadow:inset 0 1px 0 rgba(140,160,220,.15), inset 0 0 20px rgba(0,0,0,.4);}
+  .rcluster .bh{font-family:"Orbitron";font-size:8px;letter-spacing:1.5px;color:var(--faint);text-align:center;}
+  .bigbtn{font-family:"Orbitron";font-size:10px;letter-spacing:1px;padding:9px;border-radius:7px;border:1px solid #000;cursor:pointer;background:linear-gradient(180deg,var(--steelhi),var(--steel));color:var(--dim);box-shadow:inset 0 1px 0 rgba(150,170,230,.2),0 2px 3px #000;transition:.1s;}
+  .bigbtn:hover{color:var(--ink);}
+  .bigbtn:active{transform:translateY(1px);box-shadow:inset 0 2px 4px #000;}
+  .bigbtn.amber{color:var(--amber);border-color:rgba(255,178,87,.3);}
+  .bigbtn.scan{color:var(--scan);border-color:rgba(67,224,200,.3);}
+  .knobs{display:flex;gap:8px;justify-content:space-around;margin-top:auto;}
+  .knob{display:flex;flex-direction:column;align-items:center;gap:3px;}
+  .knob .dial{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#3a466e,#141a30);border:1px solid #000;position:relative;box-shadow:0 2px 4px #000, inset 0 1px 2px rgba(150,170,230,.25);cursor:pointer;}
+  .knob .dial::after{content:"";position:absolute;left:50%;top:4px;width:2px;height:11px;background:var(--scan);transform:translateX(-50%) rotate(var(--r,-90deg));border-radius:2px;box-shadow:0 0 5px var(--scan);transform-origin:50% 13px;transition:.2s;}
+  .knob .kl{font-family:"Share Tech Mono";font-size:8px;color:var(--faint);letter-spacing:.5px;}
+  .meter{height:7px;border-radius:4px;background:#0a0e1a;border:1px solid #000;overflow:hidden;box-shadow:inset 0 0 4px #000;}
+  .meter i{display:block;height:100%;width:60%;background:linear-gradient(90deg,var(--green),var(--scan));box-shadow:0 0 8px var(--scan);transition:width .5s;}
+  .modal{position:fixed;inset:0;z-index:400;background:rgba(2,4,8,.82);backdrop-filter:blur(5px);display:none;align-items:center;justify-content:center;padding:24px;}
+  .modal.show{display:flex;}
+  .modalcard{width:100%;max-width:560px;max-height:80vh;background:linear-gradient(180deg,#0e1428,#0a0f1e);border:1px solid #2b3a5e;border-radius:16px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6);}
+  .modalcard .mh{padding:16px 20px;border-bottom:1px solid #1e2a48;display:flex;align-items:center;gap:10px;}
+  .modalcard .mh .tt{font-family:"Cinzel";font-size:17px;color:var(--scan);flex:1;letter-spacing:1px;}
+  .modalcard .mh .x{width:30px;height:30px;border-radius:8px;background:#1a2036;border:1px solid #2b3a5e;color:var(--ink);font-size:14px;cursor:pointer;}
+  .modalcard .mb{padding:16px 20px;overflow-y:auto;}
+  .modalcard .mf{padding:12px 20px;border-top:1px solid #1e2a48;display:flex;gap:8px;justify-content:flex-end;}
+  .modalcard .mf button{border-radius:8px;padding:10px 16px;font-size:13px;border:1px solid #2b3a5e;background:#1a2036;color:var(--ink);cursor:pointer;}
+  .camprow{display:flex;align-items:center;gap:10px;background:#141a30;border:1px solid #223056;border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer;transition:.12s;}
+  .camprow:hover{border-color:var(--scan);}
+  .camprow .ci{flex:1;min-width:0;}.camprow .ci .n{font-size:14px;font-weight:600;color:var(--ink);}
+  .camprow .ci .m{font-size:11px;color:var(--faint);margin-top:2px;font-family:"Share Tech Mono";}
+  .camprow .go{color:var(--scan);font-size:12px;font-family:"Orbitron";}
+  ::-webkit-scrollbar{width:9px;height:9px;}::-webkit-scrollbar-thumb{background:#243056;border-radius:5px;}
+  .toast{position:fixed;bottom:262px;left:50%;transform:translateX(-50%);background:#141a30;border:1px solid var(--scan);padding:8px 15px;border-radius:9px;font-size:12.5px;z-index:500;opacity:0;transition:.2s;pointer-events:none;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<div id="mapPane">
+  <div class="titlecard"><h1 id="mapTitle">STARDUST RHAPSODY</h1><div class="tag">◈ GALACTIC NAVIGATION ARRAY ◈</div></div>
+  <div class="legend"><h3>◈ SYSTEMS</h3><div id="legendRows"></div></div>
+  <button class="campbtn" id="campBtn">🗂 Load campaign</button>
+  <div class="mapnav">
+    <button id="zoomIn">+</button>
+    <button id="zoomOut">−</button>
+    <button id="zoomFit">⤢</button>
+  </div>
+  <div id="stage"><div id="viewport"></div></div>
+  <canvas id="fxCanvas"></canvas>
+</div>
+<div id="console">
+  <div class="bank">
+    <div class="bh">SYSTEM STATUS</div>
+    <div class="lamp g on" id="lampPwr"><span class="led"></span>REACTOR</div>
+    <div class="lamp c on" id="lampNav"><span class="led"></span>NAV-LINK</div>
+    <div class="lamp a" id="lampScan"><span class="led"></span>SCANNING</div>
+    <div class="lamp g on" id="lampComm"><span class="led"></span>COMMS</div>
+    <div class="lamp r" id="lampAlert"><span class="led"></span>ALERT</div>
+    <div class="toggles"><div class="tgl up" id="tgl1"></div><div class="tgl up" id="tgl2"></div><div class="tgl" id="tgl3"></div></div>
+  </div>
+  <div class="screenframe">
+    <div class="screen"><div class="scr-inner" id="scrInner"></div></div>
+  </div>
+  <div class="rcluster">
+    <div class="bh">NAVIGATION</div>
+    <button class="bigbtn scan" id="btnGalaxy">◈ GALAXY VIEW</button>
+    <button class="bigbtn amber" id="btnClose">✕ CLEAR SCREEN</button>
+    <div class="meter" title="signal"><i id="sigMeter"></i></div>
+    <div class="knobs">
+      <div class="knob"><div class="dial" id="dialZoom"></div><div class="kl">MAGNIFY</div></div>
+      <div class="knob"><div class="dial" id="dialGain"></div><div class="kl">GAIN</div></div>
+    </div>
+  </div>
+</div>
+<div class="modal" id="campModal">
+  <div class="modalcard">
+    <div class="mh"><div class="tt">🗂 Load a Campaign Map</div><button class="x" id="campClose">✕</button></div>
+    <div class="mb" id="campBody"></div>
+    <div class="mf"><button id="campImport">↑ Import map file</button><button id="campSample">◈ Load sample galaxy</button></div>
+  </div>
+</div>
+<input type="file" id="mapFile" accept=".json" style="display:none">
+<div class="toast" id="toast"></div>
+<script>
+/* DIFFERENTIAL-SPIN GALAXY ENGINE (shared) */
+(function (root) {'use strict';
+  const PRESETS={realistic:{falloff:'physical',master:1.0,dirs:'all+'},hypnotic:{falloff:'gentle',master:1.3,dirs:'all+'},vortex:{falloff:'steep',master:1.6,dirs:'all+'},counter:{falloff:'physical',master:1.1,dirs:'alt'},lazy:{falloff:'flat',master:0.5,dirs:'all+'},chaos:{falloff:'random',master:1.2,dirs:'rand'}};
+  function baseSpeed(i,n,f){const t=n<=1?0:i/(n-1);switch(f){case 'physical':return 0.9/(1+2.2*t);case 'gentle':return 0.7/(1+1.0*t);case 'steep':return 1.2/(1+3.5*t);case 'flat':return 0.35*(1-0.3*t);case 'random':return 0.3+Math.random()*0.9;default:return 0.8/(1+2.0*t);}}
+  class DiffSpinGalaxy{
+    constructor(canvas,opts={}){this.canvas=canvas;this.ctx=canvas.getContext('2d');this.n=Math.max(2,Math.min(12,opts.rings||6));this.master=opts.master!=null?opts.master:1.0;this.feather=opts.feather!=null?opts.feather:0.12;this.img=null;this.ringCanvases=[];this.angles=new Array(this.n).fill(0);this.speeds=[];this.dirs=[];this.running=false;this._last=0;this._raf=null;this.corePulse=opts.corePulse!==false;this.pulsePeriod=opts.pulsePeriod||1.4;this.pulseDepth=opts.pulseDepth!=null?opts.pulseDepth:0.25;this._t0=performance.now();for(let i=0;i<this.n;i++){this.speeds.push(baseSpeed(i,this.n,'physical'));this.dirs.push(1);}this._onResize=()=>this._fit();window.addEventListener('resize',this._onResize);this._fit();}
+    _fit(){const dpr=window.devicePixelRatio||1;const r=this.canvas.getBoundingClientRect();const w=Math.max(1,r.width|0),h=Math.max(1,r.height|0);this.canvas.width=w*dpr;this.canvas.height=h*dpr;this.ctx.setTransform(dpr,0,0,dpr,0,0);this.cssW=w;this.cssH=h;}
+    setImage(src){return new Promise((res,rej)=>{const done=im=>{this.img=im;this._slice();res(this);};if(src&&src.tagName==='IMG'&&src.complete)return done(src);const im=new Image();im.crossOrigin='anonymous';im.onload=()=>done(im);im.onerror=rej;im.src=(src&&src.src)?src.src:src;});}
+    setRings(n){n=Math.max(2,Math.min(12,n|0));if(n===this.n)return;const oldN=this.n;this.n=n;const ns=[],nd=[],na=[];for(let i=0;i<n;i++){const src=oldN<=1?0:Math.round(i/(n-1)*(oldN-1));ns.push(this.speeds[src]!=null?this.speeds[src]:baseSpeed(i,n,'physical'));nd.push(this.dirs[src]!=null?this.dirs[src]:1);na.push(0);}this.speeds=ns;this.dirs=nd;this.angles=na;if(this.img)this._slice();}
+    _slice(){if(!this.img)return;const iw=this.img.naturalWidth||this.img.width,ih=this.img.naturalHeight||this.img.height,size=Math.min(iw,ih),sx=(iw-size)/2,sy=(ih-size)/2,R=size/2;this.ringCanvases=[];const fp=this.feather*R;for(let i=0;i<this.n;i++){const inner=(i/this.n)*R,outer=((i+1)/this.n)*R;const c=document.createElement('canvas');c.width=size;c.height=size;const cx=c.getContext('2d');cx.save();cx.beginPath();cx.arc(R,R,Math.min(R,outer+fp),0,Math.PI*2);cx.arc(R,R,Math.max(0,inner-fp),0,Math.PI*2,true);cx.clip();cx.drawImage(this.img,sx,sy,size,size,0,0,size,size);cx.restore();if(fp>0.5){cx.globalCompositeOperation='destination-in';const g=cx.createRadialGradient(R,R,0,R,R,R);const io=inner/R,oo=outer/R,f=this.feather/2,cl=v=>Math.max(0,Math.min(1,v));if(i===0){g.addColorStop(0,'rgba(0,0,0,1)');}else{g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(cl(io-f),'rgba(0,0,0,0)');g.addColorStop(cl(io+f),'rgba(0,0,0,1)');}g.addColorStop(cl(oo-f),'rgba(0,0,0,1)');g.addColorStop(cl(oo+f+0.001),'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,0)');cx.fillStyle=g;cx.fillRect(0,0,size,size);cx.globalCompositeOperation='source-over';}this.ringCanvases.push(c);}this._sliceSize=size;}
+    applyPreset(name){const p=PRESETS[name]||PRESETS.realistic;this.master=p.master;for(let i=0;i<this.n;i++){this.speeds[i]=baseSpeed(i,this.n,p.falloff);if(p.dirs==='all+')this.dirs[i]=1;else if(p.dirs==='alt')this.dirs[i]=(i%2===0)?1:-1;else if(p.dirs==='rand')this.dirs[i]=Math.random()<0.5?-1:1;}}
+    _frame(now){if(!this.running)return;const dt=this._last?(now-this._last)/1000:0;this._last=now;for(let i=0;i<this.n;i++)this.angles[i]+=this.dirs[i]*this.speeds[i]*this.master*dt*Math.PI*2;this._draw(now);this._raf=requestAnimationFrame(t=>this._frame(t));}
+    _draw(now){const ctx=this.ctx,W=this.cssW,H=this.cssH;ctx.clearRect(0,0,W,H);if(!this.ringCanvases.length)return;const cx=W/2,cy=H/2,D=Math.max(W,H)*1.15,scale=D/this._sliceSize;for(let i=this.n-1;i>=0;i--){const rc=this.ringCanvases[i];ctx.save();ctx.translate(cx,cy);ctx.rotate(this.angles[i]);if(i===0&&this.corePulse){const ph=((now-this._t0)/1000)/this.pulsePeriod*Math.PI*2;ctx.globalAlpha=Math.max(0,Math.min(1,1+Math.sin(ph)*this.pulseDepth));}ctx.drawImage(rc,-rc.width*scale/2,-rc.height*scale/2,rc.width*scale,rc.height*scale);ctx.restore();}}
+    start(){if(this.running)return;this.running=true;this._last=0;this._raf=requestAnimationFrame(t=>this._frame(t));}
+    stop(){this.running=false;if(this._raf)cancelAnimationFrame(this._raf);this._raf=null;}
+    destroy(){this.stop();window.removeEventListener('resize',this._onResize);}
+    fromConfig(cfg){if(!cfg)return;if(cfg.rings)this.setRings(cfg.rings);if(cfg.master!=null)this.master=cfg.master;if(cfg.feather!=null)this.feather=cfg.feather;if(Array.isArray(cfg.speeds))this.speeds=cfg.speeds.slice(0,this.n);if(Array.isArray(cfg.dirs))this.dirs=cfg.dirs.slice(0,this.n);if(cfg.corePulse!=null)this.corePulse=cfg.corePulse;if(cfg.pulsePeriod!=null)this.pulsePeriod=cfg.pulsePeriod;if(cfg.pulseDepth!=null)this.pulseDepth=cfg.pulseDepth;if(this.img)this._slice();}
+  }
+  DiffSpinGalaxy.PRESETS=Object.keys(PRESETS);root.DiffSpinGalaxy=DiffSpinGalaxy;
+})(typeof window!=='undefined'?window:this);
+</script>
+<script>
+/* POI TYPES (shared) */
+(function (root){'use strict';
+  const POI_TYPES={
+    city:{label:'City / Settlement',color:'#5fd0ff',icon:'<path d="M4 21V9l5-3v4l5-3v5l6-2v12z" fill="currentColor" opacity=".85"/><rect x="7" y="13" width="1.6" height="2.4" fill="#04121a"/><rect x="11" y="12" width="1.6" height="2.4" fill="#04121a"/><rect x="15" y="11" width="1.6" height="2.4" fill="#04121a"/>'},
+    capital:{label:'Capital',color:'#ffd45f',icon:'<path d="M3 20h18v2H3z" fill="currentColor"/><path d="M4 19l1.5-8 4 4 2.5-8 2.5 8 4-4L20 19z" fill="currentColor"/><circle cx="12" cy="4" r="1.6" fill="currentColor"/>'},
+    mining:{label:'Mining Operation',color:'#e0913a',icon:'<path d="M14 3l7 7-2 2-3-3-9 9-2.5-2.5 9-9-3-3z" fill="currentColor"/><path d="M3 21l4-4 2 2-4 4z" fill="currentColor" opacity=".8"/>'},
+    ore:{label:'Rare Ore Deposit',color:'#b57cff',icon:'<path d="M12 2l6 5-2.5 13h-7L6 7z" fill="currentColor" opacity=".9"/><path d="M12 2L6 7l6 4 6-4z" fill="#1a0f2e" opacity=".5"/><path d="M12 11v9" stroke="#1a0f2e" stroke-width="1" opacity=".5"/>'},
+    war:{label:'Ongoing War',color:'#ff5347',icon:'<path d="M3 3l7 7-2 2-6-6zM21 3l-7 7 2 2 6-6z" fill="currentColor"/><path d="M10 12l2-2 2 2-6 8-2-2zM14 12l6 8-2 2-6-8z" fill="currentColor" opacity=".9"/>'},
+    battle:{label:'Contested Zone',color:'#ff8a3a',icon:'<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.4" opacity=".6"/><path d="M8 8l8 8M16 8l-8 8" stroke="currentColor" stroke-width="2"/>'},
+    trade:{label:'Trade Hub / Market',color:'#5fd08a',icon:'<path d="M3 7h18l-2 5H5z" fill="currentColor" opacity=".85"/><path d="M6 12v8h4v-5h4v5h4v-8" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="4.5" r="1.6" fill="currentColor"/>'},
+    military:{label:'Military Base',color:'#9aa8c8',icon:'<path d="M12 2l9 4v6c0 5-4 8-9 10-5-2-9-5-9-10V6z" fill="currentColor" opacity=".8"/><path d="M12 7l1.6 3.2 3.4.4-2.5 2.4.6 3.4-3.1-1.7-3.1 1.7.6-3.4-2.5-2.4 3.4-.4z" fill="#0a0f1e"/>'},
+    ruin:{label:'Ancient Ruin',color:'#c8b88a',icon:'<path d="M4 21V8l2-2 2 2v13M10 21V6l2-2 2 2v15M16 21V9l2-2 2 2v12" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3 21h18" stroke="currentColor" stroke-width="2"/>'},
+    anomaly:{label:'Anomaly',color:'#66e0d0',icon:'<circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l3 3M16 16l3 3M19 5l-3 3M8 16l-3 3" stroke="currentColor" stroke-width="1.6"/>'},
+    research:{label:'Research Station',color:'#7cc0ff',icon:'<path d="M9 3h6v5l4 10a2 2 0 01-2 3H7a2 2 0 01-2-3l4-10z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 14h7" stroke="currentColor" stroke-width="1.6"/><circle cx="11" cy="17" r="1" fill="currentColor"/>'},
+    port:{label:'Spaceport',color:'#8affd0',icon:'<path d="M12 2c2 2 3 5 3 9l3 3-3 1-1 5h-4l-1-5-3-1 3-3c0-4 1-7 3-9z" fill="currentColor" opacity=".85"/><circle cx="12" cy="9" r="1.6" fill="#04121a"/>'},
+    hazard:{label:'Hazard Zone',color:'#ffd13a',icon:'<path d="M12 2l10 18H2z" fill="currentColor"/><path d="M12 8v6" stroke="#1a1400" stroke-width="2"/><circle cx="12" cy="17" r="1.3" fill="#1a1400"/>'},
+    beacon:{label:'Beacon / Gate',color:'#c88aff',icon:'<ellipse cx="12" cy="12" rx="4" ry="9" fill="none" stroke="currentColor" stroke-width="2"/><ellipse cx="12" cy="12" rx="9" ry="4" fill="none" stroke="currentColor" stroke-width="2" opacity=".6"/><circle cx="12" cy="12" r="2" fill="currentColor"/>'},
+    temple:{label:'Temple / Shrine',color:'#ffcf8a',icon:'<path d="M12 2l9 6H3z" fill="currentColor"/><path d="M5 9v9M9 9v9M15 9v9M19 9v9" stroke="currentColor" stroke-width="1.7"/><path d="M3 20h18v2H3z" fill="currentColor"/>'},
+    prison:{label:'Prison / Blacksite',color:'#8a94aa',icon:'<rect x="4" y="4" width="16" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 4v16M12 4v16M16 4v16" stroke="currentColor" stroke-width="1.6"/>'}
+  };
+  function poiType(t){return POI_TYPES[t]||POI_TYPES.city;}
+  function poiIconSVG(t,size,c){const d=poiType(t);return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" style="color:${c||d.color};display:block">${d.icon}</svg>`;}
+  root.POI_TYPES=POI_TYPES;root.poiType=poiType;root.poiIconSVG=poiIconSVG;
+})(typeof window!=='undefined'?window:this);
+</script>
+<script>
+/* SPIRAL + NEBULA generators (shared) */
+(function(root){'use strict';
+  function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+  function armPuffs(cx,cy,arm,arms,turns,tight,spread,len,rng,c,glow){let s='';const steps=Math.round(46*len),phase=arm/arms*Math.PI*2;for(let i=0;i<steps;i++){const t=i/steps,ang=phase+t*turns*Math.PI*2,rad=8+t*len*92,bx=cx+Math.cos(ang)*rad*tight,by=cy+Math.sin(ang)*rad,puffs=Math.max(1,Math.round(spread*3));for(let p=0;p<puffs;p++){const jr=(rng()-0.5)*spread*26*(0.3+t),ja=ang+Math.PI/2,px=bx+Math.cos(ja)*jr+(rng()-0.5)*6,py=by+Math.sin(ja)*jr+(rng()-0.5)*6,r=(1.4+rng()*3.6)*(1.1-t*0.5),op=(0.10+rng()*0.30)*(1-t*0.4);s+=`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${r.toFixed(1)}" fill="${c}" opacity="${op.toFixed(2)}"/>`;}if(glow&&i%5===0)s+=`<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="1.1" fill="#fff" opacity="${(0.5*(1-t)).toFixed(2)}"/>`;}return s;}
+  function spiralSVG(o){o=o||{};const arms=o.arms||2,turns=o.turns||1.1,tight=o.tight!=null?o.tight:0.9,spread=o.spread!=null?o.spread:0.7,len=o.len!=null?o.len:1,c1=o.c1||'#c89aff',c2=o.c2||'#6a3aff',core=o.core||'#fff2c8',seed=o.seed||7,animate=o.animate!==false,dur=o.spinDur||60,glow=o.glow!==false;const cx=100,cy=100,id='sp'+seed;let arm='';for(let a=0;a<arms;a++)arm+=armPuffs(cx,cy,a,arms,turns,tight,spread,len,mulberry(seed*7+a*131),a%2?c2:c1,glow);return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><defs><radialGradient id="hz${id}" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="${c1}" stop-opacity=".22"/><stop offset="55%" stop-color="${c2}" stop-opacity=".10"/><stop offset="100%" stop-color="#04030a" stop-opacity="0"/></radialGradient><radialGradient id="cr${id}" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff"/><stop offset="30%" stop-color="${core}"/><stop offset="72%" stop-color="${c1}" stop-opacity=".5"/><stop offset="100%" stop-color="${c1}" stop-opacity="0"/></radialGradient></defs><circle cx="${cx}" cy="${cy}" r="96" fill="url(#hz${id})"/><g style="${animate?`animation:spin ${dur}s linear infinite;transform-origin:center`:''}">${arm}</g><circle cx="${cx}" cy="${cy}" r="26" fill="url(#cr${id})" style="${animate?'animation:breathe 5s ease-in-out infinite;transform-origin:center':''}"/></svg>`;}
+  function nebulaSVG(w,h,c1,c2,seed,intensity){const rng=mulberry(seed||3);let s='';const n=Math.round(10+(intensity||0.5)*22);for(let i=0;i<n;i++){const x=rng()*w,y=rng()*h,r=(w*0.12)+rng()*w*0.22,col=i%2?c1:c2;s+=`<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${r.toFixed(0)}" fill="${col}" opacity="${(0.04+rng()*0.09*(intensity||0.5)).toFixed(3)}"/>`;}return s;}
+  root.spiralSVG=spiralSVG;root.nebulaSVG=nebulaSVG;
+})(typeof window!=='undefined'?window:this);
+</script>
+<script>
+/* AMBIENT EFFECTS (shared) */
+(function(root){'use strict';
+  class AmbientFX{
+    constructor(canvas){this.cv=canvas;this.ctx=canvas.getContext('2d');this.cfg={sparkles:true,shooting:true,density:0.5,speed:1,rate:0.4,color:'#cbd6ff'};this.stars=[];this.shoots=[];this.running=false;this._raf=null;this._last=0;this._acc=0;this._onR=()=>this._fit();window.addEventListener('resize',this._onR);this._fit();}
+    _fit(){const dpr=window.devicePixelRatio||1;const r=this.cv.getBoundingClientRect();this.w=Math.max(1,r.width|0);this.h=Math.max(1,r.height|0);this.cv.width=this.w*dpr;this.cv.height=this.h*dpr;this.ctx.setTransform(dpr,0,0,dpr,0,0);this._seed();}
+    _seed(){const n=Math.round(this.w*this.h/9000*(0.3+this.cfg.density));this.stars=[];for(let i=0;i<n;i++)this.stars.push({x:Math.random()*this.w,y:Math.random()*this.h,r:Math.random()*1.3+0.2,p:Math.random()*Math.PI*2,tw:0.4+Math.random()*2.2,vx:(Math.random()-0.5)*0.06,vy:(Math.random()-0.5)*0.06});}
+    set(cfg){Object.assign(this.cfg,cfg||{});this._seed();}
+    _spawnShoot(){const edge=Math.random();let x,y,a;if(edge<0.5){x=Math.random()*this.w;y=-10;a=Math.PI*(0.25+Math.random()*0.25);}else{x=-10;y=Math.random()*this.h*0.5;a=Math.PI*(0.05+Math.random()*0.2);}const sp=(6+Math.random()*7)*this.cfg.speed;this.shoots.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,len:60+Math.random()*70});}
+    _frame(now){if(!this.running)return;const dt=this._last?(now-this._last)/1000:0;this._last=now;const ctx=this.ctx;ctx.clearRect(0,0,this.w,this.h);
+      if(this.cfg.sparkles){for(const s of this.stars){s.p+=dt*s.tw;s.x+=s.vx*this.cfg.speed;s.y+=s.vy*this.cfg.speed;if(s.x<0)s.x+=this.w;if(s.x>this.w)s.x-=this.w;if(s.y<0)s.y+=this.h;if(s.y>this.h)s.y-=this.h;const a=0.25+0.75*(0.5+0.5*Math.sin(s.p));ctx.globalAlpha=a;ctx.fillStyle=this.cfg.color;ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fill();if(s.r>1){ctx.globalAlpha=a*0.5;ctx.beginPath();ctx.arc(s.x,s.y,s.r*2.4,0,Math.PI*2);ctx.fill();}}}
+      if(this.cfg.shooting){this._acc+=dt;const per=1/Math.max(0.02,this.cfg.rate);while(this._acc>per){this._acc-=per;if(Math.random()<0.8)this._spawnShoot();}for(let i=this.shoots.length-1;i>=0;i--){const s=this.shoots[i];s.x+=s.vx;s.y+=s.vy;s.life-=dt*0.5;if(s.life<=0||s.x>this.w+80||s.y>this.h+80){this.shoots.splice(i,1);continue;}const nx=s.x-s.vx/Math.hypot(s.vx,s.vy)*s.len,ny=s.y-s.vy/Math.hypot(s.vx,s.vy)*s.len;const g=ctx.createLinearGradient(s.x,s.y,nx,ny);g.addColorStop(0,'rgba(255,255,255,'+Math.min(1,s.life)+')');g.addColorStop(1,'rgba(180,200,255,0)');ctx.globalAlpha=1;ctx.strokeStyle=g;ctx.lineWidth=2;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(s.x,s.y);ctx.lineTo(nx,ny);ctx.stroke();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(s.x,s.y,1.6,0,Math.PI*2);ctx.fill();}}
+      ctx.globalAlpha=1;this._raf=requestAnimationFrame(t=>this._frame(t));}
+    start(){if(this.running)return;this.running=true;this._last=0;this._raf=requestAnimationFrame(t=>this._frame(t));}
+    stop(){this.running=false;if(this._raf)cancelAnimationFrame(this._raf);this.ctx.clearRect(0,0,this.w,this.h);}
+  }
+  root.AmbientFX=AmbientFX;
+})(typeof window!=='undefined'?window:this);
+</script>
+<script>
+/* SPRITE SPINNER — plays a 3D-planet sprite-sheet as a flipbook on a canvas */
+(function(root){
+  'use strict';
+  class SpriteSpinner{
+    constructor(canvas,opts){opts=opts||{};this.cv=canvas;this.ctx=canvas.getContext('2d');this.cols=opts.cols||1;this.rows=opts.rows||1;this.frames=opts.frames||1;this.fps=opts.fps||16;this.i=0;this.ready=false;this._raf=null;this._last=0;this._acc=0;this._onR=()=>this._fit();window.addEventListener('resize',this._onR);this._fit();if(opts.sheet)this.setSheet(opts);}
+    _fit(){const dpr=window.devicePixelRatio||1;const r=this.cv.getBoundingClientRect();const w=Math.max(1,r.width|0),h=Math.max(1,r.height|0);this.cv.width=w*dpr;this.cv.height=h*dpr;this.ctx.setTransform(dpr,0,0,dpr,0,0);this.w=w;this.h=h;if(this.ready)this._draw();}
+    setSheet(o){this.cols=o.cols||this.cols;this.rows=o.rows||this.rows;this.frames=o.frames||this.frames;this.ready=false;const im=new Image();im.onload=()=>{this.img=im;this.cell=im.width/this.cols;this.ready=true;this._draw();};im.src=o.sheet;this.__sheet=o.sheet;}
+    _draw(){if(!this.ready||!this.img)return;const cell=this.cell,c=this.i%this.cols,r=Math.floor(this.i/this.cols);this.ctx.clearRect(0,0,this.w,this.h);this.ctx.drawImage(this.img,c*cell,r*cell,cell,cell,0,0,this.w,this.h);}
+    start(){if(this._raf)return;const loop=t=>{this._raf=requestAnimationFrame(loop);if(!this.ready)return;const dt=this._last?(t-this._last)/1000:0;this._last=t;this._acc+=dt;const per=1/this.fps;while(this._acc>per){this._acc-=per;this.i=(this.i+1)%this.frames;}this._draw();};this._last=0;this._raf=requestAnimationFrame(loop);}
+    stop(){if(this._raf)cancelAnimationFrame(this._raf);this._raf=null;}
+    destroy(){this.stop();window.removeEventListener('resize',this._onR);}
+  }
+  root.SpriteSpinner=SpriteSpinner;
+})(typeof window!=='undefined'?window:this);
+</script>
+<script>
+"use strict";
+const $=s=>document.querySelector(s);
+const NS="http://www.w3.org/2000/svg";
+const uid=()=>Math.random().toString(36).slice(2,8);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const esc=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function hx(h){h=(h||'#000000').replace("#","");if(h.length===3)h=h.split('').map(c=>c+c).join('');return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
+function toHex(r,g,b){return "#"+[r,g,b].map(x=>Math.max(0,Math.min(255,Math.round(x))).toString(16).padStart(2,"0")).join("");}
+function L(h,a){const[r,g,b]=hx(h);return toHex(r+a,g+a,b+a);}
+function D(h,a){const[r,g,b]=hx(h);return toHex(r-a,g-a,b-a);}
+const PTYPES_SET=new Set(["terran","ocean","jungle","desert","ice","volcanic","toxic","barren","gas","rock","exotic"]);
+const CLOUD_DEF=["terran","ocean","jungle","toxic"];
+
+/* ART GENERATION — identical model to Map Studio so bodies look consistent */
+function art(a,animate){
+  const k=a.kind,id=uid(),rng=mulberry(a.seed||1),c1=a.c1,c2=a.c2,c3=a.c3,R=100,cx=100,cy=100,S=200,anim=animate!==false;
+  if(k==="svg"){if(a.svgData)return `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">${a.svgData}</div>`;return "";}
+  if(k==="planet3d"){if(a.sheet)return `<svg viewBox="0 0 200 200" style="width:100%;height:100%"><defs><clipPath id="p3${id}"><circle cx="100" cy="100" r="98"/></clipPath></defs><image href="${a.sheet}" x="0" y="0" width="${200*(a.cols||1)}" height="${200*(a.rows||1)}" clip-path="url(#p3${id})"/></svg>`;return `<svg viewBox="0 0 200 200" style="width:100%;height:100%"><circle cx="100" cy="100" r="90" fill="none" stroke="#5aa0e8" stroke-width="3" stroke-dasharray="6 6"/></svg>`;}
+  if(k==="spingalaxy"){if(a.image)return `<svg viewBox="0 0 200 200" style="width:100%;height:100%"><defs><clipPath id="cl${id}"><circle cx="100" cy="100" r="98"/></clipPath></defs><image href="${a.image}" x="0" y="0" width="200" height="200" preserveAspectRatio="xMidYMid slice" clip-path="url(#cl${id})"/></svg>`;return "";}
+  if(k==="galaxy"){return spiralSVG({arms:a.arms||2,turns:a.turns||1.1,tight:a.tight!=null?a.tight:0.9,spread:a.spread!=null?a.spread:0.7,len:a.len!=null?a.len:1,c1:c1||"#c89aff",c2:c2||"#6a3aff",core:c3||"#fff2c8",seed:a.seed||7,animate:anim,spinDur:a.spinDur||60});}
+  if(k==="star"){return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><defs><radialGradient id="s${id}" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff"/><stop offset="35%" stop-color="${L(c1,50)}"/><stop offset="70%" stop-color="${c1}"/><stop offset="100%" stop-color="${D(c1,20)}"/></radialGradient><radialGradient id="co${id}" cx="50%" cy="50%" r="50%"><stop offset="35%" stop-color="${c3}" stop-opacity=".55"/><stop offset="100%" stop-color="${c3}" stop-opacity="0"/></radialGradient></defs><circle cx="${cx}" cy="${cy}" r="96" fill="url(#co${id})" style="${anim?'animation:breathe 5s ease-in-out infinite;transform-origin:center':''}"/><g style="${anim?'animation:cspin 40s linear infinite;transform-origin:center':''}">${[...Array(14)].map((_,i)=>{const an=i/14*Math.PI*2;return `<line x1="${cx+Math.cos(an)*54}" y1="${cy+Math.sin(an)*54}" x2="${cx+Math.cos(an)*(66+rng()*14)}" y2="${cy+Math.sin(an)*(66+rng()*14)}" stroke="${c3}" stroke-width="2" opacity=".5"/>`;}).join("")}</g><circle cx="${cx}" cy="${cy}" r="50" fill="url(#s${id})"/></svg>`;}
+  if(k==="station"){const st=a.stype||"ring";let inner="";
+    let spinDur=(26+rng()*18).toFixed(0),blink=true,broken=false,extra="";
+    if(st==="starfort"){let pts="";for(let i=0;i<12;i++){const an=i/12*Math.PI*2,rr=i%2?66:40;pts+=`${cx+Math.cos(an)*rr},${cy+Math.sin(an)*rr} `;}inner=`<polygon points="${pts}" fill="${c1}" stroke="${c2}" stroke-width="3"/><circle cx="${cx}" cy="${cy}" r="24" fill="${c2}"/><circle cx="${cx}" cy="${cy}" r="10" fill="${c3}"/>`;}
+    else if(st==="hub"){inner=`<circle cx="${cx}" cy="${cy}" r="30" fill="${c1}" stroke="${c2}" stroke-width="3"/>${[...Array(6)].map((_,i)=>{const an=i/6*Math.PI*2,ex=cx+Math.cos(an)*60,ey=cy+Math.sin(an)*60;return `<line x1="${cx+Math.cos(an)*30}" y1="${cy+Math.sin(an)*30}" x2="${ex}" y2="${ey}" stroke="${c2}" stroke-width="6"/><rect x="${ex-8}" y="${ey-8}" width="16" height="16" fill="${c1}" stroke="${c2}"/>`;}).join("")}<circle cx="${cx}" cy="${cy}" r="11" fill="${c3}"/>`;}
+    else if(st==="spire"){inner=`<polygon points="${cx},32 ${cx+16},${cy} ${cx},168 ${cx-16},${cy}" fill="${c1}" stroke="${c2}" stroke-width="3"/><polygon points="40,${cy} ${cx},${cy-13} 160,${cy} ${cx},${cy+13}" fill="${c2}" opacity=".8"/><circle cx="${cx}" cy="${cy}" r="10" fill="${c3}"/>`;}
+    else if(st==="wheel"){inner=`<circle cx="${cx}" cy="${cy}" r="66" fill="none" stroke="${c1}" stroke-width="14"/><circle cx="${cx}" cy="${cy}" r="66" fill="none" stroke="${L(c1,28)}" stroke-width="3"/><circle cx="${cx}" cy="${cy}" r="50" fill="none" stroke="${c2}" stroke-width="2" opacity=".55"/>${[...Array(4)].map((_,i)=>{const an=i/4*Math.PI*2+Math.PI/4;return `<line x1="${cx+Math.cos(an)*18}" y1="${cy+Math.sin(an)*18}" x2="${cx+Math.cos(an)*66}" y2="${cy+Math.sin(an)*66}" stroke="${c2}" stroke-width="5"/>`;}).join("")}${[...Array(10)].map((_,i)=>{const an=i/10*Math.PI*2;return `<rect x="${(cx+Math.cos(an)*66-4).toFixed(1)}" y="${(cy+Math.sin(an)*66-4).toFixed(1)}" width="8" height="8" fill="${L(c1,12)}" stroke="${c2}" stroke-width="1"/>`;}).join("")}<circle cx="${cx}" cy="${cy}" r="17" fill="${c2}"/><circle cx="${cx}" cy="${cy}" r="7" fill="${c3}"/>`;}
+    else if(st==="array"){spinDur=(52+rng()*40).toFixed(0);inner=`<rect x="${cx-11}" y="${cy-32}" width="22" height="64" rx="5" fill="${c1}" stroke="${c2}" stroke-width="2"/><circle cx="${cx}" cy="${cy-32}" r="4" fill="${c3}"/><circle cx="${cx}" cy="${cy+32}" r="3" fill="${c3}"/>`+[-1,1].map(s=>`<g transform="translate(${cx},${cy}) rotate(${s*10})"><rect x="${s>0?12:-82}" y="-30" width="70" height="60" fill="${c2}" opacity=".85" stroke="${L(c2,20)}" stroke-width="2"/>${[...Array(4)].map((_,i)=>`<line x1="${(s>0?12:-82)+(i+1)*14}" y1="-30" x2="${(s>0?12:-82)+(i+1)*14}" y2="30" stroke="${D(c2,30)}" stroke-width="1.5"/>`).join("")}<line x1="${s>0?12:-82}" y1="0" x2="${s>0?82:-12}" y2="0" stroke="${D(c2,30)}" stroke-width="1.5"/></g>`).join("");}
+    else if(st==="drydock"){spinDur=(64+rng()*40).toFixed(0);inner=`<g stroke="${c1}" stroke-width="6" fill="none" stroke-linecap="round"><path d="M${cx-58} ${cy-54}V${cy+54}"/><path d="M${cx+58} ${cy-54}V${cy+54}"/><path d="M${cx-58} ${cy-54}H${cx-28}"/><path d="M${cx+58} ${cy-54}H${cx+28}"/><path d="M${cx-58} ${cy+54}H${cx-28}"/><path d="M${cx+58} ${cy+54}H${cx+28}"/></g>${[...Array(3)].map((_,i)=>`<line x1="${cx-58}" y1="${cy-28+i*28}" x2="${cx-32}" y2="${cy-28+i*28}" stroke="${c2}" stroke-width="3"/><line x1="${cx+58}" y1="${cy-28+i*28}" x2="${cx+32}" y2="${cy-28+i*28}" stroke="${c2}" stroke-width="3"/>`).join("")}<rect x="${cx-20}" y="${cy-42}" width="40" height="84" rx="14" fill="${c2}" stroke="${D(c2,20)}" stroke-width="2"/><rect x="${cx-9}" y="${cy-28}" width="18" height="56" rx="8" fill="${L(c2,15)}"/><circle cx="${cx}" cy="${cy-50}" r="3" fill="${c3}"/>`;}
+    else if(st==="derelict"){broken=true;blink=false;spinDur=(90+rng()*60).toFixed(0);inner=`<path d="M ${cx} ${cy-64} A 64 64 0 1 1 ${cx-44} ${cy+46}" fill="none" stroke="${D(c1,12)}" stroke-width="12" stroke-linecap="round"/><path d="M ${cx} ${cy-64} A 64 64 0 1 1 ${cx-44} ${cy+46}" fill="none" stroke="${D(c1,34)}" stroke-width="4" stroke-linecap="round"/><g stroke="${D(c2,20)}" stroke-width="2" opacity=".8"><line x1="${cx-2}" y1="${cy-62}" x2="${cx+10}" y2="${cy-52}"/><line x1="${cx-40}" y1="${cy+42}" x2="${cx-50}" y2="${cy+30}"/></g><polygon points="${cx+34},${cy+50} ${cx+54},${cy+58} ${cx+46},${cy+74} ${cx+26},${cy+66}" fill="${D(c1,26)}" stroke="${D(c2,30)}" stroke-width="1.5"/><line x1="${cx+30}" y1="${cy}" x2="${cx+54}" y2="${cy-6}" stroke="${D(c2,20)}" stroke-width="2"/><circle cx="${cx}" cy="${cy}" r="13" fill="${D(c2,26)}" stroke="${D(c2,40)}" stroke-width="2"/>`;extra=`<circle cx="${cx+2}" cy="${cy-4}" r="2.4" fill="#ff5a4a" style="${anim?'animation:twinkle 2.8s steps(2) infinite':''}"/>`;}
+    else if(st==="husk"){broken=true;blink=false;spinDur=(120+rng()*70).toFixed(0);inner=`<g transform="rotate(${(-16+rng()*32).toFixed(0)} ${cx} ${cy})"><polygon points="${cx-50},${cy-28} ${cx+42},${cy-40} ${cx+54},${cy+18} ${cx-28},${cy+46} ${cx-54},${cy+8}" fill="${D(c1,22)}" stroke="${D(c2,26)}" stroke-width="2"/><polygon points="${cx+42},${cy-40} ${cx+54},${cy+18} ${cx+28},${cy+8} ${cx+26},${cy-30}" fill="${D(c1,34)}"/><circle cx="${cx-22}" cy="${cy-4}" r="7" fill="#0a0812"/><circle cx="${cx+6}" cy="${cy+16}" r="5" fill="#0a0812"/><circle cx="${cx+20}" cy="${cy-16}" r="4" fill="#0a0812"/><line x1="${cx+42}" y1="${cy-40}" x2="${cx+70}" y2="${cy-56}" stroke="${D(c2,20)}" stroke-width="3"/><line x1="${cx+60}" y1="${cy-50}" x2="${cx+55}" y2="${cy-40}" stroke="${D(c2,20)}" stroke-width="2"/><path d="M ${cx-28} ${cy+46} l 6 -10 l 7 8 l 6 -7" fill="none" stroke="${D(c2,30)}" stroke-width="2"/></g>`;}
+    else{inner=`<circle cx="${cx}" cy="${cy}" r="64" fill="none" stroke="${c1}" stroke-width="13"/><circle cx="${cx}" cy="${cy}" r="64" fill="none" stroke="${L(c1,25)}" stroke-width="3"/>${[...Array(8)].map((_,i)=>{const an=i/8*Math.PI*2;return `<line x1="${cx+Math.cos(an)*20}" y1="${cy+Math.sin(an)*20}" x2="${cx+Math.cos(an)*56}" y2="${cy+Math.sin(an)*56}" stroke="${c2}" stroke-width="4"/>`;}).join("")}<circle cx="${cx}" cy="${cy}" r="20" fill="${c2}"/>`;}
+    const blinks=blink?[...Array(6)].map((_,i)=>{const an=i/6*Math.PI*2;return `<circle cx="${cx+Math.cos(an)*70}" cy="${cy+Math.sin(an)*70}" r="2.5" fill="${c3}" style="${anim?`animation:twinkle ${(1.4+rng()).toFixed(1)}s ease-in-out infinite;animation-delay:${(rng()*2).toFixed(1)}s`:''}"/>`;}).join(""):extra;
+    return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><g style="${anim?`animation:spin ${spinDur}s linear infinite;transform-origin:center`:''}">${inner}</g>${blinks}</svg>`;}
+  if(k==="debris"){const dt=a.dtype||"field";
+    if(dt==="comet")return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><defs><linearGradient id="ct${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${c3}"/><stop offset="100%" stop-color="${c3}" stop-opacity="0"/></linearGradient></defs><path d="M130,70 L40,160 L70,120 Z" fill="url(#ct${id})" opacity=".6"/><path d="M135,65 L60,150" stroke="url(#ct${id})" stroke-width="26" stroke-linecap="round" opacity=".4"/><circle cx="140" cy="60" r="16" fill="${c1}"/><circle cx="136" cy="56" r="6" fill="${L(c1,50)}"/></svg>`;
+    if(dt==="wreck")return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><g style="${anim?'animation:spin 50s linear infinite;transform-origin:center':''}"><polygon points="70,60 150,80 140,120 60,110" fill="${c1}" stroke="${c2}" stroke-width="2"/><polygon points="60,110 140,120 120,150 70,140" fill="${D(c1,20)}" stroke="${c2}" stroke-width="2"/><line x1="150" y1="80" x2="175" y2="70" stroke="${c2}" stroke-width="3"/><circle cx="95" cy="95" r="4" fill="${c3}"/></g></svg>`;
+    const rocks=[...Array(dt==="asteroid"?1:9)].map((_,i)=>{const an=rng()*6.28,dist=dt==="asteroid"?0:20+rng()*70,x=cx+Math.cos(an)*dist,y=cy+Math.sin(an)*dist,r=dt==="asteroid"?54:8+rng()*16;let pts="";for(let j=0;j<8;j++){const aa=j/8*6.28,rr=r*(0.7+rng()*0.5);pts+=`${(x+Math.cos(aa)*rr).toFixed(0)},${(y+Math.sin(aa)*rr).toFixed(0)} `;}return `<polygon points="${pts}" fill="${i%2?c1:c2}" stroke="${D(c2,15)}" stroke-width="1.5"/>`;}).join("");
+    return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><g style="${anim&&dt!=='field'?'animation:spin 40s linear infinite;transform-origin:center':''}">${rocks}</g></svg>`;}
+  // planet / moon
+  const isMoon=k==="moon",n=isMoon?18:12,spots=[];
+  const detail=a.ptype==="volcanic"?c3:(["terran","toxic","ocean","jungle"].includes(a.ptype)?c2:D(c1,26));
+  for(let i=0;i<n;i++){const bx=cx-R+rng()*2*R,by=cy-R+rng()*2*R,br=R*(isMoon||a.ptype==="rock"||a.ptype==="ice"?0.06+rng()*0.12:0.16+rng()*0.3);const blob=`<ellipse cx="{X}" cy="${by.toFixed(1)}" rx="${br.toFixed(1)}" ry="${(br*(0.7+rng()*0.5)).toFixed(1)}" fill="${detail}" opacity="${(0.4+rng()*0.4).toFixed(2)}"/>`;spots.push(blob.replace("{X}",bx.toFixed(1)));spots.push(blob.replace("{X}",(bx+2*S).toFixed(1)));}
+  let bands="";
+  if(a.ptype==="gas"){bands=[...Array(8)].map((_,i)=>{const y=cy-R+(i+0.5)*(2*R/8),h=(2*R/8)*(0.7+rng()*0.5),col=i%2?c2:L(c1,10);return `<rect x="-200" y="${(y-h/2).toFixed(1)}" width="600" height="${h.toFixed(1)}" fill="${col}" opacity="${(0.55+rng()*0.3).toFixed(2)}"/>`;}).join("");}
+  const cloudStyle=a.cloudStyle||(CLOUD_DEF.includes(a.ptype)?"wispy":"none"),cloudCol=a.cloudColor||"#ffffff",cloudAmt=a.cloudAmount!=null?a.cloudAmount:0.5;let clouds="";
+  if(cloudStyle!=="none"&&cloudAmt>0){const crng=mulberry((a.seed||1)*13+7);
+    if(cloudStyle==="banded"){const nb=Math.round(3+cloudAmt*5);for(let i=0;i<nb;i++){const y=cy-R*0.8+i*(1.6*R/nb),h=6+crng()*10;clouds+=`<rect x="-40" y="${y.toFixed(1)}" width="480" height="${h.toFixed(1)}" rx="${(h/2).toFixed(1)}" fill="${cloudCol}" opacity="${(0.10+crng()*0.14*cloudAmt).toFixed(3)}"/>`;}}
+    else{const nc=Math.round((cloudStyle==="heavy"?18:cloudStyle==="storm"?12:8)*(0.4+cloudAmt));for(let i=0;i<nc;i++){const bx=cx-R+crng()*2*R,by=cy-R+crng()*2*R,rx=(cloudStyle==="storm"?10:16)+crng()*(cloudStyle==="heavy"?34:22),ry=rx*(0.4+crng()*0.4);const puff=`<ellipse cx="{X}" cy="${by.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="${cloudCol}" opacity="${((cloudStyle==="storm"?0.18:0.12)+crng()*0.12*cloudAmt).toFixed(3)}"/>`;clouds+=puff.replace("{X}",bx.toFixed(1));clouds+=puff.replace("{X}",(bx+2*S).toFixed(1));}
+      if(cloudStyle==="storm"){const sx=cx-R*0.3+crng()*R*0.6,sy=cy-R*0.3+crng()*R*0.6;clouds+=`<g transform="translate(${sx.toFixed(1)},${sy.toFixed(1)})"><ellipse rx="26" ry="16" fill="${cloudCol}" opacity="${(0.22*cloudAmt).toFixed(3)}"/></g>`;}}}
+  const hasAtmo=a.atmo!=null?a.atmo:["terran","ocean","toxic","gas","jungle"].includes(a.ptype);
+  const atmoCol=a.atmoColor||(a.ptype==="toxic"?"#a8e858":a.ptype==="ocean"?"#7ec8ff":"#8fd0ff");
+  const atmoThick=a.atmoThick!=null?a.atmoThick:0.55;
+  const ringBack=a.ring?`<path d="M ${cx-150} ${cy} A 150 40 0 0 1 ${cx+150} ${cy}" fill="none" stroke="${D(c3,30)}" stroke-width="8" opacity=".4" transform="rotate(-22 ${cx} ${cy})"/>`:"";
+  const ringFront=a.ring?`<path d="M ${cx-150} ${cy} A 150 40 0 0 0 ${cx+150} ${cy}" fill="none" stroke="${c3}" stroke-width="8" opacity=".55" transform="rotate(-22 ${cx} ${cy})"/>`:"";
+  const spinDur=(34+rng()*46).toFixed(0),cloudDur=(spinDur*0.7).toFixed(0);
+  return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><defs>
+    <clipPath id="c${id}"><circle cx="${cx}" cy="${cy}" r="${R}"/></clipPath>
+    <radialGradient id="base${id}" cx="36%" cy="32%" r="78%"><stop offset="0%" stop-color="${L(c1,52)}"/><stop offset="50%" stop-color="${c1}"/><stop offset="100%" stop-color="${D(c1,46)}"/></radialGradient>
+    <radialGradient id="term${id}" cx="36%" cy="32%" r="82%"><stop offset="0%" stop-color="#fff" stop-opacity=".28"/><stop offset="38%" stop-color="#fff" stop-opacity="0"/><stop offset="72%" stop-color="#000" stop-opacity=".35"/><stop offset="100%" stop-color="#000" stop-opacity=".68"/></radialGradient>
+    <radialGradient id="atmo${id}" cx="50%" cy="50%" r="50%"><stop offset="${(88-atmoThick*12).toFixed(0)}%" stop-color="${atmoCol}" stop-opacity="0"/><stop offset="97%" stop-color="${atmoCol}" stop-opacity="${atmoThick.toFixed(2)}"/><stop offset="100%" stop-color="${atmoCol}" stop-opacity="0"/></radialGradient></defs>
+    ${ringBack}<circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#base${id})"/>
+    <g clip-path="url(#c${id})"><g style="${anim?`animation:surf${id} ${spinDur}s linear infinite`:''}">${bands}${spots.join("")}</g>${clouds?`<g style="${anim?`animation:surf${id} ${cloudDur}s linear infinite`:''}">${clouds}</g>`:""}</g>
+    <circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#term${id})"/>
+    ${hasAtmo?`<circle cx="${cx}" cy="${cy}" r="${R+3}" fill="url(#atmo${id})"/>`:""}
+    <ellipse cx="${cx-34}" cy="${cy-40}" rx="30" ry="18" fill="#fff" opacity=".14" transform="rotate(-30 ${cx-34} ${cy-40})"/>
+    ${ringFront}<style>@keyframes surf${id}{to{transform:translateX(-${2*S}px);}}</style></svg>`;
+}
+function fxOverlay(fx,seed){
+  if(!fx||(!fx.sparkle&&!fx.nebula&&!fx.shoot))return "";
+  const rng=mulberry((seed||1)*29+3);let s="";const col=fx.color||"#ffffff";
+  if(fx.nebula){const nc=fx.nebulaColor||"#8f78e6";for(let i=0;i<7;i++){const x=rng()*200,y=rng()*200,r=30+rng()*60;s+=`<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${r.toFixed(0)}" fill="${nc}" opacity="${(0.05+rng()*0.08).toFixed(3)}"/>`;}}
+  if(fx.sparkle){for(let i=0;i<10;i++){const x=rng()*200,y=rng()*200,r=0.8+rng()*1.8,d=(rng()*3).toFixed(1),du=(1.2+rng()*2).toFixed(1);s+=`<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${r.toFixed(1)}" fill="${col}" style="animation:twinkle ${du}s ease-in-out infinite;animation-delay:${d}s"/>`;}}
+  if(fx.shoot){s+=`<g style="animation:shoot${(seed||1)%9} 3.2s ease-in infinite"><line x1="20" y1="20" x2="52" y2="40" stroke="url(#shg)" stroke-width="2" stroke-linecap="round"/><circle cx="52" cy="40" r="2" fill="#fff"/></g><defs><linearGradient id="shg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0"/><stop offset="100%" stop-color="#fff"/></linearGradient></defs><style>@keyframes shoot${(seed||1)%9}{0%{transform:translate(-40px,-40px);opacity:0}20%{opacity:1}60%{transform:translate(140px,110px);opacity:0}100%{opacity:0}}</style>`;}
+  return `<svg viewBox="0 0 200 200" style="position:absolute;inset:-18%;width:136%;height:136%;overflow:visible;pointer-events:none;z-index:-1">${s}</svg>`;
+}
+</script>
+<script>
+"use strict";
+/* ============================================================ SAMPLE GALAXY (lore) + CONVERTER ============================================================ */
+const SAMPLE={
+  heartlight:{x:0,y:0,name:"The Heartlight",desc:"The radiant aether-source at the heart of the galaxy — a golden-white bloom of concentric light around a hot, singing core. Every ley of power in the known worlds traces back here."},
+  sectors:[
+    {id:"cavalon",name:"Cavalon Empire",color:"#e8b84b",creed:"Honor. Duty. Legacy.",region:"Core Worlds",cx:-40,cy:-330,rx:340,ry:250,desc:"The oldest crowned power in the galaxy, ringing the Heartlight's northern approaches. A realm of gilded citadels, knightly orders, and long memory."},
+    {id:"saurok",name:"Saurok Dynasty",color:"#d1443f",creed:"Strength. Tradition. Survival.",region:"Inner Rim",cx:470,cy:120,rx:300,ry:280,desc:"A hard, proud dynasty of warrior-clans forged on volcanic inner worlds. They measure worth in strength endured and traditions kept."},
+    {id:"nexus",name:"Nexus Core",color:"#e8792b",creed:"Industry. Innovation.",region:"Mid Rim",cx:-30,cy:360,rx:300,ry:230,desc:"The galaxy's forge and workshop, where foundry-worlds turn raw aether and ore into ships, engines, and wonders."},
+    {id:"neutral",name:"Neutral Worlds",color:"#4aa3d9",creed:"Diplomacy. Trade. Uneasy peace.",region:"Inner Rim",cx:-470,cy:70,rx:270,ry:250,desc:"A buffer of independent worlds that survive by refusing to belong to anyone. Here rivals meet under truce."},
+    {id:"tradespine",name:"The Trade Spine",color:"#5fbf7a",creed:"Commerce. Connection.",region:"Mid Rim",cx:-40,cy:-40,rx:900,ry:120,orient:12,desc:"The great commercial artery — a chain of market-worlds and waystations threading across the galaxy's middle."},
+    {id:"western_expanse",name:"The Western Expanse",color:"#4a86c9",creed:"Free worlds and boundless skies.",region:"Outer Rim",cx:-900,cy:-140,rx:340,ry:400,desc:"The open frontier to galactic west — a scatter of free worlds, colonists, and horizon-chasers beyond the old crowns."},
+    {id:"northern_reaches",name:"The Northern Reaches",color:"#6fa8d6",creed:"Frigid frontier worlds and ancient mysteries.",region:"Outer Rim",cx:100,cy:-720,rx:560,ry:240,desc:"The cold roof of the galaxy: frozen frontier worlds, silent ice-moons, and buried civilizations older than record."},
+    {id:"southern_spiral",name:"The Southern Spiral",color:"#7a9bd6",creed:"Old civilizations and deep horizons.",region:"Distant Rim",cx:-60,cy:760,rx:520,ry:230,desc:"A far arm of ancient, settled worlds curling toward the galaxy's southern dark."},
+    {id:"cacophony",name:"The Cacophony",color:"#b060c0",creed:"Uncharted wonders and wild frontiers.",region:"Distant Rim",cx:900,cy:-330,rx:420,ry:560,meta:true,desc:"The galaxy's wild east — not one power but four, bound only by a shared refusal to be tamed."},
+    {id:"cabaret_cluster",name:"Cabaret Cluster",color:"#c94f9a",creed:"Indulgence. Excess.",theme:"Thrill",parent:"cacophony",cx:790,cy:-560,rx:180,ry:150,desc:"A blaze of pleasure-worlds and endless spectacle where every moment is a show."},
+    {id:"clockwork_ward",name:"The Clockwork Ward",color:"#9aa0a8",creed:"Perfection. Obedience.",theme:"Progress",parent:"cacophony",cx:1010,cy:-330,rx:180,ry:150,desc:"A grey precision-realm of gears and order, where every citizen is a component and the great machine advances."},
+    {id:"crimson_court",name:"The Crimson Court",color:"#c0392b",creed:"Blood. Elegance. Eternal night.",theme:"Entropy",parent:"cacophony",cx:790,cy:-100,rx:180,ry:150,desc:"A realm of eternal night ruled with terrible grace by the ancient and hungry."},
+    {id:"broodwilds",name:"The Broodwilds",color:"#9caa4a",creed:"Savage. Primitive.",theme:"Instinct",parent:"cacophony",cx:1010,cy:-100,rx:180,ry:150,desc:"Untamed green worlds where instinct rules and civilization never took root."},
+  ],
+  bodies:[
+    {id:"basilicus",name:"Basilicus",sector:"cavalon",role:"capital",look:{kind:"planet",ptype:"terran",c1:"#3f7a4a",c2:"#274f7c",c3:"#e8c060",ring:true},dx:0,dy:-40,size:74,desc:"Throneworld of the Cavalon Empire — a green-and-gold jewel wrapped in orbital citadels.",pois:[{type:"capital",title:"Aurate Throne",desc:"Seat of the Emperor; the whole Empire answers here.",ax:-0.1,ay:-0.1},{type:"city",title:"High Sanctum",desc:"City of a thousand spires and knightly orders.",ax:0.4,ay:0.25},{type:"port",title:"Gilded Docks",desc:"Orbital elevator and grand spaceport.",ax:-0.45,ay:0.35}]},
+    {id:"caerlbold",name:"Caerlbold",sector:"cavalon",look:{kind:"planet",ptype:"rock",c1:"#8a7a5a",c2:"#5a4a32",c3:"#c8a860"},dx:-190,dy:-120,size:58,desc:"A fortress-world of grey keeps and gold banners.",pois:[{type:"military",title:"Oathkeep Bastion",desc:"Training ground of the eldest knightly order.",ax:0,ay:0}]},
+    {id:"silverhold",name:"Silverhold",sector:"cavalon",look:{kind:"planet",ptype:"ice",c1:"#d8e2f0",c2:"#9ab4d0",c3:"#ffffff"},dx:170,dy:-150,size:58,desc:"A pale, silver-frosted world — the Empire's treasury and archive."},
+    {id:"castle_fortis",name:"Castle Fortis",sector:"cavalon",look:{kind:"station",stype:"starfort",c1:"#c8b070",c2:"#8a7440",c3:"#ffe6a8"},dx:40,dy:-190,size:48,desc:"The Empire's golden star-fort guarding the approach to Basilicus. It has never fallen."},
+    {id:"mavros",name:"Mavros",sector:"saurok",role:"capital",look:{kind:"planet",ptype:"volcanic",c1:"#3a1a18",c2:"#c0392b",c3:"#ff7a3a"},dx:0,dy:-30,size:74,desc:"Capital of the Saurok Dynasty — a scarred volcanic throneworld of black stone and running fire.",pois:[{type:"capital",title:"The Ember Seat",desc:"Where the warrior-clans gather beneath the ruling line.",ax:0,ay:-0.15},{type:"war",title:"Ashfront",desc:"An active clan-war smolders across the northern wastes.",ax:0.35,ay:0.3},{type:"mining",title:"Cinderworks",desc:"Deep magma-forges pull rare metals from the mantle.",ax:-0.4,ay:0.25}]},
+    {id:"goro",name:"Goro",sector:"saurok",look:{kind:"planet",ptype:"rock",c1:"#6a4030",c2:"#3a221a",c3:"#a86a3a"},dx:-160,dy:120,size:58,desc:"A brutal ore-world of clan strongholds carved into iron mountains.",pois:[{type:"ore",title:"Bloodiron Lode",desc:"The richest metal deposit in the Dynasty.",ax:0,ay:0}]},
+    {id:"krayta",name:"Krayta",sector:"saurok",look:{kind:"planet",ptype:"desert",c1:"#b8703a",c2:"#8a4a26",c3:"#e8a860"},dx:150,dy:90,size:56,desc:"A blistering desert world of bone-fields, sacred as a proving ground."},
+    {id:"veridia",name:"Veridia",sector:"nexus",role:"capital",look:{kind:"planet",ptype:"terran",c1:"#3a8a6a",c2:"#1a4a5c",c3:"#e8a040",ring:true},dx:0,dy:-30,size:74,desc:"Capital of the Nexus Core — a green-tech world wrapped in ring-shipyards.",pois:[{type:"capital",title:"Foundry Prime",desc:"The central manufactory-city, never dark.",ax:0,ay:-0.1},{type:"trade",title:"Ringmarket",desc:"Orbital exchange for the sector's output.",ax:0.4,ay:0.2},{type:"research",title:"The Innoveum",desc:"Where the Core's engineers chase the next wonder.",ax:-0.4,ay:0.3}]},
+    {id:"industria",name:"Industria",sector:"nexus",look:{kind:"planet",ptype:"volcanic",c1:"#33302e",c2:"#c05a2b",c3:"#ffb060"},dx:160,dy:90,size:58,desc:"A single planet-wide factory, glowing orange from orbit.",pois:[{type:"hazard",title:"Smog Belt",desc:"Toxic industrial haze blankets the equator.",ax:0,ay:0.1}]},
+    {id:"founders_gate",name:"Founders Gate",sector:"nexus",look:{kind:"station",stype:"ring",c1:"#c88848",c2:"#7a5228",c3:"#ffd070"},dx:60,dy:-160,size:46,desc:"The great ring-gate of the Nexus Core — every ship entering passes through it.",pois:[{type:"beacon",title:"The Gate",desc:"Aether jump-beacon linking the Core to the Spine.",ax:0,ay:0}]},
+    {id:"mercato_station",name:"Mercato Station",sector:"tradespine",look:{kind:"station",stype:"hub",c1:"#7abf8a",c2:"#3a7a52",c3:"#c8ffd8"},dx:-340,dy:-18,size:44,desc:"The great trade-hub of the Spine — a thousand currencies change hands hourly.",pois:[{type:"trade",title:"The Grand Bazaar",desc:"Neutral market where any power may deal.",ax:0,ay:0}]},
+    {id:"ventura",name:"Ventura",sector:"tradespine",look:{kind:"planet",ptype:"terran",c1:"#4a8a4a",c2:"#2a5a7c",c3:"#7fd0a8"},dx:-60,dy:22,size:56,desc:"A prosperous green waystation-world at the Spine's center."},
+    {id:"kharabis",name:"Kharabis",sector:"tradespine",look:{kind:"planet",ptype:"desert",c1:"#c89858",c2:"#8a6432",c3:"#f0d090"},dx:560,dy:24,size:56,desc:"A golden caravan-world, gateway between the settled galaxy and the wild Cacophony."},
+    {id:"eidolon",name:"Eidolon",sector:"neutral",role:"capital",look:{kind:"planet",ptype:"ocean",c1:"#3a7a8a",c2:"#1a4a6c",c3:"#8ac0e8",ring:true},dx:0,dy:-30,size:72,desc:"Heart of the Neutral Worlds — glass spires and endless negotiation.",pois:[{type:"capital",title:"The Accord Halls",desc:"Every power keeps an embassy; none holds sway.",ax:0,ay:0},{type:"beacon",title:"Truce Beacon",desc:"Broadcasts the neutrality writ across the sector.",ax:0.4,ay:-0.3}]},
+    {id:"truce_point",name:"Truce Point",sector:"neutral",look:{kind:"station",stype:"ring",c1:"#5aa3d9",c2:"#2a6a9a",c3:"#c8e8ff"},dx:-160,dy:120,size:46,desc:"The station where enemies meet. Peace has been signed and broken here more times than anyone counts."},
+    {id:"adonia",name:"Adonia",sector:"western_expanse",look:{kind:"planet",ptype:"terran",c1:"#4a9a5a",c2:"#2a6a8c",c3:"#8fe0b0"},dx:-40,dy:-160,size:58,desc:"A lush frontier world and unofficial heart of the Expanse — a place people go to start over.",pois:[{type:"city",title:"Landing Town",desc:"First stop for colonists heading west.",ax:0,ay:0}]},
+    {id:"vanar",name:"Vanar",sector:"western_expanse",look:{kind:"planet",ptype:"rock",c1:"#7a6a5a",c2:"#4a3a2a",c3:"#c8a878"},dx:130,dy:20,size:56,desc:"A rugged prospector world of canyons and claim-towns.",pois:[{type:"mining",title:"Deepcut Claims",desc:"Boom-town mines; fortunes made and lost weekly.",ax:0,ay:0.1}]},
+    {id:"new_horizon",name:"New Horizon",sector:"western_expanse",look:{kind:"planet",ptype:"ice",c1:"#c8dcec",c2:"#8ab0cc",c3:"#f0f8ff"},dx:20,dy:280,size:40,desc:"The furthest charted world of the Expanse — the jump-off for everything past it."},
+    {id:"bortuun",name:"Bortuun",sector:"northern_reaches",look:{kind:"planet",ptype:"ice",c1:"#b8ccdc",c2:"#7a9ab8",c3:"#e8f4ff"},dx:-330,dy:20,size:58,desc:"A grim ice-world of buried ruins and long nights.",pois:[{type:"ruin",title:"The Frozen Vault",desc:"A pre-galactic ruin thawing from the ice — best left frozen.",ax:0.1,ay:0}]},
+    {id:"astrovega",name:"Astrovega",sector:"northern_reaches",look:{kind:"planet",ptype:"gas",c1:"#7a8ac0",c2:"#4a5a8a",c3:"#a8c0f0"},dx:-100,dy:-60,size:56,desc:"A cold blue gas-giant crowned with aurora, a waypoint to older mysteries.",pois:[{type:"anomaly",title:"The Whisper",desc:"An aether-signal of unknown origin loops from the clouds.",ax:0,ay:0}]},
+    {id:"northpoint_station",name:"Northpoint Station",sector:"northern_reaches",look:{kind:"station",stype:"spire",c1:"#a0bcd4",c2:"#5a7a9a",c3:"#d8f0ff"},dx:-220,dy:100,size:44,desc:"The last waystation before the deep north — where explorers file their final messages home."},
+    {id:"aurelian",name:"Aurelian",sector:"southern_spiral",role:"capital",look:{kind:"planet",ptype:"terran",c1:"#5a7a9a",c2:"#2a4a6c",c3:"#b0a0e0",ring:true},dx:0,dy:0,size:62,desc:"A stately old world presiding over the Southern Spiral's ancient civilizations.",pois:[{type:"temple",title:"The Elder Vaults",desc:"Libraries remembering what the Core forgot.",ax:0,ay:0}]},
+    {id:"cabaret",name:"Cabaret",sector:"cabaret_cluster",look:{kind:"planet",ptype:"exotic",c1:"#c94f9a",c2:"#7a2a5a",c3:"#ff9ad8"},dx:0,dy:0,size:60,desc:"A blazing pleasure-world — a planet-wide carnival of light and glorious excess that never goes dark.",pois:[{type:"city",title:"The Endless Revel",desc:"The show, they say, must never stop.",ax:0,ay:0}]},
+  ]
+};
+function blobPoints(cx,cy,rx,ry,seed,orient){const rng=mulberry(seed),pts=[],N=14;for(let i=0;i<N;i++){const a=i/N*Math.PI*2+(orient||0)*Math.PI/180,jit=0.78+rng()*0.4;pts.push({x:Math.round(cx+Math.cos(a)*rx*jit),y:Math.round(cy+Math.sin(a)*ry*jit)});}return pts;}
+function seedFrom(str){let h=0;for(let i=0;i<str.length;i++)h=(h*31+str.charCodeAt(i))|0;return Math.abs(h)||1;}
+function sampleMap(){
+  const sectors=SAMPLE.sectors.map(s=>({id:s.id,name:s.name,color:s.color,creed:s.creed,desc:s.desc,region:s.region,theme:s.theme,parent:s.parent||null,meta:s.meta||false,
+    points:blobPoints(s.cx,s.cy,s.rx,s.ry,seedFrom(s.id),s.orient),fx:{sparkle:false,nebula:false,nebulaColor:s.color,shoot:false}}));
+  const instances=SAMPLE.bodies.map(b=>{const s=SAMPLE.sectors.find(x=>x.id===b.sector);const x=s.cx+(b.dx||0),y=s.cy+(b.dy||0);
+    return {id:b.id,name:b.name,kind:b.look.kind,x,y,size:b.size||50,desc:b.desc,role:b.role||"",sector:b.sector,orbitParent:"",orbitRadius:0,orbitSpeed:0,
+      look:{seed:seedFrom(b.id),...b.look},fx:{sparkle:false,nebula:false,nebulaColor:s.color,shoot:false},
+      pois:(b.pois||[]).map(p=>({id:uid(),type:p.type,title:p.title,desc:p.desc,ax:p.ax||0,ay:p.ay||0}))};});
+  // Heartlight as a central galaxy spiral
+  instances.unshift({id:"heartlight",name:"The Heartlight",kind:"galaxy",x:0,y:0,size:200,desc:SAMPLE.heartlight.desc,role:"core",sector:null,orbitParent:"",orbitRadius:0,orbitSpeed:0,
+    look:{seed:7,kind:"galaxy",c1:"#ffe6a0",c2:"#e8b84b",c3:"#fffbe8",arms:2,turns:1.0,tight:0.9,spread:0.7,len:1,spinDur:80},fx:{sparkle:true,nebula:false,nebulaColor:"#c88aff",shoot:false},pois:[]});
+  return {type:"stardust-map",version:2,meta:{name:"Stardust Rhapsody — Sample Galaxy"},background:null,centerGalaxy:null,
+    mapFx:{sparkles:true,shooting:true,nebula:true,density:0.55,speed:1,rate:0.28,color:"#cbd6ff",nebColor:"#2a1a5a",nebColor2:"#0c0820"},
+    sectors,instances};
+}
+</script>
+<script>
+"use strict";
+/* ============================================================ CONSOLE RENDERER ============================================================ */
+let MAP=null, view={x:0,y:0,scale:1}, selectedId=null, dsCenter=null;
+const viewport=$("#viewport"), stage=$("#stage");
+function pointInPoly(pt,poly){let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const xi=poly[i].x,yi=poly[i].y,xj=poly[j].x,yj=poly[j].y;const it=((yi>pt.y)!==(yj>pt.y))&&(pt.x<(xj-xi)*(pt.y-yi)/(yj-yi)+xi);if(it)inside=!inside;}return inside;}
+function polyArea(poly){let a=0;for(let i=0,j=poly.length-1;i<poly.length;j=i++)a+=(poly[j].x+poly[i].x)*(poly[j].y-poly[i].y);return Math.abs(a/2);}
+function polyCentroid(poly){let x=0,y=0;poly.forEach(p=>{x+=p.x;y+=p.y;});return {x:x/poly.length,y:y/poly.length};}
+function worldBounds(){let a={x:1e9,y:1e9},b={x:-1e9,y:-1e9};(MAP.sectors||[]).forEach(s=>s.points.forEach(p=>{a.x=Math.min(a.x,p.x);a.y=Math.min(a.y,p.y);b.x=Math.max(b.x,p.x);b.y=Math.max(b.y,p.y);}));(MAP.instances||[]).forEach(i=>{a.x=Math.min(a.x,i.x-i.size);a.y=Math.min(a.y,i.y-i.size);b.x=Math.max(b.x,i.x+i.size);b.y=Math.max(b.y,i.y+i.size);});if(a.x>b.x){a={x:-600,y:-600};b={x:600,y:600};}return {minX:a.x-200,minY:a.y-200,maxX:b.x+200,maxY:b.y+200};}
+function sectorPath(pts){return "M "+pts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" L ")+" Z";}
+function poiLayerHTML(i){if(!i.pois||!i.pois.length)return "";const sz=i.size,iconPx=clamp(sz*0.22,11,26);
+  return `<div class="poilayer">`+i.pois.map(p=>{const lx=(0.5+(p.ax||0)*0.42)*100,ly=(0.5+(p.ay||0)*0.42)*100;
+    return `<div class="poi" data-poi="${p.id}" data-body="${i.id}" title="${esc(p.title)} — ${poiType(p.type).label}" style="left:${lx}%;top:${ly}%">${poiIconSVG(p.type,iconPx)}</div>`;}).join("")+`</div>`;}
+
+/* Rich-label styling — mirrors map-studio so players see exactly what the DM formatted. */
+const BODY_LABEL_DEFAULT={font:'Rajdhani',size:13,weight:600,color:'#e8e6ff',tracking:0.4,shadow:true};
+const SECTOR_LABEL_DEFAULT={font:'Cinzel',weight:600,tracking:2,shadow:true};
+const TEXT_LABEL_DEFAULT={font:'Cinzel',size:28,weight:600,color:'#f0e6d2',tracking:1,align:'middle',shadow:true};
+function bodyLabelStyle(i){return mergeLabelStyle(Object.assign({},BODY_LABEL_DEFAULT,i.label||{}));}
+function sectorLabelStyle(s){const isSub=!!s.parent;const base=Object.assign({size:s.meta?22:isSub?15:20,color:s.color,opacity:isSub?0.85:0.98},SECTOR_LABEL_DEFAULT);return mergeLabelStyle(Object.assign(base,s.label||{}));}
+function textLabelStyle(i){return mergeLabelStyle(Object.assign({},TEXT_LABEL_DEFAULT,i.label||{}));}
+function poiCaptionStyle(p){return mergeLabelStyle(Object.assign({show:false,font:'Rajdhani',size:12,weight:600,color:poiType(p.type).color,tracking:0.3},p.label||{}));}
+function buildLabelLayer(B,W,H){
+  const ll=document.createElementNS(NS,"svg");ll.setAttribute("width",W);ll.setAttribute("height",H);
+  ll.style.cssText=`position:absolute;left:${B.minX}px;top:${B.minY}px;overflow:visible;z-index:20;pointer-events:none;`;
+  const ox=B.minX,oy=B.minY;let out="";
+  (MAP.sectors||[]).forEach(s=>{const st=sectorLabelStyle(s);if(st.show===false)return;const r=labelSVG(s.name,st);if(!r.g)return;
+    const c=polyCentroid(s.points),area=polyArea(s.points);const cy=c.y-Math.sqrt(area)*0.42-st.size*0.4;
+    out+=`<g transform="translate(${(c.x-ox).toFixed(1)},${(cy-oy).toFixed(1)})">${r.g}</g>`;});
+  (MAP.instances||[]).forEach(i=>{
+    if(i.kind==="text"){const st=textLabelStyle(i);if(st.show===false)return;const rot=st.rotate||0;const r=labelSVG(i.name||"Text",Object.assign({},st,{rotate:0}));if(!r.g)return;
+      out+=`<g transform="translate(${(i.x-ox).toFixed(1)},${(i.y-oy).toFixed(1)})${rot?` rotate(${rot})`:''}">${r.g}</g>`;return;}
+    const st=bodyLabelStyle(i);
+    if(st.show!==false){const r=labelSVG(i.name,st);if(r.g){const cx=i.x+i.size/2,ay=i.y+i.size+4;out+=`<g transform="translate(${(cx-ox).toFixed(1)},${(ay-oy).toFixed(1)})">${r.g}</g>`;}}
+    (i.pois||[]).forEach(p=>{const ls=poiCaptionStyle(p);if(ls.show===false)return;const r2=labelSVG(p.title,ls);if(!r2.g)return;
+      const wx=i.x+(0.5+(p.ax||0)*0.42)*i.size,wy=i.y+(0.5+(p.ay||0)*0.42)*i.size+Math.min(Math.max(i.size*0.14,8),20);
+      out+=`<g transform="translate(${(wx-ox).toFixed(1)},${(wy-oy).toFixed(1)})">${r2.g}</g>`;});
+  });
+  ll.innerHTML=out;return ll;
+}
+function render(){
+  viewport.innerHTML="";dsCenter=null;
+  const B=worldBounds(),W=B.maxX-B.minX,H=B.maxY-B.minY;
+  // background nebula + stars
+  const bg=document.createElementNS(NS,"svg");bg.setAttribute("width",W);bg.setAttribute("height",H);bg.style.cssText=`position:absolute;left:${B.minX}px;top:${B.minY}px;z-index:0;`;
+  const f=MAP.mapFx||{};const nc1=f.nebColor||"#2a1a5a",nc2=f.nebColor2||"#0c0820";
+  let bgInner=`<defs><radialGradient id="neb" cx="50%" cy="50%" r="58%"><stop offset="0%" stop-color="${nc1}" stop-opacity="${f.nebula!==false?.5:.15}"/><stop offset="55%" stop-color="${nc2}" stop-opacity=".3"/><stop offset="100%" stop-color="#04030a" stop-opacity="0"/></radialGradient></defs><rect width="${W}" height="${H}" fill="url(#neb)"/>`;
+  bg.innerHTML=bgInner;viewport.appendChild(bg);
+  // center galaxy (image spin) if present
+  if(MAP.centerGalaxy&&MAP.centerGalaxy.image){const D=Math.max(W,H)*0.9;const cv=document.createElement("canvas");cv.style.cssText=`position:absolute;left:${-D/2}px;top:${-D/2}px;width:${D}px;height:${D}px;z-index:1;pointer-events:none;opacity:.9;`;viewport.appendChild(cv);const eng=new DiffSpinGalaxy(cv,{rings:6});eng._fit=function(){const dpr=window.devicePixelRatio||1;cv.width=D*dpr;cv.height=D*dpr;this.ctx.setTransform(dpr,0,0,dpr,0,0);this.cssW=D;this.cssH=D;};eng._fit();eng.setImage(MAP.centerGalaxy.image).then(()=>{if(MAP.centerGalaxy.cfg)eng.fromConfig(MAP.centerGalaxy.cfg);eng.start();});dsCenter=eng;}
+  // sectors
+  const svg=document.createElementNS(NS,"svg");svg.setAttribute("width",W);svg.setAttribute("height",H);svg.style.cssText=`position:absolute;left:${B.minX}px;top:${B.minY}px;overflow:visible;z-index:2;`;
+  const sorted=[...(MAP.sectors||[])].map(s=>({s,area:polyArea(s.points),c:polyCentroid(s.points)})).sort((a,b)=>b.area-a.area);
+  let inner="";
+  sorted.forEach(({s,area,c})=>{const[r,g,b2]=hx(s.color);const isSub=!!s.parent,off=p=>({x:p.x-B.minX,y:p.y-B.minY});const pts=s.points.map(off);
+    if(s.fx&&s.fx.nebula){const bb={x:Math.min(...pts.map(p=>p.x)),y:Math.min(...pts.map(p=>p.y))};const bw=Math.max(...pts.map(p=>p.x))-bb.x,bh=Math.max(...pts.map(p=>p.y))-bb.y;
+      inner+=`<clipPath id="cl${s.id}"><path d="${sectorPath(pts)}"/></clipPath><g clip-path="url(#cl${s.id})">`+nebulaSVG(bw,bh,s.fx.nebulaColor||s.color,D(s.fx.nebulaColor||s.color,30),seedFrom(s.id),0.7).replace(/cx="([\d.]+)"/g,(m,n)=>`cx="${(+n+bb.x).toFixed(0)}"`).replace(/cy="([\d.]+)"/g,(m,n)=>`cy="${(+n+bb.y).toFixed(0)}"`)+`</g>`;}
+    const bstyle=s.borderStyle||(s.meta?"dotted":"dashed");const bw=s.borderWidth!=null?s.borderWidth:(s.meta?2.5:isSub?1.6:2.2);
+    const fillOp=s.fillOpacity!=null?s.fillOpacity:(s.meta?0.04:isSub?0.13:0.09);
+    const dash=bstyle==="dotted"?`${(bw*0.5).toFixed(1)} ${(bw*2.2).toFixed(1)}`:bstyle==="dashed"?"8 7":"none";
+    inner+=`<path d="${sectorPath(pts)}" fill="rgba(${r},${g},${b2},${fillOp})" stroke="${bstyle==="none"?"none":s.color}" stroke-width="${bw}" stroke-dasharray="${dash}" opacity="${s.meta?0.5:0.85}" data-sector="${s.id}" style="cursor:pointer"/>`;
+    if(s.fx&&s.fx.sparkle){const rng=mulberry(seedFrom(s.id)*7);for(let k=0;k<14;k++){const wx=Math.min(...s.points.map(p=>p.x))+rng()*(Math.max(...s.points.map(p=>p.x))-Math.min(...s.points.map(p=>p.x))),wy=Math.min(...s.points.map(p=>p.y))+rng()*(Math.max(...s.points.map(p=>p.y))-Math.min(...s.points.map(p=>p.y)));if(!pointInPoly({x:wx,y:wy},s.points))continue;inner+=`<circle cx="${(wx-B.minX).toFixed(0)}" cy="${(wy-B.minY).toFixed(0)}" r="${(0.6+rng()*1.6).toFixed(1)}" fill="#fff" style="animation:twinkle ${(1.4+rng()*2).toFixed(1)}s ease-in-out infinite;animation-delay:${(rng()*3).toFixed(1)}s"/>`;}}
+  });
+  svg.innerHTML=inner;viewport.appendChild(svg);
+  // sector names, body names, text objects & POI captions are drawn in the rich label overlay below
+  // bodies
+  (MAP.instances||[]).forEach(i=>{if(i.kind==="text")return;   // text objects are pure labels (overlay)
+    const el=document.createElement("div");el.className="body"+(selectedId===i.id?" selected":"");el.dataset.id=i.id;el.style.cssText=`left:${i.x}px;top:${i.y}px;width:${i.size}px;height:${i.size}px;z-index:${i.kind==='galaxy'?4:10};`;
+    const secColor=(MAP.sectors.find(s=>s.id===i.sector)||{}).color||"#88aaff";
+    const look=i.look||i;
+    const bodyHTML=i.kind==="planet3d"?`<canvas class="p3canvas" style="width:100%;height:100%;display:block;border-radius:50%"></canvas>`:art(look,true);
+    el.innerHTML=`<div class="halo" style="background:radial-gradient(circle,${secColor}66,transparent 62%)"></div><div class="selring"></div><div class="art">${fxOverlay(i.fx,look&&look.seed)}${bodyHTML}</div>${i.kind==="planet3d"?"":poiLayerHTML(i)}`;
+    if(i.kind==="planet3d")el.dataset.p3=i.id;
+    el.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});};
+    el.querySelectorAll(".poi").forEach(p=>p.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});});
+    viewport.appendChild(el);});
+  // sector click handlers
+  svg.querySelectorAll("[data-sector]").forEach(p=>p.onclick=e=>{e.stopPropagation();select({type:"sector",id:p.dataset.sector});});
+  viewport.appendChild(buildLabelLayer(B,W,H));   // rich formatted labels on top
+  mountSpriteInstances();buildLegend();
+}
+const spriteLive={};
+function mountSpriteInstances(){
+  const liveIds=new Set((MAP.instances||[]).filter(i=>i.kind==="planet3d").map(i=>i.id));
+  Object.keys(spriteLive).forEach(id=>{if(!liveIds.has(id)){try{spriteLive[id].sp.destroy();}catch(e){}delete spriteLive[id];}});
+  document.querySelectorAll('[data-p3]').forEach(el=>{const id=el.dataset.p3;const inst=MAP.instances.find(x=>x.id===id);if(!inst)return;const cv=el.querySelector('canvas.p3canvas');if(!cv)return;
+    const look=inst.look||inst;if(!look.sheet)return;let rec=spriteLive[id];
+    if(!rec){rec=spriteLive[id]={sp:new SpriteSpinner(cv,{sheet:look.sheet,cols:look.cols,rows:look.rows,frames:look.frames,fps:16}),cv:null,sheet:null};}
+    if(rec.cv!==cv){rec.sp.cv=cv;rec.sp.ctx=cv.getContext('2d');rec.sp._fit();rec.cv=cv;}
+    if(rec.sheet!==look.sheet){rec.sheet=look.sheet;rec.sp.setSheet({sheet:look.sheet,cols:look.cols,rows:look.rows,frames:look.frames});}
+    rec.sp.start();});
+}
+function buildLegend(){const box=$("#legendRows");box.innerHTML="";const tops=(MAP.sectors||[]).filter(s=>!s.parent);const subs=(MAP.sectors||[]).filter(s=>s.parent);
+  tops.forEach(s=>{const r=document.createElement("div");r.className="legrow";r.innerHTML=`<span class="dot" style="background:${s.color}"></span>${esc(s.name)}`;r.onclick=()=>select({type:"sector",id:s.id});box.appendChild(r);});
+  if(subs.length){const d=document.createElement("div");d.className="legdiv";box.appendChild(d);subs.forEach(s=>{const r=document.createElement("div");r.className="legrow sub";r.innerHTML=`<span class="dot" style="background:${s.color}"></span>${esc(s.name)}`;r.onclick=()=>select({type:"sector",id:s.id});box.appendChild(r);});}}
+
+/* ---- view / pan / zoom ---- */
+function apply(anim){viewport.classList.toggle("animate",!!anim);viewport.style.transform=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;updateDialZoom();}
+function paneSize(){const r=$("#mapPane").getBoundingClientRect();return {w:r.width,h:r.height};}
+function fit(anim){const B=worldBounds(),W=B.maxX-B.minX,H=B.maxY-B.minY,{w,h}=paneSize();const s=Math.min(w/W,h/H)*0.92;view.scale=clamp(s,0.08,3);view.x=w/2-((B.minX+B.maxX)/2)*view.scale;view.y=(h-40)/2-((B.minY+B.maxY)/2)*view.scale;apply(anim);}
+function flyTo(x,y,scale){const {w,h}=paneSize();view.scale=scale;view.x=w/2-x*scale;view.y=(h-30)/2-y*scale;apply(true);}
+function fitZoomFor(ww,hh){const {w,h}=paneSize();return clamp(Math.min(w/ww,h/hh)*0.82,0.2,3);}
+let pan=null;
+stage.addEventListener("mousedown",e=>{if(e.target.closest(".body")||e.target.dataset&&e.target.dataset.sector)return;stage.classList.add("grabbing");pan={sx:e.clientX,sy:e.clientY,ox:view.x,oy:view.y};});
+window.addEventListener("mousemove",e=>{if(!pan)return;view.x=pan.ox+(e.clientX-pan.sx);view.y=pan.oy+(e.clientY-pan.sy);apply();});
+window.addEventListener("mouseup",()=>{pan=null;stage.classList.remove("grabbing");});
+stage.addEventListener("wheel",e=>{e.preventDefault();const r=$("#mapPane").getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;const fdir=e.deltaY<0?1.14:0.88;const ns=clamp(view.scale*fdir,0.08,6);view.x=mx-(mx-view.x)*(ns/view.scale);view.y=my-(my-view.y)*(ns/view.scale);view.scale=ns;apply();},{passive:false});
+function zoomAround(cx,cy,fdir){const ns=clamp(view.scale*fdir,0.08,6);view.x=cx-(cx-view.x)*(ns/view.scale);view.y=cy-(cy-view.y)*(ns/view.scale);view.scale=ns;apply(true);}
+$("#zoomIn").onclick=()=>{const {w,h}=paneSize();zoomAround(w/2,h/2,1.3);};
+$("#zoomOut").onclick=()=>{const {w,h}=paneSize();zoomAround(w/2,h/2,1/1.3);};
+$("#zoomFit").onclick=()=>{clearSelect();fit(true);};
+
+/* ---- selection + screen ---- */
+function setSelectedEl(id){viewport.querySelectorAll(".body").forEach(el=>el.classList.toggle("selected",el.dataset.id===id));viewport.querySelectorAll("[data-sector]").forEach(p=>p.style.filter="");}
+function pulseScan(){const l=$("#lampScan");l.classList.add("on");setTimeout(()=>l.classList.remove("on"),700);$("#tgl3").classList.add("up");setTimeout(()=>$("#tgl3").classList.remove("up"),700);$("#sigMeter").style.width=(70+Math.random()*28)+"%";}
+function select(sel){
+  pulseScan();
+  if(sel.type==="sector"){const s=MAP.sectors.find(x=>x.id===sel.id);if(!s)return;selectedId=null;setSelectedEl(null);
+    viewport.querySelectorAll("[data-sector]").forEach(p=>{p.style.filter=p.dataset.sector===s.id?"drop-shadow(0 0 12px "+s.color+")":"";});
+    renderScreen(sectorScreen(s));const c=polyCentroid(s.points);const bb={w:Math.max(...s.points.map(p=>p.x))-Math.min(...s.points.map(p=>p.x)),h:Math.max(...s.points.map(p=>p.y))-Math.min(...s.points.map(p=>p.y))};flyTo(c.x,c.y,fitZoomFor(bb.w*1.5,bb.h*1.5));return;}
+  const i=MAP.instances.find(x=>x.id===sel.id);if(!i)return;selectedId=i.id;setSelectedEl(i.id);
+  if(i.kind==="galaxy"&&i.role==="core")renderScreen(coreScreen(i));else renderScreen(bodyScreen(i));
+  flyTo(i.x,i.y,i.kind==="galaxy"?fitZoomFor(i.size*3,i.size*3):clamp(1400/(i.size||50),1.4,4.2));
+}
+function clearSelect(){selectedId=null;setSelectedEl(null);viewport.querySelectorAll("[data-sector]").forEach(p=>p.style.filter="");showIdle();}
+$("#btnClose").onclick=clearSelect;
+$("#btnGalaxy").onclick=()=>{clearSelect();fit(true);};
+const scrInner=$("#scrInner");
+function showIdle(){const nb=(MAP.instances||[]).length,ns=(MAP.sectors||[]).length;scrInner.innerHTML=`<div class="scr-idle"><div class="lg">◈ AWAITING INPUT ◈</div><div class="sm">SELECT A SYSTEM OR STELLAR BODY<span class="blink">_</span></div><div class="sm" style="margin-top:10px;opacity:.6">NAV-LINK ESTABLISHED · ${ns} SYSTEMS · ${nb} BODIES CHARTED</div></div>`;}
+function renderScreen(html){scrInner.innerHTML=html;scrInner.querySelectorAll("[data-sec]").forEach(c=>c.onclick=()=>select({type:"sector",id:c.dataset.sec}));scrInner.querySelectorAll("[data-body]").forEach(c=>c.onclick=()=>select({type:"instance",id:c.dataset.body}));}
+function portrait(svg){return `<div class="scr-portrait">${svg}</div>`;}
+function poiBlock(pois){if(!pois||!pois.length)return "";return `<div style="margin-top:6px">${pois.map(p=>`<div class="scr-poi" data-body=""><div class="pic">${poiIconSVG(p.type,22)}</div><div><div class="pn">${esc(p.title)}</div><div class="pt">${poiType(p.type).label}</div>${p.desc?`<div class="pd">${esc(p.desc)}</div>`:""}</div></div>`).join("")}</div>`;}
+function bodyScreen(b){const s=MAP.sectors.find(x=>x.id===b.sector);const typeLabel=(b.kind||"body").toUpperCase();const artSvg=`<div style="width:66px;height:66px">${art(b.look||b,true)}</div>`;
+  const poisHtml=b.pois&&b.pois.length?`<div style="font-family:Orbitron;font-size:10px;letter-spacing:2px;color:var(--amber);margin:8px 0 4px">◈ POINTS OF INTEREST (${b.pois.length})</div>${poiBlock(b.pois)}`:"";
+  return `<div class="scr-head">${portrait(artSvg)}<div class="scr-titles"><div class="scr-kicker">${typeLabel}${b.role==="capital"?" · CAPITAL":""}</div><div class="scr-name">${esc(b.name)}</div><div class="scr-creed">${s?esc(s.name):"Unaligned"}</div></div></div>
+    <div class="scr-cols"><div class="scr-desc">${esc(b.desc)}${poisHtml}</div>
+    <div class="scr-stats">
+      <div class="scr-stat"><span class="k">CLASS</span><span class="v">${typeLabel}</span></div>
+      ${s?`<div class="scr-stat"><span class="k">SYSTEM</span><span class="v" data-sec="${s.id}" style="cursor:pointer;color:${s.color}">${esc(s.name).toUpperCase()}</span></div>`:""}
+      ${s&&s.region?`<div class="scr-stat"><span class="k">REGION</span><span class="v">${(s.region||"").toUpperCase()}</span></div>`:""}
+      ${b.role?`<div class="scr-stat"><span class="k">ROLE</span><span class="v">${b.role.toUpperCase()}</span></div>`:""}
+      <div class="scr-stat"><span class="k">POIS</span><span class="v">${(b.pois||[]).length}</span></div>
+      <div class="scr-stat"><span class="k">STATUS</span><span class="v" style="color:var(--scan)">CHARTED</span></div>
+    </div></div>`;}
+function sectorScreen(s){const members=MAP.instances.filter(b=>b.sector===s.id);const subs=MAP.sectors.filter(x=>x.parent===s.id);
+  const swatch=`<svg viewBox="0 0 66 66" style="width:66px;height:66px"><circle cx="33" cy="33" r="26" fill="${s.color}22" stroke="${s.color}" stroke-width="2" stroke-dasharray="5 4"/><text x="33" y="38" text-anchor="middle" fill="${s.color}" font-family="Orbitron" font-size="9">SYSTEM</text></svg>`;
+  let chips="";if(s.meta&&subs.length)chips=`<div class="scr-chips">${subs.map(x=>`<span class="scr-chip" data-sec="${x.id}"><span class="cd" style="background:${x.color}"></span>${esc(x.name)}</span>`).join("")}</div>`;
+  else if(members.length)chips=`<div class="scr-chips">${members.map(m=>`<span class="scr-chip" data-body="${m.id}"><span class="cd" style="background:${s.color}"></span>${esc(m.name)}${m.role==="capital"?" ★":""}</span>`).join("")}</div>`;
+  return `<div class="scr-head">${portrait(swatch)}<div class="scr-titles"><div class="scr-kicker">${s.meta?"META-REGION":s.parent?"SUB-SYSTEM"+(s.theme?" · "+s.theme.toUpperCase():""):(s.region||"SYSTEM").toUpperCase()}</div><div class="scr-name">${esc(s.name)}</div><div class="scr-creed">${esc(s.creed||"")}</div></div></div>
+    <div class="scr-cols"><div class="scr-desc">${esc(s.desc||"")}${chips}</div>
+    <div class="scr-stats">${s.region?`<div class="scr-stat"><span class="k">REGION</span><span class="v">${s.region.toUpperCase()}</span></div>`:""}${s.theme?`<div class="scr-stat"><span class="k">THEME</span><span class="v">${s.theme.toUpperCase()}</span></div>`:""}<div class="scr-stat"><span class="k">BODIES</span><span class="v">${members.length||(subs.length?subs.length+" SUBS":"—")}</span></div>${subs.length&&!s.meta?`<div class="scr-stat"><span class="k">SUB-SYSTEMS</span><span class="v">${subs.length}</span></div>`:""}<div class="scr-stat"><span class="k">ALLEGIANCE</span><span class="v" style="color:${s.color}">████</span></div><div class="scr-stat"><span class="k">STATUS</span><span class="v" style="color:var(--scan)">SURVEYED</span></div></div></div>`;}
+function coreScreen(i){return `<div class="scr-head">${portrait(`<div style="width:66px;height:66px">${art(i.look,true)}</div>`)}<div class="scr-titles"><div class="scr-kicker" style="color:var(--gold)">GALACTIC CORE</div><div class="scr-name">${esc(i.name)}</div><div class="scr-creed">The song at the center of everything</div></div></div>
+  <div class="scr-cols"><div class="scr-desc">${esc(i.desc)}</div><div class="scr-stats"><div class="scr-stat"><span class="k">TYPE</span><span class="v">AETHER SOURCE</span></div><div class="scr-stat"><span class="k">POSITION</span><span class="v">GALACTIC CENTER</span></div><div class="scr-stat"><span class="k">OUTPUT</span><span class="v" style="color:var(--gold)">∞</span></div><div class="scr-stat"><span class="k">STATUS</span><span class="v" style="color:var(--scan)">RADIANT</span></div></div></div>`;}
+
+/* ---- ambient fx ---- */
+let ambient=null;
+function applyFx(){const f=MAP.mapFx||{};if(!ambient)ambient=new AmbientFX($("#fxCanvas"));ambient.set({sparkles:f.sparkles!==false,shooting:!!f.shooting,density:f.density!=null?f.density:0.5,speed:f.speed!=null?f.speed:1,rate:f.rate!=null?f.rate:0.3,color:f.color||"#cbd6ff"});if((f.sparkles!==false)||f.shooting)ambient.start();else ambient.stop();}
+
+/* ---- campaigns ---- */
+const CAMP_KEY="stardust-campaigns";
+function loadCampaigns(){try{return JSON.parse(localStorage.getItem(CAMP_KEY)||"[]");}catch(e){return [];}}
+$("#campBtn").onclick=openCamp;$("#campClose").onclick=()=>$("#campModal").classList.remove("show");
+function openCamp(){const list=loadCampaigns();const body=$("#campBody");
+  body.innerHTML=(list.length?list.map(c=>`<div class="camprow" data-load="${c.id}"><div class="ci"><div class="n">${esc(c.name)}</div><div class="m">Updated ${new Date(c.savedAt).toLocaleString()} · ${(c.map&&c.map.instances?c.map.instances.length:0)} bodies · ${(c.map&&c.map.sectors?c.map.sectors.length:0)} systems</div></div><div class="go">OPEN ▶</div></div>`).join(""):`<div style="font-size:13px;color:var(--faint);padding:8px 0;line-height:1.6">No published campaign maps found on this device.<br>Publish one from <b>Map Studio</b> (they share this browser's storage), import a map file, or load the built-in sample galaxy below.</div>`);
+  $("#campModal").classList.add("show");
+  body.querySelectorAll("[data-load]").forEach(el=>el.onclick=()=>{const c=loadCampaigns().find(x=>x.id===el.dataset.load);if(c&&c.map){loadMap(c.map);$("#campModal").classList.remove("show");toast("Loaded “"+c.name+"”");}});
+}
+$("#campSample").onclick=()=>{loadMap(sampleMap());$("#campModal").classList.remove("show");toast("Loaded sample galaxy");};
+$("#campImport").onclick=()=>$("#mapFile").click();
+$("#mapFile").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const m=JSON.parse(r.result);loadMap(m);$("#campModal").classList.remove("show");toast("Loaded map file");}catch(err){toast("Couldn't read that file");}};r.readAsText(f);e.target.value="";};
+function loadMap(m){MAP=normalizeMap(m);$("#mapTitle").textContent=(MAP.meta&&MAP.meta.name)?MAP.meta.name.toUpperCase().slice(0,42):"STARDUST RHAPSODY";render();applyFx();fit(false);showIdle();}
+function normalizeMap(m){m=m||{};return {type:"stardust-map",version:2,meta:m.meta||{name:"Untitled Map"},background:m.background||null,centerGalaxy:m.centerGalaxy||null,
+  mapFx:Object.assign({sparkles:true,shooting:false,nebula:true,density:0.5,speed:1,rate:0.3,color:"#cbd6ff",nebColor:"#2a1a5a",nebColor2:"#0c0820"},m.mapFx||{}),
+  sectors:(m.sectors||[]).map(s=>({parent:null,meta:false,fx:{sparkle:false,nebula:false,nebulaColor:s.color,shoot:false},...s})),
+  instances:(m.instances||[]).map(i=>({pois:[],fx:{sparkle:false,nebula:false,nebulaColor:"#8f78e6",shoot:false},role:"",...i,look:i.look||{kind:i.kind}}))};}
+
+/* ---- console ambient life ---- */
+function updateDialZoom(){const d=$("#dialZoom");if(!d)return;const t=(view.scale-0.08)/(6-0.08);d.style.setProperty("--r",(t*270-135)+"deg");}
+$("#dialZoom").style.setProperty("--r","-90deg");$("#dialGain").style.setProperty("--r","20deg");
+$("#dialZoom").onclick=()=>{const {w,h}=paneSize();zoomAround(w/2,h/2,1.3);};
+$("#dialGain").onclick=()=>$("#lampScan").classList.toggle("on");
+["tgl1","tgl2","tgl3"].forEach(id=>$("#"+id).onclick=()=>$("#"+id).classList.toggle("up"));
+setInterval(()=>{const l=$("#lampComm");if(Math.random()<0.3)l.classList.toggle("on");},1400);
+setInterval(()=>{$("#sigMeter").style.width=(selectedId?72:52)+Math.random()*22+"%";},2200);
+$("#sigMeter").style.width="58%";
+window.addEventListener("resize",()=>{if(selectedId){const i=MAP.instances.find(x=>x.id===selectedId);if(i){flyTo(i.x,i.y,i.kind==="galaxy"?fitZoomFor(i.size*3,i.size*3):clamp(1400/(i.size||50),1.4,4.2));return;}}fit(false);});
+function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),1800);}
+
+/* ---- init: last published campaign, else sample ---- */
+(function init(){const list=loadCampaigns();if(list.length){const latest=list.slice().sort((a,b)=>new Date(b.savedAt)-new Date(a.savedAt))[0];loadMap(latest.map);}else{loadMap(sampleMap());}})();
+</script>
+<!-- ============================================================
+     CAMPAIGN DB BRIDGE (platform integration — Phase U, slice 4)
+     When the Console is embedded under /dnd with ?campaign=<id> it loads the
+     campaign's published map from the maps API instead of localStorage. With
+     ?map=<id> it opens that specific row; otherwise it picks the campaign's
+     published map. The localStorage "Load campaign" button is hidden.
+============================================================ -->
+<script>
+(function consoleBridge(){
+  const qs = new URLSearchParams(location.search);
+  const campaign = qs.get("campaign");
+  if(!campaign) return;                        // stand-alone use → unchanged
+  const api = "/api/dnd/campaigns/" + encodeURIComponent(campaign) + "/maps";
+  const wanted = qs.get("map");
+  const campBtn = document.getElementById("campBtn");
+  if(campBtn) campBtn.style.display = "none";   // localStorage list — not used on the platform
+
+  async function load(){
+    try{
+      let mapId = wanted;
+      if(!mapId){
+        // No explicit map → find the campaign's published built map.
+        const lr = await fetch(api);
+        if(!lr.ok) return;
+        const { maps } = await lr.json();
+        const pub = (maps || []).find(m => m.published && m.kind === "built");
+        if(!pub) return;                        // nothing to show → keep sample
+        mapId = pub.id;
+      }
+      const r = await fetch(api + "?mapId=" + encodeURIComponent(mapId));
+      if(!r.ok) return;
+      const { map } = await r.json();
+      if(map && map.data){ loadMap(map.data); toast('◈ '+((map.name||"Campaign map")).toUpperCase()); }
+    }catch(e){ /* offline / unmigrated → sample map stays */ }
+  }
+  load();
+})();
+</script>
+</body>
+</html>
