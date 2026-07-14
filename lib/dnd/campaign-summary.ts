@@ -307,6 +307,8 @@ export interface CampaignHubData {
   gallery: HubMedia[];
   /** The viewer's own character in this campaign (for the "your character" shortcut). */
   myCharacterId: string | null;
+  /** The campaign's published map (latest), shown to players. Null if none / unmigrated. */
+  publishedMap: { id: string; name: string; kind: string; imageUrl: string | null } | null;
   viewerRole: 'dm' | 'player';
 }
 
@@ -364,6 +366,25 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
     .filter((m) => !(m.gallery_tags ?? []).includes('dm-only'))
     .map((m) => ({ id: m.id, url: m.url, kind: m.kind, label: m.label }));
 
+  // The campaign's published map (latest) — best-effort (the dnd_maps table may be unmigrated).
+  let publishedMap: CampaignHubData['publishedMap'] = null;
+  try {
+    const { data: mapRow } = await supabaseAdmin
+      .from('dnd_maps')
+      .select('id, name, kind, image_url')
+      .eq('campaign_id', campaignId)
+      .eq('published', true)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (mapRow) {
+      const r = mapRow as { id: string; name: string; kind: string; image_url: string | null };
+      publishedMap = { id: r.id, name: r.name, kind: r.kind, imageUrl: r.image_url };
+    }
+  } catch {
+    /* dnd_maps not present yet */
+  }
+
   const dmMem = members.find((m) => m.role === 'dm');
   return {
     id: campaign.id,
@@ -393,6 +414,7 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
       characters.find((ch) => (ch.played_by_user_id === viewerId || ch.owner_user_id === viewerId) && !ch.is_npc)?.id ??
       characters.find((ch) => ch.played_by_user_id === viewerId || ch.owner_user_id === viewerId)?.id ??
       null,
+    publishedMap,
     viewerRole,
   };
 }

@@ -11,6 +11,7 @@ import Soundboard from './Soundboard'
 import CampaignArtControl from './CampaignArtControl'
 import CampaignGalleryDm from './CampaignGalleryDm'
 import CampaignNotesDm from './CampaignNotesDm'
+import CampaignMapsDm from './CampaignMapsDm'
 
 export interface CampaignDetail {
   campaign: { id: string; name: string; blurb?: string | null; role: string; theme?: { artUrl?: string | null; notes?: string | null; dmNotes?: string | null } | null }
@@ -255,6 +256,7 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                 <>
                   <CampaignArtControl campaignId={campaignId} initialArtUrl={data.campaign.theme?.artUrl ?? null} />
                   <CampaignGalleryDm campaignId={campaignId} />
+                  <CampaignMapsDm campaignId={campaignId} />
                   <CampaignNotesDm campaignId={campaignId} initialNotes={data.campaign.theme?.notes ?? ''} initialDmNotes={data.campaign.theme?.dmNotes ?? ''} />
                 </>
               )}

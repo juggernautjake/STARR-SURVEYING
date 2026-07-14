@@ -121,6 +121,24 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
             </section>
           )}
 
+          {/* The campaign's published map (image maps show inline; interactive maps get a button) */}
+          {data.publishedMap && (data.publishedMap.kind === 'image' ? data.publishedMap.imageUrl : true) && (
+            <section className={styles.framedPanel}>
+              <div className={styles.framedPanelTop} />
+              <h2 className={styles.panelTitle}>Galaxy Map — {data.publishedMap.name}</h2>
+              {data.publishedMap.kind === 'image' && data.publishedMap.imageUrl ? (
+                <button onClick={() => setLightbox(data.publishedMap!.imageUrl)} title="Click to expand" style={{ display: 'block', width: '100%', border: '1px solid var(--hx-line)', background: '#010a13', padding: 4, cursor: 'zoom-in', borderRadius: 4 }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={data.publishedMap.imageUrl} alt={data.publishedMap.name} style={{ display: 'block', width: '100%', height: 'auto', maxHeight: 460, objectFit: 'contain', borderRadius: 3 }} />
+                </button>
+              ) : (
+                <a href={`/dnd/campaigns/${data.id}/console?map=${data.publishedMap.id}`} className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} style={{ justifyContent: 'center', padding: '12px', textDecoration: 'none' }}>
+                  ✦ Open the interactive map
+                </a>
+              )}
+            </section>
+          )}
+
           {/* Your character — open it, or create one if you haven't yet (onboarding) */}
           {data.myCharacterId ? (
             <a
