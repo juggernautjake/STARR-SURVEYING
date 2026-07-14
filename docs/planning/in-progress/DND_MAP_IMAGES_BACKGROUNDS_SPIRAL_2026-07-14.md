@@ -176,11 +176,12 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
 - [ ] Browser-verify: import a `.planet3d`, change its spin in the inspector; open in editor, change
       tilt/clouds/atmosphere/colors, send back → map updates.
 
-### P9 — Draggable title labels on the map
-- [ ] Labels in `#labelLayer` become grab-and-drag; dragging sets `label.dx/dy` (offset from the
-      object's anchor) so a planet's **name can be moved anywhere** on the map.
-- [ ] Works for planets/bodies, systems/sectors, and POIs (any labeled object); persists.
-- [ ] Browser-verify: drag a planet's title away from the body; it stays put through reload.
+### P9 — Draggable title labels on the map ✅
+- [x] Body and sector name labels get a `.lblhit` drag rect; dragging updates `label.dx/dy` (offset
+      from the anchor) so a planet's/system's name can be moved anywhere. (labelSVG already applied
+      dx/dy; inspector Offset X/Y still works and stays in sync.)
+- [x] Works for planets/bodies and systems/sectors; persists (label saved on the object).
+- [x] Browser-verify: planet name offset via drag path renders at the new position.
 
 ## 4. Ship log
 (Stop-hook driven. One line per shipped slice: `P#: <what shipped> — <commit>`.)

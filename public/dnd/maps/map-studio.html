@@ -1158,12 +1158,19 @@ function renderLabels(){
     const r=labelSVG(s.name,st);if(!r.g)return;
     const c=s._centroid;if(!c)return;
     const cy=c.y-Math.sqrt(s._area||0)*0.34-st.size*0.4;
-    out+=`<g transform="translate(${c.x.toFixed(1)},${cy.toFixed(1)})">${r.g}</g>`;
+    const left=st.align==="start"?0:st.align==="end"?-r.w:-r.w/2,pad=5,dx=st.dx||0,dy=st.dy||0;
+    const sel=selection&&selection.type==="sector"&&selection.id===s.id;
+    const hit=mode==="dm"?`<rect class="lblhit" data-seclabel="${s.id}" x="${(left-pad+dx).toFixed(1)}" y="${(-pad+dy).toFixed(1)}" width="${(r.w+pad*2).toFixed(1)}" height="${(r.h+pad*2).toFixed(1)}" fill="transparent"${sel?' stroke="#c89b3c" stroke-width="1" stroke-dasharray="4 4"':''}/>`:"";
+    out+=`<g transform="translate(${c.x.toFixed(1)},${cy.toFixed(1)})">${hit}${r.g}</g>`;
   });
   state.instances.forEach(i=>{
     if(i.kind==="text")return;                 // free text objects handled in their own pass below
     const st=bodyLabelStyle(i);
-    if(st.show!==false){const r=labelSVG(i.name,st);if(r.g){const cx=i.x+i.size/2, ay=i.y+i.size+4;out+=`<g transform="translate(${cx.toFixed(1)},${ay.toFixed(1)})">${r.g}</g>`;}}
+    if(st.show!==false){const r=labelSVG(i.name,st);if(r.g){const cx=i.x+i.size/2, ay=i.y+i.size+4;
+      const left=st.align==="start"?0:st.align==="end"?-r.w:-r.w/2,pad=5,dx=st.dx||0,dy=st.dy||0;
+      const sel=selection&&selection.type==="instance"&&selection.id===i.id;
+      const hit=mode==="dm"?`<rect class="lblhit" data-bodylabel="${i.id}" x="${(left-pad+dx).toFixed(1)}" y="${(-pad+dy).toFixed(1)}" width="${(r.w+pad*2).toFixed(1)}" height="${(r.h+pad*2).toFixed(1)}" fill="transparent"${sel?' stroke="#c89b3c" stroke-width="1" stroke-dasharray="4 4"':''}/>`:"";
+      out+=`<g transform="translate(${cx.toFixed(1)},${ay.toFixed(1)})">${hit}${r.g}</g>`;}}
     // optional POI title captions, anchored under each POI icon
     (i.pois||[]).forEach(p=>{
       const ls=poiCaptionStyle(p);if(ls.show===false)return;
@@ -1194,6 +1201,19 @@ function renderLabels(){
         drag={move:ev=>{const w=toWorld(ev.clientX,ev.clientY);inst.x=ox+(w.x-start.x);inst.y=oy+(w.y-start.y);renderLabels();updateStatus();},up:()=>{renderInspector();}};
       });
     });
+    // drag a body's/sector's NAME label to reposition it (updates label.dx/dy)
+    layer.querySelectorAll(".lblhit[data-bodylabel]").forEach(rect=>rect.addEventListener("mousedown",e=>{
+      e.stopPropagation();const inst=state.instances.find(x=>x.id===rect.dataset.bodylabel);if(!inst)return;
+      selection={type:"instance",id:inst.id};renderAll();inst.label=inst.label||{};
+      pushUndo();const start=toWorld(e.clientX,e.clientY),odx=inst.label.dx||0,ody=inst.label.dy||0;
+      drag={move:ev=>{const w=toWorld(ev.clientX,ev.clientY);inst.label.dx=Math.round(odx+(w.x-start.x));inst.label.dy=Math.round(ody+(w.y-start.y));renderLabels();},up:()=>{renderInspector();markDirty();}};
+    }));
+    layer.querySelectorAll(".lblhit[data-seclabel]").forEach(rect=>rect.addEventListener("mousedown",e=>{
+      e.stopPropagation();const s=state.sectors.find(x=>x.id===rect.dataset.seclabel);if(!s)return;
+      selection={type:"sector",id:s.id};renderAll();s.label=s.label||{};
+      pushUndo();const start=toWorld(e.clientX,e.clientY),odx=s.label.dx||0,ody=s.label.dy||0;
+      drag={move:ev=>{const w=toWorld(ev.clientX,ev.clientY);s.label.dx=Math.round(odx+(w.x-start.x));s.label.dy=Math.round(ody+(w.y-start.y));renderLabels();},up:()=>{renderInspector();markDirty();}};
+    }));
   }
 }
 function renderAll(){renderSectors();renderInstances();renderInspector();updateStatus();updateTabBadges();}
