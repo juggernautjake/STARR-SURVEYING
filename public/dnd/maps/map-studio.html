@@ -1289,7 +1289,7 @@ function onInstDown(e,i){
   selection={type:"instance",id:i.id};renderAll();
   if(mode!=="dm")return;
   pushUndo();const start=toWorld(e.clientX,e.clientY),ox=i.x,oy=i.y;
-  drag={move:ev=>{const w=toWorld(ev.clientX,ev.clientY);i.x=ox+(w.x-start.x);i.y=oy+(w.y-start.y);reassoc(i);renderInstances();renderSectors();updateStatus();},up:()=>{renderInspector();}};
+  drag={move:ev=>{const w=toWorld(ev.clientX,ev.clientY);i.x=ox+(w.x-start.x);i.y=oy+(w.y-start.y);reassoc(i);renderInstances();renderSectors();updateStatus();},up:()=>{renderInspector();if(i.live&&window.__mapLivePush)window.__mapLivePush();}};
 }
 function onInstScaleDown(e,i){pushUndo();const cx=i.x,cy=i.y,start=toWorld(e.clientX,e.clientY);
   const sd=Math.hypot(start.x-cx,start.y-cy)||1,ow=i.w||i.size,oh=i.h||i.size,os=i.size;
@@ -1624,6 +1624,9 @@ function renderInstanceInspector(){
       <div class="actionbtns"><button id="iSpiralize">🌀 Apply layered spin</button></div>`:""}
     ${(i.kind==="image"||i.kind==="spingalaxy")?fadeControlsHTML(i):""}
     ${layerControlsHTML(true,i.behind)}
+    <h4>Live movement</h4>
+    <label class="chk" style="display:flex;align-items:center;gap:7px;font-size:12px;padding:4px 0;cursor:pointer"><input type="checkbox" id="iLive" ${i.live?"checked":""}> 🛰 Keep updated (live)</label>
+    <div style="font-size:11px;color:var(--faint)">Move this element mid-session and players see the new position within seconds (needs the map published to the campaign).</div>
     <div class="actionbtns"><button class="gold" id="iEdit">✎ Open in editor</button></div>
     <div class="actionbtns"><button id="iDupe">Duplicate</button><button class="danger" id="iDel">Delete</button></div>`;
   $("#iName").oninput=e=>{i.name=e.target.value;renderInstances();renderLabels();markDirty();};
@@ -1639,6 +1642,7 @@ function renderInstanceInspector(){
   if(i.kind==="spingalaxy")wireSpinGalaxyControls(i);
   if(i.kind==="image"||i.kind==="spingalaxy")wireFadeControls(i);
   wireLayerControls(state.instances,i);
+  {const lv=$("#iLive");if(lv)lv.onchange=e=>{i.live=e.target.checked;markDirty();if(i.live&&window.__mapLivePush)window.__mapLivePush();};}
   if(i.kind==="image"){const sb=$("#iSpiralize");if(sb)sb.onclick=()=>applySpinToInstance(i);
     const ff=$("#iImgFit");if(ff)ff.onchange=e=>{i.imgFit=e.target.value;const row=$("#iImgPosRow");if(row)row.style.display=i.imgFit==="cover"?"":"none";renderInstances();markDirty();};
     const px=$("#iPx");if(px)px.oninput=e=>{i.imgPosX=+e.target.value;$("#iPxV").textContent=i.imgPosX+"%";renderInstances();markDirty();};
@@ -1916,6 +1920,10 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
     if(j.map && j.map.id){ dbMapId = j.map.id; syncUrl(); }
     return j.map;
   }
+
+  // Debounced live push — the main code calls this when a "keep updated" element is moved, so
+  // players polling the console see the new position within a few seconds. No-op if never published.
+  window.__mapLivePush = (function(){ let t=null; return function(){ clearTimeout(t); t=setTimeout(()=>{ saveToCampaign().catch(()=>{}); }, 700); }; })();
 
   // PATCH published:true (saving first so players get the latest state).
   async function publishToPlayers(){

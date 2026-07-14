@@ -645,11 +645,12 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
   const campBtn = document.getElementById("campBtn");
   if(campBtn) campBtn.style.display = "none";   // localStorage list — not used on the platform
 
+  let mapId = null, lastStamp = null;
+  const liveSig = arr => (arr||[]).filter(x=>x.live).map(x=>x.id+":"+Math.round(x.x)+":"+Math.round(x.y)).sort().join("|");
   async function load(){
     try{
-      let mapId = wanted;
+      mapId = wanted;
       if(!mapId){
-        // No explicit map → find the campaign's published built map.
         const lr = await fetch(api);
         if(!lr.ok) return;
         const { maps } = await lr.json();
@@ -660,10 +661,28 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
       const r = await fetch(api + "?mapId=" + encodeURIComponent(mapId));
       if(!r.ok) return;
       const { map } = await r.json();
-      if(map && map.data){ loadMap(map.data); toast('◈ '+((map.name||"Campaign map")).toUpperCase()); }
+      if(map && map.data){ loadMap(map.data); lastStamp = map.updated_at||null; toast('◈ '+((map.name||"Campaign map")).toUpperCase()); }
     }catch(e){ /* offline / unmigrated → sample map stays */ }
   }
-  load();
+  // Poll for DM-moved "live" elements; update only those (keep the player's pan/zoom + selection).
+  async function poll(){
+    if(!mapId) return;
+    try{
+      const r = await fetch(api + "?mapId=" + encodeURIComponent(mapId));
+      if(!r.ok) return;
+      const { map } = await r.json();
+      if(!map || !map.data) return;
+      if(map.updated_at && map.updated_at === lastStamp) return;
+      lastStamp = map.updated_at || lastStamp;
+      if(liveSig(map.data.instances) === liveSig(MAP.instances)) return;   // no live change
+      const newInst = map.data.instances || [];
+      newInst.filter(n=>n.live).forEach(n=>{ const cur=(MAP.instances||[]).find(x=>x.id===n.id);
+        if(cur){ cur.x=n.x; cur.y=n.y; cur.live=true; } else { MAP.instances.push(n); } });
+      MAP.instances = (MAP.instances||[]).filter(ci => !(ci.live && !newInst.some(n=>n.id===ci.id && n.live)));
+      render();   // rebuild bodies/labels at the current view
+    }catch(e){}
+  }
+  load().then(()=>{ setInterval(poll, 4000); });
 })();
 </script>
 </body>

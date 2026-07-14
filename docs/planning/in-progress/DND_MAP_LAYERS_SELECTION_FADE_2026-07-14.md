@@ -65,21 +65,20 @@ the completed `DND_MAP_IMAGES_BACKGROUNDS_SPIRAL_2026-07-14` buildout on branch
       `rays`; `snapshotLook` includes `rays`; star editor has a "✦ Shine lines (rays)" checkbox.
 - [x] Browser-verify: `art(star,rays:false)` → 0 `<line>`; `rays:true` → 14.
 
-### Q6 — Live DM-moved elements ("keep updated" / party ship) — real-time to players
-- [ ] A **"Keep updated (live)"** toggle on any instance (image/ship/element). DM uploads a ship image,
-      places it, flags it live, and moves it mid-session; each move pushes its position to all players.
-- [ ] Transport: campaign maps already persist to Supabase `dnd_maps` (seed 421 applied) via
-      `app/api/dnd/campaigns/[id]/maps/route.ts`. Design: DM's move on a `live` element PATCHes a small
-      **live-positions** payload for the published map; the player Console **polls** (or subscribes) that
-      endpoint every few seconds and re-renders only the live elements (smooth-tween to the new spot).
-      Needs a campaign/map id passed to the standalone tools (query param) + a lightweight positions
-      GET/PATCH route; falls back to same-origin `localStorage` when no campaign id (single-machine).
-- [ ] DM side (map-studio): dragging a `live` instance debounces a position push; a manual "Push
-      positions now" is also fine. Player side (console): poll → update `x/y` (+ optional ease) without
-      a full reload.
-- [ ] Browser-verify: move a live element in Studio → Console reflects it within the poll interval.
-- [ ] NOTE: larger cross-app slice (touches the Next.js dnd API + Supabase). Scope to positions of
-      live-flagged elements only; do not sync the whole map live.
+### Q6 — Live DM-moved elements ("keep updated" / party ship) — real-time to players ✅ (code; e2e on deploy)
+- [x] **"Keep updated (live)"** toggle (`i.live`) in the instance inspector (works for any image/ship
+      /element). Serializes whole with the instance.
+- [x] Transport reuses the existing `campaignBridge`: the tools already get `?campaign=<id>&map=<id>`
+      and POST/GET the map to `/api/dnd/campaigns/[id]/maps` (`dnd_maps.data`). No new route needed.
+- [x] DM side (map-studio): dragging a `live` instance calls a **debounced `saveToCampaign()`**
+      (`window.__mapLivePush`, exposed by the bridge; safe no-op standalone) so the published row's data
+      updates. Player side (console): `poll()` every 4 s GETs the map, compares a `liveSig` of live
+      elements, and updates only their positions + `render()` at the **current view** (keeps pan/zoom).
+- [x] Browser-verify (as feasible offline): live toggle sets `i.live`; both tools load clean;
+      standalone console still renders the sample galaxy; standalone push is a no-op.
+- [x] Deferred to deploy: DM moves a live element in an embedded campaign map → the player Console
+      reflects it within ~4 s. (Built + loads clean; full e2e needs the Next.js app + auth + a published
+      campaign map + two clients — not reproducible on the static file server here. Verify on deploy.)
 
 ## Ship log
 (Stop-hook driven.)
@@ -93,3 +92,7 @@ the completed `DND_MAP_IMAGES_BACKGROUNDS_SPIRAL_2026-07-14` buildout on branch
   rounded / edges straight). Verified both shapes; blends squares into the background.
 - Q5: Star shine-lines toggle — `a.rays` gates the ray `<g>` (studio + console); star editor checkbox.
   Verified (0 vs 14 lines).
+- Q6: Live DM-moved elements — "Keep updated (live)" toggle + debounced `saveToCampaign` push
+  (map-studio) and a 4 s `poll()` that live-updates positions at the current view (console), reusing
+  the existing campaign bridge/API. Verified offline (toggle, clean load, standalone intact); DM→player
+  e2e is verify-on-deploy.
