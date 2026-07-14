@@ -66,6 +66,7 @@
   .canvaswrap{flex:1;position:relative;min-width:0;background:radial-gradient(ellipse 65% 55% at 50% 45%,#140d33,#0a0720 55%,#06040f);overflow:hidden;}
   #canvas{position:absolute;inset:0;}
   #canvas.pan{cursor:grab;}#canvas.panning{cursor:grabbing;}#canvas.pen{cursor:crosshair;}
+  #bgLayer{position:absolute;inset:0;z-index:0;pointer-events:none;background-position:center center;background-repeat:no-repeat;display:none;}
   #fxCanvas{position:absolute;inset:0;pointer-events:none;z-index:3;}
   #svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:1;}
   .bodyLayer{position:absolute;inset:0;transform-origin:0 0;z-index:2;}
@@ -238,7 +239,7 @@
       <button id="btnAddText" title="Add a free-floating text label — name a location, route, or region">🅣 Text</button>
       <button data-tool="fx" title="Map ambience & effects">✧ Effects</button>
     </div>
-    <div id="canvas"><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><canvas id="fxCanvas"></canvas><svg id="labelLayer"></svg></div>
+    <div id="canvas"><div id="bgLayer"></div><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><canvas id="fxCanvas"></canvas><svg id="labelLayer"></svg></div>
   </div>
   <div class="insp">
     <div class="ihead" id="inspHead">◈ INSPECTOR</div>
@@ -766,6 +767,32 @@ function setTab(id){curTab=id;document.querySelectorAll(".tab").forEach(b=>b.cla
 function assetsOfTab(id){const kind=tabDef(id).kind;return state.assets.filter(a=>a.kind===kind);}
 function updateTabBadges(){TABS.forEach(t=>{const n=assetsOfTab(t.id).length;const b=tabRail.querySelector(`[data-tab="${t.id}"] .badge`);if(b){b.style.display=n?"block":"none";b.textContent=n;}});}
 
+function renderBackdropTab(grid){
+  const bg=state.background,isImg=bg&&bg.mode==="image";
+  $("#libSub").innerHTML='Set a whole-map backdrop — import an image, use the built-in starfield, or build a color gradient.';
+  const wrap=document.createElement("div");wrap.style.cssText="display:flex;flex-direction:column;gap:8px;margin-bottom:10px";
+  wrap.innerHTML=`
+    <button class="dsimport" id="bgImport">↑ Import image background…</button>
+    <button class="dsimport" id="bgStarfield" style="background:linear-gradient(90deg,#12203a,#0c1830)">✦ Built-in starfield</button>
+    ${isImg?`<div style="border:1px solid var(--line);border-radius:8px;padding:9px 10px;display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:11px;color:var(--gold)">◈ Image backdrop active</div>
+      <label style="font-size:10.5px;color:var(--dim)">Fit<select id="bgFit" style="width:100%;margin-top:3px">${["cover","contain","stretch","tile"].map(o=>`<option ${bg.fit===o?"selected":""}>${o}</option>`).join("")}</select></label>
+      <label style="font-size:10.5px;color:var(--dim)">Size <span id="bgSizeV" style="float:right;color:var(--gold)">${Math.round((bg.size||1)*100)}%</span><input type="range" id="bgSize" min="20" max="300" value="${Math.round((bg.size||1)*100)}" style="width:100%"></label>
+      <label style="font-size:10.5px;color:var(--dim)">Opacity <span id="bgOpV" style="float:right;color:var(--gold)">${Math.round((bg.opacity!=null?bg.opacity:1)*100)}%</span><input type="range" id="bgOp" min="0" max="100" value="${Math.round((bg.opacity!=null?bg.opacity:1)*100)}" style="width:100%"></label>
+      <button class="dsimport" id="bgClear" style="background:#3a1420;border-color:#c6403b">✕ Remove backdrop</button>
+    </div>`:``}
+    <div style="font-size:10.5px;color:var(--faint)">Or build a color-gradient backdrop with <b>＋ New</b>, then click it to apply.</div>`;
+  grid.appendChild(wrap);
+  assetsOfTab("background").forEach(a=>{const el=document.createElement("div");el.className="asset";
+    el.innerHTML=`<div class="thumb" style="background:radial-gradient(circle at 50% 45%, ${a.c1}, ${a.c2} 72%, #06040f);border-radius:8px"></div><div class="an">${esc(a.name)}</div><button class="edit" title="Edit">✎</button>`;
+    el.querySelector(".edit").onclick=e=>{e.stopPropagation();openEditor(a,"edit");};
+    el.addEventListener("mousedown",e=>{if(e.target.closest(".edit"))return;applyBackground(a);});grid.appendChild(el);});
+  $("#bgImport").onclick=importBackgroundImage;$("#bgStarfield").onclick=useStarfieldBackground;
+  if(isImg){$("#bgFit").onchange=e=>{state.background.fit=e.target.value;renderBackground();markDirty();};
+    $("#bgSize").oninput=e=>{state.background.size=+e.target.value/100;$("#bgSizeV").textContent=e.target.value+"%";renderBackground();markDirty();};
+    $("#bgOp").oninput=e=>{state.background.opacity=+e.target.value/100;$("#bgOpV").textContent=e.target.value+"%";renderBackground();markDirty();};
+    $("#bgClear").onclick=clearBackground;}
+}
 function renderLibrary(){
   const t=tabDef(curTab);
   $("#libTitle").textContent="◈ "+t.label.toUpperCase();
@@ -775,6 +802,7 @@ function renderLibrary(){
   if(t.kind==="spingalaxy"){$("#libSub").innerHTML='Upload a galaxy image (or import a config from the Diff-Spin tool). It slices into rings that spin independently.';}
   if(t.kind==="image"){$("#libSub").innerHTML='Drop in any image — <b>png, jpg, gif, webp, svg</b>. It places at full size and can be scaled, rotated, and made transparent.';}
   if(t.kind==="planet3d"){$("#libSub").innerHTML='Build a world in the <b>3D Planet Generator</b>, export it as a <b>.planet3d</b>, then import it here. It spins on the map as a real 3D model.';}
+  if(t.kind==="background"){renderBackdropTab(grid);updateTabBadges();return;}
   if(!list.length){
     if(t.kind==="spingalaxy"){grid.innerHTML=`<div class="libempty"><div class="big">🌌</div>No spinning galaxies yet.<br><br><button class="dsimport" id="dsImportEmpty">↑ Import / upload image…</button></div>`;const b=$("#dsImportEmpty");if(b)b.onclick=()=>importSpinGalaxy();updateTabBadges();mountDiffspinLibrary();return;}
     if(t.kind==="image"){grid.innerHTML=`<div class="libempty"><div class="big">🖼</div>No images yet.<br><br><button class="dsimport" id="imgImportEmpty">↑ Import an image (png/jpg/gif/svg)…</button></div>`;const b=$("#imgImportEmpty");if(b)b.onclick=()=>importImage();updateTabBadges();return;}
@@ -931,6 +959,28 @@ function clearPending(){pending=null;ghost.style.display="none";$("#placeBar").c
 function snapshotLook(a){const {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,image,src,natW,natH,dsCfg,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames}=a;
   return {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,image,src,natW,natH,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames,dsCfg:dsCfg?JSON.parse(JSON.stringify(dsCfg)):undefined};}
 function applyBackground(a){pushUndo();state.background=snapshotLook(a);renderAll();markDirty();toast("Backdrop set");}
+// Render an image backdrop into #bgLayer (screen-space, behind everything). "size" scales it so the
+// backdrop size the user picks actually changes what's shown; opacity lets the gradient show through.
+function renderBackground(){
+  const L=$("#bgLayer");if(!L)return;const bg=state.background;
+  if(bg&&bg.mode==="image"&&bg.src){
+    const fit=bg.fit||"cover",s=bg.size!=null?bg.size:1,pct=Math.round(s*100);
+    L.style.display="block";L.style.opacity=bg.opacity!=null?bg.opacity:1;L.style.backgroundImage=`url("${bg.src}")`;
+    if(fit==="tile"){L.style.backgroundRepeat="repeat";L.style.backgroundSize=pct+"%";}
+    else if(fit==="stretch"){L.style.backgroundRepeat="no-repeat";L.style.backgroundSize=pct+"% "+pct+"%";}
+    else{L.style.backgroundRepeat="no-repeat";L.style.backgroundSize=(s===1?(fit==="contain"?"contain":"cover"):pct+"% auto");}
+  } else {L.style.display="none";L.style.backgroundImage="";}
+}
+function setImageBackground(src){pushUndo();state.background={mode:"image",src,fit:"cover",size:1,opacity:1};renderAll();renderLibrary();markDirty();toast("Image backdrop set");}
+function importBackgroundImage(){
+  const inp=document.createElement("input");inp.type="file";inp.accept="image/*,.svg";
+  inp.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>setImageBackground(ev.target.result);r.readAsDataURL(f);};
+  inp.click();
+}
+function useStarfieldBackground(){ // built-in backdrop, inlined as a data URL so exported maps keep it
+  fetch("assets/starfield.svg").then(r=>r.text()).then(txt=>{setImageBackground("data:image/svg+xml;utf8,"+encodeURIComponent(txt));}).catch(()=>toast("Couldn't load the built-in starfield"));
+}
+function clearBackground(){pushUndo();state.background=null;renderAll();renderLibrary();markDirty();toast("Backdrop cleared");}
 function createSectorFromSystem(a,x,y){pushUndo();const rx=180,ry=140;const pts=[];const rng=mulberry(a.seed||1);
   for(let i=0;i<12;i++){const an=i/12*6.28,jit=0.78+rng()*0.4;pts.push({x:x+Math.cos(an)*rx*jit,y:y+Math.sin(an)*ry*jit});}
   const s={id:uid(),name:a.name,color:a.c1,points:pts,creed:a.creed||"",desc:"",fx:{sparkle:false,nebula:false,nebulaColor:a.c1,shoot:false}};
@@ -1025,7 +1075,9 @@ function renderSectors(){
 }
 function renderInstances(){
   const layer=$("#bodyLayer");layer.innerHTML="";
-  $("#canvas").style.background=state.background?`radial-gradient(ellipse 70% 60% at 50% 45%, ${state.background.c1}55, ${state.background.c2}33 55%, #06040f)`:"";
+  const bgg=state.background;
+  $("#canvas").style.background=(bgg&&bgg.mode!=="image")?`radial-gradient(ellipse 70% 60% at 50% 45%, ${bgg.c1}55, ${bgg.c2}33 55%, #06040f)`:"";
+  renderBackground();
   state.instances.forEach(i=>{
     if(i.kind==="text")return;   // free text objects live entirely in the label layer
     const seld=selection&&selection.type==="instance"&&selection.id===i.id;

@@ -124,16 +124,17 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
 - [x] Browser-verify: image placed + rotated 20° shows handles and rotates; planet renders normally;
       instances serialize whole so w/h/rot/opacity persist. (screenshot in session)
 
-### P4 — Image background that actually renders + honors size
-- [ ] Extend `state.background` with image mode `{mode:'image', src, fit, size, opacity}`; keep
-      gradient/look mode working.
-- [ ] Backdrop tab: import an image (`image/*`), pick fit (cover/contain/stretch/tile), size slider,
-      opacity; or use the generated backdrop as before.
-- [ ] Render the background as a dedicated full-canvas layer **behind** sectors/bodies/fx; **audit
-      z-index + the mapFx/nebula/gradient overlays** so nothing covers it (fixes "doesn't show up").
-- [ ] Ship `Downloads/Starfield.svg` into `public/dnd/maps/assets/` as a built-in backdrop option.
-- [ ] Browser-verify: set an image background at two different sizes → the change is visible and the
-      size visibly matters; overlays don't hide it.
+### P4 — Image background that actually renders + honors size ✅
+- [x] `state.background` image mode `{mode:'image', src, fit, size, opacity}`; gradient/look mode
+      still works (gradient line guarded on `mode!=='image'`).
+- [x] Backdrop tab panel: import image, built-in starfield, fit (cover/contain/stretch/tile), size,
+      opacity, remove; gradient presets still applyable.
+- [x] New `#bgLayer` (z-index 0, behind `#svg`); nebula tint only paints when no background, so
+      nothing covers the image (fixes "doesn't show up").
+- [x] `Starfield.svg` shipped to `public/dnd/maps/assets/starfield.svg`; built-in inlines it as a
+      data URL so exported maps keep it.
+- [x] Browser-verify: image backdrop fills at cover; size 40% visibly shrinks it; panel controls
+      present. (screenshots in session)
 
 ### P5 — Spiralize any image + 7-layer spiral with per-layer speed
 - [ ] Add "Spiralize" (apply DiffSpin) to any `image` asset → produces a spinning layered instance.
@@ -188,3 +189,5 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
 - P3: On-map corner-scale + rotate handles for every instance kind; inspector size/rotation/opacity;
   Shift-snap rotation. Verified in-browser (image rotated with handles). Added slices P8 (3D
   edit/spin) + P9 (draggable labels) to the plan.
+- P4: Image backgrounds — `#bgLayer` renders image backdrops behind everything (fixes "doesn't show
+  up"); Backdrop panel with import/built-in-starfield/fit/size/opacity/remove; size honored. Verified.
