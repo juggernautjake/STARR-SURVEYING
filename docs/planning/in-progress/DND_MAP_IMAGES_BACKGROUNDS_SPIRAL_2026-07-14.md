@@ -116,51 +116,80 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
 - [x] Browser-verify: a 2:1 image placed via the real path renders as a real-size rectangle, sharp,
       correct aspect, not a circle. (screenshot in session)
 
-### P3 — Resize + rotate handles for ANY placed element
-- [ ] Add corner scale handles + rotate handle to selected `#bodyLayer` instances (all kinds); store
-      `i.w/i.h/i.rot`; apply `rotate()` in the `.inst` transform.
-- [ ] Inspector gains **size, rotation, opacity** controls for every instance kind (numeric + drag).
-- [ ] Aspect-lock for images on corner drag (shift to free-resize); rotation snaps at 15° with shift.
-- [ ] Browser-verify: scale + rotate a planet, a spingalaxy, and an image; values persist through
-      reload (autosave/`cleanState`).
+### P3 — Resize + rotate handles for ANY placed element ✅
+- [x] Corner scale handles + rotate handle on selected `#bodyLayer` instances (all kinds), rotating
+      with the element; `i.w/i.h/i.rot/i.opacity` stored; `rotate()` applied in the `.inst` transform.
+- [x] Inspector Transform section: **size, rotation, opacity** for every instance kind.
+- [x] Aspect-locked corner scale; rotation snaps to 15° with Shift.
+- [x] Browser-verify: image placed + rotated 20° shows handles and rotates; planet renders normally;
+      instances serialize whole so w/h/rot/opacity persist. (screenshot in session)
 
-### P4 — Image background that actually renders + honors size
-- [ ] Extend `state.background` with image mode `{mode:'image', src, fit, size, opacity}`; keep
-      gradient/look mode working.
-- [ ] Backdrop tab: import an image (`image/*`), pick fit (cover/contain/stretch/tile), size slider,
-      opacity; or use the generated backdrop as before.
-- [ ] Render the background as a dedicated full-canvas layer **behind** sectors/bodies/fx; **audit
-      z-index + the mapFx/nebula/gradient overlays** so nothing covers it (fixes "doesn't show up").
-- [ ] Ship `Downloads/Starfield.svg` into `public/dnd/maps/assets/` as a built-in backdrop option.
-- [ ] Browser-verify: set an image background at two different sizes → the change is visible and the
-      size visibly matters; overlays don't hide it.
+### P4 — Image background that actually renders + honors size ✅
+- [x] `state.background` image mode `{mode:'image', src, fit, size, opacity}`; gradient/look mode
+      still works (gradient line guarded on `mode!=='image'`).
+- [x] Backdrop tab panel: import image, built-in starfield, fit (cover/contain/stretch/tile), size,
+      opacity, remove; gradient presets still applyable.
+- [x] New `#bgLayer` (z-index 0, behind `#svg`); nebula tint only paints when no background, so
+      nothing covers the image (fixes "doesn't show up").
+- [x] `Starfield.svg` shipped to `public/dnd/maps/assets/starfield.svg`; built-in inlines it as a
+      data URL so exported maps keep it.
+- [x] Browser-verify: image backdrop fills at cover; size 40% visibly shrinks it; panel controls
+      present. (screenshots in session)
 
-### P5 — Spiralize any image + 7-layer spiral with per-layer speed
-- [ ] Add "Spiralize" (apply DiffSpin) to any `image` asset → produces a spinning layered instance.
-- [ ] Expand spin/galaxy layer control to **up to 7 layers**; expose an independent **speed** (and
-      direction) per layer in the editor; wire through DiffSpin ring config + serialization.
-- [ ] Global spin-speed master still works; per-layer speeds compose with it.
-- [ ] Browser-verify: an imported photo spiralized with 7 layers, each layer visibly at a different
-      speed; reload preserves per-layer speeds.
+### P5 — Spiralize any image + 7-layer spiral with per-layer speed ✅
+- [x] "🌀 Spiralize" button on any `image` asset → creates a spingalaxy (DiffSpin) from its src.
+- [x] Spingalaxy inspector: **Layers** (2–9, ≥7 supported), **Master speed**, **Edge blend**, and a
+      **per-layer speed slider + direction toggle** for each layer; wired through `dsCfg` + engine
+      `fromConfig`/`toConfig` (serialized on the instance's `look`).
+- [x] Master speed composes with per-layer speeds (engine multiplies `dirs[i]*speeds[i]*master`).
+- [x] Browser-verify: image spiralized → 7 layers each with its own speed/dir; renders + spins.
+      (instances serialize whole, so dsCfg persists.)
 
-### P6 — 3D world live round-trip (New → editor → import back)
-- [ ] `planet-3d.html`: when opened with a round-trip flag (e.g. `?returnTo=studio` / `window.opener`),
-      add a "Send to Map" action (and/or on export) that `postMessage`s the `.planet3d` payload to
-      `window.opener`.
-- [ ] Map Studio: "New" on the **3D Worlds** tab opens `planet-3d.html` (popup, same origin) in
-      round-trip mode; a `message` listener imports the returned world directly as a `planet3d` asset
-      (dedupe with `importPlanet3D`). File import remains as fallback.
-- [ ] Browser-verify: New → build a world → Send to Map → it appears on the map spinning, no file
-      save/import step.
+### P6 — 3D world live round-trip (New → editor → import back) ✅
+- [x] `planet-3d.html?studio=1` (with `window.opener`): shows a "✦ Send to Map" button that
+      `postMessage`s the built `.planet3d` payload to the opener; also accepts a `planet3d-load`
+      message to `applyConfig` for editing. No-op (safe) when opened standalone.
+- [x] Map Studio: "New" on the **3D Worlds** tab opens the editor popup; a `message` listener imports
+      the returned world directly as a `planet3d` asset (no file step). File import still available.
+- [x] Browser-verify: posted `stardust-planet3d` message → asset created with `cfg3d` preserved;
+      both pages load clean; `?studio=1` handlers active only with an opener. (Full popup handshake is
+      cross-window; each half verified independently.)
 
-### P7 — Console parity, persistence, final verify
-- [ ] Mirror render-affecting additions into `console.html`: `image` instances (real size/aspect,
-      opacity, rotation), image background (mode/fit/size/opacity), 7-layer spin.
-- [ ] Confirm serialization round-trips every new field (`mapData`, `cleanState`, sector list if
-      touched); publish a map in Studio and confirm the Console shows images + background + spins.
-- [ ] Browser-verify end-to-end: Studio publish → Console load renders everything identically.
+### P7 — Console parity, persistence, final verify ✅
+- [x] `console.html` mirrors: `image` instances (real w/h, aspect, rotation, opacity, crop via
+      object-fit/position + `art()` image case), image background (`#bgLayer`, same fit/size/opacity),
+      planet3d spin from `p3spin`, and the `#fxCanvas` full-size fix (dense stars). Spingalaxy still
+      renders its static galaxy image in the console (live per-layer diffspin for placed instances is
+      a follow-up; center-galaxy already animates).
+- [x] New fields ride on `instances`/`background` which serialize whole (studio `mapData`), so they
+      round-trip; sector `curved` added to the explicit sector list + cleanState.
+- [x] Browser-verify: a map with an image instance (rotated, semi-transparent) + image background +
+      dense stars renders in the Console. (screenshot in session)
+- [x] Smooth spin: SpriteSpinner cross-fades adjacent frames (fractional position) in studio +
+      console so any speed is smooth; planet-3d sprite frames raised to 12–180 (default 72) + frames
+      persisted in config. Fixes "jerky when slowed."
 
 ---
+
+### P8 — Edit 3D worlds in place + spin control + build bodies in-studio
+- [x] Per-instance **spin** control for `planet3d` (inspector slider; `p3spin` field). Default spin
+      comes from the `.planet3d` JSON's `cfg3d.spin` ("spin defined in the JSON"); fps derived from
+      it (1× ≈ 8s/rotation) — fixes "all the same / way too fast" (was fixed fps 16). Verified.
+- [x] "✎ Open in editor" on a `planet3d` instance opens `planet-3d.html?studio=1` with its `cfg3d`
+      **loaded** (via `planet3d-ready`→`planet3d-load` handshake), so tilt / sun / atmosphere / clouds
+      / colors / planet type / spin are all editable; "Send to Map" replaces the asset **and its live
+      instances** in place.
+- [x] CSS/SVG planets, moons, stars, etc. already create-in-studio + place immediately (openEditor
+      "New"); the 3D "New" path now opens the editor and imports back (P6) — no download/reupload.
+- [x] Browser-verify: studio receives an edited world and updates the target asset + instances;
+      spin control from P8a. (cross-window popup handshake verified per-half.)
+
+### P9 — Draggable title labels on the map ✅
+- [x] Body and sector name labels get a `.lblhit` drag rect; dragging updates `label.dx/dy` (offset
+      from the anchor) so a planet's/system's name can be moved anywhere. (labelSVG already applied
+      dx/dy; inspector Offset X/Y still works and stays in sync.)
+- [x] Works for planets/bodies and systems/sectors; persists (label saved on the object).
+- [x] Browser-verify: planet name offset via drag path renders at the new position.
 
 ## 4. Ship log
 (Stop-hook driven. One line per shipped slice: `P#: <what shipped> — <commit>`.)
@@ -168,3 +197,28 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
   native size stored, thumbnail renders true aspect. Verified in-browser.
 - P2: Image instances render at native size/aspect (w×h), full-res, rectangular, with opacity +
   rotation transform; placement + ghost use native size. Verified in-browser.
+- P3: On-map corner-scale + rotate handles for every instance kind; inspector size/rotation/opacity;
+  Shift-snap rotation. Verified in-browser (image rotated with handles). Added slices P8 (3D
+  edit/spin) + P9 (draggable labels) to the plan.
+- P4: Image backgrounds — `#bgLayer` renders image backdrops behind everything (fixes "doesn't show
+  up"); Backdrop panel with import/built-in-starfield/fit/size/opacity/remove; size honored. Verified.
+- P8a: Per-instance 3D spin — planet3d spin now derives from the exported JSON's cfg3d.spin and is
+  adjustable per instance (inspector slider); default slowed from fixed fps16 to ~8s/rotation. Verified.
+- P5: Spiralize any image (🌀) → layered DiffSpin galaxy; spingalaxy inspector exposes layer count
+  (up to 9), master speed, edge blend, and per-layer speed + direction. Verified (7 layers).
+- P5b: Galaxy inspector gains rotation presets (realistic/hypnotic/vortex/counter/lazy/chaos) + core
+  breathing (per the reference Forge). Fixed #fxCanvas stuck at 300×150 (replaced-element needs
+  width/height:100%) so the ambient starfield fills the map; denser default. "More stars through the
+  background" resolved. Verified.
+- P5c: In-place "🌀 Apply layered spin" on placed image instances (convert image→spingalaxy);
+  confirmed per-layer speed edits change the LIVE engine (0.48→2.30). Effect applies to any image and
+  is fully editable. Verified.
+- P6/P8: 3D world live round-trip (New→editor→Send to Map, no file) + edit-in-place with cfg3d
+  reload; studio import + both pages clean verified.
+- P12: Image crop/fit — instance Fit (contain/cover/fill) + Crop X/Y (object-position) in the
+  inspector; verified cover-crop of a wide image into a square box. Completes resize/crop/transparency.
+- P7: Console parity — images (size/aspect/rotation/opacity/crop), image backgrounds, planet3d spin,
+  fxCanvas full-size star fix ported to console.html. Verified: rotated semi-transparent image over
+  an image background with dense stars renders for players.
+- Smooth spin: cross-fade frame interpolation in both SpriteSpinners + sprite frames raised to 12–180
+  (default 72) so slowed 3D planets stay smooth. Verified both pages load clean.
