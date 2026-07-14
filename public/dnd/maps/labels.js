@@ -198,7 +198,8 @@
   }
 
   /* ---- shared inspector UI (used by the studio; harmless if unused) ---------- */
-  function labelControlsHTML(style, p) {
+  function labelControlsHTML(style, p, opts) {
+    opts = opts || {};
     var st = mergeLabelStyle(style);
     var fontOpts = LABEL_FONTS.map(function (f) { return '<option value="' + f.id + '"' + (st.font === f.id ? ' selected' : '') + '>' + f.label + '</option>'; }).join('');
     var alignOpts = [['start', 'Left'], ['middle', 'Center'], ['end', 'Right']].map(function (a) { return '<option value="' + a[0] + '"' + (st.align === a[0] ? ' selected' : '') + '>' + a[1] + '</option>'; }).join('');
@@ -206,11 +207,12 @@
       return '<div class="field"><label>' + lab + ' <span style="float:right;color:var(--gold)" id="' + p + idp + 'V">' + val + (suffix || '') + '</span></label><div class="slider"><input type="range" id="' + p + idp + '" min="' + min + '" max="' + max + '" value="' + val + '"></div></div>';
     }
     return '' +
-      '<label class="chk"><input type="checkbox" id="' + p + 'Show"' + (st.show ? ' checked' : '') + '> Show label on map</label>' +
+      // the host inspector can render its own prominent Show toggle instead (opts.noShow)
+      (opts.noShow ? '' : '<label class="chk"><input type="checkbox" id="' + p + 'Show"' + (st.show ? ' checked' : '') + '> Show label on map</label>') +
       '<div class="field"><label>Font</label><select id="' + p + 'Font">' + fontOpts + '</select></div>' +
       '<div class="rowc"><div class="field"><label>Color</label><input type="color" id="' + p + 'Color" value="' + st.color + '"></div>' +
         '<div class="field"><label>Align</label><select id="' + p + 'Align">' + alignOpts + '</select></div></div>' +
-      slider('Size', 'Size', 8, 90, st.size, 'px') +
+      slider('Size', 'Text size', 8, 240, st.size, 'px') +
       slider('Weight', 'Weight', 300, 900, st.weight) +
       slider('Track', 'Letter-spacing', -2, 20, st.tracking, 'px') +
       '<label class="chk"><input type="checkbox" id="' + p + 'Italic"' + (st.italic ? ' checked' : '') + '> Italic</label>' +

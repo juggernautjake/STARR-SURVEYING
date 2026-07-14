@@ -1546,6 +1546,7 @@ function renderInstanceInspector(){
   i.label=i.label||Object.assign({},BODY_LABEL_DEFAULT);
   box.innerHTML=`
     <div class="field"><label>Name</label><input id="iName" value="${esc(i.name)}"></div>
+    <label class="chk" style="margin:2px 0 10px"><input type="checkbox" id="iNameShow" ${i.label.show!==false?"checked":""}> 👁 Show this name on the map</label>
     <h4>Association</h4>
     <div class="assoc">${sec?`<span class="cd" style="background:${sec.color}"></span>${esc(sec.name)}`:'<span style="color:var(--faint)">Not inside any system — drag into one</span>'}</div>
     <h4>◈ Points of Interest (${(i.pois||[]).length})<span class="add" id="poiAdd" title="Add a POI at the center">＋</span></h4>
@@ -1557,7 +1558,7 @@ function renderInstanceInspector(){
     <h4>Effects</h4>${fxControls(i,()=>{renderInstances();markDirty();},true)}
     <h4>Info</h4>
     <div class="field"><label>Description</label><textarea id="iDesc" placeholder="Lore, notes, hover text…">${esc(i.desc)}</textarea></div>
-    <details class="lblsec"><summary>◈ Label &amp; text formatting</summary><div style="font-size:11px;color:var(--faint);margin:4px 0 8px">The label shows the body's <b>name</b> on the map. Format its font, size, color, effects, and shape.</div>${labelControlsHTML(i.label,'il')}</details>
+    <details class="lblsec" open><summary>◈ Name text — size, colour, glow &amp; effects</summary><div style="font-size:11px;color:var(--faint);margin:4px 0 8px">Make the name bigger with <b>Text size</b>, pick a font/colour, and add glow, pulse, outline, curve or rotation. Toggle <b>Show this name</b> above to hide or reveal it.</div>${labelControlsHTML(i.label,'il',{noShow:true})}</details>
     <h4>Transform</h4>
     <div class="field"><label>Size <span style="float:right;color:var(--gold)" id="iSzV">${i.size}</span></label><div class="slider"><input type="range" id="iSize" min="8" max="800" value="${Math.min(800,i.size)}"></div></div>
     <div class="field"><label>Rotation <span style="float:right;color:var(--gold)" id="iRotV">${i.rot||0}°</span></label><div class="slider"><input type="range" id="iRot" min="-180" max="180" value="${i.rot||0}"></div></div>
@@ -1575,6 +1576,7 @@ function renderInstanceInspector(){
     <div class="actionbtns"><button class="gold" id="iEdit">✎ Open in editor</button></div>
     <div class="actionbtns"><button id="iDupe">Duplicate</button><button class="danger" id="iDel">Delete</button></div>`;
   $("#iName").oninput=e=>{i.name=e.target.value;renderInstances();renderLabels();markDirty();};
+  $("#iNameShow").onchange=e=>{i.label.show=e.target.checked;renderLabels();markDirty();};
   $("#iParent").onchange=e=>{i.orbitParent=e.target.value;markDirty();};
   $("#iRad").oninput=e=>{i.orbitRadius=+e.target.value;markDirty();};
   $("#iSpd").oninput=e=>{i.orbitSpeed=+e.target.value;markDirty();};
