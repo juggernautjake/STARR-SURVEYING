@@ -110,8 +110,13 @@ existing save/publish → DB path (no schema/API change — `dnd_maps.data` alre
 - **Slice 2 — Instance labels (Studio):** add `#labelLayer`; route body names through `labelSVG`
   (retire `.nm`); add a **"Label"** formatting section to the instance inspector (font/size/effects/
   wrap/curve/rotate/offset/plate). Persists via whole-instance serialization.
-- **Slice 3 — Sector/system labels (Studio):** sector name via `labelSVG` in the label layer; a
-  **"Label"** section in the sector inspector; add label fields to `mapData()` + `cleanState()`.
+- **Slice 3 — Sector/system labels (Studio)** ✅ — sector names now render through `labelSVG` into
+  `#labelLayer` at the polygon centroid (the old inline SVG `<text>` removed). A **"◈ Label & text
+  formatting"** section was added to the sector inspector; it displays the *effective* style but
+  writes only sparse overrides to `s.label`, so an untouched label keeps following the system's
+  color dynamically. `label` was added to the sector serialization whitelist in **both** `mapData()`
+  and `cleanState()`. Verified headless: sector names render (incl. curved/uppercase/glow), old
+  inline text gone, `s.label` round-trips, untouched sectors stay clean.
 - **Slice 4 — Text/Label object kind (Studio):** new "Text" tab + `kind:'text'` placeable for
   **locations**/annotations; place/move/rotate; full formatting inspector; select/delete/duplicate.
 - **Slice 5 — POI descriptions + labels (Studio):** POI click → description in the play-mode

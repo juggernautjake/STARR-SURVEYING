@@ -963,7 +963,7 @@ function renderSectors(){
     // per-sector sparkles
     if(s.fx&&s.fx.sparkle){const rng=mulberry((s.id.charCodeAt(3)||5)*7);for(let i=0;i<14;i++){const x=bb.x+rng()*bb.w,y=bb.y+rng()*bb.h;if(!pointInPoly({x,y},s.points))continue;
       const c=document.createElementNS(NS,"circle");c.setAttribute("cx",x.toFixed(0));c.setAttribute("cy",y.toFixed(0));c.setAttribute("r",(0.6+rng()*1.6).toFixed(1));c.setAttribute("fill","#fff");c.style.animation=`twinkle ${(1.4+rng()*2).toFixed(1)}s ease-in-out infinite`;c.style.animationDelay=(rng()*3).toFixed(1)+"s";c.style.pointerEvents="none";svg.appendChild(c);}}
-    const c=s._centroid;const t=document.createElementNS(NS,"text");t.setAttribute("x",c.x);t.setAttribute("y",c.y-Math.sqrt(s._area)*0.34);t.setAttribute("text-anchor","middle");t.setAttribute("fill",s.color);t.setAttribute("font-family","Cinzel,serif");t.setAttribute("font-size",isSub?15:20);t.setAttribute("font-weight","600");t.setAttribute("letter-spacing","2");t.setAttribute("opacity",isSub?"0.8":"0.95");t.style.pointerEvents="none";t.textContent=s.name;svg.appendChild(t);
+    // sector name is drawn by renderLabels() into #labelLayer so it can be fully formatted
     if(sel&&mode==="dm"){
       const vs=view.scale,hs=10/vs,off=44/vs,sw=1.5/vs;
       let mnx=1e9,mny=1e9,mxx=-1e9,mxy=-1e9;s.points.forEach(pt=>{mnx=Math.min(mnx,pt.x);mny=Math.min(mny,pt.y);mxx=Math.max(mxx,pt.x);mxy=Math.max(mxy,pt.y);});
@@ -1021,9 +1021,20 @@ function poiLayerHTML(i){
 // Body name labels default a little smaller/cooler than a title; the DM can override everything.
 const BODY_LABEL_DEFAULT={font:'Rajdhani',size:13,weight:600,color:'#e8e6ff',tracking:0.4,shadow:true};
 function bodyLabelStyle(i){return mergeLabelStyle(Object.assign({},BODY_LABEL_DEFAULT,i.label||{}));}
+// System labels default to the sector's own color (unless the DM overrides it) and Cinzel caps feel.
+const SECTOR_LABEL_DEFAULT={font:'Cinzel',weight:600,tracking:2,shadow:true};
+function sectorLabelStyle(s){const isSub=!!s.parent;const base=Object.assign({size:isSub?15:20,color:s.color,opacity:isSub?0.85:0.98},SECTOR_LABEL_DEFAULT);return mergeLabelStyle(Object.assign(base,s.label||{}));}
 function renderLabels(){
   const layer=$("#labelLayer");if(!layer||typeof labelSVG!=="function"){if(layer)layer.innerHTML="";return;}
   let out="";
+  // system/sector names first (so body labels sit on top where they overlap)
+  state.sectors.forEach(s=>{
+    const st=sectorLabelStyle(s);if(st.show===false)return;
+    const r=labelSVG(s.name,st);if(!r.g)return;
+    const c=s._centroid;if(!c)return;
+    const cy=c.y-Math.sqrt(s._area||0)*0.34-st.size*0.4;
+    out+=`<g transform="translate(${c.x.toFixed(1)},${cy.toFixed(1)})">${r.g}</g>`;
+  });
   state.instances.forEach(i=>{
     if(i.kind==="text")return;                 // free text objects are their own kind (later slice)
     const st=bodyLabelStyle(i);if(st.show===false)return;
@@ -1201,6 +1212,7 @@ function renderSectorInspector(){
     ${parent?`<div class="field"><label>Nested inside</label><div class="assoc"><span class="cd" style="background:${parent.color}"></span>${esc(parent.name)}</div></div>`:``}
     <div class="field"><label>Creed / motto</label><input id="sCreed" value="${esc(s.creed)}"></div>
     <div class="field"><label>Description</label><textarea id="sDesc">${esc(s.desc)}</textarea></div>
+    <details class="lblsec"><summary>◈ Label &amp; text formatting</summary><div style="font-size:11px;color:var(--faint);margin:4px 0 8px">Formats the system's <b>name</b> on the map. Leave the color untouched to follow the system color.</div>${labelControlsHTML(sectorLabelStyle(s),'sl')}</details>
     <h4>Border &amp; fill</h4>
     <div class="rowc"><div class="field"><label>Border style</label><select id="sBStyle">${["solid","dashed","dotted","none"].map(o=>`<option value="${o}" ${(s.borderStyle||"dashed")===o?"selected":""}>${o}</option>`).join("")}</select></div>
     <div class="field"><label>Border width <span style="float:right;color:var(--gold)" id="sBWV">${(s.borderWidth!=null?s.borderWidth:(s.parent?1.6:2.2)).toFixed(1)}</span></label><div class="slider"><input type="range" id="sBW" min="5" max="90" value="${Math.round((s.borderWidth!=null?s.borderWidth:(s.parent?1.6:2.2))*10)}"></div></div></div>
@@ -1211,8 +1223,9 @@ function renderSectorInspector(){
     ${subs.map(x=>`<div class="assoc" style="margin-bottom:5px;cursor:pointer" data-sec="${x.id}"><span class="cd" style="background:${x.color}"></span>◵ ${esc(x.name)} <span style="color:var(--faint);font-size:10px;margin-left:auto">sub-system</span></div>`).join('')}
     ${contents.length?contents.map(i=>`<div class="assoc" style="margin-bottom:5px;cursor:pointer" data-inst="${i.id}"><span class="cd" style="background:${(i.look||i).c1}"></span>${esc(i.name)}${i.pois&&i.pois.length?` <span style="color:var(--gold);font-size:10px;margin-left:auto">◈ ${i.pois.length}</span>`:""}</div>`).join(''):(subs.length?'':'<div style="font-size:12px;color:var(--faint)">Nothing inside yet. Drop bodies within the outline.</div>')}
     <div class="actionbtns"><button class="danger" id="sDel">Delete system</button></div>`;
-  $("#sName").oninput=e=>{s.name=e.target.value;renderSectors();markDirty();};
-  $("#sColor").oninput=e=>{s.color=e.target.value;renderSectors();markDirty();};
+  $("#sName").oninput=e=>{s.name=e.target.value;renderSectors();renderLabels();markDirty();};
+  $("#sColor").oninput=e=>{s.color=e.target.value;renderSectors();renderLabels();markDirty();};
+  wireLabelControls('sl',s.label=s.label||{},()=>{renderLabels();markDirty();});
   $("#sCreed").oninput=e=>{s.creed=e.target.value;markDirty();};
   $("#sDesc").oninput=e=>{s.desc=e.target.value;markDirty();};
   $("#sBStyle").onchange=e=>{s.borderStyle=e.target.value;renderSectors();markDirty();};
@@ -1399,7 +1412,7 @@ const CAMP_KEY="stardust-campaigns";
 function loadCampaigns(){try{return JSON.parse(localStorage.getItem(CAMP_KEY)||"[]");}catch(e){return [];}}
 function saveCampaigns(list){try{localStorage.setItem(CAMP_KEY,JSON.stringify(list));}catch(e){toast("Storage full — export to a file instead");}}
 function mapData(){return {type:"stardust-map",version:2,meta:state.meta,background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,
-  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity})),
+  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label})),
   instances:state.instances,assets:state.assets};}
 function stamp(){const d=new Date();return d.toISOString();}
 function publishCurrent(name){
@@ -1440,7 +1453,7 @@ function applyMapData(m){resetDiffspin();
 
 /* ============================================================ HISTORY + SAVE/LOAD ============================================================ */
 function cleanState(){return JSON.stringify({assets:state.assets,instances:state.instances,
-  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity})),
+  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label})),
   background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,meta:state.meta});}
 function snap(){return cleanState();}
 function pushUndo(){undoStack.push(snap());if(undoStack.length>60)undoStack.shift();redoStack=[];markDirty();updUndo();}
