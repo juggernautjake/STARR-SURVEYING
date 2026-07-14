@@ -540,11 +540,15 @@
   'use strict';
   class SpriteSpinner{
     constructor(canvas,opts){opts=opts||{};this.cv=canvas;this.ctx=canvas.getContext('2d');this.cols=opts.cols||1;this.rows=opts.rows||1;this.frames=opts.frames||1;this.fps=opts.fps||16;this.i=0;this.ready=false;this._raf=null;this._last=0;this._acc=0;this._onR=()=>this._fit();window.addEventListener('resize',this._onR);this._fit();if(opts.sheet)this.setSheet(opts);}
-    _fit(){const dpr=window.devicePixelRatio||1;const r=this.cv.getBoundingClientRect();const w=Math.max(1,r.width|0),h=Math.max(1,r.height|0);this.cv.width=w*dpr;this.cv.height=h*dpr;this.ctx.setTransform(dpr,0,0,dpr,0,0);this.w=w;this.h=h;if(this.ready)this._draw();}
+    _fit(){const dpr=window.devicePixelRatio||1;const r=this.cv.getBoundingClientRect();const w=Math.max(1,r.width|0),h=Math.max(1,r.height|0);this.cv.width=Math.round(w*dpr);this.cv.height=Math.round(h*dpr);this.ctx.setTransform(dpr,0,0,dpr,0,0);this.ctx.imageSmoothingEnabled=true;this.ctx.imageSmoothingQuality="high";this.w=w;this.h=h;if(this.ready)this._draw();}
     setSheet(o){this.cols=o.cols||this.cols;this.rows=o.rows||this.rows;this.frames=o.frames||this.frames;this.ready=false;const im=new Image();im.onload=()=>{this.img=im;this.cell=im.width/this.cols;this.ready=true;this._draw();};im.src=o.sheet;this.__sheet=o.sheet;}
-    _draw(){if(!this.ready||!this.img)return;const cell=this.cell,W=this.w,H=this.h,ctx=this.ctx;ctx.clearRect(0,0,W,H);
+    // Two complementary fixes: main's frame interpolation (temporal cross-fade between adjacent
+    // frames) removes the low-fps stepping, and high-quality resampling + a half-texel inset remove
+    // the spatial shimmer from downscaling a detailed rotating sphere (and stop scaling from
+    // sampling the neighbouring cell at the seams).
+    _draw(){if(!this.ready||!this.img)return;const cell=this.cell,W=this.w,H=this.h,ctx=this.ctx,eps=0.5;ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";ctx.clearRect(0,0,W,H);
       const pos=this.pos||0,i0=Math.floor(pos)%this.frames,frac=pos-Math.floor(pos),i1=(i0+1)%this.frames;
-      const put=(idx,a)=>{const c=idx%this.cols,r=Math.floor(idx/this.cols);ctx.globalAlpha=a;ctx.drawImage(this.img,c*cell,r*cell,cell,cell,0,0,W,H);};
+      const put=(idx,a)=>{const c=idx%this.cols,r=Math.floor(idx/this.cols);ctx.globalAlpha=a;ctx.drawImage(this.img,c*cell+eps,r*cell+eps,cell-2*eps,cell-2*eps,0,0,W,H);};
       put(i0,1);if(frac>0.004)put(i1,frac);ctx.globalAlpha=1;}
     start(){if(this._raf)return;const loop=t=>{this._raf=requestAnimationFrame(loop);if(!this.ready)return;const dt=this._last?(t-this._last)/1000:0;this._last=t;this.pos=((this.pos||0)+dt*this.fps)%this.frames;if(this.pos<0)this.pos+=this.frames;this._draw();};this._last=0;this._raf=requestAnimationFrame(loop);}
     stop(){if(this._raf)cancelAnimationFrame(this._raf);this._raf=null;}
