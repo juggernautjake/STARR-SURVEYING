@@ -107,12 +107,14 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
       distortion, no circle. (File-picker path is OS-level; `importImage` code exercised via the same
       `newAsset('image')` route.)
 
-### P2 — Real-size, non-circular, full-res image instances
-- [ ] `renderInstances`: `image` (and `svg`) instances render in a rectangular `.art` at native
-      aspect, full resolution, honoring `i.opacity`; no `border-radius`.
-- [ ] Placement uses native size (clamped) instead of the 70px token default; `w/h` initialized.
-- [ ] Selection outline for rectangular instances is a rectangle, not a circle.
-- [ ] Browser-verify: dropped image shows at real size/aspect, sharp, not a small circle.
+### P2 — Real-size, non-circular, full-res image instances ✅
+- [x] `renderInstances`: `image` instances size the element by `w×h`, render `<img>` full-res,
+      honor `opacity`, and apply `rotate(rot)`; no circular clip.
+- [x] Placement (`placeConfirm` + ghost via `ghostDims`) uses native size clamped to 440px on the
+      long edge; `w/h/rot/opacity` initialized. Ghost preview shows native aspect.
+- [x] Selection outline is rectangular for images (`.inst.imginst.sel`).
+- [x] Browser-verify: a 2:1 image placed via the real path renders as a real-size rectangle, sharp,
+      correct aspect, not a circle. (screenshot in session)
 
 ### P3 — Resize + rotate handles for ANY placed element
 - [ ] Add corner scale handles + rotate handle to selected `#bodyLayer` instances (all kinds); store
@@ -164,3 +166,5 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
 (Stop-hook driven. One line per shipped slice: `P#: <what shipped> — <commit>`.)
 - P1: Universal image import — new `image` kind + Images tab + `importImage` (png/jpg/gif/webp/svg),
   native size stored, thumbnail renders true aspect. Verified in-browser.
+- P2: Image instances render at native size/aspect (w×h), full-res, rectangular, with opacity +
+  rotation transform; placement + ghost use native size. Verified in-browser.
