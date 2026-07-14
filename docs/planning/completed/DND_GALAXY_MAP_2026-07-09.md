@@ -180,3 +180,15 @@ panels adopt the framed-panel / `.hexBtn` treatment. The map canvas keeps a deep
   **3D** tab — so there is no DB seam to wire; the map itself stays WebGL-free. The standalone
   **Galaxy Forge** page remains an explicit optional deferral (its differential-spin spiral engine
   is already inlined in Map Studio, so galaxy generation is fully covered inside the editor).
+- **Slice 6 — Verify + polish** ✅ — `tsc --noEmit` clean; ESLint clean on all /dnd surfaces (only
+  3 pre-existing StreamPoll warnings remain, unrelated); `vitest run __tests__/dnd` 147/147 pass.
+  Headless end-to-end of the Studio bridge: **Save** POSTs the stardust-map JSON, captures the new
+  row id and reflects it into the URL; **Publish** PATCHes that id `published:true` — no page errors.
+  Console bridge loads a mocked DB map (title updates), native localStorage controls hidden.
+
+### Status: COMPLETE
+The full Stardust suite is integrated into the /dnd backend, retinted to hextech, and DB-backed:
+DM **Map Management** (upload image *or* build) → **Map Studio** (save/publish to campaign) →
+**3D Planet Forge** (export `.planet3d`) → player **Console** (loads the published map from the hub).
+**DB hand-off:** the DM applies `seeds/421_dnd_maps.sql` to the live database; runtime degrades
+gracefully (empty map list) until then. Standalone Galaxy Forge page remains an optional future add.
