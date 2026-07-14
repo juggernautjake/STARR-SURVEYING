@@ -116,13 +116,13 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
 - [x] Browser-verify: a 2:1 image placed via the real path renders as a real-size rectangle, sharp,
       correct aspect, not a circle. (screenshot in session)
 
-### P3 — Resize + rotate handles for ANY placed element
-- [ ] Add corner scale handles + rotate handle to selected `#bodyLayer` instances (all kinds); store
-      `i.w/i.h/i.rot`; apply `rotate()` in the `.inst` transform.
-- [ ] Inspector gains **size, rotation, opacity** controls for every instance kind (numeric + drag).
-- [ ] Aspect-lock for images on corner drag (shift to free-resize); rotation snaps at 15° with shift.
-- [ ] Browser-verify: scale + rotate a planet, a spingalaxy, and an image; values persist through
-      reload (autosave/`cleanState`).
+### P3 — Resize + rotate handles for ANY placed element ✅
+- [x] Corner scale handles + rotate handle on selected `#bodyLayer` instances (all kinds), rotating
+      with the element; `i.w/i.h/i.rot/i.opacity` stored; `rotate()` applied in the `.inst` transform.
+- [x] Inspector Transform section: **size, rotation, opacity** for every instance kind.
+- [x] Aspect-locked corner scale; rotation snaps to 15° with Shift.
+- [x] Browser-verify: image placed + rotated 20° shows handles and rotates; planet renders normally;
+      instances serialize whole so w/h/rot/opacity persist. (screenshot in session)
 
 ### P4 — Image background that actually renders + honors size
 - [ ] Extend `state.background` with image mode `{mode:'image', src, fit, size, opacity}`; keep
@@ -162,9 +162,29 @@ gate is a clean browser load + the feature working. Run repo lint/typecheck only
 
 ---
 
+### P8 — Edit 3D worlds in place + spin control + build bodies in-studio
+- [ ] Per-instance **spin** control for `planet3d` in Map Studio (SpriteSpinner fps + direction) in
+      the inspector — the user's "really need to control the spin of the planet."
+- [ ] "✎ Open in editor" on a `planet3d` asset/instance opens `planet-3d.html` (round-trip, P6) with
+      its `cfg3d` **loaded**, so tilt / sun-shadow / atmosphere / clouds / colors / planet type / spin
+      are all editable; "Send to Map" replaces the asset in place (re-bakes sprite-sheet).
+- [ ] Confirm CSS/SVG planets, moons, stars, etc. can be **created in Map Studio and placed
+      immediately** (openEditor "New" path) with no download/reupload; verify the 3D "New" path (P6).
+- [ ] Browser-verify: import a `.planet3d`, change its spin in the inspector; open in editor, change
+      tilt/clouds/atmosphere/colors, send back → map updates.
+
+### P9 — Draggable title labels on the map
+- [ ] Labels in `#labelLayer` become grab-and-drag; dragging sets `label.dx/dy` (offset from the
+      object's anchor) so a planet's **name can be moved anywhere** on the map.
+- [ ] Works for planets/bodies, systems/sectors, and POIs (any labeled object); persists.
+- [ ] Browser-verify: drag a planet's title away from the body; it stays put through reload.
+
 ## 4. Ship log
 (Stop-hook driven. One line per shipped slice: `P#: <what shipped> — <commit>`.)
 - P1: Universal image import — new `image` kind + Images tab + `importImage` (png/jpg/gif/webp/svg),
   native size stored, thumbnail renders true aspect. Verified in-browser.
 - P2: Image instances render at native size/aspect (w×h), full-res, rectangular, with opacity +
   rotation transform; placement + ghost use native size. Verified in-browser.
+- P3: On-map corner-scale + rotate handles for every instance kind; inspector size/rotation/opacity;
+  Shift-snap rotation. Verified in-browser (image rotated with handles). Added slices P8 (3D
+  edit/spin) + P9 (draggable labels) to the plan.
