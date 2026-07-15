@@ -651,7 +651,9 @@ const Map3D = {
       if (it.opacity != null && it.opacity < 1) holder.traverse(o => { if (o.material && !o.material.uniforms) { o.material.transparent = true; o.material.opacity = it.opacity; } });   // fade parity
       g.add(holder);
       // The body's name label (below it), matching the 2D label layer — kinds text/html are their own label.
-      if (it.name && (!it.label || it.label.show !== false)) this._addText({ name: it.name, label: it.label, x: cx, y: it.y + s / 2 + 6 });
+      // Body name label — only in full 3D. In hybrid (overlay) the visible 2D label layer already
+      // draws it (and it's the editable/draggable one), so adding a 3D label here would double it up.
+      if (!overlay && it.name && (!it.label || it.label.show !== false)) this._addText({ name: it.name, label: it.label, x: cx, y: it.y + s / 2 + 6 });
       this._bodies.push({ holder, it, disc, isStar: it.kind === 'star', kind: it.kind, cfg, canFull: !imgUrl && (it.kind === 'star' || !!cfg || genMesh), hasModel: false, model: null });
       minX = Math.min(minX, it.x - s / 2); minY = Math.min(minY, it.y - s / 2); maxX = Math.max(maxX, it.x + s / 2); maxY = Math.max(maxY, it.y + s / 2);
     }
