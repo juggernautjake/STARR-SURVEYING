@@ -56,12 +56,18 @@ are already stored.
 ## Slices
 
 - **Slice 0 — Planning doc** *(this file)*.
-- **Slice 1 — Vanilla content library.** `lib/dnd/systems/intuitive-games/content.ts` with the full vanilla
-  registry drawn from the template + site (stances + effects, general/combat feats, powers/spells + effects,
-  defensive powers, weapon-type taxonomy, movement types, subclasses, backgrounds, age categories,
-  languages), plus normalized lookup helpers (`isVanilla(kind, name)`, `vanillaNames(kind)`). Fold the new
-  lists into the `intuitive-games` catalog entry/grounding so an AI build sees the real options. Unit tests
-  assert the library is well-formed and covers the template's content.
+- **Slice 1 — Vanilla content library.** ✅ `lib/dnd/systems/intuitive-games/content.ts` — the authoritative
+  vanilla registry drawn from the uploaded template + intuitivegames.net (mechanical facts/summaries): the 10
+  **stances** with A/B effects, 20 **feats** (General + Combat), 37 **powers/spells** grouped by the 7
+  schools, 6 **defensive powers** with effects, the 15-entry **weapon-type taxonomy** (5 classes × 3 damage
+  types), **movement types** (Fast/Fly/Climb/Burrow/Swim × 10/20/30), subclasses, and companion
+  creature-type groups — with normalized, case/space-insensitive lookups `igIsVanilla(kind, name)` /
+  `igVanillaNames(kind)` / `igContentSummary()` (the recognition key for provenance in Slice 2). Folded the
+  stances/powers/feats/defensive-powers/weapon-types into the `intuitive-games` grounding block so an AI
+  build sees the real options and only invents when asked. Verified: `tsc` clean, lint clean,
+  `__tests__/dnd/ig-content.test.ts` (5 tests: 10 stances w/ effects, powers by school + defensive powers,
+  15 weapon types + movement/feats, `igIsVanilla` recognizes real / rejects invented, grounding lists them);
+  full dnd suite (271) green.
 - **Slice 2 — Provenance model + classifier.** `lib/dnd/provenance.ts` — `Provenance` type, a
   `classifyElement(system, kind, name)` (vanilla if in the library for that system, else custom),
   `tagElement()`, and `summarizeCustomContent(character, system)` returning every element grouped by
@@ -103,4 +109,4 @@ are already stored.
 - **Backward compatible:** new columns default so existing characters/campaigns keep working (status=draft,
   allow_custom=true).
 
-### Status: IN PROGRESS (Slice 0 shipped; 1–8 pending)
+### Status: IN PROGRESS (Slices 0–1 shipped; 2–8 pending)

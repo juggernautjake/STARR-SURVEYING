@@ -7,6 +7,7 @@
 // Content is concise MECHANICAL FACTS + numbers (paraphrased, not verbatim rulebook prose), each
 // attributed to its source book. Keyed strictly by system so nothing crosses editions.
 import { SYSTEM_AMBIGUOUS, systemLabel, type CharacterSystem } from './systems';
+import { IG_STANCES, IG_FEATS, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES } from './systems/intuitive-games/content';
 
 export interface AbilityModel {
   /** The ability keys/abbreviations this system uses. */
@@ -397,6 +398,17 @@ export function systemRulesBlock(system: CharacterSystem): string {
     `• Conditions: ${r.content.conditions.join(', ')}.`,
     `• Example real feats to anchor on (not exhaustive): ${r.content.sampleFeats.join(', ')}.`,
   ];
+  // Intuitive Games carries a rich content library (stances, powers/spells, feats, defensive powers,
+  // weapon-type taxonomy) — list the real options so an AI build picks from them and only invents when asked.
+  if (r.key === 'intuitive-games') {
+    lines.push(
+      `• Stances (adopt one; each has an A and B benefit): ${IG_STANCES.map((s) => s.name).join(', ')}.`,
+      `• Powers/spells (by school): ${IG_POWERS.map((p) => p.name).join(', ')}.`,
+      `• Feats (General + Combat): ${IG_FEATS.map((f) => f.name).join(', ')}.`,
+      `• Defensive Powers: ${IG_DEFENSIVE_POWERS.map((d) => d.name).join(', ')}.`,
+      `• Weapon types: ${IG_WEAPON_TYPES.join(', ')}.`,
+    );
+  }
   return lines.join('\n');
 }
 
