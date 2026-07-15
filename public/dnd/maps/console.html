@@ -429,10 +429,18 @@ function art(a,animate){
     if(dt==="wreck")return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><g style="${anim?'animation:spin 50s linear infinite;transform-origin:center':''}"><polygon points="70,60 150,80 140,120 60,110" fill="${c1}" stroke="${c2}" stroke-width="2"/><polygon points="60,110 140,120 120,150 70,140" fill="${D(c1,20)}" stroke="${c2}" stroke-width="2"/><line x1="150" y1="80" x2="175" y2="70" stroke="${c2}" stroke-width="3"/><circle cx="95" cy="95" r="4" fill="${c3}"/></g></svg>`;
     const rocks=[...Array(dt==="asteroid"?1:9)].map((_,i)=>{const an=rng()*6.28,dist=dt==="asteroid"?0:20+rng()*70,x=cx+Math.cos(an)*dist,y=cy+Math.sin(an)*dist,r=dt==="asteroid"?54:8+rng()*16;let pts="";for(let j=0;j<8;j++){const aa=j/8*6.28,rr=r*(0.7+rng()*0.5);pts+=`${(x+Math.cos(aa)*rr).toFixed(0)},${(y+Math.sin(aa)*rr).toFixed(0)} `;}return `<polygon points="${pts}" fill="${i%2?c1:c2}" stroke="${D(c2,15)}" stroke-width="1.5"/>`;}).join("");
     return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><g style="${anim&&dt!=='field'?'animation:spin 40s linear infinite;transform-origin:center':''}">${rocks}</g></svg>`;}
-  // planet / moon
-  const isMoon=k==="moon",n=isMoon?18:12,spots=[];
+  // planet / moon — 2D<->3D terrain parity: cscale/sea/coast modulate land, ice draws caps, tilt leans the
+  // surface. Each only applies when the field is explicitly set, so existing objects render unchanged.
+  const isMoon=k==="moon",spots=[];
+  const cscaleSet=a.cscale!=null,seaSet=a.sea!=null,coastSet=a.coast!=null;
+  const cscaleF=cscaleSet?clamp(+a.cscale,1,6):2.2;
+  const n=isMoon?18:(cscaleSet?clamp(Math.round(12*(cscaleF/2.2)),4,28):12);
+  const landCov=seaSet?clamp(1.35-(+a.sea),0.15,1.3):1,coastMul=coastSet?(0.72+clamp(+a.coast,0,1)*0.5):1,szMul=cscaleSet?(2.2/cscaleF):1;
   const detail=a.ptype==="volcanic"?c3:(["terran","toxic","ocean","jungle"].includes(a.ptype)?c2:D(c1,26));
-  for(let i=0;i<n;i++){const bx=cx-R+rng()*2*R,by=cy-R+rng()*2*R,br=R*(isMoon||a.ptype==="rock"||a.ptype==="ice"?0.06+rng()*0.12:0.16+rng()*0.3);const blob=`<ellipse cx="{X}" cy="${by.toFixed(1)}" rx="${br.toFixed(1)}" ry="${(br*(0.7+rng()*0.5)).toFixed(1)}" fill="${detail}" opacity="${(0.4+rng()*0.4).toFixed(2)}"/>`;spots.push(blob.replace("{X}",bx.toFixed(1)));spots.push(blob.replace("{X}",(bx+2*S).toFixed(1)));}
+  for(let i=0;i<n;i++){const bx=cx-R+rng()*2*R,by=cy-R+rng()*2*R,br=R*(isMoon||a.ptype==="rock"||a.ptype==="ice"?0.06+rng()*0.12:0.16+rng()*0.3)*szMul;const op=clamp((0.4+rng()*0.4)*landCov*coastMul,0.05,0.96);const blob=`<ellipse cx="{X}" cy="${by.toFixed(1)}" rx="${br.toFixed(1)}" ry="${(br*(0.7+rng()*0.5)).toFixed(1)}" fill="${detail}" opacity="${op.toFixed(2)}"/>`;spots.push(blob.replace("{X}",bx.toFixed(1)));spots.push(blob.replace("{X}",(bx+2*S).toFixed(1)));}
+  let iceCaps="";const iceSet=a.ice!=null,tiltF=a.tilt!=null?+a.tilt:0;
+  if(iceSet&&+a.ice>0.02){const cap=clamp(+a.ice,0,1),capH=R*(0.14+cap*0.95),rx=(R*0.92).toFixed(1);
+    iceCaps=`<ellipse cx="${cx}" cy="${(cy-R).toFixed(1)}" rx="${rx}" ry="${capH.toFixed(1)}" fill="#eef6ff" opacity=".9"/><ellipse cx="${cx}" cy="${(cy+R).toFixed(1)}" rx="${rx}" ry="${capH.toFixed(1)}" fill="#eef6ff" opacity=".9"/>`;}
   let bands="";
   if(a.ptype==="gas"){bands=[...Array(8)].map((_,i)=>{const y=cy-R+(i+0.5)*(2*R/8),h=(2*R/8)*(0.7+rng()*0.5),col=i%2?c2:L(c1,10);return `<rect x="-200" y="${(y-h/2).toFixed(1)}" width="600" height="${h.toFixed(1)}" fill="${col}" opacity="${(0.55+rng()*0.3).toFixed(2)}"/>`;}).join("");}
   const cloudStyle=a.cloudStyle||(CLOUD_DEF.includes(a.ptype)?"wispy":"none"),cloudCol=a.cloudColor||"#ffffff",cloudAmt=a.cloudAmount!=null?a.cloudAmount:0.5;let clouds="";
@@ -475,22 +483,36 @@ function art(a,animate){
     let deb="";const ndb=Math.round(4+dI*16);
     for(let i=0;i<ndb;i++){const da=drng()*6.28,dr=R*(1.05+drng()*(0.5+dI)),dx=cx+Math.cos(da)*dr,dy=cy+Math.sin(da)*dr,rs=1+drng()*3;deb+=`<path d="M ${(dx-rs).toFixed(1)} ${dy.toFixed(1)} L ${dx.toFixed(1)} ${(dy-rs).toFixed(1)} L ${(dx+rs).toFixed(1)} ${dy.toFixed(1)} L ${dx.toFixed(1)} ${(dy+rs).toFixed(1)} Z" fill="#6a5a50" opacity="${(0.5+drng()*0.4).toFixed(2)}"/>`;}
     destroy=`<g clip-path="url(#c${id})">${cracks}${gap}</g>${deb}`;}
+  // storm cells + lightning (parity with the studio art()) — count a.storms, strength a.stormI, flash cadence a.lightRate
+  let storms="";const stormN=Math.round(a.storms!=null?+a.storms:0),stormI=a.stormI!=null?+a.stormI:0.65,stormCenters=[];
+  if(stormN>0){const srng=mulberry((a.seed||1)*97+17);let sw="";
+    for(let i=0;i<stormN;i++){const sa=srng()*6.28,sr=Math.sqrt(srng())*R*0.72,sx=cx+Math.cos(sa)*sr,sy=cy+Math.sin(sa)*sr,rad=(7+stormI*17)*(0.7+srng()*0.6),dur=(9+srng()*8).toFixed(1);stormCenters.push([sx,sy,rad]);
+      let arms="";for(let j=0;j<3;j++){let rr=1.5,ang=j/3*6.28,d=`M ${sx.toFixed(1)} ${sy.toFixed(1)}`;for(let t=0;t<10;t++){rr+=rad/10;ang+=0.62;d+=` L ${(sx+Math.cos(ang)*rr).toFixed(1)} ${(sy+Math.sin(ang)*rr).toFixed(1)}`;}arms+=`<path d="${d}" fill="none" stroke="${cloudCol}" stroke-width="${(1+stormI*1.5).toFixed(1)}" opacity="${(0.14+stormI*0.24).toFixed(2)}" stroke-linecap="round"/>`;}
+      sw+=`<g style="${anim?`animation:spin ${dur}s linear infinite;transform-origin:${sx.toFixed(1)}px ${sy.toFixed(1)}px`:''}"><circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${rad.toFixed(1)}" fill="${cloudCol}" opacity="${(0.09+stormI*0.13).toFixed(2)}"/>${arms}</g>`;}
+    storms=`<g clip-path="url(#c${id})">${sw}</g>`;}
+  let lightning="";const lightOn=!!a.lightOn,lightRate=a.lightRate!=null?+a.lightRate:0.5,boltCol=a.boltColor||"#bfe0ff",lightPeriod=Math.max(0.35,2.6-lightRate*2.2);
+  if(lightOn&&stormN>0){const lrng=mulberry((a.seed||1)*131+23);let bolts="";
+    for(let i=0;i<stormN;i++){const sc=stormCenters[i]||[cx,cy,14];const bx=sc[0]+(lrng()-0.5)*sc[2],by=sc[1]+(lrng()-0.5)*sc[2];let px=bx,py=by,d=`M ${bx.toFixed(1)} ${by.toFixed(1)}`;const seg=3+Math.round(lrng()*3),ln=(R*0.20)/seg;let ang=1.1+lrng()*0.9;
+      for(let s=0;s<seg;s++){ang+=(lrng()-0.5)*1.3;px+=Math.cos(ang)*ln;py+=Math.sin(ang)*ln;d+=` L ${px.toFixed(1)} ${py.toFixed(1)}`;}
+      bolts+=`<path d="${d}" fill="none" stroke="${boltCol}" stroke-width="1.4" stroke-linecap="round" filter="url(#lightG${id})" opacity="0" style="${anim?`animation:light${id} ${lightPeriod.toFixed(2)}s steps(1,end) ${(lrng()*lightPeriod).toFixed(2)}s infinite`:''}"/>`;}
+    lightning=`<g clip-path="url(#c${id})">${bolts}</g>`;}
   const spinDur=(34+rng()*46).toFixed(0),cloudDur=(spinDur*0.7).toFixed(0);
   return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><defs>
     <clipPath id="c${id}"><circle cx="${cx}" cy="${cy}" r="${R}"/></clipPath>
     ${lavaI>0.001?`<filter id="lavaG${id}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.7"/></filter>`:""}
+    ${lightOn&&stormN>0?`<filter id="lightG${id}" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="1.1"/></filter>`:""}
     ${cityI>0.001?`<filter id="cityG${id}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="0.5"/></filter>`:""}
     ${dv?`<filter id="dGlow${id}" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="2"/></filter><radialGradient id="coreG${id}" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff2c8"/><stop offset="35%" stop-color="#ffb454"/><stop offset="75%" stop-color="#ff5a1e"/><stop offset="100%" stop-color="#3a0a04" stop-opacity="0"/></radialGradient><linearGradient id="riftG${id}" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#ff5a1e" stop-opacity="0"/><stop offset="50%" stop-color="#ffe6a0"/><stop offset="100%" stop-color="#ff5a1e" stop-opacity="0"/></linearGradient>`:""}
     <radialGradient id="base${id}" cx="36%" cy="32%" r="78%"><stop offset="0%" stop-color="${L(c1,52)}"/><stop offset="50%" stop-color="${c1}"/><stop offset="100%" stop-color="${D(c1,46)}"/></radialGradient>
     <radialGradient id="term${id}" cx="36%" cy="32%" r="82%"><stop offset="0%" stop-color="#fff" stop-opacity=".28"/><stop offset="38%" stop-color="#fff" stop-opacity="0"/><stop offset="72%" stop-color="#000" stop-opacity=".35"/><stop offset="100%" stop-color="#000" stop-opacity=".68"/></radialGradient>
     <radialGradient id="atmo${id}" cx="50%" cy="50%" r="50%"><stop offset="${(88-atmoThick*12).toFixed(0)}%" stop-color="${atmoCol}" stop-opacity="0"/><stop offset="97%" stop-color="${atmoCol}" stop-opacity="${atmoThick.toFixed(2)}"/><stop offset="100%" stop-color="${atmoCol}" stop-opacity="0"/></radialGradient></defs>
     ${ringBack}<circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#base${id})"/>
-    <g clip-path="url(#c${id})"><g style="${anim?`animation:surf${id} ${spinDur}s linear infinite`:''}">${bands}${spots.join("")}</g>${clouds?`<g style="${anim?`animation:surf${id} ${cloudDur}s linear infinite`:''}">${clouds}</g>`:""}</g>
+    <g clip-path="url(#c${id})"><g transform="rotate(${tiltF.toFixed(1)} ${cx} ${cy})"><g style="${anim?`animation:surf${id} ${spinDur}s linear infinite`:''}">${bands}${spots.join("")}</g>${iceCaps}${clouds?`<g style="${anim?`animation:surf${id} ${cloudDur}s linear infinite`:''}">${clouds}</g>`:""}</g></g>
     <circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#term${id})"/>
-    ${lava}${city}${destroy}
+    ${lava}${city}${storms}${lightning}${destroy}
     ${hasAtmo&&!dv?`<circle cx="${cx}" cy="${cy}" r="${R+3}" fill="url(#atmo${id})"/>`:""}
     <ellipse cx="${cx-34}" cy="${cy-40}" rx="30" ry="18" fill="#fff" opacity=".14" transform="rotate(-30 ${cx-34} ${cy-40})"/>
-    ${ringFront}<style>@keyframes surf${id}{to{transform:translateX(-${2*S}px);}}</style></svg>`;
+    ${ringFront}<style>@keyframes surf${id}{to{transform:translateX(-${2*S}px);}}${lightOn&&stormN>0?`@keyframes light${id}{0%,100%{opacity:0}2%{opacity:1}5%{opacity:.25}8%{opacity:.9}13%{opacity:0}}`:''}</style></svg>`;
 }
 function fxOverlay(fx,seed){
   if(!fx||(!fx.sparkle&&!fx.nebula&&!fx.shoot))return "";

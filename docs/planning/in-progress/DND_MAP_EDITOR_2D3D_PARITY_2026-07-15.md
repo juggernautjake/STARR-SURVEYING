@@ -215,9 +215,17 @@ gets 3D equivalents or stays a 2D-layer concern — lean: keep fx 2D-layer, docu
 - **Slice 6 — Star / station / debris / asteroid / galaxy parity passes.** Each kind's small gaps
   (3D ray-spoke count, station lights, 3D comet tail, asteroid c2/c3, galaxy spread/len in 3D, spingalaxy
   master/feather in 3D).
-- **Slice 7 — Console (player viewer) parity + QA + doc → completed.** Ensure `console.html`'s cloned
-  `art()` honors the new fields; end-to-end pass (edit each field, flip 2D⇄3D, confirm both change); move
-  this doc to `completed/`.
+- **Slice 7a — Console (player-viewer) 2D parity.** ✅ Ported the studio `art()` additions to
+  `console.html`'s cloned generator so **players see what the DM authored**: terrain modulation
+  (`cscale`/`sea`/`coast`), polar `ice` caps, axial `tilt` on the surface group, and the animated **storm
+  cells + lightning** (same `storms`/`stormI`/`lightOn`/`lightRate`/`boltColor` fields + the `light${id}`
+  flash keyframe and `lightG` filter). Each field only applies when explicitly set. Verified headless
+  (`verify-console-storm.mjs`): a plain planet has no lightning keyframe/ice caps; a stormy planet has the
+  flash keyframe + ice caps + 5 storm groups + `rotate(20.0 …)` tilt; 0 page errors. *(3D bodies already
+  render through the shared `map3d.js`/`planet3d-model.js` in the console, so the 3D lightning/terrain/tilt
+  from Slices 1/3/4 were already player-visible.)*
+- **Slice 7b — pending:** the final end-to-end QA sweep (edit each field, flip 2D⇄3D in the editor and the
+  viewer, confirm both change) and moving this doc to `completed/` — after Slice 6.
 
 ## Considerations
 - **Backward compatible:** `normalizeLook` defaults every new field to today's implicit value, so existing
@@ -231,4 +239,4 @@ gets 3D equivalents or stays a 2D-layer concern — lean: keep fx 2D-layer, docu
 - **Reuse:** build on `art()`, `buildPlanetModel`, `_genericPlanetCfg`, `pushTo3D`, and the existing viewer
   toggle — don't fork them.
 
-### Status: IN PROGRESS (Slices 0–5 shipped; 6–7 pending)
+### Status: IN PROGRESS (Slices 0–5 + 7a shipped; 6 + 7b pending)
