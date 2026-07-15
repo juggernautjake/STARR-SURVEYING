@@ -76,10 +76,12 @@
   #canvas{position:absolute;inset:0;}
   #canvas.pan{cursor:grab;}#canvas.panning{cursor:grabbing;}#canvas.pen{cursor:crosshair;}
   #bgLayer{position:absolute;inset:0;z-index:0;pointer-events:none;background-position:center center;background-repeat:no-repeat;display:none;}
-  #fxCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3;}
-  #svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:1;}
-  .bodyLayer{position:absolute;inset:0;transform-origin:0 0;z-index:2;}
-  #labelLayer{position:absolute;inset:0;width:100%;height:100%;overflow:visible;transform-origin:0 0;z-index:4;pointer-events:none;}
+  #fxCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4;}
+  #svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:2;}
+  #backLayer{position:absolute;inset:0;transform-origin:0 0;z-index:1;}
+  .bodyLayer{position:absolute;inset:0;transform-origin:0 0;z-index:3;}
+  #labelLayer{position:absolute;inset:0;width:100%;height:100%;overflow:visible;transform-origin:0 0;z-index:5;pointer-events:none;}
+  #canvas.pen #bodyLayer,#canvas.pen #backLayer{pointer-events:none;}
   #labelLayer .lblhit{pointer-events:auto;cursor:move;}
   details.lblsec{margin:8px 0;border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:var(--panel2);}
   details.lblsec>summary{cursor:pointer;font-family:"Orbitron";font-size:11px;letter-spacing:1px;color:var(--gold);list-style:none;padding:3px 0;}
@@ -92,7 +94,7 @@
   .inst .poi svg{display:block;}
   .inst .poi.sel{outline:1.5px solid var(--gold);outline-offset:2px;border-radius:4px;}
   .inst .nm{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:3px;font-size:11px;font-weight:500;white-space:nowrap;color:#e8e6ff;text-shadow:0 1px 5px #000;pointer-events:none;}
-  .inst.sel{outline:1.5px dashed var(--gold);outline-offset:5px;border-radius:50%;}
+  .inst.sel{outline:var(--selw,1.5px) var(--sels,dashed) var(--selc,#c89b3c);outline-offset:5px;border-radius:50%;}
   .inst.imginst.sel{border-radius:4px;}
   .inst .ihandle{position:absolute;width:12px;height:12px;background:#06040f;border:1.6px solid var(--gold);border-radius:2px;pointer-events:auto;z-index:6;}
   .inst .ihandle.rot{border-radius:50%;top:-30px;left:50%;transform:translateX(-50%);cursor:grab;}
@@ -251,7 +253,7 @@
       <div class="tspacer" style="flex:1"></div>
       <button id="view3dBtn" title="Switch between the flat 2D map and the real-time 3D viewer">⛶ 3D</button>
     </div>
-    <div id="canvas"><div id="bgLayer"></div><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><canvas id="fxCanvas"></canvas><svg id="labelLayer"></svg><div id="gl3d" style="position:absolute;inset:0;z-index:5;display:none"></div></div>
+    <div id="canvas"><div id="bgLayer"></div><div class="bodyLayer" id="backLayer"></div><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><canvas id="fxCanvas"></canvas><svg id="labelLayer"></svg><div id="gl3d" style="position:absolute;inset:0;z-index:5;display:none"></div></div>
   </div>
   <div class="insp">
     <div class="ihead" id="inspHead">◈ INSPECTOR</div>
@@ -607,6 +609,7 @@ const CLOUD_STYLES=["none","wispy","banded","storm","heavy"];
 
 /* ============================================================ STATE ============================================================ */
 let state={assets:[],instances:[],sectors:[],background:null,centerGalaxy:null,
+  selStyle:{width:1.5,style:"dashed",color:"#c89b3c"},
   mapFx:{sparkles:true,shooting:false,nebula:true,density:0.72,speed:1,rate:0.35,color:"#cbd6ff",nebColor:"#2a1a5a",nebColor2:"#1a1240"},
   meta:{name:"Untitled Map",campaign:null,published:false}};
 let view={x:0,y:0,scale:1};
@@ -652,7 +655,7 @@ function art(a,animate){
       <radialGradient id="s${id}" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff"/><stop offset="35%" stop-color="${L(c1,50)}"/><stop offset="70%" stop-color="${c1}"/><stop offset="100%" stop-color="${D(c1,20)}"/></radialGradient>
       <radialGradient id="co${id}" cx="50%" cy="50%" r="50%"><stop offset="35%" stop-color="${c3}" stop-opacity=".55"/><stop offset="100%" stop-color="${c3}" stop-opacity="0"/></radialGradient></defs>
       <circle cx="${cx}" cy="${cy}" r="96" fill="url(#co${id})" style="${anim?'animation:breathe 5s ease-in-out infinite;transform-origin:center':''}"/>
-      <g style="${anim?'animation:cspin 40s linear infinite;transform-origin:center':''}">${[...Array(14)].map((_,i)=>{const an=i/14*Math.PI*2;return `<line x1="${cx+Math.cos(an)*54}" y1="${cy+Math.sin(an)*54}" x2="${cx+Math.cos(an)*(66+rng()*14)}" y2="${cy+Math.sin(an)*(66+rng()*14)}" stroke="${c3}" stroke-width="2" opacity=".5"/>`;}).join("")}</g>
+      ${a.rays!==false?`<g style="${anim?'animation:cspin 40s linear infinite;transform-origin:center':''}">${[...Array(14)].map((_,i)=>{const an=i/14*Math.PI*2;return `<line x1="${cx+Math.cos(an)*54}" y1="${cy+Math.sin(an)*54}" x2="${cx+Math.cos(an)*(66+rng()*14)}" y2="${cy+Math.sin(an)*(66+rng()*14)}" stroke="${c3}" stroke-width="2" opacity=".5"/>`;}).join("")}</g>`:""}
       <circle cx="${cx}" cy="${cy}" r="50" fill="url(#s${id})"/></svg>`;
   }
   if(k==="station"){
@@ -753,7 +756,7 @@ function newAsset(kind,opts={}){
     a.cloudStyle=opts.cloudStyle||(["terran","ocean","jungle","toxic"].includes(a.ptype)?"wispy":"none");a.cloudColor=opts.cloudColor||"#ffffff";a.cloudAmount=opts.cloudAmount!=null?opts.cloudAmount:0.5;
     a.atmo=opts.atmo!=null?opts.atmo:["terran","ocean","toxic","gas","jungle"].includes(a.ptype);a.atmoColor=opts.atmoColor||"";a.atmoThick=opts.atmoThick!=null?opts.atmoThick:0.55;}
   else if(kind==="moon"){a.mtype=opts.mtype||"rocky";const p=MOON_TYPES[a.mtype];a.c1=opts.c1||p[0];a.c2=opts.c2||p[1];a.c3=opts.c3||p[2];a.cloudStyle="none";}
-  else if(kind==="star"){a.stype=opts.stype||"yellow";const p=STAR_TYPES[a.stype];a.c1=opts.c1||p[0];a.c2=opts.c2||p[1];a.c3=opts.c3||p[2];}
+  else if(kind==="star"){a.stype=opts.stype||"yellow";const p=STAR_TYPES[a.stype];a.c1=opts.c1||p[0];a.c2=opts.c2||p[1];a.c3=opts.c3||p[2];a.rays=opts.rays!==false;}
   else if(kind==="station"){a.stype=opts.stype||"ring";const sp=STATION_PALETTES[a.stype]||["#b8c0d0","#5a6a8a","#ffd86b"];a.c1=opts.c1||sp[0];a.c2=opts.c2||sp[1];a.c3=opts.c3||sp[2];}
   else if(kind==="debris"){a.dtype=opts.dtype||"field";a.c1=opts.c1||"#8a8a9a";a.c2=opts.c2||"#5a5a62";a.c3=opts.c3||"#c8c8d0";}
   else if(kind==="galaxy"){a.c1=opts.c1||"#c89aff";a.c2=opts.c2||"#6a3aff";a.c3=opts.c3||"#fff2c8";a.arms=opts.arms||2;a.turns=opts.turns||1.1;a.tight=opts.tight!=null?opts.tight:0.9;a.spread=opts.spread!=null?opts.spread:0.7;a.len=opts.len!=null?opts.len:1;a.spinDur=opts.spinDur||60;}
@@ -1010,8 +1013,8 @@ $("#placeConfirm").onclick=()=>{
 };
 $("#placeCancel").onclick=clearPending;
 function clearPending(){pending=null;ghost.style.display="none";$("#placeBar").classList.remove("show");}
-function snapshotLook(a){const {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,image,src,natW,natH,dsCfg,cfg3d,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames}=a;
-  return {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,image,src,natW,natH,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames,dsCfg:dsCfg?JSON.parse(JSON.stringify(dsCfg)):undefined,cfg3d:cfg3d?JSON.parse(JSON.stringify(cfg3d)):undefined};}
+function snapshotLook(a){const {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,image,src,natW,natH,dsCfg,cfg3d,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames}=a;
+  return {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,image,src,natW,natH,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames,dsCfg:dsCfg?JSON.parse(JSON.stringify(dsCfg)):undefined,cfg3d:cfg3d?JSON.parse(JSON.stringify(cfg3d)):undefined};}
 function applyBackground(a){pushUndo();state.background=snapshotLook(a);renderAll();markDirty();toast("Backdrop set");}
 // Render an image backdrop into #bgLayer (screen-space, behind everything). "size" scales it so the
 // backdrop size the user picks actually changes what's shown; opacity lets the gradient show through.
@@ -1078,7 +1081,7 @@ const sectorById=()=>{const m={};state.sectors.forEach(s=>m[s.id]=s);return m;};
 
 /* ============================================================ VIEW / RENDER ============================================================ */
 function toWorld(sx,sy){const r=$("#canvas").getBoundingClientRect();return {x:(sx-r.left-view.x)/view.scale,y:(sy-r.top-view.y)/view.scale};}
-function applyView(){const tf=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;$("#svg").style.transform=tf;$("#svg").style.transformOrigin="0 0";$("#bodyLayer").style.transform=tf;const ll=$("#labelLayer");if(ll){ll.style.transform=tf;ll.style.transformOrigin="0 0";}$("#zVal").textContent=Math.round(view.scale*100)+"%";if(pending)positionGhostWorld();}
+function applyView(){const tf=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;$("#svg").style.transform=tf;$("#svg").style.transformOrigin="0 0";$("#bodyLayer").style.transform=tf;const bk=$("#backLayer");if(bk){bk.style.transform=tf;bk.style.transformOrigin="0 0";}const ll=$("#labelLayer");if(ll){ll.style.transform=tf;ll.style.transformOrigin="0 0";}$("#zVal").textContent=Math.round(view.scale*100)+"%";if(pending)positionGhostWorld();}
 function sectorPath(pts,curved){if(!pts.length)return "";
   if(curved&&pts.length>=3){ // closed Catmull-Rom spline through the nodes → smooth sector edges
     const n=pts.length,f=v=>v.toFixed(1);let d=`M ${f(pts[0].x)},${f(pts[0].y)}`;
@@ -1092,7 +1095,7 @@ function bbox(pts){let a={x:1e9,y:1e9},b={x:-1e9,y:-1e9};pts.forEach(p=>{a.x=Mat
 
 function renderSectors(){
   const svg=$("#svg");svg.innerHTML="";computeSectorParents();
-  [...state.sectors].sort((a,b)=>b._area-a._area).forEach(s=>{
+  [...state.sectors].sort((a,b)=>((a.z||0)-(b.z||0))||(b._area-a._area)).forEach(s=>{
     const[r,g,b2]=hx(s.color);const isSub=!!s.parent;const bb=bbox(s.points);
     // per-sector nebula fill (clipped to polygon)
     if(s.fx&&s.fx.nebula){
@@ -1128,22 +1131,22 @@ function renderSectors(){
   });
 }
 function renderInstances(){
-  const layer=$("#bodyLayer");layer.innerHTML="";
+  const front=$("#bodyLayer"),back=$("#backLayer");front.innerHTML="";if(back)back.innerHTML="";
   const bgg=state.background;
   $("#canvas").style.background=(bgg&&bgg.mode!=="image")?`radial-gradient(ellipse 70% 60% at 50% 45%, ${bgg.c1}55, ${bgg.c2}33 55%, #06040f)`:"";
   renderBackground();
-  state.instances.forEach(i=>{
+  [...state.instances].sort((a,b)=>(a.z||0)-(b.z||0)).forEach(i=>{
     if(i.kind==="text")return;   // free text objects live entirely in the label layer
     const seld=selection&&selection.type==="instance"&&selection.id===i.id;
     const el=document.createElement("div");el.className="inst"+(i.kind==="image"?" imginst":"")+(seld?" sel":"");
     const iw=i.w||i.size,ih=i.h||i.size,rot=i.rot||0,op=i.opacity!=null?i.opacity:1;
-    el.style.cssText=`left:${i.x}px;top:${i.y}px;width:${iw}px;height:${ih}px;transform:translate(-50%,-50%) rotate(${rot}deg);opacity:${op};`;
+    el.style.cssText=`left:${i.x}px;top:${i.y}px;width:${iw}px;height:${ih}px;transform:translate(-50%,-50%) rotate(${rot}deg);opacity:${op};z-index:${i.z||0};`;
     const fxo=fxOverlay(i.fx,i.look&&i.look.seed);
-    if(i.kind==="spingalaxy"){el.innerHTML=`<div class="art">${fxo}<canvas class="dscanvas" style="width:100%;height:100%;display:block;border-radius:50%"></canvas></div>${poiLayerHTML(i)}`;el.dataset.ds=i.id;}
+    if(i.kind==="spingalaxy"){el.innerHTML=`<div class="art" style="${fadeMask(i)}">${fxo}<canvas class="dscanvas" style="width:100%;height:100%;display:block;border-radius:50%"></canvas></div>${poiLayerHTML(i)}`;el.dataset.ds=i.id;}
     else if(i.kind==="planet3d"){el.innerHTML=`<div class="art">${fxo}<canvas class="p3canvas" style="width:100%;height:100%;display:block;border-radius:50%"></canvas></div>`;el.dataset.p3=i.id;}
     else if(i.kind==="image"){const L=i.look||i,src=L.src,fit=i.imgFit||"contain",px=i.imgPosX!=null?i.imgPosX:50,py=i.imgPosY!=null?i.imgPosY:50;
       const inner=src?`<img src="${src}" draggable="false" style="width:100%;height:100%;display:block;object-fit:${fit};object-position:${px}% ${py}%;pointer-events:none">`:(L.svgData?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">${L.svgData}</div>`:art(L,true));
-      el.innerHTML=`<div class="art" style="overflow:hidden">${fxo}${inner}</div>${poiLayerHTML(i)}`;}
+      el.innerHTML=`<div class="art" style="overflow:hidden;${fadeMask(i)}">${fxo}${inner}</div>${poiLayerHTML(i)}`;}
     else if(i.kind==="html"){const doc=(typeof htmlFrameSrcdoc==="function")?htmlFrameSrcdoc(i.html||""):esc(i.html||"");
       el.innerHTML=`<div class="art" style="overflow:hidden;background:rgba(11,26,44,.72);border:1px solid var(--line2);border-radius:8px"><iframe sandbox srcdoc="${esc(doc)}" style="width:100%;height:100%;border:0;display:block;pointer-events:none;background:transparent"></iframe></div>`;}
     else{el.innerHTML=`<div class="art">${fxo}${art(i.look||i,true)}</div>${poiLayerHTML(i)}`;}
@@ -1159,7 +1162,7 @@ function renderInstances(){
       pel.addEventListener("mousedown",e=>{e.stopPropagation();});
       pel.addEventListener("click",e=>{e.stopPropagation();selection={type:"poi",id:i.id,poi:pel.dataset.poi};renderAll();});
     });
-    layer.appendChild(el);
+    ((i.behind&&back)?back:front).appendChild(el);
   });
   mountDiffspinInstances();mountSpriteInstances();
   renderLabels();   // labels live in the overlay layer; keep them in lockstep with the bodies
@@ -1315,7 +1318,7 @@ function onInstDown(e,i){
   selection={type:"instance",id:i.id};renderAll();
   if(mode!=="dm")return;
   pushUndo();const start=toWorld(e.clientX,e.clientY),ox=i.x,oy=i.y;
-  drag={move:ev=>{const w=toWorld(ev.clientX,ev.clientY);i.x=ox+(w.x-start.x);i.y=oy+(w.y-start.y);reassoc(i);renderInstances();renderSectors();updateStatus();},up:()=>{renderInspector();}};
+  drag={move:ev=>{const w=toWorld(ev.clientX,ev.clientY);i.x=ox+(w.x-start.x);i.y=oy+(w.y-start.y);reassoc(i);renderInstances();renderSectors();updateStatus();},up:()=>{renderInspector();if(i.live&&window.__mapLivePush)window.__mapLivePush();}};
 }
 function onInstScaleDown(e,i){pushUndo();const cx=i.x,cy=i.y,start=toWorld(e.clientX,e.clientY);
   const sd=Math.hypot(start.x-cx,start.y-cy)||1,ow=i.w||i.size,oh=i.h||i.size,os=i.size;
@@ -1417,8 +1420,15 @@ function renderInspector(){
       <div class="field"><label>Sparkle color</label><input type="color" id="mfCol" value="${f.color}"></div>
       <h4>Nebula backdrop tint</h4>
       <label class="chk"><input type="checkbox" id="mfNeb" ${f.nebula?"checked":""}> Enable nebula tint</label>
-      <div class="rowc"><div class="field"><label>Color A</label><input type="color" id="mfNc1" value="${f.nebColor}"></div><div class="field"><label>Color B</label><input type="color" id="mfNc2" value="${f.nebColor2}"></div></div>`;
+      <div class="rowc"><div class="field"><label>Color A</label><input type="color" id="mfNc1" value="${f.nebColor}"></div><div class="field"><label>Color B</label><input type="color" id="mfNc2" value="${f.nebColor2}"></div></div>
+      <h4>Selection border</h4>
+      <div style="font-size:11px;color:var(--faint);margin-bottom:6px">The outline drawn around any selected element.</div>
+      <div class="rowc"><div class="field"><label>Style</label><select id="mfSelStyle">${["dashed","solid","dotted"].map(o=>`<option value="${o}" ${(state.selStyle.style||"dashed")===o?"selected":""}>${o}</option>`).join("")}</select></div><div class="field"><label>Color</label><input type="color" id="mfSelColor" value="${state.selStyle.color||"#c89b3c"}"></div></div>
+      <div class="field"><label>Thickness <span style="float:right;color:var(--gold)" id="mfSelWV">${(state.selStyle.width||1.5).toFixed(1)}px</span></label><div class="slider"><input type="range" id="mfSelW" min="5" max="80" value="${Math.round((state.selStyle.width||1.5)*10)}"></div></div>`;
     const upd=()=>{applyMapFx();markDirty();};
+    $("#mfSelStyle").onchange=e=>{state.selStyle.style=e.target.value;applySelStyle();markDirty();};
+    $("#mfSelColor").oninput=e=>{state.selStyle.color=e.target.value;applySelStyle();markDirty();};
+    $("#mfSelW").oninput=e=>{state.selStyle.width=+e.target.value/10;$("#mfSelWV").textContent=state.selStyle.width.toFixed(1)+"px";applySelStyle();markDirty();};
     $("#mfSp").onchange=e=>{f.sparkles=e.target.checked;upd();};
     $("#mfSh").onchange=e=>{f.shooting=e.target.checked;upd();};
     $("#mfRate").oninput=e=>{f.rate=+e.target.value/100;$("#mfRateV").textContent=f.rate.toFixed(2)+"/s";upd();};
@@ -1489,7 +1499,9 @@ function renderSectorInspector(){
     <h4>Contents (${contents.length}${subs.length?` · ${subs.length} sub`:""})</h4>
     ${subs.map(x=>`<div class="assoc" style="margin-bottom:5px;cursor:pointer" data-sec="${x.id}"><span class="cd" style="background:${x.color}"></span>◵ ${esc(x.name)} <span style="color:var(--faint);font-size:10px;margin-left:auto">sub-system</span></div>`).join('')}
     ${contents.length?contents.map(i=>`<div class="assoc" style="margin-bottom:5px;cursor:pointer" data-inst="${i.id}"><span class="cd" style="background:${(i.look||i).c1}"></span>${esc(i.name)}${i.pois&&i.pois.length?` <span style="color:var(--gold);font-size:10px;margin-left:auto">◈ ${i.pois.length}</span>`:""}</div>`).join(''):(subs.length?'':'<div style="font-size:12px;color:var(--faint)">Nothing inside yet. Drop bodies within the outline.</div>')}
+    ${layerControlsHTML(false)}
     <div class="actionbtns"><button class="danger" id="sDel">Delete system</button></div>`;
+  wireLayerControls(state.sectors,s);
   $("#sName").oninput=e=>{s.name=e.target.value;renderSectors();renderLabels();markDirty();};
   $("#sColor").oninput=e=>{s.color=e.target.value;renderSectors();renderLabels();markDirty();};
   wireLabelControls('sl',s.label=s.label||{},()=>{renderLabels();markDirty();});
@@ -1531,6 +1543,48 @@ function renderHtmlInspector(){
   $("#htmlH").oninput=e=>{i.h=+e.target.value;i.size=Math.max(i.w||i.h,i.h);$("#htmlHV").textContent=i.h;renderInstances();markDirty();};
   $("#htmlDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
   $("#htmlDel").onclick=()=>{pushUndo();state.instances=state.instances.filter(x=>x.id!==i.id);selection=null;renderAll();markDirty();};
+}
+/* ---- layer / z-order ---- */
+function reorderZ(list,item,dir){
+  list.forEach((x,idx)=>{if(x.z==null)x.z=idx;});
+  if(dir==="front"){item.z=Math.max(0,...list.map(x=>x.z))+1;if("behind" in item)item.behind=false;}
+  else if(dir==="back"){item.z=Math.min(0,...list.map(x=>x.z))-1;}
+  else{const sorted=[...list].sort((a,b)=>a.z-b.z),idx=sorted.indexOf(item),sw=dir==="forward"?sorted[idx+1]:sorted[idx-1];if(sw){const t=item.z;item.z=sw.z;sw.z=t;}}
+  renderAll();markDirty();
+}
+function layerControlsHTML(behindable,isBehind){
+  return `<h4>Layer</h4>
+    <div class="seg" style="grid-template-columns:1fr 1fr 1fr 1fr"><button data-lz="front" title="Bring to front">⤒ Front</button><button data-lz="forward" title="Move forward">↑ Fwd</button><button data-lz="backward" title="Move backward">↓ Back</button><button data-lz="back" title="Send to back">⤓ Back</button></div>
+    ${behindable?`<label class="chk" style="display:flex;align-items:center;gap:7px;font-size:12px;padding:5px 0;cursor:pointer"><input type="checkbox" id="iBehind" ${isBehind?"checked":""}> Behind systems / sectors</label>`:""}`;
+}
+function wireLayerControls(list,item){
+  document.querySelectorAll("#inspBody [data-lz]").forEach(b=>b.onclick=()=>reorderZ(list,item,b.dataset.lz));
+  const bh=document.getElementById("iBehind");if(bh)bh.onchange=e=>{item.behind=e.target.checked;renderAll();markDirty();};
+}
+/* ---- edge fade (feather image/spingalaxy edges to transparent) ---- */
+function fadeMask(i){const f=i.fade||0;if(f<=0)return "";
+  const spread=Math.max(1,i.fadeSpread!=null?i.fadeSpread:35),endA=(1-f/100).toFixed(3);
+  if((i.fadeShape||"radial")==="edges"){ // straight fade in from each edge (rectangular)
+    const s=Math.min(49,spread/2);
+    const h=`linear-gradient(to right, rgba(0,0,0,${endA}) 0%, #000 ${s}%, #000 ${100-s}%, rgba(0,0,0,${endA}) 100%)`;
+    const v=`linear-gradient(to bottom, rgba(0,0,0,${endA}) 0%, #000 ${s}%, #000 ${100-s}%, rgba(0,0,0,${endA}) 100%)`;
+    return `-webkit-mask-image:${h},${v};-webkit-mask-composite:source-in;mask-image:${h},${v};mask-composite:intersect;`;
+  }
+  const start=Math.max(0,100-spread); // radial from centre → rounded fade
+  const m=`radial-gradient(closest-side, #000 ${start}%, rgba(0,0,0,${endA}) 100%)`;
+  return `-webkit-mask-image:${m};mask-image:${m};`;
+}
+function fadeControlsHTML(i){const f=i.fade||0,sp=i.fadeSpread!=null?i.fadeSpread:35,shape=i.fadeShape||"radial";
+  return `<h4>Edge fade</h4>
+    <div class="field"><label>Fade amount <span style="float:right;color:var(--gold)" id="iFadeV">${f}%</span></label><div class="slider"><input type="range" id="iFade" min="0" max="100" value="${f}"></div></div>
+    <div class="field"><label>Fade spread <span style="float:right;color:var(--gold)" id="iFadeSpV">${sp}%</span></label><div class="slider"><input type="range" id="iFadeSp" min="1" max="100" value="${sp}"></div></div>
+    <div class="rowc"><div class="field"><label>Shape</label><select id="iFadeShape"><option value="radial" ${shape==="radial"?"selected":""}>radial (rounded)</option><option value="edges" ${shape==="edges"?"selected":""}>edges (straight)</option></select></div></div>
+    <div style="font-size:11px;color:var(--faint)">Fades the outer edge to transparent so it blends into the background.</div>`;
+}
+function wireFadeControls(i){
+  const a=$("#iFade");if(a)a.oninput=e=>{i.fade=+e.target.value;$("#iFadeV").textContent=i.fade+"%";renderInstances();markDirty();};
+  const s=$("#iFadeSp");if(s)s.oninput=e=>{i.fadeSpread=+e.target.value;$("#iFadeSpV").textContent=i.fadeSpread+"%";renderInstances();markDirty();};
+  const sh=$("#iFadeShape");if(sh)sh.onchange=e=>{i.fadeShape=e.target.value;renderInstances();markDirty();};
 }
 // Normalize a spingalaxy instance's diffspin config to concrete per-layer speed/dir arrays, syncing
 // from the live engine when present so the UI reflects reality.
@@ -1614,6 +1668,11 @@ function renderInstanceInspector(){
       <div class="rowc" id="iImgPosRow" style="${i.imgFit==="cover"?"":"display:none"}"><div class="field"><label>Crop X <span style="float:right;color:var(--gold)" id="iPxV">${i.imgPosX!=null?i.imgPosX:50}%</span></label><div class="slider"><input type="range" id="iPx" min="0" max="100" value="${i.imgPosX!=null?i.imgPosX:50}"></div></div><div class="field"><label>Crop Y <span style="float:right;color:var(--gold)" id="iPyV">${i.imgPosY!=null?i.imgPosY:50}%</span></label><div class="slider"><input type="range" id="iPy" min="0" max="100" value="${i.imgPosY!=null?i.imgPosY:50}"></div></div></div>
       <div style="font-size:11px;color:var(--faint)">“cover” crops to fill the box; drag Crop X/Y to choose the visible part. Resize handles change the crop shape.</div>
       <div class="actionbtns"><button id="iSpiralize">🌀 Apply layered spin</button></div>`:""}
+    ${(i.kind==="image"||i.kind==="spingalaxy")?fadeControlsHTML(i):""}
+    ${layerControlsHTML(true,i.behind)}
+    <h4>Live movement</h4>
+    <label class="chk" style="display:flex;align-items:center;gap:7px;font-size:12px;padding:4px 0;cursor:pointer"><input type="checkbox" id="iLive" ${i.live?"checked":""}> 🛰 Keep updated (live)</label>
+    <div style="font-size:11px;color:var(--faint)">Move this element mid-session and players see the new position within seconds (needs the map published to the campaign).</div>
     <div class="actionbtns"><button class="gold" id="iEdit">✎ Open in editor</button></div>
     <div class="actionbtns"><button id="iDupe">Duplicate</button><button class="danger" id="iDel">Delete</button></div>`;
   $("#iName").oninput=e=>{i.name=e.target.value;renderInstances();renderLabels();markDirty();};
@@ -1628,6 +1687,9 @@ function renderInstanceInspector(){
   $("#iOp").oninput=e=>{i.opacity=+e.target.value/100;$("#iOpV").textContent=Math.round(i.opacity*100)+"%";renderInstances();markDirty();};
   if(i.kind==="planet3d"){const sp=$("#iSpin");if(sp)sp.oninput=e=>{i.p3spin=+e.target.value/10;$("#iSpinV").textContent=i.p3spin.toFixed(1)+"×";mountSpriteInstances();markDirty();};}
   if(i.kind==="spingalaxy")wireSpinGalaxyControls(i);
+  if(i.kind==="image"||i.kind==="spingalaxy")wireFadeControls(i);
+  wireLayerControls(state.instances,i);
+  {const lv=$("#iLive");if(lv)lv.onchange=e=>{i.live=e.target.checked;markDirty();if(i.live&&window.__mapLivePush)window.__mapLivePush();};}
   if(i.kind==="image"){const sb=$("#iSpiralize");if(sb)sb.onclick=()=>applySpinToInstance(i);
     const ff=$("#iImgFit");if(ff)ff.onchange=e=>{i.imgFit=e.target.value;const row=$("#iImgPosRow");if(row)row.style.display=i.imgFit==="cover"?"":"none";renderInstances();markDirty();};
     const px=$("#iPx");if(px)px.oninput=e=>{i.imgPosX=+e.target.value;$("#iPxV").textContent=i.imgPosX+"%";renderInstances();markDirty();};
@@ -1677,7 +1739,7 @@ function renderEditor(){
       <div class="field"><label>Thickness <span style="float:right;color:var(--gold)" id="edAtmoThV">${(edWork.atmoThick!=null?edWork.atmoThick:0.55).toFixed(2)}</span></label><div class="slider"><input type="range" id="edAtmoTh" min="10" max="100" value="${Math.round((edWork.atmoThick!=null?edWork.atmoThick:0.55)*100)}"></div></div></div>`;
   }
   else if(k==="moon"){html+=`<h4>Type</h4><div class="seg four" id="edMtype">${Object.keys(MOON_TYPES).map(t=>`<button data-t="${t}" class="${edWork.mtype===t?'on':''}">${t}</button>`).join('')}</div>`;}
-  else if(k==="star"){html+=`<h4>Class</h4><div class="seg" id="edStype">${Object.keys(STAR_TYPES).map(t=>`<button data-t="${t}" class="${edWork.stype===t?'on':''}">${t}</button>`).join('')}</div>`;}
+  else if(k==="star"){html+=`<h4>Class</h4><div class="seg" id="edStype">${Object.keys(STAR_TYPES).map(t=>`<button data-t="${t}" class="${edWork.stype===t?'on':''}">${t}</button>`).join('')}</div><label class="chk" style="display:flex;align-items:center;gap:7px;font-size:12px;padding:6px 0;cursor:pointer"><input type="checkbox" id="edRays" ${edWork.rays!==false?"checked":""}> ✦ Shine lines (rays)</label>`;}
   else if(k==="station"){html+=`<h4>Structure</h4><div class="seg five" id="edSttype">${STATION_TYPES.map(t=>`<button data-t="${t}" class="${edWork.stype===t?'on':''}">${STATION_LABELS[t]||t}</button>`).join('')}</div>`;}
   else if(k==="debris"){html+=`<h4>Kind</h4><div class="seg four" id="edDtype">${Object.keys(DEBRIS_TYPES).map(t=>`<button data-t="${t}" class="${edWork.dtype===t?'on':''}">${t}</button>`).join('')}</div>`;}
   else if(k==="system"){html+=`<div class="field"><label>Creed / motto</label><input id="edCreed" value="${esc(edWork.creed)}"></div>`;}
@@ -1710,6 +1772,7 @@ function wireEditor(){
   const seg=(id,prop,palettes)=>{const el=$("#"+id);if(!el)return;el.querySelectorAll("button").forEach(b=>b.onclick=()=>{el.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");edWork[prop]=b.dataset.t;if(palettes&&palettes[b.dataset.t]){const p=palettes[b.dataset.t];edWork.c1=p[0];edWork.c2=p[1];edWork.c3=p[2];if($("#edC1"))$("#edC1").value=p[0];if($("#edC2"))$("#edC2").value=p[1];if($("#edC3"))$("#edC3").value=p[2];}edPreview();if(k!=="svg"&&k!=="spingalaxy"&&k!=="planet3d")genIterations();});};
   seg("edPtype","ptype",PTYPES);seg("edMtype","mtype",MOON_TYPES);seg("edStype","stype",STAR_TYPES);seg("edSttype","stype",STATION_PALETTES);seg("edDtype","dtype",null);seg("edCloud","cloudStyle",null);
   if($("#edRing"))$("#edRing").onchange=e=>{edWork.ring=e.target.checked;edPreview();};
+  if($("#edRays"))$("#edRays").onchange=e=>{edWork.rays=e.target.checked;edPreview();};
   if($("#edCreed"))$("#edCreed").oninput=e=>edWork.creed=e.target.value;
   if($("#edCloudCol"))$("#edCloudCol").oninput=e=>{edWork.cloudColor=e.target.value;edPreview();};
   if($("#edCloudAmt"))$("#edCloudAmt").oninput=e=>{edWork.cloudAmount=+e.target.value/100;$("#edCloudAmtV").textContent=edWork.cloudAmount.toFixed(2);edPreview();};
@@ -1772,6 +1835,9 @@ function openTemplatePicker(){
 let ambient=null;
 function ensureAmbient(){if(!ambient)ambient=new AmbientFX($("#fxCanvas"));return ambient;}
 function applyMapFx(){const f=state.mapFx;const a=ensureAmbient();a.set({sparkles:f.sparkles,shooting:f.shooting,density:f.density,speed:f.speed,rate:f.rate,color:f.color});if(f.sparkles||f.shooting)a.start();else a.stop();applyNebulaTint();}
+// selection-border look (applies to .inst.sel + sector selection) via CSS vars
+function applySelStyle(){const s=state.selStyle||(state.selStyle={width:1.5,style:"dashed",color:"#c89b3c"});const r=document.documentElement.style;
+  r.setProperty("--selw",(s.width||1.5)+"px");r.setProperty("--sels",s.style||"dashed");r.setProperty("--selc",s.color||"#c89b3c");}
 function applyNebulaTint(){const w=document.querySelector('.canvaswrap');const f=state.mapFx;
   if(f.nebula&&!state.background){w.style.background=`radial-gradient(ellipse 62% 52% at 50% 42%, ${f.nebColor}, ${f.nebColor2} 55%, #06040f)`;}
   else if(!state.background){w.style.background='';}}
@@ -1780,8 +1846,8 @@ function applyNebulaTint(){const w=document.querySelector('.canvaswrap');const f
 const CAMP_KEY="stardust-campaigns";
 function loadCampaigns(){try{return JSON.parse(localStorage.getItem(CAMP_KEY)||"[]");}catch(e){return [];}}
 function saveCampaigns(list){try{localStorage.setItem(CAMP_KEY,JSON.stringify(list));}catch(e){toast("Storage full — export to a file instead");}}
-function mapData(){return {type:"stardust-map",version:2,meta:state.meta,background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,
-  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved})),
+function mapData(){return {type:"stardust-map",version:2,meta:state.meta,background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,selStyle:state.selStyle,
+  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved,z:s.z})),
   instances:state.instances,assets:state.assets};}
 function stamp(){const d=new Date();return d.toISOString();}
 function publishCurrent(name){
@@ -1817,7 +1883,8 @@ function applyMapData(m){resetDiffspin();
   state.background=m.background||null;state.centerGalaxy=m.centerGalaxy||null;
   state.mapFx=Object.assign({sparkles:true,shooting:false,nebula:true,density:0.72,speed:1,rate:0.35,color:"#cbd6ff",nebColor:"#2a1a5a",nebColor2:"#1a1240"},m.mapFx||{});
   state.meta=Object.assign({name:"Untitled Map",campaign:null,published:false},m.meta||{});
-  selection=null;undoStack=[];redoStack=[];computeSectorParents();reassociateAll();applyMapFx();renderLibrary();renderAll();fitAll();updateCampChip();
+  if(m.selStyle)state.selStyle=m.selStyle;
+  selection=null;undoStack=[];redoStack=[];computeSectorParents();reassociateAll();applyMapFx();applySelStyle();renderLibrary();renderAll();fitAll();updateCampChip();
 }
 
 /* ---- bridge for the 3D viewer (map3d.js): select / transform-writeback / undo checkpoint ---- */
@@ -1827,12 +1894,12 @@ window.map3dApply=function(id,patch){const i=state.instances.find(x=>x.id===id);
 
 /* ============================================================ HISTORY + SAVE/LOAD ============================================================ */
 function cleanState(){return JSON.stringify({assets:state.assets,instances:state.instances,
-  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved})),
-  background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,meta:state.meta});}
+  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved,z:s.z})),
+  background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,selStyle:state.selStyle,meta:state.meta});}
 function snap(){return cleanState();}
 function pushUndo(){undoStack.push(snap());if(undoStack.length>60)undoStack.shift();redoStack=[];markDirty();updUndo();}
 function resetDiffspin(){Object.values(diffspinLive).forEach(r=>{try{r.engine.destroy();}catch(e){}});Object.keys(diffspinLive).forEach(k=>delete diffspinLive[k]);Object.values(diffspinLib).forEach(e=>{try{e.destroy();}catch(e){}});Object.keys(diffspinLib).forEach(k=>delete diffspinLib[k]);Object.values(spriteLive).forEach(r=>{try{r.sp.destroy();}catch(e){}});Object.keys(spriteLive).forEach(k=>delete spriteLive[k]);Object.values(p3Lib).forEach(s=>{try{s.destroy();}catch(e){}});Object.keys(p3Lib).forEach(k=>delete p3Lib[k]);}
-function restore(s){resetDiffspin();const o=JSON.parse(s);state.assets=o.assets||[];state.instances=o.instances||[];state.sectors=o.sectors||[];state.background=o.background||null;state.centerGalaxy=o.centerGalaxy||null;state.mapFx=o.mapFx||state.mapFx;state.meta=o.meta||state.meta;computeSectorParents();reassociateAll();applyMapFx();}
+function restore(s){resetDiffspin();const o=JSON.parse(s);state.assets=o.assets||[];state.instances=o.instances||[];state.sectors=o.sectors||[];state.background=o.background||null;state.centerGalaxy=o.centerGalaxy||null;state.mapFx=o.mapFx||state.mapFx;if(o.selStyle)state.selStyle=o.selStyle;state.meta=o.meta||state.meta;computeSectorParents();reassociateAll();applyMapFx();applySelStyle();}
 function undo(){if(!undoStack.length)return;redoStack.push(snap());restore(undoStack.pop());selection=null;renderLibrary();renderAll();updUndo();}
 function redo(){if(!redoStack.length)return;undoStack.push(snap());restore(redoStack.pop());selection=null;renderLibrary();renderAll();updUndo();}
 function updUndo(){$("#undoBtn").style.opacity=undoStack.length?1:.4;$("#redoBtn").style.opacity=redoStack.length?1:.4;}
@@ -1865,9 +1932,9 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
 
 /* ============================================================ INIT ============================================================ */
 (function init(){
-  try{const saved=localStorage.getItem("stardust-map-studio");if(saved){const o=JSON.parse(saved);state.assets=o.assets||state.assets;state.instances=(o.instances||[]).map(i=>({pois:[],fx:{sparkle:false,nebula:false,nebulaColor:"#8f78e6",shoot:false},...i}));state.sectors=(o.sectors||[]).map(s=>({fx:{sparkle:false,nebula:false,nebulaColor:s.color,shoot:false},...s}));state.background=o.background||null;state.centerGalaxy=o.centerGalaxy||null;if(o.mapFx)state.mapFx=Object.assign(state.mapFx,o.mapFx);if(o.meta)state.meta=Object.assign(state.meta,o.meta);}}catch(e){}
+  try{const saved=localStorage.getItem("stardust-map-studio");if(saved){const o=JSON.parse(saved);state.assets=o.assets||state.assets;state.instances=(o.instances||[]).map(i=>({pois:[],fx:{sparkle:false,nebula:false,nebulaColor:"#8f78e6",shoot:false},...i}));state.sectors=(o.sectors||[]).map(s=>({fx:{sparkle:false,nebula:false,nebulaColor:s.color,shoot:false},...s}));state.background=o.background||null;state.centerGalaxy=o.centerGalaxy||null;if(o.mapFx)state.mapFx=Object.assign(state.mapFx,o.mapFx);if(o.selStyle)state.selStyle=o.selStyle;if(o.meta)state.meta=Object.assign(state.meta,o.meta);}}catch(e){}
   computeSectorParents();reassociateAll();
-  ensureAmbient();applyMapFx();
+  ensureAmbient();applyMapFx();applySelStyle();
   renderLibrary();applyView();renderAll();updUndo();updateCampChip();fitAll();
 })();
 </script>
@@ -1905,6 +1972,10 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
     if(j.map && j.map.id){ dbMapId = j.map.id; syncUrl(); }
     return j.map;
   }
+
+  // Debounced live push — the main code calls this when a "keep updated" element is moved, so
+  // players polling the console see the new position within a few seconds. No-op if never published.
+  window.__mapLivePush = (function(){ let t=null; return function(){ clearTimeout(t); t=setTimeout(()=>{ saveToCampaign().catch(()=>{}); }, 700); }; })();
 
   // PATCH published:true (saving first so players get the latest state).
   async function publishToPlayers(){
