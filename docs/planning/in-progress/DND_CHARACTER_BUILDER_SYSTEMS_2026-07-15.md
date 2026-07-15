@@ -58,10 +58,17 @@ there is currently a live `Cannot read properties of undefined (reading 'map')` 
   into **every** load path in `state/store.tsx` (mount load, `reloadFromDb`, realtime refetch, localStorage
   preview). Verified: `tsc` clean, lint clean, new `__tests__/dnd/normalize-character.test.ts` (3 tests)
   passes — a minimal/junk/empty character normalizes with all arrays present.
-- **Slice 2 — System reference ingestion + browse.** A mechanism to **research/curate + store** entries
-  for a system (paste/upload/admin-curated), chunk + embed them (reuse the embedding lib), and a browse/
-  search UI scoped to one system. Seed a small starter set per seeded system so retrieval works end-to-end.
-  Verify: entries ingest with embeddings; a scoped search returns only that system's entries.
+- **Slice 2 — System reference ingestion + browse.** ✅ `lib/dnd/system-store.ts` ingests curated entries
+  for a system (`addSystemEntries` — embeds each via the reused `lib/learn/embeddings` lib, storing the
+  text now + embeddings when a key is configured) and retrieves them **scoped** (`searchSystemEntries`
+  calls the `match_dnd_system_entries` RPC by `system_id`; `listSystemEntries` for browse) — never falling
+  back to another system. API: `GET /api/dnd/systems` (picker list), `GET /api/dnd/systems/[key]/entries`
+  (`?q=` scoped search / `?kind=` list) + `POST` (signed-in curate). `app/dnd/_ui/SystemLibrary.tsx` is a
+  scoped browse/search panel. `seeds/423_dnd_system_starter.sql` seeds a few generic starter entries per
+  system (idempotent; NULL embeddings → a keyed backfill embeds them). Verified: `tsc` clean, lint clean,
+  SQL balanced, `__tests__/dnd/system-store.test.ts` passes (embed-text weighting + empty-query returns
+  nothing = no cross-system leak). *(Real embeddings + semantic hits need `VOYAGE`/embedding env; the store
+  degrades gracefully without it — browse works, semantic search returns [] rather than guessing.)*
 - **Slice 3 — System-scoped, anti-hallucination grounding.** The build/ingest agent retrieves **only the
   chosen system's** entries (none for ambiguous/custom), with strict prompts: never invent rules, never
   borrow from another system, cite the entry used, and **flag** anything missing/unsupported instead of
@@ -133,4 +140,4 @@ there is currently a live `Cannot read properties of undefined (reading 'map')` 
 - **Verification:** app/server + AI features; prefer the dnd vitest suites + driving routes, and note
   anything needing the live app or an AI key.
 
-### Status: IN PROGRESS (Slices 0–1 + 1b shipped; 2–15 pending)
+### Status: IN PROGRESS (Slices 0–2 + 1b shipped; 3–15 pending)
