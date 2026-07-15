@@ -664,12 +664,29 @@ function art(a,animate){
       len:a.len!=null?a.len:1,c1:c1||"#c89aff",c2:c2||"#6a3aff",core:c3||"#fff2c8",seed:a.seed||7,animate:anim,spinDur:a.spinDur||60});
   }
   if(k==="star"){
+    // Three independently-coloured parts: CORE (c1, the bright body), immediate GLOW (c2), and the
+    // diffused light + sun rays (c3). Plus brightness, corona size, glow "breathing", and ray spec.
+    const coreC=c1,glowC=c2||c3||c1,diffC=c3||c2||c1;
+    const br=a.brightness!=null?a.brightness:1;
+    const cs=a.coronaSize!=null?a.coronaSize:1;
+    const bre=a.breathe||{on:true,speed:1,depth:0.12};
+    const rs=a.raySpec||{count:14,length:1,intensity:0.5};
+    const haloR=Math.min(99,44+52*cs);                      // diffuse halo reach
+    const diffOp=Math.min(1,0.5*br).toFixed(2),glowOp=Math.min(1,0.62*br).toFixed(2);
+    const depth=bre.depth!=null?bre.depth:0.12,bdur=(5/Math.max(0.2,bre.speed||1)).toFixed(1);
+    const breanim=(anim&&bre.on!==false)?`animation:bstar${id} ${bdur}s ease-in-out infinite;transform-origin:center`:'';
+    const breKey=`<style>@keyframes bstar${id}{0%,100%{opacity:${(1-depth*0.55).toFixed(2)};transform:scale(${(1-depth*0.5).toFixed(3)})}50%{opacity:1;transform:scale(${(1+depth*0.5).toFixed(3)})}}</style>`;
+    const rc=Math.max(0,Math.min(48,Math.round(rs.count!=null?rs.count:14)));
+    const rlen=rs.length!=null?rs.length:1,rop=Math.min(1,(rs.intensity!=null?rs.intensity:0.5)*1.1*br).toFixed(2);
+    const rays=(a.rays!==false&&rc>0)?`<g style="${anim?'animation:cspin 40s linear infinite;transform-origin:center':''}">${[...Array(rc)].map((_,i)=>{const an=i/rc*Math.PI*2,r0=52,r1=64+(12+rng()*16)*rlen;return `<line x1="${(cx+Math.cos(an)*r0).toFixed(1)}" y1="${(cy+Math.sin(an)*r0).toFixed(1)}" x2="${(cx+Math.cos(an)*r1).toFixed(1)}" y2="${(cy+Math.sin(an)*r1).toFixed(1)}" stroke="${diffC}" stroke-width="2" opacity="${rop}"/>`;}).join("")}</g>`:"";
     return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><defs>
-      <radialGradient id="s${id}" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff"/><stop offset="35%" stop-color="${L(c1,50)}"/><stop offset="70%" stop-color="${c1}"/><stop offset="100%" stop-color="${D(c1,20)}"/></radialGradient>
-      <radialGradient id="co${id}" cx="50%" cy="50%" r="50%"><stop offset="35%" stop-color="${c3}" stop-opacity=".55"/><stop offset="100%" stop-color="${c3}" stop-opacity="0"/></radialGradient></defs>
-      <circle cx="${cx}" cy="${cy}" r="96" fill="url(#co${id})" style="${anim?'animation:breathe 5s ease-in-out infinite;transform-origin:center':''}"/>
-      ${a.rays!==false?`<g style="${anim?'animation:cspin 40s linear infinite;transform-origin:center':''}">${[...Array(14)].map((_,i)=>{const an=i/14*Math.PI*2;return `<line x1="${cx+Math.cos(an)*54}" y1="${cy+Math.sin(an)*54}" x2="${cx+Math.cos(an)*(66+rng()*14)}" y2="${cy+Math.sin(an)*(66+rng()*14)}" stroke="${c3}" stroke-width="2" opacity=".5"/>`;}).join("")}</g>`:""}
-      <circle cx="${cx}" cy="${cy}" r="50" fill="url(#s${id})"/></svg>`;
+      <radialGradient id="core${id}" cx="42%" cy="40%" r="60%"><stop offset="0%" stop-color="#fff"/><stop offset="45%" stop-color="${L(coreC,42)}"/><stop offset="100%" stop-color="${coreC}"/></radialGradient>
+      <radialGradient id="glow${id}" cx="50%" cy="50%" r="50%"><stop offset="52%" stop-color="${glowC}" stop-opacity="0"/><stop offset="80%" stop-color="${glowC}" stop-opacity="${glowOp}"/><stop offset="100%" stop-color="${glowC}" stop-opacity="0"/></radialGradient>
+      <radialGradient id="diff${id}" cx="50%" cy="50%" r="50%"><stop offset="18%" stop-color="${diffC}" stop-opacity="${diffOp}"/><stop offset="100%" stop-color="${diffC}" stop-opacity="0"/></radialGradient></defs>${breKey}
+      <circle cx="${cx}" cy="${cy}" r="${haloR}" fill="url(#diff${id})" style="${breanim}"/>
+      ${rays}
+      <circle cx="${cx}" cy="${cy}" r="64" fill="url(#glow${id})"/>
+      <circle cx="${cx}" cy="${cy}" r="44" fill="url(#core${id})"/></svg>`;
   }
   if(k==="station"){
     const st=a.stype||"ring";let inner="";
@@ -769,7 +786,9 @@ function newAsset(kind,opts={}){
     a.cloudStyle=opts.cloudStyle||(["terran","ocean","jungle","toxic"].includes(a.ptype)?"wispy":"none");a.cloudColor=opts.cloudColor||"#ffffff";a.cloudAmount=opts.cloudAmount!=null?opts.cloudAmount:0.5;
     a.atmo=opts.atmo!=null?opts.atmo:["terran","ocean","toxic","gas","jungle"].includes(a.ptype);a.atmoColor=opts.atmoColor||"";a.atmoThick=opts.atmoThick!=null?opts.atmoThick:0.55;}
   else if(kind==="moon"){a.mtype=opts.mtype||"rocky";const p=MOON_TYPES[a.mtype];a.c1=opts.c1||p[0];a.c2=opts.c2||p[1];a.c3=opts.c3||p[2];a.cloudStyle="none";}
-  else if(kind==="star"){a.stype=opts.stype||"yellow";const p=STAR_TYPES[a.stype];a.c1=opts.c1||p[0];a.c2=opts.c2||p[1];a.c3=opts.c3||p[2];a.rays=opts.rays!==false;}
+  else if(kind==="star"){a.stype=opts.stype||"yellow";const p=STAR_TYPES[a.stype];a.c1=opts.c1||p[0];a.c2=opts.c2||p[1];a.c3=opts.c3||p[2];a.rays=opts.rays!==false;
+    a.brightness=opts.brightness!=null?opts.brightness:1;a.coronaSize=opts.coronaSize!=null?opts.coronaSize:1;
+    a.breathe=opts.breathe||{on:true,speed:1,depth:0.12};a.raySpec=opts.raySpec||{count:14,length:1,intensity:0.5};}
   else if(kind==="station"){a.stype=opts.stype||"ring";const sp=STATION_PALETTES[a.stype]||["#b8c0d0","#5a6a8a","#ffd86b"];a.c1=opts.c1||sp[0];a.c2=opts.c2||sp[1];a.c3=opts.c3||sp[2];}
   else if(kind==="debris"){a.dtype=opts.dtype||"field";a.c1=opts.c1||"#8a8a9a";a.c2=opts.c2||"#5a5a62";a.c3=opts.c3||"#c8c8d0";}
   else if(kind==="galaxy"){a.c1=opts.c1||"#c89aff";a.c2=opts.c2||"#6a3aff";a.c3=opts.c3||"#fff2c8";a.arms=opts.arms||2;a.turns=opts.turns||1.1;a.tight=opts.tight!=null?opts.tight:0.9;a.spread=opts.spread!=null?opts.spread:0.7;a.len=opts.len!=null?opts.len:1;a.spinDur=opts.spinDur||60;}
@@ -1029,8 +1048,8 @@ $("#placeConfirm").onclick=()=>{
 };
 $("#placeCancel").onclick=clearPending;
 function clearPending(){pending=null;ghost.style.display="none";$("#placeBar").classList.remove("show");}
-function snapshotLook(a){const {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,image,src,natW,natH,dsCfg,cfg3d,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames}=a;
-  return {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,image,src,natW,natH,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames,dsCfg:dsCfg?JSON.parse(JSON.stringify(dsCfg)):undefined,cfg3d:cfg3d?JSON.parse(JSON.stringify(cfg3d)):undefined};}
+function snapshotLook(a){const {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,brightness,coronaSize,breathe,raySpec,image,src,natW,natH,dsCfg,cfg3d,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames}=a;
+  return {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,brightness,coronaSize,image,src,natW,natH,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames,breathe:breathe?JSON.parse(JSON.stringify(breathe)):undefined,raySpec:raySpec?JSON.parse(JSON.stringify(raySpec)):undefined,dsCfg:dsCfg?JSON.parse(JSON.stringify(dsCfg)):undefined,cfg3d:cfg3d?JSON.parse(JSON.stringify(cfg3d)):undefined};}
 function applyBackground(a){pushUndo();state.background=snapshotLook(a);renderAll();markDirty();toast("Backdrop set");}
 // Render an image backdrop into #bgLayer (screen-space, behind everything). "size" scales it so the
 // backdrop size the user picks actually changes what's shown; opacity lets the gradient show through.

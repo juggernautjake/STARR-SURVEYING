@@ -39,12 +39,15 @@ Plus effect params on the star's look (all optional, sensible defaults so old st
 ## Slices
 
 - **Slice 0 — Planning doc** *(this file)*.
-- **Slice 1 — Config + 2D render.** Extend the star look defaults (`brightness`, `coronaSize`,
-  `breathe`, `raySpec`) and rewrite the 2D `art()` star to use the three parts: **core** disc (`c1`),
-  an **immediate glow** ring/gradient (`c2`), a **diffuse** corona halo (`c3`, extent = `coronaSize`),
-  and **rays** (`c3`, count/length/intensity from `raySpec`). Brightness scales the layer opacities;
-  `breathe` drives the corona's CSS pulse (speed/depth). Presets still seed the three colours. Verify
-  headless: a star renders three distinctly-coloured layers and the breathe/rays params take effect.
+- **Slice 1 — Config + 2D render.** ✅ Star look defaults added in `newAsset` (`brightness`,
+  `coronaSize`, `breathe{on,speed,depth}`, `raySpec{count,length,intensity}`) and persisted through
+  `snapshotLook` (deep-cloned). The 2D `art()` star was rewritten into the three parts: a **core** disc
+  (`c1`, white→c1), an **immediate glow** gradient (`c2`), a **diffuse** halo + **sun rays** (`c3`,
+  reach = `coronaSize`, rays from `raySpec`). `brightness` scales the glow/diffuse/ray opacities; glow
+  **breathing** uses a per-star `@keyframes` honouring `speed` (duration) and `depth` (scale+opacity),
+  toggleable via `breathe.on`. Presets still seed all three colours. Verified headless: a star renders
+  three distinctly-coloured layers (core/glow/diffuse), a per-id breathe keyframe at the right speed, a
+  ray count matching `raySpec`, and the effect fields persist; 0 errors.
 - **Slice 2 — 3D render.** Rewrite `buildStarModel` to map the three parts: **body** = `c1` (core),
   **fresnel glow shell + corona sprite** = `c2` (immediate glow), **ray sprite + outer diffuse** =
   `c3` (diffuse). `brightness` scales the emissive/opacity; `breathe{on,speed,depth}` drives the pulse
@@ -70,4 +73,4 @@ Plus effect params on the star's look (all optional, sensible defaults so old st
 - **Cool factor:** allow the diffuse halo + rays to extend well beyond the body (`coronaSize`), use
   additive blending in 3D, and let brightness push the core toward white for a hot look.
 
-### Status: IN PROGRESS (Slice 0 written; 1–4 pending)
+### Status: IN PROGRESS (Slices 0–1 shipped; 2–4 pending)
