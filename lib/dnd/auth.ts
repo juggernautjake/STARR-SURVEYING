@@ -9,11 +9,37 @@ import { supabaseAdmin } from '@/lib/supabase';
 
 const COOKIE = 'dnd_session';
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 days
+const DEV_SECRET = 'dnd-dev-secret-change-in-prod';
 const SECRET =
   process.env.DND_SESSION_SECRET ||
   process.env.AUTH_SECRET ||
   process.env.NEXTAUTH_SECRET ||
-  'dnd-dev-secret-change-in-prod';
+  DEV_SECRET;
+
+// A stable signing secret is what keeps sessions valid across requests/deploys. If production falls
+// back to the shared dev default, tokens are trivially forgeable AND can stop verifying if the default
+// ever changes — surfacing as "my session keeps signing me out". Warn loudly so it gets configured.
+if (SECRET === DEV_SECRET && process.env.NODE_ENV === 'production') {
+  console.error(
+    '[dnd/auth] No DND_SESSION_SECRET (or AUTH_SECRET/NEXTAUTH_SECRET) set in production — ' +
+      'the session cookie is signed with an insecure shared default and may not persist. Set DND_SESSION_SECRET.',
+  );
+}
+
+// Cookie flags for the session. `secure` is on in production so the cookie only travels over HTTPS —
+// but a deployment served over plain HTTP (e.g. behind a TLS-terminating proxy that forwards http)
+// would have the browser DROP a Secure cookie, so new sign-ins never stick. `DND_COOKIE_INSECURE=1`
+// opts such deployments out of the Secure flag so sessions persist.
+function sessionCookieOptions() {
+  const insecure = process.env.DND_COOKIE_INSECURE === '1';
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production' && !insecure,
+    sameSite: 'lax' as const,
+    path: '/',
+    maxAge: MAX_AGE,
+  };
+}
 
 export interface DndSession {
   userId: string;
@@ -59,13 +85,7 @@ export function setDndSession(user: { id: string; email: string; display_name: s
     displayName: user.display_name,
     exp: Date.now() + MAX_AGE * 1000,
   });
-  cookies().set(COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: MAX_AGE,
-  });
+  cookies().set(COOKIE, token, sessionCookieOptions());
 }
 
 // Access model (user decision 2026-07-06): /dnd is PUBLIC by default — a hidden hub

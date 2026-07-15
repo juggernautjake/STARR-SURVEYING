@@ -54,11 +54,17 @@
   `usePathname`). Covers requests 5 + 6. Verified: `tsc --noEmit` clean (0 errors) and `next lint` clean on
   the three changed files. *(Runtime smoke needs the app's Supabase env, absent here — only `.env.example`
   exists — so DB-backed pages can't be driven; the change itself is cookie-only + type-checked.)*
-- **Slice 2 — Session persistence.** Harden the cookie session so new users stay signed in: guarantee a
-  **stable signing secret** (fail-loud in prod if unset instead of the dev default; document
-  `DND_SESSION_SECRET`), and make the post-sign-in transition reliable (`HubSignIn` hard-navigate /
-  `await` the Set-Cookie before `router.refresh()`), keeping `secure` correct behind TLS. Extend
-  `__tests__/dnd/auth.test.ts` to cover round-trip persistence (sign token → verify on a later request).
+- **Slice 2 — Session persistence.** ✅ Hardened `lib/dnd/auth.ts`: (a) **loud production warning** when
+  the session secret falls back to the shared dev default (forgeable + can stop verifying → surfaces as
+  "keeps signing me out"), so `DND_SESSION_SECRET` gets configured; (b) a **`DND_COOKIE_INSECURE=1`
+  escape hatch** on the cookie's `Secure` flag — the most likely real cause of new sessions not sticking
+  is a deployment served over plain HTTP behind a TLS-terminating proxy, where the browser drops a Secure
+  cookie; the flag lets such deployments persist. Cookie options refactored into `sessionCookieOptions()`.
+  Extended `__tests__/dnd/auth.test.ts` with a persistence test (a 30-day token — what `setDndSession`
+  issues — verifies repeatedly). Verified: `tsc` clean, 7/7 auth tests pass, lint clean. *(The post-
+  sign-in `router.refresh()` in `HubSignIn` was left as-is — it re-runs the server layout which reads the
+  freshly-set cookie; the Secure-flag drop is the higher-confidence root cause and needs the live
+  deployment to confirm.)*
 - **Slice 3 — Campaign-free character creation.** Allow creating + fully building a character with **no
   campaign**: relax `POST /api/dnd/characters/import` (and `/characters`) to accept a null/absent
   `campaignId` — owned by the caller, `visibility` private (or public), no membership check on that path;
@@ -91,4 +97,4 @@
 - **Verification:** these are app/server features — prefer the dnd vitest suites + driving the actual
   routes/pages; note any check that can't run headlessly.
 
-### Status: IN PROGRESS (Slices 0–1 shipped; 2–6 pending)
+### Status: IN PROGRESS (Slices 0–2 shipped; 3–6 pending)
