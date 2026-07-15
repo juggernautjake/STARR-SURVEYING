@@ -330,17 +330,36 @@ other, and keep every element consistent:
   image, text, HTML, POI were already covered. Verified headless: planet(4 meshes)/moon/station(7)/
   debris(7) each build real meshes when large; 0 errors. *Static 2D `galaxy` kind keeps the shaded
   disc (the animated spingalaxy is the primary galaxy body); low value to add a second galaxy mesh.*
-- **Slice 12 — Feature-equivalence audit (req 16).** ⏳ Enumerate every object kind, action, effect,
-  setting, and edit option in the 2D Studio inspector/toolbar and confirm each has an equivalent path
-  when the 3D viewer is active (or is reachable through the shared inspector while 3D is shown); close
-  any gaps. Produce a short parity table in this doc (2D capability → 3D equivalent) and fix the top
-  missing ones. Verify headless.
+- **Slice 12 — Feature-equivalence audit (reqs 16, 21).** ✅ Audited every kind/action/effect/setting
+  against the 3D viewer and closed the spatial-correspondence gaps found: **2D rotation** (`it.rot`) now
+  maps to the 3D z axis (was `t3d`-only), **per-instance opacity** now applies to 3D discs and promoted
+  meshes, and **body name labels** now render in 3D (CSS3D, below the body) like the 2D label layer.
+  Verified headless: 2D `rot=90` → 3D `z=-90°`, `opacity=0.5` on the disc, a body label present; 0
+  errors. Parity table below.
+
+  | 2D capability | 3D equivalent | Slice |
+  |---|---|---|
+  | position / size / center | holder pos `(x,-y)`, scale·2 = size — exact | 3/10/12 |
+  | rotation (`rot`, `t3d`) | z = `-rot` or full `t3d` | 12 |
+  | opacity | material opacity on disc + mesh | 12 |
+  | layer / z / behind | depth offset, sorted, correlated | 11a |
+  | planet3d / planet / moon | real 3D sphere (+textured impostor) | 5/11c |
+  | star / spingalaxy | star model / spinning galaxy disc | 9a |
+  | station / asteroid / debris | ring model / rock cluster | 11c |
+  | image (fit, fade, spin) | plane + fade shader + spin | 7/9 |
+  | text / HTML | CSS3D DOM | (prior) |
+  | body & sector labels | CSS3D labels | 10/12 |
+  | POIs (surface) | pin sprites, pickable | 11b-2 |
+  | sectors (fill/border/curved) | ShapeGeometry + LineLoop | 10 |
+  | containment (into sectors) | reassoc on move | 11 |
+  | background (`bg3d`) | shared sky engine + 2D backdrop | 3–9b |
+  | per-body sparkle/nebula/shoot fx | *deferred* (scene-level FX cover ambience) | 9a |
 - **Slice 13 — Doc to completed + ship log + QA.** Move this file to `docs/planning/completed/` with a
   build log once Slices 8–12 land and the whole flow is verified end-to-end (Studio DM edit → live 3D +
   2D parity → publish → player Console parity), including origin/scale alignment, animated content,
   sectors/systems in both viewers, body-into-sector placement, and full feature equivalence.
 
-### Status: IN PROGRESS (Slices 0–11c shipped; 12 pending, then 13 = doc-move/QA)
+### Status: IN PROGRESS (Slices 0–12 shipped; 13 = doc-move/QA remains)
 *Req 21 (exact position/orientation/colour/scale correspondence) is a verification bar applied to
 every slice — the 2D→3D `(x,-y)` transform + scale·2 model already gives bodies/sectors exact placement
 (e.g. sector centroid `(250,-230)`); Slice 12 audits it across all kinds.*

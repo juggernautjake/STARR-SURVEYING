@@ -611,7 +611,10 @@ const Map3D = {
       const zLayer = Math.tanh((it.z || 0) / 20) * 0.4;              // bounded, monotonic in the 2D z
       holder.position.set(cx, -cy, (it.behind ? -3 : 0.5) + zLayer);
       holder.scale.setScalar(Math.max(4, s / 2));
-      if (it.t3d) holder.rotation.set(it.t3d.rx || 0, it.t3d.ry || 0, it.t3d.rz || 0);
+      // Orientation parity: an explicit 3D rotation (t3d, from the gizmo) wins; otherwise the 2D
+      // rotation (it.rot, degrees clockwise) maps to the 3D z axis (y is negated, so rot → -rot).
+      const _t3 = it.t3d || {};
+      holder.rotation.set(_t3.rx || 0, _t3.ry || 0, _t3.rz != null ? _t3.rz : -((it.rot || 0) * Math.PI / 180));
       holder.userData.id = it.id;
       const imgUrl = it.kind === 'image' && it.look ? (it.look.src || it.look.image) : null;
       // planet3d uses its saved cfg3d; 2D planets/moons synthesize a config so they render as real 3D
@@ -624,7 +627,10 @@ const Map3D = {
       if (imgUrl) { const plane = this._imagePlane(it, imgUrl); holder.add(plane); if (plane.userData.spin) this._spinPlanes.push(plane); }
       else { disc = this._discMesh(it, cfg); holder.add(disc); if (disc.userData.spin) this._spinPlanes.push(disc); }
       if (it.pois && it.pois.length) this._addSurfacePois(holder, it);   // surface POIs on the body
+      if (it.opacity != null && it.opacity < 1) holder.traverse(o => { if (o.material && !o.material.uniforms) { o.material.transparent = true; o.material.opacity = it.opacity; } });   // fade parity
       g.add(holder);
+      // The body's name label (below it), matching the 2D label layer — kinds text/html are their own label.
+      if (it.name && (!it.label || it.label.show !== false)) this._addText({ name: it.name, label: it.label, x: cx, y: it.y + s + 6 });
       this._bodies.push({ holder, it, disc, isStar: it.kind === 'star', kind: it.kind, cfg, canFull: !imgUrl && (it.kind === 'star' || !!cfg || genMesh), hasModel: false, model: null });
       minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x + s); maxY = Math.max(maxY, it.y + s);
     }
@@ -699,6 +705,7 @@ const Map3D = {
           : (b.kind === 'debris' || b.kind === 'asteroid') ? this._debrisModel(b.it)
             : buildPlanetModel(b.cfg, { anisotropy: aniso, segments: 64 });
       if (b.disc) b.holder.remove(b.disc);
+      if (b.it.opacity != null && b.it.opacity < 1) model.group.traverse(o => { if (o.material && !o.material.uniforms) { o.material.transparent = true; o.material.opacity = b.it.opacity; } });
       b.holder.add(model.group); b.model = model; b.hasModel = true; this._planets.push({ model });
       return true;
     } catch (e) { console.error('[map3d] LOD promote failed', e); return false; }
