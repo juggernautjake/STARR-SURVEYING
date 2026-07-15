@@ -164,9 +164,15 @@ are already stored.
     real options and matches the system's mechanics, and any invented element is **auto-flagged custom** by
     the same provenance classifier the builder + approval panel use. Verified: `tsc` clean, lint clean, full
     dnd suite (294) green (the pure assembler the route+UI call is covered by `ig-builder.test.ts`).
-- **Slice 8 — QA + docs.** End-to-end pass (build vanilla → all-vanilla, AI-custom → flagged, vanilla-only
-  campaign blocks a custom submit, DM grant allowed, approve/reject + notes + notification), full dnd vitest
-  suite green, tsc + lint clean, then move this doc to `completed/`.
+- **Slice 8 — QA + docs.** ✅ `__tests__/dnd/ig-e2e.test.ts` walks the whole journey end-to-end through the
+  real libs (the deterministic layer, zero services): a vanilla build → all-vanilla → **passes** a
+  vanilla-only campaign; a custom build → flagged → **blocked** by a vanilla-only campaign, the gate naming
+  the offenders (`Berserker Fury`, `Ultra Nuke`), while a custom-allowing campaign accepts it; a **DM grant**
+  of that element moves it to dm-granted and **unblocks** the vanilla-only submit; submission-status
+  normalization across draft/submitted/approved/rejected. Full dnd vitest suite **298 green**, `tsc` clean,
+  lint clean. Doc moved to `completed/`. *(Live Supabase round-trips for the submit/review/grant/ig-build
+  routes need the DB env; the routes are type-safe and their pure cores are all unit-tested — the
+  approve/reject **notification** to the player is the existing `character_rejected` feed from Slice 4.)*
 
 ## Considerations
 - **Deterministic guarantee:** classification + policy work with zero external services (pure functions over
@@ -179,4 +185,9 @@ are already stored.
 - **Backward compatible:** new columns default so existing characters/campaigns keep working (status=draft,
   allow_custom=true).
 
-### Status: IN PROGRESS (Slices 0–7 shipped; Slice 8 — final QA + doc move — pending)
+### Status: COMPLETE — full Intuitive Games character builder shipped (Slices 0–8): vanilla content library +
+catalog, deterministic build-from-vanilla assembler with correctly-kinded provenance, the builder-UI picker
+with a live vanilla/custom count, custom/vanilla/DM-granted flagging on every element, the DM approval
+workflow (submit → review → approve/reject with notes → player notification), the campaign vanilla-only
+policy that blocks custom submissions, always-allowed DM grants, and the AI-customize path grounded to the
+system with auto-flagging. All 298 dnd tests green.
