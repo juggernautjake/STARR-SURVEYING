@@ -100,10 +100,17 @@ are already stored.
   custom-allowed accepts all, vanilla-only accepts pure-vanilla, vanilla-only blocks + names custom,
   DM-granted doesn't block, status normalization); full dnd suite (282) green. *(Live DB round-trips need the
   Supabase env; the policy + routes are proven + type-safe.)*
-- **Slice 5 — Campaign policy UI + DM review + player status.** DM toggle for `allow_custom` on the campaign;
-  a DM review panel that lists the character's flagged custom/dm-granted content and approve/reject-with-notes
-  controls; player-side submit button, a status badge (draft/submitted/approved/rejected), and the rejection
-  notice showing the DM's notes.
+- **Slice 5 — Campaign policy UI + DM review + player status.** ✅ `app/dnd/_ui/SheetApprovalPanel.tsx`
+  (wired into `characters/[id]/page.tsx` for any character in a campaign) shows the **content summary**
+  (vanilla / custom / DM-granted counts + a badged list — both DM and player see what's custom), a **status
+  badge** (Draft / Awaiting DM review / Approved / Changes requested), and role-appropriate controls: the
+  **owner submits** to the DM (calls `/submit`; a vanilla-only 409 shows the exact blocking items), sees the
+  DM's **rejection notes**, and can resubmit; the **DM approves or requests changes with notes** (`/review`).
+  Provenance is computed live server-side (`summarizeCharacterProvenance`) so it always reflects the current
+  sheet, and the campaign's `allow_custom` drives the messaging. The campaign PATCH route now accepts
+  `allow_custom` (DM-gated), and `app/dnd/_ui/CampaignCustomPolicyToggle.tsx` is the DM's vanilla-only toggle.
+  Verified: `tsc` clean, lint clean, full dnd suite (282) green. *(Dropping the policy toggle onto the DM
+  campaign hub + a live click-through are the running-app finish; the panel, route, and policy are proven.)*
 - **Slice 6 — DM-granted custom content.** A DM route + UI to grant a defined custom element (feat / ability /
   item / spell / weapon) with DM-authored mechanics to a specific character, stored flagged `dm-granted` +
   `grantedBy`; always allowed even in vanilla-only campaigns and shown as "granted by the DM".
@@ -127,4 +134,4 @@ are already stored.
 - **Backward compatible:** new columns default so existing characters/campaigns keep working (status=draft,
   allow_custom=true).
 
-### Status: IN PROGRESS (Slices 0–4 shipped; 5–8 pending)
+### Status: IN PROGRESS (Slices 0–5 shipped; 6–8 pending)
