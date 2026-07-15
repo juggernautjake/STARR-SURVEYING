@@ -7,6 +7,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Caveat:wght@500;700&family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Michroma&family=Orbitron:wght@500;600;700&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <script src="labels.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "/dnd/maps/vendor/three/three.module.js",
+  "three/addons/": "/dnd/maps/vendor/three/addons/"
+}}
+</script>
 <style>
   :root{--void:#010a13;--ink:#f0e6d2;--dim:#a09b8c;--faint:#6d6a5f;--gold:#c89b3c;--aether:#c8aa6e;--scan:#0ac8b9;--amber:#c8aa6e;--red:#c6403b;--green:#0ac8b9;
     --steel:#0b1a2c;--steel2:#10233b;--steelhi:#16304a;--bezel:#010a13;--screen:#02121a;--screenglow:#0ac8b9;}
@@ -143,6 +149,7 @@
   <div class="titlecard"><h1 id="mapTitle">STARDUST RHAPSODY</h1><div class="tag">◈ GALACTIC NAVIGATION ARRAY ◈</div></div>
   <div class="legend"><h3>◈ SYSTEMS</h3><div id="legendRows"></div></div>
   <button class="campbtn" id="campBtn">🗂 Load campaign</button>
+  <button class="campbtn" id="view3dBtn" style="right:200px" title="Switch between the 2D map and the 3D viewer">⛶ 3D</button>
   <div class="mapnav">
     <button id="zoomIn">+</button>
     <button id="zoomOut">−</button>
@@ -151,6 +158,7 @@
   <div id="bgLayer"></div>
   <div id="stage"><div id="viewport"></div></div>
   <canvas id="fxCanvas"></canvas>
+  <div id="gl3d" data-hide="bgLayer stage fxCanvas" style="position:absolute;inset:0;z-index:10;display:none"></div>
 </div>
 <div id="console">
   <div class="bank">
@@ -646,32 +654,44 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
 (function consoleBridge(){
   const qs = new URLSearchParams(location.search);
   const campaign = qs.get("campaign");
-  if(!campaign) return;                        // stand-alone use → unchanged
-  const api = "/api/dnd/campaigns/" + encodeURIComponent(campaign) + "/maps";
   const wanted = qs.get("map");
+
+  let curData = null, curStamp = null, curMapId = wanted || null;
+  // Expose the live map to the 3D viewer (map3d.js); a 3D pick drives the CRT readout.
+  window.mapData = () => curData || (typeof MAP !== "undefined" ? MAP : { instances: [] });
+  window.map3dSelect = (id) => { if(id) select({ type:"instance", id }); };
+  // If the DM edits a published map while a player is in 3D, refresh the 3D scene too.
+  function apply(data, name, announce){
+    curData = data; loadMap(data);
+    if(window.Map3D && window.Map3D.isShown()) window.Map3D.setData(data);
+    if(announce) toast('◈ '+((name||"Campaign map")).toUpperCase());
+  }
+
+  if(!campaign) return;                        // stand-alone → sample map (3D toggle still works)
+  const api = "/api/dnd/campaigns/" + encodeURIComponent(campaign) + "/maps";
   const campBtn = document.getElementById("campBtn");
   if(campBtn) campBtn.style.display = "none";   // localStorage list — not used on the platform
 
-  async function load(){
+  // Poll the published map so DM edits/publishes reach players in ~real time (2D and 3D).
+  async function poll(first){
     try{
-      let mapId = wanted;
-      if(!mapId){
-        // No explicit map → find the campaign's published built map.
-        const lr = await fetch(api);
-        if(!lr.ok) return;
-        const { maps } = await lr.json();
-        const pub = (maps || []).find(m => m.published && m.kind === "built");
-        if(!pub) return;                        // nothing to show → keep sample
-        mapId = pub.id;
-      }
-      const r = await fetch(api + "?mapId=" + encodeURIComponent(mapId));
-      if(!r.ok) return;
+      const lr = await fetch(api); if(!lr.ok) return;
+      const { maps } = await lr.json();
+      let row = curMapId ? (maps||[]).find(m => m.id === curMapId) : null;
+      if(!row) row = (maps||[]).find(m => m.published && m.kind === "built");
+      if(!row) return;                          // nothing published → keep sample
+      curMapId = row.id;
+      if(row.updated_at === curStamp) return;   // unchanged since last poll
+      const r = await fetch(api + "?mapId=" + encodeURIComponent(row.id)); if(!r.ok) return;
       const { map } = await r.json();
-      if(map && map.data){ loadMap(map.data); toast('◈ '+((map.name||"Campaign map")).toUpperCase()); }
+      if(map && map.data){ curStamp = map.updated_at; apply(map.data, map.name, first); }
     }catch(e){ /* offline / unmigrated → sample map stays */ }
   }
-  load();
+  poll(true);
+  setInterval(() => poll(false), 8000);         // live updates
 })();
 </script>
+<!-- Read-only 3D viewer for players (vendored Three via the importmap above); wires the ⛶ 3D toggle. -->
+<script type="module" src="/dnd/maps/map3d.js"></script>
 </body>
 </html>

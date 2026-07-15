@@ -37,6 +37,7 @@ const Map3D = {
     if (this._ready) return true;
     try { await loadThree(); } catch (e) { console.error('[map3d] Three.js failed to load', e); return false; }
     this.container = container;
+    this._editable = typeof window.map3dApply === 'function';   // DM Studio edits; Console is read-only
     const w = Math.max(1, container.clientWidth), h = Math.max(1, container.clientHeight);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -47,7 +48,9 @@ const Map3D = {
     container.appendChild(renderer.domElement);
 
     const hint = document.createElement('div');
-    hint.textContent = 'Click a body to select · G move · R rotate · S scale · Esc deselect · drag pan · wheel zoom · right-drag tilt';
+    hint.textContent = this._editable
+      ? 'Click a body to select · G move · R rotate · S scale · Esc deselect · drag pan · wheel zoom · right-drag tilt'
+      : 'Drag to pan · wheel to zoom · right-drag to tilt';
     hint.style.cssText = 'position:absolute;left:10px;bottom:8px;z-index:2;color:#a09b8c;font:11px/1.4 system-ui,sans-serif;background:rgba(6,4,15,.62);padding:4px 9px;border-radius:6px;pointer-events:none;max-width:70%';
     container.appendChild(hint);
 
@@ -71,13 +74,17 @@ const Map3D = {
     scene.add(this._starfield());
     const bodyGroup = new THREE.Group(); scene.add(bodyGroup);
 
-    // Move/rotate/scale gizmo — grab, move, resize and rotate objects; writes back to the 2D map.
-    const tc = new TransformControls(cam, renderer.domElement);
-    tc.setSize(0.9);
-    tc.addEventListener('dragging-changed', e => { controls.enabled = !e.value; });
-    tc.addEventListener('mouseDown', () => { if (window.map3dBeginEdit) window.map3dBeginEdit(); });
-    tc.addEventListener('objectChange', () => this._writeBack());
-    scene.add(tc);
+    // Move/rotate/scale gizmo — only when an editor bridge exists (the DM Studio). The player
+    // Console has no `map3dApply`, so it stays read-only (pan/zoom/orbit, no editing gizmo).
+    let tc = null;
+    if (this._editable) {
+      tc = new TransformControls(cam, renderer.domElement);
+      tc.setSize(0.9);
+      tc.addEventListener('dragging-changed', e => { controls.enabled = !e.value; });
+      tc.addEventListener('mouseDown', () => { if (window.map3dBeginEdit) window.map3dBeginEdit(); });
+      tc.addEventListener('objectChange', () => this._writeBack());
+      scene.add(tc);
+    }
 
     // CSS3D overlay — renders real DOM (rich text now; the future `html` kind next) in 3D space,
     // composited above the WebGL canvas and sharing the same camera.
@@ -97,9 +104,9 @@ const Map3D = {
     el.addEventListener('pointerdown', e => { this._downXY = [e.clientX, e.clientY]; });
     el.addEventListener('pointerup', e => this._onPointerUp(e));
     this._onKey = e => {
-      if (!this._shown) return;
+      if (!this._shown || !this.tcontrols) return;
       const k = e.key.toLowerCase();
-      if (k === 'g') tc.setMode('translate'); else if (k === 'r') tc.setMode('rotate'); else if (k === 's') tc.setMode('scale');
+      if (k === 'g') this.tcontrols.setMode('translate'); else if (k === 'r') this.tcontrols.setMode('rotate'); else if (k === 's') this.tcontrols.setMode('scale');
       else if (k === 'escape') this._deselect();
     };
     window.addEventListener('keydown', this._onKey);
@@ -113,7 +120,7 @@ const Map3D = {
     if (!this._downXY) return;
     const moved = Math.hypot(e.clientX - this._downXY[0], e.clientY - this._downXY[1]);
     this._downXY = null;
-    if (moved > 4 || this.tcontrols.dragging) return;   // that was a pan / gizmo drag, not a pick
+    if (moved > 4 || (this.tcontrols && this.tcontrols.dragging)) return;   // that was a pan / gizmo drag, not a pick
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     this._ray.setFromCamera(ndc, this.camera);
@@ -121,12 +128,12 @@ const Map3D = {
     if (hits.length) { let o = hits[0].object; while (o && o.userData.id === undefined && o.parent) o = o.parent; if (o && o.userData.id !== undefined) return this._select(o); }
     this._deselect();
   },
-  _select(holder) { this._selected = holder; this.tcontrols.attach(holder); if (window.map3dSelect) window.map3dSelect(holder.userData.id); },
-  _deselect() { this._selected = null; this.tcontrols.detach(); if (window.map3dSelect) window.map3dSelect(null); },
+  _select(holder) { this._selected = holder; if (this.tcontrols) this.tcontrols.attach(holder); if (window.map3dSelect) window.map3dSelect(holder.userData.id); },
+  _deselect() { this._selected = null; if (this.tcontrols) this.tcontrols.detach(); if (window.map3dSelect) window.map3dSelect(null); },
 
   // Gizmo edit → 2D schema. Holder transform: position=body center, scale.x*2=size, rotation=t3d.
   _writeBack() {
-    const h = this._selected; if (!h) return;
+    const h = this._selected; if (!h || !this.tcontrols) return;
     const size = Math.max(8, Math.round(2 * h.scale.x));
     if (h.scale.y !== h.scale.x || h.scale.z !== h.scale.x) h.scale.setScalar(h.scale.x);   // keep bodies uniform
     const patch = {
@@ -323,7 +330,8 @@ window.Map3D = Map3D;
   const btn = document.getElementById('view3dBtn');
   const gl = document.getElementById('gl3d');
   if (!btn || !gl) return;
-  const LAYERS = ['bgLayer', 'svg', 'bodyLayer', 'fxCanvas', 'labelLayer'];
+  // Which 2D layers to hide when 3D is on — host declares them via `data-hide` on #gl3d.
+  const LAYERS = (gl.dataset.hide ? gl.dataset.hide.split(/\s+/) : ['bgLayer', 'svg', 'bodyLayer', 'fxCanvas', 'labelLayer']).filter(Boolean);
   const show2d = () => LAYERS.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = ''; });
   const hide2d = () => LAYERS.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
 

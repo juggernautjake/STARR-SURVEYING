@@ -254,8 +254,23 @@ like the 2D viewer* but renders true 3D models.
     (HTML/CSS textarea + width/height). Verified: `<script>` is stripped and never executes
     (`window.__pwn` unset), the iframe is `sandbox`ed, CSS survives, and it renders in both 2D and the
     3D CSS3D layer — zero errors. *(HTML cards are edited in 2D; in 3D they're view-only, like text.)*
-- **Slice 8 — Console parity + polish.** 3D viewer + toggle for players (perf-guarded), verify, and
-  move this doc to `completed/`.
+- **Slice 8 — Console parity + real-time + polish.** ✅ The player **Console** now has the same
+  **⛶ 3D / ▢ 2D** toggle and viewer (vendored Three via importmap; `map3d.js` reused). `map3d.js`
+  gained a **read-only mode** — with no `map3dApply` bridge it builds **no TransformControls**, so
+  players can pan/zoom/orbit but not edit (verified `editable:false`, no gizmo); the layers it hides
+  are host-declared via `#gl3d[data-hide]` (`bgLayer stage fxCanvas` for the console). The console
+  exposes `window.mapData`/`map3dSelect` (a 3D pick drives the CRT readout). **Real-time updates:** the
+  console **polls the published map every 8 s** (light list check on `updated_at`, full fetch only on
+  change) and re-renders **both 2D and, if the player is in 3D, the live 3D scene** — so DM edits and
+  publishes reach players automatically. Verified over HTTP: players load the published map, toggle to
+  a live 3D planet (read-only), 2D hides, zero errors — screenshot confirms a full living world in the
+  player Console.
+
+- **Slice 9 — Deep-space FX (per user):** a **3D parallax starfield** (multiple depth layers that
+  reveal real 3D depth as you pan/zoom/orbit), **colourful small shooting stars** that streak off in
+  varied directions, and **volumetric-looking nebula / gas clouds**. Enhances the WebGL background of
+  the 3D viewer (both Studio & Console). *(Added from a follow-up request; supersedes the old flat
+  single-layer starfield.)*
 
 Each slice: verify (headless WebGL render where relevant) + `tsc`/`vitest` unaffected, commit, push,
 annotate this ship log. Seed/DB changes ship as seeds the DM applies.
