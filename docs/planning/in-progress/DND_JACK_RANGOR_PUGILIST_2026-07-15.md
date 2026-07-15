@@ -66,8 +66,20 @@ Jack has two unarmored formulas — Rangor **13 + DEX** and Iron Chin **12 + CON
 12 + conMod)` and label the source ("Natural Armor" or "Iron Chin", whichever wins).
 
 ### Suggested statline (level 3, DM-adjustable)
-A Str brawler: **Str 17, Con 15, Dex 13, Wis 12, Cha 10, Int 8** (Rangor +2 Str/+1 Con already baked
-in). HP = d10 class + CON + Tough (2×level). Level defaults to **3** (subclass online), like Donata.
+A big, dim brawler: **Str 17, Con 15, Dex 13, Wis 11, Cha 10, Int 6** (Rangor +2 Str/+1 Con already
+baked in — the low Int matches his simplicity). HP = d10 class + CON + Tough (2×level). Level defaults
+to **3** (subclass online), like Donata.
+
+### Personality & inventory
+- **Personality:** big, dumb, and pleasant — genuinely **nice and law-abiding at heart**, but far too
+  simple to actually know what most laws *are*, so he breaks them by accident with total innocence. Slow
+  to anger, but when he does get mad he **fights** (and hits like a landslide). Play him gentle-giant,
+  low-cunning, high-heart.
+- **The park bench (signature item):** Jack lugs around a **backless park bench**. It lives in his
+  inventory as an **improvised two-handed weapon** he uses to *thwack* enemies (improvised → Sap mastery
+  via Improved Improvisation; damage uses his Fisticuffs die as a Pugilist weapon), and it doubles as a
+  place to **sit** (a bit of flavor/utility). Model it as an `EquipItem` with an improvised-weapon
+  attack + a "sit on" note.
 
 ---
 
@@ -118,10 +130,14 @@ A **light** "rulebook" treatment, like `skin-streamer` is a light skin over the 
 ## 4. Slices
 
 - **Slice 0 — Planning doc** *(this file)*.
-- **Slice 1 — Theme + rulebook skin.** Add `rangorTheme` (`theme.ts`) and `.dnd-sheet.skin-rulebook`
-  (`theme.css`, scoped): parchment panels, orange headers + rule, green keywords, bordered trait
-  tables. Register a `rangor`/`jack` `sheet_type` (theme + skin) with brawler initiative flavor. Verify:
-  the sheet renders in the new skin with no leakage to other characters; typecheck + lint.
+- **Slice 1 — Theme + rulebook skin.** ✅ Added `rangorTheme` (`theme.ts`) — parchment/orange/green,
+  slab-serif (Zilla Slab) headers, contrast-checked on cream — and a scoped `.dnd-sheet.skin-rulebook`
+  block (`theme.css`, + a Zilla Slab/Inter @import): burnt-orange slab-serif section headers over a
+  thick rule, green keyword/term/link colour, framed paper cards, and bordered trait tables with an
+  orange header row + orange left-column labels. Registered the `jack` `sheet_type` (`rangorTheme` +
+  `skin:'rulebook'`, no module, back-alley "Square Up!" initiative) and added `'rulebook'` to
+  `SheetSkinId`. tsc + eslint clean; every rule is scoped to `.skin-rulebook` so no other character is
+  touched. (Full in-skin render is exercised in Slices 3–4 once Jack's data exists.)
 - **Slice 2 — Rangor race + Farmer background (rules + traits).** Encode the race traits (ability
   choice note, speed, natural armor `unarmoredBaseAC`, Living Momentum, Powerful Build, Unstoppable
   Force) and Farmer (Tough HP, skills, tools) as feature cards + engine hooks. Verify AC = max(13+DEX,
@@ -148,4 +164,4 @@ A **light** "rulebook" treatment, like `skin-streamer` is a light skin over the 
 - **AI/DM edits** keep working — Jack is a normal engine character, so `applyModelEdit` and realtime
   propagation apply unchanged.
 
-### Status: IN PROGRESS (Slice 0 written; 1–4 pending)
+### Status: IN PROGRESS (Slices 0–1 shipped; 2–4 pending)
