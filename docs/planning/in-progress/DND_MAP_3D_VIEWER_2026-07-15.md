@@ -273,8 +273,12 @@ like the 2D viewer* but renders true 3D models.
     z-separation; constant screen-size points add a zoom depth-cue. Per-star **vertex colours** (mostly
     cool white with occasional warm/blue stars), varied size/brightness per layer. Verified: 3 layers,
     a pan shifts far 720 vs near 280 (distinct parallax), coloured, zero errors.
-  - **9b Shooting stars — remaining:** small, brightly-coloured meteors that spawn occasionally and
-    streak off in varied directions with a fading tail.
+  - **9b Shooting stars ✅** — a pool of 7 **additive coloured meteors** (`_buildShooters`/
+    `_updateShooters`): each spawns on its own random timer, streaks in a random direction at a
+    view-scaled speed, and is a short line with a **bright colour-picked head → transparent tail** that
+    fades in and out over ~0.6–1.3 s, then recycles with a fresh delay. Six-colour palette
+    (teal/magenta/gold/blue/lime/orange). Verified: spawns, coloured head, dark tail, recycles, zero
+    errors.
   - **9c Nebula / gas — remaining:** volumetric-looking gas clouds (layered soft additive sprites /
     noise) that read as real gas.
 

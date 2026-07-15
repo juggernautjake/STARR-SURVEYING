@@ -71,7 +71,7 @@ const Map3D = {
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.85));
     const key = new THREE.DirectionalLight(0xfff4e0, 1.4); key.position.set(1, 1, 2); scene.add(key);
-    this.scene = scene; this._buildStars();   // parallax star layers (needs this.scene)
+    this.scene = scene; this._buildStars(); this._buildShooters();   // parallax stars + shooting stars
     const bodyGroup = new THREE.Group(); scene.add(bodyGroup);
 
     // Move/rotate/scale gizmo — only when an editor bridge exists (the DM Studio). The player
@@ -180,6 +180,49 @@ const Map3D = {
     if (!this._starLayers) return;
     const t = this.controls.target;
     for (const L of this._starLayers) { L.position.x = t.x * L.userData.k; L.position.y = t.y * L.userData.k; }
+  },
+
+  // A small pool of colourful shooting stars — each a short additive line (bright head → clear tail)
+  // that spawns occasionally and streaks off in a random direction, scaled to the current view.
+  _buildShooters() {
+    this._shooters = [];
+    for (let i = 0; i < 7; i++) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(6), 3));
+      const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+      line.visible = false; line.renderOrder = -5; line.frustumCulled = false;
+      this.scene.add(line);
+      this._shooters.push({ line, active: false, t: 0, life: 0, next: 0.8 + i * 0.9, pos: new THREE.Vector3(), vel: new THREE.Vector3(), color: new THREE.Color() });
+    }
+  },
+  _updateShooters(dt) {
+    if (!this._shooters) return;
+    const cam = this.camera, tgt = this.controls.target, zoom = cam.zoom || 1;
+    const viewW = (cam.right - cam.left) / zoom, viewH = (cam.top - cam.bottom) / zoom;
+    const PAL = [[0.35, 1, 0.92], [1, 0.45, 0.85], [1, 0.85, 0.4], [0.6, 0.8, 1], [0.8, 1, 0.55], [1, 0.62, 0.35]];
+    for (const s of this._shooters) {
+      if (!s.active) {
+        s.next -= dt;
+        if (s.next <= 0) {
+          s.active = true; s.t = 0; s.life = 0.55 + Math.random() * 0.7; s.line.visible = true;
+          s.pos.set(tgt.x + (Math.random() - 0.5) * viewW * 0.9, tgt.y + (Math.random() - 0.5) * viewH * 0.9, -280 - Math.random() * 520);
+          const ang = Math.random() * Math.PI * 2, speed = (viewW + viewH) * 0.5 * (0.7 + Math.random() * 0.7);
+          s.vel.set(Math.cos(ang) * speed, Math.sin(ang) * speed, 0);
+          const c = PAL[(Math.random() * PAL.length) | 0]; s.color.setRGB(c[0], c[1], c[2]);
+        }
+        continue;
+      }
+      s.t += dt; s.pos.addScaledVector(s.vel, dt);
+      const frac = s.t / s.life;
+      if (frac >= 1) { s.active = false; s.line.visible = false; s.next = 1.4 + Math.random() * 4.5; continue; }
+      const tailLen = 0.11 * Math.hypot(s.vel.x, s.vel.y), inv = 1 / (Math.hypot(s.vel.x, s.vel.y) || 1);
+      const tx = s.pos.x - s.vel.x * inv * tailLen, ty = s.pos.y - s.vel.y * inv * tailLen;
+      const p = s.line.geometry.attributes.position, cA = s.line.geometry.attributes.color, fade = (1 - frac) * (frac < 0.15 ? frac / 0.15 : 1);
+      p.setXYZ(0, s.pos.x, s.pos.y, s.pos.z); p.setXYZ(1, tx, ty, s.pos.z);
+      cA.setXYZ(0, s.color.r * fade, s.color.g * fade, s.color.b * fade); cA.setXYZ(1, 0, 0, 0);
+      p.needsUpdate = true; cA.needsUpdate = true;
+    }
   },
 
   // Push the current map into the scene.
@@ -331,6 +374,7 @@ const Map3D = {
       for (const p of this._planets) p.model.update(dt, sun);   // live planets spin in real time
       this.controls.update();
       this._updateStars();                                       // parallax follows the pan
+      this._updateShooters(dt);                                  // colourful meteors
       this.renderer.render(this.scene, this.camera);
       if (this.cssRenderer) this.cssRenderer.render(this.cssScene, this.camera);
     };
