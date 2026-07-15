@@ -85,12 +85,18 @@
   visibility). UI: `AddToDemoButton` ("＋ Add to Neon Odyssey (demo)") shown on the character sheet
   (`characters/[id]`) for the owner when the character isn't already the demo's home. Verified: `tsc`
   clean, lint clean. *(Live roster reflection needs the app's Supabase env to drive end-to-end.)*
-- **Slice 5 — DM-only NPC viewer.** Give the DM a dedicated **NPC viewer** for their campaign (a section/
-  page listing the campaign's `is_npc` characters, reusing the DM-gated `?campaignId&npc=1` list and
-  `NpcLibrary`), reachable from the campaign hub. Re-assert server-side that non-DMs cannot list NPCs
-  (`GET /characters` narrowing) or open an NPC sheet (`getCharacterAccess` private gate), and that
-  campaign summaries/rosters shown to players exclude NPCs. Verify: DM sees NPCs in the viewer; a player
-  session gets none from the list API and 403 on an NPC sheet.
+- **Slice 5 — DM-only NPC viewer.** ✅ The NPC viewer (`NpcLibrary`, loading the DM-gated
+  `?campaignId=…&npc=1` list) is the campaign session console's **NPCs tab** — now made **DM-only**:
+  `SessionConsole` filters the tab list to `t.id !== 'npcs' || isDM`, so players never see the tab, and the
+  content only renders for a DM (`tab === 'npcs' && isDM`). Re-confirmed the three server-side gates that
+  keep NPCs invisible to players (each pre-existing, re-verified by reading): (1) `GET /api/dnd/characters`
+  narrows a non-DM caller to `owner_user_id = self`, and since NPCs are DM-owned a player's `npc=1` query
+  returns `[]`; (2) `getCharacterAccess` blocks a non-owner/non-DM from opening a `private` NPC sheet (403);
+  (3) `lib/dnd/campaign-summary.ts` excludes `is_npc` from the player-facing roster (`characterNames`
+  filters `!ch.is_npc`) and only surfaces NPCs in a separate DM `npcs` list. Verified: `tsc` clean, lint
+  clean, full dnd suite green (41 files / 236 tests). *(The live "player session gets none / 403 on an NPC
+  sheet" round-trip needs the app's Supabase env; the gates are structural — an owner/DM check on every
+  read path and the DM-only list narrowing — and the tab is now hidden from players entirely.)*
 - **Slice 6 — QA + docs.** End-to-end pass across the six features (session persists, campaign-free create
   + build, demo join, NPC visibility, header user + back), run the dnd vitest suite, then move this doc to
   `completed/`.
@@ -105,4 +111,4 @@
 - **Verification:** these are app/server features — prefer the dnd vitest suites + driving the actual
   routes/pages; note any check that can't run headlessly.
 
-### Status: IN PROGRESS (Slices 0–4 shipped; 5–6 pending)
+### Status: IN PROGRESS (Slices 0–5 shipped; 6 (QA) pending)
