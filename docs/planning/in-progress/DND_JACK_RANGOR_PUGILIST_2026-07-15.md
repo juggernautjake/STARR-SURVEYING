@@ -1,7 +1,7 @@
-# Jack — the Ragnar Pugilist, on a new "homebrew rulebook" sheet skin
+# Jack — the Rangor Pugilist, on a new "homebrew rulebook" sheet skin
 
 **Goal (per the player):** fully build out **Jack's** character on a **new character sheet + style**.
-Jack is a **Ragnar** (a custom race defined below) **Pugilist** (the homebrew class in the shared
+Jack is a **Rangor** (a custom race defined below) **Pugilist** (the homebrew class in the shared
 screenshots) with the **Farmer** background. Visually he's a big, dumb, rock-looking brute with an
 animalistic lion-like head and a mane — "a gargoyle with no wings and a mane," stone-plated skin, small
 horns, one glowing violet eye (reference art provided). The sheet should be styled like the shared
@@ -15,7 +15,15 @@ data (+ maybe a module)** (`app/dnd/_sheet/registry.ts`). Nothing forks the shar
 
 ## 1. The build (rules)
 
-### Race — **Ragnar** (custom)
+### Race — **Rangor** (Neon Odyssey species)
+**Lore:** one of the largest species in Neon Odyssey. Like the **Aetheron**, the Rangor have a
+connection to **aether and gravity** — but where the Aetheron embody the *"immovable object,"* the
+Rangor are the galaxy's *"Unstoppable Force,"* channelling an internal momentum that lets them **smash
+and keep moving**. Their home "world" is **Titan IX**, a moon-sized space station shared with the
+Aetheron; their original home planet was destroyed/lost aeons ago. (This directly motivates the
+mechanics below — Living Momentum and Unstoppable Force are the "internal momentum / unstoppable force"
+made rules.)
+
 - **Ability Scores:** choose +2 to one and +1 to another of **Str/Dex/Con**, OR +1 to all three.
 - **Speed** 30 ft. **Creature Type** Humanoid. **Size** Medium.
 - **Natural Armor** — rocklike scales: while not wearing armor, **AC = 13 + DEX**.
@@ -53,12 +61,12 @@ data (+ maybe a module)** (`app/dnd/_sheet/registry.ts`). Nothing forks the shar
   Healer's Kit, Iron Pot, Shovel, Traveler's Clothes) or 50 GP.
 
 ### AC resolution
-Jack has two unarmored formulas — Ragnar **13 + DEX** and Iron Chin **12 + CON**. The engine's
+Jack has two unarmored formulas — Rangor **13 + DEX** and Iron Chin **12 + CON**. The engine's
 `unarmoredBaseAC` already takes the best vs 10+DEX, so set `unarmoredBaseAC = max(13 + dexMod,
 12 + conMod)` and label the source ("Natural Armor" or "Iron Chin", whichever wins).
 
 ### Suggested statline (level 3, DM-adjustable)
-A Str brawler: **Str 17, Con 15, Dex 13, Wis 12, Cha 10, Int 8** (Ragnar +2 Str/+1 Con already baked
+A Str brawler: **Str 17, Con 15, Dex 13, Wis 12, Cha 10, Int 8** (Rangor +2 Str/+1 Con already baked
 in). HP = d10 class + CON + Tough (2×level). Level defaults to **3** (subclass online), like Donata.
 
 ---
@@ -66,7 +74,7 @@ in). HP = d10 class + CON + Tough (2×level). Level defaults to **3** (subclass 
 ## 2. The look (new skin + theme)
 
 A **light** "rulebook" treatment, like `skin-streamer` is a light skin over the dark base:
-- **New theme `ragnarTheme`** (`theme.ts`): pale parchment `void`/`panel` (`#f7f3ea`, `#fffdf7`),
+- **New theme `rangorTheme`** (`theme.ts`): pale parchment `void`/`panel` (`#f7f3ea`, `#fffdf7`),
   deep-ink text (`#241a12`), **orange** accent (`#c0531f`) for `hotpink`/headers, **green**
   (`#2f7d4f`) for `teal`/keyword links, a stone-grey `violet`, gold kept. Serif/condensed display font
   (e.g. a slab/serif for headers, clean body).
@@ -75,8 +83,8 @@ A **light** "rulebook" treatment, like `skin-streamer` is a light skin over the 
   keyword/link styling, and **trait tables** with orange left-column labels + hairline borders (the
   "Core Pugilist Traits" look). No CRT/pixel texture — clean printed-page feel. Touch nothing outside
   the scope class.
-- **Registry entry** `ragnar` (or `jack`): `{ label, theme: ragnarTheme, skin: 'rulebook', modules:
-  ['moxie'?], initiative: a Ragnar/brawler flavor (kicker "BACK ALLEY // INITIATIVE", "Square Up!",
+- **Registry entry** `rangor` (or `jack`): `{ label, theme: rangorTheme, skin: 'rulebook', modules:
+  ['moxie'?], initiative: a Rangor/brawler flavor (kicker "BACK ALLEY // INITIATIVE", "Square Up!",
   accent orange) }`.
 
 ---
@@ -84,7 +92,7 @@ A **light** "rulebook" treatment, like `skin-streamer` is a light skin over the 
 ## 3. Data + engine mapping
 
 - **`app/dnd/_sheet/data/jack.ts`** (model like `lazzuh.ts`/`donata.ts`): meta (name "Jack",
-  className "Pugilist", subclass "Sweet Science", race "Ragnar", background "Farmer", level 3, speed 30),
+  className "Pugilist", subclass "Sweet Science", race "Rangor", background "Farmer", level 3, speed 30),
   abilities, `unarmoredBaseAC` (the max formula above), `saveProficiencies: [str,con]`, skill profs
   (2 class + Animal Handling + Nature), proficient categories (simple) + improvised, `resources`
   (**Moxie Points** pool, max from the class table), and `features[]` cards for every race/class/
@@ -101,7 +109,7 @@ A **light** "rulebook" treatment, like `skin-streamer` is a light skin over the 
   point-buy-mechanical ones (Unstoppable Force 2/long rest) get a `use.resourceId` pip.
 - **Bio/appearance**: the rock-skinned lion-maned brute description in the Bio/Descriptions panel; the
   reference art uploaded via `SheetArtUploader` → `art_url`/`token_url` (or a seeded placeholder).
-- **API + seed**: register `sheet_type` in `app/api/dnd/characters/route.ts` (factory `jackRagnar(name)`)
+- **API + seed**: register `sheet_type` in `app/api/dnd/characters/route.ts` (factory `jackRangor(name)`)
   and add a seed (like `420_dnd_donata_dime.sql`) so Jack exists in a campaign. Add to
   `lib/dnd/constants.ts` if characters are enumerated there.
 
@@ -110,11 +118,11 @@ A **light** "rulebook" treatment, like `skin-streamer` is a light skin over the 
 ## 4. Slices
 
 - **Slice 0 — Planning doc** *(this file)*.
-- **Slice 1 — Theme + rulebook skin.** Add `ragnarTheme` (`theme.ts`) and `.dnd-sheet.skin-rulebook`
+- **Slice 1 — Theme + rulebook skin.** Add `rangorTheme` (`theme.ts`) and `.dnd-sheet.skin-rulebook`
   (`theme.css`, scoped): parchment panels, orange headers + rule, green keywords, bordered trait
-  tables. Register a `ragnar`/`jack` `sheet_type` (theme + skin) with brawler initiative flavor. Verify:
+  tables. Register a `rangor`/`jack` `sheet_type` (theme + skin) with brawler initiative flavor. Verify:
   the sheet renders in the new skin with no leakage to other characters; typecheck + lint.
-- **Slice 2 — Ragnar race + Farmer background (rules + traits).** Encode the race traits (ability
+- **Slice 2 — Rangor race + Farmer background (rules + traits).** Encode the race traits (ability
   choice note, speed, natural armor `unarmoredBaseAC`, Living Momentum, Powerful Build, Unstoppable
   Force) and Farmer (Tough HP, skills, tools) as feature cards + engine hooks. Verify AC = max(13+DEX,
   12+CON) and Tough HP in the derived numbers (unit test like `donata.test.ts`).
@@ -123,15 +131,17 @@ A **light** "rulebook" treatment, like `skin-streamer` is a light skin over the 
   feature cards through the current level) + the Progression class table. Wire the `sheet_type` factory
   + seed. Verify the sheet fully renders (abilities, AC, attacks, Moxie, features) and the character
   loads from the API/seed.
-- **Slice 4 — Appearance + polish + QA.** Bio/appearance copy (rock-skinned lion-maned gargoyle-brute),
-  reference art wired to art/token, and an end-to-end pass: create/open Jack, confirm the rulebook style,
+- **Slice 4 — Appearance + polish + QA.** Bio/appearance copy (rock-skinned lion-maned gargoyle-brute
+  Rangor; homeworld **Titan IX**, the moon-sized station shared with the Aetheron, their planet lost
+  aeons ago), reference art wired to art/token, and an end-to-end pass: create/open Jack, confirm the
+  rulebook style,
   correct AC/HP/attacks/Moxie, and that other characters are visually untouched. Move this doc to
   `completed/`.
 
 ## 5. Considerations
 - **Scope isolation:** every visual change lives under `.dnd-sheet.skin-rulebook` and a new theme —
   Lazzuh/Donata/streamer are untouched (the engine only applies a skin class + inline theme vars).
-- **Homebrew content is the group's own** (Pugilist/Ragnar) — we encode the mechanics as data, not as
+- **Homebrew content is the group's own** (Pugilist/Rangor) — we encode the mechanics as data, not as
   a claim of official rules.
 - **Level is DM-adjustable**; default 3 so the subclass and Moxie are live. The class table supports
   L1–20 for later level-ups (the engine already gates features by `unlockLevel`).
