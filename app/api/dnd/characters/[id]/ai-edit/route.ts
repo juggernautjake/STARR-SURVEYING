@@ -11,6 +11,8 @@ import { applySheetEdits, editPath, SHEET_EDIT_TOOL, type SheetEdit } from '@/li
 import { applyLayoutEdits, LAYOUT_EDIT_TOOL, type LayoutEdit } from '@/lib/dnd/layout-edits';
 import { normalizeLayout } from '@/lib/dnd/custom-sheet';
 import { systemGroundingBlock } from '@/lib/dnd/grounding';
+import { validateCharacterForSystem, violationsSummary } from '@/lib/dnd/system-validate';
+import { normalizeSystem } from '@/lib/dnd/systems';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
 
@@ -127,5 +129,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     edits.map((e) => ({ character_id: params.id, editor_user_id: session.userId, is_dm: isDM, field_path: editPath(e), old_value: null, new_value: e as unknown, scope: 'permanent' })),
   ).then(() => {}, () => {});
 
-  return NextResponse.json({ ok: true, kind: 'mechanics', summary: result?.input?.summary ?? null, editCount: edits.length, name: updated.meta.name });
+  // Safety net (Slice 3): flag anything that doesn't belong to the character's system so a wrong-system
+  // mechanic is surfaced to the user rather than silently kept.
+  const violations = validateCharacterForSystem(updated, normalizeSystem((row as { system?: string }).system));
+  const summary = [result?.input?.summary ?? null, violations.length ? `⚠ Check: ${violationsSummary(violations)}` : null].filter(Boolean).join('\n');
+  return NextResponse.json({ ok: true, kind: 'mechanics', summary: summary || null, editCount: edits.length, name: updated.meta.name, violations });
 }

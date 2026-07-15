@@ -21,6 +21,9 @@ export interface AbilityModel {
   scoreMin: number;
   /** How the modifier is derived. */
   modifier: string;
+  /** True when abilities are stored as 3–20-style SCORES (5e). False when the system uses raw
+   *  modifiers (PF2), so the sheet's numeric ability field can't be range-checked the same way. */
+  scoreBased: boolean;
 }
 
 /** A skill and the ability/attribute that governs it. */
@@ -127,6 +130,7 @@ export const SYSTEM_RULES: Record<string, SystemRules> = {
       scoreMax: 20,
       scoreMin: 1,
       modifier: 'floor((score − 10) / 2).',
+      scoreBased: true,
     },
     proficiency: 'A single flat Proficiency Bonus tied to character level, added to attacks, saves, and skills you are proficient in. It is never multiplied except by Expertise (which doubles it).',
     profBonusByLevel: PB_5E,
@@ -168,6 +172,7 @@ export const SYSTEM_RULES: Record<string, SystemRules> = {
       scoreMax: 20,
       scoreMin: 1,
       modifier: 'floor((score − 10) / 2).',
+      scoreBased: true,
     },
     proficiency: 'A single flat Proficiency Bonus tied to level (same progression as 2014), added to proficient rolls; doubled by Expertise.',
     profBonusByLevel: PB_5E,
@@ -207,6 +212,7 @@ export const SYSTEM_RULES: Record<string, SystemRules> = {
       scoreMax: 7,  // interpreted as the attribute MODIFIER cap (Remaster), not a 3–18 score
       scoreMin: -5,
       modifier: 'Remaster uses the attribute modifier directly (no 3–18 score). (Legacy conversion: score = 10 + 2 × modifier.)',
+      scoreBased: false,
     },
     proficiency: 'Proficiency RANKS, not a flat bonus: Untrained (+0, no level added), Trained (+2 + level), Expert (+4 + level), Master (+6 + level), Legendary (+8 + level). Your character LEVEL is added to every proficient roll — this is core to PF2 math.',
     profBonusByLevel: null,

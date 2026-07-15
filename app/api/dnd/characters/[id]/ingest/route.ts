@@ -13,6 +13,8 @@ import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
 import { systemGroundingBlock } from '@/lib/dnd/grounding';
 import { normalizeBuildMode, buildModeInstruction } from '@/lib/dnd/build-modes';
+import { validateCharacterForSystem } from '@/lib/dnd/system-validate';
+import { normalizeSystem } from '@/lib/dnd/systems';
 
 const IMG = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const TEXTY = /\.(txt|md|csv|json|text)$/i;
@@ -96,11 +98,16 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   const edits = Array.isArray(result?.input?.edits) ? result!.input.edits : [];
   const updated = applySheetEdits(row.data ?? blankCharacter(row.name), edits);
   const unmapped = [...(result?.input?.unmapped ?? []), ...unreadable];
+  // Safety net (Slice 3): flag anything that doesn't belong to the chosen system so the user resolves
+  // it rather than it being silently kept — folded into unmapped + the open questions.
+  const violations = validateCharacterForSystem(updated, normalizeSystem(row.system));
+  for (const v of violations) unmapped.push(`System check (${v.severity}): ${v.message}`);
   const importNotes = unmapped.length ? unmapped.map((u) => `• ${u}`).join('\n') : null;
   // Open questions the AI needs the user to resolve (gaps / ambiguity / conflicting uploads).
   const questions = (Array.isArray(result?.input?.questions) ? result!.input.questions : [])
     .map((q) => String(q).trim())
     .filter(Boolean);
+  for (const v of violations.filter((x) => x.severity === 'error')) questions.push(v.message);
 
   const { error: upErr } = await supabaseAdmin
     .from('dnd_characters')

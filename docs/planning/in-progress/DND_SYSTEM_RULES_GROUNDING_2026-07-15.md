@@ -53,11 +53,20 @@ and distributable.)
   `tsc` clean, lint clean, `__tests__/dnd/system-content.test.ts` (6 tests: well-formed + self-consistent
   lists, hit-die-vs-HP, save models, 2014↔2024 species delta, PF2-specific skills/conditions, block lists
   the options); full dnd suite (249) green.
-- **Slice 3 — Validation layer (the safety net).** `lib/dnd/system-validate.ts` — validate a built
-  `Character` against its active system's catalog (ability scores in range, level in range, class/species
-  belong to the system, proficiency bonus matches the level, skills exist in the system) and return typed
-  violations. Wire it into the build routes so a wrong-system stat is flagged back to the user (and surfaced
-  in `unmapped`/questions), never silently kept. Tests.
+- **Slice 3 — Validation layer (the safety net).** ✅ `lib/dnd/system-validate.ts` —
+  `validateCharacterForSystem(character, system)` checks a built sheet against its active system's catalog and
+  returns typed `SystemViolation`s: level out of range (error), an ability score past the 5e cap (warn, and
+  **only** for score-based systems so PF2's modifier field yields no false positive), a class not in the
+  system (warn — catches e.g. a "Warlock" in Pathfinder 2e), and a species/ancestry not in the system (warn —
+  catches the 2014↔2024 delta like "Aasimar" in 2014 or "Half-Elf" in 2024). Token-matching tolerates
+  multiclass/variant strings ("Fighter 3 / Rogue 2", "Variant Human"). The ambiguous/unknown case validates
+  nothing system-specific. Wired into all three build routes: `ai-edit` appends `⚠ Check:` lines to the chat
+  summary + returns `violations`; `ingest` folds them into `unmapped` (errors also become open
+  `build_questions`); `system` (transpose) returns them so a bad transposition is caught. Nothing is silently
+  kept — the user always sees the flag. Verified: `tsc` clean, lint clean,
+  `__tests__/dnd/system-validate.test.ts` (8 tests: valid → none, ambiguous → none, level range, 5e cap vs
+  PF2 no-false-positive, cross-system class, cross-edition species both ways, multiclass tolerance, summary);
+  full dnd suite (257) green.
 - **Slice 4 — Seed the store with the same facts (RAG + browse parity).** Regenerate the SQL seed so
   `dnd_system_entries` carries the catalog's real per-system entries (so the browse UI and, when a key is
   present, semantic retrieval reflect the same authoritative facts). Idempotent; embeddings backfilled when a
@@ -73,4 +82,4 @@ and distributable.)
 - **Accuracy over verbatim:** store mechanical facts/numbers, paraphrased; cite the source book by name.
 - **Extensible:** adding a system = one catalog entry + one `GAME_SYSTEMS` row (+ optional seed rows).
 
-### Status: IN PROGRESS (Slices 0–2 shipped; 3–5 pending)
+### Status: IN PROGRESS (Slices 0–3 shipped; 4–5 pending)

@@ -12,6 +12,7 @@ import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { dndToolCall, dndAiConfigured } from '@/lib/dnd/ai';
 import { applySheetEdits, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import { systemGroundingBlock } from '@/lib/dnd/grounding';
+import { validateCharacterForSystem } from '@/lib/dnd/system-validate';
 import { normalizeSystem, systemLabel } from '@/lib/dnd/systems';
 import { readVariants, hasVariant, switchActive, installTransposed, type ActiveSheet } from '@/lib/dnd/system-variants';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
@@ -128,5 +129,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .eq('id', params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ ok: true, kind: 'transpose', system: target, summary: result?.input?.summary ?? null, editCount: edits.length });
+  // Safety net (Slice 3): confirm the transposed sheet actually fits the target system.
+  const violations = validateCharacterForSystem(transposed, target);
+  return NextResponse.json({ ok: true, kind: 'transpose', system: target, summary: result?.input?.summary ?? null, editCount: edits.length, violations });
 }
