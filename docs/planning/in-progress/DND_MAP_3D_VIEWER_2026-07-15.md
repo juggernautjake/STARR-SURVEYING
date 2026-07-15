@@ -166,8 +166,20 @@ like the 2D viewer* but renders true 3D models.
   default frames to 96 (control up to ~120), render K sub-steps per frame and average (temporal SSAA),
   soften the atmosphere rim. Switch `SpriteSpinner` playback to clean stepping (no double-rim) while
   keeping high-quality smoothing + inset. Verify headless: no pulsing rim, smooth loop.
-- **Slice 2 — Baked sheets to Storage.** Upload sheets to `dnd-media`; store URL; keep inline
+- **Slice 2 — Baked sheets to Storage.** ✅ Upload sheets to `dnd-media`; store URL; keep inline
   sheets working. Wire through the maps API. (Prevents jsonb bloat from 4× frames.)
+  Done server-side in the maps `POST` (built-map branch): a recursive `deinlineDataUrls` walks the
+  stardust-map and replaces any embedded `data:image/…` blob ≥ 40 KB (baked planet sprite-sheets,
+  spingalaxy images, backgrounds) with a public bucket URL, keyed by SHA-256 content hash so
+  re-saving the same sheet reuses the object (no dupes). Small blobs (icons, tiny SVGs) stay inline;
+  already-URL sheets are untouched (idempotent); any storage failure falls back to keeping the blob
+  inline so a save never fails. The static tool is unchanged — it keeps editing with data URLs
+  locally, and de-inlining happens once at campaign save. `SpriteSpinner.setSheet`/`art()` already
+  load sheets from URLs (display only, so cross-origin tainting is irrelevant). Verified: `tsc` +
+  eslint clean; parsing/threshold/dedupe checked against real PNG/SVG/URL inputs.
+  *Deferred (one-liner):* per-map cleanup of embedded blobs on map delete — they're content-hashed
+  and may be shared across maps/versions, so safe GC needs reference counting; low value vs. cost,
+  left for a later sweep.
 - **Slice 3 — Extract `planet3d-model.js`.** Pull the planet geometry/shaders/build-from-config out of
   the generator into a shared module; generator uses it unchanged. Vendor Three locally under
   `public/dnd/maps/vendor/` (lazy-load helper).
