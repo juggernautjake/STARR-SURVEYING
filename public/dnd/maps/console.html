@@ -61,12 +61,40 @@
   .body.selected{z-index:150 !important;}
   .selring{position:absolute;inset:-22%;border-radius:50%;border:1.5px solid var(--scan);opacity:0;pointer-events:none;box-shadow:0 0 14px var(--scan),inset 0 0 14px rgba(67,224,200,.3);}
   .body.selected .selring{opacity:.9;animation:selspin 8s linear infinite;}
+  .body.hovered:not(.selected) .selring{opacity:.4;}   /* soft target preview on hover */
+  .body.hovered:not(.selected){cursor:pointer;}
   @keyframes selspin{to{transform:rotate(360deg);}}
   @keyframes spin{to{transform:rotate(360deg);}}@keyframes cspin{to{transform:rotate(-360deg);}}
   @keyframes breathe{0%,100%{opacity:.72;transform:scale(1);}50%{opacity:1;transform:scale(1.05);}}
   @keyframes twinkle{0%,100%{opacity:.45;}50%{opacity:1;}}
   @media (prefers-reduced-motion:reduce){*{animation:none !important;}#viewport.animate{transition:none;}}
-  #console{flex:none;height:246px;position:relative;z-index:30;background:linear-gradient(180deg,#0c1020 0%,#141a30 8%,#191f38 100%);border-top:2px solid #000;box-shadow:0 -1px 0 rgba(120,140,200,.15) inset, 0 -20px 40px rgba(0,0,0,.5);display:flex;align-items:stretch;padding:12px 14px;gap:12px;}
+  #console{flex:none;height:246px;position:relative;z-index:30;background:linear-gradient(180deg,#0c1020 0%,#141a30 8%,#191f38 100%);border-top:2px solid #000;box-shadow:0 -1px 0 rgba(120,140,200,.15) inset, 0 -20px 40px rgba(0,0,0,.5);display:flex;align-items:stretch;padding:12px 14px;gap:12px;transition:height .32s cubic-bezier(.4,0,.2,1),padding .32s cubic-bezier(.4,0,.2,1);}
+  /* minimize / slide-down deck (Slice 6) */
+  #console.min{height:30px;padding-top:0;padding-bottom:0;overflow:hidden;cursor:pointer;}
+  #console.min .bank,#console.min .screenframe,#console.min .rcluster{visibility:hidden;}
+  #deckMin{position:absolute;top:6px;right:14px;z-index:6;width:28px;height:20px;border:1px solid #000;border-radius:5px;background:linear-gradient(180deg,#2a3252,#161c34);color:var(--dim);font-size:12px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 1px 0 rgba(150,170,230,.2),0 1px 2px #000;transition:.2s;}
+  #deckMin:hover{color:var(--scan);border-color:var(--scan);}
+  #console.min #deckMin{transform:rotate(180deg);}
+  #deckLabel{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-family:"Orbitron";font-size:11px;letter-spacing:4px;color:var(--scan);text-shadow:0 0 9px var(--scan);pointer-events:none;}
+  #console.min #deckLabel{display:flex;}
+  /* HELM controls + screen tint/distortion (Slice 7) */
+  #console{--tint-hue:0deg;--distort:0;}
+  .scr-inner{filter:hue-rotate(var(--tint-hue)) contrast(calc(1 + var(--distort)*0.28)) saturate(calc(1 + var(--distort)*0.5));animation:crtjit .16s steps(2) infinite;}
+  @keyframes crtjit{0%{transform:translate(0,0);}50%{transform:translate(calc(var(--distort)*1.3px),calc(var(--distort)*-0.7px));}100%{transform:translate(calc(var(--distort)*-0.9px),calc(var(--distort)*0.4px));}}
+  .screen::before{content:"";position:absolute;inset:0;z-index:6;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.55) 0 1px,transparent 1px 3px);mix-blend-mode:multiply;opacity:calc(var(--distort)*0.9);}
+  .screen{position:relative;}
+  .helm{width:150px;flex:none;background:linear-gradient(160deg,var(--steel2),var(--steel));border:1px solid #000;border-radius:9px;padding:9px;display:flex;flex-direction:column;gap:8px;box-shadow:inset 0 1px 0 rgba(140,160,220,.15), inset 0 0 20px rgba(0,0,0,.4);}
+  .dpad{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,20px);gap:3px;justify-items:center;align-items:center;}
+  .dpad button{width:100%;height:100%;border:1px solid #000;border-radius:4px;background:linear-gradient(180deg,var(--steelhi),var(--steel));color:var(--dim);font-size:10px;cursor:pointer;box-shadow:inset 0 1px 0 rgba(150,170,230,.2),0 1px 2px #000;padding:0;}
+  .dpad button:hover{color:var(--scan);border-color:var(--scan);}
+  .dpad button:active{transform:translateY(1px);}
+  .dpad .u{grid-column:2;grid-row:1;}.dpad .l{grid-column:1;grid-row:2;}.dpad .c{grid-column:2;grid-row:2;}.dpad .r{grid-column:3;grid-row:2;}.dpad .d{grid-column:2;grid-row:3;}
+  .helm .slab{font-family:"Share Tech Mono";font-size:9px;letter-spacing:1px;color:#8ea;display:flex;justify-content:space-between;}
+  .helm input[type=range]{width:100%;height:4px;-webkit-appearance:none;appearance:none;background:#0c1226;border-radius:3px;outline:none;}
+  .helm input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--scan);box-shadow:0 0 6px var(--scan);cursor:pointer;}
+  .minibtn{flex:1;border:1px solid #000;border-radius:5px;background:linear-gradient(180deg,var(--steelhi),var(--steel));color:var(--dim);font-family:"Orbitron";font-size:8.5px;letter-spacing:1px;padding:5px 2px;cursor:pointer;box-shadow:inset 0 1px 0 rgba(150,170,230,.2),0 1px 2px #000;}
+  .minibtn.on{color:var(--scan);border-color:rgba(67,224,200,.5);}
+  .minibtn:active{transform:translateY(1px);}
   #console::before{content:"";position:absolute;top:6px;left:0;right:0;height:3px;background:repeating-linear-gradient(90deg,transparent 0 26px,rgba(120,140,200,.25) 26px 28px);pointer-events:none;}
   .bank{width:118px;flex:none;background:linear-gradient(160deg,var(--steel2),var(--steel));border:1px solid #000;border-radius:9px;padding:9px;display:flex;flex-direction:column;gap:7px;box-shadow:inset 0 1px 0 rgba(140,160,220,.15), inset 0 0 20px rgba(0,0,0,.4);}
   .bank .bh{font-family:"Orbitron";font-size:8px;letter-spacing:1.5px;color:var(--faint);text-align:center;margin-bottom:1px;}
@@ -92,15 +120,33 @@
   .scr-idle .lg{font-family:"Orbitron";font-size:15px;letter-spacing:5px;color:var(--scan);text-shadow:0 0 12px var(--scan);}
   .scr-idle .sm{font-family:"Share Tech Mono";font-size:11px;color:#3a9a86;letter-spacing:2px;}
   .scr-idle .blink{animation:blink 1.3s steps(1) infinite;}
+  /* idle default: a slow radar sweep (Slice 5) */
+  .idle-radar{position:relative;width:74px;height:74px;margin-bottom:6px;border-radius:50%;overflow:hidden;box-shadow:0 0 16px rgba(10,255,206,.18) inset,0 0 10px rgba(10,255,206,.15);}
+  .idle-radar .idle-ring{position:absolute;inset:24%;border:1px solid rgba(10,255,206,.28);border-radius:50%;}
+  .idle-radar .idle-ring.r2{inset:6%;border-color:rgba(10,255,206,.16);}
+  .idle-radar .idle-sweep{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,rgba(10,255,206,.55),rgba(10,255,206,0) 55deg,transparent 360deg);animation:radarSweep 3.4s linear infinite;transform-origin:50% 50%;}
+  @keyframes radarSweep{to{transform:rotate(360deg);}}
   @keyframes blink{50%{opacity:0;}}
   .scr-head{display:flex;align-items:flex-start;gap:12px;flex:none;border-bottom:1px solid rgba(10,255,206,.2);padding-bottom:8px;margin-bottom:8px;}
-  .scr-portrait{width:74px;height:74px;flex:none;border-radius:8px;border:1px solid rgba(10,255,206,.3);background:radial-gradient(circle at 50% 45%,rgba(10,255,206,.08),transparent);display:flex;align-items:center;justify-content:center;overflow:visible;}
+  /* Holographic mini-projector (Slice 3): the selected thing's likeness cast as a cyan hologram —
+     scanlines, a sweeping refresh line, soft glow, a projector-base glow and a slow bob. */
+  .scr-portrait{position:relative;width:86px;height:86px;flex:none;border-radius:8px;border:1px solid rgba(10,255,206,.32);background:radial-gradient(circle at 50% 42%,rgba(10,255,206,.10),rgba(6,20,40,.5) 70%,transparent);display:flex;align-items:center;justify-content:center;}
+  .holo-glow{position:absolute;inset:-5px;border-radius:11px;box-shadow:0 0 18px rgba(10,255,206,.32);pointer-events:none;}
+  .holo-screen{position:absolute;inset:0;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+  .holo-art{filter:drop-shadow(0 0 5px rgba(10,255,206,.55)) brightness(1.06) saturate(1.12);animation:holobob 4.2s ease-in-out infinite;transform-origin:50% 60%;}
+  @keyframes holobob{0%,100%{transform:translateY(0) scale(1);}50%{transform:translateY(-3px) scale(1.02);}}
+  .holo-tint{position:absolute;inset:0;background:radial-gradient(circle at 50% 45%,rgba(10,255,206,.10),rgba(10,120,255,.18));mix-blend-mode:screen;pointer-events:none;}
+  .holo-scan{position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(10,255,206,.11) 0 1px,transparent 1px 3px);mix-blend-mode:screen;pointer-events:none;opacity:.7;}
+  .holo-sweep{position:absolute;left:0;right:0;top:-18px;height:18px;background:linear-gradient(rgba(10,255,206,0),rgba(10,255,206,.22),rgba(10,255,206,0));animation:holoSweep 2.8s linear infinite;pointer-events:none;}
+  @keyframes holoSweep{0%{top:-18px;}100%{top:100%;}}
+  .holo-base{position:absolute;left:50%;bottom:-5px;width:72%;height:9px;transform:translateX(-50%);background:radial-gradient(ellipse,rgba(10,255,206,.55),transparent 70%);filter:blur(2px);pointer-events:none;}
   .scr-titles{flex:1;min-width:0;}
   .scr-kicker{font-family:"Share Tech Mono";font-size:10px;letter-spacing:2px;color:var(--amber);text-transform:uppercase;}
   .scr-name{font-family:"Orbitron";font-size:19px;font-weight:700;color:#eafffb;text-shadow:0 0 14px rgba(10,255,206,.5);line-height:1.1;margin:1px 0 2px;}
   .scr-creed{font-family:"Rajdhani";font-style:italic;font-size:13px;color:var(--scan);}
   .scr-cols{flex:1;min-height:0;display:flex;gap:16px;}
-  .scr-desc{flex:1;font-size:13.5px;line-height:1.5;color:#a8e8d8;overflow-y:auto;padding-right:6px;}
+  .scr-desc{flex:1;font-size:13.5px;line-height:1.5;color:#a8e8d8;overflow-y:auto;padding-right:6px;white-space:pre-wrap;}
+  .scr-nodata{font-family:"Share Tech Mono";font-size:11.5px;color:#3a9a86;letter-spacing:1px;opacity:.72;font-style:italic;}
   .scr-stats{width:158px;flex:none;font-family:"Share Tech Mono";font-size:11px;display:flex;flex-direction:column;gap:5px;overflow-y:auto;}
   .scr-stat{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dotted rgba(10,255,206,.15);padding-bottom:3px;}
   .scr-stat .k{color:#3a9a86;}.scr-stat .v{color:#9dffe8;text-align:right;}
@@ -167,6 +213,8 @@
   <div id="gl3d" data-hide="skyCanvas bgLayer stage fxCanvas" style="position:absolute;inset:0;z-index:10;display:none"></div>
 </div>
 <div id="console">
+  <button id="deckMin" title="Minimize / restore console">▾</button>
+  <div id="deckLabel">▲ SENSOR CONSOLE — CLICK TO OPEN</div>
   <div class="bank">
     <div class="bh">SYSTEM STATUS</div>
     <div class="lamp g on" id="lampPwr"><span class="led"></span>REACTOR</div>
@@ -178,6 +226,22 @@
   </div>
   <div class="screenframe">
     <div class="screen"><div class="scr-inner" id="scrInner"></div></div>
+  </div>
+  <div class="helm">
+    <div class="bh">HELM</div>
+    <div class="dpad">
+      <button class="u" data-pan="up" title="Pan up">▲</button>
+      <button class="l" data-pan="left" title="Pan left">◀</button>
+      <button class="c" data-pan="center" title="Recenter">◈</button>
+      <button class="r" data-pan="right" title="Pan right">▶</button>
+      <button class="d" data-pan="down" title="Pan down">▼</button>
+    </div>
+    <div><div class="slab"><span>THRUST</span><span id="panRateV">40</span></div><input type="range" id="panRate" min="1" max="100" value="40"></div>
+    <div class="knobs">
+      <div class="knob"><div class="dial" id="dialTint"></div><div class="kl">TINT</div></div>
+      <div class="knob"><div class="dial" id="dialTune"></div><div class="kl">TUNE</div></div>
+    </div>
+    <div style="display:flex;gap:5px"><button class="minibtn" id="btnLight">◐ LIGHT</button><button class="minibtn on" id="btnSfx">♪ SFX</button></div>
   </div>
   <div class="rcluster">
     <div class="bh">NAVIGATION</div>
@@ -325,7 +389,28 @@ function art(a,animate){
   if(k==="planet3d"){if(a.sheet)return `<svg viewBox="0 0 200 200" style="width:100%;height:100%"><defs><clipPath id="p3${id}"><circle cx="100" cy="100" r="98"/></clipPath></defs><image href="${a.sheet}" x="0" y="0" width="${200*(a.cols||1)}" height="${200*(a.rows||1)}" clip-path="url(#p3${id})"/></svg>`;return `<svg viewBox="0 0 200 200" style="width:100%;height:100%"><circle cx="100" cy="100" r="90" fill="none" stroke="#5aa0e8" stroke-width="3" stroke-dasharray="6 6"/></svg>`;}
   if(k==="spingalaxy"){if(a.image)return `<svg viewBox="0 0 200 200" style="width:100%;height:100%"><defs><clipPath id="cl${id}"><circle cx="100" cy="100" r="98"/></clipPath></defs><image href="${a.image}" x="0" y="0" width="200" height="200" preserveAspectRatio="xMidYMid slice" clip-path="url(#cl${id})"/></svg>`;return "";}
   if(k==="galaxy"){return spiralSVG({arms:a.arms||2,turns:a.turns||1.1,tight:a.tight!=null?a.tight:0.9,spread:a.spread!=null?a.spread:0.7,len:a.len!=null?a.len:1,c1:c1||"#c89aff",c2:c2||"#6a3aff",core:c3||"#fff2c8",seed:a.seed||7,animate:anim,spinDur:a.spinDur||60});}
-  if(k==="star"){return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><defs><radialGradient id="s${id}" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff"/><stop offset="35%" stop-color="${L(c1,50)}"/><stop offset="70%" stop-color="${c1}"/><stop offset="100%" stop-color="${D(c1,20)}"/></radialGradient><radialGradient id="co${id}" cx="50%" cy="50%" r="50%"><stop offset="35%" stop-color="${c3}" stop-opacity=".55"/><stop offset="100%" stop-color="${c3}" stop-opacity="0"/></radialGradient></defs><circle cx="${cx}" cy="${cy}" r="96" fill="url(#co${id})" style="${anim?'animation:breathe 5s ease-in-out infinite;transform-origin:center':''}"/>${a.rays!==false?`<g style="${anim?'animation:cspin 40s linear infinite;transform-origin:center':''}">${[...Array(14)].map((_,i)=>{const an=i/14*Math.PI*2;return `<line x1="${cx+Math.cos(an)*54}" y1="${cy+Math.sin(an)*54}" x2="${cx+Math.cos(an)*(66+rng()*14)}" y2="${cy+Math.sin(an)*(66+rng()*14)}" stroke="${c3}" stroke-width="2" opacity=".5"/>`;}).join("")}</g>`:""}<circle cx="${cx}" cy="${cy}" r="50" fill="url(#s${id})"/></svg>`;}
+  if(k==="star"){
+    // Three independently-coloured parts (parity with Map Studio): CORE (c1), immediate GLOW (c2), and
+    // the diffused light + sun rays (c3), plus brightness, corona size, glow "breathing" and ray spec.
+    const coreC=c1,glowC=c2||c3||c1,diffC=c3||c2||c1;
+    const br=a.brightness!=null?a.brightness:1,cs=a.coronaSize!=null?a.coronaSize:1;
+    const bre=a.breathe||{on:true,speed:1,depth:0.12},rs=a.raySpec||{count:14,length:1,intensity:0.5};
+    const haloR=Math.min(99,44+52*cs),diffOp=Math.min(1,0.5*br).toFixed(2),glowOp=Math.min(1,0.62*br).toFixed(2);
+    const depth=bre.depth!=null?bre.depth:0.12,bdur=(5/Math.max(0.2,bre.speed||1)).toFixed(1);
+    const breanim=(anim&&bre.on!==false)?`animation:bstar${id} ${bdur}s ease-in-out infinite;transform-origin:center`:'';
+    const breKey=`<style>@keyframes bstar${id}{0%,100%{opacity:${(1-depth*0.55).toFixed(2)};transform:scale(${(1-depth*0.5).toFixed(3)})}50%{opacity:1;transform:scale(${(1+depth*0.5).toFixed(3)})}}</style>`;
+    const rc=Math.max(0,Math.min(48,Math.round(rs.count!=null?rs.count:14)));
+    const rlen=rs.length!=null?rs.length:1,rop=Math.min(1,(rs.intensity!=null?rs.intensity:0.5)*1.1*br).toFixed(2);
+    const rays=(a.rays!==false&&rc>0)?`<g style="${anim?'animation:cspin 40s linear infinite;transform-origin:center':''}">${[...Array(rc)].map((_,i)=>{const an=i/rc*Math.PI*2,r0=52,r1=64+(12+rng()*16)*rlen;return `<line x1="${(cx+Math.cos(an)*r0).toFixed(1)}" y1="${(cy+Math.sin(an)*r0).toFixed(1)}" x2="${(cx+Math.cos(an)*r1).toFixed(1)}" y2="${(cy+Math.sin(an)*r1).toFixed(1)}" stroke="${diffC}" stroke-width="2" opacity="${rop}"/>`;}).join("")}</g>`:"";
+    return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><defs>
+      <radialGradient id="core${id}" cx="42%" cy="40%" r="60%"><stop offset="0%" stop-color="#fff"/><stop offset="45%" stop-color="${L(coreC,42)}"/><stop offset="100%" stop-color="${coreC}"/></radialGradient>
+      <radialGradient id="glow${id}" cx="50%" cy="50%" r="50%"><stop offset="52%" stop-color="${glowC}" stop-opacity="0"/><stop offset="80%" stop-color="${glowC}" stop-opacity="${glowOp}"/><stop offset="100%" stop-color="${glowC}" stop-opacity="0"/></radialGradient>
+      <radialGradient id="diff${id}" cx="50%" cy="50%" r="50%"><stop offset="18%" stop-color="${diffC}" stop-opacity="${diffOp}"/><stop offset="100%" stop-color="${diffC}" stop-opacity="0"/></radialGradient></defs>${breKey}
+      <circle cx="${cx}" cy="${cy}" r="${haloR}" fill="url(#diff${id})" style="${breanim}"/>
+      ${rays}
+      <circle cx="${cx}" cy="${cy}" r="64" fill="url(#glow${id})"/>
+      <circle cx="${cx}" cy="${cy}" r="44" fill="url(#core${id})"/></svg>`;
+  }
   if(k==="station"){const st=a.stype||"ring";let inner="";
     let spinDur=(26+rng()*18).toFixed(0),blink=true,broken=false,extra="";
     if(st==="starfort"){let pts="";for(let i=0;i<12;i++){const an=i/12*Math.PI*2,rr=i%2?66:40;pts+=`${cx+Math.cos(an)*rr},${cy+Math.sin(an)*rr} `;}inner=`<polygon points="${pts}" fill="${c1}" stroke="${c2}" stroke-width="3"/><circle cx="${cx}" cy="${cy}" r="24" fill="${c2}"/><circle cx="${cx}" cy="${cy}" r="10" fill="${c3}"/>`;}
@@ -376,19 +461,34 @@ function art(a,animate){
     for(let i=0;i<clusters;i++){const ca=crng()*6.28,cr=Math.sqrt(crng())*R*0.93,px=cx+Math.cos(ca)*cr,py=cy+Math.sin(ca)*cr,nd=1+Math.round(crng()*(2+cityI*4));
       for(let j=0;j<nd;j++){const dx=px+(crng()-0.5)*9,dy=py+(crng()-0.5)*9;dots+=`<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="${(0.5+crng()*0.9).toFixed(1)}" fill="${cityCol}" opacity="${(0.45+crng()*0.45).toFixed(2)}"/>`;}}
     city=`<g clip-path="url(#c${id})" filter="url(#cityG${id})">${dots}</g>`;}
+  // destroyed / cataclysm overlay — molten cracks, a break/gap revealing the glowing core, and debris
+  let destroy="";const dv=a.destroyed&&a.destroyed!=="none"?a.destroyed:null;const dI=a.destroyI!=null?+a.destroyI:0.6;
+  if(dv){const drng=mulberry((a.seed||1)*71+5);let cracks="";const ncr=Math.round(4+dI*8);
+    for(let i=0;i<ncr;i++){let px=cx-R*0.7+drng()*R*1.4,py=cy-R*0.7+drng()*R*1.4;let dp=`M ${px.toFixed(1)} ${py.toFixed(1)}`;const st=4+Math.round(drng()*5),ln=(R*0.3+drng()*R*0.5)/st;let an=drng()*6.28;
+      for(let s=0;s<st;s++){an+=(drng()-0.5)*1.5;px+=Math.cos(an)*ln;py+=Math.sin(an)*ln;dp+=` L ${px.toFixed(1)} ${py.toFixed(1)}`;}
+      cracks+=`<path d="${dp}" stroke="#ff5a1e" stroke-width="${(2+dI*3).toFixed(1)}" fill="none" opacity=".5" filter="url(#dGlow${id})"/><path d="${dp}" stroke="#ffd24a" stroke-width="${(0.8+dI).toFixed(1)}" fill="none" opacity=".85"/>`;}
+    let gap="";
+    if(dv==="holed"){const hx2=cx+R*0.18,hy2=cy-R*0.08,hr=R*(0.17+dI*0.12);gap=`<circle cx="${hx2.toFixed(1)}" cy="${hy2.toFixed(1)}" r="${hr.toFixed(1)}" fill="#0a0603"/><circle cx="${hx2.toFixed(1)}" cy="${hy2.toFixed(1)}" r="${(hr*0.55).toFixed(1)}" fill="url(#coreG${id})"/><circle cx="${hx2.toFixed(1)}" cy="${hy2.toFixed(1)}" r="${hr.toFixed(1)}" fill="none" stroke="#ff7a2a" stroke-width="2.4" opacity=".85" filter="url(#dGlow${id})"/>`;}
+    else if(dv==="chunk"||dv==="cored"){const ba=drng()*6.28,bw=0.6+dI*0.7,p1=[cx+Math.cos(ba-bw)*R,cy+Math.sin(ba-bw)*R],p2=[cx+Math.cos(ba+bw)*R,cy+Math.sin(ba+bw)*R];
+      gap=`<path d="M ${cx} ${cy} L ${p1[0].toFixed(1)} ${p1[1].toFixed(1)} A ${R} ${R} 0 0 1 ${p2[0].toFixed(1)} ${p2[1].toFixed(1)} Z" fill="#0a0603" opacity=".92"/><circle cx="${cx}" cy="${cy}" r="${(R*(dv==="cored"?0.52:0.4)).toFixed(1)}" fill="url(#coreG${id})"/>`;}
+    else{gap=`<rect x="${(cx-2-dI*3).toFixed(1)}" y="${cy-R}" width="${(4+dI*6).toFixed(1)}" height="${2*R}" fill="url(#riftG${id})"/>`;}
+    let deb="";const ndb=Math.round(4+dI*16);
+    for(let i=0;i<ndb;i++){const da=drng()*6.28,dr=R*(1.05+drng()*(0.5+dI)),dx=cx+Math.cos(da)*dr,dy=cy+Math.sin(da)*dr,rs=1+drng()*3;deb+=`<path d="M ${(dx-rs).toFixed(1)} ${dy.toFixed(1)} L ${dx.toFixed(1)} ${(dy-rs).toFixed(1)} L ${(dx+rs).toFixed(1)} ${dy.toFixed(1)} L ${dx.toFixed(1)} ${(dy+rs).toFixed(1)} Z" fill="#6a5a50" opacity="${(0.5+drng()*0.4).toFixed(2)}"/>`;}
+    destroy=`<g clip-path="url(#c${id})">${cracks}${gap}</g>${deb}`;}
   const spinDur=(34+rng()*46).toFixed(0),cloudDur=(spinDur*0.7).toFixed(0);
   return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><defs>
     <clipPath id="c${id}"><circle cx="${cx}" cy="${cy}" r="${R}"/></clipPath>
     ${lavaI>0.001?`<filter id="lavaG${id}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.7"/></filter>`:""}
     ${cityI>0.001?`<filter id="cityG${id}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="0.5"/></filter>`:""}
+    ${dv?`<filter id="dGlow${id}" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="2"/></filter><radialGradient id="coreG${id}" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff2c8"/><stop offset="35%" stop-color="#ffb454"/><stop offset="75%" stop-color="#ff5a1e"/><stop offset="100%" stop-color="#3a0a04" stop-opacity="0"/></radialGradient><linearGradient id="riftG${id}" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#ff5a1e" stop-opacity="0"/><stop offset="50%" stop-color="#ffe6a0"/><stop offset="100%" stop-color="#ff5a1e" stop-opacity="0"/></linearGradient>`:""}
     <radialGradient id="base${id}" cx="36%" cy="32%" r="78%"><stop offset="0%" stop-color="${L(c1,52)}"/><stop offset="50%" stop-color="${c1}"/><stop offset="100%" stop-color="${D(c1,46)}"/></radialGradient>
     <radialGradient id="term${id}" cx="36%" cy="32%" r="82%"><stop offset="0%" stop-color="#fff" stop-opacity=".28"/><stop offset="38%" stop-color="#fff" stop-opacity="0"/><stop offset="72%" stop-color="#000" stop-opacity=".35"/><stop offset="100%" stop-color="#000" stop-opacity=".68"/></radialGradient>
     <radialGradient id="atmo${id}" cx="50%" cy="50%" r="50%"><stop offset="${(88-atmoThick*12).toFixed(0)}%" stop-color="${atmoCol}" stop-opacity="0"/><stop offset="97%" stop-color="${atmoCol}" stop-opacity="${atmoThick.toFixed(2)}"/><stop offset="100%" stop-color="${atmoCol}" stop-opacity="0"/></radialGradient></defs>
     ${ringBack}<circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#base${id})"/>
     <g clip-path="url(#c${id})"><g style="${anim?`animation:surf${id} ${spinDur}s linear infinite`:''}">${bands}${spots.join("")}</g>${clouds?`<g style="${anim?`animation:surf${id} ${cloudDur}s linear infinite`:''}">${clouds}</g>`:""}</g>
     <circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#term${id})"/>
-    ${lava}
-    ${hasAtmo?`<circle cx="${cx}" cy="${cy}" r="${R+3}" fill="url(#atmo${id})"/>`:""}
+    ${lava}${city}${destroy}
+    ${hasAtmo&&!dv?`<circle cx="${cx}" cy="${cy}" r="${R+3}" fill="url(#atmo${id})"/>`:""}
     <ellipse cx="${cx-34}" cy="${cy-40}" rx="30" ry="18" fill="#fff" opacity=".14" transform="rotate(-30 ${cx-34} ${cy-40})"/>
     ${ringFront}<style>@keyframes surf${id}{to{transform:translateX(-${2*S}px);}}</style></svg>`;
 }
@@ -557,10 +657,12 @@ function render(){
     if(i.kind==="planet3d")el.dataset.p3=i.id;
     if(i.kind==="image"&&i.spiral&&i.spiral.on&&look.src)el.dataset.spiral=i.id;
     el.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});};
+    el.onmouseenter=()=>{el.classList.add("hovered");hoverName(i.name,i.kind);};el.onmouseleave=()=>{el.classList.remove("hovered");endHover();};
     el.querySelectorAll(".poi").forEach(p=>p.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});});
     viewport.appendChild(el);});
   // sector click handlers
-  viewport.querySelectorAll("[data-sector]").forEach(p=>p.onclick=e=>{e.stopPropagation();select({type:"sector",id:p.dataset.sector});});
+  viewport.querySelectorAll("[data-sector]").forEach(p=>{p.onclick=e=>{e.stopPropagation();select({type:"sector",id:p.dataset.sector});};
+    p.onmouseenter=()=>{const s=(MAP.sectors||[]).find(x=>x.id===p.dataset.sector);hoverName(s?s.name:"",s&&s.meta?"meta-region":s&&s.parent?"sub-system":"system");};p.onmouseleave=endHover;});
   viewport.appendChild(buildLabelLayer(B,W,H));   // rich formatted labels on top
   mountSpriteInstances();mountSpiralImages();buildLegend();
 }
@@ -610,9 +712,9 @@ function fit(anim){const B=worldBounds(),W=B.maxX-B.minX,H=B.maxY-B.minY,{w,h}=p
 function flyTo(x,y,scale){const {w,h}=paneSize();view.scale=scale;view.x=w/2-x*scale;view.y=(h-30)/2-y*scale;apply(true);}
 function fitZoomFor(ww,hh){const {w,h}=paneSize();return clamp(Math.min(w/ww,h/hh)*0.82,0.2,3);}
 let pan=null;
-stage.addEventListener("mousedown",e=>{if(e.target.closest(".body")||e.target.dataset&&e.target.dataset.sector)return;stage.classList.add("grabbing");pan={sx:e.clientX,sy:e.clientY,ox:view.x,oy:view.y};});
-window.addEventListener("mousemove",e=>{if(!pan)return;view.x=pan.ox+(e.clientX-pan.sx);view.y=pan.oy+(e.clientY-pan.sy);apply();});
-window.addEventListener("mouseup",()=>{pan=null;stage.classList.remove("grabbing");});
+stage.addEventListener("mousedown",e=>{if(e.target.closest(".body")||e.target.dataset&&e.target.dataset.sector)return;stage.classList.add("grabbing");pan={sx:e.clientX,sy:e.clientY,ox:view.x,oy:view.y,moved:false};});
+window.addEventListener("mousemove",e=>{if(!pan)return;if(Math.abs(e.clientX-pan.sx)+Math.abs(e.clientY-pan.sy)>4)pan.moved=true;view.x=pan.ox+(e.clientX-pan.sx);view.y=pan.oy+(e.clientY-pan.sy);apply();});
+window.addEventListener("mouseup",()=>{if(pan&&!pan.moved&&(selectedId||curSel))clearSelect();pan=null;stage.classList.remove("grabbing");});   // click on empty space → deselect + blank the panel
 stage.addEventListener("wheel",e=>{e.preventDefault();const r=$("#mapPane").getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;const fdir=e.deltaY<0?1.14:0.88;const ns=clamp(view.scale*fdir,0.08,6);view.x=mx-(mx-view.x)*(ns/view.scale);view.y=my-(my-view.y)*(ns/view.scale);view.scale=ns;apply();},{passive:false});
 function zoomAround(cx,cy,fdir){const ns=clamp(view.scale*fdir,0.08,6);view.x=cx-(cx-view.x)*(ns/view.scale);view.y=cy-(cy-view.y)*(ns/view.scale);view.scale=ns;apply(true);}
 $("#zoomIn").onclick=()=>{const {w,h}=paneSize();zoomAround(w/2,h/2,1.3);};
@@ -622,27 +724,38 @@ $("#zoomFit").onclick=()=>{clearSelect();fit(true);};
 /* ---- selection + screen ---- */
 function setSelectedEl(id){viewport.querySelectorAll(".body").forEach(el=>el.classList.toggle("selected",el.dataset.id===id));viewport.querySelectorAll("[data-sector]").forEach(p=>p.style.filter="");}
 function pulseScan(){const l=$("#lampScan");l.classList.add("on");setTimeout(()=>l.classList.remove("on"),700);$("#tgl3").classList.add("up");setTimeout(()=>$("#tgl3").classList.remove("up"),700);$("#sigMeter").style.width=(70+Math.random()*28)+"%";}
+let curSel=null, hovering=false;
 function select(sel){
-  pulseScan();
-  if(sel.type==="sector"){const s=MAP.sectors.find(x=>x.id===sel.id);if(!s)return;selectedId=null;setSelectedEl(null);
+  pulseScan();hovering=false;
+  if(sel.type==="sector"){const s=MAP.sectors.find(x=>x.id===sel.id);if(!s)return;selectedId=null;setSelectedEl(null);curSel={type:"sector",id:s.id};
     viewport.querySelectorAll("[data-sector]").forEach(p=>{p.style.filter=p.dataset.sector===s.id?"drop-shadow(0 0 12px "+s.color+")":"";});
     renderScreen(sectorScreen(s));const c=polyCentroid(s.points);const bb={w:Math.max(...s.points.map(p=>p.x))-Math.min(...s.points.map(p=>p.x)),h:Math.max(...s.points.map(p=>p.y))-Math.min(...s.points.map(p=>p.y))};flyTo(c.x,c.y,fitZoomFor(bb.w*1.5,bb.h*1.5));return;}
-  const i=MAP.instances.find(x=>x.id===sel.id);if(!i)return;selectedId=i.id;setSelectedEl(i.id);
+  const i=MAP.instances.find(x=>x.id===sel.id);if(!i)return;selectedId=i.id;setSelectedEl(i.id);curSel={type:"instance",id:i.id};
   if(i.kind==="galaxy"&&i.role==="core")renderScreen(coreScreen(i));else renderScreen(bodyScreen(i));
   flyTo(i.x,i.y,i.kind==="galaxy"?fitZoomFor(i.size*3,i.size*3):clamp(1400/(i.size||50),1.4,4.2));
 }
-function clearSelect(){selectedId=null;setSelectedEl(null);viewport.querySelectorAll("[data-sector]").forEach(p=>p.style.filter="");showIdle();}
+function clearSelect(){selectedId=null;curSel=null;hovering=false;setSelectedEl(null);viewport.querySelectorAll("[data-sector]").forEach(p=>p.style.filter="");showIdle();}
+// Hover targeting (Slice 1): show the hovered thing's name in the panel without selecting/zooming;
+// leaving the hover restores the locked-on readout (or idle).
+function kindLabel(k){return ({planet:"planet",planet3d:"planet",moon:"moon",star:"star",station:"station",debris:"debris field",asteroid:"asteroid",galaxy:"stellar body",spingalaxy:"galaxy",image:"contact",text:"marker"})[k]||"stellar body";}
+function hoverName(name,kind){hovering=true;scrInner.innerHTML=`<div class="scr-idle"><div class="sm" style="color:var(--amber);letter-spacing:4px">◈ TARGETING ◈</div><div class="lg" style="font-size:19px;margin:4px 0;color:var(--scan)">${esc(name||"UNKNOWN CONTACT")}</div><div class="sm">${esc((typeof kind==="string"&&kind.includes(" ")?kind:kindLabel(kind)).toUpperCase())}<span style="opacity:.55"> · CLICK TO LOCK ON</span></div></div>`;}
+function renderCurrent(){if(curSel&&curSel.type==="instance"){const i=MAP.instances.find(x=>x.id===curSel.id);if(i){if(i.kind==="galaxy"&&i.role==="core")renderScreen(coreScreen(i));else renderScreen(bodyScreen(i));return;}}if(curSel&&curSel.type==="sector"){const s=MAP.sectors.find(x=>x.id===curSel.id);if(s){renderScreen(sectorScreen(s));return;}}showIdle();}
+function endHover(){if(!hovering)return;hovering=false;renderCurrent();}
 $("#btnClose").onclick=clearSelect;
+// Minimize / restore the console deck (slides down to a thin tab; click the tab or button to reopen).
+const consoleDeck=$("#console");
+$("#deckMin").onclick=e=>{e.stopPropagation();consoleDeck.classList.toggle("min");};
+consoleDeck.onclick=e=>{if(consoleDeck.classList.contains("min")&&e.target.id!=="deckMin")consoleDeck.classList.remove("min");};
 $("#btnGalaxy").onclick=()=>{clearSelect();fit(true);};
 const scrInner=$("#scrInner");
-function showIdle(){const nb=(MAP.instances||[]).length,ns=(MAP.sectors||[]).length;scrInner.innerHTML=`<div class="scr-idle"><div class="lg">◈ AWAITING INPUT ◈</div><div class="sm">SELECT A SYSTEM OR STELLAR BODY<span class="blink">_</span></div><div class="sm" style="margin-top:10px;opacity:.6">NAV-LINK ESTABLISHED · ${ns} SYSTEMS · ${nb} BODIES CHARTED</div></div>`;}
+function showIdle(){const nb=(MAP.instances||[]).length,ns=(MAP.sectors||[]).length;scrInner.innerHTML=`<div class="scr-idle"><div class="idle-radar"><span class="idle-sweep"></span><span class="idle-ring"></span><span class="idle-ring r2"></span></div><div class="lg">◈ AWAITING INPUT ◈</div><div class="sm">SELECT A SYSTEM OR STELLAR BODY<span class="blink">_</span></div><div class="sm" style="margin-top:10px;opacity:.6">NAV-LINK ESTABLISHED · ${ns} SYSTEMS · ${nb} BODIES CHARTED</div></div>`;}
 function renderScreen(html){scrInner.innerHTML=html;scrInner.querySelectorAll("[data-sec]").forEach(c=>c.onclick=()=>select({type:"sector",id:c.dataset.sec}));scrInner.querySelectorAll("[data-body]").forEach(c=>c.onclick=()=>select({type:"instance",id:c.dataset.body}));}
-function portrait(svg){return `<div class="scr-portrait">${svg}</div>`;}
+function portrait(svg){return `<div class="scr-portrait"><div class="holo-glow"></div><div class="holo-screen"><div class="holo-art">${svg}</div><div class="holo-tint"></div><div class="holo-scan"></div><div class="holo-sweep"></div></div><div class="holo-base"></div></div>`;}
 function poiBlock(pois){if(!pois||!pois.length)return "";return `<div style="margin-top:6px">${pois.map(p=>`<div class="scr-poi" data-body=""><div class="pic">${poiIconSVG(p.type,22)}</div><div><div class="pn">${esc(p.title)}</div><div class="pt">${poiType(p.type).label}</div>${p.desc?`<div class="pd">${esc(p.desc)}</div>`:""}</div></div>`).join("")}</div>`;}
 function bodyScreen(b){const s=MAP.sectors.find(x=>x.id===b.sector);const typeLabel=(b.kind||"body").toUpperCase();const artSvg=`<div style="width:66px;height:66px">${art(b.look||b,true)}</div>`;
   const poisHtml=b.pois&&b.pois.length?`<div style="font-family:Orbitron;font-size:10px;letter-spacing:2px;color:var(--amber);margin:8px 0 4px">◈ POINTS OF INTEREST (${b.pois.length})</div>${poiBlock(b.pois)}`:"";
   return `<div class="scr-head">${portrait(artSvg)}<div class="scr-titles"><div class="scr-kicker">${typeLabel}${b.role==="capital"?" · CAPITAL":""}</div><div class="scr-name">${esc(b.name)}</div><div class="scr-creed">${s?esc(s.name):"Unaligned"}</div></div></div>
-    <div class="scr-cols"><div class="scr-desc">${esc(b.desc)}${poisHtml}</div>
+    <div class="scr-cols"><div class="scr-desc">${b.desc?esc(b.desc):(poisHtml?"":`<div class="scr-nodata">▏ NO FURTHER DATA ON RECORD</div>`)}${poisHtml}</div>
     <div class="scr-stats">
       <div class="scr-stat"><span class="k">CLASS</span><span class="v">${typeLabel}</span></div>
       ${s?`<div class="scr-stat"><span class="k">SYSTEM</span><span class="v" data-sec="${s.id}" style="cursor:pointer;color:${s.color}">${esc(s.name).toUpperCase()}</span></div>`:""}
@@ -656,7 +769,7 @@ function sectorScreen(s){const members=MAP.instances.filter(b=>b.sector===s.id);
   let chips="";if(s.meta&&subs.length)chips=`<div class="scr-chips">${subs.map(x=>`<span class="scr-chip" data-sec="${x.id}"><span class="cd" style="background:${x.color}"></span>${esc(x.name)}</span>`).join("")}</div>`;
   else if(members.length)chips=`<div class="scr-chips">${members.map(m=>`<span class="scr-chip" data-body="${m.id}"><span class="cd" style="background:${s.color}"></span>${esc(m.name)}${m.role==="capital"?" ★":""}</span>`).join("")}</div>`;
   return `<div class="scr-head">${portrait(swatch)}<div class="scr-titles"><div class="scr-kicker">${s.meta?"META-REGION":s.parent?"SUB-SYSTEM"+(s.theme?" · "+s.theme.toUpperCase():""):(s.region||"SYSTEM").toUpperCase()}</div><div class="scr-name">${esc(s.name)}</div><div class="scr-creed">${esc(s.creed||"")}</div></div></div>
-    <div class="scr-cols"><div class="scr-desc">${esc(s.desc||"")}${chips}</div>
+    <div class="scr-cols"><div class="scr-desc">${s.desc?esc(s.desc):(chips?"":`<div class="scr-nodata">▏ NO FURTHER DATA ON RECORD</div>`)}${chips}</div>
     <div class="scr-stats">${s.region?`<div class="scr-stat"><span class="k">REGION</span><span class="v">${s.region.toUpperCase()}</span></div>`:""}${s.theme?`<div class="scr-stat"><span class="k">THEME</span><span class="v">${s.theme.toUpperCase()}</span></div>`:""}<div class="scr-stat"><span class="k">BODIES</span><span class="v">${members.length||(subs.length?subs.length+" SUBS":"—")}</span></div>${subs.length&&!s.meta?`<div class="scr-stat"><span class="k">SUB-SYSTEMS</span><span class="v">${subs.length}</span></div>`:""}<div class="scr-stat"><span class="k">ALLEGIANCE</span><span class="v" style="color:${s.color}">████</span></div><div class="scr-stat"><span class="k">STATUS</span><span class="v" style="color:var(--scan)">SURVEYED</span></div></div></div>`;}
 function coreScreen(i){return `<div class="scr-head">${portrait(`<div style="width:66px;height:66px">${art(i.look,true)}</div>`)}<div class="scr-titles"><div class="scr-kicker" style="color:var(--gold)">GALACTIC CORE</div><div class="scr-name">${esc(i.name)}</div><div class="scr-creed">The song at the center of everything</div></div></div>
   <div class="scr-cols"><div class="scr-desc">${esc(i.desc)}</div><div class="scr-stats"><div class="scr-stat"><span class="k">TYPE</span><span class="v">AETHER SOURCE</span></div><div class="scr-stat"><span class="k">POSITION</span><span class="v">GALACTIC CENTER</span></div><div class="scr-stat"><span class="k">OUTPUT</span><span class="v" style="color:var(--gold)">∞</span></div><div class="scr-stat"><span class="k">STATUS</span><span class="v" style="color:var(--scan)">RADIANT</span></div></div></div>`;}
@@ -689,8 +802,35 @@ function normalizeMap(m){m=m||{};return {type:"stardust-map",version:2,meta:m.me
 /* ---- console ambient life ---- */
 function updateDialZoom(){const d=$("#dialZoom");if(!d)return;const t=(view.scale-0.08)/(6-0.08);d.style.setProperty("--r",(t*270-135)+"deg");}
 $("#dialZoom").style.setProperty("--r","-90deg");$("#dialGain").style.setProperty("--r","20deg");
-$("#dialZoom").onclick=()=>{const {w,h}=paneSize();zoomAround(w/2,h/2,1.3);};
-$("#dialGain").onclick=()=>$("#lampScan").classList.toggle("on");
+$("#dialZoom").onclick=()=>{const {w,h}=paneSize();zoomAround(w/2,h/2,1.3);beep(720,0.05);};
+$("#dialGain").onclick=()=>{$("#lampScan").classList.toggle("on");beep(520,0.05);};
+
+/* ---- HELM: functional + flavour controls (Slice 7) ---- */
+// Tiny WebAudio blips for that clicky spaceship feel (respects the SFX mute).
+let sfxOn=true,_actx=null;
+function beep(freq,dur){if(!sfxOn)return;try{_actx=_actx||new (window.AudioContext||window.webkitAudioContext)();const o=_actx.createOscillator(),g=_actx.createGain();o.type="square";o.frequency.value=freq||660;g.gain.value=0.035;o.connect(g);g.connect(_actx.destination);const t=_actx.currentTime;o.start(t);g.gain.exponentialRampToValueAtTime(0.0001,t+(dur||0.06));o.stop(t+(dur||0.06)+0.01);}catch(e){}}
+const deckEl=$("#console");
+// D-pad pan — steps scaled by the THRUST (pan-rate) slider.
+let panRate=40;
+function panStep(dir){const step=20+(panRate/100)*200;if(dir==="up")view.y+=step;else if(dir==="down")view.y-=step;else if(dir==="left")view.x+=step;else if(dir==="right")view.x-=step;else{fit(true);beep(600,0.06);return;}apply(true);beep(760,0.04);}
+document.querySelectorAll(".dpad button").forEach(b=>b.onclick=()=>panStep(b.dataset.pan));
+const pr=$("#panRate");if(pr)pr.oninput=e=>{panRate=+e.target.value;$("#panRateV").textContent=panRate;};
+// TINT dial — steps the info-panel screen hue through cyan → green → blue → amber → red.
+let tintStep=0;const TINTS=[0,90,180,255,300];
+$("#dialTint").onclick=()=>{tintStep=(tintStep+1)%TINTS.length;const h=TINTS[tintStep];deckEl.style.setProperty("--tint-hue",h+"deg");$("#dialTint").style.setProperty("--r",(tintStep/(TINTS.length-1)*270-135)+"deg");beep(480+tintStep*60,0.05);};
+$("#dialTint").style.setProperty("--r","-135deg");
+// TUNE dial — signal tuning with a sweet spot (perfect resolution). Further from it → more screen
+// distortion. Click steps it around the 0–100 range; distortion = |v - sweetSpot| normalised.
+let tune=50;const SWEET=50;
+function applyTune(){const d=Math.min(1,Math.abs(tune-SWEET)/50);deckEl.style.setProperty("--distort",d.toFixed(3));$("#dialTune").style.setProperty("--r",(tune/100*270-135)+"deg");}
+$("#dialTune").onclick=()=>{tune=(tune+12)%101;applyTune();beep(300+tune*4,0.05);};
+applyTune();
+// A faint always-present flicker even near the sweet spot (that CRT never sleeps).
+setInterval(()=>{if(Math.random()<0.12){const base=Math.min(1,Math.abs(tune-SWEET)/50);deckEl.style.setProperty("--distort",Math.min(1,base+0.12).toFixed(3));setTimeout(()=>deckEl.style.setProperty("--distort",base.toFixed(3)),90);}},1600);
+// LIGHT dial — nudges scene lighting: brightens the 3D scene if shown, else the 2D stage.
+let lightStep=0;const LIGHTS=[1,1.18,1.35,0.85];
+$("#btnLight").onclick=()=>{lightStep=(lightStep+1)%LIGHTS.length;const l=LIGHTS[lightStep];try{if(window.Map3D&&window.Map3D.setLightLevel)window.Map3D.setLightLevel(l);}catch(e){}const st=$("#stage");if(st)st.style.filter=l===1?"":`brightness(${l})`;$("#btnLight").classList.toggle("on",l!==1);beep(420,0.05);};
+$("#btnSfx").onclick=()=>{sfxOn=!sfxOn;$("#btnSfx").classList.toggle("on",sfxOn);if(sfxOn)beep(660,0.06);};
 ["tgl1","tgl2","tgl3"].forEach(id=>$("#"+id).onclick=()=>$("#"+id).classList.toggle("up"));
 setInterval(()=>{const l=$("#lampComm");if(Math.random()<0.3)l.classList.toggle("on");},1400);
 setInterval(()=>{$("#sigMeter").style.width=(selectedId?72:52)+Math.random()*22+"%";},2200);

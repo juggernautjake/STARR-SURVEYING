@@ -197,14 +197,51 @@ export function buildPlanetModel(config, opts) {
     planetMat.emissiveIntensity = 0.75 + lavaI * 1.35;
     disposables.push(planetMat.emissiveMap);
   }
-  const planet = new THREE.Mesh(new THREE.SphereGeometry(R, seg, seg), planetMat); core.add(planet);
-  disposables.push(planet.geometry, planetMat);
+  // Destroyed / cataclysm planets: assemble the crust from partial-sphere pieces (no CSG) so a molten
+  // core shows through the breaks, and scatter a rocky debris field. cfg.destroyed picks the variant;
+  // cfg.destroyI (0–1) scales the break gap, core glow and debris amount.
+  const destroyed = (cfg.destroyed && cfg.destroyed !== 'none') ? cfg.destroyed : null;
+  const destroyI = Math.max(0, Math.min(1, cfg.destroyI != null ? +cfg.destroyI : 0.6));
+  let planet;
+  if (destroyed) {
+    planet = new THREE.Group(); core.add(planet);
+    const moltenMat = new THREE.MeshStandardMaterial({ color: 0x1a0603, emissive: new THREE.Color(0xff5a1e), emissiveIntensity: 1.0 + destroyI * 1.8, roughness: 1, metalness: 0, side: THREE.DoubleSide });
+    const coreMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffb454) });   // exposed molten core (fully self-lit)
+    disposables.push(planetMat, moltenMat, coreMat);
+    const hS = Math.max(10, seg >> 1);
+    const crustPiece = (phiStart, phiLen) => { const g = new THREE.SphereGeometry(R, seg, hS, phiStart, phiLen); const m = new THREE.Mesh(g, planetMat); planet.add(m); disposables.push(g); return m; };
+    const moltenCore = (rr) => { const g = new THREE.SphereGeometry(rr, 32, 24); const m = new THREE.Mesh(g, coreMat); planet.add(m); disposables.push(g); return m; };
+    const gap = R * (0.12 + destroyI * 0.5);
+    if (destroyed === 'split') {
+      const a = new THREE.Mesh(new THREE.SphereGeometry(R, seg, seg, 0, Math.PI), planetMat); a.position.x = gap;
+      const b = new THREE.Mesh(new THREE.SphereGeometry(R, seg, seg, Math.PI, Math.PI), planetMat); b.position.x = -gap;
+      planet.add(a, b); disposables.push(a.geometry, b.geometry);
+      moltenCore(R * 0.5);
+      for (const s of [1, -1]) { const cg = new THREE.CircleGeometry(R * 0.98, 40); const cm = new THREE.Mesh(cg, moltenMat); cm.position.x = s * gap; cm.rotation.y = Math.PI / 2; planet.add(cm); disposables.push(cg); }
+    } else if (destroyed === 'chunk') { crustPiece(0, Math.PI * 2 - (0.7 + destroyI * 0.9)); moltenCore(R * 0.55); }
+    else if (destroyed === 'cored') { crustPiece(0, Math.PI * 2 - (0.5 + destroyI * 0.6)); moltenCore(R * 0.62); }
+    else if (destroyed === 'holed') {
+      const s = new THREE.Mesh(new THREE.SphereGeometry(R, seg, seg), planetMat); planet.add(s); disposables.push(s.geometry);
+      const bore = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.24, R * 0.24, R * 2.3, 24, 1, true), moltenMat); bore.rotation.z = Math.PI / 2; planet.add(bore); disposables.push(bore.geometry);
+      moltenCore(R * 0.26);
+    } else if (destroyed === 'fractured') {
+      const pieces = 5; for (let i = 0; i < pieces; i++) { const m = crustPiece(i / pieces * Math.PI * 2, Math.PI * 2 / pieces * 0.86); const ang = i / pieces * Math.PI * 2; m.position.set(Math.cos(ang) * gap * 0.6, Math.sin(ang) * gap * 0.6, 0); }
+      moltenCore(R * 0.5);
+    } else { crustPiece(0, Math.PI * 2 - (0.7 + destroyI * 0.9)); moltenCore(R * 0.55); }
+    // debris field — rocky chunks around the wreck, count/spread scaled by intensity
+    const dN = Math.round(6 + destroyI * 26); let ds = ((cfg.seed || 7) >>> 0) || 7; const drnd = () => { ds = (ds * 1664525 + 1013904223) >>> 0; return ds / 4294967296; };
+    const debrisMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(0x6a5a50), roughness: 0.95, metalness: 0.05, flatShading: true }); disposables.push(debrisMat);
+    for (let k = 0; k < dN; k++) { const g = new THREE.IcosahedronGeometry(R * (0.03 + drnd() * 0.1), 0); const pos = g.attributes.position; for (let i = 0; i < pos.count; i++) { const f = 0.6 + drnd() * 0.7; pos.setXYZ(i, pos.getX(i) * f, pos.getY(i) * f, pos.getZ(i) * f); } g.computeVertexNormals(); const m = new THREE.Mesh(g, debrisMat); const ang = drnd() * 6.28, rad = R * (1.15 + drnd() * (0.6 + destroyI * 1.2)); m.position.set(Math.cos(ang) * rad, Math.sin(ang) * rad, (drnd() - 0.5) * R * 0.6); m.rotation.set(drnd() * 6, drnd() * 6, drnd() * 6); planet.add(m); disposables.push(g); }
+  } else {
+    planet = new THREE.Mesh(new THREE.SphereGeometry(R, seg, seg), planetMat); core.add(planet);
+    disposables.push(planet.geometry, planetMat);
+  }
 
   // night-side city lights (additive, masked to the dark hemisphere in world space)
   let night = null;
   const T = TYPES[cfg.type] || TYPES.terran;
   const cityD = cfg.city != null ? Math.max(0, Math.min(1, +cfg.city)) : 0;   // opt-in: no city lights unless the DM dials them up
-  if (cfg.cityOn !== false && cityD > 0) {
+  if (!destroyed && cfg.cityOn !== false && cityD > 0) {
     const nightMat = new THREE.MeshBasicMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
     nightMat.onBeforeCompile = sh => {
       sh.uniforms.sunDir = { value: new THREE.Vector3(1, 0, 0) };
@@ -219,7 +256,7 @@ export function buildPlanetModel(config, opts) {
 
   // clouds
   let clouds = null;
-  if (cfg.cloudsOn !== false) {
+  if (!destroyed && cfg.cloudsOn !== false) {
     const p = { seed: cfg.cloudSeed != null ? cfg.cloudSeed : cfg.seed + 1, cov: cfg.cloudCov != null ? cfg.cloudCov : 0.5, tint: cfg.cloudTint || '#ffffff', scale: cfg.cloudScale || 2.6, detail: cfg.cloudDetail || 5, def: cfg.cloudDef != null ? cfg.cloudDef : 0.5, band: cfg.cloudBand != null ? cfg.cloudBand : 0.4, bandN: cfg.cloudBandN || 7, shear: cfg.cloudShear != null ? cfg.cloudShear : 0.4, swirl: cfg.cloudSwirl != null ? cfg.cloudSwirl : 0.3, storms: genStorms(cfg.cloudSeed != null ? cfg.cloudSeed : cfg.seed + 1, cfg.storms || 0, cfg.stormI || 0), stormI: cfg.stormI || 0 };
     const cloudMat = new THREE.MeshStandardMaterial({ map: genClouds(p, aniso), transparent: true, depthWrite: false, roughness: 1, opacity: cfg.cloudOpacity != null ? cfg.cloudOpacity : 0.85 });
     clouds = new THREE.Mesh(new THREE.SphereGeometry(R + 0.03, seg, seg), cloudMat); core.add(clouds);
@@ -228,7 +265,7 @@ export function buildPlanetModel(config, opts) {
 
   // atmosphere (feathered fresnel rim, matches the generator post-slice-1)
   let atmo = null;
-  if (cfg.atmoOn !== false) {
+  if (!destroyed && cfg.atmoOn !== false) {
     const atmoMat = new THREE.ShaderMaterial({ transparent: true, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
       uniforms: { c: { value: new THREE.Color(cfg.atmoColor || '#5aa0e8') }, density: { value: cfg.atmoDensity != null ? cfg.atmoDensity : 1 }, sunDir: { value: new THREE.Vector3(1, 0, 0) } },
       vertexShader: 'varying vec3 vN;varying vec3 vWP;void main(){vN=normalize(mat3(modelMatrix)*normal);vWP=(modelMatrix*vec4(position,1.)).xyz;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',

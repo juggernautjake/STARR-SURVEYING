@@ -56,15 +56,24 @@ Plus effect params on the star's look (all optional, sensible defaults so old st
   and `rays:false`/count 0 omits the ray sprite. Verified headless: a star with three distinct colours
   promotes to a model whose corona=glow, diffuse+rays=diffuse; a `rays:false` star has no ray sprite; 0
   errors.
-- **Slice 3 — Star editor UI.** In the object editor (the `kind==="star"` branch), add: three colour
-  pickers **Core / Glow / Diffused light**, a **Brightness** slider, a **Corona size** slider, a
-  **Glow breathing** toggle + speed + depth, and **Sun rays** toggle + count + length + intensity (plus
-  the existing class presets, which set all three colours at once). Live-preview into the 2D art + the
-  open 3D viewer; persist on the look. Verify headless: editing each control updates the star.
-- **Slice 4 — Console parity + QA.** The player Console renders the same star (2D `art()` + 3D
-  `buildStarModel` are shared, so parity is mostly free — verify), and an end-to-end pass: build a star,
-  set three colours + brightness + breathing + rays, confirm 2D, 3D, and hybrid all match and publish to
-  the Console. Move this doc to `completed/`.
+- **Slice 3 — Star editor UI.** ✅ The `kind==="star"` object-editor branch now exposes the full control
+  set: the shared colour pickers are relabelled **Core / Glow / Diffused** for stars; the class presets
+  still seed all three at once; and new controls add **Brightness** and **Corona size** sliders, a **Glow
+  breathing** toggle + speed + depth (collapsible), and **Sun rays** toggle + count + length + intensity
+  (collapsible). All write to `edWork` (with `breathe`/`raySpec` defaults filled for older stars) and
+  live-preview into the 2D `art()` swatch; they persist on the look via `snapshotLook` (brightness,
+  coronaSize, rays, deep-cloned breathe/raySpec). Verified headless: all 12 star controls render, the
+  Core/Glow/Diffused labels are present, and editing brightness/ray-count/breathe-depth updates `edWork`
+  and re-renders the preview; 0 errors. *(The open 3D viewer reflects on save/placement via the existing
+  3D refresh, since the editor tunes a library asset rather than a placed instance.)*
+- **Slice 4 — Console parity + QA.** ✅ Verification caught that the Console's `art()` still had the
+  **old** single-part star (no `c2` glow, no per-id breathe keyframe, fixed 14 rays), so it was replaced
+  with the same three-part renderer as the Studio (CORE `c1` / GLOW `c2` / DIFFUSE+rays `c3`, brightness,
+  corona size, `breathe` and `raySpec`). End-to-end QA on a star with three distinct colours + brightness
+  1.6 + corona 1.4 + breathing (speed 1.5, depth 0.3) + 20 rays: Studio and Console `art()` now produce
+  **identical** output (core/glow/diffuse present, a `bstar<id>` breathe keyframe, 40 ray elements —
+  `parity: true`), and the shared 3D `buildStarModel` builds the three-part model (3 sprites + 2 meshes);
+  0 errors. Doc moved to `completed/`.
 
 ## Considerations
 - **Backward compatible:** old stars (just `stype`+`c1/c2/c3`) render unchanged via the defaults; the
@@ -76,4 +85,4 @@ Plus effect params on the star's look (all optional, sensible defaults so old st
 - **Cool factor:** allow the diffuse halo + rays to extend well beyond the body (`coronaSize`), use
   additive blending in 3D, and let brightness push the core toward white for a hot look.
 
-### Status: IN PROGRESS (Slices 0–2 shipped; 3–4 pending)
+### Status: COMPLETE (Slices 0–4 all shipped)
