@@ -46,12 +46,14 @@
 ## Slices
 
 - **Slice 0 — Planning doc** *(this file)*.
-- **Slice 1 — Header: signed-in user + back button.** Make `DndHeader` session-aware (resolve
-  `getDndUser()` in `layout.tsx` and pass name/avatar as props, or a small client island hitting
-  `/api/dnd/auth/session`): show **"signed in as {name}"** with a sign-out action, and a top-left
-  **← Back** control (a client button calling `router.back()`, hidden on the hub root). Covers requests
-  5 + 6. Verify: header renders the current user when a session cookie is present and nothing (or "Sign
-  in") when not; back button navigates.
+- **Slice 1 — Header: signed-in user + back button.** ✅ `app/dnd/layout.tsx` is now an async server
+  layout that reads the signed cookie via `getDndSession()` (sync, DB-free) and passes `userName` to
+  `DndHeader`. `DndHeader` shows **"Signed in as {name}"** + the existing `LogoutButton` when signed in,
+  or a **Sign in** link otherwise, and renders a new top-left **← Back** control
+  (`app/dnd/_ui/HeaderBack.tsx`, a client island calling `router.back()`, hidden on the `/dnd` hub root via
+  `usePathname`). Covers requests 5 + 6. Verified: `tsc --noEmit` clean (0 errors) and `next lint` clean on
+  the three changed files. *(Runtime smoke needs the app's Supabase env, absent here — only `.env.example`
+  exists — so DB-backed pages can't be driven; the change itself is cookie-only + type-checked.)*
 - **Slice 2 — Session persistence.** Harden the cookie session so new users stay signed in: guarantee a
   **stable signing secret** (fail-loud in prod if unset instead of the dev default; document
   `DND_SESSION_SECRET`), and make the post-sign-in transition reliable (`HubSignIn` hard-navigate /
@@ -89,4 +91,4 @@
 - **Verification:** these are app/server features — prefer the dnd vitest suites + driving the actual
   routes/pages; note any check that can't run headlessly.
 
-### Status: IN PROGRESS (Slice 0 shipped; 1–6 pending)
+### Status: IN PROGRESS (Slices 0–1 shipped; 2–6 pending)

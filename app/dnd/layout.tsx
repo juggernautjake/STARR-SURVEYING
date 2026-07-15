@@ -6,20 +6,23 @@ import type { ReactNode } from 'react';
 import DndHeader from './_ui/DndHeader';
 import DndFooter from './_ui/DndFooter';
 import styles from './_ui/hextech.module.css';
+import { getDndSession } from '@/lib/dnd/auth';
 
 export const metadata: Metadata = {
   title: 'Starr Tabletop',
   robots: { index: false, follow: false },
 };
 
-export default function DndLayout({ children }: { children: ReactNode }) {
+export default async function DndLayout({ children }: { children: ReactNode }) {
+  // Cheap, DB-free read of the signed cookie so the header can show who's signed in.
+  const session = getDndSession();
   // Hextech fonts (Cinzel/Inter) are @imported in _ui/hextech.module.css, matching
   // the repo's Google-Fonts convention (app/styles/globals.css). The .siteChrome class
   // re-declares the --hx-* tokens locally so wrapping the tree doesn't tint the bespoke
   // character sheets — only the header/footer take a Hextech color.
   return (
     <div className={styles.siteChrome}>
-      <DndHeader />
+      <DndHeader userName={session?.displayName ?? null} />
       <main className={styles.siteMain}>{children}</main>
       <DndFooter />
     </div>
