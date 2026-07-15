@@ -141,9 +141,17 @@ look) — it must NOT edit other site pages or anything outside character custom
   `tsc` clean, lint clean, `__tests__/dnd/registry-default.test.ts` (3 tests: unknown→Hextech not Lazzuh,
   default/generic on the hextech skin, Lazzuh intact) + updated the donata fallback test; full dnd suite 205
   pass. *(A live visual check of the Hextech render needs the running app.)*
-- **Slice 7 — Sheet-style browser + selection.** For non-custom users, a gallery to **browse existing
-  sheet styles** (the registry skins, incl. the new Hextech default) with previews and pick one (sets
-  `sheet_type`) — available for **NPCs too**. Verify: selecting a style switches the rendered sheet.
+- **Slice 7 — Sheet-style browser + selection.** ✅ `lib/dnd/sheet-styles.ts` — a server+client-safe
+  catalog of the pickable registry skins (Hextech default, Neon Odyssey, Streamer, Candy Bazaar, Homebrew
+  Rulebook) each with a preview palette, plus `isSelectableSheetStyle` (excludes the AI-only `custom` and
+  the internal `generic` alias). The character PATCH route now accepts `sheet_type`, guarded by
+  `isSelectableSheetStyle` so only a real user-pickable style can be set. `app/dnd/_ui/SheetStyleBrowser.tsx`
+  is a collapsible gallery: each card renders a mini preview swatch in the style's palette, marks the active
+  one, and on click PATCHes `sheet_type` + `router.refresh()` so the sheet re-renders on the chosen skin.
+  Wired into the character page for anyone with write access — which covers **NPCs** (DM-owned, so the DM
+  gets the browser on them too). Verified: `tsc` clean, lint clean, `__tests__/dnd/sheet-styles.test.ts`
+  (3 tests: catalog shape, custom/generic not pickable, validation) — full dnd suite green. *(A live
+  click-to-switch visual check needs the running app.)*
 - **Slice 8 — AI edit mode (bottom-right chat).** Post-generation, a **bottom-right AI chat** on the
   character page where the user requests specific changes/additions — new **feats, abilities, mechanics,
   transformations, spells**, or **styling / format** tweaks — and the agent applies them live to the sheet
@@ -205,4 +213,4 @@ look) — it must NOT edit other site pages or anything outside character custom
 - **Verification:** app/server + AI features; prefer the dnd vitest suites + driving routes, and note
   anything needing the live app or an AI key.
 
-### Status: IN PROGRESS (Slices 0–6b + 1b shipped; 7, 8, 8b, 9–15 pending)
+### Status: IN PROGRESS (Slices 0–7 + 1b shipped; 8, 8b, 9–15 pending)

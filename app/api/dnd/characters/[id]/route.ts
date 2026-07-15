@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCharacterAccess, campaignsForCharacter } from '@/lib/dnd/characters';
+import { isSelectableSheetStyle } from '@/lib/dnd/sheet-styles';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const res = await getCharacterAccess(params.id);
@@ -16,7 +17,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 // the rest cover media/descriptions/theme edits. Unknown keys are ignored.
 // `played_by_user_id` assigns who plays the character (ownership never changes) and is
 // gated to the owner/DM below.
-const WRITABLE = ['data', 'bio', 'name', 'theme', 'art_url', 'token_url', 'visibility', 'quick_stats', 'is_library', 'played_by_user_id'] as const;
+const WRITABLE = ['data', 'bio', 'name', 'theme', 'art_url', 'token_url', 'visibility', 'quick_stats', 'is_library', 'played_by_user_id', 'sheet_type'] as const;
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const res = await getCharacterAccess(params.id);
@@ -44,6 +45,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
   if ('visibility' in patch && !['private', 'campaign', 'public'].includes(String(patch.visibility))) {
     return NextResponse.json({ error: 'Invalid visibility.' }, { status: 400 });
+  }
+  // Sheet style (Slice 7): only a known, user-selectable style may be chosen via the
+  // browser — never the AI-only `custom` or an arbitrary string.
+  if ('sheet_type' in patch && !isSelectableSheetStyle(patch.sheet_type)) {
+    return NextResponse.json({ error: 'Invalid sheet style.' }, { status: 400 });
   }
   // Who plays the character (ownership stays put). Only the owner or a DM may reassign,
   // and the new player must be a member of a campaign the character is in (or null to

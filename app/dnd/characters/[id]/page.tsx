@@ -10,6 +10,7 @@ import SheetRoot from '@/app/dnd/_sheet/SheetRoot';
 import UnderConstructionBanner from '@/app/dnd/_ui/UnderConstructionBanner';
 import CharacterBuildKit from '@/app/dnd/_ui/CharacterBuildKit';
 import BuildQuestions from '@/app/dnd/_ui/BuildQuestions';
+import SheetStyleBrowser from '@/app/dnd/_ui/SheetStyleBrowser';
 import SheetChatPanel from '@/app/dnd/_ui/SheetChatPanel';
 import AddToDemoButton from '@/app/dnd/_ui/AddToDemoButton';
 import { dndAiConfigured } from '@/lib/dnd/ai';
@@ -51,6 +52,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
       {canWrite && character.campaign_id !== DEMO_CAMPAIGN_ID && (
         <AddToDemoButton characterId={character.id} campaignId={DEMO_CAMPAIGN_ID} />
       )}
+      {canWrite && <SheetStyleBrowser characterId={character.id} current={character.sheet_type} />}
       <SheetRoot
         characterId={character.id}
         campaignId={character.campaign_id ?? undefined}
