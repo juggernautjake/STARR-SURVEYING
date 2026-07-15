@@ -174,10 +174,15 @@ other, and keep every element consistent:
   `bg3d` persisted in `mapData()`/`load()`/`cleanState()`/`restore()`/localStorage. Console reads
   published `bg3d` via `setData`. Verified headless: panel renders 8 templates; template change →
   spiral rebuild; Regenerate sets a new seed; glow → sprite; `mapData().bg3d` carries it; 0 errors.
-- **Slice 6 — Live 3D re-render on every edit.** ⏳ Debounced `pushTo3D()` wired into `markDirty()`/
-  `renderAll()`; selected-body fast path for size/colour/config changes (in-place holder update +
-  `_applyLOD`); keep labels glued after gizmo moves. Verify headless: add/move/resize/slider-edit with
-  3D open → change appears within ~100ms, no toggle needed.
+- **Slice 6 — Live 3D re-render on every edit.** ✅ Debounced `pushTo3D()` (90ms) wired into
+  `markDirty()` → `Map3D.setData(mapData())`, so add/move/resize/slider/inspector/delete all show in
+  3D immediately (no toggle). Guarded by `Map3D.isEditing()` (skips mid gizmo-drag) and a `fromGizmo`
+  flag so the gizmo write-back never tears down the body under the cursor; `_rebuild` preserves the
+  selected body so the gizmo stays attached across live edits. `window.map3dSelect` selects the body
+  in the Studio so any 2D **or** 3D object can be picked and **deleted** (Delete key / inspector). Image
+  size cap raised to **15×** (image slider max 6600; on-map corner-drag already uncapped); all existing
+  2D effects (spingalaxy spiral, sparkles, fx overlays) untouched. Verified headless: add 0→1, resize
+  size 400 → holder.scale.x 200, 3D-select sets `selection`, delete 1→0; zero console errors.
 - **Slice 7 — 2D⇄3D parity backdrop.** ⏳ `#gl-bg` canvas painter in `map-studio.html` + `console.html`
   that renders the same `bg3d`+`seed` in 2D (solid/glow/stars/nebula/spiral/blackhole/asteroids),
   sharing palette/arrangement with 3D; align `mapFx` mood with `bg3d`; verify each element kind

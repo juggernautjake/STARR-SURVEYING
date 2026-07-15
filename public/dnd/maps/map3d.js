@@ -485,6 +485,7 @@ const Map3D = {
 
   _rebuild() {
     const g = this.bodyGroup; if (!g) return;
+    const keepSelId = this._selected && this._selected.userData.id;   // survive live edits → keep the gizmo on the same body
     if (this.tcontrols) this.tcontrols.detach();
     this._selected = null;
     (this._planets || []).forEach(p => p.model.dispose());
@@ -520,7 +521,11 @@ const Map3D = {
     // Framing needs the container's real pixel size, which is only correct once it's visible; store
     // the bounds and (re)frame from show(). Framing here while hidden gives a degenerate zoom.
     this._bounds = (insts.length && minX < maxX) ? { minX, minY, maxX, maxY } : null;
-    if (this._bounds && this._shown) { this._frameBounds(); this._applyLOD(); }
+    if (this._shown) this._applyLOD();   // re-pick impostor/mesh for the (possibly changed) bodies
+    if (keepSelId !== undefined && keepSelId !== null) {   // re-attach the gizmo to the same body after a live edit
+      const b = (this._bodies || []).find(x => x.holder.userData.id === keepSelId);
+      if (b) this._select(b.holder);
+    }
   },
 
   // Distance/zoom LOD: promote bodies that are large on-screen to full 3D meshes, keep the rest as
@@ -714,7 +719,8 @@ const Map3D = {
     if (this.container) this.container.style.display = 'none';
   },
 
-  isShown() { return this._shown; }
+  isShown() { return this._shown; },
+  isEditing() { return !!(this.tcontrols && this.tcontrols.dragging); },   // true mid gizmo-drag
 };
 
 window.Map3D = Map3D;
