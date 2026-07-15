@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
         campaign_id: hasCampaign ? campaignId : null,
         owner_user_id: session.userId,
         name,
-        sheet_type: 'generic',
+        sheet_type: 'default',
         data: blankCharacter(name),
         visibility: hasCampaign ? 'campaign' : 'private',
         under_construction: true,

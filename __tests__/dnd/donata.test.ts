@@ -83,9 +83,9 @@ describe('registry — the "donata" sheet type', () => {
     expect(cfg.initiative).toBeTruthy();
   });
 
-  it('falls back to generic for an unknown sheet type', () => {
+  it('falls back to the Hextech default for an unknown sheet type (Slice 6b)', () => {
     const cfg = getSheetConfig('nope');
-    expect(cfg.label).toBe('Generic');
-    expect(cfg.skin).toBeUndefined();
+    expect(cfg.label).toBe('Hextech (Default)');
+    expect(cfg.skin).toBe('hextech');
   });
 });

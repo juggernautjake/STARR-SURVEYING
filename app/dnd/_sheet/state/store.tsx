@@ -8,7 +8,7 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState,
 import { supabase } from '@/lib/supabase'
 import type { Character, InvItem, ActiveEffect, Spell, FeatureBlock } from '../types'
 import { lazzuh } from '../data/lazzuh'
-import { normalizeCharacter } from '../data/blank'
+import { normalizeCharacter, blankCharacter } from '../data/blank'
 import { profBonusForLevel, abilityMod, ragesForLevel, rageDamageForLevel, maxHpForLevel, speedForLevel, MAX_BUILT_LEVEL } from '../rules/dnd'
 import { rollD20, rollDamage, parseDice, rollDie, rollTyped, weaponSegments, type Advantage } from '../lib/dice'
 
@@ -212,8 +212,11 @@ export function CharacterProvider({
   canWrite?: boolean
 }) {
   const dbMode = !!characterId
+  // In DB mode the real sheet arrives from the API on mount; until then show a neutral
+  // BLANK character (not the Lazzuh reference) so a new default (Hextech) character never
+  // flashes Lazzuh's content. Preview/standalone mode still hydrates the bundled sheet.
   const [char, setCharState] = useState<Character>(() =>
-    dbMode ? structuredClone(lazzuh) : loadInitial(),
+    dbMode ? blankCharacter('') : loadInitial(),
   )
   const [advMode, setAdvMode] = useState<Advantage>('flat')
   const [recklessActive, setRecklessActive] = useState(false)

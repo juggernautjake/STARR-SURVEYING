@@ -13,6 +13,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Nunito:ital,wght@0,400;0,600;0,700;0,800;1,600&family=Fredoka:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap');
 /* Printed slab-serif + clean body faces for the bespoke "homebrew rulebook" skin (skin-rulebook / Jack the Rangor). */
 @import url('https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+/* Engraved serif + refined serif body for the Hextech default skin (skin-hextech / League-of-Legends look). */
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&display=swap');
 
 .dnd-sheet {
   --void: #080512;
@@ -3248,3 +3250,62 @@
 .dnd-sheet.skin-rulebook td:first-child { color: var(--hotpink); font-weight: 600; }
 .dnd-sheet.skin-rulebook .callout { border-left-color: var(--hotpink); background: rgba(181, 80, 31, 0.06); }
 .dnd-sheet.skin-rulebook ::selection { background: rgba(181, 80, 31, 0.22); color: var(--ink); }
+
+/* ===================================================================
+   HEXTECH DEFAULT SKIN — the site's League-of-Legends / Hextech look,
+   the NEUTRAL DEFAULT for new PCs and NPCs (replaces the Lazzuh purple
+   fallback). A DARK skin over hextechTheme tokens (deep Piltover navy,
+   Hextech teal energy, engraved gold), scoped to `.dnd-sheet.skin-hextech`
+   so nothing touches Lazzuh, the streamer, Donata, or Jack.
+   Spec: docs/planning/in-progress/DND_CHARACTER_BUILDER_SYSTEMS_2026-07-15.md
+   =================================================================== */
+.dnd-sheet.skin-hextech {
+  background:
+    radial-gradient(1200px 780px at 50% -14%, rgba(10, 200, 185, 0.08), transparent 60%),
+    radial-gradient(900px 600px at 100% 0%, rgba(200, 170, 110, 0.06), transparent 55%),
+    #010a13;
+  background-attachment: fixed;
+  isolation: isolate;
+}
+/* Engraved-gold serif section headers over a fine gold rule (the Hextech UI title feel). */
+.dnd-sheet.skin-hextech h2,
+.dnd-sheet.skin-hextech .card h3 {
+  color: var(--gold);
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.dnd-sheet.skin-hextech .sec-head { border-bottom: 1px solid var(--line); align-items: center; }
+.dnd-sheet.skin-hextech .sec-num { color: var(--gold); }
+/* Cards read as beveled Hextech panels — navy fill, gold hairline, faint teal inner glow. */
+.dnd-sheet.skin-hextech .card {
+  background: linear-gradient(180deg, rgba(14, 30, 48, 0.92), rgba(8, 20, 36, 0.92));
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px rgba(10, 200, 185, 0.06), 0 8px 24px rgba(1, 10, 19, 0.5);
+}
+/* A hex-notched top accent bar on cards (Hextech framing). */
+.dnd-sheet.skin-hextech .card::before {
+  content: '';
+  display: block;
+  height: 2px;
+  margin: -14px -16px 12px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  opacity: 0.55;
+}
+/* Links / rules terms glow Hextech teal. */
+.dnd-sheet.skin-hextech a,
+.dnd-sheet.skin-hextech em.term { color: var(--tealbright); }
+/* Tables: gold, engraved header row over navy, teal hairlines. */
+.dnd-sheet.skin-hextech table { border-collapse: collapse; }
+.dnd-sheet.skin-hextech th {
+  background: rgba(200, 170, 110, 0.12);
+  color: var(--gold);
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+  border: 1px solid var(--line);
+}
+.dnd-sheet.skin-hextech td { border: 1px solid rgba(10, 200, 185, 0.16); }
+.dnd-sheet.skin-hextech .callout { border-left-color: var(--gold); background: rgba(10, 200, 185, 0.05); }
+.dnd-sheet.skin-hextech ::selection { background: rgba(10, 200, 185, 0.28); color: var(--ink); }
+.dnd-sheet.skin-hextech ::-webkit-scrollbar-thumb { background: rgba(200, 170, 110, 0.4); }

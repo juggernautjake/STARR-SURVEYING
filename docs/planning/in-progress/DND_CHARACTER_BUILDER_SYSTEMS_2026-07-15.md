@@ -127,11 +127,20 @@ look) — it must NOT edit other site pages or anything outside character custom
   sanitized, malformed blocks dropped, CSS can't escape the `<style>`, `hasCustomLayout` gate. *(The AI
   populating the blocks is Slice 11/8's tool work; here the render path + storage + sandbox are proven. A
   live iframe-render check needs the running app.)*
-- **Slice 6b — Default Hextech character sheet.** Build an actual **default** sheet skin styled in the
-  site's **League-of-Legends / Hextech** look (register a `default` `sheet_type` → theme + CSS) and make it
-  the default for new characters (PCs and NPCs) instead of the bespoke "Lazzuh" purple-alien skin. Fully
-  customizable like every skin (works with the block/HTML/CSS system from Slice 6). Verify: a new character
-  renders on the Hextech default; the Lazzuh skin remains available but is no longer the fallback.
+- **Slice 6b — Default Hextech character sheet.** ✅ `hextechTheme` in `_sheet/theme.ts` — a DARK
+  League-of-Legends / Hextech palette (deep Piltover navy grounds, Hextech teal energy, engraved gold
+  accents, Cinzel/Spectral serifs) — plus a `hextech` `SheetSkinId` with a full `.dnd-sheet.skin-hextech`
+  block in `styles/theme.css` (hex-framed gold-ruled cards with a teal inner glow, engraved-gold uppercase
+  headers, teal links, gold table headers). Registered a `default` `sheet_type` (`{ theme: hextechTheme,
+  skin: 'hextech' }`) and pointed the **legacy `generic`** at the same, and `getSheetConfig`'s fallback now
+  resolves to `default` — so every new AND existing default/generic character renders on Hextech instead of
+  the Lazzuh purple defaults. New-character creation now stamps `sheet_type: 'default'` in all three paths
+  (create, import, DM NPC). The store's DB-mode transient placeholder switched from `structuredClone(lazzuh)`
+  to `blankCharacter('')` so a new character never flashes Lazzuh's content before the DB load. The Lazzuh
+  skin (and its `forms` module) remains registered and available — just no longer the fallback. Verified:
+  `tsc` clean, lint clean, `__tests__/dnd/registry-default.test.ts` (3 tests: unknown→Hextech not Lazzuh,
+  default/generic on the hextech skin, Lazzuh intact) + updated the donata fallback test; full dnd suite 205
+  pass. *(A live visual check of the Hextech render needs the running app.)*
 - **Slice 7 — Sheet-style browser + selection.** For non-custom users, a gallery to **browse existing
   sheet styles** (the registry skins, incl. the new Hextech default) with previews and pick one (sets
   `sheet_type`) — available for **NPCs too**. Verify: selecting a style switches the rendered sheet.
@@ -196,4 +205,4 @@ look) — it must NOT edit other site pages or anything outside character custom
 - **Verification:** app/server + AI features; prefer the dnd vitest suites + driving routes, and note
   anything needing the live app or an AI key.
 
-### Status: IN PROGRESS (Slices 0–6 + 1b shipped; 6b, 7, 8, 8b, 9–15 pending)
+### Status: IN PROGRESS (Slices 0–6b + 1b shipped; 7, 8, 8b, 9–15 pending)

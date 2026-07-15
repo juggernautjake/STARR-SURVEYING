@@ -67,7 +67,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const { data: created, error: cErr } = await supabaseAdmin
     .from('dnd_characters')
     .insert({
-      campaign_id: camp, name, sheet_type: 'generic', is_npc: true,
+      campaign_id: camp, name, sheet_type: 'default', is_npc: true,
       owner_user_id: session.userId, visibility: 'private', data: seed, ai_generated: mode === 'detailed',
     })
     .select('id, name')
