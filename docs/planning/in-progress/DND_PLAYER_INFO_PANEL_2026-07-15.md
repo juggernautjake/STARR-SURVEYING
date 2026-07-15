@@ -29,9 +29,12 @@ deck down to hide at the bottom; clicking the tab reopens it.
   (body/core/sector) or idle. Verified headless: from idle, hovering a body shows TARGETING + its name
   and leaving restores idle; after selecting a body, hovering a sector shows the sector name and leaving
   restores the body readout; 0 errors.
-- **Slice 2 — Click to focus.** Clicking a thing flies/zooms the view to it (`flyTo`), draws a
-  **selection ring/boundary** on it, and populates the panel with its full info. Verify headless: a click
-  sets the selection, moves the view, and the panel shows the object's fields.
+- **Slice 2 — Click to focus.** ✅ Clicking a body/sector flies/zooms the view to it (`flyTo`), draws the
+  selection boundary (bodies get the spinning `.selring`, sectors a glowing outline), and fills the panel
+  with the full readout — verified headless: a click sets `.selected`, the ring reads opacity 0.9, the
+  view moves, and the screen shows name/class/description. Added a **soft ring preview on hover**
+  (`.body.hovered:not(.selected) .selring` at 0.4) so targeting shows the selection boundary before you
+  commit, wired through the mouseenter/leave handlers. 0 errors.
 - **Slice 3 — Holographic mini-render (left).** A left sub-screen renders the selected thing's likeness
   (reuse `art()` / the 3D thumbnail) with a **holographic** treatment — cyan tint, scanlines, soft glow,
   a slow rotate/bob — so it reads as a projected hologram. Verify headless: selecting a body mounts a
@@ -68,4 +71,4 @@ deck down to hide at the bottom; clicking the tab reopens it.
   look broken when they're absent.
 - **Perf:** the holo mini-render is one small `art()`/thumbnail; the idle animation is CSS. Cheap.
 
-### Status: IN PROGRESS (Slices 0–1 shipped; 2–7 pending)
+### Status: IN PROGRESS (Slices 0–2 shipped; 3–7 pending)

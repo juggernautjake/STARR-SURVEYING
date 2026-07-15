@@ -61,6 +61,8 @@
   .body.selected{z-index:150 !important;}
   .selring{position:absolute;inset:-22%;border-radius:50%;border:1.5px solid var(--scan);opacity:0;pointer-events:none;box-shadow:0 0 14px var(--scan),inset 0 0 14px rgba(67,224,200,.3);}
   .body.selected .selring{opacity:.9;animation:selspin 8s linear infinite;}
+  .body.hovered:not(.selected) .selring{opacity:.4;}   /* soft target preview on hover */
+  .body.hovered:not(.selected){cursor:pointer;}
   @keyframes selspin{to{transform:rotate(360deg);}}
   @keyframes spin{to{transform:rotate(360deg);}}@keyframes cspin{to{transform:rotate(-360deg);}}
   @keyframes breathe{0%,100%{opacity:.72;transform:scale(1);}50%{opacity:1;transform:scale(1.05);}}
@@ -572,7 +574,7 @@ function render(){
     if(i.kind==="planet3d")el.dataset.p3=i.id;
     if(i.kind==="image"&&i.spiral&&i.spiral.on&&look.src)el.dataset.spiral=i.id;
     el.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});};
-    el.onmouseenter=()=>hoverName(i.name,i.kind);el.onmouseleave=endHover;
+    el.onmouseenter=()=>{el.classList.add("hovered");hoverName(i.name,i.kind);};el.onmouseleave=()=>{el.classList.remove("hovered");endHover();};
     el.querySelectorAll(".poi").forEach(p=>p.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});});
     viewport.appendChild(el);});
   // sector click handlers
