@@ -286,9 +286,28 @@ export function buildPlanetModel(config, opts) {
     disposables.push(g, ringMat, ringMat.map);
   }
 
+  // lightning — brief additive flashes over the storm cells; cadence from lightRate (matches the 2D art's
+  // storms/lightning). depthTest stays on so the opaque planet occludes far-side flashes. (2D<->3D parity.)
+  const flashes = []; let flashPeriod = 1;
+  if (!destroyed && cfg.lightOn && (cfg.storms | 0) > 0) {
+    const cells = genStorms(cfg.cloudSeed != null ? cfg.cloudSeed : cfg.seed + 1, cfg.storms | 0, cfg.stormI || 0);
+    flashPeriod = Math.max(0.35, 2.6 - (cfg.lightRate != null ? +cfg.lightRate : 0.5) * 2.2);
+    const lightning = new THREE.Group(), tex = coronaTex(), col = new THREE.Color(cfg.boltColor || '#bfe0ff'), lrng = mulberry((cfg.seed | 0) + 131);
+    for (const st of cells) {
+      const phi = st.u * Math.PI * 2, theta = st.v * Math.PI, rr = R + 0.05;
+      const mat = new THREE.SpriteMaterial({ map: tex, color: col, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0 });
+      const sp = new THREE.Sprite(mat);
+      sp.position.set(-Math.cos(phi) * Math.sin(theta) * rr, Math.cos(theta) * rr, Math.sin(phi) * Math.sin(theta) * rr);
+      const sz = (0.22 + (st.rad || 0.15)) * R; sp.scale.set(sz, sz, sz);
+      sp.userData.phase = lrng() * flashPeriod;
+      lightning.add(sp); flashes.push(sp); disposables.push(mat);
+    }
+    disposables.push(tex); planet.add(lightning);
+  }
+
   const spin = cfg.spin != null ? cfg.spin : 1;
   const _sun = new THREE.Vector3(1, 0.3, 0.6).normalize();
-  const lavaBase = 0.75 + lavaI * 1.35; let _t = 0;
+  const lavaBase = 0.75 + lavaI * 1.35; let _t = 0, _tl = 0;
 
   return {
     group: core,
@@ -299,6 +318,8 @@ export function buildPlanetModel(config, opts) {
       if (night) { night.rotation.y = planet.rotation.y; const sh = night.material.userData.shader; if (sh) sh.uniforms.sunDir.value.copy(sd); }
       if (clouds) clouds.rotation.y += (spin * 0.12 + 0.05) * dt;
       if (atmo) atmo.material.uniforms.sunDir.value.copy(sd);
+      if (flashes.length) { _tl += dt; for (const sp of flashes) { const tt = (((_tl + sp.userData.phase) % flashPeriod) / flashPeriod); // strobe: bright onset then quick decay, dark for the rest of the period
+        sp.material.opacity = tt < 0.02 ? 1 : tt < 0.05 ? 0.25 : tt < 0.08 ? 0.9 : tt < 0.13 ? 0.2 * (1 - (tt - 0.08) / 0.05) : 0; } }
     },
     dispose() { disposables.forEach(o => { try { o.dispose(); } catch (e) { /* noop */ } }); }
   };

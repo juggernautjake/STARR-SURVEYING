@@ -170,9 +170,20 @@ gets 3D equivalents or stays a 2D-layer concern — lean: keep fx 2D-layer, docu
   storm groups + the flash keyframe + bolt colour; strike-rate 0.9 → 0.62 s period vs 0.1 → 2.38 s;
   `snapshotLook` round-trips all new fields; 0 page errors. *(Player-viewer `console.html` gets the same
   `art()` additions in Slice 7's console-parity pass.)*
-- **Slice 3 — 3D lightning + storm rendering.** Close the `planet3d-model.js` gap: add an animated lightning
-  layer + storm cells honoring `lightOn`/`lightRate`/`lightColor`/`storms`/`stormI`, so a single edit drives
-  both dimensions at the same rate.
+- **Slice 3 — 3D lightning rendering.** ✅ Storm cells already render in 3D (baked into the cloud texture by
+  `genStorms`/`genClouds`, and Slice 1 now feeds them `storms`/`stormI` from a studio-edited planet). This
+  slice closes the remaining gap — **3D lightning** (the model header had intentionally omitted it):
+  `buildPlanetModel` now adds a lightning group of additive flash sprites positioned at each storm cell's
+  sphere coordinate (from `genStorms`' `u`/`v`), gated by `cfg.lightOn && storms>0`, coloured `cfg.boltColor`;
+  `update()` strobes each sprite's opacity on a per-cell phase with the **same cadence formula as the 2D art**
+  (`flashPeriod = max(0.35, 2.6 − lightRate·2.2)`), so a single strike-rate edit drives 2D flashes and 3D
+  flashes at the same frequency. `depthTest` stays on so the opaque planet occludes far-side flashes.
+  `map3d.js` `_genericPlanetCfg` now also passes `boltColor` through. Verified headless
+  (`verify-storm3d.mjs`, dynamic-importing the module on the studio page's three importmap): a planet without
+  lightning has 0 flash sprites; `storms:4 + lightOn` builds 4; stepping `update()` drives peak sprite opacity
+  to 1 (flashes fire); 0 page errors (module builds cleanly). *(console/live-viewer already run this same
+  model via `map3d.js`, so players see 3D lightning immediately; the 2D `art()` port to `console.html` is
+  Slice 7.)*
 - **Slice 4 — 2D terrain/cloud parity.** `art()` honors `sea` (water shading), `ice` (polar caps),
   `cscale`/`coast` (blob frequency/edge), and animated cloud `drift`/`swirl`/`banding` at the shared rates;
   `tilt` rotates the 2D art.
@@ -198,4 +209,4 @@ gets 3D equivalents or stays a 2D-layer concern — lean: keep fx 2D-layer, docu
 - **Reuse:** build on `art()`, `buildPlanetModel`, `_genericPlanetCfg`, `pushTo3D`, and the existing viewer
   toggle — don't fork them.
 
-### Status: IN PROGRESS (Slices 0–2 shipped; 3–7 pending)
+### Status: IN PROGRESS (Slices 0–3 shipped; 4–7 pending)

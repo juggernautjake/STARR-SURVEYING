@@ -728,7 +728,7 @@ const Map3D = {
     // Rich fields honored by buildPlanetModel when present on the look — passed through only if set so
     // defaults inside the model still apply otherwise.
     const rich = {};
-    for (const k of ['cloudCov', 'cloudOpacity', 'cloudScale', 'cloudDetail', 'cloudDef', 'cloudSwirl', 'cloudBand', 'cloudBandN', 'cloudShear', 'cloudTint', 'storms', 'stormI', 'lightOn', 'lightRate', 'tilt', 'ringColor', 'ringW', 'cityColor', 'atmoDensity']) {
+    for (const k of ['cloudCov', 'cloudOpacity', 'cloudScale', 'cloudDetail', 'cloudDef', 'cloudSwirl', 'cloudBand', 'cloudBandN', 'cloudShear', 'cloudTint', 'storms', 'stormI', 'lightOn', 'lightRate', 'boltColor', 'tilt', 'ringColor', 'ringW', 'cityColor', 'atmoDensity']) {
       if (L[k] != null && L[k] !== '') rich[k] = L[k];
     }
     if (it.kind === 'moon') return Object.assign({ type: (L.mtype === 'ice' || L.mtype === 'icy') ? 'ice' : 'barren', seed: L.seed || 1, sea: num(L.sea, 0.02), cscale: num(L.cscale, 2.6), coast: num(L.coast, 0.6), ice: num(L.ice, (L.mtype === 'ice' || L.mtype === 'icy') ? 0.6 : 0.05), spin: num(L.spin, 1), atmoOn: !!L.atmo, lava, city, lightColor, destroyed, destroyI }, rich);
