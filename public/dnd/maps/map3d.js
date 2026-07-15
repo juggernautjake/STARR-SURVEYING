@@ -688,9 +688,10 @@ const Map3D = {
   // A 2D planet/moon → a real 3D planet config (buildPlanetModel reads TYPES[type] for colours).
   _genericPlanetCfg(it) {
     const L = it.look || it, valid = ['terran', 'ocean', 'jungle', 'desert', 'ice', 'volcanic', 'toxic', 'barren', 'gas'];
-    if (it.kind === 'moon') return { type: L.mtype === 'ice' ? 'ice' : 'barren', seed: L.seed || 1, sea: 0.02, cscale: 2.6, coast: 0.6, ice: L.mtype === 'ice' ? 0.6 : 0.05, spin: 1, atmoOn: false };
+    const lava = L.lava != null ? +L.lava : 0;
+    if (it.kind === 'moon') return { type: L.mtype === 'ice' ? 'ice' : 'barren', seed: L.seed || 1, sea: 0.02, cscale: 2.6, coast: 0.6, ice: L.mtype === 'ice' ? 0.6 : 0.05, spin: 1, atmoOn: false, lava };
     const t = valid.includes(L.ptype) ? L.ptype : (L.ptype === 'rock' ? 'barren' : 'terran');
-    return { type: t, seed: L.seed || 1, sea: t === 'gas' ? 0.5 : 0.52, cscale: 2.2, coast: 0.5, ice: t === 'ice' ? 0.5 : 0.15, spin: 1, ring: !!L.ring, atmoOn: L.atmo !== false && ['terran', 'ocean', 'toxic', 'gas', 'jungle'].includes(t), atmoColor: L.atmoColor || undefined };
+    return { type: t, seed: L.seed || 1, sea: t === 'gas' ? 0.5 : 0.52, cscale: 2.2, coast: 0.5, ice: t === 'ice' ? 0.5 : 0.15, spin: 1, ring: !!L.ring, atmoOn: L.atmo !== false && ['terran', 'ocean', 'toxic', 'gas', 'jungle'].includes(t), atmoColor: L.atmoColor || undefined, lava };
   },
   // Debris field: a cluster of flat-shaded rocky chunks tumbling slowly (distinct from a single asteroid).
   _debrisModel(it) {

@@ -83,6 +83,11 @@ export function planetImpostorCanvas(config, S) {
       const diff = Math.max(0, (nx * lx + ny * ly + nz * lz) / llen);
       const sh = (0.34 + 0.82 * diff) * (0.62 + 0.38 * nz);                 // diffuse light + limb darkening
       d[idx] = Math.min(255, col[0] * sh); d[idx + 1] = Math.min(255, col[1] * sh); d[idx + 2] = Math.min(255, col[2] * sh); d[idx + 3] = 255;
+      if (cfg.lava > 0.001 && !T.bands) {                                    // self-lit lava cracks (glow even on the dark side)
+        const vein = Math.min(Math.abs(fbm(noise, lon, lat, cfg.cscale * 1.5, 4) - 0.5), Math.abs(fbm(wn, lon + 3.1, lat + 1.7, cfg.cscale * 2.6, 3) - 0.5));
+        const hw = 0.012 + cfg.lava * 0.11;
+        if (vein < hw) { const t = 1 - vein / hw, g = (0.6 + 0.4 * t) * (0.7 + 0.3 * nz); d[idx] = Math.min(255, 255 * g); d[idx + 1] = Math.min(255, (70 + 175 * t) * g); d[idx + 2] = Math.min(255, (10 + 150 * t * t) * g); }
+      }
     }
   }
   ctx.putImageData(img, 0, 0);
@@ -120,6 +125,22 @@ function genPlanet(cfg, aniso) {
   return { tex: texFromCanvas(cv, aniso), specTex: texFromCanvas(scv, aniso), land, W, H };
 }
 function genCity(land, W, H, seed, color, aniso) { const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d'); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); const n = makeNoise(seed + 7), [r, g, b] = hx(color); const img = ctx.getImageData(0, 0, W, H), d = img.data, rng = mulberry(seed + 3); for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x, idx = i * 4; if (land[i]) { const cl = fbm(n, x / W, y / H, 8, 4); if (cl > 0.72 && rng() < 0.5) { const br = 0.5 + rng() * 0.5; d[idx] = r * br; d[idx + 1] = g * br; d[idx + 2] = b * br; d[idx + 3] = 255; } } } ctx.putImageData(img, 0, 0); return texFromCanvas(cv, aniso); }
+// A glowing lava-crack emissive map: black everywhere except a branching vein network (min of two
+// warped noise ridges), painted deep-orange at the edges → bright yellow-white at the crack centre.
+// `cfg.lava` (0–1) widens the veins so higher intensity = a surface riven with molten rivers.
+function genLava(cfg, aniso) {
+  const W = 1024, H = 512, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d');
+  const img = ctx.createImageData(W, H), d = img.data;
+  const n = makeNoise((cfg.seed | 0) + 321), n2 = makeNoise((cfg.seed | 0) + 654);
+  const inten = Math.max(0, Math.min(1, cfg.lava || 0)), cs = (cfg.cscale || 2.2) * 1.5, halfW = 0.012 + inten * 0.12;
+  for (let y = 0; y < H; y++) { const lat = y / H;
+    for (let x = 0; x < W; x++) { const lon = x / W, idx = (y * W + x) * 4;
+      const vein = Math.min(Math.abs(fbm(n, lon, lat, cs, 5) - 0.5), Math.abs(fbm(n2, lon + 3.1, lat + 1.7, cs * 1.7, 4) - 0.5));
+      if (vein < halfW) { const t = 1 - vein / halfW; d[idx] = 255; d[idx + 1] = Math.min(255, 70 + 175 * t); d[idx + 2] = Math.min(255, 10 + 150 * t * t); d[idx + 3] = 255; }
+      else { d[idx] = d[idx + 1] = d[idx + 2] = 0; d[idx + 3] = 255; }
+    } }
+  ctx.putImageData(img, 0, 0); return texFromCanvas(cv, aniso);
+}
 function genStorms(seed, count, intensity) { const rng = mulberry((seed | 0) + 555), out = []; for (let i = 0; i < count; i++) { const u = rng(), v = 0.22 + rng() * 0.56; out.push({ u, v, rad: 0.10 + rng() * 0.10 + intensity * 0.14, dir: v < 0.5 ? 1 : -1, arms: 2 + Math.floor(rng() * 3), tight: 5 + intensity * 12, eye: 0.12 + rng() * 0.10 }); } return out; }
 function genClouds(p, aniso) {
   const W = 1024, H = 512, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
@@ -155,6 +176,15 @@ export function buildPlanetModel(config, opts) {
 
   const surf = genPlanet(cfg, aniso); disposables.push(surf.tex, surf.specTex);
   const planetMat = new THREE.MeshStandardMaterial({ map: surf.tex, metalnessMap: surf.specTex, roughness: 0.82, metalness: 0.4 });
+  // molten lava flow: a glowing emissive crack network over the crust (self-lit, so it glows on the
+  // night side too). cfg.lava (0–1) scales both how riven the surface is and how bright the glow.
+  const lavaI = Math.max(0, Math.min(1, cfg.lava || 0));
+  if (lavaI > 0.001) {
+    planetMat.emissive = new THREE.Color(0xffffff);
+    planetMat.emissiveMap = genLava(cfg, aniso);
+    planetMat.emissiveIntensity = 0.75 + lavaI * 1.35;
+    disposables.push(planetMat.emissiveMap);
+  }
   const planet = new THREE.Mesh(new THREE.SphereGeometry(R, seg, seg), planetMat); core.add(planet);
   disposables.push(planet.geometry, planetMat);
 
@@ -208,12 +238,14 @@ export function buildPlanetModel(config, opts) {
 
   const spin = cfg.spin != null ? cfg.spin : 1;
   const _sun = new THREE.Vector3(1, 0.3, 0.6).normalize();
+  const lavaBase = 0.75 + lavaI * 1.35; let _t = 0;
 
   return {
     group: core,
     update(dt, sunDirWorld) {
       const sd = sunDirWorld || _sun;
       planet.rotation.y += spin * 0.12 * dt;
+      if (lavaI > 0.001) { _t += dt; planetMat.emissiveIntensity = lavaBase * (0.86 + 0.14 * Math.sin(_t * 1.8)); }   // subtle molten shimmer
       if (night) { night.rotation.y = planet.rotation.y; const sh = night.material.userData.shader; if (sh) sh.uniforms.sunDir.value.copy(sd); }
       if (clouds) clouds.rotation.y += (spin * 0.12 + 0.05) * dt;
       if (atmo) atmo.material.uniforms.sunDir.value.copy(sd);

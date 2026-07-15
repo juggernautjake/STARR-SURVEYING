@@ -360,15 +360,27 @@ function art(a,animate){
   const atmoThick=a.atmoThick!=null?a.atmoThick:0.55;
   const ringBack=a.ring?`<path d="M ${cx-150} ${cy} A 150 40 0 0 1 ${cx+150} ${cy}" fill="none" stroke="${D(c3,30)}" stroke-width="8" opacity=".4" transform="rotate(-22 ${cx} ${cy})"/>`:"";
   const ringFront=a.ring?`<path d="M ${cx-150} ${cy} A 150 40 0 0 0 ${cx+150} ${cy}" fill="none" stroke="${c3}" stroke-width="8" opacity=".55" transform="rotate(-22 ${cx} ${cy})"/>`:"";
+  // molten lava cracks — a branching glow network scaled by a.lava (0–1); glows over the terminator too
+  let lava="";const lavaI=a.lava!=null?+a.lava:0;
+  if(lavaI>0.001){const lrng=mulberry((a.seed||1)*29+3);const nC=Math.round(3+lavaI*11);let pth="";
+    for(let i=0;i<nC;i++){let px=cx-R*0.85+lrng()*R*1.7,py=cy-R*0.85+lrng()*R*1.7;let dP=`M ${px.toFixed(1)} ${py.toFixed(1)}`;
+      const steps=4+Math.round(lrng()*5),len=(R*0.28+lrng()*R*0.5)/steps;let ang=lrng()*6.28;
+      for(let s=0;s<steps;s++){ang+=(lrng()-0.5)*1.5;px+=Math.cos(ang)*len;py+=Math.sin(ang)*len;dP+=` L ${px.toFixed(1)} ${py.toFixed(1)}`;
+        if(lrng()<0.45){const ba=ang+(lrng()-0.5)*2,bl=len*(0.6+lrng());pth+=`<path d="M ${px.toFixed(1)} ${py.toFixed(1)} L ${(px+Math.cos(ba)*bl).toFixed(1)} ${(py+Math.sin(ba)*bl).toFixed(1)}" stroke="#ff7a2a" stroke-width="${(0.8+lavaI*1.6).toFixed(1)}" fill="none" opacity="${(0.5+lavaI*0.4).toFixed(2)}" stroke-linecap="round"/>`;}}
+      pth+=`<path d="${dP}" stroke="#ff4a12" stroke-width="${(2.6+lavaI*4).toFixed(1)}" fill="none" opacity="${(0.28+lavaI*0.32).toFixed(2)}" stroke-linecap="round" filter="url(#lavaG${id})"/>`;
+      pth+=`<path d="${dP}" stroke="#ffd24a" stroke-width="${(0.8+lavaI*1.5).toFixed(1)}" fill="none" opacity="${(0.72+lavaI*0.28).toFixed(2)}" stroke-linecap="round"/>`;}
+    lava=`<g clip-path="url(#c${id})">${pth}</g>`;}
   const spinDur=(34+rng()*46).toFixed(0),cloudDur=(spinDur*0.7).toFixed(0);
   return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><defs>
     <clipPath id="c${id}"><circle cx="${cx}" cy="${cy}" r="${R}"/></clipPath>
+    ${lavaI>0.001?`<filter id="lavaG${id}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.7"/></filter>`:""}
     <radialGradient id="base${id}" cx="36%" cy="32%" r="78%"><stop offset="0%" stop-color="${L(c1,52)}"/><stop offset="50%" stop-color="${c1}"/><stop offset="100%" stop-color="${D(c1,46)}"/></radialGradient>
     <radialGradient id="term${id}" cx="36%" cy="32%" r="82%"><stop offset="0%" stop-color="#fff" stop-opacity=".28"/><stop offset="38%" stop-color="#fff" stop-opacity="0"/><stop offset="72%" stop-color="#000" stop-opacity=".35"/><stop offset="100%" stop-color="#000" stop-opacity=".68"/></radialGradient>
     <radialGradient id="atmo${id}" cx="50%" cy="50%" r="50%"><stop offset="${(88-atmoThick*12).toFixed(0)}%" stop-color="${atmoCol}" stop-opacity="0"/><stop offset="97%" stop-color="${atmoCol}" stop-opacity="${atmoThick.toFixed(2)}"/><stop offset="100%" stop-color="${atmoCol}" stop-opacity="0"/></radialGradient></defs>
     ${ringBack}<circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#base${id})"/>
     <g clip-path="url(#c${id})"><g style="${anim?`animation:surf${id} ${spinDur}s linear infinite`:''}">${bands}${spots.join("")}</g>${clouds?`<g style="${anim?`animation:surf${id} ${cloudDur}s linear infinite`:''}">${clouds}</g>`:""}</g>
     <circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#term${id})"/>
+    ${lava}
     ${hasAtmo?`<circle cx="${cx}" cy="${cy}" r="${R+3}" fill="url(#atmo${id})"/>`:""}
     <ellipse cx="${cx-34}" cy="${cy-40}" rx="30" ry="18" fill="#fff" opacity=".14" transform="rotate(-30 ${cx-34} ${cy-40})"/>
     ${ringFront}<style>@keyframes surf${id}{to{transform:translateX(-${2*S}px);}}</style></svg>`;

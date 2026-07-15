@@ -81,11 +81,18 @@
   shooting-star FX, and unifying the Console's world-space nebula-gradient reference frame — the dominant
   starfield/nebula/glow backdrop already matches via Sky2D and both viewers obey the same parallax
   setting, so these residual layers aren't worth the destabilisation risk right now.*
-- **Slice 5 — Planet lava-flow effect + intensity.** Add a **lava flow** surface effect to planets
-  (glowing cracks/rivers of molten rock over the crust, subtly animated), with an **intensity slider**
-  (0 → none, 1 → the surface is riven with bright lava). Wire it into the 2D `art()` planet surface,
-  the 3D `buildPlanetModel` (emissive lava map) and the LOD impostor, persist on the look, and expose a
-  slider in the planet editor. Verify headless in 2D + 3D.
+- **Slice 5 — Planet lava-flow effect + intensity.** ✅ A **lava flow** surface effect on planets/moons,
+  driven by `cfg.lava` (0–1). 3D: `genLava` bakes a self-lit emissive crack network (min of two warped
+  noise ridges, deep-orange edges → yellow-white centres) onto the planet material's `emissiveMap`, with
+  `emissiveIntensity` scaling from the intensity (0.75 + lava·1.35) and a subtle molten shimmer in
+  `update()`. The LOD impostor (`planetImpostorCanvas`) overlays the same self-lit cracks so far planets
+  still glow. 2D `art()` (Studio **and** Console) draws a branching glow network — blurred red underlay +
+  bright yellow core + orange branches, count/width/opacity scaled by intensity — clipped to the disc and
+  painted over the terminator so it glows on the dark side. A **Lava flow** slider in the planet editor,
+  persisted via `snapshotLook` (`lava`) and passed to the 3D viewer through `_genericPlanetCfg`. Verified
+  headless: 3D lava 0→no emissive map, 0.4→emissive @1.29, 1→@2.1; 2D adds the blur filter + 12 crack
+  cores at 0.8 and nothing at 0; 0 errors. *(planet3d-kind bodies use their own cfg3d editor; lava there
+  is a later add — 2D planets/moons cover the surface-lava ask.)*
 - **Slice 6 — Planet city lights + density.** Add scattered **cities & city lights** to planets
   (clusters of warm/cool night-side lights, brighter on the dark side), with a **density slider**:
   lowest = a few lights here and there, highest = the planet is blanketed in city sprawl and lights.
@@ -110,4 +117,4 @@
   are cheap; the world-lock is a transform change, not extra draw calls.
 - **Backward compatible:** old maps (no `stype`, `parallax` defaulting true) render unchanged.
 
-### Status: IN PROGRESS (Slices 0–4 shipped; 5–7 pending)
+### Status: IN PROGRESS (Slices 0–5 shipped; 6–7 pending)
