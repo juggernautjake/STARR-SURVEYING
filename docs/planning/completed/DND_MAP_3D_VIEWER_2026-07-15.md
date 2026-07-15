@@ -311,6 +311,12 @@ at the bake + playback; and large sheets de-inlined to Storage. Three.js is vend
 `planet3d-model.js`, and live planet-shape config editing in the viewer — each low value vs. cost now.
 **DB hand-off:** the DM applies `seeds/421_dnd_maps.sql`; runtime degrades gracefully until then.
 
+**Follow-up — real-time dynamic scaling (per user):** the DM can scale any planet/body in **2D** (the
+inspector Size slider, live `renderInstances`) or **3D** (select + **S** gizmo). LOD now reads the
+**live holder scale** and re-runs on every gizmo write-back, so scaling a body up **promotes its disc
+impostor to a full 3D mesh on the fly** (and scaling down demotes it) — dynamic in real time.
+Verified: a small disc planet promotes to a full mesh as it's scaled up and demotes when scaled down.
+
 Each slice: verify (headless WebGL render where relevant) + `tsc`/`vitest` unaffected, commit, push,
 annotate this ship log. Seed/DB changes ship as seeds the DM applies.
 

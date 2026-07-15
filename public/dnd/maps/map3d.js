@@ -143,6 +143,7 @@ const Map3D = {
       t3d: { rx: +h.rotation.x.toFixed(4), ry: +h.rotation.y.toFixed(4), rz: +h.rotation.z.toFixed(4) }
     };
     if (window.map3dApply) window.map3dApply(h.userData.id, patch);
+    this._applyLOD();   // scaling a body up/down promotes/demotes its 3D representation live
   },
 
   // Several star layers at different depths. Each follows the camera pan by its own `k` factor
@@ -326,12 +327,13 @@ const Map3D = {
     if (!this._ready || !this._bodies || !this._bodies.length) return;
     const zoom = this.camera.zoom || 1, ph = this.container.clientHeight || 1, frust = (this.camera.top - this.camera.bottom) || 1000;
     const pxPerWorld = zoom * ph / frust, PROMOTE = 90, DEMOTE = 55, MAX_FULL = 14, aniso = this.renderer.capabilities.getMaxAnisotropy();
-    const cands = this._bodies.filter(b => b.canFull).sort((a, b) => b.it.size - a.it.size);
+    const sz = b => b.holder.scale.x * 2;   // LIVE size (gizmo updates holder.scale in real time)
+    const cands = this._bodies.filter(b => b.canFull).sort((a, b) => sz(b) - sz(a));
     let full = 0;
-    for (const b of cands) { if (b.hasModel) { if (b.it.size * pxPerWorld < DEMOTE) this._demote(b); else full++; } }
+    for (const b of cands) { if (b.hasModel) { if (sz(b) * pxPerWorld < DEMOTE) this._demote(b); else full++; } }
     for (const b of cands) {
       if (b.hasModel) continue;
-      if (b.it.size * pxPerWorld >= PROMOTE && full < MAX_FULL && this._promote(b, aniso)) full++;
+      if (sz(b) * pxPerWorld >= PROMOTE && full < MAX_FULL && this._promote(b, aniso)) full++;
     }
     this._lodZoom = zoom;
   },
