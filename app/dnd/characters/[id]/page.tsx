@@ -12,6 +12,9 @@ import CharacterBuildKit from '@/app/dnd/_ui/CharacterBuildKit';
 import BuildQuestions from '@/app/dnd/_ui/BuildQuestions';
 import SheetStyleBrowser from '@/app/dnd/_ui/SheetStyleBrowser';
 import SheetEditChat from '@/app/dnd/_ui/SheetEditChat';
+import SystemSwitcher from '@/app/dnd/_ui/SystemSwitcher';
+import { readVariants, builtSystems, type ActiveSheet } from '@/lib/dnd/system-variants';
+import { normalizeSystem } from '@/lib/dnd/systems';
 import SheetChatPanel from '@/app/dnd/_ui/SheetChatPanel';
 import AddToDemoButton from '@/app/dnd/_ui/AddToDemoButton';
 import { dndAiConfigured } from '@/lib/dnd/ai';
@@ -53,6 +56,15 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
       {canWrite && character.campaign_id !== DEMO_CAMPAIGN_ID && (
         <AddToDemoButton characterId={character.id} campaignId={DEMO_CAMPAIGN_ID} />
       )}
+      {canWrite && (() => {
+        const active: ActiveSheet = {
+          system: normalizeSystem((character as { system?: string }).system),
+          data: character.data,
+          sheet_type: character.sheet_type,
+        };
+        const built = builtSystems(active, readVariants((character as { system_variants?: unknown }).system_variants));
+        return <SystemSwitcher characterId={character.id} activeSystem={active.system} builtSystems={built} aiConfigured={dndAiConfigured()} />;
+      })()}
       {canWrite && <SheetStyleBrowser characterId={character.id} current={character.sheet_type} />}
       <SheetRoot
         characterId={character.id}

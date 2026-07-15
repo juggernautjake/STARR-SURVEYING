@@ -247,6 +247,24 @@ look) — it must NOT edit other site pages or anything outside character custom
   sheet. Make the transposition **reliable every time** (grounded; flag unmappable mechanics for the user).
   Verify: a 2024→2014 transpose yields a valid 2014 sheet mirroring intent, and switching back restores the
   2024 version unchanged.
+  - ✅ Data model: `seeds/442_dnd_system_variants.sql` adds `dnd_characters.system_variants jsonb` — a map
+    `{ systemKey: { data, sheet_type, custom_layout, custom_css } }` of the OTHER systems' sheets; the
+    existing `system` column is the ACTIVE one driving the live sheet columns. `lib/dnd/system-variants.ts`
+    is the pure switch/transpose logic: `switchActive` snapshots the current active sheet back into its slot
+    then loads the target's slot (lossless + reversible), `installTransposed` makes a freshly-built target
+    sheet active while preserving the source as a variant, plus `readVariants`/`builtSystems`/`hasVariant`/
+    `snapshotActive`. `POST /api/dnd/characters/[id]/system` (owner/DM-scoped via `requireCharacterWrite`)
+    switches instantly when the target variant exists, else **transposes**: the AI rebuilds the character
+    under the target system — grounded so it uses ONLY that system's rules (`systemGroundingBlock` on the
+    target), keeping concept/name/level/role, flagging unmappable mechanics in `unmapped` — then installs +
+    switches. `app/dnd/_ui/SystemSwitcher.tsx` is the on-sheet switcher: chips for every system, marking the
+    active one, "saved" variants (instant switch), and "+ transpose" for the rest (AI on demand); wired into
+    the character page for owner/DM. Verified: `tsc` clean, lint clean,
+    `__tests__/dnd/system-variants.test.ts` (6 tests: defensive read; built-systems listing; **switch
+    snapshots + reversibly restores the original sheet unchanged**; refuses a switch with no variant;
+    transpose installs new + keeps source; snapshot mirrors columns). Full dnd suite (235) green. *(A live
+    2024→2014 AI transpose needs the AI key; the switch/restore mechanic + the grounded transpose wiring are
+    proven, and switching between already-built systems needs no AI at all.)*
 - **Slice 14 — Themed AI chat box.** Make the builder's AI agent chat **appealing and well-flowing**,
   matching the site's Hextech theme (typography, colors, message bubbles, streaming, input affordances).
   Verify: the chat renders on-theme and streams smoothly.
@@ -269,4 +287,4 @@ look) — it must NOT edit other site pages or anything outside character custom
 - **Verification:** app/server + AI features; prefer the dnd vitest suites + driving routes, and note
   anything needing the live app or an AI key.
 
-### Status: IN PROGRESS (Slices 0–12 + 1b shipped; 13–15 pending)
+### Status: IN PROGRESS (Slices 0–13 + 1b shipped; 14–15 pending)
