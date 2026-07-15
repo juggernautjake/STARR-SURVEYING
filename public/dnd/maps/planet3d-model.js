@@ -35,6 +35,22 @@ const TYPES = {
 
 function texFromCanvas(cv, aniso) { const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = aniso || 1; return t; }
 
+// The representative surface colour of a planet config — a sea-level-weighted blend of its own
+// TYPES palette (ocean vs land, with a touch of polar ice). Used so a far/small planet that renders
+// as a flat impostor still shows its true colours instead of a default. Returns a #rrggbb string.
+export function planetDominantColor(config) {
+  const cfg = Object.assign({ type: 'terran', sea: 0.52, ice: 0.15 }, config || {});
+  const T = TYPES[cfg.type] || TYPES.terran;
+  const toHex = c => '#' + c.map(v => ('0' + Math.max(0, Math.min(255, Math.round(v))).toString(16)).slice(-2)).join('');
+  if (T.bands) return toHex(mix(mix(T.low, T.high, 0.5), T.shore, 0.25));   // gas giant → band average
+  const sea = Math.max(0, Math.min(1, cfg.sea != null ? cfg.sea : 0.52));
+  const ice = Math.max(0, Math.min(1, cfg.ice != null ? cfg.ice : 0.15));
+  const land = mix(T.low, T.high, 0.4);
+  let c = mix(land, T.ocean, sea * 0.85);                                   // more sea → bluer/oceanic
+  if (ice > 0.25) c = mix(c, T.peak, (ice - 0.25) * 0.5);                   // icy worlds pale out
+  return toHex(c);
+}
+
 /* ---------- texture generation (config-driven; verbatim maths) ---------- */
 function genPlanet(cfg, aniso) {
   const W = 1024, H = 512, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d');

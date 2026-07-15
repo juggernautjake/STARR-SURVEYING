@@ -13,7 +13,7 @@
    Coordinate mapping: 2D world (x, y) with y pointing DOWN → 3D (x, -y, 0) so
    the scene reads identically to the 2D map but gains real depth/rotation.
    ============================================================================ */
-let THREE = null, OrbitControls = null, TransformControls = null, CSS3DRenderer = null, CSS3DObject = null, buildPlanetModel = null, buildStarModel = null;
+let THREE = null, OrbitControls = null, TransformControls = null, CSS3DRenderer = null, CSS3DObject = null, buildPlanetModel = null, buildStarModel = null, planetDominantColor = null;
 
 async function loadThree() {
   if (THREE) return;
@@ -21,11 +21,22 @@ async function loadThree() {
   ({ OrbitControls } = await import('three/addons/controls/OrbitControls.js'));
   ({ TransformControls } = await import('three/addons/controls/TransformControls.js'));
   ({ CSS3DRenderer, CSS3DObject } = await import('three/addons/renderers/CSS3DRenderer.js'));
-  ({ buildPlanetModel, buildStarModel } = await import('/dnd/maps/planet3d-model.js'));
+  ({ buildPlanetModel, buildStarModel, planetDominantColor } = await import('/dnd/maps/planet3d-model.js'));
 }
 
 const NAVY = 0x010a13;
 const MAX_LIVE_PLANETS = 16;   // LOD guard: beyond this, extra 3D worlds fall back to flat discs
+
+// Programmable deep-space background. Saved on the map as `bg3d`, so the DM's choice publishes to
+// players. `template` selects the overall look; `seed` reshuffles every generated arrangement.
+const BG_DEFAULT = {
+  template: 'deepspace',   // deepspace | stars | spiral | nebula | blackhole | asteroids | solid | glow
+  seed: 1,
+  parallax: true, layers: 3, density: 1,
+  nebula: true,
+  baseColor: '#010a13',
+  glow: { on: false, colors: ['#3b2a6b', '#0a4a5a'], pulse: false, speed: 1 }
+};
 
 const Map3D = {
   _ready: false, _shown: false, _raf: null,
@@ -71,7 +82,9 @@ const Map3D = {
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.85));
     const key = new THREE.DirectionalLight(0xfff4e0, 1.4); key.position.set(1, 1, 2); scene.add(key);
-    this.scene = scene; this._buildStars(); this._buildShooters(); this._buildNebula();   // deep-space FX
+    this.scene = scene; this.renderer = renderer;
+    this._bg = this._bg || Object.assign({}, BG_DEFAULT, { glow: Object.assign({}, BG_DEFAULT.glow) });
+    this._buildBackground(); this._buildShooters();   // programmable sky + colourful meteors
     const bodyGroup = new THREE.Group(); scene.add(bodyGroup);
 
     // Move/rotate/scale gizmo — only when an editor bridge exists (the DM Studio). The player
@@ -146,41 +159,247 @@ const Map3D = {
     this._applyLOD();   // scaling a body up/down promotes/demotes its 3D representation live
   },
 
-  // Several star layers at different depths. Each follows the camera pan by its own `k` factor
-  // (far layers follow more → move less on screen → read as distant), giving true 3D parallax on
-  // pan; on orbit/tilt the real z-separation shows depth directly. Constant screen size (no
-  // attenuation) keeps stars crisp and adds a depth cue on zoom too.
-  _buildStars() {
-    this._starLayers = [];
-    const specs = [
-      { n: 1100, z: -3200, size: 1.4, k: 0.72, bright: 0.5, spread: 9000 },  // far · tiny · dim
-      { n: 620,  z: -1900, size: 2.2, k: 0.5,  bright: 0.72, spread: 7200 },
-      { n: 300,  z: -1000, size: 3.4, k: 0.28, bright: 1.0,  spread: 5600 },  // near · bigger · bright
-    ];
-    for (const s of specs) {
-      const pos = new Float32Array(s.n * 3), col = new Float32Array(s.n * 3);
-      for (let i = 0; i < s.n; i++) {
-        pos[i * 3] = (((i * 613) % 1000) / 1000 - 0.5) * s.spread;
-        pos[i * 3 + 1] = (((i * 911) % 1000) / 1000 - 0.5) * s.spread;
-        pos[i * 3 + 2] = s.z + (((i * 53) % 400) - 200);
-        const t = ((i * 97) % 100) / 100; let cr = 0.82, cg = 0.87, cb = 1.0;
-        if (t > 0.9) { cr = 1.0; cg = 0.82; cb = 0.62; }        // occasional warm star
-        else if (t > 0.78) { cr = 0.68; cg = 0.82; cb = 1.0; }  // occasional cool-blue star
-        const bness = s.bright * (0.55 + ((i * 31) % 100) / 100 * 0.5);
-        col[i * 3] = cr * bness; col[i * 3 + 1] = cg * bness; col[i * 3 + 2] = cb * bness;
-      }
-      const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-      const m = new THREE.PointsMaterial({ size: s.size, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false });
-      const pts = new THREE.Points(g, m); pts.userData.k = s.k; pts.renderOrder = -10;
-      this.scene.add(pts); this._starLayers.push(pts);
+  /* ---- programmable deep-space background ------------------------------------------------ */
+
+  // mulberry32 — a tiny, fast, well-dispersed PRNG so a seed reshuffles the whole sky.
+  _rng(seed) {
+    let a = (seed >>> 0) || 1;
+    return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  },
+  _pick(rng, arr) { return arr[(rng() * arr.length) | 0]; },
+  _hexA(hex, a) { const c = new THREE.Color(hex); return `rgba(${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)},${a})`; },
+
+  // Set/replace the background config and rebuild the sky.
+  setBackground(cfg) {
+    this._bg = Object.assign({}, BG_DEFAULT, cfg || {}, { glow: Object.assign({}, BG_DEFAULT.glow, (cfg && cfg.glow) || {}) });
+    if (this._ready && this.scene) this._buildBackground();
+  },
+
+  // One shared point material for every star layer: per-point size (attribute) so most stars are
+  // tiny and a few are large; a per-point phase drives an independent twinkle; flagged "glimmer"
+  // points get soft diffraction spikes. Additive over the dark clear-colour reads as real starlight.
+  _starMaterial() {
+    if (this._starMat) return this._starMat;
+    this._starMat = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 }, uPix: { value: Math.min(window.devicePixelRatio || 1, 2) } },
+      vertexShader: `
+        attribute vec3 aColor; attribute float aSize; attribute float aPhase; attribute float aGlow;
+        varying vec3 vCol; varying float vTw; varying float vGlow;
+        uniform float uTime; uniform float uPix;
+        void main(){
+          vCol = aColor;
+          float tw = 0.55 + 0.45 * sin(uTime*(1.1 + aPhase*0.9) + aPhase*6.2831);
+          vTw = mix(0.82, tw, aGlow>0.5 ? 1.0 : 0.45);   // glimmer stars twinkle harder
+          vGlow = aGlow;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+          gl_PointSize = aSize * uPix;
+        }`,
+      fragmentShader: `
+        precision mediump float;
+        varying vec3 vCol; varying float vTw; varying float vGlow;
+        void main(){
+          vec2 uv = gl_PointCoord - 0.5;
+          float core = smoothstep(0.5, 0.0, length(uv));
+          float a = core;
+          if(vGlow > 0.5){
+            float sx = smoothstep(0.5,0.0,abs(uv.x)) * smoothstep(0.11,0.0,abs(uv.y));
+            float sy = smoothstep(0.5,0.0,abs(uv.y)) * smoothstep(0.11,0.0,abs(uv.x));
+            a = max(a, (sx+sy)*0.9);
+          }
+          if(a <= 0.003) discard;
+          gl_FragColor = vec4(vCol * vTw, a);
+        }`,
+      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false
+    });
+    return this._starMat;
+  },
+  // Default star tint: mostly cool white, an occasional warm or blue sun.
+  _starColorFn() {
+    return (rnd) => { const t = rnd(); if (t > 0.93) return [1, 0.8, 0.55]; if (t > 0.8) return [0.62, 0.78, 1]; const w = 0.78 + rnd() * 0.22; return [w * 0.93, w * 0.97, w]; };
+  },
+  // Build one parallax star layer from a spec. posFn/colorFn take the shared rng.
+  _addStarLayer(sp) {
+    const n = Math.max(1, sp.count | 0), rnd = sp.rng, colFn = sp.colorFn || this._starColorFn();
+    const pos = new Float32Array(n * 3), col = new Float32Array(n * 3), siz = new Float32Array(n), pha = new Float32Array(n), glo = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const p = sp.posFn(rnd, i);
+      pos[i * 3] = p[0]; pos[i * 3 + 1] = p[1]; pos[i * 3 + 2] = (sp.z || -2000) + (rnd() - 0.5) * (sp.jitterZ || 300);
+      const c = colFn(rnd, i); col[i * 3] = c[0]; col[i * 3 + 1] = c[1]; col[i * 3 + 2] = c[2];
+      const glow = rnd() < (sp.glowFrac || 0.03) ? 1 : 0; glo[i] = glow;
+      // power curve → most stars near the small end, a rare few large; glimmers larger still
+      siz[i] = glow ? (sp.sizeMax * 1.5 + rnd() * sp.sizeMax * 1.4) : (sp.sizeMin + Math.pow(rnd(), 3) * (sp.sizeMax - sp.sizeMin));
+      pha[i] = rnd();
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('aColor', new THREE.BufferAttribute(col, 3));
+    g.setAttribute('aSize', new THREE.BufferAttribute(siz, 1));
+    g.setAttribute('aPhase', new THREE.BufferAttribute(pha, 1));
+    g.setAttribute('aGlow', new THREE.BufferAttribute(glo, 1));
+    const pts = new THREE.Points(g, this._starMaterial());
+    pts.userData = { k: sp.k, rot: sp.rot || 0 }; pts.renderOrder = -10; pts.frustumCulled = false;
+    this.scene.add(pts); this._bgObjs.push(pts); this._starPts.push(pts);
+    return pts;
+  },
+
+  // A soft radial sprite (glow / galaxy core / accretion halo) built from a colour list.
+  _radialSprite(cols, scale, z, opacity, k, ry) {
+    const S = 512, cv = document.createElement('canvas'); cv.width = cv.height = S; const ctx = cv.getContext('2d');
+    const g = ctx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+    const list = cols.length ? cols : ['#3b2a6b'];
+    list.forEach((c, i) => { const stop = list.length === 1 ? 0 : (i / (list.length - 1)) * 0.8; g.addColorStop(stop, this._hexA(c, i === 0 ? 0.6 : 0.34)); });
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
+    const m = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false });
+    const sp = new THREE.Sprite(m); sp.scale.set(scale, scale * (ry || 1), 1); sp.position.set(0, 0, z);
+    sp.renderOrder = -9; sp.userData = { k: k != null ? k : 0.85 };
+    this.scene.add(sp); this._bgObjs.push(sp);
+    return sp;
+  },
+
+  _buildBackground() {
+    if (!this.scene) return;
+    this._disposeBackground();
+    this._bgObjs = []; this._starPts = []; this._nebula = []; this._bgSpin = []; this._glowSprite = null; this._bgT = 0;
+    const cfg = this._bg || (this._bg = Object.assign({}, BG_DEFAULT));
+    if (this.renderer) this.renderer.setClearColor(new THREE.Color(cfg.baseColor || '#010a13'), 1);
+    const rng = this._rng(cfg.seed || 1);
+    const density = cfg.density != null ? cfg.density : 1;
+    const layers = cfg.parallax ? Math.max(1, Math.min(6, cfg.layers || 3)) : 1;
+    const tpl = cfg.template || 'deepspace';
+
+    if ((cfg.glow && cfg.glow.on) || tpl === 'glow') this._buildGlow(cfg);
+
+    if (tpl === 'solid' || tpl === 'glow') { /* colour / glow only — no stars */ }
+    else if (tpl === 'spiral') this._buildSpiral(cfg, rng, density);
+    else if (tpl === 'blackhole') this._buildBlackhole(cfg, rng, density, layers);
+    else if (tpl === 'asteroids') this._buildAsteroids(cfg, rng, density, layers);
+    else this._buildStarfield(cfg, rng, density, layers, tpl);   // deepspace | stars | nebula
+
+    const showNeb = tpl !== 'solid' && tpl !== 'glow' && (cfg.nebula || tpl === 'nebula');
+    if (showNeb) this._buildNebulaClouds(cfg, rng, tpl === 'nebula' ? 8 : 4, tpl === 'nebula');
+  },
+
+  // Plain multi-depth starfield (deepspace / stars / the star bed under a nebula).
+  _buildStarfield(cfg, rng, density, layers, tpl) {
+    const dense = tpl === 'stars' ? 1.8 : tpl === 'nebula' ? 0.55 : 1.0;
+    for (let li = 0; li < layers; li++) {
+      const f = layers === 1 ? 0.5 : li / (layers - 1);     // 0 = far, 1 = near
+      const k = 0.8 + (0.22 - 0.8) * f;                     // far layers follow more → look distant
+      this._addStarLayer({
+        rng, count: Math.round((tpl === 'stars' ? 950 : 620) * (1 - f * 0.5) * density * dense),
+        z: -3200 + f * 2200, k, jitterZ: 300,
+        sizeMin: 0.9 + f * 0.4, sizeMax: 2.0 + f * 2.4, glowFrac: 0.02 + f * 0.03,
+        posFn: (r) => [(r() - 0.5) * 9200, (r() - 0.5) * 9200]
+      });
     }
   },
-  _updateStars() {
-    if (!this._starLayers) return;
+
+  // A spiral galaxy: stars swept into logarithmic arms around a bright coloured core, slowly turning.
+  _buildSpiral(cfg, rng, density) {
+    const arms = 2 + ((rng() * 3) | 0);                    // 2–4 arms
+    const spin = (rng() < 0.5 ? 1 : -1) * (0.012 + rng() * 0.02);
+    const armCol = this._pick(rng, [[0.6, 0.72, 1], [1, 0.7, 0.9], [0.7, 1, 0.92], [1, 0.86, 0.6], [0.8, 0.7, 1]]);
+    const coreCol = this._pick(rng, ['#ffd9a0', '#ffc0e6', '#a8d4ff', '#ffe6b0', '#d0b0ff']);
+    const RMAX = 5200, tight = 2.0 + rng() * 1.6;
+    const cc = new THREE.Color(coreCol);
+    const pts = this._addStarLayer({
+      rng, count: Math.round(4600 * density), z: -2650, k: 0.62, jitterZ: 220, rot: spin,
+      sizeMin: 0.9, sizeMax: 3.0, glowFrac: 0.03,
+      colorFn: (r) => { const rr = Math.pow(r(), 0.6), cw = 1 - rr, b = 0.5 + r() * 0.6; return [(cc.r * cw + armCol[0] * (1 - cw)) * b, (cc.g * cw + armCol[1] * (1 - cw)) * b, (cc.b * cw + armCol[2] * (1 - cw)) * b]; },
+      posFn: (r, i) => { const arm = i % arms, rr = Math.pow(r(), 0.6), rad = rr * RMAX, ang = arm * (6.2831 / arms) + rr * tight * 6.2831 + (r() - 0.5) * (0.6 / (rr + 0.12)), sc = (r() - 0.5) * RMAX * 0.05 * (0.4 + rr); return [Math.cos(ang) * rad + sc, Math.sin(ang) * rad + (r() - 0.5) * RMAX * 0.05 * (0.4 + rr)]; }
+    });
+    pts.userData.rot = spin;
+    const core = this._radialSprite([coreCol], 3400, -2680, 0.85, 0.62);
+    this._bgSpin.push({ obj: core, rot: 0, follow: true, k: 0.62 });
+  },
+
+  // A black hole: a dark disc ringed by a bright accretion glow, over a sparse star bed.
+  _buildBlackhole(cfg, rng, density, layers) {
+    this._buildStarfield(cfg, rng, density * 0.5, Math.min(2, layers), 'deepspace');
+    const ringCol = this._pick(rng, [['#ffb060', '#ff5030'], ['#7fd0ff', '#3060ff'], ['#ff90e0', '#a040ff'], ['#ffe090', '#ff8020']]);
+    const halo = this._radialSprite(ringCol, 2600, -2600, 0.95, 0.7);
+    this._bgSpin.push({ obj: halo, rot: 0, follow: true, k: 0.7 });
+    // bright thin accretion ring (additive), tilted for a lensed feel
+    const ring = new THREE.Mesh(new THREE.RingGeometry(360, 470, 96), new THREE.MeshBasicMaterial({ color: new THREE.Color(ringCol[0]), transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, side: THREE.DoubleSide }));
+    ring.position.set(0, 0, -2590); ring.rotation.x = 1.05; ring.renderOrder = -7;
+    this.scene.add(ring); this._bgObjs.push(ring); this._bgSpin.push({ obj: ring, rot: 0.25, follow: true, k: 0.7 });
+    // the event horizon — an opaque black disc that occludes the glow behind its centre
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(330, 64), new THREE.MeshBasicMaterial({ color: 0x000000, depthWrite: false, depthTest: false }));
+    disc.position.set(0, 0, -2585); disc.renderOrder = -6;
+    this.scene.add(disc); this._bgObjs.push(disc); this._bgSpin.push({ obj: disc, rot: 0, follow: true, k: 0.7 });
+  },
+
+  // An asteroid field: layered belts of small rocky grey specks drifting slowly, over faint stars.
+  _buildAsteroids(cfg, rng, density, layers) {
+    this._buildStarfield(cfg, rng, density * 0.4, Math.min(2, layers), 'deepspace');
+    const rockCol = (r) => { const g = 0.28 + r() * 0.34, br = r() < 0.3 ? 0.06 : 0; return [g + br, g + br * 0.6, g]; };
+    const belts = cfg.parallax ? Math.max(2, Math.min(4, cfg.layers || 3)) : 1;
+    for (let li = 0; li < belts; li++) {
+      const f = belts === 1 ? 0.5 : li / (belts - 1);
+      const pts = this._addStarLayer({
+        rng, count: Math.round(520 * (1 - f * 0.4) * density), z: -1400 + f * 900, k: 0.62 + (0.2 - 0.62) * f, jitterZ: 260,
+        sizeMin: 1.4 + f * 0.6, sizeMax: 3.4 + f * 3.2, glowFrac: 0, colorFn: rockCol,
+        posFn: (r) => [(r() - 0.5) * 8600, (r() - 0.5) * 8600]
+      });
+      pts.userData.drift = [(rng() - 0.5) * 40, (rng() - 0.5) * 40];
+    }
+  },
+
+  // Drifting, billowing nebula sprites (reuses the existing cloud texture, now seeded).
+  _buildNebulaClouds(cfg, rng, count, vivid) {
+    const palettes = [['#6a3aaa', '#0ac8b9', '#c94f9a', '#4a86c9'], ['#c0392b', '#e67e22', '#8e44ad'], ['#16a085', '#2980b9', '#8e44ad'], ['#c94f9a', '#5b2a86', '#3060ff'], ['#00b894', '#0984e3', '#6c5ce7']];
+    const pal = this._pick(rng, palettes);
+    const texes = [this._nebulaTexture((rng() * 1e6) | 0), this._nebulaTexture((rng() * 1e6) | 0), this._nebulaTexture((rng() * 1e6) | 0)];
+    for (let i = 0; i < count; i++) {
+      const m = new THREE.SpriteMaterial({ map: texes[i % 3], color: new THREE.Color(pal[i % pal.length]), transparent: true, opacity: (vivid ? 0.2 : 0.14) + rng() * (vivid ? 0.16 : 0.1), blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false });
+      m.rotation = rng() * 6.28;
+      const sp = new THREE.Sprite(m), scale = 3000 + rng() * 3400;
+      sp.scale.set(scale, scale * (0.6 + rng() * 0.45), 1);
+      const bx = (rng() - 0.5) * 7400, by = (rng() - 0.5) * 5400;
+      sp.position.set(bx, by, -2300 - i * 150);
+      sp.userData = { k: 0.55 + rng() * 0.18, rot: (rng() - 0.5) * 0.03, baseX: bx, baseY: by, phase: rng() * 6.28, drift: 80 + rng() * 130 };
+      sp.renderOrder = -8;
+      this.scene.add(sp); this._bgObjs.push(sp); this._nebula.push(sp);
+    }
+  },
+
+  // A big central glow of chosen colours (optionally pulsing) over the base colour.
+  _buildGlow(cfg) {
+    const g = cfg.glow || {}, cols = (g.colors && g.colors.length ? g.colors : ['#3b2a6b', '#0a4a5a']);
+    this._glowSprite = this._radialSprite(cols, 9200, -3000, 0.9, 0.85);
+    this._glowSprite.userData = Object.assign(this._glowSprite.userData, { pulse: !!g.pulse, speed: g.speed || 1, baseOpacity: 0.9 });
+  },
+
+  _disposeBackground() {
+    for (const o of (this._bgObjs || [])) {
+      this.scene.remove(o);
+      o.geometry && o.geometry.dispose && o.geometry.dispose();
+      if (o.material && o.material !== this._starMat) { o.material.map && o.material.map.dispose && o.material.map.dispose(); o.material.dispose && o.material.dispose(); }
+    }
+    this._bgObjs = []; this._starPts = []; this._nebula = []; this._glowSprite = null; this._bgSpin = [];
+  },
+
+  _updateBackground(dt) {
+    if (!this.scene) return;
+    this._bgT = (this._bgT || 0) + dt;
     const t = this.controls.target;
-    for (const L of this._starLayers) { L.position.x = t.x * L.userData.k; L.position.y = t.y * L.userData.k; }
+    if (this._starMat) this._starMat.uniforms.uTime.value = this._bgT;
+    for (const pts of (this._starPts || [])) {
+      const d = pts.userData.drift;
+      pts.position.x = t.x * pts.userData.k + (d ? Math.sin(this._bgT * 0.03) * d[0] : 0);
+      pts.position.y = t.y * pts.userData.k + (d ? Math.cos(this._bgT * 0.026) * d[1] : 0);
+      if (pts.userData.rot) pts.rotation.z += pts.userData.rot * dt;
+    }
+    for (const sp of (this._nebula || [])) {
+      const u = sp.userData; sp.material.rotation += u.rot * dt;
+      sp.position.x = t.x * u.k + u.baseX + Math.sin(this._bgT * 0.05 + u.phase) * u.drift;
+      sp.position.y = t.y * u.k + u.baseY + Math.cos(this._bgT * 0.04 + u.phase) * u.drift;
+    }
+    for (const o of (this._bgSpin || [])) { if (o.rot) o.obj.rotation.z += o.rot * dt; if (o.follow) { o.obj.position.x = t.x * o.k; o.obj.position.y = t.y * o.k; } }
+    if (this._glowSprite && this._glowSprite.userData.pulse) {
+      const u = this._glowSprite.userData; this._glowSprite.material.opacity = u.baseOpacity * (0.42 + 0.58 * (0.5 + 0.5 * Math.sin(this._bgT * 1.3 * (u.speed || 1))));
+    }
   },
 
   // A small pool of colourful shooting stars — each a short additive line (bright head → clear tail)
@@ -248,35 +467,13 @@ const Map3D = {
     ctx.globalCompositeOperation = 'destination-out'; ctx.fillStyle = fall; ctx.fillRect(0, 0, S, S);
     return new THREE.CanvasTexture(cv);
   },
-  _buildNebula() {
-    this._nebula = []; this._nebT = 0;
-    const cols = ['#6a3aaa', '#0ac8b9', '#c94f9a', '#4a86c9', '#7a4ad0'];
-    const texes = [this._nebulaTexture(1234), this._nebulaTexture(5771), this._nebulaTexture(9091)];
-    for (let i = 0; i < 5; i++) {
-      const m = new THREE.SpriteMaterial({ map: texes[i % texes.length], color: new THREE.Color(cols[i % cols.length]), transparent: true, opacity: 0.22 + (i % 3) * 0.05, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false });
-      m.rotation = i * 1.7;
-      const sp = new THREE.Sprite(m); const scale = 4200 + i * 1300;
-      sp.scale.set(scale, scale * 0.72, 1);
-      const bx = ((i * 997) % 2000 - 1000) * 2.4, by = ((i * 613) % 2000 - 1000) * 1.9;
-      sp.position.set(bx, by, -2300 - i * 240);
-      sp.userData = { k: 0.6 + (i % 3) * 0.06, rot: (i % 2 ? 1 : -1) * 0.018, baseX: bx, baseY: by, phase: i * 1.3 };
-      sp.renderOrder = -8;
-      this.scene.add(sp); this._nebula.push(sp);
-    }
+  // Push the current map into the scene. A map may carry a `bg3d` background config (from the DM's
+  // Effects panel); applying it here means published maps bring their sky to players automatically.
+  setData(map) {
+    this._map = map || { instances: [] };
+    if (map && map.bg3d) this.setBackground(map.bg3d);
+    if (this._ready) this._rebuild();
   },
-  _updateNebula(dt) {
-    if (!this._nebula) return;
-    this._nebT += dt; const t = this.controls.target;
-    for (const sp of this._nebula) {
-      const u = sp.userData;
-      sp.material.rotation += u.rot * dt;
-      sp.position.x = t.x * u.k + u.baseX + Math.sin(this._nebT * 0.05 + u.phase) * 130;
-      sp.position.y = t.y * u.k + u.baseY + Math.cos(this._nebT * 0.04 + u.phase) * 110;
-    }
-  },
-
-  // Push the current map into the scene.
-  setData(map) { this._map = map || { instances: [] }; if (this._ready) this._rebuild(); },
 
   // Resolve a planet3d instance's saved config — from the instance's look, or its source asset.
   _planetConfig(it) {
@@ -359,9 +556,41 @@ const Map3D = {
     if (b.disc) b.holder.add(b.disc);
   },
 
-  _discMesh(it) {   // a unit-radius flat disc (holder scales it to size)
-    const col = (it.look && (it.look.c1 || it.look.c3)) || '#8f9bd0';
-    return new THREE.Mesh(new THREE.CircleGeometry(1, 56), new THREE.MeshBasicMaterial({ color: new THREE.Color(col) }));
+  // The dominant, surface-true colour to paint a body's impostor disc with — so a planet that is far
+  // away or tiny still reads as its real colours, never a default/random tint.
+  _discBaseColor(it) {
+    if (it.kind === 'planet3d') {
+      const cfg = this._planetConfig(it);
+      if (cfg && planetDominantColor) { try { return planetDominantColor(cfg); } catch (e) { /* fall through */ } }
+    }
+    const L = it.look || {};
+    if (it.kind === 'star') return L.c1 || L.color || L.c2 || '#ffd9a0';
+    const cs = [L.c1, L.c2, L.c3].filter(Boolean);
+    if (cs.length) return this._blendHex(cs);
+    return '#8f9bd0';
+  },
+  _blendHex(list) {
+    let r = 0, g = 0, b = 0; for (const h of list) { const c = new THREE.Color(h); r += c.r; g += c.g; b += c.b; }
+    const n = list.length || 1; return '#' + new THREE.Color(r / n, g / n, b / n).getHexString();
+  },
+  // A cheap sphere-like impostor: a radial gradient (lit highlight → true colour → shadow terminator)
+  // in the body's real dominant colour, cached per colour. Reads as a shaded planet, not a flat coin.
+  _discTexture(hex) {
+    this._discTexCache = this._discTexCache || {};
+    if (this._discTexCache[hex]) return this._discTexCache[hex];
+    const base = new THREE.Color(hex);
+    const lit = new THREE.Color(Math.min(1, base.r * 1.35 + 0.05), Math.min(1, base.g * 1.35 + 0.05), Math.min(1, base.b * 1.35 + 0.05));
+    const shd = new THREE.Color(base.r * 0.4, base.g * 0.42, base.b * 0.46);
+    const S = 64, cv = document.createElement('canvas'); cv.width = cv.height = S; const ctx = cv.getContext('2d');
+    const g = ctx.createRadialGradient(S * 0.37, S * 0.35, S * 0.04, S * 0.5, S * 0.5, S * 0.52);  // light from upper-left
+    g.addColorStop(0, '#' + lit.getHexString()); g.addColorStop(0.55, hex); g.addColorStop(1, '#' + shd.getHexString());
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(S / 2, S / 2, S / 2, 0, 7); ctx.fill();
+    const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+    this._discTexCache[hex] = t; return t;
+  },
+  _discMesh(it) {   // a unit-radius shaded disc in the body's true colour (holder scales it to size)
+    const hex = this._discBaseColor(it);
+    return new THREE.Mesh(new THREE.CircleGeometry(1, 56), new THREE.MeshBasicMaterial({ map: this._discTexture(hex), transparent: true }));
   },
 
   // Free text object → a crisp DOM element in the CSS3D layer, styled from its LabelStyle.
@@ -453,9 +682,8 @@ const Map3D = {
       for (const p of this._planets) p.model.update(dt, sun);   // live planets spin in real time
       this.controls.update();
       if (Math.abs(this.camera.zoom - (this._lodZoom || 0)) > (this._lodZoom || 1) * 0.04) this._applyLOD();   // re-LOD on zoom
-      this._updateStars();                                       // parallax follows the pan
+      this._updateBackground(dt);                                // parallax stars, nebula drift, glow pulse
       this._updateShooters(dt);                                  // colourful meteors
-      this._updateNebula(dt);                                    // drifting gas clouds
       this.renderer.render(this.scene, this.camera);
       if (this.cssRenderer) this.cssRenderer.render(this.cssScene, this.camera);
     };
