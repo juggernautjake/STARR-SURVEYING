@@ -97,9 +97,15 @@
   clean, full dnd suite green (41 files / 236 tests). *(The live "player session gets none / 403 on an NPC
   sheet" round-trip needs the app's Supabase env; the gates are structural — an owner/DM check on every
   read path and the DM-only list narrowing — and the tab is now hidden from players entirely.)*
-- **Slice 6 — QA + docs.** End-to-end pass across the six features (session persists, campaign-free create
-  + build, demo join, NPC visibility, header user + back), run the dnd vitest suite, then move this doc to
-  `completed/`.
+- **Slice 6 — QA + docs.** ✅ Final sweep: project `tsc --noEmit` clean, dnd vitest suite green (41 files /
+  236 tests), platform surface lints clean. Confirmed all six features are wired: (1) session persistence —
+  `auth.ts` `sessionCookieOptions()` + `DND_COOKIE_INSECURE` escape hatch + prod secret warning; (2)
+  campaign-free create — the import route inserts `campaign_id: hasCampaign ? campaignId : null` (personal,
+  private); (3) demo join — `POST /api/dnd/campaigns/[id]/join-character` + `AddToDemoButton`; (4) NPC
+  visibility — DM-only NPCs tab (`t.id !== 'npcs' || isDM`) over the three server gates; (5) header user —
+  `DndHeader` `userName`; (6) back nav — `HeaderBack`. Doc moved to `completed/`. *(The DB-backed round-trips
+  — a real new-user session persisting, a personal build, a demo join reflected in the roster, a player
+  getting 403 on an NPC — need the app's Supabase env; each is enforced structurally and type-checked.)*
 
 ## Considerations
 - **Follow the existing pattern:** service-role client + explicit app-code authorization (no RLS); reuse
@@ -111,4 +117,4 @@
 - **Verification:** these are app/server features — prefer the dnd vitest suites + driving the actual
   routes/pages; note any check that can't run headlessly.
 
-### Status: IN PROGRESS (Slices 0–5 shipped; 6 (QA) pending)
+### Status: COMPLETE (Slices 0–6 shipped; all six features wired, dnd suite 236 green)
