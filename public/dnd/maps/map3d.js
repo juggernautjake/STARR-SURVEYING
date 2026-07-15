@@ -206,8 +206,8 @@ const Map3D = {
     const size = Math.max(8, Math.round(2 * h.scale.x));
     if (h.scale.y !== h.scale.x || h.scale.z !== h.scale.x) h.scale.setScalar(h.scale.x);   // keep bodies uniform
     const patch = {
-      x: Math.round(h.position.x - h.scale.x),
-      y: Math.round(-h.position.y - h.scale.x),
+      x: Math.round(h.position.x),        // holder position IS the body centre = the 2D (x,y)
+      y: Math.round(-h.position.y),
       size,
       t3d: { rx: +h.rotation.x.toFixed(4), ry: +h.rotation.y.toFixed(4), rz: +h.rotation.z.toFixed(4) }
     };
@@ -620,7 +620,10 @@ const Map3D = {
       if (overlay && !this._isNative3D(it.kind)) continue;   // hybrid: 2D handles images/text/html/spingalaxy/etc.
       if (it.kind === 'text') { this._addText(it); minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x); maxY = Math.max(maxY, it.y); continue; }
       if (it.kind === 'html') { this._addHtml(it); minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x); maxY = Math.max(maxY, it.y); continue; }
-      const s = it.size || 60, cx = it.x + s / 2, cy = it.y + s / 2;
+      // The 2D `.inst` element is centred on (x,y) (translate(-50%,-50%)), so the body's CENTRE is
+      // (x,y) — NOT its top-left. Mirror that exactly here, or the 3D body lands half its size down-
+      // right of its 2D selection ring (visible in hybrid: the ring sits up-left of the planet).
+      const s = it.size || 60, cx = it.x, cy = it.y;
       // Every body lives in a holder whose transform IS its 2D transform: position = centre,
       // scale·2 = size, rotation = t3d. This lets one gizmo move/scale/rotate any body uniformly.
       // The 2D layer/z maps to a small depth offset so "bring to front / send to back" orders bodies
@@ -648,9 +651,9 @@ const Map3D = {
       if (it.opacity != null && it.opacity < 1) holder.traverse(o => { if (o.material && !o.material.uniforms) { o.material.transparent = true; o.material.opacity = it.opacity; } });   // fade parity
       g.add(holder);
       // The body's name label (below it), matching the 2D label layer — kinds text/html are their own label.
-      if (it.name && (!it.label || it.label.show !== false)) this._addText({ name: it.name, label: it.label, x: cx, y: it.y + s + 6 });
+      if (it.name && (!it.label || it.label.show !== false)) this._addText({ name: it.name, label: it.label, x: cx, y: it.y + s / 2 + 6 });
       this._bodies.push({ holder, it, disc, isStar: it.kind === 'star', kind: it.kind, cfg, canFull: !imgUrl && (it.kind === 'star' || !!cfg || genMesh), hasModel: false, model: null });
-      minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x + s); maxY = Math.max(maxY, it.y + s);
+      minX = Math.min(minX, it.x - s / 2); minY = Math.min(minY, it.y - s / 2); maxX = Math.max(maxX, it.x + s / 2); maxY = Math.max(maxY, it.y + s / 2);
     }
     // Framing needs the container's real pixel size, which is only correct once it's visible; store
     // the bounds and (re)frame from show(). Framing here while hidden gives a degenerate zoom.
