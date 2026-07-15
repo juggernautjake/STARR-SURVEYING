@@ -146,17 +146,22 @@ A **light** "rulebook" treatment, like `skin-streamer` is a light skin over the 
   13+DEX / 12+CON, returning the winning source), and `toughBonusHp` (2×level). Unit test
   `__tests__/dnd/rangor.test.ts` (5 tests) verifies the AC max-of formula (Jack → 14 "Natural Armor"),
   Tough HP, and the trait cards — all pass; tsc + eslint clean. Slice 3 composes these into `jack.ts`.
-- **Slice 3 — Pugilist class + Sweet Science + Jack data.** Build `data/jack.ts` (abilities, level 3,
-  saves/skills, Moxie resource pool, Fisticuffs unarmed attack with 19–20 crit, and all class/subclass
-  feature cards through the current level) + the Progression class table. Wire the `sheet_type` factory
-  + seed. Verify the sheet fully renders (abilities, AC, attacks, Moxie, features) and the character
-  loads from the API/seed.
-- **Slice 4 — Appearance + polish + QA.** Bio/appearance copy (rock-skinned lion-maned gargoyle-brute
-  Rangor; homeworld **Titan IX**, the moon-sized station shared with the Aetheron, their planet lost
-  aeons ago), reference art wired to art/token, and an end-to-end pass: create/open Jack, confirm the
-  rulebook style,
-  correct AC/HP/attacks/Moxie, and that other characters are visually untouched. Move this doc to
-  `completed/`.
+- **Slice 3 — Pugilist class + Sweet Science + Jack data.** ✅ `app/dnd/_sheet/data/jack.ts` exports
+  `jack(name)` = `blankCharacter` + overrides composed with the Rangor/Farmer trait data: level-3
+  statline (Str 17/Con 15/Dex 13/Int 6/Wis 11/Cha 10), Str/Con saves, Athletics/Intimidation +
+  Animal Handling/Nature skills, **AC 14** (best-of natural armor / Iron Chin) and **HP 34** (d10 +
+  CON + Tough), a **Moxie Points** pool + Unstoppable Force pips, the **Fisticuffs** unarmed strike
+  and the **backless park bench** improvised weapon (both 1d8, crit note 19–20), the full Pugilist +
+  Sweet Science feature cards (with locked previews) and the **L1–20 class table** (Fisticuffs/Moxie
+  columns), plus inventory (bench + Farmer gear) and full bio. Wired the `jack` `sheet_type` factory
+  into the character-create API. Unit test `__tests__/dnd/jack.test.ts` (8 tests) verifies statline,
+  AC/HP, saves/skills, Moxie, both attacks, the feature bundle + table, the `jack`→rulebook registry
+  wiring, and structural validity — all pass; tsc + eslint clean.
+  *(The DB seed moves to Slice 4 — it needs Jack's player/owner identity + the reference art.)*
+- **Slice 4 — Appearance, seed + QA.** Reference art wired to art/token; a DB seed placing Jack in a
+  campaign (owner + Neon Odyssey), mirroring the Donata seed; and an end-to-end pass: create/open Jack,
+  confirm the rulebook style, correct AC/HP/attacks/Moxie/features render, and that other characters
+  are visually untouched. Move this doc to `completed/`.
 
 ## 5. Considerations
 - **Scope isolation:** every visual change lives under `.dnd-sheet.skin-rulebook` and a new theme —
@@ -168,4 +173,4 @@ A **light** "rulebook" treatment, like `skin-streamer` is a light skin over the 
 - **AI/DM edits** keep working — Jack is a normal engine character, so `applyModelEdit` and realtime
   propagation apply unchanged.
 
-### Status: IN PROGRESS (Slices 0–2 shipped; 3–4 pending)
+### Status: IN PROGRESS (Slices 0–3 shipped; 4 pending — art + seed + QA)
