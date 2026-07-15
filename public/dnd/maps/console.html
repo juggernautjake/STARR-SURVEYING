@@ -45,6 +45,8 @@
   .sector-label{position:absolute;transform:translate(-50%,-50%);font-family:"Cinzel",serif;font-weight:600;letter-spacing:3px;text-transform:uppercase;pointer-events:none;text-align:center;white-space:nowrap;text-shadow:0 0 16px currentColor,0 2px 7px #000;}
   .body{position:absolute;transform:translate(-50%,-50%);cursor:pointer;}
   .body .art{width:100%;height:100%;pointer-events:none;position:relative;}
+  .body .artbg{position:absolute;inset:0;border-radius:50%;pointer-events:none;}   /* opaque backing so a solid body occludes the starfield */
+  .body .artwrap{position:relative;z-index:1;width:100%;height:100%;}
   .body .poilayer{position:absolute;inset:0;pointer-events:none;z-index:6;}
   .body .poi{position:absolute;transform:translate(-50%,-50%);filter:drop-shadow(0 1px 3px #000);pointer-events:auto;cursor:pointer;}
   .body .poi svg{display:block;}
@@ -524,7 +526,9 @@ function render(){
     else if(i.kind==="image"){const src=look.src,fit=i.imgFit||"contain",px=i.imgPosX!=null?i.imgPosX:50,py=i.imgPosY!=null?i.imgPosY:50;bodyHTML=src?`<img src="${src}" draggable="false" style="width:100%;height:100%;display:block;object-fit:${fit};object-position:${px}% ${py}%;pointer-events:none">`:(look.svgData?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">${look.svgData}</div>`:art(look,true));}
     else bodyHTML=art(look,true);
     const artStyle=i.kind==="image"?' style="overflow:hidden"':'';
-    el.innerHTML=`<div class="halo" style="background:radial-gradient(circle,${secColor}66,transparent 62%)"></div><div class="selring"></div><div class="art"${artStyle}>${fxOverlay(i.fx,look&&look.seed)}${bodyHTML}</div>${i.kind==="planet3d"?"":poiLayerHTML(i)}`;
+    const solid=["planet","planet3d","moon","station","debris","asteroid"].includes(i.kind);
+    const bg=solid?`<div class="artbg" style="background:${(look.c1||look.c3||"#0b1526")}"></div>`:"";
+    el.innerHTML=`<div class="halo" style="background:radial-gradient(circle,${secColor}66,transparent 62%)"></div><div class="selring"></div><div class="art"${artStyle}>${bg}<div class="artwrap">${fxOverlay(i.fx,look&&look.seed)}${bodyHTML}</div></div>${i.kind==="planet3d"?"":poiLayerHTML(i)}`;
     if(i.kind==="planet3d")el.dataset.p3=i.id;
     el.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});};
     el.querySelectorAll(".poi").forEach(p=>p.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});});
