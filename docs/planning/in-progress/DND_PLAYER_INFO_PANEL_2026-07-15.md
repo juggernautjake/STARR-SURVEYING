@@ -55,10 +55,13 @@ deck down to hide at the bottom; clicking the tab reopens it.
   **radar sweep** (`.idle-radar` with a rotating conic-gradient `.idle-sweep` + range rings). Verified
   headless: after selecting a body, an empty-space click clears the selection, shows `AWAITING INPUT` and
   mounts the radar sweep; 0 errors.
-- **Slice 6 — Minimize + spaceship-vibe polish.** A **minimize** control slides the whole deck down to a
-  thin tab at the bottom; clicking the tab slides it back up. Final styling pass for the spaceship vibe
-  (fonts, chrome, glow, transitions). Verify headless: minimize hides the deck to a tab and restore
-  brings it back.
+- **Slice 6 — Minimize + spaceship-vibe polish.** ✅ A `#deckMin` control (▾, rotates to ▲) toggles a
+  `.min` class on `#console` that height-collapses the deck to a thin ~30px tab (children hidden) with a
+  smooth transition, revealing more map; a centred `▲ SENSOR CONSOLE — CLICK TO OPEN` label shows while
+  minimized and clicking anywhere on the tab restores it. The deck already carries the spaceship vibe
+  (metal banks, status lamps, knobs, CRT), so this slice adds the collapse/restore on top. Verified
+  headless: minimizing collapses 246px → ~34px with the label shown, and clicking the tab restores it; 0
+  errors.
 - **Slice 7 — Interactive console controls (functional + flavour).** Populate the deck's side banks with
   clickable **buttons, dials, knobs and sliders** that make little **beeps/boops** and animate on use, a
   mix of real utility and pure flavour: a **zoom dial**, a **lighting** dial (nudges the scene/3D light),
@@ -80,4 +83,4 @@ deck down to hide at the bottom; clicking the tab reopens it.
   look broken when they're absent.
 - **Perf:** the holo mini-render is one small `art()`/thumbnail; the idle animation is CSS. Cheap.
 
-### Status: IN PROGRESS (Slices 0–5 shipped; 6–7 pending)
+### Status: IN PROGRESS (Slices 0–6 shipped; 7 pending)
