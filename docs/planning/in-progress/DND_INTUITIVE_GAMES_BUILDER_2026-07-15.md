@@ -68,11 +68,18 @@ are already stored.
   `__tests__/dnd/ig-content.test.ts` (5 tests: 10 stances w/ effects, powers by school + defensive powers,
   15 weapon types + movement/feats, `igIsVanilla` recognizes real / rejects invented, grounding lists them);
   full dnd suite (271) green.
-- **Slice 2 — Provenance model + classifier.** `lib/dnd/provenance.ts` — `Provenance` type, a
-  `classifyElement(system, kind, name)` (vanilla if in the library for that system, else custom),
-  `tagElement()`, and `summarizeCustomContent(character, system)` returning every element grouped by
-  source. Pure + fully unit-tested (a known stance → vanilla; an invented spell → custom; a dm-granted item
-  stays dm-granted).
+- **Slice 2 — Provenance model + classifier.** ✅ `lib/dnd/provenance.ts` — the `Provenance` type
+  (`vanilla`/`custom`/`dm-granted`), `classifyElement(system, kind, name)` (VANILLA when the name is in the
+  system's vanilla content, else CUSTOM; an **untracked** system/kind resolves to vanilla so it's never
+  falsely flagged — shared kinds ancestry/class/skill/condition come from the rules catalog for any system,
+  IG-specific kinds from the content library), `tagElement()` (DM-GRANTED when a granter is supplied, else
+  classified), `extractCharacterElements()` (pulls class/ancestry/subclass/weapons/features/spells/skills off
+  a sheet), and `summarizeProvenance()` / `summarizeCharacterProvenance()` returning every element grouped by
+  source plus the **blocking** set (custom, non-DM-granted — what a vanilla-only campaign rejects) and
+  `hasBlockingCustom`. Fully pure/deterministic. Verified: `tsc` clean, lint clean,
+  `__tests__/dnd/provenance.test.ts` (6 tests: real IG content → vanilla, invented → custom, untracked kinds
+  not falsely flagged, DM-granted tagging, grouping + blocking math, whole-character summary where a DM grant
+  moves a homebrew feature out of the blocking set); full dnd suite (277) green.
 - **Slice 3 — DB schema + types.** Seed migration adding to `dnd_characters`: `submission_status`
   (draft/submitted/approved/rejected, default draft), `dm_review_notes` text, `custom_content` jsonb (the
   flagged inventory), `dm_granted` jsonb (DM-granted items); to `dnd_campaigns`: `allow_custom` boolean
@@ -109,4 +116,4 @@ are already stored.
 - **Backward compatible:** new columns default so existing characters/campaigns keep working (status=draft,
   allow_custom=true).
 
-### Status: IN PROGRESS (Slices 0–1 shipped; 2–8 pending)
+### Status: IN PROGRESS (Slices 0–2 shipped; 3–8 pending)
