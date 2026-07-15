@@ -11,7 +11,7 @@ import styles from './hextech.module.css'
 
 const SOURCE_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.json,image/png,image/jpeg,image/webp'
 
-export default function NewCharacterForm({ campaignId }: { campaignId: string }) {
+export default function NewCharacterForm({ campaignId = '' }: { campaignId?: string }) {
   const router = useRouter()
   const [name, setName] = useState('')
   const [notes, setNotes] = useState('')
@@ -29,7 +29,7 @@ export default function NewCharacterForm({ campaignId }: { campaignId: string })
     setErr(null)
     try {
       const fd = new FormData()
-      fd.append('campaignId', campaignId)
+      if (campaignId) fd.append('campaignId', campaignId) // empty → a personal (no-campaign) character
       fd.append('name', name.trim())
       fd.append('notes', notes)
       fd.append('styleNotes', style)
@@ -75,6 +75,11 @@ export default function NewCharacterForm({ campaignId }: { campaignId: string })
             <p className={styles.brand}>New Character</p>
             <h1 className={styles.title} style={{ textAlign: 'left' }}>Import Your Character</h1>
             <p className={styles.subtitle} style={{ textAlign: 'left' }}>Upload what you built elsewhere (D&D Beyond PDF, sheets, screenshots) + notes. The AI builds your sheet; anything it can&apos;t map is saved for reference. Your character starts on the generic sheet, flagged <em>under construction</em>.</p>
+            {!campaignId && (
+              <p style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--hx-muted)' }}>
+                This will be a <strong>personal character</strong> — no campaign required. You can build it fully now and add it to a campaign later.
+              </p>
+            )}
           </div>
 
           <section className={styles.framedPanel} style={{ display: 'grid', gap: 14 }}>

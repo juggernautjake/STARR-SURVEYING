@@ -28,20 +28,23 @@ export async function POST(req: NextRequest) {
     const name = String(form.get('name') ?? '').trim();
     const notes = String(form.get('notes') ?? '').trim();
     const styleNotes = String(form.get('styleNotes') ?? '').trim();
-    if (!campaignId) return NextResponse.json({ error: 'campaignId is required.' }, { status: 400 });
     if (!name) return NextResponse.json({ error: 'A character name is required.' }, { status: 400 });
-    if ((await getCampaignRole(campaignId)) === null) return NextResponse.json({ error: 'Not a member of this campaign.' }, { status: 403 });
+    // A campaign is OPTIONAL: with one you must be a member (it lands in that campaign); without one the
+    // character is a private, personal sheet owned by the caller that they can build fully on its own and
+    // attach to a campaign later.
+    const hasCampaign = !!campaignId;
+    if (hasCampaign && (await getCampaignRole(campaignId)) === null) return NextResponse.json({ error: 'Not a member of this campaign.' }, { status: 403 });
 
     // 1. Create the under-construction character (generic blank sheet, owned by caller).
     const { data: created, error: cErr } = await supabaseAdmin
       .from('dnd_characters')
       .insert({
-        campaign_id: campaignId,
+        campaign_id: hasCampaign ? campaignId : null,
         owner_user_id: session.userId,
         name,
         sheet_type: 'generic',
         data: blankCharacter(name),
-        visibility: 'campaign',
+        visibility: hasCampaign ? 'campaign' : 'private',
         under_construction: true,
         style_notes: styleNotes || null,
       })
@@ -51,13 +54,15 @@ export async function POST(req: NextRequest) {
     const characterId = created.id as string;
 
     // Roster link for the multi-campaign model (Phase S). The player automatically owns
-    // the character they just made; this places it in the campaign they built it for.
-    try {
-      await supabaseAdmin
-        .from('dnd_campaign_characters')
-        .upsert({ campaign_id: campaignId, character_id: characterId, added_by: session.userId }, { onConflict: 'campaign_id,character_id', ignoreDuplicates: true });
-    } catch {
-      /* join table not present yet */
+    // the character they just made; this places it in the campaign they built it for (if any).
+    if (hasCampaign) {
+      try {
+        await supabaseAdmin
+          .from('dnd_campaign_characters')
+          .upsert({ campaign_id: campaignId, character_id: characterId, added_by: session.userId }, { onConflict: 'campaign_id,character_id', ignoreDuplicates: true });
+      } catch {
+        /* join table not present yet */
+      }
     }
 
     await ensureStorageBucket(BUCKET, { public: true });

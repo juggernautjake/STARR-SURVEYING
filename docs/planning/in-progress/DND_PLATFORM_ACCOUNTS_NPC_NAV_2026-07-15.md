@@ -65,13 +65,18 @@
   sign-in `router.refresh()` in `HubSignIn` was left as-is — it re-runs the server layout which reads the
   freshly-set cookie; the Secure-flag drop is the higher-confidence root cause and needs the live
   deployment to confirm.)*
-- **Slice 3 — Campaign-free character creation.** Allow creating + fully building a character with **no
-  campaign**: relax `POST /api/dnd/characters/import` (and `/characters`) to accept a null/absent
-  `campaignId` — owned by the caller, `visibility` private (or public), no membership check on that path;
-  update `characters/new/page.tsx` + `NewCharacterForm.tsx` to offer "No campaign (personal)" and not
-  force the demo fallback. Confirm `getCharacterAccess` lets the owner read/write a campaign-less sheet
-  and the sheet editor (`app/dnd/characters/[id]`) works. Verify: a member-less user can create and open a
-  fully-editable sheet.
+- **Slice 3 — Campaign-free character creation.** ✅ `POST /api/dnd/characters/import` no longer requires
+  a campaign: `campaignId` is optional — with one you must be a member (character lands there,
+  `visibility:'campaign'`, roster-linked); without one the character is **personal** (`campaign_id:null`,
+  `visibility:'private'`, owned by the caller, no membership check, no roster upsert). `characters/new/
+  page.tsx` now passes an empty `campaignId` (personal) unless the caller is a member of a requested
+  campaign — no more forced demo fallback — and `NewCharacterForm` omits an empty `campaignId` and shows a
+  "personal character — no campaign required, add to a campaign later" note. Confirmed via
+  `getCharacterAccess`: a campaign-less character resolves to `[]` campaigns, so the **owner gets
+  `canWrite`/`canRead`** and can fully build the sheet at `app/dnd/characters/[id]`. Verified: `tsc` clean,
+  lint clean, full dnd vitest suite green (27 files / 186 tests). *(The DM-only `POST /api/dnd/characters`
+  stays campaign-scoped by design — it's the DM's in-campaign create/NPC tool; personal creation is the
+  import path.)*
 - **Slice 4 — Add a character to the demo campaign.** A path for any signed-in user to attach a character
   (new or campaign-free) to the open-access demo: an API (e.g. `POST /api/dnd/campaigns/[id]/join-character`
   restricted to open-access campaigns) that upserts `dnd_campaign_members` (player) + `dnd_campaign_characters`
@@ -97,4 +102,4 @@
 - **Verification:** these are app/server features — prefer the dnd vitest suites + driving the actual
   routes/pages; note any check that can't run headlessly.
 
-### Status: IN PROGRESS (Slices 0–2 shipped; 3–6 pending)
+### Status: IN PROGRESS (Slices 0–3 shipped; 4–6 pending)
