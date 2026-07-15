@@ -285,3 +285,76 @@ export function buildStarModel(config, opts) {
     dispose() { dis.forEach(o => { try { o.dispose(); } catch (e) { /* noop */ } }); }
   };
 }
+
+// ---------- space station: a hub + a rotating habitat ring (lit windows) + solar-panel arrays + a
+// comms mast. Reads unmistakably as a station both top-down and tilted. Returns { group, update, dispose }.
+export function buildStationModel(config, opts) {
+  opts = opts || {}; const cfg = config || {}, R = opts.radius || 1;
+  const core = new THREE.Group(), dis = [];
+  const metal = new THREE.MeshStandardMaterial({ color: new THREE.Color(cfg.c1 || '#b9c4d4'), metalness: 0.82, roughness: 0.34 });
+  const dark = new THREE.MeshStandardMaterial({ color: new THREE.Color(cfg.c2 || '#33405c'), metalness: 0.5, roughness: 0.5 });
+  const panel = new THREE.MeshStandardMaterial({ color: 0x16386e, metalness: 0.3, roughness: 0.4, emissive: new THREE.Color(0x0a1c44), emissiveIntensity: 0.5 });
+  const lit = new THREE.MeshBasicMaterial({ color: new THREE.Color(cfg.c3 || '#ffe08a') });   // window / beacon glow
+  dis.push(metal, dark, panel, lit);
+  const add = (geo, mat, x, y, z, rx, ry, rz) => { const m = new THREE.Mesh(geo, mat); m.position.set(x || 0, y || 0, z || 0); if (rx || ry || rz) m.rotation.set(rx || 0, ry || 0, rz || 0); core.add(m); dis.push(geo); return m; };
+  // central hub — a short spindle + node sphere
+  add(new THREE.CylinderGeometry(R * 0.16, R * 0.16, R * 0.6, 18), metal, 0, 0, 0, Math.PI / 2, 0, 0);
+  add(new THREE.SphereGeometry(R * 0.2, 22, 16), metal, 0, 0, 0);
+  add(new THREE.SphereGeometry(R * 0.1, 14, 10), lit, 0, 0, R * 0.3);   // docking beacon on the hub cap
+  // rotating habitat ring (xy-plane) with spokes and lit windows
+  const ring = new THREE.Group();
+  const torus = new THREE.Mesh(new THREE.TorusGeometry(R * 0.64, R * 0.1, 16, 44), metal); ring.add(torus); dis.push(torus.geometry);
+  for (let i = 0; i < 20; i++) { const a = i / 20 * Math.PI * 2; const w = new THREE.Mesh(new THREE.BoxGeometry(R * 0.06, R * 0.035, R * 0.05), lit); w.position.set(Math.cos(a) * R * 0.64, Math.sin(a) * R * 0.64, R * 0.1); ring.add(w); dis.push(w.geometry); }
+  for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2; const sp = new THREE.Mesh(new THREE.BoxGeometry(R * 0.64, R * 0.05, R * 0.05), metal); sp.position.set(Math.cos(a) * R * 0.32, Math.sin(a) * R * 0.32, 0); sp.rotation.z = a; ring.add(sp); dis.push(sp.geometry); }
+  core.add(ring);
+  // solar-panel wings on booms along ±x
+  for (const s of [-1, 1]) {
+    add(new THREE.CylinderGeometry(R * 0.022, R * 0.022, R * 0.5, 8), metal, s * R * 0.98, 0, 0, 0, 0, Math.PI / 2);
+    add(new THREE.BoxGeometry(R * 0.5, R * 0.92, R * 0.02), panel, s * R * 1.38, 0, 0);
+    add(new THREE.BoxGeometry(R * 0.52, R * 0.05, R * 0.03), dark, s * R * 1.38, 0, R * 0.015);   // panel spar
+    add(new THREE.BoxGeometry(R * 0.02, R * 0.92, R * 0.03), dark, s * R * 1.38, 0, R * 0.015);
+  }
+  // comms mast + beacon (sticks toward the camera in top-down)
+  add(new THREE.CylinderGeometry(R * 0.016, R * 0.016, R * 0.6, 8), metal, 0, 0, R * 0.42, Math.PI / 2, 0, 0);
+  add(new THREE.SphereGeometry(R * 0.07, 12, 10), lit, 0, 0, R * 0.74);
+  const spin = cfg.spin != null ? cfg.spin : 1; let t = 0;
+  return {
+    group: core,
+    update(dt) { t += dt; ring.rotation.z += 0.45 * spin * dt; core.rotation.z += 0.03 * spin * dt; },   // habitat ring spins; whole station drifts slowly
+    dispose() { dis.forEach(o => { try { o.dispose(); } catch (e) { /* noop */ } }); }
+  };
+}
+
+// ---------- asteroid / debris: an irregular, faceted rock (seeded vertex displacement) that tumbles.
+// Clearly a lumpy rock, not a sphere. Returns { group, update, dispose }.
+export function buildAsteroidModel(config, opts) {
+  opts = opts || {}; const cfg = config || {}, R = opts.radius || 1;
+  const core = new THREE.Group(), dis = [];
+  const seed = (cfg.seed || 1) >>> 0;
+  const hash = (x, y, z) => { const n = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719 + seed * 0.123) * 43758.5453; return n - Math.floor(n); };
+  const geo = new THREE.IcosahedronGeometry(R * 0.92, 3);
+  const pos = geo.attributes.position, v = new THREE.Vector3(), n = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i); n.copy(v).normalize();
+    const lump = 0.66 + 0.42 * hash(Math.round(n.x * 3), Math.round(n.y * 3), Math.round(n.z * 3)) + 0.16 * hash(n.x * 8, n.y * 8, n.z * 8);
+    const crater = hash(n.x * 5 + 2, n.y * 5 + 2, n.z * 5 + 2) > 0.86 ? 0.78 : 1;   // occasional dents
+    v.copy(n).multiplyScalar(R * 0.92 * Math.max(0.5, Math.min(1.18, lump)) * crater);
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
+  geo.computeVertexNormals();
+  const base = new THREE.Color(cfg.c1 || '#7c736a');
+  const mat = new THREE.MeshStandardMaterial({ color: base, roughness: 0.96, metalness: 0.04, flatShading: true });
+  const rock = new THREE.Mesh(geo, mat); core.add(rock); dis.push(geo, mat);
+  // a couple of tiny companion rocks so it reads as a debris body
+  for (let k = 0; k < 2; k++) {
+    const g2 = new THREE.IcosahedronGeometry(R * (0.12 + hash(k, k, k) * 0.08), 1);
+    const m2 = new THREE.Mesh(g2, mat); const a = hash(k + 3, k + 5, k + 7) * 6.283, rr = R * (1.05 + hash(k + 1, k + 2, k + 4) * 0.25);
+    m2.position.set(Math.cos(a) * rr, Math.sin(a) * rr, (hash(k, k + 9, k) - 0.5) * R * 0.5); core.add(m2); dis.push(g2);
+  }
+  const tx = (hash(1, 2, 3) - 0.5) * 0.7, ty = (hash(4, 5, 6) - 0.5) * 0.7, tz = (hash(7, 8, 9) - 0.5) * 0.5;
+  return {
+    group: core,
+    update(dt) { rock.rotation.x += tx * dt; rock.rotation.y += ty * dt; core.rotation.z += tz * dt; },   // slow tumble
+    dispose() { dis.forEach(o => { try { o.dispose(); } catch (e) { /* noop */ } }); }
+  };
+}
