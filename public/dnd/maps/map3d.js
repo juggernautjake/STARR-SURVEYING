@@ -13,7 +13,7 @@
    Coordinate mapping: 2D world (x, y) with y pointing DOWN → 3D (x, -y, 0) so
    the scene reads identically to the 2D map but gains real depth/rotation.
    ============================================================================ */
-let THREE = null, OrbitControls = null, TransformControls = null, CSS3DRenderer = null, CSS3DObject = null, buildPlanetModel = null, buildStarModel = null, planetDominantColor = null, planetImpostorCanvas = null;
+let THREE = null, OrbitControls = null, TransformControls = null, CSS3DRenderer = null, CSS3DObject = null, buildPlanetModel = null, buildStarModel = null, buildStationModel = null, buildAsteroidModel = null, planetDominantColor = null, planetImpostorCanvas = null;
 
 async function loadThree() {
   if (THREE) return;
@@ -21,7 +21,7 @@ async function loadThree() {
   ({ OrbitControls } = await import('three/addons/controls/OrbitControls.js'));
   ({ TransformControls } = await import('three/addons/controls/TransformControls.js'));
   ({ CSS3DRenderer, CSS3DObject } = await import('three/addons/renderers/CSS3DRenderer.js'));
-  ({ buildPlanetModel, buildStarModel, planetDominantColor, planetImpostorCanvas } = await import('/dnd/maps/planet3d-model.js'));
+  ({ buildPlanetModel, buildStarModel, buildStationModel, buildAsteroidModel, planetDominantColor, planetImpostorCanvas } = await import('/dnd/maps/planet3d-model.js'));
 }
 
 const NAVY = 0x010a13;
@@ -687,19 +687,7 @@ const Map3D = {
     const t = valid.includes(L.ptype) ? L.ptype : (L.ptype === 'rock' ? 'barren' : 'terran');
     return { type: t, seed: L.seed || 1, sea: t === 'gas' ? 0.5 : 0.52, cscale: 2.2, coast: 0.5, ice: t === 'ice' ? 0.5 : 0.15, spin: 1, ring: !!L.ring, atmoOn: L.atmo !== false && ['terran', 'ocean', 'toxic', 'gas', 'jungle'].includes(t), atmoColor: L.atmoColor || undefined };
   },
-  // A ring station: torus + hub + spokes + a blinking beacon, in the station's metal palette.
-  _stationModel(it) {
-    const L = it.look || it, grp = new THREE.Group(), dis = [];
-    const c1 = new THREE.Color(L.c1 || '#b8c0d0'), c2 = new THREE.Color(L.c2 || '#5a6a8a'), c3 = new THREE.Color(L.c3 || '#ffd86b');
-    const rg = new THREE.TorusGeometry(0.82, 0.13, 14, 40), rm = new THREE.MeshStandardMaterial({ color: c1, metalness: 0.75, roughness: 0.4 });
-    grp.add(new THREE.Mesh(rg, rm)); dis.push(rg, rm);
-    const hg = new THREE.CylinderGeometry(0.17, 0.17, 0.66, 16), hm = new THREE.MeshStandardMaterial({ color: c2, metalness: 0.85, roughness: 0.32 });
-    const hub = new THREE.Mesh(hg, hm); hub.rotation.x = Math.PI / 2; grp.add(hub); dis.push(hg, hm);
-    for (let i = 0; i < 4; i++) { const sg = new THREE.BoxGeometry(0.66, 0.05, 0.05), sm = new THREE.MeshStandardMaterial({ color: c2, metalness: 0.7, roughness: 0.45 }); const s = new THREE.Mesh(sg, sm); s.rotation.z = i * Math.PI / 2; grp.add(s); dis.push(sg, sm); }
-    const bg = new THREE.SphereGeometry(0.08, 10, 10), bm = new THREE.MeshBasicMaterial({ color: c3 }); const beacon = new THREE.Mesh(bg, bm); beacon.position.set(0, 0, 0.42); grp.add(beacon); dis.push(bg, bm);
-    return { group: grp, update: (dt) => { grp.rotation.z += dt * 0.3; bm.opacity = 0.6 + 0.4 * (0.5 + 0.5 * Math.sin(performance.now() / 300)); bm.transparent = true; }, dispose: () => dis.forEach(d => d.dispose && d.dispose()) };
-  },
-  // Asteroid / debris: a cluster of flat-shaded rocky chunks tumbling slowly (one chunk for an asteroid).
+  // Debris field: a cluster of flat-shaded rocky chunks tumbling slowly (distinct from a single asteroid).
   _debrisModel(it) {
     const L = it.look || it, grp = new THREE.Group(), dis = [];
     const base = new THREE.Color(L.c1 || '#8a8a9a'), dark = new THREE.Color(L.c2 || '#5a5a62');
@@ -719,9 +707,10 @@ const Map3D = {
   _promote(b, aniso) {
     try {
       const model = b.isStar ? buildStarModel(b.it.look || {}, { anisotropy: aniso })
-        : b.kind === 'station' ? this._stationModel(b.it)
-          : (b.kind === 'debris' || b.kind === 'asteroid') ? this._debrisModel(b.it)
-            : buildPlanetModel(b.cfg, { anisotropy: aniso, segments: 64 });
+        : b.kind === 'station' ? buildStationModel(b.it.look || {}, { anisotropy: aniso })
+          : b.kind === 'asteroid' ? buildAsteroidModel(b.it.look || {}, { anisotropy: aniso })
+            : b.kind === 'debris' ? this._debrisModel(b.it)
+              : buildPlanetModel(b.cfg, { anisotropy: aniso, segments: 64 });
       if (b.disc) b.holder.remove(b.disc);
       if (b.it.opacity != null && b.it.opacity < 1) model.group.traverse(o => { if (o.material && !o.material.uniforms) { o.material.transparent = true; o.material.opacity = b.it.opacity; } });
       b.holder.add(model.group); b.model = model; b.hasModel = true; this._planets.push({ model });
