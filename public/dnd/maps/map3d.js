@@ -270,6 +270,10 @@ const Map3D = {
 
     if ((cfg.glow && cfg.glow.on) || tpl === 'glow') this._buildGlow(cfg);
 
+    // A deep, expansive filler bed of tiny generic stars behind the parallax layers on the
+    // star-field backgrounds, so those look vast — big enough you can't pan/zoom to its edge.
+    if (tpl === 'deepspace' || tpl === 'stars' || tpl === 'nebula') this._addFillerStars(cfg, rng, density);
+
     if (tpl === 'solid' || tpl === 'glow') { /* colour / glow only — no stars */ }
     else if (tpl === 'spiral') this._buildSpiral(cfg, rng, density);
     else if (tpl === 'blackhole') this._buildBlackhole(cfg, rng, density, layers);
@@ -278,6 +282,17 @@ const Map3D = {
 
     const showNeb = tpl !== 'solid' && tpl !== 'glow' && (cfg.nebula || tpl === 'nebula');
     if (showNeb) this._buildNebulaClouds(cfg, rng, tpl === 'nebula' ? 8 : 4, tpl === 'nebula');
+  },
+
+  // The expansive filler bed: many tiny, dim, generic stars pinned to the camera (k=1) so they always
+  // fill the viewport — a never-ending backdrop behind the parallax layers.
+  _addFillerStars(cfg, rng, density) {
+    this._addStarLayer({
+      rng, count: Math.min(6000, Math.round(3400 * (density != null ? density : 1))), z: -3600, k: 1.0, jitterZ: 160,
+      sizeMin: 0.6, sizeMax: 1.25, glowFrac: 0.004,
+      colorFn: (r) => { const w = 0.55 + r() * 0.32; return [w * 0.9, w * 0.95, w]; },
+      posFn: (r) => [(r() - 0.5) * 26000, (r() - 0.5) * 26000]
+    });
   },
 
   // Plain multi-depth starfield (deepspace / stars / the star bed under a nebula).

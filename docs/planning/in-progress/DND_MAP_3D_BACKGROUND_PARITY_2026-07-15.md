@@ -54,6 +54,20 @@ The five requests, verbatim intent:
 15. **Place bodies into sectors/systems.** Be able to place planets, stars, space stations, other
     locations, and POIs **into** the sectors/systems (containment/association) — in both viewers.
 
+16. **Full feature equivalence.** The 2D and 3D viewers must offer **equivalent objects, actions,
+    effects, settings, and edit options** — no capability exists in one that's missing in the other.
+17. **Backgrounds as appealing, selectable options.** The background is **one selectable option** from:
+    solid colour, (expansive but finite) star field, glow, nebula, spiral galaxy, black hole, asteroid
+    field — each generated to look **genuinely appealing**, varying every regenerate. The expansive
+    star field must be **so big that panning/zooming in any direction never reaches its edge**, but need
+    not be literally infinite. Propose and add any other backgrounds that would be good (e.g. a bright
+    Milky-Way band, twin suns, a wormhole, an aurora/ion-storm veil).
+
+18. **Cursor-centred zoom + right-click Focus + surface POIs (3D).** Zooming in/out must feel good and
+    **zoom toward the cursor**. **Right-clicking** a location/planet/POI shows a **Focus** action that
+    flies the camera to that body, centres it, opens its **info window**, and reveals its **surface
+    points of interest** — handling **surface-level POIs in 3D just like 2D**.
+
 **Cross-cutting principle:** everything above — backgrounds, effects, bodies, images, text/HTML,
 sectors, systems, POIs — must be **creatable, editable, and dynamically rendered in BOTH the 2D and
 3D viewers**, staying in lockstep as the DM edits and publishing identically to players.
@@ -225,12 +239,14 @@ other, and keep every element consistent:
   px-per-unit; `Map3D._syncFromView()` centres/zooms the 3D camera to match on show, `_syncToView()`
   writes it back on hide. Verified headless: spiral backdrop paints (61% lit px); 2D view (300,-150,
   0.8) → 3D target (300,150), zoom exact; 0 errors.
-- **Slice 8 — Expansive unending filler starfield (req 12).** ⏳ Add a deep, view-filling bed of tiny
-  generic filler stars in the 3D sky *behind* the parallax layers, that always fills the viewport as
-  you pan/zoom (tile/wrap around the camera target or use a very large low-density field that recentres
-  on the camera). Distinct from the parallax layers (those stay); this is the "unending generic filler."
-  Density scales with `bg3d.density`. Mirror it in the 2D `sky2d.js` backdrop. Verify headless: pan far
-  → stars still fill the view; 0 errors.
+- **Slice 8 — Expansive filler starfield (reqs 12, 17-refine).** ✅ `_addFillerStars` adds a deep bed
+  of tiny dim generic stars behind the parallax layers on the **star-field backgrounds** (deepspace /
+  stars / nebula only — it's a property of those options, not forced on every template). It stays
+  camera-adjacent so panning/zooming never reaches an edge (feels vast but is a finite set); density
+  scales with `bg3d.density`; mirrored in `sky2d.js` `_paintFiller`. Verified headless: filler present
+  on star templates and fills the view after a 9000-unit pan; 2D backdrop covered; 0 errors.
+  *Refinement (req 17): the starfield is one background option among solid / glow / nebula / spiral /
+  black hole / asteroids — Slice 9b polishes the visual appeal of all of them.*
 - **Slice 9 — 2D animations & effects live in the 3D viewer (reqs 11, 13).** ⏳ Render the animated 2D
   content in 3D so the builder shows everything moving: spingalaxy (diffspin) discs, sprite-spun
   planets, and per-body fx overlays (sparkle/nebula/shoot) as live textures on their holders (draw the
@@ -250,12 +266,26 @@ other, and keep every element consistent:
   `sectorAt`/`reassoc` containment via the gizmo write-back and any 3D placement path), matching 2D
   behaviour; keep the association live and published. Verify headless: a body dropped inside a sector
   gets that sector id in both viewers; 0 errors.
-- **Slice 12 — Doc to completed + ship log + QA.** Move this file to `docs/planning/completed/` with a
-  build log once Slices 8–11 land and the whole flow is verified end-to-end (Studio DM edit → live 3D +
+- **Slice 9b — Appealing background generation (req 17).** ⏳ Polish every template's look and add a
+  couple of new selectable backgrounds (e.g. Milky-Way band, twin suns, wormhole, aurora veil); ensure
+  each varies attractively per regenerate. Verify headless: all templates build; 0 errors.
+- **Slice 11b — Cursor-centred zoom + Focus + surface POIs in 3D (req 18).** ⏳ Make wheel-zoom dolly
+  toward the cursor (OrbitControls `zoomToCursor=true` or manual re-centre). Add a right-click context
+  menu on a picked body with **Focus** → animate the camera to centre + frame that body, open its info
+  window (reuse the 2D inspector/POI-viewer), and render its **surface POIs** as pickable markers on
+  the 3D body (map POI `ax/ay` → sphere lon/lat), matching 2D. Verify headless: Focus centres a body
+  and its surface POIs are pickable; 0 errors.
+- **Slice 12 — Feature-equivalence audit (req 16).** ⏳ Enumerate every object kind, action, effect,
+  setting, and edit option in the 2D Studio inspector/toolbar and confirm each has an equivalent path
+  when the 3D viewer is active (or is reachable through the shared inspector while 3D is shown); close
+  any gaps. Produce a short parity table in this doc (2D capability → 3D equivalent) and fix the top
+  missing ones. Verify headless.
+- **Slice 13 — Doc to completed + ship log + QA.** Move this file to `docs/planning/completed/` with a
+  build log once Slices 8–12 land and the whole flow is verified end-to-end (Studio DM edit → live 3D +
   2D parity → publish → player Console parity), including origin/scale alignment, animated content,
-  sectors/systems in both viewers, and body-into-sector placement.
+  sectors/systems in both viewers, body-into-sector placement, and full feature equivalence.
 
-### Status: IN PROGRESS (Slices 0–7 shipped; 8–11 pending, then 12 = doc-move/QA)
+### Status: IN PROGRESS (Slices 0–8 shipped; 9, 9b, 10, 11, 11b, 12 pending, then 13 = doc-move/QA)
 
 ---
 
@@ -275,5 +305,8 @@ other, and keep every element consistent:
 - **Slice 6b — Textured impostors** ✅ `planetImpostorCanvas()`; real surface on the far/small disc.
 - **Slice 7 — 2D parity backdrop + origin/scale sync** ✅ `sky2d.js` `#skyCanvas` in Studio + Console;
   `map2dView`/`setMap2dView` + `_syncFromView`/`_syncToView` so 2D and 3D share centre + scale exactly.
-- **Slices 8–9** ⏳ pending — expansive filler starfield; 2D animations + image effects (spiral, edge
-  fade) live in the 3D viewer. Then **Slice 10** — doc → completed + QA.
+- **Slice 8 — Expansive filler starfield** ✅ Pinned (k=1) tiny-star bed in 3D + `sky2d.js` mirror;
+  recentres to the camera so it never ends.
+- **Slices 9–12** ⏳ pending — 2D animations + image effects (spiral, edge fade) live in 3D;
+  sectors/systems in 3D; body-into-sector placement; feature-equivalence audit. Then **Slice 13** —
+  doc → completed + QA.

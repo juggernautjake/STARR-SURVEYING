@@ -55,6 +55,7 @@
       const tpl = cfg.template || 'deepspace', density = cfg.density != null ? cfg.density : 1;
       this._glimmers = [];
       c.globalCompositeOperation = 'lighter';
+      if (tpl === 'deepspace' || tpl === 'stars' || tpl === 'nebula') this._paintFiller(c, W, H, r, density);   // expansive tiny filler bed on star backgrounds
       if (tpl === 'solid' || tpl === 'glow') { /* nothing more */ }
       else if (tpl === 'spiral') this._paintSpiral(c, W, H, S, r, density);
       else if (tpl === 'blackhole') { this._paintStars(c, W, H, r, density * 0.5, 'deepspace'); this._paintBlackhole(c, W, H, S, r); }
@@ -73,6 +74,15 @@
       c.fillStyle = g; c.fillRect(0, 0, W, H); c.globalCompositeOperation = op;
     },
 
+    _paintFiller(c, W, H, r, density) {   // dense bed of tiny dim generic stars, always filling the view
+      const n = Math.min(5000, Math.round(W * H / 1500 * density));
+      for (let i = 0; i < n; i++) {
+        const w = 140 + (r() * 90 | 0);
+        c.globalAlpha = 0.25 + r() * 0.4; c.fillStyle = `rgb(${(w * 0.9) | 0},${(w * 0.95) | 0},${w})`;
+        c.beginPath(); c.arc(r() * W, r() * H, 0.4 + Math.pow(r(), 3) * 1.0, 0, 7); c.fill();
+      }
+      c.globalAlpha = 1;
+    },
     _paintStars(c, W, H, r, density, tpl) {
       const dense = tpl === 'stars' ? 1.9 : tpl === 'nebula' ? 0.6 : 1.0;
       const n = Math.min(4200, Math.round(W * H / 2600 * density * dense));
