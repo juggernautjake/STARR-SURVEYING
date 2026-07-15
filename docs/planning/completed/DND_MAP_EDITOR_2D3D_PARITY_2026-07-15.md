@@ -233,8 +233,13 @@ gets 3D equivalents or stays a 2D-layer concern — lean: keep fx 2D-layer, docu
   flash keyframe + ice caps + 5 storm groups + `rotate(20.0 …)` tilt; 0 page errors. *(3D bodies already
   render through the shared `map3d.js`/`planet3d-model.js` in the console, so the 3D lightning/terrain/tilt
   from Slices 1/3/4 were already player-visible.)*
-- **Slice 7b — pending:** the final end-to-end QA sweep (edit each field, flip 2D⇄3D in the editor and the
-  viewer, confirm both change) and moving this doc to `completed/` — after Slice 6.
+- **Slice 7b — Final QA + doc → completed.** ✅ Consolidated end-to-end sweep (`qa-mapparity.mjs`), all
+  **10/10 checks green, 0 page errors**: (studio) 3D cfg keeps its defaults when a field is unset and reads
+  terrain/storm/lightning/tilt when set; 2D art shows storms+lightning+ice+tilt when set and stays clean
+  (backward compatible) when unset; the 3D model flashes lightning (4 sprites, peak opacity 1) and applies
+  the 22° tilt; (editor) opens 2D with the toggle, switching to 3D mounts a live canvas, editing while in 3D
+  is safe, switching back restores the 2D SVG; (console) the player viewer's 2D art shows the same
+  storms+lightning+ice and stays clean when unset. Doc moved to `completed/`.
 
 ## Considerations
 - **Backward compatible:** `normalizeLook` defaults every new field to today's implicit value, so existing
@@ -248,4 +253,6 @@ gets 3D equivalents or stays a 2D-layer concern — lean: keep fx 2D-layer, docu
 - **Reuse:** build on `art()`, `buildPlanetModel`, `_genericPlanetCfg`, `pushTo3D`, and the existing viewer
   toggle — don't fork them.
 
-### Status: IN PROGRESS (Slices 0–6 + 7a shipped; 7b — final QA + doc move — pending)
+### Status: COMPLETE — planet/moon/star/asteroid 2D⇄3D edit parity shipped (Slices 0–7); a small set of
+non-planet cosmetic sub-parameters (3D comet tail, station lights, galaxy spread/len in 3D, spingalaxy
+master/feather in 3D) explicitly deferred in Slice 6 with rationale. All 10/10 QA checks green.
