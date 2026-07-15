@@ -62,17 +62,18 @@ deck down to hide at the bottom; clicking the tab reopens it.
   (metal banks, status lamps, knobs, CRT), so this slice adds the collapse/restore on top. Verified
   headless: minimizing collapses 246px → ~34px with the label shown, and clicking the tab restores it; 0
   errors.
-- **Slice 7 — Interactive console controls (functional + flavour).** Populate the deck's side banks with
-  clickable **buttons, dials, knobs and sliders** that make little **beeps/boops** and animate on use, a
-  mix of real utility and pure flavour: a **zoom dial**, a **lighting** dial (nudges the scene/3D light),
-  **up/down/left/right pan buttons** + a **pan-rate slider**, and **screen-tint dials** that shift the
-  info-panel screens toward green/blue/red/amber. Plus ambient **blinking status lights** and **wiring**
-  detail for the spaceship vibe. Sounds are tiny WebAudio blips (respect a mute). Also a **signal-tuning
-  knob** that governs screen **distortion**: it has a **sweet spot** (perfect resolution) and the further
-  the knob is turned from it, the worse the distortion on the info-panel screens (scanline warp / chroma
-  shift / jitter, occasional flickers even near-perfect). Players can dial it in or out. Verify headless:
-  the functional controls change their target (zoom/tint/pan), the distortion scales with knob distance
-  from the sweet spot, and the flavour lights animate. Then move this doc to `completed/`.
+- **Slice 7 — Interactive console controls (functional + flavour).** ✅ Added a **HELM** bank with real,
+  clicky controls (all emitting tiny WebAudio **beeps**, respecting a mute): a **pan D-pad** (▲◀◈▶▼) that
+  pans the view scaled by a **THRUST** (pan-rate) slider, a **TINT** dial that steps the info-panel screen
+  hue through cyan→green→blue→amber→red (`--tint-hue`), a **TUNE** signal knob with a **sweet spot** at 50
+  where distortion is 0 and grows with distance (`--distort` drives scanline warp + jitter + contrast on
+  `.scr-inner`/`.screen`, with a faint always-on flicker even near-perfect), a **LIGHT** button that
+  nudges scene brightness (3D `setLightLevel` if present, else the 2D stage `brightness()`), and an
+  **SFX** mute toggle. The existing **zoom/gain dials** now beep too, and the deck's status **lamps**
+  already blink (COMMS) for ambient life. Verified headless: the D-pad pans (thrust-scaled), TINT changes
+  the hue var, TUNE distortion goes 0 at the sweet spot → 0.72 stepping away, and SFX toggles; 0 code
+  errors. *(Wiring/greeble is carried by the deck's existing metal-bank chrome; explicit SVG wiring was
+  left out as low-value polish.)* Doc moved to `completed/`.
 
 ## Considerations
 - **Player + DM parity:** the panel lives in the Console, which the DM also uses in Player mode, so both
@@ -83,4 +84,4 @@ deck down to hide at the bottom; clicking the tab reopens it.
   look broken when they're absent.
 - **Perf:** the holo mini-render is one small `art()`/thumbnail; the idle animation is CSS. Cheap.
 
-### Status: IN PROGRESS (Slices 0–6 shipped; 7 pending)
+### Status: COMPLETE (Slices 0–7 all shipped)
