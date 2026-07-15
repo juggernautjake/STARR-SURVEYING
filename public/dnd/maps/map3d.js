@@ -116,8 +116,9 @@ const Map3D = {
 
     // click-to-select (vs. drag-to-pan) + G/R/S to switch gizmo mode
     const el = renderer.domElement;
-    el.addEventListener('pointerdown', e => { this._downXY = [e.clientX, e.clientY]; });
+    el.addEventListener('pointerdown', e => { this._downXY = [e.clientX, e.clientY]; if (e.button === 2) this._rDownXY = [e.clientX, e.clientY]; this._hideCtxMenu(); });
     el.addEventListener('pointerup', e => this._onPointerUp(e));
+    el.addEventListener('contextmenu', e => this._onContextMenu(e));
     this._onKey = e => {
       if (!this._shown || !this.tcontrols) return;
       const k = e.key.toLowerCase();
@@ -136,15 +137,59 @@ const Map3D = {
     const moved = Math.hypot(e.clientX - this._downXY[0], e.clientY - this._downXY[1]);
     this._downXY = null;
     if (moved > 4 || (this.tcontrols && this.tcontrols.dragging)) return;   // that was a pan / gizmo drag, not a pick
-    const rect = this.renderer.domElement.getBoundingClientRect();
-    const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
-    this._ray.setFromCamera(ndc, this.camera);
-    const hits = this._ray.intersectObjects(this.bodyGroup.children, true);
-    if (hits.length) { let o = hits[0].object; while (o && o.userData.id === undefined && o.parent) o = o.parent; if (o && o.userData.id !== undefined) return this._select(o); }
+    const holder = this._pickHolder(e.clientX, e.clientY);
+    if (holder) return this._select(holder);
     this._deselect();
   },
   _select(holder) { this._selected = holder; if (this.tcontrols) this.tcontrols.attach(holder); if (window.map3dSelect) window.map3dSelect(holder.userData.id); },
   _deselect() { this._selected = null; if (this.tcontrols) this.tcontrols.detach(); if (window.map3dSelect) window.map3dSelect(null); },
+
+  // Raycast a client point to the body holder under it (or null).
+  _pickHolder(clientX, clientY) {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    this._ray.setFromCamera(ndc, this.camera);
+    const hits = this._ray.intersectObjects(this.bodyGroup.children, true);
+    if (hits.length) { let o = hits[0].object; while (o && o.userData.id === undefined && o.parent) o = o.parent; if (o && o.userData.id !== undefined) return o; }
+    return null;
+  },
+  // Right-click a body → a small "Focus" menu (a right-DRAG is an orbit, so only a click shows it).
+  _onContextMenu(e) {
+    e.preventDefault();
+    const moved = this._rDownXY ? Math.hypot(e.clientX - this._rDownXY[0], e.clientY - this._rDownXY[1]) : 0;
+    this._rDownXY = null;
+    if (moved > 5) return;                               // that was a rotate-drag, not a menu click
+    const holder = this._pickHolder(e.clientX, e.clientY);
+    if (!holder) { this._hideCtxMenu(); return; }
+    this._showCtxMenu(e.clientX, e.clientY, holder);
+  },
+  _ensureCtxMenu() {
+    if (this._ctxMenu) return this._ctxMenu;
+    const m = document.createElement('div');
+    m.style.cssText = 'position:absolute;z-index:6;display:none;min-width:130px;background:rgba(8,14,26,.96);border:1px solid #29406a;border-radius:7px;padding:4px;font:12px/1.4 system-ui,sans-serif;color:#cfe0ff;box-shadow:0 6px 20px rgba(0,0,0,.5)';
+    this.container.appendChild(m); this._ctxMenu = m;
+    document.addEventListener('pointerdown', ev => { if (this._ctxMenu && !this._ctxMenu.contains(ev.target)) this._hideCtxMenu(); });
+    return m;
+  },
+  _showCtxMenu(clientX, clientY, holder) {
+    const m = this._ensureCtxMenu();
+    const rect = this.container.getBoundingClientRect();
+    const item = (label, fn) => { const b = document.createElement('div'); b.textContent = label; b.style.cssText = 'padding:6px 10px;border-radius:5px;cursor:pointer'; b.onmouseenter = () => b.style.background = 'rgba(60,110,200,.28)'; b.onmouseleave = () => b.style.background = ''; b.onclick = () => { this._hideCtxMenu(); fn(); }; return b; };
+    m.innerHTML = '';
+    m.appendChild(item('⊙ Focus', () => this._focusBody(holder)));
+    m.appendChild(item('✕ Deselect', () => this._deselect()));
+    m.style.left = (clientX - rect.left) + 'px'; m.style.top = (clientY - rect.top) + 'px'; m.style.display = 'block';
+  },
+  _hideCtxMenu() { if (this._ctxMenu) this._ctxMenu.style.display = 'none'; },
+
+  // Fly the camera to centre + frame a body, and open its info window (selection drives the inspector /
+  // the Console's readout). The easing runs in the render loop via `_focusGoal`.
+  _focusBody(holder) {
+    if (!holder) return;
+    const r = Math.max(4, holder.scale.x || 40);
+    this._focusGoal = { x: holder.position.x, y: holder.position.y, zoom: Math.max(0.05, Math.min(40, 220 / r)) };
+    this._select(holder);   // opens the info window (inspector / CRT) + attaches the gizmo
+  },
 
   // Gizmo edit → 2D schema. Holder transform: position=body center, scale.x*2=size, rotation=t3d.
   _writeBack() {
@@ -883,6 +928,13 @@ const Map3D = {
       const now = t || performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
       for (const p of this._planets) p.model.update(dt, sun);   // live planets spin in real time
       for (const pl of (this._spinPlanes || [])) pl.rotation.z -= pl.userData.spin * Math.PI / 180 * dt;   // spinning images
+      if (this._focusGoal) {   // ease the camera toward a right-click Focus target (moves target+camera together → keeps tilt)
+        const g = this._focusGoal, t = this.controls.target, s = Math.min(1, dt * 5);
+        const dx = (g.x - t.x) * s, dy = (g.y - t.y) * s;
+        t.x += dx; t.y += dy; this.camera.position.x += dx; this.camera.position.y += dy;
+        this.camera.zoom += (g.zoom - this.camera.zoom) * s; this.camera.updateProjectionMatrix();
+        if (Math.hypot(g.x - t.x, g.y - t.y) < 1 && Math.abs(g.zoom - this.camera.zoom) < 0.02) this._focusGoal = null;
+      }
       this.controls.update();
       if (Math.abs(this.camera.zoom - (this._lodZoom || 0)) > (this._lodZoom || 1) * 0.04) this._applyLOD();   // re-LOD on zoom
       this._updateBackground(dt);                                // parallax stars, nebula drift, glow pulse
