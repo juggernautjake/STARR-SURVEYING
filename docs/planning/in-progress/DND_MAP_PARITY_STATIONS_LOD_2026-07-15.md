@@ -93,12 +93,17 @@
   headless: 3D lava 0→no emissive map, 0.4→emissive @1.29, 1→@2.1; 2D adds the blur filter + 12 crack
   cores at 0.8 and nothing at 0; 0 errors. *(planet3d-kind bodies use their own cfg3d editor; lava there
   is a later add — 2D planets/moons cover the surface-lava ask.)*
-- **Slice 6 — Planet city lights + density.** Add scattered **cities & city lights** to planets
-  (clusters of warm/cool night-side lights, brighter on the dark side), with a **density slider**:
-  lowest = a few lights here and there, highest = the planet is blanketed in city sprawl and lights.
-  Wire into 2D `art()`, 3D `buildPlanetModel` (night-side emissive lights map), and the impostor;
-  persist + editor slider. Verify headless, then run the full end-to-end pass across DM/player/2D/3D/
-  hybrid.
+- **Slice 6 — Planet city lights + density.** ✅ Scattered **city lights** on planets/moons via
+  `cfg.city` (0–1) + a `lightColor`. 3D: `genCity` now takes a density that scales the noise threshold +
+  probability + brightness (low → a few clusters, high → the land is blanketed); the existing additive
+  night-side shader masks them to the dark hemisphere. 2D `art()` (Studio **and** Console) scatters warm
+  light clusters (count scales with density) clipped to the disc over the terminator, with a soft glow
+  filter. A **City lights** slider + **Light colour** picker in the planet editor, persisted via
+  `snapshotLook` (`city`, `lightColor`) and passed to the 3D viewer through `_genericPlanetCfg`.
+  **Opt-in, not mandatory** (per the DM): both city lights *and* lava default to 0, so a planet shows
+  neither unless the DM dials it up — the old always-on night lights on city-friendly types are gone.
+  Verified headless: 3D lights only when `city>0`; 2D dots scale with density (197 @1.0, 21 @0.1, none
+  @0); terran with `city` unset has no lights; 0 errors.
 - **Slice 7 — Destroyed / cataclysm planets (2D + 3D, editable).** A **destroyed** planet mode with
   selectable variants, each with glowing molten breaks and a surrounding **debris field**:
   **split** (cloven in two halves pulling apart, debris between), **chunk** (a big bite blown out + debris),
@@ -117,4 +122,4 @@
   are cheap; the world-lock is a transform change, not extra draw calls.
 - **Backward compatible:** old maps (no `stype`, `parallax` defaulting true) render unchanged.
 
-### Status: IN PROGRESS (Slices 0–5 shipped; 6–7 pending)
+### Status: IN PROGRESS (Slices 0–6 shipped; 7 pending)

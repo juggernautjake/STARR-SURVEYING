@@ -43,7 +43,15 @@ deck down to hide at the bottom; clicking the tab reopens it.
 - **Slice 6 — Minimize + spaceship-vibe polish.** A **minimize** control slides the whole deck down to a
   thin tab at the bottom; clicking the tab slides it back up. Final styling pass for the spaceship vibe
   (fonts, chrome, glow, transitions). Verify headless: minimize hides the deck to a tab and restore
-  brings it back. Then move this doc to `completed/`.
+  brings it back.
+- **Slice 7 — Interactive console controls (functional + flavour).** Populate the deck's side banks with
+  clickable **buttons, dials, knobs and sliders** that make little **beeps/boops** and animate on use, a
+  mix of real utility and pure flavour: a **zoom dial**, a **lighting** dial (nudges the scene/3D light),
+  **up/down/left/right pan buttons** + a **pan-rate slider**, and **screen-tint dials** that shift the
+  info-panel screens toward green/blue/red/amber. Plus ambient **blinking status lights** and **wiring**
+  detail for the spaceship vibe. Sounds are tiny WebAudio blips (respect a mute). Verify headless: the
+  functional controls change their target (zoom/tint/pan), and the flavour lights animate. Then move this
+  doc to `completed/`.
 
 ## Considerations
 - **Player + DM parity:** the panel lives in the Console, which the DM also uses in Player mode, so both
@@ -54,4 +62,4 @@ deck down to hide at the bottom; clicking the tab reopens it.
   look broken when they're absent.
 - **Perf:** the holo mini-render is one small `art()`/thumbnail; the idle animation is CSS. Cheap.
 
-### Status: IN PROGRESS (Slice 0 shipped; 1–6 pending)
+### Status: IN PROGRESS (Slice 0 shipped; 1–7 pending)

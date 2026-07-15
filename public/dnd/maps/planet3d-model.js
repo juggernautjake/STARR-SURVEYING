@@ -124,7 +124,19 @@ function genPlanet(cfg, aniso) {
   sctx.putImageData(si, 0, 0);
   return { tex: texFromCanvas(cv, aniso), specTex: texFromCanvas(scv, aniso), land, W, H };
 }
-function genCity(land, W, H, seed, color, aniso) { const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d'); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); const n = makeNoise(seed + 7), [r, g, b] = hx(color); const img = ctx.getImageData(0, 0, W, H), d = img.data, rng = mulberry(seed + 3); for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x, idx = i * 4; if (land[i]) { const cl = fbm(n, x / W, y / H, 8, 4); if (cl > 0.72 && rng() < 0.5) { const br = 0.5 + rng() * 0.5; d[idx] = r * br; d[idx + 1] = g * br; d[idx + 2] = b * br; d[idx + 3] = 255; } } } ctx.putImageData(img, 0, 0); return texFromCanvas(cv, aniso); }
+// Night-side city lights. `density` (0–1) controls how much of the land glows: low → a few scattered
+// clusters (high noise threshold, low probability), high → the land is blanketed in bright sprawl.
+function genCity(land, W, H, seed, color, aniso, density) {
+  density = Math.max(0, Math.min(1, density == null ? 0.5 : density));
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d'); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  const n = makeNoise(seed + 7), [r, g, b] = hx(color), img = ctx.getImageData(0, 0, W, H), d = img.data, rng = mulberry(seed + 3);
+  const thresh = 0.82 - density * 0.44, prob = 0.22 + density * 0.74;   // few → blanketed
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x, idx = i * 4;
+    if (land[i]) { const cl = fbm(n, x / W, y / H, 8, 4); if (cl > thresh && rng() < prob) { const br = (0.45 + rng() * 0.5) * (0.7 + density * 0.5); d[idx] = Math.min(255, r * br); d[idx + 1] = Math.min(255, g * br); d[idx + 2] = Math.min(255, b * br); d[idx + 3] = 255; } }
+  }
+  ctx.putImageData(img, 0, 0); return texFromCanvas(cv, aniso);
+}
 // A glowing lava-crack emissive map: black everywhere except a branching vein network (min of two
 // warped noise ridges), painted deep-orange at the edges → bright yellow-white at the crack centre.
 // `cfg.lava` (0–1) widens the veins so higher intensity = a surface riven with molten rivers.
@@ -191,7 +203,8 @@ export function buildPlanetModel(config, opts) {
   // night-side city lights (additive, masked to the dark hemisphere in world space)
   let night = null;
   const T = TYPES[cfg.type] || TYPES.terran;
-  if (cfg.cityOn !== false && T.city > 0) {
+  const cityD = cfg.city != null ? Math.max(0, Math.min(1, +cfg.city)) : 0;   // opt-in: no city lights unless the DM dials them up
+  if (cfg.cityOn !== false && cityD > 0) {
     const nightMat = new THREE.MeshBasicMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
     nightMat.onBeforeCompile = sh => {
       sh.uniforms.sunDir = { value: new THREE.Vector3(1, 0, 0) };
@@ -199,7 +212,7 @@ export function buildPlanetModel(config, opts) {
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 sunDir;\nvarying vec3 vWN;').replace('#include <dithering_fragment>', '#include <dithering_fragment>\nfloat n=clamp(-dot(normalize(vWN),normalize(sunDir))*1.6+0.25,0.0,1.0);\ngl_FragColor.rgb*=n;gl_FragColor.a*=n;');
       nightMat.userData.shader = sh;
     };
-    nightMat.map = genCity(surf.land, surf.W, surf.H, cfg.seed, cfg.lightColor || '#ffd98a', aniso);
+    nightMat.map = genCity(surf.land, surf.W, surf.H, cfg.seed, cfg.lightColor || '#ffd98a', aniso, cityD);
     night = new THREE.Mesh(new THREE.SphereGeometry(R + 0.002, seg, seg), nightMat); core.add(night);
     disposables.push(night.geometry, nightMat, nightMat.map);
   }
