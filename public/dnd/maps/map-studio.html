@@ -1165,10 +1165,14 @@ function renderInstances(){
     if(i.kind==="spingalaxy"){el.innerHTML=`<div class="art" style="${fadeMask(i)}">${fxo}<canvas class="dscanvas" style="width:100%;height:100%;display:block;border-radius:50%"></canvas></div>${poiLayerHTML(i)}`;el.dataset.ds=i.id;}
     else if(i.kind==="planet3d"){el.innerHTML=`<div class="art">${bodyBacking(i)}<div class="artwrap">${fxo}<canvas class="p3canvas" style="width:100%;height:100%;display:block;border-radius:50%"></canvas></div></div>`;el.dataset.p3=i.id;}
     else if(i.kind==="image"){const L=i.look||i,src=L.src,fit=i.imgFit||"contain",px=i.imgPosX!=null?i.imgPosX:50,py=i.imgPosY!=null?i.imgPosY:50;
-      const inner=src?`<img src="${src}" draggable="false" style="width:100%;height:100%;display:block;object-fit:${fit};object-position:${px}% ${py}%;pointer-events:none">`:(L.svgData?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">${L.svgData}</div>`:art(L,true));
-      const spinS=i.imgSpin>0?`animation:spin ${(360/i.imgSpin).toFixed(1)}s linear infinite;transform-origin:center;`:"";
-      const spun=spinS?`<div style="width:100%;height:100%;${spinS}">${inner}</div>`:inner;   // spin the image, not the fade mask
-      el.innerHTML=`<div class="art" style="overflow:hidden;${fadeMask(i)}">${fxo}${spun}</div>${poiLayerHTML(i)}`;}
+      if(i.spiral&&i.spiral.on&&src){   // layered spiral: swirl the actual image via DiffSpinGalaxy rings
+        el.innerHTML=`<div class="art" style="overflow:hidden;${fadeMask(i)}">${fxo}<canvas class="spiralcanvas" style="width:100%;height:100%;display:block"></canvas></div>${poiLayerHTML(i)}`;el.dataset.spiral=i.id;
+      } else {
+        const inner=src?`<img src="${src}" draggable="false" style="width:100%;height:100%;display:block;object-fit:${fit};object-position:${px}% ${py}%;pointer-events:none">`:(L.svgData?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">${L.svgData}</div>`:art(L,true));
+        const spinS=i.imgSpin>0?`animation:spin ${(360/i.imgSpin).toFixed(1)}s linear infinite;transform-origin:center;`:"";
+        const spun=spinS?`<div style="width:100%;height:100%;${spinS}">${inner}</div>`:inner;   // spin the image, not the fade mask
+        el.innerHTML=`<div class="art" style="overflow:hidden;${fadeMask(i)}">${fxo}${spun}</div>${poiLayerHTML(i)}`;
+      }}
     else if(i.kind==="html"){const doc=(typeof htmlFrameSrcdoc==="function")?htmlFrameSrcdoc(i.html||""):esc(i.html||"");
       el.innerHTML=`<div class="art" style="overflow:hidden;background:rgba(11,26,44,.72);border:1px solid var(--line2);border-radius:8px"><iframe sandbox srcdoc="${esc(doc)}" style="width:100%;height:100%;border:0;display:block;pointer-events:none;background:transparent"></iframe></div>`;}
     else{el.innerHTML=`<div class="art">${bodyBacking(i)}<div class="artwrap">${fxo}${art(i.look||i,true)}</div></div>${poiLayerHTML(i)}`;}
@@ -1186,7 +1190,7 @@ function renderInstances(){
     });
     ((i.behind&&back)?back:front).appendChild(el);
   });
-  mountDiffspinInstances();mountSpriteInstances();
+  mountDiffspinInstances();mountSpriteInstances();mountSpiralImages();
   renderLabels();   // labels live in the overlay layer; keep them in lockstep with the bodies
 }
 const spriteLive={};
@@ -1322,6 +1326,38 @@ function mountDiffspinInstances(){
     if(rec.cv!==cv){rec.engine.canvas=cv;rec.engine.ctx=cv.getContext('2d');rec.engine._fit();rec.cv=cv;}
     if(look.image&&rec.imageURL!==look.image){rec.imageURL=look.image;rec.engine.setImage(look.image).then(()=>{if(look.dsCfg)rec.engine.fromConfig(look.dsCfg);rec.engine.start();});}
     else {if(look.dsCfg)rec.engine.fromConfig(look.dsCfg);rec.engine._fit();rec.engine.start();}
+  });
+}
+// Image "layered spiral" controls — swirl the user's own image into rotating rings (rings/speed/feather).
+function imageSpiralControlsHTML(i){const sp=i.spiral=Object.assign({on:false,rings:6,master:1,feather:0.12},i.spiral||{});
+  return `<h4>🌀 Layered spiral</h4>
+    <label class="chk"><input type="checkbox" id="iSpOn" ${sp.on?"checked":""}> Swirl this image into a spiral</label>
+    <div style="font-size:11px;color:var(--faint);margin:2px 0 6px">Slices the image into concentric rings that rotate at different speeds (works in 2D &amp; the 3D viewer).</div>
+    <div id="iSpWrap" style="${sp.on?'':'display:none'}">
+      <div class="field"><label>Layers <span style="float:right;color:var(--gold)" id="iSpRV">${sp.rings}</span></label><div class="slider"><input type="range" id="iSpR" min="2" max="12" value="${sp.rings}"></div></div>
+      <div class="field"><label>Speed <span style="float:right;color:var(--gold)" id="iSpMV">${(sp.master!=null?sp.master:1).toFixed(1)}×</span></label><div class="slider"><input type="range" id="iSpM" min="0" max="300" value="${Math.round((sp.master!=null?sp.master:1)*100)}"></div></div>
+      <div class="field"><label>Ring blend <span style="float:right;color:var(--gold)" id="iSpFV">${Math.round((sp.feather!=null?sp.feather:0.12)*100)}%</span></label><div class="slider"><input type="range" id="iSpF" min="0" max="40" value="${Math.round((sp.feather!=null?sp.feather:0.12)*100)}"></div></div>
+    </div>`;
+}
+function wireImageSpiral(i){const sp=i.spiral=Object.assign({on:false,rings:6,master:1,feather:0.12},i.spiral||{});
+  const on=$("#iSpOn");if(on)on.onchange=e=>{sp.on=e.target.checked;const w=$("#iSpWrap");if(w)w.style.display=sp.on?'':'none';renderInstances();markDirty();};
+  const r=$("#iSpR");if(r)r.oninput=e=>{sp.rings=+e.target.value;$("#iSpRV").textContent=sp.rings;renderInstances();markDirty();};
+  const m=$("#iSpM");if(m)m.oninput=e=>{sp.master=+e.target.value/100;$("#iSpMV").textContent=sp.master.toFixed(1)+'×';mountSpiralImages();markDirty();};
+  const f=$("#iSpF");if(f)f.oninput=e=>{sp.feather=+e.target.value/100;$("#iSpFV").textContent=Math.round(sp.feather*100)+'%';mountSpiralImages();markDirty();};
+}
+/* live layered-spiral IMAGES — the user's own image sliced into rotating rings (same DiffSpinGalaxy engine) */
+const spiralLiveImg={};
+function mountSpiralImages(){
+  const ids=new Set(state.instances.filter(i=>i.kind==="image"&&i.spiral&&i.spiral.on&&(i.look&&i.look.src)).map(i=>i.id));
+  Object.keys(spiralLiveImg).forEach(id=>{if(!ids.has(id)){try{spiralLiveImg[id].engine.destroy();}catch(e){}delete spiralLiveImg[id];}});
+  document.querySelectorAll('[data-spiral]').forEach(el=>{
+    const id=el.dataset.spiral;const inst=state.instances.find(x=>x.id===id);if(!inst||!inst.spiral||!inst.spiral.on)return;
+    const cv=el.querySelector('canvas.spiralcanvas');if(!cv)return;const src=inst.look&&inst.look.src;if(!src)return;
+    let rec=spiralLiveImg[id];
+    if(!rec){const eng=new DiffSpinGalaxy(cv,{rings:inst.spiral.rings||6,corePulse:false});rec=spiralLiveImg[id]={engine:eng,imageURL:null,cv:null};}
+    if(rec.cv!==cv){rec.engine.canvas=cv;rec.engine.ctx=cv.getContext('2d');rec.engine._fit();rec.cv=cv;}
+    if(rec.imageURL!==src){rec.imageURL=src;rec.engine.setImage(src).then(()=>{rec.engine.fromConfig(inst.spiral);rec.engine.start();});}
+    else {rec.engine.fromConfig(inst.spiral);rec.engine._fit();rec.engine.start();}
   });
 }
 </script>
@@ -1693,7 +1729,8 @@ function renderInstanceInspector(){
       <div style="font-size:11px;color:var(--faint)">“cover” crops to fill the box; drag Crop X/Y to choose the visible part. Resize handles change the crop shape.</div>
       <div class="actionbtns"><button id="iSpiralize">🌀 Apply layered spin</button></div>`:""}
     ${(i.kind==="image"||i.kind==="spingalaxy")?fadeControlsHTML(i):""}
-    ${i.kind==="image"?`<h4>Spin</h4><div class="field"><label>Rotate speed <span style="float:right;color:var(--gold)" id="iImgSpinV">${i.imgSpin||0}°/s</span></label><div class="slider"><input type="range" id="iImgSpin" min="0" max="90" value="${i.imgSpin||0}"></div></div><div style="font-size:11px;color:var(--faint)">Continuously rotates the image — a dynamic spiral effect (2D &amp; 3D viewer).</div>`:""}
+    ${i.kind==="image"?`<h4>Spin</h4><div class="field"><label>Rotate speed <span style="float:right;color:var(--gold)" id="iImgSpinV">${i.imgSpin||0}°/s</span></label><div class="slider"><input type="range" id="iImgSpin" min="0" max="90" value="${i.imgSpin||0}"></div></div><div style="font-size:11px;color:var(--faint)">Continuously rotates the whole image (2D &amp; 3D viewer).</div>`:""}
+    ${i.kind==="image"?imageSpiralControlsHTML(i):""}
     ${layerControlsHTML(true,i.behind)}
     <h4>Live movement</h4>
     <label class="chk" style="display:flex;align-items:center;gap:7px;font-size:12px;padding:4px 0;cursor:pointer"><input type="checkbox" id="iLive" ${i.live?"checked":""}> 🛰 Keep updated (live)</label>
@@ -1713,7 +1750,7 @@ function renderInstanceInspector(){
   if(i.kind==="planet3d"){const sp=$("#iSpin");if(sp)sp.oninput=e=>{i.p3spin=+e.target.value/10;$("#iSpinV").textContent=i.p3spin.toFixed(1)+"×";mountSpriteInstances();markDirty();};}
   if(i.kind==="spingalaxy")wireSpinGalaxyControls(i);
   if(i.kind==="image"||i.kind==="spingalaxy")wireFadeControls(i);
-  if(i.kind==="image"){const sp=$("#iImgSpin");if(sp)sp.oninput=e=>{i.imgSpin=+e.target.value;$("#iImgSpinV").textContent=i.imgSpin+"°/s";renderInstances();markDirty();};}
+  if(i.kind==="image"){const sp=$("#iImgSpin");if(sp)sp.oninput=e=>{i.imgSpin=+e.target.value;$("#iImgSpinV").textContent=i.imgSpin+"°/s";renderInstances();markDirty();};wireImageSpiral(i);}
   wireLayerControls(state.instances,i);
   {const lv=$("#iLive");if(lv)lv.onchange=e=>{i.live=e.target.checked;markDirty();if(i.live&&window.__mapLivePush)window.__mapLivePush();};}
   if(i.kind==="image"){const sb=$("#iSpiralize");if(sb)sb.onclick=()=>applySpinToInstance(i);

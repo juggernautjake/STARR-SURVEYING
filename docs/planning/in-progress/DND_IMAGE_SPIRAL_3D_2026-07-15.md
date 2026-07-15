@@ -36,12 +36,13 @@ Persisted in `mapData()` (instances are already serialized whole) → publishes 
 ## Slices
 
 - **Slice 0 — Planning doc** *(this file)*.
-- **Slice 1 — Image spiral config + 2D render.** Add an `i.spiral` config to images and an inspector
-  section (enable, **ring count**, **master speed**, per-ring speed/direction or a simple
-  speed+swirl, **feather**), reusing `spinGalaxyControlsHTML`/`DiffSpinGalaxy` against the image `src`.
-  When on, the 2D image renders through a `DiffSpinGalaxy` canvas (like the spingalaxy body) instead of
-  the static `<img>`. Keep the existing simple `imgSpin` (uniform rotation) as a separate, simpler
-  option. Verify headless: an image with `spiral.on` animates its rings in 2D; config persists.
+- **Slice 1 — Image spiral config + 2D render.** ✅ Added `i.spiral = {on,rings,master,feather}` plus an
+  inspector "🌀 Layered spiral" section (enable + Layers + Speed + Ring-blend). When on, the 2D image
+  renders through a `<canvas class="spiralcanvas">` driven by a live `DiffSpinGalaxy` (`mountSpiralImages`,
+  `spiralLiveImg` registry) using the image's own `src`, sliced into rotating rings — the simpler
+  `imgSpin` uniform rotation stays separate. Config persists on the instance (serialized in `mapData`).
+  Verified headless: a spiral image's canvas has content (22k lit px) and **animates** (pixel sum
+  changes over time); controls present; `spiral` persisted; 0 errors.
 - **Slice 2 — Image spiral in 3D.** In `_imagePlane`, when `it.spiral && it.spiral.on`, build a
   `window.DiffSpinGalaxy` on an offscreen canvas, `setImage(src)` + `fromConfig(it.spiral)` + `start()`,
   and use its canvas as the plane's `CanvasTexture` (updated each frame in the render loop; register in
@@ -66,4 +67,4 @@ Persisted in `mapData()` (instances are already serialized whole) → publishes 
 - **Resize in real time:** already handled by the live `pushTo3D` + LOD; verify it holds with the
   spiral engine attached (rebuild disposes/reattaches the engine cleanly).
 
-### Status: IN PROGRESS (Slice 0 written; 1–4 pending)
+### Status: IN PROGRESS (Slices 0–1 shipped; 2–4 pending)
