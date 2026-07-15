@@ -317,13 +317,15 @@ other, and keep every element consistent:
   bridged via new `window.map3dSelectPoi(instId,poiId)` → the Studio POI inspector (`{type:'poi'}`) /
   the Console body readout. Verified headless: 2 POIs render on the front hemisphere (z 0.87, 0.74) and
   a pick bridges to `('pl','poiA')`; 0 errors.
-- **Slice 11c — Full body-kind catalogue in both viewers (req 20).** ⏳ Audit every placeable object
-  kind (planet, `planet3d`, star, station, asteroid, moon, debris, galaxy/spingalaxy, image, text,
-  HTML, POI) and ensure each has a **solid, representative render in the 3D viewer** equivalent to its
-  2D form — 3D stations/asteroids/moons/debris currently fall back to a flat colour disc; give each a
-  fitting 3D representation (e.g. a small textured impostor or generated mesh) so nothing looks blank
-  in 3D. Confirm each kind is placeable and renders in both. Verify headless: one of each kind renders
-  distinctly in 3D; 0 errors.
+- **Slice 11c — Full body-kind catalogue in both viewers (req 20).** ✅ Every placeable kind now has a
+  solid 3D representation: 2D **planets** and **moons** synthesize a planet config
+  (`_genericPlanetCfg`, ptype/mtype→TYPES) and render as real `buildPlanetModel` spheres (textured
+  impostor face when small); **stations** get a metal ring + hub + spokes + blinking beacon
+  (`_stationModel`); **asteroids/debris** get flat-shaded tumbling rock clusters (`_debrisModel`, one
+  chunk for an asteroid). All promote via LOD like planets and spin/animate. planet3d, star, spingalaxy,
+  image, text, HTML, POI were already covered. Verified headless: planet(4 meshes)/moon/station(7)/
+  debris(7) each build real meshes when large; 0 errors. *Static 2D `galaxy` kind keeps the shaded
+  disc (the animated spingalaxy is the primary galaxy body); low value to add a second galaxy mesh.*
 - **Slice 12 — Feature-equivalence audit (req 16).** ⏳ Enumerate every object kind, action, effect,
   setting, and edit option in the 2D Studio inspector/toolbar and confirm each has an equivalent path
   when the 3D viewer is active (or is reachable through the shared inspector while 3D is shown); close
@@ -334,7 +336,7 @@ other, and keep every element consistent:
   2D parity → publish → player Console parity), including origin/scale alignment, animated content,
   sectors/systems in both viewers, body-into-sector placement, and full feature equivalence.
 
-### Status: IN PROGRESS (Slices 0–11b-2 shipped; 11c, 12 pending, then 13 = doc-move/QA)
+### Status: IN PROGRESS (Slices 0–11c shipped; 12 pending, then 13 = doc-move/QA)
 *Req 21 (exact position/orientation/colour/scale correspondence) is a verification bar applied to
 every slice — the 2D→3D `(x,-y)` transform + scale·2 model already gives bodies/sectors exact placement
 (e.g. sector centroid `(250,-230)`); Slice 12 audits it across all kinds.*

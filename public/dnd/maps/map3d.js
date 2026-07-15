@@ -614,15 +614,18 @@ const Map3D = {
       if (it.t3d) holder.rotation.set(it.t3d.rx || 0, it.t3d.ry || 0, it.t3d.rz || 0);
       holder.userData.id = it.id;
       const imgUrl = it.kind === 'image' && it.look ? (it.look.src || it.look.image) : null;
-      const cfg = it.kind === 'planet3d' ? this._planetConfig(it) : null;
+      // planet3d uses its saved cfg3d; 2D planets/moons synthesize a config so they render as real 3D
+      // spheres (not flat discs). Stations/debris/asteroids get their own generated 3D meshes.
+      const cfg = it.kind === 'planet3d' ? this._planetConfig(it) : ((it.kind === 'planet' || it.kind === 'moon') ? this._genericPlanetCfg(it) : null);
+      const genMesh = it.kind === 'station' || it.kind === 'debris' || it.kind === 'asteroid';
       // Every body starts as a cheap disc impostor; _applyLOD() promotes the large ones on-screen to
       // full 3D meshes. Unlimited impostors → a whole system fits; only a few big ones cost a mesh.
       let disc = null;
       if (imgUrl) { const plane = this._imagePlane(it, imgUrl); holder.add(plane); if (plane.userData.spin) this._spinPlanes.push(plane); }
-      else { disc = this._discMesh(it); holder.add(disc); if (disc.userData.spin) this._spinPlanes.push(disc); }
+      else { disc = this._discMesh(it, cfg); holder.add(disc); if (disc.userData.spin) this._spinPlanes.push(disc); }
       if (it.pois && it.pois.length) this._addSurfacePois(holder, it);   // surface POIs on the body
       g.add(holder);
-      this._bodies.push({ holder, it, disc, isStar: it.kind === 'star', cfg, canFull: !imgUrl && (it.kind === 'star' || !!cfg), hasModel: false, model: null });
+      this._bodies.push({ holder, it, disc, isStar: it.kind === 'star', kind: it.kind, cfg, canFull: !imgUrl && (it.kind === 'star' || !!cfg || genMesh), hasModel: false, model: null });
       minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x + s); maxY = Math.max(maxY, it.y + s);
     }
     // Framing needs the container's real pixel size, which is only correct once it's visible; store
@@ -653,9 +656,48 @@ const Map3D = {
     }
     this._lodZoom = zoom;
   },
+  // A 2D planet/moon → a real 3D planet config (buildPlanetModel reads TYPES[type] for colours).
+  _genericPlanetCfg(it) {
+    const L = it.look || it, valid = ['terran', 'ocean', 'jungle', 'desert', 'ice', 'volcanic', 'toxic', 'barren', 'gas'];
+    if (it.kind === 'moon') return { type: L.mtype === 'ice' ? 'ice' : 'barren', seed: L.seed || 1, sea: 0.02, cscale: 2.6, coast: 0.6, ice: L.mtype === 'ice' ? 0.6 : 0.05, spin: 1, atmoOn: false };
+    const t = valid.includes(L.ptype) ? L.ptype : (L.ptype === 'rock' ? 'barren' : 'terran');
+    return { type: t, seed: L.seed || 1, sea: t === 'gas' ? 0.5 : 0.52, cscale: 2.2, coast: 0.5, ice: t === 'ice' ? 0.5 : 0.15, spin: 1, ring: !!L.ring, atmoOn: L.atmo !== false && ['terran', 'ocean', 'toxic', 'gas', 'jungle'].includes(t), atmoColor: L.atmoColor || undefined };
+  },
+  // A ring station: torus + hub + spokes + a blinking beacon, in the station's metal palette.
+  _stationModel(it) {
+    const L = it.look || it, grp = new THREE.Group(), dis = [];
+    const c1 = new THREE.Color(L.c1 || '#b8c0d0'), c2 = new THREE.Color(L.c2 || '#5a6a8a'), c3 = new THREE.Color(L.c3 || '#ffd86b');
+    const rg = new THREE.TorusGeometry(0.82, 0.13, 14, 40), rm = new THREE.MeshStandardMaterial({ color: c1, metalness: 0.75, roughness: 0.4 });
+    grp.add(new THREE.Mesh(rg, rm)); dis.push(rg, rm);
+    const hg = new THREE.CylinderGeometry(0.17, 0.17, 0.66, 16), hm = new THREE.MeshStandardMaterial({ color: c2, metalness: 0.85, roughness: 0.32 });
+    const hub = new THREE.Mesh(hg, hm); hub.rotation.x = Math.PI / 2; grp.add(hub); dis.push(hg, hm);
+    for (let i = 0; i < 4; i++) { const sg = new THREE.BoxGeometry(0.66, 0.05, 0.05), sm = new THREE.MeshStandardMaterial({ color: c2, metalness: 0.7, roughness: 0.45 }); const s = new THREE.Mesh(sg, sm); s.rotation.z = i * Math.PI / 2; grp.add(s); dis.push(sg, sm); }
+    const bg = new THREE.SphereGeometry(0.08, 10, 10), bm = new THREE.MeshBasicMaterial({ color: c3 }); const beacon = new THREE.Mesh(bg, bm); beacon.position.set(0, 0, 0.42); grp.add(beacon); dis.push(bg, bm);
+    return { group: grp, update: (dt) => { grp.rotation.z += dt * 0.3; bm.opacity = 0.6 + 0.4 * (0.5 + 0.5 * Math.sin(performance.now() / 300)); bm.transparent = true; }, dispose: () => dis.forEach(d => d.dispose && d.dispose()) };
+  },
+  // Asteroid / debris: a cluster of flat-shaded rocky chunks tumbling slowly (one chunk for an asteroid).
+  _debrisModel(it) {
+    const L = it.look || it, grp = new THREE.Group(), dis = [];
+    const base = new THREE.Color(L.c1 || '#8a8a9a'), dark = new THREE.Color(L.c2 || '#5a5a62');
+    let seed = ((L.seed || 7) >>> 0) || 7; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    const N = it.kind === 'asteroid' ? 1 : 7;
+    for (let k = 0; k < N; k++) {
+      const g = new THREE.IcosahedronGeometry(0.22 + rnd() * 0.34, 0), pos = g.attributes.position;
+      for (let i = 0; i < pos.count; i++) { const f = 0.7 + rnd() * 0.6; pos.setXYZ(i, pos.getX(i) * f, pos.getY(i) * f, pos.getZ(i) * f); }
+      g.computeVertexNormals();
+      const m = new THREE.MeshStandardMaterial({ color: base.clone().lerp(dark, rnd() * 0.5), roughness: 0.95, metalness: 0.05, flatShading: true });
+      const rock = new THREE.Mesh(g, m); rock.position.set(N === 1 ? 0 : (rnd() - 0.5) * 1.5, N === 1 ? 0 : (rnd() - 0.5) * 1.5, (rnd() - 0.5) * 0.6);
+      rock.rotation.set(rnd() * 6, rnd() * 6, rnd() * 6); rock.userData.spin = [(rnd() - 0.5) * 0.6, (rnd() - 0.5) * 0.6];
+      grp.add(rock); dis.push(g, m);
+    }
+    return { group: grp, update: (dt) => { for (const r of grp.children) { r.rotation.x += r.userData.spin[0] * dt; r.rotation.y += r.userData.spin[1] * dt; } }, dispose: () => dis.forEach(d => d.dispose && d.dispose()) };
+  },
   _promote(b, aniso) {
     try {
-      const model = b.isStar ? buildStarModel(b.it.look || {}, { anisotropy: aniso }) : buildPlanetModel(b.cfg, { anisotropy: aniso, segments: 64 });
+      const model = b.isStar ? buildStarModel(b.it.look || {}, { anisotropy: aniso })
+        : b.kind === 'station' ? this._stationModel(b.it)
+          : (b.kind === 'debris' || b.kind === 'asteroid') ? this._debrisModel(b.it)
+            : buildPlanetModel(b.cfg, { anisotropy: aniso, segments: 64 });
       if (b.disc) b.holder.remove(b.disc);
       b.holder.add(model.group); b.model = model; b.hasModel = true; this._planets.push({ model });
       return true;
@@ -744,9 +786,11 @@ const Map3D = {
     const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
     this._galaxyCache[key] = t; return t;
   },
-  _discMesh(it) {   // a unit-radius impostor (holder scales it to size)
-    if (it.kind === 'planet3d') {
-      const cfg = this._planetConfig(it), tex = this._planetImpostorTex(cfg);
+  _discMesh(it, cfg) {   // a unit-radius impostor (holder scales it to size)
+    // planet-like kinds (planet3d, 2D planet, moon) get their real surface as the impostor face.
+    const pcfg = cfg || (it.kind === 'planet3d' ? this._planetConfig(it) : null);
+    if (pcfg) {
+      const tex = this._planetImpostorTex(pcfg);
       if (tex) return new THREE.Mesh(new THREE.CircleGeometry(1, 56), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
     }
     if (it.kind === 'spingalaxy') {   // a spinning spiral-galaxy disc, animated in 3D like the 2D map
