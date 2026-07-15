@@ -354,12 +354,14 @@ other, and keep every element consistent:
   | containment (into sectors) | reassoc on move | 11 |
   | background (`bg3d`) | shared sky engine + 2D backdrop | 3–9b |
   | per-body sparkle/nebula/shoot fx | *deferred* (scene-level FX cover ambience) | 9a |
-- **Slice 13 — Doc to completed + ship log + QA.** Move this file to `docs/planning/completed/` with a
-  build log once Slices 8–12 land and the whole flow is verified end-to-end (Studio DM edit → live 3D +
-  2D parity → publish → player Console parity), including origin/scale alignment, animated content,
-  sectors/systems in both viewers, body-into-sector placement, and full feature equivalence.
+- **Slice 13 — Doc to completed + ship log + QA.** ✅ End-to-end QA (headless, swiftshader): a rich
+  Studio map — planet3d/planet/moon/star/station/debris/spingalaxy/image/text + surface POI + sector +
+  Milky-Way background — renders in 3D (8 bodies, 2 sector meshes, 3 CSS3D labels, 4 star layers, sky2d
+  backdrop painting) with **0 console errors**; toggling back to 2D and re-publishing carries all 9
+  instances + sector + `bg3d`; the player **Console** loads, paints the 2D sky, and toggles into a live
+  3D canvas with **0 errors**. All map files lint clean; no conflict markers. Doc moved to `completed/`.
 
-### Status: IN PROGRESS (Slices 0–12 shipped; 13 = doc-move/QA remains)
+### Status: COMPLETE (Slices 0–13 shipped; per-body SVG fx overlays in 3D deferred with rationale)
 *Req 21 (exact position/orientation/colour/scale correspondence) is a verification bar applied to
 every slice — the 2D→3D `(x,-y)` transform + scale·2 model already gives bodies/sectors exact placement
 (e.g. sector centroid `(250,-230)`); Slice 12 audits it across all kinds.*
