@@ -78,8 +78,11 @@
   #canvas.pan{cursor:grab;}#canvas.panning{cursor:grabbing;}#canvas.pen{cursor:crosshair;}
   #bgLayer{position:absolute;inset:0;z-index:0;pointer-events:none;background-position:center center;background-repeat:no-repeat;display:none;}
   #fxCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4;}
-  #svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:2;}
-  #svgFront{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:4;}   /* sectors marked "front" render above bodies/images */
+  /* The SVG roots blanket the whole canvas, so left clickable they'd swallow every click meant for a
+     body/image sitting underneath. Root is click-through; the actual sector shapes + handles opt back in. */
+  #svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:2;pointer-events:none;}
+  #svgFront{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:4;pointer-events:none;}   /* sectors marked "front" render above bodies/images */
+  #svg .hit,#svgFront .hit{pointer-events:auto;}   /* only the real sector shapes + handles opt back into clicks */
   #backLayer{position:absolute;inset:0;transform-origin:0 0;z-index:1;}
   .bodyLayer{position:absolute;inset:0;transform-origin:0 0;z-index:3;}
   #labelLayer{position:absolute;inset:0;width:100%;height:100%;overflow:visible;transform-origin:0 0;z-index:5;pointer-events:none;}
@@ -90,6 +93,10 @@
   details.lblsec>summary::-webkit-details-marker{display:none;}
   details.lblsec>summary::before{content:"▸ ";}details.lblsec[open]>summary::before{content:"▾ ";}
   .inst{position:absolute;transform:translate(-50%,-50%);cursor:move;}
+  /* A transparent hit pad guarantees a grabbable area even for tiny bodies (moons/small planets/images),
+     so you can click/drag the object itself instead of only its name. It sits BEHIND the art (art is
+     pointer-events:none) and its events bubble to the .inst mousedown handler. */
+  .inst::before{content:"";position:absolute;left:50%;top:50%;width:100%;height:100%;min-width:40px;min-height:40px;transform:translate(-50%,-50%);pointer-events:auto;border-radius:inherit;}
   .inst .art{width:100%;height:100%;pointer-events:none;position:relative;}
   .inst .artbg{position:absolute;inset:0;border-radius:50%;pointer-events:none;}   /* opaque backing so a solid body occludes the starfield */
   /* Hybrid view: the 3D overlay draws the 3D-native bodies, so hide their 2D art/POIs/name (the .inst stays as the hit target) */
@@ -1193,8 +1200,10 @@ function renderSectors(){
     const sel=selection&&selection.type==="sector"&&selection.id===s.id;
     const p=document.createElementNS(NS,"path");p.setAttribute("d",sectorPath(s.points,s.curved));
     p.setAttribute("fill",`rgba(${r},${g},${b2},${fop})`);p.setAttribute("stroke",bstyle==="none"&&!sel?"none":s.color);
-    p.setAttribute("stroke-width",sel?Math.max(bwidth,2.6):bwidth);p.setAttribute("stroke-dasharray",sel?(bstyle==="dotted"?dashFor("dotted",bwidth):"none"):dashFor(bstyle,bwidth));p.style.cursor="pointer";
-    p.addEventListener("mousedown",e=>{if(tool==="pen")return;e.stopPropagation();onSectorDown(e,s);});
+    p.setAttribute("stroke-width",sel?Math.max(bwidth,2.6):bwidth);p.setAttribute("stroke-dasharray",sel?(bstyle==="dotted"?dashFor("dotted",bwidth):"none"):dashFor(bstyle,bwidth));p.style.cursor="pointer";p.classList.add("hit");
+    // A "front" sector renders ABOVE bodies, so its full-area fill could swallow a click meant for a body
+    // you can see through it. Bodies always win: if one is under the cursor, hand the click to it instead.
+    p.addEventListener("mousedown",e=>{if(tool==="pen")return;e.stopPropagation();const bi=s.front&&instUnderPointer(e);if(bi){onInstDown(e,bi);return;}onSectorDown(e,s);});
     if(sel&&mode==="dm")p.addEventListener("dblclick",e=>{e.stopPropagation();insertVertexAt(s,toWorld(e.clientX,e.clientY));});
     svg.appendChild(p);
     // per-sector sparkles
@@ -1205,11 +1214,11 @@ function renderSectors(){
       const vs=view.scale,hs=10/vs,off=44/vs,sw=1.5/vs;
       let mnx=1e9,mny=1e9,mxx=-1e9,mxy=-1e9;s.points.forEach(pt=>{mnx=Math.min(mnx,pt.x);mny=Math.min(mny,pt.y);mxx=Math.max(mxx,pt.x);mxy=Math.max(mxy,pt.y);});
       const box=document.createElementNS(NS,"rect");box.setAttribute("x",mnx);box.setAttribute("y",mny);box.setAttribute("width",mxx-mnx);box.setAttribute("height",mxy-mny);box.setAttribute("fill","none");box.setAttribute("stroke",s.color);box.setAttribute("stroke-opacity",".35");box.setAttribute("stroke-width",1/vs);box.setAttribute("stroke-dasharray",`${5/vs} ${5/vs}`);box.style.pointerEvents="none";svg.appendChild(box);
-      s.points.forEach((pt,i)=>{const h=document.createElementNS(NS,"rect");h.setAttribute("x",pt.x-hs/2);h.setAttribute("y",pt.y-hs/2);h.setAttribute("width",hs);h.setAttribute("height",hs);h.setAttribute("fill","#06040f");h.setAttribute("stroke",s.color);h.setAttribute("stroke-width",sw);h.style.cursor="grab";h.addEventListener("mousedown",e=>{e.stopPropagation();onVertexDown(e,s,i);});h.addEventListener("contextmenu",e=>{e.preventDefault();e.stopPropagation();deleteVertex(s,i);});svg.appendChild(h);});
-      [[mnx,mny,"nwse-resize"],[mxx,mny,"nesw-resize"],[mxx,mxy,"nwse-resize"],[mnx,mxy,"nesw-resize"]].forEach(([cxp,cyp,cur])=>{const h=document.createElementNS(NS,"rect");h.setAttribute("x",cxp-hs/2);h.setAttribute("y",cyp-hs/2);h.setAttribute("width",hs);h.setAttribute("height",hs);h.setAttribute("fill",s.color);h.setAttribute("stroke","#06040f");h.setAttribute("stroke-width",1/vs);h.style.cursor=cur;h.addEventListener("mousedown",e=>{e.stopPropagation();onScaleDown(e,s);});svg.appendChild(h);});
+      s.points.forEach((pt,i)=>{const h=document.createElementNS(NS,"rect");h.classList.add("hit");h.setAttribute("x",pt.x-hs/2);h.setAttribute("y",pt.y-hs/2);h.setAttribute("width",hs);h.setAttribute("height",hs);h.setAttribute("fill","#06040f");h.setAttribute("stroke",s.color);h.setAttribute("stroke-width",sw);h.style.cursor="grab";h.addEventListener("mousedown",e=>{e.stopPropagation();onVertexDown(e,s,i);});h.addEventListener("contextmenu",e=>{e.preventDefault();e.stopPropagation();deleteVertex(s,i);});svg.appendChild(h);});
+      [[mnx,mny,"nwse-resize"],[mxx,mny,"nesw-resize"],[mxx,mxy,"nwse-resize"],[mnx,mxy,"nesw-resize"]].forEach(([cxp,cyp,cur])=>{const h=document.createElementNS(NS,"rect");h.classList.add("hit");h.setAttribute("x",cxp-hs/2);h.setAttribute("y",cyp-hs/2);h.setAttribute("width",hs);h.setAttribute("height",hs);h.setAttribute("fill",s.color);h.setAttribute("stroke","#06040f");h.setAttribute("stroke-width",1/vs);h.style.cursor=cur;h.addEventListener("mousedown",e=>{e.stopPropagation();onScaleDown(e,s);});svg.appendChild(h);});
       const cxm=(mnx+mxx)/2,topy=mny-off;
       const ln=document.createElementNS(NS,"line");ln.setAttribute("x1",cxm);ln.setAttribute("y1",mny);ln.setAttribute("x2",cxm);ln.setAttribute("y2",topy);ln.setAttribute("stroke",s.color);ln.setAttribute("stroke-opacity",".5");ln.setAttribute("stroke-width",1/vs);ln.style.pointerEvents="none";svg.appendChild(ln);
-      const rc=document.createElementNS(NS,"circle");rc.setAttribute("cx",cxm);rc.setAttribute("cy",topy);rc.setAttribute("r",hs*0.72);rc.setAttribute("fill","#06040f");rc.setAttribute("stroke",s.color);rc.setAttribute("stroke-width",sw);rc.style.cursor="grab";rc.addEventListener("mousedown",e=>{e.stopPropagation();onRotateDown(e,s);});svg.appendChild(rc);
+      const rc=document.createElementNS(NS,"circle");rc.classList.add("hit");rc.setAttribute("cx",cxm);rc.setAttribute("cy",topy);rc.setAttribute("r",hs*0.72);rc.setAttribute("fill","#06040f");rc.setAttribute("stroke",s.color);rc.setAttribute("stroke-width",sw);rc.style.cursor="grab";rc.addEventListener("mousedown",e=>{e.stopPropagation();onRotateDown(e,s);});svg.appendChild(rc);
     }
   });
 }
@@ -1228,7 +1237,7 @@ function renderInstances(){
   [...state.instances].sort((a,b)=>(a.z||0)-(b.z||0)).forEach(i=>{
     if(i.kind==="text")return;   // free text objects live entirely in the label layer
     const seld=selection&&selection.type==="instance"&&selection.id===i.id;
-    const el=document.createElement("div");el.className="inst"+(i.kind==="image"?" imginst":"")+(["planet3d","planet","moon","star","station","debris","asteroid"].includes(i.kind)?" n3d":"")+(seld?" sel":"");
+    const el=document.createElement("div");el.className="inst"+(i.kind==="image"?" imginst":"")+(["planet3d","planet","moon","star","station","debris","asteroid"].includes(i.kind)?" n3d":"")+(seld?" sel":"");el.dataset.id=i.id;
     const iw=i.w||i.size,ih=i.h||i.size,rot=i.rot||0,op=i.opacity!=null?i.opacity:1;
     el.style.cssText=`left:${i.x}px;top:${i.y}px;width:${iw}px;height:${ih}px;transform:translate(-50%,-50%) rotate(${rot}deg);opacity:${op};z-index:${i.z||0};`;
     const fxo=fxOverlay(i.fx,i.look&&i.look.seed);
@@ -1345,7 +1354,7 @@ function renderLabels(){
   state.instances.forEach(i=>{
     if(i.kind==="text")return;                 // free text objects handled in their own pass below
     const st=bodyLabelStyle(i);
-    if(st.show!==false){const r=labelSVG(i.name,st);if(r.g){const cx=i.x+i.size/2, ay=i.y+i.size+4;
+    if(st.show!==false){const r=labelSVG(i.name,st);if(r.g){const ih=i.h||i.size, cx=i.x, ay=i.y+ih/2+5;   // instances are centre-anchored: centre the name on i.x, just below the bottom edge
       const left=st.align==="start"?0:st.align==="end"?-r.w:-r.w/2,pad=5,dx=st.dx||0,dy=st.dy||0;
       const sel=selection&&selection.type==="instance"&&selection.id===i.id;
       const hit=mode==="dm"?`<rect class="lblhit" data-bodylabel="${i.id}" x="${(left-pad+dx).toFixed(1)}" y="${(-pad+dy).toFixed(1)}" width="${(r.w+pad*2).toFixed(1)}" height="${(r.h+pad*2).toFixed(1)}" fill="transparent"${sel?' stroke="#c89b3c" stroke-width="1" stroke-dasharray="4 4"':''}/>`:"";
@@ -1448,6 +1457,13 @@ function mountSpiralImages(){
 "use strict";
 /* ============================================================ INTERACTIONS ============================================================ */
 let drag=null;
+// Topmost body under the pointer (walks the real hit-stack so it honours the ::before hit-pad, rotation
+// and z-order). Used so a "front" sector's fill hands clicks to a body drawn beneath it.
+function instUnderPointer(e){
+  const stack=document.elementsFromPoint(e.clientX,e.clientY);
+  for(const el of stack){const host=el.closest&&el.closest(".inst[data-id]");if(host)return state.instances.find(x=>x.id===host.dataset.id)||null;}
+  return null;
+}
 function onInstDown(e,i){
   if(pending)return;
   if(mode==="dm"&&tool==="poi"){
