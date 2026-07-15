@@ -74,6 +74,7 @@ const Map3D = {
 
     const controls = new OrbitControls(cam, renderer.domElement);
     controls.enableDamping = true; controls.dampingFactor = 0.12;
+    controls.zoomToCursor = true;               // wheel zoom homes in on the cursor
     controls.screenSpacePanning = true;         // pan like a 2D map
     controls.minPolarAngle = 0;                  // straight top-down …
     controls.maxPolarAngle = Math.PI * 0.48;     // … up to an almost-flat tilt
@@ -551,8 +552,11 @@ const Map3D = {
       const s = it.size || 60, cx = it.x + s / 2, cy = it.y + s / 2;
       // Every body lives in a holder whose transform IS its 2D transform: position = centre,
       // scale·2 = size, rotation = t3d. This lets one gizmo move/scale/rotate any body uniformly.
+      // The 2D layer/z maps to a small depth offset so "bring to front / send to back" orders bodies
+      // in 3D exactly as in 2D: front bodies sit above the sectors, `behind` bodies below them.
       const holder = new THREE.Group();
-      holder.position.set(cx, -cy, 0);
+      const zLayer = Math.tanh((it.z || 0) / 20) * 0.4;              // bounded, monotonic in the 2D z
+      holder.position.set(cx, -cy, (it.behind ? -3 : 0.5) + zLayer);
       holder.scale.setScalar(Math.max(4, s / 2));
       if (it.t3d) holder.rotation.set(it.t3d.rx || 0, it.t3d.ry || 0, it.t3d.rz || 0);
       holder.userData.id = it.id;

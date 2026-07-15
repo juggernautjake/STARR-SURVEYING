@@ -75,6 +75,9 @@ The five requests, verbatim intent:
     flies the camera to that body, centres it, opens its **info window**, and reveals its **surface
     points of interest** — handling **surface-level POIs in 3D just like 2D**.
 
+22. **Unified layer/z system for every element.** All elements (bodies AND sectors) must have their
+    visibility/stacking controlled by a **layer (z)** that moves them forward/back, and the 2D and 3D
+    layer systems must be **well correlated and equivalent** (same z → same relative order in both).
 21. **Exact spatial correspondence.** Every object's **position, orientation, colour, and scale** must
     match between 2D and 3D so it's unmistakably the **same map of space** (verified by comparing
     transforms, not just "looks close").
@@ -297,12 +300,17 @@ other, and keep every element consistent:
   Verified headless: both build in 3D (milkyway 9 objs / wormhole 15 incl. 8 rings), appear in the
   dropdown (10 options), and paint in 2D; 0 errors. *Existing templates already generate attractively
   (palette-varied, seed-shuffled); further per-template polish left as optional future tuning.*
-- **Slice 11b — Cursor-centred zoom + Focus + surface POIs in 3D (req 18).** ⏳ Make wheel-zoom dolly
-  toward the cursor (OrbitControls `zoomToCursor=true` or manual re-centre). Add a right-click context
-  menu on a picked body with **Focus** → animate the camera to centre + frame that body, open its info
-  window (reuse the 2D inspector/POI-viewer), and render its **surface POIs** as pickable markers on
-  the 3D body (map POI `ax/ay` → sphere lon/lat), matching 2D. Verify headless: Focus centres a body
-  and its surface POIs are pickable; 0 errors.
+- **Slice 11a — Unified layer/z system for all elements (reqs 19, 22).** ✅ The 2D `z` layer now drives
+  3D depth so "bring to front / send to back" orders bodies in 3D exactly as in 2D: each holder gets a
+  bounded depth offset `tanh(z/20)*0.4` (front band above the sectors, `behind` bodies below), so the
+  paint order matches the 2D stack (backLayer < sectors < bodyLayer). Verified headless: `front2(z=9)
+  →0.669 > front1(z=5)→0.598 > 0`, `behind→-3`; 0 errors.
+- **Slice 11b — Cursor-centred zoom + Focus + surface POIs in 3D (req 18).** ⏳ **Cursor-centred zoom
+  done** (`controls.zoomToCursor=true`). Remaining: a right-click context menu on a picked body with
+  **Focus** → animate the camera to centre + frame that body, open its info window (reuse the 2D
+  inspector/POI-viewer), and render its **surface POIs** as pickable markers on the 3D body (map POI
+  `ax/ay` → sphere lon/lat), matching 2D. Verify headless: Focus centres a body and its surface POIs
+  are pickable; 0 errors.
 - **Slice 11c — Full body-kind catalogue in both viewers (req 20).** ⏳ Audit every placeable object
   kind (planet, `planet3d`, star, station, asteroid, moon, debris, galaxy/spingalaxy, image, text,
   HTML, POI) and ensure each has a **solid, representative render in the 3D viewer** equivalent to its
@@ -320,7 +328,7 @@ other, and keep every element consistent:
   2D parity → publish → player Console parity), including origin/scale alignment, animated content,
   sectors/systems in both viewers, body-into-sector placement, and full feature equivalence.
 
-### Status: IN PROGRESS (Slices 0–11 shipped; 11b, 11c, 12 pending, then 13 = doc-move/QA)
+### Status: IN PROGRESS (Slices 0–11a shipped; 11b (Focus/POIs), 11c, 12 pending, then 13 = doc-move/QA)
 *Req 21 (exact position/orientation/colour/scale correspondence) is a verification bar applied to
 every slice — the 2D→3D `(x,-y)` transform + scale·2 model already gives bodies/sectors exact placement
 (e.g. sector centroid `(250,-230)`); Slice 12 audits it across all kinds.*
