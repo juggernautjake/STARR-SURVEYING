@@ -10,6 +10,8 @@ import { useRouter } from 'next/navigation'
 import styles from './hextech.module.css'
 import { GAME_SYSTEMS, SYSTEM_AMBIGUOUS } from '@/lib/dnd/systems'
 import { BUILD_MODES, type BuildMode } from '@/lib/dnd/build-modes'
+import InfoTip from './InfoTip'
+import BuilderHelp from './BuilderHelp'
 
 const SOURCE_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.json,image/png,image/jpeg,image/webp'
 
@@ -69,7 +71,7 @@ export default function NewCharacterForm({ campaignId = '' }: { campaignId?: str
       </ul>
     )
 
-  const label: React.CSSProperties = { fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--hx-gold-2)' }
+  const label: React.CSSProperties = { fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--hx-gold-2)', display: 'inline-flex', alignItems: 'center', gap: 6 }
   const input: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '10px 12px', background: 'rgba(1,10,19,0.5)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', fontSize: 14 }
 
   return (
@@ -88,14 +90,16 @@ export default function NewCharacterForm({ campaignId = '' }: { campaignId?: str
             )}
           </div>
 
+          <BuilderHelp />
+
           <section className={styles.framedPanel} style={{ display: 'grid', gap: 14 }}>
             <div style={{ display: 'grid', gap: 4 }}>
-              <span style={label}>Character Name *</span>
+              <span style={label}>Character Name * <InfoTip topic="name" /></span>
               <input style={input} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Kaelen Duskbane" />
             </div>
 
             <div style={{ display: 'grid', gap: 4 }}>
-              <span style={label}>Game System</span>
+              <span style={label}>Game System <InfoTip topic="system" /></span>
               <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>Pick a ruleset so the AI grounds the build in that system only — or leave it system-ambiguous.</span>
               <select style={input} value={system} onChange={(e) => setSystem(e.target.value)}>
                 <option value={SYSTEM_AMBIGUOUS}>System-ambiguous (no specific ruleset)</option>
@@ -104,7 +108,7 @@ export default function NewCharacterForm({ campaignId = '' }: { campaignId?: str
             </div>
 
             <div style={{ display: 'grid', gap: 4 }}>
-              <span style={label}>Build Mode</span>
+              <span style={label}>Build Mode <InfoTip topic="buildMode" /></span>
               <div style={{ display: 'grid', gap: 6 }}>
                 {BUILD_MODES.map((m) => (
                   <label key={m.key} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', padding: '8px 10px', border: `1px solid ${mode === m.key ? 'var(--hx-gold-2)' : 'var(--hx-line)'}`, background: mode === m.key ? 'rgba(200,155,60,0.08)' : 'transparent' }}>
@@ -119,7 +123,7 @@ export default function NewCharacterForm({ campaignId = '' }: { campaignId?: str
             </div>
 
             <div style={{ display: 'grid', gap: 4 }}>
-              <span style={label}>Source Files</span>
+              <span style={label}>Source Files <InfoTip topic="sources" /></span>
               <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>PDF, Word, Excel/CSV, text, or screenshots of your sheet.</span>
               <label className={styles.hexBtn} style={{ justifySelf: 'start' }}>
                 + Add files
@@ -129,12 +133,12 @@ export default function NewCharacterForm({ campaignId = '' }: { campaignId?: str
             </div>
 
             <div style={{ display: 'grid', gap: 4 }}>
-              <span style={label}>Notes</span>
+              <span style={label}>Notes <InfoTip topic="notes" /></span>
               <textarea style={{ ...input, resize: 'vertical' }} rows={5} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything the files don't cover — backstory, homebrew rules, how abilities work, personality…" />
             </div>
 
             <div style={{ display: 'grid', gap: 4 }}>
-              <span style={label}>Reference Art</span>
+              <span style={label}>Reference Art <InfoTip topic="art" /></span>
               <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>Character art + style references (saved for your custom sheet later).</span>
               <label className={styles.hexBtn} style={{ justifySelf: 'start' }}>
                 + Add art
@@ -144,7 +148,7 @@ export default function NewCharacterForm({ campaignId = '' }: { campaignId?: str
             </div>
 
             <div style={{ display: 'grid', gap: 4 }}>
-              <span style={label}>Style &amp; Mechanics (for the custom build)</span>
+              <span style={label}>Style &amp; Mechanics (for the custom build) <InfoTip topic="style" /></span>
               <textarea style={{ ...input, resize: 'vertical' }} rows={4} value={style} onChange={(e) => setStyle(e.target.value)} placeholder="Describe the vibe/theme you want and any special mechanics (transformations, unique resources, signature moves)…" />
             </div>
 

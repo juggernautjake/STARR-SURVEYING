@@ -182,9 +182,16 @@ look) — it must NOT edit other site pages or anything outside character custom
   output's top-level keys never exceed a Character's — the edit path cannot introduce a foreign-resource
   field). Full dnd suite (211) green. *(A live 403-on-foreign-target check needs the running app; the guard
   + the bounded tool vocabulary make it structurally impossible.)*
-- **Slice 9 — Inline instructions & onboarding.** Thorough **help text** across the builder: what each
-  field means, how each function works, what happens to uploaded info, and how the modes differ — so a new
-  user can build confidently. Verify: help is present on the key builder surfaces.
+- **Slice 9 — Inline instructions & onboarding.** ✅ `lib/dnd/builder-help.ts` centralizes the help copy
+  (name, system, build modes, sources, notes, art, style, what-happens-to-uploads, AI build, open questions,
+  sheet style, edit chat) — explaining what each field means, how each function works, what happens to
+  uploaded info, and how the three modes differ (the no-cross-system guarantee is spelled out).
+  `app/dnd/_ui/InfoTip.tsx` is a reusable accessible "ⓘ" tip (hover/focus/click) that pulls from the
+  catalog; `app/dnd/_ui/BuilderHelp.tsx` is a collapsible 6-step "how character building works" onboarding
+  walkthrough. Wired into the **new-character form**: the walkthrough sits above the fields and an `InfoTip`
+  sits on every field label (name/system/mode/sources/notes/art/style). Verified: `tsc` clean, lint clean,
+  `__tests__/dnd/builder-help.test.ts` (3 tests: every key surface has real help, the mode + no-cross-system
+  copy is present, the uploads-fate copy explains private storage + notes). Full dnd suite (214) green.
 - **Slice 10 — Every sheet works with every system + NPC parity.** Ensure every sheet skin/module renders
   for **any** system (system-agnostic *and* system-specific data) without crashes, and that **NPCs** get
   the same treatment: NPCs can **choose any sheet design** and use the full builder (system, modes, custom
@@ -231,4 +238,4 @@ look) — it must NOT edit other site pages or anything outside character custom
 - **Verification:** app/server + AI features; prefer the dnd vitest suites + driving routes, and note
   anything needing the live app or an AI key.
 
-### Status: IN PROGRESS (Slices 0–8b + 1b shipped; 9–15 pending)
+### Status: IN PROGRESS (Slices 0–9 + 1b shipped; 10–15 pending)
