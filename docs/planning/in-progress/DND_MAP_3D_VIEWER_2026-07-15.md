@@ -266,7 +266,7 @@ like the 2D viewer* but renders true 3D models.
   a live 3D planet (read-only), 2D hides, zero errors — screenshot confirms a full living world in the
   player Console.
 
-- **Slice 9 — Deep-space FX (per user):** 🔶 *(parallax stars done; shooting stars + nebula remaining)*
+- **Slice 9 — Deep-space FX (per user):** ✅ *(parallax stars, shooting stars, and nebula all shipped)*
   - **9a Parallax starfield ✅** — replaced the flat single-layer field with **three star layers** at
     different depths, each following the camera pan by its own factor `k` (far `0.72` → near `0.28`),
     so panning slides the layers past each other (true parallax) and orbit/tilt shows their real
@@ -279,8 +279,11 @@ like the 2D viewer* but renders true 3D models.
     fades in and out over ~0.6–1.3 s, then recycles with a fresh delay. Six-colour palette
     (teal/magenta/gold/blue/lime/orange). Verified: spawns, coloured head, dark tail, recycles, zero
     errors.
-  - **9c Nebula / gas — remaining:** volumetric-looking gas clouds (layered soft additive sprites /
-    noise) that read as real gas.
+  - **9c Nebula / gas ✅** — **5 additive nebula billboards** tinted a cosmic palette
+    (purple/teal/magenta/blue/indigo), each from a canvas **wispy-cloud texture** (many overlapping
+    soft radial blobs with an edge-fade) at deep z with its own parallax `k`, slowly **rotating and
+    drifting** (sine wobble) so the gas billows and lives. Verified: 5 sprites, textured, additive,
+    drift on update, zero errors (opacity tuned up for presence).
 
 - **Slice 10 — Many small bodies + 3D stars (per user):** render planets at **very small scale** so a
   whole system (planets, moons, suns, stations…) fits one map — needs an **LOD** path (tiny on-screen

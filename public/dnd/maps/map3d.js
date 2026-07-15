@@ -71,7 +71,7 @@ const Map3D = {
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.85));
     const key = new THREE.DirectionalLight(0xfff4e0, 1.4); key.position.set(1, 1, 2); scene.add(key);
-    this.scene = scene; this._buildStars(); this._buildShooters();   // parallax stars + shooting stars
+    this.scene = scene; this._buildStars(); this._buildShooters(); this._buildNebula();   // deep-space FX
     const bodyGroup = new THREE.Group(); scene.add(bodyGroup);
 
     // Move/rotate/scale gizmo — only when an editor bridge exists (the DM Studio). The player
@@ -225,6 +225,49 @@ const Map3D = {
     }
   },
 
+  // A soft, wispy cloud texture built from many overlapping radial blobs with an edge-fade — tinted
+  // and stacked additively into billowing gas.
+  _nebulaTexture(seed) {
+    const S = 256, cv = document.createElement('canvas'); cv.width = cv.height = S; const ctx = cv.getContext('2d');
+    let r = seed >>> 0; const rnd = () => { r = (r * 1664525 + 1013904223) >>> 0; return r / 4294967296; };
+    for (let i = 0; i < 46; i++) {
+      const x = S * (0.5 + (rnd() - 0.5) * 0.82), y = S * (0.5 + (rnd() - 0.5) * 0.82), rad = S * (0.07 + rnd() * 0.23), a = 0.05 + rnd() * 0.13;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
+      g.addColorStop(0, 'rgba(255,255,255,' + a.toFixed(3) + ')'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rad, 0, 7); ctx.fill();
+    }
+    const fall = ctx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+    fall.addColorStop(0, 'rgba(0,0,0,0)'); fall.addColorStop(0.68, 'rgba(0,0,0,0)'); fall.addColorStop(1, 'rgba(0,0,0,1)');
+    ctx.globalCompositeOperation = 'destination-out'; ctx.fillStyle = fall; ctx.fillRect(0, 0, S, S);
+    return new THREE.CanvasTexture(cv);
+  },
+  _buildNebula() {
+    this._nebula = []; this._nebT = 0;
+    const cols = ['#6a3aaa', '#0ac8b9', '#c94f9a', '#4a86c9', '#7a4ad0'];
+    const texes = [this._nebulaTexture(1234), this._nebulaTexture(5771), this._nebulaTexture(9091)];
+    for (let i = 0; i < 5; i++) {
+      const m = new THREE.SpriteMaterial({ map: texes[i % texes.length], color: new THREE.Color(cols[i % cols.length]), transparent: true, opacity: 0.22 + (i % 3) * 0.05, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false });
+      m.rotation = i * 1.7;
+      const sp = new THREE.Sprite(m); const scale = 4200 + i * 1300;
+      sp.scale.set(scale, scale * 0.72, 1);
+      const bx = ((i * 997) % 2000 - 1000) * 2.4, by = ((i * 613) % 2000 - 1000) * 1.9;
+      sp.position.set(bx, by, -2300 - i * 240);
+      sp.userData = { k: 0.6 + (i % 3) * 0.06, rot: (i % 2 ? 1 : -1) * 0.018, baseX: bx, baseY: by, phase: i * 1.3 };
+      sp.renderOrder = -8;
+      this.scene.add(sp); this._nebula.push(sp);
+    }
+  },
+  _updateNebula(dt) {
+    if (!this._nebula) return;
+    this._nebT += dt; const t = this.controls.target;
+    for (const sp of this._nebula) {
+      const u = sp.userData;
+      sp.material.rotation += u.rot * dt;
+      sp.position.x = t.x * u.k + u.baseX + Math.sin(this._nebT * 0.05 + u.phase) * 130;
+      sp.position.y = t.y * u.k + u.baseY + Math.cos(this._nebT * 0.04 + u.phase) * 110;
+    }
+  },
+
   // Push the current map into the scene.
   setData(map) { this._map = map || { instances: [] }; if (this._ready) this._rebuild(); },
 
@@ -375,6 +418,7 @@ const Map3D = {
       this.controls.update();
       this._updateStars();                                       // parallax follows the pan
       this._updateShooters(dt);                                  // colourful meteors
+      this._updateNebula(dt);                                    // drifting gas clouds
       this.renderer.render(this.scene, this.camera);
       if (this.cssRenderer) this.cssRenderer.render(this.cssScene, this.camera);
     };
