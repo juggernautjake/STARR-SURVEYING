@@ -76,16 +76,36 @@ export function tagElement(
   return { kind, name: String(name ?? '').trim(), source, grantedBy: opts.grantedBy ?? null, mechanics: opts.mechanics ?? null };
 }
 
-/** Pull the recognizable elements out of a (5e-shaped) character sheet so any character can be flagged
- *  today. The dedicated Intuitive Games sheet (Slice 7) contributes stances/powers/feats directly. */
+/** The kinded record an Intuitive Games build stores on the character so its stances/powers/feats keep their
+ *  real kind for provenance (structural — no import of the builder, to avoid a cycle). */
+interface IGBuildShape {
+  ancestry?: string; className?: string; subclass?: string;
+  stances?: string[]; powers?: string[]; feats?: string[]; weapons?: string[];
+}
+
+/** Pull the recognizable elements out of a character sheet so any character can be flagged. When the sheet
+ *  carries an `igBuild` block (the Intuitive Games builder, Slice 7b), its stances/powers/feats/etc. are read
+ *  with their correct kinds; otherwise the generic 5e-shaped extraction is used. Spells + custom skills are
+ *  always read from the sheet. */
 export function extractCharacterElements(char: Character): { kind: ElementKind; name: string }[] {
   const out: { kind: ElementKind; name: string }[] = [];
   const push = (kind: ElementKind, name: unknown) => { const s = String(name ?? '').trim(); if (s) out.push({ kind, name: s }); };
-  push('class', char?.meta?.className);
-  push('ancestry', char?.meta?.species);
-  push('subclass', char?.meta?.subclass);
-  for (const a of char?.attacks ?? []) push('weapon', a?.name);
-  for (const f of char?.features ?? []) push('feat', f?.name);
+  const build = (char as { igBuild?: IGBuildShape })?.igBuild;
+  if (build) {
+    push('class', build.className ?? char?.meta?.className);
+    push('ancestry', build.ancestry ?? char?.meta?.species);
+    push('subclass', build.subclass ?? char?.meta?.subclass);
+    for (const s of build.stances ?? []) push('stance', s);
+    for (const pw of build.powers ?? []) push('power', pw);
+    for (const f of build.feats ?? []) push('feat', f);
+    for (const w of build.weapons ?? []) push('weapon', w);
+  } else {
+    push('class', char?.meta?.className);
+    push('ancestry', char?.meta?.species);
+    push('subclass', char?.meta?.subclass);
+    for (const a of char?.attacks ?? []) push('weapon', a?.name);
+    for (const f of char?.features ?? []) push('feat', f?.name);
+  }
   for (const s of char?.spells ?? []) push('spell', s?.name);
   for (const s of char?.customSkills ?? []) push('skill', (s as { name?: string })?.name);
   return out;

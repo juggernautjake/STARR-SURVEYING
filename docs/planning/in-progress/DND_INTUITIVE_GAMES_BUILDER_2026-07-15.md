@@ -136,10 +136,25 @@ are already stored.
     system"). Verified: `tsc` clean, lint clean, `__tests__/dnd/ig-catalog.test.ts` (3 tests: every section
     grouped + all-vanilla + non-empty, stance effect text carried + >80 elements counted, every catalog
     entry agrees with the provenance classifier as vanilla); full dnd suite (290) green.
-  - **7b — pending:** the Intuitive Games sheet/builder proper (abilities, skills w/ ranks, stances, powers,
-    feats, weapons, companion) rendering the template structure with a VANILLA/CUSTOM/DM-GRANTED badge on
-    every *character* element + a "Custom content" summary, build-as-is from the picker, and the AI-customize
-    path (grounded to Intuitive Games so invented content matches its mechanics and is auto-flagged custom).
+  - **7b — Deterministic "build as-is from the vanilla library" assembler.** ✅
+    `lib/dnd/systems/intuitive-games/builder.ts` — `assembleIGVanillaCharacter(picks)` builds a valid
+    `Character` on the shared sheet engine from a set of picks (ancestry / class / subclass / stances /
+    powers / feats / weapons): stances→teal "Stance" features (with their catalog A/B effect text),
+    powers→pink "Power" features, feats→"Feat" features, weapons→melee attack shells, and meta
+    (species/class/subclass/level). Crucially it also records a **kinded `igBuild` block** on the character,
+    and `extractCharacterElements` (provenance.ts) now reads `igBuild` when present so a stance is flagged as
+    a **stance** and a power as a **power** — not mis-read as a generic feat (the previous 5e-shaped
+    extraction couldn't tell them apart). So a straight vanilla assemble is **100% VANILLA** (nothing blocks
+    a vanilla-only submit); a non-catalog pick (e.g. an invented stance "Berserker Fury") is flagged
+    **CUSTOM with its correct kind**; and a DM grant of that stance moves it to **DM-GRANTED** (non-blocking).
+    Verified: `tsc` clean, lint clean, `__tests__/dnd/ig-builder.test.ts` (4 tests: assemble records kinded
+    igBuild + catalog effect text, straight vanilla → 0 custom / no blocking, non-catalog pick → custom with
+    kind `stance`/`power`, DM grant → dm-granted not blocking); full dnd suite (294) green.
+  - **7c — pending:** the Intuitive Games **sheet/builder UI** — a picker that calls `assembleIGVanillaCharacter`
+    from the catalog, the sheet rendering the template structure with a VANILLA/CUSTOM/DM-GRANTED badge on
+    every *character* element + a "Custom content" summary, and the AI-customize path (grounded to Intuitive
+    Games so invented content matches its mechanics and is auto-flagged custom via the same `igBuild`/
+    provenance path).
 - **Slice 8 — QA + docs.** End-to-end pass (build vanilla → all-vanilla, AI-custom → flagged, vanilla-only
   campaign blocks a custom submit, DM grant allowed, approve/reject + notes + notification), full dnd vitest
   suite green, tsc + lint clean, then move this doc to `completed/`.
@@ -155,4 +170,4 @@ are already stored.
 - **Backward compatible:** new columns default so existing characters/campaigns keep working (status=draft,
   allow_custom=true).
 
-### Status: IN PROGRESS (Slices 0–6 shipped; 7–8 pending)
+### Status: IN PROGRESS (Slices 0–6 + 7a + 7b shipped; 7c UI + AI and Slice 8 QA pending)
