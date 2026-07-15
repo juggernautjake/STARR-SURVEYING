@@ -81,7 +81,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 
   let result;
   try {
-    result = await dndToolCall<{ edits: SheetEdit[]; unmapped?: string[] }>({
+    result = await dndToolCall<{ edits: SheetEdit[]; unmapped?: string[]; questions?: string[] }>({
       system: [SYSTEM, grounding.instruction, modeInstruction].filter(Boolean).join('\n\n'),
       user: [{ role: 'user', content: content as Anthropic.MessageParam['content'] }],
       tools: [SHEET_EDIT_TOOL],
@@ -97,12 +97,16 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   const updated = applySheetEdits(row.data ?? blankCharacter(row.name), edits);
   const unmapped = [...(result?.input?.unmapped ?? []), ...unreadable];
   const importNotes = unmapped.length ? unmapped.map((u) => `• ${u}`).join('\n') : null;
+  // Open questions the AI needs the user to resolve (gaps / ambiguity / conflicting uploads).
+  const questions = (Array.isArray(result?.input?.questions) ? result!.input.questions : [])
+    .map((q) => String(q).trim())
+    .filter(Boolean);
 
   const { error: upErr } = await supabaseAdmin
     .from('dnd_characters')
-    .update({ data: updated, name: updated.meta.name || row.name, import_notes: importNotes })
+    .update({ data: updated, name: updated.meta.name || row.name, import_notes: importNotes, build_questions: questions })
     .eq('id', params.id);
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
 
-  return NextResponse.json({ ok: true, editCount: edits.length, unmapped });
+  return NextResponse.json({ ok: true, editCount: edits.length, unmapped, questions });
 }

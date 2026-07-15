@@ -130,6 +130,11 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
         items: { type: 'string' },
         description: 'When importing from source files: things you could NOT represent on the generic sheet (homebrew mechanics, unique resources, lore that has no field, unreadable content). One short bullet each; saved for the owner to review.',
       },
+      questions: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Design decisions you need the USER to resolve before the build is confident: anything missing, ambiguous, or CONFLICTING across the sources (e.g. two files disagree on a stat). Phrase each as a direct question. Leave empty in ruthless mode.',
+      },
       edits: {
         type: 'array',
         items: {

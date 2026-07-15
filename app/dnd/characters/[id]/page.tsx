@@ -9,6 +9,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import SheetRoot from '@/app/dnd/_sheet/SheetRoot';
 import UnderConstructionBanner from '@/app/dnd/_ui/UnderConstructionBanner';
 import CharacterBuildKit from '@/app/dnd/_ui/CharacterBuildKit';
+import BuildQuestions from '@/app/dnd/_ui/BuildQuestions';
 import SheetChatPanel from '@/app/dnd/_ui/SheetChatPanel';
 import AddToDemoButton from '@/app/dnd/_ui/AddToDemoButton';
 import { dndAiConfigured } from '@/lib/dnd/ai';
@@ -44,6 +45,9 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
   return (
     <>
       {topPanel}
+      {canWrite && Array.isArray((character as { build_questions?: string[] }).build_questions) && (character as { build_questions?: string[] }).build_questions!.length > 0 && (
+        <BuildQuestions characterId={character.id} questions={(character as { build_questions?: string[] }).build_questions as string[]} />
+      )}
       {canWrite && character.campaign_id !== DEMO_CAMPAIGN_ID && (
         <AddToDemoButton characterId={character.id} campaignId={DEMO_CAMPAIGN_ID} />
       )}

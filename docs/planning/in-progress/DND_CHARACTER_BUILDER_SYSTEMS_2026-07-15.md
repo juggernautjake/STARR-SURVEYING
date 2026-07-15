@@ -22,6 +22,14 @@ the target system's rules, staying as faithful as possible. The AI chat box must
 and on-theme**. And the existing **sheet tabs (abilities/actions/combat/features) must be crash-free** —
 there is currently a live `Cannot read properties of undefined (reading 'map')` error to fix.
 
+**Additional specs (round 2):** ship an actual **default character sheet** styled in the site's **League
+of Legends / Hextech** look (the current default is the bespoke "Lazzuh" purple-alien skin — replace it
+with a neutral Hextech default that is fully customizable). A **bottom-right AI chat** on the character
+page lets the user ask for any change — new feats/abilities/mechanics/transformations/spells, or sheet
+**styling/format** — and it applies them live. Enforce **hard AI permission boundaries**: the agent may
+only affect **character creation, the chat stream, and this character's sheet** (its content, mechanics,
+look) — it must NOT edit other site pages or anything outside character customization.
+
 ## Current state (from the code)
 
 - **Characters**: `dnd_characters` (`sheet_type`, `data` jsonb, `style_notes`, `import_notes`,
@@ -92,20 +100,40 @@ there is currently a live `Cannot read properties of undefined (reading 'map')` 
   `__tests__/dnd/build-modes.test.ts` passes (normalize defaults to questioning; the three instructions are
   distinct and match their behaviour). *(The instructions currently route questions through `unmapped`; a
   dedicated `questions` channel + the conversational resolution is Slice 5.)*
-- **Slice 5 — Conversational design chat (gaps & conflicts).** Extend the build chat so the AI **asks the
-  user** about missing/confusing/**conflicting uploads** (e.g. two files disagree on a stat) and records
-  the resolution back into the build. Verify: a conflicting-inputs build surfaces a question and applies
-  the answer.
+- **Slice 5 — Conversational design chat (gaps & conflicts).** ✅ The `edit_sheet` tool gained a
+  **`questions`** array (design decisions the AI needs the user to resolve — missing/ambiguous/**conflicting
+  uploads**); the mode instructions route gaps there (empty in ruthless). `seeds/425_dnd_build_questions.sql`
+  adds a `build_questions` jsonb column; the ingest route persists the questions. `BuildQuestions.tsx`
+  surfaces them on the character page for the owner with an answer box per question; submitting posts to the
+  new `POST /api/dnd/characters/[id]/answer` (owner/DM-gated), which stores the answers as an **authoritative
+  source note** + clears the questions, then the client re-runs `/ingest` so the sheet rebuilds using the
+  answers as the source of truth. Verified: `tsc` clean, lint clean, existing mode/grounding tests still
+  pass (5). *(A live conflicting-uploads round-trip needs the AI key; the channel + resolution loop is
+  wired and type-safe.)*
 - **Slice 6 — AI-built custom sheet (blocks + HTML/CSS).** A block model: the AI composes the character
   page from reusable **building blocks** and stores the generated **HTML/CSS** per character (a
   `custom_layout`/`custom_css` on the character, rendered by a custom sheet skin). Verify: a generated
   character renders from stored blocks/CSS, sandboxed safely.
+- **Slice 6b — Default Hextech character sheet.** Build an actual **default** sheet skin styled in the
+  site's **League-of-Legends / Hextech** look (register a `default` `sheet_type` → theme + CSS) and make it
+  the default for new characters (PCs and NPCs) instead of the bespoke "Lazzuh" purple-alien skin. Fully
+  customizable like every skin (works with the block/HTML/CSS system from Slice 6). Verify: a new character
+  renders on the Hextech default; the Lazzuh skin remains available but is no longer the fallback.
 - **Slice 7 — Sheet-style browser + selection.** For non-custom users, a gallery to **browse existing
-  sheet styles** (the registry skins) with previews and pick one (sets `sheet_type`). Verify: selecting a
-  style switches the rendered sheet.
-- **Slice 8 — AI edit mode.** Post-generation, an **edit chat** where the user requests specific changes/
-  additions (mechanics, fields, abilities) or **styling** tweaks; the agent applies them to the sheet data
-  / blocks / CSS. Verify: an edit request mutates the sheet as asked.
+  sheet styles** (the registry skins, incl. the new Hextech default) with previews and pick one (sets
+  `sheet_type`) — available for **NPCs too**. Verify: selecting a style switches the rendered sheet.
+- **Slice 8 — AI edit mode (bottom-right chat).** Post-generation, a **bottom-right AI chat** on the
+  character page where the user requests specific changes/additions — new **feats, abilities, mechanics,
+  transformations, spells**, or **styling / format** tweaks — and the agent applies them live to the sheet
+  data / blocks / CSS (re-using the grounded, system-scoped edit path). Verify: an edit request mutates the
+  sheet as asked and persists.
+- **Slice 8b — AI permission boundaries.** Enforce **hard guardrails** on what the agent may touch: only
+  **character creation, the chat stream, and the target character's sheet** (its content, mechanics, and
+  look). It must NOT edit other site pages, other characters, or anything outside character customization.
+  Implement as server-side scoping (every AI-driven write is keyed to the authorized character id +
+  owner/DM check — no path lets it write elsewhere) plus tool/prompt constraints, and document the allowed
+  surface. Verify: the agent's write endpoints reject any target the caller doesn't own/DM, and there is no
+  tool that can modify non-character resources.
 - **Slice 9 — Inline instructions & onboarding.** Thorough **help text** across the builder: what each
   field means, how each function works, what happens to uploaded info, and how the modes differ — so a new
   user can build confidently. Verify: help is present on the key builder surfaces.
@@ -155,4 +183,4 @@ there is currently a live `Cannot read properties of undefined (reading 'map')` 
 - **Verification:** app/server + AI features; prefer the dnd vitest suites + driving routes, and note
   anything needing the live app or an AI key.
 
-### Status: IN PROGRESS (Slices 0–4 + 1b shipped; 5–15 pending)
+### Status: IN PROGRESS (Slices 0–5 + 1b shipped; 6, 6b, 7, 8, 8b, 9–15 pending)

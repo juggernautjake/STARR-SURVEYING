@@ -28,15 +28,15 @@ export function buildModeInstruction(mode: BuildMode): string {
       return (
         'BUILD MODE: STEP-BY-STEP. Do NOT auto-fill the sheet. Apply only edits the user has explicitly ' +
         'provided. Your job is to guide the user through defining each stat, feature, ability and mechanic ' +
-        '(native to the system or custom) one at a time — list the next step(s) and any needed questions in ' +
-        '`unmapped` (each phrased as a question for the user); make no assumptions.'
+        '(native to the system or custom) one at a time — put the next step(s), each phrased as a direct ' +
+        'question, in the `questions` array; make no assumptions.'
       );
     case 'questioning':
     default:
       return (
         'BUILD MODE: QUESTIONING. Build everything that is clearly supported by the sources. For anything ' +
-        'missing, ambiguous, or conflicting, do NOT guess — list it in `unmapped` phrased as a specific ' +
-        'question for the user to resolve. Only fill fields you are confident about.'
+        'missing, ambiguous, or conflicting (e.g. two uploads disagree), do NOT guess — put a specific ' +
+        'question in the `questions` array for the user to resolve. Only fill fields you are confident about.'
       );
   }
 }
