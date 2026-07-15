@@ -51,8 +51,15 @@ export interface ClassDef {
 export interface SystemContent {
   skills: SkillDef[];
   classes: ClassDef[];
+  /** Optional COMPLETE class-name list for systems where some classes have names but not full
+   *  mechanical detail yet (superset of `classes[].name`). Used for grounding + the validator's
+   *  class-recognition so a real in-system class is never falsely flagged. Omit → use classes[].name. */
+  classNames?: string[];
   /** Playable species / ancestries / races (system's own term). */
   species: string[];
+  /** Optional per-ancestry mechanical one-liners (stat mods + a signature trait), for systems whose
+   *  ancestries carry mechanics (e.g. Intuitive Games). Names must match `species`. */
+  ancestryNotes?: string[];
   /** Standardized condition names for this system. */
   conditions: string[];
   /** A few representative feats/talents so the builder anchors on real ones (not exhaustive). */
@@ -266,6 +273,85 @@ export const SYSTEM_RULES: Record<string, SystemRules> = {
       sampleFeats: ['Power Attack', 'Sudden Charge', 'Reactive Strike', 'Intimidating Glare', 'Battle Medicine', 'Fleet', 'Toughness', 'Cat Fall', 'Quick Draw', 'Assurance'],
     },
   },
+
+  // Intuitive Games — a d20 homebrew system (rules from intuitivegames.net). Mechanical facts only.
+  'intuitive-games': {
+    key: 'intuitive-games',
+    label: 'Intuitive Games',
+    source: 'intuitivegames.net',
+    ability: {
+      abilities: DND_ABILITIES,
+      generation: 'Every score starts at 10 (+0). At level 1 you apply eight Ability Score Boosts (each raises a score by +2), with a creation cap of 14 in any one score (point buy). Alternate rolling: start at 6 and roll 1d6×2 per score. Two more boosts come at levels 3, 6, and 9.',
+      range: 'Creation cap is 14 per score; scores rise with boosts at levels 3/6/9 (in-play cap ~20).',
+      scoreMax: 20,
+      scoreMin: 1,
+      modifier: 'floor((score − 10) / 2).',
+      scoreBased: true,
+    },
+    proficiency: 'There is no separate proficiency-bonus table: your character LEVEL is added to trained weapon attacks, skills, and saves. Proficiency comes from being trained in a weapon group or skill.',
+    profBonusByLevel: null,
+    levelMin: 1,
+    levelMax: 10,
+    advancement: 'Levels 1–10 on a fixed schedule (traits, powers, feats, ability boosts, specializations, and a capstone at set levels).',
+    saves: 'Three saving throws — Fortitude (Constitution), Reflex (Dexterity), Will (Wisdom) — each equal to level + the governing ability modifier.',
+    coreResolution: 'Roll a d20 (opposed by the target’s d20 for attacks/saves) and read DEGREES OF SUCCESS: critical success = beat by 20+ (double damage), success = higher (normal damage), partial success = tie (minimum damage), failure = lower, critical failure = miss by 20+. Advantage/disadvantage roll 2d20 keep higher/lower; extra sources shift one step on the success chart.',
+    actionEconomy: 'THREE actions per turn plus one reaction (needs a provocation). Stride = 1 action (20 ft), Step = 1 action (5 ft, no provoke), Run = all 3 actions. A Multiple Strike Penalty of −2 applies to each attack after the first; flanking grants +2 to hit.',
+    rest: 'Nonlethal damage heals 2 + Constitution modifier per hour at rest; lethal damage heals 2 + Constitution modifier per day. Below 0 HP a creature is unconscious.',
+    progressionCadence: 'Fixed level schedule: traits at 1/2/7, ability boosts (two) at 3/6/9, a Combat Feat at odd levels and a General Feat every level, subclass powers, Specialization at 4 and Greater Specialization at 8, a Unique Power at 6, and a Capstone + Manifestation at 10.',
+    keyFacts: [
+      'Levels run 1–10 only (not 1–20) — do NOT use D&D or Pathfinder level math.',
+      'Your LEVEL is your proficiency bonus (added to trained rolls); there is no flat +2..+6 table.',
+      'Degrees of success matter: a tie is a PARTIAL success dealing minimum damage; beating a target by 20 is a critical (double damage).',
+      'Three saves only — Fortitude, Reflex, Will — not six per-ability saves.',
+      'A character is built from an Ancestry (via a trait) + Background + Class + Subclass + Traits + Feats + a Stance; HP = the class’s 10 + the background’s HP.',
+      'Ability scores start at 10 with eight +2 boosts at level 1 (creation cap 14) — not point-buy 8–15 or PF2-style boosts.',
+      'This is the Intuitive Games system (intuitivegames.net); do NOT import D&D 5e or Pathfinder feats, spells, classes, or numbers.',
+    ],
+    content: {
+      // Full detail for the classes whose key ability + HP are documented; the rest are name-only (classNames).
+      classes: [
+        { name: 'Archon', keyAbility: 'CHA', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
+        { name: 'Beastmaster', keyAbility: 'CHA', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
+        { name: 'Eldritch Binder', keyAbility: 'CHA', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
+        { name: 'Packmaster', keyAbility: 'CHA', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
+        { name: 'Summoner', keyAbility: 'CHA', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
+        { name: 'Conduit', keyAbility: 'WIS', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
+        { name: 'Druid', keyAbility: 'WIS', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
+        { name: 'Shifter', keyAbility: 'WIS', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
+        { name: 'Witch', keyAbility: 'WIS', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
+      ],
+      classNames: ['Archon', 'Beastmaster', 'Eldritch Binder', 'Packmaster', 'Summoner', 'Conduit', 'Druid', 'Shifter', 'Witch', 'Fighter', 'Champion', 'Freebooter', 'Marksman', 'Sohei', 'Wizard', 'Arcanist', 'Magician', 'Shaman'],
+      species: ['Dwarf', 'Elf', 'Gnome', 'Halfling', 'Human', 'Leshonki', 'Migoi', 'Naga', 'Ogre', 'Sprite'],
+      ancestryNotes: [
+        'Dwarf — Cave Vision (darkvision 30 ft) and Robust (+2 Fortitude saves; advantage vs venom/poison/alcohol).',
+        'Elf — Swift (+10 ft speed) and Near Perfect (once/day, advantage on one save or check, declared before rolling).',
+        'Gnome — Small size, +Dexterity/−Strength, land speed 15 ft + burrow 20 ft, damage dice one step lower; Crafty grants a Craft + Profession proficiency.',
+        'Halfling — Small size, +Dexterity/−Strength, +2 Stealth (advantage), damage dice one step lower; Lucky grants +2 saves of one type.',
+        'Human — Companion’s Friend (companion gains two ability boosts) or Dynamic (a bonus General Feat).',
+        'Leshonki — Vitality (eat poisonous plants for food; heal twice as fast) and Barkskin (DR 2 that stacks).',
+        'Migoi — Large size, +Strength/+Constitution/−Dexterity, damage dice one step higher, −2 Stealth; Temperature-Resistant.',
+        'Naga — Elemental (resistance 5 to one element type) and Draconic Structure (fly 10 ft with wings, 1d8 bite).',
+        'Ogre — Large size, +Strength/−Dexterity, +10 ft speed, damage dice one step higher, −2 Stealth; Acclimated grants a terrain movement mode.',
+        'Sprite — Small size, +Dexterity/−Strength, +2 Stealth, fly 20 ft, damage dice one step lower; Arcane Talent (+2 Arcana or Spellcraft).',
+      ],
+      conditions: ['Asleep', 'Blind', 'Broken', 'Confused', 'Deaf', 'Entangled', 'Fascinated', 'Flat-Footed', 'Grappled', 'Heatstroke', 'Hypothermia', 'Incorporeal', 'Invisible', 'Paralyzed', 'Pinned', 'Prone', 'Shaken', 'Sickened'],
+      skills: [
+        { name: 'Acrobatics', ability: 'DEX' }, { name: 'Arcane', ability: 'CHA' }, { name: 'Appraise', ability: 'INT' },
+        { name: 'Artistry', ability: 'DEX' }, { name: 'Bluff', ability: 'CHA' }, { name: 'Climb', ability: 'STR' },
+        { name: 'Craft', ability: 'INT' }, { name: 'Diplomacy', ability: 'CHA' }, { name: 'Disable Device', ability: 'DEX' },
+        { name: 'Escape Artist', ability: 'DEX' }, { name: 'Fly', ability: 'DEX' }, { name: 'Handle Animal', ability: 'WIS' },
+        { name: 'Heal', ability: 'WIS' }, { name: 'Intimidate', ability: 'CHA' }, { name: 'Lore', ability: 'INT' },
+        { name: 'Linguistics', ability: 'INT' }, { name: 'Nature', ability: 'WIS' }, { name: 'Perception', ability: 'WIS' },
+        { name: 'Perform', ability: 'CHA' }, { name: 'Profession', ability: 'WIS' }, { name: 'Religion', ability: 'WIS' },
+        { name: 'Ride', ability: 'DEX' }, { name: 'Sense Motive', ability: 'WIS' }, { name: 'Sleight of Hand', ability: 'DEX' },
+        { name: 'Spellcraft', ability: 'INT' }, { name: 'Stealth', ability: 'DEX' }, { name: 'Swim', ability: 'STR' },
+        { name: 'Dirty Trick', ability: 'STR' }, { name: 'Disarm', ability: 'STR' }, { name: 'Feint', ability: 'DEX' },
+        { name: 'Grapple', ability: 'STR' }, { name: 'Overrun', ability: 'STR' }, { name: 'Reposition', ability: 'STR' },
+        { name: 'Steal', ability: 'DEX' }, { name: 'Sunder', ability: 'STR' }, { name: 'Trip', ability: 'STR' },
+      ],
+      sampleFeats: ['Versatile', 'Dynamic', 'Robust', 'Swift', 'Near Perfect', 'Lucky', 'Crafty', 'Barkskin', 'Elemental', 'Arcane Talent'],
+    },
+  },
 };
 
 /** The rules for a system key, or null for the ambiguous / unknown case. */
@@ -304,8 +390,9 @@ export function systemRulesBlock(system: CharacterSystem): string {
     `• Stat/feat progression: ${r.progressionCadence}`,
     `• Must-know facts:`,
     ...r.keyFacts.map((f) => `   - ${f}`),
-    `• Valid classes (use ONLY these): ${r.content.classes.map((c) => c.name).join(', ')}.`,
+    `• Valid classes (use ONLY these): ${(r.content.classNames ?? r.content.classes.map((c) => c.name)).join(', ')}.`,
     `• Valid species/ancestries: ${r.content.species.join(', ')}.`,
+    ...(r.content.ancestryNotes && r.content.ancestryNotes.length ? ['• Ancestry mechanics:', ...r.content.ancestryNotes.map((a) => `   - ${a}`)] : []),
     `• Skills (name → governing ability): ${r.content.skills.map((s) => `${s.name} (${s.ability})`).join(', ')}.`,
     `• Conditions: ${r.content.conditions.join(', ')}.`,
     `• Example real feats to anchor on (not exhaustive): ${r.content.sampleFeats.join(', ')}.`,
@@ -317,9 +404,16 @@ export function systemRulesBlock(system: CharacterSystem): string {
 export function systemSkills(system: CharacterSystem): SkillDef[] {
   return rulesForSystem(system)?.content.skills ?? [];
 }
-/** The class definitions for a system. */
+/** The class definitions for a system (those with full mechanical detail). */
 export function systemClasses(system: CharacterSystem): ClassDef[] {
   return rulesForSystem(system)?.content.classes ?? [];
+}
+/** The COMPLETE list of class names recognized for a system (the `classNames` superset when a system
+ *  has name-only classes, else the detailed classes' names). Used by grounding + the validator. */
+export function systemClassNames(system: CharacterSystem): string[] {
+  const r = rulesForSystem(system);
+  if (!r) return [];
+  return r.content.classNames ?? r.content.classes.map((c) => c.name);
 }
 /** The playable species/ancestries for a system. */
 export function systemSpecies(system: CharacterSystem): string[] {

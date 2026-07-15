@@ -22,14 +22,21 @@ We store **mechanical facts/numbers only** (paraphrased summaries, cite the site
 ## Slices
 
 - **Slice 0 — Planning doc** *(this file)*.
-- **Slice 1 — Add the system to the catalog + grounding + validation.** Register `intuitive-games` in
-  `GAME_SYSTEMS`; add its full `SYSTEM_RULES` entry (core facts + content: classes, ancestries + ancestry
-  stat/trait notes, skills, conditions, feats/traits). Extend `SystemContent` with optional `classNames`
-  (complete class-name list where some classes lack full mechanical detail) and `ancestryNotes` (per-ancestry
-  mechanical one-liners), and thread them through `systemRulesBlock`, the validator's class-recognition, and
-  `systemRulesEntries`. Tests: the new system grounds with its own facts (levels 1–10, degrees of success,
-  three saves), never another system's; validation accepts an Intuitive Games ancestry/class and flags a
-  5e/PF2 one; the existing content invariants still hold for it.
+- **Slice 1 — Add the system to the catalog + grounding + validation.** ✅ Registered `intuitive-games` in
+  `GAME_SYSTEMS` and added its full `SYSTEM_RULES` entry — core facts (d20, **levels 1–10**, degrees of
+  success incl. tie→partial→min damage, 3-action economy + Multiple Strike Penalty, **level-as-proficiency**,
+  ability boosts starting at 10 with creation cap 14, **Fortitude/Reflex/Will** saves, HP = class 10 +
+  background, movement/rest/damage-type facts) plus content (9 detailed classes + the full 18-name class list,
+  10 ancestries + per-ancestry mechanical notes, 36 skills → abilities, 18 conditions, sample traits/feats) —
+  all stored as **mechanical facts / my own concise summaries, attributed to intuitivegames.net** (no
+  verbatim prose). Extended `SystemContent` with optional `classNames` (complete name list where some classes
+  are name-only) and `ancestryNotes`, threaded through `systemRulesBlock`, the new `systemClassNames`
+  accessor (used by the validator's class-recognition so a real Intuitive Games class like "Freebooter" isn't
+  flagged), and `systemRulesEntries` (emits name-only classes + per-ancestry note entries). The system now
+  appears automatically in the new-character picker and the transposition switcher (both iterate
+  `GAME_SYSTEMS`). Verified: `tsc` clean, lint clean, `__tests__/dnd/system-intuitive-games.test.ts` (4 tests)
+  + updated `system-grounding-e2e.test.ts`; the existing content/rules/entries invariants still hold for it;
+  full dnd suite (266) green.
 - **Slice 2 — QA + docs.** Full dnd vitest suite green, tsc + lint clean, then move this doc to `completed/`.
 
 ## Considerations
@@ -38,4 +45,4 @@ We store **mechanical facts/numbers only** (paraphrased summaries, cite the site
 - **Facts, not prose:** store concise mechanical summaries + attribute to intuitivegames.net.
 - **Extensible:** this exercises the "adding a system = one `GAME_SYSTEMS` row + one catalog entry" path.
 
-### Status: IN PROGRESS (Slice 0 shipped; 1–2 pending)
+### Status: IN PROGRESS (Slices 0–1 shipped; 2 (QA) pending)

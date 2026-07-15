@@ -15,6 +15,9 @@ const SIGNATURE: Record<string, { must: RegExp; mustNot: RegExp[] }> = {
   'dnd5e-2014': { must: /Six saving throws/, mustNot: [/Fortitude, Reflex, Will/, /Origin Feat/i, /THREE actions/] },
   'dnd5e-2024': { must: /Origin Feat/i, mustNot: [/Fortitude, Reflex, Will/, /THREE actions/] },
   pathfinder2e: { must: /Fortitude, Reflex, Will/, mustNot: [/Six saving throws/, /Origin Feat/i] },
+  // Intuitive Games: its own signatures (levels 1–10, degrees of success, three saves); never 5e's
+  // six ability-saves or the 2024 Origin Feat.
+  'intuitive-games': { must: /DEGREES OF SUCCESS/, mustNot: [/Six saving throws/, /Origin Feat/i] },
 };
 
 describe('system grounding + validation end-to-end (Slice 5 QA)', () => {

@@ -8,7 +8,7 @@
 // nothing system-specific. Violations are surfaced to the user (never silently kept).
 import type { Character } from '@/app/dnd/_sheet/types';
 import { SYSTEM_AMBIGUOUS, systemLabel, type CharacterSystem } from './systems';
-import { rulesForSystem, systemClasses, systemSpecies } from './system-rules';
+import { rulesForSystem, systemClassNames, systemSpecies } from './system-rules';
 
 export interface SystemViolation {
   /** Sheet field the issue is about (e.g. 'meta.className'). */
@@ -57,7 +57,7 @@ export function validateCharacterForSystem(character: Character, system: Charact
 
   // 3. Class belongs to the system (token match; tolerant of multiclass/subclass strings).
   const className = String(c?.meta?.className ?? '').trim();
-  if (className && !mentionsAny(className, systemClasses(system).map((x) => x.name))) {
+  if (className && !mentionsAny(className, systemClassNames(system))) {
     out.push({ field: 'meta.className', severity: 'warn', message: `Class "${className}" is not a recognized ${label} class — verify it isn't from another system.` });
   }
 

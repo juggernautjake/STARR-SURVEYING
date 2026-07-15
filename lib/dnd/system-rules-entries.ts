@@ -34,8 +34,19 @@ export function systemRulesEntries(system: CharacterSystem): SystemEntryInput[] 
     entries.push({ kind: 'class', name: c.name, body: `${c.name} — key ability ${c.keyAbility}; ${hp}; save proficiencies ${c.saves.join(' & ')}; ${caster}.`, source: src });
   }
 
+  // Any name-only classes (systems with a classNames superset beyond the detailed classes).
+  const detailed = new Set(r.content.classes.map((c) => c.name));
+  for (const name of r.content.classNames ?? []) {
+    if (!detailed.has(name)) entries.push({ kind: 'class', name, body: `${name} — a ${r.label} class.`, source: src });
+  }
+
   // Species / ancestries + skills + conditions as list entries.
   entries.push({ kind: 'species', name: 'Playable species/ancestries', body: r.content.species.join(', '), source: src });
+  // Per-ancestry mechanical notes (when the system's ancestries carry mechanics), each its own entry.
+  (r.content.ancestryNotes ?? []).forEach((note) => {
+    const nm = note.split(/[—-]/)[0].trim();
+    entries.push({ kind: 'species', name: nm || 'Ancestry', body: note, source: src });
+  });
   entries.push({ kind: 'rule', name: 'Skill list', body: r.content.skills.map((s) => `${s.name} (${s.ability})`).join(', '), source: src });
   entries.push({ kind: 'condition', name: 'Conditions', body: r.content.conditions.join(', '), source: src });
   entries.push({ kind: 'feat', name: 'Example feats', body: r.content.sampleFeats.join(', '), source: src });

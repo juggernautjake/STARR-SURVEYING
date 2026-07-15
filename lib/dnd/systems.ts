@@ -17,6 +17,7 @@ export const GAME_SYSTEMS: GameSystem[] = [
   { key: 'dnd5e-2014', name: 'D&D 5e (2014)', publisher: 'Wizards of the Coast', notes: "The 2014 Player's Handbook edition." },
   { key: 'dnd5e-2024', name: 'D&D 5e (2024)', publisher: 'Wizards of the Coast', notes: 'The 2024 revised edition.' },
   { key: 'pathfinder2e', name: 'Pathfinder 2e', publisher: 'Paizo', notes: 'Pathfinder Second Edition (Remaster-aware).' },
+  { key: 'intuitive-games', name: 'Intuitive Games', publisher: 'Intuitive Games', notes: 'A d20 system (levels 1–10, degrees of success, 3-action economy). Rules from intuitivegames.net.' },
 ];
 
 export type CharacterSystem = string; // a GAME_SYSTEMS key, or SYSTEM_AMBIGUOUS
