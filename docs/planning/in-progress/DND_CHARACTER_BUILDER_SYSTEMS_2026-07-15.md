@@ -265,9 +265,16 @@ look) — it must NOT edit other site pages or anything outside character custom
     transpose installs new + keeps source; snapshot mirrors columns). Full dnd suite (235) green. *(A live
     2024→2014 AI transpose needs the AI key; the switch/restore mechanic + the grounded transpose wiring are
     proven, and switching between already-built systems needs no AI at all.)*
-- **Slice 14 — Themed AI chat box.** Make the builder's AI agent chat **appealing and well-flowing**,
-  matching the site's Hextech theme (typography, colors, message bubbles, streaming, input affordances).
-  Verify: the chat renders on-theme and streams smoothly.
+- **Slice 14 — Themed AI chat box.** ✅ Refactored `SheetEditChat` from inline styles onto a dedicated
+  `app/dnd/_ui/sheetchat.module.css` that declares the full **Hextech palette + Cinzel display font** on the
+  dock root (so every child is on-theme, no fallback guessing): a glowing launcher pill, a `rise`-animated
+  panel, gold/teal message **bubbles** with a `pop` entrance + tails, a themed scrollbar, focus-glow input,
+  and a hover-lit send button. The "streaming" feel: a bouncing three-**dot typing indicator** while the
+  agent works, and the AI reply reveals with a **typewriter** effect (`useTypewriter`) trailing a blinking
+  teal caret — smooth flow without needing a token-stream endpoint (the edit route returns structured tool
+  results, not text). Verified: `tsc` clean, lint clean, full dnd suite (235) green; the CSS module carries
+  the themed typography, bubbles, typing dots, and caret keyframes. *(Pure visual polish — a live look is the
+  running app.)*
 - **Slice 15 — QA + docs.** End-to-end pass across the whole builder (system pick → mode → grounded build
   → chat resolution → custom/interactive sheet or style pick → real-time edits → cross-system transpose;
   NPC parity; no tab crashes), run the dnd vitest suite, then move this doc to `completed/`.
@@ -287,4 +294,4 @@ look) — it must NOT edit other site pages or anything outside character custom
 - **Verification:** app/server + AI features; prefer the dnd vitest suites + driving routes, and note
   anything needing the live app or an AI key.
 
-### Status: IN PROGRESS (Slices 0–13 + 1b shipped; 14–15 pending)
+### Status: IN PROGRESS (Slices 0–14 + 1b shipped; 15 (QA) pending)
