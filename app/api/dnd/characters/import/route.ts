@@ -8,6 +8,8 @@ import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
+import { normalizeSystem } from '@/lib/dnd/systems';
+import { normalizeBuildMode } from '@/lib/dnd/build-modes';
 
 const BUCKET = 'dnd-media';
 const MAX_BYTES = 25 * 1024 * 1024; // 25 MB per file
@@ -28,6 +30,8 @@ export async function POST(req: NextRequest) {
     const name = String(form.get('name') ?? '').trim();
     const notes = String(form.get('notes') ?? '').trim();
     const styleNotes = String(form.get('styleNotes') ?? '').trim();
+    const system = normalizeSystem(form.get('system'));       // chosen game system or 'ambiguous'
+    const buildMode = normalizeBuildMode(form.get('mode'));   // ruthless | questioning | stepbystep
     if (!name) return NextResponse.json({ error: 'A character name is required.' }, { status: 400 });
     // A campaign is OPTIONAL: with one you must be a member (it lands in that campaign); without one the
     // character is a private, personal sheet owned by the caller that they can build fully on its own and
@@ -47,6 +51,8 @@ export async function POST(req: NextRequest) {
         visibility: hasCampaign ? 'campaign' : 'private',
         under_construction: true,
         style_notes: styleNotes || null,
+        system,
+        build_mode: buildMode,
       })
       .select('id')
       .single();

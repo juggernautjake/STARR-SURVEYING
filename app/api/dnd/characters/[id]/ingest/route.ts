@@ -11,6 +11,7 @@ import { applySheetEdits, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/shee
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
 import { systemGroundingBlock } from '@/lib/dnd/grounding';
+import { normalizeBuildMode, buildModeInstruction } from '@/lib/dnd/build-modes';
 
 const IMG = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const TEXTY = /\.(txt|md|csv|json|text)$/i;
@@ -39,9 +40,9 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
   if (!dndAiConfigured()) return NextResponse.json({ error: 'AI is not configured.' }, { status: 503 });
 
-  const { data: ch } = await supabaseAdmin.from('dnd_characters').select('id, campaign_id, owner_user_id, name, data, system').eq('id', params.id).maybeSingle();
+  const { data: ch } = await supabaseAdmin.from('dnd_characters').select('id, campaign_id, owner_user_id, name, data, system, build_mode').eq('id', params.id).maybeSingle();
   if (!ch) return NextResponse.json({ error: 'Character not found.' }, { status: 404 });
-  const row = ch as { id: string; campaign_id: string; owner_user_id: string | null; name: string; data: Character | null; system: string | null };
+  const row = ch as { id: string; campaign_id: string; owner_user_id: string | null; name: string; data: Character | null; system: string | null; build_mode: string | null };
   const isDM = (await getCampaignRole(row.campaign_id)) === 'dm';
   if (!isDM && row.owner_user_id !== session.userId) return NextResponse.json({ error: 'You cannot edit this character.' }, { status: 403 });
 
@@ -76,11 +77,12 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   ].join('\n').slice(0, 6000);
   const grounding = await systemGroundingBlock(row.system, queryText).catch(() => ({ instruction: '', block: '', matched: 0 }));
   if (grounding.block) content.push({ type: 'text', text: grounding.block });
+  const modeInstruction = buildModeInstruction(normalizeBuildMode(row.build_mode));
 
   let result;
   try {
     result = await dndToolCall<{ edits: SheetEdit[]; unmapped?: string[] }>({
-      system: grounding.instruction ? `${SYSTEM}\n\n${grounding.instruction}` : SYSTEM,
+      system: [SYSTEM, grounding.instruction, modeInstruction].filter(Boolean).join('\n\n'),
       user: [{ role: 'user', content: content as Anthropic.MessageParam['content'] }],
       tools: [SHEET_EDIT_TOOL],
       toolChoice: { type: 'tool', name: 'edit_sheet' },

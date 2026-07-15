@@ -81,10 +81,17 @@ there is currently a live `Cannot read properties of undefined (reading 'map')` 
   forbids assuming a system with no block; a specific system constrains to itself + flags unknowns; null →
   ambiguous. *(A live end-to-end "5e-2014 build never pulls pathfinder2e" check needs the embedding + AI
   keys; the scoping is enforced structurally by the per-`system_id` SQL filter + the prompt.)*
-- **Slice 4 — Three creation modes.** A mode selector on the builder: **Ruthless** (build everything,
-  best-effort, no questions), **Questioning** (build the obvious, collect open questions on
-  gaps/conflicts), **Step-by-step** (guided define-every-field flow, native or custom). Drives the agent
-  behaviour + persists the choice. Verify: each mode produces the described behaviour on a sample build.
+- **Slice 4 — Three creation modes.** ✅ `lib/dnd/build-modes.ts` defines **Ruthless** / **Questioning** /
+  **Step-by-step** with `normalizeBuildMode` + a distinct `buildModeInstruction` per mode (ruthless =
+  build it all, no questions; questioning = build the clear parts, list gaps/conflicts as questions in
+  `unmapped`; step-by-step = don't auto-fill, guide field-by-field). `seeds/424_dnd_build_mode.sql` adds a
+  `dnd_characters.build_mode` column (default `questioning`). The new-character form gained a **Game
+  System** picker (grounds the build, defaults ambiguous) + a **Build Mode** radio group; the import route
+  persists `system` + `build_mode`; the ingest route reads `build_mode` and folds its instruction into the
+  agent prompt alongside the system grounding. Verified: `tsc` clean, lint clean,
+  `__tests__/dnd/build-modes.test.ts` passes (normalize defaults to questioning; the three instructions are
+  distinct and match their behaviour). *(The instructions currently route questions through `unmapped`; a
+  dedicated `questions` channel + the conversational resolution is Slice 5.)*
 - **Slice 5 — Conversational design chat (gaps & conflicts).** Extend the build chat so the AI **asks the
   user** about missing/confusing/**conflicting uploads** (e.g. two files disagree on a stat) and records
   the resolution back into the build. Verify: a conflicting-inputs build surfaces a question and applies
@@ -148,4 +155,4 @@ there is currently a live `Cannot read properties of undefined (reading 'map')` 
 - **Verification:** app/server + AI features; prefer the dnd vitest suites + driving routes, and note
   anything needing the live app or an AI key.
 
-### Status: IN PROGRESS (Slices 0–3 + 1b shipped; 4–15 pending)
+### Status: IN PROGRESS (Slices 0–4 + 1b shipped; 5–15 pending)

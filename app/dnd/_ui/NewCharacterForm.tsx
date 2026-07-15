@@ -8,12 +8,16 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import styles from './hextech.module.css'
+import { GAME_SYSTEMS, SYSTEM_AMBIGUOUS } from '@/lib/dnd/systems'
+import { BUILD_MODES, type BuildMode } from '@/lib/dnd/build-modes'
 
 const SOURCE_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.json,image/png,image/jpeg,image/webp'
 
 export default function NewCharacterForm({ campaignId = '' }: { campaignId?: string }) {
   const router = useRouter()
   const [name, setName] = useState('')
+  const [system, setSystem] = useState<string>(SYSTEM_AMBIGUOUS)
+  const [mode, setMode] = useState<BuildMode>('questioning')
   const [notes, setNotes] = useState('')
   const [style, setStyle] = useState('')
   const [sources, setSources] = useState<File[]>([])
@@ -31,6 +35,8 @@ export default function NewCharacterForm({ campaignId = '' }: { campaignId?: str
       const fd = new FormData()
       if (campaignId) fd.append('campaignId', campaignId) // empty → a personal (no-campaign) character
       fd.append('name', name.trim())
+      fd.append('system', system)
+      fd.append('mode', mode)
       fd.append('notes', notes)
       fd.append('styleNotes', style)
       sources.forEach((f) => fd.append('sources', f))
@@ -86,6 +92,30 @@ export default function NewCharacterForm({ campaignId = '' }: { campaignId?: str
             <div style={{ display: 'grid', gap: 4 }}>
               <span style={label}>Character Name *</span>
               <input style={input} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Kaelen Duskbane" />
+            </div>
+
+            <div style={{ display: 'grid', gap: 4 }}>
+              <span style={label}>Game System</span>
+              <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>Pick a ruleset so the AI grounds the build in that system only — or leave it system-ambiguous.</span>
+              <select style={input} value={system} onChange={(e) => setSystem(e.target.value)}>
+                <option value={SYSTEM_AMBIGUOUS}>System-ambiguous (no specific ruleset)</option>
+                {GAME_SYSTEMS.map((s) => (<option key={s.key} value={s.key}>{s.name}</option>))}
+              </select>
+            </div>
+
+            <div style={{ display: 'grid', gap: 4 }}>
+              <span style={label}>Build Mode</span>
+              <div style={{ display: 'grid', gap: 6 }}>
+                {BUILD_MODES.map((m) => (
+                  <label key={m.key} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', padding: '8px 10px', border: `1px solid ${mode === m.key ? 'var(--hx-gold-2)' : 'var(--hx-line)'}`, background: mode === m.key ? 'rgba(200,155,60,0.08)' : 'transparent' }}>
+                    <input type="radio" name="buildmode" checked={mode === m.key} onChange={() => setMode(m.key)} style={{ marginTop: 3 }} />
+                    <span>
+                      <strong style={{ fontSize: 13, color: 'var(--hx-text)' }}>{m.name}</strong>
+                      <span style={{ display: 'block', fontSize: 12, color: 'var(--hx-muted)', lineHeight: 1.45 }}>{m.blurb}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
             </div>
 
             <div style={{ display: 'grid', gap: 4 }}>
