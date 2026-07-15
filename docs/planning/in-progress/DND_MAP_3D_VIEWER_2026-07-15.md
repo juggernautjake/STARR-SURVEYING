@@ -191,9 +191,19 @@ like the 2D viewer* but renders true 3D models.
   **Re-scoped:** the `planet3d-model.js` extraction moves to **Slice 5**, where the live-planet
   viewer actually consumes it — extracting the shader/texture builder now would ship untested dead
   code; doing it at point-of-use lets it be verified by a real render.
-- **Slice 4 — 3D scene + camera + toggle.** New WebGL scene in the Map Studio, ortho camera +
-  constrained OrbitControls, ground plane, ambient starfield; a **2D⇄3D toggle** that swaps surfaces
-  and preserves pan/zoom. Renders existing 2D bodies as flat planes to prove the pipeline.
+- **Slice 4 — 3D scene + camera + toggle.** ✅ New module **`public/dnd/maps/map3d.js`** (`window.Map3D`):
+  one WebGL scene with an **OrthographicCamera** (map-like, no perspective warp) + **constrained
+  OrbitControls** (left-drag pan, wheel zoom, right-drag tilt up to ~flat; top-down by default), an
+  ambient **starfield**, and a body group. Bodies render as flat discs on the z=0 plane at their 2D
+  positions (2D→3D maps `(x,y)`→`(x,-y,0)`) — proving the pipeline; real planet meshes are Slice 5.
+  A **⛶ 3D / ▢ 2D toggle** in the Map Studio toolbar (the module wires itself) hides the 2D layers
+  and shows the WebGL surface, and back. Three is the vendored copy via the importmap; lazy-loaded on
+  first toggle. **Two bugs found & fixed:** `#gl3d` must sit at z-5 (above the map layers z1–4, below
+  the toolbar z-6, or it ate the toggle click); and the camera must be **framed after the container
+  is visible** (framing while `display:none` gives `clientWidth=0` → degenerate zoom → blank scene) —
+  bounds are stored and `_frameBounds()` runs in `show()`, zoom clamped. Verified over HTTP: toggle
+  mounts a WebGL context, 3 discs render at the right spots (screenshot), 2D hides then restores,
+  zero errors. View-only for now (TransformControls = Slice 6).
 - **Slice 5 — Live 3D planets (incl. `planet3d-model.js` extraction).** Extract the planet
   geometry/shaders/textures/build-from-config out of the generator into shared `planet3d-model.js`
   (generator then consumes it), build planet meshes from `config`; spin live; sprite-billboard

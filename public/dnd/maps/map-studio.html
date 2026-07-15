@@ -7,6 +7,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Caveat:wght@500;700&family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Michroma&family=Orbitron:wght@500;600;700&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <script src="labels.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "/dnd/maps/vendor/three/three.module.js",
+  "three/addons/": "/dnd/maps/vendor/three/addons/"
+}}
+</script>
 <style>
   :root{--void:#010a13;--panel:#0b1a2c;--panel2:#10233b;--raised:#16304a;--line:#1e2d3d;--line2:#2a3f52;
     --ink:#f0e6d2;--dim:#a09b8c;--faint:#6d6a5f;--gold:#c89b3c;--aether:#0ac8b9;--cyan:#0ac8b9;--green:#0ac8b9;--red:#c6403b;}
@@ -241,8 +247,10 @@
       <button data-tool="poi" title="Click a planet, then click to drop a POI (O)">◈ Drop POI</button>
       <button id="btnAddText" title="Add a free-floating text label — name a location, route, or region">🅣 Text</button>
       <button data-tool="fx" title="Map ambience & effects">✧ Effects</button>
+      <div class="tspacer" style="flex:1"></div>
+      <button id="view3dBtn" title="Switch between the flat 2D map and the real-time 3D viewer">⛶ 3D</button>
     </div>
-    <div id="canvas"><div id="bgLayer"></div><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><canvas id="fxCanvas"></canvas><svg id="labelLayer"></svg></div>
+    <div id="canvas"><div id="bgLayer"></div><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><canvas id="fxCanvas"></canvas><svg id="labelLayer"></svg><div id="gl3d" style="position:absolute;inset:0;z-index:5;display:none"></div></div>
   </div>
   <div class="insp">
     <div class="ihead" id="inspHead">◈ INSPECTOR</div>
@@ -1917,5 +1925,7 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
   if(dbMapId) loadFromCampaign(dbMapId);
 })();
 </script>
+<!-- Real-time 3D viewer (vendored Three via the importmap above). Wires the ⛶ 3D toggle itself. -->
+<script type="module" src="/dnd/maps/map3d.js"></script>
 </body>
 </html>
