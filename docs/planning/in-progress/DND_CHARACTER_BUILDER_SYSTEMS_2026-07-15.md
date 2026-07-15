@@ -69,10 +69,18 @@ there is currently a live `Cannot read properties of undefined (reading 'map')` 
   SQL balanced, `__tests__/dnd/system-store.test.ts` passes (embed-text weighting + empty-query returns
   nothing = no cross-system leak). *(Real embeddings + semantic hits need `VOYAGE`/embedding env; the store
   degrades gracefully without it — browse works, semantic search returns [] rather than guessing.)*
-- **Slice 3 — System-scoped, anti-hallucination grounding.** The build/ingest agent retrieves **only the
-  chosen system's** entries (none for ambiguous/custom), with strict prompts: never invent rules, never
-  borrow from another system, cite the entry used, and **flag** anything missing/unsupported instead of
-  guessing. Verify: a build for `dnd5e-2014` never pulls `pathfinder2e` entries; unknown asks are flagged.
+- **Slice 3 — System-scoped, anti-hallucination grounding.** ✅ `lib/dnd/grounding.ts`
+  (`systemGroundingBlock`) retrieves **only** the character's system's entries (via the scoped
+  `searchSystemEntries` from Slice 2) and returns a strict instruction: use ONLY that system's
+  rules/feats/spells/actions/weapons/numbers, **never borrow from another system, never invent**, and put
+  ambiguous/missing/conflicting things in `unmapped` (ask the user) instead of guessing. System-ambiguous
+  characters get a "do not assume any ruleset" instruction and **no** rules block. Wired into the AI ingest
+  route (`characters/[id]/ingest`): it now reads the character's `system`, builds a query from the sources,
+  appends the retrieved rules block to the prompt content, and folds the grounding instruction into the
+  system prompt. Verified: `tsc` clean, lint clean, `__tests__/dnd/grounding.test.ts` (3 tests) — ambiguous
+  forbids assuming a system with no block; a specific system constrains to itself + flags unknowns; null →
+  ambiguous. *(A live end-to-end "5e-2014 build never pulls pathfinder2e" check needs the embedding + AI
+  keys; the scoping is enforced structurally by the per-`system_id` SQL filter + the prompt.)*
 - **Slice 4 — Three creation modes.** A mode selector on the builder: **Ruthless** (build everything,
   best-effort, no questions), **Questioning** (build the obvious, collect open questions on
   gaps/conflicts), **Step-by-step** (guided define-every-field flow, native or custom). Drives the agent
@@ -140,4 +148,4 @@ there is currently a live `Cannot read properties of undefined (reading 'map')` 
 - **Verification:** app/server + AI features; prefer the dnd vitest suites + driving routes, and note
   anything needing the live app or an AI key.
 
-### Status: IN PROGRESS (Slices 0–2 + 1b shipped; 3–15 pending)
+### Status: IN PROGRESS (Slices 0–3 + 1b shipped; 4–15 pending)
