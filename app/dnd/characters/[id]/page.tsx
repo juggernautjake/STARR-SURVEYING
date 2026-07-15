@@ -11,6 +11,7 @@ import UnderConstructionBanner from '@/app/dnd/_ui/UnderConstructionBanner';
 import CharacterBuildKit from '@/app/dnd/_ui/CharacterBuildKit';
 import BuildQuestions from '@/app/dnd/_ui/BuildQuestions';
 import SheetStyleBrowser from '@/app/dnd/_ui/SheetStyleBrowser';
+import SheetEditChat from '@/app/dnd/_ui/SheetEditChat';
 import SheetChatPanel from '@/app/dnd/_ui/SheetChatPanel';
 import AddToDemoButton from '@/app/dnd/_ui/AddToDemoButton';
 import { dndAiConfigured } from '@/lib/dnd/ai';
@@ -63,6 +64,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
         customCss={character.custom_css}
       />
       {character.campaign_id && <SheetChatPanel campaignId={character.campaign_id} actorName={character.name} />}
+      {canWrite && <SheetEditChat characterId={character.id} characterName={character.name} aiConfigured={dndAiConfigured()} />}
     </>
   );
 }

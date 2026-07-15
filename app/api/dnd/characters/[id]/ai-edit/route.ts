@@ -4,18 +4,26 @@
 // and log each edit to dnd_sheet_edits. Powers G2 (build) and I3 (refine).
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
+import { getDndSession } from '@/lib/dnd/auth';
+import { getCharacterAccess } from '@/lib/dnd/characters';
 import { dndToolCall, dndAiConfigured } from '@/lib/dnd/ai';
 import { applySheetEdits, editPath, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
+import { systemGroundingBlock } from '@/lib/dnd/grounding';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
 
+// A system-agnostic architect prompt; the per-character system grounding (Slice 3) is
+// folded in below so edits stay strictly within the character's chosen ruleset and never
+// borrow from — or invent — another system's mechanics (Slice 8: the grounded edit path).
 const SYSTEM =
-  'You are a D&D 5e character architect. You receive a character sheet (JSON) and an instruction. ' +
-  'Call the edit_sheet tool with the minimal, valid set of structured edits that satisfies the instruction. ' +
-  'Ability scores are raw values (e.g. 16), never modifiers. When asked to build a full NPC from scratch, ' +
-  'produce a complete, playable, level-appropriate kit: name, level, all six abilities, AC/HP/speed, save ' +
-  'proficiencies, a few skills, one or more attacks, signature features, and notable inventory.';
+  'You are a tabletop RPG character architect. You receive a character sheet (JSON) and an instruction, ' +
+  'and you make ONLY the change the user asked for — adding or altering feats, abilities, mechanics, ' +
+  'transformations, spells, attacks, features, resources, stats, or inventory. Call the edit_sheet tool ' +
+  'with the minimal, valid set of structured edits that satisfies the instruction. Ability scores are raw ' +
+  'values (e.g. 16), never modifiers. When asked to build a full character from scratch, produce a complete, ' +
+  'playable, level-appropriate kit: name, level, all six abilities, AC/HP/speed, save proficiencies, a few ' +
+  'skills, one or more attacks, signature features, and notable inventory. Do not touch anything the user did ' +
+  'not ask about.';
 
 function sheetDigest(c: Character): string {
   return JSON.stringify({
@@ -37,20 +45,31 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const { instruction } = await req.json().catch(() => ({}));
   if (!instruction || !String(instruction).trim()) return NextResponse.json({ error: 'An instruction is required.' }, { status: 400 });
 
-  const { data: ch } = await supabaseAdmin.from('dnd_characters').select('id, campaign_id, owner_user_id, name, data').eq('id', params.id).maybeSingle();
-  if (!ch) return NextResponse.json({ error: 'Character not found.' }, { status: 404 });
-  const row = ch as { id: string; campaign_id: string; owner_user_id: string | null; name: string; data: Character | null };
-  const isDM = (await getCampaignRole(row.campaign_id)) === 'dm';
-  const isOwner = row.owner_user_id === session.userId;
-  if (!isDM && !isOwner) return NextResponse.json({ error: 'You cannot edit this character.' }, { status: 403 });
+  // Robust authorization (Slice 8b boundary): the edit is keyed to THIS character id and
+  // only proceeds for the owner / assigned player / a DM of a campaign it's in. Handles
+  // campaign-less personal characters (which the fragile campaign_id lookup did not).
+  const access = await getCharacterAccess(params.id);
+  if (!access.access) return NextResponse.json({ error: access.error }, { status: access.status });
+  if (!access.access.canWrite) return NextResponse.json({ error: 'You cannot edit this character.' }, { status: 403 });
+  const row = access.access.character;
+  const isDM = access.access.isDM;
+  const instr = String(instruction).trim();
 
-  const current: Character = row.data ?? blankCharacter(row.name);
+  const current: Character = (row.data as unknown as Character | null) ?? blankCharacter(row.name);
+
+  // System grounding (Slice 3/8): edits must stay inside the character's chosen system —
+  // no cross-system rules, no invented mechanics.
+  const grounding = await systemGroundingBlock((row as { system?: string }).system, instr).catch(() => null);
 
   let result;
   try {
     result = await dndToolCall<{ summary?: string; edits: SheetEdit[] }>({
-      system: SYSTEM,
-      user: `Current sheet:\n${sheetDigest(current)}\n\nInstruction: ${String(instruction).trim()}`,
+      system: [SYSTEM, grounding?.instruction].filter(Boolean).join('\n\n'),
+      user: [
+        `Current sheet:\n${sheetDigest(current)}`,
+        grounding?.block || null,
+        `Instruction: ${instr}`,
+      ].filter(Boolean).join('\n\n'),
       tools: [SHEET_EDIT_TOOL],
       toolChoice: { type: 'tool', name: 'edit_sheet' },
       maxTokens: 4096,

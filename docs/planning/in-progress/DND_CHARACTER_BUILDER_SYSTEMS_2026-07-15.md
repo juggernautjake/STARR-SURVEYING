@@ -152,11 +152,21 @@ look) — it must NOT edit other site pages or anything outside character custom
   gets the browser on them too). Verified: `tsc` clean, lint clean, `__tests__/dnd/sheet-styles.test.ts`
   (3 tests: catalog shape, custom/generic not pickable, validation) — full dnd suite green. *(A live
   click-to-switch visual check needs the running app.)*
-- **Slice 8 — AI edit mode (bottom-right chat).** Post-generation, a **bottom-right AI chat** on the
-  character page where the user requests specific changes/additions — new **feats, abilities, mechanics,
-  transformations, spells**, or **styling / format** tweaks — and the agent applies them live to the sheet
-  data / blocks / CSS (re-using the grounded, system-scoped edit path). Verify: an edit request mutates the
-  sheet as asked and persists.
+- **Slice 8 — AI edit mode (bottom-right chat).** ✅ `app/dnd/_ui/SheetEditChat.tsx` — a floating,
+  on-theme (Hextech) chat dock pinned bottom-right of the character page (owner/DM only, via `canWrite`). The
+  user asks for any change in plain language (new feats/abilities/mechanics/transformations/spells, attacks,
+  stats…); each request POSTs to the existing `/ai-edit` route and the AI's summary streams back as a chat
+  bubble, then the mounted sheet **reloads live**. The reload uses a new `dnd:reload-character` window event
+  the sheet store now listens for (the chat is a separate React tree, so it dispatches the event and
+  `CharacterProvider` calls `reloadFromDb`). Hardened the `/ai-edit` route: it now authorizes via
+  `getCharacterAccess` (handles campaign-less personal characters + the assigned player, which the old
+  `campaign_id`-only check broke) and folds in the **system grounding** (`systemGroundingBlock` on the
+  character's `system`) so edits stay strictly inside the chosen ruleset — no cross-system rules, no invented
+  mechanics — replacing the hardcoded "D&D 5e architect" prompt with a system-agnostic one. The header states
+  the scope ("Edits only <name>'s sheet") — the visible edge of the Slice 8b boundary. Verified: `tsc` clean,
+  lint clean, full dnd suite (208) green. *(Live apply-and-persist needs the AI key + running app; the edit
+  path, grounding, auth, and live-reload wiring are in place and type-safe. Styling-via-CSS/blocks edits ride
+  the custom-sheet system and deepen in Slices 11–12.)*
 - **Slice 8b — AI permission boundaries.** Enforce **hard guardrails** on what the agent may touch: only
   **character creation, the chat stream, and the target character's sheet** (its content, mechanics, and
   look). It must NOT edit other site pages, other characters, or anything outside character customization.
@@ -213,4 +223,4 @@ look) — it must NOT edit other site pages or anything outside character custom
 - **Verification:** app/server + AI features; prefer the dnd vitest suites + driving routes, and note
   anything needing the live app or an AI key.
 
-### Status: IN PROGRESS (Slices 0–7 + 1b shipped; 8, 8b, 9–15 pending)
+### Status: IN PROGRESS (Slices 0–8 + 1b shipped; 8b, 9–15 pending)

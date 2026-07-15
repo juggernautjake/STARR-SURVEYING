@@ -326,6 +326,19 @@ export function CharacterProvider({
     if (retryRef.current) clearTimeout(retryRef.current)
   }, [])
 
+  // Live-reload signal (I3 / Slice 8): the bottom-right AI edit chat lives in a separate
+  // React tree (page level), so after it applies an edit server-side it dispatches a
+  // window event; the mounted sheet refetches the fresh data so the change shows live.
+  useEffect(() => {
+    if (!characterId) return
+    const onReload = (e: Event) => {
+      const detail = (e as CustomEvent<{ id?: string }>).detail
+      if (!detail || detail.id === characterId) void reloadFromDb()
+    }
+    window.addEventListener('dnd:reload-character', onReload)
+    return () => window.removeEventListener('dnd:reload-character', onReload)
+  }, [characterId, reloadFromDb])
+
   // Realtime sync (C11b): one broadcast channel per character. After any client
   // saves, it pings here; other viewers refetch through the authed API — data
   // never rides the public channel. This is a broadcast ping, NOT table-level
