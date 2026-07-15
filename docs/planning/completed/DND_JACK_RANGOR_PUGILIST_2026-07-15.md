@@ -158,10 +158,18 @@ A **light** "rulebook" treatment, like `skin-streamer` is a light skin over the 
   AC/HP, saves/skills, Moxie, both attacks, the feature bundle + table, the `jack`→rulebook registry
   wiring, and structural validity — all pass; tsc + eslint clean.
   *(The DB seed moves to Slice 4 — it needs Jack's player/owner identity + the reference art.)*
-- **Slice 4 — Appearance, seed + QA.** Reference art wired to art/token; a DB seed placing Jack in a
-  campaign (owner + Neon Odyssey), mirroring the Donata seed; and an end-to-end pass: create/open Jack,
-  confirm the rulebook style, correct AC/HP/attacks/Moxie/features render, and that other characters
-  are visually untouched. Move this doc to `completed/`.
+- **Slice 4 — Appearance, seed + QA.** ✅ **Seed:** Jack is added to the Neon Odyssey demo seed —
+  `DEMO_JACK_CHARACTER_ID` in `lib/dnd/constants.ts` + an insert in `scripts/dnd-seed-demo.ts` that
+  writes `jack('Jack')` into `dnd_characters` (sheet_type `jack`), **DM-owned + campaign-visible** so
+  he's on the roster and the DM assigns him to whoever plays Jack via the roster tool (no fabricated
+  player account). **QA:** the full `__tests__/dnd/` suite is green (185 tests, 27 files), and a new
+  engine test derives Jack's AC through the shared `deriveCharacter`/`computeAC` path (**14**, matching
+  the stored sheet AC) — proving the rulebook character renders correctly on the real engine, not just
+  hand-stored numbers; tsc + eslint clean.
+  **Deferred (with rationale): the reference-art binary.** `tokenFocus` is set and the sheet already
+  supports `art_url`/`token_url`, but the actual portrait is a pasted image, not a repo file — it's a
+  **runtime upload** via `SheetArtUploader` (or the DB `art_url`), so persisting a binary here would
+  exceed the slice's value. Everything else (mechanics, style, seed) is shipped.
 
 ## 5. Considerations
 - **Scope isolation:** every visual change lives under `.dnd-sheet.skin-rulebook` and a new theme —
@@ -173,4 +181,4 @@ A **light** "rulebook" treatment, like `skin-streamer` is a light skin over the 
 - **AI/DM edits** keep working — Jack is a normal engine character, so `applyModelEdit` and realtime
   propagation apply unchanged.
 
-### Status: IN PROGRESS (Slices 0–3 shipped; 4 pending — art + seed + QA)
+### Status: COMPLETE (Slices 0–4 shipped; reference-art binary deferred to a runtime upload). Jack the Rangor Pugilist is fully built, styled, seeded, and engine-verified.

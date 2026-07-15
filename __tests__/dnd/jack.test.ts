@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { jack } from '@/app/dnd/_sheet/data/jack';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import { getSheetConfig } from '@/app/dnd/_sheet/registry';
+import { deriveCharacter } from '@/app/dnd/_sheet/engine/character';
+import { bestUnarmoredAC } from '@/app/dnd/_sheet/data/rangor';
 
 describe('jack — the Rangor Pugilist build', () => {
   const c = jack('Jack');
@@ -67,5 +69,19 @@ describe('jack — the Rangor Pugilist build', () => {
     const cfg = getSheetConfig('jack');
     expect(cfg.skin).toBe('rulebook');
     expect(cfg.theme).toBeTruthy();
+  });
+
+  it('derives the same AC (14) through the shared engine (natural-armor path)', () => {
+    const dexMod = Math.floor((c.abilities.dex - 10) / 2);
+    const conMod = Math.floor((c.abilities.con - 10) / 2);
+    const derived = deriveCharacter({
+      abilities: c.abilities,
+      level: c.meta.level,
+      saveProficiencies: ['str', 'con'],
+      unarmoredBaseAC: bestUnarmoredAC(dexMod, conMod).ac,
+      items: [],
+    });
+    expect(derived.ac.ac).toBe(14);
+    expect(derived.ac.ac).toBe(c.combat.ac); // engine agrees with the stored sheet AC
   });
 });
