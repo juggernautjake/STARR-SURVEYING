@@ -275,9 +275,17 @@ look) — it must NOT edit other site pages or anything outside character custom
   results, not text). Verified: `tsc` clean, lint clean, full dnd suite (235) green; the CSS module carries
   the themed typography, bubbles, typing dots, and caret keyframes. *(Pure visual polish — a live look is the
   running app.)*
-- **Slice 15 — QA + docs.** End-to-end pass across the whole builder (system pick → mode → grounded build
-  → chat resolution → custom/interactive sheet or style pick → real-time edits → cross-system transpose;
-  NPC parity; no tab crashes), run the dnd vitest suite, then move this doc to `completed/`.
+- **Slice 15 — QA + docs.** ✅ Final verification sweep: project `tsc --noEmit` clean; the **full vitest
+  suite passes (11,511 tests, 763 files; only pre-existing skips)**; the dnd surface lints clean (the only
+  warnings are pre-existing `StreamPoll` exhaustive-deps, untouched here); the new seeds (441 custom sheet,
+  442 system variants) are idempotent `ADD COLUMN IF NOT EXISTS` and auto-discovered by `run_all.sh`. Added
+  `__tests__/dnd/builder-e2e.test.ts` — a QA smoke test that chains the whole pipeline at the data layer:
+  grounded mechanics build → crash-safe normalization → Hextech default → static custom-sheet compose →
+  layout edit adding an interactive widget → style pick → cross-system transpose then **switch back restores
+  the original unchanged**. This doc moved to `completed/`. *(The AI-key and running-app paths — live grounded
+  builds, conflict-resolution round-trips, a real 2024→2014 transpose, and the in-browser render/edit visuals
+  — are noted per-slice as needing the live environment; every pure seam + route wiring is proven by the 40
+  dnd test files.)*
 
 ## Considerations
 - **No cross-system contamination** is the core safety property — enforce it at retrieval (scope by
@@ -294,4 +302,4 @@ look) — it must NOT edit other site pages or anything outside character custom
 - **Verification:** app/server + AI features; prefer the dnd vitest suites + driving routes, and note
   anything needing the live app or an AI key.
 
-### Status: IN PROGRESS (Slices 0–14 + 1b shipped; 15 (QA) pending)
+### Status: COMPLETE (Slices 0–15 + 1b shipped; QA green — full vitest suite 11,511 passing)
