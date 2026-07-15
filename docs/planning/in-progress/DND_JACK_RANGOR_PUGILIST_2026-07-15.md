@@ -138,10 +138,14 @@ A **light** "rulebook" treatment, like `skin-streamer` is a light skin over the 
   `skin:'rulebook'`, no module, back-alley "Square Up!" initiative) and added `'rulebook'` to
   `SheetSkinId`. tsc + eslint clean; every rule is scoped to `.skin-rulebook` so no other character is
   touched. (Full in-skin render is exercised in Slices 3–4 once Jack's data exists.)
-- **Slice 2 — Rangor race + Farmer background (rules + traits).** Encode the race traits (ability
-  choice note, speed, natural armor `unarmoredBaseAC`, Living Momentum, Powerful Build, Unstoppable
-  Force) and Farmer (Tough HP, skills, tools) as feature cards + engine hooks. Verify AC = max(13+DEX,
-  12+CON) and Tough HP in the derived numbers (unit test like `donata.test.ts`).
+- **Slice 2 — Rangor race + Farmer background (rules + traits).** ✅ New reusable module
+  `app/dnd/_sheet/data/rangor.ts`: `RANGOR_FEATURES` (Natural Armor, Living Momentum, Powerful Build,
+  Unstoppable Force) + `FARMER_FEATURES` (Farmer background, Tough feat) as `FeatureBlock`s, the
+  `UNSTOPPABLE_FORCE_RESOURCE` 2/long-rest pips (wired to the Unstoppable Force card's `use`), and the
+  engine hooks `naturalArmorAC` (13+DEX), `ironChinAC` (12+CON), `bestUnarmoredAC` (max of 10+DEX /
+  13+DEX / 12+CON, returning the winning source), and `toughBonusHp` (2×level). Unit test
+  `__tests__/dnd/rangor.test.ts` (5 tests) verifies the AC max-of formula (Jack → 14 "Natural Armor"),
+  Tough HP, and the trait cards — all pass; tsc + eslint clean. Slice 3 composes these into `jack.ts`.
 - **Slice 3 — Pugilist class + Sweet Science + Jack data.** Build `data/jack.ts` (abilities, level 3,
   saves/skills, Moxie resource pool, Fisticuffs unarmed attack with 19–20 crit, and all class/subclass
   feature cards through the current level) + the Progression class table. Wire the `sheet_type` factory
@@ -164,4 +168,4 @@ A **light** "rulebook" treatment, like `skin-streamer` is a light skin over the 
 - **AI/DM edits** keep working — Jack is a normal engine character, so `applyModelEdit` and realtime
   propagation apply unchanged.
 
-### Status: IN PROGRESS (Slices 0–1 shipped; 2–4 pending)
+### Status: IN PROGRESS (Slices 0–2 shipped; 3–4 pending)
