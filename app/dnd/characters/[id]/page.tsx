@@ -10,7 +10,9 @@ import SheetRoot from '@/app/dnd/_sheet/SheetRoot';
 import UnderConstructionBanner from '@/app/dnd/_ui/UnderConstructionBanner';
 import CharacterBuildKit from '@/app/dnd/_ui/CharacterBuildKit';
 import SheetChatPanel from '@/app/dnd/_ui/SheetChatPanel';
+import AddToDemoButton from '@/app/dnd/_ui/AddToDemoButton';
 import { dndAiConfigured } from '@/lib/dnd/ai';
+import { DEMO_CAMPAIGN_ID } from '@/lib/dnd/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +44,9 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
   return (
     <>
       {topPanel}
+      {canWrite && character.campaign_id !== DEMO_CAMPAIGN_ID && (
+        <AddToDemoButton characterId={character.id} campaignId={DEMO_CAMPAIGN_ID} />
+      )}
       <SheetRoot characterId={character.id} campaignId={character.campaign_id ?? undefined} sheetType={character.sheet_type} isDM={isDM} canWrite={canWrite} />
       {character.campaign_id && <SheetChatPanel campaignId={character.campaign_id} actorName={character.name} />}
     </>

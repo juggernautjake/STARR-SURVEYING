@@ -77,11 +77,14 @@
   lint clean, full dnd vitest suite green (27 files / 186 tests). *(The DM-only `POST /api/dnd/characters`
   stays campaign-scoped by design — it's the DM's in-campaign create/NPC tool; personal creation is the
   import path.)*
-- **Slice 4 — Add a character to the demo campaign.** A path for any signed-in user to attach a character
-  (new or campaign-free) to the open-access demo: an API (e.g. `POST /api/dnd/campaigns/[id]/join-character`
-  restricted to open-access campaigns) that upserts `dnd_campaign_members` (player) + `dnd_campaign_characters`
-  and sets the character's home `campaign_id`; plus a UI affordance ("Add to Neon Odyssey"). Verify: a
-  campaign-free character becomes visible in the demo roster and the user is a member.
+- **Slice 4 — Add a character to the demo campaign.** ✅ New `POST /api/dnd/campaigns/[id]/join-character`
+  lets a signed-in user attach **their own** character to the campaign — restricted to the open demo
+  (`params.id === DEMO_CAMPAIGN_ID`, else 403; owner-only, else 403). It upserts the caller's player
+  membership in `dnd_campaign_members`, adds the roster link in `dnd_campaign_characters`, and promotes a
+  personal character so it shows in the demo (sets `campaign_id` if null, bumps `private`→`campaign`
+  visibility). UI: `AddToDemoButton` ("＋ Add to Neon Odyssey (demo)") shown on the character sheet
+  (`characters/[id]`) for the owner when the character isn't already the demo's home. Verified: `tsc`
+  clean, lint clean. *(Live roster reflection needs the app's Supabase env to drive end-to-end.)*
 - **Slice 5 — DM-only NPC viewer.** Give the DM a dedicated **NPC viewer** for their campaign (a section/
   page listing the campaign's `is_npc` characters, reusing the DM-gated `?campaignId&npc=1` list and
   `NpcLibrary`), reachable from the campaign hub. Re-assert server-side that non-DMs cannot list NPCs
@@ -102,4 +105,4 @@
 - **Verification:** these are app/server features — prefer the dnd vitest suites + driving the actual
   routes/pages; note any check that can't run headlessly.
 
-### Status: IN PROGRESS (Slices 0–3 shipped; 4–6 pending)
+### Status: IN PROGRESS (Slices 0–4 shipped; 5–6 pending)
