@@ -1900,13 +1900,20 @@ function openTemplatePicker(){
 /* ============================================================ EFFECTS APPLICATION ============================================================ */
 let ambient=null;
 function ensureAmbient(){if(!ambient)ambient=new AmbientFX($("#fxCanvas"));return ambient;}
-function applyMapFx(){const f=state.mapFx;const a=ensureAmbient();a.set({sparkles:f.sparkles,shooting:f.shooting,density:f.density,speed:f.speed,rate:f.rate,color:f.color});if(f.sparkles||f.shooting)a.start();else a.stop();applyNebulaTint();}
+// A "solid" (or "glow") 3D-background template means a clean, star-free backdrop everywhere — so the
+// 2D ambient starfield/shooting-stars + nebula tint are suppressed too, no matter the mapFx toggles.
+function bgIsSolid(){return !!(state.bg3d&&(state.bg3d.template==="solid"||state.bg3d.template==="glow"));}
+function applyMapFx(){const f=state.mapFx;const a=ensureAmbient();const solid=bgIsSolid();
+  const sp=f.sparkles&&!solid,sh=f.shooting&&!solid;
+  a.set({sparkles:sp,shooting:sh,density:f.density,speed:f.speed,rate:f.rate,color:f.color});if(sp||sh)a.start();else a.stop();applyNebulaTint();}
 // selection-border look (applies to .inst.sel + sector selection) via CSS vars
 function applySelStyle(){const s=state.selStyle||(state.selStyle={width:1.5,style:"dashed",color:"#c89b3c"});const r=document.documentElement.style;
   r.setProperty("--selw",(s.width||1.5)+"px");r.setProperty("--sels",s.style||"dashed");r.setProperty("--selc",s.color||"#c89b3c");}
 function applyNebulaTint(){const w=document.querySelector('.canvaswrap');const f=state.mapFx;
-  if(f.nebula&&!state.background){w.style.background=`radial-gradient(ellipse 62% 52% at 50% 42%, ${f.nebColor}, ${f.nebColor2} 55%, #06040f)`;}
-  else if(!state.background){w.style.background='';}}
+  if(state.background)return;                          // an image/gradient backdrop is set — leave it
+  if(bgIsSolid()){w.style.background=(state.bg3d&&state.bg3d.baseColor)||'#010a13';return;}   // solid colour / black — no space gradient
+  if(f.nebula){w.style.background=`radial-gradient(ellipse 62% 52% at 50% 42%, ${f.nebColor}, ${f.nebColor2} 55%, #06040f)`;}
+  else{w.style.background='';}}
 
 /* ---- 3D viewer background (programmable sky, publishes to players via bg3d) ---- */
 const BG3D_TEMPLATES=[["deepspace","Deep space"],["stars","Just stars"],["milkyway","Milky Way band"],["spiral","Spiral galaxy"],["nebula","Flowing nebula"],["blackhole","Black hole"],["wormhole","Wormhole"],["asteroids","Asteroid field"],["solid","Solid colour"],["glow","Colour + glow"]];
@@ -1950,6 +1957,7 @@ function wireBg3dControls(){const b=state.bg3d;if(!b||!$("#b3Tpl"))return;
 function applyBg3d(){
   try{if(window.Map3D&&window.Map3D.isShown&&window.Map3D.isShown())window.Map3D.setBackground(state.bg3d);}catch(e){}
   try{if(window.Sky2D){const cv=document.getElementById("skyCanvas");if(cv){window.Sky2D.mount(cv);window.Sky2D.set(state.bg3d);}}}catch(e){}
+  try{applyMapFx();}catch(e){}   // solid/glow → also silence the 2D ambient starfield + nebula tint
 }
 
 /* ============================================================ CAMPAIGN / PUBLISH ============================================================ */

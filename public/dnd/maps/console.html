@@ -639,7 +639,10 @@ function coreScreen(i){return `<div class="scr-head">${portrait(`<div style="wid
 
 /* ---- ambient fx ---- */
 let ambient=null;
-function applyFx(){const f=MAP.mapFx||{};if(!ambient)ambient=new AmbientFX($("#fxCanvas"));ambient.set({sparkles:f.sparkles!==false,shooting:!!f.shooting,density:f.density!=null?f.density:0.5,speed:f.speed!=null?f.speed:1,rate:f.rate!=null?f.rate:0.3,color:f.color||"#cbd6ff"});if((f.sparkles!==false)||f.shooting)ambient.start();else ambient.stop();}
+function applyFx(){const f=MAP.mapFx||{};const bg=MAP.bg3d,solid=!!(bg&&(bg.template==="solid"||bg.template==="glow"));
+  if(!ambient)ambient=new AmbientFX($("#fxCanvas"));
+  const sp=(f.sparkles!==false)&&!solid,sh=!!f.shooting&&!solid;   // solid/glow bg → no ambient starfield
+  ambient.set({sparkles:sp,shooting:sh,density:f.density!=null?f.density:0.5,speed:f.speed!=null?f.speed:1,rate:f.rate!=null?f.rate:0.3,color:f.color||"#cbd6ff"});if(sp||sh)ambient.start();else ambient.stop();}
 
 /* ---- campaigns ---- */
 const CAMP_KEY="stardust-campaigns";
@@ -694,7 +697,10 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
   // A 3D surface-POI pick shows the parent body's readout — same as clicking a POI on the 2D map.
   window.map3dSelectPoi = (instId, poiId) => { if(instId) select({ type:"instance", id:instId }); };
   // Paint the 2D backdrop to match the published sky (parity with the 3D viewer).
-  function applySky(data){ try{ if(window.Sky2D){ const cv=document.getElementById("skyCanvas"); if(cv){ window.Sky2D.mount(cv); window.Sky2D.set((data&&data.bg3d)||undefined); } } }catch(e){} }
+  function applySky(data){ try{ if(window.Sky2D){ const cv=document.getElementById("skyCanvas"); if(cv){ window.Sky2D.mount(cv); window.Sky2D.set((data&&data.bg3d)||undefined); } }
+    const bg=data&&data.bg3d, solid=bg&&(bg.template==="solid"||bg.template==="glow"), mp=document.getElementById("mapPane");
+    if(mp) mp.style.background = solid ? (bg.baseColor||"#010a13") : "";   // solid/glow → the map pane is just the colour (no space gradient)
+  }catch(e){} }
   applySky(null);   // default sky until a map loads
   // If the DM edits a published map while a player is in 3D, refresh the 3D scene too.
   function apply(data, name, announce){
