@@ -87,11 +87,19 @@ are already stored.
   `reviewed_at` timestamps; and to `dnd_campaigns`: `allow_custom` boolean (default true → backward
   compatible). Extended `DndCharacterRow` with the typed fields. Verified: `tsc` clean, lint clean, full dnd
   suite (277) green.
-- **Slice 4 — Submission + review API + notifications.** `POST /api/dnd/characters/[id]/submit` (recomputes
-  the custom inventory, blocks when the campaign is vanilla-only and non-DM-granted custom exists — returning
-  exactly what blocks it; else sets `submitted`), `POST /api/dnd/characters/[id]/review` (DM approve/reject +
-  notes → sets status + notifies the player). Player rejection notification with the DM's notes. Owner/DM
-  scoped via the existing chokepoint. Tests on the pure policy (submittability given custom content + policy).
+- **Slice 4 — Submission + review API + notifications.** ✅ `lib/dnd/submission.ts` — the pure
+  `evaluateSubmission(allowCustom, summary)` gate (`allowCustom` → always OK; vanilla-only → OK only when
+  there's no blocking custom, returning the blocking list + a reason naming them) + `SubmissionStatus` /
+  `normalizeSubmissionStatus`. `POST /api/dnd/characters/[id]/submit` (owner/DM via the write chokepoint)
+  recomputes the flagged inventory with `summarizeCharacterProvenance`, reads the campaign's `allow_custom`,
+  and either **409s with the exact blocking items** or sets `submitted` + stores `custom_content` +
+  `submitted_at`. `POST /api/dnd/characters/[id]/review` (DM-only, `getCampaignRole==='dm'`) approves or
+  rejects — a rejection **requires notes** — setting status/`dm_review_notes`/`reviewed_at`. Extended the
+  notifications feed with a `character_rejected` type so the player is notified of a denial + the DM's notes
+  (defensive if un-migrated). Verified: `tsc` clean, lint clean, `__tests__/dnd/submission.test.ts` (5 tests:
+  custom-allowed accepts all, vanilla-only accepts pure-vanilla, vanilla-only blocks + names custom,
+  DM-granted doesn't block, status normalization); full dnd suite (282) green. *(Live DB round-trips need the
+  Supabase env; the policy + routes are proven + type-safe.)*
 - **Slice 5 — Campaign policy UI + DM review + player status.** DM toggle for `allow_custom` on the campaign;
   a DM review panel that lists the character's flagged custom/dm-granted content and approve/reject-with-notes
   controls; player-side submit button, a status badge (draft/submitted/approved/rejected), and the rejection
@@ -119,4 +127,4 @@ are already stored.
 - **Backward compatible:** new columns default so existing characters/campaigns keep working (status=draft,
   allow_custom=true).
 
-### Status: IN PROGRESS (Slices 0–3 shipped; 4–8 pending)
+### Status: IN PROGRESS (Slices 0–4 shipped; 5–8 pending)
