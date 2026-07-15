@@ -14,7 +14,13 @@
 // the block model here is deliberately forward-compatible with that.
 
 /** The building blocks the AI may compose a sheet from. Every text field is escaped
- *  on compose; `html` is the escape hatch (sanitized: scripts/handlers stripped). */
+ *  on compose; `html` is the escape hatch (sanitized: scripts/handlers stripped).
+ *
+ *  Presentational blocks render statically (in the sandboxed iframe). The INTERACTIVE
+ *  widgets — `field`, `counter`, `toggle` (Slice 11) — are real, working sheet controls
+ *  bound to a `key` in the character's `customFields`; they render via React (not the
+ *  iframe) so their edits persist with the sheet autosave. `key` is a stable id the AI
+ *  assigns (e.g. `focus_points`); it never collides with a typed mechanic. */
 export type CustomBlock =
   | { type: 'heading'; text: string; sub?: string }
   | { type: 'text'; text: string }
@@ -23,7 +29,31 @@ export type CustomBlock =
   | { type: 'stats'; title?: string; items: { label: string; value: string | number }[] }
   | { type: 'list'; title?: string; items: string[]; ordered?: boolean }
   | { type: 'table'; title?: string; columns: string[]; rows: (string | number)[][] }
-  | { type: 'html'; html: string; title?: string };
+  | { type: 'html'; html: string; title?: string }
+  // Interactive widgets (Slice 11) — bound to customFields[key].
+  | { type: 'field'; key: string; label: string; kind?: 'text' | 'number'; placeholder?: string }
+  | { type: 'counter'; key: string; label: string; min?: number; max?: number; step?: number }
+  | { type: 'toggle'; key: string; label: string };
+
+/** The interactive widget block types (Slice 11) — the ones that bind to customFields. */
+export const INTERACTIVE_BLOCK_TYPES = ['field', 'counter', 'toggle'] as const;
+export type InteractiveBlock = Extract<CustomBlock, { type: (typeof INTERACTIVE_BLOCK_TYPES)[number] }>;
+
+/** A safe, stable key for a widget's customFields slot (slug of the AI-provided key). */
+export function widgetKey(raw: unknown): string {
+  return String(raw ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 48) || 'field';
+}
+
+/** True when a block is an interactive, data-bound widget. */
+export function isInteractiveBlock(b: CustomBlock): b is InteractiveBlock {
+  return (INTERACTIVE_BLOCK_TYPES as readonly string[]).includes(b.type);
+}
+
+/** True when a layout contains at least one interactive widget — the signal to render it
+ *  via the React interactive renderer (bindable) instead of the static iframe. */
+export function layoutHasInteractive(rawLayout: unknown): boolean {
+  return normalizeLayout(rawLayout).blocks.some(isInteractiveBlock);
+}
 
 export interface CustomSheetLayout {
   /** Optional page title shown at the top of the sheet. */
@@ -103,6 +133,28 @@ export function normalizeLayout(raw: unknown): CustomSheetLayout {
       case 'html':
         blocks.push({ type: 'html', html: String(rec.html ?? ''), title: rec.title != null ? String(rec.title) : undefined });
         break;
+      case 'field':
+        blocks.push({
+          type: 'field',
+          key: widgetKey(rec.key ?? rec.label),
+          label: String(rec.label ?? ''),
+          kind: rec.kind === 'number' ? 'number' : 'text',
+          placeholder: rec.placeholder != null ? String(rec.placeholder) : undefined,
+        });
+        break;
+      case 'counter':
+        blocks.push({
+          type: 'counter',
+          key: widgetKey(rec.key ?? rec.label),
+          label: String(rec.label ?? ''),
+          min: typeof rec.min === 'number' ? rec.min : undefined,
+          max: typeof rec.max === 'number' ? rec.max : undefined,
+          step: typeof rec.step === 'number' ? rec.step : undefined,
+        });
+        break;
+      case 'toggle':
+        blocks.push({ type: 'toggle', key: widgetKey(rec.key ?? rec.label), label: String(rec.label ?? '') });
+        break;
       default:
         // Unknown block type — drop it rather than render arbitrary structure.
         break;
@@ -149,6 +201,15 @@ function blockToHtml(b: CustomBlock): string {
       );
     case 'html':
       return `<section class="cs-card">${b.title ? `<h2>${escapeHtml(b.title)}</h2>` : ''}<div class="cs-html">${sanitizeBlockHtml(b.html)}</div></section>`;
+    // Interactive widgets render as read-only previews in the static (iframe) path — the
+    // live, bindable versions are rendered by InteractiveSheet (React). Included here so a
+    // mostly-static layout that happens to contain a widget still composes cleanly.
+    case 'field':
+      return `<label class="cs-widget"><span class="cs-widget-label">${escapeHtml(b.label)}</span><span class="cs-widget-input">${escapeHtml(b.placeholder ?? '')}</span></label>`;
+    case 'counter':
+      return `<div class="cs-widget"><span class="cs-widget-label">${escapeHtml(b.label)}</span><span class="cs-widget-input">0</span></div>`;
+    case 'toggle':
+      return `<div class="cs-widget"><span class="cs-widget-label">${escapeHtml(b.label)}</span><span class="cs-widget-input">☐</span></div>`;
   }
 }
 
@@ -178,6 +239,9 @@ html,body{margin:0;padding:0;background:transparent;color:var(--hx-text);font-fa
 .cs-table th,.cs-table td{border:1px solid var(--hx-line);padding:6px 9px;text-align:left}
 .cs-table th{background:rgba(200,170,110,.1);color:var(--hx-gold);text-transform:uppercase;font-size:11px;letter-spacing:.06em}
 .cs-html img{max-width:100%;height:auto}
+.cs-widget{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(1,10,19,.5);border:1px solid var(--hx-line);border-radius:6px;padding:8px 11px}
+.cs-widget-label{font-size:12px;color:var(--hx-muted)}
+.cs-widget-input{font-size:14px;color:var(--hx-gold-2);min-width:44px;text-align:right}
 `;
 
 /** Compose a stored layout + CSS into one sanitized HTML document for an <iframe srcdoc>.

@@ -56,6 +56,7 @@ export function blankCharacter(name: string): Character {
     bio: { intro: [], appearance: [], personality: [], background: '', playTips: [] },
     balance: { synergies: [], weaknesses: [] },
     dmNote: '',
+    customFields: {},
   };
 }
 
@@ -95,5 +96,7 @@ export function normalizeCharacter(d: unknown): Character {
     features: arr(src.features, base.features),
     progression: arr(src.progression, base.progression),
     inventory: arr(src.inventory, base.inventory),
+    // AI-widget values (Slice 11) — always an object so widget binding never crashes.
+    customFields: (src.customFields && typeof src.customFields === 'object' ? src.customFields : {}) as Character['customFields'],
   };
 }

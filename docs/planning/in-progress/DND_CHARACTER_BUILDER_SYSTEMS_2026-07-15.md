@@ -204,10 +204,22 @@ look) — it must NOT edit other site pages or anything outside character custom
   seeded system; every registry skin resolves a valid config with a modules array; every pickable style
   maps to a real config — available to NPCs too). Full dnd suite (217) green. *(A live "open every tab in
   each system + on an NPC" pass is the QA slice / running app.)*
-- **Slice 11 — AI-generated interactive sheet elements.** The AI composes real, working sheet UI from
-  building blocks: **tabs, widgets, text boxes, inputs, editable fields, tables, counters, toggles** — the
-  things a real character sheet has — bound to the character `data` so edits persist. Verify: an
-  AI-generated sheet exposes editable inputs that save.
+- **Slice 11 — AI-generated interactive sheet elements.** ✅ Extended the custom-sheet block model with
+  **interactive widgets** — `field` (text/number input), `counter` (±, min/max/step), `toggle` — alongside
+  the presentational blocks + tables. Each widget carries a safe slugged `key` (`widgetKey`) and binds to a
+  slot in a new `Character.customFields` bag (a free-form `Record<string, string|number|boolean>` that can
+  never collide with a typed mechanic; seeded in `blankCharacter`, preserved + coerced by
+  `normalizeCharacter`). `_sheet/components/InteractiveSheet.tsx` renders the layout via **React inside the
+  provider**, so field/counter/toggle edits call `setChar` → the sheet's debounced autosave persists them
+  (the "editable inputs that save" verify), while presentational blocks render statically (React-escaped;
+  `html` sanitized). `SheetRoot` routes a custom layout to the interactive React renderer when it contains a
+  widget (`layoutHasInteractive`), else the static sandboxed iframe (Slice 6). Read-only previews of the
+  widgets were also added to the static compose path so a mixed layout stays type-exhaustive. Verified:
+  `tsc` clean, lint clean, `__tests__/dnd/interactive-sheet.test.ts` (5 tests: widget parse + safe keys,
+  interactive-vs-static detection, `widgetKey` stability, a customFields value round-trips through
+  normalization, junk `customFields` tolerated). Full dnd suite (222) green. *(A live type-in-a-field-and-
+  see-it-save check needs the running app + a character with a widget layout; the binding + persistence path
+  is proven.)*
 - **Slice 12 — Real-time on-browser customization.** The in-page AI agent can **move, resize, restyle and
   add/remove** sheet elements live (drag/reflow + CSS tweaks), so the sheet is fully customizable in real
   time from the chat. Verify: a customization request visibly changes the layout/style and persists.
@@ -245,4 +257,4 @@ look) — it must NOT edit other site pages or anything outside character custom
 - **Verification:** app/server + AI features; prefer the dnd vitest suites + driving routes, and note
   anything needing the live app or an AI key.
 
-### Status: IN PROGRESS (Slices 0–10 + 1b shipped; 11–15 pending)
+### Status: IN PROGRESS (Slices 0–11 + 1b shipped; 12–15 pending)
