@@ -58,3 +58,42 @@ export function blankCharacter(name: string): Character {
     dmNote: '',
   };
 }
+
+// Merge a stored/AI-built (possibly partial) character over a complete blank so EVERY field the
+// sheet tabs read exists. AI/generic/partial characters often omit arrays (attacks, forms,
+// inventory, progression, resources, customSkills, meta.chips, balance…), which made tabs crash
+// with "Cannot read properties of undefined (reading 'map')". Normalizing on load prevents that.
+export function normalizeCharacter(d: unknown): Character {
+  const src = (d && typeof d === 'object' ? d : {}) as Partial<Character> & Record<string, unknown>;
+  const base = blankCharacter((src.meta?.name as string) || (src as { name?: string }).name || 'Character');
+  const arr = <T>(v: unknown, fallback: T[]): T[] => (Array.isArray(v) ? (v as T[]) : fallback);
+  const meta = { ...base.meta, ...(src.meta ?? {}) };
+  meta.chips = arr(src.meta?.chips, base.meta.chips);
+  const combat = { ...base.combat, ...(src.combat ?? {}) };
+  if (!combat.abilityUses || typeof combat.abilityUses !== 'object') combat.abilityUses = {};
+  const balance = {
+    synergies: arr(src.balance?.synergies, base.balance.synergies),
+    weaknesses: arr(src.balance?.weaknesses, base.balance.weaknesses),
+  };
+  return {
+    ...base,
+    ...src,
+    meta,
+    combat,
+    balance,
+    bio: { ...base.bio, ...(src.bio ?? {}) },
+    currency: { ...base.currency, ...(src.currency ?? {}) },
+    abilities: { ...base.abilities, ...(src.abilities ?? {}) },
+    saves: { ...base.saves, ...(src.saves ?? {}) },
+    skills: { ...base.skills, ...(src.skills ?? {}) },
+    tempOverrides: (src.tempOverrides ?? base.tempOverrides) as Character['tempOverrides'],
+    primaryAbilities: arr(src.primaryAbilities, base.primaryAbilities),
+    customSkills: arr(src.customSkills, base.customSkills),
+    resources: arr(src.resources, base.resources),
+    forms: arr(src.forms, base.forms),
+    attacks: arr(src.attacks, base.attacks),
+    features: arr(src.features, base.features),
+    progression: arr(src.progression, base.progression),
+    inventory: arr(src.inventory, base.inventory),
+  };
+}

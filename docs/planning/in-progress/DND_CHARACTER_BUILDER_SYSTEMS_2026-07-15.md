@@ -49,12 +49,15 @@ there is currently a live `Cannot read properties of undefined (reading 'map')` 
   'ambiguous'`. Seeds the `dnd5e-2014`, `dnd5e-2024`, `pathfinder2e` system rows (idempotent on `key`).
   `lib/dnd/systems.ts` exposes `GAME_SYSTEMS`, `SYSTEM_AMBIGUOUS`, `normalizeSystem`, `systemLabel`.
   Verified: `tsc` clean, lint clean, SQL balanced (parens matched) and follows the applied-seed convention.
-- **Slice 1b — URGENT: fix sheet tab crashes.** A live runtime error crashes sheet tabs:
-  `TypeError: Cannot read properties of undefined (reading 'map')` (abilities / actions / combat /
-  features). Find the sheet module(s) that `.map()` over a possibly-undefined array (missing `data`
-  sub-objects on generic/AI-built/partial characters) and guard them (default to `[]`), so every tab
-  renders without errors for any character shape. Verify: a minimal/empty character opens every tab
-  without throwing (drive the sheet or a jsdom render + a `tsc` pass).
+- **Slice 1b — URGENT: fix sheet tab crashes.** ✅ Root cause: the sheet store applied a stored/AI-built
+  `dnd_characters.data` directly (only checking `meta && abilities`), so characters missing arrays
+  (`attacks`, `forms`, `inventory`, `progression`, `resources`, `customSkills`, `features`, `meta.chips`,
+  `balance.*`) crashed tabs with `Cannot read properties of undefined (reading 'map')`. Added
+  `normalizeCharacter(d)` in `_sheet/data/blank.ts` — deep-merges any partial over a complete
+  `blankCharacter`, coercing every tab-iterated field to an array/object (junk-typed values too). Wired it
+  into **every** load path in `state/store.tsx` (mount load, `reloadFromDb`, realtime refetch, localStorage
+  preview). Verified: `tsc` clean, lint clean, new `__tests__/dnd/normalize-character.test.ts` (3 tests)
+  passes — a minimal/junk/empty character normalizes with all arrays present.
 - **Slice 2 — System reference ingestion + browse.** A mechanism to **research/curate + store** entries
   for a system (paste/upload/admin-curated), chunk + embed them (reuse the embedding lib), and a browse/
   search UI scoped to one system. Seed a small starter set per seeded system so retrieval works end-to-end.
@@ -99,9 +102,15 @@ there is currently a live `Cannot read properties of undefined (reading 'map')` 
 - **Slice 13 — Cross-system transposition.** When a character built in one system enters a campaign using
   a **different** system (e.g. a D&D 5e-2024 character joining a 5e-2014 table), the AI builds a **new
   sheet that translates** the character into the target system's rules — staying as close to the original
-  as possible while using only the target system's mechanics (grounded per Slice 3). Keep the original;
-  produce a target-system version. Verify: a 2024→2014 transposition yields a valid 2014 sheet that mirrors
-  the original's intent.
+  as possible while using only the target system's mechanics (grounded per Slice 3). Crucially this is a
+  **mechanic + UI**: a character can hold **multiple system versions** (potentially 4–5), each a stored
+  per-system sheet, and the user can **switch the active system** at will (a system switcher on the sheet;
+  each version persists independently, keyed by system). Transposing to a not-yet-built system generates it
+  on demand; existing versions just switch. Data model: per-character system variants (a
+  `dnd_character_systems` variant store, or a `systems` map in `data`) with the active one driving the
+  sheet. Make the transposition **reliable every time** (grounded; flag unmappable mechanics for the user).
+  Verify: a 2024→2014 transpose yields a valid 2014 sheet mirroring intent, and switching back restores the
+  2024 version unchanged.
 - **Slice 14 — Themed AI chat box.** Make the builder's AI agent chat **appealing and well-flowing**,
   matching the site's Hextech theme (typography, colors, message bubbles, streaming, input affordances).
   Verify: the chat renders on-theme and streams smoothly.
@@ -124,4 +133,4 @@ there is currently a live `Cannot read properties of undefined (reading 'map')` 
 - **Verification:** app/server + AI features; prefer the dnd vitest suites + driving routes, and note
   anything needing the live app or an AI key.
 
-### Status: IN PROGRESS (Slices 0–1 shipped; 1b + 2–15 pending)
+### Status: IN PROGRESS (Slices 0–1 + 1b shipped; 2–15 pending)

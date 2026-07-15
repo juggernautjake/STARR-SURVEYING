@@ -8,6 +8,7 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState,
 import { supabase } from '@/lib/supabase'
 import type { Character, InvItem, ActiveEffect, Spell, FeatureBlock } from '../types'
 import { lazzuh } from '../data/lazzuh'
+import { normalizeCharacter } from '../data/blank'
 import { profBonusForLevel, abilityMod, ragesForLevel, rageDamageForLevel, maxHpForLevel, speedForLevel, MAX_BUILT_LEVEL } from '../rules/dnd'
 import { rollD20, rollDamage, parseDice, rollDie, rollTyped, weaponSegments, type Advantage } from '../lib/dice'
 
@@ -139,7 +140,7 @@ function loadInitial(): Character {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (parsed && parsed.meta && parsed.abilities) return parsed as Character
+      if (parsed && parsed.meta && parsed.abilities) return normalizeCharacter(parsed)
     }
   } catch {
     /* ignore */
@@ -261,7 +262,7 @@ export function CharacterProvider({
       const character = (await res.json())?.character
       const d = character?.data
       if (d && d.meta && d.abilities) {
-        setCharState(d as Character)
+        setCharState(normalizeCharacter(d))
         lastSavedRef.current = JSON.stringify(d)
       }
       if (character) {
@@ -291,7 +292,7 @@ export function CharacterProvider({
             const d = JSON.parse(raw)
             if (d && d.meta && d.abilities) {
               lastSavedRef.current = JSON.stringify(d)
-              setCharState(d as Character)
+              setCharState(normalizeCharacter(d))
             }
           }
         } catch {
@@ -343,7 +344,7 @@ export function CharacterProvider({
             const d = character?.data
             if (d && d.meta && d.abilities) {
               lastSavedRef.current = JSON.stringify(d) // don't echo-save the incoming state
-              setCharState(d as Character)
+              setCharState(normalizeCharacter(d))
             }
             if (character) {
               setMedia({ artUrl: character.art_url ?? null, tokenUrl: character.token_url ?? null })
