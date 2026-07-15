@@ -277,7 +277,10 @@
     _draw(){if(!this.ready||!this.img)return;const cell=this.cell,W=this.w,H=this.h,ctx=this.ctx,eps=0.5;ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";ctx.clearRect(0,0,W,H);
       const pos=this.pos||0,i0=Math.floor(pos)%this.frames,frac=pos-Math.floor(pos),i1=(i0+1)%this.frames;
       const put=(idx,a)=>{const c=idx%this.cols,r=Math.floor(idx/this.cols);ctx.globalAlpha=a;ctx.drawImage(this.img,c*cell+eps,r*cell+eps,cell-2*eps,cell-2*eps,0,0,W,H);};
-      put(i0,1);if(frac>0.004)put(i1,frac);ctx.globalAlpha=1;}
+      // TRUE cross-dissolve: fade i0 OUT as i1 fades IN (i0 at 1-frac, not 1). Drawing i0 at full
+      // then i1 on top left both frames' bright atmosphere rims visible at once — a pulsing
+      // double-rim that read as the "atmosphere flicker". Complementary alphas keep total ~constant.
+      put(i0,frac>0.004?1-frac:1);if(frac>0.004)put(i1,frac);ctx.globalAlpha=1;}
     start(){if(this._raf)return;const loop=t=>{this._raf=requestAnimationFrame(loop);if(!this.ready)return;const dt=this._last?(t-this._last)/1000:0;this._last=t;this.pos=((this.pos||0)+dt*this.fps)%this.frames;if(this.pos<0)this.pos+=this.frames;this._draw();};this._last=0;this._raf=requestAnimationFrame(loop);}
     stop(){if(this._raf)cancelAnimationFrame(this._raf);this._raf=null;}
     destroy(){this.stop();window.removeEventListener('resize',this._onR);}

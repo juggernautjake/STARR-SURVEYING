@@ -193,3 +193,21 @@ annotate this ship log. Seed/DB changes ship as seeds the DM applies.
 - **Slice 0 — Planning doc** ✅. Root-caused the atmosphere flicker to the sprite cross-fade
   double-rim + rim aliasing (live model is clean); confirmed `.planet3d` already stores the full
   `config`, so live 3D reconstruction is feasible.
+- **Slice 1 — Flicker fix (playback + bake)** ✅ —
+  - **Playback true cross-dissolve** (both `SpriteSpinner` copies): the merged interpolator drew
+    frame *i0* at α=1 then *i1* on top, leaving **both** bright atmosphere rims visible at once → the
+    pulsing double-rim. Changed *i0* to α=**1−frac** so the frames genuinely cross-dissolve and total
+    brightness stays ~constant. **Fixes existing 24/72-frame planets with no re-bake.** Verified
+    headless: at frac 0.5 the pixel is a real blend of both frames (`[85,170,0]`), not red-dominant.
+  - **Motion-blur bake** (`renderSheet`): each output frame is now the **average of SUB=4
+    micro-rotations** across its angular slice (running-average via source-over α=1/(k+1)). This is
+    the requested "4× the frame sampling, smoothed together really well" — 72 frames × 4 sub-samples
+    = **288 angular samples** — *without* quadrupling sheet size (storage stays put; deferred bloat
+    avoided). The atmosphere rim is smeared across each slice instead of snapping.
+  - **Rim feather**: softened the atmosphere fresnel exponent (2.4 → 2.0) so the rim is a gentle
+    gradient, not a 1px hotline — far less aliasing at any zoom, and it looks good.
+  - Kept seamless clouds (whole-turn wrap), 2× spatial SSAA, high-quality smoothing + half-texel
+    inset. Frames slider already 72/max-180 (main). Verified: both viewers run error-free; the bake
+    parses (WebGL bake itself needs an online Three.js, which the DM has in the browser).
+  - *Note:* the flicker fix ships fully here; re-baking a planet applies the motion-blur + softer rim,
+    while the cross-dissolve already improves every previously-baked planet immediately.
