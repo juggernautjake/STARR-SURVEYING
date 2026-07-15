@@ -578,6 +578,8 @@ const Map3D = {
     this._mode = mode === 'overlay' ? 'overlay' : 'full';
     const overlay = this._mode === 'overlay';
     if (this.renderer) this.renderer.setClearColor(overlay ? new THREE.Color(0x000000) : new THREE.Color((this._bg && this._bg.baseColor) || '#010a13'), overlay ? 0 : 1);
+    if (this.controls) this.controls.enabled = !overlay;   // hybrid: the 2D map drives the camera
+    if (overlay && this.tcontrols) this.tcontrols.detach();
     if (this._ready) { this._buildBackground(); this._rebuild(); }   // rebuild sky (skipped in overlay) + filtered bodies
   },
   // 3D-native kinds that render as real meshes in the overlay; everything else stays 2D in hybrid.
@@ -1051,6 +1053,7 @@ const Map3D = {
         if (Math.hypot(g.x - t.x, g.y - t.y) < 1 && Math.abs(g.zoom - this.camera.zoom) < 0.02) this._focusGoal = null;
       }
       this.controls.update();
+      if (this._mode === 'overlay') this._syncFromView();   // hybrid: lock the camera to the 2D map's view every frame
       if (Math.abs(this.camera.zoom - (this._lodZoom || 0)) > (this._lodZoom || 1) * 0.04) this._applyLOD();   // re-LOD on zoom
       this._updateBackground(dt);                                // parallax stars, nebula drift, glow pulse
       this._updateShooters(dt);                                  // colourful meteors
@@ -1085,16 +1088,26 @@ window.Map3D = Map3D;
   const show2d = () => LAYERS.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = ''; });
   const hide2d = () => LAYERS.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
 
-  btn.addEventListener('click', async () => {
-    if (Map3D.isShown()) {
-      Map3D.hide(); show2d(); btn.classList.remove('aether'); btn.textContent = '⛶ 3D';
-      return;
+  // Three-way view: 2D → 3D → Hybrid → 2D. Hybrid keeps the 2D map visible and overlays a transparent
+  // 3D layer (pointer-events:none) that renders only the 3D bodies, camera-locked to the 2D view.
+  let mode = '2d';
+  const apply = async (next) => {
+    if (next === '2d') {
+      Map3D.hide(); show2d(); gl.style.pointerEvents = ''; btn.classList.remove('aether'); btn.textContent = '⛶ 3D'; mode = '2d'; return;
     }
-    btn.textContent = '⛶ loading…'; btn.disabled = true;
-    const ok = await Map3D.mount(gl);
-    btn.disabled = false;
-    if (!ok) { btn.textContent = '⛶ 3D'; if (window.toast) window.toast('3D engine unavailable'); return; }
-    Map3D.setData(typeof window.mapData === 'function' ? window.mapData() : { instances: [] });
-    hide2d(); Map3D.show(); btn.classList.add('aether'); btn.textContent = '▢ 2D';
-  });
+    if (!Map3D._ready) {
+      btn.textContent = '⛶ loading…'; btn.disabled = true;
+      const ok = await Map3D.mount(gl); btn.disabled = false;
+      if (!ok) { btn.textContent = '⛶ 3D'; if (window.toast) window.toast('3D engine unavailable'); mode = '2d'; return; }
+    }
+    if (next === '3d') {
+      Map3D.setMode('full'); Map3D.setData(typeof window.mapData === 'function' ? window.mapData() : { instances: [] });
+      hide2d(); gl.style.pointerEvents = ''; Map3D.show(); btn.classList.add('aether'); btn.textContent = '⧉ Hybrid'; mode = '3d';
+    } else if (next === 'hybrid') {
+      if (Map3D.isShown() && Map3D._syncToView) Map3D._syncToView();   // carry the current 3D view back to 2D so hybrid preserves it
+      Map3D.setMode('overlay'); Map3D.setData(typeof window.mapData === 'function' ? window.mapData() : { instances: [] });
+      show2d(); gl.style.pointerEvents = 'none'; Map3D.show(); btn.classList.add('aether'); btn.textContent = '▢ 2D'; mode = 'hybrid';
+    }
+  };
+  btn.addEventListener('click', () => apply({ '2d': '3d', '3d': 'hybrid', 'hybrid': '2d' }[mode]));
 })();

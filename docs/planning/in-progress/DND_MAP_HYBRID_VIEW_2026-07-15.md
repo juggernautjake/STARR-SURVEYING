@@ -56,10 +56,13 @@ Replace the 2-way toggle with a 3-way mode: **2D · 3D · Hybrid**.
   asteroid) so images/text/HTML/spingalaxy stay 2D. Verified headless: full mode = 2 bodies + 2 sector
   meshes + 4 sky layers + 2 CSS labels; overlay = only the planet3d, 0 sectors/sky/CSS, `clearAlpha 0`;
   0 errors.
-- **Slice 2 — 3-way view toggle + hybrid wiring.** Toggle button cycles 2D→3D→Hybrid. In Hybrid: show
-  the 2D layers, show `#gl3d` with `pointer-events:none`, put `Map3D` in overlay mode, disable orbit
-  tilt, and lock the camera to the 2D view continuously (sync in the 2D `applyView` and each 3D frame).
-  Verify headless: hybrid shows both; panning/zooming the 2D map keeps a 3D planet pixel-aligned.
+- **Slice 2 — 3-way view toggle + hybrid wiring.** ✅ `wireToggle` cycles 2D → 3D → Hybrid → 2D.
+  Hybrid shows the 2D layers, shows `#gl3d` with `pointer-events:none`, puts `Map3D` in overlay mode
+  (controls disabled, gizmo detached), and **locks the camera to the 2D view every frame**
+  (`_syncFromView` in the render loop); 3D→Hybrid first writes the 3D view back to 2D so the position
+  carries over. Verified headless: 2D (gl hidden) → 3D (mode full, 2D hidden) → Hybrid (mode overlay,
+  2D visible, `pointer-events:none`); after a 2D pan the 3D target = the 2D centre `(400,300)` with
+  controls disabled; 0 errors.
 - **Slice 3 — Cohesion polish + Console.** Ensure sizes/opacity/labels read consistently across the
   seam; hide the 2D art for 3D-native bodies (or keep it as the hit target beneath) so there's no
   double image; bring the hybrid mode to the player **Console** too. Verify headless in Studio +
@@ -68,4 +71,4 @@ Replace the 2-way toggle with a 3-way mode: **2D · 3D · Hybrid**.
   images/spirals/text/sectors stay managed while planets render as clear 3D over them, aligned on
   pan/zoom; publish → Console hybrid matches. Move this doc to `completed/`.
 
-### Status: IN PROGRESS (Slices 0–1 shipped; 2–4 pending)
+### Status: IN PROGRESS (Slices 0–2 shipped; 3–4 pending)
