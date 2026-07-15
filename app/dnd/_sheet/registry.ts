@@ -8,7 +8,7 @@
 // The engine (App) renders a module's tab/content only when the character's
 // sheet_type registers it, so new characters are "a theme + data (+ maybe a
 // module)" rather than a fork.
-import { lazzuhTheme, streamerTheme, donataTheme, type SheetTheme } from './theme';
+import { lazzuhTheme, streamerTheme, donataTheme, rangorTheme, type SheetTheme } from './theme';
 
 // Known character-only mechanic modules. Add an id here when a new bespoke
 // mechanic is built. `stream` = the live streamer chat + influence meter + the
@@ -19,7 +19,7 @@ export type SheetModuleId = 'forms' | 'stream' | 'mlm';
 // A `skin` is a bespoke visual treatment beyond color/font tokens — the extra CSS
 // (pixel frames, scanlines, glitch, etc.) lives under `.dnd-sheet.skin-<id>` in
 // theme.css. The engine appends `skin-<id>` to the sheet root when set.
-export type SheetSkinId = 'streamer' | 'donata';
+export type SheetSkinId = 'streamer' | 'donata' | 'rulebook';
 
 // Per-character flavor for the "roll for initiative" prompt (§6 initiative). Purely
 // cosmetic copy + accent; the roll math (d20 + the character's init bonus) is shared.
@@ -76,6 +76,16 @@ export const SHEET_REGISTRY: Record<string, SheetTypeConfig> = {
     skin: 'donata',
     modules: ['mlm'],
     initiative: { kicker: 'OPPORTUNITY // INITIATIVE', title: 'Seize the Opportunity!', rollLabel: '💎 Roll d20', lockLabel: 'Lock in the sale', accent: 'var(--gold)' },
+  },
+  // Jack — the Rangor Pugilist. A bespoke light "homebrew rulebook" skin (parchment page, burnt-orange
+  // headers, green keywords, bordered trait tables) over the rangorTheme tokens. No extra module (his
+  // Moxie pool rides the shared Resources tab). His initiative is a back-alley brawl.
+  jack: {
+    label: 'Jack',
+    theme: rangorTheme,
+    skin: 'rulebook',
+    modules: [],
+    initiative: { kicker: 'BACK ALLEY // INITIATIVE', title: 'Square Up!', rollLabel: '🥊 Roll d20', lockLabel: 'Fists up', accent: 'var(--hotpink)' },
   },
   // Fallback for a character with no bespoke skin/modules yet.
   generic: { label: 'Generic', modules: [] },

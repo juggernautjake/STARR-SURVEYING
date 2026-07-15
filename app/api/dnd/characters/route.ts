@@ -9,6 +9,7 @@ import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import { streamerCharacter } from '@/app/dnd/_sheet/data/streamer';
 import { donataDime } from '@/app/dnd/_sheet/data/donata';
+import { jack } from '@/app/dnd/_sheet/data/jack';
 
 const LIST_COLS = 'id, campaign_id, owner_user_id, name, sheet_type, token_url, art_url, visibility, is_npc, is_library, updated_at';
 
@@ -71,6 +72,7 @@ export async function POST(req: NextRequest) {
     const seedData =
       sheet_type === 'streamer' ? streamerCharacter(cleanName)
       : sheet_type === 'donata' ? donataDime(cleanName)
+      : sheet_type === 'jack' ? jack(cleanName)
       : blankCharacter(cleanName);
     const { data, error } = await supabaseAdmin
       .from('dnd_characters')

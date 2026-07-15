@@ -135,6 +135,44 @@ export const donataTheme: SheetTheme = {
   },
 };
 
+// Jack the Rangor — the bespoke "homebrew rulebook" skin (worn only by Jack). A printed-page look
+// like the shared Pugilist PDF: aged-parchment grounds, burnt-orange section headers/keywords, forest-
+// green links/terms, and bordered trait tables. Deliberately NOT dark neon (Lazzuh), pixel/CRT
+// (streamer), or candy (Donata). A LIGHT theme, so void/panel are cream and ink is a warm near-black;
+// saturated tokens stay legible on the parchment. `teal`/`tealbright` are repurposed away from cyan
+// (they back links/mods/table-headers in the base sheet) to a rulebook green.
+// Spec: docs/planning/in-progress/DND_JACK_RANGOR_PUGILIST_2026-07-15.md
+export const rangorTheme: SheetTheme = {
+  colors: {
+    void: '#efe7d6',      // parchment page
+    'void-2': '#e5dbc4',
+    panel: '#fbf6ea',     // aged-paper card
+    'panel-2': '#f3ebd8',
+    'panel-3': '#efe6cf',
+    ink: '#2b2118',       // warm near-black — ~12:1 on cream (AAA)
+    muted: '#6b5c47',     // ~5.4:1 (AA)
+    'muted-2': '#877a63', // labels only
+    pink: '#e06a2c',      // burnt orange (background fill)
+    hotpink: '#b5501f',   // primary accent — section nums, values, headers, keywords (~5.2:1)
+    violet: '#7a6a52',    // stone/earth accent
+    'violet-2': '#5c4f3c',
+    teal: '#3f8f5c',      // rulebook green (background fill)
+    tealbright: '#2f7d4a', // link/mod/term green — ~4.6:1 on cream
+    gold: '#a9781a',      // legible amber, ~4.7:1
+    danger: '#c0392b',
+    good: '#2f7d4a',
+    line: 'rgba(120, 90, 50, 0.28)',
+    'line-strong': 'rgba(181, 80, 31, 0.5)',
+  },
+  fonts: {
+    // Zilla Slab = a sturdy slab-serif for the rulebook section headers; Inter = a clean, highly
+    // legible body; JetBrains Mono for the fine print. Zilla Slab + Inter @imported in theme.css.
+    display: "'Zilla Slab', 'Bitter', Georgia, serif",
+    body: "'Inter', 'Source Sans 3', 'Segoe UI', sans-serif",
+    mono: "'JetBrains Mono', 'Consolas', monospace",
+  },
+};
+
 // Blue variant of the streamer skin — the same bright, pixel/CRT look mirrored into
 // electric blue + cyan (with gold + white). Paired with `.skin-streamer.variant-blue`
 // in theme.css, which swaps the accent triplets + backing colors to match.

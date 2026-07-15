@@ -79,10 +79,11 @@
   #bgLayer{position:absolute;inset:0;z-index:0;pointer-events:none;background-position:center center;background-repeat:no-repeat;display:none;}
   #fxCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4;}
   #svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:2;}
+  #svgFront{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:4;}   /* sectors marked "front" render above bodies/images */
   #backLayer{position:absolute;inset:0;transform-origin:0 0;z-index:1;}
   .bodyLayer{position:absolute;inset:0;transform-origin:0 0;z-index:3;}
   #labelLayer{position:absolute;inset:0;width:100%;height:100%;overflow:visible;transform-origin:0 0;z-index:5;pointer-events:none;}
-  #canvas.pen #bodyLayer,#canvas.pen #backLayer{pointer-events:none;}
+  #canvas.pen #bodyLayer,#canvas.pen #backLayer,#canvas.pen #svgFront{pointer-events:none;}   /* while drawing, clicks reach the canvas to add points */
   #labelLayer .lblhit{pointer-events:auto;cursor:move;}
   details.lblsec{margin:8px 0;border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:var(--panel2);}
   details.lblsec>summary{cursor:pointer;font-family:"Orbitron";font-size:11px;letter-spacing:1px;color:var(--gold);list-style:none;padding:3px 0;}
@@ -263,7 +264,7 @@
       <button id="view3dBtn" title="Switch between the flat 2D map and the real-time 3D viewer">⛶ 3D</button>
       <button id="refresh3dBtn" title="Hot-refresh the 3D viewer to re-render the latest changes">⟳ Refresh 3D</button>
     </div>
-    <div id="canvas"><canvas id="skyCanvas" style="position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none"></canvas><div id="bgLayer"></div><div class="bodyLayer" id="backLayer"></div><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><canvas id="fxCanvas"></canvas><svg id="labelLayer"></svg><div id="gl3d" style="position:absolute;inset:0;z-index:5;display:none"></div></div>
+    <div id="canvas"><canvas id="skyCanvas" style="position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none"></canvas><div id="bgLayer"></div><div class="bodyLayer" id="backLayer"></div><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><svg id="svgFront"></svg><canvas id="fxCanvas"></canvas><svg id="labelLayer"></svg><div id="gl3d" style="position:absolute;inset:0;z-index:5;display:none"></div></div>
   </div>
   <div class="insp">
     <div class="ihead" id="inspHead">◈ INSPECTOR</div>
@@ -663,12 +664,29 @@ function art(a,animate){
       len:a.len!=null?a.len:1,c1:c1||"#c89aff",c2:c2||"#6a3aff",core:c3||"#fff2c8",seed:a.seed||7,animate:anim,spinDur:a.spinDur||60});
   }
   if(k==="star"){
+    // Three independently-coloured parts: CORE (c1, the bright body), immediate GLOW (c2), and the
+    // diffused light + sun rays (c3). Plus brightness, corona size, glow "breathing", and ray spec.
+    const coreC=c1,glowC=c2||c3||c1,diffC=c3||c2||c1;
+    const br=a.brightness!=null?a.brightness:1;
+    const cs=a.coronaSize!=null?a.coronaSize:1;
+    const bre=a.breathe||{on:true,speed:1,depth:0.12};
+    const rs=a.raySpec||{count:14,length:1,intensity:0.5};
+    const haloR=Math.min(99,44+52*cs);                      // diffuse halo reach
+    const diffOp=Math.min(1,0.5*br).toFixed(2),glowOp=Math.min(1,0.62*br).toFixed(2);
+    const depth=bre.depth!=null?bre.depth:0.12,bdur=(5/Math.max(0.2,bre.speed||1)).toFixed(1);
+    const breanim=(anim&&bre.on!==false)?`animation:bstar${id} ${bdur}s ease-in-out infinite;transform-origin:center`:'';
+    const breKey=`<style>@keyframes bstar${id}{0%,100%{opacity:${(1-depth*0.55).toFixed(2)};transform:scale(${(1-depth*0.5).toFixed(3)})}50%{opacity:1;transform:scale(${(1+depth*0.5).toFixed(3)})}}</style>`;
+    const rc=Math.max(0,Math.min(48,Math.round(rs.count!=null?rs.count:14)));
+    const rlen=rs.length!=null?rs.length:1,rop=Math.min(1,(rs.intensity!=null?rs.intensity:0.5)*1.1*br).toFixed(2);
+    const rays=(a.rays!==false&&rc>0)?`<g style="${anim?'animation:cspin 40s linear infinite;transform-origin:center':''}">${[...Array(rc)].map((_,i)=>{const an=i/rc*Math.PI*2,r0=52,r1=64+(12+rng()*16)*rlen;return `<line x1="${(cx+Math.cos(an)*r0).toFixed(1)}" y1="${(cy+Math.sin(an)*r0).toFixed(1)}" x2="${(cx+Math.cos(an)*r1).toFixed(1)}" y2="${(cy+Math.sin(an)*r1).toFixed(1)}" stroke="${diffC}" stroke-width="2" opacity="${rop}"/>`;}).join("")}</g>`:"";
     return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><defs>
-      <radialGradient id="s${id}" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff"/><stop offset="35%" stop-color="${L(c1,50)}"/><stop offset="70%" stop-color="${c1}"/><stop offset="100%" stop-color="${D(c1,20)}"/></radialGradient>
-      <radialGradient id="co${id}" cx="50%" cy="50%" r="50%"><stop offset="35%" stop-color="${c3}" stop-opacity=".55"/><stop offset="100%" stop-color="${c3}" stop-opacity="0"/></radialGradient></defs>
-      <circle cx="${cx}" cy="${cy}" r="96" fill="url(#co${id})" style="${anim?'animation:breathe 5s ease-in-out infinite;transform-origin:center':''}"/>
-      ${a.rays!==false?`<g style="${anim?'animation:cspin 40s linear infinite;transform-origin:center':''}">${[...Array(14)].map((_,i)=>{const an=i/14*Math.PI*2;return `<line x1="${cx+Math.cos(an)*54}" y1="${cy+Math.sin(an)*54}" x2="${cx+Math.cos(an)*(66+rng()*14)}" y2="${cy+Math.sin(an)*(66+rng()*14)}" stroke="${c3}" stroke-width="2" opacity=".5"/>`;}).join("")}</g>`:""}
-      <circle cx="${cx}" cy="${cy}" r="50" fill="url(#s${id})"/></svg>`;
+      <radialGradient id="core${id}" cx="42%" cy="40%" r="60%"><stop offset="0%" stop-color="#fff"/><stop offset="45%" stop-color="${L(coreC,42)}"/><stop offset="100%" stop-color="${coreC}"/></radialGradient>
+      <radialGradient id="glow${id}" cx="50%" cy="50%" r="50%"><stop offset="52%" stop-color="${glowC}" stop-opacity="0"/><stop offset="80%" stop-color="${glowC}" stop-opacity="${glowOp}"/><stop offset="100%" stop-color="${glowC}" stop-opacity="0"/></radialGradient>
+      <radialGradient id="diff${id}" cx="50%" cy="50%" r="50%"><stop offset="18%" stop-color="${diffC}" stop-opacity="${diffOp}"/><stop offset="100%" stop-color="${diffC}" stop-opacity="0"/></radialGradient></defs>${breKey}
+      <circle cx="${cx}" cy="${cy}" r="${haloR}" fill="url(#diff${id})" style="${breanim}"/>
+      ${rays}
+      <circle cx="${cx}" cy="${cy}" r="64" fill="url(#glow${id})"/>
+      <circle cx="${cx}" cy="${cy}" r="44" fill="url(#core${id})"/></svg>`;
   }
   if(k==="station"){
     const st=a.stype||"ring";let inner="";
@@ -731,10 +749,28 @@ function art(a,animate){
   const atmoThick=a.atmoThick!=null?a.atmoThick:0.55;
   const ringBack=a.ring?`<path d="M ${cx-150} ${cy} A 150 40 0 0 1 ${cx+150} ${cy}" fill="none" stroke="${D(c3,30)}" stroke-width="8" opacity=".4" transform="rotate(-22 ${cx} ${cy})"/>`:"";
   const ringFront=a.ring?`<path d="M ${cx-150} ${cy} A 150 40 0 0 0 ${cx+150} ${cy}" fill="none" stroke="${c3}" stroke-width="8" opacity=".55" transform="rotate(-22 ${cx} ${cy})"/>`:"";
+  // molten lava cracks — a branching glow network scaled by a.lava (0–1); glows over the terminator too
+  let lava="";const lavaI=a.lava!=null?+a.lava:0;
+  if(lavaI>0.001){const lrng=mulberry((a.seed||1)*29+3);const nC=Math.round(3+lavaI*11);let pth="";
+    for(let i=0;i<nC;i++){let px=cx-R*0.85+lrng()*R*1.7,py=cy-R*0.85+lrng()*R*1.7;let dP=`M ${px.toFixed(1)} ${py.toFixed(1)}`;
+      const steps=4+Math.round(lrng()*5),len=(R*0.28+lrng()*R*0.5)/steps;let ang=lrng()*6.28;
+      for(let s=0;s<steps;s++){ang+=(lrng()-0.5)*1.5;px+=Math.cos(ang)*len;py+=Math.sin(ang)*len;dP+=` L ${px.toFixed(1)} ${py.toFixed(1)}`;
+        if(lrng()<0.45){const ba=ang+(lrng()-0.5)*2,bl=len*(0.6+lrng());pth+=`<path d="M ${px.toFixed(1)} ${py.toFixed(1)} L ${(px+Math.cos(ba)*bl).toFixed(1)} ${(py+Math.sin(ba)*bl).toFixed(1)}" stroke="#ff7a2a" stroke-width="${(0.8+lavaI*1.6).toFixed(1)}" fill="none" opacity="${(0.5+lavaI*0.4).toFixed(2)}" stroke-linecap="round"/>`;}}
+      pth+=`<path d="${dP}" stroke="#ff4a12" stroke-width="${(2.6+lavaI*4).toFixed(1)}" fill="none" opacity="${(0.28+lavaI*0.32).toFixed(2)}" stroke-linecap="round" filter="url(#lavaG${id})"/>`;
+      pth+=`<path d="${dP}" stroke="#ffd24a" stroke-width="${(0.8+lavaI*1.5).toFixed(1)}" fill="none" opacity="${(0.72+lavaI*0.28).toFixed(2)}" stroke-linecap="round"/>`;}
+    lava=`<g clip-path="url(#c${id})">${pth}</g>`;}
+  // city lights — scattered warm clusters scaled by a.city (0–1); low = a few, high = blanketed sprawl
+  let city="";const cityI=a.city!=null?+a.city:0;const cityCol=a.lightColor||"#ffe6a0";
+  if(cityI>0.001){const crng=mulberry((a.seed||1)*53+11);const clusters=Math.round(5+cityI*46);let dots="";
+    for(let i=0;i<clusters;i++){const ca=crng()*6.28,cr=Math.sqrt(crng())*R*0.93,px=cx+Math.cos(ca)*cr,py=cy+Math.sin(ca)*cr,nd=1+Math.round(crng()*(2+cityI*4));
+      for(let j=0;j<nd;j++){const dx=px+(crng()-0.5)*9,dy=py+(crng()-0.5)*9;dots+=`<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="${(0.5+crng()*0.9).toFixed(1)}" fill="${cityCol}" opacity="${(0.45+crng()*0.45).toFixed(2)}"/>`;}}
+    city=`<g clip-path="url(#c${id})" filter="url(#cityG${id})">${dots}</g>`;}
   const spinDur=(34+rng()*46).toFixed(0);
   const cloudDur=(spinDur*0.7).toFixed(0);
   return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><defs>
     <clipPath id="c${id}"><circle cx="${cx}" cy="${cy}" r="${R}"/></clipPath>
+    ${lavaI>0.001?`<filter id="lavaG${id}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.7"/></filter>`:""}
+    ${cityI>0.001?`<filter id="cityG${id}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="0.5"/></filter>`:""}
     <radialGradient id="base${id}" cx="36%" cy="32%" r="78%"><stop offset="0%" stop-color="${L(c1,52)}"/><stop offset="50%" stop-color="${c1}"/><stop offset="100%" stop-color="${D(c1,46)}"/></radialGradient>
     <radialGradient id="term${id}" cx="36%" cy="32%" r="82%"><stop offset="0%" stop-color="#fff" stop-opacity=".28"/><stop offset="38%" stop-color="#fff" stop-opacity="0"/><stop offset="72%" stop-color="#000" stop-opacity=".35"/><stop offset="100%" stop-color="#000" stop-opacity=".68"/></radialGradient>
     <radialGradient id="atmo${id}" cx="50%" cy="50%" r="50%"><stop offset="${(88-atmoThick*12).toFixed(0)}%" stop-color="${atmoCol}" stop-opacity="0"/><stop offset="97%" stop-color="${atmoCol}" stop-opacity="${atmoThick.toFixed(2)}"/><stop offset="100%" stop-color="${atmoCol}" stop-opacity="0"/></radialGradient></defs>
@@ -742,6 +778,7 @@ function art(a,animate){
     <g clip-path="url(#c${id})"><g style="${anim?`animation:surf${id} ${spinDur}s linear infinite`:''}">${bands}${spots.join("")}</g>
     ${clouds?`<g style="${anim?`animation:surf${id} ${cloudDur}s linear infinite`:''}">${clouds}</g>`:""}</g>
     <circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#term${id})"/>
+    ${lava}${city}
     ${hasAtmo?`<circle cx="${cx}" cy="${cy}" r="${R+3}" fill="url(#atmo${id})"/>`:""}
     <ellipse cx="${cx-34}" cy="${cy-40}" rx="30" ry="18" fill="#fff" opacity=".14" transform="rotate(-30 ${cx-34} ${cy-40})"/>
     ${ringFront}<style>@keyframes surf${id}{to{transform:translateX(-${2*S}px);}}</style></svg>`;
@@ -768,7 +805,9 @@ function newAsset(kind,opts={}){
     a.cloudStyle=opts.cloudStyle||(["terran","ocean","jungle","toxic"].includes(a.ptype)?"wispy":"none");a.cloudColor=opts.cloudColor||"#ffffff";a.cloudAmount=opts.cloudAmount!=null?opts.cloudAmount:0.5;
     a.atmo=opts.atmo!=null?opts.atmo:["terran","ocean","toxic","gas","jungle"].includes(a.ptype);a.atmoColor=opts.atmoColor||"";a.atmoThick=opts.atmoThick!=null?opts.atmoThick:0.55;}
   else if(kind==="moon"){a.mtype=opts.mtype||"rocky";const p=MOON_TYPES[a.mtype];a.c1=opts.c1||p[0];a.c2=opts.c2||p[1];a.c3=opts.c3||p[2];a.cloudStyle="none";}
-  else if(kind==="star"){a.stype=opts.stype||"yellow";const p=STAR_TYPES[a.stype];a.c1=opts.c1||p[0];a.c2=opts.c2||p[1];a.c3=opts.c3||p[2];a.rays=opts.rays!==false;}
+  else if(kind==="star"){a.stype=opts.stype||"yellow";const p=STAR_TYPES[a.stype];a.c1=opts.c1||p[0];a.c2=opts.c2||p[1];a.c3=opts.c3||p[2];a.rays=opts.rays!==false;
+    a.brightness=opts.brightness!=null?opts.brightness:1;a.coronaSize=opts.coronaSize!=null?opts.coronaSize:1;
+    a.breathe=opts.breathe||{on:true,speed:1,depth:0.12};a.raySpec=opts.raySpec||{count:14,length:1,intensity:0.5};}
   else if(kind==="station"){a.stype=opts.stype||"ring";const sp=STATION_PALETTES[a.stype]||["#b8c0d0","#5a6a8a","#ffd86b"];a.c1=opts.c1||sp[0];a.c2=opts.c2||sp[1];a.c3=opts.c3||sp[2];}
   else if(kind==="debris"){a.dtype=opts.dtype||"field";a.c1=opts.c1||"#8a8a9a";a.c2=opts.c2||"#5a5a62";a.c3=opts.c3||"#c8c8d0";}
   else if(kind==="galaxy"){a.c1=opts.c1||"#c89aff";a.c2=opts.c2||"#6a3aff";a.c3=opts.c3||"#fff2c8";a.arms=opts.arms||2;a.turns=opts.turns||1.1;a.tight=opts.tight!=null?opts.tight:0.9;a.spread=opts.spread!=null?opts.spread:0.7;a.len=opts.len!=null?opts.len:1;a.spinDur=opts.spinDur||60;}
@@ -1012,6 +1051,9 @@ function enterPending(asset,x,y){pending={asset,x,y};ghost.style.display="block"
 function positionGhostWorld(){if(!pending)return;const r=$("#canvas").getBoundingClientRect();
   const sx=r.left+view.x+pending.x*view.scale,sy=r.top+view.y+pending.y*view.scale;const gd=ghostDims(pending.asset);
   ghost.style.width=gd.gw*view.scale+"px";ghost.style.height=gd.gh*view.scale+"px";ghost.style.left=sx+"px";ghost.style.top=sy+"px";}
+// Next z above everything already placed — so a newly added object always lands on TOP (you can see
+// and click it), never buried behind an existing body.
+function topZ(){return (state.instances.length?Math.max(0,...state.instances.map(x=>x.z||0)):0)+1;}
 $("#placeConfirm").onclick=()=>{
   if(!pending)return;pushUndo();const a=pending.asset;
   if(a.kind==="system"){createSectorFromSystem(a,pending.x,pending.y);}
@@ -1020,13 +1062,13 @@ $("#placeConfirm").onclick=()=>{
     if(a.kind==="image"){const maxDim=440,nw=a.natW||160,nh=a.natH||160,sc=Math.min(1,maxDim/Math.max(nw,nh));inst.w=Math.max(8,Math.round(nw*sc));inst.h=Math.max(8,Math.round(nh*sc));inst.size=Math.max(inst.w,inst.h);}
     if(a.kind==="planet3d"){inst.p3spin=(a.cfg3d&&a.cfg3d.spin!=null)?clamp(+a.cfg3d.spin,0,3):1;}
     if(a.kind==="planet3d"&&a.pois3d&&a.pois3d.length){inst.pois=a.pois3d.map(p=>({id:uid(),type:(POI_TYPES[p.cat]?p.cat:"city"),title:p.title||"",desc:p.desc||"",ax:clamp(p.lon||0,-1,1),ay:clamp(-(p.lat||0),-1,1)}));}
-    inst.sector=sectorAt({x:inst.x,y:inst.y});state.instances.push(inst);selection={type:"instance",id:inst.id};}
+    inst.sector=sectorAt({x:inst.x,y:inst.y});inst.z=topZ();state.instances.push(inst);selection={type:"instance",id:inst.id};}
   clearPending();renderAll();markDirty();map3dRefresh(true);toast("Placed "+a.name);   // instant 3D refresh on placement
 };
 $("#placeCancel").onclick=clearPending;
 function clearPending(){pending=null;ghost.style.display="none";$("#placeBar").classList.remove("show");}
-function snapshotLook(a){const {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,image,src,natW,natH,dsCfg,cfg3d,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames}=a;
-  return {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,image,src,natW,natH,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames,dsCfg:dsCfg?JSON.parse(JSON.stringify(dsCfg)):undefined,cfg3d:cfg3d?JSON.parse(JSON.stringify(cfg3d)):undefined};}
+function snapshotLook(a){const {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,brightness,coronaSize,breathe,raySpec,image,src,natW,natH,dsCfg,cfg3d,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,lava,city,lightColor,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames}=a;
+  return {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,brightness,coronaSize,image,src,natW,natH,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,lava,city,lightColor,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames,breathe:breathe?JSON.parse(JSON.stringify(breathe)):undefined,raySpec:raySpec?JSON.parse(JSON.stringify(raySpec)):undefined,dsCfg:dsCfg?JSON.parse(JSON.stringify(dsCfg)):undefined,cfg3d:cfg3d?JSON.parse(JSON.stringify(cfg3d)):undefined};}
 function applyBackground(a){pushUndo();state.background=snapshotLook(a);renderAll();markDirty();toast("Backdrop set");}
 // Render an image backdrop into #bgLayer (screen-space, behind everything). "size" scales it so the
 // backdrop size the user picks actually changes what's shown; opacity lets the gradient show through.
@@ -1050,9 +1092,11 @@ function useStarfieldBackground(){ // built-in backdrop, inlined as a data URL s
   fetch("assets/starfield.svg").then(r=>r.text()).then(txt=>{setImageBackground("data:image/svg+xml;utf8,"+encodeURIComponent(txt));}).catch(()=>toast("Couldn't load the built-in starfield"));
 }
 function clearBackground(){pushUndo();state.background=null;renderAll();renderLibrary();markDirty();toast("Backdrop cleared");}
+// Next z above all existing sectors — a new sector always draws on top of the others.
+function topSectorZ(){return (state.sectors.length?Math.max(0,...state.sectors.map(x=>x.z||0)):0)+1;}
 function createSectorFromSystem(a,x,y){pushUndo();const rx=180,ry=140;const pts=[];const rng=mulberry(a.seed||1);
   for(let i=0;i<12;i++){const an=i/12*6.28,jit=0.78+rng()*0.4;pts.push({x:x+Math.cos(an)*rx*jit,y:y+Math.sin(an)*ry*jit});}
-  const s={id:uid(),name:a.name,color:a.c1,points:pts,creed:a.creed||"",desc:"",fx:{sparkle:false,nebula:false,nebulaColor:a.c1,shoot:false}};
+  const s={id:uid(),name:a.name,color:a.c1,points:pts,creed:a.creed||"",desc:"",z:topSectorZ(),front:true,fx:{sparkle:false,nebula:false,nebulaColor:a.c1,shoot:false}};
   state.sectors.push(s);computeSectorParents();reassociateAll();selection={type:"sector",id:s.id};}
 
 /* ============================================================ SECTOR PEN-DRAW ============================================================ */
@@ -1062,7 +1106,7 @@ function cancelDraw(){drawing=null;$("#drawBar").classList.remove("show");render
 function finishDraw(){
   if(!drawing||drawing.pts.length<3){cancelDraw();return;}
   pushUndo();const pts=drawing.pts.slice();
-  const s={id:uid(),name:"New Sector",color:"#5fbf7a",points:pts,creed:"",desc:"",fx:{sparkle:false,nebula:false,nebulaColor:"#5fbf7a",shoot:false}};
+  const s={id:uid(),name:"New Sector",color:"#5fbf7a",points:pts,creed:"",desc:"",z:topSectorZ(),front:true,fx:{sparkle:false,nebula:false,nebulaColor:"#5fbf7a",shoot:false}};
   state.sectors.push(s);computeSectorParents();reassociateAll();selection={type:"sector",id:s.id};
   drawing=null;$("#drawBar").classList.remove("show");
   tool="select";toolRow.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.tool==="select"));$("#canvas").classList.remove("pen");
@@ -1072,7 +1116,7 @@ $("#drawConfirm").onclick=finishDraw;
 $("#drawCancel").onclick=cancelDraw;
 function renderDrawPreview(){
   renderSectors();
-  if(!drawing)return;const svg=$("#svg");
+  if(!drawing)return;const svg=$("#svgFront")||$("#svg");   // preview on the top layer so it's visible over everything while drawing
   if(drawing.pts.length){
     const d="M "+drawing.pts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" L ");
     const path=document.createElementNS(NS,"path");path.setAttribute("d",d+(drawing.pts.length>2?" Z":""));
@@ -1097,7 +1141,10 @@ function toWorld(sx,sy){const r=$("#canvas").getBoundingClientRect();return {x:(
 // 3D viewer can centre on and scale to exactly what the 2D map shows (and write it back on the way out).
 window.map2dView=function(){const c=$("#canvas");const W=c.clientWidth||1,H=c.clientHeight||1;return {cx:(W/2-view.x)/view.scale,cy:(H/2-view.y)/view.scale,scale:view.scale};};
 window.setMap2dView=function(cx,cy,scale){const c=$("#canvas");const W=c.clientWidth||1,H=c.clientHeight||1;view.scale=clamp(scale,0.12,5);view.x=W/2-cx*view.scale;view.y=H/2-cy*view.scale;applyView();};
-function applyView(){const tf=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;$("#svg").style.transform=tf;$("#svg").style.transformOrigin="0 0";$("#bodyLayer").style.transform=tf;const bk=$("#backLayer");if(bk){bk.style.transform=tf;bk.style.transformOrigin="0 0";}const ll=$("#labelLayer");if(ll){ll.style.transform=tf;ll.style.transformOrigin="0 0";}$("#zVal").textContent=Math.round(view.scale*100)+"%";if(pending)positionGhostWorld();}
+function applyView(){const tf=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;$("#svg").style.transform=tf;$("#svg").style.transformOrigin="0 0";$("#bodyLayer").style.transform=tf;const bk=$("#backLayer");if(bk){bk.style.transform=tf;bk.style.transformOrigin="0 0";}const sf=$("#svgFront");if(sf){sf.style.transform=tf;sf.style.transformOrigin="0 0";}const ll=$("#labelLayer");if(ll){ll.style.transform=tf;ll.style.transformOrigin="0 0";}$("#zVal").textContent=Math.round(view.scale*100)+"%";if(pending)positionGhostWorld();syncSkyLock();}
+// Parallax OFF → the starfield/nebula/glow backdrop is world-locked: push the live view so Sky2D pans
+// & zooms it with the map (sectors, systems and bodies then hold their positions over the background).
+function syncSkyLock(){if(!window.Sky2D)return;const off=!!(state.bg3d&&state.bg3d.parallax===false);window.Sky2D.setLock(off);if(off)window.Sky2D.setView(view.x,view.y,view.scale);}
 function sectorPath(pts,curved){if(!pts.length)return "";
   if(curved&&pts.length>=3){ // closed Catmull-Rom spline through the nodes → smooth sector edges
     const n=pts.length,f=v=>v.toFixed(1);let d=`M ${f(pts[0].x)},${f(pts[0].y)}`;
@@ -1110,8 +1157,9 @@ function sectorPath(pts,curved){if(!pts.length)return "";
 function bbox(pts){let a={x:1e9,y:1e9},b={x:-1e9,y:-1e9};pts.forEach(p=>{a.x=Math.min(a.x,p.x);a.y=Math.min(a.y,p.y);b.x=Math.max(b.x,p.x);b.y=Math.max(b.y,p.y);});return {x:a.x,y:a.y,w:b.x-a.x,h:b.y-a.y};}
 
 function renderSectors(){
-  const svg=$("#svg");svg.innerHTML="";computeSectorParents();
+  const svgBack=$("#svg"),svgF=$("#svgFront");svgBack.innerHTML="";if(svgF)svgF.innerHTML="";computeSectorParents();
   [...state.sectors].sort((a,b)=>((a.z||0)-(b.z||0))||(b._area-a._area)).forEach(s=>{
+    const svg=(s.front&&svgF)?svgF:svgBack;   // "front" sectors render into the above-bodies layer
     const[r,g,b2]=hx(s.color);const isSub=!!s.parent;const bb=bbox(s.points);
     // per-sector nebula fill (clipped to polygon)
     if(s.fx&&s.fx.nebula){
@@ -1233,7 +1281,7 @@ function addTextObject(){
   if(mode!=="dm")return;
   pushUndo();
   const r=$("#canvas").getBoundingClientRect();const c=toWorld(r.left+r.width/2,r.top+r.height/2);
-  const t={id:uid(),kind:"text",name:"New label",x:c.x,y:c.y,size:0,look:{},pois:[],label:Object.assign({},TEXT_LABEL_DEFAULT)};
+  const t={id:uid(),kind:"text",name:"New label",x:c.x,y:c.y,size:0,z:topZ(),look:{},pois:[],label:Object.assign({},TEXT_LABEL_DEFAULT)};
   state.instances.push(t);selection={type:"instance",id:t.id};
   if(tool!=="select")setTool("select");
   renderAll();markDirty();toast("Text added — type your text and format it in the inspector");
@@ -1243,7 +1291,7 @@ function addHtmlObject(){
   if(mode!=="dm")return;
   pushUndo();
   const r=$("#canvas").getBoundingClientRect();const c=toWorld(r.left+r.width/2,r.top+r.height/2);
-  const h={id:uid(),kind:"html",name:"HTML card",x:c.x,y:c.y,size:260,w:300,h:170,look:{},pois:[],html:HTML_DEFAULT};
+  const h={id:uid(),kind:"html",name:"HTML card",x:c.x,y:c.y,size:260,w:300,h:170,z:topZ(),look:{},pois:[],html:HTML_DEFAULT};
   state.instances.push(h);selection={type:"instance",id:h.id};
   if(tool!=="select")setTool("select");
   renderAll();markDirty();toast("HTML card added — edit its markup in the inspector");
@@ -1562,6 +1610,7 @@ function renderSectorInspector(){
     <h4>Contents (${contents.length}${subs.length?` · ${subs.length} sub`:""})</h4>
     ${subs.map(x=>`<div class="assoc" style="margin-bottom:5px;cursor:pointer" data-sec="${x.id}"><span class="cd" style="background:${x.color}"></span>◵ ${esc(x.name)} <span style="color:var(--faint);font-size:10px;margin-left:auto">sub-system</span></div>`).join('')}
     ${contents.length?contents.map(i=>`<div class="assoc" style="margin-bottom:5px;cursor:pointer" data-inst="${i.id}"><span class="cd" style="background:${(i.look||i).c1}"></span>${esc(i.name)}${i.pois&&i.pois.length?` <span style="color:var(--gold);font-size:10px;margin-left:auto">◈ ${i.pois.length}</span>`:""}</div>`).join(''):(subs.length?'':'<div style="font-size:12px;color:var(--faint)">Nothing inside yet. Drop bodies within the outline.</div>')}
+    <label class="chk" style="display:flex;align-items:center;gap:7px;font-size:12px;padding:4px 0;cursor:pointer"><input type="checkbox" id="sFront" ${s.front?"checked":""}> Draw above objects &amp; images</label>
     ${layerControlsHTML(false)}
     <div class="actionbtns"><button class="danger" id="sDel">Delete system</button></div>`;
   wireLayerControls(state.sectors,s);
@@ -1574,6 +1623,7 @@ function renderSectorInspector(){
   $("#sBW").oninput=e=>{s.borderWidth=+e.target.value/10;$("#sBWV").textContent=s.borderWidth.toFixed(1);renderSectors();markDirty();};
   $("#sFO").oninput=e=>{s.fillOpacity=+e.target.value/100;$("#sFOV").textContent=Math.round(s.fillOpacity*100)+"%";renderSectors();markDirty();};
   $("#sCurved").onchange=e=>{s.curved=e.target.checked;renderSectors();markDirty();};
+  {const fr=$("#sFront");if(fr)fr.onchange=e=>{s.front=e.target.checked;renderSectors();markDirty();};}
   $("#sDel").onclick=()=>{pushUndo();state.sectors=state.sectors.filter(x=>x.id!==s.id);selection=null;computeSectorParents();reassociateAll();renderAll();markDirty();};
   box.querySelectorAll("[data-inst]").forEach(el=>el.onclick=()=>{selection={type:"instance",id:el.dataset.inst};renderAll();});
   box.querySelectorAll("[data-sec]").forEach(el=>el.onclick=()=>{selection={type:"sector",id:el.dataset.sec};renderAll();});
@@ -1589,7 +1639,7 @@ function renderTextInspector(){
     <div class="actionbtns"><button id="txtDupe">Duplicate</button><button class="danger" id="txtDel">Delete</button></div>`;
   $("#txtVal").oninput=e=>{i.name=e.target.value;renderLabels();markDirty();};
   wireLabelControls("tx",i.label,()=>{renderLabels();markDirty();});
-  $("#txtDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
+  $("#txtDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;c.z=topZ();state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
   $("#txtDel").onclick=()=>{pushUndo();state.instances=state.instances.filter(x=>x.id!==i.id);selection=null;renderAll();markDirty();};
 }
 function renderHtmlInspector(){
@@ -1604,7 +1654,7 @@ function renderHtmlInspector(){
   let t=null;$("#htmlVal").oninput=e=>{i.html=e.target.value;clearTimeout(t);t=setTimeout(()=>{renderInstances();markDirty();},250);};
   $("#htmlW").oninput=e=>{i.w=+e.target.value;i.size=Math.max(i.w,i.h||i.w);$("#htmlWV").textContent=i.w;renderInstances();markDirty();};
   $("#htmlH").oninput=e=>{i.h=+e.target.value;i.size=Math.max(i.w||i.h,i.h);$("#htmlHV").textContent=i.h;renderInstances();markDirty();};
-  $("#htmlDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
+  $("#htmlDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;c.z=topZ();state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
   $("#htmlDel").onclick=()=>{pushUndo();state.instances=state.instances.filter(x=>x.id!==i.id);selection=null;renderAll();markDirty();};
 }
 /* ---- layer / z-order ---- */
@@ -1763,7 +1813,7 @@ function renderInstanceInspector(){
   $("#iEdit").onclick=()=>{
     if(i.kind==="planet3d"){const a=state.assets.find(x=>x.id===i.assetId)||{id:i.assetId||uid(),kind:"planet3d",name:i.name,cfg3d:i.look&&i.look.cfg3d,sheet:i.look&&i.look.sheet};openPlanet3DEditor(a);return;}
     const a=state.assets.find(x=>x.id===i.assetId)||{...i.look,name:i.name,kind:i.kind,size:i.size,id:uid()};openEditor(a,"edit",i);};
-  $("#iDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;if(c.pois)c.pois.forEach(p=>p.id=uid());reassoc(c);state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
+  $("#iDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;c.z=topZ();if(c.pois)c.pois.forEach(p=>p.id=uid());reassoc(c);state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
   $("#iDel").onclick=()=>{pushUndo();state.instances=state.instances.filter(x=>x.id!==i.id);selection=null;renderAll();markDirty();};
   $("#poiAdd").onclick=()=>openPoiTypePicker(i,0,0);
   box.querySelectorAll(".poiitem").forEach(el=>el.onclick=e=>{if(e.target.dataset.del)return;selection={type:"poi",id:i.id,poi:el.dataset.poi};renderAll();});
@@ -1802,7 +1852,14 @@ function renderEditor(){
       <h4>Atmosphere</h4>
       <label class="chk"><input type="checkbox" id="edAtmo" ${edWork.atmo?'checked':''}> Atmospheric rim glow</label>
       <div class="rowc"><div class="field"><label>Atmo color</label><input type="color" id="edAtmoCol" value="${edWork.atmoColor||'#8fd0ff'}"></div>
-      <div class="field"><label>Thickness <span style="float:right;color:var(--gold)" id="edAtmoThV">${(edWork.atmoThick!=null?edWork.atmoThick:0.55).toFixed(2)}</span></label><div class="slider"><input type="range" id="edAtmoTh" min="10" max="100" value="${Math.round((edWork.atmoThick!=null?edWork.atmoThick:0.55)*100)}"></div></div></div>`;
+      <div class="field"><label>Thickness <span style="float:right;color:var(--gold)" id="edAtmoThV">${(edWork.atmoThick!=null?edWork.atmoThick:0.55).toFixed(2)}</span></label><div class="slider"><input type="range" id="edAtmoTh" min="10" max="100" value="${Math.round((edWork.atmoThick!=null?edWork.atmoThick:0.55)*100)}"></div></div></div>
+      <h4>Molten surface</h4>
+      <div class="field"><label>Lava flow <span style="float:right;color:var(--gold)" id="edLavaV">${(edWork.lava!=null?edWork.lava:0).toFixed(2)}</span></label><div class="slider"><input type="range" id="edLava" min="0" max="100" value="${Math.round((edWork.lava!=null?edWork.lava:0)*100)}"></div></div>
+      <div style="font-size:10.5px;color:var(--faint);margin-top:-2px">Glowing rivers of molten rock — 0 is none, higher rives the whole crust with lava.</div>
+      <h4>Cities &amp; lights</h4>
+      <div class="rowc"><div class="field" style="flex:2"><label>City lights <span style="float:right;color:var(--gold)" id="edCityV">${(edWork.city!=null?edWork.city:0).toFixed(2)}</span></label><div class="slider"><input type="range" id="edCity" min="0" max="100" value="${Math.round((edWork.city!=null?edWork.city:0)*100)}"></div></div>
+      <div class="field" style="flex:1"><label>Light colour</label><input type="color" id="edLightCol" value="${edWork.lightColor||'#ffe6a0'}"></div></div>
+      <div style="font-size:10.5px;color:var(--faint);margin-top:-2px">Night-side settlements — 0 is a few lights, higher blankets the world in city sprawl.</div>`;
   }
   else if(k==="moon"){html+=`<h4>Type</h4><div class="seg four" id="edMtype">${Object.keys(MOON_TYPES).map(t=>`<button data-t="${t}" class="${edWork.mtype===t?'on':''}">${t}</button>`).join('')}</div>`;}
   else if(k==="star"){html+=`<h4>Class</h4><div class="seg" id="edStype">${Object.keys(STAR_TYPES).map(t=>`<button data-t="${t}" class="${edWork.stype===t?'on':''}">${t}</button>`).join('')}</div><label class="chk" style="display:flex;align-items:center;gap:7px;font-size:12px;padding:6px 0;cursor:pointer"><input type="checkbox" id="edRays" ${edWork.rays!==false?"checked":""}> ✦ Shine lines (rays)</label>`;}
@@ -1845,6 +1902,9 @@ function wireEditor(){
   if($("#edAtmo"))$("#edAtmo").onchange=e=>{edWork.atmo=e.target.checked;edPreview();};
   if($("#edAtmoCol"))$("#edAtmoCol").oninput=e=>{edWork.atmoColor=e.target.value;edPreview();};
   if($("#edAtmoTh"))$("#edAtmoTh").oninput=e=>{edWork.atmoThick=+e.target.value/100;$("#edAtmoThV").textContent=edWork.atmoThick.toFixed(2);edPreview();};
+  if($("#edLava"))$("#edLava").oninput=e=>{edWork.lava=+e.target.value/100;$("#edLavaV").textContent=edWork.lava.toFixed(2);edPreview();};
+  if($("#edCity"))$("#edCity").oninput=e=>{edWork.city=+e.target.value/100;$("#edCityV").textContent=edWork.city.toFixed(2);edPreview();};
+  if($("#edLightCol"))$("#edLightCol").oninput=e=>{edWork.lightColor=e.target.value;edPreview();};
   const gs=(id,prop,div,fx)=>{const el=$("#"+id);if(!el)return;el.oninput=e=>{edWork[prop]=+e.target.value/(div||1);const v=$("#"+id+"V");if(v)v.textContent=fx?fx(edWork[prop]):edWork[prop];edPreview();};};
   gs("edArms","arms",1,v=>v);gs("edTurns","turns",100,v=>v.toFixed(2));gs("edTight","tight",100,v=>v.toFixed(2));gs("edSpread","spread",100,v=>v.toFixed(2));gs("edLen","len",100,v=>v.toFixed(2));gs("edSpin","spinDur",1,v=>v+"s");
   if($("#edReplaceSvg"))$("#edReplaceSvg").onclick=()=>{const inp=$("#svgUpload");inp.value="";inp.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{const m=ev.target.result.match(/<svg[\s\S]*<\/svg>/i);if(m){edWork.svgData=m[0].replace(/width="[^"]*"/,'').replace(/height="[^"]*"/,'').replace(/<svg/,'<svg style="width:100%;height:100%"');edPreview();}};r.readAsText(f);};inp.click();};
@@ -1900,13 +1960,20 @@ function openTemplatePicker(){
 /* ============================================================ EFFECTS APPLICATION ============================================================ */
 let ambient=null;
 function ensureAmbient(){if(!ambient)ambient=new AmbientFX($("#fxCanvas"));return ambient;}
-function applyMapFx(){const f=state.mapFx;const a=ensureAmbient();a.set({sparkles:f.sparkles,shooting:f.shooting,density:f.density,speed:f.speed,rate:f.rate,color:f.color});if(f.sparkles||f.shooting)a.start();else a.stop();applyNebulaTint();}
+// A "solid" (or "glow") 3D-background template means a clean, star-free backdrop everywhere — so the
+// 2D ambient starfield/shooting-stars + nebula tint are suppressed too, no matter the mapFx toggles.
+function bgIsSolid(){return !!(state.bg3d&&(state.bg3d.template==="solid"||state.bg3d.template==="glow"));}
+function applyMapFx(){const f=state.mapFx;const a=ensureAmbient();const solid=bgIsSolid();
+  const sp=f.sparkles&&!solid,sh=f.shooting&&!solid;
+  a.set({sparkles:sp,shooting:sh,density:f.density,speed:f.speed,rate:f.rate,color:f.color});if(sp||sh)a.start();else a.stop();applyNebulaTint();}
 // selection-border look (applies to .inst.sel + sector selection) via CSS vars
 function applySelStyle(){const s=state.selStyle||(state.selStyle={width:1.5,style:"dashed",color:"#c89b3c"});const r=document.documentElement.style;
   r.setProperty("--selw",(s.width||1.5)+"px");r.setProperty("--sels",s.style||"dashed");r.setProperty("--selc",s.color||"#c89b3c");}
 function applyNebulaTint(){const w=document.querySelector('.canvaswrap');const f=state.mapFx;
-  if(f.nebula&&!state.background){w.style.background=`radial-gradient(ellipse 62% 52% at 50% 42%, ${f.nebColor}, ${f.nebColor2} 55%, #06040f)`;}
-  else if(!state.background){w.style.background='';}}
+  if(state.background)return;                          // an image/gradient backdrop is set — leave it
+  if(bgIsSolid()){w.style.background=(state.bg3d&&state.bg3d.baseColor)||'#010a13';return;}   // solid colour / black — no space gradient
+  if(f.nebula){w.style.background=`radial-gradient(ellipse 62% 52% at 50% 42%, ${f.nebColor}, ${f.nebColor2} 55%, #06040f)`;}
+  else{w.style.background='';}}
 
 /* ---- 3D viewer background (programmable sky, publishes to players via bg3d) ---- */
 const BG3D_TEMPLATES=[["deepspace","Deep space"],["stars","Just stars"],["milkyway","Milky Way band"],["spiral","Spiral galaxy"],["nebula","Flowing nebula"],["blackhole","Black hole"],["wormhole","Wormhole"],["asteroids","Asteroid field"],["solid","Solid colour"],["glow","Colour + glow"]];
@@ -1919,6 +1986,7 @@ function bg3dControlsHTML(b){b=state.bg3d=Object.assign(BG3D_DEFAULT(),b||{});b.
     <div class="field"><label>Base colour</label><input type="color" id="b3Base" value="${b.baseColor||'#010a13'}"></div>
     <div id="b3StarWrap" style="${starsy?'':'display:none'}">
       <label class="chk"><input type="checkbox" id="b3Par" ${b.parallax?"checked":""}> Parallax depth</label>
+      <div style="font-size:10.5px;color:var(--faint);margin:-2px 0 6px 26px">On: the sky sits behind the map with depth. <b style="color:var(--dim)">Off: the sky is locked to the map</b> — it pans &amp; zooms with your elements (players see the same).</div>
       <div class="field"><label>Parallax layers <span style="float:right;color:var(--gold)" id="b3LayV">${b.layers}</span></label><div class="slider"><input type="range" id="b3Lay" min="1" max="6" value="${b.layers}"></div></div>
       <div class="field"><label>Star density <span style="float:right;color:var(--gold)" id="b3DenV">${(b.density||1).toFixed(2)}×</span></label><div class="slider"><input type="range" id="b3Den" min="20" max="200" value="${Math.round((b.density||1)*100)}"></div></div>
       <label class="chk"><input type="checkbox" id="b3Neb" ${b.nebula?"checked":""}> Background nebulas</label>
@@ -1950,6 +2018,8 @@ function wireBg3dControls(){const b=state.bg3d;if(!b||!$("#b3Tpl"))return;
 function applyBg3d(){
   try{if(window.Map3D&&window.Map3D.isShown&&window.Map3D.isShown())window.Map3D.setBackground(state.bg3d);}catch(e){}
   try{if(window.Sky2D){const cv=document.getElementById("skyCanvas");if(cv){window.Sky2D.mount(cv);window.Sky2D.set(state.bg3d);}}}catch(e){}
+  try{syncSkyLock();}catch(e){}   // reflect the parallax on/off setting into the world-lock immediately
+  try{applyMapFx();}catch(e){}   // solid/glow → also silence the 2D ambient starfield + nebula tint
 }
 
 /* ============================================================ CAMPAIGN / PUBLISH ============================================================ */
@@ -1957,7 +2027,7 @@ const CAMP_KEY="stardust-campaigns";
 function loadCampaigns(){try{return JSON.parse(localStorage.getItem(CAMP_KEY)||"[]");}catch(e){return [];}}
 function saveCampaigns(list){try{localStorage.setItem(CAMP_KEY,JSON.stringify(list));}catch(e){toast("Storage full — export to a file instead");}}
 function mapData(){return {type:"stardust-map",version:2,meta:state.meta,background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,bg3d:state.bg3d,selStyle:state.selStyle,
-  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved,z:s.z})),
+  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved,z:s.z,front:s.front})),
   instances:state.instances,assets:state.assets};}
 function stamp(){const d=new Date();return d.toISOString();}
 function publishCurrent(name){
@@ -2025,7 +2095,7 @@ $("#refresh3dBtn").onclick=()=>map3dRefresh(false);
 
 /* ============================================================ HISTORY + SAVE/LOAD ============================================================ */
 function cleanState(){return JSON.stringify({assets:state.assets,instances:state.instances,
-  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved,z:s.z})),
+  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved,z:s.z,front:s.front})),
   background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,bg3d:state.bg3d,selStyle:state.selStyle,meta:state.meta});}
 function snap(){return cleanState();}
 function pushUndo(){undoStack.push(snap());if(undoStack.length>60)undoStack.shift();redoStack=[];markDirty();updUndo();}

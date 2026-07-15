@@ -13,7 +13,8 @@ import pg from 'pg';
 import bcrypt from 'bcryptjs';
 import { streamerCharacter } from '../app/dnd/_sheet/data/streamer';
 import { donataDime } from '../app/dnd/_sheet/data/donata';
-import { DEMO_CAMPAIGN_ID, DEMO_DM_EMAIL, DEMO_DM_NAME, DEMO_DM_USER_ID, DEMO_DONATA, DEMO_GUEST_USER_ID, DEMO_PLAYERS, DEMO_STREAMER, LAZZUH_CHARACTER_ID } from '../lib/dnd/constants';
+import { jack } from '../app/dnd/_sheet/data/jack';
+import { DEMO_CAMPAIGN_ID, DEMO_DM_EMAIL, DEMO_DM_NAME, DEMO_DM_USER_ID, DEMO_DONATA, DEMO_GUEST_USER_ID, DEMO_JACK_CHARACTER_ID, DEMO_PLAYERS, DEMO_STREAMER, LAZZUH_CHARACTER_ID } from '../lib/dnd/constants';
 
 const { Client } = pg;
 
@@ -136,6 +137,16 @@ async function main() {
          VALUES ($1, $2, $3, $4, $5, $6::jsonb, 'private', false)
        ON CONFLICT (id) DO UPDATE SET campaign_id = EXCLUDED.campaign_id, owner_user_id = EXCLUDED.owner_user_id, name = EXCLUDED.name, sheet_type = EXCLUDED.sheet_type, data = EXCLUDED.data, is_npc = EXCLUDED.is_npc, visibility = EXCLUDED.visibility`,
       [DEMO_DONATA.characterId, DEMO_CAMPAIGN_ID, DEMO_DONATA.playerUserId, DEMO_DONATA.characterName, DEMO_DONATA.sheetType, JSON.stringify(donataDime(DEMO_DONATA.characterName))],
+    );
+
+    // Jack — a Rangor Pugilist on the bespoke `jack` "homebrew rulebook" skin. Seeded
+    // DM-owned + campaign-visible; the DM assigns him to whoever plays Jack via the roster
+    // tool (no fixed player account invented). His full level-3 build lives in the data jsonb.
+    await client.query(
+      `INSERT INTO dnd_characters (id, campaign_id, owner_user_id, name, sheet_type, data, visibility, is_npc)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, 'campaign', false)
+       ON CONFLICT (id) DO UPDATE SET campaign_id = EXCLUDED.campaign_id, owner_user_id = EXCLUDED.owner_user_id, name = EXCLUDED.name, sheet_type = EXCLUDED.sheet_type, data = EXCLUDED.data, is_npc = EXCLUDED.is_npc, visibility = EXCLUDED.visibility`,
+      [DEMO_JACK_CHARACTER_ID, DEMO_CAMPAIGN_ID, DEMO_DM_USER_ID, 'Jack', 'jack', JSON.stringify(jack('Jack'))],
     );
 
     const { rows } = await client.query(

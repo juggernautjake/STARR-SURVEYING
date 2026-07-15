@@ -83,6 +83,11 @@ export function planetImpostorCanvas(config, S) {
       const diff = Math.max(0, (nx * lx + ny * ly + nz * lz) / llen);
       const sh = (0.34 + 0.82 * diff) * (0.62 + 0.38 * nz);                 // diffuse light + limb darkening
       d[idx] = Math.min(255, col[0] * sh); d[idx + 1] = Math.min(255, col[1] * sh); d[idx + 2] = Math.min(255, col[2] * sh); d[idx + 3] = 255;
+      if (cfg.lava > 0.001 && !T.bands) {                                    // self-lit lava cracks (glow even on the dark side)
+        const vein = Math.min(Math.abs(fbm(noise, lon, lat, cfg.cscale * 1.5, 4) - 0.5), Math.abs(fbm(wn, lon + 3.1, lat + 1.7, cfg.cscale * 2.6, 3) - 0.5));
+        const hw = 0.012 + cfg.lava * 0.11;
+        if (vein < hw) { const t = 1 - vein / hw, g = (0.6 + 0.4 * t) * (0.7 + 0.3 * nz); d[idx] = Math.min(255, 255 * g); d[idx + 1] = Math.min(255, (70 + 175 * t) * g); d[idx + 2] = Math.min(255, (10 + 150 * t * t) * g); }
+      }
     }
   }
   ctx.putImageData(img, 0, 0);
@@ -119,7 +124,35 @@ function genPlanet(cfg, aniso) {
   sctx.putImageData(si, 0, 0);
   return { tex: texFromCanvas(cv, aniso), specTex: texFromCanvas(scv, aniso), land, W, H };
 }
-function genCity(land, W, H, seed, color, aniso) { const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d'); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); const n = makeNoise(seed + 7), [r, g, b] = hx(color); const img = ctx.getImageData(0, 0, W, H), d = img.data, rng = mulberry(seed + 3); for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x, idx = i * 4; if (land[i]) { const cl = fbm(n, x / W, y / H, 8, 4); if (cl > 0.72 && rng() < 0.5) { const br = 0.5 + rng() * 0.5; d[idx] = r * br; d[idx + 1] = g * br; d[idx + 2] = b * br; d[idx + 3] = 255; } } } ctx.putImageData(img, 0, 0); return texFromCanvas(cv, aniso); }
+// Night-side city lights. `density` (0–1) controls how much of the land glows: low → a few scattered
+// clusters (high noise threshold, low probability), high → the land is blanketed in bright sprawl.
+function genCity(land, W, H, seed, color, aniso, density) {
+  density = Math.max(0, Math.min(1, density == null ? 0.5 : density));
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d'); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  const n = makeNoise(seed + 7), [r, g, b] = hx(color), img = ctx.getImageData(0, 0, W, H), d = img.data, rng = mulberry(seed + 3);
+  const thresh = 0.82 - density * 0.44, prob = 0.22 + density * 0.74;   // few → blanketed
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x, idx = i * 4;
+    if (land[i]) { const cl = fbm(n, x / W, y / H, 8, 4); if (cl > thresh && rng() < prob) { const br = (0.45 + rng() * 0.5) * (0.7 + density * 0.5); d[idx] = Math.min(255, r * br); d[idx + 1] = Math.min(255, g * br); d[idx + 2] = Math.min(255, b * br); d[idx + 3] = 255; } }
+  }
+  ctx.putImageData(img, 0, 0); return texFromCanvas(cv, aniso);
+}
+// A glowing lava-crack emissive map: black everywhere except a branching vein network (min of two
+// warped noise ridges), painted deep-orange at the edges → bright yellow-white at the crack centre.
+// `cfg.lava` (0–1) widens the veins so higher intensity = a surface riven with molten rivers.
+function genLava(cfg, aniso) {
+  const W = 1024, H = 512, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d');
+  const img = ctx.createImageData(W, H), d = img.data;
+  const n = makeNoise((cfg.seed | 0) + 321), n2 = makeNoise((cfg.seed | 0) + 654);
+  const inten = Math.max(0, Math.min(1, cfg.lava || 0)), cs = (cfg.cscale || 2.2) * 1.5, halfW = 0.012 + inten * 0.12;
+  for (let y = 0; y < H; y++) { const lat = y / H;
+    for (let x = 0; x < W; x++) { const lon = x / W, idx = (y * W + x) * 4;
+      const vein = Math.min(Math.abs(fbm(n, lon, lat, cs, 5) - 0.5), Math.abs(fbm(n2, lon + 3.1, lat + 1.7, cs * 1.7, 4) - 0.5));
+      if (vein < halfW) { const t = 1 - vein / halfW; d[idx] = 255; d[idx + 1] = Math.min(255, 70 + 175 * t); d[idx + 2] = Math.min(255, 10 + 150 * t * t); d[idx + 3] = 255; }
+      else { d[idx] = d[idx + 1] = d[idx + 2] = 0; d[idx + 3] = 255; }
+    } }
+  ctx.putImageData(img, 0, 0); return texFromCanvas(cv, aniso);
+}
 function genStorms(seed, count, intensity) { const rng = mulberry((seed | 0) + 555), out = []; for (let i = 0; i < count; i++) { const u = rng(), v = 0.22 + rng() * 0.56; out.push({ u, v, rad: 0.10 + rng() * 0.10 + intensity * 0.14, dir: v < 0.5 ? 1 : -1, arms: 2 + Math.floor(rng() * 3), tight: 5 + intensity * 12, eye: 0.12 + rng() * 0.10 }); } return out; }
 function genClouds(p, aniso) {
   const W = 1024, H = 512, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
@@ -155,13 +188,23 @@ export function buildPlanetModel(config, opts) {
 
   const surf = genPlanet(cfg, aniso); disposables.push(surf.tex, surf.specTex);
   const planetMat = new THREE.MeshStandardMaterial({ map: surf.tex, metalnessMap: surf.specTex, roughness: 0.82, metalness: 0.4 });
+  // molten lava flow: a glowing emissive crack network over the crust (self-lit, so it glows on the
+  // night side too). cfg.lava (0–1) scales both how riven the surface is and how bright the glow.
+  const lavaI = Math.max(0, Math.min(1, cfg.lava || 0));
+  if (lavaI > 0.001) {
+    planetMat.emissive = new THREE.Color(0xffffff);
+    planetMat.emissiveMap = genLava(cfg, aniso);
+    planetMat.emissiveIntensity = 0.75 + lavaI * 1.35;
+    disposables.push(planetMat.emissiveMap);
+  }
   const planet = new THREE.Mesh(new THREE.SphereGeometry(R, seg, seg), planetMat); core.add(planet);
   disposables.push(planet.geometry, planetMat);
 
   // night-side city lights (additive, masked to the dark hemisphere in world space)
   let night = null;
   const T = TYPES[cfg.type] || TYPES.terran;
-  if (cfg.cityOn !== false && T.city > 0) {
+  const cityD = cfg.city != null ? Math.max(0, Math.min(1, +cfg.city)) : 0;   // opt-in: no city lights unless the DM dials them up
+  if (cfg.cityOn !== false && cityD > 0) {
     const nightMat = new THREE.MeshBasicMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
     nightMat.onBeforeCompile = sh => {
       sh.uniforms.sunDir = { value: new THREE.Vector3(1, 0, 0) };
@@ -169,7 +212,7 @@ export function buildPlanetModel(config, opts) {
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 sunDir;\nvarying vec3 vWN;').replace('#include <dithering_fragment>', '#include <dithering_fragment>\nfloat n=clamp(-dot(normalize(vWN),normalize(sunDir))*1.6+0.25,0.0,1.0);\ngl_FragColor.rgb*=n;gl_FragColor.a*=n;');
       nightMat.userData.shader = sh;
     };
-    nightMat.map = genCity(surf.land, surf.W, surf.H, cfg.seed, cfg.lightColor || '#ffd98a', aniso);
+    nightMat.map = genCity(surf.land, surf.W, surf.H, cfg.seed, cfg.lightColor || '#ffd98a', aniso, cityD);
     night = new THREE.Mesh(new THREE.SphereGeometry(R + 0.002, seg, seg), nightMat); core.add(night);
     disposables.push(night.geometry, nightMat, nightMat.map);
   }
@@ -208,12 +251,14 @@ export function buildPlanetModel(config, opts) {
 
   const spin = cfg.spin != null ? cfg.spin : 1;
   const _sun = new THREE.Vector3(1, 0.3, 0.6).normalize();
+  const lavaBase = 0.75 + lavaI * 1.35; let _t = 0;
 
   return {
     group: core,
     update(dt, sunDirWorld) {
       const sd = sunDirWorld || _sun;
       planet.rotation.y += spin * 0.12 * dt;
+      if (lavaI > 0.001) { _t += dt; planetMat.emissiveIntensity = lavaBase * (0.86 + 0.14 * Math.sin(_t * 1.8)); }   // subtle molten shimmer
       if (night) { night.rotation.y = planet.rotation.y; const sh = night.material.userData.shader; if (sh) sh.uniforms.sunDir.value.copy(sd); }
       if (clouds) clouds.rotation.y += (spin * 0.12 + 0.05) * dt;
       if (atmo) atmo.material.uniforms.sunDir.value.copy(sd);
@@ -247,40 +292,66 @@ function raysTex(seed) {
 }
 
 // Build a glowing 3D star: bright body + fresnel glow shell + corona bloom + rotating flare rays,
-// coloured from the body's look (c1/c3). Returns { group, update(dt), dispose } like the planet.
+// Three independently-coloured parts + effects, matching the 2D star:
+//   c1 = CORE body · c2 = immediate GLOW (fresnel shell + corona bloom) · c3 = DIFFUSE light + rays.
+// brightness scales opacity/emissive; breathe{on,speed,depth} drives the pulse; raySpec + `rays`
+// control the sun rays; coronaSize sizes the glow/diffuse reach. Returns { group, update(dt), dispose }.
 export function buildStarModel(config, opts) {
   opts = opts || {};
   const cfg = config || {};
   const R = opts.radius || 1, seg = opts.segments || 40;
-  const c1 = new THREE.Color(cfg.c1 || cfg.color || '#ffd98a');
-  const c3 = new THREE.Color(cfg.c3 || '#fff2c8');
-  const core = new THREE.Group(); const dis = [];
+  const core = new THREE.Color(cfg.c1 || cfg.color || '#ffd98a');
+  const glowC = new THREE.Color(cfg.c2 || cfg.c1 || '#ffb36b');
+  const diffC = new THREE.Color(cfg.c3 || '#fff2c8');
+  const br = cfg.brightness != null ? cfg.brightness : 1;
+  const csz = cfg.coronaSize != null ? cfg.coronaSize : 1;
+  const bre = cfg.breathe || { on: true, speed: 1, depth: 0.12 };
+  const rs = cfg.raySpec || { count: 14, length: 1, intensity: 0.5 };
+  const grp = new THREE.Group(); const dis = [];
 
-  const bodyMat = new THREE.MeshBasicMaterial({ color: c1.clone().lerp(new THREE.Color('#ffffff'), 0.55) });
-  const body = new THREE.Mesh(new THREE.SphereGeometry(R * 0.62, seg, seg), bodyMat); core.add(body); dis.push(body.geometry, bodyMat);
+  // CORE — bright central sphere (brightness pushes it toward white for a hot look).
+  const bodyMat = new THREE.MeshBasicMaterial({ color: core.clone().lerp(new THREE.Color('#ffffff'), Math.min(0.85, 0.42 + br * 0.16)) });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(R * 0.6, seg, seg), bodyMat); grp.add(body); dis.push(body.geometry, bodyMat);
 
+  // IMMEDIATE GLOW — a fresnel shell in the glow colour hugging the core.
   const glowMat = new THREE.ShaderMaterial({ transparent: true, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
-    uniforms: { c: { value: c1.clone() } },
+    uniforms: { c: { value: glowC.clone() }, i: { value: Math.min(1.4, br) } },
     vertexShader: 'varying vec3 vN;varying vec3 vWP;void main(){vN=normalize(mat3(modelMatrix)*normal);vWP=(modelMatrix*vec4(position,1.)).xyz;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader: 'varying vec3 vN;varying vec3 vWP;uniform vec3 c;void main(){vec3 V=normalize(cameraPosition-vWP);float f=pow(1.0-abs(dot(vN,V)),1.5);gl_FragColor=vec4(c,f);}' });
-  const glow = new THREE.Mesh(new THREE.SphereGeometry(R * 0.95, seg, seg), glowMat); core.add(glow); dis.push(glow.geometry, glowMat);
+    fragmentShader: 'varying vec3 vN;varying vec3 vWP;uniform vec3 c;uniform float i;void main(){vec3 V=normalize(cameraPosition-vWP);float f=pow(1.0-abs(dot(vN,V)),1.5);gl_FragColor=vec4(c,f*i);}' });
+  const glowMesh = new THREE.Mesh(new THREE.SphereGeometry(R * 0.98, seg, seg), glowMat); grp.add(glowMesh); dis.push(glowMesh.geometry, glowMat);
 
   const corTex = coronaTex();
-  const corMat = new THREE.SpriteMaterial({ map: corTex, color: c1.clone(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.85 });
-  const corSpr = new THREE.Sprite(corMat); corSpr.scale.set(R * 3.4, R * 3.4, 1); core.add(corSpr); dis.push(corMat, corTex);
+  // Immediate-glow corona bloom (glow colour).
+  const corMat = new THREE.SpriteMaterial({ map: corTex, color: glowC.clone(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: Math.min(1, 0.8 * br) });
+  const baseCor = R * 3.2 * csz;
+  const corSpr = new THREE.Sprite(corMat); corSpr.scale.set(baseCor, baseCor, 1); grp.add(corSpr); dis.push(corMat, corTex);
+  // Diffuse light — a wider, fainter halo (diffuse colour) reaching out with coronaSize.
+  const difMat = new THREE.SpriteMaterial({ map: corTex, color: diffC.clone(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: Math.min(1, 0.34 * br) });
+  const difS = R * 4.7 * csz;
+  const difSpr = new THREE.Sprite(difMat); difSpr.scale.set(difS, difS, 1); grp.add(difSpr); dis.push(difMat);
 
-  const rTex = raysTex(cfg.seed || 7);
-  const rayMat = new THREE.SpriteMaterial({ map: rTex, color: c3.clone(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.5 });
-  const raySpr = new THREE.Sprite(rayMat); raySpr.scale.set(R * 3.0, R * 3.0, 1); core.add(raySpr); dis.push(rayMat, rTex);
+  // SUN RAYS (diffuse colour) — rotating ray sprite; hidden when rays:false or count 0.
+  let rayMat = null;
+  if (cfg.rays !== false && (rs.count == null || rs.count > 0)) {
+    const rTex = raysTex(cfg.seed || 7);
+    rayMat = new THREE.SpriteMaterial({ map: rTex, color: diffC.clone(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: Math.min(1, (rs.intensity != null ? rs.intensity : 0.5) * 1.1 * br) });
+    const rayS = R * 3.0 * (1 + ((rs.length != null ? rs.length : 1) - 1) * 0.5) * csz;
+    const raySpr = new THREE.Sprite(rayMat); raySpr.scale.set(rayS, rayS, 1); grp.add(raySpr); dis.push(rayMat, rTex);
+  }
 
-  const spin = cfg.spin != null ? cfg.spin : 1; let t0 = 0;
+  const spin = cfg.spin != null ? cfg.spin : 1;
+  const bDepth = (bre && bre.on !== false) ? (bre.depth != null ? bre.depth : 0.12) : 0;
+  const bSpeed = (bre && bre.speed != null) ? bre.speed : 1;
+  const baseCorOp = corMat.opacity; let t0 = 0;
   return {
-    group: core,
+    group: grp,
     update(dt) {
-      t0 += dt; body.rotation.y += 0.15 * spin * dt; rayMat.rotation += 0.12 * dt;
-      const pulse = 1 + Math.sin(t0 * 1.6) * 0.06;
-      corSpr.scale.set(R * 3.4 * pulse, R * 3.4 * pulse, 1);
-      corMat.opacity = 0.72 + Math.sin(t0 * 1.6) * 0.15;
+      t0 += dt; body.rotation.y += 0.15 * spin * dt; if (rayMat) rayMat.rotation += 0.12 * dt;
+      if (bDepth > 0) {
+        const s = Math.sin(t0 * 1.6 * bSpeed), p = 1 + s * bDepth;
+        corSpr.scale.set(baseCor * p, baseCor * p, 1);
+        corMat.opacity = Math.min(1, baseCorOp * (0.85 + s * 0.25));
+      }
     },
     dispose() { dis.forEach(o => { try { o.dispose(); } catch (e) { /* noop */ } }); }
   };
@@ -288,39 +359,122 @@ export function buildStarModel(config, opts) {
 
 // ---------- space station: a hub + a rotating habitat ring (lit windows) + solar-panel arrays + a
 // comms mast. Reads unmistakably as a station both top-down and tilted. Returns { group, update, dispose }.
+// Nine distinct 3D station builds, one per `stype`, matching the 2D silhouettes:
+//   ring · wheel · hub · starfort · spire · array · drydock · derelict · husk
+// Colour scheme is shared (metal=c1, dark=c2, lit=c3, solar=blue panel). Returns { group, update, dispose }.
 export function buildStationModel(config, opts) {
   opts = opts || {}; const cfg = config || {}, R = opts.radius || 1;
   const core = new THREE.Group(), dis = [];
   const metal = new THREE.MeshStandardMaterial({ color: new THREE.Color(cfg.c1 || '#b9c4d4'), metalness: 0.82, roughness: 0.34 });
-  const dark = new THREE.MeshStandardMaterial({ color: new THREE.Color(cfg.c2 || '#33405c'), metalness: 0.5, roughness: 0.5 });
+  const dark = new THREE.MeshStandardMaterial({ color: new THREE.Color(cfg.c2 || '#33405c'), metalness: 0.5, roughness: 0.55 });
   const panel = new THREE.MeshStandardMaterial({ color: 0x16386e, metalness: 0.3, roughness: 0.4, emissive: new THREE.Color(0x0a1c44), emissiveIntensity: 0.5 });
   const lit = new THREE.MeshBasicMaterial({ color: new THREE.Color(cfg.c3 || '#ffe08a') });   // window / beacon glow
   dis.push(metal, dark, panel, lit);
-  const add = (geo, mat, x, y, z, rx, ry, rz) => { const m = new THREE.Mesh(geo, mat); m.position.set(x || 0, y || 0, z || 0); if (rx || ry || rz) m.rotation.set(rx || 0, ry || 0, rz || 0); core.add(m); dis.push(geo); return m; };
-  // central hub — a short spindle + node sphere
-  add(new THREE.CylinderGeometry(R * 0.16, R * 0.16, R * 0.6, 18), metal, 0, 0, 0, Math.PI / 2, 0, 0);
-  add(new THREE.SphereGeometry(R * 0.2, 22, 16), metal, 0, 0, 0);
-  add(new THREE.SphereGeometry(R * 0.1, 14, 10), lit, 0, 0, R * 0.3);   // docking beacon on the hub cap
-  // rotating habitat ring (xy-plane) with spokes and lit windows
-  const ring = new THREE.Group();
-  const torus = new THREE.Mesh(new THREE.TorusGeometry(R * 0.64, R * 0.1, 16, 44), metal); ring.add(torus); dis.push(torus.geometry);
-  for (let i = 0; i < 20; i++) { const a = i / 20 * Math.PI * 2; const w = new THREE.Mesh(new THREE.BoxGeometry(R * 0.06, R * 0.035, R * 0.05), lit); w.position.set(Math.cos(a) * R * 0.64, Math.sin(a) * R * 0.64, R * 0.1); ring.add(w); dis.push(w.geometry); }
-  for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2; const sp = new THREE.Mesh(new THREE.BoxGeometry(R * 0.64, R * 0.05, R * 0.05), metal); sp.position.set(Math.cos(a) * R * 0.32, Math.sin(a) * R * 0.32, 0); sp.rotation.z = a; ring.add(sp); dis.push(sp.geometry); }
-  core.add(ring);
-  // solar-panel wings on booms along ±x
-  for (const s of [-1, 1]) {
-    add(new THREE.CylinderGeometry(R * 0.022, R * 0.022, R * 0.5, 8), metal, s * R * 0.98, 0, 0, 0, 0, Math.PI / 2);
-    add(new THREE.BoxGeometry(R * 0.5, R * 0.92, R * 0.02), panel, s * R * 1.38, 0, 0);
-    add(new THREE.BoxGeometry(R * 0.52, R * 0.05, R * 0.03), dark, s * R * 1.38, 0, R * 0.015);   // panel spar
-    add(new THREE.BoxGeometry(R * 0.02, R * 0.92, R * 0.03), dark, s * R * 1.38, 0, R * 0.015);
+  const add = (geo, mat, x, y, z, rx, ry, rz, parent) => { const m = new THREE.Mesh(geo, mat); m.position.set(x || 0, y || 0, z || 0); if (rx || ry || rz) m.rotation.set(rx || 0, ry || 0, rz || 0); (parent || core).add(m); dis.push(geo); return m; };
+  const solarWing = (sx, boom) => {   // a boom + blue solar panel with spars, mirrored by sign sx
+    add(new THREE.CylinderGeometry(R * 0.022, R * 0.022, boom, 8), metal, sx * (boom * 0.5 + R * 0.5), 0, 0, 0, 0, Math.PI / 2);
+    const px = sx * (boom + R * 0.5 + R * 0.25);
+    add(new THREE.BoxGeometry(R * 0.5, R * 0.92, R * 0.02), panel, px, 0, 0);
+    add(new THREE.BoxGeometry(R * 0.52, R * 0.05, R * 0.03), dark, px, 0, R * 0.015);
+    add(new THREE.BoxGeometry(R * 0.02, R * 0.92, R * 0.03), dark, px, 0, R * 0.015);
+  };
+  const litRing = (rad, count, parent, zoff) => {   // evenly spaced window blocks around a circle
+    for (let i = 0; i < count; i++) { const a = i / count * Math.PI * 2; const w = new THREE.Mesh(new THREE.BoxGeometry(R * 0.06, R * 0.035, R * 0.05), lit); w.position.set(Math.cos(a) * rad, Math.sin(a) * rad, (zoff || 0)); (parent || core).add(w); dis.push(w.geometry); }
+  };
+  const hub = (rad) => { add(new THREE.CylinderGeometry(rad, rad, R * 0.5, 18), metal, 0, 0, 0, Math.PI / 2, 0, 0); add(new THREE.SphereGeometry(rad * 1.2, 20, 14), metal, 0, 0, 0); add(new THREE.SphereGeometry(rad * 0.55, 12, 10), lit, 0, 0, rad * 1.6); };
+  const stype = cfg.stype || 'ring';
+  let spinGroup = null, spinRate = 0.4, drift = 0.03, tumble = null;
+
+  if (stype === 'ring') {
+    hub(R * 0.18);
+    const ring = new THREE.Group();
+    const torus = new THREE.Mesh(new THREE.TorusGeometry(R * 0.64, R * 0.1, 16, 44), metal); ring.add(torus); dis.push(torus.geometry);
+    litRing(R * 0.64, 20, ring, R * 0.1);
+    for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2; const sp = new THREE.Mesh(new THREE.BoxGeometry(R * 0.64, R * 0.05, R * 0.05), metal); sp.position.set(Math.cos(a) * R * 0.32, Math.sin(a) * R * 0.32, 0); sp.rotation.z = a; ring.add(sp); dis.push(sp.geometry); }
+    core.add(ring); spinGroup = ring; spinRate = 0.45;
+    solarWing(-1, R * 0.46); solarWing(1, R * 0.46);
+    add(new THREE.CylinderGeometry(R * 0.016, R * 0.016, R * 0.6, 8), metal, 0, 0, R * 0.42, Math.PI / 2, 0, 0);
+    add(new THREE.SphereGeometry(R * 0.07, 12, 10), lit, 0, 0, R * 0.74);
+  } else if (stype === 'wheel') {   // cartwheel: heavy outer rim + thin inner rim + many spokes
+    hub(R * 0.14);
+    const ring = new THREE.Group();
+    const outer = new THREE.Mesh(new THREE.TorusGeometry(R * 0.74, R * 0.09, 14, 48), metal); ring.add(outer); dis.push(outer.geometry);
+    const inner = new THREE.Mesh(new THREE.TorusGeometry(R * 0.42, R * 0.035, 12, 36), dark); ring.add(inner); dis.push(inner.geometry);
+    litRing(R * 0.74, 28, ring, R * 0.09);
+    for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; const sp = new THREE.Mesh(new THREE.BoxGeometry(R * 0.72, R * 0.035, R * 0.045), metal); sp.position.set(Math.cos(a) * R * 0.37, Math.sin(a) * R * 0.37, 0); sp.rotation.z = a; ring.add(sp); dis.push(sp.geometry); }
+    core.add(ring); spinGroup = ring; spinRate = 0.55;
+  } else if (stype === 'hub') {   // central node with radial docking arms + end pods (no big ring)
+    hub(R * 0.24);
+    const arms = 6;
+    for (let i = 0; i < arms; i++) {
+      const a = i / arms * Math.PI * 2, dx = Math.cos(a), dy = Math.sin(a);
+      const boom = add(new THREE.BoxGeometry(R * 0.66, R * 0.07, R * 0.07), metal, dx * R * 0.5, dy * R * 0.5, 0); boom.rotation.z = a;
+      add(new THREE.CylinderGeometry(R * 0.12, R * 0.12, R * 0.18, 12), metal, dx * R * 0.86, dy * R * 0.86, 0, Math.PI / 2, 0, 0);   // docking pod
+      add(new THREE.SphereGeometry(R * 0.05, 10, 8), lit, dx * R * 0.86, dy * R * 0.86, R * 0.1);
+    }
+    add(new THREE.SphereGeometry(R * 0.12, 16, 12), lit, 0, 0, R * 0.02); spinRate = 0; drift = 0.12;
+  } else if (stype === 'starfort') {   // six-point gold star fort with a lit core
+    const pts = 6;
+    for (let i = 0; i < pts; i++) {
+      const a = i / pts * Math.PI * 2;
+      const spike = add(new THREE.ConeGeometry(R * 0.2, R * 0.62, 4), metal, Math.cos(a) * R * 0.5, Math.sin(a) * R * 0.5, 0, Math.PI / 2, 0, 0);
+      spike.rotation.z = a - Math.PI / 2;
+    }
+    add(new THREE.CylinderGeometry(R * 0.42, R * 0.42, R * 0.16, 6), metal, 0, 0, 0, Math.PI / 2, 0, 0);   // hex keep
+    add(new THREE.TorusGeometry(R * 0.24, R * 0.05, 10, 6), dark, 0, 0, R * 0.09);
+    add(new THREE.SphereGeometry(R * 0.14, 16, 12), lit, 0, 0, R * 0.12); spinRate = 0.12; drift = 0.08;
+  } else if (stype === 'spire') {   // sharp four-point in-plane star + glowing core
+    for (let i = 0; i < 4; i++) {
+      const a = i / 4 * Math.PI * 2;
+      const spike = add(new THREE.ConeGeometry(R * 0.12, R * 0.95, 4), metal, Math.cos(a) * R * 0.5, Math.sin(a) * R * 0.5, 0, Math.PI / 2, 0, 0);
+      spike.rotation.z = a - Math.PI / 2;
+    }
+    add(new THREE.OctahedronGeometry(R * 0.26, 0), metal, 0, 0, 0);
+    add(new THREE.SphereGeometry(R * 0.16, 18, 14), lit, 0, 0, 0); spinRate = 0.22; drift = 0.05;
+  } else if (stype === 'array') {   // central truss with stacked solar panels along ±x
+    add(new THREE.BoxGeometry(R * 0.16, R * 1.1, R * 0.16), metal, 0, 0, 0);
+    add(new THREE.SphereGeometry(R * 0.13, 14, 10), lit, 0, 0, R * 0.12);
+    for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) {
+      const yy = (k - 1) * R * 0.42;
+      add(new THREE.CylinderGeometry(R * 0.018, R * 0.018, R * 0.34, 6), metal, sx * R * 0.28, yy, 0, 0, 0, Math.PI / 2);
+      const p = add(new THREE.BoxGeometry(R * 0.44, R * 0.34, R * 0.02), panel, sx * R * 0.62, yy, 0); p.rotation.y = sx * 0.25;
+    }
+    spinRate = 0; drift = 0.06;
+  } else if (stype === 'drydock') {   // open rectangular cradle holding a capsule + clamp arms
+    add(new THREE.CapsuleGeometry ? new THREE.CapsuleGeometry(R * 0.18, R * 0.7, 6, 12) : new THREE.CylinderGeometry(R * 0.18, R * 0.18, R * 1.0, 14), metal, 0, 0, 0, 0, 0, Math.PI / 2);
+    for (const sy of [-1, 1]) {
+      add(new THREE.BoxGeometry(R * 1.1, R * 0.05, R * 0.05), dark, 0, sy * R * 0.44, 0);   // long rails
+      for (const sx of [-1, 1]) add(new THREE.BoxGeometry(R * 0.05, R * 0.44, R * 0.05), dark, sx * R * 0.52, sy * R * 0.22, 0);   // uprights
+      for (const sx of [-1, 0, 1]) { const c = add(new THREE.BoxGeometry(R * 0.05, R * 0.3, R * 0.05), metal, sx * R * 0.4, sy * R * 0.3, 0); c.rotation.z = sy * 0.4; add(new THREE.SphereGeometry(R * 0.03, 8, 6), lit, sx * R * 0.4, sy * R * 0.16, 0); }
+    }
+    spinRate = 0; drift = 0.05;
+  } else if (stype === 'derelict') {   // broken, gapped ring — dark, cold, a few sparks
+    const t = new THREE.TorusGeometry(R * 0.66, R * 0.1, 12, 40, Math.PI * 1.35); const tm = new THREE.Mesh(t, dark); tm.rotation.z = 0.5; core.add(tm); dis.push(t);
+    add(new THREE.SphereGeometry(R * 0.16, 16, 12), dark, 0, 0, 0);
+    add(new THREE.BoxGeometry(R * 0.5, R * 0.05, R * 0.05), dark, R * 0.2, R * 0.28, 0, 0, 0, 0.7);   // snapped spoke
+    for (let i = 0; i < 4; i++) { const a = Math.PI * 1.4 + i * 0.22; add(new THREE.SphereGeometry(R * 0.03, 6, 6), lit, Math.cos(a) * R * 0.66, Math.sin(a) * R * 0.66, 0); }   // flickering sparks at the break
+    core.rotation.z = 0.3; spinRate = 0; tumble = { x: 0.02, y: 0.015, z: 0.05 };
+  } else if (stype === 'husk') {   // dark angular hull fragment tumbling in the dark
+    const frag = add(new THREE.BoxGeometry(R * 0.9, R * 0.5, R * 0.35), dark, 0, 0, 0, 0.3, 0.5, 0.2);
+    add(new THREE.BoxGeometry(R * 0.4, R * 0.6, R * 0.3), dark, R * 0.45, R * 0.15, 0, 0.6, 0.2, -0.3);
+    add(new THREE.ConeGeometry(R * 0.22, R * 0.5, 5), metal, -R * 0.42, -R * 0.12, 0, 0, 0, 1.9);   // torn spar
+    add(new THREE.SphereGeometry(R * 0.04, 6, 6), lit, R * 0.1, -R * 0.05, R * 0.14);   // one light still on
+    spinRate = 0; tumble = { x: 0.06, y: 0.04, z: 0.03 };
+  } else {   // fallback → ring
+    hub(R * 0.18);
+    const torus = add(new THREE.TorusGeometry(R * 0.64, R * 0.1, 16, 44), metal, 0, 0, 0);
+    litRing(R * 0.64, 20, core, R * 0.1);
+    solarWing(-1, R * 0.46); solarWing(1, R * 0.46);
   }
-  // comms mast + beacon (sticks toward the camera in top-down)
-  add(new THREE.CylinderGeometry(R * 0.016, R * 0.016, R * 0.6, 8), metal, 0, 0, R * 0.42, Math.PI / 2, 0, 0);
-  add(new THREE.SphereGeometry(R * 0.07, 12, 10), lit, 0, 0, R * 0.74);
-  const spin = cfg.spin != null ? cfg.spin : 1; let t = 0;
+
+  const spin = cfg.spin != null ? cfg.spin : 1;
   return {
     group: core,
-    update(dt) { t += dt; ring.rotation.z += 0.45 * spin * dt; core.rotation.z += 0.03 * spin * dt; },   // habitat ring spins; whole station drifts slowly
+    update(dt) {
+      if (spinGroup) spinGroup.rotation.z += spinRate * spin * dt;
+      if (tumble) { core.rotation.x += tumble.x * spin * dt; core.rotation.y += tumble.y * spin * dt; core.rotation.z += tumble.z * spin * dt; }
+      else core.rotation.z += drift * spin * dt;
+    },
     dispose() { dis.forEach(o => { try { o.dispose(); } catch (e) { /* noop */ } }); }
   };
 }

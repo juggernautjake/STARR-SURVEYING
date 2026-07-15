@@ -360,15 +360,34 @@ function art(a,animate){
   const atmoThick=a.atmoThick!=null?a.atmoThick:0.55;
   const ringBack=a.ring?`<path d="M ${cx-150} ${cy} A 150 40 0 0 1 ${cx+150} ${cy}" fill="none" stroke="${D(c3,30)}" stroke-width="8" opacity=".4" transform="rotate(-22 ${cx} ${cy})"/>`:"";
   const ringFront=a.ring?`<path d="M ${cx-150} ${cy} A 150 40 0 0 0 ${cx+150} ${cy}" fill="none" stroke="${c3}" stroke-width="8" opacity=".55" transform="rotate(-22 ${cx} ${cy})"/>`:"";
+  // molten lava cracks — a branching glow network scaled by a.lava (0–1); glows over the terminator too
+  let lava="";const lavaI=a.lava!=null?+a.lava:0;
+  if(lavaI>0.001){const lrng=mulberry((a.seed||1)*29+3);const nC=Math.round(3+lavaI*11);let pth="";
+    for(let i=0;i<nC;i++){let px=cx-R*0.85+lrng()*R*1.7,py=cy-R*0.85+lrng()*R*1.7;let dP=`M ${px.toFixed(1)} ${py.toFixed(1)}`;
+      const steps=4+Math.round(lrng()*5),len=(R*0.28+lrng()*R*0.5)/steps;let ang=lrng()*6.28;
+      for(let s=0;s<steps;s++){ang+=(lrng()-0.5)*1.5;px+=Math.cos(ang)*len;py+=Math.sin(ang)*len;dP+=` L ${px.toFixed(1)} ${py.toFixed(1)}`;
+        if(lrng()<0.45){const ba=ang+(lrng()-0.5)*2,bl=len*(0.6+lrng());pth+=`<path d="M ${px.toFixed(1)} ${py.toFixed(1)} L ${(px+Math.cos(ba)*bl).toFixed(1)} ${(py+Math.sin(ba)*bl).toFixed(1)}" stroke="#ff7a2a" stroke-width="${(0.8+lavaI*1.6).toFixed(1)}" fill="none" opacity="${(0.5+lavaI*0.4).toFixed(2)}" stroke-linecap="round"/>`;}}
+      pth+=`<path d="${dP}" stroke="#ff4a12" stroke-width="${(2.6+lavaI*4).toFixed(1)}" fill="none" opacity="${(0.28+lavaI*0.32).toFixed(2)}" stroke-linecap="round" filter="url(#lavaG${id})"/>`;
+      pth+=`<path d="${dP}" stroke="#ffd24a" stroke-width="${(0.8+lavaI*1.5).toFixed(1)}" fill="none" opacity="${(0.72+lavaI*0.28).toFixed(2)}" stroke-linecap="round"/>`;}
+    lava=`<g clip-path="url(#c${id})">${pth}</g>`;}
+  // city lights — scattered warm clusters scaled by a.city (0–1); low = a few, high = blanketed sprawl
+  let city="";const cityI=a.city!=null?+a.city:0;const cityCol=a.lightColor||"#ffe6a0";
+  if(cityI>0.001){const crng=mulberry((a.seed||1)*53+11);const clusters=Math.round(5+cityI*46);let dots="";
+    for(let i=0;i<clusters;i++){const ca=crng()*6.28,cr=Math.sqrt(crng())*R*0.93,px=cx+Math.cos(ca)*cr,py=cy+Math.sin(ca)*cr,nd=1+Math.round(crng()*(2+cityI*4));
+      for(let j=0;j<nd;j++){const dx=px+(crng()-0.5)*9,dy=py+(crng()-0.5)*9;dots+=`<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="${(0.5+crng()*0.9).toFixed(1)}" fill="${cityCol}" opacity="${(0.45+crng()*0.45).toFixed(2)}"/>`;}}
+    city=`<g clip-path="url(#c${id})" filter="url(#cityG${id})">${dots}</g>`;}
   const spinDur=(34+rng()*46).toFixed(0),cloudDur=(spinDur*0.7).toFixed(0);
   return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><defs>
     <clipPath id="c${id}"><circle cx="${cx}" cy="${cy}" r="${R}"/></clipPath>
+    ${lavaI>0.001?`<filter id="lavaG${id}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.7"/></filter>`:""}
+    ${cityI>0.001?`<filter id="cityG${id}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="0.5"/></filter>`:""}
     <radialGradient id="base${id}" cx="36%" cy="32%" r="78%"><stop offset="0%" stop-color="${L(c1,52)}"/><stop offset="50%" stop-color="${c1}"/><stop offset="100%" stop-color="${D(c1,46)}"/></radialGradient>
     <radialGradient id="term${id}" cx="36%" cy="32%" r="82%"><stop offset="0%" stop-color="#fff" stop-opacity=".28"/><stop offset="38%" stop-color="#fff" stop-opacity="0"/><stop offset="72%" stop-color="#000" stop-opacity=".35"/><stop offset="100%" stop-color="#000" stop-opacity=".68"/></radialGradient>
     <radialGradient id="atmo${id}" cx="50%" cy="50%" r="50%"><stop offset="${(88-atmoThick*12).toFixed(0)}%" stop-color="${atmoCol}" stop-opacity="0"/><stop offset="97%" stop-color="${atmoCol}" stop-opacity="${atmoThick.toFixed(2)}"/><stop offset="100%" stop-color="${atmoCol}" stop-opacity="0"/></radialGradient></defs>
     ${ringBack}<circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#base${id})"/>
     <g clip-path="url(#c${id})"><g style="${anim?`animation:surf${id} ${spinDur}s linear infinite`:''}">${bands}${spots.join("")}</g>${clouds?`<g style="${anim?`animation:surf${id} ${cloudDur}s linear infinite`:''}">${clouds}</g>`:""}</g>
     <circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#term${id})"/>
+    ${lava}
     ${hasAtmo?`<circle cx="${cx}" cy="${cy}" r="${R+3}" fill="url(#atmo${id})"/>`:""}
     <ellipse cx="${cx-34}" cy="${cy-40}" rx="30" ry="18" fill="#fff" opacity=".14" transform="rotate(-30 ${cx-34} ${cy-40})"/>
     ${ringFront}<style>@keyframes surf${id}{to{transform:translateX(-${2*S}px);}}</style></svg>`;
@@ -502,20 +521,22 @@ function render(){
   bg.innerHTML=bgInner;viewport.appendChild(bg);
   // center galaxy (image spin) if present
   if(MAP.centerGalaxy&&MAP.centerGalaxy.image){const D=Math.max(W,H)*0.9;const cv=document.createElement("canvas");cv.style.cssText=`position:absolute;left:${-D/2}px;top:${-D/2}px;width:${D}px;height:${D}px;z-index:1;pointer-events:none;opacity:.9;`;viewport.appendChild(cv);const eng=new DiffSpinGalaxy(cv,{rings:6});eng._fit=function(){const dpr=window.devicePixelRatio||1;cv.width=D*dpr;cv.height=D*dpr;this.ctx.setTransform(dpr,0,0,dpr,0,0);this.cssW=D;this.cssH=D;};eng._fit();eng.setImage(MAP.centerGalaxy.image).then(()=>{if(MAP.centerGalaxy.cfg)eng.fromConfig(MAP.centerGalaxy.cfg);eng.start();});dsCenter=eng;}
-  // sectors
-  const svg=document.createElementNS(NS,"svg");svg.setAttribute("width",W);svg.setAttribute("height",H);svg.style.cssText=`position:absolute;left:${B.minX}px;top:${B.minY}px;overflow:visible;z-index:2;`;
-  const sorted=[...(MAP.sectors||[])].map(s=>({s,area:polyArea(s.points),c:polyCentroid(s.points)})).sort((a,b)=>b.area-a.area);
-  let inner="";
-  sorted.forEach(({s,area,c})=>{const[r,g,b2]=hx(s.color);const isSub=!!s.parent,off=p=>({x:p.x-B.minX,y:p.y-B.minY});const pts=s.points.map(off);
+  // sectors — a back layer (below bodies) + a "front" layer (above bodies/images) for sectors flagged front
+  const mkSvg=z=>{const el=document.createElementNS(NS,"svg");el.setAttribute("width",W);el.setAttribute("height",H);el.style.cssText=`position:absolute;left:${B.minX}px;top:${B.minY}px;overflow:visible;z-index:${z};`;return el;};
+  const svg=mkSvg(2),svgF=mkSvg(11);   // 11 = above the bodies (z-index 10)
+  const sorted=[...(MAP.sectors||[])].map(s=>({s,area:polyArea(s.points),c:polyCentroid(s.points)})).sort((a,b)=>((a.s.z||0)-(b.s.z||0))||(b.area-a.area));
+  let innerB="",innerF="";
+  sorted.forEach(({s,area,c})=>{const[r,g,b2]=hx(s.color);const isSub=!!s.parent,off=p=>({x:p.x-B.minX,y:p.y-B.minY});const pts=s.points.map(off);let piece="";
     if(s.fx&&s.fx.nebula){const bb={x:Math.min(...pts.map(p=>p.x)),y:Math.min(...pts.map(p=>p.y))};const bw=Math.max(...pts.map(p=>p.x))-bb.x,bh=Math.max(...pts.map(p=>p.y))-bb.y;
-      inner+=`<clipPath id="cl${s.id}"><path d="${sectorPath(pts)}"/></clipPath><g clip-path="url(#cl${s.id})">`+nebulaSVG(bw,bh,s.fx.nebulaColor||s.color,D(s.fx.nebulaColor||s.color,30),seedFrom(s.id),0.7).replace(/cx="([\d.]+)"/g,(m,n)=>`cx="${(+n+bb.x).toFixed(0)}"`).replace(/cy="([\d.]+)"/g,(m,n)=>`cy="${(+n+bb.y).toFixed(0)}"`)+`</g>`;}
+      piece+=`<clipPath id="cl${s.id}"><path d="${sectorPath(pts)}"/></clipPath><g clip-path="url(#cl${s.id})">`+nebulaSVG(bw,bh,s.fx.nebulaColor||s.color,D(s.fx.nebulaColor||s.color,30),seedFrom(s.id),0.7).replace(/cx="([\d.]+)"/g,(m,n)=>`cx="${(+n+bb.x).toFixed(0)}"`).replace(/cy="([\d.]+)"/g,(m,n)=>`cy="${(+n+bb.y).toFixed(0)}"`)+`</g>`;}
     const bstyle=s.borderStyle||(s.meta?"dotted":"dashed");const bw=s.borderWidth!=null?s.borderWidth:(s.meta?2.5:isSub?1.6:2.2);
     const fillOp=s.fillOpacity!=null?s.fillOpacity:(s.meta?0.04:isSub?0.13:0.09);
     const dash=bstyle==="dotted"?`${(bw*0.5).toFixed(1)} ${(bw*2.2).toFixed(1)}`:bstyle==="dashed"?"8 7":"none";
-    inner+=`<path d="${sectorPath(pts)}" fill="rgba(${r},${g},${b2},${fillOp})" stroke="${bstyle==="none"?"none":s.color}" stroke-width="${bw}" stroke-dasharray="${dash}" opacity="${s.meta?0.5:0.85}" data-sector="${s.id}" style="cursor:pointer"/>`;
-    if(s.fx&&s.fx.sparkle){const rng=mulberry(seedFrom(s.id)*7);for(let k=0;k<14;k++){const wx=Math.min(...s.points.map(p=>p.x))+rng()*(Math.max(...s.points.map(p=>p.x))-Math.min(...s.points.map(p=>p.x))),wy=Math.min(...s.points.map(p=>p.y))+rng()*(Math.max(...s.points.map(p=>p.y))-Math.min(...s.points.map(p=>p.y)));if(!pointInPoly({x:wx,y:wy},s.points))continue;inner+=`<circle cx="${(wx-B.minX).toFixed(0)}" cy="${(wy-B.minY).toFixed(0)}" r="${(0.6+rng()*1.6).toFixed(1)}" fill="#fff" style="animation:twinkle ${(1.4+rng()*2).toFixed(1)}s ease-in-out infinite;animation-delay:${(rng()*3).toFixed(1)}s"/>`;}}
+    piece+=`<path d="${sectorPath(pts)}" fill="rgba(${r},${g},${b2},${fillOp})" stroke="${bstyle==="none"?"none":s.color}" stroke-width="${bw}" stroke-dasharray="${dash}" opacity="${s.meta?0.5:0.85}" data-sector="${s.id}" style="cursor:pointer"/>`;
+    if(s.fx&&s.fx.sparkle){const rng=mulberry(seedFrom(s.id)*7);for(let k=0;k<14;k++){const wx=Math.min(...s.points.map(p=>p.x))+rng()*(Math.max(...s.points.map(p=>p.x))-Math.min(...s.points.map(p=>p.x))),wy=Math.min(...s.points.map(p=>p.y))+rng()*(Math.max(...s.points.map(p=>p.y))-Math.min(...s.points.map(p=>p.y)));if(!pointInPoly({x:wx,y:wy},s.points))continue;piece+=`<circle cx="${(wx-B.minX).toFixed(0)}" cy="${(wy-B.minY).toFixed(0)}" r="${(0.6+rng()*1.6).toFixed(1)}" fill="#fff" style="animation:twinkle ${(1.4+rng()*2).toFixed(1)}s ease-in-out infinite;animation-delay:${(rng()*3).toFixed(1)}s"/>`;}}
+    if(s.front)innerF+=piece;else innerB+=piece;
   });
-  svg.innerHTML=inner;viewport.appendChild(svg);
+  svg.innerHTML=innerB;svgF.innerHTML=innerF;viewport.appendChild(svg);viewport.appendChild(svgF);
   // sector names, body names, text objects & POI captions are drawn in the rich label overlay below
   // bodies
   (MAP.instances||[]).forEach(i=>{if(i.kind==="text")return;   // text objects are pure labels (overlay)
@@ -539,7 +560,7 @@ function render(){
     el.querySelectorAll(".poi").forEach(p=>p.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});});
     viewport.appendChild(el);});
   // sector click handlers
-  svg.querySelectorAll("[data-sector]").forEach(p=>p.onclick=e=>{e.stopPropagation();select({type:"sector",id:p.dataset.sector});});
+  viewport.querySelectorAll("[data-sector]").forEach(p=>p.onclick=e=>{e.stopPropagation();select({type:"sector",id:p.dataset.sector});});
   viewport.appendChild(buildLabelLayer(B,W,H));   // rich formatted labels on top
   mountSpriteInstances();mountSpiralImages();buildLegend();
 }
@@ -577,7 +598,10 @@ function buildLegend(){const box=$("#legendRows");box.innerHTML="";const tops=(M
   if(subs.length){const d=document.createElement("div");d.className="legdiv";box.appendChild(d);subs.forEach(s=>{const r=document.createElement("div");r.className="legrow sub";r.innerHTML=`<span class="dot" style="background:${s.color}"></span>${esc(s.name)}`;r.onclick=()=>select({type:"sector",id:s.id});box.appendChild(r);});}}
 
 /* ---- view / pan / zoom ---- */
-function apply(anim){viewport.classList.toggle("animate",!!anim);viewport.style.transform=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;updateDialZoom();}
+function apply(anim){viewport.classList.toggle("animate",!!anim);viewport.style.transform=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;updateDialZoom();
+  // Parallax OFF (published by the DM) → world-lock the backdrop so it pans & zooms with the map, exactly
+  // as in the Studio. setLock is idempotent; setView pushes the live pan/zoom each frame.
+  if(window.Sky2D){const off=!!(MAP&&MAP.bg3d&&MAP.bg3d.parallax===false);window.Sky2D.setLock(off);if(off)window.Sky2D.setView(view.x,view.y,view.scale);}}
 function paneSize(){const r=$("#mapPane").getBoundingClientRect();return {w:r.width,h:r.height};}
 // 2D⇄3D origin/scale bridge (see map-studio) so the 3D viewer opens on the same centre + scale.
 window.map2dView=function(){const {w,h}=paneSize();return {cx:(w/2-view.x)/view.scale,cy:(h/2-view.y)/view.scale,scale:view.scale};};
@@ -639,7 +663,10 @@ function coreScreen(i){return `<div class="scr-head">${portrait(`<div style="wid
 
 /* ---- ambient fx ---- */
 let ambient=null;
-function applyFx(){const f=MAP.mapFx||{};if(!ambient)ambient=new AmbientFX($("#fxCanvas"));ambient.set({sparkles:f.sparkles!==false,shooting:!!f.shooting,density:f.density!=null?f.density:0.5,speed:f.speed!=null?f.speed:1,rate:f.rate!=null?f.rate:0.3,color:f.color||"#cbd6ff"});if((f.sparkles!==false)||f.shooting)ambient.start();else ambient.stop();}
+function applyFx(){const f=MAP.mapFx||{};const bg=MAP.bg3d,solid=!!(bg&&(bg.template==="solid"||bg.template==="glow"));
+  if(!ambient)ambient=new AmbientFX($("#fxCanvas"));
+  const sp=(f.sparkles!==false)&&!solid,sh=!!f.shooting&&!solid;   // solid/glow bg → no ambient starfield
+  ambient.set({sparkles:sp,shooting:sh,density:f.density!=null?f.density:0.5,speed:f.speed!=null?f.speed:1,rate:f.rate!=null?f.rate:0.3,color:f.color||"#cbd6ff"});if(sp||sh)ambient.start();else ambient.stop();}
 
 /* ---- campaigns ---- */
 const CAMP_KEY="stardust-campaigns";
@@ -654,7 +681,7 @@ $("#campSample").onclick=()=>{loadMap(sampleMap());$("#campModal").classList.rem
 $("#campImport").onclick=()=>$("#mapFile").click();
 $("#mapFile").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const m=JSON.parse(r.result);loadMap(m);$("#campModal").classList.remove("show");toast("Loaded map file");}catch(err){toast("Couldn't read that file");}};r.readAsText(f);e.target.value="";};
 function loadMap(m){MAP=normalizeMap(m);$("#mapTitle").textContent=(MAP.meta&&MAP.meta.name)?MAP.meta.name.toUpperCase().slice(0,42):"STARDUST RHAPSODY";render();applyFx();fit(false);showIdle();}
-function normalizeMap(m){m=m||{};return {type:"stardust-map",version:2,meta:m.meta||{name:"Untitled Map"},background:m.background||null,centerGalaxy:m.centerGalaxy||null,
+function normalizeMap(m){m=m||{};return {type:"stardust-map",version:2,meta:m.meta||{name:"Untitled Map"},background:m.background||null,centerGalaxy:m.centerGalaxy||null,bg3d:m.bg3d||null,
   mapFx:Object.assign({sparkles:true,shooting:false,nebula:true,density:0.5,speed:1,rate:0.3,color:"#cbd6ff",nebColor:"#2a1a5a",nebColor2:"#0c0820"},m.mapFx||{}),
   sectors:(m.sectors||[]).map(s=>({parent:null,meta:false,fx:{sparkle:false,nebula:false,nebulaColor:s.color,shoot:false},...s})),
   instances:(m.instances||[]).map(i=>({pois:[],fx:{sparkle:false,nebula:false,nebulaColor:"#8f78e6",shoot:false},role:"",...i,look:i.look||{kind:i.kind}}))};}
@@ -694,7 +721,10 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
   // A 3D surface-POI pick shows the parent body's readout — same as clicking a POI on the 2D map.
   window.map3dSelectPoi = (instId, poiId) => { if(instId) select({ type:"instance", id:instId }); };
   // Paint the 2D backdrop to match the published sky (parity with the 3D viewer).
-  function applySky(data){ try{ if(window.Sky2D){ const cv=document.getElementById("skyCanvas"); if(cv){ window.Sky2D.mount(cv); window.Sky2D.set((data&&data.bg3d)||undefined); } } }catch(e){} }
+  function applySky(data){ try{ if(window.Sky2D){ const cv=document.getElementById("skyCanvas"); if(cv){ window.Sky2D.mount(cv); window.Sky2D.set((data&&data.bg3d)||undefined); } }
+    const bg=data&&data.bg3d, solid=bg&&(bg.template==="solid"||bg.template==="glow"), mp=document.getElementById("mapPane");
+    if(mp) mp.style.background = solid ? (bg.baseColor||"#010a13") : "";   // solid/glow → the map pane is just the colour (no space gradient)
+  }catch(e){} }
   applySky(null);   // default sky until a map loads
   // If the DM edits a published map while a player is in 3D, refresh the 3D scene too.
   function apply(data, name, announce){

@@ -206,8 +206,8 @@ const Map3D = {
     const size = Math.max(8, Math.round(2 * h.scale.x));
     if (h.scale.y !== h.scale.x || h.scale.z !== h.scale.x) h.scale.setScalar(h.scale.x);   // keep bodies uniform
     const patch = {
-      x: Math.round(h.position.x - h.scale.x),
-      y: Math.round(-h.position.y - h.scale.x),
+      x: Math.round(h.position.x),        // holder position IS the body centre = the 2D (x,y)
+      y: Math.round(-h.position.y),
       size,
       t3d: { rx: +h.rotation.x.toFixed(4), ry: +h.rotation.y.toFixed(4), rz: +h.rotation.z.toFixed(4) }
     };
@@ -620,7 +620,10 @@ const Map3D = {
       if (overlay && !this._isNative3D(it.kind)) continue;   // hybrid: 2D handles images/text/html/spingalaxy/etc.
       if (it.kind === 'text') { this._addText(it); minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x); maxY = Math.max(maxY, it.y); continue; }
       if (it.kind === 'html') { this._addHtml(it); minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x); maxY = Math.max(maxY, it.y); continue; }
-      const s = it.size || 60, cx = it.x + s / 2, cy = it.y + s / 2;
+      // The 2D `.inst` element is centred on (x,y) (translate(-50%,-50%)), so the body's CENTRE is
+      // (x,y) — NOT its top-left. Mirror that exactly here, or the 3D body lands half its size down-
+      // right of its 2D selection ring (visible in hybrid: the ring sits up-left of the planet).
+      const s = it.size || 60, cx = it.x, cy = it.y;
       // Every body lives in a holder whose transform IS its 2D transform: position = centre,
       // scale·2 = size, rotation = t3d. This lets one gizmo move/scale/rotate any body uniformly.
       // The 2D layer/z maps to a small depth offset so "bring to front / send to back" orders bodies
@@ -648,9 +651,11 @@ const Map3D = {
       if (it.opacity != null && it.opacity < 1) holder.traverse(o => { if (o.material && !o.material.uniforms) { o.material.transparent = true; o.material.opacity = it.opacity; } });   // fade parity
       g.add(holder);
       // The body's name label (below it), matching the 2D label layer — kinds text/html are their own label.
-      if (it.name && (!it.label || it.label.show !== false)) this._addText({ name: it.name, label: it.label, x: cx, y: it.y + s + 6 });
+      // Body name label — only in full 3D. In hybrid (overlay) the visible 2D label layer already
+      // draws it (and it's the editable/draggable one), so adding a 3D label here would double it up.
+      if (!overlay && it.name && (!it.label || it.label.show !== false)) this._addText({ name: it.name, label: it.label, x: cx, y: it.y + s / 2 + 6 });
       this._bodies.push({ holder, it, disc, isStar: it.kind === 'star', kind: it.kind, cfg, canFull: !imgUrl && (it.kind === 'star' || !!cfg || genMesh), hasModel: false, model: null });
-      minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x + s); maxY = Math.max(maxY, it.y + s);
+      minX = Math.min(minX, it.x - s / 2); minY = Math.min(minY, it.y - s / 2); maxX = Math.max(maxX, it.x + s / 2); maxY = Math.max(maxY, it.y + s / 2);
     }
     // Framing needs the container's real pixel size, which is only correct once it's visible; store
     // the bounds and (re)frame from show(). Framing here while hidden gives a degenerate zoom.
@@ -683,9 +688,10 @@ const Map3D = {
   // A 2D planet/moon → a real 3D planet config (buildPlanetModel reads TYPES[type] for colours).
   _genericPlanetCfg(it) {
     const L = it.look || it, valid = ['terran', 'ocean', 'jungle', 'desert', 'ice', 'volcanic', 'toxic', 'barren', 'gas'];
-    if (it.kind === 'moon') return { type: L.mtype === 'ice' ? 'ice' : 'barren', seed: L.seed || 1, sea: 0.02, cscale: 2.6, coast: 0.6, ice: L.mtype === 'ice' ? 0.6 : 0.05, spin: 1, atmoOn: false };
+    const lava = L.lava != null ? +L.lava : 0, city = L.city != null ? +L.city : undefined, lightColor = L.lightColor || undefined;
+    if (it.kind === 'moon') return { type: L.mtype === 'ice' ? 'ice' : 'barren', seed: L.seed || 1, sea: 0.02, cscale: 2.6, coast: 0.6, ice: L.mtype === 'ice' ? 0.6 : 0.05, spin: 1, atmoOn: false, lava, city, lightColor };
     const t = valid.includes(L.ptype) ? L.ptype : (L.ptype === 'rock' ? 'barren' : 'terran');
-    return { type: t, seed: L.seed || 1, sea: t === 'gas' ? 0.5 : 0.52, cscale: 2.2, coast: 0.5, ice: t === 'ice' ? 0.5 : 0.15, spin: 1, ring: !!L.ring, atmoOn: L.atmo !== false && ['terran', 'ocean', 'toxic', 'gas', 'jungle'].includes(t), atmoColor: L.atmoColor || undefined };
+    return { type: t, seed: L.seed || 1, sea: t === 'gas' ? 0.5 : 0.52, cscale: 2.2, coast: 0.5, ice: t === 'ice' ? 0.5 : 0.15, spin: 1, ring: !!L.ring, atmoOn: L.atmo !== false && ['terran', 'ocean', 'toxic', 'gas', 'jungle'].includes(t), atmoColor: L.atmoColor || undefined, lava, city, lightColor };
   },
   // Debris field: a cluster of flat-shaded rocky chunks tumbling slowly (distinct from a single asteroid).
   _debrisModel(it) {
@@ -800,6 +806,29 @@ const Map3D = {
     const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
     this._galaxyCache[key] = t; return t;
   },
+  // Rasterise a body's 2D art() SVG into a CanvasTexture so a far/zoomed-out impostor looks like the
+  // object (a station reads as a station, an asteroid as a rock, a star as a glowing star) instead of a
+  // plain orb. Cached per look-signature; async (SVG→Image→canvas), so callers pass onReady to swap the
+  // material map in when the raster is ready. Returns the (possibly still-blank) texture, or null.
+  _artImpostorTex(it, onReady) {
+    if (typeof window === 'undefined' || typeof window.art !== 'function') return null;
+    this._artImpCache = this._artImpCache || {};
+    const L = it.look || it;
+    const key = it.kind + '|' + [L.stype, L.dtype, L.mtype, L.ptype, L.c1, L.c2, L.c3, L.seed, L.rays, L.brightness, L.coronaSize].join(',');
+    if (this._artImpCache[key]) { const c = this._artImpCache[key]; if (c.ready) onReady && onReady(c.tex); else c.cbs.push(onReady); return c.tex; }
+    let svg;
+    try { svg = window.art(Object.assign({ kind: it.kind }, L), false); } catch (e) { return null; }
+    if (!svg || svg.trim().indexOf('<svg') !== 0) return null;   // only rasterise true vector art (skip <img>/<div> wrappers)
+    svg = svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" ');
+    const S = 128, cv = document.createElement('canvas'); cv.width = cv.height = S;
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const rec = { tex, ready: false, cbs: [onReady] }; this._artImpCache[key] = rec;
+    const img = new Image();
+    img.onload = () => { try { const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, S, S); ctx.drawImage(img, 0, 0, S, S); tex.needsUpdate = true; } catch (e) { /* noop */ } rec.ready = true; rec.cbs.forEach(cb => cb && cb(tex)); rec.cbs = []; };
+    img.onerror = () => { rec.ready = true; };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    return tex;
+  },
   _discMesh(it, cfg) {   // a unit-radius impostor (holder scales it to size)
     // planet-like kinds (planet3d, 2D planet, moon) get their real surface as the impostor face.
     const pcfg = cfg || (it.kind === 'planet3d' ? this._planetConfig(it) : null);
@@ -814,7 +843,17 @@ const Map3D = {
       mesh.userData.spin = 360 / Math.max(4, dur);
       return mesh;
     }
-    const hex = this._discBaseColor(it);   // stars / generated art / config-less planets → shaded true-colour disc
+    // stations, asteroids/debris, stars, 2D moons/planets/galaxies → rasterise their real 2D art() as the
+    // impostor face (a plane, not a disc, so panels/points/glow aren't clipped). Start on the shaded
+    // dominant-colour disc, then swap to the art raster once it loads.
+    const ART_KINDS = ['station', 'debris', 'asteroid', 'star', 'moon', 'planet', 'galaxy'];
+    if (typeof window !== 'undefined' && typeof window.art === 'function' && ART_KINDS.includes(it.kind)) {
+      const mat = new THREE.MeshBasicMaterial({ map: this._discTexture(this._discBaseColor(it)), transparent: true, depthWrite: false });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+      this._artImpostorTex(it, (tex) => { if (tex && mesh.material) { mesh.material.map = tex; mesh.material.needsUpdate = true; } });
+      return mesh;
+    }
+    const hex = this._discBaseColor(it);   // generated art / config-less bodies → shaded true-colour disc
     return new THREE.Mesh(new THREE.CircleGeometry(1, 56), new THREE.MeshBasicMaterial({ map: this._discTexture(hex), transparent: true }));
   },
 
