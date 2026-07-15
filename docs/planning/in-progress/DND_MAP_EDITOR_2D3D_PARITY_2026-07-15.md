@@ -156,9 +156,20 @@ gets 3D equivalents or stays a 2D-layer concern — lean: keep fx 2D-layer, docu
   ice 0.15, spin 1`, no `storms`/`tilt` keys); a look with `sea/cscale/coast/ice/tilt/spin` set → all read
   through; `storms/stormI/lightOn/lightRate/cloudCov` flow through only when present; icy moon → `type ice,
   ice 0.9`; 0 page errors (confirms `map3d.js` still parses).
-- **Slice 2 — 2D lightning + storms (the DM's headline).** `art()` gains an animated **lightning** layer
-  (flash cadence = `lightRate`, color = `lightColor`, gated by `lightOn`) and an animated **storm swirl**
-  (count = `storms`, intensity = `stormI`), plus the studio controls for them. Same fields the 3D reads.
+- **Slice 2 — 2D lightning + storms (the DM's headline).** ✅ `art()` (map-studio) now renders animated
+  **storm cells** (count = `storms`, size/strength = `stormI`) as clipped spiral swirls that each rotate
+  around their own centre, and an animated **lightning** layer (gated by `lightOn`) of jagged bolts that
+  flash inside the storm cells with a **cadence set by `lightRate`** — the keyframe period is
+  `max(0.35, 2.6 − rate·2.2)`s (rate 0 → ~2.6 s between strikes, rate 1 → ~0.4 s), coloured `boltColor`
+  (`#bfe0ff` default). New studio controls in `openEditor` ("Storms & lightning": storm-cells + intensity
+  sliders, a "⚡ Lightning in storms" toggle revealing strike-rate + bolt-colour). `snapshotLook` now carries
+  the whole 2D⇄3D parity superset (`storms/stormI/lightOn/lightRate/boltColor` + the terrain/cloud/ring
+  fields) so an edit persists on the instance and Slice 1's 3D read path sees it. **`boltColor`** is a new
+  field (distinct from `lightColor`, which stays the city-light colour) to avoid the documented name clash.
+  Verified headless (`verify-storm2d.mjs`): a plain planet has no storm/lightning; a stormy planet has 5
+  storm groups + the flash keyframe + bolt colour; strike-rate 0.9 → 0.62 s period vs 0.1 → 2.38 s;
+  `snapshotLook` round-trips all new fields; 0 page errors. *(Player-viewer `console.html` gets the same
+  `art()` additions in Slice 7's console-parity pass.)*
 - **Slice 3 — 3D lightning + storm rendering.** Close the `planet3d-model.js` gap: add an animated lightning
   layer + storm cells honoring `lightOn`/`lightRate`/`lightColor`/`storms`/`stormI`, so a single edit drives
   both dimensions at the same rate.
@@ -187,4 +198,4 @@ gets 3D equivalents or stays a 2D-layer concern — lean: keep fx 2D-layer, docu
 - **Reuse:** build on `art()`, `buildPlanetModel`, `_genericPlanetCfg`, `pushTo3D`, and the existing viewer
   toggle — don't fork them.
 
-### Status: IN PROGRESS (Slices 0–1 shipped; 2–7 pending)
+### Status: IN PROGRESS (Slices 0–2 shipped; 3–7 pending)

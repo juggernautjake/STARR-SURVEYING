@@ -790,11 +790,36 @@ function art(a,animate){
     let deb="";const ndb=Math.round(4+dI*16);
     for(let i=0;i<ndb;i++){const da=drng()*6.28,dr=R*(1.05+drng()*(0.5+dI)),dx=cx+Math.cos(da)*dr,dy=cy+Math.sin(da)*dr,rs=1+drng()*3;deb+=`<path d="M ${(dx-rs).toFixed(1)} ${dy.toFixed(1)} L ${dx.toFixed(1)} ${(dy-rs).toFixed(1)} L ${(dx+rs).toFixed(1)} ${dy.toFixed(1)} L ${dx.toFixed(1)} ${(dy+rs).toFixed(1)} Z" fill="#6a5a50" opacity="${(0.5+drng()*0.4).toFixed(2)}"/>`;}
     destroy=`<g clip-path="url(#c${id})">${cracks}${gap}</g>${deb}`;}
+  // ---- STORM CELLS — swirling spiral cells, count=a.storms, size/strength=a.stormI (matches the 3D model's
+  //      storms/stormI). Each cell slowly rotates around its own centre. ----
+  let storms="";const stormN=Math.round(a.storms!=null?+a.storms:0);const stormI=a.stormI!=null?+a.stormI:0.65;
+  const stormCenters=[];
+  if(stormN>0){const srng=mulberry((a.seed||1)*97+17);let sw="";
+    for(let i=0;i<stormN;i++){const sa=srng()*6.28,sr=Math.sqrt(srng())*R*0.72,sx=cx+Math.cos(sa)*sr,sy=cy+Math.sin(sa)*sr;
+      const rad=(7+stormI*17)*(0.7+srng()*0.6),dur=(9+srng()*8).toFixed(1);stormCenters.push([sx,sy,rad]);
+      let arms="";const na=3;for(let j=0;j<na;j++){let rr=1.5,ang=j/na*6.28,d=`M ${sx.toFixed(1)} ${sy.toFixed(1)}`;
+        for(let t=0;t<10;t++){rr+=rad/10;ang+=0.62;d+=` L ${(sx+Math.cos(ang)*rr).toFixed(1)} ${(sy+Math.sin(ang)*rr).toFixed(1)}`;}
+        arms+=`<path d="${d}" fill="none" stroke="${cloudCol}" stroke-width="${(1+stormI*1.5).toFixed(1)}" opacity="${(0.14+stormI*0.24).toFixed(2)}" stroke-linecap="round"/>`;}
+      sw+=`<g style="${anim?`animation:spin ${dur}s linear infinite;transform-origin:${sx.toFixed(1)}px ${sy.toFixed(1)}px`:''}"><circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${rad.toFixed(1)}" fill="${cloudCol}" opacity="${(0.09+stormI*0.13).toFixed(2)}"/>${arms}</g>`;}
+    storms=`<g clip-path="url(#c${id})">${sw}</g>`;}
+  // ---- LIGHTNING — flashing bolts inside storm cells, gated by a.lightOn; flash cadence from a.lightRate
+  //      (0=rare→~2.6s, 1=frequent→~0.4s), colour a.boltColor. Same fields the 3D model reads. ----
+  let lightning="";const lightOn=!!a.lightOn;const lightRate=a.lightRate!=null?+a.lightRate:0.5;const boltCol=a.boltColor||"#bfe0ff";
+  const lightPeriod=Math.max(0.35,2.6-lightRate*2.2);
+  if(lightOn&&stormN>0){const lrng=mulberry((a.seed||1)*131+23);let bolts="";
+    for(let i=0;i<stormN;i++){const sc=stormCenters[i]||[cx,cy,14];const bx=sc[0]+(lrng()-0.5)*sc[2],by=sc[1]+(lrng()-0.5)*sc[2];
+      let px=bx,py=by,d=`M ${bx.toFixed(1)} ${by.toFixed(1)}`;const seg=3+Math.round(lrng()*3),ln=(R*0.20)/seg;let ang=1.1+lrng()*0.9;
+      for(let s=0;s<seg;s++){ang+=(lrng()-0.5)*1.3;px+=Math.cos(ang)*ln;py+=Math.sin(ang)*ln;d+=` L ${px.toFixed(1)} ${py.toFixed(1)}`;
+        if(lrng()<0.4){const ba=ang+(lrng()-0.5)*1.6,bl=ln*(0.5+lrng());bolts+=`<path d="M ${px.toFixed(1)} ${py.toFixed(1)} L ${(px+Math.cos(ba)*bl).toFixed(1)} ${(py+Math.sin(ba)*bl).toFixed(1)}" fill="none" stroke="${boltCol}" stroke-width="0.9" stroke-linecap="round" opacity="0" style="${anim?`animation:light${id} ${lightPeriod.toFixed(2)}s steps(1,end) ${(lrng()*lightPeriod).toFixed(2)}s infinite`:''}"/>`;}}
+      const delay=(lrng()*lightPeriod).toFixed(2);
+      bolts+=`<path d="${d}" fill="none" stroke="${boltCol}" stroke-width="1.4" stroke-linecap="round" filter="url(#lightG${id})" opacity="0" style="${anim?`animation:light${id} ${lightPeriod.toFixed(2)}s steps(1,end) ${delay}s infinite`:''}"/>`;}
+    lightning=`<g clip-path="url(#c${id})">${bolts}</g>`;}
   const spinDur=(34+rng()*46).toFixed(0);
   const cloudDur=(spinDur*0.7).toFixed(0);
   return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><defs>
     <clipPath id="c${id}"><circle cx="${cx}" cy="${cy}" r="${R}"/></clipPath>
     ${lavaI>0.001?`<filter id="lavaG${id}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.7"/></filter>`:""}
+    ${lightOn&&stormN>0?`<filter id="lightG${id}" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="1.1"/></filter>`:""}
     ${cityI>0.001?`<filter id="cityG${id}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="0.5"/></filter>`:""}
     ${dv?`<filter id="dGlow${id}" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="2"/></filter><radialGradient id="coreG${id}" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff2c8"/><stop offset="35%" stop-color="#ffb454"/><stop offset="75%" stop-color="#ff5a1e"/><stop offset="100%" stop-color="#3a0a04" stop-opacity="0"/></radialGradient><linearGradient id="riftG${id}" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#ff5a1e" stop-opacity="0"/><stop offset="50%" stop-color="#ffe6a0"/><stop offset="100%" stop-color="#ff5a1e" stop-opacity="0"/></linearGradient>`:""}
     <radialGradient id="base${id}" cx="36%" cy="32%" r="78%"><stop offset="0%" stop-color="${L(c1,52)}"/><stop offset="50%" stop-color="${c1}"/><stop offset="100%" stop-color="${D(c1,46)}"/></radialGradient>
@@ -804,10 +829,10 @@ function art(a,animate){
     <g clip-path="url(#c${id})"><g style="${anim?`animation:surf${id} ${spinDur}s linear infinite`:''}">${bands}${spots.join("")}</g>
     ${clouds?`<g style="${anim?`animation:surf${id} ${cloudDur}s linear infinite`:''}">${clouds}</g>`:""}</g>
     <circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#term${id})"/>
-    ${lava}${city}${destroy}
+    ${lava}${city}${storms}${lightning}${destroy}
     ${hasAtmo&&!dv?`<circle cx="${cx}" cy="${cy}" r="${R+3}" fill="url(#atmo${id})"/>`:""}
     <ellipse cx="${cx-34}" cy="${cy-40}" rx="30" ry="18" fill="#fff" opacity=".14" transform="rotate(-30 ${cx-34} ${cy-40})"/>
-    ${ringFront}<style>@keyframes surf${id}{to{transform:translateX(-${2*S}px);}}</style></svg>`;
+    ${ringFront}<style>@keyframes surf${id}{to{transform:translateX(-${2*S}px);}}${lightOn&&stormN>0?`@keyframes light${id}{0%,100%{opacity:0}2%{opacity:1}5%{opacity:.25}8%{opacity:.9}13%{opacity:0}}`:''}</style></svg>`;
 }
 
 /* world-space effect overlay for a body (sparkle / nebula / shooting star), 200x200 viewBox */
@@ -1093,8 +1118,12 @@ $("#placeConfirm").onclick=()=>{
 };
 $("#placeCancel").onclick=clearPending;
 function clearPending(){pending=null;ghost.style.display="none";$("#placeBar").classList.remove("show");}
-function snapshotLook(a){const {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,brightness,coronaSize,breathe,raySpec,image,src,natW,natH,dsCfg,cfg3d,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,lava,city,lightColor,destroyed,destroyI,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames}=a;
-  return {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,brightness,coronaSize,image,src,natW,natH,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,lava,city,lightColor,destroyed,destroyI,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames,breathe:breathe?JSON.parse(JSON.stringify(breathe)):undefined,raySpec:raySpec?JSON.parse(JSON.stringify(raySpec)):undefined,dsCfg:dsCfg?JSON.parse(JSON.stringify(dsCfg)):undefined,cfg3d:cfg3d?JSON.parse(JSON.stringify(cfg3d)):undefined};}
+function snapshotLook(a){const {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,brightness,coronaSize,breathe,raySpec,image,src,natW,natH,dsCfg,cfg3d,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,lava,city,lightColor,destroyed,destroyI,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames,
+    // 2D<->3D parity superset (map-editor parity doc): terrain, storms/lightning, tilt/spin, rich cloud + ring params — carried so an edit persists on the instance and both renderers read it.
+    storms,stormI,lightOn,lightRate,boltColor,sea,cscale,coast,ice,tilt,spin,cloudCov,cloudOpacity,cloudScale,cloudDetail,cloudDef,cloudSwirl,cloudBand,cloudBandN,cloudShear,ringColor,ringW,cityColor,atmoDensity}=a;
+  return {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,brightness,coronaSize,image,src,natW,natH,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,lava,city,lightColor,destroyed,destroyI,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames,
+    storms,stormI,lightOn,lightRate,boltColor,sea,cscale,coast,ice,tilt,spin,cloudCov,cloudOpacity,cloudScale,cloudDetail,cloudDef,cloudSwirl,cloudBand,cloudBandN,cloudShear,ringColor,ringW,cityColor,atmoDensity,
+    breathe:breathe?JSON.parse(JSON.stringify(breathe)):undefined,raySpec:raySpec?JSON.parse(JSON.stringify(raySpec)):undefined,dsCfg:dsCfg?JSON.parse(JSON.stringify(dsCfg)):undefined,cfg3d:cfg3d?JSON.parse(JSON.stringify(cfg3d)):undefined};}
 function applyBackground(a){pushUndo();state.background=snapshotLook(a);renderAll();markDirty();toast("Backdrop set");}
 // Render an image backdrop into #bgLayer (screen-space, behind everything). "size" scales it so the
 // backdrop size the user picks actually changes what's shown; opacity lets the gradient show through.
@@ -1912,6 +1941,13 @@ function renderEditor(){
       <div class="rowc"><div class="field" style="flex:2"><label>City lights <span style="float:right;color:var(--gold)" id="edCityV">${(edWork.city!=null?edWork.city:0).toFixed(2)}</span></label><div class="slider"><input type="range" id="edCity" min="0" max="100" value="${Math.round((edWork.city!=null?edWork.city:0)*100)}"></div></div>
       <div class="field" style="flex:1"><label>Light colour</label><input type="color" id="edLightCol" value="${edWork.lightColor||'#ffe6a0'}"></div></div>
       <div style="font-size:10.5px;color:var(--faint);margin-top:-2px">Night-side settlements — 0 is a few lights, higher blankets the world in city sprawl.</div>
+      <h4>Storms &amp; lightning</h4>
+      <div class="rowc"><div class="field"><label>Storm cells <span style="float:right;color:var(--gold)" id="edStormsV">${Math.round(edWork.storms!=null?+edWork.storms:0)}</span></label><div class="slider"><input type="range" id="edStorms" min="0" max="8" value="${Math.round(edWork.storms!=null?+edWork.storms:0)}"></div></div>
+      <div class="field"><label>Intensity <span style="float:right;color:var(--gold)" id="edStormIV">${(edWork.stormI!=null?+edWork.stormI:0.65).toFixed(2)}</span></label><div class="slider"><input type="range" id="edStormI" min="0" max="100" value="${Math.round((edWork.stormI!=null?+edWork.stormI:0.65)*100)}"></div></div></div>
+      <label class="chk" style="margin-top:6px"><input type="checkbox" id="edLightOn" ${edWork.lightOn?'checked':''}> ⚡ Lightning in storms</label>
+      <div class="rowc" id="edLightWrap" style="${edWork.lightOn?'':'display:none'}"><div class="field" style="flex:2"><label>Strike rate <span style="float:right;color:var(--gold)" id="edLightRateV">${(edWork.lightRate!=null?+edWork.lightRate:0.5).toFixed(2)}</span></label><div class="slider"><input type="range" id="edLightRate" min="0" max="100" value="${Math.round((edWork.lightRate!=null?+edWork.lightRate:0.5)*100)}"></div></div>
+      <div class="field" style="flex:1"><label>Bolt colour</label><input type="color" id="edBoltCol" value="${edWork.boltColor||'#bfe0ff'}"></div></div>
+      <div style="font-size:10.5px;color:var(--faint);margin-top:-2px">Swirling storm cells; lightning flashes faster as the strike rate rises. Both the 2D art and the live 3D model use these same settings.</div>
       <h4>Cataclysm</h4>
       <div class="seg five" id="edDestroyed">${[["none","Intact"],["split","Split"],["chunk","Chunk"],["holed","Holed"],["cored","Cored"],["fractured","Fractured"]].map(([v,l])=>`<button data-t="${v}" class="${(edWork.destroyed||'none')===v?'on':''}">${l}</button>`).join('')}</div>
       <div class="field" id="edDestroyIWrap" style="${edWork.destroyed&&edWork.destroyed!=='none'?'':'display:none'};margin-top:8px"><label>Destruction <span style="float:right;color:var(--gold)" id="edDestroyIV">${(edWork.destroyI!=null?edWork.destroyI:0.6).toFixed(2)}</span></label><div class="slider"><input type="range" id="edDestroyI" min="0" max="100" value="${Math.round((edWork.destroyI!=null?edWork.destroyI:0.6)*100)}"></div></div>
@@ -1990,6 +2026,11 @@ function wireEditor(){
   if($("#edLava"))$("#edLava").oninput=e=>{edWork.lava=+e.target.value/100;$("#edLavaV").textContent=edWork.lava.toFixed(2);edPreview();};
   if($("#edCity"))$("#edCity").oninput=e=>{edWork.city=+e.target.value/100;$("#edCityV").textContent=edWork.city.toFixed(2);edPreview();};
   if($("#edLightCol"))$("#edLightCol").oninput=e=>{edWork.lightColor=e.target.value;edPreview();};
+  if($("#edStorms"))$("#edStorms").oninput=e=>{edWork.storms=+e.target.value;$("#edStormsV").textContent=edWork.storms;edPreview();};
+  if($("#edStormI"))$("#edStormI").oninput=e=>{edWork.stormI=+e.target.value/100;$("#edStormIV").textContent=edWork.stormI.toFixed(2);edPreview();};
+  if($("#edLightOn"))$("#edLightOn").onchange=e=>{edWork.lightOn=e.target.checked;const w=$("#edLightWrap");if(w)w.style.display=e.target.checked?"":"none";edPreview();};
+  if($("#edLightRate"))$("#edLightRate").oninput=e=>{edWork.lightRate=+e.target.value/100;$("#edLightRateV").textContent=edWork.lightRate.toFixed(2);edPreview();};
+  if($("#edBoltCol"))$("#edBoltCol").oninput=e=>{edWork.boltColor=e.target.value;edPreview();};
   if($("#edDestroyed"))$("#edDestroyed").querySelectorAll("button").forEach(b=>b.onclick=()=>{$("#edDestroyed").querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");edWork.destroyed=b.dataset.t;const w=$("#edDestroyIWrap");if(w)w.style.display=(edWork.destroyed&&edWork.destroyed!=="none")?"":"none";edPreview();});
   if($("#edDestroyI"))$("#edDestroyI").oninput=e=>{edWork.destroyI=+e.target.value/100;$("#edDestroyIV").textContent=edWork.destroyI.toFixed(2);edPreview();};
   const gs=(id,prop,div,fx)=>{const el=$("#"+id);if(!el)return;el.oninput=e=>{edWork[prop]=+e.target.value/(div||1);const v=$("#"+id+"V");if(v)v.textContent=fx?fx(edWork[prop]):edWork[prop];edPreview();};};
