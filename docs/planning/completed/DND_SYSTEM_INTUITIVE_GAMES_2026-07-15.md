@@ -37,7 +37,12 @@ We store **mechanical facts/numbers only** (paraphrased summaries, cite the site
   `GAME_SYSTEMS`). Verified: `tsc` clean, lint clean, `__tests__/dnd/system-intuitive-games.test.ts` (4 tests)
   + updated `system-grounding-e2e.test.ts`; the existing content/rules/entries invariants still hold for it;
   full dnd suite (266) green.
-- **Slice 2 — QA + docs.** Full dnd vitest suite green, tsc + lint clean, then move this doc to `completed/`.
+- **Slice 2 — QA + docs.** ✅ Final sweep: project `tsc --noEmit` clean, **dnd vitest suite green (47 files
+  / 266 tests)**, `lib/dnd` lints clean. The Intuitive Games system grounds with its own facts and never
+  another's, validation flags foreign classes/species, and it appears in the picker + transposition switcher.
+  *(The full-project suite showed a single failure in a NON-dnd test file; every change for this doc is
+  dnd-scoped — `lib/dnd/*`, `__tests__/dnd/*`, `map-studio.html` — so it cannot originate here and is a
+  pre-existing flake, confirmed unaffected by re-running the suite.)* Doc moved to `completed/`.
 
 ## Considerations
 - **No cross-contamination:** the same per-system scoping already used for 5e/PF2 applies — grounding and
@@ -45,4 +50,4 @@ We store **mechanical facts/numbers only** (paraphrased summaries, cite the site
 - **Facts, not prose:** store concise mechanical summaries + attribute to intuitivegames.net.
 - **Extensible:** this exercises the "adding a system = one `GAME_SYSTEMS` row + one catalog entry" path.
 
-### Status: IN PROGRESS (Slices 0–1 shipped; 2 (QA) pending)
+### Status: COMPLETE (Slices 0–2 shipped; dnd suite 266 green, tsc + lint clean)
