@@ -247,40 +247,66 @@ function raysTex(seed) {
 }
 
 // Build a glowing 3D star: bright body + fresnel glow shell + corona bloom + rotating flare rays,
-// coloured from the body's look (c1/c3). Returns { group, update(dt), dispose } like the planet.
+// Three independently-coloured parts + effects, matching the 2D star:
+//   c1 = CORE body · c2 = immediate GLOW (fresnel shell + corona bloom) · c3 = DIFFUSE light + rays.
+// brightness scales opacity/emissive; breathe{on,speed,depth} drives the pulse; raySpec + `rays`
+// control the sun rays; coronaSize sizes the glow/diffuse reach. Returns { group, update(dt), dispose }.
 export function buildStarModel(config, opts) {
   opts = opts || {};
   const cfg = config || {};
   const R = opts.radius || 1, seg = opts.segments || 40;
-  const c1 = new THREE.Color(cfg.c1 || cfg.color || '#ffd98a');
-  const c3 = new THREE.Color(cfg.c3 || '#fff2c8');
-  const core = new THREE.Group(); const dis = [];
+  const core = new THREE.Color(cfg.c1 || cfg.color || '#ffd98a');
+  const glowC = new THREE.Color(cfg.c2 || cfg.c1 || '#ffb36b');
+  const diffC = new THREE.Color(cfg.c3 || '#fff2c8');
+  const br = cfg.brightness != null ? cfg.brightness : 1;
+  const csz = cfg.coronaSize != null ? cfg.coronaSize : 1;
+  const bre = cfg.breathe || { on: true, speed: 1, depth: 0.12 };
+  const rs = cfg.raySpec || { count: 14, length: 1, intensity: 0.5 };
+  const grp = new THREE.Group(); const dis = [];
 
-  const bodyMat = new THREE.MeshBasicMaterial({ color: c1.clone().lerp(new THREE.Color('#ffffff'), 0.55) });
-  const body = new THREE.Mesh(new THREE.SphereGeometry(R * 0.62, seg, seg), bodyMat); core.add(body); dis.push(body.geometry, bodyMat);
+  // CORE — bright central sphere (brightness pushes it toward white for a hot look).
+  const bodyMat = new THREE.MeshBasicMaterial({ color: core.clone().lerp(new THREE.Color('#ffffff'), Math.min(0.85, 0.42 + br * 0.16)) });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(R * 0.6, seg, seg), bodyMat); grp.add(body); dis.push(body.geometry, bodyMat);
 
+  // IMMEDIATE GLOW — a fresnel shell in the glow colour hugging the core.
   const glowMat = new THREE.ShaderMaterial({ transparent: true, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
-    uniforms: { c: { value: c1.clone() } },
+    uniforms: { c: { value: glowC.clone() }, i: { value: Math.min(1.4, br) } },
     vertexShader: 'varying vec3 vN;varying vec3 vWP;void main(){vN=normalize(mat3(modelMatrix)*normal);vWP=(modelMatrix*vec4(position,1.)).xyz;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader: 'varying vec3 vN;varying vec3 vWP;uniform vec3 c;void main(){vec3 V=normalize(cameraPosition-vWP);float f=pow(1.0-abs(dot(vN,V)),1.5);gl_FragColor=vec4(c,f);}' });
-  const glow = new THREE.Mesh(new THREE.SphereGeometry(R * 0.95, seg, seg), glowMat); core.add(glow); dis.push(glow.geometry, glowMat);
+    fragmentShader: 'varying vec3 vN;varying vec3 vWP;uniform vec3 c;uniform float i;void main(){vec3 V=normalize(cameraPosition-vWP);float f=pow(1.0-abs(dot(vN,V)),1.5);gl_FragColor=vec4(c,f*i);}' });
+  const glowMesh = new THREE.Mesh(new THREE.SphereGeometry(R * 0.98, seg, seg), glowMat); grp.add(glowMesh); dis.push(glowMesh.geometry, glowMat);
 
   const corTex = coronaTex();
-  const corMat = new THREE.SpriteMaterial({ map: corTex, color: c1.clone(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.85 });
-  const corSpr = new THREE.Sprite(corMat); corSpr.scale.set(R * 3.4, R * 3.4, 1); core.add(corSpr); dis.push(corMat, corTex);
+  // Immediate-glow corona bloom (glow colour).
+  const corMat = new THREE.SpriteMaterial({ map: corTex, color: glowC.clone(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: Math.min(1, 0.8 * br) });
+  const baseCor = R * 3.2 * csz;
+  const corSpr = new THREE.Sprite(corMat); corSpr.scale.set(baseCor, baseCor, 1); grp.add(corSpr); dis.push(corMat, corTex);
+  // Diffuse light — a wider, fainter halo (diffuse colour) reaching out with coronaSize.
+  const difMat = new THREE.SpriteMaterial({ map: corTex, color: diffC.clone(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: Math.min(1, 0.34 * br) });
+  const difS = R * 4.7 * csz;
+  const difSpr = new THREE.Sprite(difMat); difSpr.scale.set(difS, difS, 1); grp.add(difSpr); dis.push(difMat);
 
-  const rTex = raysTex(cfg.seed || 7);
-  const rayMat = new THREE.SpriteMaterial({ map: rTex, color: c3.clone(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.5 });
-  const raySpr = new THREE.Sprite(rayMat); raySpr.scale.set(R * 3.0, R * 3.0, 1); core.add(raySpr); dis.push(rayMat, rTex);
+  // SUN RAYS (diffuse colour) — rotating ray sprite; hidden when rays:false or count 0.
+  let rayMat = null;
+  if (cfg.rays !== false && (rs.count == null || rs.count > 0)) {
+    const rTex = raysTex(cfg.seed || 7);
+    rayMat = new THREE.SpriteMaterial({ map: rTex, color: diffC.clone(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: Math.min(1, (rs.intensity != null ? rs.intensity : 0.5) * 1.1 * br) });
+    const rayS = R * 3.0 * (1 + ((rs.length != null ? rs.length : 1) - 1) * 0.5) * csz;
+    const raySpr = new THREE.Sprite(rayMat); raySpr.scale.set(rayS, rayS, 1); grp.add(raySpr); dis.push(rayMat, rTex);
+  }
 
-  const spin = cfg.spin != null ? cfg.spin : 1; let t0 = 0;
+  const spin = cfg.spin != null ? cfg.spin : 1;
+  const bDepth = (bre && bre.on !== false) ? (bre.depth != null ? bre.depth : 0.12) : 0;
+  const bSpeed = (bre && bre.speed != null) ? bre.speed : 1;
+  const baseCorOp = corMat.opacity; let t0 = 0;
   return {
-    group: core,
+    group: grp,
     update(dt) {
-      t0 += dt; body.rotation.y += 0.15 * spin * dt; rayMat.rotation += 0.12 * dt;
-      const pulse = 1 + Math.sin(t0 * 1.6) * 0.06;
-      corSpr.scale.set(R * 3.4 * pulse, R * 3.4 * pulse, 1);
-      corMat.opacity = 0.72 + Math.sin(t0 * 1.6) * 0.15;
+      t0 += dt; body.rotation.y += 0.15 * spin * dt; if (rayMat) rayMat.rotation += 0.12 * dt;
+      if (bDepth > 0) {
+        const s = Math.sin(t0 * 1.6 * bSpeed), p = 1 + s * bDepth;
+        corSpr.scale.set(baseCor * p, baseCor * p, 1);
+        corMat.opacity = Math.min(1, baseCorOp * (0.85 + s * 0.25));
+      }
     },
     dispose() { dis.forEach(o => { try { o.dispose(); } catch (e) { /* noop */ } }); }
   };

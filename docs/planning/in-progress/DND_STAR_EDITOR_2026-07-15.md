@@ -48,11 +48,14 @@ Plus effect params on the star's look (all optional, sensible defaults so old st
   toggleable via `breathe.on`. Presets still seed all three colours. Verified headless: a star renders
   three distinctly-coloured layers (core/glow/diffuse), a per-id breathe keyframe at the right speed, a
   ray count matching `raySpec`, and the effect fields persist; 0 errors.
-- **Slice 2 — 3D render.** Rewrite `buildStarModel` to map the three parts: **body** = `c1` (core),
-  **fresnel glow shell + corona sprite** = `c2` (immediate glow), **ray sprite + outer diffuse** =
-  `c3` (diffuse). `brightness` scales the emissive/opacity; `breathe{on,speed,depth}` drives the pulse
-  (off = steady); `raySpec` sizes/vary the rays (and `rays:false` hides them). Verify headless: the 3D
-  star builds with the three colours + params; 0 errors.
+- **Slice 2 — 3D render.** ✅ `buildStarModel` rewritten to the three parts: **body** = `c1` (core,
+  pushed toward white by brightness), a **fresnel glow shell + corona bloom sprite** = `c2` (immediate
+  glow), and a wide **diffuse halo sprite + rotating ray sprite** = `c3` (diffuse). `brightness` scales
+  the shell/sprite/ray opacities; `coronaSize` sizes the glow/diffuse reach; `breathe{on,speed,depth}`
+  drives the corona pulse (off = steady); `raySpec{count?,length,intensity}` sizes/opacities the rays,
+  and `rays:false`/count 0 omits the ray sprite. Verified headless: a star with three distinct colours
+  promotes to a model whose corona=glow, diffuse+rays=diffuse; a `rays:false` star has no ray sprite; 0
+  errors.
 - **Slice 3 — Star editor UI.** In the object editor (the `kind==="star"` branch), add: three colour
   pickers **Core / Glow / Diffused light**, a **Brightness** slider, a **Corona size** slider, a
   **Glow breathing** toggle + speed + depth, and **Sun rays** toggle + count + length + intensity (plus
@@ -73,4 +76,4 @@ Plus effect params on the star's look (all optional, sensible defaults so old st
 - **Cool factor:** allow the diffuse halo + rays to extend well beyond the body (`coronaSize`), use
   additive blending in 3D, and let brightness push the core toward white for a hot look.
 
-### Status: IN PROGRESS (Slices 0–1 shipped; 2–4 pending)
+### Status: IN PROGRESS (Slices 0–2 shipped; 3–4 pending)
