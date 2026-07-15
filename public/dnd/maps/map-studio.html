@@ -79,10 +79,11 @@
   #bgLayer{position:absolute;inset:0;z-index:0;pointer-events:none;background-position:center center;background-repeat:no-repeat;display:none;}
   #fxCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4;}
   #svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:2;}
+  #svgFront{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:4;}   /* sectors marked "front" render above bodies/images */
   #backLayer{position:absolute;inset:0;transform-origin:0 0;z-index:1;}
   .bodyLayer{position:absolute;inset:0;transform-origin:0 0;z-index:3;}
   #labelLayer{position:absolute;inset:0;width:100%;height:100%;overflow:visible;transform-origin:0 0;z-index:5;pointer-events:none;}
-  #canvas.pen #bodyLayer,#canvas.pen #backLayer{pointer-events:none;}
+  #canvas.pen #bodyLayer,#canvas.pen #backLayer,#canvas.pen #svgFront{pointer-events:none;}   /* while drawing, clicks reach the canvas to add points */
   #labelLayer .lblhit{pointer-events:auto;cursor:move;}
   details.lblsec{margin:8px 0;border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:var(--panel2);}
   details.lblsec>summary{cursor:pointer;font-family:"Orbitron";font-size:11px;letter-spacing:1px;color:var(--gold);list-style:none;padding:3px 0;}
@@ -263,7 +264,7 @@
       <button id="view3dBtn" title="Switch between the flat 2D map and the real-time 3D viewer">⛶ 3D</button>
       <button id="refresh3dBtn" title="Hot-refresh the 3D viewer to re-render the latest changes">⟳ Refresh 3D</button>
     </div>
-    <div id="canvas"><canvas id="skyCanvas" style="position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none"></canvas><div id="bgLayer"></div><div class="bodyLayer" id="backLayer"></div><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><canvas id="fxCanvas"></canvas><svg id="labelLayer"></svg><div id="gl3d" style="position:absolute;inset:0;z-index:5;display:none"></div></div>
+    <div id="canvas"><canvas id="skyCanvas" style="position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none"></canvas><div id="bgLayer"></div><div class="bodyLayer" id="backLayer"></div><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><svg id="svgFront"></svg><canvas id="fxCanvas"></canvas><svg id="labelLayer"></svg><div id="gl3d" style="position:absolute;inset:0;z-index:5;display:none"></div></div>
   </div>
   <div class="insp">
     <div class="ihead" id="inspHead">◈ INSPECTOR</div>
@@ -1053,9 +1054,11 @@ function useStarfieldBackground(){ // built-in backdrop, inlined as a data URL s
   fetch("assets/starfield.svg").then(r=>r.text()).then(txt=>{setImageBackground("data:image/svg+xml;utf8,"+encodeURIComponent(txt));}).catch(()=>toast("Couldn't load the built-in starfield"));
 }
 function clearBackground(){pushUndo();state.background=null;renderAll();renderLibrary();markDirty();toast("Backdrop cleared");}
+// Next z above all existing sectors — a new sector always draws on top of the others.
+function topSectorZ(){return (state.sectors.length?Math.max(0,...state.sectors.map(x=>x.z||0)):0)+1;}
 function createSectorFromSystem(a,x,y){pushUndo();const rx=180,ry=140;const pts=[];const rng=mulberry(a.seed||1);
   for(let i=0;i<12;i++){const an=i/12*6.28,jit=0.78+rng()*0.4;pts.push({x:x+Math.cos(an)*rx*jit,y:y+Math.sin(an)*ry*jit});}
-  const s={id:uid(),name:a.name,color:a.c1,points:pts,creed:a.creed||"",desc:"",fx:{sparkle:false,nebula:false,nebulaColor:a.c1,shoot:false}};
+  const s={id:uid(),name:a.name,color:a.c1,points:pts,creed:a.creed||"",desc:"",z:topSectorZ(),front:true,fx:{sparkle:false,nebula:false,nebulaColor:a.c1,shoot:false}};
   state.sectors.push(s);computeSectorParents();reassociateAll();selection={type:"sector",id:s.id};}
 
 /* ============================================================ SECTOR PEN-DRAW ============================================================ */
@@ -1065,7 +1068,7 @@ function cancelDraw(){drawing=null;$("#drawBar").classList.remove("show");render
 function finishDraw(){
   if(!drawing||drawing.pts.length<3){cancelDraw();return;}
   pushUndo();const pts=drawing.pts.slice();
-  const s={id:uid(),name:"New Sector",color:"#5fbf7a",points:pts,creed:"",desc:"",fx:{sparkle:false,nebula:false,nebulaColor:"#5fbf7a",shoot:false}};
+  const s={id:uid(),name:"New Sector",color:"#5fbf7a",points:pts,creed:"",desc:"",z:topSectorZ(),front:true,fx:{sparkle:false,nebula:false,nebulaColor:"#5fbf7a",shoot:false}};
   state.sectors.push(s);computeSectorParents();reassociateAll();selection={type:"sector",id:s.id};
   drawing=null;$("#drawBar").classList.remove("show");
   tool="select";toolRow.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.tool==="select"));$("#canvas").classList.remove("pen");
@@ -1075,7 +1078,7 @@ $("#drawConfirm").onclick=finishDraw;
 $("#drawCancel").onclick=cancelDraw;
 function renderDrawPreview(){
   renderSectors();
-  if(!drawing)return;const svg=$("#svg");
+  if(!drawing)return;const svg=$("#svgFront")||$("#svg");   // preview on the top layer so it's visible over everything while drawing
   if(drawing.pts.length){
     const d="M "+drawing.pts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" L ");
     const path=document.createElementNS(NS,"path");path.setAttribute("d",d+(drawing.pts.length>2?" Z":""));
@@ -1100,7 +1103,7 @@ function toWorld(sx,sy){const r=$("#canvas").getBoundingClientRect();return {x:(
 // 3D viewer can centre on and scale to exactly what the 2D map shows (and write it back on the way out).
 window.map2dView=function(){const c=$("#canvas");const W=c.clientWidth||1,H=c.clientHeight||1;return {cx:(W/2-view.x)/view.scale,cy:(H/2-view.y)/view.scale,scale:view.scale};};
 window.setMap2dView=function(cx,cy,scale){const c=$("#canvas");const W=c.clientWidth||1,H=c.clientHeight||1;view.scale=clamp(scale,0.12,5);view.x=W/2-cx*view.scale;view.y=H/2-cy*view.scale;applyView();};
-function applyView(){const tf=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;$("#svg").style.transform=tf;$("#svg").style.transformOrigin="0 0";$("#bodyLayer").style.transform=tf;const bk=$("#backLayer");if(bk){bk.style.transform=tf;bk.style.transformOrigin="0 0";}const ll=$("#labelLayer");if(ll){ll.style.transform=tf;ll.style.transformOrigin="0 0";}$("#zVal").textContent=Math.round(view.scale*100)+"%";if(pending)positionGhostWorld();}
+function applyView(){const tf=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;$("#svg").style.transform=tf;$("#svg").style.transformOrigin="0 0";$("#bodyLayer").style.transform=tf;const bk=$("#backLayer");if(bk){bk.style.transform=tf;bk.style.transformOrigin="0 0";}const sf=$("#svgFront");if(sf){sf.style.transform=tf;sf.style.transformOrigin="0 0";}const ll=$("#labelLayer");if(ll){ll.style.transform=tf;ll.style.transformOrigin="0 0";}$("#zVal").textContent=Math.round(view.scale*100)+"%";if(pending)positionGhostWorld();}
 function sectorPath(pts,curved){if(!pts.length)return "";
   if(curved&&pts.length>=3){ // closed Catmull-Rom spline through the nodes → smooth sector edges
     const n=pts.length,f=v=>v.toFixed(1);let d=`M ${f(pts[0].x)},${f(pts[0].y)}`;
@@ -1113,8 +1116,9 @@ function sectorPath(pts,curved){if(!pts.length)return "";
 function bbox(pts){let a={x:1e9,y:1e9},b={x:-1e9,y:-1e9};pts.forEach(p=>{a.x=Math.min(a.x,p.x);a.y=Math.min(a.y,p.y);b.x=Math.max(b.x,p.x);b.y=Math.max(b.y,p.y);});return {x:a.x,y:a.y,w:b.x-a.x,h:b.y-a.y};}
 
 function renderSectors(){
-  const svg=$("#svg");svg.innerHTML="";computeSectorParents();
+  const svgBack=$("#svg"),svgF=$("#svgFront");svgBack.innerHTML="";if(svgF)svgF.innerHTML="";computeSectorParents();
   [...state.sectors].sort((a,b)=>((a.z||0)-(b.z||0))||(b._area-a._area)).forEach(s=>{
+    const svg=(s.front&&svgF)?svgF:svgBack;   // "front" sectors render into the above-bodies layer
     const[r,g,b2]=hx(s.color);const isSub=!!s.parent;const bb=bbox(s.points);
     // per-sector nebula fill (clipped to polygon)
     if(s.fx&&s.fx.nebula){
@@ -1565,6 +1569,7 @@ function renderSectorInspector(){
     <h4>Contents (${contents.length}${subs.length?` · ${subs.length} sub`:""})</h4>
     ${subs.map(x=>`<div class="assoc" style="margin-bottom:5px;cursor:pointer" data-sec="${x.id}"><span class="cd" style="background:${x.color}"></span>◵ ${esc(x.name)} <span style="color:var(--faint);font-size:10px;margin-left:auto">sub-system</span></div>`).join('')}
     ${contents.length?contents.map(i=>`<div class="assoc" style="margin-bottom:5px;cursor:pointer" data-inst="${i.id}"><span class="cd" style="background:${(i.look||i).c1}"></span>${esc(i.name)}${i.pois&&i.pois.length?` <span style="color:var(--gold);font-size:10px;margin-left:auto">◈ ${i.pois.length}</span>`:""}</div>`).join(''):(subs.length?'':'<div style="font-size:12px;color:var(--faint)">Nothing inside yet. Drop bodies within the outline.</div>')}
+    <label class="chk" style="display:flex;align-items:center;gap:7px;font-size:12px;padding:4px 0;cursor:pointer"><input type="checkbox" id="sFront" ${s.front?"checked":""}> Draw above objects &amp; images</label>
     ${layerControlsHTML(false)}
     <div class="actionbtns"><button class="danger" id="sDel">Delete system</button></div>`;
   wireLayerControls(state.sectors,s);
@@ -1577,6 +1582,7 @@ function renderSectorInspector(){
   $("#sBW").oninput=e=>{s.borderWidth=+e.target.value/10;$("#sBWV").textContent=s.borderWidth.toFixed(1);renderSectors();markDirty();};
   $("#sFO").oninput=e=>{s.fillOpacity=+e.target.value/100;$("#sFOV").textContent=Math.round(s.fillOpacity*100)+"%";renderSectors();markDirty();};
   $("#sCurved").onchange=e=>{s.curved=e.target.checked;renderSectors();markDirty();};
+  {const fr=$("#sFront");if(fr)fr.onchange=e=>{s.front=e.target.checked;renderSectors();markDirty();};}
   $("#sDel").onclick=()=>{pushUndo();state.sectors=state.sectors.filter(x=>x.id!==s.id);selection=null;computeSectorParents();reassociateAll();renderAll();markDirty();};
   box.querySelectorAll("[data-inst]").forEach(el=>el.onclick=()=>{selection={type:"instance",id:el.dataset.inst};renderAll();});
   box.querySelectorAll("[data-sec]").forEach(el=>el.onclick=()=>{selection={type:"sector",id:el.dataset.sec};renderAll();});
@@ -1968,7 +1974,7 @@ const CAMP_KEY="stardust-campaigns";
 function loadCampaigns(){try{return JSON.parse(localStorage.getItem(CAMP_KEY)||"[]");}catch(e){return [];}}
 function saveCampaigns(list){try{localStorage.setItem(CAMP_KEY,JSON.stringify(list));}catch(e){toast("Storage full — export to a file instead");}}
 function mapData(){return {type:"stardust-map",version:2,meta:state.meta,background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,bg3d:state.bg3d,selStyle:state.selStyle,
-  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved,z:s.z})),
+  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved,z:s.z,front:s.front})),
   instances:state.instances,assets:state.assets};}
 function stamp(){const d=new Date();return d.toISOString();}
 function publishCurrent(name){
@@ -2036,7 +2042,7 @@ $("#refresh3dBtn").onclick=()=>map3dRefresh(false);
 
 /* ============================================================ HISTORY + SAVE/LOAD ============================================================ */
 function cleanState(){return JSON.stringify({assets:state.assets,instances:state.instances,
-  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved,z:s.z})),
+  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved,z:s.z,front:s.front})),
   background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,bg3d:state.bg3d,selStyle:state.selStyle,meta:state.meta});}
 function snap(){return cleanState();}
 function pushUndo(){undoStack.push(snap());if(undoStack.length>60)undoStack.shift();redoStack=[];markDirty();updUndo();}
