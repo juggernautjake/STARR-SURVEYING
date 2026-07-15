@@ -63,6 +63,10 @@ The five requests, verbatim intent:
     not be literally infinite. Propose and add any other backgrounds that would be good (e.g. a bright
     Milky-Way band, twin suns, a wormhole, an aurora/ion-storm veil).
 
+20. **Full body catalogue in both viewers.** Planets, stars, stations, asteroids, moons, debris — every
+    such object must be **placeable in both** the 2D and 3D viewers, each with a **solid, good,
+    equivalent representation** in each view (no kind that looks great in one and blank/placeholder in
+    the other).
 19. **Layer priority for everything, incl. sectors/systems.** Send any element to front/back or
     forward/backward one layer. Sectors/systems must have adjustable **layer priority** too, so a drawn
     sector can sit **over** the background or images and stay visible.
@@ -289,6 +293,13 @@ other, and keep every element consistent:
   window (reuse the 2D inspector/POI-viewer), and render its **surface POIs** as pickable markers on
   the 3D body (map POI `ax/ay` → sphere lon/lat), matching 2D. Verify headless: Focus centres a body
   and its surface POIs are pickable; 0 errors.
+- **Slice 11c — Full body-kind catalogue in both viewers (req 20).** ⏳ Audit every placeable object
+  kind (planet, `planet3d`, star, station, asteroid, moon, debris, galaxy/spingalaxy, image, text,
+  HTML, POI) and ensure each has a **solid, representative render in the 3D viewer** equivalent to its
+  2D form — 3D stations/asteroids/moons/debris currently fall back to a flat colour disc; give each a
+  fitting 3D representation (e.g. a small textured impostor or generated mesh) so nothing looks blank
+  in 3D. Confirm each kind is placeable and renders in both. Verify headless: one of each kind renders
+  distinctly in 3D; 0 errors.
 - **Slice 12 — Feature-equivalence audit (req 16).** ⏳ Enumerate every object kind, action, effect,
   setting, and edit option in the 2D Studio inspector/toolbar and confirm each has an equivalent path
   when the 3D viewer is active (or is reachable through the shared inspector while 3D is shown); close
@@ -299,7 +310,7 @@ other, and keep every element consistent:
   2D parity → publish → player Console parity), including origin/scale alignment, animated content,
   sectors/systems in both viewers, body-into-sector placement, and full feature equivalence.
 
-### Status: IN PROGRESS (Slices 0–9b shipped; 10, 11, 11b, 12 pending, then 13 = doc-move/QA)
+### Status: IN PROGRESS (Slices 0–9b shipped; 10, 11, 11b, 11c, 12 pending, then 13 = doc-move/QA)
 
 ---
 
