@@ -67,10 +67,18 @@ and distributable.)
   `__tests__/dnd/system-validate.test.ts` (8 tests: valid → none, ambiguous → none, level range, 5e cap vs
   PF2 no-false-positive, cross-system class, cross-edition species both ways, multiclass tolerance, summary);
   full dnd suite (257) green.
-- **Slice 4 — Seed the store with the same facts (RAG + browse parity).** Regenerate the SQL seed so
-  `dnd_system_entries` carries the catalog's real per-system entries (so the browse UI and, when a key is
-  present, semantic retrieval reflect the same authoritative facts). Idempotent; embeddings backfilled when a
-  key exists.
+- **Slice 4 — Seed the store with the same facts (RAG + browse parity).** ✅ `lib/dnd/system-rules-entries.ts`
+  — a pure `systemRulesEntries(system)` that projects the catalog into `dnd_system_entries` rows (core rule
+  facts as individual entries, one `class` entry per class with its knobs, plus species/skills/conditions/
+  feats list entries), keeping the store a faithful projection of `system-rules.ts` (single source of truth,
+  no drift). `scripts/dnd-seed-system-rules.ts` iterates `GAME_SYSTEMS` and upserts via the existing
+  `addSystemEntries` (embeds when a Voyage key is present, text-only otherwise), **idempotent** — it only
+  inserts entries whose name isn't already present, leaving curated rows untouched. Verified: `tsc` clean,
+  lint clean, `__tests__/dnd/system-rules-entries.test.ts` (2 tests: faithful well-formed per-system entry
+  sets with one entry per class + none for ambiguous; and no cross-system leakage — PF2 has Witch not
+  Warlock, 5e has Warlock not Witch); full dnd suite (259) green. *(Actually populating the DB needs the
+  Supabase service env; the derivation + idempotent upsert are proven, and grounding/validation already work
+  without the store.)*
 - **Slice 5 — QA + docs.** Verify grounding always carries the right system's facts, validation flags a
   planted cross-system mechanic, the dnd vitest suite is green, then move this doc to `completed/`.
 
@@ -82,4 +90,4 @@ and distributable.)
 - **Accuracy over verbatim:** store mechanical facts/numbers, paraphrased; cite the source book by name.
 - **Extensible:** adding a system = one catalog entry + one `GAME_SYSTEMS` row (+ optional seed rows).
 
-### Status: IN PROGRESS (Slices 0–3 shipped; 4–5 pending)
+### Status: IN PROGRESS (Slices 0–4 shipped; 5 (QA) pending)
