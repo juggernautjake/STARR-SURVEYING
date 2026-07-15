@@ -8,9 +8,26 @@ import { getDndSession } from '@/lib/dnd/auth';
 import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { dndToolCall, dndAiConfigured } from '@/lib/dnd/ai';
 import { applySheetEdits, editPath, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
+import { applyLayoutEdits, LAYOUT_EDIT_TOOL, type LayoutEdit } from '@/lib/dnd/layout-edits';
+import { normalizeLayout } from '@/lib/dnd/custom-sheet';
 import { systemGroundingBlock } from '@/lib/dnd/grounding';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
+
+// Routing hint so the agent picks the right tool: mechanics → edit_sheet, look/layout →
+// customize_layout. Both only ever touch THIS character (Slice 8b).
+const LAYOUT_ROUTING =
+  'If the user asks to change the SHEET ITSELF — its layout, sections, blocks, widgets, styling, colors, ' +
+  'fonts, or format (move/resize/restyle/add/remove elements, set CSS) — call customize_layout. If they ask ' +
+  'to change the CHARACTER — feats, abilities, mechanics, transformations, spells, attacks, stats — call ' +
+  'edit_sheet. Never touch anything outside this character.';
+
+/** A compact index of the current custom blocks so the agent can target them by position. */
+function layoutSummary(raw: unknown): string {
+  const { blocks } = normalizeLayout(raw);
+  if (!blocks.length) return '(none yet — a layout edit starts a custom sheet)';
+  return blocks.map((b, i) => `${i}:${b.type}`).join(', ');
+}
 
 // A system-agnostic architect prompt; the per-character system grounding (Slice 3) is
 // folded in below so edits stay strictly within the character's chosen ruleset and never
@@ -61,24 +78,46 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   let result;
   try {
-    result = await dndToolCall<{ summary?: string; edits: SheetEdit[] }>({
-      system: [SYSTEM, grounding?.instruction].filter(Boolean).join('\n\n'),
+    // The agent picks the right tool per request: edit_sheet for MECHANICS (Slice 8) or
+    // customize_layout for LAYOUT/STYLING of the custom sheet (Slice 12: add/remove/move/
+    // resize/restyle blocks, set CSS). Both are scoped to this one character (Slice 8b).
+    result = await dndToolCall<{ summary?: string; edits: unknown[] }>({
+      system: [SYSTEM, LAYOUT_ROUTING, grounding?.instruction].filter(Boolean).join('\n\n'),
       user: [
         `Current sheet:\n${sheetDigest(current)}`,
+        `Current custom layout blocks: ${layoutSummary((row as { custom_layout?: unknown }).custom_layout)}`,
         grounding?.block || null,
         `Instruction: ${instr}`,
       ].filter(Boolean).join('\n\n'),
-      tools: [SHEET_EDIT_TOOL],
-      toolChoice: { type: 'tool', name: 'edit_sheet' },
+      tools: [SHEET_EDIT_TOOL, LAYOUT_EDIT_TOOL],
+      toolChoice: { type: 'auto' },
       maxTokens: 4096,
       temperature: 0.4,
     });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'AI call failed.' }, { status: 502 });
   }
-  const edits = result?.input?.edits;
-  if (!Array.isArray(edits) || edits.length === 0) return NextResponse.json({ error: 'The AI did not return any edits.' }, { status: 502 });
+  const editsRaw = result?.input?.edits;
+  if (!Array.isArray(editsRaw) || editsRaw.length === 0) return NextResponse.json({ error: 'The AI did not return any edits.' }, { status: 502 });
 
+  // ── Layout / styling path (Slice 12) ───────────────────────────────────────────────
+  if (result?.name === 'customize_layout') {
+    const { layout, css } = applyLayoutEdits(
+      (row as { custom_layout?: unknown }).custom_layout,
+      (row as { custom_css?: string | null }).custom_css,
+      editsRaw as LayoutEdit[],
+    );
+    // Applying a layout edit switches the character onto its custom sheet so the change shows.
+    const { error: upErr } = await supabaseAdmin
+      .from('dnd_characters')
+      .update({ custom_layout: layout, custom_css: css, sheet_type: 'custom' })
+      .eq('id', params.id);
+    if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+    return NextResponse.json({ ok: true, kind: 'layout', summary: result?.input?.summary ?? null, editCount: editsRaw.length, blockCount: layout.blocks.length });
+  }
+
+  // ── Mechanics path (Slice 8) ───────────────────────────────────────────────────────
+  const edits = editsRaw as SheetEdit[];
   const updated = applySheetEdits(current, edits);
   const { error: upErr } = await supabaseAdmin.from('dnd_characters').update({ data: updated, name: updated.meta.name || row.name }).eq('id', params.id);
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
@@ -88,5 +127,5 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     edits.map((e) => ({ character_id: params.id, editor_user_id: session.userId, is_dm: isDM, field_path: editPath(e), old_value: null, new_value: e as unknown, scope: 'permanent' })),
   ).then(() => {}, () => {});
 
-  return NextResponse.json({ ok: true, summary: result?.input?.summary ?? null, editCount: edits.length, name: updated.meta.name });
+  return NextResponse.json({ ok: true, kind: 'mechanics', summary: result?.input?.summary ?? null, editCount: edits.length, name: updated.meta.name });
 }

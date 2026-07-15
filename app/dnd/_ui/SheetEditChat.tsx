@@ -9,6 +9,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface Msg { role: 'user' | 'ai'; text: string }
 
@@ -21,6 +22,7 @@ export default function SheetEditChat({
   characterName: string;
   aiConfigured: boolean;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -48,8 +50,15 @@ export default function SheetEditChat({
       } else {
         const n = j.editCount ?? 0;
         push({ role: 'ai', text: j.summary || `Applied ${n} change${n === 1 ? '' : 's'} to ${j.name ?? characterName}.` });
-        // Tell the mounted sheet (a separate React tree) to refetch the fresh data.
-        window.dispatchEvent(new CustomEvent('dnd:reload-character', { detail: { id: characterId } }));
+        if (j.kind === 'layout') {
+          // A layout/style change alters the server-rendered sheet props (sheet_type /
+          // custom_layout / custom_css) — re-run the server component to show it live.
+          router.refresh();
+        } else {
+          // A mechanics change only touches `data` — the mounted sheet (a separate React
+          // tree) refetches via this event without a full navigation.
+          window.dispatchEvent(new CustomEvent('dnd:reload-character', { detail: { id: characterId } }));
+        }
       }
     } catch {
       push({ role: 'ai', text: 'Network error — please try again.' });
@@ -89,8 +98,9 @@ export default function SheetEditChat({
           <div ref={listRef} style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'grid', gap: 8, alignContent: 'start' }}>
             {msgs.length === 0 && (
               <div style={{ fontSize: 12.5, color: 'var(--hx-muted, #7a8ba0)', lineHeight: 1.5 }}>
-                Ask for any change to this character — “add a fire-breath action”, “give them the Alert feat”,
-                “raise Strength to 18”, “add a second-wind transformation”. Only this sheet is affected.
+                Ask for any change — mechanics like “add a fire-breath action”, “give them the Alert feat”,
+                “raise Strength to 18”; or the sheet itself: “add a counter for focus points”, “move the
+                stats to the top”, “make the headers gold”. Only this character is affected.
               </div>
             )}
             {msgs.map((m, i) => (

@@ -220,9 +220,21 @@ look) — it must NOT edit other site pages or anything outside character custom
   normalization, junk `customFields` tolerated). Full dnd suite (222) green. *(A live type-in-a-field-and-
   see-it-save check needs the running app + a character with a widget layout; the binding + persistence path
   is proven.)*
-- **Slice 12 — Real-time on-browser customization.** The in-page AI agent can **move, resize, restyle and
-  add/remove** sheet elements live (drag/reflow + CSS tweaks), so the sheet is fully customizable in real
-  time from the chat. Verify: a customization request visibly changes the layout/style and persists.
+- **Slice 12 — Real-time on-browser customization.** ✅ `lib/dnd/layout-edits.ts` defines the layout/style
+  edit vocabulary — `add_block`, `remove_block`, `move_block` (reflow), `update_block` (resize/restyle),
+  `set_title`, `set_css`, `append_css` — with a pure `applyLayoutEdits(layout, css, edits)` that re-validates
+  every block through `normalizeLayout` (malformed/unknown blocks dropped; out-of-range indices ignored) and
+  the `LAYOUT_EDIT_TOOL` Claude tool. The `/ai-edit` route now offers **both** tools with `toolChoice: auto`
+  + a routing hint, so the one chat handles it all: a MECHANICS request → `edit_sheet` (Slice 8), a
+  LOOK/LAYOUT request → `customize_layout` → applies to `custom_layout`/`custom_css` and flips `sheet_type`
+  to `custom` so the change renders. `SheetEditChat` calls `router.refresh()` on a `kind:'layout'` reply
+  (server props changed) vs the data-reload event for mechanics, and its help now names styling/layout asks.
+  The `move_`/`append_` op prefixes were added to the Slice 8b boundary helper so the layout tool is
+  scope-verified too. Verified: `tsc` clean, lint clean, `__tests__/dnd/layout-edits.test.ts` (7 tests:
+  add/remove/move/replace, set/append CSS, malformed-block drop, out-of-range safety, and every layout op is
+  character-scoped). Full dnd suite (229) green. *(A live type-a-restyle-and-see-it check needs the AI key +
+  running app; the apply + persist + re-render wiring is proven. Drag-to-move on the canvas rides this same
+  reflow model.)*
 - **Slice 13 — Cross-system transposition.** When a character built in one system enters a campaign using
   a **different** system (e.g. a D&D 5e-2024 character joining a 5e-2014 table), the AI builds a **new
   sheet that translates** the character into the target system's rules — staying as close to the original
@@ -257,4 +269,4 @@ look) — it must NOT edit other site pages or anything outside character custom
 - **Verification:** app/server + AI features; prefer the dnd vitest suites + driving routes, and note
   anything needing the live app or an AI key.
 
-### Status: IN PROGRESS (Slices 0–11 + 1b shipped; 12–15 pending)
+### Status: IN PROGRESS (Slices 0–12 + 1b shipped; 13–15 pending)
