@@ -593,11 +593,12 @@ const Map3D = {
     this._selected = null;
     (this._planets || []).forEach(p => p.model.dispose());
     this._planets = [];
+    (this._spiralImages || []).forEach(s => { try { s.eng.destroy(); } catch (e) { } });   // stop old spiral engines
     for (let i = g.children.length - 1; i >= 0; i--) { const c = g.children[i]; g.remove(c); c.traverse?.(o => { o.geometry?.dispose?.(); o.material?.dispose?.(); }); }
     const cs = this.cssScene; if (cs) { while (cs.children.length) cs.remove(cs.children[0]); }
     const insts = (this._map && this._map.instances) || [];
     const aniso = this.renderer.capabilities.getMaxAnisotropy();
-    this._bodies = []; this._spinPlanes = [];
+    this._bodies = []; this._spinPlanes = []; this._spiralImages = [];
     let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
     for (const it of insts) {
       if (it.kind === 'text') { this._addText(it); minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x); maxY = Math.max(maxY, it.y); continue; }
@@ -915,8 +916,9 @@ const Map3D = {
   // Edge fade (radial or straight-from-edge) is applied in-shader, mirroring the 2D `fadeMask`, so
   // faded images look identical in 3D. A per-instance spin rotates the plane when `imgSpin` is set.
   _imagePlane(it, url) {
+    const spiral = !!(it.spiral && it.spiral.on && window.DiffSpinGalaxy && it.look && it.look.src);
     const nw = (it.look && (it.look.natW || it.look.w)) || 1, nh = (it.look && (it.look.natH || it.look.h)) || 1;
-    const ar = nw / nh; let pw = 2, ph = 2; if (ar >= 1) ph = 2 / ar; else pw = 2 * ar;
+    const ar = nw / nh; let pw = 2, ph = 2; if (spiral) { pw = ph = 2; } else if (ar >= 1) ph = 2 / ar; else pw = 2 * ar;
     const fade = Math.max(0, Math.min(100, it.fade || 0)) / 100;
     const spread = Math.max(0.01, (it.fadeSpread != null ? it.fadeSpread : 35) / 100);
     const shape = (it.fadeShape || 'radial') === 'edges' ? 1 : 0;
@@ -946,9 +948,22 @@ const Map3D = {
         }`,
       transparent: true, side: THREE.DoubleSide, depthWrite: false
     });
-    new THREE.TextureLoader().load(url, tex => { tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy(); mat.uniforms.uMap.value = tex; mat.uniforms.uHasMap.value = 1; mat.needsUpdate = true; }, undefined, () => { /* keep the placeholder tint on load error */ });
+    if (spiral) {
+      // The SAME layered-spiral engine as 2D, rendered to an offscreen canvas and used as a live
+      // texture — so the actual image swirls identically in both viewers (not a model/HTML).
+      const cv = document.createElement('canvas'); cv.width = cv.height = 256;
+      const eng = new window.DiffSpinGalaxy(cv, { rings: it.spiral.rings || 6, corePulse: false });
+      eng._fit = function () { this.canvas.width = 256; this.canvas.height = 256; this.ctx.setTransform(1, 0, 0, 1, 0, 0); this.cssW = 256; this.cssH = 256; };
+      eng._fit();
+      const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+      mat.uniforms.uMap.value = tex; mat.uniforms.uHasMap.value = 1;
+      eng.setImage(it.look.src).then(() => { try { eng.fromConfig(it.spiral); } catch (e) { } eng.start(); }).catch(() => { });
+      (this._spiralImages = this._spiralImages || []).push({ tex, eng });
+    } else {
+      new THREE.TextureLoader().load(url, tex => { tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy(); mat.uniforms.uMap.value = tex; mat.uniforms.uHasMap.value = 1; mat.needsUpdate = true; }, undefined, () => { /* keep the placeholder tint on load error */ });
+    }
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), mat);
-    if (it.imgSpin) mesh.userData.spin = it.imgSpin;   // deg/s → rotated each frame in the render loop
+    if (it.imgSpin && !spiral) mesh.userData.spin = it.imgSpin;   // deg/s → rotated each frame (spiral has its own motion)
     return mesh;
   },
 
@@ -1011,6 +1026,7 @@ const Map3D = {
       const now = t || performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
       for (const p of this._planets) p.model.update(dt, sun);   // live planets spin in real time
       for (const pl of (this._spinPlanes || [])) pl.rotation.z -= pl.userData.spin * Math.PI / 180 * dt;   // spinning images
+      for (const s of (this._spiralImages || [])) s.tex.needsUpdate = true;   // re-upload the animated spiral canvas
       if (this._focusGoal) {   // ease the camera toward a right-click Focus target (moves target+camera together → keeps tilt)
         const g = this._focusGoal, t = this.controls.target, s = Math.min(1, dt * 5);
         const dx = (g.x - t.x) * s, dy = (g.y - t.y) * s;

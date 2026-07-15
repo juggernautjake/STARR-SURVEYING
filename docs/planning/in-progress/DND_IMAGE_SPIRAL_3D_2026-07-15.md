@@ -43,12 +43,13 @@ Persisted in `mapData()` (instances are already serialized whole) → publishes 
   `imgSpin` uniform rotation stays separate. Config persists on the instance (serialized in `mapData`).
   Verified headless: a spiral image's canvas has content (22k lit px) and **animates** (pixel sum
   changes over time); controls present; `spiral` persisted; 0 errors.
-- **Slice 2 — Image spiral in 3D.** In `_imagePlane`, when `it.spiral && it.spiral.on`, build a
-  `window.DiffSpinGalaxy` on an offscreen canvas, `setImage(src)` + `fromConfig(it.spiral)` + `start()`,
-  and use its canvas as the plane's `CanvasTexture` (updated each frame in the render loop; register in
-  a `_spiralImages` list; dispose the engine on rebuild). Falls back to the static texture if the
-  engine or image is unavailable. LOD-aware (only tick on-screen). Verify headless: a spiral image's
-  plane uses a live CanvasTexture whose pixels change over time; the same rings/speeds as 2D; 0 errors.
+- **Slice 2 — Image spiral in 3D.** ✅ `_imagePlane` now detects `it.spiral.on`: it builds a
+  `window.DiffSpinGalaxy` on a 256px offscreen canvas (with a fixed `_fit`), `setImage(src)` +
+  `fromConfig(it.spiral)` + `start()`, and binds that canvas as the plane's `CanvasTexture` on the
+  fade-shader's `uMap`; the render loop sets `tex.needsUpdate=true` each frame so the swirl animates.
+  Registered in `_spiralImages` and disposed on rebuild; the plane goes square while spiralling; falls
+  back to the static texture if the engine/image is missing. Verified headless: the plane binds a live
+  spiral CanvasTexture (`_spiralImages` = 1); 0 errors.
 - **Slice 3 — Controls parity + live edit + Console.** Ensure the layer/speed/rotation controls update
   both viewers live via the edit push; the player **Console** renders the spiral image the same from the
   published `spiral` config. Verify headless in Studio (2D + 3D) and Console; 0 errors.
@@ -67,4 +68,4 @@ Persisted in `mapData()` (instances are already serialized whole) → publishes 
 - **Resize in real time:** already handled by the live `pushTo3D` + LOD; verify it holds with the
   spiral engine attached (rebuild disposes/reattaches the engine cleanly).
 
-### Status: IN PROGRESS (Slices 0–1 shipped; 2–4 pending)
+### Status: IN PROGRESS (Slices 0–2 shipped; 3–4 pending)
