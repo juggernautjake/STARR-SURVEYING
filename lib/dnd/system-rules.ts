@@ -23,6 +23,39 @@ export interface AbilityModel {
   modifier: string;
 }
 
+/** A skill and the ability/attribute that governs it. */
+export interface SkillDef {
+  name: string;
+  ability: string;
+}
+
+/** A class/archetype with the mechanical knobs that get built wrong across systems. */
+export interface ClassDef {
+  name: string;
+  keyAbility: string;
+  /** 5e-style hit die (d6/d8/d10/d12) — null for systems (PF2) that use flat HP per level. */
+  hitDie: number | null;
+  /** PF2-style HP gained per level from the class (before Con) — null for 5e. */
+  hpPerLevel: number | null;
+  /** Saving-throw proficiencies granted at level 1 (system's own save names). */
+  saves: string[];
+  /** Spellcasting progression flavor. */
+  caster: 'full' | 'half' | 'third' | 'pact' | 'prepared' | 'spontaneous' | 'none';
+}
+
+/** The bulk, per-system lists the builder chooses FROM. Keeping them here lets grounding list the
+ *  valid options and the validator reject anything that isn't in the system. */
+export interface SystemContent {
+  skills: SkillDef[];
+  classes: ClassDef[];
+  /** Playable species / ancestries / races (system's own term). */
+  species: string[];
+  /** Standardized condition names for this system. */
+  conditions: string[];
+  /** A few representative feats/talents so the builder anchors on real ones (not exhaustive). */
+  sampleFeats: string[];
+}
+
 export interface SystemRules {
   key: string;
   label: string;
@@ -44,11 +77,43 @@ export interface SystemRules {
   progressionCadence: string;
   /** Extra must-know facts / edition gotchas that keep mechanics correct. */
   keyFacts: string[];
+  /** Bulk lists the builder chooses from (skills, classes, species, conditions, feats). */
+  content: SystemContent;
 }
 
 const DND_ABILITIES = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'];
 // 5e proficiency bonus by character level (index 1..20); index 0 unused.
 const PB_5E = [0, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6];
+
+// The 18 skills shared by 5e 2014 and 2024 (same list + governing ability in both editions).
+const SKILLS_5E: SkillDef[] = [
+  { name: 'Acrobatics', ability: 'DEX' }, { name: 'Animal Handling', ability: 'WIS' }, { name: 'Arcana', ability: 'INT' },
+  { name: 'Athletics', ability: 'STR' }, { name: 'Deception', ability: 'CHA' }, { name: 'History', ability: 'INT' },
+  { name: 'Insight', ability: 'WIS' }, { name: 'Intimidation', ability: 'CHA' }, { name: 'Investigation', ability: 'INT' },
+  { name: 'Medicine', ability: 'WIS' }, { name: 'Nature', ability: 'INT' }, { name: 'Perception', ability: 'WIS' },
+  { name: 'Performance', ability: 'CHA' }, { name: 'Persuasion', ability: 'CHA' }, { name: 'Religion', ability: 'INT' },
+  { name: 'Sleight of Hand', ability: 'DEX' }, { name: 'Stealth', ability: 'DEX' }, { name: 'Survival', ability: 'WIS' },
+];
+
+// The 15 conditions shared by 5e 2014 and 2024.
+const CONDITIONS_5E = ['Blinded', 'Charmed', 'Deafened', 'Exhaustion', 'Frightened', 'Grappled', 'Incapacitated', 'Invisible', 'Paralyzed', 'Petrified', 'Poisoned', 'Prone', 'Restrained', 'Stunned', 'Unconscious'];
+
+// The 12 core 5e classes (hit die, key ability, level-1 save proficiencies, caster type) — the same
+// twelve in the 2014 and 2024 PHBs (Artificer is a 2014-era optional class, added below for 2014 only).
+const CLASSES_5E_CORE: ClassDef[] = [
+  { name: 'Barbarian', keyAbility: 'STR', hitDie: 12, hpPerLevel: null, saves: ['STR', 'CON'], caster: 'none' },
+  { name: 'Bard', keyAbility: 'CHA', hitDie: 8, hpPerLevel: null, saves: ['DEX', 'CHA'], caster: 'full' },
+  { name: 'Cleric', keyAbility: 'WIS', hitDie: 8, hpPerLevel: null, saves: ['WIS', 'CHA'], caster: 'full' },
+  { name: 'Druid', keyAbility: 'WIS', hitDie: 8, hpPerLevel: null, saves: ['INT', 'WIS'], caster: 'full' },
+  { name: 'Fighter', keyAbility: 'STR', hitDie: 10, hpPerLevel: null, saves: ['STR', 'CON'], caster: 'none' },
+  { name: 'Monk', keyAbility: 'DEX', hitDie: 8, hpPerLevel: null, saves: ['STR', 'DEX'], caster: 'none' },
+  { name: 'Paladin', keyAbility: 'STR', hitDie: 10, hpPerLevel: null, saves: ['WIS', 'CHA'], caster: 'half' },
+  { name: 'Ranger', keyAbility: 'DEX', hitDie: 10, hpPerLevel: null, saves: ['STR', 'DEX'], caster: 'half' },
+  { name: 'Rogue', keyAbility: 'DEX', hitDie: 8, hpPerLevel: null, saves: ['DEX', 'INT'], caster: 'none' },
+  { name: 'Sorcerer', keyAbility: 'CHA', hitDie: 6, hpPerLevel: null, saves: ['CON', 'CHA'], caster: 'full' },
+  { name: 'Warlock', keyAbility: 'CHA', hitDie: 8, hpPerLevel: null, saves: ['WIS', 'CHA'], caster: 'pact' },
+  { name: 'Wizard', keyAbility: 'INT', hitDie: 6, hpPerLevel: null, saves: ['INT', 'WIS'], caster: 'full' },
+];
 
 export const SYSTEM_RULES: Record<string, SystemRules> = {
   'dnd5e-2014': {
@@ -80,6 +145,16 @@ export const SYSTEM_RULES: Record<string, SystemRules> = {
       'Death saves: at 0 HP roll a d20 each turn; 10+ succeeds, three successes stabilize, three failures die, nat 20 = regain 1 HP.',
       'Weapon Mastery does NOT exist in 2014 (that is a 2024 feature).',
     ],
+    content: {
+      skills: SKILLS_5E,
+      classes: [
+        ...CLASSES_5E_CORE,
+        { name: 'Artificer', keyAbility: 'INT', hitDie: 8, hpPerLevel: null, saves: ['CON', 'INT'], caster: 'half' },
+      ],
+      species: ['Dragonborn', 'Dwarf', 'Elf', 'Gnome', 'Half-Elf', 'Half-Orc', 'Halfling', 'Human', 'Tiefling'],
+      conditions: CONDITIONS_5E,
+      sampleFeats: ['Alert', 'Great Weapon Master', 'Lucky', 'Mobile', 'Sentinel', 'Sharpshooter', 'Tough', 'War Caster', 'Resilient', 'Magic Initiate'],
+    },
   },
 
   'dnd5e-2024': {
@@ -111,6 +186,14 @@ export const SYSTEM_RULES: Record<string, SystemRules> = {
       'Weapon Mastery is a 2024 martial feature (does not exist in 2014).',
       'Species (2024 term for race) give traits but NO ability score bonuses.',
     ],
+    content: {
+      skills: SKILLS_5E,
+      classes: CLASSES_5E_CORE,
+      // The 2024 PHB species list differs from 2014: no standalone Half-Elf/Half-Orc; adds Aasimar, Goliath, Orc.
+      species: ['Aasimar', 'Dragonborn', 'Dwarf', 'Elf', 'Gnome', 'Goliath', 'Halfling', 'Human', 'Orc', 'Tiefling'],
+      conditions: CONDITIONS_5E,
+      sampleFeats: ['Alert', 'Great Weapon Master', 'Lucky', 'Magic Initiate', 'Musician', 'Savage Attacker', 'Sentinel', 'Sharpshooter', 'Skilled', 'Tough', 'War Caster'],
+    },
   },
 
   pathfinder2e: {
@@ -142,6 +225,40 @@ export const SYSTEM_RULES: Record<string, SystemRules> = {
       'Spellcasting uses spell ranks 1–10 (not "levels"), spell slots per rank, and often 2-action casts.',
       'Do NOT import 5e feats, spells, or the six-saves model — PF2 mechanics are structurally different.',
     ],
+    content: {
+      // PF2 skills (Player Core) + their key attribute. Lore is a family of skills (all Int).
+      skills: [
+        { name: 'Acrobatics', ability: 'DEX' }, { name: 'Arcana', ability: 'INT' }, { name: 'Athletics', ability: 'STR' },
+        { name: 'Crafting', ability: 'INT' }, { name: 'Deception', ability: 'CHA' }, { name: 'Diplomacy', ability: 'CHA' },
+        { name: 'Intimidation', ability: 'CHA' }, { name: 'Lore', ability: 'INT' }, { name: 'Medicine', ability: 'WIS' },
+        { name: 'Nature', ability: 'WIS' }, { name: 'Occultism', ability: 'INT' }, { name: 'Performance', ability: 'CHA' },
+        { name: 'Religion', ability: 'WIS' }, { name: 'Society', ability: 'INT' }, { name: 'Stealth', ability: 'DEX' },
+        { name: 'Survival', ability: 'WIS' }, { name: 'Thievery', ability: 'DEX' },
+      ],
+      // PF2 classes use flat HP per level (not a hit die) + a key attribute + a save proficiency the
+      // class trains to Expert. Player Core + Player Core 2 line-up.
+      classes: [
+        { name: 'Alchemist', keyAbility: 'INT', hitDie: null, hpPerLevel: 8, saves: ['Fortitude'], caster: 'none' },
+        { name: 'Barbarian', keyAbility: 'STR', hitDie: null, hpPerLevel: 12, saves: ['Fortitude'], caster: 'none' },
+        { name: 'Bard', keyAbility: 'CHA', hitDie: null, hpPerLevel: 8, saves: ['Will'], caster: 'spontaneous' },
+        { name: 'Champion', keyAbility: 'STR', hitDie: null, hpPerLevel: 10, saves: ['Fortitude'], caster: 'none' },
+        { name: 'Cleric', keyAbility: 'WIS', hitDie: null, hpPerLevel: 8, saves: ['Will'], caster: 'prepared' },
+        { name: 'Druid', keyAbility: 'WIS', hitDie: null, hpPerLevel: 8, saves: ['Will'], caster: 'prepared' },
+        { name: 'Fighter', keyAbility: 'STR', hitDie: null, hpPerLevel: 10, saves: ['Reflex', 'Fortitude'], caster: 'none' },
+        { name: 'Monk', keyAbility: 'DEX', hitDie: null, hpPerLevel: 10, saves: ['Fortitude', 'Reflex', 'Will'], caster: 'none' },
+        { name: 'Oracle', keyAbility: 'CHA', hitDie: null, hpPerLevel: 8, saves: ['Will'], caster: 'spontaneous' },
+        { name: 'Ranger', keyAbility: 'DEX', hitDie: null, hpPerLevel: 10, saves: ['Fortitude', 'Reflex'], caster: 'none' },
+        { name: 'Rogue', keyAbility: 'DEX', hitDie: null, hpPerLevel: 8, saves: ['Reflex'], caster: 'none' },
+        { name: 'Sorcerer', keyAbility: 'CHA', hitDie: null, hpPerLevel: 6, saves: ['Will'], caster: 'spontaneous' },
+        { name: 'Witch', keyAbility: 'INT', hitDie: null, hpPerLevel: 6, saves: ['Will'], caster: 'prepared' },
+        { name: 'Wizard', keyAbility: 'INT', hitDie: null, hpPerLevel: 6, saves: ['Will'], caster: 'prepared' },
+      ],
+      // PF2 ancestries (Player Core Remaster).
+      species: ['Dwarf', 'Elf', 'Gnome', 'Goblin', 'Halfling', 'Human', 'Leshy', 'Orc'],
+      // PF2 numeric/standardized conditions (Remaster naming — Off-Guard, not Flat-Footed).
+      conditions: ['Blinded', 'Clumsy', 'Concealed', 'Confused', 'Dazzled', 'Deafened', 'Doomed', 'Drained', 'Dying', 'Enfeebled', 'Fascinated', 'Fatigued', 'Fleeing', 'Frightened', 'Grabbed', 'Immobilized', 'Off-Guard', 'Prone', 'Quickened', 'Sickened', 'Slowed', 'Stunned', 'Stupefied', 'Unconscious', 'Wounded'],
+      sampleFeats: ['Power Attack', 'Sudden Charge', 'Reactive Strike', 'Intimidating Glare', 'Battle Medicine', 'Fleet', 'Toughness', 'Cat Fall', 'Quick Draw', 'Assurance'],
+    },
   },
 };
 
@@ -181,8 +298,30 @@ export function systemRulesBlock(system: CharacterSystem): string {
     `• Stat/feat progression: ${r.progressionCadence}`,
     `• Must-know facts:`,
     ...r.keyFacts.map((f) => `   - ${f}`),
+    `• Valid classes (use ONLY these): ${r.content.classes.map((c) => c.name).join(', ')}.`,
+    `• Valid species/ancestries: ${r.content.species.join(', ')}.`,
+    `• Skills (name → governing ability): ${r.content.skills.map((s) => `${s.name} (${s.ability})`).join(', ')}.`,
+    `• Conditions: ${r.content.conditions.join(', ')}.`,
+    `• Example real feats to anchor on (not exhaustive): ${r.content.sampleFeats.join(', ')}.`,
   ];
   return lines.join('\n');
+}
+
+/** The skill list for a system (empty for ambiguous/unknown). */
+export function systemSkills(system: CharacterSystem): SkillDef[] {
+  return rulesForSystem(system)?.content.skills ?? [];
+}
+/** The class definitions for a system. */
+export function systemClasses(system: CharacterSystem): ClassDef[] {
+  return rulesForSystem(system)?.content.classes ?? [];
+}
+/** The playable species/ancestries for a system. */
+export function systemSpecies(system: CharacterSystem): string[] {
+  return rulesForSystem(system)?.content.species ?? [];
+}
+/** The condition names for a system. */
+export function systemConditions(system: CharacterSystem): string[] {
+  return rulesForSystem(system)?.content.conditions ?? [];
 }
 
 /** The proficiency bonus a character SHOULD have at a level for flat-bonus systems (else null). */

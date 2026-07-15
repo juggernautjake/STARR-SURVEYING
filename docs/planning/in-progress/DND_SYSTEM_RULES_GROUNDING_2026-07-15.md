@@ -40,10 +40,19 @@ and distributable.)
   and PF2's level-to-proficiency / three saves / three-action / degrees-of-success model with a "do NOT
   import 5e" warning. Verified: `tsc` clean, lint clean, `__tests__/dnd/system-rules.test.ts` (7 tests) +
   updated `grounding.test.ts`; full dnd suite (243) green.
-- **Slice 2 — Full structured content per system.** Extend the catalog with the bulk lists: classes (hit die,
-  key ability, saves, spellcasting), species/ancestries, the skill list + governing ability, the conditions
-  list, and the feat/spell framing — per system, no cross-contamination. Tests assert each system's lists are
-  disjoint where they must be (e.g. PF2 skills ≠ 5e skills; 2024 vs 2014 differences) and self-consistent.
+- **Slice 2 — Full structured content per system.** ✅ Extended each catalog entry with a `content` block:
+  the **skills** (name → governing ability), **classes** (`ClassDef`: key ability, 5e `hitDie` XOR PF2
+  `hpPerLevel`, level-1 save proficiencies, caster type), **species/ancestries**, standardized
+  **conditions**, and representative **feats** — for all three systems. `systemRulesBlock` now lists the
+  valid classes/species/skills/conditions so the AI picks only from the real, in-system options, and
+  `systemSkills`/`systemClasses`/`systemSpecies`/`systemConditions` accessors feed the validator (Slice 3).
+  The data encodes the real edition differences: 12 core 5e classes (both editions) + Artificer for 2014
+  only; the **2024 species list drops standalone Half-Elf/Half-Orc and adds Aasimar/Goliath/Orc**; 5e uses
+  hit dice + ability saves while PF2 uses HP-per-level + Fortitude/Reflex/Will; PF2 skills (Thievery,
+  Occultism, Society…) and Remaster conditions (Off-Guard, Clumsy…) are its own, disjoint from 5e. Verified:
+  `tsc` clean, lint clean, `__tests__/dnd/system-content.test.ts` (6 tests: well-formed + self-consistent
+  lists, hit-die-vs-HP, save models, 2014↔2024 species delta, PF2-specific skills/conditions, block lists
+  the options); full dnd suite (249) green.
 - **Slice 3 — Validation layer (the safety net).** `lib/dnd/system-validate.ts` — validate a built
   `Character` against its active system's catalog (ability scores in range, level in range, class/species
   belong to the system, proficiency bonus matches the level, skills exist in the system) and return typed
@@ -64,4 +73,4 @@ and distributable.)
 - **Accuracy over verbatim:** store mechanical facts/numbers, paraphrased; cite the source book by name.
 - **Extensible:** adding a system = one catalog entry + one `GAME_SYSTEMS` row (+ optional seed rows).
 
-### Status: IN PROGRESS (Slices 0–1 shipped; 2–5 pending)
+### Status: IN PROGRESS (Slices 0–2 shipped; 3–5 pending)
