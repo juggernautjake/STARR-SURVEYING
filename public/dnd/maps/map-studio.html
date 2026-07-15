@@ -301,6 +301,9 @@
   <div class="edcard">
     <div class="edpreview">
       <div class="edtitle" id="edTitle">NEW OBJECT</div>
+      <div class="edviewtoggle" id="edViewToggle" style="display:none;position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:3;background:rgba(6,4,15,.72);border:1px solid var(--line2);border-radius:20px;padding:2px;gap:2px;">
+        <button data-v="2d" class="on" style="border:none;background:none;color:var(--gold);font:inherit;font-size:11px;padding:3px 12px;border-radius:18px;cursor:pointer">2D</button><button data-v="3d" style="border:none;background:none;color:var(--faint);font:inherit;font-size:11px;padding:3px 12px;border-radius:18px;cursor:pointer">3D</button>
+      </div>
       <div class="pv" id="edPreview"></div>
       <div class="edtype" id="edTypeLabel"></div>
       <div class="fmt"><button id="edExportSvg" title="Download this object as an SVG file">⤓ SVG</button><button id="edExportHtml" title="Download as a standalone HTML/CSS snippet">⤓ HTML</button></div>
@@ -1929,11 +1932,31 @@ function updateStatus(){$("#stInfo").textContent=`${state.assets.length} assets 
 /* ============================================================ OBJECT EDITOR ============================================================ */
 let edWork=null,edMode="new",edInst=null;
 function openEditor(asset,modeArg,inst){
+  edClose3D();   // always open in 2D and drop any prior 3D preview
   edMode=modeArg;edInst=inst||null;edWork=JSON.parse(JSON.stringify(asset));if(modeArg==="new"&&!edWork.id)edWork.id=uid();
   $("#editor").classList.add("show");$("#edHeadTitle").textContent=modeArg==="edit"?"Edit — "+asset.name:"New "+asset.kind;$("#edTypeLabel").textContent=edWork.kind;renderEditor();
 }
-$("#edClose").onclick=()=>$("#editor").classList.remove("show");
-function edPreview(){$("#edPreview").innerHTML=art(edWork,true);$("#edTitle").textContent=(edWork.name||"UNTITLED").toUpperCase();}
+// 2D<->3D editor preview switch (parity Slice 5): planet/moon/star can be previewed live in 3D (the same
+// buildPlanetModel/buildStarModel the map uses) editing the SAME edWork config, or in the 2D art().
+let edView3d=false;
+function edKind3D(k){return k==="planet"||k==="moon"||k==="star";}
+function edClose3D(){const host=$("#edPreview");if(host&&host.__is3d){host.__is3d=false;if(window.EditorPreview3D)window.EditorPreview3D.unmount();host.innerHTML="";}edView3d=false;const t=$("#edViewToggle");if(t)t.querySelectorAll("button").forEach(b=>{b.classList.toggle("on",b.dataset.v==="2d");b.style.color=b.dataset.v==="2d"?"var(--gold)":"var(--faint)";});}
+function closeEditor(){edClose3D();$("#editor").classList.remove("show");}
+$("#edClose").onclick=closeEditor;
+function edPreview(){
+  const k=edWork.kind;$("#edTitle").textContent=(edWork.name||"UNTITLED").toUpperCase();
+  const tgl=$("#edViewToggle");if(tgl)tgl.style.display=edKind3D(k)?"flex":"none";
+  const host=$("#edPreview");
+  if(edView3d&&edKind3D(k)&&window.EditorPreview3D){
+    if(!host.__is3d){host.innerHTML="";host.__is3d=true;window.EditorPreview3D.mount(host,edWork);}
+    else window.EditorPreview3D.update(edWork);
+  } else {
+    if(host.__is3d){host.__is3d=false;if(window.EditorPreview3D)window.EditorPreview3D.unmount();}
+    host.innerHTML=art(edWork,true);
+  }
+}
+function edSetView(v){if(v==="3d"&&!window.EditorPreview3D){toast("3D preview is still loading — try again in a moment");return;}edView3d=(v==="3d");const t=$("#edViewToggle");if(t)t.querySelectorAll("button").forEach(b=>{b.classList.toggle("on",b.dataset.v===v);b.style.color=b.dataset.v===v?"var(--gold)":"var(--faint)";});edPreview();}
+{const t=$("#edViewToggle");if(t)t.querySelectorAll("button").forEach(b=>b.onclick=()=>edSetView(b.dataset.v));}
 function renderEditor(){
   edPreview();const k=edWork.kind,body=$("#edBody");let html="";
   if(k!=="svg"||true) html+=`<div class="field"><label>Name</label><input id="edName" value="${esc(edWork.name)}"></div>`;
@@ -2066,7 +2089,7 @@ function wireEditor(){
   $("#edSize").oninput=e=>{edWork.size=+e.target.value;$("#edSzV").textContent=edWork.size;};
   if($("#edReseed"))$("#edReseed").onclick=()=>{edWork.seed=Math.random()*99999|0;edPreview();genIterations();};
   if($("#edIterate"))$("#edIterate").onclick=genIterations;
-  $("#edCancel").onclick=()=>$("#editor").classList.remove("show");
+  $("#edCancel").onclick=closeEditor;
   $("#edSave").onclick=()=>saveEditor(edMode==="edit"?"save":"new");
   const sn=$("#edSaveNew");if(sn)sn.onclick=()=>saveEditor("new");
 }
@@ -2078,7 +2101,7 @@ function saveEditor(saveMode){
     // if editing a placed instance, update its look live
     if(edInst){edInst.look=snapshotLook(edWork);edInst.name=edWork.name;edInst.size=edWork.size;}
     toast("Updated “"+edWork.name+"”");}
-  $("#editor").classList.remove("show");const tab=TABS.find(t=>t.kind===edWork.kind);if(tab)setTab(tab.id);else renderLibrary();renderAll();markDirty();updateTabBadges();
+  closeEditor();const tab=TABS.find(t=>t.kind===edWork.kind);if(tab)setTab(tab.id);else renderLibrary();renderAll();markDirty();updateTabBadges();
 }
 /* ---- EXPORT the edited object as SVG / standalone HTML ---- */
 function objectSVGString(a){let s=art(a,false);const i=s.indexOf("<svg");if(i<0)return null;const j=s.lastIndexOf("</svg>");s=s.slice(i,j+6);
@@ -2289,7 +2312,7 @@ $("#inspBody").addEventListener("click",e=>{if(mode!=="play")return;const pp=e.t
 window.addEventListener("keydown",e=>{if(/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))return;const meta=e.ctrlKey||e.metaKey;
   if(meta&&e.key.toLowerCase()==="z"&&!e.shiftKey){e.preventDefault();undo();}
   else if(meta&&(e.key.toLowerCase()==="y"||(e.key.toLowerCase()==="z"&&e.shiftKey))){e.preventDefault();redo();}
-  else if(e.key==="Escape"){if(drawing)cancelDraw();else if(pending)clearPending();else if($("#editor").classList.contains("show"))$("#editor").classList.remove("show");else if($("#campModal").classList.contains("show"))$("#campModal").classList.remove("show");else if($("#poiTypeModal").classList.contains("show"))$("#poiTypeModal").classList.remove("show");else{selection=null;renderAll();}}
+  else if(e.key==="Escape"){if(drawing)cancelDraw();else if(pending)clearPending();else if($("#editor").classList.contains("show"))closeEditor();else if($("#campModal").classList.contains("show"))$("#campModal").classList.remove("show");else if($("#poiTypeModal").classList.contains("show"))$("#poiTypeModal").classList.remove("show");else{selection=null;renderAll();}}
   else if(e.key==="Enter"&&drawing){finishDraw();}
   else if((e.key==="Delete"||e.key==="Backspace")&&selection&&mode==="dm"){pushUndo();if(selection.type==="instance")state.instances=state.instances.filter(x=>x.id!==selection.id);else if(selection.type==="sector"){state.sectors=state.sectors.filter(x=>x.id!==selection.id);computeSectorParents();reassociateAll();}else if(selection.type==="poi"){const i=state.instances.find(x=>x.id===selection.id);if(i)i.pois=i.pois.filter(x=>x.id!==selection.poi);}selection=null;renderAll();markDirty();}
   else if(e.key.toLowerCase()==="v"&&mode==="dm")setTool("select");
@@ -2401,5 +2424,38 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
 </script>
 <!-- Real-time 3D viewer (vendored Three via the importmap above). Wires the ⛶ 3D toggle itself. -->
 <script type="module" src="/dnd/maps/map3d.js"></script>
+<!-- In-editor 2D<->3D preview (parity Slice 5): a minimal live scene rendering the SAME buildPlanetModel/
+     buildStarModel the map uses, so a placed planet/moon/star can be edited previewing either dimension. -->
+<script type="module">
+import * as THREE from 'three';
+import { buildPlanetModel, buildStarModel } from '/dnd/maps/planet3d-model.js';
+(function(){
+  let renderer,scene,camera,model,raf,host,last=0;
+  const SUN=new THREE.Vector3(3,2,4).normalize();
+  function ensure(el){
+    if(renderer){host=el;return;}
+    host=el;
+    renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+    renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+    renderer.domElement.style.cssText='width:100%;height:100%;display:block';
+    scene=new THREE.Scene();
+    camera=new THREE.PerspectiveCamera(34,1,0.1,100);camera.position.set(0,0,4.6);
+    const dl=new THREE.DirectionalLight(0xffffff,1.15);dl.position.copy(SUN.clone().multiplyScalar(5));scene.add(dl);
+    scene.add(new THREE.AmbientLight(0x35405f,0.65));
+  }
+  function fit(){if(!host||!renderer)return;const r=host.getBoundingClientRect();const w=Math.max(40,r.width),h=Math.max(40,r.height);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
+  function cfgFor(look){try{if(window.Map3D&&window.Map3D._genericPlanetCfg)return window.Map3D._genericPlanetCfg({kind:look.kind,look});}catch(e){}return {type:look.ptype||'terran',seed:look.seed||1};}
+  function build(look){
+    if(model){try{scene.remove(model.group);model.dispose&&model.dispose();}catch(e){}model=null;}
+    try{model=look.kind==='star'?buildStarModel(look,{radius:1.15}):buildPlanetModel(cfgFor(look),{radius:1.3,segments:64});scene.add(model.group);}catch(e){/* keep the scene alive if a build fails */}
+  }
+  function loop(t){raf=requestAnimationFrame(loop);const dt=Math.min(0.05,((t-last)/1000)||0.016);last=t;if(model&&model.update)try{model.update(dt,SUN);}catch(e){}if(renderer)renderer.render(scene,camera);}
+  window.EditorPreview3D={
+    mount(el,look){ensure(el);if(el&&renderer&&renderer.domElement.parentNode!==el)el.appendChild(renderer.domElement);fit();build(look);if(!raf)raf=requestAnimationFrame(loop);},
+    update(look){if(!renderer)return;fit();build(look);},
+    unmount(){if(raf)cancelAnimationFrame(raf);raf=null;if(model){try{scene.remove(model.group);model.dispose&&model.dispose();}catch(e){}model=null;}if(renderer&&renderer.domElement&&renderer.domElement.parentNode)renderer.domElement.parentNode.removeChild(renderer.domElement);}
+  };
+})();
+</script>
 </body>
 </html>

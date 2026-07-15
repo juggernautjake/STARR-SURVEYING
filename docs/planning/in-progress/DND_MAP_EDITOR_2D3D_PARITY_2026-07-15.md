@@ -199,9 +199,19 @@ gets 3D equivalents or stays a 2D-layer concern — lean: keep fx 2D-layer, docu
   clouds already bake swirl/banding and the 2D art already pans its cloud layer, so per-parameter 2D cloud
   animation is low incremental value for meaningful canvas-animation cost; the coarse `cloudStyle`/amount
   path remains the 2D cloud control.*
-- **Slice 5 — Consolidated editor with 2D⇄3D preview switch.** `openEditor` exposes the full unified control
-  set for planet/moon and a preview-mode toggle (2D `art()` ⇄ live 3D model) editing one config; bridge the
-  popup generator into the superset.
+- **Slice 5 — Consolidated editor with 2D⇄3D preview switch.** ✅ The object editor now has a **2D / 3D
+  toggle** over its preview (shown for planet / moon / star). A small `EditorPreview3D` module (its own
+  `<script type="module">` on the studio's three importmap) mounts a live `buildPlanetModel` /
+  `buildStarModel` scene — **the exact models the map renders** — into `#edPreview`, fed the SAME `edWork`
+  config via `Map3D._genericPlanetCfg`, so every control (terrain, clouds, storms/lightning, tilt, colours,
+  star corona/rays…) updates whichever preview is showing; `edPreview()` routes to the 3D preview when 3D is
+  active, else the 2D `art()`. The editor always opens in 2D and tears the 3D scene down on switch-back /
+  cancel / save / Escape (`closeEditor`/`edClose3D`, so no leaked renderer or rAF loop). Verified headless
+  (`verify-editor-switch.mjs`): opening a planet shows the toggle + 2D SVG; switching to 3D mounts a `<canvas>`
+  and drops the SVG (`__is3d` set); editing `ice`/`tilt` while in 3D doesn't throw; switching back restores
+  the SVG and removes the canvas; close cleans up; 0 page errors. *(The standalone popup `planet-3d.html`
+  generator remains available for deep terrain authoring and already round-trips through the same `look`/
+  `cfg3d`; fully retiring it into this inline editor is out of scope for the parity goal.)*
 - **Slice 6 — Star / station / debris / asteroid / galaxy parity passes.** Each kind's small gaps
   (3D ray-spoke count, station lights, 3D comet tail, asteroid c2/c3, galaxy spread/len in 3D, spingalaxy
   master/feather in 3D).
@@ -221,4 +231,4 @@ gets 3D equivalents or stays a 2D-layer concern — lean: keep fx 2D-layer, docu
 - **Reuse:** build on `art()`, `buildPlanetModel`, `_genericPlanetCfg`, `pushTo3D`, and the existing viewer
   toggle — don't fork them.
 
-### Status: IN PROGRESS (Slices 0–4 shipped; 5–7 pending)
+### Status: IN PROGRESS (Slices 0–5 shipped; 6–7 pending)
