@@ -82,7 +82,17 @@
   lowest = a few lights here and there, highest = the planet is blanketed in city sprawl and lights.
   Wire into 2D `art()`, 3D `buildPlanetModel` (night-side emissive lights map), and the impostor;
   persist + editor slider. Verify headless, then run the full end-to-end pass across DM/player/2D/3D/
-  hybrid and move this doc to `completed/`.
+  hybrid.
+- **Slice 7 — Destroyed / cataclysm planets (2D + 3D, editable).** A **destroyed** planet mode with
+  selectable variants, each with glowing molten breaks and a surrounding **debris field**:
+  **split** (cloven in two halves pulling apart, debris between), **chunk** (a big bite blown out + debris),
+  **holed** (a bore-hole punched clean through), **cored** (crust intact but the core gouged open, exposing
+  a glowing molten cavity), **fractured** (broken into several large drifting pieces with glowing cracks).
+  Render editable 3D versions in `buildPlanetModel` (sliced/holed geometry, emissive molten interior +
+  a particle/rock debris ring, slow tumble) and matching 2D `art()` silhouettes + the LOD impostor.
+  Add a variant picker + a **destruction intensity** slider (crack glow, debris amount) to the planet
+  editor; persist on the look. Verify headless in 2D + 3D. Then run the full end-to-end pass across
+  DM/player/2D/3D/hybrid and move this doc to `completed/`.
 
 ## Considerations
 - **Shared renderers:** `art()` and the `planet3d-model.js` builders are used by Studio and Console
@@ -91,4 +101,4 @@
   are cheap; the world-lock is a transform change, not extra draw calls.
 - **Backward compatible:** old maps (no `stype`, `parallax` defaulting true) render unchanged.
 
-### Status: IN PROGRESS (Slices 0–3 shipped; 4–6 pending)
+### Status: IN PROGRESS (Slices 0–3 shipped; 4–7 pending)
