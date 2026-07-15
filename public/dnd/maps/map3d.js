@@ -51,10 +51,11 @@ const Map3D = {
     this._editable = typeof window.map3dApply === 'function';   // DM Studio edits; Console is read-only
     const w = Math.max(1, container.clientWidth), h = Math.max(1, container.clientHeight);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });   // alpha so hybrid mode can render transparent
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(w, h, false);
     renderer.setClearColor(NAVY, 1);
+    this._mode = this._mode || 'full';   // 'full' = own sky + all objects; 'overlay' = transparent, only 3D bodies (hybrid)
     renderer.domElement.style.cssText = 'width:100%;height:100%;display:block';
     container.appendChild(renderer.domElement);
 
@@ -317,6 +318,7 @@ const Map3D = {
     this._disposeBackground();
     this._bgObjs = []; this._starPts = []; this._nebula = []; this._bgSpin = []; this._glowSprite = null; this._bgT = 0;
     const cfg = this._bg || (this._bg = Object.assign({}, BG_DEFAULT));
+    if (this._mode === 'overlay') { if (this.renderer) this.renderer.setClearColor(new THREE.Color(0x000000), 0); return; }   // hybrid: the 2D map draws the sky
     if (this.renderer) this.renderer.setClearColor(new THREE.Color(cfg.baseColor || '#010a13'), 1);
     const rng = this._rng(cfg.seed || 1);
     const density = cfg.density != null ? cfg.density : 1;
@@ -521,7 +523,7 @@ const Map3D = {
     this._nextShoot = 8 + Math.random() * 12;   // first meteor after 8–20s, then one every 20–50s
   },
   _updateShooters(dt) {
-    if (!this._shooters) return;
+    if (!this._shooters || this._mode === 'overlay') return;   // hybrid: no 3D meteors (2D owns ambience)
     const cam = this.camera, tgt = this.controls.target, zoom = cam.zoom || 1;
     const viewW = (cam.right - cam.left) / zoom, viewH = (cam.top - cam.bottom) / zoom;
     const PAL = [[1, 0.95, 0.85], [0.4, 0.85, 1], [1, 0.5, 0.85], [1, 0.8, 0.35], [0.7, 1, 0.6], [1, 0.55, 0.35], [0.7, 0.6, 1], [0.35, 1, 0.9]];
@@ -570,6 +572,17 @@ const Map3D = {
     ctx.globalCompositeOperation = 'destination-out'; ctx.fillStyle = fall; ctx.fillRect(0, 0, S, S);
     return new THREE.CanvasTexture(cv);
   },
+  // Hybrid mode: 'overlay' makes the 3D layer transparent and renders ONLY the 3D-native bodies (the
+  // 2D map draws everything else beneath it); 'full' is the standalone 3D viewer with its own sky.
+  setMode(mode) {
+    this._mode = mode === 'overlay' ? 'overlay' : 'full';
+    const overlay = this._mode === 'overlay';
+    if (this.renderer) this.renderer.setClearColor(overlay ? new THREE.Color(0x000000) : new THREE.Color((this._bg && this._bg.baseColor) || '#010a13'), overlay ? 0 : 1);
+    if (this._ready) { this._buildBackground(); this._rebuild(); }   // rebuild sky (skipped in overlay) + filtered bodies
+  },
+  // 3D-native kinds that render as real meshes in the overlay; everything else stays 2D in hybrid.
+  _isNative3D(kind) { return kind === 'planet3d' || kind === 'planet' || kind === 'moon' || kind === 'star' || kind === 'station' || kind === 'debris' || kind === 'asteroid'; },
+
   // Push the current map into the scene. A map may carry a `bg3d` background config (from the DM's
   // Effects panel); applying it here means published maps bring their sky to players automatically.
   setData(map) {
@@ -600,7 +613,9 @@ const Map3D = {
     const aniso = this.renderer.capabilities.getMaxAnisotropy();
     this._bodies = []; this._spinPlanes = []; this._spiralImages = [];
     let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+    const overlay = this._mode === 'overlay';
     for (const it of insts) {
+      if (overlay && !this._isNative3D(it.kind)) continue;   // hybrid: 2D handles images/text/html/spingalaxy/etc.
       if (it.kind === 'text') { this._addText(it); minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x); maxY = Math.max(maxY, it.y); continue; }
       if (it.kind === 'html') { this._addHtml(it); minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x); maxY = Math.max(maxY, it.y); continue; }
       const s = it.size || 60, cx = it.x + s / 2, cy = it.y + s / 2;
@@ -831,6 +846,7 @@ const Map3D = {
   _buildSectors() {
     const g = this._sectorGroup; if (!g) return;
     for (let i = g.children.length - 1; i >= 0; i--) { const c = g.children[i]; g.remove(c); c.geometry && c.geometry.dispose && c.geometry.dispose(); c.material && c.material.dispose && c.material.dispose(); }
+    if (this._mode === 'overlay') return;   // hybrid: sectors are drawn by the 2D map
     // Draw in the same z order as the 2D map (depthTest is off, so paint order sets who's on top) →
     // sending a sector forward/back reorders it identically in both views.
     const sectors = [...((this._map && this._map.sectors) || [])].sort((a, b) => (a.z || 0) - (b.z || 0));

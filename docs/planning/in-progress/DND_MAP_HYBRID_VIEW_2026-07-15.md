@@ -49,10 +49,13 @@ Replace the 2-way toggle with a 3-way mode: **2D · 3D · Hybrid**.
 ## Slices
 
 - **Slice 0 — Planning doc** *(this file)*.
-- **Slice 1 — 3D transparent + body-filtered mode.** Add `Map3D.setMode('full'|'overlay')`: in overlay
-  mode the renderer uses `alpha:true`/`clearAlpha 0`, the sky (`_buildBackground`/shooters) is hidden,
-  and `_rebuild` skips non-3D-native kinds. Verify headless: in overlay mode the canvas has transparent
-  clear + only 3D bodies; 0 errors.
+- **Slice 1 — 3D transparent + body-filtered mode.** ✅ Renderer now created with `alpha:true`.
+  `Map3D.setMode('full'|'overlay')`: overlay sets `clearAlpha 0`, `_buildBackground` early-returns (no
+  sky), `_buildSectors` early-returns (2D draws sectors), `_updateShooters` no-ops (no 3D meteors), and
+  `_rebuild` skips every non-native kind (`_isNative3D` = planet3d/planet/moon/star/station/debris/
+  asteroid) so images/text/HTML/spingalaxy stay 2D. Verified headless: full mode = 2 bodies + 2 sector
+  meshes + 4 sky layers + 2 CSS labels; overlay = only the planet3d, 0 sectors/sky/CSS, `clearAlpha 0`;
+  0 errors.
 - **Slice 2 — 3-way view toggle + hybrid wiring.** Toggle button cycles 2D→3D→Hybrid. In Hybrid: show
   the 2D layers, show `#gl3d` with `pointer-events:none`, put `Map3D` in overlay mode, disable orbit
   tilt, and lock the camera to the 2D view continuously (sync in the 2D `applyView` and each 3D frame).
@@ -65,4 +68,4 @@ Replace the 2-way toggle with a 3-way mode: **2D · 3D · Hybrid**.
   images/spirals/text/sectors stay managed while planets render as clear 3D over them, aligned on
   pan/zoom; publish → Console hybrid matches. Move this doc to `completed/`.
 
-### Status: IN PROGRESS (Slice 0 written; 1–4 pending)
+### Status: IN PROGRESS (Slices 0–1 shipped; 2–4 pending)
