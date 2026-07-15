@@ -150,11 +150,20 @@ are already stored.
     Verified: `tsc` clean, lint clean, `__tests__/dnd/ig-builder.test.ts` (4 tests: assemble records kinded
     igBuild + catalog effect text, straight vanilla → 0 custom / no blocking, non-catalog pick → custom with
     kind `stance`/`power`, DM grant → dm-granted not blocking); full dnd suite (294) green.
-  - **7c — pending:** the Intuitive Games **sheet/builder UI** — a picker that calls `assembleIGVanillaCharacter`
-    from the catalog, the sheet rendering the template structure with a VANILLA/CUSTOM/DM-GRANTED badge on
-    every *character* element + a "Custom content" summary, and the AI-customize path (grounded to Intuitive
-    Games so invented content matches its mechanics and is auto-flagged custom via the same `igBuild`/
-    provenance path).
+  - **7c — Builder UI + apply route + AI path.** ✅ `app/dnd/_ui/IGCharacterBuilder.tsx` (wired into the
+    character page for any editor of an Intuitive Games character) is the **"build from vanilla" picker**:
+    ancestry / class / subclass dropdowns + stance / power / feat chip multi-selects sourced from `igCatalog`,
+    a freeform weapons field, a **live VANILLA vs CUSTOM count** (using the same pure `classifyElement` the
+    server uses), and a Build button. `POST /api/dnd/characters/[id]/ig-build` (owner/player/DM via the write
+    chokepoint) runs `assembleIGVanillaCharacter`, persists the result to the character's `data`, and returns
+    the live provenance summary; custom picks are allowed at build time and flagged (the vanilla-only gate is
+    at `/submit`, not here). The **on-sheet badge + "Custom content" summary** is already delivered by
+    `SheetApprovalPanel` (Slice 5), which now reads the accurate kinded `igBuild` provenance. The
+    **AI-customize path** needs no new code: the existing `/ai-edit` route is grounded to Intuitive Games
+    (`systemGroundingBlock` injects the IG rules + the stances/powers/feats catalog), so an AI build sees the
+    real options and matches the system's mechanics, and any invented element is **auto-flagged custom** by
+    the same provenance classifier the builder + approval panel use. Verified: `tsc` clean, lint clean, full
+    dnd suite (294) green (the pure assembler the route+UI call is covered by `ig-builder.test.ts`).
 - **Slice 8 — QA + docs.** End-to-end pass (build vanilla → all-vanilla, AI-custom → flagged, vanilla-only
   campaign blocks a custom submit, DM grant allowed, approve/reject + notes + notification), full dnd vitest
   suite green, tsc + lint clean, then move this doc to `completed/`.
@@ -170,4 +179,4 @@ are already stored.
 - **Backward compatible:** new columns default so existing characters/campaigns keep working (status=draft,
   allow_custom=true).
 
-### Status: IN PROGRESS (Slices 0–6 + 7a + 7b shipped; 7c UI + AI and Slice 8 QA pending)
+### Status: IN PROGRESS (Slices 0–7 shipped; Slice 8 — final QA + doc move — pending)

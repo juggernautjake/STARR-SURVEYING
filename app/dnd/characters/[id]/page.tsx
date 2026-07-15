@@ -16,6 +16,7 @@ import SystemSwitcher from '@/app/dnd/_ui/SystemSwitcher';
 import SheetApprovalPanel from '@/app/dnd/_ui/SheetApprovalPanel';
 import DmGrantPanel from '@/app/dnd/_ui/DmGrantPanel';
 import IGVanillaLibrary from '@/app/dnd/_ui/IGVanillaLibrary';
+import IGCharacterBuilder from '@/app/dnd/_ui/IGCharacterBuilder';
 import { readVariants, builtSystems, type ActiveSheet } from '@/lib/dnd/system-variants';
 import { normalizeSystem } from '@/lib/dnd/systems';
 import { summarizeCharacterProvenance, type ElementKind } from '@/lib/dnd/provenance';
@@ -86,15 +87,16 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
 
   // Intuitive Games vanilla library (IG builder Slice 7): the always-VANILLA reference + builder picker
   // source, shown to anyone who can edit an Intuitive Games character.
-  const igLibrary = canWrite && normalizeSystem((character as { system?: string }).system) === 'intuitive-games'
-    ? <IGVanillaLibrary />
-    : null;
+  const isIG = canWrite && normalizeSystem((character as { system?: string }).system) === 'intuitive-games';
+  const igLibrary = isIG ? <IGVanillaLibrary /> : null;
+  const igBuilder = isIG ? <IGCharacterBuilder characterId={character.id} initialName={character.name} /> : null;
 
   return (
     <>
       {topPanel}
       {approvalPanel}
       {grantPanel}
+      {igBuilder}
       {igLibrary}
       {canWrite && Array.isArray((character as { build_questions?: string[] }).build_questions) && (character as { build_questions?: string[] }).build_questions!.length > 0 && (
         <BuildQuestions characterId={character.id} questions={(character as { build_questions?: string[] }).build_questions as string[]} />
