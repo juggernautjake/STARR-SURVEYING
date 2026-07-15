@@ -259,8 +259,26 @@
     on($('Dy'), 'oninput', function (e) { style.dy = +e.target.value; onChange(); });
   }
 
+  /* ---- HTML/CSS object helpers (rendered inside a sandboxed iframe everywhere) ---------------- */
+  // Defence-in-depth strip of <script> (the sandboxed iframe already neutralises scripts).
+  function sanitizeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/<\s*script[\s\S]*?<\s*\/\s*script\s*>/gi, '')
+      .replace(/<\s*script\b[^>]*>/gi, '');
+  }
+  // Wrap user HTML/CSS in a minimal transparent document for use as an <iframe srcdoc>. The iframe is
+  // always `sandbox`ed (no scripts, no same-origin, no forms), so arbitrary HTML+CSS renders safely.
+  function htmlFrameSrcdoc(content) {
+    return '<!doctype html><html><head><meta charset="utf-8"><style>' +
+      'html,body{margin:0;padding:8px;background:transparent;color:#f0e6d2;font-family:system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.4;overflow:auto}' +
+      'a{color:#0ac8b9}img{max-width:100%;height:auto}table{border-collapse:collapse}td,th{border:1px solid #2a3f52;padding:4px 7px}' +
+      '</style></head><body>' + sanitizeHtml(content) + '</body></html>';
+  }
+
   root.LABEL_FONTS = LABEL_FONTS;
   root.LABEL_FONT_STACK = LABEL_FONT_STACK;
+  root.sanitizeHtml = sanitizeHtml;
+  root.htmlFrameSrcdoc = htmlFrameSrcdoc;
   root.DEFAULT_LABEL_STYLE = DEFAULT_LABEL_STYLE;
   root.mergeLabelStyle = mergeLabelStyle;
   root.labelSVG = labelSVG;

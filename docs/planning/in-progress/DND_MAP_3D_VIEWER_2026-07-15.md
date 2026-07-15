@@ -233,7 +233,7 @@ like the 2D viewer* but renders true 3D models.
   *Deferred (one-liner):* **live planet-shape config editing** in the viewer (re-running the shader
   build on slider changes) — that's essentially embedding the generator's control panel; high cost,
   and the DM can already edit a world in the 3D generator and re-import. Left as a follow-up.
-- **Slice 7 — Insert 2D objects in 3D.** 🔶 *(images done; text + HTML remaining)*
+- **Slice 7 — Insert 2D objects in 3D.** ✅ *(images, text, and HTML all shipped)*
   - **Images ✅** — `kind:'image'` instances now render as **aspect-correct textured planes**
     (`_imagePlane`: aspect from `natW/natH`, `TextureLoader` with a placeholder tint until the texture
     loads, error-tolerant), inside the same holder so they move/scale/rotate with the gizmo like any
@@ -246,9 +246,14 @@ like the 2D viewer* but renders true 3D models.
     positioned in world space — so they scale/pan with the scene and read identically to the 2D
     labels. View-only in 3D for now (edited in 2D). Verified: text mounts into the CSS3D DOM with the
     right content/size/rotation, zero errors. This also lays the renderer the `html` kind will reuse.
-  - **HTML/CSS `html` kind — remaining:** a new object type with an HTML/CSS editor in the 2D Studio,
-    server/client **sanitisation** (DM markup is shown to players), rendered through the same CSS3D
-    layer. Split out as its own vertical because of the editor UI + XSS surface.
+  - **HTML/CSS `html` kind ✅** — new **▤ HTML** tool drops an `html` object (default markup) that
+    renders inside a **sandboxed `<iframe srcdoc>`** (empty `sandbox` = no scripts/same-origin/forms)
+    both on the 2D map and in the 3D CSS3D layer, so arbitrary HTML+**CSS** renders **safely** for
+    players; a shared `sanitizeHtml`/`htmlFrameSrcdoc` (labels.js) strips `<script>` as defence in
+    depth. The card inherits the 2D engine's drag / corner-scale / rotate / select, plus an inspector
+    (HTML/CSS textarea + width/height). Verified: `<script>` is stripped and never executes
+    (`window.__pwn` unset), the iframe is `sandbox`ed, CSS survives, and it renders in both 2D and the
+    3D CSS3D layer — zero errors. *(HTML cards are edited in 2D; in 3D they're view-only, like text.)*
 - **Slice 8 — Console parity + polish.** 3D viewer + toggle for players (perf-guarded), verify, and
   move this doc to `completed/`.
 

@@ -175,6 +175,7 @@ const Map3D = {
     let live = 0, minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
     for (const it of insts) {
       if (it.kind === 'text') { this._addText(it); minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x); maxY = Math.max(maxY, it.y); continue; }
+      if (it.kind === 'html') { this._addHtml(it); minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x); maxY = Math.max(maxY, it.y); continue; }
       const s = it.size || 60, cx = it.x + s / 2, cy = it.y + s / 2;
       // Every body lives in a holder whose transform IS its 2D transform: position = centre,
       // scale·2 = size, rotation = t3d. This lets one gizmo move/scale/rotate any body uniformly.
@@ -231,6 +232,24 @@ const Map3D = {
     const obj = new CSS3DObject(el);
     obj.position.set(it.x, -it.y, 0);
     if (st.rotate) obj.rotation.z = -st.rotate * Math.PI / 180;
+    obj.userData.id = it.id;
+    this.cssScene.add(obj);
+  },
+
+  // HTML card → a sandboxed iframe DOM element in the CSS3D layer (same safe render as 2D).
+  _addHtml(it) {
+    if (!this.cssScene) return;
+    const w = it.w || 300, h = it.h || 170;
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'width:' + w + 'px;height:' + h + 'px;background:rgba(11,26,44,.82);border:1px solid #2a3f52;border-radius:8px;overflow:hidden;pointer-events:none';
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('sandbox', '');
+    iframe.srcdoc = window.htmlFrameSrcdoc ? window.htmlFrameSrcdoc(it.html || '') : (it.html || '');
+    iframe.style.cssText = 'width:100%;height:100%;border:0;display:block;background:transparent';
+    wrap.appendChild(iframe);
+    const obj = new CSS3DObject(wrap);
+    obj.position.set(it.x, -it.y, 0);
+    if (it.t3d) obj.rotation.set(it.t3d.rx || 0, it.t3d.ry || 0, it.t3d.rz || 0);
     obj.userData.id = it.id;
     this.cssScene.add(obj);
   },

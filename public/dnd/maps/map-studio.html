@@ -246,6 +246,7 @@
       <button data-tool="pen" title="Draw a sector/system polygon (P)">✐ Draw sector</button>
       <button data-tool="poi" title="Click a planet, then click to drop a POI (O)">◈ Drop POI</button>
       <button id="btnAddText" title="Add a free-floating text label — name a location, route, or region">🅣 Text</button>
+      <button id="btnAddHtml" title="Insert an HTML/CSS card (rendered in a safe sandbox)">▤ HTML</button>
       <button data-tool="fx" title="Map ambience & effects">✧ Effects</button>
       <div class="tspacer" style="flex:1"></div>
       <button id="view3dBtn" title="Switch between the flat 2D map and the real-time 3D viewer">⛶ 3D</button>
@@ -965,6 +966,7 @@ $("#btnTemplate").onclick=()=>openTemplatePicker();
 const toolRow=$("#toolRow");
 toolRow.querySelectorAll("button[data-tool]").forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
 $("#btnAddText").onclick=addTextObject;
+$("#btnAddHtml").onclick=addHtmlObject;
 function setTool(t){
   if(t==="pen"){ if(tool==="pen"){cancelDraw();} tool="pen";startDraw(); }
   else { if(tool==="pen")cancelDraw(); tool=t; }
@@ -1142,6 +1144,8 @@ function renderInstances(){
     else if(i.kind==="image"){const L=i.look||i,src=L.src,fit=i.imgFit||"contain",px=i.imgPosX!=null?i.imgPosX:50,py=i.imgPosY!=null?i.imgPosY:50;
       const inner=src?`<img src="${src}" draggable="false" style="width:100%;height:100%;display:block;object-fit:${fit};object-position:${px}% ${py}%;pointer-events:none">`:(L.svgData?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">${L.svgData}</div>`:art(L,true));
       el.innerHTML=`<div class="art" style="overflow:hidden">${fxo}${inner}</div>${poiLayerHTML(i)}`;}
+    else if(i.kind==="html"){const doc=(typeof htmlFrameSrcdoc==="function")?htmlFrameSrcdoc(i.html||""):esc(i.html||"");
+      el.innerHTML=`<div class="art" style="overflow:hidden;background:rgba(11,26,44,.72);border:1px solid var(--line2);border-radius:8px"><iframe sandbox srcdoc="${esc(doc)}" style="width:100%;height:100%;border:0;display:block;pointer-events:none;background:transparent"></iframe></div>`;}
     else{el.innerHTML=`<div class="art">${fxo}${art(i.look||i,true)}</div>${poiLayerHTML(i)}`;}
     el.addEventListener("mousedown",e=>{if(e.target.closest(".poi")||e.target.closest(".ihandle"))return;e.stopPropagation();onInstDown(e,i);});
     el.addEventListener("dblclick",e=>{if(mode!=="dm")return;e.stopPropagation();const a=state.assets.find(x=>x.id===i.assetId)||{...i.look,name:i.name,kind:i.kind,size:i.size};openEditor(a,"edit");});
@@ -1201,6 +1205,16 @@ function addTextObject(){
   state.instances.push(t);selection={type:"instance",id:t.id};
   if(tool!=="select")setTool("select");
   renderAll();markDirty();toast("Text added — type your text and format it in the inspector");
+}
+const HTML_DEFAULT='<h3 style="margin:.1em 0;color:#c8aa6e;font-family:Cinzel,serif">Card title</h3>\n<p>Write <b>HTML</b> and <i>CSS</i> here. It renders in a safe sandbox.</p>';
+function addHtmlObject(){
+  if(mode!=="dm")return;
+  pushUndo();
+  const r=$("#canvas").getBoundingClientRect();const c=toWorld(r.left+r.width/2,r.top+r.height/2);
+  const h={id:uid(),kind:"html",name:"HTML card",x:c.x,y:c.y,size:260,w:300,h:170,look:{},pois:[],html:HTML_DEFAULT};
+  state.instances.push(h);selection={type:"instance",id:h.id};
+  if(tool!=="select")setTool("select");
+  renderAll();markDirty();toast("HTML card added — edit its markup in the inspector");
 }
 function renderLabels(){
   const layer=$("#labelLayer");if(!layer||typeof labelSVG!=="function"){if(layer)layer.innerHTML="";return;}
@@ -1503,6 +1517,21 @@ function renderTextInspector(){
   $("#txtDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
   $("#txtDel").onclick=()=>{pushUndo();state.instances=state.instances.filter(x=>x.id!==i.id);selection=null;renderAll();markDirty();};
 }
+function renderHtmlInspector(){
+  const box=$("#inspBody");const i=state.instances.find(x=>x.id===selection.id);if(!i){box.innerHTML="";return;}
+  $("#inspHead").textContent="◈ HTML CARD";
+  if(mode!=="dm"){box.innerHTML=`<div style="font-size:12px;color:var(--faint)">An HTML card (visible on the map).</div>`;return;}
+  box.innerHTML=`<div class="field"><label>HTML / CSS</label><textarea id="htmlVal" rows="9" spellcheck="false" style="font-family:'Share Tech Mono',monospace;font-size:12px" placeholder="<h3>Title</h3><p>…</p>">${esc(i.html||"")}</textarea></div>
+    <div style="font-size:11px;color:var(--faint);margin-bottom:6px">Renders in a <b>sandboxed frame</b> (scripts disabled) on the map and in the 3D viewer. Drag to move; use the corner handles to resize/rotate.</div>
+    <div class="field"><label>Width <span style="float:right;color:var(--gold)" id="htmlWV">${i.w||300}</span></label><div class="slider"><input type="range" id="htmlW" min="80" max="900" value="${i.w||300}"></div></div>
+    <div class="field"><label>Height <span style="float:right;color:var(--gold)" id="htmlHV">${i.h||170}</span></label><div class="slider"><input type="range" id="htmlH" min="60" max="700" value="${i.h||170}"></div></div>
+    <div class="actionbtns"><button id="htmlDupe">Duplicate</button><button class="danger" id="htmlDel">Delete</button></div>`;
+  let t=null;$("#htmlVal").oninput=e=>{i.html=e.target.value;clearTimeout(t);t=setTimeout(()=>{renderInstances();markDirty();},250);};
+  $("#htmlW").oninput=e=>{i.w=+e.target.value;i.size=Math.max(i.w,i.h||i.w);$("#htmlWV").textContent=i.w;renderInstances();markDirty();};
+  $("#htmlH").oninput=e=>{i.h=+e.target.value;i.size=Math.max(i.w||i.h,i.h);$("#htmlHV").textContent=i.h;renderInstances();markDirty();};
+  $("#htmlDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
+  $("#htmlDel").onclick=()=>{pushUndo();state.instances=state.instances.filter(x=>x.id!==i.id);selection=null;renderAll();markDirty();};
+}
 // Normalize a spingalaxy instance's diffspin config to concrete per-layer speed/dir arrays, syncing
 // from the live engine when present so the UI reflects reality.
 function dsCfgOf(i){
@@ -1551,6 +1580,7 @@ function applySpinToInstance(i){const src=i.look&&(i.look.src||i.look.image);if(
 function renderInstanceInspector(){
   const box=$("#inspBody");const i=state.instances.find(x=>x.id===selection.id);if(!i){box.innerHTML="";return;}
   if(i.kind==="text")return renderTextInspector();
+  if(i.kind==="html")return renderHtmlInspector();
   const sm=sectorById();const sec=i.sector?sm[i.sector]:null;const others=state.instances.filter(x=>x.id!==i.id);
   $("#inspHead").textContent="◈ "+i.kind.toUpperCase();
   if(mode!=="dm"){box.innerHTML=playReadout(i.name,i.kind,sec?sec.name:"",i.desc,[],[],sec?sec.color:"#8f78e6",i.pois);return;}
