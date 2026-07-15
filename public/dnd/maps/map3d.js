@@ -272,12 +272,14 @@ const Map3D = {
 
     // A deep, expansive filler bed of tiny generic stars behind the parallax layers on the
     // star-field backgrounds, so those look vast — big enough you can't pan/zoom to its edge.
-    if (tpl === 'deepspace' || tpl === 'stars' || tpl === 'nebula') this._addFillerStars(cfg, rng, density);
+    if (tpl === 'deepspace' || tpl === 'stars' || tpl === 'nebula' || tpl === 'milkyway') this._addFillerStars(cfg, rng, density);
 
     if (tpl === 'solid' || tpl === 'glow') { /* colour / glow only — no stars */ }
     else if (tpl === 'spiral') this._buildSpiral(cfg, rng, density);
     else if (tpl === 'blackhole') this._buildBlackhole(cfg, rng, density, layers);
     else if (tpl === 'asteroids') this._buildAsteroids(cfg, rng, density, layers);
+    else if (tpl === 'milkyway') this._buildMilkyway(cfg, rng, density, layers);
+    else if (tpl === 'wormhole') this._buildWormhole(cfg, rng, density);
     else this._buildStarfield(cfg, rng, density, layers, tpl);   // deepspace | stars | nebula
 
     const showNeb = tpl !== 'solid' && tpl !== 'glow' && (cfg.nebula || tpl === 'nebula');
@@ -358,6 +360,37 @@ const Map3D = {
         posFn: (r) => [(r() - 0.5) * 8600, (r() - 0.5) * 8600]
       });
       pts.userData.drift = [(rng() - 0.5) * 40, (rng() - 0.5) * 40];
+    }
+  },
+
+  // The Milky Way: a bright luminous band of dense stars across the sky, tilted at a random angle.
+  _buildMilkyway(cfg, rng, density, layers) {
+    this._buildStarfield(cfg, rng, density * 0.7, Math.min(2, layers), 'deepspace');
+    const ang = (rng() - 0.5) * 1.4 + 0.5;
+    const bandCol = this._pick(rng, [['#eae0ff', '#8a6ad0'], ['#fff0e0', '#d0a06a'], ['#e0f0ff', '#6a9ad0'], ['#ffe8f2', '#c06a9a']]);
+    const band = this._radialSprite(bandCol, 10000, -2800, 0.42, 0.88, 0.17);   // elongated glow
+    band.material.rotation = ang;
+    const cs = Math.cos(ang), sn = Math.sin(ang);
+    this._addStarLayer({   // dense stars concentrated along the band
+      rng, count: Math.round(2800 * density), z: -2700, k: 0.72, jitterZ: 200,
+      sizeMin: 0.8, sizeMax: 2.6, glowFrac: 0.03, colorFn: this._starColorFn(),
+      posFn: (r) => { const u = (r() - 0.5) * 12000, v = (r() - 0.5) * 1400 * (0.4 + Math.abs(r() - 0.5)); return [u * cs - v * sn, u * sn + v * cs]; }
+    });
+  },
+
+  // A wormhole: a tunnel of glowing, tilted, counter-rotating rings receding into a bright core.
+  _buildWormhole(cfg, rng, density) {
+    this._buildStarfield(cfg, rng, density * 0.4, 2, 'deepspace');
+    const cols = this._pick(rng, [['#7fd0ff', '#3060ff', '#a040ff'], ['#ff9ee6', '#a040ff', '#3060ff'], ['#7fffe0', '#00b894', '#0984e3'], ['#ffd090', '#ff6a30', '#a0306a']]);
+    const core = this._radialSprite([cols[0]], 1500, -2500, 0.9, 0.75);
+    this._bgSpin.push({ obj: core, rot: 0, follow: true, k: 0.75 });
+    const rings = 8;
+    for (let i = 0; i < rings; i++) {
+      const t = i / rings, R0 = 280 + t * 2500, col = new THREE.Color(cols[i % cols.length]);
+      const ring = new THREE.Mesh(new THREE.RingGeometry(R0, R0 + 60 + t * 50, 84), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.5 * (1 - t * 0.55), blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, side: THREE.DoubleSide }));
+      ring.position.set(0, 0, -2500 - i * 45); ring.rotation.x = 1.12; ring.renderOrder = -7;
+      this.scene.add(ring); this._bgObjs.push(ring);
+      this._bgSpin.push({ obj: ring, rot: (i % 2 ? 0.16 : -0.13) * (1 + t), follow: true, k: 0.75 });
     }
   },
 

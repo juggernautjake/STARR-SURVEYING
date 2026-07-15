@@ -55,11 +55,13 @@
       const tpl = cfg.template || 'deepspace', density = cfg.density != null ? cfg.density : 1;
       this._glimmers = [];
       c.globalCompositeOperation = 'lighter';
-      if (tpl === 'deepspace' || tpl === 'stars' || tpl === 'nebula') this._paintFiller(c, W, H, r, density);   // expansive tiny filler bed on star backgrounds
+      if (tpl === 'deepspace' || tpl === 'stars' || tpl === 'nebula' || tpl === 'milkyway') this._paintFiller(c, W, H, r, density);   // expansive tiny filler bed on star backgrounds
       if (tpl === 'solid' || tpl === 'glow') { /* nothing more */ }
       else if (tpl === 'spiral') this._paintSpiral(c, W, H, S, r, density);
       else if (tpl === 'blackhole') { this._paintStars(c, W, H, r, density * 0.5, 'deepspace'); this._paintBlackhole(c, W, H, S, r); }
       else if (tpl === 'asteroids') { this._paintStars(c, W, H, r, density * 0.4, 'deepspace'); this._paintAsteroids(c, W, H, r, density); }
+      else if (tpl === 'milkyway') { this._paintStars(c, W, H, r, density * 0.7, 'deepspace'); this._paintMilkyway(c, W, H, r, density); }
+      else if (tpl === 'wormhole') { this._paintStars(c, W, H, r, density * 0.4, 'deepspace'); this._paintWormhole(c, W, H, S, r); }
       else { this._paintStars(c, W, H, r, density, tpl); }
       if (tpl !== 'solid' && tpl !== 'glow' && (cfg.nebula || tpl === 'nebula')) this._paintNebula(c, W, H, r, tpl === 'nebula' ? 9 : 4);
       c.globalCompositeOperation = 'source-over';
@@ -147,6 +149,36 @@
         c.beginPath(); c.arc(x, y, sz, 0, 7); c.fill();
       }
       c.globalAlpha = 1;
+    },
+
+    _paintMilkyway(c, W, H, r, density) {   // a bright luminous band of dense stars across the sky
+      const ang = (r() - 0.5) * 1.4 + 0.5, cx = W / 2, cy = H / 2, len = Math.hypot(W, H);
+      const pal = [['#eae0ff', '#8a6ad0'], ['#fff0e0', '#d0a06a'], ['#e0f0ff', '#6a9ad0'], ['#ffe8f2', '#c06a9a']][(r() * 4) | 0];
+      c.save(); c.translate(cx, cy); c.rotate(ang);
+      const band = c.createLinearGradient(0, -len * 0.16, 0, len * 0.16);   // soft glow across the band
+      band.addColorStop(0, 'rgba(0,0,0,0)'); band.addColorStop(0.5, rgba(pal[0], 0.16)); band.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = band; c.fillRect(-len, -len * 0.16, len * 2, len * 0.32);
+      const n = Math.min(4200, Math.round(W * H / 900 * density));
+      for (let i = 0; i < n; i++) {
+        const u = (r() - 0.5) * len * 1.4, v = (r() - 0.5) * len * 0.16 * (0.4 + Math.abs(r() - 0.5));
+        const glim = r() < 0.03; c.globalAlpha = glim ? 0.9 : 0.35 + r() * 0.5;
+        const col = r() < 0.5 ? pal[0] : pal[1]; c.fillStyle = col;
+        c.beginPath(); c.arc(u, v, glim ? 1.4 + r() * 1.4 : 0.4 + Math.pow(r(), 3) * 1.3, 0, 7); c.fill();
+      }
+      c.globalAlpha = 1; c.restore();
+    },
+
+    _paintWormhole(c, W, H, S, r) {   // glowing concentric rings receding to a bright core
+      const cx = W / 2, cy = H / 2;
+      const cols = [['#7fd0ff', '#3060ff', '#a040ff'], ['#ff9ee6', '#a040ff', '#3060ff'], ['#7fffe0', '#00b894', '#0984e3'], ['#ffd090', '#ff6a30', '#a0306a']][(r() * 4) | 0];
+      const g = c.createRadialGradient(cx, cy, 0, cx, cy, S * 0.14);
+      g.addColorStop(0, cols[0]); g.addColorStop(0.5, rgba(cols[0], 0.4)); g.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = g; c.beginPath(); c.arc(cx, cy, S * 0.14, 0, 7); c.fill();
+      for (let i = 0; i < 8; i++) {
+        const t = i / 8, R = S * (0.08 + t * 0.5);
+        c.strokeStyle = rgba(cols[i % cols.length], 0.5 * (1 - t * 0.55)); c.lineWidth = Math.max(1.5, S * 0.012 * (1 + t));
+        c.beginPath(); c.ellipse(cx, cy, R, R * 0.42, 0, 0, 7); c.stroke();
+      }
     },
 
     _loop() {

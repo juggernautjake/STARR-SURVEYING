@@ -1856,7 +1856,7 @@ function applyNebulaTint(){const w=document.querySelector('.canvaswrap');const f
   else if(!state.background){w.style.background='';}}
 
 /* ---- 3D viewer background (programmable sky, publishes to players via bg3d) ---- */
-const BG3D_TEMPLATES=[["deepspace","Deep space"],["stars","Just stars"],["spiral","Spiral galaxy"],["nebula","Flowing nebula"],["blackhole","Black hole"],["asteroids","Asteroid field"],["solid","Solid colour"],["glow","Colour + glow"]];
+const BG3D_TEMPLATES=[["deepspace","Deep space"],["stars","Just stars"],["milkyway","Milky Way band"],["spiral","Spiral galaxy"],["nebula","Flowing nebula"],["blackhole","Black hole"],["wormhole","Wormhole"],["asteroids","Asteroid field"],["solid","Solid colour"],["glow","Colour + glow"]];
 function bg3dControlsHTML(b){b=state.bg3d=Object.assign(BG3D_DEFAULT(),b||{});b.glow=Object.assign({on:false,colors:["#3b2a6b","#0a4a5a"],pulse:false,speed:1},b.glow||{});
   const g=b.glow,starsy=b.template!=="solid"&&b.template!=="glow";
   return `<h4>3D viewer background</h4>

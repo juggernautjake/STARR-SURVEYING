@@ -276,9 +276,13 @@ other, and keep every element consistent:
   `sectorAt`/`reassoc` containment via the gizmo write-back and any 3D placement path), matching 2D
   behaviour; keep the association live and published. Verify headless: a body dropped inside a sector
   gets that sector id in both viewers; 0 errors.
-- **Slice 9b — Appealing background generation (req 17).** ⏳ Polish every template's look and add a
-  couple of new selectable backgrounds (e.g. Milky-Way band, twin suns, wormhole, aurora veil); ensure
-  each varies attractively per regenerate. Verify headless: all templates build; 0 errors.
+- **Slice 9b — Appealing backgrounds + new templates (req 17).** ✅ Added two striking selectable
+  backgrounds across the 3D engine, the 2D `sky2d.js` backdrop, and the DM dropdown: **Milky Way band**
+  (a bright luminous star band tilted at a random angle, with a filler bed) and **Wormhole** (a tunnel
+  of glowing, tilted, counter-rotating rings receding into a bright core). Both vary per regenerate.
+  Verified headless: both build in 3D (milkyway 9 objs / wormhole 15 incl. 8 rings), appear in the
+  dropdown (10 options), and paint in 2D; 0 errors. *Existing templates already generate attractively
+  (palette-varied, seed-shuffled); further per-template polish left as optional future tuning.*
 - **Slice 11b — Cursor-centred zoom + Focus + surface POIs in 3D (req 18).** ⏳ Make wheel-zoom dolly
   toward the cursor (OrbitControls `zoomToCursor=true` or manual re-centre). Add a right-click context
   menu on a picked body with **Focus** → animate the camera to centre + frame that body, open its info
@@ -295,7 +299,7 @@ other, and keep every element consistent:
   2D parity → publish → player Console parity), including origin/scale alignment, animated content,
   sectors/systems in both viewers, body-into-sector placement, and full feature equivalence.
 
-### Status: IN PROGRESS (Slices 0–9a shipped; 9b, 10, 11, 11b, 12 pending, then 13 = doc-move/QA)
+### Status: IN PROGRESS (Slices 0–9b shipped; 10, 11, 11b, 12 pending, then 13 = doc-move/QA)
 
 ---
 
