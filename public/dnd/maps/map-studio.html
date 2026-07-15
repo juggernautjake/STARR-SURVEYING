@@ -1881,7 +1881,27 @@ function renderEditor(){
       <div style="font-size:10.5px;color:var(--faint);margin-top:-2px">Break the world apart — it keeps its surface &amp; colours, with molten breaks, an exposed core and a debris field.</div>`;
   }
   else if(k==="moon"){html+=`<h4>Type</h4><div class="seg four" id="edMtype">${Object.keys(MOON_TYPES).map(t=>`<button data-t="${t}" class="${edWork.mtype===t?'on':''}">${t}</button>`).join('')}</div>`;}
-  else if(k==="star"){html+=`<h4>Class</h4><div class="seg" id="edStype">${Object.keys(STAR_TYPES).map(t=>`<button data-t="${t}" class="${edWork.stype===t?'on':''}">${t}</button>`).join('')}</div><label class="chk" style="display:flex;align-items:center;gap:7px;font-size:12px;padding:6px 0;cursor:pointer"><input type="checkbox" id="edRays" ${edWork.rays!==false?"checked":""}> ✦ Shine lines (rays)</label>`;}
+  else if(k==="star"){
+    edWork.breathe=edWork.breathe||{on:true,speed:1,depth:0.12};edWork.raySpec=edWork.raySpec||{count:14,length:1,intensity:0.5};
+    const br=edWork.brightness!=null?edWork.brightness:1,co=edWork.coronaSize!=null?edWork.coronaSize:1,be=edWork.breathe,rs=edWork.raySpec;
+    html+=`<h4>Class</h4><div class="seg" id="edStype">${Object.keys(STAR_TYPES).map(t=>`<button data-t="${t}" class="${edWork.stype===t?'on':''}">${t}</button>`).join('')}</div>
+      <div style="font-size:10.5px;color:var(--faint);margin:-2px 0 4px">Presets set the three colours below; tune Core / Glow / Diffused individually after.</div>
+      <h4>Intensity</h4>
+      <div class="field"><label>Brightness <span style="float:right;color:var(--gold)" id="edBrightV">${br.toFixed(2)}×</span></label><div class="slider"><input type="range" id="edBright" min="30" max="200" value="${Math.round(br*100)}"></div></div>
+      <div class="field"><label>Corona size <span style="float:right;color:var(--gold)" id="edCoronaV">${co.toFixed(2)}×</span></label><div class="slider"><input type="range" id="edCorona" min="50" max="200" value="${Math.round(co*100)}"></div></div>
+      <h4>Glow breathing</h4>
+      <label class="chk"><input type="checkbox" id="edBreathe" ${be.on?"checked":""}> Pulse the glow</label>
+      <div id="edBreatheWrap" style="${be.on?'':'display:none'}">
+        <div class="field"><label>Speed <span style="float:right;color:var(--gold)" id="edBrSpeedV">${(be.speed||1).toFixed(2)}×</span></label><div class="slider"><input type="range" id="edBrSpeed" min="20" max="300" value="${Math.round((be.speed||1)*100)}"></div></div>
+        <div class="field"><label>Depth <span style="float:right;color:var(--gold)" id="edBrDepthV">${(be.depth!=null?be.depth:0.12).toFixed(2)}</span></label><div class="slider"><input type="range" id="edBrDepth" min="0" max="60" value="${Math.round((be.depth!=null?be.depth:0.12)*100)}"></div></div>
+      </div>
+      <h4>Sun rays</h4>
+      <label class="chk"><input type="checkbox" id="edRays" ${edWork.rays!==false?"checked":""}> ✦ Shine lines (rays)</label>
+      <div id="edRayWrap" style="${edWork.rays!==false?'':'display:none'}">
+        <div class="field"><label>Count <span style="float:right;color:var(--gold)" id="edRayCountV">${rs.count!=null?rs.count:14}</span></label><div class="slider"><input type="range" id="edRayCount" min="0" max="36" value="${rs.count!=null?rs.count:14}"></div></div>
+        <div class="field"><label>Length <span style="float:right;color:var(--gold)" id="edRayLenV">${(rs.length!=null?rs.length:1).toFixed(2)}×</span></label><div class="slider"><input type="range" id="edRayLen" min="30" max="250" value="${Math.round((rs.length!=null?rs.length:1)*100)}"></div></div>
+        <div class="field"><label>Intensity <span style="float:right;color:var(--gold)" id="edRayIntV">${(rs.intensity!=null?rs.intensity:0.5).toFixed(2)}</span></label><div class="slider"><input type="range" id="edRayInt" min="0" max="100" value="${Math.round((rs.intensity!=null?rs.intensity:0.5)*100)}"></div></div>
+      </div>`;}
   else if(k==="station"){html+=`<h4>Structure</h4><div class="seg five" id="edSttype">${STATION_TYPES.map(t=>`<button data-t="${t}" class="${edWork.stype===t?'on':''}">${STATION_LABELS[t]||t}</button>`).join('')}</div>`;}
   else if(k==="debris"){html+=`<h4>Kind</h4><div class="seg four" id="edDtype">${Object.keys(DEBRIS_TYPES).map(t=>`<button data-t="${t}" class="${edWork.dtype===t?'on':''}">${t}</button>`).join('')}</div>`;}
   else if(k==="system"){html+=`<div class="field"><label>Creed / motto</label><input id="edCreed" value="${esc(edWork.creed)}"></div>`;}
@@ -1898,8 +1918,8 @@ function renderEditor(){
   if(k!=="svg"&&k!=="spingalaxy"&&k!=="planet3d"){
     html+=`<h4>Colors</h4><div class="rowc">
       <div class="field"><label>${k==='star'?'Core':k==='galaxy'?'Arm A':'Main'}</label><input type="color" id="edC1" value="${edWork.c1}"></div>
-      <div class="field"><label>${k==='galaxy'?'Arm B':'Detail'}</label><input type="color" id="edC2" value="${edWork.c2}"></div>
-      <div class="field"><label>${k==='galaxy'?'Core':'Accent'}</label><input type="color" id="edC3" value="${edWork.c3}"></div></div>`;
+      <div class="field"><label>${k==='star'?'Glow':k==='galaxy'?'Arm B':'Detail'}</label><input type="color" id="edC2" value="${edWork.c2}"></div>
+      <div class="field"><label>${k==='star'?'Diffused':k==='galaxy'?'Core':'Accent'}</label><input type="color" id="edC3" value="${edWork.c3}"></div></div>`;
   }
   html+=`<div class="field"><label>Size <span style="float:right;color:var(--gold)" id="edSzV">${edWork.size}</span></label><div class="slider"><input type="range" id="edSize" min="20" max="${['galaxy','background','system','spingalaxy'].includes(k)?'320':'200'}" value="${edWork.size}"></div></div>`;
   if(k!=="svg"&&k!=="spingalaxy"&&k!=="planet3d"){html+=`<h4>Generate iterations</h4><div style="font-size:11px;color:var(--faint);margin-bottom:6px">Click a variant to adopt it, or reseed for a fresh surface.</div><div class="iterrow" id="edIters"></div>
@@ -1914,7 +1934,16 @@ function wireEditor(){
   const seg=(id,prop,palettes)=>{const el=$("#"+id);if(!el)return;el.querySelectorAll("button").forEach(b=>b.onclick=()=>{el.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");edWork[prop]=b.dataset.t;if(palettes&&palettes[b.dataset.t]){const p=palettes[b.dataset.t];edWork.c1=p[0];edWork.c2=p[1];edWork.c3=p[2];if($("#edC1"))$("#edC1").value=p[0];if($("#edC2"))$("#edC2").value=p[1];if($("#edC3"))$("#edC3").value=p[2];}edPreview();if(k!=="svg"&&k!=="spingalaxy"&&k!=="planet3d")genIterations();});};
   seg("edPtype","ptype",PTYPES);seg("edMtype","mtype",MOON_TYPES);seg("edStype","stype",STAR_TYPES);seg("edSttype","stype",STATION_PALETTES);seg("edDtype","dtype",null);seg("edCloud","cloudStyle",null);
   if($("#edRing"))$("#edRing").onchange=e=>{edWork.ring=e.target.checked;edPreview();};
-  if($("#edRays"))$("#edRays").onchange=e=>{edWork.rays=e.target.checked;edPreview();};
+  if($("#edRays"))$("#edRays").onchange=e=>{edWork.rays=e.target.checked;const w=$("#edRayWrap");if(w)w.style.display=e.target.checked?"":"none";edPreview();};
+  // star effect controls (Slice 3): brightness, corona size, glow breathing, sun-ray spec — live 2D preview
+  if($("#edBright"))$("#edBright").oninput=e=>{edWork.brightness=+e.target.value/100;$("#edBrightV").textContent=edWork.brightness.toFixed(2)+"×";edPreview();};
+  if($("#edCorona"))$("#edCorona").oninput=e=>{edWork.coronaSize=+e.target.value/100;$("#edCoronaV").textContent=edWork.coronaSize.toFixed(2)+"×";edPreview();};
+  if($("#edBreathe"))$("#edBreathe").onchange=e=>{edWork.breathe=edWork.breathe||{on:true,speed:1,depth:0.12};edWork.breathe.on=e.target.checked;const w=$("#edBreatheWrap");if(w)w.style.display=e.target.checked?"":"none";edPreview();};
+  if($("#edBrSpeed"))$("#edBrSpeed").oninput=e=>{edWork.breathe=edWork.breathe||{on:true,speed:1,depth:0.12};edWork.breathe.speed=+e.target.value/100;$("#edBrSpeedV").textContent=edWork.breathe.speed.toFixed(2)+"×";edPreview();};
+  if($("#edBrDepth"))$("#edBrDepth").oninput=e=>{edWork.breathe=edWork.breathe||{on:true,speed:1,depth:0.12};edWork.breathe.depth=+e.target.value/100;$("#edBrDepthV").textContent=edWork.breathe.depth.toFixed(2);edPreview();};
+  if($("#edRayCount"))$("#edRayCount").oninput=e=>{edWork.raySpec=edWork.raySpec||{count:14,length:1,intensity:0.5};edWork.raySpec.count=+e.target.value;$("#edRayCountV").textContent=edWork.raySpec.count;edPreview();};
+  if($("#edRayLen"))$("#edRayLen").oninput=e=>{edWork.raySpec=edWork.raySpec||{count:14,length:1,intensity:0.5};edWork.raySpec.length=+e.target.value/100;$("#edRayLenV").textContent=edWork.raySpec.length.toFixed(2)+"×";edPreview();};
+  if($("#edRayInt"))$("#edRayInt").oninput=e=>{edWork.raySpec=edWork.raySpec||{count:14,length:1,intensity:0.5};edWork.raySpec.intensity=+e.target.value/100;$("#edRayIntV").textContent=edWork.raySpec.intensity.toFixed(2);edPreview();};
   if($("#edCreed"))$("#edCreed").oninput=e=>edWork.creed=e.target.value;
   if($("#edCloudCol"))$("#edCloudCol").oninput=e=>{edWork.cloudColor=e.target.value;edPreview();};
   if($("#edCloudAmt"))$("#edCloudAmt").oninput=e=>{edWork.cloudAmount=+e.target.value/100;$("#edCloudAmtV").textContent=edWork.cloudAmount.toFixed(2);edPreview();};
