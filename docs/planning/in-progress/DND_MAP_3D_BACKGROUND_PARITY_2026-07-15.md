@@ -82,6 +82,10 @@ The five requests, verbatim intent:
     match between 2D and 3D so it's unmistakably the **same map of space** (verified by comparing
     transforms, not just "looks close").
 
+23. **Easier corner-scale handles.** The image/body corner scale handles must be **easy to grab** — a
+    bigger clickable area so you can expand/shrink without pixel-hunting the exact corner. ✅ Corner
+    handles are now a 24px transparent grab pad with a small visible dot (4× the hit area).
+
 **Cross-cutting principle:** everything above — backgrounds, effects, bodies, images, text/HTML,
 sectors, systems, POIs — must be **creatable, editable, and dynamically rendered in BOTH the 2D and
 3D viewers**, staying in lockstep as the DM edits and publishing identically to players.
