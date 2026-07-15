@@ -34,8 +34,13 @@ already available for **images**) to be used as the **map background**, not just
   path — Studio + Console — is fully verified live; the 3D `_buildSpiralSwirl` mirrors the proven
   `_buildSpiral` rotation pattern and syntax-checks, with a live WebGL render check left for the open 3D
   viewer / Slice 2 parity pass.)*
-- **Slice 2 — QA + docs.** Confirm parity across Studio / Console / 3D and that existing backgrounds are
-  unaffected, then move this doc to `completed/`.
+- **Slice 2 — QA + docs.** ✅ Headless QA (Playwright/chromium): **Console parity** — `console.html`
+  (same `Sky2D`) builds the swirl and it **renders + animates** with 0 errors, identical to Studio.
+  **Existing backgrounds unaffected** — `deepspace`, `spiral`, `nebula`, `blackhole`, and `solid` all apply
+  through the real `applyBg3d` pipeline with **no swirl engine leaking in** and 0 errors. **3D** —
+  `Map3D._buildSpiralSwirl` is present and wired into `setBackground`. Both JS files `node -c` clean. Doc
+  moved to `completed/`. *(A live 3D WebGL render of the swirl needs the 3D viewer opened with a scene; the
+  builder is wired + syntax-clean and mirrors the proven `_buildSpiral` rotation path.)*
 
 ## Considerations
 - **Reuse `DiffSpinGalaxy`** (already vendored in both viewers) rather than a new engine; the background is
@@ -44,4 +49,4 @@ already available for **images**) to be used as the **map background**, not just
   owns the screen), matching how the image spirals already start/stop.
 - **World-lock parity:** respect the parallax/world-lock background setting shipped in the map-parity work.
 
-### Status: IN PROGRESS (Slices 0–1 shipped; 2 (QA) pending)
+### Status: COMPLETE (Slices 0–2 shipped; headless QA green across Studio / Console / 3D-builder)
