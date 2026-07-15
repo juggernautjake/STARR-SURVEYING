@@ -41,10 +41,13 @@ deck down to hide at the bottom; clicking the tab reopens it.
   sweeping refresh line, a soft outer glow, a projector-base glow and a slow bob (`holobob`). Shared by
   the body/sector/core screens, so every selection reads as a projected hologram. Verified headless: the
   holo layers mount on select and a screenshot shows the cyan holo projection; 0 errors.
-- **Slice 4 — Centre info screen.** A wide, **scrollable**, well-formatted info pane: name, type,
-  faction/sector, description, POIs, sub-systems, and any stats, in a clean spaceship-terminal style.
-  Gracefully handles **name-only** objects (no info → just the title + a subtle "no further data" line).
-  Verify headless: long content scrolls within the pane; a name-only object shows just its title.
+- **Slice 4 — Centre info screen.** ✅ The centre pane (`.scr-cols` → scrollable `.scr-desc` + stats
+  column) already formats name/type/sector/description/POIs/sub-systems in the spaceship-terminal style;
+  this slice made description text `white-space:pre-wrap` (honours the DM's line breaks) and added
+  graceful **name-only** handling — when a body/sector has no description (and no POIs/chips) the pane
+  shows a subtle `▏ NO FURTHER DATA ON RECORD` line instead of a blank. Verified headless: a name-only
+  body shows just its title + the no-data line, and a very long description scrolls within the pane
+  (`scrollHeight > clientHeight`); 0 errors.
 - **Slice 5 — Close / blank / idle.** Clicking empty space (or a close control) deselects → the panel
   blanks to a **default idle animation** (e.g. a slow sweeping scan). Verify headless: deselect clears
   the readout and shows the idle state.
@@ -73,4 +76,4 @@ deck down to hide at the bottom; clicking the tab reopens it.
   look broken when they're absent.
 - **Perf:** the holo mini-render is one small `art()`/thumbnail; the idle animation is CSS. Cheap.
 
-### Status: IN PROGRESS (Slices 0–3 shipped; 4–7 pending)
+### Status: IN PROGRESS (Slices 0–4 shipped; 5–7 pending)

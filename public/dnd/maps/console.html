@@ -113,7 +113,8 @@
   .scr-name{font-family:"Orbitron";font-size:19px;font-weight:700;color:#eafffb;text-shadow:0 0 14px rgba(10,255,206,.5);line-height:1.1;margin:1px 0 2px;}
   .scr-creed{font-family:"Rajdhani";font-style:italic;font-size:13px;color:var(--scan);}
   .scr-cols{flex:1;min-height:0;display:flex;gap:16px;}
-  .scr-desc{flex:1;font-size:13.5px;line-height:1.5;color:#a8e8d8;overflow-y:auto;padding-right:6px;}
+  .scr-desc{flex:1;font-size:13.5px;line-height:1.5;color:#a8e8d8;overflow-y:auto;padding-right:6px;white-space:pre-wrap;}
+  .scr-nodata{font-family:"Share Tech Mono";font-size:11.5px;color:#3a9a86;letter-spacing:1px;opacity:.72;font-style:italic;}
   .scr-stats{width:158px;flex:none;font-family:"Share Tech Mono";font-size:11px;display:flex;flex-direction:column;gap:5px;overflow-y:auto;}
   .scr-stat{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dotted rgba(10,255,206,.15);padding-bottom:3px;}
   .scr-stat .k{color:#3a9a86;}.scr-stat .v{color:#9dffe8;text-align:right;}
@@ -679,7 +680,7 @@ function poiBlock(pois){if(!pois||!pois.length)return "";return `<div style="mar
 function bodyScreen(b){const s=MAP.sectors.find(x=>x.id===b.sector);const typeLabel=(b.kind||"body").toUpperCase();const artSvg=`<div style="width:66px;height:66px">${art(b.look||b,true)}</div>`;
   const poisHtml=b.pois&&b.pois.length?`<div style="font-family:Orbitron;font-size:10px;letter-spacing:2px;color:var(--amber);margin:8px 0 4px">◈ POINTS OF INTEREST (${b.pois.length})</div>${poiBlock(b.pois)}`:"";
   return `<div class="scr-head">${portrait(artSvg)}<div class="scr-titles"><div class="scr-kicker">${typeLabel}${b.role==="capital"?" · CAPITAL":""}</div><div class="scr-name">${esc(b.name)}</div><div class="scr-creed">${s?esc(s.name):"Unaligned"}</div></div></div>
-    <div class="scr-cols"><div class="scr-desc">${esc(b.desc)}${poisHtml}</div>
+    <div class="scr-cols"><div class="scr-desc">${b.desc?esc(b.desc):(poisHtml?"":`<div class="scr-nodata">▏ NO FURTHER DATA ON RECORD</div>`)}${poisHtml}</div>
     <div class="scr-stats">
       <div class="scr-stat"><span class="k">CLASS</span><span class="v">${typeLabel}</span></div>
       ${s?`<div class="scr-stat"><span class="k">SYSTEM</span><span class="v" data-sec="${s.id}" style="cursor:pointer;color:${s.color}">${esc(s.name).toUpperCase()}</span></div>`:""}
@@ -693,7 +694,7 @@ function sectorScreen(s){const members=MAP.instances.filter(b=>b.sector===s.id);
   let chips="";if(s.meta&&subs.length)chips=`<div class="scr-chips">${subs.map(x=>`<span class="scr-chip" data-sec="${x.id}"><span class="cd" style="background:${x.color}"></span>${esc(x.name)}</span>`).join("")}</div>`;
   else if(members.length)chips=`<div class="scr-chips">${members.map(m=>`<span class="scr-chip" data-body="${m.id}"><span class="cd" style="background:${s.color}"></span>${esc(m.name)}${m.role==="capital"?" ★":""}</span>`).join("")}</div>`;
   return `<div class="scr-head">${portrait(swatch)}<div class="scr-titles"><div class="scr-kicker">${s.meta?"META-REGION":s.parent?"SUB-SYSTEM"+(s.theme?" · "+s.theme.toUpperCase():""):(s.region||"SYSTEM").toUpperCase()}</div><div class="scr-name">${esc(s.name)}</div><div class="scr-creed">${esc(s.creed||"")}</div></div></div>
-    <div class="scr-cols"><div class="scr-desc">${esc(s.desc||"")}${chips}</div>
+    <div class="scr-cols"><div class="scr-desc">${s.desc?esc(s.desc):(chips?"":`<div class="scr-nodata">▏ NO FURTHER DATA ON RECORD</div>`)}${chips}</div>
     <div class="scr-stats">${s.region?`<div class="scr-stat"><span class="k">REGION</span><span class="v">${s.region.toUpperCase()}</span></div>`:""}${s.theme?`<div class="scr-stat"><span class="k">THEME</span><span class="v">${s.theme.toUpperCase()}</span></div>`:""}<div class="scr-stat"><span class="k">BODIES</span><span class="v">${members.length||(subs.length?subs.length+" SUBS":"—")}</span></div>${subs.length&&!s.meta?`<div class="scr-stat"><span class="k">SUB-SYSTEMS</span><span class="v">${subs.length}</span></div>`:""}<div class="scr-stat"><span class="k">ALLEGIANCE</span><span class="v" style="color:${s.color}">████</span></div><div class="scr-stat"><span class="k">STATUS</span><span class="v" style="color:var(--scan)">SURVEYED</span></div></div></div>`;}
 function coreScreen(i){return `<div class="scr-head">${portrait(`<div style="width:66px;height:66px">${art(i.look,true)}</div>`)}<div class="scr-titles"><div class="scr-kicker" style="color:var(--gold)">GALACTIC CORE</div><div class="scr-name">${esc(i.name)}</div><div class="scr-creed">The song at the center of everything</div></div></div>
   <div class="scr-cols"><div class="scr-desc">${esc(i.desc)}</div><div class="scr-stats"><div class="scr-stat"><span class="k">TYPE</span><span class="v">AETHER SOURCE</span></div><div class="scr-stat"><span class="k">POSITION</span><span class="v">GALACTIC CENTER</span></div><div class="scr-stat"><span class="k">OUTPUT</span><span class="v" style="color:var(--gold)">∞</span></div><div class="scr-stat"><span class="k">STATUS</span><span class="v" style="color:var(--scan)">RADIANT</span></div></div></div>`;}
