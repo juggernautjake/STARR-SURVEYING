@@ -579,7 +579,10 @@ function buildLegend(){const box=$("#legendRows");box.innerHTML="";const tops=(M
   if(subs.length){const d=document.createElement("div");d.className="legdiv";box.appendChild(d);subs.forEach(s=>{const r=document.createElement("div");r.className="legrow sub";r.innerHTML=`<span class="dot" style="background:${s.color}"></span>${esc(s.name)}`;r.onclick=()=>select({type:"sector",id:s.id});box.appendChild(r);});}}
 
 /* ---- view / pan / zoom ---- */
-function apply(anim){viewport.classList.toggle("animate",!!anim);viewport.style.transform=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;updateDialZoom();}
+function apply(anim){viewport.classList.toggle("animate",!!anim);viewport.style.transform=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;updateDialZoom();
+  // Parallax OFF (published by the DM) → world-lock the backdrop so it pans & zooms with the map, exactly
+  // as in the Studio. setLock is idempotent; setView pushes the live pan/zoom each frame.
+  if(window.Sky2D){const off=!!(MAP&&MAP.bg3d&&MAP.bg3d.parallax===false);window.Sky2D.setLock(off);if(off)window.Sky2D.setView(view.x,view.y,view.scale);}}
 function paneSize(){const r=$("#mapPane").getBoundingClientRect();return {w:r.width,h:r.height};}
 // 2D⇄3D origin/scale bridge (see map-studio) so the 3D viewer opens on the same centre + scale.
 window.map2dView=function(){const {w,h}=paneSize();return {cx:(w/2-view.x)/view.scale,cy:(h/2-view.y)/view.scale,scale:view.scale};};
@@ -659,7 +662,7 @@ $("#campSample").onclick=()=>{loadMap(sampleMap());$("#campModal").classList.rem
 $("#campImport").onclick=()=>$("#mapFile").click();
 $("#mapFile").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const m=JSON.parse(r.result);loadMap(m);$("#campModal").classList.remove("show");toast("Loaded map file");}catch(err){toast("Couldn't read that file");}};r.readAsText(f);e.target.value="";};
 function loadMap(m){MAP=normalizeMap(m);$("#mapTitle").textContent=(MAP.meta&&MAP.meta.name)?MAP.meta.name.toUpperCase().slice(0,42):"STARDUST RHAPSODY";render();applyFx();fit(false);showIdle();}
-function normalizeMap(m){m=m||{};return {type:"stardust-map",version:2,meta:m.meta||{name:"Untitled Map"},background:m.background||null,centerGalaxy:m.centerGalaxy||null,
+function normalizeMap(m){m=m||{};return {type:"stardust-map",version:2,meta:m.meta||{name:"Untitled Map"},background:m.background||null,centerGalaxy:m.centerGalaxy||null,bg3d:m.bg3d||null,
   mapFx:Object.assign({sparkles:true,shooting:false,nebula:true,density:0.5,speed:1,rate:0.3,color:"#cbd6ff",nebColor:"#2a1a5a",nebColor2:"#0c0820"},m.mapFx||{}),
   sectors:(m.sectors||[]).map(s=>({parent:null,meta:false,fx:{sparkle:false,nebula:false,nebulaColor:s.color,shoot:false},...s})),
   instances:(m.instances||[]).map(i=>({pois:[],fx:{sparkle:false,nebula:false,nebulaColor:"#8f78e6",shoot:false},role:"",...i,look:i.look||{kind:i.kind}}))};}

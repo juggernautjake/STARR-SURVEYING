@@ -18,6 +18,12 @@
 
   const Sky2D = {
     canvas: null, ctx: null, cfg: null, _static: null, _glimmers: [], _raf: null, _t: 0, _w: 0, _h: 0,
+    _dpr: 1, _locked: false, _view: { x: 0, y: 0, scale: 1 }, _anchor: null,
+
+    // World-lock (parallax OFF): glue the baked sky to world space so it pans AND zooms with the placed
+    // elements. The host map calls setView() on every pan/zoom; setLock(true) re-anchors on the next draw.
+    setLock(on) { on = !!on; if (on === this._locked) return; this._locked = on; this._anchor = null; },   // idempotent: only re-anchor on an actual change
+    setView(x, y, scale) { this._view.x = x; this._view.y = y; this._view.scale = scale || 1; },
 
     mount(canvas) {
       if (this.canvas === canvas) return;
@@ -34,7 +40,7 @@
     resize() {
       if (!this.canvas) return;
       const p = this.canvas.parentElement, w = (p ? p.clientWidth : this.canvas.clientWidth) || 800, h = (p ? p.clientHeight : this.canvas.clientHeight) || 600;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2); this._dpr = dpr;
       this.canvas.width = Math.max(1, Math.round(w * dpr)); this.canvas.height = Math.max(1, Math.round(h * dpr));
       this.canvas.style.width = '100%'; this.canvas.style.height = '100%';
       this._w = this.canvas.width; this._h = this.canvas.height;
@@ -189,6 +195,17 @@
       const ctx = this.ctx, cfg = this.cfg; if (!ctx || !cfg || !this._static) return;
       const W = this._w, H = this._h;
       ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+      if (this._locked) {   // parallax OFF → the sky is glued to world space: pan + zoom with the map
+        const dpr = this._dpr || 1, p = this.canvas.parentElement;
+        const pw = (p ? p.clientWidth : this.canvas.clientWidth) || (W / dpr), ph = (p ? p.clientHeight : this.canvas.clientHeight) || (H / dpr);
+        const v = this._view, sc = v.scale || 1;
+        if (!this._anchor) this._anchor = { x: (pw / 2 - v.x) / sc, y: (ph / 2 - v.y) / sc };   // world point under pane centre, captured once
+        const sxCss = v.x + this._anchor.x * sc, syCss = v.y + this._anchor.y * sc;
+        const destW = W * sc, destH = H * sc, dcx = sxCss * dpr, dcy = syCss * dpr;
+        ctx.fillStyle = cfg.baseColor || '#010a13'; ctx.fillRect(0, 0, W, H);   // plain space beyond the baked patch
+        ctx.drawImage(this._static, dcx - destW / 2, dcy - destH / 2, destW, destH);
+        return;   // static, world-locked blit (no pane-fixed pulse/twinkle in locked mode)
+      }
       ctx.drawImage(this._static, 0, 0);
       if (cfg.glow.on && cfg.glow.pulse) {
         const a = 0.42 + 0.58 * (0.5 + 0.5 * Math.sin(this._t * 1.3 * (cfg.glow.speed || 1)));

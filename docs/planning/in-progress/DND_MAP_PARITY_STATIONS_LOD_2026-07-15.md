@@ -55,11 +55,19 @@
   spiral disc. Falls back to the colour disc when art isn't rasterisable. Verified headless: station,
   asteroid and star impostors each render as a PlaneGeometry carrying a 128×128 canvas texture with
   thousands of opaque pixels (the real 2D silhouette), not a flat colour; 0 code errors.
-- **Slice 3 — World-locked backgrounds.** When `bg3d.parallax===false`, lock the backdrop to world
-  space in the 2D Studio + Console (starfield/nebula/glow/image pan **and** zoom with content) and in
-  the 3D viewer; when ON, keep the pane-fixed behaviour. Governed by the published setting so DM and
-  player match. Verify headless: with parallax off, panning/zooming moves the backdrop with the
-  content; with it on, the backdrop stays pinned.
+- **Slice 3 — World-locked backgrounds.** ✅ `Sky2D` gained a world-lock: `setLock(on)` (idempotent —
+  re-anchors only on change) + `setView(x,y,scale)`. When locked, `_draw` blits the baked sky glued to a
+  world anchor (captured once from the view), scaled by zoom and translated by pan, with `baseColor`
+  space filling beyond the baked patch — so the starfield/nebula/glow pans **and** zooms with the map.
+  Studio's `applyView` (+ `applyBg3d`) call `syncSkyLock()`; the Console's `apply()` reads
+  `MAP.bg3d.parallax` (now carried through `normalizeMap`) and drives the same lock, so **the player uses
+  the DM's published parallax setting**. Sectors/systems/bodies already live in the transformed view, so
+  with the backdrop locked they hold their positions over it. Backward compatible: `parallax` defaults
+  true (old maps keep the pane-fixed depth effect) and is a live per-map toggle. Verified headless: lock
+  turns on with the setting and off when re-enabled, the view is pushed on pan/zoom, the anchor stays
+  glued during panning; a screenshot pair shows the starfield scaling + moving with the planet and
+  sector. *(Deferred to Slice 4: locking the `#bgLayer` image backdrop and the ambient shooting-star FX
+  — the primary starfield/nebula/glow backdrop is covered here.)*
 - **Slice 4 — Parity + toggle UI + QA.** Make the Console backdrop render the same way the Studio does
   (kill the divergent double-background), expose the parallax toggle where the DM sets backgrounds, and
   do an end-to-end pass: build a map, toggle parallax, confirm DM and player render/size/position
@@ -83,4 +91,4 @@
   are cheap; the world-lock is a transform change, not extra draw calls.
 - **Backward compatible:** old maps (no `stype`, `parallax` defaulting true) render unchanged.
 
-### Status: IN PROGRESS (Slices 0–1 shipped; 2–6 pending)
+### Status: IN PROGRESS (Slices 0–3 shipped; 4–6 pending)

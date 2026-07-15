@@ -1122,7 +1122,10 @@ function toWorld(sx,sy){const r=$("#canvas").getBoundingClientRect();return {x:(
 // 3D viewer can centre on and scale to exactly what the 2D map shows (and write it back on the way out).
 window.map2dView=function(){const c=$("#canvas");const W=c.clientWidth||1,H=c.clientHeight||1;return {cx:(W/2-view.x)/view.scale,cy:(H/2-view.y)/view.scale,scale:view.scale};};
 window.setMap2dView=function(cx,cy,scale){const c=$("#canvas");const W=c.clientWidth||1,H=c.clientHeight||1;view.scale=clamp(scale,0.12,5);view.x=W/2-cx*view.scale;view.y=H/2-cy*view.scale;applyView();};
-function applyView(){const tf=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;$("#svg").style.transform=tf;$("#svg").style.transformOrigin="0 0";$("#bodyLayer").style.transform=tf;const bk=$("#backLayer");if(bk){bk.style.transform=tf;bk.style.transformOrigin="0 0";}const sf=$("#svgFront");if(sf){sf.style.transform=tf;sf.style.transformOrigin="0 0";}const ll=$("#labelLayer");if(ll){ll.style.transform=tf;ll.style.transformOrigin="0 0";}$("#zVal").textContent=Math.round(view.scale*100)+"%";if(pending)positionGhostWorld();}
+function applyView(){const tf=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;$("#svg").style.transform=tf;$("#svg").style.transformOrigin="0 0";$("#bodyLayer").style.transform=tf;const bk=$("#backLayer");if(bk){bk.style.transform=tf;bk.style.transformOrigin="0 0";}const sf=$("#svgFront");if(sf){sf.style.transform=tf;sf.style.transformOrigin="0 0";}const ll=$("#labelLayer");if(ll){ll.style.transform=tf;ll.style.transformOrigin="0 0";}$("#zVal").textContent=Math.round(view.scale*100)+"%";if(pending)positionGhostWorld();syncSkyLock();}
+// Parallax OFF → the starfield/nebula/glow backdrop is world-locked: push the live view so Sky2D pans
+// & zooms it with the map (sectors, systems and bodies then hold their positions over the background).
+function syncSkyLock(){if(!window.Sky2D)return;const off=!!(state.bg3d&&state.bg3d.parallax===false);window.Sky2D.setLock(off);if(off)window.Sky2D.setView(view.x,view.y,view.scale);}
 function sectorPath(pts,curved){if(!pts.length)return "";
   if(curved&&pts.length>=3){ // closed Catmull-Rom spline through the nodes → smooth sector edges
     const n=pts.length,f=v=>v.toFixed(1);let d=`M ${f(pts[0].x)},${f(pts[0].y)}`;
@@ -1985,6 +1988,7 @@ function wireBg3dControls(){const b=state.bg3d;if(!b||!$("#b3Tpl"))return;
 function applyBg3d(){
   try{if(window.Map3D&&window.Map3D.isShown&&window.Map3D.isShown())window.Map3D.setBackground(state.bg3d);}catch(e){}
   try{if(window.Sky2D){const cv=document.getElementById("skyCanvas");if(cv){window.Sky2D.mount(cv);window.Sky2D.set(state.bg3d);}}}catch(e){}
+  try{syncSkyLock();}catch(e){}   // reflect the parallax on/off setting into the world-lock immediately
   try{applyMapFx();}catch(e){}   // solid/glow → also silence the 2D ambient starfield + nebula tint
 }
 
