@@ -104,16 +104,23 @@
   neither unless the DM dials it up — the old always-on night lights on city-friendly types are gone.
   Verified headless: 3D lights only when `city>0`; 2D dots scale with density (197 @1.0, 21 @0.1, none
   @0); terran with `city` unset has no lights; 0 errors.
-- **Slice 7 — Destroyed / cataclysm planets (2D + 3D, editable).** A **destroyed** planet mode with
-  selectable variants, each with glowing molten breaks and a surrounding **debris field**:
-  **split** (cloven in two halves pulling apart, debris between), **chunk** (a big bite blown out + debris),
-  **holed** (a bore-hole punched clean through), **cored** (crust intact but the core gouged open, exposing
-  a glowing molten cavity), **fractured** (broken into several large drifting pieces with glowing cracks).
-  Render editable 3D versions in `buildPlanetModel` (sliced/holed geometry, emissive molten interior +
-  a particle/rock debris ring, slow tumble) and matching 2D `art()` silhouettes + the LOD impostor.
-  Add a variant picker + a **destruction intensity** slider (crack glow, debris amount) to the planet
-  editor; persist on the look. Verify headless in 2D + 3D. Then run the full end-to-end pass across
-  DM/player/2D/3D/hybrid and move this doc to `completed/`.
+- **Slice 7 — Destroyed / cataclysm planets (2D + 3D, editable).** ✅ A **destroyed** planet/moon mode
+  (`cfg.destroyed` + `cfg.destroyI` 0–1) with five variants: **split** (two hemispheres pulled apart with
+  molten cut-caps + core between), **chunk** (a wedge blown out revealing the core), **holed** (a molten
+  bore punched through + glowing plug), **cored** (crust opened on a bigger molten core), **fractured**
+  (crust built from several exploded phi-wedges around the core). 3D `buildPlanetModel` assembles the
+  crust from partial-sphere pieces using the planet's **own surface material** (no CSG), so the wreck
+  **keeps its type & colours** — a molten `MeshBasicMaterial` core shows through the breaks, a rocky
+  **debris field** (count/spread scale with intensity) rings it, and clouds/atmosphere are suppressed.
+  2D `art()` (Studio + Console) overlays the same idea on the real planet face: molten cracks, a
+  variant-specific break/gap with a glowing core gradient (or a bright rift for split/fractured) and
+  scattered debris — preserving the base surface so it still looks like the original. A **Cataclysm**
+  variant picker + **Destruction** intensity slider in the planet editor, persisted via `snapshotLook`
+  (`destroyed`, `destroyI`) and passed to the 3D viewer through `_genericPlanetCfg`. Verified headless:
+  all 5 variants build in 3D with a molten core + debris and 0 errors; 2D shows core/cracks/debris for
+  each variant and nothing when intact; a screenshot confirms each reads as a broken world that keeps its
+  surface. *(Editable colour/type is inherited from the normal planet controls — a destroyed planet is
+  the same planet, broken. planet3d-kind cfg3d bodies get destruction in a later pass.)*
 
 ## Considerations
 - **Shared renderers:** `art()` and the `planet3d-model.js` builders are used by Studio and Console
@@ -122,4 +129,4 @@
   are cheap; the world-lock is a transform change, not extra draw calls.
 - **Backward compatible:** old maps (no `stype`, `parallax` defaulting true) render unchanged.
 
-### Status: IN PROGRESS (Slices 0–6 shipped; 7 pending)
+### Status: COMPLETE (Slices 0–7 all shipped)

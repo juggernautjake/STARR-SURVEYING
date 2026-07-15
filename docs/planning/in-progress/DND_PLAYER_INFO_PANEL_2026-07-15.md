@@ -49,9 +49,12 @@ deck down to hide at the bottom; clicking the tab reopens it.
   mix of real utility and pure flavour: a **zoom dial**, a **lighting** dial (nudges the scene/3D light),
   **up/down/left/right pan buttons** + a **pan-rate slider**, and **screen-tint dials** that shift the
   info-panel screens toward green/blue/red/amber. Plus ambient **blinking status lights** and **wiring**
-  detail for the spaceship vibe. Sounds are tiny WebAudio blips (respect a mute). Verify headless: the
-  functional controls change their target (zoom/tint/pan), and the flavour lights animate. Then move this
-  doc to `completed/`.
+  detail for the spaceship vibe. Sounds are tiny WebAudio blips (respect a mute). Also a **signal-tuning
+  knob** that governs screen **distortion**: it has a **sweet spot** (perfect resolution) and the further
+  the knob is turned from it, the worse the distortion on the info-panel screens (scanline warp / chroma
+  shift / jitter, occasional flickers even near-perfect). Players can dial it in or out. Verify headless:
+  the functional controls change their target (zoom/tint/pan), the distortion scales with knob distance
+  from the sweet spot, and the flavour lights animate. Then move this doc to `completed/`.
 
 ## Considerations
 - **Player + DM parity:** the panel lives in the Console, which the DM also uses in Player mode, so both

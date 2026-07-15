@@ -765,12 +765,27 @@ function art(a,animate){
     for(let i=0;i<clusters;i++){const ca=crng()*6.28,cr=Math.sqrt(crng())*R*0.93,px=cx+Math.cos(ca)*cr,py=cy+Math.sin(ca)*cr,nd=1+Math.round(crng()*(2+cityI*4));
       for(let j=0;j<nd;j++){const dx=px+(crng()-0.5)*9,dy=py+(crng()-0.5)*9;dots+=`<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="${(0.5+crng()*0.9).toFixed(1)}" fill="${cityCol}" opacity="${(0.45+crng()*0.45).toFixed(2)}"/>`;}}
     city=`<g clip-path="url(#c${id})" filter="url(#cityG${id})">${dots}</g>`;}
+  // destroyed / cataclysm overlay — molten cracks, a break/gap revealing the glowing core, and debris
+  let destroy="";const dv=a.destroyed&&a.destroyed!=="none"?a.destroyed:null;const dI=a.destroyI!=null?+a.destroyI:0.6;
+  if(dv){const drng=mulberry((a.seed||1)*71+5);let cracks="";const ncr=Math.round(4+dI*8);
+    for(let i=0;i<ncr;i++){let px=cx-R*0.7+drng()*R*1.4,py=cy-R*0.7+drng()*R*1.4;let dp=`M ${px.toFixed(1)} ${py.toFixed(1)}`;const st=4+Math.round(drng()*5),ln=(R*0.3+drng()*R*0.5)/st;let an=drng()*6.28;
+      for(let s=0;s<st;s++){an+=(drng()-0.5)*1.5;px+=Math.cos(an)*ln;py+=Math.sin(an)*ln;dp+=` L ${px.toFixed(1)} ${py.toFixed(1)}`;}
+      cracks+=`<path d="${dp}" stroke="#ff5a1e" stroke-width="${(2+dI*3).toFixed(1)}" fill="none" opacity=".5" filter="url(#dGlow${id})"/><path d="${dp}" stroke="#ffd24a" stroke-width="${(0.8+dI).toFixed(1)}" fill="none" opacity=".85"/>`;}
+    let gap="";
+    if(dv==="holed"){const hx2=cx+R*0.18,hy2=cy-R*0.08,hr=R*(0.17+dI*0.12);gap=`<circle cx="${hx2.toFixed(1)}" cy="${hy2.toFixed(1)}" r="${hr.toFixed(1)}" fill="#0a0603"/><circle cx="${hx2.toFixed(1)}" cy="${hy2.toFixed(1)}" r="${(hr*0.55).toFixed(1)}" fill="url(#coreG${id})"/><circle cx="${hx2.toFixed(1)}" cy="${hy2.toFixed(1)}" r="${hr.toFixed(1)}" fill="none" stroke="#ff7a2a" stroke-width="2.4" opacity=".85" filter="url(#dGlow${id})"/>`;}
+    else if(dv==="chunk"||dv==="cored"){const ba=drng()*6.28,bw=0.6+dI*0.7,p1=[cx+Math.cos(ba-bw)*R,cy+Math.sin(ba-bw)*R],p2=[cx+Math.cos(ba+bw)*R,cy+Math.sin(ba+bw)*R];
+      gap=`<path d="M ${cx} ${cy} L ${p1[0].toFixed(1)} ${p1[1].toFixed(1)} A ${R} ${R} 0 0 1 ${p2[0].toFixed(1)} ${p2[1].toFixed(1)} Z" fill="#0a0603" opacity=".92"/><circle cx="${cx}" cy="${cy}" r="${(R*(dv==="cored"?0.52:0.4)).toFixed(1)}" fill="url(#coreG${id})"/>`;}
+    else{gap=`<rect x="${(cx-2-dI*3).toFixed(1)}" y="${cy-R}" width="${(4+dI*6).toFixed(1)}" height="${2*R}" fill="url(#riftG${id})"/>`;}
+    let deb="";const ndb=Math.round(4+dI*16);
+    for(let i=0;i<ndb;i++){const da=drng()*6.28,dr=R*(1.05+drng()*(0.5+dI)),dx=cx+Math.cos(da)*dr,dy=cy+Math.sin(da)*dr,rs=1+drng()*3;deb+=`<path d="M ${(dx-rs).toFixed(1)} ${dy.toFixed(1)} L ${dx.toFixed(1)} ${(dy-rs).toFixed(1)} L ${(dx+rs).toFixed(1)} ${dy.toFixed(1)} L ${dx.toFixed(1)} ${(dy+rs).toFixed(1)} Z" fill="#6a5a50" opacity="${(0.5+drng()*0.4).toFixed(2)}"/>`;}
+    destroy=`<g clip-path="url(#c${id})">${cracks}${gap}</g>${deb}`;}
   const spinDur=(34+rng()*46).toFixed(0);
   const cloudDur=(spinDur*0.7).toFixed(0);
   return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><defs>
     <clipPath id="c${id}"><circle cx="${cx}" cy="${cy}" r="${R}"/></clipPath>
     ${lavaI>0.001?`<filter id="lavaG${id}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.7"/></filter>`:""}
     ${cityI>0.001?`<filter id="cityG${id}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="0.5"/></filter>`:""}
+    ${dv?`<filter id="dGlow${id}" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="2"/></filter><radialGradient id="coreG${id}" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff2c8"/><stop offset="35%" stop-color="#ffb454"/><stop offset="75%" stop-color="#ff5a1e"/><stop offset="100%" stop-color="#3a0a04" stop-opacity="0"/></radialGradient><linearGradient id="riftG${id}" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#ff5a1e" stop-opacity="0"/><stop offset="50%" stop-color="#ffe6a0"/><stop offset="100%" stop-color="#ff5a1e" stop-opacity="0"/></linearGradient>`:""}
     <radialGradient id="base${id}" cx="36%" cy="32%" r="78%"><stop offset="0%" stop-color="${L(c1,52)}"/><stop offset="50%" stop-color="${c1}"/><stop offset="100%" stop-color="${D(c1,46)}"/></radialGradient>
     <radialGradient id="term${id}" cx="36%" cy="32%" r="82%"><stop offset="0%" stop-color="#fff" stop-opacity=".28"/><stop offset="38%" stop-color="#fff" stop-opacity="0"/><stop offset="72%" stop-color="#000" stop-opacity=".35"/><stop offset="100%" stop-color="#000" stop-opacity=".68"/></radialGradient>
     <radialGradient id="atmo${id}" cx="50%" cy="50%" r="50%"><stop offset="${(88-atmoThick*12).toFixed(0)}%" stop-color="${atmoCol}" stop-opacity="0"/><stop offset="97%" stop-color="${atmoCol}" stop-opacity="${atmoThick.toFixed(2)}"/><stop offset="100%" stop-color="${atmoCol}" stop-opacity="0"/></radialGradient></defs>
@@ -778,8 +793,8 @@ function art(a,animate){
     <g clip-path="url(#c${id})"><g style="${anim?`animation:surf${id} ${spinDur}s linear infinite`:''}">${bands}${spots.join("")}</g>
     ${clouds?`<g style="${anim?`animation:surf${id} ${cloudDur}s linear infinite`:''}">${clouds}</g>`:""}</g>
     <circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#term${id})"/>
-    ${lava}${city}
-    ${hasAtmo?`<circle cx="${cx}" cy="${cy}" r="${R+3}" fill="url(#atmo${id})"/>`:""}
+    ${lava}${city}${destroy}
+    ${hasAtmo&&!dv?`<circle cx="${cx}" cy="${cy}" r="${R+3}" fill="url(#atmo${id})"/>`:""}
     <ellipse cx="${cx-34}" cy="${cy-40}" rx="30" ry="18" fill="#fff" opacity=".14" transform="rotate(-30 ${cx-34} ${cy-40})"/>
     ${ringFront}<style>@keyframes surf${id}{to{transform:translateX(-${2*S}px);}}</style></svg>`;
 }
@@ -1067,8 +1082,8 @@ $("#placeConfirm").onclick=()=>{
 };
 $("#placeCancel").onclick=clearPending;
 function clearPending(){pending=null;ghost.style.display="none";$("#placeBar").classList.remove("show");}
-function snapshotLook(a){const {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,brightness,coronaSize,breathe,raySpec,image,src,natW,natH,dsCfg,cfg3d,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,lava,city,lightColor,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames}=a;
-  return {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,brightness,coronaSize,image,src,natW,natH,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,lava,city,lightColor,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames,breathe:breathe?JSON.parse(JSON.stringify(breathe)):undefined,raySpec:raySpec?JSON.parse(JSON.stringify(raySpec)):undefined,dsCfg:dsCfg?JSON.parse(JSON.stringify(dsCfg)):undefined,cfg3d:cfg3d?JSON.parse(JSON.stringify(cfg3d)):undefined};}
+function snapshotLook(a){const {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,brightness,coronaSize,breathe,raySpec,image,src,natW,natH,dsCfg,cfg3d,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,lava,city,lightColor,destroyed,destroyI,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames}=a;
+  return {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,brightness,coronaSize,image,src,natW,natH,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,lava,city,lightColor,destroyed,destroyI,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames,breathe:breathe?JSON.parse(JSON.stringify(breathe)):undefined,raySpec:raySpec?JSON.parse(JSON.stringify(raySpec)):undefined,dsCfg:dsCfg?JSON.parse(JSON.stringify(dsCfg)):undefined,cfg3d:cfg3d?JSON.parse(JSON.stringify(cfg3d)):undefined};}
 function applyBackground(a){pushUndo();state.background=snapshotLook(a);renderAll();markDirty();toast("Backdrop set");}
 // Render an image backdrop into #bgLayer (screen-space, behind everything). "size" scales it so the
 // backdrop size the user picks actually changes what's shown; opacity lets the gradient show through.
@@ -1859,7 +1874,11 @@ function renderEditor(){
       <h4>Cities &amp; lights</h4>
       <div class="rowc"><div class="field" style="flex:2"><label>City lights <span style="float:right;color:var(--gold)" id="edCityV">${(edWork.city!=null?edWork.city:0).toFixed(2)}</span></label><div class="slider"><input type="range" id="edCity" min="0" max="100" value="${Math.round((edWork.city!=null?edWork.city:0)*100)}"></div></div>
       <div class="field" style="flex:1"><label>Light colour</label><input type="color" id="edLightCol" value="${edWork.lightColor||'#ffe6a0'}"></div></div>
-      <div style="font-size:10.5px;color:var(--faint);margin-top:-2px">Night-side settlements — 0 is a few lights, higher blankets the world in city sprawl.</div>`;
+      <div style="font-size:10.5px;color:var(--faint);margin-top:-2px">Night-side settlements — 0 is a few lights, higher blankets the world in city sprawl.</div>
+      <h4>Cataclysm</h4>
+      <div class="seg five" id="edDestroyed">${[["none","Intact"],["split","Split"],["chunk","Chunk"],["holed","Holed"],["cored","Cored"],["fractured","Fractured"]].map(([v,l])=>`<button data-t="${v}" class="${(edWork.destroyed||'none')===v?'on':''}">${l}</button>`).join('')}</div>
+      <div class="field" id="edDestroyIWrap" style="${edWork.destroyed&&edWork.destroyed!=='none'?'':'display:none'};margin-top:8px"><label>Destruction <span style="float:right;color:var(--gold)" id="edDestroyIV">${(edWork.destroyI!=null?edWork.destroyI:0.6).toFixed(2)}</span></label><div class="slider"><input type="range" id="edDestroyI" min="0" max="100" value="${Math.round((edWork.destroyI!=null?edWork.destroyI:0.6)*100)}"></div></div>
+      <div style="font-size:10.5px;color:var(--faint);margin-top:-2px">Break the world apart — it keeps its surface &amp; colours, with molten breaks, an exposed core and a debris field.</div>`;
   }
   else if(k==="moon"){html+=`<h4>Type</h4><div class="seg four" id="edMtype">${Object.keys(MOON_TYPES).map(t=>`<button data-t="${t}" class="${edWork.mtype===t?'on':''}">${t}</button>`).join('')}</div>`;}
   else if(k==="star"){html+=`<h4>Class</h4><div class="seg" id="edStype">${Object.keys(STAR_TYPES).map(t=>`<button data-t="${t}" class="${edWork.stype===t?'on':''}">${t}</button>`).join('')}</div><label class="chk" style="display:flex;align-items:center;gap:7px;font-size:12px;padding:6px 0;cursor:pointer"><input type="checkbox" id="edRays" ${edWork.rays!==false?"checked":""}> ✦ Shine lines (rays)</label>`;}
@@ -1905,6 +1924,8 @@ function wireEditor(){
   if($("#edLava"))$("#edLava").oninput=e=>{edWork.lava=+e.target.value/100;$("#edLavaV").textContent=edWork.lava.toFixed(2);edPreview();};
   if($("#edCity"))$("#edCity").oninput=e=>{edWork.city=+e.target.value/100;$("#edCityV").textContent=edWork.city.toFixed(2);edPreview();};
   if($("#edLightCol"))$("#edLightCol").oninput=e=>{edWork.lightColor=e.target.value;edPreview();};
+  if($("#edDestroyed"))$("#edDestroyed").querySelectorAll("button").forEach(b=>b.onclick=()=>{$("#edDestroyed").querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");edWork.destroyed=b.dataset.t;const w=$("#edDestroyIWrap");if(w)w.style.display=(edWork.destroyed&&edWork.destroyed!=="none")?"":"none";edPreview();});
+  if($("#edDestroyI"))$("#edDestroyI").oninput=e=>{edWork.destroyI=+e.target.value/100;$("#edDestroyIV").textContent=edWork.destroyI.toFixed(2);edPreview();};
   const gs=(id,prop,div,fx)=>{const el=$("#"+id);if(!el)return;el.oninput=e=>{edWork[prop]=+e.target.value/(div||1);const v=$("#"+id+"V");if(v)v.textContent=fx?fx(edWork[prop]):edWork[prop];edPreview();};};
   gs("edArms","arms",1,v=>v);gs("edTurns","turns",100,v=>v.toFixed(2));gs("edTight","tight",100,v=>v.toFixed(2));gs("edSpread","spread",100,v=>v.toFixed(2));gs("edLen","len",100,v=>v.toFixed(2));gs("edSpin","spinDur",1,v=>v+"s");
   if($("#edReplaceSvg"))$("#edReplaceSvg").onclick=()=>{const inp=$("#svgUpload");inp.value="";inp.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{const m=ev.target.result.match(/<svg[\s\S]*<\/svg>/i);if(m){edWork.svgData=m[0].replace(/width="[^"]*"/,'').replace(/height="[^"]*"/,'').replace(/<svg/,'<svg style="width:100%;height:100%"');edPreview();}};r.readAsText(f);};inp.click();};
