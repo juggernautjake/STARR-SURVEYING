@@ -79,8 +79,16 @@ and distributable.)
   Warlock, 5e has Warlock not Witch); full dnd suite (259) green. *(Actually populating the DB needs the
   Supabase service env; the derivation + idempotent upsert are proven, and grounding/validation already work
   without the store.)*
-- **Slice 5 — QA + docs.** Verify grounding always carries the right system's facts, validation flags a
-  planted cross-system mechanic, the dnd vitest suite is green, then move this doc to `completed/`.
+- **Slice 5 — QA + docs.** ✅ Added `__tests__/dnd/system-grounding-e2e.test.ts` — the end-to-end guarantee:
+  for every system the grounding block carries THAT system's exclusive signature (5e-2014 "Six saving
+  throws", 5e-2024 "Origin Feat", PF2 "Fortitude, Reflex, Will") and none of another's, with no embeddings;
+  validation catches a deliberately cross-system character (a PF2 Witch + a 2024 Goliath on a 2014 sheet
+  flags both class and species, and re-validates correctly under PF2); a clean in-system character passes.
+  Final sweep: project `tsc --noEmit` clean, **full vitest suite green (11,538 tests, 769 files)**, `lib/dnd`
+  lints clean. Doc moved to `completed/`. The character builder now has a deterministic, always-on
+  per-system rules guarantee (grounding) plus a validator safety net — a wrong mechanic/stat for the set
+  system is impossible to inject silently. *(Live grounded AI builds still need the AI key; the rules
+  guarantee and the validator are proven to work with zero external services.)*
 
 ## Considerations
 - **Never cross systems:** every catalog lookup is keyed by the exact system; the ambiguous case must supply
@@ -90,4 +98,4 @@ and distributable.)
 - **Accuracy over verbatim:** store mechanical facts/numbers, paraphrased; cite the source book by name.
 - **Extensible:** adding a system = one catalog entry + one `GAME_SYSTEMS` row (+ optional seed rows).
 
-### Status: IN PROGRESS (Slices 0–4 shipped; 5 (QA) pending)
+### Status: COMPLETE (Slices 0–5 shipped; full vitest suite 11,538 green)
