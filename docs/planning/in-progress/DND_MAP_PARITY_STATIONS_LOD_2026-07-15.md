@@ -47,11 +47,14 @@
   dark=`c2`, lit=`c3`, blue solar panels); each build sets its own spin/tumble/drift; disposal tracks
   every geometry. Verified headless: all 9 types promote to models with **distinct** geometry
   signatures (9/9 unique), 0 errors.
-- **Slice 2 — Richer LOD impostors.** Replace the flat-disc far impostor with a **textured sprite** of
-  the body's 2D `art()` (rasterised to a canvas → `CanvasTexture`), so the zoomed-out placeholder
-  resembles the object (station/asteroid/moon/star/planet). Fall back to the dominant-colour disc only
-  when art can't be rasterised. Verify headless: an impostor sprite carries a canvas texture, not a
-  flat colour.
+- **Slice 2 — Richer LOD impostors.** ✅ `_artImpostorTex(it, onReady)` rasterises a body's 2D `art()`
+  SVG → `CanvasTexture` (cached per look-signature; async SVG→Image→canvas with a ready callback).
+  `_discMesh` now uses it for station/asteroid/debris/star/moon/2D-planet/2D-galaxy kinds on a
+  **PlaneGeometry** (so panels/points/glow aren't clipped), starting on the shaded dominant-colour disc
+  and swapping to the art raster when it loads; planet3d keeps its procedural face and spingalaxy its
+  spiral disc. Falls back to the colour disc when art isn't rasterisable. Verified headless: station,
+  asteroid and star impostors each render as a PlaneGeometry carrying a 128×128 canvas texture with
+  thousands of opaque pixels (the real 2D silhouette), not a flat colour; 0 code errors.
 - **Slice 3 — World-locked backgrounds.** When `bg3d.parallax===false`, lock the backdrop to world
   space in the 2D Studio + Console (starfield/nebula/glow/image pan **and** zoom with content) and in
   the 3D viewer; when ON, keep the pane-fixed behaviour. Governed by the published setting so DM and
@@ -60,7 +63,18 @@
 - **Slice 4 — Parity + toggle UI + QA.** Make the Console backdrop render the same way the Studio does
   (kill the divergent double-background), expose the parallax toggle where the DM sets backgrounds, and
   do an end-to-end pass: build a map, toggle parallax, confirm DM and player render/size/position
-  identically in 2D, 3D and hybrid. Move this doc to `completed/`.
+  identically in 2D, 3D and hybrid.
+- **Slice 5 — Planet lava-flow effect + intensity.** Add a **lava flow** surface effect to planets
+  (glowing cracks/rivers of molten rock over the crust, subtly animated), with an **intensity slider**
+  (0 → none, 1 → the surface is riven with bright lava). Wire it into the 2D `art()` planet surface,
+  the 3D `buildPlanetModel` (emissive lava map) and the LOD impostor, persist on the look, and expose a
+  slider in the planet editor. Verify headless in 2D + 3D.
+- **Slice 6 — Planet city lights + density.** Add scattered **cities & city lights** to planets
+  (clusters of warm/cool night-side lights, brighter on the dark side), with a **density slider**:
+  lowest = a few lights here and there, highest = the planet is blanketed in city sprawl and lights.
+  Wire into 2D `art()`, 3D `buildPlanetModel` (night-side emissive lights map), and the impostor;
+  persist + editor slider. Verify headless, then run the full end-to-end pass across DM/player/2D/3D/
+  hybrid and move this doc to `completed/`.
 
 ## Considerations
 - **Shared renderers:** `art()` and the `planet3d-model.js` builders are used by Studio and Console
@@ -69,4 +83,4 @@
   are cheap; the world-lock is a transform change, not extra draw calls.
 - **Backward compatible:** old maps (no `stype`, `parallax` defaulting true) render unchanged.
 
-### Status: IN PROGRESS (Slice 0 shipped; 1–4 pending)
+### Status: IN PROGRESS (Slices 0–1 shipped; 2–6 pending)

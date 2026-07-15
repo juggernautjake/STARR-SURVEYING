@@ -805,6 +805,29 @@ const Map3D = {
     const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
     this._galaxyCache[key] = t; return t;
   },
+  // Rasterise a body's 2D art() SVG into a CanvasTexture so a far/zoomed-out impostor looks like the
+  // object (a station reads as a station, an asteroid as a rock, a star as a glowing star) instead of a
+  // plain orb. Cached per look-signature; async (SVG→Image→canvas), so callers pass onReady to swap the
+  // material map in when the raster is ready. Returns the (possibly still-blank) texture, or null.
+  _artImpostorTex(it, onReady) {
+    if (typeof window === 'undefined' || typeof window.art !== 'function') return null;
+    this._artImpCache = this._artImpCache || {};
+    const L = it.look || it;
+    const key = it.kind + '|' + [L.stype, L.dtype, L.mtype, L.ptype, L.c1, L.c2, L.c3, L.seed, L.rays, L.brightness, L.coronaSize].join(',');
+    if (this._artImpCache[key]) { const c = this._artImpCache[key]; if (c.ready) onReady && onReady(c.tex); else c.cbs.push(onReady); return c.tex; }
+    let svg;
+    try { svg = window.art(Object.assign({ kind: it.kind }, L), false); } catch (e) { return null; }
+    if (!svg || svg.trim().indexOf('<svg') !== 0) return null;   // only rasterise true vector art (skip <img>/<div> wrappers)
+    svg = svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" ');
+    const S = 128, cv = document.createElement('canvas'); cv.width = cv.height = S;
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const rec = { tex, ready: false, cbs: [onReady] }; this._artImpCache[key] = rec;
+    const img = new Image();
+    img.onload = () => { try { const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, S, S); ctx.drawImage(img, 0, 0, S, S); tex.needsUpdate = true; } catch (e) { /* noop */ } rec.ready = true; rec.cbs.forEach(cb => cb && cb(tex)); rec.cbs = []; };
+    img.onerror = () => { rec.ready = true; };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    return tex;
+  },
   _discMesh(it, cfg) {   // a unit-radius impostor (holder scales it to size)
     // planet-like kinds (planet3d, 2D planet, moon) get their real surface as the impostor face.
     const pcfg = cfg || (it.kind === 'planet3d' ? this._planetConfig(it) : null);
@@ -819,7 +842,17 @@ const Map3D = {
       mesh.userData.spin = 360 / Math.max(4, dur);
       return mesh;
     }
-    const hex = this._discBaseColor(it);   // stars / generated art / config-less planets → shaded true-colour disc
+    // stations, asteroids/debris, stars, 2D moons/planets/galaxies → rasterise their real 2D art() as the
+    // impostor face (a plane, not a disc, so panels/points/glow aren't clipped). Start on the shaded
+    // dominant-colour disc, then swap to the art raster once it loads.
+    const ART_KINDS = ['station', 'debris', 'asteroid', 'star', 'moon', 'planet', 'galaxy'];
+    if (typeof window !== 'undefined' && typeof window.art === 'function' && ART_KINDS.includes(it.kind)) {
+      const mat = new THREE.MeshBasicMaterial({ map: this._discTexture(this._discBaseColor(it)), transparent: true, depthWrite: false });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+      this._artImpostorTex(it, (tex) => { if (tex && mesh.material) { mesh.material.map = tex; mesh.material.needsUpdate = true; } });
+      return mesh;
+    }
+    const hex = this._discBaseColor(it);   // generated art / config-less bodies → shaded true-colour disc
     return new THREE.Mesh(new THREE.CircleGeometry(1, 56), new THREE.MeshBasicMaterial({ map: this._discTexture(hex), transparent: true }));
   },
 
