@@ -13,20 +13,22 @@
    Coordinate mapping: 2D world (x, y) with y pointing DOWN → 3D (x, -y, 0) so
    the scene reads identically to the 2D map but gains real depth/rotation.
    ============================================================================ */
-let THREE = null, OrbitControls = null;
+let THREE = null, OrbitControls = null, buildPlanetModel = null;
 
 async function loadThree() {
   if (THREE) return;
   THREE = await import('three');
   ({ OrbitControls } = await import('three/addons/controls/OrbitControls.js'));
+  ({ buildPlanetModel } = await import('/dnd/maps/planet3d-model.js'));
 }
 
 const NAVY = 0x010a13;
+const MAX_LIVE_PLANETS = 16;   // LOD guard: beyond this, extra 3D worlds fall back to flat discs
 
 const Map3D = {
   _ready: false, _shown: false, _raf: null,
   container: null, renderer: null, scene: null, camera: null, controls: null,
-  bodyGroup: null, _map: null, _ro: null,
+  bodyGroup: null, _map: null, _ro: null, _planets: [],
 
   // Build the renderer/scene once. `container` is the #gl3d div inside #canvas.
   async mount(container) {
@@ -86,28 +88,52 @@ const Map3D = {
   // Push the current map into the scene.
   setData(map) { this._map = map || { instances: [] }; if (this._ready) this._rebuild(); },
 
+  // Resolve a planet3d instance's saved config — from the instance's look, or its source asset.
+  _planetConfig(it) {
+    if (it.look && it.look.cfg3d) return it.look.cfg3d;
+    const assets = (this._map && this._map.assets) || [];
+    const a = assets.find(x => x.id === it.assetId);
+    return (a && (a.cfg3d || a.config)) || null;
+  },
+
   _rebuild() {
     const g = this.bodyGroup; if (!g) return;
+    (this._planets || []).forEach(p => p.model.dispose());
+    this._planets = [];
     for (let i = g.children.length - 1; i >= 0; i--) { const c = g.children[i]; g.remove(c); c.geometry?.dispose?.(); c.material?.dispose?.(); }
     const insts = (this._map && this._map.instances) || [];
-    let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+    const aniso = this.renderer.capabilities.getMaxAnisotropy();
+    let live = 0, minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
     for (const it of insts) {
       if (it.kind === 'text') continue;                 // free text handled in a later slice
-      const s = it.size || 60, cx = it.x + s / 2, cy = it.y + s / 2, rad = Math.max(4, s / 2);
-      const col = (it.look && (it.look.c1 || it.look.c3)) || '#8f9bd0';
-      const disc = new THREE.Mesh(
-        new THREE.CircleGeometry(rad, 56),
-        new THREE.MeshBasicMaterial({ color: new THREE.Color(col) })
-      );
-      disc.position.set(cx, -cy, 0);
-      disc.userData.id = it.id;
-      g.add(disc);
+      const s = it.size || 60, cx = it.x + s / 2, cy = it.y + s / 2;
+      const cfg = it.kind === 'planet3d' ? this._planetConfig(it) : null;
+      if (cfg && live < MAX_LIVE_PLANETS) {
+        // REAL 3D planet mesh from config, scaled so the sphere's diameter ≈ the 2D size
+        try {
+          const model = buildPlanetModel(cfg, { anisotropy: aniso, segments: 72 });
+          model.group.scale.setScalar(s / 2);
+          model.group.position.set(cx, -cy, 0);
+          model.group.userData.id = it.id;
+          g.add(model.group);
+          this._planets.push({ model });
+          live++;
+        } catch (e) { console.error('[map3d] planet build failed', e); this._disc(g, it, cx, cy, s); }
+      } else {
+        this._disc(g, it, cx, cy, s);
+      }
       minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x + s); maxY = Math.max(maxY, it.y + s);
     }
     // Framing needs the container's real pixel size, which is only correct once it's visible; store
     // the bounds and (re)frame from show(). Framing here while hidden gives a degenerate zoom.
     this._bounds = (insts.length && minX < maxX) ? { minX, minY, maxX, maxY } : null;
     if (this._bounds && this._shown) this._frameBounds();
+  },
+
+  _disc(g, it, cx, cy, s) {
+    const col = (it.look && (it.look.c1 || it.look.c3)) || '#8f9bd0';
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(Math.max(4, s / 2), 56), new THREE.MeshBasicMaterial({ color: new THREE.Color(col) }));
+    disc.position.set(cx, -cy, 0); disc.userData.id = it.id; g.add(disc);
   },
 
   // Fit the ortho camera to the stored content bounds (2D→3D: y negated).
@@ -137,8 +163,17 @@ const Map3D = {
     if (!this._ready) return;
     this._shown = true; this.container.style.display = 'block'; this.resize();
     this._frameBounds();   // now the container has real pixel dimensions, so the fit is correct
-    const loop = () => { if (!this._shown) return; this._raf = requestAnimationFrame(loop); this.controls.update(); this.renderer.render(this.scene, this.camera); };
-    if (!this._raf) loop();
+    const sun = new THREE.Vector3(1, 1, 2).normalize();
+    let last = performance.now();
+    const loop = (t) => {
+      if (!this._shown) return;
+      this._raf = requestAnimationFrame(loop);
+      const now = t || performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
+      for (const p of this._planets) p.model.update(dt, sun);   // live planets spin in real time
+      this.controls.update();
+      this.renderer.render(this.scene, this.camera);
+    };
+    if (!this._raf) loop(last);
   },
 
   hide() {

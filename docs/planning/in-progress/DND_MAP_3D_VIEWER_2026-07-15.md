@@ -204,10 +204,21 @@ like the 2D viewer* but renders true 3D models.
   bounds are stored and `_frameBounds()` runs in `show()`, zoom clamped. Verified over HTTP: toggle
   mounts a WebGL context, 3 discs render at the right spots (screenshot), 2D hides then restores,
   zero errors. View-only for now (TransformControls = Slice 6).
-- **Slice 5 — Live 3D planets (incl. `planet3d-model.js` extraction).** Extract the planet
-  geometry/shaders/textures/build-from-config out of the generator into shared `planet3d-model.js`
-  (generator then consumes it), build planet meshes from `config`; spin live; sprite-billboard
-  fallback when no config; LOD/quality guard. Extraction is verified here by a real render.
+- **Slice 5 — Live 3D planets (incl. `planet3d-model.js` extraction).** ✅ New shared module
+  **`public/dnd/maps/planet3d-model.js`** — a faithful port of the generator's planet pipeline
+  (noise/fbm/warp, `TYPES`, `genPlanet` surface+spec, `genCity` night lights, `genStorms`/`genClouds`,
+  atmosphere fresnel shader, ring) exposing **`buildPlanetModel(config, opts)`** →
+  `{ group, update(dt, sunDir), dispose }`. `map3d.js` now builds a **real spinning 3D planet mesh**
+  for every `planet3d` instance whose config resolves (from `look.cfg3d`, else its source asset),
+  scaled to the 2D size and driven live in the render loop; non-planets and any beyond the
+  **`MAX_LIVE_PLANETS=16` LOD cap** fall back to flat discs. `snapshotLook` now carries `cfg3d` so
+  placed planets keep their recipe. Verified over HTTP (software WebGL): a terran `planet3d` builds a
+  4-mesh model (surface+night+clouds+atmosphere), spins in real time, zero errors — screenshot shows
+  a live world with continents/oceans/clouds/atmosphere, *no baked frames*.
+  *Deferred (one-liners):* (a) the animated **lightning** storm-flash layer — rarely used, heavy, and
+  additive over the cloud layer; low value vs. port cost, left as a follow-up. (b) **De-duping the
+  generator** to consume this module — the module is a faithful copy so they match today; refactoring
+  the working generator now risks destabilising it for no user-visible gain, so it's a later cleanup.
 - **Slice 6 — TransformControls + inspector sync.** Gizmo move/rotate/scale writing back to `t3d`;
   selection shares the inspector; live planet **config editing** (rebuild mesh in place).
 - **Slice 7 — Insert 2D objects in 3D.** Images (plane/billboard), text via `labelSVG` texture, and
