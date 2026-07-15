@@ -46,6 +46,8 @@
   .body{position:absolute;transform:translate(-50%,-50%);cursor:pointer;}
   .body .art{width:100%;height:100%;pointer-events:none;position:relative;}
   .body .artbg{position:absolute;inset:0;border-radius:50%;pointer-events:none;}   /* opaque backing so a solid body occludes the starfield */
+  /* Hybrid view: the 3D overlay draws the 3D-native bodies, so hide their 2D art/POIs/name */
+  html.map-hybrid .body.n3d .art, html.map-hybrid .body.n3d .poilayer, html.map-hybrid .body.n3d .bname{opacity:0;}
   .body .artwrap{position:relative;z-index:1;width:100%;height:100%;}
   .body .poilayer{position:absolute;inset:0;pointer-events:none;z-index:6;}
   .body .poi{position:absolute;transform:translate(-50%,-50%);filter:drop-shadow(0 1px 3px #000);pointer-events:auto;cursor:pointer;}
@@ -518,7 +520,7 @@ function render(){
   // bodies
   (MAP.instances||[]).forEach(i=>{if(i.kind==="text")return;   // text objects are pure labels (overlay)
     const iw=i.w||i.size,ih=i.h||i.size,rot=i.rot||0,op=i.opacity!=null?i.opacity:1;
-    const el=document.createElement("div");el.className="body"+(selectedId===i.id?" selected":"")+(i.kind==="image"?" imgbody":"");el.dataset.id=i.id;el.style.cssText=`left:${i.x}px;top:${i.y}px;width:${iw}px;height:${ih}px;transform:translate(-50%,-50%) rotate(${rot}deg);opacity:${op};z-index:${i.kind==='galaxy'?4:10};`;
+    const el=document.createElement("div");el.className="body"+(selectedId===i.id?" selected":"")+(i.kind==="image"?" imgbody":"")+(["planet3d","planet","moon","star","station","debris","asteroid"].includes(i.kind)?" n3d":"");el.dataset.id=i.id;el.style.cssText=`left:${i.x}px;top:${i.y}px;width:${iw}px;height:${ih}px;transform:translate(-50%,-50%) rotate(${rot}deg);opacity:${op};z-index:${i.kind==='galaxy'?4:10};`;
     const secColor=(MAP.sectors.find(s=>s.id===i.sector)||{}).color||"#88aaff";
     const look=i.look||i;
     let bodyHTML;

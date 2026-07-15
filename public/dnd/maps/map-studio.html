@@ -91,6 +91,8 @@
   .inst{position:absolute;transform:translate(-50%,-50%);cursor:move;}
   .inst .art{width:100%;height:100%;pointer-events:none;position:relative;}
   .inst .artbg{position:absolute;inset:0;border-radius:50%;pointer-events:none;}   /* opaque backing so a solid body occludes the starfield */
+  /* Hybrid view: the 3D overlay draws the 3D-native bodies, so hide their 2D art/POIs/name (the .inst stays as the hit target) */
+  html.map-hybrid .inst.n3d .art, html.map-hybrid .inst.n3d .poilayer, html.map-hybrid .inst.n3d .nm{opacity:0;}
   .inst .artwrap{position:relative;z-index:1;width:100%;height:100%;}
   .inst .poilayer{position:absolute;inset:0;pointer-events:none;z-index:5;}
   .inst .poi{position:absolute;transform:translate(-50%,-50%);pointer-events:auto;cursor:pointer;filter:drop-shadow(0 1px 3px #000);}
@@ -1158,7 +1160,7 @@ function renderInstances(){
   [...state.instances].sort((a,b)=>(a.z||0)-(b.z||0)).forEach(i=>{
     if(i.kind==="text")return;   // free text objects live entirely in the label layer
     const seld=selection&&selection.type==="instance"&&selection.id===i.id;
-    const el=document.createElement("div");el.className="inst"+(i.kind==="image"?" imginst":"")+(seld?" sel":"");
+    const el=document.createElement("div");el.className="inst"+(i.kind==="image"?" imginst":"")+(["planet3d","planet","moon","star","station","debris","asteroid"].includes(i.kind)?" n3d":"")+(seld?" sel":"");
     const iw=i.w||i.size,ih=i.h||i.size,rot=i.rot||0,op=i.opacity!=null?i.opacity:1;
     el.style.cssText=`left:${i.x}px;top:${i.y}px;width:${iw}px;height:${ih}px;transform:translate(-50%,-50%) rotate(${rot}deg);opacity:${op};z-index:${i.z||0};`;
     const fxo=fxOverlay(i.fx,i.look&&i.look.seed);

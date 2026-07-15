@@ -63,12 +63,17 @@ Replace the 2-way toggle with a 3-way mode: **2D · 3D · Hybrid**.
   carries over. Verified headless: 2D (gl hidden) → 3D (mode full, 2D hidden) → Hybrid (mode overlay,
   2D visible, `pointer-events:none`); after a 2D pan the 3D target = the 2D centre `(400,300)` with
   controls disabled; 0 errors.
-- **Slice 3 — Cohesion polish + Console.** Ensure sizes/opacity/labels read consistently across the
-  seam; hide the 2D art for 3D-native bodies (or keep it as the hit target beneath) so there's no
-  double image; bring the hybrid mode to the player **Console** too. Verify headless in Studio +
-  Console; 0 errors.
-- **Slice 4 — Doc to completed + QA.** End-to-end: build a map, switch to Hybrid, confirm 2D
-  images/spirals/text/sectors stay managed while planets render as clear 3D over them, aligned on
-  pan/zoom; publish → Console hybrid matches. Move this doc to `completed/`.
+- **Slice 3 — Cohesion polish + Console.** ✅ A `map-hybrid` class (set on `<html>` by the toggle) hides
+  the 2D art/POIs/name of 3D-native bodies (`.inst.n3d` / `.body.n3d`) so there's no double image — the
+  3D overlay draws them — while the `.inst` stays as the transparent hit target and 2D elements
+  (images/spirals/text/sectors) render normally. The player **Console** shares the same `wireToggle`, so
+  its 3-way toggle + hybrid work identically. Verified headless: Studio hybrid hides the planet's 2D art
+  (opacity 0) but keeps the image's art (opacity 1) and the body clickable; Console hybrid = overlay
+  mode, `pointer-events:none`, native art hidden; 0 errors.
+- **Slice 4 — Doc to completed + QA.** ✅ End-to-end verified headless across Studio and Console: 2D →
+  3D → Hybrid → 2D cycles cleanly; in Hybrid the transparent 3D overlay renders only the 3D bodies
+  camera-locked to the 2D view (target = 2D centre after a pan), the 2D layer keeps images/spirals/text/
+  sectors managed, and native bodies' 2D art is hidden to avoid doubling; 0 console errors. Doc moved to
+  `completed/`.
 
-### Status: IN PROGRESS (Slices 0–2 shipped; 3–4 pending)
+### Status: COMPLETE (Slices 0–4 shipped) — 2D map + transparent camera-locked 3D overlay, in Studio and Console.

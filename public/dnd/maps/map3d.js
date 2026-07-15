@@ -1092,6 +1092,7 @@ window.Map3D = Map3D;
   // 3D layer (pointer-events:none) that renders only the 3D bodies, camera-locked to the 2D view.
   let mode = '2d';
   const apply = async (next) => {
+    document.documentElement.classList.toggle('map-hybrid', next === 'hybrid');   // 2D hides the art of 3D-native bodies
     if (next === '2d') {
       Map3D.hide(); show2d(); gl.style.pointerEvents = ''; btn.classList.remove('aether'); btn.textContent = '⛶ 3D'; mode = '2d'; return;
     }
