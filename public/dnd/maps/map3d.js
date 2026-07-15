@@ -13,7 +13,7 @@
    Coordinate mapping: 2D world (x, y) with y pointing DOWN → 3D (x, -y, 0) so
    the scene reads identically to the 2D map but gains real depth/rotation.
    ============================================================================ */
-let THREE = null, OrbitControls = null, TransformControls = null, CSS3DRenderer = null, CSS3DObject = null, buildPlanetModel = null;
+let THREE = null, OrbitControls = null, TransformControls = null, CSS3DRenderer = null, CSS3DObject = null, buildPlanetModel = null, buildStarModel = null;
 
 async function loadThree() {
   if (THREE) return;
@@ -21,7 +21,7 @@ async function loadThree() {
   ({ OrbitControls } = await import('three/addons/controls/OrbitControls.js'));
   ({ TransformControls } = await import('three/addons/controls/TransformControls.js'));
   ({ CSS3DRenderer, CSS3DObject } = await import('three/addons/renderers/CSS3DRenderer.js'));
-  ({ buildPlanetModel } = await import('/dnd/maps/planet3d-model.js'));
+  ({ buildPlanetModel, buildStarModel } = await import('/dnd/maps/planet3d-model.js'));
 }
 
 const NAVY = 0x010a13;
@@ -303,7 +303,10 @@ const Map3D = {
       holder.userData.id = it.id;
       const imgUrl = it.kind === 'image' && it.look ? (it.look.src || it.look.image) : null;
       const cfg = it.kind === 'planet3d' ? this._planetConfig(it) : null;
-      if (imgUrl) {
+      if (it.kind === 'star' && live < MAX_LIVE_PLANETS) {
+        try { const model = buildStarModel(it.look || {}, { anisotropy: aniso }); holder.add(model.group); this._planets.push({ model }); live++; }
+        catch (e) { console.error('[map3d] star build failed', e); holder.add(this._discMesh(it)); }
+      } else if (imgUrl) {
         holder.add(this._imagePlane(it, imgUrl));                 // inserted picture on a flat plane
       } else if (cfg && live < MAX_LIVE_PLANETS) {
         try {

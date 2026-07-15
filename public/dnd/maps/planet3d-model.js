@@ -159,3 +159,67 @@ export function buildPlanetModel(config, opts) {
     dispose() { disposables.forEach(o => { try { o.dispose(); } catch (e) { /* noop */ } }); }
   };
 }
+
+/* ---------- 3D star model ---------- */
+function coronaTex() {
+  const S = 256, cv = document.createElement('canvas'); cv.width = cv.height = S; const ctx = cv.getContext('2d');
+  const g = ctx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.18, 'rgba(255,255,255,0.72)');
+  g.addColorStop(0.5, 'rgba(255,255,255,0.18)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
+  return texFromCanvas(cv, 1);
+}
+function raysTex(seed) {
+  const S = 256, cv = document.createElement('canvas'); cv.width = cv.height = S; const ctx = cv.getContext('2d');
+  ctx.translate(S / 2, S / 2);
+  let r = (seed | 0) >>> 0; const rnd = () => { r = (r * 1664525 + 1013904223) >>> 0; return r / 4294967296; };
+  const N = 16;
+  for (let i = 0; i < N; i++) {
+    const a = i / N * Math.PI * 2 + rnd() * 0.25, len = S * 0.5 * (0.45 + rnd() * 0.55), w = 0.015 + rnd() * 0.05;
+    const g = ctx.createLinearGradient(0, 0, Math.cos(a) * len, Math.sin(a) * len);
+    g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(a - w) * len, Math.sin(a - w) * len); ctx.lineTo(Math.cos(a + w) * len, Math.sin(a + w) * len); ctx.closePath(); ctx.fill();
+  }
+  return texFromCanvas(cv, 1);
+}
+
+// Build a glowing 3D star: bright body + fresnel glow shell + corona bloom + rotating flare rays,
+// coloured from the body's look (c1/c3). Returns { group, update(dt), dispose } like the planet.
+export function buildStarModel(config, opts) {
+  opts = opts || {};
+  const cfg = config || {};
+  const R = opts.radius || 1, seg = opts.segments || 40;
+  const c1 = new THREE.Color(cfg.c1 || cfg.color || '#ffd98a');
+  const c3 = new THREE.Color(cfg.c3 || '#fff2c8');
+  const core = new THREE.Group(); const dis = [];
+
+  const bodyMat = new THREE.MeshBasicMaterial({ color: c1.clone().lerp(new THREE.Color('#ffffff'), 0.55) });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(R * 0.62, seg, seg), bodyMat); core.add(body); dis.push(body.geometry, bodyMat);
+
+  const glowMat = new THREE.ShaderMaterial({ transparent: true, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
+    uniforms: { c: { value: c1.clone() } },
+    vertexShader: 'varying vec3 vN;varying vec3 vWP;void main(){vN=normalize(mat3(modelMatrix)*normal);vWP=(modelMatrix*vec4(position,1.)).xyz;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+    fragmentShader: 'varying vec3 vN;varying vec3 vWP;uniform vec3 c;void main(){vec3 V=normalize(cameraPosition-vWP);float f=pow(1.0-abs(dot(vN,V)),1.5);gl_FragColor=vec4(c,f);}' });
+  const glow = new THREE.Mesh(new THREE.SphereGeometry(R * 0.95, seg, seg), glowMat); core.add(glow); dis.push(glow.geometry, glowMat);
+
+  const corTex = coronaTex();
+  const corMat = new THREE.SpriteMaterial({ map: corTex, color: c1.clone(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.85 });
+  const corSpr = new THREE.Sprite(corMat); corSpr.scale.set(R * 3.4, R * 3.4, 1); core.add(corSpr); dis.push(corMat, corTex);
+
+  const rTex = raysTex(cfg.seed || 7);
+  const rayMat = new THREE.SpriteMaterial({ map: rTex, color: c3.clone(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.5 });
+  const raySpr = new THREE.Sprite(rayMat); raySpr.scale.set(R * 3.0, R * 3.0, 1); core.add(raySpr); dis.push(rayMat, rTex);
+
+  const spin = cfg.spin != null ? cfg.spin : 1; let t0 = 0;
+  return {
+    group: core,
+    update(dt) {
+      t0 += dt; body.rotation.y += 0.15 * spin * dt; rayMat.rotation += 0.12 * dt;
+      const pulse = 1 + Math.sin(t0 * 1.6) * 0.06;
+      corSpr.scale.set(R * 3.4 * pulse, R * 3.4 * pulse, 1);
+      corMat.opacity = 0.72 + Math.sin(t0 * 1.6) * 0.15;
+    },
+    dispose() { dis.forEach(o => { try { o.dispose(); } catch (e) { /* noop */ } }); }
+  };
+}

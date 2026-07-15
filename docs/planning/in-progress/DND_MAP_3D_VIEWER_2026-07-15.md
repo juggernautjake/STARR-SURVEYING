@@ -285,12 +285,15 @@ like the 2D viewer* but renders true 3D models.
     drifting** (sine wobble) so the gas billows and lives. Verified: 5 sprites, textured, additive,
     drift on update, zero errors (opacity tuned up for presence).
 
-- **Slice 10 — Many small bodies + 3D stars (per user):** render planets at **very small scale** so a
-  whole system (planets, moons, suns, stations…) fits one map — needs an **LOD** path (tiny on-screen
-  bodies → impostor/sprite, real mesh only when large/near, and a much larger MAX-live budget via
-  impostors) and/or a bigger world. Plus a **3D star model** generator — glowing star spheres with
-  **coronae, flares, varied colours and effects** — so `star` bodies render as real 3D suns, not discs.
-  *(Added from a follow-up request.)*
+- **Slice 10 — Many small bodies + 3D stars (per user):** 🔶 *(3D stars done; LOD remaining)*
+  - **10b 3D star models ✅** — `buildStarModel(look)` in `planet3d-model.js`: a bright body sphere +
+    **fresnel glow shell** + **corona bloom sprite** (canvas radial) + **rotating flare-ray sprite**
+    (canvas spikes), coloured from the body's `c1`/`c3`, with a gentle **pulse**. `map3d.js` renders
+    `star` bodies as these live suns (LOD-capped, disc fallback). Verified + screenshot: a gold sun
+    and a blue star, each 4 meshes, glowing with correct colours, zero errors.
+  - **10a Small-body LOD — remaining:** render planets/moons/suns at **very small scale** so a whole
+    system fits one map — tiny/distant bodies → cheap **impostor sprite**, real mesh only when large
+    or near, lifting the hard 16-live cap so dozens of bodies can coexist.
 
 Each slice: verify (headless WebGL render where relevant) + `tsc`/`vitest` unaffected, commit, push,
 annotate this ship log. Seed/DB changes ship as seeds the DM applies.
