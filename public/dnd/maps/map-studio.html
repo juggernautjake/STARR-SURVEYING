@@ -102,17 +102,21 @@
   .inst .nm{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:3px;font-size:11px;font-weight:500;white-space:nowrap;color:#e8e6ff;text-shadow:0 1px 5px #000;pointer-events:none;}
   .inst.sel{outline:var(--selw,1.5px) var(--sels,dashed) var(--selc,#c89b3c);outline-offset:5px;border-radius:50%;}
   .inst.imginst.sel{border-radius:4px;}
-  .inst .ihandle{position:absolute;width:12px;height:12px;background:#06040f;border:1.6px solid var(--gold);border-radius:2px;pointer-events:auto;z-index:6;}
-  .inst .ihandle.rot{border-radius:50%;top:-30px;left:50%;transform:translateX(-50%);cursor:grab;}
-  .inst .ihandle.rstem{width:1px;height:24px;background:var(--gold);opacity:.5;border:none;top:-24px;left:50%;transform:translateX(-50%);pointer-events:none;border-radius:0;}
-  /* corner scale handles: a big (24px) transparent grab pad with a small visible dot, so they're easy to grab */
-  .inst .ihandle.tl,.inst .ihandle.tr,.inst .ihandle.bl,.inst .ihandle.br{width:24px;height:24px;background:transparent;border:none;border-radius:0;}
-  .inst .ihandle.tl::after,.inst .ihandle.tr::after,.inst .ihandle.bl::after,.inst .ihandle.br::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:12px;height:12px;background:#06040f;border:1.6px solid var(--gold);border-radius:2px;}
-  .inst .ihandle.tl:hover::after,.inst .ihandle.tr:hover::after,.inst .ihandle.bl:hover::after,.inst .ihandle.br:hover::after{background:var(--gold);}
-  .inst .ihandle.tl{top:-12px;left:-12px;cursor:nwse-resize;}
-  .inst .ihandle.tr{top:-12px;right:-12px;cursor:nesw-resize;}
-  .inst .ihandle.bl{bottom:-12px;left:-12px;cursor:nesw-resize;}
-  .inst .ihandle.br{bottom:-12px;right:-12px;cursor:nwse-resize;}
+  /* Transform handles live in #handleLayer (above every body + front sector) so they're never occluded.
+     .ihwrap mirrors the selected instance's box; the handles sit at its corners + a rotate stem. */
+  #handleLayer{position:absolute;inset:0;transform-origin:0 0;z-index:6;pointer-events:none;}
+  .ihwrap{position:absolute;pointer-events:none;}
+  .ihandle{position:absolute;width:13px;height:13px;background:#06040f;border:1.6px solid var(--gold);border-radius:2px;pointer-events:auto;box-shadow:0 0 0 1.5px rgba(6,4,15,.75),0 1px 4px rgba(0,0,0,.7),0 0 7px rgba(200,155,60,.5);}
+  .ihandle.rot{border-radius:50%;top:-30px;left:50%;transform:translateX(-50%);cursor:grab;}
+  .ihandle.rstem{width:2px;height:24px;background:var(--gold);opacity:.6;border:none;top:-24px;left:50%;transform:translateX(-50%);pointer-events:none;border-radius:0;box-shadow:0 0 4px rgba(0,0,0,.7);}
+  /* corner scale handles: a big (30px) transparent grab pad with a bright visible dot, easy to see + grab */
+  .ihandle.tl,.ihandle.tr,.ihandle.bl,.ihandle.br{width:30px;height:30px;background:transparent;border:none;border-radius:0;box-shadow:none;}
+  .ihandle.tl::after,.ihandle.tr::after,.ihandle.bl::after,.ihandle.br::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:14px;height:14px;background:#06040f;border:1.8px solid var(--gold);border-radius:3px;box-shadow:0 0 0 1.5px rgba(6,4,15,.75),0 1px 4px rgba(0,0,0,.75),0 0 8px rgba(200,155,60,.55);}
+  .ihandle.tl:hover::after,.ihandle.tr:hover::after,.ihandle.bl:hover::after,.ihandle.br:hover::after{background:var(--gold);}
+  .ihandle.tl{top:-15px;left:-15px;cursor:nwse-resize;}
+  .ihandle.tr{top:-15px;right:-15px;cursor:nesw-resize;}
+  .ihandle.bl{bottom:-15px;left:-15px;cursor:nesw-resize;}
+  .ihandle.br{bottom:-15px;right:-15px;cursor:nwse-resize;}
   .ghost{position:fixed;pointer-events:none;z-index:1000;transform:translate(-50%,-50%);opacity:.82;filter:drop-shadow(0 0 14px var(--aether));}
   .ghost svg{width:100%;height:100%;}
   .placebar{position:fixed;bottom:44px;left:50%;transform:translateX(-50%);z-index:60;background:rgba(20,14,44,.97);border:1px solid var(--aether);border-radius:12px;padding:12px 16px;display:none;align-items:center;gap:14px;box-shadow:0 8px 30px rgba(0,0,0,.5);}
@@ -264,7 +268,7 @@
       <button id="view3dBtn" title="Switch between the flat 2D map and the real-time 3D viewer">⛶ 3D</button>
       <button id="refresh3dBtn" title="Hot-refresh the 3D viewer to re-render the latest changes">⟳ Refresh 3D</button>
     </div>
-    <div id="canvas"><canvas id="skyCanvas" style="position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none"></canvas><div id="bgLayer"></div><div class="bodyLayer" id="backLayer"></div><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><svg id="svgFront"></svg><canvas id="fxCanvas"></canvas><svg id="labelLayer"></svg><div id="gl3d" style="position:absolute;inset:0;z-index:5;display:none"></div></div>
+    <div id="canvas"><canvas id="skyCanvas" style="position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none"></canvas><div id="bgLayer"></div><div class="bodyLayer" id="backLayer"></div><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><svg id="svgFront"></svg><canvas id="fxCanvas"></canvas><svg id="labelLayer"></svg><div id="handleLayer"></div><div id="gl3d" style="position:absolute;inset:0;z-index:5;display:none"></div></div>
   </div>
   <div class="insp">
     <div class="ihead" id="inspHead">◈ INSPECTOR</div>
@@ -1156,7 +1160,7 @@ function toWorld(sx,sy){const r=$("#canvas").getBoundingClientRect();return {x:(
 // 3D viewer can centre on and scale to exactly what the 2D map shows (and write it back on the way out).
 window.map2dView=function(){const c=$("#canvas");const W=c.clientWidth||1,H=c.clientHeight||1;return {cx:(W/2-view.x)/view.scale,cy:(H/2-view.y)/view.scale,scale:view.scale};};
 window.setMap2dView=function(cx,cy,scale){const c=$("#canvas");const W=c.clientWidth||1,H=c.clientHeight||1;view.scale=clamp(scale,0.12,5);view.x=W/2-cx*view.scale;view.y=H/2-cy*view.scale;applyView();};
-function applyView(){const tf=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;$("#svg").style.transform=tf;$("#svg").style.transformOrigin="0 0";$("#bodyLayer").style.transform=tf;const bk=$("#backLayer");if(bk){bk.style.transform=tf;bk.style.transformOrigin="0 0";}const sf=$("#svgFront");if(sf){sf.style.transform=tf;sf.style.transformOrigin="0 0";}const ll=$("#labelLayer");if(ll){ll.style.transform=tf;ll.style.transformOrigin="0 0";}$("#zVal").textContent=Math.round(view.scale*100)+"%";if(pending)positionGhostWorld();syncSkyLock();}
+function applyView(){const tf=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;$("#svg").style.transform=tf;$("#svg").style.transformOrigin="0 0";$("#bodyLayer").style.transform=tf;const bk=$("#backLayer");if(bk){bk.style.transform=tf;bk.style.transformOrigin="0 0";}const sf=$("#svgFront");if(sf){sf.style.transform=tf;sf.style.transformOrigin="0 0";}const ll=$("#labelLayer");if(ll){ll.style.transform=tf;ll.style.transformOrigin="0 0";}const hl=$("#handleLayer");if(hl){hl.style.transform=tf;hl.style.transformOrigin="0 0";}$("#zVal").textContent=Math.round(view.scale*100)+"%";if(pending)positionGhostWorld();syncSkyLock();}
 // Parallax OFF → the starfield/nebula/glow backdrop is world-locked: push the live view so Sky2D pans
 // & zooms it with the map (sectors, systems and bodies then hold their positions over the background).
 function syncSkyLock(){if(!window.Sky2D)return;const off=!!(state.bg3d&&state.bg3d.parallax===false);window.Sky2D.setLock(off);if(off)window.Sky2D.setView(view.x,view.y,view.scale);}
@@ -1244,11 +1248,8 @@ function renderInstances(){
     else{el.innerHTML=`<div class="art">${bodyBacking(i)}<div class="artwrap">${fxo}${art(i.look||i,true)}</div></div>${poiLayerHTML(i)}`;}
     el.addEventListener("mousedown",e=>{if(e.target.closest(".poi")||e.target.closest(".ihandle"))return;e.stopPropagation();onInstDown(e,i);});
     el.addEventListener("dblclick",e=>{if(mode!=="dm")return;e.stopPropagation();const a=state.assets.find(x=>x.id===i.assetId)||{...i.look,name:i.name,kind:i.kind,size:i.size};openEditor(a,"edit");});
-    // on-map scale + rotate handles for the selected instance (any kind)
-    if(seld&&mode==="dm"){
-      el.insertAdjacentHTML("beforeend",'<div class="ihandle rstem"></div><div class="ihandle rot" data-h="rot"></div><div class="ihandle tl" data-h="s"></div><div class="ihandle tr" data-h="s"></div><div class="ihandle bl" data-h="s"></div><div class="ihandle br" data-h="s"></div>');
-      el.querySelectorAll(".ihandle[data-h]").forEach(h=>h.addEventListener("mousedown",ev=>{ev.stopPropagation();ev.preventDefault();if(h.dataset.h==="rot")onInstRotateDown(ev,i);else onInstScaleDown(ev,i);}));
-    }
+    // on-map scale + rotate handles are drawn into #handleLayer (see renderHandles) so they can't be
+    // occluded by other bodies or front sectors — critical for images/spirals that overlap other art.
     // POI interactions
     el.querySelectorAll(".poi").forEach(pel=>{
       pel.addEventListener("mousedown",e=>{e.stopPropagation();});
@@ -1258,7 +1259,23 @@ function renderInstances(){
   });
   mountDiffspinInstances();mountSpriteInstances();mountSpiralImages();
   renderLabels();   // labels live in the overlay layer; keep them in lockstep with the bodies
+  renderHandles();  // scale/rotate handles in the always-on-top overlay
 }
+// Draw the selected instance's scale + rotate handles into #handleLayer (above every body & sector),
+// in a wrapper that mirrors the instance's centred, rotated box so the corners line up exactly.
+function renderHandles(){
+  const hl=$("#handleLayer");if(!hl)return;hl.innerHTML="";
+  if(mode!=="dm"||!(selection&&selection.type==="instance"))return;
+  if(window.Map3D&&window.Map3D.isShown&&window.Map3D.isShown())return;   // the 3D viewer owns the screen — no 2D handles over it
+  const i=state.instances.find(x=>x.id===selection.id);if(!i||i.kind==="text")return;
+  const iw=i.w||i.size,ih=i.h||i.size,rot=i.rot||0;
+  const w=document.createElement("div");w.className="ihwrap";
+  w.style.cssText=`left:${i.x}px;top:${i.y}px;width:${iw}px;height:${ih}px;transform:translate(-50%,-50%) rotate(${rot}deg);`;
+  w.innerHTML='<div class="ihandle rstem"></div><div class="ihandle rot" data-h="rot"></div><div class="ihandle tl" data-h="s"></div><div class="ihandle tr" data-h="s"></div><div class="ihandle bl" data-h="s"></div><div class="ihandle br" data-h="s"></div>';
+  hl.appendChild(w);
+  w.querySelectorAll(".ihandle[data-h]").forEach(h=>h.addEventListener("mousedown",ev=>{ev.stopPropagation();ev.preventDefault();if(h.dataset.h==="rot")onInstRotateDown(ev,i);else onInstScaleDown(ev,i);}));
+}
+{const v3=$("#view3dBtn");if(v3)v3.addEventListener("click",()=>{const hl=$("#handleLayer");if(hl)hl.innerHTML="";});}   // clear handles when toggling the 3D viewer
 const spriteLive={};
 function mountSpriteInstances(){
   const liveIds=new Set(state.instances.filter(i=>i.kind==="planet3d").map(i=>i.id));
