@@ -261,6 +261,7 @@
       <button data-tool="fx" title="Map ambience & effects">✧ Effects</button>
       <div class="tspacer" style="flex:1"></div>
       <button id="view3dBtn" title="Switch between the flat 2D map and the real-time 3D viewer">⛶ 3D</button>
+      <button id="refresh3dBtn" title="Hot-refresh the 3D viewer to re-render the latest changes">⟳ Refresh 3D</button>
     </div>
     <div id="canvas"><canvas id="skyCanvas" style="position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none"></canvas><div id="bgLayer"></div><div class="bodyLayer" id="backLayer"></div><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><canvas id="fxCanvas"></canvas><svg id="labelLayer"></svg><div id="gl3d" style="position:absolute;inset:0;z-index:5;display:none"></div></div>
   </div>
@@ -1020,7 +1021,7 @@ $("#placeConfirm").onclick=()=>{
     if(a.kind==="planet3d"){inst.p3spin=(a.cfg3d&&a.cfg3d.spin!=null)?clamp(+a.cfg3d.spin,0,3):1;}
     if(a.kind==="planet3d"&&a.pois3d&&a.pois3d.length){inst.pois=a.pois3d.map(p=>({id:uid(),type:(POI_TYPES[p.cat]?p.cat:"city"),title:p.title||"",desc:p.desc||"",ax:clamp(p.lon||0,-1,1),ay:clamp(-(p.lat||0),-1,1)}));}
     inst.sector=sectorAt({x:inst.x,y:inst.y});state.instances.push(inst);selection={type:"instance",id:inst.id};}
-  clearPending();renderAll();markDirty();toast("Placed "+a.name);
+  clearPending();renderAll();markDirty();map3dRefresh(true);toast("Placed "+a.name);   // instant 3D refresh on placement
 };
 $("#placeCancel").onclick=clearPending;
 function clearPending(){pending=null;ghost.style.display="none";$("#placeBar").classList.remove("show");}
@@ -2014,6 +2015,13 @@ function pushTo3D(){
   clearTimeout(push3dTimer);
   push3dTimer=setTimeout(()=>{ try{ if(window.Map3D.isShown()&&!(window.Map3D.isEditing&&window.Map3D.isEditing())) window.Map3D.setData(mapData()); }catch(e){} }, 90);
 }
+// Immediate (un-debounced) hot refresh — used right after placing something and by the ⟳ Refresh 3D button.
+function map3dRefresh(quiet){
+  clearTimeout(push3dTimer);
+  if(!(window.Map3D&&window.Map3D.isShown&&window.Map3D.isShown())){ if(!quiet)toast("Open the 3D viewer first"); return; }
+  try{ window.Map3D.setData(mapData()); if(!quiet)toast("◈ 3D refreshed"); }catch(e){}
+}
+$("#refresh3dBtn").onclick=()=>map3dRefresh(false);
 
 /* ============================================================ HISTORY + SAVE/LOAD ============================================================ */
 function cleanState(){return JSON.stringify({assets:state.assets,instances:state.instances,
