@@ -289,7 +289,8 @@ const Map3D = {
     const cs = this.cssScene; if (cs) { while (cs.children.length) cs.remove(cs.children[0]); }
     const insts = (this._map && this._map.instances) || [];
     const aniso = this.renderer.capabilities.getMaxAnisotropy();
-    let live = 0, minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+    this._bodies = [];
+    let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
     for (const it of insts) {
       if (it.kind === 'text') { this._addText(it); minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x); maxY = Math.max(maxY, it.y); continue; }
       if (it.kind === 'html') { this._addHtml(it); minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x); maxY = Math.max(maxY, it.y); continue; }
@@ -303,28 +304,51 @@ const Map3D = {
       holder.userData.id = it.id;
       const imgUrl = it.kind === 'image' && it.look ? (it.look.src || it.look.image) : null;
       const cfg = it.kind === 'planet3d' ? this._planetConfig(it) : null;
-      if (it.kind === 'star' && live < MAX_LIVE_PLANETS) {
-        try { const model = buildStarModel(it.look || {}, { anisotropy: aniso }); holder.add(model.group); this._planets.push({ model }); live++; }
-        catch (e) { console.error('[map3d] star build failed', e); holder.add(this._discMesh(it)); }
-      } else if (imgUrl) {
-        holder.add(this._imagePlane(it, imgUrl));                 // inserted picture on a flat plane
-      } else if (cfg && live < MAX_LIVE_PLANETS) {
-        try {
-          const model = buildPlanetModel(cfg, { anisotropy: aniso, segments: 72 });   // unit radius
-          holder.add(model.group);
-          this._planets.push({ model });
-          live++;
-        } catch (e) { console.error('[map3d] planet build failed', e); holder.add(this._discMesh(it)); }
-      } else {
-        holder.add(this._discMesh(it));
-      }
+      // Every body starts as a cheap disc impostor; _applyLOD() promotes the large ones on-screen to
+      // full 3D meshes. Unlimited impostors → a whole system fits; only a few big ones cost a mesh.
+      let disc = null;
+      if (imgUrl) holder.add(this._imagePlane(it, imgUrl));
+      else { disc = this._discMesh(it); holder.add(disc); }
       g.add(holder);
+      this._bodies.push({ holder, it, disc, isStar: it.kind === 'star', cfg, canFull: !imgUrl && (it.kind === 'star' || !!cfg), hasModel: false, model: null });
       minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x + s); maxY = Math.max(maxY, it.y + s);
     }
     // Framing needs the container's real pixel size, which is only correct once it's visible; store
     // the bounds and (re)frame from show(). Framing here while hidden gives a degenerate zoom.
     this._bounds = (insts.length && minX < maxX) ? { minX, minY, maxX, maxY } : null;
-    if (this._bounds && this._shown) this._frameBounds();
+    if (this._bounds && this._shown) { this._frameBounds(); this._applyLOD(); }
+  },
+
+  // Distance/zoom LOD: promote bodies that are large on-screen to full 3D meshes, keep the rest as
+  // cheap disc impostors. Hysteresis (promote ≥ PROMOTE px, demote < DEMOTE px) avoids thrash, and a
+  // MAX_FULL budget (biggest win first) caps GPU cost regardless of how many bodies the map holds.
+  _applyLOD() {
+    if (!this._ready || !this._bodies || !this._bodies.length) return;
+    const zoom = this.camera.zoom || 1, ph = this.container.clientHeight || 1, frust = (this.camera.top - this.camera.bottom) || 1000;
+    const pxPerWorld = zoom * ph / frust, PROMOTE = 90, DEMOTE = 55, MAX_FULL = 14, aniso = this.renderer.capabilities.getMaxAnisotropy();
+    const cands = this._bodies.filter(b => b.canFull).sort((a, b) => b.it.size - a.it.size);
+    let full = 0;
+    for (const b of cands) { if (b.hasModel) { if (b.it.size * pxPerWorld < DEMOTE) this._demote(b); else full++; } }
+    for (const b of cands) {
+      if (b.hasModel) continue;
+      if (b.it.size * pxPerWorld >= PROMOTE && full < MAX_FULL && this._promote(b, aniso)) full++;
+    }
+    this._lodZoom = zoom;
+  },
+  _promote(b, aniso) {
+    try {
+      const model = b.isStar ? buildStarModel(b.it.look || {}, { anisotropy: aniso }) : buildPlanetModel(b.cfg, { anisotropy: aniso, segments: 64 });
+      if (b.disc) b.holder.remove(b.disc);
+      b.holder.add(model.group); b.model = model; b.hasModel = true; this._planets.push({ model });
+      return true;
+    } catch (e) { console.error('[map3d] LOD promote failed', e); return false; }
+  },
+  _demote(b) {
+    if (!b.model) return;
+    b.holder.remove(b.model.group);
+    this._planets = this._planets.filter(p => p.model !== b.model);
+    b.model.dispose(); b.model = null; b.hasModel = false;
+    if (b.disc) b.holder.add(b.disc);
   },
 
   _discMesh(it) {   // a unit-radius flat disc (holder scales it to size)
@@ -411,6 +435,7 @@ const Map3D = {
     if (!this._ready) return;
     this._shown = true; this.container.style.display = 'block'; this.resize();
     this._frameBounds();   // now the container has real pixel dimensions, so the fit is correct
+    this._applyLOD();      // pick full-mesh vs impostor for the current zoom
     const sun = new THREE.Vector3(1, 1, 2).normalize();
     let last = performance.now();
     const loop = (t) => {
@@ -419,6 +444,7 @@ const Map3D = {
       const now = t || performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
       for (const p of this._planets) p.model.update(dt, sun);   // live planets spin in real time
       this.controls.update();
+      if (Math.abs(this.camera.zoom - (this._lodZoom || 0)) > (this._lodZoom || 1) * 0.04) this._applyLOD();   // re-LOD on zoom
       this._updateStars();                                       // parallax follows the pan
       this._updateShooters(dt);                                  // colourful meteors
       this._updateNebula(dt);                                    // drifting gas clouds

@@ -285,15 +285,31 @@ like the 2D viewer* but renders true 3D models.
     drifting** (sine wobble) so the gas billows and lives. Verified: 5 sprites, textured, additive,
     drift on update, zero errors (opacity tuned up for presence).
 
-- **Slice 10 — Many small bodies + 3D stars (per user):** 🔶 *(3D stars done; LOD remaining)*
+- **Slice 10 — Many small bodies + 3D stars (per user):** ✅ *(3D stars + LOD both shipped)*
   - **10b 3D star models ✅** — `buildStarModel(look)` in `planet3d-model.js`: a bright body sphere +
     **fresnel glow shell** + **corona bloom sprite** (canvas radial) + **rotating flare-ray sprite**
     (canvas spikes), coloured from the body's `c1`/`c3`, with a gentle **pulse**. `map3d.js` renders
     `star` bodies as these live suns (LOD-capped, disc fallback). Verified + screenshot: a gold sun
     and a blue star, each 4 meshes, glowing with correct colours, zero errors.
-  - **10a Small-body LOD — remaining:** render planets/moons/suns at **very small scale** so a whole
-    system fits one map — tiny/distant bodies → cheap **impostor sprite**, real mesh only when large
-    or near, lifting the hard 16-live cap so dozens of bodies can coexist.
+  - **10a Small-body LOD ✅** — every body now starts as a **cheap disc impostor**; `_applyLOD()`
+    promotes only the ones that are **large on-screen** to full 3D meshes (`buildPlanetModel`/
+    `buildStarModel`), with **hysteresis** (promote ≥ 90 px, demote < 55 px) and a **MAX_FULL=14**
+    budget (biggest-on-screen win first). Re-runs on show + whenever the zoom changes >4%. The old
+    hard 16-live cap is gone — **unlimited impostors**, so a whole system of dozens of planets/moons/
+    suns coexists; only the few big ones cost a mesh. Verified: 30 bodies → 0 full meshes at fit-all
+    zoom, 14 (capped) when zoomed in, back to 0 when zoomed out, zero errors.
+
+### Status: COMPLETE
+The full real-time 3D map viewer is shipped: **2D⇄3D toggle** (ortho, map-like camera + constrained
+orbit) in both the DM Studio and the read-only player Console; **live 3D planets & stars** rebuilt
+from config (surface/clouds/atmosphere/night/ring; sun body/glow/corona/rays), **TransformControls**
+move/rotate/scale writing back to the map; **inserted images / rich text (CSS3D) / sandboxed HTML**;
+a living deep-space backdrop (**parallax starfield**, **colourful shooting stars**, **gas nebulas**);
+**LOD** so many small bodies fit one map; **real-time** publish→player updates; the 2D flicker fixed
+at the bake + playback; and large sheets de-inlined to Storage. Three.js is vendored locally.
+**Deferrals (documented inline):** the animated lightning layer, de-duping the generator to consume
+`planet3d-model.js`, and live planet-shape config editing in the viewer — each low value vs. cost now.
+**DB hand-off:** the DM applies `seeds/421_dnd_maps.sql`; runtime degrades gracefully until then.
 
 Each slice: verify (headless WebGL render where relevant) + `tsc`/`vitest` unaffected, commit, push,
 annotate this ship log. Seed/DB changes ship as seeds the DM applies.
