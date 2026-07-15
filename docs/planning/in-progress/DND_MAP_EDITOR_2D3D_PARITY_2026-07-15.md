@@ -144,11 +144,18 @@ gets 3D equivalents or stays a 2D-layer concern — lean: keep fx 2D-layer, docu
 ## Slices
 
 - **Slice 0 — Planning doc + full catalogue** *(this file)*.
-- **Slice 1 — Unified planet `look` superset + normalizer; 3D reads terrain from look.** A pure
-  `normalizeLook` (defaults for `sea/cscale/coast/ice/cloud*/storms/stormI/light*/tilt/spin/ringColor/ringW/
-  cityColor`); `_genericPlanetCfg` reads these from look instead of hardcoding. Verified headless: a placed
-  planet's 3D terrain/ice/atmo now respond to its look fields; existing objects unchanged (defaults match
-  today's constants).
+- **Slice 1 — 3D reads terrain/storm/lightning/tilt from `look` (was hardcoded).** ✅ `map3d.js`
+  `_genericPlanetCfg` now reads `sea`/`cscale`/`coast`/`ice`/`spin`/`tilt` from the object's `look` (with
+  defaults exactly matching the previous hardcoded constants) and passes through the rich cloud params
+  (`cloudCov`/`cloudOpacity`/`cloudScale`/`cloudDetail`/`cloudDef`/`cloudSwirl`/`cloudBand`/`cloudBandN`/
+  `cloudShear`/`cloudTint`), `storms`/`stormI`, `lightOn`/`lightRate`, `ringColor`/`ringW`, `cityColor`,
+  `atmoDensity` **only when set**, so `buildPlanetModel`'s own defaults still apply otherwise. This makes the
+  SAME look field drive both the 2D art and the live 3D model — the wiring the rest of the slices build on.
+  Moons also honor `sea`/`cscale`/`coast`/`ice`/`spin` and (newly) `atmo`. Verified headless
+  (`verify-cfg-parity.mjs`): unset object → identical config to before (`sea 0.52, cscale 2.2, coast 0.5,
+  ice 0.15, spin 1`, no `storms`/`tilt` keys); a look with `sea/cscale/coast/ice/tilt/spin` set → all read
+  through; `storms/stormI/lightOn/lightRate/cloudCov` flow through only when present; icy moon → `type ice,
+  ice 0.9`; 0 page errors (confirms `map3d.js` still parses).
 - **Slice 2 — 2D lightning + storms (the DM's headline).** `art()` gains an animated **lightning** layer
   (flash cadence = `lightRate`, color = `lightColor`, gated by `lightOn`) and an animated **storm swirl**
   (count = `storms`, intensity = `stormI`), plus the studio controls for them. Same fields the 3D reads.
@@ -180,4 +187,4 @@ gets 3D equivalents or stays a 2D-layer concern — lean: keep fx 2D-layer, docu
 - **Reuse:** build on `art()`, `buildPlanetModel`, `_genericPlanetCfg`, `pushTo3D`, and the existing viewer
   toggle — don't fork them.
 
-### Status: IN PROGRESS (Slice 0 shipped; 1–7 pending)
+### Status: IN PROGRESS (Slices 0–1 shipped; 2–7 pending)

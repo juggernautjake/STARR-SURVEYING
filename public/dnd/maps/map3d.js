@@ -716,13 +716,24 @@ const Map3D = {
     this._lodZoom = zoom;
   },
   // A 2D planet/moon → a real 3D planet config (buildPlanetModel reads TYPES[type] for colours).
+  // 2D<->3D parity (Slice 1): terrain (sea/cscale/coast/ice), the numeric cloud params, storms and
+  // lightning, axial tilt and spin are read from the object's `look` when present, so the SAME edit drives
+  // both the 2D art and the live 3D model. Defaults match the previous hardcoded values, so an object that
+  // has never set these fields renders exactly as before (backward compatible).
   _genericPlanetCfg(it) {
     const L = it.look || it, valid = ['terran', 'ocean', 'jungle', 'desert', 'ice', 'volcanic', 'toxic', 'barren', 'gas'];
-    const lava = L.lava != null ? +L.lava : 0, city = L.city != null ? +L.city : undefined, lightColor = L.lightColor || undefined;
+    const num = (v, d) => (v != null && v !== '' && !isNaN(+v) ? +v : d);
+    const lava = num(L.lava, 0), city = L.city != null ? +L.city : undefined, lightColor = L.lightColor || undefined;
     const destroyed = L.destroyed || undefined, destroyI = L.destroyI != null ? +L.destroyI : undefined;
-    if (it.kind === 'moon') return { type: L.mtype === 'ice' ? 'ice' : 'barren', seed: L.seed || 1, sea: 0.02, cscale: 2.6, coast: 0.6, ice: L.mtype === 'ice' ? 0.6 : 0.05, spin: 1, atmoOn: false, lava, city, lightColor, destroyed, destroyI };
+    // Rich fields honored by buildPlanetModel when present on the look — passed through only if set so
+    // defaults inside the model still apply otherwise.
+    const rich = {};
+    for (const k of ['cloudCov', 'cloudOpacity', 'cloudScale', 'cloudDetail', 'cloudDef', 'cloudSwirl', 'cloudBand', 'cloudBandN', 'cloudShear', 'cloudTint', 'storms', 'stormI', 'lightOn', 'lightRate', 'tilt', 'ringColor', 'ringW', 'cityColor', 'atmoDensity']) {
+      if (L[k] != null && L[k] !== '') rich[k] = L[k];
+    }
+    if (it.kind === 'moon') return Object.assign({ type: (L.mtype === 'ice' || L.mtype === 'icy') ? 'ice' : 'barren', seed: L.seed || 1, sea: num(L.sea, 0.02), cscale: num(L.cscale, 2.6), coast: num(L.coast, 0.6), ice: num(L.ice, (L.mtype === 'ice' || L.mtype === 'icy') ? 0.6 : 0.05), spin: num(L.spin, 1), atmoOn: !!L.atmo, lava, city, lightColor, destroyed, destroyI }, rich);
     const t = valid.includes(L.ptype) ? L.ptype : (L.ptype === 'rock' ? 'barren' : 'terran');
-    return { type: t, seed: L.seed || 1, sea: t === 'gas' ? 0.5 : 0.52, cscale: 2.2, coast: 0.5, ice: t === 'ice' ? 0.5 : 0.15, spin: 1, ring: !!L.ring, atmoOn: L.atmo !== false && ['terran', 'ocean', 'toxic', 'gas', 'jungle'].includes(t), atmoColor: L.atmoColor || undefined, lava, city, lightColor, destroyed, destroyI };
+    return Object.assign({ type: t, seed: L.seed || 1, sea: num(L.sea, t === 'gas' ? 0.5 : 0.52), cscale: num(L.cscale, 2.2), coast: num(L.coast, 0.5), ice: num(L.ice, t === 'ice' ? 0.5 : 0.15), spin: num(L.spin, 1), ring: !!L.ring, atmoOn: L.atmo !== false && ['terran', 'ocean', 'toxic', 'gas', 'jungle'].includes(t), atmoColor: L.atmoColor || undefined, lava, city, lightColor, destroyed, destroyI }, rich);
   },
   // Debris field: a cluster of flat-shaded rocky chunks tumbling slowly (distinct from a single asteroid).
   _debrisModel(it) {
