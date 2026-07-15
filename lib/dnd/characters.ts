@@ -28,6 +28,10 @@ export interface DndCharacterRow {
   under_construction?: boolean;
   import_notes?: string | null;
   style_notes?: string | null;
+  // AI-built custom sheet (Phase V, Slice 6): building blocks + CSS the sheet engine
+  // renders in a sandboxed iframe when `sheet_type` is `custom`.
+  custom_layout?: unknown;
+  custom_css?: string | null;
   created_at: string;
   updated_at: string;
 }

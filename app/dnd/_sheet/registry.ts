@@ -89,6 +89,10 @@ export const SHEET_REGISTRY: Record<string, SheetTypeConfig> = {
   },
   // Fallback for a character with no bespoke skin/modules yet.
   generic: { label: 'Generic', modules: [] },
+  // AI-built custom sheet (Slice 6): the page is composed from stored building blocks +
+  // CSS (`dnd_characters.custom_layout` / `custom_css`) and rendered in a sandboxed
+  // iframe by SheetRoot, not from the module engine — so this config has no modules.
+  custom: { label: 'Custom (AI)', modules: [] },
 };
 
 export function getSheetConfig(sheetType?: string): SheetTypeConfig {

@@ -51,7 +51,15 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
       {canWrite && character.campaign_id !== DEMO_CAMPAIGN_ID && (
         <AddToDemoButton characterId={character.id} campaignId={DEMO_CAMPAIGN_ID} />
       )}
-      <SheetRoot characterId={character.id} campaignId={character.campaign_id ?? undefined} sheetType={character.sheet_type} isDM={isDM} canWrite={canWrite} />
+      <SheetRoot
+        characterId={character.id}
+        campaignId={character.campaign_id ?? undefined}
+        sheetType={character.sheet_type}
+        isDM={isDM}
+        canWrite={canWrite}
+        customLayout={character.custom_layout}
+        customCss={character.custom_css}
+      />
       {character.campaign_id && <SheetChatPanel campaignId={character.campaign_id} actorName={character.name} />}
     </>
   );

@@ -110,10 +110,23 @@ look) — it must NOT edit other site pages or anything outside character custom
   answers as the source of truth. Verified: `tsc` clean, lint clean, existing mode/grounding tests still
   pass (5). *(A live conflicting-uploads round-trip needs the AI key; the channel + resolution loop is
   wired and type-safe.)*
-- **Slice 6 — AI-built custom sheet (blocks + HTML/CSS).** A block model: the AI composes the character
-  page from reusable **building blocks** and stores the generated **HTML/CSS** per character (a
-  `custom_layout`/`custom_css` on the character, rendered by a custom sheet skin). Verify: a generated
-  character renders from stored blocks/CSS, sandboxed safely.
+- **Slice 6 — AI-built custom sheet (blocks + HTML/CSS).** ✅ A block model: `lib/dnd/custom-sheet.ts`
+  defines the reusable **building blocks** (`heading`, `text`, `stats`, `list`, `table`, `note`,
+  `divider`, `html`), a `normalizeLayout` that keeps only recognized/well-formed blocks (unknown types
+  dropped), and `composeCustomSheet(layout, css)` which turns them into a single **sanitized HTML
+  document**: every text value is HTML-escaped, `html` blocks are sanitized (scripts / handlers /
+  `javascript:` / active tags stripped), and the AI's `custom_css` is neutralized so it can't break out of
+  the `<style>`. `seeds/441_dnd_custom_sheet.sql` adds `dnd_characters.custom_layout` (jsonb
+  `{title?,blocks[]}`) + `custom_css` (text). A new `custom` `sheet_type` in the registry; `SheetRoot`
+  renders the composed document in a **bare-`sandbox`ed `<iframe srcdoc>`** (no scripts, no same-origin —
+  the same untrusted-HTML pattern the map tools use via `labels.js htmlFrameSrcdoc`) via the new
+  `_sheet/components/CustomSheet.tsx` when `sheet_type='custom'` and blocks exist, else it falls back to the
+  module engine. `characters/[id]/page.tsx` passes the stored `custom_layout`/`custom_css` (already returned
+  by `getCharacterAccess`'s `select('*')`). Verified: `tsc` clean, lint clean,
+  `__tests__/dnd/custom-sheet.test.ts` (6 tests) — every block type renders, text is escaped, html blocks
+  sanitized, malformed blocks dropped, CSS can't escape the `<style>`, `hasCustomLayout` gate. *(The AI
+  populating the blocks is Slice 11/8's tool work; here the render path + storage + sandbox are proven. A
+  live iframe-render check needs the running app.)*
 - **Slice 6b — Default Hextech character sheet.** Build an actual **default** sheet skin styled in the
   site's **League-of-Legends / Hextech** look (register a `default` `sheet_type` → theme + CSS) and make it
   the default for new characters (PCs and NPCs) instead of the bespoke "Lazzuh" purple-alien skin. Fully
@@ -183,4 +196,4 @@ look) — it must NOT edit other site pages or anything outside character custom
 - **Verification:** app/server + AI features; prefer the dnd vitest suites + driving routes, and note
   anything needing the live app or an AI key.
 
-### Status: IN PROGRESS (Slices 0–5 + 1b shipped; 6, 6b, 7, 8, 8b, 9–15 pending)
+### Status: IN PROGRESS (Slices 0–6 + 1b shipped; 6b, 7, 8, 8b, 9–15 pending)
