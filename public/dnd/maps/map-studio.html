@@ -1012,6 +1012,9 @@ function enterPending(asset,x,y){pending={asset,x,y};ghost.style.display="block"
 function positionGhostWorld(){if(!pending)return;const r=$("#canvas").getBoundingClientRect();
   const sx=r.left+view.x+pending.x*view.scale,sy=r.top+view.y+pending.y*view.scale;const gd=ghostDims(pending.asset);
   ghost.style.width=gd.gw*view.scale+"px";ghost.style.height=gd.gh*view.scale+"px";ghost.style.left=sx+"px";ghost.style.top=sy+"px";}
+// Next z above everything already placed — so a newly added object always lands on TOP (you can see
+// and click it), never buried behind an existing body.
+function topZ(){return (state.instances.length?Math.max(0,...state.instances.map(x=>x.z||0)):0)+1;}
 $("#placeConfirm").onclick=()=>{
   if(!pending)return;pushUndo();const a=pending.asset;
   if(a.kind==="system"){createSectorFromSystem(a,pending.x,pending.y);}
@@ -1020,7 +1023,7 @@ $("#placeConfirm").onclick=()=>{
     if(a.kind==="image"){const maxDim=440,nw=a.natW||160,nh=a.natH||160,sc=Math.min(1,maxDim/Math.max(nw,nh));inst.w=Math.max(8,Math.round(nw*sc));inst.h=Math.max(8,Math.round(nh*sc));inst.size=Math.max(inst.w,inst.h);}
     if(a.kind==="planet3d"){inst.p3spin=(a.cfg3d&&a.cfg3d.spin!=null)?clamp(+a.cfg3d.spin,0,3):1;}
     if(a.kind==="planet3d"&&a.pois3d&&a.pois3d.length){inst.pois=a.pois3d.map(p=>({id:uid(),type:(POI_TYPES[p.cat]?p.cat:"city"),title:p.title||"",desc:p.desc||"",ax:clamp(p.lon||0,-1,1),ay:clamp(-(p.lat||0),-1,1)}));}
-    inst.sector=sectorAt({x:inst.x,y:inst.y});state.instances.push(inst);selection={type:"instance",id:inst.id};}
+    inst.sector=sectorAt({x:inst.x,y:inst.y});inst.z=topZ();state.instances.push(inst);selection={type:"instance",id:inst.id};}
   clearPending();renderAll();markDirty();map3dRefresh(true);toast("Placed "+a.name);   // instant 3D refresh on placement
 };
 $("#placeCancel").onclick=clearPending;
@@ -1233,7 +1236,7 @@ function addTextObject(){
   if(mode!=="dm")return;
   pushUndo();
   const r=$("#canvas").getBoundingClientRect();const c=toWorld(r.left+r.width/2,r.top+r.height/2);
-  const t={id:uid(),kind:"text",name:"New label",x:c.x,y:c.y,size:0,look:{},pois:[],label:Object.assign({},TEXT_LABEL_DEFAULT)};
+  const t={id:uid(),kind:"text",name:"New label",x:c.x,y:c.y,size:0,z:topZ(),look:{},pois:[],label:Object.assign({},TEXT_LABEL_DEFAULT)};
   state.instances.push(t);selection={type:"instance",id:t.id};
   if(tool!=="select")setTool("select");
   renderAll();markDirty();toast("Text added — type your text and format it in the inspector");
@@ -1243,7 +1246,7 @@ function addHtmlObject(){
   if(mode!=="dm")return;
   pushUndo();
   const r=$("#canvas").getBoundingClientRect();const c=toWorld(r.left+r.width/2,r.top+r.height/2);
-  const h={id:uid(),kind:"html",name:"HTML card",x:c.x,y:c.y,size:260,w:300,h:170,look:{},pois:[],html:HTML_DEFAULT};
+  const h={id:uid(),kind:"html",name:"HTML card",x:c.x,y:c.y,size:260,w:300,h:170,z:topZ(),look:{},pois:[],html:HTML_DEFAULT};
   state.instances.push(h);selection={type:"instance",id:h.id};
   if(tool!=="select")setTool("select");
   renderAll();markDirty();toast("HTML card added — edit its markup in the inspector");
@@ -1589,7 +1592,7 @@ function renderTextInspector(){
     <div class="actionbtns"><button id="txtDupe">Duplicate</button><button class="danger" id="txtDel">Delete</button></div>`;
   $("#txtVal").oninput=e=>{i.name=e.target.value;renderLabels();markDirty();};
   wireLabelControls("tx",i.label,()=>{renderLabels();markDirty();});
-  $("#txtDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
+  $("#txtDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;c.z=topZ();state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
   $("#txtDel").onclick=()=>{pushUndo();state.instances=state.instances.filter(x=>x.id!==i.id);selection=null;renderAll();markDirty();};
 }
 function renderHtmlInspector(){
@@ -1604,7 +1607,7 @@ function renderHtmlInspector(){
   let t=null;$("#htmlVal").oninput=e=>{i.html=e.target.value;clearTimeout(t);t=setTimeout(()=>{renderInstances();markDirty();},250);};
   $("#htmlW").oninput=e=>{i.w=+e.target.value;i.size=Math.max(i.w,i.h||i.w);$("#htmlWV").textContent=i.w;renderInstances();markDirty();};
   $("#htmlH").oninput=e=>{i.h=+e.target.value;i.size=Math.max(i.w||i.h,i.h);$("#htmlHV").textContent=i.h;renderInstances();markDirty();};
-  $("#htmlDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
+  $("#htmlDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;c.z=topZ();state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
   $("#htmlDel").onclick=()=>{pushUndo();state.instances=state.instances.filter(x=>x.id!==i.id);selection=null;renderAll();markDirty();};
 }
 /* ---- layer / z-order ---- */
@@ -1763,7 +1766,7 @@ function renderInstanceInspector(){
   $("#iEdit").onclick=()=>{
     if(i.kind==="planet3d"){const a=state.assets.find(x=>x.id===i.assetId)||{id:i.assetId||uid(),kind:"planet3d",name:i.name,cfg3d:i.look&&i.look.cfg3d,sheet:i.look&&i.look.sheet};openPlanet3DEditor(a);return;}
     const a=state.assets.find(x=>x.id===i.assetId)||{...i.look,name:i.name,kind:i.kind,size:i.size,id:uid()};openEditor(a,"edit",i);};
-  $("#iDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;if(c.pois)c.pois.forEach(p=>p.id=uid());reassoc(c);state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
+  $("#iDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;c.z=topZ();if(c.pois)c.pois.forEach(p=>p.id=uid());reassoc(c);state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
   $("#iDel").onclick=()=>{pushUndo();state.instances=state.instances.filter(x=>x.id!==i.id);selection=null;renderAll();markDirty();};
   $("#poiAdd").onclick=()=>openPoiTypePicker(i,0,0);
   box.querySelectorAll(".poiitem").forEach(el=>el.onclick=e=>{if(e.target.dataset.del)return;selection={type:"poi",id:i.id,poi:el.dataset.poi};renderAll();});
