@@ -611,7 +611,9 @@ const CLOUD_STYLES=["none","wispy","banded","storm","heavy"];
 let state={assets:[],instances:[],sectors:[],background:null,centerGalaxy:null,
   selStyle:{width:1.5,style:"dashed",color:"#c89b3c"},
   mapFx:{sparkles:true,shooting:false,nebula:true,density:0.72,speed:1,rate:0.35,color:"#cbd6ff",nebColor:"#2a1a5a",nebColor2:"#1a1240"},
+  bg3d:{template:"deepspace",seed:1,parallax:true,layers:3,density:1,nebula:true,baseColor:"#010a13",glow:{on:false,colors:["#3b2a6b","#0a4a5a"],pulse:false,speed:1}},
   meta:{name:"Untitled Map",campaign:null,published:false}};
+const BG3D_DEFAULT=()=>({template:"deepspace",seed:1,parallax:true,layers:3,density:1,nebula:true,baseColor:"#010a13",glow:{on:false,colors:["#3b2a6b","#0a4a5a"],pulse:false,speed:1}});
 let view={x:0,y:0,scale:1};
 let curTab="planet",mode="dm",tool="select";
 let selection=null;         // {type:'instance'|'sector'|'poi', id, poi?}
@@ -1421,6 +1423,7 @@ function renderInspector(){
       <h4>Nebula backdrop tint</h4>
       <label class="chk"><input type="checkbox" id="mfNeb" ${f.nebula?"checked":""}> Enable nebula tint</label>
       <div class="rowc"><div class="field"><label>Color A</label><input type="color" id="mfNc1" value="${f.nebColor}"></div><div class="field"><label>Color B</label><input type="color" id="mfNc2" value="${f.nebColor2}"></div></div>
+      ${bg3dControlsHTML(state.bg3d)}
       <h4>Selection border</h4>
       <div style="font-size:11px;color:var(--faint);margin-bottom:6px">The outline drawn around any selected element.</div>
       <div class="rowc"><div class="field"><label>Style</label><select id="mfSelStyle">${["dashed","solid","dotted"].map(o=>`<option value="${o}" ${(state.selStyle.style||"dashed")===o?"selected":""}>${o}</option>`).join("")}</select></div><div class="field"><label>Color</label><input type="color" id="mfSelColor" value="${state.selStyle.color||"#c89b3c"}"></div></div>
@@ -1438,6 +1441,7 @@ function renderInspector(){
     $("#mfNeb").onchange=e=>{f.nebula=e.target.checked;applyNebulaTint();markDirty();};
     $("#mfNc1").oninput=e=>{f.nebColor=e.target.value;applyNebulaTint();markDirty();};
     $("#mfNc2").oninput=e=>{f.nebColor2=e.target.value;applyNebulaTint();markDirty();};
+    wireBg3dControls();
     return;
   }
   if(!selection){box.innerHTML=`<div class="empty"><div class="big">◈</div>Pick a tab, then <b>drag an asset</b> onto the map.<br><br>Tools: <b>✐ Draw sector</b> to trace a region, <b>◈ Drop POI</b> to mark a planet, <b>✧ Effects</b> for ambience.<br><br>Click a placed object to edit it here.</div>`;$("#inspHead").textContent="◈ INSPECTOR";return;}
@@ -1842,11 +1846,51 @@ function applyNebulaTint(){const w=document.querySelector('.canvaswrap');const f
   if(f.nebula&&!state.background){w.style.background=`radial-gradient(ellipse 62% 52% at 50% 42%, ${f.nebColor}, ${f.nebColor2} 55%, #06040f)`;}
   else if(!state.background){w.style.background='';}}
 
+/* ---- 3D viewer background (programmable sky, publishes to players via bg3d) ---- */
+const BG3D_TEMPLATES=[["deepspace","Deep space"],["stars","Just stars"],["spiral","Spiral galaxy"],["nebula","Flowing nebula"],["blackhole","Black hole"],["asteroids","Asteroid field"],["solid","Solid colour"],["glow","Colour + glow"]];
+function bg3dControlsHTML(b){b=state.bg3d=Object.assign(BG3D_DEFAULT(),b||{});b.glow=Object.assign({on:false,colors:["#3b2a6b","#0a4a5a"],pulse:false,speed:1},b.glow||{});
+  const g=b.glow,starsy=b.template!=="solid"&&b.template!=="glow";
+  return `<h4>3D viewer background</h4>
+    <div style="font-size:11px;color:var(--faint);margin-bottom:6px">The sky in the ⛶ 3D viewer — also what players see when they open 3D. Regenerate reshuffles it.</div>
+    <div class="rowc"><div class="field" style="flex:2"><label>Template</label><select id="b3Tpl">${BG3D_TEMPLATES.map(([v,l])=>`<option value="${v}" ${b.template===v?"selected":""}>${l}</option>`).join("")}</select></div>
+      <div class="field" style="flex:1"><label>&nbsp;</label><button id="b3Regen" title="Generate a new random arrangement of this template" style="width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:5px;padding:6px;cursor:pointer">⟳ Regenerate</button></div></div>
+    <div class="field"><label>Base colour</label><input type="color" id="b3Base" value="${b.baseColor||'#010a13'}"></div>
+    <div id="b3StarWrap" style="${starsy?'':'display:none'}">
+      <label class="chk"><input type="checkbox" id="b3Par" ${b.parallax?"checked":""}> Parallax depth</label>
+      <div class="field"><label>Parallax layers <span style="float:right;color:var(--gold)" id="b3LayV">${b.layers}</span></label><div class="slider"><input type="range" id="b3Lay" min="1" max="6" value="${b.layers}"></div></div>
+      <div class="field"><label>Star density <span style="float:right;color:var(--gold)" id="b3DenV">${(b.density||1).toFixed(2)}×</span></label><div class="slider"><input type="range" id="b3Den" min="20" max="200" value="${Math.round((b.density||1)*100)}"></div></div>
+      <label class="chk"><input type="checkbox" id="b3Neb" ${b.nebula?"checked":""}> Background nebulas</label>
+    </div>
+    <label class="chk"><input type="checkbox" id="b3Glow" ${g.on?"checked":""}> ✦ Colour glow</label>
+    <div id="b3GlowWrap" style="${g.on?'':'display:none'};margin-left:26px">
+      <div class="rowc"><div class="field"><label>Glow A</label><input type="color" id="b3GcA" value="${g.colors[0]||'#3b2a6b'}"></div><div class="field"><label>Glow B</label><input type="color" id="b3GcB" value="${g.colors[1]||'#0a4a5a'}"></div></div>
+      <label class="chk"><input type="checkbox" id="b3Pulse" ${g.pulse?"checked":""}> Pulse the glow</label>
+      <div class="field" id="b3PulseSpWrap" style="${g.pulse?'':'display:none'}"><label>Pulse speed <span style="float:right;color:var(--gold)" id="b3PsV">${(g.speed||1).toFixed(1)}×</span></label><div class="slider"><input type="range" id="b3Ps" min="20" max="300" value="${Math.round((g.speed||1)*100)}"></div></div>
+    </div>`;
+}
+function wireBg3dControls(){const b=state.bg3d;if(!b||!$("#b3Tpl"))return;
+  const push=()=>{applyBg3d();markDirty();};
+  $("#b3Tpl").onchange=e=>{b.template=e.target.value;renderInspector();applyBg3d();markDirty();};   // re-render to show/hide star controls
+  $("#b3Regen").onclick=()=>{b.seed=(Math.random()*1e9)|0;applyBg3d();markDirty();toast("◈ Regenerated sky");};
+  $("#b3Base").oninput=e=>{b.baseColor=e.target.value;push();};
+  const par=$("#b3Par");if(par)par.onchange=e=>{b.parallax=e.target.checked;push();};
+  const lay=$("#b3Lay");if(lay)lay.oninput=e=>{b.layers=+e.target.value;$("#b3LayV").textContent=b.layers;push();};
+  const den=$("#b3Den");if(den)den.oninput=e=>{b.density=+e.target.value/100;$("#b3DenV").textContent=b.density.toFixed(2)+"×";push();};
+  const neb=$("#b3Neb");if(neb)neb.onchange=e=>{b.nebula=e.target.checked;push();};
+  $("#b3Glow").onchange=e=>{b.glow.on=e.target.checked;$("#b3GlowWrap").style.display=e.target.checked?"":"none";push();};
+  $("#b3GcA").oninput=e=>{b.glow.colors[0]=e.target.value;push();};
+  $("#b3GcB").oninput=e=>{b.glow.colors[1]=e.target.value;push();};
+  $("#b3Pulse").onchange=e=>{b.glow.pulse=e.target.checked;$("#b3PulseSpWrap").style.display=e.target.checked?"":"none";push();};
+  const ps=$("#b3Ps");if(ps)ps.oninput=e=>{b.glow.speed=+e.target.value/100;$("#b3PsV").textContent=b.glow.speed.toFixed(1)+"×";push();};
+}
+// Apply the current 3D background to the live viewer (if it's open). Persists via bg3d in mapData().
+function applyBg3d(){try{if(window.Map3D&&window.Map3D.isShown&&window.Map3D.isShown())window.Map3D.setBackground(state.bg3d);}catch(e){}}
+
 /* ============================================================ CAMPAIGN / PUBLISH ============================================================ */
 const CAMP_KEY="stardust-campaigns";
 function loadCampaigns(){try{return JSON.parse(localStorage.getItem(CAMP_KEY)||"[]");}catch(e){return [];}}
 function saveCampaigns(list){try{localStorage.setItem(CAMP_KEY,JSON.stringify(list));}catch(e){toast("Storage full — export to a file instead");}}
-function mapData(){return {type:"stardust-map",version:2,meta:state.meta,background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,selStyle:state.selStyle,
+function mapData(){return {type:"stardust-map",version:2,meta:state.meta,background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,bg3d:state.bg3d,selStyle:state.selStyle,
   sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved,z:s.z})),
   instances:state.instances,assets:state.assets};}
 function stamp(){const d=new Date();return d.toISOString();}
@@ -1882,9 +1926,10 @@ function applyMapData(m){resetDiffspin();
   state.sectors=(m.sectors||[]).map(s=>({fx:{sparkle:false,nebula:false,nebulaColor:s.color,shoot:false},...s}));
   state.background=m.background||null;state.centerGalaxy=m.centerGalaxy||null;
   state.mapFx=Object.assign({sparkles:true,shooting:false,nebula:true,density:0.72,speed:1,rate:0.35,color:"#cbd6ff",nebColor:"#2a1a5a",nebColor2:"#1a1240"},m.mapFx||{});
+  state.bg3d=Object.assign(BG3D_DEFAULT(),m.bg3d||{},{glow:Object.assign({on:false,colors:["#3b2a6b","#0a4a5a"],pulse:false,speed:1},(m.bg3d&&m.bg3d.glow)||{})});
   state.meta=Object.assign({name:"Untitled Map",campaign:null,published:false},m.meta||{});
   if(m.selStyle)state.selStyle=m.selStyle;
-  selection=null;undoStack=[];redoStack=[];computeSectorParents();reassociateAll();applyMapFx();applySelStyle();renderLibrary();renderAll();fitAll();updateCampChip();
+  selection=null;undoStack=[];redoStack=[];computeSectorParents();reassociateAll();applyMapFx();applySelStyle();applyBg3d();renderLibrary();renderAll();fitAll();updateCampChip();
 }
 
 /* ---- bridge for the 3D viewer (map3d.js): select / transform-writeback / undo checkpoint ---- */
@@ -1895,11 +1940,11 @@ window.map3dApply=function(id,patch){const i=state.instances.find(x=>x.id===id);
 /* ============================================================ HISTORY + SAVE/LOAD ============================================================ */
 function cleanState(){return JSON.stringify({assets:state.assets,instances:state.instances,
   sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved,z:s.z})),
-  background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,selStyle:state.selStyle,meta:state.meta});}
+  background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,bg3d:state.bg3d,selStyle:state.selStyle,meta:state.meta});}
 function snap(){return cleanState();}
 function pushUndo(){undoStack.push(snap());if(undoStack.length>60)undoStack.shift();redoStack=[];markDirty();updUndo();}
 function resetDiffspin(){Object.values(diffspinLive).forEach(r=>{try{r.engine.destroy();}catch(e){}});Object.keys(diffspinLive).forEach(k=>delete diffspinLive[k]);Object.values(diffspinLib).forEach(e=>{try{e.destroy();}catch(e){}});Object.keys(diffspinLib).forEach(k=>delete diffspinLib[k]);Object.values(spriteLive).forEach(r=>{try{r.sp.destroy();}catch(e){}});Object.keys(spriteLive).forEach(k=>delete spriteLive[k]);Object.values(p3Lib).forEach(s=>{try{s.destroy();}catch(e){}});Object.keys(p3Lib).forEach(k=>delete p3Lib[k]);}
-function restore(s){resetDiffspin();const o=JSON.parse(s);state.assets=o.assets||[];state.instances=o.instances||[];state.sectors=o.sectors||[];state.background=o.background||null;state.centerGalaxy=o.centerGalaxy||null;state.mapFx=o.mapFx||state.mapFx;if(o.selStyle)state.selStyle=o.selStyle;state.meta=o.meta||state.meta;computeSectorParents();reassociateAll();applyMapFx();applySelStyle();}
+function restore(s){resetDiffspin();const o=JSON.parse(s);state.assets=o.assets||[];state.instances=o.instances||[];state.sectors=o.sectors||[];state.background=o.background||null;state.centerGalaxy=o.centerGalaxy||null;state.mapFx=o.mapFx||state.mapFx;if(o.bg3d)state.bg3d=o.bg3d;if(o.selStyle)state.selStyle=o.selStyle;state.meta=o.meta||state.meta;computeSectorParents();reassociateAll();applyMapFx();applySelStyle();applyBg3d();}
 function undo(){if(!undoStack.length)return;redoStack.push(snap());restore(undoStack.pop());selection=null;renderLibrary();renderAll();updUndo();}
 function redo(){if(!redoStack.length)return;undoStack.push(snap());restore(redoStack.pop());selection=null;renderLibrary();renderAll();updUndo();}
 function updUndo(){$("#undoBtn").style.opacity=undoStack.length?1:.4;$("#redoBtn").style.opacity=redoStack.length?1:.4;}
@@ -1932,7 +1977,7 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
 
 /* ============================================================ INIT ============================================================ */
 (function init(){
-  try{const saved=localStorage.getItem("stardust-map-studio");if(saved){const o=JSON.parse(saved);state.assets=o.assets||state.assets;state.instances=(o.instances||[]).map(i=>({pois:[],fx:{sparkle:false,nebula:false,nebulaColor:"#8f78e6",shoot:false},...i}));state.sectors=(o.sectors||[]).map(s=>({fx:{sparkle:false,nebula:false,nebulaColor:s.color,shoot:false},...s}));state.background=o.background||null;state.centerGalaxy=o.centerGalaxy||null;if(o.mapFx)state.mapFx=Object.assign(state.mapFx,o.mapFx);if(o.selStyle)state.selStyle=o.selStyle;if(o.meta)state.meta=Object.assign(state.meta,o.meta);}}catch(e){}
+  try{const saved=localStorage.getItem("stardust-map-studio");if(saved){const o=JSON.parse(saved);state.assets=o.assets||state.assets;state.instances=(o.instances||[]).map(i=>({pois:[],fx:{sparkle:false,nebula:false,nebulaColor:"#8f78e6",shoot:false},...i}));state.sectors=(o.sectors||[]).map(s=>({fx:{sparkle:false,nebula:false,nebulaColor:s.color,shoot:false},...s}));state.background=o.background||null;state.centerGalaxy=o.centerGalaxy||null;if(o.mapFx)state.mapFx=Object.assign(state.mapFx,o.mapFx);if(o.bg3d)state.bg3d=Object.assign(BG3D_DEFAULT(),o.bg3d);if(o.selStyle)state.selStyle=o.selStyle;if(o.meta)state.meta=Object.assign(state.meta,o.meta);}}catch(e){}
   computeSectorParents();reassociateAll();
   ensureAmbient();applyMapFx();applySelStyle();
   renderLibrary();applyView();renderAll();updUndo();updateCampChip();fitAll();

@@ -167,12 +167,13 @@ other, and keep every element consistent:
 - **Slice 4 — Correct impostor disc colours.** ✅ `planetDominantColor` export in
   `planet3d-model.js`; shaded radial-gradient disc in the body's true colour. Shipped; verified
   (desert planet → `#a68f60`).
-- **Slice 5 — DM background controls + persistence.** ⏳ In the Effects panel: template dropdown,
-  **Regenerate** (new seed), parallax toggle + layers slider, density slider, nebula toggle, base
-  colour, glow on/off + colour pickers + pulse + pulse-speed. `state.bg3d` default; `applyBg3d()` →
-  `Map3D.setBackground` live when 3D is shown; include `bg3d` in `mapData()`/`load()`/`snapshot()`/
-  `restore()`. Console reads published `bg3d` (already applied via `setData`). Verify headless: change
-  each control → 3D updates; publish → Console shows the same sky.
+- **Slice 5 — DM background controls + persistence.** ✅ Effects-panel section: template dropdown (all
+  8), **Regenerate** (new seed), parallax toggle + layers slider, density slider, nebula toggle, base
+  colour, glow on/off + two colour pickers + pulse + pulse-speed. `state.bg3d` default;
+  `bg3dControlsHTML`/`wireBg3dControls`/`applyBg3d()` → `Map3D.setBackground` live when 3D is shown;
+  `bg3d` persisted in `mapData()`/`load()`/`cleanState()`/`restore()`/localStorage. Console reads
+  published `bg3d` via `setData`. Verified headless: panel renders 8 templates; template change →
+  spiral rebuild; Regenerate sets a new seed; glow → sprite; `mapData().bg3d` carries it; 0 errors.
 - **Slice 6 — Live 3D re-render on every edit.** ⏳ Debounced `pushTo3D()` wired into `markDirty()`/
   `renderAll()`; selected-body fast path for size/colour/config changes (in-place holder update +
   `_applyLOD`); keep labels glued after gizmo moves. Verify headless: add/move/resize/slider-edit with
