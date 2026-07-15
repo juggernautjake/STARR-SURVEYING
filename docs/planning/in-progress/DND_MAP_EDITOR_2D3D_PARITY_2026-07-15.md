@@ -184,9 +184,21 @@ gets 3D equivalents or stays a 2D-layer concern — lean: keep fx 2D-layer, docu
   to 1 (flashes fire); 0 page errors (module builds cleanly). *(console/live-viewer already run this same
   model via `map3d.js`, so players see 3D lightning immediately; the 2D `art()` port to `console.html` is
   Slice 7.)*
-- **Slice 4 — 2D terrain/cloud parity.** `art()` honors `sea` (water shading), `ice` (polar caps),
-  `cscale`/`coast` (blob frequency/edge), and animated cloud `drift`/`swirl`/`banding` at the shared rates;
-  `tilt` rotates the 2D art.
+- **Slice 4 — 2D terrain parity + bi-directional tilt.** ✅ `art()` (map-studio) now honors the terrain
+  fields the 3D model reads: **`cscale`** (continent scale → blob count 4–28 + inverse blob size),
+  **`sea`** (water level → land coverage/opacity), **`coast`** (coastline definition → land sharpness),
+  **`ice`** (polar caps — white cap ellipses top+bottom, size ∝ ice), and **`tilt`** (the whole surface +
+  caps group rotates by the axial tilt, so the pole axis leans — the 2D equivalent of the 3D tilt). Each
+  field **only modulates when explicitly set**, so an object that never set it renders identically (verified:
+  an unset terran planet still emits its 39 baseline ellipses and no ice caps). New "Terrain & poles" studio
+  controls (continent-scale / water-level / coastline / ice-caps / axial-tilt sliders). **`tilt` is now
+  bi-directional**: `buildPlanetModel` tilts the 3D core group by `cfg.tilt` (was generator-only). Verified
+  headless (`verify-terrain2d.mjs` / `verify-tilt3d.mjs`): ice set → caps drawn (unset → none); `cscale`
+  5.5 → 71 vs 1.2 → 29 ellipses; `tilt` 30 → `rotate(30.0 …)` in 2D and `core.rotation.z = 0.5236` (=30°)
+  in 3D; 0 page errors. *Deferred (documented): fine-grained 2D cloud drift/swirl/banding animation — the 3D
+  clouds already bake swirl/banding and the 2D art already pans its cloud layer, so per-parameter 2D cloud
+  animation is low incremental value for meaningful canvas-animation cost; the coarse `cloudStyle`/amount
+  path remains the 2D cloud control.*
 - **Slice 5 — Consolidated editor with 2D⇄3D preview switch.** `openEditor` exposes the full unified control
   set for planet/moon and a preview-mode toggle (2D `art()` ⇄ live 3D model) editing one config; bridge the
   popup generator into the superset.
@@ -209,4 +221,4 @@ gets 3D equivalents or stays a 2D-layer concern — lean: keep fx 2D-layer, docu
 - **Reuse:** build on `art()`, `buildPlanetModel`, `_genericPlanetCfg`, `pushTo3D`, and the existing viewer
   toggle — don't fork them.
 
-### Status: IN PROGRESS (Slices 0–3 shipped; 4–7 pending)
+### Status: IN PROGRESS (Slices 0–4 shipped; 5–7 pending)

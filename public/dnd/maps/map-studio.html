@@ -730,9 +730,23 @@ function art(a,animate){
     return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><polygon points="${pts}" fill="${c1}" fill-opacity=".12" stroke="${c1}" stroke-width="2.5" stroke-dasharray="8 7"/><circle cx="100" cy="100" r="7" fill="${c1}" opacity=".6"/></svg>`;
   }
   // planet / moon
-  const isMoon=k==="moon",n=isMoon?18:12,spots=[];
+  // 2D<->3D terrain parity (Slice 4): continent scale (cscale) drives blob count/size, water level (sea)
+  // drives land coverage, coastline definition (coast) sharpens land. Each only modulates when the field is
+  // explicitly set, so an object that never set it renders exactly as before.
+  const isMoon=k==="moon",spots=[];
+  const cscaleSet=a.cscale!=null,seaSet=a.sea!=null,coastSet=a.coast!=null;
+  const cscaleF=cscaleSet?clamp(+a.cscale,1,6):2.2;
+  const n=isMoon?18:(cscaleSet?clamp(Math.round(12*(cscaleF/2.2)),4,28):12);
+  const landCov=seaSet?clamp(1.35-(+a.sea),0.15,1.3):1;          // higher water level → less exposed land
+  const coastMul=coastSet?(0.72+clamp(+a.coast,0,1)*0.5):1;      // higher definition → sharper/darker land
+  const szMul=cscaleSet?(2.2/cscaleF):1;                          // more continents → each is smaller
   const detail=a.ptype==="volcanic"?c3:(["terran","toxic","ocean","jungle"].includes(a.ptype)?c2:D(c1,26));
-  for(let i=0;i<n;i++){const bx=cx-R+rng()*2*R,by=cy-R+rng()*2*R,br=R*(isMoon||a.ptype==="rock"||a.ptype==="ice"?0.06+rng()*0.12:0.16+rng()*0.3);const blob=`<ellipse cx="{X}" cy="${by.toFixed(1)}" rx="${br.toFixed(1)}" ry="${(br*(0.7+rng()*0.5)).toFixed(1)}" fill="${detail}" opacity="${(0.4+rng()*0.4).toFixed(2)}"/>`;spots.push(blob.replace("{X}",bx.toFixed(1)));spots.push(blob.replace("{X}",(bx+2*S).toFixed(1)));}
+  for(let i=0;i<n;i++){const bx=cx-R+rng()*2*R,by=cy-R+rng()*2*R,br=R*(isMoon||a.ptype==="rock"||a.ptype==="ice"?0.06+rng()*0.12:0.16+rng()*0.3)*szMul;const op=clamp((0.4+rng()*0.4)*landCov*coastMul,0.05,0.96);const blob=`<ellipse cx="{X}" cy="${by.toFixed(1)}" rx="${br.toFixed(1)}" ry="${(br*(0.7+rng()*0.5)).toFixed(1)}" fill="${detail}" opacity="${op.toFixed(2)}"/>`;spots.push(blob.replace("{X}",bx.toFixed(1)));spots.push(blob.replace("{X}",(bx+2*S).toFixed(1)));}
+  // Polar ice caps — only when `ice` is explicitly set (so existing planets are unchanged). Rotated by the
+  // axial `tilt` so the caps + pole axis lean, the 2D equivalent of the 3D model's tilt.
+  let iceCaps="";const iceSet=a.ice!=null,tiltF=a.tilt!=null?+a.tilt:0;
+  if(iceSet&&+a.ice>0.02){const cap=clamp(+a.ice,0,1),capH=R*(0.14+cap*0.95),rx=(R*0.92).toFixed(1);
+    iceCaps=`<ellipse cx="${cx}" cy="${(cy-R).toFixed(1)}" rx="${rx}" ry="${capH.toFixed(1)}" fill="#eef6ff" opacity=".9"/><ellipse cx="${cx}" cy="${(cy+R).toFixed(1)}" rx="${rx}" ry="${capH.toFixed(1)}" fill="#eef6ff" opacity=".9"/>`;}
   let bands="";
   if(a.ptype==="gas"){bands=[...Array(8)].map((_,i)=>{const y=cy-R+(i+0.5)*(2*R/8),h=(2*R/8)*(0.7+rng()*0.5),col=i%2?c2:L(c1,10);return `<rect x="-200" y="${(y-h/2).toFixed(1)}" width="600" height="${h.toFixed(1)}" fill="${col}" opacity="${(0.55+rng()*0.3).toFixed(2)}"/>`;}).join("");}
   // ---- CLOUD LAYER (style-controlled) ----
@@ -826,8 +840,8 @@ function art(a,animate){
     <radialGradient id="term${id}" cx="36%" cy="32%" r="82%"><stop offset="0%" stop-color="#fff" stop-opacity=".28"/><stop offset="38%" stop-color="#fff" stop-opacity="0"/><stop offset="72%" stop-color="#000" stop-opacity=".35"/><stop offset="100%" stop-color="#000" stop-opacity=".68"/></radialGradient>
     <radialGradient id="atmo${id}" cx="50%" cy="50%" r="50%"><stop offset="${(88-atmoThick*12).toFixed(0)}%" stop-color="${atmoCol}" stop-opacity="0"/><stop offset="97%" stop-color="${atmoCol}" stop-opacity="${atmoThick.toFixed(2)}"/><stop offset="100%" stop-color="${atmoCol}" stop-opacity="0"/></radialGradient></defs>
     ${ringBack}<circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#base${id})"/>
-    <g clip-path="url(#c${id})"><g style="${anim?`animation:surf${id} ${spinDur}s linear infinite`:''}">${bands}${spots.join("")}</g>
-    ${clouds?`<g style="${anim?`animation:surf${id} ${cloudDur}s linear infinite`:''}">${clouds}</g>`:""}</g>
+    <g clip-path="url(#c${id})"><g transform="rotate(${tiltF.toFixed(1)} ${cx} ${cy})"><g style="${anim?`animation:surf${id} ${spinDur}s linear infinite`:''}">${bands}${spots.join("")}</g>${iceCaps}
+    ${clouds?`<g style="${anim?`animation:surf${id} ${cloudDur}s linear infinite`:''}">${clouds}</g>`:""}</g></g>
     <circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#term${id})"/>
     ${lava}${city}${storms}${lightning}${destroy}
     ${hasAtmo&&!dv?`<circle cx="${cx}" cy="${cy}" r="${R+3}" fill="url(#atmo${id})"/>`:""}
@@ -1926,6 +1940,13 @@ function renderEditor(){
   if(k==="planet"){
     html+=`<h4>Type</h4><div class="seg" id="edPtype">${Object.keys(PTYPES).map(t=>`<button data-t="${t}" class="${edWork.ptype===t?'on':''}">${t}</button>`).join('')}</div>
       <label class="chk" style="margin-top:8px"><input type="checkbox" id="edRing" ${edWork.ring?'checked':''}> Planetary ring</label>
+      <h4>Terrain &amp; poles</h4>
+      <div class="rowc"><div class="field"><label>Continent scale <span style="float:right;color:var(--gold)" id="edCscaleV">${(edWork.cscale!=null?+edWork.cscale:2.2).toFixed(1)}</span></label><div class="slider"><input type="range" id="edCscale" min="10" max="60" value="${Math.round((edWork.cscale!=null?+edWork.cscale:2.2)*10)}"></div></div>
+      <div class="field"><label>Water level <span style="float:right;color:var(--gold)" id="edSeaV">${(edWork.sea!=null?+edWork.sea:0.52).toFixed(2)}</span></label><div class="slider"><input type="range" id="edSea" min="0" max="100" value="${Math.round((edWork.sea!=null?+edWork.sea:0.52)*100)}"></div></div></div>
+      <div class="rowc"><div class="field"><label>Coastline <span style="float:right;color:var(--gold)" id="edCoastV">${(edWork.coast!=null?+edWork.coast:0.5).toFixed(2)}</span></label><div class="slider"><input type="range" id="edCoast" min="0" max="100" value="${Math.round((edWork.coast!=null?+edWork.coast:0.5)*100)}"></div></div>
+      <div class="field"><label>Ice caps <span style="float:right;color:var(--gold)" id="edIceV">${(edWork.ice!=null?+edWork.ice:0).toFixed(2)}</span></label><div class="slider"><input type="range" id="edIce" min="0" max="100" value="${Math.round((edWork.ice!=null?+edWork.ice:0)*100)}"></div></div></div>
+      <div class="field"><label>Axial tilt <span style="float:right;color:var(--gold)" id="edTiltV">${Math.round(edWork.tilt!=null?+edWork.tilt:0)}°</span></label><div class="slider"><input type="range" id="edTilt" min="-90" max="90" value="${Math.round(edWork.tilt!=null?+edWork.tilt:0)}"></div></div>
+      <div style="font-size:10.5px;color:var(--faint);margin-top:-2px">These drive both the 2D art and the live 3D model — continents, water, ice caps and the axial tilt stay in sync across 2D⇄3D.</div>
       <h4>Clouds</h4>
       <div class="seg five" id="edCloud">${CLOUD_STYLES.map(t=>`<button data-t="${t}" class="${(edWork.cloudStyle||'none')===t?'on':''}">${t}</button>`).join('')}</div>
       <div class="rowc" style="margin-top:8px"><div class="field"><label>Cloud color</label><input type="color" id="edCloudCol" value="${edWork.cloudColor||'#ffffff'}"></div>
@@ -2007,6 +2028,11 @@ function wireEditor(){
   const seg=(id,prop,palettes)=>{const el=$("#"+id);if(!el)return;el.querySelectorAll("button").forEach(b=>b.onclick=()=>{el.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");edWork[prop]=b.dataset.t;if(palettes&&palettes[b.dataset.t]){const p=palettes[b.dataset.t];edWork.c1=p[0];edWork.c2=p[1];edWork.c3=p[2];if($("#edC1"))$("#edC1").value=p[0];if($("#edC2"))$("#edC2").value=p[1];if($("#edC3"))$("#edC3").value=p[2];}edPreview();if(k!=="svg"&&k!=="spingalaxy"&&k!=="planet3d")genIterations();});};
   seg("edPtype","ptype",PTYPES);seg("edMtype","mtype",MOON_TYPES);seg("edStype","stype",STAR_TYPES);seg("edSttype","stype",STATION_PALETTES);seg("edDtype","dtype",null);seg("edCloud","cloudStyle",null);
   if($("#edRing"))$("#edRing").onchange=e=>{edWork.ring=e.target.checked;edPreview();};
+  if($("#edCscale"))$("#edCscale").oninput=e=>{edWork.cscale=+e.target.value/10;$("#edCscaleV").textContent=edWork.cscale.toFixed(1);edPreview();};
+  if($("#edSea"))$("#edSea").oninput=e=>{edWork.sea=+e.target.value/100;$("#edSeaV").textContent=edWork.sea.toFixed(2);edPreview();};
+  if($("#edCoast"))$("#edCoast").oninput=e=>{edWork.coast=+e.target.value/100;$("#edCoastV").textContent=edWork.coast.toFixed(2);edPreview();};
+  if($("#edIce"))$("#edIce").oninput=e=>{edWork.ice=+e.target.value/100;$("#edIceV").textContent=edWork.ice.toFixed(2);edPreview();};
+  if($("#edTilt"))$("#edTilt").oninput=e=>{edWork.tilt=+e.target.value;$("#edTiltV").textContent=Math.round(edWork.tilt)+"°";edPreview();};
   if($("#edRays"))$("#edRays").onchange=e=>{edWork.rays=e.target.checked;const w=$("#edRayWrap");if(w)w.style.display=e.target.checked?"":"none";edPreview();};
   // star effect controls (Slice 3): brightness, corona size, glow breathing, sun-ray spec — live 2D preview
   if($("#edBright"))$("#edBright").oninput=e=>{edWork.brightness=+e.target.value/100;$("#edBrightV").textContent=edWork.brightness.toFixed(2)+"×";edPreview();};

@@ -184,6 +184,7 @@ export function buildPlanetModel(config, opts) {
   const cfg = Object.assign({ type: 'terran', seed: 1, sea: 0.52, cscale: 2.2, coast: 0.5, ice: 0.15, spin: 1 }, config || {});
   const aniso = opts.anisotropy || 1, R = opts.radius || 1, seg = opts.segments || 72;
   const core = new THREE.Group();
+  if (cfg.tilt) core.rotation.z = (+cfg.tilt) * Math.PI / 180;   // axial tilt — leans the spin axis, ring and caps (2D<->3D parity)
   const disposables = [];
 
   const surf = genPlanet(cfg, aniso); disposables.push(surf.tex, surf.specTex);
