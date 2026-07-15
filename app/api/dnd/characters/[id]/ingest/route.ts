@@ -5,7 +5,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type Anthropic from '@anthropic-ai/sdk';
 import { supabaseAdmin } from '@/lib/supabase';
-import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
+import { getDndSession } from '@/lib/dnd/auth';
+import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { dndToolCall, dndAiConfigured } from '@/lib/dnd/ai';
 import { applySheetEdits, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
@@ -40,11 +41,10 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
   if (!dndAiConfigured()) return NextResponse.json({ error: 'AI is not configured.' }, { status: 503 });
 
-  const { data: ch } = await supabaseAdmin.from('dnd_characters').select('id, campaign_id, owner_user_id, name, data, system, build_mode').eq('id', params.id).maybeSingle();
-  if (!ch) return NextResponse.json({ error: 'Character not found.' }, { status: 404 });
-  const row = ch as { id: string; campaign_id: string; owner_user_id: string | null; name: string; data: Character | null; system: string | null; build_mode: string | null };
-  const isDM = (await getCampaignRole(row.campaign_id)) === 'dm';
-  if (!isDM && row.owner_user_id !== session.userId) return NextResponse.json({ error: 'You cannot edit this character.' }, { status: 403 });
+  // The single write chokepoint (Slice 8b): keyed to this character id + owner/DM authorization.
+  const access = await requireCharacterWrite(params.id);
+  if (!access.access) return NextResponse.json({ error: access.error }, { status: access.status });
+  const row = access.access.character as unknown as { id: string; name: string; data: Character | null; system: string | null; build_mode: string | null };
 
   const { data: ups } = await supabaseAdmin.from('dnd_character_uploads').select('url, filename, mime, kind').eq('character_id', params.id).eq('kind', 'source').order('created_at', { ascending: true }).limit(MAX_FILES);
   const uploads = (ups ?? []) as { url: string; filename: string | null; mime: string | null; kind: string }[];

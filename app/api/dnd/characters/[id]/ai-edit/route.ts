@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession } from '@/lib/dnd/auth';
-import { getCharacterAccess } from '@/lib/dnd/characters';
+import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { dndToolCall, dndAiConfigured } from '@/lib/dnd/ai';
 import { applySheetEdits, editPath, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import { systemGroundingBlock } from '@/lib/dnd/grounding';
@@ -45,12 +45,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const { instruction } = await req.json().catch(() => ({}));
   if (!instruction || !String(instruction).trim()) return NextResponse.json({ error: 'An instruction is required.' }, { status: 400 });
 
-  // Robust authorization (Slice 8b boundary): the edit is keyed to THIS character id and
-  // only proceeds for the owner / assigned player / a DM of a campaign it's in. Handles
-  // campaign-less personal characters (which the fragile campaign_id lookup did not).
-  const access = await getCharacterAccess(params.id);
+  // The single write chokepoint (Slice 8b boundary): keyed to THIS character id + the
+  // caller's owner/assigned-player/DM authorization. No path writes elsewhere.
+  const access = await requireCharacterWrite(params.id);
   if (!access.access) return NextResponse.json({ error: access.error }, { status: access.status });
-  if (!access.access.canWrite) return NextResponse.json({ error: 'You cannot edit this character.' }, { status: 403 });
   const row = access.access.character;
   const isDM = access.access.isDM;
   const instr = String(instruction).trim();

@@ -4,7 +4,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
-import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
+import { getDndSession } from '@/lib/dnd/auth';
+import { requireCharacterWrite } from '@/lib/dnd/characters';
 
 const BUCKET = 'dnd-media';
 
@@ -12,11 +13,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const session = getDndSession();
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
 
-  const { data: ch } = await supabaseAdmin.from('dnd_characters').select('id, campaign_id, owner_user_id').eq('id', params.id).maybeSingle();
-  if (!ch) return NextResponse.json({ error: 'Character not found.' }, { status: 404 });
-  const row = ch as { id: string; campaign_id: string | null; owner_user_id: string | null };
-  const isDM = row.campaign_id ? (await getCampaignRole(row.campaign_id)) === 'dm' : false;
-  if (!isDM && row.owner_user_id !== session.userId) return NextResponse.json({ error: 'You cannot edit this character.' }, { status: 403 });
+  // The single write chokepoint (Slice 8b): keyed to this character id + owner/DM authorization.
+  const access = await requireCharacterWrite(params.id);
+  if (!access.access) return NextResponse.json({ error: access.error }, { status: access.status });
 
   const body = await req.json().catch(() => ({}));
   const answers = (Array.isArray(body?.answers) ? body.answers : []) as { question?: string; answer?: string }[];

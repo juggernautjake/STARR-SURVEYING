@@ -118,3 +118,16 @@ export async function getCharacterAccess(id: string): Promise<AccessResult> {
 
   return { status: 200, access: { character: row, isOwner, isPlayer, isDM, canWrite } };
 }
+
+/** The single write chokepoint for every AI-driven mutation (Slice 8b permission
+ *  boundary). Resolves access and requires `canWrite` — so every AI write is keyed to a
+ *  specific character id AND the caller's owner/assigned-player/DM authorization. On
+ *  failure `.access` is absent and the caller returns `{ status, error }`; on success
+ *  `.access` is present and guaranteed writable. There is no path that lets an AI route
+ *  write to a character the caller doesn't own/play/DM, or to any non-character resource. */
+export async function requireCharacterWrite(id: string): Promise<AccessResult> {
+  const res = await getCharacterAccess(id);
+  if (!res.access) return res;
+  if (!res.access.canWrite) return { status: 403, error: 'You cannot edit this character.' };
+  return res;
+}

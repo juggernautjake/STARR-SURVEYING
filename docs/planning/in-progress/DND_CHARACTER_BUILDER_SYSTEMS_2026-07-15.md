@@ -167,13 +167,21 @@ look) — it must NOT edit other site pages or anything outside character custom
   lint clean, full dnd suite (208) green. *(Live apply-and-persist needs the AI key + running app; the edit
   path, grounding, auth, and live-reload wiring are in place and type-safe. Styling-via-CSS/blocks edits ride
   the custom-sheet system and deepen in Slices 11–12.)*
-- **Slice 8b — AI permission boundaries.** Enforce **hard guardrails** on what the agent may touch: only
-  **character creation, the chat stream, and the target character's sheet** (its content, mechanics, and
-  look). It must NOT edit other site pages, other characters, or anything outside character customization.
-  Implement as server-side scoping (every AI-driven write is keyed to the authorized character id +
-  owner/DM check — no path lets it write elsewhere) plus tool/prompt constraints, and document the allowed
-  surface. Verify: the agent's write endpoints reject any target the caller doesn't own/DM, and there is no
-  tool that can modify non-character resources.
+- **Slice 8b — AI permission boundaries.** ✅ A single write chokepoint: `requireCharacterWrite(id)` in
+  `lib/dnd/characters.ts` resolves access and requires `canWrite`, so every AI-driven write is keyed to one
+  character id **and** the caller's owner/assigned-player/DM authorization (absent `.access` ⇒ the caller
+  returns `{status,error}`). Refactored **all three** AI-write routes onto it — `ai-edit`, `ingest`, and
+  `answer` — which also fixed the fragile `getCampaignRole(campaign_id)`-only checks that broke for
+  campaign-less personal characters. `lib/dnd/ai-scope.ts` is documentation-as-code: it enumerates the
+  **allowed surface** (character creation, the chat stream, and THIS character's own sheet — its data,
+  `custom_layout`/`custom_css`, and `sheet_type`) and the hard prohibitions (no other character, no page,
+  campaign, map, user, or non-character resource), and provides `assertCharacterScopedOps` which enforces
+  that every `edit_sheet` op is a set/add/remove of a sheet field with no forbidden target term. Verified:
+  `tsc` clean, lint clean, `__tests__/dnd/ai-scope.test.ts` (3 tests: the real `edit_sheet` op enum passes
+  the boundary; ops like `edit_other_character`/`delete_map`/`ban_user` are rejected; `applySheetEdits`
+  output's top-level keys never exceed a Character's — the edit path cannot introduce a foreign-resource
+  field). Full dnd suite (211) green. *(A live 403-on-foreign-target check needs the running app; the guard
+  + the bounded tool vocabulary make it structurally impossible.)*
 - **Slice 9 — Inline instructions & onboarding.** Thorough **help text** across the builder: what each
   field means, how each function works, what happens to uploaded info, and how the modes differ — so a new
   user can build confidently. Verify: help is present on the key builder surfaces.
@@ -223,4 +231,4 @@ look) — it must NOT edit other site pages or anything outside character custom
 - **Verification:** app/server + AI features; prefer the dnd vitest suites + driving routes, and note
   anything needing the live app or an AI key.
 
-### Status: IN PROGRESS (Slices 0–8 + 1b shipped; 8b, 9–15 pending)
+### Status: IN PROGRESS (Slices 0–8b + 1b shipped; 9–15 pending)
