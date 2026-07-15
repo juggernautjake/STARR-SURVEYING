@@ -32,6 +32,15 @@ export interface DndCharacterRow {
   // renders in a sandboxed iframe when `sheet_type` is `custom`.
   custom_layout?: unknown;
   custom_css?: string | null;
+  // Custom/vanilla provenance + DM approval workflow (Phase V, Intuitive Games builder Slice 3).
+  submission_status?: 'draft' | 'submitted' | 'approved' | 'rejected';
+  dm_review_notes?: string | null;
+  /** The flagged provenance inventory (TaggedElement[]) computed at submit time. */
+  custom_content?: unknown;
+  /** DM-authored custom elements granted to this character (always allowed). */
+  dm_granted?: unknown;
+  submitted_at?: string | null;
+  reviewed_at?: string | null;
   created_at: string;
   updated_at: string;
 }

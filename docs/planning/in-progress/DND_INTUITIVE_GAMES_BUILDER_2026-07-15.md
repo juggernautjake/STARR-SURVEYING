@@ -80,10 +80,13 @@ are already stored.
   `__tests__/dnd/provenance.test.ts` (6 tests: real IG content → vanilla, invented → custom, untracked kinds
   not falsely flagged, DM-granted tagging, grouping + blocking math, whole-character summary where a DM grant
   moves a homebrew feature out of the blocking set); full dnd suite (277) green.
-- **Slice 3 — DB schema + types.** Seed migration adding to `dnd_characters`: `submission_status`
+- **Slice 3 — DB schema + types.** ✅ `seeds/443_dnd_custom_approval.sql` (idempotent `ADD COLUMN IF NOT
+  EXISTS`, auto-discovered by `run_all.sh`) adds to `dnd_characters`: `submission_status`
   (draft/submitted/approved/rejected, default draft), `dm_review_notes` text, `custom_content` jsonb (the
-  flagged inventory), `dm_granted` jsonb (DM-granted items); to `dnd_campaigns`: `allow_custom` boolean
-  (default true). Extend `DndCharacterRow`. Idempotent.
+  flagged provenance inventory), `dm_granted` jsonb (DM-authored granted elements), and `submitted_at` /
+  `reviewed_at` timestamps; and to `dnd_campaigns`: `allow_custom` boolean (default true → backward
+  compatible). Extended `DndCharacterRow` with the typed fields. Verified: `tsc` clean, lint clean, full dnd
+  suite (277) green.
 - **Slice 4 — Submission + review API + notifications.** `POST /api/dnd/characters/[id]/submit` (recomputes
   the custom inventory, blocks when the campaign is vanilla-only and non-DM-granted custom exists — returning
   exactly what blocks it; else sets `submitted`), `POST /api/dnd/characters/[id]/review` (DM approve/reject +
@@ -116,4 +119,4 @@ are already stored.
 - **Backward compatible:** new columns default so existing characters/campaigns keep working (status=draft,
   allow_custom=true).
 
-### Status: IN PROGRESS (Slices 0–2 shipped; 3–8 pending)
+### Status: IN PROGRESS (Slices 0–3 shipped; 4–8 pending)
