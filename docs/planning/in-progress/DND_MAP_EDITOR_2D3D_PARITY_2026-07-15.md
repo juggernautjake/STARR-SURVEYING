@@ -212,9 +212,18 @@ gets 3D equivalents or stays a 2D-layer concern — lean: keep fx 2D-layer, docu
   the SVG and removes the canvas; close cleans up; 0 page errors. *(The standalone popup `planet-3d.html`
   generator remains available for deep terrain authoring and already round-trips through the same `look`/
   `cfg3d`; fully retiring it into this inline editor is out of scope for the parity goal.)*
-- **Slice 6 — Star / station / debris / asteroid / galaxy parity passes.** Each kind's small gaps
-  (3D ray-spoke count, station lights, 3D comet tail, asteroid c2/c3, galaxy spread/len in 3D, spingalaxy
-  master/feather in 3D).
+- **Slice 6 — Star / asteroid 3D parity (+ deferrals).** ✅ **Star ray-spoke count** now honors
+  `raySpec.count`: `raysTex(seed, count)` draws `clamp(count,3,48)` spokes (was a fixed 16), so the 2D ray
+  count and the 3D ray count match. ✅ **Asteroid `c2`**: the companion rocks now take the detail colour
+  `c2` (the 3D asteroid previously used only `c1`, unlike the 2D which uses c1 body / c2 detail). Verified
+  headless (`verify-slice6.mjs`): a star with `rays:true` has its ray sprite (3 sprites total) and `rays:false`
+  hides it (2), building cleanly at `count:32`; an asteroid with `c2:#224466` renders its main rock in `c1`
+  and both companions in `c2`; 0 page errors. *Deferred (documented, cost > value): 3D comet tail, station
+  window/panel light controls, galaxy `spread`/`len` in the 3D disc texture, and spingalaxy `master`/`feather`
+  in 3D — these are cosmetic refinements on non-planet bodies (new geometry / procedural-texture params) whose
+  implementation cost clearly exceeds their value versus the DM's stated focus on worlds/planets, where 2D⇄3D
+  parity is now complete. The 2D controls for these already exist and drive the 2D art; the 3D shows the body
+  faithfully minus these sub-parameters.*
 - **Slice 7a — Console (player-viewer) 2D parity.** ✅ Ported the studio `art()` additions to
   `console.html`'s cloned generator so **players see what the DM authored**: terrain modulation
   (`cscale`/`sea`/`coast`), polar `ice` caps, axial `tilt` on the surface group, and the animated **storm
@@ -239,4 +248,4 @@ gets 3D equivalents or stays a 2D-layer concern — lean: keep fx 2D-layer, docu
 - **Reuse:** build on `art()`, `buildPlanetModel`, `_genericPlanetCfg`, `pushTo3D`, and the existing viewer
   toggle — don't fork them.
 
-### Status: IN PROGRESS (Slices 0–5 + 7a shipped; 6 + 7b pending)
+### Status: IN PROGRESS (Slices 0–6 + 7a shipped; 7b — final QA + doc move — pending)

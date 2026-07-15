@@ -335,11 +335,11 @@ function coronaTex() {
   ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
   return texFromCanvas(cv, 1);
 }
-function raysTex(seed) {
+function raysTex(seed, count) {
   const S = 256, cv = document.createElement('canvas'); cv.width = cv.height = S; const ctx = cv.getContext('2d');
   ctx.translate(S / 2, S / 2);
   let r = (seed | 0) >>> 0; const rnd = () => { r = (r * 1664525 + 1013904223) >>> 0; return r / 4294967296; };
-  const N = 16;
+  const N = Math.max(3, Math.min(48, Math.round(count != null ? count : 16)));   // ray-spoke count honours raySpec.count (2D<->3D parity)
   for (let i = 0; i < N; i++) {
     const a = i / N * Math.PI * 2 + rnd() * 0.25, len = S * 0.5 * (0.45 + rnd() * 0.55), w = 0.015 + rnd() * 0.05;
     const g = ctx.createLinearGradient(0, 0, Math.cos(a) * len, Math.sin(a) * len);
@@ -392,7 +392,7 @@ export function buildStarModel(config, opts) {
   // SUN RAYS (diffuse colour) — rotating ray sprite; hidden when rays:false or count 0.
   let rayMat = null;
   if (cfg.rays !== false && (rs.count == null || rs.count > 0)) {
-    const rTex = raysTex(cfg.seed || 7);
+    const rTex = raysTex(cfg.seed || 7, rs.count);
     rayMat = new THREE.SpriteMaterial({ map: rTex, color: diffC.clone(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: Math.min(1, (rs.intensity != null ? rs.intensity : 0.5) * 1.1 * br) });
     const rayS = R * 3.0 * (1 + ((rs.length != null ? rs.length : 1) - 1) * 0.5) * csz;
     const raySpr = new THREE.Sprite(rayMat); raySpr.scale.set(rayS, rayS, 1); grp.add(raySpr); dis.push(rayMat, rTex);
@@ -558,10 +558,12 @@ export function buildAsteroidModel(config, opts) {
   const base = new THREE.Color(cfg.c1 || '#7c736a');
   const mat = new THREE.MeshStandardMaterial({ color: base, roughness: 0.96, metalness: 0.04, flatShading: true });
   const rock = new THREE.Mesh(geo, mat); core.add(rock); dis.push(geo, mat);
-  // a couple of tiny companion rocks so it reads as a debris body
+  // companion rocks take the detail colour c2 (2D<->3D parity: the 2D asteroid uses c1 body / c2 detail).
+  const mat2 = new THREE.MeshStandardMaterial({ color: new THREE.Color(cfg.c2 || '#5a5460'), roughness: 0.98, metalness: 0.04, flatShading: true });
+  dis.push(mat2);
   for (let k = 0; k < 2; k++) {
     const g2 = new THREE.IcosahedronGeometry(R * (0.12 + hash(k, k, k) * 0.08), 1);
-    const m2 = new THREE.Mesh(g2, mat); const a = hash(k + 3, k + 5, k + 7) * 6.283, rr = R * (1.05 + hash(k + 1, k + 2, k + 4) * 0.25);
+    const m2 = new THREE.Mesh(g2, mat2); const a = hash(k + 3, k + 5, k + 7) * 6.283, rr = R * (1.05 + hash(k + 1, k + 2, k + 4) * 0.25);
     m2.position.set(Math.cos(a) * rr, Math.sin(a) * rr, (hash(k, k + 9, k) - 0.5) * R * 0.5); core.add(m2); dis.push(g2);
   }
   const tx = (hash(1, 2, 3) - 0.5) * 0.7, ty = (hash(4, 5, 6) - 0.5) * 0.7, tz = (hash(7, 8, 9) - 0.5) * 0.5;
