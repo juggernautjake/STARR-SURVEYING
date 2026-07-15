@@ -111,9 +111,18 @@ are already stored.
   `allow_custom` (DM-gated), and `app/dnd/_ui/CampaignCustomPolicyToggle.tsx` is the DM's vanilla-only toggle.
   Verified: `tsc` clean, lint clean, full dnd suite (282) green. *(Dropping the policy toggle onto the DM
   campaign hub + a live click-through are the running-app finish; the panel, route, and policy are proven.)*
-- **Slice 6 — DM-granted custom content.** A DM route + UI to grant a defined custom element (feat / ability /
-  item / spell / weapon) with DM-authored mechanics to a specific character, stored flagged `dm-granted` +
-  `grantedBy`; always allowed even in vanilla-only campaigns and shown as "granted by the DM".
+- **Slice 6 — DM-granted custom content.** ✅ `lib/dnd/dm-grant.ts` — the pure core: `validateGrant`
+  (needs a name + mechanics, clamps kind to the `GRANTABLE_KINDS` set, length-bounded), `readGrants`
+  (tolerant parse of the `dm_granted` jsonb, drops malformed/id-less entries), `addGrant` / `removeGrant`
+  (immutable, caller-supplied id + timestamp so it stays pure). `POST/DELETE /api/dnd/characters/[id]/grant`
+  (DM-only via `getCampaignRole==='dm'`) appends/revokes a grant, stamping the DM's display name as
+  `grantedBy` — a grant is stored flagged `dm-granted` so `summarizeCharacterProvenance` treats it as
+  always-allowed (never blocking), even in a vanilla-only campaign. `app/dnd/_ui/DmGrantPanel.tsx` (DM-only,
+  wired into `characters/[id]/page.tsx`) lists existing grants with a Revoke and a compose form (kind / name /
+  mechanics) that grants a new element shown on the sheet as "granted by the DM". Verified: `tsc` clean, lint
+  clean, `__tests__/dnd/dm-grant.test.ts` (5 tests: validation gates name+mechanics + kind clamp + length
+  bounds, add/read/remove round-trip dropping malformed rows, a granted homebrew feature flips from blocking
+  custom → dm-granted so a vanilla-only submit is no longer blocked); full dnd suite (287) green.
 - **Slice 7 — Builder + sheet integration with provenance badges + AI.** An Intuitive Games sheet/builder
   rendering the template's structure (abilities, skills w/ ranks, stances, powers, feats, weapons, companion),
   with a **VANILLA / CUSTOM / DM-GRANTED badge on every element** and a "Custom content" summary. Build
@@ -134,4 +143,4 @@ are already stored.
 - **Backward compatible:** new columns default so existing characters/campaigns keep working (status=draft,
   allow_custom=true).
 
-### Status: IN PROGRESS (Slices 0–5 shipped; 6–8 pending)
+### Status: IN PROGRESS (Slices 0–6 shipped; 7–8 pending)

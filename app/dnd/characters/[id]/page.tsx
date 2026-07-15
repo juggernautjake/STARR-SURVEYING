@@ -14,10 +14,12 @@ import SheetStyleBrowser from '@/app/dnd/_ui/SheetStyleBrowser';
 import SheetEditChat from '@/app/dnd/_ui/SheetEditChat';
 import SystemSwitcher from '@/app/dnd/_ui/SystemSwitcher';
 import SheetApprovalPanel from '@/app/dnd/_ui/SheetApprovalPanel';
+import DmGrantPanel from '@/app/dnd/_ui/DmGrantPanel';
 import { readVariants, builtSystems, type ActiveSheet } from '@/lib/dnd/system-variants';
 import { normalizeSystem } from '@/lib/dnd/systems';
 import { summarizeCharacterProvenance, type ElementKind } from '@/lib/dnd/provenance';
 import { normalizeSubmissionStatus } from '@/lib/dnd/submission';
+import { readGrants } from '@/lib/dnd/dm-grant';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
 import SheetChatPanel from '@/app/dnd/_ui/SheetChatPanel';
@@ -76,10 +78,16 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
     );
   }
 
+  // DM-granted content (IG builder Slice 6): only the campaign DM sees the grant composer + revoke list.
+  const grantPanel = character.campaign_id && isDM
+    ? <DmGrantPanel characterId={character.id} initialGrants={readGrants(character.dm_granted)} />
+    : null;
+
   return (
     <>
       {topPanel}
       {approvalPanel}
+      {grantPanel}
       {canWrite && Array.isArray((character as { build_questions?: string[] }).build_questions) && (character as { build_questions?: string[] }).build_questions!.length > 0 && (
         <BuildQuestions characterId={character.id} questions={(character as { build_questions?: string[] }).build_questions as string[]} />
       )}
