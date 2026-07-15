@@ -12,6 +12,16 @@ Users who don't want a custom sheet can **browse and pick a sheet style**. Three
 gaps/conflicts), **Step-by-step** (user defines every stat/feature/ability/mechanic, native or custom).
 After generation, an **AI edit mode** for change/add requests (mechanics or styling).
 
+**Additional specs (added after kickoff):** the AI must **only ever use the chosen system's** rules,
+weapons, feats and actions (never another system's, never invented). **Every sheet design must work with
+every system**, and **NPCs** must be able to **choose any sheet design** and use the full builder. The AI
+must be able to generate real, working sheet UI — **tabs, widgets, text boxes, inputs, editable fields** —
+and let the user **move/resize/restyle elements in real time** from the on-browser agent. When a character
+crosses into a campaign on a **different system**, the AI should **transpose** it into a new sheet under
+the target system's rules, staying as faithful as possible. The AI chat box must be **appealing, flowing,
+and on-theme**. And the existing **sheet tabs (abilities/actions/combat/features) must be crash-free** —
+there is currently a live `Cannot read properties of undefined (reading 'map')` error to fix.
+
 ## Current state (from the code)
 
 - **Characters**: `dnd_characters` (`sheet_type`, `data` jsonb, `style_notes`, `import_notes`,
@@ -30,12 +40,21 @@ After generation, an **AI edit mode** for change/add requests (mechanics or styl
 ## Slices
 
 - **Slice 0 — Planning doc** *(this file)*.
-- **Slice 1 — Game-systems data model.** Migration for `dnd_systems` (`id`, `key` e.g. `dnd5e-2014`,
-  `name`, `publisher`, `notes`) and `dnd_system_entries` (`system_id`, `kind` — rule/feat/ability/spell/
-  class/species/item/condition, `name`, `body` text, `source`, `data` jsonb, `embedding vector`) with a
-  per-system index for **scoped retrieval**. Add a `system` field to characters (`'ambiguous'` or a system
-  key) — a column or in `data`. Seed the `dnd5e-2014`, `dnd5e-2024`, `pathfinder2e` system rows (empty of
-  entries). Verify: schema applies; a character can carry a system.
+- **Slice 1 — Game-systems data model.** ✅ `seeds/422_dnd_systems.sql` adds `dnd_systems` (`key` unique,
+  `name`, `publisher`, `notes`) and `dnd_system_entries` (`system_id` FK, `kind`
+  rule/feat/ability/spell/class/species/item/condition/other, `name`, `body`, `source`, `data` jsonb,
+  `embedding vector(1024)` matching the FS-tutor RAG dims) with per-system indexes and a **scoped**
+  `match_dnd_system_entries(p_system_id, …)` cosine-search function that filters `WHERE system_id =
+  p_system_id` — so retrieval can never cross systems. Adds `dnd_characters.system text NOT NULL DEFAULT
+  'ambiguous'`. Seeds the `dnd5e-2014`, `dnd5e-2024`, `pathfinder2e` system rows (idempotent on `key`).
+  `lib/dnd/systems.ts` exposes `GAME_SYSTEMS`, `SYSTEM_AMBIGUOUS`, `normalizeSystem`, `systemLabel`.
+  Verified: `tsc` clean, lint clean, SQL balanced (parens matched) and follows the applied-seed convention.
+- **Slice 1b — URGENT: fix sheet tab crashes.** A live runtime error crashes sheet tabs:
+  `TypeError: Cannot read properties of undefined (reading 'map')` (abilities / actions / combat /
+  features). Find the sheet module(s) that `.map()` over a possibly-undefined array (missing `data`
+  sub-objects on generic/AI-built/partial characters) and guard them (default to `[]`), so every tab
+  renders without errors for any character shape. Verify: a minimal/empty character opens every tab
+  without throwing (drive the sheet or a jsdom render + a `tsc` pass).
 - **Slice 2 — System reference ingestion + browse.** A mechanism to **research/curate + store** entries
   for a system (paste/upload/admin-curated), chunk + embed them (reuse the embedding lib), and a browse/
   search UI scoped to one system. Seed a small starter set per seeded system so retrieval works end-to-end.
@@ -65,8 +84,30 @@ After generation, an **AI edit mode** for change/add requests (mechanics or styl
 - **Slice 9 — Inline instructions & onboarding.** Thorough **help text** across the builder: what each
   field means, how each function works, what happens to uploaded info, and how the modes differ — so a new
   user can build confidently. Verify: help is present on the key builder surfaces.
-- **Slice 10 — QA + docs.** End-to-end pass (system pick → mode → grounded build → chat resolution →
-  custom sheet / style pick → AI edit), run the dnd vitest suite, then move this doc to `completed/`.
+- **Slice 10 — Every sheet works with every system + NPC parity.** Ensure every sheet skin/module renders
+  for **any** system (system-agnostic *and* system-specific data) without crashes, and that **NPCs** get
+  the same treatment: NPCs can **choose any sheet design** and use the full builder (system, modes, custom
+  sheet). Confirm everything is **hooked up correctly** (no dead controls, no broken tabs). Verify: a
+  sample character in each system + an NPC opens every tab and can switch sheet designs.
+- **Slice 11 — AI-generated interactive sheet elements.** The AI composes real, working sheet UI from
+  building blocks: **tabs, widgets, text boxes, inputs, editable fields, tables, counters, toggles** — the
+  things a real character sheet has — bound to the character `data` so edits persist. Verify: an
+  AI-generated sheet exposes editable inputs that save.
+- **Slice 12 — Real-time on-browser customization.** The in-page AI agent can **move, resize, restyle and
+  add/remove** sheet elements live (drag/reflow + CSS tweaks), so the sheet is fully customizable in real
+  time from the chat. Verify: a customization request visibly changes the layout/style and persists.
+- **Slice 13 — Cross-system transposition.** When a character built in one system enters a campaign using
+  a **different** system (e.g. a D&D 5e-2024 character joining a 5e-2014 table), the AI builds a **new
+  sheet that translates** the character into the target system's rules — staying as close to the original
+  as possible while using only the target system's mechanics (grounded per Slice 3). Keep the original;
+  produce a target-system version. Verify: a 2024→2014 transposition yields a valid 2014 sheet that mirrors
+  the original's intent.
+- **Slice 14 — Themed AI chat box.** Make the builder's AI agent chat **appealing and well-flowing**,
+  matching the site's Hextech theme (typography, colors, message bubbles, streaming, input affordances).
+  Verify: the chat renders on-theme and streams smoothly.
+- **Slice 15 — QA + docs.** End-to-end pass across the whole builder (system pick → mode → grounded build
+  → chat resolution → custom/interactive sheet or style pick → real-time edits → cross-system transpose;
+  NPC parity; no tab crashes), run the dnd vitest suite, then move this doc to `completed/`.
 
 ## Considerations
 - **No cross-system contamination** is the core safety property — enforce it at retrieval (scope by
@@ -83,4 +124,4 @@ After generation, an **AI edit mode** for change/add requests (mechanics or styl
 - **Verification:** app/server + AI features; prefer the dnd vitest suites + driving routes, and note
   anything needing the live app or an AI key.
 
-### Status: IN PROGRESS (Slice 0 shipped; 1–10 pending)
+### Status: IN PROGRESS (Slices 0–1 shipped; 1b + 2–15 pending)
