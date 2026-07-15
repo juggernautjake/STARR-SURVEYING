@@ -137,8 +137,16 @@ const Map3D = {
     const moved = Math.hypot(e.clientX - this._downXY[0], e.clientY - this._downXY[1]);
     this._downXY = null;
     if (moved > 4 || (this.tcontrols && this.tcontrols.dragging)) return;   // that was a pan / gizmo drag, not a pick
-    const holder = this._pickHolder(e.clientX, e.clientY);
-    if (holder) return this._select(holder);
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    this._ray.setFromCamera(ndc, this.camera);
+    const hits = this._ray.intersectObjects(this.bodyGroup.children, true);
+    if (hits.length) {
+      let poi = hits[0].object; while (poi && poi.userData.poiId === undefined && poi.parent) poi = poi.parent;
+      if (poi && poi.userData.poiId !== undefined) { if (window.map3dSelectPoi) window.map3dSelectPoi(poi.userData.instId, poi.userData.poiId); return; }
+      let o = hits[0].object; while (o && o.userData.id === undefined && o.parent) o = o.parent;
+      if (o && o.userData.id !== undefined) return this._select(o);
+    }
     this._deselect();
   },
   _select(holder) { this._selected = holder; if (this.tcontrols) this.tcontrols.attach(holder); if (window.map3dSelect) window.map3dSelect(holder.userData.id); },
@@ -612,6 +620,7 @@ const Map3D = {
       let disc = null;
       if (imgUrl) { const plane = this._imagePlane(it, imgUrl); holder.add(plane); if (plane.userData.spin) this._spinPlanes.push(plane); }
       else { disc = this._discMesh(it); holder.add(disc); if (disc.userData.spin) this._spinPlanes.push(disc); }
+      if (it.pois && it.pois.length) this._addSurfacePois(holder, it);   // surface POIs on the body
       g.add(holder);
       this._bodies.push({ holder, it, disc, isStar: it.kind === 'star', cfg, canFull: !imgUrl && (it.kind === 'star' || !!cfg), hasModel: false, model: null });
       minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x + s); maxY = Math.max(maxY, it.y + s);
@@ -783,6 +792,29 @@ const Map3D = {
       const border = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(outline.map(p => new THREE.Vector3(p.x, p.y, zPos + 0.15))), new THREE.LineBasicMaterial({ color: new THREE.Color(s.borderColor || s.color || '#5fbf7a'), transparent: true, opacity: 0.85 }));
       border.renderOrder = -3; g.add(border);
       if (s.name && (!s.label || s.label.show !== false)) { const c = this._centroid(s.points); this._addText({ name: s.name, label: s.label, x: c.x, y: c.y }); }
+    }
+  },
+
+  // A small glowing pin texture for surface POIs (cached).
+  _poiTex() {
+    if (this._poiTexCache) return this._poiTexCache;
+    const S = 48, cv = document.createElement('canvas'); cv.width = cv.height = S; const ctx = cv.getContext('2d');
+    const g = ctx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.35, 'rgba(255,255,255,0.95)'); g.addColorStop(0.55, 'rgba(255,255,255,0.35)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(S / 2, S / 2, S / 2, 0, 7); ctx.fill();
+    this._poiTexCache = new THREE.CanvasTexture(cv); return this._poiTexCache;
+  },
+  _poiColor(type) { return ({ city: '#ffd24a', ruin: '#c98b5a', station: '#7fd0ff', hazard: '#ff6a4a', resource: '#7ef0a0', landmark: '#c98bff' })[type] || '#ffd24a'; },
+  // A body's surface points of interest, placed on the front hemisphere (POI ax/ay → sphere lon/lat),
+  // matching the 2D POI layer. Children of the holder, so they move/scale with the body and are picked.
+  _addSurfacePois(holder, it) {
+    for (const p of (it.pois || [])) {
+      const lon = (p.ax || 0) * Math.PI * 0.5, lat = -(p.ay || 0) * Math.PI * 0.5, cl = Math.cos(lat);
+      const x = Math.sin(lon) * cl, y = Math.sin(lat), z = Math.cos(lon) * cl;   // unit sphere, +z toward camera
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this._poiTex(), color: new THREE.Color(this._poiColor(p.type)), transparent: true, depthTest: false, depthWrite: false }));
+      sp.position.set(x * 1.03, y * 1.03, z * 1.03); const sc = 0.17; sp.scale.set(sc, sc, sc);
+      sp.renderOrder = 7; sp.userData = { poiId: p.id, instId: it.id };
+      holder.add(sp);
     }
   },
 

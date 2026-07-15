@@ -1947,6 +1947,7 @@ function applyMapData(m){resetDiffspin();
 
 /* ---- bridge for the 3D viewer (map3d.js): select / transform-writeback / undo checkpoint ---- */
 window.map3dSelect=function(id){const i=id&&state.instances.find(x=>x.id===id);selection=i?{type:"instance",id}:null;renderInspector();updateStatus();};
+window.map3dSelectPoi=function(instId,poiId){if(!state.instances.find(x=>x.id===instId))return;selection={type:"poi",id:instId,poi:poiId};renderInspector();updateStatus();};
 window.map3dBeginEdit=function(){pushUndo();};
 // Gizmo write-back (3D→2D): update in place. Flag it so pushTo3D doesn't rebuild the body mid-drag.
 window.map3dApply=function(id,patch){const i=state.instances.find(x=>x.id===id);if(!i)return;fromGizmo=true;Object.assign(i,patch);if(typeof reassoc==="function")reassoc(i);renderInstances();renderLabels&&renderLabels();markDirty();fromGizmo=false;};
