@@ -35,6 +35,68 @@ const TYPES = {
 
 function texFromCanvas(cv, aniso) { const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = aniso || 1; return t; }
 
+// The representative surface colour of a planet config — a sea-level-weighted blend of its own
+// TYPES palette (ocean vs land, with a touch of polar ice). Used so a far/small planet that renders
+// as a flat impostor still shows its true colours instead of a default. Returns a #rrggbb string.
+export function planetDominantColor(config) {
+  const cfg = Object.assign({ type: 'terran', sea: 0.52, ice: 0.15 }, config || {});
+  const T = TYPES[cfg.type] || TYPES.terran;
+  const toHex = c => '#' + c.map(v => ('0' + Math.max(0, Math.min(255, Math.round(v))).toString(16)).slice(-2)).join('');
+  if (T.bands) return toHex(mix(mix(T.low, T.high, 0.5), T.shore, 0.25));   // gas giant → band average
+  const sea = Math.max(0, Math.min(1, cfg.sea != null ? cfg.sea : 0.52));
+  const ice = Math.max(0, Math.min(1, cfg.ice != null ? cfg.ice : 0.15));
+  const land = mix(T.low, T.high, 0.4);
+  let c = mix(land, T.ocean, sea * 0.85);                                   // more sea → bluer/oceanic
+  if (ice > 0.25) c = mix(c, T.peak, (ice - 0.25) * 0.5);                   // icy worlds pale out
+  return toHex(c);
+}
+
+// A small, cheap procedural planet FACE for the far/small impostor: the planet's actual surface
+// (same sea/land/ice/band maths as the full model) sampled onto a lit, sphere-projected disc, so a
+// tiny planet still shows real continents / bands / ice caps and a faint atmosphere — not a flat coin.
+// Returns a canvas (transparent outside the disc) to use as a texture. `S` = pixel diameter (~96).
+export function planetImpostorCanvas(config, S) {
+  S = S || 96;
+  const cfg = Object.assign({ type: 'terran', seed: 1, sea: 0.52, cscale: 2.2, coast: 0.5, ice: 0.15 }, config || {});
+  const T = TYPES[cfg.type] || TYPES.terran;
+  const cv = document.createElement('canvas'); cv.width = cv.height = S; const ctx = cv.getContext('2d');
+  const img = ctx.createImageData(S, S), d = img.data;
+  const noise = makeNoise(cfg.seed), wn = makeNoise(cfg.seed + 999);
+  const R = S / 2 - 1, cx = S / 2, cy = S / 2;
+  const lx = -0.48, ly = -0.55, lz = 0.68, llen = Math.hypot(lx, ly, lz);   // light from the upper-left
+  for (let py = 0; py < S; py++) {
+    for (let px = 0; px < S; px++) {
+      const idx = (py * S + px) * 4;
+      const nx = (px - cx) / R, ny = (py - cy) / R, r2 = nx * nx + ny * ny;
+      if (r2 > 1) { d[idx + 3] = 0; continue; }                             // outside the sphere → clear
+      const nz = Math.sqrt(1 - r2);
+      const lat = 0.5 - Math.asin(Math.max(-1, Math.min(1, ny))) / Math.PI;  // equirectangular projection
+      const lon = 0.5 + Math.atan2(nx, nz) / (2 * Math.PI), latC = Math.abs(lat - 0.5) * 2;
+      let col;
+      if (T.bands) { const band = 0.5 + 0.5 * Math.sin(lat * Math.PI * 8), turb = fbm(noise, lon, lat * 3, cfg.cscale * 1.5, 4) * 0.4; col = mix(T.low, T.high, Math.min(1, band * 0.6 + turb)); }
+      else {
+        let e = warp(noise, wn, lon, lat, cfg.cscale, 5, 0.35); const dS = e - cfg.sea; e = cfg.sea + Math.sign(dS) * Math.pow(Math.abs(dS), 1 - cfg.coast * 0.6);
+        if (latC > (1 - cfg.ice) + (e - 0.5) * 0.2) { const s = 0.9 + fbm(noise, lon + 70, lat + 70, cfg.cscale * 2, 3) * 0.2; col = [T.peak[0] * s, T.peak[1] * s, T.peak[2] * s]; }
+        else if (e < cfg.sea) { const dep = e / cfg.sea, deep = [T.ocean[0] * 0.45, T.ocean[1] * 0.5, T.ocean[2] * 0.62]; col = mix(deep, T.ocean, Math.pow(dep, 0.7)); }
+        else { const l = (e - cfg.sea) / (1 - cfg.sea); if (l < 0.06) col = mix(T.shore, T.low, l / 0.06); else if (l < 0.45) col = mix(T.low, [T.low[0] * 1.05, T.low[1] * 1.05, T.low[2] * 0.95], (l - 0.06) / 0.39); else if (l < 0.78) col = mix(T.low, T.high, (l - 0.45) / 0.33); else col = mix(T.high, T.peak, (l - 0.78) / 0.22); const m = fbm(noise, lon + 20, lat + 20, cfg.cscale * 3, 3); col = [col[0] * (0.9 + m * 0.2), col[1] * (0.9 + m * 0.2), col[2] * (0.9 + m * 0.2)]; }
+      }
+      const diff = Math.max(0, (nx * lx + ny * ly + nz * lz) / llen);
+      const sh = (0.34 + 0.82 * diff) * (0.62 + 0.38 * nz);                 // diffuse light + limb darkening
+      d[idx] = Math.min(255, col[0] * sh); d[idx + 1] = Math.min(255, col[1] * sh); d[idx + 2] = Math.min(255, col[2] * sh); d[idx + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  if (cfg.atmoOn !== false) {                                               // faint atmosphere rim
+    const [ar, ag, ab] = hx(cfg.atmoColor || '#5aa0e8');
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(cx, cy, R * 0.72, cx, cy, R);
+    g.addColorStop(0, `rgba(${ar},${ag},${ab},0)`); g.addColorStop(0.82, `rgba(${ar},${ag},${ab},0.05)`); g.addColorStop(1, `rgba(${ar},${ag},${ab},0.5)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  return cv;
+}
+
 /* ---------- texture generation (config-driven; verbatim maths) ---------- */
 function genPlanet(cfg, aniso) {
   const W = 1024, H = 512, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d');
