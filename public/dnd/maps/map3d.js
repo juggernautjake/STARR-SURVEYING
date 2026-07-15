@@ -665,6 +665,27 @@ const Map3D = {
     return new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), mat);
   },
 
+  // Centre + scale the ortho camera to EXACTLY match the 2D viewer's current view, so toggling 2D⇄3D
+  // keeps everything in the same place and size. 2D→3D: world (cx,cy)→(cx,-cy); px-per-unit parity →
+  // camera.zoom = (2·H)·scale / heightPx. Returns false if no 2D view bridge is available.
+  _syncFromView() {
+    if (typeof window.map2dView !== 'function') return false;
+    const v = window.map2dView(); if (!v || !isFinite(v.scale) || v.scale <= 0) return false;
+    const h = this.container.clientHeight || 1, H = 500;
+    this.controls.target.set(v.cx, -v.cy, 0);
+    this.camera.position.set(v.cx, -v.cy, 2000);
+    this.camera.zoom = Math.max(0.02, Math.min(50, (2 * H) * v.scale / h));
+    this.camera.updateProjectionMatrix(); this.controls.update();
+    return true;
+  },
+  // Write the 3D centre/scale back to the 2D view, so returning to 2D lands on the same place.
+  _syncToView() {
+    if (typeof window.setMap2dView !== 'function' || !this.controls) return;
+    const t = this.controls.target, h = this.container.clientHeight || 1, H = 500;
+    const scale = this.camera.zoom * h / (2 * H);
+    if (isFinite(scale) && scale > 0) window.setMap2dView(t.x, -t.y, scale);
+  },
+
   // Fit the ortho camera to the stored content bounds (2D→3D: y negated).
   _frameBounds() {
     const b = this._bounds; if (!b) return;
@@ -692,7 +713,8 @@ const Map3D = {
   show() {
     if (!this._ready) return;
     this._shown = true; this.container.style.display = 'block'; this.resize();
-    this._frameBounds();   // now the container has real pixel dimensions, so the fit is correct
+    // Match the 2D viewer's centre + scale exactly (fall back to fitting all bodies if unavailable).
+    if (!this._syncFromView()) this._frameBounds();
     this._applyLOD();      // pick full-mesh vs impostor for the current zoom
     const sun = new THREE.Vector3(1, 1, 2).normalize();
     let last = performance.now();
@@ -712,6 +734,7 @@ const Map3D = {
   },
 
   hide() {
+    this._syncToView();   // hand the current centre/scale back to the 2D map so it lands in the same place
     this._shown = false;
     if (this.tcontrols) this.tcontrols.detach();
     this._selected = null;

@@ -29,6 +29,37 @@ The five requests, verbatim intent:
    **equally well-formatted, styled, dynamic 2D version**. Translate the 3D viewer's settings and
    renderings into the 2D map so the two resemble each other as much as possible.
 
+**Follow-up requests (added during the session — build sequentially after 1–5):**
+
+6. **Textured impostors.** The far/small placeholder should not just be the right colour — add **2D
+   textures** (real continents / bands / ice) so it represents the planet as well as possible.
+7. **Full editing power + delete anything.** Keep **all** controls for every 2D object (stars, etc.);
+   placing a star in 2D must also place it in 3D; be able to **select any 2D or 3D object and delete
+   any individual element**.
+8. **Bigger images + keep 2D effects.** Allow images up to **~15×** size; keep all 2D effects (spiral
+   image effect, etc.) working.
+9. **See every edit render live in the 3D editor** — real-time, or immediately after each action.
+10. **Origin/scale correspondence.** The 3D viewer's centre/origin must correspond **exactly** to the
+    2D viewer's, so position and scale stay aligned across the toggle.
+11. **See 2D animations in 3D.** While in the 3D viewer/builder, 2D animations, renderings, and **all
+    effects** (spingalaxy spirals, sprite spins, per-body fx overlays) should render dynamically too.
+12. **Expansive filler starfield.** Beyond the parallax stars, also generate a **full, unending
+    background of generic small filler stars** in the 3D viewer.
+
+13. **Image controls/effects in 3D.** All image controls and effects must work in the 3D viewer just
+    like 2D — including the **dynamic spiral (spin) effect** and **edge fade** (soften image edges over
+    a chosen distance, in a **radial** pattern or straight **from each edge**).
+14. **Sectors & systems in both viewers.** Draw, render, **style and customise** sectors and systems in
+    **both** 2D and 3D, looking good in each (filled polygons, borders, labels, per-sector fx).
+15. **Place bodies into sectors/systems.** Be able to place planets, stars, space stations, other
+    locations, and POIs **into** the sectors/systems (containment/association) — in both viewers.
+
+**Cross-cutting principle:** everything above — backgrounds, effects, bodies, images, text/HTML,
+sectors, systems, POIs — must be **creatable, editable, and dynamically rendered in BOTH the 2D and
+3D viewers**, staying in lockstep as the DM edits and publishing identically to players.
+
+Every one of these is tracked as a slice in §8; the stop hook works them **in order**.
+
 ---
 
 ## 1. Data model — one `bg3d` config on the map
@@ -183,16 +214,48 @@ other, and keep every element consistent:
   size cap raised to **15×** (image slider max 6600; on-map corner-drag already uncapped); all existing
   2D effects (spingalaxy spiral, sparkles, fx overlays) untouched. Verified headless: add 0→1, resize
   size 400 → holder.scale.x 200, 3D-select sets `selection`, delete 1→0; zero console errors.
-- **Slice 7 — 2D⇄3D parity backdrop.** ⏳ `#gl-bg` canvas painter in `map-studio.html` + `console.html`
-  that renders the same `bg3d`+`seed` in 2D (solid/glow/stars/nebula/spiral/blackhole/asteroids),
-  sharing palette/arrangement with 3D; align `mapFx` mood with `bg3d`; verify each element kind
-  (planet/star/image/text/HTML/POI/sector + labels + fade) renders consistently in both viewers and
-  stays in lockstep on live edits. Verify headless in Studio and Console.
-- **Slice 8 — Doc to completed + ship log.** Move this file to `docs/planning/completed/` with a build
-  log once Slices 5–7 land and the whole flow is verified end-to-end (Studio DM edit → live 3D + 2D
-  parity → publish → player Console parity).
+- **Slice 6b — Textured impostors (req 6).** ✅ `planetImpostorCanvas()` renders the planet's real
+  surface (continents/bands/ice + atmosphere rim) onto a lit sphere-projected disc, cached per config;
+  `map3d.js` uses it for the `planet3d` impostor. Verified headless for 5 planet types.
+- **Slice 7 — 2D⇄3D parity backdrop + origin/scale sync (reqs 5, 10).** ✅ New shared `sky2d.js`
+  (`window.Sky2D`) paints the same `bg3d`+`seed` in a `#skyCanvas` behind the 2D map in **Studio and
+  Console** (solid/glow/stars/nebula/spiral/blackhole/asteroids), baking the static sky once and
+  animating only glow-pulse + twinkle. `applyBg3d()`/console `applySky()` drive it; published `bg3d`
+  reaches players. Origin/scale sync: `window.map2dView`/`setMap2dView` bridges expose the 2D centre +
+  px-per-unit; `Map3D._syncFromView()` centres/zooms the 3D camera to match on show, `_syncToView()`
+  writes it back on hide. Verified headless: spiral backdrop paints (61% lit px); 2D view (300,-150,
+  0.8) → 3D target (300,150), zoom exact; 0 errors.
+- **Slice 8 — Expansive unending filler starfield (req 12).** ⏳ Add a deep, view-filling bed of tiny
+  generic filler stars in the 3D sky *behind* the parallax layers, that always fills the viewport as
+  you pan/zoom (tile/wrap around the camera target or use a very large low-density field that recentres
+  on the camera). Distinct from the parallax layers (those stay); this is the "unending generic filler."
+  Density scales with `bg3d.density`. Mirror it in the 2D `sky2d.js` backdrop. Verify headless: pan far
+  → stars still fill the view; 0 errors.
+- **Slice 9 — 2D animations & effects live in the 3D viewer (reqs 11, 13).** ⏳ Render the animated 2D
+  content in 3D so the builder shows everything moving: spingalaxy (diffspin) discs, sprite-spun
+  planets, and per-body fx overlays (sparkle/nebula/shoot) as live textures on their holders (draw the
+  2D canvas/engine to a `CanvasTexture` updated each frame, or a CSS3D plane for DOM-based ones), and
+  make sure image/text/HTML keep their 2D styling. **Image effects parity:** the dynamic **spiral/spin**
+  effect on images and the **edge fade** (radial or straight-from-edge, over a chosen distance) must
+  apply to image planes in 3D too — bake the fade into the plane's texture (alpha mask matching
+  `fadeMask`) and spin the plane for the spiral effect. Keep it LOD-aware (only animate on-screen/large
+  bodies). Verify headless: a spingalaxy + a POI-fx body + a faded/spun image animate in 3D; 0 errors.
+- **Slice 10 — Sectors & systems in 3D (req 14).** ⏳ Render sector polygons + system regions in the 3D
+  viewer at `z≈0` (filled `ShapeGeometry` with the sector's colour/opacity, an additive or line border
+  in its `borderStyle`/`borderWidth`, and its label via CSS3D), honouring `curved` edges and per-sector
+  fx where feasible. Keep them behind bodies but above the sky; update live on edit. Verify headless: a
+  drawn sector appears and is styled in 3D; 0 errors.
+- **Slice 11 — Place bodies into sectors/systems (req 15).** ⏳ Placing/moving a planet, star, space
+  station, location, or POI in the 3D viewer associates it with the sector it falls in (reuse the 2D
+  `sectorAt`/`reassoc` containment via the gizmo write-back and any 3D placement path), matching 2D
+  behaviour; keep the association live and published. Verify headless: a body dropped inside a sector
+  gets that sector id in both viewers; 0 errors.
+- **Slice 12 — Doc to completed + ship log + QA.** Move this file to `docs/planning/completed/` with a
+  build log once Slices 8–11 land and the whole flow is verified end-to-end (Studio DM edit → live 3D +
+  2D parity → publish → player Console parity), including origin/scale alignment, animated content,
+  sectors/systems in both viewers, and body-into-sector placement.
 
-### Status: IN PROGRESS (Slices 0–4 shipped; 5–7 pending)
+### Status: IN PROGRESS (Slices 0–7 shipped; 8–11 pending, then 12 = doc-move/QA)
 
 ---
 
@@ -206,4 +269,11 @@ other, and keep every element consistent:
   `_disposeBackground`). All 8 templates verified headless (swiftshader), 0 console errors.
 - **Slice 4 — Disc colours** ✅ `planetDominantColor` centralised; shaded impostor disc in true
   colours (desert → `#a68f60`).
-- **Slices 5–7** ⏳ pending — DM controls + persistence, live edit re-render, 2D parity backdrop.
+- **Slice 5 — DM background controls + persistence** ✅ Effects-panel section + `bg3d` persistence.
+- **Slice 6 — Live 3D re-render** ✅ `pushTo3D()` on `markDirty`; gizmo-safe; delete-any-element;
+  images to ~15×.
+- **Slice 6b — Textured impostors** ✅ `planetImpostorCanvas()`; real surface on the far/small disc.
+- **Slice 7 — 2D parity backdrop + origin/scale sync** ✅ `sky2d.js` `#skyCanvas` in Studio + Console;
+  `map2dView`/`setMap2dView` + `_syncFromView`/`_syncToView` so 2D and 3D share centre + scale exactly.
+- **Slices 8–9** ⏳ pending — expansive filler starfield; 2D animations + image effects (spiral, edge
+  fade) live in the 3D viewer. Then **Slice 10** — doc → completed + QA.
