@@ -75,6 +75,10 @@ The five requests, verbatim intent:
     flies the camera to that body, centres it, opens its **info window**, and reveals its **surface
     points of interest** — handling **surface-level POIs in 3D just like 2D**.
 
+21. **Exact spatial correspondence.** Every object's **position, orientation, colour, and scale** must
+    match between 2D and 3D so it's unmistakably the **same map of space** (verified by comparing
+    transforms, not just "looks close").
+
 **Cross-cutting principle:** everything above — backgrounds, effects, bodies, images, text/HTML,
 sectors, systems, POIs — must be **creatable, editable, and dynamically rendered in BOTH the 2D and
 3D viewers**, staying in lockstep as the DM edits and publishing identically to players.
@@ -268,13 +272,16 @@ other, and keep every element consistent:
   advances; 0 errors. *Deferred: per-body SVG fx overlays (sparkle/nebula/shoot) in 3D — decorative
   overlays that don't translate cleanly to a 3D holder, and the scene-level nebula + shooting-star
   systems already provide ambient equivalents; low value vs. cost.*
-- **Slice 10 — Sectors & systems in 3D + layer priority (reqs 14, 19).** ⏳ Render sector polygons +
-  system regions in the 3D viewer at `z≈0` (filled `ShapeGeometry` with the sector's colour/opacity, an
-  additive or line border in its `borderStyle`/`borderWidth`, and its label via CSS3D), honouring
-  `curved` edges and per-sector fx where feasible. Give sectors a **z / layer-priority** control
-  (front/back/forward/backward, like instances) in 2D and honour it in both viewers, so a drawn sector
-  can sit over the background/images and stay visible. Update live on edit. Verify headless: a drawn
-  sector appears and is styled in 3D, and its layer order changes; 0 errors.
+- **Slice 10 — Sectors & systems in 3D + layer priority (reqs 14, 19).** ✅ Sectors/systems now render
+  in the 3D viewer in a dedicated group behind the bodies: a translucent filled `ShapeGeometry` in the
+  sector's colour/`fillOpacity` plus a coloured `LineLoop` border and its CSS3D label, at the **exact**
+  2D positions/scale (2D→3D `(x,-y)`; curved edges use the same closed Catmull-Rom→cubic-Bézier as the
+  2D `sectorPath`, sampled). The sector `z` maps to 3D depth so layer order carries over. Layer-priority
+  controls (front/back/forward/backward) already exist in the sector inspector (`layerControlsHTML` +
+  `wireLayerControls(state.sectors,s)`, `renderSectors` sorts by `z`) and now propagate live to 3D via
+  the edit push, so a sector sits over the background in both views. Verified headless: straight + curved
+  sectors build in 3D (2 fills, 2 borders); the straight sector's centroid is exactly `(250,-230)`
+  matching its 2D points; 0 errors.
 - **Slice 11 — Place bodies into sectors/systems (req 15).** ⏳ Placing/moving a planet, star, space
   station, location, or POI in the 3D viewer associates it with the sector it falls in (reuse the 2D
   `sectorAt`/`reassoc` containment via the gizmo write-back and any 3D placement path), matching 2D
@@ -310,7 +317,10 @@ other, and keep every element consistent:
   2D parity → publish → player Console parity), including origin/scale alignment, animated content,
   sectors/systems in both viewers, body-into-sector placement, and full feature equivalence.
 
-### Status: IN PROGRESS (Slices 0–9b shipped; 10, 11, 11b, 11c, 12 pending, then 13 = doc-move/QA)
+### Status: IN PROGRESS (Slices 0–10 shipped; 11, 11b, 11c, 12 pending, then 13 = doc-move/QA)
+*Req 21 (exact position/orientation/colour/scale correspondence) is a verification bar applied to
+every slice — the 2D→3D `(x,-y)` transform + scale·2 model already gives bodies/sectors exact placement
+(e.g. sector centroid `(250,-230)`); Slice 12 audits it across all kinds.*
 
 ---
 

@@ -85,6 +85,7 @@ const Map3D = {
     this.scene = scene; this.renderer = renderer;
     this._bg = this._bg || Object.assign({}, BG_DEFAULT, { glow: Object.assign({}, BG_DEFAULT.glow) });
     this._buildBackground(); this._buildShooters();   // programmable sky + colourful meteors
+    const sectorGroup = new THREE.Group(); scene.add(sectorGroup); this._sectorGroup = sectorGroup;   // sector/system regions (behind bodies)
     const bodyGroup = new THREE.Group(); scene.add(bodyGroup);
 
     // Move/rotate/scale gizmo — only when an editor bridge exists (the DM Studio). The player
@@ -568,6 +569,7 @@ const Map3D = {
     }
     // Framing needs the container's real pixel size, which is only correct once it's visible; store
     // the bounds and (re)frame from show(). Framing here while hidden gives a degenerate zoom.
+    this._buildSectors();   // sector/system regions, matching the 2D map's positions/scale
     this._bounds = (insts.length && minX < maxX) ? { minX, minY, maxX, maxY } : null;
     if (this._shown) this._applyLOD();   // re-pick impostor/mesh for the (possibly changed) bodies
     if (keepSelId !== undefined && keepSelId !== null) {   // re-attach the gizmo to the same body after a live edit
@@ -698,6 +700,39 @@ const Map3D = {
     }
     const hex = this._discBaseColor(it);   // stars / generated art / config-less planets → shaded true-colour disc
     return new THREE.Mesh(new THREE.CircleGeometry(1, 56), new THREE.MeshBasicMaterial({ map: this._discTexture(hex), transparent: true }));
+  },
+
+  // A sector/system outline in 3D coords (2D→3D: y negated), matching the 2D `sectorPath` exactly —
+  // straight polygon, or the same closed Catmull-Rom→cubic-Bézier (sampled) for curved edges.
+  _sectorOutline(s) {
+    const pts = s.points || []; if (pts.length < 3) return null;
+    if (!s.curved) return pts.map(p => new THREE.Vector2(p.x, -p.y));
+    const n = pts.length, out = [], SEG = 12;
+    for (let i = 0; i < n; i++) {
+      const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
+      const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6, c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+      for (let t = 0; t < SEG; t++) { const u = t / SEG, m = 1 - u; const x = m * m * m * p1.x + 3 * m * m * u * c1x + 3 * m * u * u * c2x + u * u * u * p2.x, y = m * m * m * p1.y + 3 * m * m * u * c1y + 3 * m * u * u * c2y + u * u * u * p2.y; out.push(new THREE.Vector2(x, -y)); }
+    }
+    return out;
+  },
+  _centroid(pts) { let x = 0, y = 0; for (const p of pts) { x += p.x; y += p.y; } const n = pts.length || 1; return { x: x / n, y: y / n }; },
+  // Build every sector region: a translucent filled polygon + a coloured border, at the same position
+  // and scale as the 2D map, so the two views read as the same region. `z` gives relative layering.
+  _buildSectors() {
+    const g = this._sectorGroup; if (!g) return;
+    for (let i = g.children.length - 1; i >= 0; i--) { const c = g.children[i]; g.remove(c); c.geometry && c.geometry.dispose && c.geometry.dispose(); c.material && c.material.dispose && c.material.dispose(); }
+    const sectors = (this._map && this._map.sectors) || [];
+    for (const s of sectors) {
+      const outline = this._sectorOutline(s); if (!outline) continue;
+      const col = new THREE.Color(s.color || '#5fbf7a');
+      const zPos = Math.min(-0.4, -2 + (s.z || 0) * 0.02);   // behind bodies (z=0), ordered by the 2D z field
+      const fill = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(outline)), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: (s.fillOpacity != null ? s.fillOpacity : 0.12), side: THREE.DoubleSide, depthWrite: false, depthTest: false }));
+      fill.position.z = zPos; fill.renderOrder = -3;
+      g.add(fill);
+      const border = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(outline.map(p => new THREE.Vector3(p.x, p.y, zPos + 0.15))), new THREE.LineBasicMaterial({ color: new THREE.Color(s.borderColor || s.color || '#5fbf7a'), transparent: true, opacity: 0.85 }));
+      border.renderOrder = -3; g.add(border);
+      if (s.name && (!s.label || s.label.show !== false)) { const c = this._centroid(s.points); this._addText({ name: s.name, label: s.label, x: c.x, y: c.y }); }
+    }
   },
 
   // Free text object → a crisp DOM element in the CSS3D layer, styled from its LabelStyle.
