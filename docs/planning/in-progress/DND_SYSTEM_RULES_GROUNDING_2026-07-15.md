@@ -27,11 +27,19 @@ and distributable.)
 ## Slices
 
 - **Slice 0 — Planning doc** *(this file)*.
-- **Slice 1 — Deterministic rules catalog + always-on grounding.** A typed `lib/dnd/system-rules.ts` with the
-  core mechanical facts per system (ability score model + ranges, proficiency/level progression, saves model,
-  core resolution mechanics, rest/advancement cadence, the ASI/feat cadence). A `systemRulesBlock(system)`
-  renderer, wired into `systemGroundingBlock` so the correct system's real numbers are ALWAYS in the prompt —
-  even with no embeddings — and the "ambiguous" case forbids any system-specific numbers. Unit tests.
+- **Slice 1 — Deterministic rules catalog + always-on grounding.** ✅ `lib/dnd/system-rules.ts` — a typed
+  `SYSTEM_RULES` catalog with the core mechanical facts per system (ability model + generation + range/cap +
+  modifier formula, proficiency model, level range + advancement, saves model, core resolution, action
+  economy, rest, ASI/feat/boost cadence, and edition "must-know" gotchas), for `dnd5e-2014`, `dnd5e-2024`,
+  and `pathfinder2e`. `systemRulesBlock(system)` renders it as an authoritative prompt block, and
+  `expectedProfBonus`/`rulesForSystem`/`systemRulesSummary` expose it. Wired into `systemGroundingBlock` so
+  the **correct system's real numbers are ALWAYS in the prompt with zero embeddings/DB dependency** — RAG
+  hits now only augment (never replace) it; the ambiguous case carries an explicit "no system-specific
+  numbers" block. The catalog encodes the exact things that get built wrong: 2014's TIERED exhaustion vs
+  2024's SINGLE stacking, ability boosts from RACE (2014) vs BACKGROUND (2024), Weapon Mastery as 2024-only,
+  and PF2's level-to-proficiency / three saves / three-action / degrees-of-success model with a "do NOT
+  import 5e" warning. Verified: `tsc` clean, lint clean, `__tests__/dnd/system-rules.test.ts` (7 tests) +
+  updated `grounding.test.ts`; full dnd suite (243) green.
 - **Slice 2 — Full structured content per system.** Extend the catalog with the bulk lists: classes (hit die,
   key ability, saves, spellcasting), species/ancestries, the skill list + governing ability, the conditions
   list, and the feat/spell framing — per system, no cross-contamination. Tests assert each system's lists are
@@ -56,4 +64,4 @@ and distributable.)
 - **Accuracy over verbatim:** store mechanical facts/numbers, paraphrased; cite the source book by name.
 - **Extensible:** adding a system = one catalog entry + one `GAME_SYSTEMS` row (+ optional seed rows).
 
-### Status: IN PROGRESS (Slice 0 shipped; 1–5 pending)
+### Status: IN PROGRESS (Slices 0–1 shipped; 2–5 pending)

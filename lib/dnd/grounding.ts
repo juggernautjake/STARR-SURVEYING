@@ -4,6 +4,7 @@
 // can't ground instead of guessing. For a system-ambiguous character it forbids assuming a ruleset.
 import { searchSystemEntries } from './system-store';
 import { SYSTEM_AMBIGUOUS, systemLabel } from './systems';
+import { systemRulesBlock } from './system-rules';
 
 export interface SystemGrounding {
   /** Appended to the agent's system prompt. */
@@ -15,7 +16,11 @@ export interface SystemGrounding {
 }
 
 export async function systemGroundingBlock(system: string | null | undefined, query: string): Promise<SystemGrounding> {
-  const label = systemLabel(system || SYSTEM_AMBIGUOUS);
+  const sys = system || SYSTEM_AMBIGUOUS;
+  const label = systemLabel(sys);
+  // The DETERMINISTIC authoritative rules block — always present, no embeddings/DB needed. This is
+  // the core guarantee that the correct system's real mechanics/numbers are always in the prompt.
+  const rulesBlock = systemRulesBlock(sys);
 
   if (!system || system === SYSTEM_AMBIGUOUS) {
     return {
@@ -23,24 +28,26 @@ export async function systemGroundingBlock(system: string | null | undefined, qu
         'This character is SYSTEM-AMBIGUOUS: do not assume any specific ruleset. Use only generic, ' +
         'edition-neutral mechanics; never import rules, feats, spells or numbers unique to a particular ' +
         'game system. If a value depends on a system, put it in `unmapped` (ask the user) rather than guessing.',
-      block: '',
+      block: rulesBlock,
       matched: 0,
     };
   }
 
+  // Optional semantic enhancement: scoped RAG hits (only when an embeddings key is configured). These
+  // augment — never replace — the deterministic rules block above.
   const entries = await searchSystemEntries(system, query, { matchCount: 10, minSimilarity: 0.3 }).catch(() => []);
-  const block = entries.length
-    ? `RULES FROM ${label} — the ONLY system you may use for this character:\n` +
+  const ragBlock = entries.length
+    ? `\n\nRETRIEVED ${label} REFERENCE ENTRIES (use alongside the authoritative rules above):\n` +
       entries.map((e) => `- [${e.kind}] ${e.name}${e.source ? ` (${e.source})` : ''}: ${e.body}`).join('\n')
     : '';
 
   return {
     instruction:
       `This character is built for ${label}. Use ONLY ${label} rules, feats, spells, actions, weapons and ` +
-      `numbers. NEVER borrow mechanics from another game system, and NEVER invent rules. When the sources are ` +
-      `ambiguous, missing, or conflict with ${label}, put the issue in \`unmapped\` (so the user is asked) ` +
-      `rather than guessing. ${block ? 'Prefer the retrieved rules below over your own memory.' : `No stored ${label} rules were retrieved — rely on your ${label} knowledge only, and flag anything you are unsure belongs to ${label}.`}`,
-    block,
+      `numbers as stated in the AUTHORITATIVE RULES block. NEVER borrow mechanics from another game system, ` +
+      `and NEVER invent rules or numbers. When the sources are ambiguous, missing, or conflict with ${label}, ` +
+      `put the issue in \`unmapped\` (so the user is asked) rather than guessing.`,
+    block: rulesBlock + ragBlock,
     matched: entries.length,
   };
 }
