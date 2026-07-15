@@ -45,6 +45,10 @@
   .sector-label{position:absolute;transform:translate(-50%,-50%);font-family:"Cinzel",serif;font-weight:600;letter-spacing:3px;text-transform:uppercase;pointer-events:none;text-align:center;white-space:nowrap;text-shadow:0 0 16px currentColor,0 2px 7px #000;}
   .body{position:absolute;transform:translate(-50%,-50%);cursor:pointer;}
   .body .art{width:100%;height:100%;pointer-events:none;position:relative;}
+  .body .artbg{position:absolute;inset:0;border-radius:50%;pointer-events:none;}   /* opaque backing so a solid body occludes the starfield */
+  /* Hybrid view: the 3D overlay draws the 3D-native bodies, so hide their 2D art/POIs/name */
+  html.map-hybrid .body.n3d .art, html.map-hybrid .body.n3d .poilayer, html.map-hybrid .body.n3d .bname{opacity:0;}
+  .body .artwrap{position:relative;z-index:1;width:100%;height:100%;}
   .body .poilayer{position:absolute;inset:0;pointer-events:none;z-index:6;}
   .body .poi{position:absolute;transform:translate(-50%,-50%);filter:drop-shadow(0 1px 3px #000);pointer-events:auto;cursor:pointer;}
   .body .poi svg{display:block;}
@@ -516,23 +520,45 @@ function render(){
   // bodies
   (MAP.instances||[]).forEach(i=>{if(i.kind==="text")return;   // text objects are pure labels (overlay)
     const iw=i.w||i.size,ih=i.h||i.size,rot=i.rot||0,op=i.opacity!=null?i.opacity:1;
-    const el=document.createElement("div");el.className="body"+(selectedId===i.id?" selected":"")+(i.kind==="image"?" imgbody":"");el.dataset.id=i.id;el.style.cssText=`left:${i.x}px;top:${i.y}px;width:${iw}px;height:${ih}px;transform:translate(-50%,-50%) rotate(${rot}deg);opacity:${op};z-index:${i.kind==='galaxy'?4:10};`;
+    const el=document.createElement("div");el.className="body"+(selectedId===i.id?" selected":"")+(i.kind==="image"?" imgbody":"")+(["planet3d","planet","moon","star","station","debris","asteroid"].includes(i.kind)?" n3d":"");el.dataset.id=i.id;el.style.cssText=`left:${i.x}px;top:${i.y}px;width:${iw}px;height:${ih}px;transform:translate(-50%,-50%) rotate(${rot}deg);opacity:${op};z-index:${i.kind==='galaxy'?4:10};`;
     const secColor=(MAP.sectors.find(s=>s.id===i.sector)||{}).color||"#88aaff";
     const look=i.look||i;
     let bodyHTML;
     if(i.kind==="planet3d")bodyHTML=`<canvas class="p3canvas" style="width:100%;height:100%;display:block;border-radius:50%"></canvas>`;
-    else if(i.kind==="image"){const src=look.src,fit=i.imgFit||"contain",px=i.imgPosX!=null?i.imgPosX:50,py=i.imgPosY!=null?i.imgPosY:50;bodyHTML=src?`<img src="${src}" draggable="false" style="width:100%;height:100%;display:block;object-fit:${fit};object-position:${px}% ${py}%;pointer-events:none">`:(look.svgData?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">${look.svgData}</div>`:art(look,true));}
+    else if(i.kind==="image"){const src=look.src,fit=i.imgFit||"contain",px=i.imgPosX!=null?i.imgPosX:50,py=i.imgPosY!=null?i.imgPosY:50;
+      if(i.spiral&&i.spiral.on&&src)bodyHTML=`<canvas class="spiralcanvas" style="width:100%;height:100%;display:block"></canvas>`;   // layered spiral of the image
+      else bodyHTML=src?`<img src="${src}" draggable="false" style="width:100%;height:100%;display:block;object-fit:${fit};object-position:${px}% ${py}%;pointer-events:none">`:(look.svgData?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">${look.svgData}</div>`:art(look,true));}
     else bodyHTML=art(look,true);
     const artStyle=i.kind==="image"?' style="overflow:hidden"':'';
-    el.innerHTML=`<div class="halo" style="background:radial-gradient(circle,${secColor}66,transparent 62%)"></div><div class="selring"></div><div class="art"${artStyle}>${fxOverlay(i.fx,look&&look.seed)}${bodyHTML}</div>${i.kind==="planet3d"?"":poiLayerHTML(i)}`;
+    const solid=["planet","planet3d","moon","station","debris","asteroid"].includes(i.kind);
+    const bg=solid?`<div class="artbg" style="background:${(look.c1||look.c3||"#0b1526")}"></div>`:"";
+    el.innerHTML=`<div class="halo" style="background:radial-gradient(circle,${secColor}66,transparent 62%)"></div><div class="selring"></div><div class="art"${artStyle}>${bg}<div class="artwrap">${fxOverlay(i.fx,look&&look.seed)}${bodyHTML}</div></div>${i.kind==="planet3d"?"":poiLayerHTML(i)}`;
     if(i.kind==="planet3d")el.dataset.p3=i.id;
+    if(i.kind==="image"&&i.spiral&&i.spiral.on&&look.src)el.dataset.spiral=i.id;
     el.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});};
     el.querySelectorAll(".poi").forEach(p=>p.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});});
     viewport.appendChild(el);});
   // sector click handlers
   svg.querySelectorAll("[data-sector]").forEach(p=>p.onclick=e=>{e.stopPropagation();select({type:"sector",id:p.dataset.sector});});
   viewport.appendChild(buildLabelLayer(B,W,H));   // rich formatted labels on top
-  mountSpriteInstances();buildLegend();
+  mountSpriteInstances();mountSpiralImages();buildLegend();
+}
+// layered-spiral images — swirl the player's published image into rotating rings (same engine as the DM)
+const spiralLiveImg={};
+function mountSpiralImages(){
+  const ids=new Set((MAP.instances||[]).filter(i=>i.kind==="image"&&i.spiral&&i.spiral.on&&(i.look&&i.look.src)).map(i=>i.id));
+  Object.keys(spiralLiveImg).forEach(id=>{if(!ids.has(id)){try{spiralLiveImg[id].engine.destroy();}catch(e){}delete spiralLiveImg[id];}});
+  document.querySelectorAll('[data-spiral]').forEach(el=>{
+    const id=el.dataset.spiral;const inst=(MAP.instances||[]).find(x=>x.id===id);if(!inst||!inst.spiral||!inst.spiral.on)return;
+    const cv=el.querySelector('canvas.spiralcanvas');if(!cv)return;const src=inst.look&&inst.look.src;if(!src)return;
+    let rec=spiralLiveImg[id];
+    if(!rec){const eng=new DiffSpinGalaxy(cv,{rings:inst.spiral.rings||6,corePulse:false});
+      eng._fit=function(){this.canvas.width=256;this.canvas.height=256;this.ctx.setTransform(1,0,0,1,0,0);this.cssW=256;this.cssH=256;};   // fixed buffer (CSS scales it) — robust to layout timing
+      rec=spiralLiveImg[id]={engine:eng,imageURL:null,cv:null};}
+    if(rec.cv!==cv){rec.engine.canvas=cv;rec.engine.ctx=cv.getContext('2d');rec.engine._fit();rec.cv=cv;}
+    if(rec.imageURL!==src){rec.imageURL=src;rec.engine.setImage(src).then(()=>{rec.engine.fromConfig(inst.spiral);rec.engine.start();});}
+    else {rec.engine.fromConfig(inst.spiral);rec.engine._fit();rec.engine.start();}
+  });
 }
 const spriteLive={};
 function mountSpriteInstances(){
@@ -665,6 +691,8 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
   // Expose the live map to the 3D viewer (map3d.js); a 3D pick drives the CRT readout.
   window.mapData = () => curData || (typeof MAP !== "undefined" ? MAP : { instances: [] });
   window.map3dSelect = (id) => { if(id) select({ type:"instance", id }); };
+  // A 3D surface-POI pick shows the parent body's readout — same as clicking a POI on the 2D map.
+  window.map3dSelectPoi = (instId, poiId) => { if(instId) select({ type:"instance", id:instId }); };
   // Paint the 2D backdrop to match the published sky (parity with the 3D viewer).
   function applySky(data){ try{ if(window.Sky2D){ const cv=document.getElementById("skyCanvas"); if(cv){ window.Sky2D.mount(cv); window.Sky2D.set((data&&data.bg3d)||undefined); } } }catch(e){} }
   applySky(null);   // default sky until a map loads

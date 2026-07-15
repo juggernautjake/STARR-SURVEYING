@@ -82,6 +82,10 @@ The five requests, verbatim intent:
     match between 2D and 3D so it's unmistakably the **same map of space** (verified by comparing
     transforms, not just "looks close").
 
+23. **Easier corner-scale handles.** The image/body corner scale handles must be **easy to grab** — a
+    bigger clickable area so you can expand/shrink without pixel-hunting the exact corner. ✅ Corner
+    handles are now a 24px transparent grab pad with a small visible dot (4× the hit area).
+
 **Cross-cutting principle:** everything above — backgrounds, effects, bodies, images, text/HTML,
 sectors, systems, POIs — must be **creatable, editable, and dynamically rendered in BOTH the 2D and
 3D viewers**, staying in lockstep as the DM edits and publishing identically to players.
@@ -311,28 +315,53 @@ other, and keep every element consistent:
   and its info window opens via the existing selection (Studio inspector / Console readout); a
   **Deselect** item too. Verified headless: right-click builds the menu; Focus sets the goal and eases
   the target from `(40,-82)` toward the body at `(2060,-1560)` and selects it; 0 errors.
-- **Slice 11b-2 — Surface POIs in 3D (req 18).** ⏳ Render a body's surface points of interest as
-  pickable markers on the 3D body (map POI `ax/ay` → sphere lon/lat, matching the 2D POI layer), so
-  focusing a planet reveals its surface POIs and clicking one shows its info. Verify headless: a body's
-  surface POIs render and are pickable in 3D; 0 errors.
-- **Slice 11c — Full body-kind catalogue in both viewers (req 20).** ⏳ Audit every placeable object
-  kind (planet, `planet3d`, star, station, asteroid, moon, debris, galaxy/spingalaxy, image, text,
-  HTML, POI) and ensure each has a **solid, representative render in the 3D viewer** equivalent to its
-  2D form — 3D stations/asteroids/moons/debris currently fall back to a flat colour disc; give each a
-  fitting 3D representation (e.g. a small textured impostor or generated mesh) so nothing looks blank
-  in 3D. Confirm each kind is placeable and renders in both. Verify headless: one of each kind renders
-  distinctly in 3D; 0 errors.
-- **Slice 12 — Feature-equivalence audit (req 16).** ⏳ Enumerate every object kind, action, effect,
-  setting, and edit option in the 2D Studio inspector/toolbar and confirm each has an equivalent path
-  when the 3D viewer is active (or is reachable through the shared inspector while 3D is shown); close
-  any gaps. Produce a short parity table in this doc (2D capability → 3D equivalent) and fix the top
-  missing ones. Verify headless.
-- **Slice 13 — Doc to completed + ship log + QA.** Move this file to `docs/planning/completed/` with a
-  build log once Slices 8–12 land and the whole flow is verified end-to-end (Studio DM edit → live 3D +
-  2D parity → publish → player Console parity), including origin/scale alignment, animated content,
-  sectors/systems in both viewers, body-into-sector placement, and full feature equivalence.
+- **Slice 11b-2 — Surface POIs in 3D (req 18).** ✅ A body's surface POIs render as glowing,
+  type-coloured pin sprites on the front hemisphere (`ax/ay → lon/lat`, matching the 2D POI layer),
+  children of the holder so they move/scale with the body. Clicking one is picked ahead of the body and
+  bridged via new `window.map3dSelectPoi(instId,poiId)` → the Studio POI inspector (`{type:'poi'}`) /
+  the Console body readout. Verified headless: 2 POIs render on the front hemisphere (z 0.87, 0.74) and
+  a pick bridges to `('pl','poiA')`; 0 errors.
+- **Slice 11c — Full body-kind catalogue in both viewers (req 20).** ✅ Every placeable kind now has a
+  solid 3D representation: 2D **planets** and **moons** synthesize a planet config
+  (`_genericPlanetCfg`, ptype/mtype→TYPES) and render as real `buildPlanetModel` spheres (textured
+  impostor face when small); **stations** get a metal ring + hub + spokes + blinking beacon
+  (`_stationModel`); **asteroids/debris** get flat-shaded tumbling rock clusters (`_debrisModel`, one
+  chunk for an asteroid). All promote via LOD like planets and spin/animate. planet3d, star, spingalaxy,
+  image, text, HTML, POI were already covered. Verified headless: planet(4 meshes)/moon/station(7)/
+  debris(7) each build real meshes when large; 0 errors. *Static 2D `galaxy` kind keeps the shaded
+  disc (the animated spingalaxy is the primary galaxy body); low value to add a second galaxy mesh.*
+- **Slice 12 — Feature-equivalence audit (reqs 16, 21).** ✅ Audited every kind/action/effect/setting
+  against the 3D viewer and closed the spatial-correspondence gaps found: **2D rotation** (`it.rot`) now
+  maps to the 3D z axis (was `t3d`-only), **per-instance opacity** now applies to 3D discs and promoted
+  meshes, and **body name labels** now render in 3D (CSS3D, below the body) like the 2D label layer.
+  Verified headless: 2D `rot=90` → 3D `z=-90°`, `opacity=0.5` on the disc, a body label present; 0
+  errors. Parity table below.
 
-### Status: IN PROGRESS (Slices 0–11b shipped; 11b-2, 11c, 12 pending, then 13 = doc-move/QA)
+  | 2D capability | 3D equivalent | Slice |
+  |---|---|---|
+  | position / size / center | holder pos `(x,-y)`, scale·2 = size — exact | 3/10/12 |
+  | rotation (`rot`, `t3d`) | z = `-rot` or full `t3d` | 12 |
+  | opacity | material opacity on disc + mesh | 12 |
+  | layer / z / behind | depth offset, sorted, correlated | 11a |
+  | planet3d / planet / moon | real 3D sphere (+textured impostor) | 5/11c |
+  | star / spingalaxy | star model / spinning galaxy disc | 9a |
+  | station / asteroid / debris | ring model / rock cluster | 11c |
+  | image (fit, fade, spin) | plane + fade shader + spin | 7/9 |
+  | text / HTML | CSS3D DOM | (prior) |
+  | body & sector labels | CSS3D labels | 10/12 |
+  | POIs (surface) | pin sprites, pickable | 11b-2 |
+  | sectors (fill/border/curved) | ShapeGeometry + LineLoop | 10 |
+  | containment (into sectors) | reassoc on move | 11 |
+  | background (`bg3d`) | shared sky engine + 2D backdrop | 3–9b |
+  | per-body sparkle/nebula/shoot fx | *deferred* (scene-level FX cover ambience) | 9a |
+- **Slice 13 — Doc to completed + ship log + QA.** ✅ End-to-end QA (headless, swiftshader): a rich
+  Studio map — planet3d/planet/moon/star/station/debris/spingalaxy/image/text + surface POI + sector +
+  Milky-Way background — renders in 3D (8 bodies, 2 sector meshes, 3 CSS3D labels, 4 star layers, sky2d
+  backdrop painting) with **0 console errors**; toggling back to 2D and re-publishing carries all 9
+  instances + sector + `bg3d`; the player **Console** loads, paints the 2D sky, and toggles into a live
+  3D canvas with **0 errors**. All map files lint clean; no conflict markers. Doc moved to `completed/`.
+
+### Status: COMPLETE (Slices 0–13 shipped; per-body SVG fx overlays in 3D deferred with rationale)
 *Req 21 (exact position/orientation/colour/scale correspondence) is a verification bar applied to
 every slice — the 2D→3D `(x,-y)` transform + scale·2 model already gives bodies/sectors exact placement
 (e.g. sector centroid `(250,-230)`); Slice 12 audits it across all kinds.*

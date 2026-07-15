@@ -51,10 +51,11 @@ const Map3D = {
     this._editable = typeof window.map3dApply === 'function';   // DM Studio edits; Console is read-only
     const w = Math.max(1, container.clientWidth), h = Math.max(1, container.clientHeight);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });   // alpha so hybrid mode can render transparent
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(w, h, false);
     renderer.setClearColor(NAVY, 1);
+    this._mode = this._mode || 'full';   // 'full' = own sky + all objects; 'overlay' = transparent, only 3D bodies (hybrid)
     renderer.domElement.style.cssText = 'width:100%;height:100%;display:block';
     container.appendChild(renderer.domElement);
 
@@ -137,8 +138,16 @@ const Map3D = {
     const moved = Math.hypot(e.clientX - this._downXY[0], e.clientY - this._downXY[1]);
     this._downXY = null;
     if (moved > 4 || (this.tcontrols && this.tcontrols.dragging)) return;   // that was a pan / gizmo drag, not a pick
-    const holder = this._pickHolder(e.clientX, e.clientY);
-    if (holder) return this._select(holder);
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    this._ray.setFromCamera(ndc, this.camera);
+    const hits = this._ray.intersectObjects(this.bodyGroup.children, true);
+    if (hits.length) {
+      let poi = hits[0].object; while (poi && poi.userData.poiId === undefined && poi.parent) poi = poi.parent;
+      if (poi && poi.userData.poiId !== undefined) { if (window.map3dSelectPoi) window.map3dSelectPoi(poi.userData.instId, poi.userData.poiId); return; }
+      let o = hits[0].object; while (o && o.userData.id === undefined && o.parent) o = o.parent;
+      if (o && o.userData.id !== undefined) return this._select(o);
+    }
     this._deselect();
   },
   _select(holder) { this._selected = holder; if (this.tcontrols) this.tcontrols.attach(holder); if (window.map3dSelect) window.map3dSelect(holder.userData.id); },
@@ -309,6 +318,7 @@ const Map3D = {
     this._disposeBackground();
     this._bgObjs = []; this._starPts = []; this._nebula = []; this._bgSpin = []; this._glowSprite = null; this._bgT = 0;
     const cfg = this._bg || (this._bg = Object.assign({}, BG_DEFAULT));
+    if (this._mode === 'overlay') { if (this.renderer) this.renderer.setClearColor(new THREE.Color(0x000000), 0); return; }   // hybrid: the 2D map draws the sky
     if (this.renderer) this.renderer.setClearColor(new THREE.Color(cfg.baseColor || '#010a13'), 1);
     const rng = this._rng(cfg.seed || 1);
     const density = cfg.density != null ? cfg.density : 1;
@@ -513,7 +523,7 @@ const Map3D = {
     this._nextShoot = 8 + Math.random() * 12;   // first meteor after 8–20s, then one every 20–50s
   },
   _updateShooters(dt) {
-    if (!this._shooters) return;
+    if (!this._shooters || this._mode === 'overlay') return;   // hybrid: no 3D meteors (2D owns ambience)
     const cam = this.camera, tgt = this.controls.target, zoom = cam.zoom || 1;
     const viewW = (cam.right - cam.left) / zoom, viewH = (cam.top - cam.bottom) / zoom;
     const PAL = [[1, 0.95, 0.85], [0.4, 0.85, 1], [1, 0.5, 0.85], [1, 0.8, 0.35], [0.7, 1, 0.6], [1, 0.55, 0.35], [0.7, 0.6, 1], [0.35, 1, 0.9]];
@@ -562,6 +572,19 @@ const Map3D = {
     ctx.globalCompositeOperation = 'destination-out'; ctx.fillStyle = fall; ctx.fillRect(0, 0, S, S);
     return new THREE.CanvasTexture(cv);
   },
+  // Hybrid mode: 'overlay' makes the 3D layer transparent and renders ONLY the 3D-native bodies (the
+  // 2D map draws everything else beneath it); 'full' is the standalone 3D viewer with its own sky.
+  setMode(mode) {
+    this._mode = mode === 'overlay' ? 'overlay' : 'full';
+    const overlay = this._mode === 'overlay';
+    if (this.renderer) this.renderer.setClearColor(overlay ? new THREE.Color(0x000000) : new THREE.Color((this._bg && this._bg.baseColor) || '#010a13'), overlay ? 0 : 1);
+    if (this.controls) this.controls.enabled = !overlay;   // hybrid: the 2D map drives the camera
+    if (overlay && this.tcontrols) this.tcontrols.detach();
+    if (this._ready) { this._buildBackground(); this._rebuild(); }   // rebuild sky (skipped in overlay) + filtered bodies
+  },
+  // 3D-native kinds that render as real meshes in the overlay; everything else stays 2D in hybrid.
+  _isNative3D(kind) { return kind === 'planet3d' || kind === 'planet' || kind === 'moon' || kind === 'star' || kind === 'station' || kind === 'debris' || kind === 'asteroid'; },
+
   // Push the current map into the scene. A map may carry a `bg3d` background config (from the DM's
   // Effects panel); applying it here means published maps bring their sky to players automatically.
   setData(map) {
@@ -585,13 +608,16 @@ const Map3D = {
     this._selected = null;
     (this._planets || []).forEach(p => p.model.dispose());
     this._planets = [];
+    (this._spiralImages || []).forEach(s => { try { s.eng.destroy(); } catch (e) { } });   // stop old spiral engines
     for (let i = g.children.length - 1; i >= 0; i--) { const c = g.children[i]; g.remove(c); c.traverse?.(o => { o.geometry?.dispose?.(); o.material?.dispose?.(); }); }
     const cs = this.cssScene; if (cs) { while (cs.children.length) cs.remove(cs.children[0]); }
     const insts = (this._map && this._map.instances) || [];
     const aniso = this.renderer.capabilities.getMaxAnisotropy();
-    this._bodies = []; this._spinPlanes = [];
+    this._bodies = []; this._spinPlanes = []; this._spiralImages = [];
     let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+    const overlay = this._mode === 'overlay';
     for (const it of insts) {
+      if (overlay && !this._isNative3D(it.kind)) continue;   // hybrid: 2D handles images/text/html/spingalaxy/etc.
       if (it.kind === 'text') { this._addText(it); minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x); maxY = Math.max(maxY, it.y); continue; }
       if (it.kind === 'html') { this._addHtml(it); minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x); maxY = Math.max(maxY, it.y); continue; }
       const s = it.size || 60, cx = it.x + s / 2, cy = it.y + s / 2;
@@ -603,17 +629,27 @@ const Map3D = {
       const zLayer = Math.tanh((it.z || 0) / 20) * 0.4;              // bounded, monotonic in the 2D z
       holder.position.set(cx, -cy, (it.behind ? -3 : 0.5) + zLayer);
       holder.scale.setScalar(Math.max(4, s / 2));
-      if (it.t3d) holder.rotation.set(it.t3d.rx || 0, it.t3d.ry || 0, it.t3d.rz || 0);
+      // Orientation parity: an explicit 3D rotation (t3d, from the gizmo) wins; otherwise the 2D
+      // rotation (it.rot, degrees clockwise) maps to the 3D z axis (y is negated, so rot → -rot).
+      const _t3 = it.t3d || {};
+      holder.rotation.set(_t3.rx || 0, _t3.ry || 0, _t3.rz != null ? _t3.rz : -((it.rot || 0) * Math.PI / 180));
       holder.userData.id = it.id;
       const imgUrl = it.kind === 'image' && it.look ? (it.look.src || it.look.image) : null;
-      const cfg = it.kind === 'planet3d' ? this._planetConfig(it) : null;
+      // planet3d uses its saved cfg3d; 2D planets/moons synthesize a config so they render as real 3D
+      // spheres (not flat discs). Stations/debris/asteroids get their own generated 3D meshes.
+      const cfg = it.kind === 'planet3d' ? this._planetConfig(it) : ((it.kind === 'planet' || it.kind === 'moon') ? this._genericPlanetCfg(it) : null);
+      const genMesh = it.kind === 'station' || it.kind === 'debris' || it.kind === 'asteroid';
       // Every body starts as a cheap disc impostor; _applyLOD() promotes the large ones on-screen to
       // full 3D meshes. Unlimited impostors → a whole system fits; only a few big ones cost a mesh.
       let disc = null;
       if (imgUrl) { const plane = this._imagePlane(it, imgUrl); holder.add(plane); if (plane.userData.spin) this._spinPlanes.push(plane); }
-      else { disc = this._discMesh(it); holder.add(disc); if (disc.userData.spin) this._spinPlanes.push(disc); }
+      else { disc = this._discMesh(it, cfg); holder.add(disc); if (disc.userData.spin) this._spinPlanes.push(disc); }
+      if (it.pois && it.pois.length) this._addSurfacePois(holder, it);   // surface POIs on the body
+      if (it.opacity != null && it.opacity < 1) holder.traverse(o => { if (o.material && !o.material.uniforms) { o.material.transparent = true; o.material.opacity = it.opacity; } });   // fade parity
       g.add(holder);
-      this._bodies.push({ holder, it, disc, isStar: it.kind === 'star', cfg, canFull: !imgUrl && (it.kind === 'star' || !!cfg), hasModel: false, model: null });
+      // The body's name label (below it), matching the 2D label layer — kinds text/html are their own label.
+      if (it.name && (!it.label || it.label.show !== false)) this._addText({ name: it.name, label: it.label, x: cx, y: it.y + s + 6 });
+      this._bodies.push({ holder, it, disc, isStar: it.kind === 'star', kind: it.kind, cfg, canFull: !imgUrl && (it.kind === 'star' || !!cfg || genMesh), hasModel: false, model: null });
       minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x + s); maxY = Math.max(maxY, it.y + s);
     }
     // Framing needs the container's real pixel size, which is only correct once it's visible; store
@@ -644,10 +680,50 @@ const Map3D = {
     }
     this._lodZoom = zoom;
   },
+  // A 2D planet/moon → a real 3D planet config (buildPlanetModel reads TYPES[type] for colours).
+  _genericPlanetCfg(it) {
+    const L = it.look || it, valid = ['terran', 'ocean', 'jungle', 'desert', 'ice', 'volcanic', 'toxic', 'barren', 'gas'];
+    if (it.kind === 'moon') return { type: L.mtype === 'ice' ? 'ice' : 'barren', seed: L.seed || 1, sea: 0.02, cscale: 2.6, coast: 0.6, ice: L.mtype === 'ice' ? 0.6 : 0.05, spin: 1, atmoOn: false };
+    const t = valid.includes(L.ptype) ? L.ptype : (L.ptype === 'rock' ? 'barren' : 'terran');
+    return { type: t, seed: L.seed || 1, sea: t === 'gas' ? 0.5 : 0.52, cscale: 2.2, coast: 0.5, ice: t === 'ice' ? 0.5 : 0.15, spin: 1, ring: !!L.ring, atmoOn: L.atmo !== false && ['terran', 'ocean', 'toxic', 'gas', 'jungle'].includes(t), atmoColor: L.atmoColor || undefined };
+  },
+  // A ring station: torus + hub + spokes + a blinking beacon, in the station's metal palette.
+  _stationModel(it) {
+    const L = it.look || it, grp = new THREE.Group(), dis = [];
+    const c1 = new THREE.Color(L.c1 || '#b8c0d0'), c2 = new THREE.Color(L.c2 || '#5a6a8a'), c3 = new THREE.Color(L.c3 || '#ffd86b');
+    const rg = new THREE.TorusGeometry(0.82, 0.13, 14, 40), rm = new THREE.MeshStandardMaterial({ color: c1, metalness: 0.75, roughness: 0.4 });
+    grp.add(new THREE.Mesh(rg, rm)); dis.push(rg, rm);
+    const hg = new THREE.CylinderGeometry(0.17, 0.17, 0.66, 16), hm = new THREE.MeshStandardMaterial({ color: c2, metalness: 0.85, roughness: 0.32 });
+    const hub = new THREE.Mesh(hg, hm); hub.rotation.x = Math.PI / 2; grp.add(hub); dis.push(hg, hm);
+    for (let i = 0; i < 4; i++) { const sg = new THREE.BoxGeometry(0.66, 0.05, 0.05), sm = new THREE.MeshStandardMaterial({ color: c2, metalness: 0.7, roughness: 0.45 }); const s = new THREE.Mesh(sg, sm); s.rotation.z = i * Math.PI / 2; grp.add(s); dis.push(sg, sm); }
+    const bg = new THREE.SphereGeometry(0.08, 10, 10), bm = new THREE.MeshBasicMaterial({ color: c3 }); const beacon = new THREE.Mesh(bg, bm); beacon.position.set(0, 0, 0.42); grp.add(beacon); dis.push(bg, bm);
+    return { group: grp, update: (dt) => { grp.rotation.z += dt * 0.3; bm.opacity = 0.6 + 0.4 * (0.5 + 0.5 * Math.sin(performance.now() / 300)); bm.transparent = true; }, dispose: () => dis.forEach(d => d.dispose && d.dispose()) };
+  },
+  // Asteroid / debris: a cluster of flat-shaded rocky chunks tumbling slowly (one chunk for an asteroid).
+  _debrisModel(it) {
+    const L = it.look || it, grp = new THREE.Group(), dis = [];
+    const base = new THREE.Color(L.c1 || '#8a8a9a'), dark = new THREE.Color(L.c2 || '#5a5a62');
+    let seed = ((L.seed || 7) >>> 0) || 7; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    const N = it.kind === 'asteroid' ? 1 : 7;
+    for (let k = 0; k < N; k++) {
+      const g = new THREE.IcosahedronGeometry(0.22 + rnd() * 0.34, 0), pos = g.attributes.position;
+      for (let i = 0; i < pos.count; i++) { const f = 0.7 + rnd() * 0.6; pos.setXYZ(i, pos.getX(i) * f, pos.getY(i) * f, pos.getZ(i) * f); }
+      g.computeVertexNormals();
+      const m = new THREE.MeshStandardMaterial({ color: base.clone().lerp(dark, rnd() * 0.5), roughness: 0.95, metalness: 0.05, flatShading: true });
+      const rock = new THREE.Mesh(g, m); rock.position.set(N === 1 ? 0 : (rnd() - 0.5) * 1.5, N === 1 ? 0 : (rnd() - 0.5) * 1.5, (rnd() - 0.5) * 0.6);
+      rock.rotation.set(rnd() * 6, rnd() * 6, rnd() * 6); rock.userData.spin = [(rnd() - 0.5) * 0.6, (rnd() - 0.5) * 0.6];
+      grp.add(rock); dis.push(g, m);
+    }
+    return { group: grp, update: (dt) => { for (const r of grp.children) { r.rotation.x += r.userData.spin[0] * dt; r.rotation.y += r.userData.spin[1] * dt; } }, dispose: () => dis.forEach(d => d.dispose && d.dispose()) };
+  },
   _promote(b, aniso) {
     try {
-      const model = b.isStar ? buildStarModel(b.it.look || {}, { anisotropy: aniso }) : buildPlanetModel(b.cfg, { anisotropy: aniso, segments: 64 });
+      const model = b.isStar ? buildStarModel(b.it.look || {}, { anisotropy: aniso })
+        : b.kind === 'station' ? this._stationModel(b.it)
+          : (b.kind === 'debris' || b.kind === 'asteroid') ? this._debrisModel(b.it)
+            : buildPlanetModel(b.cfg, { anisotropy: aniso, segments: 64 });
       if (b.disc) b.holder.remove(b.disc);
+      if (b.it.opacity != null && b.it.opacity < 1) model.group.traverse(o => { if (o.material && !o.material.uniforms) { o.material.transparent = true; o.material.opacity = b.it.opacity; } });
       b.holder.add(model.group); b.model = model; b.hasModel = true; this._planets.push({ model });
       return true;
     } catch (e) { console.error('[map3d] LOD promote failed', e); return false; }
@@ -735,9 +811,11 @@ const Map3D = {
     const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
     this._galaxyCache[key] = t; return t;
   },
-  _discMesh(it) {   // a unit-radius impostor (holder scales it to size)
-    if (it.kind === 'planet3d') {
-      const cfg = this._planetConfig(it), tex = this._planetImpostorTex(cfg);
+  _discMesh(it, cfg) {   // a unit-radius impostor (holder scales it to size)
+    // planet-like kinds (planet3d, 2D planet, moon) get their real surface as the impostor face.
+    const pcfg = cfg || (it.kind === 'planet3d' ? this._planetConfig(it) : null);
+    if (pcfg) {
+      const tex = this._planetImpostorTex(pcfg);
       if (tex) return new THREE.Mesh(new THREE.CircleGeometry(1, 56), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
     }
     if (it.kind === 'spingalaxy') {   // a spinning spiral-galaxy disc, animated in 3D like the 2D map
@@ -770,6 +848,7 @@ const Map3D = {
   _buildSectors() {
     const g = this._sectorGroup; if (!g) return;
     for (let i = g.children.length - 1; i >= 0; i--) { const c = g.children[i]; g.remove(c); c.geometry && c.geometry.dispose && c.geometry.dispose(); c.material && c.material.dispose && c.material.dispose(); }
+    if (this._mode === 'overlay') return;   // hybrid: sectors are drawn by the 2D map
     // Draw in the same z order as the 2D map (depthTest is off, so paint order sets who's on top) →
     // sending a sector forward/back reorders it identically in both views.
     const sectors = [...((this._map && this._map.sectors) || [])].sort((a, b) => (a.z || 0) - (b.z || 0));
@@ -783,6 +862,29 @@ const Map3D = {
       const border = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(outline.map(p => new THREE.Vector3(p.x, p.y, zPos + 0.15))), new THREE.LineBasicMaterial({ color: new THREE.Color(s.borderColor || s.color || '#5fbf7a'), transparent: true, opacity: 0.85 }));
       border.renderOrder = -3; g.add(border);
       if (s.name && (!s.label || s.label.show !== false)) { const c = this._centroid(s.points); this._addText({ name: s.name, label: s.label, x: c.x, y: c.y }); }
+    }
+  },
+
+  // A small glowing pin texture for surface POIs (cached).
+  _poiTex() {
+    if (this._poiTexCache) return this._poiTexCache;
+    const S = 48, cv = document.createElement('canvas'); cv.width = cv.height = S; const ctx = cv.getContext('2d');
+    const g = ctx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.35, 'rgba(255,255,255,0.95)'); g.addColorStop(0.55, 'rgba(255,255,255,0.35)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(S / 2, S / 2, S / 2, 0, 7); ctx.fill();
+    this._poiTexCache = new THREE.CanvasTexture(cv); return this._poiTexCache;
+  },
+  _poiColor(type) { return ({ city: '#ffd24a', ruin: '#c98b5a', station: '#7fd0ff', hazard: '#ff6a4a', resource: '#7ef0a0', landmark: '#c98bff' })[type] || '#ffd24a'; },
+  // A body's surface points of interest, placed on the front hemisphere (POI ax/ay → sphere lon/lat),
+  // matching the 2D POI layer. Children of the holder, so they move/scale with the body and are picked.
+  _addSurfacePois(holder, it) {
+    for (const p of (it.pois || [])) {
+      const lon = (p.ax || 0) * Math.PI * 0.5, lat = -(p.ay || 0) * Math.PI * 0.5, cl = Math.cos(lat);
+      const x = Math.sin(lon) * cl, y = Math.sin(lat), z = Math.cos(lon) * cl;   // unit sphere, +z toward camera
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this._poiTex(), color: new THREE.Color(this._poiColor(p.type)), transparent: true, depthTest: false, depthWrite: false }));
+      sp.position.set(x * 1.03, y * 1.03, z * 1.03); const sc = 0.17; sp.scale.set(sc, sc, sc);
+      sp.renderOrder = 7; sp.userData = { poiId: p.id, instId: it.id };
+      holder.add(sp);
     }
   },
 
@@ -832,8 +934,9 @@ const Map3D = {
   // Edge fade (radial or straight-from-edge) is applied in-shader, mirroring the 2D `fadeMask`, so
   // faded images look identical in 3D. A per-instance spin rotates the plane when `imgSpin` is set.
   _imagePlane(it, url) {
+    const spiral = !!(it.spiral && it.spiral.on && window.DiffSpinGalaxy && it.look && it.look.src);
     const nw = (it.look && (it.look.natW || it.look.w)) || 1, nh = (it.look && (it.look.natH || it.look.h)) || 1;
-    const ar = nw / nh; let pw = 2, ph = 2; if (ar >= 1) ph = 2 / ar; else pw = 2 * ar;
+    const ar = nw / nh; let pw = 2, ph = 2; if (spiral) { pw = ph = 2; } else if (ar >= 1) ph = 2 / ar; else pw = 2 * ar;
     const fade = Math.max(0, Math.min(100, it.fade || 0)) / 100;
     const spread = Math.max(0.01, (it.fadeSpread != null ? it.fadeSpread : 35) / 100);
     const shape = (it.fadeShape || 'radial') === 'edges' ? 1 : 0;
@@ -863,9 +966,22 @@ const Map3D = {
         }`,
       transparent: true, side: THREE.DoubleSide, depthWrite: false
     });
-    new THREE.TextureLoader().load(url, tex => { tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy(); mat.uniforms.uMap.value = tex; mat.uniforms.uHasMap.value = 1; mat.needsUpdate = true; }, undefined, () => { /* keep the placeholder tint on load error */ });
+    if (spiral) {
+      // The SAME layered-spiral engine as 2D, rendered to an offscreen canvas and used as a live
+      // texture — so the actual image swirls identically in both viewers (not a model/HTML).
+      const cv = document.createElement('canvas'); cv.width = cv.height = 256;
+      const eng = new window.DiffSpinGalaxy(cv, { rings: it.spiral.rings || 6, corePulse: false });
+      eng._fit = function () { this.canvas.width = 256; this.canvas.height = 256; this.ctx.setTransform(1, 0, 0, 1, 0, 0); this.cssW = 256; this.cssH = 256; };
+      eng._fit();
+      const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+      mat.uniforms.uMap.value = tex; mat.uniforms.uHasMap.value = 1;
+      eng.setImage(it.look.src).then(() => { try { eng.fromConfig(it.spiral); } catch (e) { } eng.start(); }).catch(() => { });
+      (this._spiralImages = this._spiralImages || []).push({ tex, eng });
+    } else {
+      new THREE.TextureLoader().load(url, tex => { tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy(); mat.uniforms.uMap.value = tex; mat.uniforms.uHasMap.value = 1; mat.needsUpdate = true; }, undefined, () => { /* keep the placeholder tint on load error */ });
+    }
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), mat);
-    if (it.imgSpin) mesh.userData.spin = it.imgSpin;   // deg/s → rotated each frame in the render loop
+    if (it.imgSpin && !spiral) mesh.userData.spin = it.imgSpin;   // deg/s → rotated each frame (spiral has its own motion)
     return mesh;
   },
 
@@ -928,6 +1044,7 @@ const Map3D = {
       const now = t || performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
       for (const p of this._planets) p.model.update(dt, sun);   // live planets spin in real time
       for (const pl of (this._spinPlanes || [])) pl.rotation.z -= pl.userData.spin * Math.PI / 180 * dt;   // spinning images
+      for (const s of (this._spiralImages || [])) s.tex.needsUpdate = true;   // re-upload the animated spiral canvas
       if (this._focusGoal) {   // ease the camera toward a right-click Focus target (moves target+camera together → keeps tilt)
         const g = this._focusGoal, t = this.controls.target, s = Math.min(1, dt * 5);
         const dx = (g.x - t.x) * s, dy = (g.y - t.y) * s;
@@ -936,6 +1053,7 @@ const Map3D = {
         if (Math.hypot(g.x - t.x, g.y - t.y) < 1 && Math.abs(g.zoom - this.camera.zoom) < 0.02) this._focusGoal = null;
       }
       this.controls.update();
+      if (this._mode === 'overlay') this._syncFromView();   // hybrid: lock the camera to the 2D map's view every frame
       if (Math.abs(this.camera.zoom - (this._lodZoom || 0)) > (this._lodZoom || 1) * 0.04) this._applyLOD();   // re-LOD on zoom
       this._updateBackground(dt);                                // parallax stars, nebula drift, glow pulse
       this._updateShooters(dt);                                  // colourful meteors
@@ -970,16 +1088,27 @@ window.Map3D = Map3D;
   const show2d = () => LAYERS.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = ''; });
   const hide2d = () => LAYERS.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
 
-  btn.addEventListener('click', async () => {
-    if (Map3D.isShown()) {
-      Map3D.hide(); show2d(); btn.classList.remove('aether'); btn.textContent = '⛶ 3D';
-      return;
+  // Three-way view: 2D → 3D → Hybrid → 2D. Hybrid keeps the 2D map visible and overlays a transparent
+  // 3D layer (pointer-events:none) that renders only the 3D bodies, camera-locked to the 2D view.
+  let mode = '2d';
+  const apply = async (next) => {
+    document.documentElement.classList.toggle('map-hybrid', next === 'hybrid');   // 2D hides the art of 3D-native bodies
+    if (next === '2d') {
+      Map3D.hide(); show2d(); gl.style.pointerEvents = ''; btn.classList.remove('aether'); btn.textContent = '⛶ 3D'; mode = '2d'; return;
     }
-    btn.textContent = '⛶ loading…'; btn.disabled = true;
-    const ok = await Map3D.mount(gl);
-    btn.disabled = false;
-    if (!ok) { btn.textContent = '⛶ 3D'; if (window.toast) window.toast('3D engine unavailable'); return; }
-    Map3D.setData(typeof window.mapData === 'function' ? window.mapData() : { instances: [] });
-    hide2d(); Map3D.show(); btn.classList.add('aether'); btn.textContent = '▢ 2D';
-  });
+    if (!Map3D._ready) {
+      btn.textContent = '⛶ loading…'; btn.disabled = true;
+      const ok = await Map3D.mount(gl); btn.disabled = false;
+      if (!ok) { btn.textContent = '⛶ 3D'; if (window.toast) window.toast('3D engine unavailable'); mode = '2d'; return; }
+    }
+    if (next === '3d') {
+      Map3D.setMode('full'); Map3D.setData(typeof window.mapData === 'function' ? window.mapData() : { instances: [] });
+      hide2d(); gl.style.pointerEvents = ''; Map3D.show(); btn.classList.add('aether'); btn.textContent = '⧉ Hybrid'; mode = '3d';
+    } else if (next === 'hybrid') {
+      if (Map3D.isShown() && Map3D._syncToView) Map3D._syncToView();   // carry the current 3D view back to 2D so hybrid preserves it
+      Map3D.setMode('overlay'); Map3D.setData(typeof window.mapData === 'function' ? window.mapData() : { instances: [] });
+      show2d(); gl.style.pointerEvents = 'none'; Map3D.show(); btn.classList.add('aether'); btn.textContent = '▢ 2D'; mode = 'hybrid';
+    }
+  };
+  btn.addEventListener('click', () => apply({ '2d': '3d', '3d': 'hybrid', 'hybrid': '2d' }[mode]));
 })();
