@@ -32,12 +32,18 @@ export async function POST(req: NextRequest) {
     const styleNotes = String(form.get('styleNotes') ?? '').trim();
     const system = normalizeSystem(form.get('system'));       // chosen game system or 'ambiguous'
     const buildMode = normalizeBuildMode(form.get('mode'));   // ruthless | questioning | stepbystep
+    // NPC parity (Slice 10): a DM can run the SAME full builder (system, mode, uploads, custom sheet) to
+    // create an NPC — not just a quick shell. NPCs are DM-owned and private.
+    const isNpc = String(form.get('isNpc') ?? '') === 'true' || String(form.get('isNpc') ?? '') === '1';
     if (!name) return NextResponse.json({ error: 'A character name is required.' }, { status: 400 });
     // A campaign is OPTIONAL: with one you must be a member (it lands in that campaign); without one the
     // character is a private, personal sheet owned by the caller that they can build fully on its own and
     // attach to a campaign later.
     const hasCampaign = !!campaignId;
-    if (hasCampaign && (await getCampaignRole(campaignId)) === null) return NextResponse.json({ error: 'Not a member of this campaign.' }, { status: 403 });
+    const role = hasCampaign ? await getCampaignRole(campaignId) : null;
+    if (hasCampaign && role === null) return NextResponse.json({ error: 'Not a member of this campaign.' }, { status: 403 });
+    // Only the DM may create an NPC inside a campaign (a personal NPC library needs no campaign).
+    if (isNpc && hasCampaign && role !== 'dm') return NextResponse.json({ error: 'Only the DM can add an NPC to this campaign.' }, { status: 403 });
 
     // 1. Create the under-construction character (generic blank sheet, owned by caller).
     const { data: created, error: cErr } = await supabaseAdmin
@@ -48,7 +54,9 @@ export async function POST(req: NextRequest) {
         name,
         sheet_type: 'default',
         data: blankCharacter(name),
-        visibility: hasCampaign ? 'campaign' : 'private',
+        // NPCs stay private (DM-only); PCs are campaign-visible when in a campaign, else private.
+        visibility: isNpc ? 'private' : hasCampaign ? 'campaign' : 'private',
+        is_npc: isNpc,
         under_construction: true,
         style_notes: styleNotes || null,
         system,
@@ -61,7 +69,8 @@ export async function POST(req: NextRequest) {
 
     // Roster link for the multi-campaign model (Phase S). The player automatically owns
     // the character they just made; this places it in the campaign they built it for (if any).
-    if (hasCampaign) {
+    // NPCs are DM-private and are NOT added to the visible roster.
+    if (hasCampaign && !isNpc) {
       try {
         await supabaseAdmin
           .from('dnd_campaign_characters')

@@ -192,11 +192,18 @@ look) — it must NOT edit other site pages or anything outside character custom
   sits on every field label (name/system/mode/sources/notes/art/style). Verified: `tsc` clean, lint clean,
   `__tests__/dnd/builder-help.test.ts` (3 tests: every key surface has real help, the mode + no-cross-system
   copy is present, the uploads-fate copy explains private storage + notes). Full dnd suite (214) green.
-- **Slice 10 — Every sheet works with every system + NPC parity.** Ensure every sheet skin/module renders
-  for **any** system (system-agnostic *and* system-specific data) without crashes, and that **NPCs** get
-  the same treatment: NPCs can **choose any sheet design** and use the full builder (system, modes, custom
-  sheet). Confirm everything is **hooked up correctly** (no dead controls, no broken tabs). Verify: a
-  sample character in each system + an NPC opens every tab and can switch sheet designs.
+- **Slice 10 — Every sheet works with every system + NPC parity.** ✅ Every sheet is structurally
+  system-agnostic: the `system` is a `dnd_characters` column, not part of the sheet `data`, and
+  `normalizeCharacter` (Slice 1b) guarantees every tab-iterated array/object is present regardless of
+  system — so any skin renders for any system with no broken tabs. Closed the NPC-parity gap: the **import
+  (full builder)** route now accepts an `isNpc` flag (DM-gated inside a campaign; personal NPC library
+  otherwise) so a DM can run the SAME builder for an NPC — system, mode, uploads, custom sheet — with the
+  NPC kept private and off the visible roster. NPCs already inherit the style browser, edit chat, and build
+  questions (all `canWrite`-gated, which the DM holds on their NPCs). Verified: `tsc` clean, lint clean,
+  `__tests__/dnd/every-system.test.ts` (3 tests: a normalized character is crash-safe for ambiguous + every
+  seeded system; every registry skin resolves a valid config with a modules array; every pickable style
+  maps to a real config — available to NPCs too). Full dnd suite (217) green. *(A live "open every tab in
+  each system + on an NPC" pass is the QA slice / running app.)*
 - **Slice 11 — AI-generated interactive sheet elements.** The AI composes real, working sheet UI from
   building blocks: **tabs, widgets, text boxes, inputs, editable fields, tables, counters, toggles** — the
   things a real character sheet has — bound to the character `data` so edits persist. Verify: an
@@ -238,4 +245,4 @@ look) — it must NOT edit other site pages or anything outside character custom
 - **Verification:** app/server + AI features; prefer the dnd vitest suites + driving routes, and note
   anything needing the live app or an AI key.
 
-### Status: IN PROGRESS (Slices 0–9 + 1b shipped; 10–15 pending)
+### Status: IN PROGRESS (Slices 0–10 + 1b shipped; 11–15 pending)
