@@ -71,7 +71,7 @@ const Map3D = {
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.85));
     const key = new THREE.DirectionalLight(0xfff4e0, 1.4); key.position.set(1, 1, 2); scene.add(key);
-    scene.add(this._starfield());
+    this.scene = scene; this._buildStars();   // parallax star layers (needs this.scene)
     const bodyGroup = new THREE.Group(); scene.add(bodyGroup);
 
     // Move/rotate/scale gizmo — only when an editor bridge exists (the DM Studio). The player
@@ -145,17 +145,41 @@ const Map3D = {
     if (window.map3dApply) window.map3dApply(h.userData.id, patch);
   },
 
-  _starfield() {
-    const n = 1800, pos = new Float32Array(n * 3);
-    // deterministic-ish spread (avoid Math.random dependence on determinism concerns — fine here)
-    for (let i = 0; i < n; i++) {
-      const r = 6000 + (i % 37) * 60, t = (i * 2.399963), ph = Math.acos(((i * 977) % 2000) / 1000 - 1);
-      pos[i * 3] = r * Math.sin(ph) * Math.cos(t);
-      pos[i * 3 + 1] = r * Math.sin(ph) * Math.sin(t);
-      pos[i * 3 + 2] = -Math.abs(r * Math.cos(ph)) - 1500;
+  // Several star layers at different depths. Each follows the camera pan by its own `k` factor
+  // (far layers follow more → move less on screen → read as distant), giving true 3D parallax on
+  // pan; on orbit/tilt the real z-separation shows depth directly. Constant screen size (no
+  // attenuation) keeps stars crisp and adds a depth cue on zoom too.
+  _buildStars() {
+    this._starLayers = [];
+    const specs = [
+      { n: 1100, z: -3200, size: 1.4, k: 0.72, bright: 0.5, spread: 9000 },  // far · tiny · dim
+      { n: 620,  z: -1900, size: 2.2, k: 0.5,  bright: 0.72, spread: 7200 },
+      { n: 300,  z: -1000, size: 3.4, k: 0.28, bright: 1.0,  spread: 5600 },  // near · bigger · bright
+    ];
+    for (const s of specs) {
+      const pos = new Float32Array(s.n * 3), col = new Float32Array(s.n * 3);
+      for (let i = 0; i < s.n; i++) {
+        pos[i * 3] = (((i * 613) % 1000) / 1000 - 0.5) * s.spread;
+        pos[i * 3 + 1] = (((i * 911) % 1000) / 1000 - 0.5) * s.spread;
+        pos[i * 3 + 2] = s.z + (((i * 53) % 400) - 200);
+        const t = ((i * 97) % 100) / 100; let cr = 0.82, cg = 0.87, cb = 1.0;
+        if (t > 0.9) { cr = 1.0; cg = 0.82; cb = 0.62; }        // occasional warm star
+        else if (t > 0.78) { cr = 0.68; cg = 0.82; cb = 1.0; }  // occasional cool-blue star
+        const bness = s.bright * (0.55 + ((i * 31) % 100) / 100 * 0.5);
+        col[i * 3] = cr * bness; col[i * 3 + 1] = cg * bness; col[i * 3 + 2] = cb * bness;
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      const m = new THREE.PointsMaterial({ size: s.size, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false });
+      const pts = new THREE.Points(g, m); pts.userData.k = s.k; pts.renderOrder = -10;
+      this.scene.add(pts); this._starLayers.push(pts);
     }
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    return new THREE.Points(g, new THREE.PointsMaterial({ color: 0xbcd4ff, size: 7, sizeAttenuation: true, transparent: true, opacity: 0.7 }));
+  },
+  _updateStars() {
+    if (!this._starLayers) return;
+    const t = this.controls.target;
+    for (const L of this._starLayers) { L.position.x = t.x * L.userData.k; L.position.y = t.y * L.userData.k; }
   },
 
   // Push the current map into the scene.
@@ -306,6 +330,7 @@ const Map3D = {
       const now = t || performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
       for (const p of this._planets) p.model.update(dt, sun);   // live planets spin in real time
       this.controls.update();
+      this._updateStars();                                       // parallax follows the pan
       this.renderer.render(this.scene, this.camera);
       if (this.cssRenderer) this.cssRenderer.render(this.cssScene, this.camera);
     };

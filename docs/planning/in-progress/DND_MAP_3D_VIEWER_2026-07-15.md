@@ -266,11 +266,24 @@ like the 2D viewer* but renders true 3D models.
   a live 3D planet (read-only), 2D hides, zero errors — screenshot confirms a full living world in the
   player Console.
 
-- **Slice 9 — Deep-space FX (per user):** a **3D parallax starfield** (multiple depth layers that
-  reveal real 3D depth as you pan/zoom/orbit), **colourful small shooting stars** that streak off in
-  varied directions, and **volumetric-looking nebula / gas clouds**. Enhances the WebGL background of
-  the 3D viewer (both Studio & Console). *(Added from a follow-up request; supersedes the old flat
-  single-layer starfield.)*
+- **Slice 9 — Deep-space FX (per user):** 🔶 *(parallax stars done; shooting stars + nebula remaining)*
+  - **9a Parallax starfield ✅** — replaced the flat single-layer field with **three star layers** at
+    different depths, each following the camera pan by its own factor `k` (far `0.72` → near `0.28`),
+    so panning slides the layers past each other (true parallax) and orbit/tilt shows their real
+    z-separation; constant screen-size points add a zoom depth-cue. Per-star **vertex colours** (mostly
+    cool white with occasional warm/blue stars), varied size/brightness per layer. Verified: 3 layers,
+    a pan shifts far 720 vs near 280 (distinct parallax), coloured, zero errors.
+  - **9b Shooting stars — remaining:** small, brightly-coloured meteors that spawn occasionally and
+    streak off in varied directions with a fading tail.
+  - **9c Nebula / gas — remaining:** volumetric-looking gas clouds (layered soft additive sprites /
+    noise) that read as real gas.
+
+- **Slice 10 — Many small bodies + 3D stars (per user):** render planets at **very small scale** so a
+  whole system (planets, moons, suns, stations…) fits one map — needs an **LOD** path (tiny on-screen
+  bodies → impostor/sprite, real mesh only when large/near, and a much larger MAX-live budget via
+  impostors) and/or a bigger world. Plus a **3D star model** generator — glowing star spheres with
+  **coronae, flares, varied colours and effects** — so `star` bodies render as real 3D suns, not discs.
+  *(Added from a follow-up request.)*
 
 Each slice: verify (headless WebGL render where relevant) + `tsc`/`vitest` unaffected, commit, push,
 annotate this ship log. Seed/DB changes ship as seeds the DM applies.
