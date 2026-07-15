@@ -13,13 +13,14 @@
    Coordinate mapping: 2D world (x, y) with y pointing DOWN → 3D (x, -y, 0) so
    the scene reads identically to the 2D map but gains real depth/rotation.
    ============================================================================ */
-let THREE = null, OrbitControls = null, TransformControls = null, buildPlanetModel = null;
+let THREE = null, OrbitControls = null, TransformControls = null, CSS3DRenderer = null, CSS3DObject = null, buildPlanetModel = null;
 
 async function loadThree() {
   if (THREE) return;
   THREE = await import('three');
   ({ OrbitControls } = await import('three/addons/controls/OrbitControls.js'));
   ({ TransformControls } = await import('three/addons/controls/TransformControls.js'));
+  ({ CSS3DRenderer, CSS3DObject } = await import('three/addons/renderers/CSS3DRenderer.js'));
   ({ buildPlanetModel } = await import('/dnd/maps/planet3d-model.js'));
 }
 
@@ -78,7 +79,16 @@ const Map3D = {
     tc.addEventListener('objectChange', () => this._writeBack());
     scene.add(tc);
 
-    this.renderer = renderer; this.scene = scene; this.camera = cam; this.controls = controls; this.bodyGroup = bodyGroup;
+    // CSS3D overlay — renders real DOM (rich text now; the future `html` kind next) in 3D space,
+    // composited above the WebGL canvas and sharing the same camera.
+    const css = new CSS3DRenderer();
+    css.setSize(w, h);
+    css.domElement.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:2';
+    container.appendChild(css.domElement);
+    const cssScene = new THREE.Scene();
+
+    this.renderer = renderer; this.cssRenderer = css; this.scene = scene; this.cssScene = cssScene;
+    this.camera = cam; this.controls = controls; this.bodyGroup = bodyGroup;
     this.tcontrols = tc; this._ray = new THREE.Raycaster(); this._selected = null;
     this._ready = true;
 
@@ -159,11 +169,12 @@ const Map3D = {
     (this._planets || []).forEach(p => p.model.dispose());
     this._planets = [];
     for (let i = g.children.length - 1; i >= 0; i--) { const c = g.children[i]; g.remove(c); c.traverse?.(o => { o.geometry?.dispose?.(); o.material?.dispose?.(); }); }
+    const cs = this.cssScene; if (cs) { while (cs.children.length) cs.remove(cs.children[0]); }
     const insts = (this._map && this._map.instances) || [];
     const aniso = this.renderer.capabilities.getMaxAnisotropy();
     let live = 0, minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
     for (const it of insts) {
-      if (it.kind === 'text') continue;                 // free text handled in a later slice
+      if (it.kind === 'text') { this._addText(it); minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x); maxY = Math.max(maxY, it.y); continue; }
       const s = it.size || 60, cx = it.x + s / 2, cy = it.y + s / 2;
       // Every body lives in a holder whose transform IS its 2D transform: position = centre,
       // scale·2 = size, rotation = t3d. This lets one gizmo move/scale/rotate any body uniformly.
@@ -200,6 +211,30 @@ const Map3D = {
     return new THREE.Mesh(new THREE.CircleGeometry(1, 56), new THREE.MeshBasicMaterial({ color: new THREE.Color(col) }));
   },
 
+  // Free text object → a crisp DOM element in the CSS3D layer, styled from its LabelStyle.
+  _addText(it) {
+    if (!this.cssScene) return;
+    const st = window.mergeLabelStyle ? window.mergeLabelStyle(it.label) : Object.assign({ font: 'Cinzel', size: 28, weight: 600, color: '#f0e6d2', align: 'middle' }, it.label || {});
+    const el = document.createElement('div');
+    el.textContent = it.name || 'Text';
+    const sh = [];
+    if (st.shadow) sh.push('0 1px 2px rgba(0,0,0,.85)');
+    if (st.glow > 0) { const gc = st.glowColor || '#0ac8b9'; sh.push('0 0 ' + st.glow + 'px ' + gc, '0 0 ' + (st.glow * 2) + 'px ' + gc); }
+    el.style.cssText = 'white-space:pre;pointer-events:none;user-select:none;line-height:1.15;' +
+      'font-family:' + (window.LABEL_FONT_STACK ? window.LABEL_FONT_STACK(st.font) : 'Cinzel,serif') + ';' +
+      'font-size:' + (st.size || 28) + 'px;font-weight:' + (st.weight || 600) + ';color:' + (st.color || '#f0e6d2') + ';' +
+      'letter-spacing:' + (st.tracking || 0) + 'px;opacity:' + (st.opacity != null ? st.opacity : 1) + ';' +
+      'text-align:' + (st.align === 'start' ? 'left' : st.align === 'end' ? 'right' : 'center') + ';' +
+      (st.italic ? 'font-style:italic;' : '') + (st.uppercase ? 'text-transform:uppercase;' : '') +
+      (sh.length ? 'text-shadow:' + sh.join(', ') + ';' : '') +
+      (st.outline > 0 ? '-webkit-text-stroke:' + st.outline + 'px ' + (st.outlineColor || '#010a13') + ';' : '');
+    const obj = new CSS3DObject(el);
+    obj.position.set(it.x, -it.y, 0);
+    if (st.rotate) obj.rotation.z = -st.rotate * Math.PI / 180;
+    obj.userData.id = it.id;
+    this.cssScene.add(obj);
+  },
+
   // Inserted image → a flat, aspect-correct plane (fits the unit holder; holder scales it to size).
   _imagePlane(it, url) {
     const nw = (it.look && (it.look.natW || it.look.w)) || 1, nh = (it.look && (it.look.natH || it.look.h)) || 1;
@@ -227,6 +262,7 @@ const Map3D = {
     if (!this._ready || !this.container) return;
     const w = Math.max(1, this.container.clientWidth), h = Math.max(1, this.container.clientHeight);
     this.renderer.setSize(w, h, false);
+    if (this.cssRenderer) this.cssRenderer.setSize(w, h);
     const H = 500, a = w / h;
     this.camera.left = -H * a; this.camera.right = H * a; this.camera.top = H; this.camera.bottom = -H;
     this.camera.updateProjectionMatrix();
@@ -245,6 +281,7 @@ const Map3D = {
       for (const p of this._planets) p.model.update(dt, sun);   // live planets spin in real time
       this.controls.update();
       this.renderer.render(this.scene, this.camera);
+      if (this.cssRenderer) this.cssRenderer.render(this.cssScene, this.camera);
     };
     if (!this._raf) loop(last);
   },

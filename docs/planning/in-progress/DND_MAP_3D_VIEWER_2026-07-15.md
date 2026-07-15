@@ -239,10 +239,16 @@ like the 2D viewer* but renders true 3D models.
     loads, error-tolerant), inside the same holder so they move/scale/rotate with the gizmo like any
     body. Verified: a 2:1 image builds a `PlaneGeometry` (aspect 2.00), texture loads, selectable,
     zero errors.
-  - **Text + HTML/CSS3D — remaining:** free `text` objects rendered via a `labelSVG`-rasterised
-    texture, and a **CSS3DRenderer** layer for a sanitized **`html`** kind. Split out because text
-    needs a non-size-based holder convention and HTML adds the CSS3D renderer + player-facing XSS
-    sanitisation — a separate, self-contained step.
+  - **Text ✅ (via CSS3D)** — added a **`CSS3DRenderer`** overlay (shares the ortho camera, composited
+    above the WebGL canvas, `pointer-events:none`) plus a `cssScene`. Free `text` objects now render as
+    **crisp DOM elements** styled from their `LabelStyle` (font stack, size, weight, italic, colour,
+    tracking, uppercase, glow/shadow via `text-shadow`, outline via `-webkit-text-stroke`, z-rotation),
+    positioned in world space — so they scale/pan with the scene and read identically to the 2D
+    labels. View-only in 3D for now (edited in 2D). Verified: text mounts into the CSS3D DOM with the
+    right content/size/rotation, zero errors. This also lays the renderer the `html` kind will reuse.
+  - **HTML/CSS `html` kind — remaining:** a new object type with an HTML/CSS editor in the 2D Studio,
+    server/client **sanitisation** (DM markup is shown to players), rendered through the same CSS3D
+    layer. Split out as its own vertical because of the editor UI + XSS surface.
 - **Slice 8 — Console parity + polish.** 3D viewer + toggle for players (perf-guarded), verify, and
   move this doc to `completed/`.
 
