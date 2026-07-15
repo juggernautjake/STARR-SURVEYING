@@ -14,6 +14,52 @@ const MAX_BYTES = 25 * 1024 * 1024;
 const IMG_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
 // Light columns for list views (omit the potentially-large `data` blob).
 const LIST_COLS = 'id, campaign_id, name, kind, image_url, published, created_at, updated_at';
+// Embedded images at/above this size (e.g. baked 3D-planet sprite-sheets, which run to megabytes)
+// are pushed to Storage so they don't bloat the `data` jsonb row; smaller blobs stay inline.
+const EMBED_MIN_BYTES = 40 * 1024;
+
+function extForMime(mime: string): string {
+  return IMG_EXT[mime] || (mime.startsWith('image/') ? mime.slice(6).split('+')[0].replace(/[^a-z0-9]/gi, '') || 'bin' : 'bin');
+}
+
+// Move one large `data:image/...` URL to the dnd-media bucket; return its public URL (or null to
+// leave it inline). Keyed by content hash so re-saving the same sheet reuses the same object.
+async function uploadDataUrl(campaignId: string, dataUrl: string): Promise<string | null> {
+  const m = /^data:([^;,]+)(;base64)?,([\s\S]*)$/.exec(dataUrl);
+  if (!m) return null;
+  const mime = m[1] || 'application/octet-stream';
+  const bytes = m[2] ? Buffer.from(m[3], 'base64') : Buffer.from(decodeURIComponent(m[3]), 'utf8');
+  if (bytes.length < EMBED_MIN_BYTES || bytes.length > MAX_BYTES) return null;
+  const hash = crypto.createHash('sha256').update(bytes).digest('hex').slice(0, 32);
+  const key = `campaign/${campaignId}/maps/embedded/${hash}.${extForMime(mime)}`;
+  try {
+    await ensureStorageBucket(BUCKET, { public: true });
+    const { error } = await supabaseAdmin.storage.from(BUCKET).upload(key, bytes, { contentType: mime, upsert: true });
+    if (error) return null;
+    return supabaseAdmin.storage.from(BUCKET).getPublicUrl(key).data.publicUrl;
+  } catch {
+    return null; // on any storage failure, keep the map savable with the inline blob
+  }
+}
+
+// Recursively replace large embedded `data:image` URLs in a stardust-map with Storage URLs.
+async function deinlineDataUrls(node: unknown, campaignId: string): Promise<unknown> {
+  if (typeof node === 'string') {
+    if (node.startsWith('data:image/')) return (await uploadDataUrl(campaignId, node)) || node;
+    return node;
+  }
+  if (Array.isArray(node)) {
+    const out: unknown[] = [];
+    for (const v of node) out.push(await deinlineDataUrls(v, campaignId));
+    return out;
+  }
+  if (node && typeof node === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) out[k] = await deinlineDataUrls(v, campaignId);
+    return out;
+  }
+  return node;
+}
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
@@ -50,7 +96,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== 'object') return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
     const name = String(body.name ?? '').trim() || 'Untitled Map';
-    const data = body.data ?? null;
+    // Push megabyte-scale embedded sheets/images out to Storage before persisting the jsonb row.
+    const data = body.data != null ? await deinlineDataUrls(body.data, params.id) : null;
     const now = new Date().toISOString();
     if (body.id) {
       const { data: updated, error } = await supabaseAdmin

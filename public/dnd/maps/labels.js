@@ -198,7 +198,8 @@
   }
 
   /* ---- shared inspector UI (used by the studio; harmless if unused) ---------- */
-  function labelControlsHTML(style, p) {
+  function labelControlsHTML(style, p, opts) {
+    opts = opts || {};
     var st = mergeLabelStyle(style);
     var fontOpts = LABEL_FONTS.map(function (f) { return '<option value="' + f.id + '"' + (st.font === f.id ? ' selected' : '') + '>' + f.label + '</option>'; }).join('');
     var alignOpts = [['start', 'Left'], ['middle', 'Center'], ['end', 'Right']].map(function (a) { return '<option value="' + a[0] + '"' + (st.align === a[0] ? ' selected' : '') + '>' + a[1] + '</option>'; }).join('');
@@ -206,11 +207,12 @@
       return '<div class="field"><label>' + lab + ' <span style="float:right;color:var(--gold)" id="' + p + idp + 'V">' + val + (suffix || '') + '</span></label><div class="slider"><input type="range" id="' + p + idp + '" min="' + min + '" max="' + max + '" value="' + val + '"></div></div>';
     }
     return '' +
-      '<label class="chk"><input type="checkbox" id="' + p + 'Show"' + (st.show ? ' checked' : '') + '> Show label on map</label>' +
+      // the host inspector can render its own prominent Show toggle instead (opts.noShow)
+      (opts.noShow ? '' : '<label class="chk"><input type="checkbox" id="' + p + 'Show"' + (st.show ? ' checked' : '') + '> Show label on map</label>') +
       '<div class="field"><label>Font</label><select id="' + p + 'Font">' + fontOpts + '</select></div>' +
       '<div class="rowc"><div class="field"><label>Color</label><input type="color" id="' + p + 'Color" value="' + st.color + '"></div>' +
         '<div class="field"><label>Align</label><select id="' + p + 'Align">' + alignOpts + '</select></div></div>' +
-      slider('Size', 'Size', 8, 90, st.size, 'px') +
+      slider('Size', 'Text size', 8, 240, st.size, 'px') +
       slider('Weight', 'Weight', 300, 900, st.weight) +
       slider('Track', 'Letter-spacing', -2, 20, st.tracking, 'px') +
       '<label class="chk"><input type="checkbox" id="' + p + 'Italic"' + (st.italic ? ' checked' : '') + '> Italic</label>' +
@@ -257,8 +259,26 @@
     on($('Dy'), 'oninput', function (e) { style.dy = +e.target.value; onChange(); });
   }
 
+  /* ---- HTML/CSS object helpers (rendered inside a sandboxed iframe everywhere) ---------------- */
+  // Defence-in-depth strip of <script> (the sandboxed iframe already neutralises scripts).
+  function sanitizeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/<\s*script[\s\S]*?<\s*\/\s*script\s*>/gi, '')
+      .replace(/<\s*script\b[^>]*>/gi, '');
+  }
+  // Wrap user HTML/CSS in a minimal transparent document for use as an <iframe srcdoc>. The iframe is
+  // always `sandbox`ed (no scripts, no same-origin, no forms), so arbitrary HTML+CSS renders safely.
+  function htmlFrameSrcdoc(content) {
+    return '<!doctype html><html><head><meta charset="utf-8"><style>' +
+      'html,body{margin:0;padding:8px;background:transparent;color:#f0e6d2;font-family:system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.4;overflow:auto}' +
+      'a{color:#0ac8b9}img{max-width:100%;height:auto}table{border-collapse:collapse}td,th{border:1px solid #2a3f52;padding:4px 7px}' +
+      '</style></head><body>' + sanitizeHtml(content) + '</body></html>';
+  }
+
   root.LABEL_FONTS = LABEL_FONTS;
   root.LABEL_FONT_STACK = LABEL_FONT_STACK;
+  root.sanitizeHtml = sanitizeHtml;
+  root.htmlFrameSrcdoc = htmlFrameSrcdoc;
   root.DEFAULT_LABEL_STYLE = DEFAULT_LABEL_STYLE;
   root.mergeLabelStyle = mergeLabelStyle;
   root.labelSVG = labelSVG;

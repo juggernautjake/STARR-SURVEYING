@@ -7,6 +7,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Caveat:wght@500;700&family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Michroma&family=Orbitron:wght@500;600;700&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <script src="labels.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "/dnd/maps/vendor/three/three.module.js",
+  "three/addons/": "/dnd/maps/vendor/three/addons/"
+}}
+</script>
 <style>
   :root{--void:#010a13;--panel:#0b1a2c;--panel2:#10233b;--raised:#16304a;--line:#1e2d3d;--line2:#2a3f52;
     --ink:#f0e6d2;--dim:#a09b8c;--faint:#6d6a5f;--gold:#c89b3c;--aether:#0ac8b9;--cyan:#0ac8b9;--green:#0ac8b9;--red:#c6403b;}
@@ -242,9 +248,12 @@
       <button data-tool="pen" title="Draw a sector/system polygon (P)">✐ Draw sector</button>
       <button data-tool="poi" title="Click a planet, then click to drop a POI (O)">◈ Drop POI</button>
       <button id="btnAddText" title="Add a free-floating text label — name a location, route, or region">🅣 Text</button>
+      <button id="btnAddHtml" title="Insert an HTML/CSS card (rendered in a safe sandbox)">▤ HTML</button>
       <button data-tool="fx" title="Map ambience & effects">✧ Effects</button>
+      <div class="tspacer" style="flex:1"></div>
+      <button id="view3dBtn" title="Switch between the flat 2D map and the real-time 3D viewer">⛶ 3D</button>
     </div>
-    <div id="canvas"><div id="bgLayer"></div><div class="bodyLayer" id="backLayer"></div><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><canvas id="fxCanvas"></canvas><svg id="labelLayer"></svg></div>
+    <div id="canvas"><div id="bgLayer"></div><div class="bodyLayer" id="backLayer"></div><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><canvas id="fxCanvas"></canvas><svg id="labelLayer"></svg><div id="gl3d" style="position:absolute;inset:0;z-index:5;display:none"></div></div>
   </div>
   <div class="insp">
     <div class="ihead" id="inspHead">◈ INSPECTOR</div>
@@ -551,7 +560,10 @@
     _draw(){if(!this.ready||!this.img)return;const cell=this.cell,W=this.w,H=this.h,ctx=this.ctx,eps=0.5;ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";ctx.clearRect(0,0,W,H);
       const pos=this.pos||0,i0=Math.floor(pos)%this.frames,frac=pos-Math.floor(pos),i1=(i0+1)%this.frames;
       const put=(idx,a)=>{const c=idx%this.cols,r=Math.floor(idx/this.cols);ctx.globalAlpha=a;ctx.drawImage(this.img,c*cell+eps,r*cell+eps,cell-2*eps,cell-2*eps,0,0,W,H);};
-      put(i0,1);if(frac>0.004)put(i1,frac);ctx.globalAlpha=1;}
+      // TRUE cross-dissolve: fade i0 OUT as i1 fades IN (i0 at 1-frac, not 1). Drawing i0 at full
+      // then i1 on top left both frames' bright atmosphere rims visible at once — a pulsing
+      // double-rim that read as the "atmosphere flicker". Complementary alphas keep total ~constant.
+      put(i0,frac>0.004?1-frac:1);if(frac>0.004)put(i1,frac);ctx.globalAlpha=1;}
     start(){if(this._raf)return;const loop=t=>{this._raf=requestAnimationFrame(loop);if(!this.ready)return;const dt=this._last?(t-this._last)/1000:0;this._last=t;this.pos=((this.pos||0)+dt*this.fps)%this.frames;if(this.pos<0)this.pos+=this.frames;this._draw();};this._last=0;this._raf=requestAnimationFrame(loop);}
     stop(){if(this._raf)cancelAnimationFrame(this._raf);this._raf=null;}
     destroy(){this.stop();window.removeEventListener('resize',this._onR);}
@@ -957,6 +969,7 @@ $("#btnTemplate").onclick=()=>openTemplatePicker();
 const toolRow=$("#toolRow");
 toolRow.querySelectorAll("button[data-tool]").forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
 $("#btnAddText").onclick=addTextObject;
+$("#btnAddHtml").onclick=addHtmlObject;
 function setTool(t){
   if(t==="pen"){ if(tool==="pen"){cancelDraw();} tool="pen";startDraw(); }
   else { if(tool==="pen")cancelDraw(); tool=t; }
@@ -1000,8 +1013,8 @@ $("#placeConfirm").onclick=()=>{
 };
 $("#placeCancel").onclick=clearPending;
 function clearPending(){pending=null;ghost.style.display="none";$("#placeBar").classList.remove("show");}
-function snapshotLook(a){const {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,image,src,natW,natH,dsCfg,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames}=a;
-  return {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,image,src,natW,natH,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames,dsCfg:dsCfg?JSON.parse(JSON.stringify(dsCfg)):undefined};}
+function snapshotLook(a){const {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,image,src,natW,natH,dsCfg,cfg3d,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames}=a;
+  return {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,image,src,natW,natH,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames,dsCfg:dsCfg?JSON.parse(JSON.stringify(dsCfg)):undefined,cfg3d:cfg3d?JSON.parse(JSON.stringify(cfg3d)):undefined};}
 function applyBackground(a){pushUndo();state.background=snapshotLook(a);renderAll();markDirty();toast("Backdrop set");}
 // Render an image backdrop into #bgLayer (screen-space, behind everything). "size" scales it so the
 // backdrop size the user picks actually changes what's shown; opacity lets the gradient show through.
@@ -1134,6 +1147,8 @@ function renderInstances(){
     else if(i.kind==="image"){const L=i.look||i,src=L.src,fit=i.imgFit||"contain",px=i.imgPosX!=null?i.imgPosX:50,py=i.imgPosY!=null?i.imgPosY:50;
       const inner=src?`<img src="${src}" draggable="false" style="width:100%;height:100%;display:block;object-fit:${fit};object-position:${px}% ${py}%;pointer-events:none">`:(L.svgData?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">${L.svgData}</div>`:art(L,true));
       el.innerHTML=`<div class="art" style="overflow:hidden;${fadeMask(i)}">${fxo}${inner}</div>${poiLayerHTML(i)}`;}
+    else if(i.kind==="html"){const doc=(typeof htmlFrameSrcdoc==="function")?htmlFrameSrcdoc(i.html||""):esc(i.html||"");
+      el.innerHTML=`<div class="art" style="overflow:hidden;background:rgba(11,26,44,.72);border:1px solid var(--line2);border-radius:8px"><iframe sandbox srcdoc="${esc(doc)}" style="width:100%;height:100%;border:0;display:block;pointer-events:none;background:transparent"></iframe></div>`;}
     else{el.innerHTML=`<div class="art">${fxo}${art(i.look||i,true)}</div>${poiLayerHTML(i)}`;}
     el.addEventListener("mousedown",e=>{if(e.target.closest(".poi")||e.target.closest(".ihandle"))return;e.stopPropagation();onInstDown(e,i);});
     el.addEventListener("dblclick",e=>{if(mode!=="dm")return;e.stopPropagation();const a=state.assets.find(x=>x.id===i.assetId)||{...i.look,name:i.name,kind:i.kind,size:i.size};openEditor(a,"edit");});
@@ -1193,6 +1208,16 @@ function addTextObject(){
   state.instances.push(t);selection={type:"instance",id:t.id};
   if(tool!=="select")setTool("select");
   renderAll();markDirty();toast("Text added — type your text and format it in the inspector");
+}
+const HTML_DEFAULT='<h3 style="margin:.1em 0;color:#c8aa6e;font-family:Cinzel,serif">Card title</h3>\n<p>Write <b>HTML</b> and <i>CSS</i> here. It renders in a safe sandbox.</p>';
+function addHtmlObject(){
+  if(mode!=="dm")return;
+  pushUndo();
+  const r=$("#canvas").getBoundingClientRect();const c=toWorld(r.left+r.width/2,r.top+r.height/2);
+  const h={id:uid(),kind:"html",name:"HTML card",x:c.x,y:c.y,size:260,w:300,h:170,look:{},pois:[],html:HTML_DEFAULT};
+  state.instances.push(h);selection={type:"instance",id:h.id};
+  if(tool!=="select")setTool("select");
+  renderAll();markDirty();toast("HTML card added — edit its markup in the inspector");
 }
 function renderLabels(){
   const layer=$("#labelLayer");if(!layer||typeof labelSVG!=="function"){if(layer)layer.innerHTML="";return;}
@@ -1504,6 +1529,21 @@ function renderTextInspector(){
   $("#txtDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
   $("#txtDel").onclick=()=>{pushUndo();state.instances=state.instances.filter(x=>x.id!==i.id);selection=null;renderAll();markDirty();};
 }
+function renderHtmlInspector(){
+  const box=$("#inspBody");const i=state.instances.find(x=>x.id===selection.id);if(!i){box.innerHTML="";return;}
+  $("#inspHead").textContent="◈ HTML CARD";
+  if(mode!=="dm"){box.innerHTML=`<div style="font-size:12px;color:var(--faint)">An HTML card (visible on the map).</div>`;return;}
+  box.innerHTML=`<div class="field"><label>HTML / CSS</label><textarea id="htmlVal" rows="9" spellcheck="false" style="font-family:'Share Tech Mono',monospace;font-size:12px" placeholder="<h3>Title</h3><p>…</p>">${esc(i.html||"")}</textarea></div>
+    <div style="font-size:11px;color:var(--faint);margin-bottom:6px">Renders in a <b>sandboxed frame</b> (scripts disabled) on the map and in the 3D viewer. Drag to move; use the corner handles to resize/rotate.</div>
+    <div class="field"><label>Width <span style="float:right;color:var(--gold)" id="htmlWV">${i.w||300}</span></label><div class="slider"><input type="range" id="htmlW" min="80" max="900" value="${i.w||300}"></div></div>
+    <div class="field"><label>Height <span style="float:right;color:var(--gold)" id="htmlHV">${i.h||170}</span></label><div class="slider"><input type="range" id="htmlH" min="60" max="700" value="${i.h||170}"></div></div>
+    <div class="actionbtns"><button id="htmlDupe">Duplicate</button><button class="danger" id="htmlDel">Delete</button></div>`;
+  let t=null;$("#htmlVal").oninput=e=>{i.html=e.target.value;clearTimeout(t);t=setTimeout(()=>{renderInstances();markDirty();},250);};
+  $("#htmlW").oninput=e=>{i.w=+e.target.value;i.size=Math.max(i.w,i.h||i.w);$("#htmlWV").textContent=i.w;renderInstances();markDirty();};
+  $("#htmlH").oninput=e=>{i.h=+e.target.value;i.size=Math.max(i.w||i.h,i.h);$("#htmlHV").textContent=i.h;renderInstances();markDirty();};
+  $("#htmlDupe").onclick=()=>{pushUndo();const c=JSON.parse(JSON.stringify(i));c.id=uid();c.x+=40;c.y+=40;state.instances.push(c);selection={type:"instance",id:c.id};renderAll();markDirty();};
+  $("#htmlDel").onclick=()=>{pushUndo();state.instances=state.instances.filter(x=>x.id!==i.id);selection=null;renderAll();markDirty();};
+}
 /* ---- layer / z-order ---- */
 function reorderZ(list,item,dir){
   list.forEach((x,idx)=>{if(x.z==null)x.z=idx;});
@@ -1594,12 +1634,14 @@ function applySpinToInstance(i){const src=i.look&&(i.look.src||i.look.image);if(
 function renderInstanceInspector(){
   const box=$("#inspBody");const i=state.instances.find(x=>x.id===selection.id);if(!i){box.innerHTML="";return;}
   if(i.kind==="text")return renderTextInspector();
+  if(i.kind==="html")return renderHtmlInspector();
   const sm=sectorById();const sec=i.sector?sm[i.sector]:null;const others=state.instances.filter(x=>x.id!==i.id);
   $("#inspHead").textContent="◈ "+i.kind.toUpperCase();
   if(mode!=="dm"){box.innerHTML=playReadout(i.name,i.kind,sec?sec.name:"",i.desc,[],[],sec?sec.color:"#8f78e6",i.pois);return;}
   i.label=i.label||Object.assign({},BODY_LABEL_DEFAULT);
   box.innerHTML=`
     <div class="field"><label>Name</label><input id="iName" value="${esc(i.name)}"></div>
+    <label class="chk" style="margin:2px 0 10px"><input type="checkbox" id="iNameShow" ${i.label.show!==false?"checked":""}> 👁 Show this name on the map</label>
     <h4>Association</h4>
     <div class="assoc">${sec?`<span class="cd" style="background:${sec.color}"></span>${esc(sec.name)}`:'<span style="color:var(--faint)">Not inside any system — drag into one</span>'}</div>
     <h4>◈ Points of Interest (${(i.pois||[]).length})<span class="add" id="poiAdd" title="Add a POI at the center">＋</span></h4>
@@ -1611,7 +1653,7 @@ function renderInstanceInspector(){
     <h4>Effects</h4>${fxControls(i,()=>{renderInstances();markDirty();},true)}
     <h4>Info</h4>
     <div class="field"><label>Description</label><textarea id="iDesc" placeholder="Lore, notes, hover text…">${esc(i.desc)}</textarea></div>
-    <details class="lblsec"><summary>◈ Label &amp; text formatting</summary><div style="font-size:11px;color:var(--faint);margin:4px 0 8px">The label shows the body's <b>name</b> on the map. Format its font, size, color, effects, and shape.</div>${labelControlsHTML(i.label,'il')}</details>
+    <details class="lblsec" open><summary>◈ Name text — size, colour, glow &amp; effects</summary><div style="font-size:11px;color:var(--faint);margin:4px 0 8px">Make the name bigger with <b>Text size</b>, pick a font/colour, and add glow, pulse, outline, curve or rotation. Toggle <b>Show this name</b> above to hide or reveal it.</div>${labelControlsHTML(i.label,'il',{noShow:true})}</details>
     <h4>Transform</h4>
     <div class="field"><label>Size <span style="float:right;color:var(--gold)" id="iSzV">${i.size}</span></label><div class="slider"><input type="range" id="iSize" min="8" max="800" value="${Math.min(800,i.size)}"></div></div>
     <div class="field"><label>Rotation <span style="float:right;color:var(--gold)" id="iRotV">${i.rot||0}°</span></label><div class="slider"><input type="range" id="iRot" min="-180" max="180" value="${i.rot||0}"></div></div>
@@ -1634,6 +1676,7 @@ function renderInstanceInspector(){
     <div class="actionbtns"><button class="gold" id="iEdit">✎ Open in editor</button></div>
     <div class="actionbtns"><button id="iDupe">Duplicate</button><button class="danger" id="iDel">Delete</button></div>`;
   $("#iName").oninput=e=>{i.name=e.target.value;renderInstances();renderLabels();markDirty();};
+  $("#iNameShow").onchange=e=>{i.label.show=e.target.checked;renderLabels();markDirty();};
   $("#iParent").onchange=e=>{i.orbitParent=e.target.value;markDirty();};
   $("#iRad").oninput=e=>{i.orbitRadius=+e.target.value;markDirty();};
   $("#iSpd").oninput=e=>{i.orbitSpeed=+e.target.value;markDirty();};
@@ -1844,6 +1887,11 @@ function applyMapData(m){resetDiffspin();
   selection=null;undoStack=[];redoStack=[];computeSectorParents();reassociateAll();applyMapFx();applySelStyle();renderLibrary();renderAll();fitAll();updateCampChip();
 }
 
+/* ---- bridge for the 3D viewer (map3d.js): select / transform-writeback / undo checkpoint ---- */
+window.map3dSelect=function(id){const i=id&&state.instances.find(x=>x.id===id);selection=i?{type:"instance",id}:null;renderInspector();updateStatus();};
+window.map3dBeginEdit=function(){pushUndo();};
+window.map3dApply=function(id,patch){const i=state.instances.find(x=>x.id===id);if(!i)return;Object.assign(i,patch);if(typeof reassoc==="function")reassoc(i);renderInstances();markDirty();};
+
 /* ============================================================ HISTORY + SAVE/LOAD ============================================================ */
 function cleanState(){return JSON.stringify({assets:state.assets,instances:state.instances,
   sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved,z:s.z})),
@@ -1983,5 +2031,7 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
   if(dbMapId) loadFromCampaign(dbMapId);
 })();
 </script>
+<!-- Real-time 3D viewer (vendored Three via the importmap above). Wires the ⛶ 3D toggle itself. -->
+<script type="module" src="/dnd/maps/map3d.js"></script>
 </body>
 </html>

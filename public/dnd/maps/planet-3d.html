@@ -169,14 +169,16 @@
 
 <script type="importmap">
 { "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  "three": "/dnd/maps/vendor/three/three.module.js",
+  "three/addons/": "/dnd/maps/vendor/three/addons/"
 }}
 </script>
 <script type="module">
 let THREE;
+// Vendored same-origin (public/dnd/maps/vendor) so the 3D engine loads offline and free of any CDN
+// or CSP surprise; the try/catch is kept as a belt-and-braces guard.
 try { THREE = await import("three"); }
-catch(err){ const n=document.getElementById("loadNote"); if(n){n.style.opacity=1;n.style.borderColor="#e0685a";n.style.color="#ffb0a0";n.textContent="⚠ Could not load the 3D engine (Three.js). This tool needs an internet connection the first time. Check your connection, then reload.";} throw err; }
+catch(err){ const n=document.getElementById("loadNote"); if(n){n.style.opacity=1;n.style.borderColor="#e0685a";n.style.color="#ffb0a0";n.textContent="⚠ Could not load the 3D engine (Three.js). Reload the page; if it persists, re-deploy the vendored engine under /dnd/maps/vendor.";} throw err; }
 const $=s=>document.querySelector(s);
 
 /* ---------- scene ---------- */
@@ -334,7 +336,7 @@ const lightMat=new THREE.ShaderMaterial({transparent:true,blending:THREE.Additiv
      gl_FragColor=vec4(uColor*glow,glow);}`});
 const lightning=new THREE.Mesh(new THREE.SphereGeometry(R+0.032,96,96),lightMat);core.add(lightning);lightning.visible=false;
 let curStormN=0, stormFlash=new Float32Array(MAXST);
-const atmoMat=new THREE.ShaderMaterial({transparent:true,side:THREE.BackSide,blending:THREE.AdditiveBlending,depthWrite:false,uniforms:{c:{value:new THREE.Color(0x5aa0e8)},density:{value:1},sunDir:{value:new THREE.Vector3(1,0,0)}},vertexShader:`varying vec3 vN;varying vec3 vWP;void main(){vN=normalize(mat3(modelMatrix)*normal);vWP=(modelMatrix*vec4(position,1.)).xyz;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,fragmentShader:`varying vec3 vN;varying vec3 vWP;uniform vec3 c;uniform float density;uniform vec3 sunDir;void main(){vec3 V=normalize(cameraPosition-vWP);float f=pow(1.0-abs(dot(vN,V)),2.4);float s=clamp(dot(normalize(vN),normalize(sunDir))*0.5+0.5,0.0,1.0);gl_FragColor=vec4(c,f*density*mix(0.4,1.0,s));}`});
+const atmoMat=new THREE.ShaderMaterial({transparent:true,side:THREE.BackSide,blending:THREE.AdditiveBlending,depthWrite:false,uniforms:{c:{value:new THREE.Color(0x5aa0e8)},density:{value:1},sunDir:{value:new THREE.Vector3(1,0,0)}},vertexShader:`varying vec3 vN;varying vec3 vWP;void main(){vN=normalize(mat3(modelMatrix)*normal);vWP=(modelMatrix*vec4(position,1.)).xyz;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,fragmentShader:`varying vec3 vN;varying vec3 vWP;uniform vec3 c;uniform float density;uniform vec3 sunDir;void main(){vec3 V=normalize(cameraPosition-vWP);float f=pow(1.0-abs(dot(vN,V)),2.0);float s=clamp(dot(normalize(vN),normalize(sunDir))*0.5+0.5,0.0,1.0);gl_FragColor=vec4(c,f*density*mix(0.4,1.0,s));}`});
 const atmo=new THREE.Mesh(new THREE.SphereGeometry(R*1.14,64,64),atmoMat);core.add(atmo);
 /* planetary ring */
 function makeRingTex(color){const W=512,cv=document.createElement("canvas");cv.width=W;cv.height=16;const ctx=cv.getContext("2d");const[r,g,b]=hx(color);const n=makeNoise(4);for(let x=0;x<W;x++){const t=x/W;const gap=(fbm(n,t*3,0.5,6,4));const a=t<0.12?0:(0.35+gap*0.6)*(t>0.9?(1-t)/0.1:1);ctx.fillStyle=`rgba(${r},${g},${b},${a.toFixed(3)})`;ctx.fillRect(x,0,1,16);}const tex=new THREE.CanvasTexture(cv);tex.colorSpace=THREE.SRGBColorSpace;return tex;}
@@ -516,11 +518,23 @@ async function renderSheet(cell){
   // anti-aliased (jagged edges are what shimmer/jitter worst when the sprite rotates)
   const old=renderer.getSize(new THREE.Vector2());const oldPR=renderer.getPixelRatio();renderer.setPixelRatio(2);renderer.setSize(cell,cell,false);camera.aspect=1;camera.updateProjectionMatrix();
   const startRot=planet.rotation.y;
-  // clouds must complete a WHOLE number of extra turns over the loop, or the sprite jumps at the
-  // wrap. One extra full turn (i/N·2π) keeps the loop perfectly seamless while giving the clouds drift.
-  for(let i=0;i<N;i++){const ang=startRot+(i/N)*Math.PI*2;planet.rotation.y=ang;night.rotation.y=ang;clouds.rotation.y=ang+(i/N)*Math.PI*2;updateShaderSun();renderer.render(scene,camera);
-    const c=i%cols,r=Math.floor(i/cols);sctx.drawImage(renderer.domElement,c*cell,r*cell,cell,cell);
-    $("#progBar").style.width=Math.round((i+1)/N*100)+"%";$("#progLbl").textContent=`Rendering frame ${i+1} / ${N}…`;await new Promise(res=>setTimeout(res,8));}
+  // Each output frame is the AVERAGE of SUB micro-rotations across its own angular slice — baked-in
+  // motion blur. This "smooths the frames together" at bake time so playback needs no harsh
+  // cross-fade, and the thin atmosphere rim is smeared across the slice instead of flickering.
+  // Clouds complete a WHOLE extra turn over the loop so the sprite wraps seamlessly.
+  const SUB=4;
+  const tmp=document.createElement("canvas");tmp.width=cell;tmp.height=cell;const tctx=tmp.getContext("2d");tctx.imageSmoothingEnabled=true;tctx.imageSmoothingQuality="high";
+  for(let i=0;i<N;i++){
+    tctx.clearRect(0,0,cell,cell);
+    for(let k=0;k<SUB;k++){
+      const t=(i+k/SUB)/N;const ang=startRot+t*Math.PI*2;
+      planet.rotation.y=ang;night.rotation.y=ang;clouds.rotation.y=ang+t*Math.PI*2;updateShaderSun();renderer.render(scene,camera);
+      tctx.globalAlpha=1/(k+1);   // source-over at 1/(k+1) is a running average of the SUB renders
+      tctx.drawImage(renderer.domElement,0,0,cell,cell);
+    }
+    tctx.globalAlpha=1;
+    const c=i%cols,r=Math.floor(i/cols);sctx.drawImage(tmp,c*cell,r*cell,cell,cell);
+    $("#progBar").style.width=Math.round((i+1)/N*100)+"%";$("#progLbl").textContent=`Rendering frame ${i+1} / ${N}…`;await new Promise(res=>setTimeout(res,4));}
   renderer.setPixelRatio(oldPR);renderer.setSize(old.x,old.y,false);camera.position.copy(savedCam);camera.aspect=old.x/old.y;camera.updateProjectionMatrix();planet.rotation.y=startRot;night.rotation.y=startRot;
   lightning.visible=litPrev;
   capturing=false;$("#prog").classList.remove("show");
