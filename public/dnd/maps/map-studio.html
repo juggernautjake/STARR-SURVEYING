@@ -2043,13 +2043,22 @@ function applyNebulaTint(){const w=document.querySelector('.canvaswrap');const f
   else{w.style.background='';}}
 
 /* ---- 3D viewer background (programmable sky, publishes to players via bg3d) ---- */
-const BG3D_TEMPLATES=[["deepspace","Deep space"],["stars","Just stars"],["milkyway","Milky Way band"],["spiral","Spiral galaxy"],["nebula","Flowing nebula"],["blackhole","Black hole"],["wormhole","Wormhole"],["asteroids","Asteroid field"],["solid","Solid colour"],["glow","Colour + glow"]];
+const BG3D_TEMPLATES=[["deepspace","Deep space"],["stars","Just stars"],["milkyway","Milky Way band"],["spiral","Spiral galaxy"],["spiralswirl","Spiral swirl (spinning)"],["nebula","Flowing nebula"],["blackhole","Black hole"],["wormhole","Wormhole"],["asteroids","Asteroid field"],["solid","Solid colour"],["glow","Colour + glow"]];
+const BG_SPIRAL_DEFAULT=()=>({rings:6,speed:0.6,rotation:0});
 function bg3dControlsHTML(b){b=state.bg3d=Object.assign(BG3D_DEFAULT(),b||{});b.glow=Object.assign({on:false,colors:["#3b2a6b","#0a4a5a"],pulse:false,speed:1},b.glow||{});
   const g=b.glow,starsy=b.template!=="solid"&&b.template!=="glow";
+  const isSwirl=b.template==="spiralswirl",sp=b.spiral=Object.assign(BG_SPIRAL_DEFAULT(),b.spiral||{});
+  const swirlCtl=`<div id="b3SwirlWrap" style="${isSwirl?'':'display:none'}">
+      <div style="font-size:10.5px;color:var(--faint);margin:2px 0 6px">The animated spiral swirl spins as the map backdrop — its rings turn at different rates, like the image spiral effect.</div>
+      <div class="field"><label>Swirl layers (rings) <span style="float:right;color:var(--gold)" id="b3SwRingsV">${sp.rings}</span></label><div class="slider"><input type="range" id="b3SwRings" min="2" max="12" value="${sp.rings}"></div></div>
+      <div class="field"><label>Spin speed <span style="float:right;color:var(--gold)" id="b3SwSpdV">${(+sp.speed).toFixed(2)}×</span></label><div class="slider"><input type="range" id="b3SwSpd" min="0" max="300" value="${Math.round((+sp.speed)*100)}"></div></div>
+      <div class="field"><label>Base rotation <span style="float:right;color:var(--gold)" id="b3SwRotV">${Math.round(+sp.rotation)}°</span></label><div class="slider"><input type="range" id="b3SwRot" min="0" max="360" value="${Math.round(+sp.rotation)}"></div></div>
+    </div>`;
   return `<h4>3D viewer background</h4>
     <div style="font-size:11px;color:var(--faint);margin-bottom:6px">The sky in the ⛶ 3D viewer — also what players see when they open 3D. Regenerate reshuffles it.</div>
     <div class="rowc"><div class="field" style="flex:2"><label>Template</label><select id="b3Tpl">${BG3D_TEMPLATES.map(([v,l])=>`<option value="${v}" ${b.template===v?"selected":""}>${l}</option>`).join("")}</select></div>
       <div class="field" style="flex:1"><label>&nbsp;</label><button id="b3Regen" title="Generate a new random arrangement of this template" style="width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:5px;padding:6px;cursor:pointer">⟳ Regenerate</button></div></div>
+    ${swirlCtl}
     <div class="field"><label>Base colour</label><input type="color" id="b3Base" value="${b.baseColor||'#010a13'}"></div>
     <div id="b3StarWrap" style="${starsy?'':'display:none'}">
       <label class="chk"><input type="checkbox" id="b3Par" ${b.parallax?"checked":""}> Parallax depth</label>
@@ -2079,6 +2088,10 @@ function wireBg3dControls(){const b=state.bg3d;if(!b||!$("#b3Tpl"))return;
   $("#b3GcB").oninput=e=>{b.glow.colors[1]=e.target.value;push();};
   $("#b3Pulse").onchange=e=>{b.glow.pulse=e.target.checked;$("#b3PulseSpWrap").style.display=e.target.checked?"":"none";push();};
   const ps=$("#b3Ps");if(ps)ps.oninput=e=>{b.glow.speed=+e.target.value/100;$("#b3PsV").textContent=b.glow.speed.toFixed(1)+"×";push();};
+  if(!b.spiral)b.spiral=BG_SPIRAL_DEFAULT();
+  const swR=$("#b3SwRings");if(swR)swR.oninput=e=>{b.spiral.rings=+e.target.value;$("#b3SwRingsV").textContent=b.spiral.rings;push();};
+  const swS=$("#b3SwSpd");if(swS)swS.oninput=e=>{b.spiral.speed=+e.target.value/100;$("#b3SwSpdV").textContent=b.spiral.speed.toFixed(2)+"×";push();};
+  const swRot=$("#b3SwRot");if(swRot)swRot.oninput=e=>{b.spiral.rotation=+e.target.value;$("#b3SwRotV").textContent=Math.round(b.spiral.rotation)+"°";push();};
 }
 // Apply the current 3D background to the live 3D viewer (if open) AND the 2D backdrop, so the flat
 // map mirrors the 3D sky. Persists via bg3d in mapData().

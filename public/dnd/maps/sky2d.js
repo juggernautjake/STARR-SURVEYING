@@ -19,6 +19,9 @@
   const Sky2D = {
     canvas: null, ctx: null, cfg: null, _static: null, _glimmers: [], _raf: null, _t: 0, _w: 0, _h: 0,
     _dpr: 1, _locked: false, _view: { x: 0, y: 0, scale: 1 }, _anchor: null,
+    // Animated spiral-swirl backdrop (reuses the DiffSpinGalaxy differential-ring engine on an
+    // offscreen canvas, blitted each frame). Only built for the `spiralswirl` template.
+    _swirl: null, _swirlCanvas: null, _swirlAng: null, _swirlT: 0,
 
     // World-lock (parallax OFF): glue the baked sky to world space so it pans AND zooms with the placed
     // elements. The host map calls setView() on every pan/zoom; setLock(true) re-anchors on the next draw.
@@ -61,8 +64,9 @@
       const tpl = cfg.template || 'deepspace', density = cfg.density != null ? cfg.density : 1;
       this._glimmers = [];
       c.globalCompositeOperation = 'lighter';
-      if (tpl === 'deepspace' || tpl === 'stars' || tpl === 'nebula' || tpl === 'milkyway') this._paintFiller(c, W, H, r, density);   // expansive tiny filler bed on star backgrounds
+      if (tpl === 'deepspace' || tpl === 'stars' || tpl === 'nebula' || tpl === 'milkyway' || tpl === 'spiralswirl') this._paintFiller(c, W, H, r, density);   // expansive tiny filler bed on star backgrounds
       if (tpl === 'solid' || tpl === 'glow') { /* nothing more */ }
+      else if (tpl === 'spiralswirl') this._paintStars(c, W, H, r, density * 0.5, 'deepspace');   // a star bed sits behind the animated swirl
       else if (tpl === 'spiral') this._paintSpiral(c, W, H, S, r, density);
       else if (tpl === 'blackhole') { this._paintStars(c, W, H, r, density * 0.5, 'deepspace'); this._paintBlackhole(c, W, H, S, r); }
       else if (tpl === 'asteroids') { this._paintStars(c, W, H, r, density * 0.4, 'deepspace'); this._paintAsteroids(c, W, H, r, density); }
@@ -71,6 +75,53 @@
       else { this._paintStars(c, W, H, r, density, tpl); }
       if (tpl !== 'solid' && tpl !== 'glow' && (cfg.nebula || tpl === 'nebula')) this._paintNebula(c, W, H, r, tpl === 'nebula' ? 9 : 4);
       c.globalCompositeOperation = 'source-over';
+      // Build (or tear down) the animated spiral-swirl engine to match the template.
+      if (tpl === 'spiralswirl') this._buildSwirl(cfg, W, H, S); else this._destroySwirl();
+    },
+
+    // Bake a spiral-galaxy texture and mount it on a DiffSpinGalaxy engine (reused from the
+    // image-spiral feature) so its differential rings spin as a full-pane backdrop. The engine
+    // lives on an offscreen canvas we blit each frame; no second RAF loop.
+    _buildSwirl(cfg, W, H, S) {
+      const sp = cfg.spiral || {};
+      const rings = Math.max(2, Math.min(12, (sp.rings | 0) || 6));
+      if (!window.DiffSpinGalaxy) { this._destroySwirl(); return; }   // engine not loaded → star bed only
+      // A square spiral texture (seed-stable) for the engine to slice into rings.
+      const T = Math.max(256, Math.min(1024, Math.round(S)));
+      const tex = document.createElement('canvas'); tex.width = T; tex.height = T;
+      const tc = tex.getContext('2d'); tc.clearRect(0, 0, T, T);
+      tc.globalCompositeOperation = 'lighter';
+      this._paintSpiral(tc, T, T, T, rng(cfg.seed || 1), cfg.density != null ? cfg.density : 1);
+      tc.globalCompositeOperation = 'source-over';
+      this._destroySwirl();
+      const off = this._swirlCanvas = document.createElement('canvas');
+      const eng = new window.DiffSpinGalaxy(off, { rings, corePulse: false });
+      // The constructor's _fit() sizes to the DOM rect — meaningless for an offscreen canvas
+      // (it collapses to 1×1). Override _fit, THEN fix the canvas to the blit size (device px, 1:1).
+      eng._fit = function () { this.cssW = W; this.cssH = H; };
+      off.width = W; off.height = H;
+      eng.ctx.setTransform(1, 0, 0, 1, 0, 0); eng.cssW = W; eng.cssH = H;
+      eng.img = tex; eng._slice();
+      eng.master = sp.speed != null ? +sp.speed : 0.6;
+      this._swirl = eng;
+      this._swirlAng = new Array(rings).fill(0);
+      this._swirlT = 0;
+    },
+    _destroySwirl() {
+      if (this._swirl) { try { this._swirl.destroy(); } catch (e) { /* noop */ } this._swirl = null; }
+      this._swirlCanvas = null; this._swirlAng = null;
+    },
+    // Advance the swirl by dt and render one frame into its offscreen canvas.
+    _renderSwirl(dt) {
+      const eng = this._swirl; if (!eng) return;
+      const sp = (this.cfg && this.cfg.spiral) || {};
+      const rot = (sp.rotation != null ? +sp.rotation : 0) * Math.PI / 180;   // base rotation, degrees → rad
+      eng.master = sp.speed != null ? +sp.speed : 0.6;
+      for (let i = 0; i < eng.n; i++) {
+        this._swirlAng[i] += eng.dirs[i] * eng.speeds[i] * eng.master * dt * Math.PI * 2;
+        eng.angles[i] = this._swirlAng[i] + rot;
+      }
+      eng._draw(performance.now());
     },
 
     _paintGlow(c, W, H, glow, alpha) {
@@ -204,9 +255,11 @@
         const destW = W * sc, destH = H * sc, dcx = sxCss * dpr, dcy = syCss * dpr;
         ctx.fillStyle = cfg.baseColor || '#010a13'; ctx.fillRect(0, 0, W, H);   // plain space beyond the baked patch
         ctx.drawImage(this._static, dcx - destW / 2, dcy - destH / 2, destW, destH);
-        return;   // static, world-locked blit (no pane-fixed pulse/twinkle in locked mode)
+        if (this._swirl) { this._renderSwirl(0.016); ctx.drawImage(this._swirlCanvas, dcx - destW / 2, dcy - destH / 2, destW, destH); }   // swirl pans+zooms with the world too
+        return;   // world-locked blit (no pane-fixed pulse/twinkle in locked mode)
       }
       ctx.drawImage(this._static, 0, 0);
+      if (this._swirl) { this._renderSwirl(0.016); ctx.drawImage(this._swirlCanvas, 0, 0); }   // animated spiral swirl over the star bed
       if (cfg.glow.on && cfg.glow.pulse) {
         const a = 0.42 + 0.58 * (0.5 + 0.5 * Math.sin(this._t * 1.3 * (cfg.glow.speed || 1)));
         this._paintGlow(ctx, W, H, cfg.glow, a);

@@ -18,13 +18,22 @@ already available for **images**) to be used as the **map background**, not just
 ## Slices
 
 - **Slice 0 — Planning doc** *(this file)*.
-- **Slice 1 — Spiral-swirl background option.** Add a background mode that renders the animated spiral
-  spinning effect as a full-pane backdrop (behind all content), driven by the DM's background controls,
-  with **layer/ring count, speed and rotation** controls like the image spiral. Wire it into the DM Studio
-  (`map-studio.html`), the player Console (`console.html`), and the 3D viewer so all three show the same
-  spinning spiral backdrop; persist on the map (`bg3d`), and honour the world-lock/parallax setting.
-  Verify headless: selecting the spiral-swirl background renders an animated spiral behind the map in 2D
-  (and 3D), with the controls changing rings/speed/rotation; 0 errors.
+- **Slice 1 — Spiral-swirl background option.** ✅ Added a `spiralswirl` background template. **2D
+  (`sky2d.js`, shared by Studio + Console):** Sky2D now bakes a seed-stable spiral-galaxy texture and mounts
+  it on the **reused `DiffSpinGalaxy`** engine (differential concentric rings) on an offscreen canvas,
+  blitted each frame over a star bed — so the arms wind up over time. It honours **world-lock/parallax**
+  (blits with the same world-anchor transform as the baked sky when locked), and tears the engine down when
+  the template changes. `cfg.spiral = { rings, speed, rotation }`. **Controls (`map-studio.html`):** the new
+  template + a Swirl-layers / Spin-speed / Base-rotation control group (shown only for `spiralswirl`),
+  wired to persist on `bg3d` (so the Console picks it up automatically via `Sky2D.set(bg3d)`). **3D
+  (`map3d.js`):** `_buildSpiralSwirl` builds the spiral as concentric star rings that rotate at different
+  rates (inner faster), scaled by the DM's speed + base rotation. Verified headless (Playwright/chromium):
+  selecting `spiralswirl` builds the engine (offscreen 420×711, renders, and **changes frame-to-frame** =
+  animating); the ring-count control **rebuilds** the engine (5→10 rings); the template option is present;
+  switching away **tears the swirl down**; **0 page errors**; `node -c` clean on both JS files. *(The 2D
+  path — Studio + Console — is fully verified live; the 3D `_buildSpiralSwirl` mirrors the proven
+  `_buildSpiral` rotation pattern and syntax-checks, with a live WebGL render check left for the open 3D
+  viewer / Slice 2 parity pass.)*
 - **Slice 2 — QA + docs.** Confirm parity across Studio / Console / 3D and that existing backgrounds are
   unaffected, then move this doc to `completed/`.
 
@@ -35,4 +44,4 @@ already available for **images**) to be used as the **map background**, not just
   owns the screen), matching how the image spirals already start/stop.
 - **World-lock parity:** respect the parallax/world-lock background setting shipped in the map-parity work.
 
-### Status: IN PROGRESS (Slice 0 shipped; 1–2 pending)
+### Status: IN PROGRESS (Slices 0–1 shipped; 2 (QA) pending)
