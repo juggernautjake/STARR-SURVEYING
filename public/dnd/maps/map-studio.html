@@ -1957,6 +1957,7 @@ function bg3dControlsHTML(b){b=state.bg3d=Object.assign(BG3D_DEFAULT(),b||{});b.
     <div class="field"><label>Base colour</label><input type="color" id="b3Base" value="${b.baseColor||'#010a13'}"></div>
     <div id="b3StarWrap" style="${starsy?'':'display:none'}">
       <label class="chk"><input type="checkbox" id="b3Par" ${b.parallax?"checked":""}> Parallax depth</label>
+      <div style="font-size:10.5px;color:var(--faint);margin:-2px 0 6px 26px">On: the sky sits behind the map with depth. <b style="color:var(--dim)">Off: the sky is locked to the map</b> — it pans &amp; zooms with your elements (players see the same).</div>
       <div class="field"><label>Parallax layers <span style="float:right;color:var(--gold)" id="b3LayV">${b.layers}</span></label><div class="slider"><input type="range" id="b3Lay" min="1" max="6" value="${b.layers}"></div></div>
       <div class="field"><label>Star density <span style="float:right;color:var(--gold)" id="b3DenV">${(b.density||1).toFixed(2)}×</span></label><div class="slider"><input type="range" id="b3Den" min="20" max="200" value="${Math.round((b.density||1)*100)}"></div></div>
       <label class="chk"><input type="checkbox" id="b3Neb" ${b.nebula?"checked":""}> Background nebulas</label>

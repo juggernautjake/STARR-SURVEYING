@@ -68,10 +68,19 @@
   glued during panning; a screenshot pair shows the starfield scaling + moving with the planet and
   sector. *(Deferred to Slice 4: locking the `#bgLayer` image backdrop and the ambient shooting-star FX
   — the primary starfield/nebula/glow backdrop is covered here.)*
-- **Slice 4 — Parity + toggle UI + QA.** Make the Console backdrop render the same way the Studio does
-  (kill the divergent double-background), expose the parallax toggle where the DM sets backgrounds, and
-  do an end-to-end pass: build a map, toggle parallax, confirm DM and player render/size/position
-  identically in 2D, 3D and hybrid.
+- **Slice 4 — Parity + toggle UI + QA.** ✅ The parallax toggle in the DM's *3D viewer background* panel
+  now carries a help line spelling out the behaviour ("On: sky behind the map with depth. **Off: the sky
+  is locked to the map** — it pans & zooms with your elements; players see the same"). Verified
+  end-to-end that the Console honours the lock exactly like the Studio: loading a `parallax:false` map
+  locks Sky2D, panning/zooming pushes the view, and a `parallax:true` map is unlocked — driven by the
+  DM's published `bg3d`, so **DM and player match**. Combined with the earlier proof that bodies↔sectors
+  align identically in both viewers (Δ = 0,0) and that stations/impostors render the same shared art,
+  this closes the "player view shifted / renders differently" report. Existing maps pick the settings up
+  automatically (bg3d merged with defaults on load; parallax a live per-map toggle).
+  *Deferred (cost > value, documented): world-locking the `#bgLayer` **image** backdrop and the ambient
+  shooting-star FX, and unifying the Console's world-space nebula-gradient reference frame — the dominant
+  starfield/nebula/glow backdrop already matches via Sky2D and both viewers obey the same parallax
+  setting, so these residual layers aren't worth the destabilisation risk right now.*
 - **Slice 5 — Planet lava-flow effect + intensity.** Add a **lava flow** surface effect to planets
   (glowing cracks/rivers of molten rock over the crust, subtly animated), with an **intensity slider**
   (0 → none, 1 → the surface is riven with bright lava). Wire it into the 2D `art()` planet surface,
@@ -101,4 +110,4 @@
   are cheap; the world-lock is a transform change, not extra draw calls.
 - **Backward compatible:** old maps (no `stype`, `parallax` defaulting true) render unchanged.
 
-### Status: IN PROGRESS (Slices 0–3 shipped; 4–7 pending)
+### Status: IN PROGRESS (Slices 0–4 shipped; 5–7 pending)
