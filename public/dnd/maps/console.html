@@ -94,6 +94,12 @@
   .scr-idle .lg{font-family:"Orbitron";font-size:15px;letter-spacing:5px;color:var(--scan);text-shadow:0 0 12px var(--scan);}
   .scr-idle .sm{font-family:"Share Tech Mono";font-size:11px;color:#3a9a86;letter-spacing:2px;}
   .scr-idle .blink{animation:blink 1.3s steps(1) infinite;}
+  /* idle default: a slow radar sweep (Slice 5) */
+  .idle-radar{position:relative;width:74px;height:74px;margin-bottom:6px;border-radius:50%;overflow:hidden;box-shadow:0 0 16px rgba(10,255,206,.18) inset,0 0 10px rgba(10,255,206,.15);}
+  .idle-radar .idle-ring{position:absolute;inset:24%;border:1px solid rgba(10,255,206,.28);border-radius:50%;}
+  .idle-radar .idle-ring.r2{inset:6%;border-color:rgba(10,255,206,.16);}
+  .idle-radar .idle-sweep{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,rgba(10,255,206,.55),rgba(10,255,206,0) 55deg,transparent 360deg);animation:radarSweep 3.4s linear infinite;transform-origin:50% 50%;}
+  @keyframes radarSweep{to{transform:rotate(360deg);}}
   @keyframes blink{50%{opacity:0;}}
   .scr-head{display:flex;align-items:flex-start;gap:12px;flex:none;border-bottom:1px solid rgba(10,255,206,.2);padding-bottom:8px;margin-bottom:8px;}
   /* Holographic mini-projector (Slice 3): the selected thing's likeness cast as a cyan hologram —
@@ -641,9 +647,9 @@ function fit(anim){const B=worldBounds(),W=B.maxX-B.minX,H=B.maxY-B.minY,{w,h}=p
 function flyTo(x,y,scale){const {w,h}=paneSize();view.scale=scale;view.x=w/2-x*scale;view.y=(h-30)/2-y*scale;apply(true);}
 function fitZoomFor(ww,hh){const {w,h}=paneSize();return clamp(Math.min(w/ww,h/hh)*0.82,0.2,3);}
 let pan=null;
-stage.addEventListener("mousedown",e=>{if(e.target.closest(".body")||e.target.dataset&&e.target.dataset.sector)return;stage.classList.add("grabbing");pan={sx:e.clientX,sy:e.clientY,ox:view.x,oy:view.y};});
-window.addEventListener("mousemove",e=>{if(!pan)return;view.x=pan.ox+(e.clientX-pan.sx);view.y=pan.oy+(e.clientY-pan.sy);apply();});
-window.addEventListener("mouseup",()=>{pan=null;stage.classList.remove("grabbing");});
+stage.addEventListener("mousedown",e=>{if(e.target.closest(".body")||e.target.dataset&&e.target.dataset.sector)return;stage.classList.add("grabbing");pan={sx:e.clientX,sy:e.clientY,ox:view.x,oy:view.y,moved:false};});
+window.addEventListener("mousemove",e=>{if(!pan)return;if(Math.abs(e.clientX-pan.sx)+Math.abs(e.clientY-pan.sy)>4)pan.moved=true;view.x=pan.ox+(e.clientX-pan.sx);view.y=pan.oy+(e.clientY-pan.sy);apply();});
+window.addEventListener("mouseup",()=>{if(pan&&!pan.moved&&(selectedId||curSel))clearSelect();pan=null;stage.classList.remove("grabbing");});   // click on empty space → deselect + blank the panel
 stage.addEventListener("wheel",e=>{e.preventDefault();const r=$("#mapPane").getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;const fdir=e.deltaY<0?1.14:0.88;const ns=clamp(view.scale*fdir,0.08,6);view.x=mx-(mx-view.x)*(ns/view.scale);view.y=my-(my-view.y)*(ns/view.scale);view.scale=ns;apply();},{passive:false});
 function zoomAround(cx,cy,fdir){const ns=clamp(view.scale*fdir,0.08,6);view.x=cx-(cx-view.x)*(ns/view.scale);view.y=cy-(cy-view.y)*(ns/view.scale);view.scale=ns;apply(true);}
 $("#zoomIn").onclick=()=>{const {w,h}=paneSize();zoomAround(w/2,h/2,1.3);};
@@ -673,7 +679,7 @@ function endHover(){if(!hovering)return;hovering=false;renderCurrent();}
 $("#btnClose").onclick=clearSelect;
 $("#btnGalaxy").onclick=()=>{clearSelect();fit(true);};
 const scrInner=$("#scrInner");
-function showIdle(){const nb=(MAP.instances||[]).length,ns=(MAP.sectors||[]).length;scrInner.innerHTML=`<div class="scr-idle"><div class="lg">◈ AWAITING INPUT ◈</div><div class="sm">SELECT A SYSTEM OR STELLAR BODY<span class="blink">_</span></div><div class="sm" style="margin-top:10px;opacity:.6">NAV-LINK ESTABLISHED · ${ns} SYSTEMS · ${nb} BODIES CHARTED</div></div>`;}
+function showIdle(){const nb=(MAP.instances||[]).length,ns=(MAP.sectors||[]).length;scrInner.innerHTML=`<div class="scr-idle"><div class="idle-radar"><span class="idle-sweep"></span><span class="idle-ring"></span><span class="idle-ring r2"></span></div><div class="lg">◈ AWAITING INPUT ◈</div><div class="sm">SELECT A SYSTEM OR STELLAR BODY<span class="blink">_</span></div><div class="sm" style="margin-top:10px;opacity:.6">NAV-LINK ESTABLISHED · ${ns} SYSTEMS · ${nb} BODIES CHARTED</div></div>`;}
 function renderScreen(html){scrInner.innerHTML=html;scrInner.querySelectorAll("[data-sec]").forEach(c=>c.onclick=()=>select({type:"sector",id:c.dataset.sec}));scrInner.querySelectorAll("[data-body]").forEach(c=>c.onclick=()=>select({type:"instance",id:c.dataset.body}));}
 function portrait(svg){return `<div class="scr-portrait"><div class="holo-glow"></div><div class="holo-screen"><div class="holo-art">${svg}</div><div class="holo-tint"></div><div class="holo-scan"></div><div class="holo-sweep"></div></div><div class="holo-base"></div></div>`;}
 function poiBlock(pois){if(!pois||!pois.length)return "";return `<div style="margin-top:6px">${pois.map(p=>`<div class="scr-poi" data-body=""><div class="pic">${poiIconSVG(p.type,22)}</div><div><div class="pn">${esc(p.title)}</div><div class="pt">${poiType(p.type).label}</div>${p.desc?`<div class="pd">${esc(p.desc)}</div>`:""}</div></div>`).join("")}</div>`;}

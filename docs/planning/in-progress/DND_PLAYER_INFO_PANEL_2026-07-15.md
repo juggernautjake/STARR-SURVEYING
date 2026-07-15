@@ -48,9 +48,13 @@ deck down to hide at the bottom; clicking the tab reopens it.
   shows a subtle `▏ NO FURTHER DATA ON RECORD` line instead of a blank. Verified headless: a name-only
   body shows just its title + the no-data line, and a very long description scrolls within the pane
   (`scrollHeight > clientHeight`); 0 errors.
-- **Slice 5 — Close / blank / idle.** Clicking empty space (or a close control) deselects → the panel
-  blanks to a **default idle animation** (e.g. a slow sweeping scan). Verify headless: deselect clears
-  the readout and shows the idle state.
+- **Slice 5 — Close / blank / idle.** ✅ Clicking empty space now deselects: the stage mousedown/up
+  tracks whether the pointer moved (so a drag-pan doesn't count), and a genuine click on empty space with
+  something selected calls `clearSelect()` — which blanks the panel to the idle screen (the existing
+  `#btnClose` / fit buttons already did this). The idle screen gained a **default animation**: a slow
+  **radar sweep** (`.idle-radar` with a rotating conic-gradient `.idle-sweep` + range rings). Verified
+  headless: after selecting a body, an empty-space click clears the selection, shows `AWAITING INPUT` and
+  mounts the radar sweep; 0 errors.
 - **Slice 6 — Minimize + spaceship-vibe polish.** A **minimize** control slides the whole deck down to a
   thin tab at the bottom; clicking the tab slides it back up. Final styling pass for the spaceship vibe
   (fonts, chrome, glow, transitions). Verify headless: minimize hides the deck to a tab and restore
@@ -76,4 +80,4 @@ deck down to hide at the bottom; clicking the tab reopens it.
   look broken when they're absent.
 - **Perf:** the holo mini-render is one small `art()`/thumbnail; the idle animation is CSS. Cheap.
 
-### Status: IN PROGRESS (Slices 0–4 shipped; 5–7 pending)
+### Status: IN PROGRESS (Slices 0–5 shipped; 6–7 pending)
