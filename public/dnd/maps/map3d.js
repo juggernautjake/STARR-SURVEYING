@@ -13,7 +13,7 @@
    Coordinate mapping: 2D world (x, y) with y pointing DOWN → 3D (x, -y, 0) so
    the scene reads identically to the 2D map but gains real depth/rotation.
    ============================================================================ */
-let THREE = null, OrbitControls = null, TransformControls = null, CSS3DRenderer = null, CSS3DObject = null, buildPlanetModel = null, buildStarModel = null, planetDominantColor = null;
+let THREE = null, OrbitControls = null, TransformControls = null, CSS3DRenderer = null, CSS3DObject = null, buildPlanetModel = null, buildStarModel = null, planetDominantColor = null, planetImpostorCanvas = null;
 
 async function loadThree() {
   if (THREE) return;
@@ -21,7 +21,7 @@ async function loadThree() {
   ({ OrbitControls } = await import('three/addons/controls/OrbitControls.js'));
   ({ TransformControls } = await import('three/addons/controls/TransformControls.js'));
   ({ CSS3DRenderer, CSS3DObject } = await import('three/addons/renderers/CSS3DRenderer.js'));
-  ({ buildPlanetModel, buildStarModel, planetDominantColor } = await import('/dnd/maps/planet3d-model.js'));
+  ({ buildPlanetModel, buildStarModel, planetDominantColor, planetImpostorCanvas } = await import('/dnd/maps/planet3d-model.js'));
 }
 
 const NAVY = 0x010a13;
@@ -588,8 +588,24 @@ const Map3D = {
     const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
     this._discTexCache[hex] = t; return t;
   },
-  _discMesh(it) {   // a unit-radius shaded disc in the body's true colour (holder scales it to size)
-    const hex = this._discBaseColor(it);
+  // A real procedural planet face for the impostor (continents/bands/ice + atmosphere), cached per
+  // config so it costs one small render regardless of how many bodies share the look.
+  _planetImpostorTex(cfg) {
+    if (!planetImpostorCanvas || !cfg) return null;
+    this._impostorCache = this._impostorCache || {};
+    const key = [cfg.type, cfg.seed, cfg.sea, cfg.ice, cfg.cscale, cfg.coast, cfg.atmoColor, cfg.atmoOn].join('|');
+    if (this._impostorCache[key]) return this._impostorCache[key];
+    try {
+      const t = new THREE.CanvasTexture(planetImpostorCanvas(cfg, 96)); t.colorSpace = THREE.SRGBColorSpace;
+      this._impostorCache[key] = t; return t;
+    } catch (e) { return null; }
+  },
+  _discMesh(it) {   // a unit-radius impostor (holder scales it to size)
+    if (it.kind === 'planet3d') {
+      const cfg = this._planetConfig(it), tex = this._planetImpostorTex(cfg);
+      if (tex) return new THREE.Mesh(new THREE.CircleGeometry(1, 56), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+    }
+    const hex = this._discBaseColor(it);   // stars / generated art / config-less planets → shaded true-colour disc
     return new THREE.Mesh(new THREE.CircleGeometry(1, 56), new THREE.MeshBasicMaterial({ map: this._discTexture(hex), transparent: true }));
   },
 
