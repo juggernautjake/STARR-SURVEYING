@@ -256,11 +256,14 @@ other, and keep every element consistent:
   °/s) rotates the image continuously in **both** viewers (2D CSS `spin` on the image, 3D plane
   rotation in the render loop). Verified headless: 2D spin `spin/12s` at 30°/s; 3D plane is a fade
   shader (`uFade=0.6`) registered for spin; 0 errors.
-- **Slice 9a — Other 2D animations live in 3D (req 11).** ⏳ Render the remaining animated 2D content in
-  3D: spingalaxy (diffspin) discs and per-body fx overlays (sparkle/nebula/shoot) as live
-  `CanvasTexture`s on their holders (sprite-spun planets already render as real, spinning 3D models).
-  Keep it LOD-aware (only animate on-screen/large bodies). Verify headless: a spingalaxy + a POI-fx body
-  animate in 3D; 0 errors.
+- **Slice 9a — Spingalaxy spin replicated in 3D (req 11).** ✅ Spingalaxy bodies render in the 3D viewer
+  as a spiral-galaxy disc (arms + coloured core drawn from the look's `c1/c2/c3/arms/turns/tight`) that
+  **spins like the 2D viewer** — the disc rotates at `360/spinDur` °/s in the render loop (the 2D
+  diff-rotation is approximated by a uniform spin). Sprite-spun planets already render as real spinning
+  3D models. Verified headless: spingalaxy gets a galaxy texture, spins at 9°/s (spinDur 40), rotation
+  advances; 0 errors. *Deferred: per-body SVG fx overlays (sparkle/nebula/shoot) in 3D — decorative
+  overlays that don't translate cleanly to a 3D holder, and the scene-level nebula + shooting-star
+  systems already provide ambient equivalents; low value vs. cost.*
 - **Slice 10 — Sectors & systems in 3D + layer priority (reqs 14, 19).** ⏳ Render sector polygons +
   system regions in the 3D viewer at `z≈0` (filled `ShapeGeometry` with the sector's colour/opacity, an
   additive or line border in its `borderStyle`/`borderWidth`, and its label via CSS3D), honouring
@@ -292,7 +295,7 @@ other, and keep every element consistent:
   2D parity → publish → player Console parity), including origin/scale alignment, animated content,
   sectors/systems in both viewers, body-into-sector placement, and full feature equivalence.
 
-### Status: IN PROGRESS (Slices 0–9 shipped; 9a, 9b, 10, 11, 11b, 12 pending, then 13 = doc-move/QA)
+### Status: IN PROGRESS (Slices 0–9a shipped; 9b, 10, 11, 11b, 12 pending, then 13 = doc-move/QA)
 
 ---
 

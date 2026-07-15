@@ -528,7 +528,7 @@ const Map3D = {
       // full 3D meshes. Unlimited impostors → a whole system fits; only a few big ones cost a mesh.
       let disc = null;
       if (imgUrl) { const plane = this._imagePlane(it, imgUrl); holder.add(plane); if (plane.userData.spin) this._spinPlanes.push(plane); }
-      else { disc = this._discMesh(it); holder.add(disc); }
+      else { disc = this._discMesh(it); holder.add(disc); if (disc.userData.spin) this._spinPlanes.push(disc); }
       g.add(holder);
       this._bodies.push({ holder, it, disc, isStar: it.kind === 'star', cfg, canFull: !imgUrl && (it.kind === 'star' || !!cfg), hasModel: false, model: null });
       minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x + s); maxY = Math.max(maxY, it.y + s);
@@ -620,10 +620,48 @@ const Map3D = {
       this._impostorCache[key] = t; return t;
     } catch (e) { return null; }
   },
+  // A spiral-galaxy face (arms + coloured core) drawn from a spingalaxy's look, cached per look. The
+  // 2D map's diff-rotation is approximated in 3D by spinning the whole disc — the galaxy still turns.
+  _spinGalaxyTex(L) {
+    L = L || {};
+    this._galaxyCache = this._galaxyCache || {};
+    const key = [L.c1, L.c2, L.c3, L.arms, L.turns, L.tight].join('|');
+    if (this._galaxyCache[key]) return this._galaxyCache[key];
+    const S = 160, cv = document.createElement('canvas'); cv.width = cv.height = S; const ctx = cv.getContext('2d');
+    const cx = S / 2, cy = S / 2, R = S * 0.46;
+    const c1 = new THREE.Color(L.c1 || '#c89aff'), c2 = new THREE.Color(L.c2 || '#6a3aff'), core = L.c3 || '#fff2c8';
+    const arms = Math.max(1, Math.min(6, L.arms || 2)), turns = (L.turns != null ? L.turns : 1.1), tight = (L.tight != null ? L.tight : 0.9);
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 0.5);   // bright core
+    g.addColorStop(0, core); g.addColorStop(0.4, this._hexA(core, 0.4)); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R * 0.5, 0, 7); ctx.fill();
+    let seed = 1234; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    for (let a = 0; a < arms; a++) {
+      for (let i = 0; i < 260; i++) {
+        const rr = Math.pow(i / 260, 0.62), rad = rr * R;
+        const ang = a * (6.2831 / arms) + rr * turns * 6.2831 * (1 + tight) + (rnd() - 0.5) * 0.5 * (1 / (rr + 0.15));
+        const sc = (rnd() - 0.5) * R * 0.09 * (0.4 + rr);
+        const x = cx + Math.cos(ang) * rad + sc, y = cy + Math.sin(ang) * rad + (rnd() - 0.5) * R * 0.09 * (0.4 + rr);
+        const t = rr, cr = c1.r + (c2.r - c1.r) * t, cg = c1.g + (c2.g - c1.g) * t, cb = c1.b + (c2.b - c1.b) * t;
+        ctx.globalAlpha = (0.5 + rnd() * 0.5) * (1 - rr * 0.5);
+        ctx.fillStyle = `rgb(${(cr * 255) | 0},${(cg * 255) | 0},${(cb * 255) | 0})`;
+        ctx.beginPath(); ctx.arc(x, y, rnd() < 0.04 ? 2.2 : 0.7 + rnd() * 1.1, 0, 7); ctx.fill();
+      }
+    }
+    const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+    this._galaxyCache[key] = t; return t;
+  },
   _discMesh(it) {   // a unit-radius impostor (holder scales it to size)
     if (it.kind === 'planet3d') {
       const cfg = this._planetConfig(it), tex = this._planetImpostorTex(cfg);
       if (tex) return new THREE.Mesh(new THREE.CircleGeometry(1, 56), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+    }
+    if (it.kind === 'spingalaxy') {   // a spinning spiral-galaxy disc, animated in 3D like the 2D map
+      const tex = this._spinGalaxyTex(it.look || it);
+      const mesh = new THREE.Mesh(new THREE.CircleGeometry(1, 56), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      const dur = (it.look && it.look.spinDur) || it.spinDur || 60;   // seconds/rotation → deg/s
+      mesh.userData.spin = 360 / Math.max(4, dur);
+      return mesh;
     }
     const hex = this._discBaseColor(it);   // stars / generated art / config-less planets → shaded true-colour disc
     return new THREE.Mesh(new THREE.CircleGeometry(1, 56), new THREE.MeshBasicMaterial({ map: this._discTexture(hex), transparent: true }));
