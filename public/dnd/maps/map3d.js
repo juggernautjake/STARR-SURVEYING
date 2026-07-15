@@ -172,8 +172,11 @@ const Map3D = {
       holder.scale.setScalar(Math.max(4, s / 2));
       if (it.t3d) holder.rotation.set(it.t3d.rx || 0, it.t3d.ry || 0, it.t3d.rz || 0);
       holder.userData.id = it.id;
+      const imgUrl = it.kind === 'image' && it.look ? (it.look.src || it.look.image) : null;
       const cfg = it.kind === 'planet3d' ? this._planetConfig(it) : null;
-      if (cfg && live < MAX_LIVE_PLANETS) {
+      if (imgUrl) {
+        holder.add(this._imagePlane(it, imgUrl));                 // inserted picture on a flat plane
+      } else if (cfg && live < MAX_LIVE_PLANETS) {
         try {
           const model = buildPlanetModel(cfg, { anisotropy: aniso, segments: 72 });   // unit radius
           holder.add(model.group);
@@ -195,6 +198,15 @@ const Map3D = {
   _discMesh(it) {   // a unit-radius flat disc (holder scales it to size)
     const col = (it.look && (it.look.c1 || it.look.c3)) || '#8f9bd0';
     return new THREE.Mesh(new THREE.CircleGeometry(1, 56), new THREE.MeshBasicMaterial({ color: new THREE.Color(col) }));
+  },
+
+  // Inserted image → a flat, aspect-correct plane (fits the unit holder; holder scales it to size).
+  _imagePlane(it, url) {
+    const nw = (it.look && (it.look.natW || it.look.w)) || 1, nh = (it.look && (it.look.natH || it.look.h)) || 1;
+    const ar = nw / nh; let pw = 2, ph = 2; if (ar >= 1) ph = 2 / ar; else pw = 2 * ar;
+    const mat = new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide, color: 0x222b3a });
+    new THREE.TextureLoader().load(url, tex => { tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy(); mat.map = tex; mat.color.setHex(0xffffff); mat.needsUpdate = true; }, undefined, () => { /* keep the placeholder tint on load error */ });
+    return new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), mat);
   },
 
   // Fit the ortho camera to the stored content bounds (2D→3D: y negated).

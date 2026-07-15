@@ -233,8 +233,16 @@ like the 2D viewer* but renders true 3D models.
   *Deferred (one-liner):* **live planet-shape config editing** in the viewer (re-running the shader
   build on slider changes) — that's essentially embedding the generator's control panel; high cost,
   and the DM can already edit a world in the 3D generator and re-import. Left as a follow-up.
-- **Slice 7 — Insert 2D objects in 3D.** Images (plane/billboard), text via `labelSVG` texture, and
-  the **CSS3D** layer for **HTML/CSS** (new `html` kind, sanitized/sandboxed).
+- **Slice 7 — Insert 2D objects in 3D.** 🔶 *(images done; text + HTML remaining)*
+  - **Images ✅** — `kind:'image'` instances now render as **aspect-correct textured planes**
+    (`_imagePlane`: aspect from `natW/natH`, `TextureLoader` with a placeholder tint until the texture
+    loads, error-tolerant), inside the same holder so they move/scale/rotate with the gizmo like any
+    body. Verified: a 2:1 image builds a `PlaneGeometry` (aspect 2.00), texture loads, selectable,
+    zero errors.
+  - **Text + HTML/CSS3D — remaining:** free `text` objects rendered via a `labelSVG`-rasterised
+    texture, and a **CSS3DRenderer** layer for a sanitized **`html`** kind. Split out because text
+    needs a non-size-based holder convention and HTML adds the CSS3D renderer + player-facing XSS
+    sanitisation — a separate, self-contained step.
 - **Slice 8 — Console parity + polish.** 3D viewer + toggle for players (perf-guarded), verify, and
   move this doc to `completed/`.
 
