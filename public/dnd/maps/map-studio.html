@@ -1153,7 +1153,9 @@ function renderInstances(){
     else if(i.kind==="planet3d"){el.innerHTML=`<div class="art">${fxo}<canvas class="p3canvas" style="width:100%;height:100%;display:block;border-radius:50%"></canvas></div>`;el.dataset.p3=i.id;}
     else if(i.kind==="image"){const L=i.look||i,src=L.src,fit=i.imgFit||"contain",px=i.imgPosX!=null?i.imgPosX:50,py=i.imgPosY!=null?i.imgPosY:50;
       const inner=src?`<img src="${src}" draggable="false" style="width:100%;height:100%;display:block;object-fit:${fit};object-position:${px}% ${py}%;pointer-events:none">`:(L.svgData?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">${L.svgData}</div>`:art(L,true));
-      el.innerHTML=`<div class="art" style="overflow:hidden;${fadeMask(i)}">${fxo}${inner}</div>${poiLayerHTML(i)}`;}
+      const spinS=i.imgSpin>0?`animation:spin ${(360/i.imgSpin).toFixed(1)}s linear infinite;transform-origin:center;`:"";
+      const spun=spinS?`<div style="width:100%;height:100%;${spinS}">${inner}</div>`:inner;   // spin the image, not the fade mask
+      el.innerHTML=`<div class="art" style="overflow:hidden;${fadeMask(i)}">${fxo}${spun}</div>${poiLayerHTML(i)}`;}
     else if(i.kind==="html"){const doc=(typeof htmlFrameSrcdoc==="function")?htmlFrameSrcdoc(i.html||""):esc(i.html||"");
       el.innerHTML=`<div class="art" style="overflow:hidden;background:rgba(11,26,44,.72);border:1px solid var(--line2);border-radius:8px"><iframe sandbox srcdoc="${esc(doc)}" style="width:100%;height:100%;border:0;display:block;pointer-events:none;background:transparent"></iframe></div>`;}
     else{el.innerHTML=`<div class="art">${fxo}${art(i.look||i,true)}</div>${poiLayerHTML(i)}`;}
@@ -1678,6 +1680,7 @@ function renderInstanceInspector(){
       <div style="font-size:11px;color:var(--faint)">“cover” crops to fill the box; drag Crop X/Y to choose the visible part. Resize handles change the crop shape.</div>
       <div class="actionbtns"><button id="iSpiralize">🌀 Apply layered spin</button></div>`:""}
     ${(i.kind==="image"||i.kind==="spingalaxy")?fadeControlsHTML(i):""}
+    ${i.kind==="image"?`<h4>Spin</h4><div class="field"><label>Rotate speed <span style="float:right;color:var(--gold)" id="iImgSpinV">${i.imgSpin||0}°/s</span></label><div class="slider"><input type="range" id="iImgSpin" min="0" max="90" value="${i.imgSpin||0}"></div></div><div style="font-size:11px;color:var(--faint)">Continuously rotates the image — a dynamic spiral effect (2D &amp; 3D viewer).</div>`:""}
     ${layerControlsHTML(true,i.behind)}
     <h4>Live movement</h4>
     <label class="chk" style="display:flex;align-items:center;gap:7px;font-size:12px;padding:4px 0;cursor:pointer"><input type="checkbox" id="iLive" ${i.live?"checked":""}> 🛰 Keep updated (live)</label>
@@ -1697,6 +1700,7 @@ function renderInstanceInspector(){
   if(i.kind==="planet3d"){const sp=$("#iSpin");if(sp)sp.oninput=e=>{i.p3spin=+e.target.value/10;$("#iSpinV").textContent=i.p3spin.toFixed(1)+"×";mountSpriteInstances();markDirty();};}
   if(i.kind==="spingalaxy")wireSpinGalaxyControls(i);
   if(i.kind==="image"||i.kind==="spingalaxy")wireFadeControls(i);
+  if(i.kind==="image"){const sp=$("#iImgSpin");if(sp)sp.oninput=e=>{i.imgSpin=+e.target.value;$("#iImgSpinV").textContent=i.imgSpin+"°/s";renderInstances();markDirty();};}
   wireLayerControls(state.instances,i);
   {const lv=$("#iLive");if(lv)lv.onchange=e=>{i.live=e.target.checked;markDirty();if(i.live&&window.__mapLivePush)window.__mapLivePush();};}
   if(i.kind==="image"){const sb=$("#iSpiralize");if(sb)sb.onclick=()=>applySpinToInstance(i);

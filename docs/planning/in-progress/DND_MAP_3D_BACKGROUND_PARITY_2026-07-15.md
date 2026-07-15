@@ -63,6 +63,9 @@ The five requests, verbatim intent:
     not be literally infinite. Propose and add any other backgrounds that would be good (e.g. a bright
     Milky-Way band, twin suns, a wormhole, an aurora/ion-storm veil).
 
+19. **Layer priority for everything, incl. sectors/systems.** Send any element to front/back or
+    forward/backward one layer. Sectors/systems must have adjustable **layer priority** too, so a drawn
+    sector can sit **over** the background or images and stay visible.
 18. **Cursor-centred zoom + right-click Focus + surface POIs (3D).** Zooming in/out must feel good and
     **zoom toward the cursor**. **Right-clicking** a location/planet/POI shows a **Focus** action that
     flies the camera to that body, centres it, opens its **info window**, and reveals its **surface
@@ -247,20 +250,24 @@ other, and keep every element consistent:
   on star templates and fills the view after a 9000-unit pan; 2D backdrop covered; 0 errors.
   *Refinement (req 17): the starfield is one background option among solid / glow / nebula / spiral /
   black hole / asteroids — Slice 9b polishes the visual appeal of all of them.*
-- **Slice 9 — 2D animations & effects live in the 3D viewer (reqs 11, 13).** ⏳ Render the animated 2D
-  content in 3D so the builder shows everything moving: spingalaxy (diffspin) discs, sprite-spun
-  planets, and per-body fx overlays (sparkle/nebula/shoot) as live textures on their holders (draw the
-  2D canvas/engine to a `CanvasTexture` updated each frame, or a CSS3D plane for DOM-based ones), and
-  make sure image/text/HTML keep their 2D styling. **Image effects parity:** the dynamic **spiral/spin**
-  effect on images and the **edge fade** (radial or straight-from-edge, over a chosen distance) must
-  apply to image planes in 3D too — bake the fade into the plane's texture (alpha mask matching
-  `fadeMask`) and spin the plane for the spiral effect. Keep it LOD-aware (only animate on-screen/large
-  bodies). Verify headless: a spingalaxy + a POI-fx body + a faded/spun image animate in 3D; 0 errors.
-- **Slice 10 — Sectors & systems in 3D (req 14).** ⏳ Render sector polygons + system regions in the 3D
-  viewer at `z≈0` (filled `ShapeGeometry` with the sector's colour/opacity, an additive or line border
-  in its `borderStyle`/`borderWidth`, and its label via CSS3D), honouring `curved` edges and per-sector
-  fx where feasible. Keep them behind bodies but above the sky; update live on edit. Verify headless: a
-  drawn sector appears and is styled in 3D; 0 errors.
+- **Slice 9 — Image effects in 3D + spin control (req 13).** ✅ Image planes now fade at the edges in
+  the 3D viewer via an in-shader mask mirroring the 2D `fadeMask` (radial closest-side or straight
+  from-edge, driven by `fade`/`fadeSpread`/`fadeShape`), and a new **image spin** control (`imgSpin`,
+  °/s) rotates the image continuously in **both** viewers (2D CSS `spin` on the image, 3D plane
+  rotation in the render loop). Verified headless: 2D spin `spin/12s` at 30°/s; 3D plane is a fade
+  shader (`uFade=0.6`) registered for spin; 0 errors.
+- **Slice 9a — Other 2D animations live in 3D (req 11).** ⏳ Render the remaining animated 2D content in
+  3D: spingalaxy (diffspin) discs and per-body fx overlays (sparkle/nebula/shoot) as live
+  `CanvasTexture`s on their holders (sprite-spun planets already render as real, spinning 3D models).
+  Keep it LOD-aware (only animate on-screen/large bodies). Verify headless: a spingalaxy + a POI-fx body
+  animate in 3D; 0 errors.
+- **Slice 10 — Sectors & systems in 3D + layer priority (reqs 14, 19).** ⏳ Render sector polygons +
+  system regions in the 3D viewer at `z≈0` (filled `ShapeGeometry` with the sector's colour/opacity, an
+  additive or line border in its `borderStyle`/`borderWidth`, and its label via CSS3D), honouring
+  `curved` edges and per-sector fx where feasible. Give sectors a **z / layer-priority** control
+  (front/back/forward/backward, like instances) in 2D and honour it in both viewers, so a drawn sector
+  can sit over the background/images and stay visible. Update live on edit. Verify headless: a drawn
+  sector appears and is styled in 3D, and its layer order changes; 0 errors.
 - **Slice 11 — Place bodies into sectors/systems (req 15).** ⏳ Placing/moving a planet, star, space
   station, location, or POI in the 3D viewer associates it with the sector it falls in (reuse the 2D
   `sectorAt`/`reassoc` containment via the gizmo write-back and any 3D placement path), matching 2D
@@ -285,7 +292,7 @@ other, and keep every element consistent:
   2D parity → publish → player Console parity), including origin/scale alignment, animated content,
   sectors/systems in both viewers, body-into-sector placement, and full feature equivalence.
 
-### Status: IN PROGRESS (Slices 0–8 shipped; 9, 9b, 10, 11, 11b, 12 pending, then 13 = doc-move/QA)
+### Status: IN PROGRESS (Slices 0–9 shipped; 9a, 9b, 10, 11, 11b, 12 pending, then 13 = doc-move/QA)
 
 ---
 

@@ -509,7 +509,7 @@ const Map3D = {
     const cs = this.cssScene; if (cs) { while (cs.children.length) cs.remove(cs.children[0]); }
     const insts = (this._map && this._map.instances) || [];
     const aniso = this.renderer.capabilities.getMaxAnisotropy();
-    this._bodies = [];
+    this._bodies = []; this._spinPlanes = [];
     let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
     for (const it of insts) {
       if (it.kind === 'text') { this._addText(it); minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x); maxY = Math.max(maxY, it.y); continue; }
@@ -527,7 +527,7 @@ const Map3D = {
       // Every body starts as a cheap disc impostor; _applyLOD() promotes the large ones on-screen to
       // full 3D meshes. Unlimited impostors → a whole system fits; only a few big ones cost a mesh.
       let disc = null;
-      if (imgUrl) holder.add(this._imagePlane(it, imgUrl));
+      if (imgUrl) { const plane = this._imagePlane(it, imgUrl); holder.add(plane); if (plane.userData.spin) this._spinPlanes.push(plane); }
       else { disc = this._discMesh(it); holder.add(disc); }
       g.add(holder);
       this._bodies.push({ holder, it, disc, isStar: it.kind === 'star', cfg, canFull: !imgUrl && (it.kind === 'star' || !!cfg), hasModel: false, model: null });
@@ -672,12 +672,44 @@ const Map3D = {
   },
 
   // Inserted image → a flat, aspect-correct plane (fits the unit holder; holder scales it to size).
+  // Edge fade (radial or straight-from-edge) is applied in-shader, mirroring the 2D `fadeMask`, so
+  // faded images look identical in 3D. A per-instance spin rotates the plane when `imgSpin` is set.
   _imagePlane(it, url) {
     const nw = (it.look && (it.look.natW || it.look.w)) || 1, nh = (it.look && (it.look.natH || it.look.h)) || 1;
     const ar = nw / nh; let pw = 2, ph = 2; if (ar >= 1) ph = 2 / ar; else pw = 2 * ar;
-    const mat = new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide, color: 0x222b3a });
-    new THREE.TextureLoader().load(url, tex => { tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy(); mat.map = tex; mat.color.setHex(0xffffff); mat.needsUpdate = true; }, undefined, () => { /* keep the placeholder tint on load error */ });
-    return new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), mat);
+    const fade = Math.max(0, Math.min(100, it.fade || 0)) / 100;
+    const spread = Math.max(0.01, (it.fadeSpread != null ? it.fadeSpread : 35) / 100);
+    const shape = (it.fadeShape || 'radial') === 'edges' ? 1 : 0;
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uMap: { value: null }, uHasMap: { value: 0 }, uColor: { value: new THREE.Color(0x222b3a) }, uFade: { value: fade }, uSpread: { value: spread }, uShape: { value: shape }, uEndA: { value: 1 - fade } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+      fragmentShader: `
+        precision mediump float;
+        uniform sampler2D uMap; uniform float uHasMap; uniform vec3 uColor;
+        uniform float uFade, uSpread, uShape, uEndA; varying vec2 vUv;
+        void main(){
+          vec4 tex = uHasMap>0.5 ? texture2D(uMap, vUv) : vec4(uColor,1.0);
+          float a = tex.a;
+          if(uFade > 0.001){
+            if(uShape > 0.5){                                  // straight fade in from each edge
+              float s = max(0.02, uSpread*0.5);
+              float fh = mix(uEndA, 1.0, smoothstep(0.0, s, min(vUv.x, 1.0-vUv.x)));
+              float fv = mix(uEndA, 1.0, smoothstep(0.0, s, min(vUv.y, 1.0-vUv.y)));
+              a *= min(fh, fv);
+            } else {                                           // radial (closest-side) fade
+              float r = length(vUv - 0.5) * 2.0;
+              a *= mix(1.0, uEndA, smoothstep(1.0 - uSpread, 1.0, r));
+            }
+          }
+          if(a <= 0.003) discard;
+          gl_FragColor = vec4(tex.rgb, a);
+        }`,
+      transparent: true, side: THREE.DoubleSide, depthWrite: false
+    });
+    new THREE.TextureLoader().load(url, tex => { tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy(); mat.uniforms.uMap.value = tex; mat.uniforms.uHasMap.value = 1; mat.needsUpdate = true; }, undefined, () => { /* keep the placeholder tint on load error */ });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), mat);
+    if (it.imgSpin) mesh.userData.spin = it.imgSpin;   // deg/s → rotated each frame in the render loop
+    return mesh;
   },
 
   // Centre + scale the ortho camera to EXACTLY match the 2D viewer's current view, so toggling 2D⇄3D
@@ -738,6 +770,7 @@ const Map3D = {
       this._raf = requestAnimationFrame(loop);
       const now = t || performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
       for (const p of this._planets) p.model.update(dt, sun);   // live planets spin in real time
+      for (const pl of (this._spinPlanes || [])) pl.rotation.z -= pl.userData.spin * Math.PI / 180 * dt;   // spinning images
       this.controls.update();
       if (Math.abs(this.camera.zoom - (this._lodZoom || 0)) > (this._lodZoom || 1) * 0.04) this._applyLOD();   // re-LOD on zoom
       this._updateBackground(dt);                                // parallax stars, nebula drift, glow pulse
