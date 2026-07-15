@@ -572,10 +572,12 @@ function render(){
     if(i.kind==="planet3d")el.dataset.p3=i.id;
     if(i.kind==="image"&&i.spiral&&i.spiral.on&&look.src)el.dataset.spiral=i.id;
     el.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});};
+    el.onmouseenter=()=>hoverName(i.name,i.kind);el.onmouseleave=endHover;
     el.querySelectorAll(".poi").forEach(p=>p.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});});
     viewport.appendChild(el);});
   // sector click handlers
-  viewport.querySelectorAll("[data-sector]").forEach(p=>p.onclick=e=>{e.stopPropagation();select({type:"sector",id:p.dataset.sector});});
+  viewport.querySelectorAll("[data-sector]").forEach(p=>{p.onclick=e=>{e.stopPropagation();select({type:"sector",id:p.dataset.sector});};
+    p.onmouseenter=()=>{const s=(MAP.sectors||[]).find(x=>x.id===p.dataset.sector);hoverName(s?s.name:"",s&&s.meta?"meta-region":s&&s.parent?"sub-system":"system");};p.onmouseleave=endHover;});
   viewport.appendChild(buildLabelLayer(B,W,H));   // rich formatted labels on top
   mountSpriteInstances();mountSpiralImages();buildLegend();
 }
@@ -637,16 +639,23 @@ $("#zoomFit").onclick=()=>{clearSelect();fit(true);};
 /* ---- selection + screen ---- */
 function setSelectedEl(id){viewport.querySelectorAll(".body").forEach(el=>el.classList.toggle("selected",el.dataset.id===id));viewport.querySelectorAll("[data-sector]").forEach(p=>p.style.filter="");}
 function pulseScan(){const l=$("#lampScan");l.classList.add("on");setTimeout(()=>l.classList.remove("on"),700);$("#tgl3").classList.add("up");setTimeout(()=>$("#tgl3").classList.remove("up"),700);$("#sigMeter").style.width=(70+Math.random()*28)+"%";}
+let curSel=null, hovering=false;
 function select(sel){
-  pulseScan();
-  if(sel.type==="sector"){const s=MAP.sectors.find(x=>x.id===sel.id);if(!s)return;selectedId=null;setSelectedEl(null);
+  pulseScan();hovering=false;
+  if(sel.type==="sector"){const s=MAP.sectors.find(x=>x.id===sel.id);if(!s)return;selectedId=null;setSelectedEl(null);curSel={type:"sector",id:s.id};
     viewport.querySelectorAll("[data-sector]").forEach(p=>{p.style.filter=p.dataset.sector===s.id?"drop-shadow(0 0 12px "+s.color+")":"";});
     renderScreen(sectorScreen(s));const c=polyCentroid(s.points);const bb={w:Math.max(...s.points.map(p=>p.x))-Math.min(...s.points.map(p=>p.x)),h:Math.max(...s.points.map(p=>p.y))-Math.min(...s.points.map(p=>p.y))};flyTo(c.x,c.y,fitZoomFor(bb.w*1.5,bb.h*1.5));return;}
-  const i=MAP.instances.find(x=>x.id===sel.id);if(!i)return;selectedId=i.id;setSelectedEl(i.id);
+  const i=MAP.instances.find(x=>x.id===sel.id);if(!i)return;selectedId=i.id;setSelectedEl(i.id);curSel={type:"instance",id:i.id};
   if(i.kind==="galaxy"&&i.role==="core")renderScreen(coreScreen(i));else renderScreen(bodyScreen(i));
   flyTo(i.x,i.y,i.kind==="galaxy"?fitZoomFor(i.size*3,i.size*3):clamp(1400/(i.size||50),1.4,4.2));
 }
-function clearSelect(){selectedId=null;setSelectedEl(null);viewport.querySelectorAll("[data-sector]").forEach(p=>p.style.filter="");showIdle();}
+function clearSelect(){selectedId=null;curSel=null;hovering=false;setSelectedEl(null);viewport.querySelectorAll("[data-sector]").forEach(p=>p.style.filter="");showIdle();}
+// Hover targeting (Slice 1): show the hovered thing's name in the panel without selecting/zooming;
+// leaving the hover restores the locked-on readout (or idle).
+function kindLabel(k){return ({planet:"planet",planet3d:"planet",moon:"moon",star:"star",station:"station",debris:"debris field",asteroid:"asteroid",galaxy:"stellar body",spingalaxy:"galaxy",image:"contact",text:"marker"})[k]||"stellar body";}
+function hoverName(name,kind){hovering=true;scrInner.innerHTML=`<div class="scr-idle"><div class="sm" style="color:var(--amber);letter-spacing:4px">◈ TARGETING ◈</div><div class="lg" style="font-size:19px;margin:4px 0;color:var(--scan)">${esc(name||"UNKNOWN CONTACT")}</div><div class="sm">${esc((typeof kind==="string"&&kind.includes(" ")?kind:kindLabel(kind)).toUpperCase())}<span style="opacity:.55"> · CLICK TO LOCK ON</span></div></div>`;}
+function renderCurrent(){if(curSel&&curSel.type==="instance"){const i=MAP.instances.find(x=>x.id===curSel.id);if(i){if(i.kind==="galaxy"&&i.role==="core")renderScreen(coreScreen(i));else renderScreen(bodyScreen(i));return;}}if(curSel&&curSel.type==="sector"){const s=MAP.sectors.find(x=>x.id===curSel.id);if(s){renderScreen(sectorScreen(s));return;}}showIdle();}
+function endHover(){if(!hovering)return;hovering=false;renderCurrent();}
 $("#btnClose").onclick=clearSelect;
 $("#btnGalaxy").onclick=()=>{clearSelect();fit(true);};
 const scrInner=$("#scrInner");

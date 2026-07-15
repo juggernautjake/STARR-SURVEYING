@@ -22,10 +22,13 @@ deck down to hide at the bottom; clicking the tab reopens it.
 ## Slices
 
 - **Slice 0 — Planning doc** *(this file)*.
-- **Slice 1 — Hover targeting.** Hovering any body/sector (2D and, where feasible, the 3D pick) shows
-  that thing's **name/title** in the panel as a lightweight "targeting" readout, without selecting or
-  zooming. Leaving the hover restores the current selection (or idle). Verify headless: hovering a body
-  updates the readout name; unhovering restores.
+- **Slice 1 — Hover targeting.** ✅ Hovering any body or sector now shows that thing's **name** in the
+  Console screen as a lightweight `◈ TARGETING ◈` readout (name + kind + "click to lock on"), without
+  selecting or zooming. Bodies/sector paths get `onmouseenter=hoverName`/`onmouseleave=endHover`;
+  `select()` records `curSel` and `endHover()` calls `renderCurrent()` to restore the locked-on readout
+  (body/core/sector) or idle. Verified headless: from idle, hovering a body shows TARGETING + its name
+  and leaving restores idle; after selecting a body, hovering a sector shows the sector name and leaving
+  restores the body readout; 0 errors.
 - **Slice 2 — Click to focus.** Clicking a thing flies/zooms the view to it (`flyTo`), draws a
   **selection ring/boundary** on it, and populates the panel with its full info. Verify headless: a click
   sets the selection, moves the view, and the panel shows the object's fields.
@@ -65,4 +68,4 @@ deck down to hide at the bottom; clicking the tab reopens it.
   look broken when they're absent.
 - **Perf:** the holo mini-render is one small `art()`/thumbnail; the idle animation is CSS. Cheap.
 
-### Status: IN PROGRESS (Slice 0 shipped; 1–7 pending)
+### Status: IN PROGRESS (Slices 0–1 shipped; 2–7 pending)
