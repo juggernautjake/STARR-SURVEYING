@@ -282,11 +282,14 @@ other, and keep every element consistent:
   the edit push, so a sector sits over the background in both views. Verified headless: straight + curved
   sectors build in 3D (2 fills, 2 borders); the straight sector's centroid is exactly `(250,-230)`
   matching its 2D points; 0 errors.
-- **Slice 11 — Place bodies into sectors/systems (req 15).** ⏳ Placing/moving a planet, star, space
-  station, location, or POI in the 3D viewer associates it with the sector it falls in (reuse the 2D
-  `sectorAt`/`reassoc` containment via the gizmo write-back and any 3D placement path), matching 2D
-  behaviour; keep the association live and published. Verify headless: a body dropped inside a sector
-  gets that sector id in both viewers; 0 errors.
+- **Slice 11 — Place bodies into sectors/systems + live sector layering (reqs 15, 19).** ✅ Moving a
+  body in the 3D viewer re-associates it with the sector it lands in — the gizmo write-back
+  (`map3dApply`) already calls `reassoc(i)` → `sectorAt`, identical to the 2D placement path — so
+  containment matches in both views and publishes. Also fixed sector **layer ordering in 3D**:
+  `_buildSectors` now paints sectors in `z` order (depthTest is off, so paint order sets who's on top),
+  so sending a sector forward/back reorders it live in 3D exactly as in 2D. Verified headless:
+  body moved into a sector gets its id and loses it when moved out (`null→secA→null`); sending sector A
+  to front makes it the top-drawn sector in 3D live; 0 errors.
 - **Slice 9b — Appealing backgrounds + new templates (req 17).** ✅ Added two striking selectable
   backgrounds across the 3D engine, the 2D `sky2d.js` backdrop, and the DM dropdown: **Milky Way band**
   (a bright luminous star band tilted at a random angle, with a filler bed) and **Wormhole** (a tunnel
@@ -317,7 +320,7 @@ other, and keep every element consistent:
   2D parity → publish → player Console parity), including origin/scale alignment, animated content,
   sectors/systems in both viewers, body-into-sector placement, and full feature equivalence.
 
-### Status: IN PROGRESS (Slices 0–10 shipped; 11, 11b, 11c, 12 pending, then 13 = doc-move/QA)
+### Status: IN PROGRESS (Slices 0–11 shipped; 11b, 11c, 12 pending, then 13 = doc-move/QA)
 *Req 21 (exact position/orientation/colour/scale correspondence) is a verification bar applied to
 every slice — the 2D→3D `(x,-y)` transform + scale·2 model already gives bodies/sectors exact placement
 (e.g. sector centroid `(250,-230)`); Slice 12 audits it across all kinds.*

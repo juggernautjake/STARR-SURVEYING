@@ -721,7 +721,9 @@ const Map3D = {
   _buildSectors() {
     const g = this._sectorGroup; if (!g) return;
     for (let i = g.children.length - 1; i >= 0; i--) { const c = g.children[i]; g.remove(c); c.geometry && c.geometry.dispose && c.geometry.dispose(); c.material && c.material.dispose && c.material.dispose(); }
-    const sectors = (this._map && this._map.sectors) || [];
+    // Draw in the same z order as the 2D map (depthTest is off, so paint order sets who's on top) →
+    // sending a sector forward/back reorders it identically in both views.
+    const sectors = [...((this._map && this._map.sectors) || [])].sort((a, b) => (a.z || 0) - (b.z || 0));
     for (const s of sectors) {
       const outline = this._sectorOutline(s); if (!outline) continue;
       const col = new THREE.Color(s.color || '#5fbf7a');
