@@ -35,10 +35,12 @@ deck down to hide at the bottom; clicking the tab reopens it.
   view moves, and the screen shows name/class/description. Added a **soft ring preview on hover**
   (`.body.hovered:not(.selected) .selring` at 0.4) so targeting shows the selection boundary before you
   commit, wired through the mouseenter/leave handlers. 0 errors.
-- **Slice 3 — Holographic mini-render (left).** A left sub-screen renders the selected thing's likeness
-  (reuse `art()` / the 3D thumbnail) with a **holographic** treatment — cyan tint, scanlines, soft glow,
-  a slow rotate/bob — so it reads as a projected hologram. Verify headless: selecting a body mounts a
-  render in the mini-screen with the holo styling applied.
+- **Slice 3 — Holographic mini-render (left).** ✅ The readout portrait is now a **holographic
+  projector**: `portrait()` wraps the body's `art()` likeness in `.holo-glow / .holo-screen(.holo-art +
+  .holo-tint + .holo-scan + .holo-sweep) / .holo-base` — a cyan/blue tint (screen blend), scanlines, a
+  sweeping refresh line, a soft outer glow, a projector-base glow and a slow bob (`holobob`). Shared by
+  the body/sector/core screens, so every selection reads as a projected hologram. Verified headless: the
+  holo layers mount on select and a screenshot shows the cyan holo projection; 0 errors.
 - **Slice 4 — Centre info screen.** A wide, **scrollable**, well-formatted info pane: name, type,
   faction/sector, description, POIs, sub-systems, and any stats, in a clean spaceship-terminal style.
   Gracefully handles **name-only** objects (no info → just the title + a subtle "no further data" line).
@@ -71,4 +73,4 @@ deck down to hide at the bottom; clicking the tab reopens it.
   look broken when they're absent.
 - **Perf:** the holo mini-render is one small `art()`/thumbnail; the idle animation is CSS. Cheap.
 
-### Status: IN PROGRESS (Slices 0–2 shipped; 3–7 pending)
+### Status: IN PROGRESS (Slices 0–3 shipped; 4–7 pending)

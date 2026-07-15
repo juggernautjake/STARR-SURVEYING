@@ -96,7 +96,18 @@
   .scr-idle .blink{animation:blink 1.3s steps(1) infinite;}
   @keyframes blink{50%{opacity:0;}}
   .scr-head{display:flex;align-items:flex-start;gap:12px;flex:none;border-bottom:1px solid rgba(10,255,206,.2);padding-bottom:8px;margin-bottom:8px;}
-  .scr-portrait{width:74px;height:74px;flex:none;border-radius:8px;border:1px solid rgba(10,255,206,.3);background:radial-gradient(circle at 50% 45%,rgba(10,255,206,.08),transparent);display:flex;align-items:center;justify-content:center;overflow:visible;}
+  /* Holographic mini-projector (Slice 3): the selected thing's likeness cast as a cyan hologram —
+     scanlines, a sweeping refresh line, soft glow, a projector-base glow and a slow bob. */
+  .scr-portrait{position:relative;width:86px;height:86px;flex:none;border-radius:8px;border:1px solid rgba(10,255,206,.32);background:radial-gradient(circle at 50% 42%,rgba(10,255,206,.10),rgba(6,20,40,.5) 70%,transparent);display:flex;align-items:center;justify-content:center;}
+  .holo-glow{position:absolute;inset:-5px;border-radius:11px;box-shadow:0 0 18px rgba(10,255,206,.32);pointer-events:none;}
+  .holo-screen{position:absolute;inset:0;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+  .holo-art{filter:drop-shadow(0 0 5px rgba(10,255,206,.55)) brightness(1.06) saturate(1.12);animation:holobob 4.2s ease-in-out infinite;transform-origin:50% 60%;}
+  @keyframes holobob{0%,100%{transform:translateY(0) scale(1);}50%{transform:translateY(-3px) scale(1.02);}}
+  .holo-tint{position:absolute;inset:0;background:radial-gradient(circle at 50% 45%,rgba(10,255,206,.10),rgba(10,120,255,.18));mix-blend-mode:screen;pointer-events:none;}
+  .holo-scan{position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(10,255,206,.11) 0 1px,transparent 1px 3px);mix-blend-mode:screen;pointer-events:none;opacity:.7;}
+  .holo-sweep{position:absolute;left:0;right:0;top:-18px;height:18px;background:linear-gradient(rgba(10,255,206,0),rgba(10,255,206,.22),rgba(10,255,206,0));animation:holoSweep 2.8s linear infinite;pointer-events:none;}
+  @keyframes holoSweep{0%{top:-18px;}100%{top:100%;}}
+  .holo-base{position:absolute;left:50%;bottom:-5px;width:72%;height:9px;transform:translateX(-50%);background:radial-gradient(ellipse,rgba(10,255,206,.55),transparent 70%);filter:blur(2px);pointer-events:none;}
   .scr-titles{flex:1;min-width:0;}
   .scr-kicker{font-family:"Share Tech Mono";font-size:10px;letter-spacing:2px;color:var(--amber);text-transform:uppercase;}
   .scr-name{font-family:"Orbitron";font-size:19px;font-weight:700;color:#eafffb;text-shadow:0 0 14px rgba(10,255,206,.5);line-height:1.1;margin:1px 0 2px;}
@@ -663,7 +674,7 @@ $("#btnGalaxy").onclick=()=>{clearSelect();fit(true);};
 const scrInner=$("#scrInner");
 function showIdle(){const nb=(MAP.instances||[]).length,ns=(MAP.sectors||[]).length;scrInner.innerHTML=`<div class="scr-idle"><div class="lg">◈ AWAITING INPUT ◈</div><div class="sm">SELECT A SYSTEM OR STELLAR BODY<span class="blink">_</span></div><div class="sm" style="margin-top:10px;opacity:.6">NAV-LINK ESTABLISHED · ${ns} SYSTEMS · ${nb} BODIES CHARTED</div></div>`;}
 function renderScreen(html){scrInner.innerHTML=html;scrInner.querySelectorAll("[data-sec]").forEach(c=>c.onclick=()=>select({type:"sector",id:c.dataset.sec}));scrInner.querySelectorAll("[data-body]").forEach(c=>c.onclick=()=>select({type:"instance",id:c.dataset.body}));}
-function portrait(svg){return `<div class="scr-portrait">${svg}</div>`;}
+function portrait(svg){return `<div class="scr-portrait"><div class="holo-glow"></div><div class="holo-screen"><div class="holo-art">${svg}</div><div class="holo-tint"></div><div class="holo-scan"></div><div class="holo-sweep"></div></div><div class="holo-base"></div></div>`;}
 function poiBlock(pois){if(!pois||!pois.length)return "";return `<div style="margin-top:6px">${pois.map(p=>`<div class="scr-poi" data-body=""><div class="pic">${poiIconSVG(p.type,22)}</div><div><div class="pn">${esc(p.title)}</div><div class="pt">${poiType(p.type).label}</div>${p.desc?`<div class="pd">${esc(p.desc)}</div>`:""}</div></div>`).join("")}</div>`;}
 function bodyScreen(b){const s=MAP.sectors.find(x=>x.id===b.sector);const typeLabel=(b.kind||"body").toUpperCase();const artSvg=`<div style="width:66px;height:66px">${art(b.look||b,true)}</div>`;
   const poisHtml=b.pois&&b.pois.length?`<div style="font-family:Orbitron;font-size:10px;letter-spacing:2px;color:var(--amber);margin:8px 0 4px">◈ POINTS OF INTEREST (${b.pois.length})</div>${poiBlock(b.pois)}`:"";
