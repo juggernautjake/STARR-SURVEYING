@@ -169,14 +169,16 @@
 
 <script type="importmap">
 { "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  "three": "/dnd/maps/vendor/three/three.module.js",
+  "three/addons/": "/dnd/maps/vendor/three/addons/"
 }}
 </script>
 <script type="module">
 let THREE;
+// Vendored same-origin (public/dnd/maps/vendor) so the 3D engine loads offline and free of any CDN
+// or CSP surprise; the try/catch is kept as a belt-and-braces guard.
 try { THREE = await import("three"); }
-catch(err){ const n=document.getElementById("loadNote"); if(n){n.style.opacity=1;n.style.borderColor="#e0685a";n.style.color="#ffb0a0";n.textContent="⚠ Could not load the 3D engine (Three.js). This tool needs an internet connection the first time. Check your connection, then reload.";} throw err; }
+catch(err){ const n=document.getElementById("loadNote"); if(n){n.style.opacity=1;n.style.borderColor="#e0685a";n.style.color="#ffb0a0";n.textContent="⚠ Could not load the 3D engine (Three.js). Reload the page; if it persists, re-deploy the vendored engine under /dnd/maps/vendor.";} throw err; }
 const $=s=>document.querySelector(s);
 
 /* ---------- scene ---------- */

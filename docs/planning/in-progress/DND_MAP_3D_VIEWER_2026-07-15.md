@@ -180,14 +180,24 @@ like the 2D viewer* but renders true 3D models.
   *Deferred (one-liner):* per-map cleanup of embedded blobs on map delete — they're content-hashed
   and may be shared across maps/versions, so safe GC needs reference counting; low value vs. cost,
   left for a later sweep.
-- **Slice 3 — Extract `planet3d-model.js`.** Pull the planet geometry/shaders/build-from-config out of
-  the generator into a shared module; generator uses it unchanged. Vendor Three locally under
-  `public/dnd/maps/vendor/` (lazy-load helper).
+- **Slice 3 — Vendor Three locally.** ✅ Downloaded Three.js **0.160.0** + the addons the viewer needs
+  (`OrbitControls`, `TransformControls`, `CSS3DRenderer`) into **`public/dnd/maps/vendor/three/`**
+  (~1.35 MB) and repointed the generator's importmap at them, so the 3D engine loads **same-origin,
+  offline, and CSP-free** — no CDN dependency. **Gotcha found & fixed:** this Chromium rejects a
+  *relative* importmap address without a `./` prefix; used **absolute** `/dnd/maps/vendor/…` (matches
+  how the rest of the app references these assets). Verified over HTTP: the generator fetches the
+  vendored module (200), creates a WebGL context, and renders a live planet headless (screenshot) —
+  which also proves the sandbox can render/verify WebGL for the later 3D slices.
+  **Re-scoped:** the `planet3d-model.js` extraction moves to **Slice 5**, where the live-planet
+  viewer actually consumes it — extracting the shader/texture builder now would ship untested dead
+  code; doing it at point-of-use lets it be verified by a real render.
 - **Slice 4 — 3D scene + camera + toggle.** New WebGL scene in the Map Studio, ortho camera +
   constrained OrbitControls, ground plane, ambient starfield; a **2D⇄3D toggle** that swaps surfaces
   and preserves pan/zoom. Renders existing 2D bodies as flat planes to prove the pipeline.
-- **Slice 5 — Live 3D planets.** Build planet meshes from `config` via `planet3d-model.js`; spin live;
-  sprite-billboard fallback when no config; LOD/quality guard.
+- **Slice 5 — Live 3D planets (incl. `planet3d-model.js` extraction).** Extract the planet
+  geometry/shaders/textures/build-from-config out of the generator into shared `planet3d-model.js`
+  (generator then consumes it), build planet meshes from `config`; spin live; sprite-billboard
+  fallback when no config; LOD/quality guard. Extraction is verified here by a real render.
 - **Slice 6 — TransformControls + inspector sync.** Gizmo move/rotate/scale writing back to `t3d`;
   selection shares the inspector; live planet **config editing** (rebuild mesh in place).
 - **Slice 7 — Insert 2D objects in 3D.** Images (plane/billboard), text via `labelSVG` texture, and
