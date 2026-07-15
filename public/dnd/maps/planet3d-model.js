@@ -314,39 +314,122 @@ export function buildStarModel(config, opts) {
 
 // ---------- space station: a hub + a rotating habitat ring (lit windows) + solar-panel arrays + a
 // comms mast. Reads unmistakably as a station both top-down and tilted. Returns { group, update, dispose }.
+// Nine distinct 3D station builds, one per `stype`, matching the 2D silhouettes:
+//   ring · wheel · hub · starfort · spire · array · drydock · derelict · husk
+// Colour scheme is shared (metal=c1, dark=c2, lit=c3, solar=blue panel). Returns { group, update, dispose }.
 export function buildStationModel(config, opts) {
   opts = opts || {}; const cfg = config || {}, R = opts.radius || 1;
   const core = new THREE.Group(), dis = [];
   const metal = new THREE.MeshStandardMaterial({ color: new THREE.Color(cfg.c1 || '#b9c4d4'), metalness: 0.82, roughness: 0.34 });
-  const dark = new THREE.MeshStandardMaterial({ color: new THREE.Color(cfg.c2 || '#33405c'), metalness: 0.5, roughness: 0.5 });
+  const dark = new THREE.MeshStandardMaterial({ color: new THREE.Color(cfg.c2 || '#33405c'), metalness: 0.5, roughness: 0.55 });
   const panel = new THREE.MeshStandardMaterial({ color: 0x16386e, metalness: 0.3, roughness: 0.4, emissive: new THREE.Color(0x0a1c44), emissiveIntensity: 0.5 });
   const lit = new THREE.MeshBasicMaterial({ color: new THREE.Color(cfg.c3 || '#ffe08a') });   // window / beacon glow
   dis.push(metal, dark, panel, lit);
-  const add = (geo, mat, x, y, z, rx, ry, rz) => { const m = new THREE.Mesh(geo, mat); m.position.set(x || 0, y || 0, z || 0); if (rx || ry || rz) m.rotation.set(rx || 0, ry || 0, rz || 0); core.add(m); dis.push(geo); return m; };
-  // central hub — a short spindle + node sphere
-  add(new THREE.CylinderGeometry(R * 0.16, R * 0.16, R * 0.6, 18), metal, 0, 0, 0, Math.PI / 2, 0, 0);
-  add(new THREE.SphereGeometry(R * 0.2, 22, 16), metal, 0, 0, 0);
-  add(new THREE.SphereGeometry(R * 0.1, 14, 10), lit, 0, 0, R * 0.3);   // docking beacon on the hub cap
-  // rotating habitat ring (xy-plane) with spokes and lit windows
-  const ring = new THREE.Group();
-  const torus = new THREE.Mesh(new THREE.TorusGeometry(R * 0.64, R * 0.1, 16, 44), metal); ring.add(torus); dis.push(torus.geometry);
-  for (let i = 0; i < 20; i++) { const a = i / 20 * Math.PI * 2; const w = new THREE.Mesh(new THREE.BoxGeometry(R * 0.06, R * 0.035, R * 0.05), lit); w.position.set(Math.cos(a) * R * 0.64, Math.sin(a) * R * 0.64, R * 0.1); ring.add(w); dis.push(w.geometry); }
-  for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2; const sp = new THREE.Mesh(new THREE.BoxGeometry(R * 0.64, R * 0.05, R * 0.05), metal); sp.position.set(Math.cos(a) * R * 0.32, Math.sin(a) * R * 0.32, 0); sp.rotation.z = a; ring.add(sp); dis.push(sp.geometry); }
-  core.add(ring);
-  // solar-panel wings on booms along ±x
-  for (const s of [-1, 1]) {
-    add(new THREE.CylinderGeometry(R * 0.022, R * 0.022, R * 0.5, 8), metal, s * R * 0.98, 0, 0, 0, 0, Math.PI / 2);
-    add(new THREE.BoxGeometry(R * 0.5, R * 0.92, R * 0.02), panel, s * R * 1.38, 0, 0);
-    add(new THREE.BoxGeometry(R * 0.52, R * 0.05, R * 0.03), dark, s * R * 1.38, 0, R * 0.015);   // panel spar
-    add(new THREE.BoxGeometry(R * 0.02, R * 0.92, R * 0.03), dark, s * R * 1.38, 0, R * 0.015);
+  const add = (geo, mat, x, y, z, rx, ry, rz, parent) => { const m = new THREE.Mesh(geo, mat); m.position.set(x || 0, y || 0, z || 0); if (rx || ry || rz) m.rotation.set(rx || 0, ry || 0, rz || 0); (parent || core).add(m); dis.push(geo); return m; };
+  const solarWing = (sx, boom) => {   // a boom + blue solar panel with spars, mirrored by sign sx
+    add(new THREE.CylinderGeometry(R * 0.022, R * 0.022, boom, 8), metal, sx * (boom * 0.5 + R * 0.5), 0, 0, 0, 0, Math.PI / 2);
+    const px = sx * (boom + R * 0.5 + R * 0.25);
+    add(new THREE.BoxGeometry(R * 0.5, R * 0.92, R * 0.02), panel, px, 0, 0);
+    add(new THREE.BoxGeometry(R * 0.52, R * 0.05, R * 0.03), dark, px, 0, R * 0.015);
+    add(new THREE.BoxGeometry(R * 0.02, R * 0.92, R * 0.03), dark, px, 0, R * 0.015);
+  };
+  const litRing = (rad, count, parent, zoff) => {   // evenly spaced window blocks around a circle
+    for (let i = 0; i < count; i++) { const a = i / count * Math.PI * 2; const w = new THREE.Mesh(new THREE.BoxGeometry(R * 0.06, R * 0.035, R * 0.05), lit); w.position.set(Math.cos(a) * rad, Math.sin(a) * rad, (zoff || 0)); (parent || core).add(w); dis.push(w.geometry); }
+  };
+  const hub = (rad) => { add(new THREE.CylinderGeometry(rad, rad, R * 0.5, 18), metal, 0, 0, 0, Math.PI / 2, 0, 0); add(new THREE.SphereGeometry(rad * 1.2, 20, 14), metal, 0, 0, 0); add(new THREE.SphereGeometry(rad * 0.55, 12, 10), lit, 0, 0, rad * 1.6); };
+  const stype = cfg.stype || 'ring';
+  let spinGroup = null, spinRate = 0.4, drift = 0.03, tumble = null;
+
+  if (stype === 'ring') {
+    hub(R * 0.18);
+    const ring = new THREE.Group();
+    const torus = new THREE.Mesh(new THREE.TorusGeometry(R * 0.64, R * 0.1, 16, 44), metal); ring.add(torus); dis.push(torus.geometry);
+    litRing(R * 0.64, 20, ring, R * 0.1);
+    for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2; const sp = new THREE.Mesh(new THREE.BoxGeometry(R * 0.64, R * 0.05, R * 0.05), metal); sp.position.set(Math.cos(a) * R * 0.32, Math.sin(a) * R * 0.32, 0); sp.rotation.z = a; ring.add(sp); dis.push(sp.geometry); }
+    core.add(ring); spinGroup = ring; spinRate = 0.45;
+    solarWing(-1, R * 0.46); solarWing(1, R * 0.46);
+    add(new THREE.CylinderGeometry(R * 0.016, R * 0.016, R * 0.6, 8), metal, 0, 0, R * 0.42, Math.PI / 2, 0, 0);
+    add(new THREE.SphereGeometry(R * 0.07, 12, 10), lit, 0, 0, R * 0.74);
+  } else if (stype === 'wheel') {   // cartwheel: heavy outer rim + thin inner rim + many spokes
+    hub(R * 0.14);
+    const ring = new THREE.Group();
+    const outer = new THREE.Mesh(new THREE.TorusGeometry(R * 0.74, R * 0.09, 14, 48), metal); ring.add(outer); dis.push(outer.geometry);
+    const inner = new THREE.Mesh(new THREE.TorusGeometry(R * 0.42, R * 0.035, 12, 36), dark); ring.add(inner); dis.push(inner.geometry);
+    litRing(R * 0.74, 28, ring, R * 0.09);
+    for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; const sp = new THREE.Mesh(new THREE.BoxGeometry(R * 0.72, R * 0.035, R * 0.045), metal); sp.position.set(Math.cos(a) * R * 0.37, Math.sin(a) * R * 0.37, 0); sp.rotation.z = a; ring.add(sp); dis.push(sp.geometry); }
+    core.add(ring); spinGroup = ring; spinRate = 0.55;
+  } else if (stype === 'hub') {   // central node with radial docking arms + end pods (no big ring)
+    hub(R * 0.24);
+    const arms = 6;
+    for (let i = 0; i < arms; i++) {
+      const a = i / arms * Math.PI * 2, dx = Math.cos(a), dy = Math.sin(a);
+      const boom = add(new THREE.BoxGeometry(R * 0.66, R * 0.07, R * 0.07), metal, dx * R * 0.5, dy * R * 0.5, 0); boom.rotation.z = a;
+      add(new THREE.CylinderGeometry(R * 0.12, R * 0.12, R * 0.18, 12), metal, dx * R * 0.86, dy * R * 0.86, 0, Math.PI / 2, 0, 0);   // docking pod
+      add(new THREE.SphereGeometry(R * 0.05, 10, 8), lit, dx * R * 0.86, dy * R * 0.86, R * 0.1);
+    }
+    add(new THREE.SphereGeometry(R * 0.12, 16, 12), lit, 0, 0, R * 0.02); spinRate = 0; drift = 0.12;
+  } else if (stype === 'starfort') {   // six-point gold star fort with a lit core
+    const pts = 6;
+    for (let i = 0; i < pts; i++) {
+      const a = i / pts * Math.PI * 2;
+      const spike = add(new THREE.ConeGeometry(R * 0.2, R * 0.62, 4), metal, Math.cos(a) * R * 0.5, Math.sin(a) * R * 0.5, 0, Math.PI / 2, 0, 0);
+      spike.rotation.z = a - Math.PI / 2;
+    }
+    add(new THREE.CylinderGeometry(R * 0.42, R * 0.42, R * 0.16, 6), metal, 0, 0, 0, Math.PI / 2, 0, 0);   // hex keep
+    add(new THREE.TorusGeometry(R * 0.24, R * 0.05, 10, 6), dark, 0, 0, R * 0.09);
+    add(new THREE.SphereGeometry(R * 0.14, 16, 12), lit, 0, 0, R * 0.12); spinRate = 0.12; drift = 0.08;
+  } else if (stype === 'spire') {   // sharp four-point in-plane star + glowing core
+    for (let i = 0; i < 4; i++) {
+      const a = i / 4 * Math.PI * 2;
+      const spike = add(new THREE.ConeGeometry(R * 0.12, R * 0.95, 4), metal, Math.cos(a) * R * 0.5, Math.sin(a) * R * 0.5, 0, Math.PI / 2, 0, 0);
+      spike.rotation.z = a - Math.PI / 2;
+    }
+    add(new THREE.OctahedronGeometry(R * 0.26, 0), metal, 0, 0, 0);
+    add(new THREE.SphereGeometry(R * 0.16, 18, 14), lit, 0, 0, 0); spinRate = 0.22; drift = 0.05;
+  } else if (stype === 'array') {   // central truss with stacked solar panels along ±x
+    add(new THREE.BoxGeometry(R * 0.16, R * 1.1, R * 0.16), metal, 0, 0, 0);
+    add(new THREE.SphereGeometry(R * 0.13, 14, 10), lit, 0, 0, R * 0.12);
+    for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) {
+      const yy = (k - 1) * R * 0.42;
+      add(new THREE.CylinderGeometry(R * 0.018, R * 0.018, R * 0.34, 6), metal, sx * R * 0.28, yy, 0, 0, 0, Math.PI / 2);
+      const p = add(new THREE.BoxGeometry(R * 0.44, R * 0.34, R * 0.02), panel, sx * R * 0.62, yy, 0); p.rotation.y = sx * 0.25;
+    }
+    spinRate = 0; drift = 0.06;
+  } else if (stype === 'drydock') {   // open rectangular cradle holding a capsule + clamp arms
+    add(new THREE.CapsuleGeometry ? new THREE.CapsuleGeometry(R * 0.18, R * 0.7, 6, 12) : new THREE.CylinderGeometry(R * 0.18, R * 0.18, R * 1.0, 14), metal, 0, 0, 0, 0, 0, Math.PI / 2);
+    for (const sy of [-1, 1]) {
+      add(new THREE.BoxGeometry(R * 1.1, R * 0.05, R * 0.05), dark, 0, sy * R * 0.44, 0);   // long rails
+      for (const sx of [-1, 1]) add(new THREE.BoxGeometry(R * 0.05, R * 0.44, R * 0.05), dark, sx * R * 0.52, sy * R * 0.22, 0);   // uprights
+      for (const sx of [-1, 0, 1]) { const c = add(new THREE.BoxGeometry(R * 0.05, R * 0.3, R * 0.05), metal, sx * R * 0.4, sy * R * 0.3, 0); c.rotation.z = sy * 0.4; add(new THREE.SphereGeometry(R * 0.03, 8, 6), lit, sx * R * 0.4, sy * R * 0.16, 0); }
+    }
+    spinRate = 0; drift = 0.05;
+  } else if (stype === 'derelict') {   // broken, gapped ring — dark, cold, a few sparks
+    const t = new THREE.TorusGeometry(R * 0.66, R * 0.1, 12, 40, Math.PI * 1.35); const tm = new THREE.Mesh(t, dark); tm.rotation.z = 0.5; core.add(tm); dis.push(t);
+    add(new THREE.SphereGeometry(R * 0.16, 16, 12), dark, 0, 0, 0);
+    add(new THREE.BoxGeometry(R * 0.5, R * 0.05, R * 0.05), dark, R * 0.2, R * 0.28, 0, 0, 0, 0.7);   // snapped spoke
+    for (let i = 0; i < 4; i++) { const a = Math.PI * 1.4 + i * 0.22; add(new THREE.SphereGeometry(R * 0.03, 6, 6), lit, Math.cos(a) * R * 0.66, Math.sin(a) * R * 0.66, 0); }   // flickering sparks at the break
+    core.rotation.z = 0.3; spinRate = 0; tumble = { x: 0.02, y: 0.015, z: 0.05 };
+  } else if (stype === 'husk') {   // dark angular hull fragment tumbling in the dark
+    const frag = add(new THREE.BoxGeometry(R * 0.9, R * 0.5, R * 0.35), dark, 0, 0, 0, 0.3, 0.5, 0.2);
+    add(new THREE.BoxGeometry(R * 0.4, R * 0.6, R * 0.3), dark, R * 0.45, R * 0.15, 0, 0.6, 0.2, -0.3);
+    add(new THREE.ConeGeometry(R * 0.22, R * 0.5, 5), metal, -R * 0.42, -R * 0.12, 0, 0, 0, 1.9);   // torn spar
+    add(new THREE.SphereGeometry(R * 0.04, 6, 6), lit, R * 0.1, -R * 0.05, R * 0.14);   // one light still on
+    spinRate = 0; tumble = { x: 0.06, y: 0.04, z: 0.03 };
+  } else {   // fallback → ring
+    hub(R * 0.18);
+    const torus = add(new THREE.TorusGeometry(R * 0.64, R * 0.1, 16, 44), metal, 0, 0, 0);
+    litRing(R * 0.64, 20, core, R * 0.1);
+    solarWing(-1, R * 0.46); solarWing(1, R * 0.46);
   }
-  // comms mast + beacon (sticks toward the camera in top-down)
-  add(new THREE.CylinderGeometry(R * 0.016, R * 0.016, R * 0.6, 8), metal, 0, 0, R * 0.42, Math.PI / 2, 0, 0);
-  add(new THREE.SphereGeometry(R * 0.07, 12, 10), lit, 0, 0, R * 0.74);
-  const spin = cfg.spin != null ? cfg.spin : 1; let t = 0;
+
+  const spin = cfg.spin != null ? cfg.spin : 1;
   return {
     group: core,
-    update(dt) { t += dt; ring.rotation.z += 0.45 * spin * dt; core.rotation.z += 0.03 * spin * dt; },   // habitat ring spins; whole station drifts slowly
+    update(dt) {
+      if (spinGroup) spinGroup.rotation.z += spinRate * spin * dt;
+      if (tumble) { core.rotation.x += tumble.x * spin * dt; core.rotation.y += tumble.y * spin * dt; core.rotation.z += tumble.z * spin * dt; }
+      else core.rotation.z += drift * spin * dt;
+    },
     dispose() { dis.forEach(o => { try { o.dispose(); } catch (e) { /* noop */ } }); }
   };
 }
