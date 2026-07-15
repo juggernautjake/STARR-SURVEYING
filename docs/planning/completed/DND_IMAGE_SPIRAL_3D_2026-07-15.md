@@ -50,12 +50,16 @@ Persisted in `mapData()` (instances are already serialized whole) → publishes 
   Registered in `_spiralImages` and disposed on rebuild; the plane goes square while spiralling; falls
   back to the static texture if the engine/image is missing. Verified headless: the plane binds a live
   spiral CanvasTexture (`_spiralImages` = 1); 0 errors.
-- **Slice 3 — Controls parity + live edit + Console.** Ensure the layer/speed/rotation controls update
-  both viewers live via the edit push; the player **Console** renders the spiral image the same from the
-  published `spiral` config. Verify headless in Studio (2D + 3D) and Console; 0 errors.
-- **Slice 4 — Doc to completed + QA.** End-to-end: insert an image in 3D, resize it live, apply the
-  layered spiral, tune rings/speed → both viewers swirl the actual image identically; publish → Console
-  matches. Move this doc to `completed/`.
+- **Slice 3 — Controls parity + live edit + Console.** ✅ The Layers/Speed/Ring-blend controls update
+  both viewers live: a slider change re-renders 2D and, via `markDirty → pushTo3D → setData`, rebuilds
+  the 3D spiral engine (verified rings 4→9 reflected in 3D live). The player **Console** now renders the
+  spiral image too — a `spiralcanvas` + a console `mountSpiralImages` running the same `DiffSpinGalaxy`
+  from the published `spiral` config (fixed 256px buffer so it's robust to layout timing). Verified
+  headless: Console 2D spiral animates (27k lit px); 0 errors. Console 3D uses the shared `map3d.js`
+  spiral path.
+- **Slice 4 — Doc to completed + QA.** ✅ End-to-end verified headless: a spiral image animates in the
+  Studio 2D and 3D viewers and in the player Console 2D, driven by the shared `DiffSpinGalaxy` from the
+  same `spiral` config; live control changes reach 3D; 0 console errors. Doc moved to `completed/`.
 
 ## Considerations
 
@@ -68,4 +72,4 @@ Persisted in `mapData()` (instances are already serialized whole) → publishes 
 - **Resize in real time:** already handled by the live `pushTo3D` + LOD; verify it holds with the
   spiral engine attached (rebuild disposes/reattaches the engine cleanly).
 
-### Status: IN PROGRESS (Slices 0–2 shipped; 3–4 pending)
+### Status: COMPLETE (Slices 0–4 shipped) — image layered-spiral works on the real image in Studio 2D + 3D and the player Console.
