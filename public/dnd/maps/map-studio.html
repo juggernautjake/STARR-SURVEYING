@@ -1790,6 +1790,11 @@ function applyMapData(m){resetDiffspin();
   selection=null;undoStack=[];redoStack=[];computeSectorParents();reassociateAll();applyMapFx();renderLibrary();renderAll();fitAll();updateCampChip();
 }
 
+/* ---- bridge for the 3D viewer (map3d.js): select / transform-writeback / undo checkpoint ---- */
+window.map3dSelect=function(id){const i=id&&state.instances.find(x=>x.id===id);selection=i?{type:"instance",id}:null;renderInspector();updateStatus();};
+window.map3dBeginEdit=function(){pushUndo();};
+window.map3dApply=function(id,patch){const i=state.instances.find(x=>x.id===id);if(!i)return;Object.assign(i,patch);if(typeof reassoc==="function")reassoc(i);renderInstances();markDirty();};
+
 /* ============================================================ HISTORY + SAVE/LOAD ============================================================ */
 function cleanState(){return JSON.stringify({assets:state.assets,instances:state.instances,
   sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved})),

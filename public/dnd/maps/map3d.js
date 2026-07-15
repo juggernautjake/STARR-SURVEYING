@@ -13,12 +13,13 @@
    Coordinate mapping: 2D world (x, y) with y pointing DOWN → 3D (x, -y, 0) so
    the scene reads identically to the 2D map but gains real depth/rotation.
    ============================================================================ */
-let THREE = null, OrbitControls = null, buildPlanetModel = null;
+let THREE = null, OrbitControls = null, TransformControls = null, buildPlanetModel = null;
 
 async function loadThree() {
   if (THREE) return;
   THREE = await import('three');
   ({ OrbitControls } = await import('three/addons/controls/OrbitControls.js'));
+  ({ TransformControls } = await import('three/addons/controls/TransformControls.js'));
   ({ buildPlanetModel } = await import('/dnd/maps/planet3d-model.js'));
 }
 
@@ -44,6 +45,11 @@ const Map3D = {
     renderer.domElement.style.cssText = 'width:100%;height:100%;display:block';
     container.appendChild(renderer.domElement);
 
+    const hint = document.createElement('div');
+    hint.textContent = 'Click a body to select · G move · R rotate · S scale · Esc deselect · drag pan · wheel zoom · right-drag tilt';
+    hint.style.cssText = 'position:absolute;left:10px;bottom:8px;z-index:2;color:#a09b8c;font:11px/1.4 system-ui,sans-serif;background:rgba(6,4,15,.62);padding:4px 9px;border-radius:6px;pointer-events:none;max-width:70%';
+    container.appendChild(hint);
+
     const scene = new THREE.Scene();
     // Orthographic so the map keeps its flat, 2D-like feel; user zoom via camera.zoom.
     const H = 500;
@@ -64,12 +70,62 @@ const Map3D = {
     scene.add(this._starfield());
     const bodyGroup = new THREE.Group(); scene.add(bodyGroup);
 
+    // Move/rotate/scale gizmo — grab, move, resize and rotate objects; writes back to the 2D map.
+    const tc = new TransformControls(cam, renderer.domElement);
+    tc.setSize(0.9);
+    tc.addEventListener('dragging-changed', e => { controls.enabled = !e.value; });
+    tc.addEventListener('mouseDown', () => { if (window.map3dBeginEdit) window.map3dBeginEdit(); });
+    tc.addEventListener('objectChange', () => this._writeBack());
+    scene.add(tc);
+
     this.renderer = renderer; this.scene = scene; this.camera = cam; this.controls = controls; this.bodyGroup = bodyGroup;
+    this.tcontrols = tc; this._ray = new THREE.Raycaster(); this._selected = null;
     this._ready = true;
+
+    // click-to-select (vs. drag-to-pan) + G/R/S to switch gizmo mode
+    const el = renderer.domElement;
+    el.addEventListener('pointerdown', e => { this._downXY = [e.clientX, e.clientY]; });
+    el.addEventListener('pointerup', e => this._onPointerUp(e));
+    this._onKey = e => {
+      if (!this._shown) return;
+      const k = e.key.toLowerCase();
+      if (k === 'g') tc.setMode('translate'); else if (k === 'r') tc.setMode('rotate'); else if (k === 's') tc.setMode('scale');
+      else if (k === 'escape') this._deselect();
+    };
+    window.addEventListener('keydown', this._onKey);
 
     this._ro = new ResizeObserver(() => this.resize());
     this._ro.observe(container);
     return true;
+  },
+
+  _onPointerUp(e) {
+    if (!this._downXY) return;
+    const moved = Math.hypot(e.clientX - this._downXY[0], e.clientY - this._downXY[1]);
+    this._downXY = null;
+    if (moved > 4 || this.tcontrols.dragging) return;   // that was a pan / gizmo drag, not a pick
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    this._ray.setFromCamera(ndc, this.camera);
+    const hits = this._ray.intersectObjects(this.bodyGroup.children, true);
+    if (hits.length) { let o = hits[0].object; while (o && o.userData.id === undefined && o.parent) o = o.parent; if (o && o.userData.id !== undefined) return this._select(o); }
+    this._deselect();
+  },
+  _select(holder) { this._selected = holder; this.tcontrols.attach(holder); if (window.map3dSelect) window.map3dSelect(holder.userData.id); },
+  _deselect() { this._selected = null; this.tcontrols.detach(); if (window.map3dSelect) window.map3dSelect(null); },
+
+  // Gizmo edit → 2D schema. Holder transform: position=body center, scale.x*2=size, rotation=t3d.
+  _writeBack() {
+    const h = this._selected; if (!h) return;
+    const size = Math.max(8, Math.round(2 * h.scale.x));
+    if (h.scale.y !== h.scale.x || h.scale.z !== h.scale.x) h.scale.setScalar(h.scale.x);   // keep bodies uniform
+    const patch = {
+      x: Math.round(h.position.x - h.scale.x),
+      y: Math.round(-h.position.y - h.scale.x),
+      size,
+      t3d: { rx: +h.rotation.x.toFixed(4), ry: +h.rotation.y.toFixed(4), rz: +h.rotation.z.toFixed(4) }
+    };
+    if (window.map3dApply) window.map3dApply(h.userData.id, patch);
   },
 
   _starfield() {
@@ -98,30 +154,36 @@ const Map3D = {
 
   _rebuild() {
     const g = this.bodyGroup; if (!g) return;
+    if (this.tcontrols) this.tcontrols.detach();
+    this._selected = null;
     (this._planets || []).forEach(p => p.model.dispose());
     this._planets = [];
-    for (let i = g.children.length - 1; i >= 0; i--) { const c = g.children[i]; g.remove(c); c.geometry?.dispose?.(); c.material?.dispose?.(); }
+    for (let i = g.children.length - 1; i >= 0; i--) { const c = g.children[i]; g.remove(c); c.traverse?.(o => { o.geometry?.dispose?.(); o.material?.dispose?.(); }); }
     const insts = (this._map && this._map.instances) || [];
     const aniso = this.renderer.capabilities.getMaxAnisotropy();
     let live = 0, minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
     for (const it of insts) {
       if (it.kind === 'text') continue;                 // free text handled in a later slice
       const s = it.size || 60, cx = it.x + s / 2, cy = it.y + s / 2;
+      // Every body lives in a holder whose transform IS its 2D transform: position = centre,
+      // scale·2 = size, rotation = t3d. This lets one gizmo move/scale/rotate any body uniformly.
+      const holder = new THREE.Group();
+      holder.position.set(cx, -cy, 0);
+      holder.scale.setScalar(Math.max(4, s / 2));
+      if (it.t3d) holder.rotation.set(it.t3d.rx || 0, it.t3d.ry || 0, it.t3d.rz || 0);
+      holder.userData.id = it.id;
       const cfg = it.kind === 'planet3d' ? this._planetConfig(it) : null;
       if (cfg && live < MAX_LIVE_PLANETS) {
-        // REAL 3D planet mesh from config, scaled so the sphere's diameter ≈ the 2D size
         try {
-          const model = buildPlanetModel(cfg, { anisotropy: aniso, segments: 72 });
-          model.group.scale.setScalar(s / 2);
-          model.group.position.set(cx, -cy, 0);
-          model.group.userData.id = it.id;
-          g.add(model.group);
+          const model = buildPlanetModel(cfg, { anisotropy: aniso, segments: 72 });   // unit radius
+          holder.add(model.group);
           this._planets.push({ model });
           live++;
-        } catch (e) { console.error('[map3d] planet build failed', e); this._disc(g, it, cx, cy, s); }
+        } catch (e) { console.error('[map3d] planet build failed', e); holder.add(this._discMesh(it)); }
       } else {
-        this._disc(g, it, cx, cy, s);
+        holder.add(this._discMesh(it));
       }
+      g.add(holder);
       minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x + s); maxY = Math.max(maxY, it.y + s);
     }
     // Framing needs the container's real pixel size, which is only correct once it's visible; store
@@ -130,10 +192,9 @@ const Map3D = {
     if (this._bounds && this._shown) this._frameBounds();
   },
 
-  _disc(g, it, cx, cy, s) {
+  _discMesh(it) {   // a unit-radius flat disc (holder scales it to size)
     const col = (it.look && (it.look.c1 || it.look.c3)) || '#8f9bd0';
-    const disc = new THREE.Mesh(new THREE.CircleGeometry(Math.max(4, s / 2), 56), new THREE.MeshBasicMaterial({ color: new THREE.Color(col) }));
-    disc.position.set(cx, -cy, 0); disc.userData.id = it.id; g.add(disc);
+    return new THREE.Mesh(new THREE.CircleGeometry(1, 56), new THREE.MeshBasicMaterial({ color: new THREE.Color(col) }));
   },
 
   // Fit the ortho camera to the stored content bounds (2D→3D: y negated).
@@ -178,6 +239,8 @@ const Map3D = {
 
   hide() {
     this._shown = false;
+    if (this.tcontrols) this.tcontrols.detach();
+    this._selected = null;
     if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; }
     if (this.container) this.container.style.display = 'none';
   },

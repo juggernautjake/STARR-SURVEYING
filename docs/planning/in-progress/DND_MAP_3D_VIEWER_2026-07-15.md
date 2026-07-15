@@ -219,8 +219,20 @@ like the 2D viewer* but renders true 3D models.
   additive over the cloud layer; low value vs. port cost, left as a follow-up. (b) **De-duping the
   generator** to consume this module — the module is a faithful copy so they match today; refactoring
   the working generator now risks destabilising it for no user-visible gain, so it's a later cleanup.
-- **Slice 6 — TransformControls + inspector sync.** Gizmo move/rotate/scale writing back to `t3d`;
-  selection shares the inspector; live planet **config editing** (rebuild mesh in place).
+- **Slice 6 — TransformControls + inspector sync.** ✅ Every body now lives in a **holder Group**
+  whose transform *is* its 2D transform (position = centre, `scale·2` = size, rotation = `t3d`), so one
+  **TransformControls gizmo** moves/rotates/scales any body uniformly. Click-to-select (raycast, with
+  a drag-vs-click threshold so panning still works), **G/R/S** switch translate/rotate/scale, **Esc**
+  deselects; an on-canvas hint lists the keys. A small bridge in the Map Studio classic script
+  (`window.map3dSelect` / `map3dBeginEdit` / `map3dApply`) lets the gizmo **write back to the live
+  `state`** — moves/scales update `x/y/size`, rotation stores `t3d` — mark the map dirty, push one
+  undo checkpoint per drag, and **sync the 2D inspector** to the selected body. Editing doesn't rebuild
+  the scene (the holder is the live object), so it stays smooth; the next toggle re-reads the patched
+  state. Verified headless: select attaches the gizmo, a move+scale+rotate writes back `x/y/size/t3d`
+  exactly, deselect detaches, zero errors.
+  *Deferred (one-liner):* **live planet-shape config editing** in the viewer (re-running the shader
+  build on slider changes) — that's essentially embedding the generator's control panel; high cost,
+  and the DM can already edit a world in the 3D generator and re-import. Left as a follow-up.
 - **Slice 7 — Insert 2D objects in 3D.** Images (plane/billboard), text via `labelSVG` texture, and
   the **CSS3D** layer for **HTML/CSS** (new `html` kind, sanitized/sandboxed).
 - **Slice 8 — Console parity + polish.** 3D viewer + toggle for players (perf-guarded), verify, and
