@@ -123,11 +123,23 @@ are already stored.
   clean, `__tests__/dnd/dm-grant.test.ts` (5 tests: validation gates name+mechanics + kind clamp + length
   bounds, add/read/remove round-trip dropping malformed rows, a granted homebrew feature flips from blocking
   custom → dm-granted so a vanilla-only submit is no longer blocked); full dnd suite (287) green.
-- **Slice 7 — Builder + sheet integration with provenance badges + AI.** An Intuitive Games sheet/builder
-  rendering the template's structure (abilities, skills w/ ranks, stances, powers, feats, weapons, companion),
-  with a **VANILLA / CUSTOM / DM-GRANTED badge on every element** and a "Custom content" summary. Build
-  as-is from the vanilla library, or AI-customize (grounded to Intuitive Games so custom content matches its
-  mechanics and is auto-flagged custom).
+- **Slice 7 — Builder + sheet integration with provenance badges + AI.** *(in progress)*
+  - **7a — Vanilla catalog + on-sheet reference.** ✅ `lib/dnd/systems/intuitive-games/catalog.ts` —
+    `igCatalog()` projects the whole vanilla library into grouped, display-ready sections (Ancestries,
+    Classes, Subclasses, Stances w/ A/B effects, Feats by General/Combat, Powers by school, Defensive
+    powers, Weapon types, Movement types, Skills, Conditions, Companion creature types), every entry flagged
+    `source:'vanilla'`; shared kinds come from the rules catalog and IG-specific kinds from the content lib,
+    so it's one deterministic source for the builder picker + the on-sheet reference. `igCatalogCount()` for
+    a header count. `app/dnd/_ui/IGVanillaLibrary.tsx` (wired into `characters/[id]/page.tsx` for any editor
+    of an Intuitive Games character) renders the catalog collapsibly + filterably with a **VANILLA badge on
+    every entry** — the read side of the custom-vs-vanilla guarantee ("here's exactly what's from the
+    system"). Verified: `tsc` clean, lint clean, `__tests__/dnd/ig-catalog.test.ts` (3 tests: every section
+    grouped + all-vanilla + non-empty, stance effect text carried + >80 elements counted, every catalog
+    entry agrees with the provenance classifier as vanilla); full dnd suite (290) green.
+  - **7b — pending:** the Intuitive Games sheet/builder proper (abilities, skills w/ ranks, stances, powers,
+    feats, weapons, companion) rendering the template structure with a VANILLA/CUSTOM/DM-GRANTED badge on
+    every *character* element + a "Custom content" summary, build-as-is from the picker, and the AI-customize
+    path (grounded to Intuitive Games so invented content matches its mechanics and is auto-flagged custom).
 - **Slice 8 — QA + docs.** End-to-end pass (build vanilla → all-vanilla, AI-custom → flagged, vanilla-only
   campaign blocks a custom submit, DM grant allowed, approve/reject + notes + notification), full dnd vitest
   suite green, tsc + lint clean, then move this doc to `completed/`.
