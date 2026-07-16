@@ -2,8 +2,10 @@
 // Slice 7b). A straight vanilla assemble is 100% VANILLA; a non-catalog pick is flagged CUSTOM with its
 // correct kind (a bogus stance is a custom STANCE, not a mis-read feat).
 import { describe, it, expect } from 'vitest';
-import { assembleIGVanillaCharacter } from '@/lib/dnd/systems/intuitive-games/builder';
+import { assembleIGVanillaCharacter, buildIGModel } from '@/lib/dnd/systems/intuitive-games/builder';
 import { summarizeCharacterProvenance } from '@/lib/dnd/provenance';
+import { igDerived, igSaves } from '@/lib/dnd/systems/intuitive-games/rules';
+import { isIGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 
 describe('assembleIGVanillaCharacter (Slice 7b)', () => {
   it('builds a valid character and records a kinded igBuild', () => {
@@ -58,6 +60,34 @@ describe('assembleIGVanillaCharacter (Slice 7b)', () => {
     expect(stance?.kind).toBe('stance');   // correctly kinded, not mis-read as a feat
     expect(power?.kind).toBe('power');
     expect(s.hasBlockingCustom).toBe(true);
+  });
+
+  it('attaches a full IGCharacter model sidecar the rules engine can resolve (Slice 3)', () => {
+    const c = assembleIGVanillaCharacter({
+      name: 'Vale', level: 4, ancestry: 'Migoi', className: 'Fighter', subclass: 'Champion',
+      specialization: 'Duelist', abilities: { STR: 18, CON: 16 },
+      stances: ['Offensive'], powers: ['Mirror Image'], feats: ['Toughness', 'Power Attack'],
+      defensivePower: 'Armor Skin', weaponTypes: ['Two-Handed Slashing'], weapons: ['Greatsword'],
+    });
+    expect(isIGCharacter(c.ig)).toBe(true);
+    expect(c.ig.identity.level).toBe(4);
+    expect(c.ig.abilities.STR).toBe(18);
+    expect(c.ig.combat.stances).toEqual(['Offensive']);
+    expect(c.ig.combat.defensivePower).toBe('Armor Skin');
+    expect(c.ig.combat.attacks[0].name).toBe('Greatsword');
+    // feats split into general/combat by catalog category
+    expect(c.ig.feats.combat).toContain('Power Attack');
+    expect(c.ig.feats.general).toContain('Toughness');
+    // the rules engine resolves the sidecar: three saves default-scale with level, CON drives Fortitude
+    const d = igDerived(c.ig);
+    expect(d.proficiency).toBe(4);
+    expect(igSaves(c.ig).Fortitude).toBe(0 /*rank*/ + 4 /*level*/ + 3 /*CON+3*/);
+  });
+
+  it('buildIGModel is pure and standalone', () => {
+    const ig = buildIGModel({ name: 'X', className: 'Wizard', powers: ['Detect Magic'] });
+    expect(ig.identity.className).toBe('Wizard');
+    expect(ig.powers).toEqual(['Detect Magic']);
   });
 
   it('a DM grant lets a custom stance through (dm-granted, not blocking)', () => {

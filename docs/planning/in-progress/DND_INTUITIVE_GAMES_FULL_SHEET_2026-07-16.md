@@ -93,11 +93,17 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
   `__tests__/dnd/ig-rules.test.ts` (6 tests: modifier + proficiency, the three saves = 1 at L1 and scale with
   rank/level/attr, skill totals trained vs untrained, attack + damage with focus/spec/STR-melee, degrees of
   success incl. nat 20/1, max HP + derived summary); full dnd suite (309) green.
-- **Slice 3 — Full builder → model.** Extend `assembleIGVanillaCharacter` (or a new `buildIGCharacter`) to
-  produce a complete `IGCharacter` (identity, scores, skills w/ ranks, saves, feats, powers, stances, weapon
-  groups, defensive power, equipment, companion, notes) stored at `data.ig`, alongside the existing 5e
-  projection; provenance reads the full model. Tested (vanilla → all-vanilla across every tab; custom →
-  flagged with correct kinds).
+- **Slice 3 — Full builder → model.** ✅ `buildIGModel(picks)` assembles a complete `IGCharacter` (identity
+  incl. specialization/background/ancestry/alignment/culture/bio, ability scores, stances, powers, feats
+  **split general/combat by catalog category**, weapon groups, defensive power, weapon→attack shells) and
+  `assembleIGVanillaCharacter` now attaches it as the **`.ig` sidecar** alongside the existing 5e projection +
+  kinded `igBuild`, so the shared sheet + provenance keep working while the bespoke IG sheet reads `data.ig`.
+  `IGPicks` gained optional `abilities` + identity fields (the guided builder collects these). The `ig-build`
+  route already persists the whole assembled character, so the sidecar is saved with no route change.
+  Verified: `tsc` clean, lint clean, `__tests__/dnd/ig-builder.test.ts` (+2 = 9 tests: the `.ig` sidecar is a
+  valid IGCharacter with level/abilities/stances/defensive-power/attacks, feats split general/combat, and the
+  rules engine resolves it — proficiency 4, Fortitude = rank+level+CON; `buildIGModel` pure/standalone); full
+  dnd suite (311) green.
 - **Slice 4 — IG sheet: Identity + Basic Info + Summary.** Bespoke panels rendering intro/bio, the six
   ability scores + mods, the three saves, and the summary top-line from `data.ig`, with provenance badges;
   editable; styleable.
@@ -131,4 +137,4 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
 - **Reuse:** build on the shipped content library, catalog, provenance, submission/approval, DM grants,
   campaign policy, the custom-sheet/style engine, and `/ai-edit` grounding — don't fork them.
 
-### Status: IN PROGRESS (Slices 0–2 shipped; 3–11 pending)
+### Status: IN PROGRESS (Slices 0–3 shipped; 4–11 pending)

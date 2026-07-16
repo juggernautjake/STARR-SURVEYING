@@ -8,6 +8,7 @@
 import type { Character } from '@/app/dnd/_sheet/types';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import { IG_STANCES, IG_POWERS, IG_FEATS, IG_DEFENSIVE_POWERS } from './content';
+import { blankIGCharacter, type IGCharacter, type IGAttack } from './model';
 
 /** The kinded record of what an Intuitive Games character was built from (stored on the character data).
  *  Mirrors the template's build fields — Class / Subclass / Specialization / Background (Sheet 1), the
@@ -29,12 +30,49 @@ export interface IGBuild {
 export interface IGPicks extends IGBuild {
   name?: string;
   level?: number;
+  /** Optional ability scores (default all 10); the guided builder collects these. */
+  abilities?: Partial<Record<'STR' | 'DEX' | 'CON' | 'INT' | 'WIS' | 'CHA', number>>;
+  /** Optional identity fields (Sheet 1). */
+  alignment?: string;
+  culture?: string;
+  bio?: string;
 }
 
 const effectOf = (list: { name: string; effect?: string }[], name: string): string => {
   const hit = list.find((e) => e.name.trim().toLowerCase() === String(name ?? '').trim().toLowerCase());
   return hit?.effect ?? '';
 };
+
+const featCategory = (name: string): 'general' | 'combat' =>
+  (IG_FEATS.find((f) => f.name.trim().toLowerCase() === String(name ?? '').trim().toLowerCase())?.category ?? 'General').toLowerCase().startsWith('combat') ? 'combat' : 'general';
+
+/** Build the full IGCharacter model (all tabs) from the picks — the sidecar the bespoke IG sheet reads. */
+export function buildIGModel(picks: IGPicks): IGCharacter {
+  const ig = blankIGCharacter(picks.name || 'New Character');
+  ig.identity.level = picks.level ?? 1;
+  ig.identity.className = picks.className || '';
+  ig.identity.subclass = picks.subclass || '';
+  ig.identity.specialization = picks.specialization || '';
+  ig.identity.background = picks.background || '';
+  ig.identity.ancestry = picks.ancestry || '';
+  ig.identity.alignment = picks.alignment || '';
+  ig.identity.culture = picks.culture || '';
+  ig.identity.bio = picks.bio || '';
+  if (picks.abilities) for (const [k, v] of Object.entries(picks.abilities)) if (v != null) ig.abilities[k as keyof typeof ig.abilities] = v;
+
+  ig.stances = [...(picks.stances ?? [])];
+  ig.combat.stances = [...(picks.stances ?? [])];
+  ig.powers = [...(picks.powers ?? [])];
+  ig.weaponGroups = [...(picks.weaponTypes ?? [])];
+  ig.combat.defensivePower = picks.defensivePower || '';
+  for (const f of picks.feats ?? []) ig.feats[featCategory(f)].push(f);
+
+  ig.combat.attacks = (picks.weapons ?? []).map((w, i): IGAttack => ({
+    id: `atk-${i}`, name: w, weaponType: '', properties: '', proficient: true, weaponFocus: false,
+    weaponSpecialization: false, ability: 'STR', bonusToHit: 0, bonusDamage: 0, damage: '1d6',
+  }));
+  return ig;
+}
 
 let _uid = 0;
 const uid = (p: string) => `${p}-${(_uid++).toString(36)}`;
@@ -45,8 +83,8 @@ const uid = (p: string) => `${p}-${(_uid++).toString(36)}`;
  * `igBuild` block for accurate provenance. Custom (non-catalog) picks are still placed on the sheet — they'll
  * simply be flagged CUSTOM by the provenance classifier.
  */
-export function assembleIGVanillaCharacter(picks: IGPicks): Character & { igBuild: IGBuild } {
-  const char = blankCharacter(picks.name || 'New Character') as Character & { igBuild: IGBuild };
+export function assembleIGVanillaCharacter(picks: IGPicks): Character & { igBuild: IGBuild; ig: IGCharacter } {
+  const char = blankCharacter(picks.name || 'New Character') as Character & { igBuild: IGBuild; ig: IGCharacter };
   char.meta.species = picks.ancestry || '';
   char.meta.className = picks.className || '';
   char.meta.subclass = picks.subclass || '';
@@ -75,5 +113,8 @@ export function assembleIGVanillaCharacter(picks: IGPicks): Character & { igBuil
     stances: [...(picks.stances ?? [])], powers: [...(picks.powers ?? [])], feats: [...(picks.feats ?? [])],
     weapons: [...(picks.weapons ?? [])], weaponTypes: [...(picks.weaponTypes ?? [])],
   };
+  // The full IGCharacter model sidecar the bespoke IG sheet reads (the 5e projection above keeps the shared
+  // sheet + provenance working).
+  char.ig = buildIGModel(picks);
   return char;
 }
