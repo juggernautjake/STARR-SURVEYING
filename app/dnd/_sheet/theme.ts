@@ -107,18 +107,18 @@ export const streamerTheme: SheetTheme = {
     'panel-2': '#fdeaf8',
     'panel-3': '#f5e2ff',
     ink: '#5a1050',
-    muted: '#a24f92',
-    'muted-2': '#b877ab',
-    pink: '#ff4fb8',
-    hotpink: '#ff1e9c',
-    violet: '#a94dff',
+    muted: '#8a3f7c',
+    'muted-2': '#8f5484',
+    pink: '#c9146f',      // deep hot pink — also renders the PRIMARY ability's modifier, so it must clear AA
+    hotpink: '#b30060',   // deeper hot pink — primary accent/value text on the pale panels
+    violet: '#8425e0',
     'violet-2': '#7d2ecf',
     // "teal"/"tealbright" are repurposed away from cyan: teal → purple accent,
     // tealbright → a deep gold that stays legible on the light panels (it backs
     // links, ability mods, table headers, etc. in the base sheet).
     teal: '#9b3fd0',
-    tealbright: '#c98a0a',
-    gold: '#e0a400',
+    tealbright: '#8a5e04', // deep gold — 5.9:1 on the pale panel (it backs links, ability mods, table headers)
+    gold: '#966c00',      // 5.2:1 on the pale panel
     danger: '#e5344f',
     good: '#1c9e63',
     line: 'rgba(255, 30, 156, 0.30)',
@@ -151,16 +151,16 @@ export const donataTheme: SheetTheme = {
     'panel-3': '#e9f9f1', // soft mint alt panel
     ink: '#3a2140',       // deep plum — ~11:1 on cream (AAA)
     muted: '#6f5566',     // ~5.6:1 (AA)
-    'muted-2': '#87707f', // ~4.5:1 (labels only)
-    pink: '#ff5fa8',      // bright bubblegum (used as a background fill)
+    'muted-2': '#6f5a68', // labels — ~6.4:1
+    pink: '#c2186b',      // deep bubblegum — a fill, but .apill.primary .am renders it as TEXT, so it must clear AA
     hotpink: '#c2185b',   // deep raspberry — primary accent/value text, ~5.4:1
     violet: '#7b2cbf',    // grape accent, ~6.1:1
     'violet-2': '#5b1f94',
     // repurposed away from cyan → candy teal (bg) + a legible deep teal (link/mod/table text)
     teal: '#17b3a3',
-    tealbright: '#0d8f7e', // ~4.7:1 on cream
-    gold: '#b8730a',       // legible amber, ~4.8:1
-    danger: '#d12b4e',
+    tealbright: '#0a6b5d', // link/mod/term teal — 6.2:1 on cream, clears AA on the mint panel too
+    gold: '#8f5a06',       // amber — 6.1:1, clears AA on its own tint
+    danger: '#ad1f3d',    // ~5.9:1
     good: '#1c8f57',
     line: 'rgba(123, 44, 191, 0.28)',
     'line-strong': 'rgba(194, 24, 91, 0.5)',
@@ -190,19 +190,19 @@ export const rangorTheme: SheetTheme = {
     'panel-2': '#ece7d9',
     'panel-3': '#e3ddcc',
     ink: '#232019',       // warm near-black — ~14:1 on the card (AAA)
-    muted: '#5f5849',     // ~6.5:1 (AA)
-    'muted-2': '#7d7565',  // labels only — ~4.6:1
+    muted: '#524c3f',     // ~7.8:1 (AA)
+    'muted-2': '#6b6455',  // labels — ~6.0:1
     // The `pink`/`hotpink` token NAMES are the engine's, not the look: for Jack they carry a
     // moss green. Every rgba() fill in the base sheet is derived from these (see the
     // `--<token>-rgb` triplets), so nothing on his sheet renders pink.
-    pink: '#5f7d55',      // sage (translucent fills/tints)
-    hotpink: '#3f6b45',   // primary accent — section nums, values, headers (~5.9:1 on the card)
+    pink: '#496040',      // sage — also renders the PRIMARY ability's modifier, so it must clear AA as text
+    hotpink: '#35593a',   // primary accent — section nums, values, headers (7.2:1 on the card, 4.9:1 on its own 12% tint)
     violet: '#6b665e',    // stone grey (structure/lines)
     'violet-2': '#4a4640',
     teal: '#6f7f6a',      // muted green (background fill)
-    tealbright: '#3d5c4a', // link/mod/term green — ~7:1 on the card
-    gold: '#8a6a2f',      // bronze — ~5.1:1
-    danger: '#a63d2f',    // muted brick
+    tealbright: '#33513f', // link/mod/term green — ~8:1 on the card, clears AA on its own tint
+    gold: '#6b5220',      // bronze — 7.4:1 on the card, 6.0:1 on its own 10% tint
+    danger: '#8d3225',    // muted brick — 5.6:1, clears AA on its own tint
     good: '#3d5c4a',
     line: 'rgba(90, 84, 70, 0.30)',
     'line-strong': 'rgba(63, 107, 69, 0.55)',

@@ -83,6 +83,15 @@
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
+/* The marketing site's globals.css sets a bare `p { color: var(--text-secondary) }` (#4B5563,
+   its grey-on-white body colour). That leaked into the sheet and painted every unclassed
+   paragraph — bio prose, feature text — mid-grey: 2.5:1 on the dark skin's near-black card, and
+   muddy on the light ones. The sheet is its own design system, so reset paragraphs to inherit
+   the sheet's ink. `.dnd-sheet p` (0,1,1) beats the global `p` (0,0,1), while any of the sheet's
+   own classed rules (.lead, .inv-desc…) still win over this. */
+.dnd-sheet p {
+  color: inherit;
+}
 .dnd-sheet ::selection {
   background: rgba(var(--hotpink-rgb), 0.35);
   color: #fff;
@@ -962,7 +971,7 @@
    a dark list with light text — native option lists otherwise render white + faint. */
 .dnd-sheet select option {
   background: var(--panel-2);
-  color: #f4f1fb;
+  color: var(--ink);
 }
 .dnd-sheet input:focus,
 .dnd-sheet textarea:focus,
@@ -1854,8 +1863,8 @@
   }
 }
 .dnd-sheet .stage-crit {
-  border-color: #8fe3ff;
-  box-shadow: inset 0 0 60px -8px rgba(96, 165, 250, 0.6), 0 0 40px -6px rgba(143, 227, 255, 0.7);
+  border-color: var(--tealbright);
+  box-shadow: inset 0 0 60px -8px rgba(var(--violet-rgb), 0.6), 0 0 40px -6px rgba(var(--tealbright-rgb), 0.7);
   animation: critflash 0.5s ease;
 }
 .dnd-sheet .stage-crit .stage-number {
@@ -1865,16 +1874,16 @@
   0%,
   100% {
     transform: scale(1);
-    text-shadow: 0 0 18px #8fe3ff, 0 0 44px #60a5fa;
+    text-shadow: 0 0 18px rgba(var(--tealbright-rgb), 0.9), 0 0 44px rgba(var(--violet-rgb), 0.7);
   }
   50% {
     transform: scale(1.16);
-    text-shadow: 0 0 30px #bff0ff, 0 0 70px #8fe3ff;
+    text-shadow: 0 0 30px rgba(var(--tealbright-rgb), 1), 0 0 70px rgba(var(--tealbright-rgb), 0.6);
   }
 }
 @keyframes critflash {
   0% {
-    background: radial-gradient(120% 120% at 50% 50%, rgba(143, 227, 255, 0.5), transparent 60%);
+    background: radial-gradient(120% 120% at 50% 50%, rgba(var(--tealbright-rgb), 0.5), transparent 60%);
   }
 }
 .dnd-sheet .stage-fumble {
@@ -1888,12 +1897,14 @@
 @keyframes fumblegrow {
   0% {
     transform: scale(1);
-    color: #ffb3b3;
+    color: var(--danger);
+    opacity: 0.7;
   }
   100% {
     transform: scale(1.35);
-    color: #ff2222;
-    text-shadow: 0 0 30px #ff2222, 0 0 70px #b00000;
+    color: var(--danger);
+    opacity: 1;
+    text-shadow: 0 0 30px rgba(var(--danger-rgb), 0.9), 0 0 70px rgba(var(--danger-rgb), 0.5);
   }
 }
 @keyframes shake {
@@ -1947,8 +1958,8 @@
   white-space: nowrap;
 }
 .dnd-sheet .rv-flag.crit {
-  color: #8fe3ff;
-  text-shadow: 0 0 10px #60a5fa;
+  color: var(--tealbright);
+  text-shadow: 0 0 10px rgba(var(--tealbright-rgb), 0.6);
 }
 .dnd-sheet .rv-flag.fumble {
   color: var(--danger);
@@ -3197,8 +3208,15 @@
 .dnd-sheet.skin-donata .adv-seg button.on-dis { background: var(--danger); color: #fff; }
 .dnd-sheet.skin-donata .adv-seg button.on-flat { background: #fff; color: var(--ink); }
 .dnd-sheet.skin-donata .tray-dice .btn { color: var(--violet-2); background: #fff; }
+/* These set white text but inherited `background: #fff` from the `.tray-dice .btn` rule above,
+   so "Flat d20" rendered white-on-white — invisible. They need the accent fill the skin's other
+   solid buttons use. */
 .dnd-sheet.skin-donata .tray-dice .btn.solid,
-.dnd-sheet.skin-donata .tray-dice .btn.solid.pink { color: #fff; }
+.dnd-sheet.skin-donata .tray-dice .btn.solid.pink {
+  color: #fff;
+  background: linear-gradient(160deg, var(--hotpink), var(--violet));
+  border-color: transparent;
+}
 .dnd-sheet.skin-donata .dice-count { color: var(--ink); }
 .dnd-sheet.skin-donata .dice-count .step { color: var(--violet-2); background: #fff; border: 2px solid rgba(var(--sk-grape), 0.35); }
 .dnd-sheet.skin-donata .re-label,

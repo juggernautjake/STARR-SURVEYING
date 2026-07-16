@@ -111,8 +111,10 @@ export default function CharacterGallery() {
                 />
                 {(isArt || isToken) && (
                   <div style={{ position: 'absolute', top: 4, left: 4, display: 'flex', gap: 4 }}>
+                    {/* #fff is correct here: the badge sits on a SOLID accent fill, which is dark
+                        enough for white on every skin (neon pink, moss green, MLM magenta). */}
                     {isArt && <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', padding: '2px 5px', borderRadius: 3, background: 'var(--hotpink, #ff2d8b)', color: '#fff' }}>★ ART</span>}
-                    {isToken && <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', padding: '2px 5px', borderRadius: 3, background: 'var(--tealbright, #22d3ee)', color: '#04222a' }}>◉ TOKEN</span>}
+                    {isToken && <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', padding: '2px 5px', borderRadius: 3, background: 'var(--tealbright, #22d3ee)', color: 'var(--void)' }}>◉ TOKEN</span>}
                   </div>
                 )}
                 {canWrite && (
@@ -133,7 +135,7 @@ export default function CharacterGallery() {
                       onClick={() => del(it)}
                       disabled={busy != null}
                       title="Delete this image permanently"
-                      style={{ ...galBtn(false), borderLeft: '1px solid var(--line, #1e2d3d)', flex: '0 0 34px', color: '#ff6b6b' }}
+                      style={{ ...galBtn(false), borderLeft: '1px solid var(--line, #1e2d3d)', flex: '0 0 34px', color: 'var(--danger)' }}
                     >{busy === `del:${it.id}` ? '…' : '🗑'}</button>
                   </div>
                 )}
@@ -148,6 +150,7 @@ export default function CharacterGallery() {
           onClick={() => setLightbox(null)}
           style={{ position: 'fixed', inset: 0, zIndex: 100001, background: 'rgba(2,4,10,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
         >
+          {/* #fff is correct here: the lightbox backdrop is a fixed dark scrim on every skin. */}
           <button onClick={() => setLightbox(null)} aria-label="Close" style={{ position: 'absolute', top: 12, right: 12, width: 40, height: 40, borderRadius: '50%', border: '1px solid var(--line-strong, #785a28)', background: 'rgba(1,10,19,0.7)', color: '#fff', fontSize: 20, cursor: 'pointer' }}>✕</button>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={lightbox} alt="image" style={{ maxWidth: '92vw', maxHeight: '86vh', objectFit: 'contain', borderRadius: 4 }} />

@@ -34,7 +34,7 @@ interface DisplayStyle {
 export default function RollStage() {
   const { activeRoll, commitRoll } = useChar()
   const [display, setDisplay] = useState<number | string>('—')
-  const [style, setStyle] = useState<DisplayStyle>({ color: '#22e0e0', fontFamily: "'Orbitron'", fontWeight: 800, rotate: 0 })
+  const [style, setStyle] = useState<DisplayStyle>({ color: 'var(--tealbright)', fontFamily: "'Orbitron'", fontWeight: 800, rotate: 0 })
   const [phase, setPhase] = useState<'idle' | 'spinning' | 'crit' | 'fumble' | 'done'>('idle')
   const [reveal, setReveal] = useState<{ total: number; breakdown: string; label: string; tag?: string; isD20: boolean } | null>(null)
   const timer = useRef<number | null>(null)
@@ -60,7 +60,7 @@ export default function RollStage() {
       setPhase('idle')
       setDisplay('—')
       setReveal(null)
-      setStyle({ color: '#22e0e0', fontFamily: "'Orbitron'", fontWeight: 800, rotate: 0 })
+      setStyle({ color: 'var(--tealbright)', fontFamily: "'Orbitron'", fontWeight: 800, rotate: 0 })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRoll])

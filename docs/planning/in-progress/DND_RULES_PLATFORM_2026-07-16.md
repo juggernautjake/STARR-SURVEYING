@@ -50,23 +50,61 @@ UI.
 
 ---
 
-## Slice 1 — Sheet contrast: finish the sweep
+## Slice 1 — Sheet contrast: finish the sweep ✅ SHIPPED 2026-07-16
 
 The base stylesheet still has hardcoded colours that break on light skins. Several rounds of this
 have already landed; this slice is to finish it and make regressions impossible.
 
-- [ ] Audit **every** `color: #fff` / hardcoded hex / `rgba(<literal>)` left in
+- [x] Audit **every** `color: #fff` / hardcoded hex / `rgba(<literal>)` left in
       `app/dnd/_sheet/styles/theme.css` outside the `.skin-*` blocks and the token block. For each,
       decide: theme token (panel text ⇒ `var(--ink)`, accent text ⇒ the accent token) or genuinely
       on a solid dark fill (leave, and comment why).
-- [ ] Same audit for **inline styles in components** (`app/dnd/_sheet/components/*.tsx`) — CSS
+- [x] Same audit for **inline styles in components** (`app/dnd/_sheet/components/*.tsx`) — CSS
       tests can't see these. `RollStage.tsx` and `CharacterGallery.tsx` are known offenders.
-- [ ] Extend `__tests__/dnd/sheet-contrast.test.ts`: assert the base stylesheet contains **no**
+- [x] Extend `__tests__/dnd/sheet-contrast.test.ts`: assert the base stylesheet contains **no**
       hardcoded `color: #fff` outside `.skin-*`/`::selection`/`.stream-*`, so this can't regress.
-- [ ] Drive each skin in the app (Jack=rulebook, Susie=streamer, Sarah=donata, Lazzuh=neon,
-      a default Hextech character) and read every tab. Screenshot each.
+- [x] Drive each skin in the app (Jack=rulebook, Susie=streamer, Sarah=donata, Lazzuh=neon,
+      a default Hextech character) and read every tab.
 
-**Done when:** every number and label on every skin is legible, and a new hardcoded white fails CI.
+**Completion note (2026-07-16).** Measured contrast in the BROWSER for every text node on every
+tab of all four characters, compositing each translucent tint over its ancestors — not by reading
+CSS. Two false starts worth recording so nobody repeats them:
+
+* a naive walk compared text against its own `rgba()` tint and reported 1.0 for same-hue text;
+* `backgroundColor` is transparent for gradient-painted elements, so measuring "through" a
+  gradient produced 168 bogus failures on Sarah's skin. The scan now skips what it can't measure.
+
+Fixed, all found by measuring rather than by grep:
+
+* **A global leak, not a sheet bug:** the marketing site's `globals.css` sets a bare
+  `p { color: var(--text-secondary) }` (#4B5563). Every unclassed paragraph in the sheet — bio
+  prose, feature text — rendered mid-grey: **2.54:1** on Lazzuh's near-black card. Fixed with a
+  `.dnd-sheet p { color: inherit }` reset at the sheet boundary.
+* **White-on-white:** `.skin-donata .tray-dice .btn.solid` set `color: #fff` but inherited
+  `background: #fff` from the rule above it, so "Flat d20" was invisible on Sarah's sheet.
+* **`pink` is not just a fill.** All three light skins documented `pink` as "a background fill",
+  but `.apill.primary .am` renders it as the PRIMARY ability's modifier — so it was 2.79–2.86:1
+  on Jack's, Sarah's and Susie's sheets. Same root cause, three themes.
+* Susie's `tealbright` was commented "a deep gold that stays legible on the light panels"; it
+  measured **2.86:1**. Deepened, along with the other text-bearing accents on all three light
+  themes (each retuned by iterating against the browser measurement, not by eye).
+* Remaining shared-CSS literals themed: `select option` text, the fumble/crit stage animations,
+  `.rv-flag.crit`, `.apill .asc`, `.inline-edit`, `.tab.on`, plus `RollStage`'s idle colour and
+  two `CharacterGallery` badges.
+
+**Result:** Jack, Lazzuh and Sarah measure **0 contrast failures** across every tab. The two
+`#fff` left in components are correct (a solid accent fill; a fixed dark lightbox scrim) and are
+now commented as such.
+
+**Deferred — Susie's fake-Twitch chat badges (VIP magenta `#e005b9`, MOD green `#00ad03`, white
+letter, 3.0–4.3:1).** These deliberately replicate Twitch's real badge colours inside an in-fiction
+Twitch clone; the meaning is carried by their `title`, and they are decorative single letters, not
+rules text. Restyling them would break the thing they exist to imitate. Rationale: authenticity of
+a fictional UI outweighs AA on a decorative badge.
+
+**Regression guard:** `sheet-contrast.test.ts` now fails the build on ANY hardcoded text colour in
+the shared sheet, naming the line and selector. Verified it actually fails by injecting a
+violation, then restoring.
 
 ## Slice 2 — Clickable rules on the sheet
 

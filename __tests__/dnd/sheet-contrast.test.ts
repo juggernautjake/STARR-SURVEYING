@@ -41,10 +41,37 @@ describe('theme tokens drive every accent (no hardcoded palette literals)', () =
     expect(body).not.toMatch(/rgba\(181, ?80, ?31,/);    // the rulebook skin's old burnt orange
   });
 
-  it('themeToCssVars emits an r,g,b triplet for every hex token', () => {
+  // The regression guard. Every round of "the text is unreadable" has been another hardcoded
+  // literal left over from when this stylesheet was one character's dark neon sheet. Rather than
+  // find them one bug report at a time, fail the build on a new one.
+  it('the BASE stylesheet has no hardcoded text colour at all', () => {
+    const lines = CSS.split(/\r?\n/);
+    // Which rule does a line belong to? (last selector seen at or above it)
+    let selector = '';
+    const offenders: string[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (/\{\s*$/.test(line) || /\{/.test(line)) selector = line.trim();
+      const m = /(^|\s)color:\s*(#[0-9a-fA-F]{3,6}|white)\s*[;!]/.exec(line);
+      if (!m) continue;
+      // Legitimately exempt:
+      //  · .skin-* blocks — a bespoke skin may commit to its own fixed look
+      //  · .stream-* / .sd-* — the streamer dock, which is a fixed dark chrome on every skin
+      //  · ::selection — text on a solid accent fill
+      if (/skin-|stream|\.sd-|::selection/.test(selector)) continue;
+      offenders.push(`${i + 1}: ${selector} → ${line.trim()}`);
+    }
+    expect(offenders, `hardcoded text colours in the shared sheet (use var(--ink) or an accent token):\n${offenders.join('\n')}`).toEqual([]);
+  });
+
+  it('themeToCssVars emits an r,g,b triplet matching every hex token', () => {
     const vars = themeToCssVars(rangorTheme) as Record<string, string>;
-    expect(vars['--hotpink']).toBe('#3f6b45');
-    expect(vars['--hotpink-rgb']).toBe('63, 107, 69'); // so rgba(var(--hotpink-rgb), .2) is moss
+    // Asserts the INVARIANT (the triplet is derived from the hex), not a specific colour —
+    // the palette gets retuned for contrast, and a test pinned to a hex just breaks each time.
+    const hex = vars['--hotpink'];
+    expect(hex).toMatch(/^#[0-9a-f]{6}$/i);
+    const n = parseInt(hex.slice(1), 16);
+    expect(vars['--hotpink-rgb']).toBe(`${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`);
     expect(vars['--ink-rgb']).toBeTruthy();
     // A non-hex token (rgba string) must not produce a bogus triplet.
     expect(vars['--line-rgb']).toBeUndefined();
