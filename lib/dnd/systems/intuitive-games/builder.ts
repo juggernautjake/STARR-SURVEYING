@@ -7,17 +7,23 @@
 // by the provenance classifier — no special-casing needed. Pure — no services.
 import type { Character } from '@/app/dnd/_sheet/types';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
-import { IG_STANCES, IG_POWERS, IG_FEATS } from './content';
+import { IG_STANCES, IG_POWERS, IG_FEATS, IG_DEFENSIVE_POWERS } from './content';
 
-/** The kinded record of what an Intuitive Games character was built from (stored on the character data). */
+/** The kinded record of what an Intuitive Games character was built from (stored on the character data).
+ *  Mirrors the template's build fields — Class / Subclass / Specialization / Background (Sheet 1), the
+ *  Stances / Powers / Feats picks (Sheet 2/5), the Defensive Power (Sheet 3), and Weapon Groups/Types. */
 export interface IGBuild {
   ancestry?: string;
   className?: string;
   subclass?: string;
+  specialization?: string;
+  background?: string;
   stances?: string[];
   powers?: string[];
   feats?: string[];
   weapons?: string[];
+  weaponTypes?: string[];
+  defensivePower?: string;
 }
 
 export interface IGPicks extends IGBuild {
@@ -45,9 +51,16 @@ export function assembleIGVanillaCharacter(picks: IGPicks): Character & { igBuil
   char.meta.className = picks.className || '';
   char.meta.subclass = picks.subclass || '';
   char.meta.level = picks.level ?? 1;
+  // Specialization + Background have no dedicated meta field; surface them as chips (Sheet 1 header fields).
+  const chips: Character['meta']['chips'] = [];
+  if (picks.specialization) chips.push({ text: `Specialization: ${picks.specialization}`, tone: 'gold' });
+  if (picks.background) chips.push({ text: `Background: ${picks.background}`, tone: 'teal' });
+  if (picks.weaponTypes?.length) chips.push({ text: `Weapon Groups: ${picks.weaponTypes.join(', ')}` });
+  char.meta.chips = chips;
 
   const features: Character['features'] = [];
   for (const s of picks.stances ?? []) features.push({ id: uid('stance'), name: s, source: 'Stance', body: [effectOf(IG_STANCES, s) || 'Stance.'], tone: 'teal' });
+  if (picks.defensivePower) features.push({ id: uid('defpow'), name: picks.defensivePower, source: 'Defensive Power', body: [effectOf(IG_DEFENSIVE_POWERS, picks.defensivePower) || 'Defensive power (reaction).'], tone: 'gold' });
   for (const pw of picks.powers ?? []) features.push({ id: uid('power'), name: pw, source: 'Power', body: [effectOf(IG_POWERS, pw) || 'Power.'], tone: 'pink' });
   for (const f of picks.feats ?? []) features.push({ id: uid('feat'), name: f, source: 'Feat', body: [effectOf(IG_FEATS, f) || 'Feat.'] });
   char.features = features;
@@ -58,7 +71,9 @@ export function assembleIGVanillaCharacter(picks: IGPicks): Character & { igBuil
 
   char.igBuild = {
     ancestry: picks.ancestry, className: picks.className, subclass: picks.subclass,
-    stances: [...(picks.stances ?? [])], powers: [...(picks.powers ?? [])], feats: [...(picks.feats ?? [])], weapons: [...(picks.weapons ?? [])],
+    specialization: picks.specialization, background: picks.background, defensivePower: picks.defensivePower,
+    stances: [...(picks.stances ?? [])], powers: [...(picks.powers ?? [])], feats: [...(picks.feats ?? [])],
+    weapons: [...(picks.weapons ?? [])], weaponTypes: [...(picks.weaponTypes ?? [])],
   };
   return char;
 }

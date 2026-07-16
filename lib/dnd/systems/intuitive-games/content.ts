@@ -100,7 +100,8 @@ export const IG_WEAPON_TYPES: string[] = IG_WEAPON_CLASSES.flatMap((c) => IG_DAM
 export const IG_MOVEMENT_TYPES: string[] = ['None', 'Fast', ...['Fly', 'Climb', 'Burrow', 'Swim'].flatMap((m) => [10, 20, 30].map((n) => `${m} ${n}`))];
 
 // ── Subclasses + backgrounds (the documented ones; extensible). ─────────────────────────────────────
-export const IG_SUBCLASSES: string[] = ['Arcanist', 'Magician', 'Shaman', 'Summoner', 'Champion'];
+// The five SUBCLASSES from the template's "Subclass List" (Data Sheet) — distinct from the 13 classes.
+export const IG_SUBCLASSES: string[] = ['Arcanist', 'Summoner', 'Champion', 'Witch', 'Shifter'];
 export const IG_BACKGROUNDS: string[] = [];
 
 // ── Companion creature type categories (the bestiary groups). ───────────────────────────────────────

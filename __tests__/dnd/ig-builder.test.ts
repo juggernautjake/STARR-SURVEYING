@@ -23,6 +23,23 @@ describe('assembleIGVanillaCharacter (Slice 7b)', () => {
     expect(c.igBuild.powers).toEqual(['Mirror Image']);
   });
 
+  it('carries specialization / background / defensive power / weapon groups (spreadsheet fields)', () => {
+    const c = assembleIGVanillaCharacter({
+      className: 'Freebooter', subclass: 'Arcanist', specialization: 'Duelist', background: 'Sky-pirate',
+      defensivePower: 'Sidestep', weaponTypes: ['Light Slashing', 'Ranged Piercing'],
+    });
+    // Specialization/Background surface as chips; the defensive power is a gold feature with its effect
+    expect(c.meta.chips.some((ch) => ch.text === 'Specialization: Duelist')).toBe(true);
+    expect(c.meta.chips.some((ch) => ch.text === 'Background: Sky-pirate')).toBe(true);
+    expect(c.features.some((f) => f.source === 'Defensive Power' && f.name === 'Sidestep')).toBe(true);
+    // all of these are real catalog entries → 100% vanilla, correctly kinded
+    const s = summarizeCharacterProvenance(c, 'intuitive-games', []);
+    expect(s.custom).toHaveLength(0);
+    expect(s.elements.find((e) => e.name === 'Sidestep')?.kind).toBe('defensive-power');
+    expect(s.elements.find((e) => e.name === 'Light Slashing')?.kind).toBe('weapon-type');
+    expect(s.elements.find((e) => e.name === 'Arcanist')?.kind).toBe('subclass');
+  });
+
   it('a straight vanilla assemble is 100% vanilla (nothing blocks a vanilla-only submit)', () => {
     const c = assembleIGVanillaCharacter({
       ancestry: 'Migoi', className: 'Freebooter', stances: ['Offensive'], powers: ['Mirror Image'], feats: ['Toughness'],

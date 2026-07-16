@@ -25,16 +25,22 @@ export default function IGCharacterBuilder({ characterId, initialName }: { chara
   const stanceOpts = useMemo(() => names(catalog, 'stance'), [catalog]);
   const powerOpts = useMemo(() => names(catalog, 'power'), [catalog]);
   const featOpts = useMemo(() => names(catalog, 'feat'), [catalog]);
+  const defPowerOpts = useMemo(() => names(catalog, 'defensive-power'), [catalog]);
+  const weaponTypeOpts = useMemo(() => names(catalog, 'weapon-type'), [catalog]);
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(initialName);
   const [ancestry, setAncestry] = useState('');
   const [className, setClassName] = useState('');
   const [subclass, setSubclass] = useState('');
+  const [specialization, setSpecialization] = useState('');
+  const [background, setBackground] = useState('');
   const [level, setLevel] = useState(1);
   const [stances, setStances] = useState<string[]>([]);
   const [powers, setPowers] = useState<string[]>([]);
   const [feats, setFeats] = useState<string[]>([]);
+  const [defensivePower, setDefensivePower] = useState('');
+  const [weaponTypes, setWeaponTypes] = useState<string[]>([]);
   const [weaponsText, setWeaponsText] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -51,10 +57,12 @@ export default function IGCharacterBuilder({ characterId, initialName }: { chara
     stances.forEach((s) => els.push({ kind: 'stance', name: s }));
     powers.forEach((s) => els.push({ kind: 'power', name: s }));
     feats.forEach((s) => els.push({ kind: 'feat', name: s }));
+    weaponTypes.forEach((s) => els.push({ kind: 'weapon-type', name: s }));
+    if (defensivePower) els.push({ kind: 'defensive-power', name: defensivePower });
     let vanilla = 0, custom = 0;
     for (const e of els) (classifyElement('intuitive-games', e.kind, e.name) === 'vanilla' ? vanilla++ : custom++);
     return { vanilla, custom, total: els.length };
-  }, [ancestry, className, subclass, stances, powers, feats]);
+  }, [ancestry, className, subclass, stances, powers, feats, weaponTypes, defensivePower]);
 
   async function build() {
     setBusy(true); setMsg(null);
@@ -62,7 +70,7 @@ export default function IGCharacterBuilder({ characterId, initialName }: { chara
       const weapons = weaponsText.split(',').map((s) => s.trim()).filter(Boolean);
       const r = await fetch(`/api/dnd/characters/${characterId}/ig-build`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ picks: { name, ancestry, className, subclass, level, stances, powers, feats, weapons } }),
+        body: JSON.stringify({ picks: { name, ancestry, className, subclass, specialization, background, level, stances, powers, feats, defensivePower, weaponTypes, weapons } }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setMsg(j.error ?? 'Could not build.'); return; }
@@ -97,12 +105,19 @@ export default function IGCharacterBuilder({ characterId, initialName }: { chara
           <select value={className} onChange={(e) => setClassName(e.target.value)} style={{ ...input, flex: 1, minWidth: 130 }}><option value="">Class…</option>{classes.map((a) => <option key={a} value={a}>{a}</option>)}</select>
           <select value={subclass} onChange={(e) => setSubclass(e.target.value)} style={{ ...input, flex: 1, minWidth: 130 }}><option value="">Subclass…</option>{subclasses.map((a) => <option key={a} value={a}>{a}</option>)}</select>
         </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <input value={specialization} onChange={(e) => setSpecialization(e.target.value)} placeholder="Specialization" style={{ ...input, flex: 1, minWidth: 130 }} />
+          <input value={background} onChange={(e) => setBackground(e.target.value)} placeholder="Background" style={{ ...input, flex: 1, minWidth: 130 }} />
+          <select value={defensivePower} onChange={(e) => setDefensivePower(e.target.value)} style={{ ...input, flex: 1, minWidth: 130 }}><option value="">Defensive power…</option>{defPowerOpts.map((a) => <option key={a} value={a}>{a}</option>)}</select>
+        </div>
         <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>STANCES</div>
         <Chips opts={stanceOpts} sel={stances} on={(v) => toggle(setStances, v)} />
         <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>POWERS</div>
         <Chips opts={powerOpts} sel={powers} on={(v) => toggle(setPowers, v)} />
         <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>FEATS</div>
         <Chips opts={featOpts} sel={feats} on={(v) => toggle(setFeats, v)} />
+        <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>WEAPON GROUPS</div>
+        <Chips opts={weaponTypeOpts} sel={weaponTypes} on={(v) => toggle(setWeaponTypes, v)} />
         <input value={weaponsText} onChange={(e) => setWeaponsText(e.target.value)} placeholder="Weapons (comma-separated, e.g. Cutlass, Pistol)" style={input} />
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
