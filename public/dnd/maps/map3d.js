@@ -731,6 +731,25 @@ const Map3D = {
     for (const k of ['cloudCov', 'cloudOpacity', 'cloudScale', 'cloudDetail', 'cloudDef', 'cloudSwirl', 'cloudBand', 'cloudBandN', 'cloudShear', 'cloudTint', 'storms', 'stormI', 'lightOn', 'lightRate', 'boltColor', 'tilt', 'ringColor', 'ringW', 'cityColor', 'atmoDensity']) {
       if (L[k] != null && L[k] !== '') rich[k] = L[k];
     }
+    // The EDITOR names its cloud controls cloudAmount/cloudColor/cloudStyle; the MODEL reads
+    // cloudCov/cloudTint (planet3d-model.js). Nothing translated between them, so cranking the
+    // cloud slider updated edWork, rebuilt the model, and never told it anything — the control
+    // moved and the preview didn't. A slider that silently does nothing is worse than a missing
+    // one: you believe you tuned it. Translate here, where every caller (editor preview, map
+    // render, export) goes through.
+    if (rich.cloudCov == null && L.cloudAmount != null && L.cloudAmount !== '') rich.cloudCov = +L.cloudAmount;
+    if (rich.cloudTint == null && L.cloudColor) rich.cloudTint = L.cloudColor;
+    // The 2D art defaults clouds on for wet worlds and off elsewhere (see `art()`), and treats
+    // "none" as no clouds at all. 3D must agree or the two views disagree about the same planet.
+    const cloudStyle = L.cloudStyle || (['terran', 'ocean', 'jungle', 'toxic'].includes(L.ptype) ? 'wispy' : 'none');
+    if (cloudStyle === 'none') rich.cloudCov = 0;
+    else if (rich.cloudCov == null) rich.cloudCov = 0.5;
+    // Map the style to the model's shape knobs, so "banded" and "storm" look like themselves in 3D
+    // rather than all rendering as generic cloud.
+    if (cloudStyle === 'banded') { if (rich.cloudBand == null) rich.cloudBand = 0.85; if (rich.cloudSwirl == null) rich.cloudSwirl = 0.15; }
+    else if (cloudStyle === 'storm') { if (rich.cloudSwirl == null) rich.cloudSwirl = 0.8; if (rich.cloudDef == null) rich.cloudDef = 0.75; }
+    else if (cloudStyle === 'heavy') { if (rich.cloudDef == null) rich.cloudDef = 0.8; if (rich.cloudScale == null) rich.cloudScale = 3.4; }
+    else if (cloudStyle === 'wispy') { if (rich.cloudDef == null) rich.cloudDef = 0.32; }
     if (it.kind === 'moon') return Object.assign({ type: (L.mtype === 'ice' || L.mtype === 'icy') ? 'ice' : 'barren', seed: L.seed || 1, sea: num(L.sea, 0.02), cscale: num(L.cscale, 2.6), coast: num(L.coast, 0.6), ice: num(L.ice, (L.mtype === 'ice' || L.mtype === 'icy') ? 0.6 : 0.05), spin: num(L.spin, 1), atmoOn: !!L.atmo, lava, city, lightColor, destroyed, destroyI }, rich);
     const t = valid.includes(L.ptype) ? L.ptype : (L.ptype === 'rock' ? 'barren' : 'terran');
     return Object.assign({ type: t, seed: L.seed || 1, sea: num(L.sea, t === 'gas' ? 0.5 : 0.52), cscale: num(L.cscale, 2.2), coast: num(L.coast, 0.5), ice: num(L.ice, t === 'ice' ? 0.5 : 0.15), spin: num(L.spin, 1), ring: !!L.ring, atmoOn: L.atmo !== false && ['terran', 'ocean', 'toxic', 'gas', 'jungle'].includes(t), atmoColor: L.atmoColor || undefined, lava, city, lightColor, destroyed, destroyI }, rich);

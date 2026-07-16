@@ -846,6 +846,43 @@ and `kind='item'` are already modelled). What's missing is that nothing but the 
 - [ ] Tests: an element with art shows its thumbnail; one without shows its kind icon; an upload
       failure leaves the item working.
 
+## Slice 29 — Map studio: every control actually drives the preview
+
+> "The clouds are not increasing in the preview whenever I crank the slider up… make sure all of the
+> options and toggles and sliders have actual effects on the object and that those effects render in
+> real time in the object editor viewer."
+
+Reported against the object editor. The 3D framing fix shipped 2026-07-16 (see the note below);
+this is the remaining half.
+
+- [ ] **Audit every control against both renderers.** For each kind (planet, moon, star, station,
+      galaxy…), list every slider/toggle and confirm it changes (a) the 2D art and (b) the live 3D
+      model. The known break: **clouds do nothing in the preview**.
+- [ ] The likely cause, worth checking first: `edPreview()` hands `edWork` to
+      `EditorPreview3D.update()`, which rebuilds via `cfgFor(look)` →
+      `Map3D._genericPlanetCfg({kind, look})`. Any field that mapping drops never reaches the model,
+      so the slider moves, the value saves, and the preview is simply never told. A control that
+      silently does nothing is worse than a missing control — you think you tuned it.
+- [ ] Both renderers must honour the SAME field. The editor already promises this in its own copy:
+      "These drive both the 2D art and the live 3D model." Where a field genuinely cannot exist in
+      one renderer, say so in the UI rather than leaving a dead control.
+- [ ] Real-time: every control re-renders on `input`, not on release.
+- [ ] Test: a fixture asserting every editable field of every kind reaches the 3D config — so a new
+      slider cannot be added without wiring it.
+
+**Shipped 2026-07-16 — the 3D clipping half.** The preview camera sat at a fixed `z=4.6` with a 34°
+FOV: a half-height of `tan(17°)×4.6 ≈ 1.41` at the origin, while a planet is radius **1.3 before its
+atmosphere and glow**. So the glow overran the frustum and the body was sliced flat on every side. No
+fixed distance can be right for every subject (a star's corona is bigger; rings are wider than tall),
+so the camera now measures the model's bounding sphere and frames it — `r/sin(fov/2)` for both the
+vertical and horizontal FOV, larger wins, re-framed on every build and resize. The viewer also went
+66% → 88% of its column, so the subject renders *larger* than before while fitting completely.
+
+⚠️ **Verification trap, recorded so nobody repeats it:** reading pixels back off the WebGL canvas
+with `drawImage` does **not** work — the drawing buffer is cleared after compositing unless
+`preserveDrawingBuffer` is set. The readback comes back empty, so a "no lit pixels on the border ⇒
+not clipped" check passes for *any* input, including a badly clipped one. Verify by screenshot.
+
 ## Slice 25 — Connect it to the rest
 
 - [ ] Spells cast on you land in the ledger as sources (`activeEffects`), so Bless and a potion are
