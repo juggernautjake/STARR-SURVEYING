@@ -479,9 +479,17 @@ doc's explicit "senses… need somewhere to render" item. Test added to `grant-d
   renders `-NaN`). `Attacks` builds one unified `rows` list (owned + granted) so both go through the
   SAME to-hit/damage path and can't drift; granted rows are badged to their item, carry no ⋯ menu
   (on loan), and vanish on unequip. Tests: `grant-attack.test.ts` (4).
-- *The last heavy grant target* — `grant_spell` — follows the same `grantsSpell?: Spell` shape but
-  needs a caster header the `SpellsPanel` currently early-returns past for a non-caster granted a
-  spell, so it's its own slice (render surface, not just a read).
+- *`grant_spell` ✅ SHIPPED (commit pending).* A `grantsSpell?: Spell` on the item, normalised on
+  ingest (id minted, level clamped 0–9, marked prepared). `SpellsPanel` no longer early-returns for a
+  non-caster when an item grants a spell: the caster header/levels are guarded behind `sc && …` and a
+  read-only "Granted Spells" block (name · level · school/range/components · description, badged to
+  source) renders below, gone on unequip. Casting from granted slots is a follow-up. Tests:
+  `grant-spell.test.ts` (4).
+
+**All grant targets are now shipped.** The grant-half of Slice 11 is complete: proficiencies,
+resistances/immunities/vulnerabilities, senses, movement modes + flags, features, resources, attacks,
+and spells all resolve through the ledger (flat grants) or a structured item sub-object
+(resource/attack/spell), render on the sheet badged to their source, and revert on unequip.
   `grant_feature` rendered cleanly because a feature card is fundamentally descriptive: a name + a
   source badge is a complete, honest card. An attack/spell/resource is *interactive* — an attack you
   roll needs its ability + damage dice; a spell you cast needs a level, components, and (for a

@@ -164,6 +164,10 @@ export interface InvItem {
    *  Attack. Rendered in the Attacks table badged to this item (no edit — it's on loan), and gone
    *  when it comes off. Structured like `grantsResource` because an attack must be rollable. */
   grantsAttack?: Attack
+  /** A spell this item GRANTS while equipped/attuned (Slice 11 grant-half). Surfaced read-only in
+   *  the Spells tab badged to this item — so a non-caster can be granted a spell and still see it —
+   *  gone when it comes off. (Casting from granted slots is a follow-up.) */
+  grantsSpell?: Spell
 }
 
 /** A temporary effect currently applied to the character (from a consumed buff/potion or a

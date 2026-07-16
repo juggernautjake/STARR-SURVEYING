@@ -5,7 +5,7 @@
 // refining = edits onto the current one. Pure + typed so it's unit-tested and the API
 // can trust the result before persisting.
 import type Anthropic from '@anthropic-ai/sdk';
-import type { Character, Attack, FeatureBlock, InvItem, Resource, CustomTag, ItemKind, WeaponStats, ArmorStats, ConsumableStats } from '@/app/dnd/_sheet/types';
+import type { Character, Attack, FeatureBlock, InvItem, Resource, CustomTag, ItemKind, WeaponStats, ArmorStats, ConsumableStats, Spell } from '@/app/dnd/_sheet/types';
 // (Resource is imported above; used by ItemPayload.grantsResource.)
 import type { Effect } from '@/app/dnd/_sheet/engine/effects';
 import type { AbilityKey, ProfLevel } from '@/app/dnd/_sheet/rules/dnd';
@@ -34,6 +34,8 @@ export interface ItemPayload {
   grantsResource?: Resource;
   /** A rollable attack the item grants while equipped (Slice 11 grant-half). */
   grantsAttack?: Attack;
+  /** A spell the item grants while equipped (Slice 11 grant-half). */
+  grantsSpell?: Spell;
 }
 
 const ITEM_KINDS: ItemKind[] = ['weapon', 'armor', 'shield', 'consumable', 'wondrous', 'gear'];
@@ -84,6 +86,16 @@ function applyItemPayload(base: InvItem, p: ItemPayload): InvItem {
       ability: ABILITY_KEYS.includes(a.ability) ? a.ability : 'str',
       damage: a.damage || '1d6',
       damageType: a.damageType ?? '',
+    };
+  }
+  if (p.grantsSpell != null && typeof p.grantsSpell.name === 'string') {
+    const s = p.grantsSpell;
+    out.grantsSpell = {
+      ...s,
+      id: s.id || `grant-spell-${slug(s.name)}`,
+      level: (Math.max(0, Math.min(9, Math.round(s.level ?? 0))) as Spell['level']),
+      description: s.description ?? '',
+      prepared: true, // a granted spell is available while worn
     };
   }
   if (Array.isArray(p.tags)) {
@@ -386,6 +398,20 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
                 bonusDamage: { type: 'number' },
               },
               required: ['name', 'ability', 'damage'],
+            },
+            grantsSpell: {
+              type: 'object',
+              description: 'For add_item/update_item: a spell the item GRANTS while equipped (e.g. a wand of Fireball). Shown read-only in the Spells tab, badged to the item, gone on unequip — works even for a non-caster.',
+              properties: {
+                name: { type: 'string' },
+                level: { type: 'number', description: '0 for a cantrip, up to 9.' },
+                school: { type: 'string' },
+                range: { type: 'string' },
+                components: { type: 'string' },
+                duration: { type: 'string' },
+                description: { type: 'string' },
+              },
+              required: ['name', 'level'],
             },
             max: { type: 'number' },
             color: { type: 'string', enum: ['pink', 'teal', 'gold'] },

@@ -5,6 +5,7 @@
 // damage / save / heal). Casting + prepare-toggle come in Slice 4. Theme-token styled → all skins.
 import { useState } from 'react'
 import { useChar } from '../state/store'
+import { isItemActive } from '@/lib/dnd/effects/ledger'
 import { abilityMod, profBonusForLevel, signed } from '../rules/dnd'
 import { md } from '../lib/inline'
 import SectionHead from './ui/SectionHead'
@@ -34,25 +35,34 @@ export default function SpellsPanel() {
   const sc = char.spellcasting
   const spells = char.spells ?? []
 
+  // Spells GRANTED by an equipped item (Slice 11 grant-half) — a wand of Fireball. Read-only and
+  // badged; works even for a non-caster (no `sc`), so the panel shows whenever there's a grant.
+  const grantedSpells = (char.inventory ?? [])
+    .filter((i) => isItemActive(i) && i.grantsSpell)
+    .map((i) => ({ sp: i.grantsSpell as Spell, source: i.name }))
+
   function togglePrepared(id: string) {
     setChar((c) => ({ ...c, spells: (c.spells ?? []).map((s) => (s.id === id ? { ...s, prepared: !s.prepared } : s)) }))
   }
 
-  if (!sc || spells.length === 0) return null
+  // Show the tab if the character casts OR an item grants them a spell.
+  if ((!sc || spells.length === 0) && grantedSpells.length === 0) return null
 
-  const mod = abilityMod(char.abilities[sc.ability])
+  const mod = sc ? abilityMod(char.abilities[sc.ability]) : 0
   const pb = profBonusForLevel(char.meta.level)
   const saveDC = char.combat.saveDCOverride ?? 8 + pb + mod
   const attackBonus = pb + mod
   const preparedCount = spells.filter((s) => s.prepared && !s.alwaysPrepared && s.level > 0).length
 
   // Levels present = any spell level OR any level with slots defined.
-  const levels = [...new Set([...spells.map((s) => s.level), ...(sc.slots ? Object.keys(sc.slots).map(Number) as SpellLevel[] : [])])].sort((a, b) => a - b)
+  const levels = sc ? [...new Set([...spells.map((s) => s.level), ...(sc.slots ? Object.keys(sc.slots).map(Number) as SpellLevel[] : [])])].sort((a, b) => a - b) : []
 
   return (
     <section id="spells">
       <SectionHead num="✨" title="Spellcasting" />
 
+      {sc && spells.length > 0 && (
+        <>
       {/* Caster header */}
       <div className="card">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 10 }}>
@@ -155,6 +165,35 @@ export default function SpellsPanel() {
           </div>
         )
       })}
+        </>
+      )}
+
+      {/* Spells granted by an equipped item (Slice 11). Read-only and badged — a non-caster granted
+          a spell still sees it. Casting from granted slots is a follow-up. */}
+      {grantedSpells.length > 0 && (
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>Granted Spells</h3>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {grantedSpells.map(({ sp, source }, gi) => (
+              <div key={`granted-${source}-${sp.id}-${gi}`} style={{ border: '1px solid var(--tealbright)', borderRadius: 10, padding: '9px 11px', background: 'var(--panel-2)' }}>
+                <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ fontWeight: 800, color: 'var(--ink)' }}>
+                    {sp.name}
+                    <span className="tag" style={{ marginLeft: 8, color: 'var(--tealbright)' }}>{sp.level === 0 ? 'cantrip' : `L${sp.level}`}</span>
+                  </div>
+                  <span className="tag" style={{ color: 'var(--tealbright)' }} title={`Granted by ${source}`}>granted · {source}</span>
+                </div>
+                {[sp.school, sp.range, sp.components, sp.duration].filter(Boolean).length > 0 && (
+                  <div style={{ fontSize: 11.5, color: 'var(--muted)', margin: '2px 0 4px' }}>
+                    {[sp.school, sp.range, sp.components, sp.duration].filter(Boolean).join(' · ')}
+                  </div>
+                )}
+                {sp.description && <div style={{ fontSize: 13, color: 'var(--ink)' }}>{md(sp.description)}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {editing && <SpellEditor spell={editing} onClose={() => setEditing(null)} />}
     </section>
