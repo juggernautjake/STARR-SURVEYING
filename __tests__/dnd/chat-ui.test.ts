@@ -91,6 +91,39 @@ describe('the chat panels are resizable', () => {
   });
 });
 
+describe('the chat never locks out the typist while the AI thinks (Slice 24)', () => {
+  it('neither input is disabled on `busy`', () => {
+    // The reported bug: `disabled={busy || !aiConfigured}` took the box away for the whole
+    // round-trip — the one moment you have something to add. The request is in flight, not
+    // the person. Only a missing API key may disable the input.
+    expect(EDIT_CHAT).toMatch(/disabled=\{!aiConfigured\}/);
+    expect(EDIT_CHAT).not.toMatch(/disabled=\{busy \|\| !aiConfigured\}/);
+    expect(LIBRARY_CHAT).not.toMatch(/disabled=\{busy/);
+  });
+
+  it('a send made while busy QUEUES instead of being dropped', () => {
+    // Both chats used to `if (busy) return` — typing while the AI worked silently ate the
+    // message, which is worse than refusing it, because it looks like it was sent.
+    expect(EDIT_CHAT).toMatch(/setQueue/);
+    expect(LIBRARY_CHAT).toMatch(/setQueue/);
+    expect(EDIT_CHAT).not.toMatch(/if \(!instruction \|\| busy\) return/);
+    expect(LIBRARY_CHAT).not.toMatch(/if \(!q \|\| busy\) return/);
+  });
+
+  it('the queue is visible', () => {
+    // A message you typed but cannot see is indistinguishable from one that was dropped.
+    expect(EDIT_CHAT).toMatch(/queue\.length > 0/);
+    expect(SHEETCHAT_CSS).toMatch(/\.queued\s*\{/);
+  });
+
+  it('edits still run SERIALLY (the queue must not become a race)', () => {
+    // Two concurrent ai-edit calls each read the sheet, apply their change and write back — the
+    // second silently erases the first. Queueing is what makes "type while busy" safe here;
+    // firing them in parallel would be a lost update.
+    expect(EDIT_CHAT).toMatch(/if \(busy \|\| queue\.length === 0\) return/);
+  });
+});
+
 describe('the resize handle is reachable without a mouse', () => {
   const HOOK = read('app/dnd/_ui/useResizable.ts');
 

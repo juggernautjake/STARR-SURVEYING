@@ -9,7 +9,7 @@
 // caret and a bouncing "typing" indicator streams while the agent works.
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './sheetchat.module.css';
 import { useResizable } from './useResizable';
@@ -62,34 +62,53 @@ export default function SheetEditChat({
     requestAnimationFrame(() => listRef.current?.scrollTo({ top: 1e9, behavior: 'smooth' }));
   }, [msgs, typed, busy]);
 
-  async function send() {
-    const instruction = input.trim();
-    if (!instruction || busy) return;
-    setInput('');
-    setMsgs((prev) => [...prev, { role: 'user', text: instruction }]);
-    setBusy(true);
-    try {
-      const r = await fetch(`/api/dnd/characters/${characterId}/ai-edit`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instruction }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        setMsgs((prev) => [...prev, { role: 'ai', text: j.error ?? 'That change could not be applied.' }]);
-      } else {
-        const n = j.editCount ?? 0;
-        setMsgs((prev) => [...prev, { role: 'ai', text: j.summary || `Applied ${n} change${n === 1 ? '' : 's'} to ${j.name ?? characterName}.` }]);
-        if (j.kind === 'layout') {
-          router.refresh();
+  /** Run one instruction. Assumes the caller owns the busy flag (see the queue below). */
+  const runEdit = useCallback(
+    async (instruction: string) => {
+      setMsgs((prev) => [...prev, { role: 'user', text: instruction }]);
+      try {
+        const r = await fetch(`/api/dnd/characters/${characterId}/ai-edit`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instruction }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          setMsgs((prev) => [...prev, { role: 'ai', text: j.error ?? 'That change could not be applied.' }]);
         } else {
-          window.dispatchEvent(new CustomEvent('dnd:reload-character', { detail: { id: characterId } }));
+          const n = j.editCount ?? 0;
+          setMsgs((prev) => [...prev, { role: 'ai', text: j.summary || `Applied ${n} change${n === 1 ? '' : 's'} to ${j.name ?? characterName}.` }]);
+          if (j.kind === 'layout') {
+            router.refresh();
+          } else {
+            window.dispatchEvent(new CustomEvent('dnd:reload-character', { detail: { id: characterId } }));
+          }
         }
+      } catch {
+        setMsgs((prev) => [...prev, { role: 'ai', text: 'Network error — please try again.' }]);
       }
-    } catch {
-      setMsgs((prev) => [...prev, { role: 'ai', text: 'Network error — please try again.' }]);
-    } finally {
-      setBusy(false);
-    }
+    },
+    [characterId, characterName, router],
+  );
+
+  // Queue rather than drop. Sheet edits MUST stay serial — two concurrent ai-edit calls would
+  // each read the sheet, apply their own change, and write back, so whichever landed second would
+  // silently erase the first (a lost update). But "serial" is not a reason to refuse the typist:
+  // the request is in flight, not the person. So a message sent while busy waits its turn.
+  const [queue, setQueue] = useState<string[]>([]);
+
+  function send() {
+    const instruction = input.trim();
+    if (!instruction) return;
+    setInput('');
+    setQueue((q) => [...q, instruction]);
   }
+
+  useEffect(() => {
+    if (busy || queue.length === 0) return;
+    const [next, ...rest] = queue;
+    setQueue(rest);
+    setBusy(true);
+    void runEdit(next).finally(() => setBusy(false));
+  }, [busy, queue, runEdit]);
 
   if (!open) {
     return (
@@ -144,17 +163,28 @@ export default function SheetEditChat({
           )}
         </div>
 
+        {/* Queued while the assistant works. Shown, not silently held: a message you typed and
+            can't see is indistinguishable from one that was dropped. */}
+        {queue.length > 0 && (
+          <div className={styles.queued}>
+            {queue.length} queued — will send {queue.length === 1 ? 'next' : 'in order'}
+          </div>
+        )}
+
         <div className={styles.inputRow}>
           <textarea
             className={styles.textarea}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
             placeholder={aiConfigured ? 'Describe a change…' : 'AI is not configured'}
-            disabled={busy || !aiConfigured}
+            // NOT disabled while busy. The request is in flight, not the person — locking the box
+            // for the whole round-trip takes it away at exactly the moment you have something to
+            // add. Sends made while busy queue (see above) instead of being dropped.
+            disabled={!aiConfigured}
             rows={2}
           />
-          <button type="button" className={styles.send} onClick={send} disabled={busy || !aiConfigured || !input.trim()}>
+          <button type="button" className={styles.send} onClick={send} disabled={!aiConfigured || !input.trim()}>
             Send
           </button>
         </div>

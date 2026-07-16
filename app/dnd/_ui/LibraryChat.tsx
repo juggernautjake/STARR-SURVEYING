@@ -66,6 +66,7 @@ export default function LibraryChat({
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [queue, setQueue] = useState<{ text: string; system: string }[]>([]);
   const streamRef = useRef<HTMLDivElement | null>(null);
   // Height only: the panel's width is the page column's. Shared across the librarian
   // wherever it mounts (library page or a sheet) — it is one reading preference, not per-page.
@@ -83,7 +84,14 @@ export default function LibraryChat({
   const ask = useCallback(
     async (question: string, sys: string) => {
       const q = question.trim();
-      if (!q || busy) return;
+      // Queue rather than drop: a question asked while the librarian is thinking is still a
+      // question. Answers stay serial so the conversation history the server sees stays coherent.
+      if (!q) return;
+      if (busy) {
+        setQueue((qq) => [...qq, { text: q, system: sys }]);
+        setInput('');
+        return;
+      }
       setErr(null);
       setBusy(true);
       const history = msgs.slice(-6).map((m) => ({ role: m.role, text: m.text }));
@@ -109,6 +117,14 @@ export default function LibraryChat({
     },
     [busy, msgs, characterId],
   );
+
+  // Drain the queue once the librarian is free.
+  useEffect(() => {
+    if (busy || queue.length === 0) return;
+    const [next, ...rest] = queue;
+    setQueue(rest);
+    void ask(next.text, next.system);
+  }, [busy, queue, ask]);
 
   /** Re-ask the last question with the focus switched to the hinted system. */
   const switchAndReask = useCallback(
@@ -209,7 +225,9 @@ export default function LibraryChat({
                 <span style={{ color: 'var(--hx-muted)' }}>
                   “{m.hint.matched}” looks like <strong style={{ color: 'var(--hx-gold-2)' }}>{m.hint.name}</strong>.
                 </span>
-                <button className={styles.hexBtn} onClick={() => switchAndReask(m.hint!)} disabled={busy} style={{ padding: '4px 9px', fontSize: 11.5 }}>
+                {/* Enabled while busy too: switchAndReask goes through `ask`, which queues rather
+                    than drops, so acting on the hint mid-answer is safe. */}
+                <button className={styles.hexBtn} onClick={() => switchAndReask(m.hint!)} style={{ padding: '4px 9px', fontSize: 11.5 }}>
                   Ask {m.hint.name} instead →
                 </button>
               </div>
@@ -278,8 +296,9 @@ export default function LibraryChat({
             resize: 'vertical',
           }}
         />
-        <button className={styles.hexBtn} type="submit" disabled={busy || !input.trim() || !aiConfigured}>
-          {busy ? '…' : 'Ask'}
+        {/* Enabled while busy — a question asked mid-answer queues rather than being refused. */}
+        <button className={styles.hexBtn} type="submit" disabled={!input.trim() || !aiConfigured}>
+          {busy ? 'Queue' : 'Ask'}
         </button>
       </form>
     </section>
