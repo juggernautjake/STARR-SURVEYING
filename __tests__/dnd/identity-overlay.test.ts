@@ -87,3 +87,30 @@ describe('the Hero header renders the overlay, not the base, and stars it', () =
     expect(BIO).toContain('Playing ${displayName.split');
   });
 });
+
+describe('portrait/token identity overlay applies at DISPLAY only (Slice 11)', () => {
+  const read = (p: string) => require('node:fs').readFileSync(require('node:path').join(process.cwd(), p), 'utf8');
+
+  it('an item image/token effect resolves through ledger.identity()', () => {
+    const c = blankCharacter('Wendol');
+    c.inventory = [{
+      id: 'mask', name: 'Mask of Zul', desc: '', qty: 1, tags: [], equipped: true,
+      effects: [
+        { target: 'image', operation: 'set', value: 'https://media/zul-art.png' },
+        { target: 'token', operation: 'set', value: 'https://media/zul-token.png' },
+      ],
+    }] as Character['inventory'];
+    const led = buildLedger(c);
+    expect(led.identity('image')?.value).toBe('https://media/zul-art.png');
+    expect(led.identity('token')?.value).toBe('https://media/zul-token.png');
+  });
+
+  it('App overlays the displayed art/token, gallery + framer keep base media', () => {
+    const app = read('app/dnd/_sheet/App.tsx');
+    expect(app).toContain("ledger.identity('image')?.value ?? vArt?.art ?? media.artUrl");
+    expect(app).toContain("ledger.identity('token')?.value ?? vArt?.token ?? media.tokenUrl");
+    // the gallery manages the character's OWN art — it must read base media, not the overlay.
+    expect(read('app/dnd/_sheet/components/CharacterGallery.tsx')).toContain('media.artUrl');
+    expect(read('app/dnd/_sheet/components/TokenFramer.tsx')).toContain('media.tokenUrl');
+  });
+});

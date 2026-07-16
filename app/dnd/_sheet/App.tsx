@@ -63,7 +63,7 @@ type TabId = (typeof TABS)[number]['id']
 
 export default function App({ theme, sheetType, system }: { theme?: SheetTheme; sheetType?: string; system?: string }) {
   const [tab, setTab] = useState<TabId>('overview')
-  const { char, media, characterId, campaignId, isDM, canWrite, offline } = useChar()
+  const { char, media, ledger, characterId, campaignId, isDM, canWrite, offline } = useChar()
 
   // Registry-driven config for this character's sheet_type (C8): which bespoke
   // skin + which character-only modules to render.
@@ -84,10 +84,13 @@ export default function App({ theme, sheetType, system }: { theme?: SheetTheme; 
   // An explicit theme prop wins; otherwise the variant's theme, else the sheet_type's.
   const effectiveTheme = theme ?? (supportsVariants && variant === 'blue' ? streamerThemeBlue : config.theme)
 
-  // Per-variant art/token, falling back to the single DB art_url/token_url (media).
+  // Per-variant art/token, falling back to the single DB art_url/token_url (media). An identity
+  // `image`/`token` EFFECT (Slice 11) overlays the DISPLAYED portrait/token — a pendant that makes you
+  // look like Zul — winning over the base here. Deliberately only at this DISPLAY site: the gallery
+  // and token framer read base `media`, so they still manage the character's own art, not the costume.
   const vArt = supportsVariants ? char.variantArt?.[variant] : undefined
-  const artUrl = vArt?.art ?? media.artUrl
-  const tokenUrl = vArt?.token ?? media.tokenUrl
+  const artUrl = ledger.identity('image')?.value ?? vArt?.art ?? media.artUrl
+  const tokenUrl = ledger.identity('token')?.value ?? vArt?.token ?? media.tokenUrl
   // Portrait layout when the character has art: name/info left, full-body art right.
   const artBeside = !!artUrl
 

@@ -462,12 +462,14 @@ doc's explicit "senses… need somewhere to render" item. Test added to `grant-d
   in the Defenses card, sourced (an Enlarge potion → "Size — Large (Potion of Enlarge)"), gone on
   unequip. The size→carrying-capacity/grapple MECHANICS are still a follow-up; this makes the change
   visible so it isn't a lie. Tests: `identity-size.test.ts` (4).
-- *`image`/`token` (portrait + map token)* — genuinely its own slice, NOT a small read. The art comes
-  from the `media` context (`media.artUrl`/`tokenUrl`), consumed by both DISPLAY sites (Hero portrait,
-  map token) and MANAGEMENT sites (CharacterGallery's "which image is set as art" badges + set-as
-  actions). Overlaying at the context level would make the gallery mislabel the identity image as the
-  "currently set" art. The overlay must therefore be applied per-display-site, discriminating display
-  from management — a focused slice, not a one-liner.
+- *`image`/`token` (portrait + map token) ✅ SHIPPED (commit pending).* Applied at the DISPLAY site
+  only: `App.tsx` computes `artUrl = ledger.identity('image')?.value ?? vArt?.art ?? media.artUrl`
+  (and the same for `token`), so a worn "Mask of Zul" overlays the shown portrait/token. The
+  MANAGEMENT sites — `CharacterGallery`'s "which image is set as art" and `TokenFramer` — deliberately
+  keep reading base `media`, so they still manage the character's OWN art, not the costume (the
+  display-vs-management split this note flagged). The Slice-14 item plumbing already accepts identity
+  effects (`{target:'image',operation:'set',value:'<url>'}`), so it works end-to-end. Tests:
+  `identity-overlay.test.ts` (+2).
 - *`gender`/`pronouns`/`profession`* — no render home exists on the sheet yet (needs a Bio/Overview
   field before the overlay has anywhere to show).
 - *`grant_feature` ✅ SHIPPED (commit pending).* An item can grant a feature (the pendant that gives
