@@ -289,6 +289,251 @@ For the level-less systems the model must NOT invent a level table — extend th
 
 ---
 
+# Part II — Living items & the effect ledger (requested 2026-07-16)
+
+> "Any item could literally effect anything… It could be a sword that does this, or a single boot.
+> Really, the image and the name and category really don't matter all that much, the mechanics of
+> the item/weapon/potion/spell matter way more."
+
+## What is actually wrong today
+
+Three findings, from reading the code rather than the symptom:
+
+1. **The effects engine is not in the render path.** `app/dnd/_sheet/engine/effects.ts` already models
+   `{ target, operation, value, condition, source }`, and `deriveCharacter()` (engine/character.ts)
+   already pools item + feature effects and resolves them. **Nothing the player looks at calls it.**
+   The sheet components read `char.abilities[k]`, `char.combat.ac` and `char.meta.name` *directly*
+   from the stored model. So an item's effects are, today, decoration: they are stored, and they are
+   ignored. This is the root cause and Slice 10 is about exactly this.
+
+2. **The AI cannot express an item's mechanics, so it correctly refuses to invent them.** The reported
+   "the AI made no edits" is not a bug in the model — it is the schema being honest.
+   `lib/dnd/sheet-edits.ts` defines `add_item` as `{ name, desc?, qty? }`. There is no field for an
+   effect, a category, a duration, or art. Asked for "a pendant that grants a Barbarian ability", the
+   model can emit a *label* for one, and nothing more. Widening the vocabulary (Slice 14) is the fix;
+   prompt-tuning would only produce prettier lies.
+
+3. **Nothing shows what is currently modifying you.** `ActiveEffect[]` exists on the type and the store
+   has add/remove reducers — with no UI. So the potion-of-strength-still-active-next-session scenario
+   in the request is not hypothetical, it is the current behaviour.
+
+## The one architectural rule for Part II
+
+**Effects are overlays. They are NEVER baked into the base character.**
+
+When the pendant makes you a different person, it must not *write* `meta.name`. It contributes an
+identity effect that the ledger *overlays* on top of the stored name. Everything follows from this:
+
+- Taking the pendant off is free and always correct — remove the source, re-derive, you are you again.
+  No "undo" bookkeeping, no snapshot to restore, no drift when two items both touch the same field.
+- Two items touching one field resolve by one documented rule instead of by whoever wrote last.
+- The ledger can always answer *why* a number is what it is, because it never lost the base.
+
+The tempting shortcut — mutate on equip, restore on unequip — is how you end up with a character
+permanently named "Zul the Devourer" because the sheet saved between the two halves of the swap. Do
+not take it.
+
+## Slice 9 — AI chat box: resizable, and a send button that behaves
+
+Small, reported, independent of the rest. Ship first.
+
+- [ ] The chat transcript is resizable (drag handle, remembered per-user, sane min/max).
+- [ ] The send button is sized to its content and aligned with the input — it is currently a slab.
+- [ ] Apply to every chat surface, not just the one that was noticed: `LibraryChat`, `SheetEditChat`,
+      `SheetChatPanel`, `CharacterBuildKit`'s build chat.
+- [ ] Test: the guard from Slice 2b (`.sec-num` inline colour) has a sibling here — no chat surface
+      may hardcode a text colour, since these mount on every skin.
+
+## Slice 10 — The effect ledger (the spine of Part II)
+
+One pure function that every later slice reads. Nothing else in Part II can be built first.
+
+- [ ] `lib/dnd/effects/ledger.ts`: `buildLedger(char, ctx) → EffectLedger`. It walks EVERY source —
+      equipped/attuned inventory items, `activeEffects[]` (consumed potions, spells cast on you, DM
+      boons), features gated by `unlockLevel`, the active form/transform, conditions — and returns,
+      **per target**: the base value, every contributing effect with its `source`, and the final value.
+- [ ] Resolution order is documented and tested, not emergent: `set_base` → `set` (highest wins) →
+      `add` (all stack) → advantage/disadvantage (both → flat). Ties broken deterministically.
+- [ ] The ledger explains itself: every entry carries `{ source, sourceKind, label, delta }` so the
+      tooltip in Slice 13 and the panel in Slice 12 are *reads*, not re-derivations. Two components
+      computing "why is my STR 22" independently will drift; there must be one answer.
+- [ ] Swap the sheet's reads onto the ledger: abilities, AC, speed, HP max, save DC, initiative,
+      skills, proficiency. This is the change that makes item effects real.
+- [ ] **An equipped item lands in the right place, automatically.** Equipping routes by what the item
+      *is*, with no per-item code: a weapon appears as a row in **Attacks** with its computed to-hit
+      and damage; armour drives **AC** (respecting DEX cap / STR requirement / stealth disadvantage);
+      a shield stacks; a consumable is usable from **Inventory**; a granted feature (Slice 11) appears
+      in **Features**; a granted spell in **Spells**; a granted resource as a **resource track**.
+      Each carries a badge naming the item it came from, and each disappears on unequip.
+      `engine/weapons.ts` (`attacksFromInventory`) and `engine/armor.ts` (`computeAC`) already do this
+      work correctly — they are simply not called by anything the player sees. Same root cause as
+      above; same fix.
+- [ ] Equipping is validated, not blind: attunement limits, "one body armour at a time", two-handed
+      vs shield. Where a system has a hard rule, enforce it; where it doesn't, allow it and let the
+      panel show the truth.
+- [ ] Tests: base with no sources == the stored character (the no-op case must be exact, or every
+      existing sheet silently changes); two items adding to one target stack; two `set`s take the
+      highest; removing a source restores the base *exactly*.
+
+**Done when:** equipping a +2 STR belt on any sheet changes the displayed STR, its modifier, the
+athletics check, and the carrying capacity — with no code that knows what a belt is.
+
+## Slice 11 — Effects can target anything (identity + grants)
+
+The request's real ask: *"it could literally turn the character into a completely different character."*
+
+- [ ] **Identity targets**: `name`, `image`/`token`, `species`, `className`, `subclass`, `gender`,
+      `profession`, `size`, `pronouns`. Operation `set_identity`. Overlaid by the ledger (see the rule
+      above), never written to the model.
+- [ ] **Size** is mechanical, not cosmetic: it drives carrying capacity, weapon damage dice for some
+      systems, grapple/shove legality. Wire it to those, or it is a costume.
+- [ ] **Grant targets**: `grant_feature`, `grant_attack`, `grant_spell`, `grant_resource`,
+      `grant_sense`, plus the existing `grant_proficiency`. This is the pendant that gives you an
+      ability from another class entirely — the granted feature appears in Features with a badge
+      naming the item it came from, and vanishes when the item comes off.
+- [ ] A single item carries **any number of effects of any mix** — the "one boot that rewrites you"
+      case is just an item with fifteen effects and must need no special code.
+- [ ] Tests: an item granting a Barbarian feature to a Wizard shows it in Features, sourced to the
+      item, and gone on unequip; identity effects never mutate stored `meta`; a save-then-unequip
+      round-trip leaves the model byte-identical to before it was equipped.
+
+## Slice 12 — The Active Effects sheet (every template)
+
+> "It might be that we think something is active when it is not, or we might forget that something is
+> active… they still have super strength and don't know why."
+
+- [ ] A new tab/panel on **every** template listing every source currently modifying the character:
+      each item/spell/ability/potion/form/condition, what it is, and **the exact effect it is having**
+      — resolved values from the ledger, not the item's advertised text. If the belt's +2 is being
+      overridden by the gauntlets' `set 21`, the panel must say the belt is contributing nothing.
+      That divergence is precisely what the panel exists to surface.
+- [ ] Group by source kind (worn · attuned · consumed · spell · form · condition · DM), each with its
+      duration and a one-click **end effect**.
+- [ ] **Consumption: the effect outlives the item.** This is the case the data model must get right,
+      and it is why an `ActiveEffect` is a *separate source* from the item that produced it rather
+      than a pointer back into inventory:
+      - Using a consumable **decrements qty / removes the item immediately** — you drank it, it's gone.
+      - Its **instant** effects (heal 2d4+2) resolve once and leave nothing behind. A healing potion
+        therefore vanishes completely and never appears in the panel: there is nothing to show.
+      - Its **lasting** effects become an `ActiveEffect` that *survives its item*, carrying a snapshot
+        of what it grants, its label, its art and its duration — so the panel can still show
+        "Potion of Storm Giant Strength · STR set to 29 · 1 hour" hours after the potion left the
+        inventory. Clicking it shows exactly what it is doing.
+      - A potion with **both** (instant heal + a 12-hour buff) does both: consumed and gone from
+        inventory, still listed in the panel for its buff.
+      - Because the snapshot is taken at use time, later editing the *item* must not retroactively
+        change an effect already running on a character. That's a feature, not a bug.
+      - **Ending** a consumed effect just drops the `ActiveEffect` — the item is long gone. Ending a
+        *worn* item's effect unequips the item, because there the item IS the cause and an effect
+        that is "off" while its cause is still worn would be a lie about the sheet.
+- [ ] Durations are shown as authored ("12 hours", "3 rounds") and are **not** silently expired by a
+      timer. This is a table aid, not a simulation; the DM decides when time passes. But the panel is
+      what lets you *notice* at the start of next session — which is the whole point.
+- [ ] A **Use** control on any consumable in Inventory runs the above. It is the only path that
+      consumes, so there is one place where "drank it" is implemented.
+- [ ] Tests: an item with effects always appears; a pure-heal potion is consumed and leaves NO panel
+      entry; a buff potion is consumed and its effect still shows with its label and duration; a
+      heal+buff potion does both; editing the item afterwards does not mutate the running effect;
+      ending a worn effect unequips, ending a consumed effect does not resurrect the item; the
+      panel's numbers equal the ledger's (one source of truth).
+
+## Slice 13 — Show me what's touched: the star + the tooltip
+
+> "effected stats numbers and stuff will just get a little star or something we can hover over."
+
+- [ ] Any ledger-modified value renders a marker (★) beside it and a highlight ring: abilities, AC,
+      speed, HP, saves, skills, attacks, DC, granted features.
+- [ ] Hover/focus → tooltip listing **every** contributing effect and its source, base → final
+      ("STR 18 base · +2 Belt of the Bear · +2 Rage · = 22"). Reuse `RuleTip`'s inline-safe `<span>`
+      popover — the invalid-nesting bug from Slice 2 (a `<div>` inside a `<p>` gets force-closed by
+      the browser, tearing text out of its element) is already solved there; do not re-solve it.
+- [ ] Keyboard + touch reachable. A hover-only affordance is invisible on a tablet at the table,
+      which is where this is actually used.
+- [ ] The marker must be theme-token driven (`var(--gold)` etc.), never a literal — the contrast
+      guards in `sheet-contrast.test.ts` will fail the build otherwise, and correctly so.
+- [ ] Tests: an unmodified sheet has zero stars (no false positives — a star that's always on is
+      noise); modifying one ability stars exactly that ability; the tooltip names every source.
+
+## Slice 14 — The AI generates real items, not labels
+
+- [ ] Widen `add_item` in `lib/dnd/sheet-edits.ts` to the full `InvItem`: `kind`, `desc`, `qty`,
+      `image`, `weapon`/`armor`/`consumable` stats, `attuned`, and **`effects: Effect[]`** — the whole
+      point. Add `update_item` and `equip_item`.
+- [ ] Validate hard at the boundary: unknown target/operation → reject the edit, don't coerce it. An
+      item whose effect silently didn't parse is worse than a refused one, because the player believes
+      it works.
+- [ ] Prompt: given "a random potion that gives proficiency in something", the AI emits a real item
+      with real effects, appears in inventory, and works. Ground it in the character's system so a
+      generated item obeys that rulebook's vocabulary.
+- [ ] **Art**: generate/attach item art (`dnd-media`, `kind='item'`), falling back to a kind icon.
+      Per the request, art is the *least* important part — it must never block the mechanics.
+- [ ] Balance guard: DM-facing provenance. Generated items route through the existing
+      `summarizeCharacterProvenance` / approval path (Slice 5's) rather than a new one — a player
+      generating a +10 sword is a table problem, and the DM approval surface already exists.
+- [ ] Tests: a described item round-trips to effects that the ledger resolves; an invalid effect is
+      rejected, not coerced; a generated item changes the sheet's numbers end-to-end.
+
+**Done when:** "give me a pendant that makes me a Level 3 Barbarian named Zul with +2 STR and a
+different portrait" produces one item that does all of it, and taking it off gives you back exactly
+the character you were.
+
+## Slice 15 — Attack, weapon & armor builders (+ reactive effects)
+
+> "We might have an enemy that when they attack us and hit us, the armor does a certain amount of
+> damage back to them… even a piece of armor could potentially have a roll to attack and a roll for
+> damage."
+
+**The gap this exposes.** Every effect in the engine today is a *continuous overlay*: it is true for
+as long as its condition holds, and the ledger's job is to resolve it into a number. Retaliation
+damage is not that. It is an **event-triggered action** — it fires *when something happens*, it rolls
+dice, and it targets someone who is not you. The ledger cannot express it, and stretching `Effect`
+to cover it would wreck the thing that makes the ledger tractable (pure, order-independent, always
+re-derivable). So triggers are a **separate concept** that lives beside effects, not inside them.
+
+- [ ] **Attack editing** (the plain ask, first): edit and create attacks directly on the sheet —
+      name, ability, proficiency, to-hit and damage bonuses, range, typed damage, crit range/dice,
+      notes. Today `add_attack` exists for the AI but the player cannot author or edit one by hand.
+- [ ] **Weapon builder**: define a weapon's mechanics — damage dice + type, properties (finesse,
+      versatile, reach, two-handed, thrown, loading, ammunition), mastery (2024), range bands,
+      attack/damage effects, and **on-hit riders** (extra typed damage, a save-or-condition, a
+      resource cost). The derived attack row comes from the weapon, so changing the weapon changes
+      the attack — no double authoring.
+- [ ] **Armor / clothing builder**: base AC, armour category, DEX cap, STR requirement, stealth
+      disadvantage, resistances, and arbitrary `effects` (Slice 11's full vocabulary — armour that
+      changes your species is just armour with an identity effect).
+- [ ] **`Trigger` — the new concept**: `{ on, condition?, action }`.
+      - `on`: `hit_by_melee` · `hit_by_ranged` · `hit_by_spell` · `you_hit` · `you_crit` ·
+        `you_are_crit` · `save_failed` · `turn_start` · `turn_end` · `damaged` · `reduced_to_zero`.
+      - `action`: roll damage (typed, with its own dice + optional attack roll), heal, apply a
+        condition, grant a temporary effect, spend/restore a resource, or a DM prompt.
+      - Triggers may carry their own limits (`once per turn`, `N per long rest`, a resource cost) —
+        unlimited retaliation is the failure mode here, and the data model must be able to say no.
+- [ ] **Triggers are prompts, not automation.** When a trigger's event happens, the sheet *surfaces*
+      it ("Spiked Barbs: 1d6 piercing to the attacker — roll?") and the player/DM resolves it. It must
+      not silently apply damage to a creature the sheet does not model. Guessing that a hit landed, or
+      auto-resolving against an enemy the app has never seen, is how the sheet starts lying about the
+      table's actual state — and a wrong automatic ruling is worse than a visible reminder.
+- [ ] Triggers surface in the Slice 12 panel and are starred by Slice 13 like anything else, so
+      "why did my armour just do something" always has an answer on the sheet.
+- [ ] The AI (Slice 14) can author all of it: "armour that burns anyone who hits me" → an armour item
+      with a `hit_by_melee` trigger rolling fire damage, in the inventory, working.
+- [ ] Tests: a weapon's edits flow to its attack row; an armour's DEX cap is respected by the ledger's
+      AC; a trigger fires only on its event and only within its limit; a trigger with no limit is
+      flagged; retaliation never mutates another character's sheet.
+
+## Slice 16 — Connect it to the rest
+
+- [ ] Spells cast on you land in the ledger as sources (`activeEffects`), so Bless and a potion are
+      the same machinery.
+- [ ] Forms/transforms (Jack's, the old rage path) become ledger sources rather than bespoke combat
+      fields — `formDamageBonus` is a leftover of the Lazzuh era and should be an effect.
+- [ ] The Slice 3 character digest reports **ledger-resolved** values plus what's modifying them, so
+      the AI rules on your *current* STR 22, not your base 18. Today it reads the raw sheet — after
+      Slice 10 that is a bug, and it is the kind that produces a confidently wrong ruling.
+- [ ] Realtime: an equip by the DM propagates to the player's open sheet (C11b broadcast already exists).
+
+---
+
 ## Known gaps / notes for whoever picks this up
 
 - **`VOYAGE_API_KEY` is absent**, so all semantic search returns nothing. Keyword search
