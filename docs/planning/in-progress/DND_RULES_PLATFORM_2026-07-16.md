@@ -1046,6 +1046,31 @@ model, where the ledger, the digest, the DM's review and the AI itself can all r
 faked with a `::after { content: … }` looks identical on screen and is invisible to every one of
 those. Style is presentation; meaning is data. The AI gets both, through different doors.
 
+## Slice 33 — Control the hit bonus / save DC on weapons and spells
+
+> "make sure that we can control the hit dc for weapons and spells and stuff."
+
+The `AttackEditor` (Slice 20) already exposes `bonusToHit` / `bonusDamage`, but a **weapon item** in
+the ItemBuilder has no way to set a fixed to-hit or a save DC, and **spells** have no editor at all.
+
+- [ ] Weapon items: a to-hit override and (for save-based weapons) a save DC + which save, flowing
+      into the derived attack row.
+- [ ] Spells: an editor (the ⋯ path, Slice 27) with save DC / attack bonus, matching the sheet's
+      spellcasting stat by default but overridable.
+- [ ] These are ledger targets already (`spell_save_dc`, `spell_attack`) — an item that grants a DC
+      bonus and a spell that sets its own DC should resolve through the same pipeline, not a parallel
+      field. (After the Slice 10 fix, `value('spell_save_dc', base)` composes correctly.)
+
+## Slice 34 — Build-mode selector: make it look like the rest of the UI
+
+> "the little bubble selection for the type of character building looks bad. Please change it and
+> make it look better and match the UI styling better."
+
+The Ruthless / Questioning / Step-by-step chooser in `NewCharacterForm` uses raw radio bubbles
+(`BuilderHelp` / `BUILD_MODES`). Restyle as selectable Hextech cards (like the sheet-style browser),
+keeping the same three modes and their descriptions, so it matches the framed-panel look around it.
+Purely presentational — no behaviour change.
+
 ## Slice 25 — Connect it to the rest
 
 - [ ] Spells cast on you land in the ledger as sources (`activeEffects`), so Bless and a potion are
