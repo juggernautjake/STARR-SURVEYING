@@ -425,9 +425,33 @@ One pure function that every later slice reads. Nothing else in Part II can be b
 **Done when:** equipping a +2 STR belt on any sheet changes the displayed STR, its modifier, the
 athletics check, and the carrying capacity — with no code that knows what a belt is.
 
-## Slice 11 — Effects can target anything (identity + grants)
+## Slice 11 — Effects can target anything (identity + grants) ⏳ PARTIAL 2026-07-16
 
 The request's real ask: *"it could literally turn the character into a completely different character."*
+
+**Identity header overlay ✅ SHIPPED (commit pending).** The ledger already resolved identity effects
+(`ledger.identity(target)`) but nothing rendered them. The Hero header now reads the overlay for
+**name, species, class, and subclass**: the display shows the imposed value (a worn "Pendant of Zul"
+renders the character as *Zul*, class Barbarian), the editable name input still binds to the base
+(edit writes base, display shows overlay), and each imposed field carries the ★ marker + its
+why-popover. It's a true overlay — `applySheetEdits` never touches stored `meta`, so dropping/
+unequipping the source restores the character byte-for-byte (tested). The Slice 14 item plumbing
+already accepts identity effects (`{target:'name',operation:'set',value:'Zul'}`), so an AI-authored
+pendant works end-to-end today. Tests: `identity-overlay.test.ts` (6) — impose-over-untouched-base,
+null-when-none, gone-on-unequip, + Hero wiring anchors. 843 pass.
+
+**Still open in this slice (each its own render site / mechanic, deliberately not bundled):**
+- *Other identity fields* — `image`/`token` (portrait + map token), `gender`/`pronouns`/`profession`
+  (Bio/Overview), `size`/`creature_type` (mechanical: size drives carrying capacity + grapple). Each
+  is a distinct render path; the ledger already resolves them, so each is a small read like the header
+  was, done where that field renders.
+- *Grant targets* — `grant_feature`/`grant_attack`/`grant_spell`/`grant_resource`/`grant_sense`. This
+  is the bigger half (a granted feature appears in Features badged to its source and vanishes on
+  unequip) and wants its own slice.
+- *A speeds block* — `speed_fly`/`swim`/`climb`/`burrow`/`hover` need a home on the sheet before they
+  can be granted (walk speed is folded now; the others render nowhere yet).
+
+Original action items (kept for the remaining work):
 
 - [ ] **Identity targets**: `name`, `image`/`token`, `species`, `className`, `subclass`, `gender`,
       `profession`, `size`, `pronouns`. Operation `set_identity`. Overlaid by the ledger (see the rule

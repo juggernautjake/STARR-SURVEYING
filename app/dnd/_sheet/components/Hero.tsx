@@ -3,13 +3,23 @@ import { useChar } from '../state/store'
 import { useSheetSystem } from '../state/sheetConfig'
 import { SYSTEM_AMBIGUOUS, systemLabel } from '@/lib/dnd/systems'
 import type { Character } from '../types'
+import EffectStar from './ui/EffectStar'
 
 export default function Hero() {
-  const { char, setChar, editMode, setEditMode, tempMode, setTempMode, clearAllOverrides, reset, importChar, isDM } = useChar()
+  const { char, setChar, editMode, setEditMode, tempMode, setTempMode, clearAllOverrides, reset, importChar, isDM, ledger } = useChar()
   const system = useSheetSystem()
   const systemName = systemLabel(system)
   const fileRef = useRef<HTMLInputElement>(null)
   const nameRef = useRef<HTMLHeadingElement>(null)
+
+  // Identity OVERLAY (Slice 11): an effect can impose a different name/species/class while active —
+  // a pendant that makes you "Zul the Barbarian". Like every effect it's an overlay: the DISPLAY
+  // shows the imposed value, editing still writes the base (char.meta.*), and dropping the source
+  // gives you back exactly who you were. Base stands when nothing imposes an identity.
+  const displayName = ledger.identity('name')?.value ?? char.meta.name
+  const displaySpecies = ledger.identity('species')?.value ?? char.meta.species
+  const displayClass = ledger.identity('class')?.value ?? char.meta.className
+  const displaySubclass = ledger.identity('subclass')?.value ?? char.meta.subclass
 
   // Shrink the display name to fit its column on one line rather than overflow — so
   // a long single-word handle (e.g. the streamer's username) or a big name in the
@@ -19,7 +29,7 @@ export default function Hero() {
     const el = nameRef.current
     const parent = el?.parentElement
     if (!el || !parent) return
-    const singleWord = !/\s/.test(char.meta.name.trim())
+    const singleWord = !/\s/.test(displayName.trim())
     const fit = () => {
       el.style.whiteSpace = singleWord ? 'nowrap' : ''
       el.style.fontSize = ''
@@ -36,7 +46,8 @@ export default function Hero() {
     // Re-fit after the display font loads (metrics change once it swaps in).
     ;(document as Document & { fonts?: { ready: Promise<unknown> } }).fonts?.ready.then(fit).catch(() => {})
     return () => ro.disconnect()
-  }, [char.meta.name])
+    // Re-fit on the DISPLAYED name (which an identity effect may change), not just the base.
+  }, [displayName])
   const tempCount = Object.keys(char.tempOverrides ?? {}).length
 
   function exportJson() {
@@ -82,7 +93,12 @@ export default function Hero() {
               onChange={(e) => setChar((c) => ({ ...c, meta: { ...c.meta, name: e.target.value } }))}
             />
           ) : (
-            <h1 className="name" ref={nameRef}>{renderName(char.meta.name)}</h1>
+            <h1 className="name" ref={nameRef}>
+              {renderName(displayName)}
+              {ledger.isModified('name') && (
+                <EffectStar target="name" label="Name" />
+              )}
+            </h1>
           )}
         </div>
         <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
@@ -116,7 +132,9 @@ export default function Hero() {
       </div>
 
       <p className="role">
-        {char.meta.species} · {char.meta.className} {char.meta.level} · {char.meta.subclass}
+        <EffectStar target="species" label="Species">{displaySpecies}</EffectStar> ·{' '}
+        <EffectStar target="class" label="Class">{displayClass}</EffectStar> {char.meta.level} ·{' '}
+        <EffectStar target="subclass" label="Subclass">{displaySubclass}</EffectStar>
       </p>
 
       <div className="tagchips">
