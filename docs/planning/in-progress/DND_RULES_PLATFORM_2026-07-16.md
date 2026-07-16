@@ -1204,6 +1204,16 @@ regression to *reach*, not the drawing:
 - [ ] Verify: from a character sheet and from a campaign page, a single Back returns to the previous
       page every time.
 
+**Investigated 2026-07-16, no definitive culprit yet — did NOT ship a speculative fix.** Checked the
+strongest hypotheses: no `history.pushState` anywhere in the map pages (the map-studio bridge uses
+`replaceState`, which does not add history entries); no hash anchors that navigate the main document;
+the `router.push` calls all target distinct routes, not the current one. The map-studio and console
+DO load in `<iframe>`s (`campaigns/[id]/map-studio` and `/console`), which is the classic multi-press
+Back trap, but their `src` is computed server-side and stable per load, and the internal nav uses
+`replaceState`. Needs the user's exact reproduction (which page, what they did before Back) to pin —
+"jumps up and down" hints at scroll-restoration, which points at a specific scrollable container.
+Left open rather than guess.
+
 ## Slice 38 — Campaign creation → invite-by-link → join → bring/port a character
 
 The full flow the user described, end to end. Several pieces already exist (invites table, the

@@ -1,0 +1,24 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;background:#0a0a18;overflow:hidden}#log{position:fixed;top:8px;left:8px;color:#8f8;font:12px monospace;z-index:10;white-space:pre}</style></head><body>
+<div id="log">loading…</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';
+const log=m=>{document.getElementById('log').textContent=m;console.log('[FBX]',m);};
+const scene=new THREE.Scene();const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.1,5000);
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});renderer.setSize(innerWidth,innerHeight);document.body.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xffffff,0x334455,1.4));const dl=new THREE.DirectionalLight(0xffffff,2.2);dl.position.set(3,5,4);scene.add(dl);
+try{
+const loader=new FBXLoader();
+loader.load('assets/science-ship.fbx',obj=>{
+  const box=new THREE.Box3().setFromObject(obj);const size=box.getSize(new THREE.Vector3());const center=box.getCenter(new THREE.Vector3());
+  const maxd=Math.max(size.x,size.y,size.z)||1;const s=2/maxd;obj.scale.setScalar(s);
+  obj.position.sub(center.clone().multiplyScalar(s));
+  let meshes=0,mats=0;obj.traverse(c=>{if(c.isMesh){meshes++;if(c.material){mats++;if(!Array.isArray(c.material))c.material.side=THREE.DoubleSide;}else{c.material=new THREE.MeshStandardMaterial({color:0x99aabb,metalness:0.6,roughness:0.4});}}});
+  scene.add(obj);
+  camera.position.set(0,1.2,3.6);camera.lookAt(0,0,0);
+  log('loaded OK — meshes='+meshes+' mats='+mats+' size='+size.x.toFixed(1)+','+size.y.toFixed(1)+','+size.z.toFixed(1));
+  let t=0;(function anim(){requestAnimationFrame(anim);obj.rotation.y=t;t+=0.012;renderer.render(scene,camera);})();
+},undefined,err=>{log('LOAD ERROR: '+(err&&err.message||err));});
+}catch(e){log('EX: '+e.message);}
+</script></body></html>

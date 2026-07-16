@@ -190,8 +190,11 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
             {data.characters.length === 0 ? (
               <p style={{ color: 'var(--hx-muted)' }}>No characters yet.</p>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
-                {data.characters.map((c) => {
+              (() => {
+                // Group the roster into the DM's three editorial buckets so players read the
+                // table the way the DM organised it: the party first, then named/recurring
+                // NPCs, then the walk-on generics. A card's own logic (label/tint) is unchanged.
+                const renderCard = (c: (typeof data.characters)[number]) => {
                   const watchStream = c.sheetType === 'streamer' && !c.mine
                   // Who plays it: label the player when someone other than the owner runs it.
                   const playedBy = c.playedByName && c.playedByUserId !== c.ownerUserId ? c.playedByName : null
@@ -226,8 +229,29 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
                       </span>
                     </button>
                   )
-                })}
-              </div>
+                }
+                const groups: { key: string; title: string; chars: typeof data.characters }[] = [
+                  { key: 'pc', title: 'Player Characters', chars: data.characters.filter((c) => c.rosterRole === 'pc') },
+                  { key: 'special_npc', title: 'Notable NPCs', chars: data.characters.filter((c) => c.rosterRole === 'special_npc') },
+                  { key: 'generic_npc', title: 'NPCs', chars: data.characters.filter((c) => c.rosterRole === 'generic_npc') },
+                ].filter((g) => g.chars.length > 0)
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {groups.map((g) => (
+                      <div key={g.key}>
+                        {groups.length > 1 && (
+                          <h3 style={{ margin: '0 0 8px', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--hx-muted)' }}>
+                            {g.title} <span style={{ opacity: 0.6 }}>({g.chars.length})</span>
+                          </h3>
+                        )}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
+                          {g.chars.map(renderCard)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()
             )}
 
             {/* Bring one of your own characters into this campaign — you keep ownership,

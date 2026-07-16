@@ -272,6 +272,7 @@ export interface HubCharacter {
   playedByUserId: string | null;
   playedByName: string | null;
   isNpc: boolean;
+  rosterRole: string;
   sheetType: string | null;
   portrait: string | null;
   /** The viewer owns OR plays this character. */
@@ -326,14 +327,14 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
   const [{ data: mems }, { data: chars }, { data: sess }, { data: mediaRows }] = await Promise.all([
     supabaseAdmin.from('dnd_campaign_members').select('user_id, role').eq('campaign_id', campaignId),
     charIds.length
-      ? supabaseAdmin.from('dnd_characters').select('id, name, is_npc, owner_user_id, played_by_user_id, token_url, art_url, sheet_type').in('id', charIds).order('is_npc', { ascending: true })
+      ? supabaseAdmin.from('dnd_characters').select('id, name, is_npc, roster_role, owner_user_id, played_by_user_id, token_url, art_url, sheet_type').in('id', charIds).order('is_npc', { ascending: true })
       : Promise.resolve({ data: [] as unknown[] }),
     supabaseAdmin.from('dnd_sessions').select('id, title, sort_order').eq('campaign_id', campaignId).order('sort_order', { ascending: true }),
     supabaseAdmin.from('dnd_media').select('id, url, kind, label, gallery_tags').eq('campaign_id', campaignId).order('created_at', { ascending: false }),
   ]);
   const members = (mems ?? []) as { user_id: string; role: string }[];
   const characters = (chars ?? []) as {
-    id: string; name: string; is_npc: boolean; owner_user_id: string | null; played_by_user_id: string | null; token_url: string | null; art_url: string | null; sheet_type: string | null;
+    id: string; name: string; is_npc: boolean; roster_role: string | null; owner_user_id: string | null; played_by_user_id: string | null; token_url: string | null; art_url: string | null; sheet_type: string | null;
   }[];
   const sessions = (sess ?? []) as { id: string; title: string; sort_order: number }[];
   const names = await nameMap(
@@ -403,6 +404,7 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
       playedByUserId: ch.played_by_user_id ?? null,
       playedByName: ch.played_by_user_id ? names.get(ch.played_by_user_id) ?? null : null,
       isNpc: ch.is_npc,
+      rosterRole: (['pc', 'special_npc', 'generic_npc'].includes(ch.roster_role ?? '') ? ch.roster_role : ch.is_npc ? 'generic_npc' : 'pc') as string,
       sheetType: ch.sheet_type,
       portrait: ch.token_url ?? ch.art_url ?? null,
       // "Mine" = the viewer owns it or plays it (either grants a sheet to open).
