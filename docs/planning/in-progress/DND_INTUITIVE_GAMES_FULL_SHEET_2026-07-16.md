@@ -1,0 +1,114 @@
+# Intuitive Games — the FULL character builder + sheet (everything in the spreadsheet & the system)
+
+**Goal (from the DM):** build the **complete** Intuitive Games character builder and sheet so it handles
+**everything in the Character Sheet Template** (the uploaded 9-tab spreadsheet) and **all of the rules,
+traits, features, actions, powers, stances, skills, and creatures from intuitivegames.net**. It must build a
+character faithfully to the system's own math, flag custom vs vanilla on every element (already built), plug
+into the DM approval workflow (already built), and be **fully styleable / customizable** like every other
+sheet on the platform.
+
+This is the deep follow-on to `completed/DND_INTUITIVE_GAMES_BUILDER_2026-07-15.md` (which shipped the
+vanilla content library, catalog, provenance model, DM approval, campaign policy, DM grants, and a first
+build-from-vanilla picker on the shared 5e-shaped sheet). That gave us **correct provenance + approval**; this
+doc gives us the **real IG data model, rules math, complete content, and a bespoke 9-tab sheet**.
+
+## The spreadsheet, tab by tab (what the build must cover)
+
+1. **Character Introduction** — Level, Class, Subclass, Specialization, Background; character photo; bio
+   prose; Height, Weight, Eyes, Hair, Age, Age Category (Young Adult…), Culture, Alignment, Ancestry, Games;
+   Common + Uncommon Languages, Tools, Vehicles, Religion, Values; Notes.
+2. **Basic Information** — the six **Ability Scores** (STR/DEX/CON/INT/WIS/CHA, score + modifier — same six
+   as 5e); **General Feats**, **Combat Feats**, **Powers**; **Ancestry & Traits**; **Stances**; **Weapon
+   Groups**; a **Dice Roller** (Attack / Skill / Artistry with misc modifiers, damage, sneak attack,
+   advantage, roll type), **Saving Throw** + **Ability Check / Initiative**; Notes.
+3. **Combat** — **Attacks** (Weapon Name, Attack, Total Damage, Bonus Damage, Weapon Type, Properties,
+   Proficient, Weapon Focus, Weapon Specialization, Strength Modifier); **Hit Points** (Class+Background HP,
+   Nonlethal damage taken, Lethal damage taken); **Damage Reduction**; **Saves** (Fortitude, Reflex, Will —
+   THREE, not six); Misc Bonuses; **Stances**; **Situational Bonuses**; **Defensive Power**; **Conditions**;
+   Notes.
+4. **Skills** — a **rank budget** (Skill Ranks Available / Ranks Spent / Proficiency = level); **General
+   Skills** grouped by ability (Strength/Dexterity/Intelligence/Wisdom/Charisma-Based) each with
+   Ranks/Prof/Misc/Total; **Combat Skills** (Dirty Trick, Disarm, Grapple, Overrun, Reposition, Steal,
+   Sunder, Trip, Feint — Str/Dex variants); a **Proficient Skills** roll-up; Notes.
+5. **Reference Sheet** — **Actions** grouped by economy (**Single / Double / Triple / Reactions / Other**);
+   **Feats & Special Powers** descriptions; **Stance Descriptions** (all 10 with their A/B effects).
+6. **Equipment** — worn slots **Arms / Head / Torso / Legs / Hands**; **Other Possessions**; Notes.
+7. **Companion Creature** — its own **Ability Scores, Skills (ranks), Attacks, Powers, Conditions, Hit
+   Points, Saves, Damage Reduction, Movement, Type, Resistances, Vulnerabilities**, Situational Bonuses,
+   Notes.
+8. **Summary** — a condensed one-page view (identity, ability scores + mods, HP, the three saves, key
+   skills, attacks, Starting Power, Defensive Power, Stance 1/2).
+9. **Data Sheet** — the reference registry: **Creatures** (full bestiary), **Movement Types**, **Weapon
+   Types**, **Stances**, **Spell List** (by school, with effects), **Class List** (13), **Subclass List** (5),
+   **Defensive Powers** (with effects). This is our content library — audit + complete it.
+
+## Architecture (deterministic-first, additive on what shipped)
+
+- **IG character model** (`lib/dnd/systems/intuitive-games/model.ts`): a typed `IGCharacter` that captures all
+  nine tabs. Stored as a **sidecar on `character.data.ig`** so the shared 5e-shaped sheet keeps working (the
+  builder already writes a 5e projection — meta/features/attacks — for compatibility + provenance), while the
+  bespoke IG sheet reads the rich `data.ig`. No DB migration: `data` is jsonb.
+- **Rules engine** (`lib/dnd/systems/intuitive-games/rules.ts`): pure IG math so stats are never wrong —
+  ability modifier, **proficiency = level**, **save total = rank + level + governing attribute**
+  (Fort/Con, Reflex/Dex, Will/Wis), **skill total = ranks + (prof? level : 0) + misc + attribute**, attack /
+  total-damage, sneak attack, **degrees of success** (crit-fail/fail/success/crit-success by ±10). Grounded
+  by the existing `system-rules.ts` IG entry.
+- **Complete content** (`content.ts` + catalog): finish the Data-Sheet registry — all spells by school with
+  effects, every defensive power, the full bestiary (companion creatures), the full skill list with governing
+  ability, feats with effect text, and the **actions taxonomy** by economy.
+- **Bespoke IG sheet** (`app/dnd/_sheet` IG skin / panels): render the 9 tabs from `IGCharacter`, every
+  element carrying its **VANILLA / CUSTOM / DM-GRANTED** badge, fully editable, and **styleable via the
+  existing custom-sheet engine** (SheetStyleBrowser + custom layout/CSS already apply to IG characters).
+- **Provenance / approval / policy / DM grants** — already shipped; extend provenance extraction to read the
+  full model so every element across all tabs is flagged.
+
+## Slices
+
+- **Slice 0 — Planning doc** *(this file)*.
+- **Slice 1 — Content completeness (the Data Sheet).** Audit `content.ts`/catalog against the spreadsheet +
+  intuitivegames.net and complete: all **spells by school** with effect text, **every defensive power**, the
+  **full bestiary** (companion creature list, grouped), the **full skill list** with governing ability +
+  combat-skill variants, **feats with effect text**, and an **actions taxonomy** (single/double/triple/
+  reaction/other). Pure data + lookups; tested (counts, classifier agreement, no dup).
+- **Slice 2 — IG character model + rules engine.** `model.ts` (the `IGCharacter` type over all nine tabs) +
+  `rules.ts` (pure math: modifier, proficiency=level, the three saves, skill totals, attack/damage, sneak
+  attack, degrees of success). Tested against worked examples.
+- **Slice 3 — Full builder → model.** Extend `assembleIGVanillaCharacter` (or a new `buildIGCharacter`) to
+  produce a complete `IGCharacter` (identity, scores, skills w/ ranks, saves, feats, powers, stances, weapon
+  groups, defensive power, equipment, companion, notes) stored at `data.ig`, alongside the existing 5e
+  projection; provenance reads the full model. Tested (vanilla → all-vanilla across every tab; custom →
+  flagged with correct kinds).
+- **Slice 4 — IG sheet: Identity + Basic Info + Summary.** Bespoke panels rendering intro/bio, the six
+  ability scores + mods, the three saves, and the summary top-line from `data.ig`, with provenance badges;
+  editable; styleable.
+- **Slice 5 — IG sheet: Skills.** The rank-budgeted, ability-grouped skills + combat skills with
+  Ranks/Prof/Misc/Total computed by `rules.ts`; ranks-available/spent tracker.
+- **Slice 6 — IG sheet: Combat.** Attacks table (focus/specialization/proficient, attack + total damage from
+  `rules.ts`), HP + nonlethal/lethal + Damage Reduction, the three saves, stances, situational bonuses,
+  defensive power, conditions.
+- **Slice 7 — IG sheet: Reference + Equipment + Notes.** Actions grouped by economy, feats/powers/stance
+  descriptions, the worn-slot equipment + other possessions, notes.
+- **Slice 8 — IG sheet: Companion Creature.** The companion's own scores/skills/attacks/powers/HP/saves/DR/
+  movement/resistances/vulnerabilities.
+- **Slice 9 — Full guided builder UI.** Upgrade `IGCharacterBuilder` into a step-through that drives the whole
+  model (identity → scores → skills w/ rank budget → feats/powers/stances → weapon groups → defensive power →
+  equipment → companion), live vanilla/custom count throughout, writing `data.ig`.
+- **Slice 10 — AI-customize over the full model.** Ground the AI to Intuitive Games so an AI build/edit fills
+  the real `IGCharacter` and any invented element is auto-flagged custom (via the same `igBuild`/provenance
+  path), matching IG mechanics.
+- **Slice 11 — QA + docs.** End-to-end pass across every tab (vanilla build → all-vanilla, custom → flagged,
+  vanilla-only blocks, DM grant allowed, approve/reject + notification, styling applies), full dnd vitest
+  suite green, tsc + lint clean; then move this doc to `completed/`.
+
+## Considerations
+- **Deterministic guarantee:** the model, rules math, content, classification and policy all work with zero
+  external services — the AI is additive, never required for correctness (the anti-wrong-mechanics rule).
+- **No cross-system leakage:** everything keyed to `intuitive-games`; the shared sheet stays valid via the 5e
+  projection.
+- **Facts, not prose:** store mechanical summaries attributed to the template / intuitivegames.net.
+- **Backward compatible:** `data.ig` is a sidecar; existing IG characters (built by the first builder) keep
+  working and gain the rich sheet once rebuilt/edited.
+- **Reuse:** build on the shipped content library, catalog, provenance, submission/approval, DM grants,
+  campaign policy, the custom-sheet/style engine, and `/ai-edit` grounding — don't fork them.
+
+### Status: IN PROGRESS (Slice 0 shipped; 1–11 pending)
