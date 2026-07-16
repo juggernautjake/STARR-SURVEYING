@@ -1218,7 +1218,30 @@ this slice is mostly about wiring them into one journey.
 **Sequencing note:** 38a is the shippable start (system picker + allow-custom on create). 38b builds
 on existing invites. 38c/38d are larger and depend on the builder (31) and variants being solid.
 
-## Slice 39 — A slide-up "digital screen" console in the map player view
+## Slice 39 — A slide-up "digital screen" console in the map player view ⏳ PARTIAL 2026-07-16
+
+**Finding: the drawer already exists and works — in the REAL player console (`console.html`), not in
+the studio's Player preview.** Verified in the browser: `#console` slides 246px ⇄ 30px with a
+"▲ SENSOR CONSOLE — CLICK TO OPEN" peek header and a smooth transition; `#deckMin` toggles it and
+clicking the peek reopens it. Exactly the described behaviour, already built.
+
+The reported gap was that the studio's **"▶ Player" toggle** is a *different, lesser* preview
+(`body.playmode` just hides the DM library/toolbar and shows an info panel) — it never surfaced the
+console. So "I'm not seeing it when I click Player view as the DM" was real: the DM's preview and the
+player's actual console are two different screens.
+
+**Shipped:** an **"🖥 Open player console ↗"** link in the studio, shown only in Player mode and only
+when opened from a campaign (`?campaign=`), pointing at `/dnd/campaigns/<id>/console?map=<id>` — the
+real player experience with the working drawer. Verified: hidden in DM mode, appears in Player mode
+with the correct URL.
+
+**Still open (the fuller ask):** embed the console drawer *inside* the studio's Player preview (or
+make Player mode load the console) so the DM sees the digital screen in place rather than opening a
+new tab. Larger — it means either iframing `console.html` into the studio's play mode or factoring
+the console out of its page. Deferred as its own follow-up; the affordance above closes the
+"can't reach it" gap now.
+
+### Original spec
 
 > "In the player view I want the whole digital screen viewer to be available to open and close. It
 > should pop up from the bottom of the map viewer, and then if we close it it just slides down to the

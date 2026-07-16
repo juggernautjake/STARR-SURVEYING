@@ -252,6 +252,10 @@
     <button data-mode="dm" class="on">✎ DM Editor</button>
     <button data-mode="play">▶ Player</button>
   </div>
+  <!-- Open the REAL player console (the sensor-console page with the slide-up digital screen +
+       knobs). The Player toggle above only previews the map without DM chrome; this is the actual
+       thing players see. Shown only in Player mode, and only when opened from a campaign. -->
+  <a class="tbtn" id="openPlayerConsole" href="#" target="_blank" rel="noreferrer" style="display:none;text-decoration:none;">🖥 Open player console ↗</a>
   <button class="tbtn" id="undoBtn">↶ Undo</button>
   <button class="tbtn" id="redoBtn">↷ Redo</button>
   <span class="campchip" id="campChip" style="display:none"></span>
@@ -2366,7 +2370,15 @@ $("#projInput").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new 
 
 /* ============================================================ MODE + KEYBOARD ============================================================ */
 $("#modeSeg").querySelectorAll("button").forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+// The "Open player console" link: points at the campaign's real console page, carrying the current
+// map id, and only appears in Player mode when we actually have a campaign (standalone studio use
+// has no console to open).
+(function(){
+  const q=new URLSearchParams(location.search);const camp=q.get("campaign");const el=document.getElementById("openPlayerConsole");
+  if(el&&camp){const mid=q.get("map");el.href=`/dnd/campaigns/${encodeURIComponent(camp)}/console`+(mid?`?map=${encodeURIComponent(mid)}`:"");el.dataset.ok="1";}
+})();
 function setMode(m){mode=m;document.body.classList.toggle("playmode",m==="play");$("#modeSeg").querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.mode===m));
+  {const el=document.getElementById("openPlayerConsole");if(el)el.style.display=(m==="play"&&el.dataset.ok)?"":"none";}
   if(m==="play"){tool="select";clearPending();if(drawing)cancelDraw();$("#inspHead").textContent="◈ INFO";selection=null;$("#inspBody").innerHTML=`<div class="empty"><div class="big">▶</div>Player preview. Click any body or system to read its info and points of interest.</div>`;}
   else{$("#inspHead").textContent="◈ INSPECTOR";}
   renderAll();
