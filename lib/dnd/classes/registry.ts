@@ -28,6 +28,7 @@ import { FIGHTER_2014, FIGHTER_SUBCLASSES_2014 } from './dnd5e-2014/fighter';
 import { ROGUE_2014, ROGUE_SUBCLASSES_2014 } from './dnd5e-2014/rogue';
 import { MONK_2014, MONK_SUBCLASSES_2014 } from './dnd5e-2014/monk';
 import { RANGER_2014, RANGER_SUBCLASSES_2014 } from './dnd5e-2014/ranger';
+import { PALADIN_2014, PALADIN_SUBCLASSES_2014 } from './dnd5e-2014/paladin';
 
 const DND5E_2024_CLASSES: ClassDefinition[] = [
   BARBARIAN_2024, BARD_2024, CLERIC_2024, DRUID_2024, FIGHTER_2024, MONK_2024,
@@ -51,10 +52,12 @@ const DND5E_2024_SUBCLASSES: SubclassDefinition[] = [
  * table that doesn't exist. Resolution is PER CLASS, so a partially-authored system (2014 today)
  * offers its finished classes and falls back to homebrew for the rest.
  */
-const DND5E_2014_CLASSES: ClassDefinition[] = [BARBARIAN_2014, FIGHTER_2014, ROGUE_2014, MONK_2014, RANGER_2014];
+const DND5E_2014_CLASSES: ClassDefinition[] = [
+  BARBARIAN_2014, FIGHTER_2014, ROGUE_2014, MONK_2014, RANGER_2014, PALADIN_2014,
+];
 const DND5E_2014_SUBCLASSES: SubclassDefinition[] = [
   ...BARBARIAN_SUBCLASSES_2014, ...FIGHTER_SUBCLASSES_2014, ...ROGUE_SUBCLASSES_2014,
-  ...MONK_SUBCLASSES_2014, ...RANGER_SUBCLASSES_2014,
+  ...MONK_SUBCLASSES_2014, ...RANGER_SUBCLASSES_2014, ...PALADIN_SUBCLASSES_2014,
 ];
 
 const BY_SYSTEM: Record<string, { classes: ClassDefinition[]; subclasses: SubclassDefinition[] }> = {

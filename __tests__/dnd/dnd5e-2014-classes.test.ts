@@ -13,7 +13,7 @@ const CLASSES = classesForSystem(SYS);
 
 describe('the 2014 class roster (authored class-by-class)', () => {
   it('has the classes authored so far, and the system reports it has class data', () => {
-    expect(CLASSES.map((c) => c.name)).toEqual(expect.arrayContaining(['Barbarian', 'Fighter', 'Rogue', 'Monk', 'Ranger']));
+    expect(CLASSES.map((c) => c.name)).toEqual(expect.arrayContaining(['Barbarian', 'Fighter', 'Rogue', 'Monk', 'Ranger', 'Paladin']));
     expect(systemHasClasses(SYS)).toBe(true);
   });
 
@@ -207,5 +207,28 @@ describe('Ranger 2014 — the edition-specific numbers', () => {
     expect(ranger.features.some((f) => f.level === 2 && f.choice === 'fighting-style')).toBe(true);
     const subs = subclassesFor(SYS, 'ranger').map((s) => s.name).sort();
     expect(subs).toEqual(['Beast Master', 'Hunter']);
+  });
+});
+
+describe('Paladin 2014 — the edition-specific numbers', () => {
+  const paladin = findClass(SYS, 'paladin')!;
+
+  it('is a CHA half-caster that PREPARES (no spellsKnown array) with WIS/CHA saves', () => {
+    expect(paladin.spellcasting?.kind).toBe('half');
+    expect(paladin.spellcasting?.ability).toBe('cha');
+    expect(paladin.spellcasting?.spellsKnown).toBeUndefined(); // a preparer, not a known-caster
+    expect(paladin.savingThrows).toEqual(['wis', 'cha']);
+  });
+
+  it('has Divine Smite as a class feature (not a spell) and Auras + Improved Divine Smite', () => {
+    expect(paladin.features.some((f) => f.name === 'Divine Smite' && f.level === 2)).toBe(true);
+    expect(paladin.features.some((f) => f.name === 'Aura of Protection')).toBe(true);
+    expect(snapshotAtLevel(paladin, 11).features.some((f) => f.name === 'Improved Divine Smite')).toBe(true);
+  });
+
+  it('offers exactly the three PHB oaths, each carrying always-prepared Oath Spells', () => {
+    const subs = subclassesFor(SYS, 'paladin');
+    expect(subs.map((s) => s.name).sort()).toEqual(['Oath of Devotion', 'Oath of Vengeance', 'Oath of the Ancients']);
+    for (const s of subs) expect(Object.keys(s.alwaysPrepared ?? {}).length).toBeGreaterThan(0);
   });
 });

@@ -369,8 +369,10 @@ One system per slice — depth-first, verified against sources. In priority orde
 - [~] **6a — D&D 5e 2014**: all 12 classes + Artificer, L1–20. The 2014/2024 differences are the
       whole point (subclass levels differ per class; ASI at 19; no Weapon Mastery; Ranger has
       Favored Enemy/Natural Explorer).
-      **Started 2026-07-16 — Barbarian ✅ + Fighter ✅ + Rogue ✅ + Monk ✅ + Ranger ✅ SHIPPED**
-      (`lib/dnd/classes/dnd5e-2014/`). Monk L1–20 + all three PHB traditions (Open Hand, Shadow, Four
+      **Started 2026-07-16 — Barbarian ✅ + Fighter ✅ + Rogue ✅ + Monk ✅ + Ranger ✅ + Paladin ✅ SHIPPED**
+      (`lib/dnd/classes/dnd5e-2014/`). Paladin L1–20 (half-caster, CHA, spells PREPARED) with Divine
+      Smite as a class feature, Lay on Hands, the Auras (10 ft → 30 at 18), and all three PHB oaths
+      (Devotion, Ancients, Vengeance) carrying always-prepared Oath Spells. Monk L1–20 + all three PHB traditions (Open Hand, Shadow, Four
       Elements); the resource is "Ki" (2024 renamed it Focus), equal to Monk level from level 2. Ranger
       L1–20 (first **half-caster** — spells known from 2, no cantrips) with the 2014 **Favored Enemy +
       Natural Explorer** at 1 (a 2024 rewrite) and both PHB archetypes (Hunter, Beast Master).
@@ -390,7 +392,7 @@ One system per slice — depth-first, verified against sources. In priority orde
       2024 existed). Both are now **system-scoped**; all three callers (levels API ×2, library page)
       pass the class's system. Tests: `dnd5e-2014-classes.test.ts` (11 — structural validity, L1→20,
       the edition tells, per-class fallback, no-leak) + the 2024 suite updated to the scoped signature.
-      **Remaining 6a:** the other 7 classes + Artificer (Paladin next, then the full/pact casters).
+      **Remaining 6a:** the other 6 classes + Artificer (the full/pact casters: Bard, Cleric, Druid, Sorcerer, Warlock, Wizard).
 - [ ] **6b — Pathfinder 2e**: classes with flat HP/level, the feat cadence (ancestry 1/5/9/13/17,
       class at even levels, skill at even, general at 3/7/11/15/19), attribute boosts at 5/10/15/20.
 - [ ] **6c — Pathfinder 1e**: BAB progressions, save progressions, skill ranks, feats at odd levels.
