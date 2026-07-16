@@ -687,11 +687,23 @@ illegal op rejected, non-number rejected, update/equip refine without rebuild, s
 different portrait" produces one item that does all of it, and taking it off gives you back exactly
 the character you were.
 
-## Slice 15 — Attack, weapon & armor builders (+ reactive effects)
+## Slice 15 — Attack, weapon & armor builders (+ reactive effects) ⏳ PARTIAL 2026-07-16
 
 > "We might have an enemy that when they attack us and hit us, the armor does a certain amount of
 > damage back to them… even a piece of armor could potentially have a roll to attack and a roll for
 > damage."
+
+**Builders ✅ SHIPPED:** attacks are editable/creatable by hand (`AttackEditor` + "Add attack",
+Slice 20/27) with name/ability/proficiency/to-hit+damage bonuses/range/typed damage/save-DC; the
+`ItemBuilder` is the weapon builder (damage dice + type, ability, range, proficient, bonus typed
+dice) and the armor/shield builder (category, base AC, DEX cap, stealth) with the full `effects`
+vocabulary (Slice 11), so "armour that changes your species" is just armour with an identity effect.
+**Remaining — the `Trigger` concept (reactive effects / retaliation).** This is genuinely its own
+substantial slice, NOT a quick add: as the intro below explains, retaliation is an *event-triggered
+action* (fires when something happens, rolls dice, targets someone who isn't you) that the pure
+order-independent ledger deliberately cannot express — it needs a separate `Trigger` data model
+(`{on, condition?, action}` with per-turn/per-rest limits), plus event surfacing that PROMPTS the
+player rather than auto-resolving against a creature the app doesn't model. Scoped as its own slice.
 
 **The gap this exposes.** Every effect in the engine today is a *continuous overlay*: it is true for
 as long as its condition holds, and the ledger's job is to resolve it into a number. Retaliation
