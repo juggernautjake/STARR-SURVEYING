@@ -98,6 +98,46 @@ describe('numbers resolve by a documented order, not by luck', () => {
   });
 });
 
+describe('DERIVED targets resolve against the CALLER\'s base', () => {
+  // The bug this pins: a spell save DC, a skill total and an initiative bonus are not stored on
+  // the sheet — the caller computes them and passes them in. `final` had already collapsed to
+  // `0 + bonus` for those, so `value('spell_save_dc', 15)` with a +1 item returned 1. Every
+  // derived number on the sheet would have been silently wrong the moment it was wired up, and
+  // the original tests missed it because they only covered targets WITH stored bases.
+  it('adds to a caller-supplied base rather than replacing it', () => {
+    const c = hero();
+    c.inventory = [item({ name: 'Rod of the Pact Keeper', effects: [{ target: 'spell_save_dc', operation: 'add', value: 1 }] })];
+    expect(buildLedger(c).value('spell_save_dc', 15)).toBe(16); // not 1
+  });
+
+  it('works for every derived family', () => {
+    const c = hero();
+    c.inventory = [
+      item({ name: 'Cloak of Protection', effects: [{ target: 'all_saves', operation: 'add', value: 1 }] }),
+      item({ name: 'Boots', effects: [{ target: 'skill.stealth', operation: 'add', value: 2 }] }),
+      item({ name: 'Bracers', effects: [{ target: 'attack_roll', operation: 'add', value: 1 }] }),
+    ];
+    const led = buildLedger(c);
+    expect(led.value('all_saves', 4)).toBe(5);
+    expect(led.value('skill.stealth', 3)).toBe(5);
+    expect(led.value('attack_roll', 6)).toBe(7);
+  });
+
+  it('an untouched derived target returns the caller\'s base unchanged', () => {
+    const led = buildLedger(hero());
+    expect(led.value('spell_save_dc', 15)).toBe(15);
+    expect(led.value('skill.stealth', 3)).toBe(3);
+  });
+
+  it('a set on a derived target cannot lower the caller\'s base', () => {
+    const c = hero();
+    c.inventory = [item({ name: 'Cap', effects: [{ target: 'spell_save_dc', operation: 'set', value: 13 }] })];
+    const led = buildLedger(c);
+    expect(led.value('spell_save_dc', 17)).toBe(17); // the base already beats the set
+    expect(led.value('spell_save_dc', 11)).toBe(13);
+  });
+});
+
 describe('removing a source restores the base EXACTLY', () => {
   // This is the property that makes "take the pendant off and you are you again" free. If it
   // fails, every unequip needs undo bookkeeping and the whole design collapses.

@@ -50,12 +50,24 @@ export interface Contribution {
 
 export interface TargetLedger {
   target: string;
-  /** The character's own value before any effect. Null for targets with no base (grants). */
+  /**
+   * The character's own value before any effect, when the ledger can read one off the sheet
+   * (abilities, AC, walk speed, max HP). Null for DERIVED targets — a spell save DC or a skill
+   * total isn't stored anywhere, the caller computes it and passes it to `value()`.
+   */
   base: number | null;
   final: number | null;
   contributions: Contribution[];
   advantage: boolean;
   disadvantage: boolean;
+  /**
+   * The resolved pieces, kept separately from `final` so `value(target, callerBase)` can re-resolve
+   * against a base the ledger never knew about. Without this, a `+1 spell save DC` item resolved to
+   * a DC of 1 — the caller's 15 was thrown away — because `final` had already collapsed to
+   * `0 + bonus`. Every derived number would have been silently wrong the moment it was wired up.
+   */
+  override: number | null;
+  bonus: number;
 }
 
 export interface LedgerSource {
@@ -158,6 +170,18 @@ function defaultBases(char: Character): Record<string, number> {
 const num = (v: Effect['value']): number => (typeof v === 'number' ? v : 0);
 
 /**
+ * Combine a base with a target's resolved effects.
+ *
+ * The base is a CANDIDATE for the `set` contest, not a value that `set` replaces outright: Storm
+ * Giant Strength sets STR to 29, but a 30-STR character must not be dragged down to 29. Then every
+ * `add` stacks on whatever won.
+ */
+function resolveAgainst(entry: Pick<TargetLedger, 'override' | 'bonus'>, base: number): number {
+  const winner = entry.override !== null ? Math.max(base, entry.override) : base;
+  return winner + entry.bonus;
+}
+
+/**
  * Build the ledger.
  *
  * Resolution order, documented because it must not be emergent:
@@ -185,6 +209,8 @@ export function buildLedger(char: Character, ctx: LedgerContext = {}): EffectLed
         contributions: [],
         advantage: false,
         disadvantage: false,
+        override: null,
+        bonus: 0,
       };
     }
     return byTarget[target];
@@ -204,11 +230,15 @@ export function buildLedger(char: Character, ctx: LedgerContext = {}): EffectLed
   }
 
   // Pass 2 — resolve each target. Overrides first (highest wins), then stack the adds.
+  //
+  // `override` here is the highest `set` AMONG THE EFFECTS ONLY — the base is deliberately not
+  // folded in yet, because a derived target's base isn't known until the caller supplies it.
+  // `resolveAgainst()` combines the two.
   for (const target of Object.keys(byTarget)) {
     const entry = byTarget[target];
     const mine = filed.filter((f) => f.target === target);
 
-    let override: number | null = entry.base;
+    let override: number | null = null;
     for (const { effect } of mine) {
       if (effect.operation !== 'set' && effect.operation !== 'set_base') continue;
       const v = num(effect.value);
@@ -222,8 +252,16 @@ export function buildLedger(char: Character, ctx: LedgerContext = {}): EffectLed
       else if (effect.operation === 'disadvantage') entry.disadvantage = true;
     }
 
+    entry.override = override;
+    entry.bonus = bonus;
+
     const isNumeric = findTarget(target)?.valueType === 'number';
-    entry.final = isNumeric && (override !== null || bonus !== 0) ? (override ?? 0) + bonus : override;
+    entry.final =
+      isNumeric && entry.base !== null
+        ? resolveAgainst(entry, entry.base)
+        : isNumeric && (override !== null || bonus !== 0)
+          ? (override ?? 0) + bonus
+          : entry.base;
 
     // Pass 3 — annotate each contribution with what it ACTUALLY did. A `set` that lost to a higher
     // `set` is marked suppressed rather than dropped: the panel must be able to say "your belt is
@@ -253,8 +291,14 @@ export function buildLedger(char: Character, ctx: LedgerContext = {}): EffectLed
     sources,
     value(target, base) {
       const e = byTarget[target];
-      if (!e || e.final === null) return base ?? bases[target] ?? 0;
-      return e.final;
+      // Nothing touches this target → the caller's own number stands.
+      if (!e) return base ?? bases[target] ?? 0;
+      // Resolve against whichever base applies. The caller's wins when given, because DERIVED
+      // targets (spell save DC, a skill total, initiative) are computed by the caller and the
+      // ledger has no way to know them. Reading `final` here instead is the bug this replaced:
+      // for a derived target `final` is `0 + bonus`, so a +1 DC item turned a DC of 15 into 1.
+      const b = base ?? e.base ?? bases[target] ?? 0;
+      return resolveAgainst(e, b);
     },
     isModified(target) {
       const e = byTarget[target];
