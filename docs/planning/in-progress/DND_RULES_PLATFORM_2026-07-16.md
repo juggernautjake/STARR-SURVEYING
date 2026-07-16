@@ -440,11 +440,17 @@ already accepts identity effects (`{target:'name',operation:'set',value:'Zul'}`)
 pendant works end-to-end today. Tests: `identity-overlay.test.ts` (6) — impose-over-untouched-base,
 null-when-none, gone-on-unequip, + Hero wiring anchors. 843 pass.
 
-**Grant: proficiencies ✅ SHIPPED (commit pending).** `grant_proficiency` (weapons/tools/languages —
-both the `proficiency` and `grant_language` targets, which share that op) was collectable by the
-ledger but rendered nowhere. `SavesSkills` now lists granted proficiencies under Skills, each badged
-"from <source>", shown only when non-empty, and gone the moment the item comes off. Tests:
-`grant-proficiency.test.ts` (4) — collected+sourced, empty-when-none, gone-on-unequip, render wiring.
+**Grant: proficiencies ✅ SHIPPED.** `grant_proficiency` (weapons/tools/languages — both the
+`proficiency` and `grant_language` targets, which share that op) was collectable by the ledger but
+rendered nowhere. `SavesSkills` now lists granted proficiencies under Skills, each badged "from
+<source>", shown only when non-empty, and gone the moment the item comes off. Tests:
+`grant-proficiency.test.ts` (4).
+
+**Grant: damage resistances / immunities / vulnerabilities ✅ SHIPPED (commit pending).** Same
+pattern: `collected('resistance'|'immunity'|'vulnerability')` was available but unrendered. The
+Defenses card in `CombatPanel` now lists each, per-type, tagged with its source (vulnerabilities in
+the danger colour), gated on non-empty. Tests: `grant-defenses.test.ts` (3) — collected+sourced,
+gone-on-unequip, render wiring.
 
 **Still open in this slice (each its own render site / mechanic, deliberately not bundled):**
 - *Other identity fields* — `image`/`token` (portrait + map token), `gender`/`pronouns`/`profession`

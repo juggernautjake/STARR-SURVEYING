@@ -38,6 +38,13 @@ export default function CombatPanel() {
   // on the base for now. `value` returns the base untouched when nothing modifies it.
   const walkSpeed = ledger.value('speed_walk', combat.speed)
 
+  // Damage resistances / immunities / vulnerabilities granted by an active effect (Slice 11
+  // grant-half). Collected by the ledger with their source; the Defenses card is their home — a
+  // resistance that renders nowhere is a defense the player has and can't see.
+  const resistances = ledger.collected('resistance')
+  const immunities = ledger.collected('immunity')
+  const vulnerabilities = ledger.collected('vulnerability')
+
   const dying = combat.currentHp <= 0
 
   const setTemp = (v: number) => setChar((c) => ({ ...c, combat: { ...c.combat, tempHp: Math.max(0, v) } }))
@@ -208,6 +215,41 @@ export default function CombatPanel() {
               </strong>{' '}
               — {combat.speedNote}
             </li>
+            {/* Damage resistances / immunities / vulnerabilities from active effects (Slice 11).
+                Each type is tagged with the source granting it, so it's clear it's on loan. */}
+            {resistances.length > 0 && (
+              <li>
+                <strong>Resistant</strong> —{' '}
+                {resistances.map((r, i) => (
+                  <span key={`${r.value}-${r.source}`} style={{ textTransform: 'capitalize' }}>
+                    {i > 0 && ', '}
+                    {r.value} <span className="hl-note">({r.source})</span>
+                  </span>
+                ))}
+              </li>
+            )}
+            {immunities.length > 0 && (
+              <li>
+                <strong>Immune</strong> —{' '}
+                {immunities.map((r, i) => (
+                  <span key={`${r.value}-${r.source}`} style={{ textTransform: 'capitalize' }}>
+                    {i > 0 && ', '}
+                    {r.value} <span className="hl-note">({r.source})</span>
+                  </span>
+                ))}
+              </li>
+            )}
+            {vulnerabilities.length > 0 && (
+              <li>
+                <strong style={{ color: 'var(--danger)' }}>Vulnerable</strong> —{' '}
+                {vulnerabilities.map((r, i) => (
+                  <span key={`${r.value}-${r.source}`} style={{ textTransform: 'capitalize' }}>
+                    {i > 0 && ', '}
+                    {r.value} <span className="hl-note">({r.source})</span>
+                  </span>
+                ))}
+              </li>
+            )}
             {/* Species/class traits are character-owned — this list used to hardcode a
                 single character's species traits onto every sheet. */}
             {(char.traits ?? []).map((t, i) => (
