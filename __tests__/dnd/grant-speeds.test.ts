@@ -40,6 +40,23 @@ describe('extra movement modes resolve independently of walk speed', () => {
   });
 });
 
+describe('movement flags (hover, ignore difficult terrain) also surface', () => {
+  it('a granted hover flag is present and sourced', () => {
+    const boots: SheetEdit = {
+      op: 'add_item',
+      name: 'Winged Boots',
+      equipped: true,
+      effects: [
+        { target: 'speed_fly', operation: 'set', value: 30 },
+        { target: 'hover', operation: 'set', value: 1 },
+      ],
+    } as SheetEdit;
+    const led = buildLedger(applySheetEdits(blankCharacter('Sky'), [boots]));
+    expect(led.isModified('hover')).toBe(true);
+    expect(led.explain('hover')[0].source).toBe('Winged Boots');
+  });
+});
+
 describe('CombatPanel renders the speeds block', () => {
   it('reads each movement target and shows only granted modes, starred', () => {
     expect(COMBAT).toContain("'speed_fly'");
@@ -47,5 +64,10 @@ describe('CombatPanel renders the speeds block', () => {
     expect(COMBAT).toContain('extraSpeeds');
     expect(COMBAT).toContain('s.value > 0 || s.modified');
     expect(COMBAT).toContain('target={s.key}');
+  });
+
+  it('renders the movement flags with their source', () => {
+    expect(COMBAT).toContain('movementFlags');
+    expect(COMBAT).toContain("'ignore_difficult_terrain'");
   });
 });

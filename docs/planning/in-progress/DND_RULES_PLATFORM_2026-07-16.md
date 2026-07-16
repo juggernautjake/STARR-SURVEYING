@@ -481,7 +481,8 @@ doc's explicit "senses… need somewhere to render" item. Test added to `grant-d
 - *A speeds block ✅ SHIPPED (commit pending)* — `speed_fly`/`swim`/`climb`/`burrow` now render in
   the Defenses card, each on its own ledger target (a fly speed exists independently of walk speed,
   and only shows once something grants it), starred + sourced. `hover`/`ignore_difficult_terrain`
-  (flags) still have no line. Tests: `grant-speeds.test.ts` (4).
+  (flags) now render in the same block with their source, so the movement grant surface is fully
+  covered. Tests: `grant-speeds.test.ts` (6).
 
 Original action items (kept for the remaining work):
 

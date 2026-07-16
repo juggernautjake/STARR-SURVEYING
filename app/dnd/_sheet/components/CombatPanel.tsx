@@ -51,6 +51,20 @@ export default function CombatPanel() {
   )
     .map(([key, label]) => ({ key, label, value: ledger.value(key, 0), modified: ledger.isModified(key) }))
     .filter((s) => s.value > 0 || s.modified)
+  // Movement FLAGS (presence is the whole effect): hover, ignore difficult terrain. Shown with
+  // their source when an effect grants them — the last two movement targets that had no line.
+  const movementFlags = (
+    [
+      ['hover', 'Hover'],
+      ['ignore_difficult_terrain', 'Ignores difficult terrain'],
+    ] as const
+  )
+    .map(([key, label]) => ({
+      key,
+      label,
+      source: ledger.explain(key).find((c) => !c.suppressed)?.source,
+    }))
+    .filter((f) => f.source)
 
   // Damage resistances / immunities / vulnerabilities granted by an active effect (Slice 11
   // grant-half). Collected by the ledger with their source; the Defenses card is their home — a
@@ -243,6 +257,11 @@ export default function CombatPanel() {
                     {s.value} ft
                   </EffectStar>
                 </strong>
+              </li>
+            ))}
+            {movementFlags.map((f) => (
+              <li key={f.key}>
+                <strong>{f.label}</strong> <span className="hl-note">({f.source})</span>
               </li>
             ))}
             {/* Damage resistances / immunities / vulnerabilities from active effects (Slice 11).
