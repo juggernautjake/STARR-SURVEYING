@@ -698,12 +698,23 @@ Slice 20/27) with name/ability/proficiency/to-hit+damage bonuses/range/typed dam
 `ItemBuilder` is the weapon builder (damage dice + type, ability, range, proficient, bonus typed
 dice) and the armor/shield builder (category, base AC, DEX cap, stealth) with the full `effects`
 vocabulary (Slice 11), so "armour that changes your species" is just armour with an identity effect.
-**Remaining — the `Trigger` concept (reactive effects / retaliation).** This is genuinely its own
-substantial slice, NOT a quick add: as the intro below explains, retaliation is an *event-triggered
-action* (fires when something happens, rolls dice, targets someone who isn't you) that the pure
-order-independent ledger deliberately cannot express — it needs a separate `Trigger` data model
-(`{on, condition?, action}` with per-turn/per-rest limits), plus event surfacing that PROMPTS the
-player rather than auto-resolving against a creature the app doesn't model. Scoped as its own slice.
+**`Trigger` concept — core ✅ SHIPPED (commit pending).** The reactive-effects data model + resolution
++ surfacing are done: a `Trigger` type (`{on, condition?, label, action, limit}`) on items and
+features, where `on` is one of eleven events (`hit_by_melee`…`reduced_to_zero`) and `action` is a
+prompt-shaped payload (roll damage/heal/temp-HP, apply a condition, grant an effect, spend a resource,
+or DM-adjudicate). `lib/dnd/effects/triggers.ts` collects the ACTIVE triggers (equipped items +
+unlocked features, condition-gated by the same rule the ledger uses), filters them by event
+(`triggersForEvent`), and describes them (`describeTrigger`). A **Reactions & Triggers** panel on
+every sheet lists them grouped by event ("When hit by a melee attack — Spiked Barbs: 1d6 piercing,
+from Spiked Armour"). Kept firmly a PROMPT, not automation — nothing auto-applies damage to a creature
+the app can't see. Tests: `triggers.test.ts` (8) — collection, equip/level/condition gating,
+per-event filter, description, render wiring.
+
+**Remaining — authoring + live firing.** A trigger BUILDER in the item/feature editors (author
+`on`/`action`/`limit` by hand), the AI emitting triggers, and firing the surfacing at the MOMENT an
+event happens (e.g. auto-open the barbs prompt when a melee hit is logged, decrementing the limit).
+The model, resolution, and a standing reactions list are shipped; these are the interaction layer on
+top.
 
 **The gap this exposes.** Every effect in the engine today is a *continuous overlay*: it is true for
 as long as its condition holds, and the ledger's job is to resolve it into a number. Retaliation

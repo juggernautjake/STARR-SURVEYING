@@ -14,6 +14,7 @@ import StreamPoll from './components/StreamPoll'
 import StreamAlert from './components/StreamAlert'
 import ConditionTracker from './components/ConditionTracker'
 import ActiveEffects from './components/ActiveEffects'
+import Reactions from './components/Reactions'
 import EditReviewPanel from './components/EditReviewPanel'
 import Hero from './components/Hero'
 import StatRail from './components/StatRail'
@@ -211,6 +212,7 @@ export default function App({ theme, sheetType, system }: { theme?: SheetTheme; 
 
           <ConditionTracker />
           <ActiveEffects />
+          <Reactions />
           <EditReviewPanel />
 
           <div className="tabpane" key={tab}>

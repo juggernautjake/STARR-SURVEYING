@@ -1,6 +1,38 @@
 import type { AbilityKey, ProfLevel } from './rules/dnd'
 import type { Effect } from './engine/effects'
 
+/** The events a Trigger can fire ON (Slice 15). A trigger is an EVENT-driven action — it fires when
+ *  something happens, unlike an Effect (a continuous overlay). Retaliation ("armour that damages who
+ *  hits me") is the motivating case; it can't be an Effect because it rolls dice and targets someone
+ *  who isn't you. */
+export type TriggerEvent =
+  | 'hit_by_melee' | 'hit_by_ranged' | 'hit_by_spell'
+  | 'you_hit' | 'you_crit' | 'you_are_crit'
+  | 'save_failed' | 'turn_start' | 'turn_end' | 'damaged' | 'reduced_to_zero'
+
+/** What a Trigger DOES when it fires. Deliberately a PROMPT, not automation: the sheet surfaces it
+ *  and the player/DM resolves it — it never silently applies damage to a creature the app can't see. */
+export interface TriggerAction {
+  kind: 'damage' | 'heal' | 'temp_hp' | 'condition' | 'effect' | 'resource' | 'prompt'
+  dice?: string            // damage/heal/temp: dice, e.g. "1d6"
+  damageType?: string      // damage: fire/piercing/…
+  attack?: boolean         // damage: does it need an attack roll to land?
+  condition?: string       // condition: what it applies, e.g. "Frightened"
+  note?: string            // free-text for prompt / flavor
+}
+
+export interface Trigger {
+  id: string
+  on: TriggerEvent
+  /** Optional gate — only fires while this condition is active (e.g. "raging"), the engine's
+   *  `condition` idea reused for events. */
+  condition?: string
+  label: string            // "Spiked Barbs"
+  action: TriggerAction
+  /** A usage limit — unlimited retaliation is the failure mode, so the model can say no. */
+  limit?: { per: 'turn' | 'round' | 'short' | 'long' | 'encounter'; max: number }
+}
+
 export interface Attack {
   id: string
   name: string
@@ -36,6 +68,7 @@ export interface Attack {
   /** Uploaded art for this attack, shown as a thumbnail in the Attacks table (Slice 28). */
   image?: string
 }
+// (Trigger fields live on InvItem + FeatureBlock — an item's spiked armour, a feature's retort.)
 
 export interface FeatureBlock {
   id: string
@@ -63,6 +96,8 @@ export interface FeatureBlock {
   customized?: boolean
   /** Uploaded art for this feature, shown as a thumbnail on its card (Slice 28). */
   image?: string
+  /** Event-triggered reactions this feature carries (Slice 15) — surfaced when their event fires. */
+  triggers?: Trigger[]
 }
 
 export interface FormAbility {
@@ -182,6 +217,9 @@ export interface InvItem {
    *  the Spells tab badged to this item — so a non-caster can be granted a spell and still see it —
    *  gone when it comes off. (Casting from granted slots is a follow-up.) */
   grantsSpell?: Spell
+  /** Event-triggered reactions this item carries while equipped (Slice 15) — spiked armour that hits
+   *  back, a shield that frightens. Surfaced (not auto-applied) when their event fires. */
+  triggers?: Trigger[]
   /** Hand-tuned away from how it was (Slice 20) → drives the ✎ marker. */
   customized?: boolean
 }
