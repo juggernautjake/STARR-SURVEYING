@@ -45,6 +45,10 @@ export interface FeatureBlock {
     rollKind?: 'damage' | 'heal' | 'temp' | 'raw'
     note?: string // shown in the log for non-dice uses
   }
+  /** Passive mechanics this feature contributes to the ledger (Slice 10). Optional: most features
+   *  are prose the DM reads. A feature with `effects` moves real numbers — and, like item effects,
+   *  may be `condition`-gated ('raging') so it only counts when it should. */
+  effects?: Effect[]
 }
 
 export interface FormAbility {
