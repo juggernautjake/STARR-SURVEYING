@@ -221,11 +221,22 @@ left implicit: a model reading silence about conditions will happily assume whic
 already wanted. Same reasoning behind `(+N more not listed)` — a silent truncation reads to the
 model as "this is the complete list", which is exactly how a ruling ends up ignoring a feature.
 
-## Slice 4 — 5e 2024: feats, backgrounds, species, languages
+## Slice 4 — 5e 2024: feats, backgrounds, species, languages ⏳ PARTIAL 2026-07-16
 
 The classes are done; the rest of character creation is not.
 
-- [ ] **Feats** as structured data (`lib/dnd/feats/dnd5e-2024.ts`): all four categories — Origin,
+**Feats scaffold + the Origin category ✅ SHIPPED (commit pending).** `lib/dnd/feats/dnd5e-2024.ts`
+now defines the shared `Feat` shape (category, prerequisites, `abilityIncrease`, grants, full benefit
+text) and the **complete 10-feat Origin category** — Alert, Crafter, Healer, Lucky, Magic Initiate,
+Musician, Savage Attacker, Skilled, Tavern Brawler, Tough — each with full PHB rules text, plus
+`featsByCategory` / `findFeat` / `featGrantsAbilityIncrease` helpers. The 2024 trap is baked into the
+type and the tests: **Origin feats carry NO `abilityIncrease`** (the +1 lives only on General/Epic
+feats), and `feats.test.ts` (7) asserts exactly the invariant the slice names — "no feat grants an
+ability increase it shouldn't" — plus no-prerequisites, full-list coverage, no-stub text, unique keys,
+and repeatability flags. General / Fighting Style / Epic Boon categories, and the level-builder wiring,
+are the remaining bullets below.
+
+- [~] **Feats** as structured data (`lib/dnd/feats/dnd5e-2024.ts`): all four categories — Origin ✅,
       General (with prerequisites + the +1 ability), Fighting Style, Epic Boon. Full rules text.
 - [ ] **Backgrounds** (16): ability scores (+2/+1 or +1/+1/+1), Origin feat, 2 skills, 1 tool,
       equipment. Remember: in 2024 the **background** grants the ability increases.
