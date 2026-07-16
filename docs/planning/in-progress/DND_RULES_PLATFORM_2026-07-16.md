@@ -462,10 +462,13 @@ doc's explicit "senses… need somewhere to render" item. Test added to `grant-d
   (Bio/Overview), `size`/`creature_type` (mechanical: size drives carrying capacity + grapple). Each
   is a distinct render path; the ledger already resolves them, so each is a small read like the header
   was, done where that field renders.
-- *The heavier grant targets* — `grant_feature`/`grant_attack`/`grant_spell`/`grant_resource`/
-  `grant_sense`. Unlike proficiencies (a flat collected list), these mint a whole element (a granted
-  feature appears in Features badged to its source, a granted spell in Spells) and want their own
-  slice each.
+- *`grant_feature` ✅ SHIPPED (commit pending).* An item can grant a feature (the pendant that gives
+  a Wizard a Barbarian ability). `Features` reads `ledger.explain('grant_feature')` and renders each
+  as a read-only card badged "granted / Granted by <source>" — no ⋯ menu (it's on loan), never baked
+  into the stored features list, gone on unequip. Its mechanics ride on the item's other effects
+  (already ledger-resolved); this is the human-readable card. Tests: `grant-feature.test.ts` (4).
+- *The remaining heavy grant targets* — `grant_attack`/`grant_spell`/`grant_resource`. Each mints a
+  different element (an attack row, a spell entry, a resource track) and wants its own slice.
 - *A speeds block ✅ SHIPPED (commit pending)* — `speed_fly`/`swim`/`climb`/`burrow` now render in
   the Defenses card, each on its own ledger target (a fly speed exists independently of walk speed,
   and only shows once something grants it), starred + sourced. `hover`/`ignore_difficult_terrain`

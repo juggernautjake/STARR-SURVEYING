@@ -19,9 +19,18 @@ function sourceColor(source: string) {
 }
 
 export default function Features() {
-  const { char, activateFeature, canWrite, setChar } = useChar()
+  const { char, activateFeature, canWrite, setChar, ledger } = useChar()
   const [editing, setEditing] = useState<FeatureBlock | null>(null)
   const level = char.meta.level
+
+  // Features GRANTED by an active effect (Slice 11 grant-half): the pendant that gives you a
+  // Barbarian feature from another class entirely. Rendered read-only and badged with the item they
+  // came from — they're on loan, so there's no ⋯ menu, and they vanish when the source comes off.
+  // The mechanics (if any) live in the item's other effects; this is the human-readable card.
+  const grantedFeatures = ledger
+    .explain('grant_feature')
+    .filter((c) => !c.suppressed && typeof c.effect.value === 'string' && c.effect.value.trim())
+    .map((c) => ({ name: String(c.effect.value), source: c.source, sourceId: c.sourceId }))
 
   const duplicate = (f: FeatureBlock) =>
     setChar((c) => ({
@@ -105,6 +114,20 @@ export default function Features() {
           </div>
         )
       })}
+
+      {grantedFeatures.map((g, i) => (
+        <div className="card" key={`granted-${g.sourceId ?? i}-${i}`} style={{ borderColor: 'var(--tealbright)' }}>
+          <h3>
+            {g.name}
+            <span className="tag" style={{ marginLeft: 'auto', color: 'var(--tealbright)' }}>
+              granted
+            </span>
+          </h3>
+          <p className="muted" style={{ margin: 0 }}>
+            Granted by <strong>{g.source}</strong> — active while equipped. Its mechanics apply through the item&apos;s own effects.
+          </p>
+        </div>
+      ))}
 
       {canWrite && (
         <div className="btn-row" style={{ marginTop: 10 }}>
