@@ -3426,13 +3426,28 @@
   box-shadow: 0 0 0 1px rgba(10, 200, 185, 0.06), 0 8px 24px rgba(1, 10, 19, 0.5);
 }
 /* A hex-notched top accent bar on cards (Hextech framing). */
+/* The gold accent bar across a card's top edge.
+   It used to be a BLOCK with `margin: -14px -16px 12px` — negative margins meant to bleed a 2px
+   bar out to the card's padding edges. That breaks in two ways:
+     1. On a `display: flex` card (e.g. the ART uploader) the ::before becomes a FLEX ITEM, so its
+        -16px left margin dragged the whole row left, out of the card's padding — which is why
+        "ART //" rendered outside its own card while every other section label sat correctly.
+     2. The offsets were hardcoded to a padding the cards don't have (the base card is 20px 22px,
+        the ART card 12px 16px), so the bar never actually reached the edges anyway.
+   It's decoration, so it should not participate in layout at all: pin it to the top edge. */
+.dnd-sheet.skin-hextech .card {
+  position: relative;
+}
 .dnd-sheet.skin-hextech .card::before {
   content: '';
-  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
   height: 2px;
-  margin: -14px -16px 12px;
   background: linear-gradient(90deg, transparent, var(--gold), transparent);
   opacity: 0.55;
+  pointer-events: none;
 }
 /* Links / rules terms glow Hextech teal. */
 .dnd-sheet.skin-hextech a,

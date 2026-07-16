@@ -133,7 +133,7 @@ export default function StreamOwnerControls() {
   return (
     <section className="card" style={{ marginBottom: 14, borderColor: live ? '#ff5252' : 'var(--line-strong)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <span className="sec-num" style={{ color: 'var(--hotpink, #ff2d8b)', fontSize: 12 }}>MY STREAM {'//'}</span>
+        <span className="sec-num" style={{ fontSize: 12 }}>MY STREAM {'//'}</span>
         <button className={`btn ${live ? 'danger' : 'solid'}`} onClick={toggleLive} disabled={busy}
           title={live ? 'End your stream (hides the chat + meter for everyone)' : 'Go live — starts your streamer chat, influence meter, and viewers'}>
           {live ? '⏹ End Stream' : '🔴 Go Live'}

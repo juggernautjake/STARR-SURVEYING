@@ -56,7 +56,7 @@ export default function DmOverridePanel({ hasStream = false }: { hasStream?: boo
     <section className="card dm-panel" style={{ borderColor: 'var(--gold)', marginBottom: 14 }}>
       <div className="sec-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         <div>
-          <span className="sec-num" style={{ color: 'var(--gold)' }}>DM {'//'}</span>
+          <span className="sec-num">DM {'//'}</span>
           <h2 style={{ display: 'inline', marginLeft: 8 }}>Control</h2>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>

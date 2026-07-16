@@ -64,6 +64,22 @@ describe('theme tokens drive every accent (no hardcoded palette literals)', () =
     expect(offenders, `hardcoded text colours in the shared sheet (use var(--ink) or an accent token):\n${offenders.join('\n')}`).toEqual([]);
   });
 
+  // An inline style beats EVERY stylesheet rule, including a skin's. `.sec-num` is a section
+  // label that skins restyle completely — the candy skin makes it a filled magenta pill with
+  // white text — so an inline `color` on one forced dark bronze onto that pill and made the DM
+  // and "AI // Ask" labels unreadable. Shared components must not pin a colour on it.
+  it('no shared component pins an inline colour on a .sec-num label', () => {
+    const dir = path.join(process.cwd(), 'app/dnd/_sheet/components');
+    const offenders: string[] = [];
+    for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.tsx'))) {
+      const src = fs.readFileSync(path.join(dir, f), 'utf8');
+      for (const m of src.matchAll(/className="sec-num"\s+style=\{\{([^}]*)\}\}/g)) {
+        if (/(^|[\s,])color:/.test(m[1])) offenders.push(`${f}: ${m[0].slice(0, 76)}`);
+      }
+    }
+    expect(offenders, `these override their skin's section-label styling:\n${offenders.join('\n')}`).toEqual([]);
+  });
+
   it('themeToCssVars emits an r,g,b triplet matching every hex token', () => {
     const vars = themeToCssVars(rangorTheme) as Record<string, string>;
     // Asserts the INVARIANT (the triplet is derived from the hex), not a specific colour —

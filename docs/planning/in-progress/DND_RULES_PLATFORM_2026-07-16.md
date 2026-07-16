@@ -149,10 +149,10 @@ reads `systemConditions(system)`, falling back to a generic list only for a syst
 builder renders server-side outside the sheet's provider, so it needs its own system context.
 That's cheaper to do alongside Slice 3's character-context work than to bolt on here.
 
-## Slice 2b — Sheet layout + gallery upload (partially shipped 2026-07-16)
+## Slice 2b — Sheet layout + gallery upload ✅ SHIPPED 2026-07-16
 
-Reported while Slice 2 was in flight. The **Hit Points reformat** and the **gallery upload** are
-shipped; the rest is open.
+Reported while Slice 2 was in flight.
+
 
 - [x] **Hit Points, reformatted.** The Damage/amount/Heal row and the Temp HP row were plain flex
       rows mixing `.btn`, `.step` and bare `<input>`, each with its own padding and border — so the
@@ -165,19 +165,29 @@ shipped; the rest is open.
       (a new `gallery` kind on `POST /api/dnd/characters/[id]/media`, which points no character
       column) with per-file results, so one bad file doesn't fail the batch. Works for every
       existing, template and future/custom sheet, since it lives in the shared Gallery component.
-- [ ] **Hextech: the ART section label is misaligned.** CONFIRMED, cause NOT yet found — do not
-      guess-patch. The `.sec-num` "ART //" measures `left: 25` while its own `.card` measures
-      `left: 30` with `padding-left: 16px`, so it should sit at 46. Its siblings are correct
-      ("TOKEN //" 47, "DM //" 53). Computed styles all read normal: no transform, no negative
-      margin, no text-indent, no zoom, `box-sizing: border-box`, one instance in the DOM. Something
-      is letting the first flex child escape the card's padding. Start by bisecting
-      `SheetArtUploader`'s inline `style` against `.skin-hextech .card`.
-- [ ] Sweep the Hextech skin for other out-of-position / overflowing text (nothing overflowed the
-      sheet root when measured, so these are relative-alignment issues, not clipping).
-- [ ] **DM controls**, all skins: review formatting + colour. On the candy (donata) skin the "DM"
-      and "AI // Ask" labels are reported as dark/brown on a purple panel. Note the shared
-      contrast guard only covers `color:` declarations in the base sheet — `.skin-donata` rules are
-      exempt by design, so these need measuring in the browser like Slice 1 did.
+- [x] **Hextech: the ART section label is misaligned.** ROOT CAUSE FOUND (2026-07-16). The skin's
+      gold accent bar is `.skin-hextech .card::before` with `margin: -14px -16px 12px` — negative
+      margins meant to bleed a 2px bar out to the card's edges. On a `display: flex` card (the ART
+      uploader) that `::before` becomes a **flex item**, so its `-16px` left margin dragged the
+      whole row out of the card's padding. The offsets were also hardcoded to a padding the cards
+      don't have (base card is `20px 22px`, the ART card `12px 16px`), so the bar never reached the
+      edges anyway. It's decoration → now `position: absolute` pinned to the top edge, out of
+      layout entirely. Verified on the Hextech sheet: "ART //" now sits at its card's padding edge,
+      matching every sibling.
+- [x] Sweep the Hextech skin for other out-of-position / overflowing text. Measured every text node
+      across all 8 tabs: **0 contrast failures, 0 overflowing elements.**
+- [x] **DM controls**, all skins. ROOT CAUSE: four shared components pinned an **inline**
+      `style={{ color: 'var(--gold)' }}` on their `.sec-num` label (`DmOverridePanel`,
+      `AiSheetEdit`, `StreamControl`, `StreamOwnerControls`). An inline style beats every
+      stylesheet rule, including a skin's — so on the candy skin, whose `.sec-num` is a filled
+      magenta pill with white text, those labels painted dark bronze onto magenta. Exactly the
+      reported "purplish background, brownish text". Removed the inline colours so each skin styles
+      its own labels: candy now renders them white-on-pill at **5.87:1**, and the neutral skins
+      inherit their own accent (Lazzuh 5.49:1) instead of the shared gold.
+
+      Note this was invisible to the automated sweep — the pill is a gradient, and the scan skips
+      what it can't measure. It took a screenshot to see. A new guard now fails the build on any
+      inline `color` on a `.sec-num` (verified by injecting a violation).
 
 ## Slice 3 — AI situational adjudication
 

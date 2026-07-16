@@ -40,7 +40,7 @@ export default function AiSheetEdit() {
 
   return (
     <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line, rgba(255,255,255,0.12))' }}>
-      <span className="sec-num" style={{ color: 'var(--gold)', fontSize: 12 }}>AI {'//'} Ask</span>
+      <span className="sec-num" style={{ fontSize: 12 }}>AI {'//'} Ask</span>
       <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
         <input
           value={instruction}

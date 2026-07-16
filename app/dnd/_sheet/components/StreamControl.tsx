@@ -327,7 +327,7 @@ export default function StreamControl() {
 
   return (
     <div className="stream-control" style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line, rgba(255,255,255,0.12))' }}>
-      <span className="sec-num" style={{ color: 'var(--gold)', fontSize: 12 }}>STREAM {'//'} Chat controls</span>
+      <span className="sec-num" style={{ fontSize: 12 }}>STREAM {'//'} Chat controls</span>
 
       {/* 1 — Live + utilities row */}
       <div style={{ display: 'flex', gap: 8, marginTop: 6, alignItems: 'center', flexWrap: 'wrap' }}>
