@@ -173,8 +173,12 @@ export function imposedTransform(char: Character): { value: string; source: stri
   return last;
 }
 
+/** Source kinds imposed on you from OUTSIDE — a spell cast on you, a DM boon, a drunk potion's lingering
+ *  effect, a condition. These survive a true polymorph; your own gear + features do not. */
+const EXTERNAL_KINDS = new Set<SourceKind>(['consumed', 'spell', 'dm', 'condition']);
+
 export function collectSources(char: Character, ctx: LedgerContext = {}): LedgerSource[] {
-  const out = baseSources(char);
+  let base = baseSources(char);
 
   // The ACTIVE form's effects (Slice 15/25) — a Titan form's +STR, a beast form's fly speed. The
   // active form is the one a `transform` effect IMPOSES (Slice 18), else the character's own
@@ -183,6 +187,17 @@ export function collectSources(char: Character, ctx: LedgerContext = {}): Ledger
   // paths; this is only the ledger-resolved half.
   const effectiveFormId = imposedTransform(char)?.value ?? char.activeFormId;
   const activeForm = (char.forms ?? []).find((f) => f.id === effectiveFormId);
+
+  // Carry-over policy (Slice 18, Ground Rule 1). `keepFeatures: false` is a true polymorph: your own
+  // equipped gear + class/species features stop applying while you wear the form, but anything imposed
+  // ON you (a Bless still on you, a DM boon, a condition) persists. Omitted = Wild Shape-style "keep
+  // everything" — today's behaviour, so existing forms are unaffected. Always an overlay: the moment
+  // the form drops, the full unfiltered base is derived again.
+  if (activeForm && activeForm.carryOver?.keepFeatures === false) {
+    base = base.filter((s) => EXTERNAL_KINDS.has(s.kind));
+  }
+
+  const out = [...base];
   if (activeForm?.effects?.length) {
     out.push({ id: activeForm.id, kind: 'form', name: activeForm.name, effects: activeForm.effects });
   }

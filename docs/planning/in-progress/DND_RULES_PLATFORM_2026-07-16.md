@@ -887,11 +887,26 @@ transform stays an overlay). Combined with the resolution + ledger-effect overla
 form can now be triggered by an item/spell, renders fully, and reverts exactly. Tests:
 `transform.test.ts` (8).
 
-**Remaining — the arbitrary-statblock swap with carry-over policy.** "Become a bear you don't have as
-a form / become another PC entirely" (a whole foreign sheet, not one of your own `forms`) still needs
-the per-form carry-over policy (`keepMental`/`keepFeatures`/`separateHp`/…) and a form authored as a
-full sheet (Slice 17's builder over a form). That's the heavier half; transforming into your OWN
-defined forms — the common case — is done end-to-end.
+**Carry-over policy — `keepFeatures` ✅ SHIPPED (commit pending).** Ground Rule 1 made real: a form
+declares its own `carryOver` policy (`{ keepFeatures?, keepMental?, separateHp? }` on `CharForm`)
+rather than the engine hardcoding one game's answer. `keepFeatures: false` is a **true polymorph** (5e
+Polymorph): while the form is worn, the ledger drops the character's OWN sources — equipped/attuned
+gear and class/species features — so their kit "melds away", but externally-imposed sources (a Bless
+still on you, a DM boon, a condition) persist, and the form's own effects apply. Omitted/undefined =
+Wild Shape-style "keep everything you have" — the ORIGINAL behaviour, so every existing form is
+byte-for-byte unaffected. It stays a pure overlay: the moment the form drops, the full unfiltered base
+is derived again (the anti-"permanent bear" guarantee holds through the stricter policy too). Filter
+lives in `collectSources` (`EXTERNAL_KINDS`); tests: `transform.test.ts` (+3 — Wild-Shape default keeps
+gear+features, polymorph drops them but keeps Bless, drop-form restores the full base).
+
+**Remaining — the arbitrary-statblock swap + the other two policy flags.** "Become a bear you don't
+have as a form / become another PC entirely" (a whole foreign sheet, not one of your own `forms`) still
+needs a form authored as a full sheet (Slice 17's builder over a form) — there is no form-editor UI on
+the sheet yet (Forms.tsx is display+toggle only), so the policy is authored in data for now. The
+`keepMental` (force base INT/WIS/CHA even if the form sets them) and `separateHp` (form's own HP pool,
+overflow returns to base — a stateful instance) flags are declared in the type but not yet resolved.
+That's the heavier half; transforming into your OWN defined forms — the common case — is done
+end-to-end, now with the true-polymorph carry-over rule.
 
 ### Original spec
 
@@ -904,7 +919,8 @@ the overlay rule, because "you are a bear now" must be perfectly reversible.
       the source, exactly like any other effect. (If transform mutated the sheet, an autosave
       mid-transform would leave a druid permanently a bear, with their real character gone. This is
       the failure this whole design exists to prevent.)
-- [ ] **What carries over is a per-form rule, not a guess.** 5e Wild Shape keeps INT/WIS/CHA,
+- [~] **What carries over is a per-form rule, not a guess.** (`keepFeatures` ✅ shipped; `keepMental` /
+      `separateHp` declared, not yet resolved.) 5e Wild Shape keeps INT/WIS/CHA,
       personality, and your own features; it takes the beast's STR/DEX/CON, AC, speed and attacks; HP
       is a separate pool and damage overflow returns to you. Other systems and homebrew differ. So a
       form declares its own carry-over policy (`keepMental`, `keepFeatures`, `separateHp`, …) rather

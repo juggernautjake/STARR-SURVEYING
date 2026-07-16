@@ -126,6 +126,18 @@ export interface CharForm {
    *  other effect and revert the instant the form ends. Distinct from the bespoke `strikeDie` /
    *  form-attack fields, which keep their own render paths. */
   effects?: Effect[]
+  /** Carry-over policy (Slice 18, Ground Rule 1): what of YOU survives becoming this form, declared
+   *  per form rather than the engine hardcoding one game's answer. Omitted/undefined = Wild Shape-style
+   *  "keep everything you have, the form only adds/overrides" (the original behaviour — existing forms
+   *  are unchanged). Set `keepFeatures: false` for a true polymorph (5e Polymorph): your own gear +
+   *  features stop applying while worn; only externally-imposed sources (a spell cast ON you, a DM
+   *  boon, a condition) and the form's own effects apply. `keepMental`/`separateHp` are declared here
+   *  for future slices. It's an overlay either way — dropping the form restores all of it exactly. */
+  carryOver?: {
+    keepFeatures?: boolean
+    keepMental?: boolean
+    separateHp?: boolean
+  }
 }
 
 export interface Resource {
