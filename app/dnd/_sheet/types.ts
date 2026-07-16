@@ -278,6 +278,28 @@ export interface Character {
   /** Per-character labels for the progression table's two generic middle columns + heading.
    *  Every character should set these to whatever its class table tracks. */
   progressionMeta?: { title?: string; lead?: string; col3?: string; col4?: string }
+  /** Grants advantage on Initiative from a named feature (e.g. the Barbarian's Feral Instinct at
+   *  7). Character-owned: the stat rail used to give this to EVERY character at level 7. */
+  initiativeAdvantage?: { label: string; unlockLevel?: number }
+  /** The class this character levels as, and the choices made at each level. Drives the level
+   *  builder (/dnd/characters/[id]/levels): a level is only complete once its choices are
+   *  recorded, which is why the sheet has no +/- stepper. `classKey` may name a homebrew class. */
+  build?: {
+    classKey?: string
+    subclassKey?: string
+    /** RecordedChoice[] from lib/dnd/classes/levelup.ts — kept loosely typed here so the sheet
+     *  engine doesn't depend on the class module. */
+    choices?: {
+      level: number
+      kind: 'asi' | 'subclass' | 'fighting-style' | 'expertise' | 'cantrip' | 'epic-boon' | 'other'
+      value?: string
+      abilities?: AbilityKey[]
+      featKey?: string
+      skills?: string[]
+      /** Set when this level's feature was homebrewed with the AI rather than picked from a book. */
+      homebrew?: { name: string; body: string }
+    }[]
+  }
   /** Passive defensive/utility traits listed under Defenses (markdown-lite, e.g.
    *  '**Darkvision 60 ft**' or '**Damage Resistance** (while Raging): bludgeoning…').
    *  Character-owned: the panel used to hardcode one character's species traits for all. */

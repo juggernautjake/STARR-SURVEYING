@@ -34,6 +34,8 @@ export interface ClassFeature {
   name: string;
   /** Full rules text, markdown-lite (**bold**, "· " bullets). This is what the sheet shows. */
   body: string;
+  /** Optional one-line summary — used where a full body is too long (level-up lists, tooltips). */
+  description?: string;
   /** True when the feature is granted by the SUBCLASS rather than the base class. */
   subclass?: boolean;
   /** Marks the level as granting a choice the builder must prompt for. */

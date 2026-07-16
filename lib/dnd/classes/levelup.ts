@@ -25,6 +25,9 @@ export interface RecordedChoice {
   featKey?: string;
   /** expertise → the skills chosen. */
   skills?: string[];
+  /** Set when this level's pick was HOMEBREWED with the AI rather than taken from the book.
+   *  Recorded so it shows as custom content in the DM's review (seed 443). */
+  homebrew?: { name: string; body: string };
 }
 
 /** A choice still owed at a level, with everything the UI needs to prompt for it. */

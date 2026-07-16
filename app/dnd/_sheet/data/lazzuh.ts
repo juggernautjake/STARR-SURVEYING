@@ -736,6 +736,9 @@ export const lazzuh: Character = {
     '**Damage Resistance** (while Raging): bludgeoning, piercing, slashing.',
     '**Darkvision 60 ft** · **Adv vs Frightened** (Surge Blood) · **+PB to death saves** (Beyond the Limit).',
   ],
+  // Feral Instinct (L7+) — advantage on Initiative. Was hardcoded in the shared stat rail, which
+  // handed it to every character that reached level 7.
+  initiativeAdvantage: { label: 'Feral Instinct', unlockLevel: 7 },
   // Jenovan Regenerative Biology (L13+) — was gated only on level in shared code.
   regen: { label: 'Regenerative Biology — regain CON modifier HP at the start of your turn while raging', note: 'while raging · Lv 13+', amount: 'conMod', unlockLevel: 13 },
   longRestNote: 'rages, lasers',
