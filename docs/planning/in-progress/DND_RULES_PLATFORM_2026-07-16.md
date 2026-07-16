@@ -1024,7 +1024,15 @@ Three rules, and they are not in tension — the DM's control comes from *review
       any sheet in their campaign; every edit appears in the review queue with its diff and author;
       Approve clears the flag; Revert restores the exact prior value; a non-DM cannot approve.
 
-## Slice 27 — A clear way in: the ⋯ menu on every element ⏳ PARTIALLY SHIPPED 2026-07-16
+## Slice 27 — A clear way in: the ⋯ menu on every element ✅ SHIPPED 2026-07-16
+
+The ⋯ menu is on every editable element that HAS an editor — attacks, items, features, spells,
+resources, traits — each with Edit / Duplicate / Delete + the built-in "Ask AI about this", through
+the shared `EditDialog`/`ElementMenu`. **Deferred (redundant / blocked):** the "Change art" and "Add
+effect" menu extras are now redundant — Edit opens the editor, which carries both the Slice-28 art
+control and the Slice-17 effect builder; ⋯ on active effects is redundant with their dedicated
+End-effect action; ⋯ on forms is blocked on a forms editor (its own slice). None is a gap in "how do
+I change this" — every element with something to change has a way in.
 
 **Shipped:** `ElementMenu` (⋯) on **attacks and inventory items** — Edit / Duplicate / Delete —
 plus `EditDialog` + `AttackEditor`, and an **Add attack** control. Verified on Jack's live sheet:
