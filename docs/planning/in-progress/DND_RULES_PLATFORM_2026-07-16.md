@@ -467,8 +467,17 @@ doc's explicit "senses… need somewhere to render" item. Test added to `grant-d
   as a read-only card badged "granted / Granted by <source>" — no ⋯ menu (it's on loan), never baked
   into the stored features list, gone on unequip. Its mechanics ride on the item's other effects
   (already ledger-resolved); this is the human-readable card. Tests: `grant-feature.test.ts` (4).
-- *The remaining heavy grant targets* — `grant_attack`/`grant_spell`/`grant_resource`. Each mints a
-  different element (an attack row, a spell entry, a resource track) and wants its own slice.
+- *The remaining heavy grant targets* — `grant_attack`/`grant_spell`/`grant_resource` — need a
+  **data-model change first**, so they are correctly their own slice rather than a quick render.
+  `grant_feature` rendered cleanly because a feature card is fundamentally descriptive: a name + a
+  source badge is a complete, honest card. An attack/spell/resource is *interactive* — an attack you
+  roll needs its ability + damage dice; a spell you cast needs a level, components, and (for a
+  non-caster granted a spell) a whole caster header the `SpellsPanel` currently bails out of; a
+  resource track needs a max + reset rule. A single string-valued `Effect` can't carry any of that.
+  The right shape is an item that carries a full sub-object (`grantsAttack?: Attack`,
+  `grantsSpell?: Spell`, `grantsResource?: Resource`) which the ledger surfaces as an overlay — a
+  focused slice with its own type work, not a one-line read. Documented here so it is scoped, not
+  skipped.
 - *A speeds block ✅ SHIPPED (commit pending)* — `speed_fly`/`swim`/`climb`/`burrow` now render in
   the Defenses card, each on its own ledger target (a fly speed exists independently of walk speed,
   and only shows once something grants it), starred + sourced. `hover`/`ignore_difficult_terrain`
