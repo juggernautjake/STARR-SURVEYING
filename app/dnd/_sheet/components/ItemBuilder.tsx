@@ -6,6 +6,7 @@
 // + theme tokens so it reads on every skin (no hard-coded light/dark colors).
 import { useRef, useState } from 'react'
 import type { InvItem, ItemKind, WeaponStats, ArmorStats, ConsumableStats, TypedDamage } from '../types'
+import TagPicker from './ui/TagPicker'
 import type { Effect, EffectOperation } from '../engine/effects'
 import type { AbilityKey } from '../rules/dnd'
 
@@ -110,6 +111,14 @@ export default function ItemBuilder({
         <label className="flex" style={{ gap: 6, alignItems: 'center', fontSize: 13, color: 'var(--ink)' }}>
           <input type="checkbox" checked={!!it.attuned} onChange={(e) => patch({ attuned: e.target.checked })} /> Attuned
         </label>
+      </div>
+
+      {/* Tags (Slice 32): add existing ones, or mint a new one WITH a definition. weapon/consumable
+          are derived from `kind` below and equipped from the checkbox above, so the picker disables
+          those rather than offer a control that gets overwritten on save. */}
+      <div>
+        <label style={lab}>Tags</label>
+        <TagPicker value={it.tags as string[]} onChange={(tags) => patch({ tags: tags as InvItem['tags'] })} />
       </div>
 
       {/* Picture */}

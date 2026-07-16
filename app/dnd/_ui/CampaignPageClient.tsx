@@ -54,8 +54,18 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
   const [myChars, setMyChars] = useState<{ id: string; name: string }[]>([])
   const [addPick, setAddPick] = useState('')
 
+  const [charErr, setCharErr] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
+
   async function createCharacter() {
-    if (!newChar.name.trim() || !data) return
+    if (!data) return
+    if (!newChar.name.trim()) {
+      // The button used to silently `return` with no name — indistinguishable from "broken".
+      setCharErr('Give the character a name first.')
+      return
+    }
+    setCharErr(null)
+    setCreating(true)
     try {
       const res = await fetch('/api/dnd/characters', {
         method: 'POST',
@@ -68,21 +78,21 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
           ownerUserId: newChar.ownerUserId || undefined,
         }),
       })
-      const j = await res.json()
+      const j = await res.json().catch(() => ({}))
       if (res.ok && j.character) {
-        // The POST returns snake_case list columns; normalize to the roster's camelCase
-        // shape so the owner/played labels render correctly without a reload.
-        const ownerName = j.character.owner_user_id ? data.members.find((m) => m.userId === j.character.owner_user_id)?.displayName ?? null : null
-        const normalized = {
-          id: j.character.id, name: j.character.name, token_url: j.character.token_url ?? j.character.art_url ?? null,
-          is_npc: j.character.is_npc, sheet_type: j.character.sheet_type,
-          ownerUserId: j.character.owner_user_id ?? null, ownerName, playedByUserId: null, playedByName: null,
-        }
-        setData((d) => (d ? { ...d, characters: [...d.characters, normalized] } : d))
+        // The whole point of the button, per the report: it must let you BUILD the character, not
+        // just drop a blank card in the roster. So go straight into the new sheet — the Build Kit
+        // and Manage Levels live there. It's already in the roster on the way back.
         setNewChar({ name: '', sheetType: 'generic', isNpc: false, ownerUserId: '' })
+        router.push(`/dnd/characters/${j.character.id}`)
+      } else {
+        // Errors used to be swallowed by a bare catch, so a real failure looked like a dead button.
+        setCharErr(j.error || `Could not create the character (${res.status}).`)
       }
     } catch {
-      /* ignore */
+      setCharErr('Could not reach the server — please try again.')
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -291,12 +301,14 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                     <button
                       className={`${styles.hexBtn} ${styles.hexBtnPrimary}`}
                       onClick={createCharacter}
-                      title="Create a brand-new character in this campaign. Leave the player as “Unassigned” to keep it as your own (a DM PC/NPC), or pick a player to hand it to them — you can also assign a player later."
+                      disabled={creating}
+                      title="Create a brand-new character in this campaign and open it so you can build it. Leave the player “Unassigned” to keep it as your own (a DM PC/NPC), or pick a player to hand it to them."
                     >
-                      + Add
+                      {creating ? 'Creating…' : '+ Add'}
                     </button>
                   </div>
                 )}
+                {charErr && <div className={styles.error} style={{ marginBottom: 10 }}>{charErr}</div>}
                 {/* Bring in a character you already own that isn't in this campaign yet. */}
                 {data.campaign.role === 'dm' && myChars.length > 0 && (
                   <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>

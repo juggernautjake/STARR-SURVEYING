@@ -4,11 +4,12 @@
 // "I either need to be able to click on the attack or item or spell or effect or whatever, and it
 // will give me the option to edit it. Maybe we have a menu or edit button or three dots."
 //
-// The rows on the sheet have always carried everything needed to edit them (Attack, InvItem, Spell
-// all have their fields); what was missing was any way IN. A feature nobody can find is a feature
-// that doesn't exist — so this is one control, in one place, on every kind of element, so the
-// answer to "how do I change this?" is the same everywhere.
-import { useEffect, useRef, useState } from 'react'
+// The popup is PORTALED to document.body with fixed positioning. It used to be an absolutely-
+// positioned child of the row, which meant the Attacks table's `overflow` (and every card's
+// clipping) sliced the menu off — reported with screenshots showing only the first item. A portal
+// escapes every ancestor's overflow and stacking context, so the menu always renders in front.
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 export interface MenuAction {
   label: string
@@ -19,34 +20,53 @@ export interface MenuAction {
 
 export default function ElementMenu({ label, actions }: { label: string; actions: MenuAction[] }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const popRef = useRef<HTMLDivElement>(null)
 
-  // Close on outside click / Escape. A menu you can only close by picking something is a trap.
+  // Position the portaled popup under the button, flipping up / left when it would leave the
+  // viewport — a menu that opens off-screen is as useless as one that's clipped.
+  useLayoutEffect(() => {
+    if (!open || !btnRef.current) return
+    const r = btnRef.current.getBoundingClientRect()
+    const W = 160
+    const H = actions.length * 34 + 8
+    let left = r.left
+    let top = r.bottom + 4
+    if (left + W > window.innerWidth - 8) left = Math.max(8, window.innerWidth - W - 8)
+    if (top + H > window.innerHeight - 8) top = Math.max(8, r.top - H - 4)
+    setPos({ top, left })
+  }, [open, actions.length])
+
+  // Close on outside click / Escape / scroll. A menu you can only close by picking something is a
+  // trap; and because it's portaled with fixed coords, a scroll would leave it floating in place.
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      const t = e.target as Node
+      if (btnRef.current?.contains(t) || popRef.current?.contains(t)) return
+      setOpen(false)
     }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    const onScroll = () => setOpen(false)
     document.addEventListener('mousedown', onDown)
     document.addEventListener('keydown', onKey)
+    window.addEventListener('scroll', onScroll, true)
     return () => {
       document.removeEventListener('mousedown', onDown)
       document.removeEventListener('keydown', onKey)
+      window.removeEventListener('scroll', onScroll, true)
     }
   }, [open])
 
   if (!actions.length) return null
 
   return (
-    <div className="el-menu" ref={ref}>
+    <span className="el-menu">
       <button
+        ref={btnRef}
         type="button"
         className="el-menu-btn"
-        // A real button with a real label: this has to be reachable by keyboard and readable by a
-        // screen reader, not just discoverable by hovering a row on a desktop.
         aria-label={`Edit ${label}`}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -57,8 +77,14 @@ export default function ElementMenu({ label, actions }: { label: string; actions
       >
         ⋯
       </button>
-      {open && (
-        <div className="el-menu-pop" role="menu">
+      {open && pos && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={popRef}
+          className="el-menu-pop"
+          role="menu"
+          style={{ top: pos.top, left: pos.left }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           {actions.map((a) => (
             <button
               key={a.label}
@@ -74,8 +100,9 @@ export default function ElementMenu({ label, actions }: { label: string; actions
               {a.label}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </span>
   )
 }

@@ -124,12 +124,22 @@ export interface ConsumableStats {
   }
 }
 
+/** A tag this character's table invented, with what it MEANS (Slice 32). Definition is required —
+ *  a tag nobody wrote down is the "what does FLAVOR mean?" problem, recreated by hand. */
+export interface CustomTag {
+  name: string
+  description: string
+}
+
 export interface InvItem {
   id: string
   name: string
   desc: string
   qty: number
-  tags: ('equipped' | 'weapon' | 'consumable' | 'tech' | 'flavor')[]
+  /** The five built-ins, plus any tag from `char.customTags`. Three of the built-ins are wiring,
+   *  not labels: `weapon` puts this in the Attacks table, `consumable` makes it usable-and-gone,
+   *  `equipped` applies its effects — see ui/tagInfo.ts RESERVED_TAGS. */
+  tags: ('equipped' | 'weapon' | 'consumable' | 'tech' | 'flavor' | string)[]
   use?: { label: string; expr: string; kind: 'heal' | 'temp' | 'damage' }
   // ── Homebrew item-builder fields (Phase: DND_ITEM_BUILDER). All optional so existing
   //    items and old exports keep working; readers must be defensive.
@@ -335,6 +345,10 @@ export interface Character {
    *  DM-granted boon. Each is removable by the player or DM (Active-Effects tracker). Passive
    *  item effects come from equipped/attuned `inventory` items, not this list. */
   activeEffects?: ActiveEffect[]
+  /** Tags this character's table invented, with their meanings (Slice 32). Kept ON THE CHARACTER
+   *  rather than in a global registry so a campaign's vocabulary travels with its sheets and
+   *  nobody has to curate a shared list. */
+  customTags?: CustomTag[]
   currency: { credits: number; harmonyte: number; scrip: number }
   bio: {
     intro: string[]

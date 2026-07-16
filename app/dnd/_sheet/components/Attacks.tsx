@@ -64,7 +64,13 @@ export default function Attacks() {
           </thead>
           <tbody>
             {char.attacks.map((a) => {
-              const mod = abilityMod(abilities[a.ability])
+              // Guard the ability key. An attack whose `ability` is missing or bogus (an AI edit
+              // that dropped the field, a bad import) would otherwise compute abilityMod(undefined)
+              // = NaN and render "-NaN" for to-hit and no damage bonus. A wrong-but-sane number is
+              // still wrong, but a NaN on the sheet is alarming and looks like data loss. Fall back
+              // to STR and carry on.
+              const abilityKey = abilities[a.ability] != null ? a.ability : 'str'
+              const mod = abilityMod(abilities[abilityKey])
               const toHit = mod + (a.proficient ? pb : 0) + (a.bonusToHit ?? 0)
               const die = dieFor(a)
               const isSave = !!a.saveBased

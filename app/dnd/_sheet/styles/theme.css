@@ -247,35 +247,35 @@
   color: var(--ink);
   border-color: var(--tealbright);
 }
-.dnd-sheet .el-menu-pop {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 40;
-  min-width: 150px;
+/* Portaled to <body> (see ElementMenu) with viewport coordinates, so it is `fixed`, not
+   `absolute` — the whole point is to escape the table's overflow clipping. NOT scoped under
+   .dnd-sheet: a body-portaled node is outside the sheet subtree, so that prefix would never match. */
+.el-menu-pop {
+  position: fixed;
+  z-index: 3000;
+  width: 160px;
   display: grid;
-  background: var(--panel);
-  border: 1px solid var(--line-strong);
+  background: var(--panel, #12203a);
+  border: 1px solid var(--line-strong, #2a3b57);
   border-radius: 8px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5);
   overflow: hidden;
 }
-.dnd-sheet .el-menu-item {
+.el-menu-pop .el-menu-item {
   text-align: left;
   padding: 7px 11px;
   background: transparent;
   border: 0;
-  color: var(--ink);
+  color: var(--ink, #e8eefc);
   cursor: pointer;
   font-size: 13px;
   white-space: nowrap;
+  font-family: inherit;
 }
-.dnd-sheet .el-menu-item:hover {
-  background: rgba(var(--tealbright-rgb), 0.14);
-}
-.dnd-sheet .el-menu-item.danger {
-  color: var(--danger);
-}
+.el-menu-pop .el-menu-item:hover { background: rgba(var(--tealbright-rgb, 34, 224, 224), 0.16); }
+.el-menu-pop .el-menu-item.danger { color: var(--danger, #ff6b6b); }
+/* .el-menu-item styling lives with .el-menu-pop above — the menu is portaled to <body>, so it is
+   NOT under .dnd-sheet and a scoped rule here would never apply. */
 
 .dnd-sheet .ed-scrim {
   position: fixed;
@@ -355,6 +355,32 @@
   cursor: help;
   border-bottom-style: dotted;
 }
+
+/* Tag picker (Slice 32): a togglable chip set + an inline "create tag" form. */
+.dnd-sheet .tp { display: grid; gap: 8px; }
+.dnd-sheet .tag.on {
+  background: rgba(var(--tealbright-rgb), 0.18);
+  border-color: var(--tealbright);
+  color: var(--ink);
+}
+.dnd-sheet .tag.tag-new {
+  cursor: pointer;
+  border-style: dashed;
+  color: var(--tealbright);
+}
+.dnd-sheet .tag.tag-managed {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.dnd-sheet .tp-new {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+  background: rgba(var(--violet-rgb), 0.06);
+}
+.dnd-sheet .tp-err { margin: 0; font-size: 12px; color: var(--danger); }
 
 /* The Active Effects panel (Slice 12) — every source currently modifying the character, with the
    RESOLVED effect it is having. Token-driven throughout so it reads on every skin. */
