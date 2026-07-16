@@ -48,7 +48,7 @@ export default function SheetRoot({
   if (sheetType === 'custom' && hasCustomLayout(customLayout)) {
     if (layoutHasInteractive(customLayout)) {
       return (
-        <CharacterProvider characterId={characterId} campaignId={campaignId} isDM={isDM} canWrite={canWrite}>
+        <CharacterProvider characterId={characterId} campaignId={campaignId} isDM={isDM} canWrite={canWrite} system={system}>
           <div className="dnd-sheet skin-hextech" style={{ padding: 16 }}>
             <InteractiveSheet layout={customLayout} />
           </div>
@@ -58,7 +58,7 @@ export default function SheetRoot({
     return <CustomSheet layout={customLayout} css={customCss} />;
   }
   return (
-    <CharacterProvider characterId={characterId} campaignId={campaignId} isDM={isDM} canWrite={canWrite}>
+    <CharacterProvider characterId={characterId} campaignId={campaignId} isDM={isDM} canWrite={canWrite} system={system}>
       <App sheetType={sheetType} system={system} theme={theme} />
     </CharacterProvider>
   );

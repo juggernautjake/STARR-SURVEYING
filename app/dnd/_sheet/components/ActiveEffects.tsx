@@ -27,9 +27,11 @@ const KIND_META: Record<SourceKind, { label: string; end: string; hint: string }
   item: { label: 'Worn', end: 'Unequip', hint: 'Take it off — an item cannot be worn but switched "off".' },
   // A class/species feature is not something you "end" — it is what the character IS.
   feature: { label: 'Feature', end: '', hint: '' },
+  // Likewise the species itself — size/type/darkvision/speed are innate, not a switchable effect.
+  species: { label: 'Species', end: '', hint: '' },
 }
 
-const ORDER: SourceKind[] = ['form', 'consumed', 'spell', 'condition', 'dm', 'attuned', 'item', 'feature']
+const ORDER: SourceKind[] = ['form', 'consumed', 'spell', 'condition', 'dm', 'attuned', 'item', 'species', 'feature']
 
 interface SourceRow {
   id: string

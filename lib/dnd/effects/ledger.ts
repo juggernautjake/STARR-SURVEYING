@@ -19,6 +19,8 @@
 import type { Character, InvItem, ActiveEffect } from '@/app/dnd/_sheet/types';
 import type { Effect } from '@/app/dnd/_sheet/engine/effects';
 import { findTarget, describeEffect } from './targets';
+import { findSpecies } from '@/lib/dnd/species/dnd5e-2024';
+import { speciesEffects } from '@/lib/dnd/species/apply';
 
 export type SourceKind =
   | 'item' // worn/equipped gear
@@ -26,6 +28,7 @@ export type SourceKind =
   | 'consumed' // a potion that was drunk — the effect OUTLIVES the item
   | 'spell' // cast on you
   | 'feature' // a class/species feature that carries mechanics
+  | 'species' // the character's species itself (size, creature type, darkvision, walk speed)
   | 'form' // an active form/transformation
   | 'condition' // a condition's own mechanical rider
   | 'dm'; // a DM boon
@@ -102,6 +105,10 @@ export interface LedgerContext {
   active?: string[];
   /** Base values keyed by target, when the caller knows better than the defaults. */
   bases?: Record<string, number>;
+  /** The character's game system. Required for system-scoped sources like species — "elf" means
+   *  different things across games (Ground Rule 1), so species mechanics only apply when this is the
+   *  matching system. Omitted → no species source (safe default: a bare character is unchanged). */
+  system?: string;
 }
 
 const isEquipped = (i: InvItem) => i.equipped === true || i.tags?.includes('equipped') === true;
@@ -182,6 +189,18 @@ const MENTAL_TARGETS = new Set<string>(['ability_int', 'ability_wis', 'ability_c
 
 export function collectSources(char: Character, ctx: LedgerContext = {}): LedgerSource[] {
   let base = baseSources(char);
+
+  // The character's SPECIES as a ledger source (Slice 4 follow-up). System-gated: "elf" is a
+  // different thing in another game, so this only fires for a 2024 sheet whose species resolves in
+  // the 2024 list — a custom/unknown species contributes nothing (its grants are the player's to
+  // define). Its size/type/darkvision/(differing) walk speed then render + explain like any source.
+  if (ctx.system === 'dnd5e-2024' && char.meta?.species) {
+    const sp = findSpecies(char.meta.species);
+    if (sp) {
+      const effs = speciesEffects(sp, char.combat?.speed);
+      if (effs.length) base = [...base, { id: `species:${sp.key}`, kind: 'species', name: sp.name, effects: effs }];
+    }
+  }
 
   // The ACTIVE form's effects (Slice 15/25) — a Titan form's +STR, a beast form's fly speed. The
   // active form is the one a `transform` effect IMPOSES (Slice 18), else the character's own

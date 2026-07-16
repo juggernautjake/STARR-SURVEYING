@@ -224,6 +224,7 @@ export function CharacterProvider({
   campaignId,
   isDM = false,
   canWrite,
+  system,
 }: {
   children: React.ReactNode
   /** When set (C3), the sheet loads/saves `dnd_characters.data` via the API for
@@ -237,6 +238,9 @@ export function CharacterProvider({
   /** Whether the viewer can edit this character (owner OR DM). Gates owner-level
    *  tools like the art/token uploader; defaults to DM when not supplied. */
   canWrite?: boolean
+  /** The character's game system — passed to the ledger so system-scoped sources (species) apply
+   *  only on the matching system (Ground Rule 1). Omitted → the ledger adds no species source. */
+  system?: string
 }) {
   const dbMode = !!characterId
   // The character as first hydrated — the baseline `reset()` restores. Captured on the
@@ -502,7 +506,7 @@ export function CharacterProvider({
   //
   // Effects are OVERLAYS: `char` stays the base character forever. Unequipping is just dropping a
   // source and re-deriving, which is why reverting is free and can't corrupt the sheet.
-  const ledger = useMemo(() => buildLedger(char), [char])
+  const ledger = useMemo(() => buildLedger(char, { system }), [char, system])
 
   // Effective ability scores: base + every active effect. Components read THESE, so a +2 belt
   // moves the score, its modifier, every skill using it, and its carrying capacity at once.

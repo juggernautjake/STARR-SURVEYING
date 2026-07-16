@@ -299,9 +299,24 @@ categories) and Epic Boon remain.
     Hero's species token is now a **dropdown of the 10 real species** (`SPECIES_2024`) with a
     **"✎ Custom…"** escape hatch (rules-legal-unless-explicitly-custom). Once the species matches a
     known one, the sheet shows a **traits panel** — creature type, size, walk speed, darkvision, and
-    each named trait's text — so a vanilla build can SEE what the species grants. Setting species
-    mechanics onto the sheet (speed/size/darkvision/traits as live numbers) is a follow-up; this makes
-    the choice legible + rules-grounded. Tests: `species.test.ts` (+2 anchors).
+    each named trait's text — so a vanilla build can SEE what the species grants. Tests:
+    `species.test.ts` (+2 anchors).
+  - **Species mechanics as LIVE numbers ✅ SHIPPED 2026-07-16 (the follow-up above, now closed).** A
+    chosen 2024 species now flows through the effect ledger as a first-class **`species` source**
+    (`lib/dnd/species/apply.ts` → `speciesEffects`): its **size** and **creature type** (identity
+    sets), **darkvision** (a granted sense, "Darkvision 60 ft."), and **walk speed** all render on the
+    Combat panel and appear in the Active Effects list sourced to the species — instead of being prose
+    the reader applies by hand. **System-scoped by construction** (Ground Rule 1): the ledger gains a
+    `ctx.system` and only adds the species source for a `dnd5e-2024` sheet whose species resolves in
+    `SPECIES_2024` — an ambiguous/other-system sheet, or a homebrew species, contributes nothing (a
+    coincident "elf" in another game is untouched). Walk speed is emitted **only when it differs from
+    the stored base** (Goliath's 35 shows + stars; a 30-speed species stays silent) so no 2024 sheet
+    gets a false "modified" star (the Slice 13 hazard). `system` is threaded `SheetRoot → CharacterProvider
+    → buildLedger`. **Verified in the running app** (fresh `next dev`): a 2024 Elf renders Size Medium +
+    Darkvision 60 ft. + a Species source; an ambiguous-system sheet shows none (leak-safety confirmed
+    live). Tests: `species-live-numbers.test.ts` (9 — the ledger outputs the render reads, the false-star
+    guard, and the no-leak gating). Class/species *feature* effects remain their own follow-up (a
+    feature carrying `effects` already works; wiring each species' named traits to effects is separate).
   - **Background picker on the sheet ✅ SHIPPED (commit pending).** The Bio now has a 2024 **Background**
     card (distinct from the narrative `bio.background` prose): a dropdown of the 16 real backgrounds
     (`BACKGROUNDS_2024`) with a **"✎ Custom…"** escape hatch, storing `meta.background`. When a real one
@@ -328,10 +343,11 @@ categories) and Epic Boon remain.
       + the `NO_ASI_CATEGORIES` invariant); every background's feat exists (`backgrounds.test.ts`);
       species grant no ASIs, the 2014-vs-2024 trap (`species.test.ts`).
 
-**Slice 4 status: ✅ effectively complete for D&D 5e 2024** — feats (all four categories), backgrounds
-(16, with rules-legal ability-spread application), species (10), languages + tools are all shipped and
-tested. Setting species mechanics as live numbers (speed/size/darkvision) remains a legibility→numbers
-follow-up noted under the species picker, not a Slice-4 blocker.
+**Slice 4 status: ✅ COMPLETE for D&D 5e 2024** — feats (all four categories), backgrounds (16, with
+rules-legal ability-spread application), species (10, with **live size/type/darkvision/speed through the
+ledger**), languages + tools are all shipped and tested. The only remaining species nicety — wiring each
+named species *trait* to a mechanical effect — is a separate feature (traits are authored prose today),
+not a Slice-4 gap.
 
 ## Slice 5 — Custom class / subclass / feat builder UI
 
