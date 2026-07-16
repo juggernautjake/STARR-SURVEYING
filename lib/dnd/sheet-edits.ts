@@ -6,6 +6,7 @@
 // can trust the result before persisting.
 import type Anthropic from '@anthropic-ai/sdk';
 import type { Character, Attack, FeatureBlock, InvItem, Resource, CustomTag, ItemKind, WeaponStats, ArmorStats, ConsumableStats } from '@/app/dnd/_sheet/types';
+// (Resource is imported above; used by ItemPayload.grantsResource.)
 import type { Effect } from '@/app/dnd/_sheet/engine/effects';
 import type { AbilityKey, ProfLevel } from '@/app/dnd/_sheet/rules/dnd';
 import { validateCustomTag, RESERVED_TAGS } from '@/app/dnd/_sheet/components/ui/tagInfo';
@@ -29,6 +30,8 @@ export interface ItemPayload {
    *  boundary (cleanEffects): an unknown target/operation is DROPPED, never coerced, because an
    *  item whose effect silently didn't parse is worse than one whose effect was refused. */
   effects?: Effect[];
+  /** A usage pool the item grants while equipped (Slice 11 grant-half). */
+  grantsResource?: Resource;
 }
 
 const ITEM_KINDS: ItemKind[] = ['weapon', 'armor', 'shield', 'consumable', 'wondrous', 'gear'];
@@ -56,6 +59,20 @@ function applyItemPayload(base: InvItem, p: ItemPayload): InvItem {
   if (p.armor != null) out.armor = p.armor;
   if (p.consumable != null) out.consumable = p.consumable;
   if (p.effects != null) out.effects = cleanEffects(p.effects);
+  if (p.grantsResource != null && typeof p.grantsResource.name === 'string') {
+    const g = p.grantsResource;
+    const max = Math.max(0, Math.round(g.max ?? 0));
+    // Normalise like add_resource: current defaults to full, colour/reset get sane fallbacks.
+    out.grantsResource = {
+      id: g.id || `grant-res-${slug(g.name)}`,
+      name: g.name,
+      max,
+      current: Math.max(0, Math.min(max, Math.round(g.current ?? max))),
+      color: g.color ?? 'teal',
+      resetOn: g.resetOn ?? 'long',
+      ...(g.note ? { note: g.note } : {}),
+    };
+  }
   if (Array.isArray(p.tags)) {
     const clean = p.tags
       .map((t) => String(t).trim())
@@ -329,6 +346,18 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
                 },
                 required: ['target', 'operation'],
               },
+            },
+            grantsResource: {
+              type: 'object',
+              description: 'For add_item/update_item: a usage pool the item GRANTS while equipped (charges/points with a reset rule). Shown read-only under Resources, badged to the item, gone on unequip.',
+              properties: {
+                name: { type: 'string' },
+                max: { type: 'number' },
+                resetOn: { type: 'string', enum: ['short', 'long'] },
+                color: { type: 'string', enum: ['pink', 'teal', 'gold'] },
+                note: { type: 'string' },
+              },
+              required: ['name', 'max'],
             },
             max: { type: 'number' },
             color: { type: 'string', enum: ['pink', 'teal', 'gold'] },

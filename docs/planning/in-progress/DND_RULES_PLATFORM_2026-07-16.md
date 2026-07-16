@@ -467,8 +467,17 @@ doc's explicit "senses… need somewhere to render" item. Test added to `grant-d
   as a read-only card badged "granted / Granted by <source>" — no ⋯ menu (it's on loan), never baked
   into the stored features list, gone on unequip. Its mechanics ride on the item's other effects
   (already ledger-resolved); this is the human-readable card. Tests: `grant-feature.test.ts` (4).
-- *The remaining heavy grant targets* — `grant_attack`/`grant_spell`/`grant_resource` — need a
-  **data-model change first**, so they are correctly their own slice rather than a quick render.
+- *`grant_resource` ✅ SHIPPED (commit pending).* Because a resource is a STATEFUL pool (charges +
+  reset), it rides on a structured `grantsResource?: Resource` sub-object on the item (not a
+  string-valued Effect). `add_item`/`update_item` accept + normalise it (current → full, sane
+  colour/reset); a new exported `isItemActive` gates it on equipped (and attuned when attuned) with
+  the SAME rule the effect collector uses; `Resources` renders it read-only, badged to its source,
+  gone on unequip. Rendered without in-panel spend (the pool is on loan) — live spend + rest-reset
+  is a follow-up. Tests: `grant-resource.test.ts` (5).
+- *The remaining heavy grant targets* — `grant_attack`/`grant_spell` — follow the same
+  structured-sub-object shape (`grantsAttack?: Attack`, `grantsSpell?: Spell`) now proven by
+  `grantsResource`, but each needs its render surface (an attack must be rollable; a spell needs a
+  caster header the `SpellsPanel` bails out of for a non-caster), so each is its own slice.
   `grant_feature` rendered cleanly because a feature card is fundamentally descriptive: a name + a
   source badge is a complete, honest card. An attack/spell/resource is *interactive* — an attack you
   roll needs its ability + damage dice; a spell you cast needs a level, components, and (for a

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useChar } from '../state/store'
+import { isItemActive } from '@/lib/dnd/effects/ledger'
 import type { Resource } from '../types'
 import SectionHead from './ui/SectionHead'
 import ElementMenu from './ui/ElementMenu'
@@ -8,6 +9,13 @@ import ResourceEditor from './ui/ResourceEditor'
 export default function Resources() {
   const { char, setResource, canWrite, setChar } = useChar()
   const [editing, setEditing] = useState<Resource | null>(null)
+
+  // Usage pools GRANTED by an equipped item (Slice 11 grant-half). Read-only and badged to the
+  // item — on loan, so no ⋯ menu and no editing; gone when the item comes off. The mechanics of a
+  // resource are stateful (spend + rest-reset), so this shows the pool without in-panel spend.
+  const grantedResources = (char.inventory ?? [])
+    .filter((i) => isItemActive(i) && i.grantsResource)
+    .map((i) => ({ res: i.grantsResource as Resource, source: i.name }))
 
   const duplicate = (r: Resource) =>
     setChar((c) => ({ ...c, resources: [...(c.resources ?? []), { ...r, id: `${r.id}-copy-${(c.resources ?? []).length}`, name: `${r.name} (copy)` }] }))
@@ -55,6 +63,29 @@ export default function Resources() {
               })}
             </div>
             {r.note && <p className="muted" style={{ fontSize: 14, margin: '8px 0 0' }}>{r.note}</p>}
+          </div>
+        ))}
+
+        {grantedResources.map(({ res, source }, gi) => (
+          <div className="res-block" key={`granted-${source}-${res.id}-${gi}`} style={{ borderLeft: '2px solid var(--tealbright)', paddingLeft: 10 }}>
+            <div className="res-head">
+              <span className="rn">
+                {res.name}
+                <span className="tag" style={{ marginLeft: 8, color: 'var(--tealbright)' }}>granted</span>
+              </span>
+              <span className="rc">
+                {res.current}/{res.max} · resets on {res.resetOn} rest
+              </span>
+            </div>
+            {/* Static pips — this pool is on loan; it renders but isn't spent from here. */}
+            <div className="pips">
+              {Array.from({ length: res.max }).map((_, i) => (
+                <span key={i} className={`pip ${res.color} ${i < res.current ? 'filled' : ''}`} aria-hidden />
+              ))}
+            </div>
+            <p className="muted" style={{ fontSize: 14, margin: '8px 0 0' }}>
+              Granted by <strong>{source}</strong>{res.note ? ` — ${res.note}` : ''}
+            </p>
           </div>
         ))}
 

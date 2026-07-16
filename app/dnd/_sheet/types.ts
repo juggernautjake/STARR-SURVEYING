@@ -156,6 +156,10 @@ export interface InvItem {
   armor?: ArmorStats
   consumable?: ConsumableStats
   effects?: Effect[] // passive bonuses while equipped/attuned (engine Effect shape)
+  /** A usage pool this item GRANTS while equipped/attuned (Slice 11 grant-half) — charges/points
+   *  with their own reset rule. Surfaced read-only in Resources, badged to this item, and gone
+   *  when it comes off. Distinct from `effects`: a resource is a stateful track, not a stat overlay. */
+  grantsResource?: Resource
 }
 
 /** A temporary effect currently applied to the character (from a consumed buff/potion or a

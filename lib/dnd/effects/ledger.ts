@@ -103,6 +103,12 @@ export interface LedgerContext {
 
 const isEquipped = (i: InvItem) => i.equipped === true || i.tags?.includes('equipped') === true;
 
+/** Is this item's grant currently applying? An attuned item needs BOTH equipped and attuned;
+ *  a plain item just needs to be equipped. Exported so render paths that surface a structured
+ *  grant (e.g. a granted resource) use the SAME active-rule as the effect collector below, rather
+ *  than inventing a second one that could disagree. */
+export const isItemActive = (i: InvItem): boolean => (i.attuned ? isEquipped(i) && i.attuned === true : isEquipped(i));
+
 /**
  * Collect every source of effects on a character.
  *
