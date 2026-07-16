@@ -2185,12 +2185,34 @@
   background: rgba(var(--gold-rgb), 0.08);
 }
 .dnd-sheet .vpill.level .vk {
-  color: #ffe9a8;
+  color: var(--gold);
 }
 .dnd-sheet .lvl-ctrl {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+/* Replaces the old +/- level stepper: levelling goes through the builder so the choices a
+   level unlocks actually get made. Themed like the other accent buttons, so it reads on the
+   dark neon skin and the light parchment ones alike. */
+.dnd-sheet .manage-levels {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: 5px 9px;
+  border-radius: 7px;
+  border: 1px solid var(--gold);
+  background: rgba(var(--gold-rgb), 0.16);
+  color: var(--gold);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+.dnd-sheet .manage-levels:hover {
+  background: rgba(var(--gold-rgb), 0.3);
+  box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.5);
 }
 .dnd-sheet .lvl-ctrl .vv,
 .dnd-sheet .vpill.level .vv {

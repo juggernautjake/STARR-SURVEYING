@@ -3,10 +3,14 @@ import { ABILITIES, abilityMod, signed } from '../rules/dnd'
 import InlineNumber from './ui/InlineNumber'
 
 export default function StatRail() {
-  const { char, pb, setChar, rollCheck, setLevel, maxLevel, setExhaustion, canWrite } = useChar()
+  const { char, pb, setChar, rollCheck, setExhaustion, canWrite, characterId } = useChar()
   const { combat } = char
   const level = char.meta.level
-  const feralInstinct = level >= 7 // Advantage on Initiative
+  // Advantage on Initiative is the Barbarian's Feral Instinct — a class feature, not something
+  // every character gets for reaching level 7. It's now declared by the character (see
+  // `initiativeAdvantage`) instead of being inferred from the level.
+  const feralInstinct = !!char.initiativeAdvantage && level >= (char.initiativeAdvantage.unlockLevel ?? 1)
+  const initAdvLabel = char.initiativeAdvantage?.label ?? 'Advantage'
   const strMod = abilityMod(char.abilities.str)
   const dexMod = abilityMod(char.abilities.dex)
   const init = dexMod + combat.initiativeMisc
@@ -21,12 +25,18 @@ export default function StatRail() {
   return (
     <div className="statrail">
       <div className="rail-vitals">
+        {/* Level is NOT a stepper. Bumping the number skips the choices a level unlocks
+            (subclass, ASI/feat, expertise…) and leaves the sheet quietly wrong, so levelling
+            goes through the builder, which walks those choices in order. */}
         <div className="vpill level">
           <span className="vk">Level</span>
           <div className="lvl-ctrl">
-            <button className="step" onClick={() => setLevel(level - 1)} disabled={level <= 1} title="Level down">−</button>
             <span className="vv">{level}</span>
-            <button className="step" onClick={() => setLevel(level + 1)} disabled={level >= maxLevel} title="Level up">+</button>
+            {canWrite && characterId && (
+              <a className="manage-levels" href={`/dnd/characters/${characterId}/levels`} title="Open the character builder to level up and make this level’s choices">
+                Manage Levels
+              </a>
+            )}
           </div>
         </div>
 
@@ -63,8 +73,8 @@ export default function StatRail() {
 
         <button
           className="vpill click"
-          onClick={() => rollCheck('Initiative', init, { tag: feralInstinct ? 'Feral Instinct' : 'DEX', advantage: feralInstinct })}
-          title={feralInstinct ? 'Roll initiative (Advantage — Feral Instinct)' : 'Roll initiative'}
+          onClick={() => rollCheck('Initiative', init, { tag: feralInstinct ? initAdvLabel : 'DEX', advantage: feralInstinct })}
+          title={feralInstinct ? `Roll initiative (Advantage — ${initAdvLabel})` : 'Roll initiative'}
         >
           <span className="vk">Init{feralInstinct ? ' ⌃' : ''}</span>
           <span className="vv">{signed(init)}</span>
