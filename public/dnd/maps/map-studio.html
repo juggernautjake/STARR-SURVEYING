@@ -2475,6 +2475,15 @@ import * as THREE from 'three';
 import { buildPlanetModel, buildStarModel } from '/dnd/maps/planet3d-model.js';
 (function(){
   let renderer,scene,camera,model,raf,host,last=0,subjectR=1.3,haloCap=1.45;
+  // NOTE (2026-07-16): city lights and lava ARE built in 3D and their values do reach the model
+  // (verified: _genericPlanetCfg forwards city/lava/lightColor, planet3d-model.js consumes them).
+  // They are self-lit and only glow on the NIGHT side, and this sun is nearly behind the camera —
+  // so a city-lit world renders almost fully lit and the lights are invisible, while 2D draws them
+  // across the whole disc. That is the real 2D/3D gap here, NOT a missing feature.
+  //
+  // Do not "fix" it by swinging the sun sideways: tried (3.2,1.1,1.35) and it rendered a dark
+  // crescent — the model's sun vector is not the direction this reading assumed. Getting this right
+  // means reading the shader's convention first. Tracked in Slice 29.
   const SUN=new THREE.Vector3(3,2,4).normalize();
   function ensure(el){
     if(renderer){host=el;return;}

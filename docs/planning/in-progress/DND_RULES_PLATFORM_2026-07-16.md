@@ -651,6 +651,15 @@ the overlay rule, because "you are a bear now" must be perfectly reversible.
 - [ ] **Edit in place**: attacks, abilities/features, spells, resources, skills, inventory items,
       traits. Add · edit · duplicate · delete · reorder. Every one of these already exists as *data*;
       most have no editor.
+- [ ] **The two most-reported cases, called out so they can't be lost in the list** (asked for three
+      separate times, with screenshots of Jack's Attacks table and Gear list):
+      - **Attacks**: rename "Backless Park Bench", and edit its range, to-hit, damage die, damage
+        type and description — from the Attacks table itself. Right now the whole table is read-only
+        prose; the only editable thing on it is the roll buttons.
+      - **Inventory items**: rename an item and edit its description, quantity, kind and stats from
+        the Gear list. Same story — the rows render, nothing about them opens.
+      Both rows already carry everything needed (`Attack`, `InvItem`); what's missing is purely the
+      way in (Slice 27's ⋯) and the editor behind it.
 - [ ] Editing routes through the SAME structured-edit vocabulary the AI uses
       (`applySheetEdits`) rather than a parallel path — one place where a sheet changes, so the audit
       trail (`dnd_sheet_edits`) and the DM's view of "what changed" stay true.
@@ -855,9 +864,36 @@ and `kind='item'` are already modelled). What's missing is that nothing but the 
 Reported against the object editor. The 3D framing fix shipped 2026-07-16 (see the note below);
 this is the remaining half.
 
-- [ ] **Audit every control against both renderers.** For each kind (planet, moon, star, station,
-      galaxy…), list every slider/toggle and confirm it changes (a) the 2D art and (b) the live 3D
-      model. The known break: **clouds do nothing in the preview**.
+- [x] **Clouds** — the editor wrote `cloudAmount`/`cloudColor`/`cloudStyle`; the model reads
+      `cloudCov`/`cloudTint`. Nothing translated, so the slider moved, saved, rebuilt the model and
+      never told it anything. Fixed in `_genericPlanetCfg` (where every caller funnels through), plus
+      style→shape mapping so banded/storm/heavy/wispy look like themselves in 3D. Verified by
+      screenshot: bare continents at 0, fully overcast at 100.
+- [x] **Water** — the deeper version of the same disease, and the slider was *inverted*: 2D painted
+      a LAND disc and dotted WATER on it, with opacity driven by `1.35 - sea`. So water-down painted
+      more blue, and no slider position could ever drown the planet. 2D now models sea the way 3D
+      does (ocean disc, land on top, land recedes as water rises). Land ink 74376 → 20815 → 0 across
+      sea 0/0.5/1.
+- [x] **2D/3D size parity** — an SVG lets its glow spill outside the box; a WebGL canvas cannot, so
+      the camera pulled back and the 3D body rendered far smaller. Both now render the body at ~78%
+      of the viewer with halos fully visible (2D 78.0%, 3D 1/1.28 = 78.1%; the constants
+      cross-reference each other).
+- [ ] **City lights and lava are invisible in the 3D preview — but they are NOT missing.** Checked
+      rather than assumed: `_genericPlanetCfg` forwards `city`/`lava`/`lightColor`, and
+      `planet3d-model.js` consumes all three (`cfg.city` at :244, `cfg.lava` at :86/:147/:194).
+      They are **self-lit and only glow on the NIGHT side** — and the editor's sun sits nearly
+      behind the camera (`SUN = (3,2,4)`), so the planet renders almost fully lit and there is no
+      night side to see them on. 2D draws city dots across the whole disc with no day/night mask,
+      which is why 2D looks right and 3D looks broken.
+      **Do not fix by eyeballing the sun vector:** tried `(3.2,1.1,1.35)` and it rendered a dark
+      crescent — the model's sun convention is not "direction to the sun" as assumed, and the render
+      said so immediately. Read the shader's convention in `planet3d-model.js` first, then either
+      angle the preview sun for a real terminator, or give the preview a light-direction control.
+      Decide too whether 2D should gain a day/night mask, or 3D should show city lights unmasked —
+      they cannot both be right, and the editor promises the two views agree.
+- [ ] **Audit every remaining control against both renderers.** For each kind (planet, moon, star,
+      station, galaxy…), list every slider/toggle and confirm it changes (a) the 2D art and (b) the
+      live 3D model. Two of these have now been mapping gaps; assume more are.
 - [ ] The likely cause, worth checking first: `edPreview()` hands `edWork` to
       `EditorPreview3D.update()`, which rebuilds via `cfgFor(look)` →
       `Map3D._genericPlanetCfg({kind, look})`. Any field that mapping drops never reaches the model,
