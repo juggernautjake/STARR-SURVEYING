@@ -28,6 +28,10 @@ describe('the builder is registry-driven, not free text', () => {
     expect(BUILDER).toContain("vt === 'number'");      // numbers get a number input
     expect(BUILDER).toContain('pickTarget');           // picking a target resets op + value
   });
+
+  it('shows a plain-English preview line from the shared describeEffect renderer', () => {
+    expect(BUILDER).toContain('describeEffect({ target: e.target');
+  });
 });
 
 describe('every registry default the picker can produce is a VALID effect', () => {

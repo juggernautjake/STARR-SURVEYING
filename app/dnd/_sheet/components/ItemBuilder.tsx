@@ -9,7 +9,7 @@ import type { InvItem, ItemKind, WeaponStats, ArmorStats, ConsumableStats, Typed
 import TagPicker from './ui/TagPicker'
 import type { Effect, EffectOperation } from '../engine/effects'
 import type { AbilityKey } from '../rules/dnd'
-import { findTarget, targetsInGroup, TARGET_GROUP_LABELS, type TargetGroup } from '@/lib/dnd/effects/targets'
+import { findTarget, targetsInGroup, describeEffect, TARGET_GROUP_LABELS, type TargetGroup } from '@/lib/dnd/effects/targets'
 
 const KINDS: { id: ItemKind; label: string }[] = [
   { id: 'weapon', label: '⚔ Weapon' },
@@ -326,7 +326,14 @@ function EffectRows({ effects, onChange, hint }: { effects: Effect[]; onChange: 
               )}
               <button type="button" className="btn tiny danger" onClick={() => onChange(effects.filter((_, j) => j !== i))}>✕</button>
             </div>
-            {def && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{def.help} · <em>renders at {def.rendersAt}</em></div>}
+            {def && (
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                {/* Plain-English preview from the SAME renderer as the ★ tooltip — build it and read
+                    it in one place, so what you author is what the sheet will say. */}
+                <strong style={{ color: 'var(--tealbright)' }}>{describeEffect({ target: e.target, operation: e.operation, value: e.value })}</strong>
+                {' · '}{def.help} · <em>renders at {def.rendersAt}</em>
+              </div>
+            )}
           </div>
         )
       })}

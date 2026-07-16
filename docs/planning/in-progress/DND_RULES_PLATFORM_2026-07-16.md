@@ -746,9 +746,12 @@ tool schema and the ledger, the manual and AI paths now emit the same validated 
 appears in the picker automatically and can't be forgotten. Tests: `effect-builder.test.ts` (4),
 including a guard that EVERY registry target's default (first op + type-appropriate value) validates.
 
+**Plain-English preview line ✅ SHIPPED (commit pending).** Each effect row now shows a live preview
+from `describeEffect` — the SAME renderer that drives the ★ tooltip and the Active Effects panel — so
+what you author reads exactly as the sheet will describe it ("+2 STR", "advantage on Stealth",
+"Resistance: fire"). One renderer, three readers, no drift.
+
 **Still open in this slice:**
-- *Plain-English preview line* per effect as you build it ("+2 STR while equipped"). `describeEffect`
-  already exists (it drives the ★ tooltip); wiring it into the row is a small follow-up.
 - *Per-effect condition/duration control* (while equipped · while attuned · timed · gated on
   `raging`/`bloodied`) — the engine's `condition` field, not yet exposed in the row.
 - *Validate-on-save with a visible reason* — the picker prevents bad targets/ops, but a text target
