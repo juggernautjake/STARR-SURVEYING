@@ -150,17 +150,30 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
             </a>
           ) : (
             <div className={styles.framedPanel} style={{ display: 'grid', gap: 8, padding: '16px 18px', borderColor: 'var(--hx-gold-1)' }}>
-              <h2 className={styles.panelTitle} style={{ margin: 0, fontSize: 15 }}>Create your character</h2>
+              <h2 className={styles.panelTitle} style={{ margin: 0, fontSize: 15 }}>Join this table with a character</h2>
               <p style={{ margin: 0, fontSize: 12.5, color: 'var(--hx-muted)', lineHeight: 1.5 }}>
-                Review the campaign details above, then build your character — upload a sheet, PDF, or art for the AI to
-                build it out, or start blank and fill it in yourself.
+                Two ways in (38c): <strong>bring a character you already have</strong>, or <strong>make a new one</strong> —
+                upload a sheet, PDF, or art for the AI to build it out, or start blank.
               </p>
+              {/* Bring an existing character — only shown when you own one not already at this table. */}
+              {(myChars?.length ?? 0) > 0 && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <select className={styles.input} style={{ width: 'auto', flex: 1, minWidth: 150, padding: '9px 10px' }} value={addPick} onChange={(e) => setAddPick(e.target.value)}>
+                    <option value="">Bring an existing character…</option>
+                    {(myChars ?? []).map((mc) => <option key={mc.id} value={mc.id}>{mc.name}</option>)}
+                  </select>
+                  <button className={styles.hexBtn} onClick={addMyCharacter} disabled={!addPick || adding}>
+                    {adding ? 'Bringing…' : 'Bring'}
+                  </button>
+                </div>
+              )}
+              {addErr && <p style={{ color: 'var(--hx-danger)', fontSize: 12, margin: 0 }}>{addErr}</p>}
               <a
                 href={`/dnd/characters/new?campaignId=${data.id}`}
                 className={`${styles.hexBtn} ${styles.hexBtnPrimary}`}
                 style={{ justifyContent: 'center', padding: '12px', fontSize: 15, textDecoration: 'none' }}
               >
-                ＋ Create your character
+                ＋ Make a new character
               </a>
             </div>
           )}

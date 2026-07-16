@@ -1635,12 +1635,15 @@ this slice is mostly about wiring them into one journey.
       asks for an email, a pre-`Slice 36` remnant to reconcile with the name+password-only login — a
       small consistency follow-up, not a break in the invite flow.)
 
-### 38c — Join → bring or make a character
+### 38c — Join → bring or make a character ✅ SHIPPED 2026-07-16
 > "routed to the campaign page where they will be prompted to bring in a character already made, or
 > to make a new character altogether."
-- [ ] On first arrival as a new member with no character in this campaign: a prompt with two paths —
-      **Bring an existing character** (the "add existing character you own" picker already exists) or
-      **Make a new one** (the builder, Slice 31, with the campaign + its system attached).
+- [x] **Shipped.** A member with no character in this campaign now sees a "Join this table with a
+      character" onboarding prompt in `CampaignHub` offering BOTH paths: **Bring an existing character**
+      (an inline picker of the characters they own that aren't already here → `addMyCharacter`) and
+      **Make a new one** (→ `/dnd/characters/new?campaignId=<id>`, the builder with the campaign + its
+      system attached). Previously the onboarding block offered only "Create"; the bring-existing path
+      lived in a separate picker lower down — now both are in the first prompt a new member sees.
 
 ### 38d — Port a character into the campaign's system
 > "if that character does not have a character sheet for the campaign's system, prompt to translate…
