@@ -207,19 +207,21 @@ export function applySheetEdits(input: Character, edits: SheetEdit[]): Character
         break;
       }
       case 'remove_attack': c.attacks = c.attacks.filter((a) => !eqName(a.name, e.name)); break;
+      // rename/update also mark the element ✎ customized (Slice 20): an AI edit is an edit away from
+      // source just like a hand one, and the marker means the same thing whoever made the change.
       case 'rename_attack': {
         const to = (e.to ?? (raw.to as string | undefined) ?? '').trim();
-        if (to) c.attacks = c.attacks.map((a) => (eqName(a.name, e.name) ? { ...a, name: to } : a));
+        if (to) c.attacks = c.attacks.map((a) => (eqName(a.name, e.name) ? { ...a, name: to, customized: true } : a));
         break;
       }
       case 'rename_feature': {
         const to = (e.to ?? (raw.to as string | undefined) ?? '').trim();
-        if (to) c.features = c.features.map((f) => (eqName(f.name, e.name) ? { ...f, name: to } : f));
+        if (to) c.features = c.features.map((f) => (eqName(f.name, e.name) ? { ...f, name: to, customized: true } : f));
         break;
       }
       case 'rename_item': {
         const to = (e.to ?? (raw.to as string | undefined) ?? '').trim();
-        if (to) c.inventory = c.inventory.map((i) => (eqName(i.name, e.name) ? { ...i, name: to } : i));
+        if (to) c.inventory = c.inventory.map((i) => (eqName(i.name, e.name) ? { ...i, name: to, customized: true } : i));
         break;
       }
       case 'define_tag': {
@@ -257,7 +259,7 @@ export function applySheetEdits(input: Character, edits: SheetEdit[]): Character
       case 'update_item': {
         // Merge onto the EXISTING item, keeping its id and every field the payload doesn't name.
         // No-op if there's nothing by that name — update never silently creates (use add_item).
-        c.inventory = c.inventory.map((i) => (eqName(i.name, e.name) ? applyItemPayload(i, e) : i));
+        c.inventory = c.inventory.map((i) => (eqName(i.name, e.name) ? { ...applyItemPayload(i, e), customized: true } : i));
         break;
       }
       case 'equip_item': {

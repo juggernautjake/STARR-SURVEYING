@@ -10,6 +10,9 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { elementChanged, nextCustomized } from '@/app/dnd/_sheet/lib/customized';
+import { applySheetEdits, type SheetEdit } from '@/lib/dnd/sheet-edits';
+import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
+import type { Character } from '@/app/dnd/_sheet/types';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 
@@ -66,5 +69,36 @@ describe('every in-place editor sets the marker, and every render shows it', () 
     const mark = read('app/dnd/_sheet/components/ui/EditMark.tsx');
     expect(mark).toContain('edit-mark');
     expect(mark).not.toContain('mod-star');
+  });
+});
+
+describe('the AI edit path marks ✎ too (same meaning whoever edited)', () => {
+  function withElements(): Character {
+    const c = blankCharacter('X');
+    c.attacks = [{ id: 'a', name: 'Sword', ability: 'str', proficient: true, range: 'melee', damage: '1d8', damageType: 'slashing' }] as Character['attacks'];
+    c.inventory = [{ id: 'i', name: 'Cloak', desc: '', qty: 1, tags: [] }] as Character['inventory'];
+    c.features = [{ id: 'f', name: 'Rage', source: 'Class', body: ['angry'], unlockLevel: 1 }] as Character['features'];
+    return c;
+  }
+
+  it('rename_attack / rename_item / rename_feature set customized', () => {
+    const out = applySheetEdits(withElements(), [
+      { op: 'rename_attack', name: 'Sword', to: 'Longsword' },
+      { op: 'rename_item', name: 'Cloak', to: 'Cloak of Elvenkind' },
+      { op: 'rename_feature', name: 'Rage', to: 'Fury' },
+    ] as SheetEdit[]);
+    expect(out.attacks[0].customized).toBe(true);
+    expect(out.inventory[0].customized).toBe(true);
+    expect(out.features[0].customized).toBe(true);
+  });
+
+  it('update_item marks the item customized', () => {
+    const out = applySheetEdits(withElements(), [{ op: 'update_item', name: 'Cloak', desc: 'shimmering' } as SheetEdit]);
+    expect(out.inventory[0].customized).toBe(true);
+  });
+
+  it('an untouched element stays un-customized after unrelated edits', () => {
+    const out = applySheetEdits(withElements(), [{ op: 'rename_attack', name: 'Sword', to: 'Longsword' }] as SheetEdit[]);
+    expect(out.features[0].customized).toBeUndefined(); // Rage wasn't touched
   });
 });

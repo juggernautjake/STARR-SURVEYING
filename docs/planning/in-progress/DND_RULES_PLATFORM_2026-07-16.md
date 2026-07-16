@@ -843,7 +843,10 @@ that: a `customized?: boolean` on Attack/InvItem/Spell/FeatureBlock, set by each
 (a no-op save doesn't false-trigger; the flag ignores itself when comparing; once set it stays). A
 shared `EditMark` renders ✎ (gold, token-driven) next to the element name on all four tabs, with a
 "hand-customized" tooltip, and it is a DISTINCT marker from ★ (nothing shared — ★ = modified now, ✎ =
-differs from how it came). Tests: `customized-marker.test.ts` (9).
+differs from how it came). **The AI edit path marks ✎ too** — `applySheetEdits`' `rename_*` and
+`update_item` set `customized`, so an AI edit is flagged the same as a hand one. Tests:
+`customized-marker.test.ts` (14). Verified the whole session's cross-cutting changes compile in a
+production `next build` (the server digest safely imports `deriveAc`/`buildLedger`).
 
 **Deferred — "what changed" detail + Revert to official.** The hover showing "damage 8d6 → 10d6" and
 a one-click revert need the ELEMENT'S OFFICIAL source values to diff against, which requires a
