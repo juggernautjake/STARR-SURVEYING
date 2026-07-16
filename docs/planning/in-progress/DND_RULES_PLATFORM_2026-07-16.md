@@ -812,7 +812,26 @@ Three rules, and they are not in tension — the DM's control comes from *review
       any sheet in their campaign; every edit appears in the review queue with its diff and author;
       Approve clears the flag; Revert restores the exact prior value; a non-DM cannot approve.
 
-## Slice 27 — A clear way in: the ⋯ menu on every element
+## Slice 27 — A clear way in: the ⋯ menu on every element ⏳ PARTIALLY SHIPPED 2026-07-16
+
+**Shipped:** `ElementMenu` (⋯) on **attacks and inventory items** — Edit / Duplicate / Delete —
+plus `EditDialog` + `AttackEditor`, and an **Add attack** control. Verified on Jack's live sheet:
+renamed "Backless Park Bench" → "Park Bench" and retuned 1d8 → 1d12, both reflected immediately;
+Jack restored afterwards and the restore verified by read-back. 19 tests.
+
+The item path **reuses the existing `ItemBuilder`** rather than adding a second editor — it already
+upserted by id and was merely gated behind `editMode`, so the editor existed and no row could reach
+it. (I started a parallel `ItemEditor`, then deleted it: two things editing the same data is the
+drift this codebase keeps paying for.)
+
+Also shipped here: **item tag tooltips** — `tagInfo.ts` explains every tag on hover, because
+"FLAVOR" told the reader nothing. One definition per tag, shared by the Gear list and the editor.
+A homebrew tag returns null rather than a fabricated definition.
+
+**Still open:** ⋯ on spells, features, resources, traits, active effects and forms; "Change art";
+"Add effect"; "Ask AI about this".
+
+### Original spec
 
 > "I either need to be able to click on the attack or item or spell or effect or whatever, and it
 > will give me the option to edit it. Maybe we have a menu or edit button or three dots on each
@@ -918,6 +937,67 @@ vertical and horizontal FOV, larger wins, re-framed on every build and resize. T
 with `drawImage` does **not** work — the drawing buffer is cleared after compositing unless
 `preserveDrawingBuffer` is set. The readback comes back empty, so a "no lit pixels on the border ⇒
 not clipped" check passes for *any* input, including a badly clipped one. Verify by screenshot.
+
+## Slice 30 — Campaign roster: PCs, special NPCs, generic NPCs
+
+> "for the campaign character management, I want to split it up so that we can have multiple
+> categories of characters. We will have generic npcs, special npcs, and then pcs."
+
+- [ ] A `role` on each character: `pc` · `special_npc` · `generic_npc`. A column + a seed, defaulting
+      existing characters to `pc` (they all are).
+- [ ] The campaign page groups the roster by role, each section collapsible with a count.
+- [ ] The distinction is **editorial, not mechanical** — a generic NPC is the same `Character` on the
+      same engine, just triaged differently. Do NOT give generic NPCs a cut-down model: the moment a
+      guard becomes important, the DM must be able to promote them without rebuilding them, and
+      "promote" should be a field change, not a migration.
+- [ ] Move a character between categories from the roster.
+- [ ] Tests: every existing character reads as a `pc`; promoting a generic NPC preserves its sheet
+      byte-for-byte.
+
+## Slice 31 — The NEW button, and two ways to build a character
+
+> "the 'NEW' button doesn't work… We should be able to create an npc very quickly by generating it
+> with whatever quick info I give it, or we can do a super in depth character build using the
+> campaign system."
+
+**First: find the broken NEW button.** ⚠️ **I could not reproduce it — do not start by "fixing" it.**
+What I actually found on `/dnd/campaigns/[id]` (Neon Odyssey, as the DM):
+
+* There is **no control labelled "NEW"** anywhere on the campaign page. Every button/link was
+  enumerated in the browser; the list is: `← Back`, `＋ Character` (header), `Sign Out`,
+  `✕ remove` ×4, `＋ Add player`, `✉ Invite`, `+ Generate link invite`, `→ Hide` / `✕` per
+  character, `✦ Open Map Maker`.
+* `/dnd/characters/new?campaignId=…` — what the header's `＋ Character` points at — **works**; it
+  renders the "Import Your Character" page. Not a 404, not an error.
+* **Two controls ARE disabled**, which is the most likely thing being reported:
+  **`＋ Add player`** and **`✉ Invite`**. Find out why they're disabled (a missing prop? an empty
+  member list? a permission check?) before designing anything new.
+* The other candidate is the map studio's **`Save as NEW`** in the object editor — a different
+  screen, but it is the only thing in the app literally labelled "NEW".
+
+Confirm which of these is meant, then fix that. Building a new-character modal for a button that
+turns out to work fine would be wasted effort in the wrong place.
+
+Then two paths to the same `Character`, which is the whole point — a quick NPC must be promotable to
+a full build without being rebuilt:
+
+- [ ] **Quick build (AI).** Give it a sentence — "a nervous dock guard who owes money" — and it
+      generates a complete, playable sheet: stats, attacks, features, gear. This machinery already
+      exists and is already good: the streamer flow that turns one of Susie's chat regulars into a
+      statted NPC. Lift THAT, don't write a second one.
+      - It must actually **save** the character to the campaign, not just render a preview.
+      - It writes through the same `applySheetEdits` vocabulary as everything else, so a generated
+        NPC is indistinguishable in shape from a hand-built one.
+      - Style it to the Hextech chrome the rest of the hub uses — the request specifically flags the
+        interface needing to be "styled correctly and formatted well".
+- [ ] **Full build (manual).** The DM walks the campaign system's real character builder
+      (`/dnd/characters/[id]/levels` + the class engine) with full control over every choice.
+- [ ] **The two are the same pipeline at different depths.** Quick-generate, then open the full
+      builder on the result and keep going. If they fork into two shapes, the quick path becomes a
+      dead end and every NPC that matters gets rebuilt by hand.
+- [ ] Save as any role from Slice 30.
+- [ ] Tests: the NEW button opens the modal; a quick-built NPC persists and appears in the roster
+      under its chosen role; the full builder opens on a quick-built NPC and its choices stick.
 
 ## Slice 25 — Connect it to the rest
 
