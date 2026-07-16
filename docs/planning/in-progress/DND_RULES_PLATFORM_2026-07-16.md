@@ -1021,8 +1021,16 @@ A homebrew tag returns null rather than a fabricated definition.
 since traits are plain strings). Each with Edit / (Duplicate) / Delete, through the shared
 `EditDialog`/`ElementMenu`.
 
-**Still open:** ⋯ on active effects and forms; the menu extras "Change art", "Add effect",
-"Ask AI about this".
+**"Ask AI about this" ✅ SHIPPED 2026-07-16 (commit pending).** Added as a built-in on the shared
+`ElementMenu`, so it appears on every element at once (attacks, items, spells, features, resources) —
+it opens the Slice-3 librarian pre-filled with the element (same `/dnd/library/<system>?ask=…#chat`
+target as RuleTip), defaults its subject to the element's `label`, hides itself when the sheet has no
+system (no rulebook to ask against), and is opted out on the generic-labelled trait row. Tests:
+`element-menu-ask-ai.test.ts` (4).
+
+**Still open:** ⋯ on active effects and forms; the "Change art" / "Add effect" menu extras. ("Add
+effect" is largely redundant now — Edit opens the builder with its effect rows; "Change art" needs
+the per-element art of Slice 28.)
 
 ### Original spec
 

@@ -335,6 +335,7 @@ export default function CombatPanel() {
                 {canWrite && (
                   <ElementMenu
                     label="trait"
+                    askAiAbout={null}
                     actions={[
                       { label: 'Edit trait', onClick: () => setEditingTrait({ index: i, text: t }) },
                       { label: 'Delete', danger: true, onClick: () => removeTrait(i) },

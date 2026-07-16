@@ -10,6 +10,8 @@
 // escapes every ancestor's overflow and stacking context, so the menu always renders in front.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useSheetSystem } from '../../state/sheetConfig'
+import { SYSTEM_AMBIGUOUS } from '@/lib/dnd/systems'
 
 export interface MenuAction {
   label: string
@@ -18,11 +20,36 @@ export interface MenuAction {
   danger?: boolean
 }
 
-export default function ElementMenu({ label, actions }: { label: string; actions: MenuAction[] }) {
+/** Where the librarian lives, pre-filled and focused on this system (same target as RuleTip). */
+function askUrl(system: string, subject: string): string {
+  const q = `Tell me about “${subject}” on my character — what it does and when I'd use it.`
+  return `/dnd/library/${encodeURIComponent(system)}?ask=${encodeURIComponent(q)}#chat`
+}
+
+export default function ElementMenu({
+  label,
+  actions,
+  askAiAbout,
+}: {
+  label: string
+  actions: MenuAction[]
+  /** Subject for the built-in "Ask AI about this" item; defaults to `label`. Pass `null` to hide it
+   *  (e.g. a generic-labelled row where "ask about trait" would be meaningless). */
+  askAiAbout?: string | null
+}) {
+  const system = useSheetSystem()
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
   const popRef = useRef<HTMLDivElement>(null)
+
+  // "Ask AI about this" (Slice 27): reuses the Slice-3 librarian, pre-filled with this element. Only
+  // when the sheet has a system (no rulebook to ask against otherwise), and only when not opted out.
+  const subject = askAiAbout === null ? null : (askAiAbout ?? label)
+  const allActions: MenuAction[] =
+    subject && system !== SYSTEM_AMBIGUOUS
+      ? [...actions, { label: '✨ Ask AI about this', onClick: () => window.open(askUrl(system, subject), '_blank', 'noopener') }]
+      : actions
 
   // Position the portaled popup under the button, flipping up / left when it would leave the
   // viewport — a menu that opens off-screen is as useless as one that's clipped.
@@ -30,13 +57,13 @@ export default function ElementMenu({ label, actions }: { label: string; actions
     if (!open || !btnRef.current) return
     const r = btnRef.current.getBoundingClientRect()
     const W = 160
-    const H = actions.length * 34 + 8
+    const H = allActions.length * 34 + 8
     let left = r.left
     let top = r.bottom + 4
     if (left + W > window.innerWidth - 8) left = Math.max(8, window.innerWidth - W - 8)
     if (top + H > window.innerHeight - 8) top = Math.max(8, r.top - H - 4)
     setPos({ top, left })
-  }, [open, actions.length])
+  }, [open, allActions.length])
 
   // Close on outside click / Escape / scroll. A menu you can only close by picking something is a
   // trap; and because it's portaled with fixed coords, a scroll would leave it floating in place.
@@ -59,7 +86,7 @@ export default function ElementMenu({ label, actions }: { label: string; actions
     }
   }, [open])
 
-  if (!actions.length) return null
+  if (!allActions.length) return null
 
   return (
     <span className="el-menu">
@@ -85,7 +112,7 @@ export default function ElementMenu({ label, actions }: { label: string; actions
           style={{ top: pos.top, left: pos.left }}
           onMouseDown={(e) => e.stopPropagation()}
         >
-          {actions.map((a) => (
+          {allActions.map((a) => (
             <button
               key={a.label}
               type="button"
