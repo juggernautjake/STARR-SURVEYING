@@ -144,9 +144,17 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
   Verified: `tsc` clean, lint clean, `__tests__/dnd/ig-builder.test.ts` (+1: a Griffon companion is seeded
   with INT 6 and flagged a vanilla creature-type, none when unpicked); full dnd suite (313) green. **The
   bespoke IG sheet now renders all nine template tabs.**
-- **Slice 9 — Full guided builder UI.** Upgrade `IGCharacterBuilder` into a step-through that drives the whole
-  model (identity → scores → skills w/ rank budget → feats/powers/stances → weapon groups → defensive power →
-  equipment → companion), live vanilla/custom count throughout, writing `data.ig`.
+- **Slice 9 — Full guided builder UI.** ✅ `IGCharacterBuilder` now drives the whole model: added an
+  **ability-scores** row (six STR…CHA number inputs) and a **Companion Creature** picker (an optgrouped
+  select over the full bestiary + a companion-name field), on top of the existing identity / class-subclass-
+  specialization-background / stances / powers / feats / weapon-groups / defensive-power / weapons controls.
+  The companion type flows into the **live vanilla/custom count** (a real bestiary creature reads vanilla).
+  The `ig-build` route now parses `abilities` (six keys, clamped 1–30), `companionType`/`companionName`, and
+  `alignment`/`culture`/`bio`, feeding `assembleIGVanillaCharacter` → the full `data.ig` model. Verified:
+  `tsc` clean, lint clean, full dnd suite (313) green (the assembler + provenance paths the UI drives are
+  covered by `ig-builder.test.ts`). *(Editing the ranked skills / equipment slots inline on the sheet is
+  deferred to the sheet-edit follow-up; the builder seeds the full skill list + equipment structure and the
+  existing `/ai-edit` chat can adjust them — the guided create flow covers the mechanical build.)*
 - **Slice 10 — AI-customize over the full model.** Ground the AI to Intuitive Games so an AI build/edit fills
   the real `IGCharacter` and any invented element is auto-flagged custom (via the same `igBuild`/provenance
   path), matching IG mechanics.
@@ -165,4 +173,4 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
 - **Reuse:** build on the shipped content library, catalog, provenance, submission/approval, DM grants,
   campaign policy, the custom-sheet/style engine, and `/ai-edit` grounding — don't fork them.
 
-### Status: IN PROGRESS (Slices 0–8 shipped; 9–11 pending)
+### Status: IN PROGRESS (Slices 0–9 shipped; 10–11 pending)

@@ -10,7 +10,10 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import { igCatalog } from '@/lib/dnd/systems/intuitive-games/catalog';
+import { igCreaturesByGroup } from '@/lib/dnd/systems/intuitive-games/content';
 import { classifyElement, type ElementKind } from '@/lib/dnd/provenance';
+
+const ABILITY_KEYS = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
 
 function names(groups: ReturnType<typeof igCatalog>, kind: ElementKind): string[] {
   return groups.filter((g) => g.kind === kind).flatMap((g) => g.entries.map((e) => e.name));
@@ -27,6 +30,7 @@ export default function IGCharacterBuilder({ characterId, initialName }: { chara
   const featOpts = useMemo(() => names(catalog, 'feat'), [catalog]);
   const defPowerOpts = useMemo(() => names(catalog, 'defensive-power'), [catalog]);
   const weaponTypeOpts = useMemo(() => names(catalog, 'weapon-type'), [catalog]);
+  const bestiary = useMemo(() => igCreaturesByGroup(), []);
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(initialName);
@@ -42,6 +46,9 @@ export default function IGCharacterBuilder({ characterId, initialName }: { chara
   const [defensivePower, setDefensivePower] = useState('');
   const [weaponTypes, setWeaponTypes] = useState<string[]>([]);
   const [weaponsText, setWeaponsText] = useState('');
+  const [abilities, setAbilities] = useState<Record<string, number>>({ STR: 10, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10 });
+  const [companionType, setCompanionType] = useState('');
+  const [companionName, setCompanionName] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -59,10 +66,11 @@ export default function IGCharacterBuilder({ characterId, initialName }: { chara
     feats.forEach((s) => els.push({ kind: 'feat', name: s }));
     weaponTypes.forEach((s) => els.push({ kind: 'weapon-type', name: s }));
     if (defensivePower) els.push({ kind: 'defensive-power', name: defensivePower });
+    if (companionType) els.push({ kind: 'creature-type', name: companionType });
     let vanilla = 0, custom = 0;
     for (const e of els) (classifyElement('intuitive-games', e.kind, e.name) === 'vanilla' ? vanilla++ : custom++);
     return { vanilla, custom, total: els.length };
-  }, [ancestry, className, subclass, stances, powers, feats, weaponTypes, defensivePower]);
+  }, [ancestry, className, subclass, stances, powers, feats, weaponTypes, defensivePower, companionType]);
 
   async function build() {
     setBusy(true); setMsg(null);
@@ -70,7 +78,7 @@ export default function IGCharacterBuilder({ characterId, initialName }: { chara
       const weapons = weaponsText.split(',').map((s) => s.trim()).filter(Boolean);
       const r = await fetch(`/api/dnd/characters/${characterId}/ig-build`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ picks: { name, ancestry, className, subclass, specialization, background, level, stances, powers, feats, defensivePower, weaponTypes, weapons } }),
+        body: JSON.stringify({ picks: { name, ancestry, className, subclass, specialization, background, level, abilities, stances, powers, feats, defensivePower, weaponTypes, weapons, companionType, companionName } }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setMsg(j.error ?? 'Could not build.'); return; }
@@ -110,6 +118,15 @@ export default function IGCharacterBuilder({ characterId, initialName }: { chara
           <input value={background} onChange={(e) => setBackground(e.target.value)} placeholder="Background" style={{ ...input, flex: 1, minWidth: 130 }} />
           <select value={defensivePower} onChange={(e) => setDefensivePower(e.target.value)} style={{ ...input, flex: 1, minWidth: 130 }}><option value="">Defensive power…</option>{defPowerOpts.map((a) => <option key={a} value={a}>{a}</option>)}</select>
         </div>
+        <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>ABILITY SCORES</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 }}>
+          {ABILITY_KEYS.map((k) => (
+            <label key={k} style={{ display: 'grid', gap: 2, textAlign: 'center' }}>
+              <span style={{ fontSize: 10, color: 'var(--hx-muted)' }}>{k}</span>
+              <input type="number" min={1} max={30} value={abilities[k]} onChange={(e) => setAbilities((a) => ({ ...a, [k]: Math.max(1, Math.min(30, +e.target.value || 10)) }))} style={{ ...input, textAlign: 'center', padding: '5px 2px' }} />
+            </label>
+          ))}
+        </div>
         <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>STANCES</div>
         <Chips opts={stanceOpts} sel={stances} on={(v) => toggle(setStances, v)} />
         <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>POWERS</div>
@@ -119,6 +136,16 @@ export default function IGCharacterBuilder({ characterId, initialName }: { chara
         <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>WEAPON GROUPS</div>
         <Chips opts={weaponTypeOpts} sel={weaponTypes} on={(v) => toggle(setWeaponTypes, v)} />
         <input value={weaponsText} onChange={(e) => setWeaponsText(e.target.value)} placeholder="Weapons (comma-separated, e.g. Cutlass, Pistol)" style={input} />
+        <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>COMPANION CREATURE</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <select value={companionType} onChange={(e) => setCompanionType(e.target.value)} style={{ ...input, flex: 1, minWidth: 150 }}>
+            <option value="">No companion</option>
+            {Object.entries(bestiary).map(([grp, list]) => (
+              <optgroup key={grp} label={grp}>{list.map((n) => <option key={n} value={n}>{n}</option>)}</optgroup>
+            ))}
+          </select>
+          {companionType && <input value={companionName} onChange={(e) => setCompanionName(e.target.value)} placeholder="Companion name" style={{ ...input, flex: 1, minWidth: 130 }} />}
+        </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>
