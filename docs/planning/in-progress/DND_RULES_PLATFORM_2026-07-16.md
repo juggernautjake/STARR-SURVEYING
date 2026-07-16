@@ -391,6 +391,15 @@ The request's real ask: *"it could literally turn the character into a completel
       `grant_sense`, plus the existing `grant_proficiency`. This is the pendant that gives you an
       ability from another class entirely — the granted feature appears in Features with a badge
       naming the item it came from, and vanishes when the item comes off.
+- [ ] **Movement is not one number.** `speed_fly`, `speed_swim`, `speed_climb`, `speed_burrow`,
+      `hover` are each their own target with their own base (Appendix A) — a potion of flying is not
+      "+30 speed". A fly speed can exist while the walk speed is 0, and the sheet must show both.
+      This needs a **speeds block on the sheet** before it can be granted; see rule 2 below.
+- [ ] **Senses** (`grant_sense`: darkvision/tremorsense/truesight/blindsight, with a range) likewise
+      need somewhere to render.
+- [ ] **Every new target must have a home on the sheet, or it is a lie.** Granting a burrow speed
+      that appears nowhere is exactly the bug this whole Part is fixing — a correct engine nobody can
+      see. A target is not done until it renders.
 - [ ] A single item carries **any number of effects of any mix** — the "one boot that rewrites you"
       case is just an item with fifteen effects and must need no special code.
 - [ ] Tests: an item granting a Barbarian feature to a Wizard shows it in Features, sourced to the
@@ -521,7 +530,109 @@ re-derivable). So triggers are a **separate concept** that lives beside effects,
       AC; a trigger fires only on its event and only within its limit; a trigger with no limit is
       flagged; retaliation never mutates another character's sheet.
 
-## Slice 16 — Connect it to the rest
+## Slice 17 — The effect builder: "Add effect" by hand
+
+> "We basically need to create an item, click 'add effect' to it, then select effects and define the
+> numbers for those effects."
+
+The AI path (Slice 14) and the manual path must produce the **same `Effect[]`**. If they diverge,
+the AI becomes the only way to make a good item and hand-authoring becomes second-class.
+
+- [ ] On any item/spell/feature editor: an **Add effect** button → pick an effect type → fill in its
+      numbers. Repeatable; an item holds any number of effects.
+- [ ] The picker is **built from the effect vocabulary**, not a hand-written menu, so a new operation
+      shows up in the UI automatically and cannot be forgotten. Grouped for humans:
+      - *Modify a number* — ability, AC, speed, HP, save DC, initiative, a skill, attack, damage.
+        `add` (stacks) or `set` (overrides). **Negative values are first-class** — a cursed item that
+        gives −2 DEX is the same machinery as a +2 belt, and the UI must not fight it.
+      - *Advantage / disadvantage* — on a named roll.
+      - *Grant* — proficiency, expertise, a feature, an attack, a spell, a resource, a sense.
+      - *Resistance / immunity / vulnerability* — to a damage type.
+      - *Identity* — name, art/token, species, class, subclass, gender, profession, size, pronouns.
+      - *Instant* — heal, temp HP, damage, restore a resource. (Fires once on use; see Slice 12.)
+      - *Duration* — permanent while worn · while attuned · timed ("12 hours") · until ended.
+      - *Trigger* — Slice 15's event actions.
+      - *Transform* — Slice 18.
+- [ ] Each effect gets a **plain-English preview line** as you build it ("+2 STR while equipped",
+      "disadvantage on Stealth"). An effect builder whose output you can't read is how you end up
+      with items nobody trusts.
+- [ ] **Condition/gating** per effect: unconditional, while equipped, while attuned, or gated on a
+      named condition (`raging`, `bloodied`) — the engine's `condition` field, exposed.
+- [ ] Validate on save: unknown target → refuse with a reason. Never silently drop an effect; the
+      player will believe it works.
+- [ ] Tests: every operation in the vocabulary is reachable from the picker (a guard that fails when
+      someone adds an operation and forgets the UI); a hand-built item and an AI-built item with the
+      same mechanics produce identical `Effect[]`; a negative modifier round-trips.
+
+## Slice 18 — Transform: become a different character entirely
+
+> "maybe a spell turns us into a bear, then we would suddenly have the bear character sheet. We would
+> need to be able to end the effect and revert back to our normal character sheet."
+
+Slice 11 overlays *fields*. This overlays the **whole sheet** — and it is the strongest argument for
+the overlay rule, because "you are a bear now" must be perfectly reversible.
+
+- [ ] A `transform` effect names a **form**: a stored sheet (a statblock, a creature, another
+      character). While active, the sheet **renders the form**.
+- [ ] The base character is **never overwritten** — it is the thing underneath. Reverting is dropping
+      the source, exactly like any other effect. (If transform mutated the sheet, an autosave
+      mid-transform would leave a druid permanently a bear, with their real character gone. This is
+      the failure this whole design exists to prevent.)
+- [ ] **What carries over is a per-form rule, not a guess.** 5e Wild Shape keeps INT/WIS/CHA,
+      personality, and your own features; it takes the beast's STR/DEX/CON, AC, speed and attacks; HP
+      is a separate pool and damage overflow returns to you. Other systems and homebrew differ. So a
+      form declares its own carry-over policy (`keepMental`, `keepFeatures`, `separateHp`, …) rather
+      than the engine hardcoding one game's answer — Ground Rule 1.
+- [ ] Forms are **authored with the same builder** as characters (Slice 17) — a form is a sheet. A DM
+      can define a bear once and reuse it; a player can be turned into another PC.
+- [ ] The Active Effects panel (Slice 12) shows the transform as the source it is, with **End
+      transform** — and, per the request, that is how you get back.
+- [ ] While transformed, the panel and the star markers (Slice 13) still explain the *form's* numbers,
+      so "why is my AC 11" has an answer while you are a bear.
+- [ ] Damage taken in form, resources spent in form, and duration are tracked on the form instance,
+      not on the base sheet.
+- [ ] Tests: transform → the sheet renders the form; the stored base character is byte-identical
+      throughout (the anti-"permanent bear" guard); revert restores exactly; carry-over policy is
+      honoured per form; a save while transformed does not corrupt the base.
+
+## Slice 20 — Edit everything on the sheet, and mark what's been customized
+
+> "I want to be able to edit attacks and abilities and spells and stuff in the character sheet. If the
+> stats are edited, then there should be some kind of marker showing that the thing has been
+> customized."
+
+- [ ] **Edit in place**: attacks, abilities/features, spells, resources, skills, inventory items,
+      traits. Add · edit · duplicate · delete · reorder. Every one of these already exists as *data*;
+      most have no editor.
+- [ ] Editing routes through the SAME structured-edit vocabulary the AI uses
+      (`applySheetEdits`) rather than a parallel path — one place where a sheet changes, so the audit
+      trail (`dnd_sheet_edits`) and the DM's view of "what changed" stay true.
+
+### The customized marker is NOT the star
+
+These are two different facts and the UI must not merge them:
+
+| Marker | Means | Answers |
+|---|---|---|
+| ★ (Slice 13) | Something is **modifying this right now** | "Why is my STR 22?" |
+| ✎ (this slice) | This **differs from its source** — homebrewed or hand-edited | "Is this still the real Fireball?" |
+
+A hand-edited Fireball that nothing is currently buffing has ✎ and no ★. A vanilla STR score under a
+Belt of Giant Strength has ★ and no ✎. Same element can carry both. Conflating them produces a
+marker that means "something, somewhere, maybe" — i.e. noise the reader learns to ignore, which
+costs more than having no marker at all.
+
+- [ ] ✎ appears on anything edited away from its source: a modified official spell, a hand-tuned
+      class feature, an attack with adjusted numbers, an off-table ability score.
+- [ ] Hovering ✎ shows **what changed** — "Fireball · damage 8d6 → 10d6 (edited by Jacob,
+      2026-07-16)" — and offers **Revert to official**. Reuse `summarizeCharacterProvenance`, which
+      already distinguishes vanilla / custom / DM-granted content; this is its natural UI.
+- [ ] The DM's approval surface (Slice 5) reads the same provenance, so ✎ is also what a DM scans
+      when reviewing a sheet. A player quietly editing Fireball to 10d6 must not be invisible.
+- [ ] Tests: an untouched sheet has zero ✎; editing a value marks exactly that value; revert clears
+      the marker and restores the source value; ★ and ✎ are independent (one never implies the other).
+
+## Slice 19 — Connect it to the rest
 
 - [ ] Spells cast on you land in the ledger as sources (`activeEffects`), so Bless and a potion are
       the same machinery.
@@ -531,6 +642,104 @@ re-derivable). So triggers are a **separate concept** that lives beside effects,
       the AI rules on your *current* STR 22, not your base 18. Today it reads the raw sheet — after
       Slice 10 that is a bug, and it is the kind that produces a confidently wrong ruling.
 - [ ] Realtime: an equip by the DM propagates to the player's open sheet (C11b broadcast already exists).
+
+---
+
+# Appendix A — The effect target catalog
+
+> "A potion might give us a fly speed, or a tunneling speed, or literally anything. Please consider
+> it all… The sky and beyond is the limit."
+
+The working-through of *every* effect. This is the **contract**: `lib/dnd/effects/targets.ts` is the
+single registry, and the effect-builder picker (Slice 17), the AI's tool schema (Slice 14), the
+ledger (Slice 10), and the star tooltips (Slice 13) are all **generated from it**. Adding a target
+here makes it authorable, AI-emittable, resolvable and explainable at once — and nothing can drift,
+because there is nowhere for it to drift *to*.
+
+Each target declares: its key, its value type, which operations are legal on it, its display group,
+and how it renders. "Literally anything" is achievable only if the vocabulary is **data**; a
+hand-written menu is what makes a system finite.
+
+**Movement** — `speed_walk` · `speed_fly` · `speed_swim` · `speed_climb` · `speed_burrow`
+(the requested tunnelling) · `speed_all` (a blanket modifier) · `hover` (flag) · `ignore_difficult_terrain`.
+Movement is not one number, and a potion of flying is not "+speed". Each mode is its own target with
+its own base, so a fly speed can exist where a walk speed is 0 (and the sheet shows both).
+
+**Core numbers** — `ability_str|dex|con|int|wis|cha` · `ac` · `initiative` · `hp_max` ·
+`hp_temp` · `hit_dice` · `proficiency_bonus` · `spell_save_dc` · `spell_attack` · `carrying_capacity`.
+
+**Rolls** — `attack_roll` · `damage_roll` · `attack_and_damage` · `save_<ability>` · `save_all` ·
+`skill_<name>` · `skill_all` · `ability_check_<ability>` · `death_save` · `concentration_save` ·
+`initiative_roll`. Operations: `add`, `set`, `advantage`, `disadvantage`, plus `reroll_below` (Great
+Weapon Fighting), `minimum_roll`, `crit_range` (19–20 → 18–20), `crit_dice`.
+
+**Defenses** — `resistance` · `immunity` · `vulnerability` (by damage type) ·
+`condition_immunity` · `condition_advantage` (advantage on saves vs a named condition).
+
+**Grants** — `grant_proficiency` (skill/tool/weapon/armour/language) · `grant_expertise` ·
+`grant_feature` · `grant_attack` · `grant_spell` · `grant_cantrip` · `grant_resource` ·
+`grant_spell_slot` · `grant_sense` (darkvision/truesight/tremorsense/blindsight, with a range) ·
+`grant_language` · `grant_action` (a new thing you can do).
+
+**Identity** (Slice 11) — `name` · `image` · `token` · `species` · `class` · `subclass` ·
+`gender` · `pronouns` · `profession` · `size` · `creature_type` · `alignment`.
+
+**Instant** (Slice 12; fires once, leaves nothing) — `heal` · `temp_hp` · `damage` ·
+`restore_resource` · `restore_slot` · `remove_condition` · `apply_condition` · `set_hp`.
+
+**State** — `condition` (apply/suppress) · `exhaustion` · `concentration` · `inspiration`.
+
+**Economy** — `attunement_slots` · `action_count` · `bonus_action_count` · `reaction_count` ·
+`attacks_per_action` · `spell_slots_<rank>`.
+
+**Meta** — `transform` (Slice 18) · `trigger` (Slice 15) · `note` (DM-adjudicated, no mechanics —
+the honest escape hatch, and it must exist: an effect the engine can't model should be *labelled as
+such*, not faked with a number that looks authoritative).
+
+**Rules that fall out of the catalog:**
+
+1. Every numeric target supports **negative** values. A cursed item is not a special case.
+2. Every target must render **somewhere** on the sheet, or it is a lie. A target with no home is not
+   done — that is the entire lesson of the current codebase, where a complete effects engine sits
+   unread because nothing renders it. **`grant_sense` and `speed_burrow` need places to live before
+   they can be granted.**
+3. `set` vs `add` is per-target and documented (Storm Giant Strength *sets* STR to 29; a belt *adds*).
+4. Unknown target → the edit is refused with a reason. Never coerced, never silently dropped.
+5. A target the engine cannot faithfully model gets `note`, not an approximation.
+
+# Appendix B — Item type catalog
+
+Per the request, **category is cosmetic**; mechanics are the item. A "boot" and a "pendant" differ
+only by icon and slot. So the type list exists for filtering and for sane defaults, and never gates
+what effects an item may carry:
+
+`weapon` · `armor` · `shield` · `clothing` · `potion` · `scroll` · `wand` · `staff` · `rod` ·
+`ring` · `amulet` · `belt` · `boots` · `gloves` · `cloak` · `helm` · `tool` · `instrument` ·
+`ammunition` · `container` · `focus` · `trinket` · `treasure` · `food` · `poison` · `tattoo` ·
+`vehicle` · `tech` · `cyberware` · `relic` · `quest` · `other`.
+
+Orthogonal to type, and where the mechanics actually live: `slot` (what it occupies) ·
+`equippable` · `attunable` · `consumable` · `charges` (+ recharge rule) · `cursed`
+(can't be removed without help — a real mechanic, not flavour) · `stackable` · `weight` · `value` ·
+`rarity` · `requirements` (a prerequisite to use it at all).
+
+# Appendix C — The AI's write path
+
+> "hook the AI up to it all so that it can create items for the players… It should be able to
+> actually input items into the character's inventory."
+
+- The AI's tool schema is **generated from Appendix A**, so it can emit any effect the engine
+  supports and — importantly — *cannot* emit one it doesn't. The schema is the guardrail; this is
+  why "the AI made no edits" was the schema working, and why widening it is the whole fix.
+- It **writes** through `applySheetEdits` → the item lands in the real inventory, equippable and
+  usable. Not a suggestion, not a chat message describing an item.
+- The DM can generate items **onto a player's sheet** (they already have write access via
+  `getCharacterAccess`); a player generating for themselves routes through the existing
+  provenance/approval surface. No new permission model — the one that exists is correct.
+- Every AI write is audited (`dnd_sheet_edits`) and marked ✎ (Slice 20), so nothing the AI adds is
+  indistinguishable from something the player earned.
+- The AI reads the ledger (Slice 19), so "make me something to fix my bad AC" can reason about the
+  actual current AC and what is already modifying it.
 
 ---
 
