@@ -104,9 +104,16 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
   valid IGCharacter with level/abilities/stances/defensive-power/attacks, feats split general/combat, and the
   rules engine resolves it — proficiency 4, Fortitude = rank+level+CON; `buildIGModel` pure/standalone); full
   dnd suite (311) green.
-- **Slice 4 — IG sheet: Identity + Basic Info + Summary.** Bespoke panels rendering intro/bio, the six
-  ability scores + mods, the three saves, and the summary top-line from `data.ig`, with provenance badges;
-  editable; styleable.
+- **Slice 4 — IG sheet: Identity + Basic Info + Summary.** ✅ `app/dnd/_ui/IGSheet.tsx` renders the
+  `IGCharacter` sidecar (`data.ig`): the header (name / level / class + subclass + specialization +
+  background with **VANILLA/CUSTOM/DM-GRANTED badges**), the **six ability scores + modifiers** (from
+  `igAbilityMod`), the **three saves** + Hit Points + Proficiency top-line (from `igDerived`/`igSaves` — real
+  math, never guessed), and the **Character Introduction** details (ancestry/alignment/culture/religion/
+  values/age/physical + languages/tools/vehicles + bio), each shown only when set. Wired into the character
+  page for **any viewer** of an Intuitive Games character that has a built `data.ig` (guarded by
+  `isIGCharacter`). Uses the platform design tokens so it's styleable via the existing custom layout/CSS.
+  Verified: `tsc` clean, lint clean, full dnd suite (311) green (the derived numbers come from the
+  Slice-2-tested rules engine; a live render pass is Slice 11 QA — no React test harness in-repo).
 - **Slice 5 — IG sheet: Skills.** The rank-budgeted, ability-grouped skills + combat skills with
   Ranks/Prof/Misc/Total computed by `rules.ts`; ranks-available/spent tracker.
 - **Slice 6 — IG sheet: Combat.** Attacks table (focus/specialization/proficient, attack + total damage from
@@ -137,4 +144,4 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
 - **Reuse:** build on the shipped content library, catalog, provenance, submission/approval, DM grants,
   campaign policy, the custom-sheet/style engine, and `/ai-edit` grounding — don't fork them.
 
-### Status: IN PROGRESS (Slices 0–3 shipped; 4–11 pending)
+### Status: IN PROGRESS (Slices 0–4 shipped; 5–11 pending)
