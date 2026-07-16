@@ -512,12 +512,19 @@ is invalid HTML). Tests: `effect-star.test.ts` — ledger no-false-positives / s
 names-every-source / suppressed-surfaced, plus source anchors for the accessible-button, inline-safe,
 token-only, and per-stat wiring invariants (826 pass).
 
-**Scope note — speed/HP/AC effective-value folding is Slice 15, not this.** The star marks values
-whose *displayed number already reflects the ledger* (abilities and everything derived from them).
-Walk speed, max HP and AC are still shown from their stored base (AC via `deriveAc`'s own path), so
-starring them would mark a number the effect hasn't actually moved yet. Those get their star the
-moment Slice 15 routes them through the ledger's `value()` — the marker code is already generic over
-any target, so it's a one-line add per stat then.
+**Scope note — the ledger-folding of raw combat numbers.** The star marks values whose *displayed
+number already reflects the ledger* (abilities and everything derived from them). Progress on the
+raw combat numbers:
+- **Walk speed ✅ folded + starred** (commit pending). `CombatPanel` now shows
+  `ledger.value('speed_walk', combat.speed)` and stars it — a Boots of Striding +10 renders 40 ft
+  with the ★. Speed is display-only, so this has none of max-HP's heal-clamp interaction.
+- **Max HP — still on the base.** Folding `hp_max` through the ledger is entangled with the heal/
+  damage clamp (`adjustHp` caps against the stored max); doing it without that would show a higher
+  max than you can actually heal to. Deferred until the clamp reads the folded max too.
+- **AC — still via `deriveAc`.** `deriveAc` already folds item + activeEffect AC on its own path;
+  routing AC through the ledger as well would double-count. Needs the two reconciled first.
+The marker code is generic over any target, so each of these is a one-line add once its value is
+ledger-routed.
 
 ### Original spec
 

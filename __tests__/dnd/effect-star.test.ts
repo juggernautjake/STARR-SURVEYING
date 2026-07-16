@@ -15,6 +15,7 @@ const STAR = read('app/dnd/_sheet/components/ui/EffectStar.tsx');
 const ABILITIES = read('app/dnd/_sheet/components/Abilities.tsx');
 const SAVES = read('app/dnd/_sheet/components/SavesSkills.tsx');
 const ATTACKS = read('app/dnd/_sheet/components/Attacks.tsx');
+const COMBAT = read('app/dnd/_sheet/components/CombatPanel.tsx');
 const CSS = read('app/dnd/_sheet/styles/theme.css');
 
 function belted(bonus: number): Character {
@@ -111,6 +112,14 @@ describe('every ability-derived value on the sheet carries the star', () => {
     expect(ATTACKS).toContain('EffectStar');
     expect(ATTACKS).toContain('target={`ability_${abilityKey}`}'); // to hit
     expect(ATTACKS).toContain("target={`ability_${a.saveDcAbility ?? 'str'}`}"); // save DC
+  });
+
+  it('walking speed is folded through the ledger and starred (Slice 15)', () => {
+    // The DISPLAYED speed must be the ledger value, not the raw base — else a Boots +10 stars a
+    // number it never moved. Max HP / AC stay on the base for now (heal-clamp / deriveAc overlap).
+    expect(COMBAT).toContain("ledger.value('speed_walk', combat.speed)");
+    expect(COMBAT).toContain('target="speed_walk"');
+    expect(COMBAT).toContain('{walkSpeed} ft');
   });
 });
 

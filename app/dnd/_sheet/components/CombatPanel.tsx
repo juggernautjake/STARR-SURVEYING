@@ -6,10 +6,11 @@ import { md } from '../lib/inline'
 import { RichRules } from './RuleTip'
 import SectionHead from './ui/SectionHead'
 import ElementMenu from './ui/ElementMenu'
+import EffectStar from './ui/EffectStar'
 import TraitEditor from './ui/TraitEditor'
 
 export default function CombatPanel() {
-  const { char, setChar, editMode, canWrite, adjustHp, rollDeathSave, spendHitDie, shortRest, longRest } = useChar()
+  const { char, setChar, editMode, canWrite, ledger, adjustHp, rollDeathSave, spendHitDie, shortRest, longRest } = useChar()
   const [editingTrait, setEditingTrait] = useState<{ index: number; text: string } | null>(null)
   const removeTrait = (i: number) => {
     if (!confirm('Delete this trait? This cannot be undone.')) return
@@ -31,6 +32,11 @@ export default function CombatPanel() {
     () => deriveAc(char.inventory, abilityMod(char.abilities.dex), combat.ac, char.activeEffects),
     [char.inventory, char.abilities.dex, combat.ac, char.activeEffects],
   )
+
+  // Walk speed through the ledger (Slice 15): a Boots of Striding +10 shows here and stars itself.
+  // Speed is display-only, so folding it has none of max-HP's heal-clamp interaction — that stays
+  // on the base for now. `value` returns the base untouched when nothing modifies it.
+  const walkSpeed = ledger.value('speed_walk', combat.speed)
 
   const dying = combat.currentHp <= 0
 
@@ -194,7 +200,13 @@ export default function CombatPanel() {
               <strong>Initiative {signed(abilityMod(char.abilities.dex) + combat.initiativeMisc)}</strong> — DEX-based; roll it from the quick bar.
             </li>
             <li>
-              <strong>Speed {combat.speed} ft</strong> — {combat.speedNote}
+              <strong>
+                Speed{' '}
+                <EffectStar target="speed_walk" label="Walking speed">
+                  {walkSpeed} ft
+                </EffectStar>
+              </strong>{' '}
+              — {combat.speedNote}
             </li>
             {/* Species/class traits are character-owned — this list used to hardcode a
                 single character's species traits onto every sheet. */}
