@@ -1,54 +1,133 @@
 'use client'
-// ActiveEffects — the Active-Effects tracker (DND_ITEM_BUILDER, Slice 6). Shows every effect
-// currently applied to the character: temporary effects from consumed buffs / DM boons
-// (removable by the player or DM), plus passive effects from equipped/attuned items (shown
-// with their source; removed by unequipping the item). Theme-token styled → reads on all skins.
+// ActiveEffects — everything currently modifying this character (Slice 12).
+//
+// The scenario this exists for, from the request verbatim: a character drinks a potion that makes
+// them super strong for 12 hours, forgets to end it, comes back next session strong and doesn't
+// know why. Without this panel that state is invisible and the sheet quietly lies.
+//
+// It is a READ of the effect ledger — it re-derives nothing. It used to format effects with its
+// own local `fmtEffect` and list equipped items by hand, which is the exact drift the ledger
+// exists to prevent: two places computing "what is this item doing to me" WILL disagree, and the
+// sheet has no way to say which is right. Now the ★ tooltips, this panel and the builder preview
+// all render through one describeEffect.
+//
+// Mounted above the tabs in App, so it is on EVERY template.
+import { useMemo } from 'react'
 import { useChar } from '../state/store'
-import type { Effect } from '../engine/effects'
+import type { Contribution, SourceKind } from '@/lib/dnd/effects/ledger'
 
-function fmtEffect(e: Effect): string {
-  const t = e.target.replace(/_/g, ' ')
-  if (e.operation === 'add' && typeof e.value === 'number') return `${t} ${e.value >= 0 ? '+' : ''}${e.value}`
-  if (e.operation === 'set' || e.operation === 'set_base') return `${t} = ${e.value}`
-  return `${t}: ${e.operation}${e.value != null ? ` ${e.value}` : ''}`
+/** How each kind of source is labelled, and the verb for ending it. */
+const KIND_META: Record<SourceKind, { label: string; end: string; hint: string }> = {
+  form: { label: 'Form', end: 'End form', hint: 'Leave this form.' },
+  consumed: { label: 'Consumed', end: 'End effect', hint: 'End this effect. The item itself was used up when you took it.' },
+  spell: { label: 'Spell', end: 'End effect', hint: 'End this spell effect.' },
+  condition: { label: 'Condition', end: 'End effect', hint: 'Clear this condition.' },
+  dm: { label: 'DM boon', end: 'End effect', hint: 'End this boon.' },
+  attuned: { label: 'Attuned', end: 'Unequip', hint: 'Take it off — an item cannot be worn but switched "off".' },
+  item: { label: 'Worn', end: 'Unequip', hint: 'Take it off — an item cannot be worn but switched "off".' },
+  // A class/species feature is not something you "end" — it is what the character IS.
+  feature: { label: 'Feature', end: '', hint: '' },
+}
+
+const ORDER: SourceKind[] = ['form', 'consumed', 'spell', 'condition', 'dm', 'attuned', 'item', 'feature']
+
+interface SourceRow {
+  id: string
+  name: string
+  kind: SourceKind
+  contributions: Contribution[]
 }
 
 export default function ActiveEffects() {
-  const { char, removeActiveEffect } = useChar()
-  const active = char.activeEffects ?? []
-  const equippedWithEffects = (char.inventory ?? []).filter((i) => (i.equipped || i.attuned) && (i.effects?.length ?? 0) > 0)
+  const { char, ledger, canWrite, setChar, removeActiveEffect } = useChar()
 
-  if (active.length === 0 && equippedWithEffects.length === 0) return null
+  // Group by SOURCE, not by target: the question this panel answers is "what is doing things to
+  // me", so the causes are the rows.
+  const rows = useMemo(() => {
+    const map = new Map<string, SourceRow>()
+    for (const entry of Object.values(ledger.byTarget)) {
+      for (const c of entry.contributions) {
+        const key = `${c.sourceKind}:${c.sourceId ?? c.source}`
+        if (!map.has(key)) map.set(key, { id: c.sourceId ?? c.source, name: c.source, kind: c.sourceKind, contributions: [] })
+        map.get(key)!.contributions.push(c)
+      }
+    }
+    const all = [...map.values()]
+    return ORDER.flatMap((k) => all.filter((r) => r.kind === k))
+  }, [ledger])
+
+  const durationFor = (id: string) => (char.activeEffects ?? []).find((e) => e.id === id)?.duration
+
+  function end(row: SourceRow) {
+    // ONE rule: you end an effect by removing its CAUSE.
+    //  · A worn item's effect is caused by wearing it → unequip. "Worn but off" is unrepresentable
+    //    and pretending otherwise would make the sheet lie about its own state.
+    //  · A consumed potion's item is already gone; its effect stands alone → just drop it.
+    if (row.kind === 'item' || row.kind === 'attuned') {
+      setChar((c) => ({
+        ...c,
+        inventory: (c.inventory ?? []).map((i) =>
+          i.id === row.id
+            ? { ...i, equipped: false, attuned: false, tags: (i.tags ?? []).filter((t) => t !== 'equipped') }
+            : i,
+        ),
+      }))
+      return
+    }
+    removeActiveEffect(row.id)
+  }
+
+  // Nothing active is a fact worth stating, not a reason to vanish. A panel that disappears when
+  // empty trains you not to look for it — and "is anything on me?" is the question it answers.
+  if (rows.length === 0) {
+    return (
+      <div className="card ae-card">
+        <div className="ae-head">✦ Active Effects</div>
+        <p className="ae-empty">Nothing is modifying this character — every number on the sheet is its own.</p>
+      </div>
+    )
+  }
 
   return (
-    <div className="card" style={{ display: 'grid', gap: 8 }}>
-      <div style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--tealbright)', fontWeight: 800 }}>
-        ✦ Active Effects
-      </div>
+    <div className="card ae-card">
+      <div className="ae-head">✦ Active Effects</div>
+      <p className="ae-empty">
+        Everything changing this character right now. If a number is not what you expect, it is here.
+      </p>
 
-      {active.map((ae) => (
-        <div key={ae.id} className="flex" style={{ gap: 8, alignItems: 'flex-start', justifyContent: 'space-between', background: 'var(--panel-2)', border: '1px solid var(--line)', borderRadius: 10, padding: '7px 10px' }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 700, color: 'var(--ink)' }}>
-              {ae.label}
-              {ae.duration && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>· {ae.duration}</span>}
+      {rows.map((row) => {
+        const dur = durationFor(row.id)
+        return (
+          <div className="ae-row" key={`${row.kind}:${row.id}`}>
+            <div className="ae-main">
+              <div className="ae-name">
+                {row.name}
+                <span className="ae-kind">{KIND_META[row.kind].label}</span>
+                {dur && <span className="ae-dur">· {dur}</span>}
+              </div>
+              <ul className="ae-fx">
+                {row.contributions.map((c, i) => (
+                  <li key={i} className={c.suppressed ? 'ae-off' : undefined}>
+                    {c.label}
+                    {/* A suppressed contribution is shown, never hidden. "My belt says +2 but my
+                        STR didn't move" is precisely the confusion this panel exists to end. */}
+                    {c.suppressed && <span className="ae-off-tag">overridden — doing nothing</span>}
+                  </li>
+                ))}
+              </ul>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--hotpink)' }}>{ae.effects.map(fmtEffect).join(' · ') || 'no mechanical effect'}</div>
-            {ae.source && <div style={{ fontSize: 11, color: 'var(--muted)' }}>from {ae.source}</div>}
+            {canWrite && KIND_META[row.kind].end && (
+              <button className="btn tiny danger" title={KIND_META[row.kind].hint} onClick={() => end(row)}>
+                {KIND_META[row.kind].end}
+              </button>
+            )}
           </div>
-          <button className="btn tiny danger" title="Remove this effect" onClick={() => removeActiveEffect(ae.id)}>✕</button>
-        </div>
-      ))}
+        )
+      })}
 
-      {equippedWithEffects.map((it) => (
-        <div key={it.id} className="flex" style={{ gap: 8, alignItems: 'center', justifyContent: 'space-between', border: '1px dashed var(--line)', borderRadius: 10, padding: '6px 10px' }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{it.name} <span style={{ fontSize: 11, color: 'var(--muted)' }}>({it.attuned ? 'attuned' : 'equipped'})</span></div>
-            <div style={{ fontSize: 12, color: 'var(--tealbright)' }}>{(it.effects ?? []).map(fmtEffect).join(' · ')}</div>
-          </div>
-          <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>unequip to remove</span>
-        </div>
-      ))}
+      {/* Durations are shown as authored and never expire on a timer. This is a table aid, not a
+          simulation — the DM decides when time passes. Noticing next session is the whole point. */}
+      <p className="ae-note">Durations never run out on their own — the DM decides when time passes.</p>
     </div>
   )
 }

@@ -224,6 +224,86 @@
   background: rgba(var(--violet-rgb), 0.1);
   color: var(--ink);
 }
+/* The Active Effects panel (Slice 12) — every source currently modifying the character, with the
+   RESOLVED effect it is having. Token-driven throughout so it reads on every skin. */
+.dnd-sheet .ae-card {
+  display: grid;
+  gap: 8px;
+}
+.dnd-sheet .ae-head {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--tealbright);
+  font-weight: 800;
+}
+.dnd-sheet .ae-empty {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.dnd-sheet .ae-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+  background: rgba(var(--violet-rgb), 0.08);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 7px 10px;
+}
+.dnd-sheet .ae-main {
+  min-width: 0;
+}
+.dnd-sheet .ae-name {
+  font-weight: 700;
+  color: var(--ink);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.dnd-sheet .ae-kind {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+.dnd-sheet .ae-dur {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.dnd-sheet .ae-fx {
+  margin: 3px 0 0;
+  padding: 0 0 0 14px;
+  font-size: 12.5px;
+  color: var(--tealbright);
+}
+.dnd-sheet .ae-fx li {
+  margin: 1px 0;
+}
+/* A suppressed contribution is dimmed and struck, never hidden — the panel exists to explain why
+   your belt is doing nothing, so it has to still be on screen saying so. */
+.dnd-sheet .ae-fx li.ae-off {
+  color: var(--muted-2);
+  text-decoration: line-through;
+}
+.dnd-sheet .ae-off-tag {
+  margin-left: 6px;
+  font-size: 10.5px;
+  color: var(--danger);
+  text-decoration: none;
+}
+.dnd-sheet .ae-note {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--muted-2);
+}
+
 /* ★ = "something is modifying this value RIGHT NOW" (Slice 13). Distinct from ✎ (Slice 20),
    which means "this differs from its source". A vanilla score under a magic belt gets ★ and no ✎;
    a hand-edited spell nothing is buffing gets ✎ and no ★. Merging them would produce a marker
