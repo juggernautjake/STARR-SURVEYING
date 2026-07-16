@@ -1061,7 +1061,13 @@ the ItemBuilder has no way to set a fixed to-hit or a save DC, and **spells** ha
       bonus and a spell that sets its own DC should resolve through the same pipeline, not a parallel
       field. (After the Slice 10 fix, `value('spell_save_dc', base)` composes correctly.)
 
-## Slice 34 — Build-mode selector: make it look like the rest of the UI
+## Slice 34 — Build-mode selector: make it look like the rest of the UI ✅ SHIPPED 2026-07-16
+
+Restyled Ruthless/Questioning/Step-by-step from raw radio bubbles into selectable Hextech cards —
+whole card clickable (`role=radio` in a `radiogroup`, keyboard/SR-friendly), active one gets a gold
+rail + glow + ✓. Same modes and behaviour. Verified in the app.
+
+### Original spec
 
 > "the little bubble selection for the type of character building looks bad. Please change it and
 > make it look better and match the UI styling better."
