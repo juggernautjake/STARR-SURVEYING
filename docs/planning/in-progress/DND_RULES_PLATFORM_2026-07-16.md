@@ -1077,7 +1077,7 @@ feature that doesn't exist — and today most of these elements have no affordan
 - [ ] Reachable by keyboard and touch, like Slice 13's markers. Never hover-only.
 - [ ] Tests: every element kind exposes a ⋯; a viewer sees none; each menu opens its editor.
 
-## Slice 28 — Art and thumbnails for everything
+## Slice 28 — Art and thumbnails for everything ⏳ PARTIAL 2026-07-16
 
 > "we need to be able to upload item and weapon and spell and etc for everything and have it be able
 > to be displayed… We will need to be able to create little thumbnail tokens for everything."
@@ -1085,11 +1085,17 @@ feature that doesn't exist — and today most of these elements have no affordan
 The upload path already exists (Slice 2b shipped character-gallery upload; the `dnd-media` bucket
 and `kind='item'` are already modelled). What's missing is that nothing but the character has art.
 
-- [ ] Upload art for **any** element: item, weapon, armor, spell, feature, form, effect. Same
-      endpoint, same bucket, `kind` per element type.
+- [x] **Items: upload ✅ (was already there) + render ✅ SHIPPED (commit pending).** The ItemBuilder
+      has always uploaded and stored an item `image`; the Gear list never showed it. Now a `.inv-thumb`
+      thumbnail renders inline next to the item name from the stored `image` (token-driven border,
+      falls back to nothing when unset). The classic "data was there, nothing rendered it" gap. Tests:
+      `item-thumbnail.test.ts` (3).
+- [ ] Upload art for the OTHER elements — weapon-as-attack, spell, feature, form, effect. Same endpoint
+      + bucket, `kind` per type; needs an upload control wired into each editor (AttackEditor/
+      SpellEditor/FeatureEditor don't have one yet) + the type field to store it.
 - [ ] **Thumbnail tokens**: a square crop rendered inline next to the element everywhere it appears
-      — inventory rows, attack rows, spell lists, the Active Effects panel (Slice 12), the ⋯ menu.
-      Generated on upload, not by scaling the full image in CSS every render.
+      — ~~inventory rows~~ (done), attack rows, spell lists, the Active Effects panel (Slice 12), the
+      ⋯ menu. Generated on upload, not by scaling the full image in CSS every render.
 - [ ] A **kind icon fallback** so an element with no art still renders a token rather than a hole.
       Every row looks intentional whether or not anyone uploaded anything.
 - [ ] AI-attached art (Slice 14) uses the same path — no second mechanism.

@@ -530,6 +530,18 @@
   text-decoration: line-through;
 }
 
+/* Inventory item thumbnail (Slice 28) — the small square of an item's uploaded art in the Gear list.
+   Inline with the name; token border so it reads on every skin. */
+.dnd-sheet .inv-thumb {
+  width: 26px;
+  height: 26px;
+  object-fit: cover;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  vertical-align: middle;
+  margin-right: 7px;
+}
+
 /* ✎ = "this element was hand-customized" (Slice 20). Distinct from ★ (something modifying it now):
    see EditMark.tsx. Gold + help cursor; token-driven so every skin re-tints it. */
 .dnd-sheet .edit-mark {

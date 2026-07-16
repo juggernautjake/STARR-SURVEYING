@@ -156,6 +156,12 @@ export default function Inventory() {
             </div>
             <div>
               <div className="inv-name">
+                {/* An item's uploaded art (ItemBuilder already stores `image`) — the Gear list never
+                    showed it (Slice 28). A thumbnail here, falling back to nothing when unset. */}
+                {it.image && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={it.image} alt="" className="inv-thumb" />
+                )}
                 {it.name}
                 <EditMark on={it.customized} />
                 {canWrite && (
