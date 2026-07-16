@@ -62,7 +62,10 @@ describe('panel text follows the theme ink, not hardcoded white', () => {
   // These sit on cards/panels/translucent tints — the ones reported as unreadable.
   const PANEL_RULES = [
     '.dnd-sheet .stat .big',        // AC / Save DC / Speed values
-    '.dnd-sheet .ab .score',        // ability scores
+    '.dnd-sheet .ab .score',        // ability scores (Abilities tab)
+    '.dnd-sheet .apill .asc',       // ability scores (stat rail) — STR/DEX/CON/INT/WIS/CHA
+    '.dnd-sheet .inline-edit',      // the double-click-to-edit field
+    '.dnd-sheet .tab.on',           // the active tab
     '.dnd-sheet .ability-name',
     '.dnd-sheet .res-head .rn',     // combat-tab resource labels
     '.dnd-sheet .tray-title',       // dice roller

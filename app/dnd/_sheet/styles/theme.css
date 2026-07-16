@@ -2154,11 +2154,13 @@
   padding: 6px 14px;
   min-width: 64px;
 }
+/* The STR/DEX/CON/INT/WIS/CHA score. Was hardcoded #fff — white on the light parchment/MLM
+   skins, i.e. the number you most need to read was the least readable. Follows the theme ink. */
 .dnd-sheet .apill .asc {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 22px;
-  color: #fff;
+  color: var(--ink);
   line-height: 1;
 }
 .dnd-sheet .apill .am {
@@ -2289,7 +2291,7 @@
   background: var(--void-2);
   border: 1px solid var(--tealbright);
   border-radius: 5px;
-  color: #fff;
+  color: var(--ink);
 }
 
 /* TABS */
@@ -2326,7 +2328,7 @@
   background: rgba(var(--violet-rgb), 0.12);
 }
 .dnd-sheet .tab.on {
-  color: #fff;
+  color: var(--ink);
   border-color: var(--line-strong);
   background: rgba(var(--hotpink-rgb), 0.14);
   box-shadow: inset 0 0 0 1px rgba(var(--hotpink-rgb), 0.25), 0 0 18px -8px var(--hotpink);
