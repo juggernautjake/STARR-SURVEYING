@@ -189,22 +189,37 @@ Reported while Slice 2 was in flight.
       what it can't measure. It took a screenshot to see. A new guard now fails the build on any
       inline `color` on a `.sec-num` (verified by injecting a violation).
 
-## Slice 3 — AI situational adjudication
+## Slice 3 — AI situational adjudication ✅ SHIPPED 2026-07-16
 
 The chat can already answer rules questions. It must also rule on *this character in this moment*.
 
-- [ ] Pass character context into `POST /api/dnd/library/chat` (already accepts `characterId`):
+- [x] Pass character context into `POST /api/dnd/library/chat` (already accepts `characterId`):
       load the sheet, build a digest (class, level, features, conditions, resources, gear).
-- [ ] Adjudication prompt: given the character + the grounded rules, answer questions like
+      → `lib/dnd/character-digest.ts`. **Facts only, deliberately small**: no bio prose (not
+      evidence for a ruling, and it burns the window), bodies trimmed to a reminder (the full text
+      is already in the grounding block), nothing inferred. Features are filtered by `unlockLevel`
+      so a level-7 sheet can never be ruled on as if it had its level-20 capstone.
+- [x] Adjudication prompt: given the character + the grounded rules, answer questions like
       "can I cast this while grappled?", "does my feat apply here?", "what happens if I shove a
       creature two sizes larger?". It must reason to a ruling, cite the rule it used, and say
       plainly when the rules genuinely don't settle it (then suggest a DM call).
-- [ ] Mount the chat on the character sheet with the character's system pinned.
-- [ ] Tests: the prompt carries the character digest; the cross-system hint still fires; the
-      chat refuses to invent a rule.
+      → `adjudicationInstruction()`: ruling first, then why (citing the rule *and* the thing on
+      the sheet it turns on), concede when the rules don't settle it, name what's missing when the
+      character simply can't do the thing.
+- [x] Mount the chat on the character sheet with the character's system pinned.
+      → `app/dnd/characters/[id]/page.tsx`. The route **re-checks access itself** (`getCharacterAccess`)
+      — a chat endpoint must not become a way to read a sheet you can't open — and the *character's*
+      system overrides the client's focus, since a ruling for this sheet must use this sheet's rulebook.
+- [x] Tests: the prompt carries the character digest; the cross-system hint still fires; the
+      chat refuses to invent a rule. → `__tests__/dnd/character-digest.test.ts` (11 tests).
 
 **Done when:** on Jack's sheet you can ask "can I use Cross Counter while grappled?" and get a
 grounded, character-aware answer.
+
+**Note — the absence of a fact is a fact.** `CONDITIONS: none` is stated explicitly rather than
+left implicit: a model reading silence about conditions will happily assume whichever answer it
+already wanted. Same reasoning behind `(+N more not listed)` — a silent truncation reads to the
+model as "this is the complete list", which is exactly how a ruling ends up ignoring a feature.
 
 ## Slice 4 — 5e 2024: feats, backgrounds, species, languages
 

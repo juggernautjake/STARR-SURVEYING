@@ -27,6 +27,7 @@ import { readGrants } from '@/lib/dnd/dm-grant';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
 import SheetChatPanel from '@/app/dnd/_ui/SheetChatPanel';
+import LibraryChat from '@/app/dnd/_ui/LibraryChat';
 import AddToDemoButton from '@/app/dnd/_ui/AddToDemoButton';
 import { dndAiConfigured } from '@/lib/dnd/ai';
 import { DEMO_CAMPAIGN_ID } from '@/lib/dnd/constants';
@@ -138,6 +139,17 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
         canWrite={canWrite}
         customLayout={character.custom_layout}
         customCss={character.custom_css}
+      />
+      {/* Ask the librarian ABOUT THIS CHARACTER. The system is pinned to the character's own, and
+          passing characterId makes the chat adjudicate against the real sheet ("can I shove while
+          grappled?") rather than answer about a generic character. Anyone who can see the sheet can
+          ask; the route re-checks access itself. */}
+      <LibraryChat
+        aiConfigured={dndAiConfigured()}
+        system={normalizeSystem((character as { system?: string }).system)}
+        characterId={character.id}
+        characterName={character.name}
+        title={`Ask the librarian about ${character.name}`}
       />
       {character.campaign_id && <SheetChatPanel campaignId={character.campaign_id} actorName={character.name} />}
       {canWrite && <SheetEditChat characterId={character.id} characterName={character.name} aiConfigured={dndAiConfigured()} />}
