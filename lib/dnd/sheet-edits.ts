@@ -5,8 +5,9 @@
 // refining = edits onto the current one. Pure + typed so it's unit-tested and the API
 // can trust the result before persisting.
 import type Anthropic from '@anthropic-ai/sdk';
-import type { Character, Attack, FeatureBlock, InvItem, Resource } from '@/app/dnd/_sheet/types';
+import type { Character, Attack, FeatureBlock, InvItem, Resource, CustomTag } from '@/app/dnd/_sheet/types';
 import type { AbilityKey, ProfLevel } from '@/app/dnd/_sheet/rules/dnd';
+import { validateCustomTag, RESERVED_TAGS } from '@/app/dnd/_sheet/components/ui/tagInfo';
 
 export type SheetEdit =
   | { op: 'set_name'; value: string }
@@ -29,7 +30,12 @@ export type SheetEdit =
   // by current name; `to` is the new name.
   | { op: 'rename_attack'; name: string; to: string }
   | { op: 'rename_feature'; name: string; to: string }
-  | { op: 'rename_item'; name: string; to: string };
+  | { op: 'rename_item'; name: string; to: string }
+  // Custom tags (Slice 32). The AI can mint a tag WITH its definition (kept on the character) and
+  // apply tags to an item. Same rules as the hand path: a definition is required, and the wiring
+  // tags (weapon/consumable/equipped) are reserved. `define_tag` name = the tag, `desc` = its meaning.
+  | { op: 'define_tag'; name: string; desc: string }
+  | { op: 'tag_item'; name: string; tag: string };
 
 const ABILITY_KEYS: AbilityKey[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'x';
@@ -48,7 +54,8 @@ export function editPath(e: SheetEdit): string {
     case 'set_combat': return `combat.${e.field}`;
     case 'add_attack': case 'remove_attack': case 'rename_attack': return `attacks[${slug(e.name)}]`;
     case 'add_feature': case 'remove_feature': case 'rename_feature': return `features[${slug(e.name)}]`;
-    case 'add_item': case 'remove_item': case 'rename_item': return `inventory[${slug(e.name)}]`;
+    case 'add_item': case 'remove_item': case 'rename_item': case 'tag_item': return `inventory[${slug(e.name)}]`;
+    case 'define_tag': return `customTags[${slug(e.name)}]`;
     case 'add_resource': return `resources[${slug(e.name)}]`;
   }
 }
@@ -112,6 +119,24 @@ export function applySheetEdits(input: Character, edits: SheetEdit[]): Character
         if (to) c.inventory = c.inventory.map((i) => (eqName(i.name, e.name) ? { ...i, name: to } : i));
         break;
       }
+      case 'define_tag': {
+        // Same guard as the hand path: refuse an undefined tag or a reserved name rather than
+        // coerce it — a silently-dropped or mechanics-shadowing tag is worse than a no-op.
+        const existing = (c.customTags ?? []) as CustomTag[];
+        if (validateCustomTag(e.name, e.desc ?? '', existing)) break;
+        c.customTags = [...existing, { name: e.name.trim(), description: (e.desc ?? '').trim() }];
+        break;
+      }
+      case 'tag_item': {
+        const tag = String((e as { tag?: unknown }).tag ?? '').trim();
+        // Never let the AI apply a reserved wiring tag by hand — those are derived from the item's
+        // kind/equip state, not free-labelled.
+        if (!tag || RESERVED_TAGS.includes(tag.toLowerCase())) break;
+        c.inventory = c.inventory.map((i) =>
+          eqName(i.name, e.name) && !(i.tags ?? []).includes(tag) ? { ...i, tags: [...(i.tags ?? []), tag] } : i,
+        );
+        break;
+      }
       case 'add_feature': {
         const feat: FeatureBlock = { id: `ai-feat-${slug(e.name)}`, name: e.name, source: e.source ?? 'Feature', body: e.body };
         c.features = [...c.features.filter((f) => !eqName(f.name, e.name)), feat];
@@ -164,10 +189,11 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
           properties: {
             op: {
               type: 'string',
-              enum: ['set_name', 'set_meta', 'set_level', 'set_ability', 'set_save_proficient', 'set_skill', 'set_combat', 'add_attack', 'remove_attack', 'rename_attack', 'add_feature', 'remove_feature', 'rename_feature', 'add_item', 'remove_item', 'rename_item', 'add_resource'],
+              enum: ['set_name', 'set_meta', 'set_level', 'set_ability', 'set_save_proficient', 'set_skill', 'set_combat', 'add_attack', 'remove_attack', 'rename_attack', 'add_feature', 'remove_feature', 'rename_feature', 'add_item', 'remove_item', 'rename_item', 'add_resource', 'define_tag', 'tag_item'],
             },
             field: { type: 'string', description: 'For set_meta: kicker|role|species|className|subclass. For set_combat: ac|maxHp|currentHp|speed.' },
             to: { type: 'string', description: 'For rename_* ops: the NEW name. Renames keep every other field — use these to rename an attack/feature/item, never remove + re-add (that drops its stats).' },
+            tag: { type: 'string', description: 'For tag_item: the tag to add to the item named by `name`. Must already be a built-in tag or one you defined with define_tag; weapon/consumable/equipped are reserved.' },
             ability: { type: 'string', enum: ABILITY_KEYS },
             skill: { type: 'string', description: 'Skill key, e.g. athletics, stealth, perception.' },
             prof: { type: 'string', enum: ['none', 'proficient', 'expertise'] },

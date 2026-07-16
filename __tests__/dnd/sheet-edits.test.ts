@@ -111,6 +111,43 @@ describe('applySheetEdits', () => {
       expect(out.inventory.map((i) => i.name)).toEqual(before.inventory.map((i) => i.name));
     });
   });
+
+  describe('the AI can define + apply custom tags (Slice 32)', () => {
+    function withItem() {
+      const c = blankCharacter('X');
+      c.inventory = [{ id: 'i1', name: 'Cursed Blade', desc: '', qty: 1, tags: [] }] as typeof c.inventory;
+      return c;
+    }
+
+    it('define_tag adds a defined tag to the character', () => {
+      const out = applySheetEdits(withItem(), [{ op: 'define_tag', name: 'cursed', desc: 'Cannot be removed without a Remove Curse.' }]);
+      expect(out.customTags).toEqual([{ name: 'cursed', description: 'Cannot be removed without a Remove Curse.' }]);
+    });
+
+    it('refuses an undefined tag and a reserved name', () => {
+      // The definition is required — an undefined tag recreates the "what does FLAVOR mean?" problem.
+      const noDesc = applySheetEdits(withItem(), [{ op: 'define_tag', name: 'cursed', desc: '' }]);
+      expect(noDesc.customTags ?? []).toEqual([]);
+      // weapon/consumable/equipped are wiring, not labels.
+      const reserved = applySheetEdits(withItem(), [{ op: 'define_tag', name: 'weapon', desc: 'looks dangerous' }]);
+      expect(reserved.customTags ?? []).toEqual([]);
+    });
+
+    it('tag_item applies a tag to the named item', () => {
+      const out = applySheetEdits(withItem(), [{ op: 'tag_item', name: 'Cursed Blade', tag: 'cursed' }]);
+      expect(out.inventory.find((i) => i.name === 'Cursed Blade')?.tags).toContain('cursed');
+    });
+
+    it('tag_item never applies a reserved wiring tag, and never duplicates', () => {
+      const out1 = applySheetEdits(withItem(), [{ op: 'tag_item', name: 'Cursed Blade', tag: 'weapon' }]);
+      expect(out1.inventory[0].tags).not.toContain('weapon'); // weapon is derived from kind, not free-tagged
+      const out2 = applySheetEdits(withItem(), [
+        { op: 'tag_item', name: 'Cursed Blade', tag: 'flavor' },
+        { op: 'tag_item', name: 'Cursed Blade', tag: 'flavor' },
+      ]);
+      expect(out2.inventory[0].tags.filter((t) => t === 'flavor')).toHaveLength(1);
+    });
+  });
 });
 
 describe('editPath', () => {

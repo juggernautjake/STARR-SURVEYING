@@ -34,7 +34,7 @@
 /** Op-name prefixes that are legitimate, character-sheet-scoped mutations. Every
  *  `edit_sheet` op must start with one of these — anything else would imply a target
  *  outside the character's own sheet. */
-const CHARACTER_SCOPED_PREFIXES = ['set_', 'add_', 'remove_', 'rename_', 'clear_', 'update_', 'move_', 'append_'];
+const CHARACTER_SCOPED_PREFIXES = ['set_', 'add_', 'remove_', 'rename_', 'clear_', 'update_', 'move_', 'append_', 'define_', 'tag_'];
 
 /** Words that, appearing in an op name, would signal a write reaching OUTSIDE the target
  *  character's own sheet — a boundary violation. */

@@ -1027,8 +1027,11 @@ Slice 27 shipped tooltips for the five built-in tags (`tagInfo.ts`). This makes 
       `tagInfo()` already returns null for unknown tags — extend it to consult the character's own
       tags before giving up, so the Gear list and the editor both explain a homebrew tag exactly the
       way they explain `flavor`.
-- [ ] **The AI can do both** through the structured vocabulary (`add_tag` / `define_tag` ops), never
-      by writing markup.
+- [x] **The AI can do both** through the structured vocabulary — `define_tag` (name + required
+      definition, kept on the character) and `tag_item` (apply a tag to an item), never by writing
+      markup. Both go through the same `validateCustomTag` guard as the hand path (definition
+      required, reserved names refused) and the AI-scope allow-list gained the `define_`/`tag_`
+      prefixes. 4 tests.
 - [ ] **Built-in tags stay reserved.** `weapon`, `consumable` and `equipped` are load-bearing —
       `weapon` puts a thing in the Attacks table, `consumable` makes it usable-and-gone, `equipped`
       applies its effects. A custom tag that shadows one of those would silently change mechanics,
