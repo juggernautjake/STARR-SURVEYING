@@ -5,9 +5,65 @@
 // refining = edits onto the current one. Pure + typed so it's unit-tested and the API
 // can trust the result before persisting.
 import type Anthropic from '@anthropic-ai/sdk';
-import type { Character, Attack, FeatureBlock, InvItem, Resource, CustomTag } from '@/app/dnd/_sheet/types';
+import type { Character, Attack, FeatureBlock, InvItem, Resource, CustomTag, ItemKind, WeaponStats, ArmorStats, ConsumableStats } from '@/app/dnd/_sheet/types';
+import type { Effect } from '@/app/dnd/_sheet/engine/effects';
 import type { AbilityKey, ProfLevel } from '@/app/dnd/_sheet/rules/dnd';
 import { validateCustomTag, RESERVED_TAGS } from '@/app/dnd/_sheet/components/ui/tagInfo';
+import { validateEffect } from '@/lib/dnd/effects/targets';
+
+/** The full set of fields an item edit can carry (Slice 14). Shared by add_item + update_item so
+ *  the AI authors and refines an item through the SAME shape — a generated item is indistinguishable
+ *  from a hand-built one, and refining never has to remove + re-add (which drops fields). */
+export interface ItemPayload {
+  desc?: string;
+  qty?: number;
+  kind?: ItemKind;
+  equipped?: boolean;
+  attuned?: boolean;
+  image?: string;
+  tags?: string[];
+  weapon?: WeaponStats;
+  armor?: ArmorStats;
+  consumable?: ConsumableStats;
+  /** Passive bonuses while equipped/attuned — the whole point of Slice 14. Validated at the
+   *  boundary (cleanEffects): an unknown target/operation is DROPPED, never coerced, because an
+   *  item whose effect silently didn't parse is worse than one whose effect was refused. */
+  effects?: Effect[];
+}
+
+const ITEM_KINDS: ItemKind[] = ['weapon', 'armor', 'shield', 'consumable', 'wondrous', 'gear'];
+
+/** Keep only effects that pass the registry validator. Rejections are surfaced separately by
+ *  `validateSheetEdits` so the failure is visible; here we simply never let garbage reach the
+ *  ledger, where it would resolve to a plausible-but-wrong number. */
+export function cleanEffects(raw: unknown): Effect[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((e): e is Effect => validateEffect(e as Record<string, unknown>) === null);
+}
+
+/** Merge an ItemPayload's recognised fields onto an item, dropping absent fields (so a partial
+ *  update_item touches only what it names) and validating effects. Reserved wiring tags stay out
+ *  of the free-tag list — `equipped` is its own boolean, `weapon`/`consumable` derive from `kind`. */
+function applyItemPayload(base: InvItem, p: ItemPayload): InvItem {
+  const out: InvItem = { ...base };
+  if (p.desc != null) out.desc = String(p.desc);
+  if (p.qty != null) out.qty = Math.max(0, Math.round(p.qty));
+  if (p.kind != null && ITEM_KINDS.includes(p.kind)) out.kind = p.kind;
+  if (p.equipped != null) out.equipped = p.equipped === true;
+  if (p.attuned != null) out.attuned = p.attuned === true;
+  if (p.image != null) out.image = String(p.image);
+  if (p.weapon != null) out.weapon = p.weapon;
+  if (p.armor != null) out.armor = p.armor;
+  if (p.consumable != null) out.consumable = p.consumable;
+  if (p.effects != null) out.effects = cleanEffects(p.effects);
+  if (Array.isArray(p.tags)) {
+    const clean = p.tags
+      .map((t) => String(t).trim())
+      .filter((t) => t && !RESERVED_TAGS.includes(t.toLowerCase()));
+    out.tags = [...new Set([...(out.tags ?? []), ...clean])];
+  }
+  return out;
+}
 
 export type SheetEdit =
   | { op: 'set_name'; value: string }
@@ -21,7 +77,12 @@ export type SheetEdit =
   | { op: 'remove_attack'; name: string }
   | { op: 'add_feature'; name: string; source?: string; body: string[] }
   | { op: 'remove_feature'; name: string }
-  | { op: 'add_item'; name: string; desc?: string; qty?: number }
+  // add_item now carries the FULL item (Slice 14): kind, stats, art, and real `effects` that the
+  // ledger resolves — not just a name. update_item merges fields into an existing item; equip_item
+  // toggles whether its effects apply.
+  | ({ op: 'add_item'; name: string } & ItemPayload)
+  | ({ op: 'update_item'; name: string } & ItemPayload)
+  | { op: 'equip_item'; name: string; value?: boolean }
   | { op: 'remove_item'; name: string }
   | { op: 'add_resource'; name: string; max: number; color?: 'pink' | 'teal' | 'gold'; resetOn?: 'short' | 'long' }
   // Rename IN PLACE — change only the name, keep every other field. Without this the AI had to
@@ -54,7 +115,7 @@ export function editPath(e: SheetEdit): string {
     case 'set_combat': return `combat.${e.field}`;
     case 'add_attack': case 'remove_attack': case 'rename_attack': return `attacks[${slug(e.name)}]`;
     case 'add_feature': case 'remove_feature': case 'rename_feature': return `features[${slug(e.name)}]`;
-    case 'add_item': case 'remove_item': case 'rename_item': case 'tag_item': return `inventory[${slug(e.name)}]`;
+    case 'add_item': case 'update_item': case 'equip_item': case 'remove_item': case 'rename_item': case 'tag_item': return `inventory[${slug(e.name)}]`;
     case 'define_tag': return `customTags[${slug(e.name)}]`;
     case 'add_resource': return `resources[${slug(e.name)}]`;
   }
@@ -144,8 +205,23 @@ export function applySheetEdits(input: Character, edits: SheetEdit[]): Character
       }
       case 'remove_feature': c.features = c.features.filter((f) => !eqName(f.name, e.name)); break;
       case 'add_item': {
-        const item: InvItem = { id: `ai-item-${slug(e.name)}`, name: e.name, desc: e.desc ?? '', qty: e.qty ?? 1, tags: [] };
+        // Build on a fresh blank item, then layer the payload — so a bare add_item still works and
+        // a rich one (kind, stats, effects) round-trips. Replaces any same-named item (upsert).
+        const blank: InvItem = { id: `ai-item-${slug(e.name)}`, name: e.name, desc: '', qty: 1, tags: [] };
+        const item = applyItemPayload(blank, e);
         c.inventory = [...c.inventory.filter((i) => !eqName(i.name, e.name)), item];
+        break;
+      }
+      case 'update_item': {
+        // Merge onto the EXISTING item, keeping its id and every field the payload doesn't name.
+        // No-op if there's nothing by that name — update never silently creates (use add_item).
+        c.inventory = c.inventory.map((i) => (eqName(i.name, e.name) ? applyItemPayload(i, e) : i));
+        break;
+      }
+      case 'equip_item': {
+        const v: unknown = e.value ?? raw.value;
+        const equipped = v == null ? true : v === true || v === 'true';
+        c.inventory = c.inventory.map((i) => (eqName(i.name, e.name) ? { ...i, equipped } : i));
         break;
       }
       case 'remove_item': c.inventory = c.inventory.filter((i) => !eqName(i.name, e.name)); break;
@@ -159,6 +235,26 @@ export function applySheetEdits(input: Character, edits: SheetEdit[]): Character
   return c;
 }
 
+/**
+ * Report effects that an add_item/update_item carried but that the registry refused, so the
+ * failure is VISIBLE (the ai-edit route appends these to its summary) rather than a silently
+ * missing bonus. `applySheetEdits` has already dropped them via `cleanEffects`; this is the
+ * explanation of what was dropped and why.
+ */
+export function validateSheetEdits(edits: SheetEdit[]): { path: string; reason: string }[] {
+  const out: { path: string; reason: string }[] = [];
+  for (const e of edits) {
+    if (e.op !== 'add_item' && e.op !== 'update_item') continue;
+    const effects = (e as { effects?: unknown }).effects;
+    if (!Array.isArray(effects)) continue;
+    for (const eff of effects) {
+      const err = validateEffect(eff as Record<string, unknown>);
+      if (err) out.push({ path: editPath(e), reason: err.reason });
+    }
+  }
+  return out;
+}
+
 // The Claude tool whose schema is this edit vocabulary (permissive: `op` selects the
 // meaning; applySheetEdits reads only the fields relevant to each op).
 export const SHEET_EDIT_TOOL: Anthropic.Tool = {
@@ -167,7 +263,10 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
     'Apply a list of structured edits to a D&D character sheet. Emit one edit per change. ' +
     'To build a full character, emit edits for name, level, all six abilities, AC/HP/speed, ' +
     'save proficiencies, key skills, attacks, class/species features, and notable inventory. ' +
-    'Abilities are raw scores (e.g. 16), not modifiers.',
+    'Abilities are raw scores (e.g. 16), not modifiers. ' +
+    'Items are REAL: give an item that grants a bonus an `effects` array (e.g. a Belt of the Bear = ' +
+    '[{ target: "ability_str", operation: "set", value: 19 }]); those effects change the sheet\'s ' +
+    'numbers while the item is equipped. Never fake a bonus in the description — put it in `effects`.',
   input_schema: {
     type: 'object',
     properties: {
@@ -189,7 +288,7 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
           properties: {
             op: {
               type: 'string',
-              enum: ['set_name', 'set_meta', 'set_level', 'set_ability', 'set_save_proficient', 'set_skill', 'set_combat', 'add_attack', 'remove_attack', 'rename_attack', 'add_feature', 'remove_feature', 'rename_feature', 'add_item', 'remove_item', 'rename_item', 'add_resource', 'define_tag', 'tag_item'],
+              enum: ['set_name', 'set_meta', 'set_level', 'set_ability', 'set_save_proficient', 'set_skill', 'set_combat', 'add_attack', 'remove_attack', 'rename_attack', 'add_feature', 'remove_feature', 'rename_feature', 'add_item', 'update_item', 'equip_item', 'remove_item', 'rename_item', 'add_resource', 'define_tag', 'tag_item'],
             },
             field: { type: 'string', description: 'For set_meta: kicker|role|species|className|subclass. For set_combat: ac|maxHp|currentHp|speed.' },
             to: { type: 'string', description: 'For rename_* ops: the NEW name. Renames keep every other field — use these to rename an attack/feature/item, never remove + re-add (that drops its stats).' },
@@ -209,6 +308,28 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
             bonusDamage: { type: 'number' },
             desc: { type: 'string' },
             qty: { type: 'number' },
+            // ── Item fields (add_item / update_item), Slice 14 ──────────────────────────────
+            kind: { type: 'string', enum: ITEM_KINDS, description: 'For add_item/update_item: weapon|armor|shield|consumable|wondrous|gear.' },
+            equipped: { type: 'boolean', description: 'For add_item/update_item/equip_item: whether the item is worn/wielded. An item\'s `effects` apply only while equipped (or equipped AND attuned).' },
+            attuned: { type: 'boolean', description: 'For add_item/update_item: whether the item is attuned. Attuned items apply effects only when equipped AND attuned.' },
+            image: { type: 'string', description: 'For add_item/update_item: item artwork URL (optional; never block mechanics on art).' },
+            tags: { type: 'array', items: { type: 'string' }, description: 'For add_item/update_item: custom tags to attach (must be built-in or define_tag\'d; weapon/consumable/equipped are reserved and ignored here).' },
+            effects: {
+              type: 'array',
+              description:
+                'For add_item/update_item: the item\'s REAL passive effects, applied by the ledger while equipped/attuned. THIS is what makes an item change the sheet. Each effect is { target, operation, value?, condition? }. ' +
+                'target is a key from the effect registry (e.g. ability_str, ac, speed_walk, spell_save_dc, attack_and_damage, resistance, darkvision). operation is add|set|set_base|advantage|disadvantage|grant_proficiency|resistance|immunity|vulnerability|grant_sense (use the ones the target allows). value is a number for numeric targets, a string for text/damage_type/proficiency/sense targets. Omit value for advantage/disadvantage. Unknown targets/operations are REJECTED, not coerced — use only registry keys.',
+              items: {
+                type: 'object',
+                properties: {
+                  target: { type: 'string' },
+                  operation: { type: 'string' },
+                  value: { description: 'Number or string, per the target.' },
+                  condition: { type: 'string', description: 'Optional gate, e.g. raging, bloodied — the effect applies only while true.' },
+                },
+                required: ['target', 'operation'],
+              },
+            },
             max: { type: 'number' },
             color: { type: 'string', enum: ['pink', 'teal', 'gold'] },
             resetOn: { type: 'string', enum: ['short', 'long'] },

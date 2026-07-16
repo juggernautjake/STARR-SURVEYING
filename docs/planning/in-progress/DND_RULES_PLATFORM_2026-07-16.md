@@ -536,7 +536,37 @@ any target, so it's a one-line add per stat then.
 - [ ] Tests: an unmodified sheet has zero stars (no false positives — a star that's always on is
       noise); modifying one ability stars exactly that ability; the tooltip names every source.
 
-## Slice 14 — The AI generates real items, not labels
+## Slice 14 — The AI generates real items, not labels ✅ SHIPPED 2026-07-16 (mechanical effects)
+
+**Shipped: items carry real, ledger-resolved effects (commit pending).** `add_item` (and the new
+`update_item`) now take the full `InvItem` — `kind`, `equipped`, `attuned`, `image`, `weapon`/
+`armor`/`consumable` stats, `tags`, and crucially **`effects: Effect[]`** — through one shared
+`ItemPayload` shape, so a generated item and a hand-built one are indistinguishable. `equip_item`
+toggles whether the effects apply. The end-to-end test that matters passes: an AI-emitted "Belt of
+the Bear" (`{target:'ability_str',operation:'set',value:19}`) actually moves STR to 19 through the
+ledger while the base stays 16 (overlay, not bake), and unequipping gives the character back exactly.
+
+**Rejected, never coerced.** Effects are validated at the boundary against the registry
+(`cleanEffects` drops any unknown target / illegal operation / non-numeric value so no NaN or
+garbage reaches the ledger), and `validateSheetEdits` reports what was dropped — the ai-edit route
+appends "⚠ Dropped N invalid effect(s): …" to its summary so a bonus that didn't take is *visible*,
+not silently missing. The tool schema documents the effect shape and the registry keys; `equip_`
+was added to the ai-scope prefix allow-list. Tests: `ai-items.test.ts` (10) — round-trip to a
+changed number, unequipped contributes nothing, +N AC/attack stack, unknown target dropped+reported,
+illegal op rejected, non-number rejected, update/equip refine without rebuild, schema exposes it.
+
+**Still open (tracked elsewhere, not this slice):**
+- *Identity/grant effects on items* (a pendant that renames you or grants a class/level) ride on
+  **Slice 11** (identity + grant vocabulary). The item *plumbing* is ready — those targets validate
+  and resolve the moment Slice 11 lands; nothing more is needed here.
+- *The manual "Add effect" builder* (a player authoring the same `Effect[]` by hand) is **Slice 17**.
+  The AI path and the manual path must produce the same shape — this slice defined that shape.
+- *Item art generation* is deliberately deferred (the spec: art is the least important part and must
+  never block mechanics). `image` is accepted and stored; generating one is future work.
+- *DM provenance/approval* for generated items reuses the existing `summarizeCharacterProvenance`
+  path (Slice 5); no new approval surface was added.
+
+### Original spec (superseded above for the shipped parts)
 
 - [ ] Widen `add_item` in `lib/dnd/sheet-edits.ts` to the full `InvItem`: `kind`, `desc`, `qty`,
       `image`, `weapon`/`armor`/`consumable` stats, `attuned`, and **`effects: Effect[]`** — the whole

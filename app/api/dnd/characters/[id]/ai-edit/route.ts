@@ -7,7 +7,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession } from '@/lib/dnd/auth';
 import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { dndToolCall, dndAiConfigured } from '@/lib/dnd/ai';
-import { applySheetEdits, editPath, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
+import { applySheetEdits, editPath, validateSheetEdits, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import { applyLayoutEdits, LAYOUT_EDIT_TOOL, type LayoutEdit } from '@/lib/dnd/layout-edits';
 import { normalizeLayout } from '@/lib/dnd/custom-sheet';
 import { systemGroundingBlock } from '@/lib/dnd/grounding';
@@ -120,6 +120,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // ── Mechanics path (Slice 8) ───────────────────────────────────────────────────────
   const edits = editsRaw as SheetEdit[];
+  // An item's effects that the registry refused were DROPPED by applySheetEdits (never coerced);
+  // surface them so a bonus that didn't take is visible, not silently missing (Slice 14).
+  const rejectedEffects = validateSheetEdits(edits);
   const updated = applySheetEdits(current, edits);
   const { error: upErr } = await supabaseAdmin.from('dnd_characters').update({ data: updated, name: updated.meta.name || row.name }).eq('id', params.id);
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
@@ -132,6 +135,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // Safety net (Slice 3): flag anything that doesn't belong to the character's system so a wrong-system
   // mechanic is surfaced to the user rather than silently kept.
   const violations = validateCharacterForSystem(updated, normalizeSystem((row as { system?: string }).system));
-  const summary = [result?.input?.summary ?? null, violations.length ? `⚠ Check: ${violationsSummary(violations)}` : null].filter(Boolean).join('\n');
-  return NextResponse.json({ ok: true, kind: 'mechanics', summary: summary || null, editCount: edits.length, name: updated.meta.name, violations });
+  const summary = [
+    result?.input?.summary ?? null,
+    violations.length ? `⚠ Check: ${violationsSummary(violations)}` : null,
+    rejectedEffects.length ? `⚠ Dropped ${rejectedEffects.length} invalid effect(s): ${rejectedEffects.map((r) => r.reason).join(' ')}` : null,
+  ].filter(Boolean).join('\n');
+  return NextResponse.json({ ok: true, kind: 'mechanics', summary: summary || null, editCount: edits.length, name: updated.meta.name, violations, rejectedEffects });
 }
