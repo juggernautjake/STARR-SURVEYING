@@ -440,14 +440,21 @@ already accepts identity effects (`{target:'name',operation:'set',value:'Zul'}`)
 pendant works end-to-end today. Tests: `identity-overlay.test.ts` (6) — impose-over-untouched-base,
 null-when-none, gone-on-unequip, + Hero wiring anchors. 843 pass.
 
+**Grant: proficiencies ✅ SHIPPED (commit pending).** `grant_proficiency` (weapons/tools/languages —
+both the `proficiency` and `grant_language` targets, which share that op) was collectable by the
+ledger but rendered nowhere. `SavesSkills` now lists granted proficiencies under Skills, each badged
+"from <source>", shown only when non-empty, and gone the moment the item comes off. Tests:
+`grant-proficiency.test.ts` (4) — collected+sourced, empty-when-none, gone-on-unequip, render wiring.
+
 **Still open in this slice (each its own render site / mechanic, deliberately not bundled):**
 - *Other identity fields* — `image`/`token` (portrait + map token), `gender`/`pronouns`/`profession`
   (Bio/Overview), `size`/`creature_type` (mechanical: size drives carrying capacity + grapple). Each
   is a distinct render path; the ledger already resolves them, so each is a small read like the header
   was, done where that field renders.
-- *Grant targets* — `grant_feature`/`grant_attack`/`grant_spell`/`grant_resource`/`grant_sense`. This
-  is the bigger half (a granted feature appears in Features badged to its source and vanishes on
-  unequip) and wants its own slice.
+- *The heavier grant targets* — `grant_feature`/`grant_attack`/`grant_spell`/`grant_resource`/
+  `grant_sense`. Unlike proficiencies (a flat collected list), these mint a whole element (a granted
+  feature appears in Features badged to its source, a granted spell in Spells) and want their own
+  slice each.
 - *A speeds block* — `speed_fly`/`swim`/`climb`/`burrow`/`hover` need a home on the sheet before they
   can be granted (walk speed is folded now; the others render nowhere yet).
 

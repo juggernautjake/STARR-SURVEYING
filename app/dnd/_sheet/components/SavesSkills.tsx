@@ -8,7 +8,11 @@ import EffectStar from './ui/EffectStar'
 const PROF_ORDER: ProfLevel[] = ['none', 'proficient', 'expertise']
 
 export default function SavesSkills() {
-  const { char, abilities, pb, setChar, rollCheck } = useChar()
+  const { char, abilities, pb, setChar, rollCheck, ledger } = useChar()
+  // Proficiencies granted by an active effect (Slice 11 grant-half): a pendant that grants longsword
+  // proficiency, a boon that grants a language. The ledger collects them with their source; this is
+  // their home on the sheet — a granted target that renders nowhere is a lie the engine tells.
+  const grantedProfs = ledger.collected('grant_proficiency')
   const [newName, setNewName] = useState('')
   const [newAbil, setNewAbil] = useState<AbilityKey>('int')
   const [newProf, setNewProf] = useState<ProfLevel>('proficient')
@@ -189,6 +193,25 @@ export default function SavesSkills() {
               + Add
             </button>
           </div>
+
+          {/* Proficiencies granted by an active effect — weapons, tools, languages a pendant/boon
+              hands you while worn. Sourced, so it's clear where it came from and that it's on loan. */}
+          {grantedProfs.length > 0 && (
+            <div className="granted-profs" style={{ marginTop: 12 }}>
+              <div className="res-head">
+                <span className="rn">Granted Proficiencies</span>
+                <span className="rc">while active</span>
+              </div>
+              <ul className="clean" style={{ marginTop: 6 }}>
+                {grantedProfs.map((g) => (
+                  <li key={`${g.value}-${g.source}`}>
+                    <span style={{ textTransform: 'capitalize' }}>{g.value}</span>{' '}
+                    <span className="chip teal" style={{ fontSize: 10 }}>from {g.source}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
     </section>
