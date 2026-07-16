@@ -33,6 +33,8 @@ export interface Attack {
   /** Hand-tuned away from how it was (Slice 20): set true when edited through the in-place editor,
    *  drives the ✎ marker. Distinct from the ★ (something is modifying it right now). */
   customized?: boolean
+  /** Uploaded art for this attack, shown as a thumbnail in the Attacks table (Slice 28). */
+  image?: string
 }
 
 export interface FeatureBlock {
@@ -59,6 +61,8 @@ export interface FeatureBlock {
   effects?: Effect[]
   /** Hand-tuned away from how it was (Slice 20) → drives the ✎ marker. */
   customized?: boolean
+  /** Uploaded art for this feature, shown as a thumbnail on its card (Slice 28). */
+  image?: string
 }
 
 export interface FormAbility {
@@ -227,6 +231,8 @@ export interface Spell {
   effectDuration?: string
   /** Hand-tuned away from how it was (Slice 20) → drives the ✎ marker. */
   customized?: boolean
+  /** Uploaded art for this spell, shown as a thumbnail in the spell list (Slice 28). */
+  image?: string
 }
 
 export interface SpellcastingInfo {

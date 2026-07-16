@@ -103,6 +103,10 @@ export default function Attacks() {
               return (
                 <tr key={granted ? `granted-${source}-${a.id}` : a.id} className={brute ? 'here' : undefined} style={{ opacity: locked ? 0.4 : active ? 1 : 0.55 }}>
                   <td>
+                    {a.image && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={a.image} alt="" className="inv-thumb" />
+                    )}
                     {locked ? (
                       <strong style={{ color: 'var(--muted)' }}>
                         <span className="lock-badge" style={{ marginRight: 8 }}>🔒 Lv {req}</span>

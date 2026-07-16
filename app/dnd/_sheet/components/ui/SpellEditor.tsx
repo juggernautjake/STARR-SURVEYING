@@ -11,6 +11,7 @@ import { ABILITIES, type AbilityKey } from '../../rules/dnd'
 import type { Spell, SpellLevel } from '../../types'
 import EditDialog, { Field } from './EditDialog'
 import { EffectRows } from '../ItemBuilder'
+import ImageUpload from './ImageUpload'
 import { validateEffect } from '@/lib/dnd/effects/targets'
 import { nextCustomized } from '../../lib/customized'
 
@@ -42,6 +43,10 @@ export default function SpellEditor({ spell, onClose }: { spell: Spell; onClose:
     <EditDialog title={`Edit — ${spell.name}`} onClose={onClose} onSave={save}>
       <Field label="Name">
         <input className="ed-input" value={draft.name} onChange={(e) => set('name', e.target.value)} />
+      </Field>
+
+      <Field label="Art" hint="optional thumbnail for this spell">
+        <ImageUpload value={draft.image} onChange={(url) => set('image', url)} />
       </Field>
 
       <div className="ed-row">

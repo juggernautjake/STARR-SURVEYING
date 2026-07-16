@@ -1090,9 +1090,13 @@ and `kind='item'` are already modelled). What's missing is that nothing but the 
       thumbnail renders inline next to the item name from the stored `image` (token-driven border,
       falls back to nothing when unset). The classic "data was there, nothing rendered it" gap. Tests:
       `item-thumbnail.test.ts` (3).
-- [ ] Upload art for the OTHER elements — weapon-as-attack, spell, feature, form, effect. Same endpoint
-      + bucket, `kind` per type; needs an upload control wired into each editor (AttackEditor/
-      SpellEditor/FeatureEditor don't have one yet) + the type field to store it.
+- [x] **Attack / spell / feature art ✅ SHIPPED (commit pending).** A single shared `ImageUpload`
+      control (posts to the media endpoint, `kind='item'`, current-art + change/remove, self-reporting
+      errors) is now mounted in AttackEditor/SpellEditor/FeatureEditor — one uploader, not three
+      copies of the ItemBuilder's inline one. Each type gained an `image` field, and the Attacks table,
+      Features cards and spell list each render the thumbnail. An image edit also trips the ✎ marker
+      (it's a change). Tests: `element-art.test.ts` (6). (Forms/effects art + generating thumbnail
+      crops on upload remain; forms have no editor yet.)
 - [ ] **Thumbnail tokens**: a square crop rendered inline next to the element everywhere it appears
       — ~~inventory rows~~ (done), attack rows, spell lists, the Active Effects panel (Slice 12), the
       ⋯ menu. Generated on upload, not by scaling the full image in CSS every render.

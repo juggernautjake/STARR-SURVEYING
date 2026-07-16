@@ -12,6 +12,7 @@ import { useChar } from '../../state/store'
 import { ABILITIES, type AbilityKey } from '../../rules/dnd'
 import type { Attack } from '../../types'
 import EditDialog, { Field } from './EditDialog'
+import ImageUpload from './ImageUpload'
 import { nextCustomized } from '../../lib/customized'
 
 const DAMAGE_TYPES = [
@@ -38,6 +39,10 @@ export default function AttackEditor({ attack, onClose }: { attack: Attack; onCl
     <EditDialog title={`Edit — ${attack.name}`} onClose={onClose} onSave={save}>
       <Field label="Name">
         <input className="ed-input" value={draft.name} onChange={(e) => set('name', e.target.value)} />
+      </Field>
+
+      <Field label="Art" hint="optional thumbnail for this attack">
+        <ImageUpload value={draft.image} onChange={(url) => set('image', url)} />
       </Field>
 
       <div className="ed-row">

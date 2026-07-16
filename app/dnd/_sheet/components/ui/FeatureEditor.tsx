@@ -8,6 +8,7 @@ import { useChar } from '../../state/store'
 import type { FeatureBlock } from '../../types'
 import EditDialog, { Field } from './EditDialog'
 import { EffectRows } from '../ItemBuilder'
+import ImageUpload from './ImageUpload'
 import { nextCustomized } from '../../lib/customized'
 
 export default function FeatureEditor({ feature, onClose }: { feature: FeatureBlock; onClose: () => void }) {
@@ -29,6 +30,10 @@ export default function FeatureEditor({ feature, onClose }: { feature: FeatureBl
     <EditDialog title={`Edit — ${feature.name}`} onClose={onClose} onSave={save}>
       <Field label="Name">
         <input className="ed-input" value={draft.name} onChange={(e) => set('name', e.target.value)} />
+      </Field>
+
+      <Field label="Art" hint="optional thumbnail for this feature">
+        <ImageUpload value={draft.image} onChange={(url) => set('image', url)} />
       </Field>
 
       <div className="ed-row">

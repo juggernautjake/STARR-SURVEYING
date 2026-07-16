@@ -117,6 +117,10 @@ export default function SpellsPanel() {
                 <div key={s.id} style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '9px 11px', background: 'var(--panel-2)' }}>
                   <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                     <div style={{ fontWeight: 800, color: 'var(--ink)' }}>
+                      {s.image && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={s.image} alt="" className="inv-thumb" />
+                      )}
                       {s.name}
                       <EditMark on={s.customized} />
                       {s.alias && <span style={{ fontSize: 12, color: 'var(--violet)', marginLeft: 6 }}>“{s.alias}”</span>}

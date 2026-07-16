@@ -77,6 +77,10 @@ export default function Features() {
           <div className="card" key={f.id}>
             <h3>
               {f.level && <span className="lvl">{f.level}</span>}
+              {f.image && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={f.image} alt="" className="inv-thumb" />
+              )}
               {f.name}
               <EditMark on={f.customized} />
               {canWrite && (
