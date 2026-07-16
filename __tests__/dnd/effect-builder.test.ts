@@ -32,6 +32,11 @@ describe('the builder is registry-driven, not free text', () => {
   it('shows a plain-English preview line from the shared describeEffect renderer', () => {
     expect(BUILDER).toContain('describeEffect({ target: e.target');
   });
+
+  it('validates effects on save and refuses a broken one with a reason', () => {
+    expect(BUILDER).toContain('validateEffect(eff)');
+    expect(BUILDER).toContain('bad.reason');
+  });
 });
 
 describe('every registry default the picker can produce is a VALID effect', () => {

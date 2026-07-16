@@ -9,7 +9,7 @@ import type { InvItem, ItemKind, WeaponStats, ArmorStats, ConsumableStats, Typed
 import TagPicker from './ui/TagPicker'
 import type { Effect, EffectOperation } from '../engine/effects'
 import type { AbilityKey } from '../rules/dnd'
-import { findTarget, targetsInGroup, describeEffect, TARGET_GROUP_LABELS, type TargetGroup } from '@/lib/dnd/effects/targets'
+import { findTarget, targetsInGroup, describeEffect, validateEffect, TARGET_GROUP_LABELS, type TargetGroup } from '@/lib/dnd/effects/targets'
 
 const KINDS: { id: ItemKind; label: string }[] = [
   { id: 'weapon', label: '⚔ Weapon' },
@@ -57,6 +57,14 @@ export default function ItemBuilder({
 
   function save() {
     if (!it.name.trim()) { setErr('Give the item a name.'); return }
+    // Refuse a broken effect with a REASON rather than saving it (Slice 17): the picker prevents a
+    // bad target/op, but a text target (a resistance, a granted proficiency) left blank would save
+    // an effect the ledger can't apply, and the player would believe it works. Same validator the
+    // AI path uses, so the two agree on what "valid" means.
+    for (const eff of [...(it.effects ?? []), ...(it.consumable?.effect.effects ?? [])]) {
+      const bad = validateEffect(eff)
+      if (bad) { setErr(`Effect “${describeEffect({ target: eff.target, operation: eff.operation, value: eff.value })}”: ${bad.reason}`); return }
+    }
     const kind = it.kind ?? 'gear'
     // Keep tags in sync with kind so the existing tag chips + weapon-roll gating still work.
     const tags = [...new Set([

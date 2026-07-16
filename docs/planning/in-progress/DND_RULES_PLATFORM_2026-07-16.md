@@ -751,11 +751,14 @@ from `describeEffect` — the SAME renderer that drives the ★ tooltip and the 
 what you author reads exactly as the sheet will describe it ("+2 STR", "advantage on Stealth",
 "Resistance: fire"). One renderer, three readers, no drift.
 
+**Validate-on-save with a reason ✅ SHIPPED (commit pending).** `save()` runs every effect (item +
+consumable-buff) through the same `validateEffect` the AI path uses and refuses with a readable
+message ("Effect "Resistance: ": …needs a value.") rather than saving a broken effect the player
+would believe works.
+
 **Still open in this slice:**
 - *Per-effect condition/duration control* (while equipped · while attuned · timed · gated on
   `raging`/`bloodied`) — the engine's `condition` field, not yet exposed in the row.
-- *Validate-on-save with a visible reason* — the picker prevents bad targets/ops, but a text target
-  left blank should refuse on save rather than save an incomplete effect.
 - *Reaching the builder from spell/feature editors too* — today it's on the item builder (and the
   consumable buff sub-editor); the same `EffectRows` should mount in the other editors.
 
