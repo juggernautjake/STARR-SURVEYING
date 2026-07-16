@@ -13,7 +13,7 @@ const CLASSES = classesForSystem(SYS);
 
 describe('the 2014 class roster (authored class-by-class)', () => {
   it('has the classes authored so far, and the system reports it has class data', () => {
-    expect(CLASSES.map((c) => c.name)).toEqual(expect.arrayContaining(['Barbarian', 'Fighter', 'Rogue', 'Monk', 'Ranger', 'Paladin', 'Sorcerer']));
+    expect(CLASSES.map((c) => c.name)).toEqual(expect.arrayContaining(['Barbarian', 'Fighter', 'Rogue', 'Monk', 'Ranger', 'Paladin', 'Sorcerer', 'Warlock']));
     expect(systemHasClasses(SYS)).toBe(true);
   });
 
@@ -257,5 +257,28 @@ describe('Sorcerer 2014 — the edition-specific numbers', () => {
     expect(sp.perLevel[20]).toBe(20);
     expect(sorc.features.some((f) => f.name === 'Metamagic')).toBe(true);
     expect(subclassesFor(SYS, 'sorcerer').map((s) => s.name).sort()).toEqual(['Draconic Bloodline', 'Wild Magic']);
+  });
+});
+
+describe('Warlock 2014 — the edition-specific numbers', () => {
+  const warlock = findClass(SYS, 'warlock')!;
+
+  it('is a PACT caster (few slots, all highest-rank, short-rest) chosen at level 1', () => {
+    expect(warlock.spellcasting?.kind).toBe('pact');
+    expect(warlock.spellcasting?.pactSlots?.[1]).toBe(1);
+    expect(warlock.spellcasting?.pactRank?.[20]).toBe(5); // caps at 5th-rank pact slots
+    expect(warlock.subclassLevel).toBe(1);
+  });
+
+  it('has Eldritch Invocations, a Pact Boon at 3, and Mystic Arcanum at 11/13/15/17', () => {
+    expect(warlock.features.some((f) => f.name === 'Eldritch Invocations')).toBe(true);
+    expect(warlock.features.some((f) => f.name === 'Pact Boon' && f.level === 3)).toBe(true);
+    const arcanaLevels = warlock.features.filter((f) => /Mystic Arcanum/.test(f.name)).map((f) => f.level).sort((a, b) => a - b);
+    expect(arcanaLevels).toEqual([11, 13, 15, 17]);
+  });
+
+  it('offers exactly the three PHB patrons (Archfey, Fiend, Great Old One)', () => {
+    const subs = subclassesFor(SYS, 'warlock').map((s) => s.name).sort();
+    expect(subs).toEqual(['The Archfey', 'The Fiend', 'The Great Old One']);
   });
 });
