@@ -3,7 +3,7 @@ import { md } from '../lib/inline'
 import SectionHead from './ui/SectionHead'
 
 export default function Forms() {
-  const { char, setChar } = useChar()
+  const { char, setChar, activeFormId } = useChar()
   const level = char.meta.level
   const setActive = (id: string) => setChar((c) => ({ ...c, activeFormId: id }))
 
@@ -38,7 +38,7 @@ export default function Forms() {
       {char.forms.map((f) => {
         const unlocked = f.unlockLevel <= level
         const gating = gatingOf(f.id, unlocked)
-        const active = char.activeFormId === f.id
+        const active = activeFormId === f.id
         return (
           <div key={f.id} className={`form ${f.cls} ${active ? 'activeform' : ''} ${unlocked ? '' : 'locked'}`}>
             <div className="form-bar" />

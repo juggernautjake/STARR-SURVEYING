@@ -73,3 +73,23 @@ describe('a transform effect imposes a form, resolved by the ledger', () => {
     expect(led.value('ability_str', 10)).toBe(19); // ...but the active form still applies
   });
 });
+
+describe('the sheet renders the EFFECTIVE active form (Slice 18 render threading)', () => {
+  const read = (p: string) => require('node:fs').readFileSync(require('node:path').join(process.cwd(), p), 'utf8');
+  it('the store exposes an effective activeFormId that overlays the base', () => {
+    const store = read('app/dnd/_sheet/state/store.tsx');
+    expect(store).toContain("ledger.transform()?.value ?? char.activeFormId");
+    expect(store).toContain('activeFormId,'); // in the context value
+  });
+  it('the form-reading components use the effective id, not char.activeFormId', () => {
+    for (const f of ['Attacks', 'DiceTray', 'FormAbilities', 'Forms', 'SavesSkills', 'StatRail']) {
+      const src = read(`app/dnd/_sheet/components/${f}.tsx`);
+      // each destructures activeFormId from useChar and no longer reads char.activeFormId directly.
+      expect(src, `${f} uses effective activeFormId`).toMatch(/activeFormId[,\s}]/);
+      expect(src, `${f} no longer reads char.activeFormId`).not.toContain('char.activeFormId');
+    }
+  });
+  it('the Forms toggle still writes the BASE activeFormId (transform stays an overlay)', () => {
+    expect(read('app/dnd/_sheet/components/Forms.tsx')).toContain('activeFormId: id'); // setActive writes base
+  });
+});

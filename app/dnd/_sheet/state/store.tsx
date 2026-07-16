@@ -78,6 +78,10 @@ interface Ctx {
    *  cache. Edits keep working and are cached locally; they sync when the DB returns. */
   offline: boolean
   pb: number
+  /** The EFFECTIVE active form id (Slice 18): the form a `transform` effect imposes, else the
+   *  character's own `activeFormId`. Components render THIS so an imposed form shows as active;
+   *  the form TOGGLE still writes `char.activeFormId` (the base), so the transform stays an overlay. */
+  activeFormId: string
   /** DM mode (§6.8.1): unlocks the DM override panel + full edit control. */
   isDM: boolean
   /** Viewer can edit this character (owner OR DM) — gates owner-level tools. */
@@ -508,6 +512,9 @@ export function CharacterProvider({
     () => char.profBonusOverride ?? ledger.value('proficiency_bonus', profBonusForLevel(char.meta.level)),
     [char.profBonusOverride, char.meta.level, ledger],
   )
+
+  // Effective active form (Slice 18): a transform effect's imposed form overlays the base one.
+  const activeFormId = useMemo(() => ledger.transform()?.value ?? char.activeFormId, [ledger, char.activeFormId])
 
   const commitRoll = useCallback((entry: Omit<RollEntry, 'id'>) => {
     setLog((l) => [{ ...entry, id: idRef.current++ }, ...l].slice(0, 40))
@@ -955,6 +962,7 @@ export function CharacterProvider({
     reloadFromDb,
     offline,
     pb,
+    activeFormId,
     isDM,
     canWrite: canWrite ?? isDM,
     characterId: characterId ?? null,

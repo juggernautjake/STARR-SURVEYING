@@ -830,14 +830,20 @@ anti-"permanent bear" guarantee — a save mid-transform can't strand a druid as
 wins; the base form never contributes. Tests: `transform.test.ts` (5) — impose, apply, base-untouched,
 revert-on-drop, and manual-form-still-works.
 
-**Remaining — render the form's whole sheet.** Today the imposed form's *ledger* effects apply (stats
-move, stars light, the Active Effects panel shows the transform source), but the sheet still renders
-the base character's own attacks/strikeDie/form-abilities/Forms-tab highlight — those read
-`char.activeFormId` directly. The follow-up is threading the EFFECTIVE form id
-(`ledger.transform()?.value ?? char.activeFormId`) into those components (the same edit-base/
-display-overlay pattern used for abilities/identity), plus the per-form carry-over policy
-(`keepMental`/`separateHp`/…) for a full statblock swap. That's the render half; the resolution half
-is done and tested.
+**Render threading ✅ SHIPPED (commit pending).** The store now exposes an EFFECTIVE `activeFormId`
+(`ledger.transform()?.value ?? char.activeFormId`), and the six form-reading components — Attacks
+(strikeDie + form-only gating), DiceTray, FormAbilities, Forms (active highlight), SavesSkills (form
+stealth), StatRail (form label) — read it instead of `char.activeFormId`. So an imposed transform now
+shows the form as active across the whole sheet, while the Forms toggle still writes the BASE id (the
+transform stays an overlay). Combined with the resolution + ledger-effect overlay, a character's own
+form can now be triggered by an item/spell, renders fully, and reverts exactly. Tests:
+`transform.test.ts` (8).
+
+**Remaining — the arbitrary-statblock swap with carry-over policy.** "Become a bear you don't have as
+a form / become another PC entirely" (a whole foreign sheet, not one of your own `forms`) still needs
+the per-form carry-over policy (`keepMental`/`keepFeatures`/`separateHp`/…) and a form authored as a
+full sheet (Slice 17's builder over a form). That's the heavier half; transforming into your OWN
+defined forms — the common case — is done end-to-end.
 
 ### Original spec
 

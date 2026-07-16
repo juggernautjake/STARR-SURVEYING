@@ -3,8 +3,8 @@ import { abilityMod } from '../rules/dnd'
 import SectionHead from './ui/SectionHead'
 
 export default function FormAbilities() {
-  const { char, pb, useFormAbility, rollDmg } = useChar()
-  const form = char.forms.find((f) => f.id === char.activeFormId)
+  const { char, pb, activeFormId, useFormAbility, rollDmg } = useChar()
+  const form = char.forms.find((f) => f.id === activeFormId)
   const surged = char.combat.transformActive
   const saveDC = 8 + pb + abilityMod(char.abilities.str)
 

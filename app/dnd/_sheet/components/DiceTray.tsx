@@ -5,7 +5,7 @@ import RollStage from './RollStage'
 import { setMuted, isMuted, primeAudio } from '../lib/audio'
 
 export default function DiceTray() {
-  const { log, clearLog, resetStage, activeRoll, advMode, setAdvMode, transformActive, topFormId, transform, endTransform, nextTurn, recklessActive, toggleReckless, rollCheck, rollExpr, char } = useChar()
+  const { log, clearLog, resetStage, activeRoll, advMode, setAdvMode, transformActive, topFormId, transform, endTransform, nextTurn, recklessActive, toggleReckless, rollCheck, rollExpr, char, activeFormId } = useChar()
   // Reckless (Barbarian) and the Surge/transform controls are character-only mechanics —
   // gate them on the sheet_type's registered modules so other characters don't get a
   // dead '🔥 Surge' button or a Reckless toggle they have no feature for.
@@ -21,7 +21,7 @@ export default function DiceTray() {
 
   const combat = char.combat
   const topForm = char.forms.find((f) => f.id === topFormId)
-  const activeForm = char.forms.find((f) => f.id === char.activeFormId)
+  const activeForm = char.forms.find((f) => f.id === activeFormId)
 
   const toggleMute = () => {
     primeAudio()

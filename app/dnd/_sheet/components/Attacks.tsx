@@ -11,7 +11,7 @@ import EffectStar from './ui/EffectStar'
 import EditMark from './ui/EditMark'
 
 export default function Attacks() {
-  const { char, abilities, pb, rollCheck, rollDmg, transformActive, recklessActive, canWrite, setChar } = useChar()
+  const { char, abilities, pb, activeFormId, rollCheck, rollDmg, transformActive, recklessActive, canWrite, setChar } = useChar()
   const [editing, setEditing] = useState<Attack | null>(null)
 
   const duplicate = (a: Attack) =>
@@ -24,7 +24,7 @@ export default function Attacks() {
     setChar((c) => ({ ...c, attacks: c.attacks.filter((x) => x.id !== a.id) }))
   }
   const hasReckless = useSheetModule('reckless')
-  const activeForm = char.forms.find((f) => f.id === char.activeFormId)
+  const activeForm = char.forms.find((f) => f.id === activeFormId)
   // Damage dice scaling is declared BY THE ATTACK, not by hardcoded ids: an attack can follow
   // the active form's strike die and/or a per-level ladder. Anything else uses its flat damage.
   const dieFor = (a: (typeof char.attacks)[number]) => {
@@ -94,7 +94,7 @@ export default function Attacks() {
               const saveDC = a.saveDcOverride ?? (8 + pb + abilityMod(abilities[a.saveDcAbility ?? 'str']))
               const dmgFlat = isSave ? 0 : mod + (a.bonusDamage ?? 0) // AOE dice don't add the ability mod
               const brute = a.formOnly === 'brute'
-              const active = !a.formOnly || char.activeFormId === a.formOnly
+              const active = !a.formOnly || activeFormId === a.formOnly
               const req = a.unlockLevel ?? 1
               const locked = req > char.meta.level
               const dmgLabel = isSave

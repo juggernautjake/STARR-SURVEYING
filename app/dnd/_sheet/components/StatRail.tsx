@@ -3,7 +3,7 @@ import { ABILITIES, abilityMod, signed } from '../rules/dnd'
 import InlineNumber from './ui/InlineNumber'
 
 export default function StatRail() {
-  const { char, abilities, ledger, pb, setChar, rollCheck, setExhaustion, canWrite, characterId } = useChar()
+  const { char, abilities, ledger, pb, setChar, rollCheck, setExhaustion, canWrite, characterId, activeFormId } = useChar()
   const { combat } = char
   const level = char.meta.level
   // Advantage on Initiative is the Barbarian's Feral Instinct — a class feature, not something
@@ -15,7 +15,7 @@ export default function StatRail() {
   const dexMod = abilityMod(char.abilities.dex)
   const init = dexMod + combat.initiativeMisc
   const dc = combat.saveDCOverride ?? 8 + pb + strMod
-  const activeForm = char.forms.find((f) => f.id === char.activeFormId)
+  const activeForm = char.forms.find((f) => f.id === activeFormId)
   const formLabel = activeForm ? activeForm.name.split('—').pop()?.trim() : 'Base'
   const hpRatio = combat.currentHp / Math.max(1, combat.maxHp)
   const hpTone = combat.currentHp <= 0 ? 'crit' : hpRatio <= 0.35 ? 'crit' : hpRatio <= 0.6 ? 'warn' : 'ok'

@@ -8,7 +8,7 @@ import EffectStar from './ui/EffectStar'
 const PROF_ORDER: ProfLevel[] = ['none', 'proficient', 'expertise']
 
 export default function SavesSkills() {
-  const { char, abilities, pb, setChar, rollCheck, ledger } = useChar()
+  const { char, abilities, pb, setChar, rollCheck, ledger, activeFormId } = useChar()
   // Proficiencies granted by an active effect (Slice 11 grant-half): a pendant that grants longsword
   // proficiency, a boon that grants a language. The ledger collects them with their source; this is
   // their home on the sheet — a granted target that renders nowhere is a lie the engine tells.
@@ -116,7 +116,7 @@ export default function SavesSkills() {
               const mod = abilityMod(abilities[sk.ability]) + profContribution(st.prof, pb) + st.misc
               // Base Form ("The Kid") is small and unassuming → advantage on Stealth.
               // The larger Surge forms (Brute, Titan…) are anything but subtle.
-              const stealthAdv = sk.key === 'stealth' && char.activeFormId === 'base'
+              const stealthAdv = sk.key === 'stealth' && activeFormId === 'base'
               return (
                 <div className="rrow" key={sk.key}>
                   <button
