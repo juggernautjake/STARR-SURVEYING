@@ -31,13 +31,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const { data: charRows } = charIds.length
     ? await supabaseAdmin
         .from('dnd_characters')
-        .select('id, name, token_url, art_url, owner_user_id, played_by_user_id, is_npc, sheet_type')
+        .select('id, name, token_url, art_url, owner_user_id, played_by_user_id, is_npc, roster_role, sheet_type')
         .in('id', charIds)
         .order('is_npc', { ascending: true })
     : { data: [] };
   const characters = (charRows ?? []) as {
     id: string; name: string; token_url: string | null; art_url: string | null;
-    owner_user_id: string | null; played_by_user_id: string | null; is_npc: boolean; sheet_type: string | null;
+    owner_user_id: string | null; played_by_user_id: string | null; is_npc: boolean; roster_role: string | null; sheet_type: string | null;
   }[];
 
   // Names for members + character owners/players (owners may not be campaign members).
@@ -70,6 +70,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       name: c.name,
       token_url: c.token_url ?? c.art_url ?? null,
       is_npc: c.is_npc,
+      rosterRole: c.roster_role ?? (c.is_npc ? 'generic_npc' : 'pc'),
       sheet_type: c.sheet_type ?? undefined,
       ownerUserId: c.owner_user_id,
       ownerName: c.owner_user_id ? userById.get(c.owner_user_id)?.display_name ?? null : null,

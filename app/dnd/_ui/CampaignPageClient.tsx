@@ -18,6 +18,7 @@ export interface CampaignDetail {
   members: { userId: string; role: string; displayName: string; avatarUrl?: string | null }[]
   characters: {
     id: string; name: string; token_url?: string | null; is_npc: boolean; sheet_type?: string;
+    rosterRole?: string; // 'pc' | 'special_npc' | 'generic_npc' (Slice 30)
     ownerUserId?: string | null; ownerName?: string | null; playedByUserId?: string | null; playedByName?: string | null;
   }[]
   sessions: { id: string; title: string; status: string; sort_order: number }[]
@@ -84,6 +85,15 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
     const res = await fetch(`/api/dnd/campaigns/${data.campaign.id}/members/${userId}`, { method: 'DELETE' })
     if (res.ok) setData((d) => (d ? { ...d, members: d.members.filter((m) => m.userId !== userId) } : d))
     else { const j = await res.json().catch(() => ({})); setMemberErr(j.error || 'Could not remove that player.') }
+  }
+
+  // Move a character between roster categories (Slice 30). Editorial only — the sheet is untouched;
+  // the server keeps is_npc in sync. Optimistic local update so the card jumps groups immediately.
+  async function setRosterRole(id: string, rosterRole: string) {
+    setData((d) => (d ? { ...d, characters: d.characters.map((c) => (c.id === id ? { ...c, rosterRole, is_npc: rosterRole !== 'pc' } : c)) } : d))
+    await fetch(`/api/dnd/characters/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roster_role: rosterRole }),
+    }).catch(() => {})
   }
 
   // Assign who plays a character (ownership never changes). '' = the owner plays it.
@@ -294,9 +304,24 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                   const shown = q ? data.characters.filter((c) => c.name.toLowerCase().includes(q)) : data.characters
                   if (data.characters.length === 0) return <p style={{ color: 'var(--hx-muted)' }}>No characters yet.</p>
                   if (shown.length === 0) return <p style={{ color: 'var(--hx-muted)' }}>No characters match “{search.trim()}”.</p>
+                  // Group by roster category (Slice 30): PCs, special NPCs, generic NPCs. Editorial
+                  // buckets over the same Character — moving between them is a field change.
+                  const roleOf = (c: (typeof shown)[number]) => c.rosterRole ?? (c.is_npc ? 'generic_npc' : 'pc')
+                  const GROUPS: { key: string; label: string }[] = [
+                    { key: 'pc', label: 'Player Characters' },
+                    { key: 'special_npc', label: 'Special NPCs' },
+                    { key: 'generic_npc', label: 'Generic NPCs' },
+                  ]
                   return (
+                  <div style={{ display: 'grid', gap: 16 }}>
+                    {GROUPS.map((g) => {
+                      const inGroup = shown.filter((c) => roleOf(c) === g.key)
+                      if (inGroup.length === 0) return null
+                      return (
+                  <div key={g.key} style={{ display: 'grid', gap: 8 }}>
+                    <h3 style={{ margin: 0, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--hx-gold-2)' }}>{g.label} <span style={{ color: 'var(--hx-muted)' }}>· {inGroup.length}</span></h3>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
-                    {shown.map((c) => {
+                    {inGroup.map((c) => {
                       const players = data.members.filter((m) => m.role !== 'dm')
                       const playedBy = c.playedByUserId && c.playedByUserId !== c.ownerUserId ? c.playedByName : null
                       return (
@@ -325,6 +350,18 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                             <option value="">Played by owner</option>
                             {players.map((m) => <option key={m.userId} value={m.userId}>Played by {m.displayName}</option>)}
                           </select>
+                          {/* Move between roster categories (Slice 30) — editorial, not mechanical. */}
+                          <select
+                            className={styles.input}
+                            style={{ width: '100%', padding: '4px 8px', fontSize: 11 }}
+                            value={c.rosterRole ?? (c.is_npc ? 'generic_npc' : 'pc')}
+                            onChange={(e) => setRosterRole(c.id, e.target.value)}
+                            title="Categorise this character: a player character, a special (named/recurring) NPC, or a generic NPC. This is editorial only — it never changes the sheet."
+                          >
+                            <option value="pc">Player Character</option>
+                            <option value="special_npc">Special NPC</option>
+                            <option value="generic_npc">Generic NPC</option>
+                          </select>
                           <button
                             onClick={() => removeFromCampaign(c.id, c.name)}
                             title="Remove this character from THIS campaign only. The owner keeps it — it just leaves this table. (A character can be in several campaigns.)"
@@ -333,6 +370,10 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                             ✕ remove from campaign
                           </button>
                         </div>
+                      )
+                    })}
+                  </div>
+                  </div>
                       )
                     })}
                   </div>

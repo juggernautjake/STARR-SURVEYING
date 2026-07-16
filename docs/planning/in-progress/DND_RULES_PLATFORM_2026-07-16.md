@@ -943,7 +943,24 @@ with `drawImage` does **not** work — the drawing buffer is cleared after compo
 `preserveDrawingBuffer` is set. The readback comes back empty, so a "no lit pixels on the border ⇒
 not clipped" check passes for *any* input, including a badly clipped one. Verify by screenshot.
 
-## Slice 30 — Campaign roster: PCs, special NPCs, generic NPCs
+## Slice 30 — Campaign roster: PCs, special NPCs, generic NPCs ✅ SHIPPED 2026-07-16
+
+- [x] `roster_role` column on `dnd_characters` (`pc` | `special_npc` | `generic_npc`), seed 448,
+      default `pc`, backfilled from `is_npc`. Applied + verified idempotent.
+- [x] The DM roster (`CampaignPageClient`) groups characters by category with a header + count per
+      group, and each card has a category selector to move it. Optimistic local update jumps the
+      card to its new group instantly.
+- [x] Editorial, not mechanical — the same `Character`, same engine; changing category is a field
+      change. The character PATCH accepts `roster_role` (validated to the three values) and keeps
+      `is_npc` in sync. Promoting a generic NPC never touches its sheet.
+- [x] Verified end to end against the live API with a fresh DM session: detail returns `rosterRole`,
+      a new character defaults to `pc`, PATCH → `special_npc` sticks and sets `is_npc: true`, an
+      invalid role is rejected (400). Test data cleaned up.
+
+**Deferred to Slice 31:** the roster grouping is DM-side; the player hub still lists all characters
+flat. And "quick vs full" NPC builders are the Slice 31 work proper.
+
+### Original spec
 
 > "for the campaign character management, I want to split it up so that we can have multiple
 > categories of characters. We will have generic npcs, special npcs, and then pcs."

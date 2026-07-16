@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 // the rest cover media/descriptions/theme edits. Unknown keys are ignored.
 // `played_by_user_id` assigns who plays the character (ownership never changes) and is
 // gated to the owner/DM below.
-const WRITABLE = ['data', 'bio', 'name', 'theme', 'art_url', 'token_url', 'visibility', 'quick_stats', 'is_library', 'played_by_user_id', 'sheet_type'] as const;
+const WRITABLE = ['data', 'bio', 'name', 'theme', 'art_url', 'token_url', 'visibility', 'quick_stats', 'is_library', 'played_by_user_id', 'sheet_type', 'roster_role'] as const;
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const res = await getCharacterAccess(params.id);
@@ -45,6 +45,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
   if ('visibility' in patch && !['private', 'campaign', 'public'].includes(String(patch.visibility))) {
     return NextResponse.json({ error: 'Invalid visibility.' }, { status: 400 });
+  }
+  // Roster category (Slice 30): pc | special_npc | generic_npc. Editorial only, DM/owner sets it.
+  // Keep is_npc in sync so existing NPC-vs-PC filters and defaults stay correct.
+  if ('roster_role' in patch) {
+    const rr = String(patch.roster_role);
+    if (!['pc', 'special_npc', 'generic_npc'].includes(rr)) {
+      return NextResponse.json({ error: 'Invalid roster role.' }, { status: 400 });
+    }
+    patch.is_npc = rr !== 'pc';
   }
   // Sheet style (Slice 7): only a known, user-selectable style may be chosen via the
   // browser — never the AI-only `custom` or an arbitrary string.
