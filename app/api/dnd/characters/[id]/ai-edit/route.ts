@@ -4,18 +4,45 @@
 // and log each edit to dnd_sheet_edits. Powers G2 (build) and I3 (refine).
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
+import { getDndSession } from '@/lib/dnd/auth';
+import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { dndToolCall, dndAiConfigured } from '@/lib/dnd/ai';
 import { applySheetEdits, editPath, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
+import { applyLayoutEdits, LAYOUT_EDIT_TOOL, type LayoutEdit } from '@/lib/dnd/layout-edits';
+import { normalizeLayout } from '@/lib/dnd/custom-sheet';
+import { systemGroundingBlock } from '@/lib/dnd/grounding';
+import { validateCharacterForSystem, violationsSummary } from '@/lib/dnd/system-validate';
+import { normalizeSystem } from '@/lib/dnd/systems';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
 
+// Routing hint so the agent picks the right tool: mechanics → edit_sheet, look/layout →
+// customize_layout. Both only ever touch THIS character (Slice 8b).
+const LAYOUT_ROUTING =
+  'If the user asks to change the SHEET ITSELF — its layout, sections, blocks, widgets, styling, colors, ' +
+  'fonts, or format (move/resize/restyle/add/remove elements, set CSS) — call customize_layout. If they ask ' +
+  'to change the CHARACTER — feats, abilities, mechanics, transformations, spells, attacks, stats — call ' +
+  'edit_sheet. Never touch anything outside this character.';
+
+/** A compact index of the current custom blocks so the agent can target them by position. */
+function layoutSummary(raw: unknown): string {
+  const { blocks } = normalizeLayout(raw);
+  if (!blocks.length) return '(none yet — a layout edit starts a custom sheet)';
+  return blocks.map((b, i) => `${i}:${b.type}`).join(', ');
+}
+
+// A system-agnostic architect prompt; the per-character system grounding (Slice 3) is
+// folded in below so edits stay strictly within the character's chosen ruleset and never
+// borrow from — or invent — another system's mechanics (Slice 8: the grounded edit path).
 const SYSTEM =
-  'You are a D&D 5e character architect. You receive a character sheet (JSON) and an instruction. ' +
-  'Call the edit_sheet tool with the minimal, valid set of structured edits that satisfies the instruction. ' +
-  'Ability scores are raw values (e.g. 16), never modifiers. When asked to build a full NPC from scratch, ' +
-  'produce a complete, playable, level-appropriate kit: name, level, all six abilities, AC/HP/speed, save ' +
-  'proficiencies, a few skills, one or more attacks, signature features, and notable inventory.';
+  'You are a tabletop RPG character architect. You receive a character sheet (JSON) and an instruction, ' +
+  'and you make ONLY the change the user asked for — adding or altering feats, abilities, mechanics, ' +
+  'transformations, spells, attacks, features, resources, stats, or inventory. Call the edit_sheet tool ' +
+  'with the minimal, valid set of structured edits that satisfies the instruction. Ability scores are raw ' +
+  'values (e.g. 16), never modifiers. When asked to build a full character from scratch, produce a complete, ' +
+  'playable, level-appropriate kit: name, level, all six abilities, AC/HP/speed, save proficiencies, a few ' +
+  'skills, one or more attacks, signature features, and notable inventory. Do not touch anything the user did ' +
+  'not ask about.';
 
 function sheetDigest(c: Character): string {
   return JSON.stringify({
@@ -37,31 +64,62 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const { instruction } = await req.json().catch(() => ({}));
   if (!instruction || !String(instruction).trim()) return NextResponse.json({ error: 'An instruction is required.' }, { status: 400 });
 
-  const { data: ch } = await supabaseAdmin.from('dnd_characters').select('id, campaign_id, owner_user_id, name, data').eq('id', params.id).maybeSingle();
-  if (!ch) return NextResponse.json({ error: 'Character not found.' }, { status: 404 });
-  const row = ch as { id: string; campaign_id: string; owner_user_id: string | null; name: string; data: Character | null };
-  const isDM = (await getCampaignRole(row.campaign_id)) === 'dm';
-  const isOwner = row.owner_user_id === session.userId;
-  if (!isDM && !isOwner) return NextResponse.json({ error: 'You cannot edit this character.' }, { status: 403 });
+  // The single write chokepoint (Slice 8b boundary): keyed to THIS character id + the
+  // caller's owner/assigned-player/DM authorization. No path writes elsewhere.
+  const access = await requireCharacterWrite(params.id);
+  if (!access.access) return NextResponse.json({ error: access.error }, { status: access.status });
+  const row = access.access.character;
+  const isDM = access.access.isDM;
+  const instr = String(instruction).trim();
 
-  const current: Character = row.data ?? blankCharacter(row.name);
+  const current: Character = (row.data as unknown as Character | null) ?? blankCharacter(row.name);
+
+  // System grounding (Slice 3/8): edits must stay inside the character's chosen system —
+  // no cross-system rules, no invented mechanics.
+  const grounding = await systemGroundingBlock((row as { system?: string }).system, instr).catch(() => null);
 
   let result;
   try {
-    result = await dndToolCall<{ summary?: string; edits: SheetEdit[] }>({
-      system: SYSTEM,
-      user: `Current sheet:\n${sheetDigest(current)}\n\nInstruction: ${String(instruction).trim()}`,
-      tools: [SHEET_EDIT_TOOL],
-      toolChoice: { type: 'tool', name: 'edit_sheet' },
+    // The agent picks the right tool per request: edit_sheet for MECHANICS (Slice 8) or
+    // customize_layout for LAYOUT/STYLING of the custom sheet (Slice 12: add/remove/move/
+    // resize/restyle blocks, set CSS). Both are scoped to this one character (Slice 8b).
+    result = await dndToolCall<{ summary?: string; edits: unknown[] }>({
+      system: [SYSTEM, LAYOUT_ROUTING, grounding?.instruction].filter(Boolean).join('\n\n'),
+      user: [
+        `Current sheet:\n${sheetDigest(current)}`,
+        `Current custom layout blocks: ${layoutSummary((row as { custom_layout?: unknown }).custom_layout)}`,
+        grounding?.block || null,
+        `Instruction: ${instr}`,
+      ].filter(Boolean).join('\n\n'),
+      tools: [SHEET_EDIT_TOOL, LAYOUT_EDIT_TOOL],
+      toolChoice: { type: 'auto' },
       maxTokens: 4096,
       temperature: 0.4,
     });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'AI call failed.' }, { status: 502 });
   }
-  const edits = result?.input?.edits;
-  if (!Array.isArray(edits) || edits.length === 0) return NextResponse.json({ error: 'The AI did not return any edits.' }, { status: 502 });
+  const editsRaw = result?.input?.edits;
+  if (!Array.isArray(editsRaw) || editsRaw.length === 0) return NextResponse.json({ error: 'The AI did not return any edits.' }, { status: 502 });
 
+  // ── Layout / styling path (Slice 12) ───────────────────────────────────────────────
+  if (result?.name === 'customize_layout') {
+    const { layout, css } = applyLayoutEdits(
+      (row as { custom_layout?: unknown }).custom_layout,
+      (row as { custom_css?: string | null }).custom_css,
+      editsRaw as LayoutEdit[],
+    );
+    // Applying a layout edit switches the character onto its custom sheet so the change shows.
+    const { error: upErr } = await supabaseAdmin
+      .from('dnd_characters')
+      .update({ custom_layout: layout, custom_css: css, sheet_type: 'custom' })
+      .eq('id', params.id);
+    if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+    return NextResponse.json({ ok: true, kind: 'layout', summary: result?.input?.summary ?? null, editCount: editsRaw.length, blockCount: layout.blocks.length });
+  }
+
+  // ── Mechanics path (Slice 8) ───────────────────────────────────────────────────────
+  const edits = editsRaw as SheetEdit[];
   const updated = applySheetEdits(current, edits);
   const { error: upErr } = await supabaseAdmin.from('dnd_characters').update({ data: updated, name: updated.meta.name || row.name }).eq('id', params.id);
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
@@ -71,5 +129,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     edits.map((e) => ({ character_id: params.id, editor_user_id: session.userId, is_dm: isDM, field_path: editPath(e), old_value: null, new_value: e as unknown, scope: 'permanent' })),
   ).then(() => {}, () => {});
 
-  return NextResponse.json({ ok: true, summary: result?.input?.summary ?? null, editCount: edits.length, name: updated.meta.name });
+  // Safety net (Slice 3): flag anything that doesn't belong to the character's system so a wrong-system
+  // mechanic is surfaced to the user rather than silently kept.
+  const violations = validateCharacterForSystem(updated, normalizeSystem((row as { system?: string }).system));
+  const summary = [result?.input?.summary ?? null, violations.length ? `⚠ Check: ${violationsSummary(violations)}` : null].filter(Boolean).join('\n');
+  return NextResponse.json({ ok: true, kind: 'mechanics', summary: summary || null, editCount: edits.length, name: updated.meta.name, violations });
 }

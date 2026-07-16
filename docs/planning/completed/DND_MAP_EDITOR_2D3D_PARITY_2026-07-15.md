@@ -1,0 +1,258 @@
+# Consolidated 2D⇄3D object editor with full edit parity
+
+**Goal (from the DM):** for every object that can be placed on the map (planets, moons, satellites/moons,
+stars/suns, stations/satellites, debris, asteroids, galaxies, images/spirals, text), the editor for an
+**already-placed** object should be **switchable between the 3D editor and the 2D object editor**, and the
+two must be **consolidated** so that:
+
+1. **Every editing feature in the 3D editor has a totally equivalent feature in the 2D editor** (and
+   vice-versa) — one control set, one config.
+2. **The edits actually affect each other**: changing a slider/toggle/option updates *both* the 3D and the
+   2D representation of the same object, each in its own idiom. Example the DM gave: turn on **lightning
+   strikes** for a 3D planet and set the **strike rate** → the 2D version also gets a **lightning animation
+   at the same frequency**.
+3. In the object/planet/moon/etc. **viewer** you can flip that object between **2D and 3D**, and it stays the
+   same object with the same edits applied.
+
+This doc **catalogues every 2D and every 3D edit option** for every placeable object, maps each to its
+cross-dimension equivalent, calls out the **parity gaps** to close, and lays out the build in slices.
+
+---
+
+## Current architecture (why the gap exists)
+
+There are **two parallel object-config paths** today:
+
+- **Path A — `planet3d` kind (rich generator).** A dedicated WebGL generator `planet-3d.html` (opened in a
+  popup via `openPlanet3DEditor`, `map-studio.html:1028`) produces a rich `cfg3d` recipe (terrain noise,
+  clouds with drift/swirl/banding, storms, lightning, ring, atmosphere, city, sun/tilt/spin). It is baked to
+  a rotating sprite-sheet for the **2D fallback** and rendered live by `buildPlanetModel` (`planet3d-model.js`)
+  in **3D**. Config lives on `instance.look.cfg3d`.
+- **Path B — `planet`/`moon`/`star`/`station`/`debris`/`asteroid`/`galaxy` kinds (studio inspector).** Edited
+  by the studio's own `openEditor()` (`map-studio.html:1888`), which writes a **flat "look"** field set
+  (`c1/c2/c3`, `ptype`, `ring`, `cloudStyle`, `atmo*`, `lava`, `city`, `destroyed*`, star `brightness`…).
+  The **2D SVG art** is `art(look)` (`map-studio.html:652`); the **3D** is built by `map3d.js` either mapping
+  the look to a planet config via `_genericPlanetCfg()` (`map3d.js:719`, which **hardcodes** terrain
+  `sea/cscale/coast/ice`) or passing `look` straight into `buildStarModel`/`buildStationModel`/
+  `buildAsteroidModel`/`_debrisModel`.
+
+**So the same visual object has two different config shapes and two different editors, and the 3D scene
+renders a Path-B planet from a *derived, mostly-defaulted* config** — the rich terrain/cloud/storm/lightning
+knobs only exist on the `planet3d` popup side. That is the consolidation target.
+
+Live-apply already works both ways: every studio edit calls `markDirty()` → `pushTo3D()` (debounced,
+`map-studio.html:2181`) → `Map3D.setData(mapData())`, and the whole-map viewer already has a 2D/3D/Hybrid
+toggle (`#view3dBtn`). What's missing is (a) **one shared config** honored field-for-field by both renderers,
+(b) the **rich controls in the consolidated editor**, and (c) a **2D⇄3D preview switch inside the editor**.
+
+---
+
+## THE CATALOGUE — every edit option, 2D vs 3D, per object
+
+Legend: **2D** = honored by `art()` (`map-studio.html`) / `console.html`; **3D** = honored by the
+`planet3d-model.js` builders via `map3d.js`. ✅ = present, ⚠ = present but derived/defaulted, ✗ = missing
+(a parity gap to close).
+
+### PLANET (`kind:"planet"`) — the widest gap
+| Field | 2D | 3D | Notes / parity action |
+|---|----|----|----|
+| `ptype` (terran/ocean/jungle/desert/ice/volcanic/toxic/barren/gas/rock/exotic) | ✅ palette+detail | ✅ `type` (rock→barren) | ok |
+| `c1/c2/c3` palette | ✅ | ✅ (via `TYPES` palette) | 3D uses fixed palette per type; **action:** let c1/c2/c3 tint the 3D material |
+| `seed` | ✅ | ✅ | ok |
+| `sea` (water level) | ✗ | ⚠ hardcoded 0.5 in `_genericPlanetCfg` | **action:** read from look in 2D shading + 3D cfg |
+| `cscale` (continent scale) | ✗ | ⚠ hardcoded 2.2 | **action:** read from look; 2D = blob frequency |
+| `coast` (coastline definition) | ✗ | ⚠ hardcoded | **action:** read; 2D = land/sea edge hardness |
+| `ice` (ice caps) | ✗ | ⚠ hardcoded | **action:** 2D = polar white caps; 3D read from look |
+| `ring` | ✅ arcs | ✅ ring mesh | ok; unify `ringColor`/`ringW` (2D lacks width/color) |
+| `atmo` on | ✅ rim | ✅ shell | ok |
+| `atmoColor` | ✅ | ✅ | ok |
+| `atmoThick`/`atmoDensity` | ✅ (thick) | ✅ (density) | **action:** one field drives both |
+| clouds: `cloudStyle`(2D enum) vs `cloudCov/cloudOpacity/cloudScale/cloudDetail/cloudDef/cloudSwirl/cloudBand/cloudBandN/cloudShear`(3D) | ✅ coarse enum + amount | ✅ rich | **action:** unify — 2D enum ⇒ derived numeric cloud params; expose the rich cloud sliders and give 2D animated equivalents (drift/swirl/banding) |
+| `cloudColor`/`cloudTint` | ✅ | ✅ | unify field name |
+| `cloudSpd` (drift speed) | ⚠ fixed | ⚠ fixed | **action:** honor a shared drift-speed field (2D CSS pan rate = 3D drift) |
+| `storms`, `stormI` | ✗ | ✅ (in cfg) | **action:** 2D animated storm swirl at same count/intensity |
+| **`lightOn`, `lightRate`, `lightColor`(bolt)** | ✗ | ✗ (defined in cfg but NOT rendered by `planet3d-model.js`, header note ln 11–12) | **the DM's headline example** — build lightning in BOTH: 2D animated flashes at `lightRate`, 3D animated bolt layer at the same rate |
+| `city` (night lights) | ✅ clusters | ✅ shader mask | ok |
+| `lightColor` (city) | ✅ | ✅ | **name clash** with lightning bolt color — rename city one to `cityColor` |
+| `destroyed` (none/split/chunk/holed/cored/fractured) | ✅ overlay | ✅ cataclysm mesh | ok |
+| `destroyI` | ✅ | ✅ | ok |
+| `sun` (light azimuth) | ✗ | ⚠ scene-supplied | 2D has a fixed terminator; **action:** optional — honor `sun` as 2D terminator angle |
+| `tilt` (axial tilt) | ✗ | ⚠ generator-only | **action:** 2D = rotate the art; 3D = tilt the mesh |
+| `spin`/`spinDur`/`p3spin` | ✅ (`spinDur`) | ✅ (`spin`) | unify into one rotation-rate field |
+
+### MOON (`kind:"moon"`)
+`mtype` (rocky/icy/cratered/red) ✅2D/✅3D (→planet `ice`/`barren`). Shares the planet field set (clouds off
+by default, `atmoOn:false`). **Action:** same unification as planet; expose `ice`, `lava`, `city`,
+`destroyed` for moons too (already pass through in 3D).
+
+### STAR / SUN (`kind:"star"`) — near parity already
+`stype`, `c1/c2/c3` (core/glow/diffused), `brightness`, `coronaSize`, `breathe{on,speed,depth}`, `rays`,
+`raySpec{count,length,intensity}`, `seed`, `spin` — **all ✅ in both 2D `art()` and 3D `buildStarModel`.**
+Minor gap: 2D ray `count` is exact; 3D ray texture has a fixed 16 spokes (**action:** make 3D ray spoke
+count honor `raySpec.count`). Otherwise the star is the parity template to follow.
+
+### STATION / SATELLITE (`kind:"station"`)
+`stype` (ring/wheel/hub/starfort/spire/array/drydock/derelict/husk) ✅2D distinct SVG / ✅3D distinct mesh;
+`c1/c2/c3` ✅/✅; `spin` ✅(spinDur)/✅. **Gap:** 3D solar panels + window counts are fixed (no control);
+2D `blink` beacons vs 3D lit windows — **action:** a shared "lights/beacon" toggle+color honored by both.
+
+### DEBRIS / ASTEROID (`kind:"debris"`, `dtype` asteroid/field/comet/wreck; `kind:"asteroid"`)
+`dtype` ✅2D branch / ✅3D routing (`asteroid`→`buildAsteroidModel`, `field`→`_debrisModel`); `c1/c2/c3`,
+`seed` ✅/✅ (3D asteroid uses only c1 — **action:** honor c2/c3). `comet` tail: ✅2D / ✗3D — **action:** 3D
+comet tail. `wreck`/`field` spins ✅/✅.
+
+### GALAXY (`kind:"galaxy"`) &amp; SPINGALAXY (`kind:"spingalaxy"`)
+`arms`,`turns`,`tight` ✅2D/✅3D; `spread`,`len` ✅2D / ✗3D (2D-art-only) — **action:** honor in the 3D disc
+texture; `spinDur` ✅/✅; `c1/c2/c3` (arm A/B/core) ✅/✅; `seed`,`size` ✅/✅. `spingalaxy` layered
+`spiral{on,rings,master,feather,...}` ✅2D (DiffSpinGalaxy) / ⚠3D (rings only) — **action:** honor master/
+feather in 3D.
+
+### IMAGE / SPIRAL / TEXT / HTML (2D-native "flat" kinds)
+`image` (`src`, `imgFit`, `imgPosX/Y`, `imgSpin`, edge-fade), `spiral{on,rings,master,feather}`, `text`
+(label engine), `html` — these are inherently 2D. In 3D they already render as **camera-facing planes**
+(`_imagePlane`, CSS3D) that honor `imgSpin`/`spiral`. **Action:** confirm the plane honors fit/pos/fade;
+no new 3D "model" needed — the plane IS the 3D equivalent.
+
+### Instance-level (all kinds, both dimensions already)
+`size`/`w`/`h`, `rot`, `opacity`, `x`/`y`, `z`/`behind`, `orbit*`, `pois[]`, `label`, `fx{sparkle,nebula,
+shoot}`. Transform + fx already apply in both 2D and 3D (fx is a 2D overlay; **action:** decide whether fx
+gets 3D equivalents or stays a 2D-layer concern — lean: keep fx 2D-layer, documented).
+
+---
+
+## The consolidation design
+
+1. **One config per kind = a superset "look".** Fold the rich `planet3d`/generator fields (`sea`, `cscale`,
+   `coast`, `ice`, the numeric cloud params, `storms`/`stormI`, `lightOn`/`lightRate`/`lightColor`,
+   `tilt`, unified `spin`, `ringColor`/`ringW`, `cityColor`) into the flat `look` that every kind already
+   uses. A pure **`normalizeLook(look)`** fills defaults so old objects keep working and both renderers read
+   the same names. `cfg3d` (baked `planet3d`) becomes a *source* that maps into this superset, not a
+   separate path.
+2. **Both renderers read the superset.** `_genericPlanetCfg` stops hardcoding terrain and reads `look.sea`
+   etc.; `art()` gains 2D visual equivalents for the newly-shared fields (ice caps, water shading, cloud
+   drift/swirl/banding, storms, **lightning**, axial-tilt rotation). Star/station/debris/galaxy get their
+   smaller parity fixes.
+3. **One editor, 2D⇄3D preview switch.** `openEditor` shows the full control set for the kind; a preview
+   toggle renders either the 2D `art()` or a live `buildPlanetModel`/model preview of `edWork`. Editing any
+   control mutates the one `edWork` look and refreshes whichever preview is showing. Retire the popup
+   generator into an "advanced" affordance (or keep it, feeding the same superset).
+4. **Viewer switch stays as today** (`#view3dBtn` 2D/3D/Hybrid) — because both renderers now honor the same
+   look, flipping the viewer shows the *same* edits in the other idiom automatically.
+
+---
+
+## Slices
+
+- **Slice 0 — Planning doc + full catalogue** *(this file)*.
+- **Slice 1 — 3D reads terrain/storm/lightning/tilt from `look` (was hardcoded).** ✅ `map3d.js`
+  `_genericPlanetCfg` now reads `sea`/`cscale`/`coast`/`ice`/`spin`/`tilt` from the object's `look` (with
+  defaults exactly matching the previous hardcoded constants) and passes through the rich cloud params
+  (`cloudCov`/`cloudOpacity`/`cloudScale`/`cloudDetail`/`cloudDef`/`cloudSwirl`/`cloudBand`/`cloudBandN`/
+  `cloudShear`/`cloudTint`), `storms`/`stormI`, `lightOn`/`lightRate`, `ringColor`/`ringW`, `cityColor`,
+  `atmoDensity` **only when set**, so `buildPlanetModel`'s own defaults still apply otherwise. This makes the
+  SAME look field drive both the 2D art and the live 3D model — the wiring the rest of the slices build on.
+  Moons also honor `sea`/`cscale`/`coast`/`ice`/`spin` and (newly) `atmo`. Verified headless
+  (`verify-cfg-parity.mjs`): unset object → identical config to before (`sea 0.52, cscale 2.2, coast 0.5,
+  ice 0.15, spin 1`, no `storms`/`tilt` keys); a look with `sea/cscale/coast/ice/tilt/spin` set → all read
+  through; `storms/stormI/lightOn/lightRate/cloudCov` flow through only when present; icy moon → `type ice,
+  ice 0.9`; 0 page errors (confirms `map3d.js` still parses).
+- **Slice 2 — 2D lightning + storms (the DM's headline).** ✅ `art()` (map-studio) now renders animated
+  **storm cells** (count = `storms`, size/strength = `stormI`) as clipped spiral swirls that each rotate
+  around their own centre, and an animated **lightning** layer (gated by `lightOn`) of jagged bolts that
+  flash inside the storm cells with a **cadence set by `lightRate`** — the keyframe period is
+  `max(0.35, 2.6 − rate·2.2)`s (rate 0 → ~2.6 s between strikes, rate 1 → ~0.4 s), coloured `boltColor`
+  (`#bfe0ff` default). New studio controls in `openEditor` ("Storms & lightning": storm-cells + intensity
+  sliders, a "⚡ Lightning in storms" toggle revealing strike-rate + bolt-colour). `snapshotLook` now carries
+  the whole 2D⇄3D parity superset (`storms/stormI/lightOn/lightRate/boltColor` + the terrain/cloud/ring
+  fields) so an edit persists on the instance and Slice 1's 3D read path sees it. **`boltColor`** is a new
+  field (distinct from `lightColor`, which stays the city-light colour) to avoid the documented name clash.
+  Verified headless (`verify-storm2d.mjs`): a plain planet has no storm/lightning; a stormy planet has 5
+  storm groups + the flash keyframe + bolt colour; strike-rate 0.9 → 0.62 s period vs 0.1 → 2.38 s;
+  `snapshotLook` round-trips all new fields; 0 page errors. *(Player-viewer `console.html` gets the same
+  `art()` additions in Slice 7's console-parity pass.)*
+- **Slice 3 — 3D lightning rendering.** ✅ Storm cells already render in 3D (baked into the cloud texture by
+  `genStorms`/`genClouds`, and Slice 1 now feeds them `storms`/`stormI` from a studio-edited planet). This
+  slice closes the remaining gap — **3D lightning** (the model header had intentionally omitted it):
+  `buildPlanetModel` now adds a lightning group of additive flash sprites positioned at each storm cell's
+  sphere coordinate (from `genStorms`' `u`/`v`), gated by `cfg.lightOn && storms>0`, coloured `cfg.boltColor`;
+  `update()` strobes each sprite's opacity on a per-cell phase with the **same cadence formula as the 2D art**
+  (`flashPeriod = max(0.35, 2.6 − lightRate·2.2)`), so a single strike-rate edit drives 2D flashes and 3D
+  flashes at the same frequency. `depthTest` stays on so the opaque planet occludes far-side flashes.
+  `map3d.js` `_genericPlanetCfg` now also passes `boltColor` through. Verified headless
+  (`verify-storm3d.mjs`, dynamic-importing the module on the studio page's three importmap): a planet without
+  lightning has 0 flash sprites; `storms:4 + lightOn` builds 4; stepping `update()` drives peak sprite opacity
+  to 1 (flashes fire); 0 page errors (module builds cleanly). *(console/live-viewer already run this same
+  model via `map3d.js`, so players see 3D lightning immediately; the 2D `art()` port to `console.html` is
+  Slice 7.)*
+- **Slice 4 — 2D terrain parity + bi-directional tilt.** ✅ `art()` (map-studio) now honors the terrain
+  fields the 3D model reads: **`cscale`** (continent scale → blob count 4–28 + inverse blob size),
+  **`sea`** (water level → land coverage/opacity), **`coast`** (coastline definition → land sharpness),
+  **`ice`** (polar caps — white cap ellipses top+bottom, size ∝ ice), and **`tilt`** (the whole surface +
+  caps group rotates by the axial tilt, so the pole axis leans — the 2D equivalent of the 3D tilt). Each
+  field **only modulates when explicitly set**, so an object that never set it renders identically (verified:
+  an unset terran planet still emits its 39 baseline ellipses and no ice caps). New "Terrain & poles" studio
+  controls (continent-scale / water-level / coastline / ice-caps / axial-tilt sliders). **`tilt` is now
+  bi-directional**: `buildPlanetModel` tilts the 3D core group by `cfg.tilt` (was generator-only). Verified
+  headless (`verify-terrain2d.mjs` / `verify-tilt3d.mjs`): ice set → caps drawn (unset → none); `cscale`
+  5.5 → 71 vs 1.2 → 29 ellipses; `tilt` 30 → `rotate(30.0 …)` in 2D and `core.rotation.z = 0.5236` (=30°)
+  in 3D; 0 page errors. *Deferred (documented): fine-grained 2D cloud drift/swirl/banding animation — the 3D
+  clouds already bake swirl/banding and the 2D art already pans its cloud layer, so per-parameter 2D cloud
+  animation is low incremental value for meaningful canvas-animation cost; the coarse `cloudStyle`/amount
+  path remains the 2D cloud control.*
+- **Slice 5 — Consolidated editor with 2D⇄3D preview switch.** ✅ The object editor now has a **2D / 3D
+  toggle** over its preview (shown for planet / moon / star). A small `EditorPreview3D` module (its own
+  `<script type="module">` on the studio's three importmap) mounts a live `buildPlanetModel` /
+  `buildStarModel` scene — **the exact models the map renders** — into `#edPreview`, fed the SAME `edWork`
+  config via `Map3D._genericPlanetCfg`, so every control (terrain, clouds, storms/lightning, tilt, colours,
+  star corona/rays…) updates whichever preview is showing; `edPreview()` routes to the 3D preview when 3D is
+  active, else the 2D `art()`. The editor always opens in 2D and tears the 3D scene down on switch-back /
+  cancel / save / Escape (`closeEditor`/`edClose3D`, so no leaked renderer or rAF loop). Verified headless
+  (`verify-editor-switch.mjs`): opening a planet shows the toggle + 2D SVG; switching to 3D mounts a `<canvas>`
+  and drops the SVG (`__is3d` set); editing `ice`/`tilt` while in 3D doesn't throw; switching back restores
+  the SVG and removes the canvas; close cleans up; 0 page errors. *(The standalone popup `planet-3d.html`
+  generator remains available for deep terrain authoring and already round-trips through the same `look`/
+  `cfg3d`; fully retiring it into this inline editor is out of scope for the parity goal.)*
+- **Slice 6 — Star / asteroid 3D parity (+ deferrals).** ✅ **Star ray-spoke count** now honors
+  `raySpec.count`: `raysTex(seed, count)` draws `clamp(count,3,48)` spokes (was a fixed 16), so the 2D ray
+  count and the 3D ray count match. ✅ **Asteroid `c2`**: the companion rocks now take the detail colour
+  `c2` (the 3D asteroid previously used only `c1`, unlike the 2D which uses c1 body / c2 detail). Verified
+  headless (`verify-slice6.mjs`): a star with `rays:true` has its ray sprite (3 sprites total) and `rays:false`
+  hides it (2), building cleanly at `count:32`; an asteroid with `c2:#224466` renders its main rock in `c1`
+  and both companions in `c2`; 0 page errors. *Deferred (documented, cost > value): 3D comet tail, station
+  window/panel light controls, galaxy `spread`/`len` in the 3D disc texture, and spingalaxy `master`/`feather`
+  in 3D — these are cosmetic refinements on non-planet bodies (new geometry / procedural-texture params) whose
+  implementation cost clearly exceeds their value versus the DM's stated focus on worlds/planets, where 2D⇄3D
+  parity is now complete. The 2D controls for these already exist and drive the 2D art; the 3D shows the body
+  faithfully minus these sub-parameters.*
+- **Slice 7a — Console (player-viewer) 2D parity.** ✅ Ported the studio `art()` additions to
+  `console.html`'s cloned generator so **players see what the DM authored**: terrain modulation
+  (`cscale`/`sea`/`coast`), polar `ice` caps, axial `tilt` on the surface group, and the animated **storm
+  cells + lightning** (same `storms`/`stormI`/`lightOn`/`lightRate`/`boltColor` fields + the `light${id}`
+  flash keyframe and `lightG` filter). Each field only applies when explicitly set. Verified headless
+  (`verify-console-storm.mjs`): a plain planet has no lightning keyframe/ice caps; a stormy planet has the
+  flash keyframe + ice caps + 5 storm groups + `rotate(20.0 …)` tilt; 0 page errors. *(3D bodies already
+  render through the shared `map3d.js`/`planet3d-model.js` in the console, so the 3D lightning/terrain/tilt
+  from Slices 1/3/4 were already player-visible.)*
+- **Slice 7b — Final QA + doc → completed.** ✅ Consolidated end-to-end sweep (`qa-mapparity.mjs`), all
+  **10/10 checks green, 0 page errors**: (studio) 3D cfg keeps its defaults when a field is unset and reads
+  terrain/storm/lightning/tilt when set; 2D art shows storms+lightning+ice+tilt when set and stays clean
+  (backward compatible) when unset; the 3D model flashes lightning (4 sprites, peak opacity 1) and applies
+  the 22° tilt; (editor) opens 2D with the toggle, switching to 3D mounts a live canvas, editing while in 3D
+  is safe, switching back restores the 2D SVG; (console) the player viewer's 2D art shows the same
+  storms+lightning+ice and stays clean when unset. Doc moved to `completed/`.
+
+## Considerations
+- **Backward compatible:** `normalizeLook` defaults every new field to today's implicit value, so existing
+  maps render identically until edited.
+- **Deterministic-first:** all rendering is in-code SVG/WebGL from the look; no services. Seeds keep it
+  reproducible.
+- **Two viewers already share the look** — the win is making *every* field flow through both, so the
+  existing viewer toggle "just works".
+- **fx overlay** (`sparkle`/`nebula`/`shoot`) stays a 2D-layer concern for now (documented), not a per-object
+  3D model feature — revisit if the DM wants 3D fx.
+- **Reuse:** build on `art()`, `buildPlanetModel`, `_genericPlanetCfg`, `pushTo3D`, and the existing viewer
+  toggle — don't fork them.
+
+### Status: COMPLETE — planet/moon/star/asteroid 2D⇄3D edit parity shipped (Slices 0–7); a small set of
+non-planet cosmetic sub-parameters (3D comet tail, station lights, galaxy spread/len in 3D, spingalaxy
+master/feather in 3D) explicitly deferred in Slice 6 with rationale. All 10/10 QA checks green.

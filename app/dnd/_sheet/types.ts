@@ -296,4 +296,9 @@ export interface Character {
     pink?: { art?: string | null; token?: string | null }
     blue?: { art?: string | null; token?: string | null }
   }
+  /** Free-form values for AI-generated interactive sheet widgets (Phase V, Slice 11).
+   *  Widgets on a custom sheet (fields, counters, toggles the AI added) bind to a key in
+   *  here so their edits persist with the sheet `data` autosave. Kept separate from the
+   *  typed model so an AI-invented field can never collide with a real mechanic. */
+  customFields?: Record<string, string | number | boolean>
 }

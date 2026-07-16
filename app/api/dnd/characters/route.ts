@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanName = String(name).trim();
-    const sheet_type = sheetType ? String(sheetType) : 'generic';
+    const sheet_type = sheetType ? String(sheetType) : 'default';
     // NPCs are DM-owned and hidden by default; PCs are campaign-visible. New sheets
     // are seeded with a real character so they render on the engine (G1) — the
     // `streamer` type comes pre-statted (placeholder streamer build); others blank.

@@ -8,6 +8,7 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState,
 import { supabase } from '@/lib/supabase'
 import type { Character, InvItem, ActiveEffect, Spell, FeatureBlock } from '../types'
 import { lazzuh } from '../data/lazzuh'
+import { normalizeCharacter, blankCharacter } from '../data/blank'
 import { profBonusForLevel, abilityMod, ragesForLevel, rageDamageForLevel, maxHpForLevel, speedForLevel, MAX_BUILT_LEVEL } from '../rules/dnd'
 import { rollD20, rollDamage, parseDice, rollDie, rollTyped, weaponSegments, type Advantage } from '../lib/dice'
 
@@ -139,7 +140,7 @@ function loadInitial(): Character {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (parsed && parsed.meta && parsed.abilities) return parsed as Character
+      if (parsed && parsed.meta && parsed.abilities) return normalizeCharacter(parsed)
     }
   } catch {
     /* ignore */
@@ -211,8 +212,11 @@ export function CharacterProvider({
   canWrite?: boolean
 }) {
   const dbMode = !!characterId
+  // In DB mode the real sheet arrives from the API on mount; until then show a neutral
+  // BLANK character (not the Lazzuh reference) so a new default (Hextech) character never
+  // flashes Lazzuh's content. Preview/standalone mode still hydrates the bundled sheet.
   const [char, setCharState] = useState<Character>(() =>
-    dbMode ? structuredClone(lazzuh) : loadInitial(),
+    dbMode ? blankCharacter('') : loadInitial(),
   )
   const [advMode, setAdvMode] = useState<Advantage>('flat')
   const [recklessActive, setRecklessActive] = useState(false)
@@ -261,7 +265,7 @@ export function CharacterProvider({
       const character = (await res.json())?.character
       const d = character?.data
       if (d && d.meta && d.abilities) {
-        setCharState(d as Character)
+        setCharState(normalizeCharacter(d))
         lastSavedRef.current = JSON.stringify(d)
       }
       if (character) {
@@ -291,7 +295,7 @@ export function CharacterProvider({
             const d = JSON.parse(raw)
             if (d && d.meta && d.abilities) {
               lastSavedRef.current = JSON.stringify(d)
-              setCharState(d as Character)
+              setCharState(normalizeCharacter(d))
             }
           }
         } catch {
@@ -322,6 +326,19 @@ export function CharacterProvider({
     if (retryRef.current) clearTimeout(retryRef.current)
   }, [])
 
+  // Live-reload signal (I3 / Slice 8): the bottom-right AI edit chat lives in a separate
+  // React tree (page level), so after it applies an edit server-side it dispatches a
+  // window event; the mounted sheet refetches the fresh data so the change shows live.
+  useEffect(() => {
+    if (!characterId) return
+    const onReload = (e: Event) => {
+      const detail = (e as CustomEvent<{ id?: string }>).detail
+      if (!detail || detail.id === characterId) void reloadFromDb()
+    }
+    window.addEventListener('dnd:reload-character', onReload)
+    return () => window.removeEventListener('dnd:reload-character', onReload)
+  }, [characterId, reloadFromDb])
+
   // Realtime sync (C11b): one broadcast channel per character. After any client
   // saves, it pings here; other viewers refetch through the authed API — data
   // never rides the public channel. This is a broadcast ping, NOT table-level
@@ -343,7 +360,7 @@ export function CharacterProvider({
             const d = character?.data
             if (d && d.meta && d.abilities) {
               lastSavedRef.current = JSON.stringify(d) // don't echo-save the incoming state
-              setCharState(d as Character)
+              setCharState(normalizeCharacter(d))
             }
             if (character) {
               setMedia({ artUrl: character.art_url ?? null, tokenUrl: character.token_url ?? null })

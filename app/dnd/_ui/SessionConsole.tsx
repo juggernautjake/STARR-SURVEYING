@@ -151,6 +151,11 @@ export default function SessionConsole({ campaignId, sessionId, selfId, initialS
     }
   }
 
+  // The NPC viewer is DM-only (Slice 5): NPCs must not appear anywhere for players, so the
+  // tab itself is hidden from non-DMs (the list API also returns nothing for them, and the
+  // content below only renders for a DM).
+  const isDM = session?.role === 'dm'
+  const visibleTabs = TABS.filter((t) => t.id !== 'npcs' || isDM)
   const active = TABS.find((t) => t.id === tab)!
 
   return (
@@ -217,7 +222,7 @@ export default function SessionConsole({ campaignId, sessionId, selfId, initialS
           </div>
 
           <nav className={styles.tabbar}>
-            {TABS.map((t) => (
+            {visibleTabs.map((t) => (
               <button key={t.id} className={`${styles.tabItem} ${tab === t.id ? styles.tabItemActive : ''}`} onClick={() => setTab(t.id)}>
                 {t.label}
               </button>
@@ -264,7 +269,7 @@ export default function SessionConsole({ campaignId, sessionId, selfId, initialS
                 <p style={{ color: 'var(--hx-muted)', margin: 0 }}>The DM&apos;s notes are private.</p>
               ))}
             {tab === 'initiative' && <InitiativeTracker sessionId={sessionId} campaignId={campaignId} isDM={session?.role === 'dm'} />}
-            {tab === 'npcs' && <NpcLibrary campaignId={campaignId} isDM={session?.role === 'dm'} />}
+            {tab === 'npcs' && isDM && <NpcLibrary campaignId={campaignId} isDM />}
             {tab === 'reveals' &&
               (session?.role === 'dm' ? (
                 <RevealTrigger campaignId={campaignId} maps={maps.map((m) => ({ url: m.url, label: m.label }))} selfId={selfId} />

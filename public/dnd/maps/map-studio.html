@@ -78,8 +78,11 @@
   #canvas.pan{cursor:grab;}#canvas.panning{cursor:grabbing;}#canvas.pen{cursor:crosshair;}
   #bgLayer{position:absolute;inset:0;z-index:0;pointer-events:none;background-position:center center;background-repeat:no-repeat;display:none;}
   #fxCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4;}
-  #svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:2;}
-  #svgFront{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:4;}   /* sectors marked "front" render above bodies/images */
+  /* The SVG roots blanket the whole canvas, so left clickable they'd swallow every click meant for a
+     body/image sitting underneath. Root is click-through; the actual sector shapes + handles opt back in. */
+  #svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:2;pointer-events:none;}
+  #svgFront{position:absolute;inset:0;width:100%;height:100%;overflow:visible;z-index:4;pointer-events:none;}   /* sectors marked "front" render above bodies/images */
+  #svg .hit,#svgFront .hit{pointer-events:auto;}   /* only the real sector shapes + handles opt back into clicks */
   #backLayer{position:absolute;inset:0;transform-origin:0 0;z-index:1;}
   .bodyLayer{position:absolute;inset:0;transform-origin:0 0;z-index:3;}
   #labelLayer{position:absolute;inset:0;width:100%;height:100%;overflow:visible;transform-origin:0 0;z-index:5;pointer-events:none;}
@@ -90,6 +93,10 @@
   details.lblsec>summary::-webkit-details-marker{display:none;}
   details.lblsec>summary::before{content:"▸ ";}details.lblsec[open]>summary::before{content:"▾ ";}
   .inst{position:absolute;transform:translate(-50%,-50%);cursor:move;}
+  /* A transparent hit pad guarantees a grabbable area even for tiny bodies (moons/small planets/images),
+     so you can click/drag the object itself instead of only its name. It sits BEHIND the art (art is
+     pointer-events:none) and its events bubble to the .inst mousedown handler. */
+  .inst::before{content:"";position:absolute;left:50%;top:50%;width:100%;height:100%;min-width:40px;min-height:40px;transform:translate(-50%,-50%);pointer-events:auto;border-radius:inherit;}
   .inst .art{width:100%;height:100%;pointer-events:none;position:relative;}
   .inst .artbg{position:absolute;inset:0;border-radius:50%;pointer-events:none;}   /* opaque backing so a solid body occludes the starfield */
   /* Hybrid view: the 3D overlay draws the 3D-native bodies, so hide their 2D art/POIs/name (the .inst stays as the hit target) */
@@ -102,17 +109,21 @@
   .inst .nm{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:3px;font-size:11px;font-weight:500;white-space:nowrap;color:#e8e6ff;text-shadow:0 1px 5px #000;pointer-events:none;}
   .inst.sel{outline:var(--selw,1.5px) var(--sels,dashed) var(--selc,#c89b3c);outline-offset:5px;border-radius:50%;}
   .inst.imginst.sel{border-radius:4px;}
-  .inst .ihandle{position:absolute;width:12px;height:12px;background:#06040f;border:1.6px solid var(--gold);border-radius:2px;pointer-events:auto;z-index:6;}
-  .inst .ihandle.rot{border-radius:50%;top:-30px;left:50%;transform:translateX(-50%);cursor:grab;}
-  .inst .ihandle.rstem{width:1px;height:24px;background:var(--gold);opacity:.5;border:none;top:-24px;left:50%;transform:translateX(-50%);pointer-events:none;border-radius:0;}
-  /* corner scale handles: a big (24px) transparent grab pad with a small visible dot, so they're easy to grab */
-  .inst .ihandle.tl,.inst .ihandle.tr,.inst .ihandle.bl,.inst .ihandle.br{width:24px;height:24px;background:transparent;border:none;border-radius:0;}
-  .inst .ihandle.tl::after,.inst .ihandle.tr::after,.inst .ihandle.bl::after,.inst .ihandle.br::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:12px;height:12px;background:#06040f;border:1.6px solid var(--gold);border-radius:2px;}
-  .inst .ihandle.tl:hover::after,.inst .ihandle.tr:hover::after,.inst .ihandle.bl:hover::after,.inst .ihandle.br:hover::after{background:var(--gold);}
-  .inst .ihandle.tl{top:-12px;left:-12px;cursor:nwse-resize;}
-  .inst .ihandle.tr{top:-12px;right:-12px;cursor:nesw-resize;}
-  .inst .ihandle.bl{bottom:-12px;left:-12px;cursor:nesw-resize;}
-  .inst .ihandle.br{bottom:-12px;right:-12px;cursor:nwse-resize;}
+  /* Transform handles live in #handleLayer (above every body + front sector) so they're never occluded.
+     .ihwrap mirrors the selected instance's box; the handles sit at its corners + a rotate stem. */
+  #handleLayer{position:absolute;inset:0;transform-origin:0 0;z-index:6;pointer-events:none;}
+  .ihwrap{position:absolute;pointer-events:none;}
+  .ihandle{position:absolute;width:13px;height:13px;background:#06040f;border:1.6px solid var(--gold);border-radius:2px;pointer-events:auto;box-shadow:0 0 0 1.5px rgba(6,4,15,.75),0 1px 4px rgba(0,0,0,.7),0 0 7px rgba(200,155,60,.5);}
+  .ihandle.rot{border-radius:50%;top:-30px;left:50%;transform:translateX(-50%);cursor:grab;}
+  .ihandle.rstem{width:2px;height:24px;background:var(--gold);opacity:.6;border:none;top:-24px;left:50%;transform:translateX(-50%);pointer-events:none;border-radius:0;box-shadow:0 0 4px rgba(0,0,0,.7);}
+  /* corner scale handles: a big (30px) transparent grab pad with a bright visible dot, easy to see + grab */
+  .ihandle.tl,.ihandle.tr,.ihandle.bl,.ihandle.br{width:30px;height:30px;background:transparent;border:none;border-radius:0;box-shadow:none;}
+  .ihandle.tl::after,.ihandle.tr::after,.ihandle.bl::after,.ihandle.br::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:14px;height:14px;background:#06040f;border:1.8px solid var(--gold);border-radius:3px;box-shadow:0 0 0 1.5px rgba(6,4,15,.75),0 1px 4px rgba(0,0,0,.75),0 0 8px rgba(200,155,60,.55);}
+  .ihandle.tl:hover::after,.ihandle.tr:hover::after,.ihandle.bl:hover::after,.ihandle.br:hover::after{background:var(--gold);}
+  .ihandle.tl{top:-15px;left:-15px;cursor:nwse-resize;}
+  .ihandle.tr{top:-15px;right:-15px;cursor:nesw-resize;}
+  .ihandle.bl{bottom:-15px;left:-15px;cursor:nesw-resize;}
+  .ihandle.br{bottom:-15px;right:-15px;cursor:nwse-resize;}
   .ghost{position:fixed;pointer-events:none;z-index:1000;transform:translate(-50%,-50%);opacity:.82;filter:drop-shadow(0 0 14px var(--aether));}
   .ghost svg{width:100%;height:100%;}
   .placebar{position:fixed;bottom:44px;left:50%;transform:translateX(-50%);z-index:60;background:rgba(20,14,44,.97);border:1px solid var(--aether);border-radius:12px;padding:12px 16px;display:none;align-items:center;gap:14px;box-shadow:0 8px 30px rgba(0,0,0,.5);}
@@ -264,7 +275,7 @@
       <button id="view3dBtn" title="Switch between the flat 2D map and the real-time 3D viewer">⛶ 3D</button>
       <button id="refresh3dBtn" title="Hot-refresh the 3D viewer to re-render the latest changes">⟳ Refresh 3D</button>
     </div>
-    <div id="canvas"><canvas id="skyCanvas" style="position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none"></canvas><div id="bgLayer"></div><div class="bodyLayer" id="backLayer"></div><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><svg id="svgFront"></svg><canvas id="fxCanvas"></canvas><svg id="labelLayer"></svg><div id="gl3d" style="position:absolute;inset:0;z-index:5;display:none"></div></div>
+    <div id="canvas"><canvas id="skyCanvas" style="position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none"></canvas><div id="bgLayer"></div><div class="bodyLayer" id="backLayer"></div><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><svg id="svgFront"></svg><canvas id="fxCanvas"></canvas><svg id="labelLayer"></svg><div id="handleLayer"></div><div id="gl3d" style="position:absolute;inset:0;z-index:5;display:none"></div></div>
   </div>
   <div class="insp">
     <div class="ihead" id="inspHead">◈ INSPECTOR</div>
@@ -290,6 +301,9 @@
   <div class="edcard">
     <div class="edpreview">
       <div class="edtitle" id="edTitle">NEW OBJECT</div>
+      <div class="edviewtoggle" id="edViewToggle" style="display:none;position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:3;background:rgba(6,4,15,.72);border:1px solid var(--line2);border-radius:20px;padding:2px;gap:2px;">
+        <button data-v="2d" class="on" style="border:none;background:none;color:var(--gold);font:inherit;font-size:11px;padding:3px 12px;border-radius:18px;cursor:pointer">2D</button><button data-v="3d" style="border:none;background:none;color:var(--faint);font:inherit;font-size:11px;padding:3px 12px;border-radius:18px;cursor:pointer">3D</button>
+      </div>
       <div class="pv" id="edPreview"></div>
       <div class="edtype" id="edTypeLabel"></div>
       <div class="fmt"><button id="edExportSvg" title="Download this object as an SVG file">⤓ SVG</button><button id="edExportHtml" title="Download as a standalone HTML/CSS snippet">⤓ HTML</button></div>
@@ -719,9 +733,23 @@ function art(a,animate){
     return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><polygon points="${pts}" fill="${c1}" fill-opacity=".12" stroke="${c1}" stroke-width="2.5" stroke-dasharray="8 7"/><circle cx="100" cy="100" r="7" fill="${c1}" opacity=".6"/></svg>`;
   }
   // planet / moon
-  const isMoon=k==="moon",n=isMoon?18:12,spots=[];
+  // 2D<->3D terrain parity (Slice 4): continent scale (cscale) drives blob count/size, water level (sea)
+  // drives land coverage, coastline definition (coast) sharpens land. Each only modulates when the field is
+  // explicitly set, so an object that never set it renders exactly as before.
+  const isMoon=k==="moon",spots=[];
+  const cscaleSet=a.cscale!=null,seaSet=a.sea!=null,coastSet=a.coast!=null;
+  const cscaleF=cscaleSet?clamp(+a.cscale,1,6):2.2;
+  const n=isMoon?18:(cscaleSet?clamp(Math.round(12*(cscaleF/2.2)),4,28):12);
+  const landCov=seaSet?clamp(1.35-(+a.sea),0.15,1.3):1;          // higher water level → less exposed land
+  const coastMul=coastSet?(0.72+clamp(+a.coast,0,1)*0.5):1;      // higher definition → sharper/darker land
+  const szMul=cscaleSet?(2.2/cscaleF):1;                          // more continents → each is smaller
   const detail=a.ptype==="volcanic"?c3:(["terran","toxic","ocean","jungle"].includes(a.ptype)?c2:D(c1,26));
-  for(let i=0;i<n;i++){const bx=cx-R+rng()*2*R,by=cy-R+rng()*2*R,br=R*(isMoon||a.ptype==="rock"||a.ptype==="ice"?0.06+rng()*0.12:0.16+rng()*0.3);const blob=`<ellipse cx="{X}" cy="${by.toFixed(1)}" rx="${br.toFixed(1)}" ry="${(br*(0.7+rng()*0.5)).toFixed(1)}" fill="${detail}" opacity="${(0.4+rng()*0.4).toFixed(2)}"/>`;spots.push(blob.replace("{X}",bx.toFixed(1)));spots.push(blob.replace("{X}",(bx+2*S).toFixed(1)));}
+  for(let i=0;i<n;i++){const bx=cx-R+rng()*2*R,by=cy-R+rng()*2*R,br=R*(isMoon||a.ptype==="rock"||a.ptype==="ice"?0.06+rng()*0.12:0.16+rng()*0.3)*szMul;const op=clamp((0.4+rng()*0.4)*landCov*coastMul,0.05,0.96);const blob=`<ellipse cx="{X}" cy="${by.toFixed(1)}" rx="${br.toFixed(1)}" ry="${(br*(0.7+rng()*0.5)).toFixed(1)}" fill="${detail}" opacity="${op.toFixed(2)}"/>`;spots.push(blob.replace("{X}",bx.toFixed(1)));spots.push(blob.replace("{X}",(bx+2*S).toFixed(1)));}
+  // Polar ice caps — only when `ice` is explicitly set (so existing planets are unchanged). Rotated by the
+  // axial `tilt` so the caps + pole axis lean, the 2D equivalent of the 3D model's tilt.
+  let iceCaps="";const iceSet=a.ice!=null,tiltF=a.tilt!=null?+a.tilt:0;
+  if(iceSet&&+a.ice>0.02){const cap=clamp(+a.ice,0,1),capH=R*(0.14+cap*0.95),rx=(R*0.92).toFixed(1);
+    iceCaps=`<ellipse cx="${cx}" cy="${(cy-R).toFixed(1)}" rx="${rx}" ry="${capH.toFixed(1)}" fill="#eef6ff" opacity=".9"/><ellipse cx="${cx}" cy="${(cy+R).toFixed(1)}" rx="${rx}" ry="${capH.toFixed(1)}" fill="#eef6ff" opacity=".9"/>`;}
   let bands="";
   if(a.ptype==="gas"){bands=[...Array(8)].map((_,i)=>{const y=cy-R+(i+0.5)*(2*R/8),h=(2*R/8)*(0.7+rng()*0.5),col=i%2?c2:L(c1,10);return `<rect x="-200" y="${(y-h/2).toFixed(1)}" width="600" height="${h.toFixed(1)}" fill="${col}" opacity="${(0.55+rng()*0.3).toFixed(2)}"/>`;}).join("");}
   // ---- CLOUD LAYER (style-controlled) ----
@@ -779,24 +807,49 @@ function art(a,animate){
     let deb="";const ndb=Math.round(4+dI*16);
     for(let i=0;i<ndb;i++){const da=drng()*6.28,dr=R*(1.05+drng()*(0.5+dI)),dx=cx+Math.cos(da)*dr,dy=cy+Math.sin(da)*dr,rs=1+drng()*3;deb+=`<path d="M ${(dx-rs).toFixed(1)} ${dy.toFixed(1)} L ${dx.toFixed(1)} ${(dy-rs).toFixed(1)} L ${(dx+rs).toFixed(1)} ${dy.toFixed(1)} L ${dx.toFixed(1)} ${(dy+rs).toFixed(1)} Z" fill="#6a5a50" opacity="${(0.5+drng()*0.4).toFixed(2)}"/>`;}
     destroy=`<g clip-path="url(#c${id})">${cracks}${gap}</g>${deb}`;}
+  // ---- STORM CELLS — swirling spiral cells, count=a.storms, size/strength=a.stormI (matches the 3D model's
+  //      storms/stormI). Each cell slowly rotates around its own centre. ----
+  let storms="";const stormN=Math.round(a.storms!=null?+a.storms:0);const stormI=a.stormI!=null?+a.stormI:0.65;
+  const stormCenters=[];
+  if(stormN>0){const srng=mulberry((a.seed||1)*97+17);let sw="";
+    for(let i=0;i<stormN;i++){const sa=srng()*6.28,sr=Math.sqrt(srng())*R*0.72,sx=cx+Math.cos(sa)*sr,sy=cy+Math.sin(sa)*sr;
+      const rad=(7+stormI*17)*(0.7+srng()*0.6),dur=(9+srng()*8).toFixed(1);stormCenters.push([sx,sy,rad]);
+      let arms="";const na=3;for(let j=0;j<na;j++){let rr=1.5,ang=j/na*6.28,d=`M ${sx.toFixed(1)} ${sy.toFixed(1)}`;
+        for(let t=0;t<10;t++){rr+=rad/10;ang+=0.62;d+=` L ${(sx+Math.cos(ang)*rr).toFixed(1)} ${(sy+Math.sin(ang)*rr).toFixed(1)}`;}
+        arms+=`<path d="${d}" fill="none" stroke="${cloudCol}" stroke-width="${(1+stormI*1.5).toFixed(1)}" opacity="${(0.14+stormI*0.24).toFixed(2)}" stroke-linecap="round"/>`;}
+      sw+=`<g style="${anim?`animation:spin ${dur}s linear infinite;transform-origin:${sx.toFixed(1)}px ${sy.toFixed(1)}px`:''}"><circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${rad.toFixed(1)}" fill="${cloudCol}" opacity="${(0.09+stormI*0.13).toFixed(2)}"/>${arms}</g>`;}
+    storms=`<g clip-path="url(#c${id})">${sw}</g>`;}
+  // ---- LIGHTNING — flashing bolts inside storm cells, gated by a.lightOn; flash cadence from a.lightRate
+  //      (0=rare→~2.6s, 1=frequent→~0.4s), colour a.boltColor. Same fields the 3D model reads. ----
+  let lightning="";const lightOn=!!a.lightOn;const lightRate=a.lightRate!=null?+a.lightRate:0.5;const boltCol=a.boltColor||"#bfe0ff";
+  const lightPeriod=Math.max(0.35,2.6-lightRate*2.2);
+  if(lightOn&&stormN>0){const lrng=mulberry((a.seed||1)*131+23);let bolts="";
+    for(let i=0;i<stormN;i++){const sc=stormCenters[i]||[cx,cy,14];const bx=sc[0]+(lrng()-0.5)*sc[2],by=sc[1]+(lrng()-0.5)*sc[2];
+      let px=bx,py=by,d=`M ${bx.toFixed(1)} ${by.toFixed(1)}`;const seg=3+Math.round(lrng()*3),ln=(R*0.20)/seg;let ang=1.1+lrng()*0.9;
+      for(let s=0;s<seg;s++){ang+=(lrng()-0.5)*1.3;px+=Math.cos(ang)*ln;py+=Math.sin(ang)*ln;d+=` L ${px.toFixed(1)} ${py.toFixed(1)}`;
+        if(lrng()<0.4){const ba=ang+(lrng()-0.5)*1.6,bl=ln*(0.5+lrng());bolts+=`<path d="M ${px.toFixed(1)} ${py.toFixed(1)} L ${(px+Math.cos(ba)*bl).toFixed(1)} ${(py+Math.sin(ba)*bl).toFixed(1)}" fill="none" stroke="${boltCol}" stroke-width="0.9" stroke-linecap="round" opacity="0" style="${anim?`animation:light${id} ${lightPeriod.toFixed(2)}s steps(1,end) ${(lrng()*lightPeriod).toFixed(2)}s infinite`:''}"/>`;}}
+      const delay=(lrng()*lightPeriod).toFixed(2);
+      bolts+=`<path d="${d}" fill="none" stroke="${boltCol}" stroke-width="1.4" stroke-linecap="round" filter="url(#lightG${id})" opacity="0" style="${anim?`animation:light${id} ${lightPeriod.toFixed(2)}s steps(1,end) ${delay}s infinite`:''}"/>`;}
+    lightning=`<g clip-path="url(#c${id})">${bolts}</g>`;}
   const spinDur=(34+rng()*46).toFixed(0);
   const cloudDur=(spinDur*0.7).toFixed(0);
   return `<svg viewBox="0 0 200 200" style="width:100%;height:100%;overflow:visible"><defs>
     <clipPath id="c${id}"><circle cx="${cx}" cy="${cy}" r="${R}"/></clipPath>
     ${lavaI>0.001?`<filter id="lavaG${id}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.7"/></filter>`:""}
+    ${lightOn&&stormN>0?`<filter id="lightG${id}" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="1.1"/></filter>`:""}
     ${cityI>0.001?`<filter id="cityG${id}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="0.5"/></filter>`:""}
     ${dv?`<filter id="dGlow${id}" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="2"/></filter><radialGradient id="coreG${id}" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff2c8"/><stop offset="35%" stop-color="#ffb454"/><stop offset="75%" stop-color="#ff5a1e"/><stop offset="100%" stop-color="#3a0a04" stop-opacity="0"/></radialGradient><linearGradient id="riftG${id}" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#ff5a1e" stop-opacity="0"/><stop offset="50%" stop-color="#ffe6a0"/><stop offset="100%" stop-color="#ff5a1e" stop-opacity="0"/></linearGradient>`:""}
     <radialGradient id="base${id}" cx="36%" cy="32%" r="78%"><stop offset="0%" stop-color="${L(c1,52)}"/><stop offset="50%" stop-color="${c1}"/><stop offset="100%" stop-color="${D(c1,46)}"/></radialGradient>
     <radialGradient id="term${id}" cx="36%" cy="32%" r="82%"><stop offset="0%" stop-color="#fff" stop-opacity=".28"/><stop offset="38%" stop-color="#fff" stop-opacity="0"/><stop offset="72%" stop-color="#000" stop-opacity=".35"/><stop offset="100%" stop-color="#000" stop-opacity=".68"/></radialGradient>
     <radialGradient id="atmo${id}" cx="50%" cy="50%" r="50%"><stop offset="${(88-atmoThick*12).toFixed(0)}%" stop-color="${atmoCol}" stop-opacity="0"/><stop offset="97%" stop-color="${atmoCol}" stop-opacity="${atmoThick.toFixed(2)}"/><stop offset="100%" stop-color="${atmoCol}" stop-opacity="0"/></radialGradient></defs>
     ${ringBack}<circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#base${id})"/>
-    <g clip-path="url(#c${id})"><g style="${anim?`animation:surf${id} ${spinDur}s linear infinite`:''}">${bands}${spots.join("")}</g>
-    ${clouds?`<g style="${anim?`animation:surf${id} ${cloudDur}s linear infinite`:''}">${clouds}</g>`:""}</g>
+    <g clip-path="url(#c${id})"><g transform="rotate(${tiltF.toFixed(1)} ${cx} ${cy})"><g style="${anim?`animation:surf${id} ${spinDur}s linear infinite`:''}">${bands}${spots.join("")}</g>${iceCaps}
+    ${clouds?`<g style="${anim?`animation:surf${id} ${cloudDur}s linear infinite`:''}">${clouds}</g>`:""}</g></g>
     <circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#term${id})"/>
-    ${lava}${city}${destroy}
+    ${lava}${city}${storms}${lightning}${destroy}
     ${hasAtmo&&!dv?`<circle cx="${cx}" cy="${cy}" r="${R+3}" fill="url(#atmo${id})"/>`:""}
     <ellipse cx="${cx-34}" cy="${cy-40}" rx="30" ry="18" fill="#fff" opacity=".14" transform="rotate(-30 ${cx-34} ${cy-40})"/>
-    ${ringFront}<style>@keyframes surf${id}{to{transform:translateX(-${2*S}px);}}</style></svg>`;
+    ${ringFront}<style>@keyframes surf${id}{to{transform:translateX(-${2*S}px);}}${lightOn&&stormN>0?`@keyframes light${id}{0%,100%{opacity:0}2%{opacity:1}5%{opacity:.25}8%{opacity:.9}13%{opacity:0}}`:''}</style></svg>`;
 }
 
 /* world-space effect overlay for a body (sparkle / nebula / shooting star), 200x200 viewBox */
@@ -1082,8 +1135,12 @@ $("#placeConfirm").onclick=()=>{
 };
 $("#placeCancel").onclick=clearPending;
 function clearPending(){pending=null;ghost.style.display="none";$("#placeBar").classList.remove("show");}
-function snapshotLook(a){const {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,brightness,coronaSize,breathe,raySpec,image,src,natW,natH,dsCfg,cfg3d,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,lava,city,lightColor,destroyed,destroyI,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames}=a;
-  return {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,brightness,coronaSize,image,src,natW,natH,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,lava,city,lightColor,destroyed,destroyI,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames,breathe:breathe?JSON.parse(JSON.stringify(breathe)):undefined,raySpec:raySpec?JSON.parse(JSON.stringify(raySpec)):undefined,dsCfg:dsCfg?JSON.parse(JSON.stringify(dsCfg)):undefined,cfg3d:cfg3d?JSON.parse(JSON.stringify(cfg3d)):undefined};}
+function snapshotLook(a){const {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,brightness,coronaSize,breathe,raySpec,image,src,natW,natH,dsCfg,cfg3d,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,lava,city,lightColor,destroyed,destroyI,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames,
+    // 2D<->3D parity superset (map-editor parity doc): terrain, storms/lightning, tilt/spin, rich cloud + ring params — carried so an edit persists on the instance and both renderers read it.
+    storms,stormI,lightOn,lightRate,boltColor,sea,cscale,coast,ice,tilt,spin,cloudCov,cloudOpacity,cloudScale,cloudDetail,cloudDef,cloudSwirl,cloudBand,cloudBandN,cloudShear,ringColor,ringW,cityColor,atmoDensity}=a;
+  return {kind,ptype,mtype,stype,dtype,c1,c2,c3,seed,ring,rays,brightness,coronaSize,image,src,natW,natH,svgData,cloudStyle,cloudColor,cloudAmount,atmo,atmoColor,atmoThick,lava,city,lightColor,destroyed,destroyI,arms,turns,tight,spread,len,spinDur,sheet,cols,rows,frames,
+    storms,stormI,lightOn,lightRate,boltColor,sea,cscale,coast,ice,tilt,spin,cloudCov,cloudOpacity,cloudScale,cloudDetail,cloudDef,cloudSwirl,cloudBand,cloudBandN,cloudShear,ringColor,ringW,cityColor,atmoDensity,
+    breathe:breathe?JSON.parse(JSON.stringify(breathe)):undefined,raySpec:raySpec?JSON.parse(JSON.stringify(raySpec)):undefined,dsCfg:dsCfg?JSON.parse(JSON.stringify(dsCfg)):undefined,cfg3d:cfg3d?JSON.parse(JSON.stringify(cfg3d)):undefined};}
 function applyBackground(a){pushUndo();state.background=snapshotLook(a);renderAll();markDirty();toast("Backdrop set");}
 // Render an image backdrop into #bgLayer (screen-space, behind everything). "size" scales it so the
 // backdrop size the user picks actually changes what's shown; opacity lets the gradient show through.
@@ -1156,7 +1213,7 @@ function toWorld(sx,sy){const r=$("#canvas").getBoundingClientRect();return {x:(
 // 3D viewer can centre on and scale to exactly what the 2D map shows (and write it back on the way out).
 window.map2dView=function(){const c=$("#canvas");const W=c.clientWidth||1,H=c.clientHeight||1;return {cx:(W/2-view.x)/view.scale,cy:(H/2-view.y)/view.scale,scale:view.scale};};
 window.setMap2dView=function(cx,cy,scale){const c=$("#canvas");const W=c.clientWidth||1,H=c.clientHeight||1;view.scale=clamp(scale,0.12,5);view.x=W/2-cx*view.scale;view.y=H/2-cy*view.scale;applyView();};
-function applyView(){const tf=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;$("#svg").style.transform=tf;$("#svg").style.transformOrigin="0 0";$("#bodyLayer").style.transform=tf;const bk=$("#backLayer");if(bk){bk.style.transform=tf;bk.style.transformOrigin="0 0";}const sf=$("#svgFront");if(sf){sf.style.transform=tf;sf.style.transformOrigin="0 0";}const ll=$("#labelLayer");if(ll){ll.style.transform=tf;ll.style.transformOrigin="0 0";}$("#zVal").textContent=Math.round(view.scale*100)+"%";if(pending)positionGhostWorld();syncSkyLock();}
+function applyView(){const tf=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;$("#svg").style.transform=tf;$("#svg").style.transformOrigin="0 0";$("#bodyLayer").style.transform=tf;const bk=$("#backLayer");if(bk){bk.style.transform=tf;bk.style.transformOrigin="0 0";}const sf=$("#svgFront");if(sf){sf.style.transform=tf;sf.style.transformOrigin="0 0";}const ll=$("#labelLayer");if(ll){ll.style.transform=tf;ll.style.transformOrigin="0 0";}const hl=$("#handleLayer");if(hl){hl.style.transform=tf;hl.style.transformOrigin="0 0";}$("#zVal").textContent=Math.round(view.scale*100)+"%";if(pending)positionGhostWorld();syncSkyLock();}
 // Parallax OFF → the starfield/nebula/glow backdrop is world-locked: push the live view so Sky2D pans
 // & zooms it with the map (sectors, systems and bodies then hold their positions over the background).
 function syncSkyLock(){if(!window.Sky2D)return;const off=!!(state.bg3d&&state.bg3d.parallax===false);window.Sky2D.setLock(off);if(off)window.Sky2D.setView(view.x,view.y,view.scale);}
@@ -1189,8 +1246,10 @@ function renderSectors(){
     const sel=selection&&selection.type==="sector"&&selection.id===s.id;
     const p=document.createElementNS(NS,"path");p.setAttribute("d",sectorPath(s.points,s.curved));
     p.setAttribute("fill",`rgba(${r},${g},${b2},${fop})`);p.setAttribute("stroke",bstyle==="none"&&!sel?"none":s.color);
-    p.setAttribute("stroke-width",sel?Math.max(bwidth,2.6):bwidth);p.setAttribute("stroke-dasharray",sel?(bstyle==="dotted"?dashFor("dotted",bwidth):"none"):dashFor(bstyle,bwidth));p.style.cursor="pointer";
-    p.addEventListener("mousedown",e=>{if(tool==="pen")return;e.stopPropagation();onSectorDown(e,s);});
+    p.setAttribute("stroke-width",sel?Math.max(bwidth,2.6):bwidth);p.setAttribute("stroke-dasharray",sel?(bstyle==="dotted"?dashFor("dotted",bwidth):"none"):dashFor(bstyle,bwidth));p.style.cursor="pointer";p.classList.add("hit");
+    // A "front" sector renders ABOVE bodies, so its full-area fill could swallow a click meant for a body
+    // you can see through it. Bodies always win: if one is under the cursor, hand the click to it instead.
+    p.addEventListener("mousedown",e=>{if(tool==="pen")return;e.stopPropagation();const bi=s.front&&instUnderPointer(e);if(bi){onInstDown(e,bi);return;}onSectorDown(e,s);});
     if(sel&&mode==="dm")p.addEventListener("dblclick",e=>{e.stopPropagation();insertVertexAt(s,toWorld(e.clientX,e.clientY));});
     svg.appendChild(p);
     // per-sector sparkles
@@ -1201,11 +1260,11 @@ function renderSectors(){
       const vs=view.scale,hs=10/vs,off=44/vs,sw=1.5/vs;
       let mnx=1e9,mny=1e9,mxx=-1e9,mxy=-1e9;s.points.forEach(pt=>{mnx=Math.min(mnx,pt.x);mny=Math.min(mny,pt.y);mxx=Math.max(mxx,pt.x);mxy=Math.max(mxy,pt.y);});
       const box=document.createElementNS(NS,"rect");box.setAttribute("x",mnx);box.setAttribute("y",mny);box.setAttribute("width",mxx-mnx);box.setAttribute("height",mxy-mny);box.setAttribute("fill","none");box.setAttribute("stroke",s.color);box.setAttribute("stroke-opacity",".35");box.setAttribute("stroke-width",1/vs);box.setAttribute("stroke-dasharray",`${5/vs} ${5/vs}`);box.style.pointerEvents="none";svg.appendChild(box);
-      s.points.forEach((pt,i)=>{const h=document.createElementNS(NS,"rect");h.setAttribute("x",pt.x-hs/2);h.setAttribute("y",pt.y-hs/2);h.setAttribute("width",hs);h.setAttribute("height",hs);h.setAttribute("fill","#06040f");h.setAttribute("stroke",s.color);h.setAttribute("stroke-width",sw);h.style.cursor="grab";h.addEventListener("mousedown",e=>{e.stopPropagation();onVertexDown(e,s,i);});h.addEventListener("contextmenu",e=>{e.preventDefault();e.stopPropagation();deleteVertex(s,i);});svg.appendChild(h);});
-      [[mnx,mny,"nwse-resize"],[mxx,mny,"nesw-resize"],[mxx,mxy,"nwse-resize"],[mnx,mxy,"nesw-resize"]].forEach(([cxp,cyp,cur])=>{const h=document.createElementNS(NS,"rect");h.setAttribute("x",cxp-hs/2);h.setAttribute("y",cyp-hs/2);h.setAttribute("width",hs);h.setAttribute("height",hs);h.setAttribute("fill",s.color);h.setAttribute("stroke","#06040f");h.setAttribute("stroke-width",1/vs);h.style.cursor=cur;h.addEventListener("mousedown",e=>{e.stopPropagation();onScaleDown(e,s);});svg.appendChild(h);});
+      s.points.forEach((pt,i)=>{const h=document.createElementNS(NS,"rect");h.classList.add("hit");h.setAttribute("x",pt.x-hs/2);h.setAttribute("y",pt.y-hs/2);h.setAttribute("width",hs);h.setAttribute("height",hs);h.setAttribute("fill","#06040f");h.setAttribute("stroke",s.color);h.setAttribute("stroke-width",sw);h.style.cursor="grab";h.addEventListener("mousedown",e=>{e.stopPropagation();onVertexDown(e,s,i);});h.addEventListener("contextmenu",e=>{e.preventDefault();e.stopPropagation();deleteVertex(s,i);});svg.appendChild(h);});
+      [[mnx,mny,"nwse-resize"],[mxx,mny,"nesw-resize"],[mxx,mxy,"nwse-resize"],[mnx,mxy,"nesw-resize"]].forEach(([cxp,cyp,cur])=>{const h=document.createElementNS(NS,"rect");h.classList.add("hit");h.setAttribute("x",cxp-hs/2);h.setAttribute("y",cyp-hs/2);h.setAttribute("width",hs);h.setAttribute("height",hs);h.setAttribute("fill",s.color);h.setAttribute("stroke","#06040f");h.setAttribute("stroke-width",1/vs);h.style.cursor=cur;h.addEventListener("mousedown",e=>{e.stopPropagation();onScaleDown(e,s);});svg.appendChild(h);});
       const cxm=(mnx+mxx)/2,topy=mny-off;
       const ln=document.createElementNS(NS,"line");ln.setAttribute("x1",cxm);ln.setAttribute("y1",mny);ln.setAttribute("x2",cxm);ln.setAttribute("y2",topy);ln.setAttribute("stroke",s.color);ln.setAttribute("stroke-opacity",".5");ln.setAttribute("stroke-width",1/vs);ln.style.pointerEvents="none";svg.appendChild(ln);
-      const rc=document.createElementNS(NS,"circle");rc.setAttribute("cx",cxm);rc.setAttribute("cy",topy);rc.setAttribute("r",hs*0.72);rc.setAttribute("fill","#06040f");rc.setAttribute("stroke",s.color);rc.setAttribute("stroke-width",sw);rc.style.cursor="grab";rc.addEventListener("mousedown",e=>{e.stopPropagation();onRotateDown(e,s);});svg.appendChild(rc);
+      const rc=document.createElementNS(NS,"circle");rc.classList.add("hit");rc.setAttribute("cx",cxm);rc.setAttribute("cy",topy);rc.setAttribute("r",hs*0.72);rc.setAttribute("fill","#06040f");rc.setAttribute("stroke",s.color);rc.setAttribute("stroke-width",sw);rc.style.cursor="grab";rc.addEventListener("mousedown",e=>{e.stopPropagation();onRotateDown(e,s);});svg.appendChild(rc);
     }
   });
 }
@@ -1224,7 +1283,7 @@ function renderInstances(){
   [...state.instances].sort((a,b)=>(a.z||0)-(b.z||0)).forEach(i=>{
     if(i.kind==="text")return;   // free text objects live entirely in the label layer
     const seld=selection&&selection.type==="instance"&&selection.id===i.id;
-    const el=document.createElement("div");el.className="inst"+(i.kind==="image"?" imginst":"")+(["planet3d","planet","moon","star","station","debris","asteroid"].includes(i.kind)?" n3d":"")+(seld?" sel":"");
+    const el=document.createElement("div");el.className="inst"+(i.kind==="image"?" imginst":"")+(["planet3d","planet","moon","star","station","debris","asteroid"].includes(i.kind)?" n3d":"")+(seld?" sel":"");el.dataset.id=i.id;
     const iw=i.w||i.size,ih=i.h||i.size,rot=i.rot||0,op=i.opacity!=null?i.opacity:1;
     el.style.cssText=`left:${i.x}px;top:${i.y}px;width:${iw}px;height:${ih}px;transform:translate(-50%,-50%) rotate(${rot}deg);opacity:${op};z-index:${i.z||0};`;
     const fxo=fxOverlay(i.fx,i.look&&i.look.seed);
@@ -1244,11 +1303,8 @@ function renderInstances(){
     else{el.innerHTML=`<div class="art">${bodyBacking(i)}<div class="artwrap">${fxo}${art(i.look||i,true)}</div></div>${poiLayerHTML(i)}`;}
     el.addEventListener("mousedown",e=>{if(e.target.closest(".poi")||e.target.closest(".ihandle"))return;e.stopPropagation();onInstDown(e,i);});
     el.addEventListener("dblclick",e=>{if(mode!=="dm")return;e.stopPropagation();const a=state.assets.find(x=>x.id===i.assetId)||{...i.look,name:i.name,kind:i.kind,size:i.size};openEditor(a,"edit");});
-    // on-map scale + rotate handles for the selected instance (any kind)
-    if(seld&&mode==="dm"){
-      el.insertAdjacentHTML("beforeend",'<div class="ihandle rstem"></div><div class="ihandle rot" data-h="rot"></div><div class="ihandle tl" data-h="s"></div><div class="ihandle tr" data-h="s"></div><div class="ihandle bl" data-h="s"></div><div class="ihandle br" data-h="s"></div>');
-      el.querySelectorAll(".ihandle[data-h]").forEach(h=>h.addEventListener("mousedown",ev=>{ev.stopPropagation();ev.preventDefault();if(h.dataset.h==="rot")onInstRotateDown(ev,i);else onInstScaleDown(ev,i);}));
-    }
+    // on-map scale + rotate handles are drawn into #handleLayer (see renderHandles) so they can't be
+    // occluded by other bodies or front sectors — critical for images/spirals that overlap other art.
     // POI interactions
     el.querySelectorAll(".poi").forEach(pel=>{
       pel.addEventListener("mousedown",e=>{e.stopPropagation();});
@@ -1258,7 +1314,23 @@ function renderInstances(){
   });
   mountDiffspinInstances();mountSpriteInstances();mountSpiralImages();
   renderLabels();   // labels live in the overlay layer; keep them in lockstep with the bodies
+  renderHandles();  // scale/rotate handles in the always-on-top overlay
 }
+// Draw the selected instance's scale + rotate handles into #handleLayer (above every body & sector),
+// in a wrapper that mirrors the instance's centred, rotated box so the corners line up exactly.
+function renderHandles(){
+  const hl=$("#handleLayer");if(!hl)return;hl.innerHTML="";
+  if(mode!=="dm"||!(selection&&selection.type==="instance"))return;
+  if(window.Map3D&&window.Map3D.isShown&&window.Map3D.isShown())return;   // the 3D viewer owns the screen — no 2D handles over it
+  const i=state.instances.find(x=>x.id===selection.id);if(!i||i.kind==="text")return;
+  const iw=i.w||i.size,ih=i.h||i.size,rot=i.rot||0;
+  const w=document.createElement("div");w.className="ihwrap";
+  w.style.cssText=`left:${i.x}px;top:${i.y}px;width:${iw}px;height:${ih}px;transform:translate(-50%,-50%) rotate(${rot}deg);`;
+  w.innerHTML='<div class="ihandle rstem"></div><div class="ihandle rot" data-h="rot"></div><div class="ihandle tl" data-h="s"></div><div class="ihandle tr" data-h="s"></div><div class="ihandle bl" data-h="s"></div><div class="ihandle br" data-h="s"></div>';
+  hl.appendChild(w);
+  w.querySelectorAll(".ihandle[data-h]").forEach(h=>h.addEventListener("mousedown",ev=>{ev.stopPropagation();ev.preventDefault();if(h.dataset.h==="rot")onInstRotateDown(ev,i);else onInstScaleDown(ev,i);}));
+}
+{const v3=$("#view3dBtn");if(v3)v3.addEventListener("click",()=>{const hl=$("#handleLayer");if(hl)hl.innerHTML="";});}   // clear handles when toggling the 3D viewer
 const spriteLive={};
 function mountSpriteInstances(){
   const liveIds=new Set(state.instances.filter(i=>i.kind==="planet3d").map(i=>i.id));
@@ -1328,7 +1400,7 @@ function renderLabels(){
   state.instances.forEach(i=>{
     if(i.kind==="text")return;                 // free text objects handled in their own pass below
     const st=bodyLabelStyle(i);
-    if(st.show!==false){const r=labelSVG(i.name,st);if(r.g){const cx=i.x+i.size/2, ay=i.y+i.size+4;
+    if(st.show!==false){const r=labelSVG(i.name,st);if(r.g){const ih=i.h||i.size, cx=i.x, ay=i.y+ih/2+5;   // instances are centre-anchored: centre the name on i.x, just below the bottom edge
       const left=st.align==="start"?0:st.align==="end"?-r.w:-r.w/2,pad=5,dx=st.dx||0,dy=st.dy||0;
       const sel=selection&&selection.type==="instance"&&selection.id===i.id;
       const hit=mode==="dm"?`<rect class="lblhit" data-bodylabel="${i.id}" x="${(left-pad+dx).toFixed(1)}" y="${(-pad+dy).toFixed(1)}" width="${(r.w+pad*2).toFixed(1)}" height="${(r.h+pad*2).toFixed(1)}" fill="transparent"${sel?' stroke="#c89b3c" stroke-width="1" stroke-dasharray="4 4"':''}/>`:"";
@@ -1431,6 +1503,13 @@ function mountSpiralImages(){
 "use strict";
 /* ============================================================ INTERACTIONS ============================================================ */
 let drag=null;
+// Topmost body under the pointer (walks the real hit-stack so it honours the ::before hit-pad, rotation
+// and z-order). Used so a "front" sector's fill hands clicks to a body drawn beneath it.
+function instUnderPointer(e){
+  const stack=document.elementsFromPoint(e.clientX,e.clientY);
+  for(const el of stack){const host=el.closest&&el.closest(".inst[data-id]");if(host)return state.instances.find(x=>x.id===host.dataset.id)||null;}
+  return null;
+}
 function onInstDown(e,i){
   if(pending)return;
   if(mode==="dm"&&tool==="poi"){
@@ -1783,7 +1862,7 @@ function renderInstanceInspector(){
     <div class="field"><label>Description</label><textarea id="iDesc" placeholder="Lore, notes, hover text…">${esc(i.desc)}</textarea></div>
     <details class="lblsec" open><summary>◈ Name text — size, colour, glow &amp; effects</summary><div style="font-size:11px;color:var(--faint);margin:4px 0 8px">Make the name bigger with <b>Text size</b>, pick a font/colour, and add glow, pulse, outline, curve or rotation. Toggle <b>Show this name</b> above to hide or reveal it.</div>${labelControlsHTML(i.label,'il',{noShow:true})}</details>
     <h4>Transform</h4>
-    ${(()=>{const szMax=i.kind==="image"?6600:1600;return `<div class="field"><label>Size <span style="float:right;color:var(--gold)" id="iSzV">${i.size}</span></label><div class="slider"><input type="range" id="iSize" min="8" max="${Math.max(szMax,i.size)}" value="${Math.min(Math.max(szMax,i.size),i.size)}"></div></div>`;})()}
+    ${(()=>{const szMax=i.kind==="image"?6600:1600;const smax=Math.max(szMax,i.size);return `<div class="field"><label style="display:flex;align-items:center;justify-content:space-between;gap:8px">Size <input type="number" id="iSzNum" min="1" step="1" value="${i.size}" title="Type any size — really big or really small — and the object resizes to match" style="width:96px;text-align:right;padding:3px 7px;font-size:12px;background:var(--panel2);border:1px solid var(--line);color:var(--gold);border-radius:6px"></label><div class="slider"><input type="range" id="iSize" min="8" max="${smax}" value="${Math.min(smax,i.size)}"></div></div>`;})()}
     <div class="field"><label>Rotation <span style="float:right;color:var(--gold)" id="iRotV">${i.rot||0}°</span></label><div class="slider"><input type="range" id="iRot" min="-180" max="180" value="${i.rot||0}"></div></div>
     <div class="field"><label>Opacity <span style="float:right;color:var(--gold)" id="iOpV">${Math.round((i.opacity!=null?i.opacity:1)*100)}%</span></label><div class="slider"><input type="range" id="iOp" min="0" max="100" value="${Math.round((i.opacity!=null?i.opacity:1)*100)}"></div></div>
     <div style="font-size:11px;color:var(--faint);margin-top:2px">On the map: drag the <b>corner dots</b> to scale, the <b>top dot</b> to rotate (hold Shift to snap).</div>
@@ -1812,7 +1891,11 @@ function renderInstanceInspector(){
   $("#iSpd").oninput=e=>{i.orbitSpeed=+e.target.value;markDirty();};
   $("#iDesc").oninput=e=>{i.desc=e.target.value;markDirty();};
   wireLabelControls('il',i.label,()=>{renderLabels();markDirty();});
-  $("#iSize").oninput=e=>{const nv=+e.target.value,f=nv/(i.size||nv);i.size=nv;if(i.w!=null){i.w=Math.max(6,Math.round(i.w*f));i.h=Math.max(6,Math.round(i.h*f));}$("#iSzV").textContent=i.size;renderInstances();renderLabels();markDirty();};
+  // Size: a slider AND a free number entry stay in sync. The number accepts ANY value (really big or
+  // tiny) — the slider just tracks it, expanding its own max so it stays usable past its default range.
+  const applyISize=(raw)=>{const nv=Math.max(1,Math.round(raw));const f=nv/(i.size||nv);i.size=nv;if(i.w!=null){i.w=Math.max(1,Math.round(i.w*f));i.h=Math.max(1,Math.round(i.h*f));}renderInstances();renderLabels();markDirty();};
+  $("#iSize").oninput=e=>{applyISize(+e.target.value);const n=$("#iSzNum");if(n)n.value=i.size;};
+  $("#iSzNum").onchange=e=>{const nv=+e.target.value;if(!isFinite(nv)||nv<1){e.target.value=i.size;return;}applyISize(nv);const sl=$("#iSize");if(sl){if(+sl.max<i.size)sl.max=i.size;sl.value=Math.min(+sl.max,i.size);}e.target.value=i.size;};
   $("#iRot").oninput=e=>{i.rot=+e.target.value;$("#iRotV").textContent=i.rot+"°";renderInstances();renderLabels();markDirty();};
   $("#iOp").oninput=e=>{i.opacity=+e.target.value/100;$("#iOpV").textContent=Math.round(i.opacity*100)+"%";renderInstances();markDirty();};
   if(i.kind==="planet3d"){const sp=$("#iSpin");if(sp)sp.oninput=e=>{i.p3spin=+e.target.value/10;$("#iSpinV").textContent=i.p3spin.toFixed(1)+"×";mountSpriteInstances();markDirty();};}
@@ -1849,17 +1932,44 @@ function updateStatus(){$("#stInfo").textContent=`${state.assets.length} assets 
 /* ============================================================ OBJECT EDITOR ============================================================ */
 let edWork=null,edMode="new",edInst=null;
 function openEditor(asset,modeArg,inst){
+  edClose3D();   // always open in 2D and drop any prior 3D preview
   edMode=modeArg;edInst=inst||null;edWork=JSON.parse(JSON.stringify(asset));if(modeArg==="new"&&!edWork.id)edWork.id=uid();
   $("#editor").classList.add("show");$("#edHeadTitle").textContent=modeArg==="edit"?"Edit — "+asset.name:"New "+asset.kind;$("#edTypeLabel").textContent=edWork.kind;renderEditor();
 }
-$("#edClose").onclick=()=>$("#editor").classList.remove("show");
-function edPreview(){$("#edPreview").innerHTML=art(edWork,true);$("#edTitle").textContent=(edWork.name||"UNTITLED").toUpperCase();}
+// 2D<->3D editor preview switch (parity Slice 5): planet/moon/star can be previewed live in 3D (the same
+// buildPlanetModel/buildStarModel the map uses) editing the SAME edWork config, or in the 2D art().
+let edView3d=false;
+function edKind3D(k){return k==="planet"||k==="moon"||k==="star";}
+function edClose3D(){const host=$("#edPreview");if(host&&host.__is3d){host.__is3d=false;if(window.EditorPreview3D)window.EditorPreview3D.unmount();host.innerHTML="";}edView3d=false;const t=$("#edViewToggle");if(t)t.querySelectorAll("button").forEach(b=>{b.classList.toggle("on",b.dataset.v==="2d");b.style.color=b.dataset.v==="2d"?"var(--gold)":"var(--faint)";});}
+function closeEditor(){edClose3D();$("#editor").classList.remove("show");}
+$("#edClose").onclick=closeEditor;
+function edPreview(){
+  const k=edWork.kind;$("#edTitle").textContent=(edWork.name||"UNTITLED").toUpperCase();
+  const tgl=$("#edViewToggle");if(tgl)tgl.style.display=edKind3D(k)?"flex":"none";
+  const host=$("#edPreview");
+  if(edView3d&&edKind3D(k)&&window.EditorPreview3D){
+    if(!host.__is3d){host.innerHTML="";host.__is3d=true;window.EditorPreview3D.mount(host,edWork);}
+    else window.EditorPreview3D.update(edWork);
+  } else {
+    if(host.__is3d){host.__is3d=false;if(window.EditorPreview3D)window.EditorPreview3D.unmount();}
+    host.innerHTML=art(edWork,true);
+  }
+}
+function edSetView(v){if(v==="3d"&&!window.EditorPreview3D){toast("3D preview is still loading — try again in a moment");return;}edView3d=(v==="3d");const t=$("#edViewToggle");if(t)t.querySelectorAll("button").forEach(b=>{b.classList.toggle("on",b.dataset.v===v);b.style.color=b.dataset.v===v?"var(--gold)":"var(--faint)";});edPreview();}
+{const t=$("#edViewToggle");if(t)t.querySelectorAll("button").forEach(b=>b.onclick=()=>edSetView(b.dataset.v));}
 function renderEditor(){
   edPreview();const k=edWork.kind,body=$("#edBody");let html="";
   if(k!=="svg"||true) html+=`<div class="field"><label>Name</label><input id="edName" value="${esc(edWork.name)}"></div>`;
   if(k==="planet"){
     html+=`<h4>Type</h4><div class="seg" id="edPtype">${Object.keys(PTYPES).map(t=>`<button data-t="${t}" class="${edWork.ptype===t?'on':''}">${t}</button>`).join('')}</div>
       <label class="chk" style="margin-top:8px"><input type="checkbox" id="edRing" ${edWork.ring?'checked':''}> Planetary ring</label>
+      <h4>Terrain &amp; poles</h4>
+      <div class="rowc"><div class="field"><label>Continent scale <span style="float:right;color:var(--gold)" id="edCscaleV">${(edWork.cscale!=null?+edWork.cscale:2.2).toFixed(1)}</span></label><div class="slider"><input type="range" id="edCscale" min="10" max="60" value="${Math.round((edWork.cscale!=null?+edWork.cscale:2.2)*10)}"></div></div>
+      <div class="field"><label>Water level <span style="float:right;color:var(--gold)" id="edSeaV">${(edWork.sea!=null?+edWork.sea:0.52).toFixed(2)}</span></label><div class="slider"><input type="range" id="edSea" min="0" max="100" value="${Math.round((edWork.sea!=null?+edWork.sea:0.52)*100)}"></div></div></div>
+      <div class="rowc"><div class="field"><label>Coastline <span style="float:right;color:var(--gold)" id="edCoastV">${(edWork.coast!=null?+edWork.coast:0.5).toFixed(2)}</span></label><div class="slider"><input type="range" id="edCoast" min="0" max="100" value="${Math.round((edWork.coast!=null?+edWork.coast:0.5)*100)}"></div></div>
+      <div class="field"><label>Ice caps <span style="float:right;color:var(--gold)" id="edIceV">${(edWork.ice!=null?+edWork.ice:0).toFixed(2)}</span></label><div class="slider"><input type="range" id="edIce" min="0" max="100" value="${Math.round((edWork.ice!=null?+edWork.ice:0)*100)}"></div></div></div>
+      <div class="field"><label>Axial tilt <span style="float:right;color:var(--gold)" id="edTiltV">${Math.round(edWork.tilt!=null?+edWork.tilt:0)}°</span></label><div class="slider"><input type="range" id="edTilt" min="-90" max="90" value="${Math.round(edWork.tilt!=null?+edWork.tilt:0)}"></div></div>
+      <div style="font-size:10.5px;color:var(--faint);margin-top:-2px">These drive both the 2D art and the live 3D model — continents, water, ice caps and the axial tilt stay in sync across 2D⇄3D.</div>
       <h4>Clouds</h4>
       <div class="seg five" id="edCloud">${CLOUD_STYLES.map(t=>`<button data-t="${t}" class="${(edWork.cloudStyle||'none')===t?'on':''}">${t}</button>`).join('')}</div>
       <div class="rowc" style="margin-top:8px"><div class="field"><label>Cloud color</label><input type="color" id="edCloudCol" value="${edWork.cloudColor||'#ffffff'}"></div>
@@ -1875,6 +1985,13 @@ function renderEditor(){
       <div class="rowc"><div class="field" style="flex:2"><label>City lights <span style="float:right;color:var(--gold)" id="edCityV">${(edWork.city!=null?edWork.city:0).toFixed(2)}</span></label><div class="slider"><input type="range" id="edCity" min="0" max="100" value="${Math.round((edWork.city!=null?edWork.city:0)*100)}"></div></div>
       <div class="field" style="flex:1"><label>Light colour</label><input type="color" id="edLightCol" value="${edWork.lightColor||'#ffe6a0'}"></div></div>
       <div style="font-size:10.5px;color:var(--faint);margin-top:-2px">Night-side settlements — 0 is a few lights, higher blankets the world in city sprawl.</div>
+      <h4>Storms &amp; lightning</h4>
+      <div class="rowc"><div class="field"><label>Storm cells <span style="float:right;color:var(--gold)" id="edStormsV">${Math.round(edWork.storms!=null?+edWork.storms:0)}</span></label><div class="slider"><input type="range" id="edStorms" min="0" max="8" value="${Math.round(edWork.storms!=null?+edWork.storms:0)}"></div></div>
+      <div class="field"><label>Intensity <span style="float:right;color:var(--gold)" id="edStormIV">${(edWork.stormI!=null?+edWork.stormI:0.65).toFixed(2)}</span></label><div class="slider"><input type="range" id="edStormI" min="0" max="100" value="${Math.round((edWork.stormI!=null?+edWork.stormI:0.65)*100)}"></div></div></div>
+      <label class="chk" style="margin-top:6px"><input type="checkbox" id="edLightOn" ${edWork.lightOn?'checked':''}> ⚡ Lightning in storms</label>
+      <div class="rowc" id="edLightWrap" style="${edWork.lightOn?'':'display:none'}"><div class="field" style="flex:2"><label>Strike rate <span style="float:right;color:var(--gold)" id="edLightRateV">${(edWork.lightRate!=null?+edWork.lightRate:0.5).toFixed(2)}</span></label><div class="slider"><input type="range" id="edLightRate" min="0" max="100" value="${Math.round((edWork.lightRate!=null?+edWork.lightRate:0.5)*100)}"></div></div>
+      <div class="field" style="flex:1"><label>Bolt colour</label><input type="color" id="edBoltCol" value="${edWork.boltColor||'#bfe0ff'}"></div></div>
+      <div style="font-size:10.5px;color:var(--faint);margin-top:-2px">Swirling storm cells; lightning flashes faster as the strike rate rises. Both the 2D art and the live 3D model use these same settings.</div>
       <h4>Cataclysm</h4>
       <div class="seg five" id="edDestroyed">${[["none","Intact"],["split","Split"],["chunk","Chunk"],["holed","Holed"],["cored","Cored"],["fractured","Fractured"]].map(([v,l])=>`<button data-t="${v}" class="${(edWork.destroyed||'none')===v?'on':''}">${l}</button>`).join('')}</div>
       <div class="field" id="edDestroyIWrap" style="${edWork.destroyed&&edWork.destroyed!=='none'?'':'display:none'};margin-top:8px"><label>Destruction <span style="float:right;color:var(--gold)" id="edDestroyIV">${(edWork.destroyI!=null?edWork.destroyI:0.6).toFixed(2)}</span></label><div class="slider"><input type="range" id="edDestroyI" min="0" max="100" value="${Math.round((edWork.destroyI!=null?edWork.destroyI:0.6)*100)}"></div></div>
@@ -1934,6 +2051,11 @@ function wireEditor(){
   const seg=(id,prop,palettes)=>{const el=$("#"+id);if(!el)return;el.querySelectorAll("button").forEach(b=>b.onclick=()=>{el.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");edWork[prop]=b.dataset.t;if(palettes&&palettes[b.dataset.t]){const p=palettes[b.dataset.t];edWork.c1=p[0];edWork.c2=p[1];edWork.c3=p[2];if($("#edC1"))$("#edC1").value=p[0];if($("#edC2"))$("#edC2").value=p[1];if($("#edC3"))$("#edC3").value=p[2];}edPreview();if(k!=="svg"&&k!=="spingalaxy"&&k!=="planet3d")genIterations();});};
   seg("edPtype","ptype",PTYPES);seg("edMtype","mtype",MOON_TYPES);seg("edStype","stype",STAR_TYPES);seg("edSttype","stype",STATION_PALETTES);seg("edDtype","dtype",null);seg("edCloud","cloudStyle",null);
   if($("#edRing"))$("#edRing").onchange=e=>{edWork.ring=e.target.checked;edPreview();};
+  if($("#edCscale"))$("#edCscale").oninput=e=>{edWork.cscale=+e.target.value/10;$("#edCscaleV").textContent=edWork.cscale.toFixed(1);edPreview();};
+  if($("#edSea"))$("#edSea").oninput=e=>{edWork.sea=+e.target.value/100;$("#edSeaV").textContent=edWork.sea.toFixed(2);edPreview();};
+  if($("#edCoast"))$("#edCoast").oninput=e=>{edWork.coast=+e.target.value/100;$("#edCoastV").textContent=edWork.coast.toFixed(2);edPreview();};
+  if($("#edIce"))$("#edIce").oninput=e=>{edWork.ice=+e.target.value/100;$("#edIceV").textContent=edWork.ice.toFixed(2);edPreview();};
+  if($("#edTilt"))$("#edTilt").oninput=e=>{edWork.tilt=+e.target.value;$("#edTiltV").textContent=Math.round(edWork.tilt)+"°";edPreview();};
   if($("#edRays"))$("#edRays").onchange=e=>{edWork.rays=e.target.checked;const w=$("#edRayWrap");if(w)w.style.display=e.target.checked?"":"none";edPreview();};
   // star effect controls (Slice 3): brightness, corona size, glow breathing, sun-ray spec — live 2D preview
   if($("#edBright"))$("#edBright").oninput=e=>{edWork.brightness=+e.target.value/100;$("#edBrightV").textContent=edWork.brightness.toFixed(2)+"×";edPreview();};
@@ -1953,6 +2075,11 @@ function wireEditor(){
   if($("#edLava"))$("#edLava").oninput=e=>{edWork.lava=+e.target.value/100;$("#edLavaV").textContent=edWork.lava.toFixed(2);edPreview();};
   if($("#edCity"))$("#edCity").oninput=e=>{edWork.city=+e.target.value/100;$("#edCityV").textContent=edWork.city.toFixed(2);edPreview();};
   if($("#edLightCol"))$("#edLightCol").oninput=e=>{edWork.lightColor=e.target.value;edPreview();};
+  if($("#edStorms"))$("#edStorms").oninput=e=>{edWork.storms=+e.target.value;$("#edStormsV").textContent=edWork.storms;edPreview();};
+  if($("#edStormI"))$("#edStormI").oninput=e=>{edWork.stormI=+e.target.value/100;$("#edStormIV").textContent=edWork.stormI.toFixed(2);edPreview();};
+  if($("#edLightOn"))$("#edLightOn").onchange=e=>{edWork.lightOn=e.target.checked;const w=$("#edLightWrap");if(w)w.style.display=e.target.checked?"":"none";edPreview();};
+  if($("#edLightRate"))$("#edLightRate").oninput=e=>{edWork.lightRate=+e.target.value/100;$("#edLightRateV").textContent=edWork.lightRate.toFixed(2);edPreview();};
+  if($("#edBoltCol"))$("#edBoltCol").oninput=e=>{edWork.boltColor=e.target.value;edPreview();};
   if($("#edDestroyed"))$("#edDestroyed").querySelectorAll("button").forEach(b=>b.onclick=()=>{$("#edDestroyed").querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");edWork.destroyed=b.dataset.t;const w=$("#edDestroyIWrap");if(w)w.style.display=(edWork.destroyed&&edWork.destroyed!=="none")?"":"none";edPreview();});
   if($("#edDestroyI"))$("#edDestroyI").oninput=e=>{edWork.destroyI=+e.target.value/100;$("#edDestroyIV").textContent=edWork.destroyI.toFixed(2);edPreview();};
   const gs=(id,prop,div,fx)=>{const el=$("#"+id);if(!el)return;el.oninput=e=>{edWork[prop]=+e.target.value/(div||1);const v=$("#"+id+"V");if(v)v.textContent=fx?fx(edWork[prop]):edWork[prop];edPreview();};};
@@ -1962,7 +2089,7 @@ function wireEditor(){
   $("#edSize").oninput=e=>{edWork.size=+e.target.value;$("#edSzV").textContent=edWork.size;};
   if($("#edReseed"))$("#edReseed").onclick=()=>{edWork.seed=Math.random()*99999|0;edPreview();genIterations();};
   if($("#edIterate"))$("#edIterate").onclick=genIterations;
-  $("#edCancel").onclick=()=>$("#editor").classList.remove("show");
+  $("#edCancel").onclick=closeEditor;
   $("#edSave").onclick=()=>saveEditor(edMode==="edit"?"save":"new");
   const sn=$("#edSaveNew");if(sn)sn.onclick=()=>saveEditor("new");
 }
@@ -1974,7 +2101,7 @@ function saveEditor(saveMode){
     // if editing a placed instance, update its look live
     if(edInst){edInst.look=snapshotLook(edWork);edInst.name=edWork.name;edInst.size=edWork.size;}
     toast("Updated “"+edWork.name+"”");}
-  $("#editor").classList.remove("show");const tab=TABS.find(t=>t.kind===edWork.kind);if(tab)setTab(tab.id);else renderLibrary();renderAll();markDirty();updateTabBadges();
+  closeEditor();const tab=TABS.find(t=>t.kind===edWork.kind);if(tab)setTab(tab.id);else renderLibrary();renderAll();markDirty();updateTabBadges();
 }
 /* ---- EXPORT the edited object as SVG / standalone HTML ---- */
 function objectSVGString(a){let s=art(a,false);const i=s.indexOf("<svg");if(i<0)return null;const j=s.lastIndexOf("</svg>");s=s.slice(i,j+6);
@@ -2026,13 +2153,22 @@ function applyNebulaTint(){const w=document.querySelector('.canvaswrap');const f
   else{w.style.background='';}}
 
 /* ---- 3D viewer background (programmable sky, publishes to players via bg3d) ---- */
-const BG3D_TEMPLATES=[["deepspace","Deep space"],["stars","Just stars"],["milkyway","Milky Way band"],["spiral","Spiral galaxy"],["nebula","Flowing nebula"],["blackhole","Black hole"],["wormhole","Wormhole"],["asteroids","Asteroid field"],["solid","Solid colour"],["glow","Colour + glow"]];
+const BG3D_TEMPLATES=[["deepspace","Deep space"],["stars","Just stars"],["milkyway","Milky Way band"],["spiral","Spiral galaxy"],["spiralswirl","Spiral swirl (spinning)"],["nebula","Flowing nebula"],["blackhole","Black hole"],["wormhole","Wormhole"],["asteroids","Asteroid field"],["solid","Solid colour"],["glow","Colour + glow"]];
+const BG_SPIRAL_DEFAULT=()=>({rings:6,speed:0.6,rotation:0});
 function bg3dControlsHTML(b){b=state.bg3d=Object.assign(BG3D_DEFAULT(),b||{});b.glow=Object.assign({on:false,colors:["#3b2a6b","#0a4a5a"],pulse:false,speed:1},b.glow||{});
   const g=b.glow,starsy=b.template!=="solid"&&b.template!=="glow";
+  const isSwirl=b.template==="spiralswirl",sp=b.spiral=Object.assign(BG_SPIRAL_DEFAULT(),b.spiral||{});
+  const swirlCtl=`<div id="b3SwirlWrap" style="${isSwirl?'':'display:none'}">
+      <div style="font-size:10.5px;color:var(--faint);margin:2px 0 6px">The animated spiral swirl spins as the map backdrop — its rings turn at different rates, like the image spiral effect.</div>
+      <div class="field"><label>Swirl layers (rings) <span style="float:right;color:var(--gold)" id="b3SwRingsV">${sp.rings}</span></label><div class="slider"><input type="range" id="b3SwRings" min="2" max="12" value="${sp.rings}"></div></div>
+      <div class="field"><label>Spin speed <span style="float:right;color:var(--gold)" id="b3SwSpdV">${(+sp.speed).toFixed(2)}×</span></label><div class="slider"><input type="range" id="b3SwSpd" min="0" max="300" value="${Math.round((+sp.speed)*100)}"></div></div>
+      <div class="field"><label>Base rotation <span style="float:right;color:var(--gold)" id="b3SwRotV">${Math.round(+sp.rotation)}°</span></label><div class="slider"><input type="range" id="b3SwRot" min="0" max="360" value="${Math.round(+sp.rotation)}"></div></div>
+    </div>`;
   return `<h4>3D viewer background</h4>
     <div style="font-size:11px;color:var(--faint);margin-bottom:6px">The sky in the ⛶ 3D viewer — also what players see when they open 3D. Regenerate reshuffles it.</div>
     <div class="rowc"><div class="field" style="flex:2"><label>Template</label><select id="b3Tpl">${BG3D_TEMPLATES.map(([v,l])=>`<option value="${v}" ${b.template===v?"selected":""}>${l}</option>`).join("")}</select></div>
       <div class="field" style="flex:1"><label>&nbsp;</label><button id="b3Regen" title="Generate a new random arrangement of this template" style="width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:5px;padding:6px;cursor:pointer">⟳ Regenerate</button></div></div>
+    ${swirlCtl}
     <div class="field"><label>Base colour</label><input type="color" id="b3Base" value="${b.baseColor||'#010a13'}"></div>
     <div id="b3StarWrap" style="${starsy?'':'display:none'}">
       <label class="chk"><input type="checkbox" id="b3Par" ${b.parallax?"checked":""}> Parallax depth</label>
@@ -2062,6 +2198,10 @@ function wireBg3dControls(){const b=state.bg3d;if(!b||!$("#b3Tpl"))return;
   $("#b3GcB").oninput=e=>{b.glow.colors[1]=e.target.value;push();};
   $("#b3Pulse").onchange=e=>{b.glow.pulse=e.target.checked;$("#b3PulseSpWrap").style.display=e.target.checked?"":"none";push();};
   const ps=$("#b3Ps");if(ps)ps.oninput=e=>{b.glow.speed=+e.target.value/100;$("#b3PsV").textContent=b.glow.speed.toFixed(1)+"×";push();};
+  if(!b.spiral)b.spiral=BG_SPIRAL_DEFAULT();
+  const swR=$("#b3SwRings");if(swR)swR.oninput=e=>{b.spiral.rings=+e.target.value;$("#b3SwRingsV").textContent=b.spiral.rings;push();};
+  const swS=$("#b3SwSpd");if(swS)swS.oninput=e=>{b.spiral.speed=+e.target.value/100;$("#b3SwSpdV").textContent=b.spiral.speed.toFixed(2)+"×";push();};
+  const swRot=$("#b3SwRot");if(swRot)swRot.oninput=e=>{b.spiral.rotation=+e.target.value;$("#b3SwRotV").textContent=Math.round(b.spiral.rotation)+"°";push();};
 }
 // Apply the current 3D background to the live 3D viewer (if open) AND the 2D backdrop, so the flat
 // map mirrors the 3D sky. Persists via bg3d in mapData().
@@ -2172,7 +2312,7 @@ $("#inspBody").addEventListener("click",e=>{if(mode!=="play")return;const pp=e.t
 window.addEventListener("keydown",e=>{if(/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))return;const meta=e.ctrlKey||e.metaKey;
   if(meta&&e.key.toLowerCase()==="z"&&!e.shiftKey){e.preventDefault();undo();}
   else if(meta&&(e.key.toLowerCase()==="y"||(e.key.toLowerCase()==="z"&&e.shiftKey))){e.preventDefault();redo();}
-  else if(e.key==="Escape"){if(drawing)cancelDraw();else if(pending)clearPending();else if($("#editor").classList.contains("show"))$("#editor").classList.remove("show");else if($("#campModal").classList.contains("show"))$("#campModal").classList.remove("show");else if($("#poiTypeModal").classList.contains("show"))$("#poiTypeModal").classList.remove("show");else{selection=null;renderAll();}}
+  else if(e.key==="Escape"){if(drawing)cancelDraw();else if(pending)clearPending();else if($("#editor").classList.contains("show"))closeEditor();else if($("#campModal").classList.contains("show"))$("#campModal").classList.remove("show");else if($("#poiTypeModal").classList.contains("show"))$("#poiTypeModal").classList.remove("show");else{selection=null;renderAll();}}
   else if(e.key==="Enter"&&drawing){finishDraw();}
   else if((e.key==="Delete"||e.key==="Backspace")&&selection&&mode==="dm"){pushUndo();if(selection.type==="instance")state.instances=state.instances.filter(x=>x.id!==selection.id);else if(selection.type==="sector"){state.sectors=state.sectors.filter(x=>x.id!==selection.id);computeSectorParents();reassociateAll();}else if(selection.type==="poi"){const i=state.instances.find(x=>x.id===selection.id);if(i)i.pois=i.pois.filter(x=>x.id!==selection.poi);}selection=null;renderAll();markDirty();}
   else if(e.key.toLowerCase()==="v"&&mode==="dm")setTool("select");
@@ -2284,5 +2424,38 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
 </script>
 <!-- Real-time 3D viewer (vendored Three via the importmap above). Wires the ⛶ 3D toggle itself. -->
 <script type="module" src="/dnd/maps/map3d.js"></script>
+<!-- In-editor 2D<->3D preview (parity Slice 5): a minimal live scene rendering the SAME buildPlanetModel/
+     buildStarModel the map uses, so a placed planet/moon/star can be edited previewing either dimension. -->
+<script type="module">
+import * as THREE from 'three';
+import { buildPlanetModel, buildStarModel } from '/dnd/maps/planet3d-model.js';
+(function(){
+  let renderer,scene,camera,model,raf,host,last=0;
+  const SUN=new THREE.Vector3(3,2,4).normalize();
+  function ensure(el){
+    if(renderer){host=el;return;}
+    host=el;
+    renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+    renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+    renderer.domElement.style.cssText='width:100%;height:100%;display:block';
+    scene=new THREE.Scene();
+    camera=new THREE.PerspectiveCamera(34,1,0.1,100);camera.position.set(0,0,4.6);
+    const dl=new THREE.DirectionalLight(0xffffff,1.15);dl.position.copy(SUN.clone().multiplyScalar(5));scene.add(dl);
+    scene.add(new THREE.AmbientLight(0x35405f,0.65));
+  }
+  function fit(){if(!host||!renderer)return;const r=host.getBoundingClientRect();const w=Math.max(40,r.width),h=Math.max(40,r.height);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
+  function cfgFor(look){try{if(window.Map3D&&window.Map3D._genericPlanetCfg)return window.Map3D._genericPlanetCfg({kind:look.kind,look});}catch(e){}return {type:look.ptype||'terran',seed:look.seed||1};}
+  function build(look){
+    if(model){try{scene.remove(model.group);model.dispose&&model.dispose();}catch(e){}model=null;}
+    try{model=look.kind==='star'?buildStarModel(look,{radius:1.15}):buildPlanetModel(cfgFor(look),{radius:1.3,segments:64});scene.add(model.group);}catch(e){/* keep the scene alive if a build fails */}
+  }
+  function loop(t){raf=requestAnimationFrame(loop);const dt=Math.min(0.05,((t-last)/1000)||0.016);last=t;if(model&&model.update)try{model.update(dt,SUN);}catch(e){}if(renderer)renderer.render(scene,camera);}
+  window.EditorPreview3D={
+    mount(el,look){ensure(el);if(el&&renderer&&renderer.domElement.parentNode!==el)el.appendChild(renderer.domElement);fit();build(look);if(!raf)raf=requestAnimationFrame(loop);},
+    update(look){if(!renderer)return;fit();build(look);},
+    unmount(){if(raf)cancelAnimationFrame(raf);raf=null;if(model){try{scene.remove(model.group);model.dispose&&model.dispose();}catch(e){}model=null;}if(renderer&&renderer.domElement&&renderer.domElement.parentNode)renderer.domElement.parentNode.removeChild(renderer.domElement);}
+  };
+})();
+</script>
 </body>
 </html>

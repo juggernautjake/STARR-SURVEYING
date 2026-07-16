@@ -51,6 +51,45 @@ export const lazzuhTheme: SheetTheme = {
   },
 };
 
+// Hextech default (Phase V, Slice 6b) — the site's League-of-Legends / Hextech look,
+// meant to REPLACE the Lazzuh purple-alien as the neutral default sheet for new PCs and
+// NPCs. A DARK theme (like the base sheet), so token overrides alone read well: deep
+// Piltover navy grounds, Hextech teal/cyan energy, and engraved gold accents. Paired
+// with the `.skin-hextech` CSS in theme.css (hex frames, gold rules, teal glow) and an
+// engraved-serif display face. `teal`/`tealbright` stay cyan here (Hextech energy), so
+// the base sheet's link/mod/table-header treatment lands on-theme with no repurposing.
+export const hextechTheme: SheetTheme = {
+  colors: {
+    void: '#010a13',       // Piltover deep navy page
+    'void-2': '#04121f',
+    panel: '#0a1626',      // hex-panel card
+    'panel-2': '#0e1e30',
+    'panel-3': '#12283f',
+    ink: '#f0e6d2',        // Hextech parchment-gold text (LoL UI body)
+    muted: '#a09b8c',      // warm stone (LoL secondary text)
+    'muted-2': '#7a8794',
+    pink: '#0ac8b9',       // repurposed to Hextech teal (used as accent fills)
+    hotpink: '#0397ab',    // deep Hextech teal — primary accent/value text
+    violet: '#005a82',     // Hextech blue depth
+    'violet-2': '#0a7ea4',
+    teal: '#0ac8b9',       // Hextech energy cyan (links/mods)
+    tealbright: '#00e0d3',
+    gold: '#c8aa6e',       // engraved Hextech gold (LoL signature)
+    danger: '#c8413f',
+    good: '#0acb8f',
+    line: 'rgba(200, 170, 110, 0.28)',      // gold hairline
+    'line-strong': 'rgba(10, 200, 185, 0.5)', // teal energy border
+  },
+  fonts: {
+    // Cinzel = engraved Roman serif for the Hextech display headings (LoL title feel);
+    // Spectral = a refined serif body; JetBrains Mono for stat/HUD figures. Cinzel +
+    // Spectral are @imported in theme.css.
+    display: "'Cinzel', 'Trajan Pro', Georgia, serif",
+    body: "'Spectral', 'Georgia', 'Segoe UI', serif",
+    mono: "'JetBrains Mono', 'Consolas', monospace",
+  },
+};
+
 // Streamer skin (§6.9) — a bright, peppy magical-girl broadcaster palette (worn by
 // xxRainbowKittenUwU37xx): white + hot pink with gold and purple accents. It's a
 // LIGHT theme, so `void`/`panel` are pale and `ink` is a deep plum for readable text;

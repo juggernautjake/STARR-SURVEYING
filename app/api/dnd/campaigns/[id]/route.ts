@@ -93,6 +93,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const patch: Record<string, unknown> = {};
   if (typeof body.name === 'string' && body.name.trim()) patch.name = body.name.trim();
   if (typeof body.blurb === 'string') patch.blurb = body.blurb;
+  // Custom-content policy (IG builder Slice 5): false = vanilla-only campaign.
+  if ('allow_custom' in body) patch.allow_custom = !!body.allow_custom;
 
   // Art banner + campaign notes all live in the `theme` jsonb. `notes` is the
   // player-visible campaign info; `dmNotes` is the DM's private prep (never sent to

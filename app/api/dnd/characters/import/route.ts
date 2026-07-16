@@ -8,6 +8,8 @@ import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
+import { normalizeSystem } from '@/lib/dnd/systems';
+import { normalizeBuildMode } from '@/lib/dnd/build-modes';
 
 const BUCKET = 'dnd-media';
 const MAX_BYTES = 25 * 1024 * 1024; // 25 MB per file
@@ -28,22 +30,37 @@ export async function POST(req: NextRequest) {
     const name = String(form.get('name') ?? '').trim();
     const notes = String(form.get('notes') ?? '').trim();
     const styleNotes = String(form.get('styleNotes') ?? '').trim();
-    if (!campaignId) return NextResponse.json({ error: 'campaignId is required.' }, { status: 400 });
+    const system = normalizeSystem(form.get('system'));       // chosen game system or 'ambiguous'
+    const buildMode = normalizeBuildMode(form.get('mode'));   // ruthless | questioning | stepbystep
+    // NPC parity (Slice 10): a DM can run the SAME full builder (system, mode, uploads, custom sheet) to
+    // create an NPC — not just a quick shell. NPCs are DM-owned and private.
+    const isNpc = String(form.get('isNpc') ?? '') === 'true' || String(form.get('isNpc') ?? '') === '1';
     if (!name) return NextResponse.json({ error: 'A character name is required.' }, { status: 400 });
-    if ((await getCampaignRole(campaignId)) === null) return NextResponse.json({ error: 'Not a member of this campaign.' }, { status: 403 });
+    // A campaign is OPTIONAL: with one you must be a member (it lands in that campaign); without one the
+    // character is a private, personal sheet owned by the caller that they can build fully on its own and
+    // attach to a campaign later.
+    const hasCampaign = !!campaignId;
+    const role = hasCampaign ? await getCampaignRole(campaignId) : null;
+    if (hasCampaign && role === null) return NextResponse.json({ error: 'Not a member of this campaign.' }, { status: 403 });
+    // Only the DM may create an NPC inside a campaign (a personal NPC library needs no campaign).
+    if (isNpc && hasCampaign && role !== 'dm') return NextResponse.json({ error: 'Only the DM can add an NPC to this campaign.' }, { status: 403 });
 
     // 1. Create the under-construction character (generic blank sheet, owned by caller).
     const { data: created, error: cErr } = await supabaseAdmin
       .from('dnd_characters')
       .insert({
-        campaign_id: campaignId,
+        campaign_id: hasCampaign ? campaignId : null,
         owner_user_id: session.userId,
         name,
-        sheet_type: 'generic',
+        sheet_type: 'default',
         data: blankCharacter(name),
-        visibility: 'campaign',
+        // NPCs stay private (DM-only); PCs are campaign-visible when in a campaign, else private.
+        visibility: isNpc ? 'private' : hasCampaign ? 'campaign' : 'private',
+        is_npc: isNpc,
         under_construction: true,
         style_notes: styleNotes || null,
+        system,
+        build_mode: buildMode,
       })
       .select('id')
       .single();
@@ -51,13 +68,16 @@ export async function POST(req: NextRequest) {
     const characterId = created.id as string;
 
     // Roster link for the multi-campaign model (Phase S). The player automatically owns
-    // the character they just made; this places it in the campaign they built it for.
-    try {
-      await supabaseAdmin
-        .from('dnd_campaign_characters')
-        .upsert({ campaign_id: campaignId, character_id: characterId, added_by: session.userId }, { onConflict: 'campaign_id,character_id', ignoreDuplicates: true });
-    } catch {
-      /* join table not present yet */
+    // the character they just made; this places it in the campaign they built it for (if any).
+    // NPCs are DM-private and are NOT added to the visible roster.
+    if (hasCampaign && !isNpc) {
+      try {
+        await supabaseAdmin
+          .from('dnd_campaign_characters')
+          .upsert({ campaign_id: campaignId, character_id: characterId, added_by: session.userId }, { onConflict: 'campaign_id,character_id', ignoreDuplicates: true });
+      } catch {
+        /* join table not present yet */
+      }
     }
 
     await ensureStorageBucket(BUCKET, { public: true });

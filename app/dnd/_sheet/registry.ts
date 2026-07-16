@@ -8,7 +8,7 @@
 // The engine (App) renders a module's tab/content only when the character's
 // sheet_type registers it, so new characters are "a theme + data (+ maybe a
 // module)" rather than a fork.
-import { lazzuhTheme, streamerTheme, donataTheme, rangorTheme, type SheetTheme } from './theme';
+import { lazzuhTheme, streamerTheme, donataTheme, rangorTheme, hextechTheme, type SheetTheme } from './theme';
 
 // Known character-only mechanic modules. Add an id here when a new bespoke
 // mechanic is built. `stream` = the live streamer chat + influence meter + the
@@ -19,7 +19,7 @@ export type SheetModuleId = 'forms' | 'stream' | 'mlm';
 // A `skin` is a bespoke visual treatment beyond color/font tokens — the extra CSS
 // (pixel frames, scanlines, glitch, etc.) lives under `.dnd-sheet.skin-<id>` in
 // theme.css. The engine appends `skin-<id>` to the sheet root when set.
-export type SheetSkinId = 'streamer' | 'donata' | 'rulebook';
+export type SheetSkinId = 'streamer' | 'donata' | 'rulebook' | 'hextech';
 
 // Per-character flavor for the "roll for initiative" prompt (§6 initiative). Purely
 // cosmetic copy + accent; the roll math (d20 + the character's init bonus) is shared.
@@ -87,12 +87,34 @@ export const SHEET_REGISTRY: Record<string, SheetTypeConfig> = {
     modules: [],
     initiative: { kicker: 'BACK ALLEY // INITIATIVE', title: 'Square Up!', rollLabel: '🥊 Roll d20', lockLabel: 'Fists up', accent: 'var(--hotpink)' },
   },
-  // Fallback for a character with no bespoke skin/modules yet.
-  generic: { label: 'Generic', modules: [] },
+  // The neutral DEFAULT sheet for new PCs and NPCs (Slice 6b): the site's Hextech /
+  // League-of-Legends look (deep Piltover navy, Hextech teal, engraved gold) — replacing
+  // the bespoke Lazzuh purple-alien as the fallback. Fully customizable like every skin
+  // and works with the block/HTML/CSS custom system. No character-only modules.
+  default: {
+    label: 'Hextech (Default)',
+    theme: hextechTheme,
+    skin: 'hextech',
+    modules: [],
+    initiative: { kicker: 'ENCOUNTER // INITIATIVE', title: 'Roll for Initiative!', rollLabel: '🎲 Roll d20', lockLabel: 'Lock in', accent: 'var(--gold)' },
+  },
+  // Legacy fallback name — now the Hextech default too, so any existing `generic`
+  // character flips off the purple Lazzuh defaults onto the neutral Hextech look.
+  generic: {
+    label: 'Hextech (Default)',
+    theme: hextechTheme,
+    skin: 'hextech',
+    modules: [],
+    initiative: { kicker: 'ENCOUNTER // INITIATIVE', title: 'Roll for Initiative!', rollLabel: '🎲 Roll d20', lockLabel: 'Lock in', accent: 'var(--gold)' },
+  },
+  // AI-built custom sheet (Slice 6): the page is composed from stored building blocks +
+  // CSS (`dnd_characters.custom_layout` / `custom_css`) and rendered in a sandboxed
+  // iframe by SheetRoot, not from the module engine — so this config has no modules.
+  custom: { label: 'Custom (AI)', modules: [] },
 };
 
 export function getSheetConfig(sheetType?: string): SheetTypeConfig {
-  return (sheetType && SHEET_REGISTRY[sheetType]) || SHEET_REGISTRY.generic;
+  return (sheetType && SHEET_REGISTRY[sheetType]) || SHEET_REGISTRY.default;
 }
 
 export function hasModule(sheetType: string | undefined, id: SheetModuleId): boolean {

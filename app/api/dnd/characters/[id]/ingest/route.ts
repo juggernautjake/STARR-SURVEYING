@@ -5,11 +5,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type Anthropic from '@anthropic-ai/sdk';
 import { supabaseAdmin } from '@/lib/supabase';
-import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
+import { getDndSession } from '@/lib/dnd/auth';
+import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { dndToolCall, dndAiConfigured } from '@/lib/dnd/ai';
 import { applySheetEdits, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
+import { systemGroundingBlock } from '@/lib/dnd/grounding';
+import { normalizeBuildMode, buildModeInstruction } from '@/lib/dnd/build-modes';
+import { validateCharacterForSystem } from '@/lib/dnd/system-validate';
+import { normalizeSystem } from '@/lib/dnd/systems';
 
 const IMG = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const TEXTY = /\.(txt|md|csv|json|text)$/i;
@@ -38,11 +43,10 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
   if (!dndAiConfigured()) return NextResponse.json({ error: 'AI is not configured.' }, { status: 503 });
 
-  const { data: ch } = await supabaseAdmin.from('dnd_characters').select('id, campaign_id, owner_user_id, name, data').eq('id', params.id).maybeSingle();
-  if (!ch) return NextResponse.json({ error: 'Character not found.' }, { status: 404 });
-  const row = ch as { id: string; campaign_id: string; owner_user_id: string | null; name: string; data: Character | null };
-  const isDM = (await getCampaignRole(row.campaign_id)) === 'dm';
-  if (!isDM && row.owner_user_id !== session.userId) return NextResponse.json({ error: 'You cannot edit this character.' }, { status: 403 });
+  // The single write chokepoint (Slice 8b): keyed to this character id + owner/DM authorization.
+  const access = await requireCharacterWrite(params.id);
+  if (!access.access) return NextResponse.json({ error: access.error }, { status: access.status });
+  const row = access.access.character as unknown as { id: string; name: string; data: Character | null; system: string | null; build_mode: string | null };
 
   const { data: ups } = await supabaseAdmin.from('dnd_character_uploads').select('url, filename, mime, kind').eq('character_id', params.id).eq('kind', 'source').order('created_at', { ascending: true }).limit(MAX_FILES);
   const uploads = (ups ?? []) as { url: string; filename: string | null; mime: string | null; kind: string }[];
@@ -67,10 +71,20 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     }
   }
 
+  // System-scoped grounding: retrieve ONLY the character's system's rules and forbid cross-system /
+  // invented mechanics. The query is the sources' text so retrieval is relevant to this character.
+  const queryText = [
+    row.name,
+    ...content.filter((b): b is { type: 'text'; text: string } => (b as { type?: string }).type === 'text').map((b) => b.text),
+  ].join('\n').slice(0, 6000);
+  const grounding = await systemGroundingBlock(row.system, queryText).catch(() => ({ instruction: '', block: '', matched: 0 }));
+  if (grounding.block) content.push({ type: 'text', text: grounding.block });
+  const modeInstruction = buildModeInstruction(normalizeBuildMode(row.build_mode));
+
   let result;
   try {
-    result = await dndToolCall<{ edits: SheetEdit[]; unmapped?: string[] }>({
-      system: SYSTEM,
+    result = await dndToolCall<{ edits: SheetEdit[]; unmapped?: string[]; questions?: string[] }>({
+      system: [SYSTEM, grounding.instruction, modeInstruction].filter(Boolean).join('\n\n'),
       user: [{ role: 'user', content: content as Anthropic.MessageParam['content'] }],
       tools: [SHEET_EDIT_TOOL],
       toolChoice: { type: 'tool', name: 'edit_sheet' },
@@ -84,13 +98,22 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   const edits = Array.isArray(result?.input?.edits) ? result!.input.edits : [];
   const updated = applySheetEdits(row.data ?? blankCharacter(row.name), edits);
   const unmapped = [...(result?.input?.unmapped ?? []), ...unreadable];
+  // Safety net (Slice 3): flag anything that doesn't belong to the chosen system so the user resolves
+  // it rather than it being silently kept — folded into unmapped + the open questions.
+  const violations = validateCharacterForSystem(updated, normalizeSystem(row.system));
+  for (const v of violations) unmapped.push(`System check (${v.severity}): ${v.message}`);
   const importNotes = unmapped.length ? unmapped.map((u) => `• ${u}`).join('\n') : null;
+  // Open questions the AI needs the user to resolve (gaps / ambiguity / conflicting uploads).
+  const questions = (Array.isArray(result?.input?.questions) ? result!.input.questions : [])
+    .map((q) => String(q).trim())
+    .filter(Boolean);
+  for (const v of violations.filter((x) => x.severity === 'error')) questions.push(v.message);
 
   const { error: upErr } = await supabaseAdmin
     .from('dnd_characters')
-    .update({ data: updated, name: updated.meta.name || row.name, import_notes: importNotes })
+    .update({ data: updated, name: updated.meta.name || row.name, import_notes: importNotes, build_questions: questions })
     .eq('id', params.id);
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
 
-  return NextResponse.json({ ok: true, editCount: edits.length, unmapped });
+  return NextResponse.json({ ok: true, editCount: edits.length, unmapped, questions });
 }

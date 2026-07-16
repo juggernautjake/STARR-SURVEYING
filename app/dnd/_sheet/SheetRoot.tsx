@@ -6,6 +6,9 @@
 // arrives in C3, and this becomes the canonical /dnd/Lazzuh_Gun render in C6.
 import { CharacterProvider } from './state/store';
 import App from './App';
+import CustomSheet from './components/CustomSheet';
+import InteractiveSheet from './components/InteractiveSheet';
+import { hasCustomLayout, layoutHasInteractive } from '@/lib/dnd/custom-sheet';
 import type { SheetTheme } from './theme';
 
 // characterId → DB-backed load/save (C3). sheetType → registry-driven skin + modules
@@ -18,6 +21,8 @@ export default function SheetRoot({
   theme,
   isDM,
   canWrite,
+  customLayout,
+  customCss,
 }: {
   characterId?: string;
   campaignId?: string;
@@ -27,7 +32,27 @@ export default function SheetRoot({
   isDM?: boolean;
   /** Viewer can edit this character (owner OR DM) — enables the art uploader. */
   canWrite?: boolean;
+  /** AI-built custom sheet blocks (Slice 6) — when present (and `sheet_type` is
+   *  `custom`) the sheet renders from these in a sandboxed iframe instead of the engine. */
+  customLayout?: unknown;
+  customCss?: string | null;
 }) {
+  // A custom (AI-composed) sheet takes over rendering when it has valid blocks. If it
+  // contains interactive widgets (Slice 11), render it via React inside the provider so
+  // the inputs bind to the character data and persist; otherwise render the static,
+  // sandboxed-iframe presentation (Slice 6).
+  if (sheetType === 'custom' && hasCustomLayout(customLayout)) {
+    if (layoutHasInteractive(customLayout)) {
+      return (
+        <CharacterProvider characterId={characterId} campaignId={campaignId} isDM={isDM} canWrite={canWrite}>
+          <div className="dnd-sheet skin-hextech" style={{ padding: 16 }}>
+            <InteractiveSheet layout={customLayout} />
+          </div>
+        </CharacterProvider>
+      );
+    }
+    return <CustomSheet layout={customLayout} css={customCss} />;
+  }
   return (
     <CharacterProvider characterId={characterId} campaignId={campaignId} isDM={isDM} canWrite={canWrite}>
       <App sheetType={sheetType} theme={theme} />

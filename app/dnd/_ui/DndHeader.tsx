@@ -4,10 +4,13 @@
 // the hub stays reachable by direct link only.
 import Link from 'next/link';
 import styles from './hextech.module.css';
+import HeaderBack from './HeaderBack';
+import LogoutButton from './LogoutButton';
 
-export default function DndHeader() {
+export default function DndHeader({ userName }: { userName?: string | null }) {
   return (
     <header className={styles.siteHeader}>
+      <HeaderBack />
       <Link href="/dnd" className={styles.siteBrand}>
         <span className={styles.siteBrandMark} aria-hidden>
           ◆
@@ -21,6 +24,18 @@ export default function DndHeader() {
         <Link href="/dnd/characters/new" className={styles.siteNavLink}>
           ＋ Character
         </Link>
+        {userName ? (
+          <span className={styles.siteNavUser} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ opacity: 0.85 }}>
+              Signed in as <strong>{userName}</strong>
+            </span>
+            <LogoutButton />
+          </span>
+        ) : (
+          <Link href="/dnd/login" className={styles.siteNavLink}>
+            Sign in
+          </Link>
+        )}
       </nav>
     </header>
   );

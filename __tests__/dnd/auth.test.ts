@@ -30,6 +30,17 @@ describe('dnd auth: signed tokens', () => {
     const token = signToken({ userId: 'u1', exp: Date.now() + 60_000 });
     expect(verifyToken(token)?.userId).toBe('u1');
   });
+
+  it('persists across repeated verifications (a session that keeps working)', () => {
+    // A 30-day token (what setDndSession issues) verifies now and on later reads — the stable secret
+    // means the same token keeps validating, so a signed-in user stays signed in.
+    const token = signToken({ userId: 'u1', email: 'a@b.c', exp: Date.now() + 60 * 60 * 24 * 30 * 1000 });
+    for (let i = 0; i < 3; i++) {
+      const p = verifyToken(token);
+      expect(p?.userId).toBe('u1');
+      expect(p?.email).toBe('a@b.c');
+    }
+  });
 });
 
 describe('dnd auth: password hashing', () => {

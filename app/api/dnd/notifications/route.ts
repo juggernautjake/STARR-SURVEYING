@@ -11,6 +11,31 @@ export async function GET() {
   const session = getDndSession();
   if (!session) return NextResponse.json({ notifications: [] });
 
+  // Character-review notifications (IG builder Slice 4): the player owns a character the DM has just
+  // rejected — surface the denial + the DM's notes so they know what to fix. Defensive: swallow errors if
+  // the approval columns aren't migrated yet.
+  let reviewNotifs: unknown[] = [];
+  try {
+    const { data: chars } = await supabaseAdmin
+      .from('dnd_characters')
+      .select('id, name, campaign_id, submission_status, dm_review_notes, reviewed_at')
+      .eq('owner_user_id', session.userId)
+      .eq('submission_status', 'rejected')
+      .order('reviewed_at', { ascending: false })
+      .limit(20);
+    reviewNotifs = ((chars ?? []) as { id: string; name: string; campaign_id: string | null; dm_review_notes: string | null; reviewed_at: string | null }[]).map((c) => ({
+      id: `review:${c.id}`,
+      type: 'character_rejected' as const,
+      characterId: c.id,
+      characterName: c.name,
+      campaignId: c.campaign_id,
+      notes: c.dm_review_notes ?? null,
+      createdAt: c.reviewed_at,
+    }));
+  } catch {
+    reviewNotifs = [];
+  }
+
   try {
     const { data: invites, error } = await supabaseAdmin
       .from('dnd_invites')
@@ -18,11 +43,11 @@ export async function GET() {
       .eq('invited_user_id', session.userId)
       .eq('status', 'pending')
       .order('created_at', { ascending: false });
-    if (error) return NextResponse.json({ notifications: [] }); // likely un-migrated DB
+    if (error) return NextResponse.json({ notifications: reviewNotifs }); // likely un-migrated DB
 
     const rows = (invites ?? []) as { id: string; campaign_id: string; role: string; created_by: string | null; created_at: string; expires_at: string | null }[];
     const active = rows.filter((r) => !r.expires_at || new Date(r.expires_at).getTime() > Date.now());
-    if (active.length === 0) return NextResponse.json({ notifications: [] });
+    if (active.length === 0) return NextResponse.json({ notifications: reviewNotifs });
 
     const campIds = Array.from(new Set(active.map((r) => r.campaign_id)));
     const inviterIds = Array.from(new Set(active.map((r) => r.created_by).filter((v): v is string => !!v)));
@@ -34,7 +59,7 @@ export async function GET() {
     const userById = new Map(((users ?? []) as { id: string; display_name: string }[]).map((u) => [u.id, u.display_name]));
 
     return NextResponse.json({
-      notifications: active.map((r) => ({
+      notifications: [...reviewNotifs, ...active.map((r) => ({
         id: r.id,
         type: 'invite' as const,
         campaignId: r.campaign_id,
@@ -43,9 +68,9 @@ export async function GET() {
         role: r.role,
         inviterName: r.created_by ? userById.get(r.created_by) ?? 'The DM' : 'The DM',
         createdAt: r.created_at,
-      })),
+      }))],
     });
   } catch {
-    return NextResponse.json({ notifications: [] });
+    return NextResponse.json({ notifications: reviewNotifs });
   }
 }

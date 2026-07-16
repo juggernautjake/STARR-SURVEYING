@@ -333,6 +333,7 @@ const Map3D = {
 
     if (tpl === 'solid' || tpl === 'glow') { /* colour / glow only — no stars */ }
     else if (tpl === 'spiral') this._buildSpiral(cfg, rng, density);
+    else if (tpl === 'spiralswirl') this._buildSpiralSwirl(cfg, rng, density);
     else if (tpl === 'blackhole') this._buildBlackhole(cfg, rng, density, layers);
     else if (tpl === 'asteroids') this._buildAsteroids(cfg, rng, density, layers);
     else if (tpl === 'milkyway') this._buildMilkyway(cfg, rng, density, layers);
@@ -384,6 +385,35 @@ const Map3D = {
       posFn: (r, i) => { const arm = i % arms, rr = Math.pow(r(), 0.6), rad = rr * RMAX, ang = arm * (6.2831 / arms) + rr * tight * 6.2831 + (r() - 0.5) * (0.6 / (rr + 0.12)), sc = (r() - 0.5) * RMAX * 0.05 * (0.4 + rr); return [Math.cos(ang) * rad + sc, Math.sin(ang) * rad + (r() - 0.5) * RMAX * 0.05 * (0.4 + rr)]; }
     });
     pts.userData.rot = spin;
+    const core = this._radialSprite([coreCol], 3400, -2680, 0.85, 0.62);
+    this._bgSpin.push({ obj: core, rot: 0, follow: true, k: 0.62 });
+  },
+
+  // The animated spiral SWIRL: the same spiral galaxy, but split into concentric star rings that
+  // rotate at DIFFERENT rates (inner faster), so the arms wind up over time — the 3D twin of the
+  // 2D DiffSpinGalaxy backdrop. Ring count / spin speed / base rotation come from cfg.spiral.
+  _buildSpiralSwirl(cfg, rng, density) {
+    const sp = cfg.spiral || {};
+    const rings = Math.max(2, Math.min(12, (sp.rings | 0) || 6));
+    const speed = sp.speed != null ? +sp.speed : 0.6;
+    const rot0 = (sp.rotation != null ? +sp.rotation : 0) * Math.PI / 180;
+    const dir = rng() < 0.5 ? 1 : -1;
+    const arms = 2 + ((rng() * 3) | 0), tight = 2.0 + rng() * 1.6, RMAX = 5200;
+    const armCol = this._pick(rng, [[0.6, 0.72, 1], [1, 0.7, 0.9], [0.7, 1, 0.92], [1, 0.86, 0.6], [0.8, 0.7, 1]]);
+    const coreCol = this._pick(rng, ['#ffd9a0', '#ffc0e6', '#a8d4ff', '#ffe6b0', '#d0b0ff']);
+    const cc = new THREE.Color(coreCol);
+    for (let ri = 0; ri < rings; ri++) {
+      const inner = ri / rings, outer = (ri + 1) / rings;
+      // Inner rings spin faster (differential rotation) — scaled by the DM's speed control.
+      const spin = dir * (0.006 + 0.03 * (1 - ri / rings)) * speed;
+      const pts = this._addStarLayer({
+        rng, count: Math.max(120, Math.round(4600 / rings * density)), z: -2650, k: 0.62, jitterZ: 220, rot: spin,
+        sizeMin: 0.9, sizeMax: 3.0, glowFrac: 0.03,
+        colorFn: (r) => { const rr = inner + (outer - inner) * Math.pow(r(), 0.6), cw = 1 - rr, b = 0.5 + r() * 0.6; return [(cc.r * cw + armCol[0] * (1 - cw)) * b, (cc.g * cw + armCol[1] * (1 - cw)) * b, (cc.b * cw + armCol[2] * (1 - cw)) * b]; },
+        posFn: (r, i) => { const arm = i % arms, rr = inner + (outer - inner) * Math.pow(r(), 0.6), rad = rr * RMAX, ang = rot0 + arm * (6.2831 / arms) + rr * tight * 6.2831 + (r() - 0.5) * (0.6 / (rr + 0.12)), sc = (r() - 0.5) * RMAX * 0.05 * (0.4 + rr); return [Math.cos(ang) * rad + sc, Math.sin(ang) * rad + (r() - 0.5) * RMAX * 0.05 * (0.4 + rr)]; }
+      });
+      pts.rotation.z = rot0; pts.userData.rot = spin;
+    }
     const core = this._radialSprite([coreCol], 3400, -2680, 0.85, 0.62);
     this._bgSpin.push({ obj: core, rot: 0, follow: true, k: 0.62 });
   },
@@ -686,13 +716,24 @@ const Map3D = {
     this._lodZoom = zoom;
   },
   // A 2D planet/moon → a real 3D planet config (buildPlanetModel reads TYPES[type] for colours).
+  // 2D<->3D parity (Slice 1): terrain (sea/cscale/coast/ice), the numeric cloud params, storms and
+  // lightning, axial tilt and spin are read from the object's `look` when present, so the SAME edit drives
+  // both the 2D art and the live 3D model. Defaults match the previous hardcoded values, so an object that
+  // has never set these fields renders exactly as before (backward compatible).
   _genericPlanetCfg(it) {
     const L = it.look || it, valid = ['terran', 'ocean', 'jungle', 'desert', 'ice', 'volcanic', 'toxic', 'barren', 'gas'];
-    const lava = L.lava != null ? +L.lava : 0, city = L.city != null ? +L.city : undefined, lightColor = L.lightColor || undefined;
+    const num = (v, d) => (v != null && v !== '' && !isNaN(+v) ? +v : d);
+    const lava = num(L.lava, 0), city = L.city != null ? +L.city : undefined, lightColor = L.lightColor || undefined;
     const destroyed = L.destroyed || undefined, destroyI = L.destroyI != null ? +L.destroyI : undefined;
-    if (it.kind === 'moon') return { type: L.mtype === 'ice' ? 'ice' : 'barren', seed: L.seed || 1, sea: 0.02, cscale: 2.6, coast: 0.6, ice: L.mtype === 'ice' ? 0.6 : 0.05, spin: 1, atmoOn: false, lava, city, lightColor, destroyed, destroyI };
+    // Rich fields honored by buildPlanetModel when present on the look — passed through only if set so
+    // defaults inside the model still apply otherwise.
+    const rich = {};
+    for (const k of ['cloudCov', 'cloudOpacity', 'cloudScale', 'cloudDetail', 'cloudDef', 'cloudSwirl', 'cloudBand', 'cloudBandN', 'cloudShear', 'cloudTint', 'storms', 'stormI', 'lightOn', 'lightRate', 'boltColor', 'tilt', 'ringColor', 'ringW', 'cityColor', 'atmoDensity']) {
+      if (L[k] != null && L[k] !== '') rich[k] = L[k];
+    }
+    if (it.kind === 'moon') return Object.assign({ type: (L.mtype === 'ice' || L.mtype === 'icy') ? 'ice' : 'barren', seed: L.seed || 1, sea: num(L.sea, 0.02), cscale: num(L.cscale, 2.6), coast: num(L.coast, 0.6), ice: num(L.ice, (L.mtype === 'ice' || L.mtype === 'icy') ? 0.6 : 0.05), spin: num(L.spin, 1), atmoOn: !!L.atmo, lava, city, lightColor, destroyed, destroyI }, rich);
     const t = valid.includes(L.ptype) ? L.ptype : (L.ptype === 'rock' ? 'barren' : 'terran');
-    return { type: t, seed: L.seed || 1, sea: t === 'gas' ? 0.5 : 0.52, cscale: 2.2, coast: 0.5, ice: t === 'ice' ? 0.5 : 0.15, spin: 1, ring: !!L.ring, atmoOn: L.atmo !== false && ['terran', 'ocean', 'toxic', 'gas', 'jungle'].includes(t), atmoColor: L.atmoColor || undefined, lava, city, lightColor, destroyed, destroyI };
+    return Object.assign({ type: t, seed: L.seed || 1, sea: num(L.sea, t === 'gas' ? 0.5 : 0.52), cscale: num(L.cscale, 2.2), coast: num(L.coast, 0.5), ice: num(L.ice, t === 'ice' ? 0.5 : 0.15), spin: num(L.spin, 1), ring: !!L.ring, atmoOn: L.atmo !== false && ['terran', 'ocean', 'toxic', 'gas', 'jungle'].includes(t), atmoColor: L.atmoColor || undefined, lava, city, lightColor, destroyed, destroyI }, rich);
   },
   // Debris field: a cluster of flat-shaded rocky chunks tumbling slowly (distinct from a single asteroid).
   _debrisModel(it) {

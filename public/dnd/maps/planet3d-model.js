@@ -184,6 +184,7 @@ export function buildPlanetModel(config, opts) {
   const cfg = Object.assign({ type: 'terran', seed: 1, sea: 0.52, cscale: 2.2, coast: 0.5, ice: 0.15, spin: 1 }, config || {});
   const aniso = opts.anisotropy || 1, R = opts.radius || 1, seg = opts.segments || 72;
   const core = new THREE.Group();
+  if (cfg.tilt) core.rotation.z = (+cfg.tilt) * Math.PI / 180;   // axial tilt — leans the spin axis, ring and caps (2D<->3D parity)
   const disposables = [];
 
   const surf = genPlanet(cfg, aniso); disposables.push(surf.tex, surf.specTex);
@@ -286,9 +287,28 @@ export function buildPlanetModel(config, opts) {
     disposables.push(g, ringMat, ringMat.map);
   }
 
+  // lightning — brief additive flashes over the storm cells; cadence from lightRate (matches the 2D art's
+  // storms/lightning). depthTest stays on so the opaque planet occludes far-side flashes. (2D<->3D parity.)
+  const flashes = []; let flashPeriod = 1;
+  if (!destroyed && cfg.lightOn && (cfg.storms | 0) > 0) {
+    const cells = genStorms(cfg.cloudSeed != null ? cfg.cloudSeed : cfg.seed + 1, cfg.storms | 0, cfg.stormI || 0);
+    flashPeriod = Math.max(0.35, 2.6 - (cfg.lightRate != null ? +cfg.lightRate : 0.5) * 2.2);
+    const lightning = new THREE.Group(), tex = coronaTex(), col = new THREE.Color(cfg.boltColor || '#bfe0ff'), lrng = mulberry((cfg.seed | 0) + 131);
+    for (const st of cells) {
+      const phi = st.u * Math.PI * 2, theta = st.v * Math.PI, rr = R + 0.05;
+      const mat = new THREE.SpriteMaterial({ map: tex, color: col, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0 });
+      const sp = new THREE.Sprite(mat);
+      sp.position.set(-Math.cos(phi) * Math.sin(theta) * rr, Math.cos(theta) * rr, Math.sin(phi) * Math.sin(theta) * rr);
+      const sz = (0.22 + (st.rad || 0.15)) * R; sp.scale.set(sz, sz, sz);
+      sp.userData.phase = lrng() * flashPeriod;
+      lightning.add(sp); flashes.push(sp); disposables.push(mat);
+    }
+    disposables.push(tex); planet.add(lightning);
+  }
+
   const spin = cfg.spin != null ? cfg.spin : 1;
   const _sun = new THREE.Vector3(1, 0.3, 0.6).normalize();
-  const lavaBase = 0.75 + lavaI * 1.35; let _t = 0;
+  const lavaBase = 0.75 + lavaI * 1.35; let _t = 0, _tl = 0;
 
   return {
     group: core,
@@ -299,6 +319,8 @@ export function buildPlanetModel(config, opts) {
       if (night) { night.rotation.y = planet.rotation.y; const sh = night.material.userData.shader; if (sh) sh.uniforms.sunDir.value.copy(sd); }
       if (clouds) clouds.rotation.y += (spin * 0.12 + 0.05) * dt;
       if (atmo) atmo.material.uniforms.sunDir.value.copy(sd);
+      if (flashes.length) { _tl += dt; for (const sp of flashes) { const tt = (((_tl + sp.userData.phase) % flashPeriod) / flashPeriod); // strobe: bright onset then quick decay, dark for the rest of the period
+        sp.material.opacity = tt < 0.02 ? 1 : tt < 0.05 ? 0.25 : tt < 0.08 ? 0.9 : tt < 0.13 ? 0.2 * (1 - (tt - 0.08) / 0.05) : 0; } }
     },
     dispose() { disposables.forEach(o => { try { o.dispose(); } catch (e) { /* noop */ } }); }
   };
@@ -313,11 +335,11 @@ function coronaTex() {
   ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
   return texFromCanvas(cv, 1);
 }
-function raysTex(seed) {
+function raysTex(seed, count) {
   const S = 256, cv = document.createElement('canvas'); cv.width = cv.height = S; const ctx = cv.getContext('2d');
   ctx.translate(S / 2, S / 2);
   let r = (seed | 0) >>> 0; const rnd = () => { r = (r * 1664525 + 1013904223) >>> 0; return r / 4294967296; };
-  const N = 16;
+  const N = Math.max(3, Math.min(48, Math.round(count != null ? count : 16)));   // ray-spoke count honours raySpec.count (2D<->3D parity)
   for (let i = 0; i < N; i++) {
     const a = i / N * Math.PI * 2 + rnd() * 0.25, len = S * 0.5 * (0.45 + rnd() * 0.55), w = 0.015 + rnd() * 0.05;
     const g = ctx.createLinearGradient(0, 0, Math.cos(a) * len, Math.sin(a) * len);
@@ -370,7 +392,7 @@ export function buildStarModel(config, opts) {
   // SUN RAYS (diffuse colour) — rotating ray sprite; hidden when rays:false or count 0.
   let rayMat = null;
   if (cfg.rays !== false && (rs.count == null || rs.count > 0)) {
-    const rTex = raysTex(cfg.seed || 7);
+    const rTex = raysTex(cfg.seed || 7, rs.count);
     rayMat = new THREE.SpriteMaterial({ map: rTex, color: diffC.clone(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: Math.min(1, (rs.intensity != null ? rs.intensity : 0.5) * 1.1 * br) });
     const rayS = R * 3.0 * (1 + ((rs.length != null ? rs.length : 1) - 1) * 0.5) * csz;
     const raySpr = new THREE.Sprite(rayMat); raySpr.scale.set(rayS, rayS, 1); grp.add(raySpr); dis.push(rayMat, rTex);
@@ -536,10 +558,12 @@ export function buildAsteroidModel(config, opts) {
   const base = new THREE.Color(cfg.c1 || '#7c736a');
   const mat = new THREE.MeshStandardMaterial({ color: base, roughness: 0.96, metalness: 0.04, flatShading: true });
   const rock = new THREE.Mesh(geo, mat); core.add(rock); dis.push(geo, mat);
-  // a couple of tiny companion rocks so it reads as a debris body
+  // companion rocks take the detail colour c2 (2D<->3D parity: the 2D asteroid uses c1 body / c2 detail).
+  const mat2 = new THREE.MeshStandardMaterial({ color: new THREE.Color(cfg.c2 || '#5a5460'), roughness: 0.98, metalness: 0.04, flatShading: true });
+  dis.push(mat2);
   for (let k = 0; k < 2; k++) {
     const g2 = new THREE.IcosahedronGeometry(R * (0.12 + hash(k, k, k) * 0.08), 1);
-    const m2 = new THREE.Mesh(g2, mat); const a = hash(k + 3, k + 5, k + 7) * 6.283, rr = R * (1.05 + hash(k + 1, k + 2, k + 4) * 0.25);
+    const m2 = new THREE.Mesh(g2, mat2); const a = hash(k + 3, k + 5, k + 7) * 6.283, rr = R * (1.05 + hash(k + 1, k + 2, k + 4) * 0.25);
     m2.position.set(Math.cos(a) * rr, Math.sin(a) * rr, (hash(k, k + 9, k) - 0.5) * R * 0.5); core.add(m2); dis.push(g2);
   }
   const tx = (hash(1, 2, 3) - 0.5) * 0.7, ty = (hash(4, 5, 6) - 0.5) * 0.7, tz = (hash(7, 8, 9) - 0.5) * 0.5;
