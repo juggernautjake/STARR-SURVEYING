@@ -47,6 +47,18 @@ export interface DndSession {
   displayName: string;
 }
 
+// ── pseudo-login identity (name-only accounts) ───────────────────────────────
+// The user opted OUT of real auth for now: an account is just a name + password, no email. The
+// `dnd_users.email` column is UNIQUE NOT NULL, and the existing "quick" accounts already store a
+// synthetic string there (`quick:andrew`), so name accounts follow the same convention: the login
+// key is `name:<normalized name>`. This keeps the name unique without a schema change and without
+// ever asking for an email. When real auth arrives, these rows migrate cleanly (the key is
+// namespaced and obviously synthetic).
+export const NAME_ACCOUNT_PREFIX = 'name:';
+export function nameToKey(name: string): string {
+  return NAME_ACCOUNT_PREFIX + name.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 // ── password hashing ─────────────────────────────────────────────────────────
 export function hashPassword(pw: string): Promise<string> {
   return bcrypt.hash(pw, 10);

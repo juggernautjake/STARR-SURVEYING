@@ -12,24 +12,30 @@ function LoginForm() {
   // open-redirect: reject absolute URLs / protocol-relative //host).
   const nextRaw = searchParams.get('next') ?? '';
   const nextPath = nextRaw.startsWith('/') && !nextRaw.startsWith('//') ? nextRaw : '/dnd';
-  const [email, setEmail] = useState('');
+  // Pseudo-login: a name + password, no email, no invite. Toggle between signing in and creating
+  // an account on the same form.
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setError(null);
+    // Both at least four characters — matches the server; caught here for an instant message.
+    if (name.trim().length < 4) { setError('Name must be at least 4 characters.'); return; }
+    if (password.length < 4) { setError('Password must be at least 4 characters.'); return; }
+    setBusy(true);
     try {
-      const res = await fetch('/api/dnd/auth/login', {
+      const res = await fetch(creating ? '/api/dnd/auth/signup' : '/api/dnd/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ name: name.trim(), password }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error || 'Login failed.');
+        setError(data.error || (creating ? 'Could not create the account.' : 'Login failed.'));
         return;
       }
       router.push(nextPath);
@@ -47,18 +53,19 @@ function LoginForm() {
         <form className={styles.panel} onSubmit={onSubmit}>
           <p className={styles.brand}>Starr Tabletop</p>
           <h1 className={styles.title}>Campaign Portal</h1>
-          <p className={styles.subtitle}>Sign in to continue your adventure</p>
+          <p className={styles.subtitle}>{creating ? 'Create an account to keep your characters' : 'Sign in to continue your adventure'}</p>
 
           {error && <div className={styles.error}>{error}</div>}
 
           <label className={styles.field}>
-            <span className={styles.label}>Email</span>
+            <span className={styles.label}>Name</span>
             <input
               className={styles.input}
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              autoComplete="username"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="At least 4 characters"
               required
             />
           </label>
@@ -68,21 +75,30 @@ function LoginForm() {
             <input
               className={styles.input}
               type="password"
-              autoComplete="current-password"
+              autoComplete={creating ? 'new-password' : 'current-password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder="At least 4 characters"
               required
             />
           </label>
 
           <button className={styles.button} type="submit" disabled={busy}>
-            {busy ? 'Signing in…' : 'Sign In'}
+            {busy ? (creating ? 'Creating…' : 'Signing in…') : creating ? 'Create Account' : 'Sign In'}
           </button>
 
           <div className={styles.divider}>
             <span className={styles.diamond} />
           </div>
-          <p className={styles.hint}>Have an invite link? Open it to create your account.</p>
+          {/* No email, no invite — just a name and a password. This is a pseudo-login to keep each
+              player's stuff separate, not real authentication. */}
+          <button
+            type="button"
+            className={styles.linkBtn}
+            onClick={() => { setCreating((c) => !c); setError(null); }}
+          >
+            {creating ? '← Have an account? Sign in' : 'New here? Create an account'}
+          </button>
         </form>
       </div>
     </div>
