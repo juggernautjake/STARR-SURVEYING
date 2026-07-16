@@ -274,7 +274,13 @@ categories) and Epic Boon remain.
       asserts no species object carries one under ANY name (`abilityScores`/`asi`/`str`/… — the
       2014-vs-2024 trap made un-reintroducible). Spot-checks the distinctive numbers (dwarf/orc 120-ft
       darkvision, goliath 35 speed, halfling Small).
-- [ ] **Languages** + tool proficiencies as lists.
+- [x] **Languages** + tool proficiencies as lists ✅ SHIPPED (commit pending) —
+      `lib/dnd/languages/dnd5e-2024.ts`. All 2024 languages with the Standard/Rare split (Primordial
+      carries its Aquan/Auran/Ignan/Terran dialects) and all tools across the four families (Artisan's
+      Tools ×17, Gaming Sets, Musical Instruments, standalone kits), with `languagesByRarity` /
+      `toolsByFamily` / `isKnownTool` helpers. Tests: `languages.test.ts` (5) — including the connective
+      check that **every background's named tool resolves** here (specific tool or category phrase), so
+      a typo in either file fails the build.
 - [ ] Wire into the level builder: an ASI choice offers real feats with prerequisites checked;
       character creation offers backgrounds/species.
 - [ ] Tests: no feat grants an ability increase it shouldn't; every background's feat exists;
