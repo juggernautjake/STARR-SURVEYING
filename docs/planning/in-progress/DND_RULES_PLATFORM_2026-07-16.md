@@ -1030,7 +1030,7 @@ than corrupting.
 is already preserved for queued sends; the failure path still drops it). Both are small; neither
 was the reported problem.
 
-## Slice 26 — Who may change what: DM omnipotence, player autonomy, DM review ⏳ PARTIAL 2026-07-16
+## Slice 26 — Who may change what: DM omnipotence, player autonomy, DM review ✅ SHIPPED 2026-07-16
 
 > "As the dm of a campaign I need to be able to actually have full and complete control to edit
 > everything and change all numbers everywhere. Players will also have a lot of customizations…
@@ -1058,11 +1058,16 @@ nine op families (apply → capture → revert = original) + the add-removal + a
 This is the mechanism the review queue's Revert needs, done carefully as a tested pure function
 BEFORE any UI drives it (a buggy reverse-apply corrupting a sheet is the exact failure to avoid).
 
-**Remaining — the review-queue UI.** The last piece: a campaign surface listing `dnd_sheet_edits`
-(which now carries old→new + author + timestamp) newest-first, with per-edit **Approve** (clear ✎) /
-**Revert** (call `revertSheetEdit` + persist). A DM-gated read (the GET already exists at
-`/edits`) + a small write endpoint + a panel. Both the data (`old_value`) and the logic
-(`revertSheetEdit`) are now in place — only the surface remains.
+**Review queue ✅ SHIPPED (commit pending).** `EditReviewPanel` mounts on every sheet (write-gated —
+DM or owner; a plain viewer never sees it), lists the edit history newest-first ("what changed, by DM
+or player, when"), and offers per-edit **⟲ Revert** → the `/edits/revert` endpoint (write-gated,
+scoped to the character) reverses that edit through `revertSheetEdit`, persists, pulls the sheet back
+in, and audits the revert itself. So the DM can *fully see what a player modified and say nay* — the
+literal request. ("Yay" is implicit: leave it, and the ✎ marks on the sheet keep saying which
+elements differ.) A distinct **Approve-to-clear-✎** action (blessing a customization so its ✎
+disappears) is the one optional refinement left — the ✎ is accurate and informational without it, and
+it carries a per-element-vs-per-edit granularity choice best made with the DM's real use in view.
+Tests: `edit-review.test.ts` (5) + the `revertSheetEdit`/`editOldValue` suites.
 
 - [ ] **The DM can edit anything, anywhere, on any sheet in their campaign** — every number, die,
       name, and word. No field is read-only to the DM. `getCharacterAccess` already grants DM write;
