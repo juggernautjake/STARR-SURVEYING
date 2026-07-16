@@ -15,9 +15,22 @@ import BuilderHelp from './BuilderHelp'
 
 const SOURCE_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.json,image/png,image/jpeg,image/webp'
 
-export default function NewCharacterForm({ campaignId = '' }: { campaignId?: string }) {
+export default function NewCharacterForm({
+  campaignId = '',
+  initialName = '',
+  initialSheetType = '',
+  initialIsNpc = false,
+  initialOwnerUserId = '',
+}: {
+  campaignId?: string
+  // Carried from the campaign's "+ Add" so the DM doesn't retype what they already entered.
+  initialName?: string
+  initialSheetType?: string
+  initialIsNpc?: boolean
+  initialOwnerUserId?: string
+}) {
   const router = useRouter()
-  const [name, setName] = useState('')
+  const [name, setName] = useState(initialName)
   const [system, setSystem] = useState<string>(SYSTEM_AMBIGUOUS)
   const [mode, setMode] = useState<BuildMode>('questioning')
   const [notes, setNotes] = useState('')
@@ -37,6 +50,13 @@ export default function NewCharacterForm({ campaignId = '' }: { campaignId?: str
       const fd = new FormData()
       if (campaignId) fd.append('campaignId', campaignId) // empty → a personal (no-campaign) character
       fd.append('name', name.trim())
+      // Carry the DM's roster picks from the campaign "+ Character" so the created character lands
+      // as the right type/owner without a second step. Only meaningful inside a campaign.
+      if (campaignId) {
+        if (initialIsNpc) fd.append('isNpc', '1')
+        if (initialSheetType) fd.append('sheetType', initialSheetType)
+        if (initialOwnerUserId) fd.append('ownerUserId', initialOwnerUserId)
+      }
       fd.append('system', system)
       fd.append('mode', mode)
       fd.append('notes', notes)

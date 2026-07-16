@@ -9,7 +9,11 @@ import NewCharacterForm from '@/app/dnd/_ui/NewCharacterForm';
 
 export const dynamic = 'force-dynamic';
 
-export default async function NewCharacterPage({ searchParams }: { searchParams: { campaignId?: string } }) {
+export default async function NewCharacterPage({
+  searchParams,
+}: {
+  searchParams: { campaignId?: string; name?: string; sheetType?: string; npc?: string; owner?: string };
+}) {
   const user = await getDndUser();
   if (!user) redirect('/dnd'); // sign in / pick an identity first
 
@@ -19,5 +23,15 @@ export default async function NewCharacterPage({ searchParams }: { searchParams:
   if (searchParams.campaignId && (await getCampaignRole(searchParams.campaignId)) !== null) {
     campaignId = searchParams.campaignId;
   }
-  return <NewCharacterForm campaignId={campaignId} />;
+  // The campaign's "+ Add" carries the DM's typed name and their type/owner picks so nothing is
+  // retyped on arrival. Only honoured with a valid campaign (owner/NPC are campaign concepts).
+  return (
+    <NewCharacterForm
+      campaignId={campaignId}
+      initialName={campaignId ? searchParams.name ?? '' : ''}
+      initialSheetType={campaignId ? searchParams.sheetType ?? '' : ''}
+      initialIsNpc={campaignId ? searchParams.npc === '1' : false}
+      initialOwnerUserId={campaignId ? searchParams.owner ?? '' : ''}
+    />
+  );
 }

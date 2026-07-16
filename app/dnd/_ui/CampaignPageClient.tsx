@@ -47,53 +47,20 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
   const [data, setData] = useState<CampaignDetail | null>(initialData ?? null)
   const [error, setError] = useState<string | null>(null)
   const [newSession, setNewSession] = useState('')
-  const [newChar, setNewChar] = useState<{ name: string; sheetType: string; isNpc: boolean; ownerUserId: string }>({ name: '', sheetType: 'generic', isNpc: false, ownerUserId: '' })
   const [newPlayer, setNewPlayer] = useState('')
   const [memberErr, setMemberErr] = useState<string | null>(null)
   // "Add an existing character I own" picker (my characters not already in this campaign).
   const [myChars, setMyChars] = useState<{ id: string; name: string }[]>([])
   const [addPick, setAddPick] = useState('')
 
-  const [charErr, setCharErr] = useState<string | null>(null)
-  const [creating, setCreating] = useState(false)
+  const [search, setSearch] = useState('')
 
-  async function createCharacter() {
+  // "+ Character" opens the builder in this campaign — AI quick-build (like the stream-chatter→NPC
+  // flow) or the full manual builder. Routing there, rather than quietly POSTing a blank character,
+  // is what the report asked for ("reroute us to the character creation page or something").
+  function createCharacter() {
     if (!data) return
-    if (!newChar.name.trim()) {
-      // The button used to silently `return` with no name — indistinguishable from "broken".
-      setCharErr('Give the character a name first.')
-      return
-    }
-    setCharErr(null)
-    setCreating(true)
-    try {
-      const res = await fetch('/api/dnd/characters', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          campaignId: data.campaign.id,
-          name: newChar.name,
-          sheetType: newChar.sheetType,
-          isNpc: newChar.isNpc,
-          ownerUserId: newChar.ownerUserId || undefined,
-        }),
-      })
-      const j = await res.json().catch(() => ({}))
-      if (res.ok && j.character) {
-        // The whole point of the button, per the report: it must let you BUILD the character, not
-        // just drop a blank card in the roster. So go straight into the new sheet — the Build Kit
-        // and Manage Levels live there. It's already in the roster on the way back.
-        setNewChar({ name: '', sheetType: 'generic', isNpc: false, ownerUserId: '' })
-        router.push(`/dnd/characters/${j.character.id}`)
-      } else {
-        // Errors used to be swallowed by a bare catch, so a real failure looked like a dead button.
-        setCharErr(j.error || `Could not create the character (${res.status}).`)
-      }
-    } catch {
-      setCharErr('Could not reach the server — please try again.')
-    } finally {
-      setCreating(false)
-    }
+    router.push(`/dnd/characters/new?campaignId=${data.campaign.id}`)
   }
 
   // Add a player to the campaign by their sign-in name.
@@ -273,42 +240,31 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
 
               <section className={styles.framedPanel}>
                 <div className={styles.framedPanelTop} />
-                <h2 className={styles.panelTitle}>Characters</h2>
-                {data.campaign.role === 'dm' && (
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <input
-                      className={styles.input}
-                      style={{ width: 'auto', flex: 1, minWidth: 140, padding: '8px 10px' }}
-                      placeholder="Character name…"
-                      value={newChar.name}
-                      onChange={(e) => setNewChar((c) => ({ ...c, name: e.target.value }))}
-                    />
-                    <select className={styles.input} style={{ width: 'auto', padding: '8px 10px' }} value={newChar.sheetType} onChange={(e) => setNewChar((c) => ({ ...c, sheetType: e.target.value }))}>
-                      <option value="generic">Generic</option>
-                      <option value="lazzuh">Lazzuh</option>
-                      <option value="streamer">Streamer</option>
-                    </select>
-                    <select className={styles.input} style={{ width: 'auto', padding: '8px 10px' }} value={newChar.isNpc ? 'npc' : 'pc'} onChange={(e) => setNewChar((c) => ({ ...c, isNpc: e.target.value === 'npc' }))}>
-                      <option value="pc">PC</option>
-                      <option value="npc">NPC</option>
-                    </select>
-                    <select className={styles.input} style={{ width: 'auto', padding: '8px 10px' }} value={newChar.ownerUserId} onChange={(e) => setNewChar((c) => ({ ...c, ownerUserId: e.target.value }))}>
-                      <option value="">Unassigned</option>
-                      {data.members.filter((m) => m.role !== 'dm').map((m) => (
-                        <option key={m.userId} value={m.userId}>{m.displayName}</option>
-                      ))}
-                    </select>
-                    <button
-                      className={`${styles.hexBtn} ${styles.hexBtnPrimary}`}
-                      onClick={createCharacter}
-                      disabled={creating}
-                      title="Create a brand-new character in this campaign and open it so you can build it. Leave the player “Unassigned” to keep it as your own (a DM PC/NPC), or pick a player to hand it to them."
-                    >
-                      {creating ? 'Creating…' : '+ Add'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <h2 className={styles.panelTitle} style={{ margin: 0, flex: 1 }}>Characters</h2>
+                  {/* Build a new character. This is the CREATE entry (the search box below does not
+                      create anything). Routes to the builder page — AI quick-build like the
+                      stream-chatter→NPC flow, or the full manual builder. */}
+                  {data.campaign.role === 'dm' && (
+                    <button className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} style={{ padding: '8px 16px' }} onClick={createCharacter} title="Build a new character in this campaign — quick AI build or the full builder.">
+                      ＋ Character
                     </button>
-                  </div>
-                )}
-                {charErr && <div className={styles.error} style={{ marginBottom: 10 }}>{charErr}</div>}
+                  )}
+                </div>
+                {/* Search the roster by name. Just filters the cards below — it never creates. */}
+                <div style={{ display: 'flex', gap: 8, margin: '12px 0', alignItems: 'center' }}>
+                  <input
+                    className={styles.input}
+                    style={{ width: 'auto', flex: 1, minWidth: 140, padding: '8px 10px' }}
+                    placeholder="Search characters by name…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    aria-label="Search characters"
+                  />
+                  {search && (
+                    <button className={styles.hexBtn} style={{ padding: '8px 14px' }} onClick={() => setSearch('')} title="Clear the search">Clear</button>
+                  )}
+                </div>
                 {/* Bring in a character you already own that isn't in this campaign yet. */}
                 {data.campaign.role === 'dm' && myChars.length > 0 && (
                   <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -333,11 +289,14 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                     </button>
                   </div>
                 )}
-                {data.characters.length === 0 ? (
-                  <p style={{ color: 'var(--hx-muted)' }}>No characters yet.</p>
-                ) : (
+                {(() => {
+                  const q = search.trim().toLowerCase()
+                  const shown = q ? data.characters.filter((c) => c.name.toLowerCase().includes(q)) : data.characters
+                  if (data.characters.length === 0) return <p style={{ color: 'var(--hx-muted)' }}>No characters yet.</p>
+                  if (shown.length === 0) return <p style={{ color: 'var(--hx-muted)' }}>No characters match “{search.trim()}”.</p>
+                  return (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
-                    {data.characters.map((c) => {
+                    {shown.map((c) => {
                       const players = data.members.filter((m) => m.role !== 'dm')
                       const playedBy = c.playedByUserId && c.playedByUserId !== c.ownerUserId ? c.playedByName : null
                       return (
@@ -377,7 +336,8 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                       )
                     })}
                   </div>
-                )}
+                  )
+                })()}
               </section>
 
               <section className={styles.framedPanel}>
