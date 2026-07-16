@@ -12,6 +12,7 @@
 //    a guess dressed up as a fact.
 import type { Character } from '@/app/dnd/_sheet/types';
 import { abilityMod } from '@/app/dnd/_sheet/rules/dnd';
+import { buildLedger } from './effects/ledger';
 import { systemLabel, type CharacterSystem } from './systems';
 
 /** Trim a rules body to its first sentence-ish, for a name + reminder rather than a restatement. */
@@ -40,27 +41,52 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
   const c = char.combat ?? ({} as Character['combat']);
   const lines: string[] = [];
 
+  // Resolve the character through the effect ledger (Slice 15): the digest must report the numbers
+  // that are TRUE RIGHT NOW, not the stored base. A ruling on a belt-boosted STR 19 that reads the
+  // base 16 is exactly the confidently-wrong adjudication this whole part exists to prevent.
+  const ledger = buildLedger(char);
+
   const who = [m.species, m.className, m.subclass].filter(Boolean).join(' · ');
   lines.push(`NAME: ${m.name || 'Unnamed'}`);
   lines.push(`SYSTEM: ${systemLabel(system)}`);
   if (who) lines.push(`BUILD: ${who}`);
   if (m.level) lines.push(`LEVEL: ${m.level}`);
 
-  // Abilities with modifiers — the numbers most rulings turn on.
+  // Abilities with modifiers — the numbers most rulings turn on. EFFECTIVE (ledger) values, with
+  // the base noted when an effect has moved it, so the AI reasons on the real score AND can see it's
+  // not the character's natural one.
   if (char.abilities) {
     const ab = Object.entries(char.abilities)
-      .map(([k, v]) => `${k.toUpperCase()} ${v} (${signed(abilityMod(v as number))})`)
+      .map(([k, v]) => {
+        const eff = ledger.value(`ability_${k}`, v as number);
+        const note = eff !== v ? ` [base ${v}]` : '';
+        return `${k.toUpperCase()} ${eff} (${signed(abilityMod(eff))})${note}`;
+      })
       .join(' · ');
     if (ab) lines.push(`ABILITIES: ${ab}`);
   }
 
-  // Current state — what is true of this character RIGHT NOW.
+  // Current state — what is true of this character RIGHT NOW. Speed + max HP fold through the ledger
+  // too (AC stays as the sheet's stored base here — its real value comes from equipped armour via a
+  // separate deriver the digest doesn't run).
   const state: string[] = [];
-  if (c.maxHp != null) state.push(`HP ${c.currentHp ?? 0}/${c.maxHp}${c.tempHp ? ` (+${c.tempHp} temp)` : ''}`);
+  if (c.maxHp != null) {
+    const hp = ledger.value('hp_max', c.maxHp);
+    state.push(`HP ${c.currentHp ?? 0}/${hp}${hp !== c.maxHp ? ` [base ${c.maxHp}]` : ''}${c.tempHp ? ` (+${c.tempHp} temp)` : ''}`);
+  }
   if (c.ac != null) state.push(`AC ${c.ac}`);
-  if (c.speed != null) state.push(`Speed ${c.speed} ft`);
+  if (c.speed != null) {
+    const sp = ledger.value('speed_walk', c.speed);
+    state.push(`Speed ${sp} ft${sp !== c.speed ? ` [base ${c.speed}]` : ''}`);
+  }
   if (c.exhaustion) state.push(`Exhaustion ${c.exhaustion}`);
   if (state.length) lines.push(`STATE: ${state.join(' · ')}`);
+
+  // What is currently modifying this character — so the AI knows WHY a number differs from the base
+  // and can factor it into a ruling ("you have advantage from Rage").
+  if (ledger.sources.length) {
+    lines.push(`ACTIVE EFFECTS: ${ledger.sources.map((s) => s.name).join(', ')}`);
+  }
 
   const conditions = c.conditions ?? [];
   // Say "none" explicitly: the absence of a condition is itself a fact a ruling may hinge on.

@@ -107,3 +107,34 @@ describe('adjudicationInstruction demands honesty over confidence', () => {
     expect(i).toMatch(/Never invent a feature, a number, or a resource/);
   });
 });
+
+describe('the digest reports LEDGER-resolved numbers, not the stored base (Slice 15)', () => {
+  function belted(): Character {
+    const c = fixture();
+    // A Belt of the Bear that SETS STR to 22, and Boots that add +10 walk speed — equipped.
+    c.inventory = [
+      { id: 'belt', name: 'Belt of the Bear', desc: '', qty: 1, tags: [], equipped: true, effects: [{ target: 'ability_str', operation: 'set', value: 22 }] },
+      { id: 'boots', name: 'Striding Boots', desc: '', qty: 1, tags: [], equipped: true, effects: [{ target: 'speed_walk', operation: 'add', value: 10 }] },
+    ] as Character['inventory'];
+    return c;
+  }
+
+  it('shows the effective ability with its base noted, and lists the active source', () => {
+    const d = characterDigest(belted(), 'dnd-5e-2024');
+    expect(d).toMatch(/STR 22 \(\+6\) \[base 18\]/);   // effective, with base flagged
+    expect(d).not.toMatch(/STR 18 \(\+4\) ·/);          // the raw base is NOT what's reported
+    expect(d).toContain('ACTIVE EFFECTS: Belt of the Bear, Striding Boots');
+  });
+
+  it('folds walk speed too, base noted', () => {
+    const d = characterDigest(belted(), 'dnd-5e-2024');
+    expect(d).toMatch(/Speed 40 ft \[base 30\]/);
+  });
+
+  it('a vanilla character shows no base annotations and no ACTIVE EFFECTS line', () => {
+    const d = characterDigest(fixture(), 'dnd-5e-2024');
+    expect(d).not.toContain('[base ');
+    expect(d).not.toContain('ACTIVE EFFECTS:');
+    expect(d).toMatch(/STR 18 \(\+4\)/); // the base IS the effective value here
+  });
+});

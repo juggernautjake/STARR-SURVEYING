@@ -1529,9 +1529,14 @@ the console out of its page. Deferred as its own follow-up; the affordance above
       the same machinery.
 - [ ] Forms/transforms (Jack's, the old rage path) become ledger sources rather than bespoke combat
       fields — `formDamageBonus` is a leftover of the Lazzuh era and should be an effect.
-- [ ] The Slice 3 character digest reports **ledger-resolved** values plus what's modifying them, so
-      the AI rules on your *current* STR 22, not your base 18. Today it reads the raw sheet — after
-      Slice 10 that is a bug, and it is the kind that produces a confidently wrong ruling.
+- [x] **The character digest reports ledger-resolved values ✅ SHIPPED 2026-07-16 (commit pending).**
+      `characterDigest` now builds the ledger and reports EFFECTIVE abilities (STR 22, base flagged as
+      `[base 18]`), ledger-folded walk speed and max HP, and an `ACTIVE EFFECTS:` line naming every
+      source currently modifying the character — so the AI rules on the current numbers and can see
+      *why* they differ. AC still reads the stored base (its real value comes from the equipped-armour
+      deriver the digest doesn't run — noted inline). A vanilla character shows no `[base …]` notes and
+      no ACTIVE EFFECTS line. Tests: `character-digest.test.ts` +3 (14 total). This closes the
+      "confidently wrong ruling" hazard flagged after Slice 10.
 - [ ] Realtime: an equip by the DM propagates to the player's open sheet (C11b broadcast already exists).
 
 ---
