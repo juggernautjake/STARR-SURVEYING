@@ -7,10 +7,9 @@ export default function Balance() {
   return (
     <section id="balance">
       <SectionHead num="10" title="Class Balance — Synergies & Weaknesses" />
-      <p className="lead">
-        A good class, but a fair one. The <em className="term">Rage economy</em> is the balancing lever: almost every
-        strong option spends the same limited pool, so power comes with real trade-offs.
-      </p>
+      {/* Character-owned lead — this used to hardcode one character's balancing-lever prose
+          above every other character's synergies. */}
+      {char.balance.lead && <p className="lead">{md(char.balance.lead)}</p>}
       <div className="two">
         <div className="card callout" style={{ borderLeftColor: 'var(--good)', background: 'rgba(74,222,128,0.06)' }}>
           <h3 style={{ color: 'var(--good)' }}>Synergies</h3>

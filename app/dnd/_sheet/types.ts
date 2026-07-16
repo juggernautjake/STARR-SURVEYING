@@ -7,13 +7,19 @@ export interface Attack {
   ability: AbilityKey // ability used for to-hit + damage
   proficient: boolean
   range: string
-  damage: string // e.g. "1d6" (mods are added from ability + rage automatically)
+  damage: string // e.g. "1d6" (ability + form damage mods are added automatically)
   damageType: string
   bonusToHit?: number // extra flat to-hit beyond ability+prof
   bonusDamage?: number // extra flat damage beyond ability
-  strMelee?: boolean // affected by Reckless Attack advantage
-  rageable?: boolean // gains rage damage while raging (STR attacks)
+  strMelee?: boolean // a STR-based melee attack (eligible for advantage-granting features)
+  formBoosted?: boolean // gains combat.formDamageBonus while a form/transformation is active
   formOnly?: string // form id that must be active (e.g. "brute")
+  /** This attack's damage die follows the ACTIVE form's `strikeDie` (an unarmed strike that
+   *  grows as you transform). Character-owned, so no attack id is special-cased in the engine. */
+  usesFormStrikeDie?: boolean
+  /** Damage die ladder by character level, e.g. [{level:1,damage:'1d8'},{level:6,damage:'1d10'}].
+   *  The highest entry at or below the current level wins. Omit = fixed `damage`. */
+  damageByLevel?: { level: number; damage: string }[]
   unlockLevel?: number // character level required (default 1)
   saveBased?: boolean // AOE: targets make a save vs your DC instead of you rolling to hit
   saveAbility?: AbilityKey // which save the targets roll (e.g. dex, con)
@@ -196,11 +202,15 @@ export interface SaveState {
   misc: number
 }
 
+/** One row of a class-progression table. The two middle columns are GENERIC: each character
+ *  labels them via `progressionMeta.col3`/`col4` (e.g. Fisticuffs/Moxie for a Pugilist, Spell
+ *  Slots/Cantrips for a Warlock, Rages/Rage Dmg for a Barbarian). `rages`/`rageDmg` are the
+ *  legacy names for these columns, still read from stored sheets (see normalizeCharacter). */
 export interface ProgressionRow {
   level: number
   prof: string
-  rages: string
-  rageDmg: string
+  col3: string
+  col4: string
   features: string
   here?: boolean
 }
@@ -240,15 +250,18 @@ export interface Character {
     hitDiceRemaining: number
     deathSuccess: number
     deathFail: number
-    deathSaveBonus: number // Jenovan: prof to death saves
-    rageDamageBonus: number // +damage on STR attacks while transformed (Surged)
+    deathSaveBonus: number // flat bonus to death saves (some species/feats grant one)
+    /** +damage on melee attacks flagged `formBoosted` while a form/transformation is active.
+     *  Generic: a Barbarian's Rage damage, a Pugilist's fired-up bonus, etc. Legacy name:
+     *  `rageDamageBonus` (still read from stored sheets — see normalizeCharacter). */
+    formDamageBonus: number
     saveDCOverride?: number | null // if set, overrides the derived 8+PB+STR save DC
-    // ── Transformation ("Surge") state ──
-    transformActive: boolean // currently Surged into your top form
+    // ── Form/transformation state (only characters with the `forms` module use these) ──
+    transformActive: boolean // currently transformed into your top form
     transformTurnsLeft: number // turns remaining before it ends
-    transformsThisRest: number // how many times you've Surged since the last long rest
+    transformsThisRest: number // how many times you've transformed since the last long rest
     exhaustion: number // 0–6; each level −2 to d20 rolls (applied automatically)
-    abilityUses: Record<string, number> // remaining uses of the active form's limited abilities (reset each Surge)
+    abilityUses: Record<string, number> // remaining uses of the active form's limited abilities (reset on transform)
     // Combat state trackers (Phase L6). Optional so existing data stays valid.
     concentration?: string // spell being concentrated on ('' / undefined = not concentrating)
     conditions?: string[] // active conditions (poisoned, prone, …)
@@ -262,9 +275,35 @@ export interface Character {
   spellcasting?: SpellcastingInfo
   features: FeatureBlock[]
   progression: ProgressionRow[]
-  /** Optional per-character labels for the progression table (defaults to Lazzuh's
-   *  barbarian columns). Lets non-barbarians relabel the two middle columns + lead. */
+  /** Per-character labels for the progression table's two generic middle columns + heading.
+   *  Every character should set these to whatever its class table tracks. */
   progressionMeta?: { title?: string; lead?: string; col3?: string; col4?: string }
+  /** Passive defensive/utility traits listed under Defenses (markdown-lite, e.g.
+   *  '**Darkvision 60 ft**' or '**Damage Resistance** (while Raging): bludgeoning…').
+   *  Character-owned: the panel used to hardcode one character's species traits for all. */
+  traits?: string[]
+  /** An optional per-turn self-heal button (e.g. a regeneration trait). `amount` is either a
+   *  flat number or 'conMod' to use the CON modifier. Omit = no regeneration button. */
+  regen?: { label: string; note?: string; amount: 'conMod' | number; unlockLevel?: number }
+  /** Extra clause appended to the long-rest confirmation, e.g. 'rages, lasers'. Omit for the
+   *  generic 'Restores HP, hit dice, resources, death saves.' */
+  longRestNote?: string
+  /** How THIS character's derived stats recompute when its level changes. Everything is
+   *  optional and character-owned, so no class's assumptions leak onto another sheet:
+   *   · hitDie             — override the die used for HP (defaults to combat.hitDiceSize)
+   *   · bonusHpPerLevel    — flat extra HP per level (e.g. the Tough feat's +2)
+   *   · speedByLevel       — speed ladder (e.g. Barbarian Fast Movement at 5); omit = speed never changes
+   *   · formDamageByLevel  — form/transformation damage ladder (e.g. Barbarian Rage damage);
+   *                          omit = formDamageBonus is left alone
+   *   · autoHp             — false to stop the sheet recomputing max HP from the die entirely
+   *                          (point-buy / non-d20 systems that set HP by hand) */
+  levelRules?: {
+    hitDie?: number
+    bonusHpPerLevel?: number
+    speedByLevel?: { level: number; speed: number }[]
+    formDamageByLevel?: { level: number; bonus: number }[]
+    autoHp?: boolean
+  }
   inventory: InvItem[]
   /** Temporary effects currently active on the character — from a consumed buff/potion or a
    *  DM-granted boon. Each is removable by the player or DM (Active-Effects tracker). Passive
@@ -279,6 +318,9 @@ export interface Character {
     playTips: string[]
   }
   balance: {
+    /** Optional intro line above the synergy/weakness cards, e.g. what this build's
+     *  balancing lever is. Character-owned; omitted = no lead paragraph. */
+    lead?: string
     synergies: string[]
     weaknesses: string[]
   }

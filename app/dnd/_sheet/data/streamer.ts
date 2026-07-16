@@ -166,9 +166,9 @@ export function streamerCharacter(name: string): Character {
   // Warlock progression (relabelled columns via progressionMeta so it isn't barbarian).
   c.progressionMeta = { title: 'Progression · Warlock 1–3', lead: 'Her Pact-of-the-Patreon Warlock progression. The highlighted row is her current level.', col3: 'Cantrips', col4: 'Slots' };
   c.progression = [
-    { level: 1, prof: '+2', rages: '4', rageDmg: '1 · Lv1', features: 'Pact Magic, Eldritch Invocations (Agonizing + Repelling Blast), Isotron traits' },
-    { level: 2, prof: '+2', rages: '4', rageDmg: '2 · Lv1', features: 'Magical Cunning, 3rd invocation (Mask of Many Faces)' },
-    { level: 3, prof: '+2', rages: '5', rageDmg: '2 · Lv2', features: 'Pact of the Patreon subclass — Camera Focus, Ask Chat', here: true },
+    { level: 1, prof: '+2', col3: '4', col4: '1 · Lv1', features: 'Pact Magic, Eldritch Invocations (Agonizing + Repelling Blast), Isotron traits' },
+    { level: 2, prof: '+2', col3: '4', col4: '2 · Lv1', features: 'Magical Cunning, 3rd invocation (Mask of Many Faces)' },
+    { level: 3, prof: '+2', col3: '5', col4: '2 · Lv2', features: 'Pact of the Patreon subclass — Camera Focus, Ask Chat', here: true },
   ];
 
   // Default to the pink colorway; the Style switch flips to blue.

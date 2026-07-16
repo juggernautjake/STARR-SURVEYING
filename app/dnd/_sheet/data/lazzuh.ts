@@ -76,7 +76,7 @@ export const lazzuh: Character = {
     deathSuccess: 0,
     deathFail: 0,
     deathSaveBonus: 2, // Jenovan "Beyond the Limit": add prof bonus to death saves
-    rageDamageBonus: 2,
+    formDamageBonus: 2,
     saveDCOverride: null,
     transformActive: false,
     transformTurnsLeft: 0,
@@ -248,7 +248,8 @@ export const lazzuh: Character = {
       damage: '1d6',
       damageType: 'Force / Radiant',
       strMelee: true,
-      rageable: true,
+      formBoosted: true,
+      usesFormStrikeDie: true, // die follows the active form's strikeDie (was hardcoded on id 'fist')
       unlockLevel: 1,
       notes: 'Unarmed strike wrapped in force (magical). Die scales with your form — 1d6 Base, 1d8 Brute, 1d10 Titan/Apex, 2d8 True. Two per turn at L5 (Extra Attack).',
     },
@@ -260,7 +261,9 @@ export const lazzuh: Character = {
       range: '60 ft (ranged)',
       damage: '1d8',
       damageType: 'Radiant',
-      rageable: true,
+      formBoosted: true,
+      // Focused Lasers at L6 (was hardcoded on the id 'laser' in the shared Attacks panel).
+      damageByLevel: [{ level: 1, damage: '1d8' }, { level: 6, damage: '1d10' }],
       unlockLevel: 1,
       notes: 'STR-based energy bolt. Upgrades to 1d10 / 90 ft at L6 (Focused Lasers); crits on 19–20 in Apex.',
     },
@@ -581,26 +584,26 @@ export const lazzuh: Character = {
   ],
 
   progression: [
-    { level: 1, prof: '+2', rages: '2', rageDmg: '+2', features: 'Rage, Unarmored Defense, Weapon Mastery · Laser Hands, Energy Sheath (Lazzuh’s traits)' },
-    { level: 2, prof: '+2', rages: '2', rageDmg: '+2', features: 'Danger Sense, Reckless Attack' },
-    { level: 3, prof: '+2', rages: '3', rageDmg: '+2', features: 'Path of the Rampager: Surge Forms + Brute Form, Primal Knowledge' },
-    { level: 4, prof: '+2', rages: '4', rageDmg: '+2', features: 'Ability Score Improvement (bump STR 19→20, or a feat)' },
-    { level: 5, prof: '+3', rages: '4', rageDmg: '+2', features: 'Extra Attack (2 attacks per Attack action), Fast Movement (+10 ft speed)' },
-    { level: 6, prof: '+3', rages: '4', rageDmg: '+2', features: 'Surge Form: Titan (Brute → Held); Focused Lasers (90 ft, 1d10, bonus-action fire)' },
-    { level: 7, prof: '+3', rages: '4', rageDmg: '+2', features: 'Feral Instinct (Advantage on Initiative), Instinctive Pounce' },
-    { level: 8, prof: '+3', rages: '4', rageDmg: '+2', features: 'Ability Score Improvement' },
-    { level: 9, prof: '+4', rages: '4', rageDmg: '+3', features: 'Beam Barrage (ranged AOE line); Rage damage → +3' },
-    { level: 10, prof: '+4', rages: '4', rageDmg: '+3', features: 'Surge Form: Apex (Titan → Held); Precision Core (crit 19–20, +1d8)' },
-    { level: 11, prof: '+4', rages: '4', rageDmg: '+3', features: 'Relentless Rage (drop to 1 HP on a CON save)' },
-    { level: 12, prof: '+4', rages: '5', rageDmg: '+3', features: 'Ability Score Improvement; Rages → 5' },
-    { level: 13, prof: '+5', rages: '5', rageDmg: '+3', features: 'Regenerative Biology (heal CON/turn while raging; regrow limbs)' },
-    { level: 14, prof: '+5', rages: '5', rageDmg: '+3', features: 'Surge Form: True Rampager; Planet Breaker (AOE nova)' },
-    { level: 15, prof: '+5', rages: '5', rageDmg: '+3', features: 'Persistent Rage (Rage never ends early)' },
-    { level: 16, prof: '+5', rages: '5', rageDmg: '+4', features: 'Ability Score Improvement; Rage damage → +4' },
-    { level: 17, prof: '+6', rages: '6', rageDmg: '+4', features: 'Cellular Rebirth (survive fatal damage; regrow body parts); Rages → 6' },
-    { level: 18, prof: '+6', rages: '6', rageDmg: '+4', features: 'Indomitable Might' },
-    { level: 19, prof: '+6', rages: '6', rageDmg: '+4', features: 'Ability Score Improvement' },
-    { level: 20, prof: '+6', rages: '6', rageDmg: '+4', features: 'Primal Champion — Perfected Rampager (STR/CON +4 → 24; all forms Held)' },
+    { level: 1, prof: '+2', col3: '2', col4: '+2', features: 'Rage, Unarmored Defense, Weapon Mastery · Laser Hands, Energy Sheath (Lazzuh’s traits)' },
+    { level: 2, prof: '+2', col3: '2', col4: '+2', features: 'Danger Sense, Reckless Attack' },
+    { level: 3, prof: '+2', col3: '3', col4: '+2', features: 'Path of the Rampager: Surge Forms + Brute Form, Primal Knowledge' },
+    { level: 4, prof: '+2', col3: '4', col4: '+2', features: 'Ability Score Improvement (bump STR 19→20, or a feat)' },
+    { level: 5, prof: '+3', col3: '4', col4: '+2', features: 'Extra Attack (2 attacks per Attack action), Fast Movement (+10 ft speed)' },
+    { level: 6, prof: '+3', col3: '4', col4: '+2', features: 'Surge Form: Titan (Brute → Held); Focused Lasers (90 ft, 1d10, bonus-action fire)' },
+    { level: 7, prof: '+3', col3: '4', col4: '+2', features: 'Feral Instinct (Advantage on Initiative), Instinctive Pounce' },
+    { level: 8, prof: '+3', col3: '4', col4: '+2', features: 'Ability Score Improvement' },
+    { level: 9, prof: '+4', col3: '4', col4: '+3', features: 'Beam Barrage (ranged AOE line); Rage damage → +3' },
+    { level: 10, prof: '+4', col3: '4', col4: '+3', features: 'Surge Form: Apex (Titan → Held); Precision Core (crit 19–20, +1d8)' },
+    { level: 11, prof: '+4', col3: '4', col4: '+3', features: 'Relentless Rage (drop to 1 HP on a CON save)' },
+    { level: 12, prof: '+4', col3: '5', col4: '+3', features: 'Ability Score Improvement; Rages → 5' },
+    { level: 13, prof: '+5', col3: '5', col4: '+3', features: 'Regenerative Biology (heal CON/turn while raging; regrow limbs)' },
+    { level: 14, prof: '+5', col3: '5', col4: '+3', features: 'Surge Form: True Rampager; Planet Breaker (AOE nova)' },
+    { level: 15, prof: '+5', col3: '5', col4: '+3', features: 'Persistent Rage (Rage never ends early)' },
+    { level: 16, prof: '+5', col3: '5', col4: '+4', features: 'Ability Score Improvement; Rage damage → +4' },
+    { level: 17, prof: '+6', col3: '6', col4: '+4', features: 'Cellular Rebirth (survive fatal damage; regrow body parts); Rages → 6' },
+    { level: 18, prof: '+6', col3: '6', col4: '+4', features: 'Indomitable Might' },
+    { level: 19, prof: '+6', col3: '6', col4: '+4', features: 'Ability Score Improvement' },
+    { level: 20, prof: '+6', col3: '6', col4: '+4', features: 'Primal Champion — Perfected Rampager (STR/CON +4 → 24; all forms Held)' },
   ],
 
   inventory: [
@@ -727,7 +730,24 @@ export const lazzuh: Character = {
     ],
   },
 
+  // Species/class traits shown under Defenses. These used to be hardcoded in CombatPanel
+  // and therefore claimed on EVERY character's sheet; they belong to Lazzuh alone.
+  traits: [
+    '**Damage Resistance** (while Raging): bludgeoning, piercing, slashing.',
+    '**Darkvision 60 ft** · **Adv vs Frightened** (Surge Blood) · **+PB to death saves** (Beyond the Limit).',
+  ],
+  // Jenovan Regenerative Biology (L13+) — was gated only on level in shared code.
+  regen: { label: 'Regenerative Biology — regain CON modifier HP at the start of your turn while raging', note: 'while raging · Lv 13+', amount: 'conMod', unlockLevel: 13 },
+  longRestNote: 'rages, lasers',
+  // Barbarian level math: d12 HP, Fast Movement at 5, Rage damage ladder. Previously these
+  // were applied to every character by the shared store; now they are Lazzuh's own.
+  levelRules: {
+    hitDie: 12,
+    speedByLevel: [{ level: 1, speed: 30 }, { level: 5, speed: 40 }],
+    formDamageByLevel: [{ level: 1, bonus: 2 }, { level: 9, bonus: 3 }, { level: 16, bonus: 4 }],
+  },
   balance: {
+    lead: 'A good class, but a fair one. The **Rage economy** is the balancing lever: almost every strong option spends the same limited pool, so power comes with real trade-offs.',
     synergies: [
       '**One stat runs everything.** STR drives your fists, the Brute Slam, *and* the Hand Lasers — you are never multi-attribute-dependent. Every point of STR upgrades the whole kit at once.',
       '**Rage is the engine.** A single resource fuels +2 damage, B/P/S resistance, Surging into forms, extra lasers, and Energy Sheath bursts. When it is up, everything is better.',

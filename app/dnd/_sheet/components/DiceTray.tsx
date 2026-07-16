@@ -1,10 +1,16 @@
 import { useRef, useState } from 'react'
 import { useChar } from '../state/store'
+import { useSheetModule } from '../state/sheetConfig'
 import RollStage from './RollStage'
 import { setMuted, isMuted, primeAudio } from '../lib/audio'
 
 export default function DiceTray() {
   const { log, clearLog, resetStage, activeRoll, advMode, setAdvMode, transformActive, topFormId, transform, endTransform, nextTurn, recklessActive, toggleReckless, rollCheck, rollExpr, char } = useChar()
+  // Reckless (Barbarian) and the Surge/transform controls are character-only mechanics —
+  // gate them on the sheet_type's registered modules so other characters don't get a
+  // dead '🔥 Surge' button or a Reckless toggle they have no feature for.
+  const hasReckless = useSheetModule('reckless')
+  const hasForms = useSheetModule('forms')
   const [open, setOpen] = useState(true)
   const [histOpen, setHistOpen] = useState(true)   // collapse/expand the roll history
   const [diceCount, setDiceCount] = useState(1)
@@ -101,14 +107,17 @@ export default function DiceTray() {
             ADV
           </button>
         </div>
-        <button className={`btn tiny ${recklessActive ? 'active' : ''}`} onClick={toggleReckless} title="Reckless: advantage on STR melee">
-          {recklessActive ? '⚡ RECKLESS' : 'Reckless'}
-        </button>
+        {hasReckless && (
+          <button className={`btn tiny ${recklessActive ? 'active' : ''}`} onClick={toggleReckless} title="Reckless: advantage on STR melee">
+            {recklessActive ? '⚡ RECKLESS' : 'Reckless'}
+          </button>
+        )}
       </div>
 
-      {/* Transformation / Surge controls */}
+      {/* Transformation / Surge controls (forms module only) + exhaustion, which is a
+          general mechanic and stays visible for every character. */}
       <div className="tray-surge">
-        {!transformActive ? (
+        {hasForms && !transformActive && (
           <button
             className="btn tiny solid pink"
             onClick={transform}
@@ -118,7 +127,8 @@ export default function DiceTray() {
             🔥 Surge{topForm ? ` → ${topForm.name.split('—').pop()?.trim()}` : ''}
             {combat.transformsThisRest >= 1 ? ' (+1 EXH)' : ''}
           </button>
-        ) : (
+        )}
+        {hasForms && transformActive && (
           <>
             <span className="surge-state">
               🔥 {activeForm?.name.split('—').pop()?.trim()} · <strong>{combat.transformTurnsLeft}</strong> turns
@@ -175,7 +185,7 @@ export default function DiceTray() {
           <div className="tray-empty">
             Tap any attack, ability, save, or skill.
             <br />
-            Adv / Dis · Rage · Reckless apply automatically.
+            Adv / Dis apply automatically.
           </div>
         )}
         {log.map((e) => (

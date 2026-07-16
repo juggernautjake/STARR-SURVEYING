@@ -2,12 +2,21 @@ import { useMemo, useState } from 'react'
 import { useChar } from '../state/store'
 import { abilityMod, signed } from '../rules/dnd'
 import { deriveAc } from '../lib/derive-ac'
+import { md } from '../lib/inline'
 import SectionHead from './ui/SectionHead'
 
 export default function CombatPanel() {
   const { char, setChar, editMode, adjustHp, rollDeathSave, spendHitDie, shortRest, longRest } = useChar()
   const { combat } = char
   const [amt, setAmt] = useState(5)
+  // Regeneration is character-owned: a flat amount or the CON modifier (min 1).
+  const regenAmount =
+    char.regen == null
+      ? 0
+      : char.regen.amount === 'conMod'
+        ? Math.max(1, abilityMod(char.abilities.con))
+        : char.regen.amount
+  const longRestPrompt = `Take a long rest? Restores HP, hit dice, resources, death saves${char.longRestNote ? `, ${char.longRestNote}` : ''}.`
   // AC from equipped armor/shield + item AC-effects; falls back to the manual combat.ac when
   // nothing is equipped (so hand-set AC still works). Recomputes when inventory/DEX/AC change.
   const acInfo = useMemo(
@@ -93,20 +102,21 @@ export default function CombatPanel() {
             </button>
           </div>
 
-          {/* REGENERATION (Lv 13+) */}
-          {char.meta.level >= 13 && (
+          {/* REGENERATION — only for a character that actually declares `regen` (character-
+              owned; this used to render for anyone who reached level 13). */}
+          {char.regen && char.meta.level >= (char.regen.unlockLevel ?? 1) && (
             <div className="res-block" style={{ marginTop: 16 }}>
               <div className="res-head">
                 <span className="rn">Regeneration</span>
-                <span className="rc">while raging · Lv 13+</span>
+                {char.regen.note && <span className="rc">{char.regen.note}</span>}
               </div>
               <button
                 className="btn tiny teal"
-                onClick={() => adjustHp(Math.max(1, abilityMod(char.abilities.con)))}
+                onClick={() => adjustHp(regenAmount)}
                 disabled={combat.currentHp <= 0 || combat.currentHp >= combat.maxHp}
-                title="Regenerative Biology — regain CON modifier HP at the start of your turn while raging"
+                title={char.regen.label}
               >
-                ✚ Regenerate +{Math.max(1, abilityMod(char.abilities.con))} HP / turn
+                ✚ Regenerate +{regenAmount} HP / turn
               </button>
             </div>
           )}
@@ -115,7 +125,7 @@ export default function CombatPanel() {
           <div className="res-block" style={{ marginTop: 16 }}>
             <div className="res-head">
               <span className="rn">Death Saves</span>
-              <span className="rc">+{combat.deathSaveBonus} · Beyond the Limit</span>
+              {combat.deathSaveBonus > 0 && <span className="rc">+{combat.deathSaveBonus} bonus</span>}
             </div>
             <div className="flex between center" style={{ gap: 12, flexWrap: 'wrap' }}>
               <div className="flex center gap">
@@ -155,7 +165,7 @@ export default function CombatPanel() {
           <ul className="clean">
             <li>
               <strong>Armor Class {acInfo.ac}</strong> — {acInfo.fromEquipment ? `from ${acInfo.source}` : combat.acNote}
-              {acInfo.fromEquipment && combat.ac !== acInfo.ac && <span className="rage-only"> (manual base {combat.ac})</span>}
+              {acInfo.fromEquipment && combat.ac !== acInfo.ac && <span className="hl-note"> (manual base {combat.ac})</span>}
             </li>
             <li>
               <strong>Initiative {signed(abilityMod(char.abilities.dex) + combat.initiativeMisc)}</strong> — DEX-based; roll it from the quick bar.
@@ -163,12 +173,11 @@ export default function CombatPanel() {
             <li>
               <strong>Speed {combat.speed} ft</strong> — {combat.speedNote}
             </li>
-            <li>
-              <strong>Damage Resistance</strong> <span className="rage-only">(while Raging)</span>: bludgeoning, piercing, slashing.
-            </li>
-            <li>
-              <strong>Darkvision 60 ft</strong> · <strong>Adv vs Frightened</strong> (Surge Blood) · <strong>+PB to death saves</strong> (Beyond the Limit).
-            </li>
+            {/* Species/class traits are character-owned — this list used to hardcode a
+                single character's species traits onto every sheet. */}
+            {(char.traits ?? []).map((t, i) => (
+              <li key={i}>{md(t)}</li>
+            ))}
           </ul>
 
           <div className="res-head" style={{ marginTop: 16 }}>
@@ -179,7 +188,7 @@ export default function CombatPanel() {
             <button className="btn teal" onClick={shortRest} title="Restore short-rest resources">
               ☾ Short Rest
             </button>
-            <button className="btn pink" onClick={() => { if (confirm('Take a long rest? Restores HP, hit dice, rages, lasers, death saves.')) longRest() }}>
+            <button className="btn pink" onClick={() => { if (confirm(longRestPrompt)) longRest() }}>
               ★ Long Rest
             </button>
           </div>
