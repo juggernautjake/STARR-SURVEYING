@@ -81,9 +81,43 @@ export default function Bio() {
   // imposes an identity.
   const displayName = ledger.identity('name')?.value ?? char.meta.name
 
+  // Descriptive identity fields (Slice 11): the render home for gender/pronouns/profession. Each is
+  // overlayable by an identity effect (a potion that changes your recorded profession), base stands
+  // otherwise. Edit them by hand below (canWrite), or the AI sets them via set_meta.
+  const detail = (field: 'gender' | 'pronouns' | 'profession') => ledger.identity(field)?.value ?? char.meta[field] ?? ''
+  const details: { key: 'gender' | 'pronouns' | 'profession'; label: string }[] = [
+    { key: 'gender', label: 'Gender' },
+    { key: 'pronouns', label: 'Pronouns' },
+    { key: 'profession', label: 'Profession' },
+  ]
+  const setMeta = (k: 'gender' | 'pronouns' | 'profession', v: string) =>
+    setChar((c) => ({ ...c, meta: { ...c.meta, [k]: v } }))
+
   return (
     <section id="story">
       <SectionHead num="13" title="Story & Roleplay" />
+
+      {/* Details line — gender · pronouns · profession, each overlayable by an identity effect. */}
+      {(details.some((d) => detail(d.key)) || canWrite) && (
+        <div className="card" style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginBottom: 12 }}>
+          {details.map((d) => (
+            <div key={d.key}>
+              <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)' }}>{d.label}</div>
+              {canWrite ? (
+                <input
+                  className="mono"
+                  style={{ background: 'var(--panel-2)', border: '1px solid var(--line)', borderRadius: 6, padding: '4px 8px', color: 'var(--ink)', fontSize: 14, minWidth: 120 }}
+                  value={char.meta[d.key] ?? ''}
+                  placeholder="—"
+                  onChange={(e) => setMeta(d.key, e.target.value)}
+                />
+              ) : (
+                <div style={{ fontSize: 15, color: 'var(--ink)' }}>{detail(d.key) || '—'}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       <StoryCard title={`Who Is ${displayName}?`} value={bio.intro} kind="paragraphs" canEdit={canWrite} onSave={(v) => setBio({ intro: v as string[] })} />
 

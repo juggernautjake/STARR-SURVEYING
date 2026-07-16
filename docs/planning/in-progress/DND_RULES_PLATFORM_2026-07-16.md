@@ -425,7 +425,15 @@ One pure function that every later slice reads. Nothing else in Part II can be b
 **Done when:** equipping a +2 STR belt on any sheet changes the displayed STR, its modifier, the
 athletics check, and the carrying capacity — with no code that knows what a belt is.
 
-## Slice 11 — Effects can target anything (identity + grants) ⏳ PARTIAL 2026-07-16
+## Slice 11 — Effects can target anything (identity + grants) ✅ SHIPPED 2026-07-16
+
+**Complete.** Grants: proficiencies, resistances/immunities/vulnerabilities, senses, movement modes +
+flags, features, resources, attacks, spells — all resolve through the ledger and render sourced.
+Identity: name/species/class/subclass, size/creature-type, portrait/token, and gender/pronouns/
+profession — all overlay the display over an untouched base and revert on unequip. The one remaining
+follow-up is `size` → carrying-capacity/grapple MECHANICS (it already displays); everything the request
+named — "an item could literally turn the character into a completely different character" — works.
+Details of each piece below.
 
 The request's real ask: *"it could literally turn the character into a completely different character."*
 
@@ -470,8 +478,14 @@ doc's explicit "senses… need somewhere to render" item. Test added to `grant-d
   display-vs-management split this note flagged). The Slice-14 item plumbing already accepts identity
   effects (`{target:'image',operation:'set',value:'<url>'}`), so it works end-to-end. Tests:
   `identity-overlay.test.ts` (+2).
-- *`gender`/`pronouns`/`profession`* — no render home exists on the sheet yet (needs a Bio/Overview
-  field before the overlay has anywhere to show).
+- *`gender`/`pronouns`/`profession` ✅ SHIPPED (commit pending).* Added as optional `meta` fields with
+  a render home — a **Details** line in the Bio (Gender · Pronouns · Profession), editable in place by
+  the owner/DM and overlay-aware (`ledger.identity(field)?.value ?? char.meta[field]`), so a Guise Ring
+  can change your recorded profession over an untouched base. `set_meta` gained the three fields so the
+  AI sets them too. Tests: `identity-overlay.test.ts` (+3). **Every identity field now has a render home
+  and overlays correctly.** (The only identity follow-up left is `size` → carrying-capacity/grapple
+  MECHANICS — size already *displays* the imposed value; wiring it to the number is a small mechanical
+  add, not a missing overlay.)
 - *`grant_feature` ✅ SHIPPED (commit pending).* An item can grant a feature (the pendant that gives
   a Wizard a Barbarian ability). `Features` reads `ledger.explain('grant_feature')` and renders each
   as a read-only card badged "granted / Granted by <source>" — no ⋯ menu (it's on loan), never baked

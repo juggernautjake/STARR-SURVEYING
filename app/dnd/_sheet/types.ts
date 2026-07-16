@@ -321,6 +321,11 @@ export interface Character {
     subclass: string
     level: number
     chips: { text: string; tone?: 'pink' | 'teal' | 'gold' }[]
+    /** Descriptive identity fields (Slice 11) — optional, shown in the Bio "Details" line and
+     *  overlayable by an identity effect (a potion that changes your recorded profession). */
+    gender?: string
+    pronouns?: string
+    profession?: string
   }
   inspiration: boolean
   profBonusOverride?: number | null
