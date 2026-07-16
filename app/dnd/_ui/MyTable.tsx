@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import styles from './hextech.module.css';
 import type { UserProfile } from '@/lib/dnd/campaign-summary';
+import NewCampaignButton from './NewCampaignButton';
 
 function CampaignRow({ id, name, tag }: { id: string; name: string; tag: string }) {
   return (
@@ -25,9 +26,12 @@ export default function MyTable({ profile }: { profile: UserProfile }) {
 
   return (
     <div style={{ display: 'grid', gap: 18 }}>
+      {/* Anyone signed in can start a campaign (and as many as they like). Becomes theirs to DM. */}
+      <NewCampaignButton />
+
       {nothing && (
         <p style={{ color: 'var(--hx-muted)', textAlign: 'center', fontSize: 13 }}>
-          You&apos;re signed in, but you&apos;re not in any campaigns yet. Ask your DM to add you, or browse the tables below.
+          You&apos;re signed in, but you&apos;re not in any campaigns yet. Start one above, ask your DM to add you, or browse the tables below.
         </p>
       )}
 

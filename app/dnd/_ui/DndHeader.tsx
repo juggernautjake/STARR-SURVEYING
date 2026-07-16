@@ -24,6 +24,13 @@ export default function DndHeader({ userName }: { userName?: string | null }) {
         <Link href="/dnd/characters/new" className={styles.siteNavLink}>
           ＋ Character
         </Link>
+        {/* Start a campaign (become its DM, invite players). Only for signed-in users — a campaign
+            needs an owner. Opens the campaigns dashboard with the New Campaign form ready. */}
+        {userName && (
+          <Link href="/dnd?new=campaign" className={styles.siteNavLink}>
+            ＋ Campaign
+          </Link>
+        )}
         {userName ? (
           <span className={styles.siteNavUser} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ opacity: 0.85 }}>

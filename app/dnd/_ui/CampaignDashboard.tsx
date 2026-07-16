@@ -19,6 +19,11 @@ export default function CampaignDashboard({ displayName, initialCampaigns }: { d
   const [campaigns, setCampaigns] = useState<CampaignCard[]>(initialCampaigns ?? [])
   const [loaded, setLoaded] = useState(!!initialCampaigns)
   const [showForm, setShowForm] = useState(false)
+  // The header's "+ Campaign" links to /dnd?new=campaign; open the form after mount when it does
+  // (in an effect, not the initializer — reading the URL during render would hydrate-mismatch).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('new') === 'campaign') setShowForm(true)
+  }, [])
   const [name, setName] = useState('')
   const [blurb, setBlurb] = useState('')
   const [creating, setCreating] = useState(false)
