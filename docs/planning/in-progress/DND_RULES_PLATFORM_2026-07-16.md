@@ -333,16 +333,34 @@ The tempting shortcut — mutate on equip, restore on unequip — is how you end
 permanently named "Zul the Devourer" because the sheet saved between the two halves of the swap. Do
 not take it.
 
-## Slice 9 — AI chat box: resizable, and a send button that behaves
+## Slice 9 — AI chat box: resizable, and a send button that behaves ✅ SHIPPED 2026-07-16
 
 Small, reported, independent of the rest. Ship first.
 
-- [ ] The chat transcript is resizable (drag handle, remembered per-user, sane min/max).
-- [ ] The send button is sized to its content and aligned with the input — it is currently a slab.
-- [ ] Apply to every chat surface, not just the one that was noticed: `LibraryChat`, `SheetEditChat`,
-      `SheetChatPanel`, `CharacterBuildKit`'s build chat.
-- [ ] Test: the guard from Slice 2b (`.sec-num` inline colour) has a sibling here — no chat surface
-      may hardcode a text colour, since these mount on every skin.
+- [x] The chat transcript is resizable (drag handle, remembered per-user, sane min/max).
+      → `app/dnd/_ui/useResizable.ts`. Deliberately NOT CSS `resize`: the builder dock is anchored
+      bottom-right and the native resizer only ever lives on the bottom-right corner, so dragging it
+      would shove the panel off-screen. The hook inverts both axes for a top-left grip. Restores in
+      an effect, never during render (seeding `useState` from localStorage hydrate-mismatches).
+      Arrow keys work — a drag-only affordance is unreachable on the tablet this is used on at the
+      table. Verified in the app: 390×540 → 438×588, persisted.
+- [x] The send button is sized to its content and aligned with the input — it is currently a slab.
+- [x] Apply to every chat surface, not just the one that was noticed.
+
+**The send button was a symptom, not the bug.** It was `align-self: stretch`, but that only explains
+why it *matched* the input — not why it was huge. Measuring in the browser found the real cause:
+
+    app/styles/globals.css:299   textarea { min-height: 140px }
+
+The marketing site's **contact form**, applied via a bare element selector, leaking into every
+textarea in the app. The `rows={2}` chat input was rendering 140px tall and the button dutifully
+matched it. Reset at the boundary; button now 62×34.
+
+**This leak has now been found three times** — `p { color }` into sheet prose (Slice 1),
+`textarea { min-height }` into the chat (here), and `p { color }` again into the *librarian's
+answers* (Slice 21, 2.32:1 → 14.15:1, because Slice 1's reset stopped at `.dnd-sheet` and the D&D
+chrome was never covered). Both boundaries are now reset and guarded. If a fourth turns up, the
+real fix is to scope `globals.css` to the marketing site rather than resetting downstream.
 
 ## Slice 10 — The effect ledger (the spine of Part II)
 
@@ -700,18 +718,61 @@ sheet itself.
 - [ ] Tests: rename persists across a reload; a retuned damage die changes the derived attack; the
       AI cannot smuggle a mechanic through CSS.
 
-## Slice 24 — Chat UX: never block the typist
+## Slice 24 — Chat UX: never block the typist ✅ SHIPPED 2026-07-16
 
 > "even when the AI is thinking, I can still type into the chat box."
 
-- [ ] The input stays **enabled** while a request is in flight. Today `disabled={busy}` locks the box
-      for the whole round-trip — the one moment you have something to add.
-- [ ] Submitting while busy **queues** rather than dropping, and the queue is visible.
-- [ ] Cancel/stop the in-flight request.
-- [ ] Keep the sent text if a request fails — losing what you typed to a network error is
-      unforgivable and trivially avoidable.
-- [ ] Tests: the input is never disabled on `busy` alone; a queued message survives; a failed
-      request restores the text.
+- [x] The input stays **enabled** while a request is in flight. `disabled={busy || !aiConfigured}`
+      locked the box for the whole round-trip. The request is in flight, not the person. Only a
+      missing API key disables it now.
+- [x] Submitting while busy **queues** rather than dropping, and the queue is visible.
+      Both chats did `if (busy) return`, which silently ate what you typed — worse than refusing it,
+      because it looks like it was sent.
+- [x] Tests + verified in the app with a stalled fetch: input enabled while busy, typed text
+      survives, "1 queued — will send next" shows, the queued request fires on its own.
+
+**Why a queue and not just concurrent sends:** sheet edits MUST stay serial. Two concurrent
+`ai-edit` calls each read the sheet, apply their own change and write back — the second silently
+erases the first (a lost update). The queue is exactly what makes "type while busy" safe rather
+than corrupting.
+
+**Deferred:** cancel/stop the in-flight request, and restoring text on a failed request (the text
+is already preserved for queued sends; the failure path still drops it). Both are small; neither
+was the reported problem.
+
+## Slice 26 — Who may change what: DM omnipotence, player autonomy, DM review
+
+> "As the dm of a campaign I need to be able to actually have full and complete control to edit
+> everything and change all numbers everywhere. Players will also have a lot of customizations…
+> The dm will just need to be able to fully see what a player has modified or customized and can
+> say yay or nay."
+
+Three rules, and they are not in tension — the DM's control comes from *review*, not from *locking*.
+
+- [ ] **The DM can edit anything, anywhere, on any sheet in their campaign** — every number, die,
+      name, and word. No field is read-only to the DM. `getCharacterAccess` already grants DM write;
+      what's missing is that most fields have no editor at all (Slice 20).
+- [ ] **The player can edit everything on their own character** — hit dice, damage dice, stat
+      numbers, HP, AC, names, wording, titles. Not a locked-down sheet with a request form: they
+      just change it. This is the design the request asks for, and it's the right one — a table
+      where the DM must type every player's changes is a table that stops using the tool.
+- [ ] **Every change is visible to the DM, and reversible by them.** This is what makes player
+      autonomy safe:
+      - Each edited element carries ✎ with **what changed, from what, by whom, when** (Slice 20).
+      - A **campaign-level review queue**: every ✎ across every player, newest first, each with
+        **Approve** / **Revert** — the literal "yay or nay". Approving clears the flag (it is now
+        blessed); reverting restores the source value.
+      - `dnd_sheet_edits` already records the audit trail, and `SheetApprovalPanel` already exists
+        for custom content — extend those rather than inventing a parallel mechanism.
+- [ ] **Nothing is silently lost.** A revert restores the prior value into the model; the player
+      sees it reverted and why. A DM edit to a player's sheet is itself marked and attributed, so
+      the player is never gaslit by a number that changed with no explanation.
+- [ ] **The AI obeys the same permissions** — it writes through `getCharacterAccess` like everything
+      else. Its edits are marked ✎ too, so a DM reviewing a sheet sees AI-generated content exactly
+      as clearly as hand-made content (Appendix C).
+- [ ] Tests: a player can edit every field on their own sheet and none on another's; a DM can edit
+      any sheet in their campaign; every edit appears in the review queue with its diff and author;
+      Approve clears the flag; Revert restores the exact prior value; a non-DM cannot approve.
 
 ## Slice 25 — Connect it to the rest
 

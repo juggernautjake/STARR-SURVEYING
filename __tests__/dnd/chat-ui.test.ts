@@ -20,6 +20,40 @@ function block(css: string, selector: string): string {
   return css.slice(i, css.indexOf('}', i));
 }
 
+describe("the marketing form's box model is neutralised at the /dnd boundary", () => {
+  // The leak's FOURTH instance, and the reason this reset is at the boundary rather than in one
+  // component: globals.css styles the marketing contact form via bare `input, textarea, select`.
+  // Our components override the VISIBLE properties (colour, border, background), which is why the
+  // leak stays invisible — while the layout properties nobody overrides quietly land:
+  //   min-height: 140px   -> the chat input rendered as a 140px slab
+  //   margin-bottom: 24px -> `align-items: flex-end` aligns MARGIN boxes, so the send button sat
+  //                          exactly 24px below the input it was meant to be level with
+  const HEXTECH_CSS = read('app/dnd/_ui/hextech.module.css');
+  const GLOBALS = read('app/styles/globals.css');
+
+  it('globals.css still has the bare form rules this reset exists to neutralize', () => {
+    // Anchored to the leak: if someone scopes globals.css properly, this fails and tells them the
+    // reset is now dead code — rather than passing forever and hiding that.
+    expect(GLOBALS).toMatch(/^input, textarea, select \{[^}]*margin-bottom:\s*1\.5rem/m);
+    expect(GLOBALS).toMatch(/^textarea \{[^}]*min-height:\s*140px/m);
+  });
+
+  it('the /dnd chrome resets the two properties that actually bite', () => {
+    const i = HEXTECH_CSS.indexOf('.siteChrome input,');
+    expect(i, 'the boundary reset must exist').toBeGreaterThan(-1);
+    const b = HEXTECH_CSS.slice(i, HEXTECH_CSS.indexOf('}', i));
+    expect(b).toMatch(/margin-bottom:\s*0/);
+    expect(b).toMatch(/min-height:\s*0/);
+  });
+
+  it('does NOT reset width — it is load-bearing for controls built against it', () => {
+    // Fix the class of bug, not every property that happens to leak. Resetting width would
+    // restyle the whole app chasing a bug nobody reported.
+    const i = HEXTECH_CSS.indexOf('.siteChrome input,');
+    expect(HEXTECH_CSS.slice(i, HEXTECH_CSS.indexOf('}', i))).not.toMatch(/width:/);
+  });
+});
+
 describe('the send button is sized to its content, not to the input beside it', () => {
   const send = block(SHEETCHAT_CSS, '.send');
 

@@ -699,6 +699,32 @@ select.input {
 .siteChrome p {
   color: inherit;
 }
+
+/* FOURTH instance of the same leak, so this time fix the CLASS of bug, not the instance.
+   app/styles/globals.css styles the marketing CONTACT FORM through bare element selectors:
+
+     input, textarea, select { width: 100%; padding: .875rem 1rem; margin-bottom: 1.5rem;
+                               border: 2px solid ...; background: white; }
+     textarea               { min-height: 140px; }
+
+   Every form control in the D&D app inherits that. Our components set their own colour, border
+   and background, so the visible properties get overridden and the leak stays invisible — while
+   the LAYOUT properties nobody thinks to override quietly land:
+
+     · min-height: 140px  -> the two-row chat input rendered as a 140px slab (Slice 9)
+     · margin-bottom: 24px -> `align-items: flex-end` aligns MARGIN boxes, so the send button sat
+                              exactly 24px below the textarea it was supposed to be level with
+
+   So neutralise them once, at the boundary — but ONLY the two that actually bite. padding, border
+   and background are already set by our own components; `width: 100%` is load-bearing for controls
+   that were built against it. Resetting those here would restyle the whole app to chase bugs that
+   aren't there. Fix the class of bug, not every property that happens to leak. */
+.siteChrome input,
+.siteChrome textarea,
+.siteChrome select {
+  margin-bottom: 0;
+  min-height: 0;
+}
 .siteMain {
   flex: 1 0 auto;
 }
