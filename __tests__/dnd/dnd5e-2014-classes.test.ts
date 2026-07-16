@@ -13,7 +13,7 @@ const CLASSES = classesForSystem(SYS);
 
 describe('the 2014 class roster (authored class-by-class)', () => {
   it('has the classes authored so far, and the system reports it has class data', () => {
-    expect(CLASSES.map((c) => c.name)).toEqual(expect.arrayContaining(['Barbarian', 'Fighter', 'Rogue', 'Monk', 'Ranger', 'Paladin', 'Sorcerer', 'Warlock']));
+    expect(CLASSES.map((c) => c.name)).toEqual(expect.arrayContaining(['Barbarian', 'Fighter', 'Rogue', 'Monk', 'Ranger', 'Paladin', 'Sorcerer', 'Warlock', 'Bard']));
     expect(systemHasClasses(SYS)).toBe(true);
   });
 
@@ -280,5 +280,28 @@ describe('Warlock 2014 — the edition-specific numbers', () => {
   it('offers exactly the three PHB patrons (Archfey, Fiend, Great Old One)', () => {
     const subs = subclassesFor(SYS, 'warlock').map((s) => s.name).sort();
     expect(subs).toEqual(['The Archfey', 'The Fiend', 'The Great Old One']);
+  });
+});
+
+describe('Bard 2014 — the edition-specific numbers', () => {
+  const bard = findClass(SYS, 'bard')!;
+
+  it('is a CHA full caster with spells known that chooses ANY 3 skills', () => {
+    expect(bard.spellcasting?.kind).toBe('full');
+    expect(bard.spellcasting?.spellsKnown?.[20]).toBe(22);
+    expect(bard.skillChoices.count).toBe(3);
+    expect(bard.skillChoices.from.length).toBeGreaterThanOrEqual(18); // any skill
+  });
+
+  it('has Bardic Inspiration, Jack of All Trades, Expertise x2, and Magical Secrets at 10/14/18', () => {
+    expect(bard.features.some((f) => f.name === 'Bardic Inspiration')).toBe(true);
+    expect(bard.features.some((f) => f.name === 'Jack of All Trades')).toBe(true);
+    expect(bard.features.filter((f) => f.choice === 'expertise').map((f) => f.level)).toEqual([3, 10]);
+    const secrets = bard.features.filter((f) => f.name === 'Magical Secrets').map((f) => f.level).sort((a, b) => a - b);
+    expect(secrets).toEqual([10, 14, 18]);
+  });
+
+  it('offers exactly the two PHB colleges (Lore, Valor)', () => {
+    expect(subclassesFor(SYS, 'bard').map((s) => s.name).sort()).toEqual(['College of Lore', 'College of Valor']);
   });
 });
