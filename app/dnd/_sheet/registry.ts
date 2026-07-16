@@ -14,7 +14,10 @@ import { lazzuhTheme, streamerTheme, donataTheme, rangorTheme, hextechTheme, typ
 // mechanic is built. `stream` = the live streamer chat + influence meter + the
 // DM's stream controls (§6.9); only characters that register it get those.
 // `mlm` = Donata Dime's downline tracker + Rank=Level ladder + pyramid/product panels.
-export type SheetModuleId = 'forms' | 'stream' | 'mlm';
+// `reckless` = the Barbarian's Reckless Attack toggle (advantage on STR melee, and attacks
+// against you have advantage) — the dice-tray button + its Attacks-tab callout. Only a
+// character whose build actually grants Reckless Attack should register it.
+export type SheetModuleId = 'forms' | 'stream' | 'mlm' | 'reckless';
 
 // A `skin` is a bespoke visual treatment beyond color/font tokens — the extra CSS
 // (pixel frames, scanlines, glitch, etc.) lives under `.dnd-sheet.skin-<id>` in
@@ -56,7 +59,7 @@ export const SHEET_REGISTRY: Record<string, SheetTypeConfig> = {
   lazzuh: {
     label: 'Lazzuh Gun',
     theme: lazzuhTheme,
-    modules: ['forms'],
+    modules: ['forms', 'reckless'],
     initiative: { kicker: 'NEON ODYSSEY // COMBAT', title: 'Surge Initiative!', rollLabel: '⚡ Roll the Surge', lockLabel: 'Surge in', accent: 'var(--tealbright)' },
   },
   // Bright hot-pink pixel/CRT magical-girl streamer skin (§6.9) — e.g. xxRainbowKittenUwU37xx.

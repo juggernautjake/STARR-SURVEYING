@@ -1,25 +1,38 @@
 import { useChar } from '../state/store'
+import { useSheetModule } from '../state/sheetConfig'
 import { abilityMod, signed } from '../rules/dnd'
 import SectionHead from './ui/SectionHead'
 
 export default function Attacks() {
   const { char, pb, rollCheck, rollDmg, transformActive, recklessActive } = useChar()
+  const hasReckless = useSheetModule('reckless')
   const activeForm = char.forms.find((f) => f.id === char.activeFormId)
-  // Basic-attack dice scale: fist follows your form's strike die; laser follows level.
+  // Damage dice scaling is declared BY THE ATTACK, not by hardcoded ids: an attack can follow
+  // the active form's strike die and/or a per-level ladder. Anything else uses its flat damage.
   const dieFor = (a: (typeof char.attacks)[number]) => {
-    if (a.id === 'fist') return activeForm?.strikeDie ?? a.damage
-    if (a.id === 'laser') return char.meta.level >= 6 ? '1d10' : '1d8'
+    if (a.usesFormStrikeDie) return activeForm?.strikeDie ?? a.damage
+    if (a.damageByLevel?.length) {
+      return a.damageByLevel.reduce((acc, e) => (char.meta.level >= e.level ? e.damage : acc), a.damage)
+    }
     return a.damage
   }
+  const hasFormStrike = char.attacks.some((a) => a.usesFormStrikeDie)
 
   return (
     <section id="attacks">
       <SectionHead num="05" title="Attacks" />
       <p className="lead">
-        Tap <strong>Hit</strong> to roll to-hit, <strong>Dmg</strong> for damage. Your fist die scales with your active
-        form (<strong>{activeForm?.strikeDie ?? '1d6'}</strong>); AOE / signature strikes live on the Forms tab.{' '}
-        {transformActive && <span className="rage-only">Surged: +{char.combat.rageDamageBonus} damage on STR attacks. </span>}
-        {recklessActive && <span className="rage-only">Reckless: advantage on STR melee. </span>}
+        Tap <strong>Hit</strong> to roll to-hit, <strong>Dmg</strong> for damage.{' '}
+        {hasFormStrike && (
+          <>
+            Your unarmed die scales with your active form (<strong>{activeForm?.strikeDie ?? '1d6'}</strong>); AOE /
+            signature strikes live on the Forms tab.{' '}
+          </>
+        )}
+        {transformActive && char.combat.formDamageBonus > 0 && (
+          <span className="hl-note">Transformed: +{char.combat.formDamageBonus} damage on boosted attacks. </span>
+        )}
+        {recklessActive && <span className="hl-note">Reckless: advantage on STR melee. </span>}
         Crit doubles the damage dice.
       </p>
 
@@ -104,13 +117,13 @@ export default function Attacks() {
                         </button>
                         <button
                           className="rollbtn pink"
-                          onClick={() => rollDmg(`${a.name} — damage`, die, { flat: dmgFlat, rageable: a.rageable, tag: a.damageType })}
+                          onClick={() => rollDmg(`${a.name} — damage`, die, { flat: dmgFlat, formBoosted: a.formBoosted, tag: a.damageType })}
                         >
                           Dmg
                         </button>
                         <button
                           className="rollbtn gold"
-                          onClick={() => rollDmg(`${a.name} — CRIT`, die, { flat: dmgFlat, rageable: a.rageable, crit: true, tag: a.damageType })}
+                          onClick={() => rollDmg(`${a.name} — CRIT`, die, { flat: dmgFlat, formBoosted: a.formBoosted, crit: true, tag: a.damageType })}
                           title="Critical hit — double the dice"
                         >
                           Crit
@@ -125,14 +138,18 @@ export default function Attacks() {
         </table>
       </div>
 
-      <div className="callout pink">
-        <h4>Reckless Attack (L2)</h4>
-        <p>
-          Toggle <strong>Reckless</strong> in the Dice Tray before your first attack: Advantage on all STR melee attacks
-          this turn, but attacks against you have Advantage until your next turn. The sheet applies the advantage to your
-          fist and Brute Slam rolls automatically.
-        </p>
-      </div>
+      {/* Reckless Attack is a Barbarian feature — only shown to characters whose
+          sheet_type registers the `reckless` module (see registry.ts). */}
+      {hasReckless && (
+        <div className="callout pink">
+          <h4>Reckless Attack (L2)</h4>
+          <p>
+            Toggle <strong>Reckless</strong> in the Dice Tray before your first attack: Advantage on all STR melee
+            attacks this turn, but attacks against you have Advantage until your next turn. The sheet applies the
+            advantage to your STR melee rolls automatically.
+          </p>
+        </div>
+      )}
     </section>
   )
 }

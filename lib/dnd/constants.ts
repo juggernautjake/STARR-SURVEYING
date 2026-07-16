@@ -30,10 +30,23 @@ export const DEMO_DONATA_PLAYER_USER_ID = '1a2200aa-0000-4000-8000-0000000000a6'
 export const DEMO_DONATA_PLAYER_NAME = 'Sarah';
 export const DEMO_DONATA_PLAYER_EMAIL = 'quick:sarah';
 
-// Jack — a Rangor Pugilist on the bespoke `jack` "homebrew rulebook" skin. Seeded DM-owned
-// (Andrew) and campaign-visible so he's on the Neon Odyssey roster; the DM assigns him to
-// whoever plays Jack via the roster tool (no fixed player account is invented here).
+// Jack — a Rangor Pugilist on the bespoke `jack` "homebrew rulebook" skin, owned by the
+// player account Jack (a7). Like the other PCs his sheet is visibility='private', so only
+// Jack himself and the campaign DM (Andrew) can open it.
 export const DEMO_JACK_CHARACTER_ID = '1a2200aa-0000-4000-8000-0000000000c6';
+export const DEMO_JACK_PLAYER_USER_ID = '1a2200aa-0000-4000-8000-0000000000a7';
+export const DEMO_JACK_PLAYER_NAME = 'Jack';
+export const DEMO_JACK_PLAYER_EMAIL = 'quick:jack';
+
+// Jack (id c6) — a PLAYER character on the bespoke `jack` skin, owned by the Jack account.
+export const DEMO_JACK = {
+  characterId: DEMO_JACK_CHARACTER_ID,
+  characterName: 'Jack',
+  sheetType: 'jack',
+  playerUserId: DEMO_JACK_PLAYER_USER_ID,
+  playerName: DEMO_JACK_PLAYER_NAME,
+  playerEmail: DEMO_JACK_PLAYER_EMAIL,
+} as const;
 
 // Shared identity for open-access "＋ New Character" — visitors create + own imported
 // characters as Guest (has no password, so it's the only passwordless enter-as identity).

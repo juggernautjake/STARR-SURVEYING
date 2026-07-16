@@ -60,7 +60,7 @@ describe('jack — the Rangor Pugilist build', () => {
   });
 
   it('is a structurally valid Character (blank keys + a few extras)', () => {
-    const allowed = new Set([...Object.keys(blankCharacter('x')), 'progressionMeta', 'tokenFocus']);
+    const allowed = new Set([...Object.keys(blankCharacter('x')), 'progressionMeta', 'tokenFocus', 'traits', 'levelRules']);
     for (const k of Object.keys(c)) expect(allowed.has(k)).toBe(true);
     for (const k of Object.keys(blankCharacter('x'))) expect(k in c).toBe(true);
   });

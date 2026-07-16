@@ -25,7 +25,7 @@ export default function Features() {
       <SectionHead num="08" title="Features, Traits & Powers" />
       <p className="lead">
         The signature powers that make him <em className="term">him</em>, plus the Barbarian chassis and Jenovan biology.
-        Anything above your current level (<strong>{level}</strong>) is <span className="rage-only">locked</span> until you
+        Anything above your current level (<strong>{level}</strong>) is <span className="hl-note">locked</span> until you
         level up.
       </p>
       {sorted.map((f) => {

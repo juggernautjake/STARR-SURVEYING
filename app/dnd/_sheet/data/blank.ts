@@ -37,7 +37,7 @@ export function blankCharacter(name: string): Character {
       deathSuccess: 0,
       deathFail: 0,
       deathSaveBonus: 0,
-      rageDamageBonus: 0,
+      formDamageBonus: 0,
       saveDCOverride: null,
       transformActive: false,
       transformTurnsLeft: 0,
@@ -64,8 +64,55 @@ export function blankCharacter(name: string): Character {
 // sheet tabs read exists. AI/generic/partial characters often omit arrays (attacks, forms,
 // inventory, progression, resources, customSkills, meta.chips, balance…), which made tabs crash
 // with "Cannot read properties of undefined (reading 'map')". Normalizing on load prevents that.
+/**
+ * Migrate a stored sheet off the old barbarian-specific field names. The engine used to
+ * bake Lazzuh's schema into every character; these keys still exist in rows saved before
+ * the rename, so map them forward (new value wins if both are somehow present):
+ *   combat.rageDamageBonus → combat.formDamageBonus
+ *   progression[].rages    → progression[].col3
+ *   progression[].rageDmg  → progression[].col4
+ *   attacks[].rageable     → attacks[].formBoosted
+ */
+function migrateLegacyFields(src: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...src };
+
+  const combat = out.combat as (Record<string, unknown> & { formDamageBonus?: number }) | undefined;
+  if (combat && typeof combat === 'object') {
+    const legacy = (combat as { rageDamageBonus?: unknown }).rageDamageBonus;
+    const next = { ...combat };
+    if (next.formDamageBonus == null && typeof legacy === 'number') next.formDamageBonus = legacy;
+    delete (next as { rageDamageBonus?: unknown }).rageDamageBonus;
+    out.combat = next;
+  }
+
+  if (Array.isArray(out.progression)) {
+    out.progression = (out.progression as Record<string, unknown>[]).map((r) => {
+      if (!r || typeof r !== 'object') return r;
+      const next = { ...r };
+      if (next.col3 == null && typeof next.rages === 'string') next.col3 = next.rages;
+      if (next.col4 == null && typeof next.rageDmg === 'string') next.col4 = next.rageDmg;
+      delete next.rages;
+      delete next.rageDmg;
+      return next;
+    });
+  }
+
+  if (Array.isArray(out.attacks)) {
+    out.attacks = (out.attacks as Record<string, unknown>[]).map((a) => {
+      if (!a || typeof a !== 'object') return a;
+      const next = { ...a };
+      if (next.formBoosted == null && typeof next.rageable === 'boolean') next.formBoosted = next.rageable;
+      delete next.rageable;
+      return next;
+    });
+  }
+
+  return out;
+}
+
 export function normalizeCharacter(d: unknown): Character {
-  const src = (d && typeof d === 'object' ? d : {}) as Partial<Character> & Record<string, unknown>;
+  const raw = (d && typeof d === 'object' ? d : {}) as Record<string, unknown>;
+  const src = migrateLegacyFields(raw) as Partial<Character> & Record<string, unknown>;
   const base = blankCharacter((src.meta?.name as string) || (src as { name?: string }).name || 'Character');
   const arr = <T>(v: unknown, fallback: T[]): T[] => (Array.isArray(v) ? (v as T[]) : fallback);
   const meta = { ...base.meta, ...(src.meta ?? {}) };

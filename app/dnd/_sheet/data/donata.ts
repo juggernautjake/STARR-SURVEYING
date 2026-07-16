@@ -178,7 +178,7 @@ export function donataDime(name: string): Character {
 
   c.balance = {
     synergies: [
-      'Sponsorship + a hard-hitting ally (hi, Lazzuh) = a reliable +1d4 and a steady drip of commission temp HP / free repositioning.',
+      'Sponsorship + any hard-hitting frontliner = a reliable +1d4 and a steady drip of commission temp HP / free repositioning.',
       'Recruitment Pitch (mass Charm) neutralizes a front line while the party focuses fire.',
       'Full cleric support kit — Bless, Aid, Healing Word, Prayer of Healing, Sanctuary — from a safe 30–120 ft.',
       'Predatory Instinct makes her the social/scouting lens: advantage to read any creature.',
@@ -200,9 +200,9 @@ export function donataDime(name: string): Character {
     col4: 'Slots',
   };
   c.progression = [
-    { level: 1, prof: '+2', rages: 'Prospect → Sparkler', rageDmg: '2 · Lv1', features: 'Spellcasting, Divine Order (Thaumaturge), Saurian traits, Magic Initiate' },
-    { level: 2, prof: '+2', rages: 'Sparkler', rageDmg: '3 · Lv1', features: 'Channel Divinity — Channel Downline (2 uses)' },
-    { level: 3, prof: '+2', rages: 'Mojo Maker (Yr 6)', rageDmg: '4·L1 / 2·L2', features: 'Abundance Domain — Sponsorship, domain spells', here: true },
+    { level: 1, prof: '+2', col3: 'Prospect → Sparkler', col4: '2 · Lv1', features: 'Spellcasting, Divine Order (Thaumaturge), Saurian traits, Magic Initiate' },
+    { level: 2, prof: '+2', col3: 'Sparkler', col4: '3 · Lv1', features: 'Channel Divinity — Channel Downline (2 uses)' },
+    { level: 3, prof: '+2', col3: 'Mojo Maker (Yr 6)', col4: '4·L1 / 2·L2', features: 'Abundance Domain — Sponsorship, domain spells', here: true },
   ];
 
   c.dmNote = 'Backline MLM cleric; her deity is the pyramid-scheme founder Mighty Mojo. She levels by hitting company objectives (recruits / volume), which YOU adjudicate as promotions — she has been stuck at Lvl 3 for six years. The MY DOWNLINE / RANK = LEVEL panels track it. Both Sarah (owner) and you (DM) can edit this sheet.';

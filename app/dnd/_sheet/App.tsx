@@ -8,6 +8,7 @@ import './styles/theme.css'
 import { themeToCssVars, streamerThemeBlue, type SheetTheme } from './theme'
 import { getSheetConfig, type SheetModuleId } from './registry'
 import { useChar } from './state/store'
+import { SheetConfigProvider } from './state/sheetConfig'
 import StreamChat from './components/StreamChat'
 import StreamPoll from './components/StreamPoll'
 import StreamAlert from './components/StreamAlert'
@@ -94,6 +95,7 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
   // that unlocks its bespoke CSS treatment scoped under `.dnd-sheet.skin-<id>` (C8).
   const rootClass = `dnd-sheet${config.skin ? ` skin-${config.skin}` : ''}${supportsVariants ? ` variant-${variant}` : ''}`
   return (
+    <SheetConfigProvider sheetType={sheetType}>
     <div className={rootClass} style={themeToCssVars(effectiveTheme)}>
       <div className="wrap">
       {/* Offline indicator (L10) — the DB is unreachable; edits are cached locally and
@@ -301,5 +303,6 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
       {characterId && campaignId && <InitiativePrompt flavor={config.initiative} />}
       </div>
     </div>
+    </SheetConfigProvider>
   )
 }

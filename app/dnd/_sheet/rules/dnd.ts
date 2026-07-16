@@ -62,7 +62,8 @@ export function profContribution(prof: ProfLevel, pb: number): number {
   return 0
 }
 
-/** Rage uses per long rest by level (docx table for 1-5, 2024 RAW beyond). */
+/** Rage uses per long rest by level (docx table for 1-5, 2024 RAW beyond). BARBARIAN-ONLY —
+ *  only a character whose build actually grants Rage should call this. */
 export function ragesForLevel(level: number): number {
   if (level <= 2) return 2
   if (level === 3) return 3
@@ -71,21 +72,33 @@ export function ragesForLevel(level: number): number {
   return 6
 }
 
-/** Rage damage bonus by level: +2, then +3 at 9, +4 at 16 (2024). */
+/** Rage damage bonus by level: +2, then +3 at 9, +4 at 16 (2024). BARBARIAN-ONLY — other
+ *  characters express a form/transformation damage bonus via `levelRules.formDamageByLevel`. */
 export function rageDamageForLevel(level: number): number {
   if (level >= 16) return 4
   if (level >= 9) return 3
   return 2
 }
 
-/** Max HP at a level for a d12 barbarian with fixed averages (12/L1, +7/level) + CON each level. */
-export function maxHpForLevel(level: number, conMod: number): number {
-  return 12 + conMod + Math.max(0, level - 1) * (7 + conMod)
+/**
+ * Fixed-average max HP for ANY class: the full hit die at level 1, then the die's fixed
+ * average (die/2 + 1) per level after, plus the CON modifier every level, plus any flat
+ * per-level bonus (e.g. the Tough feat's +2/level).
+ *
+ * Generic on purpose — `hitDie` comes from the character's own `combat.hitDiceSize`, so a
+ * d8 Warlock and a d10 Pugilist get their own HP, not a d12 barbarian's.
+ */
+export function maxHpForLevel(level: number, conMod: number, hitDie = 8, bonusPerLevel = 0): number {
+  const lv = Math.max(1, level)
+  const perLevelAvg = Math.floor(hitDie / 2) + 1
+  return hitDie + conMod + (lv - 1) * (perLevelAvg + conMod) + bonusPerLevel * lv
 }
 
-/** Walking speed: 30, +10 at level 5 (Fast Movement). */
-export function speedForLevel(level: number): number {
-  return level >= 5 ? 40 : 30
+/** Resolve a walking speed from a character's own speed ladder (highest entry at or below
+ *  `level`). Characters without a ladder keep whatever speed their sheet already has. */
+export function speedForLevel(level: number, ladder?: { level: number; speed: number }[], fallback = 30): number {
+  if (!ladder?.length) return fallback
+  return ladder.reduce((acc, e) => (level >= e.level && e.speed > acc ? e.speed : acc), fallback)
 }
 
 export const MAX_BUILT_LEVEL = 20

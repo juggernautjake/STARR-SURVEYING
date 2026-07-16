@@ -3,16 +3,20 @@
 // is given a `characterId` (C3: loads `dnd_characters.data` on mount + debounced
 // autosave via /api/dnd/characters/:id); otherwise it falls back to localStorage
 // for the C2 static preview / standalone mode. loadInitial is a lazy useState
-// initializer wrapped in try/catch → SSR-safe (falls back to the bundled `lazzuh`).
+// initializer wrapped in try/catch → SSR-safe (falls back to a BLANK character —
+// never another character's bundled build).
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Character, InvItem, ActiveEffect, Spell, FeatureBlock } from '../types'
-import { lazzuh } from '../data/lazzuh'
 import { normalizeCharacter, blankCharacter } from '../data/blank'
-import { profBonusForLevel, abilityMod, ragesForLevel, rageDamageForLevel, maxHpForLevel, speedForLevel, MAX_BUILT_LEVEL } from '../rules/dnd'
+import { profBonusForLevel, abilityMod, maxHpForLevel, speedForLevel, MAX_BUILT_LEVEL } from '../rules/dnd'
 import { rollD20, rollDamage, parseDice, rollDie, rollTyped, weaponSegments, type Advantage } from '../lib/dice'
 
-const STORAGE_KEY = 'neon-odyssey:lazzuh:v7'
+// Per-character localStorage slot. A single shared key meant every standalone sheet
+// read and wrote the SAME cached character (originally Lazzuh's); keying by id keeps
+// each character's local cache to itself.
+const STORAGE_PREFIX = 'neon-odyssey:sheet:v8'
+const storageKeyFor = (characterId?: string) => `${STORAGE_PREFIX}:${characterId || 'standalone'}`
 
 export interface RollEntry {
   id: number
@@ -46,7 +50,7 @@ interface RollD20Opts {
 }
 interface RollDmgOpts {
   flat?: number
-  rageable?: boolean
+  formBoosted?: boolean
   crit?: boolean
   kind?: RollEntry['kind']
   tag?: string
@@ -135,9 +139,12 @@ interface Ctx {
 
 const CharacterContext = createContext<Ctx | null>(null)
 
-function loadInitial(): Character {
+/** Hydrate a standalone/preview sheet from this character's own cache slot. `seed` is the
+ *  bundled build for that character (passed by the caller); with no cache and no seed we
+ *  return a blank sheet — never some other character's data. */
+function loadInitial(characterId?: string, seed?: Character): Character {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(storageKeyFor(characterId))
     if (raw) {
       const parsed = JSON.parse(raw)
       if (parsed && parsed.meta && parsed.abilities) return normalizeCharacter(parsed)
@@ -145,7 +152,7 @@ function loadInitial(): Character {
   } catch {
     /* ignore */
   }
-  return structuredClone(lazzuh)
+  return structuredClone(seed ?? blankCharacter(''))
 }
 
 /** Write a numeric value to a known editable path (used to restore temp overrides). */
@@ -212,12 +219,19 @@ export function CharacterProvider({
   canWrite?: boolean
 }) {
   const dbMode = !!characterId
+  // The character as first hydrated — the baseline `reset()` restores. Captured on the
+  // initial load (DB or local) and never overwritten by later realtime/remote updates.
+  // Declared before the state initializer below, which writes to it.
+  const baselineRef = useRef<Character | null>(null)
   // In DB mode the real sheet arrives from the API on mount; until then show a neutral
-  // BLANK character (not the Lazzuh reference) so a new default (Hextech) character never
-  // flashes Lazzuh's content. Preview/standalone mode still hydrates the bundled sheet.
-  const [char, setCharState] = useState<Character>(() =>
-    dbMode ? blankCharacter('') : loadInitial(),
-  )
+  // BLANK character so no other character's content ever flashes. Preview/standalone mode
+  // hydrates from this character's own cache slot, also falling back to blank.
+  const [char, setCharState] = useState<Character>(() => {
+    const initial = dbMode ? blankCharacter('') : loadInitial(characterId)
+    // Standalone mode has no later hydrate, so its baseline is what we start with.
+    if (!dbMode) baselineRef.current = structuredClone(initial)
+    return initial
+  })
   const [advMode, setAdvMode] = useState<Advantage>('flat')
   const [recklessActive, setRecklessActive] = useState(false)
   const [editMode, setEditMode] = useState(false)
@@ -248,11 +262,11 @@ export function CharacterProvider({
   useEffect(() => {
     if (dbMode) return
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(char))
+      localStorage.setItem(storageKeyFor(characterId), JSON.stringify(char))
     } catch {
       /* ignore */
     }
-  }, [char, dbMode])
+  }, [char, dbMode, characterId])
 
   // Refetch the saved sheet from the DB and apply it (shared by the mount load and
   // the on-demand reload after an AI edit — I3). Sets lastSavedRef so the incoming
@@ -265,7 +279,10 @@ export function CharacterProvider({
       const character = (await res.json())?.character
       const d = character?.data
       if (d && d.meta && d.abilities) {
-        setCharState(normalizeCharacter(d))
+        const loaded = normalizeCharacter(d)
+        setCharState(loaded)
+        // First successful load = the build "Reset to original" returns to.
+        if (!baselineRef.current) baselineRef.current = structuredClone(loaded)
         lastSavedRef.current = JSON.stringify(d)
       }
       if (character) {
@@ -446,10 +463,15 @@ export function CharacterProvider({
     [characterId],
   )
 
+  // "Reset to original build" restores THIS character's first-loaded state (the build the
+  // sheet was hydrated with), not some other character's bundled data. Previously this
+  // cloned Lazzuh over whatever sheet you were on — and in DB mode the autosave then
+  // wrote him into that character's row.
   const reset = useCallback(() => {
-    setCharState(structuredClone(lazzuh))
+    const baseline = baselineRef.current
+    setCharState(structuredClone(baseline ?? blankCharacter(char.meta.name)))
     setRecklessActive(false)
-  }, [])
+  }, [char.meta.name])
 
   const importChar = useCallback((c: Character) => setCharState(structuredClone(c)), [])
 
@@ -512,42 +534,42 @@ export function CharacterProvider({
     (label: string, diceExpr: string, opts: RollDmgOpts = {}) => {
       const dmg = rollDamage(diceExpr, opts.crit)
       const flat = opts.flat ?? 0
-      const rage = opts.rageable && char.combat.transformActive ? char.combat.rageDamageBonus : 0
-      const total = dmg.total + flat + rage
+      const formBonus = opts.formBoosted && char.combat.transformActive ? char.combat.formDamageBonus : 0
+      const total = dmg.total + flat + formBonus
       const parts = [dmg.breakdown]
       if (flat) parts.push(flat >= 0 ? `+${flat}` : `−${Math.abs(flat)}`)
-      if (rage) parts.push(`+${rage} surge`)
+      if (formBonus) parts.push(`+${formBonus} form`)
       const tags: string[] = []
       if (opts.crit) tags.push('CRIT ×2 DICE')
-      if (rage) tags.push('SURGED')
+      if (formBonus) tags.push('TRANSFORMED')
       if (opts.tag) tags.push(opts.tag)
       // spin range roughly covers plausible totals
       const parsed = parseDice(diceExpr)
       const maxDie = parsed.groups.reduce((s, g) => s + Math.abs(g.count) * g.sides * (opts.crit ? 2 : 1), 0)
       stage(
         { label, kind: opts.kind ?? 'damage', total, breakdown: parts.join(' '), tag: tags.join(' · ') || undefined },
-        { landing: total, min: Math.max(1, flat + rage + 1), max: Math.max(2, maxDie + flat + rage), isD20: false },
+        { landing: total, min: Math.max(1, flat + formBonus + 1), max: Math.max(2, maxDie + flat + formBonus), isD20: false },
       )
     },
-    [char.combat.transformActive, char.combat.rageDamageBonus, stage],
+    [char.combat.transformActive, char.combat.formDamageBonus, stage],
   )
 
   // Roll a homebrew weapon's damage: primary (typed, + ability mod) plus any typed bonus dice
   // (e.g. +1d6 poison). Reports a per-type breakdown so the log shows how much of the hit was
-  // each damage type. Adds surge/rage to the primary type when the weapon is rageable + surged.
+  // each damage type. Adds the form damage bonus to the primary type while transformed.
   const rollWeaponDamage = useCallback(
     (item: InvItem, opts: { crit?: boolean } = {}) => {
       const w = item.weapon
       if (!w) return
       const abilityKey = w.ability ?? 'str'
       const mod = abilityMod(char.abilities[abilityKey])
-      const rage = item.tags?.includes('weapon') && char.combat.transformActive ? char.combat.rageDamageBonus : 0
-      const flat = mod + rage
+      const formBonus = item.tags?.includes('weapon') && char.combat.transformActive ? char.combat.formDamageBonus : 0
+      const flat = mod + formBonus
       const segments = weaponSegments(w.damage, w.bonus, flat)
       const typed = rollTyped(segments, opts.crit)
       const tags: string[] = []
       if (opts.crit) tags.push('CRIT ×2 DICE')
-      if (rage) tags.push('SURGED')
+      if (formBonus) tags.push('TRANSFORMED')
       // spin range roughly covers plausible totals across all segments
       const maxV = segments.reduce((s, seg) => {
         const p = parseDice(seg.dice)
@@ -558,7 +580,7 @@ export function CharacterProvider({
         { landing: typed.total, min: Math.max(1, flat + 1), max: Math.max(2, maxV), isD20: false },
       )
     },
-    [char.abilities, char.combat.transformActive, char.combat.rageDamageBonus, stage],
+    [char.abilities, char.combat.transformActive, char.combat.formDamageBonus, stage],
   )
 
   const rollExpr = useCallback(
@@ -719,14 +741,23 @@ export function CharacterProvider({
   const toggleReckless = useCallback(() => setRecklessActive((v) => !v), [])
 
   // Set the character's level and recompute everything the level drives:
-  // proficiency (via pb), rage & laser uses, speed, hit dice, and max HP.
+  // proficiency (via pb), resource maxima, speed, hit dice, and max HP.
   const setLevel = useCallback((n: number) => {
     const level = Math.max(1, Math.min(MAX_BUILT_LEVEL, Math.round(n)))
     setRecklessActive(false)
     setCharState((c) => {
       const conMod = abilityMod(c.abilities.con)
-      const maxHp = maxHpForLevel(level, conMod)
-      const speed = speedForLevel(level)
+      const lr = c.levelRules
+      // Every derived stat comes from THIS character's own rules — its hit die, its speed
+      // ladder, its form-damage ladder. A character that defines none keeps its values.
+      const autoHp = lr?.autoHp !== false
+      const maxHp = autoHp
+        ? maxHpForLevel(level, conMod, lr?.hitDie ?? c.combat.hitDiceSize, lr?.bonusHpPerLevel ?? 0)
+        : c.combat.maxHp
+      const speed = speedForLevel(level, lr?.speedByLevel, c.combat.speed)
+      const formDamageBonus = lr?.formDamageByLevel?.length
+        ? lr.formDamageByLevel.reduce((acc, e) => (level >= e.level ? e.bonus : acc), 0)
+        : c.combat.formDamageBonus
       return {
         ...c,
         meta: { ...c.meta, level },
@@ -737,7 +768,7 @@ export function CharacterProvider({
           currentHp: maxHp,
           tempHp: 0,
           speed,
-          rageDamageBonus: rageDamageForLevel(level),
+          formDamageBonus,
           hitDiceTotal: level,
           hitDiceRemaining: level,
           deathSuccess: 0,

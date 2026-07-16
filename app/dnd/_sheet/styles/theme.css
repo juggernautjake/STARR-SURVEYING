@@ -463,7 +463,7 @@
   font-style: normal;
   font-weight: 500;
 }
-.dnd-sheet .rage-only {
+.dnd-sheet .hl-note {
   color: var(--hotpink);
   font-weight: 600;
 }
@@ -3228,7 +3228,7 @@
 .dnd-sheet.skin-rulebook .card h3 { color: var(--hotpink); font-family: var(--font-display); }
 /* Keyword links / rules terms stay green + bold, like the PDF's highlighted keywords. */
 .dnd-sheet.skin-rulebook em.term { color: var(--tealbright); font-weight: 600; }
-.dnd-sheet.skin-rulebook .rage-only { color: var(--hotpink); }
+.dnd-sheet.skin-rulebook .hl-note { color: var(--hotpink); }
 .dnd-sheet.skin-rulebook a { color: var(--tealbright); }
 /* Cards read like framed rulebook callouts — paper card, hairline border, faint drop rule. */
 .dnd-sheet.skin-rulebook .card {

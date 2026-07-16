@@ -18,8 +18,8 @@ export default function Progression() {
             <tr>
               <th>Lvl</th>
               <th>Prof</th>
-              <th>{meta?.col3 ?? 'Rages'}</th>
-              <th>{meta?.col4 ?? 'Rage Dmg'}</th>
+              <th>{meta?.col3 ?? '—'}</th>
+              <th>{meta?.col4 ?? '—'}</th>
               <th>Features Gained</th>
             </tr>
           </thead>
@@ -30,8 +30,8 @@ export default function Progression() {
                 <tr key={r.level} className={here ? 'here' : undefined} style={{ opacity: r.level > char.meta.level ? 0.6 : 1 }}>
                   <td className="mono">{r.level}</td>
                   <td className="mono">{r.prof}</td>
-                  <td className="mono">{r.rages}</td>
-                  <td className="mono">{r.rageDmg}</td>
+                  <td className="mono">{r.col3}</td>
+                  <td className="mono">{r.col4}</td>
                   <td>
                     {md(r.features)}
                     {here && <span style={{ color: 'var(--hotpink)', fontFamily: 'var(--font-mono)', fontSize: 12 }}> ← YOU ARE HERE</span>}

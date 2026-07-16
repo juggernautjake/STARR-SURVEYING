@@ -130,29 +130,29 @@ const PUGILIST_FEATURES: Character['features'] = [
   },
 ]
 
-// The Pugilist class table (L1–20). progressionMeta relabels the middle columns:
-// rages → Fisticuffs die, rageDmg → Moxie points.
+// The Pugilist class table (L1–20). The two generic middle columns (col3/col4) are labelled
+// Fisticuffs / Moxie via progressionMeta.
 const PUGILIST_PROGRESSION: Character['progression'] = [
-  { level: 1, prof: '+2', rages: '1d8', rageDmg: '—', features: 'Fisticuffs, Iron Chin' },
-  { level: 2, prof: '+2', rages: '1d8', rageDmg: '2', features: 'Moxie, Bloodied But Unbowed, Swagger Streak' },
-  { level: 3, prof: '+2', rages: '1d8', rageDmg: '2', features: 'Heavy Hitter, Pugilist Subclass', here: true },
-  { level: 4, prof: '+2', rages: '1d8', rageDmg: '3', features: 'Ability Score Improvement, Dig Deep' },
-  { level: 5, prof: '+3', rages: '1d10', rageDmg: '3', features: 'Extra Attack, Haymaker' },
-  { level: 6, prof: '+3', rages: '1d10', rageDmg: '4', features: 'Moxie-Fueled Fists, Subclass feature' },
-  { level: 7, prof: '+3', rages: '1d10', rageDmg: '4', features: 'Down But Not Out' },
-  { level: 8, prof: '+3', rages: '1d10', rageDmg: '5', features: 'Ability Score Improvement' },
-  { level: 9, prof: '+4', rages: '1d10', rageDmg: '5', features: 'School of Hard Knocks' },
-  { level: 10, prof: '+4', rages: '1d10', rageDmg: '6', features: 'Herculean, Shake It Off' },
-  { level: 11, prof: '+4', rages: '1d12', rageDmg: '6', features: 'Subclass feature' },
-  { level: 12, prof: '+4', rages: '1d12', rageDmg: '7', features: 'Ability Score Improvement' },
-  { level: 13, prof: '+5', rages: '1d12', rageDmg: '7', features: 'Dig Deeper' },
-  { level: 14, prof: '+5', rages: '1d12', rageDmg: '8', features: 'Unbreakable' },
-  { level: 15, prof: '+5', rages: '1d12', rageDmg: '8', features: 'Pugnacious' },
-  { level: 16, prof: '+5', rages: '1d12', rageDmg: '9', features: 'Ability Score Improvement' },
-  { level: 17, prof: '+6', rages: '2d6', rageDmg: '9', features: 'Subclass feature' },
-  { level: 18, prof: '+6', rages: '2d6', rageDmg: '10', features: 'Fighting Spirit' },
-  { level: 19, prof: '+6', rages: '2d6', rageDmg: '11', features: 'Epic Boon' },
-  { level: 20, prof: '+6', rages: '2d6', rageDmg: '12', features: 'Peak Physical Condition' },
+  { level: 1, prof: '+2', col3: '1d8', col4: '—', features: 'Fisticuffs, Iron Chin' },
+  { level: 2, prof: '+2', col3: '1d8', col4: '2', features: 'Moxie, Bloodied But Unbowed, Swagger Streak' },
+  { level: 3, prof: '+2', col3: '1d8', col4: '2', features: 'Heavy Hitter, Pugilist Subclass', here: true },
+  { level: 4, prof: '+2', col3: '1d8', col4: '3', features: 'Ability Score Improvement, Dig Deep' },
+  { level: 5, prof: '+3', col3: '1d10', col4: '3', features: 'Extra Attack, Haymaker' },
+  { level: 6, prof: '+3', col3: '1d10', col4: '4', features: 'Moxie-Fueled Fists, Subclass feature' },
+  { level: 7, prof: '+3', col3: '1d10', col4: '4', features: 'Down But Not Out' },
+  { level: 8, prof: '+3', col3: '1d10', col4: '5', features: 'Ability Score Improvement' },
+  { level: 9, prof: '+4', col3: '1d10', col4: '5', features: 'School of Hard Knocks' },
+  { level: 10, prof: '+4', col3: '1d10', col4: '6', features: 'Herculean, Shake It Off' },
+  { level: 11, prof: '+4', col3: '1d12', col4: '6', features: 'Subclass feature' },
+  { level: 12, prof: '+4', col3: '1d12', col4: '7', features: 'Ability Score Improvement' },
+  { level: 13, prof: '+5', col3: '1d12', col4: '7', features: 'Dig Deeper' },
+  { level: 14, prof: '+5', col3: '1d12', col4: '8', features: 'Unbreakable' },
+  { level: 15, prof: '+5', col3: '1d12', col4: '8', features: 'Pugnacious' },
+  { level: 16, prof: '+5', col3: '1d12', col4: '9', features: 'Ability Score Improvement' },
+  { level: 17, prof: '+6', col3: '2d6', col4: '9', features: 'Subclass feature' },
+  { level: 18, prof: '+6', col3: '2d6', col4: '10', features: 'Fighting Spirit' },
+  { level: 19, prof: '+6', col3: '2d6', col4: '11', features: 'Epic Boon' },
+  { level: 20, prof: '+6', col3: '2d6', col4: '12', features: 'Peak Physical Condition' },
 ]
 
 /** Jack — the Rangor Pugilist. A function so the character-create API can seed a fresh copy. */
@@ -218,6 +218,14 @@ export function jack(name = 'Jack'): Character {
     },
   ]
 
+  // Jack's own level math: d10 Pugilist + the Farmer's Tough feat (+2 HP/level). No speed
+  // ladder and no form-damage ladder — he has neither Fast Movement nor Rage.
+  c.levelRules = { hitDie: 10, bonusHpPerLevel: 2 }
+  c.traits = [
+    '**Natural Armor** (Rangor): unarmored AC 13 + DEX — the sheet uses this or Iron Chin (12 + CON), whichever is higher.',
+    '**Powerful Build**: count as one size larger for carrying capacity and what you can push, drag, or lift.',
+    '**Unstoppable Force**: twice per long rest, ignore an effect that would reduce your speed or move you unwillingly.',
+  ]
   c.features = [...RANGOR_FEATURES, ...PUGILIST_FEATURES, ...FARMER_FEATURES]
   c.progression = PUGILIST_PROGRESSION
   c.progressionMeta = {
