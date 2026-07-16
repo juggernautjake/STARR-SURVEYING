@@ -1736,10 +1736,15 @@ regression to *reach*, not the drawing:
       all-campaigns list.
 - [x] **Unlimited**: neither characters nor campaigns are capped in code — anyone signed in creates
       as many as they like. (Confirmed: no per-user limit in the create routes.)
-- [ ] **Edge — stale session 500.** Creating a campaign from a session whose user row was deleted
-      throws a raw FK error (`dm_user_id_fkey`). Catch it and return a clean "please sign in again"
-      (and clear the dead cookie). Low-severity — only reachable if a user is deleted out from under
-      a live session — but it should not be a 500.
+- [x] **Edge — stale session 500 ✅ SHIPPED 2026-07-16.** `POST /api/dnd/campaigns` now classifies the
+      Postgres FK violation (code `23503` / a "foreign key" message) via an `isStaleUserFk` helper and
+      returns a clean **401 "Your session has expired — please sign in again."** instead of a raw 500 —
+      AND clears the dead `dnd_session` cookie (`clearDndSession`) so the client isn't stuck re-hitting
+      the same expired session. Applied to **both** FK-referencing writes: the campaign insert
+      (`dm_user_id`) and the membership insert (`user_id`) — the earlier fix only guarded the first, and
+      only the message, not the cookie. Tests: `campaign-create.test.ts` (3, source-anchored — a live DB
+      is needed to drive the real route). Low-severity (only reachable if a user is deleted under a live
+      session), now no longer a 500.
 
 ## Slice 37 — Browser Back sometimes needs several presses
 
