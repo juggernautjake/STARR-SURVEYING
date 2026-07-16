@@ -1018,7 +1018,7 @@ than corrupting.
 is already preserved for queued sends; the failure path still drops it). Both are small; neither
 was the reported problem.
 
-## Slice 26 — Who may change what: DM omnipotence, player autonomy, DM review
+## Slice 26 — Who may change what: DM omnipotence, player autonomy, DM review ⏳ PARTIAL 2026-07-16
 
 > "As the dm of a campaign I need to be able to actually have full and complete control to edit
 > everything and change all numbers everywhere. Players will also have a lot of customizations…
@@ -1026,6 +1026,19 @@ was the reported problem.
 > say yay or nay."
 
 Three rules, and they are not in tension — the DM's control comes from *review*, not from *locking*.
+
+**Permissions + visibility ✅ SHIPPED** (verified): the DM can edit any sheet in their campaign and a
+player can edit every field on their own — no field is read-only, because every element now has an
+editor (Slice 20) and `getCharacterAccess`/`requireCharacterWrite` already grant DM + owner/assigned
+write. The AI obeys the same gate (the ai-edit route resolves through `requireCharacterWrite`), every
+edit is audited in `dnd_sheet_edits`, and edited elements carry ✎ — hand and AI alike (Slice 20/23).
+**Remaining — the campaign-level review queue.** A single surface listing every ✎ across every player
+newest-first with per-edit **Approve / Revert** ("yay or nay") is a new UI, and it is entangled with
+Slice 20's deferred diff/revert: Approve clears the flag (easy), but Revert needs the element's PRIOR
+value to restore, which means recording the before-value on each edit (the audit row has `old_value`
+but the sheet edits currently pass `old_value: null`). So the honest next slice here is: record
+`old_value` on each edit → build the review queue reading `dnd_sheet_edits` → Approve/Revert. Its own
+focused slice, noted so it's scoped not skipped.
 
 - [ ] **The DM can edit anything, anywhere, on any sheet in their campaign** — every number, die,
       name, and word. No field is read-only to the DM. `getCharacterAccess` already grants DM write;
