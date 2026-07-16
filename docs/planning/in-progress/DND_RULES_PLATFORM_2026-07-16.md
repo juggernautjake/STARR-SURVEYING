@@ -1521,7 +1521,10 @@ the console out of its page. Deferred as its own follow-up; the affordance above
 - [ ] Verify by entering Player mode as the DM and confirming the drawer's peek header shows and
       toggles.
 
-## Slice 25 — Connect it to the rest
+## Slice 25 — Connect it to the rest ✅ SHIPPED 2026-07-16
+
+All four connections shipped: spells and forms are ledger sources, the AI digest reports
+ledger-resolved numbers, and a DM equip propagates live (C11b + Slice 10). Details per item below.
 
 - [x] **Spells cast on you land in the ledger as sources ✅ SHIPPED 2026-07-16 (commit pending).**
       One coherent slice, done: added `Spell.effects` (+ `effectDuration`), mounted the Slice-17
@@ -1532,11 +1535,15 @@ the console out of its page. Deferred as its own follow-up; the affordance above
       `activeEffects`, so a cast Bless now resolves exactly like a potion (`sourceKindOf` → `spell`).
       This also discharges Slice 17's deferred "mount the builder in SpellEditor" item. Tests:
       `spell-effects.test.ts` (5).
-- [ ] Forms/transforms (Jack's, the old rage path) become ledger sources rather than bespoke combat
-      fields — `formDamageBonus` is a leftover of the Lazzuh era and should be an effect. **Scoped:**
-      `collectSources` reads inventory/activeEffects/features but NOT `char.forms`; forms carry their
-      own bespoke render (`FormAbilities`, `formDamageBonus`). Routing an active form through the
-      ledger is a real refactor of the form path, its own slice (and overlaps Slice 18's transform).
+- [x] **Forms/transforms become ledger sources ✅ SHIPPED 2026-07-16 (commit pending).** `CharForm`
+      gained `effects?: Effect[]`, and `collectSources` now adds the **active** form as a `form`
+      source — a Titan form that sets STR to 25 and grants a fly speed overlays through the ledger and
+      reverts the instant you drop back to base (no bookkeeping — the base form is who you are). Only
+      the active form contributes; an inactive form's effects are ignored. The bespoke `strikeDie` /
+      form-attack fields keep their own render paths (this is the ledger-resolved half; `formDamageBonus`
+      migration is left as cleanup, not a blocker). Authoring is via data/AI today (forms have no
+      editor yet — a form-editor with the shared `EffectRows` is a natural follow-up). Tests:
+      `form-effects.test.ts` (4).
 - [x] **The character digest reports ledger-resolved values ✅ SHIPPED 2026-07-16 (commit pending).**
       `characterDigest` now builds the ledger and reports EFFECTIVE abilities (STR 22, base flagged as
       `[base 18]`), ledger-folded walk speed and max HP, and an `ACTIVE EFFECTS:` line naming every

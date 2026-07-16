@@ -77,6 +77,11 @@ export interface CharForm {
   strikeDie?: string // unarmed-strike die while in this form (basic-attack buff)
   abilities?: FormAbility[]
   note?: { title: string; body: string }
+  /** Ledger effects applied WHILE THIS FORM IS ACTIVE (Slice 15/25) — a Titan form that sets STR to
+   *  25 and grants a fly speed. Resolved by the ledger as a `form` source, so they overlay like any
+   *  other effect and revert the instant the form ends. Distinct from the bespoke `strikeDie` /
+   *  form-attack fields, which keep their own render paths. */
+  effects?: Effect[]
 }
 
 export interface Resource {

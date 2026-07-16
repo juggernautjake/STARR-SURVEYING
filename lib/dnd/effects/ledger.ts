@@ -145,6 +145,15 @@ export function collectSources(char: Character, ctx: LedgerContext = {}): Ledger
     out.push({ id: f.id, kind: 'feature', name: f.name, effects: f.effects });
   }
 
+  // The ACTIVE form's effects (Slice 15/25) — a Titan form's +STR, a beast form's fly speed. Only
+  // the currently-active form contributes, and the base ('base'/none) never does, so switching back
+  // drops the overlay and re-derives you as yourself. The bespoke strikeDie/form-attack fields keep
+  // their own paths; this is only the ledger-resolved half.
+  const activeForm = (char.forms ?? []).find((f) => f.id === char.activeFormId);
+  if (activeForm?.effects?.length) {
+    out.push({ id: activeForm.id, kind: 'form', name: activeForm.name, effects: activeForm.effects });
+  }
+
   return out;
 }
 
