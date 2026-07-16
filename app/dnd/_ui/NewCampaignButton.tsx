@@ -83,14 +83,17 @@ export default function NewCampaignButton() {
         </select>
         <span style={{ fontSize: 11.5, color: 'var(--hx-muted)', marginTop: 3 }}>The rulebook your table runs. Characters brought from another system can be translated into it.</span>
       </label>
-      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, color: 'var(--hx-text)', cursor: 'pointer' }}>
-        <input type="checkbox" checked={allowCustom} onChange={(e) => setAllowCustom(e.target.checked)} style={{ marginTop: 2 }} />
-        <span>
+      <label className={styles.toggleRow}>
+        <span className={styles.switch}>
+          <input type="checkbox" checked={allowCustom} onChange={(e) => setAllowCustom(e.target.checked)} />
+          <span className={styles.switchTrack} aria-hidden />
+        </span>
+        <span className={styles.toggleText}>
           Allow custom / homebrew builds
-          <span style={{ display: 'block', fontSize: 11.5, color: 'var(--hx-muted)' }}>Lets players (and the AI) invent traits and feats — and makes porting a character from another system smoother.</span>
+          <small>Lets players (and the AI) invent traits and feats — and makes porting a character from another system smoother.</small>
         </span>
       </label>
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
         <button type="button" className={styles.hexBtn} onClick={() => setOpen(false)}>Cancel</button>
         <button type="submit" className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} disabled={busy}>
           {busy ? 'Creating…' : 'Create Campaign'}
