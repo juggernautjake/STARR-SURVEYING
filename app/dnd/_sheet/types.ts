@@ -382,6 +382,10 @@ export interface Character {
   resources: Resource[]
   forms: CharForm[]
   activeFormId: string
+  /** The FORM's separate HP pool while a `separateHp` form (Slice 18) is worn. A scratch field: base
+   *  `combat.currentHp`/`maxHp` stay frozen underneath, so ending the form restores you exactly.
+   *  `formId` pins which form it belongs to; cleared when the form ends. */
+  formHp?: import('@/lib/dnd/effects/form-hp').FormHpState
   attacks: Attack[]
   /** Defined, castable spells (optional — non-casters omit). Managed in the Spells tab. */
   spells?: Spell[]

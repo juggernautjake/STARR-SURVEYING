@@ -907,16 +907,27 @@ beast from *lowering* you, so keepMental is specifically the "your intellect is 
 smarter shape" rule. Omitted = the form sets whatever it sets (today's behaviour). `MENTAL_TARGETS`
 guard in `collectSources`; tests: `transform.test.ts` (+2).
 
-**Remaining — the arbitrary-statblock swap + `separateHp`.** "Become a bear you don't have as a form /
+**Carry-over policy — `separateHp` ✅ SHIPPED (commit pending).** The third and last policy flag, and
+the one that needed real state rather than an overlay: a `separateHp` form gets its OWN HP pool
+(`char.formHp = { formId, current, max }`, a scratch field — base `combat.currentHp`/`maxHp` stay
+frozen underneath). Pure core in `lib/dnd/effects/form-hp.ts` (`routeFormDamage`): damage hits the pool
+first; when it empties the form ENDS and the overflow returns to your real HP; healing tops up the pool,
+not the base. Wired at a single point — the store's `adjustHp` — which lazily seeds the pool to the
+form's effective max HP (its `hp_max` effect, resolved by the ledger) on first hit, so no form-entry
+path has to know about it, and clears it (with `endTransform` / `nextTurn`) when the form ends. Still
+honours the anti-"permanent bear" guarantee for HP: your base HP is only ever reduced by true overflow,
+never overwritten, so ending the form leaves the real you exactly where you were. `isFormHpLive` guards
+a stale pool from a form you already dropped. Tests: `form-hp.test.ts` (9 — inside-pool, exact-empty,
+overflow-to-base, floor-at-0, heal-the-pool, over-heal-clamp, stale-pool guard, + store wiring anchors).
+**All three carry-over flags (`keepFeatures` / `keepMental` / `separateHp`) now ship.**
+
+**Remaining — only the arbitrary foreign-statblock swap.** "Become a bear you don't have as a form /
 become another PC entirely" (a whole foreign sheet, not one of your own `forms`) still needs a form
 authored as a full sheet (Slice 17's builder over a form) — there is no form-editor UI on the sheet yet
-(Forms.tsx is display+toggle only), so the policy is authored in data for now. The `separateHp` flag
-(the form's own HP pool, overflow returns to base — a STATEFUL instance, not a pure overlay) is
-declared in the type but not yet resolved; it's the one carry-over rule that needs per-transform
-instance state rather than a re-derivable overlay, so it's genuinely a different shape of work. That
-plus the foreign-statblock authoring is the heavier half; transforming into your OWN defined forms —
-the common case — is done end-to-end, now with both the true-polymorph (`keepFeatures`) and
-keep-your-mind (`keepMental`) carry-over rules.
+(Forms.tsx is display+toggle only), so forms + their carry-over policy are authored in data for now.
+That authoring UI is the only heavier half left; transforming into your OWN defined forms — the common
+case — is done end-to-end, now with the complete carry-over policy (true-polymorph `keepFeatures`,
+keep-your-mind `keepMental`, and separate-pool `separateHp`).
 
 ### Original spec
 
@@ -929,9 +940,8 @@ the overlay rule, because "you are a bear now" must be perfectly reversible.
       the source, exactly like any other effect. (If transform mutated the sheet, an autosave
       mid-transform would leave a druid permanently a bear, with their real character gone. This is
       the failure this whole design exists to prevent.)
-- [~] **What carries over is a per-form rule, not a guess.** (`keepFeatures` + `keepMental` ✅ shipped;
-      `separateHp` declared, not yet resolved — it needs stateful instance HP, not an overlay.) 5e Wild
-      Shape keeps INT/WIS/CHA,
+- [x] **What carries over is a per-form rule, not a guess.** (`keepFeatures` + `keepMental` +
+      `separateHp` ✅ all shipped.) 5e Wild Shape keeps INT/WIS/CHA,
       personality, and your own features; it takes the beast's STR/DEX/CON, AC, speed and attacks; HP
       is a separate pool and damage overflow returns to you. Other systems and homebrew differ. So a
       form declares its own carry-over policy (`keepMental`, `keepFeatures`, `separateHp`, …) rather
@@ -942,8 +952,10 @@ the overlay rule, because "you are a bear now" must be perfectly reversible.
       transform** — and, per the request, that is how you get back.
 - [ ] While transformed, the panel and the star markers (Slice 13) still explain the *form's* numbers,
       so "why is my AC 11" has an answer while you are a bear.
-- [ ] Damage taken in form, resources spent in form, and duration are tracked on the form instance,
-      not on the base sheet.
+- [~] Damage taken in form, resources spent in form, and duration are tracked on the form instance,
+      not on the base sheet. (HP ✅ — `char.formHp` pool via `separateHp`, base frozen; duration already
+      on `combat.transformTurnsLeft`. Form-scoped RESOURCE pools remain a follow-up under the
+      foreign-statblock authoring UI.)
 - [ ] Tests: transform → the sheet renders the form; the stored base character is byte-identical
       throughout (the anti-"permanent bear" guard); revert restores exactly; carry-over policy is
       honoured per form; a save while transformed does not corrupt the base.
