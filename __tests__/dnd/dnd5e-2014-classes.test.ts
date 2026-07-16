@@ -13,7 +13,7 @@ const CLASSES = classesForSystem(SYS);
 
 describe('the 2014 class roster (authored class-by-class)', () => {
   it('has the classes authored so far, and the system reports it has class data', () => {
-    expect(CLASSES.map((c) => c.name)).toEqual(expect.arrayContaining(['Barbarian', 'Fighter', 'Rogue', 'Monk', 'Ranger', 'Paladin']));
+    expect(CLASSES.map((c) => c.name)).toEqual(expect.arrayContaining(['Barbarian', 'Fighter', 'Rogue', 'Monk', 'Ranger', 'Paladin', 'Sorcerer']));
     expect(systemHasClasses(SYS)).toBe(true);
   });
 
@@ -39,11 +39,12 @@ describe.each(CLASSES.map((c) => [c.name, c] as const))('%s (2014)', (_name, def
     for (const row of table) expect(row.features).toBeDefined();
   });
 
-  it('belongs to dnd5e-2014 with a hit die, exactly two saves, and a Primal-Path-style subclass at 3', () => {
+  it('belongs to dnd5e-2014 with a hit die, exactly two saves, and a subclass choice', () => {
     expect(def.system).toBe(SYS);
     expect([6, 8, 10, 12]).toContain(def.hitDie);
     expect(def.savingThrows).toHaveLength(2);
-    expect(def.features.some((f) => f.choice === 'subclass')).toBe(true);
+    // A feature marks the subclass choice at the class's subclassLevel (3 for most; 1 for Sorcerer).
+    expect(def.features.some((f) => f.choice === 'subclass' && f.level === def.subclassLevel)).toBe(true);
   });
 });
 
@@ -230,5 +231,31 @@ describe('Paladin 2014 — the edition-specific numbers', () => {
     const subs = subclassesFor(SYS, 'paladin');
     expect(subs.map((s) => s.name).sort()).toEqual(['Oath of Devotion', 'Oath of Vengeance', 'Oath of the Ancients']);
     for (const s of subs) expect(Object.keys(s.alwaysPrepared ?? {}).length).toBeGreaterThan(0);
+  });
+});
+
+describe('Sorcerer 2014 — the edition-specific numbers', () => {
+  const sorc = findClass(SYS, 'sorcerer')!;
+
+  it('is a d6 CHA full caster with spells KNOWN and cantrips', () => {
+    expect(sorc.hitDie).toBe(6);
+    expect(sorc.spellcasting?.kind).toBe('full');
+    expect(sorc.spellcasting?.ability).toBe('cha');
+    expect(sorc.spellcasting?.spellsKnown?.[20]).toBe(15);
+    expect(sorc.spellcasting?.cantripsKnown?.[1]).toBe(4);
+  });
+
+  it('chooses its Sorcerous Origin at level 1 (the Sorcerer quirk), not 3', () => {
+    expect(sorc.subclassLevel).toBe(1);
+    expect(snapshotAtLevel(sorc, 1).features.some((f) => f.choice === 'subclass')).toBe(true);
+  });
+
+  it('tracks Sorcery Points (== level from 2) and learns Metamagic; offers the two PHB origins', () => {
+    const sp = sorc.resources!.find((r) => r.id === 'sorcery-points')!;
+    expect(sp.perLevel[1]).toBe(0);
+    expect(sp.perLevel[2]).toBe(2);
+    expect(sp.perLevel[20]).toBe(20);
+    expect(sorc.features.some((f) => f.name === 'Metamagic')).toBe(true);
+    expect(subclassesFor(SYS, 'sorcerer').map((s) => s.name).sort()).toEqual(['Draconic Bloodline', 'Wild Magic']);
   });
 });
