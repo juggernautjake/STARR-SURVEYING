@@ -258,7 +258,12 @@ export function buildPlanetModel(config, opts) {
     nightMat.onBeforeCompile = sh => {
       sh.uniforms.sunDir = { value: new THREE.Vector3(1, 0, 0) };
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWN;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvWN=normalize(mat3(modelMatrix)*normal);');
-      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 sunDir;\nvarying vec3 vWN;').replace('#include <dithering_fragment>', '#include <dithering_fragment>\nfloat n=clamp(-dot(normalize(vWN),normalize(sunDir))*1.6+0.25,0.0,1.0);\ngl_FragColor.rgb*=n;gl_FragColor.a*=n;');
+      // City lights used to be masked HARD to the night hemisphere (min 0.0), so on the lit face
+      // we look at they vanished entirely — "I still cannot see the lights on the 3d planet's face."
+      // The 2D draws them across the whole disc, so for parity the 3D now keeps a FLOOR (0.42): the
+      // lights are always visible on the surface, still brightest on the night side. Same idea as
+      // the cloud/lava washes — match what the 2D actually shows.
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 sunDir;\nvarying vec3 vWN;').replace('#include <dithering_fragment>', '#include <dithering_fragment>\nfloat n=clamp(-dot(normalize(vWN),normalize(sunDir))*0.9+0.6,0.42,1.0);\ngl_FragColor.rgb*=n*2.4;\ngl_FragColor.a*=n;');
       nightMat.userData.shader = sh;
     };
     nightMat.map = genCity(surf.land, surf.W, surf.H, cfg.seed, cfg.lightColor || '#ffd98a', aniso, cityD);
