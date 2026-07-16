@@ -632,7 +632,88 @@ costs more than having no marker at all.
 - [ ] Tests: an untouched sheet has zero ✎; editing a value marks exactly that value; revert clears
       the marker and restores the source value; ★ and ✎ are independent (one never implies the other).
 
-## Slice 19 — Connect it to the rest
+## Slice 21 — System designation on every sheet (even customized ones)
+
+> "flag character sheets as being built for a specific system, even if the sheet has customizations…
+> Then if we ask the AI questions, it will see what system we are using, and it will see that the
+> character has customizations, and it will roll with it and not freak out."
+
+The infrastructure exists (`system` column, `normalizeSystem`, `SYSTEM_AMBIGUOUS`) but the demo
+characters are `ambiguous`, which is why the librarian has no rulebook to reason from on their sheets.
+
+- [ ] **Display the system** on every sheet — a badge in the hero header, on every template, plus
+      the Overview. Today you cannot tell what game a sheet is for by looking at it.
+- [ ] **Customization does not weaken the designation, and this is the point.** A sheet is "D&D 5e
+      2024" *and* homebrewed. The system says which rulebook adjudicates; the ✎ markers (Slice 20)
+      and `summarizeCharacterProvenance` say which parts are house-ruled. These are orthogonal, and
+      collapsing them (an "it's custom so it's systemless" fallback) is what leaves the AI with
+      nothing to reason from — the current bug.
+- [ ] **Set Jacob, Susie, Sarah, Jack and Andrew to `dnd-5e-2024`.** They are `ambiguous` today, so
+      the librarian answers edition-neutrally on the very sheets it should be most useful on. A seed,
+      idempotent like the rest.
+- [ ] Jack's Rangor/Pugilist content stays exactly as-is — it becomes *2024 with homebrew*, not
+      *no system*. That is the whole distinction this slice draws.
+- [ ] The AI gets both facts (Slice 22).
+- [ ] Tests: every demo character has a real system; the badge renders on every template; a
+      customized sheet still reports its system.
+
+## Slice 22 — The AI meets customization without flinching
+
+> "it will see that the character has customizations, and it will roll with it and not freak out."
+
+The current prompt is tuned for a *rules librarian*: "never invent a rule; if it's not in the
+reference, say so." Point that at a homebrew sheet and it does the wrong thing — it disclaims the
+character's own content as unofficial, which is useless. The fix isn't to weaken "never invent";
+it's to tell the model **which** things are settled by the rulebook and which are settled by the
+sheet itself.
+
+- [ ] The digest (Slice 3) reports, per element, whether it is **vanilla, homebrew, or DM-granted**
+      (`summarizeCharacterProvenance` already computes exactly this — it just isn't in the prompt).
+- [ ] Prompt rule: **homebrew content on the sheet is REAL for this character.** Rangor's Living
+      Momentum is not "unofficial" — it is this character's rule, and the sheet is its source of
+      truth. Adjudicate *with* it. Only flag it when the player asks whether something is official,
+      or when a homebrew element contradicts a system rule in a way that changes the answer.
+- [ ] Keep the honesty rule where it belongs: never invent a rule *that isn't on the sheet or in the
+      rulebook*. Homebrew being on the sheet is exactly what makes citing it honest.
+- [ ] Tests: a homebrew feature is described as the character's own, not disclaimed; the digest
+      carries provenance; an official-rules question still gets the official answer.
+
+## Slice 23 — The AI edits anything, and it sticks
+
+> "if I ask the AI to change the name of a weapon from Backless Park Bench to just Park Bench, then
+> it should actually do that, save it, and then from then on whenever I load into the page it shows
+> the new edited name… I could also ask it to change the damage die."
+
+- [ ] **Rename anything**: `rename` ops for attacks, items, features, spells, resources — matched by
+      current name or id. This is the literal reported case and it is one op away.
+- [ ] **Retune anything**: change a damage die, a range, a to-hit bonus, a resource max, an effect's
+      value. Every edit lands in the model, persists, and re-derives through the ledger — so
+      "make my sword do more damage" moves the actual attack row.
+- [ ] **Manual parity**: everything the AI can do here, the player can do by hand (Slice 20), through
+      the same vocabulary. If the AI is the only way to rename a weapon, the feature is a toy.
+- [ ] Per-character CSS/HTML: `custom_layout` / `custom_css` already exist and are already applied
+      per-character — extend the AI's reach to them for *presentation* changes ("make the headers
+      gold"), and keep mechanics in the structured vocabulary. **Do not let the AI express mechanics
+      as CSS.** A damage die written into a stylesheet is invisible to the ledger, to the digest and
+      to the DM — it would look right on screen and be wrong everywhere else that matters.
+- [ ] Every AI edit is audited (`dnd_sheet_edits`) and marked ✎ (Slice 20).
+- [ ] Tests: rename persists across a reload; a retuned damage die changes the derived attack; the
+      AI cannot smuggle a mechanic through CSS.
+
+## Slice 24 — Chat UX: never block the typist
+
+> "even when the AI is thinking, I can still type into the chat box."
+
+- [ ] The input stays **enabled** while a request is in flight. Today `disabled={busy}` locks the box
+      for the whole round-trip — the one moment you have something to add.
+- [ ] Submitting while busy **queues** rather than dropping, and the queue is visible.
+- [ ] Cancel/stop the in-flight request.
+- [ ] Keep the sent text if a request fails — losing what you typed to a network error is
+      unforgivable and trivially avoidable.
+- [ ] Tests: the input is never disabled on `busy` alone; a queued message survives; a failed
+      request restores the text.
+
+## Slice 25 — Connect it to the rest
 
 - [ ] Spells cast on you land in the ledger as sources (`activeEffects`), so Bless and a potion are
       the same machinery.
