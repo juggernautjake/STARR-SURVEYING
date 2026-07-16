@@ -133,6 +133,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
         characterId={character.id}
         campaignId={character.campaign_id ?? undefined}
         sheetType={character.sheet_type}
+        system={normalizeSystem((character as { system?: string }).system)}
         isDM={isDM}
         canWrite={canWrite}
         customLayout={character.custom_layout}

@@ -59,7 +59,7 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]['id']
 
-export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetType?: string }) {
+export default function App({ theme, sheetType, system }: { theme?: SheetTheme; sheetType?: string; system?: string }) {
   const [tab, setTab] = useState<TabId>('overview')
   const { char, media, characterId, campaignId, isDM, canWrite, offline } = useChar()
 
@@ -95,8 +95,10 @@ export default function App({ theme, sheetType }: { theme?: SheetTheme; sheetTyp
   // that unlocks its bespoke CSS treatment scoped under `.dnd-sheet.skin-<id>` (C8).
   const rootClass = `dnd-sheet${config.skin ? ` skin-${config.skin}` : ''}${supportsVariants ? ` variant-${variant}` : ''}`
   return (
-    <SheetConfigProvider sheetType={sheetType}>
-    <div className={rootClass} style={themeToCssVars(effectiveTheme)}>
+    <SheetConfigProvider sheetType={sheetType} system={system}>
+    {/* data-system makes the character's ruleset visible in the DOM — it decides which glossary
+        the sheet's rule links resolve against, so being able to see it is worth the attribute. */}
+    <div className={rootClass} data-system={system ?? 'ambiguous'} style={themeToCssVars(effectiveTheme)}>
       <div className="wrap">
       {/* Offline indicator (L10) — the DB is unreachable; edits are cached locally and
           will sync automatically when it returns. */}

@@ -18,6 +18,7 @@ export default function SheetRoot({
   characterId,
   campaignId,
   sheetType,
+  system,
   theme,
   isDM,
   canWrite,
@@ -27,6 +28,9 @@ export default function SheetRoot({
   characterId?: string;
   campaignId?: string;
   sheetType?: string;
+  /** The character's game system. Scopes the glossary the sheet links its rules to — a term
+   *  must resolve against THIS system's article or none at all. */
+  system?: string;
   theme?: SheetTheme;
   /** DM mode (§6.8.1) — surfaces the DM override panel + full edit control. */
   isDM?: boolean;
@@ -55,7 +59,7 @@ export default function SheetRoot({
   }
   return (
     <CharacterProvider characterId={characterId} campaignId={campaignId} isDM={isDM} canWrite={canWrite}>
-      <App sheetType={sheetType} theme={theme} />
+      <App sheetType={sheetType} system={system} theme={theme} />
     </CharacterProvider>
   );
 }

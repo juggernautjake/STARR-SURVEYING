@@ -6,6 +6,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useChar } from '../state/store'
 
+// Mirrors the limits app/api/dnd/characters/[id]/media enforces, so a bad file is rejected
+// instantly rather than after a round-trip.
+const MAX_BYTES = 8 * 1024 * 1024
+const ALLOWED = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+
 interface MediaRow {
   id: string
   url: string
@@ -21,6 +26,8 @@ export default function CharacterGallery() {
   const [loaded, setLoaded] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [lightbox, setLightbox] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [upMsg, setUpMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   // Active style (streamer pink/blue) — art/token are stored per-style, so the badges and
   // "set as" actions apply to whichever style is currently selected.
@@ -38,6 +45,43 @@ export default function CharacterGallery() {
   }, [characterId])
 
   useEffect(() => { load() }, [load])
+
+  // Upload one or more images into this character's gallery. Reports per-file results rather than
+  // failing the whole batch on one bad image.
+  const uploadFiles = useCallback(
+    async (list: FileList | null) => {
+      if (!characterId || !list?.length) return
+      setUploading(true)
+      setUpMsg(null)
+      const files = Array.from(list)
+      let ok = 0
+      const failures: string[] = []
+      for (const file of files) {
+        if (!ALLOWED.includes(file.type)) { failures.push(`${file.name}: not a PNG/JPG/WEBP/GIF`); continue }
+        if (file.size > MAX_BYTES) { failures.push(`${file.name}: over 8 MB`); continue }
+        try {
+          const fd = new FormData()
+          fd.append('kind', 'gallery')
+          fd.append('file', file)
+          const r = await fetch(`/api/dnd/characters/${characterId}/media`, { method: 'POST', body: fd })
+          if (!r.ok) {
+            const j = await r.json().catch(() => ({}))
+            failures.push(`${file.name}: ${j?.error ?? 'upload failed'}`)
+          } else ok++
+        } catch {
+          failures.push(`${file.name}: upload failed`)
+        }
+      }
+      load()
+      setUploading(false)
+      setUpMsg(
+        failures.length
+          ? { ok: false, text: `${ok} uploaded · ${failures.length} failed — ${failures[0]}` }
+          : { ok: true, text: `${ok} image${ok === 1 ? '' : 's'} added.` },
+      )
+    },
+    [characterId, load],
+  )
 
   // Point the character's ART or TOKEN at an existing gallery image. For a variant sheet
   // this also stores it under the active style so switching styles swaps it automatically.
@@ -91,10 +135,36 @@ export default function CharacterGallery() {
         )}
       </div>
 
+      {/* Upload straight into the gallery. Previously images could only arrive via the art/token
+          uploader above the sheet, so the gallery told you to "upload art or a token" with no way
+          to do it from here. Uploads land in the character's media library and can then be
+          promoted to art/token with the buttons on each tile. */}
+      {characterId && canWrite && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+          <label className="btn tiny teal" style={{ cursor: uploading ? 'wait' : 'pointer', opacity: uploading ? 0.6 : 1 }}>
+            {uploading ? 'Uploading…' : '⬆ Upload images'}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              multiple
+              disabled={uploading}
+              onChange={(e) => { void uploadFiles(e.target.files); e.currentTarget.value = '' }}
+              style={{ display: 'none' }}
+            />
+          </label>
+          <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>PNG/JPG/WEBP/GIF · ≤8&nbsp;MB each · pick several at once</span>
+          {upMsg && (
+            <span style={{ fontSize: 12, color: upMsg.ok ? 'var(--good)' : 'var(--danger)' }}>{upMsg.text}</span>
+          )}
+        </div>
+      )}
+
       {!characterId ? (
         <p style={{ color: 'var(--muted)', fontSize: 14 }}>The gallery appears once this character is saved to a campaign.</p>
       ) : items.length === 0 ? (
-        <p style={{ color: 'var(--muted)', fontSize: 14 }}>{loaded ? 'No images yet — upload art or a token to start the gallery.' : 'Loading…'}</p>
+        <p style={{ color: 'var(--muted)', fontSize: 14 }}>
+          {loaded ? (canWrite ? 'No images yet — use “Upload images” above to start the gallery.' : 'No images yet.') : 'Loading…'}
+        </p>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10 }}>
           {items.map((it) => {

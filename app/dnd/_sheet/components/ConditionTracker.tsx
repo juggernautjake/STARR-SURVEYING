@@ -1,13 +1,24 @@
 import { useState } from 'react'
 import { useChar } from '../state/store'
+import { useSheetSystem } from '../state/sheetConfig'
+import { RuleTip } from './RuleTip'
+import { systemConditions } from '@/lib/dnd/system-rules'
 
 // Concentration + conditions tracker (Phase L6 / K4 extra). Lives on every sheet; both
 // persist in char.combat and autosave to the DB (C3) + sync in realtime (C11b).
-const CONDITIONS = ['Blinded', 'Charmed', 'Deafened', 'Frightened', 'Grappled', 'Incapacitated', 'Invisible', 'Paralyzed', 'Petrified', 'Poisoned', 'Prone', 'Restrained', 'Stunned', 'Unconscious']
+//
+// The condition list comes from the CHARACTER'S SYSTEM. It used to be this hardcoded 5e list for
+// everyone — which offered "Paralyzed" to a Call of Cthulhu investigator and hid Pathfinder 2e's
+// numeric conditions (Frightened 2, Clumsy 1) from a Pathfinder character. The list below is the
+// fallback for a character with NO system, where a generic set is the honest option.
+const GENERIC_CONDITIONS = ['Blinded', 'Charmed', 'Deafened', 'Frightened', 'Grappled', 'Incapacitated', 'Invisible', 'Paralyzed', 'Petrified', 'Poisoned', 'Prone', 'Restrained', 'Stunned', 'Unconscious']
 
 export default function ConditionTracker() {
   const { char, setChar } = useChar()
+  const system = useSheetSystem()
   const [adding, setAdding] = useState(false)
+  const fromSystem = systemConditions(system)
+  const CONDITIONS = fromSystem.length ? fromSystem : GENERIC_CONDITIONS
   const active = char.combat.conditions ?? []
   const conc = char.combat.concentration ?? ''
 
@@ -44,7 +55,10 @@ export default function ConditionTracker() {
         <span style={label}>Conditions</span>
         {active.length === 0 && <span style={{ fontSize: 12, color: 'var(--muted, #9aa)' }}>none</span>}
         {active.map((c) => (
-          <button key={c} onClick={() => toggleCond(c)} style={{ ...chip, borderColor: 'var(--danger, #ff6b6b)', color: 'var(--danger, #ff6b6b)', background: 'transparent' }} title="Remove">{c} ✕</button>
+          <span key={c} style={{ ...chip, borderColor: 'var(--danger)', color: 'var(--danger)', background: 'transparent', display: 'inline-flex', gap: 6, alignItems: 'center', cursor: 'auto' }}>
+            <RuleTip term={c} />
+            <button onClick={() => toggleCond(c)} title={`Remove ${c}`} aria-label={`Remove ${c}`} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, font: 'inherit' }}>✕</button>
+          </span>
         ))}
         <button className="btn tiny" onClick={() => setAdding((a) => !a)}>+ Condition</button>
       </div>

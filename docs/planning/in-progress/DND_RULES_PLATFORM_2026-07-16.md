@@ -106,21 +106,78 @@ a fictional UI outweighs AA on a decorative badge.
 the shared sheet, naming the line and selector. Verified it actually fails by injecting a
 violation, then restoring.
 
-## Slice 2 — Clickable rules on the sheet
+## Slice 2 — Clickable rules on the sheet ✅ SHIPPED 2026-07-16
 
 Everything on a sheet that names a rule should open its explanation.
 
-- [ ] `RuleTip` component: wraps a term, opens a popover with the glossary article
+- [x] `RuleTip` component: wraps a term, opens a popover with the glossary article
       (`findTerm(system, term)`), with **See also** links and an **Ask the AI** fallback.
-- [ ] Auto-link feature/feat/condition/attack bodies via `termsMentionedIn(system, text)`
-      (already written, tested) — longest match wins, never inside a longer word.
-- [ ] Conditions in `CombatPanel`, features in `Features`, attacks in `Attacks`, and every
-      class feature from the level builder become clickable.
-- [ ] For a term with no glossary entry (homebrew), the popover offers "Ask the librarian",
-      pre-filled, focused on the character's system.
+- [x] Auto-link feature/feat/condition/attack bodies via `termsMentionedIn(system, text)`
+      — longest match wins, never inside a longer word.
+- [x] Conditions in `ConditionTracker`, traits in `CombatPanel`, features in `Features`.
+- [x] For a term with no glossary entry (homebrew), the popover says so and offers
+      "Ask the librarian", pre-filled and focused on the character's system.
 
-**Done when:** clicking any condition/feature/feat on Jack's, Susie's and Sarah's sheets shows a
-real explanation, verified in the app.
+**Completion note (2026-07-16).** The sheet did not know its own system, so this slice starts by
+plumbing it: page → `SheetRoot` → `App` → `SheetConfigProvider` (which already carried the
+sheet_type config). `useSheetSystem()` exposes it, and the sheet root now carries `data-system`
+so the ruleset is visible in the DOM. **A character with no system gets NO auto-links** — we don't
+know which rulebook its words belong to, and linking to another system's article would be worse
+than linking to nothing.
+
+Verified in the app on Jack: **38 rule links** on his Features tab; clicking "AC" opens the real
+*Armor Class (AC)* article (543 chars) with See-also links and a pre-filled, system-scoped
+"Ask the librarian" link.
+
+Two real bugs found by driving it, both invisible to unit tests:
+
+* **Markdown was being torn apart.** The first `RichRules` split the raw string on term
+  boundaries and ran `md()` over the slices, so a `**bold**` span containing a term rendered with
+  its asterisks showing ("**not wearing armor**"). It now tokenizes markdown FIRST and links terms
+  inside each token, so bold text stays bold and still links.
+* **Invalid HTML nesting.** The popover rendered `<div>`/`<p>` inside a `<span>` inside the
+  feature's `<p>`. HTML forbids that: the browser force-closes the paragraph, which physically
+  tears the surrounding text out of its element (and triggers a hydration error). The popover is
+  now inline-safe markup — all `<span>`, block-displayed via CSS. **Worth remembering: this is a
+  likely cause of "text not contained in its element" reports elsewhere.**
+
+Also fixed in passing: `ConditionTracker` hardcoded the 5e condition list for **every** system —
+it offered "Paralyzed" to a Call of Cthulhu investigator and hid PF2's numeric conditions. It now
+reads `systemConditions(system)`, falling back to a generic list only for a system-less character.
+
+**Deferred to Slice 3:** attack notes and level-builder features aren't linked yet — the level
+builder renders server-side outside the sheet's provider, so it needs its own system context.
+That's cheaper to do alongside Slice 3's character-context work than to bolt on here.
+
+## Slice 2b — Sheet layout + gallery upload (partially shipped 2026-07-16)
+
+Reported while Slice 2 was in flight. The **Hit Points reformat** and the **gallery upload** are
+shipped; the rest is open.
+
+- [x] **Hit Points, reformatted.** The Damage/amount/Heal row and the Temp HP row were plain flex
+      rows mixing `.btn`, `.step` and bare `<input>`, each with its own padding and border — so the
+      inputs floated off the buttons' baseline. Every control in those rows now shares one height
+      (`--hp-ctl-h`), number spinners are suppressed (they pulled digits off-centre), and Death
+      Saves' SAVE/FAIL no longer drift to opposite edges. Verified in the browser: every control in
+      each row reports an identical `top` and `height`. Applies to every skin — it's the shared sheet.
+- [x] **Gallery upload.** The Gallery tab could list, promote and delete images but had no way to
+      ADD one — it told you to "upload art or a token" with no button. Added a multi-file uploader
+      (a new `gallery` kind on `POST /api/dnd/characters/[id]/media`, which points no character
+      column) with per-file results, so one bad file doesn't fail the batch. Works for every
+      existing, template and future/custom sheet, since it lives in the shared Gallery component.
+- [ ] **Hextech: the ART section label is misaligned.** CONFIRMED, cause NOT yet found — do not
+      guess-patch. The `.sec-num` "ART //" measures `left: 25` while its own `.card` measures
+      `left: 30` with `padding-left: 16px`, so it should sit at 46. Its siblings are correct
+      ("TOKEN //" 47, "DM //" 53). Computed styles all read normal: no transform, no negative
+      margin, no text-indent, no zoom, `box-sizing: border-box`, one instance in the DOM. Something
+      is letting the first flex child escape the card's padding. Start by bisecting
+      `SheetArtUploader`'s inline `style` against `.skin-hextech .card`.
+- [ ] Sweep the Hextech skin for other out-of-position / overflowing text (nothing overflowed the
+      sheet root when measured, so these are relative-alignment issues, not clipping).
+- [ ] **DM controls**, all skins: review formatting + colour. On the candy (donata) skin the "DM"
+      and "AI // Ask" labels are reported as dark/brown on a purple panel. Note the shared
+      contrast guard only covers `color:` declarations in the base sheet — `.skin-donata` rules are
+      exempt by design, so these need measuring in the browser like Slice 1 did.
 
 ## Slice 3 — AI situational adjudication
 

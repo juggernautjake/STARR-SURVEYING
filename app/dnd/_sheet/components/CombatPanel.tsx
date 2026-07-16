@@ -3,6 +3,7 @@ import { useChar } from '../state/store'
 import { abilityMod, signed } from '../rules/dnd'
 import { deriveAc } from '../lib/derive-ac'
 import { md } from '../lib/inline'
+import { RichRules } from './RuleTip'
 import SectionHead from './ui/SectionHead'
 
 export default function CombatPanel() {
@@ -35,7 +36,7 @@ export default function CombatPanel() {
       <SectionHead num="04" title="Vitals & Defenses" />
       <div className="two">
         {/* HP TRACKER */}
-        <div className="card">
+        <div className="card hp-card">
           <h3>Hit Points</h3>
           <div style={{ textAlign: 'center', margin: '4px 0 14px' }}>
             <span style={{ fontFamily: 'var(--font-display)', fontSize: 52, fontWeight: 700, color: dying ? 'var(--danger)' : 'var(--good)', lineHeight: 1 }}>
@@ -47,42 +48,52 @@ export default function CombatPanel() {
             )}
           </div>
 
-          <div className="flex center gap" style={{ justifyContent: 'center', marginBottom: 12 }}>
-            <button className="btn danger" onClick={() => adjustHp(-amt)}>
-              − Damage
-            </button>
+          {/* Damage / amount / Heal — one row of EQUAL-HEIGHT controls on a shared baseline.
+              These were a plain flex row of a .btn, a bare <input> and a .btn, each with its own
+              padding and border, so the input floated above the buttons. `.hp-row` gives every
+              control the same height and centres them as one unit. */}
+          <div className="hp-row">
+            <button className="btn danger hp-ctl" onClick={() => adjustHp(-amt)}>− Damage</button>
             <input
-              className="mono"
+              className="mono hp-ctl hp-amount"
               type="number"
+              inputMode="numeric"
+              aria-label="Amount of damage or healing"
               value={amt}
               onChange={(e) => setAmt(Math.max(0, Number(e.target.value) || 0))}
-              style={{ width: 70, textAlign: 'center' }}
             />
-            <button className="btn teal" onClick={() => adjustHp(amt)}>
-              + Heal
-            </button>
+            <button className="btn teal hp-ctl" onClick={() => adjustHp(amt)}>+ Heal</button>
           </div>
 
-          <div className="hp-editline">
-            <span className="muted mono" style={{ fontSize: 11 }}>TEMP HP</span>
-            <button className="step" onClick={() => setTemp(combat.tempHp - 1)}>−</button>
-            <input className="mono" type="number" value={combat.tempHp} onChange={(e) => setTemp(Number(e.target.value) || 0)} />
-            <button className="step" onClick={() => setTemp(combat.tempHp + 1)}>+</button>
+          <div className="hp-row hp-row-temp">
+            <span className="hp-label">Temp HP</span>
+            <button className="step hp-ctl" onClick={() => setTemp(combat.tempHp - 1)} aria-label="Less temp HP">−</button>
+            <input
+              className="mono hp-ctl hp-amount"
+              type="number"
+              inputMode="numeric"
+              aria-label="Temporary hit points"
+              value={combat.tempHp}
+              onChange={(e) => setTemp(Number(e.target.value) || 0)}
+            />
+            <button className="step hp-ctl" onClick={() => setTemp(combat.tempHp + 1)} aria-label="More temp HP">+</button>
           </div>
 
           {editMode && (
-            <div className="hp-editline" style={{ marginTop: 10 }}>
-              <span className="muted mono" style={{ fontSize: 11 }}>MAX HP</span>
+            <div className="hp-row hp-row-temp">
+              <span className="hp-label">Max HP</span>
               <input
-                className="mono"
+                className="mono hp-ctl hp-amount"
                 type="number"
+                aria-label="Maximum hit points"
                 value={combat.maxHp}
                 onChange={(e) => setChar((c) => ({ ...c, combat: { ...c.combat, maxHp: Number(e.target.value) || 0 } }))}
               />
-              <span className="muted mono" style={{ fontSize: 11 }}>CUR</span>
+              <span className="hp-label">Current</span>
               <input
-                className="mono"
+                className="mono hp-ctl hp-amount"
                 type="number"
+                aria-label="Current hit points"
                 value={combat.currentHp}
                 onChange={(e) => setChar((c) => ({ ...c, combat: { ...c.combat, currentHp: Number(e.target.value) || 0 } }))}
               />
@@ -127,25 +138,30 @@ export default function CombatPanel() {
               <span className="rn">Death Saves</span>
               {combat.deathSaveBonus > 0 && <span className="rc">+{combat.deathSaveBonus} bonus</span>}
             </div>
-            <div className="flex between center" style={{ gap: 12, flexWrap: 'wrap' }}>
-              <div className="flex center gap">
-                <span className="mono" style={{ color: 'var(--good)', fontSize: 12 }}>SAVE</span>
+            {/* SAVE and FAIL sat at opposite ends of a space-between row, so the two pip groups
+                drifted apart as the card widened. They now sit on a shared two-column grid with
+                their labels aligned. */}
+            <div className="death-grid">
+              <div className="death-line">
+                <span className="hp-label death-ok">Save</span>
                 <div className="pips">
                   {[1, 2, 3].map((i) => (
                     <button
                       key={i}
+                      aria-label={`Death save success ${i}`}
                       className={`pip round teal ${i <= combat.deathSuccess ? 'filled' : ''}`}
                       onClick={() => setDeath('deathSuccess', combat.deathSuccess === i ? i - 1 : i)}
                     />
                   ))}
                 </div>
               </div>
-              <div className="flex center gap">
-                <span className="mono" style={{ color: 'var(--danger)', fontSize: 12 }}>FAIL</span>
+              <div className="death-line">
+                <span className="hp-label death-bad">Fail</span>
                 <div className="pips">
                   {[1, 2, 3].map((i) => (
                     <button
                       key={i}
+                      aria-label={`Death save failure ${i}`}
                       className={`pip round ${i <= combat.deathFail ? 'filled' : ''}`}
                       onClick={() => setDeath('deathFail', combat.deathFail === i ? i - 1 : i)}
                     />
@@ -176,7 +192,7 @@ export default function CombatPanel() {
             {/* Species/class traits are character-owned — this list used to hardcode a
                 single character's species traits onto every sheet. */}
             {(char.traits ?? []).map((t, i) => (
-              <li key={i}>{md(t)}</li>
+              <li key={i}><RichRules text={t} /></li>
             ))}
           </ul>
 

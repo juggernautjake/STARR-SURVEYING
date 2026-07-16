@@ -1,5 +1,6 @@
 import { useChar } from '../state/store'
 import { md } from '../lib/inline'
+import { RichRules } from './RuleTip'
 import SectionHead from './ui/SectionHead'
 
 const SOURCE_TONE: Record<string, string> = {
@@ -56,8 +57,9 @@ export default function Features() {
                 {f.source}
               </span>
             </h3>
+            {/* Auto-links every rule named in the body to THIS system's glossary article. */}
             {f.body.map((p, i) => (
-              <p key={i}>{md(p)}</p>
+              <p key={i}><RichRules text={p} /></p>
             ))}
             {f.flavor && (
               <p className="muted" style={{ fontStyle: 'italic', fontSize: 15 }}>

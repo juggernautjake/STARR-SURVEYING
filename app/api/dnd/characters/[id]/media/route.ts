@@ -23,10 +23,13 @@ function parseKind(v: unknown): MediaKind | null {
   return v === 'art' || v === 'token' ? v : null;
 }
 
-// Upload kinds that DON'T point a character column — the returned URL is stored elsewhere
-// (e.g. an inventory item's `image`, saved inside the character's `data` blob). 'item' here.
-function parseUploadKind(v: unknown): MediaKind | 'item' | null {
-  return v === 'item' ? 'item' : parseKind(v);
+// Upload kinds that DON'T point a character column — the image just joins the character's media
+// library (dnd_media), which is what the Gallery tab lists:
+//  · 'item'    — the URL is stored on an inventory item inside the character's `data` blob
+//  · 'gallery' — a plain gallery image; it can be promoted to art/token later via PUT
+function parseUploadKind(v: unknown): MediaKind | 'item' | 'gallery' | null {
+  if (v === 'item' || v === 'gallery') return v;
+  return parseKind(v);
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
