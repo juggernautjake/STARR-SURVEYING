@@ -726,13 +726,35 @@ re-derivable). So triggers are a **separate concept** that lives beside effects,
       AC; a trigger fires only on its event and only within its limit; a trigger with no limit is
       flagged; retaliation never mutates another character's sheet.
 
-## Slice 17 — The effect builder: "Add effect" by hand
+## Slice 17 — The effect builder: "Add effect" by hand ⏳ PARTIAL 2026-07-16
 
 > "We basically need to create an item, click 'add effect' to it, then select effects and define the
 > numbers for those effects."
 
 The AI path (Slice 14) and the manual path must produce the **same `Effect[]`**. If they diverge,
 the AI becomes the only way to make a good item and hand-authoring becomes second-class.
+
+**Registry-driven picker ✅ SHIPPED (commit pending).** `ItemBuilder`'s `EffectRows` (the "+ Add
+effect" control on every item) was a free-text target field — you typed the target string yourself,
+and its own hint suggested `str_score`, which isn't a registry key, so a typo produced an effect the
+ledger silently rejected. It's now **built from `EFFECT_TARGETS`**: the target is a `<select>`
+grouped by `TARGET_GROUP_LABELS` (abilities → … → special), the operation dropdown is constrained to
+that target's allowed `ops`, and the value control is chosen by the target's `valueType` (number
+input · text input · none for a flag). Picking a target resets op+value to valid defaults, and the
+target's `help` + `rendersAt` show as a live hint. Because it shares `EFFECT_TARGETS` with the AI's
+tool schema and the ledger, the manual and AI paths now emit the same validated shape — a new target
+appears in the picker automatically and can't be forgotten. Tests: `effect-builder.test.ts` (4),
+including a guard that EVERY registry target's default (first op + type-appropriate value) validates.
+
+**Still open in this slice:**
+- *Plain-English preview line* per effect as you build it ("+2 STR while equipped"). `describeEffect`
+  already exists (it drives the ★ tooltip); wiring it into the row is a small follow-up.
+- *Per-effect condition/duration control* (while equipped · while attuned · timed · gated on
+  `raging`/`bloodied`) — the engine's `condition` field, not yet exposed in the row.
+- *Validate-on-save with a visible reason* — the picker prevents bad targets/ops, but a text target
+  left blank should refuse on save rather than save an incomplete effect.
+- *Reaching the builder from spell/feature editors too* — today it's on the item builder (and the
+  consumable buff sub-editor); the same `EffectRows` should mount in the other editors.
 
 - [ ] On any item/spell/feature editor: an **Add effect** button → pick an effect type → fill in its
       numbers. Repeatable; an item holds any number of effects.

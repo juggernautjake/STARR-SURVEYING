@@ -9,6 +9,7 @@ import type { InvItem, ItemKind, WeaponStats, ArmorStats, ConsumableStats, Typed
 import TagPicker from './ui/TagPicker'
 import type { Effect, EffectOperation } from '../engine/effects'
 import type { AbilityKey } from '../rules/dnd'
+import { findTarget, targetsInGroup, TARGET_GROUP_LABELS, type TargetGroup } from '@/lib/dnd/effects/targets'
 
 const KINDS: { id: ItemKind; label: string }[] = [
   { id: 'weapon', label: '⚔ Weapon' },
@@ -235,7 +236,7 @@ export default function ItemBuilder({
             <EffectRows
               effects={it.consumable.effect.effects ?? []}
               onChange={(effects) => patchConsumable({ effects })}
-              hint="e.g. target 'str_score', op 'set', value 25 (Potion of Giant Strength)"
+              hint="e.g. Strength · set · 25 (Potion of Giant Strength)"
             />
           )}
           <div>
@@ -249,7 +250,7 @@ export default function ItemBuilder({
       {(kind === 'wondrous' || kind === 'gear' || kind === 'armor' || kind === 'shield' || kind === 'weapon') && (
         <div style={{ borderTop: '1px dashed var(--line)', paddingTop: 10 }}>
           <label style={lab}>Passive effects while equipped/attuned</label>
-          <EffectRows effects={it.effects ?? []} onChange={(effects) => patch({ effects })} hint="e.g. target 'ac', op 'add', value 1" />
+          <EffectRows effects={it.effects ?? []} onChange={(effects) => patch({ effects })} hint="e.g. Armor Class · add · 1" />
         </div>
       )}
 
@@ -262,21 +263,73 @@ export default function ItemBuilder({
   )
 }
 
-// A small repeatable editor for engine Effects (target / operation / value / condition).
+// Groups in the order they read in the picker (abilities first, meta last).
+const GROUP_ORDER = Object.keys(TARGET_GROUP_LABELS) as TargetGroup[]
+
+/** A sensible default value when a target is picked, by its value type. */
+function defaultValueFor(targetKey: string): Effect['value'] | undefined {
+  const t = findTarget(targetKey)
+  if (!t) return undefined
+  if (t.valueType === 'flag') return undefined
+  return t.valueType === 'number' ? 1 : ''
+}
+
+/**
+ * The manual effect builder (Slice 17): "Add effect → pick a target → define the value". This is
+ * the SAME `Effect[]` the AI emits (Slice 14) — one shape, so the two paths can't diverge. The
+ * target is a REGISTRY picker (not free text: a typo like `str_score` used to produce an effect the
+ * ledger silently rejected), the operation is constrained to what that target allows, and the value
+ * control matches the target's value type (number vs text vs none-for-a-flag).
+ */
 function EffectRows({ effects, onChange, hint }: { effects: Effect[]; onChange: (e: Effect[]) => void; hint?: string }) {
   const set = (i: number, p: Partial<Effect>) => onChange(effects.map((e, j) => (j === i ? { ...e, ...p } : e)))
+  // Picking a new target resets the operation to one it allows and the value to a sane default —
+  // otherwise a leftover op/value from the previous target would fail validation on save.
+  const pickTarget = (i: number, key: string) => {
+    const t = findTarget(key)
+    set(i, { target: key, operation: (t?.ops[0] ?? 'add') as EffectOperation, value: defaultValueFor(key) })
+  }
   return (
-    <div style={{ display: 'grid', gap: 6 }}>
-      {effects.map((e, i) => (
-        <div key={i} className="flex" style={{ gap: 6, flexWrap: 'wrap' }}>
-          <input style={{ ...fieldStyle, width: 130 }} value={e.target} placeholder="target (ac, str_score…)" onChange={(ev) => set(i, { target: ev.target.value })} />
-          <select style={{ ...fieldStyle, width: 110 }} value={e.operation} onChange={(ev) => set(i, { operation: ev.target.value as EffectOperation })}>
-            {OPS.map((o) => <option key={o} value={o}>{o}</option>)}
-          </select>
-          <input style={{ ...fieldStyle, width: 90 }} value={e.value == null ? '' : String(e.value)} placeholder="value" onChange={(ev) => { const n = Number(ev.target.value); set(i, { value: ev.target.value === '' ? undefined : Number.isNaN(n) ? ev.target.value : n }) }} />
-          <button type="button" className="btn tiny danger" onClick={() => onChange(effects.filter((_, j) => j !== i))}>✕</button>
-        </div>
-      ))}
+    <div style={{ display: 'grid', gap: 8 }}>
+      {effects.map((e, i) => {
+        const def = findTarget(e.target)
+        const ops = def?.ops ?? OPS
+        const vt = def?.valueType
+        const noValue = vt === 'flag' || e.operation === 'advantage' || e.operation === 'disadvantage'
+        const numeric = vt === 'number'
+        return (
+          <div key={i} style={{ display: 'grid', gap: 3 }}>
+            <div className="flex" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <select style={{ ...fieldStyle, width: 170 }} value={def ? e.target : '__custom'} onChange={(ev) => pickTarget(i, ev.target.value)}>
+                {!def && <option value="__custom">{e.target ? `(custom) ${e.target}` : '— pick a target —'}</option>}
+                {GROUP_ORDER.map((g) => {
+                  const inGroup = targetsInGroup(g)
+                  if (!inGroup.length) return null
+                  return (
+                    <optgroup key={g} label={TARGET_GROUP_LABELS[g]}>
+                      {inGroup.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+                    </optgroup>
+                  )
+                })}
+              </select>
+              <select style={{ ...fieldStyle, width: 120 }} value={e.operation} onChange={(ev) => set(i, { operation: ev.target.value as EffectOperation })}>
+                {ops.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+              {!noValue && (
+                numeric ? (
+                  <input style={{ ...fieldStyle, width: 80 }} type="number" value={typeof e.value === 'number' ? e.value : ''} placeholder="0"
+                    onChange={(ev) => set(i, { value: ev.target.value === '' ? undefined : Number(ev.target.value) })} />
+                ) : (
+                  <input style={{ ...fieldStyle, width: 120 }} value={e.value == null ? '' : String(e.value)} placeholder={vt ?? 'value'}
+                    onChange={(ev) => set(i, { value: ev.target.value })} />
+                )
+              )}
+              <button type="button" className="btn tiny danger" onClick={() => onChange(effects.filter((_, j) => j !== i))}>✕</button>
+            </div>
+            {def && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{def.help} · <em>renders at {def.rendersAt}</em></div>}
+          </div>
+        )
+      })}
       <button type="button" className="btn tiny" onClick={() => onChange([...effects, { target: 'ac', operation: 'add', value: 1 }])}>+ Add effect</button>
       {hint && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{hint}</div>}
     </div>
