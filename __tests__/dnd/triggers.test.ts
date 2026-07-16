@@ -115,4 +115,12 @@ describe('the manual trigger builder gives players parity with the AI (Slice 15)
     expect(builder).toContain('<TriggerRows');
     expect(builder).toContain('cleanTriggers(clean.triggers)'); // validated on save, like the AI path
   });
+
+  it('the Reactions panel resolves a dice reaction on demand (player-initiated firing)', () => {
+    const panel = read('app/dnd/_sheet/components/Reactions.tsx');
+    expect(panel).toContain('rollDmg'); // damage reactions roll into the log
+    expect(panel).toContain('🎲 Roll');
+    // only dice actions are rollable; a condition/note is a DM adjudication, shown not rolled.
+    expect(panel).toContain("['damage', 'heal', 'temp_hp'].includes(t.action.kind)");
+  });
 });

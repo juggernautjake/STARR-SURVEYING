@@ -11,9 +11,21 @@ import { collectTriggers, describeTrigger, TRIGGER_EVENT_LABEL, type ActiveTrigg
 import type { TriggerEvent } from '../types'
 
 export default function Reactions() {
-  const { char } = useChar()
+  const { char, rollDmg, rollExpr } = useChar()
   const triggers = collectTriggers(char)
   if (!triggers.length) return null
+
+  // Resolve a reaction NOW — the player fires it when its event actually happens (the app can't see
+  // the enemy that hit you, so this stays player-initiated: the prompt model the request describes).
+  // Only dice actions roll; a condition/effect/note is a DM adjudication, shown but not rolled.
+  const roll = (t: ActiveTrigger) => {
+    const a = t.action
+    if (!a.dice) return
+    if (a.kind === 'damage') rollDmg(`${t.label} — reaction`, a.dice, { tag: a.damageType || 'reaction' })
+    else if (a.kind === 'heal') rollExpr(`${t.label} — heal`, a.dice, 'heal')
+    else if (a.kind === 'temp_hp') rollExpr(`${t.label} — temp HP`, a.dice, 'temp')
+  }
+  const rollable = (t: ActiveTrigger) => !!t.action.dice && ['damage', 'heal', 'temp_hp'].includes(t.action.kind)
 
   // Group by event so the reader scans "when X happens, these fire".
   const byEvent = new Map<TriggerEvent, ActiveTrigger[]>()
@@ -39,7 +51,14 @@ export default function Reactions() {
                   <strong style={{ color: 'var(--ink)' }}>{t.label}</strong>{' '}
                   <span style={{ color: 'var(--tealbright)' }}>{describeTrigger(t)}</span>
                 </div>
-                <span className="tag" style={{ color: 'var(--gold)', whiteSpace: 'nowrap' }}>from {t.source}</span>
+                <div className="flex" style={{ gap: 6, alignItems: 'center', whiteSpace: 'nowrap' }}>
+                  {rollable(t) && (
+                    <button className="btn tiny solid" onClick={() => roll(t)} title="Fire this reaction now — rolls into the log">
+                      🎲 Roll
+                    </button>
+                  )}
+                  <span className="tag" style={{ color: 'var(--gold)' }}>from {t.source}</span>
+                </div>
               </div>
             ))}
           </div>

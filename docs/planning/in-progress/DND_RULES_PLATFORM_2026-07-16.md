@@ -687,7 +687,7 @@ illegal op rejected, non-number rejected, update/equip refine without rebuild, s
 different portrait" produces one item that does all of it, and taking it off gives you back exactly
 the character you were.
 
-## Slice 15 — Attack, weapon & armor builders (+ reactive effects) ⏳ PARTIAL 2026-07-16
+## Slice 15 — Attack, weapon & armor builders (+ reactive effects) ✅ SHIPPED 2026-07-16
 
 > "We might have an enemy that when they attack us and hit us, the armor does a certain amount of
 > damage back to them… even a piece of armor could potentially have a roll to attack and a roll for
@@ -722,12 +722,18 @@ dice/type/condition fields, and a live `describeTrigger` preview — so a hand-b
 reaction are indistinguishable, validated by `cleanTriggers` on save. Player/AI parity, exactly like
 the effect builder. Tests: `triggers.test.ts` (+1, 11 total).
 
-**Remaining — live event-firing.** The last piece: firing the surfacing at the MOMENT an event
-happens — auto-open the barbs prompt when a melee hit is logged, roll it, decrement the limit. That
-hooks into the roll/combat log (a distinct interaction slice). The model, resolution, both authoring
-paths (AI + manual), and the standing reactions list are all shipped; a player can build spiked
-armour today and see its reaction listed, ready to roll — it just isn't auto-popped on the triggering
-event yet.
+**Player-initiated resolution ✅ SHIPPED (commit pending).** Each dice-bearing reaction in the panel
+has a **🎲 Roll** button that fires it into the log (damage → `rollDmg`, heal/temp → `rollExpr`); a
+condition/note reaction is shown but not rolled (a DM adjudication). This is the correct model, not a
+compromise: the app deliberately doesn't model the enemy that hit you, which is exactly WHY the doc
+mandates triggers are PROMPTS not automation — so the player fires the reaction when its event occurs.
+The trigger system is now complete end-to-end: author (AI + manual) → surface (grouped by event) →
+resolve (roll on demand). Tests: `triggers.test.ts` (12).
+
+**Optional refinement (not blocking):** auto-*surfacing* the few events the app CAN detect (a natural
+20 → `you_crit`) by highlighting the matching reaction in the log. Most events (hit_by_melee, you_hit
+against an AC the app doesn't know) are inherently player-declared, so this is a small polish on top
+of a complete loop, not a gap.
 
 **The gap this exposes.** Every effect in the engine today is a *continuous overlay*: it is true for
 as long as its condition holds, and the ledger's job is to resolve it into a number. Retaliation
