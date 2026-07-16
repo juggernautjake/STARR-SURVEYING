@@ -10,7 +10,7 @@ import EffectStar from './ui/EffectStar'
 import TraitEditor from './ui/TraitEditor'
 
 export default function CombatPanel() {
-  const { char, setChar, editMode, canWrite, ledger, adjustHp, rollDeathSave, spendHitDie, shortRest, longRest } = useChar()
+  const { char, setChar, editMode, canWrite, ledger, adjustHp, activeFormId, rollDeathSave, spendHitDie, shortRest, longRest } = useChar()
   const [editingTrait, setEditingTrait] = useState<{ index: number; text: string } | null>(null)
   const removeTrait = (i: number) => {
     if (!confirm('Delete this trait? This cannot be undone.')) return
@@ -90,6 +90,12 @@ export default function CombatPanel() {
   const sizeId = ledger.identity('size')
   const typeId = ledger.identity('creature_type')
 
+  // A `separateHp` form's own HP pool (Slice 18): while worn, the FORM is what takes damage, and your
+  // real HP is held frozen underneath. Show the pool as the live number with your held HP noted, so the
+  // draining bear-HP is what the player sees — and it's obvious your character is safe under it.
+  const formPool = char.formHp && char.formHp.formId === activeFormId ? char.formHp : null
+  const formName = formPool ? char.forms.find((f) => f.id === formPool.formId)?.name : null
+
   const dying = combat.currentHp <= 0
 
   const setTemp = (v: number) => setChar((c) => ({ ...c, combat: { ...c.combat, tempHp: Math.max(0, v) } }))
@@ -113,6 +119,15 @@ export default function CombatPanel() {
             </span>
             {combat.tempHp > 0 && (
               <div className="mono" style={{ color: 'var(--tealbright)', marginTop: 2 }}>+{combat.tempHp} temporary</div>
+            )}
+            {formPool && (
+              <div className="mono" style={{ marginTop: 6, padding: '5px 9px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--panel-2)', display: 'inline-block' }}>
+                <span style={{ color: 'var(--gold)', fontWeight: 700 }}>{formName ?? 'Form'} HP {formPool.current}</span>
+                <span style={{ color: 'var(--muted)' }}> / {formPool.max}</span>
+                <span style={{ color: 'var(--muted)', fontSize: 11.5, marginLeft: 8 }}>
+                  · your own {combat.currentHp} HP is held until the form ends
+                </span>
+              </div>
             )}
           </div>
 

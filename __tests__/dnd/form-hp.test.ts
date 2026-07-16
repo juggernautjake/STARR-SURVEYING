@@ -73,3 +73,15 @@ describe('the store routes damage through the form pool when a separateHp form i
     expect(STORE).toContain('formHp: undefined')
   })
 })
+
+describe('the HP card surfaces a live separateHp pool (Slice 18)', () => {
+  const PANEL = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_sheet/components/CombatPanel.tsx'), 'utf8')
+  it('reads the pool only when it belongs to the effective active form', () => {
+    expect(PANEL).toContain('char.formHp.formId === activeFormId')
+  })
+  it('shows the form pool as the live number and notes the held base HP', () => {
+    expect(PANEL).toContain('formPool.current')
+    expect(PANEL).toContain('formPool.max')
+    expect(PANEL).toContain('is held until the form ends')
+  })
+})

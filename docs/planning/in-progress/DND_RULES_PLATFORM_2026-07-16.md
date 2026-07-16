@@ -921,6 +921,13 @@ a stale pool from a form you already dropped. Tests: `form-hp.test.ts` (9 — in
 overflow-to-base, floor-at-0, heal-the-pool, over-heal-clamp, stale-pool guard, + store wiring anchors).
 **All three carry-over flags (`keepFeatures` / `keepMental` / `separateHp`) now ship.**
 
+**And the pool is VISIBLE ✅ SHIPPED (commit pending).** The HP card (`CombatPanel`) now surfaces a live
+`separateHp` pool: when the effective active form owns `char.formHp`, it shows "**<Form> HP <cur> /
+<max> · your own <n> HP is held until the form ends**" under the main number — so the draining
+form-HP is what the player watches, and it's plain that the real character is safe underneath. Gated
+on `char.formHp.formId === activeFormId` (the effective, imposed-aware id), so a stale pool never shows.
+Tests: `form-hp.test.ts` (+2 anchors). The mechanic is now player-facing, not just correct-in-core.
+
 **Remaining — only the arbitrary foreign-statblock swap.** "Become a bear you don't have as a form /
 become another PC entirely" (a whole foreign sheet, not one of your own `forms`) still needs a form
 authored as a full sheet (Slice 17's builder over a form) — there is no form-editor UI on the sheet yet
