@@ -13,7 +13,7 @@ const CLASSES = classesForSystem(SYS);
 
 describe('the 2014 class roster (authored class-by-class)', () => {
   it('has the classes authored so far, and the system reports it has class data', () => {
-    expect(CLASSES.map((c) => c.name)).toEqual(expect.arrayContaining(['Barbarian', 'Fighter', 'Rogue']));
+    expect(CLASSES.map((c) => c.name)).toEqual(expect.arrayContaining(['Barbarian', 'Fighter', 'Rogue', 'Monk']));
     expect(systemHasClasses(SYS)).toBe(true);
   });
 
@@ -146,5 +146,34 @@ describe('Rogue 2014 — the edition-specific numbers', () => {
   it('offers exactly the three 2014 PHB archetypes (Thief, Assassin, Arcane Trickster)', () => {
     const subs = subclassesFor(SYS, 'rogue').map((s) => s.name).sort();
     expect(subs).toEqual(['Arcane Trickster', 'Assassin', 'Thief']);
+  });
+});
+
+describe('Monk 2014 — the edition-specific numbers', () => {
+  const monk = findClass(SYS, 'monk')!;
+
+  it('calls its resource "Ki" (2024 renamed it Focus), equal to Monk level from level 2', () => {
+    const ki = monk.resources!.find((r) => r.id === 'ki')!;
+    expect(ki.name).toBe('Ki');
+    expect(ki.perLevel[1]).toBe(0); // no ki at level 1
+    expect(ki.perLevel[2]).toBe(2);
+    expect(ki.perLevel[20]).toBe(20); // ki points == monk level
+  });
+
+  it('is unarmored (no armor proficiencies) with DEX+WIS and STR/DEX saves', () => {
+    expect(monk.armorProficiencies).toEqual([]);
+    expect(monk.primaryAbility).toEqual(['dex', 'wis']);
+    expect(monk.savingThrows).toEqual(['str', 'dex']);
+  });
+
+  it('has Martial Arts + Stunning Strike (5) + the Perfect Self capstone', () => {
+    expect(monk.features.some((f) => f.name === 'Martial Arts')).toBe(true);
+    expect(snapshotAtLevel(monk, 5).features.some((f) => f.name === 'Stunning Strike')).toBe(true);
+    expect(snapshotAtLevel(monk, 20).features.some((f) => f.name === 'Perfect Self')).toBe(true);
+  });
+
+  it('offers exactly the three 2014 PHB traditions (Open Hand, Shadow, Four Elements)', () => {
+    const subs = subclassesFor(SYS, 'monk').map((s) => s.name).sort();
+    expect(subs).toEqual(['Way of Shadow', 'Way of the Four Elements', 'Way of the Open Hand']);
   });
 });
