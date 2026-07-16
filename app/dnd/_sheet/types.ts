@@ -160,6 +160,10 @@ export interface InvItem {
    *  with their own reset rule. Surfaced read-only in Resources, badged to this item, and gone
    *  when it comes off. Distinct from `effects`: a resource is a stateful track, not a stat overlay. */
   grantsResource?: Resource
+  /** An attack this item GRANTS while equipped/attuned (Slice 11 grant-half) — a full, rollable
+   *  Attack. Rendered in the Attacks table badged to this item (no edit — it's on loan), and gone
+   *  when it comes off. Structured like `grantsResource` because an attack must be rollable. */
+  grantsAttack?: Attack
 }
 
 /** A temporary effect currently applied to the character (from a consumed buff/potion or a

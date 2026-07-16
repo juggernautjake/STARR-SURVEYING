@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useChar } from '../state/store'
 import { useSheetModule } from '../state/sheetConfig'
+import { isItemActive } from '@/lib/dnd/effects/ledger'
 import { abilityMod, signed } from '../rules/dnd'
 import type { Attack } from '../types'
 import SectionHead from './ui/SectionHead'
@@ -34,6 +35,18 @@ export default function Attacks() {
   }
   const hasFormStrike = char.attacks.some((a) => a.usesFormStrikeDie)
 
+  // Attacks GRANTED by an equipped item (Slice 11 grant-half) — a flaming sword's Flame Lash. Full,
+  // rollable Attacks, rendered through the SAME row logic as owned attacks (so their to-hit/damage
+  // can't drift), badged to their item, with no ⋯ menu (on loan) and gone on unequip.
+  const grantedAttacks = (char.inventory ?? [])
+    .filter((i) => isItemActive(i) && i.grantsAttack)
+    .map((i) => ({ atk: i.grantsAttack as Attack, source: i.name }))
+
+  const rows: { a: Attack; granted: boolean; source?: string }[] = [
+    ...char.attacks.map((a) => ({ a, granted: false, source: undefined })),
+    ...grantedAttacks.map(({ atk, source }) => ({ a: atk, granted: true, source })),
+  ]
+
   return (
     <section id="attacks">
       <SectionHead num="05" title="Attacks" />
@@ -64,7 +77,7 @@ export default function Attacks() {
             </tr>
           </thead>
           <tbody>
-            {char.attacks.map((a) => {
+            {rows.map(({ a, granted, source }) => {
               // Guard the ability key. An attack whose `ability` is missing or bogus (an AI edit
               // that dropped the field, a bad import) would otherwise compute abilityMod(undefined)
               // = NaN and render "-NaN" for to-hit and no damage bonus. A wrong-but-sane number is
@@ -87,7 +100,7 @@ export default function Attacks() {
                 ? die
                 : `${die}${dmgFlat ? signed(dmgFlat).replace('+', ' + ').replace('−', ' − ') : ''}`
               return (
-                <tr key={a.id} className={brute ? 'here' : undefined} style={{ opacity: locked ? 0.4 : active ? 1 : 0.55 }}>
+                <tr key={granted ? `granted-${source}-${a.id}` : a.id} className={brute ? 'here' : undefined} style={{ opacity: locked ? 0.4 : active ? 1 : 0.55 }}>
                   <td>
                     {locked ? (
                       <strong style={{ color: 'var(--muted)' }}>
@@ -108,18 +121,23 @@ export default function Attacks() {
                       </strong>
                     )}
                     {a.notes && <div className="inv-desc">{a.notes}</div>}
-                    {/* The way IN (Slice 27). This table has always rendered everything about an
-                        attack as read-only prose — the only interactive things on the row were the
-                        roll buttons, so a name or a damage die could not be changed by hand. */}
-                    {canWrite && (
-                      <ElementMenu
-                        label={a.name}
-                        actions={[
-                          { label: 'Edit attack', onClick: () => setEditing(a) },
-                          { label: 'Duplicate', onClick: () => duplicate(a) },
-                          { label: 'Delete', danger: true, onClick: () => remove(a) },
-                        ]}
-                      />
+                    {/* A granted attack is on loan from its item — badged, and never editable here
+                        (change it on the item). Owned attacks get the ⋯ menu (Slice 27). */}
+                    {granted ? (
+                      <span className="tag" style={{ marginLeft: 8, color: 'var(--tealbright)' }} title={`Granted by ${source}`}>
+                        granted · {source}
+                      </span>
+                    ) : (
+                      canWrite && (
+                        <ElementMenu
+                          label={a.name}
+                          actions={[
+                            { label: 'Edit attack', onClick: () => setEditing(a) },
+                            { label: 'Duplicate', onClick: () => duplicate(a) },
+                            { label: 'Delete', danger: true, onClick: () => remove(a) },
+                          ]}
+                        />
+                      )
                     )}
                   </td>
                   <td className="mono">{a.range}</td>

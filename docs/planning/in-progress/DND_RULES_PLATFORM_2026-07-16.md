@@ -474,10 +474,14 @@ doc's explicit "senses… need somewhere to render" item. Test added to `grant-d
   the SAME rule the effect collector uses; `Resources` renders it read-only, badged to its source,
   gone on unequip. Rendered without in-panel spend (the pool is on loan) — live spend + rest-reset
   is a follow-up. Tests: `grant-resource.test.ts` (5).
-- *The remaining heavy grant targets* — `grant_attack`/`grant_spell` — follow the same
-  structured-sub-object shape (`grantsAttack?: Attack`, `grantsSpell?: Spell`) now proven by
-  `grantsResource`, but each needs its render surface (an attack must be rollable; a spell needs a
-  caster header the `SpellsPanel` bails out of for a non-caster), so each is its own slice.
+- *`grant_attack` ✅ SHIPPED (commit pending).* A full, rollable `grantsAttack?: Attack` on the item,
+  normalised on ingest (id minted; ability→str and damage→1d6 fallbacks so a bogus grant never
+  renders `-NaN`). `Attacks` builds one unified `rows` list (owned + granted) so both go through the
+  SAME to-hit/damage path and can't drift; granted rows are badged to their item, carry no ⋯ menu
+  (on loan), and vanish on unequip. Tests: `grant-attack.test.ts` (4).
+- *The last heavy grant target* — `grant_spell` — follows the same `grantsSpell?: Spell` shape but
+  needs a caster header the `SpellsPanel` currently early-returns past for a non-caster granted a
+  spell, so it's its own slice (render surface, not just a read).
   `grant_feature` rendered cleanly because a feature card is fundamentally descriptive: a name + a
   source badge is a complete, honest card. An attack/spell/resource is *interactive* — an attack you
   roll needs its ability + damage dice; a spell you cast needs a level, components, and (for a

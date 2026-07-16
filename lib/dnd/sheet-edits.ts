@@ -32,6 +32,8 @@ export interface ItemPayload {
   effects?: Effect[];
   /** A usage pool the item grants while equipped (Slice 11 grant-half). */
   grantsResource?: Resource;
+  /** A rollable attack the item grants while equipped (Slice 11 grant-half). */
+  grantsAttack?: Attack;
 }
 
 const ITEM_KINDS: ItemKind[] = ['weapon', 'armor', 'shield', 'consumable', 'wondrous', 'gear'];
@@ -71,6 +73,17 @@ function applyItemPayload(base: InvItem, p: ItemPayload): InvItem {
       color: g.color ?? 'teal',
       resetOn: g.resetOn ?? 'long',
       ...(g.note ? { note: g.note } : {}),
+    };
+  }
+  if (p.grantsAttack != null && typeof p.grantsAttack.name === 'string') {
+    const a = p.grantsAttack;
+    // Guard the same fields add_attack does, so a granted attack is as safe as an authored one.
+    out.grantsAttack = {
+      ...a,
+      id: a.id || `grant-atk-${slug(a.name)}`,
+      ability: ABILITY_KEYS.includes(a.ability) ? a.ability : 'str',
+      damage: a.damage || '1d6',
+      damageType: a.damageType ?? '',
     };
   }
   if (Array.isArray(p.tags)) {
@@ -358,6 +371,21 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
                 note: { type: 'string' },
               },
               required: ['name', 'max'],
+            },
+            grantsAttack: {
+              type: 'object',
+              description: 'For add_item/update_item: a rollable attack the item GRANTS while equipped (e.g. a flaming sword\'s Flame Lash). Shown in the Attacks table, badged to the item, gone on unequip.',
+              properties: {
+                name: { type: 'string' },
+                ability: { type: 'string', enum: ABILITY_KEYS },
+                damage: { type: 'string', description: 'Dice, e.g. 2d6.' },
+                damageType: { type: 'string' },
+                range: { type: 'string' },
+                proficient: { type: 'boolean' },
+                bonusToHit: { type: 'number' },
+                bonusDamage: { type: 'number' },
+              },
+              required: ['name', 'ability', 'damage'],
             },
             max: { type: 'number' },
             color: { type: 'string', enum: ['pink', 'teal', 'gold'] },
