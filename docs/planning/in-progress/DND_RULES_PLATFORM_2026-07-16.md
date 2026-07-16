@@ -768,12 +768,10 @@ in `FeatureEditor`, so a class/species feature authors real effects through the 
 (a feature that grants +1 AC or a fly speed changes the sheet like an item would). One builder, no
 second implementation to drift.
 
-**Deferred — the SpellEditor mount.** A spell doesn't carry passive `effects` the way an item/feature
-does: a spell applies its effect when **cast** (→ an `ActiveEffect`), which is a different mechanism
-(the consumable-buff path, not the equipped-passive path). Mounting the builder there needs a
-`Spell`-model field for its cast-time effect and wiring `castSpell` to emit it — a small model slice
-of its own, not the same one-line reuse. The item + feature + consumable-buff builders cover the
-authoring surface the request named ("create an item, click add effect…").
+**SpellEditor mount ✅ SHIPPED 2026-07-16** (as the `Spell.effects` slice under Slice 15/25). A spell
+now carries `effects` authored through the same `EffectRows`, snapshotted into an `ActiveEffect` on
+cast so the ledger resolves it like a potion. The builder is now on item + feature + spell +
+consumable-buff editors — the whole authoring surface.
 
 - [ ] On any item/spell/feature editor: an **Add effect** button → pick an effect type → fill in its
       numbers. Repeatable; an item holds any number of effects.
@@ -1525,15 +1523,15 @@ the console out of its page. Deferred as its own follow-up; the affordance above
 
 ## Slice 25 — Connect it to the rest
 
-- [ ] Spells cast on you land in the ledger as sources (`activeEffects`), so Bless and a potion are
-      the same machinery. **Scoped: this is one coherent slice, not a quick add.** The ledger already
-      reads `char.activeEffects` (a cast buff would flow the moment it's created), but `castSpell`
-      only rolls damage/heal today, and `Spell` has no `effects` field to carry a lasting buff. Doing
-      it right = add `Spell.effects`, mount the Slice-17 `EffectRows` in `SpellEditor` (the deferred
-      mount), and have `castSpell` SNAPSHOT those effects into an `ActiveEffect` at cast time (Slice
-      12's "the effect outlives the item / editing the source later must not change a running effect"
-      rule). Adding the field without the snapshot wiring would be a control that does nothing — a lie
-      by this doc's own rule — so it stays one focused slice.
+- [x] **Spells cast on you land in the ledger as sources ✅ SHIPPED 2026-07-16 (commit pending).**
+      One coherent slice, done: added `Spell.effects` (+ `effectDuration`), mounted the Slice-17
+      `EffectRows` in `SpellEditor` (with validate-on-save) so a spell authors a lasting buff, and
+      wired `castSpell` to SNAPSHOT those effects into a `spell`-sourced `ActiveEffect` on cast —
+      copied, not referenced, so editing the spell later never touches a running buff, and re-casting
+      replaces the same spell's effect (id `spell-<id>`) rather than stacking. The ledger already read
+      `activeEffects`, so a cast Bless now resolves exactly like a potion (`sourceKindOf` → `spell`).
+      This also discharges Slice 17's deferred "mount the builder in SpellEditor" item. Tests:
+      `spell-effects.test.ts` (5).
 - [ ] Forms/transforms (Jack's, the old rage path) become ledger sources rather than bespoke combat
       fields — `formDamageBonus` is a leftover of the Lazzuh era and should be an effect. **Scoped:**
       `collectSources` reads inventory/activeEffects/features but NOT `char.forms`; forms carry their

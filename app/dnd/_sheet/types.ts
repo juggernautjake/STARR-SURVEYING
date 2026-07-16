@@ -206,6 +206,13 @@ export interface Spell {
   damage?: TypedDamage[] // typed damage components
   heal?: string // healing dice, e.g. "1d4"
   higher?: string // "at higher levels" scaling text
+  /** Lasting mechanical effects the spell applies when CAST (Slice 15/25) — a buff like Bless or
+   *  Mage Armor. On cast these are SNAPSHOTTED into an ActiveEffect so the ledger resolves them like
+   *  any other source and editing the spell later never changes a buff already running. Authored via
+   *  the shared effect builder (Slice 17). */
+  effects?: Effect[]
+  /** How long a cast `effects` buff lasts, shown on its ActiveEffect (e.g. "1 minute", "1 hour"). */
+  effectDuration?: string
 }
 
 export interface SpellcastingInfo {

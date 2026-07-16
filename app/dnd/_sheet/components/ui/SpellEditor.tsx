@@ -10,6 +10,8 @@ import { useChar } from '../../state/store'
 import { ABILITIES, type AbilityKey } from '../../rules/dnd'
 import type { Spell, SpellLevel } from '../../types'
 import EditDialog, { Field } from './EditDialog'
+import { EffectRows } from '../ItemBuilder'
+import { validateEffect } from '@/lib/dnd/effects/targets'
 
 const LEVELS: SpellLevel[] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
@@ -18,8 +20,15 @@ export default function SpellEditor({ spell, onClose }: { spell: Spell; onClose:
   const [draft, setDraft] = useState<Spell>({ ...spell })
   const set = <K extends keyof Spell>(k: K, v: Spell[K]) => setDraft((d) => ({ ...d, [k]: v }))
 
+  const [err, setErr] = useState<string | null>(null)
+
   function save() {
     const name = draft.name.trim() || spell.name // a blank name would erase the row heading
+    // Same validator as the item builder: refuse a broken lasting-effect with a reason.
+    for (const eff of draft.effects ?? []) {
+      const bad = validateEffect(eff)
+      if (bad) { setErr(bad.reason); return }
+    }
     setChar((c) => ({
       ...c,
       spells: (c.spells ?? []).map((s) => (s.id === spell.id ? { ...draft, name } : s)),
@@ -119,6 +128,19 @@ export default function SpellEditor({ spell, onClose }: { spell: Spell; onClose:
       <Field label="At higher levels" hint="scaling text (optional)">
         <input className="ed-input" value={draft.higher ?? ''} onChange={(e) => set('higher', e.target.value)} />
       </Field>
+
+      {/* Lasting effects the spell applies when cast (Slice 15/17) — a buff like Bless (+1d4 is
+          flavour text, but a flat +1 to hit, advantage on a save, temp fly speed all live here).
+          Snapshotted into an ActiveEffect on cast, so the ledger resolves them like a potion. */}
+      <Field label="Effects on cast" hint="a lasting buff this spell grants (optional)">
+        <EffectRows effects={draft.effects ?? []} onChange={(effects) => set('effects', effects)} hint="e.g. Attack rolls · add · 1 (Bless-style)" />
+      </Field>
+      {(draft.effects?.length ?? 0) > 0 && (
+        <Field label="Effect duration" hint='shown on the active buff, e.g. "1 minute"'>
+          <input className="ed-input" value={draft.effectDuration ?? ''} onChange={(e) => set('effectDuration', e.target.value)} />
+        </Field>
+      )}
+      {err && <p className="ed-note" style={{ color: 'var(--danger)' }}>{err}</p>}
     </EditDialog>
   )
 }

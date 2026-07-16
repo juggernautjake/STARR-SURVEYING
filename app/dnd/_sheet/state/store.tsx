@@ -641,6 +641,20 @@ export function CharacterProvider({
           return { ...c, spellcasting: { ...c.spellcasting!, slots: { ...c.spellcasting!.slots, [spell.level]: { ...slot, current: slot.current - 1 } } } }
         })
       }
+      // A spell with lasting effects (Bless, Mage Armor) SNAPSHOTS them into an ActiveEffect at cast
+      // time (Slice 15/25) — so the ledger resolves them like any other source, and editing the spell
+      // later never changes a buff already running. Re-casting replaces the same spell's effect
+      // rather than stacking a second copy.
+      if (spell.effects && spell.effects.length) {
+        const ae: ActiveEffect = {
+          id: `spell-${spell.id}`,
+          label: spell.name,
+          effects: spell.effects.map((e) => ({ ...e })),
+          source: 'spell',
+          ...(spell.effectDuration ? { duration: spell.effectDuration } : {}),
+        }
+        setCharState((c) => ({ ...c, activeEffects: [...(c.activeEffects ?? []).filter((x) => x.id !== ae.id), ae] }))
+      }
       if (spell.attack) rollCheck(`${label} — spell attack`, pb + mod, { kind: 'attack' })
       if (spell.damage && spell.damage.length) {
         const typed = rollTyped(spell.damage.map((d) => ({ dice: d.dice, type: d.type })))
