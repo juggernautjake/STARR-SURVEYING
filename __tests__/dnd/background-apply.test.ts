@@ -7,6 +7,7 @@ import {
   validateAbilityAssignment,
   backgroundGrants,
   applyAbilityIncreases,
+  reconcileBackgroundIncreases,
 } from '@/lib/dnd/backgrounds/apply';
 import { findBackground } from '@/lib/dnd/backgrounds/dnd5e-2024';
 
@@ -63,5 +64,41 @@ describe('applyAbilityIncreases', () => {
   it('respects the cap', () => {
     const base = { str: 19, dex: 10, con: 10, int: 10, wis: 10, cha: 10 };
     expect(applyAbilityIncreases(base, { str: 2 }, 20).str).toBe(20);
+  });
+});
+
+describe('reconcileBackgroundIncreases', () => {
+  const base = { str: 15, dex: 13, con: 14, int: 10, wis: 12, cha: 8 };
+
+  it('applies a fresh spread when there was no prior one', () => {
+    const out = reconcileBackgroundIncreases(base, undefined, { str: 2, con: 1 });
+    expect(out.str).toBe(17);
+    expect(out.con).toBe(15);
+    expect(out.dex).toBe(13); // untouched
+  });
+
+  it('removes the old spread before adding the new when switching', () => {
+    const withSoldier = reconcileBackgroundIncreases(base, undefined, { str: 2, con: 1 });
+    const switched = reconcileBackgroundIncreases(withSoldier, { str: 2, con: 1 }, { int: 1, wis: 1, con: 1 });
+    // Soldier's STR/CON are undone; Sage's +1/+1/+1 lands. CON: 14 +1(soldier) −1(undo) +1(sage) = 15.
+    expect(switched.str).toBe(15); // back to base — the soldier +2 is gone
+    expect(switched.con).toBe(15);
+    expect(switched.int).toBe(11);
+    expect(switched.wis).toBe(13);
+  });
+
+  it('round-trips exactly: A → B → A leaves the scores byte-identical (unclamped, reversible)', () => {
+    const A = { str: 2, con: 1 };
+    const B = { int: 1, wis: 1, cha: 1 };
+    const withA = reconcileBackgroundIncreases(base, undefined, A);
+    const withB = reconcileBackgroundIncreases(withA, A, B);
+    const backToA = reconcileBackgroundIncreases(withB, B, A);
+    expect(backToA).toEqual(withA);
+  });
+
+  it('undoes a spread entirely when next is {} (clearing the background)', () => {
+    const withA = reconcileBackgroundIncreases(base, undefined, { str: 2, con: 1 });
+    const cleared = reconcileBackgroundIncreases(withA, { str: 2, con: 1 }, {});
+    expect(cleared).toEqual(base);
   });
 });

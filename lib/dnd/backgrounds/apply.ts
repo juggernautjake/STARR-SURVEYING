@@ -89,3 +89,26 @@ export function applyAbilityIncreases(
   }
   return out;
 }
+
+/**
+ * Move from a previously-applied background assignment to a new one on a live ability map — the store
+ * keeps abilities as running totals (like ASIs), so switching background or re-spreading must REMOVE
+ * the old increases before adding the new. Deliberately UNCLAMPED so the round-trip is exact: subtract
+ * the prior spread, add the next; picking A then B then A leaves the scores byte-identical to A. (At
+ * creation the totals never approach 20, so no cap is needed and clamping would break reversibility.)
+ * Pass `next = {}` to simply undo a background's increases (e.g. clearing the background).
+ */
+export function reconcileBackgroundIncreases(
+  abilities: Record<AbilityKey, number>,
+  prev: AbilityAssignment | undefined,
+  next: AbilityAssignment,
+): Record<AbilityKey, number> {
+  const out = { ...abilities };
+  for (const [ability, amount] of Object.entries(prev ?? {}) as [AbilityKey, number][]) {
+    if (out[ability] != null) out[ability] = out[ability] - amount;
+  }
+  for (const [ability, amount] of Object.entries(next) as [AbilityKey, number][]) {
+    if (out[ability] != null) out[ability] = out[ability] + amount;
+  }
+  return out;
+}

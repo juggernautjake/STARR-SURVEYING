@@ -4,11 +4,21 @@ import { useChar } from '../state/store'
 import { useSheetSystem } from '../state/sheetConfig'
 import { BACKGROUNDS_2024, findBackground } from '@/lib/dnd/backgrounds/dnd5e-2024'
 import { findFeat } from '@/lib/dnd/feats/dnd5e-2024'
-import { SKILLS } from '@/app/dnd/_sheet/rules/dnd'
+import { validateAbilityAssignment, reconcileBackgroundIncreases, type AbilityAssignment } from '@/lib/dnd/backgrounds/apply'
+import { SKILLS, ABILITIES, type AbilityKey } from '@/app/dnd/_sheet/rules/dnd'
 import { md } from '../lib/inline'
 import SectionHead from './ui/SectionHead'
 
 const SKILL_LABEL: Record<string, string> = Object.fromEntries(SKILLS.map((s) => [s.key, s.label]))
+const ABILITY_LABEL: Record<string, string> = Object.fromEntries(ABILITIES.map((a) => [a.key, a.label]))
+/** A one-line rendering of an applied background spread, e.g. "+2 STR, +1 CON". */
+function spreadSummary(a: AbilityAssignment): string {
+  return (Object.entries(a) as [AbilityKey, number][])
+    .filter(([, v]) => (v ?? 0) > 0)
+    .sort((x, y) => y[1] - x[1])
+    .map(([k, v]) => `+${v} ${ABILITY_LABEL[k] ?? k.toUpperCase()}`)
+    .join(', ')
+}
 
 // Story & Roleplay — the character's premade story sections (intro, appearance, personality,
 // background, play tips). Each section has its own ✎ Edit button so the DM or the owning
@@ -104,11 +114,48 @@ export default function Bio() {
   // picker (canWrite) + a legible grants panel; a custom name stays possible (the escape hatch).
   const system = useSheetSystem()
   const is2024 = system === 'dnd5e-2024'
-  const setBackground = (key: string) => setChar((c) => ({ ...c, meta: { ...c.meta, background: key } }))
+  // Switching (or clearing) the background must first REVERSE whatever spread was applied from the
+  // old one — abilities are running totals, so a stale +2/+1 would otherwise be left baked in. The
+  // reconcile undoes the applied spread (prev → {}) and we clear the stored spread in the same edit.
+  const setBackground = (key: string) => {
+    setDraft({}) // a new background starts with no spread assigned
+    setChar((c) => ({
+      ...c,
+      abilities: reconcileBackgroundIncreases(c.abilities, c.meta.backgroundAbilities, {}),
+      meta: { ...c.meta, background: key, backgroundAbilities: undefined },
+    }))
+  }
   const bg = is2024 && char.meta.background ? findBackground(char.meta.background) : undefined
   const bgKnown = !!bg
   const bgIsCustom = is2024 && !!char.meta.background && !bgKnown
   const bgFeatName = bg ? findFeat(bg.originFeat)?.name ?? bg.originFeat : undefined
+  const applied: AbilityAssignment = char.meta.backgroundAbilities ?? {}
+  // Local draft of the +2/+1 (or +1/+1/+1) spread being assigned; the committed one lives on the
+  // character (`meta.backgroundAbilities`). Applying reconciles abilities from applied → draft.
+  const [draft, setDraft] = useState<AbilityAssignment>(applied)
+  const draftValid = bg ? validateAbilityAssignment(bg, draft).ok : false
+  const draftError = bg ? validateAbilityAssignment(bg, draft).error : undefined
+  const draftMatchesApplied = bg
+    ? bg.abilityScores.every((a) => (draft[a] ?? 0) === (applied[a] ?? 0))
+    : false
+  const cycle = (a: AbilityKey) =>
+    setDraft((d) => ({ ...d, [a]: ((d[a] ?? 0) + 1) % 3 })) // 0 → 1 → 2 → 0
+  const applySpread = () => {
+    if (!draftValid) return
+    setChar((c) => ({
+      ...c,
+      abilities: reconcileBackgroundIncreases(c.abilities, c.meta.backgroundAbilities, draft),
+      meta: { ...c.meta, backgroundAbilities: { ...draft } },
+    }))
+  }
+  const clearSpread = () => {
+    setDraft({})
+    setChar((c) => ({
+      ...c,
+      abilities: reconcileBackgroundIncreases(c.abilities, c.meta.backgroundAbilities, {}),
+      meta: { ...c.meta, backgroundAbilities: undefined },
+    }))
+  }
 
   return (
     <section id="story">
@@ -139,6 +186,61 @@ export default function Bio() {
           {bg && (
             <div style={{ marginTop: 8, fontSize: 13, display: 'grid', gap: 5 }}>
               <div><b>Ability Scores:</b> {bg.abilityScores.map((a) => a.toUpperCase()).join(', ')} <span style={{ color: 'var(--muted)' }}>(assign +2/+1, or +1/+1/+1)</span></div>
+
+              {/* The spread assignment — click each ability to cycle 0 → +1 → +2, then Apply. Applying
+                  reconciles the running ability totals (undo the old spread, add the new) so it's
+                  reversible; the applied spread is remembered on the character. */}
+              {canWrite ? (
+                <div style={{ display: 'grid', gap: 6, padding: '6px 0 2px' }}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {bg.abilityScores.map((a) => {
+                      const v = draft[a] ?? 0
+                      return (
+                        <button
+                          key={a}
+                          type="button"
+                          onClick={() => cycle(a)}
+                          title="Click to cycle 0 / +1 / +2"
+                          style={{
+                            minWidth: 78, padding: '5px 9px', borderRadius: 7, cursor: 'pointer',
+                            fontSize: 13, fontFamily: 'var(--font-mono, monospace)',
+                            border: `1px solid ${v > 0 ? 'var(--gold, #c8aa6e)' : 'var(--line)'}`,
+                            background: v > 0 ? 'rgba(var(--gold-rgb, 200,170,110), .14)' : 'var(--panel-2)',
+                            color: 'var(--ink)',
+                          }}
+                        >
+                          {ABILITY_LABEL[a]} <b>{v > 0 ? `+${v}` : '—'}</b>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={applySpread}
+                      disabled={!draftValid || draftMatchesApplied}
+                      style={{
+                        padding: '5px 12px', borderRadius: 7, fontSize: 13,
+                        cursor: !draftValid || draftMatchesApplied ? 'default' : 'pointer',
+                        border: '1px solid var(--line)',
+                        background: !draftValid || draftMatchesApplied ? 'var(--panel-2)' : 'var(--gold, #c8aa6e)',
+                        color: !draftValid || draftMatchesApplied ? 'var(--muted)' : 'var(--panel)',
+                        opacity: !draftValid || draftMatchesApplied ? 0.7 : 1,
+                      }}
+                    >
+                      {spreadSummary(applied) && draftMatchesApplied ? '✓ Applied' : 'Apply to sheet'}
+                    </button>
+                    {spreadSummary(applied) && (
+                      <button type="button" onClick={clearSpread} style={{ padding: '5px 10px', borderRadius: 7, fontSize: 12.5, cursor: 'pointer', border: '1px solid var(--line)', background: 'var(--panel-2)', color: 'var(--muted)' }}>Clear</button>
+                    )}
+                    {!draftValid && draftError && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{draftError}</span>}
+                    {draftValid && !draftMatchesApplied && <span style={{ fontSize: 12, color: 'var(--muted)' }}>Applies {spreadSummary(draft)} to your scores.</span>}
+                  </div>
+                </div>
+              ) : spreadSummary(applied) ? (
+                <div><b>Ability Increases:</b> {spreadSummary(applied)}</div>
+              ) : null}
+
               <div><b>Origin Feat:</b> {bgFeatName}{bg.spellList ? ` (${bg.spellList})` : ''}</div>
               <div><b>Skill Proficiencies:</b> {bg.skillProficiencies.map((s) => SKILL_LABEL[s] ?? s).join(', ')}</div>
               <div><b>Tool Proficiency:</b> {bg.toolProficiency}</div>

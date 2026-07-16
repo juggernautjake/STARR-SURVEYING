@@ -77,4 +77,12 @@ describe('the sheet surfaces the 2024 background as a rules-grounded picker (Sli
     expect(BIO).toContain('bg.toolProficiency');
     expect(BIO).toContain('bgFeatName');
   });
+
+  it('applies the +2/+1 (or +1/+1/+1) spread to the sheet, reversibly (the Slice 4 follow-up)', () => {
+    // The spread is validated and applied through the tested core, and stored so switching reverses it.
+    expect(BIO).toContain('validateAbilityAssignment');
+    expect(BIO).toContain('reconcileBackgroundIncreases');
+    expect(BIO).toContain('backgroundAbilities');
+    expect(BIO).toContain('applySpread');
+  });
 });

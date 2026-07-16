@@ -342,6 +342,11 @@ export interface Character {
      *  narrative `bio.background` prose. In 2024 this is what grants the ability increases + Origin
      *  feat + skills + tool (Slice 4). */
     background?: string
+    /** The ability-increase spread the player assigned FROM the 2024 background (+2/+1 or +1/+1/+1
+     *  across the background's three abilities). Stored so switching or re-spreading the background
+     *  can exactly reverse the prior increases before applying the new — `abilities` are running
+     *  totals, so the applied spread must be remembered to be undone (Slice 4). */
+    backgroundAbilities?: Partial<Record<AbilityKey, number>>
   }
   inspiration: boolean
   profBonusOverride?: number | null

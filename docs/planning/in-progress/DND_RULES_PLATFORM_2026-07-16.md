@@ -221,7 +221,7 @@ left implicit: a model reading silence about conditions will happily assume whic
 already wanted. Same reasoning behind `(+N more not listed)` — a silent truncation reads to the
 model as "this is the complete list", which is exactly how a ruling ends up ignoring a feature.
 
-## Slice 4 — 5e 2024: feats, backgrounds, species, languages ⏳ PARTIAL 2026-07-16
+## Slice 4 — 5e 2024: feats, backgrounds, species, languages ✅ SHIPPED 2026-07-16 (species→live-numbers is a follow-up)
 
 The classes are done; the rest of character creation is not.
 
@@ -307,11 +307,31 @@ categories) and Epic Boon remain.
     (`BACKGROUNDS_2024`) with a **"✎ Custom…"** escape hatch, storing `meta.background`. When a real one
     is chosen it shows exactly **what it grants** — the three ability options (assign +2/+1 or +1/+1/+1),
     the Origin feat (resolved to its name + spell list), skill proficiencies, tool, and equipment.
-    Applying the ability increases to the sheet (the spread chooser writing `char.abilities` via the
-    already-tested `backgroundGrants` core) is the final follow-up. Tests: `backgrounds.test.ts`
-    (+2 anchors). Both creation pickers now mirror the feat picker's rules-legal-with-custom-escape shape.
-- [ ] Tests: no feat grants an ability increase it shouldn't; every background's feat exists;
-      species grant no ASIs (the 2014-vs-2024 trap).
+    Both creation pickers now mirror the feat picker's rules-legal-with-custom-escape shape.
+  - **Spread application on the sheet ✅ SHIPPED 2026-07-16 (the final follow-up above, now closed).**
+    The Background card now carries an **interactive spread chooser**: click each of the background's
+    three abilities to cycle 0 → +1 → +2, then **Apply to sheet**. The button only enables on a legal
+    2024 spread (validated live by `validateAbilityAssignment`; the error/preview is shown inline), and
+    applying writes `char.abilities` through the new **`reconcileBackgroundIncreases`** core — which
+    SUBTRACTS the previously-applied spread before ADDING the new one, so switching background or
+    re-spreading is exactly reversible (the applied spread is remembered on `meta.backgroundAbilities`;
+    `abilities` are running totals like ASIs, so it must be to be undone). Changing or clearing the
+    background dropdown reverses its spread automatically; a **Clear** control undoes it by hand; a
+    read-only viewer sees the applied increases as a plain "+2 STR, +1 CON" line. Deliberately UNCLAMPED
+    so A→B→A is byte-identical (at creation the totals never approach 20). Tests:
+    `background-apply.test.ts` (+4 — fresh apply, switch, round-trip exactness, clear-to-empty) and
+    `backgrounds.test.ts` (+1 wiring anchor: the Bio applies the spread via the tested core, reversibly).
+    ⚠️ Live browser drive of the picker was NOT performed this pass — the running preview server on
+    :3000 is serving a stale build (its client bundle 404s, on-disk `.next` predates this edit), so the
+    interactive click-through belongs to Slice 40's full-app QA. Core is fully unit-tested; tsc + eslint green.
+- [x] Tests: no feat grants an ability increase it shouldn't (`feats.test.ts` — Origin + Fighting Style
+      + the `NO_ASI_CATEGORIES` invariant); every background's feat exists (`backgrounds.test.ts`);
+      species grant no ASIs, the 2014-vs-2024 trap (`species.test.ts`).
+
+**Slice 4 status: ✅ effectively complete for D&D 5e 2024** — feats (all four categories), backgrounds
+(16, with rules-legal ability-spread application), species (10), languages + tools are all shipped and
+tested. Setting species mechanics as live numbers (speed/size/darkvision) remains a legibility→numbers
+follow-up noted under the species picker, not a Slice-4 blocker.
 
 ## Slice 5 — Custom class / subclass / feat builder UI
 
