@@ -332,13 +332,18 @@ function EffectRows({ effects, onChange, hint }: { effects: Effect[]; onChange: 
                     onChange={(ev) => set(i, { value: ev.target.value })} />
                 )
               )}
+              {/* Optional condition gate (Slice 17): the engine's `condition` field. Blank = always
+                  on (while equipped). A named condition (raging, bloodied) applies only when active. */}
+              <input style={{ ...fieldStyle, width: 110 }} value={e.condition ?? ''} placeholder="if… (raging)"
+                title="Optional: only apply while this condition is active (blank = always, while equipped)"
+                onChange={(ev) => set(i, { condition: ev.target.value.trim() || undefined })} />
               <button type="button" className="btn tiny danger" onClick={() => onChange(effects.filter((_, j) => j !== i))}>✕</button>
             </div>
             {def && (
               <div style={{ fontSize: 11, color: 'var(--muted)' }}>
                 {/* Plain-English preview from the SAME renderer as the ★ tooltip — build it and read
                     it in one place, so what you author is what the sheet will say. */}
-                <strong style={{ color: 'var(--tealbright)' }}>{describeEffect({ target: e.target, operation: e.operation, value: e.value })}</strong>
+                <strong style={{ color: 'var(--tealbright)' }}>{describeEffect({ target: e.target, operation: e.operation, value: e.value, condition: e.condition })}</strong>
                 {' · '}{def.help} · <em>renders at {def.rendersAt}</em>
               </div>
             )}

@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { EFFECT_TARGETS, findTarget, validateEffect } from '@/lib/dnd/effects/targets';
+import { EFFECT_TARGETS, findTarget, validateEffect, describeEffect } from '@/lib/dnd/effects/targets';
 
 const BUILDER = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_sheet/components/ItemBuilder.tsx'), 'utf8');
 
@@ -36,6 +36,17 @@ describe('the builder is registry-driven, not free text', () => {
   it('validates effects on save and refuses a broken one with a reason', () => {
     expect(BUILDER).toContain('validateEffect(eff)');
     expect(BUILDER).toContain('bad.reason');
+  });
+
+  it('exposes a per-effect condition gate that flows into the preview', () => {
+    expect(BUILDER).toContain('e.condition');
+    expect(BUILDER).toContain('condition: e.condition');
+  });
+});
+
+describe('describeEffect renders the condition gate (preview + tooltip agree)', () => {
+  it('appends "(while …)" so a conditional effect reads clearly', () => {
+    expect(describeEffect({ target: 'speed_walk', operation: 'add', value: 10, condition: 'raging' })).toContain('while raging');
   });
 });
 

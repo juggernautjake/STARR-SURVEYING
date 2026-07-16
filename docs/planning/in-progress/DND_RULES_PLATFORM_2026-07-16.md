@@ -756,11 +756,17 @@ consumable-buff) through the same `validateEffect` the AI path uses and refuses 
 message ("Effect "Resistance: ": …needs a value.") rather than saving a broken effect the player
 would believe works.
 
+**Per-effect condition gate ✅ SHIPPED (commit pending).** Each row has an optional "if… (raging)"
+field wired to the engine's `condition` — blank = always on (while equipped), a named condition
+applies only while active — and it flows into the `describeEffect` preview ("+10 Walking speed (while
+raging)"), so the preview and the ★ tooltip read it identically. (Timed durations for *passive* item
+effects don't apply — an item effect lasts while worn; timed durations live on consumables/
+ActiveEffects, which have their own duration field.)
+
 **Still open in this slice:**
-- *Per-effect condition/duration control* (while equipped · while attuned · timed · gated on
-  `raging`/`bloodied`) — the engine's `condition` field, not yet exposed in the row.
 - *Reaching the builder from spell/feature editors too* — today it's on the item builder (and the
-  consumable buff sub-editor); the same `EffectRows` should mount in the other editors.
+  consumable buff sub-editor); the same `EffectRows` should mount in the other editors. This is the
+  one remaining piece and it's a wiring task across `SpellEditor`/`FeatureEditor`.
 
 - [ ] On any item/spell/feature editor: an **Add effect** button → pick an effect type → fill in its
       numbers. Repeatable; an item holds any number of effects.
