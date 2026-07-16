@@ -987,6 +987,8 @@ function renderBackdropTab(grid){
       <label style="font-size:10.5px;color:var(--dim)">Fit<select id="bgFit" style="width:100%;margin-top:3px">${["cover","contain","stretch","tile"].map(o=>`<option ${bg.fit===o?"selected":""}>${o}</option>`).join("")}</select></label>
       <label style="font-size:10.5px;color:var(--dim)">Size <span id="bgSizeV" style="float:right;color:var(--gold)">${Math.round((bg.size||1)*100)}%</span><input type="range" id="bgSize" min="20" max="300" value="${Math.round((bg.size||1)*100)}" style="width:100%"></label>
       <label style="font-size:10.5px;color:var(--dim)">Opacity <span id="bgOpV" style="float:right;color:var(--gold)">${Math.round((bg.opacity!=null?bg.opacity:1)*100)}%</span><input type="range" id="bgOp" min="0" max="100" value="${Math.round((bg.opacity!=null?bg.opacity:1)*100)}" style="width:100%"></label>
+      <label style="font-size:11px;color:var(--ink);display:flex;align-items:center;gap:7px;cursor:pointer"><input type="checkbox" id="bgParallax" ${bg.parallax?"checked":""}> Move with the map (parallax)</label>
+      <div style="font-size:10px;color:var(--faint);margin-top:-4px">Off = the image stays fixed to the screen as you pan and zoom. On = it pans and zooms with the map.</div>
       <button class="dsimport" id="bgClear" style="background:#3a1420;border-color:#c6403b">✕ Remove backdrop</button>
     </div>`:``}
     <div style="font-size:10.5px;color:var(--faint)">Or build a color-gradient backdrop with <b>＋ New</b>, then click it to apply.</div>`;
@@ -999,6 +1001,7 @@ function renderBackdropTab(grid){
   if(isImg){$("#bgFit").onchange=e=>{state.background.fit=e.target.value;renderBackground();markDirty();};
     $("#bgSize").oninput=e=>{state.background.size=+e.target.value/100;$("#bgSizeV").textContent=e.target.value+"%";renderBackground();markDirty();};
     $("#bgOp").oninput=e=>{state.background.opacity=+e.target.value/100;$("#bgOpV").textContent=e.target.value+"%";renderBackground();markDirty();};
+    {const p=$("#bgParallax");if(p)p.onchange=e=>{state.background.parallax=e.target.checked;applyView();markDirty();};}
     $("#bgClear").onclick=clearBackground;}
 }
 function renderLibrary(){
@@ -1277,7 +1280,12 @@ function toWorld(sx,sy){const r=$("#canvas").getBoundingClientRect();return {x:(
 // 3D viewer can centre on and scale to exactly what the 2D map shows (and write it back on the way out).
 window.map2dView=function(){const c=$("#canvas");const W=c.clientWidth||1,H=c.clientHeight||1;return {cx:(W/2-view.x)/view.scale,cy:(H/2-view.y)/view.scale,scale:view.scale};};
 window.setMap2dView=function(cx,cy,scale){const c=$("#canvas");const W=c.clientWidth||1,H=c.clientHeight||1;view.scale=clamp(scale,0.12,5);view.x=W/2-cx*view.scale;view.y=H/2-cy*view.scale;applyView();};
-function applyView(){const tf=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;$("#svg").style.transform=tf;$("#svg").style.transformOrigin="0 0";$("#bodyLayer").style.transform=tf;const bk=$("#backLayer");if(bk){bk.style.transform=tf;bk.style.transformOrigin="0 0";}const sf=$("#svgFront");if(sf){sf.style.transform=tf;sf.style.transformOrigin="0 0";}const ll=$("#labelLayer");if(ll){ll.style.transform=tf;ll.style.transformOrigin="0 0";}const hl=$("#handleLayer");if(hl){hl.style.transform=tf;hl.style.transformOrigin="0 0";}$("#zVal").textContent=Math.round(view.scale*100)+"%";if(pending)positionGhostWorld();syncSkyLock();}
+function applyView(){const tf=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;$("#svg").style.transform=tf;$("#svg").style.transformOrigin="0 0";$("#bodyLayer").style.transform=tf;const bk=$("#backLayer");if(bk){bk.style.transform=tf;bk.style.transformOrigin="0 0";}const sf=$("#svgFront");if(sf){sf.style.transform=tf;sf.style.transformOrigin="0 0";}const ll=$("#labelLayer");if(ll){ll.style.transform=tf;ll.style.transformOrigin="0 0";}const hl=$("#handleLayer");if(hl){hl.style.transform=tf;hl.style.transformOrigin="0 0";}
+  // Image backdrop parallax (Slice 35b). DEFAULT OFF → the layer is screen-locked (fixed while you
+  // pan/zoom, no transform), which is what "a background image that doesn't do parallax" means.
+  // ON → it pans and zooms with the map like the other layers. A DM toggle in the Backdrop tab.
+  const bgl=$("#bgLayer");if(bgl){const par=!!(state.background&&state.background.parallax);bgl.style.transform=par?tf:"";bgl.style.transformOrigin="0 0";}
+  $("#zVal").textContent=Math.round(view.scale*100)+"%";if(pending)positionGhostWorld();syncSkyLock();}
 // Parallax OFF → the starfield/nebula/glow backdrop is world-locked: push the live view so Sky2D pans
 // & zooms it with the map (sectors, systems and bodies then hold their positions over the background).
 function syncSkyLock(){if(!window.Sky2D)return;const off=!!(state.bg3d&&state.bg3d.parallax===false);window.Sky2D.setLock(off);if(off)window.Sky2D.setView(view.x,view.y,view.scale);}

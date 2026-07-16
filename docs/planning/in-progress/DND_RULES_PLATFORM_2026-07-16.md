@@ -1099,15 +1099,16 @@ regression to *reach*, not the drawing:
 - [ ] Once visible, verify scale from any corner and rotate from the stem both work and persist.
 - [ ] A guard/regression note so the handles can't silently disappear again.
 
-### 35b — A background image with parallax OFF
+### 35b — A background image with parallax OFF ✅ SHIPPED 2026-07-16
 > "make it so that we can set a background image that doesn't do parallax. We should be able to turn
 > the background parallax off if we want to. Make it pretty clear how to do this."
 
-- [ ] A **Parallax** toggle on the background-image control, clearly labelled, defaulting to how it
-      behaves today. Off = the background is pinned to the viewport and does not shift as the map
-      pans/zooms (`#bgLayer` stops tracking `applyView`'s transform).
-- [ ] Make the control discoverable — a visible labelled switch in the background section, not a
-      hidden shortcut.
+- [x] A **"Move with the map (parallax)"** checkbox in the Backdrop tab's image controls, with a
+      one-line explainer ("Off = fixed to the screen as you pan and zoom. On = pans and zooms with
+      the map"). Defaults OFF — i.e. the requested no-parallax behaviour is the default.
+- [x] `applyView` applies the view transform to `#bgLayer` only when `state.background.parallax` is
+      on; otherwise the layer is screen-locked (no transform). Verified in the browser: OFF →
+      `transform: none` while panning; ON → the layer pans/zooms with the map.
 
 ### 35c — Spin/spiral the CENTER of a background image
 > "for background images, I still want to make it so that I can cause more of the center of the
