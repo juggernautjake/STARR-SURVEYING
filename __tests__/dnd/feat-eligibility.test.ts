@@ -10,6 +10,7 @@ import {
   GENERAL_FEATS_2024,
   ORIGIN_FEATS_2024,
   FIGHTING_STYLE_FEATS_2024,
+  EPIC_BOON_FEATS_2024,
   findFeat,
 } from '@/lib/dnd/feats/dnd5e-2024';
 
@@ -77,6 +78,24 @@ describe('eligibleFeats + validateFeatKey', () => {
   it('validateFeatKey lets unknown/custom feats through (the explicit-custom escape hatch)', () => {
     expect(validateFeatKey('totally-homebrew', { slot: 'asi', level: 4 }).ok).toBe(true);
     expect(validateFeatKey('lucky', { slot: 'asi', level: 4 }).ok).toBe(false); // known + illegal here
+  });
+});
+
+describe('Epic Boon feats', () => {
+  it('are gated to level 19 at an ASI slot, and increase an ability to 30', () => {
+    for (const feat of EPIC_BOON_FEATS_2024) {
+      expect(feat.category).toBe('epic-boon');
+      expect(featEligibility(feat, { slot: 'asi', level: 18, abilities }).ok).toBe(false); // too low
+      // level 19+ (and any needs met) → legal
+      const has = feat.prerequisites?.some((p: { needs?: string }) => p.needs === 'spellcasting') ? ['spellcasting'] : [];
+      expect(featEligibility(feat, { slot: 'asi', level: 19, abilities, has }).ok).toBe(true);
+      expect(feat.abilityIncrease?.max).toBe(30); // can push past the normal 20 cap
+    }
+  });
+
+  it('never appear at a level-4 ASI slot', () => {
+    const legalAt4 = eligibleFeats({ slot: 'asi', level: 4, abilities }, FEATS_2024);
+    expect(legalAt4.every((f) => f.category !== 'epic-boon')).toBe(true);
   });
 });
 

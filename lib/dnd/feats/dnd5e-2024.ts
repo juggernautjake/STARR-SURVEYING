@@ -249,8 +249,81 @@ export const GENERAL_FEATS_2024: Feat[] = [
   },
 ];
 
-/** Every feat currently defined for 2024 (Origin + Fighting Style + a starter General set). */
-export const FEATS_2024: Feat[] = [...ORIGIN_FEATS_2024, ...FIGHTING_STYLE_FEATS_2024, ...GENERAL_FEATS_2024];
+/**
+ * The 2024 Epic Boon feats (level 19+). Each follows the standardized 2024 shape: a **+1 ability
+ * increase that can push a score to 30** (above the normal 20 cap) plus a signature capstone effect.
+ * A character gains one from the Epic Boon feature at level 19.
+ *
+ * NOTE: benefit text here is concise and captures each boon's signature effect; verify the exact
+ * wording/numbers against the PHB before release (tracked with the other "uncertain rules" in this
+ * doc). The category, the level-19 gate, and the to-30 ability increase are the load-bearing parts.
+ */
+export const EPIC_BOON_FEATS_2024: Feat[] = [
+  {
+    key: 'boon-of-combat-prowess', name: 'Boon of Combat Prowess', category: 'epic-boon', system: 'dnd5e-2024',
+    prerequisites: [{ minLevel: 19 }], abilityIncrease: { choices: ['str', 'dex', 'con', 'int', 'wis', 'cha'], amount: 1, max: 30 },
+    summary: '+1 an ability (to 30); once per turn, turn a miss into a hit.',
+    benefit: 'Increase one ability score by **1**, to a maximum of **30**.\n\nWhen you miss with an attack roll, you can turn the miss into a **hit** instead. Once used, you can\'t do so again until you finish a Short or Long Rest.',
+  },
+  {
+    key: 'boon-of-dimensional-travel', name: 'Boon of Dimensional Travel', category: 'epic-boon', system: 'dnd5e-2024',
+    prerequisites: [{ minLevel: 19 }], abilityIncrease: { choices: ['str', 'dex', 'con', 'int', 'wis', 'cha'], amount: 1, max: 30 },
+    summary: '+1 an ability (to 30); teleport 30 ft after you take the Attack or Magic action.',
+    benefit: 'Increase one ability score by **1**, to a maximum of **30**.\n\nImmediately after you take the Attack action or the Magic action, you can **teleport** up to 30 feet to an unoccupied space you can see.',
+  },
+  {
+    key: 'boon-of-energy-resistance', name: 'Boon of Energy Resistance', category: 'epic-boon', system: 'dnd5e-2024',
+    prerequisites: [{ minLevel: 19 }], abilityIncrease: { choices: ['str', 'dex', 'con', 'int', 'wis', 'cha'], amount: 1, max: 30 },
+    summary: '+1 an ability (to 30); Resistance to two damage types of your choice.',
+    benefit: 'Increase one ability score by **1**, to a maximum of **30**.\n\nYou have **Resistance** to two damage types of your choice (not Force). As a Reaction when you take one of those types, you can also reduce the damage further by your Proficiency Bonus.',
+  },
+  {
+    key: 'boon-of-fate', name: 'Boon of Fate', category: 'epic-boon', system: 'dnd5e-2024',
+    prerequisites: [{ minLevel: 19 }], abilityIncrease: { choices: ['str', 'dex', 'con', 'int', 'wis', 'cha'], amount: 1, max: 30 },
+    summary: '+1 an ability (to 30); nudge a d20 test with a Fate die.',
+    benefit: 'Increase one ability score by **1**, to a maximum of **30**.\n\nWhen a creature within 60 feet of you makes a D20 Test, you can roll a **d10** and apply it as a bonus or penalty to the roll. Uses equal to your Proficiency Bonus per Long Rest.',
+  },
+  {
+    key: 'boon-of-irresistible-offense', name: 'Boon of Irresistible Offense', category: 'epic-boon', system: 'dnd5e-2024',
+    prerequisites: [{ minLevel: 19 }], abilityIncrease: { choices: ['str', 'dex'], amount: 1, max: 30 },
+    summary: '+1 STR or DEX (to 30); attacks ignore resistance and deal extra true damage.',
+    benefit: 'Increase your Strength or Dexterity by **1**, to a maximum of **30**.\n\nYour Unarmed Strikes and weapon attacks **ignore Resistance** to their damage type. When you roll a 20 on a d20 for an attack, the target takes extra damage of the weapon\'s type equal to the ability score you increased with this feat.',
+  },
+  {
+    key: 'boon-of-recovery', name: 'Boon of Recovery', category: 'epic-boon', system: 'dnd5e-2024',
+    prerequisites: [{ minLevel: 19 }], abilityIncrease: { choices: ['str', 'dex', 'con', 'int', 'wis', 'cha'], amount: 1, max: 30 },
+    summary: '+1 an ability (to 30); drop to half HP instead of 0, and heal on a Bonus Action.',
+    benefit: 'Increase one ability score by **1**, to a maximum of **30**.\n\nWhen you are reduced to 0 Hit Points, you can drop to a number of Hit Points equal to **half your Hit Point maximum** instead (once per Long Rest). You can also, as a Bonus Action, regain Hit Points equal to half your maximum (Proficiency Bonus uses per Long Rest).',
+  },
+  {
+    key: 'boon-of-skill', name: 'Boon of Skill', category: 'epic-boon', system: 'dnd5e-2024',
+    prerequisites: [{ minLevel: 19 }], abilityIncrease: { choices: ['str', 'dex', 'con', 'int', 'wis', 'cha'], amount: 1, max: 30 },
+    summary: '+1 an ability (to 30); proficiency in all skills, and Expertise in one.',
+    benefit: 'Increase one ability score by **1**, to a maximum of **30**.\n\nYou gain **proficiency in all skills**, and you gain **Expertise** in one skill of your choice.',
+  },
+  {
+    key: 'boon-of-spell-recall', name: 'Boon of Spell Recall', category: 'epic-boon', system: 'dnd5e-2024',
+    prerequisites: [{ minLevel: 19 }, { needs: 'spellcasting', text: 'Spellcasting feature' }],
+    abilityIncrease: { choices: ['int', 'wis', 'cha'], amount: 1, max: 30 },
+    summary: '+1 a spellcasting ability (to 30); cast your lower-level prepared spells without slots.',
+    benefit: 'Increase your Intelligence, Wisdom, or Charisma by **1**, to a maximum of **30**.\n\nWhenever you cast a spell of level 4 or lower using a spell slot, you can cast it **without expending the slot**. Once used, you can\'t do so again until you finish a Short or Long Rest.',
+  },
+  {
+    key: 'boon-of-the-night-spirit', name: 'Boon of the Night Spirit', category: 'epic-boon', system: 'dnd5e-2024',
+    prerequisites: [{ minLevel: 19 }], abilityIncrease: { choices: ['str', 'dex', 'con', 'int', 'wis', 'cha'], amount: 1, max: 30 },
+    summary: '+1 an ability (to 30); meld into shadow and strike harder from Darkness.',
+    benefit: 'Increase one ability score by **1**, to a maximum of **30**.\n\nWhile entirely within Dim Light or Darkness, you can take the **Hide** action as a Bonus Action and you have **Resistance** to all damage except Radiant and Force. When you hit a creature with an attack while so hidden, the target takes extra Necrotic damage equal to your Proficiency Bonus.',
+  },
+  {
+    key: 'boon-of-truesight', name: 'Boon of Truesight', category: 'epic-boon', system: 'dnd5e-2024',
+    prerequisites: [{ minLevel: 19 }], abilityIncrease: { choices: ['str', 'dex', 'con', 'int', 'wis', 'cha'], amount: 1, max: 30 },
+    summary: '+1 an ability (to 30); Truesight out to 60 feet.',
+    benefit: 'Increase one ability score by **1**, to a maximum of **30**.\n\nYou have **Truesight** with a range of **60 feet**.',
+  },
+];
+
+/** Every feat currently defined for 2024 (Origin + Fighting Style + a starter General set + Epic Boons). */
+export const FEATS_2024: Feat[] = [...ORIGIN_FEATS_2024, ...FIGHTING_STYLE_FEATS_2024, ...GENERAL_FEATS_2024, ...EPIC_BOON_FEATS_2024];
 
 /** The categories that, per the 2024 rules, grant NO ability score increase. */
 export const NO_ASI_CATEGORIES: FeatCategory[] = ['origin', 'fighting-style'];

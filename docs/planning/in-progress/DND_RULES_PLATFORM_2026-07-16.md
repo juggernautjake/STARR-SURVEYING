@@ -244,9 +244,16 @@ category**, so the invariant now generalises: `NO_ASI_CATEGORIES = ['origin', 'f
 longer depends on which specific feats exist. Tests: `feats.test.ts` (10 total, +3). General (the +1
 categories) and Epic Boon remain.
 
-- [~] **Feats** as structured data (`lib/dnd/feats/dnd5e-2024.ts`): all four categories — Origin ✅,
-      Fighting Style ✅, General ✅ (starter set — the +1, minLevel 4, ability/spellcasting
-      prerequisites; full ~45 to fill in later), Epic Boon (remaining). Full rules text.
+- [x] **Feats** as structured data (`lib/dnd/feats/dnd5e-2024.ts`) — **all four categories present** ✅:
+      Origin (10, complete), Fighting Style (10, complete), General (starter set — the +1, minLevel 4,
+      ability/spellcasting prerequisites; the full ~45 fill in later), and **Epic Boon ✅ SHIPPED (commit
+      pending)** — all ten 2024 Epic Boons (Combat Prowess, Dimensional Travel, Energy Resistance, Fate,
+      Irresistible Offense, Recovery, Skill, Spell Recall, Night Spirit, Truesight), each with the
+      standardized **+1 ability increase to a max of 30** (above the normal cap) and its signature
+      capstone effect, gated to level 19 by `featEligibility`. Tests: `feat-eligibility.test.ts` (level-19
+      gate + to-30 increase + never-at-level-4). *Epic Boon benefit wording is concise and captures each
+      boon's signature effect — flagged with the doc's other "uncertain rules" to verify against the PHB
+      before release; the category/gate/ability-cap are the load-bearing parts.*
 - [x] **Rules-legal feat granting ✅ SHIPPED (commit pending)** — per the user's directive that builders
       only allow what the rules permit unless explicitly custom. `lib/dnd/feats/eligibility.ts`
       (`featEligibility` / `eligibleFeats` / `validateFeatKey`) gates a feat by SLOT (Origin only in a
@@ -2031,7 +2038,10 @@ Playwright specs behind). Do it with the Playwright MCP tools against a real run
 - **Uncertain rules flagged by the authoring agents** (worth a second source before release):
   Warlock invocations-known progression; Wizard Spell Mastery's swap clause; Great Old One
   Clairvoyant Combatant's limit; Monk Warrior of the Elements details; Starfinder
-  Fatigued/Exhausted magnitudes and Grappled/Pinned penalties; Envoy expertise die thresholds.
+  Fatigued/Exhausted magnitudes and Grappled/Pinned penalties; Envoy expertise die thresholds;
+  **2024 Epic Boon signature-effect wording/numbers** (`lib/dnd/feats/dnd5e-2024.ts` —
+  `EPIC_BOON_FEATS_2024`; the +1-to-30 increase and level-19 gate are certain, the capstone text is
+  concise-but-verify).
 - **`spellsKnown` currently carries prepared counts** for 2024 preparers. Consider renaming to
   `spellsKnownOrPrepared`. The 2024 Ranger/Paladin/Cleric/Druid prepared counts are prose in
   `preparedRule`, not structured — promote them if the builder needs the numbers.
