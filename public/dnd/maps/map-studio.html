@@ -180,8 +180,17 @@
   /* The viewer was 66% of a 44% column, so the subject rendered small AND the 3D model's glow ran
      into the edges. Give it the room it needs, capped so it never collides with the title/type
      labels or the SVG/HTML buttons pinned to the corners. */
-  .edpreview .pv{width:min(88%,calc(100% - 56px));max-height:calc(100% - 88px);aspect-ratio:1;}
-  .edpreview .pv svg{width:100%;height:100%;}
+  .edpreview .pv{width:min(88%,calc(100% - 56px));max-height:calc(100% - 88px);aspect-ratio:1;display:flex;align-items:center;justify-content:center;}
+  /* 2D and 3D must render the body at the SAME size, and both must show their halo.
+     The 2D art draws the body edge-to-edge in its viewBox and lets the atmosphere spill outside
+     (overflow:visible) — free on an SVG. A WebGL canvas cannot overflow, so the 3D camera has to
+     pull back far enough to keep the glow inside, which made the body render much smaller: "the 2D
+     version is way bigger than the 3D version".
+     So give the 2D the same margin the 3D is forced to leave. Both bodies now sit at ~78% of the
+     viewer and both halos are fully visible — see haloCap in EditorPreview3D, which is tuned to
+     match this number. Change one, change the other. */
+  .edpreview .pv .pv2d{width:78%;height:78%;display:block;}
+  .edpreview .pv svg{overflow:visible;}
   .edpreview .pv canvas{width:100%;height:100%;display:block;}
   .edpreview .edtitle{position:absolute;top:16px;left:20px;right:20px;font-family:"Orbitron";font-size:12px;letter-spacing:1px;color:var(--gold);}
   .edpreview .edtype{position:absolute;bottom:16px;left:20px;font-size:12px;color:var(--faint);letter-spacing:1px;text-transform:uppercase;}
@@ -744,11 +753,39 @@ function art(a,animate){
   const cscaleSet=a.cscale!=null,seaSet=a.sea!=null,coastSet=a.coast!=null;
   const cscaleF=cscaleSet?clamp(+a.cscale,1,6):2.2;
   const n=isMoon?18:(cscaleSet?clamp(Math.round(12*(cscaleF/2.2)),4,28):12);
-  const landCov=seaSet?clamp(1.35-(+a.sea),0.15,1.3):1;          // higher water level → less exposed land
+  // WET worlds paint the disc in the land tone (terran c1 #4a7c4a is green) and scatter blobs in
+  // `detail` — which for those worlds is c2, the WATER tone (#2a5a8c). So on a wet world the blobs
+  // ARE the sea, and their coverage has to RISE with the water slider.
+  //
+  // It used to be `landCov = 1.35 - sea`, scaling those blobs DOWN as water went up. The variable
+  // was named for land but multiplied the opacity of water, so the slider ran backwards: cranking
+  // water to 0 painted the darkest, most extensive blue. Reported exactly that way, and it was
+  // also why 3D (where `sea` is a real water level in the shader) disagreed with 2D completely.
+  const wet=["terran","toxic","ocean","jungle"].includes(a.ptype);
+  const seaF=seaSet?clamp(+a.sea,0,1):(wet?0.52:0.02);
+  // 2D<->3D WATER PARITY.
+  //
+  // The 2D art never modelled a sea level at all: it painted the disc in the LAND tone (terran c1
+  // is green) and scattered blobs of `detail` — which for a wet world is c2, the WATER tone. So the
+  // planet was land with puddles on it, and no slider position could ever drown it. Worse, the
+  // blobs' opacity was driven by `1.35 - sea`, so turning water DOWN painted MORE dark blue. The
+  // slider ran backwards and disagreed with 3D (where `sea` is a real water level in the shader)
+  // at every value.
+  //
+  // Model it the way 3D does: the disc IS the ocean, land sits on top, and land recedes as the
+  // water rises. sea=0 -> land everywhere; sea=1 -> open ocean, no land at all.
+  const landF=wet?clamp(1-seaF,0,1):1;
+  const baseCol=wet?c2:c1;                                        // wet worlds are an ocean world
+  const detail=a.ptype==="volcanic"?c3:(wet?c1:D(c1,26));         // ...and the blobs are LAND
+  // Dry worlds keep the old reading: their `detail` is terrain shading, not sea.
+  const landCov=wet?1:(seaSet?clamp(1.35-seaF,0.15,1.3):1);
   const coastMul=coastSet?(0.72+clamp(+a.coast,0,1)*0.5):1;      // higher definition → sharper/darker land
   const szMul=cscaleSet?(2.2/cscaleF):1;                          // more continents → each is smaller
-  const detail=a.ptype==="volcanic"?c3:(["terran","toxic","ocean","jungle"].includes(a.ptype)?c2:D(c1,26));
-  for(let i=0;i<n;i++){const bx=cx-R+rng()*2*R,by=cy-R+rng()*2*R,br=R*(isMoon||a.ptype==="rock"||a.ptype==="ice"?0.06+rng()*0.12:0.16+rng()*0.3)*szMul;const op=clamp((0.4+rng()*0.4)*landCov*coastMul,0.05,0.96);const blob=`<ellipse cx="{X}" cy="${by.toFixed(1)}" rx="${br.toFixed(1)}" ry="${(br*(0.7+rng()*0.5)).toFixed(1)}" fill="${detail}" opacity="${op.toFixed(2)}"/>`;spots.push(blob.replace("{X}",bx.toFixed(1)));spots.push(blob.replace("{X}",(bx+2*S).toFixed(1)));}
+  // Land's footprint AND its opacity fall to zero as the sea rises, so max water leaves bare ocean
+  // rather than faint ghosts of drowned continents.
+  const landSz=wet?(0.5+landF*0.85):1;
+  const landOp=wet?landF*1.15:1;
+  for(let i=0;i<n;i++){const bx=cx-R+rng()*2*R,by=cy-R+rng()*2*R,br=R*(isMoon||a.ptype==="rock"||a.ptype==="ice"?0.06+rng()*0.12:0.16+rng()*0.3)*szMul*landSz;const op=clamp((0.4+rng()*0.4)*landCov*coastMul*landOp,0,0.96);const blob=`<ellipse cx="{X}" cy="${by.toFixed(1)}" rx="${br.toFixed(1)}" ry="${(br*(0.7+rng()*0.5)).toFixed(1)}" fill="${detail}" opacity="${op.toFixed(2)}"/>`;spots.push(blob.replace("{X}",bx.toFixed(1)));spots.push(blob.replace("{X}",(bx+2*S).toFixed(1)));}
   // Polar ice caps — only when `ice` is explicitly set (so existing planets are unchanged). Rotated by the
   // axial `tilt` so the caps + pole axis lean, the 2D equivalent of the 3D model's tilt.
   let iceCaps="";const iceSet=a.ice!=null,tiltF=a.tilt!=null?+a.tilt:0;
@@ -843,7 +880,7 @@ function art(a,animate){
     ${lightOn&&stormN>0?`<filter id="lightG${id}" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="1.1"/></filter>`:""}
     ${cityI>0.001?`<filter id="cityG${id}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="0.5"/></filter>`:""}
     ${dv?`<filter id="dGlow${id}" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="2"/></filter><radialGradient id="coreG${id}" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff2c8"/><stop offset="35%" stop-color="#ffb454"/><stop offset="75%" stop-color="#ff5a1e"/><stop offset="100%" stop-color="#3a0a04" stop-opacity="0"/></radialGradient><linearGradient id="riftG${id}" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#ff5a1e" stop-opacity="0"/><stop offset="50%" stop-color="#ffe6a0"/><stop offset="100%" stop-color="#ff5a1e" stop-opacity="0"/></linearGradient>`:""}
-    <radialGradient id="base${id}" cx="36%" cy="32%" r="78%"><stop offset="0%" stop-color="${L(c1,52)}"/><stop offset="50%" stop-color="${c1}"/><stop offset="100%" stop-color="${D(c1,46)}"/></radialGradient>
+    <radialGradient id="base${id}" cx="36%" cy="32%" r="78%"><stop offset="0%" stop-color="${L(baseCol,52)}"/><stop offset="50%" stop-color="${baseCol}"/><stop offset="100%" stop-color="${D(baseCol,46)}"/></radialGradient>
     <radialGradient id="term${id}" cx="36%" cy="32%" r="82%"><stop offset="0%" stop-color="#fff" stop-opacity=".28"/><stop offset="38%" stop-color="#fff" stop-opacity="0"/><stop offset="72%" stop-color="#000" stop-opacity=".35"/><stop offset="100%" stop-color="#000" stop-opacity=".68"/></radialGradient>
     <radialGradient id="atmo${id}" cx="50%" cy="50%" r="50%"><stop offset="${(88-atmoThick*12).toFixed(0)}%" stop-color="${atmoCol}" stop-opacity="0"/><stop offset="97%" stop-color="${atmoCol}" stop-opacity="${atmoThick.toFixed(2)}"/><stop offset="100%" stop-color="${atmoCol}" stop-opacity="0"/></radialGradient></defs>
     ${ringBack}<circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#base${id})"/>
@@ -1955,7 +1992,11 @@ function edPreview(){
     else window.EditorPreview3D.update(edWork);
   } else {
     if(host.__is3d){host.__is3d=false;if(window.EditorPreview3D)window.EditorPreview3D.unmount();}
-    host.innerHTML=art(edWork,true);
+    // Wrapped, not styled directly: art() hardcodes style="width:100%;height:100%" on the <svg>
+    // for its other consumers (the map layer, the exports), and an inline style beats any rule we
+    // could write here. The wrapper gives the 2D body the same ~78% of the viewer that the 3D
+    // camera is forced to leave for its halo, so the two views render the body at the SAME size.
+    host.innerHTML=`<div class="pv2d">${art(edWork,true)}</div>`;
   }
 }
 function edSetView(v){if(v==="3d"&&!window.EditorPreview3D){toast("3D preview is still loading — try again in a moment");return;}edView3d=(v==="3d");const t=$("#edViewToggle");if(t)t.querySelectorAll("button").forEach(b=>{b.classList.toggle("on",b.dataset.v===v);b.style.color=b.dataset.v===v?"var(--gold)":"var(--faint)";});edPreview();}
@@ -2433,7 +2474,7 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
 import * as THREE from 'three';
 import { buildPlanetModel, buildStarModel } from '/dnd/maps/planet3d-model.js';
 (function(){
-  let renderer,scene,camera,model,raf,host,last=0;
+  let renderer,scene,camera,model,raf,host,last=0,subjectR=1.3,haloCap=1.45;
   const SUN=new THREE.Vector3(3,2,4).normalize();
   function ensure(el){
     if(renderer){host=el;return;}
@@ -2466,7 +2507,15 @@ import { buildPlanetModel, buildStarModel } from '/dnd/maps/planet3d-model.js';
       radius=sph&&isFinite(sph.radius)?sph.radius:0;
     }catch(e){/* fall through to the default below */}
     // A model built from sprites/points can measure as 0; never divide the frame by nothing.
-    if(!(radius>0.01))radius=1.6;
+    if(!(radius>0.01))radius=subjectR*haloCap;
+    // Cap how far the HALO may shrink the subject. Framing the raw bounding sphere is honest but
+    // useless: a planet's glow measures far wider than the planet, so fitting all of it rendered
+    // the body tiny — reported as "the 2D version is way bigger than the 3D version". The 2D art
+    // has the same shape and simply lets its glow spill outside the box (overflow:visible), which
+    // a WebGL canvas cannot do. So match 2D's intent instead: frame the BODY at a comparable size
+    // and let the outermost, faintest glow reach the edge. Clipping a fading halo is invisible;
+    // slicing the sphere flat is what was actually wrong.
+    radius=Math.min(radius,subjectR*haloCap);
     const vFov=camera.fov*Math.PI/180;
     const hFov=2*Math.atan(Math.tan(vFov/2)*Math.max(0.0001,camera.aspect));
     const dist=Math.max(radius/Math.sin(vFov/2),radius/Math.sin(hFov/2));
@@ -2478,7 +2527,16 @@ import { buildPlanetModel, buildStarModel } from '/dnd/maps/planet3d-model.js';
   function cfgFor(look){try{if(window.Map3D&&window.Map3D._genericPlanetCfg)return window.Map3D._genericPlanetCfg({kind:look.kind,look});}catch(e){}return {type:look.ptype||'terran',seed:look.seed||1};}
   function build(look){
     if(model){try{scene.remove(model.group);model.dispose&&model.dispose();}catch(e){}model=null;}
-    try{model=look.kind==='star'?buildStarModel(look,{radius:1.15}):buildPlanetModel(cfgFor(look),{radius:1.3,segments:64});scene.add(model.group);}catch(e){/* keep the scene alive if a build fails */}
+    const isStar=look.kind==='star';
+    // Remember the SUBJECT's radius — the solid body we asked for. `frame()` needs it to tell the
+    // body apart from the halo around it.
+    subjectR=isStar?1.15:1.3;
+    // How much room the halo may claim before we stop shrinking the subject for it. 1/1.28 ≈ 78%,
+    // which is exactly the size `.edpreview .pv svg` renders the 2D body at — that is how the two
+    // views end up the same size. Change one, change the other.
+    // A star's corona is genuinely huge and reads as part of the star, so it gets more room.
+    haloCap=isStar?2.0:1.28;
+    try{model=isStar?buildStarModel(look,{radius:1.15}):buildPlanetModel(cfgFor(look),{radius:1.3,segments:64});scene.add(model.group);}catch(e){/* keep the scene alive if a build fails */}
     frame(); // re-frame per subject: a ringed planet and a bare moon do not want the same distance
   }
   function loop(t){raf=requestAnimationFrame(loop);const dt=Math.min(0.05,((t-last)/1000)||0.016);last=t;if(model&&model.update)try{model.update(dt,SUN);}catch(e){}if(renderer)renderer.render(scene,camera);}
