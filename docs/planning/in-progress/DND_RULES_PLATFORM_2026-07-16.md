@@ -1623,14 +1623,17 @@ this slice is mostly about wiring them into one journey.
       (the column already exists; `SheetApprovalPanel` reads it). This is what later makes porting a
       character across systems easier.
 
-### 38b — Invite by copyable link
+### 38b — Invite by copyable link ✅ SHIPPED 2026-07-16
 > "being able to copy a link to the main campaign page and then send that link to people to join."
-- [ ] A **Copy invite link** action on the manage page. Simplest form: a link to the campaign that,
-      when opened by someone not a member, lets them join. The `dnd_invites` table + `InvitesPanel`
-      already generate link invites (`/generate`) — surface a one-click **Copy** of that URL, framed
-      as "send this to your players".
-- [ ] The link target: opening it while signed out → sign-in/create-account (Slice 36) → back to the
-      campaign, now joined.
+- [x] **Copy invite link — shipped.** `InvitesPanel` (DM-only, on the manage page) generates a link
+      invite and shows a one-click **Copy** per invite that writes `${origin}/dnd/join/<code>` to the
+      clipboard (with a "Copied!" confirm) — plus a Revoke. Added the explicit framing the request
+      asked for: "Generate a link, hit Copy, and send it to your players. Opening it lets them sign in
+      (or make an account) and join this campaign."
+- [x] **The link target works.** `/dnd/join/[code]` accepts the invite and creates/authenticates an
+      account, then routes into the campaign as a member — the B4 acceptance flow. (Its form still
+      asks for an email, a pre-`Slice 36` remnant to reconcile with the name+password-only login — a
+      small consistency follow-up, not a break in the invite flow.)
 
 ### 38c — Join → bring or make a character
 > "routed to the campaign page where they will be prompted to bring in a character already made, or

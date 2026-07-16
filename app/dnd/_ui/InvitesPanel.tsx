@@ -150,11 +150,18 @@ export default function InvitesPanel({ campaignId, initialInvites }: { campaignI
           {busy ? 'Sending…' : '✉ Invite'}
         </button>
       </div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
-        <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>or share a link:</span>
-        <button className={styles.hexBtn} onClick={generate} disabled={busy}>
-          {busy ? 'Generating…' : '+ Generate link invite'}
-        </button>
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>or share a link:</span>
+          <button className={styles.hexBtn} onClick={generate} disabled={busy}>
+            {busy ? 'Generating…' : '+ Generate link invite'}
+          </button>
+        </div>
+        {/* 38b: frame the link as something you SEND — opening it lets a player join this campaign. */}
+        <p style={{ fontSize: 11.5, color: 'var(--hx-muted)', margin: '6px 0 0' }}>
+          Generate a link, hit <strong>Copy</strong>, and send it to your players. Opening it lets them
+          sign in (or make an account) and join this campaign.
+        </p>
       </div>
 
       {invites.length === 0 ? (
