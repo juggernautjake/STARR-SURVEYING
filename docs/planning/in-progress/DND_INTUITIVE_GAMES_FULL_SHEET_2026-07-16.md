@@ -65,11 +65,21 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
 ## Slices
 
 - **Slice 0 — Planning doc** *(this file)*.
-- **Slice 1 — Content completeness (the Data Sheet).** Audit `content.ts`/catalog against the spreadsheet +
-  intuitivegames.net and complete: all **spells by school** with effect text, **every defensive power**, the
-  **full bestiary** (companion creature list, grouped), the **full skill list** with governing ability +
-  combat-skill variants, **feats with effect text**, and an **actions taxonomy** (single/double/triple/
-  reaction/other). Pure data + lookups; tested (counts, classifier agreement, no dup).
+- **Slice 1 — Content completeness (the Data Sheet).** ✅ Completed `content.ts` + catalog against the
+  template's Data Sheet: **all 37 powers now carry a mechanical effect summary** (from the Spell List
+  descriptions); added the **actions taxonomy** `IG_ACTIONS` grouped by the 3-action economy (Single /
+  Double / Triple / Reaction / Other, feat/free notes) + `igActionsByEconomy`; added the **full bestiary**
+  `IG_CREATURES` (70+ companion creatures grouped Animals / Dragons / Elementals / Fey / Magical Beasts /
+  Undead) + `igCreaturesByGroup`, and the classifier now recognizes both a group name (Dragons) and a
+  specific creature (Griffon) as a vanilla `creature-type`. The catalog surfaces new **Creatures · <group>**
+  and **Actions · <economy>** sections. Verified: `tsc` clean, lint clean,
+  `__tests__/dnd/ig-content-complete.test.ts` (4 tests: every power has effect text, actions cover the whole
+  economy, bestiary complete + grouped + classifies vanilla by name-or-group, catalog surfaces both); full
+  dnd suite (303) green. *(Deferred within this slice: per-feat effect text — the provided template dump
+  leaves the "Feats & Special Powers descriptions" cells `#N/A`, and inventing feat mechanics would violate
+  the anti-wrong-mechanics rule; feats stay name+category until authoritative text is sourced from
+  intuitivegames.net. The skill list + combat-skill variants already live in the `system-rules.ts` IG entry
+  and are exercised by the Skills sheet slice.)*
 - **Slice 2 — IG character model + rules engine.** `model.ts` (the `IGCharacter` type over all nine tabs) +
   `rules.ts` (pure math: modifier, proficiency=level, the three saves, skill totals, attack/damage, sneak
   attack, degrees of success). Tested against worked examples.
@@ -111,4 +121,4 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
 - **Reuse:** build on the shipped content library, catalog, provenance, submission/approval, DM grants,
   campaign policy, the custom-sheet/style engine, and `/ai-edit` grounding — don't fork them.
 
-### Status: IN PROGRESS (Slice 0 shipped; 1–11 pending)
+### Status: IN PROGRESS (Slices 0–1 shipped; 2–11 pending)

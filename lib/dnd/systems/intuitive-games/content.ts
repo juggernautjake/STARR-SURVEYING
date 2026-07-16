@@ -55,28 +55,85 @@ export const IG_FEATS: NamedEntry[] = [
   { name: 'Careful Shot', category: 'Combat' },
 ];
 
-// ── Powers / Spells, grouped by school (category). ──────────────────────────────────────────────────
+// ── Powers / Spells, grouped by school (category), with mechanical effect summaries from the template's
+//    Data Sheet (Spell List). ─────────────────────────────────────────────────────────────────────────
 export const IG_POWERS: NamedEntry[] = [
-  { name: 'Dispel Magic', category: 'Abjuration' }, { name: 'Mage Armor', category: 'Abjuration' },
-  { name: 'Protection from Elements', category: 'Abjuration' }, { name: 'Misdirection', category: 'Abjuration' },
-  { name: 'Shield Ally', category: 'Abjuration' }, { name: 'Life Connection', category: 'Abjuration' },
-  { name: 'Conjure Wall', category: 'Conjuration' }, { name: 'Companion Shield', category: 'Conjuration' },
-  { name: 'Create Shelter', category: 'Conjuration' }, { name: 'Gate', category: 'Conjuration' },
-  { name: 'Portal', category: 'Conjuration' }, { name: 'Summon Material', category: 'Conjuration' },
-  { name: 'Teleportation', category: 'Conjuration' }, { name: 'Unseen Servant', category: 'Conjuration' },
-  { name: 'Material Shield', category: 'Conjuration' },
-  { name: 'Detect Magic', category: 'Divination' }, { name: 'Detect Thoughts', category: 'Divination' },
-  { name: 'Foresight', category: 'Divination' }, { name: 'Scrying', category: 'Divination' },
-  { name: 'Command', category: 'Enchantment' }, { name: 'Enchant Creature', category: 'Enchantment' },
-  { name: 'Subtle Manipulation', category: 'Enchantment' },
-  { name: 'Elemental Blast', category: 'Evocation' }, { name: 'Intense Blast', category: 'Evocation' },
-  { name: 'Piercing Element', category: 'Evocation' }, { name: 'Wide Blast', category: 'Evocation' },
-  { name: 'Telekinesis', category: 'Evocation' }, { name: 'Wind Blast', category: 'Evocation' },
-  { name: 'Create Image', category: 'Illusion' }, { name: 'Darkness', category: 'Illusion' },
-  { name: 'Invisibility', category: 'Illusion' }, { name: 'Light', category: 'Illusion' },
-  { name: 'Mimic Sound', category: 'Illusion' }, { name: 'Mirror Image', category: 'Illusion' },
-  { name: 'Adaptation', category: 'Transmutation' }, { name: 'Natural Attacks', category: 'Transmutation' },
-  { name: 'New Movement', category: 'Transmutation' },
+  { name: 'Dispel Magic', category: 'Abjuration', effect: 'Reaction: when a creature within 30 ft uses a magical/divine ability or casts a spell, make an Arcane check to counter it; if you exceed their roll, their action is lost with no effect.' },
+  { name: 'Mage Armor', category: 'Abjuration', effect: '3-action: inflict nonlethal damage on yourself equal to your level to gain that as a bonus on Reflex saves (max = Int modifier); lasts while active but you can’t heal the nonlethal until it ends.' },
+  { name: 'Protection from Elements', category: 'Abjuration', effect: 'Grant elemental resistance vs one chosen element equal to your Int modifier, to yourself or another creature.' },
+  { name: 'Misdirection', category: 'Abjuration', effect: 'Reaction after being targeted by an attack: Spellcraft check vs the target’s Perception; on success all of that target’s attacks this round are at disadvantage.' },
+  { name: 'Shield Ally', category: 'Abjuration', effect: 'Reaction: grant an adjacent ally +2 on a saving throw as it’s called for; the bonus lasts one round.' },
+  { name: 'Life Connection', category: 'Abjuration', effect: 'Reaction after taking damage: heal yourself a number of points equal to half your level (not nonlethal).' },
+  { name: 'Conjure Wall', category: 'Conjuration', effect: '2-action: create a wall of a chosen material over hexes = level + Int mod, 10 ft tall (stackable); lasts rounds = Int modifier.' },
+  { name: 'Companion Shield', category: 'Conjuration', effect: 'If your Companion is adjacent when you’re attacked, it may spend a reaction to grant you +2 Reflex saves vs that attacker until your next turn.' },
+  { name: 'Create Shelter', category: 'Conjuration', effect: '10-action: create a shelter of natural materials over hexes = level + Int mod, 10 ft tall.' },
+  { name: 'Gate', category: 'Conjuration', effect: '3-action: open a gate into the Echo (distance is divided by 10); spend another 3-action to reopen it and return to your home world.' },
+  { name: 'Portal', category: 'Conjuration', effect: 'Action: relocate to a hex within sight, no farther than 5 ft per level; once per round.' },
+  { name: 'Summon Material', category: 'Conjuration', effect: 'Summon a chosen material covering contiguous hexes = level + Int mod; it dissipates after rounds = your Spellcraft bonus.' },
+  { name: 'Teleportation', category: 'Conjuration', effect: '3-action: teleport to a location you’ve been before, within miles = level + Int modifier.' },
+  { name: 'Unseen Servant', category: 'Conjuration', effect: '3-action: conjure an invisible force to perform basic tasks, starting within 30 ft; only one at a time.' },
+  { name: 'Material Shield', category: 'Conjuration', effect: 'While touching a known material, spend a reaction to gain +2 Reflex saves until your next turn (usable even as you’re attacked).' },
+  { name: 'Detect Magic', category: 'Divination', effect: 'Action: discern magical/supernatural abilities in effect and creatures with arcane or divine connections.' },
+  { name: 'Detect Thoughts', category: 'Divination', effect: '2-action: read a target’s active thoughts and emotions within 30 ft (Will save opposed by your Spellcraft check).' },
+  { name: 'Foresight', category: 'Divination', effect: 'Meditate uninterrupted to look through the Void and learn about something; choose one option each time you do this.' },
+  { name: 'Scrying', category: 'Divination', effect: 'Locate a creature or object (Spellcraft vs the creature’s Will save; an unfamiliar creature gains advantage on the save).' },
+  { name: 'Command', category: 'Enchantment', effect: '2-action: Spellcraft vs the creature’s Will; on a failure it takes only a single action that you direct.' },
+  { name: 'Enchant Creature', category: 'Enchantment', effect: '2-action: Spellcraft vs Will; the creature is enthralled for a round and follows you, sustained with a single action each turn; range 30 ft.' },
+  { name: 'Subtle Manipulation', category: 'Enchantment', effect: 'Substitute a Spellcraft check for a Bluff, Diplomacy, Intimidate, or Perform check (+2 if trained in the imitated skill).' },
+  { name: 'Elemental Blast', category: 'Evocation', effect: 'Proficient ranged elemental attack, range 30 ft, damage = level + Int mod; choose the damage type each attack (Acid/Cold/Electricity/Fire/Sonic). Takes 2 actions and provokes unless you have Careful Caster/Shot.' },
+  { name: 'Intense Blast', category: 'Evocation', effect: 'Deal an additional 1d6 damage with one element when using your blast.' },
+  { name: 'Piercing Element', category: 'Evocation', effect: 'Ignore an amount of elemental resistance or damage reduction equal to your level with one type of elemental damage.' },
+  { name: 'Wide Blast', category: 'Evocation', effect: 'Increase the number of targets you can hit with one of your elemental attacks by two.' },
+  { name: 'Telekinesis', category: 'Evocation', effect: '2-action: force a target creature or object to move in a chosen direction.' },
+  { name: 'Wind Blast', category: 'Evocation', effect: 'Proficient bludgeoning attack equal to your Elemental Blast; also extinguishes open flames and disperses fog/mist in a radius = your blast range.' },
+  { name: 'Create Image', category: 'Illusion', effect: '2-action: create an image over hexes = Spellcraft mod, 5 ft tall (stackable), sustained with a single action; non-sight senses grant a Will save vs your Spellcraft to disbelieve.' },
+  { name: 'Darkness', category: 'Illusion', effect: 'Lower illumination two steps in a radius = Int mod; duration rounds = Spellcraft; range = Spellcraft hexes.' },
+  { name: 'Invisibility', category: 'Illusion', effect: 'Touch a creature or object to make it invisible for rounds = Spellcraft modifier; ends if the subject attacks.' },
+  { name: 'Light', category: 'Illusion', effect: 'Raise illumination two steps in a radius = Int mod; duration rounds = Spellcraft; range = Spellcraft hexes.' },
+  { name: 'Mimic Sound', category: 'Illusion', effect: '2-action: create a sound within 20 ft (+20 ft per level), sustained/adjusted with a single action; hearers make Perception vs your Spellcraft.' },
+  { name: 'Mirror Image', category: 'Illusion', effect: '2-action: create 1d4 mirror images for one minute; attackers must roll to pick you out of the remaining images to hit you.' },
+  { name: 'Adaptation', category: 'Transmutation', effect: 'Grant a touched creature adaptation to a natural climate for hours = Int modifier (Aura Mastery extends targets + range).' },
+  { name: 'Natural Attacks', category: 'Transmutation', effect: '2-action: grant a touched creature natural attacks dealing 1d6 (claw, bite, etc.) (Aura Mastery extends targets + range).' },
+  { name: 'New Movement', category: 'Transmutation', effect: 'Grant a touched creature a new movement form (wings, webbed feet, etc.); an existing form increases instead (Aura Mastery extends).' },
+];
+
+// ── Actions, grouped by the 3-action economy (Reference Sheet). ──────────────────────────────────────
+export const IG_ACTION_ECONOMIES = ['Single', 'Double', 'Triple', 'Reaction', 'Other'] as const;
+export type IGActionEconomy = typeof IG_ACTION_ECONOMIES[number];
+export interface IGAction { name: string; economy: IGActionEconomy; note?: string; }
+export const IG_ACTIONS: IGAction[] = [
+  { name: 'Attack', economy: 'Single' }, { name: 'Interact', economy: 'Single' },
+  { name: 'Support Ally', economy: 'Single' }, { name: 'Direct Companion Creature', economy: 'Single' },
+  { name: 'Combat Skills', economy: 'Single' }, { name: 'Stride', economy: 'Single' }, { name: 'Step', economy: 'Single' },
+  { name: 'Redistribution', economy: 'Double' }, { name: 'Combat Skills (double)', economy: 'Double' },
+  { name: 'Death Spiral', economy: 'Triple', note: 'feat' },
+  { name: 'Defensive Power', economy: 'Reaction' }, { name: 'Attack of Opportunity', economy: 'Reaction' },
+  { name: 'Martyr', economy: 'Reaction', note: 'feat' }, { name: 'Relentless', economy: 'Reaction', note: 'feat' },
+  { name: 'Parry', economy: 'Reaction', note: 'feat' }, { name: 'Bodyguard', economy: 'Reaction', note: 'feat' },
+  { name: 'Quick Draw', economy: 'Other', note: 'free' }, { name: 'Talking', economy: 'Other', note: 'free' },
+];
+
+// ── Companion-creature bestiary — the full creature list grouped by category (Data Sheet: Creatures). ──
+export interface IGCreature { name: string; group: string; }
+export const IG_CREATURES: IGCreature[] = [
+  // Animals
+  ...['Ape', 'Canine', 'Feline', 'Vulpine', 'Ursine', 'Rodent', 'Suidae', 'Bovine', 'Equine', 'Whales', 'Dolphins',
+    'Lizard', 'Snake', 'Turtle/Tortoise', 'Songbird', 'Predator bird', 'Scavenger bird', 'Corvid', 'Owl',
+    'Frog/Toad', 'Salamander', 'Worm', 'Insect (Flying)', 'Insect (Burrowing)', 'Spider', 'Scorpion',
+    'Fish (Herbivore)', 'Fish (Carnivore)', 'Squid', 'Octopus', 'Crustacean'].map((name) => ({ name, group: 'Animals' })),
+  // Dragons
+  ...['Red Dragon', 'Orange Dragon', 'Yellow Dragon', 'Green Dragon', 'Blue Dragon', 'Purple Dragon', 'Black Dragon',
+    'White Dragon', 'Brown Dragon', 'Diamond Dragon'].map((name) => ({ name, group: 'Dragons' })),
+  // Elementals
+  ...['Corrosive Elemental', 'Cold Elemental', 'Lightning Elemental', 'Flame Elemental', 'Sound Elemental',
+    'Earth Elemental', 'Plant Elemental', 'Metal Elemental', 'Water Elemental', 'Wind Elemental'].map((name) => ({ name, group: 'Elementals' })),
+  // Fey
+  ...['Dryad', 'Naiad', 'Treant', 'Leshy', 'Pink Fairy', 'Teal Fairy', 'Sage Fairy', 'Lavender Fairy', 'Sun Nymph',
+    'Moon Nymph', 'Gold Gremlin', 'Silver Gremlin', 'Bronze Gremlin', 'Copper Gremlin'].map((name) => ({ name, group: 'Fey' })),
+  // Magical Beasts
+  ...['Unicorn', 'Alicorn', 'Pegasus', 'Griffon', 'Hydra', 'Kraken', 'Phoenix', 'Sphinx', 'Wyvern'].map((name) => ({ name, group: 'Magical Beasts' })),
+  // Undead
+  ...['Ghost', 'Skeleton', 'Vampire', 'Wraith', 'Zombie', 'Werewolf'].map((name) => ({ name, group: 'Undead' })),
 ];
 
 export const IG_SPELL_SCHOOLS = ['Abjuration', 'Conjuration', 'Divination', 'Enchantment', 'Evocation', 'Illusion', 'Transmutation'] as const;
@@ -124,10 +181,25 @@ const KIND_NAMES: Record<IGContentKind, string[]> = {
   'movement-type': IG_MOVEMENT_TYPES,
   subclass: IG_SUBCLASSES,
   background: IG_BACKGROUNDS,
-  'creature-type': IG_CREATURE_TYPES,
+  // A companion's creature is either a group name (Dragons) or a specific bestiary entry (Griffon) — both vanilla.
+  'creature-type': [...IG_CREATURE_TYPES, ...IG_CREATURES.map((c) => c.name)],
 };
 
 const norm = (s: unknown) => String(s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+/** Actions grouped by the 3-action economy (Single/Double/Triple/Reaction/Other). */
+export function igActionsByEconomy(): Record<IGActionEconomy, IGAction[]> {
+  const out = Object.fromEntries(IG_ACTION_ECONOMIES.map((e) => [e, [] as IGAction[]])) as Record<IGActionEconomy, IGAction[]>;
+  for (const a of IG_ACTIONS) out[a.economy].push(a);
+  return out;
+}
+
+/** The bestiary grouped by category (Animals, Dragons, Elementals, Fey, Magical Beasts, Undead). */
+export function igCreaturesByGroup(): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const c of IG_CREATURES) (out[c.group] ??= []).push(c.name);
+  return out;
+}
 
 /** The vanilla names for an Intuitive Games content kind (empty for an unknown kind). */
 export function igVanillaNames(kind: IGContentKind): string[] {
