@@ -14,6 +14,7 @@ import type { Character } from '@/app/dnd/_sheet/types';
 import { abilityMod } from '@/app/dnd/_sheet/rules/dnd';
 import { buildLedger } from './effects/ledger';
 import { deriveAc } from '@/app/dnd/_sheet/lib/derive-ac';
+import { summarizeCharacterProvenance } from './provenance';
 import { systemLabel, type CharacterSystem } from './systems';
 
 /** Trim a rules body to its first sentence-ish, for a name + reminder rather than a restatement. */
@@ -91,6 +92,17 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
   // and can factor it into a ruling ("you have advantage from Rage").
   if (ledger.sources.length) {
     lines.push(`ACTIVE EFFECTS: ${ledger.sources.map((s) => s.name).join(', ')}`);
+  }
+
+  // Provenance (Slice 22): which elements are this system's vanilla content vs homebrew vs DM-granted,
+  // so the librarian adjudicates WITH the character's own content instead of disclaiming it as
+  // "unofficial". `summarizeCharacterProvenance` already computes this; it just wasn't in the prompt.
+  const prov = summarizeCharacterProvenance(char, system);
+  if (prov.hasCustom) {
+    const parts: string[] = [];
+    if (prov.custom.length) parts.push(`homebrew: ${prov.custom.map((e) => e.name).join(', ')}`);
+    if (prov.dmGranted.length) parts.push(`DM-granted: ${prov.dmGranted.map((e) => `${e.name} (by ${e.grantedBy ?? 'DM'})`).join(', ')}`);
+    if (parts.length) lines.push(`PROVENANCE — ${parts.join(' · ')}. These are REAL for this character; adjudicate WITH them, do not disclaim them as unofficial.`);
   }
 
   const conditions = c.conditions ?? [];
@@ -172,6 +184,10 @@ export function adjudicationInstruction(characterName: string, systemName: strin
     `4. If the character cannot do the thing (no such feature, no resource left, a condition blocks it),`,
     `   say that plainly and name what is missing.`,
     '',
-    'Never invent a feature, a number, or a resource this character does not have on its sheet.',
+    // Slice 22 — meet customization without flinching. The librarian's "never invent" honesty rule
+    // is right, but pointed at a homebrew sheet it wrongly disclaims the character's OWN content.
+    `HOMEBREW IS REAL: content on ${characterName}'s sheet marked homebrew or DM-granted (see PROVENANCE) is this character's actual rule — the sheet is its source of truth. Adjudicate WITH it; do NOT call it "unofficial" or refuse to use it. Only flag it when the player explicitly asks whether something is official, or when a homebrew element contradicts a ${systemName} rule in a way that changes the answer.`,
+    '',
+    `Never invent a feature, a number, or a resource that is neither on ${characterName}'s sheet nor in the ${systemName} rules. (Homebrew being ON the sheet is exactly what makes citing it honest, not invention.)`,
   ].join('\n');
 }

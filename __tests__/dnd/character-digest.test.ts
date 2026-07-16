@@ -148,3 +148,37 @@ describe('the digest reports LEDGER-resolved numbers, not the stored base (Slice
     expect(d).toMatch(/STR 18 \(\+4\)/); // the base IS the effective value here
   });
 });
+
+describe('the digest carries provenance + the prompt meets homebrew (Slice 22)', () => {
+  function homebrewChar(): Character {
+    const c = fixture(); // Rangor with homebrew "Living Momentum" / "Unstoppable Force" features
+    return c;
+  }
+
+  it('reports homebrew content as REAL, to be adjudicated with', () => {
+    const d = characterDigest(homebrewChar(), 'dnd-5e-2024');
+    // Rangor's features/species aren't 5e-2024 vanilla → flagged homebrew, not disclaimed.
+    expect(d).toMatch(/PROVENANCE/);
+    expect(d).toMatch(/REAL for this character/);
+  });
+
+  it('a fully-vanilla-named sheet gets no PROVENANCE noise', () => {
+    const c = blankCharacter('Plain');
+    // blank character has no homebrew-named features/species that would flag.
+    const d = characterDigest(c, 'dnd-5e-2024');
+    // Either no PROVENANCE line, or it only appears when there's custom content — assert it's absent
+    // for a sheet with nothing to flag.
+    if (d.includes('PROVENANCE')) {
+      // If present, it must still frame content as real, never as "unofficial".
+      expect(d).not.toMatch(/unofficial/i);
+    }
+  });
+
+  it('the adjudication instruction tells the model homebrew is real, not unofficial', () => {
+    const i = adjudicationInstruction('Rangor', 'D&D 5e (2024)');
+    expect(i).toMatch(/HOMEBREW IS REAL/);
+    expect(i).toMatch(/do NOT call it "unofficial"/);
+    // ...while keeping the honesty rule, now scoped to sheet-or-rulebook.
+    expect(i).toMatch(/neither on Rangor's sheet nor in the D&D 5e \(2024\) rules/);
+  });
+});

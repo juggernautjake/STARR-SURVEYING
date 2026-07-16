@@ -905,14 +905,18 @@ costs more than having no marker at all.
 - [ ] Tests: an untouched sheet has zero ✎; editing a value marks exactly that value; revert clears
       the marker and restores the source value; ★ and ✎ are independent (one never implies the other).
 
-## Slice 21 — System designation on every sheet (even customized ones)
+## Slice 21 — System designation on every sheet (even customized ones) ✅ SHIPPED (verified 2026-07-16)
 
 > "flag character sheets as being built for a specific system, even if the sheet has customizations…
 > Then if we ask the AI questions, it will see what system we are using, and it will see that the
 > character has customizations, and it will roll with it and not freak out."
 
-The infrastructure exists (`system` column, `normalizeSystem`, `SYSTEM_AMBIGUOUS`) but the demo
-characters are `ambiguous`, which is why the librarian has no rulebook to reason from on their sheets.
+**Verified shipped:** the Hero header renders a `system-chip` (`systemName`) on every template (Hero is
+shared), the seed set the demo characters to `dnd5e-2024` (DB check: 5 of 6 sheet characters are
+`dnd5e-2024`; only a stray generic "Donata" is `ambiguous`), and the AI digest reports `SYSTEM:`
+alongside the ledger-resolved stats — so the librarian has a rulebook AND sees the customizations
+(Slice 20's ✎ / provenance). The chip is independent of homebrew: a sheet is "D&D 5e (2024)" *and*
+customized, exactly as the request asks.
 
 - [ ] **Display the system** on every sheet — a badge in the hero header, on every template, plus
       the Overview. Today you cannot tell what game a sheet is for by looking at it.
@@ -930,15 +934,24 @@ characters are `ambiguous`, which is why the librarian has no rulebook to reason
 - [ ] Tests: every demo character has a real system; the badge renders on every template; a
       customized sheet still reports its system.
 
-## Slice 22 — The AI meets customization without flinching
+## Slice 22 — The AI meets customization without flinching ✅ SHIPPED 2026-07-16
 
 > "it will see that the character has customizations, and it will roll with it and not freak out."
 
-The current prompt is tuned for a *rules librarian*: "never invent a rule; if it's not in the
-reference, say so." Point that at a homebrew sheet and it does the wrong thing — it disclaims the
-character's own content as unofficial, which is useless. The fix isn't to weaken "never invent";
-it's to tell the model **which** things are settled by the rulebook and which are settled by the
-sheet itself.
+**Shipped (commit pending).** The digest now runs `summarizeCharacterProvenance` and emits a
+`PROVENANCE —` line naming the character's homebrew and DM-granted content as **REAL for this
+character, to be adjudicated WITH** (only when there IS custom content — a vanilla sheet gets no
+noise). And `adjudicationInstruction` gained a `HOMEBREW IS REAL` rule: the sheet is the source of
+truth for its own content, don't disclaim it as "unofficial", only flag it when the player asks
+whether it's official or when a homebrew element contradicts a system rule in a way that changes the
+answer — while the "never invent" honesty rule is kept but scoped to "neither on the sheet nor in the
+rulebook". Tests: `character-digest.test.ts` +3. This is the fix the request named: the librarian
+rolls with a homebrew sheet instead of freaking out.
+
+The current prompt was tuned for a *rules librarian*: "never invent a rule; if it's not in the
+reference, say so." Pointed at a homebrew sheet it did the wrong thing — disclaiming the character's
+own content as unofficial. The fix wasn't to weaken "never invent"; it was to tell the model **which**
+things are settled by the rulebook and which are settled by the sheet itself.
 
 - [ ] The digest (Slice 3) reports, per element, whether it is **vanilla, homebrew, or DM-granted**
       (`summarizeCharacterProvenance` already computes exactly this — it just isn't in the prompt).
