@@ -74,7 +74,9 @@ export default function Attacks() {
               const toHit = mod + (a.proficient ? pb : 0) + (a.bonusToHit ?? 0)
               const die = dieFor(a)
               const isSave = !!a.saveBased
-              const saveDC = 8 + pb + abilityMod(abilities.str)
+              // Per-attack DC: a flat override wins; otherwise 8 + PB + the chosen ability's mod
+              // (STR by default). Lets a spell or special weapon set its own hit DC (Slice 33).
+              const saveDC = a.saveDcOverride ?? (8 + pb + abilityMod(abilities[a.saveDcAbility ?? 'str']))
               const dmgFlat = isSave ? 0 : mod + (a.bonusDamage ?? 0) // AOE dice don't add the ability mod
               const brute = a.formOnly === 'brute'
               const active = !a.formOnly || char.activeFormId === a.formOnly

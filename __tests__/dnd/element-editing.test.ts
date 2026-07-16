@@ -114,6 +114,22 @@ describe('the attack editor edits what was actually asked for', () => {
     expect(ATTACK_EDITOR).toMatch(/usesFormStrikeDie \|\| draft\.damageByLevel/);
     expect(ATTACK_EDITOR).toMatch(/only used as a fallback/);
   });
+
+  it('controls the save DC for save-based attacks (Slice 33)', () => {
+    // The "control the hit DC for weapons and spells" ask: a save-based attack can choose which
+    // ability powers its DC and set a flat override.
+    const ATTACKS = read('app/dnd/_sheet/components/Attacks.tsx');
+    for (const field of ['saveBased', 'saveAbility', 'aoe', 'saveDcAbility', 'saveDcOverride']) {
+      expect(ATTACK_EDITOR, `${field} must be editable`).toContain(`'${field}'`);
+    }
+    // The row honours the per-attack override, then the chosen DC ability, then STR.
+    expect(ATTACKS).toMatch(/a\.saveDcOverride \?\? \(8 \+ pb \+ abilityMod\(abilities\[a\.saveDcAbility \?\? 'str'\]\)\)/);
+  });
+
+  it('only shows the save fields when the attack is save-based', () => {
+    // No point offering a save ability on a to-hit attack.
+    expect(ATTACK_EDITOR).toMatch(/draft\.saveBased && \(/);
+  });
 });
 
 describe('the dialog does not eat your edit', () => {

@@ -24,6 +24,11 @@ export interface Attack {
   saveBased?: boolean // AOE: targets make a save vs your DC instead of you rolling to hit
   saveAbility?: AbilityKey // which save the targets roll (e.g. dex, con)
   aoe?: string // short AOE descriptor, e.g. "60-ft line"
+  /** Which ability powers THIS attack's save DC (8 + PB + mod). Defaults to STR when unset — a
+   *  spell or a special weapon can key its DC off a different stat than the sheet's default. */
+  saveDcAbility?: AbilityKey
+  /** A flat save DC that overrides the computed 8 + PB + mod for this attack — full manual control. */
+  saveDcOverride?: number
   notes?: string
 }
 

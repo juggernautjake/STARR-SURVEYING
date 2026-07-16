@@ -1046,20 +1046,22 @@ model, where the ledger, the digest, the DM's review and the AI itself can all r
 faked with a `::after { content: … }` looks identical on screen and is invisible to every one of
 those. Style is presentation; meaning is data. The AI gets both, through different doors.
 
-## Slice 33 — Control the hit bonus / save DC on weapons and spells
+## Slice 33 — Control the hit bonus / save DC on weapons and spells ⏳ PARTIAL 2026-07-16
 
 > "make sure that we can control the hit dc for weapons and spells and stuff."
 
-The `AttackEditor` (Slice 20) already exposes `bonusToHit` / `bonusDamage`, but a **weapon item** in
-the ItemBuilder has no way to set a fixed to-hit or a save DC, and **spells** have no editor at all.
-
-- [ ] Weapon items: a to-hit override and (for save-based weapons) a save DC + which save, flowing
-      into the derived attack row.
-- [ ] Spells: an editor (the ⋯ path, Slice 27) with save DC / attack bonus, matching the sheet's
-      spellcasting stat by default but overridable.
-- [ ] These are ledger targets already (`spell_save_dc`, `spell_attack`) — an item that grants a DC
-      bonus and a spell that sets its own DC should resolve through the same pipeline, not a parallel
-      field. (After the Slice 10 fix, `value('spell_save_dc', base)` composes correctly.)
+- [x] **Attacks now control their save DC.** The `AttackEditor` gained a **Save-based** toggle; when
+      on, it exposes the save the target rolls, the AOE descriptor, **which ability powers the DC**,
+      and a **flat DC override**. The Attacks row computes `saveDcOverride ?? (8 + PB + mod of the
+      chosen ability, STR by default)` — previously it was hardcoded to `8 + PB + STR` with no
+      control. `bonusToHit` / `bonusDamage` were already editable. 4 tests.
+- [ ] **Weapon ITEMS** (ItemBuilder) still have no to-hit / save-DC field of their own — they'd
+      inherit whatever the derived attack computes. Add the same controls there.
+- [ ] **Spells** still have no editor at all (needs the ⋯ path, Slice 27, extended to the Spells
+      tab); their DC/attack should default to the casting stat but be overridable.
+- [ ] Route DC bonuses through the ledger (`spell_save_dc`, `spell_attack`) so an item that grants
+      a DC bonus and a spell that sets its own DC compose (after Slice 10's fix,
+      `value('spell_save_dc', base)` is correct).
 
 ## Slice 34 — Build-mode selector: make it look like the rest of the UI ✅ SHIPPED 2026-07-16
 

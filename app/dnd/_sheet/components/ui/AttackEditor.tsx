@@ -85,6 +85,41 @@ export default function AttackEditor({ attack, onClose }: { attack: Attack; onCl
         Proficient (adds your proficiency bonus to hit)
       </label>
 
+      {/* Save-based attacks (AOE spells, breath weapons): targets roll a save vs YOUR DC rather than
+          you rolling to hit. This is where the "control the hit DC" ask lives (Slice 33). */}
+      <label className="ed-check">
+        <input type="checkbox" checked={!!draft.saveBased} onChange={(e) => set('saveBased', e.target.checked)} />
+        Save-based (targets roll a save vs your DC, instead of you rolling to hit)
+      </label>
+      {draft.saveBased && (
+        <>
+          <div className="ed-row">
+            <Field label="Save the target rolls">
+              <select className="ed-input" value={draft.saveAbility ?? 'dex'} onChange={(e) => set('saveAbility', e.target.value as AbilityKey)}>
+                {ABILITIES.map((a) => <option key={a.key} value={a.key}>{a.full}</option>)}
+              </select>
+            </Field>
+            <Field label="Area" hint='e.g. "60-ft line"'>
+              <input className="ed-input" value={draft.aoe ?? ''} onChange={(e) => set('aoe', e.target.value)} />
+            </Field>
+          </div>
+          <div className="ed-row">
+            <Field label="DC ability" hint="powers 8 + PB + mod">
+              <select className="ed-input" value={draft.saveDcAbility ?? 'str'} onChange={(e) => set('saveDcAbility', e.target.value as AbilityKey)}>
+                {ABILITIES.map((a) => <option key={a.key} value={a.key}>{a.full}</option>)}
+              </select>
+            </Field>
+            <Field label="DC override" hint="blank = computed">
+              <input
+                className="ed-input" type="number" min={0}
+                value={draft.saveDcOverride ?? ''}
+                onChange={(e) => set('saveDcOverride', e.target.value === '' ? undefined : Number(e.target.value))}
+              />
+            </Field>
+          </div>
+        </>
+      )}
+
       <Field label="Notes" hint="shown under the attack's name">
         <textarea
           className="ed-input" rows={3} value={draft.notes ?? ''}
