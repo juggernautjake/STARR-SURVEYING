@@ -1089,13 +1089,15 @@ The handle code still exists (`renderHandles()` in `map-studio.html`: a `.ihwrap
 `.ihandle` scale pads + a `.rot` stem, drawn into `#handleLayer` at z-index 6). It explicitly draws
 for every selected instance except `kind==='text'`, so images *should* get them. So this is a
 regression to *reach*, not the drawing:
-- [x] **Narrowed 2026-07-16:** `renderHandles()` itself WORKS — forcing a selected image instance
-      produced all 5 handles (rotate + 4 corners) in `#handleLayer` at z-index 6, mode `dm`. So the
-      drawing is fine; the regression is in REACH. Remaining culprits, now in order:
-      the image instance isn't getting **selected** on click (a newer layer — the background image?
-      — eating the mousedown before it reaches the `.inst` handler), or the handle layer is visually
-      **covered** by a background layer added above z-index 6. Start by logging `selection` on an
-      image click.
+- [x] **Could not reproduce 2026-07-16 — works in current code.** Two browser checks:
+      (1) forcing a selected image instance produced all 5 handles in `#handleLayer` (z-index 6, DM
+      mode); (2) a REAL `mousedown` on a freshly-placed image set `selection` to that instance AND
+      produced the 5 handles + wrapper. So both the drawing and the reach work for a standard image.
+      Deliberately did NOT ship a speculative fix — that would risk breaking the working path.
+      Most likely explanations for the user's report, to check if it recurs: a stale deployed build
+      (hard-refresh), or a specific image variant — a **spiral/spin image** renders a different DOM
+      (a `<canvas>` in `.art`) and is the one untested edge; if handles are missing, note whether the
+      image had spiral or spin on. Left open pending a reproducible case.
 - [ ] Once visible, verify scale from any corner and rotate from the stem both work and persist.
 - [ ] A guard/regression note so the handles can't silently disappear again.
 
