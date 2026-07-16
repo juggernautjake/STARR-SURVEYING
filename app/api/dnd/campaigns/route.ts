@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession } from '@/lib/dnd/auth';
+import { normalizeSystem } from '@/lib/dnd/systems';
 
 export async function GET() {
   const session = getDndSession();
@@ -37,13 +38,20 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
 
   try {
-    const { name, blurb } = await req.json();
+    const body = await req.json();
+    const { name, blurb } = body;
     if (!name || !String(name).trim()) return NextResponse.json({ error: 'Campaign name is required.' }, { status: 400 });
+
+    // The campaign's rulebook (Slice 38a). Normalized so an unknown/garbage value can't be stored;
+    // omitted → 'ambiguous', which the DM can set later.
+    const system = normalizeSystem(body.system);
+    // Whether players may bring custom/homebrew content (default true — matches the column default).
+    const allowCustom = body.allowCustom !== false;
 
     const { data: campaign, error } = await supabaseAdmin
       .from('dnd_campaigns')
-      .insert({ dm_user_id: session.userId, name: String(name).trim(), blurb: blurb ? String(blurb).trim() : null })
-      .select('id, name, blurb, theme, created_at')
+      .insert({ dm_user_id: session.userId, name: String(name).trim(), blurb: blurb ? String(blurb).trim() : null, system, allow_custom: allowCustom })
+      .select('id, name, blurb, theme, system, allow_custom, created_at')
       .single();
     if (error || !campaign) return NextResponse.json({ error: error?.message ?? 'Could not create campaign.' }, { status: 500 });
 

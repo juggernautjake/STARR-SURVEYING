@@ -1125,6 +1125,99 @@ regression to *reach*, not the drawing:
       forcing it, and offer the nearest thing (e.g. a large centered spinning image instead of a
       true background).
 
+## Slice 36 — Pseudo-login, "+ Campaign", and unlimited creation ✅ SHIPPED 2026-07-16 (mostly)
+
+> "the login is not an actual login… just a name and a password… both at least four letters."
+> "alongside +Character, a +Campaign button… the new campaign shows in all campaigns and the
+> campaigns you manage section." "Anyone should be able to create as many characters and campaigns
+> as they want."
+
+- [x] **Pseudo-login**: name + password only (no email, no invite), both ≥ 4 chars. The name is the
+      identity, stored as `name:<normalized>` in `dnd_users.email` (already holds synthetic keys like
+      `quick:andrew`, so no schema change). `POST /api/dnd/auth/signup` (new); login accepts `name`;
+      the login page has a Name field + a Create-account toggle. bcrypt-hashed. Verified end to end.
+- [x] **"+ Campaign"** in the header (signed-in only) → `/dnd?new=campaign`; `MyTable`'s new
+      `NewCampaignButton` opens its form there, creates via `POST /api/dnd/campaigns` (creator = DM),
+      and routes to the campaign's manage page. It then appears under "⚔️ Campaigns you run" and the
+      all-campaigns list.
+- [x] **Unlimited**: neither characters nor campaigns are capped in code — anyone signed in creates
+      as many as they like. (Confirmed: no per-user limit in the create routes.)
+- [ ] **Edge — stale session 500.** Creating a campaign from a session whose user row was deleted
+      throws a raw FK error (`dm_user_id_fkey`). Catch it and return a clean "please sign in again"
+      (and clear the dead cookie). Low-severity — only reachable if a user is deleted out from under
+      a live session — but it should not be a 500.
+
+## Slice 37 — Browser Back sometimes needs several presses
+
+> "sometimes when I hit back it just kind of jumps up and down on the same page and I have to hit it
+> two or three times before it actually goes back."
+
+- [ ] **Diagnose first.** The symptom (Back scrolls/"jumps" instead of navigating, needs 2–3 presses)
+      is the classic sign of **spurious history entries** — something is pushing to history on the
+      same route. Prime suspects, in order:
+      - A component calling `router.push` / `history.pushState` on mount or on a state change that
+        lands on the *same* URL (each adds an entry you have to Back through). Audit `router.push`
+        and `router.replace` calls — anything that navigates to the current path should be
+        `replace`, not `push`, or skipped.
+      - The `?new=campaign` / other query-param entry points: if a component strips or re-adds a
+        query param via `push`, that's an extra entry. Use `replace` when normalizing the URL.
+      - A scroll-anchor / hash link (`href="#..."`) pushing a `#` entry that Back only scrolls away
+        from.
+      - Next.js scroll-restoration fighting a manually scrolled container.
+- [ ] Fix the specific source(s) found; don't paper over with a custom Back handler.
+- [ ] Verify: from a character sheet and from a campaign page, a single Back returns to the previous
+      page every time.
+
+## Slice 38 — Campaign creation → invite-by-link → join → bring/port a character
+
+The full flow the user described, end to end. Several pieces already exist (invites table, the
+campaign `system` + `allow_custom` fields, the character import/AI builder, the cross-system chat);
+this slice is mostly about wiring them into one journey.
+
+### 38a — A simple campaign creation page
+> "pick the system, name it, describe it. Then create it."
+- [ ] The create form (`NewCampaignButton` / dashboard) gains a **system picker** (GAME_SYSTEMS) plus
+      name + description. Persist the chosen system on the campaign — the DM's rulebook for the table.
+      Verify `dnd_campaigns` has a `system` column; add one (idempotent seed) if not.
+- [ ] An **"Allow custom builds"** toggle on the create/build page → sets `dnd_campaigns.allow_custom`
+      (the column already exists; `SheetApprovalPanel` reads it). This is what later makes porting a
+      character across systems easier.
+
+### 38b — Invite by copyable link
+> "being able to copy a link to the main campaign page and then send that link to people to join."
+- [ ] A **Copy invite link** action on the manage page. Simplest form: a link to the campaign that,
+      when opened by someone not a member, lets them join. The `dnd_invites` table + `InvitesPanel`
+      already generate link invites (`/generate`) — surface a one-click **Copy** of that URL, framed
+      as "send this to your players".
+- [ ] The link target: opening it while signed out → sign-in/create-account (Slice 36) → back to the
+      campaign, now joined.
+
+### 38c — Join → bring or make a character
+> "routed to the campaign page where they will be prompted to bring in a character already made, or
+> to make a new character altogether."
+- [ ] On first arrival as a new member with no character in this campaign: a prompt with two paths —
+      **Bring an existing character** (the "add existing character you own" picker already exists) or
+      **Make a new one** (the builder, Slice 31, with the campaign + its system attached).
+
+### 38d — Port a character into the campaign's system
+> "if that character does not have a character sheet for the campaign's system, prompt to translate…
+> AI will help transpose the character into the new system as good as possible."
+- [ ] When a brought-in character's `system` ≠ the campaign's, prompt to **translate**. The system
+      already models per-system sheets (`system_variants`) and has cross-system awareness
+      (`system-detect.ts`, the librarian) — this is an AI transposition that produces a new
+      system-variant sheet for the campaign's rulebook, preserving name/story/vibe.
+- [ ] **When the campaign allows custom builds (38a toggle),** the AI may invent traits/feats that
+      keep the character's original flavour while giving it mechanics that scale in the new system —
+      routed through the existing custom-content + DM-approval path (Slice 5 / `summarizeCharacterProvenance`),
+      not a bypass.
+- [ ] The original sheet is never destroyed — the port is a new system-variant on the same character,
+      so the player keeps their other-system version too (the overlay principle again).
+- [ ] Tests: a cross-system bring-in is detected and offered translation; the port creates a variant
+      without touching the source; custom-allowed ports route through approval.
+
+**Sequencing note:** 38a is the shippable start (system picker + allow-custom on create). 38b builds
+on existing invites. 38c/38d are larger and depend on the builder (31) and variants being solid.
+
 ## Slice 25 — Connect it to the rest
 
 - [ ] Spells cast on you land in the ledger as sources (`activeEffects`), so Bless and a potion are

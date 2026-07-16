@@ -6,12 +6,15 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import styles from './hextech.module.css'
+import { GAME_SYSTEMS, SYSTEM_AMBIGUOUS } from '@/lib/dnd/systems'
 
 export default function NewCampaignButton() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [blurb, setBlurb] = useState('')
+  const [system, setSystem] = useState<string>(SYSTEM_AMBIGUOUS)
+  const [allowCustom, setAllowCustom] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -30,7 +33,7 @@ export default function NewCampaignButton() {
       const res = await fetch('/api/dnd/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), blurb: blurb.trim() || undefined }),
+        body: JSON.stringify({ name: name.trim(), blurb: blurb.trim() || undefined, system, allowCustom }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data.campaign) {
@@ -69,8 +72,23 @@ export default function NewCampaignButton() {
         <input className={styles.input} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoFocus required />
       </label>
       <label className={styles.field}>
-        <span className={styles.label}>Blurb (optional)</span>
+        <span className={styles.label}>Description (optional)</span>
         <input className={styles.input} value={blurb} onChange={(e) => setBlurb(e.target.value)} maxLength={200} />
+      </label>
+      <label className={styles.field}>
+        <span className={styles.label}>Game system</span>
+        <select className={styles.input} value={system} onChange={(e) => setSystem(e.target.value)}>
+          <option value={SYSTEM_AMBIGUOUS}>— pick later —</option>
+          {GAME_SYSTEMS.map((s) => <option key={s.key} value={s.key}>{s.name}</option>)}
+        </select>
+        <span style={{ fontSize: 11.5, color: 'var(--hx-muted)', marginTop: 3 }}>The rulebook your table runs. Characters brought from another system can be translated into it.</span>
+      </label>
+      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, color: 'var(--hx-text)', cursor: 'pointer' }}>
+        <input type="checkbox" checked={allowCustom} onChange={(e) => setAllowCustom(e.target.checked)} style={{ marginTop: 2 }} />
+        <span>
+          Allow custom / homebrew builds
+          <span style={{ display: 'block', fontSize: 11.5, color: 'var(--hx-muted)' }}>Lets players (and the AI) invent traits and feats — and makes porting a character from another system smoother.</span>
+        </span>
       </label>
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <button type="button" className={styles.hexBtn} onClick={() => setOpen(false)}>Cancel</button>
