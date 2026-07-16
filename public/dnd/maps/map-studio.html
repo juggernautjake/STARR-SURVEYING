@@ -800,14 +800,25 @@ function art(a,animate){
   let clouds="";
   if(cloudStyle!=="none"&&cloudAmt>0){
     const crng=mulberry((a.seed||1)*13+7);
+    // 2D<->3D CLOUD PARITY. The 3D shader covers the whole planet at cloudCov=1; the 2D used to
+    // scatter ~11 faint puffs at max and stop, so "max clouds" looked overcast in 3D and nearly
+    // clear in 2D. Two fixes, both scaled by cloudAmt so 0→1 is a smooth gradient:
+    //   · far more, denser puffs (texture), and
+    //   · a full-disc coverage WASH under them (clipped to the planet at composite time) that ramps
+    //     up so cloudAmt≈1 reads as solid overcast — the endpoint the slider promises.
+    const cover=Math.pow(cloudAmt,1.3);   // ease-in so low values stay wispy, high values fill in
     if(cloudStyle==="banded"){
-      const nb=Math.round(3+cloudAmt*5);
-      for(let i=0;i<nb;i++){const y=cy-R*0.8+i*(1.6*R/nb),h=6+crng()*10;
-        clouds+=`<rect x="-40" y="${y.toFixed(1)}" width="480" height="${h.toFixed(1)}" rx="${(h/2).toFixed(1)}" fill="${cloudCol}" opacity="${(0.10+crng()*0.14*cloudAmt).toFixed(3)}"/>`;}
+      // Banded worlds (gas giants): full-width bands that widen and multiply toward max.
+      clouds+=`<circle cx="${cx}" cy="${cy}" r="${R}" fill="${cloudCol}" opacity="${(cover*0.5).toFixed(3)}"/>`;
+      const nb=Math.round(4+cloudAmt*10);
+      for(let i=0;i<nb;i++){const y=cy-R*0.9+i*(1.8*R/nb),h=(6+crng()*10)*(0.6+cloudAmt);
+        clouds+=`<rect x="-40" y="${y.toFixed(1)}" width="480" height="${h.toFixed(1)}" rx="${(h/2).toFixed(1)}" fill="${cloudCol}" opacity="${(0.12+crng()*0.16*cloudAmt).toFixed(3)}"/>`;}
     } else {
-      const nc=Math.round((cloudStyle==="heavy"?18:cloudStyle==="storm"?12:8)*(0.4+cloudAmt));
-      for(let i=0;i<nc;i++){const bx=cx-R+crng()*2*R,by=cy-R+crng()*2*R,rx=(cloudStyle==="storm"?10:16)+crng()*(cloudStyle==="heavy"?34:22),ry=rx*(0.4+crng()*0.4);
-        const puff=`<ellipse cx="{X}" cy="${by.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="${cloudCol}" opacity="${((cloudStyle==="storm"?0.18:0.12)+crng()*0.12*cloudAmt).toFixed(3)}"/>`;
+      // The coverage wash — the guarantee that max = overcast in 2D as it is in 3D.
+      clouds+=`<circle cx="${cx}" cy="${cy}" r="${R}" fill="${cloudCol}" opacity="${(cover*(cloudStyle==="heavy"?0.82:cloudStyle==="storm"?0.6:0.5)).toFixed(3)}"/>`;
+      const nc=Math.round((cloudStyle==="heavy"?30:cloudStyle==="storm"?22:20)*(0.35+cloudAmt));
+      for(let i=0;i<nc;i++){const bx=cx-R+crng()*2*R,by=cy-R+crng()*2*R,rx=((cloudStyle==="storm"?10:16)+crng()*(cloudStyle==="heavy"?34:22))*(0.8+cloudAmt*0.5),ry=rx*(0.4+crng()*0.4);
+        const puff=`<ellipse cx="{X}" cy="${by.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="${cloudCol}" opacity="${((cloudStyle==="storm"?0.18:0.12)+crng()*0.16*cloudAmt).toFixed(3)}"/>`;
         clouds+=puff.replace("{X}",bx.toFixed(1));clouds+=puff.replace("{X}",(bx+2*S).toFixed(1));}
       if(cloudStyle==="storm"){const sx=cx-R*0.3+crng()*R*0.6,sy=cy-R*0.3+crng()*R*0.6;
         clouds+=`<g transform="translate(${sx.toFixed(1)},${sy.toFixed(1)})"><ellipse rx="26" ry="16" fill="${cloudCol}" opacity="${(0.22*cloudAmt).toFixed(3)}"/><ellipse rx="26" ry="16" fill="none" stroke="${D(cloudCol,30)}" stroke-width="2" opacity=".3"/></g>`;}
