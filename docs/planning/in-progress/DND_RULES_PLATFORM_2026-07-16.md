@@ -1003,6 +1003,49 @@ a full build without being rebuilt:
 - [ ] Tests: the NEW button opens the modal; a quick-built NPC persists and appears in the roster
       under its chosen role; the full builder opens on a quick-built NPC and its choices stick.
 
+## Slice 32 — Custom tags: add, create, define
+
+> "In the item editing options, I need to be able to add flags and create flags and define them…
+> both we and the AI chat box can add tags to items and stuff. It should be able to add the flavor
+> tag, or create new tags and give them tool tip descriptions."
+
+Slice 27 shipped tooltips for the five built-in tags (`tagInfo.ts`). This makes the vocabulary
+**open** — the player and the AI can both mint new ones.
+
+- [ ] **Add** any existing tag to an item from the item editor. (Today `tags` is authored data with
+      no picker.)
+- [ ] **Create** a tag: a name plus **its definition**. The definition is not optional — a tag whose
+      meaning nobody recorded is exactly the "what does FLAVOR mean?" problem, recreated by hand.
+      Make the description a required field, not a nice-to-have.
+- [ ] Custom tags live **on the character** (`char.customTags: {name, description}[]`), so a
+      campaign's vocabulary travels with its sheets and no global registry has to be curated.
+      `tagInfo()` already returns null for unknown tags — extend it to consult the character's own
+      tags before giving up, so the Gear list and the editor both explain a homebrew tag exactly the
+      way they explain `flavor`.
+- [ ] **The AI can do both** through the structured vocabulary (`add_tag` / `define_tag` ops), never
+      by writing markup.
+- [ ] **Built-in tags stay reserved.** `weapon`, `consumable` and `equipped` are load-bearing —
+      `weapon` puts a thing in the Attacks table, `consumable` makes it usable-and-gone, `equipped`
+      applies its effects. A custom tag that shadows one of those would silently change mechanics,
+      so refuse the name and say why.
+- [ ] Tests: a custom tag renders its own tooltip; a tag cannot be created without a definition;
+      built-in names are refused; the AI's `define_tag` produces the same shape as the hand path.
+
+### The AI, CSS, and the line it must not cross
+
+> "the AI should be able to dynamically write any html/css and rewrite it to get any effect, and it
+> should be saved and kept."
+
+This works today for **presentation**: `custom_css` / `custom_layout` are per-character, already
+persisted, and already applied on load, and the AI already writes them ("make the headers gold"
+survives a reload).
+
+The boundary (restated from Slice 23 because this request pushes right against it): **mechanics must
+never be expressed as CSS.** A tag's *definition*, an item's effects, a damage die — these go in the
+model, where the ledger, the digest, the DM's review and the AI itself can all read them. A tooltip
+faked with a `::after { content: … }` looks identical on screen and is invisible to every one of
+those. Style is presentation; meaning is data. The AI gets both, through different doors.
+
 ## Slice 25 — Connect it to the rest
 
 - [ ] Spells cast on you land in the ledger as sources (`activeEffects`), so Bless and a potion are
