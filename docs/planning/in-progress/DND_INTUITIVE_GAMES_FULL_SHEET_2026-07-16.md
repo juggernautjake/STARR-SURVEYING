@@ -129,8 +129,12 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
   **Stances**, **Defensive Power**, **Situational Bonuses**, and **Conditions**. All derived numbers come
   from the Slice-2 rules engine. Verified: `tsc` clean, lint clean, full dnd suite (312) green (the attack
   math is covered by `ig-rules.test.ts`).
-- **Slice 7 — IG sheet: Reference + Equipment + Notes.** Actions grouped by economy, feats/powers/stance
-  descriptions, the worn-slot equipment + other possessions, notes.
+- **Slice 7 — IG sheet: Reference + Equipment + Notes.** ✅ `IGSheet` gained a **Reference** section — the
+  character's **Powers** with their effect text (from `IG_POWERS`), **Feats** (general + combat, badged),
+  **Stance descriptions** with the A/B effects (from `IG_STANCES`), and a collapsible **action-economy**
+  reference (Single/Double/Triple/Reaction/Other from `igActionsByEconomy`); an **Equipment** section (worn
+  slots Arms/Head/Torso/Legs/Hands + Other Possessions); and a **Notes** block. Each shown only when present.
+  Verified: `tsc` clean, lint clean, full dnd suite (312) green.
 - **Slice 8 — IG sheet: Companion Creature.** The companion's own scores/skills/attacks/powers/HP/saves/DR/
   movement/resistances/vulnerabilities.
 - **Slice 9 — Full guided builder UI.** Upgrade `IGCharacterBuilder` into a step-through that drives the whole
@@ -154,4 +158,4 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
 - **Reuse:** build on the shipped content library, catalog, provenance, submission/approval, DM grants,
   campaign policy, the custom-sheet/style engine, and `/ai-edit` grounding — don't fork them.
 
-### Status: IN PROGRESS (Slices 0–6 shipped; 7–11 pending)
+### Status: IN PROGRESS (Slices 0–7 shipped; 8–11 pending)

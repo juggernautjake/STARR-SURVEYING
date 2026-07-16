@@ -12,6 +12,14 @@ import styles from './hextech.module.css';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { IG_ABILITIES, IG_SAVES } from '@/lib/dnd/systems/intuitive-games/model';
 import { igAbilityMod, igDerived, igSkillTotal, igRanksSpent, igResolveAttack } from '@/lib/dnd/systems/intuitive-games/rules';
+import { IG_STANCES, IG_POWERS, IG_ACTION_ECONOMIES, igActionsByEconomy } from '@/lib/dnd/systems/intuitive-games/content';
+
+const effectMap = (() => {
+  const m = new Map<string, string>();
+  for (const e of [...IG_STANCES, ...IG_POWERS]) if (e.effect) m.set(e.name.trim().toLowerCase(), e.effect);
+  return m;
+})();
+const effectOf = (name: string) => effectMap.get(name.trim().toLowerCase()) ?? '';
 
 type Source = 'vanilla' | 'custom' | 'dm-granted';
 interface Tagged { kind: string; name: string; source: Source }
@@ -193,6 +201,85 @@ export default function IGSheet({ ig, elements }: { ig: IGCharacter; elements: T
           </div>
         );
       })()}
+
+      {/* Reference — powers + feats + stance descriptions + the action economy. */}
+      {(ig.powers.length > 0 || ig.feats.general.length > 0 || ig.feats.combat.length > 0 || ig.stances.length > 0) && (
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div style={label}>Reference — powers, feats &amp; stances</div>
+          {ig.powers.length > 0 && (
+            <div style={{ display: 'grid', gap: 6 }}>
+              <span style={{ ...label, color: 'var(--hx-pink-1, #d98cc0)' }}>Powers</span>
+              {ig.powers.map((p) => (
+                <div key={p} style={{ display: 'grid', gap: 1 }}>
+                  <span style={{ fontSize: 13, color: 'var(--hx-text)', display: 'flex', alignItems: 'center', gap: 6 }}>{p} {badgeFor(p)}</span>
+                  {effectOf(p) && <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>{effectOf(p)}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          {(ig.feats.general.length > 0 || ig.feats.combat.length > 0) && (
+            <div style={{ display: 'grid', gap: 4 }}>
+              <span style={label}>Feats</span>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {[...ig.feats.general, ...ig.feats.combat].map((f) => (
+                  <span key={f} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '2px 9px' }}>{f} {badgeFor(f)}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {ig.stances.length > 0 && (
+            <div style={{ display: 'grid', gap: 6 }}>
+              <span style={{ ...label, color: 'var(--hx-teal-1)' }}>Stance descriptions</span>
+              {ig.stances.map((s) => (
+                <div key={s} style={{ display: 'grid', gap: 1 }}>
+                  <span style={{ fontSize: 13, color: 'var(--hx-text)', display: 'flex', alignItems: 'center', gap: 6 }}>{s} {badgeFor(s)}</span>
+                  {effectOf(s) && <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>{effectOf(s)}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          <details style={{ fontSize: 12 }}>
+            <summary style={{ cursor: 'pointer', ...label }}>Action economy (reference)</summary>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px 14px', marginTop: 6 }}>
+              {IG_ACTION_ECONOMIES.map((e) => {
+                const list = igActionsByEconomy()[e];
+                return (
+                  <div key={e}>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--hx-gold-2)', letterSpacing: '0.05em' }}>{e.toUpperCase()}</div>
+                    {list.map((a) => <div key={a.name} style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{a.name}{a.note ? ` (${a.note})` : ''}</div>)}
+                  </div>
+                );
+              })}
+            </div>
+          </details>
+        </div>
+      )}
+
+      {/* Equipment — worn slots + other possessions. */}
+      {(() => {
+        const eq = ig.equipment;
+        const slots = ([['Arms', eq.arms], ['Head', eq.head], ['Torso', eq.torso], ['Legs', eq.legs], ['Hands', eq.hands]] as [string, string][]).filter(([, v]) => v && v.trim());
+        if (!slots.length && !eq.other.length) return null;
+        return (
+          <div style={{ display: 'grid', gap: 6 }}>
+            <div style={label}>Equipment</div>
+            {slots.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '4px 14px' }}>
+                {slots.map(([k, v]) => <div key={k} style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}><span style={label}>{k}</span><span style={value}>{v}</span></div>)}
+              </div>
+            )}
+            {eq.other.length > 0 && <div style={{ fontSize: 12.5, color: 'var(--hx-text)' }}><span style={label}>Other </span>{eq.other.join(', ')}</div>}
+          </div>
+        );
+      })()}
+
+      {/* Notes */}
+      {ig.notes && ig.notes.trim() && (
+        <div style={{ display: 'grid', gap: 4 }}>
+          <div style={label}>Notes</div>
+          <p style={{ ...value, whiteSpace: 'pre-wrap', margin: 0, color: 'var(--hx-muted)' }}>{ig.notes}</p>
+        </div>
+      )}
 
       {/* Identity details */}
       {(idRows.length > 0 || langLines.length > 0 || id.bio) && (
