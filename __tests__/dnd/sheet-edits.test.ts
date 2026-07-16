@@ -162,3 +162,55 @@ describe('editPath', () => {
     for (const [edit, path] of cases) expect(editPath(edit)).toBe(path);
   });
 });
+
+describe('rename_spell / rename_resource complete the "rename anything" surface (Slice 23)', () => {
+  function withSpellAndResource() {
+    const c = blankCharacter('X');
+    c.spells = [{ id: 's1', name: 'Guiding Bolt', level: 1, description: 'a bolt' }] as typeof c.spells;
+    c.resources = [{ id: 'r1', name: 'Momentum', max: 4, current: 4, color: 'teal', resetOn: 'long' }] as typeof c.resources;
+    return c;
+  }
+
+  it('rename_spell changes only the name and marks the spell customized', () => {
+    const out = applySheetEdits(withSpellAndResource(), [{ op: 'rename_spell', name: 'Guiding Bolt', to: 'Spotlight' }]);
+    const s = out.spells!.find((x) => x.name === 'Spotlight')!;
+    expect(s).toBeTruthy();
+    expect(s.description).toBe('a bolt'); // kept
+    expect(s.customized).toBe(true);
+    expect(out.spells!.some((x) => x.name === 'Guiding Bolt')).toBe(false);
+  });
+
+  it('rename_resource renames the pool, keeping its counts', () => {
+    const out = applySheetEdits(withSpellAndResource(), [{ op: 'rename_resource', name: 'Momentum', to: 'Rage' }]);
+    const r = out.resources.find((x) => x.name === 'Rage')!;
+    expect(r.max).toBe(4);
+    expect(r.current).toBe(4);
+  });
+
+  it('a blank target name is a no-op (never erases the row)', () => {
+    const out = applySheetEdits(withSpellAndResource(), [{ op: 'rename_spell', name: 'Guiding Bolt', to: '  ' }]);
+    expect(out.spells!.some((x) => x.name === 'Guiding Bolt')).toBe(true);
+  });
+});
+
+describe('update_attack retunes an existing attack in place (Slice 23 — "change the damage die")', () => {
+  function withSword() {
+    const c = blankCharacter('X');
+    c.attacks = [{ id: 'sw', name: 'Sword', ability: 'str', proficient: true, range: 'Melee (5 ft)', damage: '1d8', damageType: 'slashing', notes: 'the sword' }] as typeof c.attacks;
+    return c;
+  }
+  it('changes only the named field, keeps the rest, marks ✎', () => {
+    const out = applySheetEdits(withSword(), [{ op: 'update_attack', name: 'Sword', damage: '1d12' }]);
+    const a = out.attacks[0];
+    expect(a.damage).toBe('1d12');
+    expect(a.range).toBe('Melee (5 ft)'); // kept
+    expect(a.notes).toBe('the sword');    // kept
+    expect(a.ability).toBe('str');        // kept — no -NaN
+    expect(a.customized).toBe(true);
+  });
+  it('a no-op update on a missing attack changes nothing', () => {
+    const before = withSword();
+    const out = applySheetEdits(before, [{ op: 'update_attack', name: 'Nonexistent', damage: '2d6' }]);
+    expect(out.attacks[0].damage).toBe('1d8');
+  });
+});

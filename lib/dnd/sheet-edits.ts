@@ -116,6 +116,9 @@ export type SheetEdit =
   | { op: 'set_skill'; skill: string; prof: ProfLevel }
   | { op: 'set_combat'; field: 'ac' | 'maxHp' | 'currentHp' | 'speed'; value: number }
   | { op: 'add_attack'; name: string; ability: AbilityKey; damage: string; damageType?: string; proficient?: boolean; range?: string; bonusToHit?: number; bonusDamage?: number }
+  // Retune an EXISTING attack in place — the literal reported case "change my sword's damage die".
+  // Merges only the fields given (keeping the rest), unlike add_attack which replaces the whole row.
+  | { op: 'update_attack'; name: string; ability?: AbilityKey; damage?: string; damageType?: string; proficient?: boolean; range?: string; bonusToHit?: number; bonusDamage?: number; notes?: string }
   | { op: 'remove_attack'; name: string }
   | { op: 'add_feature'; name: string; source?: string; body: string[] }
   | { op: 'remove_feature'; name: string }
@@ -134,6 +137,8 @@ export type SheetEdit =
   | { op: 'rename_attack'; name: string; to: string }
   | { op: 'rename_feature'; name: string; to: string }
   | { op: 'rename_item'; name: string; to: string }
+  | { op: 'rename_spell'; name: string; to: string }
+  | { op: 'rename_resource'; name: string; to: string }
   // Custom tags (Slice 32). The AI can mint a tag WITH its definition (kept on the character) and
   // apply tags to an item. Same rules as the hand path: a definition is required, and the wiring
   // tags (weapon/consumable/equipped) are reserved. `define_tag` name = the tag, `desc` = its meaning.
@@ -155,9 +160,11 @@ export function editPath(e: SheetEdit): string {
     case 'set_save_proficient': return `saves.${e.ability}.proficient`;
     case 'set_skill': return `skills.${e.skill}`;
     case 'set_combat': return `combat.${e.field}`;
-    case 'add_attack': case 'remove_attack': case 'rename_attack': return `attacks[${slug(e.name)}]`;
+    case 'add_attack': case 'update_attack': case 'remove_attack': case 'rename_attack': return `attacks[${slug(e.name)}]`;
     case 'add_feature': case 'remove_feature': case 'rename_feature': return `features[${slug(e.name)}]`;
     case 'add_item': case 'update_item': case 'equip_item': case 'remove_item': case 'rename_item': case 'tag_item': return `inventory[${slug(e.name)}]`;
+    case 'rename_spell': return `spells[${slug(e.name)}]`;
+    case 'rename_resource': return `resources[${slug(e.name)}]`;
     case 'define_tag': return `customTags[${slug(e.name)}]`;
     case 'add_resource': return `resources[${slug(e.name)}]`;
   }
@@ -206,6 +213,18 @@ export function applySheetEdits(input: Character, edits: SheetEdit[]): Character
         c.attacks = [...c.attacks.filter((a) => !eqName(a.name, e.name)), atk];
         break;
       }
+      case 'update_attack': {
+        // Merge only the supplied fields onto the matching attack (keeping its id and the rest), and
+        // mark it ✎. Clamps nothing that add_attack didn't — same shape, partial.
+        const fields = ['ability', 'damage', 'damageType', 'proficient', 'range', 'bonusToHit', 'bonusDamage', 'notes'] as const;
+        c.attacks = c.attacks.map((a) => {
+          if (!eqName(a.name, e.name)) return a;
+          const patch: Partial<Attack> = {};
+          for (const k of fields) if ((e as Record<string, unknown>)[k] !== undefined) (patch as Record<string, unknown>)[k] = (e as Record<string, unknown>)[k];
+          return { ...a, ...patch, customized: true };
+        });
+        break;
+      }
       case 'remove_attack': c.attacks = c.attacks.filter((a) => !eqName(a.name, e.name)); break;
       // rename/update also mark the element ✎ customized (Slice 20): an AI edit is an edit away from
       // source just like a hand one, and the marker means the same thing whoever made the change.
@@ -222,6 +241,16 @@ export function applySheetEdits(input: Character, edits: SheetEdit[]): Character
       case 'rename_item': {
         const to = (e.to ?? (raw.to as string | undefined) ?? '').trim();
         if (to) c.inventory = c.inventory.map((i) => (eqName(i.name, e.name) ? { ...i, name: to, customized: true } : i));
+        break;
+      }
+      case 'rename_spell': {
+        const to = (e.to ?? (raw.to as string | undefined) ?? '').trim();
+        if (to) c.spells = (c.spells ?? []).map((s) => (eqName(s.name, e.name) ? { ...s, name: to, customized: true } : s));
+        break;
+      }
+      case 'rename_resource': {
+        const to = (e.to ?? (raw.to as string | undefined) ?? '').trim();
+        if (to) c.resources = c.resources.map((r) => (eqName(r.name, e.name) ? { ...r, name: to } : r));
         break;
       }
       case 'define_tag': {
@@ -332,7 +361,7 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
           properties: {
             op: {
               type: 'string',
-              enum: ['set_name', 'set_meta', 'set_level', 'set_ability', 'set_save_proficient', 'set_skill', 'set_combat', 'add_attack', 'remove_attack', 'rename_attack', 'add_feature', 'remove_feature', 'rename_feature', 'add_item', 'update_item', 'equip_item', 'remove_item', 'rename_item', 'add_resource', 'define_tag', 'tag_item'],
+              enum: ['set_name', 'set_meta', 'set_level', 'set_ability', 'set_save_proficient', 'set_skill', 'set_combat', 'add_attack', 'update_attack', 'remove_attack', 'rename_attack', 'add_feature', 'remove_feature', 'rename_feature', 'add_item', 'update_item', 'equip_item', 'remove_item', 'rename_item', 'rename_spell', 'rename_resource', 'add_resource', 'define_tag', 'tag_item'],
             },
             field: { type: 'string', description: 'For set_meta: kicker|role|species|className|subclass. For set_combat: ac|maxHp|currentHp|speed.' },
             to: { type: 'string', description: 'For rename_* ops: the NEW name. Renames keep every other field — use these to rename an attack/feature/item, never remove + re-add (that drops its stats).' },

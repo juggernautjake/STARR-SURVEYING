@@ -964,11 +964,21 @@ things are settled by the rulebook and which are settled by the sheet itself.
 - [ ] Tests: a homebrew feature is described as the character's own, not disclaimed; the digest
       carries provenance; an official-rules question still gets the official answer.
 
-## Slice 23 — The AI edits anything, and it sticks
+## Slice 23 — The AI edits anything, and it sticks ✅ SHIPPED 2026-07-16
 
 > "if I ask the AI to change the name of a weapon from Backless Park Bench to just Park Bench, then
 > it should actually do that, save it, and then from then on whenever I load into the page it shows
 > the new edited name… I could also ask it to change the damage die."
+
+**Shipped (commit pending).** Rename now covers **every** element type — `rename_attack`/`_feature`/
+`_item` plus the new `rename_spell` and `rename_resource`, matched by current name. Retune-in-place is
+the new `update_attack` (the literal reported case: "change my sword's damage die" merges just that
+field, keeping the rest — no stat-loss), alongside `update_item` and the `set_*` ops for stats. Every
+one lands in the model via `applySheetEdits`, persists through autosave, re-derives through the ledger,
+is audited in `dnd_sheet_edits`, and marks the element ✎ (Slice 20). Manual parity holds — the player
+does all of this by hand through the same vocabulary (Slice 20). Presentation edits go through the
+existing `customize_layout`/`custom_css` path; mechanics never as CSS (the ai-scope guard). Tests:
+`sheet-edits.test.ts` (+5 for rename_spell/resource + update_attack).
 
 - [ ] **Rename anything**: `rename` ops for attacks, items, features, spells, resources — matched by
       current name or id. This is the literal reported case and it is one op away.
