@@ -10,6 +10,7 @@ import styles from './hextech.module.css'
 import Chat from './Chat'
 import Lightbox from './Lightbox'
 import type { CampaignHubData } from '@/lib/dnd/campaign-summary'
+import { systemLabel, normalizeSystem, SYSTEM_AMBIGUOUS } from '@/lib/dnd/systems'
 
 function Portrait({ url, name, size }: { url: string | null; name: string; size: number }) {
   if (url) {
@@ -66,6 +67,30 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
       if (r.ok) { setAddPick(''); router.refresh() }
       else setAddErr(j.error || 'Could not add that character.')
     } catch { setAddErr('Could not add that character.') } finally { setAdding(false) }
+  }
+
+  // Cross-system port (38d): the campaign's own characters of MINE that are built for a different
+  // system than this campaign runs. The transpose endpoint already exists (non-destructive — it
+  // installs a new system-variant and keeps the source), so this just offers to call it.
+  const [translating, setTranslating] = useState<string | null>(null)
+  const [translateErr, setTranslateErr] = useState<string | null>(null)
+  const campSys = data.system ? normalizeSystem(data.system) : SYSTEM_AMBIGUOUS
+  const mismatched =
+    campSys === SYSTEM_AMBIGUOUS
+      ? []
+      : data.characters.filter((c) => c.mine && c.system && normalizeSystem(c.system) !== SYSTEM_AMBIGUOUS && normalizeSystem(c.system) !== campSys)
+
+  async function translate(charId: string) {
+    if (!data.system || translating) return
+    setTranslating(charId); setTranslateErr(null)
+    try {
+      const r = await fetch(`/api/dnd/characters/${charId}/system`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ system: data.system }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (r.ok) router.refresh()
+      else setTranslateErr(j.error || 'Could not translate — try again.')
+    } catch { setTranslateErr('Could not translate — try again.') } finally { setTranslating(null) }
   }
 
   function messageDm() {
@@ -177,6 +202,24 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
               </a>
             </div>
           )}
+
+          {/* 38d — a character of yours built for another system, offered a translate into this
+              campaign's rulebook. The port is non-destructive: your original sheet stays a variant. */}
+          {mismatched.map((c) => (
+            <div key={`xlate-${c.id}`} className={styles.framedPanel} style={{ display: 'grid', gap: 6, padding: '12px 16px', borderColor: 'var(--hx-gold-1)' }}>
+              <p style={{ margin: 0, fontSize: 12.5, color: 'var(--hx-text)', lineHeight: 1.5 }}>
+                <strong>{c.name}</strong> is built for <strong>{systemLabel(normalizeSystem(c.system!))}</strong>, but this
+                campaign runs <strong>{systemLabel(campSys)}</strong>. Translate it? The AI transposes a new
+                {' '}{systemLabel(campSys)} sheet — your original stays intact.
+              </p>
+              <div>
+                <button className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} onClick={() => translate(c.id)} disabled={translating === c.id}>
+                  {translating === c.id ? 'Translating…' : `⇄ Translate ${c.name} to ${systemLabel(campSys)}`}
+                </button>
+              </div>
+              {translateErr && translating === null && <p style={{ color: 'var(--hx-danger)', fontSize: 12, margin: 0 }}>{translateErr}</p>}
+            </div>
+          ))}
 
           {/* Roster: DM + all characters */}
           <section className={styles.framedPanel}>

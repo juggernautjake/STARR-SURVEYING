@@ -275,6 +275,9 @@ export interface HubCharacter {
   rosterRole: string;
   sheetType: string | null;
   portrait: string | null;
+  /** The game system this character's sheet is built for (Slice 38d) — used to offer a translate
+   *  when it differs from the campaign's system. `null`/`ambiguous` = no specific system. */
+  system: string | null;
   /** The viewer owns OR plays this character. */
   mine: boolean;
 }
@@ -311,14 +314,17 @@ export interface CampaignHubData {
   /** The campaign's published map (latest), shown to players. Null if none / unmigrated. */
   publishedMap: { id: string; name: string; kind: string; imageUrl: string | null } | null;
   viewerRole: 'dm' | 'player';
+  /** The game system this campaign runs (Slice 38d). A brought-in character built for a different
+   *  system is offered a translate into this one. `null`/`ambiguous` = no specific system set. */
+  system: string | null;
 }
 
 /** The shared campaign hub (Phase P) for a signed-in member: roster + DM, campaign art,
  *  chat is mounted client-side, and read-only session summaries. `viewerId` is the
  *  current user (used to flag their own character). */
 export async function loadCampaignHub(campaignId: string, viewerId: string, viewerRole: 'dm' | 'player'): Promise<CampaignHubData | null> {
-  const { data: camp } = await supabaseAdmin.from('dnd_campaigns').select('id, name, blurb, theme').eq('id', campaignId).maybeSingle();
-  const campaign = camp as { id: string; name: string; blurb: string | null; theme: Record<string, unknown> | null } | null;
+  const { data: camp } = await supabaseAdmin.from('dnd_campaigns').select('id, name, blurb, theme, system').eq('id', campaignId).maybeSingle();
+  const campaign = camp as { id: string; name: string; blurb: string | null; theme: Record<string, unknown> | null; system?: string | null } | null;
   if (!campaign) return null;
 
   if (campaignId === DEMO_CAMPAIGN_ID) { await ensureDemoStreamer(); await ensureDonata(); }
@@ -327,14 +333,14 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
   const [{ data: mems }, { data: chars }, { data: sess }, { data: mediaRows }] = await Promise.all([
     supabaseAdmin.from('dnd_campaign_members').select('user_id, role').eq('campaign_id', campaignId),
     charIds.length
-      ? supabaseAdmin.from('dnd_characters').select('id, name, is_npc, roster_role, owner_user_id, played_by_user_id, token_url, art_url, sheet_type').in('id', charIds).order('is_npc', { ascending: true })
+      ? supabaseAdmin.from('dnd_characters').select('id, name, is_npc, roster_role, owner_user_id, played_by_user_id, token_url, art_url, sheet_type, system').in('id', charIds).order('is_npc', { ascending: true })
       : Promise.resolve({ data: [] as unknown[] }),
     supabaseAdmin.from('dnd_sessions').select('id, title, sort_order').eq('campaign_id', campaignId).order('sort_order', { ascending: true }),
     supabaseAdmin.from('dnd_media').select('id, url, kind, label, gallery_tags').eq('campaign_id', campaignId).order('created_at', { ascending: false }),
   ]);
   const members = (mems ?? []) as { user_id: string; role: string }[];
   const characters = (chars ?? []) as {
-    id: string; name: string; is_npc: boolean; roster_role: string | null; owner_user_id: string | null; played_by_user_id: string | null; token_url: string | null; art_url: string | null; sheet_type: string | null;
+    id: string; name: string; is_npc: boolean; roster_role: string | null; owner_user_id: string | null; played_by_user_id: string | null; token_url: string | null; art_url: string | null; sheet_type: string | null; system: string | null;
   }[];
   const sessions = (sess ?? []) as { id: string; title: string; sort_order: number }[];
   const names = await nameMap(
@@ -405,6 +411,7 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
       playedByName: ch.played_by_user_id ? names.get(ch.played_by_user_id) ?? null : null,
       isNpc: ch.is_npc,
       rosterRole: (['pc', 'special_npc', 'generic_npc'].includes(ch.roster_role ?? '') ? ch.roster_role : ch.is_npc ? 'generic_npc' : 'pc') as string,
+      system: ch.system ?? null,
       sheetType: ch.sheet_type,
       portrait: ch.token_url ?? ch.art_url ?? null,
       // "Mine" = the viewer owns it or plays it (either grants a sheet to open).
@@ -418,6 +425,7 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
       null,
     publishedMap,
     viewerRole,
+    system: campaign.system ?? null,
   };
 }
 

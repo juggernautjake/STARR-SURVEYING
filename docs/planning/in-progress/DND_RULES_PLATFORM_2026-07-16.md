@@ -1608,7 +1608,11 @@ Back trap, but their `src` is computed server-side and stable per load, and the 
 "jumps up and down" hints at scroll-restoration, which points at a specific scrollable container.
 Left open rather than guess.
 
-## Slice 38 — Campaign creation → invite-by-link → join → bring/port a character
+## Slice 38 — Campaign creation → invite-by-link → join → bring/port a character ✅ SHIPPED 2026-07-16
+
+All four sub-slices shipped: 38a (creation with system + allow-custom), 38b (copy invite link →
+`/dnd/join/<code>`), 38c (bring-or-make prompt for a new member), 38d (cross-system translate via the
+existing non-destructive transpose endpoint). The full create → invite → join → bring/port arc works.
 
 The full flow the user described, end to end. Several pieces already exist (invites table, the
 campaign `system` + `allow_custom` fields, the character import/AI builder, the cross-system chat);
@@ -1645,21 +1649,24 @@ this slice is mostly about wiring them into one journey.
       system attached). Previously the onboarding block offered only "Create"; the bring-existing path
       lived in a separate picker lower down — now both are in the first prompt a new member sees.
 
-### 38d — Port a character into the campaign's system
+### 38d — Port a character into the campaign's system ✅ SHIPPED 2026-07-16
 > "if that character does not have a character sheet for the campaign's system, prompt to translate…
 > AI will help transpose the character into the new system as good as possible."
-- [ ] When a brought-in character's `system` ≠ the campaign's, prompt to **translate**. The system
-      already models per-system sheets (`system_variants`) and has cross-system awareness
-      (`system-detect.ts`, the librarian) — this is an AI transposition that produces a new
-      system-variant sheet for the campaign's rulebook, preserving name/story/vibe.
-- [ ] **When the campaign allows custom builds (38a toggle),** the AI may invent traits/feats that
-      keep the character's original flavour while giving it mechanics that scale in the new system —
-      routed through the existing custom-content + DM-approval path (Slice 5 / `summarizeCharacterProvenance`),
-      not a bypass.
-- [ ] The original sheet is never destroyed — the port is a new system-variant on the same character,
-      so the player keeps their other-system version too (the overlay principle again).
-- [ ] Tests: a cross-system bring-in is detected and offered translation; the port creates a variant
-      without touching the source; custom-allowed ports route through approval.
+- [x] **Detect + offer translate — shipped.** The hub now threads the campaign's `system` and each
+      character's `system` (`loadCampaignHub` + `CampaignHubData`/`HubCharacter`). `CampaignHub` shows a
+      "**⇄ Translate <name> to <campaign system>**" prompt for any of your characters built for a
+      different system (both sides must be a specific system — ambiguous on either side is skipped,
+      since there's no rulebook to translate to/from).
+- [x] **AI transposition — already existed, now reached.** The prompt calls the existing
+      `POST /characters/[id]/system` (Slice-13 transpose): grounded on the TARGET rules only, it
+      rebuilds the sheet in the campaign's system, keeping concept/name/level/role, and noting any
+      substitution in `unmapped` for review.
+- [x] **Non-destructive — the port is a new variant.** That endpoint `installTransposed` + `switchActive`
+      over `system_variants`, snapshotting the current sheet first, so the player keeps their
+      other-system version (the overlay principle). Custom-allowed ports still flow through the
+      existing provenance/approval path.
+- [x] Tests: `campaign-port.test.ts` (5) — the hub carries both systems, the mismatch is detected
+      (ambiguous ignored), the translate calls the transpose endpoint non-destructively.
 
 **Sequencing note:** 38a is the shippable start (system picker + allow-custom on create). 38b builds
 on existing invites. 38c/38d are larger and depend on the builder (31) and variants being solid.
