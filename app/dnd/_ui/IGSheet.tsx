@@ -11,7 +11,7 @@ import { useMemo } from 'react';
 import styles from './hextech.module.css';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { IG_ABILITIES, IG_SAVES } from '@/lib/dnd/systems/intuitive-games/model';
-import { igAbilityMod, igDerived } from '@/lib/dnd/systems/intuitive-games/rules';
+import { igAbilityMod, igDerived, igSkillTotal, igRanksSpent } from '@/lib/dnd/systems/intuitive-games/rules';
 
 type Source = 'vanilla' | 'custom' | 'dm-granted';
 interface Tagged { kind: string; name: string; source: Source }
@@ -101,6 +101,44 @@ export default function IGSheet({ ig, elements }: { ig: IGCharacter; elements: T
           <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--hx-text)' }}>{fmt(derived.proficiency)}</div>
         </div>
       </div>
+
+      {/* Skills — general grouped by ability, combat skills separate; totals from the rules engine. */}
+      {ig.skills.length > 0 && (() => {
+        const general = ig.skills.filter((s) => !s.combat);
+        const combat = ig.skills.filter((s) => s.combat);
+        const byAbility = IG_ABILITIES.map((ab) => ({ ab, list: general.filter((s) => s.ability === ab) })).filter((g) => g.list.length);
+        const Row = ({ s }: { s: (typeof ig.skills)[number] }) => {
+          const total = igSkillTotal(s, derived.level, igAbilityMod(ig.abilities[s.ability]));
+          return (
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12.5, padding: '1px 0' }}>
+              <span style={{ color: 'var(--hx-text)' }}>{s.name}{s.proficient ? <span style={{ color: 'var(--hx-teal-1)', fontSize: 9.5 }}> ●</span> : null}</span>
+              <span style={{ color: 'var(--hx-gold-2)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmt(total)}</span>
+            </div>
+          );
+        };
+        return (
+          <div style={{ display: 'grid', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+              <div style={label}>Skills</div>
+              <div style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>Ranks: {igRanksSpent(ig)} spent / {ig.skillRanksAvailable} available · trained ●</div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px 18px' }}>
+              {byAbility.map(({ ab, list }) => (
+                <div key={ab}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--hx-teal-1)', letterSpacing: '0.05em', marginBottom: 2 }}>{ab}-BASED</div>
+                  {list.map((s) => <Row key={s.name} s={s} />)}
+                </div>
+              ))}
+              {combat.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--hx-danger)', letterSpacing: '0.05em', marginBottom: 2 }}>COMBAT SKILLS</div>
+                  {combat.map((s) => <Row key={s.name} s={s} />)}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Identity details */}
       {(idRows.length > 0 || langLines.length > 0 || id.bio) && (

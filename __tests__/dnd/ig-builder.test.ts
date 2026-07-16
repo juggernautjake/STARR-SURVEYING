@@ -90,6 +90,20 @@ describe('assembleIGVanillaCharacter (Slice 7b)', () => {
     expect(ig.powers).toEqual(['Detect Magic']);
   });
 
+  it('seeds the full IG skill list grouped by ability with combat skills flagged (Slice 5)', () => {
+    const ig = buildIGModel({ name: 'Sk', className: 'Freebooter' });
+    expect(ig.skills.length).toBeGreaterThanOrEqual(36);
+    // a general skill carries its governing ability
+    expect(ig.skills.find((s) => s.name === 'Stealth')?.ability).toBe('DEX');
+    expect(ig.skills.find((s) => s.name === 'Climb')?.ability).toBe('STR');
+    // the nine combat skills are flagged
+    expect(ig.skills.filter((s) => s.combat).map((s) => s.name)).toEqual(
+      expect.arrayContaining(['Dirty Trick', 'Disarm', 'Feint', 'Grapple', 'Overrun', 'Reposition', 'Steal', 'Sunder', 'Trip']),
+    );
+    expect(ig.skills.find((s) => s.name === 'Grapple')?.combat).toBe(true);
+    expect(ig.skills.find((s) => s.name === 'Stealth')?.combat).toBe(false);
+  });
+
   it('a DM grant lets a custom stance through (dm-granted, not blocking)', () => {
     const c = assembleIGVanillaCharacter({ className: 'Freebooter', stances: ['Berserker Fury'] });
     const s = summarizeCharacterProvenance(c, 'intuitive-games', [{ kind: 'stance', name: 'Berserker Fury', grantedBy: 'DM', mechanics: 'rage stance' }]);

@@ -159,6 +159,9 @@ export const IG_MOVEMENT_TYPES: string[] = ['None', 'Fast', ...['Fly', 'Climb', 
 // ── Subclasses + backgrounds (the documented ones; extensible). ─────────────────────────────────────
 // The five SUBCLASSES from the template's "Subclass List" (Data Sheet) — distinct from the 13 classes.
 export const IG_SUBCLASSES: string[] = ['Arcanist', 'Summoner', 'Champion', 'Witch', 'Shifter'];
+
+// The Combat Skills (Sheet 4) — tracked separately from general skills. Str/Dex variants share these names.
+export const IG_COMBAT_SKILLS = new Set(['Dirty Trick', 'Disarm', 'Feint', 'Grapple', 'Overrun', 'Reposition', 'Steal', 'Sunder', 'Trip']);
 export const IG_BACKGROUNDS: string[] = [];
 
 // ── Companion creature type categories (the bestiary groups). ───────────────────────────────────────

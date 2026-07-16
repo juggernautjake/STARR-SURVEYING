@@ -114,8 +114,14 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
   `isIGCharacter`). Uses the platform design tokens so it's styleable via the existing custom layout/CSS.
   Verified: `tsc` clean, lint clean, full dnd suite (311) green (the derived numbers come from the
   Slice-2-tested rules engine; a live render pass is Slice 11 QA — no React test harness in-repo).
-- **Slice 5 — IG sheet: Skills.** The rank-budgeted, ability-grouped skills + combat skills with
-  Ranks/Prof/Misc/Total computed by `rules.ts`; ranks-available/spent tracker.
+- **Slice 5 — IG sheet: Skills.** ✅ `buildIGModel` now seeds the **full IG skill list** (the 36 skills from
+  `system-rules.ts`) onto `ig.skills` with the **9 Combat Skills flagged** (`IG_COMBAT_SKILLS`), each carrying
+  its governing ability. `IGSheet` renders a **Skills** section: general skills **grouped by ability**
+  (STR/DEX/…-Based) with a trained ● marker and each skill's **total from `igSkillTotal`** (ranks + trained-
+  proficiency + misc + attribute), Combat Skills in their own group, and a **ranks spent / available** tracker
+  (`igRanksSpent` vs `skillRanksAvailable`). Verified: `tsc` clean, lint clean, `__tests__/dnd/ig-builder.test.ts`
+  (+1: seeds ≥36 skills, governing ability correct, the nine combat skills flagged); full dnd suite (312)
+  green.
 - **Slice 6 — IG sheet: Combat.** Attacks table (focus/specialization/proficient, attack + total damage from
   `rules.ts`), HP + nonlethal/lethal + Damage Reduction, the three saves, stances, situational bonuses,
   defensive power, conditions.
@@ -144,4 +150,4 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
 - **Reuse:** build on the shipped content library, catalog, provenance, submission/approval, DM grants,
   campaign policy, the custom-sheet/style engine, and `/ai-edit` grounding — don't fork them.
 
-### Status: IN PROGRESS (Slices 0–4 shipped; 5–11 pending)
+### Status: IN PROGRESS (Slices 0–5 shipped; 6–11 pending)

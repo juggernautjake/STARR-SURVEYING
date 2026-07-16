@@ -7,8 +7,9 @@
 // by the provenance classifier — no special-casing needed. Pure — no services.
 import type { Character } from '@/app/dnd/_sheet/types';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
-import { IG_STANCES, IG_POWERS, IG_FEATS, IG_DEFENSIVE_POWERS } from './content';
-import { blankIGCharacter, type IGCharacter, type IGAttack } from './model';
+import { IG_STANCES, IG_POWERS, IG_FEATS, IG_DEFENSIVE_POWERS, IG_COMBAT_SKILLS } from './content';
+import { blankIGCharacter, type IGCharacter, type IGAttack, type IGAbilityKey } from './model';
+import { systemSkills } from '../../system-rules';
 
 /** The kinded record of what an Intuitive Games character was built from (stored on the character data).
  *  Mirrors the template's build fields — Class / Subclass / Specialization / Background (Sheet 1), the
@@ -66,6 +67,12 @@ export function buildIGModel(picks: IGPicks): IGCharacter {
   ig.weaponGroups = [...(picks.weaponTypes ?? [])];
   ig.combat.defensivePower = picks.defensivePower || '';
   for (const f of picks.feats ?? []) ig.feats[featCategory(f)].push(f);
+
+  // Seed the full Intuitive Games skill list (Sheet 4) so the Skills tab shows every skill grouped by
+  // ability, with the 9 Combat Skills flagged. Ranks/proficiency are the player's to assign.
+  ig.skills = systemSkills('intuitive-games').map((s) => ({
+    name: s.name, ability: s.ability as IGAbilityKey, ranks: 0, proficient: false, misc: 0, combat: IG_COMBAT_SKILLS.has(s.name),
+  }));
 
   ig.combat.attacks = (picks.weapons ?? []).map((w, i): IGAttack => ({
     id: `atk-${i}`, name: w, weaponType: '', properties: '', proficient: true, weaponFocus: false,
