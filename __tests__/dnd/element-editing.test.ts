@@ -242,7 +242,8 @@ describe('item tags explain themselves', () => {
   });
 
   it('the Gear list renders the tooltip and hints that one exists', () => {
-    expect(INVENTORY).toContain('tagInfo(t)');
+    // Passes the character's own tags too (Slice 32), so a homebrew tag explains itself here as well.
+    expect(INVENTORY).toContain('tagInfo(t, char.customTags)');
     expect(INVENTORY).toMatch(/title=\{info \?\? undefined\}/);
     // Discoverability: a tooltip nobody knows about helps nobody.
     expect(CSS).toMatch(/\.tag\.tag-info/);

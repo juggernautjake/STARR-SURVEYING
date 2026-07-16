@@ -1221,7 +1221,7 @@ a full build without being rebuilt:
 - [ ] Tests: the NEW button opens the modal; a quick-built NPC persists and appears in the roster
       under its chosen role; the full builder opens on a quick-built NPC and its choices stick.
 
-## Slice 32 — Custom tags: add, create, define
+## Slice 32 — Custom tags: add, create, define ✅ SHIPPED 2026-07-16
 
 > "In the item editing options, I need to be able to add flags and create flags and define them…
 > both we and the AI chat box can add tags to items and stuff. It should be able to add the flavor
@@ -1230,27 +1230,26 @@ a full build without being rebuilt:
 Slice 27 shipped tooltips for the five built-in tags (`tagInfo.ts`). This makes the vocabulary
 **open** — the player and the AI can both mint new ones.
 
-- [ ] **Add** any existing tag to an item from the item editor. (Today `tags` is authored data with
-      no picker.)
-- [ ] **Create** a tag: a name plus **its definition**. The definition is not optional — a tag whose
-      meaning nobody recorded is exactly the "what does FLAVOR mean?" problem, recreated by hand.
-      Make the description a required field, not a nice-to-have.
-- [ ] Custom tags live **on the character** (`char.customTags: {name, description}[]`), so a
-      campaign's vocabulary travels with its sheets and no global registry has to be curated.
-      `tagInfo()` already returns null for unknown tags — extend it to consult the character's own
-      tags before giving up, so the Gear list and the editor both explain a homebrew tag exactly the
-      way they explain `flavor`.
+- [x] **Add** any existing tag to an item from the item editor — `TagPicker` (mounted in `ItemBuilder`)
+      toggles the built-ins + the character's own; reserved wiring tags are shown disabled with a why.
+- [x] **Create** a tag: a name plus its **required** definition — `TagPicker`'s "＋ new tag" refuses a
+      blank description (the tooltip IS the definition) via `validateCustomTag`, same guard as the AI.
+- [x] Custom tags live **on the character** (`char.customTags`), and `tagInfo(tag, custom)` consults
+      them. **Fixed the last gap (commit pending):** the Gear list (`Inventory.tsx`) called `tagInfo(t)`
+      WITHOUT the character's tags, so a homebrew tag had a tooltip in the editor but not in the gear
+      list — it now passes `char.customTags`, so both explain a custom tag exactly as they do `flavor`.
+      Tests: `tag-tooltips.test.ts` (9).
 - [x] **The AI can do both** through the structured vocabulary — `define_tag` (name + required
       definition, kept on the character) and `tag_item` (apply a tag to an item), never by writing
       markup. Both go through the same `validateCustomTag` guard as the hand path (definition
       required, reserved names refused) and the AI-scope allow-list gained the `define_`/`tag_`
       prefixes. 4 tests.
-- [ ] **Built-in tags stay reserved.** `weapon`, `consumable` and `equipped` are load-bearing —
-      `weapon` puts a thing in the Attacks table, `consumable` makes it usable-and-gone, `equipped`
-      applies its effects. A custom tag that shadows one of those would silently change mechanics,
-      so refuse the name and say why.
-- [ ] Tests: a custom tag renders its own tooltip; a tag cannot be created without a definition;
-      built-in names are refused; the AI's `define_tag` produces the same shape as the hand path.
+- [x] **Built-in tags stay reserved.** `validateCustomTag` refuses `weapon`/`consumable`/`equipped`
+      (RESERVED_TAGS) with a reason, and `TagPicker` renders them disabled/managed — a custom tag can
+      never shadow the wiring.
+- [x] Tests: a custom tag renders its own tooltip (built-in AND homebrew, editor AND gear list); a tag
+      cannot be created without a definition; built-in names are refused; the AI's `define_tag`
+      produces the same shape as the hand path. `tag-tooltips.test.ts` (9) + `sheet-edits.test.ts` (AI).
 
 ### The AI, CSS, and the line it must not cross
 

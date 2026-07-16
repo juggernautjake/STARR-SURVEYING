@@ -142,8 +142,10 @@ export default function Inventory() {
               {it.tags.slice(0, 2).map((t) => {
                 // These tags are terse and several are load-bearing — `weapon` is what puts a thing
                 // in the Attacks table, `consumable` is what makes it usable-and-gone — but nothing
-                // ever said so: "at the moment I don't know what FLAVOR means".
-                const info = tagInfo(t)
+                // ever said so: "at the moment I don't know what FLAVOR means". Pass the character's
+                // own tags too (Slice 32), so a homebrew tag gets its tooltip in the Gear list exactly
+                // as it does in the editor — not just the five built-ins.
+                const info = tagInfo(t, char.customTags)
                 return (
                   <span key={t} className={`tag ${t} ${info ? 'tag-info' : ''}`} title={info ?? undefined}>
                     {t}
