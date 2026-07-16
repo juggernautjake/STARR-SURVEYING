@@ -177,6 +177,9 @@ export function imposedTransform(char: Character): { value: string; source: stri
  *  effect, a condition. These survive a true polymorph; your own gear + features do not. */
 const EXTERNAL_KINDS = new Set<SourceKind>(['consumed', 'spell', 'dm', 'condition']);
 
+/** The mental ability targets a `keepMental` form must not touch — your mind is your own. */
+const MENTAL_TARGETS = new Set<string>(['ability_int', 'ability_wis', 'ability_cha']);
+
 export function collectSources(char: Character, ctx: LedgerContext = {}): LedgerSource[] {
   let base = baseSources(char);
 
@@ -199,7 +202,16 @@ export function collectSources(char: Character, ctx: LedgerContext = {}): Ledger
 
   const out = [...base];
   if (activeForm?.effects?.length) {
-    out.push({ id: activeForm.id, kind: 'form', name: activeForm.name, effects: activeForm.effects });
+    let formEffects = activeForm.effects;
+    // `keepMental: true` — the form doesn't change your MIND (5e Wild Shape keeps INT/WIS/CHA even
+    // though the beast has its own). So the form's own effects on mental abilities are dropped; your
+    // base mental scores stand. Omitted = the form sets whatever it sets (today's behaviour).
+    if (activeForm.carryOver?.keepMental) {
+      formEffects = formEffects.filter((e) => !MENTAL_TARGETS.has(e.target));
+    }
+    if (formEffects.length) {
+      out.push({ id: activeForm.id, kind: 'form', name: activeForm.name, effects: formEffects });
+    }
   }
 
   return out;

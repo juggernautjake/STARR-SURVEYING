@@ -142,3 +142,36 @@ describe('carry-over policy: keepFeatures (Slice 18, Ground Rule 1)', () => {
     expect(led.value('ac', 14)).toBe(14 + 1 + 1); // feature + bless back
   });
 })
+
+describe('carry-over policy: keepMental (Slice 18)', () => {
+  // A powerful form whose mind is SMARTER than yours (an Archmage form, INT 20). The set-max rule
+  // already stops a dumb beast from lowering you; keepMental is what stops a smart form from RAISING
+  // your mind when the game says your intellect is your own.
+  function mindForm(keepMental: boolean | undefined) {
+    const c = blankCharacter('Druid');
+    c.abilities = { ...c.abilities, int: 12, str: 10 };
+    c.forms = [{
+      id: 'sage', name: 'Archmage Form', subtitle: '', cls: '', unlockLevel: 1, gating: 'held',
+      flavor: '', bullets: [],
+      effects: [
+        { target: 'ability_str', operation: 'set', value: 19 }, // form body
+        { target: 'ability_int', operation: 'set', value: 20 },  // form mind
+      ],
+      ...(keepMental === undefined ? {} : { carryOver: { keepMental } }),
+    }] as Character['forms'];
+    c.activeFormId = 'sage';
+    return c;
+  }
+
+  it('default: the form sets your mind too (INT rises to the form’s 20)', () => {
+    const led = buildLedger(mindForm(undefined));
+    expect(led.value('ability_int', 12)).toBe(20);
+    expect(led.value('ability_str', 10)).toBe(19);
+  });
+
+  it('keepMental:true keeps your own INT/WIS/CHA, still takes the body', () => {
+    const led = buildLedger(mindForm(true));
+    expect(led.value('ability_int', 12)).toBe(12); // your mind is your own
+    expect(led.value('ability_str', 10)).toBe(19); // body is the form's
+  });
+})

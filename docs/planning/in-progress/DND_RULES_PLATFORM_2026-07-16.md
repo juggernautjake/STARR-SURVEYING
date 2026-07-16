@@ -899,14 +899,24 @@ is derived again (the anti-"permanent bear" guarantee holds through the stricter
 lives in `collectSources` (`EXTERNAL_KINDS`); tests: `transform.test.ts` (+3 — Wild-Shape default keeps
 gear+features, polymorph drops them but keeps Bless, drop-form restores the full base).
 
-**Remaining — the arbitrary-statblock swap + the other two policy flags.** "Become a bear you don't
-have as a form / become another PC entirely" (a whole foreign sheet, not one of your own `forms`) still
-needs a form authored as a full sheet (Slice 17's builder over a form) — there is no form-editor UI on
-the sheet yet (Forms.tsx is display+toggle only), so the policy is authored in data for now. The
-`keepMental` (force base INT/WIS/CHA even if the form sets them) and `separateHp` (form's own HP pool,
-overflow returns to base — a stateful instance) flags are declared in the type but not yet resolved.
-That's the heavier half; transforming into your OWN defined forms — the common case — is done
-end-to-end, now with the true-polymorph carry-over rule.
+**Carry-over policy — `keepMental` ✅ SHIPPED (commit pending).** The second policy flag: `keepMental:
+true` means the form doesn't change your MIND — the form's own effects targeting INT/WIS/CHA are
+dropped, so your base mental scores stand while you still take the form's body. It matters when a form
+would *raise* a mental stat (an Archmage form, INT 20): the existing set-max rule already stops a dumb
+beast from *lowering* you, so keepMental is specifically the "your intellect is your own even in a
+smarter shape" rule. Omitted = the form sets whatever it sets (today's behaviour). `MENTAL_TARGETS`
+guard in `collectSources`; tests: `transform.test.ts` (+2).
+
+**Remaining — the arbitrary-statblock swap + `separateHp`.** "Become a bear you don't have as a form /
+become another PC entirely" (a whole foreign sheet, not one of your own `forms`) still needs a form
+authored as a full sheet (Slice 17's builder over a form) — there is no form-editor UI on the sheet yet
+(Forms.tsx is display+toggle only), so the policy is authored in data for now. The `separateHp` flag
+(the form's own HP pool, overflow returns to base — a STATEFUL instance, not a pure overlay) is
+declared in the type but not yet resolved; it's the one carry-over rule that needs per-transform
+instance state rather than a re-derivable overlay, so it's genuinely a different shape of work. That
+plus the foreign-statblock authoring is the heavier half; transforming into your OWN defined forms —
+the common case — is done end-to-end, now with both the true-polymorph (`keepFeatures`) and
+keep-your-mind (`keepMental`) carry-over rules.
 
 ### Original spec
 
@@ -919,8 +929,9 @@ the overlay rule, because "you are a bear now" must be perfectly reversible.
       the source, exactly like any other effect. (If transform mutated the sheet, an autosave
       mid-transform would leave a druid permanently a bear, with their real character gone. This is
       the failure this whole design exists to prevent.)
-- [~] **What carries over is a per-form rule, not a guess.** (`keepFeatures` ✅ shipped; `keepMental` /
-      `separateHp` declared, not yet resolved.) 5e Wild Shape keeps INT/WIS/CHA,
+- [~] **What carries over is a per-form rule, not a guess.** (`keepFeatures` + `keepMental` ✅ shipped;
+      `separateHp` declared, not yet resolved — it needs stateful instance HP, not an overlay.) 5e Wild
+      Shape keeps INT/WIS/CHA,
       personality, and your own features; it takes the beast's STR/DEX/CON, AC, speed and attacks; HP
       is a separate pool and damage overflow returns to you. Other systems and homebrew differ. So a
       form declares its own carry-over policy (`keepMental`, `keepFeatures`, `separateHp`, …) rather
