@@ -245,7 +245,19 @@ longer depends on which specific feats exist. Tests: `feats.test.ts` (10 total, 
 categories) and Epic Boon remain.
 
 - [~] **Feats** as structured data (`lib/dnd/feats/dnd5e-2024.ts`): all four categories — Origin ✅,
-      Fighting Style ✅, General (with prerequisites + the +1 ability), Epic Boon. Full rules text.
+      Fighting Style ✅, General ✅ (starter set — the +1, minLevel 4, ability/spellcasting
+      prerequisites; full ~45 to fill in later), Epic Boon (remaining). Full rules text.
+- [x] **Rules-legal feat granting ✅ SHIPPED (commit pending)** — per the user's directive that builders
+      only allow what the rules permit unless explicitly custom. `lib/dnd/feats/eligibility.ts`
+      (`featEligibility` / `eligibleFeats` / `validateFeatKey`) gates a feat by SLOT (Origin only in a
+      background/origin slot, Fighting Style only from a class feature, General/Epic only at an ASI
+      slot), minLevel, ability + `needs` prerequisites, and repeatability. Wired into `validateChoice`
+      (levelup.ts) and the `/levels` API (now passing `abilities` + `takenFeatKeys` + spellcasting).
+      The level builder's ASI feat picker (`LevelBuilder.tsx`) is now a **filtered dropdown** of only
+      the legal General/Epic feats (level-gated, prereq shown) with a **"✎ Custom feat…"** escape hatch
+      — replacing the old free-text box that accepted any feat. Unknown keys pass as custom/homebrew.
+      Tests: `feat-eligibility.test.ts` (14) + updated `levelup.test.ts` (Origin-feat-at-ASI now
+      rejected; prereqs enforced; unknown = custom). See the `feedback_rules_legal_builders` memory.
 - [x] **Backgrounds** (16) ✅ SHIPPED (commit pending) — `lib/dnd/backgrounds/dnd5e-2024.ts`. All
       sixteen PHB backgrounds (Acolyte … Wayfarer), each with its three ability options (the 2024 rule
       that the **background** carries the increases, not the species — encoded and tested), Origin feat,

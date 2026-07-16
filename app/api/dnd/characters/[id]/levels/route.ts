@@ -97,8 +97,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       .filter(([, v]) => v?.prof === 'proficient' || v?.prof === 'expertise')
       .map(([k]) => k);
 
+    // Feats the character already has (to block retaking a non-repeatable one) and whether they can
+    // cast (to satisfy a feat's spellcasting prerequisite) — so the ASI-slot feat check is rules-legal.
+    const takenFeatKeys = ((next.build?.choices ?? []) as RecordedChoice[])
+      .filter((c) => c.kind === 'asi' && c.featKey)
+      .map((c) => c.featKey as string);
+    const canCast = !!next.spellcasting || !!def?.spellcasting;
+
     const v = validateChoice(choice, {
       abilities: next.abilities,
+      takenFeatKeys,
+      has: canCast ? ['spellcasting'] : [],
       legalSkills: choice.kind === 'expertise' ? proficientSkills : undefined,
       // A subclass must be one of the registered options — unless it's a homebrew write-in,
       // which the builder marks and the DM reviews.

@@ -10,6 +10,7 @@
 import type { AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
 import type { ClassDefinition, SubclassDefinition, ClassFeature } from './types';
 import { clampLevel, snapshotAtLevel } from './engine';
+import { validateFeatKey } from '../feats/eligibility';
 
 export type ChoiceKind = NonNullable<ClassFeature['choice']>;
 
@@ -220,12 +221,34 @@ export interface ChoiceValidation {
 /** Validate a choice before recording it — the same rules the UI shows as hints. */
 export function validateChoice(
   choice: RecordedChoice,
-  ctx: { abilities?: Record<AbilityKey, number>; cap?: number; legalSkills?: string[]; legalOptions?: string[] } = {},
+  ctx: {
+    abilities?: Record<AbilityKey, number>;
+    cap?: number;
+    legalSkills?: string[];
+    legalOptions?: string[];
+    /** Feat keys the character already has — blocks retaking a non-repeatable feat. */
+    takenFeatKeys?: string[];
+    /** Named capabilities (e.g. 'spellcasting') for feat prerequisites. */
+    has?: string[];
+  } = {},
 ): ChoiceValidation {
   const cap = ctx.cap ?? 20;
   switch (choice.kind) {
     case 'asi': {
-      if (choice.featKey) return { ok: true };
+      if (choice.featKey) {
+        // A feat taken INSTEAD of the ability bumps must be one the character can legally take at an
+        // ASI slot (a General/Epic feat, prerequisites met, not already taken). Unknown keys are
+        // treated as custom/homebrew and allowed — the explicit-custom escape hatch. This is the gate
+        // that stops "getting feats when we're not supposed to" through the official path.
+        const v = validateFeatKey(choice.featKey, {
+          slot: 'asi',
+          level: choice.level,
+          abilities: ctx.abilities,
+          takenFeatKeys: ctx.takenFeatKeys,
+          has: ctx.has,
+        });
+        return v.ok ? { ok: true } : { ok: false, error: v.reason };
+      }
       const abilities = choice.abilities ?? [];
       if (abilities.length !== 2) return { ok: false, error: 'Choose +2 to one ability, or +1 to two abilities.' };
       if (ctx.abilities) {

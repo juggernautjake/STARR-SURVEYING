@@ -191,8 +191,66 @@ export const FIGHTING_STYLE_FEATS_2024: Feat[] = [
   },
 ];
 
-/** Every feat currently defined for 2024 (Origin + Fighting Style; General/Epic Boon in later slices). */
-export const FEATS_2024: Feat[] = [...ORIGIN_FEATS_2024, ...FIGHTING_STYLE_FEATS_2024];
+/**
+ * 2024 General feats. Every General feat has **Level 4+** as a prerequisite (you reach them through an
+ * Ability Score Improvement slot), and most carry a **+1 ability increase** — the tier where the +1
+ * actually lives, unlike Origin/Fighting Style. Some add a further ability prerequisite. This is a
+ * representative starter set; the full ~45 land as the category fills out.
+ */
+export const GENERAL_FEATS_2024: Feat[] = [
+  {
+    key: 'ability-score-improvement', name: 'Ability Score Improvement', category: 'general', system: 'dnd5e-2024',
+    repeatable: true, prerequisites: [{ minLevel: 4 }],
+    abilityIncrease: { choices: ['str', 'dex', 'con', 'int', 'wis', 'cha'], amount: 2, max: 20 },
+    summary: 'Increase one ability by 2, or two abilities by 1 each (max 20).',
+    benefit:
+      'You increase one ability score of your choice by **2**, or you increase two ability scores of your choice by **1** each. You can\'t raise a score above **20** with this feat.\n\n*This feat can be taken more than once.*',
+  },
+  {
+    key: 'grappler', name: 'Grappler', category: 'general', system: 'dnd5e-2024',
+    prerequisites: [{ minLevel: 4 }, { ability: { key: 'str', min: 13 } }],
+    abilityIncrease: { choices: ['str', 'dex'], amount: 1, max: 20 },
+    summary: '+1 STR or DEX, Advantage on attacks vs. creatures you Grapple, and a follow-up strike.',
+    benefit:
+      'You gain the following benefits.\n\n· **Ability Score Increase** — Increase your Strength or Dexterity by **1**, to a maximum of 20.\n· **Punch and Grab** — When you hit a creature with an Unarmed Strike as part of the Attack action, you can deal damage AND also grapple it (one option, once per turn).\n· **Attack Advantage** — You have Advantage on attack rolls against a creature you are Grappling.\n· **Fast Wrestler** — Moving a creature you\'re Grappling doesn\'t cost you extra movement if it is your size or smaller.',
+  },
+  {
+    key: 'resilient', name: 'Resilient', category: 'general', system: 'dnd5e-2024',
+    prerequisites: [{ minLevel: 4 }],
+    abilityIncrease: { choices: ['str', 'dex', 'con', 'int', 'wis', 'cha'], amount: 1, max: 20 },
+    summary: '+1 to an ability of your choice, and proficiency in its saving throws.',
+    benefit:
+      'You gain the following benefits.\n\n· **Ability Score Increase** — Increase an ability score of your choice by **1**, to a maximum of 20.\n· **Saving Throw Proficiency** — You gain **saving throw proficiency** with the ability you increased.',
+  },
+  {
+    key: 'war-caster', name: 'War Caster', category: 'general', system: 'dnd5e-2024',
+    prerequisites: [{ minLevel: 4 }, { needs: 'spellcasting', text: 'Spellcasting or Pact Magic feature' }],
+    abilityIncrease: { choices: ['int', 'wis', 'cha'], amount: 1, max: 20 },
+    summary: '+1 a spellcasting ability, Advantage on Concentration saves, and cast as an Opportunity Attack.',
+    benefit:
+      'You gain the following benefits.\n\n· **Ability Score Increase** — Increase your Intelligence, Wisdom, or Charisma by **1**, to a maximum of 20.\n· **Concentration** — You have **Advantage** on Constitution saving throws that you make to maintain Concentration.\n· **Reactive Spell** — When you take the Opportunity Attack Reaction, you can replace its melee attack with casting a spell that has a casting time of one action and targets only the triggering creature.\n· **Somatic Components** — You can perform the Somatic components of spells even when you have weapons or a Shield in one or both hands.',
+  },
+  {
+    key: 'skill-expert', name: 'Skill Expert', category: 'general', system: 'dnd5e-2024',
+    prerequisites: [{ minLevel: 4 }],
+    abilityIncrease: { choices: ['str', 'dex', 'con', 'int', 'wis', 'cha'], amount: 1, max: 20 },
+    grants: { skillChoices: { count: 1, from: 'any' } },
+    summary: '+1 to an ability, one new skill proficiency, and Expertise in one skill.',
+    benefit:
+      'You gain the following benefits.\n\n· **Ability Score Increase** — Increase one ability score of your choice by **1**, to a maximum of 20.\n· **Skill Proficiency** — You gain proficiency in one skill of your choice.\n· **Expertise** — Choose one skill in which you have proficiency but lack Expertise. You gain **Expertise** with it.',
+  },
+  {
+    key: 'lightly-armored', name: 'Lightly Armored', category: 'general', system: 'dnd5e-2024',
+    prerequisites: [{ minLevel: 4 }],
+    abilityIncrease: { choices: ['str', 'dex'], amount: 1, max: 20 },
+    summary: '+1 STR or DEX and Light Armor Training.',
+    benefit:
+      'You gain the following benefits.\n\n· **Ability Score Increase** — Increase your Strength or Dexterity by **1**, to a maximum of 20.\n· **Armor Training** — You gain training with **Light armor**.',
+  },
+];
+
+/** Every feat currently defined for 2024 (Origin + Fighting Style + a starter General set). */
+export const FEATS_2024: Feat[] = [...ORIGIN_FEATS_2024, ...FIGHTING_STYLE_FEATS_2024, ...GENERAL_FEATS_2024];
 
 /** The categories that, per the 2024 rules, grant NO ability score increase. */
 export const NO_ASI_CATEGORIES: FeatCategory[] = ['origin', 'fighting-style'];

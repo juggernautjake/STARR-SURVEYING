@@ -55,8 +55,8 @@ describe('2024 Origin feats', () => {
   it('featsByCategory returns each shipped category; unshipped ones are empty', () => {
     expect(featsByCategory('origin')).toHaveLength(ORIGIN_FEATS_2024.length);
     expect(featsByCategory('fighting-style')).toHaveLength(FIGHTING_STYLE_FEATS_2024.length);
-    expect(featsByCategory('general')).toEqual([]);
-    expect(featsByCategory('epic-boon')).toEqual([]);
+    expect(featsByCategory('general').length).toBeGreaterThan(0); // a starter set is shipped
+    expect(featsByCategory('epic-boon')).toEqual([]); // not yet
   });
 
   it('Skilled and Magic Initiate are marked repeatable; Tough is not', () => {
