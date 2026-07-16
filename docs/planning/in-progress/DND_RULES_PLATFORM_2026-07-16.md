@@ -493,7 +493,33 @@ The request's real ask: *"it could literally turn the character into a completel
       ending a worn effect unequips, ending a consumed effect does not resurrect the item; the
       panel's numbers equal the ledger's (one source of truth).
 
-## Slice 13 — Show me what's touched: the star + the tooltip
+## Slice 13 — Show me what's touched: the star + the tooltip ✅ SHIPPED 2026-07-16
+
+**Shipped as a reusable, accessible marker (commit pending).** `EffectStar` (`components/ui/EffectStar.tsx`)
+is one component every affected value uses: it reads the ledger (`isModified`/`explain`/`byTarget`),
+renders nothing when nothing is active (no false-positive stars on a vanilla stat), and when
+something is, renders the value in the teal `is-modified` tint plus a ★ **button** — keyboard- and
+touch-reachable, not the old hover-only `title`. Clicking it opens an inline-safe popover (all
+`<span>`s, reusing RuleTip's `.ruletip-pop` chrome so it can live inside a `<p>` without the
+paragraph-force-close trap) that lists every contribution — base → each source → resolved total,
+suppressed contributions struck through so "my belt does nothing" has an answer. The native `title`
++ `aria-label` carry the same summary for the hover/SR path. Token-driven throughout (the contrast
+guard would fail a literal). Wired into: **abilities** (Abilities tab), **saves + skills + custom
+checks** (keyed to the governing ability — what actually moves the roll), **passive perception**
+and **save DC** (lead line), and **attack to-hit + save DC** (Attacks table). `StatRail`'s ability
+pills keep their lightweight title-star because they sit inside a roll `<button>` (button-in-button
+is invalid HTML). Tests: `effect-star.test.ts` — ledger no-false-positives / stars-exactly-that /
+names-every-source / suppressed-surfaced, plus source anchors for the accessible-button, inline-safe,
+token-only, and per-stat wiring invariants (826 pass).
+
+**Scope note — speed/HP/AC effective-value folding is Slice 15, not this.** The star marks values
+whose *displayed number already reflects the ledger* (abilities and everything derived from them).
+Walk speed, max HP and AC are still shown from their stored base (AC via `deriveAc`'s own path), so
+starring them would mark a number the effect hasn't actually moved yet. Those get their star the
+moment Slice 15 routes them through the ledger's `value()` — the marker code is already generic over
+any target, so it's a one-line add per stat then.
+
+### Original spec
 
 > "effected stats numbers and stuff will just get a little star or something we can hover over."
 
@@ -976,7 +1002,15 @@ flat. And "quick vs full" NPC builders are the Slice 31 work proper.
 - [ ] Tests: every existing character reads as a `pc`; promoting a generic NPC preserves its sheet
       byte-for-byte.
 
-## Slice 31 — The NEW button, and two ways to build a character
+## Slice 31 — The NEW button, and two ways to build a character ⏳ PARTIAL 2026-07-16
+
+**Player-hub roster grouping ✅ SHIPPED (commit 5ce871a1).** The DM's `roster_role` now flows to
+the player-facing `CampaignHub` "The Table": `campaign-summary` selects `roster_role`, `HubCharacter`
+carries `rosterRole`, and the roster renders in three groups — Player Characters / Notable NPCs /
+NPCs — mirroring the DM-side grouping shipped in Slice 30. Single-group tables stay flat (no
+redundant heading). This closes the "player hub still lists all characters flat" deferral from
+Slice 30. Still open below: the quick-vs-full NPC builder modal.
+
 
 > "the 'NEW' button doesn't work… We should be able to create an npc very quickly by generating it
 > with whatever quick info I give it, or we can do a super in depth character build using the

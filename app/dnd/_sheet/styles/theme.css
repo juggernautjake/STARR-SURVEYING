@@ -476,6 +476,59 @@
   color: var(--gold);
   cursor: help;
 }
+/* EffectStar (Slice 13): the ★ is a real button now (keyboard + touch reachable, not hover-only),
+   but must read as the same small gold star, not a chrome button. */
+.dnd-sheet .effect-star {
+  position: relative;
+}
+.dnd-sheet button.effect-star-trigger {
+  background: none;
+  border: 0;
+  padding: 0 0 0 1px;
+  margin: 0;
+  line-height: 1;
+  cursor: pointer;
+}
+.dnd-sheet button.effect-star-trigger:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+/* The popover reuses RuleTip's .ruletip-pop chrome; these rules only lay out the contribution rows.
+   Each row is "what · from where", base on top and the resolved total on the bottom. */
+.dnd-sheet .effect-star-pop .es-target + .es-target {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.dnd-sheet .effect-star-pop .es-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.86em;
+  line-height: 1.5;
+}
+.dnd-sheet .effect-star-pop .es-base,
+.dnd-sheet .effect-star-pop .es-total {
+  color: var(--muted);
+  font-family: var(--font-mono, monospace);
+}
+.dnd-sheet .effect-star-pop .es-total {
+  margin-top: 2px;
+  border-top: 1px dashed var(--line);
+  padding-top: 2px;
+  color: var(--tealbright);
+}
+.dnd-sheet .effect-star-pop .es-source {
+  color: var(--gold);
+  white-space: nowrap;
+}
+/* A suppressed contribution (a set that lost to a higher set) is shown, struck, so "my belt does
+   nothing" has an answer instead of a silent omission. */
+.dnd-sheet .effect-star-pop .es-suppressed {
+  opacity: 0.6;
+  text-decoration: line-through;
+}
 
 /* The system designation (Slice 21) — which rulebook adjudicates this sheet. Token-driven, so
    it inherits each skin's accent instead of forcing one palette onto every character. */

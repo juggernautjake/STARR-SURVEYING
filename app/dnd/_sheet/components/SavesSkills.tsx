@@ -3,6 +3,7 @@ import { useChar } from '../state/store'
 import { ABILITIES, SKILLS, abilityMod, signed, profContribution, type ProfLevel, type AbilityKey } from '../rules/dnd'
 import type { CustomSkill } from '../types'
 import SectionHead from './ui/SectionHead'
+import EffectStar from './ui/EffectStar'
 
 const PROF_ORDER: ProfLevel[] = ['none', 'proficient', 'expertise']
 
@@ -61,8 +62,9 @@ export default function SavesSkills() {
       <SectionHead num="03" title="Saves & Skills" />
       <p className="lead">
         Tap any row to roll. Advantage / Disadvantage from the Dice Tray applies; <em className="term">Danger Sense</em>{' '}
-        auto-grants advantage on Dexterity saves. Passive Perception <strong>{passivePerception}</strong> · Save DC{' '}
-        <strong>{saveDC}</strong> (Surge / psi — 8 + prof + STR).
+        auto-grants advantage on Dexterity saves. Passive Perception{' '}
+        <EffectStar target="ability_wis" label="Passive Perception"><strong>{passivePerception}</strong></EffectStar> · Save DC{' '}
+        <EffectStar target="ability_str" label="Save DC"><strong>{saveDC}</strong></EffectStar> (Surge / psi — 8 + prof + STR).
       </p>
 
       <div className="two">
@@ -84,6 +86,7 @@ export default function SavesSkills() {
                   />
                   <div className="rlabel">
                     {a.full}
+                    <EffectStar target={`ability_${a.key}`} label={`${a.full} save`} />
                     {isDex && <span className="rabil">DANGER SENSE · ADV</span>}
                   </div>
                   <div className="rmod">{signed(mod)}</div>
@@ -120,6 +123,7 @@ export default function SavesSkills() {
                   />
                   <div className="rlabel">
                     {sk.label}
+                    <EffectStar target={`ability_${sk.ability}`} label={sk.label} />
                     <span className="rabil">{abil.label}</span>
                     {stealthAdv && <span className="rabil" style={{ color: 'var(--tealbright)' }}>BASE FORM · ADV</span>}
                   </div>
@@ -147,6 +151,7 @@ export default function SavesSkills() {
                   />
                   <div className="rlabel">
                     {cs.label}
+                    <EffectStar target={`ability_${cs.ability}`} label={cs.label} />
                     <span className="rabil">{abil.label} · custom</span>
                   </div>
                   <button className="rollbtn" onClick={() => rollCheck(cs.label, mod, { tag: abil.label })}>

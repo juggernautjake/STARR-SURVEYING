@@ -2,6 +2,7 @@ import { useChar } from '../state/store'
 import { ABILITIES, abilityMod, signed } from '../rules/dnd'
 import SectionHead from './ui/SectionHead'
 import InlineNumber from './ui/InlineNumber'
+import EffectStar from './ui/EffectStar'
 
 export default function Abilities() {
   const { char, abilities, ledger, setChar, editMode, rollCheck } = useChar()
@@ -47,10 +48,9 @@ export default function Abilities() {
                   path={`ability.${a.key}`}
                   onCommit={(n) => setChar((c) => ({ ...c, abilities: { ...c.abilities, [a.key]: n } }))}
                   display={
-                    <span className={modified ? 'is-modified' : undefined} title={why}>
+                    <EffectStar target={`ability_${a.key}`} label={a.full}>
                       {score}
-                      {modified && <span className="mod-star" aria-hidden> ★</span>}
-                    </span>
+                    </EffectStar>
                   }
                   title={modified ? why : 'Double-click to edit score'}
                 />

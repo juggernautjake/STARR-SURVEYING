@@ -6,6 +6,7 @@ import type { Attack } from '../types'
 import SectionHead from './ui/SectionHead'
 import ElementMenu from './ui/ElementMenu'
 import AttackEditor from './ui/AttackEditor'
+import EffectStar from './ui/EffectStar'
 
 export default function Attacks() {
   const { char, abilities, pb, rollCheck, rollDmg, transformActive, recklessActive, canWrite, setChar } = useChar()
@@ -123,7 +124,17 @@ export default function Attacks() {
                   </td>
                   <td className="mono">{a.range}</td>
                   <td className="mono">
-                    {locked ? '—' : isSave ? `DC ${saveDC} ${a.saveAbility?.toUpperCase()}` : signed(toHit)}
+                    {locked ? (
+                      '—'
+                    ) : isSave ? (
+                      <EffectStar target={`ability_${a.saveDcAbility ?? 'str'}`} label={`${a.name} DC`}>
+                        {`DC ${saveDC} ${a.saveAbility?.toUpperCase()}`}
+                      </EffectStar>
+                    ) : (
+                      <EffectStar target={`ability_${abilityKey}`} label={`${a.name} to hit`}>
+                        {signed(toHit)}
+                      </EffectStar>
+                    )}
                   </td>
                   <td className="mono">
                     {locked ? '—' : dmgLabel}
