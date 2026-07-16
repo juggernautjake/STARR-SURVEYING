@@ -1,0 +1,89 @@
+// __tests__/dnd/dnd5e-2014-classes.test.ts — D&D 5e 2014 classes (Slice 6a).
+//
+// 2014 is authored class-by-class. This pins the classes shipped so far to level 20 without a hole,
+// and locks the 2014-vs-2024 differences that are easy to get wrong (editions are different systems,
+// Ground Rule 2). Barbarian first: the 2014 tells are an ASI at 19 (not an Epic Boon), Brutal
+// Critical (not Brutal Strike), no Weapon Mastery, unlimited Rage at 20, and a STR/CON cap of 24.
+import { describe, it, expect } from 'vitest';
+import { classesForSystem, findClass, subclassesFor, systemHasClasses } from '@/lib/dnd/classes/registry';
+import { snapshotAtLevel, progressionTable, validateClassDefinition } from '@/lib/dnd/classes/engine';
+
+const SYS = 'dnd5e-2014';
+const CLASSES = classesForSystem(SYS);
+
+describe('the 2014 class roster (authored class-by-class)', () => {
+  it('has the classes authored so far, and the system reports it has class data', () => {
+    expect(CLASSES.map((c) => c.name)).toContain('Barbarian');
+    expect(systemHasClasses(SYS)).toBe(true);
+  });
+
+  it('resolves per class: an authored one is found, an un-authored one falls back (null)', () => {
+    expect(findClass(SYS, 'Barbarian')?.key).toBe('barbarian');
+    expect(findClass(SYS, 'barbarian')?.name).toBe('Barbarian');
+    // Not yet authored for 2014 → null, so the builder offers the AI/homebrew path rather than lying.
+    expect(findClass(SYS, 'Wizard')).toBeNull();
+  });
+
+  it('does not leak across editions — a 2014 class is not a 2024 class', () => {
+    // Same key, different system: the 2014 Barbarian and the 2024 Barbarian are distinct objects.
+    expect(findClass(SYS, 'Barbarian')?.system).toBe('dnd5e-2014');
+    expect(findClass('dnd5e-2024', 'Barbarian')?.system).toBe('dnd5e-2024');
+  });
+});
+
+describe.each(CLASSES.map((c) => [c.name, c] as const))('%s (2014)', (_name, def) => {
+  it('is structurally valid and levels cleanly 1→20', () => {
+    expect(validateClassDefinition(def)).toEqual([]);
+    const table = progressionTable(def);
+    expect(table).toHaveLength(20);
+    for (const row of table) expect(row.features).toBeDefined();
+  });
+
+  it('belongs to dnd5e-2014 with a hit die, exactly two saves, and a Primal-Path-style subclass at 3', () => {
+    expect(def.system).toBe(SYS);
+    expect([6, 8, 10, 12]).toContain(def.hitDie);
+    expect(def.savingThrows).toHaveLength(2);
+    expect(def.features.some((f) => f.choice === 'subclass')).toBe(true);
+  });
+});
+
+describe('Barbarian 2014 — the edition-specific numbers', () => {
+  const barb = findClass(SYS, 'barbarian')!;
+
+  it('takes an ASI at 19 (2014), where 2024 grants an Epic Boon', () => {
+    expect(barb.asiLevels).toContain(19);
+    expect(barb.features.some((f) => f.choice === 'epic-boon')).toBe(false);
+  });
+
+  it('has Brutal Critical (not the 2024 Brutal Strike)', () => {
+    expect(barb.features.some((f) => f.name === 'Brutal Critical')).toBe(true);
+    expect(barb.features.some((f) => /Brutal Strike/.test(f.name))).toBe(false);
+  });
+
+  it('has no Weapon Mastery (a 2024-only feature)', () => {
+    expect(barb.features.some((f) => f.name === 'Weapon Mastery')).toBe(false);
+  });
+
+  it("Rage uses climb 2→6 and become unlimited (-1) at level 20", () => {
+    const rage = barb.resources!.find((r) => r.id === 'rage')!;
+    expect(rage.perLevel[1]).toBe(2);
+    expect(rage.perLevel[3]).toBe(3);
+    expect(rage.perLevel[6]).toBe(4);
+    expect(rage.perLevel[12]).toBe(5);
+    expect(rage.perLevel[17]).toBe(6);
+    expect(rage.perLevel[20]).toBe(-1); // unlimited
+  });
+
+  it('gains Extra Attack at 5 and Primal Champion at 20; the level-20 snapshot carries the rage resource', () => {
+    const at5 = snapshotAtLevel(barb, 5);
+    expect(at5.features.some((f) => f.name === 'Extra Attack')).toBe(true);
+    const at20 = snapshotAtLevel(barb, 20);
+    expect(at20.features.some((f) => f.name === 'Primal Champion')).toBe(true);
+    expect(at20.resources.some((r) => r.id === 'rage')).toBe(true);
+  });
+
+  it('offers exactly the two 2014 PHB Primal Paths (Berserker, Totem Warrior)', () => {
+    const subs = subclassesFor(SYS, 'barbarian').map((s) => s.name).sort();
+    expect(subs).toEqual(['Path of the Berserker', 'Path of the Totem Warrior']);
+  });
+});

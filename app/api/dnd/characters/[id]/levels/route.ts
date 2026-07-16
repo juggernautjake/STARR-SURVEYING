@@ -46,7 +46,7 @@ function planFor(data: Character, system: string, to: number) {
     };
   }
 
-  const subs = subclassesFor(def.key);
+  const subs = subclassesFor(def.system, def.key);
   const subKey = data.build?.subclassKey || chosenSubclassKey(choices);
   const sub = subs.find((s) => s.key === subKey) ?? null;
   const proficientSkills = Object.entries(data.skills ?? {})
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: 'A choice needs a level and a kind.' }, { status: 400 });
     }
     const def = findClass(system, next.build?.classKey || next.meta?.className || '');
-    const subs = def ? subclassesFor(def.key) : [];
+    const subs = def ? subclassesFor(def.system, def.key) : [];
     const proficientSkills = Object.entries(next.skills ?? {})
       .filter(([, v]) => v?.prof === 'proficient' || v?.prof === 'expertise')
       .map(([k]) => k);

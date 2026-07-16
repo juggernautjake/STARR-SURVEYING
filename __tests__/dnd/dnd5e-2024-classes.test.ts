@@ -75,7 +75,7 @@ describe.each(CLASSES.map((c) => [c.name, c] as const))('%s', (_name, def) => {
     // comes from its Oath (subclass features run 3/7/15/20). So the capstone is satisfied by
     // either — which is what a character actually experiences at 20.
     const baseCapstone = def.features.some((f) => f.level === 20);
-    const subCapstone = subclassesFor(def.key).some((s) => s.features.some((f) => f.level === 20));
+    const subCapstone = subclassesFor(SYS, def.key).some((s) => s.features.some((f) => f.level === 20));
     expect(baseCapstone || subCapstone, 'a capstone at level 20 from the class or a subclass').toBe(true);
   });
 
@@ -90,7 +90,7 @@ describe.each(CLASSES.map((c) => [c.name, c] as const))('%s', (_name, def) => {
   });
 
   it('has at least 3 subclasses, each levelling cleanly to 20', () => {
-    const subs = subclassesFor(def.key);
+    const subs = subclassesFor(SYS, def.key);
     expect(subs.length).toBeGreaterThanOrEqual(3);
     for (const s of subs) {
       expect(s.classKey, `${s.name} classKey`).toBe(def.key);
@@ -203,7 +203,7 @@ describe('2024-specific rules that are wrong if you use the 2014 book', () => {
   });
 
   it('subclasses resolve by key and belong to the right class', () => {
-    const battleMaster = findSubclass('battle-master') ?? subclassesFor(findClass(SYS, 'Fighter')!.key).find((s) => /battle master/i.test(s.name));
+    const battleMaster = findSubclass(SYS, 'battle-master') ?? subclassesFor(SYS, findClass(SYS, 'Fighter')!.key).find((s) => /battle master/i.test(s.name));
     expect(battleMaster).toBeTruthy();
     expect(battleMaster!.classKey).toBe(findClass(SYS, 'Fighter')!.key);
   });

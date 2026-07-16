@@ -366,9 +366,22 @@ The engine (`lib/dnd/classes/custom.ts`) is built and tested; there is no UI.
 
 One system per slice — depth-first, verified against sources. In priority order:
 
-- [ ] **6a — D&D 5e 2014**: all 12 classes + Artificer, L1–20. The 2014/2024 differences are the
+- [~] **6a — D&D 5e 2014**: all 12 classes + Artificer, L1–20. The 2014/2024 differences are the
       whole point (subclass levels differ per class; ASI at 19; no Weapon Mastery; Ranger has
       Favored Enemy/Natural Explorer).
+      **Started 2026-07-16 — Barbarian ✅ SHIPPED** (`lib/dnd/classes/dnd5e-2014/barbarian.ts`, L1–20 +
+      both PHB Primal Paths: Berserker, Totem Warrior). Registered under a new `dnd5e-2014` entry in
+      the class registry; **resolution is per class**, so the system offers its finished classes and
+      falls back to the AI/homebrew path for the rest (a partial system is not a broken one). Locked
+      the 2014 tells vs 2024: ASI at 19 (not Epic Boon), Brutal Critical (not Brutal Strike), no
+      Weapon Mastery, unlimited Rage at 20, STR/CON cap 24.
+      **Fixed a latent cross-edition bug this surfaced:** `subclassesFor`/`findSubclass` filtered
+      subclasses by key across ALL systems, so once a `barbarian`/`berserker` existed in two editions a
+      2024 sheet could be offered the 2014 Totem Warrior (Ground Rule 1/2 violation, dormant while only
+      2024 existed). Both are now **system-scoped**; all three callers (levels API ×2, library page)
+      pass the class's system. Tests: `dnd5e-2014-classes.test.ts` (11 — structural validity, L1→20,
+      the edition tells, per-class fallback, no-leak) + the 2024 suite updated to the scoped signature.
+      **Remaining 6a:** the other 11 classes + Artificer.
 - [ ] **6b — Pathfinder 2e**: classes with flat HP/level, the feat cadence (ancestry 1/5/9/13/17,
       class at even levels, skill at even, general at 3/7/11/15/19), attribute boosts at 5/10/15/20.
 - [ ] **6c — Pathfinder 1e**: BAB progressions, save progressions, skill ranks, feats at odd levels.

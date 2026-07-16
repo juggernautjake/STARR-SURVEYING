@@ -176,7 +176,7 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
                 </p>
               </div>
               {classes.map((c) => {
-                const subs = subclassesFor(c.key);
+                const subs = subclassesFor(c.system, c.key);
                 return (
                   <details key={c.key} style={{ border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.4)' }}>
                     <summary style={{ padding: '9px 12px', cursor: 'pointer', color: 'var(--hx-gold-2)', fontFamily: 'var(--hx-font-display)', fontSize: 15 }}>
