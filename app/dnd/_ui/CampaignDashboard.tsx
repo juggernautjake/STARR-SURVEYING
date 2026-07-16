@@ -86,7 +86,7 @@ export default function CampaignDashboard({ displayName, initialCampaigns }: { d
                 + New Campaign
               </button>
               <a className={styles.hexBtn} href="/dnd/profile">Profile</a>
-              <a className={styles.hexBtn} href="/api/dnd/auth/logout" onClick={(e) => { e.preventDefault(); fetch('/api/dnd/auth/logout', { method: 'POST' }).then(() => router.push('/dnd/login')) }}>
+              <a className={styles.hexBtn} href="/api/dnd/auth/logout" onClick={(e) => { e.preventDefault(); fetch('/api/dnd/auth/logout', { method: 'POST' }).then(() => router.push('/dnd')) }}>
                 Sign Out
               </a>
             </div>

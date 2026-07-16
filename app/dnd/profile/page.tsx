@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function DndProfilePage() {
   const user = await getDndUser();
-  if (!user) redirect('/dnd/login?next=/dnd/profile');
+  if (!user) redirect('/dnd');
 
   return (
     <ProfileForm

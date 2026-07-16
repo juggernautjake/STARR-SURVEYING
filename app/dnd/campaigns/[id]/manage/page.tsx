@@ -11,7 +11,7 @@ export default async function CampaignManagePage({ params }: { params: { id: str
   const user = await getDndUser();
   const role = user ? await getCampaignRole(params.id) : null;
   if (role !== 'dm') {
-    redirect(isDndOpenAccess() ? `/dnd/campaigns/${params.id}` : `/dnd/login?next=/dnd/campaigns/${params.id}/manage`);
+    redirect(`/dnd/campaigns/${params.id}`);
   }
   return <CampaignPageClient campaignId={params.id} />;
 }

@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function MapStudioPage({ params, searchParams }: { params: { id: string }; searchParams: { map?: string } }) {
   const user = await getDndUser();
-  if (!user) redirect(isDndOpenAccess() ? '/dnd' : `/dnd/login?next=/dnd/campaigns/${params.id}/map-studio`);
+  if (!user) redirect('/dnd');
   if ((await getCampaignRole(params.id)) !== 'dm') redirect(`/dnd/campaigns/${params.id}`);
 
   const q = new URLSearchParams({ campaign: params.id });

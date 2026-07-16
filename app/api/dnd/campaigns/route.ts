@@ -53,7 +53,15 @@ export async function POST(req: NextRequest) {
       .insert({ dm_user_id: session.userId, name: String(name).trim(), blurb: blurb ? String(blurb).trim() : null, system, allow_custom: allowCustom })
       .select('id, name, blurb, theme, system, allow_custom, created_at')
       .single();
-    if (error || !campaign) return NextResponse.json({ error: error?.message ?? 'Could not create campaign.' }, { status: 500 });
+    if (error || !campaign) {
+      // A session pointing at a user row that no longer exists trips the dm_user_id foreign key.
+      // That's a dead cookie, not a server fault — tell the caller to sign in again (a raw 500 with
+      // an FK message is both confusing and a 500 for what is really an auth problem).
+      if (error?.code === '23503' || /foreign key/i.test(error?.message ?? '')) {
+        return NextResponse.json({ error: 'Your session has expired — please sign in again.' }, { status: 401 });
+      }
+      return NextResponse.json({ error: error?.message ?? 'Could not create campaign.' }, { status: 500 });
+    }
 
     const { error: memErr } = await supabaseAdmin
       .from('dnd_campaign_members')

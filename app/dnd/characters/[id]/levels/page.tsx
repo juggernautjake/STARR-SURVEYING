@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function CharacterLevelsPage({ params }: { params: { id: string } }) {
   const user = await getDndUser();
-  if (!user) redirect(isDndOpenAccess() ? '/dnd' : `/dnd/login?next=/dnd/characters/${params.id}/levels`);
+  if (!user) redirect('/dnd');
 
   const res = await getCharacterAccess(params.id);
   if (!res.access) redirect('/dnd');

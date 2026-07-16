@@ -114,7 +114,7 @@ export default function DndJoinPage() {
           </div>
           <p className={styles.hint}>
             Already have an account?{' '}
-            <a className={styles.link} href="/dnd/login">
+            <a className={styles.link} href="/dnd">
               Sign in
             </a>
           </p>

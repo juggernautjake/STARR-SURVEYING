@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function PlanetForgePage({ params }: { params: { id: string } }) {
   const user = await getDndUser();
-  if (!user) redirect(isDndOpenAccess() ? '/dnd' : `/dnd/login?next=/dnd/campaigns/${params.id}/planet-forge`);
+  if (!user) redirect('/dnd');
   if ((await getCampaignRole(params.id)) !== 'dm') redirect(`/dnd/campaigns/${params.id}`);
 
   const src = '/dnd/maps/planet-3d.html';

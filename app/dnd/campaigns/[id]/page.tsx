@@ -38,5 +38,5 @@ export default async function CampaignPage({ params }: { params: { id: string } 
   }
 
   // Login mode, not a member: sign in first.
-  redirect(`/dnd/login?next=/dnd/campaigns/${params.id}`);
+  redirect('/dnd');
 }

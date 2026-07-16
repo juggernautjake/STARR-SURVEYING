@@ -41,7 +41,7 @@ export default async function DndHubPage() {
   }
 
   const user = await getDndUser();
-  if (!user) redirect('/dnd/login');
+  if (!user) redirect('/dnd');
 
   const { data: memberships } = await supabaseAdmin
     .from('dnd_campaign_members')

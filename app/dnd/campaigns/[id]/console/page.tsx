@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function ConsolePage({ params, searchParams }: { params: { id: string }; searchParams: { map?: string } }) {
   const user = await getDndUser();
-  if (!user) redirect(isDndOpenAccess() ? '/dnd' : `/dnd/login?next=/dnd/campaigns/${params.id}/console`);
+  if (!user) redirect('/dnd');
   if ((await getCampaignRole(params.id)) === null) redirect(`/dnd/campaigns/${params.id}`);
 
   const q = new URLSearchParams({ campaign: params.id });

@@ -7,6 +7,6 @@ export const dynamic = 'force-dynamic';
 
 export default async function SessionConsolePage({ params }: { params: { id: string; sid: string } }) {
   const user = await getDndUser();
-  if (!user) redirect(`/dnd/login?next=/dnd/campaigns/${params.id}/sessions/${params.sid}`);
+  if (!user) redirect('/dnd');
   return <SessionConsole campaignId={params.id} sessionId={params.sid} selfId={user.id} />;
 }

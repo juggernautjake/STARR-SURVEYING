@@ -39,7 +39,7 @@ export default function DndHeader({ userName }: { userName?: string | null }) {
             <LogoutButton />
           </span>
         ) : (
-          <Link href="/dnd/login" className={styles.siteNavLink}>
+          <Link href="/dnd" className={styles.siteNavLink}>
             Sign in
           </Link>
         )}
