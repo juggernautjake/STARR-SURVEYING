@@ -1218,6 +1218,31 @@ this slice is mostly about wiring them into one journey.
 **Sequencing note:** 38a is the shippable start (system picker + allow-custom on create). 38b builds
 on existing invites. 38c/38d are larger and depend on the builder (31) and variants being solid.
 
+## Slice 39 — A slide-up "digital screen" console in the map player view
+
+> "In the player view I want the whole digital screen viewer to be available to open and close. It
+> should pop up from the bottom of the map viewer, and then if we close it it just slides down to the
+> bottom, but the top of it is always visible so that we can click on it to open it again. It should
+> have all of the info displayed on the screen and knobs and all of that." … "It might already be
+> built, but I am not seeing it when I click on player view as the DM."
+
+- [ ] **Investigate what exists.** The map studio has a "▶ Player" mode (`map-studio.html`, the
+      `data-mode="play"` button) and there is a player-facing console (`console.html`) with the
+      dice-core/roll UI. Determine whether Player mode is supposed to surface that console and it's
+      simply not mounting for the DM, or whether the console is a separate page never embedded in the
+      map view. The user's "not seeing it" says the entry point is missing or hidden in Player mode.
+- [ ] **The panel.** A bottom-anchored drawer over the map: slides UP to open (covering most of the
+      viewer), slides DOWN to close leaving a **peek header always visible** (a handle/tab) that
+      clicks to reopen. Smooth transform transition, not a mount/unmount.
+- [ ] **Contents.** The full "digital screen" — all the info + knobs/controls the console shows
+      (dice, rolls, whatever the screen surfaces). Reuse `console.html`'s content rather than
+      rebuilding it; embed or share the component.
+- [ ] **Visible in Player view**, including for the DM previewing Player mode (the reported gap).
+- [ ] Remembers open/closed per session, like the chat resize (Slice 9's `useResizable` pattern is
+      the reference for a remembered drawer).
+- [ ] Verify by entering Player mode as the DM and confirming the drawer's peek header shows and
+      toggles.
+
 ## Slice 25 — Connect it to the rest
 
 - [ ] Spells cast on you land in the ledger as sources (`activeEffects`), so Bless and a potion are
