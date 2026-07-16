@@ -290,7 +290,7 @@ categories) and Epic Boon remain.
       a typo in either file fails the build.
 - [~] Wire into the level builder: an ASI choice offers real feats with prerequisites checked ✅
       (see the rules-legal feat granting note above); character creation offers backgrounds/species —
-      **species picker ✅ SHIPPED (commit pending)**, backgrounds picker remaining. **Rules-legal
+      **species picker ✅ + background picker ✅ SHIPPED (commit pending)**. **Rules-legal
       background application core ✅ SHIPPED:** `lib/dnd/backgrounds/apply.ts`
       (`validateAbilityAssignment` / `backgroundGrants` / `applyAbilityIncreases`) enforces the 2024
       +2/+1-or-+1/+1/+1 spread across only the background's three abilities, and returns the feat +
@@ -301,8 +301,15 @@ categories) and Epic Boon remain.
     known one, the sheet shows a **traits panel** — creature type, size, walk speed, darkvision, and
     each named trait's text — so a vanilla build can SEE what the species grants. Setting species
     mechanics onto the sheet (speed/size/darkvision/traits as live numbers) is a follow-up; this makes
-    the choice legible + rules-grounded. Tests: `species.test.ts` (+2 anchors). The background picker
-    (consuming `backgroundGrants`, incl. the ability-spread chooser) is the counterpart still to build.
+    the choice legible + rules-grounded. Tests: `species.test.ts` (+2 anchors).
+  - **Background picker on the sheet ✅ SHIPPED (commit pending).** The Bio now has a 2024 **Background**
+    card (distinct from the narrative `bio.background` prose): a dropdown of the 16 real backgrounds
+    (`BACKGROUNDS_2024`) with a **"✎ Custom…"** escape hatch, storing `meta.background`. When a real one
+    is chosen it shows exactly **what it grants** — the three ability options (assign +2/+1 or +1/+1/+1),
+    the Origin feat (resolved to its name + spell list), skill proficiencies, tool, and equipment.
+    Applying the ability increases to the sheet (the spread chooser writing `char.abilities` via the
+    already-tested `backgroundGrants` core) is the final follow-up. Tests: `backgrounds.test.ts`
+    (+2 anchors). Both creation pickers now mirror the feat picker's rules-legal-with-custom-escape shape.
 - [ ] Tests: no feat grants an ability increase it shouldn't; every background's feat exists;
       species grant no ASIs (the 2014-vs-2024 trap).
 

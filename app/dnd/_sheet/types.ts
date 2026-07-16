@@ -338,6 +338,10 @@ export interface Character {
     gender?: string
     pronouns?: string
     profession?: string
+    /** The chosen 2024 mechanical BACKGROUND (a key into lib/dnd/backgrounds) — distinct from the
+     *  narrative `bio.background` prose. In 2024 this is what grants the ability increases + Origin
+     *  feat + skills + tool (Slice 4). */
+    background?: string
   }
   inspiration: boolean
   profBonusOverride?: number | null

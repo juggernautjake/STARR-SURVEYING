@@ -58,3 +58,23 @@ describe('2024 backgrounds', () => {
     expect(findBackground('sage')?.spellList).toBe('arcane');
   });
 });
+
+describe('the sheet surfaces the 2024 background as a rules-grounded picker (Slice 4 creation UI)', () => {
+  const read = (p: string) => require('node:fs').readFileSync(require('node:path').join(process.cwd(), p), 'utf8');
+  const BIO = read('app/dnd/_sheet/components/Bio.tsx');
+
+  it('offers a 2024 background dropdown from BACKGROUNDS_2024 with a custom escape hatch', () => {
+    expect(BIO).toContain('BACKGROUNDS_2024');
+    expect(BIO).toContain("system === 'dnd5e-2024'");
+    expect(BIO).toContain('✎ Custom…');
+    expect(BIO).toContain('setBackground');
+  });
+
+  it('shows what the background grants (abilities, Origin feat, skills, tool, equipment)', () => {
+    expect(BIO).toContain('Ability Scores:');
+    expect(BIO).toContain('Origin Feat:');
+    expect(BIO).toContain('bg.skillProficiencies');
+    expect(BIO).toContain('bg.toolProficiency');
+    expect(BIO).toContain('bgFeatName');
+  });
+});

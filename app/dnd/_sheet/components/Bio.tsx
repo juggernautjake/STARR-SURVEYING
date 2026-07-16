@@ -1,8 +1,14 @@
 'use client'
 import { useState } from 'react'
 import { useChar } from '../state/store'
+import { useSheetSystem } from '../state/sheetConfig'
+import { BACKGROUNDS_2024, findBackground } from '@/lib/dnd/backgrounds/dnd5e-2024'
+import { findFeat } from '@/lib/dnd/feats/dnd5e-2024'
+import { SKILLS } from '@/app/dnd/_sheet/rules/dnd'
 import { md } from '../lib/inline'
 import SectionHead from './ui/SectionHead'
+
+const SKILL_LABEL: Record<string, string> = Object.fromEntries(SKILLS.map((s) => [s.key, s.label]))
 
 // Story & Roleplay — the character's premade story sections (intro, appearance, personality,
 // background, play tips). Each section has its own ✎ Edit button so the DM or the owning
@@ -93,9 +99,55 @@ export default function Bio() {
   const setMeta = (k: 'gender' | 'pronouns' | 'profession', v: string) =>
     setChar((c) => ({ ...c, meta: { ...c.meta, [k]: v } }))
 
+  // Mechanical 2024 background (Slice 4): a pick from the real list that grants ability increases +
+  // an Origin feat + skills + tool. Distinct from `bio.background` (narrative prose). Shown as a
+  // picker (canWrite) + a legible grants panel; a custom name stays possible (the escape hatch).
+  const system = useSheetSystem()
+  const is2024 = system === 'dnd5e-2024'
+  const setBackground = (key: string) => setChar((c) => ({ ...c, meta: { ...c.meta, background: key } }))
+  const bg = is2024 && char.meta.background ? findBackground(char.meta.background) : undefined
+  const bgKnown = !!bg
+  const bgIsCustom = is2024 && !!char.meta.background && !bgKnown
+  const bgFeatName = bg ? findFeat(bg.originFeat)?.name ?? bg.originFeat : undefined
+
   return (
     <section id="story">
       <SectionHead num="13" title="Story & Roleplay" />
+
+      {/* 2024 mechanical background — the picker + what it grants (ability options, Origin feat,
+          skills, tool, equipment). Only for a 2024 sheet; sets meta.background, distinct from the
+          narrative Background card below. Applying the ability increases to the sheet is a follow-up. */}
+      {is2024 && (char.meta.background || canWrite) && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <h3 style={{ margin: 0 }}>Background <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 12 }}>(2024 — grants ability increases + an Origin feat)</span></h3>
+            {canWrite && (
+              <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                <select
+                  className="mono"
+                  value={bgKnown ? bg!.key : bgIsCustom ? '__custom__' : ''}
+                  onChange={(e) => setBackground(e.target.value === '__custom__' ? (char.meta.background || 'custom') : e.target.value === '' ? '' : e.target.value)}
+                  style={{ background: 'var(--panel-2)', border: '1px solid var(--line)', borderRadius: 6, padding: '4px 8px', color: 'var(--ink)', fontSize: 14 }}
+                >
+                  <option value="">— background —</option>
+                  {BACKGROUNDS_2024.map((b) => (<option key={b.key} value={b.key}>{b.name}</option>))}
+                  <option value="__custom__">✎ Custom…</option>
+                </select>
+              </span>
+            )}
+          </div>
+          {bg && (
+            <div style={{ marginTop: 8, fontSize: 13, display: 'grid', gap: 5 }}>
+              <div><b>Ability Scores:</b> {bg.abilityScores.map((a) => a.toUpperCase()).join(', ')} <span style={{ color: 'var(--muted)' }}>(assign +2/+1, or +1/+1/+1)</span></div>
+              <div><b>Origin Feat:</b> {bgFeatName}{bg.spellList ? ` (${bg.spellList})` : ''}</div>
+              <div><b>Skill Proficiencies:</b> {bg.skillProficiencies.map((s) => SKILL_LABEL[s] ?? s).join(', ')}</div>
+              <div><b>Tool Proficiency:</b> {bg.toolProficiency}</div>
+              <div style={{ color: 'var(--muted)' }}><b style={{ color: 'var(--ink)' }}>Equipment:</b> {bg.equipment}</div>
+            </div>
+          )}
+          {bgIsCustom && <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--muted)' }}>Custom background — grants are yours to define.</div>}
+        </div>
+      )}
 
       {/* Details line — gender · pronouns · profession, each overlayable by an identity effect. */}
       {(details.some((d) => detail(d.key)) || canWrite) && (
