@@ -37,6 +37,12 @@ export default function CombatPanel() {
   // Speed is display-only, so folding it has none of max-HP's heal-clamp interaction — that stays
   // on the base for now. `value` returns the base untouched when nothing modifies it.
   const walkSpeed = ledger.value('speed_walk', combat.speed)
+  // Effective max HP (Slice 15): base + any hp_max effect. Shown here and used as the heal ceiling
+  // (the store clamps to the same value), so a +HP item lets you heal to the higher max. Overlay —
+  // the stored base isn't touched, and `currentHp` is displayed clamped so a dropped item can't
+  // leave you "over max".
+  const effMaxHp = ledger.value('hp_max', combat.maxHp)
+  const shownHp = Math.min(combat.currentHp, effMaxHp)
   // Movement is not one number (Slice 11): fly/swim/climb/burrow are each their own target with
   // their own base. A potion of flying is a fly speed, not "+30 speed" — and a fly speed can exist
   // while the walk speed is 0. This is the speeds block that gives those grants a home; a mode only
@@ -99,9 +105,12 @@ export default function CombatPanel() {
           <h3>Hit Points</h3>
           <div style={{ textAlign: 'center', margin: '4px 0 14px' }}>
             <span style={{ fontFamily: 'var(--font-display)', fontSize: 52, fontWeight: 700, color: dying ? 'var(--danger)' : 'var(--good)', lineHeight: 1 }}>
-              {combat.currentHp}
+              {shownHp}
             </span>
-            <span style={{ fontFamily: 'var(--font-display)', fontSize: 26, color: 'var(--muted)' }}> / {combat.maxHp}</span>
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: 26, color: 'var(--muted)' }}>
+              {' '}/{' '}
+              <EffectStar target="hp_max" label="Max HP">{effMaxHp}</EffectStar>
+            </span>
             {combat.tempHp > 0 && (
               <div className="mono" style={{ color: 'var(--tealbright)', marginTop: 2 }}>+{combat.tempHp} temporary</div>
             )}
@@ -183,7 +192,7 @@ export default function CombatPanel() {
               <button
                 className="btn tiny teal"
                 onClick={() => adjustHp(regenAmount)}
-                disabled={combat.currentHp <= 0 || combat.currentHp >= combat.maxHp}
+                disabled={combat.currentHp <= 0 || combat.currentHp >= effMaxHp}
                 title={char.regen.label}
               >
                 ✚ Regenerate +{regenAmount} HP / turn

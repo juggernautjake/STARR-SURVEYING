@@ -203,6 +203,11 @@ function highestHeldId(c: Character): string {
   if (nb.length <= 1) return 'base'
   return nb[nb.length - 2].id
 }
+/** The character's EFFECTIVE max HP (Slice 15): base + any `hp_max` effect (a Belt of Hill Giant
+ *  Vitality, Aid). Heal clamps to THIS, and the sheet shows it — so a +HP item lets you heal to the
+ *  higher max. It's an overlay: stored `maxHp` stays the base, so dropping the item re-derives you. */
+const effMaxHp = (c: Character) => buildLedger(c).value('hp_max', c.combat.maxHp);
+
 /** Fresh per-Surge use counts for a form's limited abilities. */
 function freshUses(c: Character, formId: string | null): Record<string, number> {
   const out: Record<string, number> = {}
@@ -692,7 +697,7 @@ export function CharacterProvider({
       const title = `${f.name} — ${u.label}`
       if (u.roll && (u.rollKind === 'heal' || u.rollKind === 'temp')) {
         const total = rollDamage(u.roll).total
-        if (u.rollKind === 'heal') setCharState((c) => ({ ...c, combat: { ...c.combat, currentHp: Math.min(c.combat.maxHp, c.combat.currentHp + total) } }))
+        if (u.rollKind === 'heal') setCharState((c) => ({ ...c, combat: { ...c.combat, currentHp: Math.min(effMaxHp(c), c.combat.currentHp + total) } }))
         else setCharState((c) => ({ ...c, combat: { ...c.combat, tempHp: Math.max(c.combat.tempHp, total) } }))
         commitRoll({ label: title, kind: u.rollKind, total, breakdown: `${u.roll} → ${u.rollKind === 'heal' ? `+${total} HP` : `${total} temp HP`}` })
       } else if (u.roll) {
@@ -852,7 +857,7 @@ export function CharacterProvider({
         temp -= fromTemp
         cur = Math.max(0, cur - (dmg - fromTemp))
       } else {
-        cur = Math.min(c.combat.maxHp, cur + delta)
+        cur = Math.min(effMaxHp(c), cur + delta)
       }
       return { ...c, combat: { ...c.combat, currentHp: cur, tempHp: temp } }
     })
@@ -947,7 +952,7 @@ export function CharacterProvider({
       combat: {
         ...c.combat,
         hitDiceRemaining: Math.max(0, c.combat.hitDiceRemaining - 1),
-        currentHp: Math.min(c.combat.maxHp, c.combat.currentHp + total),
+        currentHp: Math.min(effMaxHp(c), c.combat.currentHp + total),
       },
     }))
   }, [char.abilities.con, char.combat.hitDiceRemaining, char.combat.hitDiceSize, stage])

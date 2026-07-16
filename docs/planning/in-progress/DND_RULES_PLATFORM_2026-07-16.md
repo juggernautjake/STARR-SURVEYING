@@ -609,13 +609,15 @@ raw combat numbers:
 - **Walk speed ✅ folded + starred** (commit pending). `CombatPanel` now shows
   `ledger.value('speed_walk', combat.speed)` and stars it — a Boots of Striding +10 renders 40 ft
   with the ★. Speed is display-only, so this has none of max-HP's heal-clamp interaction.
-- **Max HP — still on the base.** Folding `hp_max` through the ledger is entangled with the heal/
-  damage clamp (`adjustHp` caps against the stored max); doing it without that would show a higher
-  max than you can actually heal to. Deferred until the clamp reads the folded max too.
-- **AC — still via `deriveAc`.** `deriveAc` already folds item + activeEffect AC on its own path;
-  routing AC through the ledger as well would double-count. Needs the two reconciled first.
-The marker code is generic over any target, so each of these is a one-line add once its value is
-ledger-routed.
+- **Max HP ✅ folded + starred (commit pending).** The clamp entanglement is solved: a store helper
+  `effMaxHp(c) = buildLedger(c).value('hp_max', c.combat.maxHp)` is now the heal ceiling at ALL three
+  clamp sites (`adjustHp`, the feature heal, the cast heal), and `CombatPanel` shows the effective max
+  (starred) with the displayed current clamped to it. Pure overlay: stored `maxHp` is never written,
+  so a Belt of Vitality (+10) heals you to 78 and dropping it re-derives you to 68 without leaving you
+  "over max". Tests: `hp-fold.test.ts` (4).
+- **AC ✅ already folded via `deriveAc`.** The Defenses AC line and the AI digest both run `deriveAc`
+  (equipped armour/shield + AC effects), so AC is effective everywhere it's shown — the ledger's `ac`
+  target composes into that path rather than double-counting. No separate work needed.
 
 ### Original spec
 
