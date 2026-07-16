@@ -35,7 +35,24 @@ function describeEdit(row: EditRow): string {
 }
 
 export default function EditReviewPanel() {
-  const { characterId, canWrite, reloadFromDb } = useChar()
+  const { characterId, canWrite, reloadFromDb, char, setChar } = useChar()
+
+  // "Approve" — the DM's YAY (Slice 20/26): bless the current customizations by clearing every ✎ on
+  // the sheet. Whole-sheet, not per-edit: the flag lives on the element, and "I've reviewed this sheet
+  // and it's fine" is exactly this. Persists through the normal autosave; Revert still handles nay.
+  const customizedCount =
+    (char.attacks ?? []).filter((a) => a.customized).length +
+    (char.inventory ?? []).filter((i) => i.customized).length +
+    (char.features ?? []).filter((f) => f.customized).length +
+    (char.spells ?? []).filter((s) => s.customized).length
+  const approveAll = () =>
+    setChar((c) => ({
+      ...c,
+      attacks: (c.attacks ?? []).map((a) => (a.customized ? { ...a, customized: false } : a)),
+      inventory: (c.inventory ?? []).map((i) => (i.customized ? { ...i, customized: false } : i)),
+      features: (c.features ?? []).map((f) => (f.customized ? { ...f, customized: false } : f)),
+      spells: (c.spells ?? []).map((s) => (s.customized ? { ...s, customized: false } : s)),
+    }))
   const [rows, setRows] = useState<EditRow[]>([])
   const [loaded, setLoaded] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
@@ -78,7 +95,14 @@ export default function EditReviewPanel() {
 
   return (
     <div className="card ae-card">
-      <div className="ae-head">✎ Customizations &amp; edit history</div>
+      <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div className="ae-head" style={{ margin: 0 }}>✎ Customizations &amp; edit history</div>
+        {customizedCount > 0 && (
+          <button className="btn tiny teal" onClick={approveAll} title="Bless every customization on this sheet — clears the ✎ marks. Revert still undoes individual edits below.">
+            ✓ Approve all ({customizedCount})
+          </button>
+        )}
+      </div>
       {!loaded ? (
         <p className="ae-empty">Loading edit history…</p>
       ) : visible.length === 0 ? (

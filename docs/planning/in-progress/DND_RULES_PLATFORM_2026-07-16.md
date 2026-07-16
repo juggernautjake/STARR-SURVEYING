@@ -1119,11 +1119,13 @@ DM or owner; a plain viewer never sees it), lists the edit history newest-first 
 or player, when"), and offers per-edit **⟲ Revert** → the `/edits/revert` endpoint (write-gated,
 scoped to the character) reverses that edit through `revertSheetEdit`, persists, pulls the sheet back
 in, and audits the revert itself. So the DM can *fully see what a player modified and say nay* — the
-literal request. ("Yay" is implicit: leave it, and the ✎ marks on the sheet keep saying which
-elements differ.) A distinct **Approve-to-clear-✎** action (blessing a customization so its ✎
-disappears) is the one optional refinement left — the ✎ is accurate and informational without it, and
-it carries a per-element-vs-per-edit granularity choice best made with the DM's real use in view.
-Tests: `edit-review.test.ts` (5) + the `revertSheetEdit`/`editOldValue` suites.
+literal request. **"Yay" is now explicit too ✅**: an **✓ Approve all (N)** button in the panel clears
+every ✎ on the sheet ("I've reviewed this and it's fine"), persisting through autosave — whole-sheet
+granularity, which is exactly what a DM review pass wants. (The alternative phrasing below noted this
+as optional; it's shipped.) ("Yay" is also implicit: leave it, and the ✎ marks on the sheet keep saying which
+elements differ.) The **Approve-to-clear-✎** action is shipped as a whole-sheet **✓ Approve all** (the
+granularity a review pass actually wants). Tests: `edit-review.test.ts` (6) + the `revertSheetEdit`/
+`editOldValue` suites.
 
 - [ ] **The DM can edit anything, anywhere, on any sheet in their campaign** — every number, die,
       name, and word. No field is read-only to the DM. `getCharacterAccess` already grants DM write;

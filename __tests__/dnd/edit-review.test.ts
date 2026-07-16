@@ -53,3 +53,15 @@ describe('the round-trip the endpoint depends on holds end to end', () => {
     expect(reverted.combat.ac).toBe(15);
   });
 });
+
+describe('Approve clears the ✎ marks — the DM\'s "yay" (Slice 20/26)', () => {
+  const read = (p: string) => require('node:fs').readFileSync(require('node:path').join(process.cwd(), p), 'utf8');
+  it('the panel offers Approve-all which clears customized on every element', () => {
+    const panel = read('app/dnd/_sheet/components/EditReviewPanel.tsx');
+    expect(panel).toContain('customizedCount');
+    expect(panel).toContain('✓ Approve all');
+    expect(panel).toContain('customized: false');
+    // gated on there being something to approve, and it's a setChar (persists via autosave).
+    expect(panel).toContain('customizedCount > 0');
+  });
+});
