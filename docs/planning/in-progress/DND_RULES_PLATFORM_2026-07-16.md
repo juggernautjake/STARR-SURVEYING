@@ -452,6 +452,11 @@ Defenses card in `CombatPanel` now lists each, per-type, tagged with its source 
 the danger colour), gated on non-empty. Tests: `grant-defenses.test.ts` (3) — collected+sourced,
 gone-on-unequip, render wiring.
 
+**Grant: senses ✅ SHIPPED (commit pending).** `grant_sense` (darkvision 60, tremorsense…) uses op
+`set`, so it's read via `ledger.explain('grant_sense')` rather than `collected`. The Defenses card
+now shows a Senses line, each sense tagged with its source, gated on non-empty. This closes the
+doc's explicit "senses… need somewhere to render" item. Test added to `grant-defenses.test.ts`.
+
 **Still open in this slice (each its own render site / mechanic, deliberately not bundled):**
 - *Other identity fields* — `image`/`token` (portrait + map token), `gender`/`pronouns`/`profession`
   (Bio/Overview), `size`/`creature_type` (mechanical: size drives carrying capacity + grapple). Each

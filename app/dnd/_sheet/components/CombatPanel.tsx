@@ -44,6 +44,12 @@ export default function CombatPanel() {
   const resistances = ledger.collected('resistance')
   const immunities = ledger.collected('immunity')
   const vulnerabilities = ledger.collected('vulnerability')
+  // Granted senses (darkvision 60, tremorsense…) — op is `set`, not a collect-op, so read the
+  // ledger's contributions for the target. Each carries the sense text and the source granting it.
+  const senses = ledger
+    .explain('grant_sense')
+    .filter((c) => !c.suppressed && typeof c.effect.value === 'string')
+    .map((c) => ({ value: String(c.effect.value), source: c.source }))
 
   const dying = combat.currentHp <= 0
 
@@ -246,6 +252,17 @@ export default function CombatPanel() {
                   <span key={`${r.value}-${r.source}`} style={{ textTransform: 'capitalize' }}>
                     {i > 0 && ', '}
                     {r.value} <span className="hl-note">({r.source})</span>
+                  </span>
+                ))}
+              </li>
+            )}
+            {senses.length > 0 && (
+              <li>
+                <strong>Senses</strong> —{' '}
+                {senses.map((s, i) => (
+                  <span key={`${s.value}-${s.source}`} style={{ textTransform: 'capitalize' }}>
+                    {i > 0 && ', '}
+                    {s.value} <span className="hl-note">({s.source})</span>
                   </span>
                 ))}
               </li>

@@ -18,6 +18,7 @@ const cloak: SheetEdit = {
     { target: 'resistance', operation: 'resistance', value: 'fire' },
     { target: 'immunity', operation: 'immunity', value: 'poison' },
     { target: 'vulnerability', operation: 'vulnerability', value: 'cold' },
+    { target: 'grant_sense', operation: 'set', value: 'darkvision 60' },
   ],
 } as SheetEdit;
 
@@ -28,6 +29,14 @@ describe('the ledger collects defenses with their source', () => {
     expect(led.collected('immunity').map((r) => r.value)).toContain('poison');
     expect(led.collected('vulnerability').map((r) => r.value)).toContain('cold');
     expect(led.collected('resistance')[0].source).toBe('Cloak of the Salamander');
+  });
+
+  it('a granted sense (op set) is explained with its source', () => {
+    const led = buildLedger(applySheetEdits(blankCharacter('Ash'), [cloak]));
+    const senses = led.explain('grant_sense').filter((c) => !c.suppressed);
+    expect(senses).toHaveLength(1);
+    expect(senses[0].effect.value).toBe('darkvision 60');
+    expect(senses[0].source).toBe('Cloak of the Salamander');
   });
 
   it('unequipping removes all three', () => {
