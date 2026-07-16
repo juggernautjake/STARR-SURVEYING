@@ -13,7 +13,7 @@ const CLASSES = classesForSystem(SYS);
 
 describe('the 2014 class roster (authored class-by-class)', () => {
   it('has the classes authored so far, and the system reports it has class data', () => {
-    expect(CLASSES.map((c) => c.name)).toEqual(expect.arrayContaining(['Barbarian', 'Fighter', 'Rogue', 'Monk', 'Ranger', 'Paladin', 'Sorcerer', 'Warlock', 'Bard']));
+    expect(CLASSES.map((c) => c.name)).toEqual(expect.arrayContaining(['Barbarian', 'Fighter', 'Rogue', 'Monk', 'Ranger', 'Paladin', 'Sorcerer', 'Warlock', 'Bard', 'Cleric']));
     expect(systemHasClasses(SYS)).toBe(true);
   });
 
@@ -303,5 +303,34 @@ describe('Bard 2014 — the edition-specific numbers', () => {
 
   it('offers exactly the two PHB colleges (Lore, Valor)', () => {
     expect(subclassesFor(SYS, 'bard').map((s) => s.name).sort()).toEqual(['College of Lore', 'College of Valor']);
+  });
+});
+
+describe('Cleric 2014 — the edition-specific numbers', () => {
+  const cleric = findClass(SYS, 'cleric')!;
+
+  it('is a WIS full-caster preparer that picks its Divine Domain at level 1', () => {
+    expect(cleric.spellcasting?.kind).toBe('full');
+    expect(cleric.spellcasting?.ability).toBe('wis');
+    expect(cleric.spellcasting?.spellsKnown).toBeUndefined(); // preparer
+    expect(cleric.subclassLevel).toBe(1);
+  });
+
+  it('has Channel Divinity + Turn Undead, Destroy Undead, and Divine Intervention', () => {
+    expect(cleric.features.some((f) => f.name === 'Channel Divinity')).toBe(true);
+    expect(cleric.features.some((f) => f.name === 'Destroy Undead')).toBe(true);
+    expect(snapshotAtLevel(cleric, 10).features.some((f) => f.name === 'Divine Intervention')).toBe(true);
+  });
+
+  it('offers all seven PHB domains, each with always-prepared Domain Spells and a level-8 boost', () => {
+    const subs = subclassesFor(SYS, 'cleric');
+    expect(subs.map((s) => s.name).sort()).toEqual([
+      'Knowledge Domain', 'Life Domain', 'Light Domain', 'Nature Domain',
+      'Tempest Domain', 'Trickery Domain', 'War Domain',
+    ]);
+    for (const s of subs) {
+      expect(Object.keys(s.alwaysPrepared ?? {}).length).toBe(5); // domain spells at 1/3/5/7/9
+      expect(s.features.some((f) => f.level === 8 && /Divine Strike|Potent Spellcasting/.test(f.name))).toBe(true);
+    }
   });
 });
