@@ -144,7 +144,13 @@ function genLava(cfg, aniso) {
   const W = 1024, H = 512, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d');
   const img = ctx.createImageData(W, H), d = img.data;
   const n = makeNoise((cfg.seed | 0) + 321), n2 = makeNoise((cfg.seed | 0) + 654);
-  const inten = Math.max(0, Math.min(1, cfg.lava || 0)), cs = (cfg.cscale || 2.2) * 1.5, halfW = 0.012 + inten * 0.12;
+  // 2D<->3D LAVA PARITY. This vein half-width used to grow LINEARLY (0.012 + inten*0.12), so even a
+  // moderate slider already read as "absolutely covered" in 3D while the 2D showed a few cracks. An
+  // ease-in (inten^2.9) keeps low-and-mid values genuinely sparse and only fills the surface near
+  // the top; the wider max (×0.29) still reaches near-total molten coverage at inten=1. The 2D was
+  // boosted to match at the same time — the two are tuned to agree, so change them together.
+  const inten = Math.max(0, Math.min(1, cfg.lava || 0)), cs = (cfg.cscale || 2.2) * 1.5;
+  const halfW = 0.012 + Math.pow(inten, 2.9) * 0.29;
   for (let y = 0; y < H; y++) { const lat = y / H;
     for (let x = 0; x < W; x++) { const lon = x / W, idx = (y * W + x) * 4;
       const vein = Math.min(Math.abs(fbm(n, lon, lat, cs, 5) - 0.5), Math.abs(fbm(n2, lon + 3.1, lat + 1.7, cs * 1.7, 4) - 0.5));

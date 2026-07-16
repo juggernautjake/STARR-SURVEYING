@@ -831,7 +831,15 @@ function art(a,animate){
   const ringFront=a.ring?`<path d="M ${cx-150} ${cy} A 150 40 0 0 0 ${cx+150} ${cy}" fill="none" stroke="${c3}" stroke-width="8" opacity=".55" transform="rotate(-22 ${cx} ${cy})"/>`:"";
   // molten lava cracks — a branching glow network scaled by a.lava (0–1); glows over the terminator too
   let lava="";const lavaI=a.lava!=null?+a.lava:0;
-  if(lavaI>0.001){const lrng=mulberry((a.seed||1)*29+3);const nC=Math.round(3+lavaI*11);let pth="";
+  if(lavaI>0.001){const lrng=mulberry((a.seed||1)*29+3);
+    // 2D<->3D LAVA PARITY (see planet3d-model.js genLava). The 2D used to draw only 3+lavaI*11 ≈ 14
+    // crack networks at max — "a few little lines" next to a 3D planet that goes near-solid molten.
+    // Many more networks now, and a full-disc molten WASH (clipped to the planet) that ramps up so
+    // max reads as fully lava, matching 3D. The 3D side was eased-in at the same time so its ramp
+    // is gentler; these are tuned together.
+    const nC=Math.round(4+lavaI*46);let pth="";
+    const glowOp=Math.pow(lavaI,1.5)*0.6;
+    if(glowOp>0.01)pth+=`<circle cx="${cx}" cy="${cy}" r="${R}" fill="#7a1a06" opacity="${glowOp.toFixed(3)}"/>`;
     for(let i=0;i<nC;i++){let px=cx-R*0.85+lrng()*R*1.7,py=cy-R*0.85+lrng()*R*1.7;let dP=`M ${px.toFixed(1)} ${py.toFixed(1)}`;
       const steps=4+Math.round(lrng()*5),len=(R*0.28+lrng()*R*0.5)/steps;let ang=lrng()*6.28;
       for(let s=0;s<steps;s++){ang+=(lrng()-0.5)*1.5;px+=Math.cos(ang)*len;py+=Math.sin(ang)*len;dP+=` L ${px.toFixed(1)} ${py.toFixed(1)}`;
