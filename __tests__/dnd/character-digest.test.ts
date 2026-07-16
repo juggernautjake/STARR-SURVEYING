@@ -15,7 +15,7 @@ function fixture(): Character {
   c.abilities = { ...c.abilities, str: 18, dex: 14, con: 16, int: 8, wis: 12, cha: 10 };
   c.combat = { ...c.combat, ac: 17, maxHp: 68, currentHp: 41, tempHp: 5, speed: 30, exhaustion: 1, conditions: ['grappled'] } as Character['combat'];
   c.saves = { ...c.saves, str: { proficient: true, misc: 0 }, con: { proficient: true, misc: 0 } };
-  c.skills = { ...c.skills, athletics: { prof: 'expertise', misc: 0 }, survival: { prof: 'prof', misc: 0 } } as Character['skills'];
+  c.skills = { ...c.skills, athletics: { prof: 'expertise', misc: 0 }, survival: { prof: 'proficient', misc: 0 } };
   c.resources = [{ id: 'r1', name: 'Momentum', current: 2, max: 4, resetOn: 'long' }] as Character['resources'];
   c.attacks = [{ id: 'a1', name: 'Cross Counter', range: 'melee 5 ft', damage: '1d8+4', damageType: 'bludgeoning' }] as Character['attacks'];
   c.features = [
