@@ -255,7 +255,13 @@ categories) and Epic Boon remain.
       (5) — 16-with-unique-keys, **every background's Origin feat resolves in the feats data** (the
       invariant the slice names, now real because the feats shipped first), 3-distinct-abilities,
       2-valid-skills+1-tool, and the Magic-Initiate spell-list check.
-- [ ] **Species** (10): traits only, **no ability score increases**, with size/speed/creature type.
+- [x] **Species** (10) ✅ SHIPPED (commit pending) — `lib/dnd/species/dnd5e-2024.ts`. All ten PHB
+      species (Aasimar, Dragonborn, Dwarf, Elf, Gnome, Goliath, Halfling, Human, Orc, Tiefling) with
+      creature type, size, speed, darkvision, lineage choices, and named traits (full text). **No
+      ability score increases** — the `Species` type has no ability field and `species.test.ts` (4)
+      asserts no species object carries one under ANY name (`abilityScores`/`asi`/`str`/… — the
+      2014-vs-2024 trap made un-reintroducible). Spot-checks the distinctive numbers (dwarf/orc 120-ft
+      darkvision, goliath 35 speed, halfling Small).
 - [ ] **Languages** + tool proficiencies as lists.
 - [ ] Wire into the level builder: an ASI choice offers real feats with prerequisites checked;
       character creation offers backgrounds/species.
