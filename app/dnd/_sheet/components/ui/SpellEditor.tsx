@@ -12,6 +12,7 @@ import type { Spell, SpellLevel } from '../../types'
 import EditDialog, { Field } from './EditDialog'
 import { EffectRows } from '../ItemBuilder'
 import { validateEffect } from '@/lib/dnd/effects/targets'
+import { nextCustomized } from '../../lib/customized'
 
 const LEVELS: SpellLevel[] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
@@ -29,9 +30,10 @@ export default function SpellEditor({ spell, onClose }: { spell: Spell; onClose:
       const bad = validateEffect(eff)
       if (bad) { setErr(bad.reason); return }
     }
+    const customized = nextCustomized(spell, draft) // ✎ once hand-tuned (Slice 20)
     setChar((c) => ({
       ...c,
-      spells: (c.spells ?? []).map((s) => (s.id === spell.id ? { ...draft, name } : s)),
+      spells: (c.spells ?? []).map((s) => (s.id === spell.id ? { ...draft, name, customized } : s)),
     }))
     onClose()
   }

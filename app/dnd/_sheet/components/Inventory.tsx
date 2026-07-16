@@ -5,6 +5,7 @@ import SectionHead from './ui/SectionHead'
 import NeoNuggetsBalance from './NeoNuggetsBalance'
 import ItemBuilder from './ItemBuilder'
 import ElementMenu from './ui/ElementMenu'
+import EditMark from './ui/EditMark'
 import { tagInfo } from './ui/tagInfo'
 
 function labels() {
@@ -156,6 +157,7 @@ export default function Inventory() {
             <div>
               <div className="inv-name">
                 {it.name}
+                <EditMark on={it.customized} />
                 {canWrite && (
                   <ElementMenu
                     label={it.name}

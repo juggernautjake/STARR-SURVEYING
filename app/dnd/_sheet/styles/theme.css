@@ -530,6 +530,15 @@
   text-decoration: line-through;
 }
 
+/* ✎ = "this element was hand-customized" (Slice 20). Distinct from ★ (something modifying it now):
+   see EditMark.tsx. Gold + help cursor; token-driven so every skin re-tints it. */
+.dnd-sheet .edit-mark {
+  color: var(--gold);
+  font-size: 0.82em;
+  cursor: help;
+  opacity: 0.85;
+}
+
 /* The system designation (Slice 21) — which rulebook adjudicates this sheet. Token-driven, so
    it inherits each skin's accent instead of forcing one palette onto every character. */
 .dnd-sheet .chip.system-chip {

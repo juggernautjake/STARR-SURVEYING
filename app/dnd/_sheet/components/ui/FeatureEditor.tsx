@@ -8,6 +8,7 @@ import { useChar } from '../../state/store'
 import type { FeatureBlock } from '../../types'
 import EditDialog, { Field } from './EditDialog'
 import { EffectRows } from '../ItemBuilder'
+import { nextCustomized } from '../../lib/customized'
 
 export default function FeatureEditor({ feature, onClose }: { feature: FeatureBlock; onClose: () => void }) {
   const { setChar } = useChar()
@@ -16,9 +17,10 @@ export default function FeatureEditor({ feature, onClose }: { feature: FeatureBl
 
   function save() {
     const name = draft.name.trim() || feature.name // a blank name would erase the card's heading
+    const customized = nextCustomized(feature, draft) // ✎ once hand-tuned (Slice 20)
     setChar((c) => ({
       ...c,
-      features: (c.features ?? []).map((f) => (f.id === feature.id ? { ...draft, name } : f)),
+      features: (c.features ?? []).map((f) => (f.id === feature.id ? { ...draft, name, customized } : f)),
     }))
     onClose()
   }

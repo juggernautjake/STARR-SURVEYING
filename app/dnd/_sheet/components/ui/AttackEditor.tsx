@@ -12,6 +12,7 @@ import { useChar } from '../../state/store'
 import { ABILITIES, type AbilityKey } from '../../rules/dnd'
 import type { Attack } from '../../types'
 import EditDialog, { Field } from './EditDialog'
+import { nextCustomized } from '../../lib/customized'
 
 const DAMAGE_TYPES = [
   'bludgeoning', 'piercing', 'slashing', 'fire', 'cold', 'lightning', 'thunder',
@@ -25,9 +26,10 @@ export default function AttackEditor({ attack, onClose }: { attack: Attack; onCl
 
   function save() {
     const name = draft.name.trim() || attack.name // never let a rename blank the row out
+    const customized = nextCustomized(attack, draft) // ✎ once hand-tuned (Slice 20)
     setChar((c) => ({
       ...c,
-      attacks: c.attacks.map((a) => (a.id === attack.id ? { ...draft, name } : a)),
+      attacks: c.attacks.map((a) => (a.id === attack.id ? { ...draft, name, customized } : a)),
     }))
     onClose()
   }

@@ -8,6 +8,7 @@ import SectionHead from './ui/SectionHead'
 import ElementMenu from './ui/ElementMenu'
 import AttackEditor from './ui/AttackEditor'
 import EffectStar from './ui/EffectStar'
+import EditMark from './ui/EditMark'
 
 export default function Attacks() {
   const { char, abilities, pb, rollCheck, rollDmg, transformActive, recklessActive, canWrite, setChar } = useChar()
@@ -120,6 +121,7 @@ export default function Attacks() {
                         {a.name}
                       </strong>
                     )}
+                    <EditMark on={a.customized} />
                     {a.notes && <div className="inv-desc">{a.notes}</div>}
                     {/* A granted attack is on loan from its item — badged, and never editable here
                         (change it on the item). Owned attacks get the ⋯ menu (Slice 27). */}

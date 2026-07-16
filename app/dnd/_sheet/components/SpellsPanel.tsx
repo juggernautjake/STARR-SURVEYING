@@ -10,6 +10,7 @@ import { abilityMod, profBonusForLevel, signed } from '../rules/dnd'
 import { md } from '../lib/inline'
 import SectionHead from './ui/SectionHead'
 import ElementMenu from './ui/ElementMenu'
+import EditMark from './ui/EditMark'
 import SpellEditor from './ui/SpellEditor'
 import type { Spell, SpellLevel } from '../types'
 
@@ -117,6 +118,7 @@ export default function SpellsPanel() {
                   <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                     <div style={{ fontWeight: 800, color: 'var(--ink)' }}>
                       {s.name}
+                      <EditMark on={s.customized} />
                       {s.alias && <span style={{ fontSize: 12, color: 'var(--violet)', marginLeft: 6 }}>“{s.alias}”</span>}
                       {canWrite && (
                         <ElementMenu

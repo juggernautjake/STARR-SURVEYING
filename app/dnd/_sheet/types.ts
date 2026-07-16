@@ -30,6 +30,9 @@ export interface Attack {
   /** A flat save DC that overrides the computed 8 + PB + mod for this attack — full manual control. */
   saveDcOverride?: number
   notes?: string
+  /** Hand-tuned away from how it was (Slice 20): set true when edited through the in-place editor,
+   *  drives the ✎ marker. Distinct from the ★ (something is modifying it right now). */
+  customized?: boolean
 }
 
 export interface FeatureBlock {
@@ -54,6 +57,8 @@ export interface FeatureBlock {
    *  are prose the DM reads. A feature with `effects` moves real numbers — and, like item effects,
    *  may be `condition`-gated ('raging') so it only counts when it should. */
   effects?: Effect[]
+  /** Hand-tuned away from how it was (Slice 20) → drives the ✎ marker. */
+  customized?: boolean
 }
 
 export interface FormAbility {
@@ -173,6 +178,8 @@ export interface InvItem {
    *  the Spells tab badged to this item — so a non-caster can be granted a spell and still see it —
    *  gone when it comes off. (Casting from granted slots is a follow-up.) */
   grantsSpell?: Spell
+  /** Hand-tuned away from how it was (Slice 20) → drives the ✎ marker. */
+  customized?: boolean
 }
 
 /** A temporary effect currently applied to the character (from a consumed buff/potion or a
@@ -218,6 +225,8 @@ export interface Spell {
   effects?: Effect[]
   /** How long a cast `effects` buff lasts, shown on its ActiveEffect (e.g. "1 minute", "1 hour"). */
   effectDuration?: string
+  /** Hand-tuned away from how it was (Slice 20) → drives the ✎ marker. */
+  customized?: boolean
 }
 
 export interface SpellcastingInfo {

@@ -10,6 +10,7 @@ import TagPicker from './ui/TagPicker'
 import type { Effect, EffectOperation } from '../engine/effects'
 import type { AbilityKey } from '../rules/dnd'
 import { findTarget, targetsInGroup, describeEffect, validateEffect, TARGET_GROUP_LABELS, type TargetGroup } from '@/lib/dnd/effects/targets'
+import { nextCustomized } from '../lib/customized'
 
 const KINDS: { id: ItemKind; label: string }[] = [
   { id: 'weapon', label: '⚔ Weapon' },
@@ -77,6 +78,9 @@ export default function ItemBuilder({
     if (kind !== 'weapon') delete clean.weapon
     if (kind !== 'armor' && kind !== 'shield') delete clean.armor
     if (kind !== 'consumable') delete clean.consumable
+    // ✎ (Slice 20): mark an item hand-tuned when EDITING an existing one changed it. A brand-new
+    // item (no `initial`) isn't "customized from a source" — it just is what it is.
+    if (initial) clean.customized = nextCustomized(initial, clean)
     onSave(clean)
   }
 

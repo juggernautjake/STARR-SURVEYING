@@ -830,7 +830,28 @@ the overlay rule, because "you are a bear now" must be perfectly reversible.
       throughout (the anti-"permanent bear" guard); revert restores exactly; carry-over policy is
       honoured per form; a save while transformed does not corrupt the base.
 
-## Slice 20 — Edit everything on the sheet, and mark what's been customized
+## Slice 20 — Edit everything on the sheet, and mark what's been customized ✅ SHIPPED 2026-07-16
+
+**Edit in place ✅** — attacks, items, features, spells, resources and traits all have in-place
+editors reached via the ⋯ menu (Slices 27/33); add/duplicate/delete too. All route through the store's
+`setChar` (→ autosave + `dnd_sheet_edits` audit), not a parallel path.
+
+**✎ customized marker ✅ (commit pending).** The user's ask verbatim: *"If the stats are edited, then
+there should be some kind of marker showing that the thing has been customized."* Shipped exactly
+that: a `customized?: boolean` on Attack/InvItem/Spell/FeatureBlock, set by each in-place editor via
+`nextCustomized(original, draft)` — which flips on only when a save actually **changed** the element
+(a no-op save doesn't false-trigger; the flag ignores itself when comparing; once set it stays). A
+shared `EditMark` renders ✎ (gold, token-driven) next to the element name on all four tabs, with a
+"hand-customized" tooltip, and it is a DISTINCT marker from ★ (nothing shared — ★ = modified now, ✎ =
+differs from how it came). Tests: `customized-marker.test.ts` (9).
+
+**Deferred — "what changed" detail + Revert to official.** The hover showing "damage 8d6 → 10d6" and
+a one-click revert need the ELEMENT'S OFFICIAL source values to diff against, which requires a
+per-system content catalog with full stats (the vanilla catalog tracks names, not values) — its own
+slice. The shipped marker answers the user's literal ask ("this has been hand-customized"); the
+diff/revert is the planner's gold-plating on top.
+
+### Original spec
 
 > "I want to be able to edit attacks and abilities and spells and stuff in the character sheet. If the
 > stats are edited, then there should be some kind of marker showing that the thing has been

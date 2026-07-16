@@ -4,6 +4,7 @@ import { md } from '../lib/inline'
 import { RichRules } from './RuleTip'
 import SectionHead from './ui/SectionHead'
 import ElementMenu from './ui/ElementMenu'
+import EditMark from './ui/EditMark'
 import FeatureEditor from './ui/FeatureEditor'
 import type { FeatureBlock } from '../types'
 
@@ -77,6 +78,7 @@ export default function Features() {
             <h3>
               {f.level && <span className="lvl">{f.level}</span>}
               {f.name}
+              <EditMark on={f.customized} />
               {canWrite && (
                 <ElementMenu
                   label={f.name}
