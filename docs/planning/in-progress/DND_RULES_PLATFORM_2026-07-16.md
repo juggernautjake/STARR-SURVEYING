@@ -539,10 +539,15 @@ Original action items (kept for the remaining work):
       item, and gone on unequip; identity effects never mutate stored `meta`; a save-then-unequip
       round-trip leaves the model byte-identical to before it was equipped.
 
-## Slice 12 — The Active Effects sheet (every template)
+## Slice 12 — The Active Effects sheet (every template) ✅ SHIPPED
 
-> "It might be that we think something is active when it is not, or we might forget that something is
-> active… they still have super strength and don't know why."
+`ActiveEffects` is mounted in `App.tsx` above the tabs, so it's on **every** template. It groups the
+ledger's contributions by SOURCE (worn · attuned · consumed · spell · form · condition · DM · feature),
+shows each source's resolved effect via the shared `describeEffect` (not the item's advertised text),
+surfaces a suppressed contribution as "overridden — doing nothing", carries per-source duration and a
+one-click **End effect** (which removes the CAUSE — unequip for a worn item, drop the ActiveEffect for
+a consumed one), states "nothing active" rather than vanishing, and now shows each source's art
+thumbnail (Slice 28). This is a READ of the ledger — it re-derives nothing.
 
 - [ ] A new tab/panel on **every** template listing every source currently modifying the character:
       each item/spell/ability/potion/form/condition, what it is, and **the exact effect it is having**
