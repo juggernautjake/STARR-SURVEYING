@@ -5,9 +5,16 @@ import { deriveAc } from '../lib/derive-ac'
 import { md } from '../lib/inline'
 import { RichRules } from './RuleTip'
 import SectionHead from './ui/SectionHead'
+import ElementMenu from './ui/ElementMenu'
+import TraitEditor from './ui/TraitEditor'
 
 export default function CombatPanel() {
-  const { char, setChar, editMode, adjustHp, rollDeathSave, spendHitDie, shortRest, longRest } = useChar()
+  const { char, setChar, editMode, canWrite, adjustHp, rollDeathSave, spendHitDie, shortRest, longRest } = useChar()
+  const [editingTrait, setEditingTrait] = useState<{ index: number; text: string } | null>(null)
+  const removeTrait = (i: number) => {
+    if (!confirm('Delete this trait? This cannot be undone.')) return
+    setChar((c) => ({ ...c, traits: (c.traits ?? []).filter((_, idx) => idx !== i) }))
+  }
   const { combat } = char
   const [amt, setAmt] = useState(5)
   // Regeneration is character-owned: a flat amount or the CON modifier (min 1).
@@ -192,8 +199,32 @@ export default function CombatPanel() {
             {/* Species/class traits are character-owned — this list used to hardcode a
                 single character's species traits onto every sheet. */}
             {(char.traits ?? []).map((t, i) => (
-              <li key={i}><RichRules text={t} /></li>
+              <li key={i}>
+                <RichRules text={t} />
+                {canWrite && (
+                  <ElementMenu
+                    label="trait"
+                    actions={[
+                      { label: 'Edit trait', onClick: () => setEditingTrait({ index: i, text: t }) },
+                      { label: 'Delete', danger: true, onClick: () => removeTrait(i) },
+                    ]}
+                  />
+                )}
+              </li>
             ))}
+            {canWrite && (
+              <li style={{ listStyle: 'none', marginTop: 6 }}>
+                <button
+                  className="btn tiny teal"
+                  onClick={() => {
+                    setChar((c) => ({ ...c, traits: [...(c.traits ?? []), 'New trait'] }))
+                    setEditingTrait({ index: (char.traits ?? []).length, text: 'New trait' })
+                  }}
+                >
+                  ＋ Add trait
+                </button>
+              </li>
+            )}
           </ul>
 
           <div className="res-head" style={{ marginTop: 16 }}>
@@ -210,6 +241,8 @@ export default function CombatPanel() {
           </div>
         </div>
       </div>
+
+      {editingTrait && <TraitEditor index={editingTrait.index} text={editingTrait.text} onClose={() => setEditingTrait(null)} />}
     </section>
   )
 }

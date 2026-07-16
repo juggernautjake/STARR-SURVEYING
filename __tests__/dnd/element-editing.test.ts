@@ -122,6 +122,26 @@ describe('resources are editable too (Slices 20/27)', () => {
   })
 })
 
+describe('traits are editable too (Slices 20/27)', () => {
+  const COMBAT = read('app/dnd/_sheet/components/CombatPanel.tsx')
+  const TRAIT_EDITOR = read('app/dnd/_sheet/components/ui/TraitEditor.tsx')
+
+  it('the trait row mounts the ⋯ menu, canWrite-gated, and has an Add button', () => {
+    expect(COMBAT).toContain('<ElementMenu')
+    expect(COMBAT).toMatch(/canWrite && \(\s*<ElementMenu/)
+    expect(COMBAT).toMatch(/＋ Add trait/)
+  })
+
+  it('traits are addressed by INDEX (they are plain strings, not id-bearing objects)', () => {
+    expect(TRAIT_EDITOR).toMatch(/index < 0 \|\| index >= traits\.length/)
+    expect(TRAIT_EDITOR).toMatch(/traits\[index\] = v/)
+  })
+
+  it('clearing a trait deletes it rather than leaving an empty bullet', () => {
+    expect(TRAIT_EDITOR).toMatch(/if \(!v\) traits\.splice\(index, 1\)/)
+  })
+})
+
 describe('the ⋯ menu behaves like a menu', () => {
   it('closes on outside click and Escape', () => {
     // A menu you can only close by picking something is a trap.

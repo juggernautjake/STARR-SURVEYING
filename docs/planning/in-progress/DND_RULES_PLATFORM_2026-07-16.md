@@ -828,11 +828,12 @@ Also shipped here: **item tag tooltips** — `tagInfo.ts` explains every tag on 
 "FLAVOR" told the reader nothing. One definition per tag, shared by the Gear list and the editor.
 A homebrew tag returns null rather than a fabricated definition.
 
-**⋯ now on:** attacks, items, features, **spells** (`SpellEditor`), and **resources**
-(`ResourceEditor` + "Add resource"). Each with Edit / Duplicate / Delete, through the shared
+**⋯ now on:** attacks, items, features, **spells** (`SpellEditor`), **resources**
+(`ResourceEditor` + "Add resource"), and **traits** (`TraitEditor` + "Add trait", index-addressed
+since traits are plain strings). Each with Edit / (Duplicate) / Delete, through the shared
 `EditDialog`/`ElementMenu`.
 
-**Still open:** ⋯ on traits, active effects and forms; the menu extras "Change art", "Add effect",
+**Still open:** ⋯ on active effects and forms; the menu extras "Change art", "Add effect",
 "Ask AI about this".
 
 ### Original spec
