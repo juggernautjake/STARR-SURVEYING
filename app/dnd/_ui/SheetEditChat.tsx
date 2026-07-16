@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './sheetchat.module.css';
+import { useResizable } from './useResizable';
 
 interface Msg { role: 'user' | 'ai'; text: string }
 
@@ -50,6 +51,12 @@ export default function SheetEditChat({
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
   const typed = useTypewriter(msgs);
+  // Anchored bottom-right, so the top-left grip must invert BOTH axes to grow into the screen.
+  // Sized per-character: you want the panel big while building a sheet, small while playing it.
+  const { size, resizing, handleProps } = useResizable(
+    { w: 390, h: 540 },
+    { storageKey: `dnd:chat-size:edit:${characterId}`, invert: { x: true, y: true }, min: { w: 300, h: 260 } },
+  );
 
   useEffect(() => {
     requestAnimationFrame(() => listRef.current?.scrollTo({ top: 1e9, behavior: 'smooth' }));
@@ -96,7 +103,13 @@ export default function SheetEditChat({
 
   return (
     <div className={styles.root}>
-      <div className={styles.panel}>
+      <div
+        className={`${styles.panel} ${resizing ? styles.resizing : ''}`}
+        // `size` is null until mount (reading localStorage during render would hydrate-mismatch),
+        // so the CSS default holds for the first paint and the remembered size takes over after.
+        style={size ? { width: size.w, height: size.h } : undefined}
+      >
+        <div className={styles.grip} {...handleProps} />
         <div className={styles.head}>
           <span aria-hidden className={styles.spark}>✦</span>
           <div style={{ flex: 1, minWidth: 0 }}>

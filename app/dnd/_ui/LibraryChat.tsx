@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './hextech.module.css';
 import { GAME_SYSTEMS, SYSTEM_AMBIGUOUS } from '@/lib/dnd/systems';
+import { useResizable } from './useResizable';
 
 interface Hint { key: string; name: string; matched: string; reason: 'named' | 'mechanic' }
 interface Msg { role: 'user' | 'ai'; text: string; hint?: Hint | null; systemLabel?: string }
@@ -66,6 +67,12 @@ export default function LibraryChat({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const streamRef = useRef<HTMLDivElement | null>(null);
+  // Height only: the panel's width is the page column's. Shared across the librarian
+  // wherever it mounts (library page or a sheet) — it is one reading preference, not per-page.
+  const { size, resizing, handleProps } = useResizable(
+    { w: 0, h: 380 },
+    { storageKey: 'dnd:chat-size:librarian', axis: 'y', min: { h: 160 } },
+  );
 
   useEffect(() => { if (fixedSystem) setFocus(fixedSystem); }, [fixedSystem]);
   useEffect(() => {
@@ -159,7 +166,9 @@ export default function LibraryChat({
         style={{
           display: 'grid',
           gap: 10,
-          maxHeight: 380,
+          // Reader-set, remembered. A long adjudication read through a fixed 380px letterbox is
+          // most of why this needed a scrollbar in the first place.
+          height: msgs.length ? (size?.h ?? 380) : undefined,
           overflowY: 'auto',
           padding: msgs.length ? '8px 2px' : 0,
           border: msgs.length ? '1px solid var(--hx-line)' : 'none',
@@ -214,6 +223,27 @@ export default function LibraryChat({
         )}
       </div>
 
+      {/* Resize grip: the transcript sits in normal flow anchored at its top, so dragging the
+          bottom edge DOWN grows it — no axis inversion here (unlike the bottom-right-anchored
+          builder dock). Only shown once there's a transcript to size. */}
+      {msgs.length > 0 && (
+        <div
+          {...handleProps}
+          title="Drag to resize (or focus and use ↑/↓)"
+          style={{
+            height: 9,
+            marginTop: -6,
+            cursor: 'ns-resize',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: resizing ? 1 : 0.45,
+          }}
+        >
+          <span style={{ width: 46, height: 3, borderRadius: 2, background: 'var(--hx-gold-1)' }} />
+        </div>
+      )}
+
       {err && <div className={styles.error}>{err}</div>}
 
       <form
@@ -235,6 +265,10 @@ export default function LibraryChat({
           }
           style={{
             flex: 1,
+            // The marketing site's globals.css applies `min-height: 140px` via a bare `textarea`
+            // selector (its contact form), which leaks in here and turns this 2-row input into a
+            // slab. Reset it; see the same note in sheetchat.module.css.
+            minHeight: 0,
             padding: '9px 11px',
             background: 'rgba(1,10,19,0.5)',
             border: '1px solid var(--hx-line)',
