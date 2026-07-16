@@ -11,7 +11,7 @@ import { useMemo } from 'react';
 import styles from './hextech.module.css';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { IG_ABILITIES, IG_SAVES } from '@/lib/dnd/systems/intuitive-games/model';
-import { igAbilityMod, igDerived, igSkillTotal, igRanksSpent } from '@/lib/dnd/systems/intuitive-games/rules';
+import { igAbilityMod, igDerived, igSkillTotal, igRanksSpent, igResolveAttack } from '@/lib/dnd/systems/intuitive-games/rules';
 
 type Source = 'vanilla' | 'custom' | 'dm-granted';
 interface Tagged { kind: string; name: string; source: Source }
@@ -101,6 +101,60 @@ export default function IGSheet({ ig, elements }: { ig: IGCharacter; elements: T
           <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--hx-text)' }}>{fmt(derived.proficiency)}</div>
         </div>
       </div>
+
+      {/* Combat — attacks (to-hit + damage from the rules engine), HP/DR, stances, defensive power, conditions. */}
+      {(() => {
+        const cb = ig.combat;
+        const chip = (name: string) => (
+          <span key={name} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '2px 9px' }}>
+            {name} {badgeFor(name)}
+          </span>
+        );
+        const has = cb.attacks.length || cb.stances.length || cb.defensivePower || cb.conditions.length || cb.situationalBonuses.length || cb.hitPoints.classBackgroundHp || cb.damageReduction;
+        if (!has) return null;
+        return (
+          <div style={{ display: 'grid', gap: 10 }}>
+            <div style={label}>Combat</div>
+            {cb.attacks.length > 0 && (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                  <thead>
+                    <tr style={{ color: 'var(--hx-muted)', textAlign: 'left' }}>
+                      {['Weapon', 'Type', 'Attack', 'Damage', 'Properties'].map((h) => <th key={h} style={{ padding: '2px 8px 4px 0', fontWeight: 600, borderBottom: '1px solid var(--hx-line)' }}>{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cb.attacks.map((a) => {
+                      const r = igResolveAttack(ig, a);
+                      return (
+                        <tr key={a.id} style={{ color: 'var(--hx-text)' }}>
+                          <td style={{ padding: '3px 8px 3px 0' }}>{a.name}{a.weaponFocus ? <span title="Weapon Focus" style={{ color: 'var(--hx-gold-2)', fontSize: 10 }}> ✦</span> : null}{a.weaponSpecialization ? <span title="Weapon Specialization" style={{ color: 'var(--hx-gold-2)', fontSize: 10 }}>✦</span> : null}</td>
+                          <td style={{ padding: '3px 8px 3px 0', color: 'var(--hx-muted)' }}>{a.weaponType} {badgeFor(a.weaponType)}</td>
+                          <td style={{ padding: '3px 8px 3px 0', color: 'var(--hx-gold-2)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmt(r.toHit)}</td>
+                          <td style={{ padding: '3px 8px 3px 0', fontVariantNumeric: 'tabular-nums' }}>{r.damage}</td>
+                          <td style={{ padding: '3px 8px 3px 0', color: 'var(--hx-muted)' }}>{a.properties}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '6px 10px', fontSize: 12.5 }}>
+                <span style={{ color: 'var(--hx-muted)' }}>HP </span>{cb.hitPoints.classBackgroundHp} class+bg
+                {cb.hitPoints.lethal ? <span style={{ color: 'var(--hx-danger)' }}> · {cb.hitPoints.lethal} lethal</span> : null}
+                {cb.hitPoints.nonlethal ? <span style={{ color: 'var(--hx-muted)' }}> · {cb.hitPoints.nonlethal} nonlethal</span> : null}
+              </div>
+              {cb.damageReduction > 0 && <div style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '6px 10px', fontSize: 12.5 }}><span style={{ color: 'var(--hx-muted)' }}>DR </span>{cb.damageReduction}</div>}
+            </div>
+            {cb.stances.length > 0 && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Stances</span><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{cb.stances.map(chip)}</div></div>}
+            {cb.defensivePower && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Defensive Power</span><div>{chip(cb.defensivePower)}</div></div>}
+            {cb.situationalBonuses.length > 0 && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Situational Bonuses</span><div style={{ fontSize: 12.5, color: 'var(--hx-text)' }}>{cb.situationalBonuses.join(' · ')}</div></div>}
+            {cb.conditions.length > 0 && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Conditions</span><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{cb.conditions.map((c) => <span key={c} style={{ fontSize: 12, color: 'var(--hx-danger)', border: '1px solid var(--hx-danger)', borderRadius: 12, padding: '1px 8px' }}>{c}</span>)}</div></div>}
+          </div>
+        );
+      })()}
 
       {/* Skills — general grouped by ability, combat skills separate; totals from the rules engine. */}
       {ig.skills.length > 0 && (() => {

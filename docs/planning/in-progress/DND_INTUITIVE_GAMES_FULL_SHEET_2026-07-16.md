@@ -122,9 +122,13 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
   (`igRanksSpent` vs `skillRanksAvailable`). Verified: `tsc` clean, lint clean, `__tests__/dnd/ig-builder.test.ts`
   (+1: seeds ≥36 skills, governing ability correct, the nine combat skills flagged); full dnd suite (312)
   green.
-- **Slice 6 — IG sheet: Combat.** Attacks table (focus/specialization/proficient, attack + total damage from
-  `rules.ts`), HP + nonlethal/lethal + Damage Reduction, the three saves, stances, situational bonuses,
-  defensive power, conditions.
+- **Slice 6 — IG sheet: Combat.** ✅ `IGSheet` gained a **Combat** section: the **attacks table** (Weapon /
+  Type / Attack / Damage / Properties) where to-hit and the "1d6+N" damage come from `igResolveAttack`
+  (proficiency + Weapon Focus ✦ / Specialization ✦ + STR-melee), the weapon type carrying its provenance
+  badge; a **Hit Points** line (Class+Background HP, lethal, nonlethal) + **Damage Reduction**; and badged
+  **Stances**, **Defensive Power**, **Situational Bonuses**, and **Conditions**. All derived numbers come
+  from the Slice-2 rules engine. Verified: `tsc` clean, lint clean, full dnd suite (312) green (the attack
+  math is covered by `ig-rules.test.ts`).
 - **Slice 7 — IG sheet: Reference + Equipment + Notes.** Actions grouped by economy, feats/powers/stance
   descriptions, the worn-slot equipment + other possessions, notes.
 - **Slice 8 — IG sheet: Companion Creature.** The companion's own scores/skills/attacks/powers/HP/saves/DR/
@@ -150,4 +154,4 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
 - **Reuse:** build on the shipped content library, catalog, provenance, submission/approval, DM grants,
   campaign policy, the custom-sheet/style engine, and `/ai-edit` grounding — don't fork them.
 
-### Status: IN PROGRESS (Slices 0–5 shipped; 6–11 pending)
+### Status: IN PROGRESS (Slices 0–6 shipped; 7–11 pending)
