@@ -49,3 +49,23 @@ describe('2024 species', () => {
     expect(findSpecies('nope')).toBeUndefined();
   });
 });
+
+describe('the sheet surfaces species as a rules-grounded picker (Slice 4 creation UI)', () => {
+  const read = (p: string) => require('node:fs').readFileSync(require('node:path').join(process.cwd(), p), 'utf8');
+  const HERO = read('app/dnd/_sheet/components/Hero.tsx');
+
+  it('offers a 2024 species dropdown from SPECIES_2024, with a custom escape hatch', () => {
+    expect(HERO).toContain("import { SPECIES_2024 }");
+    expect(HERO).toContain('SpeciesPicker');
+    expect(HERO).toContain('✎ Custom…');
+    // gated to the 2024 system + edit mode
+    expect(HERO).toContain("system === 'dnd5e-2024'");
+    expect(HERO).toContain('editMode && is2024');
+  });
+
+  it('shows the matched species traits (size/speed/darkvision + traits)', () => {
+    expect(HERO).toContain('matchedSpecies');
+    expect(HERO).toContain('matchedSpecies.traits.map');
+    expect(HERO).toContain('Darkvision');
+  });
+});

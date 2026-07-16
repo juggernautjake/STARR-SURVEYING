@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useChar } from '../state/store'
 import { useSheetSystem } from '../state/sheetConfig'
 import { SYSTEM_AMBIGUOUS, systemLabel } from '@/lib/dnd/systems'
+import { SPECIES_2024 } from '@/lib/dnd/species/dnd5e-2024'
 import type { Character } from '../types'
 import EffectStar from './ui/EffectStar'
 
@@ -11,6 +12,16 @@ export default function Hero() {
   const systemName = systemLabel(system)
   const fileRef = useRef<HTMLInputElement>(null)
   const nameRef = useRef<HTMLHeadingElement>(null)
+
+  // Creation help (Slice 4): for a 2024 sheet, species is a pick from the real list, not free text —
+  // and once matched, the sheet shows what that species grants (size/speed/darkvision + traits) so a
+  // player building vanilla can see their species is real. Custom species stay possible (the escape
+  // hatch), matching the rules-legal-unless-explicitly-custom rule.
+  const is2024 = system === 'dnd5e-2024'
+  const setSpecies = (name: string) => setChar((c) => ({ ...c, meta: { ...c.meta, species: name } }))
+  const matchedSpecies = is2024
+    ? SPECIES_2024.find((s) => s.name.toLowerCase() === (char.meta.species ?? '').trim().toLowerCase())
+    : undefined
 
   // Identity OVERLAY (Slice 11): an effect can impose a different name/species/class while active —
   // a pendant that makes you "Zul the Barbarian". Like every effect it's an overlay: the DISPLAY
@@ -132,10 +143,33 @@ export default function Hero() {
       </div>
 
       <p className="role">
-        <EffectStar target="species" label="Species">{displaySpecies}</EffectStar> ·{' '}
+        {editMode && is2024 ? (
+          <SpeciesPicker value={char.meta.species ?? ''} onChange={setSpecies} />
+        ) : (
+          <EffectStar target="species" label="Species">{displaySpecies}</EffectStar>
+        )}{' · '}
         <EffectStar target="class" label="Class">{displayClass}</EffectStar> {char.meta.level} ·{' '}
         <EffectStar target="subclass" label="Subclass">{displaySubclass}</EffectStar>
       </p>
+
+      {/* Species traits (Slice 4) — shown whenever the sheet's species matches a real 2024 species, so
+          the player sees size/speed/darkvision + what it grants. Effects/mechanics application is a
+          follow-up; this makes the choice legible. */}
+      {matchedSpecies && (
+        <div className="card" style={{ marginTop: 8, fontSize: 13 }}>
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', color: 'var(--muted)', fontSize: 12, marginBottom: 6 }}>
+            <span><b style={{ color: 'var(--ink)' }}>{matchedSpecies.name}</b> · {matchedSpecies.creatureType}</span>
+            <span>Size: {matchedSpecies.size}</span>
+            <span>Speed: {matchedSpecies.speed} ft</span>
+            {matchedSpecies.darkvision && <span>Darkvision {matchedSpecies.darkvision} ft</span>}
+          </div>
+          <ul className="clean" style={{ display: 'grid', gap: 4, margin: 0 }}>
+            {matchedSpecies.traits.map((t) => (
+              <li key={t.name}><b>{t.name}.</b> {t.text}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="tagchips">
         {/* The system designation (Slice 21). You could not previously tell what GAME a sheet was
@@ -187,5 +221,37 @@ function renderName(name: string) {
       <br />
       {last}
     </>
+  )
+}
+
+/** A 2024 species dropdown (rules-legal choices) with a custom-name escape hatch — mirrors the level
+ *  builder's feat picker, so "creation offers species" without losing the ability to write in homebrew. */
+function SpeciesPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const known = SPECIES_2024.some((s) => s.name.toLowerCase() === value.trim().toLowerCase())
+  const isCustom = value.trim() !== '' && !known
+  return (
+    <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+      <select
+        className="mono"
+        value={known ? SPECIES_2024.find((s) => s.name.toLowerCase() === value.trim().toLowerCase())!.name : (isCustom ? '__custom__' : '')}
+        onChange={(e) => onChange(e.target.value === '__custom__' ? '' : e.target.value)}
+        style={{ background: 'var(--panel-2)', border: '1px solid var(--line)', borderRadius: 6, padding: '2px 6px', color: 'var(--ink)', fontSize: 14 }}
+      >
+        <option value="">— species —</option>
+        {SPECIES_2024.map((s) => (
+          <option key={s.key} value={s.name}>{s.name}</option>
+        ))}
+        <option value="__custom__">✎ Custom…</option>
+      </select>
+      {isCustom && (
+        <input
+          className="mono"
+          placeholder="custom species"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          style={{ background: 'var(--panel-2)', border: '1px solid var(--line)', borderRadius: 6, padding: '2px 6px', color: 'var(--ink)', fontSize: 14, width: 130 }}
+        />
+      )}
+    </span>
   )
 }

@@ -289,13 +289,20 @@ categories) and Epic Boon remain.
       check that **every background's named tool resolves** here (specific tool or category phrase), so
       a typo in either file fails the build.
 - [~] Wire into the level builder: an ASI choice offers real feats with prerequisites checked ✅
-      (see the rules-legal feat granting note above); character creation offers backgrounds/species
-      (remaining — the creation UI). **Rules-legal background application core ✅ SHIPPED (commit
-      pending):** `lib/dnd/backgrounds/apply.ts` (`validateAbilityAssignment` / `backgroundGrants` /
-      `applyAbilityIncreases`) enforces the 2024 +2/+1-or-+1/+1/+1 spread across only the background's
-      three abilities, and returns the feat + spell list + skills + tool it grants. Same tested-core-
-      first shape as feat eligibility, so the creation UI can only apply a legal spread. Tests:
-      `background-apply.test.ts` (8). The creation-flow UI that consumes it is the remaining half.
+      (see the rules-legal feat granting note above); character creation offers backgrounds/species —
+      **species picker ✅ SHIPPED (commit pending)**, backgrounds picker remaining. **Rules-legal
+      background application core ✅ SHIPPED:** `lib/dnd/backgrounds/apply.ts`
+      (`validateAbilityAssignment` / `backgroundGrants` / `applyAbilityIncreases`) enforces the 2024
+      +2/+1-or-+1/+1/+1 spread across only the background's three abilities, and returns the feat +
+      spell list + skills + tool it grants. Tests: `background-apply.test.ts` (8).
+  - **Species picker on the sheet ✅ SHIPPED (commit pending).** For a 2024 sheet in edit mode, the
+    Hero's species token is now a **dropdown of the 10 real species** (`SPECIES_2024`) with a
+    **"✎ Custom…"** escape hatch (rules-legal-unless-explicitly-custom). Once the species matches a
+    known one, the sheet shows a **traits panel** — creature type, size, walk speed, darkvision, and
+    each named trait's text — so a vanilla build can SEE what the species grants. Setting species
+    mechanics onto the sheet (speed/size/darkvision/traits as live numbers) is a follow-up; this makes
+    the choice legible + rules-grounded. Tests: `species.test.ts` (+2 anchors). The background picker
+    (consuming `backgroundGrants`, incl. the ability-spread chooser) is the counterpart still to build.
 - [ ] Tests: no feat grants an ability increase it shouldn't; every background's feat exists;
       species grant no ASIs (the 2014-vs-2024 trap).
 
