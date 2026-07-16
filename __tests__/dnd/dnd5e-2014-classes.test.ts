@@ -13,7 +13,7 @@ const CLASSES = classesForSystem(SYS);
 
 describe('the 2014 class roster (authored class-by-class)', () => {
   it('has the classes authored so far, and the system reports it has class data', () => {
-    expect(CLASSES.map((c) => c.name)).toEqual(expect.arrayContaining(['Barbarian', 'Fighter', 'Rogue', 'Monk']));
+    expect(CLASSES.map((c) => c.name)).toEqual(expect.arrayContaining(['Barbarian', 'Fighter', 'Rogue', 'Monk', 'Ranger']));
     expect(systemHasClasses(SYS)).toBe(true);
   });
 
@@ -175,5 +175,37 @@ describe('Monk 2014 — the edition-specific numbers', () => {
   it('offers exactly the three 2014 PHB traditions (Open Hand, Shadow, Four Elements)', () => {
     const subs = subclassesFor(SYS, 'monk').map((s) => s.name).sort();
     expect(subs).toEqual(['Way of Shadow', 'Way of the Four Elements', 'Way of the Open Hand']);
+  });
+});
+
+describe('Ranger 2014 — the edition-specific numbers', () => {
+  const ranger = findClass(SYS, 'ranger')!;
+
+  it('is a WIS half-caster with spells known from level 2 and no cantrips', () => {
+    expect(ranger.spellcasting?.kind).toBe('half');
+    expect(ranger.spellcasting?.ability).toBe('wis');
+    expect(ranger.spellcasting?.cantripsKnown).toBeUndefined();
+    expect(ranger.spellcasting?.spellsKnown?.[1]).toBe(0); // none at level 1
+    expect(ranger.spellcasting?.spellsKnown?.[2]).toBe(2);
+    expect(ranger.spellcasting?.spellsKnown?.[20]).toBe(11);
+  });
+
+  it('gains spell slots from level 2 (half-caster) but none at level 1', () => {
+    // A caster's slot row exists at every level; at level 1 a half-caster simply has no slots yet.
+    expect(snapshotAtLevel(ranger, 1).spellSlots?.[1] ?? 0).toBe(0);
+    expect(snapshotAtLevel(ranger, 2).spellSlots?.[1]).toBeGreaterThan(0); // 1st-level slots by 2
+    expect(snapshotAtLevel(ranger, 5).spellSlots?.[2]).toBeGreaterThan(0); // 2nd-level slots by 5
+  });
+
+  it('has the 2014 Favored Enemy + Natural Explorer at level 1 (a 2024 rewrite)', () => {
+    const at1 = snapshotAtLevel(ranger, 1).features.map((f) => f.name);
+    expect(at1).toContain('Favored Enemy');
+    expect(at1).toContain('Natural Explorer');
+  });
+
+  it('chooses a Fighting Style at 2 and offers exactly Hunter + Beast Master', () => {
+    expect(ranger.features.some((f) => f.level === 2 && f.choice === 'fighting-style')).toBe(true);
+    const subs = subclassesFor(SYS, 'ranger').map((s) => s.name).sort();
+    expect(subs).toEqual(['Beast Master', 'Hunter']);
   });
 });
