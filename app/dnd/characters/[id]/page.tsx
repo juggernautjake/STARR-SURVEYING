@@ -91,7 +91,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
   // source, shown to anyone who can edit an Intuitive Games character.
   const isIG = canWrite && normalizeSystem((character as { system?: string }).system) === 'intuitive-games';
   const igLibrary = isIG ? <IGVanillaLibrary /> : null;
-  const igBuilder = isIG ? <IGCharacterBuilder characterId={character.id} initialName={character.name} /> : null;
+  const igBuilder = isIG ? <IGCharacterBuilder characterId={character.id} initialName={character.name} aiConfigured={dndAiConfigured()} /> : null;
 
   // The bespoke IG sheet (full-sheet Slice 4+): render the IGCharacter model sidecar (data.ig) for ANY
   // viewer of an Intuitive Games character that has been built with the IG builder, with provenance badges.

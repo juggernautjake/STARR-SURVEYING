@@ -155,9 +155,18 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
   covered by `ig-builder.test.ts`). *(Editing the ranked skills / equipment slots inline on the sheet is
   deferred to the sheet-edit follow-up; the builder seeds the full skill list + equipment structure and the
   existing `/ai-edit` chat can adjust them — the guided create flow covers the mechanical build.)*
-- **Slice 10 — AI-customize over the full model.** Ground the AI to Intuitive Games so an AI build/edit fills
-  the real `IGCharacter` and any invented element is auto-flagged custom (via the same `igBuild`/provenance
-  path), matching IG mechanics.
+- **Slice 10 — AI-customize over the full model.** ✅ `lib/dnd/systems/intuitive-games/ai.ts` — the pure,
+  testable core: `parseIGPicks` (normalizes arbitrary model JSON → safe IGPicks: clamps level 1–10 and
+  abilities 1–30, accepts a `class` alias, filters non-strings, drops unknown ability keys), the
+  `IG_PICKS_TOOL` structured-output schema (name required), and `igBuilderSystemPrompt` (embeds the IG rules
+  block + the whole vanilla catalog so an AI build matches the system). `POST /api/dnd/characters/[id]/ig-build/ai`
+  (write chokepoint, 503 when AI unconfigured) has the model fill the tool, normalizes to picks, runs
+  `assembleIGVanillaCharacter`, and persists the full `data.ig`; **invented content is auto-flagged CUSTOM**
+  by the same provenance classifier (with correct kinds). `IGCharacterBuilder` gained an "✨ AI build"
+  prompt (shown when AI is configured) that calls it and reports the vanilla/custom split. Verified: `tsc`
+  clean, lint clean, `__tests__/dnd/ig-ai.test.ts` (3 tests: parser normalizes/clamps, vanilla build → 0
+  custom while invented power/stance flag custom with correct kinds, grounding prompt names the system +
+  catalog and the tool requires a name); full dnd suite (316) green.
 - **Slice 11 — QA + docs.** End-to-end pass across every tab (vanilla build → all-vanilla, custom → flagged,
   vanilla-only blocks, DM grant allowed, approve/reject + notification, styling applies), full dnd vitest
   suite green, tsc + lint clean; then move this doc to `completed/`.
@@ -173,4 +182,4 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
 - **Reuse:** build on the shipped content library, catalog, provenance, submission/approval, DM grants,
   campaign policy, the custom-sheet/style engine, and `/ai-edit` grounding — don't fork them.
 
-### Status: IN PROGRESS (Slices 0–9 shipped; 10–11 pending)
+### Status: IN PROGRESS (Slices 0–10 shipped; 11 — QA + doc move — pending)

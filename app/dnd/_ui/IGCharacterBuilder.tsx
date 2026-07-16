@@ -19,7 +19,7 @@ function names(groups: ReturnType<typeof igCatalog>, kind: ElementKind): string[
   return groups.filter((g) => g.kind === kind).flatMap((g) => g.entries.map((e) => e.name));
 }
 
-export default function IGCharacterBuilder({ characterId, initialName }: { characterId: string; initialName: string }) {
+export default function IGCharacterBuilder({ characterId, initialName, aiConfigured }: { characterId: string; initialName: string; aiConfigured?: boolean }) {
   const router = useRouter();
   const catalog = useMemo(() => igCatalog(), []);
   const ancestries = useMemo(() => names(catalog, 'ancestry'), [catalog]);
@@ -51,6 +51,8 @@ export default function IGCharacterBuilder({ characterId, initialName }: { chara
   const [companionName, setCompanionName] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
 
   const toggle = (set: React.Dispatch<React.SetStateAction<string[]>>, v: string) =>
     set((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]);
@@ -87,6 +89,20 @@ export default function IGCharacterBuilder({ characterId, initialName }: { chara
     } catch { setMsg('Network error — please try again.'); } finally { setBusy(false); }
   }
 
+  async function aiBuild() {
+    if (!aiPrompt.trim()) { setMsg('Describe the character you want the AI to build.'); return; }
+    setAiBusy(true); setMsg(null);
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}/ig-build/ai`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: aiPrompt }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setMsg(j.error ?? 'Could not build.'); return; }
+      setMsg(`AI built — ${j.summary.vanilla} vanilla, ${j.summary.custom} custom${j.summary.custom ? ' (flagged for DM review)' : ''}.`);
+      router.refresh();
+    } catch { setMsg('Network error — please try again.'); } finally { setAiBusy(false); }
+  }
+
   const input = { padding: '7px 9px', fontSize: 13, background: 'rgba(1,10,19,0.55)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', borderRadius: 6 } as const;
   const Chips = ({ opts, sel, on }: { opts: string[]; sel: string[]; on: (v: string) => void }) => (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
@@ -104,6 +120,14 @@ export default function IGCharacterBuilder({ characterId, initialName }: { chara
         <span style={{ fontSize: 11.5, fontWeight: 400, color: 'var(--hx-muted)', marginLeft: 8 }}>· pick vanilla content or add your own (flagged custom)</span>
       </summary>
       <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
+        {aiConfigured && (
+          <div style={{ display: 'grid', gap: 6, padding: '8px 10px', border: '1px solid var(--hx-line)', borderRadius: 8, background: 'rgba(200,170,110,0.05)' }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '0.05em', color: 'var(--hx-gold-2)' }}>✨ AI BUILD (grounded to Intuitive Games)</span>
+            <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} rows={2} placeholder="Describe the character — e.g. “a cunning Migoi freebooter duelist who fights defensively and has a griffon companion”" style={input} />
+            <button type="button" className={styles.hexBtn} disabled={aiBusy} onClick={aiBuild} style={{ justifySelf: 'start' }}>{aiBusy ? 'Building…' : '✨ Build with AI'}</button>
+            <span style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>The AI matches Intuitive Games mechanics; anything it invents is auto-flagged custom for DM review.</span>
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Character name" style={{ ...input, flex: 2, minWidth: 160 }} />
           <input type="number" min={1} max={10} value={level} onChange={(e) => setLevel(Math.max(1, Math.min(10, +e.target.value || 1)))} style={{ ...input, width: 70 }} title="Level" />
