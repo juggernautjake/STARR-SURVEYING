@@ -22,7 +22,14 @@ export type SheetEdit =
   | { op: 'remove_feature'; name: string }
   | { op: 'add_item'; name: string; desc?: string; qty?: number }
   | { op: 'remove_item'; name: string }
-  | { op: 'add_resource'; name: string; max: number; color?: 'pink' | 'teal' | 'gold'; resetOn?: 'short' | 'long' };
+  | { op: 'add_resource'; name: string; max: number; color?: 'pink' | 'teal' | 'gold'; resetOn?: 'short' | 'long' }
+  // Rename IN PLACE — change only the name, keep every other field. Without this the AI had to
+  // remove + re-add to "rename" something, which dropped every field it wasn't re-supplied (a
+  // Backless Park Bench renamed to Park Bench lost its ability → -NaN to-hit, and its tags). Match
+  // by current name; `to` is the new name.
+  | { op: 'rename_attack'; name: string; to: string }
+  | { op: 'rename_feature'; name: string; to: string }
+  | { op: 'rename_item'; name: string; to: string };
 
 const ABILITY_KEYS: AbilityKey[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'x';
@@ -39,9 +46,9 @@ export function editPath(e: SheetEdit): string {
     case 'set_save_proficient': return `saves.${e.ability}.proficient`;
     case 'set_skill': return `skills.${e.skill}`;
     case 'set_combat': return `combat.${e.field}`;
-    case 'add_attack': case 'remove_attack': return `attacks[${slug(e.name)}]`;
-    case 'add_feature': case 'remove_feature': return `features[${slug(e.name)}]`;
-    case 'add_item': case 'remove_item': return `inventory[${slug(e.name)}]`;
+    case 'add_attack': case 'remove_attack': case 'rename_attack': return `attacks[${slug(e.name)}]`;
+    case 'add_feature': case 'remove_feature': case 'rename_feature': return `features[${slug(e.name)}]`;
+    case 'add_item': case 'remove_item': case 'rename_item': return `inventory[${slug(e.name)}]`;
     case 'add_resource': return `resources[${slug(e.name)}]`;
   }
 }
@@ -90,6 +97,21 @@ export function applySheetEdits(input: Character, edits: SheetEdit[]): Character
         break;
       }
       case 'remove_attack': c.attacks = c.attacks.filter((a) => !eqName(a.name, e.name)); break;
+      case 'rename_attack': {
+        const to = (e.to ?? (raw.to as string | undefined) ?? '').trim();
+        if (to) c.attacks = c.attacks.map((a) => (eqName(a.name, e.name) ? { ...a, name: to } : a));
+        break;
+      }
+      case 'rename_feature': {
+        const to = (e.to ?? (raw.to as string | undefined) ?? '').trim();
+        if (to) c.features = c.features.map((f) => (eqName(f.name, e.name) ? { ...f, name: to } : f));
+        break;
+      }
+      case 'rename_item': {
+        const to = (e.to ?? (raw.to as string | undefined) ?? '').trim();
+        if (to) c.inventory = c.inventory.map((i) => (eqName(i.name, e.name) ? { ...i, name: to } : i));
+        break;
+      }
       case 'add_feature': {
         const feat: FeatureBlock = { id: `ai-feat-${slug(e.name)}`, name: e.name, source: e.source ?? 'Feature', body: e.body };
         c.features = [...c.features.filter((f) => !eqName(f.name, e.name)), feat];
@@ -142,9 +164,10 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
           properties: {
             op: {
               type: 'string',
-              enum: ['set_name', 'set_meta', 'set_level', 'set_ability', 'set_save_proficient', 'set_skill', 'set_combat', 'add_attack', 'remove_attack', 'add_feature', 'remove_feature', 'add_item', 'remove_item', 'add_resource'],
+              enum: ['set_name', 'set_meta', 'set_level', 'set_ability', 'set_save_proficient', 'set_skill', 'set_combat', 'add_attack', 'remove_attack', 'rename_attack', 'add_feature', 'remove_feature', 'rename_feature', 'add_item', 'remove_item', 'rename_item', 'add_resource'],
             },
             field: { type: 'string', description: 'For set_meta: kicker|role|species|className|subclass. For set_combat: ac|maxHp|currentHp|speed.' },
+            to: { type: 'string', description: 'For rename_* ops: the NEW name. Renames keep every other field — use these to rename an attack/feature/item, never remove + re-add (that drops its stats).' },
             ability: { type: 'string', enum: ABILITY_KEYS },
             skill: { type: 'string', description: 'Skill key, e.g. athletics, stealth, perception.' },
             prof: { type: 'string', enum: ['none', 'proficient', 'expertise'] },
