@@ -1097,9 +1097,11 @@ and `kind='item'` are already modelled). What's missing is that nothing but the 
       Features cards and spell list each render the thumbnail. An image edit also trips the ✎ marker
       (it's a change). Tests: `element-art.test.ts` (6). (Forms/effects art + generating thumbnail
       crops on upload remain; forms have no editor yet.)
-- [ ] **Thumbnail tokens**: a square crop rendered inline next to the element everywhere it appears
-      — ~~inventory rows~~ (done), attack rows, spell lists, the Active Effects panel (Slice 12), the
-      ⋯ menu. Generated on upload, not by scaling the full image in CSS every render.
+- [x] **Thumbnail tokens ✅ (mostly)**: rendered inline next to the element in inventory rows, attack
+      rows, spell lists, feature cards, and the **Active Effects panel** (the source's own item/feature
+      art, looked up by sourceId — no new ledger plumbing). Still open: the ⋯ menu, and generating a
+      real square crop ON UPLOAD rather than CSS-scaling the full image each render (a perf/quality
+      nicety, not a correctness gap).
 - [x] **A kind icon fallback ✅ SHIPPED (commit pending)** — for items: a row with no uploaded art
       shows its kind icon (⚔ 🛡 🔰 ⚗ ✨ 🎒, matching the builder) in the same square, so the Gear list
       always reads as intentional. (Other element types get theirs when their art field lands.)

@@ -42,3 +42,13 @@ describe('all three lists render the thumbnail from the stored image', () => {
     expect(read('app/dnd/_sheet/components/SpellsPanel.tsx')).toContain('src={s.image}');
   });
 });
+
+describe('the Active Effects panel shows the source art (Slice 28)', () => {
+  const AE = read('app/dnd/_sheet/components/ActiveEffects.tsx');
+  it('looks the source art up from the item/feature it already is (no new ledger plumbing)', () => {
+    expect(AE).toContain('imageFor');
+    expect(AE).toContain('(char.inventory ?? []).find((i) => i.id === row.id)?.image');
+    expect(AE).toContain('(char.features ?? []).find((f) => f.id === row.id)?.image');
+    expect(AE).toContain('src={imageFor(row)}');
+  });
+});

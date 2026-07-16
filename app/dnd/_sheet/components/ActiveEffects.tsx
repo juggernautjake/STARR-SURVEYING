@@ -58,6 +58,15 @@ export default function ActiveEffects() {
 
   const durationFor = (id: string) => (char.activeEffects ?? []).find((e) => e.id === id)?.duration
 
+  // The source's own art (Slice 28) — a worn item / a feature already carries `image`. Looked up
+  // from the character by the contribution's sourceId; no new plumbing on the ledger. Consumed/spell
+  // sources have no art, so they fall back to nothing (the kind label already says what they are).
+  const imageFor = (row: SourceRow): string | undefined => {
+    if (row.kind === 'item' || row.kind === 'attuned') return (char.inventory ?? []).find((i) => i.id === row.id)?.image
+    if (row.kind === 'feature') return (char.features ?? []).find((f) => f.id === row.id)?.image
+    return undefined
+  }
+
   function end(row: SourceRow) {
     // ONE rule: you end an effect by removing its CAUSE.
     //  · A worn item's effect is caused by wearing it → unequip. "Worn but off" is unrepresentable
@@ -101,6 +110,10 @@ export default function ActiveEffects() {
           <div className="ae-row" key={`${row.kind}:${row.id}`}>
             <div className="ae-main">
               <div className="ae-name">
+                {imageFor(row) && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={imageFor(row)} alt="" className="inv-thumb" />
+                )}
                 {row.name}
                 <span className="ae-kind">{KIND_META[row.kind].label}</span>
                 {dur && <span className="ae-dur">· {dur}</span>}
