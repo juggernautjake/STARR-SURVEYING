@@ -233,11 +233,19 @@ Musician, Savage Attacker, Skilled, Tavern Brawler, Tough — each with full PHB
 type and the tests: **Origin feats carry NO `abilityIncrease`** (the +1 lives only on General/Epic
 feats), and `feats.test.ts` (7) asserts exactly the invariant the slice names — "no feat grants an
 ability increase it shouldn't" — plus no-prerequisites, full-list coverage, no-stub text, unique keys,
-and repeatability flags. General / Fighting Style / Epic Boon categories, and the level-builder wiring,
+and repeatability flags. General / Epic Boon categories, and the level-builder wiring,
 are the remaining bullets below.
 
+**Fighting Style category ✅ SHIPPED (commit pending).** All ten 2024 Fighting Style feats (Archery,
+Blind Fighting, Defense, Dueling, Great Weapon Fighting, Interception, Protection, Thrown Weapon
+Fighting, Two-Weapon Fighting, Unarmed Fighting) with full rules text. This is the **second no-ASI
+category**, so the invariant now generalises: `NO_ASI_CATEGORIES = ['origin', 'fighting-style']` and
+`feats.test.ts` asserts no feat in ANY exempt category carries an ability increase — the guard no
+longer depends on which specific feats exist. Tests: `feats.test.ts` (10 total, +3). General (the +1
+categories) and Epic Boon remain.
+
 - [~] **Feats** as structured data (`lib/dnd/feats/dnd5e-2024.ts`): all four categories — Origin ✅,
-      General (with prerequisites + the +1 ability), Fighting Style, Epic Boon. Full rules text.
+      Fighting Style ✅, General (with prerequisites + the +1 ability), Epic Boon. Full rules text.
 - [ ] **Backgrounds** (16): ability scores (+2/+1 or +1/+1/+1), Origin feat, 2 skills, 1 tool,
       equipment. Remember: in 2024 the **background** grants the ability increases.
 - [ ] **Species** (10): traits only, **no ability score increases**, with size/speed/creature type.

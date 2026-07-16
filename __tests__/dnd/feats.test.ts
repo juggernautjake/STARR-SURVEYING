@@ -6,7 +6,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   ORIGIN_FEATS_2024,
+  FIGHTING_STYLE_FEATS_2024,
   FEATS_2024,
+  NO_ASI_CATEGORIES,
   featsByCategory,
   findFeat,
   featGrantsAbilityIncrease,
@@ -50,8 +52,10 @@ describe('2024 Origin feats', () => {
     expect(findFeat('nope')).toBeUndefined();
   });
 
-  it('featsByCategory returns the Origin set (the only category shipped so far)', () => {
+  it('featsByCategory returns each shipped category; unshipped ones are empty', () => {
     expect(featsByCategory('origin')).toHaveLength(ORIGIN_FEATS_2024.length);
+    expect(featsByCategory('fighting-style')).toHaveLength(FIGHTING_STYLE_FEATS_2024.length);
+    expect(featsByCategory('general')).toEqual([]);
     expect(featsByCategory('epic-boon')).toEqual([]);
   });
 
@@ -59,5 +63,31 @@ describe('2024 Origin feats', () => {
     expect(findFeat('skilled')?.repeatable).toBe(true);
     expect(findFeat('magic-initiate-arcane')?.repeatable).toBe(true);
     expect(findFeat('tough')?.repeatable).toBeUndefined();
+  });
+});
+
+describe('2024 Fighting Style feats', () => {
+  it('grant NO ability score increase — the second no-ASI category', () => {
+    for (const feat of FIGHTING_STYLE_FEATS_2024) {
+      expect(feat.category).toBe('fighting-style');
+      expect(featGrantsAbilityIncrease(feat)).toBe(false);
+    }
+  });
+
+  it('cover the full 2024 Fighting Style list', () => {
+    const names = FIGHTING_STYLE_FEATS_2024.map((f) => f.name);
+    for (const expected of ['Archery', 'Blind Fighting', 'Defense', 'Dueling', 'Great Weapon Fighting', 'Interception', 'Protection', 'Thrown Weapon Fighting', 'Two-Weapon Fighting', 'Unarmed Fighting']) {
+      expect(names).toContain(expected);
+    }
+  });
+});
+
+describe('the no-ASI invariant holds across every category the rules exempt', () => {
+  it('no feat in a NO_ASI_CATEGORIES category grants an ability increase', () => {
+    for (const feat of FEATS_2024) {
+      if (NO_ASI_CATEGORIES.includes(feat.category)) {
+        expect(featGrantsAbilityIncrease(feat), `${feat.name} (${feat.category})`).toBe(false);
+      }
+    }
   });
 });

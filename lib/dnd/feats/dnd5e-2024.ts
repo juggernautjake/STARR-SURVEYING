@@ -125,8 +125,77 @@ export const ORIGIN_FEATS_2024: Feat[] = [
   },
 ];
 
-/** Every feat currently defined for 2024 (Origin only for now; more categories in later slices). */
-export const FEATS_2024: Feat[] = [...ORIGIN_FEATS_2024];
+/**
+ * The ten 2024 Fighting Style feats. A martial class grants one as a class feature; they can also be
+ * taken through the (rare) General-feat access some builds have. Like Origin feats they grant **no
+ * ability score increase** — the second no-ASI category, which `feats.test.ts` also pins.
+ */
+export const FIGHTING_STYLE_FEATS_2024: Feat[] = [
+  {
+    key: 'fs-archery', name: 'Archery', category: 'fighting-style', system: 'dnd5e-2024',
+    summary: '+2 bonus to attack rolls you make with Ranged weapons.',
+    benefit: 'You gain a **+2 bonus** to attack rolls you make with Ranged weapons.',
+  },
+  {
+    key: 'fs-blind-fighting', name: 'Blind Fighting', category: 'fighting-style', system: 'dnd5e-2024',
+    summary: 'Blindsight with a range of 10 feet.',
+    benefit:
+      'You have **Blindsight** with a range of **10 feet**. Within that range, you can effectively see anything that isn\'t behind Total Cover, even if you have the Blinded condition or are in Darkness. Moreover, you can see a creature that has the Invisible condition.',
+  },
+  {
+    key: 'fs-defense', name: 'Defense', category: 'fighting-style', system: 'dnd5e-2024',
+    summary: '+1 bonus to AC while wearing armor.',
+    benefit: 'While you are wearing armor, you gain a **+1 bonus** to Armor Class.',
+  },
+  {
+    key: 'fs-dueling', name: 'Dueling', category: 'fighting-style', system: 'dnd5e-2024',
+    summary: '+2 damage with a one-handed melee weapon and no other weapon.',
+    benefit:
+      'When you are wielding a Melee weapon in one hand and no other weapons, you gain a **+2 bonus** to damage rolls with that weapon.',
+  },
+  {
+    key: 'fs-great-weapon-fighting', name: 'Great Weapon Fighting', category: 'fighting-style', system: 'dnd5e-2024',
+    summary: 'Reroll 1s and 2s on damage dice for two-handed melee weapons.',
+    benefit:
+      'When you roll damage for an attack you make with a Melee weapon that you are wielding with **two hands**, you can treat any **1 or 2** on a damage die as a **3**. The weapon must have the Two-Handed or Versatile property to gain this benefit.',
+  },
+  {
+    key: 'fs-interception', name: 'Interception', category: 'fighting-style', system: 'dnd5e-2024',
+    summary: 'Reaction to reduce damage to a creature near you.',
+    benefit:
+      'When a creature you can see hits another creature that is within 5 feet of you with an attack, you can take a **Reaction** to reduce the damage that the target takes by **1d10 plus your Proficiency Bonus** (to a minimum of 0). You must be wielding a Shield or a Simple or Martial weapon to use this Reaction.',
+  },
+  {
+    key: 'fs-protection', name: 'Protection', category: 'fighting-style', system: 'dnd5e-2024',
+    summary: 'Reaction to impose Disadvantage on an attack against a nearby ally.',
+    benefit:
+      'When a creature you can see attacks a creature other than you that is within 5 feet of you, you can take a **Reaction** to impose **Disadvantage** on the attack roll. You must be wielding a Shield.',
+  },
+  {
+    key: 'fs-thrown-weapon-fighting', name: 'Thrown Weapon Fighting', category: 'fighting-style', system: 'dnd5e-2024',
+    summary: 'Draw thrown weapons faster and +2 to their damage.',
+    benefit:
+      'When you make an attack with a weapon that has the Thrown property, you can draw the weapon as part of the attack. In addition, when you hit with a Ranged attack using a Thrown weapon, you gain a **+2 bonus** to the damage roll.',
+  },
+  {
+    key: 'fs-two-weapon-fighting', name: 'Two-Weapon Fighting', category: 'fighting-style', system: 'dnd5e-2024',
+    summary: 'Add your ability modifier to the off-hand attack\'s damage.',
+    benefit:
+      'When you make an attack as part of the Light property or the Nick property and hit, you can add your **ability modifier** to the damage of that attack if you aren\'t already adding it to the damage.',
+  },
+  {
+    key: 'fs-unarmed-fighting', name: 'Unarmed Fighting', category: 'fighting-style', system: 'dnd5e-2024',
+    summary: 'Stronger Unarmed Strikes and damage to grappled foes.',
+    benefit:
+      'Your Unarmed Strikes can deal Bludgeoning damage equal to **1d6 + your Strength modifier** on a hit. If you aren\'t wielding any weapons or a Shield when you make the attack roll, the d6 becomes a **d8**. At the start of each of your turns, you can deal **1d4** Bludgeoning damage to one creature Grappled by you.',
+  },
+];
+
+/** Every feat currently defined for 2024 (Origin + Fighting Style; General/Epic Boon in later slices). */
+export const FEATS_2024: Feat[] = [...ORIGIN_FEATS_2024, ...FIGHTING_STYLE_FEATS_2024];
+
+/** The categories that, per the 2024 rules, grant NO ability score increase. */
+export const NO_ASI_CATEGORIES: FeatCategory[] = ['origin', 'fighting-style'];
 
 export function featsByCategory(category: FeatCategory): Feat[] {
   return FEATS_2024.filter((f) => f.category === category);
