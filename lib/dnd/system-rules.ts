@@ -309,19 +309,25 @@ export const SYSTEM_RULES: Record<string, SystemRules> = {
       'This is the Intuitive Games system (intuitivegames.net); do NOT import D&D 5e or Pathfinder feats, spells, classes, or numbers.',
     ],
     content: {
-      // Full detail for the classes whose key ability + HP are documented; the rest are name-only (classNames).
+      // The 13 CLASSES from the Intuitive Games Character Sheet Template's "Class List" (Data Sheet). The
+      // five subclasses (Arcanist, Summoner, Champion, Witch, Shifter) live in the IG content library's
+      // IG_SUBCLASSES, not here — a class and a subclass are distinct picks on the sheet.
       classes: [
+        { name: 'Wizard', keyAbility: 'INT', hitDie: null, hpPerLevel: 8, saves: [], caster: 'full' },
+        { name: 'Magician', keyAbility: 'INT', hitDie: null, hpPerLevel: 8, saves: [], caster: 'full' },
+        { name: 'Shaman', keyAbility: 'WIS', hitDie: null, hpPerLevel: 8, saves: [], caster: 'full' },
         { name: 'Archon', keyAbility: 'CHA', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
-        { name: 'Beastmaster', keyAbility: 'CHA', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
         { name: 'Eldritch Binder', keyAbility: 'CHA', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
-        { name: 'Packmaster', keyAbility: 'CHA', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
-        { name: 'Summoner', keyAbility: 'CHA', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
+        { name: 'Beastmaster', keyAbility: 'WIS', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
+        { name: 'Packmaster', keyAbility: 'WIS', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
         { name: 'Conduit', keyAbility: 'WIS', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
-        { name: 'Druid', keyAbility: 'WIS', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
-        { name: 'Shifter', keyAbility: 'WIS', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
-        { name: 'Witch', keyAbility: 'WIS', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
+        { name: 'Druid', keyAbility: 'WIS', hitDie: null, hpPerLevel: 8, saves: [], caster: 'full' },
+        { name: 'Fighter', keyAbility: 'STR', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
+        { name: 'Freebooter', keyAbility: 'DEX', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
+        { name: 'Marksman', keyAbility: 'DEX', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
+        { name: 'Sohei', keyAbility: 'WIS', hitDie: null, hpPerLevel: 10, saves: [], caster: 'none' },
       ],
-      classNames: ['Archon', 'Beastmaster', 'Eldritch Binder', 'Packmaster', 'Summoner', 'Conduit', 'Druid', 'Shifter', 'Witch', 'Fighter', 'Champion', 'Freebooter', 'Marksman', 'Sohei', 'Wizard', 'Arcanist', 'Magician', 'Shaman'],
+      classNames: ['Wizard', 'Magician', 'Shaman', 'Archon', 'Eldritch Binder', 'Beastmaster', 'Packmaster', 'Conduit', 'Druid', 'Fighter', 'Freebooter', 'Marksman', 'Sohei'],
       species: ['Dwarf', 'Elf', 'Gnome', 'Halfling', 'Human', 'Leshonki', 'Migoi', 'Naga', 'Ogre', 'Sprite'],
       ancestryNotes: [
         'Dwarf — Cave Vision (darkvision 30 ft) and Robust (+2 Fortitude saves; advantage vs venom/poison/alcohol).',

@@ -26,7 +26,8 @@ describe('Intuitive Games system', () => {
   it('exposes its own ancestries, classes (incl. name-only), and skills', () => {
     expect(systemSpecies(KEY)).toEqual(expect.arrayContaining(['Leshonki', 'Migoi', 'Naga', 'Sprite']));
     const classes = systemClassNames(KEY);
-    expect(classes).toEqual(expect.arrayContaining(['Archon', 'Freebooter', 'Sohei', 'Witch'])); // full + name-only
+    expect(classes).toEqual(expect.arrayContaining(['Wizard', 'Archon', 'Freebooter', 'Sohei'])); // the 13 classes from the template's Class List
+    expect(classes).not.toContain('Witch');   // Witch is a SUBCLASS, not a class (template's Subclass List)
     const b = systemRulesBlock(KEY);
     expect(b).toMatch(/Ancestry mechanics:/);       // per-ancestry notes rendered
     expect(b).toMatch(/Sleight of Hand \(DEX\)/);   // its skill list

@@ -22,13 +22,25 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const body = await req.json().catch(() => ({}));
   const p = (body?.picks ?? {}) as Record<string, unknown>;
+  const str = (v: unknown) => typeof v === 'string' ? v.trim() : undefined;
+  // Ability scores: keep only the six valid keys, clamp to a sane range.
+  const abilities: Record<string, number> = {};
+  if (p.abilities && typeof p.abilities === 'object') {
+    for (const k of ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA']) {
+      const v = (p.abilities as Record<string, unknown>)[k];
+      if (v != null && Number.isFinite(+(v as number))) abilities[k] = Math.max(1, Math.min(30, Math.round(+(v as number))));
+    }
+  }
   const picks: IGPicks = {
     name: typeof p.name === 'string' && p.name.trim() ? p.name.trim() : character.name,
-    ancestry: typeof p.ancestry === 'string' ? p.ancestry.trim() : undefined,
-    className: typeof p.className === 'string' ? p.className.trim() : undefined,
-    subclass: typeof p.subclass === 'string' ? p.subclass.trim() : undefined,
+    ancestry: str(p.ancestry), className: str(p.className), subclass: str(p.subclass),
+    specialization: str(p.specialization), background: str(p.background), defensivePower: str(p.defensivePower),
+    alignment: str(p.alignment), culture: str(p.culture), bio: str(p.bio),
+    companionType: str(p.companionType), companionName: str(p.companionName),
+    abilities: Object.keys(abilities).length ? abilities : undefined,
     level: Number.isFinite(+(p.level as number)) ? Math.max(1, Math.min(10, Math.round(+(p.level as number)))) : 1,
-    stances: strArr(p.stances), powers: strArr(p.powers), feats: strArr(p.feats), weapons: strArr(p.weapons),
+    stances: strArr(p.stances), powers: strArr(p.powers), feats: strArr(p.feats),
+    weapons: strArr(p.weapons), weaponTypes: strArr(p.weaponTypes),
   };
 
   const assembled = assembleIGVanillaCharacter(picks);

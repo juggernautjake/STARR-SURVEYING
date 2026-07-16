@@ -17,6 +17,8 @@ import SheetApprovalPanel from '@/app/dnd/_ui/SheetApprovalPanel';
 import DmGrantPanel from '@/app/dnd/_ui/DmGrantPanel';
 import IGVanillaLibrary from '@/app/dnd/_ui/IGVanillaLibrary';
 import IGCharacterBuilder from '@/app/dnd/_ui/IGCharacterBuilder';
+import IGSheet from '@/app/dnd/_ui/IGSheet';
+import { isIGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { readVariants, builtSystems, type ActiveSheet } from '@/lib/dnd/system-variants';
 import { normalizeSystem } from '@/lib/dnd/systems';
 import { summarizeCharacterProvenance, type ElementKind } from '@/lib/dnd/provenance';
@@ -89,13 +91,26 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
   // source, shown to anyone who can edit an Intuitive Games character.
   const isIG = canWrite && normalizeSystem((character as { system?: string }).system) === 'intuitive-games';
   const igLibrary = isIG ? <IGVanillaLibrary /> : null;
-  const igBuilder = isIG ? <IGCharacterBuilder characterId={character.id} initialName={character.name} /> : null;
+  const igBuilder = isIG ? <IGCharacterBuilder characterId={character.id} initialName={character.name} aiConfigured={dndAiConfigured()} /> : null;
+
+  // The bespoke IG sheet (full-sheet Slice 4+): render the IGCharacter model sidecar (data.ig) for ANY
+  // viewer of an Intuitive Games character that has been built with the IG builder, with provenance badges.
+  let igSheet = null;
+  if (normalizeSystem((character as { system?: string }).system) === 'intuitive-games') {
+    const igData = (character.data as { ig?: unknown } | null)?.ig;
+    if (isIGCharacter(igData)) {
+      const dmGranted = (Array.isArray(character.dm_granted) ? character.dm_granted : []) as { kind?: ElementKind; name: string; grantedBy?: string | null; mechanics?: string | null }[];
+      const summary = summarizeCharacterProvenance((character.data as unknown as Character | null) ?? blankCharacter(character.name), 'intuitive-games', dmGranted);
+      igSheet = <IGSheet ig={igData} elements={summary.elements} />;
+    }
+  }
 
   return (
     <>
       {topPanel}
       {approvalPanel}
       {grantPanel}
+      {igSheet}
       {igBuilder}
       {igLibrary}
       {canWrite && Array.isArray((character as { build_questions?: string[] }).build_questions) && (character as { build_questions?: string[] }).build_questions!.length > 0 && (

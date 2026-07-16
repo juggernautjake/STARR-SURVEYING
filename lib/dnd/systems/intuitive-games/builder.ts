@@ -7,28 +7,86 @@
 // by the provenance classifier — no special-casing needed. Pure — no services.
 import type { Character } from '@/app/dnd/_sheet/types';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
-import { IG_STANCES, IG_POWERS, IG_FEATS } from './content';
+import { IG_STANCES, IG_POWERS, IG_FEATS, IG_DEFENSIVE_POWERS, IG_COMBAT_SKILLS } from './content';
+import { blankIGCharacter, blankIGCompanion, type IGCharacter, type IGAttack, type IGAbilityKey } from './model';
+import { systemSkills } from '../../system-rules';
 
-/** The kinded record of what an Intuitive Games character was built from (stored on the character data). */
+/** The kinded record of what an Intuitive Games character was built from (stored on the character data).
+ *  Mirrors the template's build fields — Class / Subclass / Specialization / Background (Sheet 1), the
+ *  Stances / Powers / Feats picks (Sheet 2/5), the Defensive Power (Sheet 3), and Weapon Groups/Types. */
 export interface IGBuild {
   ancestry?: string;
   className?: string;
   subclass?: string;
+  specialization?: string;
+  background?: string;
   stances?: string[];
   powers?: string[];
   feats?: string[];
   weapons?: string[];
+  weaponTypes?: string[];
+  defensivePower?: string;
+  /** Companion creature type (from the bestiary) — flagged as a vanilla creature-type when recognized. */
+  companionType?: string;
 }
 
 export interface IGPicks extends IGBuild {
   name?: string;
   level?: number;
+  /** Optional ability scores (default all 10); the guided builder collects these. */
+  abilities?: Partial<Record<'STR' | 'DEX' | 'CON' | 'INT' | 'WIS' | 'CHA', number>>;
+  /** Optional identity fields (Sheet 1). */
+  alignment?: string;
+  culture?: string;
+  bio?: string;
+  /** Optional companion creature name (paired with `companionType`). */
+  companionName?: string;
 }
 
 const effectOf = (list: { name: string; effect?: string }[], name: string): string => {
   const hit = list.find((e) => e.name.trim().toLowerCase() === String(name ?? '').trim().toLowerCase());
   return hit?.effect ?? '';
 };
+
+const featCategory = (name: string): 'general' | 'combat' =>
+  (IG_FEATS.find((f) => f.name.trim().toLowerCase() === String(name ?? '').trim().toLowerCase())?.category ?? 'General').toLowerCase().startsWith('combat') ? 'combat' : 'general';
+
+/** Build the full IGCharacter model (all tabs) from the picks — the sidecar the bespoke IG sheet reads. */
+export function buildIGModel(picks: IGPicks): IGCharacter {
+  const ig = blankIGCharacter(picks.name || 'New Character');
+  ig.identity.level = picks.level ?? 1;
+  ig.identity.className = picks.className || '';
+  ig.identity.subclass = picks.subclass || '';
+  ig.identity.specialization = picks.specialization || '';
+  ig.identity.background = picks.background || '';
+  ig.identity.ancestry = picks.ancestry || '';
+  ig.identity.alignment = picks.alignment || '';
+  ig.identity.culture = picks.culture || '';
+  ig.identity.bio = picks.bio || '';
+  if (picks.abilities) for (const [k, v] of Object.entries(picks.abilities)) if (v != null) ig.abilities[k as keyof typeof ig.abilities] = v;
+
+  ig.stances = [...(picks.stances ?? [])];
+  ig.combat.stances = [...(picks.stances ?? [])];
+  ig.powers = [...(picks.powers ?? [])];
+  ig.weaponGroups = [...(picks.weaponTypes ?? [])];
+  ig.combat.defensivePower = picks.defensivePower || '';
+  for (const f of picks.feats ?? []) ig.feats[featCategory(f)].push(f);
+
+  // Seed the full Intuitive Games skill list (Sheet 4) so the Skills tab shows every skill grouped by
+  // ability, with the 9 Combat Skills flagged. Ranks/proficiency are the player's to assign.
+  ig.skills = systemSkills('intuitive-games').map((s) => ({
+    name: s.name, ability: s.ability as IGAbilityKey, ranks: 0, proficient: false, misc: 0, combat: IG_COMBAT_SKILLS.has(s.name),
+  }));
+
+  ig.combat.attacks = (picks.weapons ?? []).map((w, i): IGAttack => ({
+    id: `atk-${i}`, name: w, weaponType: '', properties: '', proficient: true, weaponFocus: false,
+    weaponSpecialization: false, ability: 'STR', bonusToHit: 0, bonusDamage: 0, damage: '1d6',
+  }));
+
+  // Companion creature (Sheet 7) — seeded when a creature type is picked.
+  if (picks.companionType) ig.companion = blankIGCompanion(picks.companionName || `${picks.companionType} Companion`, picks.companionType);
+  return ig;
+}
 
 let _uid = 0;
 const uid = (p: string) => `${p}-${(_uid++).toString(36)}`;
@@ -39,15 +97,22 @@ const uid = (p: string) => `${p}-${(_uid++).toString(36)}`;
  * `igBuild` block for accurate provenance. Custom (non-catalog) picks are still placed on the sheet — they'll
  * simply be flagged CUSTOM by the provenance classifier.
  */
-export function assembleIGVanillaCharacter(picks: IGPicks): Character & { igBuild: IGBuild } {
-  const char = blankCharacter(picks.name || 'New Character') as Character & { igBuild: IGBuild };
+export function assembleIGVanillaCharacter(picks: IGPicks): Character & { igBuild: IGBuild; ig: IGCharacter } {
+  const char = blankCharacter(picks.name || 'New Character') as Character & { igBuild: IGBuild; ig: IGCharacter };
   char.meta.species = picks.ancestry || '';
   char.meta.className = picks.className || '';
   char.meta.subclass = picks.subclass || '';
   char.meta.level = picks.level ?? 1;
+  // Specialization + Background have no dedicated meta field; surface them as chips (Sheet 1 header fields).
+  const chips: Character['meta']['chips'] = [];
+  if (picks.specialization) chips.push({ text: `Specialization: ${picks.specialization}`, tone: 'gold' });
+  if (picks.background) chips.push({ text: `Background: ${picks.background}`, tone: 'teal' });
+  if (picks.weaponTypes?.length) chips.push({ text: `Weapon Groups: ${picks.weaponTypes.join(', ')}` });
+  char.meta.chips = chips;
 
   const features: Character['features'] = [];
   for (const s of picks.stances ?? []) features.push({ id: uid('stance'), name: s, source: 'Stance', body: [effectOf(IG_STANCES, s) || 'Stance.'], tone: 'teal' });
+  if (picks.defensivePower) features.push({ id: uid('defpow'), name: picks.defensivePower, source: 'Defensive Power', body: [effectOf(IG_DEFENSIVE_POWERS, picks.defensivePower) || 'Defensive power (reaction).'], tone: 'gold' });
   for (const pw of picks.powers ?? []) features.push({ id: uid('power'), name: pw, source: 'Power', body: [effectOf(IG_POWERS, pw) || 'Power.'], tone: 'pink' });
   for (const f of picks.feats ?? []) features.push({ id: uid('feat'), name: f, source: 'Feat', body: [effectOf(IG_FEATS, f) || 'Feat.'] });
   char.features = features;
@@ -58,7 +123,13 @@ export function assembleIGVanillaCharacter(picks: IGPicks): Character & { igBuil
 
   char.igBuild = {
     ancestry: picks.ancestry, className: picks.className, subclass: picks.subclass,
-    stances: [...(picks.stances ?? [])], powers: [...(picks.powers ?? [])], feats: [...(picks.feats ?? [])], weapons: [...(picks.weapons ?? [])],
+    specialization: picks.specialization, background: picks.background, defensivePower: picks.defensivePower,
+    companionType: picks.companionType,
+    stances: [...(picks.stances ?? [])], powers: [...(picks.powers ?? [])], feats: [...(picks.feats ?? [])],
+    weapons: [...(picks.weapons ?? [])], weaponTypes: [...(picks.weaponTypes ?? [])],
   };
+  // The full IGCharacter model sidecar the bespoke IG sheet reads (the 5e projection above keeps the shared
+  // sheet + provenance working).
+  char.ig = buildIGModel(picks);
   return char;
 }

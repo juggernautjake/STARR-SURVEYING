@@ -6,7 +6,7 @@
 // dm_granted and are flagged by provenance.ts, not here.
 import {
   IG_STANCES, IG_FEATS, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES, IG_MOVEMENT_TYPES,
-  IG_SUBCLASSES, IG_CREATURE_TYPES, type NamedEntry,
+  IG_SUBCLASSES, IG_CREATURE_TYPES, IG_ACTIONS, igCreaturesByGroup, type NamedEntry,
 } from './content';
 import { systemSpecies, systemClasses, systemSkills, systemConditions } from '../../system-rules';
 import type { ElementKind } from '../../provenance';
@@ -68,6 +68,18 @@ export function igCatalog(): CatalogGroup[] {
   groups.push({ title: 'Skills', kind: 'skill', entries: systemSkills('intuitive-games').map((s) => entry('skill', s.name)) });
   groups.push({ title: 'Conditions', kind: 'condition', entries: systemConditions('intuitive-games').map((n) => entry('condition', n)) });
   groups.push({ title: 'Companion creature types', kind: 'creature-type', entries: IG_CREATURE_TYPES.map((n) => entry('creature-type', n)) });
+  // The full bestiary, grouped by category (Data Sheet: Creatures).
+  const bestiary = igCreaturesByGroup();
+  for (const [grp, list] of Object.entries(bestiary)) {
+    groups.push({ title: `Creatures · ${grp}`, kind: 'creature-type', entries: list.map((n) => entry('creature-type', n)) });
+  }
+  // Actions grouped by the 3-action economy (Reference Sheet). Actions aren't provenance-classified, so
+  // these carry the 'action' kind purely for display in the reference browser.
+  const econ = new Map<string, typeof IG_ACTIONS>();
+  for (const a of IG_ACTIONS) { const k = `${a.economy} actions`; if (!econ.has(k)) econ.set(k, []); econ.get(k)!.push(a); }
+  for (const [title, list] of econ) {
+    groups.push({ title: `Actions · ${title}`, kind: 'action', entries: list.map((a) => ({ kind: 'action' as const, name: a.note ? `${a.name} (${a.note})` : a.name, source: 'vanilla' as const })) });
+  }
 
   return groups.filter((g) => g.entries.length > 0);
 }
