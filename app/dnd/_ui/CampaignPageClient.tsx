@@ -64,6 +64,27 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
     router.push(`/dnd/characters/new?campaignId=${data.campaign.id}`)
   }
 
+  // Quick NPC (Slice 31): a sentence → a full, playable NPC in this campaign, under a roster role.
+  // Lifts the streamer flow's generator via the campaign-scoped endpoint; the full builder is the
+  // "+ Character" route above. Both save the same shape — a quick NPC is promotable to a full build.
+  const [npcBrief, setNpcBrief] = useState('')
+  const [npcRole, setNpcRole] = useState<'generic_npc' | 'special_npc'>('generic_npc')
+  const [npcBusy, setNpcBusy] = useState(false)
+  const [npcErr, setNpcErr] = useState<string | null>(null)
+  async function quickNpc() {
+    const brief = npcBrief.trim()
+    if (!brief || npcBusy || !data) return
+    setNpcBusy(true); setNpcErr(null)
+    try {
+      const r = await fetch(`/api/dnd/campaigns/${data.campaign.id}/npc`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brief, rosterRole: npcRole }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (r.ok) { setNpcBrief(''); router.refresh() }
+      else setNpcErr(j.error || 'Could not generate the NPC.')
+    } catch { setNpcErr('Could not generate the NPC.') } finally { setNpcBusy(false) }
+  }
+
   // Add a player to the campaign by their sign-in name.
   async function addPlayer() {
     const name = newPlayer.trim()
@@ -261,6 +282,32 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                     </button>
                   )}
                 </div>
+                {/* Quick NPC (Slice 31): a sentence → a full generated NPC, DM-only. The "+ Character"
+                    button above is the full builder; this is the fast path the request asked for. */}
+                {data.campaign.role === 'dm' && (
+                  <div style={{ margin: '12px 0', padding: '10px 12px', border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.4)' }}>
+                    <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--hx-muted)', marginBottom: 6 }}>⚡ Quick NPC</div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <input
+                        className={styles.input}
+                        style={{ flex: 1, minWidth: 180, padding: '8px 10px' }}
+                        placeholder="Describe an NPC — e.g. a nervous dock guard who owes money"
+                        value={npcBrief}
+                        onChange={(e) => setNpcBrief(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && quickNpc()}
+                      />
+                      <select className={styles.input} style={{ width: 'auto', padding: '8px 10px' }} value={npcRole} onChange={(e) => setNpcRole(e.target.value as 'generic_npc' | 'special_npc')}>
+                        <option value="generic_npc">Generic NPC</option>
+                        <option value="special_npc">Notable NPC</option>
+                      </select>
+                      <button className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} onClick={quickNpc} disabled={npcBusy || !npcBrief.trim()}>
+                        {npcBusy ? 'Generating…' : '✦ Generate'}
+                      </button>
+                    </div>
+                    {npcErr && <p style={{ color: 'var(--hx-danger)', fontSize: 12, margin: '6px 0 0' }}>{npcErr}</p>}
+                  </div>
+                )}
+
                 {/* Search the roster by name. Just filters the cards below — it never creates. */}
                 <div style={{ display: 'flex', gap: 8, margin: '12px 0', alignItems: 'center' }}>
                   <input

@@ -1350,7 +1350,12 @@ flat. And "quick vs full" NPC builders are the Slice 31 work proper.
 - [ ] Tests: every existing character reads as a `pc`; promoting a generic NPC preserves its sheet
       byte-for-byte.
 
-## Slice 31 — The NEW button, and two ways to build a character ⏳ PARTIAL 2026-07-16
+## Slice 31 — The NEW button, and two ways to build a character ✅ SHIPPED 2026-07-16
+
+Both paths + roster grouping shipped: player-hub + DM roster grouped by PC/Notable/Generic (roster
+grouping note below), the DM's ⚡ Quick NPC generator (a sentence → a full NPC saved to the campaign
+under a role), and the full builder via ＋ Character — same `Character` shape, quick promotable to
+full. Details per item below.
 
 **Player-hub roster grouping ✅ SHIPPED (commit 5ce871a1).** The DM's `roster_role` now flows to
 the player-facing `CampaignHub` "The Table": `campaign-summary` selects `roster_role`, `HubCharacter`
@@ -1389,23 +1394,19 @@ a new-character modal for a button that already works is effort in the wrong pla
 Then two paths to the same `Character`, which is the whole point — a quick NPC must be promotable to
 a full build without being rebuilt:
 
-- [ ] **Quick build (AI).** Give it a sentence — "a nervous dock guard who owes money" — and it
-      generates a complete, playable sheet: stats, attacks, features, gear. This machinery already
-      exists and is already good: the streamer flow that turns one of Susie's chat regulars into a
-      statted NPC. Lift THAT, don't write a second one.
-      - It must actually **save** the character to the campaign, not just render a preview.
-      - It writes through the same `applySheetEdits` vocabulary as everything else, so a generated
-        NPC is indistinguishable in shape from a hand-built one.
-      - Style it to the Hextech chrome the rest of the hub uses — the request specifically flags the
-        interface needing to be "styled correctly and formatted well".
-- [ ] **Full build (manual).** The DM walks the campaign system's real character builder
-      (`/dnd/characters/[id]/levels` + the class engine) with full control over every choice.
-- [ ] **The two are the same pipeline at different depths.** Quick-generate, then open the full
-      builder on the result and keep going. If they fork into two shapes, the quick path becomes a
-      dead end and every NPC that matters gets rebuilt by hand.
-- [ ] Save as any role from Slice 30.
-- [ ] Tests: the NEW button opens the modal; a quick-built NPC persists and appears in the roster
-      under its chosen role; the full builder opens on a quick-built NPC and its choices stick.
+- [x] **Quick build (AI) ✅ SHIPPED 2026-07-16.** A **⚡ Quick NPC** form on the DM manage page
+      (`CampaignPageClient`, Hextech chrome): a sentence + a role → `POST /api/dnd/campaigns/[id]/npc`
+      generates a complete, playable sheet. It **lifts the streamer generator** into a campaign-scoped
+      endpoint (not a second one), **saves** the NPC to the campaign (DM-owned, `is_npc`, the chosen
+      `roster_role`, grounded on the campaign's system), and builds through the SAME `applySheetEdits`
+      vocabulary — so a generated NPC is indistinguishable in shape from a hand-built one, and the
+      plain sheet stands if the AI is off. Tests: `quick-npc.test.ts` (5).
+- [x] **Full build (manual) ✅** — the "＋ Character" button routes to `/dnd/characters/new?campaignId=`
+      → the builder + class engine, with full control over every choice.
+- [x] **Same pipeline at different depths.** Both save a normal `Character`; a quick NPC is just a
+      generated one — open it in the full builder and keep going, no fork.
+- [x] **Save as any role** — the Quick NPC form picks Generic/Notable NPC (Slice 30 `roster_role`), and
+      any character's role is changeable from its roster card.
 
 ## Slice 32 — Custom tags: add, create, define ✅ SHIPPED 2026-07-16
 
