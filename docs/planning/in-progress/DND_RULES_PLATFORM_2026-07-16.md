@@ -1077,6 +1077,54 @@ The Ruthless / Questioning / Step-by-step chooser in `NewCharacterForm` uses raw
 keeping the same three modes and their descriptions, so it matches the framed-panel look around it.
 Purely presentational — no behaviour change.
 
+## Slice 35 — Map viewer: image transform handles, no-parallax background, background spin/spiral
+
+Three map requests, grouped because they're all about placing and controlling images on the map.
+
+### 35a — Bring back the scale/rotate handles on images
+> "I can no longer see the nodes for scaling and rotating on images that I bring into the map viewer.
+> Please bring them back and make them work well so that I can manually rescale an image."
+
+The handle code still exists (`renderHandles()` in `map-studio.html`: a `.ihwrap` box with corner
+`.ihandle` scale pads + a `.rot` stem, drawn into `#handleLayer` at z-index 6). It explicitly draws
+for every selected instance except `kind==='text'`, so images *should* get them. So this is a
+regression to *reach*, not the drawing:
+- [x] **Narrowed 2026-07-16:** `renderHandles()` itself WORKS — forcing a selected image instance
+      produced all 5 handles (rotate + 4 corners) in `#handleLayer` at z-index 6, mode `dm`. So the
+      drawing is fine; the regression is in REACH. Remaining culprits, now in order:
+      the image instance isn't getting **selected** on click (a newer layer — the background image?
+      — eating the mousedown before it reaches the `.inst` handler), or the handle layer is visually
+      **covered** by a background layer added above z-index 6. Start by logging `selection` on an
+      image click.
+- [ ] Once visible, verify scale from any corner and rotate from the stem both work and persist.
+- [ ] A guard/regression note so the handles can't silently disappear again.
+
+### 35b — A background image with parallax OFF
+> "make it so that we can set a background image that doesn't do parallax. We should be able to turn
+> the background parallax off if we want to. Make it pretty clear how to do this."
+
+- [ ] A **Parallax** toggle on the background-image control, clearly labelled, defaulting to how it
+      behaves today. Off = the background is pinned to the viewport and does not shift as the map
+      pans/zooms (`#bgLayer` stops tracking `applyView`'s transform).
+- [ ] Make the control discoverable — a visible labelled switch in the background section, not a
+      hidden shortcut.
+
+### 35c — Spin/spiral the CENTER of a background image
+> "for background images, I still want to make it so that I can cause more of the center of the
+> background image to spin and have spiral controls over. Try to figure out if this is possible."
+
+- [ ] **Feasibility first.** The `DiffSpin`/ring-spinner engine already spins concentric rings of an
+      image at different rates (`console.html` line ~272, `SpriteSpinner`/ring canvases) — that IS a
+      center-biased spiral. The question is whether it can drive a full-bleed BACKGROUND layer, not
+      just a placed body. Check `sky2d.js` / the background renderer for where the bg image is drawn
+      and whether a ring-spin canvas can replace or overlay it.
+- [ ] If feasible: a background mode that applies the ring-spin (inner rings faster → a spiral),
+      with the existing spiral controls (ring count, per-ring speed, feather) exposed for the
+      background.
+- [ ] If not cleanly feasible on a full-bleed layer, say so in the doc with the reason rather than
+      forcing it, and offer the nearest thing (e.g. a large centered spinning image instead of a
+      true background).
+
 ## Slice 25 — Connect it to the rest
 
 - [ ] Spells cast on you land in the ledger as sources (`activeEffects`), so Bless and a potion are
