@@ -69,7 +69,10 @@ ON CONFLICT (id) DO UPDATE SET
 -- SRVY 1301 LESSONS (16 weeks — 14 lessons + 2 exam weeks)
 -- ----------------------------------------------------------------------------
 
-DELETE FROM learning_lessons WHERE module_id = 'acc00001-0000-0000-0000-000000000001';
+-- Only STRAY lessons are removed. Deleting a canonical lesson would NULL its flashcards
+-- (FK ON DELETE SET NULL) and cascade its blocks/user_progress — the cause of the
+-- duplicate-key failure on re-run. The canonical lessons are upserted below instead.
+DELETE FROM learning_lessons WHERE module_id = 'acc00001-0000-0000-0000-000000000001' AND id <> ALL (ARRAY['acc01b01-0000-0000-0000-000000000001', 'acc01b02-0000-0000-0000-000000000001', 'acc01b03-0000-0000-0000-000000000001', 'acc01b04-0000-0000-0000-000000000001', 'acc01b05-0000-0000-0000-000000000001', 'acc01b06-0000-0000-0000-000000000001', 'acc01b07-0000-0000-0000-000000000001', 'acc01b08-0000-0000-0000-000000000001', 'acc01b09-0000-0000-0000-000000000001', 'acc01b10-0000-0000-0000-000000000001', 'acc01b11-0000-0000-0000-000000000001', 'acc01b12-0000-0000-0000-000000000001', 'acc01b13-0000-0000-0000-000000000001', 'acc01b14-0000-0000-0000-000000000001', 'acc01b15-0000-0000-0000-000000000001', 'acc01b16-0000-0000-0000-000000000001']::uuid[]);
 INSERT INTO learning_lessons (id, module_id, title, content, key_takeaways, order_index, estimated_minutes, resources, videos, tags, status)
 VALUES
   -- Week 1
@@ -198,14 +201,19 @@ VALUES
    'Comprehensive final examination covering all course material from Weeks 1–15. Emphasis on computation problems involving leveling, distance corrections, traverse adjustment, coordinate geometry, area computation, and direction/bearing conversions.',
    ARRAY['Review all course concepts','Practice comprehensive computation problems','Focus on weak areas identified during the semester'],
    16, 180, '[]'::jsonb, '[]'::jsonb,
-   ARRAY['acc','srvy-1301','week-16','final','exam'], 'published');
+   ARRAY['acc','srvy-1301','week-16','final','exam'], 'published')
+ON CONFLICT (id) DO UPDATE SET
+  module_id = EXCLUDED.module_id, title = EXCLUDED.title, order_index = EXCLUDED.order_index;
 
 
 -- ----------------------------------------------------------------------------
 -- SRVY 1335 LESSONS (16 weeks — 14 lessons + 2 exam weeks)
 -- ----------------------------------------------------------------------------
 
-DELETE FROM learning_lessons WHERE module_id = 'acc00002-0000-0000-0000-000000000002';
+-- Only STRAY lessons are removed. Deleting a canonical lesson would NULL its flashcards
+-- (FK ON DELETE SET NULL) and cascade its blocks/user_progress — the cause of the
+-- duplicate-key failure on re-run. The canonical lessons are upserted below instead.
+DELETE FROM learning_lessons WHERE module_id = 'acc00002-0000-0000-0000-000000000002' AND id <> ALL (ARRAY['acc02b01-0000-0000-0000-000000000001', 'acc02b02-0000-0000-0000-000000000001', 'acc02b03-0000-0000-0000-000000000001', 'acc02b04-0000-0000-0000-000000000001', 'acc02b05-0000-0000-0000-000000000001', 'acc02b06-0000-0000-0000-000000000001', 'acc02b07-0000-0000-0000-000000000001', 'acc02b08-0000-0000-0000-000000000001', 'acc02b09-0000-0000-0000-000000000001', 'acc02b10-0000-0000-0000-000000000001', 'acc02b11-0000-0000-0000-000000000001', 'acc02b12-0000-0000-0000-000000000001', 'acc02b13-0000-0000-0000-000000000001', 'acc02b14-0000-0000-0000-000000000001', 'acc02b15-0000-0000-0000-000000000001', 'acc02b16-0000-0000-0000-000000000001']::uuid[]);
 INSERT INTO learning_lessons (id, module_id, title, content, key_takeaways, order_index, estimated_minutes, resources, videos, tags, status)
 VALUES
   -- Week 1
@@ -334,14 +342,19 @@ VALUES
    'Comprehensive final practical examination. Students demonstrate mastery of all field procedures: instrument setup, traversing, leveling, angle measurement, distance measurement, data recording, and field computations. Exam may include unknown point determination.',
    ARRAY['Demonstrate mastery of all instrument setup procedures','Execute traverse and leveling tasks under exam conditions','Produce accurate measurements and proper field notes','Complete all field computations correctly'],
    16, 180, '[]'::jsonb, '[]'::jsonb,
-   ARRAY['acc','srvy-1335','week-16','final','practical-exam'], 'published');
+   ARRAY['acc','srvy-1335','week-16','final','practical-exam'], 'published')
+ON CONFLICT (id) DO UPDATE SET
+  module_id = EXCLUDED.module_id, title = EXCLUDED.title, order_index = EXCLUDED.order_index;
 
 
 -- ----------------------------------------------------------------------------
 -- SRVY 1341 LESSONS (16 weeks — 14 lessons + 2 exam weeks)
 -- ----------------------------------------------------------------------------
 
-DELETE FROM learning_lessons WHERE module_id = 'acc00003-0000-0000-0000-000000000003';
+-- Only STRAY lessons are removed. Deleting a canonical lesson would NULL its flashcards
+-- (FK ON DELETE SET NULL) and cascade its blocks/user_progress — the cause of the
+-- duplicate-key failure on re-run. The canonical lessons are upserted below instead.
+DELETE FROM learning_lessons WHERE module_id = 'acc00003-0000-0000-0000-000000000003' AND id <> ALL (ARRAY['acc03b01-0000-0000-0000-000000000001', 'acc03b02-0000-0000-0000-000000000001', 'acc03b03-0000-0000-0000-000000000001', 'acc03b04-0000-0000-0000-000000000001', 'acc03b05-0000-0000-0000-000000000001', 'acc03b06-0000-0000-0000-000000000001', 'acc03b07-0000-0000-0000-000000000001', 'acc03b08-0000-0000-0000-000000000001', 'acc03b09-0000-0000-0000-000000000001', 'acc03b10-0000-0000-0000-000000000001', 'acc03b11-0000-0000-0000-000000000001', 'acc03b12-0000-0000-0000-000000000001', 'acc03b13-0000-0000-0000-000000000001', 'acc03b14-0000-0000-0000-000000000001', 'acc03b15-0000-0000-0000-000000000001', 'acc03b16-0000-0000-0000-000000000001', 'acc03b00-0000-0000-0000-000000000001']::uuid[]);
 INSERT INTO learning_lessons (id, module_id, title, content, key_takeaways, order_index, estimated_minutes, resources, videos, tags, status)
 VALUES
   -- Week 1
@@ -470,7 +483,9 @@ VALUES
    'Comprehensive final examination covering all course material from Weeks 1–15. Heavy emphasis on traverse adjustment computations, coordinate geometry, area computation, and boundary determination concepts. Both computation and conceptual questions.',
    ARRAY['Review all computation procedures thoroughly','Practice full traverse adjustment problems end-to-end','Review boundary determination concepts and priority of calls','Focus on weak areas identified during the semester'],
    16, 180, '[]'::jsonb, '[]'::jsonb,
-   ARRAY['acc','srvy-1341','week-16','final','exam'], 'published');
+   ARRAY['acc','srvy-1341','week-16','final','exam'], 'published')
+ON CONFLICT (id) DO UPDATE SET
+  module_id = EXCLUDED.module_id, title = EXCLUDED.title, order_index = EXCLUDED.order_index;
 
 
 -- SRVY 1341 Lesson 0 — Course Introduction (order_index 0)
@@ -4272,7 +4287,18 @@ INSERT INTO flashcards (id, term, definition, hint_1, hint_2, hint_3, module_id,
  'A thicker tape has a larger A and deforms less under the same tension',
  'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
  ARRAY['cross-sectional area','tape','width','thickness','tension correction'],
- ARRAY['acc-srvy-1341','week-1','chaining'], 'surveying');
+ ARRAY['acc-srvy-1341','week-1','chaining'], 'surveying')
+ON CONFLICT (id) DO UPDATE SET
+  term = EXCLUDED.term,
+  definition = EXCLUDED.definition,
+  hint_1 = EXCLUDED.hint_1,
+  hint_2 = EXCLUDED.hint_2,
+  hint_3 = EXCLUDED.hint_3,
+  module_id = EXCLUDED.module_id,
+  lesson_id = EXCLUDED.lesson_id,
+  keywords = EXCLUDED.keywords,
+  tags = EXCLUDED.tags,
+  category = EXCLUDED.category;
 
 
 -- 1341_wk2
@@ -4479,7 +4505,18 @@ INSERT INTO flashcards (id, term, definition, hint_1, hint_2, hint_3, module_id,
  'Published by NOAA; updated as the magnetic field drifts',
  'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
  ARRAY['isogonic lines','agonic line','declination','map','NOAA','magnetic field'],
- ARRAY['acc-srvy-1341','week-2','compass'], 'surveying');
+ ARRAY['acc-srvy-1341','week-2','compass'], 'surveying')
+ON CONFLICT (id) DO UPDATE SET
+  term = EXCLUDED.term,
+  definition = EXCLUDED.definition,
+  hint_1 = EXCLUDED.hint_1,
+  hint_2 = EXCLUDED.hint_2,
+  hint_3 = EXCLUDED.hint_3,
+  module_id = EXCLUDED.module_id,
+  lesson_id = EXCLUDED.lesson_id,
+  keywords = EXCLUDED.keywords,
+  tags = EXCLUDED.tags,
+  category = EXCLUDED.category;
 
 
 -- 1341_wk3
@@ -4735,7 +4772,18 @@ INSERT INTO flashcards (id, term, definition, hint_1, hint_2, hint_3, module_id,
  'NSPS is the national equivalent (National Society of Professional Surveyors)',
  'acc00003-0000-0000-0000-000000000003', 'acc03b03-0000-0000-0000-000000000001',
  ARRAY['TSPS','Texas','professional society','licensing','continuing education','NSPS'],
- ARRAY['acc-srvy-1341','week-3','trade-magazines'], 'surveying');
+ ARRAY['acc-srvy-1341','week-3','trade-magazines'], 'surveying')
+ON CONFLICT (id) DO UPDATE SET
+  term = EXCLUDED.term,
+  definition = EXCLUDED.definition,
+  hint_1 = EXCLUDED.hint_1,
+  hint_2 = EXCLUDED.hint_2,
+  hint_3 = EXCLUDED.hint_3,
+  module_id = EXCLUDED.module_id,
+  lesson_id = EXCLUDED.lesson_id,
+  keywords = EXCLUDED.keywords,
+  tags = EXCLUDED.tags,
+  category = EXCLUDED.category;
 
 
 -- 1341_wk4
@@ -4991,7 +5039,18 @@ INSERT INTO flashcards (id, term, definition, hint_1, hint_2, hint_3, module_id,
  'New equipment is NOT assumed to be calibrated — always check',
  'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
  ARRAY['new job','deep clean','calibration','all equipment','reset','new instruments'],
- ARRAY['acc-srvy-1341','week-4','maintenance'], 'surveying');
+ ARRAY['acc-srvy-1341','week-4','maintenance'], 'surveying')
+ON CONFLICT (id) DO UPDATE SET
+  term = EXCLUDED.term,
+  definition = EXCLUDED.definition,
+  hint_1 = EXCLUDED.hint_1,
+  hint_2 = EXCLUDED.hint_2,
+  hint_3 = EXCLUDED.hint_3,
+  module_id = EXCLUDED.module_id,
+  lesson_id = EXCLUDED.lesson_id,
+  keywords = EXCLUDED.keywords,
+  tags = EXCLUDED.tags,
+  category = EXCLUDED.category;
 
 
 -- 1341_wk5_quiz
@@ -5255,7 +5314,18 @@ INSERT INTO flashcards (id, term, definition, hint_1, hint_2, hint_3, module_id,
  'Speed comes from following the systematic procedure, not from rushing',
  'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
  ARRAY['time','minutes','experienced','beginner','speed','systematic','practice'],
- ARRAY['acc-srvy-1341','week-5','general'], 'surveying');
+ ARRAY['acc-srvy-1341','week-5','general'], 'surveying')
+ON CONFLICT (id) DO UPDATE SET
+  term = EXCLUDED.term,
+  definition = EXCLUDED.definition,
+  hint_1 = EXCLUDED.hint_1,
+  hint_2 = EXCLUDED.hint_2,
+  hint_3 = EXCLUDED.hint_3,
+  module_id = EXCLUDED.module_id,
+  lesson_id = EXCLUDED.lesson_id,
+  keywords = EXCLUDED.keywords,
+  tags = EXCLUDED.tags,
+  category = EXCLUDED.category;
 
 
 -- 1341_wk6_quiz
@@ -5521,7 +5591,18 @@ INSERT INTO flashcards (id, term, definition, hint_1, hint_2, hint_3, module_id,
  'In a traverse: backsight = previous station; foresight = next station',
  'acc00003-0000-0000-0000-000000000003', 'acc03b06-0000-0000-0000-000000000001',
  ARRAY['backsight','foresight','BS','FS','reference','target','zero','traverse','station'],
- ARRAY['acc-srvy-1341','week-6','practical'], 'surveying');
+ ARRAY['acc-srvy-1341','week-6','practical'], 'surveying')
+ON CONFLICT (id) DO UPDATE SET
+  term = EXCLUDED.term,
+  definition = EXCLUDED.definition,
+  hint_1 = EXCLUDED.hint_1,
+  hint_2 = EXCLUDED.hint_2,
+  hint_3 = EXCLUDED.hint_3,
+  module_id = EXCLUDED.module_id,
+  lesson_id = EXCLUDED.lesson_id,
+  keywords = EXCLUDED.keywords,
+  tags = EXCLUDED.tags,
+  category = EXCLUDED.category;
 
 
 
