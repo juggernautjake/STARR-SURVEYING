@@ -18,6 +18,12 @@ export const GAME_SYSTEMS: GameSystem[] = [
   { key: 'dnd5e-2024', name: 'D&D 5e (2024)', publisher: 'Wizards of the Coast', notes: 'The 2024 revised edition.' },
   { key: 'pathfinder2e', name: 'Pathfinder 2e', publisher: 'Paizo', notes: 'Pathfinder Second Edition (Remaster-aware).' },
   { key: 'intuitive-games', name: 'Intuitive Games', publisher: 'Intuitive Games', notes: 'A d20 system (levels 1–10, degrees of success, 3-action economy). Rules from intuitivegames.net.' },
+  { key: 'pathfinder1e', name: 'Pathfinder 1e', publisher: 'Paizo', notes: 'The classic 3.x-derived d20: BAB, three saves, skill ranks, confirmed criticals.' },
+  { key: 'starfinder1e', name: 'Starfinder 1e', publisher: 'Paizo', notes: 'PF1-derived d20 in space: EAC/KAC, Stamina + Hit Points, Resolve Points.' },
+  { key: 'coc7e', name: 'Call of Cthulhu 7e', publisher: 'Chaosium', notes: 'Percentile (d100) roll-under BRP. No levels, no classes; Sanity and Luck.' },
+  { key: 'blades', name: 'Blades in the Dark', publisher: 'Evil Hat / John Harper', notes: 'Forged in the Dark: d6 pools read on the highest die, position & effect, stress and trauma. No levels.' },
+  { key: 'cyberpunk-red', name: 'Cyberpunk RED', publisher: 'R. Talsorian Games', notes: '1d10 + STAT + SKILL, exploding 10s. No levels; Roles, Humanity and Stopping Power.' },
+  { key: 'shadowrun6e', name: 'Shadowrun 6e', publisher: 'Catalyst Game Labs', notes: 'd6 dice pool counting hits on 5–6. No levels; Attribute+Skill, Edge, Essence vs Magic.' },
 ];
 
 export type CharacterSystem = string; // a GAME_SYSTEMS key, or SYSTEM_AMBIGUOUS

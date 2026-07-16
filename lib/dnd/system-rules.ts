@@ -8,6 +8,7 @@
 // attributed to its source book. Keyed strictly by system so nothing crosses editions.
 import { SYSTEM_AMBIGUOUS, systemLabel, type CharacterSystem } from './systems';
 import { IG_STANCES, IG_FEATS, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES } from './systems/intuitive-games/content';
+import { EXTRA_SYSTEM_RULES } from './system-rules-extra';
 
 export interface AbilityModel {
   /** The ability keys/abbreviations this system uses. */
@@ -359,6 +360,10 @@ export const SYSTEM_RULES: Record<string, SystemRules> = {
       sampleFeats: ['Versatile', 'Dynamic', 'Robust', 'Swift', 'Near Perfect', 'Lucky', 'Crafty', 'Barkskin', 'Elemental', 'Arcane Talent'],
     },
   },
+
+  // The non-d20 and d20-adjacent systems (Call of Cthulhu 7e, Blades in the Dark, Cyberpunk
+  // RED, Shadowrun 6e, Pathfinder 1e, Starfinder 1e) live in their own module for size.
+  ...EXTRA_SYSTEM_RULES,
 };
 
 /** The rules for a system key, or null for the ambiguous / unknown case. */
