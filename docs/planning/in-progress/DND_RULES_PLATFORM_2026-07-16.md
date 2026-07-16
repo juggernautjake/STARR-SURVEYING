@@ -458,10 +458,18 @@ now shows a Senses line, each sense tagged with its source, gated on non-empty. 
 doc's explicit "senses… need somewhere to render" item. Test added to `grant-defenses.test.ts`.
 
 **Still open in this slice (each its own render site / mechanic, deliberately not bundled):**
-- *Other identity fields* — `image`/`token` (portrait + map token), `gender`/`pronouns`/`profession`
-  (Bio/Overview), `size`/`creature_type` (mechanical: size drives carrying capacity + grapple). Each
-  is a distinct render path; the ledger already resolves them, so each is a small read like the header
-  was, done where that field renders.
+- *`size`/`creature_type` ✅ SHIPPED (display, commit pending).* Imposed size/creature-type now render
+  in the Defenses card, sourced (an Enlarge potion → "Size — Large (Potion of Enlarge)"), gone on
+  unequip. The size→carrying-capacity/grapple MECHANICS are still a follow-up; this makes the change
+  visible so it isn't a lie. Tests: `identity-size.test.ts` (4).
+- *`image`/`token` (portrait + map token)* — genuinely its own slice, NOT a small read. The art comes
+  from the `media` context (`media.artUrl`/`tokenUrl`), consumed by both DISPLAY sites (Hero portrait,
+  map token) and MANAGEMENT sites (CharacterGallery's "which image is set as art" badges + set-as
+  actions). Overlaying at the context level would make the gallery mislabel the identity image as the
+  "currently set" art. The overlay must therefore be applied per-display-site, discriminating display
+  from management — a focused slice, not a one-liner.
+- *`gender`/`pronouns`/`profession`* — no render home exists on the sheet yet (needs a Bio/Overview
+  field before the overlay has anywhere to show).
 - *`grant_feature` ✅ SHIPPED (commit pending).* An item can grant a feature (the pendant that gives
   a Wizard a Barbarian ability). `Features` reads `ledger.explain('grant_feature')` and renders each
   as a read-only card badged "granted / Granted by <source>" — no ⋯ menu (it's on loan), never baked

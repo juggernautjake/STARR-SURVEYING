@@ -78,6 +78,11 @@ export default function CombatPanel() {
     .explain('grant_sense')
     .filter((c) => !c.suppressed && typeof c.effect.value === 'string')
     .map((c) => ({ value: String(c.effect.value), source: c.source }))
+  // Identity effects that impose a different SIZE or creature type (Slice 11) — an Enlarge potion
+  // makes you Large. Shown here with their source; the size→carrying-capacity/grapple mechanics are
+  // a follow-up, but the change must at least be visible (a target that renders nowhere is a lie).
+  const sizeId = ledger.identity('size')
+  const typeId = ledger.identity('creature_type')
 
   const dying = combat.currentHp <= 0
 
@@ -297,6 +302,18 @@ export default function CombatPanel() {
                     {r.value} <span className="hl-note">({r.source})</span>
                   </span>
                 ))}
+              </li>
+            )}
+            {sizeId && (
+              <li>
+                <strong>Size</strong> — <span style={{ textTransform: 'capitalize' }}>{sizeId.value}</span>{' '}
+                <span className="hl-note">({sizeId.source})</span>
+              </li>
+            )}
+            {typeId && (
+              <li>
+                <strong>Creature type</strong> — <span style={{ textTransform: 'capitalize' }}>{typeId.value}</span>{' '}
+                <span className="hl-note">({typeId.source})</span>
               </li>
             )}
             {senses.length > 0 && (
