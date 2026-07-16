@@ -101,6 +101,27 @@ describe('spells are editable too (Slices 20/27/33)', () => {
   })
 })
 
+describe('resources are editable too (Slices 20/27)', () => {
+  const RESOURCES = read('app/dnd/_sheet/components/Resources.tsx')
+  const RESOURCE_EDITOR = read('app/dnd/_sheet/components/ui/ResourceEditor.tsx')
+
+  it('the resource row mounts the ⋯ menu, canWrite-gated, and has an Add button', () => {
+    expect(RESOURCES).toContain('<ElementMenu')
+    expect(RESOURCES).toMatch(/canWrite && \(\s*<ElementMenu/)
+    expect(RESOURCES).toMatch(/＋ Add resource/)
+  })
+
+  it('the editor covers name, max, resetOn, colour, unlock level and note', () => {
+    for (const f of ['name', 'max', 'resetOn', 'color', 'unlockLevel', 'note']) {
+      expect(RESOURCE_EDITOR, `${f} must be editable`).toContain(`'${f}'`)
+    }
+  })
+
+  it('never leaves current above a reduced max (or the pip row lies)', () => {
+    expect(RESOURCE_EDITOR).toMatch(/Math\.min\(draft\.current, max\)/)
+  })
+})
+
 describe('the ⋯ menu behaves like a menu', () => {
   it('closes on outside click and Escape', () => {
     // A menu you can only close by picking something is a trap.
