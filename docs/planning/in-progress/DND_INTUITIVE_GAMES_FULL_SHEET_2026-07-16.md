@@ -80,9 +80,19 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
   the anti-wrong-mechanics rule; feats stay name+category until authoritative text is sourced from
   intuitivegames.net. The skill list + combat-skill variants already live in the `system-rules.ts` IG entry
   and are exercised by the Skills sheet slice.)*
-- **Slice 2 — IG character model + rules engine.** `model.ts` (the `IGCharacter` type over all nine tabs) +
-  `rules.ts` (pure math: modifier, proficiency=level, the three saves, skill totals, attack/damage, sneak
-  attack, degrees of success). Tested against worked examples.
+- **Slice 2 — IG character model + rules engine.** ✅ `model.ts` — the typed `IGCharacter` over every tab
+  (identity/intro, six ability scores, ranked skills, the three saves, combat: attacks/HP/DR/stances/
+  conditions/defensive power, feats general+combat, powers, weapon groups, equipment slots, companion
+  creature) + `blankIGCharacter` + `isIGCharacter`; `IG_ABILITIES` / `IG_SAVES` / `IG_SAVE_ABILITY`
+  (Fort/Con, Reflex/Dex, Will/Wis). `rules.ts` — the pure anti-wrong-mechanics math: `igAbilityMod`,
+  `igProficiency` (= level), `igSaveTotal`/`igSaves` (rank + level + governing attribute — defaults to 1 at
+  level 1, matching the template), `igSkillTotal`/`igSkillTotals` + `igRanksSpent`, `igAttackBonus`/
+  `igDamageBonus`/`igResolveAttack` (proficiency + Weapon Focus/Specialization + STR-melee → "2d6+6"),
+  `igDegreeOfSuccess` (PF2-style ±10 with nat-20-up/nat-1-down), `igMaxHp`/`igCurrentHp` (Class+Background HP
+  + CON×level), and an `igDerived` roll-up for the Summary tab. Verified: `tsc` clean, lint clean,
+  `__tests__/dnd/ig-rules.test.ts` (6 tests: modifier + proficiency, the three saves = 1 at L1 and scale with
+  rank/level/attr, skill totals trained vs untrained, attack + damage with focus/spec/STR-melee, degrees of
+  success incl. nat 20/1, max HP + derived summary); full dnd suite (309) green.
 - **Slice 3 — Full builder → model.** Extend `assembleIGVanillaCharacter` (or a new `buildIGCharacter`) to
   produce a complete `IGCharacter` (identity, scores, skills w/ ranks, saves, feats, powers, stances, weapon
   groups, defensive power, equipment, companion, notes) stored at `data.ig`, alongside the existing 5e
@@ -121,4 +131,4 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
 - **Reuse:** build on the shipped content library, catalog, provenance, submission/approval, DM grants,
   campaign policy, the custom-sheet/style engine, and `/ai-edit` grounding — don't fork them.
 
-### Status: IN PROGRESS (Slices 0–1 shipped; 2–11 pending)
+### Status: IN PROGRESS (Slices 0–2 shipped; 3–11 pending)
