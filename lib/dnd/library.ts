@@ -7,6 +7,8 @@
 // key and no seeded rows.
 import { GAME_SYSTEMS, systemLabel, type CharacterSystem } from './systems';
 import { rulesForSystem, type SystemRules } from './system-rules';
+import { glossaryFor, searchGlossary } from './glossary';
+import { classesForSystem } from './classes/registry';
 
 export interface LibraryFact {
   label: string;
@@ -223,7 +225,19 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
     const r = rulesForSystem(key);
     if (!r) continue;
     const name = systemLabel(key);
+
+    // The GLOSSARY first: these are the fully-written articles, so a lookup returns a real
+    // explanation rather than a one-line stub. Scored high so they outrank the generated
+    // catalog lines for the same word (e.g. the "Blinded" article beats the conditions list).
+    for (const g of searchGlossary(key, q, 30)) {
+      hits.push({ system: key, systemName: name, kind: g.kind, name: g.term, body: g.body, score: g.score + 6 });
+    }
+    // Terms already covered by the glossary shouldn't also appear as thin catalog entries.
+    const explained = new Set(glossaryFor(key).map((e) => e.term.toLowerCase()));
     const push = (kind: string, n: string, b: string) => {
+      // Skip anything the glossary already explains properly — its article is strictly better
+      // than the one-line summary generated here.
+      if (explained.has(n.toLowerCase())) return;
       const hay = `${n}\n${b}`.toLowerCase();
       let score = 0;
       for (const w of words) {
@@ -252,6 +266,14 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
       push('class', c.name, `${c.name} — key ability ${c.keyAbility}; ${hp}; saves ${c.saves.join(' & ') || '—'}; ${c.caster === 'none' ? 'non-caster' : `${c.caster} caster`}.`);
     }
     for (const n of r.content.classNames ?? []) if (!r.content.classes.some((c) => c.name === n)) push('class', n, `${n} — a ${r.label} class.`);
+    // Systems with FULL class data (currently dnd5e-2024) also expose every class feature by
+    // name, so "action surge" or "sneak attack" finds the actual rules text and its level.
+    for (const c of classesForSystem(key)) {
+      for (const f of c.features) {
+        if (f.choice && !f.body) continue;
+        push('feature', f.name, `${c.name} · level ${f.level} — ${f.body}`);
+      }
+    }
     for (const s of r.content.skills) push('skill', s.name, `${s.name} — governed by ${s.ability} in ${r.label}.`);
     for (const s of r.content.species) push('species', s, `${s} — a playable ${speciesNoun(r.key).toLowerCase().replace(/s$/, '')} in ${r.label}.`);
     for (const n of r.content.ancestryNotes ?? []) push('species', n.split(/[—-]/)[0].trim() || 'Ancestry', n);

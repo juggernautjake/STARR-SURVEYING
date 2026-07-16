@@ -118,3 +118,55 @@ describe('searchLibrary', () => {
     expect(searchLibrary('')).toEqual([]);
   });
 });
+
+// The point of the glossary: a DM mid-session searches a term and gets the actual rule, not a
+// one-line stub. These lock that in.
+describe('searchLibrary returns full EXPLANATIONS, not stubs', () => {
+  it('a condition lookup returns its real mechanical effect', () => {
+    const hit = searchLibrary('blinded', 'dnd5e-2024')[0];
+    expect(hit.name).toBe('Blinded');
+    expect(hit.body.length).toBeGreaterThan(150);
+    expect(hit.body).toMatch(/disadvantage/i);
+    expect(hit.body).toMatch(/advantage/i);
+  });
+
+  it('a lookup gives the EDITION-correct answer', () => {
+    const a = searchLibrary('exhaustion', 'dnd5e-2014')[0];
+    const b = searchLibrary('exhaustion', 'dnd5e-2024')[0];
+    expect(a.body).toMatch(/Hit point maximum halved|Speed halved/i);
+    expect(b.body).toMatch(/−2|-2/);
+    expect(a.body).not.toBe(b.body);
+  });
+
+  it('the glossary article outranks the thin catalog line for the same term', () => {
+    const hits = searchLibrary('sanity', 'coc7e');
+    expect(hits[0].body.length).toBeGreaterThan(150);
+    // The bare "Conditions" list must not be what a reader gets first.
+    expect(hits[0].name.toLowerCase()).toContain('sanity');
+  });
+
+  it('finds a class FEATURE by name, with its level and rules text', () => {
+    const hits = searchLibrary('action surge', 'dnd5e-2024');
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0].name).toMatch(/Action Surge/i);
+    expect(hits[0].body).toMatch(/level 2/i);
+  });
+
+  it('finds Sneak Attack and Rage with real numbers', () => {
+    expect(searchLibrary('sneak attack', 'dnd5e-2024')[0].body).toMatch(/d6/i);
+    expect(searchLibrary('rage', 'dnd5e-2024').length).toBeGreaterThan(0);
+  });
+
+  it('a non-d20 system’s own vocabulary is fully explained', () => {
+    const stress = searchLibrary('stress', 'blades')[0];
+    expect(stress.body.length).toBeGreaterThan(150);
+    expect(searchLibrary('humanity', 'cyberpunk-red')[0].body.length).toBeGreaterThan(150);
+    expect(searchLibrary('essence', 'shadowrun6e')[0].body.length).toBeGreaterThan(150);
+  });
+
+  it('still never leaks across systems once the glossary is in the mix', () => {
+    for (const key of GAME_SYSTEMS.map((s) => s.key)) {
+      for (const h of searchLibrary('damage', key)) expect(h.system, key).toBe(key);
+    }
+  });
+});
