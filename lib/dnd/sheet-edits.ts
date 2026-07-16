@@ -5,12 +5,13 @@
 // refining = edits onto the current one. Pure + typed so it's unit-tested and the API
 // can trust the result before persisting.
 import type Anthropic from '@anthropic-ai/sdk';
-import type { Character, Attack, FeatureBlock, InvItem, Resource, CustomTag, ItemKind, WeaponStats, ArmorStats, ConsumableStats, Spell } from '@/app/dnd/_sheet/types';
+import type { Character, Attack, FeatureBlock, InvItem, Resource, CustomTag, ItemKind, WeaponStats, ArmorStats, ConsumableStats, Spell, Trigger } from '@/app/dnd/_sheet/types';
 // (Resource is imported above; used by ItemPayload.grantsResource.)
 import type { Effect } from '@/app/dnd/_sheet/engine/effects';
 import type { AbilityKey, ProfLevel } from '@/app/dnd/_sheet/rules/dnd';
 import { validateCustomTag, RESERVED_TAGS } from '@/app/dnd/_sheet/components/ui/tagInfo';
 import { validateEffect } from '@/lib/dnd/effects/targets';
+import { cleanTriggers } from '@/lib/dnd/effects/triggers';
 
 /** The full set of fields an item edit can carry (Slice 14). Shared by add_item + update_item so
  *  the AI authors and refines an item through the SAME shape — a generated item is indistinguishable
@@ -36,6 +37,8 @@ export interface ItemPayload {
   grantsAttack?: Attack;
   /** A spell the item grants while equipped (Slice 11 grant-half). */
   grantsSpell?: Spell;
+  /** Event-triggered reactions the item carries (Slice 15) — validated by cleanTriggers. */
+  triggers?: Trigger[];
 }
 
 const ITEM_KINDS: ItemKind[] = ['weapon', 'armor', 'shield', 'consumable', 'wondrous', 'gear'];
@@ -63,6 +66,7 @@ function applyItemPayload(base: InvItem, p: ItemPayload): InvItem {
   if (p.armor != null) out.armor = p.armor;
   if (p.consumable != null) out.consumable = p.consumable;
   if (p.effects != null) out.effects = cleanEffects(p.effects);
+  if (p.triggers != null) out.triggers = cleanTriggers(p.triggers);
   if (p.grantsResource != null && typeof p.grantsResource.name === 'string') {
     const g = p.grantsResource;
     const max = Math.max(0, Math.round(g.max ?? 0));
@@ -519,6 +523,35 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
                 bonusDamage: { type: 'number' },
               },
               required: ['name', 'ability', 'damage'],
+            },
+            triggers: {
+              type: 'array',
+              description: 'For add_item/update_item: event-triggered REACTIONS (Slice 15) — a spiked armour that hits back, a shield that frightens. NOT a passive effect; it fires when an event happens and is surfaced as a prompt (never auto-applied). Each: { on, label, action, condition?, limit? }. on ∈ hit_by_melee|hit_by_ranged|hit_by_spell|you_hit|you_crit|you_are_crit|save_failed|turn_start|turn_end|damaged|reduced_to_zero. action = { kind: damage|heal|temp_hp|condition|effect|resource|prompt, dice?, damageType?, attack?, condition?, note? }. limit = { per: turn|round|short|long|encounter, max } to cap retaliation.',
+              items: {
+                type: 'object',
+                properties: {
+                  on: { type: 'string' },
+                  label: { type: 'string' },
+                  condition: { type: 'string' },
+                  action: {
+                    type: 'object',
+                    properties: {
+                      kind: { type: 'string', enum: ['damage', 'heal', 'temp_hp', 'condition', 'effect', 'resource', 'prompt'] },
+                      dice: { type: 'string' },
+                      damageType: { type: 'string' },
+                      attack: { type: 'boolean' },
+                      condition: { type: 'string' },
+                      note: { type: 'string' },
+                    },
+                    required: ['kind'],
+                  },
+                  limit: {
+                    type: 'object',
+                    properties: { per: { type: 'string', enum: ['turn', 'round', 'short', 'long', 'encounter'] }, max: { type: 'number' } },
+                  },
+                },
+                required: ['on', 'label', 'action'],
+              },
             },
             grantsSpell: {
               type: 'object',

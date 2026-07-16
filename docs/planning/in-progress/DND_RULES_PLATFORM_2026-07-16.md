@@ -710,11 +710,17 @@ from Spiked Armour"). Kept firmly a PROMPT, not automation — nothing auto-appl
 the app can't see. Tests: `triggers.test.ts` (8) — collection, equip/level/condition gating,
 per-event filter, description, render wiring.
 
-**Remaining — authoring + live firing.** A trigger BUILDER in the item/feature editors (author
-`on`/`action`/`limit` by hand), the AI emitting triggers, and firing the surfacing at the MOMENT an
-event happens (e.g. auto-open the barbs prompt when a melee hit is logged, decrementing the limit).
-The model, resolution, and a standing reactions list are shipped; these are the interaction layer on
-top.
+**AI authoring ✅ SHIPPED (commit pending).** `add_item`/`update_item` now accept a `triggers` array
+(the tool schema documents the events, action kinds, and limit), validated at the boundary by
+`cleanTriggers` — a bogus event or missing label is dropped, a bad action kind falls back to a DM
+prompt, never coerced into something wrong. So "give me spiked armour that hits back for 1d6 when I'm
+hit in melee" produces a real, surfaced trigger. Tests: `triggers.test.ts` (+2, 10 total).
+
+**Remaining — manual builder + live firing.** A trigger BUILDER in the item/feature editors (author
+`on`/`action`/`limit` by hand, like the effect builder), and firing the surfacing at the MOMENT an
+event happens (auto-open the barbs prompt when a melee hit is logged, decrementing the limit). The
+model, resolution, AI authoring, and a standing reactions list are shipped; these two are the
+remaining interaction layer.
 
 **The gap this exposes.** Every effect in the engine today is a *continuous overlay*: it is true for
 as long as its condition holds, and the ledger's job is to resolve it into a number. Retaliation

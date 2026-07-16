@@ -21,6 +21,8 @@ export interface ActiveTrigger extends Trigger {
   sourceKind: 'item' | 'feature';
 }
 
+const ACTION_KINDS = ['damage', 'heal', 'temp_hp', 'condition', 'effect', 'resource', 'prompt'] as const;
+
 /** Human labels for each event, for the reactions list + prompts. */
 export const TRIGGER_EVENT_LABEL: Record<TriggerEvent, string> = {
   hit_by_melee: 'When hit by a melee attack',
@@ -63,6 +65,49 @@ export function collectTriggers(char: Character, activeConditions: string[] = []
 /** The active triggers that fire on a given event — what the sheet surfaces when that event happens. */
 export function triggersForEvent(char: Character, event: TriggerEvent, activeConditions: string[] = []): ActiveTrigger[] {
   return collectTriggers(char, activeConditions).filter((t) => t.on === event);
+}
+
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'x';
+
+/** Is `on` one of the eleven real events? */
+export const isTriggerEvent = (v: unknown): v is TriggerEvent => typeof v === 'string' && v in TRIGGER_EVENT_LABEL;
+
+/**
+ * Keep only well-formed triggers, normalising each (mint an id, default the action to a DM prompt).
+ * Refuses rather than coerces — a trigger with a bogus `on` event or action would surface a reaction
+ * that fires on nothing, which is worse than none. Used by the AI item path (like `cleanEffects`).
+ */
+export function cleanTriggers(raw: unknown): Trigger[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Trigger[] = [];
+  for (const t of raw) {
+    if (!t || typeof t !== 'object') continue;
+    const r = t as Record<string, unknown>;
+    if (!isTriggerEvent(r.on)) continue;
+    const label = typeof r.label === 'string' && r.label.trim() ? r.label.trim() : null;
+    if (!label) continue;
+    const a = (r.action ?? {}) as Record<string, unknown>;
+    const kind = typeof a.kind === 'string' && (ACTION_KINDS as readonly string[]).includes(a.kind) ? a.kind : 'prompt';
+    const action: Trigger['action'] = { kind: kind as Trigger['action']['kind'] };
+    if (typeof a.dice === 'string') action.dice = a.dice;
+    if (typeof a.damageType === 'string') action.damageType = a.damageType;
+    if (typeof a.attack === 'boolean') action.attack = a.attack;
+    if (typeof a.condition === 'string') action.condition = a.condition;
+    if (typeof a.note === 'string') action.note = a.note;
+    const trig: Trigger = {
+      id: typeof r.id === 'string' && r.id ? r.id : `trig-${slug(label)}`,
+      on: r.on,
+      label,
+      action,
+    };
+    if (typeof r.condition === 'string' && r.condition.trim()) trig.condition = r.condition.trim();
+    const lim = r.limit as { per?: unknown; max?: unknown } | undefined;
+    if (lim && typeof lim.per === 'string' && typeof lim.max === 'number' && ['turn', 'round', 'short', 'long', 'encounter'].includes(lim.per)) {
+      trig.limit = { per: lim.per as NonNullable<Trigger['limit']>['per'], max: Math.max(1, Math.round(lim.max)) };
+    }
+    out.push(trig);
+  }
+  return out;
 }
 
 /** A plain-English line for a trigger's action — the same string the reactions list and a prompt use. */

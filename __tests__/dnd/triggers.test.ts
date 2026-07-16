@@ -4,7 +4,8 @@
 // certain amount of damage back." That's a Trigger, not an Effect — event-driven, rolls dice, targets
 // someone else. These tests pin the collection + gating + description; surfacing is a read of this.
 import { describe, it, expect } from 'vitest';
-import { collectTriggers, triggersForEvent, describeTrigger, TRIGGER_EVENT_LABEL } from '@/lib/dnd/effects/triggers';
+import { collectTriggers, triggersForEvent, describeTrigger, cleanTriggers, TRIGGER_EVENT_LABEL } from '@/lib/dnd/effects/triggers';
+import { applySheetEdits } from '@/lib/dnd/sheet-edits';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character, Trigger } from '@/app/dnd/_sheet/types';
 
@@ -80,3 +81,24 @@ describe('the Reactions panel surfaces triggers (Slice 15 render home)', () => {
     expect(read('app/dnd/_sheet/App.tsx')).toContain('<Reactions />');
   });
 });
+
+describe('the AI can author triggers on items, validated (Slice 15)', () => {
+  it('add_item with triggers round-trips to an active, surfaced trigger', () => {
+    const out = applySheetEdits(blankCharacter('Ash'), [{
+      op: 'add_item', name: 'Spiked Armour', equipped: true,
+      triggers: [{ on: 'hit_by_melee', label: 'Barbs', action: { kind: 'damage', dice: '1d6', damageType: 'piercing' }, limit: { per: 'round', max: 1 } }],
+    }]);
+    const item = out.inventory.find((i: { name: string }) => i.name === 'Spiked Armour');
+    expect(item.triggers).toHaveLength(1);
+    expect(collectTriggers(out)).toHaveLength(1); // active because equipped
+  });
+
+  it('cleanTriggers drops a bogus event or missing label, never coerces', () => {
+    expect(cleanTriggers([{ on: 'when_i_win', label: 'X', action: { kind: 'damage' } }])).toHaveLength(0); // bad event
+    expect(cleanTriggers([{ on: 'you_hit', action: { kind: 'damage' } }])).toHaveLength(0);                // no label
+    const ok = cleanTriggers([{ on: 'you_hit', label: 'Riposte', action: { kind: 'wat' } }]);              // bad action.kind → prompt
+    expect(ok).toHaveLength(1);
+    expect(ok[0].action.kind).toBe('prompt');
+    expect(ok[0].id).toBeTruthy();
+  });
+})
