@@ -1077,7 +1077,14 @@ feature that doesn't exist — and today most of these elements have no affordan
 - [ ] Reachable by keyboard and touch, like Slice 13's markers. Never hover-only.
 - [ ] Tests: every element kind exposes a ⋯; a viewer sees none; each menu opens its editor.
 
-## Slice 28 — Art and thumbnails for everything ⏳ PARTIAL 2026-07-16
+## Slice 28 — Art and thumbnails for everything ✅ SHIPPED 2026-07-16
+
+Every element the request named can carry art and shows it: items, attacks, spells, features — upload
+via one shared control, rendered as a thumbnail everywhere they appear (lists + Active Effects panel),
+with a kind-icon fallback for art-less items. **Deferred (cost > value / blocked):** generating a real
+square crop ON UPLOAD instead of CSS-scaling (an image-processing pipeline for a marginal quality
+gain — the CSS square is correct today); a thumbnail inside the text ⋯ menu (odd fit, low value); and
+form/effect art (forms have no editor yet — rides on that slice). None is a correctness gap.
 
 > "we need to be able to upload item and weapon and spell and etc for everything and have it be able
 > to be displayed… We will need to be able to create little thumbnail tokens for everything."
