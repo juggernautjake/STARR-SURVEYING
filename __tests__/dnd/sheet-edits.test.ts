@@ -1,6 +1,6 @@
 // __tests__/dnd/sheet-edits.test.ts — structured sheet edits (Phase I2).
 import { describe, it, expect } from 'vitest';
-import { applySheetEdits, editPath, editOldValue, type SheetEdit } from '@/lib/dnd/sheet-edits';
+import { applySheetEdits, editPath, editOldValue, revertSheetEdit, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 
 describe('applySheetEdits', () => {
@@ -237,5 +237,64 @@ describe('editOldValue captures the prior value for the audit trail (Slice 26)',
     const c = blankCharacter('X');
     expect(editOldValue(c, { op: 'add_attack', name: 'New', ability: 'str', damage: '1d6' })).toBeNull();
     expect(editOldValue(c, { op: 'define_tag', name: 'cursed', desc: 'x' })).toBeNull();
+  });
+});
+
+describe('revertSheetEdit undoes an edit exactly (Slice 26 — the round-trip property)', () => {
+  function rich() {
+    const c = blankCharacter('Hero');
+    c.abilities = { ...c.abilities, str: 14 };
+    c.combat = { ...c.combat, ac: 15 };
+    c.attacks = [{ id: 'sw', name: 'Sword', ability: 'str', proficient: true, range: 'melee', damage: '1d8', damageType: 'slashing', notes: 'keen' }] as typeof c.attacks;
+    c.inventory = [{ id: 'cl', name: 'Cloak', desc: 'grey', qty: 1, tags: ['flavor'] }] as typeof c.inventory;
+    c.features = [{ id: 'f', name: 'Rage', source: 'Class', body: ['angry'], unlockLevel: 1 }] as typeof c.features;
+    c.spells = [{ id: 'sp', name: 'Bless', level: 1, description: 'blessed' }] as typeof c.spells;
+    c.resources = [{ id: 'r', name: 'Ki', max: 3, current: 3, color: 'teal', resetOn: 'short' }] as typeof c.resources;
+    return c;
+  }
+
+  // apply → capture old_value → revert → the affected data equals the original.
+  const cases: { label: string; edit: SheetEdit; probe: (c: ReturnType<typeof rich>) => unknown }[] = [
+    { label: 'set_ability', edit: { op: 'set_ability', ability: 'str', value: 20 }, probe: (c) => c.abilities.str },
+    { label: 'set_combat', edit: { op: 'set_combat', field: 'ac', value: 18 }, probe: (c) => c.combat.ac },
+    { label: 'set_name', edit: { op: 'set_name', value: 'Villain' }, probe: (c) => c.meta.name },
+    { label: 'update_attack', edit: { op: 'update_attack', name: 'Sword', damage: '1d12' }, probe: (c) => c.attacks[0]?.damage },
+    { label: 'rename_attack', edit: { op: 'rename_attack', name: 'Sword', to: 'Blade' }, probe: (c) => c.attacks[0]?.name },
+    { label: 'rename_item', edit: { op: 'rename_item', name: 'Cloak', to: 'Robe' }, probe: (c) => c.inventory[0]?.name },
+    { label: 'rename_feature', edit: { op: 'rename_feature', name: 'Rage', to: 'Fury' }, probe: (c) => c.features[0]?.name },
+    { label: 'rename_spell', edit: { op: 'rename_spell', name: 'Bless', to: 'Boon' }, probe: (c) => c.spells![0]?.name },
+    { label: 'rename_resource', edit: { op: 'rename_resource', name: 'Ki', to: 'Focus' }, probe: (c) => c.resources[0]?.name },
+  ];
+
+  for (const { label, edit, probe } of cases) {
+    it(`${label}: apply then revert restores the value`, () => {
+      const before = rich();
+      const original = probe(before);
+      const old = editOldValue(before, edit);
+      const applied = applySheetEdits(before, [edit]);
+      expect(probe(applied)).not.toBe(original); // the edit actually changed it
+      const reverted = revertSheetEdit(applied, edit, old);
+      expect(probe(reverted)).toBe(original);    // ...and revert brought it back
+    });
+  }
+
+  it('reverting an ADD removes the created element', () => {
+    const before = rich();
+    const edit: SheetEdit = { op: 'add_attack', name: 'Dagger', ability: 'dex', damage: '1d4' };
+    const old = editOldValue(before, edit); // null — it's new
+    const applied = applySheetEdits(before, [edit]);
+    expect(applied.attacks.some((a) => a.name === 'Dagger')).toBe(true);
+    const reverted = revertSheetEdit(applied, edit, old);
+    expect(reverted.attacks.some((a) => a.name === 'Dagger')).toBe(false);
+  });
+
+  it('reverting a rename also restores every other field the element carried', () => {
+    const before = rich();
+    const edit: SheetEdit = { op: 'rename_attack', name: 'Sword', to: 'Blade' };
+    const old = editOldValue(before, edit);
+    const reverted = revertSheetEdit(applySheetEdits(before, [edit]), edit, old);
+    const a = reverted.attacks[0];
+    expect(a.name).toBe('Sword');
+    expect(a.notes).toBe('keen'); // the whole prior element came back, not just the name
   });
 });

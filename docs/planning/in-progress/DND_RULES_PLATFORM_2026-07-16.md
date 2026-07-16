@@ -1050,10 +1050,19 @@ whole prior element for rename/update so a revert is exact, null for creates), a
 now writes it to `dnd_sheet_edits.old_value` instead of null. Tests: `sheet-edits.test.ts` +3. This
 unblocks both this slice's Revert and Slice 20's diff/revert.
 
-**Remaining — the review-queue UI.** A single campaign surface listing every ✎ across every player
-newest-first (reading `dnd_sheet_edits`, which now carries old→new + author + timestamp) with per-edit
-**Approve** (clear ✎) / **Revert** (restore `old_value`). That's a new panel + a small write endpoint;
-the data behind it is now complete. Its own focused UI slice.
+**Revert engine ✅ SHIPPED (commit pending).** `revertSheetEdit(current, edit, oldValue)` — a pure
+function that undoes one edit exactly: a scalar `set_*` writes `oldValue` back; a collection edit
+restores the whole prior element in place (so a reverted rename brings back every field, not just the
+name); a reverted ADD drops the element it created. Pinned by a round-trip property test across all
+nine op families (apply → capture → revert = original) + the add-removal + all-fields-restored cases.
+This is the mechanism the review queue's Revert needs, done carefully as a tested pure function
+BEFORE any UI drives it (a buggy reverse-apply corrupting a sheet is the exact failure to avoid).
+
+**Remaining — the review-queue UI.** The last piece: a campaign surface listing `dnd_sheet_edits`
+(which now carries old→new + author + timestamp) newest-first, with per-edit **Approve** (clear ✎) /
+**Revert** (call `revertSheetEdit` + persist). A DM-gated read (the GET already exists at
+`/edits`) + a small write endpoint + a panel. Both the data (`old_value`) and the logic
+(`revertSheetEdit`) are now in place — only the surface remains.
 
 - [ ] **The DM can edit anything, anywhere, on any sheet in their campaign** — every number, die,
       name, and word. No field is read-only to the DM. `getCharacterAccess` already grants DM write;

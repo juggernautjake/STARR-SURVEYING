@@ -199,6 +199,67 @@ export function editOldValue(current: Character, e: SheetEdit): unknown {
   }
 }
 
+/**
+ * Undo one edit, restoring the value it replaced (Slice 26 — the DM's "Revert"). Pure: takes the
+ * CURRENT character, the edit, and the `old_value` the audit recorded (from `editOldValue`), and
+ * returns a new character with that edit reversed. This is the mechanism behind the review queue's
+ * per-edit Revert — kept a pure function so it's exhaustively testable before any UI drives it.
+ *
+ * Reversal rules, by shape:
+ *  · scalar set_* → write `oldValue` back into the field (null = leave it, nothing better to restore).
+ *  · collection edit where a prior element was captured → put that prior element back in place (a
+ *    rename reverts the name; an update reverts every field; a remove re-adds it).
+ *  · collection ADD (no prior element) → drop the element the edit created.
+ * The element's CURRENT name is `to` for a rename (that's what it's called now) else `name`.
+ */
+export function revertSheetEdit(input: Character, e: SheetEdit, oldValue: unknown): Character {
+  const c: Character = structuredClone(input);
+  const currentName = (e.op === 'rename_attack' || e.op === 'rename_feature' || e.op === 'rename_item' || e.op === 'rename_spell' || e.op === 'rename_resource')
+    ? ((e as { to?: string }).to ?? e.name)
+    : (e as { name?: string }).name;
+
+  // Replace the element named `currentName` with `prior` (in place), or re-add it if it's gone, or
+  // remove it when there is no prior (the edit had CREATED it).
+  const restore = <T extends { name: string }>(list: T[], prior: T | null): T[] => {
+    if (!currentName) return list;
+    const exists = list.some((x) => eqName(x.name, currentName));
+    if (prior && exists) return list.map((x) => (eqName(x.name, currentName) ? prior : x));
+    if (prior && !exists) return [...list, prior];
+    return list.filter((x) => !eqName(x.name, currentName));
+  };
+  const prior = (oldValue ?? null) as { name: string } | null;
+
+  switch (e.op) {
+    case 'set_name': if (typeof oldValue === 'string') c.meta.name = oldValue; break;
+    case 'set_meta': if (oldValue != null) c.meta[e.field] = String(oldValue); break;
+    case 'set_level': if (typeof oldValue === 'number') c.meta.level = oldValue; break;
+    case 'set_ability': if (typeof oldValue === 'number') c.abilities[e.ability] = oldValue; break;
+    case 'set_combat': if (typeof oldValue === 'number') c.combat[e.field] = oldValue; break;
+    case 'set_save_proficient':
+      if (typeof oldValue === 'boolean') c.saves[e.ability] = { ...(c.saves[e.ability] ?? { misc: 0 }), proficient: oldValue };
+      break;
+    case 'set_skill':
+      if (typeof oldValue === 'string') c.skills[e.skill] = { ...(c.skills[e.skill] ?? { misc: 0 }), prof: oldValue as ProfLevel };
+      break;
+    case 'add_attack': case 'update_attack': case 'remove_attack': case 'rename_attack':
+      c.attacks = restore(c.attacks, prior as Attack | null);
+      break;
+    case 'add_feature': case 'remove_feature': case 'rename_feature':
+      c.features = restore(c.features, prior as FeatureBlock | null);
+      break;
+    case 'add_item': case 'update_item': case 'equip_item': case 'remove_item': case 'rename_item': case 'tag_item':
+      c.inventory = restore(c.inventory, prior as InvItem | null);
+      break;
+    case 'rename_spell':
+      c.spells = restore(c.spells ?? [], prior as Spell | null);
+      break;
+    case 'add_resource': case 'rename_resource':
+      c.resources = restore(c.resources, prior as Resource | null);
+      break;
+  }
+  return c;
+}
+
 /** Apply a validated edit list to a Character, returning a new Character (pure). */
 export function applySheetEdits(input: Character, edits: SheetEdit[]): Character {
   const c: Character = structuredClone(input);
