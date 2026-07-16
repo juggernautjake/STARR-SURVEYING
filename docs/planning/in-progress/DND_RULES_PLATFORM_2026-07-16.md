@@ -1116,11 +1116,14 @@ regression to *reach*, not the drawing:
 > "for background images, I still want to make it so that I can cause more of the center of the
 > background image to spin and have spiral controls over. Try to figure out if this is possible."
 
-- [ ] **Feasibility first.** The `DiffSpin`/ring-spinner engine already spins concentric rings of an
-      image at different rates (`console.html` line ~272, `SpriteSpinner`/ring canvases) — that IS a
-      center-biased spiral. The question is whether it can drive a full-bleed BACKGROUND layer, not
-      just a placed body. Check `sky2d.js` / the background renderer for where the bg image is drawn
-      and whether a ring-spin canvas can replace or overlay it.
+- [x] **Feasibility answered 2026-07-16: yes, but it needs a canvas backdrop.** The ring-spin engine
+      (`DiffSpinGalaxy`) already spins concentric rings of an image at different rates and is ALREADY
+      wired for *placed* images — `renderInstances` uses `i.spiral.on` → a `.spiralcanvas`. The
+      blocker for the BACKGROUND is that `#bgLayer` is a plain CSS `background-image`, and ring-spin
+      needs a `<canvas>` to slice/rotate rings. So it's feasible by rendering the image backdrop as a
+      full-bleed spiral canvas (mount a `DiffSpinGalaxy` into `#bgLayer` when `background.spiral` is
+      on) instead of a CSS background — reusing the exact engine the placed-image spiral uses. Not a
+      new capability, just applying the existing one to the backdrop layer.
 - [ ] If feasible: a background mode that applies the ring-spin (inner rings faster → a spiral),
       with the existing spiral controls (ring count, per-ring speed, feather) exposed for the
       background.
