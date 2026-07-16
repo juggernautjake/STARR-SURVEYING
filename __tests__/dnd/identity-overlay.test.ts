@@ -12,6 +12,7 @@ import { buildLedger } from '@/lib/dnd/effects/ledger';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 
 const HERO = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_sheet/components/Hero.tsx'), 'utf8');
+const BIO = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_sheet/components/Bio.tsx'), 'utf8');
 
 function pendant(): SheetEdit {
   // An AI-authored item (Slice 14 plumbing) that renames + reclasses while worn.
@@ -78,5 +79,11 @@ describe('the Hero header renders the overlay, not the base, and stars it', () =
     expect(HERO).toContain('target="species"');
     expect(HERO).toContain('target="class"');
     expect(HERO).toContain('target="subclass"');
+  });
+
+  it('the Bio card titles use the imposed name too, for a consistent read', () => {
+    expect(BIO).toContain("ledger.identity('name')?.value ?? char.meta.name");
+    expect(BIO).toContain('Who Is ${displayName}?');
+    expect(BIO).toContain('Playing ${displayName.split');
   });
 });

@@ -73,15 +73,19 @@ function StoryCard({
 }
 
 export default function Bio() {
-  const { char, setChar, canWrite } = useChar()
+  const { char, setChar, canWrite, ledger } = useChar()
   const { bio } = char
   const setBio = (patch: Partial<typeof bio>) => setChar((c) => ({ ...c, bio: { ...c.bio, ...patch } }))
+  // Use the imposed name (Slice 11) in the card titles too, so a transformed character's story
+  // reads as who they currently are — consistent with the Hero header. Base stands when nothing
+  // imposes an identity.
+  const displayName = ledger.identity('name')?.value ?? char.meta.name
 
   return (
     <section id="story">
       <SectionHead num="13" title="Story & Roleplay" />
 
-      <StoryCard title={`Who Is ${char.meta.name}?`} value={bio.intro} kind="paragraphs" canEdit={canWrite} onSave={(v) => setBio({ intro: v as string[] })} />
+      <StoryCard title={`Who Is ${displayName}?`} value={bio.intro} kind="paragraphs" canEdit={canWrite} onSave={(v) => setBio({ intro: v as string[] })} />
 
       <div className="two">
         <StoryCard title="Appearance" value={bio.appearance} kind="list" canEdit={canWrite} onSave={(v) => setBio({ appearance: v as string[] })} />
@@ -90,7 +94,7 @@ export default function Bio() {
 
       <div className="two">
         <StoryCard title="Background" value={bio.background} kind="text" canEdit={canWrite} onSave={(v) => setBio({ background: v as string })} />
-        <StoryCard title={`Playing ${char.meta.name.split(' ')[0]}`} value={bio.playTips} kind="list" canEdit={canWrite} onSave={(v) => setBio({ playTips: v as string[] })} />
+        <StoryCard title={`Playing ${displayName.split(' ')[0]}`} value={bio.playTips} kind="list" canEdit={canWrite} onSave={(v) => setBio({ playTips: v as string[] })} />
       </div>
     </section>
   )
