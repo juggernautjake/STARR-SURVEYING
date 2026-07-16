@@ -79,7 +79,7 @@ export function tagElement(
 /** The kinded record an Intuitive Games build stores on the character so its stances/powers/feats keep their
  *  real kind for provenance (structural — no import of the builder, to avoid a cycle). */
 interface IGBuildShape {
-  ancestry?: string; className?: string; subclass?: string; defensivePower?: string;
+  ancestry?: string; className?: string; subclass?: string; defensivePower?: string; companionType?: string;
   stances?: string[]; powers?: string[]; feats?: string[]; weapons?: string[]; weaponTypes?: string[];
 }
 
@@ -101,6 +101,7 @@ export function extractCharacterElements(char: Character): { kind: ElementKind; 
     for (const w of build.weapons ?? []) push('weapon', w);
     for (const wt of build.weaponTypes ?? []) push('weapon-type', wt);
     if (build.defensivePower) push('defensive-power', build.defensivePower);
+    if (build.companionType) push('creature-type', build.companionType);
   } else {
     push('class', char?.meta?.className);
     push('ancestry', char?.meta?.species);

@@ -157,6 +157,16 @@ export function blankIGCharacter(name: string): IGCharacter {
   };
 }
 
+/** A valid, empty companion creature (Sheet 7). Companions default to INT 6 (−2), like the template. */
+export function blankIGCompanion(name: string, creatureType = ''): IGCompanion {
+  return {
+    name, creatureType,
+    abilities: { STR: 10, DEX: 10, CON: 10, INT: 6, WIS: 10, CHA: 10 },
+    skills: [], attacks: [], powers: [], conditions: [], hitPoints: 10, saves: zeroSaves(),
+    damageReduction: 0, movement: '', resistances: '', vulnerabilities: '', situationalBonuses: [], notes: '',
+  };
+}
+
 /** Narrowing guard: is this data a plausible IGCharacter sidecar? */
 export function isIGCharacter(v: unknown): v is IGCharacter {
   return !!v && typeof v === 'object' && 'identity' in v && 'abilities' in v && 'combat' in v;

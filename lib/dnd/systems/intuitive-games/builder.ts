@@ -8,7 +8,7 @@
 import type { Character } from '@/app/dnd/_sheet/types';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import { IG_STANCES, IG_POWERS, IG_FEATS, IG_DEFENSIVE_POWERS, IG_COMBAT_SKILLS } from './content';
-import { blankIGCharacter, type IGCharacter, type IGAttack, type IGAbilityKey } from './model';
+import { blankIGCharacter, blankIGCompanion, type IGCharacter, type IGAttack, type IGAbilityKey } from './model';
 import { systemSkills } from '../../system-rules';
 
 /** The kinded record of what an Intuitive Games character was built from (stored on the character data).
@@ -26,6 +26,8 @@ export interface IGBuild {
   weapons?: string[];
   weaponTypes?: string[];
   defensivePower?: string;
+  /** Companion creature type (from the bestiary) — flagged as a vanilla creature-type when recognized. */
+  companionType?: string;
 }
 
 export interface IGPicks extends IGBuild {
@@ -37,6 +39,8 @@ export interface IGPicks extends IGBuild {
   alignment?: string;
   culture?: string;
   bio?: string;
+  /** Optional companion creature name (paired with `companionType`). */
+  companionName?: string;
 }
 
 const effectOf = (list: { name: string; effect?: string }[], name: string): string => {
@@ -78,6 +82,9 @@ export function buildIGModel(picks: IGPicks): IGCharacter {
     id: `atk-${i}`, name: w, weaponType: '', properties: '', proficient: true, weaponFocus: false,
     weaponSpecialization: false, ability: 'STR', bonusToHit: 0, bonusDamage: 0, damage: '1d6',
   }));
+
+  // Companion creature (Sheet 7) — seeded when a creature type is picked.
+  if (picks.companionType) ig.companion = blankIGCompanion(picks.companionName || `${picks.companionType} Companion`, picks.companionType);
   return ig;
 }
 
@@ -117,6 +124,7 @@ export function assembleIGVanillaCharacter(picks: IGPicks): Character & { igBuil
   char.igBuild = {
     ancestry: picks.ancestry, className: picks.className, subclass: picks.subclass,
     specialization: picks.specialization, background: picks.background, defensivePower: picks.defensivePower,
+    companionType: picks.companionType,
     stances: [...(picks.stances ?? [])], powers: [...(picks.powers ?? [])], feats: [...(picks.feats ?? [])],
     weapons: [...(picks.weapons ?? [])], weaponTypes: [...(picks.weaponTypes ?? [])],
   };

@@ -273,6 +273,52 @@ export default function IGSheet({ ig, elements }: { ig: IGCharacter; elements: T
         );
       })()}
 
+      {/* Companion Creature (Sheet 7) — its own scores, saves, HP, DR, movement, attacks, powers. */}
+      {ig.companion && (() => {
+        const co = ig.companion!;
+        const saveTotal = (k: (typeof IG_SAVES)[number]) => {
+          const abil = k === 'Fortitude' ? 'CON' : k === 'Reflex' ? 'DEX' : 'WIS';
+          return co.saves[k].rank + Math.max(1, derived.level) + igAbilityMod(co.abilities[abil]) + co.saves[k].misc;
+        };
+        return (
+          <div className={styles.framedPanel} style={{ padding: '10px 12px', display: 'grid', gap: 10, background: 'rgba(10,200,185,0.04)' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+              <strong style={{ fontFamily: 'var(--hx-font-display)', color: 'var(--hx-teal-1)' }}>◆ Companion</strong>
+              <span style={{ fontSize: 13, color: 'var(--hx-text)' }}>{co.name}</span>
+              {co.creatureType && <span style={{ fontSize: 12.5, color: 'var(--hx-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>· {co.creatureType} {badgeFor(co.creatureType)}</span>}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(48px, 1fr))', gap: 6 }}>
+              {IG_ABILITIES.map((k) => (
+                <div key={k} style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 6, padding: '4px 2px' }}>
+                  <div style={{ fontSize: 9.5, color: 'var(--hx-muted)' }}>{k}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--hx-text)' }}>{co.abilities[k]}</div>
+                  <div style={{ fontSize: 10.5, color: 'var(--hx-gold-2)' }}>{fmt(igAbilityMod(co.abilities[k]))}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 12.5 }}>
+              <span style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 9px' }}><span style={{ color: 'var(--hx-muted)' }}>HP </span>{co.hitPoints}</span>
+              {IG_SAVES.map((s) => <span key={s} style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 9px' }}><span style={{ color: 'var(--hx-muted)' }}>{s.slice(0, 4)} </span>{fmt(saveTotal(s))}</span>)}
+              {co.damageReduction > 0 && <span style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 9px' }}><span style={{ color: 'var(--hx-muted)' }}>DR </span>{co.damageReduction}</span>}
+            </div>
+            {(co.movement || co.resistances || co.vulnerabilities) && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '2px 14px', fontSize: 12.5 }}>
+                {co.movement && <div><span style={label}>Movement </span><span style={value}>{co.movement}</span></div>}
+                {co.resistances && <div><span style={label}>Resistances </span><span style={value}>{co.resistances}</span></div>}
+                {co.vulnerabilities && <div><span style={label}>Vulnerabilities </span><span style={value}>{co.vulnerabilities}</span></div>}
+              </div>
+            )}
+            {co.attacks.length > 0 && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {co.attacks.map((a) => { const r = igResolveAttack({ ...ig, abilities: co.abilities }, a); return <span key={a.id} style={{ fontSize: 12.5, border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 9px' }}>{a.name} <span style={{ color: 'var(--hx-gold-2)' }}>{fmt(r.toHit)}</span> · {r.damage}</span>; })}
+              </div>
+            )}
+            {co.powers.length > 0 && <div style={{ fontSize: 12.5 }}><span style={label}>Powers </span><span style={value}>{co.powers.join(', ')}</span></div>}
+            {co.notes && <p style={{ ...value, whiteSpace: 'pre-wrap', margin: 0, color: 'var(--hx-muted)' }}>{co.notes}</p>}
+          </div>
+        );
+      })()}
+
       {/* Notes */}
       {ig.notes && ig.notes.trim() && (
         <div style={{ display: 'grid', gap: 4 }}>

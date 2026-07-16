@@ -135,8 +135,15 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
   reference (Single/Double/Triple/Reaction/Other from `igActionsByEconomy`); an **Equipment** section (worn
   slots Arms/Head/Torso/Legs/Hands + Other Possessions); and a **Notes** block. Each shown only when present.
   Verified: `tsc` clean, lint clean, full dnd suite (312) green.
-- **Slice 8 — IG sheet: Companion Creature.** The companion's own scores/skills/attacks/powers/HP/saves/DR/
-  movement/resistances/vulnerabilities.
+- **Slice 8 — IG sheet: Companion Creature.** ✅ `blankIGCompanion` (companions default INT 6, like the
+  template); the builder gained a `companionType` (+ `companionName`) pick that seeds `ig.companion`, stores
+  the type in `igBuild`, and provenance flags it as a **vanilla `creature-type`** (a real bestiary creature →
+  vanilla). `IGSheet` renders a **Companion** panel: its own six ability scores + mods, HP, the three saves
+  (computed via the rules math on the companion's abilities), Damage Reduction, movement / resistances /
+  vulnerabilities, its attacks (to-hit + damage resolved against the companion's scores), powers, and notes.
+  Verified: `tsc` clean, lint clean, `__tests__/dnd/ig-builder.test.ts` (+1: a Griffon companion is seeded
+  with INT 6 and flagged a vanilla creature-type, none when unpicked); full dnd suite (313) green. **The
+  bespoke IG sheet now renders all nine template tabs.**
 - **Slice 9 — Full guided builder UI.** Upgrade `IGCharacterBuilder` into a step-through that drives the whole
   model (identity → scores → skills w/ rank budget → feats/powers/stances → weapon groups → defensive power →
   equipment → companion), live vanilla/custom count throughout, writing `data.ig`.
@@ -158,4 +165,4 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
 - **Reuse:** build on the shipped content library, catalog, provenance, submission/approval, DM grants,
   campaign policy, the custom-sheet/style engine, and `/ai-edit` grounding — don't fork them.
 
-### Status: IN PROGRESS (Slices 0–7 shipped; 8–11 pending)
+### Status: IN PROGRESS (Slices 0–8 shipped; 9–11 pending)

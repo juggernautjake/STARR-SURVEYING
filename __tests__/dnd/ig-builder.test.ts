@@ -104,6 +104,19 @@ describe('assembleIGVanillaCharacter (Slice 7b)', () => {
     expect(ig.skills.find((s) => s.name === 'Stealth')?.combat).toBe(false);
   });
 
+  it('seeds a companion creature and flags its type as a vanilla creature-type (Slice 8)', () => {
+    const c = assembleIGVanillaCharacter({ className: 'Beastmaster', companionType: 'Griffon', companionName: 'Skree' });
+    expect(c.ig.companion).not.toBeNull();
+    expect(c.ig.companion?.name).toBe('Skree');
+    expect(c.ig.companion?.creatureType).toBe('Griffon');
+    expect(c.ig.companion?.abilities.INT).toBe(6); // companions default INT 6 (-2), like the template
+    const s = summarizeCharacterProvenance(c, 'intuitive-games', []);
+    expect(s.elements.find((e) => e.name === 'Griffon')?.kind).toBe('creature-type');
+    expect(s.custom).toHaveLength(0); // a real bestiary creature is vanilla
+    // no companion when none picked
+    expect(assembleIGVanillaCharacter({ className: 'Fighter' }).ig.companion).toBeNull();
+  });
+
   it('a DM grant lets a custom stance through (dm-granted, not blocking)', () => {
     const c = assembleIGVanillaCharacter({ className: 'Freebooter', stances: ['Berserker Fury'] });
     const s = summarizeCharacterProvenance(c, 'intuitive-games', [{ kind: 'stance', name: 'Berserker Fury', grantedBy: 'DM', mechanics: 'rage stance' }]);
