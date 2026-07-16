@@ -177,8 +177,12 @@
   .editor.show,.modal.show{display:flex;}
   .edcard{width:100%;max-width:980px;height:100%;max-height:660px;background:linear-gradient(180deg,#120c26,#0a0718);border:1px solid var(--line2);border-radius:16px;display:flex;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6);}
   .edpreview{width:44%;flex:none;background:radial-gradient(ellipse 70% 60% at 50% 42%,#160f38,#0a0720 60%,#06040f);position:relative;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--line);}
-  .edpreview .pv{width:66%;aspect-ratio:1;}
+  /* The viewer was 66% of a 44% column, so the subject rendered small AND the 3D model's glow ran
+     into the edges. Give it the room it needs, capped so it never collides with the title/type
+     labels or the SVG/HTML buttons pinned to the corners. */
+  .edpreview .pv{width:min(88%,calc(100% - 56px));max-height:calc(100% - 88px);aspect-ratio:1;}
   .edpreview .pv svg{width:100%;height:100%;}
+  .edpreview .pv canvas{width:100%;height:100%;display:block;}
   .edpreview .edtitle{position:absolute;top:16px;left:20px;right:20px;font-family:"Orbitron";font-size:12px;letter-spacing:1px;color:var(--gold);}
   .edpreview .edtype{position:absolute;bottom:16px;left:20px;font-size:12px;color:var(--faint);letter-spacing:1px;text-transform:uppercase;}
   .edpreview .fmt{position:absolute;bottom:14px;right:16px;display:flex;gap:5px;}
@@ -2442,11 +2446,40 @@ import { buildPlanetModel, buildStarModel } from '/dnd/maps/planet3d-model.js';
     const dl=new THREE.DirectionalLight(0xffffff,1.15);dl.position.copy(SUN.clone().multiplyScalar(5));scene.add(dl);
     scene.add(new THREE.AmbientLight(0x35405f,0.65));
   }
-  function fit(){if(!host||!renderer)return;const r=host.getBoundingClientRect();const w=Math.max(40,r.width),h=Math.max(40,r.height);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
+  function fit(){if(!host||!renderer)return;const r=host.getBoundingClientRect();const w=Math.max(40,r.width),h=Math.max(40,r.height);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();frame();}
+  // Pull the camera back until the WHOLE model fits — measured, not guessed.
+  //
+  // The camera used to sit at a fixed z=4.6. With a 34° FOV that shows a half-height of
+  // tan(17°)×4.6 ≈ 1.41 units at the origin, and a planet is radius 1.3 BEFORE its atmosphere
+  // shell and glow — so the glow ran past the frustum and the sphere was clipped flat on every
+  // side. A star's corona is bigger again, and a ringed planet is wider than it is tall, so no
+  // single hardcoded distance can be right for every subject.
+  //
+  // Measure the built model's bounding sphere and frame that. r/sin(fov/2) is the distance at
+  // which a sphere of radius r is exactly tangent to the frustum; do it for BOTH axes and take
+  // the larger, so a wide subject (rings) fits a narrow viewport and vice versa.
+  function frame(){
+    if(!model||!camera||!model.group)return;
+    let radius=0;
+    try{
+      const sph=new THREE.Box3().setFromObject(model.group).getBoundingSphere(new THREE.Sphere());
+      radius=sph&&isFinite(sph.radius)?sph.radius:0;
+    }catch(e){/* fall through to the default below */}
+    // A model built from sprites/points can measure as 0; never divide the frame by nothing.
+    if(!(radius>0.01))radius=1.6;
+    const vFov=camera.fov*Math.PI/180;
+    const hFov=2*Math.atan(Math.tan(vFov/2)*Math.max(0.0001,camera.aspect));
+    const dist=Math.max(radius/Math.sin(vFov/2),radius/Math.sin(hFov/2));
+    camera.position.set(0,0,dist*1.06); // a little air, so nothing kisses the edge
+    camera.far=dist*4;
+    camera.lookAt(0,0,0);
+    camera.updateProjectionMatrix();
+  }
   function cfgFor(look){try{if(window.Map3D&&window.Map3D._genericPlanetCfg)return window.Map3D._genericPlanetCfg({kind:look.kind,look});}catch(e){}return {type:look.ptype||'terran',seed:look.seed||1};}
   function build(look){
     if(model){try{scene.remove(model.group);model.dispose&&model.dispose();}catch(e){}model=null;}
     try{model=look.kind==='star'?buildStarModel(look,{radius:1.15}):buildPlanetModel(cfgFor(look),{radius:1.3,segments:64});scene.add(model.group);}catch(e){/* keep the scene alive if a build fails */}
+    frame(); // re-frame per subject: a ringed planet and a bare moon do not want the same distance
   }
   function loop(t){raf=requestAnimationFrame(loop);const dt=Math.min(0.05,((t-last)/1000)||0.016);last=t;if(model&&model.update)try{model.update(dt,SUN);}catch(e){}if(renderer)renderer.render(scene,camera);}
   window.EditorPreview3D={
