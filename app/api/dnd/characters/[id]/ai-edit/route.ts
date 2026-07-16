@@ -7,7 +7,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession } from '@/lib/dnd/auth';
 import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { dndToolCall, dndAiConfigured } from '@/lib/dnd/ai';
-import { applySheetEdits, editPath, validateSheetEdits, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
+import { applySheetEdits, editPath, editOldValue, validateSheetEdits, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import { applyLayoutEdits, LAYOUT_EDIT_TOOL, type LayoutEdit } from '@/lib/dnd/layout-edits';
 import { normalizeLayout } from '@/lib/dnd/custom-sheet';
 import { systemGroundingBlock } from '@/lib/dnd/grounding';
@@ -127,9 +127,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const { error: upErr } = await supabaseAdmin.from('dnd_characters').update({ data: updated, name: updated.meta.name || row.name }).eq('id', params.id);
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
 
-  // Audit each edit (best-effort — don't fail the request if logging fails).
+  // Audit each edit (best-effort — don't fail the request if logging fails). Capture old_value from
+  // the PRE-edit character (Slice 26), so the DM review queue can show the diff and Revert can restore
+  // the prior value — computed against `current`, before any edit in the batch applied.
   await supabaseAdmin.from('dnd_sheet_edits').insert(
-    edits.map((e) => ({ character_id: params.id, editor_user_id: session.userId, is_dm: isDM, field_path: editPath(e), old_value: null, new_value: e as unknown, scope: 'permanent' })),
+    edits.map((e) => ({ character_id: params.id, editor_user_id: session.userId, is_dm: isDM, field_path: editPath(e), old_value: (editOldValue(current, e) ?? null) as unknown, new_value: e as unknown, scope: 'permanent' })),
   ).then(() => {}, () => {});
 
   // Safety net (Slice 3): flag anything that doesn't belong to the character's system so a wrong-system

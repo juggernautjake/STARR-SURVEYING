@@ -1,6 +1,6 @@
 // __tests__/dnd/sheet-edits.test.ts — structured sheet edits (Phase I2).
 import { describe, it, expect } from 'vitest';
-import { applySheetEdits, editPath, type SheetEdit } from '@/lib/dnd/sheet-edits';
+import { applySheetEdits, editPath, editOldValue, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 
 describe('applySheetEdits', () => {
@@ -212,5 +212,30 @@ describe('update_attack retunes an existing attack in place (Slice 23 — "chang
     const before = withSword();
     const out = applySheetEdits(before, [{ op: 'update_attack', name: 'Nonexistent', damage: '2d6' }]);
     expect(out.attacks[0].damage).toBe('1d8');
+  });
+});
+
+describe('editOldValue captures the prior value for the audit trail (Slice 26)', () => {
+  it('reads the pre-edit value for scalar ops', () => {
+    const c = blankCharacter('X');
+    c.abilities = { ...c.abilities, str: 14 };
+    c.combat = { ...c.combat, ac: 15 };
+    expect(editOldValue(c, { op: 'set_ability', ability: 'str', value: 20 })).toBe(14);
+    expect(editOldValue(c, { op: 'set_combat', field: 'ac', value: 18 })).toBe(15);
+    expect(editOldValue(c, { op: 'set_name', value: 'Y' })).toBe('X');
+  });
+
+  it('returns the whole prior element for a rename/update, so Revert is exact', () => {
+    const c = blankCharacter('X');
+    c.attacks = [{ id: 'a', name: 'Sword', ability: 'str', proficient: true, range: 'melee', damage: '1d8', damageType: 'slashing' }] as typeof c.attacks;
+    const old = editOldValue(c, { op: 'update_attack', name: 'Sword', damage: '1d12' }) as { name: string; damage: string } | null;
+    expect(old?.name).toBe('Sword');
+    expect(old?.damage).toBe('1d8'); // the prior die, to restore on revert
+  });
+
+  it('returns null for creates and unknown targets', () => {
+    const c = blankCharacter('X');
+    expect(editOldValue(c, { op: 'add_attack', name: 'New', ability: 'str', damage: '1d6' })).toBeNull();
+    expect(editOldValue(c, { op: 'define_tag', name: 'cursed', desc: 'x' })).toBeNull();
   });
 });

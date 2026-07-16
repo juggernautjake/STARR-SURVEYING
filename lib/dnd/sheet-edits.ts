@@ -170,6 +170,35 @@ export function editPath(e: SheetEdit): string {
   }
 }
 
+/**
+ * The value an edit is about to REPLACE, read from the pre-edit character — so the audit trail
+ * (`dnd_sheet_edits.old_value`) is complete and a DM's "Revert" (Slice 26) has the prior value to
+ * restore. Returns null for creates (add_*, define_tag) and anything with no prior value. For
+ * rename/update of a collection element, returns the whole prior element so a revert is exact.
+ */
+export function editOldValue(current: Character, e: SheetEdit): unknown {
+  const findByName = <T extends { name: string }>(list: T[] | undefined, name: string): T | null =>
+    (list ?? []).find((x) => eqName(x.name, name)) ?? null;
+  switch (e.op) {
+    case 'set_name': return current.meta?.name ?? null;
+    case 'set_meta': return current.meta?.[e.field] ?? null;
+    case 'set_level': return current.meta?.level ?? null;
+    case 'set_ability': return current.abilities?.[e.ability] ?? null;
+    case 'set_combat': return current.combat?.[e.field] ?? null;
+    case 'set_save_proficient': return current.saves?.[e.ability]?.proficient ?? null;
+    case 'set_skill': return current.skills?.[e.skill]?.prof ?? null;
+    case 'add_attack': case 'update_attack': case 'remove_attack': case 'rename_attack':
+      return findByName(current.attacks, e.name);
+    case 'add_feature': case 'remove_feature': case 'rename_feature':
+      return findByName(current.features, e.name);
+    case 'add_item': case 'update_item': case 'equip_item': case 'remove_item': case 'rename_item': case 'tag_item':
+      return findByName(current.inventory, e.name);
+    case 'rename_spell': return findByName(current.spells, e.name);
+    case 'add_resource': case 'rename_resource': return findByName(current.resources, e.name);
+    default: return null;
+  }
+}
+
 /** Apply a validated edit list to a Character, returning a new Character (pure). */
 export function applySheetEdits(input: Character, edits: SheetEdit[]): Character {
   const c: Character = structuredClone(input);
