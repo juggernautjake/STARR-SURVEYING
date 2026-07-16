@@ -224,6 +224,14 @@
   background: rgba(var(--violet-rgb), 0.1);
   color: var(--ink);
 }
+/* The system designation (Slice 21) — which rulebook adjudicates this sheet. Token-driven, so
+   it inherits each skin's accent instead of forcing one palette onto every character. */
+.dnd-sheet .chip.system-chip {
+  border-color: var(--tealbright);
+  color: var(--tealbright);
+  background: rgba(var(--tealbright-rgb), 0.12);
+  font-weight: 600;
+}
 .dnd-sheet .chip.pink {
   border-color: var(--hotpink);
   color: var(--hotpink);

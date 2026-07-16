@@ -1,9 +1,13 @@
 import { useEffect, useRef } from 'react'
 import { useChar } from '../state/store'
+import { useSheetSystem } from '../state/sheetConfig'
+import { SYSTEM_AMBIGUOUS, systemLabel } from '@/lib/dnd/systems'
 import type { Character } from '../types'
 
 export default function Hero() {
   const { char, setChar, editMode, setEditMode, tempMode, setTempMode, clearAllOverrides, reset, importChar, isDM } = useChar()
+  const system = useSheetSystem()
+  const systemName = systemLabel(system)
   const fileRef = useRef<HTMLInputElement>(null)
   const nameRef = useRef<HTMLHeadingElement>(null)
 
@@ -116,6 +120,16 @@ export default function Hero() {
       </p>
 
       <div className="tagchips">
+        {/* The system designation (Slice 21). You could not previously tell what GAME a sheet was
+            for by looking at it — and the system is what decides which rulebook the AI adjudicates
+            with and which glossary its terms link to, so it belongs on the face of the sheet.
+            Homebrew does not weaken it: a sheet is "D&D 5e (2024)" AND customized. The system says
+            which rules apply; provenance says which parts are house-ruled. */}
+        {system !== SYSTEM_AMBIGUOUS && (
+          <span className="chip system-chip" title={`This sheet is adjudicated with ${systemName} rules. Homebrew content on it is still this character's own.`}>
+            {systemName}
+          </span>
+        )}
         {char.meta.chips.map((c, i) => (
           <span key={i} className={`chip ${c.tone ?? ''}`}>
             {c.text}

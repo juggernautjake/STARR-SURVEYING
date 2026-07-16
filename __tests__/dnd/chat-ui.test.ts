@@ -60,6 +60,27 @@ describe('the marketing site\'s form styling does not leak into the chat inputs'
   });
 });
 
+describe("the librarian's answers are readable (the leak, third instance)", () => {
+  const HEXTECH_CSS = read('app/dnd/_ui/hextech.module.css');
+  const SHEET_CSS = read('app/dnd/_sheet/styles/theme.css');
+
+  it('the /dnd chrome resets the marketing site\'s bare paragraph colour', () => {
+    // LibraryChat's Rich renders answers as unclassed <p>. Slice 1 reset this at the SHEET
+    // boundary but not the chrome, so the librarian's replies were painted #4B5563 on navy —
+    // 2.32:1, reported as "hard to read". Fixed to 14.15:1 by inheriting the panel's ink.
+    const i = HEXTECH_CSS.indexOf('.siteChrome p {');
+    expect(i, '.siteChrome p reset must exist').toBeGreaterThan(-1);
+    expect(HEXTECH_CSS.slice(i, HEXTECH_CSS.indexOf('}', i))).toMatch(/color:\s*inherit/);
+  });
+
+  it('both boundaries are covered — the sheet AND the chrome', () => {
+    // The leak found three homes across three reports (sheet prose, chat textarea, librarian
+    // answers). Both resets must stay: /dnd renders D&D UI outside .dnd-sheet as well as in it.
+    expect(SHEET_CSS).toMatch(/\.dnd-sheet p \{[^}]*color:\s*inherit/);
+    expect(HEXTECH_CSS).toMatch(/\.siteChrome p \{[^}]*color:\s*inherit/);
+  });
+});
+
 describe('the chat panels are resizable', () => {
   it('the builder dock anchors its grip and can be sized', () => {
     expect(block(SHEETCHAT_CSS, '.panel')).toMatch(/position:\s*relative/);

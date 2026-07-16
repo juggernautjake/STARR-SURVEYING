@@ -688,6 +688,17 @@ select.input {
   background: linear-gradient(180deg, var(--hx-navy-1), var(--hx-navy-0));
   font-family: var(--hx-font-body);
 }
+/* THE SAME LEAK, THIRD TIME. The marketing site's globals.css sets a bare paragraph colour rule
+   (color: var(--text-secondary), i.e. #4B5563 — its grey-on-white body text). Slice 1 reset it at
+   the SHEET boundary (.dnd-sheet p), but the D&D CHROME was never covered. So the librarian's
+   answers — which LibraryChat's Rich renders as unclassed paragraphs — were painted #4B5563 on
+   navy. Reported as "hard to read"; measured 2.68:1, below AA.
+
+   The /dnd app is its own design system, so reset paragraphs to inherit their container's ink.
+   .siteChrome p (0,1,1) beats the global p (0,0,1), while any classed rule inside still wins. */
+.siteChrome p {
+  color: inherit;
+}
 .siteMain {
   flex: 1 0 auto;
 }
