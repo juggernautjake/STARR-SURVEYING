@@ -131,6 +131,16 @@ describe('the digest reports LEDGER-resolved numbers, not the stored base (Slice
     expect(d).toMatch(/Speed 40 ft \[base 30\]/);
   });
 
+  it('reports the DERIVED AC (equipped armour + AC effects), base noted when it differs', () => {
+    const c = fixture();
+    // A Ring of Protection (+1 AC) equipped, over the manual base 17.
+    c.inventory = [
+      { id: 'ring', name: 'Ring of Protection', desc: '', qty: 1, tags: [], equipped: true, effects: [{ target: 'ac', operation: 'add', value: 1 }] },
+    ] as Character['inventory'];
+    const d = characterDigest(c, 'dnd-5e-2024');
+    expect(d).toMatch(/AC 18 \[base 17\]/);
+  });
+
   it('a vanilla character shows no base annotations and no ACTIVE EFFECTS line', () => {
     const d = characterDigest(fixture(), 'dnd-5e-2024');
     expect(d).not.toContain('[base ');

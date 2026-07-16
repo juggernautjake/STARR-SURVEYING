@@ -13,6 +13,7 @@
 import type { Character } from '@/app/dnd/_sheet/types';
 import { abilityMod } from '@/app/dnd/_sheet/rules/dnd';
 import { buildLedger } from './effects/ledger';
+import { deriveAc } from '@/app/dnd/_sheet/lib/derive-ac';
 import { systemLabel, type CharacterSystem } from './systems';
 
 /** Trim a rules body to its first sentence-ish, for a name + reminder rather than a restatement. */
@@ -66,15 +67,19 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
     if (ab) lines.push(`ABILITIES: ${ab}`);
   }
 
-  // Current state — what is true of this character RIGHT NOW. Speed + max HP fold through the ledger
-  // too (AC stays as the sheet's stored base here — its real value comes from equipped armour via a
-  // separate deriver the digest doesn't run).
+  // Current state — what is true of this character RIGHT NOW. Speed, max HP and AC all resolve
+  // effectively: HP/speed fold through the ledger; AC runs the same `deriveAc` the sheet does
+  // (equipped armour/shield + AC effects), so the digest's AC matches what the player sees.
   const state: string[] = [];
   if (c.maxHp != null) {
     const hp = ledger.value('hp_max', c.maxHp);
     state.push(`HP ${c.currentHp ?? 0}/${hp}${hp !== c.maxHp ? ` [base ${c.maxHp}]` : ''}${c.tempHp ? ` (+${c.tempHp} temp)` : ''}`);
   }
-  if (c.ac != null) state.push(`AC ${c.ac}`);
+  if (c.ac != null) {
+    const dexMod = abilityMod(ledger.value('ability_dex', char.abilities?.dex ?? 10));
+    const acInfo = deriveAc(char.inventory, dexMod, c.ac, char.activeEffects);
+    state.push(`AC ${acInfo.ac}${acInfo.ac !== c.ac ? ` [base ${c.ac}]` : ''}`);
+  }
   if (c.speed != null) {
     const sp = ledger.value('speed_walk', c.speed);
     state.push(`Speed ${sp} ft${sp !== c.speed ? ` [base ${c.speed}]` : ''}`);

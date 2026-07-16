@@ -1526,17 +1526,35 @@ the console out of its page. Deferred as its own follow-up; the affordance above
 ## Slice 25 — Connect it to the rest
 
 - [ ] Spells cast on you land in the ledger as sources (`activeEffects`), so Bless and a potion are
-      the same machinery.
+      the same machinery. **Scoped: this is one coherent slice, not a quick add.** The ledger already
+      reads `char.activeEffects` (a cast buff would flow the moment it's created), but `castSpell`
+      only rolls damage/heal today, and `Spell` has no `effects` field to carry a lasting buff. Doing
+      it right = add `Spell.effects`, mount the Slice-17 `EffectRows` in `SpellEditor` (the deferred
+      mount), and have `castSpell` SNAPSHOT those effects into an `ActiveEffect` at cast time (Slice
+      12's "the effect outlives the item / editing the source later must not change a running effect"
+      rule). Adding the field without the snapshot wiring would be a control that does nothing — a lie
+      by this doc's own rule — so it stays one focused slice.
 - [ ] Forms/transforms (Jack's, the old rage path) become ledger sources rather than bespoke combat
-      fields — `formDamageBonus` is a leftover of the Lazzuh era and should be an effect.
+      fields — `formDamageBonus` is a leftover of the Lazzuh era and should be an effect. **Scoped:**
+      `collectSources` reads inventory/activeEffects/features but NOT `char.forms`; forms carry their
+      own bespoke render (`FormAbilities`, `formDamageBonus`). Routing an active form through the
+      ledger is a real refactor of the form path, its own slice (and overlaps Slice 18's transform).
 - [x] **The character digest reports ledger-resolved values ✅ SHIPPED 2026-07-16 (commit pending).**
       `characterDigest` now builds the ledger and reports EFFECTIVE abilities (STR 22, base flagged as
       `[base 18]`), ledger-folded walk speed and max HP, and an `ACTIVE EFFECTS:` line naming every
       source currently modifying the character — so the AI rules on the current numbers and can see
       *why* they differ. AC still reads the stored base (its real value comes from the equipped-armour
       deriver the digest doesn't run — noted inline). A vanilla character shows no `[base …]` notes and
-      no ACTIVE EFFECTS line. Tests: `character-digest.test.ts` +3 (14 total). This closes the
-      "confidently wrong ruling" hazard flagged after Slice 10.
+      no ACTIVE EFFECTS line. **AC is now accurate too**: the digest runs the same `deriveAc` the
+      sheet does (equipped armour/shield + AC effects, DEX folded), so its AC matches what the player
+      sees, base flagged when it differs. Tests: `character-digest.test.ts` +4 (15 total). This closes
+      the "confidently wrong ruling" hazard flagged after Slice 10.
+- [x] **Realtime equip propagation ✅ VERIFIED 2026-07-16 (no code change needed).** Already satisfied
+      by the existing C11b broadcast (`store.tsx:369–405`): a DM equip writes `data`, pings the
+      per-character channel, and every other viewer refetches the full authed sheet and re-derives —
+      and since Slice 10 put the ledger in the render path, the equipped item's effects now apply live
+      on the player's open sheet (before Slice 10 the refetch happened but the effects were ignored).
+      The two shipped pieces compose; nothing further to build.
 - [ ] Realtime: an equip by the DM propagates to the player's open sheet (C11b broadcast already exists).
 
 ---
