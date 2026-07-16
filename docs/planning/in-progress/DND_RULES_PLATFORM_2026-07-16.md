@@ -281,8 +281,14 @@ categories) and Epic Boon remain.
       `toolsByFamily` / `isKnownTool` helpers. Tests: `languages.test.ts` (5) — including the connective
       check that **every background's named tool resolves** here (specific tool or category phrase), so
       a typo in either file fails the build.
-- [ ] Wire into the level builder: an ASI choice offers real feats with prerequisites checked;
-      character creation offers backgrounds/species.
+- [~] Wire into the level builder: an ASI choice offers real feats with prerequisites checked ✅
+      (see the rules-legal feat granting note above); character creation offers backgrounds/species
+      (remaining — the creation UI). **Rules-legal background application core ✅ SHIPPED (commit
+      pending):** `lib/dnd/backgrounds/apply.ts` (`validateAbilityAssignment` / `backgroundGrants` /
+      `applyAbilityIncreases`) enforces the 2024 +2/+1-or-+1/+1/+1 spread across only the background's
+      three abilities, and returns the feat + spell list + skills + tool it grants. Same tested-core-
+      first shape as feat eligibility, so the creation UI can only apply a legal spread. Tests:
+      `background-apply.test.ts` (8). The creation-flow UI that consumes it is the remaining half.
 - [ ] Tests: no feat grants an ability increase it shouldn't; every background's feat exists;
       species grant no ASIs (the 2014-vs-2024 trap).
 
@@ -1976,6 +1982,44 @@ Orthogonal to type, and where the mechanics actually live: `slot` (what it occup
   actual current AC and what is already modifying it.
 
 ---
+
+## Slice 40 — Final full-system QA walkthrough (Playwright, browser, manual) 🔴 LAST — after everything else
+
+> User directive (2026-07-16): "When everything is finally built, do a final run-through of all the
+> features with Playwright. Manually use the browser to create a new user, create a character, then go
+> through the whole character-creation process step by step, through every level, building it as vanilla
+> as possible. Then move on to the next game-rule system and build a whole new character with the
+> character builder, step by step. Do this for ALL game systems, one new character each, all built
+> vanilla. Look for any errors, anything in the building process that isn't correct, bugs, or
+> formatting/styling issues, and FIX them. Be very thorough. Really make sure styling and formatting
+> and readability are attractive."
+
+**This slice runs LAST — only once every other slice in this doc is shipped or explicitly deferred.**
+It is a manual, browser-driven acceptance pass, not an automated test suite (though it may leave
+Playwright specs behind). Do it with the Playwright MCP tools against a real running app.
+
+- [ ] **Fresh account.** Create a NEW user through the pseudo-login (name + password, no email — see
+      Slice 36). Confirm the sign-up path works from a clean state.
+- [ ] **First character, D&D 5e 2024, vanilla.** Create a character and walk the WHOLE creation flow
+      step by step: species → background (confirm the +2/+1 or +1/+1/+1 spread and the granted Origin
+      feat + skills + tool actually land), class, then **level 1 → 20 one level at a time** via the
+      Level Builder. At each ASI slot, confirm the feat picker offers only rules-legal feats and that
+      "vanilla" (book-legal) choices are always available. No AI/homebrew unless a level genuinely has
+      no book option.
+- [ ] **Every other system, one vanilla character each.** Repeat the full step-by-step build for each
+      GAME_SYSTEM the app offers (5e 2014, PF2e, PF1e, Starfinder, Cyberpunk RED, Shadowrun, CoC,
+      Blades…). For level-less systems, walk their advancement-by-spend flow instead of a level table.
+      Where a system's rules data isn't built yet, RECORD that the builder correctly falls back to
+      custom rather than offering wrong options — don't paper over a missing ruleset as if it passed.
+- [ ] **Hunt for correctness + UX defects and FIX them as found:** wrong or missing choices at a level;
+      an ASI/feat/ability offered when it shouldn't be (or missing when it should); numbers that don't
+      add up on the resulting sheet; dead controls; and — explicitly called out by the user — **styling,
+      formatting, readability and attractiveness** on every screen touched (spacing, contrast,
+      alignment, overflow, mobile width, the Hextech theme holding together).
+- [ ] **Capture evidence.** Screenshot each system's finished sheet and any bug before/after. A GIF of
+      at least one full creation flow (per the browser-automation GIF guidance) is worth keeping.
+- [ ] Log every fix inline here (or in a QA notes file) so this pass leaves a record, not just green
+      vibes. When the walkthrough is clean for every system, this slice — and the doc — is done.
 
 ## Known gaps / notes for whoever picks this up
 
