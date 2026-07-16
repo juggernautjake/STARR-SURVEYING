@@ -362,7 +362,36 @@ answers* (Slice 21, 2.32:1 → 14.15:1, because Slice 1's reset stopped at `.dnd
 chrome was never covered). Both boundaries are now reset and guarded. If a fourth turns up, the
 real fix is to scope `globals.css` to the marketing site rather than resetting downstream.
 
-## Slice 10 — The effect ledger (the spine of Part II)
+## Slice 10 — The effect ledger (the spine of Part II) ✅ SHIPPED 2026-07-16
+
+**Shipped:** `lib/dnd/effects/targets.ts` (the registry / Appendix A contract),
+`lib/dnd/effects/ledger.ts` (`buildLedger`), and the store now exposes `abilities` (effective) +
+`ledger` (why). `Abilities`, `StatRail`, `SavesSkills` and `Attacks` read them. 55 tests.
+
+**Verified in the app, not just in units:** a +2 STR belt added to Jack's real sheet moved STR
+17 → 19★, the modifier +3 → +4, with the tooltip `STR 17 base · +2 STR — Belt of the Bear · = 19`
+— and no code anywhere knows what a belt is. DEX/CON showed no star. Jack was restored and the
+restore verified by reading it back.
+
+Decisions that stuck:
+* `InlineNumber` **edits the base, displays the effective** (via its `display` prop). Editing the
+  effective score would fold the item's bonus into the base on every touch.
+* The rail and the Abilities tab both **read the ledger** rather than each doing the arithmetic —
+  two components computing the same number will eventually disagree, and the sheet can't say which
+  is right.
+* Target keys **match the engine's existing names** (`dex_saves`, `skill.stealth`) rather than a
+  parallel vocabulary plus a translation layer.
+
+**Still open in this slice** (moved to the slices that own them):
+- [ ] Equipping routes a weapon into Attacks / armour into AC automatically (`attacksFromInventory`
+      and `computeAC` already do this correctly and are still uncalled) → belongs with Slice 15.
+- [ ] AC / speeds / HP max / save DC / initiative read the ledger (abilities, saves, skills and
+      attacks now do).
+- [ ] Equip validation (attunement limits, one body armour).
+
+---
+
+### Original spec
 
 One pure function that every later slice reads. Nothing else in Part II can be built first.
 
@@ -773,6 +802,49 @@ Three rules, and they are not in tension — the DM's control comes from *review
 - [ ] Tests: a player can edit every field on their own sheet and none on another's; a DM can edit
       any sheet in their campaign; every edit appears in the review queue with its diff and author;
       Approve clears the flag; Revert restores the exact prior value; a non-DM cannot approve.
+
+## Slice 27 — A clear way in: the ⋯ menu on every element
+
+> "I either need to be able to click on the attack or item or spell or effect or whatever, and it
+> will give me the option to edit it. Maybe we have a menu or edit button or three dots on each
+> element."
+
+Slice 20 makes everything editable; this is **how you get there**. A feature nobody can find is a
+feature that doesn't exist — and today most of these elements have no affordance at all.
+
+- [ ] A **⋯ menu** on every editable element: attacks, items, spells, features, resources, traits,
+      active effects, forms. One consistent control in one consistent place, so the answer to "how
+      do I change this?" is the same everywhere.
+- [ ] Menu: **Edit · Duplicate · Delete · Change art · Add effect · Ask AI about this**.
+      "Ask AI about this" reuses the Slice 3 adjudicator, pre-filled with the element.
+- [ ] Opens the right editor for the element's kind (Slice 15's attack/weapon/armor builders,
+      Slice 17's effect builder). One editor per kind, reached from everywhere that shows one.
+- [ ] Only for `canWrite`. A viewer sees no ⋯ — an affordance that errors on click is worse than
+      no affordance.
+- [ ] Reachable by keyboard and touch, like Slice 13's markers. Never hover-only.
+- [ ] Tests: every element kind exposes a ⋯; a viewer sees none; each menu opens its editor.
+
+## Slice 28 — Art and thumbnails for everything
+
+> "we need to be able to upload item and weapon and spell and etc for everything and have it be able
+> to be displayed… We will need to be able to create little thumbnail tokens for everything."
+
+The upload path already exists (Slice 2b shipped character-gallery upload; the `dnd-media` bucket
+and `kind='item'` are already modelled). What's missing is that nothing but the character has art.
+
+- [ ] Upload art for **any** element: item, weapon, armor, spell, feature, form, effect. Same
+      endpoint, same bucket, `kind` per element type.
+- [ ] **Thumbnail tokens**: a square crop rendered inline next to the element everywhere it appears
+      — inventory rows, attack rows, spell lists, the Active Effects panel (Slice 12), the ⋯ menu.
+      Generated on upload, not by scaling the full image in CSS every render.
+- [ ] A **kind icon fallback** so an element with no art still renders a token rather than a hole.
+      Every row looks intentional whether or not anyone uploaded anything.
+- [ ] AI-attached art (Slice 14) uses the same path — no second mechanism.
+- [ ] **Art never gates mechanics.** Per the request, "the image and the name and category really
+      don't matter all that much" — an upload failure must never block creating or using the item.
+- [ ] Reuse the map-token pipeline where it already exists rather than inventing a parallel one.
+- [ ] Tests: an element with art shows its thumbnail; one without shows its kind icon; an upload
+      failure leaves the item working.
 
 ## Slice 25 — Connect it to the rest
 
