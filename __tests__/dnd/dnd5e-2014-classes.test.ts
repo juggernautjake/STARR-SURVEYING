@@ -13,7 +13,7 @@ const CLASSES = classesForSystem(SYS);
 
 describe('the 2014 class roster (authored class-by-class)', () => {
   it('has the classes authored so far, and the system reports it has class data', () => {
-    expect(CLASSES.map((c) => c.name)).toEqual(expect.arrayContaining(['Barbarian', 'Fighter', 'Rogue', 'Monk', 'Ranger', 'Paladin', 'Sorcerer', 'Warlock', 'Bard', 'Cleric']));
+    expect(CLASSES.map((c) => c.name)).toEqual(expect.arrayContaining(['Barbarian', 'Fighter', 'Rogue', 'Monk', 'Ranger', 'Paladin', 'Sorcerer', 'Warlock', 'Bard', 'Cleric', 'Druid']));
     expect(systemHasClasses(SYS)).toBe(true);
   });
 
@@ -332,5 +332,28 @@ describe('Cleric 2014 — the edition-specific numbers', () => {
       expect(Object.keys(s.alwaysPrepared ?? {}).length).toBe(5); // domain spells at 1/3/5/7/9
       expect(s.features.some((f) => f.level === 8 && /Divine Strike|Potent Spellcasting/.test(f.name))).toBe(true);
     }
+  });
+});
+
+describe('Druid 2014 — the edition-specific numbers', () => {
+  const druid = findClass(SYS, 'druid')!;
+
+  it('is a WIS full-caster preparer that picks its Circle at level 2 (2024 moved it to 3)', () => {
+    expect(druid.spellcasting?.kind).toBe('full');
+    expect(druid.spellcasting?.ability).toBe('wis');
+    expect(druid.subclassLevel).toBe(2);
+    expect(druid.features.some((f) => f.level === 2 && f.choice === 'subclass')).toBe(true);
+  });
+
+  it('has Wild Shape as a 2-use short-rest resource from level 2, and Archdruid at 20', () => {
+    const ws = druid.resources!.find((r) => r.id === 'wild-shape')!;
+    expect(ws.resetOn).toBe('short');
+    expect(ws.perLevel[1]).toBe(0);
+    expect(ws.perLevel[2]).toBe(2);
+    expect(snapshotAtLevel(druid, 20).features.some((f) => f.name === 'Archdruid')).toBe(true);
+  });
+
+  it('offers exactly the two PHB circles (Land, Moon)', () => {
+    expect(subclassesFor(SYS, 'druid').map((s) => s.name).sort()).toEqual(['Circle of the Land', 'Circle of the Moon']);
   });
 });
