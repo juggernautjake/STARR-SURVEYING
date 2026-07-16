@@ -13,8 +13,8 @@ const BUILDER = read('app/dnd/_sheet/components/ItemBuilder.tsx');
 const CSS = read('app/dnd/_sheet/styles/theme.css');
 
 describe('the Gear list renders an item thumbnail from its stored image', () => {
-  it('shows it.image when present, and nothing when unset', () => {
-    expect(INVENTORY).toContain('{it.image && (');
+  it('shows it.image when present (with a kind-icon fallback when unset)', () => {
+    expect(INVENTORY).toContain('{it.image ? (');
     expect(INVENTORY).toContain('className="inv-thumb"');
   });
 
@@ -27,5 +27,14 @@ describe('the Gear list renders an item thumbnail from its stored image', () => 
     const block = CSS.slice(CSS.indexOf('.inv-thumb'), CSS.indexOf('.inv-thumb') + 260);
     expect(block).toContain('var(--line)');
     expect(block).not.toMatch(/#[0-9a-fA-F]{3,6}\b/);
+  });
+
+  it('falls back to a kind icon so a row with no art is not a hole', () => {
+    expect(INVENTORY).toContain('KIND_ICON');
+    expect(INVENTORY).toContain('inv-thumb-icon');
+    // Every builder kind has an icon.
+    for (const k of ['weapon', 'armor', 'shield', 'consumable', 'wondrous', 'gear']) {
+      expect(INVENTORY).toMatch(new RegExp(`${k}:\\s*'`));
+    }
   });
 });

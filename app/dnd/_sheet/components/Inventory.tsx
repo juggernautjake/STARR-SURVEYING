@@ -8,6 +8,12 @@ import ElementMenu from './ui/ElementMenu'
 import EditMark from './ui/EditMark'
 import { tagInfo } from './ui/tagInfo'
 
+// Kind icons for the no-art fallback token (Slice 28), matching the ItemBuilder kind labels so an
+// item without uploaded art still reads as intentional rather than a hole.
+const KIND_ICON: Record<string, string> = {
+  weapon: '⚔', armor: '🛡', shield: '🔰', consumable: '⚗', wondrous: '✨', gear: '🎒',
+}
+
 function labels() {
   // "Notes" is the campaign's base currency (≈ $1 each) — the streamer converts her
   // earned NeoNuggets into these. Stored on the `credits` key for back-compat.
@@ -157,10 +163,13 @@ export default function Inventory() {
             <div>
               <div className="inv-name">
                 {/* An item's uploaded art (ItemBuilder already stores `image`) — the Gear list never
-                    showed it (Slice 28). A thumbnail here, falling back to nothing when unset. */}
-                {it.image && (
+                    showed it (Slice 28). A thumbnail here; when there's no art, a kind icon so the row
+                    reads as intentional rather than showing a hole. */}
+                {it.image ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={it.image} alt="" className="inv-thumb" />
+                ) : (
+                  <span className="inv-thumb inv-thumb-icon" aria-hidden>{KIND_ICON[it.kind ?? 'gear'] ?? KIND_ICON.gear}</span>
                 )}
                 {it.name}
                 <EditMark on={it.customized} />

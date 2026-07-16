@@ -1096,8 +1096,9 @@ and `kind='item'` are already modelled). What's missing is that nothing but the 
 - [ ] **Thumbnail tokens**: a square crop rendered inline next to the element everywhere it appears
       — ~~inventory rows~~ (done), attack rows, spell lists, the Active Effects panel (Slice 12), the
       ⋯ menu. Generated on upload, not by scaling the full image in CSS every render.
-- [ ] A **kind icon fallback** so an element with no art still renders a token rather than a hole.
-      Every row looks intentional whether or not anyone uploaded anything.
+- [x] **A kind icon fallback ✅ SHIPPED (commit pending)** — for items: a row with no uploaded art
+      shows its kind icon (⚔ 🛡 🔰 ⚗ ✨ 🎒, matching the builder) in the same square, so the Gear list
+      always reads as intentional. (Other element types get theirs when their art field lands.)
 - [ ] AI-attached art (Slice 14) uses the same path — no second mechanism.
 - [ ] **Art never gates mechanics.** Per the request, "the image and the name and category really
       don't matter all that much" — an upload failure must never block creating or using the item.
