@@ -24,7 +24,7 @@ function damageLine(s: Spell): string {
 }
 
 export default function SpellsPanel() {
-  const { char, setChar, editMode, canWrite, castSpell, setSpellSlot, restoreSpellSlots } = useChar()
+  const { char, setChar, editMode, canWrite, ledger, castSpell, setSpellSlot, restoreSpellSlots } = useChar()
   const [editing, setEditing] = useState<Spell | null>(null)
   const duplicate = (sp: Spell) =>
     setChar((c) => ({ ...c, spells: [...(c.spells ?? []), { ...sp, id: `${sp.id}-copy-${(c.spells ?? []).length}`, name: `${sp.name} (copy)` }] }))
@@ -50,8 +50,12 @@ export default function SpellsPanel() {
 
   const mod = sc ? abilityMod(char.abilities[sc.ability]) : 0
   const pb = profBonusForLevel(char.meta.level)
-  const saveDC = char.combat.saveDCOverride ?? 8 + pb + mod
-  const attackBonus = pb + mod
+  // Route the DC + attack through the ledger (Slice 33) so an item that grants `spell_save_dc` /
+  // `spell_attack` composes with the caster's own base — a Rod of the Pact Keeper's +1 DC lands on
+  // top of 8+PB+mod rather than being ignored. `value(target, base)` respects the caller's base
+  // (Slice 10's derived-target fix), so an unmodified caster is unchanged.
+  const saveDC = ledger.value('spell_save_dc', char.combat.saveDCOverride ?? 8 + pb + mod)
+  const attackBonus = ledger.value('spell_attack', pb + mod)
   const preparedCount = spells.filter((s) => s.prepared && !s.alwaysPrepared && s.level > 0).length
 
   // Levels present = any spell level OR any level with slots defined.

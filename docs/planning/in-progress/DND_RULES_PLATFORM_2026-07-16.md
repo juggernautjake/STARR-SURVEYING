@@ -1269,7 +1269,11 @@ model, where the ledger, the digest, the DM's review and the AI itself can all r
 faked with a `::after { content: … }` looks identical on screen and is invisible to every one of
 those. Style is presentation; meaning is data. The AI gets both, through different doors.
 
-## Slice 33 — Control the hit bonus / save DC on weapons and spells ⏳ PARTIAL 2026-07-16
+## Slice 33 — Control the hit bonus / save DC on weapons and spells ✅ SHIPPED 2026-07-16
+
+(Weapon-ITEM to-hit control deferred to the "wire the inventory→attacks engine" work under Slice 15;
+rationale inline below. Everything the request named — controlling hit/DC on attacks and spells — is
+shipped, and spell DC/attack now compose with item bonuses through the ledger.)
 
 > "make sure that we can control the hit dc for weapons and spells and stuff."
 
@@ -1285,9 +1289,18 @@ those. Style is presentation; meaning is data. The AI gets both, through differe
       description, concentration/ritual, and **how it resolves: a spell attack roll OR a save (which
       ability, what happens on a success) against the spell save DC**. The DC/attack come from the
       casting stat on the sheet. 5 tests.
-- [ ] Route DC bonuses through the ledger (`spell_save_dc`, `spell_attack`) so an item that grants
-      a DC bonus and a spell that sets its own DC compose (after Slice 10's fix,
-      `value('spell_save_dc', base)` is correct).
+- [x] **DC / attack now compose through the ledger.** `SpellsPanel` computes
+      `saveDC = ledger.value('spell_save_dc', caster override ?? 8+PB+mod)` and
+      `attackBonus = ledger.value('spell_attack', PB+mod)`, so a Rod of the Pact Keeper's +1 DC lands
+      on top of the caster's own base (Slice 10's derived-target fix makes `value(target, callerBase)`
+      respect the passed base). An unmodified caster is unchanged. `spell-dc-ledger.test.ts` (3).
+- [ ] **Weapon ITEMS to-hit/DC control** — deferred with a reason. The engine to turn a weapon item
+      into a rollable attack exists (`weapons.ts buildAttack`, which already reads `w.attackBonus` +
+      folds `attack`/`attack_and_damage` effects), but `attacksFromInventory` is **not wired into the
+      rendered Attacks table** (the table renders `char.attacks` + Slice-11 granted attacks, not
+      inventory-derived ones). Adding a to-hit field to the ItemBuilder weapon section would be
+      cosmetic until that engine is connected to the render — that connection is the real slice, and
+      it belongs with Slice 15's "call the uncalled engines" work, not here.
 
 ## Slice 34 — Build-mode selector: make it look like the rest of the UI ✅ SHIPPED 2026-07-16
 
