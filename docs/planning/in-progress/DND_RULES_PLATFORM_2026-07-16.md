@@ -726,7 +726,7 @@ re-derivable). So triggers are a **separate concept** that lives beside effects,
       AC; a trigger fires only on its event and only within its limit; a trigger with no limit is
       flagged; retaliation never mutates another character's sheet.
 
-## Slice 17 — The effect builder: "Add effect" by hand ⏳ PARTIAL 2026-07-16
+## Slice 17 — The effect builder: "Add effect" by hand ✅ SHIPPED 2026-07-16
 
 > "We basically need to create an item, click 'add effect' to it, then select effects and define the
 > numbers for those effects."
@@ -763,10 +763,17 @@ raging)"), so the preview and the ★ tooltip read it identically. (Timed durati
 effects don't apply — an item effect lasts while worn; timed durations live on consumables/
 ActiveEffects, which have their own duration field.)
 
-**Still open in this slice:**
-- *Reaching the builder from spell/feature editors too* — today it's on the item builder (and the
-  consumable buff sub-editor); the same `EffectRows` should mount in the other editors. This is the
-  one remaining piece and it's a wiring task across `SpellEditor`/`FeatureEditor`.
+**Reused in the feature editor ✅ SHIPPED (commit pending).** `EffectRows` is now exported and mounted
+in `FeatureEditor`, so a class/species feature authors real effects through the SAME builder as items
+(a feature that grants +1 AC or a fly speed changes the sheet like an item would). One builder, no
+second implementation to drift.
+
+**Deferred — the SpellEditor mount.** A spell doesn't carry passive `effects` the way an item/feature
+does: a spell applies its effect when **cast** (→ an `ActiveEffect`), which is a different mechanism
+(the consumable-buff path, not the equipped-passive path). Mounting the builder there needs a
+`Spell`-model field for its cast-time effect and wiring `castSpell` to emit it — a small model slice
+of its own, not the same one-line reuse. The item + feature + consumable-buff builders cover the
+authoring surface the request named ("create an item, click add effect…").
 
 - [ ] On any item/spell/feature editor: an **Add effect** button → pick an effect type → fill in its
       numbers. Repeatable; an item holds any number of effects.

@@ -11,6 +11,7 @@ import path from 'node:path';
 import { EFFECT_TARGETS, findTarget, validateEffect, describeEffect } from '@/lib/dnd/effects/targets';
 
 const BUILDER = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_sheet/components/ItemBuilder.tsx'), 'utf8');
+const FEATURE_EDITOR = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_sheet/components/ui/FeatureEditor.tsx'), 'utf8');
 
 describe('the builder is registry-driven, not free text', () => {
   it('imports the registry and renders a grouped target picker', () => {
@@ -41,6 +42,15 @@ describe('the builder is registry-driven, not free text', () => {
   it('exposes a per-effect condition gate that flows into the preview', () => {
     expect(BUILDER).toContain('e.condition');
     expect(BUILDER).toContain('condition: e.condition');
+  });
+
+  it('is reused (not re-implemented) in the feature editor', () => {
+    // The SAME EffectRows so features and items author identical Effect[]. A second builder would
+    // be the exact drift this whole part fights.
+    expect(BUILDER).toContain('export function EffectRows');
+    expect(FEATURE_EDITOR).toContain("import { EffectRows } from '../ItemBuilder'");
+    expect(FEATURE_EDITOR).toContain('<EffectRows');
+    expect(FEATURE_EDITOR).toContain("set('effects', effects)");
   });
 });
 

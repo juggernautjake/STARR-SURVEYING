@@ -289,7 +289,7 @@ function defaultValueFor(targetKey: string): Effect['value'] | undefined {
  * ledger silently rejected), the operation is constrained to what that target allows, and the value
  * control matches the target's value type (number vs text vs none-for-a-flag).
  */
-function EffectRows({ effects, onChange, hint }: { effects: Effect[]; onChange: (e: Effect[]) => void; hint?: string }) {
+export function EffectRows({ effects, onChange, hint }: { effects: Effect[]; onChange: (e: Effect[]) => void; hint?: string }) {
   const set = (i: number, p: Partial<Effect>) => onChange(effects.map((e, j) => (j === i ? { ...e, ...p } : e)))
   // Picking a new target resets the operation to one it allows and the value to a sane default —
   // otherwise a leftover op/value from the previous target would fail validation on save.

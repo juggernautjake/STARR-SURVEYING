@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { useChar } from '../../state/store'
 import type { FeatureBlock } from '../../types'
 import EditDialog, { Field } from './EditDialog'
+import { EffectRows } from '../ItemBuilder'
 
 export default function FeatureEditor({ feature, onClose }: { feature: FeatureBlock; onClose: () => void }) {
   const { setChar } = useChar()
@@ -54,6 +55,12 @@ export default function FeatureEditor({ feature, onClose }: { feature: FeatureBl
 
       <Field label="Flavor" hint="italic line under the text (optional)">
         <input className="ed-input" value={draft.flavor ?? ''} onChange={(e) => set('flavor', e.target.value)} />
+      </Field>
+
+      {/* Real, ledger-resolved effects the feature applies (Slice 17) — the SAME builder as items,
+          so a class feature that grants +1 AC or a fly speed changes the sheet just like an item. */}
+      <Field label="Effects" hint="what this feature does to the sheet (optional)">
+        <EffectRows effects={draft.effects ?? []} onChange={(effects) => set('effects', effects)} hint="e.g. Armor Class · add · 1" />
       </Field>
 
       <p className="ed-note">
