@@ -167,9 +167,14 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
   clean, lint clean, `__tests__/dnd/ig-ai.test.ts` (3 tests: parser normalizes/clamps, vanilla build → 0
   custom while invented power/stance flag custom with correct kinds, grounding prompt names the system +
   catalog and the tool requires a name); full dnd suite (316) green.
-- **Slice 11 — QA + docs.** End-to-end pass across every tab (vanilla build → all-vanilla, custom → flagged,
-  vanilla-only blocks, DM grant allowed, approve/reject + notification, styling applies), full dnd vitest
-  suite green, tsc + lint clean; then move this doc to `completed/`.
+- **Slice 11 — QA + docs.** ✅ `__tests__/dnd/ig-full-e2e.test.ts` builds one full vanilla IG character and
+  exercises **every tab** end-to-end through the real deterministic libs (zero services): the sidecar model
+  populates identity / scores / the 36 skills / combat (attacks + stances + defensive power) / feats split
+  general-combat / weapon groups / powers / companion; the rules engine resolves it coherently (proficiency
+  5, the three saves = level + governing attribute, an attack's to-hit); provenance flags it **all-vanilla**
+  across all nine element kinds and it **passes a vanilla-only campaign**; and a custom stance **blocks** the
+  vanilla-only submit while a **DM grant unblocks** it. Full dnd vitest suite **320 green**, `tsc` clean,
+  lint clean. Doc moved to `completed/`.
 
 ## Considerations
 - **Deterministic guarantee:** the model, rules math, content, classification and policy all work with zero
@@ -182,4 +187,13 @@ doc gives us the **real IG data model, rules math, complete content, and a bespo
 - **Reuse:** build on the shipped content library, catalog, provenance, submission/approval, DM grants,
   campaign policy, the custom-sheet/style engine, and `/ai-edit` grounding — don't fork them.
 
-### Status: IN PROGRESS (Slices 0–10 shipped; 11 — QA + doc move — pending)
+### Status: COMPLETE — the full Intuitive Games character builder + bespoke 9-tab sheet shipped (Slices
+0–11). The Data-Sheet content is complete (powers with effects, actions taxonomy, full bestiary); a typed
+`IGCharacter` model + a pure rules engine (proficiency=level, three saves, skill/attack math, degrees of
+success) back every number; the builder assembles the whole model into `data.ig`; the bespoke `IGSheet`
+renders all nine template tabs with a VANILLA/CUSTOM/DM-GRANTED badge on every element and platform-token
+styling; a guided builder UI drives it; and an AI-customize path fills the real model grounded to the system
+with auto-flagging. All 320 dnd tests green. *(Two items are deferred with rationale inside their slices:
+per-feat effect text — the provided template leaves those cells `#N/A` and fabricating mechanics would break
+the anti-wrong-mechanics rule; and inline ranked-skill/equipment-slot editing on the sheet — the builder +
+`/ai-edit` cover the mechanical build. Both are additive follow-ups, not gaps in the shipped guarantee.)*
