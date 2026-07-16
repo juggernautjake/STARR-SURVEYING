@@ -816,10 +816,30 @@ consumable-buff editors — the whole authoring surface.
       someone adds an operation and forgets the UI); a hand-built item and an AI-built item with the
       same mechanics produce identical `Effect[]`; a negative modifier round-trips.
 
-## Slice 18 — Transform: become a different character entirely
+## Slice 18 — Transform: become a different character entirely ⏳ PARTIAL 2026-07-16
 
 > "maybe a spell turns us into a bear, then we would suddenly have the bear character sheet. We would
 > need to be able to end the effect and revert back to our normal character sheet."
+
+**Transform-by-effect core ✅ SHIPPED (commit pending).** A `transform` effect on an item/spell/potion
+now IMPOSES a form: the ledger resolves it (`imposedTransform` / `ledger.transform()`), and that
+imposed form's OWN effects (a bear's STR 19, +10 speed, fly speed…) apply through the ledger — so an
+equipped "Wild Shape Focus" actually transforms you *mechanically*, and unequipping reverts exactly.
+It's a true overlay: the character's stored `activeFormId` and base stats are NEVER written (the
+anti-"permanent bear" guarantee — a save mid-transform can't strand a druid as a bear). Last transform
+wins; the base form never contributes. Tests: `transform.test.ts` (5) — impose, apply, base-untouched,
+revert-on-drop, and manual-form-still-works.
+
+**Remaining — render the form's whole sheet.** Today the imposed form's *ledger* effects apply (stats
+move, stars light, the Active Effects panel shows the transform source), but the sheet still renders
+the base character's own attacks/strikeDie/form-abilities/Forms-tab highlight — those read
+`char.activeFormId` directly. The follow-up is threading the EFFECTIVE form id
+(`ledger.transform()?.value ?? char.activeFormId`) into those components (the same edit-base/
+display-overlay pattern used for abilities/identity), plus the per-form carry-over policy
+(`keepMental`/`separateHp`/…) for a full statblock swap. That's the render half; the resolution half
+is done and tested.
+
+### Original spec
 
 Slice 11 overlays *fields*. This overlays the **whole sheet** — and it is the strongest argument for
 the overlay rule, because "you are a bear now" must be perfectly reversible.

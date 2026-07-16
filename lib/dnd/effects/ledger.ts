@@ -92,6 +92,9 @@ export interface EffectLedger {
   collected(operation: Effect['operation']): { value: string; source: string }[];
   /** Identity overlay: the name/species/etc an effect is imposing, if any. */
   identity(target: string): { value: string; source: string } | null;
+  /** The form an active `transform` effect is imposing (Slice 18), if any — the effective active
+   *  form the sheet should render, overlaying the character's own `activeFormId`. */
+  transform(): { value: string; source: string } | null;
 }
 
 export interface LedgerContext {
@@ -115,7 +118,10 @@ export const isItemActive = (i: InvItem): boolean => (i.attuned ? isEquipped(i) 
  * Deliberately explicit rather than clever: each source kind is listed, so adding one is a visible
  * change here rather than an emergent surprise somewhere downstream.
  */
-export function collectSources(char: Character, ctx: LedgerContext = {}): LedgerSource[] {
+/** Every NON-form effect source: equipped/attuned items, active effects (consumed/spell/DM), and
+ *  level-gated features. Split out so both `collectSources` and `imposedTransform` read the same set
+ *  (a transform effect can live on any of them). */
+function baseSources(char: Character): LedgerSource[] {
   const out: LedgerSource[] = [];
   const level = char.meta?.level ?? 1;
 
@@ -145,11 +151,38 @@ export function collectSources(char: Character, ctx: LedgerContext = {}): Ledger
     out.push({ id: f.id, kind: 'feature', name: f.name, effects: f.effects });
   }
 
-  // The ACTIVE form's effects (Slice 15/25) — a Titan form's +STR, a beast form's fly speed. Only
-  // the currently-active form contributes, and the base ('base'/none) never does, so switching back
-  // drops the overlay and re-derives you as yourself. The bespoke strikeDie/form-attack fields keep
-  // their own paths; this is only the ledger-resolved half.
-  const activeForm = (char.forms ?? []).find((f) => f.id === char.activeFormId);
+  return out;
+}
+
+/**
+ * A form IMPOSED by an active effect (Slice 18) — a `transform` effect on an item/spell/potion that
+ * turns you into a form ("Potion of Bear Form" → the `bear` form). Last one wins (two transforms is a
+ * table call). It OVERLAYS the character's own `activeFormId` without writing it, so dropping the
+ * source reverts exactly — the whole point of the overlay rule for the strongest case, "you are a
+ * bear now". Returns the target form id + the source imposing it, or null.
+ */
+export function imposedTransform(char: Character): { value: string; source: string } | null {
+  let last: { value: string; source: string } | null = null;
+  for (const src of baseSources(char)) {
+    for (const e of src.effects) {
+      if (e.target === 'transform' && e.operation === 'set' && typeof e.value === 'string' && e.value.trim()) {
+        last = { value: e.value, source: src.name };
+      }
+    }
+  }
+  return last;
+}
+
+export function collectSources(char: Character, ctx: LedgerContext = {}): LedgerSource[] {
+  const out = baseSources(char);
+
+  // The ACTIVE form's effects (Slice 15/25) — a Titan form's +STR, a beast form's fly speed. The
+  // active form is the one a `transform` effect IMPOSES (Slice 18), else the character's own
+  // `activeFormId`. Only it contributes, and the base ('base'/none) never does, so dropping the
+  // transform re-derives you as yourself. The bespoke strikeDie/form-attack fields keep their own
+  // paths; this is only the ledger-resolved half.
+  const effectiveFormId = imposedTransform(char)?.value ?? char.activeFormId;
+  const activeForm = (char.forms ?? []).find((f) => f.id === effectiveFormId);
   if (activeForm?.effects?.length) {
     out.push({ id: activeForm.id, kind: 'form', name: activeForm.name, effects: activeForm.effects });
   }
@@ -351,6 +384,9 @@ export function buildLedger(char: Character, ctx: LedgerContext = {}): EffectLed
       const hits = filed.filter((f) => f.target === target && typeof f.effect.value === 'string');
       const last = hits[hits.length - 1];
       return last ? { value: String(last.effect.value), source: last.src.name } : null;
+    },
+    transform() {
+      return imposedTransform(char);
     },
   };
 }
