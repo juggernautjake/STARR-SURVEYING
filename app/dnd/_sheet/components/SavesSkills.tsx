@@ -7,7 +7,7 @@ import SectionHead from './ui/SectionHead'
 const PROF_ORDER: ProfLevel[] = ['none', 'proficient', 'expertise']
 
 export default function SavesSkills() {
-  const { char, pb, setChar, rollCheck } = useChar()
+  const { char, abilities, pb, setChar, rollCheck } = useChar()
   const [newName, setNewName] = useState('')
   const [newAbil, setNewAbil] = useState<AbilityKey>('int')
   const [newProf, setNewProf] = useState<ProfLevel>('proficient')
@@ -72,7 +72,7 @@ export default function SavesSkills() {
           <div className="rowlist">
             {ABILITIES.map((a) => {
               const s = char.saves[a.key]
-              const mod = abilityMod(char.abilities[a.key]) + (s.proficient ? pb : 0) + s.misc
+              const mod = abilityMod(abilities[a.key]) + (s.proficient ? pb : 0) + s.misc
               const isDex = a.key === 'dex'
               return (
                 <div className="rrow" key={a.key}>
@@ -106,7 +106,7 @@ export default function SavesSkills() {
             {SKILLS.map((sk) => {
               const st = char.skills[sk.key]
               const abil = ABILITIES.find((a) => a.key === sk.ability)!
-              const mod = abilityMod(char.abilities[sk.ability]) + profContribution(st.prof, pb) + st.misc
+              const mod = abilityMod(abilities[sk.ability]) + profContribution(st.prof, pb) + st.misc
               // Base Form ("The Kid") is small and unassuming → advantage on Stealth.
               // The larger Surge forms (Brute, Titan…) are anything but subtle.
               const stealthAdv = sk.key === 'stealth' && char.activeFormId === 'base'
@@ -136,7 +136,7 @@ export default function SavesSkills() {
             {/* Custom checks */}
             {customSkills.map((cs) => {
               const abil = ABILITIES.find((a) => a.key === cs.ability)!
-              const mod = abilityMod(char.abilities[cs.ability]) + profContribution(cs.prof, pb) + cs.misc
+              const mod = abilityMod(abilities[cs.ability]) + profContribution(cs.prof, pb) + cs.misc
               return (
                 <div className="rrow" key={cs.id}>
                   <button

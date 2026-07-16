@@ -3,7 +3,7 @@ import { ABILITIES, abilityMod, signed } from '../rules/dnd'
 import InlineNumber from './ui/InlineNumber'
 
 export default function StatRail() {
-  const { char, pb, setChar, rollCheck, setExhaustion, canWrite, characterId } = useChar()
+  const { char, abilities, ledger, pb, setChar, rollCheck, setExhaustion, canWrite, characterId } = useChar()
   const { combat } = char
   const level = char.meta.level
   // Advantage on Initiative is the Barbarian's Feral Instinct — a class feature, not something
@@ -109,26 +109,40 @@ export default function StatRail() {
 
       <div className="rail-abils">
         {ABILITIES.map((a) => {
-          const score = char.abilities[a.key]
+          // Effective score (Slice 10) — the rail and the Abilities tab must never disagree, so
+          // both read the ledger rather than each doing their own arithmetic.
+          const score = abilities[a.key]
+          const base = char.abilities[a.key]
           const mod = abilityMod(score)
           const primary = char.primaryAbilities.includes(a.key)
+          const modified = ledger.isModified(`ability_${a.key}`)
+          const why = modified
+            ? `${a.label} ${base} base\n${ledger.explain(`ability_${a.key}`).map((c) => `${c.suppressed ? '(no effect) ' : ''}${c.label} — ${c.source}`).join('\n')}\n= ${score}`
+            : ''
           return (
             <button
               key={a.key}
               className={`apill ${primary ? 'primary' : ''}`}
               onClick={() => rollCheck(`${a.full} Check`, mod, { tag: a.label })}
-              title={`Click to roll ${a.full} · double-click the score to edit`}
+              title={modified ? why : `Click to roll ${a.full} · double-click the score to edit`}
             >
               <span className="ak">{a.label}</span>
               <span className="asc">
                 <InlineNumber
-                  value={score}
+                  // Edit the base; show the effective. See Abilities.tsx for why.
+                  value={base}
                   min={1}
                   max={30}
                   stopClick
                   path={`ability.${a.key}`}
                   onCommit={(n) => setChar((c) => ({ ...c, abilities: { ...c.abilities, [a.key]: n } }))}
-                  title="Double-click to edit score"
+                  display={
+                    <span className={modified ? 'is-modified' : undefined}>
+                      {score}
+                      {modified && <span className="mod-star" aria-hidden>★</span>}
+                    </span>
+                  }
+                  title={modified ? why : 'Double-click to edit score'}
                 />
               </span>
               <span className="am">{signed(mod)}</span>

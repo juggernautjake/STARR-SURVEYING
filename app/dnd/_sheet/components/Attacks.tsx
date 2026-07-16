@@ -4,7 +4,7 @@ import { abilityMod, signed } from '../rules/dnd'
 import SectionHead from './ui/SectionHead'
 
 export default function Attacks() {
-  const { char, pb, rollCheck, rollDmg, transformActive, recklessActive } = useChar()
+  const { char, abilities, pb, rollCheck, rollDmg, transformActive, recklessActive } = useChar()
   const hasReckless = useSheetModule('reckless')
   const activeForm = char.forms.find((f) => f.id === char.activeFormId)
   // Damage dice scaling is declared BY THE ATTACK, not by hardcoded ids: an attack can follow
@@ -49,11 +49,11 @@ export default function Attacks() {
           </thead>
           <tbody>
             {char.attacks.map((a) => {
-              const mod = abilityMod(char.abilities[a.ability])
+              const mod = abilityMod(abilities[a.ability])
               const toHit = mod + (a.proficient ? pb : 0) + (a.bonusToHit ?? 0)
               const die = dieFor(a)
               const isSave = !!a.saveBased
-              const saveDC = 8 + pb + abilityMod(char.abilities.str)
+              const saveDC = 8 + pb + abilityMod(abilities.str)
               const dmgFlat = isSave ? 0 : mod + (a.bonusDamage ?? 0) // AOE dice don't add the ability mod
               const brute = a.formOnly === 'brute'
               const active = !a.formOnly || char.activeFormId === a.formOnly

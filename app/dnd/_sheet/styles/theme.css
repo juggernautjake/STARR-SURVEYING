@@ -224,6 +224,21 @@
   background: rgba(var(--violet-rgb), 0.1);
   color: var(--ink);
 }
+/* ★ = "something is modifying this value RIGHT NOW" (Slice 13). Distinct from ✎ (Slice 20),
+   which means "this differs from its source". A vanilla score under a magic belt gets ★ and no ✎;
+   a hand-edited spell nothing is buffing gets ✎ and no ★. Merging them would produce a marker
+   meaning "something, somewhere, maybe" — noise the reader learns to ignore.
+   Token-driven so every skin re-tints it; a literal here would break the light skins. */
+.dnd-sheet .is-modified {
+  color: var(--tealbright);
+}
+.dnd-sheet .mod-star {
+  font-size: 0.62em;
+  vertical-align: super;
+  color: var(--gold);
+  cursor: help;
+}
+
 /* The system designation (Slice 21) — which rulebook adjudicates this sheet. Token-driven, so
    it inherits each skin's accent instead of forcing one palette onto every character. */
 .dnd-sheet .chip.system-chip {

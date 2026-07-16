@@ -4,7 +4,7 @@ import SectionHead from './ui/SectionHead'
 import InlineNumber from './ui/InlineNumber'
 
 export default function Abilities() {
-  const { char, setChar, editMode, rollCheck } = useChar()
+  const { char, abilities, ledger, setChar, editMode, rollCheck } = useChar()
 
   return (
     <section id="abilities">
@@ -15,9 +15,19 @@ export default function Abilities() {
       </p>
       <div className="abils">
         {ABILITIES.map((a) => {
-          const score = char.abilities[a.key]
+          // The EFFECTIVE score: base + everything currently modifying it (Slice 10). The base
+          // still lives in `char.abilities` and is what an edit writes to — effects are overlays,
+          // never baked in.
+          const score = abilities[a.key]
+          const base = char.abilities[a.key]
           const mod = abilityMod(score)
           const primary = char.primaryAbilities.includes(a.key)
+          const modified = ledger.isModified(`ability_${a.key}`)
+          // ★ = "something is modifying this right now" (Slice 13). The tooltip names every
+          // source, so "why is my STR 22?" always has an answer on the sheet itself.
+          const why = modified
+            ? `${a.label} ${base} base\n${ledger.explain(`ability_${a.key}`).map((c) => `${c.suppressed ? '(no effect) ' : ''}${c.label} — ${c.source}`).join('\n')}\n= ${score}`
+            : ''
           return (
             <div
               key={a.key}
@@ -28,13 +38,21 @@ export default function Abilities() {
               <div className="name">{a.label}</div>
               <div className="score">
                 <InlineNumber
-                  value={score}
+                  // Edit the BASE, display the EFFECTIVE. If editing worked on the effective score
+                  // you'd be adding your item's bonus into the base every time you touched it.
+                  value={base}
                   min={1}
                   max={30}
                   stopClick
                   path={`ability.${a.key}`}
                   onCommit={(n) => setChar((c) => ({ ...c, abilities: { ...c.abilities, [a.key]: n } }))}
-                  title="Double-click to edit score"
+                  display={
+                    <span className={modified ? 'is-modified' : undefined} title={why}>
+                      {score}
+                      {modified && <span className="mod-star" aria-hidden> ★</span>}
+                    </span>
+                  }
+                  title={modified ? why : 'Double-click to edit score'}
                 />
               </div>
               <div className="mod">{signed(mod)}</div>

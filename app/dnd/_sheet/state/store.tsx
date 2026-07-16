@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase'
 import type { Character, InvItem, ActiveEffect, Spell, FeatureBlock } from '../types'
 import { normalizeCharacter, blankCharacter } from '../data/blank'
 import { profBonusForLevel, abilityMod, maxHpForLevel, speedForLevel, MAX_BUILT_LEVEL } from '../rules/dnd'
+import { buildLedger, type EffectLedger } from '@/lib/dnd/effects/ledger'
 import { rollD20, rollDamage, parseDice, rollDie, rollTyped, weaponSegments, type Advantage } from '../lib/dice'
 
 // Per-character localStorage slot. A single shared key meant every standalone sheet
@@ -57,7 +58,16 @@ interface RollDmgOpts {
 }
 
 interface Ctx {
+  /** The BASE character as stored. Effects are never written into it — read `abilities`/`ledger`
+   *  for what the character currently IS. Write through `setChar` as always. */
   char: Character
+  /** Effective ability scores: base + every active effect (items, potions, features, forms).
+   *  Render these. `char.abilities` is the unmodified base and will not reflect a +2 belt. */
+  abilities: Character['abilities']
+  /** Why every number is what it is (Slice 10): sources, contributions, base → final.
+   *  The Active Effects panel and the ★ tooltips are reads of this — never re-derivations, or
+   *  two components will eventually disagree about the same number. */
+  ledger: EffectLedger
   setChar: (updater: (c: Character) => Character) => void
   reset: () => void
   importChar: (c: Character) => void
@@ -475,9 +485,28 @@ export function CharacterProvider({
 
   const importChar = useCallback((c: Character) => setCharState(structuredClone(c)), [])
 
+  // ── The effect ledger (Slice 10) ────────────────────────────────────────────
+  // Every number the sheet SHOWS comes from here, not straight off `char`. The engine could
+  // already resolve item/feature effects, but nothing rendered called it — so an item's effects
+  // were stored and then ignored. This is the join.
+  //
+  // Effects are OVERLAYS: `char` stays the base character forever. Unequipping is just dropping a
+  // source and re-deriving, which is why reverting is free and can't corrupt the sheet.
+  const ledger = useMemo(() => buildLedger(char), [char])
+
+  // Effective ability scores: base + every active effect. Components read THESE, so a +2 belt
+  // moves the score, its modifier, every skill using it, and its carrying capacity at once.
+  const abilities = useMemo(() => {
+    const out = { ...char.abilities }
+    for (const k of Object.keys(out) as (keyof typeof out)[]) {
+      out[k] = ledger.value(`ability_${k}`, char.abilities[k])
+    }
+    return out
+  }, [char.abilities, ledger])
+
   const pb = useMemo(
-    () => char.profBonusOverride ?? profBonusForLevel(char.meta.level),
-    [char.profBonusOverride, char.meta.level],
+    () => char.profBonusOverride ?? ledger.value('proficiency_bonus', profBonusForLevel(char.meta.level)),
+    [char.profBonusOverride, char.meta.level, ledger],
   )
 
   const commitRoll = useCallback((entry: Omit<RollEntry, 'id'>) => {
@@ -904,6 +933,8 @@ export function CharacterProvider({
 
   const value: Ctx = {
     char,
+    abilities,
+    ledger,
     setChar,
     reset,
     importChar,
