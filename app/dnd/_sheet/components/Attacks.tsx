@@ -1,10 +1,25 @@
+import { useState } from 'react'
 import { useChar } from '../state/store'
 import { useSheetModule } from '../state/sheetConfig'
 import { abilityMod, signed } from '../rules/dnd'
+import type { Attack } from '../types'
 import SectionHead from './ui/SectionHead'
+import ElementMenu from './ui/ElementMenu'
+import AttackEditor from './ui/AttackEditor'
 
 export default function Attacks() {
-  const { char, abilities, pb, rollCheck, rollDmg, transformActive, recklessActive } = useChar()
+  const { char, abilities, pb, rollCheck, rollDmg, transformActive, recklessActive, canWrite, setChar } = useChar()
+  const [editing, setEditing] = useState<Attack | null>(null)
+
+  const duplicate = (a: Attack) =>
+    setChar((c) => ({
+      ...c,
+      attacks: [...c.attacks, { ...a, id: `${a.id}-copy-${c.attacks.length}`, name: `${a.name} (copy)` }],
+    }))
+  const remove = (a: Attack) => {
+    if (!confirm(`Delete “${a.name}”? This cannot be undone.`)) return
+    setChar((c) => ({ ...c, attacks: c.attacks.filter((x) => x.id !== a.id) }))
+  }
   const hasReckless = useSheetModule('reckless')
   const activeForm = char.forms.find((f) => f.id === char.activeFormId)
   // Damage dice scaling is declared BY THE ATTACK, not by hardcoded ids: an attack can follow
@@ -84,6 +99,19 @@ export default function Attacks() {
                       </strong>
                     )}
                     {a.notes && <div className="inv-desc">{a.notes}</div>}
+                    {/* The way IN (Slice 27). This table has always rendered everything about an
+                        attack as read-only prose — the only interactive things on the row were the
+                        roll buttons, so a name or a damage die could not be changed by hand. */}
+                    {canWrite && (
+                      <ElementMenu
+                        label={a.name}
+                        actions={[
+                          { label: 'Edit attack', onClick: () => setEditing(a) },
+                          { label: 'Duplicate', onClick: () => duplicate(a) },
+                          { label: 'Delete', danger: true, onClick: () => remove(a) },
+                        ]}
+                      />
+                    )}
                   </td>
                   <td className="mono">{a.range}</td>
                   <td className="mono">
@@ -137,6 +165,33 @@ export default function Attacks() {
           </tbody>
         </table>
       </div>
+
+      {canWrite && (
+        <div className="btn-row" style={{ marginTop: 10 }}>
+          <button
+            className="btn tiny teal"
+            onClick={() => {
+              // A blank attack the player then edits — same shape as any other, so nothing
+              // downstream can tell a hand-made one from a seeded one.
+              const a: Attack = {
+                id: `atk-${Date.now().toString(36)}`,
+                name: 'New attack',
+                ability: 'str',
+                proficient: true,
+                range: 'Melee (reach 5 ft)',
+                damage: '1d6',
+                damageType: 'bludgeoning',
+              }
+              setChar((c) => ({ ...c, attacks: [...c.attacks, a] }))
+              setEditing(a)
+            }}
+          >
+            ＋ Add attack
+          </button>
+        </div>
+      )}
+
+      {editing && <AttackEditor attack={editing} onClose={() => setEditing(null)} />}
 
       {/* Reckless Attack is a Barbarian feature — only shown to characters whose
           sheet_type registers the `reckless` module (see registry.ts). */}

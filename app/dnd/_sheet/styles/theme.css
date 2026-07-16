@@ -224,6 +224,138 @@
   background: rgba(var(--violet-rgb), 0.1);
   color: var(--ink);
 }
+/* The ⋯ element menu (Slice 27) + the shared edit dialog (Slice 20). Token-driven so they inherit
+   whichever skin the character is on. */
+.dnd-sheet .el-menu {
+  position: relative;
+  display: inline-block;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.dnd-sheet .el-menu-btn {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 1px 6px;
+}
+.dnd-sheet .el-menu-btn:hover,
+.dnd-sheet .el-menu-btn:focus-visible {
+  color: var(--ink);
+  border-color: var(--tealbright);
+}
+.dnd-sheet .el-menu-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 40;
+  min-width: 150px;
+  display: grid;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+.dnd-sheet .el-menu-item {
+  text-align: left;
+  padding: 7px 11px;
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.dnd-sheet .el-menu-item:hover {
+  background: rgba(var(--tealbright-rgb), 0.14);
+}
+.dnd-sheet .el-menu-item.danger {
+  color: var(--danger);
+}
+
+.dnd-sheet .ed-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.dnd-sheet .ed-dialog {
+  width: min(520px, 100%);
+  max-height: min(80vh, 720px);
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.dnd-sheet .ed-dialog-head,
+.dnd-sheet .ed-dialog-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  flex: none;
+}
+.dnd-sheet .ed-dialog-head { border-bottom: 1px solid var(--line); }
+.dnd-sheet .ed-dialog-head h3 { margin: 0; flex: 1; font-size: 15px; }
+.dnd-sheet .ed-dialog-foot { border-top: 1px solid var(--line); justify-content: flex-end; }
+.dnd-sheet .ed-dialog-body {
+  padding: 14px;
+  overflow-y: auto;
+  display: grid;
+  gap: 11px;
+}
+.dnd-sheet .ed-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 11px;
+}
+.dnd-sheet .ed-field { display: grid; gap: 4px; }
+.dnd-sheet .ed-field-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.dnd-sheet .ed-field-hint { text-transform: none; letter-spacing: 0; color: var(--muted-2); }
+.dnd-sheet .ed-input {
+  width: 100%;
+  padding: 7px 9px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-family: inherit;
+  min-height: 0; /* the marketing globals leak again; see hextech.module.css */
+  margin-bottom: 0;
+}
+.dnd-sheet .ed-input:focus { outline: none; border-color: var(--tealbright); }
+.dnd-sheet .ed-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink); }
+.dnd-sheet .ed-check input { width: auto; margin: 0; min-height: 0; }
+.dnd-sheet .ed-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.dnd-sheet .ed-note { margin: 0; font-size: 12px; color: var(--muted); }
+
+/* A tag whose meaning we can explain gets a hint cursor + a dotted underline, so it's discoverable
+   that hovering will tell you what "FLAVOR" means rather than you having to guess there's a
+   tooltip at all. */
+.dnd-sheet .tag.tag-info {
+  cursor: help;
+  border-bottom-style: dotted;
+}
+
 /* The Active Effects panel (Slice 12) — every source currently modifying the character, with the
    RESOLVED effect it is having. Token-driven throughout so it reads on every skin. */
 .dnd-sheet .ae-card {

@@ -4,6 +4,8 @@ import type { InvItem } from '../types'
 import SectionHead from './ui/SectionHead'
 import NeoNuggetsBalance from './NeoNuggetsBalance'
 import ItemBuilder from './ItemBuilder'
+import ElementMenu from './ui/ElementMenu'
+import { tagInfo } from './ui/tagInfo'
 
 function labels() {
   // "Notes" is the campaign's base currency (≈ $1 each) — the streamer converts her
@@ -20,7 +22,7 @@ function weaponDamageSummary(it: InvItem): string {
 }
 
 export default function Inventory() {
-  const { char, setChar, characterId, editMode, rollExpr, adjustHp, rollWeaponDamage, addActiveEffect } = useChar()
+  const { char, setChar, characterId, editMode, rollExpr, adjustHp, rollWeaponDamage, addActiveEffect, canWrite } = useChar()
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
 
@@ -41,6 +43,17 @@ export default function Inventory() {
       ...c,
       inventory: c.inventory.map((it) => (it.id === id ? { ...it, qty: Math.max(0, it.qty + delta) } : it)),
     }))
+  }
+  function duplicate(it: InvItem) {
+    setChar((c) => ({
+      ...c,
+      inventory: [...c.inventory, { ...it, id: `${it.id}-copy-${c.inventory.length}`, name: `${it.name} (copy)` }],
+    }))
+  }
+  function confirmRemove(it: InvItem) {
+    // Deleting is the one menu action with no undo, so it asks. The rest are cheap to reverse.
+    if (!confirm(`Delete “${it.name}”? This cannot be undone.`)) return
+    remove(it.id)
   }
   function remove(id: string) {
     setChar((c) => ({ ...c, inventory: c.inventory.filter((it) => it.id !== id) }))
@@ -126,14 +139,32 @@ export default function Inventory() {
         {char.inventory.map((it) => (
           <div className="inv-row" key={it.id}>
             <div className="flex" style={{ gap: 6, flexWrap: 'wrap', maxWidth: 90 }}>
-              {it.tags.slice(0, 2).map((t) => (
-                <span key={t} className={`tag ${t}`}>
-                  {t}
-                </span>
-              ))}
+              {it.tags.slice(0, 2).map((t) => {
+                // These tags are terse and several are load-bearing — `weapon` is what puts a thing
+                // in the Attacks table, `consumable` is what makes it usable-and-gone — but nothing
+                // ever said so: "at the moment I don't know what FLAVOR means".
+                const info = tagInfo(t)
+                return (
+                  <span key={t} className={`tag ${t} ${info ? 'tag-info' : ''}`} title={info ?? undefined}>
+                    {t}
+                  </span>
+                )
+              })}
             </div>
             <div>
-              <div className="inv-name">{it.name}</div>
+              <div className="inv-name">
+                {it.name}
+                {canWrite && (
+                  <ElementMenu
+                    label={it.name}
+                    actions={[
+                      { label: 'Edit item', onClick: () => setEditingId(it.id) },
+                      { label: 'Duplicate', onClick: () => duplicate(it) },
+                      { label: 'Delete', danger: true, onClick: () => confirmRemove(it) },
+                    ]}
+                  />
+                )}
+              </div>
               <div className="inv-desc">{it.desc}</div>
               {it.weapon && (
                 <div className="flex" style={{ gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
@@ -176,7 +207,7 @@ export default function Inventory() {
           </div>
         ))}
 
-        {editMode && editingId && (
+        {editingId && (
           <ItemBuilder
             characterId={characterId ?? undefined}
             initial={char.inventory.find((x) => x.id === editingId)}
