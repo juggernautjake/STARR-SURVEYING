@@ -37,6 +37,20 @@ export default function CombatPanel() {
   // Speed is display-only, so folding it has none of max-HP's heal-clamp interaction — that stays
   // on the base for now. `value` returns the base untouched when nothing modifies it.
   const walkSpeed = ledger.value('speed_walk', combat.speed)
+  // Movement is not one number (Slice 11): fly/swim/climb/burrow are each their own target with
+  // their own base. A potion of flying is a fly speed, not "+30 speed" — and a fly speed can exist
+  // while the walk speed is 0. This is the speeds block that gives those grants a home; a mode only
+  // shows once something grants it (base 0 + nothing = hidden).
+  const extraSpeeds = (
+    [
+      ['speed_fly', 'Fly'],
+      ['speed_swim', 'Swim'],
+      ['speed_climb', 'Climb'],
+      ['speed_burrow', 'Burrow'],
+    ] as const
+  )
+    .map(([key, label]) => ({ key, label, value: ledger.value(key, 0), modified: ledger.isModified(key) }))
+    .filter((s) => s.value > 0 || s.modified)
 
   // Damage resistances / immunities / vulnerabilities granted by an active effect (Slice 11
   // grant-half). Collected by the ledger with their source; the Defenses card is their home — a
@@ -221,6 +235,16 @@ export default function CombatPanel() {
               </strong>{' '}
               — {combat.speedNote}
             </li>
+            {extraSpeeds.map((s) => (
+              <li key={s.key}>
+                <strong>
+                  {s.label} Speed{' '}
+                  <EffectStar target={s.key} label={`${s.label} speed`}>
+                    {s.value} ft
+                  </EffectStar>
+                </strong>
+              </li>
+            ))}
             {/* Damage resistances / immunities / vulnerabilities from active effects (Slice 11).
                 Each type is tagged with the source granting it, so it's clear it's on loan. */}
             {resistances.length > 0 && (

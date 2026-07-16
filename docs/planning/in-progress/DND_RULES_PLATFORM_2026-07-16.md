@@ -466,8 +466,10 @@ doc's explicit "senses… need somewhere to render" item. Test added to `grant-d
   `grant_sense`. Unlike proficiencies (a flat collected list), these mint a whole element (a granted
   feature appears in Features badged to its source, a granted spell in Spells) and want their own
   slice each.
-- *A speeds block* — `speed_fly`/`swim`/`climb`/`burrow`/`hover` need a home on the sheet before they
-  can be granted (walk speed is folded now; the others render nowhere yet).
+- *A speeds block ✅ SHIPPED (commit pending)* — `speed_fly`/`swim`/`climb`/`burrow` now render in
+  the Defenses card, each on its own ledger target (a fly speed exists independently of walk speed,
+  and only shows once something grants it), starred + sourced. `hover`/`ignore_difficult_terrain`
+  (flags) still have no line. Tests: `grant-speeds.test.ts` (4).
 
 Original action items (kept for the remaining work):
 
