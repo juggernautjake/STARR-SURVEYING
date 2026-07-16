@@ -25,6 +25,7 @@ import { WIZARD_2024, WIZARD_SUBCLASSES_2024 } from './dnd5e-2024/wizard';
 // degrades per class, so an un-authored 2014 class simply falls back to the AI/homebrew path).
 import { BARBARIAN_2014, BARBARIAN_SUBCLASSES_2014 } from './dnd5e-2014/barbarian';
 import { FIGHTER_2014, FIGHTER_SUBCLASSES_2014 } from './dnd5e-2014/fighter';
+import { ROGUE_2014, ROGUE_SUBCLASSES_2014 } from './dnd5e-2014/rogue';
 
 const DND5E_2024_CLASSES: ClassDefinition[] = [
   BARBARIAN_2024, BARD_2024, CLERIC_2024, DRUID_2024, FIGHTER_2024, MONK_2024,
@@ -48,8 +49,10 @@ const DND5E_2024_SUBCLASSES: SubclassDefinition[] = [
  * table that doesn't exist. Resolution is PER CLASS, so a partially-authored system (2014 today)
  * offers its finished classes and falls back to homebrew for the rest.
  */
-const DND5E_2014_CLASSES: ClassDefinition[] = [BARBARIAN_2014, FIGHTER_2014];
-const DND5E_2014_SUBCLASSES: SubclassDefinition[] = [...BARBARIAN_SUBCLASSES_2014, ...FIGHTER_SUBCLASSES_2014];
+const DND5E_2014_CLASSES: ClassDefinition[] = [BARBARIAN_2014, FIGHTER_2014, ROGUE_2014];
+const DND5E_2014_SUBCLASSES: SubclassDefinition[] = [
+  ...BARBARIAN_SUBCLASSES_2014, ...FIGHTER_SUBCLASSES_2014, ...ROGUE_SUBCLASSES_2014,
+];
 
 const BY_SYSTEM: Record<string, { classes: ClassDefinition[]; subclasses: SubclassDefinition[] }> = {
   'dnd5e-2024': { classes: DND5E_2024_CLASSES, subclasses: DND5E_2024_SUBCLASSES },

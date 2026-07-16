@@ -13,7 +13,7 @@ const CLASSES = classesForSystem(SYS);
 
 describe('the 2014 class roster (authored class-by-class)', () => {
   it('has the classes authored so far, and the system reports it has class data', () => {
-    expect(CLASSES.map((c) => c.name)).toEqual(expect.arrayContaining(['Barbarian', 'Fighter']));
+    expect(CLASSES.map((c) => c.name)).toEqual(expect.arrayContaining(['Barbarian', 'Fighter', 'Rogue']));
     expect(systemHasClasses(SYS)).toBe(true);
   });
 
@@ -119,5 +119,32 @@ describe('Fighter 2014 — the edition-specific numbers', () => {
   it('offers exactly the three 2014 PHB archetypes (Champion, Battle Master, Eldritch Knight)', () => {
     const subs = subclassesFor(SYS, 'fighter').map((s) => s.name).sort();
     expect(subs).toEqual(['Battle Master', 'Champion', 'Eldritch Knight']);
+  });
+});
+
+describe('Rogue 2014 — the edition-specific numbers', () => {
+  const rogue = findClass(SYS, 'rogue')!;
+
+  it('is a d8 DEX class with the extra ASI at 10 (plus the 2014 slot at 19, no Epic Boon)', () => {
+    expect(rogue.hitDie).toBe(8);
+    expect(rogue.savingThrows).toEqual(['dex', 'int']);
+    expect(rogue.asiLevels).toEqual([4, 8, 10, 12, 16, 19]);
+    expect(rogue.features.some((f) => f.choice === 'epic-boon')).toBe(false);
+  });
+
+  it('chooses 4 skills and gains Expertise twice (levels 1 and 6)', () => {
+    expect(rogue.skillChoices.count).toBe(4);
+    expect(rogue.features.filter((f) => f.choice === 'expertise').map((f) => f.level)).toEqual([1, 6]);
+  });
+
+  it('has Sneak Attack, Cunning Action, and the capstone Stroke of Luck', () => {
+    expect(rogue.features.some((f) => f.name === 'Sneak Attack')).toBe(true);
+    expect(snapshotAtLevel(rogue, 2).features.some((f) => f.name === 'Cunning Action')).toBe(true);
+    expect(snapshotAtLevel(rogue, 20).features.some((f) => f.name === 'Stroke of Luck')).toBe(true);
+  });
+
+  it('offers exactly the three 2014 PHB archetypes (Thief, Assassin, Arcane Trickster)', () => {
+    const subs = subclassesFor(SYS, 'rogue').map((s) => s.name).sort();
+    expect(subs).toEqual(['Arcane Trickster', 'Assassin', 'Thief']);
   });
 });
