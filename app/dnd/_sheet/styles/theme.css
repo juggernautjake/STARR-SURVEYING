@@ -34,8 +34,27 @@
   --gold: #ffcc3f;
   --danger: #ff5252;
   --good: #4ade80;
-  --line: rgba(139, 92, 246, 0.28);
-  --line-strong: rgba(139, 92, 246, 0.55);
+  /* "r, g, b" triplets for the accent tokens above. themeToCssVars() overrides these per
+     character (it derives them from the theme's own hex colors), so translucent fills and
+     glows written as rgba(var(--hotpink-rgb), .28) follow the CHARACTER's palette instead of
+     hardcoding the original neon. These values are the default (Lazzuh neon) fallbacks. */
+  --void-rgb: 8, 5, 18;
+  --void-2-rgb: 12, 8, 24;
+  --panel-rgb: 19, 10, 32;
+  --panel-2-rgb: 27, 15, 48;
+  --panel-3-rgb: 36, 21, 65;
+  --ink-rgb: 242, 236, 255;
+  --pink-rgb: 255, 95, 176;
+  --hotpink-rgb: 255, 45, 139;
+  --violet-rgb: 139, 92, 246;
+  --violet-2-rgb: 167, 139, 250;
+  --teal-rgb: 18, 182, 182;
+  --tealbright-rgb: 34, 224, 224;
+  --gold-rgb: 255, 204, 63;
+  --danger-rgb: 255, 82, 82;
+  --good-rgb: 74, 222, 128;
+  --line: rgba(var(--violet-rgb), 0.28);
+  --line-strong: rgba(var(--violet-rgb), 0.55);
   --shadow: 0 18px 50px -22px rgba(0, 0, 0, 0.85);
 
   --font-display: 'Oswald', 'Arial Narrow', sans-serif;
@@ -53,9 +72,9 @@
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(900px 520px at 82% -8%, rgba(18, 182, 182, 0.16), transparent 60%),
-    radial-gradient(760px 500px at -8% 18%, rgba(255, 45, 139, 0.15), transparent 55%),
-    radial-gradient(1100px 700px at 50% 120%, rgba(139, 92, 246, 0.12), transparent 60%),
+    radial-gradient(900px 520px at 82% -8%, rgba(var(--teal-rgb), 0.16), transparent 60%),
+    radial-gradient(760px 500px at -8% 18%, rgba(var(--hotpink-rgb), 0.15), transparent 55%),
+    radial-gradient(1100px 700px at 50% 120%, rgba(var(--violet-rgb), 0.12), transparent 60%),
     var(--void);
   background-attachment: fixed;
   color: var(--ink);
@@ -65,7 +84,7 @@
   -webkit-font-smoothing: antialiased;
 }
 .dnd-sheet ::selection {
-  background: rgba(255, 45, 139, 0.35);
+  background: rgba(var(--hotpink-rgb), 0.35);
   color: #fff;
 }
 .dnd-sheet a {
@@ -128,7 +147,7 @@
   padding: 32px 32px 26px;
   overflow: hidden;
   margin-bottom: 16px;
-  background: linear-gradient(155deg, rgba(27, 15, 48, 0.92), rgba(8, 5, 18, 0.75));
+  background: linear-gradient(155deg, rgba(var(--panel-2-rgb), 0.92), rgba(var(--void-rgb), 0.75));
   box-shadow: var(--shadow);
 }
 .dnd-sheet .hero::before {
@@ -136,7 +155,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: repeating-linear-gradient(118deg, transparent 0 24px, rgba(18, 182, 182, 0.05) 24px 25px);
+  background: repeating-linear-gradient(118deg, transparent 0 24px, rgba(var(--teal-rgb), 0.05) 24px 25px);
 }
 .dnd-sheet .hero-top {
   display: flex;
@@ -161,11 +180,13 @@
   letter-spacing: 0.01em;
   margin: 0;
   text-transform: uppercase;
-  background: linear-gradient(94deg, #fff 0%, var(--pink) 48%, var(--teal) 100%);
+  /* Starts from the theme's ink, not hardcoded white: this is background-clip:text, so a
+     white stop made the first letters invisible on the light parchment/MLM skins. */
+  background: linear-gradient(94deg, var(--ink) 0%, var(--pink) 48%, var(--teal) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 0 16px rgba(255, 95, 176, 0.28));
+  filter: drop-shadow(0 0 16px rgba(var(--pink-rgb), 0.28));
 }
 .dnd-sheet .hero .role {
   font-family: var(--font-display);
@@ -191,23 +212,23 @@
   padding: 6px 11px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: rgba(139, 92, 246, 0.1);
+  background: rgba(var(--violet-rgb), 0.1);
   color: var(--ink);
 }
 .dnd-sheet .chip.pink {
   border-color: var(--hotpink);
-  color: #ffd6e8;
-  background: rgba(255, 45, 139, 0.12);
+  color: var(--hotpink);
+  background: rgba(var(--hotpink-rgb), 0.12);
 }
 .dnd-sheet .chip.teal {
   border-color: var(--teal);
-  color: #bff6f6;
-  background: rgba(18, 182, 182, 0.12);
+  color: var(--tealbright);
+  background: rgba(var(--teal-rgb), 0.12);
 }
 .dnd-sheet .chip.gold {
-  border-color: rgba(255, 204, 63, 0.55);
-  color: #ffe9a8;
-  background: rgba(255, 204, 63, 0.1);
+  border-color: rgba(var(--gold-rgb), 0.55);
+  color: var(--gold);
+  background: rgba(var(--gold-rgb), 0.1);
 }
 
 /* ------------------------------------------------------------------ BUTTONS */
@@ -219,7 +240,7 @@
   padding: 8px 14px;
   border-radius: 9px;
   border: 1px solid var(--line);
-  background: rgba(139, 92, 246, 0.12);
+  background: rgba(var(--violet-rgb), 0.12);
   color: var(--ink);
   cursor: pointer;
   transition: transform 0.08s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
@@ -230,7 +251,7 @@
 }
 .dnd-sheet .btn:hover {
   border-color: var(--line-strong);
-  background: rgba(139, 92, 246, 0.22);
+  background: rgba(var(--violet-rgb), 0.22);
 }
 .dnd-sheet .btn:active {
   transform: translateY(1px);
@@ -241,31 +262,31 @@
 }
 .dnd-sheet .btn.pink {
   border-color: var(--hotpink);
-  background: rgba(255, 45, 139, 0.14);
-  color: #ffd6e8;
+  background: rgba(var(--hotpink-rgb), 0.14);
+  color: var(--hotpink);
 }
 .dnd-sheet .btn.pink:hover {
-  background: rgba(255, 45, 139, 0.28);
-  box-shadow: 0 0 18px -4px rgba(255, 45, 139, 0.6);
+  background: rgba(var(--hotpink-rgb), 0.28);
+  box-shadow: 0 0 18px -4px rgba(var(--hotpink-rgb), 0.6);
 }
 .dnd-sheet .btn.teal {
   border-color: var(--teal);
-  background: rgba(18, 182, 182, 0.14);
-  color: #bff6f6;
+  background: rgba(var(--teal-rgb), 0.14);
+  color: var(--tealbright);
 }
 .dnd-sheet .btn.teal:hover {
-  background: rgba(18, 182, 182, 0.28);
-  box-shadow: 0 0 18px -4px rgba(34, 224, 224, 0.6);
+  background: rgba(var(--teal-rgb), 0.28);
+  box-shadow: 0 0 18px -4px rgba(var(--tealbright-rgb), 0.6);
 }
 .dnd-sheet .btn.gold {
-  border-color: rgba(255, 204, 63, 0.6);
-  background: rgba(255, 204, 63, 0.12);
-  color: #ffe9a8;
+  border-color: rgba(var(--gold-rgb), 0.6);
+  background: rgba(var(--gold-rgb), 0.12);
+  color: var(--gold);
 }
 .dnd-sheet .btn.danger {
   border-color: var(--danger);
   background: rgba(255, 82, 82, 0.14);
-  color: #ffc4c4;
+  color: var(--danger);
 }
 .dnd-sheet .btn.solid {
   background: var(--hotpink);
@@ -274,7 +295,7 @@
   font-weight: 700;
 }
 .dnd-sheet .btn.solid:hover {
-  box-shadow: 0 0 22px -4px rgba(255, 45, 139, 0.8);
+  box-shadow: 0 0 22px -4px rgba(var(--hotpink-rgb), 0.8);
 }
 .dnd-sheet .btn.tiny {
   padding: 4px 9px;
@@ -285,23 +306,23 @@
 }
 .dnd-sheet .btn.active {
   border-color: var(--tealbright);
-  background: rgba(34, 224, 224, 0.2);
-  color: #d7ffff;
-  box-shadow: inset 0 0 0 1px rgba(34, 224, 224, 0.4);
+  background: rgba(var(--tealbright-rgb), 0.2);
+  color: var(--tealbright);
+  box-shadow: inset 0 0 0 1px rgba(var(--tealbright-rgb), 0.4);
 }
 .dnd-sheet .btn.active.pink {
   border-color: var(--hotpink);
-  background: rgba(255, 45, 139, 0.28);
-  color: #ffe0ee;
-  box-shadow: inset 0 0 0 1px rgba(255, 45, 139, 0.5);
+  background: rgba(var(--hotpink-rgb), 0.28);
+  color: var(--hotpink);
+  box-shadow: inset 0 0 0 1px rgba(var(--hotpink-rgb), 0.5);
 }
 /* Toggled-on buttons (Go Live, chat mode, vibe presets) — a clear, readable filled
    state so the active choice reads at a glance on any skin. */
 .dnd-sheet .btn.on {
   border-color: var(--gold, #c89b3c);
-  background: rgba(255, 204, 63, 0.22);
-  color: #fff3d1;
-  box-shadow: inset 0 0 0 1px rgba(255, 204, 63, 0.45);
+  background: rgba(var(--gold-rgb), 0.22);
+  color: var(--gold);
+  box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.45);
 }
 
 /* ── Stream DM controls: legible form fields on any skin ───────────────────────
@@ -319,7 +340,7 @@
 }
 .dnd-sheet .stream-control select option {
   color: #f4f1fb;
-  background: #140d26;
+  background: var(--panel-2);
 }
 .dnd-sheet .stream-control input::placeholder { color: #a9a2bf; opacity: 1; }
 .dnd-sheet .stream-control input[type='range'] { accent-color: var(--hotpink, #ff2d8b); }
@@ -350,7 +371,7 @@
   justify-content: center;
   border-radius: 8px;
   border: 1px solid var(--line);
-  background: rgba(139, 92, 246, 0.12);
+  background: rgba(var(--violet-rgb), 0.12);
   color: var(--ink);
   cursor: pointer;
   font-size: 18px;
@@ -359,7 +380,7 @@
 }
 .dnd-sheet .step:hover {
   border-color: var(--line-strong);
-  background: rgba(139, 92, 246, 0.24);
+  background: rgba(var(--violet-rgb), 0.24);
 }
 .dnd-sheet .step:disabled {
   opacity: 0.35;
@@ -403,7 +424,7 @@
   font-weight: 700;
   font-size: 30px;
   line-height: 1;
-  color: #fff;
+  color: var(--ink);
   margin: 4px 0 2px;
 }
 .dnd-sheet .stat .sub {
@@ -447,7 +468,7 @@
   letter-spacing: 0.04em;
   font-size: clamp(23px, 4vw, 31px);
   margin: 0;
-  color: #fff;
+  color: var(--ink);
 }
 .dnd-sheet p.lead {
   color: var(--muted);
@@ -455,7 +476,7 @@
   margin: 0 0 18px;
 }
 .dnd-sheet strong {
-  color: #fff;
+  color: var(--ink);
   font-weight: 600;
 }
 .dnd-sheet em.term {
@@ -482,7 +503,7 @@
   letter-spacing: 0.03em;
   font-size: 21px;
   margin: 0 0 10px;
-  color: #fff;
+  color: var(--ink);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -552,7 +573,7 @@
   font-weight: 700;
   font-size: 34px;
   line-height: 1;
-  color: #fff;
+  color: var(--ink);
   margin: 3px 0;
 }
 .dnd-sheet .ab .mod {
@@ -637,7 +658,7 @@
   padding: 6px 12px;
   border-radius: 8px;
   border: 1px solid var(--line);
-  background: rgba(34, 224, 224, 0.08);
+  background: rgba(var(--tealbright-rgb), 0.08);
   color: var(--tealbright);
   cursor: pointer;
   min-width: 58px;
@@ -646,21 +667,21 @@
 }
 .dnd-sheet .rollbtn:hover {
   border-color: var(--tealbright);
-  background: rgba(34, 224, 224, 0.2);
+  background: rgba(var(--tealbright-rgb), 0.2);
   box-shadow: 0 0 14px -4px var(--tealbright);
 }
 .dnd-sheet .rollbtn.pink {
   color: var(--pink);
-  background: rgba(255, 45, 139, 0.08);
+  background: rgba(var(--hotpink-rgb), 0.08);
 }
 .dnd-sheet .rollbtn.pink:hover {
   border-color: var(--hotpink);
-  background: rgba(255, 45, 139, 0.2);
+  background: rgba(var(--hotpink-rgb), 0.2);
   box-shadow: 0 0 14px -4px var(--hotpink);
 }
 .dnd-sheet .rollbtn.gold {
   color: var(--gold);
-  background: rgba(255, 204, 63, 0.08);
+  background: rgba(var(--gold-rgb), 0.08);
 }
 
 /* ------------------------------------------------------------------ TABLE */
@@ -688,7 +709,7 @@
   letter-spacing: 0.06em;
   font-size: 13px;
   color: var(--tealbright);
-  background: rgba(18, 182, 182, 0.08);
+  background: rgba(var(--teal-rgb), 0.08);
 }
 .dnd-sheet td {
   color: var(--ink);
@@ -702,24 +723,24 @@
   font-weight: 600;
 }
 .dnd-sheet tr.here {
-  background: rgba(255, 45, 139, 0.07);
+  background: rgba(var(--hotpink-rgb), 0.07);
 }
 
 /* ------------------------------------------------------------------ CALLOUTS */
 .dnd-sheet .callout {
   border-left: 3px solid var(--tealbright);
-  background: rgba(34, 224, 224, 0.06);
+  background: rgba(var(--tealbright-rgb), 0.06);
   border-radius: 0 12px 12px 0;
   padding: 15px 20px;
   margin: 16px 0;
 }
 .dnd-sheet .callout.warn {
   border-color: var(--gold);
-  background: rgba(255, 204, 63, 0.07);
+  background: rgba(var(--gold-rgb), 0.07);
 }
 .dnd-sheet .callout.pink {
   border-color: var(--hotpink);
-  background: rgba(255, 45, 139, 0.07);
+  background: rgba(var(--hotpink-rgb), 0.07);
 }
 .dnd-sheet .callout h4 {
   font-family: var(--font-display);
@@ -781,7 +802,7 @@
 }
 .dnd-sheet .form.activeform {
   border-color: var(--hotpink);
-  box-shadow: 0 0 34px -10px rgba(255, 45, 139, 0.55);
+  box-shadow: 0 0 34px -10px rgba(var(--hotpink-rgb), 0.55);
 }
 .dnd-sheet .form-bar {
   height: 5px;
@@ -817,7 +838,7 @@
   font-weight: 700;
   text-transform: uppercase;
   font-size: 23px;
-  color: #fff;
+  color: var(--ink);
   letter-spacing: 0.02em;
   margin: 0;
 }
@@ -838,15 +859,15 @@
 }
 .dnd-sheet .badge.lv {
   color: var(--gold);
-  border-color: rgba(255, 204, 63, 0.5);
+  border-color: rgba(var(--gold-rgb), 0.5);
 }
 .dnd-sheet .badge.at-will {
   color: var(--tealbright);
-  border-color: rgba(34, 224, 224, 0.5);
+  border-color: rgba(var(--tealbright-rgb), 0.5);
 }
 .dnd-sheet .badge.timed {
   color: var(--hotpink);
-  border-color: rgba(255, 45, 139, 0.5);
+  border-color: rgba(var(--hotpink-rgb), 0.5);
 }
 .dnd-sheet .badge.now {
   color: var(--void);
@@ -917,7 +938,7 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   font-size: 16px;
-  color: #fff;
+  color: var(--ink);
 }
 .dnd-sheet .res-head .rc {
   font-family: var(--font-mono);
@@ -940,7 +961,7 @@
 /* Readable opened dropdown lists on EVERY sheet (Lazzuh, generic, and the streamer):
    a dark list with light text — native option lists otherwise render white + faint. */
 .dnd-sheet select option {
-  background: #140d26;
+  background: var(--panel-2);
   color: #f4f1fb;
 }
 .dnd-sheet input:focus,
@@ -948,7 +969,7 @@
 .dnd-sheet select:focus {
   outline: none;
   border-color: var(--tealbright);
-  box-shadow: 0 0 0 2px rgba(34, 224, 224, 0.18);
+  box-shadow: 0 0 0 2px rgba(var(--tealbright-rgb), 0.18);
 }
 .dnd-sheet input.mono {
   font-family: var(--font-mono);
@@ -1006,7 +1027,7 @@
   z-index: 60;
   border: 1px solid var(--line-strong);
   border-radius: 16px;
-  background: linear-gradient(160deg, rgba(27, 15, 48, 0.98), rgba(8, 5, 18, 0.98));
+  background: linear-gradient(160deg, rgba(var(--panel-2-rgb), 0.98), rgba(var(--void-rgb), 0.98));
   box-shadow: 0 22px 60px -18px rgba(0, 0, 0, 0.9), 0 0 40px -20px var(--hotpink);
   backdrop-filter: blur(6px);
   overflow: hidden;
@@ -1021,14 +1042,14 @@
   justify-content: space-between;
   padding: 12px 16px;
   border-bottom: 1px solid var(--line);
-  background: rgba(139, 92, 246, 0.1);
+  background: rgba(var(--violet-rgb), 0.1);
 }
 .dnd-sheet .tray-title {
   font-family: var(--font-display);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 15px;
-  color: #fff;
+  color: var(--ink);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1062,11 +1083,11 @@
 }
 .dnd-sheet .adv-seg button.on-dis {
   background: rgba(255, 82, 82, 0.22);
-  color: #ffc4c4;
+  color: var(--danger);
 }
 .dnd-sheet .adv-seg button.on-flat {
-  background: rgba(139, 92, 246, 0.28);
-  color: #fff;
+  background: rgba(var(--violet-rgb), 0.28);
+  color: var(--ink);
 }
 .dnd-sheet .tray-surge {
   display: flex;
@@ -1085,7 +1106,7 @@
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.1em;
-  color: #ffc4c4;
+  color: var(--danger);
   border: 1px solid var(--danger);
   border-radius: 6px;
   padding: 3px 8px;
@@ -1126,7 +1147,7 @@
   text-transform: uppercase;
   letter-spacing: 0.02em;
   font-size: 17px;
-  color: #fff;
+  color: var(--ink);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1264,7 +1285,7 @@
   cursor: grab;
   touch-action: none;
   border-bottom: 1px solid var(--line);
-  background: rgba(139, 92, 246, 0.14);
+  background: rgba(var(--violet-rgb), 0.14);
 }
 .dnd-sheet .stream-dock-head:active { cursor: grabbing; }
 .dnd-sheet .stream-dock-head .sd-live {
@@ -1478,7 +1499,7 @@
   text-transform: uppercase;
   letter-spacing: 0.03em;
   font-size: 14px;
-  color: #fff;
+  color: var(--ink);
 }
 .dnd-sheet .roll-entry .re-total {
   font-family: var(--font-display);
@@ -1543,7 +1564,7 @@
 }
 .dnd-sheet .inv-name {
   font-weight: 600;
-  color: #fff;
+  color: var(--ink);
 }
 .dnd-sheet .inv-desc {
   color: var(--muted);
@@ -1568,16 +1589,16 @@
 }
 .dnd-sheet .tag.equipped {
   color: var(--tealbright);
-  border-color: rgba(34, 224, 224, 0.5);
-  background: rgba(34, 224, 224, 0.08);
+  border-color: rgba(var(--tealbright-rgb), 0.5);
+  background: rgba(var(--tealbright-rgb), 0.08);
 }
 .dnd-sheet .tag.consumable {
   color: var(--gold);
-  border-color: rgba(255, 204, 63, 0.5);
+  border-color: rgba(var(--gold-rgb), 0.5);
 }
 .dnd-sheet .tag.weapon {
   color: var(--pink);
-  border-color: rgba(255, 45, 139, 0.5);
+  border-color: rgba(var(--hotpink-rgb), 0.5);
 }
 
 .dnd-sheet .currency-grid {
@@ -1622,7 +1643,7 @@
   flex-wrap: wrap;
   padding: 10px 12px;
   margin: -26px -20px 0;
-  background: linear-gradient(180deg, rgba(8, 5, 18, 0.96), rgba(8, 5, 18, 0.7));
+  background: linear-gradient(180deg, rgba(var(--void-rgb), 0.96), rgba(var(--void-rgb), 0.7));
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--line);
 }
@@ -1640,7 +1661,7 @@
 .dnd-sheet .topnav a:hover {
   color: var(--ink);
   border-color: var(--line);
-  background: rgba(139, 92, 246, 0.12);
+  background: rgba(var(--violet-rgb), 0.12);
 }
 
 /* ------------------------------------------------------------------ MODAL */
@@ -1702,9 +1723,11 @@
   height: 178px;
   border-radius: 14px;
   overflow: hidden;
-  background: radial-gradient(120% 120% at 50% 0%, #150a26 0%, #0a0616 70%, #060310 100%);
+  /* The dice "screen" follows the skin's own surfaces — this was hardcoded to the original
+     dark plum, which sat as a black slab in the middle of the light parchment skins. */
+  background: radial-gradient(120% 120% at 50% 0%, var(--panel-3) 0%, var(--panel) 70%, var(--void) 100%);
   border: 1px solid var(--line-strong);
-  box-shadow: inset 0 0 40px -10px rgba(139, 92, 246, 0.5), inset 0 0 0 1px rgba(34, 224, 224, 0.08);
+  box-shadow: inset 0 0 40px -10px rgba(var(--violet-rgb), 0.5), inset 0 0 0 1px rgba(var(--tealbright-rgb), 0.08);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -1736,15 +1759,15 @@
   animation: wireflow 2.4s linear infinite;
 }
 .dnd-sheet .stage-wires .w1 {
-  stroke: rgba(34, 224, 224, 0.55);
+  stroke: rgba(var(--tealbright-rgb), 0.55);
 }
 .dnd-sheet .stage-wires .w2 {
-  stroke: rgba(255, 45, 139, 0.5);
+  stroke: rgba(var(--hotpink-rgb), 0.5);
   animation-duration: 3.1s;
   animation-direction: reverse;
 }
 .dnd-sheet .stage-wires .w3 {
-  stroke: rgba(167, 139, 250, 0.55);
+  stroke: rgba(var(--violet-2-rgb), 0.55);
   animation-duration: 1.8s;
 }
 @keyframes wireflow {
@@ -1786,7 +1809,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(rgba(34, 224, 224, 0.05) 1px, transparent 1px);
+  background: linear-gradient(rgba(var(--tealbright-rgb), 0.05) 1px, transparent 1px);
   background-size: 100% 4px;
   mix-blend-mode: overlay;
   animation: scanmove 6s linear infinite;
@@ -2048,7 +2071,7 @@
   z-index: 45;
   margin: 12px 0 8px;
   padding: 10px 0 4px;
-  background: linear-gradient(180deg, var(--void) 60%, rgba(8, 5, 18, 0.82));
+  background: linear-gradient(180deg, var(--void) 60%, rgba(var(--void-rgb), 0.82));
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
 }
@@ -2089,7 +2112,7 @@
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 20px;
-  color: #fff;
+  color: var(--ink);
   display: inline-flex;
   align-items: baseline;
   gap: 1px;
@@ -2159,7 +2182,7 @@
 /* level control pill */
 .dnd-sheet .vpill.level {
   border-color: var(--gold);
-  background: rgba(255, 204, 63, 0.08);
+  background: rgba(var(--gold-rgb), 0.08);
 }
 .dnd-sheet .vpill.level .vk {
   color: #ffe9a8;
@@ -2182,7 +2205,7 @@
   width: 26px;
   height: 26px;
   font-size: 16px;
-  border-color: rgba(255, 204, 63, 0.5);
+  border-color: rgba(var(--gold-rgb), 0.5);
 }
 
 /* locked feature / attack styling */
@@ -2209,12 +2232,12 @@
   transition: background 0.12s ease, box-shadow 0.12s ease;
 }
 .dnd-sheet .inline-num:hover {
-  background: rgba(34, 224, 224, 0.14);
+  background: rgba(var(--tealbright-rgb), 0.14);
   box-shadow: inset 0 -2px 0 var(--tealbright);
 }
 .dnd-sheet .inline-num.is-temp {
   color: var(--gold);
-  background: rgba(255, 204, 63, 0.14);
+  background: rgba(var(--gold-rgb), 0.14);
   box-shadow: inset 0 -2px 0 var(--gold);
   border-radius: 4px;
   padding: 0 3px;
@@ -2231,7 +2254,7 @@
   vertical-align: middle;
 }
 .dnd-sheet .temp-revert:hover {
-  background: rgba(255, 204, 63, 0.2);
+  background: rgba(var(--gold-rgb), 0.2);
 }
 .dnd-sheet .inline-edit {
   width: 3.2ch;
@@ -2256,7 +2279,7 @@
   margin: 8px 0 0;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: linear-gradient(180deg, rgba(19, 10, 32, 0.9), rgba(8, 5, 18, 0.6));
+  background: linear-gradient(180deg, rgba(var(--panel-rgb), 0.9), rgba(var(--void-rgb), 0.6));
   z-index: 40;
 }
 .dnd-sheet .tab {
@@ -2278,13 +2301,13 @@
 }
 .dnd-sheet .tab:hover {
   color: var(--ink);
-  background: rgba(139, 92, 246, 0.12);
+  background: rgba(var(--violet-rgb), 0.12);
 }
 .dnd-sheet .tab.on {
   color: #fff;
   border-color: var(--line-strong);
-  background: rgba(255, 45, 139, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(255, 45, 139, 0.25), 0 0 18px -8px var(--hotpink);
+  background: rgba(var(--hotpink-rgb), 0.14);
+  box-shadow: inset 0 0 0 1px rgba(var(--hotpink-rgb), 0.25), 0 0 18px -8px var(--hotpink);
 }
 .dnd-sheet .tab.on::before {
   content: '';
@@ -2321,7 +2344,7 @@
 }
 .dnd-sheet .atk-name:hover {
   color: var(--pink);
-  text-shadow: 0 0 12px rgba(255, 45, 139, 0.6);
+  text-shadow: 0 0 12px rgba(var(--hotpink-rgb), 0.6);
 }
 .dnd-sheet .muted {
   color: var(--muted);
@@ -3206,7 +3229,7 @@
    =================================================================== */
 .dnd-sheet.skin-rulebook {
   background:
-    radial-gradient(1100px 720px at 50% -12%, rgba(181, 80, 31, 0.05), transparent 60%),
+    radial-gradient(1100px 720px at 50% -12%, rgba(var(--hotpink-rgb), 0.05), transparent 60%),
     #efe7d6;
   background-attachment: fixed;
   color: var(--ink);
@@ -3241,15 +3264,15 @@
    (the "Core Pugilist Traits" table look). */
 .dnd-sheet.skin-rulebook table { border-collapse: collapse; }
 .dnd-sheet.skin-rulebook th {
-  background: rgba(181, 80, 31, 0.10);
+  background: rgba(var(--hotpink-rgb), 0.10);
   color: var(--hotpink);
   font-family: var(--font-display);
   border: 1px solid var(--line);
 }
 .dnd-sheet.skin-rulebook td { border: 1px solid var(--line); }
 .dnd-sheet.skin-rulebook td:first-child { color: var(--hotpink); font-weight: 600; }
-.dnd-sheet.skin-rulebook .callout { border-left-color: var(--hotpink); background: rgba(181, 80, 31, 0.06); }
-.dnd-sheet.skin-rulebook ::selection { background: rgba(181, 80, 31, 0.22); color: var(--ink); }
+.dnd-sheet.skin-rulebook .callout { border-left-color: var(--hotpink); background: rgba(var(--hotpink-rgb), 0.06); }
+.dnd-sheet.skin-rulebook ::selection { background: rgba(var(--hotpink-rgb), 0.22); color: var(--ink); }
 
 /* ===================================================================
    HEXTECH DEFAULT SKIN — the site's League-of-Legends / Hextech look,

@@ -175,33 +175,37 @@ export const donataTheme: SheetTheme = {
 };
 
 // Jack the Rangor — the bespoke "homebrew rulebook" skin (worn only by Jack). A printed-page look
-// like the shared Pugilist PDF: aged-parchment grounds, burnt-orange section headers/keywords, forest-
-// green links/terms, and bordered trait tables. Deliberately NOT dark neon (Lazzuh), pixel/CRT
-// (streamer), or candy (Donata). A LIGHT theme, so void/panel are cream and ink is a warm near-black;
-// saturated tokens stay legible on the parchment. `teal`/`tealbright` are repurposed away from cyan
-// (they back links/mods/table-headers in the base sheet) to a rulebook green.
+// like the shared Pugilist PDF, in STONE AND MOSS to match his art: warm grey parchment grounds,
+// deep moss-green section headers/keywords/links, stone-grey structure, and a bronze secondary.
+// Deliberately NOT dark neon (Lazzuh), pixel/CRT (streamer), or candy (Donata) — and no pink or
+// orange anywhere. A LIGHT theme, so void/panel are stone-cream and ink is a warm near-black.
+// The engine's token names (`pink`, `hotpink`, `teal`, `violet`) are historical: what matters is
+// the value each carries here. Every accent below is checked ≥4.5:1 against the card it sits on.
 // Spec: docs/planning/in-progress/DND_JACK_RANGOR_PUGILIST_2026-07-15.md
 export const rangorTheme: SheetTheme = {
   colors: {
-    void: '#efe7d6',      // parchment page
-    'void-2': '#e5dbc4',
-    panel: '#fbf6ea',     // aged-paper card
-    'panel-2': '#f3ebd8',
-    'panel-3': '#efe6cf',
-    ink: '#2b2118',       // warm near-black — ~12:1 on cream (AAA)
-    muted: '#6b5c47',     // ~5.4:1 (AA)
-    'muted-2': '#877a63', // labels only
-    pink: '#e06a2c',      // burnt orange (background fill)
-    hotpink: '#b5501f',   // primary accent — section nums, values, headers, keywords (~5.2:1)
-    violet: '#7a6a52',    // stone/earth accent
-    'violet-2': '#5c4f3c',
-    teal: '#3f8f5c',      // rulebook green (background fill)
-    tealbright: '#2f7d4a', // link/mod/term green — ~4.6:1 on cream
-    gold: '#a9781a',      // legible amber, ~4.7:1
-    danger: '#c0392b',
-    good: '#2f7d4a',
-    line: 'rgba(120, 90, 50, 0.28)',
-    'line-strong': 'rgba(181, 80, 31, 0.5)',
+    void: '#e8e4d9',      // warm stone-grey page
+    'void-2': '#dcd7c9',
+    panel: '#f6f3ea',     // aged-paper card
+    'panel-2': '#ece7d9',
+    'panel-3': '#e3ddcc',
+    ink: '#232019',       // warm near-black — ~14:1 on the card (AAA)
+    muted: '#5f5849',     // ~6.5:1 (AA)
+    'muted-2': '#7d7565',  // labels only — ~4.6:1
+    // The `pink`/`hotpink` token NAMES are the engine's, not the look: for Jack they carry a
+    // moss green. Every rgba() fill in the base sheet is derived from these (see the
+    // `--<token>-rgb` triplets), so nothing on his sheet renders pink.
+    pink: '#5f7d55',      // sage (translucent fills/tints)
+    hotpink: '#3f6b45',   // primary accent — section nums, values, headers (~5.9:1 on the card)
+    violet: '#6b665e',    // stone grey (structure/lines)
+    'violet-2': '#4a4640',
+    teal: '#6f7f6a',      // muted green (background fill)
+    tealbright: '#3d5c4a', // link/mod/term green — ~7:1 on the card
+    gold: '#8a6a2f',      // bronze — ~5.1:1
+    danger: '#a63d2f',    // muted brick
+    good: '#3d5c4a',
+    line: 'rgba(90, 84, 70, 0.30)',
+    'line-strong': 'rgba(63, 107, 69, 0.55)',
   },
   fonts: {
     // Zilla Slab = a sturdy slab-serif for the rulebook section headers; Inter = a clean, highly
@@ -248,11 +252,28 @@ export const streamerThemeBlue: SheetTheme = {
 // Map a SheetTheme to the CSS custom properties theme.css consumes. Returns a
 // style object suitable for the `.dnd-sheet` root; an empty/undefined theme yields
 // no overrides (the stylesheet's Lazzuh defaults apply).
+/** '#b5501f' → '181, 80, 31'. Returns null for non-hex values (rgba()/var() tokens). */
+function hexToRgbTriplet(hex: string): string | null {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  let h = m[1];
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  const n = parseInt(h, 16);
+  return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
+}
+
 export function themeToCssVars(theme?: SheetTheme | null): CSSProperties {
   const vars: Record<string, string> = {};
   if (theme?.colors) {
     for (const [token, value] of Object.entries(theme.colors)) {
-      if (value) vars[`--${token}`] = value;
+      if (!value) continue;
+      vars[`--${token}`] = value;
+      // Also expose an "r, g, b" triplet per token so the stylesheet can build translucent
+      // fills/glows with rgba(var(--hotpink-rgb), .28) that FOLLOW the character's palette.
+      // Without this, rgba() literals in the base sheet (written for the original neon skin)
+      // bypass the theme entirely and bleed hot pink onto every other character.
+      const rgb = hexToRgbTriplet(value);
+      if (rgb) vars[`--${token}-rgb`] = rgb;
     }
   }
   if (theme?.fonts?.display) vars['--font-display'] = theme.fonts.display;

@@ -5,18 +5,47 @@ import { rulesForSystem, systemSkills, systemClasses, systemSpecies, systemCondi
 import { GAME_SYSTEMS } from '@/lib/dnd/systems';
 
 describe('system content lists (Slice 2)', () => {
+  // Floors that hold for EVERY system, including the non-d20 ones. They are lower than the
+  // d20-fantasy numbers on purpose: Call of Cthulhu investigators are all human (1 "species"),
+  // Blades has 7 playbooks, and Shadowrun has exactly 5 metatypes. Those are the real rules —
+  // the richer d20 lists are asserted separately below so that coverage isn't lost.
   it('every system has non-empty, well-formed lists', () => {
     for (const s of GAME_SYSTEMS) {
       const r = rulesForSystem(s.key)!;
-      expect(r.content.skills.length, `${s.key} skills`).toBeGreaterThan(10);
-      expect(r.content.classes.length, `${s.key} classes`).toBeGreaterThan(8);
-      expect(r.content.species.length, `${s.key} species`).toBeGreaterThan(5);
-      expect(r.content.conditions.length, `${s.key} conditions`).toBeGreaterThan(10);
+      expect(r.content.skills.length, `${s.key} skills`).toBeGreaterThanOrEqual(10);
+      expect(r.content.classes.length, `${s.key} classes`).toBeGreaterThanOrEqual(6);
+      expect(r.content.species.length, `${s.key} species`).toBeGreaterThanOrEqual(1);
+      expect(r.content.conditions.length, `${s.key} conditions`).toBeGreaterThanOrEqual(8);
       // Every class references an ability the system defines.
       const abilities = new Set(r.ability.abilities);
       for (const c of r.content.classes) expect(abilities.has(c.keyAbility), `${s.key} ${c.name} keyAbility`).toBe(true);
       // Every skill's governing ability is one the system defines.
       for (const sk of r.content.skills) expect(abilities.has(sk.ability), `${s.key} ${sk.name}`).toBe(true);
+    }
+  });
+
+  // The d20 fantasy systems keep the richer lists the original floors were written for.
+  it('the d20 fantasy systems still carry full class/species/condition lists', () => {
+    for (const key of ['dnd5e-2014', 'dnd5e-2024', 'pathfinder2e', 'pathfinder1e', 'starfinder1e']) {
+      const r = rulesForSystem(key)!;
+      expect(r.content.classes.length, `${key} classes`).toBeGreaterThan(8);
+      expect(r.content.species.length, `${key} species`).toBeGreaterThan(5);
+      expect(r.content.conditions.length, `${key} conditions`).toBeGreaterThan(10);
+    }
+  });
+
+  // The point of adding non-d20 systems: prove the model can express them WITHOUT inventing
+  // d20 scaffolding. These systems have no levels and no hit dice — that must be represented.
+  it('the level-less systems declare no levels and no hit dice', () => {
+    for (const key of ['coc7e', 'blades', 'cyberpunk-red', 'shadowrun6e']) {
+      const r = rulesForSystem(key)!;
+      expect(r.levelMin, `${key} levelMin`).toBe(1);
+      expect(r.levelMax, `${key} levelMax`).toBe(1); // levelMin === levelMax === 1 ⇒ no levels
+      expect(r.profBonusByLevel, `${key} has no proficiency bonus`).toBeNull();
+      for (const c of r.content.classes) {
+        expect(c.hitDie, `${key} ${c.name} hitDie`).toBeNull();
+        expect(c.hpPerLevel, `${key} ${c.name} hpPerLevel`).toBeNull();
+      }
     }
   });
 

@@ -3,9 +3,13 @@ import { useChar } from '../state/store'
 import type { RollEntry } from '../state/store'
 import { tick, blip, errorBuzz, tada, whoosh, isMuted, primeAudio } from '../lib/audio'
 
+// The rolling number cycles through the CHARACTER'S accent tokens, not a fixed rainbow.
+// This used to be a hardcoded neon list (hot pink, magenta, cyan…), which meant every sheet's
+// dice roller flashed the original neon palette regardless of its theme — jarring on the
+// earthy/parchment skins. Resolved at paint time by the browser, so each theme supplies its own.
 const NEON = [
-  '#ff2d8b', '#ff5fb0', '#22e0e0', '#12b6b6', '#ffcc3f', '#a78bfa', '#8b5cf6',
-  '#4ade80', '#ff7a3d', '#60a5fa', '#f472b6', '#22d3ee', '#a3e635', '#fb7185', '#38bdf8', '#e879f9',
+  'var(--hotpink)', 'var(--pink)', 'var(--tealbright)', 'var(--teal)',
+  'var(--gold)', 'var(--violet-2)', 'var(--violet)', 'var(--good)',
 ]
 const FONTS = [
   "'Orbitron'", "'Audiowide'", "'Chakra Petch'", "'Rajdhani'", "'Syncopate'", "'Michroma'", "'JetBrains Mono'", "'Oswald'",
@@ -94,7 +98,8 @@ export default function RollStage() {
       } else {
         setDisplay(landing)
         setStyle({
-          color: fumble ? '#ff3b3b' : crit ? '#8fe3ff' : randOf(NEON),
+          // Themed rather than hardcoded red/cyan, so a crit/fumble reads correctly on every skin.
+          color: fumble ? 'var(--danger)' : crit ? 'var(--gold)' : randOf(NEON),
           fontFamily: fumble ? "'Oswald'" : crit ? "'Orbitron'" : randOf(FONTS),
           fontWeight: 900,
           rotate: 0,

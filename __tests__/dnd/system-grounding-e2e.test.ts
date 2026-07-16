@@ -18,6 +18,19 @@ const SIGNATURE: Record<string, { must: RegExp; mustNot: RegExp[] }> = {
   // Intuitive Games: its own signatures (levels 1–10, degrees of success, three saves); never 5e's
   // six ability-saves or the 2024 Origin Feat.
   'intuitive-games': { must: /DEGREES OF SUCCESS/, mustNot: [/Six saving throws/, /Origin Feat/i] },
+  // Pathfinder 1e: BAB + confirmed crits are exclusively its own; never 5e's proficiency bonus
+  // model or PF2's three-action economy.
+  pathfinder1e: { must: /BASE ATTACK BONUS/, mustNot: [/Six saving throws/, /Origin Feat/i, /THREE actions/] },
+  // Starfinder: EAC/KAC + Stamina/Resolve are unique to it.
+  starfinder1e: { must: /EAC/, mustNot: [/Six saving throws/, /Origin Feat/i, /THREE actions/] },
+  // Call of Cthulhu: percentile roll-under. Must never carry d20 scaffolding.
+  coc7e: { must: /roll UNDER/i, mustNot: [/Six saving throws/, /Origin Feat/i, /THREE actions/, /BASE ATTACK BONUS/] },
+  // Blades: highest-die d6 pool + position/effect.
+  blades: { must: /highest die/i, mustNot: [/Six saving throws/, /Origin Feat/i, /BASE ATTACK BONUS/, /Armor Class/] },
+  // Cyberpunk RED: 1d10 + STAT + SKILL.
+  'cyberpunk-red': { must: /1d10 \+ STAT \+ SKILL/, mustNot: [/Six saving throws/, /Origin Feat/i, /BASE ATTACK BONUS/] },
+  // Shadowrun: d6 pool counting hits on 5–6.
+  shadowrun6e: { must: /hits on 5/i, mustNot: [/Six saving throws/, /Origin Feat/i, /BASE ATTACK BONUS/] },
 };
 
 describe('system grounding + validation end-to-end (Slice 5 QA)', () => {
