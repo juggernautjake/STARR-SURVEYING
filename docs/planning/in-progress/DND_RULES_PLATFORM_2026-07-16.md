@@ -1057,8 +1057,11 @@ those. Style is presentation; meaning is data. The AI gets both, through differe
       control. `bonusToHit` / `bonusDamage` were already editable. 4 tests.
 - [ ] **Weapon ITEMS** (ItemBuilder) still have no to-hit / save-DC field of their own — they'd
       inherit whatever the derived attack computes. Add the same controls there.
-- [ ] **Spells** still have no editor at all (needs the ⋯ path, Slice 27, extended to the Spells
-      tab); their DC/attack should default to the casting stat but be overridable.
+- [x] **Spells now have an editor** (`SpellEditor`, reached via the ⋯ menu on each spell row —
+      Slice 27 extended to the Spells tab). Edits name, level, school, timing, components, duration,
+      description, concentration/ritual, and **how it resolves: a spell attack roll OR a save (which
+      ability, what happens on a success) against the spell save DC**. The DC/attack come from the
+      casting stat on the sheet. 5 tests.
 - [ ] Route DC bonuses through the ledger (`spell_save_dc`, `spell_attack`) so an item that grants
       a DC bonus and a spell that sets its own DC compose (after Slice 10's fix,
       `value('spell_save_dc', base)` is correct).

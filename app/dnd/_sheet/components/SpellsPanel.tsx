@@ -3,10 +3,13 @@
 // caster header (ability · save DC · attack bonus · prepared/cap), then cantrips + one section
 // per spell level with slot pips, and a readable card per spell (stat line, description, typed
 // damage / save / heal). Casting + prepare-toggle come in Slice 4. Theme-token styled → all skins.
+import { useState } from 'react'
 import { useChar } from '../state/store'
 import { abilityMod, profBonusForLevel, signed } from '../rules/dnd'
 import { md } from '../lib/inline'
 import SectionHead from './ui/SectionHead'
+import ElementMenu from './ui/ElementMenu'
+import SpellEditor from './ui/SpellEditor'
 import type { Spell, SpellLevel } from '../types'
 
 const ORDINAL = ['Cantrips', '1st Level', '2nd Level', '3rd Level', '4th Level', '5th Level', '6th Level', '7th Level', '8th Level', '9th Level']
@@ -21,6 +24,13 @@ function damageLine(s: Spell): string {
 
 export default function SpellsPanel() {
   const { char, setChar, editMode, canWrite, castSpell, setSpellSlot, restoreSpellSlots } = useChar()
+  const [editing, setEditing] = useState<Spell | null>(null)
+  const duplicate = (sp: Spell) =>
+    setChar((c) => ({ ...c, spells: [...(c.spells ?? []), { ...sp, id: `${sp.id}-copy-${(c.spells ?? []).length}`, name: `${sp.name} (copy)` }] }))
+  const remove = (sp: Spell) => {
+    if (!confirm(`Delete “${sp.name}”? This cannot be undone.`)) return
+    setChar((c) => ({ ...c, spells: (c.spells ?? []).filter((x) => x.id !== sp.id) }))
+  }
   const sc = char.spellcasting
   const spells = char.spells ?? []
 
@@ -94,6 +104,16 @@ export default function SpellsPanel() {
                     <div style={{ fontWeight: 800, color: 'var(--ink)' }}>
                       {s.name}
                       {s.alias && <span style={{ fontSize: 12, color: 'var(--violet)', marginLeft: 6 }}>“{s.alias}”</span>}
+                      {canWrite && (
+                        <ElementMenu
+                          label={s.name}
+                          actions={[
+                            { label: 'Edit spell', onClick: () => setEditing(s) },
+                            { label: 'Duplicate', onClick: () => duplicate(s) },
+                            { label: 'Delete', danger: true, onClick: () => remove(s) },
+                          ]}
+                        />
+                      )}
                     </div>
                     <div className="flex" style={{ gap: 6, flexWrap: 'wrap' }}>
                       {s.concentration && <span className="tag">conc</span>}
@@ -135,6 +155,8 @@ export default function SpellsPanel() {
           </div>
         )
       })}
+
+      {editing && <SpellEditor spell={editing} onClose={() => setEditing(null)} />}
     </section>
   )
 }

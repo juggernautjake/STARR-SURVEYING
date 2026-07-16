@@ -69,6 +69,38 @@ describe('features are editable too', () => {
   });
 });
 
+describe('spells are editable too (Slices 20/27/33)', () => {
+  const SPELLS = read('app/dnd/_sheet/components/SpellsPanel.tsx')
+  const SPELL_EDITOR = read('app/dnd/_sheet/components/ui/SpellEditor.tsx')
+
+  it('the spell row mounts the ⋯ menu, canWrite-gated', () => {
+    expect(SPELLS).toContain('<ElementMenu')
+    expect(SPELLS).toMatch(/canWrite && \(\s*<ElementMenu/)
+  })
+
+  it('the editor covers name, level, school, timing, description and scaling', () => {
+    for (const f of ['name', 'level', 'school', 'castTime', 'range', 'components', 'duration', 'description', 'higher']) {
+      expect(SPELL_EDITOR, `${f} must be editable`).toContain(`'${f}'`)
+    }
+  })
+
+  it('lets the spell resolve by save OR attack — the DC-control ask', () => {
+    // Slice 33 for spells: a spell can declare a save (which ability, what happens on a success)
+    // that the sheet resolves against the spell save DC.
+    expect(SPELL_EDITOR).toMatch(/'attack'/)
+    expect(SPELL_EDITOR).toMatch(/'save'/)
+    expect(SPELL_EDITOR).toMatch(/ability: 'dex'/) // toggling save on seeds a DEX save
+  })
+
+  it('a blank name cannot erase the spell', () => {
+    expect(SPELL_EDITOR).toMatch(/draft\.name\.trim\(\) \|\| spell\.name/)
+  })
+
+  it('writes through setChar', () => {
+    expect(SPELL_EDITOR).toMatch(/spells: \(c\.spells \?\? \[\]\)\.map/)
+  })
+})
+
 describe('the ⋯ menu behaves like a menu', () => {
   it('closes on outside click and Escape', () => {
     // A menu you can only close by picking something is a trap.
