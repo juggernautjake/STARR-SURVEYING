@@ -13,7 +13,7 @@ const CLASSES = classesForSystem(SYS);
 
 describe('the 2014 class roster (authored class-by-class)', () => {
   it('has the classes authored so far, and the system reports it has class data', () => {
-    expect(CLASSES.map((c) => c.name)).toContain('Barbarian');
+    expect(CLASSES.map((c) => c.name)).toEqual(expect.arrayContaining(['Barbarian', 'Fighter']));
     expect(systemHasClasses(SYS)).toBe(true);
   });
 
@@ -85,5 +85,39 @@ describe('Barbarian 2014 — the edition-specific numbers', () => {
   it('offers exactly the two 2014 PHB Primal Paths (Berserker, Totem Warrior)', () => {
     const subs = subclassesFor(SYS, 'barbarian').map((s) => s.name).sort();
     expect(subs).toEqual(['Path of the Berserker', 'Path of the Totem Warrior']);
+  });
+});
+
+describe('Fighter 2014 — the edition-specific numbers', () => {
+  const fighter = findClass(SYS, 'fighter')!;
+
+  it('has the Fighter ASI cadence 4/6/8/12/14/16 PLUS the 2014 slot at 19 (no Epic Boon)', () => {
+    expect(fighter.asiLevels).toEqual([4, 6, 8, 12, 14, 16, 19]);
+    expect(fighter.features.some((f) => f.choice === 'epic-boon')).toBe(false);
+  });
+
+  it('chooses a Fighting Style at level 1 (a class feature in 2014, not a feat)', () => {
+    expect(fighter.features.some((f) => f.level === 1 && f.choice === 'fighting-style')).toBe(true);
+  });
+
+  it('has no Weapon Mastery (2024-only), and Extra Attack scales to four attacks by 20', () => {
+    expect(fighter.features.some((f) => f.name === 'Weapon Mastery')).toBe(false);
+    const at20 = snapshotAtLevel(fighter, 20);
+    expect(at20.features.some((f) => /Extra Attack/.test(f.name))).toBe(true);
+  });
+
+  it('tracks Action Surge (1 → 2 at 17) and Indomitable (from 9) as resources', () => {
+    const surge = fighter.resources!.find((r) => r.id === 'action-surge')!;
+    expect(surge.perLevel[2]).toBe(1);
+    expect(surge.perLevel[17]).toBe(2);
+    const indom = fighter.resources!.find((r) => r.id === 'indomitable')!;
+    expect(indom.perLevel[8]).toBe(0);
+    expect(indom.perLevel[9]).toBe(1);
+    expect(indom.perLevel[17]).toBe(3);
+  });
+
+  it('offers exactly the three 2014 PHB archetypes (Champion, Battle Master, Eldritch Knight)', () => {
+    const subs = subclassesFor(SYS, 'fighter').map((s) => s.name).sort();
+    expect(subs).toEqual(['Battle Master', 'Champion', 'Eldritch Knight']);
   });
 });
