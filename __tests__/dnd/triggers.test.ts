@@ -84,11 +84,12 @@ describe('the Reactions panel surfaces triggers (Slice 15 render home)', () => {
 
 describe('the AI can author triggers on items, validated (Slice 15)', () => {
   it('add_item with triggers round-trips to an active, surfaced trigger', () => {
+    // The AI sends triggers without an id (cleanTriggers mints one) — cast the raw payload as the AI's is.
     const out = applySheetEdits(blankCharacter('Ash'), [{
       op: 'add_item', name: 'Spiked Armour', equipped: true,
       triggers: [{ on: 'hit_by_melee', label: 'Barbs', action: { kind: 'damage', dice: '1d6', damageType: 'piercing' }, limit: { per: 'round', max: 1 } }],
-    }]);
-    const item = out.inventory.find((i: { name: string }) => i.name === 'Spiked Armour');
+    } as unknown as import('@/lib/dnd/sheet-edits').SheetEdit]);
+    const item = out.inventory.find((i) => i.name === 'Spiked Armour')!;
     expect(item.triggers).toHaveLength(1);
     expect(collectTriggers(out)).toHaveLength(1); // active because equipped
   });
@@ -102,3 +103,16 @@ describe('the AI can author triggers on items, validated (Slice 15)', () => {
     expect(ok[0].id).toBeTruthy();
   });
 })
+
+describe('the manual trigger builder gives players parity with the AI (Slice 15)', () => {
+  const read = (p: string) => require('node:fs').readFileSync(require('node:path').join(process.cwd(), p), 'utf8');
+  it('TriggerRows edits the same Trigger shape and is mounted in ItemBuilder', () => {
+    const rows = read('app/dnd/_sheet/components/ui/TriggerRows.tsx');
+    expect(rows).toContain('TRIGGER_EVENT_LABEL'); // event picker from the registry
+    expect(rows).toContain('describeTrigger');     // live preview, same renderer as the panel
+    expect(rows).toContain('+ Add reaction');
+    const builder = read('app/dnd/_sheet/components/ItemBuilder.tsx');
+    expect(builder).toContain('<TriggerRows');
+    expect(builder).toContain('cleanTriggers(clean.triggers)'); // validated on save, like the AI path
+  });
+});

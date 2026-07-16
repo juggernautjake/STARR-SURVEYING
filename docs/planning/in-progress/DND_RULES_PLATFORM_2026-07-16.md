@@ -716,11 +716,18 @@ per-event filter, description, render wiring.
 prompt, never coerced into something wrong. So "give me spiked armour that hits back for 1d6 when I'm
 hit in melee" produces a real, surfaced trigger. Tests: `triggers.test.ts` (+2, 10 total).
 
-**Remaining — manual builder + live firing.** A trigger BUILDER in the item/feature editors (author
-`on`/`action`/`limit` by hand, like the effect builder), and firing the surfacing at the MOMENT an
-event happens (auto-open the barbs prompt when a melee hit is logged, decrementing the limit). The
-model, resolution, AI authoring, and a standing reactions list are shipped; these two are the
-remaining interaction layer.
+**Manual builder ✅ SHIPPED (commit pending).** `TriggerRows` (mounted in `ItemBuilder`) authors the
+SAME `Trigger` shape by hand — an event picker from the registry, a name, an action kind with its
+dice/type/condition fields, and a live `describeTrigger` preview — so a hand-built and an AI-built
+reaction are indistinguishable, validated by `cleanTriggers` on save. Player/AI parity, exactly like
+the effect builder. Tests: `triggers.test.ts` (+1, 11 total).
+
+**Remaining — live event-firing.** The last piece: firing the surfacing at the MOMENT an event
+happens — auto-open the barbs prompt when a melee hit is logged, roll it, decrement the limit. That
+hooks into the roll/combat log (a distinct interaction slice). The model, resolution, both authoring
+paths (AI + manual), and the standing reactions list are all shipped; a player can build spiked
+armour today and see its reaction listed, ready to roll — it just isn't auto-popped on the triggering
+event yet.
 
 **The gap this exposes.** Every effect in the engine today is a *continuous overlay*: it is true for
 as long as its condition holds, and the ledger's job is to resolve it into a number. Retaliation

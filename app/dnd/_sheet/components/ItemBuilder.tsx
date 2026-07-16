@@ -7,10 +7,12 @@
 import { useRef, useState } from 'react'
 import type { InvItem, ItemKind, WeaponStats, ArmorStats, ConsumableStats, TypedDamage } from '../types'
 import TagPicker from './ui/TagPicker'
+import TriggerRows from './ui/TriggerRows'
 import type { Effect, EffectOperation } from '../engine/effects'
 import type { AbilityKey } from '../rules/dnd'
 import { findTarget, targetsInGroup, describeEffect, validateEffect, TARGET_GROUP_LABELS, type TargetGroup } from '@/lib/dnd/effects/targets'
 import { nextCustomized } from '../lib/customized'
+import { cleanTriggers } from '@/lib/dnd/effects/triggers'
 
 const KINDS: { id: ItemKind; label: string }[] = [
   { id: 'weapon', label: '⚔ Weapon' },
@@ -78,6 +80,8 @@ export default function ItemBuilder({
     if (kind !== 'weapon') delete clean.weapon
     if (kind !== 'armor' && kind !== 'shield') delete clean.armor
     if (kind !== 'consumable') delete clean.consumable
+    // Drop any half-formed reaction (empty label, etc.) — the same validator the AI path uses.
+    if (clean.triggers?.length) clean.triggers = cleanTriggers(clean.triggers)
     // ✎ (Slice 20): mark an item hand-tuned when EDITING an existing one changed it. A brand-new
     // item (no `initial`) isn't "customized from a source" — it just is what it is.
     if (initial) clean.customized = nextCustomized(initial, clean)
@@ -263,6 +267,15 @@ export default function ItemBuilder({
         <div style={{ borderTop: '1px dashed var(--line)', paddingTop: 10 }}>
           <label style={lab}>Passive effects while equipped/attuned</label>
           <EffectRows effects={it.effects ?? []} onChange={(effects) => patch({ effects })} hint="e.g. Armor Class · add · 1" />
+        </div>
+      )}
+
+      {/* Reactions / triggers (Slice 15) — event-driven, not passive. Spiked armour that hits back,
+          a shield that frightens. Surfaced as a prompt when the event fires. */}
+      {(kind === 'wondrous' || kind === 'gear' || kind === 'armor' || kind === 'shield' || kind === 'weapon') && (
+        <div style={{ borderTop: '1px dashed var(--line)', paddingTop: 10 }}>
+          <label style={lab}>Reactions when an event happens (optional)</label>
+          <TriggerRows triggers={it.triggers ?? []} onChange={(triggers) => patch({ triggers })} />
         </div>
       )}
 
