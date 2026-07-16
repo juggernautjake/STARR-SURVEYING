@@ -129,16 +129,40 @@ export default function NewCharacterForm({
 
             <div style={{ display: 'grid', gap: 4 }}>
               <span style={label}>Build Mode <InfoTip topic="buildMode" /></span>
-              <div style={{ display: 'grid', gap: 6 }}>
-                {BUILD_MODES.map((m) => (
-                  <label key={m.key} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', padding: '8px 10px', border: `1px solid ${mode === m.key ? 'var(--hx-gold-2)' : 'var(--hx-line)'}`, background: mode === m.key ? 'rgba(200,155,60,0.08)' : 'transparent' }}>
-                    <input type="radio" name="buildmode" checked={mode === m.key} onChange={() => setMode(m.key)} style={{ marginTop: 3 }} />
-                    <span>
-                      <strong style={{ fontSize: 13, color: 'var(--hx-text)' }}>{m.name}</strong>
-                      <span style={{ display: 'block', fontSize: 12, color: 'var(--hx-muted)', lineHeight: 1.45 }}>{m.blurb}</span>
-                    </span>
-                  </label>
-                ))}
+              {/* Selectable cards, not raw radio bubbles (the old version left a big gap between a
+                  lone radio dot and the text, and didn't match the framed-panel chrome). The whole
+                  card is the control; the active one gets a gold rail, a soft glow and a ✓. */}
+              <div role="radiogroup" aria-label="Build mode" style={{ display: 'grid', gap: 8 }}>
+                {BUILD_MODES.map((m) => {
+                  const on = mode === m.key
+                  return (
+                    <button
+                      key={m.key}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      onClick={() => setMode(m.key)}
+                      style={{
+                        textAlign: 'left', cursor: 'pointer', width: '100%',
+                        display: 'grid', gridTemplateColumns: '18px 1fr', gap: 10, alignItems: 'start',
+                        padding: '11px 13px', borderRadius: 8,
+                        border: `1px solid ${on ? 'var(--hx-gold-1)' : 'var(--hx-line)'}`,
+                        borderLeft: `3px solid ${on ? 'var(--hx-gold-1)' : 'var(--hx-line)'}`,
+                        background: on ? 'linear-gradient(180deg, rgba(200,155,60,0.12), rgba(200,155,60,0.04))' : 'rgba(1,10,19,0.35)',
+                        boxShadow: on ? '0 0 16px -6px rgba(200,155,60,0.6)' : 'none',
+                        transition: 'border-color .15s, box-shadow .15s, background .15s',
+                      }}
+                    >
+                      <span aria-hidden style={{ marginTop: 1, color: on ? 'var(--hx-gold-2)' : 'var(--hx-muted)', fontSize: 14, lineHeight: 1.2 }}>
+                        {on ? '✓' : '○'}
+                      </span>
+                      <span>
+                        <strong style={{ fontSize: 13.5, color: on ? 'var(--hx-gold-3)' : 'var(--hx-text)' }}>{m.name}</strong>
+                        <span style={{ display: 'block', fontSize: 12, color: 'var(--hx-muted)', lineHeight: 1.45, marginTop: 2 }}>{m.blurb}</span>
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
