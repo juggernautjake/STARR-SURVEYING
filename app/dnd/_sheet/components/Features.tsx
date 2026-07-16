@@ -1,7 +1,11 @@
+import { useState } from 'react'
 import { useChar } from '../state/store'
 import { md } from '../lib/inline'
 import { RichRules } from './RuleTip'
 import SectionHead from './ui/SectionHead'
+import ElementMenu from './ui/ElementMenu'
+import FeatureEditor from './ui/FeatureEditor'
+import type { FeatureBlock } from '../types'
 
 const SOURCE_TONE: Record<string, string> = {
   Signature: 'pink',
@@ -15,8 +19,19 @@ function sourceColor(source: string) {
 }
 
 export default function Features() {
-  const { char, activateFeature } = useChar()
+  const { char, activateFeature, canWrite, setChar } = useChar()
+  const [editing, setEditing] = useState<FeatureBlock | null>(null)
   const level = char.meta.level
+
+  const duplicate = (f: FeatureBlock) =>
+    setChar((c) => ({
+      ...c,
+      features: [...(c.features ?? []), { ...f, id: `${f.id}-copy-${(c.features ?? []).length}`, name: `${f.name} (copy)` }],
+    }))
+  const remove = (f: FeatureBlock) => {
+    if (!confirm(`Delete “${f.name}”? This cannot be undone.`)) return
+    setChar((c) => ({ ...c, features: (c.features ?? []).filter((x) => x.id !== f.id) }))
+  }
   const resourceLeft = (id?: string) => (id ? (char.resources.find((r) => r.id === id)?.current ?? 0) : 1)
 
   const sorted = [...char.features].sort((a, b) => (a.unlockLevel ?? 1) - (b.unlockLevel ?? 1))
@@ -53,6 +68,16 @@ export default function Features() {
             <h3>
               {f.level && <span className="lvl">{f.level}</span>}
               {f.name}
+              {canWrite && (
+                <ElementMenu
+                  label={f.name}
+                  actions={[
+                    { label: 'Edit feature', onClick: () => setEditing(f) },
+                    { label: 'Duplicate', onClick: () => duplicate(f) },
+                    { label: 'Delete', danger: true, onClick: () => remove(f) },
+                  ]}
+                />
+              )}
               <span className="tag" style={{ marginLeft: 'auto', color: sourceColor(f.source) }}>
                 {f.source}
               </span>
@@ -80,6 +105,29 @@ export default function Features() {
           </div>
         )
       })}
+
+      {canWrite && (
+        <div className="btn-row" style={{ marginTop: 10 }}>
+          <button
+            className="btn tiny teal"
+            onClick={() => {
+              const f: FeatureBlock = {
+                id: `feat-${Date.now().toString(36)}`,
+                name: 'New feature',
+                source: 'Homebrew',
+                body: [''],
+                unlockLevel: level,
+              }
+              setChar((c) => ({ ...c, features: [...(c.features ?? []), f] }))
+              setEditing(f)
+            }}
+          >
+            ＋ Add feature
+          </button>
+        </div>
+      )}
+
+      {editing && <FeatureEditor feature={editing} onClose={() => setEditing(null)} />}
     </section>
   )
 }

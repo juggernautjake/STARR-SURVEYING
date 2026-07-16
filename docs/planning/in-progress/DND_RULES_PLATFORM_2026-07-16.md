@@ -969,14 +969,18 @@ What I actually found on `/dnd/campaigns/[id]` (Neon Odyssey, as the DM):
   character, `✦ Open Map Maker`.
 * `/dnd/characters/new?campaignId=…` — what the header's `＋ Character` points at — **works**; it
   renders the "Import Your Character" page. Not a 404, not an error.
-* **Two controls ARE disabled**, which is the most likely thing being reported:
-  **`＋ Add player`** and **`✉ Invite`**. Find out why they're disabled (a missing prop? an empty
-  member list? a permission check?) before designing anything new.
-* The other candidate is the map studio's **`Save as NEW`** in the object editor — a different
-  screen, but it is the only thing in the app literally labelled "NEW".
+* `＋ Add player` and `✉ Invite` render disabled, and I first flagged those as the likely culprit.
+  **That was wrong** — checked the source: both are `disabled={!name.trim()}`
+  (`CampaignPageClient.tsx:240`, `InvitesPanel.tsx:149`). They are correctly disabled until you type
+  a name, which is why a page snapshot shows them greyed out. Not a bug. Recorded so nobody
+  "fixes" working code on my say-so.
+* The only thing in the app literally labelled **"NEW"** is the map studio's **`Save as NEW`** in
+  the object editor. Different screen from "campaign character management", but it is the sole
+  literal match.
 
-Confirm which of these is meant, then fix that. Building a new-character modal for a button that
-turns out to work fine would be wasted effort in the wrong place.
+**So the target is unconfirmed.** Ask which screen and which button before building anything here —
+a new-character modal for a button that already works is effort in the wrong place, and the header's
+`＋ Character` → `/dnd/characters/new` path demonstrably works today.
 
 Then two paths to the same `Character`, which is the whole point — a quick NPC must be promotable to
 a full build without being rebuilt:

@@ -40,6 +40,35 @@ describe('every editable row has a way in', () => {
   });
 });
 
+describe('features are editable too', () => {
+  const FEATURES = read('app/dnd/_sheet/components/Features.tsx');
+  const FEATURE_EDITOR = read('app/dnd/_sheet/components/ui/FeatureEditor.tsx');
+
+  it('mounts the ⋯ menu, canWrite-gated', () => {
+    expect(FEATURES).toContain('<ElementMenu');
+    expect(FEATURES).toMatch(/canWrite && \(\s*<ElementMenu/);
+  });
+
+  it('edits name, source, unlock level, body and flavor', () => {
+    for (const f of ['name', 'source', 'unlockLevel', 'body', 'flavor']) {
+      expect(FEATURE_EDITOR, `${f} must be editable`).toContain(`'${f}'`);
+    }
+  });
+
+  it('round-trips the paragraph array through a plain textarea', () => {
+    // The model stores paragraphs as an array; people write in a textarea. Split going in, join
+    // going out — lossless for anything anyone would actually type.
+    expect(FEATURE_EDITOR).toMatch(/\(draft\.body \?\? \[\]\)\.join\('\\n\\n'\)/);
+    expect(FEATURE_EDITOR).toMatch(/split\(\/\\n\{2,\}\/\)/);
+    // Blank paragraphs would render as empty <p>s on the card.
+    expect(FEATURE_EDITOR).toMatch(/\.filter\(Boolean\)/);
+  });
+
+  it('a blank name cannot erase the card heading', () => {
+    expect(FEATURE_EDITOR).toMatch(/draft\.name\.trim\(\) \|\| feature\.name/);
+  });
+});
+
 describe('the ⋯ menu behaves like a menu', () => {
   it('closes on outside click and Escape', () => {
     // A menu you can only close by picking something is a trap.
