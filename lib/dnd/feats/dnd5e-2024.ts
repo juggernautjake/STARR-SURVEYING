@@ -85,11 +85,11 @@ export const ORIGIN_FEATS_2024: Feat[] = [
       'You have a number of **Luck Points** equal to your **Proficiency Bonus** and can spend them on the following benefits. You regain your expended Luck Points when you finish a Long Rest.\n\n· **Advantage** — When you roll a d20 for a D20 Test, you can spend 1 Luck Point to give yourself **Advantage** on the roll.\n· **Disadvantage** — When a creature rolls a d20 for an attack roll against you, you can spend 1 Luck Point to impose **Disadvantage** on that roll.',
   },
   {
-    key: 'magic-initiate-arcane', name: 'Magic Initiate (Arcane)', category: 'origin', system: 'dnd5e-2024',
+    key: 'magic-initiate', name: 'Magic Initiate', category: 'origin', system: 'dnd5e-2024',
     repeatable: true,
-    summary: 'Two cantrips and a level-1 spell from a chosen spell list.',
+    summary: 'Two cantrips and a level-1 spell from a chosen spell list (Arcane, Divine, or Primal).',
     benefit:
-      'You gain the following benefits. When you choose this feat, pick a spellcasting class list — Arcane (Wizard).\n\n· **Two Cantrips** — You learn **two cantrips** of your choice from that class\'s spell list.\n· **Level 1 Spell** — Choose a **level 1 spell** from that same list. You always have it prepared. You can cast it once without a spell slot, regaining that use on a Long Rest; you can also cast it using any spell slots you have.\n· **Spellcasting Ability** — Intelligence, Wisdom, or Charisma (matching the chosen list). You can change this feat\'s prepared level 1 spell whenever you gain a level.\n\n*This feat can be taken more than once, choosing a different spell list each time.*',
+      'You gain the following benefits. When you choose this feat, pick a spell list: **Arcane** (Wizard), **Divine** (Cleric), or **Primal** (Druid). A background that grants this feat picks the list for you.\n\n· **Two Cantrips** — You learn **two cantrips** of your choice from that list.\n· **Level 1 Spell** — Choose a **level 1 spell** from that same list. You always have it prepared. You can cast it once without a spell slot, regaining that use on a Long Rest; you can also cast it using any spell slots you have.\n· **Spellcasting Ability** — Intelligence, Wisdom, or Charisma (matching the chosen list). You can change this feat\'s prepared level 1 spell whenever you gain a level.\n\n*This feat can be taken more than once, choosing a different spell list each time.*',
   },
   {
     key: 'musician', name: 'Musician', category: 'origin', system: 'dnd5e-2024',

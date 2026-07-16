@@ -61,7 +61,7 @@ describe('2024 Origin feats', () => {
 
   it('Skilled and Magic Initiate are marked repeatable; Tough is not', () => {
     expect(findFeat('skilled')?.repeatable).toBe(true);
-    expect(findFeat('magic-initiate-arcane')?.repeatable).toBe(true);
+    expect(findFeat('magic-initiate')?.repeatable).toBe(true);
     expect(findFeat('tough')?.repeatable).toBeUndefined();
   });
 });

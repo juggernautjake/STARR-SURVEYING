@@ -246,8 +246,15 @@ categories) and Epic Boon remain.
 
 - [~] **Feats** as structured data (`lib/dnd/feats/dnd5e-2024.ts`): all four categories — Origin ✅,
       Fighting Style ✅, General (with prerequisites + the +1 ability), Epic Boon. Full rules text.
-- [ ] **Backgrounds** (16): ability scores (+2/+1 or +1/+1/+1), Origin feat, 2 skills, 1 tool,
-      equipment. Remember: in 2024 the **background** grants the ability increases.
+- [x] **Backgrounds** (16) ✅ SHIPPED (commit pending) — `lib/dnd/backgrounds/dnd5e-2024.ts`. All
+      sixteen PHB backgrounds (Acolyte … Wayfarer), each with its three ability options (the 2024 rule
+      that the **background** carries the increases, not the species — encoded and tested), Origin feat,
+      two skills, one tool, and the "Choose A or B" equipment line. Magic Initiate backgrounds name
+      their spell list (Acolyte→divine, Guide→primal, Sage→arcane). The feats refactor made Magic
+      Initiate one generic feat so backgrounds reference it with a list. Tests: `backgrounds.test.ts`
+      (5) — 16-with-unique-keys, **every background's Origin feat resolves in the feats data** (the
+      invariant the slice names, now real because the feats shipped first), 3-distinct-abilities,
+      2-valid-skills+1-tool, and the Magic-Initiate spell-list check.
 - [ ] **Species** (10): traits only, **no ability score increases**, with size/speed/creature type.
 - [ ] **Languages** + tool proficiencies as lists.
 - [ ] Wire into the level builder: an ASI choice offers real feats with prerequisites checked;
