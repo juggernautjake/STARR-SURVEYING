@@ -44,7 +44,7 @@ describe('characterDigest carries the sheet, not a generic character', () => {
   it('carries current state, not just maximums — an in-play ruling needs what is true now', () => {
     expect(d).toContain('HP 41/68 (+5 temp)');
     expect(d).toContain('AC 17');
-    expect(d).toContain('Exhaustion 1');
+    expect(d).toContain('Exhaustion 1 (−2 to all d20 rolls)'); // the penalty the sheet actually applies
   });
 
   it('states conditions explicitly, including their absence', () => {

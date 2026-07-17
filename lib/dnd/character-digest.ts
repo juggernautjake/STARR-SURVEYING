@@ -99,7 +99,9 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
     const init = ledger.value('initiative', abilityMod(ledger.value('ability_dex', char.abilities.dex)) + (c.initiativeMisc ?? 0));
     state.push(`Initiative ${signed(init)}`);
   }
-  if (c.exhaustion) state.push(`Exhaustion ${c.exhaustion}`);
+  // State the exhaustion penalty the SHEET applies (−2/level to every d20 roll), so a ruling on "does
+  // this attack/save/check land?" uses the same reduced roll the sheet does — not the unpenalized bonus.
+  if (c.exhaustion) state.push(`Exhaustion ${c.exhaustion} (−${2 * c.exhaustion} to all d20 rolls)`);
   if (state.length) lines.push(`STATE: ${state.join(' · ')}`);
 
   // What is currently modifying this character — so the AI knows WHY a number differs from the base
