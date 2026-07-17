@@ -2285,7 +2285,7 @@ Movement is not one number, and a potion of flying is not "+speed". Each mode is
 its own base, so a fly speed can exist where a walk speed is 0 (and the sheet shows both).
 
 **Core numbers** — `ability_str|dex|con|int|wis|cha` · `ac` · `initiative` · `hp_max` ·
-`hp_temp` · `hit_dice` · `proficiency_bonus` · `spell_save_dc` · `spell_attack` · `carrying_capacity`.
+`temp_hp` (catalog once wrote `hp_temp`) · `hit_dice` · `proficiency_bonus` · `spell_save_dc` · `spell_attack` · `carrying_capacity`.
 
 **Rolls** — `attack_roll` · `damage_roll` · `attack_and_damage` · `save_<ability>` · `save_all` ·
 `skill_<name>` · `skill_all` · `ability_check_<ability>` · `death_save` · `concentration_save` ·
@@ -2298,8 +2298,8 @@ Weapon Fighting), `minimum_roll`, `crit_range` (19–20 → 18–20), `crit_dice
 registry; added with its own collect op + a Defenses render block ("Adv. on saves vs — poison
 (source)"), listed not auto-applied (the rules ask the player to invoke it). `condition-advantage.test.ts` (5).
 
-**Grants** — `grant_proficiency` (skill/tool/weapon/armour/language) · `grant_expertise` ·
-`grant_feature` · `grant_attack` · `grant_spell` · `grant_cantrip` · `grant_resource` ·
+**Grants** — `grant_proficiency` (skill/tool/weapon/armour/language) · `expertise` (catalog once wrote
+`grant_expertise`) · `grant_feature` · `grant_attack` · `grant_spell` · `grant_cantrip` · `grant_resource` ·
 `grant_spell_slot` · `grant_sense` (darkvision/truesight/tremorsense/blindsight, with a range) ·
 `grant_language` · `grant_action` (a new thing you can do).
 
@@ -2331,6 +2331,24 @@ such*, not faked with a number that looks authoritative).
 3. `set` vs `add` is per-target and documented (Storm Giant Strength *sets* STR to 29; a belt *adds*).
 4. Unknown target → the edit is refused with a reason. Never coerced, never silently dropped.
 5. A target the engine cannot faithfully model gets `note`, not an approximation.
+
+**Contract reconciliation (this catalog ↔ the live registry) ✅ — guarded by `appendix-a-contract.test.ts` (4).**
+Every catalog name above is now either **built** in `lib/dnd/effects/targets.ts`, an **alias** for a
+built target (pure naming, no missing capability), or an **explicit deferral** with a reason — and the
+guard test fails if any entry is none of those, or if a deferred target later gets built without being
+removed from the deferred list. So the contract and the code can no longer quietly disagree.
+- **Aliases (naming only):** `hp_temp` → the registry's `temp_hp`; `grant_expertise` → `expertise`.
+- **Deferred (need engine resolution, not just a render home):** `grant_cantrip` (a cantrip is a
+  level-0 spell → `grant_spell` covers it), `grant_action` (a granted action is a `grant_feature` today),
+  `grant_spell_slot` (a *persistent* bonus slot needs slot-grant resolution; `restore_slot` only refills
+  existing ones), `set_hp` (needs the generic instant-effect consume path the bespoke consumable model
+  doesn't route yet), `concentration` (needs a concentration tracker before it can honestly render),
+  `inspiration` (`char.inspiration` is a player-toggled boolean; granting it needs instant resolution,
+  not a ledger overlay), `action_count` (the specific `attacks_per_action`/`reaction_count`/
+  `bonus_action_count` exist; a generic one has no distinct home). The Rolls-section *operations*
+  (`reroll_below`, `minimum_roll`, `crit_range`, `crit_dice`) are likewise dice-engine work, not
+  drop-in targets. `alignment` and `condition_advantage` were the two that WERE clean drop-ins — both now
+  shipped (see above).
 
 # Appendix B — Item type catalog
 
