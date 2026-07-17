@@ -33,3 +33,14 @@ describe('map viewer: image scale/rotate handles (Slice 35a)', () => {
     expect(fn).toMatch(/Map3D\.isShown\(\)\)\s*return/);
   });
 });
+
+describe('map studio: 2D/3D body-size parity (Slice 29)', () => {
+  it('keeps the 2D and 3D preview bodies at the SAME ~78% of the viewer (the constants must not drift apart)', () => {
+    // 2D: the preview body is sized to 78% (a WebGL canvas can't spill its glow, so 2D leaves the same room).
+    expect(SRC).toMatch(/\.pv2d\{[^}]*width:78%;height:78%/);
+    // 3D: the halo may claim down to 1/1.28 (~78.1%) before the subject stops shrinking — the matching side.
+    expect(SRC).toContain('1/1.28');
+    // The two are documented as cross-referencing; if one moves without the other, the previews disagree.
+    expect(SRC).toMatch(/1\/1\.28 ≈ 78%|~78% of the viewer/);
+  });
+});

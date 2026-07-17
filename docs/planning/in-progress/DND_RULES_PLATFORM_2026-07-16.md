@@ -1836,7 +1836,8 @@ this is the remaining half.
 - [x] **2D/3D size parity** — an SVG lets its glow spill outside the box; a WebGL canvas cannot, so
       the camera pulled back and the 3D body rendered far smaller. Both now render the body at ~78%
       of the viewer with halos fully visible (2D 78.0%, 3D 1/1.28 = 78.1%; the constants
-      cross-reference each other).
+      cross-reference each other). **Guarded** (`map-viewer-handles.test.ts`): a test asserts both the 2D
+      `.pv2d{width:78%}` and the 3D `1/1.28` constant are present, so one can't drift without the other.
 - [ ] **City lights and lava are invisible in the 3D preview — but they are NOT missing.** Checked
       rather than assumed: `_genericPlanetCfg` forwards `city`/`lava`/`lightColor`, and
       `planet3d-model.js` consumes all three (`cfg.city` at :244, `cfg.lava` at :86/:147/:194).
