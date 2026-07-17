@@ -71,17 +71,19 @@ darkvision, `<ul>` of `{name}. {text}`). Data: `lib/dnd/species/dnd5e-2024.ts` (
 **To verify first:** whether `Character` already has a money/coins field (check
 `app/dnd/_sheet/types.ts`) — the sheet may track gp/sp/etc. already; if so, extend it, else add it.
 
-- [ ] **C1 — Show the player's money** prominently on the sheet (a Wealth/Coins line in the inventory or
-      a header stat). Standard coins per system (5e: pp/gp/ep/sp/cp; PF2: pp/gp/sp/cp).
-- [ ] **C2 — Custom currencies.** Let a character define named currencies beyond the standard coins
-      (e.g. "Dragon Shards", "Guild Marks") with a symbol/abbreviation, displayed on the sheet. Editable
-      by hand and via the AI sheet-edit vocabulary (`lib/dnd/sheet-edits.ts` — add `add_currency` /
-      `set_currency` / `remove_currency` ops mirroring the existing `add_spell`/`add_item` pattern).
-- [ ] **C3 — Conversion rates.** Each currency carries an exchange rate to a base unit; the sheet shows a
-      conversion table (e.g. 1 gp = 10 sp = 100 cp; 1 Guild Mark = 5 gp) and a total wealth in the base
-      unit. Rates are editable and shown so the player can always see them.
-- [ ] **C4 — Tests.** currencies persist; a conversion table computes correct cross-rates; total wealth
-      folds custom currencies through their rate; an AI `add_currency` edit round-trips.
+- [x] **C1 — Show the player's money. ✅ SHIPPED** (`38f9f614`). `Character.currencies` +
+      `blankCharacter` seeds standard coins (5e cp/sp/ep/gp/pp, PF2 cp/sp/gp/pp); the Inventory
+      CurrencyPanel shows each amount + total wealth in the base unit. Legacy sheets keep their fixed
+      display (normalizeCharacter preserves only stored currencies).
+- [x] **C2 — Custom currencies (manual). ✅ SHIPPED** (`38f9f614`). In edit mode the player can rename,
+      re-rate, add, and remove currencies — custom ones (Guild Marks, Dragon Shards) sit alongside coins.
+      **The AI `add_currency`/`set_currency` sheet-edit ops are a follow-up slice** (not yet wired).
+- [x] **C3 — Conversion rates. ✅ SHIPPED** (`38f9f614`). Each currency's `rate` = value in base units;
+      a toggle-able conversion table shows "1 gp = 10 sp · 100 cp" and total wealth converts across
+      currencies (`lib/dnd/currency.ts`: `conversionTable`, `totalIn`, `exchangeRate`).
+- [x] **C4 — Tests. ✅** `currency.test.ts` (13): defaults, base detection, total-in-base, cross-convert,
+      a custom Guild Mark folding through its rate, conversion table, divide-by-zero guards. (AI-op
+      round-trip lands with the deferred AI ops.)
 
 ## Area D — Exhaustion actually affects more than d20 rolls
 
