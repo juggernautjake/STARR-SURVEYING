@@ -517,7 +517,10 @@ now audited and guarded:
       exposes `systemClasses`/`systemClassNames`/`systemConditions`/`systemSpecies`/`systemSkills` for all
       four focus systems; the class/species pickers + the `ConditionTracker` (system conditions, PF2's
       numeric Frightened 2 etc.) + the glossary are all system-scoped, and PF2 has its own bespoke sheet +
-      ability model. **Remaining gap (deferred — data-model work):** the STANDARD sheet's `SavesSkills`
+      ability model. **Cross-system leak guard added** (`8f34eed9`): `system-conditions-skills-scope.test.ts`
+      (8) extends Ground Rule 1 to the condition + skill lists — PF2's Clumsy/Enfeebled/Off-Guard stay out
+      of 5e, 5e's Charmed/Restrained out of PF2, IG's Heatstroke + Bluff-not-Deception unique — so a new
+      condition/skill can't be authored without scoping it. **Remaining gap (deferred — data-model work):** the STANDARD sheet's `SavesSkills`
       still renders the hardcoded 5e `SKILLS`. That's correct for both 5e editions (identical lists) but
       wrong for **intuitive-games**, whose skills differ (Arcane/Appraise/Bluff…). System-scoping it needs
       a system-keyed skill-proficiency store (today `char.skills` is a fixed 5e-keyed shape), which is
