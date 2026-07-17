@@ -468,6 +468,9 @@ export interface Character {
    *  present, the sheet renders this (amounts, total wealth, conversion table) instead of `currency`.
    *  See lib/dnd/currency.ts for the math. */
   currencies?: import('@/lib/dnd/currency').Currency[]
+  /** Homebrew classes saved to this character (Slice 5). The registry resolves them as `extra` so a
+   *  custom class appears in the level builder like an official one. See lib/dnd/classes/homebrew-store. */
+  homebrewClasses?: import('@/lib/dnd/classes/types').ClassDefinition[]
   bio: {
     intro: string[]
     appearance: string[]

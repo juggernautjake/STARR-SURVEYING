@@ -7,6 +7,7 @@ import path from 'node:path';
 // in custom-class-ai.test.ts).
 const PAGE = fs.readFileSync(path.join(process.cwd(), 'app/dnd/characters/[id]/build/class/page.tsx'), 'utf8');
 const ROUTE = fs.readFileSync(path.join(process.cwd(), 'app/api/dnd/characters/[id]/homebrew-class/route.ts'), 'utf8');
+const SAVE = fs.readFileSync(path.join(process.cwd(), 'app/api/dnd/characters/[id]/homebrew-class/save/route.ts'), 'utf8');
 
 describe('homebrew class designer page', () => {
   it('posts the prompt to the homebrew-class endpoint', () => {
@@ -18,17 +19,28 @@ describe('homebrew class designer page', () => {
     expect(PAGE).toContain('review.warnings');
     expect(PAGE).toContain('def.features');
   });
-  it('links back to the sheet and is propose-only (no persist yet)', () => {
+  it('links back to the sheet and can Save (gated on a clean review)', () => {
     expect(PAGE).toContain('Back to sheet');
-    expect(PAGE.toLowerCase()).toContain('draft');
+    expect(PAGE).toContain('/homebrew-class/save');
+    expect(PAGE).toContain('!result.review.ok'); // Save disabled while there are errors
   });
 });
 
-describe('homebrew-class endpoint is write-gated + propose-only', () => {
+describe('homebrew-class DRAFT endpoint is write-gated + propose-only', () => {
   it('requires write access and uses the existing engine, no persist', () => {
     expect(ROUTE).toContain('requireCharacterWrite');
     expect(ROUTE).toContain('buildCustomClass');
     expect(ROUTE).toContain('reviewCustomClass');
     expect(ROUTE).not.toContain("from('dnd_characters').update"); // proposes; does not write
+  });
+});
+
+describe('homebrew-class SAVE endpoint rebuilds server-side, rejects errors, persists', () => {
+  it('re-reviews and only writes when the review is clean', () => {
+    expect(SAVE).toContain('requireCharacterWrite');
+    expect(SAVE).toContain('buildCustomClass');       // never trusts the client definition
+    expect(SAVE).toContain('if (!review.ok)');         // rejects a class with errors
+    expect(SAVE).toContain('upsertHomebrewClass');     // dedupes by key
+    expect(SAVE).toContain("from('dnd_characters').update"); // persists
   });
 });

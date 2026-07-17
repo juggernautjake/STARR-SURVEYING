@@ -12,7 +12,7 @@ import styles from '@/app/dnd/_ui/hextech.module.css';
 interface Feature { level: number; name: string; body: string; choice?: string }
 interface Definition { name: string; hitDie: number; primaryAbility: string[]; savingThrows: string[]; features: Feature[]; caster?: { kind: string } }
 interface ReviewItem { field: string; message: string; severity: 'error' | 'warning' }
-interface Result { draft: { skillChoices?: { count: number }; subclassLabel?: string }; definition: Definition; review: { ok: boolean; errors: ReviewItem[]; warnings: ReviewItem[] } }
+interface Result { draft: Record<string, unknown> & { skillChoices?: { count: number }; subclassLabel?: string }; definition: Definition; review: { ok: boolean; errors: ReviewItem[]; warnings: ReviewItem[] } }
 
 export default function HomebrewClassBuilderPage() {
   const params = useParams<{ id: string }>();
@@ -21,6 +21,8 @@ export default function HomebrewClassBuilderPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState<string | null>(null);
 
   async function draft() {
     if (!prompt.trim()) { setError('Describe the class you want.'); return; }
@@ -31,8 +33,21 @@ export default function HomebrewClassBuilderPage() {
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setError(j.error ?? 'Could not draft the class.'); return; }
-      setResult(j as Result);
+      setResult(j as Result); setSaved(null);
     } catch { setError('Network error — please try again.'); } finally { setBusy(false); }
+  }
+
+  async function save() {
+    if (!result) return;
+    setSaving(true); setError(null);
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}/homebrew-class/save`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ draft: result.draft }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setError(j.error ?? 'Could not save the class.'); return; }
+      setSaved(j.name ?? 'the class');
+    } catch { setError('Network error — please try again.'); } finally { setSaving(false); }
   }
 
   const input = { padding: '9px 11px', fontSize: 14, background: 'rgba(1,10,19,0.55)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', borderRadius: 6, width: '100%' } as const;
@@ -99,7 +114,15 @@ export default function HomebrewClassBuilderPage() {
                   </div>
                 ))}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--hx-muted)' }}>Draft only — refine the prompt and re-draft. Saving to your sheet + the level builder is the next slice.</div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button type="button" className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} disabled={saving || !result.review.ok} onClick={save}
+                  title={result.review.ok ? 'Save this class to your character' : 'Fix the errors above before saving'}>
+                  {saving ? 'Saving…' : '⚒ Save to my character'}
+                </button>
+                {saved && <span style={{ fontSize: 12.5, color: 'var(--hx-teal-1)' }}>✓ Saved “{saved}” — it resolves in the level builder now.</span>}
+                {!result.review.ok && <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>Fix the errors above to enable saving.</span>}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--hx-muted)' }}>Refine the prompt and re-draft to iterate. Saved classes are flagged custom for DM review.</div>
             </section>
           )}
         </div>
