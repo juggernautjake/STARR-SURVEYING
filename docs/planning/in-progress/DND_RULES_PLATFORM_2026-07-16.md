@@ -554,8 +554,13 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       armors, unarmored→heavy, with AC item bonus / Dex cap / Strength req / check + speed penalties);
       the builder applies the picked armor's Dex cap + AC bonus (full plate now caps Dex to 0 and adds
       +6) and the speed penalty (correctly reduced by 5 ft when the Strength req is met). Armor picker in
-      the builder UI + name shown under AC on the sheet; the AI parse/schema accept `armor`. Armored
-      skill *check* penalty is deferred to a dedicated skill-penalty slice. `pathfinder2e-builder.test.ts` +6.
+      the builder UI + name shown under AC on the sheet; the AI parse/schema accept `armor`.
+      `pathfinder2e-builder.test.ts` +6.
+      **Plus (6b follow-up) the armored-skill check penalty** — now applied to the four armor-affected
+      skills (Acrobatics/Athletics/Stealth/Thievery) when the Strength requirement is unmet, and waived
+      when met. `PF2Skill.armorPenalty` + `PF2Combat.armorCheckPenalty`; `pf2SkillTotal` takes the
+      penalty and applies it only to flagged skills; the sheet marks penalized skills with ▲. This
+      CLOSES the PF2 armor mechanics (AC + Dex cap + speed + check penalty all correct). +3 tests.
 - [x] **Intuitive Games ✅** — closed the gap found 2026-07-16 (its content lived only in the builder
       module, not the searchable glossary). Authored `lib/dnd/glossary/intuitive-games.ts` (26 articles)
       from the engine's own numbers (igProficiency = level, igDegreeOfSuccess, igSaveTotal, igMaxHp) and
