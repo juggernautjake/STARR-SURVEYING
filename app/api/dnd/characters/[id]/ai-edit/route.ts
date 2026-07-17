@@ -20,6 +20,7 @@ import type { Character } from '@/app/dnd/_sheet/types';
 import { IG_EDIT_TOOL, parseIGEditToolCall, igEditToolInstruction } from '@/lib/dnd/systems/intuitive-games/ai';
 import { applyIgEdit, describeIgEdit } from '@/lib/dnd/systems/intuitive-games/edit';
 import { isIGCharacter, type IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
+import { igCharacterDigest } from '@/lib/dnd/systems/intuitive-games/digest';
 
 // Routing hint so the agent picks the right tool: mechanics → edit_sheet, look/layout →
 // customize_layout. Both only ever touch THIS character (Slice 8b).
@@ -120,7 +121,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       system: [SYSTEM, LAYOUT_ROUTING, isIG ? igEditToolInstruction() : null, grounding?.instruction].filter(Boolean).join('\n\n'),
       user: [
         `Current sheet:\n${sheetDigest(current)}`,
-        isIG ? `Active stance(s): ${(igData as IGCharacter).combat.stances.join(', ') || 'none'}. Conditions: ${(igData as IGCharacter).combat.conditions.join(', ') || 'none'}.` : null,
+        // The FULL IG state (stance + its effect, conditions + the computed penalty, defensive power, feats,
+        // powers) — not just stance/condition names — so the edit AI knows what the character already has
+        // (won't re-add a held feat/power) and can reason about the active mechanics. Same summary the
+        // librarian adjudicates from, so edit + explain agree.
+        isIG ? igCharacterDigest(igData as IGCharacter) : null,
         `Current custom layout blocks: ${layoutSummary((row as { custom_layout?: unknown }).custom_layout)}`,
         historyDigest || null,
         grounding?.block || null,

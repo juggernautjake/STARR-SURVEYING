@@ -70,4 +70,12 @@ describe('IG AI-customize core (full-sheet Slice 10)', () => {
     expect(SRC).toContain('applyIgEdit(igData as IGCharacter, parsed.edit)');
     expect(SRC).toContain('ig: nextIg');
   });
+
+  it('the ai-edit route gives the edit AI the FULL IG state (via igCharacterDigest), not just names', () => {
+    // The edit AI should know the character's held feats/powers/defensive-power + active stance/conditions
+    // so it doesn't re-add what's there and can reason about the active mechanics. The route now passes the
+    // same igCharacterDigest the librarian adjudicates from — edit + explain see the same state.
+    const SRC = fs.readFileSync(path.join(process.cwd(), 'app/api/dnd/characters/[id]/ai-edit/route.ts'), 'utf8');
+    expect(SRC).toContain('igCharacterDigest(igData as IGCharacter)');
+  });
 });

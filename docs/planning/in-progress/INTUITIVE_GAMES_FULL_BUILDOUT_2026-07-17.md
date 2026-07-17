@@ -337,8 +337,12 @@ expanded requirements (2026-07-17):
       (`igStanceMechanicNote`), the conditions WITH the computed −N penalty + disadvantage lines
       (`igConditionSummary`), the defensive power, feats and powers; the `library/chat` route appends it when
       `data.ig` is present. So "does my attack hit while Shaken?" is now adjudicated with the same −2 the
-      player sees on the sheet. `ig-digest.test.ts` (6). **Remaining:** the machine-readable effect model
-      that the SHEET applies (B4/B5 mechanics).
+      player sees on the sheet. `ig-digest.test.ts` (6). **Same full state now feeds the EDIT AI too
+      (2026-07-17):** the `ai-edit` route already passed IG context, but only stance + condition NAMES — so
+      the edit AI didn't know the character's held feats/powers/defensive-power and could re-add what was
+      already there. Repointed it at the same `igCharacterDigest`, so edit and explain see identical state
+      (held feats/powers, active stance + its effect, conditions + penalty). `ig-ai.test.ts` +1. **Remaining:**
+      the machine-readable effect model that the SHEET applies (B4/B5 mechanics).
 - [~] **B1 — Ancestry/traits in the builder + sheet.** IG ancestries selectable in the builder; the sheet
       renders each ancestry's full traits (from A5) with per-trait tooltips; size/speed-changing traits reflect
       on the sheet where feasible. **Sheet panel shipped** (`IGSheet` + `findIGAncestry`, `ig-content.test.ts`
