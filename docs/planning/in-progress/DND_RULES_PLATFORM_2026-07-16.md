@@ -2530,6 +2530,14 @@ password-protected account) failed with a **silent** 403 — a dead button. Now 
 message and shows it in an alert ("This account is password-protected — sign in with your name and
 password."), verified end-to-end in the browser. So the actual gate turned out to be
 **account-password-protection**, not open-access-off. `campaign-lobby-error.test.ts` (2).
+
+**More runtime checks (2026-07-17):** `/dnd/join/[code]` renders the reconciled **name+password-only**
+form (Display Name · Password · Confirm — no Email field, 0 errors), confirming the Slice-38b refactor
+(`6d7cdeb7`) live. `/dnd/characters/new` cleanly redirects to `/dnd` — because the persisted `PF2eQA
+Tester` session is **STALE** (cookie present, but the DB user row was cleaned up in a prior session), so
+`getDndUser()` returns null; correct behavior, and it's the real reason the character sheet can't be
+browser-verified locally (the earlier password gate is secondary). The authenticated character-build
+walkthrough needs a FRESH valid session + an owned character (i.e. the live-DB run).
 The character-build walkthrough below (create account → build a vanilla character per system, level by
 level, fixing bugs/styling) is the substantive remainder and needs an interactive, DB-backed session
 (a throwaway test account + character on live Supabase) — held pending the owner's go-ahead to write +
