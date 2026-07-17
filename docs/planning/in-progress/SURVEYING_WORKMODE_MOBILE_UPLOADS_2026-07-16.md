@@ -90,9 +90,14 @@ Issue) render only titles; the `JobPicker` is a placeholder input.
       (7) — RPLS = the `lead_rpls` member's name → `lead_rpls_email` fallback → null; crew = everyone else
       (→ "Just you" when empty). Two more hub derivations extracted the same way (`9d93c1b4`): the
       `job_number · name` label (was duplicated across the picker + header) and the A3 files-by-section
-      grouping (`lib/jobs/hub.ts`, `hub.test.ts` +4). **Remaining:** the API-population +
-      capture-enqueues-field_media parts need component/route tests with mocks — device/runtime-adjacent,
-      deferred with the rest of Area C.
+      grouping (`lib/jobs/hub.ts`, `hub.test.ts` +4). **Stale-test fix (2026-07-17):** the `crew.ts`
+      extraction above left `field-crew-workspace.test.ts` B2 asserting the old inline `'lead_rpls'` literal
+      in the component — which had moved into the helper — so that test was RED (surfaced by a full-suite
+      run; the DnD-scoped runs never touched it). Repointed the assertion at the current architecture: the
+      component consumes `jobRpls(job)`/`jobCrew(job)` and the `lead_rpls` role split is asserted against
+      `lib/jobs/crew.ts` where it now lives. Whole app suite green again (13,079 passing). **Remaining:** the
+      API-population + capture-enqueues-field_media parts need component/route tests with mocks —
+      device/runtime-adjacent, deferred with the rest of Area C.
 
 ## Area C — Resilient background upload queue (the core ask)
 

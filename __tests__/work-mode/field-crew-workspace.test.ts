@@ -19,8 +19,14 @@ describe('FieldCrewWorkspace is job-driven (B1/B2)', () => {
   it('B2 — the Job tab pulls the active job’s customer / property / RPLS / crew', () => {
     expect(SRC).toContain('JobSummary');
     expect(SRC).toContain('client_name');
-    expect(SRC).toContain("'lead_rpls'"); // splits RPLS out of the crew list
     expect(SRC).toContain('job_team');
+    // The RPLS-vs-crew split was extracted to lib/jobs/crew.ts (B5); the component consumes those helpers
+    // rather than inlining the 'lead_rpls' role literal.
+    expect(SRC).toContain("from '@/lib/jobs/crew'");
+    expect(SRC).toContain('jobRpls(job)');
+    expect(SRC).toContain('jobCrew(job)');
+    const CREW = fs.readFileSync(path.join(process.cwd(), 'lib/jobs/crew.ts'), 'utf8');
+    expect(CREW).toContain("'lead_rpls'"); // the role split lives in the tested helper now
   });
 
   it('reuses the shared location helpers for tap-to-navigate + tap-to-call', () => {
