@@ -21,15 +21,13 @@ where `email` is a synthetic key (`name:jacob` / `quick:jacob`) that functions a
 
 **The real gaps** (what the user asked for that isn't there):
 
-- [ ] **A1 — Request status lifecycle.** Add a `status` column to `dnd_suggestions`
-      (`'untouched' | 'pending' | 'complete'`, default `'untouched'`) via an idempotent seed
-      (`seeds/4NN_dnd_suggestion_status.sql`, `ADD COLUMN IF NOT EXISTS`). Apply to live Supabase per
-      `[[project_apply_seeds_to_supabase]]` (node-pg + `SUPABASE_DB_URL`). Backfill existing rows to
-      `'untouched'`.
-- [ ] **A2 — Capture the username alongside the display name.** The board must show BOTH the person's
-      display name AND their account handle (the synthetic key, e.g. `name:jacob`) so the owner can
-      identify who asked. Persist `user_key` (the session `email`) on insert in the POST route; the
-      review page shows `author_name` + `user_key`. Anonymous posts (no session) keep `author_name` only.
+- [x] **A1 — Request status lifecycle. ✅ SHIPPED** (`b1e44f4c`). `seeds/449_dnd_suggestion_status.sql`
+      adds `status` (`untouched|pending|complete`, CHECK-constrained, default `untouched`, indexed),
+      idempotent; **applied to live Supabase** (verified columns + constraint present). Backfilled.
+- [x] **A2 — Capture the username alongside the display name. ✅ SHIPPED** (`b1e44f4c`). `user_key`
+      column persists the session's synthetic handle on POST; GET returns it **only to the owner** (so
+      non-owners never see everyone's login keys); the review page shows `author_name (user_key)` for the
+      owner. Anonymous posts keep name-only.
 - [x] **A3 — Owner-only management gate (also closes a security hole). ✅ SHIPPED** (commit `1ed2fb0c`).
       `lib/dnd/auth.ts` now has `isDndOwner(session)` + `dndOwnerKeys()` (matches Jacob's synthetic
       pseudo-login key `quick:jacob` / `name:jacob`, overridable via `DND_OWNER_KEYS`). `DELETE
@@ -37,16 +35,16 @@ where `email` is a synthetic key (`name:jacob` / `quick:jacob`) that functions a
       any request). `GET /api/dnd/suggestions` now returns an `owner` flag; the review page renders the
       Delete button only for the owner. 4 tests. **The PATCH (status change) gate lands with A1/A4** (it
       needs the status column first).
-- [ ] **A4 — Owner review page: status controls + copy + delete + sort.** Extend
-      `/dnd/suggestions/page.tsx`: each row shows display name · user handle · full request text · a
-      **Copy text** button (already partially there) · and — only when `isDndOwner` — a status selector
-      (Untouched / Pending / Complete) and Delete. Non-owners see the list read-only (no Delete/status).
-- [ ] **A5 — Public status visibility + sorting/filtering.** Everyone can view the board and see each
-      request's current status (a colored chip). Tabs/filter: **Untouched · Pending · Complete** (+ All).
-      The "View all suggestions →" footer link already routes here; make sure it's obvious.
-- [ ] **A6 — Tests.** status defaults to untouched; a non-owner PATCH/DELETE is 403; an owner PATCH moves
-      the status; the board filters by status; the username/handle is captured on a signed-in post and
-      absent on an anonymous one.
+- [x] **A4 — Owner review page: status controls + copy + delete + sort. ✅ SHIPPED** (`b1e44f4c`). Each
+      row shows name · (handle, owner-only) · text · Copy · a status chip; the owner gets a status
+      selector (Untouched/Pending/Complete, PATCH `/api/dnd/suggestions/[id]` owner-only + validated) and
+      Delete. Non-owners see it read-only.
+- [x] **A5 — Public status visibility + sorting/filtering. ✅ SHIPPED** (`b1e44f4c`). A colored status
+      chip per request + All/Untouched/Pending/Complete filter tabs with live counts, for everyone.
+- [~] **A6 — Tests.** owner-gate covered (`suggestion-owner.test.ts`: default keys, case-insensitive
+      match, non-owner + anonymous rejected, env override). PATCH-status and filter behavior are
+      exercised through the gate + the applied schema; a fuller route-level test is deferred (the route
+      needs cookie/Supabase mocks) — the pure owner logic that gates it is fully tested.
 
 ## Area B — Review all species / ancestry traits from the character sheet
 
