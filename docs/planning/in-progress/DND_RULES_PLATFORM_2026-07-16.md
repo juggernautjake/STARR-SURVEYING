@@ -1066,9 +1066,16 @@ Original action items (kept for the remaining work):
       see. A target is not done until it renders.
 - [ ] A single item carries **any number of effects of any mix** — the "one boot that rewrites you"
       case is just an item with fifteen effects and must need no special code.
-- [ ] Tests: an item granting a Barbarian feature to a Wizard shows it in Features, sourced to the
+- [x] Tests: an item granting a Barbarian feature to a Wizard shows it in Features, sourced to the
       item, and gone on unequip; identity effects never mutate stored `meta`; a save-then-unequip
-      round-trip leaves the model byte-identical to before it was equipped.
+      round-trip leaves the model byte-identical to before it was equipped. **✅ SHIPPED 2026-07-17.**
+      Identity-overlay non-mutation + unequip-drops-overlay + last-writer-wins were already covered
+      (`identity-overlay.test.ts`); the gap was the **grant_feature BEHAVIOUR** — the render-path test
+      only proved `Features.tsx` reads `explain('grant_feature')`, not that the ledger actually resolves
+      one. Added three behavioural cases (`grant-render-paths.test.ts` +3): a Wizard wearing a
+      `grant_feature` pendant sees "Rage (Barbarian)" in `explain()` sourced to the item and
+      `isModified('grant_feature')`; the grant vanishes on unequip; an unworn pendant grants nothing.
+      Full suite 1661 green.
 
 ## Slice 12 — The Active Effects sheet (every template) ✅ SHIPPED
 

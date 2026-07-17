@@ -9,6 +9,10 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { findTarget } from '@/lib/dnd/effects/targets';
+import { buildLedger } from '@/lib/dnd/effects/ledger';
+import { applySheetEdits, type SheetEdit } from '@/lib/dnd/sheet-edits';
+import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
+import type { Character } from '@/app/dnd/_sheet/types';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 const FEATURES = read('app/dnd/_sheet/components/Features.tsx');
@@ -20,6 +24,43 @@ describe('effect-rendered grants read the ledger at their claimed home', () => {
   it('grant_feature is surfaced via ledger.explain in the Features tab', () => {
     expect(findTarget('grant_feature')!.rendersAt).toMatch(/Features/);
     expect(FEATURES).toContain(".explain('grant_feature')");
+  });
+});
+
+describe('grant_feature actually RESOLVES through the ledger (the "pendant from another class" case)', () => {
+  // The render-path test above proves Features.tsx reads explain('grant_feature'); this proves the
+  // ledger actually PUTS a granted feature there, sourced to the item, and takes it away on unequip —
+  // the behaviour Slice 11's "a Barbarian feature granted to a Wizard, gone on unequip" test names.
+  const RAGE: SheetEdit = {
+    op: 'add_item',
+    name: 'Pendant of Rage',
+    equipped: true,
+    effects: [{ target: 'grant_feature', operation: 'set', value: 'Rage (Barbarian)' }],
+  } as SheetEdit;
+
+  it('a Wizard wearing the pendant sees the Barbarian feature in explain(), sourced to the item', () => {
+    const out = applySheetEdits(blankCharacter('Wizard'), [RAGE]);
+    const granted = buildLedger(out).explain('grant_feature');
+    expect(granted).toHaveLength(1);
+    expect(granted[0].source).toBe('Pendant of Rage');
+    expect(granted[0].effect.value).toBe('Rage (Barbarian)');
+    expect(buildLedger(out).isModified('grant_feature')).toBe(true);
+  });
+
+  it('the grant vanishes the moment the item comes off', () => {
+    let out = applySheetEdits(blankCharacter('Wizard'), [RAGE]);
+    expect(buildLedger(out).explain('grant_feature')).toHaveLength(1);
+    out = applySheetEdits(out, [{ op: 'equip_item', name: 'Pendant of Rage', value: false } as SheetEdit]);
+    expect(buildLedger(out).explain('grant_feature')).toHaveLength(0);
+  });
+
+  it('an unworn item grants nothing (a pendant in your pack does not rage for you)', () => {
+    const c = blankCharacter('Wizard');
+    c.inventory = [{
+      id: 'p', name: 'Pendant of Rage', desc: '', qty: 1, tags: [], equipped: false,
+      effects: [{ target: 'grant_feature', operation: 'set', value: 'Rage (Barbarian)' }],
+    }] as Character['inventory'];
+    expect(buildLedger(c).explain('grant_feature')).toHaveLength(0);
   });
 });
 
