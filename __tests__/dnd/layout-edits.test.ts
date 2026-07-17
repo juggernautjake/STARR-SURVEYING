@@ -1,6 +1,8 @@
 // __tests__/dnd/layout-edits.test.ts — real-time layout/style edits to the custom sheet
 // add/remove/move/restyle blocks and set CSS, staying character-scoped (Phase V, Slice 12).
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { applyLayoutEdits, LAYOUT_EDIT_TOOL, type LayoutEdit } from '@/lib/dnd/layout-edits';
 import { assertCharacterScopedOps } from '@/lib/dnd/ai-scope';
 
@@ -59,5 +61,19 @@ describe('layout edits (Slice 12)', () => {
     const ops = schema.properties?.edits?.items?.properties?.op?.enum ?? [];
     expect(ops.length).toBeGreaterThan(0);
     expect(() => assertCharacterScopedOps(ops)).not.toThrow();
+  });
+
+  it('applyLayoutEdits has a case for EVERY op the tool schema offers (no silent no-op restyle)', () => {
+    // The AI restyles/reformats the sheet through this vocabulary ("edit the html/css and save it"). An op
+    // the tool offers but applyLayoutEdits doesn't handle would report success while the layout is
+    // unchanged. The `never` guard in applyLayoutEdits covers the LayoutEdit union↔handler; this covers the
+    // tool-schema op enum↔handler — mirrors the edit_sheet / edit_ig_sheet apply-path guards.
+    const schema = LAYOUT_EDIT_TOOL.input_schema as { properties?: { edits?: { items?: { properties?: { op?: { enum?: string[] } } } } } };
+    const ops = schema.properties?.edits?.items?.properties?.op?.enum ?? [];
+    const src = fs.readFileSync(path.join(process.cwd(), 'lib/dnd/layout-edits.ts'), 'utf8');
+    const body = src.slice(src.indexOf('export function applyLayoutEdits'), src.indexOf('export const LAYOUT_EDIT_TOOL'));
+    for (const op of ops) {
+      expect(body.includes(`case '${op}'`), `applyLayoutEdits has no case for "${op}" — the AI's restyle would silently do nothing`).toBe(true);
+    }
   });
 });

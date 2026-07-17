@@ -383,7 +383,12 @@ success while changing nothing (the AI's edit silently lost), directly breaking 
 everything." No live gap (all 31 handled), but the switch had no exhaustiveness guard. Added a compile-time
 `never` guard (a new union op without a handler now fails to compile) AND a source-scan test mirroring the
 existing revert guard (every tool-schema op has an apply case) — so the AI's edit vocabulary and what the
-sheet actually applies can never silently diverge. `sheet-edits.test.ts` +1.
+sheet actually applies can never silently diverge. `sheet-edits.test.ts` +1. **Same guard applied to the
+other two AI edit vocabularies (2026-07-17):** `applyIgEdit` (the IG stance/condition/feat/power/defensive-
+power ops — `ig-edit.test.ts` +1) and `applyLayoutEdits` (the AI's HTML/CSS restyle vocabulary — set/append
+CSS, add/remove/move/update block, retitle — `layout-edits.test.ts` +1). All three now carry a compile-time
+`never` exhaustiveness guard + a tool-schema↔handler source-scan, so NONE of the three ways the AI changes
+a sheet — mechanics, IG mechanics, or layout/style — can ever have an op that silently no-ops.
 
 - [x] **`add_spell` / `remove_spell` ✅ SHIPPED 2026-07-17.** The AI could rename or item-grant spells but
       not add/remove them directly. Added both to the edit vocabulary + the AI tool schema (full spell

@@ -67,8 +67,14 @@ export function applyLayoutEdits(
       case 'append_css':
         css = `${css}\n${String(e.value ?? '')}`.trim();
         break;
-      default:
+      default: {
+        // Exhaustiveness: every LayoutEdit op must have a case above, or an op the AI can emit to restyle
+        // the sheet would silently do nothing (the AI reports the layout change, the sheet is unchanged).
+        // A new union op without a handler fails to compile; the runtime break still absorbs a bad payload.
+        const _exhaustive: never = e;
+        void _exhaustive;
         break;
+      }
     }
   }
 
