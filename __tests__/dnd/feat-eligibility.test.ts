@@ -108,6 +108,16 @@ describe('General feat data', () => {
     }
   });
 
+  it('no Origin feat carries a minLevel prerequisite — they are always level-1 takeable', () => {
+    // Origin feats come from a Background (or Human Versatile) at level 1. A minLevel prereq on one would
+    // make featEligibility reject it at the origin slot (ctx.level 1 < minLevel) — silently un-offerable.
+    // Only `alert` was spot-checked; this pins the whole set against that authoring slip.
+    for (const feat of ORIGIN_FEATS_2024) {
+      const minLevels = (feat.prerequisites ?? []).map((p) => p.minLevel).filter((l) => l != null);
+      expect(minLevels, `${feat.name} (Origin) must not have a minLevel prereq`).toEqual([]);
+    }
+  });
+
   it('the three categories are disjoint', () => {
     const o = new Set(ORIGIN_FEATS_2024.map((f) => f.key));
     const fs = new Set(FIGHTING_STYLE_FEATS_2024.map((f) => f.key));

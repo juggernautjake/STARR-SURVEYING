@@ -281,6 +281,12 @@ categories) and Epic Boon remain.
       — replacing the old free-text box that accepted any feat. Unknown keys pass as custom/homebrew.
       Tests: `feat-eligibility.test.ts` (14) + updated `levelup.test.ts` (Origin-feat-at-ASI now
       rejected; prereqs enforced; unknown = custom). See the `feedback_rules_legal_builders` memory.
+      **Audit 2026-07-17:** re-read `featEligibility` end-to-end — the slot→category gate, epic-boon-@19,
+      all three prereq types (minLevel/ability/needs, conservative-block on missing ability context), and
+      the unknown-key custom escape hatch are all correct and comprehensively covered. Added one missing
+      DATA-invariant guard: every Origin feat is now asserted to carry NO `minLevel` prereq — one would make
+      it silently un-offerable at the level-1 origin slot, and only `alert` was spot-checked. All 16 clean.
+      `feat-eligibility.test.ts` +1.
 - [x] **Backgrounds** (16) ✅ SHIPPED (commit pending) — `lib/dnd/backgrounds/dnd5e-2024.ts`. All
       sixteen PHB backgrounds (Acolyte … Wayfarer), each with its three ability options (the 2024 rule
       that the **background** carries the increases, not the species — encoded and tested), Origin feat,
