@@ -270,7 +270,12 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       library page surfaces **all 21 major sections** of intuitivegames.net (core/abilities/advancement/
       classes/skills/ancestries/backgrounds/stances/conditions/feats/powers/defensive-powers/actions/
       companions/weapons/weapon-properties/armor/shields/equipment/tools/magical-items) and that every
-      section carries real content — so no part of the buildout can silently regress. **Remaining:** a
+      section carries real content — so no part of the buildout can silently regress. **Internal-consistency
+      guard added** (`ig-consistency.test.ts`): every element the library/data publishes — 150+ feats, all
+      ~52 roster spells (power + spell kinds), stances, defensive powers, conditions, ancestries, backgrounds
+      — is recognized VANILLA by the provenance classifier the builder uses (so a real element can never be
+      wrongly flagged custom), conditions/ancestries line up with the system lists, every background grants a
+      real stance, and invented content is still rejected. `ig-consistency.test.ts` (5). **Remaining:** a
       final side-by-side human pass against the live site (best done with the sheet walkthrough) + the A11
       spell-list verify + the A10 per-class ladders.
 
