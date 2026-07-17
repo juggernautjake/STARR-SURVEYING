@@ -240,6 +240,18 @@ term fully defined. One slice per site section; each fetches the page, transcrib
 - [x] **A16 — FAQs** (`/faqs`) — ✅ RESOLVED (nothing to reproduce). A fetch of the FAQs page returned no
       question/answer content — the page is empty / a work in progress. Per Ground Rule 2, no FAQ section was
       fabricated; recorded here as "no FAQ content on the site yet." Revisit if the page later carries Q&A.
+- [x] **A18 — Redistribution** (`/redistribution`) — ✅ SHIPPED (`content.ts` `IG_REDISTRIBUTION_RULES`): the
+      Conduit's signature ability (2-action material reshaping; know materials = WIS mod; affect level in lbs;
+      7 material categories; Manufacture Object + Launch Material 1d4/+1d4 per 2 levels) as a library section.
+- [~] **A19 — Spell List roster reconcile** (`/spell-list`) — ⚠ GAP: the site's spell list has 8 schools and
+      ~50+ spells across Description/Advanced/Expert tiers, but the app's `IG_POWERS` (~38, from the sheet
+      template) is **missing ~24 spells** and doesn't model the tiers. Full roster captured in the master doc;
+      the fetch tool declined verbatim spell effects, so completing this needs the exact text from Brendan/the
+      site — flagged, not fabricated.
+- [ ] **A20 — Art scrub (owner request 2026-07-17).** Screenshot the race/character/other art on
+      intuitivegames.net (browser tools — WebFetch returns only text) and bring it into the app's IG library/
+      sheet "and make it look good," with attribution to Brendan (the creator). Browser-driven; needs in-app
+      visual verification.
 - [~] **A17 — Verification pass.** ✅ *Completeness guard shipped* (`library.test.ts`): a test asserts the IG
       library page surfaces **all 21 major sections** of intuitivegames.net (core/abilities/advancement/
       classes/skills/ancestries/backgrounds/stances/conditions/feats/powers/defensive-powers/actions/

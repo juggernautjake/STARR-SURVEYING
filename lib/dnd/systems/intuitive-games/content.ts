@@ -361,6 +361,21 @@ export const IG_SUBCLASSES: string[] = ['Arcanist', 'Summoner', 'Champion', 'Wit
 // The Combat Skills (Sheet 4) — tracked separately from general skills. Str/Dex variants share these names.
 export const IG_COMBAT_SKILLS = new Set(['Dirty Trick', 'Disarm', 'Feint', 'Grapple', 'Overrun', 'Reposition', 'Steal', 'Sunder', 'Trip']);
 
+// Redistribution — the Conduit's signature ability (from intuitivegames.net/redistribution).
+export const IG_REDISTRIBUTION_RULES =
+  'Redistribution (the Conduit’s signature ability) is a two-action activity that rearranges materials into ' +
+  'different shapes, converting between liquid and solid forms. You know a number of materials equal to your ' +
+  'Wisdom modifier and can affect material up to your character level in pounds (or the equivalent square ' +
+  'footage at one inch thickness). You must touch the material (barefoot contact counts); you cannot ' +
+  'redistribute multiple known materials at once; quantities are subject to DM discretion. The seven material ' +
+  'categories are Fine Particles, Fluids, Gems, Metal, Stone, Oozes, and Organic Matter (you cannot transmute ' +
+  'organic matter that is still alive or attached to a living being). Applications — Manufacture Object: ' +
+  'replaces Craft checks using the relevant skill (e.g. Nature for Organic Matter), with the same time and ' +
+  'failure chance as crafting (cannot enchant Eldritch Jewels; mixed-material items need the extra materials ' +
+  'sourced separately). Launch Material: a two-action ranged attack (30 ft) dealing 1d4 physical damage ' +
+  '(+1d4 per two levels after the first); the damage type is set by the material (Metal offers slashing/' +
+  'piercing/bludgeoning; Gems deal piercing).';
+
 // Combat & damage mechanics (from intuitivegames.net/core-rules).
 export const IG_DAMAGE_SAVE_RULES =
   'When you take damage, make a Fortitude save at the start of your next turn; the DC equals the total HP ' +

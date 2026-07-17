@@ -72,10 +72,11 @@ External: Online Community (Locals platform link).
 | /tools | 🚧 WIP-on-site (concept only, no roster) | `items.ts` `IG_TOOL_RULES`; library "Tools" |
 | /magical-items | ✅ FULL (Eldritch Jewels + 12 enchantments) | `items.ts` `IG_ENCHANTMENTS`; library "Magical Items" |
 | /faqs | 🚧 WIP-on-site (no Q&A content) | — (nothing to reproduce) |
-| /spell-list | ⬜ re-scrub for verbatim verification (powers surfaced from template) | `content.ts` `IG_POWERS`; library "Powers & Spells" |
-| /redistribution | ⬜ not yet scrubbed | referenced by Conduit; partial via feats |
-| /game-list | ⬜ not yet scrubbed | — |
+| /spell-list | 🟨 PARTIAL (full roster captured; app missing ~24 spells + Desc/Adv/Expert tiers; fetch declined verbatim effects) | `content.ts` `IG_POWERS`; library "Powers & Spells" |
+| /redistribution | ✅ FULL | `content.ts` `IG_REDISTRIBUTION_RULES`; library "Redistribution" |
+| /game-list | 🚧 WIP-on-site (one board game, "Overrun") | — (no RPG rules impact) |
 | / (home) | ⬜ not yet scrubbed (nav + intro) | — |
+| ART (race/character/other) | ⬜ not yet scrubbed — needs browser screenshots (owner request) | — |
 
 *Legend:* the ✅ pages below carry their full transcription; the ⬜/🟨 pages are filled in over subsequent
 scrub slices. This tracker is updated as each page is completed.
@@ -126,5 +127,58 @@ benefit (a single benefit).
 | Supportive | Count as flanking when you threaten an enemy an ally also threatens. | Flanking allies gain an attack bonus equal to half your level. |
 | Menacing | Advantage on trained combat skills. | Advantage on all combat skills. |
 
+## /redistribution — Redistribution ✅ FULL
+
+The Conduit's signature ability. A **two-action activity** that rearranges materials into different shapes,
+converting between liquid and solid forms. You know a number of materials equal to your **Wisdom modifier** and
+can affect material up to your **character level in pounds** (or equivalent square footage at one inch
+thickness). Must **touch** the material (barefoot contact counts); cannot redistribute multiple known materials
+at once; quantities are at DM discretion.
+
+**Seven material categories:** Fine Particles, Fluids, Gems, Metal, Stone, Oozes, Organic Matter (cannot
+transmute organic matter that is still alive or attached to a living being).
+
+**Applications:**
+- **Manufacture Object** — replaces Craft checks using the relevant skill (e.g. Nature for Organic Matter),
+  same time/failure as crafting. Cannot enchant Eldritch Jewels; mixed-material items need the extra materials
+  sourced separately.
+- **Launch Material** — a two-action ranged attack, 30 ft, dealing 1d4 physical damage (+1d4 per two levels
+  after the first); damage type set by material (Metal: slashing/piercing/bludgeoning choice; Gems: piercing).
+
+*App:* `content.ts` `IG_REDISTRIBUTION_RULES` → library "Redistribution" section.
+
+## /spell-list — Spell List 🟨 PARTIAL (roster captured; full effects need Brendan's text)
+
+Spells are organized into **8 schools**, and each spell has **Description / Advanced / Expert** tiers (action
+costs from reactions to ten-action activities, ranges, damage dice, save types). **The full roster (names by
+school):**
+
+- **Abjuration:** Dispel Magic, Protection From Elements, Shield Ally
+- **Conjuration:** Conjure Wall, Create Shelter, Gate, Natural Ally, Portal, Summon Material, Teleportation, Unseen Servant, Elemental Blade
+- **Divination:** Detect Magic, Detect Thoughts/Emotions, Foresight, Scrying, Trace, Unburdened Vision, Comprehend, Mindlink, Named Bullet
+- **Enchantment:** Calm, Command, Enchant Creature, Erase Memory, Hold Creature, Mind Scream, Subtle Manipulation
+- **Evocation:** Destruction, Intense Blast, Repeating Blast, Telekinesis, Radiance, Spectral Sling, Vitality, Wave Crash, Wind Blast
+- **Illusion:** Create Image, Darkness, Disguise, Invisibility, Light, Mimic Sound, Mirror Image
+- **Transmutation:** Adaptation, Burst, Carapace Growth, Creature Morph, Item Shift, Natural Attacks, New Movement, Poison Dart, Quick Claw, Temporary Weapon
+
+**⚠ GAP + limitation:** the app's `IG_POWERS` (~38, with effect text from the character-sheet template) is
+**missing several of the spells above** (e.g. Natural Ally, Elemental Blade, Trace, Unburdened Vision,
+Comprehend, Named Bullet, Calm, Erase Memory, Hold Creature, Mind Scream, Destruction, Repeating Blast,
+Radiance, Spectral Sling, Vitality, Wave Crash, Disguise, Burst, Carapace Growth, Creature Morph, Item Shift,
+Poison Dart, Quick Claw, Temporary Weapon) and does not yet model the **Description/Advanced/Expert tiers**.
+The fetch tool declined to reproduce the full verbatim spell effects, so completing this faithfully needs the
+exact text from the site/Brendan — **flagged as a follow-up**, not fabricated.
+
+## /game-list — Game List 🚧 WIP-on-site
+
+Primarily a navigation hub. One board game featured: **Overrun** — "a fast-paced game that allows 2-4 players
+to compete for control of the central tiles" using mushroom tokens; 10–20 minute games that play "like
+checkers or other traditional board games." (Not an RPG rules page — no app rules impact; recorded for
+completeness.)
+
+---
+
 *(Remaining page transcriptions — core rules, skills, ancestries, backgrounds, feats, classes, companions,
-items, spell-list, redistribution, game-list, home — are added in subsequent scrub slices; see the tracker.)*
+items, home — are added in subsequent scrub slices; the ✅ pages' content already lives in the app modules
+cited in the tracker. ART SCRUB — race/character/other art from the site — is a separate slice using browser
+screenshots, per the owner's 2026-07-17 request; tracked in the planning doc.)*

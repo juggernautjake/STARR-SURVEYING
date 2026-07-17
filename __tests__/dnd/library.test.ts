@@ -293,7 +293,8 @@ describe('Intuitive Games library is complete (IG buildout A17 completeness guar
     const required = [
       'core', 'abilities', 'advancement', 'character-building', 'damage', 'classes', 'skills', 'combat-skills',
       'species', 'backgrounds', 'stances', 'conditions', 'feats', 'powers', 'defensive-powers', 'actions',
-      'companions', 'weapons', 'weapon-properties', 'armor', 'shields', 'equipment', 'tools', 'magical-items',
+      'redistribution', 'companions', 'weapons', 'weapon-properties', 'armor', 'shields', 'equipment',
+      'tools', 'magical-items',
     ];
     for (const id of required) expect(ids.has(id), `IG library is missing the "${id}" section`).toBe(true);
     // Every section carries real content (no empty shells).
@@ -451,6 +452,20 @@ describe('Intuitive Games backgrounds surface on the library (IG buildout A6)', 
   it('IG backgrounds are system-scoped (its Academic ≠ a PF2 background search)', () => {
     // "cosmopolitan" is an IG-only background name; it must not resolve under PF2.
     expect(searchLibrary('cosmopolitan', 'pathfinder2e').some((h) => h.kind === 'background')).toBe(false);
+  });
+});
+
+describe('Intuitive Games Redistribution surfaces on the library (site scrub /redistribution)', () => {
+  it('renders a Redistribution section with the full Conduit mechanic', () => {
+    const page = libraryPageFor('intuitive-games')!;
+    const redis = page.sections.find((s) => s.id === 'redistribution')!;
+    expect(redis.body![0]).toMatch(/two-action activity/i);
+    expect(redis.body![0]).toMatch(/Fine Particles, Fluids, Gems, Metal, Stone, Oozes, and Organic Matter/);
+    expect(redis.body![0]).toMatch(/Launch Material.*1d4/);
+  });
+
+  it('does not leak into another system', () => {
+    expect(libraryPageFor('dnd5e-2024')!.sections.some((s) => s.id === 'redistribution')).toBe(false);
   });
 });
 

@@ -11,7 +11,7 @@ import { glossaryFor, searchGlossary } from './glossary';
 import { classesForSystem } from './classes/registry';
 import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
-import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, IG_COMPANION_TYPES, IG_COMPANION_RULES, IG_BACKGROUND_DEFS, IG_CLASS_GROUPS, IG_CLASS_RULES, IG_SUBCLASSES, IG_CLASS_DETAILS, IG_CLASS_TAXONOMY_FINDING, type NamedEntry, type IGStance, type IGAncestry, type IGCompanionType, type IGBackground } from './systems/intuitive-games/content';
+import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, IG_COMPANION_TYPES, IG_COMPANION_RULES, IG_BACKGROUND_DEFS, IG_CLASS_GROUPS, IG_CLASS_RULES, IG_SUBCLASSES, IG_CLASS_DETAILS, IG_CLASS_TAXONOMY_FINDING, IG_REDISTRIBUTION_RULES, type NamedEntry, type IGStance, type IGAncestry, type IGCompanionType, type IGBackground } from './systems/intuitive-games/content';
 import { igAllFeats, type IGFeat } from './systems/intuitive-games/feats';
 import { IG_WEAPON_RULES, IG_WEAPON_CLASS_DATA, IG_WEAPON_PROPERTIES, IG_ARMOR_RULES, IG_ARMORS, IG_SHIELD_RULES, IG_SHIELDS, IG_EQUIPMENT_PACKS, IG_EQUIPMENT_NOTE, IG_TOOL_RULES, IG_MAGIC_ITEM_RULES, IG_ENCHANTMENTS } from './systems/intuitive-games/items';
 import { IG_SKILL_RULES, IG_COMBAT_SKILL_RULES, IG_COMBAT_SKILLS, IG_BUILD_STEPS, IG_PROGRESSION_NOTE, IG_DAMAGE_SAVE_RULES, IG_DAMAGE_TYPE_DATA, IG_COVER, IG_MOVEMENT_RULES, IG_SIZE_CATEGORIES, IG_SIZE_NOTE } from './systems/intuitive-games/content';
@@ -481,6 +481,11 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
       },
     });
   }
+  if (key === 'intuitive-games') {
+    // Redistribution — the Conduit's signature ability (its own /redistribution page on the site).
+    sections.push({ id: 'redistribution', title: 'Redistribution', lead: 'The Conduit’s signature material-shaping ability.', body: [IG_REDISTRIBUTION_RULES] });
+  }
+
   const igCompanions = igCompanionsFor(key);
   if (igCompanions.length) {
     sections.push({
