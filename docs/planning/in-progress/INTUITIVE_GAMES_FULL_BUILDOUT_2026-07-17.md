@@ -345,9 +345,15 @@ expanded requirements (2026-07-17):
       effect text), while the AI's `add_power` grounds on the fuller `igAllSpellNames()` roster — so the
       sheet couldn't offer known roster powers whose effect text is still pending Brendan (Gate, Portal, …).
       Repointed the picker at `IG_SPELL_ROSTER` grouped by school, excluding held powers, so a player can
-      add exactly what the AI can. `ig-sheet-tooltips.test.ts` asserts the roster source. **Remaining:**
-      prerequisite gating in the builder (owner-gated — needs the per-class/level feat & power ladders from
-      Brendan).
+      add exactly what the AI can. `ig-sheet-tooltips.test.ts` asserts the roster source. **Defensive power
+      now editable too (2026-07-17):** it was display-only post-build (a chip, no control) while stances,
+      conditions, feats and powers were all editable — a gap in "everything editable." Added a
+      `set_defensive_power` edit op (single slot: set/replace, empty name clears — mirrors set/clear_stance),
+      wired into `IG_EDIT_OPS` + the `edit_ig_sheet` AI tool + grounding (lists `IG_DEFENSIVE_POWERS`), and a
+      write-gated selector on the sheet's Defensive Power block. So every IG mechanic — stance, condition,
+      feat, power, AND defensive power — is now editable manually and by the AI. `ig-edit.test.ts` +3,
+      `ig-ai.test.ts` (enum+grounding), `ig-sheet-tooltips.test.ts` +1. **Remaining:** prerequisite gating in
+      the builder (owner-gated — needs the per-class/level feat & power ladders from Brendan).
 - [~] **B4 — Conditions: display + tooltip + mechanics + edit.** Conditions the character has are clearly shown
       on the sheet; hovering shows the full rules text (from `IG_CONDITIONS`); the mechanical ones actually
       apply (e.g. Flat-Footed drops Dex to Reflex/skills; Shaken/Sickened −2; Blind disadvantage) via the

@@ -7,7 +7,7 @@ import type { IGPicks } from './builder';
 import { systemRulesBlock } from '../../system-rules';
 import { igCatalog } from './catalog';
 import { IG_EDIT_OPS, parseIgEdit, type IGEdit } from './edit';
-import { IG_STANCE_DEFS, IG_CONDITIONS, igAllSpellNames } from './content';
+import { IG_STANCE_DEFS, IG_CONDITIONS, IG_DEFENSIVE_POWERS, igAllSpellNames } from './content';
 
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.map(str).filter(Boolean) : []);
@@ -86,7 +86,7 @@ export const IG_PICKS_TOOL = {
 export const IG_EDIT_TOOL = {
   name: 'edit_ig_sheet',
   description:
-    "Change ONE thing on an Intuitive Games character's sheet in place: enter a stance (set_active_stance, one active at a time), leave the stance (clear_stance), apply/remove a condition (add_condition/remove_condition), add/remove a feat (add_feat/remove_feat), or learn/remove a power (add_power/remove_power). Use the EXACT Intuitive Games stance/condition/feat/power name.",
+    "Change ONE thing on an Intuitive Games character's sheet in place: enter a stance (set_active_stance, one active at a time), leave the stance (clear_stance), apply/remove a condition (add_condition/remove_condition), add/remove a feat (add_feat/remove_feat), learn/remove a power (add_power/remove_power), or set the defensive power (set_defensive_power; empty name clears it). Use the EXACT Intuitive Games stance/condition/feat/power name.",
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -111,6 +111,7 @@ export function igEditToolInstruction(): string {
     `Valid conditions: ${IG_CONDITIONS.map((c) => c.name).join(', ')}.`,
     'Feats: add_feat/remove_feat take an Intuitive Games feat name (add_feat routes it to the General or Combat list automatically). Use a real IG feat name.',
     `Powers: add_power/remove_power take an Intuitive Games power name. Known powers: ${igAllSpellNames().join(', ')}.`,
+    `Defensive power: set_defensive_power takes one defensive power (a reaction) — the character has a single slot; an empty name clears it. Options: ${IG_DEFENSIVE_POWERS.map((d) => d.name).join(', ')}.`,
     'Only one stance is active at a time — set_active_stance replaces the current one. Use the exact names above; do not invent a stance, condition, feat, or power.',
   ].join('\n');
 }

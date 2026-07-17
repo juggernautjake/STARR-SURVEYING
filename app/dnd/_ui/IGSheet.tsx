@@ -13,7 +13,7 @@ import styles from './hextech.module.css';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { IG_ABILITIES, IG_SAVES } from '@/lib/dnd/systems/intuitive-games/model';
 import { igAbilityMod, igDerived, igSkillTotal, igRanksSpent, igResolveAttack } from '@/lib/dnd/systems/intuitive-games/rules';
-import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_SPELL_ROSTER, IG_CONDITIONS, IG_ACTION_ECONOMIES, igActionsByEconomy, findIGAncestry } from '@/lib/dnd/systems/intuitive-games/content';
+import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_SPELL_ROSTER, IG_DEFENSIVE_POWERS, IG_CONDITIONS, IG_ACTION_ECONOMIES, igActionsByEconomy, findIGAncestry } from '@/lib/dnd/systems/intuitive-games/content';
 import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-games/inPlay';
 import { igConditionSummary, igStanceMechanicNote } from '@/lib/dnd/systems/intuitive-games/modifiers';
 import type { IGEdit } from '@/lib/dnd/systems/intuitive-games/edit';
@@ -249,7 +249,20 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
                 })()}
               </div>
             )}
-            {cb.defensivePower && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Defensive Power</span><div>{chip(cb.defensivePower)}</div></div>}
+            {(cb.defensivePower || canDoEdit) && (
+              <div style={{ display: 'grid', gap: 4 }}>
+                <span style={label}>Defensive Power</span>
+                {cb.defensivePower && <div>{chip(cb.defensivePower)}</div>}
+                {canDoEdit && (
+                  // One defensive power (a reaction); set/replace/clear it — parity with the AI's
+                  // set_defensive_power. Offers the full IG_DEFENSIVE_POWERS list.
+                  <select aria-label="Defensive power" value={cb.defensivePower} disabled={editing} onChange={(ev) => postEdit({ op: 'set_defensive_power', name: ev.target.value })} style={{ fontSize: 12, background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '2px 6px', justifySelf: 'start' }}>
+                    <option value="">— no defensive power —</option>
+                    {IG_DEFENSIVE_POWERS.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
+                  </select>
+                )}
+              </div>
+            )}
             {cb.situationalBonuses.length > 0 && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Situational Bonuses</span><div style={{ fontSize: 12.5, color: 'var(--hx-text)' }}>{cb.situationalBonuses.join(' · ')}</div></div>}
             {(cb.conditions.length > 0 || canDoEdit) && (
               <div style={{ display: 'grid', gap: 4 }}>

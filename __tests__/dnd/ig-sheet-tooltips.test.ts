@@ -69,6 +69,12 @@ describe('IGSheet shows in-play stances + conditions with tooltips', () => {
     expect(SRC).toMatch(/Object\.entries\(IG_SPELL_ROSTER\)/);
   });
 
+  it('offers a write-gated defensive-power selector that POSTs set_defensive_power (B3)', () => {
+    expect(SRC).toContain("op: 'set_defensive_power'");
+    expect(SRC).toContain('IG_DEFENSIVE_POWERS.map'); // the picker lists all defensive powers
+    expect(SRC).toMatch(/— no defensive power —/); // and can clear the single slot
+  });
+
   it('renders the ancestry traits panel with per-trait tooltips (B1)', () => {
     expect(SRC).toContain('findIGAncestry(id.ancestry)');
     expect(SRC).toMatch(/anc\.traits\.map/);

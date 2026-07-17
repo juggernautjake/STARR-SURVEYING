@@ -16,10 +16,11 @@ export type IGEdit =
   | { op: 'add_feat'; name: string }
   | { op: 'remove_feat'; name: string }
   | { op: 'add_power'; name: string }
-  | { op: 'remove_power'; name: string };
+  | { op: 'remove_power'; name: string }
+  | { op: 'set_defensive_power'; name: string };
 
 /** The op names the AI tool + API accept. */
-export const IG_EDIT_OPS = ['set_active_stance', 'clear_stance', 'add_condition', 'remove_condition', 'add_feat', 'remove_feat', 'add_power', 'remove_power'] as const;
+export const IG_EDIT_OPS = ['set_active_stance', 'clear_stance', 'add_condition', 'remove_condition', 'add_feat', 'remove_feat', 'add_power', 'remove_power', 'set_defensive_power'] as const;
 export type IGEditOp = typeof IG_EDIT_OPS[number];
 
 const eq = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -70,6 +71,14 @@ export function applyIgEdit(ig: IGCharacter, edit: IGEdit): IGCharacter {
       if (!inEither) return ig;
       return { ...ig, feats: { general: ig.feats.general.filter((f) => !eq(f, name)), combat: ig.feats.combat.filter((f) => !eq(f, name)) } };
     }
+    case 'set_defensive_power': {
+      // A character has one defensive power (a reaction). Setting it replaces the current one; an
+      // empty name clears it. Single field, so it mirrors set/clear_stance rather than add/remove.
+      const name = edit.name.trim();
+      if (combat.defensivePower === name) return ig;
+      combat.defensivePower = name;
+      return { ...ig, combat };
+    }
     case 'add_power': {
       const name = edit.name.trim();
       if (!name || ig.powers.some((p) => eq(p, name))) return ig;
@@ -95,6 +104,8 @@ export function parseIgEdit(raw: unknown): { edit: IGEdit } | { error: string } 
     return { error: `Unknown edit op "${op}". Valid: ${IG_EDIT_OPS.join(', ')}.` };
   }
   if (op === 'clear_stance') return { edit: { op: 'clear_stance' } };
+  // set_defensive_power accepts an empty name — that clears the single defensive-power slot.
+  if (op === 'set_defensive_power') return { edit: { op: 'set_defensive_power', name } };
   if (!name) return { error: `The "${op}" edit needs a non-empty "name".` };
   return { edit: { op, name } as IGEdit };
 }
@@ -110,6 +121,7 @@ export function describeIgEdit(edit: IGEdit): string {
     case 'remove_feat': return `Removed the ${edit.name} feat.`;
     case 'add_power': return `Learned the ${edit.name} power.`;
     case 'remove_power': return `Removed the ${edit.name} power.`;
+    case 'set_defensive_power': return edit.name ? `Set the defensive power to ${edit.name}.` : 'Cleared the defensive power.';
     default: return 'No change.';
   }
 }

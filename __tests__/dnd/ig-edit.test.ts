@@ -77,6 +77,24 @@ describe('applyIgEdit — feats', () => {
   });
 });
 
+describe('applyIgEdit — defensive power (single slot)', () => {
+  it('set_defensive_power sets the slot, and replaces an existing one', () => {
+    const set = applyIgEdit(base(), { op: 'set_defensive_power', name: 'Sidestep' });
+    expect(set.combat.defensivePower).toBe('Sidestep');
+    const replaced = applyIgEdit(set, { op: 'set_defensive_power', name: 'Counterattack' });
+    expect(replaced.combat.defensivePower).toBe('Counterattack');
+  });
+  it('an empty name clears the slot', () => {
+    const set = applyIgEdit(base(), { op: 'set_defensive_power', name: 'Redirect' });
+    const cleared = applyIgEdit(set, { op: 'set_defensive_power', name: '' });
+    expect(cleared.combat.defensivePower).toBe('');
+  });
+  it('parseIgEdit accepts an empty name for set_defensive_power (that is the clear)', () => {
+    expect(parseIgEdit({ op: 'set_defensive_power' })).toHaveProperty('edit');
+    expect(parseIgEdit({ op: 'set_defensive_power', name: 'Sidestep' })).toEqual({ edit: { op: 'set_defensive_power', name: 'Sidestep' } });
+  });
+});
+
 describe('parseIgEdit', () => {
   it('accepts every valid op and rejects unknown ones', () => {
     for (const op of IG_EDIT_OPS) {
