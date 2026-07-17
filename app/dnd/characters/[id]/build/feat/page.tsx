@@ -19,6 +19,8 @@ export default function HomebrewFeatBuilderPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState<string | null>(null);
 
   async function draft() {
     if (!prompt.trim()) { setError('Describe the feat you want.'); return; }
@@ -29,8 +31,21 @@ export default function HomebrewFeatBuilderPage() {
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setError(j.error ?? 'Could not draft the feat.'); return; }
-      setResult(j as Result);
+      setResult(j as Result); setSaved(null);
     } catch { setError('Network error — please try again.'); } finally { setBusy(false); }
+  }
+
+  async function save() {
+    if (!result) return;
+    setSaving(true); setError(null);
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}/homebrew-feat/save`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ feat: result.feat }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setError(j.error ?? 'Could not save the feat.'); return; }
+      setSaved(j.name ?? 'the feat');
+    } catch { setError('Network error — please try again.'); } finally { setSaving(false); }
   }
 
   const input = { padding: '9px 11px', fontSize: 14, background: 'rgba(1,10,19,0.55)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', borderRadius: 6, width: '100%' } as const;
@@ -75,7 +90,14 @@ export default function HomebrewFeatBuilderPage() {
                 <div style={{ fontSize: 12.5, color: 'var(--hx-teal-1)' }}>✓ The engine found no problems with this feat.</div>
               )}
               <div style={{ fontSize: 13, color: 'var(--hx-text)', whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>{feat.body}</div>
-              <div style={{ fontSize: 11, color: 'var(--hx-muted)' }}>Draft only — refine the prompt and re-draft. Saving is a follow-up.</div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button type="button" className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} disabled={saving || !result.review.ok} onClick={save}
+                  title={result.review.ok ? 'Save this feat to your character' : 'Fix the errors above before saving'}>
+                  {saving ? 'Saving…' : '⚒ Save to my character'}
+                </button>
+                {saved && <span style={{ fontSize: 12.5, color: 'var(--hx-teal-1)' }}>✓ Saved “{saved}”.</span>}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--hx-muted)' }}>Saved feats are flagged custom for DM review.</div>
             </section>
           )}
         </div>

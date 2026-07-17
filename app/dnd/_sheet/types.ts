@@ -471,6 +471,8 @@ export interface Character {
   /** Homebrew classes saved to this character (Slice 5). The registry resolves them as `extra` so a
    *  custom class appears in the level builder like an official one. See lib/dnd/classes/homebrew-store. */
   homebrewClasses?: import('@/lib/dnd/classes/types').ClassDefinition[]
+  /** Homebrew feats saved to this character (Slice 5). */
+  homebrewFeats?: import('@/lib/dnd/classes/custom').CustomFeat[]
   bio: {
     intro: string[]
     appearance: string[]

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { upsertHomebrewClass, removeHomebrewClass, homebrewClassesForSystem, readHomebrewClasses } from '@/lib/dnd/classes/homebrew-store';
+import { upsertHomebrewClass, removeHomebrewClass, homebrewClassesForSystem, readHomebrewClasses, upsertHomebrewFeat, readHomebrewFeats } from '@/lib/dnd/classes/homebrew-store';
 import { findClass } from '@/lib/dnd/classes/registry';
-import { buildCustomClass } from '@/lib/dnd/classes/custom';
+import { buildCustomClass, buildCustomFeat } from '@/lib/dnd/classes/custom';
 import type { ClassDefinition } from '@/lib/dnd/classes/types';
 
 const cls = (key: string, system = 'dnd5e-2024', over: Partial<ClassDefinition> = {}): ClassDefinition => ({
@@ -39,6 +39,20 @@ describe('homebrew class store', () => {
     expect(readHomebrewClasses({})).toEqual([]);
     expect(readHomebrewClasses(null)).toEqual([]);
     expect(readHomebrewClasses({ homebrewClasses: [{ nope: 1 }, cls('good')] })).toHaveLength(1); // junk filtered
+  });
+});
+
+describe('homebrew feat store', () => {
+  const feat = (key: string) => buildCustomFeat({ name: key, system: 'dnd5e-2024', category: 'general', body: 'x', custom: {}, key });
+  it('upsert by key + defensive read', () => {
+    let list = upsertHomebrewFeat(undefined, feat('custom-a'));
+    list = upsertHomebrewFeat(list, feat('custom-b'));
+    expect(list).toHaveLength(2);
+    list = upsertHomebrewFeat(list, feat('custom-a')); // replace, not dup
+    expect(list).toHaveLength(2);
+    expect(readHomebrewFeats({ homebrewFeats: list })).toHaveLength(2);
+    expect(readHomebrewFeats({})).toEqual([]);
+    expect(readHomebrewFeats({ homebrewFeats: [{ nope: 1 }, feat('good')] })).toHaveLength(1);
   });
 });
 
