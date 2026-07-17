@@ -48,3 +48,17 @@ describe('every AI path feeds the grounding BLOCK (so the glossary reaches them)
     }
   });
 });
+
+describe('AI grounding also feeds the full feat text when a feat is named', () => {
+  it('grounds on the real 2024 Tavern Brawler benefit when asked about it', async () => {
+    const g = await systemGroundingBlock('dnd5e-2024', 'what does the Tavern Brawler feat do');
+    expect(g.block).toMatch(/RELEVANT .*FEATS/i);
+    expect(g.block).toMatch(/Tavern Brawler/);
+    expect(g.block).toMatch(/origin feat/i);
+  });
+
+  it('does not add a feat block for a system without a feat registry (PF2e)', async () => {
+    const g = await systemGroundingBlock('pathfinder2e', 'what does power attack do');
+    expect(g.block).not.toMatch(/RELEVANT .*FEATS \(authoritative/i);
+  });
+});

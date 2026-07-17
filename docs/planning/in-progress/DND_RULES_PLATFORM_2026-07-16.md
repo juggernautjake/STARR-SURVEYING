@@ -520,8 +520,13 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       "sample" of feats; now a system-keyed `featsForSystem` projects the whole **`FEATS_2024`** registry
       (Origin / Fighting Style / General / Epic Boon) with each feat's **real benefit text + category**,
       so "tavern brawler", "alert", "archery" return the actual rules, not a stub. **Verified in the
-      app** (Tavern Brawler → its full 662-char benefit). `library.test.ts` +2. (Follow-up: also feed
-      the full feats into the AI grounding block, not just search.)
+      app** (Tavern Brawler → its full 662-char benefit). `library.test.ts` +2.
+- [x] **AI grounds on the full feat text too ✅** — `systemGroundingBlock` now also retrieves the feats
+      NAMED in the question (`matchFeats`, system-scoped) and injects their real benefit text, so the
+      librarian/builder answer feat questions from the rules, not recall. **Verified end-to-end**: asking
+      the librarian "what does Tavern Brawler do in 2024?" returned the exact 2024 benefit (Enhanced
+      Unarmed Strike, 1d4+STR bludgeoning), `grounded: 2` — the 2024 version, not the 2014 one.
+      `grounding-glossary.test.ts` +2.
 - [x] **Classes project into library search ✅** — confirmed `searchLibrary` already surfaces **every
       class feature by name + level** via `classesForSystem(key)` for any system with full class data, so
       the whole **2014 roster (built this session) is automatically searchable** alongside 2024

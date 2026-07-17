@@ -6,6 +6,22 @@ import { searchSystemEntries } from './system-store';
 import { SYSTEM_AMBIGUOUS, systemLabel } from './systems';
 import { systemRulesBlock } from './system-rules';
 import { searchGlossary } from './glossary';
+import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
+
+/** Feats a full registry can ground the AI on, system-scoped (only dnd5e-2024 has one today). */
+function groundingFeats(system: string): Feat[] {
+  return system === 'dnd5e-2024' ? FEATS_2024 : [];
+}
+
+/** The feats whose NAME matches a keyword in the query — so "what does tavern brawler do" grounds on
+ *  the real Tavern Brawler text. Name-only match keeps it precise (a feat body mentions many words). */
+function matchFeats(system: string, keywords: string, limit: number): Feat[] {
+  const words = keywords.split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  return groundingFeats(system)
+    .filter((f) => { const n = f.name.toLowerCase(); return words.some((w) => n.includes(w)); })
+    .slice(0, limit);
+}
 
 export interface SystemGrounding {
   /** Appended to the agent's system prompt. */
@@ -69,6 +85,14 @@ export async function systemGroundingBlock(system: string | null | undefined, qu
       glossaryHits.map((g) => `## ${g.term} (${g.kind})\n${g.body}`).join('\n\n')
     : '';
 
+  // Full feat text for the feats named in the query — so "explain Tavern Brawler" or "build a
+  // character with Alert" grounds on the real 2024 benefit, not recall (2024 feats differ from 2014).
+  const featHits = keywords ? matchFeats(system, keywords, 4) : [];
+  const featBlock = featHits.length
+    ? `\n\nRELEVANT ${label} FEATS (authoritative benefit text — use exactly):\n` +
+      featHits.map((f) => `## ${f.name} (${f.category} feat)\n${f.benefit}`).join('\n\n')
+    : '';
+
   // Optional semantic enhancement: scoped RAG hits (only when an embeddings key is configured). These
   // augment — never replace — the deterministic rules block above.
   const entries = await searchSystemEntries(system, query, { matchCount: 10, minSimilarity: 0.3 }).catch(() => []);
@@ -83,7 +107,7 @@ export async function systemGroundingBlock(system: string | null | undefined, qu
       `numbers as stated in the AUTHORITATIVE RULES block. NEVER borrow mechanics from another game system, ` +
       `and NEVER invent rules or numbers. When the sources are ambiguous, missing, or conflict with ${label}, ` +
       `put the issue in \`unmapped\` (so the user is asked) rather than guessing.`,
-    block: rulesBlock + glossaryBlock + ragBlock,
-    matched: entries.length + glossaryHits.length,
+    block: rulesBlock + glossaryBlock + featBlock + ragBlock,
+    matched: entries.length + glossaryHits.length + featHits.length,
   };
 }
