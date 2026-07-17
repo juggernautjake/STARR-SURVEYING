@@ -143,5 +143,33 @@ read against its rules + its tests this session and confirmed **correct and comp
   Wi-Fi/backoff/maxed→idle/empty→idle) and post-upload plan are pure + comprehensively tested; only the
   device-side Expo runtime remains (Section C).
 
+### Second deep-audit pass (2026-07-17, this session) — findings + hardening
+
+A fresh mechanic-by-mechanic audit of the rules engine and the mobile upload core. **Real bugs found:**
+- **Artificer multiclass rounding (FIXED).** `multiclassCasterLevel` rounded every `half` caster down;
+  the Artificer is the one 5e half-caster that rounds UP — odd Artificer levels were under-counted a caster
+  level. Modelled the exception (`spellcasting.roundHalfUp`) + `roundUp` param. `class-engine.test.ts`.
+- **AC equipped-TAG split-brain (FIXED).** `deriveAc` honored the `equipped` tag for +ac EFFECTS but not
+  for the armour/shield BASE selection, so a tag-equipped armour showed the unarmoured AC. One `isWorn`
+  predicate now. `derive-ac.test.ts`.
+- **2014 exhaustion edition-merge (TRACKED, §A).** The sheet applies the 2024 flat −2/level to 2014
+  characters, whose exhaustion is a tiered table — a Ground-Rule-2 violation. Owner-gated; guarded so it
+  can't drift (`exhaustion-d20.test.ts`).
+- **PF2 has no in-app roller (SURFACED, §C).** `pf2Degree` is built + fully tested but has zero call sites;
+  `PF2Sheet` is display-only. Product call.
+
+**Safety/security hardening (no behavior change; invariants pinned or made future-proof):** death-save
+state transition extracted to a pure `applyDeathSave` + guarded; weapon-crit "double dice not the flat"
+now guarded on the typed path too; mobile backoff schedule extracted + made NaN-safe; the delete-safety
+upload-result classification extracted + guarded (a transient error can never read as "uploaded" and
+delete a capture); `sanitiseName` pinned against Unicode/null/control-char injection vectors; the "no
+failure choice deletes the file" sweep made exhaustive-by-construction.
+
+**Re-verified correct + already comprehensively tested (no change needed):** the effect-ledger core
+resolution (`resolveAgainst` highest-set-wins + adds), transform separate-HP pool (`routeFormDamage`
+overflow/exactly-empty/base-floor), PF2 MAP + spell-slot progression, currency economy, HP adjust,
+`uploadRetention`'s confirmed-only delete guard, `queueOrder` eligibility/ordering, `cameraRollSave`
+fail-safe default.
+
 Full app test suite green: **13,183 passing** (grown steadily with each audit slice's guards). What's
 left is only Sections A–C above (owner decisions, Brendan's content, and eyes-on-app / device work).
