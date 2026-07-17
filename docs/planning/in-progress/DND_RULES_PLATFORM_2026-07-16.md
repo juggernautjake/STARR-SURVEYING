@@ -1183,7 +1183,9 @@ vocabulary (Slice 11), so "armour that changes your species" is just armour with
 features, where `on` is one of eleven events (`hit_by_melee`…`reduced_to_zero`) and `action` is a
 prompt-shaped payload (roll damage/heal/temp-HP, apply a condition, grant an effect, spend a resource,
 or DM-adjudicate). `lib/dnd/effects/triggers.ts` collects the ACTIVE triggers (equipped items +
-unlocked features, condition-gated by the same rule the ledger uses), filters them by event
+unlocked features, condition-gated by the same rule the ledger uses — now LITERALLY shared: triggers
+imports the ledger's exported `isItemActive` instead of a hand-kept copy that could drift, `19cad91e`,
++1 test proving agreement on the attuned-but-unequipped edge), filters them by event
 (`triggersForEvent`), and describes them (`describeTrigger`). A **Reactions & Triggers** panel on
 every sheet lists them grouped by event ("When hit by a melee attack — Spiked Barbs: 1d6 piercing,
 from Spiked Armour"). Kept firmly a PROMPT, not automation — nothing auto-applies damage to a creature
