@@ -388,7 +388,11 @@ The engine (`lib/dnd/classes/custom.ts`) is built and tested; there is no UI.
       parent class resolves incl. saved homebrew). **All three persist + resolve in the level builder**:
       class (`7fa1a665`/`253e42f9`), feat (`b03c65f7`/`20d93339` — shows in the ASI picker), subclass
       (`1da93c4a` — `subclassesFor(..., extra)` offers it under its parent class). **Nice-to-have
-      remaining:** manual field-by-field edit forms on the drafts.
+      remaining:** manual field-by-field edit forms on the drafts. **Save-route security guarded**
+      (`68f2b10a`): the three `*/save` routes persist into a character's data, so they're write-gated
+      (session 401 + `requireCharacterWrite`) and rebuild from PARSED input server-side (never trust a
+      client-supplied built definition); `homebrew-save-access.test.ts` (6) pins both so a future edit
+      can't drop the gate.
 - [x] **AI assist: prose → a draft the player edits. ✅ SHIPPED** (`279e502f`). `lib/dnd/classes/custom-ai.ts`
       — `CUSTOM_CLASS_TOOL` (structured-output schema) + `parseCustomClassDraft` (defensive normalizer →
       a valid `CustomClassDraft`) that flows through the existing `buildCustomClass` + `reviewCustomClass`,
