@@ -139,7 +139,13 @@ choice — default to removing only the app's copy unless the user opts into ful
       `mobile/lib/queueOrder.ts` `nextUpload()` returns exactly ONE front-of-queue eligible row (8 tests).
       `processQueue()` already loops sequentially (`await tryOne` per row). **Remaining:** switch
       `processQueue` to drain via `nextUpload` in a loop (re-query after each confirmed DB write) so
-      pause/priority take effect — a mobile-runtime change to device-test.
+      pause/priority take effect — a mobile-runtime change to device-test. **Composed drain-brain shipped**
+      (`mobile/lib/drainDecision.ts`): `nextDrainStep({mode, rows, env, userInitiated})` folds the mode
+      (uploadMode), the strict one-at-a-time ordering (queueOrder.nextUpload), and the Wi-Fi/backoff/network
+      eligibility into ONE next-action — `upload row` / `paused` / `blocked (with reason)` / `idle` — so the
+      runtime drain loop becomes trivial (call it, act, repeat) and distinguishes "blocked but has work" from
+      "truly done". `drain-decision.test.ts` (4). Every drain decision is now pure + tested; only the loop
+      that calls it (re-query after each confirmed write) is the device-tested part.
 - [ ] **C2 — Background continuation while using other apps/features.** Uploads must continue while the
       worker uses the rest of the hub/app or leaves the app. Use Expo background upload/task facilities
       (`expo-task-manager` / `expo-background-fetch` or resumable uploads) so a backgrounded/again-
