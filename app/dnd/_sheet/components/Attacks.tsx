@@ -11,7 +11,7 @@ import EffectStar from './ui/EffectStar'
 import EditMark from './ui/EditMark'
 
 export default function Attacks() {
-  const { char, abilities, pb, critMin, activeFormId, rollCheck, rollDmg, transformActive, recklessActive, canWrite, setChar } = useChar()
+  const { char, abilities, pb, critMin, activeFormId, rollCheck, rollDmg, transformActive, recklessActive, canWrite, setChar, ledger } = useChar()
   const [editing, setEditing] = useState<Attack | null>(null)
 
   const duplicate = (a: Attack) =>
@@ -86,7 +86,10 @@ export default function Attacks() {
               // to STR and carry on.
               const abilityKey = abilities[a.ability] != null ? a.ability : 'str'
               const mod = abilityMod(abilities[abilityKey])
+              // Fold the ledger's GLOBAL attack-bonus targets (a +N-to-all-attacks item, a Bless-style
+              // bonus) — the per-attack bonusToHit already handles a specific weapon's +N. No-op without them.
               const toHit = mod + (a.proficient ? pb : 0) + (a.bonusToHit ?? 0)
+                + ledger.value('attack_roll', 0) + ledger.value('attack_and_damage', 0)
               const die = dieFor(a)
               const isSave = !!a.saveBased
               // Per-attack DC: a flat override wins; otherwise 8 + PB + the chosen ability's mod

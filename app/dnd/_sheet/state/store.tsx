@@ -651,7 +651,9 @@ export function CharacterProvider({
       const abilityKey = w.ability ?? 'str'
       const mod = abilityMod(abilities[abilityKey]) // effective (Slice 10) — a STR/DEX item raises weapon damage
       const formBonus = item.tags?.includes('weapon') && char.combat.transformActive ? char.combat.formDamageBonus : 0
-      const flat = mod + formBonus
+      // Fold the ledger's GLOBAL flat damage targets (damage_roll, and the magic-weapon attack_and_damage
+      // +N) on top of ability + form. No-op without them; the weapon's own +N is w.bonus (per-weapon).
+      const flat = mod + formBonus + ledger.value('damage_roll', 0) + ledger.value('attack_and_damage', 0)
       // Ledger-granted bonus damage DICE (Enlarge's +1d4, a flametongue's +1d6 fire) ride on top of the
       // weapon's own dice — a real rules mechanic that `damage_roll` (a flat number) can't express. Each
       // non-suppressed `weapon_bonus_dice` contribution parses to a typed segment and joins the roll.
