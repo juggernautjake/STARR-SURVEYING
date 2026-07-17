@@ -123,10 +123,13 @@ read against its rules + its tests this session and confirmed **correct and comp
   now grounds on that feat's full effect text (query-scoped, so no prompt bloat). Previously the query-scoped
   feat retrieval was 2024-only and the always-on IG rules block lists feats by name only, so no path supplied
   IG feat effect text. Guarded by `grounding.test.ts`.
-- **Dice / combat core** — rollD20 advantage=max/disadvantage=min, crit doubles dice not the flat modifier;
-  exhaustion −2/level on every d20 (checks/saves/attacks/death-saves/initiative) + speed −5/level, capped at 6;
-  AC by armor category incl. the negative-DEX edge; HP adjust (temp-first, heal-cap at effective max);
-  short/long rest resets; spell save DC unified to one store source (header == cast).
+- **Dice / combat core** — rollD20 advantage=max/disadvantage=min, crit doubles dice not the flat modifier
+  (now guarded on BOTH paths: `rollDamage` AND the typed `rollTyped`/`weaponSegments` path the everyday
+  weapon crit actually takes — the ability mod is added once, never doubled); exhaustion −2/level on every
+  d20 (checks/saves/attacks/death-saves/initiative) + speed −5/level, capped at 6 — **2024-only model,
+  applied to all editions (tracked gap, see §A exhaustion decision)**; AC by armor category incl. the
+  negative-DEX edge; HP adjust (temp-first, heal-cap at effective max); short/long rest resets; spell save
+  DC unified to one store source (header == cast).
 - **Pathfinder 2e rules** — proficiency (untrained=0, else rank+level), all four degrees of success with the
   nat-20/nat-1 step-and-cap, AC/DCs/HP/strikes/MAP, level clamp — a focus system, fully covered.
 - **Mobile upload decision layer** — the drain brain (`nextDrainStep`: paused/manual/upload/blocked/idle,
