@@ -9,6 +9,7 @@
 import type { Character } from '@/app/dnd/_sheet/types';
 import { SYSTEM_AMBIGUOUS, systemLabel, type CharacterSystem } from './systems';
 import { rulesForSystem, systemClassNames, systemSpecies } from './system-rules';
+import { readHomebrewClasses, homebrewClassesForSystem } from './classes/homebrew-store';
 
 export interface SystemViolation {
   /** Sheet field the issue is about (e.g. 'meta.className'). */
@@ -55,9 +56,12 @@ export function validateCharacterForSystem(character: Character, system: Charact
     }
   }
 
-  // 3. Class belongs to the system (token match; tolerant of multiclass/subclass strings).
+  // 3. Class belongs to the system (token match; tolerant of multiclass/subclass strings). A SAVED
+  //    HOMEBREW class (Slice 5) is legitimate for this character, so include its names — otherwise the
+  //    validator would falsely flag every custom class as "not recognized".
+  const homebrewClassNames = homebrewClassesForSystem(readHomebrewClasses(c), system).map((hc) => hc.name);
   const className = String(c?.meta?.className ?? '').trim();
-  if (className && !mentionsAny(className, systemClassNames(system))) {
+  if (className && !mentionsAny(className, [...systemClassNames(system), ...homebrewClassNames])) {
     out.push({ field: 'meta.className', severity: 'warn', message: `Class "${className}" is not a recognized ${label} class — verify it isn't from another system.` });
   }
 

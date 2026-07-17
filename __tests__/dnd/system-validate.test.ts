@@ -47,6 +47,17 @@ describe('system validation (Slice 3)', () => {
     expect(validateCharacterForSystem(make({ className: 'Fighter' }), 'pathfinder2e').some((x) => x.field === 'meta.className')).toBe(false);
   });
 
+  it('does NOT flag a SAVED HOMEBREW class (Slice 5) as unrecognized', () => {
+    const c = make({ className: 'Spellblade' });
+    // Without the homebrew class saved, it's flagged as not-recognized…
+    expect(validateCharacterForSystem(c, 'dnd5e-2024').some((x) => x.field === 'meta.className')).toBe(true);
+    // …but a character carrying the saved homebrew class is fine.
+    c.homebrewClasses = [{ key: 'custom-spellblade', name: 'Spellblade', system: 'dnd5e-2024' } as never];
+    expect(validateCharacterForSystem(c, 'dnd5e-2024').some((x) => x.field === 'meta.className')).toBe(false);
+    // Ground Rule 1: the homebrew class only counts under its own system.
+    expect(validateCharacterForSystem(c, 'pathfinder2e').some((x) => x.field === 'meta.className')).toBe(true);
+  });
+
   it('flags a cross-edition SPECIES (Aasimar is 2024, not a 2014 PHB race; Half-Elf is 2014, not 2024)', () => {
     expect(validateCharacterForSystem(make({ species: 'Aasimar' }), 'dnd5e-2014').some((x) => x.field === 'meta.species')).toBe(true);
     expect(validateCharacterForSystem(make({ species: 'Half-Elf' }), 'dnd5e-2024').some((x) => x.field === 'meta.species')).toBe(true);
