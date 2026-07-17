@@ -833,7 +833,15 @@ One pure function that every later slice reads. Nothing else in Part II can be b
       AC — an armored character saw two different numbers. AC is now derived once in the store (`acInfo`,
       effective DEX + equipped armor/shield + AC effects) and both surfaces read it, satisfying Slice 13's
       "one answer" rule. The rail shows the derived AC (read-only, sourced) when equipment drives it,
-      editable manual AC otherwise. `ac-single-source.test.ts` (5). **Save DC unified the same way**
+      editable manual AC otherwise. `ac-single-source.test.ts` (5). **AC honors the equipped TAG**
+      (`fc1e1200`): `deriveAc` checked only the `equipped` flag, so an item equipped via the `equipped`
+      TAG applied its STR/speed bonuses (ledger's `isEquipped` honors the tag) but NOT its AC bonus — a
+      split-brain result; fixed. **⚠️ OPEN FINDING (needs a product call, not an autonomous guess):** the
+      codebase disagrees on whether attunement ALONE (attuned but unworn) activates an item's effects —
+      the ledger's `isItemActive` reduces to equipped-only, while `deriveAc`, `equipment.collectItemEffects`,
+      and the ItemBuilder's "effects while equipped/attuned" label all say equipped-OR-attuned. So an
+      attuned-but-unequipped item's AC currently applies but its STR does not. Left unchanged pending a
+      decision on the intended rule; both paths should then use one shared predicate. **Save DC unified the same way**
       (`4fcef838`): the StatRail honored the manual override while the Saves & Skills card recomputed
       8+PB+STR and ignored it — two Save DCs on one sheet. Now derived once in the store (`saveDc` =
       override ?? 8+PB+effective STR); both cards read it. `save-dc-single-source.test.ts` (3).
