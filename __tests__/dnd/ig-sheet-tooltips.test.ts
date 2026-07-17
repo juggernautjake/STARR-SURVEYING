@@ -52,6 +52,13 @@ describe('IGSheet shows in-play stances + conditions with tooltips', () => {
     expect(SRC).toMatch(/def \? `\$\{def\.name\}/); // tooltip built from the feat's real effect text
   });
 
+  it('offers write-gated feat add/remove controls that POST to ig-edit (B3)', () => {
+    expect(SRC).toContain("op: 'remove_feat'");
+    expect(SRC).toContain("op: 'add_feat'");
+    expect(SRC).toContain('igAllFeats()'); // the add picker is populated from the full catalog
+    expect(SRC).toMatch(/optgroup label="General"/); // grouped by category
+  });
+
   it('renders the ancestry traits panel with per-trait tooltips (B1)', () => {
     expect(SRC).toContain('findIGAncestry(id.ancestry)');
     expect(SRC).toMatch(/anc\.traits\.map/);

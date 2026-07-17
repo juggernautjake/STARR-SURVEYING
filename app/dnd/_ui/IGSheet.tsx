@@ -17,7 +17,7 @@ import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_CONDITIONS, IG_ACTION_ECONOMI
 import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-games/inPlay';
 import { igConditionSummary, igStanceMechanicNote } from '@/lib/dnd/systems/intuitive-games/modifiers';
 import type { IGEdit } from '@/lib/dnd/systems/intuitive-games/edit';
-import { findIGFeat } from '@/lib/dnd/systems/intuitive-games/feats';
+import { findIGFeat, igAllFeats } from '@/lib/dnd/systems/intuitive-games/feats';
 import { igAncestryArt, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
 
 const effectMap = (() => {
@@ -353,17 +353,35 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
               ))}
             </div>
           )}
-          {(ig.feats.general.length > 0 || ig.feats.combat.length > 0) && (
+          {(ig.feats.general.length > 0 || ig.feats.combat.length > 0 || canDoEdit) && (
             <div style={{ display: 'grid', gap: 4 }}>
               <span style={label}>Feats <span style={{ textTransform: 'none', letterSpacing: 0 }}>(hover for the full rules)</span></span>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                 {[...ig.feats.general, ...ig.feats.combat].map((f) => {
                   const def = findIGFeat(f);
                   const tip = def ? `${def.name} — ${def.category} feat${def.prerequisites ? ` (Prereq: ${def.prerequisites})` : ''}: ${def.effect}` : undefined;
                   return (
-                    <span key={f} title={tip} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '2px 9px', cursor: def ? 'help' : 'default' }}>{f} {badgeFor(f)}</span>
+                    <span key={f} title={tip} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '2px 9px', cursor: def ? 'help' : 'default' }}>
+                      {f} {badgeFor(f)}
+                      {canDoEdit && (
+                        <button type="button" aria-label={`Remove ${f}`} disabled={editing} onClick={() => postEdit({ op: 'remove_feat', name: f })} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+                      )}
+                    </span>
                   );
                 })}
+                {canDoEdit && (() => {
+                  // Add a feat — grouped by General/Combat; excludes feats the character already has. The
+                  // route routes it to the right list + de-dupes, so a stray pick is harmless.
+                  const have = new Set([...ig.feats.general, ...ig.feats.combat].map((f) => f.toLowerCase()));
+                  const opts = igAllFeats().filter((f) => !have.has(f.name.toLowerCase()));
+                  return (
+                    <select aria-label="Add feat" value="" disabled={editing} onChange={(ev) => { if (ev.target.value) postEdit({ op: 'add_feat', name: ev.target.value }); }} style={{ fontSize: 12, background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '2px 6px' }}>
+                      <option value="">+ add feat…</option>
+                      <optgroup label="General">{opts.filter((f) => f.category === 'General').map((f) => <option key={`g-${f.name}`} value={f.name}>{f.name}</option>)}</optgroup>
+                      <optgroup label="Combat">{opts.filter((f) => f.category === 'Combat').map((f) => <option key={`c-${f.name}`} value={f.name}>{f.name}</option>)}</optgroup>
+                    </select>
+                  );
+                })()}
               </div>
             </div>
           )}
