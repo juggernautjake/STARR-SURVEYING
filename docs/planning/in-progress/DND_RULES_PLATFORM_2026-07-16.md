@@ -1251,8 +1251,17 @@ Original action items (kept for the remaining work):
       listed-not-auto-applied, so the AI must be *told* it exists). Both now emit (`Movement traits: …`,
       `DEFENSES: … · Advantage on saves vs: …`), so every effect-derived fact CombatPanel renders is now in
       the digest. `character-digest.test.ts` +2.
-- [ ] A single item carries **any number of effects of any mix** — the "one boot that rewrites you"
-      case is just an item with fifteen effects and must need no special code.
+- [x] A single item carries **any number of effects of any mix** — the "one boot that rewrites you"
+      case is just an item with fifteen effects and needs no special code. ✅ SHIPPED (verified, not built —
+      the architecture already generalized). **⚑ INVARIANT PINNED (2026-07-18).** Added `effect-ledger.test.ts`
+      +2: a single `Boots of Rewriting` item carrying FIFTEEN effects across every family at once (ability
+      add, AC add, walk+fly speed, max HP, initiative, all_saves, a skill advantage, the three damage
+      defenses, a condition-save advantage, a cross-class `grant_feature`, a `grant_sense`, and a `name`
+      identity overlay) resolves them ALL from one `buildLedger` pass — each number correct, each ref/defense
+      attributed to the ONE item, `led.sources` length exactly 1 despite the fifteen effects — and hands
+      every one back the instant the boot is unequipped (`led.sources` empty, every value at base). This is
+      the "no per-item logic" claim made concrete: if any effect family needed special-casing, a fifteen-mix
+      item is where it would break. It doesn't. Full dnd suite green (1840).
 - [x] Tests: an item granting a Barbarian feature to a Wizard shows it in Features, sourced to the
       item, and gone on unequip; identity effects never mutate stored `meta`; a save-then-unequip
       round-trip leaves the model byte-identical to before it was equipped. **✅ SHIPPED 2026-07-17.**
