@@ -11,6 +11,7 @@
 //  · Nothing is inferred. If the sheet doesn't say it, it isn't here — the AI must not be handed
 //    a guess dressed up as a fact.
 import type { Character } from '@/app/dnd/_sheet/types';
+import type { AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
 import { abilityMod, profBonusForLevel, profContribution } from '@/app/dnd/_sheet/rules/dnd';
 import { buildLedger } from './effects/ledger';
 import { deriveAc } from '@/app/dnd/_sheet/lib/derive-ac';
@@ -48,6 +49,8 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
   // base 16 is exactly the confidently-wrong adjudication this whole part exists to prevent.
   const ledger = buildLedger(char);
   const pb = profBonusForLevel(m.level ?? 1);
+  // Effective ability score for a key — the digest's numbers must fold item/effect boosts.
+  const effAbil = (k: AbilityKey): number => ledger.value(`ability_${k}`, char.abilities?.[k] ?? 10);
 
   const who = [m.species, m.className, m.subclass].filter(Boolean).join(' · ');
   lines.push(`NAME: ${m.name || 'Unnamed'}`);
@@ -155,9 +158,18 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
   }
 
   // Attacks, with the numbers.
+  // Attacks WITH their to-hit / save DC — "does it hit AC 15?" is the other half of most combat
+  // rulings. Computed like the sheet's Attacks table: effective ability mod + PB (if proficient) +
+  // bonus, or an AOE's save DC. Without this the AI knew the damage but not whether the attack lands.
   const attacks = (char.attacks ?? [])
     .filter((a) => (a.unlockLevel ?? 1) <= (m.level ?? 1))
-    .map((a) => `${a.name} (${a.range}, ${a.damage} ${a.damageType})`);
+    .map((a) => {
+      const key: AbilityKey = char.abilities?.[a.ability] != null ? a.ability : 'str';
+      const hit = a.saveBased
+        ? `DC ${a.saveDcOverride ?? 8 + pb + abilityMod(effAbil(a.saveDcAbility ?? 'str'))} ${(a.saveAbility ?? 'dex').toUpperCase()} save`
+        : `${signed(abilityMod(effAbil(key)) + (a.proficient ? pb : 0) + (a.bonusToHit ?? 0))} to hit`;
+      return `${a.name} (${hit}, ${a.range}, ${a.damage} ${a.damageType})`;
+    });
   if (attacks.length) lines.push(`ATTACKS: ${attacks.join(' · ')}`);
 
   // Features the character actually HAS at its level — the core of "does my feature apply?".

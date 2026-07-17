@@ -142,6 +142,23 @@ describe('the digest reports LEDGER-resolved numbers, not the stored base (Slice
     expect(d).toMatch(/AC 18 \[base 17\]/);
   });
 
+  it('reports attack to-hit from the EFFECTIVE ability + proficiency', () => {
+    function withStr(boost: boolean): Character {
+      const c = fixture();
+      c.combat = { ...c.combat, exhaustion: 0 };
+      c.attacks = [{ id: 'gs', name: 'Greatsword', ability: 'str', proficient: true, range: 'melee 5 ft', damage: '2d6', damageType: 'slashing' }] as Character['attacks'];
+      if (boost) {
+        c.inventory = [{ id: 'belt', name: 'Belt of the Bear', desc: '', qty: 1, tags: [], equipped: true, effects: [{ target: 'ability_str', operation: 'set', value: 22 }] }] as Character['inventory'];
+      }
+      return c;
+    }
+    const plain = characterDigest(withStr(false), 'dnd-5e-2024');
+    const boosted = characterDigest(withStr(true), 'dnd-5e-2024');
+    expect(plain).toMatch(/Greatsword \([+-]\d+ to hit, melee 5 ft, 2d6 slashing\)/);
+    const th = (s: string) => Number(s.match(/Greatsword \(([+-]\d+) to hit/)![1]);
+    expect(th(boosted)).toBe(th(plain) + 2); // STR 18 → 22 is +2 to the mod
+  });
+
   it('reports Passive Perception + Initiative from the EFFECTIVE WIS/DEX', () => {
     function withBoosts(on: boolean): Character {
       const c = fixture();
