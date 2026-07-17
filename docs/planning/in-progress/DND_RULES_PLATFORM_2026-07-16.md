@@ -2541,7 +2541,17 @@ removed from the deferred list. So the contract and the code can no longer quiet
   doesn't route yet), `concentration` (needs a concentration tracker before it can honestly render),
   `inspiration` (`char.inspiration` is a player-toggled boolean; granting it needs instant resolution,
   not a ledger overlay), `action_count` (the specific `attacks_per_action`/`reaction_count`/
-  `bonus_action_count` exist; a generic one has no distinct home). Of the Rolls-section *operations*,
+  `bonus_action_count` exist; a generic one has no distinct home). **Honesty correction (2026-07-17):**
+  "exist" above meant *registered as targets*, but four of them — `attunement_slots`, `reaction_count`,
+  `bonus_action_count`, `attacks_per_action` — are registered yet **read by no component**, so an item
+  granting "+1 reaction" or "+1 attunement slot" validates and the AI can emit it, but it silently
+  no-ops and renders nowhere (the current sheet has no action-economy tracker, and no attunement model in
+  its Inventory). `effect-targets.test.ts`/`appendix-a-contract.test.ts` didn't catch this — the former
+  only checks `rendersAt` is a non-empty string, the latter only checks a target exists. New
+  `effect-target-render-gaps.test.ts` (4) tracks these four as the complete registered-but-unrendered set
+  with a per-target reason and fails the moment one is wired (forcing its removal) or a new silent gap
+  appears — turning a false-confidence gap into a guarded one. Wiring them needs an action-economy/
+  attunement render home (larger feature work), deferred until then. Of the Rolls-section *operations*,
   **`crit_range` shipped** (`f12a6c08`) — a proper roll target: `rollD20` gained a crit threshold, the
   store derives the widest range across sources (min, sidestepping the ledger's highest-wins `set`), only
   attacks consult it, and the Attacks table shows "crit 19–20"; `crit-range.test.ts` (8). The remaining
