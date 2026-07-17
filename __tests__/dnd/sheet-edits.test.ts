@@ -298,3 +298,42 @@ describe('revertSheetEdit undoes an edit exactly (Slice 26 — the round-trip pr
     expect(a.notes).toBe('keen'); // the whole prior element came back, not just the name
   });
 });
+
+describe('add_spell / remove_spell — the AI can build spells directly (not just grant via items)', () => {
+  it('adds a full spell (level, school, resolution) to char.spells, upserting by name', () => {
+    const out = applySheetEdits(blankCharacter('X'), [
+      { op: 'add_spell', name: 'Frost Lance', level: 2, school: 'Evocation', castTime: '1 action', range: '60 feet', components: 'V, S', duration: 'Instantaneous', description: 'A spear of ice. On a hit, deal 3d8 cold damage and the target is Slowed.', attack: true, higher: '+1d8 per slot above 2nd.' },
+    ]);
+    const s = (out.spells ?? []).find((x) => x.name === 'Frost Lance');
+    expect(s).toBeTruthy();
+    expect(s!.level).toBe(2);
+    expect(s!.school).toBe('Evocation');
+    expect(s!.attack).toBe(true);
+    expect(s!.prepared).toBe(true); // usable immediately by default
+    // a second add_spell of the same name replaces (upsert), not duplicates
+    const out2 = applySheetEdits(out, [{ op: 'add_spell', name: 'frost lance', level: 3, description: 'Bigger.' }]);
+    expect((out2.spells ?? []).filter((x) => x.name.toLowerCase() === 'frost lance')).toHaveLength(1);
+    expect((out2.spells ?? []).find((x) => x.name.toLowerCase() === 'frost lance')!.level).toBe(3);
+  });
+
+  it('clamps level to 0..9 and remove_spell drops it', () => {
+    let out = applySheetEdits(blankCharacter('X'), [{ op: 'add_spell', name: 'Overcast', level: 99, description: 'x' }]);
+    expect((out.spells ?? []).find((x) => x.name === 'Overcast')!.level).toBe(9);
+    out = applySheetEdits(out, [{ op: 'remove_spell', name: 'overcast' }]);
+    expect((out.spells ?? []).some((x) => x.name === 'Overcast')).toBe(false);
+  });
+
+  it('revert undoes an add_spell (drops it) and restores a removed spell', () => {
+    const base = blankCharacter('X');
+    const added = applySheetEdits(base, [{ op: 'add_spell', name: 'Ward', level: 1, description: 'Shield.' }]);
+    const addEdit: SheetEdit = { op: 'add_spell', name: 'Ward', level: 1, description: 'Shield.' };
+    const reverted = revertSheetEdit(added, addEdit, editOldValue(base, addEdit));
+    expect((reverted.spells ?? []).some((x) => x.name === 'Ward')).toBe(false);
+    // removing then reverting restores the exact spell
+    const removeEdit: SheetEdit = { op: 'remove_spell', name: 'Ward' };
+    const old = editOldValue(added, removeEdit);
+    const afterRemove = applySheetEdits(added, [removeEdit]);
+    const restored = revertSheetEdit(afterRemove, removeEdit, old);
+    expect((restored.spells ?? []).find((x) => x.name === 'Ward')?.description).toBe('Shield.');
+  });
+});

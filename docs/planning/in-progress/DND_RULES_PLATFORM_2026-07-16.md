@@ -349,6 +349,27 @@ ledger**), languages + tools are all shipped and tested. The only remaining spec
 named species *trait* to a mechanical effect — is a separate feature (traits are authored prose today),
 not a Slice-4 gap.
 
+## AI full control over the character (requested 2026-07-17)
+
+> "The AI should be able to have full control over every element and aspect of a player's character…
+> add anything, remove anything… edit and change the html/css and hardcoded numbers and words for the
+> character sheet and save it… totally revamp and restyle and reformat the character sheet."
+
+Most of this is already built (Slices 14/17/20/23/32): the AI edits through `applySheetEdits` (a wide
+op vocabulary — attacks, features, items/weapons/potions/armor with real effects, resources, tags,
+abilities/combat/level/skills/saves) AND through `LAYOUT_EDIT_TOOL` it rewrites the character's
+`custom_css` + `custom_layout` (HTML/CSS) and saves them (`sheet_type: 'custom'`), which the browser
+renders. The one clear gap — spells — is now closed.
+
+- [x] **`add_spell` / `remove_spell` ✅ SHIPPED 2026-07-17.** The AI could rename or item-grant spells but
+      not add/remove them directly. Added both to the edit vocabulary + the AI tool schema (full spell
+      shape: level 0–9, school, casting time, range, components, duration, concentration, ritual, attack
+      vs save resolution, higher-level scaling). Upserts by name, clamps level, revertible. Matches the
+      `add_`/`remove_` allow-list prefixes automatically. Tests: `sheet-edits.test.ts` +3.
+- [ ] Custom **classes/subclasses** as first-class AI ops (today expressible as a bundle of features);
+      custom **conditions** as reusable definitions. Consider whether the existing feature/effect
+      vocabulary covers these or they warrant their own ops.
+
 ## Slice 5 — Custom class / subclass / feat builder UI
 
 The engine (`lib/dnd/classes/custom.ts`) is built and tested; there is no UI.
@@ -516,6 +537,12 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       paths at once — the **librarian**, the **character/item builder** (`ai-edit`: building a feat/
       spell/weapon now grounds on the system's articles), **ingest**, and **cross-system transpose** —
       exactly the user's "help the AI when explaining, editing, finding, or building anything."
+- [x] **Definitive Ground-Rule-1 proof in the AI ✅** — asked the librarian "how does Frightened work?"
+      for two systems: **PF2e** answered the NUMERIC version ("status penalty equal to its value — all
+      checks and DCs; Frightened 2 = −2 to everything") and **D&D 5e 2024** the BINARY version
+      ("disadvantage while the source is in line of sight; can't willingly move closer"), each
+      `grounded: 6` on its own system's article. Same question, two correct, system-specific answers —
+      the AI never gives the wrong game's version.
 - [x] **Guardrails**: `glossary.test.ts` now includes a no-duplicate-terms integrity check per system;
       `system-integrity.test.ts` enforces no cross-system leakage. Every entry carries seeAlso links +
       search aliases and resolves through the no-key keyword search.
