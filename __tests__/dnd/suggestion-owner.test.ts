@@ -55,4 +55,12 @@ describe('the suggestion routes enforce the owner gate at the right places', () 
     // The public list + open submit must NOT 403 non-owners; the 403 message lives only in the [id] route.
     expect(BASE_ROUTE).not.toContain('Only the owner');
   });
+
+  it('POST requires the request text and captures the submitter name + username (user\'s asks)', () => {
+    // "requires their name and their request/comment ... pulls their username."
+    expect(BASE_ROUTE).toContain("String(body.body ?? '').trim()"); // the request/comment
+    expect(BASE_ROUTE).toMatch(/if \(!text\)[\s\S]*status: 400/);   // empty request is rejected
+    expect(BASE_ROUTE).toContain('session?.displayName');            // captures the submitter name
+    expect(BASE_ROUTE).toContain('user_key: session?.email');        // and the username/handle for review
+  });
 });
