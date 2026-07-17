@@ -296,8 +296,11 @@ expanded requirements (2026-07-17):
       feeds the AI the FULL rules text — every stance's Basic/Advanced effect, every condition's exact IG
       effect (explicitly flagged "use these EXACT IG effects, never another system's same-named condition"),
       and every ancestry's two traits with full text — so the AI can explain + edit from IG source only, no
-      cross-system leak. `ig-content.test.ts` +1. **Remaining:** the machine-readable effect model that the
-      SHEET applies (B4/B5 mechanics).
+      cross-system leak. **Grounding extended** (`system-rules.ts`): the IG block now ALSO carries the damage
+      **Fortitude-save** mechanic, the **skill-check** + **combat-skill** rules, **Redistribution** (Conduit),
+      and the **backgrounds** (name + granted stance) — so the AI adjudicates the full IG ruleset, not just
+      stances/conditions/ancestries. `ig-content.test.ts` +1. **Remaining:** the machine-readable effect model
+      that the SHEET applies (B4/B5 mechanics).
 - [~] **B1 — Ancestry/traits in the builder + sheet.** IG ancestries selectable in the builder; the sheet
       renders each ancestry's full traits (from A5) with per-trait tooltips; size/speed-changing traits reflect
       on the sheet where feasible. **Sheet panel shipped** (`IGSheet` + `findIGAncestry`, `ig-content.test.ts`

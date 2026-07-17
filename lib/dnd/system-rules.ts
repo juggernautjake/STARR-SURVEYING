@@ -7,7 +7,7 @@
 // Content is concise MECHANICAL FACTS + numbers (paraphrased, not verbatim rulebook prose), each
 // attributed to its source book. Keyed strictly by system so nothing crosses editions.
 import { SYSTEM_AMBIGUOUS, systemLabel, type CharacterSystem } from './systems';
-import { IG_STANCE_DEFS, IG_STANCE_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES, IG_CONDITIONS, IG_ANCESTRIES } from './systems/intuitive-games/content';
+import { IG_STANCE_DEFS, IG_STANCE_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES, IG_CONDITIONS, IG_ANCESTRIES, IG_DAMAGE_SAVE_RULES, IG_REDISTRIBUTION_RULES, IG_SKILL_RULES, IG_COMBAT_SKILL_RULES, IG_BACKGROUND_DEFS } from './systems/intuitive-games/content';
 import { igAllFeats } from './systems/intuitive-games/feats';
 import { EXTRA_SYSTEM_RULES } from './system-rules-extra';
 
@@ -427,6 +427,11 @@ export function systemRulesBlock(system: CharacterSystem): string {
       `• Combat Feats (use ONLY these; incl. Mythic Stances, Styles, and Mastery feats): ${igAllFeats().filter((f) => f.category === 'Combat').map((f) => f.name).join(', ')}.`,
       `• Defensive Powers: ${IG_DEFENSIVE_POWERS.map((d) => d.name).join(', ')}.`,
       `• Weapon types: ${IG_WEAPON_TYPES.join(', ')}.`,
+      `• Taking damage: ${IG_DAMAGE_SAVE_RULES}`,
+      `• Skill checks: ${IG_SKILL_RULES}`,
+      `• Combat skills: ${IG_COMBAT_SKILL_RULES}`,
+      `• Redistribution (Conduit): ${IG_REDISTRIBUTION_RULES}`,
+      `• Backgrounds (each grants starting HP, two ability boosts, proficiencies, and a Stance): ${IG_BACKGROUND_DEFS.map((b) => `${b.name} (${b.stance})`).join(', ')}.`,
     );
   }
   return lines.join('\n');

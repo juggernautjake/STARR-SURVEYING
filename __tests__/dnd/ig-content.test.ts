@@ -175,5 +175,10 @@ describe('Intuitive Games vanilla content library (Slice 1)', () => {
     // Ancestries: each with its two traits' full text.
     expect(block).toMatch(/Dwarf: Cave Vision — Gain darkvision/i);
     expect(block).toMatch(/Barkskin — You always have DR 2/i);
+    // The additional mechanics the AI adjudicates are grounded too.
+    expect(block).toMatch(/Taking damage:.*Fortitude save/i);
+    expect(block).toMatch(/Combat skills:.*Reflex save/i);
+    expect(block).toMatch(/Redistribution \(Conduit\):/);
+    expect(block).toMatch(/Backgrounds .*Soldier \(Menacing\)/);
   });
 });
