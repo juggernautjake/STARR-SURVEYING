@@ -38,6 +38,15 @@ export default function SavesSkills() {
     setChar((c) => ({ ...c, customSkills: (c.customSkills ?? []).filter((cs) => cs.id !== id) }))
   }
 
+  // OR the ledger's advantage/disadvantage flags across several roll targets (e.g. a specific save +
+  // all_saves) so an effect that grants advantage on a save/skill actually reaches the roll — the
+  // hardcoded feature flags (Danger Sense, Base Form) are combined with these. Empty when nothing grants.
+  const rollFlagsUnion = (...targets: string[]) =>
+    targets.reduce(
+      (acc, t) => { const f = ledger.rollFlags(t); return { advantage: acc.advantage || f.advantage, disadvantage: acc.disadvantage || f.disadvantage } },
+      { advantage: false, disadvantage: false },
+    )
+
   // Passive Perception and the Save DC read the LEDGER-effective abilities (like the saves + skills
   // below do), not the base scores — otherwise a WIS- or STR-boosting item would move every save and
   // skill on this card but silently leave these two stale.
@@ -87,6 +96,7 @@ export default function SavesSkills() {
               const mod = abilityMod(abilities[a.key]) + (s.proficient ? pb : 0) + s.misc
                 + ledger.value(`${a.key}_saves`, 0) + ledger.value('all_saves', 0)
               const isDex = a.key === 'dex'
+              const saveEf = rollFlagsUnion(`${a.key}_saves`, 'all_saves') // ledger advantage/disadvantage on this save
               return (
                 <div className="rrow" key={a.key}>
                   <button
@@ -103,7 +113,7 @@ export default function SavesSkills() {
                   <div className="rmod">{signed(mod)}</div>
                   <button
                     className="rollbtn"
-                    onClick={() => rollCheck(`${a.label} Save`, mod, { kind: 'save', advantage: isDex, tag: isDex ? 'Danger Sense' : undefined })}
+                    onClick={() => rollCheck(`${a.label} Save`, mod, { kind: 'save', advantage: isDex || saveEf.advantage, disadvantage: saveEf.disadvantage, tag: isDex ? 'Danger Sense' : undefined })}
                   >
                     {signed(mod)}
                   </button>
@@ -125,6 +135,7 @@ export default function SavesSkills() {
               // Base Form ("The Kid") is small and unassuming → advantage on Stealth.
               // The larger Surge forms (Brute, Titan…) are anything but subtle.
               const stealthAdv = sk.key === 'stealth' && activeFormId === 'base'
+              const skillEf = rollFlagsUnion(`skill.${sk.key}`, 'all_skills') // ledger advantage/disadvantage on this skill
               return (
                 <div className="rrow" key={sk.key}>
                   <button
@@ -141,7 +152,7 @@ export default function SavesSkills() {
                   </div>
                   <button
                     className="rollbtn"
-                    onClick={() => rollCheck(`${sk.label}`, mod, { advantage: stealthAdv, tag: stealthAdv ? 'Base Form' : abil.label })}
+                    onClick={() => rollCheck(`${sk.label}`, mod, { advantage: stealthAdv || skillEf.advantage, disadvantage: skillEf.disadvantage, tag: stealthAdv ? 'Base Form' : abil.label })}
                   >
                     {signed(mod)}
                   </button>

@@ -27,4 +27,13 @@ describe('Saves & Skills derived numbers use the ledger-effective abilities', ()
     expect(PANEL).toContain("ledger.value(`${a.key}_saves`, 0) + ledger.value('all_saves', 0)");
     expect(PANEL).toContain("ledger.value(`skill.${sk.key}`, 0) + ledger.value('all_skills', 0)");
   });
+
+  it('folds the ledger advantage/disadvantage flags on saves + skills (not just the numeric bonus)', () => {
+    // A ledger effect granting advantage on a save/skill roll must reach it, combined with the hardcoded
+    // feature flags (Danger Sense, Base Form). rollFlagsUnion ORs the target flags; the roll passes both.
+    expect(PANEL).toContain('rollFlagsUnion(`${a.key}_saves`, \'all_saves\')');
+    expect(PANEL).toContain('rollFlagsUnion(`skill.${sk.key}`, \'all_skills\')');
+    expect(PANEL).toContain('advantage: isDex || saveEf.advantage, disadvantage: saveEf.disadvantage');
+    expect(PANEL).toContain('advantage: stealthAdv || skillEf.advantage, disadvantage: skillEf.disadvantage');
+  });
 });
