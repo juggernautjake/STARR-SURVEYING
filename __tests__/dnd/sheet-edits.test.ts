@@ -337,3 +337,44 @@ describe('add_spell / remove_spell — the AI can build spells directly (not jus
     expect((restored.spells ?? []).find((x) => x.name === 'Ward')?.description).toBe('Shield.');
   });
 });
+
+describe('add_currency / set_currency / remove_currency — the AI can manage money (Area C)', () => {
+  it('adds a custom currency with a rate, matched later by name or abbrev', () => {
+    const out = applySheetEdits(blankCharacter('X'), [
+      { op: 'add_currency', name: 'Guild Mark', abbrev: 'gm', amount: 4, rate: 500 },
+    ]);
+    const gm = (out.currencies ?? []).find((c) => c.name === 'Guild Mark');
+    expect(gm).toMatchObject({ name: 'Guild Mark', abbrev: 'gm', amount: 4, rate: 500 });
+    // set_currency finds it by abbreviation and bumps the amount + rate
+    const out2 = applySheetEdits(out, [{ op: 'set_currency', currency: 'gm', amount: 6, rate: 600 }]);
+    const gm2 = (out2.currencies ?? []).find((c) => c.name === 'Guild Mark')!;
+    expect(gm2.amount).toBe(6);
+    expect(gm2.rate).toBe(600);
+  });
+
+  it('add_currency upserts by name (default amount 0, rate 1) and remove_currency drops it', () => {
+    let out = applySheetEdits(blankCharacter('X'), [{ op: 'add_currency', name: 'Shards' }]);
+    const s = (out.currencies ?? []).find((c) => c.name === 'Shards')!;
+    expect(s.amount).toBe(0);
+    expect(s.rate).toBe(1);
+    out = applySheetEdits(out, [{ op: 'add_currency', name: 'shards', amount: 10 }]); // upsert, not dup
+    expect((out.currencies ?? []).filter((c) => c.name.toLowerCase() === 'shards')).toHaveLength(1);
+    out = applySheetEdits(out, [{ op: 'remove_currency', currency: 'Shards' }]);
+    expect((out.currencies ?? []).some((c) => c.name === 'Shards')).toBe(false);
+  });
+
+  it('revert restores a removed currency and drops an added one', () => {
+    const base = applySheetEdits(blankCharacter('X'), [{ op: 'add_currency', name: 'Ducats', amount: 7, rate: 50 }]);
+    // remove → revert restores it exactly
+    const removeEdit: SheetEdit = { op: 'remove_currency', currency: 'Ducats' };
+    const old = editOldValue(base, removeEdit);
+    const afterRemove = applySheetEdits(base, [removeEdit]);
+    const restored = revertSheetEdit(afterRemove, removeEdit, old);
+    expect((restored.currencies ?? []).find((c) => c.name === 'Ducats')).toMatchObject({ amount: 7, rate: 50 });
+    // add → revert drops it
+    const addEdit: SheetEdit = { op: 'add_currency', name: 'Florins', amount: 3 };
+    const added = applySheetEdits(base, [addEdit]);
+    const reverted = revertSheetEdit(added, addEdit, editOldValue(base, addEdit));
+    expect((reverted.currencies ?? []).some((c) => c.name === 'Florins')).toBe(false);
+  });
+});
