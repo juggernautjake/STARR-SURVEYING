@@ -29,6 +29,7 @@ import { usePowerSync, useQuery } from '@powersync/react';
 import type { AbstractPowerSyncDatabase } from '@powersync/react-native';
 
 import { logError, logInfo, logWarn } from './log';
+import { guessExtension } from './mediaPath';
 import { isOnWifiNow, isOnlineNow, subscribeToOnline } from './networkState';
 import { supabase } from './supabase';
 import { randomUUID } from './uuid';
@@ -496,19 +497,6 @@ async function persistFile(
   await FileSystem.copyAsync({ from: sourceUri, to: dest });
   logInfo(scope, 'persisted to documentDirectory', { dest });
   return dest;
-}
-
-function guessExtension(uri: string): string {
-  const lower = uri.toLowerCase();
-  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return '.jpg';
-  if (lower.endsWith('.png')) return '.png';
-  if (lower.endsWith('.heic')) return '.heic';
-  if (lower.endsWith('.webp')) return '.webp';
-  if (lower.endsWith('.mp4')) return '.mp4';
-  if (lower.endsWith('.mov')) return '.mov';
-  if (lower.endsWith('.m4a')) return '.m4a';
-  if (lower.endsWith('.mp3')) return '.mp3';
-  return '';
 }
 
 /**
