@@ -828,7 +828,12 @@ One pure function that every later slice reads. Nothing else in Part II can be b
       folding `spell_save_dc`/`spell_attack`; **weapon damage** flat mod used base STR/DEX; the StreamChat
       WIS save and the transform **FormAbilities** DC used base too (the form DC now correctly uses the
       form's imposed STR). `derived-effective-spellcasting.test.ts` (5). A repo-wide grep confirms no
-      derived value still reads `abilityMod(char.abilities…)`.
+      derived value still reads `abilityMod(char.abilities…)`. **AC unified to one source** (`537d770c`):
+      the always-visible StatRail showed the manual `combat.ac` while the Combat panel showed the DERIVED
+      AC — an armored character saw two different numbers. AC is now derived once in the store (`acInfo`,
+      effective DEX + equipped armor/shield + AC effects) and both surfaces read it, satisfying Slice 13's
+      "one answer" rule. The rail shows the derived AC (read-only, sourced) when equipment drives it,
+      editable manual AC otherwise. `ac-single-source.test.ts` (5).
 - [ ] **An equipped item lands in the right place, automatically.** Equipping routes by what the item
       *is*, with no per-item code: a weapon appears as a row in **Attacks** with its computed to-hit
       and damage; armour drives **AC** (respecting DEX cap / STR requirement / stealth disadvantage);
