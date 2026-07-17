@@ -19,6 +19,9 @@ import IGVanillaLibrary from '@/app/dnd/_ui/IGVanillaLibrary';
 import IGCharacterBuilder from '@/app/dnd/_ui/IGCharacterBuilder';
 import IGSheet from '@/app/dnd/_ui/IGSheet';
 import { isIGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
+import PF2CharacterBuilder from '@/app/dnd/_ui/PF2CharacterBuilder';
+import PF2Sheet from '@/app/dnd/_ui/PF2Sheet';
+import { isPF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { readVariants, builtSystems, type ActiveSheet } from '@/lib/dnd/system-variants';
 import { normalizeSystem } from '@/lib/dnd/systems';
 import { summarizeCharacterProvenance, type ElementKind } from '@/lib/dnd/provenance';
@@ -106,6 +109,16 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
     }
   }
 
+  // Pathfinder 2e builder + bespoke sheet (mirrors the IG flow): the builder shows to anyone who can edit
+  // a PF2 character; the sheet renders the pf2e sidecar (real Remaster numbers) for any viewer once built.
+  const isPF2 = canWrite && normalizeSystem((character as { system?: string }).system) === 'pathfinder2e';
+  const pf2Builder = isPF2 ? <PF2CharacterBuilder characterId={character.id} initialName={character.name} aiConfigured={dndAiConfigured()} /> : null;
+  let pf2Sheet = null;
+  if (normalizeSystem((character as { system?: string }).system) === 'pathfinder2e') {
+    const pf2Data = (character.data as { pf2e?: unknown } | null)?.pf2e;
+    if (isPF2Character(pf2Data)) pf2Sheet = <PF2Sheet pf2={pf2Data} />;
+  }
+
   return (
     <>
       {topPanel}
@@ -114,6 +127,8 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
       {igSheet}
       {igBuilder}
       {igLibrary}
+      {pf2Sheet}
+      {pf2Builder}
       {canWrite && Array.isArray((character as { build_questions?: string[] }).build_questions) && (character as { build_questions?: string[] }).build_questions!.length > 0 && (
         <BuildQuestions characterId={character.id} questions={(character as { build_questions?: string[] }).build_questions as string[]} />
       )}

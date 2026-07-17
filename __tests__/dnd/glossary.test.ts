@@ -161,3 +161,75 @@ describe('termsMentionedIn — what makes sheet text clickable', () => {
     expect(termsMentionedIn('dnd5e-2024', '')).toEqual([]);
   });
 });
+
+describe('the 2024 action economy is defined and searchable (library buildout)', () => {
+  // The 12 standard 2024 actions + Bonus Action — the "action economy" the library must explain.
+  const ACTIONS = ['Attack', 'Dash', 'Disengage', 'Dodge', 'Help', 'Hide', 'Influence', 'Magic', 'Ready', 'Search', 'Study', 'Utilize', 'Bonus Action'];
+
+  it('defines every standard 2024 action with a substantive article', () => {
+    for (const a of ACTIONS) {
+      const entry = findTerm('dnd5e-2024', a);
+      expect(entry, a).not.toBeNull();
+      expect(entry!.body.length, a).toBeGreaterThan(80);
+    }
+  });
+
+  it('surfaces core combat mechanics players look up (cover, temp HP, resistance, vision)', () => {
+    for (const t of ['Cover', 'Temporary Hit Points', 'Damage Types & Resistance', 'Difficult Terrain', 'Vision & Light', 'Bloodied']) {
+      expect(findTerm('dnd5e-2024', t), t).not.toBeNull();
+    }
+  });
+
+  it('is reachable through search by common phrasings', () => {
+    expect(searchGlossary('dnd5e-2024', 'disengage').some((h) => h.term === 'Disengage')).toBe(true);
+    expect(searchGlossary('dnd5e-2024', 'temp hp').some((h) => h.term === 'Temporary Hit Points')).toBe(true);
+    // aliases resolve too
+    expect(findTerm('dnd5e-2024', 'resistance')?.term).toBe('Damage Types & Resistance');
+    expect(findTerm('dnd5e-2024', 'darkvision')?.term).toBe('Vision & Light');
+  });
+
+  it('does NOT leak the 2024 action renames into 2014 (Influence/Study/Utilize/Magic are 2024)', () => {
+    // These are 2024-named actions; the 2014 glossary must not resolve them (Ground Rule 2).
+    for (const a of ['Influence', 'Study', 'Utilize', 'Bloodied']) {
+      expect(findTerm('dnd5e-2014', a), a).toBeNull();
+    }
+  });
+});
+
+describe('the 2014 action economy is defined with 2014 names (not the 2024 renames)', () => {
+  it('defines the 2014 standard actions including Cast a Spell and Use an Object', () => {
+    for (const a of ['Action', 'Attack', 'Cast a Spell', 'Dash', 'Disengage', 'Dodge', 'Help', 'Hide', 'Ready', 'Search', 'Use an Object', 'Bonus Action']) {
+      const e = findTerm('dnd5e-2014', a);
+      expect(e, a).not.toBeNull();
+      expect(e!.body.length, a).toBeGreaterThan(60);
+    }
+  });
+
+  it('the editions carry their own action NAMES: 2014 Cast a Spell / Use an Object; 2024 Magic / Utilize', () => {
+    // Positive existence per edition (the negative cross-edition leak is guarded by
+    // system-integrity.test.ts, which asserts scoped lookups system-by-system).
+    expect(findTerm('dnd5e-2014', 'Cast a Spell')?.term).toBe('Cast a Spell');
+    expect(findTerm('dnd5e-2014', 'Use an Object')?.term).toBe('Use an Object');
+    expect(findTerm('dnd5e-2024', 'Magic')?.term).toBe('Magic');
+    expect(findTerm('dnd5e-2024', 'Utilize')?.term).toBe('Utilize');
+    // The 2014 glossary array does not DEFINE the 2024-only renames as terms.
+    const t2014 = glossaryFor('dnd5e-2014').map((e) => e.term);
+    for (const n of ['Influence', 'Study', 'Utilize', 'Bloodied']) expect(t2014, n).not.toContain(n);
+  });
+
+  it('gives 2014 the same core combat mechanics as 2024 (cover, temp HP, resistance, vision)', () => {
+    for (const t of ['Cover', 'Temporary Hit Points', 'Damage Types & Resistance', 'Difficult Terrain', 'Vision & Light']) {
+      expect(findTerm('dnd5e-2014', t), t).not.toBeNull();
+    }
+  });
+});
+
+describe('no system glossary contains duplicate terms (integrity)', () => {
+  it('every term (case-insensitive) is unique within each system', () => {
+    for (const sys of SYSTEMS) {
+      const terms = glossaryFor(sys).map((e) => e.term.toLowerCase());
+      const dupes = terms.filter((t, i) => terms.indexOf(t) !== i);
+      expect(dupes, `${sys} has duplicate terms: ${[...new Set(dupes)].join(', ')}`).toEqual([]);
+    }
+  });
+});

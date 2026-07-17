@@ -113,7 +113,7 @@ function applyItemPayload(base: InvItem, p: ItemPayload): InvItem {
 
 export type SheetEdit =
   | { op: 'set_name'; value: string }
-  | { op: 'set_meta'; field: 'kicker' | 'role' | 'species' | 'className' | 'subclass'; value: string }
+  | { op: 'set_meta'; field: 'kicker' | 'role' | 'species' | 'className' | 'subclass' | 'gender' | 'pronouns' | 'profession'; value: string }
   | { op: 'set_level'; value: number }
   | { op: 'set_ability'; ability: AbilityKey; value: number }
   | { op: 'set_save_proficient'; ability: AbilityKey; value: boolean }
@@ -126,6 +126,10 @@ export type SheetEdit =
   | { op: 'remove_attack'; name: string }
   | { op: 'add_feature'; name: string; source?: string; body: string[] }
   | { op: 'remove_feature'; name: string }
+  // Spells the AI can ADD/remove directly (not just grant via an item). Full spell shape — level,
+  // school, timing, the resolution (attack roll or save vs DC), damage/heal, higher-level scaling.
+  | { op: 'add_spell'; name: string; level: number; school?: string; castTime?: string; range?: string; components?: string; duration?: string; concentration?: boolean; ritual?: boolean; description: string; prepared?: boolean; attack?: boolean; save?: { ability: AbilityKey; effect: string }; higher?: string }
+  | { op: 'remove_spell'; name: string }
   // add_item now carries the FULL item (Slice 14): kind, stats, art, and real `effects` that the
   // ledger resolves — not just a name. update_item merges fields into an existing item; equip_item
   // toggles whether its effects apply.
@@ -167,7 +171,7 @@ export function editPath(e: SheetEdit): string {
     case 'add_attack': case 'update_attack': case 'remove_attack': case 'rename_attack': return `attacks[${slug(e.name)}]`;
     case 'add_feature': case 'remove_feature': case 'rename_feature': return `features[${slug(e.name)}]`;
     case 'add_item': case 'update_item': case 'equip_item': case 'remove_item': case 'rename_item': case 'tag_item': return `inventory[${slug(e.name)}]`;
-    case 'rename_spell': return `spells[${slug(e.name)}]`;
+    case 'add_spell': case 'remove_spell': case 'rename_spell': return `spells[${slug(e.name)}]`;
     case 'rename_resource': return `resources[${slug(e.name)}]`;
     case 'define_tag': return `customTags[${slug(e.name)}]`;
     case 'add_resource': return `resources[${slug(e.name)}]`;
@@ -197,7 +201,7 @@ export function editOldValue(current: Character, e: SheetEdit): unknown {
       return findByName(current.features, e.name);
     case 'add_item': case 'update_item': case 'equip_item': case 'remove_item': case 'rename_item': case 'tag_item':
       return findByName(current.inventory, e.name);
-    case 'rename_spell': return findByName(current.spells, e.name);
+    case 'add_spell': case 'remove_spell': case 'rename_spell': return findByName(current.spells, e.name);
     case 'add_resource': case 'rename_resource': return findByName(current.resources, e.name);
     default: return null;
   }
@@ -254,7 +258,7 @@ export function revertSheetEdit(input: Character, e: SheetEdit, oldValue: unknow
     case 'add_item': case 'update_item': case 'equip_item': case 'remove_item': case 'rename_item': case 'tag_item':
       c.inventory = restore(c.inventory, prior as InvItem | null);
       break;
-    case 'rename_spell':
+    case 'add_spell': case 'remove_spell': case 'rename_spell':
       c.spells = restore(c.spells ?? [], prior as Spell | null);
       break;
     case 'add_resource': case 'rename_resource':
@@ -371,6 +375,28 @@ export function applySheetEdits(input: Character, edits: SheetEdit[]): Character
         break;
       }
       case 'remove_feature': c.features = c.features.filter((f) => !eqName(f.name, e.name)); break;
+      case 'add_spell': {
+        // A full spell the AI authored (upsert by name). Cantrips (level 0) and prepared spells are
+        // usable immediately; the rest respect the sheet's prepared/slot rules on the Spells tab.
+        const lvl = Math.max(0, Math.min(9, Math.round(Number(e.level) || 0))) as Spell['level'];
+        const spell: Spell = {
+          id: `ai-spell-${slug(e.name)}`, name: e.name, level: lvl, description: e.description,
+          prepared: e.prepared ?? true,
+          ...(e.school ? { school: e.school } : {}),
+          ...(e.castTime ? { castTime: e.castTime } : {}),
+          ...(e.range ? { range: e.range } : {}),
+          ...(e.components ? { components: e.components } : {}),
+          ...(e.duration ? { duration: e.duration } : {}),
+          ...(e.concentration ? { concentration: true } : {}),
+          ...(e.ritual ? { ritual: true } : {}),
+          ...(e.attack ? { attack: true } : {}),
+          ...(e.save ? { save: e.save } : {}),
+          ...(e.higher ? { higher: e.higher } : {}),
+        };
+        c.spells = [...(c.spells ?? []).filter((s) => !eqName(s.name, e.name)), spell];
+        break;
+      }
+      case 'remove_spell': c.spells = (c.spells ?? []).filter((s) => !eqName(s.name, e.name)); break;
       case 'add_item': {
         // Build on a fresh blank item, then layer the payload — so a bare add_item still works and
         // a rich one (kind, stats, effects) round-trips. Replaces any same-named item (upsert).
@@ -455,9 +481,9 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
           properties: {
             op: {
               type: 'string',
-              enum: ['set_name', 'set_meta', 'set_level', 'set_ability', 'set_save_proficient', 'set_skill', 'set_combat', 'add_attack', 'update_attack', 'remove_attack', 'rename_attack', 'add_feature', 'remove_feature', 'rename_feature', 'add_item', 'update_item', 'equip_item', 'remove_item', 'rename_item', 'rename_spell', 'rename_resource', 'add_resource', 'define_tag', 'tag_item'],
+              enum: ['set_name', 'set_meta', 'set_level', 'set_ability', 'set_save_proficient', 'set_skill', 'set_combat', 'add_attack', 'update_attack', 'remove_attack', 'rename_attack', 'add_feature', 'remove_feature', 'rename_feature', 'add_spell', 'remove_spell', 'rename_spell', 'add_item', 'update_item', 'equip_item', 'remove_item', 'rename_item', 'rename_resource', 'add_resource', 'define_tag', 'tag_item'],
             },
-            field: { type: 'string', description: 'For set_meta: kicker|role|species|className|subclass. For set_combat: ac|maxHp|currentHp|speed.' },
+            field: { type: 'string', description: 'For set_meta: kicker|role|species|className|subclass|gender|pronouns|profession. For set_combat: ac|maxHp|currentHp|speed.' },
             to: { type: 'string', description: 'For rename_* ops: the NEW name. Renames keep every other field — use these to rename an attack/feature/item, never remove + re-add (that drops its stats).' },
             tag: { type: 'string', description: 'For tag_item: the tag to add to the item named by `name`. Must already be a built-in tag or one you defined with define_tag; weapon/consumable/equipped are reserved.' },
             ability: { type: 'string', enum: ABILITY_KEYS },
@@ -475,6 +501,19 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
             bonusDamage: { type: 'number' },
             desc: { type: 'string' },
             qty: { type: 'number' },
+            // ── Spell fields (add_spell) — the full spell shape ─────────────────────────────
+            level: { type: 'number', description: 'For add_spell: spell level 0–9 (0 = cantrip).' },
+            description: { type: 'string', description: 'For add_spell: the spell\'s full rules text.' },
+            school: { type: 'string', description: 'For add_spell: school of magic (or the system\'s tradition), optional.' },
+            castTime: { type: 'string', description: 'For add_spell: casting time, e.g. "1 action", "1 bonus action", "1 minute".' },
+            components: { type: 'string', description: 'For add_spell: components, e.g. "V, S, M".' },
+            duration: { type: 'string', description: 'For add_spell: duration, e.g. "Instantaneous" or "Concentration, up to 1 minute".' },
+            concentration: { type: 'boolean', description: 'For add_spell: requires concentration.' },
+            ritual: { type: 'boolean', description: 'For add_spell: can be cast as a ritual.' },
+            attack: { type: 'boolean', description: 'For add_spell: resolves with a spell attack roll (as opposed to a save).' },
+            save: { type: 'object', description: 'For add_spell: { ability, effect } when the target rolls a save vs your spell DC.', properties: { ability: { type: 'string', enum: ABILITY_KEYS }, effect: { type: 'string' } } },
+            higher: { type: 'string', description: 'For add_spell: the "at higher levels" upcasting text.' },
+            prepared: { type: 'boolean', description: 'For add_spell: whether it starts prepared/known (default true).' },
             // ── Item fields (add_item / update_item), Slice 14 ──────────────────────────────
             kind: { type: 'string', enum: ITEM_KINDS, description: 'For add_item/update_item: weapon|armor|shield|consumable|wondrous|gear.' },
             equipped: { type: 'boolean', description: 'For add_item/update_item/equip_item: whether the item is worn/wielded. An item\'s `effects` apply only while equipped (or equipped AND attuned).' },

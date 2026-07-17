@@ -93,3 +93,85 @@ describe('the sheet renders the EFFECTIVE active form (Slice 18 render threading
     expect(read('app/dnd/_sheet/components/Forms.tsx')).toContain('activeFormId: id'); // setActive writes base
   });
 });
+
+describe('carry-over policy: keepFeatures (Slice 18, Ground Rule 1)', () => {
+  // A base character with a worn belt (+2 STR item) and a class feature (+1 AC), plus a form.
+  function polymorpher(keepFeatures: boolean | undefined) {
+    const c = blankCharacter('Druid');
+    c.abilities = { ...c.abilities, str: 12 };
+    c.combat = { ...c.combat, ac: 14 };
+    c.inventory = [{
+      id: 'belt', name: 'Belt of Might', desc: '', qty: 1, tags: [], equipped: true,
+      effects: [{ target: 'ability_str', operation: 'add', value: 2 }],
+    }] as Character['inventory'];
+    c.features = [{
+      id: 'feat', name: 'Natural Armor', source: 'Species', body: [],
+      effects: [{ target: 'ac', operation: 'add', value: 1 }],
+    }] as Character['features'];
+    c.activeEffects = [{
+      id: 'bless', label: 'Bless (from the cleric)', source: 'spell',
+      effects: [{ target: 'ac', operation: 'add', value: 1 }],
+    }] as Character['activeEffects'];
+    c.forms = [{
+      id: 'bear', name: 'Dire Bear', subtitle: '', cls: '', unlockLevel: 1, gating: 'held',
+      flavor: '', bullets: [],
+      effects: [{ target: 'ability_str', operation: 'set', value: 19 }],
+      ...(keepFeatures === undefined ? {} : { carryOver: { keepFeatures } }),
+    }] as Character['forms'];
+    c.activeFormId = 'bear';
+    return c;
+  }
+
+  it('default (no policy) keeps your gear + features — Wild Shape style', () => {
+    const led = buildLedger(polymorpher(undefined));
+    expect(led.value('ability_str', 12)).toBe(19 + 2); // form STR 19 + belt still worn
+    expect(led.value('ac', 14)).toBe(14 + 1 + 1); // natural armor + bless both apply
+  });
+
+  it('keepFeatures:false drops your own gear + features, keeps externally-imposed effects', () => {
+    const led = buildLedger(polymorpher(false));
+    expect(led.value('ability_str', 12)).toBe(19); // form STR only — belt melded away
+    expect(led.value('ac', 14)).toBe(14 + 1); // natural armor gone, Bless (cast ON you) stays
+  });
+
+  it('the polymorph is an overlay — dropping the form restores the full base', () => {
+    const c = polymorpher(false);
+    c.activeFormId = 'base'; // no form active
+    const led = buildLedger(c);
+    expect(led.value('ability_str', 12)).toBe(12 + 2); // belt back
+    expect(led.value('ac', 14)).toBe(14 + 1 + 1); // feature + bless back
+  });
+})
+
+describe('carry-over policy: keepMental (Slice 18)', () => {
+  // A powerful form whose mind is SMARTER than yours (an Archmage form, INT 20). The set-max rule
+  // already stops a dumb beast from lowering you; keepMental is what stops a smart form from RAISING
+  // your mind when the game says your intellect is your own.
+  function mindForm(keepMental: boolean | undefined) {
+    const c = blankCharacter('Druid');
+    c.abilities = { ...c.abilities, int: 12, str: 10 };
+    c.forms = [{
+      id: 'sage', name: 'Archmage Form', subtitle: '', cls: '', unlockLevel: 1, gating: 'held',
+      flavor: '', bullets: [],
+      effects: [
+        { target: 'ability_str', operation: 'set', value: 19 }, // form body
+        { target: 'ability_int', operation: 'set', value: 20 },  // form mind
+      ],
+      ...(keepMental === undefined ? {} : { carryOver: { keepMental } }),
+    }] as Character['forms'];
+    c.activeFormId = 'sage';
+    return c;
+  }
+
+  it('default: the form sets your mind too (INT rises to the form’s 20)', () => {
+    const led = buildLedger(mindForm(undefined));
+    expect(led.value('ability_int', 12)).toBe(20);
+    expect(led.value('ability_str', 10)).toBe(19);
+  });
+
+  it('keepMental:true keeps your own INT/WIS/CHA, still takes the body', () => {
+    const led = buildLedger(mindForm(true));
+    expect(led.value('ability_int', 12)).toBe(12); // your mind is your own
+    expect(led.value('ability_str', 10)).toBe(19); // body is the form's
+  });
+})

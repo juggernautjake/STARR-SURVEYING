@@ -405,4 +405,432 @@ export const PATHFINDER2E_GLOSSARY: SystemGlossary = [
     seeAlso: ['Dying', 'Doomed', 'Treat Wounds', 'Unconscious', 'Hero Point'],
     aliases: ['wounded 1', 'wounded n', 'wound'],
   },
+
+  // ── The basic actions of the three-action economy ────────────────────────────────────────────
+  // Each of these costs a set number of the three actions you get on your turn. Most Strikes, Stride
+  // and Step are the bread and butter; the skill actions below use a skill's proficiency.
+  {
+    term: 'Strike',
+    kind: 'action',
+    short: 'One action: make one attack. Your 2nd Strike this turn takes −5, your 3rd −10 (the Multiple Attack Penalty).',
+    body:
+      '**Strike** is one action ◆: attack one target with a weapon or unarmed attack. Roll **d20 + attack modifier vs the target\'s AC**, reading the four **Degrees of Success** (a nat 20 or beating the DC by 10 is a **critical hit** for double damage).\n\nBecause it is one action, you can Strike up to **three times** in a turn — but each Strike after the first takes the **Multiple Attack Penalty**: **−5** on the second, **−10** on the third (−4/−8 with an agile weapon). Spreading attacks across targets, or trading a third Strike for a maneuver, is the core tactical choice.',
+    seeAlso: ['Multiple Attack Penalty', 'Degrees of Success', 'Three-Action Economy', 'Off-Guard'],
+    aliases: ['strike', 'attack action', 'make an attack'],
+  },
+  {
+    term: 'Stride',
+    kind: 'action',
+    short: 'One action: move up to your Speed. Provokes Reactive Strikes from foes that have it.',
+    body:
+      '**Stride** is one action ◆: move up to your **Speed**. You can Stride up to three times in a turn to cover a lot of ground.\n\nMoving out of a foe\'s reach can trigger a **Reactive Strike** (formerly Attack of Opportunity) — but only creatures that specifically have that reaction get one, which in PF2 is far rarer than in D&D. To move away safely from those, use **Step**.',
+    seeAlso: ['Step', 'Reactive Strike', 'Three-Action Economy'],
+    aliases: ['stride', 'move', 'movement'],
+  },
+  {
+    term: 'Step',
+    kind: 'action',
+    short: 'One action: move 5 feet without triggering reactions like Reactive Strike.',
+    body:
+      '**Step** is one action ◆: move **5 feet** (or 10 with some feats). Unlike Stride, stepping **does not trigger** reactions that are set off by movement, such as **Reactive Strike**.\n\nIt is how you disengage from a dangerous melee foe and still have two actions left to act. You cannot Step into difficult terrain.',
+    seeAlso: ['Stride', 'Reactive Strike'],
+    aliases: ['step', 'five foot step'],
+  },
+  {
+    term: 'Interact',
+    kind: 'action',
+    short: 'One action: manipulate an object — draw or stow a weapon, open a door, retrieve an item.',
+    body:
+      '**Interact** is one action ◆ to manipulate the environment or your gear: **draw or sheathe a weapon**, retrieve an item from your pack, open an unlocked door, pick up an object, and so on.\n\nUnlike D&D\'s "free object interaction," in PF2 each of these **costs an action** — drawing a weapon and attacking is two actions, which is a real part of the turn\'s budget.',
+    seeAlso: ['Three-Action Economy', 'Bulk'],
+    aliases: ['interact', 'draw weapon', 'manipulate'],
+  },
+  {
+    term: 'Raise a Shield',
+    kind: 'action',
+    short: 'One action: gain your shield\'s +1 (or more) circumstance bonus to AC until your next turn.',
+    body:
+      '**Raise a Shield** is one action ◆ (requires a shield): you gain the shield\'s **circumstance bonus to AC** (usually **+1**, +2 for a tower shield) until the start of your next turn.\n\nOnly while raised can you use the **Shield Block** reaction to reduce damage. So the shield loop is: Raise ◆ each turn, then Block ↺ when hit. A raised shield is what makes a defender actually harder to hit.',
+    seeAlso: ['Armor Class', 'Reactive Strike'],
+    aliases: ['raise a shield', 'raise shield', 'shield block'],
+  },
+  {
+    term: 'Seek',
+    kind: 'action',
+    short: 'One action: Perception check to find hidden/undetected creatures or objects in an area.',
+    body:
+      '**Seek** is one action ◆: make a **Perception check** to notice hidden or undetected creatures, or to search an area for objects. On a success you pin down a creature\'s location (making a Hidden creature merely Concealed, or an Undetected one Hidden).\n\nSeek is the active counterpart to a foe\'s **Hide** and **Sneak**, and how you deal with invisibility and ambushes.',
+    seeAlso: ['Concealed', 'Off-Guard', 'Recall Knowledge'],
+    aliases: ['seek', 'search', 'perception'],
+  },
+  {
+    term: 'Demoralize',
+    kind: 'action',
+    short: 'One action: Intimidation vs Will DC to make a foe Frightened 1 (2 on a crit).',
+    body:
+      '**Demoralize** is one action ◆ (Intimidation): choose a foe within 30 feet and roll **Intimidation vs its Will DC**.\n\n· **Critical success** — it becomes **Frightened 2**.\n· **Success** — it becomes **Frightened 1**.\n\nFrightened is a status penalty to everything, so this is a strong "off-turn debuff" a face character throws out. You take a **−4** penalty if you do not share a language, and a target is temporarily immune for **10 minutes** after you try.',
+    seeAlso: ['Frightened', 'Off-Guard', 'Recall Knowledge'],
+    aliases: ['demoralize', 'intimidate'],
+  },
+  {
+    term: 'Grapple',
+    kind: 'action',
+    short: 'One action: Athletics vs Fortitude DC to make a foe Grabbed (Restrained on a crit).',
+    body:
+      '**Grapple** is one action ◆ (Athletics, one free hand): roll **Athletics vs the target\'s Fortitude DC**.\n\n· **Critical success** — the target is **Restrained** until your next turn ends.\n· **Success** — the target is **Grabbed** until your next turn ends.\n· **Critical failure** — you fall Prone or the target can Grapple you.\n\nGrabbed/Restrained impose the **Off-Guard** condition, setting the foe up for allies. Maintaining a grab means grappling again each round.',
+    seeAlso: ['Grabbed', 'Immobilized', 'Off-Guard', 'Escape'],
+    aliases: ['grapple', 'grab', 'wrestle'],
+  },
+  {
+    term: 'Trip',
+    kind: 'action',
+    short: 'One action: Athletics vs Reflex DC to knock a foe Prone.',
+    body:
+      '**Trip** is one action ◆ (Athletics): roll **Athletics vs the target\'s Reflex DC** against a foe within reach.\n\n· **Critical success** — the target falls **Prone** and takes **1d6 bludgeoning**.\n· **Success** — the target falls **Prone**.\n· **Critical failure** — you fall Prone.\n\nProne foes are **Off-Guard** and must spend an action to stand (which can trigger a Reactive Strike). Trip → Strike is a classic martial combo.',
+    seeAlso: ['Prone', 'Off-Guard', 'Shove'],
+    aliases: ['trip', 'knock down'],
+  },
+  {
+    term: 'Shove',
+    kind: 'action',
+    short: 'One action: Athletics vs Fortitude DC to push a foe 5 feet (10 on a crit).',
+    body:
+      '**Shove** is one action ◆ (Athletics): roll **Athletics vs the target\'s Fortitude DC**.\n\n· **Critical success** — push the target **10 feet** and you can Stride after it.\n· **Success** — push the target **5 feet**.\n\nShoving a foe off a ledge, out of an ally\'s reach, or into hazardous terrain is the main use. It moves the target, so it can set off movement-triggered reactions.',
+    seeAlso: ['Trip', 'Reactive Strike'],
+    aliases: ['shove', 'push'],
+  },
+  {
+    term: 'Escape',
+    kind: 'action',
+    short: 'One action: break free of Grabbed/Restrained/Immobilized — Unarmed, Athletics, or Acrobatics vs the DC.',
+    body:
+      '**Escape** is one action ◆ used to get out of the **Grabbed, Restrained, or Immobilized** conditions. Roll your **unarmed attack modifier, Athletics, or Acrobatics** (whichever is best) against the effect\'s DC.\n\n· **Success** — you are free of the condition.\n· **Critical success** — free, plus you can Step for free.\n\nIt is a check, not an attack, so it does not take the Multiple Attack Penalty.',
+    seeAlso: ['Grabbed', 'Immobilized', 'Grapple'],
+    aliases: ['escape', 'break free'],
+  },
+  {
+    term: 'Aid',
+    kind: 'action',
+    short: 'Reaction: help an ally\'s check you Prepared for — a success grants them a +1 (or more) circumstance bonus.',
+    body:
+      '**Aid** is a **reaction** ↺, but you must set it up first: on a previous turn, **Ready to Aid** (an action) and name the check you will help. When your ally attempts it, you roll a check (the DM sets the DC, usually a flat 20 or the same DC).\n\n· **Success** — your ally gets a **+1 circumstance bonus** (+2 if you are a master, +3 legendary).\n· **Critical success** — a larger bonus; **Critical failure** — a −1 penalty.\n\nIt is the teamwork action, and it scales with how good the helper actually is.',
+    seeAlso: ['Three-Action Economy', 'Proficiency Rank'],
+    aliases: ['aid', 'help', 'assist'],
+  },
+
+  // ── Core mechanics ───────────────────────────────────────────────────────────────────────────
+  {
+    term: 'Flat Check',
+    kind: 'mechanic',
+    short: 'A d20 roll against a flat DC (no modifiers) to resolve pure chance — a Concealed target, Persistent Damage recovery.',
+    body:
+      'A **flat check** is a **d20 roll with no modifiers** against a flat DC, used when the outcome is pure luck rather than skill.\n\nThe common ones:\n· **DC 5** — attacking a **Concealed** target (miss on a failure).\n· **DC 11** — attacking a **Hidden** target, or ending **Persistent Damage**.\n· Recovering from being off-balance, targeting through Concealment, and similar.\n\nBecause nothing modifies it, a flat check is the game\'s honest coin-flip.',
+    seeAlso: ['Concealed', 'Persistent Damage', 'Degrees of Success'],
+    aliases: ['flat check', 'flat dc'],
+  },
+  {
+    term: 'Persistent Damage',
+    kind: 'mechanic',
+    short: 'Damage that repeats at the end of each of your turns until a DC 15 flat check ends it.',
+    body:
+      '**Persistent Damage** (bleed, fire, acid…) is dealt again **at the end of each of your turns**. After taking it, attempt a **DC 15 flat check** — on a success it **ends**.\n\nYou or an ally can help: taking a reasonable action to address it (dousing flames, binding a wound) gives you **assisted recovery**, letting you roll the flat check at the start of your turn instead / at a lower DC. It is PF2\'s answer to "damage over time" and can quietly kill a downed character.',
+    seeAlso: ['Flat Check', 'Dying', 'Treat Wounds'],
+    aliases: ['persistent damage', 'bleed', 'dot', 'damage over time'],
+  },
+  {
+    term: 'Bulk',
+    kind: 'mechanic',
+    short: 'PF2\'s encumbrance unit: carry (5 + STR mod) Bulk freely; over that you\'re Encumbered; at (10 + STR) you\'re maxed.',
+    body:
+      '**Bulk** measures how heavy and unwieldy your gear is. You carry up to **5 + your Strength modifier** Bulk with no penalty. Carrying more, up to **10 + your Strength modifier**, makes you **Encumbered** (Clumsy 1 and −10 feet Speed). You cannot carry beyond that maximum.\n\n· Ten **Light** items (marked **L**) = 1 Bulk; negligible items have no Bulk.\n· A typical one-handed weapon is 1 Bulk; heavy armor 4.\n\nIt keeps inventory honest without tracking pounds.',
+    seeAlso: ['Interact', 'Clumsy'],
+    aliases: ['bulk', 'encumbrance', 'carrying capacity', 'encumbered'],
+  },
+  {
+    term: 'Free Action & Reaction',
+    kind: 'mechanic',
+    short: 'Beyond your 3 actions: Free Actions (⬦, cost nothing) and one Reaction (↺) per round, taken on a trigger.',
+    body:
+      'On top of your **three actions** each turn, PF2 has two other kinds:\n\n· **Free Action** (⬦) — costs none of your three. Some have a **trigger** (like an action, but free); others can be taken any time it is your turn. You can take as many as their triggers allow.\n· **Reaction** (↺) — you get **one per round**, and it happens **on a trigger, even on another creature\'s turn** (Shield Block, Reactive Strike, Aid). Once spent, you have none until the start of your next turn.\n\nAn **Activity** (like a two-action spell or Sudden Charge) is a single thing that uses **multiple actions** together, noted ◆◆ or ◆◆◆.',
+    seeAlso: ['Three-Action Economy', 'Reactive Strike', 'Raise a Shield'],
+    aliases: ['free action', 'reaction', 'activity', 'trigger'],
+  },
+
+  // ── The core classes (Player Core) — each at HP/level, key attribute, and signature mechanic ────
+  {
+    term: 'Alchemist',
+    kind: 'class',
+    short: '8 HP/level, Key INT. Crafts infused reagents into bombs, elixirs, and mutagens each day via a research field.',
+    body:
+      'The **Alchemist** (Key attribute **Intelligence**, **8 HP/level**, expert **Fortitude**) makes chemistry a martial art. Each day you get **infused reagents** (level × 2 + INT) to craft **bombs, elixirs, mutagens, and poisons** for free with **Quick Alchemy**.\n\nYour **Research Field** — Bomber, Chirurgeon, Mutagenist, or Toxicologist — shapes what you excel at, and you gain a stream of **class feats** to expand your formula book.',
+    seeAlso: ['Three-Action Economy', 'Strike', 'Attribute Boost'],
+    aliases: ['alchemist', 'bomber', 'chirurgeon', 'mutagenist'],
+  },
+  {
+    term: 'Barbarian',
+    kind: 'class',
+    short: '12 HP/level, Key STR. Enters a Rage for bonus damage and temp HP, shaped by an animal/elemental Instinct.',
+    body:
+      'The **Barbarian** (Key **Strength**, **12 HP/level** — the toughest — expert **Fortitude**) **Rages** (one action ◆) for **bonus damage** and **temporary HP**, at the cost of **−1 AC** and no concentration actions.\n\nYour **Instinct** (Animal, Dragon, Fury, Giant, or Spirit) sets your rage\'s flavor and special abilities. Rage lasts until combat ends or you spend a turn not attacking, then needs a round to recharge.',
+    seeAlso: ['Strike', 'Off-Guard', 'Three-Action Economy'],
+    aliases: ['barbarian', 'rage', 'instinct'],
+  },
+  {
+    term: 'Bard',
+    kind: 'class',
+    short: '8 HP/level, Key CHA. A spontaneous occult caster whose Compositions (via a Muse) buff allies and debuff foes.',
+    body:
+      'The **Bard** (Key **Charisma**, **8 HP/level**, expert **Will**) is a **spontaneous occult** caster who performs **compositions** — most famously **Inspire Courage**, a one-action ◆ cantrip granting allies a status bonus to attacks, damage, and fear saves.\n\nYour **Muse** (Enigma, Maestro, Polymath, or Warrior) grants a bonus focus spell and shapes your feats. You cast from a fixed **spell repertoire** using spell slots.',
+    seeAlso: ['Focus Point', 'Spell Rank', 'Recall Knowledge'],
+    aliases: ['bard', 'muse', 'composition', 'inspire courage'],
+  },
+  {
+    term: 'Champion',
+    kind: 'class',
+    short: '10 HP/level, Key STR (or DEX). A heavy-armor holy/unholy warrior with a Reaction tied to a cause and deity.',
+    body:
+      'The **Champion** (Key **Strength** or Dexterity, **10 HP/level**, expert **Fortitude**, heavy armor) swears to a **deity and a cause** (e.g. **Paladin**, Redeemer, Liberator) that grants a signature **Champion\'s Reaction** — Retributive Strike punishes a foe that harms an ally nearby.\n\nYou channel **Focus** spells (Lay on Hands), gain **Devotion** feats, and eventually a **Blessed Shield / Divine Ally**. Your alignment/edict determines which cause you can take.',
+    seeAlso: ['Reactive Strike', 'Raise a Shield', 'Focus Point'],
+    aliases: ['champion', 'paladin', 'cause', 'retributive strike'],
+  },
+  {
+    term: 'Cleric',
+    kind: 'class',
+    short: '8 HP/level, Key WIS. A prepared divine caster with a Divine Font (extra heal/harm slots) shaped by a Doctrine.',
+    body:
+      'The **Cleric** (Key **Wisdom**, **8 HP/level**, expert **Will**) is a **prepared divine** caster serving a deity. Your **Divine Font** grants extra spell slots of **Heal** or **Harm** (CHA-mod many per day).\n\nYour **Doctrine** — **Cloistered Cleric** (more spellcasting) or **Warpriest** (armor + martial weapons + a resolute front line) — sets your proficiencies. You gain your deity\'s favored weapon and domain focus spells.',
+    seeAlso: ['Spell Rank', 'Focus Point', 'Basic Save'],
+    aliases: ['cleric', 'divine font', 'doctrine', 'warpriest'],
+  },
+  {
+    term: 'Druid',
+    kind: 'class',
+    short: '8 HP/level, Key WIS. A prepared primal caster bound to a nature Order and an anathema against despoiling the wild.',
+    body:
+      'The **Druid** (Key **Wisdom**, **8 HP/level**, expert **Will**) is a **prepared primal** caster sworn to the natural world (an **anathema** forbids using metal armor and teaching druidry to outsiders).\n\nYour **Order** — **Animal** (companion), **Leaf** (plants/healing), **Storm**, **Wild** (Wild Shape), or **Untamed** — grants an order spell and feats. Focus spells (Order Spells) and a beast/plant theme define your play.',
+    seeAlso: ['Spell Rank', 'Focus Point', 'Recall Knowledge'],
+    aliases: ['druid', 'order', 'wild shape', 'animal companion'],
+  },
+  {
+    term: 'Fighter',
+    kind: 'class',
+    short: '10 HP/level, Key STR (or DEX). The best attack proficiency in the game, a chosen weapon group, and Reactive Strike at 1.',
+    body:
+      'The **Fighter** (Key **Strength** or Dexterity, **10 HP/level**, expert **Reflex & Fortitude**) has the **highest attack proficiency** in the game — reaching **legendary** — so it hits more and crits more (a crit is beating AC by 10).\n\nIt gets **Reactive Strike** (Attack of Opportunity) at level 1 (most classes never do), picks a **weapon group** to master, and has the deepest pool of **combat feats** (Power Attack, Double Slice, press attacks). The pure martial baseline every other martial is measured against.',
+    seeAlso: ['Strike', 'Reactive Strike', 'Multiple Attack Penalty'],
+    aliases: ['fighter', 'reactive strike', 'weapon mastery'],
+  },
+  {
+    term: 'Monk',
+    kind: 'class',
+    short: '10 HP/level, Key STR or DEX. Unarmored Defense, powerful Flurry unarmed strikes, and stances; expert in all three saves.',
+    body:
+      'The **Monk** (Key **Strength** or Dexterity, **10 HP/level**, expert in **all three saves** — uniquely) fights with **Flurry of Blows** (two unarmed Strikes for one action ◆, sharing one Multiple Attack Penalty) and **Powerful Fist** (d6+ unarmed dice).\n\nMonk **stances** (Crane, Mountain, Tiger, Wolf, Dragon…) change your unarmed attack and grant bonuses. Some monks take **ki spells** (Ki Strike, Wholeness of Body) as focus spells. Great mobility and saves, no armor.',
+    seeAlso: ['Strike', 'Three-Action Economy', 'Basic Save'],
+    aliases: ['monk', 'flurry of blows', 'stance', 'ki'],
+  },
+  {
+    term: 'Oracle',
+    kind: 'class',
+    short: '8 HP/level, Key CHA. A spontaneous divine caster who channels a Mystery — power that deepens as a Curse worsens.',
+    body:
+      'The **Oracle** (Key **Charisma**, **8 HP/level**, expert **Will**) is a **spontaneous divine** caster who draws on a **Mystery** (Battle, Bones, Cosmos, Flames, Life, Lore, Tempest…). Casting your mystery\'s **revelation** focus spells advances your **Curse**, which grants escalating power alongside escalating drawbacks.\n\nManaging how deep into your curse to go each fight is the Oracle\'s signature tension.',
+    seeAlso: ['Focus Point', 'Spell Rank', 'Doomed'],
+    aliases: ['oracle', 'mystery', 'curse', 'revelation'],
+  },
+  {
+    term: 'Ranger',
+    kind: 'class',
+    short: '10 HP/level, Key DEX or STR. Marks Hunt Prey to reduce its Multiple Attack Penalty and Seek/Track it better.',
+    body:
+      'The **Ranger** (Key **Dexterity** or Strength, **10 HP/level**, expert **Fortitude & Reflex**) uses **Hunt Prey** (one action ◆) to mark a target: against it your **Multiple Attack Penalty is reduced** (via a **Hunter\'s Edge** — Flurry, Precision, or Outwit) and you track and Seek it better.\n\nRangers can take an **animal companion**, snares, and archery or two-weapon feats. A flexible martial that shines when it focuses fire.',
+    seeAlso: ['Multiple Attack Penalty', 'Strike', 'Seek'],
+    aliases: ['ranger', 'hunt prey', 'hunter\'s edge'],
+  },
+  {
+    term: 'Rogue',
+    kind: 'class',
+    short: '8 HP/level, Key varies by Racket. Sneak Attack vs off-guard foes, more skills than anyone, and Reflex mastery.',
+    body:
+      'The **Rogue** (Key attribute set by its **Racket**, **8 HP/level**, expert **Reflex**) deals **Sneak Attack** (1d6, rising to 4d6) whenever it hits an **Off-Guard** target — so it sets foes off-guard by flanking, feinting, or hiding.\n\nIt has **more trained skills than any class** and gains **Skill Increases** every level. Its **Racket** — Ruffian (STR), Scoundrel (CHA), Thief (DEX), Mastermind (INT)… — sets its key attribute and a signature trick. **Surprise Attack** makes foes off-guard in the first round.',
+    seeAlso: ['Off-Guard', 'Seek', 'Recall Knowledge'],
+    aliases: ['rogue', 'sneak attack', 'racket', 'thief'],
+  },
+  {
+    term: 'Sorcerer',
+    kind: 'class',
+    short: '6 HP/level, Key CHA. A spontaneous caster whose Bloodline sets its spell tradition and grants bloodline focus spells.',
+    body:
+      'The **Sorcerer** (Key **Charisma**, **6 HP/level**, expert **Will**) is a **spontaneous** caster whose magic is innate. Its **Bloodline** (Draconic, Angelic, Imperial, Undead, Elemental…) sets which of the **four traditions** (arcane, divine, occult, primal) it casts and grants **bloodline focus spells** plus a granted spell added to its repertoire at each rank.\n\nMore spell slots per rank than a Wizard, but a smaller known repertoire — flexibility of casting for a narrower list.',
+    seeAlso: ['Spell Rank', 'Focus Point', 'Basic Save'],
+    aliases: ['sorcerer', 'bloodline'],
+  },
+  {
+    term: 'Witch',
+    kind: 'class',
+    short: '6 HP/level, Key INT. A prepared caster who serves a Patron and channels its magic through a spellcasting Familiar.',
+    body:
+      'The **Witch** (Key **Intelligence**, **6 HP/level**, expert **Will**) is a **prepared** caster granted magic by a mysterious **Patron**. Its power flows through a **familiar** that stores the day\'s spells and grants abilities; the patron sets your spell **tradition** and a **hex** cantrip focus spell.\n\nWitches lean on debilitating hexes and versatile prepared spellcasting — lose the familiar and you lose access to your day\'s magic, so protecting it matters.',
+    seeAlso: ['Spell Rank', 'Focus Point', 'Recall Knowledge'],
+    aliases: ['witch', 'patron', 'familiar', 'hex'],
+  },
+  {
+    term: 'Wizard',
+    kind: 'class',
+    short: '6 HP/level, Key INT. The prepared arcane scholar — a spellbook, an arcane school or thesis, and the widest arcane list.',
+    body:
+      'The **Wizard** (Key **Intelligence**, **6 HP/level**, expert **Will**) is the **prepared arcane** scholar. It prepares spells each day from a **spellbook** it can expand by copying scrolls and other books.\n\nYour **Arcane Thesis** (Improved Familiar Attunement, Metamagical Experimentation, Spell Blending, Spell Substitution, Staff Nexus) tunes how you cast, and your **Arcane School / curriculum** grants **school focus spells** and an extra prepared slot per rank. The deepest, most flexible spell list in the game.',
+    seeAlso: ['Spell Rank', 'Focus Point', 'Recall Knowledge'],
+    aliases: ['wizard', 'arcane thesis', 'arcane school', 'spellbook'],
+  },
+
+  // ── Ancestries (Player Core Remaster) — HP, Size, Speed, senses, and the signature trait ────────
+  // Each ancestry adds a flat pool of Hit Points at level 1 (on top of your class's HP/level), sets
+  // your Size and Speed, and grants ability boosts + a heritage at character creation.
+  {
+    term: 'Dwarf',
+    kind: 'stat',
+    short: 'Ancestry: 10 Hit Points, Medium, Speed 25 ft, Darkvision. Sturdy, stubborn, and clan-proud.',
+    body: 'The **Dwarf** ancestry grants **10 Hit Points** (added at level 1), **Medium** size, **Speed 25 feet**, and **Darkvision**. Dwarves are hardy and unhurried, with a cultural knack for stonework, weapons, and religion. Heritages include **Ancient-Blooded** (a reaction vs magic), **Death Warden**, **Forge**, **Rock**, and **Strong-Blooded** (poison resistance). Ability boosts and a heritage are chosen at creation.',
+    seeAlso: ['Attribute Boost'],
+    aliases: ['dwarf', 'ancestry', 'race'],
+  },
+  {
+    term: 'Elf',
+    kind: 'stat',
+    short: 'Ancestry: 6 Hit Points, Medium, Speed 30 ft (fast), Low-Light Vision. Long-lived, keen, and graceful.',
+    body: 'The **Elf** ancestry grants **6 Hit Points**, **Medium** size, a fast **Speed of 30 feet**, and **Low-Light Vision**. Elves are long-lived and perceptive, drawn to magic and precision. Heritages include **Ancient**, **Arctic/Desert/Seer/Whisper** and **Woodland** elves. Ability boosts and a heritage are chosen at creation.',
+    seeAlso: ['Attribute Boost'],
+    aliases: ['elf', 'ancestry', 'race'],
+  },
+  {
+    term: 'Gnome',
+    kind: 'stat',
+    short: 'Ancestry: 8 Hit Points, Small, Speed 25 ft, Low-Light Vision. Fey-touched, curious, and driven by novelty.',
+    body: 'The **Gnome** ancestry grants **8 Hit Points**, **Small** size, **Speed 25 feet**, and **Low-Light Vision**, and counts as a **fey** creature. Gnomes crave new experiences (and risk the Bleaching if they stagnate). Heritages include **Chameleon**, **Fey-Touched**, **Sensate**, **Umbral**, and **Wellspring**. Ability boosts and a heritage are chosen at creation.',
+    seeAlso: ['Attribute Boost'],
+    aliases: ['gnome', 'ancestry', 'race', 'fey'],
+  },
+  {
+    term: 'Goblin',
+    kind: 'stat',
+    short: 'Ancestry: 6 Hit Points, Small, Speed 25 ft, Darkvision. Fast, fearless, and gleefully chaotic.',
+    body: 'The **Goblin** ancestry grants **6 Hit Points**, **Small** size, **Speed 25 feet**, and **Darkvision**. Goblins are quick, resilient to fire and disease in some heritages, and endlessly enthusiastic. Heritages include **Charhide** (fire resistance), **Irongut** (eat anything), **Razortooth** (a bite), **Snow**, and **Unbreakable** (extra HP, less fall damage). Ability boosts + a heritage at creation.',
+    seeAlso: ['Attribute Boost'],
+    aliases: ['goblin', 'ancestry', 'race'],
+  },
+  {
+    term: 'Halfling',
+    kind: 'stat',
+    short: 'Ancestry: 6 Hit Points, Small, Speed 25 ft, Keen Eyes. Lucky, nimble, and irrepressibly optimistic.',
+    body: 'The **Halfling** ancestry grants **6 Hit Points**, **Small** size, **Speed 25 feet**, and **Keen Eyes** (a bonus to Seek adjacent hidden creatures and to ranged attacks against a Hidden foe). Halflings are lucky and community-minded. Heritages include **Gutsy** (fear reroll), **Hillock** (rest recovery), **Nomadic**, **Twilight** (low-light vision), and **Wildwood**. Ability boosts + a heritage at creation.',
+    seeAlso: ['Seek', 'Attribute Boost'],
+    aliases: ['halfling', 'ancestry', 'race'],
+  },
+  {
+    term: 'Human',
+    kind: 'stat',
+    short: 'Ancestry: 8 Hit Points, Medium, Speed 25 ft. The versatile ancestry — free ability boosts and a bonus feat.',
+    body: 'The **Human** ancestry grants **8 Hit Points**, **Medium** size, and **Speed 25 feet**, and is defined by **flexibility**: humans get **two free ability boosts** and heritages that lean into that adaptability — **Skilled** (a skill training that upgrades) and **Versatile** (a bonus general feat at level 1). The blank-slate ancestry that fits any class.',
+    seeAlso: ['Attribute Boost'],
+    aliases: ['human', 'ancestry', 'race', 'versatile', 'skilled'],
+  },
+  {
+    term: 'Leshy',
+    kind: 'stat',
+    short: 'Ancestry: 8 Hit Points, Small, Speed 25 ft, Low-Light Vision. A plant spirit given a body — needs no food, water, or air.',
+    body: 'The **Leshy** ancestry grants **8 Hit Points**, **Small** size, **Speed 25 feet**, and **Low-Light Vision**, and is a **plant** creature: a leshy **does not need to eat, drink, or breathe**. Heritages give a body of a type — **Fungus**, **Fruit**, **Gourd**, **Leaf**, **Lotus**, **Root**, **Seaweed**, **Vine** — each with a small trick. Ability boosts + a heritage at creation.',
+    seeAlso: ['Attribute Boost'],
+    aliases: ['leshy', 'ancestry', 'race', 'plant'],
+  },
+  {
+    term: 'Orc',
+    kind: 'stat',
+    short: 'Ancestry: 10 Hit Points, Medium, Speed 25 ft, Darkvision. Tough and relentless, with a Ferocity to keep fighting.',
+    body: 'The **Orc** ancestry grants **10 Hit Points** (tied with Dwarf for toughest), **Medium** size, **Speed 25 feet**, and **Darkvision**. Orcs are strong and hard to put down. Many heritages grant **Orc Ferocity** — a reaction to stay at 1 HP when you would drop — and options like **Badlands** (fast in heat), **Battle-Ready**, **Grave-Born**, and **Winter** orcs. Ability boosts + a heritage at creation.',
+    seeAlso: ['Attribute Boost'],
+    aliases: ['orc', 'ancestry', 'race', 'ferocity'],
+  },
+
+  // ── Class "subclass" mechanisms — each class's defining early choice (its PF2 subclass equivalent) ──
+  {
+    term: 'Instinct',
+    kind: 'feature',
+    short: 'Barbarian: the animal/elemental instinct chosen at 1 that shapes your Rage — and its anathema.',
+    body: 'A **Barbarian\'s Instinct** (chosen at level 1) is the source of its rage and its subclass. The Player Core instincts: **Animal** (a beast form and unarmed attacks), **Dragon** (a breath and resistances), **Fury** (raw versatility), **Giant** (a larger weapon and reach), and **Spirit** (positive/negative energy vs undead). Each grants a signature ability and an **anathema** — act against it and you lose your rage benefits until you atone.',
+    seeAlso: ['Barbarian', 'Strike'],
+    aliases: ['instinct', 'barbarian instinct', 'animal instinct', 'dragon instinct'],
+  },
+  {
+    term: 'Racket',
+    kind: 'feature',
+    short: 'Rogue: the racket chosen at 1 that sets your key attribute and a signature trick.',
+    body: 'A **Rogue\'s Racket** (level 1) is its subclass — it sets the Rogue\'s **key attribute** and grants a signature capability: **Ruffian** (STR; medium armor, martial-ish weapons, Sneak Attack with simple weapons), **Scoundrel** (CHA; Feint sets a foe off-guard to allies), **Thief** (DEX; add DEX to damage with finesse weapons), **Mastermind** (INT; Recall Knowledge sets a foe off-guard), and **Eldritch Trickster** (a spellcasting multiclass hook).',
+    seeAlso: ['Rogue', 'Off-Guard', 'Recall Knowledge'],
+    aliases: ['racket', 'rogue racket', 'ruffian', 'scoundrel', 'thief racket', 'mastermind'],
+  },
+  {
+    term: 'Bloodline',
+    kind: 'feature',
+    short: 'Sorcerer: the innate bloodline chosen at 1 that sets your spell tradition and grants focus spells.',
+    body: 'A **Sorcerer\'s Bloodline** (level 1) is its subclass — the source of its innate magic. It sets which of the **four traditions** (arcane, divine, occult, primal) the Sorcerer casts, adds a **granted spell** to its repertoire at each rank, and grants **bloodline focus spells** (a Bloodline Spell + advanced ones). Examples: **Draconic** (arcane), **Angelic** (divine), **Imperial** (arcane), **Undead** (divine), **Elemental** (primal/arcane).',
+    seeAlso: ['Sorcerer', 'Focus Point', 'Spell Rank'],
+    aliases: ['bloodline', 'sorcerer bloodline', 'draconic bloodline'],
+  },
+  {
+    term: 'Doctrine',
+    kind: 'feature',
+    short: 'Cleric: Cloistered Cleric (more casting) or Warpriest (armor + martial) chosen at 1.',
+    body: 'A **Cleric\'s Doctrine** (level 1) is its subclass, setting its proficiencies and advancement: **Cloistered Cleric** leans into spellcasting (a domain focus spell, faster casting proficiency, the deity\'s favored weapon as a critical-specialization boon), while **Warpriest** trains armor and martial weapons to hold a front line, gaining resolve and a later Sanctified Ground. Both keep the **Divine Font** (extra Heal or Harm slots).',
+    seeAlso: ['Cleric', 'Focus Point', 'Basic Save'],
+    aliases: ['doctrine', 'cloistered cleric', 'warpriest'],
+  },
+  {
+    term: 'Mystery',
+    kind: 'feature',
+    short: 'Oracle: the mystery chosen at 1 — a divine theme, revelation spells, and an escalating Curse.',
+    body: 'An **Oracle\'s Mystery** (level 1) is its subclass — a divine theme (Battle, Bones, Cosmos, Flames, Life, Lore, Tempest, Ancestors…) that grants **revelation focus spells** and related skills. Casting a revelation deepens your **Curse**, which trades escalating drawbacks for escalating power. The Mystery decides both what magic you channel and what your curse does.',
+    seeAlso: ['Oracle', 'Focus Point', 'Doomed'],
+    aliases: ['mystery', 'oracle mystery', 'revelation', 'oracle curse'],
+  },
+  {
+    term: 'Order',
+    kind: 'feature',
+    short: 'Druid: the druidic order chosen at 1 — Animal, Leaf, Storm, Wild, or Untamed — with an order spell and feats.',
+    body: 'A **Druid\'s Order** (level 1) is its subclass, granting an **order spell** (focus spell), a trained skill, and access to order-specific feats: **Animal** (an animal companion), **Leaf** (leshy familiar, healing), **Storm** (Tempest Surge, weather), **Wild** / **Untamed** (Wild/Untamed Shape into beasts and elements). All Druids share the anathema against despoiling nature and using metal armor.',
+    seeAlso: ['Druid', 'Focus Point'],
+    aliases: ['order', 'druid order', 'wild order', 'animal order'],
+  },
+  {
+    term: 'Muse',
+    kind: 'feature',
+    short: 'Bard: the muse chosen at 1 — Enigma, Maestro, Polymath, or Warrior — a bonus focus spell + feats.',
+    body: 'A **Bard\'s Muse** (level 1) is its subclass — its source of inspiration. Each grants an extra **composition/focus spell** and access to muse feats: **Enigma** (True Strike, occult knowledge), **Maestro** (Lingering Composition, performance), **Polymath** (Versatile Performance, a flexible spell slot), and **Warrior** (Courageous Anthem support + martial feats to fight up front).',
+    seeAlso: ['Bard', 'Focus Point', 'Spell Rank'],
+    aliases: ['muse', 'bard muse', 'maestro', 'polymath', 'enigma'],
+  },
+  {
+    term: 'Research Field',
+    kind: 'feature',
+    short: 'Alchemist: Bomber, Chirurgeon, Mutagenist, or Toxicologist chosen at 1 — what your alchemy excels at.',
+    body: 'An **Alchemist\'s Research Field** (level 1) is its subclass, setting what its infused reagents do best: **Bomber** (throw bombs, add splash precision), **Chirurgeon** (Crafting for Medicine, potent healing elixirs), **Mutagenist** (self-buff mutagens with a "mutagenic flashback"), and **Toxicologist** (fast poisons, add poisons to weapons). Each grants a signature research-field feat progression.',
+    seeAlso: ['Alchemist', 'Strike'],
+    aliases: ['research field', 'bomber', 'chirurgeon', 'mutagenist', 'toxicologist'],
+  },
+  {
+    term: 'Cause',
+    kind: 'feature',
+    short: 'Champion: the cause + deity chosen at 1 that grants your signature Champion\'s Reaction.',
+    body: 'A **Champion\'s Cause** (level 1), paired with a deity, is its subclass — it sets your edicts/anathema and your signature **Champion\'s Reaction**: **Paladin** (Retributive Strike — punish a foe that harms a nearby ally), **Redeemer** (Glimpse of Redemption — reduce the damage or enfeeble the attacker), **Liberator** (Liberating Step — free an ally and let it move). Champions also gain **Devotion focus spells** (Lay on Hands) and a Blessed Ally at higher levels.',
+    seeAlso: ['Champion', 'Reactive Strike', 'Focus Point'],
+    aliases: ['cause', 'champion cause', 'redeemer', 'liberator'],
+  },
+  {
+    term: 'Hunter\'s Edge',
+    kind: 'feature',
+    short: 'Ranger: Flurry, Precision, or Outwit chosen at 1 — how Hunt Prey improves your attacks against your prey.',
+    body: 'A **Ranger\'s Hunter\'s Edge** (level 1) is its subclass — the benefit you get against a creature you\'ve marked with **Hunt Prey**: **Flurry** (reduce your Multiple Attack Penalty against it — −3/−6 instead of −5/−10), **Precision** (extra precision damage on your first hit each turn), or **Outwit** (bonuses to skills, AC, and initiative against it). It shapes whether the Ranger is a two-weapon striker, a burst archer, or a skirmisher/scout.',
+    seeAlso: ['Ranger', 'Multiple Attack Penalty', 'Strike'],
+    aliases: ['hunter\'s edge', 'hunters edge', 'flurry', 'precision', 'outwit'],
+  },
 ];

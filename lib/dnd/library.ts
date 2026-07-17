@@ -9,6 +9,20 @@ import { GAME_SYSTEMS, systemLabel, type CharacterSystem } from './systems';
 import { rulesForSystem, type SystemRules } from './system-rules';
 import { glossaryFor, searchGlossary } from './glossary';
 import { classesForSystem } from './classes/registry';
+import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
+import { PF2_BACKGROUNDS, type PF2BackgroundDef } from './systems/pathfinder2e/content';
+
+/** The full feat registry for a system, or [] when only a catalog sample exists. System-keyed
+ *  dispatcher (the pattern `findFeat`'s comment calls for) so a feat never leaks across systems. */
+function featsForSystem(system: string): Feat[] {
+  return system === 'dnd5e-2024' ? FEATS_2024 : [];
+}
+
+/** Backgrounds a system exposes as structured library data. System-keyed so PF2's backgrounds never
+ *  surface under another system. Only Pathfinder 2e has these as first-class library entries today. */
+function backgroundsForSystem(system: string): PF2BackgroundDef[] {
+  return system === 'pathfinder2e' ? PF2_BACKGROUNDS : [];
+}
 
 export interface LibraryFact {
   label: string;
@@ -174,6 +188,21 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
     });
   }
 
+  // Backgrounds (PF2 only today) — a real table of what each grants, since backgrounds are a level-1
+  // choice as consequential as ancestry/class in Pathfinder 2e.
+  const backgrounds = backgroundsForSystem(key);
+  if (backgrounds.length) {
+    sections.push({
+      id: 'backgrounds',
+      title: 'Backgrounds',
+      lead: `${backgrounds.length} backgrounds — each grants attribute boosts, a trained skill, a Lore, and a skill feat.`,
+      table: {
+        headers: ['Background', 'Boosts', 'Trained skill', 'Skill feat'],
+        rows: backgrounds.map((b) => [b.name, b.boosts.join(', '), `${b.skill} · ${b.lore}`, b.feat]),
+      },
+    });
+  }
+
   if (r.content.conditions.length) {
     sections.push({ id: 'conditions', title: 'Conditions', lead: `${r.content.conditions.length} standardized states.`, chips: r.content.conditions });
   }
@@ -266,8 +295,9 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
       push('class', c.name, `${c.name} — key ability ${c.keyAbility}; ${hp}; saves ${c.saves.join(' & ') || '—'}; ${c.caster === 'none' ? 'non-caster' : `${c.caster} caster`}.`);
     }
     for (const n of r.content.classNames ?? []) if (!r.content.classes.some((c) => c.name === n)) push('class', n, `${n} — a ${r.label} class.`);
-    // Systems with FULL class data (currently dnd5e-2024) also expose every class feature by
-    // name, so "action surge" or "sneak attack" finds the actual rules text and its level.
+    // Systems with FULL class data (dnd5e-2024 AND now dnd5e-2014) also expose every class feature by
+    // name, so "action surge", "sneak attack", or "brutal critical" finds the actual rules text and
+    // its level — the whole 2014 roster projects into library search automatically once registered.
     for (const c of classesForSystem(key)) {
       for (const f of c.features) {
         if (f.choice && !f.body) continue;
@@ -278,7 +308,19 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
     for (const s of r.content.species) push('species', s, `${s} — a playable ${speciesNoun(r.key).toLowerCase().replace(/s$/, '')} in ${r.label}.`);
     for (const n of r.content.ancestryNotes ?? []) push('species', n.split(/[—-]/)[0].trim() || 'Ancestry', n);
     for (const c of r.content.conditions) push('condition', c, `${c} — a condition in ${r.label}.`);
-    for (const f of r.content.sampleFeats) push('feat', f, `${f} — ${featNoun(r.key).toLowerCase()} in ${r.label}.`);
+    // Systems with a full FEATS registry (dnd5e-2024) expose EVERY feat with its real benefit text and
+    // category, so "great weapon master" or "alert" returns the actual rules, not a one-line stub.
+    const fullFeats = featsForSystem(key);
+    if (fullFeats.length) {
+      for (const f of fullFeats) push('feat', f.name, `${f.name} (${f.category} feat) — ${f.benefit}`);
+    } else {
+      for (const f of r.content.sampleFeats) push('feat', f, `${f} — ${featNoun(r.key).toLowerCase()} in ${r.label}.`);
+    }
+    // Backgrounds (PF2 only today): each grants attribute boosts, a trained skill, a Lore, and a skill
+    // feat — real structured data from the PF2 content library, searchable by name or "background".
+    for (const b of backgroundsForSystem(key)) {
+      push('background', b.name, `${b.name} background — trains ${b.skill} + ${b.lore}; grants the ${b.feat} skill feat; boosts ${b.boosts.join(', ')}. ${b.summary}`);
+    }
   }
 
   return hits.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name)).slice(0, limit);

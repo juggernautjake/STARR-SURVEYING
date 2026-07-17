@@ -54,6 +54,13 @@ export const HALF_CASTER_SLOTS: Record<number, SpellSlotRow> = {
   20: [0, 4, 3, 3, 3, 2, 0, 0, 0, 0],
 };
 
+/** Artificer — the half-caster that rounds UP, so it casts from level 1 (2 first-rank slots). Every
+ *  other row matches the half-caster table; only level 1 differs (a Paladin/Ranger has no slots yet). */
+export const ARTIFICER_SLOTS: Record<number, SpellSlotRow> = {
+  ...HALF_CASTER_SLOTS,
+  1: [0, 2, 0, 0, 0, 0, 0, 0, 0, 0],
+};
+
 /** Eldritch Knight / Arcane Trickster — slots begin at 3 and cap at rank 4. */
 export const THIRD_CASTER_SLOTS: Record<number, SpellSlotRow> = {
   1: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],

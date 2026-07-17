@@ -12,14 +12,30 @@ export default function DndHeader({ userName }: { userName?: string | null }) {
     <header className={styles.siteHeader}>
       <HeaderBack />
       <Link href="/dnd" className={styles.siteBrand}>
-        <span className={styles.siteBrandMark} aria-hidden>
-          ◆
+        {/* Four small diamonds arranged into one larger diamond (top · left · right · bottom),
+            flanking the wordmark symmetrically on both sides. */}
+        <span className={styles.siteBrandCluster} aria-hidden>
+          <span>◆</span>
+          <span>◆</span>
+          <span>◆</span>
+          <span>◆</span>
         </span>
-        Starr Tabletop
+        <span className={styles.siteBrandText}>Starr Tabletop</span>
+        <span className={styles.siteBrandCluster} aria-hidden>
+          <span>◆</span>
+          <span>◆</span>
+          <span>◆</span>
+          <span>◆</span>
+        </span>
       </Link>
       <nav className={styles.siteNav}>
         <Link href="/dnd" className={styles.siteNavLink}>
           Lobby
+        </Link>
+        {/* The rules library — every system's classes, subclasses, features, conditions and rules,
+            searchable and AI-navigable. Given a top-level nav slot so it's always one click away. */}
+        <Link href="/dnd/library" className={styles.siteNavLink}>
+          Library
         </Link>
         <Link href="/dnd/characters/new" className={styles.siteNavLink}>
           ＋ Character

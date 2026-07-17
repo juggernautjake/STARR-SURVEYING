@@ -19,6 +19,8 @@
 import type { Character, InvItem, ActiveEffect } from '@/app/dnd/_sheet/types';
 import type { Effect } from '@/app/dnd/_sheet/engine/effects';
 import { findTarget, describeEffect } from './targets';
+import { findSpecies } from '@/lib/dnd/species/dnd5e-2024';
+import { speciesEffects } from '@/lib/dnd/species/apply';
 
 export type SourceKind =
   | 'item' // worn/equipped gear
@@ -26,6 +28,7 @@ export type SourceKind =
   | 'consumed' // a potion that was drunk — the effect OUTLIVES the item
   | 'spell' // cast on you
   | 'feature' // a class/species feature that carries mechanics
+  | 'species' // the character's species itself (size, creature type, darkvision, walk speed)
   | 'form' // an active form/transformation
   | 'condition' // a condition's own mechanical rider
   | 'dm'; // a DM boon
@@ -102,6 +105,10 @@ export interface LedgerContext {
   active?: string[];
   /** Base values keyed by target, when the caller knows better than the defaults. */
   bases?: Record<string, number>;
+  /** The character's game system. Required for system-scoped sources like species — "elf" means
+   *  different things across games (Ground Rule 1), so species mechanics only apply when this is the
+   *  matching system. Omitted → no species source (safe default: a bare character is unchanged). */
+  system?: string;
 }
 
 const isEquipped = (i: InvItem) => i.equipped === true || i.tags?.includes('equipped') === true;
@@ -173,8 +180,27 @@ export function imposedTransform(char: Character): { value: string; source: stri
   return last;
 }
 
+/** Source kinds imposed on you from OUTSIDE — a spell cast on you, a DM boon, a drunk potion's lingering
+ *  effect, a condition. These survive a true polymorph; your own gear + features do not. */
+const EXTERNAL_KINDS = new Set<SourceKind>(['consumed', 'spell', 'dm', 'condition']);
+
+/** The mental ability targets a `keepMental` form must not touch — your mind is your own. */
+const MENTAL_TARGETS = new Set<string>(['ability_int', 'ability_wis', 'ability_cha']);
+
 export function collectSources(char: Character, ctx: LedgerContext = {}): LedgerSource[] {
-  const out = baseSources(char);
+  let base = baseSources(char);
+
+  // The character's SPECIES as a ledger source (Slice 4 follow-up). System-gated: "elf" is a
+  // different thing in another game, so this only fires for a 2024 sheet whose species resolves in
+  // the 2024 list — a custom/unknown species contributes nothing (its grants are the player's to
+  // define). Its size/type/darkvision/(differing) walk speed then render + explain like any source.
+  if (ctx.system === 'dnd5e-2024' && char.meta?.species) {
+    const sp = findSpecies(char.meta.species);
+    if (sp) {
+      const effs = speciesEffects(sp, char.combat?.speed);
+      if (effs.length) base = [...base, { id: `species:${sp.key}`, kind: 'species', name: sp.name, effects: effs }];
+    }
+  }
 
   // The ACTIVE form's effects (Slice 15/25) — a Titan form's +STR, a beast form's fly speed. The
   // active form is the one a `transform` effect IMPOSES (Slice 18), else the character's own
@@ -183,8 +209,28 @@ export function collectSources(char: Character, ctx: LedgerContext = {}): Ledger
   // paths; this is only the ledger-resolved half.
   const effectiveFormId = imposedTransform(char)?.value ?? char.activeFormId;
   const activeForm = (char.forms ?? []).find((f) => f.id === effectiveFormId);
+
+  // Carry-over policy (Slice 18, Ground Rule 1). `keepFeatures: false` is a true polymorph: your own
+  // equipped gear + class/species features stop applying while you wear the form, but anything imposed
+  // ON you (a Bless still on you, a DM boon, a condition) persists. Omitted = Wild Shape-style "keep
+  // everything" — today's behaviour, so existing forms are unaffected. Always an overlay: the moment
+  // the form drops, the full unfiltered base is derived again.
+  if (activeForm && activeForm.carryOver?.keepFeatures === false) {
+    base = base.filter((s) => EXTERNAL_KINDS.has(s.kind));
+  }
+
+  const out = [...base];
   if (activeForm?.effects?.length) {
-    out.push({ id: activeForm.id, kind: 'form', name: activeForm.name, effects: activeForm.effects });
+    let formEffects = activeForm.effects;
+    // `keepMental: true` — the form doesn't change your MIND (5e Wild Shape keeps INT/WIS/CHA even
+    // though the beast has its own). So the form's own effects on mental abilities are dropped; your
+    // base mental scores stand. Omitted = the form sets whatever it sets (today's behaviour).
+    if (activeForm.carryOver?.keepMental) {
+      formEffects = formEffects.filter((e) => !MENTAL_TARGETS.has(e.target));
+    }
+    if (formEffects.length) {
+      out.push({ id: activeForm.id, kind: 'form', name: activeForm.name, effects: formEffects });
+    }
   }
 
   return out;

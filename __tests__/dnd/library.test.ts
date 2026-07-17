@@ -36,7 +36,10 @@ describe('library pages', () => {
     expect(titles('shadowrun6e')).toContain('Metatypes');
     expect(titles('coc7e')).toContain('Occupations');
     expect(titles('pathfinder2e')).toContain('Ancestries');
+    expect(titles('pathfinder2e')).toContain('Backgrounds'); // PF2-only section
     expect(titles('dnd5e-2024')).toContain('Classes');
+    // Backgrounds are a PF2-only library section today — they must NOT leak into 5e pages.
+    expect(titles('dnd5e-2024')).not.toContain('Backgrounds');
   });
 
   it('states plainly when a system has no levels', () => {
@@ -106,6 +109,14 @@ describe('searchLibrary', () => {
     expect(searchLibrary('lucky', 'dnd5e-2014').some((h) => h.kind === 'feat')).toBe(true);
   });
 
+  it('surfaces PF2 backgrounds by name (a gap nothing else in the library filled)', () => {
+    const acolyte = searchLibrary('acolyte', 'pathfinder2e').find((h) => h.kind === 'background');
+    expect(acolyte).toBeTruthy();
+    expect(acolyte!.body).toMatch(/Religion/);
+    // Backgrounds are PF2-only — searching a 5e system for a PF2 background name yields no background hit.
+    expect(searchLibrary('acolyte', 'dnd5e-2024').some((h) => h.kind === 'background')).toBe(false);
+  });
+
   it('finds the non-d20 systems’ own vocabulary', () => {
     expect(searchLibrary('moxie', 'coc7e')).toEqual([]); // not a CoC concept
     expect(searchLibrary('trauma', 'blades').length).toBeGreaterThan(0);
@@ -168,5 +179,34 @@ describe('searchLibrary returns full EXPLANATIONS, not stubs', () => {
     for (const key of GAME_SYSTEMS.map((s) => s.key)) {
       for (const h of searchLibrary('damage', key)) expect(h.system, key).toBe(key);
     }
+  });
+});
+
+describe('full class data projects into library search (Slice 8b)', () => {
+  it('surfaces class FEATURES by name + level for systems with full class data', () => {
+    // 2024 (built earlier) and 2014 (built this session) both expose their class features to search.
+    expect(searchLibrary('action surge', 'dnd5e-2024').some((h) => h.name === 'Action Surge' && h.kind === 'feature')).toBe(true);
+    expect(searchLibrary('brutal critical', 'dnd5e-2014').some((h) => h.name === 'Brutal Critical' && h.kind === 'feature')).toBe(true);
+    expect(searchLibrary('sneak attack', 'dnd5e-2014').some((h) => h.name === 'Sneak Attack')).toBe(true);
+  });
+
+  it('a class feature never leaks across systems (2014 Brutal Critical is not a 2024 result)', () => {
+    // 2024 Barbarian has Brutal STRIKE, not Brutal Critical — the 2014 feature must not appear under 2024.
+    expect(searchLibrary('brutal critical', 'dnd5e-2024').some((h) => h.name === 'Brutal Critical')).toBe(false);
+  });
+});
+
+describe('full 2024 feats project into library search (Slice 8b)', () => {
+  it('surfaces a 2024 feat with its real benefit text + category, not a stub', () => {
+    const alert = searchLibrary('alert', 'dnd5e-2024').find((h) => h.kind === 'feat' && h.name === 'Alert');
+    expect(alert).toBeTruthy();
+    expect(alert!.body).toMatch(/origin feat/i);      // carries the category
+    expect(alert!.body.length).toBeGreaterThan(60);   // full text, not "Alert — a feat in D&D 5e"
+  });
+
+  it('a fighting-style feat resolves with its rules text', () => {
+    const archery = searchLibrary('archery', 'dnd5e-2024').find((h) => h.kind === 'feat');
+    expect(archery?.name).toBe('Archery');
+    expect(archery!.body).toMatch(/\+2/); // Archery gives +2 to ranged attack rolls
   });
 });

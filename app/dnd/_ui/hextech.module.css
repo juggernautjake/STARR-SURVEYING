@@ -127,6 +127,82 @@
   color: var(--hx-gold-2);
   margin: 0 0 6px;
 }
+
+/* A framed toggle row — a real switch + a title/description, matching the input aesthetic. Replaces
+   the raw browser checkbox, which read as an out-of-theme afterthought on the dark panels. */
+.toggleRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 11px 13px;
+  margin: 0 0 14px;
+  border: 1px solid var(--hx-line);
+  border-radius: 8px;
+  background: rgba(1, 10, 19, 0.5);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.toggleRow:hover {
+  border-color: var(--hx-gold-2);
+  background: rgba(1, 10, 19, 0.68);
+}
+.switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 22px;
+  margin-top: 1px;
+}
+.switch input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.switchTrack {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: rgba(200, 170, 110, 0.12);
+  border: 1px solid var(--hx-line);
+  transition: background 0.15s, border-color 0.15s;
+}
+.switchTrack::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--hx-muted);
+  transition: transform 0.16s ease, background 0.15s;
+}
+.switch input:checked + .switchTrack {
+  background: rgba(10, 200, 185, 0.22);
+  border-color: var(--hx-teal-1);
+}
+.switch input:checked + .switchTrack::after {
+  transform: translateX(18px);
+  background: var(--hx-teal-1);
+}
+.switch input:focus-visible + .switchTrack {
+  box-shadow: 0 0 0 2px rgba(10, 200, 185, 0.45);
+}
+.toggleText {
+  font-size: 13px;
+  color: var(--hx-text);
+  line-height: 1.35;
+}
+.toggleText small {
+  display: block;
+  font-size: 11.5px;
+  color: var(--hx-muted);
+  margin-top: 2px;
+}
 .input {
   width: 100%;
   box-sizing: border-box;
@@ -482,6 +558,12 @@ select.input {
    inline padding and keep their smaller size. */
 select.input {
   height: 38px;
+  /* The base `.input` uses 12px vertical padding, sized for auto-height text inputs; on a select
+     forced to 38px that leaves too little room and clips the selected option's text to its top half.
+     8px matches the app's inline-styled selects and fits the 16px line within 38px. */
+  padding-top: 8px;
+  padding-bottom: 8px;
+  line-height: 1.2;
 }
 .hexBtn:not([style*='padding']) {
   min-height: 38px;
@@ -742,6 +824,9 @@ select.input {
   flex: 1 0 auto;
 }
 .siteHeader {
+  /* Sticky also serves as the containing block for the absolutely-centered brand below, so the logo
+     is centered against the header itself — independent of the back button and nav that flank it,
+     which otherwise drift it off-center whenever those two sides differ in width (page to page). */
   position: sticky;
   top: 0;
   z-index: 40;
@@ -756,12 +841,17 @@ select.input {
   border-bottom: 1px solid var(--hx-gold-0);
 }
 .siteBrand {
+  /* Absolutely centered against the header, so the logo stays dead-center on every page no matter
+     how wide the back button (left) or the nav (right) are. pointer-events stay on the link itself. */
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 16px;
   font-family: var(--hx-font-display);
   font-weight: 700;
-  letter-spacing: 0.26em;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
   font-size: 13px;
   color: var(--hx-gold-2);
@@ -771,12 +861,118 @@ select.input {
 .siteBrand:hover {
   color: var(--hx-gold-3);
 }
-.siteBrandMark {
+.siteBrandText {
+  /* Larger wordmark, sized to sit alongside the diamond clusters. A matching left margin offsets the
+     trailing letter-spacing so the text stays optically centered between the two clusters. */
+  font-size: 19px;
+  margin-left: 0.28em;
+}
+/* Four small diamonds on a 3×3 grid — top / left · right / bottom — forming one larger diamond with
+   gaps. Sized to stand about as tall as the wordmark's caps. */
+.siteBrandCluster {
+  display: grid;
+  /* Small fixed tracks (not 1fr) so the four diamonds sit CLOSE — the diamonds center in each cell
+     and the tight tracks pull them together into one compact larger diamond, instead of a full empty
+     glyph-width cell holding them apart. */
+  grid-template-columns: repeat(3, 0.42em);
+  grid-template-rows: repeat(3, 0.42em);
+  place-items: center;
+  gap: 0;
   color: var(--hx-teal-1);
-  font-size: 13px;
-  transform: translateY(-1px);
+  /* Each small diamond 3× its original size (7px → 21px); the top/left/right/bottom arrangement is
+     unchanged — they just get bigger in place. */
+  font-size: 21px;
+  line-height: 0.5;
+}
+.siteBrandCluster span {
+  display: block;
+  position: relative;
+  will-change: transform, filter;
+  transition: filter 0.35s ease;
+}
+.siteBrandCluster span:nth-child(1) { grid-column: 2; grid-row: 1; }
+.siteBrandCluster span:nth-child(2) { grid-column: 1; grid-row: 2; }
+.siteBrandCluster span:nth-child(3) { grid-column: 3; grid-row: 2; }
+.siteBrandCluster span:nth-child(4) { grid-column: 2; grid-row: 3; }
+
+/* A wispy trail: a blurred, faded copy of each diamond that lags behind its dance, like a spirit
+   sprite's tail of light. Hidden until hover. */
+.siteBrandCluster span::after {
+  content: '◆';
+  position: absolute;
+  inset: 0;
+  color: var(--hx-teal-1);
+  filter: blur(3px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+
+/* On hover of the whole wordmark, the four diamonds in each cluster dance — each drifts on its own
+   little orbit, glowing, with the blurred trail whisping behind it. Staggered so they don't move in
+   lock-step; the trail animation is the same path started a beat later so it lags like a tail. */
+.siteBrand:hover .siteBrandCluster span,
+.siteBrand:focus-visible .siteBrandCluster span {
+  filter: drop-shadow(0 0 5px rgba(var(--hx-teal-rgb, 10, 200, 185), 0.85));
+  animation: spriteDance 2.4s ease-in-out infinite;
+}
+.siteBrand:hover .siteBrandCluster span::after,
+.siteBrand:focus-visible .siteBrandCluster span::after {
+  opacity: 0.55;
+  animation: spriteDance 2.4s ease-in-out infinite;
+  animation-delay: -0.18s; /* the trail lags a beat behind the diamond it follows */
+}
+/* Per-diamond variety: different durations + delays so the four sprites drift independently. */
+.siteBrand:hover .siteBrandCluster span:nth-child(1) { animation-duration: 2.1s; animation-delay: 0s; }
+.siteBrand:hover .siteBrandCluster span:nth-child(2) { animation-duration: 2.7s; animation-delay: -0.5s; }
+.siteBrand:hover .siteBrandCluster span:nth-child(3) { animation-duration: 2.3s; animation-delay: -0.9s; }
+.siteBrand:hover .siteBrandCluster span:nth-child(4) { animation-duration: 2.9s; animation-delay: -1.3s; }
+
+/* A lively little jig — the sprites dart and shimmer around their spots. */
+@keyframes spriteDance {
+  0%   { transform: translate(0, 0) rotate(0deg) scale(1); }
+  20%  { transform: translate(2px, -2.5px) rotate(24deg) scale(1.08); }
+  45%  { transform: translate(-2px, 1.5px) rotate(-18deg) scale(0.96); }
+  65%  { transform: translate(1.5px, 2px) rotate(14deg) scale(1.05); }
+  85%  { transform: translate(-1px, -1.5px) rotate(-8deg) scale(0.99); }
+  100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+}
+
+/* On hover, each cluster also spins as a whole around its own center, so the four sprites orbit the
+   middle — the LEFT cluster clockwise, the RIGHT counter-clockwise (mirror images of each other). This
+   rides on top of each diamond's individual dance (parent rotation × child transform). */
+.siteBrand:hover > .siteBrandCluster:nth-child(1),
+.siteBrand:focus-visible > .siteBrandCluster:nth-child(1) {
+  animation: clusterSpinCW 9s linear infinite;
+}
+.siteBrand:hover > .siteBrandCluster:nth-child(3),
+.siteBrand:focus-visible > .siteBrandCluster:nth-child(3) {
+  animation: clusterSpinCCW 9s linear infinite;
+}
+@keyframes clusterSpinCW {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes clusterSpinCCW {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
+}
+
+/* Respect reduced-motion: keep the glow, drop the dance. */
+@media (prefers-reduced-motion: reduce) {
+  .siteBrand:hover .siteBrandCluster span,
+  .siteBrand:hover .siteBrandCluster span::after,
+  .siteBrand:focus-visible .siteBrandCluster span,
+  .siteBrand:focus-visible .siteBrandCluster span::after,
+  .siteBrand:hover > .siteBrandCluster,
+  .siteBrand:focus-visible > .siteBrandCluster {
+    animation: none;
+  }
 }
 .siteNav {
+  /* Always hug the right edge, even on pages where the back button (the only other in-flow item)
+     renders nothing — otherwise a lone nav would slide left. */
+  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 4px;

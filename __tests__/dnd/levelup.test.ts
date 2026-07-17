@@ -216,8 +216,24 @@ describe('validateChoice', () => {
     expect(r.error).toMatch(/exceed the maximum of 20/);
   });
 
-  it('allows a feat with no abilities', () => {
-    expect(validateChoice({ level: 4, kind: 'asi', featKey: 'lucky' }).ok).toBe(true);
+  it('allows a General feat at an ASI slot, but rejects an Origin feat there', () => {
+    // A General feat is what an ASI slot may grant (level 4+ met).
+    expect(validateChoice({ level: 4, kind: 'asi', featKey: 'resilient' }).ok).toBe(true);
+    // 'lucky' is an ORIGIN feat — it comes from a Background, not an ASI. Rules-legal builders reject it.
+    const bad = validateChoice({ level: 4, kind: 'asi', featKey: 'lucky' });
+    expect(bad.ok).toBe(false);
+    expect(bad.error).toMatch(/Origin feat/);
+  });
+
+  it('enforces a feat\'s own prerequisites (ability, level) at the ASI slot', () => {
+    // Grappler needs STR 13. A STR-8 character can't take it...
+    expect(validateChoice({ level: 4, kind: 'asi', featKey: 'grappler' }, { abilities: { ...abilities, str: 8 } }).ok).toBe(false);
+    // ...but the STR-19 fixture can.
+    expect(validateChoice({ level: 4, kind: 'asi', featKey: 'grappler' }, { abilities: { ...abilities } }).ok).toBe(true);
+  });
+
+  it('treats an unknown feat key as custom/homebrew and allows it (the escape hatch)', () => {
+    expect(validateChoice({ level: 4, kind: 'asi', featKey: 'my-homebrew-feat' }).ok).toBe(true);
   });
 
   it('refuses duplicate or non-proficient expertise', () => {

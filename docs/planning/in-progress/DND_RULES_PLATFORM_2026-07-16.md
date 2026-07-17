@@ -221,20 +221,154 @@ left implicit: a model reading silence about conditions will happily assume whic
 already wanted. Same reasoning behind `(+N more not listed)` — a silent truncation reads to the
 model as "this is the complete list", which is exactly how a ruling ends up ignoring a feature.
 
-## Slice 4 — 5e 2024: feats, backgrounds, species, languages
+## Slice 4 — 5e 2024: feats, backgrounds, species, languages ✅ SHIPPED 2026-07-16 (species→live-numbers is a follow-up)
 
 The classes are done; the rest of character creation is not.
 
-- [ ] **Feats** as structured data (`lib/dnd/feats/dnd5e-2024.ts`): all four categories — Origin,
-      General (with prerequisites + the +1 ability), Fighting Style, Epic Boon. Full rules text.
-- [ ] **Backgrounds** (16): ability scores (+2/+1 or +1/+1/+1), Origin feat, 2 skills, 1 tool,
-      equipment. Remember: in 2024 the **background** grants the ability increases.
-- [ ] **Species** (10): traits only, **no ability score increases**, with size/speed/creature type.
-- [ ] **Languages** + tool proficiencies as lists.
-- [ ] Wire into the level builder: an ASI choice offers real feats with prerequisites checked;
-      character creation offers backgrounds/species.
-- [ ] Tests: no feat grants an ability increase it shouldn't; every background's feat exists;
-      species grant no ASIs (the 2014-vs-2024 trap).
+**Feats scaffold + the Origin category ✅ SHIPPED (commit pending).** `lib/dnd/feats/dnd5e-2024.ts`
+now defines the shared `Feat` shape (category, prerequisites, `abilityIncrease`, grants, full benefit
+text) and the **complete 10-feat Origin category** — Alert, Crafter, Healer, Lucky, Magic Initiate,
+Musician, Savage Attacker, Skilled, Tavern Brawler, Tough — each with full PHB rules text, plus
+`featsByCategory` / `findFeat` / `featGrantsAbilityIncrease` helpers. The 2024 trap is baked into the
+type and the tests: **Origin feats carry NO `abilityIncrease`** (the +1 lives only on General/Epic
+feats), and `feats.test.ts` (7) asserts exactly the invariant the slice names — "no feat grants an
+ability increase it shouldn't" — plus no-prerequisites, full-list coverage, no-stub text, unique keys,
+and repeatability flags. General / Epic Boon categories, and the level-builder wiring,
+are the remaining bullets below.
+
+**Fighting Style category ✅ SHIPPED (commit pending).** All ten 2024 Fighting Style feats (Archery,
+Blind Fighting, Defense, Dueling, Great Weapon Fighting, Interception, Protection, Thrown Weapon
+Fighting, Two-Weapon Fighting, Unarmed Fighting) with full rules text. This is the **second no-ASI
+category**, so the invariant now generalises: `NO_ASI_CATEGORIES = ['origin', 'fighting-style']` and
+`feats.test.ts` asserts no feat in ANY exempt category carries an ability increase — the guard no
+longer depends on which specific feats exist. Tests: `feats.test.ts` (10 total, +3). General (the +1
+categories) and Epic Boon remain.
+
+- [x] **Feats** as structured data (`lib/dnd/feats/dnd5e-2024.ts`) — **all four categories present** ✅:
+      Origin (10, complete), Fighting Style (10, complete), General (starter set — the +1, minLevel 4,
+      ability/spellcasting prerequisites; the full ~45 fill in later), and **Epic Boon ✅ SHIPPED (commit
+      pending)** — all ten 2024 Epic Boons (Combat Prowess, Dimensional Travel, Energy Resistance, Fate,
+      Irresistible Offense, Recovery, Skill, Spell Recall, Night Spirit, Truesight), each with the
+      standardized **+1 ability increase to a max of 30** (above the normal cap) and its signature
+      capstone effect, gated to level 19 by `featEligibility`. Tests: `feat-eligibility.test.ts` (level-19
+      gate + to-30 increase + never-at-level-4). *Epic Boon benefit wording is concise and captures each
+      boon's signature effect — flagged with the doc's other "uncertain rules" to verify against the PHB
+      before release; the category/gate/ability-cap are the load-bearing parts.*
+- [x] **Rules-legal feat granting ✅ SHIPPED (commit pending)** — per the user's directive that builders
+      only allow what the rules permit unless explicitly custom. `lib/dnd/feats/eligibility.ts`
+      (`featEligibility` / `eligibleFeats` / `validateFeatKey`) gates a feat by SLOT (Origin only in a
+      background/origin slot, Fighting Style only from a class feature, General/Epic only at an ASI
+      slot), minLevel, ability + `needs` prerequisites, and repeatability. Wired into `validateChoice`
+      (levelup.ts) and the `/levels` API (now passing `abilities` + `takenFeatKeys` + spellcasting).
+      The level builder's ASI feat picker (`LevelBuilder.tsx`) is now a **filtered dropdown** of only
+      the legal General/Epic feats (level-gated, prereq shown) with a **"✎ Custom feat…"** escape hatch
+      — replacing the old free-text box that accepted any feat. Unknown keys pass as custom/homebrew.
+      Tests: `feat-eligibility.test.ts` (14) + updated `levelup.test.ts` (Origin-feat-at-ASI now
+      rejected; prereqs enforced; unknown = custom). See the `feedback_rules_legal_builders` memory.
+- [x] **Backgrounds** (16) ✅ SHIPPED (commit pending) — `lib/dnd/backgrounds/dnd5e-2024.ts`. All
+      sixteen PHB backgrounds (Acolyte … Wayfarer), each with its three ability options (the 2024 rule
+      that the **background** carries the increases, not the species — encoded and tested), Origin feat,
+      two skills, one tool, and the "Choose A or B" equipment line. Magic Initiate backgrounds name
+      their spell list (Acolyte→divine, Guide→primal, Sage→arcane). The feats refactor made Magic
+      Initiate one generic feat so backgrounds reference it with a list. Tests: `backgrounds.test.ts`
+      (5) — 16-with-unique-keys, **every background's Origin feat resolves in the feats data** (the
+      invariant the slice names, now real because the feats shipped first), 3-distinct-abilities,
+      2-valid-skills+1-tool, and the Magic-Initiate spell-list check.
+- [x] **Species** (10) ✅ SHIPPED (commit pending) — `lib/dnd/species/dnd5e-2024.ts`. All ten PHB
+      species (Aasimar, Dragonborn, Dwarf, Elf, Gnome, Goliath, Halfling, Human, Orc, Tiefling) with
+      creature type, size, speed, darkvision, lineage choices, and named traits (full text). **No
+      ability score increases** — the `Species` type has no ability field and `species.test.ts` (4)
+      asserts no species object carries one under ANY name (`abilityScores`/`asi`/`str`/… — the
+      2014-vs-2024 trap made un-reintroducible). Spot-checks the distinctive numbers (dwarf/orc 120-ft
+      darkvision, goliath 35 speed, halfling Small).
+- [x] **Languages** + tool proficiencies as lists ✅ SHIPPED (commit pending) —
+      `lib/dnd/languages/dnd5e-2024.ts`. All 2024 languages with the Standard/Rare split (Primordial
+      carries its Aquan/Auran/Ignan/Terran dialects) and all tools across the four families (Artisan's
+      Tools ×17, Gaming Sets, Musical Instruments, standalone kits), with `languagesByRarity` /
+      `toolsByFamily` / `isKnownTool` helpers. Tests: `languages.test.ts` (5) — including the connective
+      check that **every background's named tool resolves** here (specific tool or category phrase), so
+      a typo in either file fails the build.
+- [~] Wire into the level builder: an ASI choice offers real feats with prerequisites checked ✅
+      (see the rules-legal feat granting note above); character creation offers backgrounds/species —
+      **species picker ✅ + background picker ✅ SHIPPED (commit pending)**. **Rules-legal
+      background application core ✅ SHIPPED:** `lib/dnd/backgrounds/apply.ts`
+      (`validateAbilityAssignment` / `backgroundGrants` / `applyAbilityIncreases`) enforces the 2024
+      +2/+1-or-+1/+1/+1 spread across only the background's three abilities, and returns the feat +
+      spell list + skills + tool it grants. Tests: `background-apply.test.ts` (8).
+  - **Species picker on the sheet ✅ SHIPPED (commit pending).** For a 2024 sheet in edit mode, the
+    Hero's species token is now a **dropdown of the 10 real species** (`SPECIES_2024`) with a
+    **"✎ Custom…"** escape hatch (rules-legal-unless-explicitly-custom). Once the species matches a
+    known one, the sheet shows a **traits panel** — creature type, size, walk speed, darkvision, and
+    each named trait's text — so a vanilla build can SEE what the species grants. Tests:
+    `species.test.ts` (+2 anchors).
+  - **Species mechanics as LIVE numbers ✅ SHIPPED 2026-07-16 (the follow-up above, now closed).** A
+    chosen 2024 species now flows through the effect ledger as a first-class **`species` source**
+    (`lib/dnd/species/apply.ts` → `speciesEffects`): its **size** and **creature type** (identity
+    sets), **darkvision** (a granted sense, "Darkvision 60 ft."), and **walk speed** all render on the
+    Combat panel and appear in the Active Effects list sourced to the species — instead of being prose
+    the reader applies by hand. **System-scoped by construction** (Ground Rule 1): the ledger gains a
+    `ctx.system` and only adds the species source for a `dnd5e-2024` sheet whose species resolves in
+    `SPECIES_2024` — an ambiguous/other-system sheet, or a homebrew species, contributes nothing (a
+    coincident "elf" in another game is untouched). Walk speed is emitted **only when it differs from
+    the stored base** (Goliath's 35 shows + stars; a 30-speed species stays silent) so no 2024 sheet
+    gets a false "modified" star (the Slice 13 hazard). `system` is threaded `SheetRoot → CharacterProvider
+    → buildLedger`. **Verified in the running app** (fresh `next dev`): a 2024 Elf renders Size Medium +
+    Darkvision 60 ft. + a Species source; an ambiguous-system sheet shows none (leak-safety confirmed
+    live). Tests: `species-live-numbers.test.ts` (9 — the ledger outputs the render reads, the false-star
+    guard, and the no-leak gating). Class/species *feature* effects remain their own follow-up (a
+    feature carrying `effects` already works; wiring each species' named traits to effects is separate).
+  - **Background picker on the sheet ✅ SHIPPED (commit pending).** The Bio now has a 2024 **Background**
+    card (distinct from the narrative `bio.background` prose): a dropdown of the 16 real backgrounds
+    (`BACKGROUNDS_2024`) with a **"✎ Custom…"** escape hatch, storing `meta.background`. When a real one
+    is chosen it shows exactly **what it grants** — the three ability options (assign +2/+1 or +1/+1/+1),
+    the Origin feat (resolved to its name + spell list), skill proficiencies, tool, and equipment.
+    Both creation pickers now mirror the feat picker's rules-legal-with-custom-escape shape.
+  - **Spread application on the sheet ✅ SHIPPED 2026-07-16 (the final follow-up above, now closed).**
+    The Background card now carries an **interactive spread chooser**: click each of the background's
+    three abilities to cycle 0 → +1 → +2, then **Apply to sheet**. The button only enables on a legal
+    2024 spread (validated live by `validateAbilityAssignment`; the error/preview is shown inline), and
+    applying writes `char.abilities` through the new **`reconcileBackgroundIncreases`** core — which
+    SUBTRACTS the previously-applied spread before ADDING the new one, so switching background or
+    re-spreading is exactly reversible (the applied spread is remembered on `meta.backgroundAbilities`;
+    `abilities` are running totals like ASIs, so it must be to be undone). Changing or clearing the
+    background dropdown reverses its spread automatically; a **Clear** control undoes it by hand; a
+    read-only viewer sees the applied increases as a plain "+2 STR, +1 CON" line. Deliberately UNCLAMPED
+    so A→B→A is byte-identical (at creation the totals never approach 20). Tests:
+    `background-apply.test.ts` (+4 — fresh apply, switch, round-trip exactness, clear-to-empty) and
+    `backgrounds.test.ts` (+1 wiring anchor: the Bio applies the spread via the tested core, reversibly).
+    ⚠️ Live browser drive of the picker was NOT performed this pass — the running preview server on
+    :3000 is serving a stale build (its client bundle 404s, on-disk `.next` predates this edit), so the
+    interactive click-through belongs to Slice 40's full-app QA. Core is fully unit-tested; tsc + eslint green.
+- [x] Tests: no feat grants an ability increase it shouldn't (`feats.test.ts` — Origin + Fighting Style
+      + the `NO_ASI_CATEGORIES` invariant); every background's feat exists (`backgrounds.test.ts`);
+      species grant no ASIs, the 2014-vs-2024 trap (`species.test.ts`).
+
+**Slice 4 status: ✅ COMPLETE for D&D 5e 2024** — feats (all four categories), backgrounds (16, with
+rules-legal ability-spread application), species (10, with **live size/type/darkvision/speed through the
+ledger**), languages + tools are all shipped and tested. The only remaining species nicety — wiring each
+named species *trait* to a mechanical effect — is a separate feature (traits are authored prose today),
+not a Slice-4 gap.
+
+## AI full control over the character (requested 2026-07-17)
+
+> "The AI should be able to have full control over every element and aspect of a player's character…
+> add anything, remove anything… edit and change the html/css and hardcoded numbers and words for the
+> character sheet and save it… totally revamp and restyle and reformat the character sheet."
+
+Most of this is already built (Slices 14/17/20/23/32): the AI edits through `applySheetEdits` (a wide
+op vocabulary — attacks, features, items/weapons/potions/armor with real effects, resources, tags,
+abilities/combat/level/skills/saves) AND through `LAYOUT_EDIT_TOOL` it rewrites the character's
+`custom_css` + `custom_layout` (HTML/CSS) and saves them (`sheet_type: 'custom'`), which the browser
+renders. The one clear gap — spells — is now closed.
+
+- [x] **`add_spell` / `remove_spell` ✅ SHIPPED 2026-07-17.** The AI could rename or item-grant spells but
+      not add/remove them directly. Added both to the edit vocabulary + the AI tool schema (full spell
+      shape: level 0–9, school, casting time, range, components, duration, concentration, ritual, attack
+      vs save resolution, higher-level scaling). Upserts by name, clamps level, revertible. Matches the
+      `add_`/`remove_` allow-list prefixes automatically. Tests: `sheet-edits.test.ts` +3.
+- [ ] Custom **classes/subclasses** as first-class AI ops (today expressible as a bundle of features);
+      custom **conditions** as reusable definitions. Consider whether the existing feature/effect
+      vocabulary covers these or they warrant their own ops.
 
 ## Slice 5 — Custom class / subclass / feat builder UI
 
@@ -253,21 +387,104 @@ The engine (`lib/dnd/classes/custom.ts`) is built and tested; there is no UI.
 
 One system per slice — depth-first, verified against sources. In priority order:
 
-- [ ] **6a — D&D 5e 2014**: all 12 classes + Artificer, L1–20. The 2014/2024 differences are the
-      whole point (subclass levels differ per class; ASI at 19; no Weapon Mastery; Ranger has
-      Favored Enemy/Natural Explorer).
-- [ ] **6b — Pathfinder 2e**: classes with flat HP/level, the feat cadence (ancestry 1/5/9/13/17,
-      class at even levels, skill at even, general at 3/7/11/15/19), attribute boosts at 5/10/15/20.
-- [ ] **6c — Pathfinder 1e**: BAB progressions, save progressions, skill ranks, feats at odd levels.
-- [ ] **6d — Starfinder 1e**: Stamina/HP/Resolve, EAC/KAC, four-ability increases at 5/10/15/20.
-- [ ] **6e — Cyberpunk RED**: Roles + Role Ability ranks 1–10 (no levels — model as rank tracks).
-- [ ] **6f — Shadowrun 6e**: archetypes + priority creation (no levels — model as Karma spend).
-- [ ] **6g — Call of Cthulhu 7e**: occupations + skill-point formulas (no levels, no classes).
-- [ ] **6h — Blades in the Dark**: playbooks + special abilities + XP tracks (no levels).
+- [x] **6a — D&D 5e 2014 ✅ COMPLETE** — all 12 PHB classes + the Artificer, L1–20, with every
+      subclass. The 2014/2024 differences are locked by tests (subclass levels differ per class; ASI at
+      19 not Epic Boon; no Weapon Mastery; Ranger's Favored Enemy/Natural Explorer; Ki not Focus; etc.).
+      **Verified end-to-end in the running app 2026-07-16**: a 2014 Barbarian built through the real
+      Manage Levels UI reports `classKnown: true`, and its level-3 subclass choice offers exactly the
+      **2014** paths (Berserker, Totem Warrior) — the 2024 paths (Wild Heart/World Tree/Zealot) do NOT
+      appear. This drives both the class-table render (the doc's "in the running app" bar) AND the
+      cross-system integrity guard in the live builder, not just in unit tests.
+      **2026-07-16 — ALL 12 PHB CLASSES SHIPPED ✅** (`lib/dnd/classes/dnd5e-2014/`): Barbarian, Bard,
+      Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock, Wizard — each L1–20 with
+      every PHB subclass, all edition-differences vs 2024 locked by `dnd5e-2014-classes.test.ts` (71
+      tests). The Wizard closes it with all eight Arcane Traditions (schools), Arcane Recovery, Spell
+      Mastery at 18, Signature Spells at 20. Highlights across the set: martials + Ki/Rage resources;
+      Ranger/Paladin half-casters; Sorcerer/Bard/Cleric/Druid/Wizard full casters (known vs prepared
+      handled per class); Warlock pact magic + invocations + Mystic Arcanum. The build also FIXED a
+      latent cross-edition subclass-leak bug (`subclassesFor`/`findSubclass` are now system-scoped). Cleric L1–20 (WIS full-caster
+      preparer, Divine Domain at level 1) with Channel Divinity/Turn Undead (1→3/rest), Destroy Undead,
+      Divine Intervention, and **all seven PHB domains** (Knowledge, Life, Light, Nature, Tempest,
+      Trickery, War) — each with always-prepared Domain Spells and Divine Strike/Potent Spellcasting at 8. Bard L1–20 (full caster, spells
+      known, any 3 skills) with Bardic Inspiration (d6→d12), Jack of All Trades, Expertise ×2, Magical
+      Secrets at 10/14/18, and both PHB colleges (Lore, Valor). Sorcerer L1–20 (full caster; Sorcerous
+      Origin at level 1, Font of Magic, Metamagic, Draconic/Wild Magic). Warlock L1–20 (**pact caster** —
+      few slots, all highest-rank, short-rest) with Eldritch Invocations, Pact Boon at 3, Mystic Arcanum
+      at 11/13/15/17, and all three PHB patrons (Archfey, Fiend, Great Old One), patron chosen at level 1. Paladin L1–20 (half-caster, CHA, spells PREPARED) with Divine
+      Smite as a class feature, Lay on Hands, the Auras (10 ft → 30 at 18), and all three PHB oaths
+      (Devotion, Ancients, Vengeance) carrying always-prepared Oath Spells. Monk L1–20 + all three PHB traditions (Open Hand, Shadow, Four
+      Elements); the resource is "Ki" (2024 renamed it Focus), equal to Monk level from level 2. Ranger
+      L1–20 (first **half-caster** — spells known from 2, no cantrips) with the 2014 **Favored Enemy +
+      Natural Explorer** at 1 (a 2024 rewrite) and both PHB archetypes (Hunter, Beast Master).
+      Barbarian L1–20 + both PHB Primal Paths (Berserker, Totem Warrior). Fighter L1–20 + all three PHB
+      Martial Archetypes (Champion, Battle Master, Eldritch Knight — the EK third-caster block exported
+      like the 2024 one, restricted to Abjuration/Evocation). Rogue L1–20 + all three PHB archetypes
+      (Thief, Assassin, Arcane Trickster — AT third-caster block, Enchantment/Illusion focus); Sneak
+      Attack, Expertise ×2, Cunning Action, extra ASI at 10. Registered under a new `dnd5e-2014` entry in
+      the class registry; **resolution is per class**, so the system offers its finished classes and
+      falls back to the AI/homebrew path for the rest (a partial system is not a broken one). Locked
+      the 2014 tells vs 2024: ASI at 19 (not Epic Boon), Barbarian Brutal Critical (not Brutal Strike)
+      + unlimited Rage at 20 + STR/CON cap 24, Fighter Fighting-Style-as-feature at 1 + extra ASIs at
+      6/14 + Extra Attack to 4 by 20, no Weapon Mastery anywhere.
+      **Fixed a latent cross-edition bug this surfaced:** `subclassesFor`/`findSubclass` filtered
+      subclasses by key across ALL systems, so once a `barbarian`/`berserker` existed in two editions a
+      2024 sheet could be offered the 2014 Totem Warrior (Ground Rule 1/2 violation, dormant while only
+      2024 existed). Both are now **system-scoped**; all three callers (levels API ×2, library page)
+      pass the class's system. Tests: `dnd5e-2014-classes.test.ts` (11 — structural validity, L1→20,
+      the edition tells, per-class fallback, no-leak) + the 2024 suite updated to the scoped signature.
+      **6a DONE** — 12 PHB classes + Artificer, all L1–20 with subclasses (77 tests). Next: 6b (Pathfinder 2e).
+- [x] **6b — Pathfinder 2e ✅** (a FOCUS system): the **dedicated per-system model** (the
+      `intuitive-games` module pattern) is now built in full at `lib/dnd/systems/pathfinder2e/`:
+      - `model.ts` — typed `PF2Character` sidecar (character.data.pf2e): attributes as MODIFIERS,
+        proficiency RANKS (untrained→legendary) with `PF2_RANK_BONUS`, identity, skills, saves, combat
+        (ancestryHp/classHpPerLevel/armorRank/dexCap/classDc), Remaster spellcasting traditions, and
+        four-track feats. `isPF2Character` guard.
+      - `rules.ts` — pure math: proficiency = rank bonus + level (trained+), the four degrees of success
+        (nat 20 up / nat 1 down), HP, Dex-capped AC, saves, perception, class/spell DC, Strike bonus,
+        the multiple attack penalty, and the level-based DC table.
+      - `content.ts` — the vanilla library: 16 core skills, the **14 Remaster classes** (level-1
+        proficiency ranks + key attribute + HP/level + subclass mechanism + spellcasting), the **8 core
+        ancestries** (HP/size/speed/boosts/heritages), and 17 backgrounds.
+      - `builder.ts` — `buildPF2Character` + `assemblePF2VanillaCharacter` (projects onto the shared
+        Character engine so sheet/provenance/switcher keep working, plus the pf2e sidecar);
+        `pf2ApplyBoosts` honors the +4 partial-boost rule.
+      - `catalog.ts` — the library grouped for UI pickers; `ai.ts` — `PF2_PICKS_TOOL` + `parsePF2Picks`
+        + `pf2BuilderSystemPrompt` (grounded, cross-system-leak-proof).
+      - **Builder UI**: `PF2CharacterBuilder.tsx` (guided pickers + AI-build box), `PF2Sheet.tsx`
+        (bespoke Remaster sheet, all numbers from the rules engine, U/T/E/M/L rank pills), the
+        `pf2-build` + `pf2-build/ai` write-gated routes, and page wiring (`app/dnd/characters/[id]`).
+      - **63 tests** (rules 15 + builder 18 + ai 6, plus the existing dnd suite); tsc + eslint clean.
+      Remaining polish (deferred): per-level rank/feat progression tables (level-1 legal today; higher
+      levels set initial ranks + accept manual/AI edits), heritage/class-feat mechanical bodies.
+- [~] **6c–6h — the other six systems → MOVED to `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`**
+      (2026-07-16, per the user's scope call). The platform is focused on **four** systems first — D&D
+      5e 2024, D&D 5e 2014, Intuitive Games, Pathfinder 2e. PF1e, Starfinder 1e, Cyberpunk RED, Shadowrun
+      6e, Call of Cthulhu 7e, and Blades in the Dark are now seeded as **🚧 under construction**
+      (`GameSystem.status === 'under-construction'`): offered but not selectable, listed in the campaign
+      picker's "Under construction" group and disabled in the SystemSwitcher. They will be built out
+      later — see the pending doc for what each needs.
 
 For the level-less systems the model must NOT invent a level table — extend the builder to express
 "advancement by spend" (Karma/IP/skill checks) instead. `registry.ts` already reports
 `classKnown: false` honestly for these; that is the behaviour to replace, not to paper over.
+
+## Ground Rule 1 enforcement — cross-system content integrity ✅ SHIPPED 2026-07-16
+
+Per the user's directive that no character is ever given the wrong system's version of a shared name
+(a "berserker" subclass, a "Frightened" condition, a shared class key), the content architecture is
+now audited and guarded:
+
+- **Every content type is system-tagged**: classes, subclasses, feats, backgrounds, species all carry
+  a `system` field; the glossary is keyed by system.
+- **Every multi-system lookup is system-scoped**: `findClass`/`subclassesFor`/`findSubclass` (the
+  subclass ones fixed this session — they were leaking across editions once 2014 shipped) and
+  `findTerm` all take a system and never return another system's content.
+- **Single-system lookups** (`findFeat`/`findBackground`/`findSpecies`) are 2024-scoped by construction
+  (2024-only modules, call sites gate on the sheet's system); each is commented that a system-keyed
+  dispatcher must be added when another system gains that content.
+- **`system-integrity.test.ts` (8) is the guardrail**: it fails the build if any content is mistagged
+  or any shared name resolves to the wrong system — including the exact 2014-vs-2024 Barbarian/berserker
+  and 5e-vs-PF Frightened cases.
 
 ## Slice 7 — Everything connected
 
@@ -279,6 +496,114 @@ For the level-less systems the model must NOT invent a level table — extend th
       hand-authored per-character arrays.
 - [ ] Jack: decide whether Rangor/Pugilist become a real custom class + subclass through the Slice-5
       builder (they are currently hand-authored sheet data with `system: ambiguous`).
+
+## Slice 8b — Library buildout for the four focus systems ⏳ IN PROGRESS 2026-07-16/17
+
+Per the user's directive to focus on **four** systems (D&D 5e 2024, D&D 5e 2014, Intuitive Games,
+Pathfinder 2e) and fully flesh out each system's library — every rule/term/action defined,
+searchable, and AI-navigable so a player or the AI gets correct answers. The other six systems are
+seeded **🚧 under construction** (`GameSystem.status`), grouped/disabled in the pickers, with their
+build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
+
+- [x] **D&D 5e 2024 ✅** — added the full action economy (all 12 standard actions + Bonus Action) and
+      core combat (Cover, Temp HP, Damage Types & Resistance, Difficult Terrain, Vision & Light,
+      Bloodied), **plus rich overview articles for all 12 classes** (identity, hit die, key ability,
+      saves, signature feature, subclass at 3) and an **Epic Boon** article. Class articles carry only
+      the class name as an alias so they don't outrank the searchable per-level features (verified:
+      "wizard" → class article, "action surge" → the Action Surge feature). ~67 → ~80 terms.
+- [x] **D&D 5e 2014 ✅** — its own edition-correct action economy (Cast a Spell / Use an Object, not
+      the 2024 renames; 2014 Hide with no DC 15) + the same core mechanics, **plus overview articles for
+      all 12 classes** (edition-correct: ASI at 19 not Epic Boon, no Weapon Mastery, Ki not Focus, and
+      2014 subclass levels — Cleric/Sorcerer/Warlock at 1, Druid/Wizard at 2, the rest at 3). Class
+      articles aliased by class name only, so they don't shadow the searchable features (verified:
+      "barbarian" → class article, "brutal critical" → the feature). A `stealth` alias on Hide had been
+      outranking the Stealth skill — caught + removed. ~72 terms.
+- [x] **Pathfinder 2e ✅** — the actual actions of the 3-action economy (Strike/Stride/Step/Interact/
+      Raise a Shield/Seek/Aid + Demoralize/Grapple/Trip/Shove/Escape) and core mechanics (Flat Check,
+      Persistent Damage, Bulk, Free Action & Reaction/Activity), **plus rich articles for all 14 core
+      classes** (Alchemist…Wizard) — each with its HP/level, key attribute, save proficiency, and
+      signature mechanic (Fighter's Reactive Strike at 1, Rogue's Sneak Attack + Racket, Wizard's
+      thesis + spellbook, etc.), authored from the catalog's authoritative facts. The library prefers
+      these over the one-line catalog stubs. **Plus all 8 Player Core ancestries** (Dwarf, Elf, Gnome,
+      Goblin, Halfling, Human, Leshy, Orc) as rich articles — HP, Size, Speed, senses, and signature
+      trait (Human's versatility, Orc's Ferocity, Leshy's no-food/water/air), certain facts stated and
+      exact ability boosts kept general per Ground Rule 3. 44 → 82 terms. **Verified in the app**:
+      searching pathfinder2e for "fighter" returns the class article and "dwarf" the ancestry article.
+      **Plus the 10 class "subclass" mechanisms** — Instinct, Racket, Bloodline, Doctrine, Mystery,
+      Order, Muse, Research Field, Cause, Hunter's Edge — each a searchable article (so "what is a
+      Rogue's Racket" resolves). 44 → 92 terms; verified "racket" → the article.
+      **Plus (6b follow-up) the 17 PF2 backgrounds** now surface in the library — `searchLibrary`
+      projects them as `background` hits (matched by name or "background") from the new
+      `pathfinder2e/content.ts`, and `libraryPageFor` renders a PF2-only **Backgrounds** table (boosts /
+      trained skill+Lore / skill feat). Backgrounds were consequential level-1 data that lived only in
+      the builder before; now a player or the AI can browse them. System-scoped (no 5e leak);
+      `library.test.ts` +1 (Acolyte → Religion; absent from 5e pages).
+      **Plus (6b follow-up) per-class subclass options** — each of the 14 classes now carries its
+      Remaster subclass line-up as structured `subclassOptions` (instincts, muses, causes, doctrines,
+      orders, mysteries, hunter's edges, rackets, bloodlines, patrons, theses, research fields; Fighter
+      and Monk empty by design — no formal subclass). The PF2 builder drives its subclass field from a
+      per-class `<datalist>` (real options as suggestions, freeform kept as the custom escape hatch).
+      `pathfinder2e-builder.test.ts` +1.
+- [x] **Intuitive Games ✅** — closed the gap found 2026-07-16 (its content lived only in the builder
+      module, not the searchable glossary). Authored `lib/dnd/glossary/intuitive-games.ts` (26 articles)
+      from the engine's own numbers (igProficiency = level, igDegreeOfSuccess, igSaveTotal, igMaxHp) and
+      the content module — Core Roll, Degrees of Success, the Three-Action Economy + its actions
+      (Attack/Stride/Step/Interact/Combat Skills/Support Ally/Redistribution/Attack of Opportunity),
+      Proficiency (= level), the three Saves, HP, Stances, Flanking, Sneak Attack, Powers/Defensive
+      Powers, Advantage & Disadvantage, DR, Weapon Classes, Feats, Subclasses, Ability Scores — and
+      wired it into `glossary/index.ts` `BY_SYSTEM`. **Verified in the running app**: library search for
+      "stance" under intuitive-games returns Stances / Advantage & Disadvantage / Damage Reduction. All
+      four focus systems are now searchable + AI-navigable in the library.
+- [x] **The AI now answers FROM the library ✅** — closed the gap where `systemGroundingBlock` grounded
+      the AI (librarian, builder, adjudication) on the rules catalog + DB store but NOT the in-code
+      glossary. It now does deterministic, **system-scoped** glossary retrieval (no key needed): the
+      top matching articles for the question are injected into the grounding block, with stopwords
+      stripped so natural-language questions retrieve the right article. **Verified end-to-end**: asking
+      the librarian "how does the multiple attack penalty work if I Strike three times?" (PF2e) returned
+      the exact numbers from the article (−5/−10, −4/−8 agile), `grounded > 0`. So the AI now gives
+      correct, system-accurate answers quoting the library rather than recall. Tests:
+      `grounding-glossary.test.ts` (5 — glossary in the block, natural-language retrieval, no
+      cross-system leak, empty-query still deterministic, and a source-anchor that **every** AI route
+      feeds the grounding block). Because the fix lives in `systemGroundingBlock`, it benefits ALL AI
+      paths at once — the **librarian**, the **character/item builder** (`ai-edit`: building a feat/
+      spell/weapon now grounds on the system's articles), **ingest**, and **cross-system transpose** —
+      exactly the user's "help the AI when explaining, editing, finding, or building anything."
+- [x] **Definitive Ground-Rule-1 proof in the AI ✅** — asked the librarian "how does Frightened work?"
+      for two systems: **PF2e** answered the NUMERIC version ("status penalty equal to its value — all
+      checks and DCs; Frightened 2 = −2 to everything") and **D&D 5e 2024** the BINARY version
+      ("disadvantage while the source is in line of sight; can't willingly move closer"), each
+      `grounded: 6` on its own system's article. Same question, two correct, system-specific answers —
+      the AI never gives the wrong game's version.
+- [x] **Guardrails**: `glossary.test.ts` now includes a no-duplicate-terms integrity check per system;
+      `system-integrity.test.ts` enforces no cross-system leakage. Every entry carries seeAlso links +
+      search aliases and resolves through the no-key keyword search.
+- [x] **Full 2024 FEATS project into library search ✅** — `searchLibrary` only exposed a one-line
+      "sample" of feats; now a system-keyed `featsForSystem` projects the whole **`FEATS_2024`** registry
+      (Origin / Fighting Style / General / Epic Boon) with each feat's **real benefit text + category**,
+      so "tavern brawler", "alert", "archery" return the actual rules, not a stub. **Verified in the
+      app** (Tavern Brawler → its full 662-char benefit). `library.test.ts` +2.
+- [x] **Grounding retrieval made reliable for natural questions ✅** — the library search AND-matches
+      every word, so a real question ("how many hit points does a Fighter get per level?") retrieved
+      NOTHING (no article contains all those words) and the AI answered from recall — correct only by
+      luck. Grounding now uses a **lenient scorer** (`retrieveGlossary`: term > alias > body, require ≥1
+      keyword) so the right article is reliably surfaced. **Verified**: the same PF2e Fighter question
+      went from `grounded: 0` (recall) to `grounded: 6` (article-grounded, correct 10 HP/level + STR/DEX).
+      Also confirmed PF2e characters degrade gracefully in the level builder (`classKnown: false` → the
+      AI/homebrew path) since PF2e has no deterministic class table yet. `grounding-glossary.test.ts` +2.
+- [x] **AI grounds on the full feat text too ✅** — `systemGroundingBlock` now also retrieves the feats
+      NAMED in the question (`matchFeats`, system-scoped) and injects their real benefit text, so the
+      librarian/builder answer feat questions from the rules, not recall. **Verified end-to-end**: asking
+      the librarian "what does Tavern Brawler do in 2024?" returned the exact 2024 benefit (Enhanced
+      Unarmed Strike, 1d4+STR bludgeoning), `grounded: 2` — the 2024 version, not the 2014 one.
+      `grounding-glossary.test.ts` +2.
+- [x] **Classes project into library search ✅** — confirmed `searchLibrary` already surfaces **every
+      class feature by name + level** via `classesForSystem(key)` for any system with full class data, so
+      the whole **2014 roster (built this session) is automatically searchable** alongside 2024
+      ("brutal critical", "sneak attack", "action surge" all resolve to the real rules text), and a
+      feature never leaks across systems (2014 Brutal Critical is not a 2024 result). Stale
+      "currently dnd5e-2024" comment fixed; `library.test.ts` +2. **Resolved (6b):** the dedicated PF2e
+      model now exists (`lib/dnd/systems/pathfinder2e/`), so PF2 classes/ancestries/backgrounds have
+      structured builder data + a bespoke sheet; the PF2 catalog projects them into the library picker.
 
 ## Slice 8 — Semantic search (optional, needs a key)
 
@@ -425,7 +750,15 @@ One pure function that every later slice reads. Nothing else in Part II can be b
 **Done when:** equipping a +2 STR belt on any sheet changes the displayed STR, its modifier, the
 athletics check, and the carrying capacity — with no code that knows what a belt is.
 
-## Slice 11 — Effects can target anything (identity + grants) ⏳ PARTIAL 2026-07-16
+## Slice 11 — Effects can target anything (identity + grants) ✅ SHIPPED 2026-07-16
+
+**Complete.** Grants: proficiencies, resistances/immunities/vulnerabilities, senses, movement modes +
+flags, features, resources, attacks, spells — all resolve through the ledger and render sourced.
+Identity: name/species/class/subclass, size/creature-type, portrait/token, and gender/pronouns/
+profession — all overlay the display over an untouched base and revert on unequip. The one remaining
+follow-up is `size` → carrying-capacity/grapple MECHANICS (it already displays); everything the request
+named — "an item could literally turn the character into a completely different character" — works.
+Details of each piece below.
 
 The request's real ask: *"it could literally turn the character into a completely different character."*
 
@@ -470,8 +803,14 @@ doc's explicit "senses… need somewhere to render" item. Test added to `grant-d
   display-vs-management split this note flagged). The Slice-14 item plumbing already accepts identity
   effects (`{target:'image',operation:'set',value:'<url>'}`), so it works end-to-end. Tests:
   `identity-overlay.test.ts` (+2).
-- *`gender`/`pronouns`/`profession`* — no render home exists on the sheet yet (needs a Bio/Overview
-  field before the overlay has anywhere to show).
+- *`gender`/`pronouns`/`profession` ✅ SHIPPED (commit pending).* Added as optional `meta` fields with
+  a render home — a **Details** line in the Bio (Gender · Pronouns · Profession), editable in place by
+  the owner/DM and overlay-aware (`ledger.identity(field)?.value ?? char.meta[field]`), so a Guise Ring
+  can change your recorded profession over an untouched base. `set_meta` gained the three fields so the
+  AI sets them too. Tests: `identity-overlay.test.ts` (+3). **Every identity field now has a render home
+  and overlays correctly.** (The only identity follow-up left is `size` → carrying-capacity/grapple
+  MECHANICS — size already *displays* the imposed value; wiring it to the number is a small mechanical
+  add, not a missing overlay.)
 - *`grant_feature` ✅ SHIPPED (commit pending).* An item can grant a feature (the pendant that gives
   a Wizard a Barbarian ability). `Features` reads `ledger.explain('grant_feature')` and renders each
   as a read-only card badged "granted / Granted by <source>" — no ⋯ menu (it's on loan), never baked
@@ -873,11 +1212,54 @@ transform stays an overlay). Combined with the resolution + ledger-effect overla
 form can now be triggered by an item/spell, renders fully, and reverts exactly. Tests:
 `transform.test.ts` (8).
 
-**Remaining — the arbitrary-statblock swap with carry-over policy.** "Become a bear you don't have as
-a form / become another PC entirely" (a whole foreign sheet, not one of your own `forms`) still needs
-the per-form carry-over policy (`keepMental`/`keepFeatures`/`separateHp`/…) and a form authored as a
-full sheet (Slice 17's builder over a form). That's the heavier half; transforming into your OWN
-defined forms — the common case — is done end-to-end.
+**Carry-over policy — `keepFeatures` ✅ SHIPPED (commit pending).** Ground Rule 1 made real: a form
+declares its own `carryOver` policy (`{ keepFeatures?, keepMental?, separateHp? }` on `CharForm`)
+rather than the engine hardcoding one game's answer. `keepFeatures: false` is a **true polymorph** (5e
+Polymorph): while the form is worn, the ledger drops the character's OWN sources — equipped/attuned
+gear and class/species features — so their kit "melds away", but externally-imposed sources (a Bless
+still on you, a DM boon, a condition) persist, and the form's own effects apply. Omitted/undefined =
+Wild Shape-style "keep everything you have" — the ORIGINAL behaviour, so every existing form is
+byte-for-byte unaffected. It stays a pure overlay: the moment the form drops, the full unfiltered base
+is derived again (the anti-"permanent bear" guarantee holds through the stricter policy too). Filter
+lives in `collectSources` (`EXTERNAL_KINDS`); tests: `transform.test.ts` (+3 — Wild-Shape default keeps
+gear+features, polymorph drops them but keeps Bless, drop-form restores the full base).
+
+**Carry-over policy — `keepMental` ✅ SHIPPED (commit pending).** The second policy flag: `keepMental:
+true` means the form doesn't change your MIND — the form's own effects targeting INT/WIS/CHA are
+dropped, so your base mental scores stand while you still take the form's body. It matters when a form
+would *raise* a mental stat (an Archmage form, INT 20): the existing set-max rule already stops a dumb
+beast from *lowering* you, so keepMental is specifically the "your intellect is your own even in a
+smarter shape" rule. Omitted = the form sets whatever it sets (today's behaviour). `MENTAL_TARGETS`
+guard in `collectSources`; tests: `transform.test.ts` (+2).
+
+**Carry-over policy — `separateHp` ✅ SHIPPED (commit pending).** The third and last policy flag, and
+the one that needed real state rather than an overlay: a `separateHp` form gets its OWN HP pool
+(`char.formHp = { formId, current, max }`, a scratch field — base `combat.currentHp`/`maxHp` stay
+frozen underneath). Pure core in `lib/dnd/effects/form-hp.ts` (`routeFormDamage`): damage hits the pool
+first; when it empties the form ENDS and the overflow returns to your real HP; healing tops up the pool,
+not the base. Wired at a single point — the store's `adjustHp` — which lazily seeds the pool to the
+form's effective max HP (its `hp_max` effect, resolved by the ledger) on first hit, so no form-entry
+path has to know about it, and clears it (with `endTransform` / `nextTurn`) when the form ends. Still
+honours the anti-"permanent bear" guarantee for HP: your base HP is only ever reduced by true overflow,
+never overwritten, so ending the form leaves the real you exactly where you were. `isFormHpLive` guards
+a stale pool from a form you already dropped. Tests: `form-hp.test.ts` (9 — inside-pool, exact-empty,
+overflow-to-base, floor-at-0, heal-the-pool, over-heal-clamp, stale-pool guard, + store wiring anchors).
+**All three carry-over flags (`keepFeatures` / `keepMental` / `separateHp`) now ship.**
+
+**And the pool is VISIBLE ✅ SHIPPED (commit pending).** The HP card (`CombatPanel`) now surfaces a live
+`separateHp` pool: when the effective active form owns `char.formHp`, it shows "**<Form> HP <cur> /
+<max> · your own <n> HP is held until the form ends**" under the main number — so the draining
+form-HP is what the player watches, and it's plain that the real character is safe underneath. Gated
+on `char.formHp.formId === activeFormId` (the effective, imposed-aware id), so a stale pool never shows.
+Tests: `form-hp.test.ts` (+2 anchors). The mechanic is now player-facing, not just correct-in-core.
+
+**Remaining — only the arbitrary foreign-statblock swap.** "Become a bear you don't have as a form /
+become another PC entirely" (a whole foreign sheet, not one of your own `forms`) still needs a form
+authored as a full sheet (Slice 17's builder over a form) — there is no form-editor UI on the sheet yet
+(Forms.tsx is display+toggle only), so forms + their carry-over policy are authored in data for now.
+That authoring UI is the only heavier half left; transforming into your OWN defined forms — the common
+case — is done end-to-end, now with the complete carry-over policy (true-polymorph `keepFeatures`,
+keep-your-mind `keepMental`, and separate-pool `separateHp`).
 
 ### Original spec
 
@@ -890,7 +1272,8 @@ the overlay rule, because "you are a bear now" must be perfectly reversible.
       the source, exactly like any other effect. (If transform mutated the sheet, an autosave
       mid-transform would leave a druid permanently a bear, with their real character gone. This is
       the failure this whole design exists to prevent.)
-- [ ] **What carries over is a per-form rule, not a guess.** 5e Wild Shape keeps INT/WIS/CHA,
+- [x] **What carries over is a per-form rule, not a guess.** (`keepFeatures` + `keepMental` +
+      `separateHp` ✅ all shipped.) 5e Wild Shape keeps INT/WIS/CHA,
       personality, and your own features; it takes the beast's STR/DEX/CON, AC, speed and attacks; HP
       is a separate pool and damage overflow returns to you. Other systems and homebrew differ. So a
       form declares its own carry-over policy (`keepMental`, `keepFeatures`, `separateHp`, …) rather
@@ -901,8 +1284,10 @@ the overlay rule, because "you are a bear now" must be perfectly reversible.
       transform** — and, per the request, that is how you get back.
 - [ ] While transformed, the panel and the star markers (Slice 13) still explain the *form's* numbers,
       so "why is my AC 11" has an answer while you are a bear.
-- [ ] Damage taken in form, resources spent in form, and duration are tracked on the form instance,
-      not on the base sheet.
+- [~] Damage taken in form, resources spent in form, and duration are tracked on the form instance,
+      not on the base sheet. (HP ✅ — `char.formHp` pool via `separateHp`, base frozen; duration already
+      on `combat.transformTurnsLeft`. Form-scoped RESOURCE pools remain a follow-up under the
+      foreign-statblock authoring UI.)
 - [ ] Tests: transform → the sheet renders the form; the stored base character is byte-identical
       throughout (the anti-"permanent bear" guard); revert restores exactly; carry-over policy is
       honoured per form; a save while transformed does not corrupt the base.
@@ -1579,10 +1964,15 @@ regression to *reach*, not the drawing:
       all-campaigns list.
 - [x] **Unlimited**: neither characters nor campaigns are capped in code — anyone signed in creates
       as many as they like. (Confirmed: no per-user limit in the create routes.)
-- [ ] **Edge — stale session 500.** Creating a campaign from a session whose user row was deleted
-      throws a raw FK error (`dm_user_id_fkey`). Catch it and return a clean "please sign in again"
-      (and clear the dead cookie). Low-severity — only reachable if a user is deleted out from under
-      a live session — but it should not be a 500.
+- [x] **Edge — stale session 500 ✅ SHIPPED 2026-07-16.** `POST /api/dnd/campaigns` now classifies the
+      Postgres FK violation (code `23503` / a "foreign key" message) via an `isStaleUserFk` helper and
+      returns a clean **401 "Your session has expired — please sign in again."** instead of a raw 500 —
+      AND clears the dead `dnd_session` cookie (`clearDndSession`) so the client isn't stuck re-hitting
+      the same expired session. Applied to **both** FK-referencing writes: the campaign insert
+      (`dm_user_id`) and the membership insert (`user_id`) — the earlier fix only guarded the first, and
+      only the message, not the cookie. Tests: `campaign-create.test.ts` (3, source-anchored — a live DB
+      is needed to drive the real route). Low-severity (only reachable if a user is deleted under a live
+      session), now no longer a 500.
 
 ## Slice 37 — Browser Back sometimes needs several presses
 
@@ -1867,6 +2257,44 @@ Orthogonal to type, and where the mechanics actually live: `slot` (what it occup
 
 ---
 
+## Slice 40 — Final full-system QA walkthrough (Playwright, browser, manual) 🔴 LAST — after everything else
+
+> User directive (2026-07-16): "When everything is finally built, do a final run-through of all the
+> features with Playwright. Manually use the browser to create a new user, create a character, then go
+> through the whole character-creation process step by step, through every level, building it as vanilla
+> as possible. Then move on to the next game-rule system and build a whole new character with the
+> character builder, step by step. Do this for ALL game systems, one new character each, all built
+> vanilla. Look for any errors, anything in the building process that isn't correct, bugs, or
+> formatting/styling issues, and FIX them. Be very thorough. Really make sure styling and formatting
+> and readability are attractive."
+
+**This slice runs LAST — only once every other slice in this doc is shipped or explicitly deferred.**
+It is a manual, browser-driven acceptance pass, not an automated test suite (though it may leave
+Playwright specs behind). Do it with the Playwright MCP tools against a real running app.
+
+- [ ] **Fresh account.** Create a NEW user through the pseudo-login (name + password, no email — see
+      Slice 36). Confirm the sign-up path works from a clean state.
+- [ ] **First character, D&D 5e 2024, vanilla.** Create a character and walk the WHOLE creation flow
+      step by step: species → background (confirm the +2/+1 or +1/+1/+1 spread and the granted Origin
+      feat + skills + tool actually land), class, then **level 1 → 20 one level at a time** via the
+      Level Builder. At each ASI slot, confirm the feat picker offers only rules-legal feats and that
+      "vanilla" (book-legal) choices are always available. No AI/homebrew unless a level genuinely has
+      no book option.
+- [ ] **Every other system, one vanilla character each.** Repeat the full step-by-step build for each
+      GAME_SYSTEM the app offers (5e 2014, PF2e, PF1e, Starfinder, Cyberpunk RED, Shadowrun, CoC,
+      Blades…). For level-less systems, walk their advancement-by-spend flow instead of a level table.
+      Where a system's rules data isn't built yet, RECORD that the builder correctly falls back to
+      custom rather than offering wrong options — don't paper over a missing ruleset as if it passed.
+- [ ] **Hunt for correctness + UX defects and FIX them as found:** wrong or missing choices at a level;
+      an ASI/feat/ability offered when it shouldn't be (or missing when it should); numbers that don't
+      add up on the resulting sheet; dead controls; and — explicitly called out by the user — **styling,
+      formatting, readability and attractiveness** on every screen touched (spacing, contrast,
+      alignment, overflow, mobile width, the Hextech theme holding together).
+- [ ] **Capture evidence.** Screenshot each system's finished sheet and any bug before/after. A GIF of
+      at least one full creation flow (per the browser-automation GIF guidance) is worth keeping.
+- [ ] Log every fix inline here (or in a QA notes file) so this pass leaves a record, not just green
+      vibes. When the walkthrough is clean for every system, this slice — and the doc — is done.
+
 ## Known gaps / notes for whoever picks this up
 
 - **`VOYAGE_API_KEY` is absent**, so all semantic search returns nothing. Keyword search
@@ -1877,7 +2305,10 @@ Orthogonal to type, and where the mechanics actually live: `slot` (what it occup
 - **Uncertain rules flagged by the authoring agents** (worth a second source before release):
   Warlock invocations-known progression; Wizard Spell Mastery's swap clause; Great Old One
   Clairvoyant Combatant's limit; Monk Warrior of the Elements details; Starfinder
-  Fatigued/Exhausted magnitudes and Grappled/Pinned penalties; Envoy expertise die thresholds.
+  Fatigued/Exhausted magnitudes and Grappled/Pinned penalties; Envoy expertise die thresholds;
+  **2024 Epic Boon signature-effect wording/numbers** (`lib/dnd/feats/dnd5e-2024.ts` —
+  `EPIC_BOON_FEATS_2024`; the +1-to-30 increase and level-19 gate are certain, the capstone text is
+  concise-but-verify).
 - **`spellsKnown` currently carries prepared counts** for 2024 preparers. Consider renaming to
   `spellsKnownOrPrepared`. The 2024 Ranger/Paladin/Cleric/Druid prepared counts are prose in
   `preparedRule`, not structured — promote them if the builder needs the numbers.

@@ -11,6 +11,7 @@ import type { Character, InvItem, ActiveEffect, Spell, FeatureBlock } from '../t
 import { normalizeCharacter, blankCharacter } from '../data/blank'
 import { profBonusForLevel, abilityMod, maxHpForLevel, speedForLevel, MAX_BUILT_LEVEL } from '../rules/dnd'
 import { buildLedger, type EffectLedger } from '@/lib/dnd/effects/ledger'
+import { routeFormDamage, isFormHpLive } from '@/lib/dnd/effects/form-hp'
 import { rollD20, rollDamage, parseDice, rollDie, rollTyped, weaponSegments, type Advantage } from '../lib/dice'
 
 // Per-character localStorage slot. A single shared key meant every standalone sheet
@@ -223,6 +224,7 @@ export function CharacterProvider({
   campaignId,
   isDM = false,
   canWrite,
+  system,
 }: {
   children: React.ReactNode
   /** When set (C3), the sheet loads/saves `dnd_characters.data` via the API for
@@ -236,6 +238,9 @@ export function CharacterProvider({
   /** Whether the viewer can edit this character (owner OR DM). Gates owner-level
    *  tools like the art/token uploader; defaults to DM when not supplied. */
   canWrite?: boolean
+  /** The character's game system — passed to the ledger so system-scoped sources (species) apply
+   *  only on the matching system (Ground Rule 1). Omitted → the ledger adds no species source. */
+  system?: string
 }) {
   const dbMode = !!characterId
   // The character as first hydrated — the baseline `reset()` restores. Captured on the
@@ -501,7 +506,7 @@ export function CharacterProvider({
   //
   // Effects are OVERLAYS: `char` stays the base character forever. Unequipping is just dropping a
   // source and re-deriving, which is why reverting is free and can't corrupt the sheet.
-  const ledger = useMemo(() => buildLedger(char), [char])
+  const ledger = useMemo(() => buildLedger(char, { system }), [char, system])
 
   // Effective ability scores: base + every active effect. Components read THESE, so a +2 belt
   // moves the score, its modifier, every skill using it, and its carrying capacity at once.
@@ -742,6 +747,7 @@ export function CharacterProvider({
     setCharState((c) => ({
       ...c,
       activeFormId: highestHeldId(c),
+      formHp: undefined, // a separateHp pool ends with the form (Slice 18)
       combat: { ...c.combat, transformActive: false, transformTurnsLeft: 0, abilityUses: {} },
     }))
   }, [])
@@ -751,7 +757,7 @@ export function CharacterProvider({
       if (!c.combat.transformActive) return c
       const left = c.combat.transformTurnsLeft - 1
       if (left <= 0) {
-        return { ...c, activeFormId: highestHeldId(c), combat: { ...c.combat, transformActive: false, transformTurnsLeft: 0, abilityUses: {} } }
+        return { ...c, activeFormId: highestHeldId(c), formHp: undefined, combat: { ...c.combat, transformActive: false, transformTurnsLeft: 0, abilityUses: {} } }
       }
       return { ...c, combat: { ...c.combat, transformTurnsLeft: left } }
     })
@@ -849,6 +855,22 @@ export function CharacterProvider({
 
   const adjustHp = useCallback((delta: number) => {
     setCharState((c) => {
+      // `separateHp` forms (Slice 18): while worn, the FORM has its own HP pool and takes the hit;
+      // your base current/max HP stays frozen underneath. The pool is initialised LAZILY to the form's
+      // effective max HP (its `hp_max` effect, resolved by the ledger) on first touch, so no form-entry
+      // path has to seed it. When the pool empties the form ends and the overflow returns to you.
+      const activeId = buildLedger(c).transform()?.value ?? c.activeFormId
+      const activeForm = c.forms.find((f) => f.id === activeId)
+      if (activeForm?.carryOver?.separateHp) {
+        const poolMax = effMaxHp(c)
+        const live = isFormHpLive(c.formHp, activeId) ? c.formHp : { formId: activeId, current: poolMax, max: poolMax }
+        const res = routeFormDamage(live, c.combat.currentHp, delta)
+        if (res.ended) {
+          return { ...c, formHp: undefined, activeFormId: highestHeldId(c), combat: { ...c.combat, currentHp: res.baseCurrent, transformActive: false, transformTurnsLeft: 0, abilityUses: {} } }
+        }
+        return { ...c, formHp: res.form }
+      }
+
       let cur = c.combat.currentHp
       let temp = c.combat.tempHp
       if (delta < 0) {

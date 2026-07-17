@@ -11,6 +11,32 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import { ABILITIES, type AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
+import { FEATS_2024, type Feat } from '@/lib/dnd/feats/dnd5e-2024';
+
+/**
+ * The feats a 2024 character may take at an ASI slot of a given level: General feats (and, at 19+,
+ * Epic Boons) whose minLevel is met — never an Origin or Fighting Style feat. Ability/needs
+ * prerequisites are checked server-side (validateChoice) since the picker doesn't hold ability scores;
+ * they're surfaced in the label so the player knows what a feat needs. Empty for non-2024 systems,
+ * where we don't yet ship a feat list — those fall back to the explicit-custom text entry.
+ */
+function asiFeatChoices(system: string, level: number): Feat[] {
+  if (system !== 'dnd5e-2024') return [];
+  return FEATS_2024.filter((f) => {
+    if (f.category !== 'general' && !(f.category === 'epic-boon' && level >= 19)) return false;
+    return (f.prerequisites ?? []).every((p) => p.minLevel == null || level >= p.minLevel);
+  });
+}
+
+/** A short "(needs STR 13, Spellcasting)" hint for a feat's non-level prerequisites. */
+function prereqHint(feat: Feat): string {
+  const parts: string[] = [];
+  for (const p of feat.prerequisites ?? []) {
+    if (p.ability) parts.push(`${p.ability.key.toUpperCase()} ${p.ability.min}`);
+    if (p.needs) parts.push(p.text ?? p.needs);
+  }
+  return parts.length ? ` (needs ${parts.join(', ')})` : '';
+}
 
 interface Choice {
   level: number;
@@ -100,6 +126,11 @@ export default function LevelBuilder({
 
   const save = useCallback(
     async (choice: Choice, opts: { commitLevel?: number } = {}) => {
+      // The '__custom__' sentinel means "custom feat picked, name not typed yet" — never record it.
+      if (choice.kind === 'asi' && choice.featKey === '__custom__') {
+        setErr('Type a name for your custom feat, or pick one from the list.');
+        return;
+      }
       setBusy(true);
       setErr(null);
       try {
@@ -269,13 +300,38 @@ export default function LevelBuilder({
                     Clear
                   </button>
                 )}
-                <span style={{ color: 'var(--hx-muted)', fontSize: 12 }}>or</span>
-                <input
-                  placeholder="take a feat instead — its name"
-                  value={draft?.featKey ?? ''}
-                  onChange={(e) => setDraft((d) => ({ ...(d ?? { level: current.level, kind: 'asi' }), abilities: [], featKey: e.target.value }))}
-                  style={{ flex: '1 1 220px', padding: '7px 9px', background: 'rgba(1,10,19,0.5)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', fontSize: 13 }}
-                />
+                <span style={{ color: 'var(--hx-muted)', fontSize: 12 }}>or take a feat instead</span>
+                {(() => {
+                  const choices = asiFeatChoices(system, current.level);
+                  const known = new Set(choices.map((f) => f.key));
+                  // A feat is "custom" when it's set but not one of the rules-legal choices — the
+                  // explicit escape hatch, which reveals a free-text name field.
+                  const isCustom = !!draft?.featKey && !known.has(draft.featKey) || draft?.featKey === '__custom__';
+                  return (
+                    <>
+                      <select
+                        value={draft?.featKey && known.has(draft.featKey) ? draft.featKey : (isCustom ? '__custom__' : '')}
+                        onChange={(e) => setDraft((d) => ({ ...(d ?? { level: current.level, kind: 'asi' }), abilities: [], featKey: e.target.value === '' ? undefined : e.target.value === '__custom__' ? '__custom__' : e.target.value }))}
+                        style={{ flex: '1 1 220px', padding: '7px 9px', background: 'rgba(1,10,19,0.5)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', fontSize: 13 }}
+                      >
+                        <option value="">— choose a feat —</option>
+                        {choices.map((f) => (
+                          <option key={f.key} value={f.key}>{f.name}{prereqHint(f)}</option>
+                        ))}
+                        {choices.length === 0 && <option value="" disabled>no official feats for this system — use custom</option>}
+                        <option value="__custom__">✎ Custom feat…</option>
+                      </select>
+                      {isCustom && (
+                        <input
+                          placeholder="custom feat name"
+                          value={draft?.featKey === '__custom__' ? '' : (draft?.featKey ?? '')}
+                          onChange={(e) => setDraft((d) => ({ ...(d ?? { level: current.level, kind: 'asi' }), abilities: [], featKey: e.target.value || '__custom__' }))}
+                          style={{ flex: '1 1 180px', padding: '7px 9px', background: 'rgba(1,10,19,0.5)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', fontSize: 13 }}
+                        />
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}

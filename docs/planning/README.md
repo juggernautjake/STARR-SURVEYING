@@ -9,7 +9,8 @@ This folder uses three subfolders to make the lifecycle visible at a glance.
 | Folder | When a doc lives here |
 |--------|------------------------|
 | [`completed/`](./completed/) | The phase or feature it describes has shipped. Kept for historical decision context. Code may still reference it (`// Spec: docs/planning/completed/...`). |
-| [`in-progress/`](./in-progress/) | The doc has action items not yet done, or describes a roadmap phase still ahead, or is the live spec referenced by working code. |
+| [`in-progress/`](./in-progress/) | The doc has action items being worked NOW, or describes a roadmap phase actively underway, or is the live spec referenced by working code. |
+| [`pending/`](./pending/) | Planned work we intend to build **later** — scoped and parked deliberately, or a doc that is unfinished/on hold. Not being worked now; move it to `in-progress/` when work starts. Distinct from `in-progress/` (active) and `obsolete/` (abandoned). |
 | [`obsolete/`](./obsolete/) | Superseded by a newer doc, no code references it, no decisions in it that aren't captured elsewhere. **Sits here for one PR-cycle grace period before actual deletion.** Never delete a planning doc directly — move it here first. |
 
 ## Classification rubric

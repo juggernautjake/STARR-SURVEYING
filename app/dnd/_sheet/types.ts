@@ -126,6 +126,18 @@ export interface CharForm {
    *  other effect and revert the instant the form ends. Distinct from the bespoke `strikeDie` /
    *  form-attack fields, which keep their own render paths. */
   effects?: Effect[]
+  /** Carry-over policy (Slice 18, Ground Rule 1): what of YOU survives becoming this form, declared
+   *  per form rather than the engine hardcoding one game's answer. Omitted/undefined = Wild Shape-style
+   *  "keep everything you have, the form only adds/overrides" (the original behaviour — existing forms
+   *  are unchanged). Set `keepFeatures: false` for a true polymorph (5e Polymorph): your own gear +
+   *  features stop applying while worn; only externally-imposed sources (a spell cast ON you, a DM
+   *  boon, a condition) and the form's own effects apply. `keepMental`/`separateHp` are declared here
+   *  for future slices. It's an overlay either way — dropping the form restores all of it exactly. */
+  carryOver?: {
+    keepFeatures?: boolean
+    keepMental?: boolean
+    separateHp?: boolean
+  }
 }
 
 export interface Resource {
@@ -321,6 +333,20 @@ export interface Character {
     subclass: string
     level: number
     chips: { text: string; tone?: 'pink' | 'teal' | 'gold' }[]
+    /** Descriptive identity fields (Slice 11) — optional, shown in the Bio "Details" line and
+     *  overlayable by an identity effect (a potion that changes your recorded profession). */
+    gender?: string
+    pronouns?: string
+    profession?: string
+    /** The chosen 2024 mechanical BACKGROUND (a key into lib/dnd/backgrounds) — distinct from the
+     *  narrative `bio.background` prose. In 2024 this is what grants the ability increases + Origin
+     *  feat + skills + tool (Slice 4). */
+    background?: string
+    /** The ability-increase spread the player assigned FROM the 2024 background (+2/+1 or +1/+1/+1
+     *  across the background's three abilities). Stored so switching or re-spreading the background
+     *  can exactly reverse the prior increases before applying the new — `abilities` are running
+     *  totals, so the applied spread must be remembered to be undone (Slice 4). */
+    backgroundAbilities?: Partial<Record<AbilityKey, number>>
   }
   inspiration: boolean
   profBonusOverride?: number | null
@@ -365,6 +391,10 @@ export interface Character {
   resources: Resource[]
   forms: CharForm[]
   activeFormId: string
+  /** The FORM's separate HP pool while a `separateHp` form (Slice 18) is worn. A scratch field: base
+   *  `combat.currentHp`/`maxHp` stay frozen underneath, so ending the form restores you exactly.
+   *  `formId` pins which form it belongs to; cleared when the form ends. */
+  formHp?: import('@/lib/dnd/effects/form-hp').FormHpState
   attacks: Attack[]
   /** Defined, castable spells (optional — non-casters omit). Managed in the Spells tab. */
   spells?: Spell[]
