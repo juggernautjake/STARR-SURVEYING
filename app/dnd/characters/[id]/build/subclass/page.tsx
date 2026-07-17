@@ -19,6 +19,8 @@ export default function HomebrewSubclassBuilderPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState<string | null>(null);
 
   async function draft() {
     if (!prompt.trim()) { setError('Describe the subclass you want.'); return; }
@@ -29,9 +31,25 @@ export default function HomebrewSubclassBuilderPage() {
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setError(j.error ?? 'Could not draft the subclass.'); return; }
-      setResult(j as Result);
+      setResult(j as Result); setSaved(null);
     } catch { setError('Network error — please try again.'); } finally { setBusy(false); }
   }
+
+  async function save() {
+    if (!result) return;
+    setSaving(true); setError(null);
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}/homebrew-subclass/save`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subclass: result.subclass }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setError(j.error ?? 'Could not save the subclass.'); return; }
+      setSaved(j.name ?? 'the subclass');
+    } catch { setError('Network error — please try again.'); } finally { setSaving(false); }
+  }
+
+  // Savable when a parent class exists and it has features (mirrors the endpoint's checks).
+  const savable = !!result?.parentName && (result?.subclass.features.length ?? 0) > 0;
 
   const input = { padding: '9px 11px', fontSize: 14, background: 'rgba(1,10,19,0.55)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', borderRadius: 6, width: '100%' } as const;
   const sub = result?.subclass;
@@ -80,7 +98,14 @@ export default function HomebrewSubclassBuilderPage() {
                   </div>
                 ))}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--hx-muted)' }}>Draft only — refine the prompt and re-draft. Saving is a follow-up.</div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button type="button" className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} disabled={saving || !savable} onClick={save}
+                  title={savable ? 'Save this subclass to your character' : 'Needs a resolvable parent class and at least one feature'}>
+                  {saving ? 'Saving…' : '⚒ Save to my character'}
+                </button>
+                {saved && <span style={{ fontSize: 12.5, color: 'var(--hx-teal-1)' }}>✓ Saved “{saved}”.</span>}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--hx-muted)' }}>Saved subclasses are flagged custom for DM review and attach to their parent class.</div>
             </section>
           )}
         </div>

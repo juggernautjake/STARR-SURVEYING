@@ -5,7 +5,7 @@
 // level builder resolves a homebrew class exactly like an official one — a custom class is data, not a
 // fork. This module manages that list: upsert by key (so re-saving an edited class replaces it),
 // remove, and filter to a system (what the registry `extra` needs). Pure + unit-tested.
-import type { ClassDefinition } from './types';
+import type { ClassDefinition, SubclassDefinition } from './types';
 import type { CustomFeat } from './custom';
 
 /** Add or replace a homebrew class (matched by key). Returns a new array. */
@@ -41,4 +41,16 @@ export function upsertHomebrewFeat(list: CustomFeat[] | undefined, feat: CustomF
 export function readHomebrewFeats(data: unknown): CustomFeat[] {
   const v = (data && typeof data === 'object' ? (data as { homebrewFeats?: unknown }).homebrewFeats : undefined);
   return Array.isArray(v) ? (v as CustomFeat[]).filter((f) => f && typeof f === 'object' && typeof (f as CustomFeat).key === 'string') : [];
+}
+
+// ── Homebrew subclasses (key-based store) ──────────────────────────────────────────────────────────
+/** Add or replace a homebrew subclass (matched by key). */
+export function upsertHomebrewSubclass(list: SubclassDefinition[] | undefined, sub: SubclassDefinition): SubclassDefinition[] {
+  return [...(list ?? []).filter((s) => s.key !== sub.key), sub];
+}
+
+/** Read the homebrew-subclass list off a character's data blob, defensively. */
+export function readHomebrewSubclasses(data: unknown): SubclassDefinition[] {
+  const v = (data && typeof data === 'object' ? (data as { homebrewSubclasses?: unknown }).homebrewSubclasses : undefined);
+  return Array.isArray(v) ? (v as SubclassDefinition[]).filter((s) => s && typeof s === 'object' && typeof (s as SubclassDefinition).key === 'string') : [];
 }

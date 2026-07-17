@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { upsertHomebrewClass, removeHomebrewClass, homebrewClassesForSystem, readHomebrewClasses, upsertHomebrewFeat, readHomebrewFeats } from '@/lib/dnd/classes/homebrew-store';
-import { findClass } from '@/lib/dnd/classes/registry';
-import { buildCustomClass, buildCustomFeat } from '@/lib/dnd/classes/custom';
+import { upsertHomebrewClass, removeHomebrewClass, homebrewClassesForSystem, readHomebrewClasses, upsertHomebrewFeat, readHomebrewFeats, upsertHomebrewSubclass, readHomebrewSubclasses } from '@/lib/dnd/classes/homebrew-store';
+import { findClass, subclassesFor } from '@/lib/dnd/classes/registry';
+import { buildCustomClass, buildCustomFeat, buildCustomSubclass } from '@/lib/dnd/classes/custom';
 import type { ClassDefinition } from '@/lib/dnd/classes/types';
 
 const cls = (key: string, system = 'dnd5e-2024', over: Partial<ClassDefinition> = {}): ClassDefinition => ({
@@ -53,6 +53,30 @@ describe('homebrew feat store', () => {
     expect(readHomebrewFeats({ homebrewFeats: list })).toHaveLength(2);
     expect(readHomebrewFeats({})).toEqual([]);
     expect(readHomebrewFeats({ homebrewFeats: [{ nope: 1 }, feat('good')] })).toHaveLength(1);
+  });
+});
+
+describe('homebrew subclass store + registry resolution', () => {
+  const sub = (name: string, classKey = 'barbarian') => buildCustomSubclass({
+    name, classKey, system: 'dnd5e-2024', description: '', features: [{ level: 3, name: 'F', body: 'b' }],
+  });
+  it('upsert by key + defensive read', () => {
+    let list = upsertHomebrewSubclass(undefined, sub('Storm Herald'));
+    list = upsertHomebrewSubclass(list, sub('Zealot'));
+    expect(list).toHaveLength(2);
+    list = upsertHomebrewSubclass(list, sub('Storm Herald')); // replace
+    expect(list).toHaveLength(2);
+    expect(readHomebrewSubclasses({ homebrewSubclasses: list })).toHaveLength(2);
+    expect(readHomebrewSubclasses({})).toEqual([]);
+  });
+  it('a saved subclass resolves via subclassesFor(..., extra) for its parent class', () => {
+    const s = sub('Storm Herald', 'barbarian');
+    const data = { homebrewSubclasses: [s] };
+    const extra = readHomebrewSubclasses(data).filter((x) => x.classKey === 'barbarian');
+    const subs = subclassesFor('dnd5e-2024', 'barbarian', extra);
+    expect(subs.some((x) => x.name === 'Storm Herald')).toBe(true);
+    // Not offered under a different parent class.
+    expect(subclassesFor('dnd5e-2024', 'wizard', readHomebrewSubclasses(data).filter((x) => x.classKey === 'wizard')).some((x) => x.name === 'Storm Herald')).toBe(false);
   });
 });
 

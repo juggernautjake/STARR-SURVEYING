@@ -473,6 +473,8 @@ export interface Character {
   homebrewClasses?: import('@/lib/dnd/classes/types').ClassDefinition[]
   /** Homebrew feats saved to this character (Slice 5). */
   homebrewFeats?: import('@/lib/dnd/classes/custom').CustomFeat[]
+  /** Homebrew subclasses saved to this character (Slice 5). The registry resolves them via `extra`. */
+  homebrewSubclasses?: import('@/lib/dnd/classes/types').SubclassDefinition[]
   bio: {
     intro: string[]
     appearance: string[]

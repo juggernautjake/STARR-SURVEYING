@@ -13,7 +13,7 @@ import { normalizeSystem } from '@/lib/dnd/systems';
 import { blankCharacter, normalizeCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
 import { findClass, subclassesFor } from '@/lib/dnd/classes/registry';
-import { readHomebrewClasses, readHomebrewFeats } from '@/lib/dnd/classes/homebrew-store';
+import { readHomebrewClasses, readHomebrewFeats, readHomebrewSubclasses } from '@/lib/dnd/classes/homebrew-store';
 import { customFeatToFeat } from '@/lib/dnd/feats/homebrew-adapter';
 import { planLevelUp, recordChoice, validateChoice, chosenSubclassKey, type RecordedChoice } from '@/lib/dnd/classes/levelup';
 import { clampLevel } from '@/lib/dnd/classes/engine';
@@ -54,7 +54,7 @@ function planFor(data: Character, system: string, to: number) {
     };
   }
 
-  const subs = subclassesFor(def.system, def.key);
+  const subs = subclassesFor(def.system, def.key, readHomebrewSubclasses(data).filter((s) => s.classKey === def.key));
   const subKey = data.build?.subclassKey || chosenSubclassKey(choices);
   const sub = subs.find((s) => s.key === subKey) ?? null;
   const proficientSkills = Object.entries(data.skills ?? {})
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: 'A choice needs a level and a kind.' }, { status: 400 });
     }
     const def = findClass(system, next.build?.classKey || next.meta?.className || '', readHomebrewClasses(next));
-    const subs = def ? subclassesFor(def.system, def.key) : [];
+    const subs = def ? subclassesFor(def.system, def.key, readHomebrewSubclasses(next).filter((s) => s.classKey === def.key)) : [];
     const proficientSkills = Object.entries(next.skills ?? {})
       .filter(([, v]) => v?.prof === 'proficient' || v?.prof === 'expertise')
       .map(([k]) => k);
