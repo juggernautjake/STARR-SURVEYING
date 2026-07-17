@@ -29,6 +29,16 @@ describe('groupFilesBySection', () => {
   it('is empty for no files', () => {
     expect(groupFilesBySection([])).toEqual([]);
   });
+  it('groups the same section case-INSENSITIVELY (no fragmentation across file sources)', () => {
+    // "general", "General" and "GENERAL" (e.g. one from file_nodes, one from a mnt: mount) must be ONE
+    // group, not three — otherwise the panel shows the same section repeated with different casing.
+    const out = groupFilesBySection([F('a', 'general'), F('b', 'GENERAL'), F('c', 'General')]);
+    expect(out.map(([sec, list]) => [sec, list.map((f) => f.id)])).toEqual([['General', ['a', 'b', 'c']]]);
+  });
+  it('preserves an acronym in the display label (would be mangled by a blanket lowercase)', () => {
+    const out = groupFilesBySection([F('a', 'USGS data')]);
+    expect(out[0][0]).toBe('USGS Data'); // not "Usgs Data"
+  });
 });
 
 describe('mediaDisplay', () => {

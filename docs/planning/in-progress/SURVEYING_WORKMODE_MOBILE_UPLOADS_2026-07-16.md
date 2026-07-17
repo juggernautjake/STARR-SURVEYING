@@ -95,7 +95,15 @@ Issue) render only titles; the `JobPicker` is a placeholder input.
       in the component — which had moved into the helper — so that test was RED (surfaced by a full-suite
       run; the DnD-scoped runs never touched it). Repointed the assertion at the current architecture: the
       component consumes `jobRpls(job)`/`jobCrew(job)` and the `lead_rpls` role split is asserted against
-      `lib/jobs/crew.ts` where it now lives. Whole app suite green again (13,079 passing). **Remaining:** the
+      `lib/jobs/crew.ts` where it now lives. Whole app suite green again (13,079 passing).
+      **Case-fragmentation bug fixed in `groupFilesBySection` (2026-07-17):** the A3 files panel grouped by a
+      title-cased section, but title-casing only touches word-STARTS — so "general" → "General" while
+      "GENERAL" stayed "GENERAL", splitting one section into two panel headers when files arrive in different
+      casing from different sources (`file_nodes` vs the read-only `mnt:` mounts). Now groups case-
+      INSENSITIVELY (lowercase key) while DISPLAYING the first-seen casing title-cased — which also preserves
+      acronyms a blanket `toLowerCase` would mangle ("USGS Data", not "Usgs Data"). `hub.test.ts` +2
+      (case-insensitive merge + the acronym case); the existing consistent-case cases are unchanged.
+      **Remaining:** the
       API-population + capture-enqueues-field_media parts need component/route tests with mocks —
       device/runtime-adjacent, deferred with the rest of Area C.
 

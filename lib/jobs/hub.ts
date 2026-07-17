@@ -11,15 +11,25 @@ export function jobLabel(job: { job_number?: string | null; name?: string | null
 
 /** Group a job's files by section for the A3 documents/research panel — section title-cased ('general'
  *  when blank), files kept in first-seen order, and the sections themselves in first-seen order. Generic
- *  so any file-shaped row with a `section` works. */
+ *  so any file-shaped row with a `section` works.
+ *
+ *  Grouping is case-INSENSITIVE so the same section arriving in different casing from different sources
+ *  (file_nodes vs the read-only `mnt:` mounts) doesn't fragment — "general", "General" and "GENERAL" are
+ *  one group. The DISPLAY label is the first-seen casing, title-cased, which preserves acronyms a blanket
+ *  lowercase would mangle ("USGS Data", not "Usgs Data"). */
 export function groupFilesBySection<T extends { section?: string | null }>(files: T[]): [string, T[]][] {
-  const bySection = new Map<string, T[]>();
+  const byKey = new Map<string, { label: string; items: T[] }>();
   for (const f of files) {
-    const sec = (f.section || 'general').replace(/\b\w/g, (c) => c.toUpperCase());
-    if (!bySection.has(sec)) bySection.set(sec, []);
-    bySection.get(sec)!.push(f);
+    const raw = f.section || 'general';
+    const key = raw.toLowerCase();
+    let group = byKey.get(key);
+    if (!group) {
+      group = { label: raw.replace(/\b\w/g, (c) => c.toUpperCase()), items: [] };
+      byKey.set(key, group);
+    }
+    group.items.push(f);
   }
-  return [...bySection.entries()];
+  return [...byKey.values()].map((g) => [g.label, g.items]);
 }
 
 export interface MediaItemLike {
