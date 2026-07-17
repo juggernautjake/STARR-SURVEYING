@@ -112,15 +112,32 @@ export const itemsWeight = (items: EquipItem[]): number =>
 export const totalWeight = (items: EquipItem[], currency?: Currency): number =>
   itemsWeight(items) + (currency ? coinWeight(currency) : 0);
 
-/** 2024 carrying capacity = STR × 15 (lb). */
-export const carryingCapacity = (strScore: number): number => strScore * 15;
+/** The 5e size multiplier for carrying capacity / lifting: Tiny ×½, Small/Medium ×1, Large ×2, Huge ×4,
+ *  Gargantuan ×8. Unknown/blank size defaults to ×1 (Medium). Case-insensitive; "Powerful Build" is
+ *  modelled by the caller passing the one-size-larger value. This is what makes `size` mechanical, not
+ *  cosmetic — a Large creature carries twice what its Strength alone would suggest. */
+export function sizeCapacityMultiplier(size?: string | null): number {
+  switch ((size ?? '').trim().toLowerCase()) {
+    case 'tiny': return 0.5;
+    case 'large': return 2;
+    case 'huge': return 4;
+    case 'gargantuan': return 8;
+    default: return 1; // small / medium / unknown
+  }
+}
+
+/** 2024 carrying capacity = STR × 15 (lb), scaled by the creature's size (Tiny ½ … Gargantuan ×8). */
+export const carryingCapacity = (strScore: number, size?: string | null): number =>
+  strScore * 15 * sizeCapacityMultiplier(size);
 
 export type Encumbrance = 'none' | 'encumbered' | 'heavily' | 'over';
-/** Variant encumbrance thresholds: STR×5 encumbered, STR×10 heavily, STR×15 over-capacity. */
-export function encumbranceLevel(weight: number, strScore: number): Encumbrance {
-  if (weight > strScore * 15) return 'over';
-  if (weight > strScore * 10) return 'heavily';
-  if (weight > strScore * 5) return 'encumbered';
+/** Variant encumbrance thresholds: STR×5 encumbered, STR×10 heavily, STR×15 over-capacity — each scaled
+ *  by the size multiplier, so a Large character isn't "over" at a Medium character's weights. */
+export function encumbranceLevel(weight: number, strScore: number, size?: string | null): Encumbrance {
+  const m = sizeCapacityMultiplier(size);
+  if (weight > strScore * 15 * m) return 'over';
+  if (weight > strScore * 10 * m) return 'heavily';
+  if (weight > strScore * 5 * m) return 'encumbered';
   return 'none';
 }
 

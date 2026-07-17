@@ -78,6 +78,18 @@ describe('equipment: weight, capacity, encumbrance, wealth', () => {
     expect(encumbranceLevel(160, 15)).toBe('heavily'); // > 150 (STR×10)
     expect(encumbranceLevel(230, 15)).toBe('over'); // > 225 (STR×15)
   });
+  it('size scales carrying capacity + encumbrance (size is mechanical, not cosmetic)', () => {
+    // Medium (default) = ×1; Large = ×2; Tiny = ×½; Gargantuan = ×8.
+    expect(carryingCapacity(15, 'Large')).toBe(450);
+    expect(carryingCapacity(15, 'Tiny')).toBe(112.5);
+    expect(carryingCapacity(15, 'Gargantuan')).toBe(1800);
+    expect(carryingCapacity(15, 'Medium')).toBe(225);
+    expect(carryingCapacity(15)).toBe(225);            // unspecified → Medium
+    // A weight that's "over" for a Medium creature is only "encumbered" for a Large one (double capacity).
+    expect(encumbranceLevel(230, 15, 'Medium')).toBe('over');
+    expect(encumbranceLevel(230, 15, 'Large')).toBe('encumbered'); // > 150 (STR×5×2), ≤ 300 (STR×10×2)
+    expect(encumbranceLevel(460, 15, 'Large')).toBe('over');       // > 450 (STR×15×2)
+  });
   it('totals wealth in gp', () => {
     expect(totalGold({ cp: 100, sp: 10, ep: 2, gp: 5, pp: 1 })).toBeCloseTo(1 + 1 + 1 + 5 + 10);
   });
