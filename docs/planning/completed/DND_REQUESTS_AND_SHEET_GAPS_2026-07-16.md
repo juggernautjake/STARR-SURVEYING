@@ -7,6 +7,13 @@ D (exhaustion −5 ft/level Speed + legibility). Only A6's route-level integrati
 owner logic that gates it is fully unit-tested; the route needs cookie/Supabase mocks). Moved to
 `completed/`.
 
+**⚠️ Minor open finding (from the Slice-40 runtime check, 2026-07-17):** the suggestion box's name field
+renders as **"Your name (optional)"**, but the original ask was *"It requires their name and their
+request/comment."* For a signed-in user the name IS captured (from the session `displayName`), so the
+label is honest for them; it's only genuinely optional for an anonymous submitter. If the owner wants the
+name strictly required for anonymous posts too, gate the send button on a non-empty name when there's no
+session — a small component change, not done blind since it borders on a UX/product call.
+
 A grounded plan for four user-requested D&D features. **Much of this already exists** (verified
 against the live code 2026-07-16) — each slice below says what's built and what's the actual gap, so we
 extend rather than duplicate. Ships slice-by-slice; typecheck + lint + test each; commit + push; annotate

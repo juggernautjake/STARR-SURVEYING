@@ -2507,8 +2507,11 @@ every public page + backing tool loaded with **0 console errors**:
 
 So the build is healthy and the whole public + map-tool surface is error-free at runtime — a real check
 against the map slices' "look for errors" directive. Also confirmed at runtime: **`/dnd/characters/new`
-auth-gates cleanly** (redirects anon → hub, 0 errors — the create-character entry is protected), and the
-**suggestion box renders at the bottom of the hub** (the "interface at the bottom of every page" request).
+auth-gates cleanly** (redirects anon → hub, 0 errors — the create-character entry is protected), the
+**suggestion box renders at the bottom of the hub** (the "interface at the bottom of every page" request),
+and the **`/dnd/library` renders fully** (0 errors) — the Slice-8b four-system buildout: the search box,
+the "limit to one system" selector, and the Systems list all present. So the library, a major shipped
+feature, is confirmed rendering at runtime.
 The character-build walkthrough below (create account → build a vanilla character per system, level by
 level, fixing bugs/styling) is the substantive remainder and needs an interactive, DB-backed session
 (a throwaway test account + character on live Supabase) — held pending the owner's go-ahead to write +
