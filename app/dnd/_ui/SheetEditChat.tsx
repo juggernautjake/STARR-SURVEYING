@@ -14,7 +14,14 @@ import { useRouter } from 'next/navigation';
 import styles from './sheetchat.module.css';
 import { useResizable } from './useResizable';
 
-interface Msg { role: 'user' | 'ai'; text: string }
+interface Msg {
+  role: 'user' | 'ai';
+  text: string;
+  /** For an AI reply that made a mechanics change: the batch to undo, so the message can offer a
+   *  one-click "Undo this change". Cleared once undone. */
+  batchId?: string;
+  undone?: boolean;
+}
 
 /** Reveal the latest AI message with a typewriter effect for a smooth streamed feel. */
 function useTypewriter(msgs: Msg[]): string {
@@ -75,7 +82,8 @@ export default function SheetEditChat({
           setMsgs((prev) => [...prev, { role: 'ai', text: j.error ?? 'That change could not be applied.' }]);
         } else {
           const n = j.editCount ?? 0;
-          setMsgs((prev) => [...prev, { role: 'ai', text: j.summary || `Applied ${n} change${n === 1 ? '' : 's'} to ${j.name ?? characterName}.` }]);
+          // A mechanics edit carries a batchId → the reply gets a one-click Undo bound to it.
+          setMsgs((prev) => [...prev, { role: 'ai', text: j.summary || `Applied ${n} change${n === 1 ? '' : 's'} to ${j.name ?? characterName}.`, batchId: j.kind === 'mechanics' ? j.batchId : undefined }]);
           if (j.kind === 'layout') {
             router.refresh();
           } else {
@@ -87,6 +95,32 @@ export default function SheetEditChat({
       }
     },
     [characterId, characterName, router],
+  );
+
+  const [undoing, setUndoing] = useState<string | null>(null);
+  /** Undo a whole AI change (the batch that message made) in one click. */
+  const undo = useCallback(
+    async (batchId: string) => {
+      setUndoing(batchId);
+      try {
+        const r = await fetch(`/api/dnd/characters/${characterId}/edits/revert-batch`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ batchId }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          setMsgs((prev) => [...prev, { role: 'ai', text: j.error ?? 'Could not undo that change.' }]);
+        } else {
+          setMsgs((prev) => prev.map((m) => (m.batchId === batchId ? { ...m, undone: true } : m)));
+          setMsgs((prev) => [...prev, { role: 'ai', text: `Undone — reverted ${j.reverted ?? 0} change${j.reverted === 1 ? '' : 's'}. Your character is back to how it was.` }]);
+          window.dispatchEvent(new CustomEvent('dnd:reload-character', { detail: { id: characterId } }));
+        }
+      } catch {
+        setMsgs((prev) => [...prev, { role: 'ai', text: 'Network error — could not undo.' }]);
+      } finally {
+        setUndoing(null);
+      }
+    },
+    [characterId],
   );
 
   // Queue rather than drop. Sheet edits MUST stay serial — two concurrent ai-edit calls would
@@ -153,6 +187,21 @@ export default function SheetEditChat({
               <div key={i} className={`${styles.bubble} ${m.role === 'user' ? styles.user : styles.ai}`}>
                 {text}
                 {isLastAi && text.length < m.text.length && <span className={styles.caret}>▍</span>}
+                {m.batchId && (
+                  m.undone ? (
+                    <div style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>↩ change undone</div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => undo(m.batchId!)}
+                      disabled={undoing === m.batchId}
+                      title="Undo everything this change did"
+                      style={{ marginTop: 6, fontSize: 11.5, cursor: 'pointer', padding: '3px 10px', borderRadius: 12, border: '1px solid var(--hx-line, currentColor)', background: 'transparent', color: 'inherit', opacity: 0.9 }}
+                    >
+                      {undoing === m.batchId ? 'Undoing…' : '⟲ Undo this change'}
+                    </button>
+                  )
+                )}
               </div>
             );
           })}
