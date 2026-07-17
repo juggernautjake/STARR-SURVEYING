@@ -134,6 +134,8 @@ export interface PF2Character {
   spellcasting: PF2Spellcasting;
   feats: PF2Feat[];
   languages: string[];
+  /** Special senses from ancestry/heritage (e.g. "Darkvision", "Low-light vision"). Display only. */
+  senses?: string[];
 }
 
 /** Runtime guard: is this stored value a PF2Character sidecar (character.data.pf2e)? */

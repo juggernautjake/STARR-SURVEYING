@@ -67,6 +67,7 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
         <Stat label="AC" value={`${d.ac}`} sub={pf2.combat.armorName && pf2.combat.armorName !== 'Unarmored' ? pf2.combat.armorName : undefined} />
         <Stat label="HP" value={`${pf2.combat.currentHp || d.maxHp}/${d.maxHp}`} sub={pf2.combat.tempHp ? `+${pf2.combat.tempHp} temp` : undefined} />
         <Stat label="Perception" value={fmt(pf2PerceptionTotal(pf2))} sub={pf2.perception.rank} />
+        <Stat label="Initiative" value={fmt(pf2PerceptionTotal(pf2))} sub="Perception" />
         <Stat label="Speed" value={`${pf2.combat.speed} ft`} />
         <Stat label="Class DC" value={`${d.classDc}`} sub={pf2.combat.classDcAttribute} />
         {d.spellDc != null && <Stat label="Spell DC" value={`${d.spellDc}`} sub={`atk ${fmt(d.spellAttack ?? 0)} · ${pf2.spellcasting.tradition}`} />}
@@ -154,7 +155,10 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
         </div>
       )}
 
-      <div style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>Languages: {pf2.languages.join(', ') || '—'}. All numbers derived by the PF2 rules engine (proficiency = rank bonus + level when trained).</div>
+      <div style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>
+        {pf2.senses && pf2.senses.length > 0 && <>Senses: {pf2.senses.join(', ')}. </>}
+        Languages: {pf2.languages.join(', ') || '—'}. All numbers derived by the PF2 rules engine (proficiency = rank bonus + level when trained).
+      </div>
     </div>
   );
 }

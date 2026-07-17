@@ -167,6 +167,16 @@ describe('PF2 armor drives AC, Dex cap, and speed', () => {
   });
 });
 
+describe('PF2 ancestry senses reach the character', () => {
+  it('a Dwarf carries Darkvision; an Elf carries Low-light vision', () => {
+    expect(buildPF2Character({ ancestry: 'Dwarf', className: 'Fighter' }).senses).toEqual(['Darkvision']);
+    expect(buildPF2Character({ ancestry: 'Elf', className: 'Wizard' }).senses).toEqual(['Low-light vision']);
+  });
+  it('an ancestry with no special sense (Human) has none', () => {
+    expect(buildPF2Character({ ancestry: 'Human', className: 'Fighter' }).senses).toEqual([]);
+  });
+});
+
 describe('PF2 weapons become real Strikes', () => {
   it('has simple + martial weapons and a lookup', () => {
     expect(PF2_WEAPONS.length).toBeGreaterThanOrEqual(15);

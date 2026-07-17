@@ -165,6 +165,7 @@ export function buildPF2Character(picks: PF2Picks): PF2Character {
       : { tradition: 'none', kind: 'none', attribute: keyAttr, rank: 'untrained', slots: [] },
     feats,
     languages: [...new Set([...(anc?.languages ?? ['Common']), ...(picks.languages ?? [])])],
+    senses: anc?.senses ? [anc.senses] : [],
   };
 }
 
