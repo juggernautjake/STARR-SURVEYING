@@ -516,6 +516,12 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
 - [x] **Guardrails**: `glossary.test.ts` now includes a no-duplicate-terms integrity check per system;
       `system-integrity.test.ts` enforces no cross-system leakage. Every entry carries seeAlso links +
       search aliases and resolves through the no-key keyword search.
+- [x] **Full 2024 FEATS project into library search ✅** — `searchLibrary` only exposed a one-line
+      "sample" of feats; now a system-keyed `featsForSystem` projects the whole **`FEATS_2024`** registry
+      (Origin / Fighting Style / General / Epic Boon) with each feat's **real benefit text + category**,
+      so "tavern brawler", "alert", "archery" return the actual rules, not a stub. **Verified in the
+      app** (Tavern Brawler → its full 662-char benefit). `library.test.ts` +2. (Follow-up: also feed
+      the full feats into the AI grounding block, not just search.)
 - [x] **Classes project into library search ✅** — confirmed `searchLibrary` already surfaces **every
       class feature by name + level** via `classesForSystem(key)` for any system with full class data, so
       the whole **2014 roster (built this session) is automatically searchable** alongside 2024

@@ -184,3 +184,18 @@ describe('full class data projects into library search (Slice 8b)', () => {
     expect(searchLibrary('brutal critical', 'dnd5e-2024').some((h) => h.name === 'Brutal Critical')).toBe(false);
   });
 });
+
+describe('full 2024 feats project into library search (Slice 8b)', () => {
+  it('surfaces a 2024 feat with its real benefit text + category, not a stub', () => {
+    const alert = searchLibrary('alert', 'dnd5e-2024').find((h) => h.kind === 'feat' && h.name === 'Alert');
+    expect(alert).toBeTruthy();
+    expect(alert!.body).toMatch(/origin feat/i);      // carries the category
+    expect(alert!.body.length).toBeGreaterThan(60);   // full text, not "Alert — a feat in D&D 5e"
+  });
+
+  it('a fighting-style feat resolves with its rules text', () => {
+    const archery = searchLibrary('archery', 'dnd5e-2024').find((h) => h.kind === 'feat');
+    expect(archery?.name).toBe('Archery');
+    expect(archery!.body).toMatch(/\+2/); // Archery gives +2 to ranged attack rolls
+  });
+});

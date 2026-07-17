@@ -9,6 +9,13 @@ import { GAME_SYSTEMS, systemLabel, type CharacterSystem } from './systems';
 import { rulesForSystem, type SystemRules } from './system-rules';
 import { glossaryFor, searchGlossary } from './glossary';
 import { classesForSystem } from './classes/registry';
+import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
+
+/** The full feat registry for a system, or [] when only a catalog sample exists. System-keyed
+ *  dispatcher (the pattern `findFeat`'s comment calls for) so a feat never leaks across systems. */
+function featsForSystem(system: string): Feat[] {
+  return system === 'dnd5e-2024' ? FEATS_2024 : [];
+}
 
 export interface LibraryFact {
   label: string;
@@ -279,7 +286,14 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
     for (const s of r.content.species) push('species', s, `${s} — a playable ${speciesNoun(r.key).toLowerCase().replace(/s$/, '')} in ${r.label}.`);
     for (const n of r.content.ancestryNotes ?? []) push('species', n.split(/[—-]/)[0].trim() || 'Ancestry', n);
     for (const c of r.content.conditions) push('condition', c, `${c} — a condition in ${r.label}.`);
-    for (const f of r.content.sampleFeats) push('feat', f, `${f} — ${featNoun(r.key).toLowerCase()} in ${r.label}.`);
+    // Systems with a full FEATS registry (dnd5e-2024) expose EVERY feat with its real benefit text and
+    // category, so "great weapon master" or "alert" returns the actual rules, not a one-line stub.
+    const fullFeats = featsForSystem(key);
+    if (fullFeats.length) {
+      for (const f of fullFeats) push('feat', f.name, `${f.name} (${f.category} feat) — ${f.benefit}`);
+    } else {
+      for (const f of r.content.sampleFeats) push('feat', f, `${f} — ${featNoun(r.key).toLowerCase()} in ${r.label}.`);
+    }
   }
 
   return hits.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name)).slice(0, limit);
