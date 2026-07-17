@@ -383,10 +383,10 @@ The engine (`lib/dnd/classes/custom.ts`) is built and tested; there is no UI.
 - [x] **Homebrew subclass + homebrew feat builders. ✅ SHIPPED** (`1ceae899`, `f6ada419`, `656a256c`).
       All three designers ship as prompt→draft→review pages on the existing engine: `/build/feat`
       (`buildCustomFeat`+`reviewCustomFeat`) and `/build/subclass` (`buildCustomSubclass`, checks the
-      parent class resolves incl. saved homebrew). Class + **feat persist** shipped (`b03c65f7`); **saved
-      feats now appear in the ASI picker** (`20d93339`: `customFeatToFeat` adapter + the levels-route plan
-      carries them + `asiFeatChoices` merges them). **Nice-to-have remaining:** subclass persist + manual
-      edit forms.
+      parent class resolves incl. saved homebrew). **All three persist + resolve in the level builder**:
+      class (`7fa1a665`/`253e42f9`), feat (`b03c65f7`/`20d93339` — shows in the ASI picker), subclass
+      (`1da93c4a` — `subclassesFor(..., extra)` offers it under its parent class). **Nice-to-have
+      remaining:** manual field-by-field edit forms on the drafts.
 - [x] **AI assist: prose → a draft the player edits. ✅ SHIPPED** (`279e502f`). `lib/dnd/classes/custom-ai.ts`
       — `CUSTOM_CLASS_TOOL` (structured-output schema) + `parseCustomClassDraft` (defensive normalizer →
       a valid `CustomClassDraft`) that flows through the existing `buildCustomClass` + `reviewCustomClass`,
