@@ -54,6 +54,20 @@ describe('every edit op can be reverted (undo, user request)', () => {
       expect(body.includes(`case '${op}'`), `revertSheetEdit has no case for "${op}" — it would undo to a no-op`).toBe(true);
     }
   });
+
+  it('applySheetEdits has a case for EVERY op the tool schema offers (no silent no-op EDIT)', () => {
+    // The apply-path twin of the revert guard, and the more important one: an op the AI is OFFERED (the
+    // tool-schema enum) but that applySheetEdits doesn't handle reports success while changing NOTHING —
+    // it breaks the "the AI can actually edit everything on the sheet" promise. The TS `never` guard in
+    // applySheetEdits covers union↔handler drift; this covers tool-schema↔handler drift (a separate object).
+    const ops = (SHEET_EDIT_TOOL.input_schema as { properties: { edits: { items: { properties: { op: { enum: string[] } } } } } })
+      .properties.edits.items.properties.op.enum;
+    const src = fs.readFileSync(path.join(process.cwd(), 'lib/dnd/sheet-edits.ts'), 'utf8');
+    const body = src.slice(src.indexOf('export function applySheetEdits'), src.indexOf('export function validateSheetEdits'));
+    for (const op of ops) {
+      expect(body.includes(`case '${op}'`), `applySheetEdits has no case for "${op}" — the AI's edit would silently do nothing`).toBe(true);
+    }
+  });
 });
 
 describe('applySheetEdits', () => {

@@ -377,6 +377,14 @@ abilities/combat/level/skills/saves) AND through `LAYOUT_EDIT_TOOL` it rewrites 
 `custom_css` + `custom_layout` (HTML/CSS) and saves them (`sheet_type: 'custom'`), which the browser
 renders. The one clear gap — spells — is now closed.
 
+**Vocabulary↔handler drift guarded, both directions (2026-07-17):** audited that all 31 `SheetEdit` ops
+are actually applied — an op the AI can EMIT but that `applySheetEdits` doesn't HANDLE would report
+success while changing nothing (the AI's edit silently lost), directly breaking "the AI can edit
+everything." No live gap (all 31 handled), but the switch had no exhaustiveness guard. Added a compile-time
+`never` guard (a new union op without a handler now fails to compile) AND a source-scan test mirroring the
+existing revert guard (every tool-schema op has an apply case) — so the AI's edit vocabulary and what the
+sheet actually applies can never silently diverge. `sheet-edits.test.ts` +1.
+
 - [x] **`add_spell` / `remove_spell` ✅ SHIPPED 2026-07-17.** The AI could rename or item-grant spells but
       not add/remove them directly. Added both to the edit vocabulary + the AI tool schema (full spell
       shape: level 0–9, school, casting time, range, components, duration, concentration, ritual, attack

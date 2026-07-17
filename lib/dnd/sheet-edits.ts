@@ -535,6 +535,15 @@ export function applySheetEdits(input: Character, edits: SheetEdit[]): Character
         c.resources = [...c.resources.filter((r) => !eqName(r.name, e.name)), res];
         break;
       }
+      default: {
+        // Exhaustiveness guard: EVERY SheetEdit op must have a case above. This is the AI's edit
+        // vocabulary — if an op the AI can emit has no case here, the edit silently does NOTHING (the AI
+        // reports success while the sheet is unchanged), breaking the "the AI can actually edit everything"
+        // guarantee. A new op added to the union without a handler fails to COMPILE here.
+        const _exhaustive: never = e;
+        void _exhaustive;
+        break;
+      }
     }
   }
   return c;
