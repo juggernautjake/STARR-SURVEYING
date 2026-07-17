@@ -114,7 +114,7 @@ export default function JobDetailPage() {
   const [contactLinks, setContactLinks] = useState<Array<{
     id: string; role: string; notes?: string | null;
     contact_id: string;
-    contacts: { id: string; name: string; company: string | null; email: string | null } | null;
+    contacts: { id: string; name: string; company: string | null; email: string | null; phone: string | null } | null;
   }>>([]);
   const [showLinkContactDialog, setShowLinkContactDialog] = useState(false);
   const [stageHistory, setStageHistory] = useState<{ from_stage?: string; to_stage: string; changed_by: string; notes?: string; created_at: string }[]>([]);
@@ -724,6 +724,9 @@ export default function JobDetailPage() {
                                 {link.contacts.company && link.contacts.email ? ' · ' : ''}
                                 {link.contacts.email ?? ''}
                               </span>
+                            )}
+                            {telHref(link.contacts?.phone) && (
+                              <a href={telHref(link.contacts?.phone)} className="btn tiny" title={`Call ${link.contacts?.name ?? 'this contact'}`} style={{ marginLeft: 8, textDecoration: 'none' }}>📞 {link.contacts?.phone}</a>
                             )}
                           </div>
                           <button
