@@ -331,7 +331,28 @@ export const IG_CLASS_DETAILS: IGClassDetail[] = [
   { name: 'Arcanist', classification: 'subclass of Wizard', primaryAbility: 'Intelligence', grantedStance: 'Mobile', defensivePower: 'Mage Armor', startingPower: 'Elemental Blast (inherited from Wizard)', powers: ['Arcane Spell', 'Elemental Strike', 'Expanded Blast', 'Magic Trick', 'Personal Style', 'Special Delivery'], specializations: ['Synergist (dual elements)', 'Magical Savant (spell advancement)'] },
   { name: 'Magician', classification: 'subclass of Wizard', note: 'The /classes page lists Magician but its full statistics/powers/specializations were not captured in the page text — a work in progress / to re-verify.' },
   { name: 'Shaman', classification: 'subclass of Wizard', note: 'The /classes page lists Shaman but its full statistics/powers/specializations were not captured in the page text — a work in progress / to re-verify.' },
+  // Summoning group — Archon is the parent class; Beastmaster/Eldritch Binder/Packmaster/Summoner are subclasses.
+  { name: 'Archon', classification: 'class', primaryAbility: 'Charisma', hp: '10 + Background HP', startingPower: 'Direct Companion — spend two actions directing a companion creature to give it three total actions; also enables Diplomacy checks with any creature regardless of Intelligence', powers: ['Aspect', 'Charm', 'Combat-Trained', 'Inspiration', 'New Feature', 'Conjurer', 'Relentless', 'Paired Strikes'], specializations: ['Extraordinary Creature', 'Supernatural Creature'], note: 'Parent class of the Beastmaster, Eldritch Binder, Packmaster, and Summoner subclasses.' },
+  { name: 'Beastmaster', classification: 'subclass of Archon', grantedStance: 'Menacing', defensivePower: 'Companion Shield', powers: ['Aspect', 'Charm', 'Combat-Trained', 'Inspiration', 'New Feature', 'Conjurer', 'Relentless', 'Paired Strikes'], specializations: ['Extraordinary Creature', 'Supernatural Creature'] },
+  { name: 'Eldritch Binder', classification: 'subclass of Archon', grantedStance: 'Welcoming', defensivePower: 'Companion Shield', powers: ['Aspect', 'Exemplary Companion', 'Inspiration', 'New Feature', 'Familiar Spell', 'Conjurer', 'Flash', 'Fortune'], specializations: ['Extraordinary Creature', 'Supernatural Creature'] },
+  { name: 'Packmaster', classification: 'subclass of Archon', grantedStance: 'Swarming', defensivePower: 'Companion Shield', powers: ['Additional Creature', 'Aspect', 'Inspiration', 'New Feature', 'Swarm Assault', 'Conjurer', 'Dodger', "Master's Reach"], specializations: ['Varied Swarm', 'Identical Swarm'] },
+  { name: 'Summoner', classification: 'subclass of Archon', grantedStance: 'Supportive', defensivePower: 'Companion Shield', powers: ['Aspect', 'Elemental Defense', 'Elemental Power', 'Inspiration', 'New Feature', 'Conjurer', 'Elemental Blast', 'Redirect Energy'], specializations: ['Varied Swarm', 'Identical Swarm'] },
+  // Nature group — Conduit is the parent class; Druid/Shifter/Witch are subclasses.
+  { name: 'Conduit', classification: 'class', primaryAbility: 'Wisdom', hp: '10 + Background HP', startingPower: 'Redistribution — rearrange matter, affecting materials equal to your Wisdom modifier (e.g. Launch Material for a ranged attack)', specializations: [], note: 'Parent class of the Druid, Shifter, and Witch subclasses.' },
+  { name: 'Druid', classification: 'subclass of Conduit', primaryAbility: 'Wisdom', grantedStance: 'Neutral', defensivePower: 'Material Shield', powers: ['Elemental Storm', 'Entangle', 'Material Spray', 'Natural Storm', 'New Material', 'Temporary Shift', 'Transmuter'], specializations: ['Storm Brewer (enhanced nature checks and damage)', 'Natural Healer (heal using Wisdom/Nature)'] },
+  { name: 'Shifter', classification: 'subclass of Conduit', primaryAbility: 'Wisdom', grantedStance: 'Offensive', defensivePower: 'Material Shield', powers: ['Alter Self', 'Enhance Ability', 'Material Spray', 'Nature Focus', 'Primal Shape', 'New Material', 'Temporary Shift', 'Transmuter'], specializations: ['Primal Speaker (Command spell usage)', 'Natural Healer'] },
+  { name: 'Witch', classification: 'subclass of Conduit', primaryAbility: 'Wisdom', grantedStance: 'Defensive', defensivePower: 'Material Shield', powers: ['Advanced Material', 'Material Spray', 'Natural Remedy', 'New Material', 'Redistribute Complex Object', 'Swift Redistribution', 'Temporary Shift', 'Vast Manufacturing', 'Transmuter'], specializations: ['Forbidden Practices (undead companion creation)', 'Natural Healer'] },
 ];
+
+// The class taxonomy AS THE SITE PRESENTS IT (confirmed across all four groups, 2026-07-17): 4 parent
+// classes, each with subclasses. This differs from the app's flat 13-class `classNames` list — surfaced as
+// a finding for the owner, NOT unilaterally reconciled (restructuring touches the builder, provenance,
+// seeds, and validator).
+export const IG_CLASS_TAXONOMY_FINDING =
+  'On the site, classes are 4 PARENT classes each with subclasses — Archon → Beastmaster / Eldritch Binder ' +
+  '/ Packmaster / Summoner; Conduit → Druid / Shifter / Witch; Fighter → Champion / Freebooter / Marksman / ' +
+  'Sohei; Wizard → Arcanist / Magician / Shaman. This differs from the app’s flat 13-class list; pending an ' +
+  'owner decision to restructure.';
 
 // ── Subclasses + backgrounds (the documented ones; extensible). ─────────────────────────────────────
 // The five SUBCLASSES (chosen within a class) — distinct from the 13 classes above.

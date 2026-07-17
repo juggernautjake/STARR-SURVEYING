@@ -416,8 +416,8 @@ describe('Intuitive Games classes surface fully on the library (IG buildout A10)
 
   it('the classes section carries per-class detail (granted stance, defensive power, powers) + the taxonomy note', () => {
     const classes = libraryPageFor('intuitive-games')!.sections.find((s) => s.id === 'classes')!;
-    // Taxonomy finding surfaced for BOTH parent classes.
-    expect(classes.body!.some((b) => /Fighter →.*Wizard →/.test(b))).toBe(true);
+    // Taxonomy finding surfaced for ALL FOUR parent classes.
+    expect(classes.body!.some((b) => /Archon →.*Conduit →.*Fighter →.*Wizard →/.test(b))).toBe(true);
     const sohei = classes.body!.find((b) => b.startsWith('Sohei'));
     expect(sohei).toMatch(/Precise stance/);
     expect(sohei).toMatch(/Counterattack defensive power/);

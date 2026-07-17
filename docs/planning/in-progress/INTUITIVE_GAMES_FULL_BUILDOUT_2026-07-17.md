@@ -184,8 +184,12 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       across two groups:** the site groups classes as a PARENT class with subclasses (**Fighter** → Champion/
       Freebooter/Marksman/Sohei; **Wizard** → Arcanist/Magician/Shaman), so the app's flat 13-class
       `classNames` likely wants restructuring to ~4 parent classes + subclasses — **needs an owner decision**
-      before reconciling. `library.test.ts` +2. **Remaining:** the Summoning + Nature groups' details,
-      Magician/Shaman re-verify, full per-level ladders, and the taxonomy restructure (owner call).
+      before reconciling. **All four groups captured + taxonomy CONFIRMED** (`IG_CLASS_TAXONOMY_FINDING`):
+      Summoning (Archon class → Beastmaster/Eldritch Binder/Packmaster/Summoner) + Nature (Conduit class →
+      Druid/Shifter/Witch) added with each's stance/defensive-power/powers/specializations; the site's real
+      structure is **4 parent classes (Archon/Conduit/Fighter/Wizard) each with subclasses** (18 named things),
+      vs the app's flat 13. `library.test.ts` +2. **Remaining:** Champion + Magician/Shaman full detail
+      (absent on the fetched page), the full per-level ladders, and the taxonomy restructure (owner call).
 - [~] **A11 — Spell List / Powers** (`/spell-list`) — ✅ *Surfaced* (`library.ts`): the existing
       `IG_POWERS` (~38 powers by school, with effect text), `IG_DEFENSIVE_POWERS` (6 reactions), and the
       `IG_ACTIONS` 3-action-economy list now render as library sections (Powers & Spells / Defensive Powers /
