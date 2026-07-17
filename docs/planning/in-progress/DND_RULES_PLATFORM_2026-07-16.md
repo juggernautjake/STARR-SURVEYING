@@ -2538,6 +2538,14 @@ Tester` session is **STALE** (cookie present, but the DB user row was cleaned up
 `getDndUser()` returns null; correct behavior, and it's the real reason the character sheet can't be
 browser-verified locally (the earlier password gate is secondary). The authenticated character-build
 walkthrough needs a FRESH valid session + an owned character (i.e. the live-DB run).
+`/dnd/suggestions` renders its empty state cleanly (0 errors), matching the requested copy/delete review
+UI — the sort/status/copy/delete controls need real suggestions (data) to exercise.
+
+**Read-only browser sweep complete.** Every /dnd page reachable WITHOUT creating data is now runtime-
+verified error-free: hub, library (render + interactive search), suggestions review, join form, the
+create-character auth-gate, the campaign lobby (+ its picker fix), and the map/console/3D tools. What
+remains needs DATA (a suggestion, a character) or an authenticated owned character — i.e. the live-DB
+Slice-40 walkthrough, still held for the owner's go-ahead.
 The character-build walkthrough below (create account → build a vanilla character per system, level by
 level, fixing bugs/styling) is the substantive remainder and needs an interactive, DB-backed session
 (a throwaway test account + character on live Supabase) — held pending the owner's go-ahead to write +
