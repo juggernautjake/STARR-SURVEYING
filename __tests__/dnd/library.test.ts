@@ -285,6 +285,25 @@ describe('Intuitive Games feats carry full rules text (IG buildout A7 + A8)', ()
   });
 });
 
+describe('Intuitive Games library is complete (IG buildout A17 completeness guard)', () => {
+  it('surfaces every major section of intuitivegames.net (no silent regression)', () => {
+    const page = libraryPageFor('intuitive-games')!;
+    const ids = new Set(page.sections.map((s) => s.id));
+    // Every page of the site is represented as a library section.
+    const required = [
+      'core', 'abilities', 'advancement', 'classes', 'skills', 'species', 'backgrounds', 'stances',
+      'conditions', 'feats', 'powers', 'defensive-powers', 'actions', 'companions', 'weapons',
+      'weapon-properties', 'armor', 'shields', 'equipment', 'tools', 'magical-items',
+    ];
+    for (const id of required) expect(ids.has(id), `IG library is missing the "${id}" section`).toBe(true);
+    // Every section carries real content (no empty shells).
+    for (const s of page.sections) {
+      const filled = !!(s.body?.length || s.facts?.length || s.chips?.length || s.table?.rows.length);
+      expect(filled, `IG section "${s.title}" has content`).toBe(true);
+    }
+  });
+});
+
 describe('Intuitive Games gear surfaces on the library (IG buildout A13/A14)', () => {
   it('renders Weapons (with the WIP note), Weapon Properties, Armor (DR), and Shields sections', () => {
     const page = libraryPageFor('intuitive-games')!;

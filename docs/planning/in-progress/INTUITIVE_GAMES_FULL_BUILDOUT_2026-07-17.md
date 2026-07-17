@@ -192,10 +192,16 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       is defined (some checks need a tool; trained-with-a-tool grants proficiency on the relevant skill) but no
       roster exists → captured the rule + WIP note. Library gains Equipment/Tools/Magical Items sections.
       `library.test.ts` +2. This completes the item pages (A13/A14/A15).
-- [ ] **A16 — FAQs** (`/faqs`).
-- [ ] **A17 — Verification pass.** Cross-check the library against the live site section-by-section: every
-      term present, nothing invented, every gap marked WIP. The AI-legibility check: the library search +
-      digest can resolve any IG term.
+- [x] **A16 — FAQs** (`/faqs`) — ✅ RESOLVED (nothing to reproduce). A fetch of the FAQs page returned no
+      question/answer content — the page is empty / a work in progress. Per Ground Rule 2, no FAQ section was
+      fabricated; recorded here as "no FAQ content on the site yet." Revisit if the page later carries Q&A.
+- [~] **A17 — Verification pass.** ✅ *Completeness guard shipped* (`library.test.ts`): a test asserts the IG
+      library page surfaces **all 21 major sections** of intuitivegames.net (core/abilities/advancement/
+      classes/skills/ancestries/backgrounds/stances/conditions/feats/powers/defensive-powers/actions/
+      companions/weapons/weapon-properties/armor/shields/equipment/tools/magical-items) and that every
+      section carries real content — so no part of the buildout can silently regress. **Remaining:** a
+      final side-by-side human pass against the live site (best done with the sheet walkthrough) + the A11
+      spell-list verify + the A10 per-class ladders.
 
 ## Area B — Character builder + sheet: functional, editable, rules-aligned, with live mechanics + tooltips
 
