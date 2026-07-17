@@ -1176,9 +1176,21 @@ and spells all resolve through the ledger (flat grants) or a structured item sub
 
 Original action items (kept for the remaining work):
 
-- [ ] **Identity targets**: `name`, `image`/`token`, `species`, `className`, `subclass`, `gender`,
-      `profession`, `size`, `pronouns`. Operation `set_identity`. Overlaid by the ledger (see the rule
-      above), never written to the model.
+- [x] **Identity targets**: `name`, `image`/`token`, `species`, `class`, `subclass`, `gender`,
+      `pronouns`, `profession`, `alignment`, `size`, `creature_type`. ✅ SHIPPED — all registered
+      (`targets.ts` identityTargets) with the `set` operation, overlaid via `ledger.identity(target)`
+      (never written to `meta`), each with a real render home: name/species/class/subclass in the Hero
+      header (starred), image/token at display in `App.tsx` (gallery/framer keep base media), size as
+      carrying capacity + Combat, creature_type in CombatPanel, gender/pronouns/profession/alignment in
+      the Bio Details line. `identity-overlay.test.ts` + `identity-alignment.test.ts` + `identity-size.test.ts`.
+      **⚑ BIO DETAIL OVERLAYS NOW STARRED (2026-07-18).** The Details line rendered the ledger-overlaid
+      gender/pronouns/profession/alignment but — unlike name/species/class in the Hero — carried NO ★, so a
+      Helm of Opposite Alignment (`set alignment`) or a Girdle (`set gender`) flipped the shown value with
+      no way to see why. Wrapped each read-mode detail in `<EffectStar target={d.key}>`; the star lights on
+      `isModified(target)` (true whenever an identity effect contributes) and the popover attributes the
+      source. Edit mode still binds the input to the BASE `meta` value. `identity-overlay.test.ts` +2 (the
+      alignment-overlay isModified trigger + the Bio star wiring). Full dnd suite green (1836). The identity
+      target set is now complete AND uniformly explainable.
 - [~] **Size** is mechanical, not cosmetic. **Carrying capacity ✅ SHIPPED** (`05bbe5b6`):
       `sizeCapacityMultiplier` scales `carryingCapacity`/`encumbranceLevel` (Tiny ½ … Gargantuan ×8), so a
       Large character carries double; +1 test. **Now visible ✅ SHIPPED** (`5c28bbdf`): the Inventory tab

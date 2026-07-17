@@ -136,9 +136,23 @@ describe('gender / pronouns / profession identity fields (Slice 11)', () => {
     expect(c.meta.profession).toBe('Farmer'); // overlay, base kept
   });
 
-  it('the Bio renders a Details line for the three fields, overlay-aware', () => {
+  it('an alignment overlay (Helm of Opposite Alignment) lights isModified — the ★ data trigger', () => {
+    // The Bio detail rows now carry the ★; it lights on isModified(target). A classic identity item —
+    // a Helm of Opposite Alignment sets `alignment` — must therefore be explainable, not a silent flip.
+    const c = blankCharacter('Paladin');
+    c.meta = { ...c.meta, alignment: 'Lawful Good' };
+    c.inventory = [{ id: 'helm', name: 'Helm of Opposite Alignment', desc: '', qty: 1, tags: [], equipped: true, effects: [{ target: 'alignment', operation: 'set', value: 'Chaotic Evil' }] }] as Character['inventory'];
+    const led = buildLedger(c);
+    expect(led.identity('alignment')?.value).toBe('Chaotic Evil');
+    expect(led.isModified('alignment')).toBe(true);
+    expect(c.meta.alignment).toBe('Lawful Good'); // overlay, base kept
+  });
+
+  it('the Bio renders a Details line for the four fields, overlay-aware AND starred', () => {
     const bio = read('app/dnd/_sheet/components/Bio.tsx');
     expect(bio).toContain("ledger.identity(field)?.value ?? char.meta[field]");
-    for (const f of ['Gender', 'Pronouns', 'Profession']) expect(bio).toContain(f);
+    for (const f of ['Gender', 'Pronouns', 'Profession', 'Alignment']) expect(bio).toContain(f);
+    // the overlaid value is wrapped in a ★ keyed to the field, like name/species/class in the Hero
+    expect(bio).toContain('<EffectStar target={d.key} label={d.label}>{detail(d.key) || \'—\'}</EffectStar>');
   });
 });
