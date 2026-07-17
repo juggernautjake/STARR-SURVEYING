@@ -2524,11 +2524,12 @@ which **403s because `DND_REQUIRE_LOGIN=1` in this env** (so `isDndOpenAccess()`
 anyone" is disabled). That's the intended gate — you can't impersonate another player's character. It
 does mean the sheet (where the ledger/derived-value work lives) can't be browser-verified locally without
 either (a) open-access enabled, or (b) signing in as a character's actual owner. Noted so the eventual
-authenticated walkthrough starts from the right session state. **Minor UX finding:** the campaign
-character picker presents every character as clickable but a click on one you can't enter fails with a
-silent 403 (just a console error, no sheet, no message) — worth a "you can only open your own characters"
-message when open-access is off; config-dependent (works in the default open-access mode), so left as a
-flagged polish item, not fixed blind.
+authenticated walkthrough starts from the right session state. **UX finding — FIXED** (`cd25f0b6`): the campaign
+character picker presented every character as clickable but a click on one you can't enter (e.g. a
+password-protected account) failed with a **silent** 403 — a dead button. Now it reads the server's
+message and shows it in an alert ("This account is password-protected — sign in with your name and
+password."), verified end-to-end in the browser. So the actual gate turned out to be
+**account-password-protection**, not open-access-off. `campaign-lobby-error.test.ts` (2).
 The character-build walkthrough below (create account → build a vanilla character per system, level by
 level, fixing bugs/styling) is the substantive remainder and needs an interactive, DB-backed session
 (a throwaway test account + character on live Supabase) — held pending the owner's go-ahead to write +
