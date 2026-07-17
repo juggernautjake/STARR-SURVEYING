@@ -404,7 +404,14 @@ expanded requirements (2026-07-17):
       effect is now machine-readable per level (Advanced replaces Basic at Lv 5) — structured
       advantage/disadvantage/damageReduction/bonus/note fields faithful to the site, plus a legible one-line
       note — so the sheet can apply/annotate it and the AI reasons from structure, not prose. Enter/leave is
-      editable (B6). **Remaining:** folding the structured effect into the actual roll math on the sheet.
+      editable (B6). **Mechanics↔text drift guard shipped (2026-07-17):** `ig-modifiers.test.ts` tested the
+      derived mechanics in ISOLATION (hardcoded −2, "advantage on attacks"), with no link to the verbatim
+      `IG_CONDITIONS`/`IG_STANCE_DEFS` text — so a future revision of Brendan's text could leave the sheet
+      DISPLAYING new rules while APPLYING the old numbers. New `ig-mechanics-match-text.test.ts` (29)
+      cross-checks each condition's/stance's structural signal (the penalty number, the advantage/
+      disadvantage/DR keyword, per tier) against the text of the SAME entry — verified all 18 conditions +
+      10 stances currently agree, and fails if the two ever drift. **Remaining:** folding the structured
+      effect into the actual roll math on the sheet.
 - [x] **B6 — Editable IG sheet + AI edit route.** The bespoke `IGSheet` is read-only today; add an `ig-edit`
       route + write mode so stances/conditions/feats/traits are editable in place, and expose the same
       operations to the AI (edit + explain) — AI parity with the manual controls. **Edit engine + route
