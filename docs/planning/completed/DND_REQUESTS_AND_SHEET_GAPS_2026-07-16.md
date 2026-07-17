@@ -48,10 +48,13 @@ where `email` is a synthetic key (`name:jacob` / `quick:jacob`) that functions a
       Delete. Non-owners see it read-only.
 - [x] **A5 — Public status visibility + sorting/filtering. ✅ SHIPPED** (`b1e44f4c`). A colored status
       chip per request + All/Untouched/Pending/Complete filter tabs with live counts, for everyone.
-- [~] **A6 — Tests.** owner-gate covered (`suggestion-owner.test.ts`: default keys, case-insensitive
+- [x] **A6 — Tests.** owner-gate covered (`suggestion-owner.test.ts`: default keys, case-insensitive
       match, non-owner + anonymous rejected, env override). PATCH-status and filter behavior are
-      exercised through the gate + the applied schema; a fuller route-level test is deferred (the route
-      needs cookie/Supabase mocks) — the pure owner logic that gates it is fully tested.
+      exercised through the gate + the applied schema. **Route enforcement now guarded too** (`4bae67d1`):
+      source-anchored checks that DELETE + PATCH on the `[id]` route both 403 non-owners and that the base
+      list/submit route is NOT owner-gated (public read + open submit) — so a future edit can't silently
+      drop the gate and re-open the hole. Driving the routes live still needs cookie/Supabase mocks, but
+      the enforcement points are now pinned. +2 tests.
 
 ## Area B — Review all species / ancestry traits from the character sheet
 
