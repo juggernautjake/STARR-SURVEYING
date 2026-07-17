@@ -34,6 +34,15 @@ const SAVES: Record<string, string[]> = {
   Artificer: ['con', 'int'],
 };
 
+// The 2014 subclass-choice level per class — an EDITION-SENSITIVE quirk (2024 puts every subclass at L3;
+// 2014 varies: Cleric/Sorcerer/Warlock at 1, Druid/Wizard at 2, the rest at 3). The generic "a subclass
+// feature sits at def.subclassLevel" check verifies consistency but not the RAW value; a Cleric typo'd to 3
+// would offer its Domain 2 levels late and still pass. Pin the correct value per class.
+const SUBCLASS_LEVEL: Record<string, number> = {
+  Cleric: 1, Sorcerer: 1, Warlock: 1, Druid: 2, Wizard: 2,
+  Barbarian: 3, Bard: 3, Fighter: 3, Monk: 3, Paladin: 3, Ranger: 3, Rogue: 3, Artificer: 3,
+};
+
 describe('the 2014 class roster (authored class-by-class)', () => {
   it('registers all 12 PHB classes plus the Artificer, and the system reports it has class data', () => {
     for (const name of ALL_12) expect(CLASSES.map((c) => c.name)).toContain(name);
@@ -88,7 +97,9 @@ describe.each(CLASSES.map((c) => [c.name, c] as const))('%s (2014)', (_name, def
     expect(def.system).toBe(SYS);
     expect(def.hitDie, `${def.name} hit die`).toBe(HIT_DICE[def.name]); // the CORRECT die, not just a valid one
     expect([...def.savingThrows].sort(), `${def.name} save proficiencies`).toEqual(SAVES[def.name]); // the CORRECT pair
-    // A feature marks the subclass choice at the class's subclassLevel (3 for most; 1 for Sorcerer).
+    // The subclass level is the RAW-correct one for this class (edition-sensitive: 1/2/3 in 2014)...
+    expect(def.subclassLevel, `${def.name} subclass level`).toBe(SUBCLASS_LEVEL[def.name]);
+    // ...and a subclass-choice feature actually sits at that level (consistency).
     expect(def.features.some((f) => f.choice === 'subclass' && f.level === def.subclassLevel)).toBe(true);
   });
 });

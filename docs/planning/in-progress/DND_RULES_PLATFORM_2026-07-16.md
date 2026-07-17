@@ -495,6 +495,12 @@ One system per slice — depth-first, verified against sources. In priority orde
       pair order-independently (Barb STR/CON, Bard DEX/CHA, Cleric WIS/CHA, Druid INT/WIS, Fighter STR/CON,
       Monk STR/DEX, Paladin WIS/CHA, Ranger STR/DEX, Rogue DEX/INT, Sorc CON/CHA, Warlock WIS/CHA, Wizard
       INT/WIS, Artificer CON/INT) — all correct.
+      **2014 SUBCLASS levels pinned (2026-07-17, edition-sensitive):** 2024 puts every subclass at L3 (already
+      pinned), but 2014 varies — Cleric/Sorcerer/Warlock choose at L1, Druid/Wizard at L2, the rest at L3. The
+      test only checked a subclass feature SITS at `subclassLevel` (consistency), not that the level is
+      RAW-correct — a Cleric typo'd to 3 would offer its Domain 2 levels late and still pass. Pinned every
+      2014 class's subclass level to RAW (all 13 correct). This is the same edition-sensitive category as the
+      exhaustion gap, so worth nailing down.
       **2026-07-16 — ALL 12 PHB CLASSES SHIPPED ✅** (`lib/dnd/classes/dnd5e-2014/`): Barbarian, Bard,
       Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock, Wizard — each L1–20 with
       every PHB subclass, all edition-differences vs 2024 locked by `dnd5e-2014-classes.test.ts` (71
