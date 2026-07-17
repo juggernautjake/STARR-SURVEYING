@@ -125,6 +125,9 @@ export const BACKGROUNDS_2024: Background[] = [
   },
 ];
 
+/** Resolve a 2024 background by key. Scoped to dnd5e-2024 BY CONSTRUCTION; callers gate on the
+ *  sheet's system. When another system gains backgrounds, add a system-keyed dispatcher (like the
+ *  class registry) rather than widening this — Ground Rule 1, guarded by `system-integrity.test.ts`. */
 export function findBackground(key: string): Background | undefined {
   return BACKGROUNDS_2024.find((b) => b.key === key);
 }

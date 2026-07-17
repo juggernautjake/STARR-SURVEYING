@@ -420,6 +420,24 @@ For the level-less systems the model must NOT invent a level table — extend th
 "advancement by spend" (Karma/IP/skill checks) instead. `registry.ts` already reports
 `classKnown: false` honestly for these; that is the behaviour to replace, not to paper over.
 
+## Ground Rule 1 enforcement — cross-system content integrity ✅ SHIPPED 2026-07-16
+
+Per the user's directive that no character is ever given the wrong system's version of a shared name
+(a "berserker" subclass, a "Frightened" condition, a shared class key), the content architecture is
+now audited and guarded:
+
+- **Every content type is system-tagged**: classes, subclasses, feats, backgrounds, species all carry
+  a `system` field; the glossary is keyed by system.
+- **Every multi-system lookup is system-scoped**: `findClass`/`subclassesFor`/`findSubclass` (the
+  subclass ones fixed this session — they were leaking across editions once 2014 shipped) and
+  `findTerm` all take a system and never return another system's content.
+- **Single-system lookups** (`findFeat`/`findBackground`/`findSpecies`) are 2024-scoped by construction
+  (2024-only modules, call sites gate on the sheet's system); each is commented that a system-keyed
+  dispatcher must be added when another system gains that content.
+- **`system-integrity.test.ts` (8) is the guardrail**: it fails the build if any content is mistagged
+  or any shared name resolves to the wrong system — including the exact 2014-vs-2024 Barbarian/berserker
+  and 5e-vs-PF Frightened cases.
+
 ## Slice 7 — Everything connected
 
 - [ ] Choosing a system on a character drives: available classes, skills list, conditions,

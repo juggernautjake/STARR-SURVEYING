@@ -133,6 +133,11 @@ export const SPECIES_2024: Species[] = [
   },
 ];
 
+/** Resolve a 2024 species by key. Scoped to dnd5e-2024 BY CONSTRUCTION (this module only holds 2024
+ *  species); callers gate on the sheet's system so a non-2024 sheet never receives one. When another
+ *  system gains species, add a system-keyed dispatcher (see the class registry) rather than widening
+ *  this — a bare `human`/`elf` key must resolve to the caller's system, never leak across (Ground
+ *  Rule 1; `system-integrity.test.ts` guards the invariant). */
 export function findSpecies(key: string): Species | undefined {
   return SPECIES_2024.find((s) => s.key === key);
 }

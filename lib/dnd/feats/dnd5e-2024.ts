@@ -332,6 +332,10 @@ export function featsByCategory(category: FeatCategory): Feat[] {
   return FEATS_2024.filter((f) => f.category === category);
 }
 
+/** Resolve a 2024 feat by key. Scoped to dnd5e-2024 BY CONSTRUCTION; the eligibility engine and the
+ *  sheet only call it for 2024 content. When another system gains feats, add a system-keyed
+ *  dispatcher (like the class registry) rather than widening this — Ground Rule 1, guarded by
+ *  `system-integrity.test.ts`. */
 export function findFeat(key: string): Feat | undefined {
   return FEATS_2024.find((f) => f.key === key);
 }
