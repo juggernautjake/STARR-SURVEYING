@@ -109,6 +109,7 @@ export default function FieldCrewWorkspace({ userEmail: _ }: FieldCrewWorkspaceP
         {activeTab === 'job' ? <JobSummary job={activeJob} loading={loadingJobs} />
           : activeTab === 'calc' ? <FieldCalculator />
           : activeTab === 'notes' ? <FieldNotes jobId={jobId} />
+          : activeTab === 'files' ? <JobFiles jobId={jobId} />
           : <TabContent tab={activeTab} jobId={jobId} />}
       </section>
     </div>
@@ -244,6 +245,60 @@ function FieldNotes({ jobId }: { jobId: string | null }) {
         style={{ width: '100%', resize: 'vertical', padding: 10, borderRadius: 6, border: '1px solid var(--theme-border)', background: 'var(--theme-bg-elevated)', color: 'var(--theme-fg-primary)', fontSize: '0.95rem' }}
       />
       <div style={{ fontSize: '0.78rem', color: 'var(--theme-fg-secondary)' }}>{savedAt ? `Saved on this device · ${savedAt}` : 'Saved automatically on this device.'}</div>
+    </div>
+  );
+}
+
+interface JobFile { id: string; file_name?: string | null; file_url?: string | null; file_type?: string | null; section?: string | null; description?: string | null }
+
+/** One-tap access to the active job's documents, research, and files (A3). Fetches the job's files
+ *  and groups them by section so a field worker can open any doc without leaving the hub. */
+function JobFiles({ jobId }: { jobId: string | null }) {
+  const [files, setFiles] = useState<JobFile[]>([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!jobId) { setFiles([]); return; }
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/admin/jobs/files?job_id=${encodeURIComponent(jobId)}`)
+      .then((r) => (r.ok ? r.json() : { files: [] }))
+      .then((j) => { if (!cancelled) setFiles((j.files ?? []) as JobFile[]); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [jobId]);
+
+  const card: React.CSSProperties = { padding: 'var(--hub-spc-4, 16px)', borderRadius: 8, background: 'var(--theme-bg-surface)', border: '1px solid var(--theme-border)' };
+  if (!jobId) return <div style={card}><p style={{ margin: 0, color: 'var(--theme-fg-secondary)', fontSize: '0.9rem' }}>Select a job to see its documents, research, and files.</p></div>;
+  if (loading) return <div style={card}><p style={{ margin: 0, color: 'var(--theme-fg-secondary)', fontSize: '0.9rem' }}>Loading files…</p></div>;
+  if (!files.length) return <div style={card}><p style={{ margin: 0, color: 'var(--theme-fg-secondary)', fontSize: '0.9rem' }}>No files on this job yet.</p></div>;
+
+  // Group by section, preserving first-seen order.
+  const bySection = new Map<string, JobFile[]>();
+  for (const f of files) {
+    const sec = (f.section || 'general').replace(/\b\w/g, (c) => c.toUpperCase());
+    if (!bySection.has(sec)) bySection.set(sec, []);
+    bySection.get(sec)!.push(f);
+  }
+
+  return (
+    <div style={{ ...card, display: 'grid', gap: 14 }}>
+      {[...bySection.entries()].map(([section, list]) => (
+        <div key={section} style={{ display: 'grid', gap: 6 }}>
+          <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--theme-fg-secondary)' }}>{section} ({list.length})</div>
+          {list.map((f) => (
+            <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, borderTop: '1px solid var(--theme-border)', paddingTop: 6 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '0.92rem', wordBreak: 'break-word' }}>{f.file_name || 'Untitled'}</div>
+                {f.description && <div style={{ fontSize: '0.78rem', color: 'var(--theme-fg-secondary)' }}>{f.description}</div>}
+              </div>
+              {f.file_url
+                ? <a href={f.file_url} target="_blank" rel="noopener noreferrer" className="btn tiny" style={{ textDecoration: 'none', whiteSpace: 'nowrap' }}>Open</a>
+                : <span style={{ fontSize: '0.78rem', color: 'var(--theme-fg-secondary)' }}>no link</span>}
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

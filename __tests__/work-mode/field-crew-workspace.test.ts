@@ -35,4 +35,10 @@ describe('FieldCrewWorkspace is job-driven (B1/B2)', () => {
     expect(SRC).toContain('FieldNotes');
     expect(SRC).toContain('starr:field-notes:'); // notes persist per job
   });
+
+  it('A3 — the Files tab lists the active job’s documents, grouped by section', () => {
+    expect(SRC).toContain('JobFiles');
+    expect(SRC).toContain('/api/admin/jobs/files?job_id=');
+    expect(SRC).toContain('bySection');
+  });
 });
