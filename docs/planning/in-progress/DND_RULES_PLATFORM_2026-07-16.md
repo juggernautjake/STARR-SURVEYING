@@ -388,9 +388,14 @@ The engine (`lib/dnd/classes/custom.ts`) is built and tested; there is no UI.
       a valid `CustomClassDraft`) that flows through the existing `buildCustomClass` + `reviewCustomClass`,
       so the AI proposes and the engine adjudicates/flags balance. 5 tests incl. the full round-trip.
       **Remaining for this item's UI:** the `/build/class` page wiring a prompt box to this.
-- [ ] Persist to the character/campaign; flag as custom content so the **existing** provenance +
-      DM approval (seed 443, `lib/dnd/provenance.ts`, `submission.ts`) picks it up.
-- [ ] A custom class must appear in the level builder exactly like an official one.
+- [x] **Persist to the character; flag as custom. ✅ SHIPPED** (`7fa1a665`). `homebrew-store.ts` (pure:
+      upsert-by-key/remove/system-filter/read) + `Character.homebrewClasses` + a save endpoint that
+      rebuilds+re-reviews server-side, rejects errors, upserts + persists (stamps author, flagged custom),
+      and a Save button on `/build/class` (disabled while errors exist). 4+ tests.
+- [~] A custom class must appear in the level builder exactly like an official one. **The storage +
+      registry `extra` mechanism exists** (`homebrewClassesForSystem` → `findClass(system, key, extra)`);
+      **remaining:** the LevelBuilder passing `readHomebrewClasses(char.data)` as `extra` when resolving
+      the class (a small read-integration, best verified in the running app).
 
 ## Slice 6 — Full class data for the remaining systems
 
