@@ -143,6 +143,27 @@ export function weaponSegments(
   ]
 }
 
+/** Parse a `weapon_bonus_dice` effect value into a typed damage segment. The value is a dice
+ *  expression with an OPTIONAL trailing damage type: "1d6" → untyped, "1d6 fire" → fire, "2d4 + 1 cold"
+ *  → cold. The dice portion is everything up to the last word when that word isn't dice-ish; a bare
+ *  "1d6" stays untyped. Returns null for a blank/no-dice value so a malformed effect is skipped, not
+ *  rolled as zero. Pure so the store and its test share exactly one parser. */
+export function parseBonusDamageSegment(value: string): TypedSegmentInput | null {
+  const raw = (value ?? '').trim()
+  if (!raw) return null
+  // A trailing type word is a token that contains no digit and no 'd'-die marker (so "fire", "cold",
+  // "radiant" split off, but "1d6" / "d8" / "3" stay part of the dice).
+  const m = raw.match(/^(.*?)[\s]+([a-zA-Z]+)$/)
+  let dice = raw
+  let type = 'untyped'
+  if (m && !/\d/.test(m[2]) && !/^d\d/i.test(m[2])) {
+    dice = m[1].trim()
+    type = m[2].toLowerCase()
+  }
+  if (!dice || !/\d*d\d+/i.test(dice)) return null
+  return { dice, type }
+}
+
 export type Advantage = 'flat' | 'adv' | 'dis'
 
 export interface D20Roll {

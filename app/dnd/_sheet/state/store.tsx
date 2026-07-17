@@ -12,7 +12,7 @@ import { normalizeCharacter, blankCharacter } from '../data/blank'
 import { profBonusForLevel, abilityMod, maxHpForLevel, speedForLevel, MAX_BUILT_LEVEL } from '../rules/dnd'
 import { buildLedger, type EffectLedger } from '@/lib/dnd/effects/ledger'
 import { routeFormDamage, isFormHpLive } from '@/lib/dnd/effects/form-hp'
-import { rollD20, rollDamage, parseDice, rollDie, rollTyped, weaponSegments, type Advantage } from '../lib/dice'
+import { rollD20, rollDamage, parseDice, rollDie, rollTyped, weaponSegments, parseBonusDamageSegment, type Advantage } from '../lib/dice'
 
 // Per-character localStorage slot. A single shared key meant every standalone sheet
 // read and wrote the SAME cached character (originally Lazzuh's); keying by id keeps
@@ -611,11 +611,20 @@ export function CharacterProvider({
       const mod = abilityMod(char.abilities[abilityKey])
       const formBonus = item.tags?.includes('weapon') && char.combat.transformActive ? char.combat.formDamageBonus : 0
       const flat = mod + formBonus
-      const segments = weaponSegments(w.damage, w.bonus, flat)
+      // Ledger-granted bonus damage DICE (Enlarge's +1d4, a flametongue's +1d6 fire) ride on top of the
+      // weapon's own dice — a real rules mechanic that `damage_roll` (a flat number) can't express. Each
+      // non-suppressed `weapon_bonus_dice` contribution parses to a typed segment and joins the roll.
+      const bonusDice = ledger
+        .explain('weapon_bonus_dice')
+        .filter((c) => !c.suppressed && typeof c.effect.value === 'string')
+        .map((c) => parseBonusDamageSegment(String(c.effect.value)))
+        .filter((s): s is NonNullable<typeof s> => s != null)
+      const segments = [...weaponSegments(w.damage, w.bonus, flat), ...bonusDice]
       const typed = rollTyped(segments, opts.crit)
       const tags: string[] = []
       if (opts.crit) tags.push('CRIT ×2 DICE')
       if (formBonus) tags.push('TRANSFORMED')
+      if (bonusDice.length) tags.push('BONUS DICE')
       // spin range roughly covers plausible totals across all segments
       const maxV = segments.reduce((s, seg) => {
         const p = parseDice(seg.dice)
@@ -626,7 +635,7 @@ export function CharacterProvider({
         { landing: typed.total, min: Math.max(1, flat + 1), max: Math.max(2, maxV), isD20: false },
       )
     },
-    [char.abilities, char.combat.transformActive, char.combat.formDamageBonus, stage],
+    [char.abilities, char.combat.transformActive, char.combat.formDamageBonus, ledger, stage],
   )
 
   const rollExpr = useCallback(

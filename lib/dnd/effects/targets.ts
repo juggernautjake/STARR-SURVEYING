@@ -110,6 +110,10 @@ const rollTargets: TargetDef[] = [
   { key: 'attack_roll', label: 'Attack rolls', group: 'roll', valueType: 'number', ops: ROLL, help: 'Modify or grant advantage on attack rolls.', rendersAt: 'Combat tab · Attacks', allowsNegative: true },
   { key: 'damage_roll', label: 'Damage rolls', group: 'roll', valueType: 'number', ops: ['add'], help: 'Modify damage dealt.', rendersAt: 'Combat tab · Attacks', allowsNegative: true },
   { key: 'attack_and_damage', label: 'Attack AND damage', group: 'roll', valueType: 'number', ops: ['add'], help: 'The classic magic-weapon bonus: +N to hit and to damage.', rendersAt: 'Combat tab · Attacks', allowsNegative: true },
+  // Bonus DICE, not a flat number: Enlarge's +1d4, a flametongue's +1d6 fire, a brand's +2d6 radiant.
+  // A great many effects add dice rather than a modifier, and `damage_roll` (a number) cannot express
+  // them. The value is a dice expression with an optional damage type — "1d6" or "1d6 fire".
+  { key: 'weapon_bonus_dice', label: 'Weapon bonus damage dice', group: 'roll', valueType: 'dice', ops: ['add'], help: 'Add bonus damage DICE to every weapon attack (e.g. Enlarge\'s +1d4, a flametongue\'s +1d6 fire). Value is a dice expression, optionally with a damage type: "1d6" or "1d6 fire".', rendersAt: 'Combat tab · Attacks (rolled into weapon damage)' },
   { key: 'all_saves', label: 'All saving throws', group: 'roll', valueType: 'number', ops: ROLL, help: 'Modify or grant advantage on every save.', rendersAt: 'Abilities tab · Saves', allowsNegative: true },
   ...ABILITIES.map((a) => ({
     key: `${a.key}_saves`,
@@ -311,7 +315,9 @@ export function describeEffect(e: { target: string; operation: string; value?: n
   const signed = n >= 0 ? `+${n}` : `${n}`;
   switch (e.operation) {
     case 'add':
-      return `${signed} ${label}${cond}`;
+      // A dice-valued add (heal 2d4, +1d6 fire weapon dice) carries a string, not a number — render
+      // the expression itself, not the "+0" a numeric read would produce.
+      return `${typeof e.value === 'string' ? `+${e.value}` : signed} ${label}${cond}`;
     case 'set':
     case 'set_base':
       return t?.valueType === 'number' ? `${label} set to ${e.value}${cond}` : `${label}: ${e.value}${cond}`;
