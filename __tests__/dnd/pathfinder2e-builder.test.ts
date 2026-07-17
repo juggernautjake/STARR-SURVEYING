@@ -17,6 +17,36 @@ describe('pf2 content library', () => {
     expect(PF2_SKILLS).toHaveLength(16);
   });
 
+  it('every armor has its Player Core AC bonus / Dex cap / speed penalty (the AC-critical values)', () => {
+    // AC = 10 + min(Dex, dexCap) + proficiency + acBonus, so a wrong acBonus or dexCap mis-computes AC for
+    // every wearer. Only Full Plate's str/speed was spot-checked. Pin the AC-critical trio for all 12 (the
+    // `strength` requirement — a secondary speed-penalty mechanic — is left; not independently re-verified).
+    const GOLDEN: Record<string, { acBonus: number; dexCap: number | null; speedPenalty: number }> = {
+      Unarmored: { acBonus: 0, dexCap: null, speedPenalty: 0 },
+      'Padded Armor': { acBonus: 1, dexCap: 3, speedPenalty: 0 },
+      Leather: { acBonus: 1, dexCap: 4, speedPenalty: 0 },
+      'Studded Leather': { acBonus: 2, dexCap: 3, speedPenalty: 0 },
+      'Chain Shirt': { acBonus: 2, dexCap: 3, speedPenalty: 0 },
+      Hide: { acBonus: 3, dexCap: 2, speedPenalty: -5 },
+      'Scale Mail': { acBonus: 3, dexCap: 2, speedPenalty: -5 },
+      'Chain Mail': { acBonus: 4, dexCap: 1, speedPenalty: -5 },
+      Breastplate: { acBonus: 4, dexCap: 1, speedPenalty: -5 },
+      'Splint Mail': { acBonus: 5, dexCap: 1, speedPenalty: -10 },
+      'Half Plate': { acBonus: 5, dexCap: 1, speedPenalty: -10 },
+      'Full Plate': { acBonus: 6, dexCap: 0, speedPenalty: -10 },
+    };
+    for (const armor of PF2_ARMORS) {
+      const g = GOLDEN[armor.name];
+      expect(g, `no golden entry for armor "${armor.name}"`).toBeDefined();
+      expect(armor.acBonus, `${armor.name} AC bonus`).toBe(g.acBonus);
+      expect(armor.dexCap, `${armor.name} Dex cap`).toBe(g.dexCap);
+      expect(armor.speedPenalty, `${armor.name} speed penalty`).toBe(g.speedPenalty);
+      // Cross-check the category invariant: light 0, medium −5, heavy −10.
+      const byCat: Record<string, number> = { unarmored: 0, light: 0, medium: -5, heavy: -10 };
+      expect(armor.speedPenalty, `${armor.name} (${armor.category}) speed penalty by category`).toBe(byCat[armor.category]);
+    }
+  });
+
   it('every class has its Player Core key attribute + HP/level (drives class DC + max HP)', () => {
     // Only Fighter/Wizard HP was exercised (via the HP-formula tests). A wrong key attribute (Barbarian
     // CHA?) mis-computes the class DC and spell attribute; a wrong HP/level mis-sizes every level. Pin all 14.

@@ -612,6 +612,12 @@ One system per slice — depth-first, verified against sources. In priority orde
       exercised (via the HP formula). A wrong key attribute mis-computes the class DC + spell attribute; a
       wrong HP/level mis-sizes every level. Verified all 14 vs Player Core and pinned each (Barbarian STR/12,
       martials STR-or-DEX/10, casters INT-or-CHA/6, the 8-HP mid tier) — all correct. `pathfinder2e-builder.test.ts` +1.
+      **12 PF2 armors' AC-critical values pinned (2026-07-17):** `acBonus` + `dexCap` + `speedPenalty` drive
+      `pf2ArmorClass` (AC = 10 + min(Dex, dexCap) + prof + acBonus), and only Full Plate's str/speed was
+      spot-checked. Verified all 12 against Player Core's standard progression (light acBonus 1–2 / dexCap
+      3–4 / speed 0; medium 3–4 / 1–2 / −5; heavy 5–6 / 0–1 / −10) and pinned each + a category→speed-penalty
+      cross-check — all correct. (Left the `strength` requirement unpinned — not independently re-verified,
+      and pinning unverified data isn't verification.) `pathfinder2e-builder.test.ts` +1.
 - [~] **6c–6h — the other six systems → MOVED to `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`**
       (2026-07-16, per the user's scope call). The platform is focused on **four** systems first — D&D
       5e 2024, D&D 5e 2014, Intuitive Games, Pathfinder 2e. PF1e, Starfinder 1e, Cyberpunk RED, Shadowrun
