@@ -22,7 +22,7 @@ describe('igCatalog (Slice 7)', () => {
   it('carries effect text for stances and counts the whole library', () => {
     const stances = groups.find((g) => g.title === 'Stances')!;
     expect(stances.entries).toHaveLength(10);
-    expect(stances.entries.find((e) => e.name === 'Offensive')?.effect).toMatch(/advantage on attacks/i);
+    expect(stances.entries.find((e) => e.name === 'Offensive')?.effect).toMatch(/advantage on all attack rolls/i);
     expect(igCatalogCount()).toBe(groups.reduce((n, g) => n + g.entries.length, 0));
     expect(igCatalogCount()).toBeGreaterThan(80);
   });

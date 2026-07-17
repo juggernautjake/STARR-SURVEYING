@@ -101,7 +101,14 @@ term fully defined. One slice per site section; each fetches the page, transcrib
 - [ ] **A6 — Backgrounds** (`/backgrounds`).
 - [ ] **A7 — General Feats** (`/feats-general`) — every feat, full text + prerequisites + effect.
 - [ ] **A8 — Combat Feats** (`/feats-combat`) — every feat, full text + prerequisites + effect.
-- [ ] **A9 — Stances** (`/stances`) — every stance, full text + how it works (new concept; feeds Area B).
+- [x] **A9 — Stances** (`/stances`) — ✅ SHIPPED (`content.ts` `IG_STANCE_DEFS` + `IG_STANCE_RULES`).
+      Gave the 10 stances a structured **Basic (below Lv 5) / Advanced (Lv 5+)** representation transcribed
+      verbatim from the site (replacing the old paraphrased "A:/B:" summaries; `IG_STANCES` is now derived
+      from the defs so the classifier/grounding keep working). The library page renders a **Stances section**
+      (general rules lead + a Stance/Basic/Advanced table) — previously stances weren't on the rules page at
+      all — and each stance is searchable by name ("defensive stance") with both tiers. System-scoped (no
+      leak to systems without the mechanic). The structured defs also set up the Area-B stance editor (B5).
+      `ig-content.test.ts` +1, `library.test.ts` +3; fixed 2 tests that asserted the old wording.
 - [ ] **A10 — Classes** (`/classes`) — all 13+ classes across the 4 groups, each with its features/progression.
 - [ ] **A11 — Spell List** (`/spell-list`).
 - [ ] **A12 — Companion Creatures** (`/companion-creatures`).

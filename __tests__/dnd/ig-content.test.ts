@@ -2,8 +2,8 @@
 // covers the system's content (IG builder Slice 1). It is the recognition key for provenance flagging.
 import { describe, it, expect } from 'vitest';
 import {
-  IG_STANCES, IG_FEATS, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES, IG_MOVEMENT_TYPES, IG_CONDITIONS,
-  igIsVanilla, igVanillaNames, igContentSummary,
+  IG_STANCES, IG_STANCE_DEFS, IG_STANCE_RULES, IG_FEATS, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES,
+  IG_MOVEMENT_TYPES, IG_CONDITIONS, igIsVanilla, igVanillaNames, igContentSummary,
 } from '@/lib/dnd/systems/intuitive-games/content';
 import { systemRulesBlock, systemConditions } from '@/lib/dnd/system-rules';
 
@@ -12,6 +12,25 @@ describe('Intuitive Games vanilla content library (Slice 1)', () => {
     expect(IG_STANCES).toHaveLength(10);
     for (const s of IG_STANCES) { expect(s.name).toBeTruthy(); expect(s.effect).toBeTruthy(); }
     expect(IG_STANCES.map((s) => s.name)).toEqual(expect.arrayContaining(['Offensive', 'Defensive', 'Precise', 'Menacing']));
+  });
+
+  it('has structured Basic/Advanced stance defs (verbatim from the site) that back the NamedEntry list', () => {
+    expect(IG_STANCE_DEFS).toHaveLength(10);
+    for (const s of IG_STANCE_DEFS) {
+      expect(s.name).toBeTruthy();
+      expect(s.basic.length).toBeGreaterThan(5);
+      expect(s.advanced.length).toBeGreaterThan(5);
+    }
+    // IG_STANCES must be derived from the defs (names line up, effect carries both tiers).
+    expect(IG_STANCES.map((s) => s.name)).toEqual(IG_STANCE_DEFS.map((s) => s.name));
+    const offensive = IG_STANCE_DEFS.find((s) => s.name === 'Offensive')!;
+    expect(offensive.basic).toMatch(/advantage on all attack rolls/i);
+    expect(offensive.advanced).toMatch(/half your level/i);
+    const defensive = IG_STANCE_DEFS.find((s) => s.name === 'Defensive')!;
+    expect(defensive.advanced).toMatch(/Damage Reduction/i);
+    // The general rules are captured (one at a time, action to enter, Basic below L5 / Advanced at L5+).
+    expect(IG_STANCE_RULES).toMatch(/Only one stance can be active/i);
+    expect(IG_STANCE_RULES).toMatch(/below Level 5/i);
   });
 
   it('has the powers grouped by school and the defensive powers', () => {

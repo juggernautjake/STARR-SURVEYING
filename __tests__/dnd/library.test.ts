@@ -247,6 +247,31 @@ describe('full 2024 feats project into library search (Slice 8b)', () => {
   });
 });
 
+describe('Intuitive Games stances surface on the library page (IG buildout A9)', () => {
+  it('renders a Stances section with the general rules + a Basic/Advanced table for all 10', () => {
+    const page = libraryPageFor('intuitive-games')!;
+    const stances = page.sections.find((s) => s.id === 'stances')!;
+    expect(stances).toBeTruthy();
+    expect(stances.lead).toMatch(/Only one stance can be active/i);
+    expect(stances.table!.headers).toEqual(['Stance', 'Basic (below Lv 5)', 'Advanced (Lv 5+)']);
+    expect(stances.table!.rows).toHaveLength(10);
+    const defensive = stances.table!.rows.find((r) => r[0] === 'Defensive');
+    expect(defensive?.[2]).toMatch(/Damage Reduction/i);
+  });
+
+  it('a stance is searchable by name with both tiers of text', () => {
+    const hit = searchLibrary('defensive stance', 'intuitive-games').find((h) => h.kind === 'stance');
+    expect(hit?.name).toBe('Defensive Stance');
+    expect(hit!.body).toMatch(/advantage on all Reflex saves/i);
+    expect(hit!.body).toMatch(/Damage Reduction/i);
+  });
+
+  it('stances do not leak into a system without the mechanic', () => {
+    expect(libraryPageFor('dnd5e-2024')!.sections.some((s) => s.id === 'stances')).toBe(false);
+    expect(searchLibrary('offensive stance', 'dnd5e-2024').some((h) => h.kind === 'stance')).toBe(false);
+  });
+});
+
 describe('Intuitive Games conditions carry full rules text (IG buildout A4)', () => {
   it('renders the conditions section as a full-text table, not name chips', () => {
     const page = libraryPageFor('intuitive-games')!;

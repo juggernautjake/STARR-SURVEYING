@@ -17,19 +17,40 @@ export interface NamedEntry {
   effect?: string;
 }
 
-// ── Stances (10) — each has an A and B benefit; you adopt one at a time. ────────────────────────────
-export const IG_STANCES: NamedEntry[] = [
-  { name: 'Offensive', effect: 'A: advantage on attacks, disadvantage on Reflex saves. B: +½ level to damage rolls.' },
-  { name: 'Defensive', effect: 'A: disadvantage on attacks, advantage on Reflex saves. B: Damage Reduction equal to ½ level.' },
-  { name: 'Neutral', effect: 'A: enemies gain no stance attack/flanking bonuses against you. B: you ignore enemies’ stance bonuses.' },
-  { name: 'Mobile', effect: 'A: moving into a threatened area no longer provokes reactions. B: you no longer provoke reactions from enemies.' },
-  { name: 'Shifting', effect: 'A: you can’t be flanked. B: a missed attack against you provokes a reaction.' },
-  { name: 'Welcoming', effect: 'A: an ally can share your square. B: an ally sharing your square gains +½ level to Reflex saves.' },
-  { name: 'Swarming', effect: 'A: advantage on attacks when flanking. B: +½ level to attack rolls when flanking.' },
-  { name: 'Precise', effect: 'A: Sneak Attack (+1d6) vs a flanked or Unconscious/Entangled/Paralyzed/Blinded target. B: Sneak Attack increases to 2d6.' },
-  { name: 'Supportive', effect: 'A: you count as flanking when a threatening ally also threatens the enemy. B: flanking allies gain +½ level to attacks.' },
-  { name: 'Menacing', effect: 'A: advantage on trained combat skills. B: advantage on all combat skills.' },
+// ── Stances (10) — each has a Basic (below level 5) and an Advanced (level 5+) benefit; you adopt one at
+//    a time. General rules + per-stance text transcribed verbatim from intuitivegames.net/stances
+//    (2026-07-17). IG_STANCE_DEFS is the structured source of truth (used by the library table + the
+//    stance editor); IG_STANCES is the derived NamedEntry list the classifier + grounding consume.
+export const IG_STANCE_RULES =
+  'Stances are activated using an action and last for one minute. Only one stance can be active at any ' +
+  'time, and can be ended with a free action on a creature’s turn. Characters below Level 5 gain the ' +
+  'Basic benefit; at Level 5+ they gain the Advanced benefit instead.';
+
+export interface IGStance {
+  name: string;
+  /** Benefit for a character below level 5. */
+  basic: string;
+  /** Added/replacing benefit at level 5+. */
+  advanced: string;
+}
+
+export const IG_STANCE_DEFS: IGStance[] = [
+  { name: 'Offensive', basic: 'You gain advantage on all attack rolls, but disadvantage on all Reflex saves.', advanced: 'You gain a bonus on all damage rolls equal to half your level.' },
+  { name: 'Defensive', basic: 'You gain disadvantage on all attack rolls, and advantage on all Reflex saves.', advanced: 'You gain Damage Reduction equal to half your level.' },
+  { name: 'Neutral', basic: 'You ignore all of your opponents’ stance bonuses that enhance attack rolls, including flanking effects.', advanced: 'You ignore all of your opponents’ stance bonuses.' },
+  { name: 'Mobile', basic: 'The character no longer provokes reactions from moving through a threatened area.', advanced: 'You no longer provoke reactions.' },
+  { name: 'Shifting', basic: 'You can’t be flanked.', advanced: 'If an attack misses you, it provokes a reaction.' },
+  { name: 'Welcoming', basic: 'Allies can share your square.', advanced: 'One ally gains a bonus on Reflex saves equal to half your level when sharing your square.' },
+  { name: 'Swarming', basic: 'You gain advantage on attack rolls when flanking.', advanced: 'You gain a bonus on attack rolls equal to half your level when flanking.' },
+  { name: 'Precise', basic: 'You deal an extra 1d6 sneak attack damage when flanking or when the target is Unconscious, Entangled, Paralyzed, or Blinded.', advanced: 'Your sneak attack damage increases to 2d6.' },
+  { name: 'Supportive', basic: 'You count as flanking when you threaten an enemy that an ally also threatens.', advanced: 'You grant flanking allies an attack bonus equal to half your level.' },
+  { name: 'Menacing', basic: 'You gain advantage on trained combat skills.', advanced: 'You gain advantage on all combat skills.' },
 ];
+
+export const IG_STANCES: NamedEntry[] = IG_STANCE_DEFS.map((s) => ({
+  name: s.name,
+  effect: `Basic (below Lv 5): ${s.basic} Advanced (Lv 5+): ${s.advanced}`,
+}));
 
 // ── Conditions (18) — the standardized states, with the FULL mechanical text transcribed verbatim from
 //    intuitivegames.net/conditions (2026-07-17). The names mirror `systemConditions('intuitive-games')`

@@ -11,7 +11,7 @@ import { glossaryFor, searchGlossary } from './glossary';
 import { classesForSystem } from './classes/registry';
 import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
-import { IG_CONDITIONS, type NamedEntry } from './systems/intuitive-games/content';
+import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, type NamedEntry, type IGStance } from './systems/intuitive-games/content';
 
 /** The full feat registry for a system, or [] when only a catalog sample exists. System-keyed
  *  dispatcher (the pattern `findFeat`'s comment calls for) so a feat never leaks across systems. */
@@ -24,6 +24,12 @@ function featsForSystem(system: string): Feat[] {
  *  from intuitivegames.net; the rest still render as name chips until authored. */
 function conditionsWithTextFor(system: string): NamedEntry[] {
   return system === 'intuitive-games' ? IG_CONDITIONS : [];
+}
+
+/** Stances a system exposes (a tactical posture, one active at a time). System-keyed — Intuitive Games
+ *  is the only system with a stance mechanic today, so its stances never surface elsewhere. */
+function stancesForSystem(system: string): IGStance[] {
+  return system === 'intuitive-games' ? IG_STANCE_DEFS : [];
 }
 
 /** Backgrounds a system exposes as structured library data. System-keyed so PF2's backgrounds never
@@ -272,6 +278,21 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
     });
   }
 
+  // Stances (IG only today) — a tactical posture, one active at a time, with a Basic (below Lv 5) and an
+  // Advanced (Lv 5+) benefit. System-scoped so they never leak to a system without the mechanic.
+  const stances = stancesForSystem(key);
+  if (stances.length) {
+    sections.push({
+      id: 'stances',
+      title: 'Stances',
+      lead: IG_STANCE_RULES,
+      table: {
+        headers: ['Stance', 'Basic (below Lv 5)', 'Advanced (Lv 5+)'],
+        rows: stances.map((s) => [s.name, s.basic, s.advanced]),
+      },
+    });
+  }
+
   if (r.content.conditions.length) {
     const condText = conditionsWithTextFor(key).filter((c) => c.effect);
     if (condText.length) {
@@ -420,6 +441,10 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
     }
     for (const s of pf2SubclassOptions(key)) {
       push('subclass', s.name, `${s.name} — a ${s.className} ${s.mechanism} option in ${r.label}.`);
+    }
+    // Stances (IG): each searchable by name ("defensive stance") with its Basic + Advanced benefits.
+    for (const st of stancesForSystem(key)) {
+      push('stance', `${st.name} Stance`, `${st.name} Stance — Basic (below Lv 5): ${st.basic} Advanced (Lv 5+): ${st.advanced}`);
     }
     for (const sp of spellsForSystem(key)) {
       push('spell', sp.name, `${sp.name} — ${pf2RankLabel(sp.rank)}, ${sp.traditions.join('/')}; ${sp.cast}. ${sp.effect}`);
