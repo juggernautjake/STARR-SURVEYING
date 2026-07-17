@@ -25,6 +25,11 @@ export default function StatRail() {
   // base. Edit the base via the InlineNumber; show the effective.
   const effMaxHp = ledger.value('hp_max', combat.maxHp)
   const hpMaxModified = effMaxHp !== combat.maxHp
+  // Effective walk speed (Slice 10/11): folds speed items (Boots of Striding) AND the exhaustion −5ft/level
+  // penalty (ledger). The Combat panel already shows this; the rail must too, or exhaustion's speed hit is
+  // invisible in the most prominent place. Edit the base; show the effective.
+  const walkSpeed = ledger.value('speed_walk', combat.speed)
+  const speedModified = walkSpeed !== combat.speed
   const hpRatio = combat.currentHp / Math.max(1, effMaxHp)
   const hpTone = combat.currentHp <= 0 ? 'crit' : hpRatio <= 0.35 ? 'crit' : hpRatio <= 0.6 ? 'warn' : 'ok'
 
@@ -88,7 +93,14 @@ export default function StatRail() {
         <div className="vpill">
           <span className="vk">Speed</span>
           <span className="vv">
-            <InlineNumber value={combat.speed} min={0} path="combat.speed" onCommit={(n) => setCombat({ speed: n })} title="Double-click to set speed" />
+            <InlineNumber
+              value={combat.speed}
+              min={0}
+              path="combat.speed"
+              onCommit={(n) => setCombat({ speed: n })}
+              title={speedModified ? `Speed ${combat.speed} base → ${walkSpeed} with effects/exhaustion · double-click to set base` : 'Double-click to set speed'}
+              display={<span className={speedModified ? 'is-modified' : undefined}>{walkSpeed}{speedModified && <span className="mod-star" aria-hidden>★</span>}</span>}
+            />
           </span>
         </div>
 
