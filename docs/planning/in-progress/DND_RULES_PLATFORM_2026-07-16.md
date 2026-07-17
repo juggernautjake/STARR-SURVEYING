@@ -1294,13 +1294,16 @@ ActiveEffect**, a **buff snapshots its label + effects + duration** (surviving t
 status records the named condition, a note-only still consumes, and a missing-consumable item is a
 no-op. Full suite 1655 green.
 
-- [ ] A new tab/panel on **every** template listing every source currently modifying the character:
-      each item/spell/ability/potion/form/condition, what it is, and **the exact effect it is having**
-      — resolved values from the ledger, not the item's advertised text. If the belt's +2 is being
-      overridden by the gauntlets' `set 21`, the panel must say the belt is contributing nothing.
-      That divergence is precisely what the panel exists to surface.
-- [ ] Group by source kind (worn · attuned · consumed · spell · form · condition · DM), each with its
-      duration and a one-click **end effect**.
+- [x] A new tab/panel on **every** template listing every source currently modifying the character. ✅
+      SHIPPED — `ActiveEffects` (mounted in `App.tsx` above the tabs) reads the ledger (`ledger.byTarget`,
+      not a local formatter) and the shared `describeEffect`, so it shows the RESOLVED effect, not the
+      item's advertised text; a contribution overridden by a higher-priority `set` renders "overridden —
+      doing nothing". `active-effects.test.ts` pins the ledger-read, the on-every-template mount, and the
+      suppression case (a Hill Giant belt losing to Storm Giant's `set 29` is shown as suppressed).
+- [x] Group by source kind (worn · attuned · consumed · spell · form · condition · DM · feature), each
+      with its duration and a one-click **end effect**. ✅ SHIPPED — grouped by `sourceKind`; ending
+      removes the CAUSE (unequip for worn/attuned, drop the ActiveEffect for a consumed one) and a class
+      feature offers no "end" (it's what the character IS). `active-effects.test.ts` covers each path.
 - [ ] **Consumption: the effect outlives the item.** This is the case the data model must get right,
       and it is why an `ActiveEffect` is a *separate source* from the item that produced it rather
       than a pointer back into inventory:
@@ -1328,16 +1331,27 @@ no-op. Full suite 1655 green.
       - **Ending** a consumed effect just drops the `ActiveEffect` — the item is long gone. Ending a
         *worn* item's effect unequips the item, because there the item IS the cause and an effect
         that is "off" while its cause is still worn would be a lie about the sheet.
-- [ ] Durations are shown as authored ("12 hours", "3 rounds") and are **not** silently expired by a
-      timer. This is a table aid, not a simulation; the DM decides when time passes. But the panel is
-      what lets you *notice* at the start of next session — which is the whole point.
-- [ ] A **Use** control on any consumable in Inventory runs the above. It is the only path that
-      consumes, so there is one place where "drank it" is implemented.
-- [ ] Tests: an item with effects always appears; a pure-heal potion is consumed and leaves NO panel
-      entry; a buff potion is consumed and its effect still shows with its label and duration; a
-      heal+buff potion does both; editing the item afterwards does not mutate the running effect;
-      ending a worn effect unequips, ending a consumed effect does not resurrect the item; the
-      panel's numbers equal the ledger's (one source of truth).
+- [x] Durations are shown as authored and are **not** silently expired by a timer. ✅ SHIPPED — the panel
+      states durations "never run out on their own" and contains no `setInterval`/`setTimeout`; a table aid,
+      not a simulation. `active-effects.test.ts` guards both (the copy + the no-timer invariant).
+- [x] A **Use** control on any consumable in Inventory runs the above. ✅ SHIPPED — the "⚗ Use" button in
+      Inventory is the single path that consumes, routing through the pure `planConsume` then executing
+      (roll instant / push the snapshotted ActiveEffect / decrement qty).
+- [~] Tests: an item with effects always appears; a pure-heal potion leaves NO panel entry; a buff potion
+      still shows with its label + duration; **a heal+buff potion does both**; editing the item afterwards
+      doesn't mutate the running effect; ending a worn effect unequips, a consumed effect doesn't resurrect
+      the item; the panel's numbers equal the ledger's. ✅ All shipped EXCEPT the heal+buff combo:
+      `consume-plan.test.ts` (pure-heal → no ActiveEffect; buff → snapshot with label+duration; the
+      snapshot-independence fix above) + `active-effects.test.ts` (source-anchored: item appears, ledger is
+      the single source of truth, worn-ends-unequip vs consumed-drops, suppression shown).
+      **⏸ DEFERRED — the heal+buff dual-effect consumable.** The model is single-`kind` (`ConsumableStats.effect.kind`
+      is one of heal/temp/status/buff/custom), so a potion that instant-heals AND grants a lasting buff
+      isn't representable: `planConsume` returns an instant OR an activeEffect, never both. Building it
+      needs a schema widening + a `planConsume` that emits both + the executor + an **editor authoring UI**
+      for the combo + a design call on how it's authored — implementation cost clearly exceeding the value
+      of a rare combo potion when every single-kind path works and is tested. `consume-plan.test.ts` pins
+      the current single-kind contract (a buff's stray `dice` is ignored, not silently rolled) so the combo
+      can't be assumed to work; revisit if a real combo consumable is needed. Full dnd suite green (1842).
 
 ## Slice 13 — Show me what's touched: the star + the tooltip ✅ SHIPPED 2026-07-16
 

@@ -71,6 +71,20 @@ describe('planConsume', () => {
     expect(plan.consumes).toBe(true);
   });
 
+  it('is single-kind today: a buff carrying stray `dice` consumes as a buff, the dice ignored (heal+buff combo deferred)', () => {
+    // The doc imagines a potion that BOTH heals instantly AND grants a lasting buff. The consumable model
+    // is single-`kind`, so that combo isn't representable yet — this pins the current contract so a combo
+    // can't be silently assumed to work: a buff's stray `dice` does NOT also roll a heal. When the combo is
+    // built (schema widening + editor authoring), this test changes to assert BOTH instant + activeEffect.
+    const plan = planConsume(c({
+      name: 'Combo Draught',
+      consumable: { effect: { kind: 'buff', dice: '2d4+2', effects: [{ target: 'ac', operation: 'add', value: 2 }], duration: '1 hour' } },
+    }));
+    expect(plan.instant).toBeNull(); // no instant heal — buff never rolls, even with dice present
+    expect(plan.activeEffect?.effects).toEqual([{ target: 'ac', operation: 'add', value: 2 }]);
+    expect(plan.consumes).toBe(true);
+  });
+
   it('a custom (note-only) consumable resolves nothing but is still consumed (DM adjudicates)', () => {
     const plan = planConsume(c({ name: 'Strange Brew', consumable: { effect: { kind: 'custom', note: 'Ask the DM.' } } }));
     expect(plan.instant).toBeNull();
