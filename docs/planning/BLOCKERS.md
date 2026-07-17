@@ -1,10 +1,14 @@
 # Blockers — what only you can unblock (as of 2026-07-17)
 
 The three docs in `in-progress/` are each ~90% shipped. Everything that could be built, tested, and
-verified autonomously **is** — the full app test suite is green (13,079 passing). What remains in all
-three is genuinely gated on your input: **decisions only you can make, content only you/Brendan have,
-and things that need eyes on a running app or a device build.** This memo consolidates every one of
-those into a single checklist so you can spend your input where it unblocks the most, then hand it back.
+verified autonomously **is** — the full app test suite is green (13,183 passing as of 2026-07-17). Per
+the project's own rubric (`docs/planning/README.md`), all three correctly REMAIN in `in-progress/`:
+each still contains action items not yet done, and none meets the COMPLETED bar ("the feature has
+shipped"). What remains in all three is genuinely gated on your input: **decisions only you can make,
+content only you/Brendan have, and things that need eyes on a running app or a device build** — none of
+it is "cost exceeds value" busywork that could be honestly deferred to empty the folder. This memo
+consolidates every one of those into a single checklist so you can spend your input where it unblocks
+the most, then hand it back.
 
 Each item names the exact code impact and where it's detailed. None of these were guessed or faked —
 attempting them without your input would either violate a ground rule (fabricating rules text) or
@@ -63,8 +67,12 @@ overwrite a deliberate design.
 - [ ] **Form-editor UI** (author an arbitrary foreign statblock as a form) — the only heavier half of
       transform left; `Forms.tsx` is display+toggle today. *Detail: Slice 18.*
 - [ ] **Mobile upload runtime** — every decision in the capture→save→send→drain→notify→delete flow is a
-      pure, tested function; the Expo runtime (background upload task, MediaLibrary, notifications, the queue
-      screen) can only be built + verified on real iOS/Android by you. *Detail: `SURVEYING_WORKMODE` Area C.*
+      pure, tested function; the Expo runtime (true background upload task, MediaLibrary, notifications, the
+      queue screen) can only be built + verified on real iOS/Android by you. *Detail: `SURVEYING_WORKMODE`
+      Area C.* (Update 2026-07-17: the prompt-*resume*-on-foreground half of C2 now ships in-JS —
+      `useUploadQueueDrainer` drains immediately when the app returns to the foreground, via the pure
+      `appStateDrain.ts` decision — so only true background execution, bounded by iOS background windows,
+      remains device-gated.)
 
 ---
 
@@ -95,6 +103,16 @@ read against its rules + its tests this session and confirmed **correct and comp
   `attack_and_damage`, `death_save`, `carrying_capacity` — numeric AND advantage/disadvantage — plus the
   same folds mirrored into the AI character digest. These were resolved only by the dead `deriveCharacter`
   engine and silently never reached the ledger-driven sheet; now folded at each live roll site + guarded.
+- **AI digest ↔ sheet parity (completed 2026-07-17)** — the character digest (the facts block the librarian
+  adjudicates from) now carries EVERY effect-derived fact CombatPanel renders: non-walking speeds (fly/swim/
+  climb/burrow), granted senses, movement traits (hover/ignore-difficult-terrain), and the full Defenses card
+  (resistance/immunity/vulnerability, condition-immunity kept distinct, and advantage-on-saves-vs-condition).
+  Previously walk-speed-only, so the AI was blind to whether a character could fly, see in the dark, or resist
+  fire. Reads the same ledger as the sheet, so they can't drift; guarded by `character-digest.test.ts`.
+- **AI feat grounding for Intuitive Games (2026-07-17)** — asking the librarian "how does the IG <feat> work?"
+  now grounds on that feat's full effect text (query-scoped, so no prompt bloat). Previously the query-scoped
+  feat retrieval was 2024-only and the always-on IG rules block lists feats by name only, so no path supplied
+  IG feat effect text. Guarded by `grounding.test.ts`.
 - **Dice / combat core** — rollD20 advantage=max/disadvantage=min, crit doubles dice not the flat modifier;
   exhaustion −2/level on every d20 (checks/saves/attacks/death-saves/initiative) + speed −5/level, capped at 6;
   AC by armor category incl. the negative-DEX edge; HP adjust (temp-first, heal-cap at effective max);
@@ -105,5 +123,5 @@ read against its rules + its tests this session and confirmed **correct and comp
   Wi-Fi/backoff/maxed→idle/empty→idle) and post-upload plan are pure + comprehensively tested; only the
   device-side Expo runtime remains (Section C).
 
-Full app test suite green: **13,152 → grown to ~13,752 with the audit's guards**. What's left is only
-Sections A–C above (owner decisions, Brendan's content, and eyes-on-app / device work).
+Full app test suite green: **13,183 passing** (grown steadily with each audit slice's guards). What's
+left is only Sections A–C above (owner decisions, Brendan's content, and eyes-on-app / device work).
