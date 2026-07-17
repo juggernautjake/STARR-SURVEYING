@@ -4,6 +4,14 @@ import { describe, it, expect } from 'vitest';
 import { validateCharacterForSystem, violationsSummary } from '@/lib/dnd/system-validate';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import { SYSTEM_AMBIGUOUS } from '@/lib/dnd/systems';
+import { classesForSystem } from '@/lib/dnd/classes/registry';
+
+/** Class-feature names for a system (choice placeholders excluded), for the cross-edition test. */
+function featureNames(system: string): Set<string> {
+  const s = new Set<string>();
+  for (const c of classesForSystem(system)) for (const f of c.features) if (f.name && !f.choice) s.add(f.name.trim().toLowerCase());
+  return s;
+}
 
 function make(over: Partial<{ level: number; className: string; species: string; str: number }>) {
   const c = blankCharacter('Test');
@@ -45,6 +53,24 @@ describe('system validation (Slice 3)', () => {
     expect(v.some((x) => x.field === 'meta.className' && /Warlock/.test(x.message))).toBe(true);
     // Fighter exists in PF2, so no class flag.
     expect(validateCharacterForSystem(make({ className: 'Fighter' }), 'pathfinder2e').some((x) => x.field === 'meta.className')).toBe(false);
+  });
+
+  it('flags a class feature that is EXCLUSIVE to the other 5e edition, but not shared/homebrew ones', () => {
+    const in2024 = featureNames('dnd5e-2024');
+    const in2014 = featureNames('dnd5e-2014');
+    const only2014 = [...in2014].find((n) => !in2024.has(n));
+    const shared = [...in2014].find((n) => in2024.has(n));
+    // The datasets should give us at least one exclusive + one shared feature to test with.
+    expect(only2014).toBeTruthy();
+    expect(shared).toBeTruthy();
+
+    const withFeature = (name: string) => { const c = blankCharacter('T'); c.meta.className = 'Barbarian'; c.features = [{ id: 'f', name, source: '', body: [''] }]; return c; };
+    // A 2014-exclusive feature on a 2024 sheet → flagged.
+    expect(validateCharacterForSystem(withFeature(only2014!), 'dnd5e-2024').some((x) => x.field.startsWith('features.'))).toBe(true);
+    // A feature shared by both editions → NOT flagged.
+    expect(validateCharacterForSystem(withFeature(shared!), 'dnd5e-2024').some((x) => x.field.startsWith('features.'))).toBe(false);
+    // A homebrew feature in NEITHER edition → NOT flagged.
+    expect(validateCharacterForSystem(withFeature('Zorptastic Overdrive'), 'dnd5e-2024').some((x) => x.field.startsWith('features.'))).toBe(false);
   });
 
   it('does NOT flag a SAVED HOMEBREW class (Slice 5) as unrecognized', () => {
