@@ -262,7 +262,10 @@ export function revertSheetEdit(input: Character, e: SheetEdit, oldValue: unknow
 
   switch (e.op) {
     case 'set_name': if (typeof oldValue === 'string') c.meta.name = oldValue; break;
-    case 'set_meta': if (oldValue != null) c.meta[e.field] = String(oldValue); break;
+    // A null oldValue here means the field was UNSET before the edit (the optional identity fields —
+    // gender/pronouns/profession/alignment — start undefined). Revert to '' so filling an empty field is
+    // undoable; guarding on `!= null` (as the numeric sets do) would strand the new value.
+    case 'set_meta': c.meta[e.field] = oldValue != null ? String(oldValue) : ''; break;
     case 'set_level': if (typeof oldValue === 'number') c.meta.level = oldValue; break;
     case 'set_ability': if (typeof oldValue === 'number') c.abilities[e.ability] = oldValue; break;
     case 'set_combat': if (typeof oldValue === 'number') c.combat[e.field] = oldValue; break;

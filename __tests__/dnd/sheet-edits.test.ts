@@ -33,6 +33,17 @@ describe('every edit op can be reverted (undo, user request)', () => {
     expect((reverted.customTags ?? []).some((t) => t.name === 'psionic')).toBe(false);
   });
 
+  it('reverting a set_meta that FILLED an empty field clears it again (not left stranded)', () => {
+    const base = blankCharacter('X');
+    // Alignment starts unset; the AI sets it, then the user undoes.
+    const edit: SheetEdit = { op: 'set_meta', field: 'alignment', value: 'Lawful Good' };
+    const oldValue = editOldValue(base, edit); // null — the field was unset
+    const applied = applySheetEdits(base, [edit]);
+    expect(applied.meta.alignment).toBe('Lawful Good');
+    const reverted = revertSheetEdit(applied, edit, oldValue);
+    expect(reverted.meta.alignment ?? '').toBe(''); // cleared, not left as "Lawful Good"
+  });
+
   it('revertSheetEdit has a case for EVERY op the tool schema offers (no silent no-op undo)', () => {
     // A missing case makes an edit unrevertable — exactly the define_tag gap. Guard it against the next op.
     const ops = (SHEET_EDIT_TOOL.input_schema as { properties: { edits: { items: { properties: { op: { enum: string[] } } } } } })
