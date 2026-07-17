@@ -83,6 +83,12 @@ Parent tables `receipts | field_media | job_files`. Media helpers `mobile/lib/st
 docs `mobile/lib/jobFiles.ts`. This is the foundation — the user's requirements are mostly refinements of
 it, plus surfacing controls.
 
+**Foundation fix (`7dd68d3e`):** the queue persists each captured file under a name ending in the
+source's extension so the OS knows the MIME type on re-read — but `guessExtension` used
+`endsWith('.jpg')`, so a content/remote URI like `photo.jpg?token=…` or `clip.mov#t=3` matched nothing
+and the file was stored with NO extension. Extracted to a pure `mobile/lib/mediaPath.ts` (Expo-free,
+unit-testable like `queueOrder`), now stripping any query string/fragment first. `media-path.test.ts` (3).
+
 **Gaps (map each to the user's explicit asks):**
 
 - [~] **C1 — Strictly sequential, one-at-a-time uploads.** ✅ *Pure engine shipped* (`b7b722e7`):
