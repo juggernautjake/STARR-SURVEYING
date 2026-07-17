@@ -76,6 +76,13 @@ overwrite a deliberate design.
       *Detail: `DND_RULES_PLATFORM` Slice 29.*
 - [ ] **Form-editor UI** (author an arbitrary foreign statblock as a form) — the only heavier half of
       transform left; `Forms.tsx` is display+toggle today. *Detail: Slice 18.*
+- [ ] **PF2 in-app roller (a product call + UI work).** The D&D 5e sheet rolls checks/attacks/saves/damage
+      in-app with a dice tray; the PF2 sheet is display-only — it shows the +modifiers but has no roll
+      surface, so `pf2Degree` (the four degrees of success + the nat-20/nat-1 step) is fully built and
+      comprehensively tested yet reaches no player: a PF2 user can't roll a Strike or skill check and see
+      "critical success." The engine is ready; only the roll UI is missing. Surfaced 2026-07-17 by audit
+      (`pf2Degree` has zero call sites; `PF2Sheet.tsx` has no roll). Decide whether PF2 should roll in-app
+      like 5e (then I wire the sheet to `pf2Degree`/`pf2AttackBonus`) or stay a reference sheet by design.
 - [ ] **Mobile upload runtime** — every decision in the capture→save→send→drain→notify→delete flow is a
       pure, tested function; the Expo runtime (true background upload task, MediaLibrary, notifications, the
       queue screen) can only be built + verified on real iOS/Android by you. *Detail: `SURVEYING_WORKMODE`

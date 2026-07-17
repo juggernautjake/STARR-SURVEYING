@@ -506,6 +506,13 @@ One system per slice — depth-first, verified against sources. In priority orde
       - **63 tests** (rules 15 + builder 18 + ai 6, plus the existing dnd suite); tsc + eslint clean.
       Remaining polish (deferred): per-level rank/feat progression tables (level-1 legal today; higher
       levels set initial ranks + accept manual/AI edits), heritage/class-feat mechanical bodies.
+      **Audit finding 2026-07-17 — the degree engine is built but unwired to any roll.** `PF2Sheet` is
+      display-only: it shows every +modifier (skills/saves/AC/Strike, all from the rules engine) but has NO
+      roll surface, and `pf2Degree` (the four degrees + the nat-20/nat-1 step, fully tested at
+      `pathfinder2e-rules.test.ts`) has **zero call sites** — so a PF2 player can't roll a check/Strike and
+      see "critical success" the way the 5e sheet rolls and shows a crit. The hard part (the resolver) is
+      done; only a PF2 roll UI + a `pf2Degree` call is missing. Whether PF2 should roll in-app like 5e or
+      remain a reference sheet is a product call — tracked in `BLOCKERS.md §C`.
 - [~] **6c–6h — the other six systems → MOVED to `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`**
       (2026-07-16, per the user's scope call). The platform is focused on **four** systems first — D&D
       5e 2024, D&D 5e 2014, Intuitive Games, Pathfinder 2e. PF1e, Starfinder 1e, Cyberpunk RED, Shadowrun
