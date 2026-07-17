@@ -166,6 +166,15 @@ export function parseCustomFeatInput(raw: unknown, system: string): Omit<CustomF
   };
 }
 
+// ── Review helpers ───────────────────────────────────────────────────────────────────────────────
+/** Split a reviewCustomClass/reviewCustomFeat result into a UI-friendly shape: `ok` (no errors), the
+ *  blocking errors, and the advisory warnings. Errors block a save; warnings just advise. */
+export function splitReview<T extends { severity: 'error' | 'warning' }>(review: T[]): { ok: boolean; errors: T[]; warnings: T[] } {
+  const errors = review.filter((r) => r.severity === 'error');
+  const warnings = review.filter((r) => r.severity === 'warning');
+  return { ok: errors.length === 0, errors, warnings };
+}
+
 export const CUSTOM_FEAT_TOOL = {
   name: 'homebrew_feat',
   description: 'A homebrew feat DRAFT. Pick a category (origin/general/fighting-style/epic-boon), a ' +

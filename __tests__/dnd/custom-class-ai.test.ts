@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   parseCustomClassDraft, CUSTOM_CLASS_TOOL,
   parseCustomSubclassInput, CUSTOM_SUBCLASS_TOOL,
-  parseCustomFeatInput, CUSTOM_FEAT_TOOL,
+  parseCustomFeatInput, CUSTOM_FEAT_TOOL, splitReview,
 } from '@/lib/dnd/classes/custom-ai';
 import { buildCustomClass, reviewCustomClass, buildCustomSubclass, buildCustomFeat, reviewCustomFeat } from '@/lib/dnd/classes/custom';
 
@@ -60,6 +60,17 @@ describe('the AI draft flows through the existing engine', () => {
 
     const review = reviewCustomClass(def);
     expect(Array.isArray(review)).toBe(true); // errors block, warnings advise — either way it runs
+  });
+});
+
+describe('splitReview (errors block, warnings advise)', () => {
+  it('is ok only when there are no errors', () => {
+    expect(splitReview([]).ok).toBe(true);
+    const mixed = splitReview([{ severity: 'error', field: 'x', message: 'bad' }, { severity: 'warning', field: 'y', message: 'meh' }]);
+    expect(mixed.ok).toBe(false);
+    expect(mixed.errors).toHaveLength(1);
+    expect(mixed.warnings).toHaveLength(1);
+    expect(splitReview([{ severity: 'warning', field: 'y', message: 'meh' }]).ok).toBe(true); // warnings don't block
   });
 });
 
