@@ -113,7 +113,13 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       ("barkskin", "cave vision") with full text. System-scoped (no leak). (IG has no fixed per-ancestry
       size/speed — Medium by default; size-changing traits like Burrower/Colossal say so themselves.)
       `ig-content.test.ts` +1, `library.test.ts` +3. Feeds Area B's species/traits panel (B1). None WIP.
-- [ ] **A6 — Backgrounds** (`/backgrounds`).
+- [x] **A6 — Backgrounds** (`/backgrounds`) — ✅ SHIPPED (`content.ts` `IG_BACKGROUND_DEFS`; the previously
+      EMPTY `IG_BACKGROUNDS` is now derived from it). All **10 backgrounds** (Academic, Acolyte, Artist,
+      Cosmopolitan, Hunter, Laborer, Merchant, Physician, Soldier, Tinkerer), each with starting HP, its two
+      ability boosts, skill proficiencies, and the base Stance it grants (Advanced at Lv 5) — transcribed
+      from the site. Library gains a Backgrounds table; each is searchable; the provenance classifier now
+      recognizes IG backgrounds (was an empty list). `library.test.ts` +3. Nicely, the 10 backgrounds map
+      1:1 onto the 10 stances.
 - [x] **A7 — General Feats** (`/feats-general`) — ✅ SHIPPED (new `lib/dnd/systems/intuitive-games/feats.ts`
       `IG_GENERAL_FEATS`). All **83 general feats** (46 main + 26 skill feats + 6 special + 5 ability-score)
       with prerequisites + full effect text from the site. The library feats section is now a full

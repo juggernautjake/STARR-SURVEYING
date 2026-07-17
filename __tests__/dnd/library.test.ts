@@ -285,6 +285,30 @@ describe('Intuitive Games feats carry full rules text (IG buildout A7 + A8)', ()
   });
 });
 
+describe('Intuitive Games backgrounds surface on the library (IG buildout A6)', () => {
+  it('renders a Backgrounds table with HP, boosts, proficiencies, and the granted Stance', () => {
+    const page = libraryPageFor('intuitive-games')!;
+    const bg = page.sections.find((s) => s.id === 'backgrounds')!;
+    expect(bg).toBeTruthy();
+    expect(bg.table!.headers).toEqual(['Background', 'HP', 'Ability boosts', 'Proficiencies', 'Stance']);
+    expect(bg.table!.rows).toHaveLength(10);
+    const soldier = bg.table!.rows.find((r) => r[0] === 'Soldier');
+    expect(soldier?.[1]).toBe('12'); // HP
+    expect(soldier?.[4]).toBe('Menacing'); // stance
+  });
+
+  it('a background is searchable with its grants', () => {
+    const hunter = searchLibrary('hunter', 'intuitive-games').find((h) => h.kind === 'background');
+    expect(hunter!.body).toMatch(/Offensive Stance/);
+    expect(hunter!.body).toMatch(/Nature/);
+  });
+
+  it('IG backgrounds are system-scoped (its Academic ≠ a PF2 background search)', () => {
+    // "cosmopolitan" is an IG-only background name; it must not resolve under PF2.
+    expect(searchLibrary('cosmopolitan', 'pathfinder2e').some((h) => h.kind === 'background')).toBe(false);
+  });
+});
+
 describe('Intuitive Games companion creatures surface on the library (IG buildout A12)', () => {
   it('renders a Companion Creatures section with the 4 types + advancement rules, and marks combat rules absent', () => {
     const page = libraryPageFor('intuitive-games')!;

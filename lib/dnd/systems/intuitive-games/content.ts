@@ -289,7 +289,31 @@ export const IG_SUBCLASSES: string[] = ['Arcanist', 'Summoner', 'Champion', 'Wit
 
 // The Combat Skills (Sheet 4) — tracked separately from general skills. Str/Dex variants share these names.
 export const IG_COMBAT_SKILLS = new Set(['Dirty Trick', 'Disarm', 'Feint', 'Grapple', 'Overrun', 'Reposition', 'Steal', 'Sunder', 'Trip']);
-export const IG_BACKGROUNDS: string[] = [];
+// ── Backgrounds (from intuitivegames.net/backgrounds) — 10 backgrounds, each granting starting HP, two
+//    ability boosts (a specific pair + any one), skill proficiencies, and a base Stance (Advanced at L5). ──
+export interface IGBackground {
+  name: string;
+  /** Starting hit points. */
+  hp: number;
+  /** The ability boosts, in the site's own phrasing. */
+  boosts: string;
+  proficiencies: string[];
+  /** The Stance this background grants (full Basic/Advanced text lives in IG_STANCE_DEFS). */
+  stance: string;
+}
+export const IG_BACKGROUND_DEFS: IGBackground[] = [
+  { name: 'Academic', hp: 8, boosts: 'Charisma or Intelligence, plus any one ability', proficiencies: ['Arcane', 'Lore', 'Linguistics', 'Religion'], stance: 'Defensive' },
+  { name: 'Acolyte', hp: 10, boosts: 'Constitution or Wisdom, plus any one ability', proficiencies: ['Diplomacy', 'Lore', 'Religion'], stance: 'Mobile' },
+  { name: 'Artist', hp: 8, boosts: 'Charisma or Dexterity, plus any one ability', proficiencies: ['Artistry', 'Craft', 'Lore', 'Profession'], stance: 'Supportive' },
+  { name: 'Cosmopolitan', hp: 10, boosts: 'Constitution or Intelligence, plus any one ability', proficiencies: ['Lore', 'Profession', 'Stealth'], stance: 'Swarming' },
+  { name: 'Hunter', hp: 10, boosts: 'Strength or Wisdom, plus any one ability', proficiencies: ['Handle Animal', 'Nature', 'Perception'], stance: 'Offensive' },
+  { name: 'Laborer', hp: 12, boosts: 'Wisdom or Strength, plus any one ability', proficiencies: ['Craft', 'Profession'], stance: 'Neutral' },
+  { name: 'Merchant', hp: 10, boosts: 'Charisma or Dexterity, plus any one ability', proficiencies: ['Bluff', 'Craft', 'Diplomacy'], stance: 'Welcoming' },
+  { name: 'Physician', hp: 10, boosts: 'Dexterity or Wisdom, plus any one ability', proficiencies: ['Heal', 'Lore', 'Profession'], stance: 'Precise' },
+  { name: 'Soldier', hp: 12, boosts: 'Constitution or Strength, plus any one ability', proficiencies: ['Armor', 'Shields'], stance: 'Menacing' },
+  { name: 'Tinkerer', hp: 10, boosts: 'Intelligence or Dexterity, plus any one ability', proficiencies: ['Craft', 'Disable Device', 'Lore'], stance: 'Shifting' },
+];
+export const IG_BACKGROUNDS: string[] = IG_BACKGROUND_DEFS.map((b) => b.name);
 
 // ── Companion creature type categories (the bestiary groups). ───────────────────────────────────────
 export const IG_CREATURE_TYPES: string[] = ['Animals', 'Dragons', 'Elementals', 'Fey', 'Magical Beasts', 'Undead', 'Humanoid Monsters'];
