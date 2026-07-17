@@ -2332,7 +2332,11 @@ ledger-resolved numbers, and a DM equip propagates live (C11b + Slice 10). Detai
       it adds the effective mod + bonus and resolves the per-level ladder. +1 assertion. **Save bonuses
       added** (`1d0ee892`): the digest listed which saves were proficient but not the bonus a target rolls;
       now a `SAVES:` line gives each save's effective total (proficient starred), so "does it make the CON
-      save?" has a number.
+      save?" has a number. **Adjudicator told the numbers are already effective** (`af5298c0`): the ruling
+      prompt now states the sheet values are the CURRENT effective ones (base + effects; `[base N]` /
+      stated penalties shown), so the AI rules on them as-is and doesn't double-count a folded-in bonus or
+      re-apply a reflected penalty — closing the loop so the effective numbers are USED right, not just
+      reported. +1 test.
 - [x] **Realtime equip propagation ✅ VERIFIED 2026-07-16 (no code change needed).** Already satisfied
       by the existing C11b broadcast (`store.tsx:369–405`): a DM equip writes `data`, pings the
       per-character channel, and every other viewer refetches the full authed sheet and re-derives —
