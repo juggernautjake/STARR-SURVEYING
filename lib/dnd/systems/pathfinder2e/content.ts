@@ -53,6 +53,10 @@ export interface PF2ClassDef {
   /** The defining level-1 choice and the glossary term describing its mechanism. */
   subclassLabel: string;
   subclassMechanism: string; // matches a glossary term (Instinct, Racket, Bloodline, …)
+  /** The concrete options for that choice (Remaster line-up). Empty when the class has no formal
+   *  subclass (Fighter picks a weapon; Monk picks stances) — the builder then takes freeform text.
+   *  These are suggestions in the builder's datalist, not a hard gate: custom is the escape hatch. */
+  subclassOptions: string[];
   /** Spellcasting, if any. */
   spellcasting?: { tradition: PF2Tradition; kind: 'prepared' | 'spontaneous'; attribute: PF2AttributeKey };
   summary: string;
@@ -65,18 +69,21 @@ export const PF2_CLASSES: PF2ClassDef[] = [
     name: 'Alchemist', keyAttribute: ['INT'], hpPerLevel: 8, trainedSkills: 3, fixedSkills: ['Crafting'],
     initial: { perception: 'trained', fortitude: 'expert', reflex: 'expert', will: 'trained', defense: 'trained', ...MARTIAL },
     subclassLabel: 'Research Field', subclassMechanism: 'Research Field',
+    subclassOptions: ['Bomber', 'Chirurgeon', 'Mutagenist', 'Toxicologist'],
     summary: 'A master of alchemy who brews reagents into bombs, elixirs, and mutagens using Advanced Alchemy and a daily reagent pool.',
   },
   {
     name: 'Barbarian', keyAttribute: ['STR'], hpPerLevel: 12, trainedSkills: 3, fixedSkills: ['Athletics'],
     initial: { perception: 'expert', fortitude: 'expert', reflex: 'trained', will: 'expert', defense: 'trained', ...MARTIAL },
     subclassLabel: 'Instinct', subclassMechanism: 'Instinct',
+    subclassOptions: ['Animal', 'Dragon', 'Fury', 'Giant', 'Spirit'],
     summary: 'A furious warrior who enters Rage for bonus damage and temporary HP, shaped by an Instinct (Animal, Dragon, Fury, Giant, Spirit).',
   },
   {
     name: 'Bard', keyAttribute: ['CHA'], hpPerLevel: 8, trainedSkills: 4, fixedSkills: ['Occultism', 'Performance'],
     initial: { perception: 'expert', fortitude: 'trained', reflex: 'trained', will: 'expert', defense: 'trained', ...MARTIAL },
     subclassLabel: 'Muse', subclassMechanism: 'Muse',
+    subclassOptions: ['Enigma', 'Maestro', 'Polymath', 'Warrior'],
     spellcasting: { tradition: 'occult', kind: 'spontaneous', attribute: 'CHA' },
     summary: 'An occult spontaneous caster who weaves Compositions; a Muse (Enigma, Maestro, Polymath, Warrior) shapes their repertoire.',
   },
@@ -84,12 +91,14 @@ export const PF2_CLASSES: PF2ClassDef[] = [
     name: 'Champion', keyAttribute: ['STR', 'DEX'], hpPerLevel: 10, trainedSkills: 2, fixedSkills: ['Religion'],
     initial: { perception: 'trained', fortitude: 'expert', reflex: 'trained', will: 'expert', defense: 'trained', ...MARTIAL },
     subclassLabel: 'Cause', subclassMechanism: 'Cause',
+    subclassOptions: ['Paladin', 'Redeemer', 'Liberator', 'Desecrator', 'Tyrant'],
     summary: 'A divine warrior bound to a deity and a Cause; their Champion’s Reaction (e.g. Retributive Strike) protects allies. Heavy armor at level 1.',
   },
   {
     name: 'Cleric', keyAttribute: ['WIS'], hpPerLevel: 8, trainedSkills: 2, fixedSkills: ['Religion'],
     initial: { perception: 'trained', fortitude: 'trained', reflex: 'trained', will: 'expert', defense: 'trained', ...MARTIAL },
     subclassLabel: 'Doctrine', subclassMechanism: 'Doctrine',
+    subclassOptions: ['Cloistered Cleric', 'Warpriest'],
     spellcasting: { tradition: 'divine', kind: 'prepared', attribute: 'WIS' },
     summary: 'A divine prepared caster channeling a deity; their Doctrine (Cloistered or Warpriest) and Divine Font (heal/harm) define them.',
   },
@@ -97,25 +106,27 @@ export const PF2_CLASSES: PF2ClassDef[] = [
     name: 'Druid', keyAttribute: ['WIS'], hpPerLevel: 8, trainedSkills: 2, fixedSkills: ['Nature'],
     initial: { perception: 'trained', fortitude: 'trained', reflex: 'trained', will: 'expert', defense: 'trained', ...MARTIAL },
     subclassLabel: 'Order', subclassMechanism: 'Order',
+    subclassOptions: ['Animal', 'Leaf', 'Storm', 'Untamed'],
     spellcasting: { tradition: 'primal', kind: 'prepared', attribute: 'WIS' },
     summary: 'A primal prepared caster sworn to an Order (Animal, Leaf, Storm, Untamed, Wild) and the druidic anathema.',
   },
   {
     name: 'Fighter', keyAttribute: ['STR', 'DEX'], hpPerLevel: 10, trainedSkills: 3,
     initial: { perception: 'expert', fortitude: 'expert', reflex: 'expert', will: 'trained', defense: 'trained', attacks: 'expert', classDc: 'trained' },
-    subclassLabel: 'Weapon of choice', subclassMechanism: 'Fighter',
+    subclassLabel: 'Weapon of choice', subclassMechanism: 'Fighter', subclassOptions: [],
     summary: 'The premier martial: Expert in attacks at level 1, Attack of Opportunity, and the deepest weapon-feat list in the game.',
   },
   {
     name: 'Monk', keyAttribute: ['STR', 'DEX'], hpPerLevel: 10, trainedSkills: 4,
     initial: { perception: 'trained', fortitude: 'expert', reflex: 'expert', will: 'expert', defense: 'trained', ...MARTIAL },
-    subclassLabel: 'Stance / Ki', subclassMechanism: 'Monk',
+    subclassLabel: 'Stance / Ki', subclassMechanism: 'Monk', subclassOptions: [],
     summary: 'An unarmored martial artist with Flurry of Blows, powerful stances, and (optionally) ki spells; Expert in all three saves.',
   },
   {
     name: 'Oracle', keyAttribute: ['CHA'], hpPerLevel: 8, trainedSkills: 3, fixedSkills: ['Religion'],
     initial: { perception: 'trained', fortitude: 'trained', reflex: 'trained', will: 'expert', defense: 'trained', ...MARTIAL },
     subclassLabel: 'Mystery', subclassMechanism: 'Mystery',
+    subclassOptions: ['Ancestors', 'Battle', 'Bones', 'Cosmos', 'Flames', 'Life', 'Lore', 'Tempest'],
     spellcasting: { tradition: 'divine', kind: 'spontaneous', attribute: 'CHA' },
     summary: 'A divine spontaneous caster channeling a Mystery; casting revelations deepens their escalating Curse.',
   },
@@ -123,18 +134,21 @@ export const PF2_CLASSES: PF2ClassDef[] = [
     name: 'Ranger', keyAttribute: ['STR', 'DEX'], hpPerLevel: 10, trainedSkills: 4, fixedSkills: ['Survival'],
     initial: { perception: 'expert', fortitude: 'expert', reflex: 'expert', will: 'trained', defense: 'trained', ...MARTIAL },
     subclassLabel: "Hunter's Edge", subclassMechanism: "Hunter's Edge",
+    subclassOptions: ['Flurry', 'Precision', 'Outwit'],
     summary: "A skilled hunter who marks Hunt Prey and picks a Hunter's Edge (Flurry, Precision, or Outwit); Expert Reflex + Perception.",
   },
   {
     name: 'Rogue', keyAttribute: ['DEX'], hpPerLevel: 8, trainedSkills: 7, fixedSkills: ['Stealth'],
     initial: { perception: 'expert', fortitude: 'trained', reflex: 'expert', will: 'expert', defense: 'trained', ...MARTIAL },
     subclassLabel: 'Racket', subclassMechanism: 'Racket',
+    subclassOptions: ['Thief', 'Ruffian', 'Scoundrel', 'Mastermind', 'Eldritch Trickster'],
     summary: 'A skill-monker with Sneak Attack and the most trained skills; a Racket (Ruffian, Scoundrel, Thief, …) sets its key attribute and style.',
   },
   {
     name: 'Sorcerer', keyAttribute: ['CHA'], hpPerLevel: 6, trainedSkills: 2,
     initial: { perception: 'trained', fortitude: 'trained', reflex: 'trained', will: 'expert', defense: 'trained', ...MARTIAL },
     subclassLabel: 'Bloodline', subclassMechanism: 'Bloodline',
+    subclassOptions: ['Aberrant', 'Angelic', 'Demonic', 'Diabolic', 'Draconic', 'Elemental', 'Fey', 'Hag', 'Imperial', 'Undead'],
     spellcasting: { tradition: 'arcane', kind: 'spontaneous', attribute: 'CHA' }, // tradition varies BY bloodline
     summary: 'A spontaneous caster whose Bloodline sets the tradition and grants blood magic; the widest spell slots of any caster.',
   },
@@ -142,13 +156,15 @@ export const PF2_CLASSES: PF2ClassDef[] = [
     name: 'Witch', keyAttribute: ['INT'], hpPerLevel: 6, trainedSkills: 3,
     initial: { perception: 'trained', fortitude: 'trained', reflex: 'trained', will: 'expert', defense: 'trained', ...MARTIAL },
     subclassLabel: 'Patron', subclassMechanism: 'Patron',
+    subclassOptions: ['Faith', 'Family', 'Fervor', 'Mosquito Witch', 'Wild', 'Winter', 'Curse', 'Rune'],
     spellcasting: { tradition: 'occult', kind: 'prepared', attribute: 'INT' }, // tradition varies BY patron
     summary: 'A prepared caster serving a Patron through a familiar that delivers Hexes; the patron sets the tradition.',
   },
   {
     name: 'Wizard', keyAttribute: ['INT'], hpPerLevel: 6, trainedSkills: 2, fixedSkills: ['Arcana'],
     initial: { perception: 'trained', fortitude: 'trained', reflex: 'trained', will: 'expert', defense: 'trained', ...MARTIAL },
-    subclassLabel: 'Arcane Thesis / School', subclassMechanism: 'Wizard',
+    subclassLabel: 'Arcane Thesis', subclassMechanism: 'Wizard',
+    subclassOptions: ['Improved Familiar Attunement', 'Metamagical Experimentation', 'Spell Blending', 'Spell Substitution', 'Experimental Spellshaping'],
     spellcasting: { tradition: 'arcane', kind: 'prepared', attribute: 'INT' },
     summary: 'The archetypal arcane prepared caster with an Arcane Thesis and (optionally) a curriculum/school granting an extra slot.',
   },

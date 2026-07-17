@@ -110,7 +110,10 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
           <select value={className} onChange={(e) => chooseClass(e.target.value)} style={{ ...input, flex: 1, minWidth: 130 }}>
             <option value="">Class…</option>{classes.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
           </select>
-          <input value={subclass} onChange={(e) => setSubclass(e.target.value)} placeholder={cls ? cls.subclassLabel : 'Subclass'} style={{ ...input, flex: 1, minWidth: 130 }} />
+          <input value={subclass} onChange={(e) => setSubclass(e.target.value)} list={cls && cls.subclassOptions.length ? 'pf2-subclass-opts' : undefined} placeholder={cls ? cls.subclassLabel : 'Subclass'} style={{ ...input, flex: 1, minWidth: 130 }} />
+          {cls && cls.subclassOptions.length > 0 && (
+            <datalist id="pf2-subclass-opts">{cls.subclassOptions.map((o) => <option key={o} value={o} />)}</datalist>
+          )}
           <input value={deity} onChange={(e) => setDeity(e.target.value)} placeholder="Deity (optional)" style={{ ...input, flex: 1, minWidth: 120 }} />
         </div>
         {cls && (

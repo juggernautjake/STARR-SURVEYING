@@ -28,6 +28,19 @@ describe('pf2 content library', () => {
     const skillNames = new Set(PF2_SKILLS.map((s) => s.name));
     for (const b of PF2_BACKGROUNDS) expect(skillNames.has(b.skill)).toBe(true);
   });
+  it('every class declares subclassOptions; only Fighter and Monk (no formal subclass) are empty', () => {
+    const empty = PF2_CLASSES.filter((c) => c.subclassOptions.length === 0).map((c) => c.name).sort();
+    expect(empty).toEqual(['Fighter', 'Monk']);
+    // Spot-check a few well-known Remaster line-ups.
+    expect(PF2_CLASSES.find((c) => c.name === 'Barbarian')!.subclassOptions).toEqual(['Animal', 'Dragon', 'Fury', 'Giant', 'Spirit']);
+    expect(PF2_CLASSES.find((c) => c.name === 'Rogue')!.subclassOptions).toContain('Thief');
+    expect(PF2_CLASSES.find((c) => c.name === 'Cleric')!.subclassOptions).toEqual(['Cloistered Cleric', 'Warpriest']);
+    // No blank or duplicate options anywhere.
+    for (const c of PF2_CLASSES) {
+      expect(c.subclassOptions.every((o) => o.trim().length > 0)).toBe(true);
+      expect(new Set(c.subclassOptions).size).toBe(c.subclassOptions.length);
+    }
+  });
 });
 
 describe('pf2 attribute boosts', () => {
