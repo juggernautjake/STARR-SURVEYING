@@ -87,6 +87,16 @@ describe('spell slot tables', () => {
     expect(THIRD_CASTER_SLOTS[20][5]).toBe(0);
   });
 
+  it('third-caster spell ranks arrive at 3/7/13/19, 0 the level before', () => {
+    // Eldritch Knight / Arcane Trickster: rank 1 at L3, rank 2 at L7, rank 3 at L13, rank 4 at L19.
+    const arrivals: Record<number, number> = { 1: 3, 2: 7, 3: 13, 4: 19 };
+    for (const [rankStr, lvl] of Object.entries(arrivals)) {
+      const rank = Number(rankStr);
+      expect(THIRD_CASTER_SLOTS[lvl][rank], `rank ${rank} should arrive at level ${lvl}`).toBeGreaterThanOrEqual(1);
+      if (lvl > 1) expect(THIRD_CASTER_SLOTS[lvl - 1][rank], `rank ${rank} should NOT exist at level ${lvl - 1}`).toBe(0);
+    }
+  });
+
   it('pact magic is a different shape — few slots, highest rank', () => {
     expect(PACT_SLOTS[1]).toBe(1);
     expect(PACT_SLOTS[2]).toBe(2);
