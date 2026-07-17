@@ -133,6 +133,14 @@ the existing Wi-Fi-only gate for large video as a user option; a "delete from ph
 app's working copy (leaving the camera-roll asset) vs. also removing the camera-roll asset is a real
 choice — default to removing only the app's copy unless the user opts into full deletion.
 
+**Capture → save-to-phone decision ✅ *pure engine shipped* (`mobile/lib/cameraRollSave.ts`):** the owner's
+"the media shows up in the app AND is saved to the phone" — `shouldSaveToCameraRoll(pref)` defaults **ON**
+(opt-OUT), unlike the app's existing opt-in device backup (`deviceLibrary` defaults OFF); a missing/corrupt
+pref still saves (never silently loses the capture from the phone). `camera-roll-save.test.ts` (4).
+**Remaining (mobile-runtime):** wire the capture path to save via MediaLibrary by default using this decision
++ a settings toggle. *(With this, EVERY decision in the capture→save→send→drain→progress→notify→delete flow
+is a pure, tested function; the runtime is pure I/O around them.)*
+
 **Gaps (map each to the user's explicit asks):**
 
 - [~] **C1 — Strictly sequential, one-at-a-time uploads.** ✅ *Pure engine shipped* (`b7b722e7`):
