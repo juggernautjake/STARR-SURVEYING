@@ -2300,7 +2300,11 @@ ledger-resolved numbers, and a DM equip propagates live (C11b + Slice 10). Detai
       the Pact Keeper is reflected. +1 test (DC/attack rise by the item's +5). **Passive Perception +
       Initiative added** (`aa0bedbe`): two more routinely-adjudicated numbers ("does the guard notice?",
       "who acts first?"), effective (WIS/DEX through the ledger, Initiative folds `initiative` effects).
-      +1 test. The digest now carries every effective number a ruling turns on.
+      +1 test. **Attack to-hit / save DC added** (`ba1fa3f6`): attacks listed damage but not whether they
+      LAND ("does it hit AC 15?"). Each attack now carries its to-hit (effective ability + PB + bonus) or
+      an AOE's save DC, computed like the Attacks table. +1 test. The digest now carries every effective
+      number a ruling turns on — abilities, HP, AC, speed, Passive Perception, Initiative, spell DC/attack,
+      and per-attack to-hit/DC.
 - [x] **Realtime equip propagation ✅ VERIFIED 2026-07-16 (no code change needed).** Already satisfied
       by the existing C11b broadcast (`store.tsx:369–405`): a DM equip writes `data`, pings the
       per-character channel, and every other viewer refetches the full authed sheet and re-derives —
