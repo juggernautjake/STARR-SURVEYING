@@ -224,4 +224,10 @@ describe('pf2 catalog', () => {
     expect(groups.map((g) => g.title)).toContain('Classes');
     expect(pf2CatalogCount()).toBeGreaterThanOrEqual(14 + 8 + PF2_BACKGROUNDS.length + 16);
   });
+  it('includes the gear/spell/subclass catalogs so an AI build can reference real ones', () => {
+    const titles = pf2Catalog().map((g) => g.title);
+    expect(titles).toEqual(expect.arrayContaining(['Weapons', 'Armor', 'Spells', 'Subclasses']));
+    const spells = pf2Catalog().find((g) => g.title === 'Spells')!;
+    expect(spells.entries.some((e) => e.name === 'Fireball')).toBe(true);
+  });
 });
