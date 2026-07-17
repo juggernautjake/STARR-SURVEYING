@@ -11,7 +11,7 @@ import { glossaryFor, searchGlossary } from './glossary';
 import { classesForSystem } from './classes/registry';
 import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
-import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, type NamedEntry, type IGStance, type IGAncestry } from './systems/intuitive-games/content';
+import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, IG_COMPANION_TYPES, IG_COMPANION_RULES, type NamedEntry, type IGStance, type IGAncestry, type IGCompanionType } from './systems/intuitive-games/content';
 import { igAllFeats, type IGFeat } from './systems/intuitive-games/feats';
 
 /** The full feat registry for a system, or [] when only a catalog sample exists. System-keyed
@@ -52,6 +52,9 @@ function igPowersFor(system: string): NamedEntry[] {
 }
 function igDefensivePowersFor(system: string): NamedEntry[] {
   return system === 'intuitive-games' ? IG_DEFENSIVE_POWERS : [];
+}
+function igCompanionsFor(system: string): IGCompanionType[] {
+  return system === 'intuitive-games' ? IG_COMPANION_TYPES : [];
 }
 const IG_ECONOMY_COST: Record<string, string> = { Single: '1 action', Double: '2 actions', Triple: '3 actions', Reaction: 'Reaction', Other: 'Free / other' };
 
@@ -400,6 +403,18 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
       },
     });
   }
+  const igCompanions = igCompanionsFor(key);
+  if (igCompanions.length) {
+    sections.push({
+      id: 'companions',
+      title: 'Companion Creatures',
+      lead: IG_COMPANION_RULES,
+      table: {
+        headers: ['Companion type', 'Class', 'Details'],
+        rows: igCompanions.map((c) => [c.name, c.subclass, c.text]),
+      },
+    });
+  }
 
   return {
     key: r.key,
@@ -553,6 +568,7 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
     // Powers/spells + defensive powers (IG): searchable by name with full effect text.
     for (const p of igPowersFor(key)) push('power', p.name, `${p.name} — ${p.category ?? ''} power in ${r.label}: ${p.effect ?? ''}`);
     for (const d of igDefensivePowersFor(key)) push('defensive-power', d.name, `${d.name} — a defensive power (reaction) in ${r.label}: ${d.effect ?? ''}`);
+    for (const c of igCompanionsFor(key)) push('companion', c.name, `${c.name} — a ${c.subclass} companion in ${r.label}: ${c.text}`);
     for (const sp of spellsForSystem(key)) {
       push('spell', sp.name, `${sp.name} — ${pf2RankLabel(sp.rank)}, ${sp.traditions.join('/')}; ${sp.cast}. ${sp.effect}`);
     }

@@ -148,7 +148,15 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       (verify):** the `IG_POWERS`/defensive-power text was sourced from the IG template + site earlier; do a
       pass against the live `/spell-list` to confirm every power + its wording matches (source-only rule),
       then mark done.
-- [ ] **A12 — Companion Creatures** (`/companion-creatures`).
+- [x] **A12 — Companion Creatures** (`/companion-creatures`) — ✅ SHIPPED (`content.ts` `IG_COMPANION_TYPES`
+      + `IG_COMPANION_RULES`). The site's actual companion content: the **4 companion types by Archon
+      subclass** (Beast Companion/Beastmaster, Elemental/Summoner, Familiar/Eldritch Binder, Swarm/Packmaster)
+      with their rules, plus the advancement rules (HP = 2 + Con/level, skill ranks, 6 ability increases). Per
+      Ground Rule 2, the site does NOT define how a companion is directed in combat, so that's recorded as
+      "not yet published" rather than fabricated. Library gains a Companion Creatures section; searchable.
+      `library.test.ts` +2. **Finding:** the broad `IG_CREATURES` bestiary in `content.ts` (Ape…Dragons…)
+      came from the sheet TEMPLATE, not this web page (which names only the Tiger example) — flagged for a
+      source-fidelity review, kept as-is for now since the builder's companion picker uses it.
 - [ ] **A13 — Items: Weapons** (`/weapons`).
 - [ ] **A14 — Items: Armor & Shields** (`/armor-shields`) — incl. the damage-reduction mechanic.
 - [ ] **A15 — Items: Equipment, Tools, Magical Items** (`/equipment`, `/tools`, `/magical-items`).

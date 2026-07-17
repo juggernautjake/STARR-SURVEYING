@@ -285,6 +285,26 @@ describe('Intuitive Games feats carry full rules text (IG buildout A7 + A8)', ()
   });
 });
 
+describe('Intuitive Games companion creatures surface on the library (IG buildout A12)', () => {
+  it('renders a Companion Creatures section with the 4 types + advancement rules, and marks combat rules absent', () => {
+    const page = libraryPageFor('intuitive-games')!;
+    const comp = page.sections.find((s) => s.id === 'companions')!;
+    expect(comp).toBeTruthy();
+    expect(comp.table!.rows).toHaveLength(4);
+    expect(comp.table!.rows.map((r) => r[0])).toEqual(['Beast Companion', 'Elemental', 'Familiar', 'Swarm']);
+    // The site does not define combat direction — recorded as such, not fabricated (Ground Rule 2).
+    expect(comp.lead).toMatch(/not yet published/i);
+    const swarm = comp.table!.rows.find((r) => r[0] === 'Swarm');
+    expect(swarm?.[1]).toBe('Packmaster');
+    expect(swarm?.[2]).toMatch(/Swarming stance/i);
+  });
+
+  it('a companion type is searchable', () => {
+    const familiar = searchLibrary('familiar', 'intuitive-games').find((h) => h.kind === 'companion');
+    expect(familiar!.body).toMatch(/Eldritch Binder/);
+  });
+});
+
 describe('Intuitive Games powers, defensive powers, and actions surface on the library (IG buildout A11)', () => {
   it('renders Powers & Spells, Defensive Powers, and Actions sections', () => {
     const page = libraryPageFor('intuitive-games')!;

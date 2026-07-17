@@ -139,6 +139,25 @@ export const IG_ANCESTRIES: IGAncestry[] = [
   ] },
 ];
 
+// ── Companion Creatures (from intuitivegames.net/companion-creatures) — the FOUR companion types tied to
+//    Archon subclasses, plus the advancement rules. NOTE: the site does NOT spell out how a companion is
+//    directed in combat / its action economy — recorded as absent per the source-only rule, not invented.
+//    (Distinct from IG_CREATURES below, a broad bestiary list from the sheet template, not this web page.)
+export const IG_COMPANION_RULES =
+  'Companions gain HP each level equal to 2 + its Constitution modifier. A companion with Intelligence 6 ' +
+  'or lower gains no skill ranks; above that it gains 2 + its Intelligence modifier ranks yearly. All ' +
+  'companions receive 6 total ability score increases, distributed as the player chooses (after type-based ' +
+  'modifiers). The site does not currently define how a companion is directed in combat or its action ' +
+  'economy — that part of the rules is not yet published.';
+
+export interface IGCompanionType { name: string; subclass: string; text: string; }
+export const IG_COMPANION_TYPES: IGCompanionType[] = [
+  { name: 'Beast Companion', subclass: 'Beastmaster', text: 'Gain a physical ability boost and a -2 Intelligence penalty. Skill proficiency options: Acrobatics, Climb, Fly, Perception, Stealth, Swim. (Example: a Level 1 Tiger — Large, 16 HP, +5 attack, 1d8+4 damage.)' },
+  { name: 'Elemental', subclass: 'Summoner', text: 'Choose an energy type; gain resistance to it equal to twice your level. Skill proficiency: Arcane.' },
+  { name: 'Familiar', subclass: 'Eldritch Binder', text: 'Must be Small or Tiny. Gain any one skill proficiency, and gain advantage when assisting the summoner with a proficient skill.' },
+  { name: 'Swarm', subclass: 'Packmaster', text: 'Must be Tiny or Small. Takes a -4 Intelligence penalty (minimum 1). Gains the Swarming stance. Skill proficiency options: Acrobatics, Climb, Fly, Perception, Stealth, Swim.' },
+];
+
 // ── Feats — General + Combat + special powers referenced by the sheet. ──────────────────────────────
 export const IG_FEATS: NamedEntry[] = [
   { name: 'Toughness', category: 'General' },
