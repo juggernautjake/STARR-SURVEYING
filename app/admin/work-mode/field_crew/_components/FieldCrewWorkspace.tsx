@@ -9,6 +9,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useWorkModeStore } from '@/lib/work-mode/work-mode-store';
 import { jobMapsUrl, hasJobLocation, formatJobAddress, telHref } from '@/lib/jobs/location';
 import { jobCrew, jobRpls, crewNames } from '@/lib/jobs/crew';
+import { jobLabel, groupFilesBySection } from '@/lib/jobs/hub';
 import { evalArithmetic, formatCalcResult } from '@/lib/jobs/calc';
 
 type FieldTab = 'job' | 'calc' | 'notes' | 'photo' | 'points' | 'mileage' | 'receipts' | 'crew' | 'equipment' | 'time' | 'files' | 'issue';
@@ -130,7 +131,7 @@ function JobPicker({ value, onChange, jobs, loading }: { value: string | null; o
       >
         <option value="">{loading ? 'Loading jobs…' : 'Select a job…'}</option>
         {jobs.map((j) => (
-          <option key={j.id} value={j.id}>{[j.job_number, j.name].filter(Boolean).join(' · ') || j.id}</option>
+          <option key={j.id} value={j.id}>{jobLabel(j, j.id)}</option>
         ))}
       </select>
     </label>
@@ -158,7 +159,7 @@ function JobSummary({ job, loading }: { job: FieldJob | null; loading: boolean }
   return (
     <div style={{ ...card, display: 'grid', gap: 14 }}>
       <div>
-        <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>{[job.job_number, job.name].filter(Boolean).join(' · ')}</h2>
+        <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>{jobLabel(job)}</h2>
         {job.stage && <span style={{ fontSize: '0.8rem', color: 'var(--theme-fg-secondary)' }}>Stage: {job.stage}</span>}
       </div>
 
@@ -338,17 +339,11 @@ function JobFiles({ jobId }: { jobId: string | null }) {
   if (loading) return <div style={card}><p style={{ margin: 0, color: 'var(--theme-fg-secondary)', fontSize: '0.9rem' }}>Loading files…</p></div>;
   if (!files.length) return <div style={card}><p style={{ margin: 0, color: 'var(--theme-fg-secondary)', fontSize: '0.9rem' }}>No files on this job yet.</p></div>;
 
-  // Group by section, preserving first-seen order.
-  const bySection = new Map<string, JobFile[]>();
-  for (const f of files) {
-    const sec = (f.section || 'general').replace(/\b\w/g, (c) => c.toUpperCase());
-    if (!bySection.has(sec)) bySection.set(sec, []);
-    bySection.get(sec)!.push(f);
-  }
+  const bySection = groupFilesBySection(files);
 
   return (
     <div style={{ ...card, display: 'grid', gap: 14 }}>
-      {[...bySection.entries()].map(([section, list]) => (
+      {bySection.map(([section, list]) => (
         <div key={section} style={{ display: 'grid', gap: 6 }}>
           <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--theme-fg-secondary)' }}>{section} ({list.length})</div>
           {list.map((f) => (
