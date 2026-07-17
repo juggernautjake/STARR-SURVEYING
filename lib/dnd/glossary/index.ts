@@ -14,6 +14,7 @@ import { COC7E_GLOSSARY } from './coc7e';
 import { BLADES_GLOSSARY } from './blades';
 import { CYBERPUNK_RED_GLOSSARY } from './cyberpunk-red';
 import { SHADOWRUN6E_GLOSSARY } from './shadowrun6e';
+import { INTUITIVE_GAMES_GLOSSARY } from './intuitive-games';
 
 export type { GlossaryEntry, GlossaryKind, SystemGlossary } from './types';
 
@@ -27,8 +28,10 @@ const BY_SYSTEM: Record<string, SystemGlossary> = {
   blades: BLADES_GLOSSARY,
   'cyberpunk-red': CYBERPUNK_RED_GLOSSARY,
   shadowrun6e: SHADOWRUN6E_GLOSSARY,
-  // 'intuitive-games' has its own in-code content module rather than a glossary — see
-  // lib/dnd/systems/intuitive-games/content.ts.
+  // Intuitive Games has a builder-side content module (systems/intuitive-games/content.ts) AND, now,
+  // a searchable glossary here — so the library search + Ask-the-Librarian cover it like the other
+  // focus systems. The two are complementary: content.ts is builder data, this is the readable rules.
+  'intuitive-games': INTUITIVE_GAMES_GLOSSARY,
 };
 
 /** Every defined term for a system (empty for a system with no glossary yet). */

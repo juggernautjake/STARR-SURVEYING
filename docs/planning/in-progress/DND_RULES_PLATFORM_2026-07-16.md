@@ -457,6 +457,39 @@ now audited and guarded:
 - [ ] Jack: decide whether Rangor/Pugilist become a real custom class + subclass through the Slice-5
       builder (they are currently hand-authored sheet data with `system: ambiguous`).
 
+## Slice 8b — Library buildout for the four focus systems ⏳ IN PROGRESS 2026-07-16/17
+
+Per the user's directive to focus on **four** systems (D&D 5e 2024, D&D 5e 2014, Intuitive Games,
+Pathfinder 2e) and fully flesh out each system's library — every rule/term/action defined,
+searchable, and AI-navigable so a player or the AI gets correct answers. The other six systems are
+seeded **🚧 under construction** (`GameSystem.status`), grouped/disabled in the pickers, with their
+build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
+
+- [x] **D&D 5e 2024 ✅** — added the full action economy (all 12 standard actions + Bonus Action) and
+      core combat (Cover, Temp HP, Damage Types & Resistance, Difficult Terrain, Vision & Light,
+      Bloodied). Now ~67 terms.
+- [x] **D&D 5e 2014 ✅** — its own edition-correct action economy (Cast a Spell / Use an Object, not
+      the 2024 renames; 2014 Hide with no DC 15) + the same core mechanics. Now ~60 terms. A `stealth`
+      alias on Hide was outranking the Stealth skill in search — caught + removed.
+- [x] **Pathfinder 2e ✅** — the actual actions of the 3-action economy (Strike/Stride/Step/Interact/
+      Raise a Shield/Seek/Aid + Demoralize/Grapple/Trip/Shove/Escape) and core mechanics (Flat Check,
+      Persistent Damage, Bulk, Free Action & Reaction/Activity). 44 → 60 terms.
+- [x] **Intuitive Games ✅** — closed the gap found 2026-07-16 (its content lived only in the builder
+      module, not the searchable glossary). Authored `lib/dnd/glossary/intuitive-games.ts` (26 articles)
+      from the engine's own numbers (igProficiency = level, igDegreeOfSuccess, igSaveTotal, igMaxHp) and
+      the content module — Core Roll, Degrees of Success, the Three-Action Economy + its actions
+      (Attack/Stride/Step/Interact/Combat Skills/Support Ally/Redistribution/Attack of Opportunity),
+      Proficiency (= level), the three Saves, HP, Stances, Flanking, Sneak Attack, Powers/Defensive
+      Powers, Advantage & Disadvantage, DR, Weapon Classes, Feats, Subclasses, Ability Scores — and
+      wired it into `glossary/index.ts` `BY_SYSTEM`. **Verified in the running app**: library search for
+      "stance" under intuitive-games returns Stances / Advantage & Disadvantage / Damage Reduction. All
+      four focus systems are now searchable + AI-navigable in the library.
+- [x] **Guardrails**: `glossary.test.ts` now includes a no-duplicate-terms integrity check per system;
+      `system-integrity.test.ts` enforces no cross-system leakage. Every entry carries seeAlso links +
+      search aliases and resolves through the no-key keyword search.
+- [ ] Remaining: the Intuitive Games glossary adapter (above); and once class data exists per system,
+      project classes/subclasses/feats into the searchable library too (not just conditions/rules).
+
 ## Slice 8 — Semantic search (optional, needs a key)
 
 - [ ] Backfill embeddings for `dnd_system_entries` + the glossary once `VOYAGE_API_KEY` exists
