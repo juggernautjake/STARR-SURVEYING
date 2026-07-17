@@ -9,7 +9,7 @@ import {
   type PF2Character, type PF2AttributeKey, type PF2Skill, type PF2Feat,
 } from './model';
 import {
-  PF2_SKILLS, pf2Class, pf2Ancestry, pf2Background,
+  PF2_SKILLS, pf2Class, pf2Ancestry, pf2Background, pf2Armor,
   type PF2ClassDef, type PF2AncestryDef,
 } from './content';
 import type { Character } from '@/app/dnd/_sheet/types';
@@ -50,6 +50,8 @@ export interface PF2Picks {
   freeBoosts?: PF2AttributeKey[];
   /** Skills the player trained beyond the class's fixed skills. */
   trainedSkills?: string[];
+  /** Worn armor (a PF2_ARMORS name). Sets the AC item bonus + Dex cap; defaults to Unarmored. */
+  armor?: string;
   languages?: string[];
   bio?: string;
   photoUrl?: string;
@@ -99,6 +101,12 @@ export function buildPF2Character(picks: PF2Picks): PF2Character {
 
   const init = cls?.initial;
   const con = attributes.CON;
+  const armor = pf2Armor(picks.armor || 'Unarmored');
+  // Meeting the armor's Strength requirement reduces the speed penalty by 5 ft (to a min of 0); not
+  // meeting it applies the full penalty. (Check penalty is likewise waived when met — deferred to the
+  // skill-penalty slice.)
+  const meetsStr = armor ? attributes.STR >= armor.strength : true;
+  const speedPenalty = armor ? (meetsStr ? Math.min(0, armor.speedPenalty + 5) : armor.speedPenalty) : 0;
 
   const feats: PF2Feat[] = [];
   if (cls) feats.push({ id: 'cls-key', name: `${cls.name} (${cls.subclassLabel})`, level: 1, track: 'feature', traits: [cls.name], body: cls.summary });
@@ -124,8 +132,8 @@ export function buildPF2Character(picks: PF2Picks): PF2Character {
       classHpPerLevel: cls?.hpPerLevel ?? 8,
       currentHp: (anc?.hp ?? 8) + ((cls?.hpPerLevel ?? 8) + con) * level,
       tempHp: 0, dyingValue: 0, woundedValue: 0,
-      speed: anc?.speed ?? 25,
-      armorRank: init?.defense ?? 'trained', dexCap: null, acItemBonus: 0,
+      speed: (anc?.speed ?? 25) + speedPenalty,
+      armorRank: init?.defense ?? 'trained', dexCap: armor ? armor.dexCap : null, acItemBonus: armor?.acBonus ?? 0, armorName: armor?.name || 'Unarmored',
       attackRank: init?.attacks ?? 'trained',
       classDcRank: init?.classDc ?? 'trained', classDcAttribute: keyAttr,
     },

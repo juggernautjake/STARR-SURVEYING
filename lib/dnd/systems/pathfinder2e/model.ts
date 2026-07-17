@@ -74,6 +74,8 @@ export interface PF2Combat {
   armorRank: PF2Rank;
   dexCap: number | null; // null = uncapped (unarmored / no cap)
   acItemBonus: number;
+  /** The worn armor's name (display only; the numbers above are what the rules engine reads). */
+  armorName?: string;
   /** The attack proficiency that gates your Strikes (Fighter is highest). */
   attackRank: PF2Rank;
   /** The class DC proficiency (for class features that impose saves). */

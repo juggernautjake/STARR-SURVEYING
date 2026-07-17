@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildPF2Character, pf2ApplyBoosts, pf2ComputeAttributes } from '@/lib/dnd/systems/pathfinder2e/builder';
 import { pf2MaxHp, pf2ArmorClass, pf2ClassDc, pf2Derived } from '@/lib/dnd/systems/pathfinder2e/rules';
-import { PF2_CLASSES, PF2_ANCESTRIES, PF2_BACKGROUNDS, PF2_SKILLS } from '@/lib/dnd/systems/pathfinder2e/content';
+import { PF2_CLASSES, PF2_ANCESTRIES, PF2_BACKGROUNDS, PF2_SKILLS, PF2_ARMORS } from '@/lib/dnd/systems/pathfinder2e/content';
 import { pf2Catalog, pf2CatalogCount } from '@/lib/dnd/systems/pathfinder2e/catalog';
 
 describe('pf2 content library', () => {
@@ -114,6 +114,36 @@ describe('buildPF2Character threads higher-level spell slots', () => {
   it('a level-9 Sorcerer gets slots up to 5th rank', () => {
     const c = buildPF2Character({ ancestry: 'Human', className: 'Sorcerer', level: 9, attributes: { CHA: 4 } });
     expect(c.spellcasting.slots).toEqual([5, 3, 3, 3, 3, 2, 0, 0, 0, 0, 0]);
+  });
+});
+
+describe('PF2 armor drives AC, Dex cap, and speed', () => {
+  it('has the four categories with a sane Unarmored default', () => {
+    expect(PF2_ARMORS[0].name).toBe('Unarmored');
+    expect(PF2_ARMORS[0].dexCap).toBeNull();
+    expect(new Set(PF2_ARMORS.map((a) => a.category))).toEqual(new Set(['unarmored', 'light', 'medium', 'heavy']));
+  });
+  it('unarmored AC is uncapped: 10 + full Dex + trained', () => {
+    const c = buildPF2Character({ className: 'Monk', ancestry: 'Elf', level: 1, attributes: { DEX: 4 }, armor: 'Unarmored' });
+    expect(c.combat.dexCap).toBeNull();
+    expect(pf2ArmorClass(c)).toBe(10 + 4 + (2 + 1)); // 17
+  });
+  it('full plate caps Dex at 0 and adds +6: a Fighter with high Dex still gets the capped AC', () => {
+    const c = buildPF2Character({ className: 'Fighter', ancestry: 'Dwarf', level: 1, attributes: { DEX: 3, STR: 4 }, armor: 'Full Plate' });
+    expect(c.combat.dexCap).toBe(0);
+    expect(c.combat.acItemBonus).toBe(6);
+    expect(pf2ArmorClass(c)).toBe(10 + 0 + (2 + 1) + 6); // 19 (Dex capped away)
+  });
+  it('meeting the armor Strength requirement reduces the speed penalty (heavy −10 → −5; met → −5)', () => {
+    // Dwarf speed 20. Full Plate str req 4, speed penalty -10.
+    const met = buildPF2Character({ className: 'Fighter', ancestry: 'Dwarf', level: 1, attributes: { STR: 4 }, armor: 'Full Plate' });
+    expect(met.combat.speed).toBe(20 - 5);   // Strength met → penalty reduced by 5
+    const unmet = buildPF2Character({ className: 'Fighter', ancestry: 'Dwarf', level: 1, attributes: { STR: 1 }, armor: 'Full Plate' });
+    expect(unmet.combat.speed).toBe(20 - 10); // full penalty
+  });
+  it('records the worn armor name for display', () => {
+    const c = buildPF2Character({ className: 'Cleric', ancestry: 'Human', armor: 'Breastplate' });
+    expect(c.combat.armorName).toBe('Breastplate');
   });
 });
 

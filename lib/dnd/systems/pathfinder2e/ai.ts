@@ -42,6 +42,7 @@ export function parsePF2Picks(raw: unknown): PF2Picks {
     attributes: Object.keys(attributes).length ? attributes : undefined,
     freeBoosts: freeBoosts.length ? freeBoosts : undefined,
     trainedSkills: strArr(p.trainedSkills),
+    armor: str(p.armor) || undefined,
     languages: strArr(p.languages),
     bio: str(p.bio) || undefined,
   };
@@ -65,6 +66,7 @@ export const PF2_PICKS_TOOL = {
       },
       freeBoosts: { type: 'array', items: { type: 'string', enum: [...PF2_ATTRIBUTES] }, description: 'Used only if attributes are omitted.' },
       trainedSkills: { type: 'array', items: { type: 'string' } },
+      armor: { type: 'string', description: 'Worn armor name (e.g. "Full Plate", "Leather", "Unarmored").' },
       languages: { type: 'array', items: { type: 'string' } },
       bio: { type: 'string' },
     },

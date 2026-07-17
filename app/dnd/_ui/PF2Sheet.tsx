@@ -64,7 +64,7 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
 
       {/* Headline defenses */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <Stat label="AC" value={`${d.ac}`} />
+        <Stat label="AC" value={`${d.ac}`} sub={pf2.combat.armorName && pf2.combat.armorName !== 'Unarmored' ? pf2.combat.armorName : undefined} />
         <Stat label="HP" value={`${pf2.combat.currentHp || d.maxHp}/${d.maxHp}`} sub={pf2.combat.tempHp ? `+${pf2.combat.tempHp} temp` : undefined} />
         <Stat label="Perception" value={fmt(pf2PerceptionTotal(pf2))} sub={pf2.perception.rank} />
         <Stat label="Speed" value={`${pf2.combat.speed} ft`} />

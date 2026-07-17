@@ -265,8 +265,44 @@ export const PF2_BACKGROUNDS: PF2BackgroundDef[] = [
   { name: 'Warrior', boosts: ['STR', 'free'], skill: 'Athletics', lore: 'Warfare Lore', feat: 'Intimidating Glare', summary: 'A veteran fighter; Athletics.' },
 ];
 
+// ── Armor (Player Core) — the worn armor sets the AC item bonus and the Dex cap; the character's
+//    proficiency RANK in that armor's category comes from the class, not the item. `dexCap: null` means
+//    uncapped (Unarmored). AC = 10 + min(Dex, dexCap) + proficiency + acBonus (see rules.pf2ArmorClass). ─
+export type PF2ArmorCategory = 'unarmored' | 'light' | 'medium' | 'heavy';
+export interface PF2ArmorDef {
+  name: string;
+  category: PF2ArmorCategory;
+  /** Item bonus to AC. */
+  acBonus: number;
+  /** Dex cap; null = uncapped (Unarmored only). */
+  dexCap: number | null;
+  /** Attribute (Strength modifier) that removes the check/speed penalty; 0 = none. */
+  strength: number;
+  checkPenalty: number;
+  speedPenalty: number;
+  group?: string;
+}
+export const PF2_ARMORS: PF2ArmorDef[] = [
+  { name: 'Unarmored', category: 'unarmored', acBonus: 0, dexCap: null, strength: 0, checkPenalty: 0, speedPenalty: 0 },
+  // Light
+  { name: 'Padded Armor', category: 'light', acBonus: 1, dexCap: 3, strength: 0, checkPenalty: 0, speedPenalty: 0, group: 'Cloth' },
+  { name: 'Leather', category: 'light', acBonus: 1, dexCap: 4, strength: 1, checkPenalty: -1, speedPenalty: 0, group: 'Leather' },
+  { name: 'Studded Leather', category: 'light', acBonus: 2, dexCap: 3, strength: 1, checkPenalty: -1, speedPenalty: 0, group: 'Leather' },
+  { name: 'Chain Shirt', category: 'light', acBonus: 2, dexCap: 3, strength: 1, checkPenalty: -1, speedPenalty: 0, group: 'Chain' },
+  // Medium
+  { name: 'Hide', category: 'medium', acBonus: 3, dexCap: 2, strength: 2, checkPenalty: -2, speedPenalty: -5, group: 'Leather' },
+  { name: 'Scale Mail', category: 'medium', acBonus: 3, dexCap: 2, strength: 2, checkPenalty: -2, speedPenalty: -5, group: 'Composite' },
+  { name: 'Chain Mail', category: 'medium', acBonus: 4, dexCap: 1, strength: 3, checkPenalty: -2, speedPenalty: -5, group: 'Chain' },
+  { name: 'Breastplate', category: 'medium', acBonus: 4, dexCap: 1, strength: 3, checkPenalty: -2, speedPenalty: -5, group: 'Plate' },
+  // Heavy
+  { name: 'Splint Mail', category: 'heavy', acBonus: 5, dexCap: 1, strength: 3, checkPenalty: -3, speedPenalty: -10, group: 'Composite' },
+  { name: 'Half Plate', category: 'heavy', acBonus: 5, dexCap: 1, strength: 3, checkPenalty: -3, speedPenalty: -10, group: 'Plate' },
+  { name: 'Full Plate', category: 'heavy', acBonus: 6, dexCap: 0, strength: 4, checkPenalty: -3, speedPenalty: -10, group: 'Plate' },
+];
+
 // ── Convenience lookups ────────────────────────────────────────────────────────────────────────────
 export const pf2Class = (name: string) => PF2_CLASSES.find(c => c.name.toLowerCase() === name.toLowerCase()) || null;
 export const pf2Ancestry = (name: string) => PF2_ANCESTRIES.find(a => a.name.toLowerCase() === name.toLowerCase()) || null;
 export const pf2Background = (name: string) => PF2_BACKGROUNDS.find(b => b.name.toLowerCase() === name.toLowerCase()) || null;
 export const pf2Skill = (name: string) => PF2_SKILLS.find(s => s.name.toLowerCase() === name.toLowerCase()) || null;
+export const pf2Armor = (name: string) => PF2_ARMORS.find(a => a.name.toLowerCase() === name.toLowerCase()) || null;
