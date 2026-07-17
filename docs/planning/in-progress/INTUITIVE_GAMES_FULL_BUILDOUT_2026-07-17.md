@@ -141,7 +141,13 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       leak to systems without the mechanic). The structured defs also set up the Area-B stance editor (B5).
       `ig-content.test.ts` +1, `library.test.ts` +3; fixed 2 tests that asserted the old wording.
 - [ ] **A10 — Classes** (`/classes`) — all 13+ classes across the 4 groups, each with its features/progression.
-- [ ] **A11 — Spell List** (`/spell-list`).
+- [~] **A11 — Spell List / Powers** (`/spell-list`) — ✅ *Surfaced* (`library.ts`): the existing
+      `IG_POWERS` (~38 powers by school, with effect text), `IG_DEFENSIVE_POWERS` (6 reactions), and the
+      `IG_ACTIONS` 3-action-economy list now render as library sections (Powers & Spells / Defensive Powers /
+      Actions tables) and are searchable by name with full effect text. `library.test.ts` +3. **Remaining
+      (verify):** the `IG_POWERS`/defensive-power text was sourced from the IG template + site earlier; do a
+      pass against the live `/spell-list` to confirm every power + its wording matches (source-only rule),
+      then mark done.
 - [ ] **A12 — Companion Creatures** (`/companion-creatures`).
 - [ ] **A13 — Items: Weapons** (`/weapons`).
 - [ ] **A14 — Items: Armor & Shields** (`/armor-shields`) — incl. the damage-reduction mechanic.

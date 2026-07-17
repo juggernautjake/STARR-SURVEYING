@@ -285,6 +285,34 @@ describe('Intuitive Games feats carry full rules text (IG buildout A7 + A8)', ()
   });
 });
 
+describe('Intuitive Games powers, defensive powers, and actions surface on the library (IG buildout A11)', () => {
+  it('renders Powers & Spells, Defensive Powers, and Actions sections', () => {
+    const page = libraryPageFor('intuitive-games')!;
+    const ids = page.sections.map((s) => s.id);
+    expect(ids).toContain('powers');
+    expect(ids).toContain('defensive-powers');
+    expect(ids).toContain('actions');
+    const powers = page.sections.find((s) => s.id === 'powers')!;
+    expect(powers.table!.headers).toEqual(['Power', 'School', 'Effect']);
+    const blast = powers.table!.rows.find((r) => r[0] === 'Elemental Blast');
+    expect(blast?.[1]).toBe('Evocation');
+    expect(blast?.[2]).toMatch(/ranged elemental attack/i);
+    const actions = page.sections.find((s) => s.id === 'actions')!;
+    expect(actions.table!.rows.find((r) => /Stride/.test(r[0]))?.[1]).toBe('1 action');
+  });
+
+  it('a power and a defensive power are searchable with effect text', () => {
+    const blast = searchLibrary('elemental blast', 'intuitive-games').find((h) => h.kind === 'power');
+    expect(blast!.body).toMatch(/damage = level \+ Int mod/i);
+    const sidestep = searchLibrary('sidestep', 'intuitive-games').find((h) => h.kind === 'defensive-power');
+    expect(sidestep!.body).toMatch(/5-foot step/i);
+  });
+
+  it('powers do not leak into a system without the mechanic', () => {
+    expect(libraryPageFor('dnd5e-2024')!.sections.some((s) => s.id === 'powers')).toBe(false);
+  });
+});
+
 describe('Intuitive Games ancestries carry full trait text (IG buildout A5)', () => {
   it('renders the ancestries as a full-trait-text table with the trait-system rules', () => {
     const page = libraryPageFor('intuitive-games')!;

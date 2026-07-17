@@ -11,7 +11,7 @@ import { glossaryFor, searchGlossary } from './glossary';
 import { classesForSystem } from './classes/registry';
 import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
-import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, type NamedEntry, type IGStance, type IGAncestry } from './systems/intuitive-games/content';
+import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, type NamedEntry, type IGStance, type IGAncestry } from './systems/intuitive-games/content';
 import { igAllFeats, type IGFeat } from './systems/intuitive-games/feats';
 
 /** The full feat registry for a system, or [] when only a catalog sample exists. System-keyed
@@ -44,6 +44,16 @@ function ancestriesWithTraitsFor(system: string): IGAncestry[] {
 function igFeatsFor(system: string): IGFeat[] {
   return system === 'intuitive-games' ? igAllFeats() : [];
 }
+
+/** IG powers/spells (by school), defensive powers, and the 3-action-economy action list — each carries
+ *  effect text in the content library; System-keyed so none surface under another system. */
+function igPowersFor(system: string): NamedEntry[] {
+  return system === 'intuitive-games' ? IG_POWERS : [];
+}
+function igDefensivePowersFor(system: string): NamedEntry[] {
+  return system === 'intuitive-games' ? IG_DEFENSIVE_POWERS : [];
+}
+const IG_ECONOMY_COST: Record<string, string> = { Single: '1 action', Double: '2 actions', Triple: '3 actions', Reaction: 'Reaction', Other: 'Free / other' };
 
 /** Backgrounds a system exposes as structured library data. System-keyed so PF2's backgrounds never
  *  surface under another system. Only Pathfinder 2e has these as first-class library entries today. */
@@ -356,6 +366,41 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
     sections.push({ id: 'feats', title: featNoun(r.key), lead: 'A representative sample — not the complete list.', chips: r.content.sampleFeats });
   }
 
+  // Powers / spells (IG): grouped by school, each with its effect. Defensive powers + the action economy
+  // follow — all system-scoped so they never surface under a system without the mechanic.
+  const igPowers = igPowersFor(key);
+  if (igPowers.length) {
+    sections.push({
+      id: 'powers',
+      title: 'Powers & Spells',
+      lead: `${igPowers.length} powers across ${new Set(igPowers.map((p) => p.category)).size} schools — the system's magic.`,
+      table: {
+        headers: ['Power', 'School', 'Effect'],
+        rows: igPowers.map((p) => [p.name, p.category ?? '—', p.effect ?? '—']),
+      },
+    });
+  }
+  const igDef = igDefensivePowersFor(key);
+  if (igDef.length) {
+    sections.push({
+      id: 'defensive-powers',
+      title: 'Defensive Powers',
+      lead: `${igDef.length} reactions spent to blunt or avoid an attack.`,
+      table: { headers: ['Defensive Power', 'Effect'], rows: igDef.map((d) => [d.name, d.effect ?? '—']) },
+    });
+  }
+  if (key === 'intuitive-games' && IG_ACTIONS.length) {
+    sections.push({
+      id: 'actions',
+      title: 'Actions (3-action economy)',
+      lead: 'Each turn you have three actions plus one reaction. What the common actions cost:',
+      table: {
+        headers: ['Action', 'Cost'],
+        rows: IG_ACTIONS.map((a) => [a.note ? `${a.name} (${a.note})` : a.name, IG_ECONOMY_COST[a.economy] ?? a.economy]),
+      },
+    });
+  }
+
   return {
     key: r.key,
     name: r.label,
@@ -505,6 +550,9 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
     for (const st of stancesForSystem(key)) {
       push('stance', `${st.name} Stance`, `${st.name} Stance — Basic (below Lv 5): ${st.basic} Advanced (Lv 5+): ${st.advanced}`);
     }
+    // Powers/spells + defensive powers (IG): searchable by name with full effect text.
+    for (const p of igPowersFor(key)) push('power', p.name, `${p.name} — ${p.category ?? ''} power in ${r.label}: ${p.effect ?? ''}`);
+    for (const d of igDefensivePowersFor(key)) push('defensive-power', d.name, `${d.name} — a defensive power (reaction) in ${r.label}: ${d.effect ?? ''}`);
     for (const sp of spellsForSystem(key)) {
       push('spell', sp.name, `${sp.name} — ${pf2RankLabel(sp.rank)}, ${sp.traditions.join('/')}; ${sp.cast}. ${sp.effect}`);
     }
