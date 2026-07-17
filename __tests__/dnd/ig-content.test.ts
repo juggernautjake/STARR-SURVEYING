@@ -3,8 +3,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   IG_STANCES, IG_STANCE_DEFS, IG_STANCE_RULES, IG_FEATS, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES,
-  IG_MOVEMENT_TYPES, IG_CONDITIONS, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES,
-  igIsVanilla, igVanillaNames, igContentSummary, findIGAncestry,
+  IG_MOVEMENT_TYPES, IG_CONDITIONS, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_SPELL_ROSTER,
+  igIsVanilla, igVanillaNames, igContentSummary, findIGAncestry, igAllSpellNames, igSpellsMissingEffects,
 } from '@/lib/dnd/systems/intuitive-games/content';
 import { IG_GENERAL_FEATS, IG_COMBAT_FEATS, igAllFeats, findIGFeat } from '@/lib/dnd/systems/intuitive-games/feats';
 import { systemRulesBlock, systemConditions, systemSpecies } from '@/lib/dnd/system-rules';
@@ -139,6 +139,20 @@ describe('Intuitive Games vanilla content library (Slice 1)', () => {
     // findIGFeat resolves case/space-insensitively for the sheet tooltip, null for unknowns.
     expect(findIGFeat('  fleet ')?.effect).toMatch(/10 additional feet/i);
     expect(findIGFeat('Not A Feat')).toBeNull();
+  });
+
+  it('recognizes the full site spell roster as vanilla (not just the effect-carrying powers)', () => {
+    expect(igAllSpellNames().length).toBeGreaterThanOrEqual(50);
+    expect(IG_SPELL_ROSTER.Evocation).toContain('Wave Crash');
+    // Spells from the site roster that aren't in the old IG_POWERS are STILL recognized vanilla.
+    expect(igIsVanilla('spell', 'Named Bullet')).toBe(true);
+    expect(igIsVanilla('power', 'Wave Crash')).toBe(true);
+    expect(igIsVanilla('spell', 'Mirror Image')).toBe(true); // one that IS in IG_POWERS too
+    expect(igIsVanilla('spell', 'My Homebrew Spell')).toBe(false);
+    // The missing-effects helper reports roster spells lacking effect text (a real, non-empty gap today).
+    const missing = igSpellsMissingEffects();
+    expect(missing).toContain('Named Bullet');
+    expect(missing).not.toContain('Mirror Image'); // this one has effect text in IG_POWERS
   });
 
   it('the content summary exposes every kind and grounding lists the vanilla options', () => {

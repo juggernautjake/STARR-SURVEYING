@@ -243,11 +243,14 @@ term fully defined. One slice per site section; each fetches the page, transcrib
 - [x] **A18 — Redistribution** (`/redistribution`) — ✅ SHIPPED (`content.ts` `IG_REDISTRIBUTION_RULES`): the
       Conduit's signature ability (2-action material reshaping; know materials = WIS mod; affect level in lbs;
       7 material categories; Manufacture Object + Launch Material 1d4/+1d4 per 2 levels) as a library section.
-- [~] **A19 — Spell List roster reconcile** (`/spell-list`) — ⚠ GAP: the site's spell list has 8 schools and
-      ~50+ spells across Description/Advanced/Expert tiers, but the app's `IG_POWERS` (~38, from the sheet
-      template) is **missing ~24 spells** and doesn't model the tiers. Full roster captured in the master doc;
-      the fetch tool declined verbatim spell effects, so completing this needs the exact text from Brendan/the
-      site — flagged, not fabricated.
+- [~] **A19 — Spell List roster reconcile** (`/spell-list`) — ✅ *Roster + recognition shipped* (`content.ts`
+      `IG_SPELL_ROSTER` + `igSpellsMissingEffects`): the complete site spell roster (all ~52 names across 8
+      schools) is now data; the power/spell **provenance classifier recognizes every real spell** (so
+      "Named Bullet"/"Wave Crash" flag vanilla, not custom); the library Powers section lists the **full
+      roster** and explicitly flags the spells still awaiting verbatim effect text. `ig-content.test.ts` +1,
+      `library.test.ts` +1. **Remaining (needs Brendan/site text):** the Description/Advanced/Expert **effect
+      text** for the ~24 roster spells not in `IG_POWERS` + the tier model — the fetch tool declined verbatim
+      reproduction, so paste it and I'll fill each in.
 - [~] **A20 — Art scrub (owner request 2026-07-17).** ✅ *Ancestry art shipped* (browser-scrubbed via the
       Chrome tools + `curl`): the 8 hand-drawn **race portraits** the site publishes (dwarf/elf/gnome/halfling/
       leshonki/migoi[="Yeti"]/naga/ogre) downloaded to `public/dnd/intuitive-games/ancestries/`, manifested in

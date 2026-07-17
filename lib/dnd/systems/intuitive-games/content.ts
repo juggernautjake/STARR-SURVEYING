@@ -265,6 +265,31 @@ export const IG_CREATURES: IGCreature[] = [
 
 export const IG_SPELL_SCHOOLS = ['Abjuration', 'Conjuration', 'Divination', 'Enchantment', 'Evocation', 'Illusion', 'Transmutation'] as const;
 
+// The COMPLETE spell roster (names by school) as published on intuitivegames.net/spell-list (scrubbed
+// 2026-07-17). Each spell has Description/Advanced/Expert tiers on the site; the fetch tool declined to
+// reproduce the verbatim effect text, so this roster gives the authoritative NAMES (used for recognition +
+// the library's full list) while the per-spell EFFECT text in IG_POWERS is completed from Brendan's text.
+export const IG_SPELL_ROSTER: Record<string, string[]> = {
+  Abjuration: ['Dispel Magic', 'Protection From Elements', 'Shield Ally'],
+  Conjuration: ['Conjure Wall', 'Create Shelter', 'Gate', 'Natural Ally', 'Portal', 'Summon Material', 'Teleportation', 'Unseen Servant', 'Elemental Blade'],
+  Divination: ['Detect Magic', 'Detect Thoughts/Emotions', 'Foresight', 'Scrying', 'Trace', 'Unburdened Vision', 'Comprehend', 'Mindlink', 'Named Bullet'],
+  Enchantment: ['Calm', 'Command', 'Enchant Creature', 'Erase Memory', 'Hold Creature', 'Mind Scream', 'Subtle Manipulation'],
+  Evocation: ['Destruction', 'Intense Blast', 'Repeating Blast', 'Telekinesis', 'Radiance', 'Spectral Sling', 'Vitality', 'Wave Crash', 'Wind Blast'],
+  Illusion: ['Create Image', 'Darkness', 'Disguise', 'Invisibility', 'Light', 'Mimic Sound', 'Mirror Image'],
+  Transmutation: ['Adaptation', 'Burst', 'Carapace Growth', 'Creature Morph', 'Item Shift', 'Natural Attacks', 'New Movement', 'Poison Dart', 'Quick Claw', 'Temporary Weapon'],
+};
+
+/** Every spell name from the site's spell-list roster (flat). */
+export function igAllSpellNames(): string[] {
+  return Object.values(IG_SPELL_ROSTER).flat();
+}
+
+/** Roster spells that don't yet have effect text in IG_POWERS (pending Brendan's verbatim text). */
+export function igSpellsMissingEffects(): string[] {
+  const have = new Set(IG_POWERS.map((p) => norm(p.name)));
+  return igAllSpellNames().filter((n) => !have.has(norm(n)));
+}
+
 // ── Defensive Powers (spent as reactions). ──────────────────────────────────────────────────────────
 export const IG_DEFENSIVE_POWERS: NamedEntry[] = [
   { name: 'Companion Shield', effect: 'Companion spends a reaction to give you +2 Reflex saves vs an attacker until your next turn.' },
@@ -488,8 +513,10 @@ const KIND_NAMES: Record<IGContentKind, string[]> = {
   // short IG_FEATS list), de-duplicated — so a character with a real feat like "Fleet" or "Cleave" is
   // flagged vanilla, not custom.
   feat: Array.from(new Set([...igAllFeats().map((f) => f.name), ...IG_FEATS.map((f) => f.name)])),
-  power: IG_POWERS.map((p) => p.name),
-  spell: IG_POWERS.map((p) => p.name), // "spell" is an alias for a power in this system
+  // Recognize every power/spell — the effect-carrying IG_POWERS PLUS the full site roster names — so a
+  // character with a real spell (e.g. "Named Bullet", "Wave Crash") is flagged vanilla, not custom.
+  power: Array.from(new Set([...IG_POWERS.map((p) => p.name), ...Object.values(IG_SPELL_ROSTER).flat()])),
+  spell: Array.from(new Set([...IG_POWERS.map((p) => p.name), ...Object.values(IG_SPELL_ROSTER).flat()])), // "spell" is an alias for a power
   'defensive-power': IG_DEFENSIVE_POWERS.map((d) => d.name),
   'weapon-type': IG_WEAPON_TYPES,
   'movement-type': IG_MOVEMENT_TYPES,
