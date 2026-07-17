@@ -2304,7 +2304,9 @@ ledger-resolved numbers, and a DM equip propagates live (C11b + Slice 10). Detai
       LAND ("does it hit AC 15?"). Each attack now carries its to-hit (effective ability + PB + bonus) or
       an AOE's save DC, computed like the Attacks table. +1 test. The digest now carries every effective
       number a ruling turns on — abilities, HP, AC, speed, Passive Perception, Initiative, spell DC/attack,
-      and per-attack to-hit/DC.
+      and per-attack to-hit/DC. **Attack damage folds the ability mod too** (`6c8e7fae`): the digest showed
+      the raw die while the sheet adds the mod automatically, so "how much damage?" understated it; now
+      it adds the effective mod + bonus and resolves the per-level ladder. +1 assertion.
 - [x] **Realtime equip propagation ✅ VERIFIED 2026-07-16 (no code change needed).** Already satisfied
       by the existing C11b broadcast (`store.tsx:369–405`): a DM equip writes `data`, pings the
       per-character channel, and every other viewer refetches the full authed sheet and re-derives —
