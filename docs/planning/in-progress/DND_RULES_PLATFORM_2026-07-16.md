@@ -2297,7 +2297,10 @@ ledger-resolved numbers, and a DM equip propagates live (C11b + Slice 10). Detai
       (`bdbff686`): the digest omitted a caster's most-adjudicated numbers, so the AI had to guess the DC
       for "does the target save vs your Fireball?". Now a `SPELLCASTING:` line computed like SpellsPanel
       (effective ability + PB, folding `spell_save_dc`/`spell_attack`) — a Headband of Intellect / Rod of
-      the Pact Keeper is reflected. +1 test (DC/attack rise by the item's +5).
+      the Pact Keeper is reflected. +1 test (DC/attack rise by the item's +5). **Passive Perception +
+      Initiative added** (`aa0bedbe`): two more routinely-adjudicated numbers ("does the guard notice?",
+      "who acts first?"), effective (WIS/DEX through the ledger, Initiative folds `initiative` effects).
+      +1 test. The digest now carries every effective number a ruling turns on.
 - [x] **Realtime equip propagation ✅ VERIFIED 2026-07-16 (no code change needed).** Already satisfied
       by the existing C11b broadcast (`store.tsx:369–405`): a DM equip writes `data`, pings the
       per-character channel, and every other viewer refetches the full authed sheet and re-derives —
