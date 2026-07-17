@@ -837,6 +837,11 @@ One pure function that every later slice reads. Nothing else in Part II can be b
       (`4fcef838`): the StatRail honored the manual override while the Saves & Skills card recomputed
       8+PB+STR and ignored it — two Save DCs on one sheet. Now derived once in the store (`saveDc` =
       override ?? 8+PB+effective STR); both cards read it. `save-dc-single-source.test.ts` (3).
+      **Max HP tone/display unified** (`42ceb2c8`): the rail showed BASE max HP and coloured its low-HP
+      tone from it while the panel showed the effective max — a +HP buff moved one, not the other. The
+      rail now reads the effective max (edit base, show effective with ★). `statrail-effective-maxhp.test.ts`
+      (3). With AC, Save DC, and now Max HP, the StatRail and the detail panels no longer disagree on any
+      derived value.
 - [ ] **An equipped item lands in the right place, automatically.** Equipping routes by what the item
       *is*, with no per-item code: a weapon appears as a row in **Attacks** with its computed to-hit
       and damage; armour drives **AC** (respecting DEX cap / STR requirement / stealth disadvantage);
