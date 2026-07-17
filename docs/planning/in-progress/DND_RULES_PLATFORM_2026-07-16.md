@@ -473,7 +473,12 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       alias on Hide was outranking the Stealth skill in search — caught + removed.
 - [x] **Pathfinder 2e ✅** — the actual actions of the 3-action economy (Strike/Stride/Step/Interact/
       Raise a Shield/Seek/Aid + Demoralize/Grapple/Trip/Shove/Escape) and core mechanics (Flat Check,
-      Persistent Damage, Bulk, Free Action & Reaction/Activity). 44 → 60 terms.
+      Persistent Damage, Bulk, Free Action & Reaction/Activity), **plus rich articles for all 14 core
+      classes** (Alchemist…Wizard) — each with its HP/level, key attribute, save proficiency, and
+      signature mechanic (Fighter's Reactive Strike at 1, Rogue's Sneak Attack + Racket, Wizard's
+      thesis + spellbook, etc.), authored from the catalog's authoritative facts. The library prefers
+      these over the one-line catalog stubs. 44 → 74 terms. **Verified in the app**: searching
+      pathfinder2e for "fighter" returns the full class article.
 - [x] **Intuitive Games ✅** — closed the gap found 2026-07-16 (its content lived only in the builder
       module, not the searchable glossary). Authored `lib/dnd/glossary/intuitive-games.ts` (26 articles)
       from the engine's own numbers (igProficiency = level, igDegreeOfSuccess, igSaveTotal, igMaxHp) and

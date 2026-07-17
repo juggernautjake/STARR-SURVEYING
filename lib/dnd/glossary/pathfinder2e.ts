@@ -555,4 +555,132 @@ export const PATHFINDER2E_GLOSSARY: SystemGlossary = [
     seeAlso: ['Three-Action Economy', 'Reactive Strike', 'Raise a Shield'],
     aliases: ['free action', 'reaction', 'activity', 'trigger'],
   },
+
+  // ── The core classes (Player Core) — each at HP/level, key attribute, and signature mechanic ────
+  {
+    term: 'Alchemist',
+    kind: 'class',
+    short: '8 HP/level, Key INT. Crafts infused reagents into bombs, elixirs, and mutagens each day via a research field.',
+    body:
+      'The **Alchemist** (Key attribute **Intelligence**, **8 HP/level**, expert **Fortitude**) makes chemistry a martial art. Each day you get **infused reagents** (level × 2 + INT) to craft **bombs, elixirs, mutagens, and poisons** for free with **Quick Alchemy**.\n\nYour **Research Field** — Bomber, Chirurgeon, Mutagenist, or Toxicologist — shapes what you excel at, and you gain a stream of **class feats** to expand your formula book.',
+    seeAlso: ['Three-Action Economy', 'Strike', 'Attribute Boost'],
+    aliases: ['alchemist', 'bomber', 'chirurgeon', 'mutagenist'],
+  },
+  {
+    term: 'Barbarian',
+    kind: 'class',
+    short: '12 HP/level, Key STR. Enters a Rage for bonus damage and temp HP, shaped by an animal/elemental Instinct.',
+    body:
+      'The **Barbarian** (Key **Strength**, **12 HP/level** — the toughest — expert **Fortitude**) **Rages** (one action ◆) for **bonus damage** and **temporary HP**, at the cost of **−1 AC** and no concentration actions.\n\nYour **Instinct** (Animal, Dragon, Fury, Giant, or Spirit) sets your rage\'s flavor and special abilities. Rage lasts until combat ends or you spend a turn not attacking, then needs a round to recharge.',
+    seeAlso: ['Strike', 'Off-Guard', 'Three-Action Economy'],
+    aliases: ['barbarian', 'rage', 'instinct'],
+  },
+  {
+    term: 'Bard',
+    kind: 'class',
+    short: '8 HP/level, Key CHA. A spontaneous occult caster whose Compositions (via a Muse) buff allies and debuff foes.',
+    body:
+      'The **Bard** (Key **Charisma**, **8 HP/level**, expert **Will**) is a **spontaneous occult** caster who performs **compositions** — most famously **Inspire Courage**, a one-action ◆ cantrip granting allies a status bonus to attacks, damage, and fear saves.\n\nYour **Muse** (Enigma, Maestro, Polymath, or Warrior) grants a bonus focus spell and shapes your feats. You cast from a fixed **spell repertoire** using spell slots.',
+    seeAlso: ['Focus Point', 'Spell Rank', 'Recall Knowledge'],
+    aliases: ['bard', 'muse', 'composition', 'inspire courage'],
+  },
+  {
+    term: 'Champion',
+    kind: 'class',
+    short: '10 HP/level, Key STR (or DEX). A heavy-armor holy/unholy warrior with a Reaction tied to a cause and deity.',
+    body:
+      'The **Champion** (Key **Strength** or Dexterity, **10 HP/level**, expert **Fortitude**, heavy armor) swears to a **deity and a cause** (e.g. **Paladin**, Redeemer, Liberator) that grants a signature **Champion\'s Reaction** — Retributive Strike punishes a foe that harms an ally nearby.\n\nYou channel **Focus** spells (Lay on Hands), gain **Devotion** feats, and eventually a **Blessed Shield / Divine Ally**. Your alignment/edict determines which cause you can take.',
+    seeAlso: ['Reactive Strike', 'Raise a Shield', 'Focus Point'],
+    aliases: ['champion', 'paladin', 'cause', 'retributive strike'],
+  },
+  {
+    term: 'Cleric',
+    kind: 'class',
+    short: '8 HP/level, Key WIS. A prepared divine caster with a Divine Font (extra heal/harm slots) shaped by a Doctrine.',
+    body:
+      'The **Cleric** (Key **Wisdom**, **8 HP/level**, expert **Will**) is a **prepared divine** caster serving a deity. Your **Divine Font** grants extra spell slots of **Heal** or **Harm** (CHA-mod many per day).\n\nYour **Doctrine** — **Cloistered Cleric** (more spellcasting) or **Warpriest** (armor + martial weapons + a resolute front line) — sets your proficiencies. You gain your deity\'s favored weapon and domain focus spells.',
+    seeAlso: ['Spell Rank', 'Focus Point', 'Basic Save'],
+    aliases: ['cleric', 'divine font', 'doctrine', 'warpriest'],
+  },
+  {
+    term: 'Druid',
+    kind: 'class',
+    short: '8 HP/level, Key WIS. A prepared primal caster bound to a nature Order and an anathema against despoiling the wild.',
+    body:
+      'The **Druid** (Key **Wisdom**, **8 HP/level**, expert **Will**) is a **prepared primal** caster sworn to the natural world (an **anathema** forbids using metal armor and teaching druidry to outsiders).\n\nYour **Order** — **Animal** (companion), **Leaf** (plants/healing), **Storm**, **Wild** (Wild Shape), or **Untamed** — grants an order spell and feats. Focus spells (Order Spells) and a beast/plant theme define your play.',
+    seeAlso: ['Spell Rank', 'Focus Point', 'Recall Knowledge'],
+    aliases: ['druid', 'order', 'wild shape', 'animal companion'],
+  },
+  {
+    term: 'Fighter',
+    kind: 'class',
+    short: '10 HP/level, Key STR (or DEX). The best attack proficiency in the game, a chosen weapon group, and Reactive Strike at 1.',
+    body:
+      'The **Fighter** (Key **Strength** or Dexterity, **10 HP/level**, expert **Reflex & Fortitude**) has the **highest attack proficiency** in the game — reaching **legendary** — so it hits more and crits more (a crit is beating AC by 10).\n\nIt gets **Reactive Strike** (Attack of Opportunity) at level 1 (most classes never do), picks a **weapon group** to master, and has the deepest pool of **combat feats** (Power Attack, Double Slice, press attacks). The pure martial baseline every other martial is measured against.',
+    seeAlso: ['Strike', 'Reactive Strike', 'Multiple Attack Penalty'],
+    aliases: ['fighter', 'reactive strike', 'weapon mastery'],
+  },
+  {
+    term: 'Monk',
+    kind: 'class',
+    short: '10 HP/level, Key STR or DEX. Unarmored Defense, powerful Flurry unarmed strikes, and stances; expert in all three saves.',
+    body:
+      'The **Monk** (Key **Strength** or Dexterity, **10 HP/level**, expert in **all three saves** — uniquely) fights with **Flurry of Blows** (two unarmed Strikes for one action ◆, sharing one Multiple Attack Penalty) and **Powerful Fist** (d6+ unarmed dice).\n\nMonk **stances** (Crane, Mountain, Tiger, Wolf, Dragon…) change your unarmed attack and grant bonuses. Some monks take **ki spells** (Ki Strike, Wholeness of Body) as focus spells. Great mobility and saves, no armor.',
+    seeAlso: ['Strike', 'Three-Action Economy', 'Basic Save'],
+    aliases: ['monk', 'flurry of blows', 'stance', 'ki'],
+  },
+  {
+    term: 'Oracle',
+    kind: 'class',
+    short: '8 HP/level, Key CHA. A spontaneous divine caster who channels a Mystery — power that deepens as a Curse worsens.',
+    body:
+      'The **Oracle** (Key **Charisma**, **8 HP/level**, expert **Will**) is a **spontaneous divine** caster who draws on a **Mystery** (Battle, Bones, Cosmos, Flames, Life, Lore, Tempest…). Casting your mystery\'s **revelation** focus spells advances your **Curse**, which grants escalating power alongside escalating drawbacks.\n\nManaging how deep into your curse to go each fight is the Oracle\'s signature tension.',
+    seeAlso: ['Focus Point', 'Spell Rank', 'Doomed'],
+    aliases: ['oracle', 'mystery', 'curse', 'revelation'],
+  },
+  {
+    term: 'Ranger',
+    kind: 'class',
+    short: '10 HP/level, Key DEX or STR. Marks Hunt Prey to reduce its Multiple Attack Penalty and Seek/Track it better.',
+    body:
+      'The **Ranger** (Key **Dexterity** or Strength, **10 HP/level**, expert **Fortitude & Reflex**) uses **Hunt Prey** (one action ◆) to mark a target: against it your **Multiple Attack Penalty is reduced** (via a **Hunter\'s Edge** — Flurry, Precision, or Outwit) and you track and Seek it better.\n\nRangers can take an **animal companion**, snares, and archery or two-weapon feats. A flexible martial that shines when it focuses fire.',
+    seeAlso: ['Multiple Attack Penalty', 'Strike', 'Seek'],
+    aliases: ['ranger', 'hunt prey', 'hunter\'s edge'],
+  },
+  {
+    term: 'Rogue',
+    kind: 'class',
+    short: '8 HP/level, Key varies by Racket. Sneak Attack vs off-guard foes, more skills than anyone, and Reflex mastery.',
+    body:
+      'The **Rogue** (Key attribute set by its **Racket**, **8 HP/level**, expert **Reflex**) deals **Sneak Attack** (1d6, rising to 4d6) whenever it hits an **Off-Guard** target — so it sets foes off-guard by flanking, feinting, or hiding.\n\nIt has **more trained skills than any class** and gains **Skill Increases** every level. Its **Racket** — Ruffian (STR), Scoundrel (CHA), Thief (DEX), Mastermind (INT)… — sets its key attribute and a signature trick. **Surprise Attack** makes foes off-guard in the first round.',
+    seeAlso: ['Off-Guard', 'Seek', 'Recall Knowledge'],
+    aliases: ['rogue', 'sneak attack', 'racket', 'thief'],
+  },
+  {
+    term: 'Sorcerer',
+    kind: 'class',
+    short: '6 HP/level, Key CHA. A spontaneous caster whose Bloodline sets its spell tradition and grants bloodline focus spells.',
+    body:
+      'The **Sorcerer** (Key **Charisma**, **6 HP/level**, expert **Will**) is a **spontaneous** caster whose magic is innate. Its **Bloodline** (Draconic, Angelic, Imperial, Undead, Elemental…) sets which of the **four traditions** (arcane, divine, occult, primal) it casts and grants **bloodline focus spells** plus a granted spell added to its repertoire at each rank.\n\nMore spell slots per rank than a Wizard, but a smaller known repertoire — flexibility of casting for a narrower list.',
+    seeAlso: ['Spell Rank', 'Focus Point', 'Basic Save'],
+    aliases: ['sorcerer', 'bloodline'],
+  },
+  {
+    term: 'Witch',
+    kind: 'class',
+    short: '6 HP/level, Key INT. A prepared caster who serves a Patron and channels its magic through a spellcasting Familiar.',
+    body:
+      'The **Witch** (Key **Intelligence**, **6 HP/level**, expert **Will**) is a **prepared** caster granted magic by a mysterious **Patron**. Its power flows through a **familiar** that stores the day\'s spells and grants abilities; the patron sets your spell **tradition** and a **hex** cantrip focus spell.\n\nWitches lean on debilitating hexes and versatile prepared spellcasting — lose the familiar and you lose access to your day\'s magic, so protecting it matters.',
+    seeAlso: ['Spell Rank', 'Focus Point', 'Recall Knowledge'],
+    aliases: ['witch', 'patron', 'familiar', 'hex'],
+  },
+  {
+    term: 'Wizard',
+    kind: 'class',
+    short: '6 HP/level, Key INT. The prepared arcane scholar — a spellbook, an arcane school or thesis, and the widest arcane list.',
+    body:
+      'The **Wizard** (Key **Intelligence**, **6 HP/level**, expert **Will**) is the **prepared arcane** scholar. It prepares spells each day from a **spellbook** it can expand by copying scrolls and other books.\n\nYour **Arcane Thesis** (Improved Familiar Attunement, Metamagical Experimentation, Spell Blending, Spell Substitution, Staff Nexus) tunes how you cast, and your **Arcane School / curriculum** grants **school focus spells** and an extra prepared slot per rank. The deepest, most flexible spell list in the game.',
+    seeAlso: ['Spell Rank', 'Focus Point', 'Recall Knowledge'],
+    aliases: ['wizard', 'arcane thesis', 'arcane school', 'spellbook'],
+  },
 ];
