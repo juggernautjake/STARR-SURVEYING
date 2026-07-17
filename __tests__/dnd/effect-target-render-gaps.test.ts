@@ -25,6 +25,8 @@ const REGISTERED_BUT_UNRENDERED: Record<string, string> = {
   attacks_per_action: 'the Attacks table shows individual attacks, not an Extra-Attack multiplier from an effect',
   concentration_save: 'concentration is a manual tracker (ConditionTracker) with no concentration-save ROLL to fold a bonus into',
   hit_dice: 'the hit-dice pool is a STORED value used across longRest/spendHitDie; folding a hit_dice effect needs threading the effective pool through those, deferred',
+  exhaustion: 'exhaustion is a stored 0..6 counter set via setExhaustion; a ledger exhaustion modifier would need to overlay that counter everywhere it is read, deferred',
+  condition: 'an effect that IMPOSES a condition while active needs threading into buildLedger.activeConditions + the ConditionTracker + the condition mechanics (modifiers.ts), a multi-surface feature, deferred',
 };
 
 // Every place a component/store could actually READ a target (fold it into a number or list it).
