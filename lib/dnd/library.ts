@@ -12,6 +12,7 @@ import { classesForSystem } from './classes/registry';
 import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
 import { BACKGROUNDS_2024, type Background as Dnd2024Background } from './backgrounds/dnd5e-2024';
 import { LANGUAGES_2024, TOOLS_2024, type Language as Dnd2024Language, type Tool as Dnd2024Tool } from './languages/dnd5e-2024';
+import { SPECIES_2024 } from './species/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
 import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, IG_COMPANION_TYPES, IG_COMPANION_RULES, IG_BACKGROUND_DEFS, IG_CLASS_GROUPS, IG_CLASS_RULES, IG_SUBCLASSES, IG_CLASS_DETAILS, IG_CLASS_TAXONOMY_FINDING, IG_REDISTRIBUTION_RULES, type NamedEntry, type IGStance, type IGAncestry, type IGCompanionType, type IGBackground } from './systems/intuitive-games/content';
 import { igAllFeats, type IGFeat } from './systems/intuitive-games/feats';
@@ -756,7 +757,19 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
         for (const t of a.traits) push('trait', t.name, `${t.name} — a ${a.name} ancestry trait in ${r.label}: ${t.text}`);
       }
     } else {
-      for (const s of r.content.species) push('species', s, `${s} — a playable ${speciesNoun(r.key).toLowerCase().replace(/s$/, '')} in ${r.label}.`);
+      const noun = speciesNoun(r.key).toLowerCase().replace(/s$/, '');
+      // 2024 5e species carry full trait text (SPECIES_2024) — surface it like IG does, so "what does a
+      // Tiefling get" / "which species have Darkvision" resolve. Other systems fall back to the name blurb.
+      const dnd2024Species = key === 'dnd5e-2024' ? new Map(SPECIES_2024.map((sp) => [sp.name.toLowerCase(), sp])) : null;
+      for (const s of r.content.species) {
+        const sp = dnd2024Species?.get(s.toLowerCase());
+        if (sp) {
+          push('species', s, `${s} — a playable ${noun} in ${r.label}: size ${sp.size}, speed ${sp.speed} ft${sp.darkvision ? `, darkvision ${sp.darkvision} ft` : ''}. Traits: ${sp.traits.map((t) => `${t.name} (${t.text})`).join('; ')}`);
+          for (const t of sp.traits) push('trait', t.name, `${t.name} — a ${s} trait in ${r.label}: ${t.text}`);
+        } else {
+          push('species', s, `${s} — a playable ${noun} in ${r.label}.`);
+        }
+      }
       for (const n of r.content.ancestryNotes ?? []) push('species', n.split(/[—-]/)[0].trim() || 'Ancestry', n);
     }
     // Systems with full condition text (IG) expose each condition's real mechanical effect, so

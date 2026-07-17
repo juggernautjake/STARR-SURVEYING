@@ -15,7 +15,10 @@ const IG_ONLY_SECTIONS = [
   'magical-items', 'damage', 'character-building',
 ];
 // Search hit kinds that only exist for IG.
-const IG_ONLY_KINDS = ['stance', 'companion', 'damage-type', 'cover', 'combat-skill', 'defensive-power', 'trait', 'magic-item'];
+// ('trait' was here, but 5e-2024 species now surface their OWN traits (Darkvision, Celestial Resistance…)
+// as 'trait' hits — the same content KIND as IG ancestry traits. Search is system-scoped, so a 5e trait
+// only appears in a 5e search and an IG trait only in an IG search; the kind is shared, the content isn't.)
+const IG_ONLY_KINDS = ['stance', 'companion', 'damage-type', 'cover', 'combat-skill', 'defensive-power', 'magic-item'];
 
 describe('Intuitive Games content is system-scoped (Ground Rule 1, comprehensive)', () => {
   it('IG-only library sections appear ONLY on the intuitive-games page', () => {

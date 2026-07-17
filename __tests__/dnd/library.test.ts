@@ -131,6 +131,17 @@ describe('searchLibrary', () => {
     expect(dndAcolyte!.body).toMatch(/Origin feat/i); // the 2024-shaped body, not the PF2 one
   });
 
+  it('surfaces 5e 2024 species TRAITS in search (not just the name)', () => {
+    // A 2024 species search now carries its full trait text, and each trait is findable on its own — so
+    // "what does a Tiefling get" and "which species have Darkvision" both resolve (AI grounding).
+    const tiefling = searchLibrary('tiefling', 'dnd5e-2024').find((h) => h.kind === 'species');
+    expect(tiefling).toBeTruthy();
+    expect(tiefling!.body).toMatch(/Traits:/); // full trait text, not just "a playable species"
+    expect(tiefling!.body).toMatch(/darkvision/i);
+    // a species trait is findable by its own name too.
+    expect(searchLibrary('celestial resistance', 'dnd5e-2024').some((h) => h.kind === 'trait')).toBe(true);
+  });
+
   it('finds a 5e 2024 language and tool by name', () => {
     const draconic = searchLibrary('draconic', 'dnd5e-2024').find((h) => /language/i.test(h.name));
     expect(draconic, 'Draconic should be searchable as a language').toBeTruthy();
