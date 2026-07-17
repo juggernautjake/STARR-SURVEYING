@@ -104,6 +104,35 @@ module and locked its security property with tests — it can never emit a path 
 `../../etc/passwd` filename can't traverse the object key. +4 tests (no behavior change; a guard on a
 user-input → storage-key helper).
 
+**The target flow, in the owner's own words (2026-07-17) — this is the acceptance spec:**
+
+> In the Starr Surveying app I'd hit the camera button (I'd likely be in Work Mode). The app accesses the
+> device camera. I take the video or picture. The media shows up in the app **and is saved to the phone**.
+> Once I'm happy with it, I hit a button to **send the media to the job cloud**. It begins uploading and
+> there's a **queue screen with a loading bar** for how close the current item is to done. When it finishes
+> I get a **notification**, and if there are more, the **next one begins**. I need to set the queue to
+> **automatic**, or **manual** (I tell it to upload the next thing), or **pause all**. Once a file has
+> uploaded, I need an **option to delete it from my phone** (so I don't have to keep every video/picture).
+> Once uploaded, **everyone authorized to see the job** can see the media in that job's media folder on the
+> website or app. I **really need the uploads to complete in the background** while I keep using my phone.
+
+So the end-to-end chain is: **capture → auto-save to camera roll → appears in-app → tap _Send to job cloud_
+→ sequential upload with a live per-item progress bar, continuing in the background → local notification as
+each finishes and the next starts → auto / manual / pause modes → prompt to delete the local copy after a
+CONFIRMED upload → visible to every authorized job viewer (web + app).** The pure engines below
+(`queueOrder`, `uploadFailureChoices`, `uploadStatus`) already encode the decision logic; the remaining
+work is the runtime wiring — camera-roll save, a real background task, progress reporting, the queue
+screen, notifications, mode controls, and a safe delete-after-upload — which is device-tested on iOS +
+Android (the owner runs those; each slice states its platform limits honestly).
+
+**Additional considerations to honor (some the owner may not have listed):** never delete captured bytes
+before the upload is CONFIRMED server-side; iOS caps background execution — use a real background-upload
+transport (URLSession-backed) rather than promising unlimited background time, and document the cap;
+request camera-roll (MediaLibrary) + notification permissions at the right moment with honest copy; keep
+the existing Wi-Fi-only gate for large video as a user option; a "delete from phone" that only removes the
+app's working copy (leaving the camera-roll asset) vs. also removing the camera-roll asset is a real
+choice — default to removing only the app's copy unless the user opts into full deletion.
+
 **Gaps (map each to the user's explicit asks):**
 
 - [~] **C1 — Strictly sequential, one-at-a-time uploads.** ✅ *Pure engine shipped* (`b7b722e7`):
