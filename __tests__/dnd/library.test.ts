@@ -285,6 +285,31 @@ describe('Intuitive Games feats carry full rules text (IG buildout A7 + A8)', ()
   });
 });
 
+describe('Intuitive Games gear surfaces on the library (IG buildout A13/A14)', () => {
+  it('renders Weapons (with the WIP note), Weapon Properties, Armor (DR), and Shields sections', () => {
+    const page = libraryPageFor('intuitive-games')!;
+    const ids = page.sections.map((s) => s.id);
+    for (const id of ['weapons', 'weapon-properties', 'armor', 'shields']) expect(ids).toContain(id);
+    const weapons = page.sections.find((s) => s.id === 'weapons')!;
+    expect(weapons.lead).toMatch(/WORK IN PROGRESS/i); // no named roster yet — recorded, not fabricated
+    expect(weapons.table!.rows.find((r) => r[0] === 'Light')?.[3]).toMatch(/Throwing/);
+    const armor = page.sections.find((s) => s.id === 'armor')!;
+    expect(armor.lead).toMatch(/Damage Reduction/i);
+    expect(armor.table!.rows.find((r) => r[0] === 'Metal Armor')?.[2]).toBe('8'); // DR
+  });
+
+  it('armor and shields are searchable with their stats', () => {
+    const metal = searchLibrary('metal armor', 'intuitive-games').find((h) => h.kind === 'armor');
+    expect(metal!.body).toMatch(/DR 8/);
+    const buckler = searchLibrary('buckler', 'intuitive-games').find((h) => h.kind === 'shield');
+    expect(buckler).toBeTruthy();
+  });
+
+  it('IG gear does not leak into another system', () => {
+    expect(libraryPageFor('dnd5e-2024')!.sections.some((s) => s.id === 'weapon-properties')).toBe(false);
+  });
+});
+
 describe('Intuitive Games classes surface fully on the library (IG buildout A10)', () => {
   it('renders all 13 classes grouped into 4 groups with the class-system overview', () => {
     const page = libraryPageFor('intuitive-games')!;

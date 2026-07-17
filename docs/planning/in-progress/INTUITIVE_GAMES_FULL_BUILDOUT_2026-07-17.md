@@ -172,8 +172,17 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       `library.test.ts` +2. **Finding:** the broad `IG_CREATURES` bestiary in `content.ts` (Ape…Dragons…)
       came from the sheet TEMPLATE, not this web page (which names only the Tiger example) — flagged for a
       source-fidelity review, kept as-is for now since the builder's companion picker uses it.
-- [ ] **A13 — Items: Weapons** (`/weapons`).
-- [ ] **A14 — Items: Armor & Shields** (`/armor-shields`) — incl. the damage-reduction mechanic.
+- [x] **A13 — Items: Weapons** (`/weapons`) — ✅ SHIPPED (`items.ts`). The site's weapons page is a declared
+      **work in progress** — it defines the framework (melee/ranged classes with costs, the 9 weapon
+      properties, class+type proficiency, the Solidas/Coins/Pennies currency) but lists **NO named weapons**.
+      Captured the full framework (`IG_WEAPON_CLASS_DATA`, `IG_WEAPON_PROPERTIES`) as library Weapons +
+      Weapon Properties tables, and recorded the "no named roster yet (WIP)" note in the lead per Ground Rule
+      2 (not fabricated). Classes + properties searchable. `library.test.ts` +3 (shared with A14).
+- [x] **A14 — Items: Armor & Shields** (`/armor-shields`) — ✅ SHIPPED (`items.ts`). The armor page is
+      complete: the **DR mechanic** + the non-proficiency penalties (Reflex = DR for armor, attack = shield
+      bonus), the full armor roster (`IG_ARMORS`: Metal/Leather/Wood/Bone/Cloth + Banded + Component, each
+      with DR/STR/cost/vulnerabilities) and shields (`IG_SHIELDS`: Braced + Bucklers). Library gains Armor +
+      Shields tables; armor/shields searchable with their stats. System-scoped.
 - [ ] **A15 — Items: Equipment, Tools, Magical Items** (`/equipment`, `/tools`, `/magical-items`).
 - [ ] **A16 — FAQs** (`/faqs`).
 - [ ] **A17 — Verification pass.** Cross-check the library against the live site section-by-section: every

@@ -13,6 +13,7 @@ import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
 import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, IG_COMPANION_TYPES, IG_COMPANION_RULES, IG_BACKGROUND_DEFS, IG_CLASS_GROUPS, IG_CLASS_RULES, IG_SUBCLASSES, type NamedEntry, type IGStance, type IGAncestry, type IGCompanionType, type IGBackground } from './systems/intuitive-games/content';
 import { igAllFeats, type IGFeat } from './systems/intuitive-games/feats';
+import { IG_WEAPON_RULES, IG_WEAPON_CLASS_DATA, IG_WEAPON_PROPERTIES, IG_ARMOR_RULES, IG_ARMORS, IG_SHIELD_RULES, IG_SHIELDS } from './systems/intuitive-games/items';
 
 /** The full feat registry for a system, or [] when only a catalog sample exists. System-keyed
  *  dispatcher (the pattern `findFeat`'s comment calls for) so a feat never leaks across systems. */
@@ -446,6 +447,47 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
     });
   }
 
+  // Gear (IG) — weapons (a WIP framework: classes + properties, no named roster yet), armor (the DR
+  // mechanic + full roster), and shields. System-scoped.
+  if (key === 'intuitive-games') {
+    sections.push({
+      id: 'weapons',
+      title: 'Weapons',
+      lead: IG_WEAPON_RULES,
+      table: {
+        headers: ['Class', 'Kind', 'Cost', 'Notes'],
+        rows: IG_WEAPON_CLASS_DATA.map((w) => [w.name, w.kind, w.cost, w.notes]),
+      },
+    });
+    sections.push({
+      id: 'weapon-properties',
+      title: 'Weapon Properties',
+      lead: 'A weapon has one base property; extra properties cost more and cost damage dice.',
+      table: {
+        headers: ['Property', 'Applies to', 'Effect'],
+        rows: IG_WEAPON_PROPERTIES.map((p) => [p.name, p.appliesTo, p.text]),
+      },
+    });
+    sections.push({
+      id: 'armor',
+      title: 'Armor',
+      lead: IG_ARMOR_RULES,
+      table: {
+        headers: ['Armor', 'Group', 'DR', 'Strength', 'Cost', 'Notes'],
+        rows: IG_ARMORS.map((a) => [a.name, a.group, a.dr, a.strength, a.cost, a.notes || '—']),
+      },
+    });
+    sections.push({
+      id: 'shields',
+      title: 'Shields',
+      lead: IG_SHIELD_RULES,
+      table: {
+        headers: ['Shield', 'Group', 'Cost', 'Notes'],
+        rows: IG_SHIELDS.map((s) => [s.name, s.group, s.cost, s.notes || '—']),
+      },
+    });
+  }
+
   return {
     key: r.key,
     name: r.label,
@@ -600,6 +642,13 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
     for (const d of igDefensivePowersFor(key)) push('defensive-power', d.name, `${d.name} — a defensive power (reaction) in ${r.label}: ${d.effect ?? ''}`);
     for (const c of igCompanionsFor(key)) push('companion', c.name, `${c.name} — a ${c.subclass} companion in ${r.label}: ${c.text}`);
     for (const b of igBackgroundsFor(key)) push('background', b.name, `${b.name} background — ${b.hp} HP; boosts ${b.boosts}; trains ${b.proficiencies.join(', ')}; grants the ${b.stance} Stance.`);
+    // IG gear: weapon classes + properties, armor (with DR), and shields — searchable by name.
+    if (key === 'intuitive-games') {
+      for (const w of IG_WEAPON_CLASS_DATA) push('weapon', w.name, `${w.name} — a ${w.kind.toLowerCase()} weapon class in ${r.label}: ${w.cost}. ${w.notes}`);
+      for (const p of IG_WEAPON_PROPERTIES) push('weapon-property', p.name, `${p.name} — a weapon property (${p.appliesTo}): ${p.text}`);
+      for (const a of IG_ARMORS) push('armor', a.name, `${a.name} — ${a.group} armor, DR ${a.dr}, ${a.strength}, ${a.cost}${a.notes ? `; ${a.notes}` : ''}.`);
+      for (const s of IG_SHIELDS) push('shield', s.name, `${s.name} — a ${s.group} shield in ${r.label}, ${s.cost}${s.notes ? `; ${s.notes}` : ''}.`);
+    }
     for (const sp of spellsForSystem(key)) {
       push('spell', sp.name, `${sp.name} — ${pf2RankLabel(sp.rank)}, ${sp.traditions.join('/')}; ${sp.cast}. ${sp.effect}`);
     }
