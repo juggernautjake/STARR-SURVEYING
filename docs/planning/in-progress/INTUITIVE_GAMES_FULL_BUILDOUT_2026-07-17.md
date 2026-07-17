@@ -212,13 +212,18 @@ expanded requirements (2026-07-17):
 - [ ] **B2 — Classes in the builder.** IG classes selectable with their features/progression from A10.
 - [ ] **B3 — Feats.** IG combat + general feats (from A7/A8) offered rules-legally (prerequisites honored);
       editable; shown on the sheet sourced correctly, each with a tooltip of its full effect.
-- [ ] **B4 — Conditions: display + tooltip + mechanics + edit.** Conditions the character has are clearly shown
+- [~] **B4 — Conditions: display + tooltip + mechanics + edit.** Conditions the character has are clearly shown
       on the sheet; hovering shows the full rules text (from `IG_CONDITIONS`); the mechanical ones actually
       apply (e.g. Flat-Footed drops Dex to Reflex/skills; Shaken/Sickened −2; Blind disadvantage) via the
-      effect model; addable/removable on the sheet (new `ig-edit` route) and by the AI.
-- [ ] **B5 — Stances: display + tooltip + mechanics + edit.** The sheet clearly shows the ACTIVE stance (one at
+      effect model; addable/removable on the sheet (new `ig-edit` route) and by the AI. **Display + tooltip
+      done** (`IGSheet`, `ig-sheet-tooltips.test.ts`): condition chips carry the full IG condition text as a
+      hover tooltip. **Remaining:** applying condition mechanics to rolls, and add/remove editing (B6 route).
+- [~] **B5 — Stances: display + tooltip + mechanics + edit.** The sheet clearly shows the ACTIVE stance (one at
       a time); hovering shows its Basic/Advanced text; the effect is applied to the relevant rolls per the
       Basic-below-L5 / Advanced-at-L5+ rule; enter/leave editable on the sheet + by the AI. Marquee mechanic.
+      **Display + tooltip done** (`IGSheet` Combat panel, `ig-sheet-tooltips.test.ts`): stances show their
+      active-at-level benefit + a full-rules hover tooltip. **Remaining:** applying the stance effect to the
+      actual rolls (mechanics), a single-active-stance selector, and edit (needs the `ig-edit` route, B6).
 - [ ] **B6 — Editable IG sheet + AI edit route.** The bespoke `IGSheet` is read-only today; add an `ig-edit`
       route + write mode so stances/conditions/feats/traits are editable in place, and expose the same
       operations to the AI (edit + explain) — AI parity with the manual controls.
@@ -229,8 +234,12 @@ expanded requirements (2026-07-17):
       display badge text + the full hover-tooltip rules text, drawn only from `IG_STANCE_DEFS`/`IG_CONDITIONS`
       (a stance/condition the system doesn't define resolves as an honest "custom", never invented). Encodes
       the level rule (Basic below Lv 5 → Advanced at Lv 5+, a single benefit). `ig-in-play.test.ts` (10).
-      **Remaining:** render these in `IGSheet` as the active-stance/condition display with the hover/focus
-      tooltip component (the UI slice — needs visual verification in-app).
+      **Wired into IGSheet** (`ig-sheet-tooltips.test.ts`): the Combat panel's stance chips now show the
+      active-at-your-level benefit summary + a `title` hover tooltip with the full Basic/Advanced rules; the
+      condition chips show a `title` tooltip with the full IG condition text; both get a help cursor + a
+      "hover for the full rules" hint. **Remaining:** a prettier custom-styled/focusable tooltip component
+      (native `title` works + is accessible now; visual polish is a follow-up), and rendering it for ancestry
+      traits/feats too. Needs visual confirmation in-app.
 - [ ] **B8 — Alignment/verification.** Walk an IG character build and confirm every offered option matches the
       site, numbers add up, mechanics apply correctly, and stances/conditions/feats/traits are all editable,
       displayed, tooltipped, and AI-accessible. (Ties into the QA walkthrough in `pending/`.)

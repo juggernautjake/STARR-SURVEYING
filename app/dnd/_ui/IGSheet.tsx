@@ -13,6 +13,7 @@ import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { IG_ABILITIES, IG_SAVES } from '@/lib/dnd/systems/intuitive-games/model';
 import { igAbilityMod, igDerived, igSkillTotal, igRanksSpent, igResolveAttack } from '@/lib/dnd/systems/intuitive-games/rules';
 import { IG_STANCES, IG_POWERS, IG_ACTION_ECONOMIES, igActionsByEconomy } from '@/lib/dnd/systems/intuitive-games/content';
+import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-games/inPlay';
 
 const effectMap = (() => {
   const m = new Map<string, string>();
@@ -156,10 +157,37 @@ export default function IGSheet({ ig, elements }: { ig: IGCharacter; elements: T
               </div>
               {cb.damageReduction > 0 && <div style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '6px 10px', fontSize: 12.5 }}><span style={{ color: 'var(--hx-muted)' }}>DR </span>{cb.damageReduction}</div>}
             </div>
-            {cb.stances.length > 0 && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Stances</span><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{cb.stances.map(chip)}</div></div>}
+            {cb.stances.length > 0 && (
+              <div style={{ display: 'grid', gap: 4 }}>
+                <span style={label}>Stances <span style={{ textTransform: 'none', letterSpacing: 0 }}>(one active at a time — hover for the full rules)</span></span>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {cb.stances.map((name) => {
+                    const e = igStanceInPlay(name, derived.level);
+                    return (
+                      <span key={name} title={e?.tooltip ?? name} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '2px 9px', cursor: 'help' }}>
+                        {e?.name ?? name} {badgeFor(name)}
+                        {e?.summary ? <span style={{ color: 'var(--hx-muted)', fontSize: 11 }}>· {e.summary}</span> : null}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {cb.defensivePower && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Defensive Power</span><div>{chip(cb.defensivePower)}</div></div>}
             {cb.situationalBonuses.length > 0 && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Situational Bonuses</span><div style={{ fontSize: 12.5, color: 'var(--hx-text)' }}>{cb.situationalBonuses.join(' · ')}</div></div>}
-            {cb.conditions.length > 0 && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Conditions</span><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{cb.conditions.map((c) => <span key={c} style={{ fontSize: 12, color: 'var(--hx-danger)', border: '1px solid var(--hx-danger)', borderRadius: 12, padding: '1px 8px' }}>{c}</span>)}</div></div>}
+            {cb.conditions.length > 0 && (
+              <div style={{ display: 'grid', gap: 4 }}>
+                <span style={label}>Conditions <span style={{ textTransform: 'none', letterSpacing: 0 }}>(hover for the full rules)</span></span>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {cb.conditions.map((c) => {
+                    const e = igConditionInPlay(c);
+                    return (
+                      <span key={c} title={e?.tooltip ?? c} style={{ fontSize: 12, color: 'var(--hx-danger)', border: '1px solid var(--hx-danger)', borderRadius: 12, padding: '1px 8px', cursor: 'help' }}>{c}</span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         );
       })()}
