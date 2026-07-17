@@ -8,6 +8,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useWorkModeStore } from '@/lib/work-mode/work-mode-store';
 import { jobMapsUrl, hasJobLocation, formatJobAddress, telHref } from '@/lib/jobs/location';
+import { jobCrew, jobRpls, crewNames } from '@/lib/jobs/crew';
 import { evalArithmetic, formatCalcResult } from '@/lib/jobs/calc';
 
 type FieldTab = 'job' | 'calc' | 'notes' | 'photo' | 'points' | 'mileage' | 'receipts' | 'crew' | 'equipment' | 'time' | 'files' | 'issue';
@@ -148,8 +149,8 @@ function JobSummary({ job, loading }: { job: FieldJob | null; loading: boolean }
       </div>
     );
   }
-  const crew = (job.job_team ?? []).filter((m) => (m.role ?? '') !== 'lead_rpls');
-  const rpls = (job.job_team ?? []).find((m) => (m.role ?? '') === 'lead_rpls')?.user_name || job.lead_rpls_email || null;
+  const crew = jobCrew(job);
+  const rpls = jobRpls(job);
   const addr = formatJobAddress(job);
   const tel = telHref(job.client_phone);
   const label = { fontSize: '0.75rem', textTransform: 'uppercase' as const, letterSpacing: '0.04em', color: 'var(--theme-fg-secondary)' };
@@ -182,7 +183,7 @@ function JobSummary({ job, loading }: { job: FieldJob | null; loading: boolean }
 
       <div style={{ display: 'grid', gap: 4 }}>
         <div style={label}>Crew ({crew.length})</div>
-        <div style={{ fontSize: '0.95rem' }}>{crew.length ? crew.map((m) => m.user_name || m.user_email).filter(Boolean).join(', ') : 'Just you'}</div>
+        <div style={{ fontSize: '0.95rem' }}>{crew.length ? crewNames(crew) : 'Just you'}</div>
       </div>
     </div>
   );
