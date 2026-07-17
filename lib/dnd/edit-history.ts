@@ -57,6 +57,33 @@ export function recentBatches(rows: EditHistoryRow[], limit = 8, includeReverted
   return out;
 }
 
+/** Distinct AI batches ordered oldest-first by their earliest edit — the character's change timeline. */
+export function orderedBatches(rows: EditHistoryRow[]): { batchId: string; minCreated: string }[] {
+  const min = new Map<string, string>();
+  for (const r of rows) {
+    if (r.source !== 'ai' || !r.batch_id) continue;
+    const cur = min.get(r.batch_id);
+    if (cur === undefined || r.created_at < cur) min.set(r.batch_id, r.created_at);
+  }
+  return [...min.entries()]
+    .map(([batchId, minCreated]) => ({ batchId, minCreated }))
+    .sort((a, b) => a.minCreated.localeCompare(b.minCreated));
+}
+
+/**
+ * The un-reverted AI batches to revert in order to RESTORE the character to the state right after
+ * `targetBatchId` was applied — i.e. every un-reverted AI batch that came AFTER the target. Returns the
+ * batch ids oldest-first (the route reverts them; revertBatch on the concatenated edits unwinds newest
+ * first). Empty when the target is the latest change or is unknown/reverted.
+ */
+export function restorePlan(rows: EditHistoryRow[], targetBatchId: string): { batchIds: string[] } {
+  const reverted = revertedBatchIds(rows);
+  const batches = orderedBatches(rows);
+  const idx = batches.findIndex((b) => b.batchId === targetBatchId);
+  if (idx < 0) return { batchIds: [] };
+  return { batchIds: batches.slice(idx + 1).filter((b) => !reverted.has(b.batchId)).map((b) => b.batchId) };
+}
+
 /** A compact plain-text digest of recent changes for AI grounding ("here's what you've changed"). */
 export function recentBatchDigest(rows: EditHistoryRow[], limit = 6): string {
   const batches = recentBatches(rows, limit);

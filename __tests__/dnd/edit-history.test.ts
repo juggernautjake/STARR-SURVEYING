@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { revertedBatchIds, latestUndoableBatch, recentBatches, recentBatchDigest, type EditHistoryRow } from '@/lib/dnd/edit-history';
+import { revertedBatchIds, latestUndoableBatch, recentBatches, recentBatchDigest, orderedBatches, restorePlan, type EditHistoryRow } from '@/lib/dnd/edit-history';
 
 // history/undo C — deciding what "undo that" means + summarizing recent changes, purely from audit rows.
 const row = (over: Partial<EditHistoryRow>): EditHistoryRow => ({
@@ -63,5 +63,30 @@ describe('recentBatches + digest', () => {
     expect(recentBatchDigest(rows)).toMatch(/RECENT CHANGES/);
     expect(recentBatchDigest(rows).indexOf('C')).toBeLessThan(recentBatchDigest(rows).indexOf('A'));
     expect(recentBatchDigest([])).toBe('');
+  });
+});
+
+describe('orderedBatches + restorePlan (point-in-time restore, D1)', () => {
+  const rows: EditHistoryRow[] = [
+    { batch_id: 'b1', source: 'ai', field_path: null, summary: 'first', created_at: '2026-07-16T01:00:00Z' },
+    { batch_id: 'b2', source: 'ai', field_path: null, summary: 'second', created_at: '2026-07-16T02:00:00Z' },
+    { batch_id: 'b3', source: 'ai', field_path: null, summary: 'third', created_at: '2026-07-16T03:00:00Z' },
+    { batch_id: 'b4', source: 'ai', field_path: null, summary: 'fourth', created_at: '2026-07-16T04:00:00Z' },
+  ];
+  it('orders distinct AI batches oldest-first', () => {
+    expect(orderedBatches(rows).map((b) => b.batchId)).toEqual(['b1', 'b2', 'b3', 'b4']);
+  });
+  it('restoring to b2 reverts every batch after it (b3, b4)', () => {
+    expect(restorePlan(rows, 'b2').batchIds).toEqual(['b3', 'b4']);
+  });
+  it('restoring to the latest batch reverts nothing', () => {
+    expect(restorePlan(rows, 'b4').batchIds).toEqual([]);
+  });
+  it('skips batches already individually reverted', () => {
+    const withRevert = [...rows, { batch_id: null, source: 'revert', field_path: 'revert-batch:b3', summary: null, created_at: '2026-07-16T05:00:00Z' } as EditHistoryRow];
+    expect(restorePlan(withRevert, 'b1').batchIds).toEqual(['b2', 'b4']); // b3 already undone
+  });
+  it('unknown target → empty plan', () => {
+    expect(restorePlan(rows, 'nope').batchIds).toEqual([]);
   });
 });
