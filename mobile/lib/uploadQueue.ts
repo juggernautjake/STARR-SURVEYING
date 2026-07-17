@@ -30,6 +30,7 @@ import { usePowerSync, useQuery } from '@powersync/react';
 import type { AbstractPowerSyncDatabase } from '@powersync/react-native';
 
 import { shouldDrainOnAppStateChange } from './appStateDrain';
+import { backoffMsForRetry } from './uploadBackoff';
 import { logError, logInfo, logWarn } from './log';
 import { guessExtension } from './mediaPath';
 import { isOnWifiNow, isOnlineNow, subscribeToOnline } from './networkState';
@@ -42,10 +43,7 @@ const PENDING_DIR = 'pending-uploads';
 /** Cap retries — past this we leave the row queued but stop poking
  *  it on every network event. The user can re-attempt manually. */
 const MAX_RETRIES = 8;
-/** Backoff in ms — doubles per attempt up to ~5 min. The first
- *  retry fires ~5s after the initial failure; the 8th would fire
- *  ~10 min later if the queue ever got there. */
-const BACKOFF_MS = [5_000, 10_000, 20_000, 40_000, 80_000, 160_000, 300_000, 300_000];
+// Backoff schedule (5s → 5min ceiling) lives in the pure, tested uploadBackoff module.
 
 type ParentTable = 'receipts' | 'field_media' | 'job_files';
 
@@ -395,7 +393,7 @@ async function markRetry(
   errorMessage: string
 ): Promise<void> {
   const nextRetry = args.retryCount + 1;
-  const backoff = BACKOFF_MS[Math.min(args.retryCount, BACKOFF_MS.length - 1)];
+  const backoff = backoffMsForRetry(args.retryCount);
   const nextAttemptAt = Date.now() + backoff;
 
   // Field_media rows show a 'failed' badge on the thumbnail when the

@@ -176,6 +176,14 @@ is a pure, tested function; the runtime is pure I/O around them.)*
       plans a notification but never retention (nothing uploaded) and never advances past the failure.
       `upload-outcome.test.ts` (5). Together `nextDrainStep` + `planAfterUpload` are the drain loop's entire
       logic — the runtime only does the I/O (fetch, DB write, fire notification, delete file).
+      **Backoff SCHEDULE extracted + guarded (2026-07-17):** the retry cadence itself — `next_attempt_at =
+      now + BACKOFF_MS[min(retry_count, len−1)]` — was computed INLINE in the DB-writing `recordFailure` and
+      untested (the tests covered `backoffSecondsLeft`/the backoff STATE, i.e. time-left given a
+      next_attempt_at, but not the schedule that PRODUCES it). Extracted `backoffMsForRetry(retryCount)` to a
+      pure `mobile/lib/uploadBackoff.ts` (like `queueOrder`): pins the 5s→10s→…→300s doubling and its
+      ceiling clamp, AND floors a negative/NaN retry_count (the old `Math.min(-1, len−1)` read
+      `BACKOFF_MS[-1] = undefined` → a NaN `next_attempt_at`, which would make a row back off forever or
+      never). `upload-backoff.test.ts` (4). Now every retry delay is provably a positive finite number.
 - [~] **C2 — Background continuation while using other apps/features.** Uploads must continue while the
       worker uses the rest of the hub/app or leaves the app. Use Expo background upload/task facilities
       (`expo-task-manager` / `expo-background-fetch` or resumable uploads) so a backgrounded/again-
