@@ -154,6 +154,11 @@ choice — default to removing only the app's copy unless the user opts into ful
       correct before those schema slices land. `upload-status.test.ts` (17). **Remaining:** extend
       `me/uploads.tsx` from the stuck-triage view into the full queue view that renders these states (and a
       live upload %, which is a runtime progress callback) — a mobile-runtime, device-tested change.
+      **Progress-bar math shipped** (`mobile/lib/uploadProgress.ts`): `uploadProgress(sent, total)` →
+      `{fraction, percent, indeterminate, label}` (clamped 0..1; a non-positive total = indeterminate bar) +
+      `formatBytes` / `uploadSizeCaption` ("2.3 MB of 4.8 MB") for the bar's caption. The runtime feeds it the
+      upload task's progress callback. `upload-progress.test.ts` (6). With this, EVERY pure decision in the
+      capture→upload flow is extracted + tested; only the device-side wiring remains.
 - [~] **C4 — Manual queue control: pause, prioritize, reorder.** ✅ *Pure logic shipped* (`b7b722e7`):
       `isEligible` honors a `paused` flag; `orderedQueue` sorts by `queue_position` (FIFO fallback);
       `prioritizePosition` ("upload this first") + `reorderPositions` (drag-reorder). **Remaining:** add
