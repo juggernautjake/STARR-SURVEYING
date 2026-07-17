@@ -74,6 +74,38 @@ describe('a transform effect imposes a form, resolved by the ledger', () => {
   });
 });
 
+describe('the ledger never mutates the stored character (anti-permanent-bear, at the resolver)', () => {
+  // The two-field check above ("activeFormId stays base, STR stays 10") is the symptom; this is the
+  // guarantee it rides on. Part II's one architectural rule is that effects are OVERLAYS, never baked
+  // into the base — so buildLedger, which every render calls, must not write a single field of its
+  // input. If a future refactor ever cached derived state back onto the character, these fail loudly,
+  // and THAT is the bug that leaves a druid permanently a bear.
+  const clone = (c: Character): Character => JSON.parse(JSON.stringify(c));
+
+  it('leaves its input byte-identical in the base form', () => {
+    const c = druid();
+    const before = clone(c);
+    buildLedger(c);
+    expect(c).toEqual(before);
+  });
+
+  it('leaves its input byte-identical while an imposed transform is active', () => {
+    const out = applySheetEdits(druid(), [potion]); // the potion imposes the bear form
+    const before = clone(out);
+    const led = buildLedger(out);
+    expect(led.transform()).not.toBeNull(); // we really are transformed…
+    expect(out).toEqual(before); // …and the stored sheet is untouched
+  });
+
+  it('leaves its input byte-identical while in your OWN bear form', () => {
+    const c = druid();
+    c.activeFormId = 'bear';
+    const before = clone(c);
+    buildLedger(c);
+    expect(c).toEqual(before);
+  });
+});
+
 describe('the sheet renders the EFFECTIVE active form (Slice 18 render threading)', () => {
   const read = (p: string) => require('node:fs').readFileSync(require('node:path').join(process.cwd(), p), 'utf8');
   it('the store exposes an effective activeFormId that overlays the base', () => {

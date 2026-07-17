@@ -1497,9 +1497,17 @@ the overlay rule, because "you are a bear now" must be perfectly reversible.
       not on the base sheet. (HP ✅ — `char.formHp` pool via `separateHp`, base frozen; duration already
       on `combat.transformTurnsLeft`. Form-scoped RESOURCE pools remain a follow-up under the
       foreign-statblock authoring UI.)
-- [ ] Tests: transform → the sheet renders the form; the stored base character is byte-identical
+- [x] Tests: transform → the sheet renders the form; the stored base character is byte-identical
       throughout (the anti-"permanent bear" guard); revert restores exactly; carry-over policy is
-      honoured per form; a save while transformed does not corrupt the base.
+      honoured per form; a save while transformed does not corrupt the base. **✅ SHIPPED 2026-07-17.**
+      `transform.test.ts` covered resolution, the form's own effects, the two-field overlay check, revert,
+      and the keepFeatures/keepMental/separateHp policies; **strengthened the byte-identical guard at the
+      resolver** — three new cases assert `buildLedger` leaves its input deep-equal (base form, imposed
+      transform active, and your own bear form), i.e. the render path itself never bakes an overlay into
+      the base. This is the general invariant the "STR stays 10" symptom rides on; a future refactor that
+      cached derived state back onto the character fails these loudly. `transform.test.ts` +3 (16 total).
+      **Deferred (the only heavier half):** the arbitrary foreign-statblock authoring UI (Forms.tsx is
+      display+toggle only) — transforming into your OWN defined forms is done end-to-end.
 
 ## Slice 20 — Edit everything on the sheet, and mark what's been customized ✅ SHIPPED 2026-07-16
 
