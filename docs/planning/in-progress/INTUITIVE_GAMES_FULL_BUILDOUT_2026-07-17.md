@@ -328,7 +328,16 @@ expanded requirements (2026-07-17):
       cross-system leak. **Grounding extended** (`system-rules.ts`): the IG block now ALSO carries the damage
       **Fortitude-save** mechanic, the **skill-check** + **combat-skill** rules, **Redistribution** (Conduit),
       and the **backgrounds** (name + granted stance) — so the AI adjudicates the full IG ruleset, not just
-      stances/conditions/ancestries. `ig-content.test.ts` +1. **Remaining:** the machine-readable effect model
+      stances/conditions/ancestries. `ig-content.test.ts` +1. **AI now sees the character's in-play STATE, not
+      just the rulebook (2026-07-17):** grounding gave the librarian the IG RULES, but the adjudication route
+      built its per-character digest with the general `characterDigest`, which reads the 5e `Character` model
+      and NEVER the `data.ig` sidecar — so a ruling on an IG character was blind to its active stance,
+      conditions, feats and powers (it had the Shaken *rule* but didn't know the character *was* Shaken). Added
+      a pure `igCharacterDigest` (`digest.ts`) that states the active stance WITH its resolved effect
+      (`igStanceMechanicNote`), the conditions WITH the computed −N penalty + disadvantage lines
+      (`igConditionSummary`), the defensive power, feats and powers; the `library/chat` route appends it when
+      `data.ig` is present. So "does my attack hit while Shaken?" is now adjudicated with the same −2 the
+      player sees on the sheet. `ig-digest.test.ts` (6). **Remaining:** the machine-readable effect model
       that the SHEET applies (B4/B5 mechanics).
 - [~] **B1 — Ancestry/traits in the builder + sheet.** IG ancestries selectable in the builder; the sheet
       renders each ancestry's full traits (from A5) with per-trait tooltips; size/speed-changing traits reflect

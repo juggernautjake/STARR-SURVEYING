@@ -16,6 +16,8 @@ import { normalizeSystem, systemLabel, SYSTEM_AMBIGUOUS } from '@/lib/dnd/system
 import { getCharacterAccess } from '@/lib/dnd/characters';
 import { normalizeCharacter } from '@/app/dnd/_sheet/data/blank';
 import { characterDigest, adjudicationInstruction } from '@/lib/dnd/character-digest';
+import { isIGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
+import { igCharacterDigest } from '@/lib/dnd/systems/intuitive-games/digest';
 
 export const maxDuration = 60;
 
@@ -76,6 +78,11 @@ export async function POST(req: NextRequest) {
       if (charSystem !== SYSTEM_AMBIGUOUS) focus = charSystem;
       characterName = row.name;
       digest = characterDigest(data, focus);
+      // An IG character's real mechanical STATE lives in the data.ig sidecar (active stance, conditions +
+      // their computed penalty, feats/powers), which the general characterDigest doesn't read. Append it so
+      // the librarian rules WITH the character's current IG state, not just the IG rulebook.
+      const igData = (row.data as { ig?: unknown } | null)?.ig;
+      if (isIGCharacter(igData)) digest = `${digest}\n\n${igCharacterDigest(igData)}`;
     }
   }
 
