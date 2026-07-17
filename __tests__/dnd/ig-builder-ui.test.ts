@@ -13,4 +13,10 @@ describe('IG builder background picker', () => {
     expect(SRC).toMatch(/<datalist id="ig-background-opts">/);
     expect(SRC).toMatch(/b\.stance/); // each option shows what it grants
   });
+
+  it('offers the scrubbed class specializations via a datalist too', () => {
+    expect(SRC).toContain('IG_CLASS_DETAILS');
+    expect(SRC).toContain('list="ig-spec-opts"');
+    expect(SRC).toMatch(/c\.specializations/);
+  });
 });
