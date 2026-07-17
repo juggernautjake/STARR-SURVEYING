@@ -119,6 +119,10 @@ darkvision, `<ul>` of `{name}. {text}`). Data: `lib/dnd/species/dnd5e-2024.ts` (
       own initiative roll applied it; initiative is a DEX check (D20 Test), so folded −2×exhaustion into
       its bonus so the shown bonus, roll, and submitted total agree. `exhaustion-speed.test.ts` +1. With
       this, EVERY d20 roll on the sheet applies the exhaustion penalty.
+- [x] **D6 — Follow-up: the AI digest states the penalty. ✅ SHIPPED** (`003804aa`). The digest said
+      "Exhaustion 3" without its effect, so the AI could rule on the unpenalized bonus while the sheet
+      rolls reduced; now "Exhaustion 3 (−6 to all d20 rolls)", matching the sheet's mechanic so a ruling
+      uses the same reduced roll.
 
 ---
 
