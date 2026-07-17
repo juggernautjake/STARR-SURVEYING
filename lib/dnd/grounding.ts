@@ -6,7 +6,8 @@ import { searchSystemEntries } from './system-store';
 import { SYSTEM_AMBIGUOUS, systemLabel } from './systems';
 import { systemRulesBlock } from './system-rules';
 import { glossaryFor, type GlossaryEntry } from './glossary';
-import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
+import { FEATS_2024 } from './feats/dnd5e-2024';
+import { igAllFeats } from './systems/intuitive-games/feats';
 
 /** Lenient glossary retrieval for GROUNDING: score each article by how many of the query keywords
  *  appear (term > alias > body), require at least one, and take the top matches. Unlike the library
@@ -35,14 +36,27 @@ function retrieveGlossary(system: string, keywords: string, limit: number): Glos
     .map((x) => x.e);
 }
 
-/** Feats a full registry can ground the AI on, system-scoped (only dnd5e-2024 has one today). */
-function groundingFeats(system: string): Feat[] {
-  return system === 'dnd5e-2024' ? FEATS_2024 : [];
+/** The minimal shape the feat grounding block needs — name, a display category, and the full benefit
+ *  text. Both the 2024 `Feat` registry and IG's `IGFeat` (effect → benefit) map onto this, so a system
+ *  with its own feat corpus can be grounded without forcing it into another system's feat type. */
+interface GroundableFeat { name: string; category: string; benefit: string }
+
+/** Feats a full registry can ground the AI on, system-scoped. 2024 has a structured registry; IG has
+ *  its 151-feat catalog (`igAllFeats`, effect text per feat). Other systems have no feat corpus yet.
+ *  Why this matters: the always-on IG rules block lists feats by NAME only (151 full effects would bloat
+ *  every prompt), so the ONLY path that puts an IG feat's EFFECT text in front of the AI is this
+ *  query-scoped retrieval — without it, "how does the IG Toughness feat work?" grounds on nothing. */
+function groundingFeats(system: string): GroundableFeat[] {
+  if (system === 'dnd5e-2024') return FEATS_2024;
+  if (system === 'intuitive-games') {
+    return igAllFeats().map((f) => ({ name: f.name, category: f.category, benefit: f.effect }));
+  }
+  return [];
 }
 
 /** The feats whose NAME matches a keyword in the query — so "what does tavern brawler do" grounds on
  *  the real Tavern Brawler text. Name-only match keeps it precise (a feat body mentions many words). */
-function matchFeats(system: string, keywords: string, limit: number): Feat[] {
+function matchFeats(system: string, keywords: string, limit: number): GroundableFeat[] {
   const words = keywords.split(/\s+/).filter(Boolean);
   if (!words.length) return [];
   return groundingFeats(system)

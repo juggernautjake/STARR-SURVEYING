@@ -381,8 +381,17 @@ expanded requirements (2026-07-17):
       wired into `IG_EDIT_OPS` + the `edit_ig_sheet` AI tool + grounding (lists `IG_DEFENSIVE_POWERS`), and a
       write-gated selector on the sheet's Defensive Power block. So every IG mechanic — stance, condition,
       feat, power, AND defensive power — is now editable manually and by the AI. `ig-edit.test.ts` +3,
-      `ig-ai.test.ts` (enum+grounding), `ig-sheet-tooltips.test.ts` +1. **Remaining:** prerequisite gating in
-      the builder (owner-gated — needs the per-class/level feat & power ladders from Brendan).
+      `ig-ai.test.ts` (enum+grounding), `ig-sheet-tooltips.test.ts` +1. **AI can now EXPLAIN any IG feat
+      from source (2026-07-17):** the always-on IG rules block lists feats by NAME only (151 full effects
+      would bloat every prompt), and the query-scoped feat retrieval in `grounding.ts` (`groundingFeats`/
+      `matchFeats`) was **2024-only** — so asking the librarian "how does the IG Endurance feat work?" hit
+      NO path that carried the effect text (rules block = name only; matchFeats = []; glossary has no
+      individual feats; RAG needs an absent key). Extended `groundingFeats` to return `igAllFeats()` (mapped
+      effect→benefit via a minimal `GroundableFeat` shape, since IG's General/Combat categories don't fit the
+      2024 `Feat` union), so an IG feat query now grounds on that feat's full effect — at parity with 2024,
+      still query-scoped (no prompt bloat), 2024 unaffected. `grounding.test.ts` +3. **Remaining:**
+      prerequisite gating in the builder (owner-gated — needs the per-class/level feat & power ladders from
+      Brendan).
 - [~] **B4 — Conditions: display + tooltip + mechanics + edit.** Conditions the character has are clearly shown
       on the sheet; hovering shows the full rules text (from `IG_CONDITIONS`); the mechanical ones actually
       apply (e.g. Flat-Footed drops Dex to Reflex/skills; Shaken/Sickened −2; Blind disadvantage) via the

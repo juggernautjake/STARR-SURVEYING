@@ -28,4 +28,28 @@ describe('systemGroundingBlock', () => {
     const g = await systemGroundingBlock(null, 'x');
     expect(g.instruction).toMatch(/SYSTEM-AMBIGUOUS/);
   });
+
+  // A feat query must ground on the feat's FULL effect text, not just its name. The always-on rules
+  // block lists feats by name only (dumping every feat's text would bloat every prompt), so this
+  // query-scoped retrieval is the only path that puts the effect in front of the AI.
+  it('grounds an Intuitive Games feat query on its full effect text (IG has its own feat corpus)', async () => {
+    const g = await systemGroundingBlock('intuitive-games', 'Endurance feat');
+    expect(g.block).toMatch(/RELEVANT Intuitive Games FEATS \(authoritative benefit text/);
+    expect(g.block).toMatch(/Endurance \(General feat\)/);
+    expect(g.block).toMatch(/nonlethal damage each day equal to your Constitution modifier/i);
+  });
+
+  it('the IG feat text is QUERY-SCOPED — an unrelated query does not dump all 151 feat effects', async () => {
+    const g = await systemGroundingBlock('intuitive-games', '   '); // empty → no feat match
+    expect(g.block).not.toMatch(/RELEVANT Intuitive Games FEATS/);
+    // ...yet the deterministic rules block still lists feat NAMES (so the AI knows the roster).
+    expect(g.block).toMatch(/General Feats \(use ONLY these/);
+    expect(g.block).toMatch(/Endurance/); // the name is present; only the effect text is query-gated
+  });
+
+  it('the 2024 feat grounding still works (no regression from widening the feat type)', async () => {
+    const g = await systemGroundingBlock('dnd5e-2024', 'Alert feat');
+    expect(g.block).toMatch(/RELEVANT .* FEATS \(authoritative benefit text/);
+    expect(g.block).toMatch(/Alert \(origin feat\)/);
+  });
 });
