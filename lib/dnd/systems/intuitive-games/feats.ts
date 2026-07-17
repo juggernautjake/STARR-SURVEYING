@@ -191,3 +191,13 @@ export const IG_COMBAT_FEATS: IGFeat[] = [
 export function igAllFeats(): IGFeat[] {
   return [...IG_GENERAL_FEATS, ...IG_COMBAT_FEATS];
 }
+
+const normFeat = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+
+/** The structured feat for a name (case/space-insensitive), or null if it isn't an authored IG feat. A few
+ *  proficiency feats appear on both pages; this returns the first match (either framing is representative). */
+export function findIGFeat(name: string | null | undefined): IGFeat | null {
+  if (!name) return null;
+  const n = normFeat(name);
+  return igAllFeats().find((f) => normFeat(f.name) === n) ?? null;
+}

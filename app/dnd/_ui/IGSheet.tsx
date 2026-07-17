@@ -17,6 +17,7 @@ import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_CONDITIONS, IG_ACTION_ECONOMI
 import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-games/inPlay';
 import { igConditionSummary } from '@/lib/dnd/systems/intuitive-games/modifiers';
 import type { IGEdit } from '@/lib/dnd/systems/intuitive-games/edit';
+import { findIGFeat } from '@/lib/dnd/systems/intuitive-games/feats';
 
 const effectMap = (() => {
   const m = new Map<string, string>();
@@ -334,11 +335,15 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
           )}
           {(ig.feats.general.length > 0 || ig.feats.combat.length > 0) && (
             <div style={{ display: 'grid', gap: 4 }}>
-              <span style={label}>Feats</span>
+              <span style={label}>Feats <span style={{ textTransform: 'none', letterSpacing: 0 }}>(hover for the full rules)</span></span>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {[...ig.feats.general, ...ig.feats.combat].map((f) => (
-                  <span key={f} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '2px 9px' }}>{f} {badgeFor(f)}</span>
-                ))}
+                {[...ig.feats.general, ...ig.feats.combat].map((f) => {
+                  const def = findIGFeat(f);
+                  const tip = def ? `${def.name} — ${def.category} feat${def.prerequisites ? ` (Prereq: ${def.prerequisites})` : ''}: ${def.effect}` : undefined;
+                  return (
+                    <span key={f} title={tip} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '2px 9px', cursor: def ? 'help' : 'default' }}>{f} {badgeFor(f)}</span>
+                  );
+                })}
               </div>
             </div>
           )}

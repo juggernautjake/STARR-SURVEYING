@@ -238,8 +238,12 @@ expanded requirements (2026-07-17):
       **Remaining:** the builder's ancestry picker already offers them (`IGCharacterBuilder`); reflecting
       size/speed-changing traits (Burrower/Colossal/etc.) in the derived numbers is a follow-up.
 - [ ] **B2 — Classes in the builder.** IG classes selectable with their features/progression from A10.
-- [ ] **B3 — Feats.** IG combat + general feats (from A7/A8) offered rules-legally (prerequisites honored);
-      editable; shown on the sheet sourced correctly, each with a tooltip of its full effect.
+- [~] **B3 — Feats.** IG combat + general feats (from A7/A8) offered rules-legally (prerequisites honored);
+      editable; shown on the sheet sourced correctly, each with a tooltip of its full effect. **Sheet
+      tooltips shipped** (`IGSheet` Reference feats + `findIGFeat`, `ig-content.test.ts`/`ig-sheet-tooltips.test.ts`):
+      each feat chip now hover-shows its category, prerequisites, and full effect (from the 151-feat catalog);
+      unknown/custom feats stay plain. **Remaining:** offering feats rules-legally at the right slots
+      (prerequisite gating in the builder) + feat add/remove editing — a follow-up.
 - [~] **B4 — Conditions: display + tooltip + mechanics + edit.** Conditions the character has are clearly shown
       on the sheet; hovering shows the full rules text (from `IG_CONDITIONS`); the mechanical ones actually
       apply (e.g. Flat-Footed drops Dex to Reflex/skills; Shaken/Sickened −2; Blind disadvantage) via the

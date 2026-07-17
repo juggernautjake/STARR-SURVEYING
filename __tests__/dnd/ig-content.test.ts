@@ -6,7 +6,7 @@ import {
   IG_MOVEMENT_TYPES, IG_CONDITIONS, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES,
   igIsVanilla, igVanillaNames, igContentSummary, findIGAncestry,
 } from '@/lib/dnd/systems/intuitive-games/content';
-import { IG_GENERAL_FEATS, IG_COMBAT_FEATS, igAllFeats } from '@/lib/dnd/systems/intuitive-games/feats';
+import { IG_GENERAL_FEATS, IG_COMBAT_FEATS, igAllFeats, findIGFeat } from '@/lib/dnd/systems/intuitive-games/feats';
 import { systemRulesBlock, systemConditions, systemSpecies } from '@/lib/dnd/system-rules';
 
 describe('Intuitive Games vanilla content library (Slice 1)', () => {
@@ -136,6 +136,9 @@ describe('Intuitive Games vanilla content library (Slice 1)', () => {
     expect(igIsVanilla('feat', 'Power Attack')).toBe(true);
     // igAllFeats combines both pages.
     expect(igAllFeats().length).toBe(IG_GENERAL_FEATS.length + IG_COMBAT_FEATS.length);
+    // findIGFeat resolves case/space-insensitively for the sheet tooltip, null for unknowns.
+    expect(findIGFeat('  fleet ')?.effect).toMatch(/10 additional feet/i);
+    expect(findIGFeat('Not A Feat')).toBeNull();
   });
 
   it('the content summary exposes every kind and grounding lists the vanilla options', () => {

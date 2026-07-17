@@ -43,6 +43,11 @@ describe('IGSheet shows in-play stances + conditions with tooltips', () => {
     expect(SRC).toContain("op: 'remove_condition'");
   });
 
+  it('gives feat chips a full-rules hover tooltip (B3)', () => {
+    expect(SRC).toContain('findIGFeat(f)');
+    expect(SRC).toMatch(/def \? `\$\{def\.name\}/); // tooltip built from the feat's real effect text
+  });
+
   it('renders the ancestry traits panel with per-trait tooltips (B1)', () => {
     expect(SRC).toContain('findIGAncestry(id.ancestry)');
     expect(SRC).toMatch(/anc\.traits\.map/);
