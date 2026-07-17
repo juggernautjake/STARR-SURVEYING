@@ -933,7 +933,11 @@ Original action items (kept for the remaining work):
 - [ ] **Identity targets**: `name`, `image`/`token`, `species`, `className`, `subclass`, `gender`,
       `profession`, `size`, `pronouns`. Operation `set_identity`. Overlaid by the ledger (see the rule
       above), never written to the model.
-- [ ] **Size** is mechanical, not cosmetic: it drives carrying capacity, weapon damage dice for some
+- [~] **Size** is mechanical, not cosmetic. **Carrying capacity ✅ SHIPPED** (`05bbe5b6`):
+      `sizeCapacityMultiplier` scales `carryingCapacity`/`encumbranceLevel` (Tiny ½ … Gargantuan ×8), so a
+      Large character carries double; +1 test. (Weapon-damage-die scaling for some effects remains as a
+      later item.) The `size` effect target itself was already wired.
+- [ ] **Size** — weapon damage dice for some
       systems, grapple/shove legality. Wire it to those, or it is a costume.
 - [ ] **Grant targets**: `grant_feature`, `grant_attack`, `grant_spell`, `grant_resource`,
       `grant_sense`, plus the existing `grant_proficiency`. This is the pendant that gives you an
