@@ -1475,6 +1475,13 @@ consumable-buff editors — the whole authoring surface.
       negative-modifier round-trip is covered by `effect-targets.test.ts` (validate + describe of a −2);
       the hand-vs-AI identical-`Effect[]` guard is the existing "builder produces the same Effect[] the
       AI emits" registry-driven suite.
+      **Description-coverage companion guard ✅ SHIPPED (2026-07-17):** reachability proves an operation is
+      PICKABLE; this proves it's DESCRIBABLE. `describeEffect` is the plain-English label shown in the ★
+      tooltip / Active Effects panel / builder preview ("hover tooltips on every in-play effect") — but its
+      `operation` is typed `string`, so an op with no explicit case falls through to the generic `${label}`
+      default, rendering the effect's bare target name instead of what it DOES. Added an `it.each` over
+      `EFFECT_OPERATIONS` asserting `describeEffect` has an explicit case for each — so a new operation can't
+      ship a meaningless tooltip. All 10 covered. `effect-builder.test.ts` +10.
 
 ## Slice 18 — Transform: become a different character entirely ⏳ PARTIAL 2026-07-16
 

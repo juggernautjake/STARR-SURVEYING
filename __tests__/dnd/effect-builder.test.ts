@@ -99,3 +99,18 @@ describe('every operation in the vocabulary is reachable from the picker (Slice 
     expect(opsOnTargets.has(op), `no target lists "${op}" — it is unreachable from the picker`).toBe(true);
   });
 });
+
+describe('every operation has its OWN human description (the effect tooltips the owner asked for)', () => {
+  // describeEffect is the plain-English label shown in effect tooltips / the Active Effects panel / the
+  // builder preview ("hover tooltips on every in-play effect"). Its `operation` is typed `string`, so it
+  // can't use a `never` guard — but an operation with no explicit case falls through to the generic
+  // `${label}` default, so the effect would render its bare target name instead of what it DOES. This pins
+  // that every operation in the vocabulary has an explicit case, so a new op can't ship a meaningless label.
+  const TARGETS = fs.readFileSync(path.join(process.cwd(), 'lib/dnd/effects/targets.ts'), 'utf8');
+  const start = TARGETS.indexOf('export function describeEffect');
+  const nextExport = TARGETS.indexOf('\nexport ', start + 1); // describeEffect may be the last export
+  const body = nextExport === -1 ? TARGETS.slice(start) : TARGETS.slice(start, nextExport);
+  it.each(EFFECT_OPERATIONS)('describeEffect has an explicit case for "%s" (not the generic default)', (op) => {
+    expect(body.includes(`case '${op}'`), `describeEffect has no case for "${op}" — it would render the bare target label`).toBe(true);
+  });
+});
