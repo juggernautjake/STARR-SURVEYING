@@ -12,6 +12,9 @@ import {
   PF2_SKILLS, pf2Class, pf2Ancestry, pf2Background,
   type PF2ClassDef, type PF2AncestryDef,
 } from './content';
+import type { Character } from '@/app/dnd/_sheet/types';
+import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
+import { pf2MaxHp, pf2ArmorClass, pf2Derived } from './rules';
 
 /** Apply a sequence of attribute boosts to a base modifier map, honoring the +4 partial-boost rule
  *  (at +4 or higher, a boost gives +½ — tracked here by only raising every other boost past +4). This
@@ -133,4 +136,63 @@ export function buildPF2Character(picks: PF2Picks): PF2Character {
     feats,
     languages: [...new Set([...(anc?.languages ?? ['Common']), ...(picks.languages ?? [])])],
   };
+}
+
+/** The kinded record of what a PF2 character was built from (stored alongside the sidecar). */
+export interface PF2Build {
+  ancestry?: string; heritage?: string; background?: string;
+  className?: string; subclass?: string; deity?: string;
+}
+
+let _uid = 0;
+const uid = (p: string) => `${p}-${(_uid++).toString(36)}`;
+/** Project a PF2 modifier onto a 5e-style ability score so the shared sheet renders something sane
+ *  (score = 10 + 2×modifier, clamped). The PF2 sidecar remains the source of truth for real math. */
+const modToScore = (mod: number) => Math.max(1, Math.min(30, 10 + mod * 2));
+
+/**
+ * Assemble a PF2 character from picks: a shared-engine `Character` projection (so the sheet, provenance,
+ * and switcher keep working) PLUS the authoritative `pf2e` sidecar the bespoke PF2 sheet reads. A straight
+ * assemble from the vanilla library is rules-legal; anything outside it is still placed (flagged custom).
+ */
+export function assemblePF2VanillaCharacter(picks: PF2Picks): Character & { pf2Build: PF2Build; pf2e: PF2Character } {
+  const pf2 = buildPF2Character(picks);
+  const char = blankCharacter(pf2.identity.name) as Character & { pf2Build: PF2Build; pf2e: PF2Character };
+  char.meta.species = pf2.identity.ancestry;
+  char.meta.className = pf2.identity.className;
+  char.meta.subclass = pf2.identity.subclass;
+  char.meta.level = pf2.identity.level;
+
+  const chips: Character['meta']['chips'] = [];
+  if (pf2.identity.heritage) chips.push({ text: `Heritage: ${pf2.identity.heritage}`, tone: 'teal' });
+  if (pf2.identity.background) chips.push({ text: `Background: ${pf2.identity.background}`, tone: 'gold' });
+  if (pf2.identity.deity) chips.push({ text: `Deity: ${pf2.identity.deity}`, tone: 'pink' });
+  char.meta.chips = chips;
+
+  for (const k of ['str', 'dex', 'con', 'int', 'wis', 'cha'] as const) {
+    char.abilities[k] = modToScore(pf2.attributes[k.toUpperCase() as keyof typeof pf2.attributes]);
+  }
+
+  const derived = pf2Derived(pf2);
+  char.combat.maxHp = pf2MaxHp(pf2);
+  char.combat.currentHp = pf2.combat.currentHp || char.combat.maxHp;
+  char.combat.ac = pf2ArmorClass(pf2);
+  char.combat.acNote = `Class DC ${derived.classDc}`;
+  char.combat.speed = pf2.combat.speed;
+
+  char.features = pf2.feats.map((f) => ({
+    id: uid('feat'), name: f.name, source: f.track.charAt(0).toUpperCase() + f.track.slice(1),
+    body: [f.body || `${f.track} feature.`], tone: f.track === 'class' || f.track === 'feature' ? 'gold' : 'teal',
+  }));
+  char.attacks = pf2.attacks.map((a) => ({
+    id: uid('atk'), name: a.name, ability: a.attribute.toLowerCase() as Character['attacks'][number]['ability'],
+    proficient: true, range: a.traits.includes('ranged') ? 'Ranged' : 'Melee', damage: a.damage, damageType: 'physical',
+  }));
+
+  char.pf2Build = {
+    ancestry: pf2.identity.ancestry, heritage: pf2.identity.heritage, background: pf2.identity.background,
+    className: pf2.identity.className, subclass: pf2.identity.subclass, deity: pf2.identity.deity,
+  };
+  char.pf2e = pf2;
+  return char;
 }

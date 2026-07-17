@@ -127,3 +127,10 @@ export interface PF2Character {
   feats: PF2Feat[];
   languages: string[];
 }
+
+/** Runtime guard: is this stored value a PF2Character sidecar (character.data.pf2e)? */
+export function isPF2Character(v: unknown): v is PF2Character {
+  if (!v || typeof v !== 'object') return false;
+  const c = v as Partial<PF2Character>;
+  return !!c.identity && typeof c.identity === 'object' && !!c.attributes && Array.isArray(c.skills) && !!c.combat;
+}
