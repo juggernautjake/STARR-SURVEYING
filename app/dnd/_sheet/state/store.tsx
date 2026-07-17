@@ -13,6 +13,7 @@ import { profBonusForLevel, abilityMod, maxHpForLevel, speedForLevel, MAX_BUILT_
 import { buildLedger, type EffectLedger } from '@/lib/dnd/effects/ledger'
 import { routeFormDamage, isFormHpLive } from '@/lib/dnd/effects/form-hp'
 import { rollD20, rollDamage, parseDice, rollDie, rollTyped, weaponSegments, parseBonusDamageSegment, type Advantage } from '../lib/dice'
+import { deriveAc, type AcResult } from '../lib/derive-ac'
 
 // Per-character localStorage slot. A single shared key meant every standalone sheet
 // read and wrote the SAME cached character (originally Lazzuh's); keying by id keeps
@@ -81,6 +82,9 @@ interface Ctx {
   pb: number
   /** Lowest natural d20 that crits on attacks (20 normally; widened by `crit_range` effects). */
   critMin: number
+  /** Derived Armor Class (equipped armor/shield + effective DEX + AC effects), the single source both
+   *  the StatRail and the Combat panel read. `fromEquipment` is false when the manual AC stands. */
+  acInfo: AcResult
   /** The EFFECTIVE active form id (Slice 18): the form a `transform` effect imposes, else the
    *  character's own `activeFormId`. Components render THIS so an imposed form shows as active;
    *  the form TOGGLE still writes `char.activeFormId` (the base), so the transform stays an overlay. */
@@ -542,6 +546,14 @@ export function CharacterProvider({
       .map((c) => Number(c.effect.value))
     return vals.length ? Math.max(2, Math.min(20, ...vals)) : 20
   }, [ledger])
+
+  // Derived Armor Class — ONE source so the StatRail and the Combat panel can never disagree (Slice 13's
+  // "one answer" rule). Equipped armor/shield + effective DEX + item/effect AC bonuses; falls back to the
+  // manual `combat.ac` when nothing is equipped. Uses the effective DEX so a DEX item raises AC.
+  const acInfo = useMemo(
+    () => deriveAc(char.inventory, abilityMod(abilities.dex), char.combat.ac, char.activeEffects),
+    [char.inventory, abilities.dex, char.combat.ac, char.activeEffects],
+  )
 
   const commitRoll = useCallback((entry: Omit<RollEntry, 'id'>) => {
     setLog((l) => [{ ...entry, id: idRef.current++ }, ...l].slice(0, 40))
@@ -1023,6 +1035,7 @@ export function CharacterProvider({
     offline,
     pb,
     critMin,
+    acInfo,
     activeFormId,
     isDM,
     canWrite: canWrite ?? isDM,

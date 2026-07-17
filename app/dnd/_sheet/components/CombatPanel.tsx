@@ -1,7 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useChar } from '../state/store'
 import { abilityMod, signed } from '../rules/dnd'
-import { deriveAc } from '../lib/derive-ac'
 import { md } from '../lib/inline'
 import { RichRules } from './RuleTip'
 import SectionHead from './ui/SectionHead'
@@ -10,7 +9,7 @@ import EffectStar from './ui/EffectStar'
 import TraitEditor from './ui/TraitEditor'
 
 export default function CombatPanel() {
-  const { char, abilities, setChar, editMode, canWrite, ledger, adjustHp, activeFormId, rollDeathSave, spendHitDie, shortRest, longRest } = useChar()
+  const { char, abilities, acInfo, setChar, editMode, canWrite, ledger, adjustHp, activeFormId, rollDeathSave, spendHitDie, shortRest, longRest } = useChar()
   const [editingTrait, setEditingTrait] = useState<{ index: number; text: string } | null>(null)
   const removeTrait = (i: number) => {
     if (!confirm('Delete this trait? This cannot be undone.')) return
@@ -26,12 +25,9 @@ export default function CombatPanel() {
         ? Math.max(1, abilityMod(abilities.con))
         : char.regen.amount
   const longRestPrompt = `Take a long rest? Restores HP, hit dice, resources, death saves${char.longRestNote ? `, ${char.longRestNote}` : ''}.`
-  // AC from equipped armor/shield + item AC-effects; falls back to the manual combat.ac when
-  // nothing is equipped (so hand-set AC still works). Recomputes when inventory/DEX/AC change.
-  const acInfo = useMemo(
-    () => deriveAc(char.inventory, abilityMod(abilities.dex), combat.ac, char.activeEffects),
-    [char.inventory, abilities.dex, combat.ac, char.activeEffects],
-  )
+  // AC comes from the store's single derived `acInfo` (Slice 13's one-answer rule) so this panel and the
+  // always-visible StatRail can never disagree — equipped armor/shield + effective DEX + AC effects,
+  // falling back to the manual combat.ac when nothing is equipped.
 
   // Walk speed through the ledger (Slice 15): a Boots of Striding +10 shows here and stars itself.
   // Speed is display-only, so folding it has none of max-HP's heal-clamp interaction — that stays

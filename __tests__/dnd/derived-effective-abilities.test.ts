@@ -25,8 +25,10 @@ describe('StatRail derived numbers use effective abilities', () => {
 });
 
 describe('CombatPanel AC + Initiative use effective abilities', () => {
-  it('AC is derived from the effective DEX mod', () => {
-    expect(COMBAT).toContain('deriveAc(char.inventory, abilityMod(abilities.dex)');
+  it('AC is derived from the effective DEX mod (now in the store, read by the panel)', () => {
+    // The deriveAc call moved to the store (single source — see ac-single-source.test.ts); the panel
+    // reads the shared acInfo. It must not fall back to a base-DEX derivation of its own.
+    expect(COMBAT).toContain('acInfo');
     expect(COMBAT).not.toContain('abilityMod(char.abilities.dex)');
   });
   it('the Initiative line reads the ledger initiative target (effective DEX + effects)', () => {

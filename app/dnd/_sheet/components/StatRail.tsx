@@ -3,7 +3,7 @@ import { ABILITIES, abilityMod, signed } from '../rules/dnd'
 import InlineNumber from './ui/InlineNumber'
 
 export default function StatRail() {
-  const { char, abilities, ledger, pb, setChar, rollCheck, setExhaustion, canWrite, characterId, activeFormId } = useChar()
+  const { char, abilities, acInfo, ledger, pb, setChar, rollCheck, setExhaustion, canWrite, characterId, activeFormId } = useChar()
   const { combat } = char
   const level = char.meta.level
   // Advantage on Initiative is the Barbarian's Feral Instinct — a class feature, not something
@@ -56,7 +56,13 @@ export default function StatRail() {
         <div className="vpill">
           <span className="vk">AC</span>
           <span className="vv">
-            <InlineNumber value={combat.ac} min={0} path="combat.ac" onCommit={(n) => setCombat({ ac: n })} title="Double-click to set AC" />
+            {/* Show the DERIVED AC (same source as the Combat panel) when equipped armor/effects drive it —
+                so the rail can't disagree with the panel. Editable manual AC only when nothing is equipped. */}
+            {acInfo.fromEquipment ? (
+              <span title={`From ${acInfo.source}`}>{acInfo.ac}</span>
+            ) : (
+              <InlineNumber value={combat.ac} min={0} path="combat.ac" onCommit={(n) => setCombat({ ac: n })} title="Double-click to set AC" />
+            )}
           </span>
         </div>
 
