@@ -314,7 +314,10 @@ categories) and Epic Boon remain.
       Tools ×17, Gaming Sets, Musical Instruments, standalone kits), with `languagesByRarity` /
       `toolsByFamily` / `isKnownTool` helpers. Tests: `languages.test.ts` (5) — including the connective
       check that **every background's named tool resolves** here (specific tool or category phrase), so
-      a typo in either file fails the build.
+      a typo in either file fails the build. **Standard/Rare membership pinned EXACTLY (2026-07-17):** the
+      split was spot-checked (Common/Draconic std, Abyssal/Undercommon rare); now the full 10-standard /
+      9-rare lists are pinned, catching the 2024-specific tells a regression would hit — Orc is now STANDARD
+      (Rare/different in 2014) and Common Sign Language is a new Standard entry. Correct.
 - [~] Wire into the level builder: an ASI choice offers real feats with prerequisites checked ✅
       (see the rules-legal feat granting note above); character creation offers backgrounds/species —
       **species picker ✅ + background picker ✅ SHIPPED (commit pending)**. **Rules-legal
