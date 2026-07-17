@@ -70,8 +70,13 @@ Issue) render only titles; the `JobPicker` is a placeholder input.
       field media today (capture is mobile-only, and the plan itself scopes capture as "primarily a mobile
       concern"). Building a parallel web camera→storage→field_media pipeline is lower value than the mobile
       queue work; revisit if a web-capture need is confirmed.
-- [ ] **B5 — Tests.** selecting a job populates the hub panels from the job APIs; the RPLS + crew list
+- [~] **B5 — Tests.** selecting a job populates the hub panels from the job APIs; the RPLS + crew list
       render from `job_team`; a captured photo enqueues a `field_media` row tied to the job.
+      **RPLS/crew derivation done** (`a09ee4de`): the "who's on this job" split was pure logic inline in
+      `FieldCrewWorkspace`; extracted to `lib/jobs/crew.ts` (`jobRpls`/`jobCrew`/`crewNames`) + `crew.test.ts`
+      (7) — RPLS = the `lead_rpls` member's name → `lead_rpls_email` fallback → null; crew = everyone else
+      (→ "Just you" when empty). **Remaining:** the API-population + capture-enqueues-field_media parts need
+      component/route tests with mocks — device/runtime-adjacent, deferred with the rest of Area C.
 
 ## Area C — Resilient background upload queue (the core ask)
 
