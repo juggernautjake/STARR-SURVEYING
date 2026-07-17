@@ -113,7 +113,7 @@ function applyItemPayload(base: InvItem, p: ItemPayload): InvItem {
 
 export type SheetEdit =
   | { op: 'set_name'; value: string }
-  | { op: 'set_meta'; field: 'kicker' | 'role' | 'species' | 'className' | 'subclass' | 'gender' | 'pronouns' | 'profession'; value: string }
+  | { op: 'set_meta'; field: 'kicker' | 'role' | 'species' | 'className' | 'subclass' | 'gender' | 'pronouns' | 'profession' | 'alignment'; value: string }
   | { op: 'set_level'; value: number }
   | { op: 'set_ability'; ability: AbilityKey; value: number }
   | { op: 'set_save_proficient'; ability: AbilityKey; value: boolean }
@@ -586,7 +586,7 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
               type: 'string',
               enum: ['set_name', 'set_meta', 'set_level', 'set_ability', 'set_save_proficient', 'set_skill', 'set_combat', 'add_attack', 'update_attack', 'remove_attack', 'rename_attack', 'add_feature', 'remove_feature', 'rename_feature', 'add_spell', 'remove_spell', 'rename_spell', 'add_item', 'update_item', 'equip_item', 'remove_item', 'rename_item', 'rename_resource', 'add_resource', 'define_tag', 'tag_item', 'add_currency', 'set_currency', 'remove_currency', 'add_condition', 'remove_condition'],
             },
-            field: { type: 'string', description: 'For set_meta: kicker|role|species|className|subclass|gender|pronouns|profession. For set_combat: ac|maxHp|currentHp|speed.' },
+            field: { type: 'string', description: 'For set_meta: kicker|role|species|className|subclass|gender|pronouns|profession|alignment. For set_combat: ac|maxHp|currentHp|speed.' },
             to: { type: 'string', description: 'For rename_* ops: the NEW name. Renames keep every other field — use these to rename an attack/feature/item, never remove + re-add (that drops its stats).' },
             tag: { type: 'string', description: 'For tag_item: the tag to add to the item named by `name`. Must already be a built-in tag or one you defined with define_tag; weapon/consumable/equipped are reserved.' },
             ability: { type: 'string', enum: ABILITY_KEYS },

@@ -173,6 +173,7 @@ const identityTargets: TargetDef[] = [
   { key: 'gender', label: 'Gender', group: 'identity', valueType: 'text', ops: ['set'], help: 'Change the recorded gender while active.', rendersAt: 'Overview · Bio' },
   { key: 'pronouns', label: 'Pronouns', group: 'identity', valueType: 'text', ops: ['set'], help: 'Change the recorded pronouns while active.', rendersAt: 'Overview · Bio' },
   { key: 'profession', label: 'Profession', group: 'identity', valueType: 'text', ops: ['set'], help: 'Change the recorded profession/occupation while active.', rendersAt: 'Overview · Bio' },
+  { key: 'alignment', label: 'Alignment', group: 'identity', valueType: 'text', ops: ['set'], help: 'Change the recorded alignment while active (a helm of opposite alignment, a curse).', rendersAt: 'Overview · Bio' },
   { key: 'size', label: 'Size', group: 'identity', valueType: 'text', ops: ['set'], help: 'Change size. MECHANICAL: drives carrying capacity, grapple/shove legality, and some damage dice.', rendersAt: 'Overview · Combat tab' },
   { key: 'creature_type', label: 'Creature type', group: 'identity', valueType: 'text', ops: ['set'], help: 'Change creature type (beast, undead…). Matters for spells that target a type.', rendersAt: 'Overview' },
 ];

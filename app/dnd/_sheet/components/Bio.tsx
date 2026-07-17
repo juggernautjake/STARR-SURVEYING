@@ -100,13 +100,15 @@ export default function Bio() {
   // Descriptive identity fields (Slice 11): the render home for gender/pronouns/profession. Each is
   // overlayable by an identity effect (a potion that changes your recorded profession), base stands
   // otherwise. Edit them by hand below (canWrite), or the AI sets them via set_meta.
-  const detail = (field: 'gender' | 'pronouns' | 'profession') => ledger.identity(field)?.value ?? char.meta[field] ?? ''
-  const details: { key: 'gender' | 'pronouns' | 'profession'; label: string }[] = [
+  type DetailKey = 'gender' | 'pronouns' | 'profession' | 'alignment'
+  const detail = (field: DetailKey) => ledger.identity(field)?.value ?? char.meta[field] ?? ''
+  const details: { key: DetailKey; label: string }[] = [
     { key: 'gender', label: 'Gender' },
     { key: 'pronouns', label: 'Pronouns' },
     { key: 'profession', label: 'Profession' },
+    { key: 'alignment', label: 'Alignment' },
   ]
-  const setMeta = (k: 'gender' | 'pronouns' | 'profession', v: string) =>
+  const setMeta = (k: DetailKey, v: string) =>
     setChar((c) => ({ ...c, meta: { ...c.meta, [k]: v } }))
 
   // Mechanical 2024 background (Slice 4): a pick from the real list that grants ability increases +
