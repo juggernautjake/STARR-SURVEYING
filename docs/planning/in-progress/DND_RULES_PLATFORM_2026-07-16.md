@@ -433,10 +433,29 @@ One system per slice — depth-first, verified against sources. In priority orde
       pass the class's system. Tests: `dnd5e-2014-classes.test.ts` (11 — structural validity, L1→20,
       the edition tells, per-class fallback, no-leak) + the 2024 suite updated to the scoped signature.
       **6a DONE** — 12 PHB classes + Artificer, all L1–20 with subclasses (77 tests). Next: 6b (Pathfinder 2e).
-- [ ] **6b — Pathfinder 2e** (a FOCUS system): classes with flat HP/level, the feat cadence (ancestry
-      1/5/9/13/17, class at even levels, skill at even, general at 3/7/11/15/19), attribute boosts at
-      5/10/15/20. Needs a **dedicated per-system model** (the `intuitive-games` module pattern), NOT the
-      5e-shaped `ClassDefinition` — its hit-die/ASI/slot math would misrepresent PF2e.
+- [x] **6b — Pathfinder 2e ✅** (a FOCUS system): the **dedicated per-system model** (the
+      `intuitive-games` module pattern) is now built in full at `lib/dnd/systems/pathfinder2e/`:
+      - `model.ts` — typed `PF2Character` sidecar (character.data.pf2e): attributes as MODIFIERS,
+        proficiency RANKS (untrained→legendary) with `PF2_RANK_BONUS`, identity, skills, saves, combat
+        (ancestryHp/classHpPerLevel/armorRank/dexCap/classDc), Remaster spellcasting traditions, and
+        four-track feats. `isPF2Character` guard.
+      - `rules.ts` — pure math: proficiency = rank bonus + level (trained+), the four degrees of success
+        (nat 20 up / nat 1 down), HP, Dex-capped AC, saves, perception, class/spell DC, Strike bonus,
+        the multiple attack penalty, and the level-based DC table.
+      - `content.ts` — the vanilla library: 16 core skills, the **14 Remaster classes** (level-1
+        proficiency ranks + key attribute + HP/level + subclass mechanism + spellcasting), the **8 core
+        ancestries** (HP/size/speed/boosts/heritages), and 17 backgrounds.
+      - `builder.ts` — `buildPF2Character` + `assemblePF2VanillaCharacter` (projects onto the shared
+        Character engine so sheet/provenance/switcher keep working, plus the pf2e sidecar);
+        `pf2ApplyBoosts` honors the +4 partial-boost rule.
+      - `catalog.ts` — the library grouped for UI pickers; `ai.ts` — `PF2_PICKS_TOOL` + `parsePF2Picks`
+        + `pf2BuilderSystemPrompt` (grounded, cross-system-leak-proof).
+      - **Builder UI**: `PF2CharacterBuilder.tsx` (guided pickers + AI-build box), `PF2Sheet.tsx`
+        (bespoke Remaster sheet, all numbers from the rules engine, U/T/E/M/L rank pills), the
+        `pf2-build` + `pf2-build/ai` write-gated routes, and page wiring (`app/dnd/characters/[id]`).
+      - **63 tests** (rules 15 + builder 18 + ai 6, plus the existing dnd suite); tsc + eslint clean.
+      Remaining polish (deferred): per-level rank/feat progression tables (level-1 legal today; higher
+      levels set initial ranks + accept manual/AI edits), heritage/class-feat mechanical bodies.
 - [~] **6c–6h — the other six systems → MOVED to `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`**
       (2026-07-16, per the user's scope call). The platform is focused on **four** systems first — D&D
       5e 2024, D&D 5e 2014, Intuitive Games, Pathfinder 2e. PF1e, Starfinder 1e, Cyberpunk RED, Shadowrun
@@ -570,8 +589,9 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       the whole **2014 roster (built this session) is automatically searchable** alongside 2024
       ("brutal critical", "sneak attack", "action surge" all resolve to the real rules text), and a
       feature never leaks across systems (2014 Brutal Critical is not a 2024 result). Stale
-      "currently dnd5e-2024" comment fixed; `library.test.ts` +2. **Remaining:** PF2e classes need the
-      dedicated PF2e model before they can project the same way (catalog-level entries only for now).
+      "currently dnd5e-2024" comment fixed; `library.test.ts` +2. **Resolved (6b):** the dedicated PF2e
+      model now exists (`lib/dnd/systems/pathfinder2e/`), so PF2 classes/ancestries/backgrounds have
+      structured builder data + a bespoke sheet; the PF2 catalog projects them into the library picker.
 
 ## Slice 8 — Semantic search (optional, needs a key)
 
