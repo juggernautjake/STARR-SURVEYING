@@ -12,18 +12,27 @@ export default function CampaignLobby({ data, currentName }: { data: CampaignLob
   const router = useRouter()
   const [entering, setEntering] = useState<string | null>(null)
   const [acting, setActing] = useState<string | null>(currentName ?? null)
+  const [error, setError] = useState<string | null>(null)
 
   async function enter(userId: string, target: string) {
     if (entering) return
     setEntering(userId)
+    setError(null)
     try {
       const r = await fetch('/api/dnd/dev/enter', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId }) })
       if (r.ok) {
         router.push(target)
         router.refresh()
-      } else setEntering(null)
+      } else {
+        // Was a silent failure — the click just reverted with no explanation. Surface why (e.g. open
+        // access is off / this isn't your character to enter) so the picker isn't a dead button.
+        const j = await r.json().catch(() => ({}))
+        setEntering(null)
+        setError(j.error || "Couldn't open that character — you may only be able to enter your own, or open access is off.")
+      }
     } catch {
       setEntering(null)
+      setError('Network error — please try again.')
     }
   }
 
@@ -52,6 +61,9 @@ export default function CampaignLobby({ data, currentName }: { data: CampaignLob
             <p style={{ color: 'var(--hx-muted)', fontSize: 13, marginTop: 6 }}>
               {acting ? <>Currently acting as <span style={{ color: 'var(--hx-gold-2)' }}>{acting}</span> — pick again to switch.</> : 'Pick your character to open its sheet, or enter as the Dungeon Master.'}
             </p>
+            {error && (
+              <p role="alert" style={{ color: '#ff8080', fontSize: 13, marginTop: 8 }}>{error}</p>
+            )}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 14 }}>
