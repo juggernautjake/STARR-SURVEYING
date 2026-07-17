@@ -24,6 +24,22 @@ describe('deriveAc', () => {
     expect(r.ac).toBe(16); // 14 + min(4,2)
   });
 
+  it('respects a CUSTOM (authored) DEX cap, not just the default 2 — the armor builder\'s output', () => {
+    // The armor builder / AI lets an item declare its OWN dexCap; deriveAc reads `a.dexCap ?? 2`, so a
+    // non-standard cap must flow through to the AC. A "simplify to min(dex, 2)" regression would silently
+    // ignore an authored cap — this is the pure mechanic the armor builder (doc line ~1547) rests on.
+    const cap3 = deriveAc([armor({ name: 'Half Plate+', kind: 'armor', equipped: true, armor: { category: 'medium', baseAC: 15, dexCap: 3 } })], 4, 10);
+    expect(cap3.ac).toBe(18); // 15 + min(4, 3) = 18, NOT 15 + 2 = 17
+    // A cap of 0 admits no DEX — and pins `?? 2` against a `|| 2` regression (0 || 2 would wrongly give 2).
+    const cap0 = deriveAc([armor({ name: 'Rigid Carapace', kind: 'armor', equipped: true, armor: { category: 'medium', baseAC: 16, dexCap: 0 } })], 4, 10);
+    expect(cap0.ac).toBe(16); // 16 + min(4, 0) = 16
+  });
+
+  it('a medium armor with NO declared dexCap falls back to the 2 default (the `?? 2`)', () => {
+    const r = deriveAc([armor({ name: 'Scale Mail', kind: 'armor', equipped: true, armor: { category: 'medium', baseAC: 14 } })], 5, 10);
+    expect(r.ac).toBe(16); // 14 + min(5, undefined→2) = 16
+  });
+
   it('heavy armor ignores DEX', () => {
     const r = deriveAc([armor({ name: 'Plate', kind: 'armor', equipped: true, armor: { category: 'heavy', baseAC: 18 } })], 4, 10);
     expect(r.ac).toBe(18);

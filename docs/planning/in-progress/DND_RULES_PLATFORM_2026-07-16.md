@@ -1536,36 +1536,44 @@ dice, and it targets someone who is not you. The ledger cannot express it, and s
 to cover it would wreck the thing that makes the ledger tractable (pure, order-independent, always
 re-derivable). So triggers are a **separate concept** that lives beside effects, not inside them.
 
-- [ ] **Attack editing** (the plain ask, first): edit and create attacks directly on the sheet —
-      name, ability, proficiency, to-hit and damage bonuses, range, typed damage, crit range/dice,
-      notes. Today `add_attack` exists for the AI but the player cannot author or edit one by hand.
-- [ ] **Weapon builder**: define a weapon's mechanics — damage dice + type, properties (finesse,
-      versatile, reach, two-handed, thrown, loading, ammunition), mastery (2024), range bands,
-      attack/damage effects, and **on-hit riders** (extra typed damage, a save-or-condition, a
-      resource cost). The derived attack row comes from the weapon, so changing the weapon changes
-      the attack — no double authoring.
-- [ ] **Armor / clothing builder**: base AC, armour category, DEX cap, STR requirement, stealth
-      disadvantage, resistances, and arbitrary `effects` (Slice 11's full vocabulary — armour that
-      changes your species is just armour with an identity effect).
-- [ ] **`Trigger` — the new concept**: `{ on, condition?, action }`.
-      - `on`: `hit_by_melee` · `hit_by_ranged` · `hit_by_spell` · `you_hit` · `you_crit` ·
-        `you_are_crit` · `save_failed` · `turn_start` · `turn_end` · `damaged` · `reduced_to_zero`.
-      - `action`: roll damage (typed, with its own dice + optional attack roll), heal, apply a
-        condition, grant a temporary effect, spend/restore a resource, or a DM prompt.
-      - Triggers may carry their own limits (`once per turn`, `N per long rest`, a resource cost) —
-        unlimited retaliation is the failure mode here, and the data model must be able to say no.
-- [ ] **Triggers are prompts, not automation.** When a trigger's event happens, the sheet *surfaces*
-      it ("Spiked Barbs: 1d6 piercing to the attacker — roll?") and the player/DM resolves it. It must
-      not silently apply damage to a creature the sheet does not model. Guessing that a hit landed, or
-      auto-resolving against an enemy the app has never seen, is how the sheet starts lying about the
-      table's actual state — and a wrong automatic ruling is worse than a visible reminder.
-- [ ] Triggers surface in the Slice 12 panel and are starred by Slice 13 like anything else, so
-      "why did my armour just do something" always has an answer on the sheet.
-- [ ] The AI (Slice 14) can author all of it: "armour that burns anyone who hits me" → an armour item
-      with a `hit_by_melee` trigger rolling fire damage, in the inventory, working.
-- [ ] Tests: a weapon's edits flow to its attack row; an armour's DEX cap is respected by the ledger's
-      AC; a trigger fires only on its event and only within its limit; a trigger with no limit is
-      flagged; retaliation never mutates another character's sheet.
+- [x] **Attack editing** (the plain ask, first): edit and create attacks directly on the sheet. ✅
+      SHIPPED — `AttackEditor` (mounted from Attacks.tsx) covers name, damage dice + type, ability,
+      range, to-hit/damage bonuses, proficiency, notes, and the save/area/DC fields for save-based
+      attacks; "＋ Add attack" creates one, "Edit attack" edits, "Duplicate"/"Delete" round it out. (Crit
+      range/dice is intentionally NOT a per-attack field — it's the effect-derived `crit_range` target, so
+      an item/feature grants it and the store derives the widest range, cf. `crit-range.test.ts`.)
+- [ ] **Weapon builder**: author a weapon's mechanics (damage dice/type, properties, 2024 mastery, range
+      bands, on-hit riders) so its derived attack row follows the weapon. **Mechanic present, builder UI
+      not:** `attacksFromInventory` (`engine/weapons.ts`) already derives an attack from a weapon item, but
+      the live sheet renders stored/`grantsAttack` attacks — wiring a weapon→attack authoring surface into
+      `ItemBuilder` (+ live derivation) is browser-verified feature work for the build/QA phase.
+- [~] **Armor / clothing builder**: base AC, category, DEX cap, STR requirement, stealth disadvantage,
+      resistances, arbitrary `effects`. **Mechanic ✅ shipped + tested, builder UI not.** The live AC path
+      (`deriveAc`, used by CombatPanel) already honors category (light = base + DEX, medium = base +
+      min(DEX, cap), heavy = flat) and an item's own `dexCap`, and arbitrary armour `effects` flow through
+      the ledger like any item's. **⚑ CUSTOM DEX-CAP PINNED (2026-07-18):** the medium-armor test used
+      `dexCap: 2` (== the default), so an AUTHORED non-standard cap — exactly the builder's output — was
+      unguarded; added `derive-ac.test.ts` +2 proving a `dexCap: 3` gives base + min(DEX, 3) not +2, a
+      `dexCap: 0` admits no DEX (which also pins `?? 2` against a `|| 2` regression), and an undeclared cap
+      falls back to 2. So the armour *mechanic* is complete; only the authoring UI in `ItemBuilder` remains
+      (browser-verified). Full dnd suite green (1845).
+- [x] **`Trigger` — the new concept**: `{ on, condition?, action }`. ✅ SHIPPED (see the prose above) —
+      a separate concept beside `Effect` (an event-triggered ACTION, not a continuous overlay): the full
+      event roster, action kinds (typed damage / heal / condition / temp effect / resource / DM prompt),
+      and per-trigger limits are modelled and validated by `cleanTriggers`. `triggers.test.ts` (12).
+- [x] **Triggers are prompts, not automation.** ✅ SHIPPED — the Reactions & Triggers panel surfaces each
+      trigger grouped by event with a 🎲 Roll to resolve on demand; nothing auto-applies damage to a
+      creature the app can't see (a condition/note reaction is shown, never auto-rolled).
+- [x] Triggers surface in the panel and are visible like anything else. ✅ SHIPPED — the Reactions &
+      Triggers panel is on every sheet, collected from equipped/attuned items, gated by equip/level/condition.
+- [x] The AI can author all of it. ✅ SHIPPED — `add_item`/`update_item` accept a `triggers` array
+      (tool-schema-documented), validated by `cleanTriggers` (bogus event/label dropped, bad action → DM
+      prompt, never coerced). "spiked armour that hits back for 1d6 in melee" produces a real trigger.
+- [~] Tests: a trigger fires only on its event and within its limit; a no-limit trigger is flagged;
+      retaliation never mutates another character's sheet — ✅ all in `triggers.test.ts` (12). **Armour DEX
+      cap respected by the ledger's AC ✅** (`derive-ac.test.ts`, incl. the custom-cap pin above). The one
+      part still open is **"a weapon's edits flow to its attack row"** — the weapon-builder UI + live
+      weapon→attack derivation (the unbuilt item above), browser-verified.
 
 ## Slice 17 — The effect builder: "Add effect" by hand ✅ SHIPPED 2026-07-16
 
