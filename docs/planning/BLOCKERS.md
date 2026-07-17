@@ -60,10 +60,27 @@ overwrite a deliberate design.
 
 ---
 
-## What's NOT blocked (already done)
+## QA-readiness ledger — pure/data layers audited + confirmed green (this session)
 
-For context, so this list reads as "the tail," not "the work": the effect ledger + transforms + identity/
-grant overlays + consumption, the rules-legal level builder (feat eligibility, ASI caps, prerequisites),
-the full Intuitive Games system (every mechanic displayed, hover-explained, and editable with identical
-sheet/builder/AI parity, WIP honestly labeled, mechanics guarded against text drift), the Work Mode hub's
-decision layer, and the currency/calculator/media helpers — all shipped, tested, and green.
+So the list above reads as "the tail," not "the work" — and so the upcoming QA walkthrough can spend its
+browser time on the UI/integration/visual layer instead of re-verifying pure logic. Each of these was
+read against its rules + its tests this session and confirmed **correct and comprehensively covered**:
+
+- **Effect ledger** — resolution (set/add/adv/disadv, suppression), non-mutation invariant, attunement
+  consistency, every registry target either renders at a real home or is a tracked+guarded gap.
+- **Transforms** — overlay-not-mutation (anti-"permanent bear"), carry-over policies (keepFeatures/
+  keepMental/separateHp), form HP pool.
+- **Identity + grant overlays** — name/species/class overlay without writing base; cross-class
+  `grant_feature`/senses/defenses resolve + render, gone on unequip; condition-immunity kept distinct
+  from damage-immunity.
+- **Rules-legal level builder** — feat eligibility (slot→category, minLevel/ability/needs prereqs,
+  Epic-Boon L19, repeatability, custom escape hatch), ASI cap-at-20, edition-correct ASI cadence
+  (2014 has an ASI at 19; 2024 makes 19 an Epic Boon; Fighter +6/14, Rogue +10 — both editions).
+- **Provenance** — vanilla/custom/dm-granted classification, conservative "untracked → vanilla" fallback
+  that protects vanilla-only campaigns.
+- **Intuitive Games** — every mechanic displayed, hover-explained, editable with identical sheet/builder/AI
+  parity; WIP honestly labeled; condition + stance mechanics guarded against drift from their verbatim text.
+- **Currency / calculator / media helpers** — canonical 5e/PF2 coin economy pinned; safe evaluator
+  (div-by-zero, non-finite, unbalanced parens); media thumb-vs-icon branches.
+
+Full app test suite green: **13,079 passing**. What's left is only Sections A–C above.
