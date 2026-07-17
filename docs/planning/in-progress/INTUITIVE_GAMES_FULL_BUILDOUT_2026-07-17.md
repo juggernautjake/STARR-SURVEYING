@@ -123,7 +123,15 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       earlier "invented names" note below was wrong — `Boundless Stamina`/`Daring Quickness`/`Inspiring
       Insight`/`Armor Proficiency` ARE real site feats (Special/Ability sections the first fetch missed).
       `ig-content.test.ts` +1, `library.test.ts` +3. Combat feats are A8.
-- [ ] **A8 — Combat Feats** (`/feats-combat`) — every feat, full text + prerequisites + effect.
+- [x] **A8 — Combat Feats** (`/feats-combat`) — ✅ SHIPPED (`feats.ts` `IG_COMBAT_FEATS`). All **68 combat
+      feats** transcribed verbatim from the site: 24 main combat feats, 8 **Mythic Stances** (Dragon/Fey/
+      Genie/Griffon/Phoenix/Treant/Unicorn/Wyvern), 5 **Styles** (Ancient/Arcane/Spell/Wild/Zealous, each
+      with its three moves inline), and 10 **Mastery** feats. `igAllFeats()` now returns General + Combat
+      (151 total) → the library feats table + search + provenance classifier + AI grounding all cover the
+      full feat set (a Mythic Stance / Style / Cleave / Power Attack all resolve real rules). A few
+      proficiency feats appear on both pages, as on the site. `ig-content.test.ts` +1, `library.test.ts`
+      restructured to cover both feat pages. Resolves the `Death Spiral` note — it's a Style: Ancient Combat
+      move, now present.
 - [x] **A9 — Stances** (`/stances`) — ✅ SHIPPED (`content.ts` `IG_STANCE_DEFS` + `IG_STANCE_RULES`).
       Gave the 10 stances a structured **Basic (below Lv 5) / Advanced (Lv 5+)** representation transcribed
       verbatim from the site (replacing the old paraphrased "A:/B:" summaries; `IG_STANCES` is now derived

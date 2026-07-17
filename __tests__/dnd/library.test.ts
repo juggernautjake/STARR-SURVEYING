@@ -247,26 +247,36 @@ describe('full 2024 feats project into library search (Slice 8b)', () => {
   });
 });
 
-describe('Intuitive Games general feats carry full rules text (IG buildout A7)', () => {
-  it('renders feats as a Feat/Prerequisites/Effect table (the whole list, not a sample)', () => {
+describe('Intuitive Games feats carry full rules text (IG buildout A7 + A8)', () => {
+  it('renders feats as a Feat/Prerequisites/Effect table (the whole General + Combat list, not a sample)', () => {
     const page = libraryPageFor('intuitive-games')!;
     const feats = page.sections.find((s) => s.id === 'feats')!;
     expect(feats.table).toBeTruthy();
     expect(feats.chips).toBeUndefined();
     expect(feats.table!.headers).toEqual(['Feat', 'Prerequisites', 'Effect']);
-    expect(feats.table!.rows.length).toBeGreaterThanOrEqual(83);
+    expect(feats.table!.rows.length).toBeGreaterThanOrEqual(150); // 83 General + 68 Combat
     expect(feats.lead).toMatch(/from intuitivegames\.net/i);
+    expect(feats.lead).toMatch(/Combat/); // the lead now notes Combat coverage too
     const alert = feats.table!.rows.find((r) => r[0] === 'Alert');
     expect(alert?.[1]).toMatch(/Perception/); // prerequisite column
     expect(alert?.[2]).toMatch(/flat-footed/i); // effect column
   });
 
-  it('a feat is searchable with its prerequisites + effect', () => {
+  it('a general feat is searchable with its prerequisites + effect', () => {
     const toughness = searchLibrary('toughness', 'intuitive-games').find((h) => h.kind === 'feat');
     expect(toughness?.name).toBe('Toughness');
     expect(toughness!.body).toMatch(/5 extra hit points/i);
     const quick = searchLibrary('quick caster', 'intuitive-games').find((h) => h.kind === 'feat');
     expect(quick!.body).toMatch(/one fewer action/i);
+  });
+
+  it('a combat feat — including a Mythic Stance and a Style — resolves with real IG rules', () => {
+    const cleave = searchLibrary('cleave', 'intuitive-games').find((h) => h.kind === 'feat');
+    expect(cleave!.body).toMatch(/3-action activity/i);
+    const dragon = searchLibrary('dragon stance', 'intuitive-games').find((h) => h.kind === 'feat');
+    expect(dragon!.body).toMatch(/additional 1d10/i);
+    const power = searchLibrary('power attack', 'intuitive-games').find((h) => h.kind === 'feat');
+    expect(power!.body).toMatch(/extra damage equal to your level/i);
   });
 
   it('does not surface the old sample-feat stub for IG (the real feats replace it)', () => {

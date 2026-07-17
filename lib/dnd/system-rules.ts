@@ -424,6 +424,7 @@ export function systemRulesBlock(system: CharacterSystem): string {
       ...IG_ANCESTRIES.map((a) => `   - ${a.name}: ${a.traits.map((t) => `${t.name} — ${t.text}`).join(' ')}`),
       `• Powers/spells (by school): ${IG_POWERS.map((p) => p.name).join(', ')}.`,
       `• General Feats (use ONLY these; each with its effect is in the library): ${igAllFeats().filter((f) => f.category === 'General').map((f) => f.name).join(', ')}.`,
+      `• Combat Feats (use ONLY these; incl. Mythic Stances, Styles, and Mastery feats): ${igAllFeats().filter((f) => f.category === 'Combat').map((f) => f.name).join(', ')}.`,
       `• Defensive Powers: ${IG_DEFENSIVE_POWERS.map((d) => d.name).join(', ')}.`,
       `• Weapon types: ${IG_WEAPON_TYPES.join(', ')}.`,
     );

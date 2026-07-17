@@ -6,7 +6,7 @@ import {
   IG_MOVEMENT_TYPES, IG_CONDITIONS, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES,
   igIsVanilla, igVanillaNames, igContentSummary,
 } from '@/lib/dnd/systems/intuitive-games/content';
-import { IG_GENERAL_FEATS, igAllFeats } from '@/lib/dnd/systems/intuitive-games/feats';
+import { IG_GENERAL_FEATS, IG_COMBAT_FEATS, igAllFeats } from '@/lib/dnd/systems/intuitive-games/feats';
 import { systemRulesBlock, systemConditions, systemSpecies } from '@/lib/dnd/system-rules';
 
 describe('Intuitive Games vanilla content library (Slice 1)', () => {
@@ -113,7 +113,25 @@ describe('Intuitive Games vanilla content library (Slice 1)', () => {
     expect(igIsVanilla('feat', 'Fleet')).toBe(true);
     expect(igIsVanilla('feat', 'Quick Caster')).toBe(true);
     expect(igIsVanilla('feat', 'My Invented Feat')).toBe(false);
-    expect(igAllFeats().length).toBe(IG_GENERAL_FEATS.length);
+  });
+
+  it('has the full combat-feats catalog (68 incl. Mythic Stances, Styles, Mastery) with effect text', () => {
+    expect(IG_COMBAT_FEATS.length).toBeGreaterThanOrEqual(68);
+    for (const f of IG_COMBAT_FEATS) {
+      expect(f.category).toBe('Combat');
+      expect(f.effect.length).toBeGreaterThan(15);
+    }
+    // The four combat sub-groups are all represented.
+    for (const g of ['Combat', 'Mythic Stance', 'Style', 'Mastery']) {
+      expect(IG_COMBAT_FEATS.some((f) => f.group === g)).toBe(true);
+    }
+    expect(IG_COMBAT_FEATS.some((f) => f.name === 'Mythic Stance: Dragon Stance')).toBe(true);
+    expect(IG_COMBAT_FEATS.some((f) => f.name === 'Style: Wild Combat')).toBe(true);
+    // The classifier knows combat feats too.
+    expect(igIsVanilla('feat', 'Cleave')).toBe(true);
+    expect(igIsVanilla('feat', 'Power Attack')).toBe(true);
+    // igAllFeats combines both pages.
+    expect(igAllFeats().length).toBe(IG_GENERAL_FEATS.length + IG_COMBAT_FEATS.length);
   });
 
   it('the content summary exposes every kind and grounding lists the vanilla options', () => {
