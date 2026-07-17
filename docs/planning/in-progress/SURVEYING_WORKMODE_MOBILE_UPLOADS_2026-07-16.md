@@ -29,9 +29,10 @@ Research/notes exist per job.
 - [x] **A2 — Tap-to-call customer number (web). ✅ SHIPPED** (`add340b3`). `telHref` + a "📞 Call" link
       beside the client phone. **Multiple numbers via `job_contacts` is a follow-up** (the primary
       `client_phone` is wired now).
-- [ ] **A3 — One-tap access to a job's research / notes / documents.** A consolidated "Job Docs" affordance
-      that surfaces `job_files`, per-job research, and notes in one place from the job detail and (Area B)
-      the Work Mode hub. Reuse `JobFileManager`/`FileViewer`; no second mechanism.
+- [x] **A3 — One-tap access to a job's research / notes / documents. ✅ SHIPPED** (`7334139c`). The Work
+      Mode hub's Files tab (`JobFiles`) fetches `/api/admin/jobs/files`, groups by section (Research,
+      General, …), and opens any doc in one tap — completing B2's files panel. The job detail page already
+      had `JobFileManager` for the same on the web side.
 - [ ] **A4 — Tests.** the maps URL is built from lat/lng when present and falls back to the address;
       `tel:`/maps links render for each available number/address; no crash when phone/address is blank.
 
