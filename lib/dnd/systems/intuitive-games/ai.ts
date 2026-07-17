@@ -86,12 +86,12 @@ export const IG_PICKS_TOOL = {
 export const IG_EDIT_TOOL = {
   name: 'edit_ig_sheet',
   description:
-    "Change ONE thing on an Intuitive Games character's sheet in place: enter a stance (set_active_stance, one active at a time), leave the stance (clear_stance), apply a condition (add_condition), or remove a condition (remove_condition). Use the EXACT Intuitive Games stance/condition name.",
+    "Change ONE thing on an Intuitive Games character's sheet in place: enter a stance (set_active_stance, one active at a time), leave the stance (clear_stance), apply/remove a condition (add_condition/remove_condition), or add/remove a feat (add_feat/remove_feat). Use the EXACT Intuitive Games stance/condition/feat name.",
   input_schema: {
     type: 'object' as const,
     properties: {
       op: { type: 'string', enum: [...IG_EDIT_OPS], description: 'The edit operation.' },
-      name: { type: 'string', description: 'The stance or condition name (omit for clear_stance).' },
+      name: { type: 'string', description: 'The stance / condition / feat name (omit for clear_stance).' },
     },
     required: ['op'],
   },
@@ -106,10 +106,11 @@ export function parseIGEditToolCall(raw: unknown): { edit: IGEdit } | { error: s
 /** Grounding for the edit tool: the exact stance + condition names the AI may use (IG source only). */
 export function igEditToolInstruction(): string {
   return [
-    'To change a stance or condition on the current Intuitive Games character, call edit_ig_sheet.',
+    'To change a stance, condition, or feat on the current Intuitive Games character, call edit_ig_sheet.',
     `Valid stances (use the name without the word "Stance"): ${IG_STANCE_DEFS.map((s) => s.name).join(', ')}.`,
     `Valid conditions: ${IG_CONDITIONS.map((c) => c.name).join(', ')}.`,
-    'Only one stance is active at a time — set_active_stance replaces the current one. Use the exact names above; do not invent a stance or condition.',
+    'Feats: add_feat/remove_feat take an Intuitive Games feat name (add_feat routes it to the General or Combat list automatically). Use a real IG feat name.',
+    'Only one stance is active at a time — set_active_stance replaces the current one. Use the exact names above; do not invent a stance, condition, or feat.',
   ].join('\n');
 }
 

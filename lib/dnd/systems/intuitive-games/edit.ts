@@ -6,15 +6,18 @@
 // active stance; ig.stances holds the known set). Nothing here invents rules — it only moves names around.
 
 import type { IGCharacter } from './model';
+import { findIGFeat } from './feats';
 
 export type IGEdit =
   | { op: 'set_active_stance'; name: string }
   | { op: 'clear_stance' }
   | { op: 'add_condition'; name: string }
-  | { op: 'remove_condition'; name: string };
+  | { op: 'remove_condition'; name: string }
+  | { op: 'add_feat'; name: string }
+  | { op: 'remove_feat'; name: string };
 
 /** The op names the AI tool + API accept. */
-export const IG_EDIT_OPS = ['set_active_stance', 'clear_stance', 'add_condition', 'remove_condition'] as const;
+export const IG_EDIT_OPS = ['set_active_stance', 'clear_stance', 'add_condition', 'remove_condition', 'add_feat', 'remove_feat'] as const;
 export type IGEditOp = typeof IG_EDIT_OPS[number];
 
 const eq = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -48,6 +51,23 @@ export function applyIgEdit(ig: IGCharacter, edit: IGEdit): IGCharacter {
       combat.conditions = combat.conditions.filter((c) => !eq(c, name));
       return { ...ig, combat };
     }
+    case 'add_feat': {
+      const name = edit.name.trim();
+      if (!name) return ig;
+      const feats = { general: [...ig.feats.general], combat: [...ig.feats.combat] };
+      if (feats.general.some((f) => eq(f, name)) || feats.combat.some((f) => eq(f, name))) return ig; // already have it
+      // Route to the right bucket by the feat's real category; a custom/unknown feat defaults to General.
+      const bucket = findIGFeat(name)?.category === 'Combat' ? 'combat' : 'general';
+      feats[bucket] = [...feats[bucket], name];
+      return { ...ig, feats };
+    }
+    case 'remove_feat': {
+      const name = edit.name.trim();
+      if (!name) return ig;
+      const inEither = ig.feats.general.some((f) => eq(f, name)) || ig.feats.combat.some((f) => eq(f, name));
+      if (!inEither) return ig;
+      return { ...ig, feats: { general: ig.feats.general.filter((f) => !eq(f, name)), combat: ig.feats.combat.filter((f) => !eq(f, name)) } };
+    }
     default:
       return ig;
   }
@@ -74,6 +94,8 @@ export function describeIgEdit(edit: IGEdit): string {
     case 'clear_stance': return 'Left the active stance.';
     case 'add_condition': return `Applied the ${edit.name} condition.`;
     case 'remove_condition': return `Removed the ${edit.name} condition.`;
+    case 'add_feat': return `Added the ${edit.name} feat.`;
+    case 'remove_feat': return `Removed the ${edit.name} feat.`;
     default: return 'No change.';
   }
 }

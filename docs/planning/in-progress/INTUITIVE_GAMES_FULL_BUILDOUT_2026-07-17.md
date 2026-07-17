@@ -327,8 +327,12 @@ expanded requirements (2026-07-17):
       editable; shown on the sheet sourced correctly, each with a tooltip of its full effect. **Sheet
       tooltips shipped** (`IGSheet` Reference feats + `findIGFeat`, `ig-content.test.ts`/`ig-sheet-tooltips.test.ts`):
       each feat chip now hover-shows its category, prerequisites, and full effect (from the 151-feat catalog);
-      unknown/custom feats stay plain. **Remaining:** offering feats rules-legally at the right slots
-      (prerequisite gating in the builder) + feat add/remove editing — a follow-up.
+      unknown/custom feats stay plain. **Feat editing (AI + engine) shipped:** the IG edit vocabulary now
+      covers feats — `edit.ts` `applyIgEdit` gains `add_feat` (routes to the General or Combat list by the
+      feat's real category; custom → General; de-dupes across both) + `remove_feat`; `IG_EDIT_OPS` + the
+      `edit_ig_sheet` AI tool + grounding include them, so the AI can add/remove feats by name (parity with
+      stances/conditions). `ig-edit.test.ts` +3. **Remaining:** the on-sheet feat add/remove UI controls (a
+      thin follow-up mirroring the condition controls) + prerequisite gating in the builder.
 - [~] **B4 — Conditions: display + tooltip + mechanics + edit.** Conditions the character has are clearly shown
       on the sheet; hovering shows the full rules text (from `IG_CONDITIONS`); the mechanical ones actually
       apply (e.g. Flat-Footed drops Dex to Reflex/skills; Shaken/Sickened −2; Blind disadvantage) via the

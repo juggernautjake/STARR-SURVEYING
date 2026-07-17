@@ -47,6 +47,28 @@ describe('applyIgEdit — conditions', () => {
   });
 });
 
+describe('applyIgEdit — feats', () => {
+  it('add_feat routes a Combat feat to feats.combat and a General feat to feats.general', () => {
+    const ig = base();
+    const combat = applyIgEdit(ig, { op: 'add_feat', name: 'Cleave' }); // Cleave is a Combat feat
+    expect(combat.feats.combat).toContain('Cleave');
+    expect(combat.feats.general).not.toContain('Cleave');
+    const general = applyIgEdit(ig, { op: 'add_feat', name: 'Fleet' }); // Fleet is a General feat
+    expect(general.feats.general).toContain('Fleet');
+  });
+  it('a custom/unknown feat defaults to the General list', () => {
+    const out = applyIgEdit(base(), { op: 'add_feat', name: 'My Homebrew Feat' });
+    expect(out.feats.general).toContain('My Homebrew Feat');
+  });
+  it('add_feat de-dupes across both lists (case-insensitive); remove_feat clears from either', () => {
+    let ig = applyIgEdit(base(), { op: 'add_feat', name: 'Toughness' });
+    ig = applyIgEdit(ig, { op: 'add_feat', name: 'toughness' }); // no dup
+    expect([...ig.feats.general, ...ig.feats.combat].filter((f) => f.toLowerCase() === 'toughness')).toHaveLength(1);
+    const removed = applyIgEdit(ig, { op: 'remove_feat', name: 'TOUGHNESS' });
+    expect([...removed.feats.general, ...removed.feats.combat].some((f) => f.toLowerCase() === 'toughness')).toBe(false);
+  });
+});
+
 describe('parseIgEdit', () => {
   it('accepts every valid op and rejects unknown ones', () => {
     for (const op of IG_EDIT_OPS) {
