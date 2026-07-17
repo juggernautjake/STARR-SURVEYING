@@ -29,6 +29,17 @@ describe('deriveAc', () => {
     expect(r.ac).toBe(18);
   });
 
+  it('a NEGATIVE DEX modifier still penalizes light + medium AC (the cap is not a floor)', () => {
+    // A DEX-8 (mod −1) character: the "max 2" cap bounds only the upper side — a negative mod still applies,
+    // so light/medium AC drops. A Math.max(0, …) "fix" would silently break this.
+    const light = deriveAc([armor({ name: 'Leather', kind: 'armor', equipped: true, armor: { category: 'light', baseAC: 11 } })], -1, 10);
+    expect(light.ac).toBe(10); // 11 + (−1)
+    const medium = deriveAc([armor({ name: 'Breastplate', kind: 'armor', equipped: true, armor: { category: 'medium', baseAC: 14, dexCap: 2 } })], -1, 10);
+    expect(medium.ac).toBe(13); // 14 + min(−1, 2) = 14 − 1
+    const heavy = deriveAc([armor({ name: 'Plate', kind: 'armor', equipped: true, armor: { category: 'heavy', baseAC: 18 } })], -1, 10);
+    expect(heavy.ac).toBe(18); // heavy ignores DEX, so a negative mod can't hurt it
+  });
+
   it('adds a shield bonus and stacking +ac item effects', () => {
     const items: InvItem[] = [
       armor({ name: 'Breastplate', kind: 'armor', equipped: true, armor: { category: 'medium', baseAC: 14, dexCap: 2 } }),
