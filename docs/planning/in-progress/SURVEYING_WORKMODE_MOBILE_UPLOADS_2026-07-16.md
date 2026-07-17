@@ -45,15 +45,14 @@ Issue) render only titles; the `JobPicker` is a placeholder input.
 
 **Gaps:**
 
-- [ ] **B1 — Real job selection on entering Work Mode.** Replace the placeholder `JobPicker` with a real
-      job combobox (search `jobs` the worker is on via `job_team.user_email`, or all active jobs), storing
-      the choice in the work-mode store's `jobId`. Entering Work Mode without a job prompts selection.
-- [ ] **B2 — The hub pulls the selected job's everything.** With a `jobId`, the field hub shows, in one
-      streamlined surface: customer info (name + tap-to-call phone from A2), property info (address +
-      tap-to-navigate from A1), the **lead RPLS** over the job (`jobs.lead_rpls_email` / `job_team`
-      role=`lead_rpls`), the **other crew** on the job (`job_team`), and the job's files/research/notes
-      (A3). Each is a real panel reading the existing job sub-APIs (`app/api/admin/jobs/{team,files,
-      contacts}`), not a title stub.
+- [x] **B1 — Real job selection on entering Work Mode. ✅ SHIPPED** (`e0b08efe`). The placeholder input is
+      a real job `<select>` loaded from `/api/admin/jobs?limit=200`; the choice persists to the work-mode
+      store's `jobId`. (Filtering to the worker's own jobs via `?myJobs=1` is a small follow-up.)
+- [x] **B2 — The hub pulls the selected job's customer/property/RPLS/crew. ✅ SHIPPED** (`e0b08efe`). The
+      Job tab (`JobSummary`) shows customer (name + tap-to-call), property (address + county +
+      tap-to-navigate via the shared `lib/jobs/location` helpers), lead RPLS (`job_team` role=`lead_rpls`
+      or `lead_rpls_email`), and crew (`job_team`). **The files/research/notes panel (A3) inside the hub is
+      the remaining part of B2.**
 - [ ] **B3 — Calculator + notes in the hub.** A quick calculator (reuse/adapt the CAD calculator store if
       suitable, else a simple field calc) and a per-job notes pad that saves to the job's notes/field-notes
       so entries are reviewable later.
