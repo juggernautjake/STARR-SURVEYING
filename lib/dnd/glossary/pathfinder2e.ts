@@ -405,4 +405,154 @@ export const PATHFINDER2E_GLOSSARY: SystemGlossary = [
     seeAlso: ['Dying', 'Doomed', 'Treat Wounds', 'Unconscious', 'Hero Point'],
     aliases: ['wounded 1', 'wounded n', 'wound'],
   },
+
+  // ── The basic actions of the three-action economy ────────────────────────────────────────────
+  // Each of these costs a set number of the three actions you get on your turn. Most Strikes, Stride
+  // and Step are the bread and butter; the skill actions below use a skill's proficiency.
+  {
+    term: 'Strike',
+    kind: 'action',
+    short: 'One action: make one attack. Your 2nd Strike this turn takes −5, your 3rd −10 (the Multiple Attack Penalty).',
+    body:
+      '**Strike** is one action ◆: attack one target with a weapon or unarmed attack. Roll **d20 + attack modifier vs the target\'s AC**, reading the four **Degrees of Success** (a nat 20 or beating the DC by 10 is a **critical hit** for double damage).\n\nBecause it is one action, you can Strike up to **three times** in a turn — but each Strike after the first takes the **Multiple Attack Penalty**: **−5** on the second, **−10** on the third (−4/−8 with an agile weapon). Spreading attacks across targets, or trading a third Strike for a maneuver, is the core tactical choice.',
+    seeAlso: ['Multiple Attack Penalty', 'Degrees of Success', 'Three-Action Economy', 'Off-Guard'],
+    aliases: ['strike', 'attack action', 'make an attack'],
+  },
+  {
+    term: 'Stride',
+    kind: 'action',
+    short: 'One action: move up to your Speed. Provokes Reactive Strikes from foes that have it.',
+    body:
+      '**Stride** is one action ◆: move up to your **Speed**. You can Stride up to three times in a turn to cover a lot of ground.\n\nMoving out of a foe\'s reach can trigger a **Reactive Strike** (formerly Attack of Opportunity) — but only creatures that specifically have that reaction get one, which in PF2 is far rarer than in D&D. To move away safely from those, use **Step**.',
+    seeAlso: ['Step', 'Reactive Strike', 'Three-Action Economy'],
+    aliases: ['stride', 'move', 'movement'],
+  },
+  {
+    term: 'Step',
+    kind: 'action',
+    short: 'One action: move 5 feet without triggering reactions like Reactive Strike.',
+    body:
+      '**Step** is one action ◆: move **5 feet** (or 10 with some feats). Unlike Stride, stepping **does not trigger** reactions that are set off by movement, such as **Reactive Strike**.\n\nIt is how you disengage from a dangerous melee foe and still have two actions left to act. You cannot Step into difficult terrain.',
+    seeAlso: ['Stride', 'Reactive Strike'],
+    aliases: ['step', 'five foot step'],
+  },
+  {
+    term: 'Interact',
+    kind: 'action',
+    short: 'One action: manipulate an object — draw or stow a weapon, open a door, retrieve an item.',
+    body:
+      '**Interact** is one action ◆ to manipulate the environment or your gear: **draw or sheathe a weapon**, retrieve an item from your pack, open an unlocked door, pick up an object, and so on.\n\nUnlike D&D\'s "free object interaction," in PF2 each of these **costs an action** — drawing a weapon and attacking is two actions, which is a real part of the turn\'s budget.',
+    seeAlso: ['Three-Action Economy', 'Bulk'],
+    aliases: ['interact', 'draw weapon', 'manipulate'],
+  },
+  {
+    term: 'Raise a Shield',
+    kind: 'action',
+    short: 'One action: gain your shield\'s +1 (or more) circumstance bonus to AC until your next turn.',
+    body:
+      '**Raise a Shield** is one action ◆ (requires a shield): you gain the shield\'s **circumstance bonus to AC** (usually **+1**, +2 for a tower shield) until the start of your next turn.\n\nOnly while raised can you use the **Shield Block** reaction to reduce damage. So the shield loop is: Raise ◆ each turn, then Block ↺ when hit. A raised shield is what makes a defender actually harder to hit.',
+    seeAlso: ['Armor Class', 'Reactive Strike'],
+    aliases: ['raise a shield', 'raise shield', 'shield block'],
+  },
+  {
+    term: 'Seek',
+    kind: 'action',
+    short: 'One action: Perception check to find hidden/undetected creatures or objects in an area.',
+    body:
+      '**Seek** is one action ◆: make a **Perception check** to notice hidden or undetected creatures, or to search an area for objects. On a success you pin down a creature\'s location (making a Hidden creature merely Concealed, or an Undetected one Hidden).\n\nSeek is the active counterpart to a foe\'s **Hide** and **Sneak**, and how you deal with invisibility and ambushes.',
+    seeAlso: ['Concealed', 'Off-Guard', 'Recall Knowledge'],
+    aliases: ['seek', 'search', 'perception'],
+  },
+  {
+    term: 'Demoralize',
+    kind: 'action',
+    short: 'One action: Intimidation vs Will DC to make a foe Frightened 1 (2 on a crit).',
+    body:
+      '**Demoralize** is one action ◆ (Intimidation): choose a foe within 30 feet and roll **Intimidation vs its Will DC**.\n\n· **Critical success** — it becomes **Frightened 2**.\n· **Success** — it becomes **Frightened 1**.\n\nFrightened is a status penalty to everything, so this is a strong "off-turn debuff" a face character throws out. You take a **−4** penalty if you do not share a language, and a target is temporarily immune for **10 minutes** after you try.',
+    seeAlso: ['Frightened', 'Off-Guard', 'Recall Knowledge'],
+    aliases: ['demoralize', 'intimidate'],
+  },
+  {
+    term: 'Grapple',
+    kind: 'action',
+    short: 'One action: Athletics vs Fortitude DC to make a foe Grabbed (Restrained on a crit).',
+    body:
+      '**Grapple** is one action ◆ (Athletics, one free hand): roll **Athletics vs the target\'s Fortitude DC**.\n\n· **Critical success** — the target is **Restrained** until your next turn ends.\n· **Success** — the target is **Grabbed** until your next turn ends.\n· **Critical failure** — you fall Prone or the target can Grapple you.\n\nGrabbed/Restrained impose the **Off-Guard** condition, setting the foe up for allies. Maintaining a grab means grappling again each round.',
+    seeAlso: ['Grabbed', 'Immobilized', 'Off-Guard', 'Escape'],
+    aliases: ['grapple', 'grab', 'wrestle'],
+  },
+  {
+    term: 'Trip',
+    kind: 'action',
+    short: 'One action: Athletics vs Reflex DC to knock a foe Prone.',
+    body:
+      '**Trip** is one action ◆ (Athletics): roll **Athletics vs the target\'s Reflex DC** against a foe within reach.\n\n· **Critical success** — the target falls **Prone** and takes **1d6 bludgeoning**.\n· **Success** — the target falls **Prone**.\n· **Critical failure** — you fall Prone.\n\nProne foes are **Off-Guard** and must spend an action to stand (which can trigger a Reactive Strike). Trip → Strike is a classic martial combo.',
+    seeAlso: ['Prone', 'Off-Guard', 'Shove'],
+    aliases: ['trip', 'knock down'],
+  },
+  {
+    term: 'Shove',
+    kind: 'action',
+    short: 'One action: Athletics vs Fortitude DC to push a foe 5 feet (10 on a crit).',
+    body:
+      '**Shove** is one action ◆ (Athletics): roll **Athletics vs the target\'s Fortitude DC**.\n\n· **Critical success** — push the target **10 feet** and you can Stride after it.\n· **Success** — push the target **5 feet**.\n\nShoving a foe off a ledge, out of an ally\'s reach, or into hazardous terrain is the main use. It moves the target, so it can set off movement-triggered reactions.',
+    seeAlso: ['Trip', 'Reactive Strike'],
+    aliases: ['shove', 'push'],
+  },
+  {
+    term: 'Escape',
+    kind: 'action',
+    short: 'One action: break free of Grabbed/Restrained/Immobilized — Unarmed, Athletics, or Acrobatics vs the DC.',
+    body:
+      '**Escape** is one action ◆ used to get out of the **Grabbed, Restrained, or Immobilized** conditions. Roll your **unarmed attack modifier, Athletics, or Acrobatics** (whichever is best) against the effect\'s DC.\n\n· **Success** — you are free of the condition.\n· **Critical success** — free, plus you can Step for free.\n\nIt is a check, not an attack, so it does not take the Multiple Attack Penalty.',
+    seeAlso: ['Grabbed', 'Immobilized', 'Grapple'],
+    aliases: ['escape', 'break free'],
+  },
+  {
+    term: 'Aid',
+    kind: 'action',
+    short: 'Reaction: help an ally\'s check you Prepared for — a success grants them a +1 (or more) circumstance bonus.',
+    body:
+      '**Aid** is a **reaction** ↺, but you must set it up first: on a previous turn, **Ready to Aid** (an action) and name the check you will help. When your ally attempts it, you roll a check (the DM sets the DC, usually a flat 20 or the same DC).\n\n· **Success** — your ally gets a **+1 circumstance bonus** (+2 if you are a master, +3 legendary).\n· **Critical success** — a larger bonus; **Critical failure** — a −1 penalty.\n\nIt is the teamwork action, and it scales with how good the helper actually is.',
+    seeAlso: ['Three-Action Economy', 'Proficiency Rank'],
+    aliases: ['aid', 'help', 'assist'],
+  },
+
+  // ── Core mechanics ───────────────────────────────────────────────────────────────────────────
+  {
+    term: 'Flat Check',
+    kind: 'mechanic',
+    short: 'A d20 roll against a flat DC (no modifiers) to resolve pure chance — a Concealed target, Persistent Damage recovery.',
+    body:
+      'A **flat check** is a **d20 roll with no modifiers** against a flat DC, used when the outcome is pure luck rather than skill.\n\nThe common ones:\n· **DC 5** — attacking a **Concealed** target (miss on a failure).\n· **DC 11** — attacking a **Hidden** target, or ending **Persistent Damage**.\n· Recovering from being off-balance, targeting through Concealment, and similar.\n\nBecause nothing modifies it, a flat check is the game\'s honest coin-flip.',
+    seeAlso: ['Concealed', 'Persistent Damage', 'Degrees of Success'],
+    aliases: ['flat check', 'flat dc'],
+  },
+  {
+    term: 'Persistent Damage',
+    kind: 'mechanic',
+    short: 'Damage that repeats at the end of each of your turns until a DC 15 flat check ends it.',
+    body:
+      '**Persistent Damage** (bleed, fire, acid…) is dealt again **at the end of each of your turns**. After taking it, attempt a **DC 15 flat check** — on a success it **ends**.\n\nYou or an ally can help: taking a reasonable action to address it (dousing flames, binding a wound) gives you **assisted recovery**, letting you roll the flat check at the start of your turn instead / at a lower DC. It is PF2\'s answer to "damage over time" and can quietly kill a downed character.',
+    seeAlso: ['Flat Check', 'Dying', 'Treat Wounds'],
+    aliases: ['persistent damage', 'bleed', 'dot', 'damage over time'],
+  },
+  {
+    term: 'Bulk',
+    kind: 'mechanic',
+    short: 'PF2\'s encumbrance unit: carry (5 + STR mod) Bulk freely; over that you\'re Encumbered; at (10 + STR) you\'re maxed.',
+    body:
+      '**Bulk** measures how heavy and unwieldy your gear is. You carry up to **5 + your Strength modifier** Bulk with no penalty. Carrying more, up to **10 + your Strength modifier**, makes you **Encumbered** (Clumsy 1 and −10 feet Speed). You cannot carry beyond that maximum.\n\n· Ten **Light** items (marked **L**) = 1 Bulk; negligible items have no Bulk.\n· A typical one-handed weapon is 1 Bulk; heavy armor 4.\n\nIt keeps inventory honest without tracking pounds.',
+    seeAlso: ['Interact', 'Clumsy'],
+    aliases: ['bulk', 'encumbrance', 'carrying capacity', 'encumbered'],
+  },
+  {
+    term: 'Free Action & Reaction',
+    kind: 'mechanic',
+    short: 'Beyond your 3 actions: Free Actions (⬦, cost nothing) and one Reaction (↺) per round, taken on a trigger.',
+    body:
+      'On top of your **three actions** each turn, PF2 has two other kinds:\n\n· **Free Action** (⬦) — costs none of your three. Some have a **trigger** (like an action, but free); others can be taken any time it is your turn. You can take as many as their triggers allow.\n· **Reaction** (↺) — you get **one per round**, and it happens **on a trigger, even on another creature\'s turn** (Shield Block, Reactive Strike, Aid). Once spent, you have none until the start of your next turn.\n\nAn **Activity** (like a two-action spell or Sudden Charge) is a single thing that uses **multiple actions** together, noted ◆◆ or ◆◆◆.',
+    seeAlso: ['Three-Action Economy', 'Reactive Strike', 'Raise a Shield'],
+    aliases: ['free action', 'reaction', 'activity', 'trigger'],
+  },
 ];
