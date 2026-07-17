@@ -307,6 +307,11 @@ export function revertSheetEdit(input: Character, e: SheetEdit, oldValue: unknow
     case 'add_resource': case 'rename_resource':
       c.resources = restore(c.resources, prior as Resource | null);
       break;
+    case 'define_tag':
+      // A pure create (oldValue is null) — undo it by dropping the tag it added. Without this case an
+      // undone AI edit that defined a tag would leave the tag category orphaned on the sheet.
+      if (c.customTags) c.customTags = (c.customTags as CustomTag[]).filter((t) => !eqName(t.name, e.name));
+      break;
   }
   return c;
 }

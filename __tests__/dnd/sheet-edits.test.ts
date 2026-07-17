@@ -1,5 +1,7 @@
 // __tests__/dnd/sheet-edits.test.ts — structured sheet edits (Phase I2).
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { applySheetEdits, editPath, editOldValue, revertSheetEdit, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import { EFFECT_OPERATIONS } from '@/app/dnd/_sheet/engine/effects';
@@ -16,6 +18,29 @@ describe('the AI edit_sheet tool schema stays in sync with the effect registry',
   it('includes every operation individually (incl. condition_advantage, the one that was missing)', () => {
     for (const op of EFFECT_OPERATIONS) {
       expect(schemaStr, `operation "${op}" missing from the AI tool schema`).toContain(op);
+    }
+  });
+});
+
+describe('every edit op can be reverted (undo, user request)', () => {
+  it('reverting define_tag drops the tag it created — was an unrevertable op', () => {
+    const base = blankCharacter('X');
+    const edit: SheetEdit = { op: 'define_tag', name: 'psionic', desc: 'A mind power' };
+    const oldValue = editOldValue(base, edit); // null — a create
+    const applied = applySheetEdits(base, [edit]);
+    expect((applied.customTags ?? []).some((t) => t.name === 'psionic')).toBe(true);
+    const reverted = revertSheetEdit(applied, edit, oldValue);
+    expect((reverted.customTags ?? []).some((t) => t.name === 'psionic')).toBe(false);
+  });
+
+  it('revertSheetEdit has a case for EVERY op the tool schema offers (no silent no-op undo)', () => {
+    // A missing case makes an edit unrevertable — exactly the define_tag gap. Guard it against the next op.
+    const ops = (SHEET_EDIT_TOOL.input_schema as { properties: { edits: { items: { properties: { op: { enum: string[] } } } } } })
+      .properties.edits.items.properties.op.enum;
+    const src = fs.readFileSync(path.join(process.cwd(), 'lib/dnd/sheet-edits.ts'), 'utf8');
+    const body = src.slice(src.indexOf('export function revertSheetEdit'), src.indexOf('export interface AuditedEdit'));
+    for (const op of ops) {
+      expect(body.includes(`case '${op}'`), `revertSheetEdit has no case for "${op}" — it would undo to a no-op`).toBe(true);
     }
   });
 });
