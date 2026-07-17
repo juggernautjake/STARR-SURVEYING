@@ -549,6 +549,13 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       2r−1 with 2 slots, rises to 3 at 2r; the single 10th-rank slot at level 19). The PF2 sheet renders
       slots per rank. All 7 caster classes are full casters on this table. `pathfinder2e-rules.test.ts`
       +5 (table verified vs Player Core), builder +2.
+      **Plus (6b follow-up) worn armor → correct AC/Dex-cap/speed** — every PF2 character previously
+      showed UNARMORED AC because the builder never applied armor. Added `PF2_ARMORS` (11 Player Core
+      armors, unarmored→heavy, with AC item bonus / Dex cap / Strength req / check + speed penalties);
+      the builder applies the picked armor's Dex cap + AC bonus (full plate now caps Dex to 0 and adds
+      +6) and the speed penalty (correctly reduced by 5 ft when the Strength req is met). Armor picker in
+      the builder UI + name shown under AC on the sheet; the AI parse/schema accept `armor`. Armored
+      skill *check* penalty is deferred to a dedicated skill-penalty slice. `pathfinder2e-builder.test.ts` +6.
 - [x] **Intuitive Games ✅** — closed the gap found 2026-07-16 (its content lived only in the builder
       module, not the searchable glossary). Authored `lib/dnd/glossary/intuitive-games.ts` (26 articles)
       from the engine's own numbers (igProficiency = level, igDegreeOfSuccess, igSaveTotal, igMaxHp) and
