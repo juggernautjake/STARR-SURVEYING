@@ -374,11 +374,12 @@ renders. The one clear gap — spells — is now closed.
 
 The engine (`lib/dnd/classes/custom.ts`) is built and tested; there is no UI.
 
-- [~] `/dnd/characters/[id]/build/class` — define a class from scratch. **AI-assist endpoint + page UI ✅
-      SHIPPED** (`dadb68a5`, `d1facdbe`): the endpoint drafts + reviews via the existing engine; the page
-      (`build/class/page.tsx`) is a prompt box → "Draft with AI" → the built definition + features + the
-      engine's review (errors red/block, warnings gold/advise). Propose-only. **Remaining:** a manual
-      edit form on the draft + the persist action (save the class to the sheet + level builder).
+- [x] `/dnd/characters/[id]/build/class` — define a class from scratch. **✅ SHIPPED** (`dadb68a5`,
+      `d1facdbe`, `7fa1a665`, `253e42f9`): AI-assist endpoint → drafts + reviews via the existing engine;
+      the page is a prompt box → "Draft with AI" → the built definition + features + the engine's review
+      (errors red/block, warnings gold/advise) → **Save to my character** (persists, gated on a clean
+      review) → the saved class **resolves in the level builder like an official one**. **Remaining (nice-
+      to-have):** a manual field-by-field edit form on the draft (today you iterate by re-prompting).
 - [~] Homebrew subclass + homebrew feat builders. **AI-input side ✅ SHIPPED** (`1ceae899`):
       `parseCustomSubclassInput`/`CUSTOM_SUBCLASS_TOOL` → `buildCustomSubclass` and
       `parseCustomFeatInput`/`CUSTOM_FEAT_TOOL` → `buildCustomFeat`+`reviewCustomFeat` (custom-ai.ts, +4
@@ -392,10 +393,10 @@ The engine (`lib/dnd/classes/custom.ts`) is built and tested; there is no UI.
       upsert-by-key/remove/system-filter/read) + `Character.homebrewClasses` + a save endpoint that
       rebuilds+re-reviews server-side, rejects errors, upserts + persists (stamps author, flagged custom),
       and a Save button on `/build/class` (disabled while errors exist). 4+ tests.
-- [~] A custom class must appear in the level builder exactly like an official one. **The storage +
-      registry `extra` mechanism exists** (`homebrewClassesForSystem` → `findClass(system, key, extra)`);
-      **remaining:** the LevelBuilder passing `readHomebrewClasses(char.data)` as `extra` when resolving
-      the class (a small read-integration, best verified in the running app).
+- [x] **A custom class appears in the level builder like an official one. ✅ SHIPPED** (`253e42f9`). The
+      levels route (which the LevelBuilder reads) passes `readHomebrewClasses(data)` to `findClass` as
+      `extra` at both call sites, so a saved custom class walks a real level table. +1 test proving it
+      resolves via extra and stays system-scoped (Ground Rule 1).
 
 ## Slice 6 — Full class data for the remaining systems
 
