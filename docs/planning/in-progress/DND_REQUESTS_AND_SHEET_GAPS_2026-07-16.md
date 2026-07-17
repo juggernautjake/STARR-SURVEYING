@@ -30,13 +30,13 @@ where `email` is a synthetic key (`name:jacob` / `quick:jacob`) that functions a
       display name AND their account handle (the synthetic key, e.g. `name:jacob`) so the owner can
       identify who asked. Persist `user_key` (the session `email`) on insert in the POST route; the
       review page shows `author_name` + `user_key`. Anonymous posts (no session) keep `author_name` only.
-- [ ] **A3 — Owner-only management gate (also closes a security hole).** Today `DELETE
-      /api/dnd/suggestions/[id]` has NO auth check — anyone can delete any request; the review page shows
-      Delete/status controls to everyone. Introduce a minimal owner concept in `lib/dnd/auth.ts`
-      (`isDndOwner(session)` → true only for the Jacob account, matched by `email === 'quick:jacob'` /
-      `name:jacob`, gated behind an env-config list `DND_OWNER_KEYS` defaulting to the Jacob key so it's
-      not hardcoded-only). Gate DELETE and a new PATCH (status change) to owner-only (403 otherwise). The
-      password is the existing pseudo-login (`1234` for Jacob) — no new auth surface.
+- [x] **A3 — Owner-only management gate (also closes a security hole). ✅ SHIPPED** (commit `1ed2fb0c`).
+      `lib/dnd/auth.ts` now has `isDndOwner(session)` + `dndOwnerKeys()` (matches Jacob's synthetic
+      pseudo-login key `quick:jacob` / `name:jacob`, overridable via `DND_OWNER_KEYS`). `DELETE
+      /api/dnd/suggestions/[id]` returns 403 for non-owners (was unauthenticated — anyone could delete
+      any request). `GET /api/dnd/suggestions` now returns an `owner` flag; the review page renders the
+      Delete button only for the owner. 4 tests. **The PATCH (status change) gate lands with A1/A4** (it
+      needs the status column first).
 - [ ] **A4 — Owner review page: status controls + copy + delete + sort.** Extend
       `/dnd/suggestions/page.tsx`: each row shows display name · user handle · full request text · a
       **Copy text** button (already partially there) · and — only when `isDndOwner` — a status selector
