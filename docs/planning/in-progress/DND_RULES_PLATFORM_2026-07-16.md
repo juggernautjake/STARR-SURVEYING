@@ -566,6 +566,10 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       group, hands, range) + `pf2WeaponStrike` (ranged/finesse use DEX when it beats STR; melee adds STR
       to damage; attack rank = class attack proficiency). The builder prepends a picked weapon's Strike
       (Fist kept as fallback); weapon picker in the UI; AI parse/schema accept `weapon`. +5 tests.
+      **Plus (6b follow-up) PF2 armor + weapons in the library** — the new gear catalogs, builder-only
+      before, now surface in `searchLibrary` as `armor`/`weapon` hits (AC/Dex-cap/Str; damage die+type+
+      traits) and as PF2-only **Armor** and **Weapons** tables on the library page. System-scoped (no 5e
+      leak). `library.test.ts` +1 (Full Plate +6 AC, Longsword 1d8 slashing).
 - [x] **Intuitive Games ✅** — closed the gap found 2026-07-16 (its content lived only in the builder
       module, not the searchable glossary). Authored `lib/dnd/glossary/intuitive-games.ts` (26 articles)
       from the engine's own numbers (igProficiency = level, igDegreeOfSuccess, igSaveTotal, igMaxHp) and
