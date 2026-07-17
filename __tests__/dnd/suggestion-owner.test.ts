@@ -1,4 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { isDndOwner, dndOwnerKeys, type DndSession } from '@/lib/dnd/auth';
 
 const session = (email: string): DndSession => ({ userId: 'u1', email, displayName: 'X' });
@@ -34,5 +36,23 @@ describe('isDndOwner / dndOwnerKeys', () => {
     expect(dndOwnerKeys()).toEqual(['name:gm', 'quick:jacob']);
     expect(isDndOwner(session('name:gm'))).toBe(true);
     expect(isDndOwner(session('name:jacob'))).toBe(false); // no longer an owner under the override
+  });
+});
+
+// The gate is only real if the ROUTES apply it. Source-anchored so a future edit can't silently drop
+// the 403 and re-open the unauthenticated-manage hole (driving the routes needs a live DB + session).
+describe('the suggestion routes enforce the owner gate at the right places', () => {
+  const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
+  const ID_ROUTE = read('app/api/dnd/suggestions/[id]/route.ts');
+  const BASE_ROUTE = read('app/api/dnd/suggestions/route.ts');
+
+  it('DELETE and PATCH both gate on isDndOwner with a 403', () => {
+    const gates = ID_ROUTE.match(/if \(!isDndOwner\(getDndSession\(\)\)\)/g) ?? [];
+    expect(gates.length, 'both managing handlers must gate').toBeGreaterThanOrEqual(2);
+    expect(ID_ROUTE).toContain('status: 403');
+  });
+  it('managing a request is only reachable via the [id] route — GET/POST are not owner-gated', () => {
+    // The public list + open submit must NOT 403 non-owners; the 403 message lives only in the [id] route.
+    expect(BASE_ROUTE).not.toContain('Only the owner');
   });
 });
