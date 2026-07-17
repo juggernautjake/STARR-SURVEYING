@@ -28,3 +28,23 @@ describe('AI grounding includes the glossary, scoped to the system', () => {
     expect(g.block).not.toMatch(/GLOSSARY ARTICLES/); // empty query → no glossary section
   });
 });
+
+describe('every AI path feeds the grounding BLOCK (so the glossary reaches them), source-anchored', () => {
+  const fs = require('node:fs'); const path = require('node:path');
+  const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
+
+  it('ai-edit (item/feat/spell builder), ingest, transpose, and the librarian all include grounding.block', () => {
+    // Each route must put the retrieved rules block into the model's user content, not just the
+    // instruction — otherwise the glossary articles never reach the AI.
+    for (const p of [
+      'app/api/dnd/characters/[id]/ai-edit/route.ts',
+      'app/api/dnd/characters/[id]/ingest/route.ts',
+      'app/api/dnd/characters/[id]/system/route.ts',
+      'app/api/dnd/library/chat/route.ts',
+    ]) {
+      const src = read(p);
+      expect(src, p).toContain('systemGroundingBlock');
+      expect(src.replace(/\s+/g, ' '), p).toMatch(/grounding[.?]*\.?block/);
+    }
+  });
+});

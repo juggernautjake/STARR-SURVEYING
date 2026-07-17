@@ -507,8 +507,12 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       the librarian "how does the multiple attack penalty work if I Strike three times?" (PF2e) returned
       the exact numbers from the article (−5/−10, −4/−8 agile), `grounded > 0`. So the AI now gives
       correct, system-accurate answers quoting the library rather than recall. Tests:
-      `grounding-glossary.test.ts` (4 — glossary in the block, natural-language retrieval, no
-      cross-system leak, empty-query still deterministic).
+      `grounding-glossary.test.ts` (5 — glossary in the block, natural-language retrieval, no
+      cross-system leak, empty-query still deterministic, and a source-anchor that **every** AI route
+      feeds the grounding block). Because the fix lives in `systemGroundingBlock`, it benefits ALL AI
+      paths at once — the **librarian**, the **character/item builder** (`ai-edit`: building a feat/
+      spell/weapon now grounds on the system's articles), **ingest**, and **cross-system transpose** —
+      exactly the user's "help the AI when explaining, editing, finding, or building anything."
 - [x] **Guardrails**: `glossary.test.ts` now includes a no-duplicate-terms integrity check per system;
       `system-integrity.test.ts` enforces no cross-system leakage. Every entry carries seeAlso links +
       search aliases and resolves through the no-key keyword search.
