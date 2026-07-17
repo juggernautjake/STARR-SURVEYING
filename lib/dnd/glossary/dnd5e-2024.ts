@@ -194,7 +194,7 @@ const EDITION_2024: SystemGlossary = [
     short: 'Make a DC 15 Stealth check to become Invisible (unseen and unheard) until you give yourself away.',
     body: 'The **Hide** action lets you try to conceal yourself. You must be **Heavily Obscured** or behind **at least three-quarters cover**, out of any enemy\'s line of sight, and make a **Dexterity (Stealth) check against DC 15**.\n\nOn a success you have the **Invisible condition** (see the entry) — you are treated as unseen and unheard. You stop being Hidden if you make a sound louder than a whisper, an enemy finds you (a **Search** action opposed by your Stealth total), you make an attack, or you cast a spell with a verbal component.',
     seeAlso: ['Invisible', 'Search', 'Passive Perception'],
-    aliases: ['hide', 'stealth', 'sneak'],
+    aliases: ['hide', 'sneak'],
   },
   {
     term: 'Influence',
