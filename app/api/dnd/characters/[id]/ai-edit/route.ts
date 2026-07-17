@@ -17,6 +17,9 @@ import { validateCharacterForSystem, violationsSummary } from '@/lib/dnd/system-
 import { normalizeSystem } from '@/lib/dnd/systems';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
+import { IG_EDIT_TOOL, parseIGEditToolCall, igEditToolInstruction } from '@/lib/dnd/systems/intuitive-games/ai';
+import { applyIgEdit, describeIgEdit } from '@/lib/dnd/systems/intuitive-games/edit';
+import { isIGCharacter, type IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 
 // Routing hint so the agent picks the right tool: mechanics → edit_sheet, look/layout →
 // customize_layout. Both only ever touch THIS character (Slice 8b).
@@ -87,6 +90,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const current: Character = (row.data as unknown as Character | null) ?? blankCharacter(row.name);
 
+  // Intuitive Games characters keep a bespoke sidecar at data.ig; expose the edit_ig_sheet tool so the AI
+  // can enter/leave a stance or apply/remove a condition on THAT model (parity with the manual controls).
+  const rawData = (row.data ?? {}) as Record<string, unknown>;
+  const igData = rawData.ig;
+  const isIG = normalizeSystem((row as { system?: string }).system) === 'intuitive-games' && isIGCharacter(igData);
+
   // System grounding (Slice 3/8): edits must stay inside the character's chosen system —
   // no cross-system rules, no invented mechanics.
   const grounding = await systemGroundingBlock((row as { system?: string }).system, instr).catch(() => null);
@@ -108,15 +117,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // customize_layout for LAYOUT/STYLING of the custom sheet (Slice 12: add/remove/move/
     // resize/restyle blocks, set CSS). Both are scoped to this one character (Slice 8b).
     result = await dndToolCall<{ summary?: string; edits: unknown[] }>({
-      system: [SYSTEM, LAYOUT_ROUTING, grounding?.instruction].filter(Boolean).join('\n\n'),
+      system: [SYSTEM, LAYOUT_ROUTING, isIG ? igEditToolInstruction() : null, grounding?.instruction].filter(Boolean).join('\n\n'),
       user: [
         `Current sheet:\n${sheetDigest(current)}`,
+        isIG ? `Active stance(s): ${(igData as IGCharacter).combat.stances.join(', ') || 'none'}. Conditions: ${(igData as IGCharacter).combat.conditions.join(', ') || 'none'}.` : null,
         `Current custom layout blocks: ${layoutSummary((row as { custom_layout?: unknown }).custom_layout)}`,
         historyDigest || null,
         grounding?.block || null,
         `Instruction: ${instr}`,
       ].filter(Boolean).join('\n\n'),
-      tools: [SHEET_EDIT_TOOL, LAYOUT_EDIT_TOOL, UNDO_TOOL],
+      tools: [SHEET_EDIT_TOOL, LAYOUT_EDIT_TOOL, UNDO_TOOL, ...(isIG ? [IG_EDIT_TOOL] : [])],
       toolChoice: { type: 'auto' },
       maxTokens: 4096,
       temperature: 0.4,
@@ -151,6 +161,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       source: 'revert', summary: `Undid a change of ${audited.length} edit(s)${target.summary ? `: ${target.summary}` : ''}`,
     }).then(() => {}, () => {});
     return NextResponse.json({ ok: true, kind: 'undo', reverted: audited.length, batchId: target.batchId, summary: `Undone — reverted my last change${target.summary ? ` (${target.summary})` : ''}. Your character is back to how it was.` });
+  }
+
+  // ── Intuitive Games incremental edit (edit_ig_sheet → applyIgEdit on data.ig) ─────────
+  if (result?.name === 'edit_ig_sheet') {
+    if (!isIG) return NextResponse.json({ error: 'This character has no Intuitive Games sheet to edit.' }, { status: 400 });
+    const parsed = parseIGEditToolCall(result.input);
+    if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    const nextIg = applyIgEdit(igData as IGCharacter, parsed.edit);
+    const { error: igErr } = await supabaseAdmin.from('dnd_characters').update({ data: { ...rawData, ig: nextIg } }).eq('id', params.id);
+    if (igErr) return NextResponse.json({ error: igErr.message }, { status: 500 });
+    await supabaseAdmin.from('dnd_sheet_edits').insert({
+      character_id: params.id, editor_user_id: session.userId, is_dm: isDM,
+      field_path: `ig:${parsed.edit.op}`, old_value: null, new_value: null, scope: 'permanent',
+      source: 'ai', summary: describeIgEdit(parsed.edit),
+    }).then(() => {}, () => {});
+    return NextResponse.json({ ok: true, kind: 'ig-edit', summary: describeIgEdit(parsed.edit), stances: nextIg.combat.stances, conditions: nextIg.combat.conditions });
   }
 
   const editsRaw = result?.input?.edits;

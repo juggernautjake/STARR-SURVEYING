@@ -2,6 +2,8 @@
 // arbitrary model JSON into safe IGPicks; a vanilla build stays 100% vanilla; invented content is flagged
 // CUSTOM with the right kinds; and the grounding prompt pins the AI to the real system + catalog.
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { parseIGPicks, IG_PICKS_TOOL, igBuilderSystemPrompt, IG_EDIT_TOOL, parseIGEditToolCall, igEditToolInstruction } from '@/lib/dnd/systems/intuitive-games/ai';
 import { assembleIGVanillaCharacter } from '@/lib/dnd/systems/intuitive-games/builder';
 import { summarizeCharacterProvenance } from '@/lib/dnd/provenance';
@@ -53,5 +55,16 @@ describe('IG AI-customize core (full-sheet Slice 10)', () => {
     expect(g).toMatch(/Defensive/);   // a stance
     expect(g).toMatch(/Grappled/);    // a condition
     expect(g).toMatch(/do not invent/i);
+  });
+
+  it('the live ai-edit route offers edit_ig_sheet for IG characters and applies it to data.ig', () => {
+    const SRC = fs.readFileSync(path.join(process.cwd(), 'app/api/dnd/characters/[id]/ai-edit/route.ts'), 'utf8');
+    // The tool is added to the model's toolset only when the character is IG.
+    expect(SRC).toMatch(/isIG \? \[IG_EDIT_TOOL\] : \[\]/);
+    // A returned edit_ig_sheet call is validated (same parser) and applied to the sidecar, then persisted.
+    expect(SRC).toContain("result?.name === 'edit_ig_sheet'");
+    expect(SRC).toContain('parseIGEditToolCall(result.input)');
+    expect(SRC).toContain('applyIgEdit(igData as IGCharacter, parsed.edit)');
+    expect(SRC).toContain('ig: nextIg');
   });
 });

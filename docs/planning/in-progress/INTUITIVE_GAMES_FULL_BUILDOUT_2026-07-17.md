@@ -253,7 +253,7 @@ expanded requirements (2026-07-17):
       **Display + tooltip done** (`IGSheet` Combat panel, `ig-sheet-tooltips.test.ts`): stances show their
       active-at-level benefit + a full-rules hover tooltip. **Remaining:** applying the stance effect to the
       actual rolls (mechanics), a single-active-stance selector, and edit (needs the `ig-edit` route, B6).
-- [~] **B6 — Editable IG sheet + AI edit route.** The bespoke `IGSheet` is read-only today; add an `ig-edit`
+- [x] **B6 — Editable IG sheet + AI edit route.** The bespoke `IGSheet` is read-only today; add an `ig-edit`
       route + write mode so stances/conditions/feats/traits are editable in place, and expose the same
       operations to the AI (edit + explain) — AI parity with the manual controls. **Edit engine + route
       shipped** (`edit.ts` + `app/api/dnd/characters/[id]/ig-edit/route.ts`): pure immutable `applyIgEdit`
@@ -268,9 +268,13 @@ expanded requirements (2026-07-17):
       forbids inventing. `ig-ai.test.ts` +1. **On-sheet edit controls shipped** (`IGSheet` + page.tsx,
       `ig-sheet-tooltips.test.ts`): a write-gated (canEdit=canWrite) stance selector (enter one → replaces;
       "— no stance —" clears) and condition controls (a "+ add condition…" picker + a × on each chip) that
-      POST to the `ig-edit` route and refresh the sheet; hidden for read-only viewers. **Remaining:**
-      dispatching `edit_ig_sheet` from the live AI chat handler (runtime wiring — the tool + route both exist,
-      only the chat-loop registration is left).
+      POST to the `ig-edit` route and refresh the sheet; hidden for read-only viewers. **AI chat dispatch
+      shipped** (`app/api/dnd/characters/[id]/ai-edit/route.ts`, `ig-ai.test.ts`): the live AI-edit route now
+      offers `edit_ig_sheet` to the model ONLY for IG characters (with the stance/condition grounding + the
+      current active stance/conditions in context); a returned tool call runs through the same
+      `parseIGEditToolCall` → `applyIgEdit` and persists just `data.ig` (audited to `dnd_sheet_edits`). So
+      "put me in a defensive stance" / "apply Shaken" now work by voice to the AI, at parity with the manual
+      controls. **B6 is functionally complete** — manual controls + AI both edit the IG sidecar.
 - [~] **B7 — Tooltip system.** A reusable hover/focus tooltip on every in-play effect (stance, condition,
       trait, feat, modifier) sourced from the IG rules text — keyboard- and touch-reachable (a tablet at the
       table), theme-token styled. **Pure model shipped** (`inPlay.ts`): `igEffectsInPlay({stance, conditions,
