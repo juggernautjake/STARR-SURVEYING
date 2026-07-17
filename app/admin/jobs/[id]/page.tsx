@@ -22,6 +22,7 @@ import JobResearchPanel from '../../components/jobs/JobResearchPanel';
 import JobCadPanel from '../../components/jobs/JobCadPanel';
 import JobPhotoGallery from '../../components/jobs/JobPhotoGallery';
 import InlineEditField from '../../components/jobs/InlineEditField';
+import { jobMapsUrl, hasJobLocation, telHref } from '@/lib/jobs/location';
 import JobActivityFeed from '../../components/jobs/JobActivityFeed';
 import JobMessagesPanel from '../../components/jobs/JobMessagesPanel';
 import JobPhaseScheduler from './JobPhaseScheduler';
@@ -619,6 +620,18 @@ export default function JobDetailPage() {
                 {/* Property Details — click to edit */}
                 <div className="job-detail__section">
                   <h3>Property Details</h3>
+                  {hasJobLocation(job) && (
+                    <a
+                      href={jobMapsUrl(job)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn tiny"
+                      title="Open this property in your navigation app"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 8, textDecoration: 'none' }}
+                    >
+                      🧭 Navigate to property
+                    </a>
+                  )}
                   <div className="job-detail__props">
                     <div className="job-detail__prop"><strong>Address:</strong> <InlineEditField value={job.address} ariaLabel="address" emptyLabel="Add address" onSave={(v) => saveField('address', v)} /></div>
                     <div className="job-detail__prop"><strong>City:</strong> <InlineEditField value={job.city} ariaLabel="city" emptyLabel="Add city" onSave={(v) => saveField('city', v)} /></div>
@@ -638,7 +651,12 @@ export default function JobDetailPage() {
                   <div className="job-detail__props">
                     <div className="job-detail__prop"><strong>Name:</strong> <InlineEditField value={job.client_name} ariaLabel="client name" emptyLabel="Add client name" onSave={(v) => saveField('client_name', v)} /></div>
                     <div className="job-detail__prop"><strong>Email:</strong> <InlineEditField value={job.client_email} type="email" ariaLabel="client email" emptyLabel="Add email" onSave={(v) => saveField('client_email', v)} /></div>
-                    <div className="job-detail__prop"><strong>Phone:</strong> <InlineEditField value={job.client_phone} type="tel" ariaLabel="client phone" emptyLabel="Add phone" onSave={(v) => saveField('client_phone', v)} /></div>
+                    <div className="job-detail__prop">
+                      <strong>Phone:</strong> <InlineEditField value={job.client_phone} type="tel" ariaLabel="client phone" emptyLabel="Add phone" onSave={(v) => saveField('client_phone', v)} />
+                      {telHref(job.client_phone) && (
+                        <a href={telHref(job.client_phone)} className="btn tiny" title="Call this number" style={{ marginLeft: 8, textDecoration: 'none' }}>📞 Call</a>
+                      )}
+                    </div>
                     <div className="job-detail__prop"><strong>Company:</strong> <InlineEditField value={job.client_company} ariaLabel="client company" emptyLabel="Add company" onSave={(v) => saveField('client_company', v)} /></div>
                   </div>
                 </div>
