@@ -16,6 +16,30 @@ describe('pf2 content library', () => {
     expect(PF2_ANCESTRIES).toHaveLength(8);
     expect(PF2_SKILLS).toHaveLength(16);
   });
+
+  it('every ancestry has its Player Core HP / size / speed / boosts (not just the spot-checked few)', () => {
+    // Only Dwarf/Elf HP + Dwarf speed were exercised (via the HP formula / armor tests). Pin all 8 —
+    // the distinctive values a typo would hit are Dwarf speed 20 and Elf speed 30 (the rest 25), the
+    // 6/8/10 HP tiers, and the boost patterns (Human = two free, Orc = STR + two free).
+    const GOLDEN: Record<string, { hp: number; size: string; speed: number; boosts: string[] }> = {
+      Dwarf: { hp: 10, size: 'Medium', speed: 20, boosts: ['CON', 'WIS', 'free'] },
+      Elf: { hp: 6, size: 'Medium', speed: 30, boosts: ['DEX', 'INT', 'free'] },
+      Gnome: { hp: 8, size: 'Small', speed: 25, boosts: ['CON', 'CHA', 'free'] },
+      Goblin: { hp: 6, size: 'Small', speed: 25, boosts: ['DEX', 'CHA', 'free'] },
+      Halfling: { hp: 6, size: 'Small', speed: 25, boosts: ['DEX', 'WIS', 'free'] },
+      Human: { hp: 8, size: 'Medium', speed: 25, boosts: ['free', 'free'] },
+      Leshy: { hp: 8, size: 'Small', speed: 25, boosts: ['CON', 'WIS', 'free'] },
+      Orc: { hp: 10, size: 'Medium', speed: 25, boosts: ['STR', 'free', 'free'] },
+    };
+    for (const anc of PF2_ANCESTRIES) {
+      const g = GOLDEN[anc.name];
+      expect(g, `no golden entry for ancestry "${anc.name}"`).toBeDefined();
+      expect(anc.hp, `${anc.name} HP`).toBe(g.hp);
+      expect(anc.size, `${anc.name} size`).toBe(g.size);
+      expect(anc.speed, `${anc.name} speed`).toBe(g.speed);
+      expect(anc.boosts, `${anc.name} boosts`).toEqual(g.boosts);
+    }
+  });
   it('only the Fighter starts Expert in attacks', () => {
     for (const c of PF2_CLASSES) {
       expect(c.initial.attacks).toBe(c.name === 'Fighter' ? 'expert' : 'trained');

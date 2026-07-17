@@ -603,6 +603,11 @@ One system per slice — depth-first, verified against sources. In priority orde
       would give a whole tier of tasks the wrong DC. Verified the full 0–20 table against GM Core and pinned
       every level (correct). `pf2-rules.test.ts` +1. (`PF2_RANK_BONUS` — trained+2…legendary+8 — was already
       fully covered via `pf2Proficiency`.)
+      **8 PF2 ancestries golden-pinned (2026-07-17):** HP/size/speed/boosts were only spot-checked (Dwarf/Elf
+      HP via the HP formula, Dwarf speed via the armor test). Verified all 8 against Player Core and pinned
+      each — the distinctive values a typo would hit are Dwarf speed 20 and Elf speed 30 (rest 25), the
+      6/8/10 HP tiers, and the boost patterns (Human = two free, Orc = STR + two free). All correct.
+      `pathfinder2e-builder.test.ts` +1.
 - [~] **6c–6h — the other six systems → MOVED to `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`**
       (2026-07-16, per the user's scope call). The platform is focused on **four** systems first — D&D
       5e 2024, D&D 5e 2014, Intuitive Games, Pathfinder 2e. PF1e, Starfinder 1e, Cyberpunk RED, Shadowrun
