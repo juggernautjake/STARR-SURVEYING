@@ -15,15 +15,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { findTarget } from '@/lib/dnd/effects/targets';
 
-// key → why it has no render/apply home yet (needs an action-economy tracker / a sheet attunement model /
-// a concentration-save roll). This is the COMPLETE set of registered-but-unwired targets — a completeness
+// key → why it has no render/apply home yet (needs an action-economy tracker / a sheet attunement model).
+// This is the COMPLETE set of registered-but-unwired targets — a completeness
 // sweep below asserts no OTHER collect/explain/value-style target is silently unread.
 const REGISTERED_BUT_UNRENDERED: Record<string, string> = {
   attunement_slots: 'the current sheet Inventory has no attunement model (the equipment.ts cap is unused here), so nothing reads it',
   reaction_count: 'no action-economy tracker on the sheet to show reactions/round',
   bonus_action_count: 'no action-economy tracker on the sheet to show bonus actions/turn',
   attacks_per_action: 'the Attacks table shows individual attacks, not an Extra-Attack multiplier from an effect',
-  concentration_save: 'concentration is a manual tracker (ConditionTracker) with no concentration-save ROLL to fold a bonus into',
   hit_dice: 'the hit-dice pool is a STORED value used across longRest/spendHitDie; folding a hit_dice effect needs threading the effective pool through those, deferred',
   exhaustion: 'exhaustion is a stored 0..6 counter set via setExhaustion; a ledger exhaustion modifier would need to overlay that counter everywhere it is read, deferred',
   condition: 'an effect that IMPOSES a condition while active needs threading into buildLedger.activeConditions + the ConditionTracker + the condition mechanics (modifiers.ts), a multi-surface feature, deferred',
@@ -79,5 +78,12 @@ describe('registered-but-unrendered effect targets are tracked, not silently los
   it('carrying_capacity is now folded into the Inventory carrying line', () => {
     expect(isRead('carrying_capacity')).toBe(true);
     expect(REGISTERED_BUT_UNRENDERED).not.toHaveProperty('carrying_capacity');
+  });
+
+  it('concentration_save is now folded into the concentration-save roll (was an unrendered no-op before)', () => {
+    // ConditionTracker's "🎲 Save" button calls store.rollConcentrationSave, which folds
+    // ledger.value('concentration_save', …) into a CON save — so a War-Caster-style bonus now applies.
+    expect(isRead('concentration_save')).toBe(true);
+    expect(REGISTERED_BUT_UNRENDERED).not.toHaveProperty('concentration_save');
   });
 });

@@ -14,9 +14,13 @@ import { systemConditions } from '@/lib/dnd/system-rules'
 const GENERIC_CONDITIONS = ['Blinded', 'Charmed', 'Deafened', 'Frightened', 'Grappled', 'Incapacitated', 'Invisible', 'Paralyzed', 'Petrified', 'Poisoned', 'Prone', 'Restrained', 'Stunned', 'Unconscious']
 
 export default function ConditionTracker() {
-  const { char, setChar } = useChar()
+  const { char, setChar, rollConcentrationSave } = useChar()
   const system = useSheetSystem()
   const [adding, setAdding] = useState(false)
+  // A concentration save is a Constitution save (DC 10, or ½ the damage taken) — a D&D 5e mechanic.
+  // The concentration TRACKER is system-agnostic, but the ROLL is 5e-only, so we don't offer it to a
+  // Pathfinder/CoC/IG character whose concentration works differently (no cross-system rule leak).
+  const is5e = system === 'dnd5e-2024' || system === 'dnd5e-2014'
   const fromSystem = systemConditions(system)
   const CONDITIONS = fromSystem.length ? fromSystem : GENERIC_CONDITIONS
   const active = char.combat.conditions ?? []
@@ -44,6 +48,9 @@ export default function ConditionTracker() {
               onChange={(e) => setConc(e.target.value)}
               style={{ width: 160, padding: '4px 8px', background: 'var(--panel-2)', border: '1px solid var(--line, rgba(255,255,255,0.15))', color: 'inherit', fontSize: 13 }}
             />
+            {is5e && (
+              <button className="btn tiny" onClick={() => rollConcentrationSave()} title="Roll a Constitution saving throw to maintain concentration (DC 10, or half the damage taken)">🎲 Save</button>
+            )}
             <button className="btn tiny" onClick={() => setConc('')} title="Break concentration">✕</button>
           </span>
         ) : (

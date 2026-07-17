@@ -159,6 +159,7 @@ interface Ctx {
   shortRest: () => void
   longRest: () => void
   rollDeathSave: () => void
+  rollConcentrationSave: () => void
   spendHitDie: () => void
 }
 
@@ -1033,6 +1034,21 @@ export function CharacterProvider({
     })
   }, [char.combat, ledger, stage])
 
+  // A concentration save is a Constitution saving throw when you take damage while concentrating — DC 10,
+  // or half the damage taken if that's higher (the DM sets the DC from the hit, so the roll shows the total
+  // and the player compares). Folds the CON-save bonus PLUS the concentration-specific `concentration_save`
+  // target (War Caster grants advantage on concentration saves SPECIFICALLY, not all CON saves), and reuses
+  // rollCheck so exhaustion and the adv/dis cancellation apply exactly like every other save.
+  const rollConcentrationSave = useCallback(() => {
+    const s = char.saves?.con ?? { proficient: false, misc: 0 }
+    const mod = abilityMod(abilities.con) + (s.proficient ? pb : 0) + (s.misc ?? 0)
+      + ledger.value('con_saves', 0) + ledger.value('all_saves', 0) + ledger.value('concentration_save', 0)
+    const targets = ['concentration_save', 'con_saves', 'all_saves']
+    const advantage = targets.some((t) => ledger.rollFlags(t).advantage)
+    const disadvantage = targets.some((t) => ledger.rollFlags(t).disadvantage)
+    rollCheck('Concentration Save', mod, { kind: 'save', advantage, disadvantage, tag: 'DC 10 or ½ damage' })
+  }, [char.saves, abilities.con, pb, ledger, rollCheck])
+
   const spendHitDie = useCallback(() => {
     if (char.combat.hitDiceRemaining <= 0) return
     // Effective CON (Slice 10): a CON-boosting item raises hit-die healing, like it raises max HP.
@@ -1117,6 +1133,7 @@ export function CharacterProvider({
     shortRest,
     longRest,
     rollDeathSave,
+    rollConcentrationSave,
     spendHitDie,
   }
 

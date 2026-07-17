@@ -2713,10 +2713,24 @@ removed from the deferred list. So the contract and the code can no longer quiet
   no-ops and renders nowhere (the current sheet has no action-economy tracker, and no attunement model in
   its Inventory). `effect-targets.test.ts`/`appendix-a-contract.test.ts` didn't catch this — the former
   only checks `rendersAt` is a non-empty string, the latter only checks a target exists. New
-  `effect-target-render-gaps.test.ts` tracks the registered-but-unrendered set (the 4 economy targets +
-  `concentration_save`, each with a per-target reason) and fails the moment one is wired or a new silent
+  `effect-target-render-gaps.test.ts` tracks the registered-but-unrendered set (the 4 economy targets, plus
+  the deeper-feature `hit_dice`/`exhaustion`/`condition`, each with a per-target reason; `concentration_save`
+  was in this set until it was wired — see 2026-07-18 below) and fails the moment one is wired or a new silent
   gap appears — turning a false-confidence gap into a guarded one. Wiring the economy ones needs an
   action-economy/attunement render home (larger feature work), deferred until then.
+  **⚑ CONCENTRATION SAVE — the last unrendered ROLL target now wired (2026-07-18).** `concentration_save`
+  was in the registered-but-unrendered set because the sheet had a concentration *tracker* but no
+  concentration *save roll* to fold a bonus into — a core 5e mechanic (take damage while concentrating →
+  CON save, DC 10 or ½ the damage) the sheet simply couldn't roll. Added `store.rollConcentrationSave()`:
+  a CON save that folds `concentration_save` + `con_saves` + `all_saves` (value AND rollFlags) and rolls
+  through the shared `rollCheck`, so exhaustion, the crit rule, and adv/dis cancellation all apply exactly
+  like every other save — and War Caster's advantage-on-concentration-saves-specifically finally reaches
+  the roll. Surfaced as a "🎲 Save" button on the ConditionTracker, gated to `is5e` (the tracker is
+  system-agnostic but the DC-10 CON-save *rule* is 5e-only — no cross-system leak onto a PF2/CoC/IG sheet).
+  Guards: `concentration-save.test.ts` (4 — the exact folds, the rollCheck route, the 5e gate) +
+  `effect-target-render-gaps.test.ts` (concentration_save now reads true, removed from the unrendered set).
+  Every registered ROLL target now reaches an actual roll; the only registered-but-unrendered targets left
+  are the 4 economy/attunement ones that genuinely need a new render home.
   **⚑ ROLL-TARGET SWEEP — a whole CLASS of dropped effects fixed (2026-07-18).** Walking "does every
   registered ROLL target actually reach its roll?" across the sheet found that many did NOT: they were
   resolved only by `deriveCharacter`/`apply.ts`, which is imported by **no** component or store (dead for
