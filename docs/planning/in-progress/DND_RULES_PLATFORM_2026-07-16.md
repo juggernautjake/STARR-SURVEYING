@@ -2442,6 +2442,10 @@ Orthogonal to type, and where the mechanics actually live: `slot` (what it occup
 - The AI's tool schema is **generated from Appendix A**, so it can emit any effect the engine
   supports and — importantly — *cannot* emit one it doesn't. The schema is the guardrail; this is
   why "the AI made no edits" was the schema working, and why widening it is the whole fix.
+  ✅ **Operation list now actually generated** (`ec49f629`): the `edit_sheet` tool's operation list had
+  been hand-written and DRIFTED — it listed `grant_sense` (a target, not an operation) and omitted
+  `condition_advantage`, so the AI couldn't build a Dwarven-Resilience item. Built from `EFFECT_OPERATIONS`
+  (the compile-time-exhaustive roster) so it can't drift again; `sheet-edits.test.ts` +2 guards it.
 - It **writes** through `applySheetEdits` → the item lands in the real inventory, equippable and
   usable. Not a suggestion, not a chat message describing an item.
 - The DM can generate items **onto a player's sheet** (they already have write access via
