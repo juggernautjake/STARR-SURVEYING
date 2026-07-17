@@ -58,10 +58,12 @@ Issue) render only titles; the `JobPicker` is a placeholder input.
       new SAFE arithmetic evaluator `lib/jobs/calc.ts` — tokenize→shunting-yard→RPN, never eval; 6 tests)
       and a 📝 Notes tab (per-job field notes auto-saved to localStorage, keyed by job). **DB-persistence
       of notes for review-by-others is a follow-up** (local-per-device today).
-- [ ] **B4 — Quick capture with notes → saved immediately.** In-hub photo/video capture that attaches a
-      note and writes to `field_media` (`job_id`, `media_type`, `storage_url`, capture metadata) right
-      away for review. On web this uses a file/camera input; the resilient upload path is Area C. (Mobile
-      already has capture — B4 is the web-hub counterpart + shared note-attach model.)
+- [~] **B4 — Quick capture with notes.** ✅ *Review side shipped* (`5f18f4eb`): the hub's Photo tab
+      (`JobMedia`) shows the job's captured `field_media` (signed thumbnails/originals) as a read-only
+      gallery. **Deferred — web capture-to-`field_media` upload:** there is no web storage-upload path for
+      field media today (capture is mobile-only, and the plan itself scopes capture as "primarily a mobile
+      concern"). Building a parallel web camera→storage→field_media pipeline is lower value than the mobile
+      queue work; revisit if a web-capture need is confirmed.
 - [ ] **B5 — Tests.** selecting a job populates the hub panels from the job APIs; the RPLS + crew list
       render from `job_team`; a captured photo enqueues a `field_media` row tied to the job.
 
