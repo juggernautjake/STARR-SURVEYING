@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const STORE = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_sheet/state/store.tsx'), 'utf8');
+const INITP = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_sheet/components/InitiativePrompt.tsx'), 'utf8');
 
 describe('2024 exhaustion applies −2/level to d20 tests at roll time', () => {
   it('rollCheck subtracts 2×level from every d20 modifier', () => {
@@ -21,6 +22,12 @@ describe('2024 exhaustion applies −2/level to d20 tests at roll time', () => {
 
   it('death saves take the same −2/level penalty (they are D20 Tests too)', () => {
     expect(STORE).toContain('char.combat.deathSaveBonus - 2 * exh');
+  });
+
+  it('the submitted initiative (encounter turn order) takes the same −2/level penalty', () => {
+    // Initiative is a D20 Test too, so the InitiativePrompt's turn-order value must fold exhaustion —
+    // otherwise an exhausted character would be placed too high in the order.
+    expect(INITP).toMatch(/ledger\.value\('initiative'[\s\S]*- 2 \* \(char\.combat\.exhaustion/);
   });
 
   it('the penalty is surfaced in the roll tag so the player sees why the roll dropped', () => {
