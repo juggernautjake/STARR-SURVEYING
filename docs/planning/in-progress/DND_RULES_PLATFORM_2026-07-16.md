@@ -833,7 +833,10 @@ One pure function that every later slice reads. Nothing else in Part II can be b
       AC — an armored character saw two different numbers. AC is now derived once in the store (`acInfo`,
       effective DEX + equipped armor/shield + AC effects) and both surfaces read it, satisfying Slice 13's
       "one answer" rule. The rail shows the derived AC (read-only, sourced) when equipment drives it,
-      editable manual AC otherwise. `ac-single-source.test.ts` (5).
+      editable manual AC otherwise. `ac-single-source.test.ts` (5). **Save DC unified the same way**
+      (`4fcef838`): the StatRail honored the manual override while the Saves & Skills card recomputed
+      8+PB+STR and ignored it — two Save DCs on one sheet. Now derived once in the store (`saveDc` =
+      override ?? 8+PB+effective STR); both cards read it. `save-dc-single-source.test.ts` (3).
 - [ ] **An equipped item lands in the right place, automatically.** Equipping routes by what the item
       *is*, with no per-item code: a weapon appears as a row in **Attacks** with its computed to-hit
       and damage; armour drives **AC** (respecting DEX cap / STR requirement / stealth disadvantage);
