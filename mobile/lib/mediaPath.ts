@@ -22,3 +22,17 @@ export function guessExtension(uri: string): string {
   if (clean.indexOf('/', dot) !== -1) return '';
   return KNOWN[clean.slice(dot + 1)] ?? '';
 }
+
+/** Sanitize a user-typed filename into a single safe storage-path SEGMENT. Strips path separators (so
+ *  it can never inject a `/` into the object key — no traversal), replaces any other unusual character
+ *  with `_`, collapses whitespace, caps the length, and falls back to 'file' when nothing survives. The
+ *  caller composes the full key as `${userId}/${tag}-${id}-${name}${ext}`; because the result holds no
+ *  slash, `name` is always one segment. */
+export function sanitiseName(raw: string): string {
+  const cleaned = (raw ?? '')
+    .replace(/[/\\]+/g, '_')
+    .replace(/[^A-Za-z0-9._\- ]/g, '_')
+    .replace(/\s+/g, '_')
+    .slice(0, 80);
+  return cleaned || 'file';
+}

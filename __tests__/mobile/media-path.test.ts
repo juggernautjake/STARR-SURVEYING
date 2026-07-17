@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { guessExtension } from '../../mobile/lib/mediaPath';
+import { guessExtension, sanitiseName } from '../../mobile/lib/mediaPath';
 
 // workmode Area C — the upload queue names its persisted copy with this extension so the OS knows the
 // MIME type on re-read. Pure + off-device (like queueOrder / uploadFailureChoices).
@@ -23,5 +23,28 @@ describe('guessExtension', () => {
     expect(guessExtension('file:///x/notes.txt')).toBe('');                // not a media type we handle
     expect(guessExtension('file:///my.pics/photo')).toBe('');             // dotted DIRECTORY, no file ext
     expect(guessExtension('')).toBe('');
+  });
+});
+
+describe('sanitiseName — a user filename → one safe storage-path segment', () => {
+  it('keeps ordinary names (letters, digits, dot, dash, underscore)', () => {
+    expect(sanitiseName('Site Survey-2.pdf')).toBe('Site_Survey-2.pdf');
+    expect(sanitiseName('boundary_v3.dwg')).toBe('boundary_v3.dwg');
+  });
+  it('can never inject a path separator — no traversal into the object key', () => {
+    // Slashes/backslashes are stripped, so the result is always a single segment. The caller composes
+    // `${userId}/${tag}-${id}-${name}${ext}`; a `..` that survives is harmless without a slash beside it.
+    expect(sanitiseName('../../etc/passwd')).not.toMatch(/[/\\]/);
+    expect(sanitiseName('..\\..\\windows\\system32')).not.toMatch(/[/\\]/);
+    expect(sanitiseName('a/b/c')).toBe('a_b_c');
+  });
+  it('replaces unusual characters and collapses whitespace', () => {
+    expect(sanitiseName('a:b*c.txt')).toBe('a_b_c.txt'); // each of : and * → one underscore
+    expect(sanitiseName('two   spaces')).toBe('two_spaces');
+  });
+  it('caps length at 80 and falls back to "file" when nothing survives', () => {
+    expect(sanitiseName('x'.repeat(200)).length).toBe(80);
+    expect(sanitiseName('')).toBe('file');
+    expect(sanitiseName('///')).toBe('_'); // slashes → underscore, not empty
   });
 });
