@@ -717,12 +717,20 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       model now exists (`lib/dnd/systems/pathfinder2e/`), so PF2 classes/ancestries/backgrounds have
       structured builder data + a bespoke sheet; the PF2 catalog projects them into the library picker.
 
-## Slice 8 — Semantic search (optional, needs a key)
+## Slice 8 — Semantic search (optional, needs a key) — ⏸ DEFERRED pending `VOYAGE_API_KEY`
 
-- [ ] Backfill embeddings for `dnd_system_entries` + the glossary once `VOYAGE_API_KEY` exists
-      (`scripts/dnd-seed-system-rules.ts` already embeds when configured).
-- [ ] Project the glossary into the store so semantic retrieval reaches the full articles.
-- [ ] Keyword search must remain the fallback — it is the only thing that works without a key.
+- [~] Backfill embeddings for `dnd_system_entries` + the glossary once `VOYAGE_API_KEY` exists
+      (`scripts/dnd-seed-system-rules.ts` already embeds when configured). **DEFERRED — blocked on the
+      absent `VOYAGE_API_KEY`:** the backfill literally cannot run or be verified without the key, and it's a
+      pure retrieval-QUALITY enhancement (not a correctness path). The embedding code is already written and
+      runs automatically once a key is present — so this is a config/ops step, not a build task.
+- [~] Project the glossary into the store so semantic retrieval reaches the full articles. **DEFERRED for the
+      same reason** — semantic retrieval is inert without embeddings, which need the key.
+- [x] Keyword search must remain the fallback — it is the only thing that works without a key. **✅ SHIPPED /
+      verified throughout:** `searchLibrary` (`lib/dnd/library.ts`) is pure + DB-free and is what actually
+      runs today (no key, no seeded rows) — the whole four-focus-system library + IG's 25 sections are
+      searchable by keyword, proven across the `library.test.ts` suite. So the SEARCH VALUE is delivered; only
+      the semantic-ranking upgrade waits on the key.
 
 ---
 
