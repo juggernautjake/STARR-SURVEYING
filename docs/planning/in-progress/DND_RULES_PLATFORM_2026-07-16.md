@@ -533,6 +533,14 @@ One system per slice — depth-first, verified against sources. In priority orde
       see "critical success" the way the 5e sheet rolls and shows a crit. The hard part (the resolver) is
       done; only a PF2 roll UI + a `pf2Degree` call is missing. Whether PF2 should roll in-app like 5e or
       remain a reference sheet is a product call — tracked in `BLOCKERS.md §C`.
+      **AI adjudicates with the PF2 character's derived numbers now (2026-07-17):** the "Ask the Librarian"
+      route built its per-character digest with the general `characterDigest`, which reads the 5e `Character`
+      model and NEVER the `data.pf2e` sidecar — so a ruling on a PF2 character was blind to its AC, save
+      totals, Class/Spell DC, Strike + skill bonuses (it had the PF2 rulebook but not the DC to answer "does
+      the target save?"). Added a pure `pf2CharacterDigest` (`digest.ts`) that states AC/HP/saves/Perception,
+      Class DC, Spell DC+attack (casters), the MAP schedule, Strike to-hits, and trained+ skill totals — all
+      from the same `rules.ts` the sheet uses; the `library/chat` route appends it when `data.pf2e` is
+      present. Parallel to the IG `igCharacterDigest` shipped the same day. `pf2-digest.test.ts` (6).
 - [~] **6c–6h — the other six systems → MOVED to `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`**
       (2026-07-16, per the user's scope call). The platform is focused on **four** systems first — D&D
       5e 2024, D&D 5e 2014, Intuitive Games, Pathfinder 2e. PF1e, Starfinder 1e, Cyberpunk RED, Shadowrun
