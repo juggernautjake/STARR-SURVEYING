@@ -222,9 +222,15 @@ expanded requirements (2026-07-17):
 - [ ] **B6 — Editable IG sheet + AI edit route.** The bespoke `IGSheet` is read-only today; add an `ig-edit`
       route + write mode so stances/conditions/feats/traits are editable in place, and expose the same
       operations to the AI (edit + explain) — AI parity with the manual controls.
-- [ ] **B7 — Tooltip system.** A reusable hover/focus tooltip on every in-play effect (stance, condition,
+- [~] **B7 — Tooltip system.** A reusable hover/focus tooltip on every in-play effect (stance, condition,
       trait, feat, modifier) sourced from the IG rules text — keyboard- and touch-reachable (a tablet at the
-      table), theme-token styled.
+      table), theme-token styled. **Pure model shipped** (`inPlay.ts`): `igEffectsInPlay({stance, conditions,
+      level})` returns, for the active stance + each condition, a `{name, summary, tooltip, vanilla}` — the
+      display badge text + the full hover-tooltip rules text, drawn only from `IG_STANCE_DEFS`/`IG_CONDITIONS`
+      (a stance/condition the system doesn't define resolves as an honest "custom", never invented). Encodes
+      the level rule (Basic below Lv 5 → Advanced at Lv 5+, a single benefit). `ig-in-play.test.ts` (10).
+      **Remaining:** render these in `IGSheet` as the active-stance/condition display with the hover/focus
+      tooltip component (the UI slice — needs visual verification in-app).
 - [ ] **B8 — Alignment/verification.** Walk an IG character build and confirm every offered option matches the
       site, numbers add up, mechanics apply correctly, and stances/conditions/feats/traits are all editable,
       displayed, tooltipped, and AI-accessible. (Ties into the QA walkthrough in `pending/`.)
