@@ -1080,6 +1080,17 @@ one-click **End effect** (which removes the CAUSE — unequip for a worn item, d
 a consumed one), states "nothing active" rather than vanishing, and now shows each source's art
 thumbnail (Slice 28). This is a READ of the ledger — it re-derives nothing.
 
+**Consumption decision extracted + tested (2026-07-17):** the "Use" handler's decision — what a
+consumable DOES (resolve an instant heal/temp now vs. snapshot a lasting condition/buff into an
+ActiveEffect that outlives the item vs. note-only, and whether to decrement) — was tangled with the
+I/O inside `Inventory.consume()`. Pulled the pure part into `lib/dnd/effects/consume.ts`
+(`planConsume(item) → { instant, activeEffect, consumes }`), behaviour-preserving; the component now
+just executes the plan (roll + apply, push the ActiveEffect, decrement). This is what makes Slice 12's
+acceptance cases unit-testable: `consume-plan.test.ts` (9) pins that a **pure-heal potion leaves NO
+ActiveEffect**, a **buff snapshots its label + effects + duration** (surviving the consumed item), a
+status records the named condition, a note-only still consumes, and a missing-consumable item is a
+no-op. Full suite 1655 green.
+
 - [ ] A new tab/panel on **every** template listing every source currently modifying the character:
       each item/spell/ability/potion/form/condition, what it is, and **the exact effect it is having**
       — resolved values from the ledger, not the item's advertised text. If the belt's +2 is being

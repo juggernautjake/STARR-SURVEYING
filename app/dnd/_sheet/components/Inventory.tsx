@@ -9,6 +9,7 @@ import EditMark from './ui/EditMark'
 import { tagInfo } from './ui/tagInfo'
 import { totalInBase, baseCurrency, totalIn, conversionTable, fmtAmount, type Currency } from '@/lib/dnd/currency'
 import { carryingCapacity, encumbranceLevel } from '../engine/equipment'
+import { planConsume } from '@/lib/dnd/effects/consume'
 
 // Kind icons for the no-art fallback token (Slice 28), matching the ItemBuilder kind labels so an
 // item without uploaded art still reads as intentional rather than a hole.
@@ -101,26 +102,25 @@ export default function Inventory() {
     if (it.qty > 0) setQty(it.id, -1)
   }
 
-  // New consumable model — actually applies the effect on consume, then decrements qty.
+  // New consumable model — the DECISION of what a consumable does is the pure `planConsume`; this
+  // just executes it (roll + apply the instant, snapshot the lasting effect, decrement qty).
   function consume(it: InvItem) {
-    const eff = it.consumable?.effect
-    if (!eff) return
-    if (eff.kind === 'heal' && eff.dice) {
-      const total = rollExprValue(eff.dice)
+    const plan = planConsume(it)
+    if (plan.instant?.kind === 'heal') {
+      const total = rollExprValue(plan.instant.dice)
       adjustHp(total)
       rollExpr(`${it.name} — heal`, `${total}`, 'heal')
-    } else if (eff.kind === 'temp' && eff.dice) {
-      const total = rollExprValue(eff.dice)
+    } else if (plan.instant?.kind === 'temp') {
+      const total = rollExprValue(plan.instant.dice)
       setChar((c) => ({ ...c, combat: { ...c.combat, tempHp: Math.max(c.combat.tempHp, total) } }))
       rollExpr(`${it.name} — temp HP`, `${total}`, 'temp')
-    } else if (eff.kind === 'status' && eff.status) {
-      // A timed condition (e.g. Invisible · 1 hour) — tracked in Active Effects, removable.
-      addActiveEffect({ id: `ae-${Date.now()}-${Math.floor(Math.random() * 1e6)}`, label: eff.status, effects: [], duration: eff.duration, source: it.name })
-    } else if (eff.kind === 'buff') {
-      addActiveEffect({ id: `ae-${Date.now()}-${Math.floor(Math.random() * 1e6)}`, label: it.name, effects: eff.effects ?? [], duration: eff.duration, source: it.name })
     }
-    // 'custom' = note-only (DM adjudicates); still consumes.
-    if (it.qty > 0) setQty(it.id, -1)
+    if (plan.activeEffect) {
+      // A lasting effect (timed condition or buff) — snapshotted into Active Effects so it outlives
+      // the consumed item and stays visible + removable next session.
+      addActiveEffect({ id: `ae-${Date.now()}-${Math.floor(Math.random() * 1e6)}`, ...plan.activeEffect })
+    }
+    if (plan.consumes) setQty(it.id, -1)
   }
 
   function consumeLabel(it: InvItem): string {
