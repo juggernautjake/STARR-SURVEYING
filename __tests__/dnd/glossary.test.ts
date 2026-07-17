@@ -161,3 +161,37 @@ describe('termsMentionedIn — what makes sheet text clickable', () => {
     expect(termsMentionedIn('dnd5e-2024', '')).toEqual([]);
   });
 });
+
+describe('the 2024 action economy is defined and searchable (library buildout)', () => {
+  // The 12 standard 2024 actions + Bonus Action — the "action economy" the library must explain.
+  const ACTIONS = ['Attack', 'Dash', 'Disengage', 'Dodge', 'Help', 'Hide', 'Influence', 'Magic', 'Ready', 'Search', 'Study', 'Utilize', 'Bonus Action'];
+
+  it('defines every standard 2024 action with a substantive article', () => {
+    for (const a of ACTIONS) {
+      const entry = findTerm('dnd5e-2024', a);
+      expect(entry, a).not.toBeNull();
+      expect(entry!.body.length, a).toBeGreaterThan(80);
+    }
+  });
+
+  it('surfaces core combat mechanics players look up (cover, temp HP, resistance, vision)', () => {
+    for (const t of ['Cover', 'Temporary Hit Points', 'Damage Types & Resistance', 'Difficult Terrain', 'Vision & Light', 'Bloodied']) {
+      expect(findTerm('dnd5e-2024', t), t).not.toBeNull();
+    }
+  });
+
+  it('is reachable through search by common phrasings', () => {
+    expect(searchGlossary('dnd5e-2024', 'disengage').some((h) => h.term === 'Disengage')).toBe(true);
+    expect(searchGlossary('dnd5e-2024', 'temp hp').some((h) => h.term === 'Temporary Hit Points')).toBe(true);
+    // aliases resolve too
+    expect(findTerm('dnd5e-2024', 'resistance')?.term).toBe('Damage Types & Resistance');
+    expect(findTerm('dnd5e-2024', 'darkvision')?.term).toBe('Vision & Light');
+  });
+
+  it('does NOT leak the 2024 action renames into 2014 (Influence/Study/Utilize/Magic are 2024)', () => {
+    // These are 2024-named actions; the 2014 glossary must not resolve them (Ground Rule 2).
+    for (const a of ['Influence', 'Study', 'Utilize', 'Bloodied']) {
+      expect(findTerm('dnd5e-2014', a), a).toBeNull();
+    }
+  });
+});
