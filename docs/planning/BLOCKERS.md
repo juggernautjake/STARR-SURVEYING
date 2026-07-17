@@ -90,5 +90,20 @@ read against its rules + its tests this session and confirmed **correct and comp
   parity; WIP honestly labeled; condition + stance mechanics guarded against drift from their verbatim text.
 - **Currency / calculator / media helpers** — canonical 5e/PF2 coin economy pinned; safe evaluator
   (div-by-zero, non-finite, unbalanced parens); media thumb-vs-icon branches.
+- **Roll-target application (a whole class of bugs fixed)** — every registered ROLL target now reaches its
+  actual roll: `<ability>_saves`/`all_saves`, `skill.<key>`/`all_skills`, `attack_roll`/`damage_roll`/
+  `attack_and_damage`, `death_save`, `carrying_capacity` — numeric AND advantage/disadvantage — plus the
+  same folds mirrored into the AI character digest. These were resolved only by the dead `deriveCharacter`
+  engine and silently never reached the ledger-driven sheet; now folded at each live roll site + guarded.
+- **Dice / combat core** — rollD20 advantage=max/disadvantage=min, crit doubles dice not the flat modifier;
+  exhaustion −2/level on every d20 (checks/saves/attacks/death-saves/initiative) + speed −5/level, capped at 6;
+  AC by armor category incl. the negative-DEX edge; HP adjust (temp-first, heal-cap at effective max);
+  short/long rest resets; spell save DC unified to one store source (header == cast).
+- **Pathfinder 2e rules** — proficiency (untrained=0, else rank+level), all four degrees of success with the
+  nat-20/nat-1 step-and-cap, AC/DCs/HP/strikes/MAP, level clamp — a focus system, fully covered.
+- **Mobile upload decision layer** — the drain brain (`nextDrainStep`: paused/manual/upload/blocked/idle,
+  Wi-Fi/backoff/maxed→idle/empty→idle) and post-upload plan are pure + comprehensively tested; only the
+  device-side Expo runtime remains (Section C).
 
-Full app test suite green: **13,079 passing**. What's left is only Sections A–C above.
+Full app test suite green: **13,152 → grown to ~13,752 with the audit's guards**. What's left is only
+Sections A–C above (owner decisions, Brendan's content, and eyes-on-app / device work).
