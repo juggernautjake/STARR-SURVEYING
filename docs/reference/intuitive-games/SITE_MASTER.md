@@ -19,6 +19,44 @@ manually or with AI."
 
 ---
 
+## ⚠️ WHAT I CAN'T GRAB — needs you or Brendan (owner request 2026-07-17)
+
+Everything the automated scrub **can't** pull faithfully, so you know exactly what to hand over. Two causes:
+**(T)** the text-fetch tool declined to reproduce long verbatim rules text → you can **copy-paste it from the
+site**; **(S)** the content is a **work-in-progress / not published** on the site → only Brendan has it.
+
+1. **(T) Full spell effect text — `/spell-list`.** I have all ~50+ spell NAMES by school, but not the
+   Description / Advanced / Expert effect text for each. **Please paste the spell list's full text** (or send
+   Brendan's source doc) so every spell gets its exact effects + tiers. *(App currently has ~38 with
+   template-sourced effects; ~24 are missing.)*
+2. **(T/S) Full per-class feature ladders — `/classes`.** I captured each class's key ability, HP, granted
+   stance, defensive power, notable-power NAMES, and specialization names. I do **not** have: the full
+   **per-level (1–10) progression** for each class, nor the detailed effect text of each class power. Also
+   **Champion, Magician, and Shaman** had no detail on the fetched page. **Please paste each class's full
+   writeup** (or confirm what's still WIP).
+3. **(DECISION) Class vs subclass taxonomy.** The site is structured as **4 parent classes** (Archon, Conduit,
+   Fighter, Wizard) each with subclasses. The app models a flat 13-class list. **I need your decision** on
+   restructuring to match the site (it touches the builder, provenance, and seeds).
+4. **(T) Combat-skill mechanics beyond Dirty Trick — `/skills`.** Disarm, Feint, Grapple, Overrun, Reposition,
+   Steal, Sunder, Trip base mechanics were truncated on the page. **Paste their full text.**
+5. **(S) Named weapons — `/weapons`.** The site publishes only the framework (classes + properties), **no named
+   weapon roster yet**. If Brendan has a weapon list, send it.
+6. **(S) Equipment tables — `/equipment`.** Outdoor Equipment, Refined Items, Sustenance, and Materials are
+   empty headers on the site. If Brendan has that content, send it.
+7. **(S) Tools roster — `/tools`.** The concept is defined but there's **no tool list** on the site.
+8. **(S) FAQs — `/faqs`.** No Q&A content on the site.
+9. **(S) Companion combat-direction rules — `/companion-creatures`.** How a companion is directed in combat /
+   its action economy isn't published.
+10. **(S) Sprite & Human race art.** The site has **no portrait** for these two ancestries (the other 8 are
+    scrubbed + in the app). If Brendan has art for them, send the files.
+11. **(?) Item / spell / class illustration art.** The `/classes` page has **no character art** (only the
+    logo). If Brendan has class or item/spell art not on the public site, send it and I'll integrate it.
+12. **(OK-to-confirm) Art reuse permission.** All art shown is credited to Brendan; a quick "yes, use my art"
+    from him is the clean confirmation.
+
+*(Items marked (T) you can resolve by copy-pasting from intuitivegames.net into chat; (S)/(?) need Brendan's
+unpublished material; (DECISION) needs your call.)*
+
 ## Foolproof scrub methodology (page → element → verify)
 
 For EVERY page in the site map below, in order:
@@ -77,7 +115,8 @@ External: Online Community (Locals platform link).
 | /game-list | 🚧 WIP-on-site (one board game, "Overrun") | — (no RPG rules impact) |
 | / (home) | ⬜ not yet scrubbed (nav + intro) | — |
 | ART — ancestry portraits | 🟨 PARTIAL (8 race portraits downloaded + on the sheet) | `public/dnd/intuitive-games/ancestries/*.png`; `art.ts`; sheet ancestry panel |
-| ART — character/class/other | ⬜ not yet scrubbed (classes page + home logo remain) | — |
+| ART — logo | ✅ FULL (500×500 d20 mark) | `public/dnd/intuitive-games/logo.png`; `art.ts` `igSystemLogo` |
+| ART — character/class | ✅ checked — the `/classes` page has NO character art (only the logo); ancestry portraits ARE the character illustrations | — |
 
 *Legend:* the ✅ pages below carry their full transcription; the ⬜/🟨 pages are filled in over subsequent
 scrub slices. This tracker is updated as each page is completed.

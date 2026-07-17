@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { igAncestryArt, igAncestriesWithArt, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
+import { igAncestryArt, igAncestriesWithArt, igSystemLogo, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
 import { IG_ANCESTRIES } from '@/lib/dnd/systems/intuitive-games/content';
 
 describe('IG ancestry art manifest', () => {
@@ -33,5 +33,11 @@ describe('IG ancestry art manifest', () => {
   it('credits Brendan / Intuitive Games', () => {
     expect(IG_ART_CREDIT).toMatch(/Brendan/);
     expect(IG_ART_CREDIT).toMatch(/Intuitive Games/);
+  });
+
+  it('the system logo points at a real downloaded file', () => {
+    const abs = path.join(process.cwd(), 'public', igSystemLogo().replace(/^\//, ''));
+    expect(fs.existsSync(abs)).toBe(true);
+    expect(fs.statSync(abs).size).toBeGreaterThan(5_000);
   });
 });

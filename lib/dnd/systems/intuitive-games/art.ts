@@ -29,3 +29,9 @@ export function igAncestryArt(name: string | null | undefined): string | null {
 export function igAncestriesWithArt(): string[] {
   return Object.keys(ANCESTRY_ART);
 }
+
+/** The Intuitive Games system logo (Brendan's d20 mark), for tasteful, attributed branding of the IG
+ *  library/system in the app. */
+export function igSystemLogo(): string {
+  return '/dnd/intuitive-games/logo.png';
+}

@@ -252,10 +252,12 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       Chrome tools + `curl`): the 8 hand-drawn **race portraits** the site publishes (dwarf/elf/gnome/halfling/
       leshonki/migoi[="Yeti"]/naga/ogre) downloaded to `public/dnd/intuitive-games/ancestries/`, manifested in
       `art.ts` (`igAncestryArt`), and rendered on the **IGSheet ancestry panel** on a light card with a visible
-      "Art · Brendan (Intuitive Games)" **credit** (Human/Sprite have no site portrait). `ig-art.test.ts` (4,
-      incl. a real-file-exists check) + `ig-sheet-tooltips.test.ts` +1. **Remaining:** class/character art on
-      `/classes`, the home logo/branding, any item/spell art; and confirming Brendan's OK on reuse (a
-      formality). Visual appearance to confirm in-app.
+      "Art · Brendan (Intuitive Games)" **credit** (Human/Sprite have no site portrait). **Logo captured**
+      (`logo.png` + `igSystemLogo`); **the `/classes` page has NO character art** (only the logo) — the
+      ancestry portraits ARE the character illustrations. `ig-art.test.ts` (5, incl. real-file-exists checks) +
+      `ig-sheet-tooltips.test.ts` +1. **The complete "what I can't grab — needs you/Brendan" list is in
+      `docs/reference/.../SITE_MASTER.md`** (spell effects, per-class ladders, taxonomy decision, WIP pages,
+      Sprite/Human art). Remaining: use the logo tastefully on the IG library header; confirm Brendan's OK.
 - [~] **A17 — Verification pass.** ✅ *Completeness guard shipped* (`library.test.ts`): a test asserts the IG
       library page surfaces **all 21 major sections** of intuitivegames.net (core/abilities/advancement/
       classes/skills/ancestries/backgrounds/stances/conditions/feats/powers/defensive-powers/actions/
