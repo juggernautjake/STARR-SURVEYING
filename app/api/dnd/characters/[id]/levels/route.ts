@@ -15,6 +15,7 @@ import type { Character } from '@/app/dnd/_sheet/types';
 import { findClass, subclassesFor } from '@/lib/dnd/classes/registry';
 import { readHomebrewClasses, readHomebrewFeats, readHomebrewSubclasses } from '@/lib/dnd/classes/homebrew-store';
 import { customFeatToFeat } from '@/lib/dnd/feats/homebrew-adapter';
+import { progressionRows, progressionColumns } from '@/lib/dnd/classes/progression-rows';
 import { planLevelUp, recordChoice, validateChoice, chosenSubclassKey, type RecordedChoice } from '@/lib/dnd/classes/levelup';
 import { clampLevel } from '@/lib/dnd/classes/engine';
 
@@ -70,6 +71,10 @@ function planFor(data: Character, system: string, to: number) {
     outstanding: plan.outstanding,
     gained: plan.gained,
     homebrewFeats,
+    // The full 1→20 class table, straight from the class data (Slice 7) — the Progression tab renders
+    // this instead of a hand-authored per-character array.
+    progression: progressionRows(def, sub, level),
+    progressionColumns: progressionColumns(def),
     ready: plan.ready,
     choices,
   };
