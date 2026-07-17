@@ -53,6 +53,20 @@ describe('deriveAc', () => {
     expect(r.effectBonus).toBe(1);
   });
 
+  it('honors the "equipped" TAG (not just the flag) when selecting the body armor + shield base', () => {
+    // The ledger's isEquipped treats the 'equipped' TAG as equipped, and acEffectBonus already honored it
+    // for +ac effects — but the armor/shield BASE selection only checked the flag, so a tag-equipped armor
+    // showed the unarmored AC. Base AND effects must agree on what "equipped" means.
+    const items: InvItem[] = [
+      armor({ name: 'Breastplate', kind: 'armor', tags: ['equipped'], armor: { category: 'medium', baseAC: 14, dexCap: 2 } }),
+      armor({ id: 's', name: 'Shield', kind: 'shield', tags: ['equipped'], armor: { category: 'shield', baseAC: 2 } }),
+    ];
+    const r = deriveAc(items, 4, 10);
+    expect(r.ac).toBe(14 + 2 + 2); // base 14 + min(4,2)=2, + shield 2 = 18 — not the manual 10
+    expect(r.fromEquipment).toBe(true);
+    expect(r.source).toContain('Breastplate');
+  });
+
   it('ignores AC effects from unequipped items', () => {
     const r = deriveAc([armor({ name: 'Ring', kind: 'wondrous', equipped: false, attuned: false, effects: [{ target: 'ac', operation: 'add', value: 5 }] })], 2, 12);
     expect(r.ac).toBe(12);

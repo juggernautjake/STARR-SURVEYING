@@ -896,7 +896,13 @@ One pure function that every later slice reads. Nothing else in Part II can be b
       editable manual AC otherwise. `ac-single-source.test.ts` (5). **AC honors the equipped TAG**
       (`fc1e1200`): `deriveAc` checked only the `equipped` flag, so an item equipped via the `equipped`
       TAG applied its STR/speed bonuses (ledger's `isEquipped` honors the tag) but NOT its AC bonus — a
-      split-brain result; fixed. **⚠️ OPEN FINDING (needs a product call, not an autonomous guess):** the
+      split-brain result; fixed. **Same fix extended to the armour BASE (2026-07-17):** `fc1e1200` taught
+      `deriveAc`'s +ac EFFECT sum to honor the tag, but the body-armour/shield SELECTION that sets the base
+      AC still checked only the `equipped` flag — so a tag-equipped breastplate had its ring/effect bonuses
+      counted while its own base AC was ignored, and the sheet showed the unarmoured/manual AC. Both halves
+      of `deriveAc` now use one `isWorn` predicate (`equipped` flag OR `equipped` tag = the ledger's
+      `isEquipped`; attuned-alone is not worn). `derive-ac.test.ts` +1 (a tag-equipped armour+shield sets
+      the base). **⚠️ OPEN FINDING (needs a product call, not an autonomous guess):** the
       codebase disagrees on whether attunement ALONE (attuned but unworn) activates an item's effects —
       the ledger's `isItemActive` reduces to equipped-only, while `deriveAc`, `equipment.collectItemEffects`,
       and the ItemBuilder's "effects while equipped/attuned" label all say equipped-OR-attuned. So an
