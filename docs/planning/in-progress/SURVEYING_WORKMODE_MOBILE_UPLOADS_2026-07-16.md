@@ -229,7 +229,12 @@ is a pure, tested function; the runtime is pure I/O around them.)*
       failed) with a documented precedence; `summarizeQueue` rolls the rows into a worst-first header
       (failures + blocks before cheerful progress), plus `uploadStateLabel` / `backoffSecondsLeft` /
       `isActiveState` / `isBlockedState`. Optional `paused`/`require_wifi` columns are read as falsy so it's
-      correct before those schema slices land. `upload-status.test.ts` (17). **Remaining:** extend
+      correct before those schema slices land. `upload-status.test.ts` (17). **Partial-pause headline made
+      honest (2026-07-17):** the fallback header counted `active` (= total − failed) as "Uploading N", which
+      folded PAUSED rows into the uploading count — "Uploading 5 files" when 3 were paused. Now a partial
+      pause reports both ("Uploading 2 files, 3 paused"); all-paused still reads "Uploads paused" and the
+      no-pause path is unchanged. `upload-status.test.ts` +1. (Audited `deriveUploadState`'s precedence and
+      `uploadProgress`/`formatBytes` in passing — both correct + already covered.) **Remaining:** extend
       `me/uploads.tsx` from the stuck-triage view into the full queue view that renders these states (and a
       live upload %, which is a runtime progress callback) — a mobile-runtime, device-tested change.
       **Progress-bar math shipped** (`mobile/lib/uploadProgress.ts`): `uploadProgress(sent, total)` →

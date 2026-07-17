@@ -171,6 +171,12 @@ export function summarizeQueue(
     headline = `${plural(counts['offline-waiting'], 'file')} waiting for connection`;
   } else if (counts.paused > 0 && counts.paused === total) {
     headline = 'Uploads paused';
+  } else if (counts.paused > 0) {
+    // Partial pause: don't count the paused rows as "uploading" — report both honestly, or the header
+    // overstates progress (e.g. "Uploading 5 files" when 3 are paused). `working` is total − paused here
+    // (failures are 0 in this branch), and is always ≥ 1 since all-paused is handled above.
+    const working = active - counts.paused;
+    headline = `Uploading ${plural(working, 'file')}, ${counts.paused} paused`;
   } else {
     headline = `Uploading ${plural(active, 'file')}`;
   }

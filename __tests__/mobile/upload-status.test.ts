@@ -138,6 +138,17 @@ describe('summarizeQueue', () => {
     expect(mixed.headline).toMatch(/Uploading/);
   });
 
+  it('a PARTIAL pause is reported honestly — paused rows are not counted as uploading', () => {
+    // 3 paused + 2 queued must not read "Uploading 5 files"; the header states both.
+    const rows = [
+      row({ id: 'a', paused: 1 }), row({ id: 'b', paused: 1 }), row({ id: 'c', paused: 1 }),
+      row({ id: 'd' }), row({ id: 'e' }),
+    ];
+    const s = summarizeQueue(rows, ctx());
+    expect(s.headline).toBe('Uploading 2 files, 3 paused');
+    expect(s.blocked).toBe(3);
+  });
+
   it('falls back to an uploading count when clean', () => {
     const s = summarizeQueue([row({ id: 'a' }), row({ id: 'b' })], ctx({ activeId: 'a' }));
     expect(s.headline).toMatch(/Uploading 2 files/);
