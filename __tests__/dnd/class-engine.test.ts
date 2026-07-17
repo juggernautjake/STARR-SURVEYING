@@ -12,7 +12,7 @@ import {
   clampLevel,
 } from '@/lib/dnd/classes/engine';
 import { buildCustomClass, reviewCustomClass, buildCustomFeat, reviewCustomFeat, normalisePerLevel, type CustomClassDraft } from '@/lib/dnd/classes/custom';
-import { FULL_CASTER_SLOTS, HALF_CASTER_SLOTS, THIRD_CASTER_SLOTS, PACT_SLOTS, PACT_RANK } from '@/lib/dnd/classes/slots';
+import { FULL_CASTER_SLOTS, HALF_CASTER_SLOTS, THIRD_CASTER_SLOTS, PACT_SLOTS, PACT_RANK, MYSTIC_ARCANUM_LEVEL } from '@/lib/dnd/classes/slots';
 import { findClass } from '@/lib/dnd/classes/registry';
 import type { ClassDefinition } from '@/lib/dnd/classes/types';
 
@@ -138,6 +138,21 @@ describe('spell slot tables', () => {
     expect(PACT_SLOTS[17]).toBe(4);
     expect(PACT_RANK[9]).toBe(5);
     expect(PACT_RANK[20]).toBe(5); // never past rank 5 — Mystic Arcanum covers 6-9
+  });
+
+  // Golden reference for the Warlock's two bespoke tables (like the full/half golden guards). The spot
+  // checks above catch the corners but not the RANK-transition levels — a typo shifting when a slot rank
+  // kicks in (rank 2 at L3, 3 at L5, 4 at L7, 5 at L9) or a slot-count boundary would slip. Index 0 unused.
+  it('the full PACT_SLOTS + PACT_RANK tables match the PHB at every level', () => {
+    // Slots: 1 at L1, 2 through L10, 3 at L11–16, 4 at L17–20.
+    expect(PACT_SLOTS).toEqual([0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4]);
+    // Rank: rises 1→5 across L1–9 (a new rank every 2 levels), then holds at 5.
+    expect(PACT_RANK).toEqual([0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5]);
+  });
+
+  it('Mystic Arcanum gives ranks 6–9 at levels 11/13/15/17 (unguarded before)', () => {
+    // A typo here would hand the Warlock its capstone 9th-rank Arcanum at the wrong level.
+    expect(MYSTIC_ARCANUM_LEVEL).toEqual({ 6: 11, 7: 13, 8: 15, 9: 17 });
   });
 });
 

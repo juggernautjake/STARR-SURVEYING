@@ -470,7 +470,12 @@ One system per slice — depth-first, verified against sources. In priority orde
       L20 corner, but not the intermediate COUNTS — a typo like L11's rank-1 "3" instead of "4" would slip.
       Verified all 20 rows of both tables against the PHB and added a golden-reference guard for every cell
       (ranks 1–9 full; 1–5 half + "no rank 6+"), so a change to these shared tables must be intentional.
-      Both matched RAW exactly (no bug — locks the data). `class-engine.test.ts` +2.
+      Both matched RAW exactly (no bug — locks the data). `class-engine.test.ts` +2. **Warlock pact tables
+      pinned too (2026-07-17):** `PACT_SLOTS` + `PACT_RANK` were spot-checked at the corners but their
+      rank-TRANSITION levels (rank 2 at L3, 3 at L5, 4 at L7, 5 at L9) weren't, and `MYSTIC_ARCANUM_LEVEL`
+      (ranks 6–9 at L11/13/15/17) was UNguarded — a typo there would hand the Warlock its capstone Arcanum at
+      the wrong level. Golden-pinned all three against RAW (all correct). `class-engine.test.ts` +2. Every 5e
+      caster table (full / half / third / pact / arcanum) is now locked cell-by-cell.
       **2026-07-16 — ALL 12 PHB CLASSES SHIPPED ✅** (`lib/dnd/classes/dnd5e-2014/`): Barbarian, Bard,
       Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock, Wizard — each L1–20 with
       every PHB subclass, all edition-differences vs 2024 locked by `dnd5e-2014-classes.test.ts` (71
