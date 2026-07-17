@@ -34,6 +34,14 @@ overwrite a deliberate design.
       Wizard) with subclasses; the app models a flat 13-class list. Restructure to match the site? (Touches
       the IG builder, provenance, and seeds.)
       *Detail: `INTUITIVE_GAMES_FULL_BUILDOUT`; `SITE_MASTER.md` item 3.*
+- [ ] **Long-rest hit-dice restore — confirm your intended rule (edition-dependent; not autonomously changed).**
+      `longRest` (`store.tsx:977`) restores ALL hit dice (`hitDiceRemaining = hitDiceTotal`) for every edition.
+      2014 RAW regains only HALF your total Hit Dice (min 1); I'm not certain 2024 kept that vs. full-restore,
+      so I did NOT change it — this is player-facing game behavior on your own tool, and "full HD on a long
+      rest" is also a common house rule. The rest of `longRest` is RAW-correct (HP→max, tempHP→0, all spell
+      slots restored, exhaustion −1, resources reset). If you want RAW-half, the one-line fix is
+      `hitDiceRemaining: Math.min(total, remaining + Math.max(1, Math.floor(total / 2)))` (ideally extracted to
+      a tested pure helper); tell me the intended rule per edition and I'll wire it.
 
 ## B. Content only you / Brendan have (paste it and I fill it in)
 
