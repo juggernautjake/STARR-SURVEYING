@@ -36,7 +36,10 @@ describe('library pages', () => {
     expect(titles('shadowrun6e')).toContain('Metatypes');
     expect(titles('coc7e')).toContain('Occupations');
     expect(titles('pathfinder2e')).toContain('Ancestries');
+    expect(titles('pathfinder2e')).toContain('Backgrounds'); // PF2-only section
     expect(titles('dnd5e-2024')).toContain('Classes');
+    // Backgrounds are a PF2-only library section today — they must NOT leak into 5e pages.
+    expect(titles('dnd5e-2024')).not.toContain('Backgrounds');
   });
 
   it('states plainly when a system has no levels', () => {
@@ -104,6 +107,14 @@ describe('searchLibrary', () => {
     expect(searchLibrary('tiefling', 'dnd5e-2014').some((h) => h.kind === 'species')).toBe(true);
     expect(searchLibrary('poisoned', 'dnd5e-2014').some((h) => h.kind === 'condition')).toBe(true);
     expect(searchLibrary('lucky', 'dnd5e-2014').some((h) => h.kind === 'feat')).toBe(true);
+  });
+
+  it('surfaces PF2 backgrounds by name (a gap nothing else in the library filled)', () => {
+    const acolyte = searchLibrary('acolyte', 'pathfinder2e').find((h) => h.kind === 'background');
+    expect(acolyte).toBeTruthy();
+    expect(acolyte!.body).toMatch(/Religion/);
+    // Backgrounds are PF2-only — searching a 5e system for a PF2 background name yields no background hit.
+    expect(searchLibrary('acolyte', 'dnd5e-2024').some((h) => h.kind === 'background')).toBe(false);
   });
 
   it('finds the non-d20 systems’ own vocabulary', () => {
