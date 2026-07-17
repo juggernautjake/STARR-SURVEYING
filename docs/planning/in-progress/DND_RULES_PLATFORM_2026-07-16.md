@@ -2558,10 +2558,23 @@ removed from the deferred list. So the contract and the code can no longer quiet
   no-ops and renders nowhere (the current sheet has no action-economy tracker, and no attunement model in
   its Inventory). `effect-targets.test.ts`/`appendix-a-contract.test.ts` didn't catch this — the former
   only checks `rendersAt` is a non-empty string, the latter only checks a target exists. New
-  `effect-target-render-gaps.test.ts` (4) tracks these four as the complete registered-but-unrendered set
-  with a per-target reason and fails the moment one is wired (forcing its removal) or a new silent gap
-  appears — turning a false-confidence gap into a guarded one. Wiring them needs an action-economy/
-  attunement render home (larger feature work), deferred until then. Of the Rolls-section *operations*,
+  `effect-target-render-gaps.test.ts` tracks the registered-but-unrendered set (the 4 economy targets +
+  `concentration_save`, each with a per-target reason) and fails the moment one is wired or a new silent
+  gap appears — turning a false-confidence gap into a guarded one. Wiring the economy ones needs an
+  action-economy/attunement render home (larger feature work), deferred until then.
+  **⚑ ROLL-TARGET SWEEP — a whole CLASS of dropped effects fixed (2026-07-18).** Walking "does every
+  registered ROLL target actually reach its roll?" across the sheet found that many did NOT: they were
+  resolved only by `deriveCharacter`/`apply.ts`, which is imported by **no** component or store (dead for
+  display — the sheet runs on the ledger). So `death_save`, `<ability>_saves`/`all_saves`,
+  `skill.<key>`/`all_skills`, and `attack_roll`/`damage_roll`/`attack_and_damage` — both their numeric
+  bonuses AND their advantage/disadvantage — never reached the actual save/skill/attack/damage/death-save
+  rolls (a Cloak of Protection's +1 saves, a +2-skill item, a +N-to-all-attacks item all silently did
+  nothing). Fixed by folding `ledger.value(target,0)` + `ledger.rollFlags(target)` into each live roll
+  site (`SavesSkills`, `Attacks`, `rollWeaponDamage`, `rollDeathSave`), exactly like the already-correct
+  `initiative`/`spell_save_dc`/`spell_attack`. Verified no current content uses these targets, so every
+  fix is a no-op for existing characters (purely makes the capability work). Guards:
+  `saves-skills-effective.test.ts` (+2), `attack-global-bonus.test.ts` (4), `effect-target-render-gaps.test.ts`
+  (death_save now reads true). Every registered roll target now reaches its roll. Of the Rolls-section *operations*,
   **`crit_range` shipped** (`f12a6c08`) — a proper roll target: `rollD20` gained a crit threshold, the
   store derives the widest range across sources (min, sidestepping the ledger's highest-wins `set`), only
   attacks consult it, and the Attacks table shows "crit 19–20"; `crit-range.test.ts` (8). The remaining
