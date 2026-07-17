@@ -174,7 +174,14 @@ choice — default to removing only the app's copy unless the user opts into ful
       Wi-Fi. No choice ever deletes the captured bytes. `upload-failure-choices.test.ts` (13). **Remaining
       (mobile-runtime, device-tested):** wire the choice UI onto the failed-upload row in the queue screen
       + the failure notification action, and add a `saveLocalAndForget(db, id)` that applies the
-      `removeRow`/keep-file descriptor (a thin sibling of the existing `discardUpload`).
+      `removeRow`/keep-file descriptor (a thin sibling of the existing `discardUpload`). **Delete-after-upload
+      decision shipped** (`mobile/lib/uploadRetention.ts`): the owner's "option to delete from phone once
+      uploaded" — `retentionAfterUpload(pref, {uploadConfirmed, savedToCameraRoll})` returns whether to delete
+      the app working copy / prompt / offer camera-roll deletion, with a HARD guard that **nothing is deleted
+      until the upload is confirmed server-side** (captured bytes are never risked); `normalizeRetentionPref`
+      (bad value → 'ask', never auto-delete) + labels. Replaces the current unconditional auto-delete in
+      `markSuccess` once wired. `upload-retention.test.ts` (7). **Remaining:** the retention setting + the
+      post-success prompt UI + swapping `markSuccess`'s delete for this — mobile-runtime, device-tested.
 - [~] **C6 — Notifications.** A local notification on failure (and optionally on all-done) so the worker
       knows without watching the screen (`expo-notifications`). **Pure message composer shipped**
       (`mobile/lib/uploadNotify.ts`): `uploadNotification(event, level)` composes the title+body for each
