@@ -7,9 +7,11 @@ import { allLibraryPages, libraryPageFor, searchLibrary } from '@/lib/dnd/librar
 import { GAME_SYSTEMS } from '@/lib/dnd/systems';
 
 // Sections that are Intuitive Games only (built from its site scrub). If one shows up on another system's
-// page, IG content has leaked.
+// page, IG content has leaked. (NB: 'tools' was here, but 5e-2024 now has its OWN Tools section — the id
+// is shared, the CONTENT is system-scoped, so it's no longer IG-exclusive; the per-system content is what
+// the rest of this suite guards against leaking.)
 const IG_ONLY_SECTIONS = [
-  'stances', 'combat-skills', 'redistribution', 'companions', 'weapon-properties', 'tools',
+  'stances', 'combat-skills', 'redistribution', 'companions', 'weapon-properties',
   'magical-items', 'damage', 'character-building',
 ];
 // Search hit kinds that only exist for IG.
