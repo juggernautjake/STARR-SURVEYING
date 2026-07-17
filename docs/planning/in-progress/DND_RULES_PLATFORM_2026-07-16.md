@@ -2499,12 +2499,16 @@ It is a manual, browser-driven acceptance pass, not an automated test suite (tho
 Playwright specs behind). Do it with the Playwright MCP tools against a real running app.
 
 **Preliminary runtime smoke check ✅ (2026-07-17).** Before the full walkthrough, verified the app
-actually builds + serves after the ~40-commit audit run: `next dev` came up clean, and via Playwright the
-public **`/dnd` hub rendered with 0 console errors/warnings**, **`/dnd/suggestions` returned 200** (no
-error markers), and the **`map-studio.html` tool loaded with 0 console errors** (the Slice-35a handle
-code runs). So the build is healthy and the public surface is error-free at runtime — the character-build
-walkthrough below still needs an interactive session (create account → build a character per system,
-level by level), which is the substantive remainder of this slice.
+actually builds + serves after the ~40-commit audit run: `next dev` came up clean, and via Playwright
+every public page + backing tool loaded with **0 console errors**:
+- `/dnd` hub (0 errors/warnings) · `/dnd/suggestions` (HTTP 200, no error markers)
+- `map-studio.html` (Slice 35a handle code runs) · `planet-3d.html` (Slice 29 WebGL 3D renderer initializes)
+- `console.html` (Slice 39 player console / drawer)
+
+So the build is healthy and the whole public + map-tool surface is error-free at runtime — a real check
+against the map slices' "look for errors" directive. The character-build walkthrough below (create
+account → build a vanilla character per system, level by level, fixing bugs/styling) is the substantive
+remainder and needs an interactive, DB-backed session.
 
 - [ ] **Fresh account.** Create a NEW user through the pseudo-login (name + password, no email — see
       Slice 36). Confirm the sign-up path works from a clean state.
