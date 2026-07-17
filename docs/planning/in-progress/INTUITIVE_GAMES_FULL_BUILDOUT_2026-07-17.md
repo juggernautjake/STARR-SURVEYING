@@ -353,6 +353,12 @@ expanded requirements (2026-07-17):
       preserving any `IG_POWERS` the roster doesn't list under a "Powers · Unlisted (pending reconcile)" group
       so nothing is silently dropped. `ig-catalog.test.ts` +1 asserts every `igAllSpellNames()` power is
       offered. So the sheet picker, the builder, and both AI paths now offer one identical power set.
+      **Same fix for FEATS (2026-07-17):** the catalog's feat group used the ~20-entry `IG_FEATS` (the names
+      the sheet merely references), not the full 151-feat `igAllFeats()` the sheet's feat picker + AI
+      `add_feat` use — so the builder + AI grounding offered a fraction of the feats. Repointed the catalog
+      feat group at `igAllFeats()` (bucketed General/Combat), preserving any `IG_FEATS` name it doesn't carry
+      under "Feats · Unlisted (pending reconcile)". `ig-catalog.test.ts` +1 asserts every `igAllFeats()` feat
+      is offered. Powers AND feats now have one identical set across sheet, builder, and both AI paths.
       **Defensive power
       now editable too (2026-07-17):** it was display-only post-build (a chip, no control) while stances,
       conditions, feats and powers were all editable — a gap in "everything editable." Added a
