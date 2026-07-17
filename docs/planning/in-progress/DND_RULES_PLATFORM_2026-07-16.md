@@ -1322,9 +1322,15 @@ consumable-buff editors — the whole authoring surface.
       named condition (`raging`, `bloodied`) — the engine's `condition` field, exposed.
 - [ ] Validate on save: unknown target → refuse with a reason. Never silently drop an effect; the
       player will believe it works.
-- [ ] Tests: every operation in the vocabulary is reachable from the picker (a guard that fails when
+- [~] Tests: every operation in the vocabulary is reachable from the picker (a guard that fails when
       someone adds an operation and forgets the UI); a hand-built item and an AI-built item with the
       same mechanics produce identical `Effect[]`; a negative modifier round-trips.
+      **Reachability guard ✅ SHIPPED** (`5f0ec149`): `EFFECT_OPERATIONS` — a runtime roster kept
+      exhaustive at compile time (`satisfies Record<EffectOperation, 1>`) — plus a test that each op is
+      offered by ≥1 target (the picker renders `def.ops`, so unlisted = unpickable). +10 tests. The
+      negative-modifier round-trip is covered by `effect-targets.test.ts` (validate + describe of a −2);
+      the hand-vs-AI identical-`Effect[]` guard is the existing "builder produces the same Effect[] the
+      AI emits" registry-driven suite.
 
 ## Slice 18 — Transform: become a different character entirely ⏳ PARTIAL 2026-07-16
 
