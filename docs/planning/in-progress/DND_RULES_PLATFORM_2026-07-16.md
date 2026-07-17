@@ -935,8 +935,12 @@ Original action items (kept for the remaining work):
       above), never written to the model.
 - [~] **Size** is mechanical, not cosmetic. **Carrying capacity ✅ SHIPPED** (`05bbe5b6`):
       `sizeCapacityMultiplier` scales `carryingCapacity`/`encumbranceLevel` (Tiny ½ … Gargantuan ×8), so a
-      Large character carries double; +1 test. (Weapon-damage-die scaling for some effects remains as a
-      later item.) The `size` effect target itself was already wired.
+      Large character carries double; +1 test. **Now visible ✅ SHIPPED** (`5c28bbdf`): the Inventory tab
+      renders a "Carrying X / Y lb · <encumbrance>" line reading the ledger-effective STR + size (so a
+      STR item or a size-change updates it live), `InvItem` gains an optional per-unit `weight`, and the
+      item builder exposes a Weight (lb) input; `inventory-carrying.test.ts` (4) locks the wiring.
+      (Weapon-damage-die scaling for some effects remains a later item.) The `size` effect target was
+      already wired.
 - [ ] **Size** — weapon damage dice for some
       systems, grapple/shove legality. Wire it to those, or it is a costume.
 - [ ] **Grant targets**: `grant_feature`, `grant_attack`, `grant_spell`, `grant_resource`,
