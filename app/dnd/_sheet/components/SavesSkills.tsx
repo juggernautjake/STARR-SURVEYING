@@ -81,7 +81,11 @@ export default function SavesSkills() {
           <div className="rowlist">
             {ABILITIES.map((a) => {
               const s = char.saves[a.key]
+              // Fold the ledger's save-bonus targets (a Cloak of Protection's +1 all saves, an item's
+              // +2 to a specific save) — like initiative/death_save fold theirs. No-op when nothing grants
+              // them, so no current character changes; it just makes those effects actually reach the roll.
               const mod = abilityMod(abilities[a.key]) + (s.proficient ? pb : 0) + s.misc
+                + ledger.value(`${a.key}_saves`, 0) + ledger.value('all_saves', 0)
               const isDex = a.key === 'dex'
               return (
                 <div className="rrow" key={a.key}>
@@ -117,6 +121,7 @@ export default function SavesSkills() {
               const st = char.skills[sk.key]
               const abil = ABILITIES.find((a) => a.key === sk.ability)!
               const mod = abilityMod(abilities[sk.ability]) + profContribution(st.prof, pb) + st.misc
+                + ledger.value(`skill.${sk.key}`, 0) + ledger.value('all_skills', 0)
               // Base Form ("The Kid") is small and unassuming → advantage on Stealth.
               // The larger Surge forms (Brute, Titan…) are anything but subtle.
               const stealthAdv = sk.key === 'stealth' && activeFormId === 'base'

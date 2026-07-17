@@ -19,4 +19,12 @@ describe('Saves & Skills derived numbers use the ledger-effective abilities', ()
     expect(PANEL).not.toContain('abilityMod(char.abilities.wis)');
     expect(PANEL).not.toContain('abilityMod(char.abilities.str)');
   });
+
+  it('folds the ledger save/skill bonus targets so those effects reach the mod + roll', () => {
+    // The dedicated <ability>_saves / all_saves / skill.<key> / all_skills roll targets were resolved
+    // only by the now-dead deriveCharacter engine, so a Cloak-of-Protection-style +saves or a +skill item
+    // never reached the SavesSkills card. Now folded like initiative/death_save (no-op without effects).
+    expect(PANEL).toContain("ledger.value(`${a.key}_saves`, 0) + ledger.value('all_saves', 0)");
+    expect(PANEL).toContain("ledger.value(`skill.${sk.key}`, 0) + ledger.value('all_skills', 0)");
+  });
 });
