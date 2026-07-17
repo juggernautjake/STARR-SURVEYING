@@ -521,6 +521,14 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       (Origin / Fighting Style / General / Epic Boon) with each feat's **real benefit text + category**,
       so "tavern brawler", "alert", "archery" return the actual rules, not a stub. **Verified in the
       app** (Tavern Brawler → its full 662-char benefit). `library.test.ts` +2.
+- [x] **Grounding retrieval made reliable for natural questions ✅** — the library search AND-matches
+      every word, so a real question ("how many hit points does a Fighter get per level?") retrieved
+      NOTHING (no article contains all those words) and the AI answered from recall — correct only by
+      luck. Grounding now uses a **lenient scorer** (`retrieveGlossary`: term > alias > body, require ≥1
+      keyword) so the right article is reliably surfaced. **Verified**: the same PF2e Fighter question
+      went from `grounded: 0` (recall) to `grounded: 6` (article-grounded, correct 10 HP/level + STR/DEX).
+      Also confirmed PF2e characters degrade gracefully in the level builder (`classKnown: false` → the
+      AI/homebrew path) since PF2e has no deterministic class table yet. `grounding-glossary.test.ts` +2.
 - [x] **AI grounds on the full feat text too ✅** — `systemGroundingBlock` now also retrieves the feats
       NAMED in the question (`matchFeats`, system-scoped) and injects their real benefit text, so the
       librarian/builder answer feat questions from the rules, not recall. **Verified end-to-end**: asking

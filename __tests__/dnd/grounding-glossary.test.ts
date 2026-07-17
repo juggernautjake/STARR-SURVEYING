@@ -62,3 +62,18 @@ describe('AI grounding also feeds the full feat text when a feat is named', () =
     expect(g.block).not.toMatch(/RELEVANT .*FEATS \(authoritative/i);
   });
 });
+
+describe('grounding retrieval is lenient enough for natural-language questions', () => {
+  it('grounds a multi-keyword question that no single article matches word-for-word', async () => {
+    // The Fighter article never contains "how many hit points" verbatim, but a natural question about
+    // it must still retrieve it (on the "fighter" keyword). AND-matching every word would miss it.
+    const g = await systemGroundingBlock('pathfinder2e', 'how many hit points does a fighter get per level and its key attribute');
+    expect(g.matched).toBeGreaterThan(0);
+    expect(g.block).toMatch(/Fighter \(class\)/);
+  });
+
+  it('still returns nothing spurious for a query with no content words', async () => {
+    const g = await systemGroundingBlock('pathfinder2e', 'the and of to');
+    expect(g.block).not.toMatch(/GLOSSARY ARTICLES/);
+  });
+});

@@ -5,8 +5,35 @@
 import { searchSystemEntries } from './system-store';
 import { SYSTEM_AMBIGUOUS, systemLabel } from './systems';
 import { systemRulesBlock } from './system-rules';
-import { searchGlossary } from './glossary';
+import { glossaryFor, type GlossaryEntry } from './glossary';
 import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
+
+/** Lenient glossary retrieval for GROUNDING: score each article by how many of the query keywords
+ *  appear (term > alias > body), require at least one, and take the top matches. Unlike the library
+ *  search (which AND-matches every word), this reliably surfaces the right article for a natural
+ *  question — "how many hit points does a fighter get" pulls the Fighter article on the "fighter" hit
+ *  even though the article never says the words "how many". Scoped to `system` — never leaks. */
+function retrieveGlossary(system: string, keywords: string, limit: number): GlossaryEntry[] {
+  const words = keywords.split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  return glossaryFor(system)
+    .map((e) => {
+      const term = e.term.toLowerCase();
+      const aliases = (e.aliases ?? []).map((a) => a.toLowerCase());
+      const body = `${e.short} ${e.body}`.toLowerCase();
+      let score = 0;
+      for (const w of words) {
+        if (term.includes(w)) score += 5;
+        else if (aliases.some((a) => a.includes(w))) score += 4;
+        else if (body.includes(w)) score += 1;
+      }
+      return { e, score };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score || a.e.term.localeCompare(b.e.term))
+    .slice(0, limit)
+    .map((x) => x.e);
+}
 
 /** Feats a full registry can ground the AI on, system-scoped (only dnd5e-2024 has one today). */
 function groundingFeats(system: string): Feat[] {
@@ -79,7 +106,7 @@ export async function systemGroundingBlock(system: string | null | undefined, qu
   // We strip stopwords first: the glossary search requires every word to match, so a natural-language
   // question ("what does the disengage action do") would otherwise fail on its filler words.
   const keywords = groundingKeywords(query);
-  const glossaryHits = keywords ? searchGlossary(system, keywords, 6) : [];
+  const glossaryHits = keywords ? retrieveGlossary(system, keywords, 6) : [];
   const glossaryBlock = glossaryHits.length
     ? `\n\nRELEVANT ${label} GLOSSARY ARTICLES (authoritative rules text — quote these numbers exactly):\n` +
       glossaryHits.map((g) => `## ${g.term} (${g.kind})\n${g.body}`).join('\n\n')
