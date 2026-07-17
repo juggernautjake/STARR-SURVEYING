@@ -79,6 +79,8 @@ interface Ctx {
    *  cache. Edits keep working and are cached locally; they sync when the DB returns. */
   offline: boolean
   pb: number
+  /** Lowest natural d20 that crits on attacks (20 normally; widened by `crit_range` effects). */
+  critMin: number
   /** The EFFECTIVE active form id (Slice 18): the form a `transform` effect imposes, else the
    *  character's own `activeFormId`. Components render THIS so an imposed form shows as active;
    *  the form TOGGLE still writes `char.activeFormId` (the base), so the transform stays an overlay. */
@@ -526,6 +528,21 @@ export function CharacterProvider({
   // Effective active form (Slice 18): a transform effect's imposed form overlays the base one.
   const activeFormId = useMemo(() => ledger.transform()?.value ?? char.activeFormId, [ledger, char.activeFormId])
 
+  // The lowest natural d20 that crits on attacks — 20 normally, widened by `crit_range` effects (Improved
+  // Critical → 19, Superior → 18). The WIDEST source wins, so we take the min across contributions
+  // (explain + min, sidestepping the ledger's set/add aggregation which would take the highest). Attack
+  // rolls consult this; the Attacks table shows it so an expanded range isn't invisible.
+  const critMin = useMemo(() => {
+    // Take the min over ALL contributions, NOT the ledger's set-race survivor: `set` semantics keep the
+    // HIGHEST value (marking the lower one suppressed), but for crit range the LOWEST wins (widest range).
+    // Condition-gated effects that don't apply are already excluded upstream, so everything here is live.
+    const vals = ledger
+      .explain('crit_range')
+      .filter((c) => typeof c.effect.value === 'number')
+      .map((c) => Number(c.effect.value))
+    return vals.length ? Math.max(2, Math.min(20, ...vals)) : 20
+  }, [ledger])
+
   const commitRoll = useCallback((entry: Omit<RollEntry, 'id'>) => {
     setLog((l) => [{ ...entry, id: idRef.current++ }, ...l].slice(0, 40))
   }, [])
@@ -553,11 +570,14 @@ export function CharacterProvider({
       const mode: Advantage = hasAdv && hasDis ? 'flat' : hasAdv ? 'adv' : hasDis ? 'dis' : 'flat'
       // Exhaustion: −2 to every d20 test per level (2024 rules), applied automatically.
       const exh = char.combat.exhaustion || 0
-      const r = rollD20(mod - 2 * exh, mode)
+      // Only attack rolls consult the crit range; a check or save always crits on a 20 only.
+      const rollCritMin = opts.kind === 'attack' ? critMin : 20
+      const r = rollD20(mod - 2 * exh, mode, rollCritMin)
       const tags: string[] = []
       if (recklessActive && opts.strMelee) tags.push('RECKLESS')
       if (opts.advantage) tags.push('ADV')
       if (exh > 0) tags.push(`EXH −${2 * exh}`)
+      if (rollCritMin < 20) tags.push(`CRIT ${rollCritMin}–20`)
       if (opts.tag) tags.push(opts.tag)
       stage(
         {
@@ -573,7 +593,7 @@ export function CharacterProvider({
         { landing: r.natural, min: 1, max: 20, isD20: true, crit: r.crit, fumble: r.fumble },
       )
     },
-    [advMode, recklessActive, char.combat.exhaustion, stage],
+    [advMode, recklessActive, char.combat.exhaustion, critMin, stage],
   )
 
   const rollDmg = useCallback(
@@ -998,6 +1018,7 @@ export function CharacterProvider({
     reloadFromDb,
     offline,
     pb,
+    critMin,
     activeFormId,
     isDM,
     canWrite: canWrite ?? isDM,

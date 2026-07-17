@@ -110,6 +110,9 @@ const rollTargets: TargetDef[] = [
   { key: 'attack_roll', label: 'Attack rolls', group: 'roll', valueType: 'number', ops: ROLL, help: 'Modify or grant advantage on attack rolls.', rendersAt: 'Combat tab · Attacks', allowsNegative: true },
   { key: 'damage_roll', label: 'Damage rolls', group: 'roll', valueType: 'number', ops: ['add'], help: 'Modify damage dealt.', rendersAt: 'Combat tab · Attacks', allowsNegative: true },
   { key: 'attack_and_damage', label: 'Attack AND damage', group: 'roll', valueType: 'number', ops: ['add'], help: 'The classic magic-weapon bonus: +N to hit and to damage.', rendersAt: 'Combat tab · Attacks', allowsNegative: true },
+  // The LOWEST natural d20 that scores a critical hit on attacks — 20 normally, 19 for Improved Critical,
+  // 18 for Superior. Multiple sources take the widest (lowest) range; only attack rolls consult it.
+  { key: 'crit_range', label: 'Critical hit range', group: 'roll', valueType: 'number', ops: ['set'], help: 'The lowest natural d20 that crits on your attacks (19 = crit on 19–20, like Improved Critical). Widest source wins.', rendersAt: 'Combat tab · Attacks (shown on the to-hit, applied to the roll)' },
   // Bonus DICE, not a flat number: Enlarge's +1d4, a flametongue's +1d6 fire, a brand's +2d6 radiant.
   // A great many effects add dice rather than a modifier, and `damage_roll` (a number) cannot express
   // them. The value is a dice expression with an optional damage type — "1d6" or "1d6 fire".

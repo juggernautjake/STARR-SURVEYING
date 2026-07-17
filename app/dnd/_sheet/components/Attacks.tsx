@@ -11,7 +11,7 @@ import EffectStar from './ui/EffectStar'
 import EditMark from './ui/EditMark'
 
 export default function Attacks() {
-  const { char, abilities, pb, activeFormId, rollCheck, rollDmg, transformActive, recklessActive, canWrite, setChar } = useChar()
+  const { char, abilities, pb, critMin, activeFormId, rollCheck, rollDmg, transformActive, recklessActive, canWrite, setChar } = useChar()
   const [editing, setEditing] = useState<Attack | null>(null)
 
   const duplicate = (a: Attack) =>
@@ -157,6 +157,11 @@ export default function Attacks() {
                     ) : (
                       <EffectStar target={`ability_${abilityKey}`} label={`${a.name} to hit`}>
                         {signed(toHit)}
+                        {critMin < 20 && (
+                          <span className="hl-note" style={{ marginLeft: 6 }} title={`Critical hit on a natural ${critMin}–20`}>
+                            crit {critMin}–20
+                          </span>
+                        )}
                       </EffectStar>
                     )}
                   </td>

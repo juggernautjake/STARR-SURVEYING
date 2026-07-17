@@ -177,8 +177,10 @@ export interface D20Roll {
   breakdown: string
 }
 
-/** Roll a d20 check/attack/save with a flat modifier and adv/dis. */
-export function rollD20(mod: number, mode: Advantage = 'flat'): D20Roll {
+/** Roll a d20 check/attack/save with a flat modifier and adv/dis. `critMin` is the lowest natural that
+ *  counts as a critical hit (20 normally; 19 for Improved Critical, 18 for Superior) — only attack rolls
+ *  pass anything below 20. A natural 1 is never a crit even if critMin were pushed absurdly low. */
+export function rollD20(mod: number, mode: Advantage = 'flat', critMin = 20): D20Roll {
   const a = rollDie(20)
   let rolls = [a]
   let natural = a
@@ -199,7 +201,7 @@ export function rollD20(mod: number, mode: Advantage = 'flat'): D20Roll {
     rolls,
     mod,
     mode,
-    crit: natural === 20,
+    crit: natural >= critMin && natural !== 1,
     fumble: natural === 1,
     breakdown: `${kept}${modStr}`,
   }
