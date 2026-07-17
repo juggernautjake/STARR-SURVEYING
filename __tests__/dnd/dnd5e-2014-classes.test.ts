@@ -11,17 +11,23 @@ import { snapshotAtLevel, progressionTable, validateClassDefinition } from '@/li
 const SYS = 'dnd5e-2014';
 const CLASSES = classesForSystem(SYS);
 
+const ALL_12 = [
+  'Barbarian', 'Bard', 'Cleric', 'Druid', 'Fighter', 'Monk',
+  'Paladin', 'Ranger', 'Rogue', 'Sorcerer', 'Warlock', 'Wizard',
+];
+
 describe('the 2014 class roster (authored class-by-class)', () => {
-  it('has the classes authored so far, and the system reports it has class data', () => {
-    expect(CLASSES.map((c) => c.name)).toEqual(expect.arrayContaining(['Barbarian', 'Fighter', 'Rogue', 'Monk', 'Ranger', 'Paladin', 'Sorcerer', 'Warlock', 'Bard', 'Cleric', 'Druid']));
+  it('now registers all 12 PHB classes, and the system reports it has class data', () => {
+    expect(CLASSES.map((c) => c.name).sort()).toEqual([...ALL_12].sort());
     expect(systemHasClasses(SYS)).toBe(true);
   });
 
   it('resolves per class: an authored one is found, an un-authored one falls back (null)', () => {
     expect(findClass(SYS, 'Barbarian')?.key).toBe('barbarian');
     expect(findClass(SYS, 'barbarian')?.name).toBe('Barbarian');
-    // Not yet authored for 2014 → null, so the builder offers the AI/homebrew path rather than lying.
-    expect(findClass(SYS, 'Wizard')).toBeNull();
+    // Artificer is not a PHB class and isn't authored for 2014 → null, so the builder offers the
+    // AI/homebrew path rather than lying about a level table it doesn't have.
+    expect(findClass(SYS, 'Artificer')).toBeNull();
   });
 
   it('does not leak across editions — a 2014 class is not a 2024 class', () => {
@@ -355,5 +361,31 @@ describe('Druid 2014 — the edition-specific numbers', () => {
 
   it('offers exactly the two PHB circles (Land, Moon)', () => {
     expect(subclassesFor(SYS, 'druid').map((s) => s.name).sort()).toEqual(['Circle of the Land', 'Circle of the Moon']);
+  });
+});
+
+describe('Wizard 2014 — the edition-specific numbers', () => {
+  const wizard = findClass(SYS, 'wizard')!;
+
+  it('is a d6 INT full-caster preparer that picks its Arcane Tradition at level 2', () => {
+    expect(wizard.hitDie).toBe(6);
+    expect(wizard.spellcasting?.kind).toBe('full');
+    expect(wizard.spellcasting?.ability).toBe('int');
+    expect(wizard.subclassLevel).toBe(2);
+  });
+
+  it('has Arcane Recovery, Spell Mastery (18), and Signature Spells (20)', () => {
+    expect(wizard.features.some((f) => f.name === 'Arcane Recovery')).toBe(true);
+    expect(snapshotAtLevel(wizard, 18).features.some((f) => f.name === 'Spell Mastery')).toBe(true);
+    expect(snapshotAtLevel(wizard, 20).features.some((f) => f.name === 'Signature Spells')).toBe(true);
+  });
+
+  it('offers all eight PHB schools as traditions, each levelling to 14', () => {
+    const subs = subclassesFor(SYS, 'wizard');
+    expect(subs.map((s) => s.name).sort()).toEqual([
+      'School of Abjuration', 'School of Conjuration', 'School of Divination', 'School of Enchantment',
+      'School of Evocation', 'School of Illusion', 'School of Necromancy', 'School of Transmutation',
+    ]);
+    for (const s of subs) expect(s.features.some((f) => f.level === 14)).toBe(true);
   });
 });

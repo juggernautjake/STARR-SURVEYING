@@ -31,8 +31,12 @@ describe('the 2024 class roster', () => {
   it('finds a class by name or key, scoped to its system', () => {
     expect(findClass(SYS, 'Wizard')?.key).toBeTruthy();
     expect(findClass(SYS, 'wizard')?.name).toBe('Wizard');
-    // A 2024 class must not resolve under another system.
-    expect(findClass('dnd5e-2014', 'Wizard')).toBeNull();
+    // Editions are different systems: the 2014 Wizard now exists too, but it is a DISTINCT object
+    // scoped to dnd5e-2014 — the 2024 lookup never returns it, and vice versa.
+    expect(findClass(SYS, 'Wizard')?.system).toBe(SYS);
+    expect(findClass('dnd5e-2014', 'Wizard')?.system).toBe('dnd5e-2014');
+    // A system with no such class still resolves to null, not a cross-system leak.
+    expect(findClass('coc7e', 'Wizard')).toBeNull();
   });
 });
 
