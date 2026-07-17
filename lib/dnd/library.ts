@@ -10,7 +10,7 @@ import { rulesForSystem, type SystemRules } from './system-rules';
 import { glossaryFor, searchGlossary } from './glossary';
 import { classesForSystem } from './classes/registry';
 import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
-import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef } from './systems/pathfinder2e/content';
+import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef } from './systems/pathfinder2e/content';
 
 /** The full feat registry for a system, or [] when only a catalog sample exists. System-keyed
  *  dispatcher (the pattern `findFeat`'s comment calls for) so a feat never leaks across systems. */
@@ -33,6 +33,14 @@ function weaponsForSystem(system: string): PF2WeaponDef[] {
   return system === 'pathfinder2e' ? PF2_WEAPONS : [];
 }
 const DMG_TYPE: Record<string, string> = { B: 'bludgeoning', P: 'piercing', S: 'slashing' };
+
+/** The concrete subclass CHOICES per class (PF2 only): every Bloodline, Racket, Instinct, Doctrine, …
+ *  as a searchable entry tied to its class + mechanism, so "draconic" or "thief racket" resolves. The
+ *  glossary already explains the mechanism (Bloodline, Racket); this surfaces the individual options. */
+function pf2SubclassOptions(system: string): { name: string; className: string; mechanism: string }[] {
+  if (system !== 'pathfinder2e') return [];
+  return PF2_CLASSES.flatMap((c) => c.subclassOptions.map((name) => ({ name, className: c.name, mechanism: c.subclassMechanism })));
+}
 
 export interface LibraryFact {
   label: string;
@@ -365,6 +373,9 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
     }
     for (const w of weaponsForSystem(key)) {
       push('weapon', w.name, `${w.name} — ${w.category} ${w.group.toLowerCase()}; ${w.damageDie} ${DMG_TYPE[w.damageType] ?? w.damageType}${w.range ? `, ranged ${w.range} ft` : ''}${w.traits.length ? `; ${w.traits.join(', ')}` : ''}.`);
+    }
+    for (const s of pf2SubclassOptions(key)) {
+      push('subclass', s.name, `${s.name} — a ${s.className} ${s.mechanism} option in ${r.label}.`);
     }
   }
 

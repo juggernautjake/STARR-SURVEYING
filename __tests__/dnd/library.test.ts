@@ -120,6 +120,15 @@ describe('searchLibrary', () => {
     expect(searchLibrary('acolyte', 'dnd5e-2024').some((h) => h.kind === 'background')).toBe(false);
   });
 
+  it('surfaces individual PF2 subclass options by name (draconic bloodline, thief racket)', () => {
+    const draconic = searchLibrary('draconic', 'pathfinder2e').find((h) => h.kind === 'subclass');
+    expect(draconic).toBeTruthy();
+    expect(draconic!.body).toMatch(/Sorcerer/);
+    expect(searchLibrary('thief', 'pathfinder2e').some((h) => h.kind === 'subclass' && /Rogue/.test(h.body))).toBe(true);
+    // System-scoped: a PF2 bloodline name yields no subclass hit under a 5e system.
+    expect(searchLibrary('draconic', 'dnd5e-2024').some((h) => h.kind === 'subclass')).toBe(false);
+  });
+
   it('surfaces PF2 armor and weapons by name, system-scoped', () => {
     const plate = searchLibrary('full plate', 'pathfinder2e').find((h) => h.kind === 'armor');
     expect(plate).toBeTruthy();
