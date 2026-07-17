@@ -38,12 +38,15 @@ export default function SavesSkills() {
     setChar((c) => ({ ...c, customSkills: (c.customSkills ?? []).filter((cs) => cs.id !== id) }))
   }
 
+  // Passive Perception and the Save DC read the LEDGER-effective abilities (like the saves + skills
+  // below do), not the base scores — otherwise a WIS- or STR-boosting item would move every save and
+  // skill on this card but silently leave these two stale.
   const passivePerception =
     10 +
-    abilityMod(char.abilities.wis) +
+    abilityMod(abilities.wis) +
     profContribution(char.skills.perception.prof, pb) +
     char.skills.perception.misc
-  const saveDC = 8 + pb + abilityMod(char.abilities.str)
+  const saveDC = 8 + pb + abilityMod(abilities.str)
 
   function cycleSkill(key: string) {
     setChar((c) => {
