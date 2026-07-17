@@ -28,6 +28,16 @@ export type EffectOperation =
   | 'vulnerability'
   | 'condition_advantage';
 
+// A RUNTIME roster of every operation, kept exhaustive by `satisfies Record<EffectOperation, …>`: add a
+// new operation to the union above and this object stops compiling until it's listed here too. The
+// effect-builder guard then proves each one is reachable from the picker (assigned to some target), so an
+// operation can never be added to the engine yet left unpickable in the UI.
+const OPERATION_ROSTER = {
+  add: 1, set: 1, set_base: 1, advantage: 1, disadvantage: 1,
+  grant_proficiency: 1, resistance: 1, immunity: 1, vulnerability: 1, condition_advantage: 1,
+} satisfies Record<EffectOperation, 1>;
+export const EFFECT_OPERATIONS = Object.keys(OPERATION_ROSTER) as EffectOperation[];
+
 export interface Effect {
   target: string;
   operation: EffectOperation;
