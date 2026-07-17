@@ -175,8 +175,15 @@ choice — default to removing only the app's copy unless the user opts into ful
       (mobile-runtime, device-tested):** wire the choice UI onto the failed-upload row in the queue screen
       + the failure notification action, and add a `saveLocalAndForget(db, id)` that applies the
       `removeRow`/keep-file descriptor (a thin sibling of the existing `discardUpload`).
-- [ ] **C6 — Notifications.** A local notification on failure (and optionally on all-done) so the worker
-      knows without watching the screen (`expo-notifications`).
+- [~] **C6 — Notifications.** A local notification on failure (and optionally on all-done) so the worker
+      knows without watching the screen (`expo-notifications`). **Pure message composer shipped**
+      (`mobile/lib/uploadNotify.ts`): `uploadNotification(event, level)` composes the title+body for each
+      upload event — per-file done (with the remaining count; "last one → complete" when none remain),
+      whole-queue all-done (total count), and failure (with a "Tap to retry" when retryable) — plus a
+      verbosity `level` ('each' vs 'summary') that suppresses per-file pings while always notifying on
+      all-done/failure, and a `shouldNotify` guard. `upload-notify.test.ts` (6). **Remaining (mobile-runtime,
+      device-tested):** fire these via `expo-notifications` from the drainer (`processQueue`/`markSuccess`/
+      failure path) + a notify-frequency setting.
 - [x] **C7 — Tests. ✅ SHIPPED** (`__tests__/mobile/queue-order.test.ts` + `upload-failure-choices.test.ts`).
       The ordering engine is covered (strict one-at-a-time `nextUpload`, FIFO vs `queue_position`,
       eligibility gating, prioritize + reorder — 8 tests), and the failure-choice engine is covered
