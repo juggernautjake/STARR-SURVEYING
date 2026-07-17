@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  needsFailureDecision, failureChoices, resolveFailureChoice,
+  needsFailureDecision, failureChoices, resolveFailureChoice, ALL_FAILURE_CHOICES,
   type FailureChoice,
 } from '../../mobile/lib/uploadFailureChoices';
 import type { PendingUploadRow } from '../../mobile/lib/queueOrder';
@@ -58,8 +58,12 @@ describe('resolveFailureChoice', () => {
     expect(r.kickDrain).toBe(false);
   });
   it('no choice ever deletes the local file (data is never silently lost)', () => {
-    const choices: FailureChoice[] = ['save_local_forget', 'retry_now', 'wait_reception'];
-    for (const c of choices) expect(resolveFailureChoice(row(), c, NOW).deleteLocalFile).toBe(false);
+    // Iterate the CANONICAL choice set, not a hardcoded list — so a future choice is covered by this
+    // safety sweep automatically (the union derives from ALL_FAILURE_CHOICES, they can't drift apart).
+    expect(ALL_FAILURE_CHOICES.length).toBeGreaterThanOrEqual(3);
+    for (const c of ALL_FAILURE_CHOICES) expect(resolveFailureChoice(row(), c, NOW).deleteLocalFile).toBe(false);
+    // The presentation list offers exactly the canonical choices (no choice is unreachable from the UI).
+    expect([...failureChoices(row()).map((o) => o.choice)].sort()).toEqual([...ALL_FAILURE_CHOICES].sort());
   });
   it('a resolved retry becomes eligible again under the queue engine', () => {
     // Cross-check with queueOrder: after retry-now the mutated row is no longer maxed-out/backing-off.

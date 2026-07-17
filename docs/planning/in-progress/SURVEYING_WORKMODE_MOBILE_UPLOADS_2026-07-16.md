@@ -246,7 +246,14 @@ is a pure, tested function; the runtime is pure I/O around them.)*
       → a deterministic row-mutation descriptor. **(a)** save-local-forget drops the queue row but KEEPS
       the local file (the gap: `discardUpload` deletes it — the opposite of what the surveyor asked);
       **(b)** retry-now clears the failure + kicks a drain; **(c)** wait-reception re-queues gated on
-      Wi-Fi. No choice ever deletes the captured bytes. `upload-failure-choices.test.ts` (13). **Remaining
+      Wi-Fi. No choice ever deletes the captured bytes. `upload-failure-choices.test.ts` (13). **"No choice
+      deletes the file" made exhaustive-by-construction (2026-07-17):** the safety sweep proving this
+      iterated a HARDCODED choice list, so a future 4th choice could silently escape it. Flipped the module
+      so `FailureChoice` DERIVES from a canonical `ALL_FAILURE_CHOICES` array (single source of truth — the
+      union and the array can't drift), and the sweep now iterates that array + asserts the presentation
+      list offers exactly the canonical set. Adding a choice forces a `resolveFailureChoice` switch case (TS
+      exhaustiveness) AND auto-extends the data-loss guard. `upload-failure-choices.test.ts` (no behavior
+      change; the invariant is now future-proof). **Remaining
       (mobile-runtime, device-tested):** wire the choice UI onto the failed-upload row in the queue screen
       + the failure notification action, and add a `saveLocalAndForget(db, id)` that applies the
       `removeRow`/keep-file descriptor (a thin sibling of the existing `discardUpload`). **Delete-after-upload

@@ -12,7 +12,12 @@
 // can't accidentally delete work the user asked to keep.
 import type { PendingUploadRow } from './queueOrder';
 
-export type FailureChoice = 'save_local_forget' | 'retry_now' | 'wait_reception';
+/** The canonical set of failure choices — the SINGLE source of truth. `FailureChoice` is derived from it,
+ *  so the union and this array can never drift; anything iterating "every choice" (e.g. the safety sweep
+ *  that proves no choice deletes the captured file) reads this and is exhaustive by construction. Adding a
+ *  choice here forces a `resolveFailureChoice` switch case (TS exhaustiveness) AND extends that sweep. */
+export const ALL_FAILURE_CHOICES = ['save_local_forget', 'retry_now', 'wait_reception'] as const;
+export type FailureChoice = (typeof ALL_FAILURE_CHOICES)[number];
 
 export interface FailureChoiceOption {
   choice: FailureChoice;
