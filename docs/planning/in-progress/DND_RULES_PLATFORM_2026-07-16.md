@@ -538,6 +538,12 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       trained skill+Lore / skill feat). Backgrounds were consequential level-1 data that lived only in
       the builder before; now a player or the AI can browse them. System-scoped (no 5e leak);
       `library.test.ts` +1 (Acolyte → Religion; absent from 5e pages).
+      **Plus (6b follow-up) per-class subclass options** — each of the 14 classes now carries its
+      Remaster subclass line-up as structured `subclassOptions` (instincts, muses, causes, doctrines,
+      orders, mysteries, hunter's edges, rackets, bloodlines, patrons, theses, research fields; Fighter
+      and Monk empty by design — no formal subclass). The PF2 builder drives its subclass field from a
+      per-class `<datalist>` (real options as suggestions, freeform kept as the custom escape hatch).
+      `pathfinder2e-builder.test.ts` +1.
 - [x] **Intuitive Games ✅** — closed the gap found 2026-07-16 (its content lived only in the builder
       module, not the searchable glossary). Authored `lib/dnd/glossary/intuitive-games.ts` (26 articles)
       from the engine's own numbers (igProficiency = level, igDegreeOfSuccess, igSaveTotal, igMaxHp) and
