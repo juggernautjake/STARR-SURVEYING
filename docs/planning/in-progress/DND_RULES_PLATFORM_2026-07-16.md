@@ -465,6 +465,12 @@ One system per slice — depth-first, verified against sources. In priority orde
       per-part `roundUp`; Paladin/Ranger (no flag) still round down. Latent today (multiclass slot-merging
       isn't wired to the sheet yet) but the utility + its test enshrined the wrong rule; now RAW-correct.
       `class-engine.test.ts` +2 (ceil at odd levels; the Artificer def carries the flag, Ranger doesn't).
+      **Slot tables pinned cell-by-cell against RAW (2026-07-17):** `FULL_CASTER_SLOTS` + `HALF_CASTER_SLOTS`
+      (`slots.ts`) drive EVERY 5e caster (2014 + 2024). The existing tests guarded rank ARRIVAL levels + the
+      L20 corner, but not the intermediate COUNTS — a typo like L11's rank-1 "3" instead of "4" would slip.
+      Verified all 20 rows of both tables against the PHB and added a golden-reference guard for every cell
+      (ranks 1–9 full; 1–5 half + "no rank 6+"), so a change to these shared tables must be intentional.
+      Both matched RAW exactly (no bug — locks the data). `class-engine.test.ts` +2.
       **2026-07-16 — ALL 12 PHB CLASSES SHIPPED ✅** (`lib/dnd/classes/dnd5e-2014/`): Barbarian, Bard,
       Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock, Wizard — each L1–20 with
       every PHB subclass, all edition-differences vs 2024 locked by `dnd5e-2014-classes.test.ts` (71
