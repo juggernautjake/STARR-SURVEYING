@@ -60,7 +60,10 @@ Issue) render only titles; the `JobPicker` is a placeholder input.
 - [x] **B3 — Calculator + notes in the hub. ✅ SHIPPED** (`6753e732`). A 🧮 Calc tab (button-driven, on a
       new SAFE arithmetic evaluator `lib/jobs/calc.ts` — tokenize→shunting-yard→RPN, never eval; 6 tests)
       and a 📝 Notes tab (per-job field notes auto-saved to localStorage, keyed by job). **DB-persistence
-      of notes for review-by-others is a follow-up** (local-per-device today).
+      of notes for review-by-others is a follow-up** (local-per-device today). **Calc correctness fix**
+      (`c3b10367`): `3*-(2)` gave -2 not -6 — unary minus before a `(` was modelled as `0 - …`, which a
+      preceding `*`/`/` bound wrongly; replaced with a proper right-associative unary-minus operator. Tests
+      hardened 6 → 14 (unary in every position, malformed input, nested precedence).
 - [~] **B4 — Quick capture with notes.** ✅ *Review side shipped* (`5f18f4eb`): the hub's Photo tab
       (`JobMedia`) shows the job's captured `field_media` (signed thumbnails/originals) as a read-only
       gallery. **Deferred — web capture-to-`field_media` upload:** there is no web storage-upload path for
