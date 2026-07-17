@@ -39,6 +39,7 @@ describe('library pages', () => {
     expect(titles('pathfinder2e')).toContain('Backgrounds'); // PF2-only section
     expect(titles('pathfinder2e')).toContain('Armor');
     expect(titles('pathfinder2e')).toContain('Weapons');
+    expect(titles('pathfinder2e')).toContain('Spells');
     expect(titles('dnd5e-2024')).toContain('Classes');
     // Backgrounds/Armor/Weapons are PF2-only library sections today — they must NOT leak into 5e pages.
     expect(titles('dnd5e-2024')).not.toContain('Backgrounds');
@@ -127,6 +128,18 @@ describe('searchLibrary', () => {
     expect(searchLibrary('thief', 'pathfinder2e').some((h) => h.kind === 'subclass' && /Rogue/.test(h.body))).toBe(true);
     // System-scoped: a PF2 bloodline name yields no subclass hit under a 5e system.
     expect(searchLibrary('draconic', 'dnd5e-2024').some((h) => h.kind === 'subclass')).toBe(false);
+  });
+
+  it('surfaces PF2 spells by name with rank + tradition, system-scoped', () => {
+    const fireball = searchLibrary('fireball', 'pathfinder2e').find((h) => h.kind === 'spell');
+    expect(fireball).toBeTruthy();
+    expect(fireball!.body).toMatch(/rank 3/);
+    expect(fireball!.body).toMatch(/arcane/);
+    // A cantrip reads as such.
+    const shield = searchLibrary('shield', 'pathfinder2e').find((h) => h.kind === 'spell');
+    expect(shield!.body).toMatch(/cantrip/);
+    // PF2-only in the library — searching a 5e system for a PF2 spell name yields no PF2 spell hit here.
+    expect(searchLibrary('force barrage', 'dnd5e-2024').some((h) => h.kind === 'spell')).toBe(false);
   });
 
   it('surfaces PF2 armor and weapons by name, system-scoped', () => {

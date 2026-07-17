@@ -339,6 +339,52 @@ export const PF2_WEAPONS: PF2WeaponDef[] = [
   { name: 'Longbow', category: 'martial', damageDie: '1d8', damageType: 'P', traits: ['deadly d10', 'volley 30 ft'], group: 'Bow', hands: 2, range: 100 },
 ];
 
+// ── Spells (Player Core, Remaster) — a REPRESENTATIVE reference sample (cantrips + iconic spells across
+//    ranks/traditions), not the full list. Rank 0 = cantrip. `traditions` are the magic traditions that
+//    have the spell. Used by the library so a player/AI can look up a PF2 spell's rank/tradition/effect. ─
+export interface PF2SpellDef {
+  name: string;
+  /** Spell rank 0–10 (0 = cantrip). */
+  rank: number;
+  traditions: PF2Tradition[];
+  /** Action cost, e.g. "2 actions", "1 to 3 actions", "1 minute". */
+  cast: string;
+  /** A concise, factual effect summary. */
+  effect: string;
+}
+export const PF2_SPELLS: PF2SpellDef[] = [
+  // Cantrips (rank 0)
+  { name: 'Detect Magic', rank: 0, traditions: ['arcane', 'divine', 'occult', 'primal'], cast: '2 actions', effect: 'Sense whether magic is active nearby (not its exact location or school).' },
+  { name: 'Shield', rank: 0, traditions: ['arcane', 'occult'], cast: '1 action', effect: 'A force shield gives +1 circumstance AC; you can Shield Block with it, then it needs to recharge.' },
+  { name: 'Light', rank: 0, traditions: ['arcane', 'divine', 'occult', 'primal'], cast: '2 actions', effect: 'An object sheds bright light in a 20-foot radius.' },
+  { name: 'Guidance', rank: 0, traditions: ['divine', 'occult', 'primal'], cast: '1 action', effect: '+1 status bonus to one attack, save, or skill check before your next turn (once/target/hour).' },
+  { name: 'Stabilize', rank: 0, traditions: ['divine'], cast: '2 actions', effect: 'A dying creature within 30 ft stops dying (loses the dying condition, still unconscious at 0 HP).' },
+  { name: 'Electric Arc', rank: 0, traditions: ['arcane', 'primal'], cast: '2 actions', effect: 'Arc of electricity vs one or two creatures; basic Reflex save for electricity damage (scales with level).' },
+  { name: 'Telekinetic Projectile', rank: 0, traditions: ['arcane', 'occult'], cast: '2 actions', effect: 'Hurl a nearby object; spell attack roll for bludgeoning/piercing/slashing damage.' },
+  { name: 'Prestidigitation', rank: 0, traditions: ['arcane', 'divine', 'occult', 'primal'], cast: '2 actions', effect: 'A minor magical trick: cook, lift, make, or tidy a small object.' },
+  // Rank 1
+  { name: 'Heal', rank: 1, traditions: ['divine', 'primal'], cast: '1 to 3 actions', effect: 'Restore Hit Points to the living (or damage undead). Range/targets scale with the action cost.' },
+  { name: 'Harm', rank: 1, traditions: ['divine'], cast: '1 to 3 actions', effect: 'Void energy damages the living (basic Fortitude) or heals undead. Action cost sets range/area.' },
+  { name: 'Bless', rank: 1, traditions: ['divine', 'occult'], cast: '2 actions', effect: 'A 15-ft aura grants allies +1 status to attack rolls; the aura can grow each turn.' },
+  { name: 'Force Barrage', rank: 1, traditions: ['arcane', 'occult'], cast: '1 to 3 actions', effect: 'Unerring darts of force, 1d4+1 each; more actions = more darts (formerly Magic Missile).' },
+  { name: 'Fear', rank: 1, traditions: ['arcane', 'divine', 'occult', 'primal'], cast: '2 actions', effect: 'Will save; the target becomes Frightened (fleeing on a critical failure).' },
+  { name: 'Grease', rank: 1, traditions: ['arcane', 'primal'], cast: '2 actions', effect: 'Coat a surface or object; creatures Reflex-save or fall Prone / drop the item.' },
+  { name: 'Mystic Armor', rank: 1, traditions: ['arcane', 'divine', 'occult', 'primal'], cast: '2 actions', effect: '+1 item bonus to AC (higher when heightened) for a day (formerly Mage Armor).' },
+  // Rank 2
+  { name: 'Invisibility', rank: 2, traditions: ['arcane', 'occult'], cast: '2 actions', effect: 'The target is invisible for 10 minutes or until it uses a hostile action.' },
+  { name: 'Mirror Image', rank: 2, traditions: ['arcane', 'occult'], cast: '2 actions', effect: 'Illusory duplicates of you; attacks may strike an image instead, destroying it.' },
+  { name: 'Resist Energy', rank: 2, traditions: ['arcane', 'divine', 'primal'], cast: '2 actions', effect: 'Grant resistance to acid, cold, electricity, fire, or sonic damage.' },
+  // Rank 3
+  { name: 'Fireball', rank: 3, traditions: ['arcane', 'primal'], cast: '2 actions', effect: '6d6 fire damage in a 20-ft burst; basic Reflex save.' },
+  { name: 'Haste', rank: 3, traditions: ['arcane', 'occult', 'primal'], cast: '2 actions', effect: 'The target gains an extra action each turn (Stride or Strike only).' },
+  { name: 'Slow', rank: 3, traditions: ['arcane', 'occult', 'primal'], cast: '2 actions', effect: 'Fortitude save; the target is Slowed 1 (or Slowed 2 on a critical failure).' },
+  { name: 'Fly', rank: 3, traditions: ['arcane', 'primal'], cast: '2 actions', effect: 'The target gains a fly Speed equal to its Speed for 5 minutes.' },
+  // Higher ranks
+  { name: 'Wall of Stone', rank: 5, traditions: ['arcane', 'primal'], cast: '3 actions', effect: 'Conjure a permanent stone wall you can shape.' },
+  { name: 'Dominate', rank: 6, traditions: ['arcane', 'divine', 'occult'], cast: '2 actions', effect: 'Will save; you control the target’s actions (weaker control on a success).' },
+  { name: 'Teleport', rank: 6, traditions: ['arcane', 'occult'], cast: '10 minutes', effect: 'Transport yourself and allies a great distance to a place you know.' },
+];
+
 // ── Convenience lookups ────────────────────────────────────────────────────────────────────────────
 export const pf2Class = (name: string) => PF2_CLASSES.find(c => c.name.toLowerCase() === name.toLowerCase()) || null;
 export const pf2Ancestry = (name: string) => PF2_ANCESTRIES.find(a => a.name.toLowerCase() === name.toLowerCase()) || null;
@@ -346,3 +392,4 @@ export const pf2Background = (name: string) => PF2_BACKGROUNDS.find(b => b.name.
 export const pf2Skill = (name: string) => PF2_SKILLS.find(s => s.name.toLowerCase() === name.toLowerCase()) || null;
 export const pf2Armor = (name: string) => PF2_ARMORS.find(a => a.name.toLowerCase() === name.toLowerCase()) || null;
 export const pf2Weapon = (name: string) => PF2_WEAPONS.find(w => w.name.toLowerCase() === name.toLowerCase()) || null;
+export const pf2Spell = (name: string) => PF2_SPELLS.find(s => s.name.toLowerCase() === name.toLowerCase()) || null;

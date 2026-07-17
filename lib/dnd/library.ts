@@ -10,7 +10,7 @@ import { rulesForSystem, type SystemRules } from './system-rules';
 import { glossaryFor, searchGlossary } from './glossary';
 import { classesForSystem } from './classes/registry';
 import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
-import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef } from './systems/pathfinder2e/content';
+import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
 
 /** The full feat registry for a system, or [] when only a catalog sample exists. System-keyed
  *  dispatcher (the pattern `findFeat`'s comment calls for) so a feat never leaks across systems. */
@@ -32,7 +32,11 @@ function armorsForSystem(system: string): PF2ArmorDef[] {
 function weaponsForSystem(system: string): PF2WeaponDef[] {
   return system === 'pathfinder2e' ? PF2_WEAPONS : [];
 }
+function spellsForSystem(system: string): PF2SpellDef[] {
+  return system === 'pathfinder2e' ? PF2_SPELLS : [];
+}
 const DMG_TYPE: Record<string, string> = { B: 'bludgeoning', P: 'piercing', S: 'slashing' };
+const pf2RankLabel = (r: number) => (r === 0 ? 'cantrip' : `rank ${r}`);
 
 /** The concrete subclass CHOICES per class (PF2 only): every Bloodline, Racket, Instinct, Doctrine, …
  *  as a searchable entry tied to its class + mechanism, so "draconic" or "thief racket" resolves. The
@@ -247,6 +251,19 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
     });
   }
 
+  const spells = spellsForSystem(key);
+  if (spells.length) {
+    sections.push({
+      id: 'spells',
+      title: 'Spells',
+      lead: `${spells.length} spells — a representative sample (rank, traditions, effect), not the full list.`,
+      table: {
+        headers: ['Spell', 'Rank', 'Traditions', 'Cast', 'Effect'],
+        rows: spells.map((s) => [s.name, pf2RankLabel(s.rank), s.traditions.join(', '), s.cast, s.effect]),
+      },
+    });
+  }
+
   if (r.content.conditions.length) {
     sections.push({ id: 'conditions', title: 'Conditions', lead: `${r.content.conditions.length} standardized states.`, chips: r.content.conditions });
   }
@@ -376,6 +393,9 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
     }
     for (const s of pf2SubclassOptions(key)) {
       push('subclass', s.name, `${s.name} — a ${s.className} ${s.mechanism} option in ${r.label}.`);
+    }
+    for (const sp of spellsForSystem(key)) {
+      push('spell', sp.name, `${sp.name} — ${pf2RankLabel(sp.rank)}, ${sp.traditions.join('/')}; ${sp.cast}. ${sp.effect}`);
     }
   }
 
