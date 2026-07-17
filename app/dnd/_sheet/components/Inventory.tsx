@@ -144,7 +144,9 @@ export default function Inventory() {
         const effStr = Math.round(ledger.value('ability_str', char.abilities.str))
         const size = ledger.identity('size')?.value ?? 'Medium'
         const carried = char.inventory.reduce((s, it) => s + (it.weight ?? 0) * Math.max(0, it.qty), 0)
-        const cap = carryingCapacity(effStr, size)
+        // Fold a dedicated `carrying_capacity` effect on top of the STR×15×size base (STR items + size
+        // already flow through effStr/size). No-op without one — makes that registered target actually work.
+        const cap = carryingCapacity(effStr, size) + ledger.value('carrying_capacity', 0)
         const enc = encumbranceLevel(carried, effStr, size)
         const tone = enc === 'over' ? 'var(--danger)' : enc === 'heavily' ? 'var(--gold)' : enc === 'encumbered' ? 'var(--gold)' : 'var(--muted)'
         return (

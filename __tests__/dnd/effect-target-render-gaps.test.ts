@@ -24,6 +24,7 @@ const REGISTERED_BUT_UNRENDERED: Record<string, string> = {
   bonus_action_count: 'no action-economy tracker on the sheet to show bonus actions/turn',
   attacks_per_action: 'the Attacks table shows individual attacks, not an Extra-Attack multiplier from an effect',
   concentration_save: 'concentration is a manual tracker (ConditionTracker) with no concentration-save ROLL to fold a bonus into',
+  hit_dice: 'the hit-dice pool is a STORED value used across longRest/spendHitDie; folding a hit_dice effect needs threading the effective pool through those, deferred',
 };
 
 // Every place a component/store could actually READ a target (fold it into a number or list it).
@@ -71,5 +72,10 @@ describe('registered-but-unrendered effect targets are tracked, not silently los
     // rollDeathSave now reads ledger.value('death_save', …), so a death-save bonus effect applies.
     expect(isRead('death_save')).toBe(true);
     expect(REGISTERED_BUT_UNRENDERED).not.toHaveProperty('death_save');
+  });
+
+  it('carrying_capacity is now folded into the Inventory carrying line', () => {
+    expect(isRead('carrying_capacity')).toBe(true);
+    expect(REGISTERED_BUT_UNRENDERED).not.toHaveProperty('carrying_capacity');
   });
 });
