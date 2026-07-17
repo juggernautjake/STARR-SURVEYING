@@ -41,4 +41,20 @@ describe('map studio: _genericPlanetCfg translates editor field names to the mod
       expect(cfg, `rich field "${field}" missing from the pass-through list`).toContain(`'${field}'`);
     }
   });
+
+  it('forwards city / lava / lightColor to the model, and the model consumes them (Slice 29)', () => {
+    // The doc's finding: these ARE forwarded + consumed — they read as "missing" only because they're
+    // self-lit and glow on the NIGHT side while the preview sun leaves almost no terminator (a separate,
+    // deferred visual concern). Lock the PLUMBING so a future edit can't silently drop it and recreate the
+    // "slider does nothing" bug for lava/city/light colour the way clouds and water once were.
+    expect(cfg).toMatch(/const lava\s*=\s*num\(L\.lava/);
+    expect(cfg).toMatch(/city\s*=\s*L\.city\s*!=\s*null/);
+    expect(cfg).toMatch(/lightColor\s*=\s*L\.lightColor/);
+    expect(cfg).toMatch(/lava,\s*city,\s*lightColor/); // carried onto the assembled config for planet + moon
+
+    const MODEL = fs.readFileSync(path.join(process.cwd(), 'public/dnd/maps/planet3d-model.js'), 'utf8');
+    expect(MODEL).toMatch(/cfg\.lava/);
+    expect(MODEL).toMatch(/cfg\.city/);
+    expect(MODEL).toMatch(/cfg\.lightColor/);
+  });
 });

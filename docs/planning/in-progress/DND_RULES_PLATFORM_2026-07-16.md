@@ -1892,9 +1892,16 @@ this is the remaining half.
       of the viewer with halos fully visible (2D 78.0%, 3D 1/1.28 = 78.1%; the constants
       cross-reference each other). **Guarded** (`map-viewer-handles.test.ts`): a test asserts both the 2D
       `.pv2d{width:78%}` and the 3D `1/1.28` constant are present, so one can't drift without the other.
-- [ ] **City lights and lava are invisible in the 3D preview — but they are NOT missing.** Checked
+- [~] **City lights and lava are invisible in the 3D preview — but they are NOT missing.** Checked
       rather than assumed: `_genericPlanetCfg` forwards `city`/`lava`/`lightColor`, and
       `planet3d-model.js` consumes all three (`cfg.city` at :244, `cfg.lava` at :86/:147/:194).
+      **Plumbing now GUARDED (2026-07-17):** `map-studio-config.test.ts` +1 asserts `_genericPlanetCfg`
+      forwards `lava`/`city`/`lightColor` onto the assembled config AND that `planet3d-model.js` reads
+      `cfg.lava`/`cfg.city`/`cfg.lightColor`, so a future edit can't silently drop them and recreate the
+      clouds/water "slider does nothing" bug for these controls. **Still deferred (visual, device-verified):**
+      the sun/terminator angle so the night-side glow is actually visible in the preview — the doc's own
+      note warns not to eyeball the sun vector without first reading the shader's light convention, and the
+      day/night-mask agreement between 2D and 3D is a rendering decision that needs eyes on the preview.
       They are **self-lit and only glow on the NIGHT side** — and the editor's sun sits nearly
       behind the camera (`SUN = (3,2,4)`), so the planet renders almost fully lit and there is no
       night side to see them on. 2D draws city dots across the whole disc with no day/night mask,
