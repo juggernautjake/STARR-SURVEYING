@@ -25,6 +25,15 @@ const HIT_DICE: Record<string, number> = {
   Sorcerer: 6, Wizard: 6,
 };
 
+// The RAW pair of saving-throw proficiencies per class (identical in 2014/2024). The generic "exactly 2
+// saves" check wouldn't catch a wrong PAIR (e.g. Barbarian's STR/CON typo'd to STR/DEX), yet these decide
+// every save the class is proficient in. Pinned order-independently.
+const SAVES: Record<string, string[]> = {
+  Barbarian: ['con', 'str'], Bard: ['cha', 'dex'], Cleric: ['cha', 'wis'], Druid: ['int', 'wis'],
+  Fighter: ['con', 'str'], Monk: ['dex', 'str'], Paladin: ['cha', 'wis'], Ranger: ['dex', 'str'],
+  Rogue: ['dex', 'int'], Sorcerer: ['cha', 'con'], Warlock: ['cha', 'wis'], Wizard: ['int', 'wis'],
+};
+
 describe('the 2024 class roster', () => {
   it('registers all 12 PHB classes', () => {
     expect(CLASSES.map((c) => c.name).sort()).toEqual([...EXPECTED].sort());
@@ -57,7 +66,7 @@ describe.each(CLASSES.map((c) => [c.name, c] as const))('%s', (_name, def) => {
   it('belongs to dnd5e-2024 and has the RAW hit die, 2 saves and a description', () => {
     expect(def.system).toBe(SYS);
     expect(def.hitDie, `${def.name} hit die`).toBe(HIT_DICE[def.name]); // the CORRECT die, not just a valid one
-    expect(def.savingThrows.length).toBe(2);
+    expect([...def.savingThrows].sort(), `${def.name} save proficiencies`).toEqual(SAVES[def.name]); // the CORRECT pair
     expect(def.description.trim().length).toBeGreaterThan(20);
   });
 

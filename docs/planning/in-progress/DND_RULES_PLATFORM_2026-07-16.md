@@ -489,6 +489,12 @@ One system per slice — depth-first, verified against sources. In priority orde
       its correct value (Barbarian 12; Fighter/Paladin/Ranger 10; Sorcerer/Wizard 6; rest 8) — all correct.
       `dnd5e-2024-classes.test.ts` / `dnd5e-2014-classes.test.ts` (the per-class hit-die assertion tightened
       from "a valid die" to "the RAW die").
+      **Per-class SAVE proficiencies pinned too (2026-07-17):** same shape of hole — the tests checked
+      "exactly 2 saves" but not WHICH two, so a wrong pair (Barbarian STR/CON → STR/DEX) would pass while
+      breaking every save the class rolls with proficiency. Verified all 25 defs against RAW and pinned each
+      pair order-independently (Barb STR/CON, Bard DEX/CHA, Cleric WIS/CHA, Druid INT/WIS, Fighter STR/CON,
+      Monk STR/DEX, Paladin WIS/CHA, Ranger STR/DEX, Rogue DEX/INT, Sorc CON/CHA, Warlock WIS/CHA, Wizard
+      INT/WIS, Artificer CON/INT) — all correct.
       **2026-07-16 — ALL 12 PHB CLASSES SHIPPED ✅** (`lib/dnd/classes/dnd5e-2014/`): Barbarian, Bard,
       Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock, Wizard — each L1–20 with
       every PHB subclass, all edition-differences vs 2024 locked by `dnd5e-2014-classes.test.ts` (71

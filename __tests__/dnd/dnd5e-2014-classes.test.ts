@@ -25,6 +25,15 @@ const HIT_DICE: Record<string, number> = {
   Sorcerer: 6, Wizard: 6,
 };
 
+// RAW saving-throw proficiency pair per class (+ Artificer CON/INT). "Exactly 2 saves" wouldn't catch a
+// wrong pair, yet these decide every save the class is proficient in. Pinned order-independently.
+const SAVES: Record<string, string[]> = {
+  Barbarian: ['con', 'str'], Bard: ['cha', 'dex'], Cleric: ['cha', 'wis'], Druid: ['int', 'wis'],
+  Fighter: ['con', 'str'], Monk: ['dex', 'str'], Paladin: ['cha', 'wis'], Ranger: ['dex', 'str'],
+  Rogue: ['dex', 'int'], Sorcerer: ['cha', 'con'], Warlock: ['cha', 'wis'], Wizard: ['int', 'wis'],
+  Artificer: ['con', 'int'],
+};
+
 describe('the 2014 class roster (authored class-by-class)', () => {
   it('registers all 12 PHB classes plus the Artificer, and the system reports it has class data', () => {
     for (const name of ALL_12) expect(CLASSES.map((c) => c.name)).toContain(name);
@@ -78,7 +87,7 @@ describe.each(CLASSES.map((c) => [c.name, c] as const))('%s (2014)', (_name, def
   it('belongs to dnd5e-2014 with the RAW hit die, exactly two saves, and a subclass choice', () => {
     expect(def.system).toBe(SYS);
     expect(def.hitDie, `${def.name} hit die`).toBe(HIT_DICE[def.name]); // the CORRECT die, not just a valid one
-    expect(def.savingThrows).toHaveLength(2);
+    expect([...def.savingThrows].sort(), `${def.name} save proficiencies`).toEqual(SAVES[def.name]); // the CORRECT pair
     // A feature marks the subclass choice at the class's subclassLevel (3 for most; 1 for Sorcerer).
     expect(def.features.some((f) => f.choice === 'subclass' && f.level === def.subclassLevel)).toBe(true);
   });
