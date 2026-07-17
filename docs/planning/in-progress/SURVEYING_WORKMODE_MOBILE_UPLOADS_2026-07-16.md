@@ -77,9 +77,11 @@ it, plus surfacing controls.
 
 **Gaps (map each to the user's explicit asks):**
 
-- [ ] **C1 — Strictly sequential, one-at-a-time uploads.** Ensure the queue uploads exactly ONE file at a
-      time and only starts the next when the current is fully committed to cloud storage + DB row
-      confirmed (the user was explicit). Verify/enforce a single in-flight slot in `processQueue()`.
+- [~] **C1 — Strictly sequential, one-at-a-time uploads.** ✅ *Pure engine shipped* (`b7b722e7`):
+      `mobile/lib/queueOrder.ts` `nextUpload()` returns exactly ONE front-of-queue eligible row (8 tests).
+      `processQueue()` already loops sequentially (`await tryOne` per row). **Remaining:** switch
+      `processQueue` to drain via `nextUpload` in a loop (re-query after each confirmed DB write) so
+      pause/priority take effect — a mobile-runtime change to device-test.
 - [ ] **C2 — Background continuation while using other apps/features.** Uploads must continue while the
       worker uses the rest of the hub/app or leaves the app. Use Expo background upload/task facilities
       (`expo-task-manager` / `expo-background-fetch` or resumable uploads) so a backgrounded/again-
@@ -88,10 +90,11 @@ it, plus surfacing controls.
 - [ ] **C3 — A visible queue + status screen.** Extend `mobile/app/(tabs)/me/uploads.tsx` into a real
       queue view: each item shows name, size, target job, and state (uploading %, queued, wifi-waiting,
       failed, done). The user wants to check status + see queued files at any time.
-- [ ] **C4 — Manual queue control: pause, prioritize, reorder.** Let the user pause the active upload,
-      pick a specific file to upload first (jump the queue), and drag-reorder the pending list. Back this
-      with an explicit `queue_position` / priority column on `pending_uploads` and a stable ordering in
-      `processQueue()`.
+- [~] **C4 — Manual queue control: pause, prioritize, reorder.** ✅ *Pure logic shipped* (`b7b722e7`):
+      `isEligible` honors a `paused` flag; `orderedQueue` sorts by `queue_position` (FIFO fallback);
+      `prioritizePosition` ("upload this first") + `reorderPositions` (drag-reorder). **Remaining:** add
+      the `paused` + `queue_position` columns to the `pending_uploads` local schema and the queue-screen
+      buttons that write them — mobile-runtime, device-tested.
 - [ ] **C5 — Failure choices per the user's flow.** On a failed upload, notify, and offer three actions:
       **(a)** save the media locally and forget it (drop from queue, keep the local file), **(b)** retry
       immediately, **(c)** wait and auto-retry in the background when reception improves (the default —
