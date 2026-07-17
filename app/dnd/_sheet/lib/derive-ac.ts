@@ -19,7 +19,11 @@ function acEffectBonus(items: InvItem[]): { bonus: number; sources: string[] } {
   let bonus = 0
   const sources: string[] = []
   for (const it of items) {
-    if (!(it.equipped || it.attuned)) continue
+    // Active while equipped or attuned (the ItemBuilder's own "effects while equipped/attuned" rule).
+    // NB: honor the `equipped` TAG too, not just the flag — the ledger's isEquipped does, so an item
+    // equipped via tag was getting its STR bonus but not its AC bonus. (Whether attunement ALONE should
+    // activate effects is a separate, contested question — the ledger uses equipped-only; left as-is.)
+    if (!(it.equipped || it.tags?.includes('equipped') || it.attuned)) continue
     for (const e of it.effects ?? []) {
       if (e.target === 'ac' && e.operation === 'add' && typeof e.value === 'number') {
         bonus += e.value

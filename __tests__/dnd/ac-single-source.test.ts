@@ -43,3 +43,21 @@ describe('the derived value both surfaces now show', () => {
     expect(r.fromEquipment).toBe(false);
   });
 });
+
+describe('AC effects honor the equipped TAG, not just the flag', () => {
+  const ring = (over: Partial<InvItem>): InvItem => ({
+    id: 'r', name: 'Ring of Protection', desc: '', qty: 1, kind: 'magic_item', tags: [],
+    effects: [{ target: 'ac', operation: 'add', value: 1 }], ...over,
+  } as unknown as InvItem);
+
+  it('a TAG-equipped item adds AC (the flag-only check used to miss it, so its AC lagged its STR)', () => {
+    const r = deriveAc([ring({ tags: ['equipped'] })], 2, 12);
+    expect(r.ac).toBe(13); // +1 — now consistent with how the ledger reads the equipped tag
+  });
+  it('a normally worn item still adds AC', () => {
+    expect(deriveAc([ring({ equipped: true })], 2, 12).ac).toBe(13);
+  });
+  it('a fully unworn, unattuned item adds nothing', () => {
+    expect(deriveAc([ring({ equipped: false, attuned: false })], 2, 12).ac).toBe(12);
+  });
+});
