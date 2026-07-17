@@ -2612,6 +2612,14 @@ removed from the deferred list. So the contract and the code can no longer quiet
   dice-engine work — each needs the damage roller to rewrite individual dice, not just a threshold — so
   they stay deferred. `alignment`, `condition_advantage`, and now `crit_range` were the clean ones — all
   shipped.
+- **Death-save state transition extracted + guarded (2026-07-17).** `rollDeathSave` derived the outcome
+  TWICE inline — once for the roll-log label, once for the success/failure counts — two copies of the same
+  nat-20/nat-1/≥10/cap-3 branches, free to drift (and the life-or-death rule was otherwise untested; only a
+  long-rest reset touched it). Extracted the pure `applyDeathSave(state, natural, total)` (`_sheet/lib/death-save.ts`,
+  like `derive-ac`): nat 20 → regain 1 HP + clear both tracks, nat 1 → two failures, total ≥ 10 → success
+  else failure, each capped at 3. The store now calls it for both the label and the state, so they can't
+  diverge. `death-save.test.ts` (6) pins every branch incl. the cap edge (a 2nd nat-1 at 2 failures lands on
+  3) and that the threshold reads the folded TOTAL (an exhaustion-reduced 12→8 fails). No behavior change.
 
 # Appendix B — Item type catalog
 

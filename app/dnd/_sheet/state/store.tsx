@@ -14,6 +14,7 @@ import { buildLedger, type EffectLedger } from '@/lib/dnd/effects/ledger'
 import { routeFormDamage, isFormHpLive } from '@/lib/dnd/effects/form-hp'
 import { rollD20, rollDamage, parseDice, rollDie, rollTyped, weaponSegments, parseBonusDamageSegment, type Advantage } from '../lib/dice'
 import { deriveAc, type AcResult } from '../lib/derive-ac'
+import { applyDeathSave } from '../lib/death-save'
 
 // Per-character localStorage slot. A single shared key meant every standalone sheet
 // read and wrote the SAME cached character (originally Lazzuh's); keying by id keeps
@@ -1018,24 +1019,19 @@ export function CharacterProvider({
     // actually applies — like initiative folds `initiative`. No-op when nothing grants it.
     const bonus = ledger.value('death_save', char.combat.deathSaveBonus) - 2 * exh
     const r = rollD20(bonus, 'flat')
-    let result = ''
-    if (r.natural === 20) result = 'NAT 20 — regain 1 HP!'
-    else if (r.natural === 1) result = 'NAT 1 — two failures'
-    else result = r.total >= 10 ? 'Success' : 'Failure'
-    const tag = exh > 0 ? `${result} · EXH −${2 * exh}` : result
+    // One source of truth for the outcome: the log label AND the tracked success/failure counts both come
+    // from applyDeathSave, so they can't drift (nat 20 regain+reset, nat 1 two failures, ≥10 success, cap 3).
+    const outcome = applyDeathSave(char.combat, r.natural, r.total)
+    const tag = exh > 0 ? `${outcome.label} · EXH −${2 * exh}` : outcome.label
     stage(
       { label: 'Death Save', kind: 'save', total: r.total, breakdown: r.breakdown, crit: r.natural === 20, fumble: r.natural === 1, tag },
       { landing: r.natural, min: 1, max: 20, isD20: true, crit: r.natural === 20, fumble: r.natural === 1 },
     )
     setCharState((c) => {
-      let { deathSuccess, deathFail, currentHp } = c.combat
-      if (r.natural === 20) return { ...c, combat: { ...c.combat, deathSuccess: 0, deathFail: 0, currentHp: Math.max(1, currentHp) } }
-      if (r.natural === 1) deathFail = Math.min(3, deathFail + 2)
-      else if (r.total >= 10) deathSuccess = Math.min(3, deathSuccess + 1)
-      else deathFail = Math.min(3, deathFail + 1)
-      return { ...c, combat: { ...c.combat, deathSuccess, deathFail } }
+      const next = applyDeathSave(c.combat, r.natural, r.total)
+      return { ...c, combat: { ...c.combat, deathSuccess: next.deathSuccess, deathFail: next.deathFail, currentHp: next.currentHp } }
     })
-  }, [char.combat.deathSaveBonus, char.combat.exhaustion, ledger, stage])
+  }, [char.combat, ledger, stage])
 
   const spendHitDie = useCallback(() => {
     if (char.combat.hitDiceRemaining <= 0) return
