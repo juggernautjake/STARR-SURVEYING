@@ -7,6 +7,7 @@ import ItemBuilder from './ItemBuilder'
 import ElementMenu from './ui/ElementMenu'
 import EditMark from './ui/EditMark'
 import { tagInfo } from './ui/tagInfo'
+import { totalInBase, baseCurrency, totalIn, conversionTable, fmtAmount, type Currency } from '@/lib/dnd/currency'
 
 // Kind icons for the no-art fallback token (Slice 28), matching the ItemBuilder kind labels so an
 // item without uploaded art still reads as intentional rather than a hole.
@@ -68,6 +69,21 @@ export default function Inventory() {
   function setCurrency(k: keyof typeof curLabels, v: number) {
     setChar((c) => ({ ...c, currency: { ...c.currency, [k]: Math.max(0, v) } }))
   }
+
+  // ── flexible money model (lib/dnd/currency) — used when the sheet has a `currencies` list ──
+  function patchCurrency(id: string, patch: Partial<Currency>) {
+    setChar((c) => ({ ...c, currencies: (c.currencies ?? []).map((cur) => (cur.id === id ? { ...cur, ...patch } : cur)) }))
+  }
+  function addCurrency() {
+    setChar((c) => {
+      const list = c.currencies ?? []
+      const id = `cur-${Date.now().toString(36)}-${list.length}`
+      return { ...c, currencies: [...list, { id, name: 'New Currency', abbrev: '', amount: 0, rate: 1 }] }
+    })
+  }
+  function removeCurrency(id: string) {
+    setChar((c) => ({ ...c, currencies: (c.currencies ?? []).filter((cur) => cur.id !== id) }))
+  }
   // Legacy `use` field (kept working for existing data).
   function applyUse(it: InvItem) {
     if (!it.use) return
@@ -121,26 +137,37 @@ export default function Inventory() {
       <SectionHead num="12" title="Inventory & Gear" />
       <p className="lead">A smooth boi’s kit — engineered biology first, salvaged space-tech second. Consumables roll their effect when used.</p>
 
-      <div className="currency-grid">
-        {(Object.keys(curLabels) as (keyof typeof curLabels)[]).map((k) => (
-          <div className="cur" key={k}>
-            <div className="cl">{curLabels[k]}</div>
-            {editMode ? (
-              <input
-                className="mono"
-                type="number"
-                value={char.currency[k]}
-                onChange={(e) => setCurrency(k, Number(e.target.value) || 0)}
-                style={{ width: '100%', textAlign: 'center' }}
-              />
-            ) : (
-              <div className="cv">{char.currency[k]}</div>
-            )}
-          </div>
-        ))}
-        {/* Every character can see their NeoNuggets (stream super-chat currency). */}
-        <NeoNuggetsBalance />
-      </div>
+      {Array.isArray(char.currencies) ? (
+        <CurrencyPanel
+          currencies={char.currencies}
+          editMode={editMode}
+          onAmount={(id, v) => patchCurrency(id, { amount: Math.max(0, v) })}
+          onField={patchCurrency}
+          onAdd={addCurrency}
+          onRemove={removeCurrency}
+        />
+      ) : (
+        <div className="currency-grid">
+          {(Object.keys(curLabels) as (keyof typeof curLabels)[]).map((k) => (
+            <div className="cur" key={k}>
+              <div className="cl">{curLabels[k]}</div>
+              {editMode ? (
+                <input
+                  className="mono"
+                  type="number"
+                  value={char.currency[k]}
+                  onChange={(e) => setCurrency(k, Number(e.target.value) || 0)}
+                  style={{ width: '100%', textAlign: 'center' }}
+                />
+              ) : (
+                <div className="cv">{char.currency[k]}</div>
+              )}
+            </div>
+          ))}
+          {/* Every character can see their NeoNuggets (stream super-chat currency). */}
+          <NeoNuggetsBalance />
+        </div>
+      )}
 
       <div className="card">
         {char.inventory.map((it) => (
@@ -244,6 +271,80 @@ export default function Inventory() {
         )}
       </div>
     </section>
+  )
+}
+
+/** The flexible money panel: amounts (editable), total wealth in the base currency, and the conversion
+ *  table so the player can always read "1 gp = 10 sp". In edit mode, currencies can be renamed, re-rated,
+ *  added, or removed — custom currencies (Guild Marks, Dragon Shards) live right alongside the coins. */
+function CurrencyPanel({
+  currencies, editMode, onAmount, onField, onAdd, onRemove,
+}: {
+  currencies: Currency[]
+  editMode: boolean
+  onAmount: (id: string, v: number) => void
+  onField: (id: string, patch: Partial<Currency>) => void
+  onAdd: () => void
+  onRemove: (id: string) => void
+}) {
+  const [showRates, setShowRates] = useState(false)
+  const base = baseCurrency(currencies)
+  const total = totalInBase(currencies)
+  const cell: React.CSSProperties = { fontSize: 12, padding: '3px 6px', background: 'var(--panel-2, rgba(1,10,19,0.4))', border: '1px solid var(--line)', color: 'var(--text)', borderRadius: 5 }
+
+  return (
+    <div className="currency-panel" style={{ display: 'grid', gap: 8, margin: '6px 0 14px' }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'stretch' }}>
+        {currencies.map((c) => (
+          <div className="cur" key={c.id} style={{ display: 'grid', gap: 2, textAlign: 'center', minWidth: 70 }}>
+            <div className="cl" title={editMode ? undefined : `1 ${c.name} = ${fmtAmount(c.rate)} ${base?.abbrev ?? base?.name ?? 'base'}`}>
+              {editMode ? (
+                <input value={c.name} onChange={(e) => onField(c.id, { name: e.target.value })} style={{ ...cell, width: '100%', textAlign: 'center', fontSize: 11 }} title="Currency name" />
+              ) : (c.abbrev || c.name)}
+            </div>
+            {editMode ? (
+              <input className="mono" type="number" value={c.amount} onChange={(e) => onAmount(c.id, Number(e.target.value) || 0)} style={{ ...cell, width: '100%', textAlign: 'center' }} />
+            ) : (
+              <div className="cv">{fmtAmount(c.amount)}</div>
+            )}
+            {editMode && (
+              <>
+                <input type="number" value={c.rate} min={0} onChange={(e) => onField(c.id, { rate: Math.max(0, Number(e.target.value) || 0) })} title="Value of one unit in base units (base = 1)" style={{ ...cell, width: '100%', textAlign: 'center', fontSize: 10.5 }} />
+                <button type="button" onClick={() => onRemove(c.id)} title="Remove this currency" style={{ fontSize: 10, cursor: 'pointer', color: 'var(--danger, #c6403b)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 4 }}>✕</button>
+              </>
+            )}
+          </div>
+        ))}
+        {editMode && (
+          <button type="button" onClick={onAdd} title="Add a custom currency" style={{ ...cell, cursor: 'pointer', minWidth: 44, fontSize: 18 }}>＋</button>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', fontSize: 12, color: 'var(--muted)' }}>
+        <span>Total wealth: <strong style={{ color: 'var(--gold, var(--text))' }}>{fmtAmount(total)} {base?.abbrev ?? base?.name ?? ''}</strong>
+          {base && currencies.length > 1 && <> · {fmtAmount(totalIn(currencies, currencies[currencies.length - 1]))} {currencies[currencies.length - 1].abbrev ?? currencies[currencies.length - 1].name}</>}
+        </span>
+        {currencies.length > 1 && (
+          <button type="button" onClick={() => setShowRates((s) => !s)} style={{ fontSize: 11.5, cursor: 'pointer', color: 'var(--tealbright, var(--text))', background: 'transparent', border: '1px solid var(--line)', borderRadius: 12, padding: '2px 10px' }}>
+            {showRates ? 'Hide' : 'Show'} conversion rates
+          </button>
+        )}
+      </div>
+
+      {showRates && currencies.length > 1 && (
+        <div style={{ display: 'grid', gap: 3, fontSize: 11.5, color: 'var(--muted)' }}>
+          {conversionTable(currencies).map((row) => (
+            <div key={row.from.id}>
+              <strong style={{ color: 'var(--text)' }}>1 {row.from.abbrev ?? row.from.name}</strong>
+              {' = '}
+              {row.rates.map((r, i) => (
+                <span key={r.to.id}>{i > 0 ? ' · ' : ''}{fmtAmount(r.rate)} {r.to.abbrev ?? r.to.name}</span>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

@@ -461,7 +461,13 @@ export interface Character {
    *  rather than in a global registry so a campaign's vocabulary travels with its sheets and
    *  nobody has to curate a shared list. */
   customTags?: CustomTag[]
+  /** Legacy fixed-key money (kept for existing sheets). New sheets use `currencies` below. */
   currency: { credits: number; harmonyte: number; scrip: number }
+  /** Flexible money: a list of named currencies with amounts + conversion rates (a rate = value of
+   *  one unit in BASE units; the base currency is rate 1). Optional so legacy sheets stay valid; when
+   *  present, the sheet renders this (amounts, total wealth, conversion table) instead of `currency`.
+   *  See lib/dnd/currency.ts for the math. */
+  currencies?: import('@/lib/dnd/currency').Currency[]
   bio: {
     intro: string[]
     appearance: string[]
