@@ -13,7 +13,7 @@ import styles from './hextech.module.css';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { IG_ABILITIES, IG_SAVES } from '@/lib/dnd/systems/intuitive-games/model';
 import { igAbilityMod, igDerived, igSkillTotal, igRanksSpent, igResolveAttack } from '@/lib/dnd/systems/intuitive-games/rules';
-import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_CONDITIONS, IG_ACTION_ECONOMIES, igActionsByEconomy, findIGAncestry } from '@/lib/dnd/systems/intuitive-games/content';
+import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_SPELL_ROSTER, IG_CONDITIONS, IG_ACTION_ECONOMIES, igActionsByEconomy, findIGAncestry } from '@/lib/dnd/systems/intuitive-games/content';
 import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-games/inPlay';
 import { igConditionSummary, igStanceMechanicNote } from '@/lib/dnd/systems/intuitive-games/modifiers';
 import type { IGEdit } from '@/lib/dnd/systems/intuitive-games/edit';
@@ -357,15 +357,18 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
                 </div>
               ))}
               {canDoEdit && (() => {
-                // Add a power — grouped by the roster's school/category; excludes powers already known. The
-                // route de-dupes, so a repeat pick is a harmless no-op.
+                // Add a power — offered from the FULL IG spell-list roster grouped by school, so the sheet
+                // has parity with the AI's add_power (which grounds on igAllSpellNames). Drawing only from
+                // IG_POWERS would hide roster powers whose effect text is still pending Brendan (e.g. Gate,
+                // Portal). Excludes powers already known; the route de-dupes, so a repeat pick is a no-op.
                 const have = new Set(ig.powers.map((p) => p.toLowerCase()));
-                const opts = IG_POWERS.filter((p) => !have.has(p.name.toLowerCase()));
-                const cats = Array.from(new Set(opts.map((p) => p.category)));
+                const schools = Object.entries(IG_SPELL_ROSTER)
+                  .map(([school, names]) => [school, names.filter((n) => !have.has(n.toLowerCase()))] as const)
+                  .filter(([, names]) => names.length > 0);
                 return (
                   <select aria-label="Add power" value="" disabled={editing} onChange={(ev) => { if (ev.target.value) postEdit({ op: 'add_power', name: ev.target.value }); }} style={{ fontSize: 12, background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '2px 6px', justifySelf: 'start' }}>
                     <option value="">+ add power…</option>
-                    {cats.map((c) => <optgroup key={c} label={c}>{opts.filter((p) => p.category === c).map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}</optgroup>)}
+                    {schools.map(([school, names]) => <optgroup key={school} label={school}>{names.map((n) => <option key={n} value={n}>{n}</option>)}</optgroup>)}
                   </select>
                 );
               })()}

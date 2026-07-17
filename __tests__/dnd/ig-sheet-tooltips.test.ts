@@ -63,6 +63,10 @@ describe('IGSheet shows in-play stances + conditions with tooltips', () => {
     expect(SRC).toContain("op: 'remove_power'");
     expect(SRC).toContain("op: 'add_power'");
     expect(SRC).toMatch(/\+ add power…/); // the add picker is offered to writers
+    // The picker draws from the FULL IG spell-list roster (grouped by school), so the sheet has
+    // parity with the AI's add_power — not just IG_POWERS (which omits roster powers pending effects).
+    expect(SRC).toContain('IG_SPELL_ROSTER');
+    expect(SRC).toMatch(/Object\.entries\(IG_SPELL_ROSTER\)/);
   });
 
   it('renders the ancestry traits panel with per-trait tooltips (B1)', () => {

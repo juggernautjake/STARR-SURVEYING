@@ -340,8 +340,14 @@ expanded requirements (2026-07-17):
       `igAllSpellNames()`) include them; and `IGSheet`'s Powers block gets a write-gated × on each power + an
       "+ add power…" picker grouped by school (from `IG_POWERS`, excludes powers already known). So stances,
       conditions, feats, AND powers are now all editable manually on the sheet and by the AI. `ig-edit.test.ts`
-      +1, `ig-ai.test.ts` (enum+power grounding), `ig-sheet-tooltips.test.ts` +1. **Remaining:** prerequisite
-      gating in the builder (owner-gated — needs the per-class/level feat & power ladders from Brendan).
+      +1, `ig-ai.test.ts` (enum+power grounding), `ig-sheet-tooltips.test.ts` +1. **Power picker now at
+      sheet↔AI parity (2026-07-17):** the "+ add power…" picker drew from `IG_POWERS` (only powers with
+      effect text), while the AI's `add_power` grounds on the fuller `igAllSpellNames()` roster — so the
+      sheet couldn't offer known roster powers whose effect text is still pending Brendan (Gate, Portal, …).
+      Repointed the picker at `IG_SPELL_ROSTER` grouped by school, excluding held powers, so a player can
+      add exactly what the AI can. `ig-sheet-tooltips.test.ts` asserts the roster source. **Remaining:**
+      prerequisite gating in the builder (owner-gated — needs the per-class/level feat & power ladders from
+      Brendan).
 - [~] **B4 — Conditions: display + tooltip + mechanics + edit.** Conditions the character has are clearly shown
       on the sheet; hovering shows the full rules text (from `IG_CONDITIONS`); the mechanical ones actually
       apply (e.g. Flat-Footed drops Dex to Reflex/skills; Shaken/Sickened −2; Blind disadvantage) via the
