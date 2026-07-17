@@ -12,6 +12,11 @@ op the switch didn't handle — so undoing an AI edit that defined a custom tag 
 Added the case (drop the created tag) plus a guard test that EVERY op the tool schema offers has a
 revert case, so no future op can ship an unrevertable edit. `sheet-edits.test.ts` +2.
 
+**Follow-up fix (`f0b96f5f`):** `revertSheetEdit` guarded `set_meta` on `oldValue != null`, but the
+optional identity fields (gender/pronouns/profession/alignment) start UNSET → `editOldValue` returns
+null → undoing an edit that FIRST set one left the value stranded (couldn't be cleared). Revert to '' when
+the prior was unset. `sheet-edits.test.ts` +1.
+
 Make character-sheet changes reversible: the AI (and the player) can undo a change and roll the sheet
 back to an earlier state — including undoing a whole AI request as one unit ("I asked it to make my
 character all-powerful; now put it back"). **Grounded in a survey of the live code 2026-07-16** — much of
