@@ -8,6 +8,7 @@ import ElementMenu from './ui/ElementMenu'
 import EditMark from './ui/EditMark'
 import { tagInfo } from './ui/tagInfo'
 import { totalInBase, baseCurrency, totalIn, conversionTable, fmtAmount, type Currency } from '@/lib/dnd/currency'
+import { carryingCapacity, encumbranceLevel } from '../engine/equipment'
 
 // Kind icons for the no-art fallback token (Slice 28), matching the ItemBuilder kind labels so an
 // item without uploaded art still reads as intentional rather than a hole.
@@ -30,7 +31,7 @@ function weaponDamageSummary(it: InvItem): string {
 }
 
 export default function Inventory() {
-  const { char, setChar, characterId, editMode, rollExpr, adjustHp, rollWeaponDamage, addActiveEffect, canWrite } = useChar()
+  const { char, setChar, characterId, editMode, rollExpr, adjustHp, rollWeaponDamage, addActiveEffect, canWrite, ledger } = useChar()
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
 
@@ -136,6 +137,24 @@ export default function Inventory() {
     <section id="inventory">
       <SectionHead num="12" title="Inventory & Gear" />
       <p className="lead">A smooth boi’s kit — engineered biology first, salvaged space-tech second. Consumables roll their effect when used.</p>
+
+      {(() => {
+        // Carrying capacity is STR×15 scaled by size (Slice 11). Read the ledger-effective STR + size so a
+        // Belt of Giant Strength or a size-changing effect updates the capacity live.
+        const effStr = Math.round(ledger.value('ability_str', char.abilities.str))
+        const size = ledger.identity('size')?.value ?? 'Medium'
+        const carried = char.inventory.reduce((s, it) => s + (it.weight ?? 0) * Math.max(0, it.qty), 0)
+        const cap = carryingCapacity(effStr, size)
+        const enc = encumbranceLevel(carried, effStr, size)
+        const tone = enc === 'over' ? 'var(--danger)' : enc === 'heavily' ? 'var(--gold)' : enc === 'encumbered' ? 'var(--gold)' : 'var(--muted)'
+        return (
+          <div className="mono" style={{ fontSize: 12.5, color: 'var(--muted)', margin: '2px 0 10px' }}>
+            Carrying <strong style={{ color: 'var(--ink)' }}>{carried}</strong> / {cap} lb
+            <span style={{ color: 'var(--muted)' }}> · capacity STR {effStr}×15{size && size !== 'Medium' ? ` (${size})` : ''}</span>
+            {enc !== 'none' && <span style={{ color: tone }}> · {enc === 'over' ? 'over capacity' : enc}</span>}
+          </div>
+        )
+      })()}
 
       {Array.isArray(char.currencies) ? (
         <CurrencyPanel

@@ -122,6 +122,11 @@ export default function ItemBuilder({
           <label style={lab}>Quantity</label>
           <input style={fieldStyle} type="number" min={0} value={it.qty} onChange={(e) => patch({ qty: Number(e.target.value) || 0 })} />
         </div>
+        <div style={{ width: 90 }}>
+          <label style={lab}>Weight (lb)</label>
+          <input style={fieldStyle} type="number" min={0} step="0.1" value={it.weight ?? ''} placeholder="—"
+            onChange={(e) => patch({ weight: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value) || 0) })} />
+        </div>
         <label className="flex" style={{ gap: 6, alignItems: 'center', fontSize: 13, color: 'var(--ink)' }}>
           <input type="checkbox" checked={!!it.equipped} onChange={(e) => patch({ equipped: e.target.checked })} /> Equipped
         </label>

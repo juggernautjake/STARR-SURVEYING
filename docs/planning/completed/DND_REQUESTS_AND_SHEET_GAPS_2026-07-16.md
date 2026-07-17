@@ -1,5 +1,12 @@
 # D&D — Requests Board + Character-Sheet Gaps (2026-07-16)
 
+**STATUS: COMPLETE ✅ (2026-07-16).** All four areas shipped — A (requests board: status lifecycle,
+username capture, owner-only gate closing an unauth'd-DELETE hole, sort/filter), B (all-systems
+species/ancestry traits panel), C (flexible money + custom currencies + conversion rates, manual + AI),
+D (exhaustion −5 ft/level Speed + legibility). Only A6's route-level integration test is deferred (the
+owner logic that gates it is fully unit-tested; the route needs cookie/Supabase mocks). Moved to
+`completed/`.
+
 A grounded plan for four user-requested D&D features. **Much of this already exists** (verified
 against the live code 2026-07-16) — each slice below says what's built and what's the actual gap, so we
 extend rather than duplicate. Ships slice-by-slice; typecheck + lint + test each; commit + push; annotate

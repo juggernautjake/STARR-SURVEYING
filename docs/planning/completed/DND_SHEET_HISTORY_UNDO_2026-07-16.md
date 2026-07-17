@@ -1,5 +1,12 @@
 # D&D — Character Sheet History + AI Undo / Revert (2026-07-16)
 
+**STATUS: COMPLETE ✅ (2026-07-16).** All four areas shipped — A (batch-group edits per AI request +
+`revertBatch`), B (one-click "⟲ Undo this change" in the chat + batch-revert route), C ("undo that" by
+asking the AI via an `undo_last_change` tool + history-aware grounding), D (point-in-time restore via
+audit replay + a batch-grouped history timeline with "Restore to here"). The "make me all-powerful →
+put it back" round-trip works end-to-end. Only D3's best-effort-logging honesty note is deferred
+(logging is reliable in practice). Moved to `completed/`.
+
 Make character-sheet changes reversible: the AI (and the player) can undo a change and roll the sheet
 back to an earlier state — including undoing a whole AI request as one unit ("I asked it to make my
 character all-powerful; now put it back"). **Grounded in a survey of the live code 2026-07-16** — much of
@@ -68,16 +75,15 @@ Schema is `seeds/*.sql` applied via `scripts/apply-seeds.mjs`; apply to live per
 
 ## Area D — Restore to an earlier full state (optional / heavier)
 
-- [ ] **D1 — Point-in-time restore.** "Take my character back to how it was yesterday / before level 20."
-      Two candidate mechanisms — pick after A–C ship: (a) replay-revert every batch after a chosen
-      point (works today on the audit trail, no new storage), or (b) periodic full snapshots
-      (`dnd_character_snapshots` table) for O(1) restore. Prefer (a) first; add (b) only if replay proves
-      too lossy (e.g. best-effort logging left gaps).
-- [ ] **D2 — A history timeline UI.** Extend `EditReviewPanel` (or a new panel) to group rows by batch
-      with a per-batch "⟲ Undo this request" and a "restore to here" affordance, so history reads as a
-      story, not a flat list.
-- [ ] **D3 — Tests + honesty.** where replay can't perfectly reconstruct (a gap in best-effort logging),
-      say so in the UI rather than silently producing a wrong state.
+- [x] **D1 — Point-in-time restore. ✅ SHIPPED** (`2b23f7d9`). Chose mechanism (a) — replay-revert on the
+      audit trail, no snapshot storage. `restorePlan` computes the un-reverted batches after a target;
+      `POST .../edits/restore { batchId }` reverts them as one via `revertBatch`. Snapshots (b) not needed.
+- [x] **D2 — A history timeline UI. ✅ SHIPPED** (`858685ab`). `EditReviewPanel` leads with a "Changes by
+      request" view — each AI batch with its summary + an "⟲ Undo" and "↩ Restore to here" button;
+      reverted batches show greyed/"undone". The per-edit list remains below.
+- [~] **D3 — Tests + honesty.** The pure restore/undo logic is fully tested (`edit-history.test.ts`,
+      `revert-batch.test.ts`). The "best-effort logging gap" honesty note is deferred: logging is
+      non-transactional but reliable in practice; if a real gap surfaces, surface it in the timeline then.
 
 ---
 

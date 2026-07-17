@@ -232,6 +232,10 @@ export interface InvItem {
   /** Event-triggered reactions this item carries while equipped (Slice 15) — spiked armour that hits
    *  back, a shield that frightens. Surfaced (not auto-applied) when their event fires. */
   triggers?: Trigger[]
+  /** Weight in lb per unit (Slice 11 carrying capacity). Optional — items without a weight count as 0,
+   *  so the running total only reflects gear the player actually weighed. Feeds the Inventory carrying
+   *  line together with the size-scaled `carryingCapacity`/`encumbranceLevel`. */
+  weight?: number
   /** Hand-tuned away from how it was (Slice 20) → drives the ✎ marker. */
   customized?: boolean
 }
