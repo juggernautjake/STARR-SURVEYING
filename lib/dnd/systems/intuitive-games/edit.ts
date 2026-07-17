@@ -1,0 +1,79 @@
+// lib/dnd/systems/intuitive-games/edit.ts — the PURE, incremental edit operations for an Intuitive Games
+// character sidecar (IGCharacter). The bespoke IG sheet was rebuild-only; these let the sheet AND the AI
+// change one thing in place — enter/leave a stance, apply/remove a condition — without re-running the whole
+// builder. Pure + immutable (returns a new IGCharacter) so it's unit-testable and the API route + the AI
+// tool are thin wrappers over the same logic. Stance is one-active-at-a-time (combat.stances holds the
+// active stance; ig.stances holds the known set). Nothing here invents rules — it only moves names around.
+
+import type { IGCharacter } from './model';
+
+export type IGEdit =
+  | { op: 'set_active_stance'; name: string }
+  | { op: 'clear_stance' }
+  | { op: 'add_condition'; name: string }
+  | { op: 'remove_condition'; name: string };
+
+/** The op names the AI tool + API accept. */
+export const IG_EDIT_OPS = ['set_active_stance', 'clear_stance', 'add_condition', 'remove_condition'] as const;
+export type IGEditOp = typeof IG_EDIT_OPS[number];
+
+const eq = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/** Apply one edit, returning a NEW IGCharacter (the input is never mutated). Unknown/no-op edits return the
+ *  input unchanged, so a bad payload can't corrupt the sheet. */
+export function applyIgEdit(ig: IGCharacter, edit: IGEdit): IGCharacter {
+  const combat = { ...ig.combat };
+  switch (edit.op) {
+    case 'set_active_stance': {
+      const name = edit.name.trim();
+      if (!name) return ig;
+      // One stance is active at a time — entering a stance replaces any current one.
+      combat.stances = [name];
+      return { ...ig, combat };
+    }
+    case 'clear_stance': {
+      if (combat.stances.length === 0) return ig;
+      combat.stances = [];
+      return { ...ig, combat };
+    }
+    case 'add_condition': {
+      const name = edit.name.trim();
+      if (!name || combat.conditions.some((c) => eq(c, name))) return ig;
+      combat.conditions = [...combat.conditions, name];
+      return { ...ig, combat };
+    }
+    case 'remove_condition': {
+      const name = edit.name.trim();
+      if (!name || !combat.conditions.some((c) => eq(c, name))) return ig;
+      combat.conditions = combat.conditions.filter((c) => !eq(c, name));
+      return { ...ig, combat };
+    }
+    default:
+      return ig;
+  }
+}
+
+/** Validate + normalize a raw request payload into an IGEdit, or return an error string. Keeps the route +
+ *  AI tool from having to trust their input. */
+export function parseIgEdit(raw: unknown): { edit: IGEdit } | { error: string } {
+  const o = (raw ?? {}) as Record<string, unknown>;
+  const op = typeof o.op === 'string' ? o.op.trim() : '';
+  const name = typeof o.name === 'string' ? o.name.trim() : '';
+  if (!(IG_EDIT_OPS as readonly string[]).includes(op)) {
+    return { error: `Unknown edit op "${op}". Valid: ${IG_EDIT_OPS.join(', ')}.` };
+  }
+  if (op === 'clear_stance') return { edit: { op: 'clear_stance' } };
+  if (!name) return { error: `The "${op}" edit needs a non-empty "name".` };
+  return { edit: { op, name } as IGEdit };
+}
+
+/** A short human description of an edit (for the audit trail / AI echo). */
+export function describeIgEdit(edit: IGEdit): string {
+  switch (edit.op) {
+    case 'set_active_stance': return `Entered the ${edit.name} Stance.`;
+    case 'clear_stance': return 'Left the active stance.';
+    case 'add_condition': return `Applied the ${edit.name} condition.`;
+    case 'remove_condition': return `Removed the ${edit.name} condition.`;
+    default: return 'No change.';
+  }
+}

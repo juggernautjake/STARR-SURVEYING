@@ -230,9 +230,16 @@ expanded requirements (2026-07-17):
       **Display + tooltip done** (`IGSheet` Combat panel, `ig-sheet-tooltips.test.ts`): stances show their
       active-at-level benefit + a full-rules hover tooltip. **Remaining:** applying the stance effect to the
       actual rolls (mechanics), a single-active-stance selector, and edit (needs the `ig-edit` route, B6).
-- [ ] **B6 — Editable IG sheet + AI edit route.** The bespoke `IGSheet` is read-only today; add an `ig-edit`
+- [~] **B6 — Editable IG sheet + AI edit route.** The bespoke `IGSheet` is read-only today; add an `ig-edit`
       route + write mode so stances/conditions/feats/traits are editable in place, and expose the same
-      operations to the AI (edit + explain) — AI parity with the manual controls.
+      operations to the AI (edit + explain) — AI parity with the manual controls. **Edit engine + route
+      shipped** (`edit.ts` + `app/api/dnd/characters/[id]/ig-edit/route.ts`): pure immutable `applyIgEdit`
+      supporting `set_active_stance` (one active at a time — enter replaces), `clear_stance`,
+      `add_condition`, `remove_condition` (case-insensitive de-dupe, empty-name no-op, never mutates input),
+      plus `parseIgEdit` (validates the payload) + `describeIgEdit` (audit line). The route is write-gated
+      (owner/player/DM via `requireCharacterWrite`), rejects non-IG characters, and persists just the patched
+      sidecar. `ig-edit.test.ts` (10). **Remaining:** the on-sheet edit controls (buttons/selectors that POST
+      to the route — UI, needs visual verification) and an AI `edit_ig` tool wrapping the same ops (AI parity).
 - [~] **B7 — Tooltip system.** A reusable hover/focus tooltip on every in-play effect (stance, condition,
       trait, feat, modifier) sourced from the IG rules text — keyboard- and touch-reachable (a tablet at the
       table), theme-token styled. **Pure model shipped** (`inPlay.ts`): `igEffectsInPlay({stance, conditions,
