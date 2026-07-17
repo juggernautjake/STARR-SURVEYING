@@ -2112,14 +2112,15 @@ The full flow the user described, end to end. Several pieces already exist (invi
 campaign `system` + `allow_custom` fields, the character import/AI builder, the cross-system chat);
 this slice is mostly about wiring them into one journey.
 
-### 38a — A simple campaign creation page
+### 38a — A simple campaign creation page ✅ SHIPPED
 > "pick the system, name it, describe it. Then create it."
-- [ ] The create form (`NewCampaignButton` / dashboard) gains a **system picker** (GAME_SYSTEMS) plus
-      name + description. Persist the chosen system on the campaign — the DM's rulebook for the table.
-      Verify `dnd_campaigns` has a `system` column; add one (idempotent seed) if not.
-- [ ] An **"Allow custom builds"** toggle on the create/build page → sets `dnd_campaigns.allow_custom`
-      (the column already exists; `SheetApprovalPanel` reads it). This is what later makes porting a
-      character across systems easier.
+- [x] **System picker + name + description — shipped.** `NewCampaignButton` has name, description, and a
+      **Game system** `<select>` (GAME_SYSTEMS, grouped available vs 🚧 under-construction, disabled), plus
+      a "pick later" option. The POST `/api/dnd/campaigns` persists `system` (via `normalizeSystem`) to
+      `dnd_campaigns.system` (seed `447_dnd_campaign_system.sql`, `NOT NULL DEFAULT 'ambiguous'`).
+- [x] **"Allow custom builds" toggle — shipped.** The create form's toggle sets `allow_custom` on the
+      campaign (seed `443_dnd_custom_approval.sql`); `SheetApprovalPanel` reads it. `campaign-create.test.ts`
+      covers the route's stale-session handling.
 
 ### 38b — Invite by copyable link ✅ SHIPPED 2026-07-16
 > "being able to copy a link to the main campaign page and then send that link to people to join."
@@ -2129,9 +2130,11 @@ this slice is mostly about wiring them into one journey.
       asked for: "Generate a link, hit Copy, and send it to your players. Opening it lets them sign in
       (or make an account) and join this campaign."
 - [x] **The link target works.** `/dnd/join/[code]` accepts the invite and creates/authenticates an
-      account, then routes into the campaign as a member — the B4 acceptance flow. (Its form still
-      asks for an email, a pre-`Slice 36` remnant to reconcile with the name+password-only login — a
-      small consistency follow-up, not a break in the invite flow.)
+      account, then routes into the campaign as a member — the B4 acceptance flow. **Email remnant
+      reconciled ✅ SHIPPED** (`6d7cdeb7`): the join form no longer collects an email and the register
+      route is now name+password-only (identity via `nameToKey`, 4-char minimum, 409 on a taken name —
+      the exact Slice-36 signup convention), while keeping the invite validate/consume/attach logic.
+      `join-name-only.test.ts` (7).
 
 ### 38c — Join → bring or make a character ✅ SHIPPED 2026-07-16
 > "routed to the campaign page where they will be prompted to bring in a character already made, or
