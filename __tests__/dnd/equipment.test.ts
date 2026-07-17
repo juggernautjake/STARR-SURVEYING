@@ -3,6 +3,8 @@ import { describe, it, expect } from 'vitest';
 import {
   equip,
   unequip,
+  equipChecked,
+  canEquip,
   attune,
   unattune,
   canAttune,
@@ -32,6 +34,42 @@ describe('equipment: equip / unequip', () => {
     expect(on[0].equipped).toBe(true);
     expect(inv[0].equipped).toBeUndefined(); // original untouched
     expect(unequip(on, 'a')[0].equipped).toBe(false);
+  });
+});
+
+describe('equipment: equip validation (hard slot rules)', () => {
+  const body = (id: string, name: string): EquipItem => item({ id, name, kind: 'armor', armor: { armorType: 'heavy', baseAC: 18 } });
+  const shield = (id: string, name: string): EquipItem => item({ id, name, kind: 'shield', armor: { armorType: 'shield', baseAC: 2 } });
+  const greatsword = item({ id: 'gs', name: 'Greatsword', kind: 'weapon', weapon: { category: 'martial', damage: '2d6', damageType: 'slashing', properties: ['two-handed', 'heavy'] } });
+
+  it('allows equipping the first body armor but refuses a second', () => {
+    const inv = [equip([body('a', 'Plate')], 'a')[0], body('b', 'Chain Mail')];
+    expect(canEquip(inv, 'b').ok).toBe(false);
+    expect(canEquip(inv, 'b').reason).toMatch(/body armor/i);
+    expect(equipChecked(inv, 'b').find((i) => i.id === 'b')?.equipped).toBeFalsy();
+  });
+
+  it('refuses a second shield', () => {
+    const inv = [equip([shield('s1', 'Kite')], 's1')[0], shield('s2', 'Buckler')];
+    expect(canEquip(inv, 's2').ok).toBe(false);
+    expect(canEquip(inv, 's2').reason).toMatch(/shield/i);
+  });
+
+  it('a shield and a two-handed weapon are mutually exclusive (both directions)', () => {
+    const withGS = equip([greatsword, shield('s', 'Kite')], 'gs');
+    expect(canEquip(withGS, 's').ok).toBe(false); // shield blocked by the equipped greatsword
+    const withShield = equip([greatsword, shield('s', 'Kite')], 's');
+    expect(canEquip(withShield, 'gs').ok).toBe(false); // greatsword blocked by the equipped shield
+  });
+
+  it('permits body armor + a shield together, and re-equipping is a harmless no-op', () => {
+    const inv = equip([body('a', 'Plate'), shield('s', 'Kite')], 'a');
+    expect(canEquip(inv, 's').ok).toBe(true); // armor + shield is legal
+    expect(canEquip(equip(inv, 's'), 's').ok).toBe(true); // already-equipped shield: ok
+  });
+
+  it('rejects an unknown id', () => {
+    expect(canEquip([], 'nope').ok).toBe(false);
   });
 });
 

@@ -832,7 +832,16 @@ Decisions that stuck:
       and `computeAC` already do this correctly and are still uncalled) → belongs with Slice 15.
 - [ ] AC / speeds / HP max / save DC / initiative read the ledger (abilities, saves, skills and
       attacks now do).
-- [ ] Equip validation (attunement limits, one body armour).
+- [x] Equip validation (attunement limits, one body armour). **✅ SHIPPED 2026-07-17.** Attunement was
+      already validated (`canAttune` + `ATTUNEMENT_CAP`); added the equip-slot rules to
+      `engine/equipment.ts`: `canEquip(items, id)` enforces **one body armour at a time**, **one shield**,
+      and **two-handed-weapon vs shield mutual exclusion** (both directions), returning a reason string;
+      re-equipping something already on is a harmless no-op; unknown id → not ok. `equipChecked` equips
+      only when valid (a no-op on conflict, exactly mirroring `attune`). The character reducer's `equip`
+      case now routes through `equipChecked`, so the single mutation path can never reach an illegal
+      equipped state. Systems without a hard rule still return ok (per the ground rule). `equipment.test.ts`
+      +5. **Deferred within this item:** surfacing the `canEquip` reason as a toast in the Inventory UI is a
+      visual-polish follow-up — the invariant is already enforced at the reducer.
 
 ---
 

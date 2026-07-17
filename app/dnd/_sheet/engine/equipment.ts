@@ -86,6 +86,41 @@ export function equip(items: EquipItem[], id: string, on = true): EquipItem[] {
 }
 export const unequip = (items: EquipItem[], id: string): EquipItem[] => equip(items, id, false);
 
+// ── Equip validation: the hard slot rules D&D shares ────────────────────────────────────────────
+// A shield is `kind: 'shield'` or an armor entry whose armorType is 'shield'; body armour is any
+// other armor. Two-handed weapons and shields fight over the off-hand. Where a system has no rule
+// we return ok — this only enforces the universally-hard ones (Slice 10: "where a system has a hard
+// rule, enforce it; where it doesn't, allow it and let the panel show the truth").
+const isShieldItem = (x: EquipItem): boolean => x.kind === 'shield' || x.armor?.armorType === 'shield';
+const isBodyArmorItem = (x: EquipItem): boolean => x.kind === 'armor' && x.armor?.armorType !== 'shield';
+const isTwoHandedItem = (x: EquipItem): boolean => x.kind === 'weapon' && !!x.weapon?.properties?.includes('two-handed');
+
+/** Whether `id` can be EQUIPPED right now, given what is already equipped. Enforces one body armour
+ *  at a time, one shield, and two-handed-vs-shield mutual exclusion. Re-equipping something already on
+ *  is a harmless no-op (ok). Pure — pair with `equip` (or `equipChecked`) for the UI. */
+export function canEquip(items: EquipItem[], id: string): { ok: boolean; reason?: string } {
+  const it = items.find((i) => i.id === id);
+  if (!it) return { ok: false, reason: 'No such item.' };
+  if (it.equipped) return { ok: true }; // already equipped — no slot conflict to create
+  const others = items.filter((x) => x.equipped && x.id !== id);
+  if (isBodyArmorItem(it) && others.some(isBodyArmorItem)) {
+    return { ok: false, reason: 'Already wearing body armor — unequip it first.' };
+  }
+  if (isShieldItem(it)) {
+    if (others.some(isShieldItem)) return { ok: false, reason: 'Already using a shield.' };
+    if (others.some(isTwoHandedItem)) return { ok: false, reason: 'Cannot use a shield while wielding a two-handed weapon.' };
+  }
+  if (isTwoHandedItem(it) && others.some(isShieldItem)) {
+    return { ok: false, reason: 'Cannot wield a two-handed weapon while using a shield.' };
+  }
+  return { ok: true };
+}
+
+/** Equip only if the slot rules allow it (no-op otherwise — pair with `canEquip` for UI messaging). */
+export function equipChecked(items: EquipItem[], id: string): EquipItem[] {
+  return canEquip(items, id).ok ? equip(items, id) : items;
+}
+
 export function attunedCount(items: EquipItem[]): number {
   return items.filter((it) => it.attuned).length;
 }
