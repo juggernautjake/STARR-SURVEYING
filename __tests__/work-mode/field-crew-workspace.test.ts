@@ -28,4 +28,11 @@ describe('FieldCrewWorkspace is job-driven (B1/B2)', () => {
     expect(SRC).toContain('jobMapsUrl(job)');
     expect(SRC).toContain('telHref(job.client_phone)');
   });
+
+  it('B3 — has a calculator (safe evaluator) and a per-job notes pad', () => {
+    expect(SRC).toContain('FieldCalculator');
+    expect(SRC).toContain('evalArithmetic');
+    expect(SRC).toContain('FieldNotes');
+    expect(SRC).toContain('starr:field-notes:'); // notes persist per job
+  });
 });

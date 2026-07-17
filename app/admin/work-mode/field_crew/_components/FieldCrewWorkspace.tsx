@@ -8,8 +8,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useWorkModeStore } from '@/lib/work-mode/work-mode-store';
 import { jobMapsUrl, hasJobLocation, formatJobAddress, telHref } from '@/lib/jobs/location';
+import { evalArithmetic, formatCalcResult } from '@/lib/jobs/calc';
 
-type FieldTab = 'job' | 'photo' | 'points' | 'mileage' | 'receipts' | 'crew' | 'equipment' | 'time' | 'files' | 'issue';
+type FieldTab = 'job' | 'calc' | 'notes' | 'photo' | 'points' | 'mileage' | 'receipts' | 'crew' | 'equipment' | 'time' | 'files' | 'issue';
 
 /** The job fields the field hub reads (a subset of the jobs row + its team). */
 interface FieldJob {
@@ -32,6 +33,8 @@ interface FieldJob {
 
 const TABS: Array<{ id: FieldTab; label: string; icon: string }> = [
   { id: 'job',       label: 'Job',       icon: '🧭' },
+  { id: 'calc',      label: 'Calc',      icon: '🧮' },
+  { id: 'notes',     label: 'Notes',     icon: '📝' },
   { id: 'photo',     label: 'Photo',     icon: '📷' },
   { id: 'points',    label: 'Points',    icon: '📍' },
   { id: 'mileage',   label: 'Mileage',   icon: '🚗' },
@@ -103,8 +106,9 @@ export default function FieldCrewWorkspace({ userEmail: _ }: FieldCrewWorkspaceP
       </nav>
 
       <section role="tabpanel" aria-labelledby={`tab-${activeTab}`}>
-        {activeTab === 'job'
-          ? <JobSummary job={activeJob} loading={loadingJobs} />
+        {activeTab === 'job' ? <JobSummary job={activeJob} loading={loadingJobs} />
+          : activeTab === 'calc' ? <FieldCalculator />
+          : activeTab === 'notes' ? <FieldNotes jobId={jobId} />
           : <TabContent tab={activeTab} jobId={jobId} />}
       </section>
     </div>
@@ -182,6 +186,68 @@ function JobSummary({ job, loading }: { job: FieldJob | null; loading: boolean }
   );
 }
 
+/** A quick field calculator (B3) — button-driven, evaluated by the safe arithmetic evaluator. */
+function FieldCalculator() {
+  const [expr, setExpr] = useState('');
+  const result = evalArithmetic(expr);
+  const preview = result === null ? '' : formatCalcResult(result);
+  const push = (s: string) => setExpr((e) => e + s);
+  const keys: string[] = ['7', '8', '9', '÷', '4', '5', '6', '×', '1', '2', '3', '−', '0', '.', '(', ')'];
+  const card: React.CSSProperties = { padding: 'var(--hub-spc-4, 16px)', borderRadius: 8, background: 'var(--theme-bg-surface)', border: '1px solid var(--theme-border)', maxWidth: 320 };
+  const btn: React.CSSProperties = { padding: '12px 0', borderRadius: 6, border: '1px solid var(--theme-border)', background: 'var(--theme-bg-elevated)', color: 'var(--theme-fg-primary)', fontSize: '1.05rem', cursor: 'pointer' };
+
+  return (
+    <div style={{ ...card, display: 'grid', gap: 10 }}>
+      <input
+        value={expr}
+        onChange={(e) => setExpr(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter' && preview) setExpr(preview); }}
+        placeholder="0"
+        aria-label="calculator expression"
+        style={{ width: '100%', textAlign: 'right', fontSize: '1.3rem', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--theme-border)', background: 'var(--theme-bg-elevated)', color: 'var(--theme-fg-primary)' }}
+      />
+      <div style={{ textAlign: 'right', minHeight: 20, color: 'var(--theme-fg-secondary)', fontSize: '0.95rem' }}>{preview && `= ${preview}`}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+        {keys.map((k) => <button key={k} type="button" style={btn} onClick={() => push(k)}>{k}</button>)}
+        <button type="button" style={{ ...btn, gridColumn: 'span 2', color: 'var(--theme-warning)' }} onClick={() => setExpr('')}>C</button>
+        <button type="button" style={{ ...btn }} onClick={() => setExpr((e) => e.slice(0, -1))}>⌫</button>
+        <button type="button" style={{ ...btn, background: 'var(--theme-accent)', color: '#fff' }} onClick={() => { if (preview) setExpr(preview); }}>=</button>
+      </div>
+    </div>
+  );
+}
+
+/** A per-job field notes pad (B3). Persists to localStorage keyed by the job so notes survive
+ *  navigation on the device; DB-persistence for review-by-others is a follow-up. */
+function FieldNotes({ jobId }: { jobId: string | null }) {
+  const key = `starr:field-notes:${jobId ?? 'nojob'}`;
+  const [text, setText] = useState('');
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  useEffect(() => {
+    try { setText(window.localStorage.getItem(key) ?? ''); } catch { setText(''); }
+  }, [key]);
+  useEffect(() => {
+    const id = setTimeout(() => {
+      try { window.localStorage.setItem(key, text); setSavedAt(new Date().toLocaleTimeString()); } catch { /* ignore */ }
+    }, 400);
+    return () => clearTimeout(id);
+  }, [key, text]);
+  const card: React.CSSProperties = { padding: 'var(--hub-spc-4, 16px)', borderRadius: 8, background: 'var(--theme-bg-surface)', border: '1px solid var(--theme-border)', display: 'grid', gap: 8 };
+  return (
+    <div style={card}>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder={jobId ? 'Field notes for this job…' : 'Pick a job to keep notes per job (these are saved on this device).'}
+        rows={10}
+        aria-label="field notes"
+        style={{ width: '100%', resize: 'vertical', padding: 10, borderRadius: 6, border: '1px solid var(--theme-border)', background: 'var(--theme-bg-elevated)', color: 'var(--theme-fg-primary)', fontSize: '0.95rem' }}
+      />
+      <div style={{ fontSize: '0.78rem', color: 'var(--theme-fg-secondary)' }}>{savedAt ? `Saved on this device · ${savedAt}` : 'Saved automatically on this device.'}</div>
+    </div>
+  );
+}
+
 function TabContent({ tab, jobId }: { tab: FieldTab; jobId: string | null }) {
   const meta = TAB_DESCRIPTIONS[tab];
   return (
@@ -199,6 +265,8 @@ function TabContent({ tab, jobId }: { tab: FieldTab; jobId: string | null }) {
 
 const TAB_DESCRIPTIONS: Record<FieldTab, { title: string; description: string }> = {
   job:       { title: 'Job summary',       description: "Job header, tasks, and notes for the active job." },
+  calc:      { title: 'Calculator',        description: 'A quick field calculator.' },
+  notes:     { title: 'Notes',             description: 'Per-job field notes.' },
   photo:     { title: 'Photo + Video',     description: 'Camera capture wired to the job. OCR + caption + auto-upload.' },
   points:    { title: 'Point recording',   description: 'GPS point capture with description. PNEZD export.' },
   mileage:   { title: 'Mileage tracking',  description: 'GPS start/stop or manual entry. Auto-distance.' },
