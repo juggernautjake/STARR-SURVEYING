@@ -508,8 +508,18 @@ now audited and guarded:
 
 ## Slice 7 — Everything connected
 
-- [ ] Choosing a system on a character drives: available classes, skills list, conditions,
-      the sheet's ability model, and the glossary the sheet links to.
+- [~] Choosing a system on a character drives: available classes, skills list, conditions,
+      the sheet's ability model, and the glossary the sheet links to. **Mostly SHIPPED** — `system-rules.ts`
+      exposes `systemClasses`/`systemClassNames`/`systemConditions`/`systemSpecies`/`systemSkills` for all
+      four focus systems; the class/species pickers + the `ConditionTracker` (system conditions, PF2's
+      numeric Frightened 2 etc.) + the glossary are all system-scoped, and PF2 has its own bespoke sheet +
+      ability model. **Remaining gap (deferred — data-model work):** the STANDARD sheet's `SavesSkills`
+      still renders the hardcoded 5e `SKILLS`. That's correct for both 5e editions (identical lists) but
+      wrong for **intuitive-games**, whose skills differ (Arcane/Appraise/Bluff…). System-scoping it needs
+      a system-keyed skill-proficiency store (today `char.skills` is a fixed 5e-keyed shape), which is
+      larger than a drop-in and risks the primary 5e path — so it's deferred rather than rushed.
+      **Correctness fix shipped in passing** (`0295bdf2`): Passive Perception + Save DC on that card were
+      reading base abilities, not the ledger-effective ones — now fixed (see Slice 10). `saves-skills-effective.test.ts` (2).
 - [x] `system-validate.ts` runs against the class data (not just the catalog). **✅ SHIPPED** (`67f40793`,
       `90d6a967`): the validator includes the character's saved homebrew classes (no false flag), and
       cross-references features against both 5e editions' class data so an edition-EXCLUSIVE feature
