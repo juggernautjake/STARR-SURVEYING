@@ -2401,7 +2401,10 @@ such*, not faked with a number that looks authoritative).
 2. Every target must render **somewhere** on the sheet, or it is a lie. A target with no home is not
    done — that is the entire lesson of the current codebase, where a complete effects engine sits
    unread because nothing renders it. **`grant_sense` and `speed_burrow` need places to live before
-   they can be granted.**
+   they can be granted.** ✅ **`rendersAt` accuracy** (`37b145fe`): the field must name the ACTUAL home,
+   not just a plausible one — `grant_language` claimed "Overview · Languages" but effect-granted
+   languages render in the Skills tab's "Granted Proficiencies" panel (they use the `grant_proficiency`
+   op); corrected + `grant-language-renders.test.ts` (4) pins the real path.
 3. `set` vs `add` is per-target and documented (Storm Giant Strength *sets* STR to 29; a belt *adds*).
 4. Unknown target → the edit is refused with a reason. Never coerced, never silently dropped.
 5. A target the engine cannot faithfully model gets `note`, not an approximation.
