@@ -408,9 +408,13 @@ expanded requirements (2026-07-17):
       **Wired into IGSheet** (`ig-sheet-tooltips.test.ts`): the Combat panel's stance chips now show the
       active-at-your-level benefit summary + a `title` hover tooltip with the full Basic/Advanced rules; the
       condition chips show a `title` tooltip with the full IG condition text; both get a help cursor + a
-      "hover for the full rules" hint. **Remaining:** a prettier custom-styled/focusable tooltip component
-      (native `title` works + is accessible now; visual polish is a follow-up), and rendering it for ancestry
-      traits/feats too. Needs visual confirmation in-app.
+      "hover for the full rules" hint. **Defensive-power tooltip closed (2026-07-17):** the defensive-power
+      chip was the one in-play effect with no hover explanation — `effectMap` was built from stances + powers
+      only, and `chip()` rendered no `title`. Added `IG_DEFENSIVE_POWERS` to `effectMap` and gave `chip()` a
+      `title` + help cursor from its rules text, so a defensive power now hover-explains itself like stances,
+      conditions, feats and traits do. `ig-sheet-tooltips.test.ts` +1. **Remaining:** a prettier
+      custom-styled/focusable tooltip component (native `title` works + is accessible now; visual polish is a
+      follow-up). Needs visual confirmation in-app.
 - [ ] **B8 — Alignment/verification.** Walk an IG character build and confirm every offered option matches the
       site, numbers add up, mechanics apply correctly, and stances/conditions/feats/traits are all editable,
       displayed, tooltipped, and AI-accessible. (Ties into the QA walkthrough in `pending/`.)

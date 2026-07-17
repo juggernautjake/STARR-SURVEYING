@@ -22,7 +22,9 @@ import { igAncestryArt, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/
 
 const effectMap = (() => {
   const m = new Map<string, string>();
-  for (const e of [...IG_STANCES, ...IG_POWERS]) if (e.effect) m.set(e.name.trim().toLowerCase(), e.effect);
+  // Include defensive powers so their chip can hover-explain itself like every other in-play effect
+  // (owner: "hovering over any effect in play shows a tooltip explaining how it works").
+  for (const e of [...IG_STANCES, ...IG_POWERS, ...IG_DEFENSIVE_POWERS]) if (e.effect) m.set(e.name.trim().toLowerCase(), e.effect);
   return m;
 })();
 const effectOf = (name: string) => effectMap.get(name.trim().toLowerCase()) ?? '';
@@ -171,11 +173,14 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
       {/* Combat — attacks (to-hit + damage from the rules engine), HP/DR, stances, defensive power, conditions. */}
       {(() => {
         const cb = ig.combat;
-        const chip = (name: string) => (
-          <span key={name} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '2px 9px' }}>
-            {name} {badgeFor(name)}
-          </span>
-        );
+        const chip = (name: string) => {
+          const tip = effectOf(name); // the rules text, so the chip hover-explains itself
+          return (
+            <span key={name} title={tip || undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '2px 9px', cursor: tip ? 'help' : 'default' }}>
+              {name} {badgeFor(name)}
+            </span>
+          );
+        };
         const has = cb.attacks.length || cb.stances.length || cb.defensivePower || cb.conditions.length || cb.situationalBonuses.length || cb.hitPoints.classBackgroundHp || cb.damageReduction;
         if (!has) return null;
         return (

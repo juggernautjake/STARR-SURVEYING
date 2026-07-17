@@ -75,6 +75,13 @@ describe('IGSheet shows in-play stances + conditions with tooltips', () => {
     expect(SRC).toMatch(/— no defensive power —/); // and can clear the single slot
   });
 
+  it('the defensive-power chip hover-explains itself like every other in-play effect (B7)', () => {
+    // effectMap includes defensive powers, and chip() passes the rules text to a title + help cursor.
+    expect(SRC).toMatch(/effectMap[\s\S]*IG_DEFENSIVE_POWERS\]\s*\) if \(e\.effect\)/);
+    expect(SRC).toMatch(/const chip = \(name: string\) => \{[\s\S]*const tip = effectOf\(name\)/);
+    expect(SRC).toMatch(/title=\{tip \|\| undefined\}/);
+  });
+
   it('renders the ancestry traits panel with per-trait tooltips (B1)', () => {
     expect(SRC).toContain('findIGAncestry(id.ancestry)');
     expect(SRC).toMatch(/anc\.traits\.map/);
