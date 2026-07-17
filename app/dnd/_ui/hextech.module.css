@@ -848,10 +848,10 @@ select.input {
   transform: translateX(-50%);
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 16px;
   font-family: var(--hx-font-display);
   font-weight: 700;
-  letter-spacing: 0.26em;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
   font-size: 13px;
   color: var(--hx-gold-2);
@@ -861,11 +861,30 @@ select.input {
 .siteBrand:hover {
   color: var(--hx-gold-3);
 }
-.siteBrandMark {
-  color: var(--hx-teal-1);
-  font-size: 13px;
-  transform: translateY(-1px);
+.siteBrandText {
+  /* Larger wordmark, sized to sit alongside the diamond clusters. A matching left margin offsets the
+     trailing letter-spacing so the text stays optically centered between the two clusters. */
+  font-size: 19px;
+  margin-left: 0.28em;
 }
+/* Four small diamonds on a 3×3 grid — top / left · right / bottom — forming one larger diamond with
+   gaps. Sized to stand about as tall as the wordmark's caps. */
+.siteBrandCluster {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 2px;
+  color: var(--hx-teal-1);
+  font-size: 7px;
+  line-height: 1;
+}
+.siteBrandCluster span {
+  display: block;
+}
+.siteBrandCluster span:nth-child(1) { grid-column: 2; grid-row: 1; }
+.siteBrandCluster span:nth-child(2) { grid-column: 1; grid-row: 2; }
+.siteBrandCluster span:nth-child(3) { grid-column: 3; grid-row: 2; }
+.siteBrandCluster span:nth-child(4) { grid-column: 2; grid-row: 3; }
 .siteNav {
   /* Always hug the right edge, even on pages where the back button (the only other in-flow item)
      renders nothing — otherwise a lone nav would slide left. */

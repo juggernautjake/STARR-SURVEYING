@@ -12,12 +12,20 @@ export default function DndHeader({ userName }: { userName?: string | null }) {
     <header className={styles.siteHeader}>
       <HeaderBack />
       <Link href="/dnd" className={styles.siteBrand}>
-        <span className={styles.siteBrandMark} aria-hidden>
-          ◆
+        {/* Four small diamonds arranged into one larger diamond (top · left · right · bottom),
+            flanking the wordmark symmetrically on both sides. */}
+        <span className={styles.siteBrandCluster} aria-hidden>
+          <span>◆</span>
+          <span>◆</span>
+          <span>◆</span>
+          <span>◆</span>
         </span>
-        Starr Tabletop
-        <span className={styles.siteBrandMark} aria-hidden>
-          ◆
+        <span className={styles.siteBrandText}>Starr Tabletop</span>
+        <span className={styles.siteBrandCluster} aria-hidden>
+          <span>◆</span>
+          <span>◆</span>
+          <span>◆</span>
+          <span>◆</span>
         </span>
       </Link>
       <nav className={styles.siteNav}>
