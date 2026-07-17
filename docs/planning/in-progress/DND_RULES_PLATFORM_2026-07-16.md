@@ -2294,6 +2294,9 @@ Weapon Fighting), `minimum_roll`, `crit_range` (19–20 → 18–20), `crit_dice
 
 **Defenses** — `resistance` · `immunity` · `vulnerability` (by damage type) ·
 `condition_immunity` · `condition_advantage` (advantage on saves vs a named condition).
+✅ **`condition_advantage` shipped** (`637c982c`) — was in this catalog list but missing from the
+registry; added with its own collect op + a Defenses render block ("Adv. on saves vs — poison
+(source)"), listed not auto-applied (the rules ask the player to invoke it). `condition-advantage.test.ts` (5).
 
 **Grants** — `grant_proficiency` (skill/tool/weapon/armour/language) · `grant_expertise` ·
 `grant_feature` · `grant_attack` · `grant_spell` · `grant_cantrip` · `grant_resource` ·
