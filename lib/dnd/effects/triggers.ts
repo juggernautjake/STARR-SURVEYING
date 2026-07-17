@@ -10,10 +10,10 @@
 // piercing to the attacker — roll?" and the player/DM resolves it. Nothing here applies damage to a
 // creature the app doesn't model.
 import type { Character, Trigger, TriggerEvent } from '@/app/dnd/_sheet/types';
-
-const isEquipped = (i: { equipped?: boolean; tags?: string[] }) => i.equipped === true || i.tags?.includes('equipped') === true;
-const isItemActive = (i: { equipped?: boolean; attuned?: boolean; tags?: string[] }) =>
-  i.attuned ? isEquipped(i) && i.attuned === true : isEquipped(i);
+// Share the ledger's active-rule rather than re-implementing it: a trigger and an effect on the SAME
+// item must agree about when they apply (the doc's rule). Two copies that "happen to match" is exactly
+// the drift this import removes.
+import { isItemActive } from './ledger';
 
 /** A trigger plus where it came from — what a surfacing UI shows. */
 export interface ActiveTrigger extends Trigger {
