@@ -25,8 +25,11 @@ export default function InitiativePrompt({ flavor = DEFAULT_INITIATIVE }: { flav
   const { ping } = useCampaignChannel(campaignId ?? null, 'initiative', () => {})
 
   // Effective initiative: ledger-folded DEX + any `initiative` effect (Alert-style), so a DEX item or an
-  // initiative boon changes the roll the player actually submits — not just the base DEX.
-  const initBonus = ledger.value('initiative', abilityMod(abilities.dex) + (char.combat.initiativeMisc || 0))
+  // initiative boon changes the roll the player actually submits — not just the base DEX. Exhaustion's
+  // −2/level applies too: initiative is a DEX check (a D20 Test), and rollCheck already penalizes the
+  // StatRail's initiative roll — this is the SAME roll, submitted to the encounter's turn order.
+  const initBonus =
+    ledger.value('initiative', abilityMod(abilities.dex) + (char.combat.initiativeMisc || 0)) - 2 * (char.combat.exhaustion || 0)
   const bonusStr = initBonus >= 0 ? `+${initBonus}` : `${initBonus}`
 
   useEffect(() => {
