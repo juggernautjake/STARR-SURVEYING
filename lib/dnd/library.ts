@@ -13,7 +13,7 @@ import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
 import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, IG_COMPANION_TYPES, IG_COMPANION_RULES, IG_BACKGROUND_DEFS, IG_CLASS_GROUPS, IG_CLASS_RULES, IG_SUBCLASSES, type NamedEntry, type IGStance, type IGAncestry, type IGCompanionType, type IGBackground } from './systems/intuitive-games/content';
 import { igAllFeats, type IGFeat } from './systems/intuitive-games/feats';
-import { IG_WEAPON_RULES, IG_WEAPON_CLASS_DATA, IG_WEAPON_PROPERTIES, IG_ARMOR_RULES, IG_ARMORS, IG_SHIELD_RULES, IG_SHIELDS } from './systems/intuitive-games/items';
+import { IG_WEAPON_RULES, IG_WEAPON_CLASS_DATA, IG_WEAPON_PROPERTIES, IG_ARMOR_RULES, IG_ARMORS, IG_SHIELD_RULES, IG_SHIELDS, IG_EQUIPMENT_PACKS, IG_EQUIPMENT_NOTE, IG_TOOL_RULES, IG_MAGIC_ITEM_RULES, IG_ENCHANTMENTS } from './systems/intuitive-games/items';
 
 /** The full feat registry for a system, or [] when only a catalog sample exists. System-keyed
  *  dispatcher (the pattern `findFeat`'s comment calls for) so a feat never leaks across systems. */
@@ -486,6 +486,25 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
         rows: IG_SHIELDS.map((s) => [s.name, s.group, s.cost, s.notes || '—']),
       },
     });
+    sections.push({
+      id: 'equipment',
+      title: 'Equipment',
+      lead: IG_EQUIPMENT_NOTE,
+      table: {
+        headers: ['Pack', 'Cost', 'Contents'],
+        rows: IG_EQUIPMENT_PACKS.map((p) => [p.name, p.cost, p.contents]),
+      },
+    });
+    sections.push({ id: 'tools', title: 'Tools', body: [IG_TOOL_RULES] });
+    sections.push({
+      id: 'magical-items',
+      title: 'Magical Items (Eldritch Jewels)',
+      lead: IG_MAGIC_ITEM_RULES,
+      table: {
+        headers: ['Enchantment', 'Effect'],
+        rows: IG_ENCHANTMENTS.map((e) => [e.name, e.effect]),
+      },
+    });
   }
 
   return {
@@ -648,6 +667,8 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
       for (const p of IG_WEAPON_PROPERTIES) push('weapon-property', p.name, `${p.name} — a weapon property (${p.appliesTo}): ${p.text}`);
       for (const a of IG_ARMORS) push('armor', a.name, `${a.name} — ${a.group} armor, DR ${a.dr}, ${a.strength}, ${a.cost}${a.notes ? `; ${a.notes}` : ''}.`);
       for (const s of IG_SHIELDS) push('shield', s.name, `${s.name} — a ${s.group} shield in ${r.label}, ${s.cost}${s.notes ? `; ${s.notes}` : ''}.`);
+      for (const p of IG_EQUIPMENT_PACKS) push('equipment', p.name, `${p.name} — ${p.cost}: ${p.contents}`);
+      for (const e of IG_ENCHANTMENTS) push('magic-item', e.name, `${e.name} — an Eldritch Jewel enchantment in ${r.label}: ${e.effect}`);
     }
     for (const sp of spellsForSystem(key)) {
       push('spell', sp.name, `${sp.name} — ${pf2RankLabel(sp.rank)}, ${sp.traditions.join('/')}; ${sp.cast}. ${sp.effect}`);

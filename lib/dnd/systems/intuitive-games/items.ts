@@ -68,3 +68,54 @@ export const IG_SHIELDS: IGShield[] = [
   { name: 'Stone Buckler', group: 'Buckler', cost: '10 Solidas', notes: '' },
   { name: 'Wooden Buckler', group: 'Buckler', cost: '5 Solidas', notes: '' },
 ];
+
+// ── Currency ────────────────────────────────────────────────────────────────────────────────────────
+export const IG_CURRENCY = '10 Pennies (silver) = 1 Coin; 2 Coins = 1 Solidas (gold).';
+
+// ── Equipment (partial WIP on the site: packs + kits populated; other tables are empty headers) ──────
+export interface IGPack { name: string; cost: string; contents: string }
+export const IG_EQUIPMENT_PACKS: IGPack[] = [
+  { name: "Adventurer's Pack", cost: '8 Solidas', contents: 'Rope, map, compass, flint, torch, carving knife, pot, mug, waterskins, tent, blanket, and bandages.' },
+  { name: "Craftsman's Pack", cost: '10 Solidas', contents: "A professional's kit, map, cooking/drinking items, shelter, and basic supplies." },
+  { name: "Emissary's Pack", cost: '6 Solidas', contents: 'A religious token and tome, plus standard camping gear.' },
+  { name: "Wanderer's Pack", cost: '2 Solidas', contents: 'A minimal kit with cooking, drinking, and shelter items.' },
+];
+/** Professional / crafting kits — 4 Solidas each. */
+export const IG_PROFESSIONAL_KITS = ["Artisan's", "Brewer's", "Butcher's", "Carpenter's", "Cartographer's", "Mason's", "Smith's", "Weaver's"];
+export const IG_EQUIPMENT_NOTE =
+  `Currency: ${IG_CURRENCY} Professional/crafting kits cost 4 Solidas each: ${["Artisan's", "Brewer's", "Butcher's", "Carpenter's", "Cartographer's", "Mason's", "Smith's", "Weaver's"].join(', ')}. ` +
+  'NOTE: the site also has Outdoor Equipment, Tools, Refined Items, Sustenance, and Materials tables, but they are present as empty headers only — that content is a work in progress.';
+
+// ── Tools (WIP on the site: the concept is defined, no roster) ───────────────────────────────────────
+export const IG_TOOL_RULES =
+  'Tools serve two functions: some checks require the right tool, and a character trained with a specific ' +
+  'tool set gains proficiency on the relevant skill checks (e.g. someone trained with lockpicking tools makes ' +
+  'a Disable Device check as if proficient, regardless of their normal training in the skill). NOTE: the ' +
+  'site’s Tools page is a WORK IN PROGRESS — it explains the concept but lists no specific tools or costs ' +
+  '(it points to the Equipment tab for tool details).';
+
+// ── Magical Items (complete on the site: the Eldritch Jewels system + 12 enchantments) ──────────────
+export const IG_MAGIC_ITEM_RULES =
+  'Magical power comes from Eldritch Jewels — gems enchanted via a DC 30 Spellcraft check plus a magical ' +
+  'component (dragon scales, phoenix feathers, etc.), taking 50 work-hours per enhancement (each new ' +
+  'enchantment is a fresh attempt with new components; several small gems can substitute for one large gem, ' +
+  '+5 DC per enchantment). You can wear at most 5 jewels at once (more knocks you unconscious), and jewels ' +
+  'placed too close together go inert. Slots: Head (1), Arms (1), Legs (1), Torso (2). A burnt-out jewel is ' +
+  'recharged with a DC 20 Arcana check (trained only, three actions; on a failure it deals nonlethal damage ' +
+  'equal to the shortfall). Pricing: one enhancement 100 Solidas, two 250, three 625.';
+
+export interface IGEnchantment { name: string; effect: string }
+export const IG_ENCHANTMENTS: IGEnchantment[] = [
+  { name: 'Bonded Weapon', effect: 'A dismissible/summonable weapon granting proficiency or +2 to attack/damage; burns out after 10 summons.' },
+  { name: 'Elemental Assault', effect: 'Melee elemental damage — 5 charges, 5 points each.' },
+  { name: 'Elemental Blast', effect: 'Ranged elemental damage — 2 charges, 10 points each.' },
+  { name: 'Enhanced Movement', effect: 'Grants or boosts movement speeds; lasts 1 day of active use.' },
+  { name: 'Enhanced Sense', effect: 'Grants or extends sensory abilities; lasts 1 day of active use.' },
+  { name: 'Enhanced Skill', effect: '+2 bonus to a chosen skill; never burns out.' },
+  { name: 'Healing', effect: 'Restores up to 20 HP per jewel.' },
+  { name: 'Heavyweight', effect: 'Increases gravity effects with damage/defense tradeoffs; lasts 1 minute.' },
+  { name: 'Invisibility', effect: '20 rounds of invisibility.' },
+  { name: 'Lightweight', effect: 'Reduces gravity effects with speed/defense tradeoffs; lasts 1 minute.' },
+  { name: 'Protection from Elements', effect: 'Absorbs 20 points of a chosen elemental damage type.' },
+  { name: 'Teleportation', effect: 'Single-use transport to "The Echo" pocket dimension.' },
+];

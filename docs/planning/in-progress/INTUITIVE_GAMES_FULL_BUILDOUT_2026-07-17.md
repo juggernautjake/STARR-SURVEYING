@@ -183,7 +183,15 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       bonus), the full armor roster (`IG_ARMORS`: Metal/Leather/Wood/Bone/Cloth + Banded + Component, each
       with DR/STR/cost/vulnerabilities) and shields (`IG_SHIELDS`: Braced + Bucklers). Library gains Armor +
       Shields tables; armor/shields searchable with their stats. System-scoped.
-- [ ] **A15 — Items: Equipment, Tools, Magical Items** (`/equipment`, `/tools`, `/magical-items`).
+- [x] **A15 — Items: Equipment, Tools, Magical Items** (`/equipment`, `/tools`, `/magical-items`) — ✅
+      SHIPPED (`items.ts`). **Magical Items complete:** the full Eldritch Jewels system (DC-30 enchant, 5-jewel
+      limit, Head/Arms/Legs/Torso slots, DC-20 recharge, pricing) + all **12 enchantments** with effects, as a
+      library table + searchable. **Equipment partial (WIP on site):** currency + the 4 equipment packs + the
+      8 professional kits (4 Solidas each) are captured; the Outdoor/Tools/Refined/Sustenance/Materials tables
+      are empty headers on the site → recorded as WIP in the lead (not fabricated). **Tools WIP:** the concept
+      is defined (some checks need a tool; trained-with-a-tool grants proficiency on the relevant skill) but no
+      roster exists → captured the rule + WIP note. Library gains Equipment/Tools/Magical Items sections.
+      `library.test.ts` +2. This completes the item pages (A13/A14/A15).
 - [ ] **A16 — FAQs** (`/faqs`).
 - [ ] **A17 — Verification pass.** Cross-check the library against the live site section-by-section: every
       term present, nothing invented, every gap marked WIP. The AI-legibility check: the library search +

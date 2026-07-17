@@ -308,6 +308,24 @@ describe('Intuitive Games gear surfaces on the library (IG buildout A13/A14)', (
   it('IG gear does not leak into another system', () => {
     expect(libraryPageFor('dnd5e-2024')!.sections.some((s) => s.id === 'weapon-properties')).toBe(false);
   });
+
+  it('renders Equipment (packs, WIP note), Tools (WIP), and Magical Items (12 enchantments)', () => {
+    const page = libraryPageFor('intuitive-games')!;
+    const equip = page.sections.find((s) => s.id === 'equipment')!;
+    expect(equip.lead).toMatch(/work in progress/i); // the empty item tables are recorded as WIP
+    expect(equip.table!.rows.find((r) => /Adventurer/.test(r[0]))?.[1]).toBe('8 Solidas');
+    const tools = page.sections.find((s) => s.id === 'tools')!;
+    expect(tools.body?.[0]).toMatch(/WORK IN PROGRESS/i); // tools page has no roster
+    const magic = page.sections.find((s) => s.id === 'magical-items')!;
+    expect(magic.lead).toMatch(/Eldritch Jewels/);
+    expect(magic.table!.rows).toHaveLength(12);
+    expect(magic.table!.rows.find((r) => r[0] === 'Healing')?.[1]).toMatch(/20 HP/);
+  });
+
+  it('an enchantment is searchable', () => {
+    const heal = searchLibrary('healing', 'intuitive-games').find((h) => h.kind === 'magic-item');
+    expect(heal!.body).toMatch(/Eldritch Jewel/);
+  });
 });
 
 describe('Intuitive Games classes surface fully on the library (IG buildout A10)', () => {
