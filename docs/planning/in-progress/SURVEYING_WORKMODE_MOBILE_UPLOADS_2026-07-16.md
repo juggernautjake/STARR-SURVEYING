@@ -33,8 +33,11 @@ Research/notes exist per job.
       Mode hub's Files tab (`JobFiles`) fetches `/api/admin/jobs/files`, groups by section (Research,
       General, …), and opens any doc in one tap — completing B2's files panel. The job detail page already
       had `JobFileManager` for the same on the web side.
-- [ ] **A4 — Tests.** the maps URL is built from lat/lng when present and falls back to the address;
-      `tel:`/maps links render for each available number/address; no crash when phone/address is blank.
+- [x] **A4 — Tests. ✅ SHIPPED** (`__tests__/jobs/location.test.ts`). Covers `formatJobAddress` (joins /
+      drops missing parts / empty), `hasJobLocation` (coords-or-address, a lone lat is not a location),
+      `jobMapsUrl` (prefers lat/lng, coerces string coords, falls back to the address, empty when nothing),
+      and `telHref` (strips symbols, keeps a leading +, empty for no-digits). The blank/no-crash cases the
+      item names are all asserted.
 
 ## Area B — Work Mode field hub (scaffold → real)
 
@@ -97,15 +100,24 @@ it, plus surfacing controls.
       `prioritizePosition` ("upload this first") + `reorderPositions` (drag-reorder). **Remaining:** add
       the `paused` + `queue_position` columns to the `pending_uploads` local schema and the queue-screen
       buttons that write them — mobile-runtime, device-tested.
-- [ ] **C5 — Failure choices per the user's flow.** On a failed upload, notify, and offer three actions:
-      **(a)** save the media locally and forget it (drop from queue, keep the local file), **(b)** retry
-      immediately, **(c)** wait and auto-retry in the background when reception improves (the default —
-      already the backoff/wifi-waiting behavior; wire the explicit choice UI on top of it).
+- [~] **C5 — Failure choices per the user's flow.** ✅ *Pure decision engine shipped* (`a7c00bd2`):
+      `mobile/lib/uploadFailureChoices.ts` — `needsFailureDecision` (queue hit the retry cap),
+      `failureChoices` (the three options, wait-for-reception flagged default), and `resolveFailureChoice`
+      → a deterministic row-mutation descriptor. **(a)** save-local-forget drops the queue row but KEEPS
+      the local file (the gap: `discardUpload` deletes it — the opposite of what the surveyor asked);
+      **(b)** retry-now clears the failure + kicks a drain; **(c)** wait-reception re-queues gated on
+      Wi-Fi. No choice ever deletes the captured bytes. `upload-failure-choices.test.ts` (13). **Remaining
+      (mobile-runtime, device-tested):** wire the choice UI onto the failed-upload row in the queue screen
+      + the failure notification action, and add a `saveLocalAndForget(db, id)` that applies the
+      `removeRow`/keep-file descriptor (a thin sibling of the existing `discardUpload`).
 - [ ] **C6 — Notifications.** A local notification on failure (and optionally on all-done) so the worker
       knows without watching the screen (`expo-notifications`).
-- [ ] **C7 — Tests.** the queue processes strictly sequentially (second starts only after first's DB row
-      confirms); reordering/prioritizing changes upload order; a failure surfaces the three choices and
-      "save-local-forget" removes it from the queue while keeping the file; backoff still auto-retries.
+- [x] **C7 — Tests. ✅ SHIPPED** (`__tests__/mobile/queue-order.test.ts` + `upload-failure-choices.test.ts`).
+      The ordering engine is covered (strict one-at-a-time `nextUpload`, FIFO vs `queue_position`,
+      eligibility gating, prioritize + reorder — 8 tests), and the failure-choice engine is covered
+      (the three choices surface, save-local-forget removes the row while keeping the file, backoff/retry
+      stay eligible — 13 tests). The device-side drain-order/notification behavior these pure engines feed
+      remains a mobile-runtime concern tracked under C1/C2/C5.
 
 ---
 
