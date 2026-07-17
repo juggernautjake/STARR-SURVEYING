@@ -34,7 +34,10 @@ where `email` is a synthetic key (`name:jacob` / `quick:jacob`) that functions a
 - [x] **A2 — Capture the username alongside the display name. ✅ SHIPPED** (`b1e44f4c`). `user_key`
       column persists the session's synthetic handle on POST; GET returns it **only to the owner** (so
       non-owners never see everyone's login keys); the review page shows `author_name (user_key)` for the
-      owner. Anonymous posts keep name-only.
+      owner. Anonymous posts keep name-only. **Create-path now guarded** (`5268b626`): source-anchored
+      checks that POST rejects an empty request (400), captures the submitter name (displayName or typed),
+      and records `user_key = session.email` — so a refactor can't drop the required-request check or the
+      identity capture. `suggestion-owner.test.ts` +1.
 - [x] **A3 — Owner-only management gate (also closes a security hole). ✅ SHIPPED** (commit `1ed2fb0c`).
       `lib/dnd/auth.ts` now has `isDndOwner(session)` + `dndOwnerKeys()` (matches Jacob's synthetic
       pseudo-login key `quick:jacob` / `name:jacob`, overridable via `DND_OWNER_KEYS`). `DELETE
