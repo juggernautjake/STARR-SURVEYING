@@ -109,6 +109,11 @@ darkvision, `<ul>` of `{name}. {text}`). Data: `lib/dnd/species/dnd5e-2024.ts` (
 - [x] **D3 — Tests. ✅** `exhaustion-speed.test.ts` (4): 0 = unmodified (no false penalty), −5/level,
       starred + explained as the exhaustion source, stacks with a speed item. (The d20 penalty regression
       is guarded by the existing store/rollCheck tests.)
+- [x] **D4 — Follow-up: death saves take the d20 penalty too. ✅ SHIPPED** (`662ae819`). `rollCheck`
+      applied −2/level to attacks/saves/checks, but `rollDeathSave` rolled a flat d20 — so death saves
+      were the one d20 test that ignored exhaustion, contradicting the sheet's own "−2 to all d20 rolls"
+      tooltip. In 2024 a death saving throw is a D20 Test; applied `deathSaveBonus − 2×exhaustion` (nat
+      20/nat 1 still read the natural die). `exhaustion-speed.test.ts` +2.
 
 ---
 
