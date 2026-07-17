@@ -146,6 +146,10 @@ const defenseTargets: TargetDef[] = [
   { key: 'immunity', label: 'Immunity', group: 'defense', valueType: 'damage_type', ops: ['immunity'], help: 'Take no damage from a damage type.', rendersAt: 'Combat tab · Defenses' },
   { key: 'vulnerability', label: 'Vulnerability', group: 'defense', valueType: 'damage_type', ops: ['vulnerability'], help: 'Take double damage from a damage type. A real downside — cursed items live here.', rendersAt: 'Combat tab · Defenses' },
   { key: 'condition_immunity', label: 'Condition immunity', group: 'defense', valueType: 'text', ops: ['immunity'], help: 'You cannot be affected by a named condition.', rendersAt: 'Combat tab · Defenses' },
+  // Advantage on saves AGAINST a named condition/effect (Dwarven Resilience vs poison, Fey Ancestry vs
+  // charmed, Gnome Cunning vs magic). Informational, like a resistance — the game asks the player to
+  // know when it applies, so the sheet LISTS it rather than silently auto-applying to untagged saves.
+  { key: 'condition_advantage', label: 'Advantage vs condition', group: 'defense', valueType: 'text', ops: ['condition_advantage'], help: 'Advantage on saving throws against a named condition or effect (poison, charmed, magic). Listed on the sheet — the player invokes it, as the rules require.', rendersAt: 'Combat tab · Defenses' },
 ];
 
 // ── Grants ───────────────────────────────────────────────────────────────────
@@ -334,6 +338,8 @@ export function describeEffect(e: { target: string; operation: string; value?: n
       return `Immunity: ${e.value}${cond}`;
     case 'vulnerability':
       return `Vulnerability: ${e.value}${cond}`;
+    case 'condition_advantage':
+      return `Advantage on saves vs ${e.value}${cond}`;
     default:
       return `${label}${cond}`;
   }

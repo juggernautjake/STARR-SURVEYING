@@ -25,7 +25,8 @@ export type EffectOperation =
   | 'grant_proficiency'
   | 'resistance'
   | 'immunity'
-  | 'vulnerability';
+  | 'vulnerability'
+  | 'condition_advantage';
 
 export interface Effect {
   target: string;

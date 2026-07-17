@@ -78,6 +78,9 @@ export default function CombatPanel() {
   const resistances = ledger.collected('resistance')
   const immunities = ledger.collected('immunity')
   const vulnerabilities = ledger.collected('vulnerability')
+  // Advantage on saves vs a named condition (Dwarven Resilience, Fey Ancestry…). Listed, not
+  // auto-applied — the game asks the player to invoke it, since saves aren't tagged by source here.
+  const conditionAdvantages = ledger.collected('condition_advantage')
   // Granted senses (darkvision 60, tremorsense…) — op is `set`, not a collect-op, so read the
   // ledger's contributions for the target. Each carries the sense text and the source granting it.
   const senses = ledger
@@ -321,6 +324,17 @@ export default function CombatPanel() {
               <li>
                 <strong style={{ color: 'var(--danger)' }}>Vulnerable</strong> —{' '}
                 {vulnerabilities.map((r, i) => (
+                  <span key={`${r.value}-${r.source}`} style={{ textTransform: 'capitalize' }}>
+                    {i > 0 && ', '}
+                    {r.value} <span className="hl-note">({r.source})</span>
+                  </span>
+                ))}
+              </li>
+            )}
+            {conditionAdvantages.length > 0 && (
+              <li>
+                <strong>Adv. on saves vs</strong> —{' '}
+                {conditionAdvantages.map((r, i) => (
                   <span key={`${r.value}-${r.source}`} style={{ textTransform: 'capitalize' }}>
                     {i > 0 && ', '}
                     {r.value} <span className="hl-note">({r.source})</span>
