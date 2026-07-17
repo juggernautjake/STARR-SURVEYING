@@ -813,8 +813,16 @@ One pure function that every later slice reads. Nothing else in Part II can be b
 - [ ] The ledger explains itself: every entry carries `{ source, sourceKind, label, delta }` so the
       tooltip in Slice 13 and the panel in Slice 12 are *reads*, not re-derivations. Two components
       computing "why is my STR 22" independently will drift; there must be one answer.
-- [ ] Swap the sheet's reads onto the ledger: abilities, AC, speed, HP max, save DC, initiative,
-      skills, proficiency. This is the change that makes item effects real.
+- [x] Swap the sheet's reads onto the ledger: abilities, AC, speed, HP max, save DC, initiative,
+      skills, proficiency. This is the change that makes item effects real. **✅ COMPLETED** — most
+      landed with Slice 10, and a base-vs-effective audit of the derived-value paths (`0295bdf2`,
+      `ef5240b2`) caught the stragglers that still read BASE scores while the ability pills beside them
+      showed effective: **Passive Perception + Save DC** (SavesSkills), **AC** (CombatPanel — derived from
+      base DEX, so a DEX item never moved AC), **Initiative** in the StatRail *and* CombatPanel *and* the
+      InitiativePrompt (the last one submitted the wrong encounter turn-order bonus), **CON-mod regen**,
+      and **hit-die healing**. All now read effective abilities; initiative folds the `initiative` ledger
+      target. `saves-skills-effective.test.ts` (2) + `derived-effective-abilities.test.ts` (7) guard
+      against regression to the base scores.
 - [ ] **An equipped item lands in the right place, automatically.** Equipping routes by what the item
       *is*, with no per-item code: a weapon appears as a row in **Attacks** with its computed to-hit
       and damage; armour drives **AC** (respecting DEX cap / STR requirement / stealth disadvantage);
