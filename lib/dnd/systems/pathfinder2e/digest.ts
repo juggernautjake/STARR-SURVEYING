@@ -27,11 +27,21 @@ export function pf2CharacterDigest(pf2: PF2Character): string {
       `${anc ? ` (${anc})` : ''}, level ${level}.`,
   );
 
-  // The defenses a ruling turns on ("does the target save?", "does the attack hit your AC?").
+  // The defenses a ruling turns on ("does the target save?", "does the attack hit your AC?"). HP is
+  // CURRENT/max so a ruling knows how hurt the character is (currentHp 0 = unset/full, as the sheet reads it).
+  const hpCur = pf2.combat.currentHp || d.maxHp;
+  const temp = pf2.combat.tempHp ? ` (+${pf2.combat.tempHp} temp)` : '';
   lines.push(
-    `DEFENSES: AC ${d.ac} · HP ${d.maxHp} · Fort ${sign(d.saves.Fortitude)} · ` +
+    `DEFENSES: AC ${d.ac} · HP ${hpCur}/${d.maxHp}${temp} · Fort ${sign(d.saves.Fortitude)} · ` +
       `Ref ${sign(d.saves.Reflex)} · Will ${sign(d.saves.Will)} · Perception ${sign(d.perception)}.`,
   );
+
+  // PF2's death track — stated only when live, since a ruling on a downed character turns on it (Dying 4 =
+  // dead; each Wounded step raises the Dying you return with). PF2 tracks no other named conditions.
+  const track: string[] = [];
+  if (pf2.combat.dyingValue) track.push(`Dying ${pf2.combat.dyingValue}`);
+  if (pf2.combat.woundedValue) track.push(`Wounded ${pf2.combat.woundedValue}`);
+  if (track.length) lines.push(`STATUS: ${track.join(' · ')}.`);
 
   // Class/Spell DC + the Multiple Attack Penalty schedule (the 2nd/3rd Strike are the ones AI gets wrong).
   const off: string[] = [`Class DC ${d.classDc}`];

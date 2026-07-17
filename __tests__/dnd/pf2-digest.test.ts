@@ -46,11 +46,22 @@ describe('pf2CharacterDigest', () => {
 
   it('carries the derived DEFENSES from the real rules (AC/HP/saves/perception)', () => {
     // AC 10 + cappedDex(min(1,0)=0) + trained(2+5=7) + item 6 = 23; HP 10 + (10+3)*5 = 75.
-    expect(d).toMatch(/DEFENSES: AC 23 · HP 75/);
+    // currentHp 0 reads as full, so HP shows 75/75 (matching the sheet's `currentHp || maxHp`).
+    expect(d).toMatch(/DEFENSES: AC 23 · HP 75\/75/);
     expect(d).toMatch(/Fort \+12/);   // CON 3 + expert(4+5)
     expect(d).toMatch(/Ref \+8/);     // DEX 1 + trained(2+5)
     expect(d).toMatch(/Will \+11/);   // WIS 2 + expert(4+5)
     expect(d).toMatch(/Perception \+11/);
+  });
+
+  it('shows CURRENT hp (how hurt) + temp, and the death track only when live', () => {
+    // A healthy character has no STATUS line; a hurt/downed one shows current HP + Dying/Wounded.
+    expect(d).not.toMatch(/STATUS:/); // full HP, not dying
+    const hurt = fighter5();
+    hurt.combat = { ...hurt.combat, currentHp: 20, tempHp: 5, dyingValue: 2, woundedValue: 1 };
+    const dh = pf2CharacterDigest(hurt);
+    expect(dh).toMatch(/HP 20\/75 \(\+5 temp\)/);
+    expect(dh).toMatch(/STATUS: Dying 2 · Wounded 1/);
   });
 
   it('carries Class DC + the MAP schedule; omits Spell DC for a non-caster', () => {

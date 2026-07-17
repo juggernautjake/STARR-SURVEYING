@@ -541,6 +541,10 @@ One system per slice — depth-first, verified against sources. In priority orde
       Class DC, Spell DC+attack (casters), the MAP schedule, Strike to-hits, and trained+ skill totals — all
       from the same `rules.ts` the sheet uses; the `library/chat` route appends it when `data.pf2e` is
       present. Parallel to the IG `igCharacterDigest` shipped the same day. `pf2-digest.test.ts` (6).
+      **Completed with the dynamic state (2026-07-17):** the first pass showed only MAX HP — a ruling needs
+      how HURT the character is. Now shows CURRENT/max HP + temp (matching the sheet's `currentHp || maxHp`)
+      and a STATUS line for PF2's death track (Dying/Wounded) when live — the only dynamic combat state PF2
+      models (it has no other named-condition field). `pf2-digest.test.ts` +1.
 - [~] **6c–6h — the other six systems → MOVED to `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`**
       (2026-07-16, per the user's scope call). The platform is focused on **four** systems first — D&D
       5e 2024, D&D 5e 2014, Intuitive Games, Pathfinder 2e. PF1e, Starfinder 1e, Cyberpunk RED, Shadowrun
