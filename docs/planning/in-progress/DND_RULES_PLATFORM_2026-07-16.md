@@ -510,11 +510,11 @@ now audited and guarded:
 
 - [ ] Choosing a system on a character drives: available classes, skills list, conditions,
       the sheet's ability model, and the glossary the sheet links to.
-- [~] `system-validate.ts` runs against the class data (not just the catalog). **Homebrew-class
-      recognition ✅ SHIPPED** (`67f40793`): the validator now includes the character's saved homebrew
-      classes so a custom class isn't falsely flagged (system-scoped). **Remaining:** flagging a specific
-      wrong-edition class *feature* (e.g. a 2014 feature on a 2024 character) — needs feature→class
-      provenance, a larger cross-reference.
+- [x] `system-validate.ts` runs against the class data (not just the catalog). **✅ SHIPPED** (`67f40793`,
+      `90d6a967`): the validator includes the character's saved homebrew classes (no false flag), and
+      cross-references features against both 5e editions' class data so an edition-EXCLUSIVE feature
+      (e.g. a 2014-only feature on a 2024 sheet) is warned — conservatively (shared + homebrew features
+      never flag).
 - [ ] The sheet's Progression tab renders from `progressionTable(def, sub)` rather than
       hand-authored per-character arrays.
 - [ ] Jack: decide whether Rangor/Pugilist become a real custom class + subclass through the Slice-5
