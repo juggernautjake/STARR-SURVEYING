@@ -56,15 +56,15 @@ darkvision, `<ul>` of `{name}. {text}`). Data: `lib/dnd/species/dnd5e-2024.ts` (
 
 **Gaps:**
 
-- [ ] **B1 — A dedicated, well-formatted "Species / Ancestry traits" panel** reachable from the sheet for
-      ANY viewer (not just edit context), collapsible, styled with the sheet tokens — name, size, speed,
-      senses, and every trait with its full text. Today the card only shows in the 2024 edit flow.
-- [ ] **B2 — Cover all four systems, not just 2024.** Show 2014 species, PF2 ancestries (+ the chosen
-      heritage), and Intuitive Games ancestries from each system's own data, system-scoped (Ground Rule
-      1). For PF2 read `PF2_ANCESTRIES` (hp/size/speed/senses/heritages/summary); for a custom/homebrew
-      species show whatever the sheet records rather than nothing.
-- [ ] **B3 — Tests.** the panel lists every trait of a known species; a PF2 ancestry shows its heritage +
-      senses; a homebrew species degrades to its recorded name without crashing; no cross-system leak.
+- [x] **B1 — A dedicated, well-formatted "Species / Ancestry traits" panel. ✅ SHIPPED** (`84a91e37`).
+      `SpeciesTraits.tsx` — a collapsible, all-viewers panel (name, size, speed, senses, every trait with
+      full text); Hero renders it in place of the old 2024-only edit-context card.
+- [x] **B2 — Cover all four systems. ✅ SHIPPED** (`84a91e37`). `lib/dnd/species/view.ts` `speciesView`
+      normalizes 2024 species (full trait text) + PF2 ancestries (size/speed/senses/heritages/languages +
+      summary) to one shape, system-scoped (a PF2 ancestry never resolves as a 2024 species); homebrew /
+      2014 / IG lineages degrade to a name-only 'custom' card rather than nothing.
+- [x] **B3 — Tests. ✅** `species-view.test.ts` (6): full 2024 traits, PF2 ancestry with heritages, no
+      cross-system leak, homebrew degrades to name-only, correct noun per system, null on no name.
 
 ## Area C — Currency & money on the character sheet
 
