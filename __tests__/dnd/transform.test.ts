@@ -9,6 +9,7 @@
 // components — a follow-up; this pins the resolution + the mechanical overlay.
 import { describe, it, expect } from 'vitest';
 import { buildLedger, imposedTransform } from '@/lib/dnd/effects/ledger';
+import { describeEffect } from '@/lib/dnd/effects/targets';
 import { applySheetEdits, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character, CharForm } from '@/app/dnd/_sheet/types';
@@ -37,6 +38,20 @@ const potion: SheetEdit = {
   equipped: true,
   effects: [{ target: 'transform', operation: 'set', value: 'bear' }],
 } as SheetEdit;
+
+describe('a transform reads legibly wherever effects are described (Active Effects panel + ★)', () => {
+  it('describeEffect renders a transform as a readable line, not a bare target key', () => {
+    // The Active Effects panel (Slice 12) and the ★ tooltip (Slice 13) both label effects through the
+    // shared describeEffect. A transform is a `set` on the `transform` (ref) target, so it must read
+    // "Transform into another form: <form>" — the "why is my AC 11 while I'm a bear" answer the doc
+    // requires on the sheet — not a blank line or the raw "transform" key.
+    expect(describeEffect({ target: 'transform', operation: 'set', value: 'Brown Bear' }))
+      .toBe('Transform into another form: Brown Bear');
+    // …and it carries the per-effect condition gate like every other effect line.
+    expect(describeEffect({ target: 'transform', operation: 'set', value: 'Brown Bear', condition: 'raging' }))
+      .toBe('Transform into another form: Brown Bear (while raging)');
+  });
+});
 
 describe('a transform effect imposes a form, resolved by the ledger', () => {
   it('imposedTransform / ledger.transform() name the form and its source', () => {

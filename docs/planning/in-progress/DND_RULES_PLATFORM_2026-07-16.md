@@ -1622,10 +1622,13 @@ now carries `effects` authored through the same `EffectRows`, snapshotted into a
 cast so the ledger resolves it like a potion. The builder is now on item + feature + spell +
 consumable-buff editors — the whole authoring surface.
 
-- [ ] On any item/spell/feature editor: an **Add effect** button → pick an effect type → fill in its
-      numbers. Repeatable; an item holds any number of effects.
-- [ ] The picker is **built from the effect vocabulary**, not a hand-written menu, so a new operation
-      shows up in the UI automatically and cannot be forgotten. Grouped for humans:
+- [x] On any item/spell/feature editor: an **Add effect** button → pick an effect type → fill in its
+      numbers. Repeatable; an item holds any number of effects. ✅ SHIPPED — `EffectRows` (mounted in
+      ItemBuilder + FeatureEditor + SpellEditor + consumable-buff editor); see the prose above.
+- [x] The picker is **built from the effect vocabulary**, not a hand-written menu, so a new operation
+      shows up in the UI automatically and cannot be forgotten. ✅ SHIPPED — the target `<select>` is
+      generated from `EFFECT_TARGETS` grouped by `TARGET_GROUP_LABELS`, the op dropdown is constrained to
+      the target's `ops`, and the value control follows its `valueType`. Grouped for humans:
       - *Modify a number* — ability, AC, speed, HP, save DC, initiative, a skill, attack, damage.
         `add` (stacks) or `set` (overrides). **Negative values are first-class** — a cursed item that
         gives −2 DEX is the same machinery as a +2 belt, and the UI must not fight it.
@@ -1637,16 +1640,19 @@ consumable-buff editors — the whole authoring surface.
       - *Duration* — permanent while worn · while attuned · timed ("12 hours") · until ended.
       - *Trigger* — Slice 15's event actions.
       - *Transform* — Slice 18.
-- [ ] Each effect gets a **plain-English preview line** as you build it ("+2 STR while equipped",
-      "disadvantage on Stealth"). An effect builder whose output you can't read is how you end up
-      with items nobody trusts.
-- [ ] **Condition/gating** per effect: unconditional, while equipped, while attuned, or gated on a
-      named condition (`raging`, `bloodied`) — the engine's `condition` field, exposed.
-- [ ] Validate on save: unknown target → refuse with a reason. Never silently drop an effect; the
-      player will believe it works.
-- [~] Tests: every operation in the vocabulary is reachable from the picker (a guard that fails when
+- [x] Each effect gets a **plain-English preview line** as you build it. ✅ SHIPPED — each row previews
+      via the shared `describeEffect` (the SAME renderer as the ★ tooltip + Active Effects panel), so what
+      you author reads exactly as the sheet describes it. One renderer, three readers, no drift.
+- [x] **Condition/gating** per effect: unconditional, while equipped, while attuned, or gated on a named
+      condition. ✅ SHIPPED — each row's optional "if… (raging)" field wires the engine's `condition` and
+      flows into the describeEffect preview ("+10 Walking speed (while raging)").
+- [x] Validate on save: unknown target → refuse with a reason. ✅ SHIPPED — `save()` runs every effect
+      through the same `validateEffect` the AI path uses and refuses with a readable message rather than
+      persisting a broken effect the player would believe works.
+- [x] Tests: every operation in the vocabulary is reachable from the picker (a guard that fails when
       someone adds an operation and forgets the UI); a hand-built item and an AI-built item with the
-      same mechanics produce identical `Effect[]`; a negative modifier round-trips.
+      same mechanics produce identical `Effect[]`; a negative modifier round-trips. ✅ SHIPPED — all three,
+      plus the description-coverage companion below.
       **Reachability guard ✅ SHIPPED** (`5f0ec149`): `EFFECT_OPERATIONS` — a runtime roster kept
       exhaustive at compile time (`satisfies Record<EffectOperation, 1>`) — plus a test that each op is
       offered by ≥1 target (the picker renders `def.ops`, so unlisted = unpickable). +10 tests. The
@@ -1762,10 +1768,18 @@ the overlay rule, because "you are a bear now" must be perfectly reversible.
       reviewed.
 - [ ] Forms are **authored with the same builder** as characters (Slice 17) — a form is a sheet. A DM
       can define a bear once and reuse it; a player can be turned into another PC.
-- [ ] The Active Effects panel (Slice 12) shows the transform as the source it is, with **End
-      transform** — and, per the request, that is how you get back.
-- [ ] While transformed, the panel and the star markers (Slice 13) still explain the *form's* numbers,
-      so "why is my AC 11" has an answer while you are a bear.
+- [x] The Active Effects panel (Slice 12) shows the transform as the source it is, with **End transform**
+      — and, per the request, that is how you get back. ✅ SHIPPED — a `transform` effect rides on its
+      item/spell/potion source, which the panel lists; the generic "End effect" removes that cause
+      (unequip / drop the ActiveEffect) → the transform reverts. `describeEffect` renders the row legibly
+      ("Transform into another form: Brown Bear").
+- [x] While transformed, the panel and the star markers (Slice 13) still explain the *form's* numbers,
+      so "why is my AC 11" has an answer while you are a bear. ✅ SHIPPED — the form's own effects resolve
+      through the ledger, so `explain('ac')` (and every ★) attributes the form's contribution.
+      **⚑ TRANSFORM DISPLAY PINNED (2026-07-18):** `describeEffect` for a `transform` effect was untested —
+      the exact label the panel + ★ show while transformed. Added `transform.test.ts` +1 asserting it reads
+      "Transform into another form: <form>" (and carries the while-condition gate), not a blank line or the
+      raw `transform` key. Full dnd suite green (1846).
 - [~] Damage taken in form, resources spent in form, and duration are tracked on the form instance,
       not on the base sheet. (HP ✅ — `char.formHp` pool via `separateHp`, base frozen; duration already
       on `combat.transformTurnsLeft`. Form-scoped RESOURCE pools remain a follow-up under the
