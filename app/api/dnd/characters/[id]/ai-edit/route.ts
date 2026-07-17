@@ -8,7 +8,8 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession } from '@/lib/dnd/auth';
 import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { dndToolCall, dndAiConfigured } from '@/lib/dnd/ai';
-import { applySheetEdits, editPath, editOldValue, validateSheetEdits, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
+import { applySheetEdits, editPath, editOldValue, validateSheetEdits, revertBatch, SHEET_EDIT_TOOL, type SheetEdit, type AuditedEdit } from '@/lib/dnd/sheet-edits';
+import { recentBatchDigest, latestUndoableBatch, type EditHistoryRow } from '@/lib/dnd/edit-history';
 import { applyLayoutEdits, LAYOUT_EDIT_TOOL, type LayoutEdit } from '@/lib/dnd/layout-edits';
 import { normalizeLayout } from '@/lib/dnd/custom-sheet';
 import { systemGroundingBlock } from '@/lib/dnd/grounding';
@@ -23,7 +24,18 @@ const LAYOUT_ROUTING =
   'If the user asks to change the SHEET ITSELF — its layout, sections, blocks, widgets, styling, colors, ' +
   'fonts, or format (move/resize/restyle/add/remove elements, set CSS) — call customize_layout. If they ask ' +
   'to change the CHARACTER — feats, abilities, mechanics, transformations, spells, attacks, stats — call ' +
-  'edit_sheet. Never touch anything outside this character.';
+  'edit_sheet. If they ask to UNDO, REVERT, or PUT BACK your most recent change (or "take my character back ' +
+  'to what it was"), call undo_last_change. Never touch anything outside this character.';
+
+/** The tool the model picks to undo its own most recent change to this character. No inputs — the route
+ *  reverts the latest un-reverted AI batch. */
+const UNDO_TOOL = {
+  name: 'undo_last_change',
+  description: 'Undo the most recent change you made to this character — reverts your last edit batch, ' +
+    'restoring the character to how it was before. Use when the user says undo, revert, put it back, or ' +
+    'take my character back to what it was.',
+  input_schema: { type: 'object' as const, properties: {}, required: [] as string[] },
+};
 
 /** A compact index of the current custom blocks so the agent can target them by position. */
 function layoutSummary(raw: unknown): string {
@@ -79,6 +91,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // no cross-system rules, no invented mechanics.
   const grounding = await systemGroundingBlock((row as { system?: string }).system, instr).catch(() => null);
 
+  // Recent edit history (history/undo C): lets the AI answer "what did you change?" and gives
+  // "undo that" a target. Best-effort — a missing table/column just yields an empty digest.
+  const { data: histRows } = await supabaseAdmin
+    .from('dnd_sheet_edits')
+    .select('batch_id, source, field_path, summary, created_at')
+    .eq('character_id', params.id)
+    .order('created_at', { ascending: false })
+    .limit(80);
+  const history = (histRows ?? []) as EditHistoryRow[];
+  const historyDigest = recentBatchDigest(history);
+
   let result;
   try {
     // The agent picks the right tool per request: edit_sheet for MECHANICS (Slice 8) or
@@ -89,10 +112,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       user: [
         `Current sheet:\n${sheetDigest(current)}`,
         `Current custom layout blocks: ${layoutSummary((row as { custom_layout?: unknown }).custom_layout)}`,
+        historyDigest || null,
         grounding?.block || null,
         `Instruction: ${instr}`,
       ].filter(Boolean).join('\n\n'),
-      tools: [SHEET_EDIT_TOOL, LAYOUT_EDIT_TOOL],
+      tools: [SHEET_EDIT_TOOL, LAYOUT_EDIT_TOOL, UNDO_TOOL],
       toolChoice: { type: 'auto' },
       maxTokens: 4096,
       temperature: 0.4,
@@ -100,6 +124,35 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'AI call failed.' }, { status: 502 });
   }
+  // ── Undo path (history/undo C1): the user asked to undo/revert/put it back ────────────
+  if (result?.name === 'undo_last_change') {
+    const target = latestUndoableBatch(history);
+    if (!target) {
+      return NextResponse.json({ ok: true, kind: 'undo', reverted: 0, batchId: null, summary: 'There is no recent change of mine to undo on this character.' });
+    }
+    // The rows we selected for the digest don't carry old_value/new_value, so fetch the full batch.
+    const { data: full } = await supabaseAdmin
+      .from('dnd_sheet_edits')
+      .select('old_value, new_value, created_at')
+      .eq('character_id', params.id)
+      .eq('batch_id', target.batchId)
+      .order('created_at', { ascending: true });
+    const audited = ((full ?? []) as { old_value: unknown; new_value: SheetEdit | null }[])
+      .filter((r): r is { old_value: unknown; new_value: SheetEdit } => !!r.new_value)
+      .map((r): AuditedEdit => ({ edit: r.new_value, oldValue: r.old_value }));
+    if (!audited.length) return NextResponse.json({ ok: true, kind: 'undo', reverted: 0, batchId: null, summary: 'There is no recent change of mine to undo on this character.' });
+
+    const reverted = revertBatch(current, audited);
+    const { error: rErr } = await supabaseAdmin.from('dnd_characters').update({ data: reverted, name: reverted.meta?.name || row.name }).eq('id', params.id);
+    if (rErr) return NextResponse.json({ error: rErr.message }, { status: 500 });
+    await supabaseAdmin.from('dnd_sheet_edits').insert({
+      character_id: params.id, editor_user_id: session.userId, is_dm: isDM,
+      field_path: `revert-batch:${target.batchId}`, old_value: null, new_value: null, scope: 'permanent',
+      source: 'revert', summary: `Undid a change of ${audited.length} edit(s)${target.summary ? `: ${target.summary}` : ''}`,
+    }).then(() => {}, () => {});
+    return NextResponse.json({ ok: true, kind: 'undo', reverted: audited.length, batchId: target.batchId, summary: `Undone — reverted my last change${target.summary ? ` (${target.summary})` : ''}. Your character is back to how it was.` });
+  }
+
   const editsRaw = result?.input?.edits;
   if (!Array.isArray(editsRaw) || editsRaw.length === 0) return NextResponse.json({ error: 'The AI did not return any edits.' }, { status: 502 });
 
