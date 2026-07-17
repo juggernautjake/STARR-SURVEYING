@@ -285,9 +285,26 @@ describe('the digest carries effect-derived movement, senses and defenses (Slice
     expect(d).toMatch(/Immune to conditions: frightened/); // NOT lumped with the damage immunity
   });
 
+  it('reports a granted movement trait (hover / ignores difficult terrain), presence = the effect', () => {
+    const d = characterDigest(equipped([
+      { target: 'hover', operation: 'set', value: 1 },
+      { target: 'ignore_difficult_terrain', operation: 'set', value: 1 },
+    ]), 'dnd-5e-2024');
+    expect(d).toMatch(/Movement traits: .*can hover/);
+    expect(d).toMatch(/ignores difficult terrain/);
+  });
+
+  it('reports advantage on saves vs a named condition (Dwarven Resilience etc.), not auto-applied', () => {
+    const d = characterDigest(equipped([
+      { target: 'condition_advantage', operation: 'condition_advantage', value: 'poison' },
+    ]), 'dnd-5e-2024');
+    expect(d).toMatch(/DEFENSES:.*Advantage on saves vs: poison/);
+  });
+
   it('a character with none of these gets no Movement/Senses/DEFENSES noise', () => {
     const d = characterDigest((() => { const c = fixture(); c.combat = { ...c.combat, exhaustion: 0 }; return c; })(), 'dnd-5e-2024');
     expect(d).not.toContain('Movement ');
+    expect(d).not.toContain('Movement traits:');
     expect(d).not.toContain('Senses ');
     expect(d).not.toContain('DEFENSES:');
   });

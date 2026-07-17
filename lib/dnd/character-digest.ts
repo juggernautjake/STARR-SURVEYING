@@ -111,6 +111,18 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
     .filter((cn) => !cn.suppressed && typeof cn.effect.value === 'string')
     .map((cn) => String(cn.effect.value));
   if (senses.length) state.push(`Senses ${senses.join(', ')}`);
+  // Movement traits granted by an effect — presence IS the effect (Boots of Levitation → hover; a spell →
+  // ignore difficult terrain). CombatPanel lists these; a ruling on "can you cross the bramble?" / "do you
+  // fall when knocked prone mid-air?" needs them too. Read like the sheet: any non-suppressed contribution.
+  const moveTraits = (
+    [
+      ['hover', 'can hover'],
+      ['ignore_difficult_terrain', 'ignores difficult terrain'],
+    ] as const
+  )
+    .filter(([key]) => ledger.explain(key).some((cn) => !cn.suppressed))
+    .map(([, label]) => label);
+  if (moveTraits.length) state.push(`Movement traits: ${moveTraits.join(', ')}`);
   // Passive Perception + Initiative — both routinely decide a ruling ("does the guard notice?", "who
   // acts first?"). EFFECTIVE: WIS/DEX fold through the ledger and Initiative folds any `initiative` effect.
   if (char.skills?.perception) {
@@ -147,10 +159,15 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
   const vuln = ledger.collected('vulnerability').map((v) => v.value);
   const dmgImm = dedupValues(ledger.explain('immunity'));
   const condImm = dedupValues(ledger.explain('condition_immunity'));
+  // Advantage on saves vs a named condition (Dwarven Resilience vs poison, Fey Ancestry vs charm) — the
+  // sheet lists these; a ruling on "do you save with advantage vs the poison?" needs them. Not auto-applied
+  // (the game asks the player to invoke it), which is exactly why the AI must be told the advantage exists.
+  const condAdv = ledger.collected('condition_advantage').map((a) => a.value);
   if (resist.length) defense.push(`Resistant: ${resist.join(', ')}`);
   if (dmgImm.length) defense.push(`Immune: ${dmgImm.join(', ')}`);
   if (vuln.length) defense.push(`Vulnerable: ${vuln.join(', ')}`);
   if (condImm.length) defense.push(`Immune to conditions: ${condImm.join(', ')}`);
+  if (condAdv.length) defense.push(`Advantage on saves vs: ${condAdv.join(', ')}`);
   if (defense.length) lines.push(`DEFENSES: ${defense.join(' · ')}`);
 
   // What is currently modifying this character — so the AI knows WHY a number differs from the base

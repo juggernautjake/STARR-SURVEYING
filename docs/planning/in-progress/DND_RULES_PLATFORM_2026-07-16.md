@@ -1081,6 +1081,12 @@ Original action items (kept for the remaining work):
       whole Defenses card (resistance/immunity/vulnerability/condition-immunity). All four now project into
       the digest, reading the ledger with CombatPanel's exact logic (damage- vs condition-immunity kept
       distinct, not lumped). So the AI is no longer blind to capabilities the player can plainly see.
+      **Digest↔CombatPanel parity completed (2026-07-17):** the first pass left two sheet facts still absent
+      from the AI's copy — the movement FLAGS (`hover`, `ignore_difficult_terrain`; presence = the effect)
+      and `condition_advantage` (Dwarven Resilience / Fey Ancestry "advantage on saves vs poison/charm",
+      listed-not-auto-applied, so the AI must be *told* it exists). Both now emit (`Movement traits: …`,
+      `DEFENSES: … · Advantage on saves vs: …`), so every effect-derived fact CombatPanel renders is now in
+      the digest. `character-digest.test.ts` +2.
 - [ ] A single item carries **any number of effects of any mix** — the "one boot that rewrites you"
       case is just an item with fifteen effects and must need no special code.
 - [x] Tests: an item granting a Barbarian feature to a Wizard shows it in Features, sourced to the
