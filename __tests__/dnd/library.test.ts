@@ -41,9 +41,11 @@ describe('library pages', () => {
     expect(titles('pathfinder2e')).toContain('Weapons');
     expect(titles('pathfinder2e')).toContain('Spells');
     expect(titles('dnd5e-2024')).toContain('Classes');
-    // Backgrounds/Armor/Weapons are PF2-only library sections today — they must NOT leak into 5e pages.
-    expect(titles('dnd5e-2024')).not.toContain('Backgrounds');
+    // 2024 5e now shows its own Backgrounds section (the 2024 ability increases live there).
+    expect(titles('dnd5e-2024')).toContain('Backgrounds');
+    // Armor/Weapons remain PF2-only library sections today — they must NOT leak into 5e pages.
     expect(titles('dnd5e-2024')).not.toContain('Weapons');
+    expect(titles('dnd5e-2024')).not.toContain('Armor');
   });
 
   it('states plainly when a system has no levels', () => {

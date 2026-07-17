@@ -358,6 +358,27 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
     });
   }
 
+  // Backgrounds (5e 2024) — the 2024 rule moved the ability increases onto the background (never the
+  // species), and each grants an Origin feat + skills + a tool. As consequential as the PF2 ones above.
+  const dnd2024Backgrounds = dnd2024BackgroundsFor(key);
+  if (dnd2024Backgrounds.length) {
+    sections.push({
+      id: 'backgrounds',
+      title: 'Backgrounds',
+      lead: `${dnd2024Backgrounds.length} backgrounds — in 2024 the background grants your ability increases (choose from three), an Origin feat, two skills, and a tool.`,
+      table: {
+        headers: ['Background', 'Ability options', 'Origin feat', 'Skills', 'Tool'],
+        rows: dnd2024Backgrounds.map((b) => [
+          b.name,
+          b.abilityScores.map((a) => a.toUpperCase()).join(' / '),
+          b.originFeat.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' '),
+          b.skillProficiencies.join(', '),
+          b.toolProficiency,
+        ]),
+      },
+    });
+  }
+
   // Backgrounds (IG) — each grants starting HP, ability boosts, proficiencies, and a base Stance.
   const igBackgrounds = igBackgroundsFor(key);
   if (igBackgrounds.length) {
