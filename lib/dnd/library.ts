@@ -11,6 +11,7 @@ import { glossaryFor, searchGlossary } from './glossary';
 import { classesForSystem } from './classes/registry';
 import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
 import { BACKGROUNDS_2024, type Background as Dnd2024Background } from './backgrounds/dnd5e-2024';
+import { LANGUAGES_2024, TOOLS_2024, type Language as Dnd2024Language, type Tool as Dnd2024Tool } from './languages/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
 import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, IG_COMPANION_TYPES, IG_COMPANION_RULES, IG_BACKGROUND_DEFS, IG_CLASS_GROUPS, IG_CLASS_RULES, IG_SUBCLASSES, IG_CLASS_DETAILS, IG_CLASS_TAXONOMY_FINDING, IG_REDISTRIBUTION_RULES, type NamedEntry, type IGStance, type IGAncestry, type IGCompanionType, type IGBackground } from './systems/intuitive-games/content';
 import { igAllFeats, type IGFeat } from './systems/intuitive-games/feats';
@@ -67,6 +68,12 @@ function igBackgroundsFor(system: string): IGBackground[] {
  *  feat in 2024), so they belong in the library search like PF2's and IG's do. */
 function dnd2024BackgroundsFor(system: string): Dnd2024Background[] {
   return system === 'dnd5e-2024' ? BACKGROUNDS_2024 : [];
+}
+function dnd2024LanguagesFor(system: string): Dnd2024Language[] {
+  return system === 'dnd5e-2024' ? LANGUAGES_2024 : [];
+}
+function dnd2024ToolsFor(system: string): Dnd2024Tool[] {
+  return system === 'dnd5e-2024' ? TOOLS_2024 : [];
 }
 const IG_ECONOMY_COST: Record<string, string> = { Single: '1 action', Double: '2 actions', Triple: '3 actions', Reaction: 'Reaction', Other: 'Free / other' };
 
@@ -389,6 +396,37 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
       table: {
         headers: ['Background', 'HP', 'Ability boosts', 'Proficiencies', 'Stance'],
         rows: igBackgrounds.map((b) => [b.name, String(b.hp), b.boosts, b.proficiencies.join(', '), b.stance]),
+      },
+    });
+  }
+
+  // Languages (5e 2024) — the standard + rare list players pick from, with who speaks each. Shipped as
+  // data but previously surfaced nowhere in the library.
+  const languages = dnd2024LanguagesFor(key);
+  if (languages.length) {
+    const rare = languages.filter((l) => l.rarity === 'rare').length;
+    sections.push({
+      id: 'languages',
+      title: 'Languages',
+      lead: `${languages.length} languages (${languages.length - rare} standard, ${rare} rare) — you learn Common plus more from your species and background.`,
+      table: {
+        headers: ['Language', 'Rarity', 'Typical speakers'],
+        rows: languages.map((l) => [l.name, l.rarity, l.origin]),
+      },
+    });
+  }
+
+  // Tools (5e 2024) — the tool proficiencies backgrounds/classes grant, grouped by family.
+  const tools = dnd2024ToolsFor(key);
+  if (tools.length) {
+    const families = Array.from(new Set(tools.map((t) => t.family)));
+    sections.push({
+      id: 'tools',
+      title: 'Tools',
+      lead: `${tools.length} tools across ${families.length} families — a background or class grants proficiency with specific ones.`,
+      table: {
+        headers: ['Family', 'Tools'],
+        rows: families.map((f) => [f, tools.filter((t) => t.family === f).map((t) => t.name).join(', ')]),
       },
     });
   }
@@ -752,6 +790,10 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
     for (const b of dnd2024BackgroundsFor(key)) {
       push('background', b.name, `${b.name} background — ability options ${b.abilityScores.map((a) => a.toUpperCase()).join('/')}; Origin feat ${b.originFeat}; skills ${b.skillProficiencies.join(', ')}; tool ${b.toolProficiency}.`);
     }
+    // 2024 languages + tools — findable by name ("is Draconic a standard language?", "what family is
+    // Thieves' Tools?"). Shipped data that previously answered nothing in search.
+    for (const l of dnd2024LanguagesFor(key)) push('rule', `${l.name} (language)`, `${l.name} — a ${l.rarity} language, spoken by ${l.origin}.`);
+    for (const t of dnd2024ToolsFor(key)) push('rule', `${t.name} (tool)`, `${t.name} — a ${t.family} tool proficiency.`);
     // Armor + weapons (PF2 only today): the stats a player scans for — AC bonus / Dex cap / Strength for
     // armor; damage die + type + traits for weapons. System-scoped so 5e gear never surfaces here.
     for (const a of armorsForSystem(key)) {

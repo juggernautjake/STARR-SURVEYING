@@ -41,11 +41,16 @@ describe('library pages', () => {
     expect(titles('pathfinder2e')).toContain('Weapons');
     expect(titles('pathfinder2e')).toContain('Spells');
     expect(titles('dnd5e-2024')).toContain('Classes');
-    // 2024 5e now shows its own Backgrounds section (the 2024 ability increases live there).
+    // 2024 5e now shows its own Backgrounds, Languages, and Tools sections (all shipped data that
+    // previously surfaced nowhere in the library).
     expect(titles('dnd5e-2024')).toContain('Backgrounds');
+    expect(titles('dnd5e-2024')).toContain('Languages');
+    expect(titles('dnd5e-2024')).toContain('Tools');
     // Armor/Weapons remain PF2-only library sections today — they must NOT leak into 5e pages.
     expect(titles('dnd5e-2024')).not.toContain('Weapons');
     expect(titles('dnd5e-2024')).not.toContain('Armor');
+    // ...nor do the 5e-only Languages/Tools leak into a PF2 page.
+    expect(titles('pathfinder2e')).not.toContain('Languages');
   });
 
   it('states plainly when a system has no levels', () => {
@@ -124,6 +129,13 @@ describe('searchLibrary', () => {
     const dndAcolyte = searchLibrary('acolyte', 'dnd5e-2024').find((h) => h.kind === 'background');
     expect(dndAcolyte).toBeTruthy();
     expect(dndAcolyte!.body).toMatch(/Origin feat/i); // the 2024-shaped body, not the PF2 one
+  });
+
+  it('finds a 5e 2024 language and tool by name', () => {
+    const draconic = searchLibrary('draconic', 'dnd5e-2024').find((h) => /language/i.test(h.name));
+    expect(draconic, 'Draconic should be searchable as a language').toBeTruthy();
+    expect(draconic!.body).toMatch(/standard language/i);
+    expect(searchLibrary('thieves', 'dnd5e-2024').some((h) => /tool/i.test(h.name))).toBe(true);
   });
 
   it('surfaces individual PF2 subclass options by name (draconic bloodline, thief racket)', () => {
