@@ -467,7 +467,10 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
 
 - [x] **D&D 5e 2024 ✅** — added the full action economy (all 12 standard actions + Bonus Action) and
       core combat (Cover, Temp HP, Damage Types & Resistance, Difficult Terrain, Vision & Light,
-      Bloodied). Now ~67 terms.
+      Bloodied), **plus rich overview articles for all 12 classes** (identity, hit die, key ability,
+      saves, signature feature, subclass at 3) and an **Epic Boon** article. Class articles carry only
+      the class name as an alias so they don't outrank the searchable per-level features (verified:
+      "wizard" → class article, "action surge" → the Action Surge feature). ~67 → ~80 terms.
 - [x] **D&D 5e 2014 ✅** — its own edition-correct action economy (Cast a Spell / Use an Object, not
       the 2024 renames; 2014 Hide with no DC 15) + the same core mechanics. Now ~60 terms. A `stealth`
       alias on Hide was outranking the Stealth skill in search — caught + removed.
