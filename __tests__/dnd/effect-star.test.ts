@@ -63,6 +63,17 @@ describe('the ledger behaviour the ★ reads', () => {
     expect(led.isModified('ability_str')).toBe(true); // shown...
     expect(led.explain('ability_str')[0].suppressed).toBe(true); // ...struck through
   });
+
+  it('AC is starred when an ac-target effect touches it, and clean otherwise', () => {
+    expect(buildLedger(blankCharacter('Plain')).isModified('ac')).toBe(false);
+    const c = blankCharacter('Warded');
+    c.inventory = [
+      { id: 'ring', name: 'Ring of Protection', desc: '', qty: 1, tags: [], equipped: true, effects: [{ target: 'ac', operation: 'add', value: 1 }] } as InvItem,
+    ];
+    const led = buildLedger(c);
+    expect(led.isModified('ac')).toBe(true);
+    expect(led.explain('ac')[0].source).toBe('Ring of Protection');
+  });
 });
 
 describe('EffectStar is one accessible marker, not a hover-only tooltip', () => {
@@ -116,10 +127,15 @@ describe('every ability-derived value on the sheet carries the star', () => {
 
   it('walking speed is folded through the ledger and starred (Slice 15)', () => {
     // The DISPLAYED speed must be the ledger value, not the raw base — else a Boots +10 stars a
-    // number it never moved. Max HP / AC stay on the base for now (heal-clamp / deriveAc overlap).
+    // number it never moved. Max HP is starred via hp_max; AC is starred via the `ac` target.
     expect(COMBAT).toContain("ledger.value('speed_walk', combat.speed)");
     expect(COMBAT).toContain('target="speed_walk"');
     expect(COMBAT).toContain('{walkSpeed} ft');
+  });
+
+  it('Max HP and AC carry the star too (the last two headline defenses)', () => {
+    expect(COMBAT).toContain('target="hp_max"');
+    expect(COMBAT).toContain('target="ac"'); // Ring of Protection etc. now explain the AC number
   });
 });
 

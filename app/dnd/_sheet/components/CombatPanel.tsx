@@ -263,7 +263,7 @@ export default function CombatPanel() {
           <h3>Defenses</h3>
           <ul className="clean">
             <li>
-              <strong>Armor Class {acInfo.ac}</strong> — {acInfo.fromEquipment ? `from ${acInfo.source}` : combat.acNote}
+              <strong>Armor Class <EffectStar target="ac" label="Armor Class">{acInfo.ac}</EffectStar></strong> — {acInfo.fromEquipment ? `from ${acInfo.source}` : combat.acNote}
               {acInfo.fromEquipment && combat.ac !== acInfo.ac && <span className="hl-note"> (manual base {combat.ac})</span>}
             </li>
             <li>
