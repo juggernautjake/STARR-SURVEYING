@@ -38,6 +38,20 @@ describe('sanitiseName — a user filename → one safe storage-path segment', (
     expect(sanitiseName('..\\..\\windows\\system32')).not.toMatch(/[/\\]/);
     expect(sanitiseName('a/b/c')).toBe('a_b_c');
   });
+  it('neutralizes the SNEAKY separators too — Unicode slashes, null bytes, control chars', () => {
+    // The safety here is the WHITELIST ([^A-Za-z0-9._\- ] → _), NOT the ASCII slash-strip — these vectors
+    // slip past a naive slash-only sanitiser, so pin that they can never reach the object key. If someone
+    // "optimizes" the whitelist into a slash blocklist, these fail.
+    expect(sanitiseName('a／b')).toBe('a_b');   // U+FF0F fullwidth solidus
+    expect(sanitiseName('a∕b')).toBe('a_b');   // U+2215 division slash
+    expect(sanitiseName('a⁄b')).toBe('a_b');   // U+2044 fraction slash
+    expect(sanitiseName('a' + String.fromCharCode(0) + 'b')).toBe('a_b');   // U+0000 null byte
+    expect(sanitiseName('a\tb\nc')).toBe('a_b_c');  // tab + newline
+    // Whatever the input, the output is drawn ONLY from the safe alphabet (letters/digits/. _ -):
+    for (const raw of ['../../x', 'a／../passwd', '\u{1F4A3}/rm -rf', 'C:\\Windows']) {
+      expect(sanitiseName(raw)).toMatch(/^[A-Za-z0-9._-]+$/);
+    }
+  });
   it('replaces unusual characters and collapses whitespace', () => {
     expect(sanitiseName('a:b*c.txt')).toBe('a_b_c.txt'); // each of : and * → one underscore
     expect(sanitiseName('two   spaces')).toBe('two_spaces');

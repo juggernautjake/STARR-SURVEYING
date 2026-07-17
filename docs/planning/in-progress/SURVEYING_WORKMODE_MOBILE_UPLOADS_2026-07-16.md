@@ -117,7 +117,12 @@ unit-testable like `queueOrder`), now stripping any query string/fragment first.
 Also moved the storage-path **filename sanitiser** (`sanitiseName`, `1a648920`) into the same pure
 module and locked its security property with tests — it can never emit a path separator, so a
 `../../etc/passwd` filename can't traverse the object key. +4 tests (no behavior change; a guard on a
-user-input → storage-key helper).
+user-input → storage-key helper). **Sneaky-vector coverage added (2026-07-17):** audited `sanitiseName`
+and confirmed its safety comes from the WHITELIST (`[^A-Za-z0-9._\- ] → _`), not the ASCII slash-strip —
+so it already neutralizes the vectors a naive slash-only sanitiser would miss (Unicode "slashes" U+FF0F/
+U+2215/U+2044, a null byte, tab/newline control chars). Pinned those explicitly + a sweep asserting the
+output is ALWAYS drawn from the safe alphabet, so a future "optimize to a slash blocklist" regression
+fails the security test. `media-path.test.ts` +1 (test-only; the sanitiser was already correct).
 
 **The target flow, in the owner's own words (2026-07-17) — this is the acceptance spec:**
 
