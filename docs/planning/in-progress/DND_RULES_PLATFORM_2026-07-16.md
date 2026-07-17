@@ -477,8 +477,11 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       classes** (Alchemist…Wizard) — each with its HP/level, key attribute, save proficiency, and
       signature mechanic (Fighter's Reactive Strike at 1, Rogue's Sneak Attack + Racket, Wizard's
       thesis + spellbook, etc.), authored from the catalog's authoritative facts. The library prefers
-      these over the one-line catalog stubs. 44 → 74 terms. **Verified in the app**: searching
-      pathfinder2e for "fighter" returns the full class article.
+      these over the one-line catalog stubs. **Plus all 8 Player Core ancestries** (Dwarf, Elf, Gnome,
+      Goblin, Halfling, Human, Leshy, Orc) as rich articles — HP, Size, Speed, senses, and signature
+      trait (Human's versatility, Orc's Ferocity, Leshy's no-food/water/air), certain facts stated and
+      exact ability boosts kept general per Ground Rule 3. 44 → 82 terms. **Verified in the app**:
+      searching pathfinder2e for "fighter" returns the class article and "dwarf" the ancestry article.
 - [x] **Intuitive Games ✅** — closed the gap found 2026-07-16 (its content lived only in the builder
       module, not the searchable glossary). Authored `lib/dnd/glossary/intuitive-games.ts` (26 articles)
       from the engine's own numbers (igProficiency = level, igDegreeOfSuccess, igSaveTotal, igMaxHp) and

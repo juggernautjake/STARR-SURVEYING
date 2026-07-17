@@ -683,4 +683,72 @@ export const PATHFINDER2E_GLOSSARY: SystemGlossary = [
     seeAlso: ['Spell Rank', 'Focus Point', 'Recall Knowledge'],
     aliases: ['wizard', 'arcane thesis', 'arcane school', 'spellbook'],
   },
+
+  // ── Ancestries (Player Core Remaster) — HP, Size, Speed, senses, and the signature trait ────────
+  // Each ancestry adds a flat pool of Hit Points at level 1 (on top of your class's HP/level), sets
+  // your Size and Speed, and grants ability boosts + a heritage at character creation.
+  {
+    term: 'Dwarf',
+    kind: 'stat',
+    short: 'Ancestry: 10 Hit Points, Medium, Speed 25 ft, Darkvision. Sturdy, stubborn, and clan-proud.',
+    body: 'The **Dwarf** ancestry grants **10 Hit Points** (added at level 1), **Medium** size, **Speed 25 feet**, and **Darkvision**. Dwarves are hardy and unhurried, with a cultural knack for stonework, weapons, and religion. Heritages include **Ancient-Blooded** (a reaction vs magic), **Death Warden**, **Forge**, **Rock**, and **Strong-Blooded** (poison resistance). Ability boosts and a heritage are chosen at creation.',
+    seeAlso: ['Attribute Boost'],
+    aliases: ['dwarf', 'ancestry', 'race'],
+  },
+  {
+    term: 'Elf',
+    kind: 'stat',
+    short: 'Ancestry: 6 Hit Points, Medium, Speed 30 ft (fast), Low-Light Vision. Long-lived, keen, and graceful.',
+    body: 'The **Elf** ancestry grants **6 Hit Points**, **Medium** size, a fast **Speed of 30 feet**, and **Low-Light Vision**. Elves are long-lived and perceptive, drawn to magic and precision. Heritages include **Ancient**, **Arctic/Desert/Seer/Whisper** and **Woodland** elves. Ability boosts and a heritage are chosen at creation.',
+    seeAlso: ['Attribute Boost'],
+    aliases: ['elf', 'ancestry', 'race'],
+  },
+  {
+    term: 'Gnome',
+    kind: 'stat',
+    short: 'Ancestry: 8 Hit Points, Small, Speed 25 ft, Low-Light Vision. Fey-touched, curious, and driven by novelty.',
+    body: 'The **Gnome** ancestry grants **8 Hit Points**, **Small** size, **Speed 25 feet**, and **Low-Light Vision**, and counts as a **fey** creature. Gnomes crave new experiences (and risk the Bleaching if they stagnate). Heritages include **Chameleon**, **Fey-Touched**, **Sensate**, **Umbral**, and **Wellspring**. Ability boosts and a heritage are chosen at creation.',
+    seeAlso: ['Attribute Boost'],
+    aliases: ['gnome', 'ancestry', 'race', 'fey'],
+  },
+  {
+    term: 'Goblin',
+    kind: 'stat',
+    short: 'Ancestry: 6 Hit Points, Small, Speed 25 ft, Darkvision. Fast, fearless, and gleefully chaotic.',
+    body: 'The **Goblin** ancestry grants **6 Hit Points**, **Small** size, **Speed 25 feet**, and **Darkvision**. Goblins are quick, resilient to fire and disease in some heritages, and endlessly enthusiastic. Heritages include **Charhide** (fire resistance), **Irongut** (eat anything), **Razortooth** (a bite), **Snow**, and **Unbreakable** (extra HP, less fall damage). Ability boosts + a heritage at creation.',
+    seeAlso: ['Attribute Boost'],
+    aliases: ['goblin', 'ancestry', 'race'],
+  },
+  {
+    term: 'Halfling',
+    kind: 'stat',
+    short: 'Ancestry: 6 Hit Points, Small, Speed 25 ft, Keen Eyes. Lucky, nimble, and irrepressibly optimistic.',
+    body: 'The **Halfling** ancestry grants **6 Hit Points**, **Small** size, **Speed 25 feet**, and **Keen Eyes** (a bonus to Seek adjacent hidden creatures and to ranged attacks against a Hidden foe). Halflings are lucky and community-minded. Heritages include **Gutsy** (fear reroll), **Hillock** (rest recovery), **Nomadic**, **Twilight** (low-light vision), and **Wildwood**. Ability boosts + a heritage at creation.',
+    seeAlso: ['Seek', 'Attribute Boost'],
+    aliases: ['halfling', 'ancestry', 'race'],
+  },
+  {
+    term: 'Human',
+    kind: 'stat',
+    short: 'Ancestry: 8 Hit Points, Medium, Speed 25 ft. The versatile ancestry — free ability boosts and a bonus feat.',
+    body: 'The **Human** ancestry grants **8 Hit Points**, **Medium** size, and **Speed 25 feet**, and is defined by **flexibility**: humans get **two free ability boosts** and heritages that lean into that adaptability — **Skilled** (a skill training that upgrades) and **Versatile** (a bonus general feat at level 1). The blank-slate ancestry that fits any class.',
+    seeAlso: ['Attribute Boost'],
+    aliases: ['human', 'ancestry', 'race', 'versatile', 'skilled'],
+  },
+  {
+    term: 'Leshy',
+    kind: 'stat',
+    short: 'Ancestry: 8 Hit Points, Small, Speed 25 ft, Low-Light Vision. A plant spirit given a body — needs no food, water, or air.',
+    body: 'The **Leshy** ancestry grants **8 Hit Points**, **Small** size, **Speed 25 feet**, and **Low-Light Vision**, and is a **plant** creature: a leshy **does not need to eat, drink, or breathe**. Heritages give a body of a type — **Fungus**, **Fruit**, **Gourd**, **Leaf**, **Lotus**, **Root**, **Seaweed**, **Vine** — each with a small trick. Ability boosts + a heritage at creation.',
+    seeAlso: ['Attribute Boost'],
+    aliases: ['leshy', 'ancestry', 'race', 'plant'],
+  },
+  {
+    term: 'Orc',
+    kind: 'stat',
+    short: 'Ancestry: 10 Hit Points, Medium, Speed 25 ft, Darkvision. Tough and relentless, with a Ferocity to keep fighting.',
+    body: 'The **Orc** ancestry grants **10 Hit Points** (tied with Dwarf for toughest), **Medium** size, **Speed 25 feet**, and **Darkvision**. Orcs are strong and hard to put down. Many heritages grant **Orc Ferocity** — a reaction to stay at 1 HP when you would drop — and options like **Badlands** (fast in heat), **Battle-Ready**, **Grave-Born**, and **Winter** orcs. Ability boosts + a heritage at creation.',
+    seeAlso: ['Attribute Boost'],
+    aliases: ['orc', 'ancestry', 'race', 'ferocity'],
+  },
 ];
