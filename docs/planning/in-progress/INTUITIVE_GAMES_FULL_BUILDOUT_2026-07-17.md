@@ -106,10 +106,21 @@ builder + read-only sheet + 26-article glossary + AI build. Key facts for this b
 Reproduce the entire intuitivegames.net rules corpus in the IG library so a reader (and the AI) can find any
 term fully defined. One slice per site section; each fetches the page, transcribes faithfully, marks WIP/gaps.
 
-- [ ] **A0 — Content pipeline + system-entry shape.** Confirm how IG library entries are stored/rendered and
-      establish the repeatable fetch→entry pipeline (mirroring the SIT/learn `JSON→gen_seed` approach if
-      applicable). Decide TS-module vs seed, and how an entry expresses sections + a machine-readable term
-      list the AI can consume.
+- [x] **A0 — Content pipeline + system-entry shape. ✅ SHIPPED** (settled by A1–A11, recorded here 2026-07-17).
+      The foundational "decide the approach" slice — its decision was made and then exercised 11 times:
+      **(1) TS-module, not seed.** IG content lives in typed modules — `lib/dnd/systems/intuitive-games/content.ts`
+      (stances, conditions, ancestries, backgrounds, powers, skills, damage/cover/movement, class groups),
+      `…/feats.ts` (the 151-feat catalog), and `lib/dnd/glossary/intuitive-games.ts` (25 core-mechanic terms
+      for library search / Ask-the-Librarian). Chosen over a DB seed because this is authored rules text read
+      at build time by pure functions, not per-user data. **(2) Repeatable fetch→transcribe→entry pipeline:**
+      each A-slice fetched one site page, transcribed it verbatim (Ground Rule 2 — WIP marked, never invented),
+      and added a typed entry; A1–A11 all shipped through it. **(3) An entry expresses sections + is
+      AI-consumable:** `lib/dnd/library.ts` renders the modules as library sections and makes them searchable
+      (`searchLibrary`), and `systemRulesBlock('intuitive-games')` projects the FULL rules text into the AI
+      grounding (guarded by `ig-content.test.ts`) — so "machine-readable, AI can consume it" is satisfied by the
+      grounding + search paths (a separate consolidated term index would be dead code: the sheet uses bespoke
+      `findIG*` tooltips, the AI uses grounding, and search already indexes every entry). No further work — the
+      pipeline this item defines is what every other Area-A slice used.
 - [x] **A1 — Core Rules** (`/core-rules`) — ✅ SHIPPED. The core resolution, action economy, saves, and
       ability model were already in the library (from `system-rules.ts`); this slice adds the remaining
       `/core-rules` mechanics as a **Damage, cover & movement** section (`content.ts`): the damage **Fortitude
