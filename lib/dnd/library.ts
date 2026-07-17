@@ -12,6 +12,7 @@ import { classesForSystem } from './classes/registry';
 import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
 import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, type NamedEntry, type IGStance, type IGAncestry } from './systems/intuitive-games/content';
+import { igAllFeats, type IGFeat } from './systems/intuitive-games/feats';
 
 /** The full feat registry for a system, or [] when only a catalog sample exists. System-keyed
  *  dispatcher (the pattern `findFeat`'s comment calls for) so a feat never leaks across systems. */
@@ -36,6 +37,12 @@ function stancesForSystem(system: string): IGStance[] {
  *  ancestry traits never surface under another system. IG's are transcribed verbatim from the site. */
 function ancestriesWithTraitsFor(system: string): IGAncestry[] {
   return system === 'intuitive-games' ? IG_ANCESTRIES : [];
+}
+
+/** Intuitive Games feats with full text (prerequisites + effect). System-keyed so IG feats never surface
+ *  under another system. IG uses its own IGFeat shape (not the 5e Feat), so it has a dedicated dispatcher. */
+function igFeatsFor(system: string): IGFeat[] {
+  return system === 'intuitive-games' ? igAllFeats() : [];
 }
 
 /** Backgrounds a system exposes as structured library data. System-keyed so PF2's backgrounds never
@@ -330,7 +337,22 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
     }
   }
 
-  if (r.content.sampleFeats.length) {
+  const igFeats = igFeatsFor(key);
+  if (igFeats.length) {
+    // Full feat text (IG): a table of Feat / Prerequisites / Effect — the complete list from the site,
+    // not a sample. Grouped label in the lead so a reader knows General vs Combat coverage.
+    const gen = igFeats.filter((f) => f.category === 'General').length;
+    const com = igFeats.length - gen;
+    sections.push({
+      id: 'feats',
+      title: featNoun(r.key),
+      lead: `${igFeats.length} feats from intuitivegames.net (${gen} General${com ? ` · ${com} Combat` : ''}).`,
+      table: {
+        headers: ['Feat', 'Prerequisites', 'Effect'],
+        rows: igFeats.map((f) => [f.name, f.prerequisites ?? '—', f.effect]),
+      },
+    });
+  } else if (r.content.sampleFeats.length) {
     sections.push({ id: 'feats', title: featNoun(r.key), lead: 'A representative sample — not the complete list.', chips: r.content.sampleFeats });
   }
 
@@ -452,7 +474,12 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
     // Systems with a full FEATS registry (dnd5e-2024) expose EVERY feat with its real benefit text and
     // category, so "great weapon master" or "alert" returns the actual rules, not a one-line stub.
     const fullFeats = featsForSystem(key);
-    if (fullFeats.length) {
+    const igFeatList = igFeatsFor(key);
+    if (igFeatList.length) {
+      // IG feats: each with its real prerequisites + effect, so "toughness" or "quick caster" resolves the
+      // actual rules text (IG's own IGFeat shape).
+      for (const f of igFeatList) push('feat', f.name, `${f.name} — ${f.category} feat${f.prerequisites ? ` (prereq: ${f.prerequisites})` : ''}: ${f.effect}`);
+    } else if (fullFeats.length) {
       for (const f of fullFeats) push('feat', f.name, `${f.name} (${f.category} feat) — ${f.benefit}`);
     } else {
       for (const f of r.content.sampleFeats) push('feat', f, `${f} — ${featNoun(r.key).toLowerCase()} in ${r.label}.`);

@@ -247,6 +247,34 @@ describe('full 2024 feats project into library search (Slice 8b)', () => {
   });
 });
 
+describe('Intuitive Games general feats carry full rules text (IG buildout A7)', () => {
+  it('renders feats as a Feat/Prerequisites/Effect table (the whole list, not a sample)', () => {
+    const page = libraryPageFor('intuitive-games')!;
+    const feats = page.sections.find((s) => s.id === 'feats')!;
+    expect(feats.table).toBeTruthy();
+    expect(feats.chips).toBeUndefined();
+    expect(feats.table!.headers).toEqual(['Feat', 'Prerequisites', 'Effect']);
+    expect(feats.table!.rows.length).toBeGreaterThanOrEqual(83);
+    expect(feats.lead).toMatch(/from intuitivegames\.net/i);
+    const alert = feats.table!.rows.find((r) => r[0] === 'Alert');
+    expect(alert?.[1]).toMatch(/Perception/); // prerequisite column
+    expect(alert?.[2]).toMatch(/flat-footed/i); // effect column
+  });
+
+  it('a feat is searchable with its prerequisites + effect', () => {
+    const toughness = searchLibrary('toughness', 'intuitive-games').find((h) => h.kind === 'feat');
+    expect(toughness?.name).toBe('Toughness');
+    expect(toughness!.body).toMatch(/5 extra hit points/i);
+    const quick = searchLibrary('quick caster', 'intuitive-games').find((h) => h.kind === 'feat');
+    expect(quick!.body).toMatch(/one fewer action/i);
+  });
+
+  it('does not surface the old sample-feat stub for IG (the real feats replace it)', () => {
+    const alert = searchLibrary('alert', 'intuitive-games').find((h) => h.kind === 'feat' && h.name === 'Alert');
+    expect(alert!.body.length).toBeGreaterThan(40); // real effect text, not "Alert — a feat in ..."
+  });
+});
+
 describe('Intuitive Games ancestries carry full trait text (IG buildout A5)', () => {
   it('renders the ancestries as a full-trait-text table with the trait-system rules', () => {
     const page = libraryPageFor('intuitive-games')!;

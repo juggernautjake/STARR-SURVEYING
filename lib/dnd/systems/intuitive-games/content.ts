@@ -9,6 +9,8 @@
 // 5e/PF2/Intuitive-Games rules catalog already uses. Names are the recognition key; effects are for the
 // sheet/grounding. Extend a list to teach the system a new vanilla element.
 
+import { IG_GENERAL_FEATS } from './feats';
+
 export interface NamedEntry {
   name: string;
   /** Grouping (e.g. a spell's school, a feat's General/Combat bucket). */
@@ -282,7 +284,9 @@ export type IGContentKind =
 
 const KIND_NAMES: Record<IGContentKind, string[]> = {
   stance: IG_STANCES.map((s) => s.name),
-  feat: IG_FEATS.map((f) => f.name),
+  // The classifier recognizes every authored site feat (the detailed IG_GENERAL_FEATS + the legacy short
+  // IG_FEATS list), de-duplicated — so a character with a real feat like "Fleet" is flagged vanilla.
+  feat: Array.from(new Set([...IG_GENERAL_FEATS.map((f) => f.name), ...IG_FEATS.map((f) => f.name)])),
   power: IG_POWERS.map((p) => p.name),
   spell: IG_POWERS.map((p) => p.name), // "spell" is an alias for a power in this system
   'defensive-power': IG_DEFENSIVE_POWERS.map((d) => d.name),

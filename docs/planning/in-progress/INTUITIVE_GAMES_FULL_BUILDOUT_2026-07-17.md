@@ -69,10 +69,10 @@ builder + read-only sheet + 26-article glossary + AI build. Key facts for this b
 - **Rich IG content already exists but is UNDER-surfaced:** `lib/dnd/systems/intuitive-games/content.ts`
   holds 10 stances (A/B effects), ~40 powers/spells by school, 6 defensive powers, weapon/movement taxonomy,
   bestiary — but the library page shows only abilities/classes/skills/species/conditions/sample-feats.
-- **Accuracy gaps vs the website:** conditions + feats were **names-only** (no rules text), and the feat
-  list was sourced from an uploaded template, so several names (`Boundless Stamina`, `Inspiring Insight`,
-  `Daring Quickness`, `Death Spiral`) **do not exist on intuitivegames.net** and must be reconciled to the
-  real Combat/General feat lists (with effect text). Species are 10 names + prose, not structured
+- **Accuracy gaps vs the website:** conditions + feats were **names-only** (no rules text). *(Update: the
+  old IG_FEATS names once thought "invented" — `Boundless Stamina`/`Inspiring Insight`/`Daring Quickness` —
+  turned out to be REAL site feats in the Special/Ability sections; A7 authored all 83 general feats with
+  text. `Death Spiral` is a Combat "Style" move, reconciled in A8.)* Species are 10 names + prose, not structured
   (`speciesView` returns name-only `custom` for IG). Stances exist but aren't editable on the sheet or wired
   into the effect engine.
 - **Builder/sheet:** `app/dnd/_ui/IGCharacterBuilder.tsx` (guided picker → `/api/dnd/characters/[id]/ig-build`)
@@ -114,7 +114,15 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       size/speed — Medium by default; size-changing traits like Burrower/Colossal say so themselves.)
       `ig-content.test.ts` +1, `library.test.ts` +3. Feeds Area B's species/traits panel (B1). None WIP.
 - [ ] **A6 — Backgrounds** (`/backgrounds`).
-- [ ] **A7 — General Feats** (`/feats-general`) — every feat, full text + prerequisites + effect.
+- [x] **A7 — General Feats** (`/feats-general`) — ✅ SHIPPED (new `lib/dnd/systems/intuitive-games/feats.ts`
+      `IG_GENERAL_FEATS`). All **83 general feats** (46 main + 26 skill feats + 6 special + 5 ability-score)
+      with prerequisites + full effect text from the site. The library feats section is now a full
+      **Feat/Prerequisites/Effect table** (was the "representative sample" chip stub), each feat is searchable
+      with its real rules, the provenance classifier recognizes every authored feat (so a real feat like
+      Fleet isn't flagged custom), and AI grounding lists the real general-feat names. **CORRECTION:** the
+      earlier "invented names" note below was wrong — `Boundless Stamina`/`Daring Quickness`/`Inspiring
+      Insight`/`Armor Proficiency` ARE real site feats (Special/Ability sections the first fetch missed).
+      `ig-content.test.ts` +1, `library.test.ts` +3. Combat feats are A8.
 - [ ] **A8 — Combat Feats** (`/feats-combat`) — every feat, full text + prerequisites + effect.
 - [x] **A9 — Stances** (`/stances`) — ✅ SHIPPED (`content.ts` `IG_STANCE_DEFS` + `IG_STANCE_RULES`).
       Gave the 10 stances a structured **Basic (below Lv 5) / Advanced (Lv 5+)** representation transcribed

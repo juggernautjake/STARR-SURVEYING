@@ -7,7 +7,8 @@
 // Content is concise MECHANICAL FACTS + numbers (paraphrased, not verbatim rulebook prose), each
 // attributed to its source book. Keyed strictly by system so nothing crosses editions.
 import { SYSTEM_AMBIGUOUS, systemLabel, type CharacterSystem } from './systems';
-import { IG_STANCE_DEFS, IG_STANCE_RULES, IG_FEATS, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES, IG_CONDITIONS, IG_ANCESTRIES } from './systems/intuitive-games/content';
+import { IG_STANCE_DEFS, IG_STANCE_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES, IG_CONDITIONS, IG_ANCESTRIES } from './systems/intuitive-games/content';
+import { igAllFeats } from './systems/intuitive-games/feats';
 import { EXTRA_SYSTEM_RULES } from './system-rules-extra';
 
 export interface AbilityModel {
@@ -422,7 +423,7 @@ export function systemRulesBlock(system: CharacterSystem): string {
       `• Ancestries & their two ancestry traits each:`,
       ...IG_ANCESTRIES.map((a) => `   - ${a.name}: ${a.traits.map((t) => `${t.name} — ${t.text}`).join(' ')}`),
       `• Powers/spells (by school): ${IG_POWERS.map((p) => p.name).join(', ')}.`,
-      `• Feats (General + Combat): ${IG_FEATS.map((f) => f.name).join(', ')}.`,
+      `• General Feats (use ONLY these; each with its effect is in the library): ${igAllFeats().filter((f) => f.category === 'General').map((f) => f.name).join(', ')}.`,
       `• Defensive Powers: ${IG_DEFENSIVE_POWERS.map((d) => d.name).join(', ')}.`,
       `• Weapon types: ${IG_WEAPON_TYPES.join(', ')}.`,
     );

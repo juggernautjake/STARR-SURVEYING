@@ -6,6 +6,7 @@ import {
   IG_MOVEMENT_TYPES, IG_CONDITIONS, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES,
   igIsVanilla, igVanillaNames, igContentSummary,
 } from '@/lib/dnd/systems/intuitive-games/content';
+import { IG_GENERAL_FEATS, igAllFeats } from '@/lib/dnd/systems/intuitive-games/feats';
 import { systemRulesBlock, systemConditions, systemSpecies } from '@/lib/dnd/system-rules';
 
 describe('Intuitive Games vanilla content library (Slice 1)', () => {
@@ -94,6 +95,25 @@ describe('Intuitive Games vanilla content library (Slice 1)', () => {
     const leshonki = IG_ANCESTRIES.find((a) => a.name === 'Leshonki')!;
     expect(leshonki.traits.find((t) => t.name === 'Barkskin')?.text).toMatch(/DR 2, which stacks/i);
     expect(IG_ANCESTRY_TRAIT_RULES).toMatch(/cannot be retrained/i);
+  });
+
+  it('has the full general-feats catalog (83) with prerequisites + effect, and the classifier knows them', () => {
+    expect(IG_GENERAL_FEATS.length).toBeGreaterThanOrEqual(83);
+    for (const f of IG_GENERAL_FEATS) {
+      expect(f.name).toBeTruthy();
+      expect(f.category).toBe('General');
+      expect(f.effect.length).toBeGreaterThan(15);
+      expect(['General', 'Skill', 'Special', 'Ability']).toContain(f.group);
+    }
+    // The previously-"suspect" names ARE real site feats (Special/Ability sections) — must be present.
+    for (const real of ['Boundless Stamina', 'Daring Quickness', 'Inspiring Insight', 'Fleet', 'Toughness']) {
+      expect(IG_GENERAL_FEATS.some((f) => f.name === real)).toBe(true);
+    }
+    // The provenance classifier recognizes every authored feat (so a real feat isn't flagged custom).
+    expect(igIsVanilla('feat', 'Fleet')).toBe(true);
+    expect(igIsVanilla('feat', 'Quick Caster')).toBe(true);
+    expect(igIsVanilla('feat', 'My Invented Feat')).toBe(false);
+    expect(igAllFeats().length).toBe(IG_GENERAL_FEATS.length);
   });
 
   it('the content summary exposes every kind and grounding lists the vanilla options', () => {
