@@ -11,7 +11,7 @@
 //  · Nothing is inferred. If the sheet doesn't say it, it isn't here — the AI must not be handed
 //    a guess dressed up as a fact.
 import type { Character } from '@/app/dnd/_sheet/types';
-import { abilityMod, profBonusForLevel } from '@/app/dnd/_sheet/rules/dnd';
+import { abilityMod, profBonusForLevel, profContribution } from '@/app/dnd/_sheet/rules/dnd';
 import { buildLedger } from './effects/ledger';
 import { deriveAc } from '@/app/dnd/_sheet/lib/derive-ac';
 import { summarizeCharacterProvenance } from './provenance';
@@ -47,6 +47,7 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
   // that are TRUE RIGHT NOW, not the stored base. A ruling on a belt-boosted STR 19 that reads the
   // base 16 is exactly the confidently-wrong adjudication this whole part exists to prevent.
   const ledger = buildLedger(char);
+  const pb = profBonusForLevel(m.level ?? 1);
 
   const who = [m.species, m.className, m.subclass].filter(Boolean).join(' · ');
   lines.push(`NAME: ${m.name || 'Unnamed'}`);
@@ -84,6 +85,16 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
   if (c.speed != null) {
     const sp = ledger.value('speed_walk', c.speed);
     state.push(`Speed ${sp} ft${sp !== c.speed ? ` [base ${c.speed}]` : ''}`);
+  }
+  // Passive Perception + Initiative — both routinely decide a ruling ("does the guard notice?", "who
+  // acts first?"). EFFECTIVE: WIS/DEX fold through the ledger and Initiative folds any `initiative` effect.
+  if (char.skills?.perception) {
+    const pp = 10 + abilityMod(ledger.value('ability_wis', char.abilities?.wis ?? 10)) + profContribution(char.skills.perception.prof, pb) + (char.skills.perception.misc ?? 0);
+    state.push(`Passive Perception ${pp}`);
+  }
+  if (char.abilities?.dex != null) {
+    const init = ledger.value('initiative', abilityMod(ledger.value('ability_dex', char.abilities.dex)) + (c.initiativeMisc ?? 0));
+    state.push(`Initiative ${signed(init)}`);
   }
   if (c.exhaustion) state.push(`Exhaustion ${c.exhaustion}`);
   if (state.length) lines.push(`STATE: ${state.join(' · ')}`);
@@ -130,7 +141,6 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
   // Rod of the Pact Keeper is reflected — the AI must not rule on a stale DC.
   if (char.spellcasting?.ability) {
     const sc = char.spellcasting;
-    const pb = profBonusForLevel(m.level ?? 1);
     const mod = abilityMod(ledger.value(`ability_${sc.ability}`, char.abilities?.[sc.ability] ?? 10));
     const dc = ledger.value('spell_save_dc', c.saveDCOverride ?? 8 + pb + mod);
     const atk = ledger.value('spell_attack', pb + mod);

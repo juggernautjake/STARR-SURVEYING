@@ -142,6 +142,28 @@ describe('the digest reports LEDGER-resolved numbers, not the stored base (Slice
     expect(d).toMatch(/AC 18 \[base 17\]/);
   });
 
+  it('reports Passive Perception + Initiative from the EFFECTIVE WIS/DEX', () => {
+    function withBoosts(on: boolean): Character {
+      const c = fixture();
+      c.combat = { ...c.combat, exhaustion: 0 };
+      if (on) {
+        c.inventory = [
+          { id: 'w', name: 'Cap of Insight', desc: '', qty: 1, tags: [], equipped: true, effects: [{ target: 'ability_wis', operation: 'add', value: 4 }] },
+          { id: 'd', name: 'Cloak of Reflexes', desc: '', qty: 1, tags: [], equipped: true, effects: [{ target: 'ability_dex', operation: 'add', value: 4 }] },
+        ] as Character['inventory'];
+      }
+      return c;
+    }
+    const plain = characterDigest(withBoosts(false), 'dnd-5e-2024');
+    const boosted = characterDigest(withBoosts(true), 'dnd-5e-2024');
+    expect(plain).toMatch(/Passive Perception \d+/);
+    expect(plain).toMatch(/Initiative [+-]\d+/);
+    const pp = (s: string) => Number(s.match(/Passive Perception (\d+)/)![1]);
+    const init = (s: string) => Number(s.match(/Initiative ([+-]\d+)/)![1]);
+    expect(pp(boosted)).toBe(pp(plain) + 2);     // +4 WIS → +2 mod
+    expect(init(boosted)).toBe(init(plain) + 2); // +4 DEX → +2 mod
+  });
+
   it('reports the spell save DC + attack from the EFFECTIVE spellcasting ability', () => {
     // A caster with base INT 10; the boosted variant equips an item SETTING INT to 20 (+5 mod). The
     // reported Spell Save DC / attack must rise by 5 — i.e. it reads the effective ability, not the base.
