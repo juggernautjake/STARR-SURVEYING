@@ -2404,7 +2404,12 @@ such*, not faked with a number that looks authoritative).
    they can be granted.** ✅ **`rendersAt` accuracy** (`37b145fe`): the field must name the ACTUAL home,
    not just a plausible one — `grant_language` claimed "Overview · Languages" but effect-granted
    languages render in the Skills tab's "Granted Proficiencies" panel (they use the `grant_proficiency`
-   op); corrected + `grant-language-renders.test.ts` (4) pins the real path.
+   op); corrected + `grant-language-renders.test.ts` (4) pins the real path. **Structured-grant mechanism
+   clarified** (`e4904995`): `grant_attack`/`grant_spell`/`grant_resource` are ref-string effect targets,
+   but a full Attack/Spell/Resource is a structured object — so they're authored on the item's
+   `grantsAttack`/`grantsSpell`/`grantsResource` field (which renders while the item is active); there's
+   no effect-render path. Help + rendersAt now name the field so a builder can't emit an effect that
+   validates yet renders nowhere. `grant-render-paths.test.ts` (4).
 3. `set` vs `add` is per-target and documented (Storm Giant Strength *sets* STR to 29; a belt *adds*).
 4. Unknown target → the edit is refused with a reason. Never coerced, never silently dropped.
 5. A target the engine cannot faithfully model gets `note`, not an approximation.
