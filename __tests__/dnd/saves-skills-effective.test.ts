@@ -9,11 +9,13 @@ import path from 'node:path';
 const PANEL = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_sheet/components/SavesSkills.tsx'), 'utf8');
 
 describe('Saves & Skills derived numbers use the ledger-effective abilities', () => {
-  it('Passive Perception and Save DC read the effective `abilities`, not base char.abilities', () => {
+  it('Passive Perception reads the effective `abilities`, not base char.abilities', () => {
     expect(PANEL).toContain('abilityMod(abilities.wis)'); // passive perception
-    expect(PANEL).toContain('abilityMod(abilities.str)'); // save DC
   });
-  it('does not regress to the base scores for those two', () => {
+  it('the Save DC reads the store single-source saveDc (effective STR + override — see save-dc-single-source)', () => {
+    expect(PANEL).toContain('const saveDC = saveDc');
+  });
+  it('does not regress to the base scores', () => {
     expect(PANEL).not.toContain('abilityMod(char.abilities.wis)');
     expect(PANEL).not.toContain('abilityMod(char.abilities.str)');
   });

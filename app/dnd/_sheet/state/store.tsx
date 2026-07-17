@@ -85,6 +85,8 @@ interface Ctx {
   /** Derived Armor Class (equipped armor/shield + effective DEX + AC effects), the single source both
    *  the StatRail and the Combat panel read. `fromEquipment` is false when the manual AC stands. */
   acInfo: AcResult
+  /** The generic STR-based Save DC (8 + PB + STR, or the manual override) — one source for every card. */
+  saveDc: number
   /** The EFFECTIVE active form id (Slice 18): the form a `transform` effect imposes, else the
    *  character's own `activeFormId`. Components render THIS so an imposed form shows as active;
    *  the form TOGGLE still writes `char.activeFormId` (the base), so the transform stays an overlay. */
@@ -553,6 +555,13 @@ export function CharacterProvider({
   const acInfo = useMemo(
     () => deriveAc(char.inventory, abilityMod(abilities.dex), char.combat.ac, char.activeEffects),
     [char.inventory, abilities.dex, char.combat.ac, char.activeEffects],
+  )
+
+  // The generic STR-based Save DC (8 + PB + STR, or the manual override) — derived once so the StatRail
+  // and the Saves & Skills card can't disagree (they did: the rail honored the override, the card didn't).
+  const saveDc = useMemo(
+    () => char.combat.saveDCOverride ?? 8 + pb + abilityMod(abilities.str),
+    [char.combat.saveDCOverride, pb, abilities.str],
   )
 
   const commitRoll = useCallback((entry: Omit<RollEntry, 'id'>) => {
@@ -1036,6 +1045,7 @@ export function CharacterProvider({
     pb,
     critMin,
     acInfo,
+    saveDc,
     activeFormId,
     isDM,
     canWrite: canWrite ?? isDM,

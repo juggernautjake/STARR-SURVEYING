@@ -8,7 +8,7 @@ import EffectStar from './ui/EffectStar'
 const PROF_ORDER: ProfLevel[] = ['none', 'proficient', 'expertise']
 
 export default function SavesSkills() {
-  const { char, abilities, pb, setChar, rollCheck, ledger, activeFormId } = useChar()
+  const { char, abilities, pb, saveDc, setChar, rollCheck, ledger, activeFormId } = useChar()
   // Proficiencies granted by an active effect (Slice 11 grant-half): a pendant that grants longsword
   // proficiency, a boon that grants a language. The ledger collects them with their source; this is
   // their home on the sheet — a granted target that renders nowhere is a lie the engine tells.
@@ -46,7 +46,7 @@ export default function SavesSkills() {
     abilityMod(abilities.wis) +
     profContribution(char.skills.perception.prof, pb) +
     char.skills.perception.misc
-  const saveDC = 8 + pb + abilityMod(abilities.str)
+  const saveDC = saveDc // single source (store) — honors the manual override, like the StatRail does
 
   function cycleSkill(key: string) {
     setChar((c) => {

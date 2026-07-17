@@ -13,9 +13,9 @@ const INITP = read('app/dnd/_sheet/components/InitiativePrompt.tsx');
 const STORE = read('app/dnd/_sheet/state/store.tsx');
 
 describe('StatRail derived numbers use effective abilities', () => {
-  it('Init + Save DC read effective STR/DEX (the pills already do), not base', () => {
-    expect(RAIL).toContain('abilityMod(abilities.str)');
+  it('Init reads effective DEX (the pills already do), not base; Save DC comes from the store saveDc', () => {
     expect(RAIL).toContain('abilityMod(abilities.dex)');
+    expect(RAIL).toContain('const dc = saveDc'); // STR-based Save DC now single-sourced from the store
     expect(RAIL).not.toContain('abilityMod(char.abilities.str)');
     expect(RAIL).not.toContain('abilityMod(char.abilities.dex)');
   });
