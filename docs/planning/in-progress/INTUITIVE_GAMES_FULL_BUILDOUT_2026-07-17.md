@@ -229,9 +229,14 @@ expanded requirements (2026-07-17):
       and every ancestry's two traits with full text — so the AI can explain + edit from IG source only, no
       cross-system leak. `ig-content.test.ts` +1. **Remaining:** the machine-readable effect model that the
       SHEET applies (B4/B5 mechanics).
-- [ ] **B1 — Ancestry/traits in the builder + sheet.** IG ancestries selectable in the builder; the sheet
+- [~] **B1 — Ancestry/traits in the builder + sheet.** IG ancestries selectable in the builder; the sheet
       renders each ancestry's full traits (from A5) with per-trait tooltips; size/speed-changing traits reflect
-      on the sheet where feasible.
+      on the sheet where feasible. **Sheet panel shipped** (`IGSheet` + `findIGAncestry`, `ig-content.test.ts`
+      / `ig-sheet-tooltips.test.ts`): the IG sheet now renders an **Ancestry traits panel** — the ancestry
+      name (+ provenance badge), its flavor blurb, and BOTH ancestry traits with full rules text, each
+      hover-explaining itself — replacing the bare text row. Unknown ancestries degrade to the name row.
+      **Remaining:** the builder's ancestry picker already offers them (`IGCharacterBuilder`); reflecting
+      size/speed-changing traits (Burrower/Colossal/etc.) in the derived numbers is a follow-up.
 - [ ] **B2 — Classes in the builder.** IG classes selectable with their features/progression from A10.
 - [ ] **B3 — Feats.** IG combat + general feats (from A7/A8) offered rules-legally (prerequisites honored);
       editable; shown on the sheet sourced correctly, each with a tooltip of its full effect.

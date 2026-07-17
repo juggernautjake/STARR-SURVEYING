@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import {
   IG_STANCES, IG_STANCE_DEFS, IG_STANCE_RULES, IG_FEATS, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES,
   IG_MOVEMENT_TYPES, IG_CONDITIONS, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES,
-  igIsVanilla, igVanillaNames, igContentSummary,
+  igIsVanilla, igVanillaNames, igContentSummary, findIGAncestry,
 } from '@/lib/dnd/systems/intuitive-games/content';
 import { IG_GENERAL_FEATS, IG_COMBAT_FEATS, igAllFeats } from '@/lib/dnd/systems/intuitive-games/feats';
 import { systemRulesBlock, systemConditions, systemSpecies } from '@/lib/dnd/system-rules';
@@ -95,6 +95,10 @@ describe('Intuitive Games vanilla content library (Slice 1)', () => {
     const leshonki = IG_ANCESTRIES.find((a) => a.name === 'Leshonki')!;
     expect(leshonki.traits.find((t) => t.name === 'Barkskin')?.text).toMatch(/DR 2, which stacks/i);
     expect(IG_ANCESTRY_TRAIT_RULES).toMatch(/cannot be retrained/i);
+    // findIGAncestry resolves case/space-insensitively and returns null for unknowns.
+    expect(findIGAncestry('  gnome ')?.name).toBe('Gnome');
+    expect(findIGAncestry('Not An Ancestry')).toBeNull();
+    expect(findIGAncestry(null)).toBeNull();
   });
 
   it('has the full general-feats catalog (83) with prerequisites + effect, and the classifier knows them', () => {

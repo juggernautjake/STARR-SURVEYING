@@ -382,6 +382,13 @@ export function igVanillaNames(kind: IGContentKind): string[] {
   return KIND_NAMES[kind] ?? [];
 }
 
+/** The structured ancestry for a name (case/space-insensitive), or null when it isn't a known IG ancestry. */
+export function findIGAncestry(name: string | null | undefined): IGAncestry | null {
+  if (!name) return null;
+  const n = norm(name);
+  return IG_ANCESTRIES.find((a) => norm(a.name) === n) ?? null;
+}
+
 /** True when `name` is a recognized vanilla element of `kind` in the Intuitive Games system. */
 export function igIsVanilla(kind: IGContentKind, name: string): boolean {
   const set = new Set(igVanillaNames(kind).map(norm));

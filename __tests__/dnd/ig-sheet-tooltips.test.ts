@@ -43,6 +43,12 @@ describe('IGSheet shows in-play stances + conditions with tooltips', () => {
     expect(SRC).toContain("op: 'remove_condition'");
   });
 
+  it('renders the ancestry traits panel with per-trait tooltips (B1)', () => {
+    expect(SRC).toContain('findIGAncestry(id.ancestry)');
+    expect(SRC).toMatch(/anc\.traits\.map/);
+    expect(SRC).toMatch(/title=\{t\.text\}/); // each trait hover-explains itself
+  });
+
   it('the character page passes write access to the sheet', () => {
     const PAGE = fs.readFileSync(path.join(process.cwd(), 'app/dnd/characters/[id]/page.tsx'), 'utf8');
     expect(PAGE).toMatch(/<IGSheet[^>]*canEdit=\{canWrite\}[^>]*characterId=\{character\.id\}/);

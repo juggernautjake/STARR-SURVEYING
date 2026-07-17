@@ -13,7 +13,7 @@ import styles from './hextech.module.css';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { IG_ABILITIES, IG_SAVES } from '@/lib/dnd/systems/intuitive-games/model';
 import { igAbilityMod, igDerived, igSkillTotal, igRanksSpent, igResolveAttack } from '@/lib/dnd/systems/intuitive-games/rules';
-import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_CONDITIONS, IG_ACTION_ECONOMIES, igActionsByEconomy } from '@/lib/dnd/systems/intuitive-games/content';
+import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_CONDITIONS, IG_ACTION_ECONOMIES, igActionsByEconomy, findIGAncestry } from '@/lib/dnd/systems/intuitive-games/content';
 import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-games/inPlay';
 import { igConditionSummary } from '@/lib/dnd/systems/intuitive-games/modifiers';
 import type { IGEdit } from '@/lib/dnd/systems/intuitive-games/edit';
@@ -100,6 +100,26 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
           {id.background && <span style={{ color: 'var(--hx-muted)' }}>· {id.background}</span>}
         </div>
       </div>
+
+      {/* Ancestry traits (B1): the full traits of the character's IG ancestry, each with its rules text.
+          A known ancestry gets its blurb + both ancestry traits; an unknown one just shows the name row. */}
+      {(() => {
+        const anc = findIGAncestry(id.ancestry);
+        if (!anc) return null;
+        return (
+          <div style={{ display: 'grid', gap: 6 }}>
+            <div style={{ ...label }}>Ancestry — {anc.name} {badgeFor(id.ancestry)}</div>
+            <div style={{ fontSize: 12, color: 'var(--hx-muted)', lineHeight: 1.4 }}>{anc.blurb}</div>
+            <div style={{ display: 'grid', gap: 5 }}>
+              {anc.traits.map((t) => (
+                <div key={t.name} title={t.text} style={{ fontSize: 12.5, color: 'var(--hx-text)', lineHeight: 1.4, cursor: 'help' }}>
+                  <span style={{ color: 'var(--hx-gold-2)', fontWeight: 600 }}>{t.name}.</span> {t.text}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Ability scores + modifiers */}
       <div>
