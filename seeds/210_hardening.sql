@@ -193,6 +193,7 @@ CREATE POLICY cross_county_select ON cross_county_properties
     );
 
 DROP POLICY IF EXISTS cross_county_upsert ON cross_county_properties;
+DROP POLICY IF EXISTS cross_county_insert ON cross_county_properties;
 CREATE POLICY cross_county_insert ON cross_county_properties
     FOR INSERT
     WITH CHECK (
@@ -202,6 +203,7 @@ CREATE POLICY cross_county_insert ON cross_county_properties
         )
     );
 
+DROP POLICY IF EXISTS cross_county_update ON cross_county_properties;
 CREATE POLICY cross_county_update ON cross_county_properties
     FOR UPDATE
     USING (
@@ -211,6 +213,7 @@ CREATE POLICY cross_county_update ON cross_county_properties
         )
     );
 
+DROP POLICY IF EXISTS cross_county_delete ON cross_county_properties;
 CREATE POLICY cross_county_delete ON cross_county_properties
     FOR DELETE
     USING (

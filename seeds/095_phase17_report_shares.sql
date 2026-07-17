@@ -70,6 +70,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_report_shares_updated_at ON report_shares;
 CREATE TRIGGER trg_report_shares_updated_at
   BEFORE UPDATE ON report_shares
   FOR EACH ROW EXECUTE FUNCTION update_report_shares_updated_at();
@@ -81,24 +82,28 @@ CREATE TRIGGER trg_report_shares_updated_at
 ALTER TABLE report_shares ENABLE ROW LEVEL SECURITY;
 
 -- Authenticated users can read and manage share tokens they created
+DROP POLICY IF EXISTS report_shares_select_own ON report_shares;
 CREATE POLICY report_shares_select_own
   ON report_shares
   FOR SELECT
   TO authenticated
   USING (created_by = auth.jwt() ->> 'email');
 
+DROP POLICY IF EXISTS report_shares_insert_own ON report_shares;
 CREATE POLICY report_shares_insert_own
   ON report_shares
   FOR INSERT
   TO authenticated
   WITH CHECK (created_by = auth.jwt() ->> 'email');
 
+DROP POLICY IF EXISTS report_shares_update_own ON report_shares;
 CREATE POLICY report_shares_update_own
   ON report_shares
   FOR UPDATE
   TO authenticated
   USING (created_by = auth.jwt() ->> 'email');
 
+DROP POLICY IF EXISTS report_shares_delete_own ON report_shares;
 CREATE POLICY report_shares_delete_own
   ON report_shares
   FOR DELETE
@@ -106,6 +111,7 @@ CREATE POLICY report_shares_delete_own
   USING (created_by = auth.jwt() ->> 'email');
 
 -- Service role (used by admin API routes and public share endpoint) has full access
+DROP POLICY IF EXISTS report_shares_all_service_role ON report_shares;
 CREATE POLICY report_shares_all_service_role
   ON report_shares
   FOR ALL

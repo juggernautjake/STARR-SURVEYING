@@ -23,7 +23,12 @@ VALUES (
 )
 ON CONFLICT (id) DO UPDATE SET public = true;
 
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE NOTICE 'storage.objects RLS is managed by Supabase (owner-only) — skipping ALTER.';
+END $$;
 
 DO $$
 BEGIN

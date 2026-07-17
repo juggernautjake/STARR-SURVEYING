@@ -38,7 +38,12 @@ ON CONFLICT (id) DO UPDATE SET public = true;  -- idempotent: ensure bucket is p
 -- This prevents anonymous uploads or deletions.
 
 -- Enable RLS on storage.objects (may already be enabled; harmless if so)
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE NOTICE 'storage.objects RLS is managed by Supabase (owner-only) — skipping ALTER.';
+END $$;
 
 -- Service role has unrestricted access (implicit via Supabase; policy is
 -- redundant but added for clarity and portability).

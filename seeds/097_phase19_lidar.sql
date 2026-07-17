@@ -80,6 +80,7 @@ ALTER TABLE lidar_data_cache      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cross_county_properties ENABLE ROW LEVEL SECURITY;
 
 -- lidar_data_cache: accessible by project owner (via research_projects.created_by)
+DROP POLICY IF EXISTS lidar_cache_select ON lidar_data_cache;
 CREATE POLICY lidar_cache_select ON lidar_data_cache
   FOR SELECT USING (
     project_id IN (
@@ -88,9 +89,11 @@ CREATE POLICY lidar_cache_select ON lidar_data_cache
     )
   );
 
+DROP POLICY IF EXISTS lidar_cache_insert ON lidar_data_cache;
 CREATE POLICY lidar_cache_insert ON lidar_data_cache
   FOR INSERT WITH CHECK (true);  -- worker inserts on behalf of users
 
+DROP POLICY IF EXISTS lidar_cache_delete ON lidar_data_cache;
 CREATE POLICY lidar_cache_delete ON lidar_data_cache
   FOR DELETE USING (
     project_id IN (
@@ -100,6 +103,7 @@ CREATE POLICY lidar_cache_delete ON lidar_data_cache
   );
 
 -- cross_county_properties: accessible by project owner
+DROP POLICY IF EXISTS cross_county_select ON cross_county_properties;
 CREATE POLICY cross_county_select ON cross_county_properties
   FOR SELECT USING (
     project_id IN (
@@ -108,6 +112,7 @@ CREATE POLICY cross_county_select ON cross_county_properties
     )
   );
 
+DROP POLICY IF EXISTS cross_county_upsert ON cross_county_properties;
 CREATE POLICY cross_county_upsert ON cross_county_properties
   FOR ALL USING (true) WITH CHECK (true);  -- worker manages these records
 

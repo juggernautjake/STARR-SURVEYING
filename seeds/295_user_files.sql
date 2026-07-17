@@ -41,7 +41,12 @@ INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 VALUES ('user-files', 'user-files', false, 52428800, NULL)   -- 50 MB/file
 ON CONFLICT (id) DO UPDATE SET public = false;
 
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE NOTICE 'storage.objects RLS is managed by Supabase (owner-only) — skipping ALTER.';
+END $$;
 
 DO $$
 BEGIN

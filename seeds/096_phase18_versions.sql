@@ -66,6 +66,7 @@ CREATE INDEX IF NOT EXISTS idx_pipeline_versions_created_at
 ALTER TABLE pipeline_versions ENABLE ROW LEVEL SECURITY;
 
 -- Authenticated users can read versions for their own projects
+DROP POLICY IF EXISTS pipeline_versions_select_authenticated ON pipeline_versions;
 CREATE POLICY pipeline_versions_select_authenticated
   ON pipeline_versions
   FOR SELECT
@@ -78,6 +79,7 @@ CREATE POLICY pipeline_versions_select_authenticated
   );
 
 -- Service role has unrestricted access (used by API routes and worker)
+DROP POLICY IF EXISTS pipeline_versions_all_service_role ON pipeline_versions;
 CREATE POLICY pipeline_versions_all_service_role
   ON pipeline_versions
   FOR ALL

@@ -23,6 +23,7 @@ CREATE INDEX IF NOT EXISTS idx_project_cleanup_log_created_at
 ALTER TABLE project_cleanup_log ENABLE ROW LEVEL SECURITY;
 
 -- Authenticated users can read their own project cleanup records
+DROP POLICY IF EXISTS "authenticated_read_cleanup_log" ON project_cleanup_log;
 CREATE POLICY "authenticated_read_cleanup_log"
   ON project_cleanup_log
   FOR SELECT
@@ -30,6 +31,7 @@ CREATE POLICY "authenticated_read_cleanup_log"
   USING (true);
 
 -- Only service role can insert/update/delete
+DROP POLICY IF EXISTS "service_role_write_cleanup_log" ON project_cleanup_log;
 CREATE POLICY "service_role_write_cleanup_log"
   ON project_cleanup_log
   FOR ALL
