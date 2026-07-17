@@ -15,6 +15,24 @@ describe('default currency sets', () => {
   it('PF2 drops electrum', () => {
     expect(DEFAULT_CURRENCIES_PF2.map((c) => c.id)).toEqual(['cp', 'sp', 'gp', 'pp']);
   });
+
+  it('the DEFAULT 5e set encodes the canonical coin economy (what every real character uses)', () => {
+    // The hand-built-coin conversion tests below don't guard the DEFAULTS — a silent edit to ep/pp/sp
+    // would corrupt every character's displayed wealth. Pin the whole ratio table via exchangeRate.
+    const by = Object.fromEntries(DEFAULT_CURRENCIES_5E.map((c) => [c.id, c]));
+    expect(exchangeRate(by.gp, by.cp)).toBe(100); // 1 gp = 100 cp
+    expect(exchangeRate(by.gp, by.sp)).toBe(10); //  1 gp = 10 sp
+    expect(exchangeRate(by.ep, by.sp)).toBe(5); //   1 ep = 5 sp
+    expect(exchangeRate(by.pp, by.gp)).toBe(10); //  1 pp = 10 gp
+    expect(exchangeRate(by.pp, by.cp)).toBe(1000); // 1 pp = 1000 cp
+  });
+
+  it('the DEFAULT PF2 set encodes the canonical (no-electrum) economy', () => {
+    const by = Object.fromEntries(DEFAULT_CURRENCIES_PF2.map((c) => [c.id, c]));
+    expect(exchangeRate(by.gp, by.cp)).toBe(100); // 1 gp = 100 cp
+    expect(exchangeRate(by.gp, by.sp)).toBe(10); //  1 gp = 10 sp
+    expect(exchangeRate(by.pp, by.gp)).toBe(10); //  1 pp = 10 gp
+  });
   it('defaultCurrencies dispatches by system and returns a fresh copy', () => {
     const a = defaultCurrencies('pathfinder2e');
     const b = defaultCurrencies('dnd5e-2024');
