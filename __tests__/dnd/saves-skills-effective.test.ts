@@ -36,4 +36,12 @@ describe('Saves & Skills derived numbers use the ledger-effective abilities', ()
     expect(PANEL).toContain('advantage: isDex || saveEf.advantage, disadvantage: saveEf.disadvantage');
     expect(PANEL).toContain('advantage: stealthAdv || skillEf.advantage, disadvantage: skillEf.disadvantage');
   });
+
+  it('the ★ marker watches the SAME bonus targets the roll folds — so a +saves/+skill item is explainable', () => {
+    // The gap this closes: the mod folds <ability>_saves/all_saves (and skill.<key>/all_skills), but the
+    // EffectStar used to watch ONLY the ability target — so a Cloak of Protection's all_saves +1 moved the
+    // number while lighting no ★, an unexplainable bonus. The star's targets must mirror the roll's folds.
+    expect(PANEL).toContain('target={[`ability_${a.key}`, `${a.key}_saves`, \'all_saves\']}');
+    expect(PANEL).toContain('target={[`ability_${sk.ability}`, `skill.${sk.key}`, \'all_skills\']}');
+  });
 });

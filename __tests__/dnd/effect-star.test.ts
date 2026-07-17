@@ -111,11 +111,13 @@ describe('every ability-derived value on the sheet carries the star', () => {
     expect(ABILITIES).toContain('target={`ability_${a.key}`}');
   });
 
-  it('saves and skills show it, keyed to their GOVERNING ability (what actually moved the roll)', () => {
+  it('saves and skills show it, watching the ability AND the bonus targets the roll folds', () => {
+    // The star must light for EVERY target that moves the number, not just the governing ability — a
+    // Cloak of Protection touches only `all_saves`, a +skill item only `skill.<key>`/`all_skills`.
     expect(SAVES).toContain('EffectStar');
-    expect(SAVES).toContain('target={`ability_${a.key}`}'); // saves
-    expect(SAVES).toContain('target={`ability_${sk.ability}`}'); // skills
-    expect(SAVES).toContain('target={`ability_${cs.ability}`}'); // custom checks
+    expect(SAVES).toContain('target={[`ability_${a.key}`, `${a.key}_saves`, \'all_saves\']}'); // saves
+    expect(SAVES).toContain('target={[`ability_${sk.ability}`, `skill.${sk.key}`, \'all_skills\']}'); // skills
+    expect(SAVES).toContain('target={`ability_${cs.ability}`}'); // custom checks (fold no ledger bonus → ability only)
     expect(SAVES).toContain('target="ability_wis"'); // passive perception
   });
 

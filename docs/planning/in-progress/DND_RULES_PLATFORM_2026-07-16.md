@@ -1334,18 +1334,30 @@ raw combat numbers:
 
 > "effected stats numbers and stuff will just get a little star or something we can hover over."
 
-- [ ] Any ledger-modified value renders a marker (★) beside it and a highlight ring: abilities, AC,
-      speed, HP, saves, skills, attacks, DC, granted features.
-- [ ] Hover/focus → tooltip listing **every** contributing effect and its source, base → final
-      ("STR 18 base · +2 Belt of the Bear · +2 Rage · = 22"). Reuse `RuleTip`'s inline-safe `<span>`
-      popover — the invalid-nesting bug from Slice 2 (a `<div>` inside a `<p>` gets force-closed by
-      the browser, tearing text out of its element) is already solved there; do not re-solve it.
-- [ ] Keyboard + touch reachable. A hover-only affordance is invisible on a tablet at the table,
-      which is where this is actually used.
-- [ ] The marker must be theme-token driven (`var(--gold)` etc.), never a literal — the contrast
-      guards in `sheet-contrast.test.ts` will fail the build otherwise, and correctly so.
-- [ ] Tests: an unmodified sheet has zero stars (no false positives — a star that's always on is
-      noise); modifying one ability stars exactly that ability; the tooltip names every source.
+- [x] Any ledger-modified value renders a marker (★) beside it and a highlight ring: abilities, AC,
+      speed, HP, saves, skills, attacks, DC. ✅ SHIPPED (`ui/EffectStar.tsx`), wired into Abilities,
+      StatRail, CombatPanel (AC/HP/speeds), SavesSkills, Attacks, Hero (name/species/class/subclass).
+      **Granted-features star deferred** — grants (`grant_feature`/`grant_attack`/…) have no render home
+      yet (same gap the render-gaps test tracks), so there's no feature node to star.
+- [x] Hover/focus → tooltip listing **every** contributing effect and its source, base → final. ✅ The
+      EffectStar popover shows `{base} base` → each contribution `{label} — {source}` → `= {final}`,
+      reusing `RuleTip`'s inline-safe all-`<span>` chrome (the `<div>`-in-`<p>` trap is not re-solved).
+- [x] Keyboard + touch reachable. ✅ The ★ is a real `<button>` with `aria-label` + native `title`, not
+      a hover-only affordance.
+- [x] The marker must be theme-token driven. ✅ `.effect-star*` chrome uses tokens only —
+      `effect-star.test.ts` fails on any hex literal in the block.
+- [x] Tests: an unmodified sheet has zero stars; modifying one ability stars exactly that ability; the
+      tooltip names every source. ✅ `effect-star.test.ts` (15) covers all three + the wiring per surface.
+      **⚑ SAVE/SKILL STAR-COVERAGE GAP CLOSED (2026-07-18).** The roll-target sweep had wired
+      `<ability>_saves`/`all_saves` (and `skill.<key>`/`all_skills`) into the actual save/skill *rolls*,
+      but each row's ★ still watched ONLY the governing ability target — so a Cloak of Protection's
+      `all_saves +1` moved the printed modifier while lighting no star, leaving the player an unexplainable
+      bonus. Fixed by widening the two `EffectStar` targets to the arrays the roll folds
+      (`[ability_<k>, <k>_saves, all_saves]` / `[ability_<abil>, skill.<key>, all_skills]`); the star lights
+      when ANY is modified and the popover attributes each. No value change (custom checks fold no ledger
+      bonus, so they keep the ability-only target). Guards: `effect-star.test.ts` + a consistency assertion
+      in `saves-skills-effective.test.ts` tying the star's targets to the roll's folds. Full dnd suite green
+      (1835). **Slice 13 (the ★ affordance) is now complete.**
 
 ## Slice 14 — The AI generates real items, not labels ✅ SHIPPED 2026-07-16 (mechanical effects)
 

@@ -107,7 +107,9 @@ export default function SavesSkills() {
                   />
                   <div className="rlabel">
                     {a.full}
-                    <EffectStar target={`ability_${a.key}`} label={`${a.full} save`} />
+                    {/* Watch the ability AND the save-bonus targets the roll folds (line ~97): a
+                        Cloak of Protection's `all_saves` +1 moves the number, so the ★ must light for it. */}
+                    <EffectStar target={[`ability_${a.key}`, `${a.key}_saves`, 'all_saves']} label={`${a.full} save`} />
                     {isDex && <span className="rabil">DANGER SENSE · ADV</span>}
                   </div>
                   <div className="rmod">{signed(mod)}</div>
@@ -146,7 +148,9 @@ export default function SavesSkills() {
                   />
                   <div className="rlabel">
                     {sk.label}
-                    <EffectStar target={`ability_${sk.ability}`} label={sk.label} />
+                    {/* Watch the ability AND the skill-bonus targets the roll folds (line ~134): a
+                        `skill.stealth`/`all_skills` item moves the number, so the ★ must light for it. */}
+                    <EffectStar target={[`ability_${sk.ability}`, `skill.${sk.key}`, 'all_skills']} label={sk.label} />
                     <span className="rabil">{abil.label}</span>
                     {stealthAdv && <span className="rabil" style={{ color: 'var(--tealbright)' }}>BASE FORM · ADV</span>}
                   </div>
