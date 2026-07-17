@@ -472,8 +472,12 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       the class name as an alias so they don't outrank the searchable per-level features (verified:
       "wizard" → class article, "action surge" → the Action Surge feature). ~67 → ~80 terms.
 - [x] **D&D 5e 2014 ✅** — its own edition-correct action economy (Cast a Spell / Use an Object, not
-      the 2024 renames; 2014 Hide with no DC 15) + the same core mechanics. Now ~60 terms. A `stealth`
-      alias on Hide was outranking the Stealth skill in search — caught + removed.
+      the 2024 renames; 2014 Hide with no DC 15) + the same core mechanics, **plus overview articles for
+      all 12 classes** (edition-correct: ASI at 19 not Epic Boon, no Weapon Mastery, Ki not Focus, and
+      2014 subclass levels — Cleric/Sorcerer/Warlock at 1, Druid/Wizard at 2, the rest at 3). Class
+      articles aliased by class name only, so they don't shadow the searchable features (verified:
+      "barbarian" → class article, "brutal critical" → the feature). A `stealth` alias on Hide had been
+      outranking the Stealth skill — caught + removed. ~72 terms.
 - [x] **Pathfinder 2e ✅** — the actual actions of the 3-action economy (Strike/Stride/Step/Interact/
       Raise a Shield/Seek/Aid + Demoralize/Grapple/Trip/Shove/Escape) and core mechanics (Flat Check,
       Persistent Damage, Bulk, Free Action & Reaction/Activity), **plus rich articles for all 14 core
