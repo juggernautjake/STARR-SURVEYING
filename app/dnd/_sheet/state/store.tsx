@@ -993,14 +993,19 @@ export function CharacterProvider({
   }, [])
 
   const rollDeathSave = useCallback(() => {
-    const bonus = char.combat.deathSaveBonus
+    // A death saving throw is a D20 Test, so exhaustion's −2/level applies here too (2024) — the same
+    // penalty rollCheck applies to every other d20. Without this, death saves were the one roll that
+    // ignored exhaustion. Nat 20 / nat 1 still read the NATURAL die, unaffected by the penalty.
+    const exh = char.combat.exhaustion || 0
+    const bonus = char.combat.deathSaveBonus - 2 * exh
     const r = rollD20(bonus, 'flat')
     let result = ''
     if (r.natural === 20) result = 'NAT 20 — regain 1 HP!'
     else if (r.natural === 1) result = 'NAT 1 — two failures'
     else result = r.total >= 10 ? 'Success' : 'Failure'
+    const tag = exh > 0 ? `${result} · EXH −${2 * exh}` : result
     stage(
-      { label: 'Death Save', kind: 'save', total: r.total, breakdown: r.breakdown, crit: r.natural === 20, fumble: r.natural === 1, tag: result },
+      { label: 'Death Save', kind: 'save', total: r.total, breakdown: r.breakdown, crit: r.natural === 20, fumble: r.natural === 1, tag },
       { landing: r.natural, min: 1, max: 20, isD20: true, crit: r.natural === 20, fumble: r.natural === 1 },
     )
     setCharState((c) => {
@@ -1011,7 +1016,7 @@ export function CharacterProvider({
       else deathFail = Math.min(3, deathFail + 1)
       return { ...c, combat: { ...c.combat, deathSuccess, deathFail } }
     })
-  }, [char.combat.deathSaveBonus, stage])
+  }, [char.combat.deathSaveBonus, char.combat.exhaustion, stage])
 
   const spendHitDie = useCallback(() => {
     if (char.combat.hitDiceRemaining <= 0) return

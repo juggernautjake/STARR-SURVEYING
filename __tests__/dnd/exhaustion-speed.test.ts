@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { buildLedger } from '@/lib/dnd/effects/ledger';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 
@@ -41,5 +43,17 @@ describe('exhaustion reduces Speed through the ledger', () => {
     // 30 base + 10 boots − 5 exhaustion = 35
     expect(led.value('speed_walk', 30)).toBe(35);
     expect(led.explain('speed_walk').length).toBe(2);
+  });
+});
+
+// The −2/level d20 penalty is applied at ROLL time in the store (not the ledger). Source-anchored,
+// since the roll callbacks are store hooks. Death saves were the one d20 test that skipped it.
+describe('exhaustion applies to every d20 roll, including death saves', () => {
+  const STORE = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_sheet/state/store.tsx'), 'utf8');
+  it('rollCheck reduces the d20 by 2 per exhaustion level', () => {
+    expect(STORE).toContain('rollD20(mod - 2 * exh');
+  });
+  it('death saves take the SAME −2/level penalty (were the outlier)', () => {
+    expect(STORE).toContain('char.combat.deathSaveBonus - 2 * exh');
   });
 });
