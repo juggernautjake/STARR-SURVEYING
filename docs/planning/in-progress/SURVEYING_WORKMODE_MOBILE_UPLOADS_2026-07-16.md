@@ -116,9 +116,15 @@ user-input → storage-key helper).
       (`expo-task-manager` / `expo-background-fetch` or resumable uploads) so a backgrounded/again-
       foregrounded app keeps draining the queue. Document the platform limits honestly (iOS background
       execution windows) rather than promising more than the OS allows.
-- [ ] **C3 — A visible queue + status screen.** Extend `mobile/app/(tabs)/me/uploads.tsx` into a real
-      queue view: each item shows name, size, target job, and state (uploading %, queued, wifi-waiting,
-      failed, done). The user wants to check status + see queued files at any time.
+- [~] **C3 — A visible queue + status screen.** ✅ *Pure state engine shipped* (`5bbdbddd`):
+      `mobile/lib/uploadStatus.ts` — `deriveUploadState(row, ctx)` maps a `pending_uploads` row to the
+      exact chip the screen shows (uploading / paused / wifi-waiting / offline-waiting / backoff / queued /
+      failed) with a documented precedence; `summarizeQueue` rolls the rows into a worst-first header
+      (failures + blocks before cheerful progress), plus `uploadStateLabel` / `backoffSecondsLeft` /
+      `isActiveState` / `isBlockedState`. Optional `paused`/`require_wifi` columns are read as falsy so it's
+      correct before those schema slices land. `upload-status.test.ts` (17). **Remaining:** extend
+      `me/uploads.tsx` from the stuck-triage view into the full queue view that renders these states (and a
+      live upload %, which is a runtime progress callback) — a mobile-runtime, device-tested change.
 - [~] **C4 — Manual queue control: pause, prioritize, reorder.** ✅ *Pure logic shipped* (`b7b722e7`):
       `isEligible` honors a `paused` flag; `orderedQueue` sorts by `queue_position` (FIFO fallback);
       `prioritizePosition` ("upload this first") + `reorderPositions` (drag-reorder). **Remaining:** add
