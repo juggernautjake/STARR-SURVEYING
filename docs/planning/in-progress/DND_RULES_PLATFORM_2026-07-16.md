@@ -2012,7 +2012,12 @@ regression to *reach*, not the drawing:
       (a `<canvas>` in `.art`) and is the one untested edge; if handles are missing, note whether the
       image had spiral or spin on. Left open pending a reproducible case.
 - [ ] Once visible, verify scale from any corner and rotate from the stem both work and persist.
-- [ ] A guard/regression note so the handles can't silently disappear again.
+      (Manual/browser step — belongs to the Slice 40 QA pass; the drag math is unchanged.)
+- [x] **A guard/regression note so the handles can't silently disappear again. ✅ SHIPPED** (`b808a9b8`).
+      `map-studio-handles.test.ts` (5) locks `renderHandles`'s invariants against the file the browser
+      loads: it skips only `kind==="text"` (not `image`), draws the rotate + 4 corner scale handles,
+      wires them to `onInstScaleDown`/`onInstRotateDown`, is called from the render path, and keeps the
+      corner CSS. A regression that drops or breaks the handles now fails CI.
 
 ### 35b — A background image with parallax OFF ✅ SHIPPED 2026-07-16
 > "make it so that we can set a background image that doesn't do parallax. We should be able to turn
