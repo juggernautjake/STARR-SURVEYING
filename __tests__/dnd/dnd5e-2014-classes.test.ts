@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { classesForSystem, findClass, subclassesFor, systemHasClasses } from '@/lib/dnd/classes/registry';
 import { snapshotAtLevel, progressionTable, validateClassDefinition } from '@/lib/dnd/classes/engine';
+import { FULL_CASTER_SLOTS, HALF_CASTER_SLOTS, ARTIFICER_SLOTS } from '@/lib/dnd/classes/slots';
 
 const SYS = 'dnd5e-2014';
 const CLASSES = classesForSystem(SYS);
@@ -35,6 +36,26 @@ describe('the 2014 class roster (authored class-by-class)', () => {
     // Same key, different system: the 2014 Barbarian and the 2024 Barbarian are distinct objects.
     expect(findClass(SYS, 'Barbarian')?.system).toBe('dnd5e-2014');
     expect(findClass('dnd5e-2024', 'Barbarian')?.system).toBe('dnd5e-2024');
+  });
+});
+
+describe('2014 casters are wired to the shared slot tables (kind ⟺ table, by identity)', () => {
+  const casterOf = (n: string) => findClass(SYS, n)!.spellcasting;
+  it('full casters (Bard/Cleric/Druid/Sorcerer/Wizard) use the SHARED FULL_CASTER_SLOTS object', () => {
+    for (const n of ['Bard', 'Cleric', 'Druid', 'Sorcerer', 'Wizard']) {
+      expect(casterOf(n)?.kind, n).toBe('full');
+      expect(casterOf(n)?.slots, `${n} uses the shared FULL_CASTER_SLOTS`).toBe(FULL_CASTER_SLOTS);
+    }
+  });
+  it('Paladin/Ranger use HALF_CASTER_SLOTS; the Artificer uses its own rounds-up table', () => {
+    for (const n of ['Paladin', 'Ranger']) {
+      expect(casterOf(n)?.kind, n).toBe('half');
+      expect(casterOf(n)?.slots, `${n} uses HALF_CASTER_SLOTS`).toBe(HALF_CASTER_SLOTS);
+    }
+    // The Artificer is a half-caster by kind but rounds UP — its own table, NOT the standard one.
+    expect(casterOf('Artificer')?.kind).toBe('half');
+    expect(casterOf('Artificer')?.slots).toBe(ARTIFICER_SLOTS);
+    expect(casterOf('Artificer')?.slots).not.toBe(HALF_CASTER_SLOTS);
   });
 });
 
