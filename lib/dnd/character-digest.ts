@@ -124,11 +124,18 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
   lines.push(`CONDITIONS: ${conditions.length ? conditions.join(', ') : 'none'}`);
   if (c.concentration) lines.push(`CONCENTRATING ON: ${c.concentration}`);
 
-  // Proficiencies actually matter for "can I…" questions.
-  const profSaves = Object.entries(char.saves ?? {})
-    .filter(([, v]) => v?.proficient)
-    .map(([k]) => k.toUpperCase());
-  if (profSaves.length) lines.push(`SAVE PROFICIENCIES: ${profSaves.join(', ')}`);
+  // Saving-throw BONUSES — a ruling ("does the target make the CON save vs your DC?") needs the number,
+  // not just which saves are proficient. Effective ability + PB (if proficient) + misc, like the sheet.
+  if (char.saves) {
+    const saveLine = (['str', 'dex', 'con', 'int', 'wis', 'cha'] as const)
+      .map((k) => {
+        const s = char.saves![k] ?? { proficient: false, misc: 0 };
+        const mod = abilityMod(effAbil(k)) + (s.proficient ? pb : 0) + (s.misc ?? 0);
+        return `${k.toUpperCase()} ${signed(mod)}${s.proficient ? '*' : ''}`;
+      })
+      .join(' · ');
+    lines.push(`SAVES: ${saveLine}  (* = proficient)`);
+  }
   const skills = Object.entries(char.skills ?? {})
     .filter(([, v]) => v?.prof && v.prof !== 'none')
     .map(([k, v]) => `${k}${v.prof === 'expertise' ? ' (expertise)' : ''}`);

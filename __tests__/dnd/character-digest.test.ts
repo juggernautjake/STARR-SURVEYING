@@ -55,7 +55,7 @@ describe('characterDigest carries the sheet, not a generic character', () => {
   });
 
   it('carries proficiencies, resources and attacks', () => {
-    expect(d).toMatch(/SAVE PROFICIENCIES: .*STR.*CON/);
+    expect(d).toMatch(/SAVES: .*STR [+-]\d+\*.*CON [+-]\d+\*/); // save bonuses, proficient ones starred
     expect(d).toContain('athletics (expertise)');
     expect(d).toContain('Momentum 2/4');
     expect(d).toContain('Cross Counter');
@@ -123,6 +123,7 @@ describe('the digest reports LEDGER-resolved numbers, not the stored base (Slice
     const d = characterDigest(belted(), 'dnd-5e-2024');
     expect(d).toMatch(/STR 22 \(\+6\) \[base 18\]/);   // effective, with base flagged
     expect(d).not.toMatch(/STR 18 \(\+4\) ·/);          // the raw base is NOT what's reported
+    expect(d).toMatch(/SAVES: STR \+9\*/);              // proficient STR save = +6 (eff) + 3 (PB), effective
     expect(d).toContain('ACTIVE EFFECTS: Belt of the Bear, Striding Boots');
   });
 
