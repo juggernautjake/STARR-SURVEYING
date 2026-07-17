@@ -4,6 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import { igCatalog, igCatalogCount } from '@/lib/dnd/systems/intuitive-games/catalog';
 import { classifyElement } from '@/lib/dnd/provenance';
+import { igAllSpellNames } from '@/lib/dnd/systems/intuitive-games/content';
 
 describe('igCatalog (Slice 7)', () => {
   const groups = igCatalog();
@@ -17,6 +18,20 @@ describe('igCatalog (Slice 7)', () => {
     expect(titles.some((t) => t.startsWith('Feats'))).toBe(true);
     expect(groups.every((g) => g.entries.every((e) => e.source === 'vanilla'))).toBe(true);
     expect(groups.every((g) => g.entries.length > 0)).toBe(true);
+  });
+
+  it('offers the FULL spell-list roster as powers — parity with the sheet picker + AI add_power', () => {
+    // The builder + AI grounding read the catalog; if it only listed effect-carrying IG_POWERS, a player
+    // couldn't build with roster powers whose effect text is still pending Brendan (Gate, Portal, …).
+    const catalogPowers = new Set(
+      groups.filter((g) => g.kind === 'power').flatMap((g) => g.entries.map((e) => e.name.toLowerCase())),
+    );
+    for (const name of igAllSpellNames()) {
+      expect(catalogPowers.has(name.toLowerCase()), `roster power "${name}" missing from the catalog`).toBe(true);
+    }
+    // A roster power without effect text yet is present name-only (honest WIP, not fabricated).
+    const gate = groups.flatMap((g) => g.entries).find((e) => e.name === 'Gate');
+    expect(gate, 'Gate is a roster power and must be offered').toBeTruthy();
   });
 
   it('carries effect text for stances and counts the whole library', () => {

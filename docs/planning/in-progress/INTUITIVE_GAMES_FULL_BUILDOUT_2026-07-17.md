@@ -345,7 +345,15 @@ expanded requirements (2026-07-17):
       effect text), while the AI's `add_power` grounds on the fuller `igAllSpellNames()` roster — so the
       sheet couldn't offer known roster powers whose effect text is still pending Brendan (Gate, Portal, …).
       Repointed the picker at `IG_SPELL_ROSTER` grouped by school, excluding held powers, so a player can
-      add exactly what the AI can. `ig-sheet-tooltips.test.ts` asserts the roster source. **Defensive power
+      add exactly what the AI can. `ig-sheet-tooltips.test.ts` asserts the roster source. **Builder + AI
+      grounding brought to the same parity (2026-07-17):** the shared `igCatalog()` power group also used
+      `IG_POWERS` only, so the character BUILDER's power chips and the AI builder prompt offered fewer powers
+      than the sheet/AI edit path. Repointed the catalog's power group at the full `IG_SPELL_ROSTER` grouped
+      by school (effect text attached from `IG_POWERS` where it exists, name-only otherwise — honest WIP),
+      preserving any `IG_POWERS` the roster doesn't list under a "Powers · Unlisted (pending reconcile)" group
+      so nothing is silently dropped. `ig-catalog.test.ts` +1 asserts every `igAllSpellNames()` power is
+      offered. So the sheet picker, the builder, and both AI paths now offer one identical power set.
+      **Defensive power
       now editable too (2026-07-17):** it was display-only post-build (a chip, no control) while stances,
       conditions, feats and powers were all editable — a gap in "everything editable." Added a
       `set_defensive_power` edit op (single slot: set/replace, empty name clears — mirrors set/clear_stance),
