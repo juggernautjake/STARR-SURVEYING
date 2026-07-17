@@ -69,6 +69,17 @@ describe('spell slot tables', () => {
     expect(HALF_CASTER_SLOTS[20][6]).toBe(0); // never reaches rank 6
   });
 
+  it('half-caster spell ranks arrive at 2/5/9/13/17 (rank R>1 at level 4R−3), 0 the level before', () => {
+    // Paladin/Ranger: 1st rank at L2, then a new rank at 5, 9, 13, 17. An off-by-one gives them spells
+    // several levels early/late — as impactful as the full-caster arrivals.
+    expect(HALF_CASTER_SLOTS[2][1]).toBeGreaterThanOrEqual(1); // rank 1 at L2
+    for (let rank = 2; rank <= 5; rank++) {
+      const arrival = 4 * rank - 3; // 5, 9, 13, 17
+      expect(HALF_CASTER_SLOTS[arrival][rank], `rank ${rank} should arrive at level ${arrival}`).toBeGreaterThanOrEqual(1);
+      expect(HALF_CASTER_SLOTS[arrival - 1][rank], `rank ${rank} should NOT exist at level ${arrival - 1}`).toBe(0);
+    }
+  });
+
   it('third casters start at 3 and cap at rank 4', () => {
     expect(THIRD_CASTER_SLOTS[2].slice(1).every((n) => n === 0)).toBe(true);
     expect(THIRD_CASTER_SLOTS[3][1]).toBe(2);
