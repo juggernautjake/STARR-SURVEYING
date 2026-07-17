@@ -2506,9 +2506,13 @@ every public page + backing tool loaded with **0 console errors**:
 - `console.html` (Slice 39 player console / drawer)
 
 So the build is healthy and the whole public + map-tool surface is error-free at runtime — a real check
-against the map slices' "look for errors" directive. The character-build walkthrough below (create
-account → build a vanilla character per system, level by level, fixing bugs/styling) is the substantive
-remainder and needs an interactive, DB-backed session.
+against the map slices' "look for errors" directive. Also confirmed at runtime: **`/dnd/characters/new`
+auth-gates cleanly** (redirects anon → hub, 0 errors — the create-character entry is protected), and the
+**suggestion box renders at the bottom of the hub** (the "interface at the bottom of every page" request).
+The character-build walkthrough below (create account → build a vanilla character per system, level by
+level, fixing bugs/styling) is the substantive remainder and needs an interactive, DB-backed session
+(a throwaway test account + character on live Supabase) — held pending the owner's go-ahead to write +
+clean up that test data unattended.
 
 - [ ] **Fresh account.** Create a NEW user through the pseudo-login (name + password, no email — see
       Slice 36). Confirm the sign-up path works from a clean state.
