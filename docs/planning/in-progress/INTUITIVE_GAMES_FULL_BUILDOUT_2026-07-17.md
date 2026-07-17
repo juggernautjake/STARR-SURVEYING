@@ -365,7 +365,10 @@ expanded requirements (2026-07-17):
       "Effect text not yet published — work in progress." marker for effect-BEARING kinds (stance/power/feat/
       defensive-power/condition) that lack effect text; name-only kinds (ancestry/class/weapon-type/…) are
       unmarked (they lack nothing). `ig-vanilla-library-wip.test.ts` (3) pins the marker + that a real
-      effect-less power exists to guard.
+      effect-less power exists to guard. **Same marker on the SHEET (2026-07-17):** a character holding a
+      roster power with pending effect showed a bare name + VANILLA badge (reads as "no effect"); the sheet's
+      power list now shows the same WIP note for a recognized (non-`custom`) power lacking effect text, so
+      the library and the sheet are consistent. `ig-sheet-tooltips.test.ts` +1.
       **Defensive power
       now editable too (2026-07-17):** it was display-only post-build (a chip, no control) while stances,
       conditions, feats and powers were all editable — a gap in "everything editable." Added a

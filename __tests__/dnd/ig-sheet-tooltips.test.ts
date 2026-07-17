@@ -75,6 +75,13 @@ describe('IGSheet shows in-play stances + conditions with tooltips', () => {
     expect(SRC).toMatch(/— no defensive power —/); // and can clear the single slot
   });
 
+  it('a recognized power with no effect text is shown as WIP, not a bare name (Ground Rule 2)', () => {
+    // Offering the full roster means a character can hold a power whose effect text is still pending
+    // Brendan; the sheet must say so rather than render a name that reads as "no effect".
+    expect(SRC).toMatch(/srcByName\.get\(p\.trim\(\)\.toLowerCase\(\)\) !== 'custom'/);
+    expect(SRC).toMatch(/Effect text not yet published — work in progress\./);
+  });
+
   it('the defensive-power chip hover-explains itself like every other in-play effect (B7)', () => {
     // effectMap includes defensive powers, and chip() passes the rules text to a title + help cursor.
     expect(SRC).toMatch(/effectMap[\s\S]*IG_DEFENSIVE_POWERS\]\s*\) if \(e\.effect\)/);

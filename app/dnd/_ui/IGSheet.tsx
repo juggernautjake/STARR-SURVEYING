@@ -371,7 +371,14 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
                       <button type="button" aria-label={`Remove ${p}`} disabled={editing} onClick={() => postEdit({ op: 'remove_power', name: p })} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
                     )}
                   </span>
-                  {effectOf(p) && <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>{effectOf(p)}</span>}
+                  {effectOf(p)
+                    ? <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>{effectOf(p)}</span>
+                    // A recognized (non-custom) power with no effect text is a roster power pending
+                    // Brendan's rules — say so (Ground Rule 2) rather than leaving a bare name that reads
+                    // as "no effect". A custom power gets no note (its effect simply isn't authored here).
+                    : srcByName.get(p.trim().toLowerCase()) && srcByName.get(p.trim().toLowerCase()) !== 'custom'
+                      ? <span style={{ fontSize: 11, fontStyle: 'italic', color: 'var(--hx-gold-2)' }}>Effect text not yet published — work in progress.</span>
+                      : null}
                 </div>
               ))}
               {canDoEdit && (() => {
