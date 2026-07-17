@@ -265,9 +265,12 @@ expanded requirements (2026-07-17):
       `parseIGEditToolCall` + `igEditToolInstruction`): the AI's `edit_ig_sheet` tool enumerates exactly the
       four ops and routes a tool call through the SAME `parseIgEdit` the manual route uses (the AI can't emit
       an edit the manual path wouldn't accept); the grounding lists the real stance + condition names and
-      forbids inventing. `ig-ai.test.ts` +1. **Remaining:** the on-sheet edit controls (buttons/selectors that
-      POST to the route — UI, needs visual verification) and dispatching `edit_ig_sheet` from the live AI chat
-      handler (runtime wiring).
+      forbids inventing. `ig-ai.test.ts` +1. **On-sheet edit controls shipped** (`IGSheet` + page.tsx,
+      `ig-sheet-tooltips.test.ts`): a write-gated (canEdit=canWrite) stance selector (enter one → replaces;
+      "— no stance —" clears) and condition controls (a "+ add condition…" picker + a × on each chip) that
+      POST to the `ig-edit` route and refresh the sheet; hidden for read-only viewers. **Remaining:**
+      dispatching `edit_ig_sheet` from the live AI chat handler (runtime wiring — the tool + route both exist,
+      only the chat-loop registration is left).
 - [~] **B7 — Tooltip system.** A reusable hover/focus tooltip on every in-play effect (stance, condition,
       trait, feat, modifier) sourced from the IG rules text — keyboard- and touch-reachable (a tablet at the
       table), theme-token styled. **Pure model shipped** (`inPlay.ts`): `igEffectsInPlay({stance, conditions,

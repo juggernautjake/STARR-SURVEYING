@@ -105,7 +105,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
     if (isIGCharacter(igData)) {
       const dmGranted = (Array.isArray(character.dm_granted) ? character.dm_granted : []) as { kind?: ElementKind; name: string; grantedBy?: string | null; mechanics?: string | null }[];
       const summary = summarizeCharacterProvenance((character.data as unknown as Character | null) ?? blankCharacter(character.name), 'intuitive-games', dmGranted);
-      igSheet = <IGSheet ig={igData} elements={summary.elements} />;
+      igSheet = <IGSheet ig={igData} elements={summary.elements} canEdit={canWrite} characterId={character.id} />;
     }
   }
 

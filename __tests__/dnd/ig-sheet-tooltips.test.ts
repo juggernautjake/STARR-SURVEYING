@@ -31,4 +31,20 @@ describe('IGSheet shows in-play stances + conditions with tooltips', () => {
     expect(SRC).toContain('igConditionSummary(cb.conditions)');
     expect(SRC).toMatch(/to attacks, saves &amp; skill checks/);
   });
+
+  it('offers write-gated edit controls that POST to the ig-edit route', () => {
+    // Controls only render for a viewer who can write (canDoEdit), and they hit the ig-edit route.
+    expect(SRC).toContain('canDoEdit');
+    expect(SRC).toMatch(/\/api\/dnd\/characters\/\$\{characterId\}\/ig-edit/);
+    // Stance selector sets/clears the active stance; condition controls add/remove.
+    expect(SRC).toContain("op: 'set_active_stance'");
+    expect(SRC).toContain("op: 'clear_stance'");
+    expect(SRC).toContain("op: 'add_condition'");
+    expect(SRC).toContain("op: 'remove_condition'");
+  });
+
+  it('the character page passes write access to the sheet', () => {
+    const PAGE = fs.readFileSync(path.join(process.cwd(), 'app/dnd/characters/[id]/page.tsx'), 'utf8');
+    expect(PAGE).toMatch(/<IGSheet[^>]*canEdit=\{canWrite\}[^>]*characterId=\{character\.id\}/);
+  });
 });

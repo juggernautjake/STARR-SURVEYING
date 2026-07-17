@@ -7,14 +7,16 @@
 // platform design tokens and lives inside the character page, so custom layout/CSS apply.
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { IG_ABILITIES, IG_SAVES } from '@/lib/dnd/systems/intuitive-games/model';
 import { igAbilityMod, igDerived, igSkillTotal, igRanksSpent, igResolveAttack } from '@/lib/dnd/systems/intuitive-games/rules';
-import { IG_STANCES, IG_POWERS, IG_ACTION_ECONOMIES, igActionsByEconomy } from '@/lib/dnd/systems/intuitive-games/content';
+import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_CONDITIONS, IG_ACTION_ECONOMIES, igActionsByEconomy } from '@/lib/dnd/systems/intuitive-games/content';
 import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-games/inPlay';
 import { igConditionSummary } from '@/lib/dnd/systems/intuitive-games/modifiers';
+import type { IGEdit } from '@/lib/dnd/systems/intuitive-games/edit';
 
 const effectMap = (() => {
   const m = new Map<string, string>();
@@ -38,8 +40,27 @@ function Badge({ source }: { source: Source }) {
 
 const fmt = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
 
-export default function IGSheet({ ig, elements }: { ig: IGCharacter; elements: Tagged[] }) {
+export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IGCharacter; elements: Tagged[]; canEdit?: boolean; characterId?: string }) {
   const derived = useMemo(() => igDerived(ig), [ig]);
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  // Incremental edit (enter/leave a stance, add/remove a condition) via the write-gated ig-edit route.
+  // Available only to a viewer who can write this character; refreshes the sheet on success.
+  const canDoEdit = !!(canEdit && characterId);
+  const postEdit = async (edit: IGEdit) => {
+    if (!characterId || editing) return;
+    setEditing(true);
+    try {
+      await fetch(`/api/dnd/characters/${characterId}/ig-edit`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(edit),
+      });
+      router.refresh();
+    } catch {
+      /* surfaced by the unchanged sheet; a retry is a re-tap */
+    } finally {
+      setEditing(false);
+    }
+  };
   const srcByName = useMemo(() => {
     const m = new Map<string, Source>();
     for (const e of elements ?? []) m.set(e.name.trim().toLowerCase(), e.source);
@@ -158,10 +179,10 @@ export default function IGSheet({ ig, elements }: { ig: IGCharacter; elements: T
               </div>
               {cb.damageReduction > 0 && <div style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '6px 10px', fontSize: 12.5 }}><span style={{ color: 'var(--hx-muted)' }}>DR </span>{cb.damageReduction}</div>}
             </div>
-            {cb.stances.length > 0 && (
+            {(cb.stances.length > 0 || canDoEdit) && (
               <div style={{ display: 'grid', gap: 4 }}>
                 <span style={label}>Stances <span style={{ textTransform: 'none', letterSpacing: 0 }}>(one active at a time — hover for the full rules)</span></span>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                   {cb.stances.map((name) => {
                     const e = igStanceInPlay(name, derived.level);
                     return (
@@ -171,21 +192,52 @@ export default function IGSheet({ ig, elements }: { ig: IGCharacter; elements: T
                       </span>
                     );
                   })}
+                  {canDoEdit && (
+                    // Enter a stance (one active at a time — the route replaces the current one) or clear it.
+                    <select
+                      aria-label="Active stance"
+                      value={cb.stances[0] ?? ''}
+                      disabled={editing}
+                      onChange={(ev) => postEdit(ev.target.value ? { op: 'set_active_stance', name: ev.target.value } : { op: 'clear_stance' })}
+                      style={{ fontSize: 12, background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '2px 6px' }}
+                    >
+                      <option value="">— no stance —</option>
+                      {IG_STANCE_DEFS.map((s) => <option key={s.name} value={s.name}>{s.name} Stance</option>)}
+                    </select>
+                  )}
                 </div>
               </div>
             )}
             {cb.defensivePower && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Defensive Power</span><div>{chip(cb.defensivePower)}</div></div>}
             {cb.situationalBonuses.length > 0 && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Situational Bonuses</span><div style={{ fontSize: 12.5, color: 'var(--hx-text)' }}>{cb.situationalBonuses.join(' · ')}</div></div>}
-            {cb.conditions.length > 0 && (
+            {(cb.conditions.length > 0 || canDoEdit) && (
               <div style={{ display: 'grid', gap: 4 }}>
                 <span style={label}>Conditions <span style={{ textTransform: 'none', letterSpacing: 0 }}>(hover for the full rules)</span></span>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                   {cb.conditions.map((c) => {
                     const e = igConditionInPlay(c);
                     return (
-                      <span key={c} title={e?.tooltip ?? c} style={{ fontSize: 12, color: 'var(--hx-danger)', border: '1px solid var(--hx-danger)', borderRadius: 12, padding: '1px 8px', cursor: 'help' }}>{c}</span>
+                      <span key={c} title={e?.tooltip ?? c} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--hx-danger)', border: '1px solid var(--hx-danger)', borderRadius: 12, padding: '1px 8px', cursor: 'help' }}>
+                        {c}
+                        {canDoEdit && (
+                          <button type="button" aria-label={`Remove ${c}`} disabled={editing} onClick={() => postEdit({ op: 'remove_condition', name: c })} style={{ background: 'none', border: 'none', color: 'var(--hx-danger)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+                        )}
+                      </span>
                     );
                   })}
+                  {canDoEdit && (
+                    // Apply a condition — the route de-dupes, so re-applying an active one is a no-op.
+                    <select
+                      aria-label="Add condition"
+                      value=""
+                      disabled={editing}
+                      onChange={(ev) => { if (ev.target.value) postEdit({ op: 'add_condition', name: ev.target.value }); }}
+                      style={{ fontSize: 12, background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '2px 6px' }}
+                    >
+                      <option value="">+ add condition…</option>
+                      {IG_CONDITIONS.filter((c) => !cb.conditions.some((x) => x.toLowerCase() === c.name.toLowerCase())).map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
+                    </select>
+                  )}
                 </div>
                 {(() => {
                   // Legible "what's actually applied" note — the stacking flat penalty + any disadvantages,
