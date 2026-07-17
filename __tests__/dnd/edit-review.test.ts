@@ -39,6 +39,12 @@ describe('the review panel lists history and reverts, DM-only', () => {
   it('is mounted on the sheet', () => {
     expect(APP).toContain('<EditReviewPanel />');
   });
+  it('groups AI changes by request with per-batch Undo + Restore-to-here (history/undo D2)', () => {
+    expect(PANEL).toContain('recentBatches');
+    expect(PANEL).toContain("'revert-batch'"); // undo a whole batch
+    expect(PANEL).toContain("'restore'");       // roll back to an earlier point
+    expect(PANEL).toContain('Restore to here');
+  });
 });
 
 describe('the round-trip the endpoint depends on holds end to end', () => {

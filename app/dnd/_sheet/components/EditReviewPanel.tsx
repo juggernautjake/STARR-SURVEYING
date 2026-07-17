@@ -10,6 +10,7 @@
 // and lets it be undone.
 import { useCallback, useEffect, useState } from 'react'
 import { useChar } from '../state/store'
+import { recentBatches, type EditHistoryRow } from '@/lib/dnd/edit-history'
 
 interface EditRow {
   id: string
@@ -19,6 +20,9 @@ interface EditRow {
   old_value: unknown
   new_value: unknown
   created_at: string
+  batch_id?: string | null
+  source?: string | null
+  summary?: string | null
 }
 
 /** A compact "what changed" line from the stored SheetEdit + old_value. */
@@ -87,11 +91,32 @@ export default function EditReviewPanel() {
     }
   }, [characterId, reloadFromDb, load])
 
+  // Undo a whole AI change (a batch) or roll the sheet back to just after a chosen batch.
+  const batchAction = useCallback(async (kind: 'revert-batch' | 'restore', batchId: string) => {
+    if (!characterId) return
+    setBusy(batchId); setErr(null)
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}/edits/${kind}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ batchId }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { setErr((j as { error?: string }).error ?? 'That could not be undone.'); return }
+      await reloadFromDb()
+      load()
+    } catch {
+      setErr('That could not be undone.')
+    } finally {
+      setBusy(null)
+    }
+  }, [characterId, reloadFromDb, load])
+
   // A viewer who can't write the sheet has no business in its edit history.
   if (!canWrite) return null
 
   // Skip the revert-audit rows themselves — you don't "revert a revert" from here.
   const visible = rows.filter((r) => !(r.field_path ?? '').startsWith('revert:'))
+  // The AI changes grouped by request (newest first, reverted ones marked) — the "story" view.
+  const batches = recentBatches(rows as EditHistoryRow[], 12, true)
 
   return (
     <div className="card ae-card">
@@ -109,7 +134,32 @@ export default function EditReviewPanel() {
         <p className="ae-empty">No edits recorded yet — this sheet is as it was built.</p>
       ) : (
         <>
-          <p className="ae-empty">Every change to this sheet, newest first. Revert restores exactly what it replaced.</p>
+          {batches.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 12, color: 'var(--muted)', margin: '2px 0 6px' }}>Changes by request — undo a whole AI change, or roll back to an earlier point.</div>
+              <div style={{ display: 'grid', gap: 6 }}>
+                {batches.map((b) => (
+                  <div key={b.batchId} className="flex" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 10, borderTop: '1px solid var(--line)', paddingTop: 6, opacity: b.reverted ? 0.55 : 1 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, color: 'var(--ink)', wordBreak: 'break-word' }}>{b.summary || 'A change'}{b.reverted && <span style={{ color: 'var(--muted)' }}> · undone</span>}</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>{new Date(b.createdAt).toLocaleString()}</div>
+                    </div>
+                    {!b.reverted && (
+                      <div className="flex" style={{ gap: 6 }}>
+                        <button className="btn tiny danger" disabled={busy === b.batchId} onClick={() => batchAction('revert-batch', b.batchId)} title="Undo everything this change did">
+                          {busy === b.batchId ? '…' : '⟲ Undo'}
+                        </button>
+                        <button className="btn tiny" disabled={busy === b.batchId} onClick={() => batchAction('restore', b.batchId)} title="Roll the character back to how it was right after this change (undo everything after it)">
+                          ↩ Restore to here
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <p className="ae-empty">Every individual change, newest first. Revert restores exactly what it replaced.</p>
           {err && <p style={{ color: 'var(--danger)', fontSize: 13 }}>{err}</p>}
           <div style={{ display: 'grid', gap: 6 }}>
             {visible.map((row) => (
