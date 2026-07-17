@@ -13,6 +13,7 @@ import { normalizeSystem } from '@/lib/dnd/systems';
 import { blankCharacter, normalizeCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
 import { findClass, subclassesFor } from '@/lib/dnd/classes/registry';
+import { readHomebrewClasses } from '@/lib/dnd/classes/homebrew-store';
 import { planLevelUp, recordChoice, validateChoice, chosenSubclassKey, type RecordedChoice } from '@/lib/dnd/classes/levelup';
 import { clampLevel } from '@/lib/dnd/classes/engine';
 
@@ -28,7 +29,10 @@ async function load(id: string) {
 function planFor(data: Character, system: string, to: number) {
   const choices = (data.build?.choices ?? []) as RecordedChoice[];
   const className = data.meta?.className ?? '';
-  const def = findClass(system, data.build?.classKey || className);
+  // Saved homebrew classes resolve exactly like official ones — the registry accepts them as `extra`
+  // (Slice 5). So a custom class the player built + saved walks a real level table here.
+  const homebrew = readHomebrewClasses(data);
+  const def = findClass(system, data.build?.classKey || className, homebrew);
   const level = clampLevel(data.meta?.level ?? 1);
 
   if (!def) {
@@ -91,7 +95,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!choice.kind || typeof choice.level !== 'number') {
       return NextResponse.json({ error: 'A choice needs a level and a kind.' }, { status: 400 });
     }
-    const def = findClass(system, next.build?.classKey || next.meta?.className || '');
+    const def = findClass(system, next.build?.classKey || next.meta?.className || '', readHomebrewClasses(next));
     const subs = def ? subclassesFor(def.system, def.key) : [];
     const proficientSkills = Object.entries(next.skills ?? {})
       .filter(([, v]) => v?.prof === 'proficient' || v?.prof === 'expertise')

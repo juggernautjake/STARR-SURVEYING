@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { upsertHomebrewClass, removeHomebrewClass, homebrewClassesForSystem, readHomebrewClasses } from '@/lib/dnd/classes/homebrew-store';
+import { findClass } from '@/lib/dnd/classes/registry';
+import { buildCustomClass } from '@/lib/dnd/classes/custom';
 import type { ClassDefinition } from '@/lib/dnd/classes/types';
 
 const cls = (key: string, system = 'dnd5e-2024', over: Partial<ClassDefinition> = {}): ClassDefinition => ({
@@ -37,5 +39,25 @@ describe('homebrew class store', () => {
     expect(readHomebrewClasses({})).toEqual([]);
     expect(readHomebrewClasses(null)).toEqual([]);
     expect(readHomebrewClasses({ homebrewClasses: [{ nope: 1 }, cls('good')] })).toHaveLength(1); // junk filtered
+  });
+});
+
+describe('a saved homebrew class resolves in the level builder (the levels-route path)', () => {
+  it('findClass resolves it via readHomebrewClasses(data) as `extra` — like an official one', () => {
+    const def = buildCustomClass({
+      name: 'Spellblade', system: 'dnd5e-2024', description: '', hitDie: 10,
+      primaryAbility: ['int'], savingThrows: ['con', 'int'], skillChoices: { count: 2, from: [] },
+      armorProficiencies: [], weaponProficiencies: [], subclassLevel: 3, subclassLabel: 'Order',
+      features: [{ level: 1, name: 'Blade Bond', body: 'Bond a weapon.' }],
+    });
+    const data = { meta: { className: 'Spellblade' }, homebrewClasses: [def] };
+    // Not in the official roster…
+    expect(findClass('dnd5e-2024', 'Spellblade')).toBeNull();
+    // …but resolves once the character's saved homebrew is passed as extra (what the route does).
+    const resolved = findClass('dnd5e-2024', 'Spellblade', readHomebrewClasses(data));
+    expect(resolved?.name).toBe('Spellblade');
+    expect(resolved?.hitDie).toBe(10);
+    // Ground Rule 1: it must NOT resolve under a different system.
+    expect(findClass('pathfinder2e', 'Spellblade', readHomebrewClasses(data))).toBeNull();
   });
 });
