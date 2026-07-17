@@ -3,7 +3,18 @@
 **STATUS: IN-PROGRESS (started 2026-07-17).** Owner directive: make the Intuitive Games (IG) system fully
 real across the app — (1) the **library page** must contain and express EVERYTHING on the real website, and
 (2) the **character builder + character sheet** must build out all stances, feats, conditions, ancestries,
-classes, etc., functional and editable, aligned to the website's actual rules.
+classes, etc., functional and editable, aligned to the website's actual rules. Intuitive Games is **Brendan's**
+system (he's the creator of intuitivegames.net); we build it into the app with attribution to him.
+
+**📄 MASTER SITE SCRUB (owner directive 2026-07-17):** build one complete, well-structured document that
+scrubs the ENTIRE site — every page, table, list, term, and image reference — then verify the whole app
+against it. That document is **`docs/reference/intuitive-games/SITE_MASTER.md`** (the new source of truth). It
+carries a foolproof page-by-page methodology + a scrub-status tracker; the verification phase then checks
+every definition/rule/feat/stance/condition/class/subclass/action against the app (library + builder + sheet
++ tooltips + manual/AI edit) and logs gaps back here. **Scrub progress:** conditions, stances, ancestries,
+backgrounds, feats (both pages), skills, core rules, character-building, companions, armor/shields, magical
+items are transcribed + implemented; remaining scrub targets: `/spell-list` (verbatim re-verify), the full
+per-class ladders, `/redistribution`, `/game-list`, and the home page.
 
 > Owner (2026-07-17): "Flesh out all of the feats and conditions and all of the rules and everything that
 > you can for the Intuitive Games library page. Go to intuitivegames.net and pull all of your info from the
