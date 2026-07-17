@@ -377,7 +377,10 @@ The engine (`lib/dnd/classes/custom.ts`) is built and tested; there is no UI.
 - [ ] `/dnd/characters/[id]/build/class` — define a class from scratch: hit die, saves, skills,
       per-level features, resources, spellcasting. Live `reviewCustomClass` feedback (errors block,
       balance warnings advise).
-- [ ] Homebrew subclass + homebrew feat builders.
+- [~] Homebrew subclass + homebrew feat builders. **AI-input side ✅ SHIPPED** (`1ceae899`):
+      `parseCustomSubclassInput`/`CUSTOM_SUBCLASS_TOOL` → `buildCustomSubclass` and
+      `parseCustomFeatInput`/`CUSTOM_FEAT_TOOL` → `buildCustomFeat`+`reviewCustomFeat` (custom-ai.ts, +4
+      tests). **Remaining:** the builder UI forms for each (the engine + AI input are done).
 - [x] **AI assist: prose → a draft the player edits. ✅ SHIPPED** (`279e502f`). `lib/dnd/classes/custom-ai.ts`
       — `CUSTOM_CLASS_TOOL` (structured-output schema) + `parseCustomClassDraft` (defensive normalizer →
       a valid `CustomClassDraft`) that flows through the existing `buildCustomClass` + `reviewCustomClass`,
