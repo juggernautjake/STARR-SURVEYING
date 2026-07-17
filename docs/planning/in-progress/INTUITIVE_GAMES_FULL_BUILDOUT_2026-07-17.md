@@ -151,11 +151,16 @@ expanded requirements (2026-07-17):
 - **AI parity.** The AI must have access to everything built here — able to EDIT it (set/clear a stance, apply
   a condition, add a trait/feat) AND explain how any of it works, from the same IG source data.
 
-- [ ] **B0 — IG data models + effect vocabulary.** Structured data (mostly done in Area A: `IG_STANCE_DEFS`,
+- [~] **B0 — IG data models + effect vocabulary.** Structured data (mostly done in Area A: `IG_STANCE_DEFS`,
       `IG_CONDITIONS`, `IG_ANCESTRIES`; feats pending A7/A8) PLUS a machine-readable **effect model** for the
       mechanical ones — what each stance/condition actually modifies (advantage/disadvantage on X, +½-level to
       Y, DR, speed, etc.) so the sheet can APPLY it and a tooltip can explain it. Scoped to IG; never imports
-      another system's rules.
+      another system's rules. **AI grounding done** (`system-rules.ts` `systemRulesBlock`): the IG block now
+      feeds the AI the FULL rules text — every stance's Basic/Advanced effect, every condition's exact IG
+      effect (explicitly flagged "use these EXACT IG effects, never another system's same-named condition"),
+      and every ancestry's two traits with full text — so the AI can explain + edit from IG source only, no
+      cross-system leak. `ig-content.test.ts` +1. **Remaining:** the machine-readable effect model that the
+      SHEET applies (B4/B5 mechanics).
 - [ ] **B1 — Ancestry/traits in the builder + sheet.** IG ancestries selectable in the builder; the sheet
       renders each ancestry's full traits (from A5) with per-trait tooltips; size/speed-changing traits reflect
       on the sheet where feasible.

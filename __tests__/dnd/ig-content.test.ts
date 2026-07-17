@@ -104,4 +104,17 @@ describe('Intuitive Games vanilla content library (Slice 1)', () => {
     expect(block).toMatch(/Elemental Blast/);
     expect(block).toMatch(/Defensive Powers: /);
   });
+
+  it('the AI grounding block carries the FULL IG rules text (so the AI explains/edits from IG source only)', () => {
+    const block = systemRulesBlock('intuitive-games');
+    // Stances: full Basic/Advanced text, not just names.
+    expect(block).toMatch(/Defensive Stance: Basic \(below Lv 5\)/);
+    expect(block).toMatch(/Damage Reduction equal to half your level/i);
+    // Conditions: the exact IG effect, flagged as IG-specific (never another system's version).
+    expect(block).toMatch(/use these EXACT Intuitive Games effects/i);
+    expect(block).toMatch(/Grappled: .*two hands/i);
+    // Ancestries: each with its two traits' full text.
+    expect(block).toMatch(/Dwarf: Cave Vision — Gain darkvision/i);
+    expect(block).toMatch(/Barkskin — You always have DR 2/i);
+  });
 });
