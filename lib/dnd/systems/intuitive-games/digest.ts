@@ -10,6 +10,7 @@
 
 import type { IGCharacter } from './model';
 import { igConditionSummary, igStanceMechanicNote } from './modifiers';
+import { findIGAncestry } from './content';
 
 /** A compact, adjudication-focused summary of an IG character's current mechanical state. */
 export function igCharacterDigest(ig: IGCharacter): string {
@@ -20,6 +21,15 @@ export function igCharacterDigest(ig: IGCharacter): string {
     `INTUITIVE GAMES CHARACTER: ${id.name || 'Unnamed'}${build ? ` — ${build}` : ''}` +
       `${id.ancestry ? ` (${id.ancestry})` : ''}, level ${id.level}.`,
   );
+
+  // Ancestry TRAITS with their full IG text — a ruling on "can you see in the dark?" turns on the
+  // ancestry's own trait (Cave Vision → darkvision 30 ft), which naming the ancestry alone doesn't give.
+  // Drawn only from IG_ANCESTRIES (Ground Rule 1); an unknown/custom ancestry resolves to nothing, never
+  // invented. This mirrors the 5e digest surfacing senses/movement the AI would otherwise be blind to.
+  const ancestry = findIGAncestry(id.ancestry);
+  if (ancestry?.traits.length) {
+    lines.push(`ANCESTRY TRAITS (${ancestry.name}): ${ancestry.traits.map((t) => `${t.name} — ${t.text}`).join(' · ')}`);
+  }
 
   // Active stance — one at a time. Its mechanical effect (advantage/disadvantage/DR/bonus) is exactly what
   // a ruling turns on, so state the resolved note, not just the name.

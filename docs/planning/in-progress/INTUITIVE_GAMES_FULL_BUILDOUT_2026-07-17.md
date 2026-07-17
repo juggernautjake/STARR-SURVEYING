@@ -341,7 +341,15 @@ expanded requirements (2026-07-17):
       (2026-07-17):** the `ai-edit` route already passed IG context, but only stance + condition NAMES — so
       the edit AI didn't know the character's held feats/powers/defensive-power and could re-add what was
       already there. Repointed it at the same `igCharacterDigest`, so edit and explain see identical state
-      (held feats/powers, active stance + its effect, conditions + penalty). `ig-ai.test.ts` +1. **Remaining:**
+      (held feats/powers, active stance + its effect, conditions + penalty). `ig-ai.test.ts` +1.
+      **⚑ ANCESTRY TRAITS NOW IN THE DIGEST (2026-07-18):** the digest NAMED the ancestry (`(Dwarf)`) but
+      omitted its TRAITS — so the librarian ruling on an IG character knew it was a Dwarf but was blind to
+      what Dwarf grants (Cave Vision → darkvision 30 ft, Robust → +2 fortitude saves), exactly the
+      senses/movement blind spot the 5e digest had before its fix. `igCharacterDigest` now appends an
+      "ANCESTRY TRAITS (<name>): <trait> — <text> · …" line drawn ONLY from `IG_ANCESTRIES` (`findIGAncestry`);
+      an unknown/custom ancestry adds nothing (Ground Rule 2 — never invented). So "can you see in the dark?"
+      is now adjudicated from the character's own ancestry. `ig-digest.test.ts` +2 (Dwarf's traits surface;
+      a homebrew ancestry adds no line). Full dnd suite green (1848). **Remaining:**
       the machine-readable effect model that the SHEET applies (B4/B5 mechanics).
 - [~] **B1 — Ancestry/traits in the builder + sheet.** IG ancestries selectable in the builder; the sheet
       renders each ancestry's full traits (from A5) with per-trait tooltips; size/speed-changing traits reflect

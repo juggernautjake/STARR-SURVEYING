@@ -53,6 +53,20 @@ describe('igCharacterDigest', () => {
     expect(d).toMatch(/POWERS: .*Elemental Blast/);
   });
 
+  it('surfaces the ancestry TRAITS with their full IG text (a darkvision ruling needs them, not just "Dwarf")', () => {
+    // Naming the ancestry alone leaves the AI blind to what it grants. Dwarf carries Cave Vision
+    // (darkvision 30 ft) + Robust — both must reach the librarian, verbatim from IG_ANCESTRIES.
+    expect(d).toMatch(/ANCESTRY TRAITS \(Dwarf\):/);
+    expect(d).toMatch(/Cave Vision — Gain darkvision out to a range of 30 feet\./);
+    expect(d).toMatch(/Robust —/);
+  });
+
+  it('never invents ancestry traits — an unknown/custom ancestry adds no traits line (Ground Rule 2)', () => {
+    const ig = blankIGCharacter('Stranger');
+    ig.identity = { ...ig.identity, ancestry: 'Homebrew Wanderer' };
+    expect(igCharacterDigest(ig)).not.toMatch(/ANCESTRY TRAITS/);
+  });
+
   it('states absences explicitly for a blank character (no stance / no conditions)', () => {
     const d0 = igCharacterDigest(blankIGCharacter('Nobody'));
     expect(d0).toMatch(/ACTIVE STANCE: none/);
