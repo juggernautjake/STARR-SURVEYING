@@ -17,6 +17,24 @@ describe('pf2 content library', () => {
     expect(PF2_SKILLS).toHaveLength(16);
   });
 
+  it('every class has its Player Core key attribute + HP/level (drives class DC + max HP)', () => {
+    // Only Fighter/Wizard HP was exercised (via the HP-formula tests). A wrong key attribute (Barbarian
+    // CHA?) mis-computes the class DC and spell attribute; a wrong HP/level mis-sizes every level. Pin all 14.
+    const GOLDEN: Record<string, { key: string[]; hp: number }> = {
+      Alchemist: { key: ['INT'], hp: 8 }, Barbarian: { key: ['STR'], hp: 12 }, Bard: { key: ['CHA'], hp: 8 },
+      Champion: { key: ['STR', 'DEX'], hp: 10 }, Cleric: { key: ['WIS'], hp: 8 }, Druid: { key: ['WIS'], hp: 8 },
+      Fighter: { key: ['STR', 'DEX'], hp: 10 }, Monk: { key: ['STR', 'DEX'], hp: 10 }, Oracle: { key: ['CHA'], hp: 8 },
+      Ranger: { key: ['STR', 'DEX'], hp: 10 }, Rogue: { key: ['DEX'], hp: 8 }, Sorcerer: { key: ['CHA'], hp: 6 },
+      Witch: { key: ['INT'], hp: 6 }, Wizard: { key: ['INT'], hp: 6 },
+    };
+    for (const cls of PF2_CLASSES) {
+      const g = GOLDEN[cls.name];
+      expect(g, `no golden entry for class "${cls.name}"`).toBeDefined();
+      expect(cls.keyAttribute, `${cls.name} key attribute`).toEqual(g.key);
+      expect(cls.hpPerLevel, `${cls.name} HP/level`).toBe(g.hp);
+    }
+  });
+
   it('every ancestry has its Player Core HP / size / speed / boosts (not just the spot-checked few)', () => {
     // Only Dwarf/Elf HP + Dwarf speed were exercised (via the HP formula / armor tests). Pin all 8 —
     // the distinctive values a typo would hit are Dwarf speed 20 and Elf speed 30 (the rest 25), the

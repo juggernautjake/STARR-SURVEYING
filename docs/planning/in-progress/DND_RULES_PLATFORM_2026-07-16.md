@@ -608,6 +608,10 @@ One system per slice — depth-first, verified against sources. In priority orde
       each — the distinctive values a typo would hit are Dwarf speed 20 and Elf speed 30 (rest 25), the
       6/8/10 HP tiers, and the boost patterns (Human = two free, Orc = STR + two free). All correct.
       `pathfinder2e-builder.test.ts` +1.
+      **All 14 PF2 CLASSES' key attribute + HP/level pinned (2026-07-17):** only Fighter/Wizard HP was
+      exercised (via the HP formula). A wrong key attribute mis-computes the class DC + spell attribute; a
+      wrong HP/level mis-sizes every level. Verified all 14 vs Player Core and pinned each (Barbarian STR/12,
+      martials STR-or-DEX/10, casters INT-or-CHA/6, the 8-HP mid tier) — all correct. `pathfinder2e-builder.test.ts` +1.
 - [~] **6c–6h — the other six systems → MOVED to `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`**
       (2026-07-16, per the user's scope call). The platform is focused on **four** systems first — D&D
       5e 2024, D&D 5e 2014, Intuitive Games, Pathfinder 2e. PF1e, Starfinder 1e, Cyberpunk RED, Shadowrun
