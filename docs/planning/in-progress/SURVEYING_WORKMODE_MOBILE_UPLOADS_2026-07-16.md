@@ -158,7 +158,13 @@ choice — default to removing only the app's copy unless the user opts into ful
       `isEligible` honors a `paused` flag; `orderedQueue` sorts by `queue_position` (FIFO fallback);
       `prioritizePosition` ("upload this first") + `reorderPositions` (drag-reorder). **Remaining:** add
       the `paused` + `queue_position` columns to the `pending_uploads` local schema and the queue-screen
-      buttons that write them — mobile-runtime, device-tested.
+      buttons that write them — mobile-runtime, device-tested. **Queue-wide mode engine shipped**
+      (`mobile/lib/uploadMode.ts`): the owner's distinct automatic / manual / pause-all setting (separate
+      from per-row `paused`) — `canDrain(mode, {userInitiated})` (manual only drains on a user tap; paused
+      never; automatic always), `shouldAutoAdvance` (only automatic pulls the next row on its own),
+      `normalizeUploadMode` (corrupt/absent setting can't wedge the queue), labels/descriptions +
+      `cycleUploadMode` for the toggle. `upload-mode.test.ts` (10). **Remaining:** persist the mode setting
+      + gate the runtime drainer on `canDrain`/`shouldAutoAdvance` + the segmented control — mobile-runtime.
 - [~] **C5 — Failure choices per the user's flow.** ✅ *Pure decision engine shipped* (`a7c00bd2`):
       `mobile/lib/uploadFailureChoices.ts` — `needsFailureDecision` (queue hit the retry cap),
       `failureChoices` (the three options, wait-for-reception flagged default), and `resolveFailureChoice`
