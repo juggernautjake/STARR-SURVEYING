@@ -75,9 +75,10 @@ darkvision, `<ul>` of `{name}. {text}`). Data: `lib/dnd/species/dnd5e-2024.ts` (
       `blankCharacter` seeds standard coins (5e cp/sp/ep/gp/pp, PF2 cp/sp/gp/pp); the Inventory
       CurrencyPanel shows each amount + total wealth in the base unit. Legacy sheets keep their fixed
       display (normalizeCharacter preserves only stored currencies).
-- [x] **C2 — Custom currencies (manual). ✅ SHIPPED** (`38f9f614`). In edit mode the player can rename,
-      re-rate, add, and remove currencies — custom ones (Guild Marks, Dragon Shards) sit alongside coins.
-      **The AI `add_currency`/`set_currency` sheet-edit ops are a follow-up slice** (not yet wired).
+- [x] **C2 — Custom currencies (manual + AI). ✅ SHIPPED** (`38f9f614` manual, `4621cc0e` AI). In edit
+      mode the player can rename, re-rate, add, and remove currencies; the AI has `add_currency` /
+      `set_currency` / `remove_currency` sheet-edit ops (matched by id/name/abbrev, full revert
+      round-trip) — custom ones (Guild Marks, Dragon Shards) sit alongside the coins.
 - [x] **C3 — Conversion rates. ✅ SHIPPED** (`38f9f614`). Each currency's `rate` = value in base units;
       a toggle-able conversion table shows "1 gp = 10 sp · 100 cp" and total wealth converts across
       currencies (`lib/dnd/currency.ts`: `conversionTable`, `totalIn`, `exchangeRate`).
