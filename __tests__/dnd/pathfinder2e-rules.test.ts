@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   pf2Proficiency, pf2Degree, pf2SkillTotal, pf2SaveTotal, pf2PerceptionTotal,
   pf2MaxHp, pf2ArmorClass, pf2ClassDc, pf2SpellDc, pf2SpellAttack,
-  pf2AttackBonus, pf2MultipleAttackPenalty, pf2LevelBasedDc, pf2Derived,
+  pf2AttackBonus, pf2MultipleAttackPenalty, pf2LevelBasedDc, pf2Derived, pf2SpellSlots,
 } from '@/lib/dnd/systems/pathfinder2e/rules';
 import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 
@@ -114,6 +114,31 @@ describe('pf2 multiple attack penalty', () => {
     expect(pf2MultipleAttackPenalty(1, true)).toBe(-4);
     expect(pf2MultipleAttackPenalty(2, true)).toBe(-8);
     expect(pf2MultipleAttackPenalty(3, false)).toBe(-10); // caps
+  });
+});
+
+describe('pf2 full-caster spell slots (Player Core progression)', () => {
+  it('always has 5 cantrips', () => {
+    for (const L of [1, 5, 10, 20]) expect(pf2SpellSlots(L)[0]).toBe(5);
+  });
+  it('level 1: two 1st-rank slots, nothing higher', () => {
+    expect(pf2SpellSlots(1)).toEqual([5, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  });
+  it('a new rank opens at level 2r−1 with 2 slots, rising to 3 at 2r', () => {
+    expect(pf2SpellSlots(2)).toEqual([5, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0]);   // rank 1 → 3
+    expect(pf2SpellSlots(3)).toEqual([5, 3, 2, 0, 0, 0, 0, 0, 0, 0, 0]);   // rank 2 opens
+    expect(pf2SpellSlots(4)).toEqual([5, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0]);   // rank 2 → 3
+    expect(pf2SpellSlots(5)).toEqual([5, 3, 3, 2, 0, 0, 0, 0, 0, 0, 0]);   // rank 3 opens
+  });
+  it('level 19 gains the single 10th-rank slot; level 20 keeps it', () => {
+    expect(pf2SpellSlots(19)).toEqual([5, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1]);
+    expect(pf2SpellSlots(20)).toEqual([5, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1]);
+  });
+  it('the top accessible rank equals ceil(level/2)', () => {
+    for (const L of [1, 2, 7, 12, 18, 20]) {
+      const top = pf2SpellSlots(L).reduce((hi, n, r) => (n > 0 ? r : hi), 0);
+      expect(top).toBe(Math.min(10, Math.ceil(L / 2)));
+    }
   });
 });
 

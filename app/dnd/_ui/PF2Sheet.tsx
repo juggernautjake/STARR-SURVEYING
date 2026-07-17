@@ -117,10 +117,19 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
         </div>
       )}
 
-      {/* Spellcasting summary */}
+      {/* Spellcasting summary + slots per rank */}
       {pf2.spellcasting.kind !== 'none' && (
-        <div style={{ fontSize: 12, color: 'var(--hx-muted)' }}>
-          <span style={label}>Spellcasting</span> — {pf2.spellcasting.tradition} {pf2.spellcasting.kind}, {pf2.spellcasting.attribute} · proficiency {fmt(pf2Proficiency(pf2.spellcasting.rank, id.level))} ({pf2.spellcasting.rank}).
+        <div style={{ display: 'grid', gap: 6 }}>
+          <div style={{ fontSize: 12, color: 'var(--hx-muted)' }}>
+            <span style={label}>Spellcasting</span> — {pf2.spellcasting.tradition} {pf2.spellcasting.kind}, {pf2.spellcasting.attribute} · proficiency {fmt(pf2Proficiency(pf2.spellcasting.rank, id.level))} ({pf2.spellcasting.rank}).
+          </div>
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+            {pf2.spellcasting.slots.map((n, r) => (n > 0 ? (
+              <span key={r} style={{ fontSize: 11, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 6, padding: '2px 7px' }}>
+                {r === 0 ? 'Cantrips' : `Rank ${r}`}: <strong style={{ color: 'var(--hx-teal-1)' }}>{n}</strong>
+              </span>
+            ) : null))}
+          </div>
         </div>
       )}
 

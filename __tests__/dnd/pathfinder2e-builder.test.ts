@@ -105,6 +105,16 @@ describe('buildPF2Character (level-1 Elf Wizard)', () => {
   it('trains Arcana (class fixed skill)', () => {
     expect(char.skills.find((s) => s.name === 'Arcana')!.rank).toBe('trained');
   });
+  it('gets level-appropriate spell slots (level 1 → 5 cantrips + two 1st-rank)', () => {
+    expect(char.spellcasting.slots).toEqual([5, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  });
+});
+
+describe('buildPF2Character threads higher-level spell slots', () => {
+  it('a level-9 Sorcerer gets slots up to 5th rank', () => {
+    const c = buildPF2Character({ ancestry: 'Human', className: 'Sorcerer', level: 9, attributes: { CHA: 4 } });
+    expect(c.spellcasting.slots).toEqual([5, 3, 3, 3, 3, 2, 0, 0, 0, 0, 0]);
+  });
 });
 
 describe('pf2ComputeAttributes derives boosts when no final map given', () => {

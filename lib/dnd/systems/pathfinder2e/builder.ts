@@ -14,7 +14,7 @@ import {
 } from './content';
 import type { Character } from '@/app/dnd/_sheet/types';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
-import { pf2MaxHp, pf2ArmorClass, pf2Derived } from './rules';
+import { pf2MaxHp, pf2ArmorClass, pf2Derived, pf2SpellSlots } from './rules';
 
 /** Apply a sequence of attribute boosts to a base modifier map, honoring the +4 partial-boost rule
  *  (at +4 or higher, a boost gives +½ — tracked here by only raising every other boost past +4). This
@@ -131,7 +131,7 @@ export function buildPF2Character(picks: PF2Picks): PF2Character {
     },
     attacks: [{ id: 'unarmed', name: 'Fist', attribute: 'STR', rank: init?.attacks ?? 'trained', weaponBonus: 0, damage: '1d4 bludgeoning', traits: ['agile', 'finesse', 'nonlethal', 'unarmed'] }],
     spellcasting: cls?.spellcasting
-      ? { tradition: cls.spellcasting.tradition, kind: cls.spellcasting.kind, attribute: cls.spellcasting.attribute, rank: 'trained', slots: [5] }
+      ? { tradition: cls.spellcasting.tradition, kind: cls.spellcasting.kind, attribute: cls.spellcasting.attribute, rank: 'trained', slots: pf2SpellSlots(level) }
       : { tradition: 'none', kind: 'none', attribute: keyAttr, rank: 'untrained', slots: [] },
     feats,
     languages: [...new Set([...(anc?.languages ?? ['Common']), ...(picks.languages ?? [])])],
