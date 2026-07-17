@@ -11,7 +11,7 @@ import { glossaryFor, searchGlossary } from './glossary';
 import { classesForSystem } from './classes/registry';
 import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
-import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, type NamedEntry, type IGStance } from './systems/intuitive-games/content';
+import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, type NamedEntry, type IGStance, type IGAncestry } from './systems/intuitive-games/content';
 
 /** The full feat registry for a system, or [] when only a catalog sample exists. System-keyed
  *  dispatcher (the pattern `findFeat`'s comment calls for) so a feat never leaks across systems. */
@@ -30,6 +30,12 @@ function conditionsWithTextFor(system: string): NamedEntry[] {
  *  is the only system with a stance mechanic today, so its stances never surface elsewhere. */
 function stancesForSystem(system: string): IGStance[] {
   return system === 'intuitive-games' ? IG_STANCE_DEFS : [];
+}
+
+/** Ancestries a system exposes WITH full trait text (vs. name chips + prose notes). System-keyed so IG's
+ *  ancestry traits never surface under another system. IG's are transcribed verbatim from the site. */
+function ancestriesWithTraitsFor(system: string): IGAncestry[] {
+  return system === 'intuitive-games' ? IG_ANCESTRIES : [];
 }
 
 /** Backgrounds a system exposes as structured library data. System-keyed so PF2's backgrounds never
@@ -216,12 +222,27 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
   }
 
   if (r.content.species.length) {
-    sections.push({
-      id: 'species',
-      title: speciesNoun(r.key),
-      chips: r.content.species,
-      body: r.content.ancestryNotes?.length ? r.content.ancestryNotes : undefined,
-    });
+    const ancestries = ancestriesWithTraitsFor(key);
+    if (ancestries.length) {
+      // Full trait text (IG today): each ancestry with its two traits spelled out — "fully fleshed out",
+      // per the owner. One row per ancestry; the traits column lists "TraitName: text" for each.
+      sections.push({
+        id: 'species',
+        title: speciesNoun(r.key),
+        lead: IG_ANCESTRY_TRAIT_RULES,
+        table: {
+          headers: [speciesNoun(r.key).replace(/s$/, ''), 'Ancestry traits'],
+          rows: ancestries.map((a) => [a.name, a.traits.map((t) => `${t.name}: ${t.text}`).join('\n\n')]),
+        },
+      });
+    } else {
+      sections.push({
+        id: 'species',
+        title: speciesNoun(r.key),
+        chips: r.content.species,
+        body: r.content.ancestryNotes?.length ? r.content.ancestryNotes : undefined,
+      });
+    }
   }
 
   // Backgrounds (PF2 only today) — a real table of what each grants, since backgrounds are a level-1
@@ -407,8 +428,19 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
       }
     }
     for (const s of r.content.skills) push('skill', s.name, `${s.name} — governed by ${s.ability} in ${r.label}.`);
-    for (const s of r.content.species) push('species', s, `${s} — a playable ${speciesNoun(r.key).toLowerCase().replace(/s$/, '')} in ${r.label}.`);
-    for (const n of r.content.ancestryNotes ?? []) push('species', n.split(/[—-]/)[0].trim() || 'Ancestry', n);
+    // Systems with full ancestry data (IG) expose each ancestry with its trait text, and each trait by
+    // name ("barkskin", "cave vision"); the rest fall back to the name stub + prose notes.
+    const igAncestries = ancestriesWithTraitsFor(key);
+    if (igAncestries.length) {
+      const noun = speciesNoun(r.key).toLowerCase().replace(/s$/, '');
+      for (const a of igAncestries) {
+        push('species', a.name, `${a.name} — a playable ${noun} in ${r.label}. ${a.blurb} Ancestry traits: ${a.traits.map((t) => `${t.name} (${t.text})`).join('; ')}`);
+        for (const t of a.traits) push('trait', t.name, `${t.name} — a ${a.name} ancestry trait in ${r.label}: ${t.text}`);
+      }
+    } else {
+      for (const s of r.content.species) push('species', s, `${s} — a playable ${speciesNoun(r.key).toLowerCase().replace(/s$/, '')} in ${r.label}.`);
+      for (const n of r.content.ancestryNotes ?? []) push('species', n.split(/[—-]/)[0].trim() || 'Ancestry', n);
+    }
     // Systems with full condition text (IG) expose each condition's real mechanical effect, so
     // "grappled" or "flat-footed" returns the actual rules; the rest fall back to a one-line stub.
     const condText = conditionsWithTextFor(key);

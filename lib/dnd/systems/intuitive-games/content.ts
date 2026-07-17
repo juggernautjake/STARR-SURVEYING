@@ -76,6 +76,67 @@ export const IG_CONDITIONS: NamedEntry[] = [
   { name: 'Sickened', effect: 'A sickened creature takes a -2 penalty on attack rolls, saving throws, skill checks, and ability checks. If the creature fails any Fortitude save while sickened, it becomes paralyzed for a number of rounds equal to the amount it failed the save by.' },
 ];
 
+// ── Ancestries (10) — each has two ancestry traits, with the FULL trait text transcribed verbatim from
+//    intuitivegames.net/traits-ancestries (2026-07-17). Names mirror `systemSpecies('intuitive-games')`
+//    (drift-guarded). IG has no fixed per-ancestry size/speed — characters are Medium by default and
+//    certain traits (Burrower, Colossal, Big-Boned, Pixie, Lightfoot) change size/speed themselves.
+export const IG_ANCESTRY_TRAIT_RULES =
+  'Traits are chosen in a variety of circumstances. Traits cannot be retrained and can only be added when ' +
+  'a character is leveling up unless they are Situational Traits. Standard (non-ancestry) traits available ' +
+  'to anyone: gain two ability score boosts to different scores; gain a skill proficiency; gain proficiency ' +
+  'with any two weapon groups; or learn a new stance. Ancestry traits are exclusive to their ancestry.';
+
+export interface IGAncestryTrait { name: string; text: string; }
+export interface IGAncestry {
+  name: string;
+  /** Short flavor line from the site. */
+  blurb: string;
+  traits: IGAncestryTrait[];
+}
+
+export const IG_ANCESTRIES: IGAncestry[] = [
+  { name: 'Dwarf', blurb: 'Short, wide humanoids with large coarse hair; males keep long beards. Mountain dwellers.', traits: [
+    { name: 'Cave Vision', text: 'Gain darkvision out to a range of 30 feet.' },
+    { name: 'Robust', text: 'You gain a +2 bonus on fortitude saves. Gain advantage on fortitude saves against venoms and poisons, including alcohol.' },
+  ] },
+  { name: 'Elf', blurb: 'Tall, narrow humanoids with soft features, pointed ears, and melodic voices. Live near fresh water.', traits: [
+    { name: 'Swift', text: 'Increase movement speed by 10 feet.' },
+    { name: 'Near Perfect', text: 'Once per day, gain advantage on any one saving throw, skill check, or ability check.' },
+  ] },
+  { name: 'Gnome', blurb: 'Short humanoids with precise claws. Volcano enthusiasts who burrow underground.', traits: [
+    { name: 'Burrower', text: 'Change size to small instead of medium. Ability increase to dexterity. Ability penalty to strength. Gain a +2 bonus on stealth checks. Decrease damage dice by one step. Gain a burrow speed of 20 feet with your tough nails. Your land speed is reduced to 15 feet.' },
+    { name: 'Crafty', text: 'Gain proficiency in any one Craft skill and any one Profession skill.' },
+  ] },
+  { name: 'Halfling', blurb: 'Short humanoids with curly hair and padded feet. Plains dwellers.', traits: [
+    { name: 'Lucky', text: 'Gain a +2 bonus on saving throws of one type.' },
+    { name: 'Lightfoot', text: 'Change size to small instead of medium. Ability increase to dexterity. Ability penalty to strength. Gain a +2 bonus on stealth checks. Decrease damage dice by one step. Gain advantage on stealth checks.' },
+  ] },
+  { name: 'Human', blurb: 'An undefined breed of mixed ancestry. Favor temperate climates.', traits: [
+    { name: "Companion's Friend", text: 'If you ever gain a companion creature (as from the Archon class), that creature gains two ability score boosts to any ability scores of your choice.' },
+    { name: 'Dynamic', text: 'Gain your choice of one feat from the General Feats.' },
+  ] },
+  { name: 'Leshonki', blurb: 'Tough-skinned humanoids with gravity-defying hair. Forest dwellers who sometimes live in canopy villages.', traits: [
+    { name: 'Vitality', text: 'You are able to eat mushrooms, leaves, and other plants for nutrition even if they would normally be poisonous to you. You heal from all damage, including nonlethal damage, twice as quickly as other creatures do.' },
+    { name: 'Barkskin', text: 'You always have DR 2, which stacks with all other forms of DR.' },
+  ] },
+  { name: 'Migoi', blurb: 'Massive humanoids with excessive body hair. Live in extreme heat or cold.', traits: [
+    { name: 'Colossal', text: 'Increase your size to become large instead of medium. Ability increase to strength. Ability increase to constitution. Ability penalty to dexterity. Take a -2 penalty on stealth checks. Increase damage dice by one step.' },
+    { name: 'Temperature-Resistant', text: 'You can survive twice as long in areas of intense heat or cold. You ignore the first two points of nonlethal damage that you take every day.' },
+  ] },
+  { name: 'Naga', blurb: 'Large humanoids with chromatic skin and long jaws. Saltwater dwellers with strict class structures.', traits: [
+    { name: 'Elemental', text: 'Gain resistance 5 to any one type of elemental damage.' },
+    { name: 'Draconic Structure', text: 'Gain a fly speed of 10 feet with leathery wings. Gain a bite attack that deals 1d8 points of damage.' },
+  ] },
+  { name: 'Ogre', blurb: 'Massive humanoids who adapt to their environments; mixed-heritage ogres are especially large.', traits: [
+    { name: 'Big-Boned', text: 'Increase size to become large instead of medium. Ability increase to strength. Ability penalty to dexterity. Take a -2 penalty on stealth checks. Increase damage dice by one step. Increase movement speed by 10 feet.' },
+    { name: 'Acclimated', text: 'Gain an adaptation to a certain kind of terrain (Water: swim 10 ft; Mountain: climb 10 ft; Cavern: burrow 10 ft; Marsh: ignore difficult terrain from mud and vegetation).' },
+  ] },
+  { name: 'Sprite', blurb: 'Short, narrow humanoids with fantastical hair and eye colors. Marsh dwellers and excellent mages.', traits: [
+    { name: 'Arcane Talent', text: 'Gain proficiency in either Arcana or Spellcraft. You gain a +2 bonus on all checks with whichever skill you choose.' },
+    { name: 'Pixie', text: 'Change your size to small instead of medium. Ability increase to dexterity. Ability penalty to strength. Gain a +2 bonus on stealth checks. Decrease damage dice by one step. Gain a fly speed of 20 feet with insectlike wings. Movement speed is reduced to 15 feet.' },
+  ] },
+];
+
 // ── Feats — General + Combat + special powers referenced by the sheet. ──────────────────────────────
 export const IG_FEATS: NamedEntry[] = [
   { name: 'Toughness', category: 'General' },

@@ -96,8 +96,15 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       (so "grappled"/"flat-footed" resolves the actual rules) — directly serving the AI-legibility rule.
       System-scoped (IG condition text can't leak into another system). `ig-content.test.ts` +1,
       `library.test.ts` +3. None were WIP — the page is fully defined.
-- [ ] **A5 — Traits / Ancestries** (`/traits-ancestries`) — every race/ancestry fully fleshed out (the owner
-      explicitly wants all races complete): traits, size, speed, senses, sub-options.
+- [x] **A5 — Traits / Ancestries** (`/traits-ancestries`) — ✅ SHIPPED (`content.ts` `IG_ANCESTRIES` +
+      `IG_ANCESTRY_TRAIT_RULES`). All **10 ancestries** with **both ancestry traits each**, trait text
+      transcribed **verbatim** from the site (re-fetched for exact wording); names drift-guarded against
+      `systemSpecies('intuitive-games')`; the trait-system rules captured (chosen at level-up, non-retrain,
+      standard non-ancestry traits). The library page now renders ancestries as a **full-trait-text table**
+      (was name chips + prose), and search resolves each ancestry AND each individual trait by name
+      ("barkskin", "cave vision") with full text. System-scoped (no leak). (IG has no fixed per-ancestry
+      size/speed — Medium by default; size-changing traits like Burrower/Colossal say so themselves.)
+      `ig-content.test.ts` +1, `library.test.ts` +3. Feeds Area B's species/traits panel (B1). None WIP.
 - [ ] **A6 — Backgrounds** (`/backgrounds`).
 - [ ] **A7 — General Feats** (`/feats-general`) — every feat, full text + prerequisites + effect.
 - [ ] **A8 — Combat Feats** (`/feats-combat`) — every feat, full text + prerequisites + effect.

@@ -3,9 +3,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   IG_STANCES, IG_STANCE_DEFS, IG_STANCE_RULES, IG_FEATS, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES,
-  IG_MOVEMENT_TYPES, IG_CONDITIONS, igIsVanilla, igVanillaNames, igContentSummary,
+  IG_MOVEMENT_TYPES, IG_CONDITIONS, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES,
+  igIsVanilla, igVanillaNames, igContentSummary,
 } from '@/lib/dnd/systems/intuitive-games/content';
-import { systemRulesBlock, systemConditions } from '@/lib/dnd/system-rules';
+import { systemRulesBlock, systemConditions, systemSpecies } from '@/lib/dnd/system-rules';
 
 describe('Intuitive Games vanilla content library (Slice 1)', () => {
   it('has the 10 stances, each with an effect', () => {
@@ -75,6 +76,24 @@ describe('Intuitive Games vanilla content library (Slice 1)', () => {
     expect(grappled?.effect).toMatch(/cannot take any actions which require two hands/i);
     const flatFooted = IG_CONDITIONS.find((c) => c.name === 'Flat-Footed');
     expect(flatFooted?.effect).toMatch(/until they take an action in combat/i);
+  });
+
+  it('has all 10 ancestries, each with two verbatim traits, matching the system species list (no drift)', () => {
+    expect(IG_ANCESTRIES).toHaveLength(10);
+    for (const a of IG_ANCESTRIES) {
+      expect(a.name).toBeTruthy();
+      expect(a.blurb.length).toBeGreaterThan(10);
+      expect(a.traits).toHaveLength(2);
+      for (const t of a.traits) { expect(t.name).toBeTruthy(); expect(t.text.length).toBeGreaterThan(15); }
+    }
+    // Names must match systemSpecies() so the builder/classifier and the library agree.
+    expect(IG_ANCESTRIES.map((a) => a.name)).toEqual(systemSpecies('intuitive-games'));
+    // Spot-check verbatim mechanics.
+    const dwarf = IG_ANCESTRIES.find((a) => a.name === 'Dwarf')!;
+    expect(dwarf.traits.find((t) => t.name === 'Cave Vision')?.text).toMatch(/darkvision out to a range of 30 feet/i);
+    const leshonki = IG_ANCESTRIES.find((a) => a.name === 'Leshonki')!;
+    expect(leshonki.traits.find((t) => t.name === 'Barkskin')?.text).toMatch(/DR 2, which stacks/i);
+    expect(IG_ANCESTRY_TRAIT_RULES).toMatch(/cannot be retrained/i);
   });
 
   it('the content summary exposes every kind and grounding lists the vanilla options', () => {

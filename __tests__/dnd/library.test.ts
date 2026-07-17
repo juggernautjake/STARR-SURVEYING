@@ -247,6 +247,32 @@ describe('full 2024 feats project into library search (Slice 8b)', () => {
   });
 });
 
+describe('Intuitive Games ancestries carry full trait text (IG buildout A5)', () => {
+  it('renders the ancestries as a full-trait-text table with the trait-system rules', () => {
+    const page = libraryPageFor('intuitive-games')!;
+    const species = page.sections.find((s) => s.id === 'species')!;
+    expect(species.table).toBeTruthy();
+    expect(species.chips).toBeUndefined();
+    expect(species.lead).toMatch(/cannot be retrained/i);
+    expect(species.table!.rows).toHaveLength(10);
+    const dwarf = species.table!.rows.find((r) => r[0] === 'Dwarf');
+    expect(dwarf?.[1]).toMatch(/Cave Vision/);
+    expect(dwarf?.[1]).toMatch(/darkvision out to a range of 30 feet/i);
+  });
+
+  it('an ancestry and its individual traits are searchable', () => {
+    const barkskin = searchLibrary('barkskin', 'intuitive-games').find((h) => h.kind === 'trait');
+    expect(barkskin?.name).toBe('Barkskin');
+    expect(barkskin!.body).toMatch(/DR 2/);
+    const dwarf = searchLibrary('dwarf', 'intuitive-games').find((h) => h.kind === 'species');
+    expect(dwarf!.body).toMatch(/Robust/);
+  });
+
+  it('IG ancestry traits do not leak into another system', () => {
+    expect(searchLibrary('barkskin', 'dnd5e-2024').some((h) => h.kind === 'trait')).toBe(false);
+  });
+});
+
 describe('Intuitive Games stances surface on the library page (IG buildout A9)', () => {
   it('renders a Stances section with the general rules + a Basic/Advanced table for all 10', () => {
     const page = libraryPageFor('intuitive-games')!;
