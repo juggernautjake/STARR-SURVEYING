@@ -22,14 +22,13 @@ Research/notes exist per job.
 
 **Gaps:**
 
-- [ ] **A1 — Tap-to-navigate address.** On the job detail (web + mobile), render the property address as
-      a link that opens the device's navigation app. Web: a `geo:`/`https://maps` link (prefer
-      `https://www.google.com/maps/dir/?api=1&destination=<lat,lng or urlencoded address>` which the OS
-      routes to the user's default maps app; use `latitude,longitude` when present, else the formatted
-      address). Mobile: a platform-aware handler (`Linking.openURL` with `maps://`/`geo:` and a chooser).
-- [ ] **A2 — Tap-to-call customer number(s).** Render `client_phone` (and any `contacts.phone` on
-      `job_contacts`) as `tel:` links so a tap dials on mobile. Support multiple numbers (job + linked
-      contacts), each labeled.
+- [x] **A1 — Tap-to-navigate address (web). ✅ SHIPPED** (`add340b3`). `lib/jobs/location.ts` `jobMapsUrl`
+      (prefers exact lat/lng, else the formatted address; Google Maps universal directions URL the OS
+      routes to the user's nav app) + a "🧭 Navigate to property" link on the job detail. 9 tests.
+      **Mobile handler (`Linking.openURL` chooser) is a follow-up** once the mobile job screen is touched.
+- [x] **A2 — Tap-to-call customer number (web). ✅ SHIPPED** (`add340b3`). `telHref` + a "📞 Call" link
+      beside the client phone. **Multiple numbers via `job_contacts` is a follow-up** (the primary
+      `client_phone` is wired now).
 - [ ] **A3 — One-tap access to a job's research / notes / documents.** A consolidated "Job Docs" affordance
       that surfaces `job_files`, per-job research, and notes in one place from the job detail and (Area B)
       the Work Mode hub. Reuse `JobFileManager`/`FileViewer`; no second mechanism.
