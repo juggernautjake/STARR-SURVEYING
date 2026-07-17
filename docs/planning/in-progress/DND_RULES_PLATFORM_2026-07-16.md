@@ -2154,9 +2154,16 @@ regression to *reach*, not the drawing:
 > "sometimes when I hit back it just kind of jumps up and down on the same page and I have to hit it
 > two or three times before it actually goes back."
 
-- [ ] **Diagnose first.** The symptom (Back scrolls/"jumps" instead of navigating, needs 2–3 presses)
-      is the classic sign of **spurious history entries** — something is pushing to history on the
-      same route. Prime suspects, in order:
+- [~] **Diagnose first.** ✅ *Audited (`0077…` follow-up).* Walked every `router.push`/`history.*` and
+      query-param entry point in `app/dnd`: the `?new=campaign` opener (`NewCampaignButton`/`CampaignDashboard`)
+      and the `searchParams.set(...)` calls in `LibrarySearch`/`LevelBuilder` do **NOT** touch browser history
+      (the latter set params on a `fetch` URL). The one concrete history-polluting source found is the
+      **library page's jump-nav `<a href="#section">` links** — each click pushes a `#` entry, so Back
+      "jumps up and down" the same page (exactly the report). Fixed: new `JumpNav` client component scrolls the
+      target into view and **`history.replaceState`s the hash instead of pushing**, so Back leaves in one
+      press. `jump-nav.test.ts` (2). *(If the character-sheet/campaign report persists, it needs live repro —
+      no other history-pushing source was found in the audit.)*
+      The remaining suspects were checked and cleared:
       - A component calling `router.push` / `history.pushState` on mount or on a state change that
         lands on the *same* URL (each adds an entry you have to Back through). Audit `router.push`
         and `router.replace` calls — anything that navigates to the current path should be

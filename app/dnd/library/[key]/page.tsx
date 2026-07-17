@@ -16,6 +16,7 @@ import { dndAiConfigured } from '@/lib/dnd/ai';
 import LibrarySearch from '@/app/dnd/_ui/LibrarySearch';
 import LibraryChat from '@/app/dnd/_ui/LibraryChat';
 import GlossaryList from '@/app/dnd/_ui/GlossaryList';
+import JumpNav from '@/app/dnd/_ui/JumpNav';
 import { igSystemLogo, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
 
 export function generateStaticParams() {
@@ -81,26 +82,15 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
           </div>
 
           {/* ── jump links ─────────────────────────────────────────────── */}
-          <nav
-            style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '10px 12px', border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.4)' }}
-            aria-label="Jump to a section"
-          >
-            {page.sections.map((s) => (
-              <a key={s.id} href={`#${s.id}`} style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--hx-gold-2)', textDecoration: 'none' }}>
-                {s.title}
-              </a>
-            ))}
-            {glossary.length > 0 && (
-              <a href="#glossary" style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--hx-gold-2)', textDecoration: 'none' }}>
-                Glossary ({glossary.length})
-              </a>
-            )}
-            {classes.length > 0 && (
-              <a href="#progression" style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--hx-gold-2)', textDecoration: 'none' }}>
-                Class tables
-              </a>
-            )}
-          </nav>
+          {/* JumpNav scrolls without pushing a hash history entry, so Back leaves the page in one press
+              (Slice 37 — a plain #anchor made Back "jump up and down" the same page). */}
+          <JumpNav
+            items={[
+              ...page.sections.map((s) => ({ id: s.id, label: s.title })),
+              ...(glossary.length > 0 ? [{ id: 'glossary', label: `Glossary (${glossary.length})` }] : []),
+              ...(classes.length > 0 ? [{ id: 'progression', label: 'Class tables' }] : []),
+            ]}
+          />
 
           <LibrarySearch system={page.key} systemName={page.name} />
 
