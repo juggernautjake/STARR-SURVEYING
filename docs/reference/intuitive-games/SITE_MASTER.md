@@ -201,6 +201,12 @@ school):**
 - **Illusion:** Create Image, Darkness, Disguise, Invisibility, Light, Mimic Sound, Mirror Image
 - **Transmutation:** Adaptation, Burst, Carapace Growth, Creature Morph, Item Shift, Natural Attacks, New Movement, Poison Dart, Quick Claw, Temporary Weapon
 
+**⚠ REVERSE discrepancy (for reconciliation):** the app's `IG_POWERS` (from the sheet template) also
+contains some names **NOT on the current site roster** — `igPowersNotInRoster()` lists them (e.g. Mage
+Armor, Misdirection, Life Connection, Piercing Element, Wide Blast, Elemental Blast, and Companion/Material
+Shield which are really *defensive* powers). These may be renames, removals, or spell TIERS on the site.
+They're **kept, not deleted** (only Brendan can confirm) — flag for reconciliation.
+
 **⚠ GAP + limitation:** the app's `IG_POWERS` (~38, with effect text from the character-sheet template) is
 **missing several of the spells above** (e.g. Natural Ally, Elemental Blade, Trace, Unburdened Vision,
 Comprehend, Named Bullet, Calm, Erase Memory, Hold Creature, Mind Scream, Destruction, Repeating Blast,

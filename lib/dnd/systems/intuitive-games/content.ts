@@ -290,6 +290,14 @@ export function igSpellsMissingEffects(): string[] {
   return igAllSpellNames().filter((n) => !have.has(norm(n)));
 }
 
+/** The REVERSE discrepancy: IG_POWERS names (from the sheet template) that are NOT on the current site
+ *  spell-list roster — possible renames/removals the owner/Brendan should reconcile (kept, not deleted,
+ *  since only Brendan can confirm whether they're dropped or renamed). */
+export function igPowersNotInRoster(): string[] {
+  const roster = new Set(igAllSpellNames().map(norm));
+  return IG_POWERS.map((p) => p.name).filter((n) => !roster.has(norm(n)));
+}
+
 // ── Defensive Powers (spent as reactions). ──────────────────────────────────────────────────────────
 export const IG_DEFENSIVE_POWERS: NamedEntry[] = [
   { name: 'Companion Shield', effect: 'Companion spends a reaction to give you +2 Reflex saves vs an attacker until your next turn.' },

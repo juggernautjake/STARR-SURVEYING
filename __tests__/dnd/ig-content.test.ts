@@ -5,6 +5,7 @@ import {
   IG_STANCES, IG_STANCE_DEFS, IG_STANCE_RULES, IG_FEATS, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES,
   IG_MOVEMENT_TYPES, IG_CONDITIONS, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_SPELL_ROSTER,
   igIsVanilla, igVanillaNames, igContentSummary, findIGAncestry, igAllSpellNames, igSpellsMissingEffects,
+  igPowersNotInRoster,
 } from '@/lib/dnd/systems/intuitive-games/content';
 import { IG_GENERAL_FEATS, IG_COMBAT_FEATS, igAllFeats, findIGFeat } from '@/lib/dnd/systems/intuitive-games/feats';
 import { systemRulesBlock, systemConditions, systemSpecies } from '@/lib/dnd/system-rules';
@@ -153,6 +154,10 @@ describe('Intuitive Games vanilla content library (Slice 1)', () => {
     const missing = igSpellsMissingEffects();
     expect(missing).toContain('Named Bullet');
     expect(missing).not.toContain('Mirror Image'); // this one has effect text in IG_POWERS
+    // The REVERSE discrepancy: template powers not on the current site roster (for owner reconciliation).
+    const reverse = igPowersNotInRoster();
+    expect(reverse).toContain('Mage Armor'); // template power not in the site's current spell list
+    expect(reverse).not.toContain('Dispel Magic'); // this IS on the roster
   });
 
   it('the content summary exposes every kind and grounding lists the vanilla options', () => {
