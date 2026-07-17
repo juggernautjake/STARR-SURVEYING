@@ -1862,7 +1862,13 @@ this is the remaining half.
       "These drive both the 2D art and the live 3D model." Where a field genuinely cannot exist in
       one renderer, say so in the UI rather than leaving a dead control.
 - [ ] Real-time: every control re-renders on `input`, not on release.
-- [ ] Test: a fixture asserting every editable field of every kind reaches the 3D config — so a new
+- [~] Test: a fixture asserting every editable field of every kind reaches the 3D config — so a new
+      *(Regression guard shipped for the fixed cloud-field translation: `map-studio-config.test.ts` (4)
+      source-anchors `_genericPlanetCfg` and asserts it translates the editor's cloudAmount/cloudColor into
+      the model's cloudCov/cloudTint, maps cloudStyle "none"→0 cover + banded/storm→shape knobs, and keeps the
+      rich pass-through allowlist — so the "slider silently does nothing" bug can't regress. The FULL
+      every-field-of-every-kind audit still needs the per-field 2D-only-vs-3D classification, which is
+      judgment work best paired with the visual pass.)*
       slider cannot be added without wiring it.
 
 **Shipped 2026-07-16 — the 3D clipping half.** The preview camera sat at a fixed `z=4.6` with a 34°
