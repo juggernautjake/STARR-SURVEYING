@@ -217,7 +217,13 @@ expanded requirements (2026-07-17):
       apply (e.g. Flat-Footed drops Dex to Reflex/skills; Shaken/Sickened −2; Blind disadvantage) via the
       effect model; addable/removable on the sheet (new `ig-edit` route) and by the AI. **Display + tooltip
       done** (`IGSheet`, `ig-sheet-tooltips.test.ts`): condition chips carry the full IG condition text as a
-      hover tooltip. **Remaining:** applying condition mechanics to rolls, and add/remove editing (B6 route).
+      hover tooltip. **Condition mechanics model + legible display done** (`modifiers.ts`,
+      `ig-modifiers.test.ts`): `igConditionSummary(conditions)` computes the stacking flat d20 penalty
+      (Shaken/Sickened −2 each, straight from the IG text) + a legible list of disadvantage/other effects;
+      the sheet's Combat panel now shows "−N to attacks, saves & skill checks (sources)" + each disadvantage
+      line beneath the condition chips (shown, not silently folded into base numbers — the platform's
+      exhaustion pattern). Unknown/custom conditions contribute nothing (never invented). **Remaining:**
+      add/remove condition editing (B6 route) + optionally folding the penalty through the rolls.
 - [~] **B5 — Stances: display + tooltip + mechanics + edit.** The sheet clearly shows the ACTIVE stance (one at
       a time); hovering shows its Basic/Advanced text; the effect is applied to the relevant rolls per the
       Basic-below-L5 / Advanced-at-L5+ rule; enter/leave editable on the sheet + by the AI. Marquee mechanic.

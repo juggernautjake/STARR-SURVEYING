@@ -26,4 +26,9 @@ describe('IGSheet shows in-play stances + conditions with tooltips', () => {
     expect(SRC).toMatch(/igStanceInPlay\(name, derived\.level\)/);
     expect(SRC).toMatch(/one active at a time/i); // the label tells the player only one stance applies
   });
+
+  it('surfaces the active condition penalty legibly (mechanics, not just names)', () => {
+    expect(SRC).toContain('igConditionSummary(cb.conditions)');
+    expect(SRC).toMatch(/to attacks, saves &amp; skill checks/);
+  });
 });

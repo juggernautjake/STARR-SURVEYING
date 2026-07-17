@@ -14,6 +14,7 @@ import { IG_ABILITIES, IG_SAVES } from '@/lib/dnd/systems/intuitive-games/model'
 import { igAbilityMod, igDerived, igSkillTotal, igRanksSpent, igResolveAttack } from '@/lib/dnd/systems/intuitive-games/rules';
 import { IG_STANCES, IG_POWERS, IG_ACTION_ECONOMIES, igActionsByEconomy } from '@/lib/dnd/systems/intuitive-games/content';
 import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-games/inPlay';
+import { igConditionSummary } from '@/lib/dnd/systems/intuitive-games/modifiers';
 
 const effectMap = (() => {
   const m = new Map<string, string>();
@@ -186,6 +187,20 @@ export default function IGSheet({ ig, elements }: { ig: IGCharacter; elements: T
                     );
                   })}
                 </div>
+                {(() => {
+                  // Legible "what's actually applied" note — the stacking flat penalty + any disadvantages,
+                  // straight from the IG condition rules (shown, not silently folded into the base numbers).
+                  const sum = igConditionSummary(cb.conditions);
+                  if (sum.flatD20 === 0 && sum.disadvantages.length === 0) return null;
+                  return (
+                    <div style={{ fontSize: 11.5, color: 'var(--hx-muted)', lineHeight: 1.4 }}>
+                      {sum.flatD20 !== 0 && (
+                        <div><span style={{ color: 'var(--hx-danger)', fontWeight: 600 }}>{sum.flatD20} to attacks, saves &amp; skill checks</span> ({sum.flatSources.join(', ')})</div>
+                      )}
+                      {sum.disadvantages.map((d) => <div key={d}>{d}</div>)}
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
