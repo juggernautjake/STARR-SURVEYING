@@ -1,5 +1,15 @@
 # Surveying — Job Info, Work Mode Field Hub, & Resilient Background Uploads (2026-07-16)
 
+> **⏸ STATUS (2026-07-17): the DECISION LAYER is COMPLETE; the remainder is DEVICE-TESTED runtime I/O.**
+> Every pure decision in the capture→save-to-phone→send→sequential-drain→progress→notify→delete-after-confirmed
+> flow is now an Expo-free, unit-tested function, and the two composed brains (`nextDrainStep` +
+> `planAfterUpload`) are integration-tested end-to-end (`mobile/lib/`: `queueOrder`, `uploadStatus`,
+> `uploadMode`, `uploadFailureChoices`, `uploadNotify`, `uploadRetention`, `uploadProgress`, `cameraRollSave`,
+> `drainDecision`, `uploadOutcome`, `mediaPath`). **What remains needs a device:** wiring these into the Expo
+> runtime — the actual `fetch`/DB writes, a URLSession-backed background upload task, the progress callback,
+> firing `expo-notifications`, the MediaLibrary camera-roll save, and the queue-screen UI. Those can only be
+> built + verified on real iOS/Android by the owner. This doc stays in-progress until that runtime ships.
+
 A grounded plan for the field-work program: rich job info (tap-to-call / tap-to-navigate), a real Work
 Mode field hub that pulls a selected job's everything into one streamlined surface, and background,
 resumable, queued media uploads that survive bad reception. **Verified against live code 2026-07-16** —

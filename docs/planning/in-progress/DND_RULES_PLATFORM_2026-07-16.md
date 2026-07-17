@@ -11,6 +11,17 @@ __tests__/dnd`, `npx eslint`, and — for anything with a UI — **driven in the
 just unit-tested. Commit per slice. Do not mark a slice done with failing tests or an unverified
 UI.
 
+> **⏸ STATUS (2026-07-17): the vast majority of slices are ✅ SHIPPED.** The remaining open items are NOT
+> unattended-buildable — each needs one of: **an owner product decision** (Rangor/Pugilist as a real custom
+> class; setting the demo characters' system `ambiguous`→`dnd5e-2024`, a live-DB write); an **absent
+> `VOYAGE_API_KEY`** (Slice 8 semantic search — keyword search is the working fallback); or **specialized UI
+> needing visual verification** (Slice 29/35 map-studio 3D controls + the city-lights day/night design call;
+> Slice 39 player-console drawer; Slice 18 transform polish). Recent unattended progress: **Slice 37**
+> browser-Back history-pollution fixed (`JumpNav`); **Slice 8b** IG library massively expanded (see
+> `INTUITIVE_GAMES_FULL_BUILDOUT_2026-07-17.md`); and the previously-**untested map studio** gained regression
+> guards for its four documented fixes (cloud-field translation, image handles, 2D/3D size parity, canvas
+> sizing). No open item can move this doc to `completed/` without the owner.
+
 ---
 
 ## Ground rules (these are why the platform exists — do not violate them)
