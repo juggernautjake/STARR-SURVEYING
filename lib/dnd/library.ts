@@ -245,10 +245,11 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
     // subclass split (Fighter as a parent of Freebooter/Marksman/Sohei/Champion) differs from the flat
     // roster above — surfaced honestly as a note, not silently reconciled.
     const detailLines = IG_CLASS_DETAILS.map((c) => {
-      const head = [c.primaryAbility, c.hp, c.grantedStance && `${c.grantedStance} stance`, c.defensivePower && `${c.defensivePower} defensive power`].filter(Boolean).join('; ');
+      const head = [c.classification, c.primaryAbility, c.hp, c.grantedStance && `${c.grantedStance} stance`, c.defensivePower && `${c.defensivePower} defensive power`].filter(Boolean).join('; ');
+      const start = c.startingPower ? ` Starting power: ${c.startingPower}.` : '';
       const powers = c.powers?.length ? ` Powers: ${c.powers.join(', ')}.` : '';
       const spec = c.specializations?.length ? ` Specializations: ${c.specializations.join('; ')}.` : '';
-      return `${c.name} — ${head}.${powers}${spec}${c.note ? ` ${c.note}` : ''}`;
+      return `${c.name} — ${head}.${start}${powers}${spec}${c.note ? ` ${c.note}` : ''}`;
     });
     sections.push({
       id: 'classes',
@@ -259,7 +260,7 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
         rows: IG_CLASS_GROUPS.map((g) => [g.group, g.classes.join(', ')]),
       },
       body: [
-        `Per-class detail (captured so far — ${IG_CLASS_DETAILS.length} of ${total}; note the site treats Fighter as the parent class of Champion/Freebooter/Marksman/Sohei):`,
+        `Per-class detail (captured so far — ${IG_CLASS_DETAILS.length} entries). NOTE: the site groups classes as a PARENT class with subclasses (Fighter → Champion/Freebooter/Marksman/Sohei; Wizard → Arcanist/Magician/Shaman), which differs from the flat roster above — pending verification, not reconciled:`,
         ...detailLines,
       ],
     });

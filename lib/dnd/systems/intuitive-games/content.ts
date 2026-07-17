@@ -309,19 +309,28 @@ export const IG_CLASS_GROUPS: IGClassGroup[] = [
 //    follow-up (the /classes page summarizes rather than giving verbatim per-level ladders). ──────────────
 export interface IGClassDetail {
   name: string;
+  /** How the site classifies it: "class" (top-level) or "subclass of <Parent>". */
+  classification?: string;
   primaryAbility?: string;
   hp?: string;
   grantedStance?: string;
   defensivePower?: string;
+  startingPower?: string;
   powers?: string[];
   specializations?: string[];
   note?: string;
 }
 export const IG_CLASS_DETAILS: IGClassDetail[] = [
-  { name: 'Fighter', primaryAbility: 'Strength or Dexterity', hp: '12 + Background HP', note: 'Parent class of the Champion, Freebooter, Marksman, and Sohei subclasses; base-Fighter specifics are minimal on the site.' },
-  { name: 'Freebooter', hp: '12 + Background HP', grantedStance: 'Mobile', defensivePower: 'Redirect', powers: ['Combat Feat', 'Combat Skill Proficiency', 'Favored Enemy', 'General Skill Proficiency', 'Martial Prowess', 'Weapon Expert', 'Weapon Training'], specializations: ['Dabbler (gain subclass powers from other classes)', 'Virtuoso (advantage on skill rolls)'] },
-  { name: 'Marksman', hp: '12 + Background HP', grantedStance: 'Shifting', defensivePower: 'Redirect', powers: ['Combat Feat', 'Rapid Reload', 'Sharpshooter', 'Shot On The Run', 'Trick Shot', 'Weapon Training'], specializations: ['Sniper (double weapon range, bonus damage)', 'Expert Shot (cover fire, challenge, switch-hitter)'] },
-  { name: 'Sohei', hp: '12 + Background HP', grantedStance: 'Precise', defensivePower: 'Counterattack', powers: ['Advanced Combat Skill', 'Chi Strike', 'Combat Feat', 'Flurry', 'Martial Prowess', 'Weapon Expert', 'Weapon Training'], specializations: ['Chakra Master (mobility/sensory abilities)', 'Sage (apply Divine Curse aspects to attacks)'] },
+  // Combat group — Fighter is the parent class; Freebooter/Marksman/Sohei/Champion are its subclasses.
+  { name: 'Fighter', classification: 'class', primaryAbility: 'Strength or Dexterity', hp: '12 + Background HP', note: 'Parent class of the Champion, Freebooter, Marksman, and Sohei subclasses; base-Fighter specifics are minimal on the site.' },
+  { name: 'Freebooter', classification: 'subclass of Fighter', hp: '12 + Background HP', grantedStance: 'Mobile', defensivePower: 'Redirect', powers: ['Combat Feat', 'Combat Skill Proficiency', 'Favored Enemy', 'General Skill Proficiency', 'Martial Prowess', 'Weapon Expert', 'Weapon Training'], specializations: ['Dabbler (gain subclass powers from other classes)', 'Virtuoso (advantage on skill rolls)'] },
+  { name: 'Marksman', classification: 'subclass of Fighter', hp: '12 + Background HP', grantedStance: 'Shifting', defensivePower: 'Redirect', powers: ['Combat Feat', 'Rapid Reload', 'Sharpshooter', 'Shot On The Run', 'Trick Shot', 'Weapon Training'], specializations: ['Sniper (double weapon range, bonus damage)', 'Expert Shot (cover fire, challenge, switch-hitter)'] },
+  { name: 'Sohei', classification: 'subclass of Fighter', hp: '12 + Background HP', grantedStance: 'Precise', defensivePower: 'Counterattack', powers: ['Advanced Combat Skill', 'Chi Strike', 'Combat Feat', 'Flurry', 'Martial Prowess', 'Weapon Expert', 'Weapon Training'], specializations: ['Chakra Master (mobility/sensory abilities)', 'Sage (apply Divine Curse aspects to attacks)'] },
+  // Magic group — Wizard is the parent class; Arcanist/Magician/Shaman are its subclasses.
+  { name: 'Wizard', classification: 'class', primaryAbility: 'Intelligence', hp: '8 + Background HP', startingPower: 'Elemental Blast — a 2-action ranged attack (30 ft) dealing damage = level + Intelligence modifier, in one of five elemental types', note: 'Parent class of the Arcanist, Magician, and Shaman subclasses; base powers appear under the subclasses.' },
+  { name: 'Arcanist', classification: 'subclass of Wizard', primaryAbility: 'Intelligence', grantedStance: 'Mobile', defensivePower: 'Mage Armor', startingPower: 'Elemental Blast (inherited from Wizard)', powers: ['Arcane Spell', 'Elemental Strike', 'Expanded Blast', 'Magic Trick', 'Personal Style', 'Special Delivery'], specializations: ['Synergist (dual elements)', 'Magical Savant (spell advancement)'] },
+  { name: 'Magician', classification: 'subclass of Wizard', note: 'The /classes page lists Magician but its full statistics/powers/specializations were not captured in the page text — a work in progress / to re-verify.' },
+  { name: 'Shaman', classification: 'subclass of Wizard', note: 'The /classes page lists Shaman but its full statistics/powers/specializations were not captured in the page text — a work in progress / to re-verify.' },
 ];
 
 // ── Subclasses + backgrounds (the documented ones; extensible). ─────────────────────────────────────

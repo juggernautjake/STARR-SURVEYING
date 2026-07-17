@@ -416,11 +416,17 @@ describe('Intuitive Games classes surface fully on the library (IG buildout A10)
 
   it('the classes section carries per-class detail (granted stance, defensive power, powers) + the taxonomy note', () => {
     const classes = libraryPageFor('intuitive-games')!.sections.find((s) => s.id === 'classes')!;
-    expect(classes.body!.some((b) => /Fighter as the parent class/.test(b))).toBe(true); // taxonomy finding surfaced
+    // Taxonomy finding surfaced for BOTH parent classes.
+    expect(classes.body!.some((b) => /Fighter →.*Wizard →/.test(b))).toBe(true);
     const sohei = classes.body!.find((b) => b.startsWith('Sohei'));
     expect(sohei).toMatch(/Precise stance/);
     expect(sohei).toMatch(/Counterattack defensive power/);
     expect(sohei).toMatch(/Flurry/); // a listed power
+    // Magic group: Wizard is a class with a starting power; Arcanist a subclass; Magician/Shaman flagged WIP.
+    const wizard = classes.body!.find((b) => b.startsWith('Wizard'));
+    expect(wizard).toMatch(/Elemental Blast/);
+    expect(classes.body!.find((b) => b.startsWith('Arcanist'))).toMatch(/subclass of Wizard/);
+    expect(classes.body!.find((b) => b.startsWith('Magician'))).toMatch(/work in progress|not captured/i);
   });
 });
 
