@@ -42,6 +42,12 @@ per-class ladders, `/redistribution`, `/game-list`, and the home page.
    rather than fabricating a plausible rule. This is a hard rule the owner stated twice.
 3. **Systems never leak across editions** — IG rules never resolve as D&D/PF and vice-versa (Ground Rule 1
    from the platform doc). IG content is scoped to the IG system id.
+4b. **Ground Rule 1 is now guarded comprehensively** (`ig-no-leak.test.ts`): a net asserting NONE of IG's
+   bespoke library sections (stances, combat-skills, redistribution, companions, weapon-properties, tools,
+   magical-items, damage, character-building) or IG-only search kinds (stance/companion/damage-type/cover/
+   combat-skill/defensive-power/trait/magic-item) appear under ANY other game system — so a future IG addition
+   that forgets to scope itself is caught, not shipped.
+
 4. **Every builder/sheet element must render somewhere and be editable** — a stance the builder can pick must
    show on the sheet with its full rules text; a feat granted must appear in Features; a condition must be
    applyable and show its effect. Custom remains the explicit escape hatch.
