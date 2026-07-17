@@ -10,6 +10,7 @@ import { rulesForSystem, type SystemRules } from './system-rules';
 import { glossaryFor, searchGlossary } from './glossary';
 import { classesForSystem } from './classes/registry';
 import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
+import { BACKGROUNDS_2024, type Background as Dnd2024Background } from './backgrounds/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
 import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, IG_COMPANION_TYPES, IG_COMPANION_RULES, IG_BACKGROUND_DEFS, IG_CLASS_GROUPS, IG_CLASS_RULES, IG_SUBCLASSES, IG_CLASS_DETAILS, IG_CLASS_TAXONOMY_FINDING, IG_REDISTRIBUTION_RULES, type NamedEntry, type IGStance, type IGAncestry, type IGCompanionType, type IGBackground } from './systems/intuitive-games/content';
 import { igAllFeats, type IGFeat } from './systems/intuitive-games/feats';
@@ -61,6 +62,11 @@ function igCompanionsFor(system: string): IGCompanionType[] {
 }
 function igBackgroundsFor(system: string): IGBackground[] {
   return system === 'intuitive-games' ? IG_BACKGROUND_DEFS : [];
+}
+/** The 2024 5e backgrounds — first-class rules content (they grant the ability increases + an Origin
+ *  feat in 2024), so they belong in the library search like PF2's and IG's do. */
+function dnd2024BackgroundsFor(system: string): Dnd2024Background[] {
+  return system === 'dnd5e-2024' ? BACKGROUNDS_2024 : [];
 }
 const IG_ECONOMY_COST: Record<string, string> = { Single: '1 action', Double: '2 actions', Triple: '3 actions', Reaction: 'Reaction', Other: 'Free / other' };
 
@@ -719,6 +725,11 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
     // feat — real structured data from the PF2 content library, searchable by name or "background".
     for (const b of backgroundsForSystem(key)) {
       push('background', b.name, `${b.name} background — trains ${b.skill} + ${b.lore}; grants the ${b.feat} skill feat; boosts ${b.boosts.join(', ')}. ${b.summary}`);
+    }
+    // 2024 5e backgrounds — the ability increases + Origin feat live here in 2024, so they're first-class
+    // rules content; surface them by name (they were shipped but nothing in the library referenced them).
+    for (const b of dnd2024BackgroundsFor(key)) {
+      push('background', b.name, `${b.name} background — ability options ${b.abilityScores.map((a) => a.toUpperCase()).join('/')}; Origin feat ${b.originFeat}; skills ${b.skillProficiencies.join(', ')}; tool ${b.toolProficiency}.`);
     }
     // Armor + weapons (PF2 only today): the stats a player scans for — AC bonus / Dex cap / Strength for
     // armor; damage die + type + traits for weapons. System-scoped so 5e gear never surfaces here.

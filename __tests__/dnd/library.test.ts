@@ -113,12 +113,15 @@ describe('searchLibrary', () => {
     expect(searchLibrary('lucky', 'dnd5e-2014').some((h) => h.kind === 'feat')).toBe(true);
   });
 
-  it('surfaces PF2 backgrounds by name (a gap nothing else in the library filled)', () => {
-    const acolyte = searchLibrary('acolyte', 'pathfinder2e').find((h) => h.kind === 'background');
-    expect(acolyte).toBeTruthy();
-    expect(acolyte!.body).toMatch(/Religion/);
-    // Backgrounds are PF2-only — searching a 5e system for a PF2 background name yields no background hit.
-    expect(searchLibrary('acolyte', 'dnd5e-2024').some((h) => h.kind === 'background')).toBe(false);
+  it('surfaces backgrounds by name, scoped per system (PF2 AND 5e 2024)', () => {
+    const pf2Acolyte = searchLibrary('acolyte', 'pathfinder2e').find((h) => h.kind === 'background');
+    expect(pf2Acolyte).toBeTruthy();
+    expect(pf2Acolyte!.body).toMatch(/Religion/);
+    // 2024 5e backgrounds are now first-class rules content (they carry the ability increases + Origin
+    // feat) and searchable too — each system returns its OWN Acolyte, never the other's.
+    const dndAcolyte = searchLibrary('acolyte', 'dnd5e-2024').find((h) => h.kind === 'background');
+    expect(dndAcolyte).toBeTruthy();
+    expect(dndAcolyte!.body).toMatch(/Origin feat/i); // the 2024-shaped body, not the PF2 one
   });
 
   it('surfaces individual PF2 subclass options by name (draconic bloodline, thief racket)', () => {
