@@ -515,8 +515,12 @@ now audited and guarded:
       cross-references features against both 5e editions' class data so an edition-EXCLUSIVE feature
       (e.g. a 2014-only feature on a 2024 sheet) is warned — conservatively (shared + homebrew features
       never flag).
-- [ ] The sheet's Progression tab renders from `progressionTable(def, sub)` rather than
-      hand-authored per-character arrays.
+- [~] The sheet's Progression tab renders from `progressionTable(def, sub)` rather than hand-authored
+      per-character arrays. **Mapper ✅ SHIPPED** (`82375dae`): `progressionRows(def, sub, level)` →
+      the 20 `ProgressionRow`s (faithful level/prof/per-level-features; middle columns from the class's
+      resources/spell info), + `progressionColumns` for the labels; 5 tests. **Remaining:** wiring the
+      Progression component to it (needs client-side class resolution or a server-provided table — a
+      bundle-vs-fetch call), with a fallback to the stored array for characters without a known class.
 - [ ] Jack: decide whether Rangor/Pugilist become a real custom class + subclass through the Slice-5
       builder (they are currently hand-authored sheet data with `system: ambiguous`).
 
