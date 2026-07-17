@@ -20,8 +20,12 @@ classes, etc., functional and editable, aligned to the website's actual rules.
 
 ## Ground rules (carry over from `DND_RULES_PLATFORM` + the owner's constraints)
 
-1. **Source of truth is intuitivegames.net.** Every rule, term, number, feat, condition, stance, ancestry,
-   class, and skill comes from the site. Pull it faithfully.
+1. **Source of truth is intuitivegames.net — and ONLY it.** Every rule, term, number, feat, condition,
+   stance, ancestry, class, and skill comes from the site. Pull it faithfully. Owner (2026-07-17): "only use
+   info from the Intuitive Games source. We should not ever be using definitions or rules or anything that
+   comes from somewhere else." So no D&D/PF assumption ever fills an IG gap — if the site doesn't say it, we
+   don't either (see rule 2). Watch for accidental cross-system defaults (e.g. a generic condition body, a 5e
+   feat) leaking into the IG path.
 2. **NEVER invent.** If the site leaves something undefined, WIP, or empty, say so explicitly in the content
    ("*Work in progress on intuitivegames.net — no rules published yet.*" / "*The site does not define this.*")
    rather than fabricating a plausible rule. This is a hard rule the owner stated twice.
@@ -30,8 +34,12 @@ classes, etc., functional and editable, aligned to the website's actual rules.
 4. **Every builder/sheet element must render somewhere and be editable** — a stance the builder can pick must
    show on the sheet with its full rules text; a feat granted must appear in Features; a condition must be
    applyable and show its effect. Custom remains the explicit escape hatch.
-5. **AI-legible.** The library entries + rules data are what the AI reads to adjudicate; each term must carry
-   enough structured/plain text that the AI understands how it works, not just its name.
+5. **AI-legible AND AI-editable.** The library entries + rules data are what the AI reads to adjudicate; each
+   term must carry enough structured/plain text that the AI understands how it works, not just its name. Owner
+   (2026-07-17): "make sure the AI has access to everything we are building so that it can also edit things and
+   explain how things work." So every IG element we build is both (a) explainable by the AI from the same IG
+   source and (b) editable by the AI (set/clear a stance, apply/remove a condition, add a trait/feat) through
+   the same operations the manual sheet controls use.
 
 ## The website's real structure (fetched 2026-07-17 — the content inventory to reproduce)
 
@@ -127,30 +135,49 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       term present, nothing invented, every gap marked WIP. The AI-legibility check: the library search +
       digest can resolve any IG term.
 
-## Area B — Character builder + sheet: functional, editable, rules-aligned
+## Area B — Character builder + sheet: functional, editable, rules-aligned, with live mechanics + tooltips
 
 Make IG a first-class buildable system, not a custom fallback. Each mechanic the site defines becomes a real,
-editable element on the builder + sheet, scoped to IG and grounded in the Area-A data.
+editable element on the builder + sheet, scoped to IG and grounded ONLY in the Area-A data (owner, 2026-07-17:
+"only use info from the Intuitive Games source — never definitions or rules from somewhere else"). The owner's
+expanded requirements (2026-07-17):
+- **Display what's in play.** If the character has taken a stance, the sheet clearly shows WHICH stance; if
+  they have a condition, it clearly shows WHICH condition — always visible, not buried.
+- **Tooltips everywhere.** Hovering any effect in play (a stance, a condition, an ancestry trait, a feat, any
+  modifier) pops a tooltip explaining exactly how it works, in the site's own words.
+- **Real mechanics, wired.** Where a stance/condition/trait affects checks, rolls, actions, saves, damage, DR,
+  speed, etc., BUILD that mechanic so it actually applies (not just descriptive text) — hooked up correctly
+  per class and per ancestry so each does exactly what the site intends.
+- **AI parity.** The AI must have access to everything built here — able to EDIT it (set/clear a stance, apply
+  a condition, add a trait/feat) AND explain how any of it works, from the same IG source data.
 
-- [ ] **B0 — IG data models.** Structured data (not just prose) for the things the builder/sheet operate on:
-      ancestries, classes, feats (combat+general, with prerequisites for rules-legal offering), conditions,
-      and **stances** (likely a NEW engine concept — model it: what a stance is, its effect while active,
-      entering/leaving). Scoped to the IG system id; reuses the existing feats/conditions/species frameworks
-      where they fit, extends where IG needs something new.
-- [ ] **B1 — Ancestry/traits in the builder + sheet.** IG ancestries selectable in the builder; the sheet's
-      species/traits panel renders IG ancestries fully (Area B of the earlier gaps doc already normalized IG
-      into `speciesView` — extend to full trait text from A5).
+- [ ] **B0 — IG data models + effect vocabulary.** Structured data (mostly done in Area A: `IG_STANCE_DEFS`,
+      `IG_CONDITIONS`, `IG_ANCESTRIES`; feats pending A7/A8) PLUS a machine-readable **effect model** for the
+      mechanical ones — what each stance/condition actually modifies (advantage/disadvantage on X, +½-level to
+      Y, DR, speed, etc.) so the sheet can APPLY it and a tooltip can explain it. Scoped to IG; never imports
+      another system's rules.
+- [ ] **B1 — Ancestry/traits in the builder + sheet.** IG ancestries selectable in the builder; the sheet
+      renders each ancestry's full traits (from A5) with per-trait tooltips; size/speed-changing traits reflect
+      on the sheet where feasible.
 - [ ] **B2 — Classes in the builder.** IG classes selectable with their features/progression from A10.
-- [ ] **B3 — Feats.** IG combat + general feats offered rules-legally at the right slots (per the platform's
-      eligibility core `lib/dnd/feats/eligibility.ts`); editable; shown on the sheet sourced correctly.
-- [ ] **B4 — Conditions.** IG conditions applyable on the sheet, each with its real effect wired (or clearly
-      display-only where the site's effect is narrative), editable.
-- [ ] **B5 — Stances (new).** A stance panel on the sheet: pick/enter a stance, see its full rules, its effect
-      reflected where applicable, leave it — editable. The builder offers the stances a character qualifies
-      for. This is the marquee new IG mechanic.
-- [ ] **B6 — Alignment/verification.** Walk an IG character build in the builder and confirm every offered
-      option matches the site, numbers add up, and stances/feats/conditions are all editable and render. (Ties
-      into the broader final QA walkthrough parked in `pending/DND_FINAL_QA_WALKTHROUGH.md`.)
+- [ ] **B3 — Feats.** IG combat + general feats (from A7/A8) offered rules-legally (prerequisites honored);
+      editable; shown on the sheet sourced correctly, each with a tooltip of its full effect.
+- [ ] **B4 — Conditions: display + tooltip + mechanics + edit.** Conditions the character has are clearly shown
+      on the sheet; hovering shows the full rules text (from `IG_CONDITIONS`); the mechanical ones actually
+      apply (e.g. Flat-Footed drops Dex to Reflex/skills; Shaken/Sickened −2; Blind disadvantage) via the
+      effect model; addable/removable on the sheet (new `ig-edit` route) and by the AI.
+- [ ] **B5 — Stances: display + tooltip + mechanics + edit.** The sheet clearly shows the ACTIVE stance (one at
+      a time); hovering shows its Basic/Advanced text; the effect is applied to the relevant rolls per the
+      Basic-below-L5 / Advanced-at-L5+ rule; enter/leave editable on the sheet + by the AI. Marquee mechanic.
+- [ ] **B6 — Editable IG sheet + AI edit route.** The bespoke `IGSheet` is read-only today; add an `ig-edit`
+      route + write mode so stances/conditions/feats/traits are editable in place, and expose the same
+      operations to the AI (edit + explain) — AI parity with the manual controls.
+- [ ] **B7 — Tooltip system.** A reusable hover/focus tooltip on every in-play effect (stance, condition,
+      trait, feat, modifier) sourced from the IG rules text — keyboard- and touch-reachable (a tablet at the
+      table), theme-token styled.
+- [ ] **B8 — Alignment/verification.** Walk an IG character build and confirm every offered option matches the
+      site, numbers add up, mechanics apply correctly, and stances/conditions/feats/traits are all editable,
+      displayed, tooltipped, and AI-accessible. (Ties into the QA walkthrough in `pending/`.)
 
 ---
 
