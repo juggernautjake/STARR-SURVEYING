@@ -89,6 +89,28 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
     const sp = ledger.value('speed_walk', c.speed);
     state.push(`Speed ${sp} ft${sp !== c.speed ? ` [base ${c.speed}]` : ''}`);
   }
+  // Non-walking movement (Slice 11): fly/swim/climb/burrow are each their own target with their own
+  // base, exactly as CombatPanel shows them — a potion of flying is a fly speed, not "+30 speed". The
+  // sheet gives these a home; the digest is the AI's copy of the sheet, so a ruling ("can you reach the
+  // ledge?", "how fast do you swim clear?") must see them too. Shown only once granted (base 0 hidden).
+  const extraSpeeds = (
+    [
+      ['speed_fly', 'fly'],
+      ['speed_swim', 'swim'],
+      ['speed_climb', 'climb'],
+      ['speed_burrow', 'burrow'],
+    ] as const
+  )
+    .map(([key, label]) => ({ label, value: ledger.value(key, 0), modified: ledger.isModified(key) }))
+    .filter((s) => s.value > 0 || s.modified);
+  if (extraSpeeds.length) state.push(`Movement ${extraSpeeds.map((s) => `${s.label} ${s.value} ft`).join(', ')}`);
+  // Granted senses (darkvision 60, tremorsense…) — a ruling on "do you see in the dark?" hinges on this.
+  // Same source the sheet's Senses line reads (grant_sense contributions carry the sense text).
+  const senses = ledger
+    .explain('grant_sense')
+    .filter((cn) => !cn.suppressed && typeof cn.effect.value === 'string')
+    .map((cn) => String(cn.effect.value));
+  if (senses.length) state.push(`Senses ${senses.join(', ')}`);
   // Passive Perception + Initiative — both routinely decide a ruling ("does the guard notice?", "who
   // acts first?"). EFFECTIVE: WIS/DEX fold through the ledger and Initiative folds any `initiative` effect.
   if (char.skills?.perception) {
@@ -103,6 +125,33 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
   // this attack/save/check land?" uses the same reduced roll the sheet does — not the unpenalized bonus.
   if (c.exhaustion) state.push(`Exhaustion ${c.exhaustion} (−${2 * c.exhaustion} to all d20 rolls)`);
   if (state.length) lines.push(`STATE: ${state.join(' · ')}`);
+
+  // Damage + condition DEFENSES granted by active effects — the "do you take fire damage?" / "are you
+  // immune to being Frightened?" facts a ruling turns on. Read exactly as CombatPanel's Defenses card:
+  // resistances/vulnerabilities are collect-ops; damage `immunity` and `condition_immunity` share the
+  // `immunity` operation, so each is read per-TARGET (never lumped) and de-duplicated by value.
+  const dedupValues = (contribs: ReturnType<typeof ledger.explain>): string[] => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const cn of contribs) {
+      if (cn.suppressed || typeof cn.effect.value !== 'string') continue;
+      const k = cn.effect.value.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(cn.effect.value);
+    }
+    return out;
+  };
+  const defense: string[] = [];
+  const resist = ledger.collected('resistance').map((r) => r.value);
+  const vuln = ledger.collected('vulnerability').map((v) => v.value);
+  const dmgImm = dedupValues(ledger.explain('immunity'));
+  const condImm = dedupValues(ledger.explain('condition_immunity'));
+  if (resist.length) defense.push(`Resistant: ${resist.join(', ')}`);
+  if (dmgImm.length) defense.push(`Immune: ${dmgImm.join(', ')}`);
+  if (vuln.length) defense.push(`Vulnerable: ${vuln.join(', ')}`);
+  if (condImm.length) defense.push(`Immune to conditions: ${condImm.join(', ')}`);
+  if (defense.length) lines.push(`DEFENSES: ${defense.join(' · ')}`);
 
   // What is currently modifying this character — so the AI knows WHY a number differs from the base
   // and can factor it into a ruling ("you have advantage from Rage").

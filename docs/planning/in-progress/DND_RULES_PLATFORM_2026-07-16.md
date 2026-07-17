@@ -1069,15 +1069,18 @@ Original action items (kept for the remaining work):
       `grant_sense`, plus the existing `grant_proficiency`. This is the pendant that gives you an
       ability from another class entirely — the granted feature appears in Features with a badge
       naming the item it came from, and vanishes when the item comes off.
-- [ ] **Movement is not one number.** `speed_fly`, `speed_swim`, `speed_climb`, `speed_burrow`,
-      `hover` are each their own target with their own base (Appendix A) — a potion of flying is not
-      "+30 speed". A fly speed can exist while the walk speed is 0, and the sheet must show both.
-      This needs a **speeds block on the sheet** before it can be granted; see rule 2 below.
-- [ ] **Senses** (`grant_sense`: darkvision/tremorsense/truesight/blindsight, with a range) likewise
-      need somewhere to render.
-- [ ] **Every new target must have a home on the sheet, or it is a lie.** Granting a burrow speed
-      that appears nowhere is exactly the bug this whole Part is fixing — a correct engine nobody can
-      see. A target is not done until it renders.
+- [x] **Movement is not one number. ✅ SHIPPED** — `speed_fly`/`swim`/`climb`/`burrow` (+ `hover`,
+      `ignore_difficult_terrain`) each render in CombatPanel's speeds block, shown only once granted
+      (base 0 hidden), and **the AI digest now mirrors them** (2026-07-17): a granted non-walking mode
+      surfaces as `STATE: … · Movement fly 60 ft, swim 30 ft`, so a ruling on "can you fly to the ledge?"
+      sees what the sheet shows. `character-digest.test.ts` covers fly/swim + the base-0-hidden case.
+- [x] **Senses ✅ SHIPPED** — `grant_sense` renders on CombatPanel's Senses line AND in the digest
+      (`STATE: … · Senses darkvision 60 ft`), closing the "do you see in the dark?" blind spot for the AI.
+- [x] **Every new target must have a home on the sheet, or it is a lie. ✅ (sheet + AI)** — the sheet was
+      the first home; the AI digest is the *second*, and it was silently missing movement, senses and the
+      whole Defenses card (resistance/immunity/vulnerability/condition-immunity). All four now project into
+      the digest, reading the ledger with CombatPanel's exact logic (damage- vs condition-immunity kept
+      distinct, not lumped). So the AI is no longer blind to capabilities the player can plainly see.
 - [ ] A single item carries **any number of effects of any mix** — the "one boot that rewrites you"
       case is just an item with fifteen effects and must need no special code.
 - [x] Tests: an item granting a Barbarian feature to a Wizard shows it in Features, sourced to the

@@ -240,6 +240,59 @@ describe('the digest reports LEDGER-resolved numbers, not the stored base (Slice
   });
 });
 
+describe('the digest carries effect-derived movement, senses and defenses (Slice 11)', () => {
+  // These render on the sheet's Combat panel (fly/swim/climb/burrow, Senses, the Defenses card) but were
+  // absent from the AI's copy of the sheet — so a ruling on "can you fly to the ledge?" / "do you see in
+  // the dark?" / "do you take fire damage?" would be blind to capabilities the player can plainly see.
+  function equipped(effects: { target: string; operation: string; value: number | string }[]): Character {
+    const c = fixture();
+    c.combat = { ...c.combat, exhaustion: 0 };
+    c.inventory = [
+      { id: 'x', name: 'Wondrous Item', desc: '', qty: 1, tags: [], equipped: true, effects },
+    ] as Character['inventory'];
+    return c;
+  }
+
+  it('reports a granted fly/swim/climb speed, only once it exists', () => {
+    const plain = characterDigest(fixture(), 'dnd-5e-2024');
+    expect(plain).not.toContain('Movement '); // no non-walking modes → no line at all
+    const d = characterDigest(equipped([
+      { target: 'speed_fly', operation: 'set', value: 60 },
+      { target: 'speed_swim', operation: 'set', value: 30 },
+    ]), 'dnd-5e-2024');
+    expect(d).toMatch(/Movement .*fly 60 ft/);
+    expect(d).toMatch(/swim 30 ft/);
+  });
+
+  it('reports granted senses (the "do you see in the dark?" fact)', () => {
+    const d = characterDigest(equipped([
+      { target: 'grant_sense', operation: 'set', value: 'darkvision 60 ft' },
+    ]), 'dnd-5e-2024');
+    expect(d).toMatch(/Senses .*darkvision 60 ft/);
+  });
+
+  it('reports damage resistance / immunity / vulnerability, kept distinct from condition immunity', () => {
+    const d = characterDigest(equipped([
+      { target: 'resistance', operation: 'resistance', value: 'fire' },
+      { target: 'immunity', operation: 'immunity', value: 'poison' },
+      { target: 'vulnerability', operation: 'vulnerability', value: 'cold' },
+      { target: 'condition_immunity', operation: 'immunity', value: 'frightened' },
+    ]), 'dnd-5e-2024');
+    expect(d).toMatch(/DEFENSES:/);
+    expect(d).toMatch(/Resistant: fire/);
+    expect(d).toMatch(/Immune: poison/);          // damage immunity
+    expect(d).toMatch(/Vulnerable: cold/);
+    expect(d).toMatch(/Immune to conditions: frightened/); // NOT lumped with the damage immunity
+  });
+
+  it('a character with none of these gets no Movement/Senses/DEFENSES noise', () => {
+    const d = characterDigest((() => { const c = fixture(); c.combat = { ...c.combat, exhaustion: 0 }; return c; })(), 'dnd-5e-2024');
+    expect(d).not.toContain('Movement ');
+    expect(d).not.toContain('Senses ');
+    expect(d).not.toContain('DEFENSES:');
+  });
+});
+
 describe('the digest carries provenance + the prompt meets homebrew (Slice 22)', () => {
   function homebrewChar(): Character {
     const c = fixture(); // Rangor with homebrew "Living Momentum" / "Unstoppable Force" features
