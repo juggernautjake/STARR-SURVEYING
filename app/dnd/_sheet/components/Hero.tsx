@@ -5,6 +5,7 @@ import { SYSTEM_AMBIGUOUS, systemLabel } from '@/lib/dnd/systems'
 import { SPECIES_2024 } from '@/lib/dnd/species/dnd5e-2024'
 import type { Character } from '../types'
 import EffectStar from './ui/EffectStar'
+import SpeciesTraits from './SpeciesTraits'
 
 export default function Hero() {
   const { char, setChar, editMode, setEditMode, tempMode, setTempMode, clearAllOverrides, reset, importChar, isDM, ledger } = useChar()
@@ -19,9 +20,6 @@ export default function Hero() {
   // hatch), matching the rules-legal-unless-explicitly-custom rule.
   const is2024 = system === 'dnd5e-2024'
   const setSpecies = (name: string) => setChar((c) => ({ ...c, meta: { ...c.meta, species: name } }))
-  const matchedSpecies = is2024
-    ? SPECIES_2024.find((s) => s.name.toLowerCase() === (char.meta.species ?? '').trim().toLowerCase())
-    : undefined
 
   // Identity OVERLAY (Slice 11): an effect can impose a different name/species/class while active —
   // a pendant that makes you "Zul the Barbarian". Like every effect it's an overlay: the DISPLAY
@@ -152,24 +150,10 @@ export default function Hero() {
         <EffectStar target="subclass" label="Subclass">{displaySubclass}</EffectStar>
       </p>
 
-      {/* Species traits (Slice 4) — shown whenever the sheet's species matches a real 2024 species, so
-          the player sees size/speed/darkvision + what it grants. Effects/mechanics application is a
-          follow-up; this makes the choice legible. */}
-      {matchedSpecies && (
-        <div className="card" style={{ marginTop: 8, fontSize: 13 }}>
-          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', color: 'var(--muted)', fontSize: 12, marginBottom: 6 }}>
-            <span><b style={{ color: 'var(--ink)' }}>{matchedSpecies.name}</b> · {matchedSpecies.creatureType}</span>
-            <span>Size: {matchedSpecies.size}</span>
-            <span>Speed: {matchedSpecies.speed} ft</span>
-            {matchedSpecies.darkvision && <span>Darkvision {matchedSpecies.darkvision} ft</span>}
-          </div>
-          <ul className="clean" style={{ display: 'grid', gap: 4, margin: 0 }}>
-            {matchedSpecies.traits.map((t) => (
-              <li key={t.name}><b>{t.name}.</b> {t.text}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* Species / Ancestry traits (Area B) — a well-formatted, collapsible panel for ANY viewer,
+          across ALL systems (2024 species with full trait text, PF2 ancestries with size/speed/senses/
+          heritages, a graceful name-only card for a homebrew lineage). Replaces the old 2024-only card. */}
+      <SpeciesTraits system={system} species={char.meta.species} />
 
       <div className="tagchips">
         {/* The system designation (Slice 21). You could not previously tell what GAME a sheet was

@@ -127,8 +127,9 @@ describe('the digest reports LEDGER-resolved numbers, not the stored base (Slice
   });
 
   it('folds walk speed too, base noted', () => {
+    // fixture() carries Exhaustion 1 (−5 ft), so base 30 + 10 boots − 5 exhaustion = 35.
     const d = characterDigest(belted(), 'dnd-5e-2024');
-    expect(d).toMatch(/Speed 40 ft \[base 30\]/);
+    expect(d).toMatch(/Speed 35 ft \[base 30\]/);
   });
 
   it('reports the DERIVED AC (equipped armour + AC effects), base noted when it differs', () => {
@@ -142,7 +143,10 @@ describe('the digest reports LEDGER-resolved numbers, not the stored base (Slice
   });
 
   it('a vanilla character shows no base annotations and no ACTIVE EFFECTS line', () => {
-    const d = characterDigest(fixture(), 'dnd-5e-2024');
+    // Truly vanilla: no item/spell effects AND no exhaustion (which now legitimately reduces speed).
+    const c = fixture();
+    c.combat = { ...c.combat, exhaustion: 0 };
+    const d = characterDigest(c, 'dnd-5e-2024');
     expect(d).not.toContain('[base ');
     expect(d).not.toContain('ACTIVE EFFECTS:');
     expect(d).toMatch(/STR 18 \(\+4\)/); // the base IS the effective value here

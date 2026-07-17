@@ -63,9 +63,9 @@ describe('the sheet surfaces species as a rules-grounded picker (Slice 4 creatio
     expect(HERO).toContain('editMode && is2024');
   });
 
-  it('shows the matched species traits (size/speed/darkvision + traits)', () => {
-    expect(HERO).toContain('matchedSpecies');
-    expect(HERO).toContain('matchedSpecies.traits.map');
-    expect(HERO).toContain('Darkvision');
+  it('renders the system-agnostic Species/Ancestry traits panel (Area B)', () => {
+    // The old 2024-only inline card became a shared, all-systems panel (SpeciesTraits + species/view).
+    expect(HERO).toContain('SpeciesTraits');
+    expect(HERO).toContain('<SpeciesTraits');
   });
 });
