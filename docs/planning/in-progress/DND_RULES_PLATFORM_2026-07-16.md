@@ -822,7 +822,13 @@ One pure function that every later slice reads. Nothing else in Part II can be b
       InitiativePrompt (the last one submitted the wrong encounter turn-order bonus), **CON-mod regen**,
       and **hit-die healing**. All now read effective abilities; initiative folds the `initiative` ledger
       target. `saves-skills-effective.test.ts` (2) + `derived-effective-abilities.test.ts` (7) guard
-      against regression to the base scores.
+      against regression to the base scores. **Spellcasting + weapon + form sweep** (`4b5d7825`): the
+      spell **Save DC** and **spell attack** (both `castSpell` and the `SpellsPanel` header) derived from
+      BASE spellcasting ability, so a Headband of Intellect / CHA item never moved them — now effective,
+      folding `spell_save_dc`/`spell_attack`; **weapon damage** flat mod used base STR/DEX; the StreamChat
+      WIS save and the transform **FormAbilities** DC used base too (the form DC now correctly uses the
+      form's imposed STR). `derived-effective-spellcasting.test.ts` (5). A repo-wide grep confirms no
+      derived value still reads `abilityMod(char.abilities…)`.
 - [ ] **An equipped item lands in the right place, automatically.** Equipping routes by what the item
       *is*, with no per-item code: a weapon appears as a row in **Attacks** with its computed to-hit
       and damage; armour drives **AC** (respecting DEX cap / STR requirement / stealth disadvantage);
