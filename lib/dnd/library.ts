@@ -13,6 +13,7 @@ import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
 import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, IG_COMPANION_TYPES, IG_COMPANION_RULES, IG_BACKGROUND_DEFS, IG_CLASS_GROUPS, IG_CLASS_RULES, IG_SUBCLASSES, IG_CLASS_DETAILS, IG_CLASS_TAXONOMY_FINDING, IG_REDISTRIBUTION_RULES, type NamedEntry, type IGStance, type IGAncestry, type IGCompanionType, type IGBackground } from './systems/intuitive-games/content';
 import { igAllFeats, type IGFeat } from './systems/intuitive-games/feats';
+import { igAncestryArt, IG_ART_CREDIT } from './systems/intuitive-games/art';
 import { IG_WEAPON_RULES, IG_WEAPON_CLASS_DATA, IG_WEAPON_PROPERTIES, IG_ARMOR_RULES, IG_ARMORS, IG_SHIELD_RULES, IG_SHIELDS, IG_EQUIPMENT_PACKS, IG_EQUIPMENT_NOTE, IG_TOOL_RULES, IG_MAGIC_ITEM_RULES, IG_ENCHANTMENTS } from './systems/intuitive-games/items';
 import { IG_SKILL_RULES, IG_COMBAT_SKILL_RULES, IG_COMBAT_SKILLS, IG_BUILD_STEPS, IG_PROGRESSION_NOTE, IG_DAMAGE_SAVE_RULES, IG_DAMAGE_TYPE_DATA, IG_COVER, IG_MOVEMENT_RULES, IG_SIZE_CATEGORIES, IG_SIZE_NOTE, IG_SPELL_ROSTER, igSpellsMissingEffects } from './systems/intuitive-games/content';
 
@@ -109,6 +110,8 @@ export interface LibrarySection {
   chips?: string[];
   /** Tabular data with headers. */
   table?: { headers: string[]; rows: string[][] };
+  /** An image gallery (e.g. ancestry portraits), with a shared credit line. */
+  images?: { gallery: { src: string; caption: string }[]; credit?: string };
 }
 
 export interface LibrarySystemPage {
@@ -310,6 +313,10 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
     if (ancestries.length) {
       // Full trait text (IG today): each ancestry with its two traits spelled out — "fully fleshed out",
       // per the owner. One row per ancestry; the traits column lists "TraitName: text" for each.
+      // Brendan's per-ancestry portraits (those the site publishes) as a gallery beneath the trait table.
+      const gallery = ancestries
+        .map((a) => ({ src: igAncestryArt(a.name), caption: a.name }))
+        .filter((g): g is { src: string; caption: string } => !!g.src);
       sections.push({
         id: 'species',
         title: speciesNoun(r.key),
@@ -318,6 +325,7 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
           headers: [speciesNoun(r.key).replace(/s$/, ''), 'Ancestry traits'],
           rows: ancestries.map((a) => [a.name, a.traits.map((t) => `${t.name}: ${t.text}`).join('\n\n')]),
         },
+        images: gallery.length ? { gallery, credit: IG_ART_CREDIT } : undefined,
       });
     } else {
       sections.push({

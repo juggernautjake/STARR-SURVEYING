@@ -537,6 +537,16 @@ describe('Intuitive Games ancestries carry full trait text (IG buildout A5)', ()
     expect(dwarf?.[1]).toMatch(/darkvision out to a range of 30 feet/i);
   });
 
+  it('includes Brendan\'s ancestry art as a gallery (the 8 the site publishes), credited', () => {
+    const species = libraryPageFor('intuitive-games')!.sections.find((s) => s.id === 'species')!;
+    expect(species.images).toBeTruthy();
+    expect(species.images!.gallery.length).toBe(8); // Human + Sprite have no site art
+    expect(species.images!.gallery.find((g) => g.caption === 'Dwarf')?.src).toBe('/dnd/intuitive-games/ancestries/dwarf.png');
+    expect(species.images!.credit).toMatch(/Brendan/);
+    // Non-IG systems get no image gallery.
+    expect(libraryPageFor('dnd5e-2024')!.sections.find((s) => s.id === 'species')?.images).toBeUndefined();
+  });
+
   it('an ancestry and its individual traits are searchable', () => {
     const barkskin = searchLibrary('barkskin', 'intuitive-games').find((h) => h.kind === 'trait');
     expect(barkskin?.name).toBe('Barkskin');

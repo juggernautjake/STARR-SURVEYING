@@ -170,6 +170,21 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
                   </table>
                 </div>
               )}
+
+              {s.images && (
+                <figure style={{ margin: 0, display: 'grid', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    {s.images.gallery.map((g) => (
+                      <div key={g.src} style={{ display: 'grid', gap: 3, justifyItems: 'center', width: 116 }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={g.src} alt={g.caption} title={s.images!.credit} loading="lazy" style={{ width: 116, height: 'auto', borderRadius: 8, background: '#f4f1ea', border: '1px solid var(--hx-line)', padding: 4 }} />
+                        <span style={{ fontSize: 11.5, color: 'var(--hx-gold-2)' }}>{g.caption}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {s.images.credit && <figcaption style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>{s.images.credit}</figcaption>}
+                </figure>
+              )}
             </section>
           ))}
 

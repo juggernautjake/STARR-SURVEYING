@@ -13,4 +13,10 @@ describe('IG library page branding', () => {
     expect(SRC).toContain('IG_ART_CREDIT');
     expect(SRC).toMatch(/alt="Intuitive Games logo"/);
   });
+
+  it('renders a section image gallery when a section carries images', () => {
+    expect(SRC).toContain('s.images');
+    expect(SRC).toMatch(/s\.images\.gallery\.map/);
+    expect(SRC).toMatch(/s\.images!\.credit/); // the credit line renders
+  });
 });

@@ -260,7 +260,10 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       ancestry portraits ARE the character illustrations. `ig-art.test.ts` (5, incl. real-file-exists checks) +
       `ig-sheet-tooltips.test.ts` +1. **The complete "what I can't grab — needs you/Brendan" list is in
       `docs/reference/.../SITE_MASTER.md`** (spell effects, per-class ladders, taxonomy decision, WIP pages,
-      Sprite/Human art). Remaining: use the logo tastefully on the IG library header; confirm Brendan's OK.
+      Sprite/Human art). **Logo + art on the library** (`44afc2b3` + gallery): the IG library page shows
+      Brendan's logo + credit in the header, and the Ancestries section now renders the **8 portraits as a
+      credited gallery** (new `LibrarySection.images` field + page renderer). `library.test.ts` +1,
+      `ig-library-branding.test.ts` +1. Remaining art: confirm Brendan's OK; Sprite/Human portraits if he has them.
 - [~] **A17 — Verification pass.** ✅ *Completeness guard shipped* (`library.test.ts`): a test asserts the IG
       library page surfaces **all 21 major sections** of intuitivegames.net (core/abilities/advancement/
       classes/skills/ancestries/backgrounds/stances/conditions/feats/powers/defensive-powers/actions/
