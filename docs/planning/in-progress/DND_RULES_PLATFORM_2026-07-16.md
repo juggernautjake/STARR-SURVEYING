@@ -366,9 +366,11 @@ renders. The one clear gap — spells — is now closed.
       shape: level 0–9, school, casting time, range, components, duration, concentration, ritual, attack
       vs save resolution, higher-level scaling). Upserts by name, clamps level, revertible. Matches the
       `add_`/`remove_` allow-list prefixes automatically. Tests: `sheet-edits.test.ts` +3.
-- [ ] Custom **classes/subclasses** as first-class AI ops (today expressible as a bundle of features);
-      custom **conditions** as reusable definitions. Consider whether the existing feature/effect
-      vocabulary covers these or they warrant their own ops.
+- [x] Custom **classes/subclasses** as first-class AI ops ✅ — the Slice 5 homebrew builders make them
+      exactly that (AI-drafted, engine-validated, saved, resolved in the level builder). Custom
+      **conditions** ✅ — `add_condition`/`remove_condition` sheet-edit ops (`9376ec81`) let the AI apply/
+      clear any named (incl. homebrew) condition on `combat.conditions`; richer per-condition mechanics
+      remain expressible via the existing effect/`define_tag` vocabulary (no separate registry needed).
 
 ## Slice 5 — Custom class / subclass / feat builder UI
 
