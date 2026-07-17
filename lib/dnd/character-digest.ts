@@ -168,7 +168,11 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
       const hit = a.saveBased
         ? `DC ${a.saveDcOverride ?? 8 + pb + abilityMod(effAbil(a.saveDcAbility ?? 'str'))} ${(a.saveAbility ?? 'dex').toUpperCase()} save`
         : `${signed(abilityMod(effAbil(key)) + (a.proficient ? pb : 0) + (a.bonusToHit ?? 0))} to hit`;
-      return `${a.name} (${hit}, ${a.range}, ${a.damage} ${a.damageType})`;
+      // Damage die + the ability mod the sheet adds automatically (the `damage` field is the raw die).
+      // AOE dice don't add the ability mod, matching the Attacks table.
+      const die = a.damageByLevel?.length ? a.damageByLevel.reduce((acc, e) => ((m.level ?? 1) >= e.level ? e.damage : acc), a.damage) : a.damage;
+      const dmgMod = a.saveBased ? 0 : abilityMod(effAbil(key)) + (a.bonusDamage ?? 0);
+      return `${a.name} (${hit}, ${a.range}, ${die}${dmgMod ? signed(dmgMod) : ''} ${a.damageType})`;
     });
   if (attacks.length) lines.push(`ATTACKS: ${attacks.join(' · ')}`);
 

@@ -17,7 +17,7 @@ function fixture(): Character {
   c.saves = { ...c.saves, str: { proficient: true, misc: 0 }, con: { proficient: true, misc: 0 } };
   c.skills = { ...c.skills, athletics: { prof: 'expertise', misc: 0 }, survival: { prof: 'proficient', misc: 0 } };
   c.resources = [{ id: 'r1', name: 'Momentum', current: 2, max: 4, resetOn: 'long' }] as Character['resources'];
-  c.attacks = [{ id: 'a1', name: 'Cross Counter', range: 'melee 5 ft', damage: '1d8+4', damageType: 'bludgeoning' }] as Character['attacks'];
+  c.attacks = [{ id: 'a1', name: 'Cross Counter', ability: 'str', proficient: true, range: 'melee 5 ft', damage: '1d8', damageType: 'bludgeoning' }] as Character['attacks'];
   c.features = [
     { id: 'f1', name: 'Living Momentum', source: 'Ragnar', body: ['Once per turn, when you move 10 feet in a straight line you gain a stacking bonus.'], unlockLevel: 1 },
     { id: 'f2', name: 'Unstoppable Force', source: 'Ragnar', body: ['You cannot be knocked prone while conscious.'], unlockLevel: 1 },
@@ -154,9 +154,12 @@ describe('the digest reports LEDGER-resolved numbers, not the stored base (Slice
     }
     const plain = characterDigest(withStr(false), 'dnd-5e-2024');
     const boosted = characterDigest(withStr(true), 'dnd-5e-2024');
-    expect(plain).toMatch(/Greatsword \([+-]\d+ to hit, melee 5 ft, 2d6 slashing\)/);
+    // Damage folds the ability mod the sheet adds automatically: 2d6 + STR.
+    expect(plain).toMatch(/Greatsword \([+-]\d+ to hit, melee 5 ft, 2d6[+-]\d+ slashing\)/);
     const th = (s: string) => Number(s.match(/Greatsword \(([+-]\d+) to hit/)![1]);
+    const dmg = (s: string) => Number(s.match(/2d6([+-]\d+) slashing/)![1]);
     expect(th(boosted)).toBe(th(plain) + 2); // STR 18 → 22 is +2 to the mod
+    expect(dmg(boosted)).toBe(dmg(plain) + 2); // damage mod rises with STR too
   });
 
   it('reports Passive Perception + Initiative from the EFFECTIVE WIS/DEX', () => {
