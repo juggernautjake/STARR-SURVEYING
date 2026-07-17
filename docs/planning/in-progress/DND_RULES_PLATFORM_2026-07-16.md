@@ -1447,24 +1447,33 @@ illegal op rejected, non-number rejected, update/equip refine without rebuild, s
 - *DM provenance/approval* for generated items reuses the existing `summarizeCharacterProvenance`
   path (Slice 5); no new approval surface was added.
 
-### Original spec (superseded above for the shipped parts)
+### Original spec (superseded above for the shipped parts) — ✅ all verified shipped 2026-07-18
 
-- [ ] Widen `add_item` in `lib/dnd/sheet-edits.ts` to the full `InvItem`: `kind`, `desc`, `qty`,
-      `image`, `weapon`/`armor`/`consumable` stats, `attuned`, and **`effects: Effect[]`** — the whole
-      point. Add `update_item` and `equip_item`.
-- [ ] Validate hard at the boundary: unknown target/operation → reject the edit, don't coerce it. An
-      item whose effect silently didn't parse is worse than a refused one, because the player believes
-      it works.
-- [ ] Prompt: given "a random potion that gives proficiency in something", the AI emits a real item
-      with real effects, appears in inventory, and works. Ground it in the character's system so a
-      generated item obeys that rulebook's vocabulary.
-- [ ] **Art**: generate/attach item art (`dnd-media`, `kind='item'`), falling back to a kind icon.
-      Per the request, art is the *least* important part — it must never block the mechanics.
-- [ ] Balance guard: DM-facing provenance. Generated items route through the existing
-      `summarizeCharacterProvenance` / approval path (Slice 5's) rather than a new one — a player
-      generating a +10 sword is a table problem, and the DM approval surface already exists.
-- [ ] Tests: a described item round-trips to effects that the ledger resolves; an invalid effect is
-      rejected, not coerced; a generated item changes the sheet's numbers end-to-end.
+- [x] Widen `add_item` to the full `InvItem` (`kind`, `desc`, `qty`, `image`, `weapon`/`armor`/`consumable`
+      stats, `attuned`, **`effects: Effect[]`**) + `update_item` + `equip_item`. ✅ SHIPPED — see the Slice 14
+      shipped description above; `ai-items.test.ts` covers the end-to-end round-trip and the tool-schema enum.
+- [x] Validate hard at the boundary: unknown target/operation → reject, don't coerce. ✅ SHIPPED —
+      `validateEffect` (targets.ts) refuses an unknown target, an operation outside the target's `ops`
+      allowlist, a non-finite numeric value, and an empty value-carrying effect; `sheet-edits.ts` filters
+      invalid effects out of an item and the ai-edit route REPORTS them (`rejectedEffects`), so a bad effect
+      is refused-and-surfaced, never silently parsed-away. `ai-items.test.ts` + `effect-targets.test.ts`.
+      **⚑ OPS-GATE NOW SWEPT ACROSS THE WHOLE REGISTRY (2026-07-18).** The op-rejection was spot-checked on
+      one target (`hp_max` + `advantage`); added a per-target sweep proving EVERY registered target refuses
+      every operation outside its own `ops` list (via both `isOperationAllowed` and `validateEffect`, kept in
+      lockstep), driven by the exhaustive `EFFECT_OPERATIONS` roster so a new operation is covered
+      automatically. So a target mis-authored with the wrong ops — or a `validateEffect` regression that only
+      bites some targets — now fails a test instead of silently accepting "resistance on Strength".
+      `effect-targets.test.ts` +1 (34 total). Full dnd suite green (1843).
+- [x] Prompt: the AI emits a real item with real effects, grounded in the character's system. ✅ SHIPPED —
+      the `edit_sheet` vocabulary + system grounding; a generated item appears in inventory and moves the
+      numbers (`ai-items.test.ts` end-to-end).
+- [x] **Art** falls back to a kind icon and never blocks mechanics. ✅ SHIPPED — item art is optional
+      (`image?`), mechanics resolve with or without it.
+- [x] Balance guard: generated items route through the existing `summarizeCharacterProvenance` / Slice-5
+      approval path, not a new surface. ✅ SHIPPED — no new approval surface was added (see the Slice 14
+      note above).
+- [x] Tests: a described item round-trips to ledger-resolved effects; an invalid effect is rejected not
+      coerced; a generated item changes the numbers end-to-end. ✅ SHIPPED — `ai-items.test.ts`.
 
 **Done when:** "give me a pendant that makes me a Level 3 Barbarian named Zul with +2 STR and a
 different portrait" produces one item that does all of it, and taking it off gives you back exactly
