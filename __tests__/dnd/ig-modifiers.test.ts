@@ -5,6 +5,8 @@ import {
   igConditionMechanic,
   igConditionSummary,
   igConditionPenaltyNote,
+  igStanceMechanic,
+  igStanceMechanicNote,
 } from '@/lib/dnd/systems/intuitive-games/modifiers';
 
 describe('igConditionMechanic', () => {
@@ -47,5 +49,32 @@ describe('igConditionPenaltyNote', () => {
     expect(igConditionPenaltyNote(['Shaken', 'Sickened'])).toMatch(/^-4 to attacks, saves & skill checks \(Shaken, Sickened\)/);
     expect(igConditionPenaltyNote(['Blind'])).toBeNull(); // Blind is disadvantage, not a flat penalty
     expect(igConditionPenaltyNote([])).toBeNull();
+  });
+});
+
+describe('igStanceMechanic — the active tier by level (a single benefit)', () => {
+  it('Offensive: Basic gives advantage on attacks + disadvantage on Reflex; Advanced is the damage bonus', () => {
+    const low = igStanceMechanic('Offensive', 4)!;
+    expect(low.tier).toBe('basic');
+    expect(low.advantage).toBe('attack rolls');
+    expect(low.disadvantage).toBe('Reflex saves');
+    expect(low.bonus).toBeUndefined();
+    const high = igStanceMechanic('offensive stance', 5)!;
+    expect(high.tier).toBe('advanced');
+    expect(high.bonus).toMatch(/half your level to damage/);
+    expect(high.advantage).toBeUndefined(); // advanced replaces basic
+  });
+
+  it('Defensive Advanced grants DR; Menacing tiers differ; positional stances carry a note', () => {
+    expect(igStanceMechanic('Defensive', 6)!.damageReduction).toBe('half your level');
+    expect(igStanceMechanic('Menacing', 1)!.advantage).toBe('trained combat skills');
+    expect(igStanceMechanic('Menacing', 5)!.advantage).toBe('all combat skills');
+    expect(igStanceMechanic('Shifting', 1)!.note).toMatch(/can’t be flanked/);
+  });
+
+  it('null for an unknown stance; a legible note for a real one', () => {
+    expect(igStanceMechanic('Berserker', 3)).toBeNull();
+    expect(igStanceMechanicNote('Defensive', 6)).toMatch(/Defensive Stance \(advanced\): DR half your level/);
+    expect(igStanceMechanicNote('Offensive', 1)).toMatch(/advantage on attack rolls; disadvantage on Reflex saves/);
   });
 });

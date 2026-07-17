@@ -78,3 +78,63 @@ export function igConditionPenaltyNote(conditions: string[] | null | undefined):
   if (s.flatD20 === 0) return null;
   return `${s.flatD20} to attacks, saves & skill checks (${s.flatSources.join(', ')})`;
 }
+
+// ── Stance mechanics ────────────────────────────────────────────────────────────────────────────────
+// The machine-readable effect of the ACTIVE stance (Basic below Lv 5, Advanced at Lv 5+ — a single
+// benefit), so the sheet can apply/annotate a stance and the AI reasons from structured fields, not prose.
+// Faithful to intuitivegames.net/stances.
+
+export interface IGStanceMechanic {
+  name: string;
+  tier: 'basic' | 'advanced';
+  /** Roll categories that gain advantage. */
+  advantage?: string;
+  /** Roll categories that take disadvantage. */
+  disadvantage?: string;
+  /** Damage Reduction granted (e.g. "half your level"). */
+  damageReduction?: string;
+  /** A flat/other bonus the stance grants (e.g. "+half your level to damage rolls"). */
+  bonus?: string;
+  /** A positional/narrative effect that isn't a simple roll modifier. */
+  note?: string;
+}
+
+const norm2 = (s: string) => s.trim().toLowerCase().replace(/\s+stance$/, '').replace(/\s+/g, ' ');
+
+type Tiered = { basic: Omit<IGStanceMechanic, 'name' | 'tier'>; advanced: Omit<IGStanceMechanic, 'name' | 'tier'> };
+const STANCE_MECHANICS: Record<string, Tiered> = {
+  offensive: { basic: { advantage: 'attack rolls', disadvantage: 'Reflex saves' }, advanced: { bonus: '+half your level to damage rolls' } },
+  defensive: { basic: { disadvantage: 'attack rolls', advantage: 'Reflex saves' }, advanced: { damageReduction: 'half your level' } },
+  neutral: { basic: { note: 'You ignore opponents’ stance bonuses that enhance attack rolls, including flanking.' }, advanced: { note: 'You ignore all of your opponents’ stance bonuses.' } },
+  mobile: { basic: { note: 'Moving through a threatened area no longer provokes reactions.' }, advanced: { note: 'You no longer provoke reactions.' } },
+  shifting: { basic: { note: 'You can’t be flanked.' }, advanced: { note: 'A missed attack against you provokes a reaction.' } },
+  welcoming: { basic: { note: 'An ally can share your square.' }, advanced: { note: 'An ally sharing your square gains +half your level to Reflex saves.' } },
+  swarming: { basic: { advantage: 'attack rolls when flanking' }, advanced: { bonus: '+half your level to attack rolls when flanking' } },
+  precise: { basic: { bonus: '+1d6 sneak attack vs a flanked or Unconscious/Entangled/Paralyzed/Blinded target' }, advanced: { bonus: 'sneak attack increases to 2d6' } },
+  supportive: { basic: { note: 'You count as flanking when you threaten an enemy an ally also threatens.' }, advanced: { note: 'Flanking allies gain +half your level to attack rolls.' } },
+  menacing: { basic: { advantage: 'trained combat skills' }, advanced: { advantage: 'all combat skills' } },
+};
+
+/** The active stance's mechanical effect at a level (Advanced at 5+), or null if the name isn't an IG
+ *  stance. The Advanced tier REPLACES the Basic one (the site's "a single benefit"). */
+export function igStanceMechanic(name: string | null | undefined, level: number): IGStanceMechanic | null {
+  if (!name) return null;
+  const def = STANCE_MECHANICS[norm2(name)];
+  if (!def) return null;
+  const advanced = level >= 5;
+  return { name: name.replace(/\s+stance$/i, '').trim(), tier: advanced ? 'advanced' : 'basic', ...(advanced ? def.advanced : def.basic) };
+}
+
+/** A legible one-line summary of the active stance's mechanical effect. */
+export function igStanceMechanicNote(name: string | null | undefined, level: number): string | null {
+  const m = igStanceMechanic(name, level);
+  if (!m) return null;
+  const bits = [
+    m.advantage && `advantage on ${m.advantage}`,
+    m.disadvantage && `disadvantage on ${m.disadvantage}`,
+    m.damageReduction && `DR ${m.damageReduction}`,
+    m.bonus,
+    m.note,
+  ].filter(Boolean);
+  return bits.length ? `${m.name} Stance (${m.tier}): ${bits.join('; ')}.` : null;
+}

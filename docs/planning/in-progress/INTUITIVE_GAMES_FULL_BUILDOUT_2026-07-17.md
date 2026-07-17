@@ -332,8 +332,12 @@ expanded requirements (2026-07-17):
       a time); hovering shows its Basic/Advanced text; the effect is applied to the relevant rolls per the
       Basic-below-L5 / Advanced-at-L5+ rule; enter/leave editable on the sheet + by the AI. Marquee mechanic.
       **Display + tooltip done** (`IGSheet` Combat panel, `ig-sheet-tooltips.test.ts`): stances show their
-      active-at-level benefit + a full-rules hover tooltip. **Remaining:** applying the stance effect to the
-      actual rolls (mechanics), a single-active-stance selector, and edit (needs the `ig-edit` route, B6).
+      active-at-level benefit + a full-rules hover tooltip. **Stance mechanics model shipped**
+      (`modifiers.ts` `igStanceMechanic`/`igStanceMechanicNote`, `ig-modifiers.test.ts`): the active stance's
+      effect is now machine-readable per level (Advanced replaces Basic at Lv 5) — structured
+      advantage/disadvantage/damageReduction/bonus/note fields faithful to the site, plus a legible one-line
+      note — so the sheet can apply/annotate it and the AI reasons from structure, not prose. Enter/leave is
+      editable (B6). **Remaining:** folding the structured effect into the actual roll math on the sheet.
 - [x] **B6 — Editable IG sheet + AI edit route.** The bespoke `IGSheet` is read-only today; add an `ig-edit`
       route + write mode so stances/conditions/feats/traits are editable in place, and expose the same
       operations to the AI (edit + explain) — AI parity with the manual controls. **Edit engine + route
