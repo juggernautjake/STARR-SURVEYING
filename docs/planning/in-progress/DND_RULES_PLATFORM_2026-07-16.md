@@ -2297,6 +2297,9 @@ Weapon Fighting), `minimum_roll`, `crit_range` (19–20 → 18–20), `crit_dice
 
 **Identity** (Slice 11) — `name` · `image` · `token` · `species` · `class` · `subclass` ·
 `gender` · `pronouns` · `profession` · `size` · `creature_type` · `alignment`.
+✅ **`alignment` shipped** (`e2673bcf`) — was the one identity key in this catalog list missing from the
+live registry; added as a text identity overlay homed on the Bio Details line (like gender/pronouns/
+profession), AI-settable via `set_meta`. `identity-alignment.test.ts` (4).
 
 **Instant** (Slice 12; fires once, leaves nothing) — `heal` · `temp_hp` · `damage` ·
 `restore_resource` · `restore_slot` · `remove_condition` · `apply_condition` · `set_hp`.
