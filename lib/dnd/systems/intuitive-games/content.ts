@@ -309,6 +309,23 @@ export const IG_SUBCLASSES: string[] = ['Arcanist', 'Summoner', 'Champion', 'Wit
 // The Combat Skills (Sheet 4) — tracked separately from general skills. Str/Dex variants share these names.
 export const IG_COMBAT_SKILLS = new Set(['Dirty Trick', 'Disarm', 'Feint', 'Grapple', 'Overrun', 'Reposition', 'Steal', 'Sunder', 'Trip']);
 
+// The level-1 character-building order (from intuitivegames.net/character-building).
+export const IG_BUILD_STEPS: string[] = [
+  'Character Introduction — pick a name and ancestry, record physical traits (height, weight, age), and write biographical details.',
+  'Ability Scores — all six start at 10 (+0); apply 8 Ability Score Boosts (each raises a score by +2), to a maximum of 14 per ability at creation.',
+  'Background — grants one stance, skill/item proficiencies, partial HP, and 2 Ability Score Boosts.',
+  'Class — grants a starting power, a skill proficiency, a weapon-group proficiency, 1 Ability Score Boost, and an HP increase.',
+  'Subclass — choose one at level 1, granting a single class power of your choice.',
+  'Traits — pick one benefit: an ancestry option, 2 Ability Score Boosts, a skill proficiency, two weapon-group proficiencies, or a new stance.',
+  'Feats — start with one Combat Feat and one General Feat.',
+  'Skills — gain 2 + your Intelligence modifier ranks (maximum 1 rank per skill at level 1).',
+  'Equipment — start with Solidas equal to your highest Profession, Craft, or Perform skill + 20 to buy gear.',
+];
+export const IG_PROGRESSION_NOTE =
+  'Levels 2–10 add traits, powers, feats, and ability boosts on a fixed schedule. Specializations begin at ' +
+  'Level 4 (greater specializations at Level 8), unique powers arrive at Level 6, and a capstone plus a ' +
+  'manifestation occur at Level 10.';
+
 // How the skill system works (from intuitivegames.net/skills).
 export const IG_SKILL_RULES =
   'A skill check = ranks (max = your level) + proficiency (add your level if proficient) + the governing ' +

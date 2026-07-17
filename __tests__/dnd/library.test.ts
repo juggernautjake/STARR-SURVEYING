@@ -291,9 +291,9 @@ describe('Intuitive Games library is complete (IG buildout A17 completeness guar
     const ids = new Set(page.sections.map((s) => s.id));
     // Every page of the site is represented as a library section.
     const required = [
-      'core', 'abilities', 'advancement', 'classes', 'skills', 'combat-skills', 'species', 'backgrounds',
-      'stances', 'conditions', 'feats', 'powers', 'defensive-powers', 'actions', 'companions', 'weapons',
-      'weapon-properties', 'armor', 'shields', 'equipment', 'tools', 'magical-items',
+      'core', 'abilities', 'advancement', 'character-building', 'classes', 'skills', 'combat-skills',
+      'species', 'backgrounds', 'stances', 'conditions', 'feats', 'powers', 'defensive-powers', 'actions',
+      'companions', 'weapons', 'weapon-properties', 'armor', 'shields', 'equipment', 'tools', 'magical-items',
     ];
     for (const id of required) expect(ids.has(id), `IG library is missing the "${id}" section`).toBe(true);
     // Every section carries real content (no empty shells).
@@ -301,6 +301,17 @@ describe('Intuitive Games library is complete (IG buildout A17 completeness guar
       const filled = !!(s.body?.length || s.facts?.length || s.chips?.length || s.table?.rows.length);
       expect(filled, `IG section "${s.title}" has content`).toBe(true);
     }
+  });
+});
+
+describe('Intuitive Games character-building order surfaces on the library (IG buildout A2)', () => {
+  it('lists the level-1 build steps + the progression note', () => {
+    const page = libraryPageFor('intuitive-games')!;
+    const build = page.sections.find((s) => s.id === 'character-building')!;
+    expect(build.body!.length).toBeGreaterThanOrEqual(9); // 8 steps + progression, at least
+    expect(build.body!.some((b) => /8 Ability Score Boosts/.test(b))).toBe(true);
+    expect(build.body!.some((b) => /Combat Feat and one General Feat/.test(b))).toBe(true);
+    expect(build.body!.some((b) => /Specializations begin at Level 4/.test(b))).toBe(true);
   });
 });
 

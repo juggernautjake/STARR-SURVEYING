@@ -95,7 +95,14 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       list the AI can consume.
 - [ ] **A1 — Core Rules** (`/core-rules`) — the foundational mechanics (action economy, checks, the core
       resolution system).
-- [ ] **A2 — Character Building** (`/character-building`) — the build procedure, ability scores, progression.
+- [x] **A2 — Character Building** (`/character-building`) — ✅ SHIPPED (`content.ts` `IG_BUILD_STEPS` +
+      `IG_PROGRESSION_NOTE`). A "Building a character" library section captures the **level-1 creation order**
+      (intro → 8 ASBs cap 14 → background → class → subclass → traits → one Combat + one General feat → 2+INT
+      skill ranks max 1/skill → Solidas = highest Profession/Craft/Perform +20), each step listing what it
+      grants, plus the **L2–10 progression** (specializations at L4, greater at L8, unique powers at L6,
+      capstone + manifestation at L10). Source-only; the L2–10 per-level table wasn't fully enumerated on the
+      site, so only the confirmed milestones are stated (not fabricated). `library.test.ts` +1 (guard now 23
+      sections).
 - [x] **A3 — Skills** (`/skills`) — ✅ SHIPPED (`content.ts` `IG_SKILL_RULES` + `IG_COMBAT_SKILL_RULES`). The
       skills section now leads with **how skill checks work** (ranks max = level + proficiency + ability mod
       when proficient/ranked; 2 + INT ranks/level; trained = any ranks/proficiency; Take 10 / Take 20; the
