@@ -4,7 +4,7 @@
 //          every /dnd page (including the login screen) so anonymous submits are allowed.
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { getDndSession } from '@/lib/dnd/auth';
+import { getDndSession, isDndOwner } from '@/lib/dnd/auth';
 
 const MAX_BODY = 4000;
 const MAX_NAME = 120;
@@ -17,6 +17,9 @@ export async function GET() {
       .order('created_at', { ascending: false });
     if (error) throw error;
     return NextResponse.json({
+      // Whether the current viewer may manage the board (delete/status) — drives the owner-only
+      // controls on the review page so a non-owner never sees a Delete button that would 403.
+      owner: isDndOwner(getDndSession()),
       suggestions: ((data ?? []) as { id: string; body: string; author_name: string | null; page_path: string | null; created_at: string }[]).map((s) => ({
         id: s.id,
         body: s.body,
@@ -27,7 +30,7 @@ export async function GET() {
     });
   } catch {
     // Table not migrated yet → empty list rather than a 500 (graceful degradation).
-    return NextResponse.json({ suggestions: [] });
+    return NextResponse.json({ owner: isDndOwner(getDndSession()), suggestions: [] });
   }
 }
 

@@ -32,12 +32,14 @@ export default function SuggestionsPage() {
   const [error, setError] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  // Only the owner (Jacob) may delete/manage; non-owners get a read-only board.
+  const [owner, setOwner] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     fetch('/api/dnd/suggestions')
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('Could not load suggestions.'))))
-      .then((j) => { if (!cancelled) setItems((j.suggestions ?? []) as Suggestion[]) })
+      .then((j) => { if (!cancelled) { setItems((j.suggestions ?? []) as Suggestion[]); setOwner(!!j.owner) } })
       .catch((e) => { if (!cancelled) setError(e.message || 'Could not load suggestions.') })
     return () => { cancelled = true }
   }, [])
@@ -118,14 +120,16 @@ export default function SuggestionsPage() {
                       >
                         {copiedId === s.id ? '✓ Copied' : '⧉ Copy'}
                       </button>
-                      <button
-                        onClick={() => remove(s)}
-                        disabled={deleting === s.id}
-                        title="Delete this suggestion (asks to confirm first)"
-                        style={{ fontSize: 12, padding: '5px 12px', cursor: 'pointer', color: '#ff6b6b', background: 'transparent', border: '1px solid var(--hx-line)', borderRadius: 4 }}
-                      >
-                        {deleting === s.id ? 'Deleting…' : '🗑 Delete'}
-                      </button>
+                      {owner && (
+                        <button
+                          onClick={() => remove(s)}
+                          disabled={deleting === s.id}
+                          title="Delete this suggestion (asks to confirm first)"
+                          style={{ fontSize: 12, padding: '5px 12px', cursor: 'pointer', color: '#ff6b6b', background: 'transparent', border: '1px solid var(--hx-line)', borderRadius: 4 }}
+                        >
+                          {deleting === s.id ? 'Deleting…' : '🗑 Delete'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </section>

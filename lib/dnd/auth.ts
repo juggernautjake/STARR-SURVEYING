@@ -116,6 +116,22 @@ export function isDndOpenAccess(): boolean {
   return !isDndLoginRequired();
 }
 
+// ── owner gate (requests board management) ───────────────────────────────────
+// A minimal owner concept: only the owner account(s) may manage the suggestions/requests board
+// (delete, change status). There is no admin flag in the /dnd schema, so ownership is matched on the
+// synthetic pseudo-login key stored in `dnd_users.email` (e.g. `quick:jacob` / `name:jacob`). Defaults
+// to Jacob's keys; override with DND_OWNER_KEYS (comma-separated synthetic keys) so it isn't hardcoded
+// only. The password is the existing pseudo-login (no new auth surface).
+export function dndOwnerKeys(): string[] {
+  const env = process.env.DND_OWNER_KEYS;
+  const raw = env ? env.split(',') : ['quick:jacob', 'name:jacob'];
+  return raw.map((k) => k.trim().toLowerCase()).filter(Boolean);
+}
+export function isDndOwner(session: DndSession | null): boolean {
+  if (!session) return false;
+  return dndOwnerKeys().includes(String(session.email).trim().toLowerCase());
+}
+
 export function getDndSession(): DndSession | null {
   const token = cookies().get(COOKIE)?.value;
   if (!token) return null;
