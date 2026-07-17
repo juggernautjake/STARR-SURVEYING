@@ -257,8 +257,13 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       "Named Bullet"/"Wave Crash" flag vanilla, not custom); the library Powers section lists the **full
       roster** and explicitly flags the spells still awaiting verbatim effect text. `ig-content.test.ts` +1,
       `library.test.ts` +1. **Remaining (needs Brendan/site text):** the Description/Advanced/Expert **effect
-      text** for the ~24 roster spells not in `IG_POWERS` + the tier model — the fetch tool declined verbatim
-      reproduction, so paste it and I'll fill each in.
+      text** for the roster spells not in `IG_POWERS` + the tier model — the fetch tool declined verbatim
+      reproduction, so paste it and I'll fill each in. **Grab-list made concrete + guarded (2026-07-17):**
+      `SITE_MASTER.md` § "WHAT I CAN'T GRAB" item 1 now names the **exact 26 powers** still missing effect
+      text and the **9 app powers off the current roster** (reconcile list) instead of a vague count — computed
+      from `igSpellsMissingEffects()`/`igPowersNotInRoster()`, and `ig-content-gaps.test.ts` (3) fails if a NEW
+      gap ever appears that the doc doesn't list, so the owner's "what to hand over" list can't silently go
+      stale as text lands.
 - [~] **A20 — Art scrub (owner request 2026-07-17).** ✅ *Ancestry art shipped* (browser-scrubbed via the
       Chrome tools + `curl`): the 8 hand-drawn **race portraits** the site publishes (dwarf/elf/gnome/halfling/
       leshonki/migoi[="Yeti"]/naga/ogre) downloaded to `public/dnd/intuitive-games/ancestries/`, manifested in

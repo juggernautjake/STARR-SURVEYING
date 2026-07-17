@@ -25,10 +25,21 @@ Everything the automated scrub **can't** pull faithfully, so you know exactly wh
 **(T)** the text-fetch tool declined to reproduce long verbatim rules text → you can **copy-paste it from the
 site**; **(S)** the content is a **work-in-progress / not published** on the site → only Brendan has it.
 
-1. **(T) Full spell effect text — `/spell-list`.** I have all ~50+ spell NAMES by school, but not the
+1. **(T) Full spell effect text — `/spell-list`.** I have all spell NAMES by school, but not the
    Description / Advanced / Expert effect text for each. **Please paste the spell list's full text** (or send
-   Brendan's source doc) so every spell gets its exact effects + tiers. *(App currently has ~38 with
-   template-sourced effects; ~24 are missing.)*
+   Brendan's source doc) so every spell gets its exact effects + tiers. This list is computed from the code
+   (`igSpellsMissingEffects()`) and guarded by `ig-content-gaps.test.ts`, so it stays current as text lands.
+
+   **26 powers still need effect text** (name-only in the app today, shown as "work in progress"):
+   Natural Ally, Elemental Blade, Detect Thoughts/Emotions, Trace, Unburdened Vision, Comprehend, Mindlink,
+   Named Bullet, Calm, Erase Memory, Hold Creature, Mind Scream, Destruction, Repeating Blast, Radiance,
+   Spectral Sling, Vitality, Wave Crash, Disguise, Burst, Carapace Growth, Creature Morph, Item Shift,
+   Poison Dart, Quick Claw, Temporary Weapon.
+
+   **9 powers the app carries that are NOT on the current site roster** — likely renames/removals; please
+   confirm each is dropped or tell me its current name so I can reconcile (kept, not deleted, until you say):
+   Mage Armor, Misdirection, Life Connection, Companion Shield, Material Shield, Detect Thoughts,
+   Elemental Blast, Piercing Element, Wide Blast.
 2. **(T/S) Full per-class feature ladders — `/classes`.** I captured each class's key ability, HP, granted
    stance, defensive power, notable-power NAMES, and specialization names. I do **not** have: the full
    **per-level (1–10) progression** for each class, nor the detailed effect text of each class power. Also
