@@ -77,3 +77,24 @@ describe('structured grants are authored on the item field, and the help says so
     expect(component).toContain(`i.${field}`);  // the component actually reads that field
   });
 });
+
+describe('a granted row NAMES the item it came from (the doc\'s "badge naming its source")', () => {
+  // The reads above prove the grants surface; this proves the ATTRIBUTION does — the doc requires each
+  // granted feature/attack/spell/resource to be "badged with its source" so a player (and the DM) can see
+  // that the extra attack/spell is on loan from an item, not native. Reading the field but dropping the
+  // badge would leave grants unattributed yet still pass every test above; this guards the visible source.
+  it('every structured-grant panel renders its `source` in a user-visible attribution', () => {
+    // Attacks + Spells badge it inline ("granted · {source}"); Resources spells it out ("Granted by …").
+    expect(ATTACKS).toContain('granted · {source}');
+    expect(ATTACKS).toContain('title={`Granted by ${source}`}');
+    expect(SPELLS).toContain('granted · {source}');
+    expect(RESOURCES).toContain('Granted by <strong>{source}</strong>');
+  });
+
+  it('each granted row also carries the source in its React key, so duplicates from two items stay distinct', () => {
+    // Two items granting the same-named attack must render as two rows, not collapse — the key includes source.
+    expect(ATTACKS).toContain('`granted-${source}-');
+    expect(SPELLS).toContain('`granted-${source}-');
+    expect(RESOURCES).toContain('`granted-${source}-');
+  });
+});

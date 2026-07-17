@@ -1216,10 +1216,23 @@ Original action items (kept for the remaining work):
       sheet** (no grapple/shove action UI to gate) — wiring a target that renders nowhere is exactly the
       "a target with no home is a lie" failure this doc forbids. Both revisit if/when a grapple UI or a
       per-system oversized-weapon rule lands.
-- [ ] **Grant targets**: `grant_feature`, `grant_attack`, `grant_spell`, `grant_resource`,
-      `grant_sense`, plus the existing `grant_proficiency`. This is the pendant that gives you an
-      ability from another class entirely — the granted feature appears in Features with a badge
-      naming the item it came from, and vanishes when the item comes off.
+- [x] **Grant targets**: `grant_feature`, `grant_attack`, `grant_spell`, `grant_resource`,
+      `grant_sense`, plus the existing `grant_proficiency`/`grant_language`. ✅ SHIPPED — the pendant that
+      gives you an ability from another class entirely. Two render paths, both honest in the registry
+      (`grant-render-paths.test.ts`): **effect-rendered** — `grant_feature` via `Features.explain('grant_feature')`,
+      `grant_sense` via CombatPanel Senses, `grant_proficiency`/`grant_language` via `collected(...)`; and
+      **structured** — `grant_attack`/`grant_spell`/`grant_resource` authored on the item's `grantsAttack`/
+      `grantsSpell`/`grantsResource` field, rendered read-only in Attacks/Spells/Resources while the item is
+      active. Every granted row is **badged to its source item** and gone on unequip (`isItemActive`).
+      Covered by 10 grant test files (grant-feature/attack/spell/resource/sense/proficiency/defenses/speeds/
+      language + dm-grant).
+      **⚑ SOURCE-BADGE PARITY NOW GUARDED (2026-07-18).** The render-path tests proved each panel READS its
+      `grants*` field, but nothing guarded that the row still DISPLAYS its source attribution — a regression
+      dropping the "granted · {item}" badge (or the source-keyed React key that keeps two items' same-named
+      grants distinct) would have stayed green while silently un-attributing every grant. Added a parity guard
+      to `grant-render-paths.test.ts` (+2) asserting Attacks/Spells render `granted · {source}` (with the
+      `Granted by …` title), Resources spells out `Granted by <strong>{source}</strong>`, and all three key
+      their rows by source. Full dnd suite green (1838). **Grant targets are complete.**
 - [x] **Movement is not one number. ✅ SHIPPED** — `speed_fly`/`swim`/`climb`/`burrow` (+ `hover`,
       `ignore_difficult_terrain`) each render in CombatPanel's speeds block, shown only once granted
       (base 0 hidden), and **the AI digest now mirrors them** (2026-07-17): a granted non-walking mode
