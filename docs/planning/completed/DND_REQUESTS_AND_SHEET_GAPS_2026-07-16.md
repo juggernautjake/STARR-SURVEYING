@@ -114,6 +114,11 @@ darkvision, `<ul>` of `{name}. {text}`). Data: `lib/dnd/species/dnd5e-2024.ts` (
       were the one d20 test that ignored exhaustion, contradicting the sheet's own "−2 to all d20 rolls"
       tooltip. In 2024 a death saving throw is a D20 Test; applied `deathSaveBonus − 2×exhaustion` (nat
       20/nat 1 still read the natural die). `exhaustion-speed.test.ts` +2.
+- [x] **D5 — Follow-up: the submitted encounter initiative too. ✅ SHIPPED** (`ac733d91`). The DM-broadcast
+      initiative roll (`InitiativePrompt`, which sets turn order) skipped exhaustion while the StatRail's
+      own initiative roll applied it; initiative is a DEX check (D20 Test), so folded −2×exhaustion into
+      its bonus so the shown bonus, roll, and submitted total agree. `exhaustion-speed.test.ts` +1. With
+      this, EVERY d20 roll on the sheet applies the exhaustion penalty.
 
 ---
 
