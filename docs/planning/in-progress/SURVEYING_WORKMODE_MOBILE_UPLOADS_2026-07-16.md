@@ -176,11 +176,23 @@ is a pure, tested function; the runtime is pure I/O around them.)*
       plans a notification but never retention (nothing uploaded) and never advances past the failure.
       `upload-outcome.test.ts` (5). Together `nextDrainStep` + `planAfterUpload` are the drain loop's entire
       logic — the runtime only does the I/O (fetch, DB write, fire notification, delete file).
-- [ ] **C2 — Background continuation while using other apps/features.** Uploads must continue while the
+- [~] **C2 — Background continuation while using other apps/features.** Uploads must continue while the
       worker uses the rest of the hub/app or leaves the app. Use Expo background upload/task facilities
       (`expo-task-manager` / `expo-background-fetch` or resumable uploads) so a backgrounded/again-
       foregrounded app keeps draining the queue. Document the platform limits honestly (iOS background
       execution windows) rather than promising more than the OS allows.
+      **✅ Two of the three continuation cases already hold, and the third's prompt-resume half shipped
+      (2026-07-17):** (1) *using other features IN the app* already keeps draining — `useUploadQueueDrainer`
+      is mounted at the app root (`app/_layout.tsx`), so intra-app navigation never unmounts it. (2) *network
+      restore while away-then-back* is covered by the existing `subscribeToOnline` drain. (3) *reopening the
+      app after the OS suspended it* now drains **immediately** instead of stalling up to the 60s periodic
+      interval: the drainer wires `AppState` to a new pure decision `shouldDrainOnAppStateChange(prev, next)`
+      (`mobile/lib/appStateDrain.ts`, Expo/RN-free, `app-state-drain.test.ts` 6) that fires a drain exactly
+      when the app returns to `active` from a non-active state. **Remaining (genuinely device/native, honest
+      OS limits):** true *background execution* — uploading while the app is fully backgrounded and the user
+      is in another app — still needs `expo-task-manager`/`expo-background-fetch` (or resumable background
+      uploads) and is hard-bounded by iOS's short background windows; that is the only part the prompt-resume
+      drain does not cover, and it must be device-tested. The pure resume policy is done + tested.
 - [~] **C3 — A visible queue + status screen.** ✅ *Pure state engine shipped* (`5bbdbddd`):
       `mobile/lib/uploadStatus.ts` — `deriveUploadState(row, ctx)` maps a `pending_uploads` row to the
       exact chip the screen shows (uploading / paused / wifi-waiting / offline-waiting / backoff / queued /

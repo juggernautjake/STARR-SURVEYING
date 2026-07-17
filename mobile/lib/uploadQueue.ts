@@ -25,9 +25,11 @@
  */
 import * as FileSystem from 'expo-file-system';
 import { useEffect, useState } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 import { usePowerSync, useQuery } from '@powersync/react';
 import type { AbstractPowerSyncDatabase } from '@powersync/react-native';
 
+import { shouldDrainOnAppStateChange } from './appStateDrain';
 import { logError, logInfo, logWarn } from './log';
 import { guessExtension } from './mediaPath';
 import { isOnWifiNow, isOnlineNow, subscribeToOnline } from './networkState';
@@ -762,6 +764,18 @@ export function useUploadQueueDrainer(): void {
       if (online) void drainOnce();
     });
 
+    // Foreground return — covers "the app was suspended in the
+    // background (JS timers throttled), the user reopens it": resume
+    // the queue immediately instead of waiting up to PROCESS_INTERVAL_MS.
+    // (Prompt resume; NOT background execution — that needs a native
+    // task and is bounded by the OS's background windows.)
+    let lastAppState: AppStateStatus = AppState.currentState;
+    const appStateSub = AppState.addEventListener('change', (next) => {
+      const prev = lastAppState;
+      lastAppState = next;
+      if (shouldDrainOnAppStateChange(prev, next)) void drainOnce();
+    });
+
     // Periodic — covers "Supabase had a partial outage, NetInfo
     // didn't notice."
     const interval = setInterval(() => void drainOnce(), PROCESS_INTERVAL_MS);
@@ -769,6 +783,7 @@ export function useUploadQueueDrainer(): void {
     return () => {
       mounted = false;
       unsub();
+      appStateSub.remove();
       clearInterval(interval);
     };
   }, [db]);
