@@ -26,9 +26,9 @@ Research/notes exist per job.
       (prefers exact lat/lng, else the formatted address; Google Maps universal directions URL the OS
       routes to the user's nav app) + a "🧭 Navigate to property" link on the job detail. 9 tests.
       **Mobile handler (`Linking.openURL` chooser) is a follow-up** once the mobile job screen is touched.
-- [x] **A2 — Tap-to-call customer number (web). ✅ SHIPPED** (`add340b3`). `telHref` + a "📞 Call" link
-      beside the client phone. **Multiple numbers via `job_contacts` is a follow-up** (the primary
-      `client_phone` is wired now).
+- [x] **A2 — Tap-to-call customer number(s) (web). ✅ SHIPPED** (`add340b3`, `2ef694f1`). `telHref` + a
+      "📞 Call" link beside the client phone AND beside **every linked contact** (realtor/lender/… via
+      `job_contacts`) that has a phone — so all of a job's numbers are one-tap dialable.
 - [x] **A3 — One-tap access to a job's research / notes / documents. ✅ SHIPPED** (`7334139c`). The Work
       Mode hub's Files tab (`JobFiles`) fetches `/api/admin/jobs/files`, groups by section (Research,
       General, …), and opens any doc in one tap — completing B2's files panel. The job detail page already
