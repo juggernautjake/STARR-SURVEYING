@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { parseCustomClassDraft, CUSTOM_CLASS_TOOL } from '@/lib/dnd/classes/custom-ai';
-import { buildCustomClass, reviewCustomClass } from '@/lib/dnd/classes/custom';
+import {
+  parseCustomClassDraft, CUSTOM_CLASS_TOOL,
+  parseCustomSubclassInput, CUSTOM_SUBCLASS_TOOL,
+  parseCustomFeatInput, CUSTOM_FEAT_TOOL,
+} from '@/lib/dnd/classes/custom-ai';
+import { buildCustomClass, reviewCustomClass, buildCustomSubclass, buildCustomFeat, reviewCustomFeat } from '@/lib/dnd/classes/custom';
 
 // Slice 5 — the AI-assist path proposes a draft; the EXISTING engine adjudicates it.
 describe('parseCustomClassDraft (defensive normalizer)', () => {
@@ -63,5 +67,41 @@ describe('CUSTOM_CLASS_TOOL schema', () => {
   it('requires the load-bearing fields and enumerates hit dice + abilities', () => {
     expect(CUSTOM_CLASS_TOOL.input_schema.required).toEqual(expect.arrayContaining(['name', 'hitDie', 'subclassLevel', 'features']));
     expect((CUSTOM_CLASS_TOOL.input_schema.properties.hitDie as { enum: number[] }).enum).toEqual([6, 8, 10, 12]);
+  });
+});
+
+describe('homebrew subclass AI path → existing engine', () => {
+  it('parses + builds a real SubclassDefinition tied to its class', () => {
+    const input = parseCustomSubclassInput({
+      name: 'Storm Herald', classKey: 'Barbarian', description: 'Rage becomes an elemental aura.',
+      features: [{ level: 6, name: 'Storm Aura', body: 'Emit an aura.' }, { level: 3, name: 'Storm Soul', body: 'Resistance.' }],
+    }, 'dnd5e-2024');
+    expect(input.classKey).toBe('barbarian');
+    const def = buildCustomSubclass(input);
+    expect(def.name).toBe('Storm Herald');
+    expect(def.key).toContain('custom-storm-herald');
+    expect(def.features.every((f) => f.subclass)).toBe(true);
+    expect(def.features.map((f) => f.level)).toEqual([3, 6]); // sorted
+  });
+  it('requires name + classKey + features', () => {
+    expect(CUSTOM_SUBCLASS_TOOL.input_schema.required).toEqual(['name', 'classKey', 'features']);
+  });
+});
+
+describe('homebrew feat AI path → existing engine', () => {
+  it('parses + builds a feat the engine reviews', () => {
+    const input = parseCustomFeatInput({
+      name: 'Skirmisher', category: 'general', prerequisite: 'Level 4+', abilityIncrease: ['dex', 'str'], body: 'Move after attacking.',
+    }, 'dnd5e-2024');
+    expect(input.category).toBe('general');
+    expect(input.abilityIncrease).toEqual(['dex', 'str']); // both kept; the engine WARNS about >1
+    const feat = buildCustomFeat(input);
+    expect(feat.key).toContain('custom-skirmisher');
+    const review = reviewCustomFeat(feat);
+    expect(review.some((r) => r.field === 'abilityIncrease' && r.severity === 'warning')).toBe(true);
+  });
+  it('defaults an unknown category to general and requires name/category/body', () => {
+    expect(parseCustomFeatInput({ name: 'X', category: 'bogus', body: 'y' }, 's').category).toBe('general');
+    expect(CUSTOM_FEAT_TOOL.input_schema.required).toEqual(['name', 'category', 'body']);
   });
 });

@@ -5,7 +5,7 @@
 // (or any hand-entered object) into a valid CustomClassDraft. The draft then goes through the EXISTING
 // engine — buildCustomClass + reviewCustomClass (lib/dnd/classes/custom.ts) — so the AI never bypasses
 // the validation/balance checks; it just proposes, the engine adjudicates, and the player edits.
-import type { CustomClassDraft } from './custom';
+import type { CustomClassDraft, CustomFeat } from './custom';
 import type { AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
 
 const ABILITY_KEYS: AbilityKey[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
@@ -104,5 +104,82 @@ export const CUSTOM_CLASS_TOOL = {
       basedOn: { type: 'string', description: 'An existing class this is inspired by (recorded for DM review, not enforced).' },
     },
     required: ['name', 'hitDie', 'primaryAbility', 'savingThrows', 'subclassLevel', 'subclassLabel', 'features'],
+  },
+};
+
+// ── Homebrew subclass ────────────────────────────────────────────────────────────────────────────
+/** Normalize an object into the buildCustomSubclass input. `classKey` ties it to an existing class. */
+export function parseCustomSubclassInput(raw: unknown, system: string): {
+  name: string; classKey: string; system: string; description: string;
+  features: { level: number; name: string; body: string }[]; authorName?: string;
+} {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const features = (Array.isArray(o.features) ? o.features : [])
+    .map((f) => (f && typeof f === 'object' ? f as Record<string, unknown> : {}))
+    .filter((f) => str(f.name))
+    .map((f) => ({ level: clampInt(f.level, 1, 20, 3), name: str(f.name), body: str(f.body) }))
+    .sort((a, b) => a.level - b.level);
+  return {
+    name: str(o.name) || 'Homebrew Subclass',
+    classKey: str(o.classKey).toLowerCase(),
+    system,
+    description: str(o.description),
+    features,
+    authorName: str(o.authorName) || undefined,
+  };
+}
+
+export const CUSTOM_SUBCLASS_TOOL = {
+  name: 'homebrew_subclass',
+  description: 'A homebrew subclass DRAFT for an existing class. Give the parent class key (e.g. "fighter"), ' +
+    'a name, and its level-by-level features. The player reviews + edits it.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      name: { type: 'string' },
+      classKey: { type: 'string', description: 'The parent class key, lowercase (e.g. "wizard", "rogue").' },
+      description: { type: 'string' },
+      features: { type: 'array', items: { type: 'object', properties: { level: { type: 'integer', minimum: 1, maximum: 20 }, name: { type: 'string' }, body: { type: 'string' } }, required: ['level', 'name', 'body'] } },
+    },
+    required: ['name', 'classKey', 'features'],
+  },
+};
+
+// ── Homebrew feat ────────────────────────────────────────────────────────────────────────────────
+const FEAT_CATEGORIES = ['origin', 'general', 'fighting-style', 'epic-boon'] as const;
+
+/** Normalize an object into the buildCustomFeat input (Omit<CustomFeat,'key'>). */
+export function parseCustomFeatInput(raw: unknown, system: string): Omit<CustomFeat, 'key'> {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const cat = str(o.category).toLowerCase();
+  const category = (FEAT_CATEGORIES as readonly string[]).includes(cat) ? (cat as CustomFeat['category']) : 'general';
+  const abilityIncrease = abilities(o.abilityIncrease);
+  return {
+    name: str(o.name) || 'Homebrew Feat',
+    system,
+    category,
+    prerequisite: str(o.prerequisite) || undefined,
+    abilityIncrease: abilityIncrease.length ? abilityIncrease : undefined,
+    body: str(o.body),
+    repeatable: o.repeatable === true,
+    custom: { authorName: str(o.authorName) || undefined },
+  };
+}
+
+export const CUSTOM_FEAT_TOOL = {
+  name: 'homebrew_feat',
+  description: 'A homebrew feat DRAFT. Pick a category (origin/general/fighting-style/epic-boon), a ' +
+    'prerequisite if any, an optional single +1 ability increase, and the rules text. The player reviews it.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      name: { type: 'string' },
+      category: { type: 'string', enum: [...FEAT_CATEGORIES] },
+      prerequisite: { type: 'string', description: 'e.g. "Level 4+", "Strength 13+". Optional.' },
+      abilityIncrease: { type: 'array', items: { type: 'string', enum: ABILITY_KEYS }, description: 'At most one ability for a +1.' },
+      body: { type: 'string', description: 'Full rules text.' },
+      repeatable: { type: 'boolean' },
+    },
+    required: ['name', 'category', 'body'],
   },
 };
