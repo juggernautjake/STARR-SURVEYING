@@ -2514,7 +2514,21 @@ and the Systems list. **Verified via SSR the library index renders ALL systems, 
 (dnd5e-2014/2024, PF2, IG + blades, coc7e, cyberpunk-red, pathfinder1e, starfinder1e, shadowrun6e…) — each
 with a substantial rules page (Blades = 11 sections/214KB vs 2024's 979KB), so "each written out in full"
 is honest; the "🚧 under construction" status is about the character BUILDER, not the library rules. So the
-library, a major shipped feature, is confirmed rendering at runtime across every system.
+library, a major shipped feature, is confirmed rendering at runtime across every system. **Library
+search verified interactively** (2026-07-17): typing "action surge" returned **9 matches** with 0 console
+errors — the system-scoped search works end to end, not just in unit tests.
+
+**Character-sheet browser verification is blocked in this env — by correct access control, not a bug.**
+Opening a demo character (Neon Odyssey campaign) as a signed-in non-owner calls `/api/dnd/dev/enter`,
+which **403s because `DND_REQUIRE_LOGIN=1` in this env** (so `isDndOpenAccess()` is false and "enter as
+anyone" is disabled). That's the intended gate — you can't impersonate another player's character. It
+does mean the sheet (where the ledger/derived-value work lives) can't be browser-verified locally without
+either (a) open-access enabled, or (b) signing in as a character's actual owner. Noted so the eventual
+authenticated walkthrough starts from the right session state. **Minor UX finding:** the campaign
+character picker presents every character as clickable but a click on one you can't enter fails with a
+silent 403 (just a console error, no sheet, no message) — worth a "you can only open your own characters"
+message when open-access is off; config-dependent (works in the default open-access mode), so left as a
+flagged polish item, not fixed blind.
 The character-build walkthrough below (create account → build a vanilla character per system, level by
 level, fixing bugs/styling) is the substantive remainder and needs an interactive, DB-backed session
 (a throwaway test account + character on live Supabase) — held pending the owner's go-ahead to write +
