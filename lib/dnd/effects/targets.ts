@@ -160,9 +160,12 @@ const grantTargets: TargetDef[] = [
   { key: 'proficiency', label: 'Proficiency', group: 'grant', valueType: 'proficiency', ops: ['grant_proficiency'], help: 'Grant proficiency with a skill, tool, weapon, armour or language.', rendersAt: 'Skills tab · Proficiencies' },
   { key: 'expertise', label: 'Expertise', group: 'grant', valueType: 'proficiency', ops: ['grant_proficiency'], help: 'Double the proficiency bonus for a skill.', rendersAt: 'Skills tab' },
   { key: 'grant_feature', label: 'Feature / ability', group: 'grant', valueType: 'ref', ops: ['set'], help: "Grant a feature — including one from another class entirely (the pendant that makes you rage).", rendersAt: 'Features tab (badged with its source)' },
-  { key: 'grant_attack', label: 'Attack', group: 'grant', valueType: 'ref', ops: ['set'], help: 'Grant an attack option.', rendersAt: 'Combat tab · Attacks' },
-  { key: 'grant_spell', label: 'Spell', group: 'grant', valueType: 'ref', ops: ['set'], help: 'Grant a spell, prepared or castable.', rendersAt: 'Spells tab' },
-  { key: 'grant_resource', label: 'Resource track', group: 'grant', valueType: 'ref', ops: ['set'], help: 'Grant a usage pool (charges, points) with its own reset rule.', rendersAt: 'Combat tab · Resources' },
+  // A full Attack/Spell/Resource is a structured object, not a ref string — so these are authored on the
+  // item's `grantsAttack`/`grantsSpell`/`grantsResource` field (which renders while the item is active),
+  // NOT as an effect value here. The help says so, so a builder doesn't emit an effect that renders nowhere.
+  { key: 'grant_attack', label: 'Attack', group: 'grant', valueType: 'ref', ops: ['set'], help: "Grant an attack option. Author it on the item's `grantsAttack` field (a full Attack) — that's what renders in the Attacks table.", rendersAt: 'Combat tab · Attacks (via the item\'s grantsAttack field)' },
+  { key: 'grant_spell', label: 'Spell', group: 'grant', valueType: 'ref', ops: ['set'], help: "Grant a spell, prepared or castable. Author it on the item's `grantsSpell` field (a full Spell) — that's what renders in the Spells tab.", rendersAt: 'Spells tab (via the item\'s grantsSpell field)' },
+  { key: 'grant_resource', label: 'Resource track', group: 'grant', valueType: 'ref', ops: ['set'], help: "Grant a usage pool (charges, points) with its own reset rule. Author it on the item's `grantsResource` field — that's what renders in Resources.", rendersAt: 'Combat tab · Resources (via the item\'s grantsResource field)' },
   { key: 'grant_sense', label: 'Sense', group: 'grant', valueType: 'sense', ops: ['set'], help: 'Grant darkvision / tremorsense / truesight / blindsight, with a range.', rendersAt: 'Combat tab · Senses' },
   { key: 'grant_language', label: 'Language', group: 'grant', valueType: 'text', ops: ['grant_proficiency'], help: 'Grant a language.', rendersAt: 'Skills tab · Granted Proficiencies' },
 ];
