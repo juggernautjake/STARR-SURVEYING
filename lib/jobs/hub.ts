@@ -21,3 +21,35 @@ export function groupFilesBySection<T extends { section?: string | null }>(files
   }
   return [...bySection.entries()];
 }
+
+export interface MediaItemLike {
+  media_type?: string | null;
+  storage_signed_url?: string | null;
+  thumbnail_signed_url?: string | null;
+  original_signed_url?: string | null;
+}
+export interface MediaDisplay {
+  /** Thumbnail source: the thumbnail URL, falling back to the full-res storage URL. */
+  thumbUrl: string | undefined;
+  /** Where the tile links: the original URL, falling back to the storage URL. */
+  openUrl: string | undefined;
+  /** Render the thumbnail <img> (photos with a thumb) vs the kind glyph. */
+  showImage: boolean;
+  /** Glyph for non-photo / thumbless media. */
+  icon: string;
+}
+
+/** Derive the review-tile display for one captured `field_media` item (B4 review side): which URL to
+ *  show, which to open, and whether it's an image thumbnail or a kind icon. Pure so the fallback order
+ *  (thumbnail→storage for the thumb, original→storage for the link) is testable and can't silently flip. */
+export function mediaDisplay(m: MediaItemLike): MediaDisplay {
+  const thumbUrl = m.thumbnail_signed_url || m.storage_signed_url || undefined;
+  const openUrl = m.original_signed_url || m.storage_signed_url || undefined;
+  const isPhoto = m.media_type === 'photo' || !m.media_type;
+  return {
+    thumbUrl,
+    openUrl,
+    showImage: !!thumbUrl && isPhoto,
+    icon: m.media_type === 'video' ? '🎬' : m.media_type === 'voice' ? '🎙' : '📄',
+  };
+}

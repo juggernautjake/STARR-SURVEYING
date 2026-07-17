@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { jobLabel, groupFilesBySection } from '@/lib/jobs/hub';
+import { jobLabel, groupFilesBySection, mediaDisplay } from '@/lib/jobs/hub';
 
 // Work Mode field hub display derivations (B2 picker/header, A3 files panel). Pure.
 describe('jobLabel', () => {
@@ -28,5 +28,28 @@ describe('groupFilesBySection', () => {
   });
   it('is empty for no files', () => {
     expect(groupFilesBySection([])).toEqual([]);
+  });
+});
+
+describe('mediaDisplay', () => {
+  it('thumb prefers the thumbnail, link prefers the original (each falls back to storage)', () => {
+    const d = mediaDisplay({ media_type: 'photo', thumbnail_signed_url: 't', original_signed_url: 'o', storage_signed_url: 's' });
+    expect(d.thumbUrl).toBe('t');
+    expect(d.openUrl).toBe('o');
+    expect(d.showImage).toBe(true);
+  });
+  it('falls back to the storage url when the preferred one is missing', () => {
+    const d = mediaDisplay({ media_type: 'photo', storage_signed_url: 's' });
+    expect(d.thumbUrl).toBe('s');
+    expect(d.openUrl).toBe('s');
+  });
+  it('shows the image only for a photo WITH a thumb; a thumbless photo gets the doc icon', () => {
+    expect(mediaDisplay({ media_type: 'photo' }).showImage).toBe(false); // no url → icon
+    expect(mediaDisplay({ media_type: undefined, storage_signed_url: 's' }).showImage).toBe(true); // untyped ≈ photo
+  });
+  it('picks the right kind glyph for non-photos', () => {
+    expect(mediaDisplay({ media_type: 'video', storage_signed_url: 's' })).toMatchObject({ showImage: false, icon: '🎬' });
+    expect(mediaDisplay({ media_type: 'voice', storage_signed_url: 's' })).toMatchObject({ showImage: false, icon: '🎙' });
+    expect(mediaDisplay({ media_type: 'doc', storage_signed_url: 's' }).icon).toBe('📄');
   });
 });

@@ -9,7 +9,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useWorkModeStore } from '@/lib/work-mode/work-mode-store';
 import { jobMapsUrl, hasJobLocation, formatJobAddress, telHref } from '@/lib/jobs/location';
 import { jobCrew, jobRpls, crewNames } from '@/lib/jobs/crew';
-import { jobLabel, groupFilesBySection } from '@/lib/jobs/hub';
+import { jobLabel, groupFilesBySection, mediaDisplay } from '@/lib/jobs/hub';
 import { evalArithmetic, formatCalcResult } from '@/lib/jobs/calc';
 
 type FieldTab = 'job' | 'calc' | 'notes' | 'photo' | 'points' | 'mileage' | 'receipts' | 'crew' | 'equipment' | 'time' | 'files' | 'issue';
@@ -295,15 +295,14 @@ function JobMedia({ jobId }: { jobId: string | null }) {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
           {media.map((m) => {
-            const thumb = m.thumbnail_signed_url || m.storage_signed_url;
-            const open = m.original_signed_url || m.storage_signed_url || undefined;
+            const { thumbUrl, openUrl, showImage, icon } = mediaDisplay(m);
             return (
-              <a key={m.id} href={open} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'grid', gap: 3 }} title={m.captured_at ? new Date(m.captured_at).toLocaleString() : undefined}>
+              <a key={m.id} href={openUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'grid', gap: 3 }} title={m.captured_at ? new Date(m.captured_at).toLocaleString() : undefined}>
                 <div style={{ aspectRatio: '1 / 1', borderRadius: 6, overflow: 'hidden', background: 'var(--theme-bg-elevated)', border: '1px solid var(--theme-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {thumb && (m.media_type === 'photo' || !m.media_type)
+                  {showImage
                     // eslint-disable-next-line @next/next/no-img-element
-                    ? <img src={thumb} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : <span style={{ fontSize: 26 }} aria-hidden>{m.media_type === 'video' ? '🎬' : m.media_type === 'voice' ? '🎙' : '📄'}</span>}
+                    ? <img src={thumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <span style={{ fontSize: 26 }} aria-hidden>{icon}</span>}
                 </div>
                 <span style={{ fontSize: '0.72rem', color: 'var(--theme-fg-secondary)' }}>{m.uploaded_by_name || m.media_type || 'media'}</span>
               </a>
