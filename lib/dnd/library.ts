@@ -674,6 +674,12 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
       for (const cs of IG_COMBAT_SKILLS) push('combat-skill', cs, `${cs} — an Intuitive Games combat skill (opposed vs the target's Reflex save). ${IG_COMBAT_SKILL_RULES}`);
       for (const d of IG_DAMAGE_TYPE_DATA) push('damage-type', d.name, `${d.name} — a damage type in ${r.label}: ${d.note}`);
       for (const c of IG_COVER) push('cover', c.name, `${c.name} cover in ${r.label}: ${c.effect}`);
+      // The IG-specific core mechanics as searchable rules (so "redistribution" / "fortitude save on damage"
+      // / "take 10" resolve to the real text, not just live inside a section body).
+      push('rule', 'Taking damage (Fortitude save)', IG_DAMAGE_SAVE_RULES);
+      push('rule', 'Skill checks', IG_SKILL_RULES);
+      push('rule', 'Redistribution', IG_REDISTRIBUTION_RULES);
+      push('rule', 'Movement', IG_MOVEMENT_RULES);
     }
     // Systems with full ancestry data (IG) expose each ancestry with its trait text, and each trait by
     // name ("barkskin", "cave vision"); the rest fall back to the name stub + prose notes.

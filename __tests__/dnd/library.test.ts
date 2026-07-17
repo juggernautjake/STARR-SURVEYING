@@ -319,6 +319,13 @@ describe('Intuitive Games damage/cover/movement mechanics surface (IG buildout A
     expect(searchLibrary('bleed', 'intuitive-games').some((h) => h.kind === 'damage-type')).toBe(true);
     expect(searchLibrary('partial coverage', 'intuitive-games').some((h) => h.kind === 'cover')).toBe(true);
   });
+
+  it('the IG core mechanics resolve in search (redistribution, damage save, skills)', () => {
+    expect(searchLibrary('redistribution', 'intuitive-games').some((h) => h.name === 'Redistribution')).toBe(true);
+    const dmg = searchLibrary('fortitude save damage', 'intuitive-games').find((h) => /Taking damage/.test(h.name));
+    expect(dmg?.body).toMatch(/DC equals the total HP lost/i);
+    expect(searchLibrary('take 10', 'intuitive-games').some((h) => h.name === 'Skill checks')).toBe(true);
+  });
 });
 
 describe('Intuitive Games character-building order surfaces on the library (IG buildout A2)', () => {

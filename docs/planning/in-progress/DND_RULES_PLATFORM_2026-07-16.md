@@ -645,6 +645,16 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       wired it into `glossary/index.ts` `BY_SYSTEM`. **Verified in the running app**: library search for
       "stance" under intuitive-games returns Stances / Advantage & Disadvantage / Damage Reduction. All
       four focus systems are now searchable + AI-navigable in the library.
+      **↑↑ MASSIVELY EXPANDED 2026-07-17** — the IG library is now the most complete of the four focus
+      systems: a full **site scrub** of intuitivegames.net into **25 library sections** (core rules +
+      damage/cover/movement, character-building, classes + per-class detail, skills + combat skills, 10
+      ancestries w/ art, 10 backgrounds, 10 stances, 18 conditions, **151 feats**, powers + full spell
+      roster, redistribution, companions, weapons/armor/shields/equipment/tools/magical items), all
+      full-text + searchable + AI-grounded, plus the interactive sheet (tooltips + mechanics + manual & AI
+      edit) and Brendan's race art. Tracked in its own doc **`INTUITIVE_GAMES_FULL_BUILDOUT_2026-07-17.md`**
+      + the master reference **`docs/reference/intuitive-games/SITE_MASTER.md`**. So Slice 8b's IG portion is
+      not just "26 glossary articles" — it's a complete system build (with the owner-gated remainder — spell
+      effect text, class ladders, taxonomy decision — tracked in that doc's gaps list).
 - [x] **The AI now answers FROM the library ✅** — closed the gap where `systemGroundingBlock` grounded
       the AI (librarian, builder, adjudication) on the rules catalog + DB store but NOT the in-code
       glossary. It now does deterministic, **system-scoped** glossary retrieval (no key needed): the
