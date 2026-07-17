@@ -69,7 +69,12 @@ export function planConsume(item: Pick<InvItem, 'name' | 'qty' | 'consumable'>):
     case 'buff':
       return {
         instant: null,
-        activeEffect: { label: item.name, effects: eff.effects ?? [], duration: eff.duration, source: item.name },
+        // SNAPSHOT, not a reference: copy each effect into a fresh object + array so the running
+        // ActiveEffect is independent of the item it came from. Otherwise a buff potion at qty 2 (drink
+        // one, the item remains) would leave the ActiveEffect aliasing the item's own effects array, and a
+        // later edit to the item would retroactively rewrite the buff already running — the exact thing
+        // Slice 12 forbids ("editing the item afterwards must not mutate an effect already running").
+        activeEffect: { label: item.name, effects: (eff.effects ?? []).map((e) => ({ ...e })), duration: eff.duration, source: item.name },
         consumes,
       };
     case 'custom':

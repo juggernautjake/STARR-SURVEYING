@@ -1315,6 +1315,16 @@ no-op. Full suite 1655 green.
         inventory, still listed in the panel for its buff.
       - Because the snapshot is taken at use time, later editing the *item* must not retroactively
         change an effect already running on a character. That's a feature, not a bug.
+        **⚑ REAL BUG FIXED (2026-07-18).** `planConsume`'s buff branch returned `effects: eff.effects`
+        by REFERENCE, and `Inventory.consume` spreads the seed (`{ ...plan.activeEffect }`) — a shallow
+        copy that keeps the `effects` array aliased to the item's own `consumable.effect.effects`. So a
+        buff potion at qty 2 (drink one, the item stays) left the running ActiveEffect POINTING AT the
+        item's array; a later edit to that item (item builder / AI `update_item`) would silently rewrite
+        the buff already running — precisely this invariant, violated. Fixed by snapshotting in
+        `planConsume` (`(eff.effects ?? []).map((e) => ({ ...e }))`), so the seed is independent by
+        construction regardless of how the component stores it. `consume-plan.test.ts` +1: mutating the
+        item's effects (changed value + appended effect) after `planConsume` leaves the captured
+        ActiveEffect untouched and a distinct array object. Full dnd suite green (1841).
       - **Ending** a consumed effect just drops the `ActiveEffect` — the item is long gone. Ending a
         *worn* item's effect unequips the item, because there the item IS the cause and an effect
         that is "off" while its cause is still worn would be a lie about the sheet.

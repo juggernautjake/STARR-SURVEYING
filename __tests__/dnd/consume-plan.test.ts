@@ -6,6 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { planConsume } from '@/lib/dnd/effects/consume';
 import type { InvItem } from '@/app/dnd/_sheet/types';
+import type { Effect } from '@/app/dnd/_sheet/engine/effects';
 
 const c = (over: Partial<InvItem> & { name: string; consumable: InvItem['consumable'] }): InvItem =>
   ({ id: over.name.toLowerCase(), desc: '', qty: 1, tags: [], ...over }) as InvItem;
@@ -37,6 +38,26 @@ describe('planConsume', () => {
       source: 'Potion of Storm Giant Strength',
     });
     expect(plan.consumes).toBe(true);
+  });
+
+  it('SNAPSHOTS the buff effects — editing the item afterwards never mutates the running effect', () => {
+    // Slice 12's data-model invariant: an ActiveEffect outlives its item and is frozen at use time. Drink
+    // one of a stack (the item remains), then have the DM/AI edit the item's own effect — the plan already
+    // captured must not change with it. Aliasing the item's array would silently rewrite a buff mid-session.
+    const buffEffects: Effect[] = [{ target: 'ability_str', operation: 'set', value: 29 }];
+    const item = c({
+      name: 'Potion of Storm Giant Strength',
+      qty: 2,
+      consumable: { effect: { kind: 'buff', effects: buffEffects, duration: '1 hour' } },
+    });
+    const plan = planConsume(item);
+    // the item is later edited (a changed value AND a brand-new effect appended)
+    buffEffects[0].value = 1;
+    buffEffects.push({ target: 'ac', operation: 'add', value: 5 });
+    // the captured ActiveEffect is untouched — a snapshot, not a pointer back into the item…
+    expect(plan.activeEffect!.effects).toEqual([{ target: 'ability_str', operation: 'set', value: 29 }]);
+    // …and it is a distinct array object, so no future mutation can reach it.
+    expect(plan.activeEffect!.effects).not.toBe(buffEffects);
   });
 
   it('a status potion records the named condition as the ActiveEffect label (no stat effects)', () => {
