@@ -131,6 +131,21 @@ describe('spell slot tables', () => {
     }
   });
 
+  it('the THIRD-caster table matches the PHB at EVERY level (EK/AT, ranks 1–4)', () => {
+    // Golden reference (completes the full/half/pact set): the arrival guards above catch a rank appearing
+    // at the wrong level, but not the intermediate COUNTS. Third casters cap at rank 4, so ranks 5–9 = 0.
+    const GOLDEN: Record<number, number[]> = {
+      1: [0, 0, 0, 0], 2: [0, 0, 0, 0], 3: [2, 0, 0, 0], 4: [3, 0, 0, 0], 5: [3, 0, 0, 0], 6: [3, 0, 0, 0],
+      7: [4, 2, 0, 0], 8: [4, 2, 0, 0], 9: [4, 2, 0, 0], 10: [4, 3, 0, 0], 11: [4, 3, 0, 0], 12: [4, 3, 0, 0],
+      13: [4, 3, 2, 0], 14: [4, 3, 2, 0], 15: [4, 3, 2, 0], 16: [4, 3, 3, 0], 17: [4, 3, 3, 0], 18: [4, 3, 3, 0],
+      19: [4, 3, 3, 1], 20: [4, 3, 3, 1],
+    };
+    for (let lvl = 1; lvl <= 20; lvl++) {
+      expect(THIRD_CASTER_SLOTS[lvl].slice(1, 5), `third caster level ${lvl} (ranks 1–4)`).toEqual(GOLDEN[lvl]);
+      expect(THIRD_CASTER_SLOTS[lvl].slice(5).every((n) => n === 0), `third caster level ${lvl} has no rank 5+`).toBe(true);
+    }
+  });
+
   it('pact magic is a different shape — few slots, highest rank', () => {
     expect(PACT_SLOTS[1]).toBe(1);
     expect(PACT_SLOTS[2]).toBe(2);
