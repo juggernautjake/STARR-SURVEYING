@@ -378,7 +378,11 @@ The engine (`lib/dnd/classes/custom.ts`) is built and tested; there is no UI.
       per-level features, resources, spellcasting. Live `reviewCustomClass` feedback (errors block,
       balance warnings advise).
 - [ ] Homebrew subclass + homebrew feat builders.
-- [ ] AI assist: describe the class in prose → a draft definition the player edits.
+- [x] **AI assist: prose → a draft the player edits. ✅ SHIPPED** (`279e502f`). `lib/dnd/classes/custom-ai.ts`
+      — `CUSTOM_CLASS_TOOL` (structured-output schema) + `parseCustomClassDraft` (defensive normalizer →
+      a valid `CustomClassDraft`) that flows through the existing `buildCustomClass` + `reviewCustomClass`,
+      so the AI proposes and the engine adjudicates/flags balance. 5 tests incl. the full round-trip.
+      **Remaining for this item's UI:** the `/build/class` page wiring a prompt box to this.
 - [ ] Persist to the character/campaign; flag as custom content so the **existing** provenance +
       DM approval (seed 443, `lib/dnd/provenance.ts`, `submission.ts`) picks it up.
 - [ ] A custom class must appear in the level builder exactly like an official one.
