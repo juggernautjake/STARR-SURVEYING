@@ -2291,6 +2291,8 @@ its own base, so a fly speed can exist where a walk speed is 0 (and the sheet sh
 `skill_<name>` · `skill_all` · `ability_check_<ability>` · `death_save` · `concentration_save` ·
 `initiative_roll`. Operations: `add`, `set`, `advantage`, `disadvantage`, plus `reroll_below` (Great
 Weapon Fighting), `minimum_roll`, `crit_range` (19–20 → 18–20), `crit_dice`.
+✅ **`crit_range` shipped** (`f12a6c08`) as a proper target — widest-range-wins, only attacks consult it,
+shown on the to-hit; `crit-range.test.ts` (8). The other three operations remain dice-engine work.
 
 **Defenses** — `resistance` · `immunity` · `vulnerability` (by damage type) ·
 `condition_immunity` · `condition_advantage` (advantage on saves vs a named condition).
@@ -2345,10 +2347,14 @@ removed from the deferred list. So the contract and the code can no longer quiet
   doesn't route yet), `concentration` (needs a concentration tracker before it can honestly render),
   `inspiration` (`char.inspiration` is a player-toggled boolean; granting it needs instant resolution,
   not a ledger overlay), `action_count` (the specific `attacks_per_action`/`reaction_count`/
-  `bonus_action_count` exist; a generic one has no distinct home). The Rolls-section *operations*
-  (`reroll_below`, `minimum_roll`, `crit_range`, `crit_dice`) are likewise dice-engine work, not
-  drop-in targets. `alignment` and `condition_advantage` were the two that WERE clean drop-ins — both now
-  shipped (see above).
+  `bonus_action_count` exist; a generic one has no distinct home). Of the Rolls-section *operations*,
+  **`crit_range` shipped** (`f12a6c08`) — a proper roll target: `rollD20` gained a crit threshold, the
+  store derives the widest range across sources (min, sidestepping the ledger's highest-wins `set`), only
+  attacks consult it, and the Attacks table shows "crit 19–20"; `crit-range.test.ts` (8). The remaining
+  operations (`reroll_below` for Great Weapon Fighting, `minimum_roll`, `crit_dice`) are still deeper
+  dice-engine work — each needs the damage roller to rewrite individual dice, not just a threshold — so
+  they stay deferred. `alignment`, `condition_advantage`, and now `crit_range` were the clean ones — all
+  shipped.
 
 # Appendix B — Item type catalog
 
