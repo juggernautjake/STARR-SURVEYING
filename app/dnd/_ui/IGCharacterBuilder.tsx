@@ -10,7 +10,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import { igCatalog } from '@/lib/dnd/systems/intuitive-games/catalog';
-import { igCreaturesByGroup } from '@/lib/dnd/systems/intuitive-games/content';
+import { igCreaturesByGroup, IG_BACKGROUND_DEFS } from '@/lib/dnd/systems/intuitive-games/content';
 import { classifyElement, type ElementKind } from '@/lib/dnd/provenance';
 
 const ABILITY_KEYS = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
@@ -139,7 +139,8 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <input value={specialization} onChange={(e) => setSpecialization(e.target.value)} placeholder="Specialization" style={{ ...input, flex: 1, minWidth: 130 }} />
-          <input value={background} onChange={(e) => setBackground(e.target.value)} placeholder="Background" style={{ ...input, flex: 1, minWidth: 130 }} />
+          <input list="ig-background-opts" value={background} onChange={(e) => setBackground(e.target.value)} placeholder="Background" style={{ ...input, flex: 1, minWidth: 130 }} />
+          <datalist id="ig-background-opts">{IG_BACKGROUND_DEFS.map((b) => <option key={b.name} value={b.name}>{`${b.name} — ${b.stance} stance, ${b.hp} HP`}</option>)}</datalist>
           <select value={defensivePower} onChange={(e) => setDefensivePower(e.target.value)} style={{ ...input, flex: 1, minWidth: 130 }}><option value="">Defensive power…</option>{defPowerOpts.map((a) => <option key={a} value={a}>{a}</option>)}</select>
         </div>
         <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>ABILITY SCORES</div>

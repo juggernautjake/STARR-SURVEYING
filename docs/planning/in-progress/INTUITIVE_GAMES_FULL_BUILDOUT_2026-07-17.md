@@ -150,7 +150,9 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       ability boosts, skill proficiencies, and the base Stance it grants (Advanced at Lv 5) — transcribed
       from the site. Library gains a Backgrounds table; each is searchable; the provenance classifier now
       recognizes IG backgrounds (was an empty list). `library.test.ts` +3. Nicely, the 10 backgrounds map
-      1:1 onto the 10 stances.
+      1:1 onto the 10 stances. **Builder now offers them** (`IGCharacterBuilder`): the freeform Background
+      field became a `datalist` of the 10 backgrounds (each showing its granted stance + HP), freeform kept as
+      the custom escape hatch — the PF2-builder pattern. `ig-builder-ui.test.ts` (1).
 - [x] **A7 — General Feats** (`/feats-general`) — ✅ SHIPPED (new `lib/dnd/systems/intuitive-games/feats.ts`
       `IG_GENERAL_FEATS`). All **83 general feats** (46 main + 26 skill feats + 6 special + 5 ability-score)
       with prerequisites + full effect text from the site. The library feats section is now a full
