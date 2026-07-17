@@ -75,8 +75,11 @@ Issue) render only titles; the `JobPicker` is a placeholder input.
       **RPLS/crew derivation done** (`a09ee4de`): the "who's on this job" split was pure logic inline in
       `FieldCrewWorkspace`; extracted to `lib/jobs/crew.ts` (`jobRpls`/`jobCrew`/`crewNames`) + `crew.test.ts`
       (7) — RPLS = the `lead_rpls` member's name → `lead_rpls_email` fallback → null; crew = everyone else
-      (→ "Just you" when empty). **Remaining:** the API-population + capture-enqueues-field_media parts need
-      component/route tests with mocks — device/runtime-adjacent, deferred with the rest of Area C.
+      (→ "Just you" when empty). Two more hub derivations extracted the same way (`9d93c1b4`): the
+      `job_number · name` label (was duplicated across the picker + header) and the A3 files-by-section
+      grouping (`lib/jobs/hub.ts`, `hub.test.ts` +4). **Remaining:** the API-population +
+      capture-enqueues-field_media parts need component/route tests with mocks — device/runtime-adjacent,
+      deferred with the rest of Area C.
 
 ## Area C — Resilient background upload queue (the core ask)
 
