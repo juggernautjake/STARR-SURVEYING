@@ -136,6 +136,10 @@ export type SheetEdit =
   | { op: 'add_currency'; name: string; abbrev?: string; amount?: number; rate?: number }
   | { op: 'set_currency'; currency: string; amount?: number; rate?: number; name?: string; abbrev?: string }
   | { op: 'remove_currency'; currency: string }
+  // Conditions the AI can apply/clear on the character — the standard ones (Poisoned, Prone, …) OR a
+  // custom/homebrew condition (any name). Stored on combat.conditions; the sheet's tracker shows them.
+  | { op: 'add_condition'; name: string }
+  | { op: 'remove_condition'; name: string }
   // add_item now carries the FULL item (Slice 14): kind, stats, art, and real `effects` that the
   // ledger resolves — not just a name. update_item merges fields into an existing item; equip_item
   // toggles whether its effects apply.
@@ -186,6 +190,7 @@ export function editPath(e: SheetEdit): string {
     case 'add_spell': case 'remove_spell': case 'rename_spell': return `spells[${slug(e.name)}]`;
     case 'add_currency': return `currencies[${slug(e.name)}]`;
     case 'set_currency': case 'remove_currency': return `currencies[${slug(e.currency)}]`;
+    case 'add_condition': case 'remove_condition': return 'combat.conditions';
     case 'rename_resource': return `resources[${slug(e.name)}]`;
     case 'define_tag': return `customTags[${slug(e.name)}]`;
     case 'add_resource': return `resources[${slug(e.name)}]`;
@@ -218,6 +223,7 @@ export function editOldValue(current: Character, e: SheetEdit): unknown {
     case 'add_spell': case 'remove_spell': case 'rename_spell': return findByName(current.spells, e.name);
     case 'add_currency': return findCurrency(current.currencies, e.name);
     case 'set_currency': case 'remove_currency': return findCurrency(current.currencies, e.currency);
+    case 'add_condition': case 'remove_condition': return [...(current.combat?.conditions ?? [])];
     case 'add_resource': case 'rename_resource': return findByName(current.resources, e.name);
     default: return null;
   }
@@ -276,6 +282,10 @@ export function revertSheetEdit(input: Character, e: SheetEdit, oldValue: unknow
       break;
     case 'add_spell': case 'remove_spell': case 'rename_spell':
       c.spells = restore(c.spells ?? [], prior as Spell | null);
+      break;
+    case 'add_condition': case 'remove_condition':
+      // conditions is a plain string[]; the prior array was captured, so restoring it is exact.
+      if (Array.isArray(oldValue)) c.combat.conditions = oldValue as string[];
       break;
     case 'add_currency': case 'set_currency': case 'remove_currency': {
       // Currencies match by id/name/abbrev (not the generic name-only restore). prior = the pre-edit
@@ -479,6 +489,17 @@ export function applySheetEdits(input: Character, edits: SheetEdit[]): Character
         if (target) c.currencies = (c.currencies ?? []).filter((x) => x.id !== target.id);
         break;
       }
+      case 'add_condition': {
+        const name = e.name.trim();
+        if (name) {
+          const cur = c.combat.conditions ?? [];
+          if (!cur.some((x) => x.trim().toLowerCase() === name.toLowerCase())) c.combat.conditions = [...cur, name];
+        }
+        break;
+      }
+      case 'remove_condition':
+        c.combat.conditions = (c.combat.conditions ?? []).filter((x) => x.trim().toLowerCase() !== e.name.trim().toLowerCase());
+        break;
       case 'add_item': {
         // Build on a fresh blank item, then layer the payload — so a bare add_item still works and
         // a rich one (kind, stats, effects) round-trips. Replaces any same-named item (upsert).
@@ -563,7 +584,7 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
           properties: {
             op: {
               type: 'string',
-              enum: ['set_name', 'set_meta', 'set_level', 'set_ability', 'set_save_proficient', 'set_skill', 'set_combat', 'add_attack', 'update_attack', 'remove_attack', 'rename_attack', 'add_feature', 'remove_feature', 'rename_feature', 'add_spell', 'remove_spell', 'rename_spell', 'add_item', 'update_item', 'equip_item', 'remove_item', 'rename_item', 'rename_resource', 'add_resource', 'define_tag', 'tag_item', 'add_currency', 'set_currency', 'remove_currency'],
+              enum: ['set_name', 'set_meta', 'set_level', 'set_ability', 'set_save_proficient', 'set_skill', 'set_combat', 'add_attack', 'update_attack', 'remove_attack', 'rename_attack', 'add_feature', 'remove_feature', 'rename_feature', 'add_spell', 'remove_spell', 'rename_spell', 'add_item', 'update_item', 'equip_item', 'remove_item', 'rename_item', 'rename_resource', 'add_resource', 'define_tag', 'tag_item', 'add_currency', 'set_currency', 'remove_currency', 'add_condition', 'remove_condition'],
             },
             field: { type: 'string', description: 'For set_meta: kicker|role|species|className|subclass|gender|pronouns|profession. For set_combat: ac|maxHp|currentHp|speed.' },
             to: { type: 'string', description: 'For rename_* ops: the NEW name. Renames keep every other field — use these to rename an attack/feature/item, never remove + re-add (that drops its stats).' },

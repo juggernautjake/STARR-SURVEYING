@@ -338,6 +338,32 @@ describe('add_spell / remove_spell — the AI can build spells directly (not jus
   });
 });
 
+describe('add_condition / remove_condition — the AI can apply conditions (incl. custom ones)', () => {
+  it('adds a condition (dedup, case-insensitive) and removes it', () => {
+    let out = applySheetEdits(blankCharacter('X'), [{ op: 'add_condition', name: 'Poisoned' }]);
+    expect(out.combat.conditions).toContain('Poisoned');
+    // dedup — adding again (any case) doesn't duplicate
+    out = applySheetEdits(out, [{ op: 'add_condition', name: 'poisoned' }]);
+    expect((out.combat.conditions ?? []).filter((c) => c.toLowerCase() === 'poisoned')).toHaveLength(1);
+    // a custom/homebrew condition works too
+    out = applySheetEdits(out, [{ op: 'add_condition', name: 'Star-Cursed' }]);
+    expect(out.combat.conditions).toContain('Star-Cursed');
+    out = applySheetEdits(out, [{ op: 'remove_condition', name: 'POISONED' }]);
+    expect(out.combat.conditions).not.toContain('Poisoned');
+    expect(out.combat.conditions).toContain('Star-Cursed');
+  });
+
+  it('revert restores the exact prior conditions', () => {
+    const base = applySheetEdits(blankCharacter('X'), [{ op: 'add_condition', name: 'Prone' }]);
+    const addEdit: SheetEdit = { op: 'add_condition', name: 'Frightened' };
+    const old = editOldValue(base, addEdit);
+    const added = applySheetEdits(base, [addEdit]);
+    expect(added.combat.conditions).toContain('Frightened');
+    const reverted = revertSheetEdit(added, addEdit, old);
+    expect(reverted.combat.conditions).toEqual(['Prone']); // Frightened gone, Prone kept
+  });
+});
+
 describe('add_currency / set_currency / remove_currency — the AI can manage money (Area C)', () => {
   it('adds a custom currency with a rate, matched later by name or abbrev', () => {
     const out = applySheetEdits(blankCharacter('X'), [
