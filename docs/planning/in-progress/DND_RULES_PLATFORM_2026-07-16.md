@@ -369,6 +369,11 @@ One system per slice — depth-first, verified against sources. In priority orde
 - [x] **6a — D&D 5e 2014 ✅ COMPLETE** — all 12 PHB classes + the Artificer, L1–20, with every
       subclass. The 2014/2024 differences are locked by tests (subclass levels differ per class; ASI at
       19 not Epic Boon; no Weapon Mastery; Ranger's Favored Enemy/Natural Explorer; Ki not Focus; etc.).
+      **Verified end-to-end in the running app 2026-07-16**: a 2014 Barbarian built through the real
+      Manage Levels UI reports `classKnown: true`, and its level-3 subclass choice offers exactly the
+      **2014** paths (Berserker, Totem Warrior) — the 2024 paths (Wild Heart/World Tree/Zealot) do NOT
+      appear. This drives both the class-table render (the doc's "in the running app" bar) AND the
+      cross-system integrity guard in the live builder, not just in unit tests.
       **2026-07-16 — ALL 12 PHB CLASSES SHIPPED ✅** (`lib/dnd/classes/dnd5e-2014/`): Barbarian, Bard,
       Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock, Wizard — each L1–20 with
       every PHB subclass, all edition-differences vs 2024 locked by `dnd5e-2014-classes.test.ts` (71
