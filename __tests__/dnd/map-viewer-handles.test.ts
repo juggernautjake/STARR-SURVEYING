@@ -34,6 +34,20 @@ describe('map viewer: image scale/rotate handles (Slice 35a)', () => {
   });
 });
 
+describe('map studio: canvases are explicitly sized (the 300×150 default gotcha)', () => {
+  it('every _fit() sizes its canvas from getBoundingClientRect × devicePixelRatio, never leaving the default', () => {
+    // A <canvas> with no width/height attributes silently renders at 300×150. Each _fit must derive the
+    // pixel size from the element's real box × dpr — a refactor that drops this reintroduces the gotcha.
+    const fits = SRC.match(/_fit\(\)\{[^]*?\}/g) || [];
+    expect(fits.length).toBeGreaterThanOrEqual(3); // the SpriteSpinner + fx + preview canvases
+    for (const f of fits) {
+      expect(f).toMatch(/devicePixelRatio/);
+      expect(f).toMatch(/getBoundingClientRect\(\)/);
+      expect(f).toMatch(/\.width\s*=/); // it assigns the canvas pixel width, not just CSS
+    }
+  });
+});
+
 describe('map studio: 2D/3D body-size parity (Slice 29)', () => {
   it('keeps the 2D and 3D preview bodies at the SAME ~78% of the viewer (the constants must not drift apart)', () => {
     // 2D: the preview body is sized to 78% (a WebGL canvas can't spill its glow, so 2D leaves the same room).
