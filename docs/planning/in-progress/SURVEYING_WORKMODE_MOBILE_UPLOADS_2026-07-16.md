@@ -66,7 +66,10 @@ Issue) render only titles; the `JobPicker` is a placeholder input.
       hardened 6 → 14 (unary in every position, malformed input, nested precedence).
 - [~] **B4 — Quick capture with notes.** ✅ *Review side shipped* (`5f18f4eb`): the hub's Photo tab
       (`JobMedia`) shows the job's captured `field_media` (signed thumbnails/originals) as a read-only
-      gallery. **Deferred — web capture-to-`field_media` upload:** there is no web storage-upload path for
+      gallery. **Review-tile derivation extracted + tested** (`adcf0fb3`): `mediaDisplay()` in
+      `lib/jobs/hub.ts` locks the thumb/link URL fallbacks (thumbnail→storage, original→storage) and the
+      photo-vs-icon decision (video/voice/doc glyphs); `hub.test.ts` +4. **Deferred — web
+      capture-to-`field_media` upload:** there is no web storage-upload path for
       field media today (capture is mobile-only, and the plan itself scopes capture as "primarily a mobile
       concern"). Building a parallel web camera→storage→field_media pipeline is lower value than the mobile
       queue work; revisit if a web-capture need is confirmed.
