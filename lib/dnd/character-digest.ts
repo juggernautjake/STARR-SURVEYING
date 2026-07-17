@@ -132,7 +132,9 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
     const saveLine = (['str', 'dex', 'con', 'int', 'wis', 'cha'] as const)
       .map((k) => {
         const s = char.saves![k] ?? { proficient: false, misc: 0 };
-        const mod = abilityMod(effAbil(k)) + (s.proficient ? pb : 0) + (s.misc ?? 0);
+        // Fold the ledger save-bonus targets so the AI's save number matches the sheet's (which now does).
+        const mod = abilityMod(effAbil(k)) + (s.proficient ? pb : 0) + (s.misc ?? 0)
+          + ledger.value(`${k}_saves`, 0) + ledger.value('all_saves', 0);
         return `${k.toUpperCase()} ${signed(mod)}${s.proficient ? '*' : ''}`;
       })
       .join(' · ');
@@ -176,11 +178,13 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
       const key: AbilityKey = char.abilities?.[a.ability] != null ? a.ability : 'str';
       const hit = a.saveBased
         ? `DC ${a.saveDcOverride ?? 8 + pb + abilityMod(effAbil(a.saveDcAbility ?? 'str'))} ${(a.saveAbility ?? 'dex').toUpperCase()} save`
-        : `${signed(abilityMod(effAbil(key)) + (a.proficient ? pb : 0) + (a.bonusToHit ?? 0))} to hit`;
+        : `${signed(abilityMod(effAbil(key)) + (a.proficient ? pb : 0) + (a.bonusToHit ?? 0)
+            + ledger.value('attack_roll', 0) + ledger.value('attack_and_damage', 0))} to hit`;
       // Damage die + the ability mod the sheet adds automatically (the `damage` field is the raw die).
       // AOE dice don't add the ability mod, matching the Attacks table.
       const die = a.damageByLevel?.length ? a.damageByLevel.reduce((acc, e) => ((m.level ?? 1) >= e.level ? e.damage : acc), a.damage) : a.damage;
-      const dmgMod = a.saveBased ? 0 : abilityMod(effAbil(key)) + (a.bonusDamage ?? 0);
+      const dmgMod = a.saveBased ? 0 : abilityMod(effAbil(key)) + (a.bonusDamage ?? 0)
+        + ledger.value('damage_roll', 0) + ledger.value('attack_and_damage', 0);
       return `${a.name} (${hit}, ${a.range}, ${die}${dmgMod ? signed(dmgMod) : ''} ${a.damageType})`;
     });
   if (attacks.length) lines.push(`ATTACKS: ${attacks.join(' · ')}`);

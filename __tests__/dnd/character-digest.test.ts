@@ -222,6 +222,22 @@ describe('the digest reports LEDGER-resolved numbers, not the stored base (Slice
     expect(d).not.toContain('ACTIVE EFFECTS:');
     expect(d).toMatch(/STR 18 \(\+4\)/); // the base IS the effective value here
   });
+
+  it('folds save/attack/damage effects so the AI sees the same numbers the sheet does', () => {
+    // A Cloak of Protection (+1 all saves) + a +1-to-all-attacks item. The digest must report the
+    // folded numbers, matching the sheet's now-folding rolls — otherwise the AI would misadjudicate.
+    const c = blankCharacter('Warded');
+    c.abilities = { ...c.abilities, dex: 10, str: 10 };
+    c.saves = { ...c.saves, dex: { proficient: false, misc: 0 } } as Character['saves'];
+    c.attacks = [{ id: 'sw', name: 'Sword', ability: 'str', proficient: true, damage: '1d8', damageType: 'slashing', range: 'melee' }] as Character['attacks'];
+    c.inventory = [{
+      id: 'cloak', name: 'Cloak of Protection', desc: '', qty: 1, tags: [], equipped: true,
+      effects: [{ target: 'all_saves', operation: 'add', value: 1 }, { target: 'attack_and_damage', operation: 'add', value: 1 }],
+    }] as Character['inventory'];
+    const d = characterDigest(c, 'dnd-5e-2024');
+    expect(d).toMatch(/DEX \+1/); // 0 base + 1 all_saves
+    expect(d).toMatch(/Sword \(\+\d/); // to-hit includes the +1 attack_and_damage (prof 2 + 1 = +3)
+  });
 });
 
 describe('the digest carries provenance + the prompt meets homebrew (Slice 22)', () => {
