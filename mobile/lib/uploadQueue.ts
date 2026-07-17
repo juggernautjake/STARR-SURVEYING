@@ -31,6 +31,7 @@ import type { AbstractPowerSyncDatabase } from '@powersync/react-native';
 
 import { shouldDrainOnAppStateChange } from './appStateDrain';
 import { backoffMsForRetry } from './uploadBackoff';
+import { classifyUploadOutcome } from './uploadOutcome';
 import { logError, logInfo, logWarn } from './log';
 import { guessExtension } from './mediaPath';
 import { isOnWifiNow, isOnlineNow, subscribeToOnline } from './networkState';
@@ -301,14 +302,11 @@ async function tryOne(
     });
 
   if (error) {
-    // Distinguish dupe vs transient: if the server already has the
-    // object (e.g. a prior session's upload succeeded but we never
-    // got the response back), Supabase returns "Duplicate" — that's
-    // a happy-path success for us.
-    const lower = error.message.toLowerCase();
-    const alreadyUploaded =
-      lower.includes('duplicate') || lower.includes('already exists');
-    if (alreadyUploaded) {
+    // Distinguish dupe vs transient (classifyUploadOutcome): if the server already has the object (e.g. a
+    // prior session's upload succeeded but we never got the response back), Supabase returns "Duplicate" —
+    // a happy-path success. Any OTHER error is transient → retry, so we NEVER delete a file the server
+    // didn't receive.
+    if (classifyUploadOutcome(error.message) === 'uploaded') {
       logInfo('uploadQueue.tryOne', 'already uploaded — treating as success', {
         pending_id: args.pendingId,
         storage_path: args.storagePath,

@@ -184,6 +184,15 @@ is a pure, tested function; the runtime is pure I/O around them.)*
       ceiling clamp, AND floors a negative/NaN retry_count (the old `Math.min(-1, len−1)` read
       `BACKOFF_MS[-1] = undefined` → a NaN `next_attempt_at`, which would make a row back off forever or
       never). `upload-backoff.test.ts` (4). Now every retry delay is provably a positive finite number.
+      **Delete-safety classification extracted + guarded (2026-07-17):** the single most safety-critical
+      branch in the queue — does the upload result mean the SERVER HAS THE FILE (safe to delete the local
+      copy) or must we retry (preserve it)? — was computed inline in the DB-writing `tryOne` and untested. A
+      misjudgement here deletes a surveyor's capture. Extracted `classifyUploadOutcome(errorMessage)` →
+      `'uploaded' | 'retry'` (`uploadOutcome.ts`): a "duplicate/already exists" error is a prior session's
+      success (uploaded, don't retry forever), no error is a clean success, and **ANY other error is a retry
+      — never 'uploaded'**, so the queue can never delete a file the server didn't receive. `markSuccess`
+      (which deletes the local file) is reached only on this 'uploaded' verdict, AFTER the server confirms.
+      `upload-outcome.test.ts` +3 (incl. an explicit sweep of transient errors that must all read 'retry').
 - [~] **C2 — Background continuation while using other apps/features.** Uploads must continue while the
       worker uses the rest of the hub/app or leaves the app. Use Expo background upload/task facilities
       (`expo-task-manager` / `expo-background-fetch` or resumable uploads) so a backgrounded/again-

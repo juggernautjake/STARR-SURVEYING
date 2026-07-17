@@ -1,8 +1,28 @@
 import { describe, it, expect } from 'vitest';
-import { planAfterUpload } from '../../mobile/lib/uploadOutcome';
+import { planAfterUpload, classifyUploadOutcome } from '../../mobile/lib/uploadOutcome';
 
 // workmode — the pure post-upload plan (notification + retention + advance) composed from the upload
 // engines. The counterpart to nextDrainStep; together they are the drain loop's whole logic.
+
+describe('classifyUploadOutcome — the delete-safety branch (a transient error must NEVER read as uploaded)', () => {
+  it('no error is a clean success', () => {
+    expect(classifyUploadOutcome(null)).toBe('uploaded');
+    expect(classifyUploadOutcome(undefined)).toBe('uploaded');
+    expect(classifyUploadOutcome('')).toBe('uploaded');
+  });
+
+  it('a duplicate / already-exists error is uploaded (the server has it; do not retry forever)', () => {
+    expect(classifyUploadOutcome('Duplicate')).toBe('uploaded');
+    expect(classifyUploadOutcome('The resource already exists')).toBe('uploaded');
+    expect(classifyUploadOutcome('DUPLICATE key value')).toBe('uploaded'); // case-insensitive
+  });
+
+  it('ANY other error is a retry — the file MUST be preserved (this is the data-loss guard)', () => {
+    for (const e of ['Network request failed', 'timeout', '500 Internal Server Error', 'aborted', 'ENOENT']) {
+      expect(classifyUploadOutcome(e), `"${e}" must be a retry, not a delete-safe success`).toBe('retry');
+    }
+  });
+});
 
 describe('planAfterUpload — success', () => {
   it('per-file done: notifies with the remaining count, offers retention (confirmed), advances in automatic', () => {

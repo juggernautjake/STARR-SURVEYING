@@ -13,6 +13,25 @@ export type UploadResult =
   | { ok: true; name: string; remaining: number } // uploaded + confirmed; `remaining` still queued
   | { ok: false; name: string; canRetry: boolean }; // gave up
 
+/**
+ * Classify a Supabase Storage upload result: does the SERVER HAVE THE FILE ('uploaded' → the local copy
+ * is safe to delete) or must the attempt be retried ('retry' → the local file MUST be preserved)? This is
+ * the single most safety-critical branch in the queue — misjudging it deletes a surveyor's capture. Two
+ * rules, each safety-critical in one direction:
+ *   • a "duplicate / already exists" error means a PRIOR session's upload landed but we never saw the
+ *     response — the server HAS it, so treat it as uploaded (otherwise the row retries forever); and
+ *   • ANY OTHER error is transient → 'retry', NEVER 'uploaded' (otherwise the queue deletes a file the
+ *     server never received).
+ * A missing error message is a clean success. Pure + case-insensitive.
+ */
+export type UploadDeliveryOutcome = 'uploaded' | 'retry';
+export function classifyUploadOutcome(errorMessage: string | null | undefined): UploadDeliveryOutcome {
+  if (!errorMessage) return 'uploaded';
+  const lower = errorMessage.toLowerCase();
+  if (lower.includes('duplicate') || lower.includes('already exists')) return 'uploaded';
+  return 'retry';
+}
+
 export interface PostUploadPlan {
   /** The local notification to fire (or null at this verbosity). */
   notification: UploadNotification | null;
