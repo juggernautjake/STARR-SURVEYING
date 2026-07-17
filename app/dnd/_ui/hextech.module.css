@@ -824,6 +824,9 @@ select.input {
   flex: 1 0 auto;
 }
 .siteHeader {
+  /* Sticky also serves as the containing block for the absolutely-centered brand below, so the logo
+     is centered against the header itself — independent of the back button and nav that flank it,
+     which otherwise drift it off-center whenever those two sides differ in width (page to page). */
   position: sticky;
   top: 0;
   z-index: 40;
@@ -838,6 +841,11 @@ select.input {
   border-bottom: 1px solid var(--hx-gold-0);
 }
 .siteBrand {
+  /* Absolutely centered against the header, so the logo stays dead-center on every page no matter
+     how wide the back button (left) or the nav (right) are. pointer-events stay on the link itself. */
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -859,6 +867,9 @@ select.input {
   transform: translateY(-1px);
 }
 .siteNav {
+  /* Always hug the right edge, even on pages where the back button (the only other in-flow item)
+     renders nothing — otherwise a lone nav would slide left. */
+  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 4px;

@@ -16,6 +16,9 @@ export default function DndHeader({ userName }: { userName?: string | null }) {
           ◆
         </span>
         Starr Tabletop
+        <span className={styles.siteBrandMark} aria-hidden>
+          ◆
+        </span>
       </Link>
       <nav className={styles.siteNav}>
         <Link href="/dnd" className={styles.siteNavLink}>
