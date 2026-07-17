@@ -96,7 +96,15 @@ term fully defined. One slice per site section; each fetches the page, transcrib
 - [ ] **A1 — Core Rules** (`/core-rules`) — the foundational mechanics (action economy, checks, the core
       resolution system).
 - [ ] **A2 — Character Building** (`/character-building`) — the build procedure, ability scores, progression.
-- [ ] **A3 — Skills** (`/skills`) — the skill list + how skills work.
+- [x] **A3 — Skills** (`/skills`) — ✅ SHIPPED (`content.ts` `IG_SKILL_RULES` + `IG_COMBAT_SKILL_RULES`). The
+      skills section now leads with **how skill checks work** (ranks max = level + proficiency + ability mod
+      when proficient/ranked; 2 + INT ranks/level; trained = any ranks/proficiency; Take 10 / Take 20; the
+      10/15/20/25 DC guide) instead of a bare count, and a new **Combat Skills** section captures the distinct
+      subsystem (aggressor's modifier vs the defendant's Reflex save; a trained defender opposes with a
+      combat-skill check; Dirty Trick's full outcome ladder) + the 9 combat skills, each searchable. Some
+      per-skill combat mechanics beyond Dirty Trick were truncated on the site — noted, not fabricated (the
+      Mastery feats from A8 cover their enhancements). `library.test.ts` +3 (completeness guard now 22
+      sections).
 - [x] **A4 — Conditions** (`/conditions`) — ✅ SHIPPED (`content.ts` `IG_CONDITIONS`). All **18 conditions**
       transcribed **verbatim** from the site with full mechanical text (Asleep…Sickened); names drift-guarded
       against `systemConditions('intuitive-games')`. The library page now renders conditions as a **full-text

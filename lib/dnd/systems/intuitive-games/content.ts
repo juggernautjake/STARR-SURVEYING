@@ -308,6 +308,26 @@ export const IG_SUBCLASSES: string[] = ['Arcanist', 'Summoner', 'Champion', 'Wit
 
 // The Combat Skills (Sheet 4) — tracked separately from general skills. Str/Dex variants share these names.
 export const IG_COMBAT_SKILLS = new Set(['Dirty Trick', 'Disarm', 'Feint', 'Grapple', 'Overrun', 'Reposition', 'Steal', 'Sunder', 'Trip']);
+
+// How the skill system works (from intuitivegames.net/skills).
+export const IG_SKILL_RULES =
+  'A skill check = ranks (max = your level) + proficiency (add your level if proficient) + the governing ' +
+  'ability modifier (which applies only if you are proficient or have ranks in the skill). You gain 2 + your ' +
+  'Intelligence modifier ranks per level to distribute. You are "trained" in a skill if you have any ranks or ' +
+  'proficiency in it. Take 10 (spend 2× the actions for a guaranteed 10; not in combat or resource scarcity) ' +
+  'and Take 20 (20× the actions for a guaranteed 20) are available. General DC guide: 10 anyone · 15 ' +
+  'practiced · 20 expert · 25 master.';
+
+// How combat skills work (from intuitivegames.net/skills). Some per-skill mechanics beyond Dirty Trick were
+// truncated on the page — the general rule + the roster are captured; the Mastery feats (A8) enhance them.
+export const IG_COMBAT_SKILL_RULES =
+  'Combat skills work differently from general skills: the aggressor rolls their appropriate modifier against ' +
+  'the defendant’s Reflex save (the defendant may use Strength instead of Dexterity if the skill is ' +
+  'Strength-based). A defendant TRAINED in the combat skill may make an opposed combat-skill check instead of ' +
+  'a Reflex save; an untrained defender provokes reactions. Example — Dirty Trick (STR or DEX): as an action, ' +
+  'apply Staggered, Blinded, or Sickened opposed by the target’s Reflex save (critical success: lasts until ' +
+  'your next turn and can’t be removed; success: until the target’s next turn; partial success: until the ' +
+  'target’s turn; failure: no effect; critical failure: you become flat-footed until your next turn).';
 // ── Backgrounds (from intuitivegames.net/backgrounds) — 10 backgrounds, each granting starting HP, two
 //    ability boosts (a specific pair + any one), skill proficiencies, and a base Stance (Advanced at L5). ──
 export interface IGBackground {

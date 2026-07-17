@@ -14,6 +14,7 @@ import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type
 import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, IG_COMPANION_TYPES, IG_COMPANION_RULES, IG_BACKGROUND_DEFS, IG_CLASS_GROUPS, IG_CLASS_RULES, IG_SUBCLASSES, type NamedEntry, type IGStance, type IGAncestry, type IGCompanionType, type IGBackground } from './systems/intuitive-games/content';
 import { igAllFeats, type IGFeat } from './systems/intuitive-games/feats';
 import { IG_WEAPON_RULES, IG_WEAPON_CLASS_DATA, IG_WEAPON_PROPERTIES, IG_ARMOR_RULES, IG_ARMORS, IG_SHIELD_RULES, IG_SHIELDS, IG_EQUIPMENT_PACKS, IG_EQUIPMENT_NOTE, IG_TOOL_RULES, IG_MAGIC_ITEM_RULES, IG_ENCHANTMENTS } from './systems/intuitive-games/items';
+import { IG_SKILL_RULES, IG_COMBAT_SKILL_RULES, IG_COMBAT_SKILLS } from './systems/intuitive-games/content';
 
 /** The full feat registry for a system, or [] when only a catalog sample exists. System-keyed
  *  dispatcher (the pattern `findFeat`'s comment calls for) so a feat never leaks across systems. */
@@ -247,15 +248,25 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
   }
 
   if (r.content.skills.length) {
+    const igSkills = key === 'intuitive-games';
     sections.push({
       id: 'skills',
       title: 'Skills',
-      lead: `${r.content.skills.length} skills and the attribute each is governed by.`,
+      lead: igSkills ? IG_SKILL_RULES : `${r.content.skills.length} skills and the attribute each is governed by.`,
       table: {
         headers: ['Skill', 'Governed by'],
         rows: r.content.skills.map((s) => [s.name, s.ability]),
       },
     });
+    // Combat skills (IG) — a distinct subsystem with its own resolution (opposed vs Reflex).
+    if (igSkills) {
+      sections.push({
+        id: 'combat-skills',
+        title: 'Combat Skills',
+        lead: IG_COMBAT_SKILL_RULES,
+        chips: [...IG_COMBAT_SKILLS],
+      });
+    }
   }
 
   if (r.content.species.length) {
@@ -601,6 +612,7 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
       }
     }
     for (const s of r.content.skills) push('skill', s.name, `${s.name} — governed by ${s.ability} in ${r.label}.`);
+    if (key === 'intuitive-games') for (const cs of IG_COMBAT_SKILLS) push('combat-skill', cs, `${cs} — an Intuitive Games combat skill (opposed vs the target's Reflex save). ${IG_COMBAT_SKILL_RULES}`);
     // Systems with full ancestry data (IG) expose each ancestry with its trait text, and each trait by
     // name ("barkskin", "cave vision"); the rest fall back to the name stub + prose notes.
     const igAncestries = ancestriesWithTraitsFor(key);

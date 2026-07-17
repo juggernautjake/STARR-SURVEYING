@@ -291,8 +291,8 @@ describe('Intuitive Games library is complete (IG buildout A17 completeness guar
     const ids = new Set(page.sections.map((s) => s.id));
     // Every page of the site is represented as a library section.
     const required = [
-      'core', 'abilities', 'advancement', 'classes', 'skills', 'species', 'backgrounds', 'stances',
-      'conditions', 'feats', 'powers', 'defensive-powers', 'actions', 'companions', 'weapons',
+      'core', 'abilities', 'advancement', 'classes', 'skills', 'combat-skills', 'species', 'backgrounds',
+      'stances', 'conditions', 'feats', 'powers', 'defensive-powers', 'actions', 'companions', 'weapons',
       'weapon-properties', 'armor', 'shields', 'equipment', 'tools', 'magical-items',
     ];
     for (const id of required) expect(ids.has(id), `IG library is missing the "${id}" section`).toBe(true);
@@ -301,6 +301,27 @@ describe('Intuitive Games library is complete (IG buildout A17 completeness guar
       const filled = !!(s.body?.length || s.facts?.length || s.chips?.length || s.table?.rows.length);
       expect(filled, `IG section "${s.title}" has content`).toBe(true);
     }
+  });
+});
+
+describe('Intuitive Games skills carry the system rules + combat skills (IG buildout A3)', () => {
+  it('the skills section leads with how skill checks work, and a Combat Skills section is added', () => {
+    const page = libraryPageFor('intuitive-games')!;
+    const skills = page.sections.find((s) => s.id === 'skills')!;
+    expect(skills.lead).toMatch(/ranks .* proficiency .* ability modifier/i);
+    expect(skills.lead).toMatch(/Take 10|Take 20/);
+    const combat = page.sections.find((s) => s.id === 'combat-skills')!;
+    expect(combat.lead).toMatch(/opposed .* Reflex save|Reflex save/i);
+    expect(combat.chips).toEqual(expect.arrayContaining(['Dirty Trick', 'Grapple', 'Sunder']));
+  });
+
+  it('a combat skill is searchable', () => {
+    const trip = searchLibrary('trip', 'intuitive-games').find((h) => h.kind === 'combat-skill');
+    expect(trip?.name).toBe('Trip');
+  });
+
+  it('combat skills do not leak into another system', () => {
+    expect(libraryPageFor('dnd5e-2024')!.sections.some((s) => s.id === 'combat-skills')).toBe(false);
   });
 });
 
