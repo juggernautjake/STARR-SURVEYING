@@ -997,7 +997,9 @@ export function CharacterProvider({
     // penalty rollCheck applies to every other d20. Without this, death saves were the one roll that
     // ignored exhaustion. Nat 20 / nat 1 still read the NATURAL die, unaffected by the penalty.
     const exh = char.combat.exhaustion || 0
-    const bonus = char.combat.deathSaveBonus - 2 * exh
+    // Fold the ledger's `death_save` target so an effect that grants a death-save bonus (a feat/item)
+    // actually applies — like initiative folds `initiative`. No-op when nothing grants it.
+    const bonus = ledger.value('death_save', char.combat.deathSaveBonus) - 2 * exh
     const r = rollD20(bonus, 'flat')
     let result = ''
     if (r.natural === 20) result = 'NAT 20 — regain 1 HP!'
@@ -1016,7 +1018,7 @@ export function CharacterProvider({
       else deathFail = Math.min(3, deathFail + 1)
       return { ...c, combat: { ...c.combat, deathSuccess, deathFail } }
     })
-  }, [char.combat.deathSaveBonus, char.combat.exhaustion, stage])
+  }, [char.combat.deathSaveBonus, char.combat.exhaustion, ledger, stage])
 
   const spendHitDie = useCallback(() => {
     if (char.combat.hitDiceRemaining <= 0) return

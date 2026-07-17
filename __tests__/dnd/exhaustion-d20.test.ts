@@ -20,8 +20,8 @@ describe('2024 exhaustion applies −2/level to d20 tests at roll time', () => {
     expect(STORE).toMatch(/exh = char\.combat\.exhaustion \|\| 0/);
   });
 
-  it('death saves take the same −2/level penalty (they are D20 Tests too)', () => {
-    expect(STORE).toContain('char.combat.deathSaveBonus - 2 * exh');
+  it('death saves take the same −2/level penalty (they are D20 Tests too), on the ledger-folded bonus', () => {
+    expect(STORE).toContain("ledger.value('death_save', char.combat.deathSaveBonus) - 2 * exh");
   });
 
   it('the submitted initiative (encounter turn order) takes the same −2/level penalty', () => {

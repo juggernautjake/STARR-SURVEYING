@@ -54,7 +54,7 @@ describe('exhaustion applies to every d20 roll, including death saves', () => {
     expect(STORE).toContain('rollD20(mod - 2 * exh');
   });
   it('death saves take the SAME −2/level penalty (were the outlier)', () => {
-    expect(STORE).toContain('char.combat.deathSaveBonus - 2 * exh');
+    expect(STORE).toContain("ledger.value('death_save', char.combat.deathSaveBonus) - 2 * exh");
   });
   it('the submitted encounter initiative takes the penalty too (initiative is a D20 Test)', () => {
     const INITP = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_sheet/components/InitiativePrompt.tsx'), 'utf8');
