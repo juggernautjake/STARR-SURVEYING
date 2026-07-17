@@ -570,6 +570,12 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       before, now surface in `searchLibrary` as `armor`/`weapon` hits (AC/Dex-cap/Str; damage die+type+
       traits) and as PF2-only **Armor** and **Weapons** tables on the library page. System-scoped (no 5e
       leak). `library.test.ts` +1 (Full Plate +6 AC, Longsword 1d8 slashing).
+      **Plus (6b hardening) a test on the assemble seam** — `assemblePF2VanillaCharacter` (the projection
+      the `pf2-build` routes persist and the character page reads) is now covered by
+      `pathfinder2e-assemble.test.ts` (8): the sidecar passes `isPF2Character`, identity→meta/chips,
+      modifier→score mapping, projected HP/AC equal the rules engine, the weapon Strike + Fist land in
+      the shared attacks, and the route's `summarizeCharacterProvenance` pass runs and tags vanilla
+      content — the same seam a browser build would exercise, minus the browser.
 - [x] **Intuitive Games ✅** — closed the gap found 2026-07-16 (its content lived only in the builder
       module, not the searchable glossary). Authored `lib/dnd/glossary/intuitive-games.ts` (26 articles)
       from the engine's own numbers (igProficiency = level, igDegreeOfSuccess, igSaveTotal, igMaxHp) and
