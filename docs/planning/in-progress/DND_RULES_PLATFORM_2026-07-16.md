@@ -840,8 +840,11 @@ One pure function that every later slice reads. Nothing else in Part II can be b
       **Max HP tone/display unified** (`42ceb2c8`): the rail showed BASE max HP and coloured its low-HP
       tone from it while the panel showed the effective max — a +HP buff moved one, not the other. The
       rail now reads the effective max (edit base, show effective with ★). `statrail-effective-maxhp.test.ts`
-      (3). With AC, Save DC, and now Max HP, the StatRail and the detail panels no longer disagree on any
-      derived value.
+      (3). **Speed unified too** (`e1ad8caf`): the rail showed base `combat.speed` while the panel showed
+      the ledger walk speed (items + the exhaustion −5ft/level penalty) — so exhaustion's speed hit, the
+      mechanic the user asked to be real, was invisible in the rail. Now effective. `statrail-effective-speed.test.ts`
+      (2). With AC, Save DC, Max HP, and Speed, the StatRail and the detail panels no longer disagree on
+      any derived value — every prominent number on the sheet reads one ledger-effective source.
 - [ ] **An equipped item lands in the right place, automatically.** Equipping routes by what the item
       *is*, with no per-item code: a weapon appears as a row in **Attacks** with its computed to-hit
       and damage; armour drives **AC** (respecting DEX cap / STR requirement / stealth disadvantage);
