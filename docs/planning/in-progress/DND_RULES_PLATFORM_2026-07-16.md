@@ -380,10 +380,11 @@ The engine (`lib/dnd/classes/custom.ts`) is built and tested; there is no UI.
       (errors red/block, warnings gold/advise) → **Save to my character** (persists, gated on a clean
       review) → the saved class **resolves in the level builder like an official one**. **Remaining (nice-
       to-have):** a manual field-by-field edit form on the draft (today you iterate by re-prompting).
-- [~] Homebrew subclass + homebrew feat builders. **Feat designer ✅ SHIPPED** (`1ceae899`, `f6ada419`):
-      `/dnd/characters/[id]/build/feat` page + `/homebrew-feat` endpoint (draft → `buildCustomFeat` →
-      `reviewCustomFeat` → review, propose-only). Subclass AI-input side done (`CUSTOM_SUBCLASS_TOOL` →
-      `buildCustomSubclass`). **Remaining:** the subclass designer PAGE (+ optional feat persist).
+- [x] **Homebrew subclass + homebrew feat builders. ✅ SHIPPED** (`1ceae899`, `f6ada419`, `656a256c`).
+      All three designers ship as prompt→draft→review pages on the existing engine: `/build/feat`
+      (`buildCustomFeat`+`reviewCustomFeat`) and `/build/subclass` (`buildCustomSubclass`, checks the
+      parent class resolves incl. saved homebrew). Propose-only. **Nice-to-have remaining:** persist for
+      feat/subclass (class persist is done) + manual edit forms.
 - [x] **AI assist: prose → a draft the player edits. ✅ SHIPPED** (`279e502f`). `lib/dnd/classes/custom-ai.ts`
       — `CUSTOM_CLASS_TOOL` (structured-output schema) + `parseCustomClassDraft` (defensive normalizer →
       a valid `CustomClassDraft`) that flows through the existing `buildCustomClass` + `reviewCustomClass`,
