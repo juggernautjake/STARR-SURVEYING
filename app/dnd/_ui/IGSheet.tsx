@@ -15,7 +15,7 @@ import { IG_ABILITIES, IG_SAVES } from '@/lib/dnd/systems/intuitive-games/model'
 import { igAbilityMod, igDerived, igSkillTotal, igRanksSpent, igResolveAttack } from '@/lib/dnd/systems/intuitive-games/rules';
 import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_CONDITIONS, IG_ACTION_ECONOMIES, igActionsByEconomy, findIGAncestry } from '@/lib/dnd/systems/intuitive-games/content';
 import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-games/inPlay';
-import { igConditionSummary } from '@/lib/dnd/systems/intuitive-games/modifiers';
+import { igConditionSummary, igStanceMechanicNote } from '@/lib/dnd/systems/intuitive-games/modifiers';
 import type { IGEdit } from '@/lib/dnd/systems/intuitive-games/edit';
 import { findIGFeat } from '@/lib/dnd/systems/intuitive-games/feats';
 import { igAncestryArt, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
@@ -241,6 +241,12 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
                     </select>
                   )}
                 </div>
+                {(() => {
+                  // The active stance's precise mechanical effect at this level (adv/disadv/DR/bonus) — shown,
+                  // per the same legibility pattern as the condition penalty (not folded into base numbers).
+                  const note = cb.stances[0] ? igStanceMechanicNote(cb.stances[0], derived.level) : null;
+                  return note ? <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', lineHeight: 1.4 }}>{note}</div> : null;
+                })()}
               </div>
             )}
             {cb.defensivePower && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Defensive Power</span><div>{chip(cb.defensivePower)}</div></div>}

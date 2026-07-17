@@ -32,6 +32,10 @@ describe('IGSheet shows in-play stances + conditions with tooltips', () => {
     expect(SRC).toMatch(/to attacks, saves &amp; skill checks/);
   });
 
+  it('shows the active stance\'s precise mechanical effect (B5)', () => {
+    expect(SRC).toContain('igStanceMechanicNote(cb.stances[0], derived.level)');
+  });
+
   it('offers write-gated edit controls that POST to the ig-edit route', () => {
     // Controls only render for a viewer who can write (canDoEdit), and they hit the ig-edit route.
     expect(SRC).toContain('canDoEdit');
