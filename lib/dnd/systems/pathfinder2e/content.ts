@@ -300,9 +300,49 @@ export const PF2_ARMORS: PF2ArmorDef[] = [
   { name: 'Full Plate', category: 'heavy', acBonus: 6, dexCap: 0, strength: 4, checkPenalty: -3, speedPenalty: -10, group: 'Plate' },
 ];
 
+// ── Weapons (Player Core) — the weapon sets a Strike's damage die + type + traits; the character's
+//    attack proficiency RANK comes from the class. A finesse/ranged weapon lets DEX drive the attack. ──
+export type PF2WeaponCategory = 'unarmed' | 'simple' | 'martial' | 'advanced';
+export interface PF2WeaponDef {
+  name: string;
+  category: PF2WeaponCategory;
+  damageDie: string;   // e.g. "1d8"
+  damageType: 'B' | 'P' | 'S'; // bludgeoning / piercing / slashing
+  traits: string[];    // agile, finesse, reach, thrown, two-hand d12, versatile P, deadly d10, …
+  group: string;       // Sword, Axe, Bow, …
+  hands: 1 | 2;
+  /** Ranged increment in feet, or 0 for melee. */
+  range: number;
+}
+export const PF2_WEAPONS: PF2WeaponDef[] = [
+  // Simple melee
+  { name: 'Club', category: 'simple', damageDie: '1d6', damageType: 'B', traits: ['thrown 10 ft'], group: 'Club', hands: 1, range: 0 },
+  { name: 'Dagger', category: 'simple', damageDie: '1d4', damageType: 'P', traits: ['agile', 'finesse', 'thrown 10 ft', 'versatile S'], group: 'Knife', hands: 1, range: 0 },
+  { name: 'Mace', category: 'simple', damageDie: '1d6', damageType: 'B', traits: ['shove'], group: 'Club', hands: 1, range: 0 },
+  { name: 'Sap', category: 'simple', damageDie: '1d6', damageType: 'B', traits: ['agile', 'nonlethal'], group: 'Club', hands: 1, range: 0 },
+  { name: 'Spear', category: 'simple', damageDie: '1d6', damageType: 'P', traits: ['thrown 20 ft'], group: 'Spear', hands: 1, range: 0 },
+  { name: 'Staff', category: 'simple', damageDie: '1d4', damageType: 'B', traits: ['two-hand d8'], group: 'Club', hands: 1, range: 0 },
+  // Simple ranged
+  { name: 'Crossbow', category: 'simple', damageDie: '1d8', damageType: 'P', traits: ['reload 1'], group: 'Crossbow', hands: 2, range: 120 },
+  { name: 'Shortbow', category: 'simple', damageDie: '1d6', damageType: 'P', traits: ['deadly d10'], group: 'Bow', hands: 2, range: 60 },
+  // Martial melee
+  { name: 'Battle Axe', category: 'martial', damageDie: '1d8', damageType: 'S', traits: ['sweep'], group: 'Axe', hands: 1, range: 0 },
+  { name: 'Flail', category: 'martial', damageDie: '1d6', damageType: 'B', traits: ['disarm', 'sweep', 'trip'], group: 'Flail', hands: 1, range: 0 },
+  { name: 'Greataxe', category: 'martial', damageDie: '1d12', damageType: 'S', traits: ['sweep', 'two-hand d12'], group: 'Axe', hands: 2, range: 0 },
+  { name: 'Greatsword', category: 'martial', damageDie: '1d12', damageType: 'S', traits: ['versatile P', 'two-hand d12'], group: 'Sword', hands: 2, range: 0 },
+  { name: 'Longsword', category: 'martial', damageDie: '1d8', damageType: 'S', traits: ['versatile P'], group: 'Sword', hands: 1, range: 0 },
+  { name: 'Rapier', category: 'martial', damageDie: '1d6', damageType: 'P', traits: ['deadly d8', 'disarm', 'finesse'], group: 'Sword', hands: 1, range: 0 },
+  { name: 'Scimitar', category: 'martial', damageDie: '1d6', damageType: 'S', traits: ['forceful', 'sweep'], group: 'Sword', hands: 1, range: 0 },
+  { name: 'Shortsword', category: 'martial', damageDie: '1d6', damageType: 'P', traits: ['agile', 'finesse', 'versatile S'], group: 'Sword', hands: 1, range: 0 },
+  { name: 'Warhammer', category: 'martial', damageDie: '1d8', damageType: 'B', traits: ['shove'], group: 'Hammer', hands: 1, range: 0 },
+  // Martial ranged
+  { name: 'Longbow', category: 'martial', damageDie: '1d8', damageType: 'P', traits: ['deadly d10', 'volley 30 ft'], group: 'Bow', hands: 2, range: 100 },
+];
+
 // ── Convenience lookups ────────────────────────────────────────────────────────────────────────────
 export const pf2Class = (name: string) => PF2_CLASSES.find(c => c.name.toLowerCase() === name.toLowerCase()) || null;
 export const pf2Ancestry = (name: string) => PF2_ANCESTRIES.find(a => a.name.toLowerCase() === name.toLowerCase()) || null;
 export const pf2Background = (name: string) => PF2_BACKGROUNDS.find(b => b.name.toLowerCase() === name.toLowerCase()) || null;
 export const pf2Skill = (name: string) => PF2_SKILLS.find(s => s.name.toLowerCase() === name.toLowerCase()) || null;
 export const pf2Armor = (name: string) => PF2_ARMORS.find(a => a.name.toLowerCase() === name.toLowerCase()) || null;
+export const pf2Weapon = (name: string) => PF2_WEAPONS.find(w => w.name.toLowerCase() === name.toLowerCase()) || null;

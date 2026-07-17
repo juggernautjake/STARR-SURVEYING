@@ -9,9 +9,10 @@ import {
   type PF2Character, type PF2AttributeKey, type PF2Skill, type PF2Feat,
 } from './model';
 import {
-  PF2_SKILLS, pf2Class, pf2Ancestry, pf2Background, pf2Armor,
-  type PF2ClassDef, type PF2AncestryDef,
+  PF2_SKILLS, pf2Class, pf2Ancestry, pf2Background, pf2Armor, pf2Weapon,
+  type PF2ClassDef, type PF2AncestryDef, type PF2WeaponDef,
 } from './content';
+import type { PF2Attack, PF2Rank } from './model';
 import type { Character } from '@/app/dnd/_sheet/types';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import { pf2MaxHp, pf2ArmorClass, pf2Derived, pf2SpellSlots } from './rules';
@@ -52,12 +53,27 @@ export interface PF2Picks {
   trainedSkills?: string[];
   /** Worn armor (a PF2_ARMORS name). Sets the AC item bonus + Dex cap; defaults to Unarmored. */
   armor?: string;
+  /** A wielded weapon (a PF2_WEAPONS name) added as the primary Strike, alongside the default Fist. */
+  weapon?: string;
   languages?: string[];
   bio?: string;
   photoUrl?: string;
 }
 
 const ZERO = (): Record<PF2AttributeKey, number> => ({ STR: 0, DEX: 0, CON: 0, INT: 0, WIS: 0, CHA: 0 });
+
+const DAMAGE_TYPE: Record<'B' | 'P' | 'S', string> = { B: 'bludgeoning', P: 'piercing', S: 'slashing' };
+
+/** Turn a weapon into a Strike: ranged weapons and finesse melee use DEX when it beats STR; melee adds
+ *  STR to damage, ranged shows the die alone. The attack RANK is the character's class attack proficiency. */
+export function pf2WeaponStrike(w: PF2WeaponDef, attributes: Record<PF2AttributeKey, number>, rank: PF2Rank): PF2Attack {
+  const ranged = w.range > 0;
+  const finesse = w.traits.includes('finesse');
+  const attribute: PF2AttributeKey = ranged ? 'DEX' : finesse && attributes.DEX > attributes.STR ? 'DEX' : 'STR';
+  const str = attributes.STR;
+  const dmg = ranged ? `${w.damageDie} ${DAMAGE_TYPE[w.damageType]}` : `${w.damageDie}${str >= 0 ? '+' : ''}${str} ${DAMAGE_TYPE[w.damageType]}`;
+  return { id: `wpn-${w.name.toLowerCase().replace(/\s+/g, '-')}`, name: w.name, attribute, rank, weaponBonus: 0, damage: dmg, traits: w.traits };
+}
 
 /** Compute the level-1 attribute modifiers from ancestry + background + class + free boosts (when the UI
  *  didn't hand us final numbers). Free boosts must go to four DIFFERENT attributes per the rules. */
@@ -140,7 +156,10 @@ export function buildPF2Character(picks: PF2Picks): PF2Character {
       attackRank: init?.attacks ?? 'trained',
       classDcRank: init?.classDc ?? 'trained', classDcAttribute: keyAttr,
     },
-    attacks: [{ id: 'unarmed', name: 'Fist', attribute: 'STR', rank: init?.attacks ?? 'trained', weaponBonus: 0, damage: '1d4 bludgeoning', traits: ['agile', 'finesse', 'nonlethal', 'unarmed'] }],
+    attacks: [
+      ...(picks.weapon && pf2Weapon(picks.weapon) ? [pf2WeaponStrike(pf2Weapon(picks.weapon)!, attributes, init?.attacks ?? 'trained')] : []),
+      { id: 'unarmed', name: 'Fist', attribute: 'STR', rank: init?.attacks ?? 'trained', weaponBonus: 0, damage: '1d4 bludgeoning', traits: ['agile', 'finesse', 'nonlethal', 'unarmed'] },
+    ],
     spellcasting: cls?.spellcasting
       ? { tradition: cls.spellcasting.tradition, kind: cls.spellcasting.kind, attribute: cls.spellcasting.attribute, rank: 'trained', slots: pf2SpellSlots(level) }
       : { tradition: 'none', kind: 'none', attribute: keyAttr, rank: 'untrained', slots: [] },

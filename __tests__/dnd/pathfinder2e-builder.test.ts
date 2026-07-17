@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { buildPF2Character, pf2ApplyBoosts, pf2ComputeAttributes } from '@/lib/dnd/systems/pathfinder2e/builder';
-import { pf2MaxHp, pf2ArmorClass, pf2ClassDc, pf2Derived, pf2SkillTotal } from '@/lib/dnd/systems/pathfinder2e/rules';
+import { buildPF2Character, pf2ApplyBoosts, pf2ComputeAttributes, pf2WeaponStrike } from '@/lib/dnd/systems/pathfinder2e/builder';
+import { PF2_WEAPONS, pf2Weapon } from '@/lib/dnd/systems/pathfinder2e/content';
+import { pf2MaxHp, pf2ArmorClass, pf2ClassDc, pf2Derived, pf2SkillTotal, pf2AttackBonus } from '@/lib/dnd/systems/pathfinder2e/rules';
 import { PF2_CLASSES, PF2_ANCESTRIES, PF2_BACKGROUNDS, PF2_SKILLS, PF2_ARMORS } from '@/lib/dnd/systems/pathfinder2e/content';
 import { pf2Catalog, pf2CatalogCount } from '@/lib/dnd/systems/pathfinder2e/catalog';
 
@@ -163,6 +164,35 @@ describe('PF2 armor drives AC, Dex cap, and speed', () => {
     const c = buildPF2Character({ className: 'Rogue', ancestry: 'Elf' });
     const flagged = c.skills.filter((s) => s.armorPenalty).map((s) => s.name).sort();
     expect(flagged).toEqual(['Acrobatics', 'Athletics', 'Stealth', 'Thievery']);
+  });
+});
+
+describe('PF2 weapons become real Strikes', () => {
+  it('has simple + martial weapons and a lookup', () => {
+    expect(PF2_WEAPONS.length).toBeGreaterThanOrEqual(15);
+    expect(new Set(PF2_WEAPONS.map((w) => w.category))).toEqual(new Set(['simple', 'martial']));
+    expect(pf2Weapon('longsword')!.damageDie).toBe('1d8');
+  });
+  it('a melee Strike uses STR and adds STR to damage', () => {
+    const s = pf2WeaponStrike(pf2Weapon('Longsword')!, { STR: 4, DEX: 1, CON: 0, INT: 0, WIS: 0, CHA: 0 }, 'expert');
+    expect(s.attribute).toBe('STR');
+    expect(s.damage).toBe('1d8+4 slashing');
+  });
+  it('a finesse melee weapon uses DEX when it beats STR', () => {
+    const s = pf2WeaponStrike(pf2Weapon('Rapier')!, { STR: 1, DEX: 4, CON: 0, INT: 0, WIS: 0, CHA: 0 }, 'trained');
+    expect(s.attribute).toBe('DEX');
+  });
+  it('a ranged weapon uses DEX and shows the die without a STR bonus', () => {
+    const s = pf2WeaponStrike(pf2Weapon('Longbow')!, { STR: 4, DEX: 3, CON: 0, INT: 0, WIS: 0, CHA: 0 }, 'trained');
+    expect(s.attribute).toBe('DEX');
+    expect(s.damage).toBe('1d8 piercing');
+  });
+  it('the builder adds the weapon Strike before the Fist, at the class attack rank', () => {
+    const c = buildPF2Character({ className: 'Fighter', ancestry: 'Human', level: 1, attributes: { STR: 4 }, weapon: 'Greatsword' });
+    expect(c.attacks[0].name).toBe('Greatsword');
+    expect(c.attacks[0].rank).toBe('expert');                 // Fighter attack proficiency
+    expect(c.attacks[c.attacks.length - 1].name).toBe('Fist'); // Fist still present
+    expect(pf2AttackBonus(c.attacks[0], 1, c.attributes)).toBe(4 + (4 + 1)); // STR + expert prof
   });
 });
 
