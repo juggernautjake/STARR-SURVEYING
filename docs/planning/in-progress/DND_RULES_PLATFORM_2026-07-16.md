@@ -303,6 +303,11 @@ categories) and Epic Boon remain.
       asserts no species object carries one under ANY name (`abilityScores`/`asi`/`str`/… — the
       2014-vs-2024 trap made un-reintroducible). Spot-checks the distinctive numbers (dwarf/orc 120-ft
       darkvision, goliath 35 speed, halfling Small).
+      **All 10 species' size/speed/darkvision golden-pinned (2026-07-17):** the spot-checks covered only a
+      few; verified every species against 2024 RAW and pinned each — importantly the edition-specific
+      changes a typo would most likely hit: Dwarf & Gnome speed 30 (up from 2014's 25), Dragonborn now HAS
+      darkvision 60, Goliath 35, and `darkvision` undefined for the species without it (Goliath/Halfling/
+      Human). All correct. `species.test.ts` +1.
 - [x] **Languages** + tool proficiencies as lists ✅ SHIPPED (commit pending) —
       `lib/dnd/languages/dnd5e-2024.ts`. All 2024 languages with the Standard/Rare split (Primordial
       carries its Aquan/Auran/Ignan/Terran dialects) and all tools across the four families (Artisan's
