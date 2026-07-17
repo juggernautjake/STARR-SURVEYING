@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  pf2Level,
   pf2Proficiency, pf2Degree, pf2SkillTotal, pf2SaveTotal, pf2PerceptionTotal,
   pf2MaxHp, pf2ArmorClass, pf2ClassDc, pf2SpellDc, pf2SpellAttack,
   pf2AttackBonus, pf2MultipleAttackPenalty, pf2LevelBasedDc, pf2Derived, pf2SpellSlots,
@@ -32,6 +33,17 @@ function fighter5(): PF2Character {
     languages: ['Common', 'Dwarven'],
   };
 }
+
+describe('pf2Level clamps to the 1–20 range (every PF2 number flows through it)', () => {
+  it('clamps below 1, above 20, rounds, and defaults a non-number to 1', () => {
+    expect(pf2Level(5)).toBe(5);
+    expect(pf2Level(0)).toBe(1);
+    expect(pf2Level(-3)).toBe(1);
+    expect(pf2Level(25)).toBe(20);
+    expect(pf2Level(7.6)).toBe(8);
+    expect(pf2Level(Number.NaN)).toBe(1);
+  });
+});
 
 describe('pf2 proficiency', () => {
   it('untrained is +0 and adds no level', () => {
