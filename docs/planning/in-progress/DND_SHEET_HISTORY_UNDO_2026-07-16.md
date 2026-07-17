@@ -58,14 +58,13 @@ Schema is `seeds/*.sql` applied via `scripts/apply-seeds.mjs`; apply to live per
 
 ## Area C — Ask the AI to undo
 
-- [ ] **C1 — An `undo` intent the AI can call.** Add an `undo_last`/`revert_batch` capability to the
-      ai-edit flow (a tool the model picks, or detect "undo/revert/put it back" and route to
-      revert-batch on the most recent AI batch for this character). "Undo my last change" just works.
-- [ ] **C2 — The AI can review the history.** Give the ai-edit/librarian grounding a compact recent-edit
-      digest (last K batches: summary + timestamp + batch id) so the AI can answer "what did you change?"
-      and pick the right batch to undo. Read-only; from `dnd_sheet_edits`.
-- [ ] **C3 — Tests.** an "undo that" instruction reverts the most recent AI batch; the history digest
-      lists recent batches with their summaries.
+- [x] **C1 — An `undo` intent the AI can call. ✅ SHIPPED** (`d7b4d1f9`). An `undo_last_change` tool the
+      model picks on undo/revert/put-back intent; the route reverts the latest un-reverted AI batch
+      (`latestUndoableBatch` → fetch full rows → `revertBatch` → persist → audit source `'revert'`).
+- [x] **C2 — The AI can review the history. ✅ SHIPPED** (`d7b4d1f9`). `recentBatchDigest` folds the
+      last K un-reverted AI batches (summary + short batch id, newest-first) into the ai-edit prompt.
+- [x] **C3 — Tests. ✅** `edit-history.test.ts` (7): latest-undoable picks the newest un-reverted batch
+      and skips already-undone ones; digest is newest-first + empty on no history; rows dedupe by batch.
 
 ## Area D — Restore to an earlier full state (optional / heavier)
 
