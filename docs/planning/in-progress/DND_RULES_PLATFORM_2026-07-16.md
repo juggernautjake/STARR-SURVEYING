@@ -366,9 +366,9 @@ The engine (`lib/dnd/classes/custom.ts`) is built and tested; there is no UI.
 
 One system per slice — depth-first, verified against sources. In priority order:
 
-- [x] **6a — D&D 5e 2014** (all 12 PHB classes ✅; Artificer — a non-PHB class — remains): all 12 classes + Artificer, L1–20. The 2014/2024 differences are the
-      whole point (subclass levels differ per class; ASI at 19; no Weapon Mastery; Ranger has
-      Favored Enemy/Natural Explorer).
+- [x] **6a — D&D 5e 2014 ✅ COMPLETE** — all 12 PHB classes + the Artificer, L1–20, with every
+      subclass. The 2014/2024 differences are locked by tests (subclass levels differ per class; ASI at
+      19 not Epic Boon; no Weapon Mastery; Ranger's Favored Enemy/Natural Explorer; Ki not Focus; etc.).
       **2026-07-16 — ALL 12 PHB CLASSES SHIPPED ✅** (`lib/dnd/classes/dnd5e-2014/`): Barbarian, Bard,
       Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock, Wizard — each L1–20 with
       every PHB subclass, all edition-differences vs 2024 locked by `dnd5e-2014-classes.test.ts` (71
@@ -406,7 +406,7 @@ One system per slice — depth-first, verified against sources. In priority orde
       2024 existed). Both are now **system-scoped**; all three callers (levels API ×2, library page)
       pass the class's system. Tests: `dnd5e-2014-classes.test.ts` (11 — structural validity, L1→20,
       the edition tells, per-class fallback, no-leak) + the 2024 suite updated to the scoped signature.
-      **Remaining 6a:** Artificer only (a non-PHB class from Eberron/TCoE) — the 12 PHB classes are done.
+      **6a DONE** — 12 PHB classes + Artificer, all L1–20 with subclasses (77 tests). Next: 6b (Pathfinder 2e).
 - [ ] **6b — Pathfinder 2e**: classes with flat HP/level, the feat cadence (ancestry 1/5/9/13/17,
       class at even levels, skill at even, general at 3/7/11/15/19), attribute boosts at 5/10/15/20.
 - [ ] **6c — Pathfinder 1e**: BAB progressions, save progressions, skill ranks, feats at odd levels.

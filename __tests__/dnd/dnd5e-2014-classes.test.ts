@@ -17,17 +17,18 @@ const ALL_12 = [
 ];
 
 describe('the 2014 class roster (authored class-by-class)', () => {
-  it('now registers all 12 PHB classes, and the system reports it has class data', () => {
-    expect(CLASSES.map((c) => c.name).sort()).toEqual([...ALL_12].sort());
+  it('registers all 12 PHB classes plus the Artificer, and the system reports it has class data', () => {
+    for (const name of ALL_12) expect(CLASSES.map((c) => c.name)).toContain(name);
+    expect(CLASSES.map((c) => c.name)).toContain('Artificer');
     expect(systemHasClasses(SYS)).toBe(true);
   });
 
   it('resolves per class: an authored one is found, an un-authored one falls back (null)', () => {
     expect(findClass(SYS, 'Barbarian')?.key).toBe('barbarian');
     expect(findClass(SYS, 'barbarian')?.name).toBe('Barbarian');
-    // Artificer is not a PHB class and isn't authored for 2014 → null, so the builder offers the
-    // AI/homebrew path rather than lying about a level table it doesn't have.
-    expect(findClass(SYS, 'Artificer')).toBeNull();
+    // A class the 2014 set doesn't have → null, so the builder offers the AI/homebrew path rather
+    // than lying about a level table it doesn't have.
+    expect(findClass(SYS, 'Warlord')).toBeNull();
   });
 
   it('does not leak across editions — a 2014 class is not a 2024 class', () => {
@@ -387,5 +388,29 @@ describe('Wizard 2014 — the edition-specific numbers', () => {
       'School of Evocation', 'School of Illusion', 'School of Necromancy', 'School of Transmutation',
     ]);
     for (const s of subs) expect(s.features.some((f) => f.level === 14)).toBe(true);
+  });
+});
+
+describe('Artificer 2014 — the half-caster that casts from level 1', () => {
+  const artificer = findClass(SYS, 'artificer')!;
+
+  it('is an INT half-caster preparer with spell slots at LEVEL 1 (rounds up)', () => {
+    expect(artificer.spellcasting?.kind).toBe('half');
+    expect(artificer.spellcasting?.ability).toBe('int');
+    // Unlike a Paladin/Ranger, the Artificer has 1st-rank slots at level 1.
+    expect(snapshotAtLevel(artificer, 1).spellSlots?.[1]).toBe(2);
+  });
+
+  it('has Infuse Item, Flash of Genius, and Soul of Artifice; specialist at 3', () => {
+    expect(artificer.features.some((f) => f.name === 'Infuse Item')).toBe(true);
+    expect(artificer.features.some((f) => f.name === 'Flash of Genius')).toBe(true);
+    expect(artificer.subclassLevel).toBe(3);
+    expect(snapshotAtLevel(artificer, 20).features.some((f) => f.name === 'Soul of Artifice')).toBe(true);
+  });
+
+  it('offers the four specialists (Alchemist, Artillerist, Armorer, Battle Smith) with prepared spells', () => {
+    const subs = subclassesFor(SYS, 'artificer');
+    expect(subs.map((s) => s.name).sort()).toEqual(['Alchemist', 'Armorer', 'Artillerist', 'Battle Smith']);
+    for (const s of subs) expect(Object.keys(s.alwaysPrepared ?? {}).length).toBeGreaterThan(0);
   });
 });
