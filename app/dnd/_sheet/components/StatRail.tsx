@@ -20,7 +20,12 @@ export default function StatRail() {
   const dc = saveDc
   const activeForm = char.forms.find((f) => f.id === activeFormId)
   const formLabel = activeForm ? activeForm.name.split('—').pop()?.trim() : 'Base'
-  const hpRatio = combat.currentHp / Math.max(1, combat.maxHp)
+  // Effective max HP (Slice 10): a +HP buff (Heroes' Feast, Aid) raises it, and the Combat panel already
+  // shows the effective value — so the rail's HP fraction, tone, and max display must use it too, not the
+  // base. Edit the base via the InlineNumber; show the effective.
+  const effMaxHp = ledger.value('hp_max', combat.maxHp)
+  const hpMaxModified = effMaxHp !== combat.maxHp
+  const hpRatio = combat.currentHp / Math.max(1, effMaxHp)
   const hpTone = combat.currentHp <= 0 ? 'crit' : hpRatio <= 0.35 ? 'crit' : hpRatio <= 0.6 ? 'warn' : 'ok'
 
   const setCombat = (patch: Partial<typeof combat>) => setChar((c) => ({ ...c, combat: { ...c.combat, ...patch } }))
@@ -48,7 +53,14 @@ export default function StatRail() {
           <span className="vv">
             <InlineNumber value={combat.currentHp} min={0} path="combat.currentHp" onCommit={(n) => setCombat({ currentHp: n })} title="Double-click to set current HP" />
             <span className="vslash">/</span>
-            <InlineNumber value={combat.maxHp} min={1} path="combat.maxHp" onCommit={(n) => setCombat({ maxHp: n })} title="Double-click to set max HP" />
+            <InlineNumber
+              value={combat.maxHp}
+              min={1}
+              path="combat.maxHp"
+              onCommit={(n) => setCombat({ maxHp: n })}
+              title={hpMaxModified ? `Max HP ${combat.maxHp} base → ${effMaxHp} with effects · double-click to set base` : 'Double-click to set max HP'}
+              display={<span className={hpMaxModified ? 'is-modified' : undefined}>{effMaxHp}{hpMaxModified && <span className="mod-star" aria-hidden>★</span>}</span>}
+            />
           </span>
           {combat.tempHp > 0 && <span className="vtemp">+{combat.tempHp}</span>}
         </div>
