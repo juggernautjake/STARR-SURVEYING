@@ -2498,6 +2498,14 @@ Orthogonal to type, and where the mechanics actually live: `slot` (what it occup
 It is a manual, browser-driven acceptance pass, not an automated test suite (though it may leave
 Playwright specs behind). Do it with the Playwright MCP tools against a real running app.
 
+**Preliminary runtime smoke check ✅ (2026-07-17).** Before the full walkthrough, verified the app
+actually builds + serves after the ~40-commit audit run: `next dev` came up clean, and via Playwright the
+public **`/dnd` hub rendered with 0 console errors/warnings**, **`/dnd/suggestions` returned 200** (no
+error markers), and the **`map-studio.html` tool loaded with 0 console errors** (the Slice-35a handle
+code runs). So the build is healthy and the public surface is error-free at runtime — the character-build
+walkthrough below still needs an interactive session (create account → build a character per system,
+level by level), which is the substantive remainder of this slice.
+
 - [ ] **Fresh account.** Create a NEW user through the pseudo-login (name + password, no email — see
       Slice 36). Confirm the sign-up path works from a clean state.
 - [ ] **First character, D&D 5e 2024, vanilla.** Create a character and walk the WHOLE creation flow
