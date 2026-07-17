@@ -145,7 +145,14 @@ choice — default to removing only the app's copy unless the user opts into ful
       eligibility into ONE next-action — `upload row` / `paused` / `blocked (with reason)` / `idle` — so the
       runtime drain loop becomes trivial (call it, act, repeat) and distinguishes "blocked but has work" from
       "truly done". `drain-decision.test.ts` (4). Every drain decision is now pure + tested; only the loop
-      that calls it (re-query after each confirmed write) is the device-tested part.
+      that calls it (re-query after each confirmed write) is the device-tested part. **Post-upload plan
+      shipped** (`mobile/lib/uploadOutcome.ts`): `planAfterUpload(result, {mode, notifyLevel, retentionPref,
+      savedToCameraRoll})` — the counterpart to `nextDrainStep` — composes the notification (uploadNotify),
+      the confirmed-only retention decision (uploadRetention), and whether to auto-advance
+      (uploadMode.shouldAutoAdvance) into ONE plan, so the runtime's result handler is trivial too. Failure
+      plans a notification but never retention (nothing uploaded) and never advances past the failure.
+      `upload-outcome.test.ts` (5). Together `nextDrainStep` + `planAfterUpload` are the drain loop's entire
+      logic — the runtime only does the I/O (fetch, DB write, fire notification, delete file).
 - [ ] **C2 — Background continuation while using other apps/features.** Uploads must continue while the
       worker uses the rest of the hub/app or leaves the app. Use Expo background upload/task facilities
       (`expo-task-manager` / `expo-background-fetch` or resumable uploads) so a backgrounded/again-
