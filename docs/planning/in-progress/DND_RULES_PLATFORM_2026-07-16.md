@@ -886,7 +886,15 @@ One pure function that every later slice reads. Nothing else in Part II can be b
       the ledger's `isItemActive` reduces to equipped-only, while `deriveAc`, `equipment.collectItemEffects`,
       and the ItemBuilder's "effects while equipped/attuned" label all say equipped-OR-attuned. So an
       attuned-but-unequipped item's AC currently applies but its STR does not. Left unchanged pending a
-      decision on the intended rule; both paths should then use one shared predicate. **Save DC unified the same way**
+      decision on the intended rule; both paths should then use one shared predicate. **Ledger consistency
+      pinned (2026-07-17):** verified the LEDGER itself — the source of truth for the sheet's displayed
+      numbers — is internally consistent (an attuned-but-unworn item contributes NOTHING, neither STR nor
+      AC; a worn item contributes everything), so the sheet can't show the split-brain on a single item.
+      `ledger-attunement.test.ts` (3) characterizes this so a change to the ledger's attunement handling
+      (i.e. implementing the eventual decision) fails loudly and gets reviewed. The cross-path decision
+      (whether attunement ALONE activates effects, unifying the older `collectItemEffects`/`deriveAc` paths
+      with the ledger) remains the owner's call — confirmed consolidating them is NOT behavior-preserving
+      (`deriveAc` also honors the equipped TAG that `collectItemEffects` doesn't), so it can't be done blind. **Save DC unified the same way**
       (`4fcef838`): the StatRail honored the manual override while the Saves & Skills card recomputed
       8+PB+STR and ignored it — two Save DCs on one sheet. Now derived once in the store (`saveDc` =
       override ?? 8+PB+effective STR); both cards read it. `save-dc-single-source.test.ts` (3).
