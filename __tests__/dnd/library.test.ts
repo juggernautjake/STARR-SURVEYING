@@ -413,6 +413,15 @@ describe('Intuitive Games classes surface fully on the library (IG buildout A10)
     expect(searchLibrary('sohei', 'intuitive-games').some((h) => h.kind === 'class')).toBe(true);
     expect(searchLibrary('conduit', 'intuitive-games').some((h) => h.kind === 'class')).toBe(true);
   });
+
+  it('the classes section carries per-class detail (granted stance, defensive power, powers) + the taxonomy note', () => {
+    const classes = libraryPageFor('intuitive-games')!.sections.find((s) => s.id === 'classes')!;
+    expect(classes.body!.some((b) => /Fighter as the parent class/.test(b))).toBe(true); // taxonomy finding surfaced
+    const sohei = classes.body!.find((b) => b.startsWith('Sohei'));
+    expect(sohei).toMatch(/Precise stance/);
+    expect(sohei).toMatch(/Counterattack defensive power/);
+    expect(sohei).toMatch(/Flurry/); // a listed power
+  });
 });
 
 describe('Intuitive Games backgrounds surface on the library (IG buildout A6)', () => {

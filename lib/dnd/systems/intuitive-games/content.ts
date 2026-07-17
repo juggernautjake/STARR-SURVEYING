@@ -302,6 +302,28 @@ export const IG_CLASS_GROUPS: IGClassGroup[] = [
   { group: 'Magic', classes: ['Wizard', 'Magician', 'Shaman'] },
 ];
 
+// ── Per-class detail (from intuitivegames.net/classes) — captured group-by-group. FINDING: the site
+//    presents Fighter as the PARENT class of Champion/Freebooter/Marksman/Sohei (subclasses), which differs
+//    from this app's flat 13-class `classNames` list; flagged for owner verification, NOT restructured here.
+//    Only what the site clearly states is captured (no invented per-level features). More classes are a
+//    follow-up (the /classes page summarizes rather than giving verbatim per-level ladders). ──────────────
+export interface IGClassDetail {
+  name: string;
+  primaryAbility?: string;
+  hp?: string;
+  grantedStance?: string;
+  defensivePower?: string;
+  powers?: string[];
+  specializations?: string[];
+  note?: string;
+}
+export const IG_CLASS_DETAILS: IGClassDetail[] = [
+  { name: 'Fighter', primaryAbility: 'Strength or Dexterity', hp: '12 + Background HP', note: 'Parent class of the Champion, Freebooter, Marksman, and Sohei subclasses; base-Fighter specifics are minimal on the site.' },
+  { name: 'Freebooter', hp: '12 + Background HP', grantedStance: 'Mobile', defensivePower: 'Redirect', powers: ['Combat Feat', 'Combat Skill Proficiency', 'Favored Enemy', 'General Skill Proficiency', 'Martial Prowess', 'Weapon Expert', 'Weapon Training'], specializations: ['Dabbler (gain subclass powers from other classes)', 'Virtuoso (advantage on skill rolls)'] },
+  { name: 'Marksman', hp: '12 + Background HP', grantedStance: 'Shifting', defensivePower: 'Redirect', powers: ['Combat Feat', 'Rapid Reload', 'Sharpshooter', 'Shot On The Run', 'Trick Shot', 'Weapon Training'], specializations: ['Sniper (double weapon range, bonus damage)', 'Expert Shot (cover fire, challenge, switch-hitter)'] },
+  { name: 'Sohei', hp: '12 + Background HP', grantedStance: 'Precise', defensivePower: 'Counterattack', powers: ['Advanced Combat Skill', 'Chi Strike', 'Combat Feat', 'Flurry', 'Martial Prowess', 'Weapon Expert', 'Weapon Training'], specializations: ['Chakra Master (mobility/sensory abilities)', 'Sage (apply Divine Curse aspects to attacks)'] },
+];
+
 // ── Subclasses + backgrounds (the documented ones; extensible). ─────────────────────────────────────
 // The five SUBCLASSES (chosen within a class) — distinct from the 13 classes above.
 export const IG_SUBCLASSES: string[] = ['Arcanist', 'Summoner', 'Champion', 'Witch', 'Shifter'];

@@ -173,9 +173,14 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       the class-building overview (HP 8–12 + background HP, primary-attribute ASB, proficient skill + weapons,
       a starting power, subclass access → powers/specializations/greater specializations/manifestations) and
       the 5 subclasses (Arcanist/Summoner/Champion/Witch/Shifter) noted as distinct. All 13 remain searchable.
-      `library.test.ts` +2. **Remaining:** each class's full per-level feature ladder — a dedicated
-      per-class fetch+author pass (large; the site has it, WebFetch summarization makes verbatim fidelity the
-      hard part), tracked for a follow-up so nothing is fabricated.
+      `library.test.ts` +2. **Per-class detail (combat group) added** (`content.ts` `IG_CLASS_DETAILS`):
+      Fighter/Freebooter/Marksman/Sohei now carry HP, granted stance, defensive power, key powers, and
+      specializations in the classes-section body. **⚠ FINDING:** the /classes page presents **Fighter as the
+      parent class** of Champion/Freebooter/Marksman/Sohei (subclasses), contradicting the app's flat 13-class
+      `classNames` list — surfaced as a note, NOT reconciled (needs owner verification vs the live site before
+      restructuring). `library.test.ts` +1. **Remaining:** the other 9 classes' details + full per-level
+      ladders — the /classes page summarizes rather than giving verbatim ladders, so this stays a careful
+      group-by-group pass (nothing fabricated), plus the taxonomy question above.
 - [~] **A11 — Spell List / Powers** (`/spell-list`) — ✅ *Surfaced* (`library.ts`): the existing
       `IG_POWERS` (~38 powers by school, with effect text), `IG_DEFENSIVE_POWERS` (6 reactions), and the
       `IG_ACTIONS` 3-action-economy list now render as library sections (Powers & Spells / Defensive Powers /

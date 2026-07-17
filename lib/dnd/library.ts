@@ -11,7 +11,7 @@ import { glossaryFor, searchGlossary } from './glossary';
 import { classesForSystem } from './classes/registry';
 import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
-import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, IG_COMPANION_TYPES, IG_COMPANION_RULES, IG_BACKGROUND_DEFS, IG_CLASS_GROUPS, IG_CLASS_RULES, IG_SUBCLASSES, type NamedEntry, type IGStance, type IGAncestry, type IGCompanionType, type IGBackground } from './systems/intuitive-games/content';
+import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, IG_COMPANION_TYPES, IG_COMPANION_RULES, IG_BACKGROUND_DEFS, IG_CLASS_GROUPS, IG_CLASS_RULES, IG_SUBCLASSES, IG_CLASS_DETAILS, type NamedEntry, type IGStance, type IGAncestry, type IGCompanionType, type IGBackground } from './systems/intuitive-games/content';
 import { igAllFeats, type IGFeat } from './systems/intuitive-games/feats';
 import { IG_WEAPON_RULES, IG_WEAPON_CLASS_DATA, IG_WEAPON_PROPERTIES, IG_ARMOR_RULES, IG_ARMORS, IG_SHIELD_RULES, IG_SHIELDS, IG_EQUIPMENT_PACKS, IG_EQUIPMENT_NOTE, IG_TOOL_RULES, IG_MAGIC_ITEM_RULES, IG_ENCHANTMENTS } from './systems/intuitive-games/items';
 import { IG_SKILL_RULES, IG_COMBAT_SKILL_RULES, IG_COMBAT_SKILLS, IG_BUILD_STEPS, IG_PROGRESSION_NOTE, IG_DAMAGE_SAVE_RULES, IG_DAMAGE_TYPE_DATA, IG_COVER, IG_MOVEMENT_RULES, IG_SIZE_CATEGORIES, IG_SIZE_NOTE } from './systems/intuitive-games/content';
@@ -241,6 +241,15 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
     // IG: the full 13-class roster grouped into its four groups (the generic table only carries a 3-class
     // sample). Per-class feature ladders are a follow-up; this gives the complete roster + how classes work.
     const total = IG_CLASS_GROUPS.reduce((n, g) => n + g.classes.length, 0);
+    // Per-class detail captured so far (from /classes). More classes are a follow-up; the site's class↔
+    // subclass split (Fighter as a parent of Freebooter/Marksman/Sohei/Champion) differs from the flat
+    // roster above — surfaced honestly as a note, not silently reconciled.
+    const detailLines = IG_CLASS_DETAILS.map((c) => {
+      const head = [c.primaryAbility, c.hp, c.grantedStance && `${c.grantedStance} stance`, c.defensivePower && `${c.defensivePower} defensive power`].filter(Boolean).join('; ');
+      const powers = c.powers?.length ? ` Powers: ${c.powers.join(', ')}.` : '';
+      const spec = c.specializations?.length ? ` Specializations: ${c.specializations.join('; ')}.` : '';
+      return `${c.name} — ${head}.${powers}${spec}${c.note ? ` ${c.note}` : ''}`;
+    });
     sections.push({
       id: 'classes',
       title: 'Classes',
@@ -249,6 +258,10 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
         headers: ['Group', 'Classes'],
         rows: IG_CLASS_GROUPS.map((g) => [g.group, g.classes.join(', ')]),
       },
+      body: [
+        `Per-class detail (captured so far — ${IG_CLASS_DETAILS.length} of ${total}; note the site treats Fighter as the parent class of Champion/Freebooter/Marksman/Sohei):`,
+        ...detailLines,
+      ],
     });
   } else if (r.content.classes.length) {
     const hpHeader = r.content.classes.some((c) => c.hitDie != null) ? 'Hit die' : 'HP / level';
