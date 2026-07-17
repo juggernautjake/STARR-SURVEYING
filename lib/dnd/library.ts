@@ -14,7 +14,7 @@ import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type
 import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, IG_COMPANION_TYPES, IG_COMPANION_RULES, IG_BACKGROUND_DEFS, IG_CLASS_GROUPS, IG_CLASS_RULES, IG_SUBCLASSES, type NamedEntry, type IGStance, type IGAncestry, type IGCompanionType, type IGBackground } from './systems/intuitive-games/content';
 import { igAllFeats, type IGFeat } from './systems/intuitive-games/feats';
 import { IG_WEAPON_RULES, IG_WEAPON_CLASS_DATA, IG_WEAPON_PROPERTIES, IG_ARMOR_RULES, IG_ARMORS, IG_SHIELD_RULES, IG_SHIELDS, IG_EQUIPMENT_PACKS, IG_EQUIPMENT_NOTE, IG_TOOL_RULES, IG_MAGIC_ITEM_RULES, IG_ENCHANTMENTS } from './systems/intuitive-games/items';
-import { IG_SKILL_RULES, IG_COMBAT_SKILL_RULES, IG_COMBAT_SKILLS, IG_BUILD_STEPS, IG_PROGRESSION_NOTE } from './systems/intuitive-games/content';
+import { IG_SKILL_RULES, IG_COMBAT_SKILL_RULES, IG_COMBAT_SKILLS, IG_BUILD_STEPS, IG_PROGRESSION_NOTE, IG_DAMAGE_SAVE_RULES, IG_DAMAGE_TYPE_DATA, IG_COVER, IG_MOVEMENT_RULES, IG_SIZE_CATEGORIES, IG_SIZE_NOTE } from './systems/intuitive-games/content';
 
 /** The full feat registry for a system, or [] when only a catalog sample exists. System-keyed
  *  dispatcher (the pattern `findFeat`'s comment calls for) so a feat never leaks across systems. */
@@ -213,6 +213,18 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
       title: 'Building a character',
       lead: 'The order of choices at level 1 (each step lists what it grants):',
       body: [...IG_BUILD_STEPS, IG_PROGRESSION_NOTE],
+    });
+    // Combat & damage mechanics (from /core-rules): the damage Fortitude save, damage types, cover, movement.
+    sections.push({
+      id: 'damage',
+      title: 'Damage, cover & movement',
+      lead: IG_DAMAGE_SAVE_RULES,
+      table: { headers: ['Damage type', 'Notes'], rows: IG_DAMAGE_TYPE_DATA.map((d) => [d.name, d.note]) },
+      body: [
+        `Cover: ${IG_COVER.map((c) => `${c.name} — ${c.effect}`).join(' ')}`,
+        IG_MOVEMENT_RULES,
+        `${IG_SIZE_NOTE} Sizes: ${IG_SIZE_CATEGORIES.join(', ')}.`,
+      ],
     });
   }
 
@@ -622,7 +634,11 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
       }
     }
     for (const s of r.content.skills) push('skill', s.name, `${s.name} — governed by ${s.ability} in ${r.label}.`);
-    if (key === 'intuitive-games') for (const cs of IG_COMBAT_SKILLS) push('combat-skill', cs, `${cs} — an Intuitive Games combat skill (opposed vs the target's Reflex save). ${IG_COMBAT_SKILL_RULES}`);
+    if (key === 'intuitive-games') {
+      for (const cs of IG_COMBAT_SKILLS) push('combat-skill', cs, `${cs} — an Intuitive Games combat skill (opposed vs the target's Reflex save). ${IG_COMBAT_SKILL_RULES}`);
+      for (const d of IG_DAMAGE_TYPE_DATA) push('damage-type', d.name, `${d.name} — a damage type in ${r.label}: ${d.note}`);
+      for (const c of IG_COVER) push('cover', c.name, `${c.name} cover in ${r.label}: ${c.effect}`);
+    }
     // Systems with full ancestry data (IG) expose each ancestry with its trait text, and each trait by
     // name ("barkskin", "cave vision"); the rest fall back to the name stub + prose notes.
     const igAncestries = ancestriesWithTraitsFor(key);

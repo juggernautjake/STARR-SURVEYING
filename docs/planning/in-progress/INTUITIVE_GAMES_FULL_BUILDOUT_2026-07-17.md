@@ -93,8 +93,13 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       establish the repeatable fetch→entry pipeline (mirroring the SIT/learn `JSON→gen_seed` approach if
       applicable). Decide TS-module vs seed, and how an entry expresses sections + a machine-readable term
       list the AI can consume.
-- [ ] **A1 — Core Rules** (`/core-rules`) — the foundational mechanics (action economy, checks, the core
-      resolution system).
+- [x] **A1 — Core Rules** (`/core-rules`) — ✅ SHIPPED. The core resolution, action economy, saves, and
+      ability model were already in the library (from `system-rules.ts`); this slice adds the remaining
+      `/core-rules` mechanics as a **Damage, cover & movement** section (`content.ts`): the damage **Fortitude
+      save** (DC = total HP lost; degree-by-degree action loss), the 6 **damage types** (DR/incorporeal
+      notes), the 4 **cover** types, the **movement** speeds (Walk/Hustle/Tactical/Stride/Run), and the 9
+      **size categories** — all verbatim from the site, damage types + cover searchable. `library.test.ts`
+      +2 (guard now 24 sections).
 - [x] **A2 — Character Building** (`/character-building`) — ✅ SHIPPED (`content.ts` `IG_BUILD_STEPS` +
       `IG_PROGRESSION_NOTE`). A "Building a character" library section captures the **level-1 creation order**
       (intro → 8 ASBs cap 14 → background → class → subclass → traits → one Combat + one General feat → 2+INT

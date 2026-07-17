@@ -309,6 +309,40 @@ export const IG_SUBCLASSES: string[] = ['Arcanist', 'Summoner', 'Champion', 'Wit
 // The Combat Skills (Sheet 4) — tracked separately from general skills. Str/Dex variants share these names.
 export const IG_COMBAT_SKILLS = new Set(['Dirty Trick', 'Disarm', 'Feint', 'Grapple', 'Overrun', 'Reposition', 'Steal', 'Sunder', 'Trip']);
 
+// Combat & damage mechanics (from intuitivegames.net/core-rules).
+export const IG_DAMAGE_SAVE_RULES =
+  'When you take damage, make a Fortitude save at the start of your next turn; the DC equals the total HP ' +
+  'lost. Critical success: no ill effects and no bleed damage this turn. Success: no ill effects. Partial ' +
+  'success: you lose your reaction. Failure: you lose one action this round. Critical failure: you lose two ' +
+  'actions this round.';
+
+export interface IGDamageType { name: string; note: string }
+export const IG_DAMAGE_TYPE_DATA: IGDamageType[] = [
+  { name: 'Physical (Piercing / Bludgeoning / Slashing)', note: 'Subject to DR; does not affect incorporeal creatures.' },
+  { name: 'Bleed', note: 'Not subject to DR; recurring; does not affect incorporeal; stopped via the Heal skill or magical healing.' },
+  { name: 'Elemental (Acid / Fire / Cold / Electricity / Sonic)', note: 'Subject to DR; affects incorporeal creatures.' },
+  { name: 'Force', note: 'Not subject to DR; affects incorporeal creatures.' },
+  { name: 'Plasma', note: 'Rare; does not affect incorporeal; deals 1 HP per object touched.' },
+  { name: 'Nonlethal', note: 'Not subject to DR; affects incorporeal creatures.' },
+];
+
+export interface IGCover { name: string; effect: string }
+export const IG_COVER: IGCover[] = [
+  { name: 'Impassable', effect: 'Automatically critically succeeds all Reflex saves.' },
+  { name: 'Full Coverage', effect: 'Double advantage on Reflex saves and Stealth checks.' },
+  { name: 'Partial Coverage', effect: '+2 bonus on Reflex saves and Stealth checks.' },
+  { name: 'Visibility Coverage', effect: 'Advantage on Reflex saves and Stealth checks (does not apply while flat-footed).' },
+];
+
+export const IG_MOVEMENT_RULES =
+  'Walk: standard non-tactical (3 mph); you cannot heal nonlethal damage while walking. Hustle: jogging ' +
+  '(6 mph); 1 nonlethal damage per 10 minutes. Tactical movement (in combat): 1 nonlethal damage per minute. ' +
+  'Stride: a single action, moving 20 feet for most creatures. Run: use all three actions moving roughly ' +
+  'straight, gaining an additional 20 feet.';
+
+export const IG_SIZE_CATEGORIES = ['Miniscule', 'Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Giant', 'Massive', 'Colossal'];
+export const IG_SIZE_NOTE = 'Nine size categories; each adjusts reach, ability scores, and stealth/damage relative to Medium.';
+
 // The level-1 character-building order (from intuitivegames.net/character-building).
 export const IG_BUILD_STEPS: string[] = [
   'Character Introduction — pick a name and ancestry, record physical traits (height, weight, age), and write biographical details.',

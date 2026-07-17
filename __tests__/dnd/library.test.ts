@@ -291,7 +291,7 @@ describe('Intuitive Games library is complete (IG buildout A17 completeness guar
     const ids = new Set(page.sections.map((s) => s.id));
     // Every page of the site is represented as a library section.
     const required = [
-      'core', 'abilities', 'advancement', 'character-building', 'classes', 'skills', 'combat-skills',
+      'core', 'abilities', 'advancement', 'character-building', 'damage', 'classes', 'skills', 'combat-skills',
       'species', 'backgrounds', 'stances', 'conditions', 'feats', 'powers', 'defensive-powers', 'actions',
       'companions', 'weapons', 'weapon-properties', 'armor', 'shields', 'equipment', 'tools', 'magical-items',
     ];
@@ -301,6 +301,22 @@ describe('Intuitive Games library is complete (IG buildout A17 completeness guar
       const filled = !!(s.body?.length || s.facts?.length || s.chips?.length || s.table?.rows.length);
       expect(filled, `IG section "${s.title}" has content`).toBe(true);
     }
+  });
+});
+
+describe('Intuitive Games damage/cover/movement mechanics surface (IG buildout A1)', () => {
+  it('renders a Damage/cover/movement section with the damage Fortitude save + damage types', () => {
+    const page = libraryPageFor('intuitive-games')!;
+    const dmg = page.sections.find((s) => s.id === 'damage')!;
+    expect(dmg.lead).toMatch(/Fortitude save.*DC equals the total HP lost/i);
+    expect(dmg.table!.rows.some((r) => /Bleed/.test(r[0]))).toBe(true);
+    expect(dmg.body!.some((b) => /Impassable/.test(b))).toBe(true); // cover
+    expect(dmg.body!.some((b) => /Hustle/.test(b))).toBe(true); // movement
+  });
+
+  it('a damage type and a cover type are searchable', () => {
+    expect(searchLibrary('bleed', 'intuitive-games').some((h) => h.kind === 'damage-type')).toBe(true);
+    expect(searchLibrary('partial coverage', 'intuitive-games').some((h) => h.kind === 'cover')).toBe(true);
   });
 });
 
