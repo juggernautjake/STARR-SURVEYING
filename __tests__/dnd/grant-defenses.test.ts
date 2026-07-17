@@ -50,11 +50,38 @@ describe('the ledger collects defenses with their source', () => {
 });
 
 describe('CombatPanel renders the defenses as their home', () => {
-  it('reads collected() for all three and gates each on non-empty', () => {
+  it('reads the ledger for all three and gates each on non-empty', () => {
     expect(COMBAT).toContain("ledger.collected('resistance')");
-    expect(COMBAT).toContain("ledger.collected('immunity')");
     expect(COMBAT).toContain("ledger.collected('vulnerability')");
+    // Damage immunity is now collected by TARGET (explain), not by the shared 'immunity' operation.
+    expect(COMBAT).toContain("ledger.explain('immunity')");
     expect(COMBAT).toContain('resistances.length > 0');
     expect(COMBAT).toContain('vulnerabilities.length > 0');
+  });
+});
+
+describe('condition immunity is separated from damage immunity (shared op, distinct targets)', () => {
+  const ward: SheetEdit = {
+    op: 'add_item',
+    name: 'Ward of the Steadfast',
+    equipped: true,
+    effects: [
+      { target: 'immunity', operation: 'immunity', value: 'poison' }, // a DAMAGE immunity
+      { target: 'condition_immunity', operation: 'immunity', value: 'Frightened' }, // a CONDITION immunity
+    ],
+  } as SheetEdit;
+
+  it('the ledger keeps them on their own targets even though they share the immunity operation', () => {
+    const led = buildLedger(applySheetEdits(blankCharacter('Ward'), [ward]));
+    // explain(target) separates them; collected(op) would conflate them into one list.
+    expect(led.explain('immunity').map((c) => c.effect.value)).toEqual(['poison']);
+    expect(led.explain('condition_immunity').map((c) => c.effect.value)).toEqual(['Frightened']);
+    expect(led.collected('immunity').map((r) => r.value).sort()).toEqual(['Frightened', 'poison']); // the conflation the panel must NOT show
+  });
+
+  it('the panel renders a distinct "Immune to conditions" line, so a condition immunity is not mislabeled as damage', () => {
+    expect(COMBAT).toContain("ledger.explain('condition_immunity')");
+    expect(COMBAT).toContain('Immune to conditions');
+    expect(COMBAT).toContain('conditionImmunities.length > 0');
   });
 });

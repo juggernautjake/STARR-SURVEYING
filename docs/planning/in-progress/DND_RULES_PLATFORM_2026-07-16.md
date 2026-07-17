@@ -958,7 +958,13 @@ rendered nowhere. `SavesSkills` now lists granted proficiencies under Skills, ea
 pattern: `collected('resistance'|'immunity'|'vulnerability')` was available but unrendered. The
 Defenses card in `CombatPanel` now lists each, per-type, tagged with its source (vulnerabilities in
 the danger colour), gated on non-empty. Tests: `grant-defenses.test.ts` (3) — collected+sourced,
-gone-on-unequip, render wiring.
+gone-on-unequip, render wiring. **Condition-immunity conflation fixed (2026-07-17):** `condition_immunity`
+is a DISTINCT target (a named condition — Frightened, Poisoned) but shares the `immunity` OPERATION with
+damage immunity, and `collected('immunity')` filters by operation — so an authored condition immunity
+rendered mislabeled inside the damage "Immune — fire, poison" list. Now each is collected by TARGET via
+`explain('immunity')` / `explain('condition_immunity')` (with a local value-dedup) and condition
+immunities get their own "Immune to conditions" line — the distinct Defenses home the registry promises.
+`grant-defenses.test.ts` +2 (ledger keeps them on separate targets; the panel renders the new line).
 
 **Grant: senses ✅ SHIPPED (commit pending).** `grant_sense` (darkvision 60, tremorsense…) uses op
 `set`, so it's read via `ledger.explain('grant_sense')` rather than `collected`. The Defenses card
