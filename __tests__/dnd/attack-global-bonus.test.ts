@@ -25,4 +25,11 @@ describe('global attack/damage bonus effects reach the rolls', () => {
   it('the Attacks component pulls the ledger from the store to do the fold', () => {
     expect(ATTACKS).toMatch(/useChar\(\)[\s\S]*ledger/);
   });
+
+  it('the to-hit also folds ledger advantage/disadvantage on attack rolls', () => {
+    // An effect targeting attack_roll with op advantage|disadvantage reaches the roll, ORed with the
+    // dice-tray advMode + Reckless (which rollCheck handles). Completes the attack roll-target sweep.
+    expect(ATTACKS).toContain("const atkEf = ledger.rollFlags('attack_roll')");
+    expect(ATTACKS).toContain('advantage: atkEf.advantage, disadvantage: atkEf.disadvantage');
+  });
 });

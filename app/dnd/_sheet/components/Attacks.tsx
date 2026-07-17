@@ -90,6 +90,9 @@ export default function Attacks() {
               // bonus) — the per-attack bonusToHit already handles a specific weapon's +N. No-op without them.
               const toHit = mod + (a.proficient ? pb : 0) + (a.bonusToHit ?? 0)
                 + ledger.value('attack_roll', 0) + ledger.value('attack_and_damage', 0)
+              // Ledger advantage/disadvantage on attack rolls (an effect targeting attack_roll) — ORed
+              // with the dice-tray advMode + Reckless (which rollCheck folds via advMode/strMelee).
+              const atkEf = ledger.rollFlags('attack_roll')
               const die = dieFor(a)
               const isSave = !!a.saveBased
               // Per-attack DC: a flat override wins; otherwise 8 + PB + the chosen ability's mod
@@ -121,7 +124,7 @@ export default function Attacks() {
                         onClick={() =>
                           isSave
                             ? rollDmg(`${a.name} — damage`, die, { tag: `${a.aoe ?? 'AOE'} · ${a.damageType}` })
-                            : rollCheck(`${a.name} — to hit`, toHit, { kind: 'attack', strMelee: a.strMelee })
+                            : rollCheck(`${a.name} — to hit`, toHit, { kind: 'attack', strMelee: a.strMelee, advantage: atkEf.advantage, disadvantage: atkEf.disadvantage })
                         }
                         title={isSave ? 'Roll area damage' : 'Roll to hit'}
                       >
@@ -189,7 +192,7 @@ export default function Attacks() {
                       <div className="btn-row">
                         <button
                           className="rollbtn"
-                          onClick={() => rollCheck(`${a.name} — to hit`, toHit, { kind: 'attack', strMelee: a.strMelee })}
+                          onClick={() => rollCheck(`${a.name} — to hit`, toHit, { kind: 'attack', strMelee: a.strMelee, advantage: atkEf.advantage, disadvantage: atkEf.disadvantage })}
                           title={active ? '' : `Requires ${a.formOnly} form (rolling anyway)`}
                         >
                           Hit
