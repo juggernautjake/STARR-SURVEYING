@@ -30,16 +30,19 @@ Schema is `seeds/*.sql` applied via `scripts/apply-seeds.mjs`; apply to live per
 
 ## Area A — Group edits by AI request (the foundation)
 
-- [ ] **A1 — `batch_id` on `dnd_sheet_edits`.** Add `batch_id uuid` + `source text` (`'ai' | 'manual' |
-      'revert'`) columns via an idempotent seed (`ADD COLUMN IF NOT EXISTS`, index on
-      `(character_id, batch_id)`), applied to live Supabase. Backfill is unnecessary (nullable).
-- [ ] **A2 — Stamp a batch on every AI request.** `ai-edit/route.ts` generates one `batch_id` per request
-      and writes it on all that request's audit rows (source `'ai'`), plus a human `summary` (already
-      computed) stored so the batch has a label. Manual/revert paths stamp their own source.
-- [ ] **A3 — Return the batch to the client.** The `ai-edit` response includes `batchId` + a short
-      `editsPreview` (op + field_path per edit) so the chat knows exactly what it just did.
-- [ ] **A4 — Tests.** a multi-edit AI request shares one batch_id; source is tagged; the response carries
-      the batch id + preview.
+- [x] **A1 — `batch_id` on `dnd_sheet_edits`. ✅ SHIPPED** (`635a8312`). `seeds/450` adds `batch_id uuid`
+      + `source` (`ai|manual|revert`, CHECK) + `summary`, indexed on `(character_id, batch_id, created_at)`;
+      applied to live Supabase.
+- [x] **A2 — Stamp a batch on every AI request. ✅ SHIPPED** (`635a8312`). `ai-edit/route.ts` generates
+      one `batch_id` per request and writes it on all that request's audit rows with `source: 'ai'` + the
+      request summary.
+- [x] **A3 — Return the batch to the client. ✅ SHIPPED** (`635a8312`). The mechanics response now includes
+      `batchId`, `batchSummary`, and `editsPreview` (op + path per edit).
+- [~] **A4 — Tests.** The `revertBatch` round-trip is fully tested (`revert-batch.test.ts`); the route's
+      batch-stamping itself is exercised end-to-end by B (a route-level test needs Supabase/session mocks —
+      deferred, low value vs. the pure-logic coverage).
+- [x] **B1 — revertBatch primitive ✅ SHIPPED early** (`635a8312`): `revertBatch(char, AuditedEdit[])` folds
+      `revertSheetEdit` in reverse order; 3 tests incl. the "all-powerful → back to normal" round-trip.
 
 ## Area B — Undo a whole request
 
