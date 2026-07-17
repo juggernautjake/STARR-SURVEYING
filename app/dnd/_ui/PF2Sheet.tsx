@@ -88,17 +88,20 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
 
       {/* Skills */}
       <div>
-        <div style={label}>Skills</div>
+        <div style={label}>Skills{pf2.combat.armorCheckPenalty ? <span style={{ fontWeight: 400, color: 'var(--hx-muted)', fontSize: 10 }}> · armor check penalty {pf2.combat.armorCheckPenalty} on ▲ skills</span> : null}</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 4, marginTop: 6 }}>
-          {pf2.skills.map((sk) => (
-            <div key={sk.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: '3px 8px', border: '1px solid var(--hx-line)', borderRadius: 6, opacity: sk.rank === 'untrained' ? 0.55 : 1 }}>
-              <span style={{ fontSize: 11.5, color: 'var(--hx-text)' }}>{sk.name} <span style={{ color: 'var(--hx-muted)', fontSize: 9.5 }}>{sk.attribute}</span></span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <strong style={{ fontSize: 12.5, color: 'var(--hx-teal-1)' }}>{fmt(pf2SkillTotal(sk, id.level, pf2.attributes))}</strong>
-                <RankPill rank={sk.rank} />
-              </span>
-            </div>
-          ))}
+          {pf2.skills.map((sk) => {
+            const penalized = !!sk.armorPenalty && !!pf2.combat.armorCheckPenalty;
+            return (
+              <div key={sk.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: '3px 8px', border: '1px solid var(--hx-line)', borderRadius: 6, opacity: sk.rank === 'untrained' ? 0.55 : 1 }}>
+                <span style={{ fontSize: 11.5, color: 'var(--hx-text)' }}>{sk.name}{penalized ? <span title="armor check penalty applies" style={{ color: 'var(--hx-gold-2)' }}> ▲</span> : null} <span style={{ color: 'var(--hx-muted)', fontSize: 9.5 }}>{sk.attribute}</span></span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <strong style={{ fontSize: 12.5, color: 'var(--hx-teal-1)' }}>{fmt(pf2SkillTotal(sk, id.level, pf2.attributes, pf2.combat.armorCheckPenalty))}</strong>
+                  <RankPill rank={sk.rank} />
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
 

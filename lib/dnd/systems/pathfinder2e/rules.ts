@@ -28,9 +28,12 @@ export function pf2Degree(total: number, dc: number, natural?: number): PF2Degre
   return (['critical-failure', 'failure', 'success', 'critical-success'] as const)[step];
 }
 
-/** A skill's total modifier: its attribute modifier + proficiency + item bonus. */
-export function pf2SkillTotal(skill: PF2Skill, level: number, attributes: Record<PF2AttributeKey, number>): number {
-  return (attributes[skill.attribute] ?? 0) + pf2Proficiency(skill.rank, level) + (skill.itemBonus || 0);
+/** A skill's total modifier: its attribute modifier + proficiency + item bonus, minus the armor check
+ *  penalty for the four armor-affected skills (Acrobatics/Athletics/Stealth/Thievery) when one applies.
+ *  `armorCheckPenalty` is ≤ 0; it only bites skills flagged `armorPenalty`. */
+export function pf2SkillTotal(skill: PF2Skill, level: number, attributes: Record<PF2AttributeKey, number>, armorCheckPenalty = 0): number {
+  const penalty = skill.armorPenalty ? (armorCheckPenalty || 0) : 0;
+  return (attributes[skill.attribute] ?? 0) + pf2Proficiency(skill.rank, level) + (skill.itemBonus || 0) + penalty;
 }
 
 /** A saving throw's total: governing attribute modifier + proficiency + item bonus. */

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildPF2Character, pf2ApplyBoosts, pf2ComputeAttributes } from '@/lib/dnd/systems/pathfinder2e/builder';
-import { pf2MaxHp, pf2ArmorClass, pf2ClassDc, pf2Derived } from '@/lib/dnd/systems/pathfinder2e/rules';
+import { pf2MaxHp, pf2ArmorClass, pf2ClassDc, pf2Derived, pf2SkillTotal } from '@/lib/dnd/systems/pathfinder2e/rules';
 import { PF2_CLASSES, PF2_ANCESTRIES, PF2_BACKGROUNDS, PF2_SKILLS, PF2_ARMORS } from '@/lib/dnd/systems/pathfinder2e/content';
 import { pf2Catalog, pf2CatalogCount } from '@/lib/dnd/systems/pathfinder2e/catalog';
 
@@ -144,6 +144,25 @@ describe('PF2 armor drives AC, Dex cap, and speed', () => {
   it('records the worn armor name for display', () => {
     const c = buildPF2Character({ className: 'Cleric', ancestry: 'Human', armor: 'Breastplate' });
     expect(c.combat.armorName).toBe('Breastplate');
+  });
+  it('applies the armor CHECK penalty only to the 4 armor skills, and only when Strength is unmet', () => {
+    // Full Plate check penalty -3, Str req 4. Unmet (STR 0) → penalty bites Athletics/Stealth etc.
+    const unmet = buildPF2Character({ className: 'Fighter', ancestry: 'Human', level: 1, attributes: { STR: 0, DEX: 2 }, armor: 'Full Plate', trainedSkills: ['Athletics', 'Arcana'] });
+    expect(unmet.combat.armorCheckPenalty).toBe(-3);
+    const athletics = unmet.skills.find((s) => s.name === 'Athletics')!; // STR skill, armor-penalized
+    const arcana = unmet.skills.find((s) => s.name === 'Arcana')!;        // INT skill, NOT penalized
+    expect(pf2SkillTotal(athletics, 1, unmet.attributes, unmet.combat.armorCheckPenalty)).toBe(0 + (2 + 1) - 3); // 0
+    expect(pf2SkillTotal(arcana, 1, unmet.attributes, unmet.combat.armorCheckPenalty)).toBe(0 + (2 + 1));         // 3 (no penalty)
+    // Meeting the requirement waives the check penalty entirely.
+    const met = buildPF2Character({ className: 'Fighter', ancestry: 'Human', level: 1, attributes: { STR: 4 }, armor: 'Full Plate', trainedSkills: ['Athletics'] });
+    expect(met.combat.armorCheckPenalty).toBe(0);
+    const metAth = met.skills.find((s) => s.name === 'Athletics')!;
+    expect(pf2SkillTotal(metAth, 1, met.attributes, met.combat.armorCheckPenalty)).toBe(4 + (2 + 1)); // 7, no penalty
+  });
+  it('flags exactly the four armor-check skills', () => {
+    const c = buildPF2Character({ className: 'Rogue', ancestry: 'Elf' });
+    const flagged = c.skills.filter((s) => s.armorPenalty).map((s) => s.name).sort();
+    expect(flagged).toEqual(['Acrobatics', 'Athletics', 'Stealth', 'Thievery']);
   });
 });
 

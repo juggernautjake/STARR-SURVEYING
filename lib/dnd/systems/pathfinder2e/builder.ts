@@ -97,6 +97,7 @@ export function buildPF2Character(picks: PF2Picks): PF2Character {
   (picks.trainedSkills ?? []).forEach((s) => trained.add(s.toLowerCase()));
   const skills: PF2Skill[] = PF2_SKILLS.map((s) => ({
     name: s.name, attribute: s.attribute, rank: trained.has(s.name.toLowerCase()) ? 'trained' : 'untrained', itemBonus: 0,
+    armorPenalty: !!s.armorPenalty,
   }));
 
   const init = cls?.initial;
@@ -107,6 +108,8 @@ export function buildPF2Character(picks: PF2Picks): PF2Character {
   // skill-penalty slice.)
   const meetsStr = armor ? attributes.STR >= armor.strength : true;
   const speedPenalty = armor ? (meetsStr ? Math.min(0, armor.speedPenalty + 5) : armor.speedPenalty) : 0;
+  // The check penalty is waived entirely when the Strength requirement is met.
+  const armorCheckPenalty = armor && !meetsStr ? armor.checkPenalty : 0;
 
   const feats: PF2Feat[] = [];
   if (cls) feats.push({ id: 'cls-key', name: `${cls.name} (${cls.subclassLabel})`, level: 1, track: 'feature', traits: [cls.name], body: cls.summary });
@@ -133,7 +136,7 @@ export function buildPF2Character(picks: PF2Picks): PF2Character {
       currentHp: (anc?.hp ?? 8) + ((cls?.hpPerLevel ?? 8) + con) * level,
       tempHp: 0, dyingValue: 0, woundedValue: 0,
       speed: (anc?.speed ?? 25) + speedPenalty,
-      armorRank: init?.defense ?? 'trained', dexCap: armor ? armor.dexCap : null, acItemBonus: armor?.acBonus ?? 0, armorName: armor?.name || 'Unarmored',
+      armorRank: init?.defense ?? 'trained', dexCap: armor ? armor.dexCap : null, acItemBonus: armor?.acBonus ?? 0, armorName: armor?.name || 'Unarmored', armorCheckPenalty,
       attackRank: init?.attacks ?? 'trained',
       classDcRank: init?.classDc ?? 'trained', classDcAttribute: keyAttr,
     },
