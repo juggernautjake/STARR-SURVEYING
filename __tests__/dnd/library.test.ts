@@ -285,6 +285,26 @@ describe('Intuitive Games feats carry full rules text (IG buildout A7 + A8)', ()
   });
 });
 
+describe('Intuitive Games classes surface fully on the library (IG buildout A10)', () => {
+  it('renders all 13 classes grouped into 4 groups with the class-system overview', () => {
+    const page = libraryPageFor('intuitive-games')!;
+    const classes = page.sections.find((s) => s.id === 'classes')!;
+    expect(classes.table!.headers).toEqual(['Group', 'Classes']);
+    expect(classes.table!.rows).toHaveLength(4); // 4 groups
+    const totalClasses = classes.table!.rows.reduce((n, r) => n + r[1].split(', ').length, 0);
+    expect(totalClasses).toBe(13);
+    expect(classes.lead).toMatch(/13 classes in 4 groups/);
+    expect(classes.lead).toMatch(/Subclasses.*Arcanist/); // subclasses noted, distinct from classes
+    const combat = classes.table!.rows.find((r) => r[0] === 'Combat');
+    expect(combat?.[1]).toMatch(/Fighter/);
+  });
+
+  it('every IG class is still searchable (via classNames)', () => {
+    expect(searchLibrary('sohei', 'intuitive-games').some((h) => h.kind === 'class')).toBe(true);
+    expect(searchLibrary('conduit', 'intuitive-games').some((h) => h.kind === 'class')).toBe(true);
+  });
+});
+
 describe('Intuitive Games backgrounds surface on the library (IG buildout A6)', () => {
   it('renders a Backgrounds table with HP, boosts, proficiencies, and the granted Stance', () => {
     const page = libraryPageFor('intuitive-games')!;

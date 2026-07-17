@@ -146,7 +146,16 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       all — and each stance is searchable by name ("defensive stance") with both tiers. System-scoped (no
       leak to systems without the mechanic). The structured defs also set up the Area-B stance editor (B5).
       `ig-content.test.ts` +1, `library.test.ts` +3; fixed 2 tests that asserted the old wording.
-- [ ] **A10 — Classes** (`/classes`) — all 13+ classes across the 4 groups, each with its features/progression.
+- [~] **A10 — Classes** (`/classes`) — ✅ *Roster + overview shipped* (`content.ts` `IG_CLASS_GROUPS` +
+      `IG_CLASS_RULES`). The library classes section previously showed only a 3-class sample; it now shows
+      **all 13 classes grouped into the 4 groups** (Summoning: Archon/Beastmaster/Eldritch Binder/Packmaster ·
+      Nature: Conduit/Druid · Combat: Fighter/Freebooter/Marksman/Sohei · Magic: Wizard/Magician/Shaman) with
+      the class-building overview (HP 8–12 + background HP, primary-attribute ASB, proficient skill + weapons,
+      a starting power, subclass access → powers/specializations/greater specializations/manifestations) and
+      the 5 subclasses (Arcanist/Summoner/Champion/Witch/Shifter) noted as distinct. All 13 remain searchable.
+      `library.test.ts` +2. **Remaining:** each class's full per-level feature ladder — a dedicated
+      per-class fetch+author pass (large; the site has it, WebFetch summarization makes verbatim fidelity the
+      hard part), tracked for a follow-up so nothing is fabricated.
 - [~] **A11 — Spell List / Powers** (`/spell-list`) — ✅ *Surfaced* (`library.ts`): the existing
       `IG_POWERS` (~38 powers by school, with effect text), `IG_DEFENSIVE_POWERS` (6 reactions), and the
       `IG_ACTIONS` 3-action-economy list now render as library sections (Powers & Spells / Defensive Powers /

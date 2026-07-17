@@ -11,7 +11,7 @@ import { glossaryFor, searchGlossary } from './glossary';
 import { classesForSystem } from './classes/registry';
 import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
-import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, IG_COMPANION_TYPES, IG_COMPANION_RULES, IG_BACKGROUND_DEFS, type NamedEntry, type IGStance, type IGAncestry, type IGCompanionType, type IGBackground } from './systems/intuitive-games/content';
+import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, IG_COMPANION_TYPES, IG_COMPANION_RULES, IG_BACKGROUND_DEFS, IG_CLASS_GROUPS, IG_CLASS_RULES, IG_SUBCLASSES, type NamedEntry, type IGStance, type IGAncestry, type IGCompanionType, type IGBackground } from './systems/intuitive-games/content';
 import { igAllFeats, type IGFeat } from './systems/intuitive-games/feats';
 
 /** The full feat registry for a system, or [] when only a catalog sample exists. System-keyed
@@ -213,7 +213,20 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
     });
   }
 
-  if (r.content.classes.length) {
+  if (key === 'intuitive-games') {
+    // IG: the full 13-class roster grouped into its four groups (the generic table only carries a 3-class
+    // sample). Per-class feature ladders are a follow-up; this gives the complete roster + how classes work.
+    const total = IG_CLASS_GROUPS.reduce((n, g) => n + g.classes.length, 0);
+    sections.push({
+      id: 'classes',
+      title: 'Classes',
+      lead: `${total} classes in ${IG_CLASS_GROUPS.length} groups. ${IG_CLASS_RULES} Subclasses (chosen within a class): ${IG_SUBCLASSES.join(', ')}.`,
+      table: {
+        headers: ['Group', 'Classes'],
+        rows: IG_CLASS_GROUPS.map((g) => [g.group, g.classes.join(', ')]),
+      },
+    });
+  } else if (r.content.classes.length) {
     const hpHeader = r.content.classes.some((c) => c.hitDie != null) ? 'Hit die' : 'HP / level';
     sections.push({
       id: 'classes',

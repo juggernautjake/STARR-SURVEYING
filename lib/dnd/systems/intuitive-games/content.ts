@@ -283,8 +283,27 @@ export const IG_WEAPON_TYPES: string[] = IG_WEAPON_CLASSES.flatMap((c) => IG_DAM
 // ── Movement types. ─────────────────────────────────────────────────────────────────────────────────
 export const IG_MOVEMENT_TYPES: string[] = ['None', 'Fast', ...['Fly', 'Climb', 'Burrow', 'Swim'].flatMap((m) => [10, 20, 30].map((n) => `${m} ${n}`))];
 
+// ── Classes (from intuitivegames.net/classes) — 13 classes in 4 groups. Each grants starting HP (8–12 +
+//    background HP), an Ability Score Boost to its primary attribute, a proficient skill + weapon
+//    proficiencies, and a starting power; each has subclass options granting additional powers,
+//    specializations, greater specializations, and manifestations. (The 5 subclasses below are NOT
+//    counted among the 13 classes.) Per-class full feature ladders are a follow-up (source-only). ──────
+export const IG_CLASS_RULES =
+  'There are 13 classes in four groups. Each class grants starting hit points (8–12, plus your background ' +
+  'HP), an Ability Score Boost to the class’s primary attribute, a proficient skill and weapon ' +
+  'proficiencies, and a starting power. Each class has subclass options that grant additional powers, ' +
+  'specializations, greater specializations, and manifestations.';
+
+export interface IGClassGroup { group: string; classes: string[] }
+export const IG_CLASS_GROUPS: IGClassGroup[] = [
+  { group: 'Summoning', classes: ['Archon', 'Beastmaster', 'Eldritch Binder', 'Packmaster'] },
+  { group: 'Nature', classes: ['Conduit', 'Druid'] },
+  { group: 'Combat', classes: ['Fighter', 'Freebooter', 'Marksman', 'Sohei'] },
+  { group: 'Magic', classes: ['Wizard', 'Magician', 'Shaman'] },
+];
+
 // ── Subclasses + backgrounds (the documented ones; extensible). ─────────────────────────────────────
-// The five SUBCLASSES from the template's "Subclass List" (Data Sheet) — distinct from the 13 classes.
+// The five SUBCLASSES (chosen within a class) — distinct from the 13 classes above.
 export const IG_SUBCLASSES: string[] = ['Arcanist', 'Summoner', 'Champion', 'Witch', 'Shifter'];
 
 // The Combat Skills (Sheet 4) — tracked separately from general skills. Str/Dex variants share these names.
