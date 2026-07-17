@@ -121,15 +121,16 @@ describe('spellcasting is wired to the shared tables', () => {
   it('full casters read the full table', () => {
     for (const n of ['Bard', 'Cleric', 'Druid', 'Sorcerer', 'Wizard']) {
       expect(casterOf(n)?.kind, n).toBe('full');
-      expect(casterOf(n)?.slots?.[5]?.[3], `${n} L5 3rd-rank slots`).toBe(FULL_CASTER_SLOTS[5][3]);
-      expect(casterOf(n)?.slots?.[20]?.[9], `${n} L20 9th`).toBe(1);
+      // "wired to the shared table" means the SAME object — an off-by-one copy or a mis-imported table
+      // would pass a cell-value check but fail this. Also keeps kind and slots from silently desyncing.
+      expect(casterOf(n)?.slots, `${n} uses the shared FULL_CASTER_SLOTS`).toBe(FULL_CASTER_SLOTS);
     }
   });
 
   it('Paladin and Ranger are HALF casters', () => {
     for (const n of ['Paladin', 'Ranger']) {
       expect(casterOf(n)?.kind, n).toBe('half');
-      expect(casterOf(n)?.slots?.[20]?.[6], `${n} never reaches rank 6`).toBe(HALF_CASTER_SLOTS[20][6]);
+      expect(casterOf(n)?.slots, `${n} uses the shared HALF_CASTER_SLOTS`).toBe(HALF_CASTER_SLOTS);
     }
   });
 
