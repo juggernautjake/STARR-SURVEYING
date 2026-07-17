@@ -93,14 +93,14 @@ darkvision, `<ul>` of `{name}. {text}`). Data: `lib/dnd/species/dnd5e-2024.ts` (
 
 **Gaps (the parts NOT applied):**
 
-- [ ] **D1 — Speed penalty.** 2024 exhaustion reduces Speed by 5 ft per level. Apply it through the
-      effects ledger / speed derivation (not a cosmetic note) so the Combat panel's Speed reflects it and
-      the ★ explains it. Verify it stacks correctly with other speed effects.
-- [ ] **D2 — Make the applied penalty legible.** The d20 penalty is invisible today (just baked into the
-      roll). Surface "Exhaustion N: −2N to d20 tests, −5N ft speed" near the exhaustion stepper so the
-      player sees why their numbers moved.
-- [ ] **D3 — Tests.** speed drops 5 ft per level through the ledger; the d20 penalty remains (regression
-      guard); exhaustion 0 changes nothing (no false penalty).
+- [x] **D1 — Speed penalty. ✅ SHIPPED** (`f298b3b6`). Exhaustion contributes a `speed_walk` effect
+      (−5 × level) as a 'condition' source in `ledger.ts`, so the Combat panel's Speed reflects it and
+      the ★ explains it. Stacks with equipped speed items (tested).
+- [x] **D2 — Make the applied penalty legible. ✅ SHIPPED** (`f298b3b6`). The StatRail exhaustion pill
+      now states both penalties in its tooltip and shows an inline "−N d20 · −M ft" summary when exhausted.
+- [x] **D3 — Tests. ✅** `exhaustion-speed.test.ts` (4): 0 = unmodified (no false penalty), −5/level,
+      starred + explained as the exhaustion source, stacks with a speed item. (The d20 penalty regression
+      is guarded by the existing store/rollCheck tests.)
 
 ---
 
