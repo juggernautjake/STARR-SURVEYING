@@ -941,8 +941,23 @@ Original action items (kept for the remaining work):
       item builder exposes a Weight (lb) input; `inventory-carrying.test.ts` (4) locks the wiring.
       (Weapon-damage-die scaling for some effects remains a later item.) The `size` effect target was
       already wired.
-- [ ] **Size** — weapon damage dice for some
-      systems, grapple/shove legality. Wire it to those, or it is a costume.
+- [~] **Size** — weapon damage dice / grapple-shove legality. **Bonus-dice path ✅ SHIPPED**
+      (`85a39e6e`): a new `weapon_bonus_dice` roll target (dice-valued, add-only) lets any effect add
+      DICE to weapon damage — `damage_roll` only added a flat number, so Enlarge's +1d4, a flametongue's
+      +1d6 fire, an elemental brand's +2d6 all had no home. `rollWeaponDamage` collects every
+      non-suppressed ledger contribution, parses each into a typed segment (`parseBonusDamageSegment`),
+      and rolls it into the weapon's damage with a BONUS DICE tag. So `size` now has a real mechanical
+      route: **Enlarge = the size identity-set bundled with a +1d4 `weapon_bonus_dice` effect** — an
+      authored, citable rule, not an invented auto-scaling of the base dice (which is not a PHB rule for
+      PCs and would violate Ground Rule 3). Also fixed a latent `describeEffect` bug (dice-add rendered
+      as "+0 <label>"). `weapon-bonus-dice.test.ts` (13).
+      **DEFERRED — generic size→base-dice auto-scaling + grapple/shove legality gating.** Auto-doubling
+      a PC's weapon dice by size is a Monster-Manual design convention, not a PHB rule for player
+      characters, so deriving it automatically would invent a rule; the real mechanic is per-effect
+      bonus dice, now shipped above. Grapple/shove size legality is a real rule but has **no home on the
+      sheet** (no grapple/shove action UI to gate) — wiring a target that renders nowhere is exactly the
+      "a target with no home is a lie" failure this doc forbids. Both revisit if/when a grapple UI or a
+      per-system oversized-weapon rule lands.
 - [ ] **Grant targets**: `grant_feature`, `grant_attack`, `grant_spell`, `grant_resource`,
       `grant_sense`, plus the existing `grant_proficiency`. This is the pendant that gives you an
       ability from another class entirely — the granted feature appears in Features with a badge
