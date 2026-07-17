@@ -41,4 +41,10 @@ describe('FieldCrewWorkspace is job-driven (B1/B2)', () => {
     expect(SRC).toContain('/api/admin/jobs/files?job_id=');
     expect(SRC).toContain('bySection');
   });
+
+  it('the Photo tab reviews the job’s captured media (read-only gallery)', () => {
+    expect(SRC).toContain('JobMedia');
+    expect(SRC).toContain('/field-data');
+    expect(SRC).toContain('job_media');
+  });
 });

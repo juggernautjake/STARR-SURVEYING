@@ -110,6 +110,7 @@ export default function FieldCrewWorkspace({ userEmail: _ }: FieldCrewWorkspaceP
           : activeTab === 'calc' ? <FieldCalculator />
           : activeTab === 'notes' ? <FieldNotes jobId={jobId} />
           : activeTab === 'files' ? <JobFiles jobId={jobId} />
+          : activeTab === 'photo' ? <JobMedia jobId={jobId} />
           : <TabContent tab={activeTab} jobId={jobId} />}
       </section>
     </div>
@@ -245,6 +246,69 @@ function FieldNotes({ jobId }: { jobId: string | null }) {
         style={{ width: '100%', resize: 'vertical', padding: 10, borderRadius: 6, border: '1px solid var(--theme-border)', background: 'var(--theme-bg-elevated)', color: 'var(--theme-fg-primary)', fontSize: '0.95rem' }}
       />
       <div style={{ fontSize: '0.78rem', color: 'var(--theme-fg-secondary)' }}>{savedAt ? `Saved on this device · ${savedAt}` : 'Saved automatically on this device.'}</div>
+    </div>
+  );
+}
+
+interface JobMediaItem {
+  id: string;
+  media_type?: string | null;
+  storage_signed_url?: string | null;
+  thumbnail_signed_url?: string | null;
+  original_signed_url?: string | null;
+  captured_at?: string | null;
+  uploaded_by_name?: string | null;
+  upload_state?: string | null;
+}
+
+/** A read-only gallery of the job's captured field media (photos/videos/voice) — captured on the
+ *  mobile app, reviewed here. Capture on web is a mobile-first concern (see the plan); this surfaces
+ *  what's already been captured so a field worker can confirm coverage from the hub. */
+function JobMedia({ jobId }: { jobId: string | null }) {
+  const [media, setMedia] = useState<JobMediaItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!jobId) { setMedia([]); return; }
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/admin/jobs/${encodeURIComponent(jobId)}/field-data`)
+      .then((r) => (r.ok ? r.json() : { job_media: [] }))
+      .then((j) => { if (!cancelled) setMedia((j.job_media ?? []) as JobMediaItem[]); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [jobId]);
+
+  const card: React.CSSProperties = { padding: 'var(--hub-spc-4, 16px)', borderRadius: 8, background: 'var(--theme-bg-surface)', border: '1px solid var(--theme-border)' };
+  if (!jobId) return <div style={card}><p style={{ margin: 0, color: 'var(--theme-fg-secondary)', fontSize: '0.9rem' }}>Select a job to review its captured photos and videos.</p></div>;
+  if (loading) return <div style={card}><p style={{ margin: 0, color: 'var(--theme-fg-secondary)', fontSize: '0.9rem' }}>Loading captured media…</p></div>;
+
+  return (
+    <div style={{ ...card, display: 'grid', gap: 10 }}>
+      <p style={{ margin: 0, color: 'var(--theme-fg-secondary)', fontSize: '0.82rem' }}>
+        Captured media for this job. New capture happens in the field on the mobile app; this reviews what&apos;s been uploaded.
+      </p>
+      {!media.length ? (
+        <p style={{ margin: 0, color: 'var(--theme-fg-secondary)', fontSize: '0.9rem' }}>No media captured for this job yet.</p>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
+          {media.map((m) => {
+            const thumb = m.thumbnail_signed_url || m.storage_signed_url;
+            const open = m.original_signed_url || m.storage_signed_url || undefined;
+            return (
+              <a key={m.id} href={open} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'grid', gap: 3 }} title={m.captured_at ? new Date(m.captured_at).toLocaleString() : undefined}>
+                <div style={{ aspectRatio: '1 / 1', borderRadius: 6, overflow: 'hidden', background: 'var(--theme-bg-elevated)', border: '1px solid var(--theme-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {thumb && (m.media_type === 'photo' || !m.media_type)
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={thumb} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <span style={{ fontSize: 26 }} aria-hidden>{m.media_type === 'video' ? '🎬' : m.media_type === 'voice' ? '🎙' : '📄'}</span>}
+                </div>
+                <span style={{ fontSize: '0.72rem', color: 'var(--theme-fg-secondary)' }}>{m.uploaded_by_name || m.media_type || 'media'}</span>
+              </a>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
