@@ -164,7 +164,7 @@ const grantTargets: TargetDef[] = [
   { key: 'grant_spell', label: 'Spell', group: 'grant', valueType: 'ref', ops: ['set'], help: 'Grant a spell, prepared or castable.', rendersAt: 'Spells tab' },
   { key: 'grant_resource', label: 'Resource track', group: 'grant', valueType: 'ref', ops: ['set'], help: 'Grant a usage pool (charges, points) with its own reset rule.', rendersAt: 'Combat tab · Resources' },
   { key: 'grant_sense', label: 'Sense', group: 'grant', valueType: 'sense', ops: ['set'], help: 'Grant darkvision / tremorsense / truesight / blindsight, with a range.', rendersAt: 'Combat tab · Senses' },
-  { key: 'grant_language', label: 'Language', group: 'grant', valueType: 'text', ops: ['grant_proficiency'], help: 'Grant a language.', rendersAt: 'Overview · Languages' },
+  { key: 'grant_language', label: 'Language', group: 'grant', valueType: 'text', ops: ['grant_proficiency'], help: 'Grant a language.', rendersAt: 'Skills tab · Granted Proficiencies' },
 ];
 
 // ── Identity ─────────────────────────────────────────────────────────────────
