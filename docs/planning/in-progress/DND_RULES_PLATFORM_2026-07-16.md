@@ -487,8 +487,13 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
 - [x] **Guardrails**: `glossary.test.ts` now includes a no-duplicate-terms integrity check per system;
       `system-integrity.test.ts` enforces no cross-system leakage. Every entry carries seeAlso links +
       search aliases and resolves through the no-key keyword search.
-- [ ] Remaining: the Intuitive Games glossary adapter (above); and once class data exists per system,
-      project classes/subclasses/feats into the searchable library too (not just conditions/rules).
+- [x] **Classes project into library search ✅** — confirmed `searchLibrary` already surfaces **every
+      class feature by name + level** via `classesForSystem(key)` for any system with full class data, so
+      the whole **2014 roster (built this session) is automatically searchable** alongside 2024
+      ("brutal critical", "sneak attack", "action surge" all resolve to the real rules text), and a
+      feature never leaks across systems (2014 Brutal Critical is not a 2024 result). Stale
+      "currently dnd5e-2024" comment fixed; `library.test.ts` +2. **Remaining:** PF2e classes need the
+      dedicated PF2e model before they can project the same way (catalog-level entries only for now).
 
 ## Slice 8 — Semantic search (optional, needs a key)
 

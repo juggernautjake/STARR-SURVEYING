@@ -170,3 +170,17 @@ describe('searchLibrary returns full EXPLANATIONS, not stubs', () => {
     }
   });
 });
+
+describe('full class data projects into library search (Slice 8b)', () => {
+  it('surfaces class FEATURES by name + level for systems with full class data', () => {
+    // 2024 (built earlier) and 2014 (built this session) both expose their class features to search.
+    expect(searchLibrary('action surge', 'dnd5e-2024').some((h) => h.name === 'Action Surge' && h.kind === 'feature')).toBe(true);
+    expect(searchLibrary('brutal critical', 'dnd5e-2014').some((h) => h.name === 'Brutal Critical' && h.kind === 'feature')).toBe(true);
+    expect(searchLibrary('sneak attack', 'dnd5e-2014').some((h) => h.name === 'Sneak Attack')).toBe(true);
+  });
+
+  it('a class feature never leaks across systems (2014 Brutal Critical is not a 2024 result)', () => {
+    // 2024 Barbarian has Brutal STRIKE, not Brutal Critical — the 2014 feature must not appear under 2024.
+    expect(searchLibrary('brutal critical', 'dnd5e-2024').some((h) => h.name === 'Brutal Critical')).toBe(false);
+  });
+});

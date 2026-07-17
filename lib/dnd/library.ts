@@ -266,8 +266,9 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
       push('class', c.name, `${c.name} — key ability ${c.keyAbility}; ${hp}; saves ${c.saves.join(' & ') || '—'}; ${c.caster === 'none' ? 'non-caster' : `${c.caster} caster`}.`);
     }
     for (const n of r.content.classNames ?? []) if (!r.content.classes.some((c) => c.name === n)) push('class', n, `${n} — a ${r.label} class.`);
-    // Systems with FULL class data (currently dnd5e-2024) also expose every class feature by
-    // name, so "action surge" or "sneak attack" finds the actual rules text and its level.
+    // Systems with FULL class data (dnd5e-2024 AND now dnd5e-2014) also expose every class feature by
+    // name, so "action surge", "sneak attack", or "brutal critical" finds the actual rules text and
+    // its level — the whole 2014 roster projects into library search automatically once registered.
     for (const c of classesForSystem(key)) {
       for (const f of c.features) {
         if (f.choice && !f.body) continue;
