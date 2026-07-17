@@ -20,12 +20,15 @@ import { FEATS_2024, type Feat } from '@/lib/dnd/feats/dnd5e-2024';
  * they're surfaced in the label so the player knows what a feat needs. Empty for non-2024 systems,
  * where we don't yet ship a feat list — those fall back to the explicit-custom text entry.
  */
-function asiFeatChoices(system: string, level: number): Feat[] {
+function asiFeatChoices(system: string, level: number, extra: Feat[] = []): Feat[] {
   if (system !== 'dnd5e-2024') return [];
-  return FEATS_2024.filter((f) => {
+  const official = FEATS_2024.filter((f) => {
     if (f.category !== 'general' && !(f.category === 'epic-boon' && level >= 19)) return false;
     return (f.prerequisites ?? []).every((p) => p.minLevel == null || level >= p.minLevel);
   });
+  // Saved homebrew feats (already category-eligible + adapted by the levels route) sit alongside them.
+  const homebrew = extra.filter((f) => f.category === 'general' || (f.category === 'epic-boon' && level >= 19));
+  return [...official, ...homebrew];
 }
 
 /** A short "(needs STR 13, Spellcasting)" hint for a feat's non-level prerequisites. */
@@ -65,6 +68,8 @@ interface PlanResponse {
   classKnown: boolean;
   outstanding: Outstanding[];
   gained: { level: number; name: string; body: string; subclass?: boolean }[];
+  /** Saved homebrew feats (adapted) to offer at ASI slots, alongside the official list. */
+  homebrewFeats?: Feat[];
   ready: boolean;
   choices: Choice[];
   error?: string;
@@ -302,7 +307,7 @@ export default function LevelBuilder({
                 )}
                 <span style={{ color: 'var(--hx-muted)', fontSize: 12 }}>or take a feat instead</span>
                 {(() => {
-                  const choices = asiFeatChoices(system, current.level);
+                  const choices = asiFeatChoices(system, current.level, plan?.homebrewFeats ?? []);
                   const known = new Set(choices.map((f) => f.key));
                   // A feat is "custom" when it's set but not one of the rules-legal choices — the
                   // explicit escape hatch, which reveals a free-text name field.
