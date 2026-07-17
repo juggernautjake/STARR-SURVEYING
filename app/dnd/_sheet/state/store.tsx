@@ -628,7 +628,7 @@ export function CharacterProvider({
       const w = item.weapon
       if (!w) return
       const abilityKey = w.ability ?? 'str'
-      const mod = abilityMod(char.abilities[abilityKey])
+      const mod = abilityMod(abilities[abilityKey]) // effective (Slice 10) — a STR/DEX item raises weapon damage
       const formBonus = item.tags?.includes('weapon') && char.combat.transformActive ? char.combat.formDamageBonus : 0
       const flat = mod + formBonus
       // Ledger-granted bonus damage DICE (Enlarge's +1d4, a flametongue's +1d6 fire) ride on top of the
@@ -655,7 +655,7 @@ export function CharacterProvider({
         { landing: typed.total, min: Math.max(1, flat + 1), max: Math.max(2, maxV), isD20: false },
       )
     },
-    [char.abilities, char.combat.transformActive, char.combat.formDamageBonus, ledger, stage],
+    [abilities, char.combat.transformActive, char.combat.formDamageBonus, ledger, stage],
   )
 
   const rollExpr = useCallback(
@@ -676,9 +676,12 @@ export function CharacterProvider({
   const castSpell = useCallback(
     (spell: Spell) => {
       const sc = char.spellcasting
-      const mod = sc ? abilityMod(char.abilities[sc.ability]) : 0
-      const pb = profBonusForLevel(char.meta.level)
-      const saveDC = char.combat.saveDCOverride ?? 8 + pb + mod
+      // Effective spellcasting ability (Slice 10): a Headband of Intellect (Wizard) or a CHA item
+      // (Sorcerer) must raise the spell save DC and spell attack, not just the ability pill. `pb` is the
+      // ledger-effective proficiency, and the DC/attack fold their own `spell_save_dc`/`spell_attack`
+      // effects on top.
+      const mod = sc ? abilityMod(abilities[sc.ability]) : 0
+      const saveDC = char.combat.saveDCOverride ?? ledger.value('spell_save_dc', 8 + pb + mod)
       const label = spell.alias ? `${spell.name} (“${spell.alias}”)` : spell.name
       if (spell.level > 0) {
         setCharState((c) => {
@@ -701,7 +704,7 @@ export function CharacterProvider({
         }
         setCharState((c) => ({ ...c, activeEffects: [...(c.activeEffects ?? []).filter((x) => x.id !== ae.id), ae] }))
       }
-      if (spell.attack) rollCheck(`${label} — spell attack`, pb + mod, { kind: 'attack' })
+      if (spell.attack) rollCheck(`${label} — spell attack`, ledger.value('spell_attack', pb + mod), { kind: 'attack' })
       if (spell.damage && spell.damage.length) {
         const typed = rollTyped(spell.damage.map((d) => ({ dice: d.dice, type: d.type })))
         const tag = spell.save ? `${spell.save.ability.toUpperCase()} save DC ${saveDC}` : undefined
@@ -716,7 +719,7 @@ export function CharacterProvider({
         commitRoll({ label: `${label} — cast`, kind: 'raw', total: 0, breakdown: spell.save ? `${spell.save.ability.toUpperCase()} save DC ${saveDC}` : spell.level > 0 ? `L${spell.level} slot spent` : 'cantrip' })
       }
     },
-    [char.spellcasting, char.abilities, char.meta.level, char.combat.saveDCOverride, rollCheck, rollExpr, stage, commitRoll],
+    [char.spellcasting, abilities, pb, ledger, char.combat.saveDCOverride, rollCheck, rollExpr, stage, commitRoll],
   )
 
   // Use a class feature: spend its resource (if any) and roll/apply its effect (heal/temp HP

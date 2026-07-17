@@ -134,7 +134,7 @@ const PHRASES = [
 ]
 
 export default function StreamChat({ characterId, campaignId, initialStream, viewerCanChat }: { characterId: string; campaignId?: string | null; initialStream?: StreamState; viewerCanChat?: boolean }) {
-  const { char, pb, commitRoll, isDM, canWrite } = useChar()
+  const { char, abilities, pb, commitRoll, isDM, canWrite } = useChar()
   // A fellow player watching the stream (not the streamer/DM) can chat as a viewer.
   const [viewerMsg, setViewerMsg] = useState('')
   const [viewerSending, setViewerSending] = useState(false)
@@ -584,7 +584,7 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
   // "Resist the chat" — a proficient Wisdom (willpower) save vs the patron's current DC.
   // Posts to the sheet log + the shared roll feed, and flashes a result banner.
   const rollResist = () => {
-    const mod = abilityMod(char.abilities.wis) + pb
+    const mod = abilityMod(abilities.wis) + pb // effective WIS (Slice 10) — a WIS item aids the save
     const r = rollD20(mod, 'flat')
     const ok = r.total >= resistDc
     const label = `Resist the Chat (DC ${resistDc})`

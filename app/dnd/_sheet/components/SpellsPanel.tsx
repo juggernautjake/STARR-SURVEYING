@@ -6,7 +6,7 @@
 import { useState } from 'react'
 import { useChar } from '../state/store'
 import { isItemActive } from '@/lib/dnd/effects/ledger'
-import { abilityMod, profBonusForLevel, signed } from '../rules/dnd'
+import { abilityMod, signed } from '../rules/dnd'
 import { md } from '../lib/inline'
 import SectionHead from './ui/SectionHead'
 import ElementMenu from './ui/ElementMenu'
@@ -25,7 +25,7 @@ function damageLine(s: Spell): string {
 }
 
 export default function SpellsPanel() {
-  const { char, setChar, editMode, canWrite, ledger, castSpell, setSpellSlot, restoreSpellSlots } = useChar()
+  const { char, abilities, pb, setChar, editMode, canWrite, ledger, castSpell, setSpellSlot, restoreSpellSlots } = useChar()
   const [editing, setEditing] = useState<Spell | null>(null)
   const duplicate = (sp: Spell) =>
     setChar((c) => ({ ...c, spells: [...(c.spells ?? []), { ...sp, id: `${sp.id}-copy-${(c.spells ?? []).length}`, name: `${sp.name} (copy)` }] }))
@@ -49,8 +49,10 @@ export default function SpellsPanel() {
   // Show the tab if the character casts OR an item grants them a spell.
   if ((!sc || spells.length === 0) && grantedSpells.length === 0) return null
 
-  const mod = sc ? abilityMod(char.abilities[sc.ability]) : 0
-  const pb = profBonusForLevel(char.meta.level)
+  // Effective spellcasting ability + proficiency (Slice 10): a Headband of Intellect must raise the
+  // Wizard's Spell Save DC and attack, not just the INT pill. The DC/attack then fold their own
+  // `spell_save_dc`/`spell_attack` effects on top.
+  const mod = sc ? abilityMod(abilities[sc.ability]) : 0
   // Route the DC + attack through the ledger (Slice 33) so an item that grants `spell_save_dc` /
   // `spell_attack` composes with the caster's own base — a Rod of the Pact Keeper's +1 DC lands on
   // top of 8+PB+mod rather than being ignored. `value(target, base)` respects the caller's base
