@@ -13,6 +13,7 @@ import {
 } from '@/lib/dnd/classes/engine';
 import { buildCustomClass, reviewCustomClass, buildCustomFeat, reviewCustomFeat, normalisePerLevel, type CustomClassDraft } from '@/lib/dnd/classes/custom';
 import { FULL_CASTER_SLOTS, HALF_CASTER_SLOTS, THIRD_CASTER_SLOTS, PACT_SLOTS, PACT_RANK } from '@/lib/dnd/classes/slots';
+import { findClass } from '@/lib/dnd/classes/registry';
 import type { ClassDefinition } from '@/lib/dnd/classes/types';
 
 describe('proficiency bonus + HP maths', () => {
@@ -117,6 +118,30 @@ describe('multiclass caster level', () => {
 
   it('pact levels never merge into the slot table', () => {
     expect(multiclassCasterLevel([{ kind: 'pact', level: 5 }])).toBe(0);
+  });
+
+  it('the Artificer half-caster rounds UP (ceil), unlike Paladin/Ranger which round down', () => {
+    // The famous exception: an Artificer contributes ceil(level/2) to the multiclass caster level.
+    // Odd levels are where it diverges — Artificer 1 already contributes a level; a round-down half
+    // caster contributes none until level 2.
+    expect(multiclassCasterLevel([{ kind: 'half', level: 1, roundUp: true }])).toBe(1); // ceil(1/2)=1, not 0
+    expect(multiclassCasterLevel([{ kind: 'half', level: 3, roundUp: true }])).toBe(2); // ceil(3/2)=2, not 1
+    expect(multiclassCasterLevel([{ kind: 'half', level: 5, roundUp: true }])).toBe(3); // ceil(5/2)=3, not 2
+    // vs a Paladin/Ranger at the same level (round down) — the default, unchanged.
+    expect(multiclassCasterLevel([{ kind: 'half', level: 5 }])).toBe(2);
+    // Artificer 3 / Wizard 3 → ceil(3/2)=2 + 3 = caster level 5 (would be 4 if it wrongly rounded down).
+    expect(multiclassCasterLevel([{ kind: 'half', level: 3, roundUp: true }, { kind: 'full', level: 3 }])).toBe(5);
+  });
+
+  it('the Artificer class definition carries the round-up flag so a caller can pass roundUp', () => {
+    // The rounding is a property of the class, recorded at the source (not hardcoded in the caller).
+    const artificer = findClass('dnd5e-2014', 'artificer');
+    expect(artificer?.spellcasting?.kind).toBe('half');
+    expect(artificer?.spellcasting?.roundHalfUp).toBe(true);
+    // A true round-DOWN half caster (Ranger) must NOT carry the flag, or it would round up too.
+    const ranger = findClass('dnd5e-2014', 'ranger');
+    expect(ranger?.spellcasting?.kind).toBe('half');
+    expect(ranger?.spellcasting?.roundHalfUp).toBeFalsy();
   });
 });
 

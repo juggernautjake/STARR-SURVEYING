@@ -435,6 +435,16 @@ One system per slice — depth-first, verified against sources. In priority orde
       **2014** paths (Berserker, Totem Warrior) — the 2024 paths (Wild Heart/World Tree/Zealot) do NOT
       appear. This drives both the class-table render (the doc's "in the running app" bar) AND the
       cross-system integrity guard in the live builder, not just in unit tests.
+      **Artificer multiclass rounding fixed (2026-07-17):** `multiclassCasterLevel` halved every `half`
+      caster with `Math.floor` — correct for Paladin/Ranger but WRONG for the Artificer, the one 5e half
+      caster whose multiclass levels round UP (ceil). Because Artificer shares `kind: 'half'`, the function
+      couldn't tell them apart, so an Artificer at odd levels was under-counted by one caster level (an
+      Artificer 3 gave caster level 1, not 2 — a missing spell slot when combined with another caster).
+      Recorded the exception at the source (`spellcasting.roundHalfUp: true` on the Artificer def, a new
+      optional `ClassSpellcasting` field) and taught `multiclassCasterLevel` to honor it via an optional
+      per-part `roundUp`; Paladin/Ranger (no flag) still round down. Latent today (multiclass slot-merging
+      isn't wired to the sheet yet) but the utility + its test enshrined the wrong rule; now RAW-correct.
+      `class-engine.test.ts` +2 (ceil at odd levels; the Artificer def carries the flag, Ranger doesn't).
       **2026-07-16 — ALL 12 PHB CLASSES SHIPPED ✅** (`lib/dnd/classes/dnd5e-2014/`): Barbarian, Bard,
       Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock, Wizard — each L1–20 with
       every PHB subclass, all edition-differences vs 2024 locked by `dnd5e-2014-classes.test.ts` (71

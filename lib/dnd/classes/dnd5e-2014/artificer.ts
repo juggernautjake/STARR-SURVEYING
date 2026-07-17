@@ -33,6 +33,7 @@ export const ARTIFICER_2014: ClassDefinition = {
   ],
   spellcasting: {
     kind: 'half',
+    roundHalfUp: true, // Artificer multiclass caster levels round UP (ceil), unlike Paladin/Ranger.
     ability: 'int',
     preparedRule: 'Spells PREPARED = your Intelligence modifier + half your Artificer level (rounded down), minimum one. The Artificer is the half-caster that casts from LEVEL 1 (slots round up). You cast using tools as a spellcasting focus.',
     cantripsKnown: [0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4],
