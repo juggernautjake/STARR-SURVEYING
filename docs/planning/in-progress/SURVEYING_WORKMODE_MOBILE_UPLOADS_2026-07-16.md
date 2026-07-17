@@ -53,9 +53,10 @@ Issue) render only titles; the `JobPicker` is a placeholder input.
       tap-to-navigate via the shared `lib/jobs/location` helpers), lead RPLS (`job_team` role=`lead_rpls`
       or `lead_rpls_email`), and crew (`job_team`). **The files/research/notes panel (A3) inside the hub is
       the remaining part of B2.**
-- [ ] **B3 — Calculator + notes in the hub.** A quick calculator (reuse/adapt the CAD calculator store if
-      suitable, else a simple field calc) and a per-job notes pad that saves to the job's notes/field-notes
-      so entries are reviewable later.
+- [x] **B3 — Calculator + notes in the hub. ✅ SHIPPED** (`6753e732`). A 🧮 Calc tab (button-driven, on a
+      new SAFE arithmetic evaluator `lib/jobs/calc.ts` — tokenize→shunting-yard→RPN, never eval; 6 tests)
+      and a 📝 Notes tab (per-job field notes auto-saved to localStorage, keyed by job). **DB-persistence
+      of notes for review-by-others is a follow-up** (local-per-device today).
 - [ ] **B4 — Quick capture with notes → saved immediately.** In-hub photo/video capture that attaches a
       note and writes to `field_media` (`job_id`, `media_type`, `storage_url`, capture metadata) right
       away for review. On web this uses a file/camera input; the resilient upload path is Area C. (Mobile
