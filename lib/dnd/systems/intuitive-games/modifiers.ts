@@ -19,8 +19,10 @@ export interface IGConditionMechanic {
   other?: string;
 }
 
-// Curated from the verbatim IG condition text. Absent conditions (e.g. Heatstroke's over-time damage) carry
-// no roll modifier here; they still display + tooltip via IG_CONDITIONS.
+// Curated from the verbatim IG condition text. Absent conditions carry no roll modifier here and still
+// display + tooltip via IG_CONDITIONS. The two deliberate omissions are Heatstroke and Hypothermia: both
+// deal over-time nonlethal damage and only impose shaken/entangled CONDITIONALLY (on a failed periodic
+// Fortitude save), so there is no automatic roll modifier to apply — modelling one would overstate them.
 const MECHANICS: Record<string, Omit<IGConditionMechanic, 'name'>> = {
   shaken: { flatD20: -2 },
   sickened: { flatD20: -2, other: 'A failed Fortitude save while sickened paralyzes you for rounds equal to the amount you failed by.' },

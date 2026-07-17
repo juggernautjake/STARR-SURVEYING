@@ -31,6 +31,32 @@ describe('every IG condition mechanic is backed by its own verbatim text', () =>
       }
     },
   );
+
+  // The REVERSE guard: the check above only fires for conditions that ALREADY have a mechanic — a
+  // condition whose text states a self roll-penalty but that MECHANICS silently forgot would slip through
+  // (displayed by the tooltip, never applied to a roll: the "shown but not applied" gap). A general
+  // reverse-disadvantage check is unsafe — Invisible's/Broken's "disadvantage" lands on the attacker/item,
+  // correctly modelled as `other`, not a self-disadvantage — but the FLAT self-penalty phrasing is
+  // unambiguous: "−N penalty on attack rolls" is only ever the creature's own (Shaken/Sickened). Anything
+  // conditional (Heatstroke/Hypothermia say "treated as shaken", no such phrase) is correctly exempt.
+  const statesSelfFlatPenalty = (t: string) => /[-−]\s*\d+\s+penalty on (all )?attack rolls/i.test(t);
+
+  it('every condition whose TEXT states a self "−N penalty on attack rolls" actually derives that flatD20', () => {
+    const missing = IG_CONDITIONS
+      .filter((c) => statesSelfFlatPenalty(c.effect ?? ''))
+      .filter((c) => (igConditionMechanic(c.name)?.flatD20 ?? 0) >= 0) // no negative flat penalty derived
+      .map((c) => c.name);
+    expect(missing, 'these conditions state a flat attack-roll penalty in their text but apply none').toEqual([]);
+  });
+
+  it('sanity: the reverse check selects exactly the flat-penalty conditions (Shaken, Sickened), not the conditional ones', () => {
+    const selected = IG_CONDITIONS.filter((c) => statesSelfFlatPenalty(c.effect ?? '')).map((c) => c.name).sort();
+    expect(selected).toEqual(['Shaken', 'Sickened']);
+    // Heatstroke/Hypothermia reference shaken/entangled CONDITIONALLY — they must NOT be selected (and so
+    // are correctly allowed to carry no mechanic), or the guard would wrongly demand a penalty they don't impose.
+    expect(selected).not.toContain('Heatstroke');
+    expect(selected).not.toContain('Hypothermia');
+  });
 });
 
 describe('every IG stance mechanic is backed by its own verbatim text (per tier)', () => {

@@ -413,7 +413,18 @@ expanded requirements (2026-07-17):
       (Shaken/Sickened −2 each, straight from the IG text) + a legible list of disadvantage/other effects;
       the sheet's Combat panel now shows "−N to attacks, saves & skill checks (sources)" + each disadvantage
       line beneath the condition chips (shown, not silently folded into base numbers — the platform's
-      exhaustion pattern). Unknown/custom conditions contribute nothing (never invented). **Remaining:**
+      exhaustion pattern). Unknown/custom conditions contribute nothing (never invented). **Full 18-condition
+      mechanics audit + reverse drift-guard (2026-07-17):** verified every one of the 18 `IG_CONDITIONS`
+      against `MECHANICS` — 16 carry their roll effect, and exactly 2 (Heatstroke, Hypothermia) correctly carry
+      none because their shaken/entangled effect is CONDITIONAL on a failed periodic Fortitude save, not
+      automatic (modelling one would overstate them; the source comment now says so explicitly). The existing
+      `ig-mechanics-match-text.test.ts` only guarded the *forward* direction (a derived mechanic's number/keyword
+      must appear in the text); added the *reverse* guard — any condition whose text states a self "−N penalty on
+      attack rolls" MUST derive that `flatD20`, closing the "text says it but the sheet never applies it" gap for
+      flat penalties. A general reverse-disadvantage check would false-positive (Invisible's/Broken's
+      "disadvantage" lands on the attacker/item, correctly modelled as `other`), so the guard is scoped to the
+      unambiguous flat-penalty phrasing, with a sanity test pinning that it selects exactly Shaken/Sickened.
+      `ig-mechanics-match-text.test.ts` +2. **Remaining:**
       add/remove condition editing (B6 route) + optionally folding the penalty through the rolls.
 - [~] **B5 — Stances: display + tooltip + mechanics + edit.** The sheet clearly shows the ACTIVE stance (one at
       a time); hovering shows its Basic/Advanced text; the effect is applied to the relevant rolls per the
