@@ -2,7 +2,7 @@
 // arbitrary model JSON into safe IGPicks; a vanilla build stays 100% vanilla; invented content is flagged
 // CUSTOM with the right kinds; and the grounding prompt pins the AI to the real system + catalog.
 import { describe, it, expect } from 'vitest';
-import { parseIGPicks, IG_PICKS_TOOL, igBuilderSystemPrompt } from '@/lib/dnd/systems/intuitive-games/ai';
+import { parseIGPicks, IG_PICKS_TOOL, igBuilderSystemPrompt, IG_EDIT_TOOL, parseIGEditToolCall, igEditToolInstruction } from '@/lib/dnd/systems/intuitive-games/ai';
 import { assembleIGVanillaCharacter } from '@/lib/dnd/systems/intuitive-games/builder';
 import { summarizeCharacterProvenance } from '@/lib/dnd/provenance';
 
@@ -37,5 +37,21 @@ describe('IG AI-customize core (full-sheet Slice 10)', () => {
     expect(p).toMatch(/Offensive/);   // stances from the catalog
     expect(p).toMatch(/Mirror Image/); // powers from the catalog
     expect(IG_PICKS_TOOL.input_schema.required).toContain('name');
+  });
+
+  it('the AI edit tool exposes the same validated ops as the manual route (AI parity)', () => {
+    // The tool enumerates exactly the four edit ops and requires op.
+    expect((IG_EDIT_TOOL.input_schema.properties.op as { enum: string[] }).enum).toEqual(
+      ['set_active_stance', 'clear_stance', 'add_condition', 'remove_condition'],
+    );
+    expect(IG_EDIT_TOOL.input_schema.required).toContain('op');
+    // A tool call runs through the SAME parser the API route uses.
+    expect(parseIGEditToolCall({ op: 'add_condition', name: 'Shaken' })).toEqual({ edit: { op: 'add_condition', name: 'Shaken' } });
+    expect(parseIGEditToolCall({ op: 'nuke', name: 'x' })).toHaveProperty('error');
+    // Grounding lists the real stance + condition names and forbids inventing.
+    const g = igEditToolInstruction();
+    expect(g).toMatch(/Defensive/);   // a stance
+    expect(g).toMatch(/Grappled/);    // a condition
+    expect(g).toMatch(/do not invent/i);
   });
 });

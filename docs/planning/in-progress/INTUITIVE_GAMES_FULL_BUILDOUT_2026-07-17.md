@@ -238,8 +238,13 @@ expanded requirements (2026-07-17):
       `add_condition`, `remove_condition` (case-insensitive de-dupe, empty-name no-op, never mutates input),
       plus `parseIgEdit` (validates the payload) + `describeIgEdit` (audit line). The route is write-gated
       (owner/player/DM via `requireCharacterWrite`), rejects non-IG characters, and persists just the patched
-      sidecar. `ig-edit.test.ts` (10). **Remaining:** the on-sheet edit controls (buttons/selectors that POST
-      to the route — UI, needs visual verification) and an AI `edit_ig` tool wrapping the same ops (AI parity).
+      sidecar. `ig-edit.test.ts` (10). **AI edit tool shipped** (`ai.ts` `IG_EDIT_TOOL` +
+      `parseIGEditToolCall` + `igEditToolInstruction`): the AI's `edit_ig_sheet` tool enumerates exactly the
+      four ops and routes a tool call through the SAME `parseIgEdit` the manual route uses (the AI can't emit
+      an edit the manual path wouldn't accept); the grounding lists the real stance + condition names and
+      forbids inventing. `ig-ai.test.ts` +1. **Remaining:** the on-sheet edit controls (buttons/selectors that
+      POST to the route — UI, needs visual verification) and dispatching `edit_ig_sheet` from the live AI chat
+      handler (runtime wiring).
 - [~] **B7 — Tooltip system.** A reusable hover/focus tooltip on every in-play effect (stance, condition,
       trait, feat, modifier) sourced from the IG rules text — keyboard- and touch-reachable (a tablet at the
       table), theme-token styled. **Pure model shipped** (`inPlay.ts`): `igEffectsInPlay({stance, conditions,

@@ -6,6 +6,8 @@
 import type { IGPicks } from './builder';
 import { systemRulesBlock } from '../../system-rules';
 import { igCatalog } from './catalog';
+import { IG_EDIT_OPS, parseIgEdit, type IGEdit } from './edit';
+import { IG_STANCE_DEFS, IG_CONDITIONS } from './content';
 
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.map(str).filter(Boolean) : []);
@@ -74,6 +76,42 @@ export const IG_PICKS_TOOL = {
     required: ['name'],
   },
 };
+
+// ── AI incremental edit (parity with the manual ig-edit route) ──────────────────────────────────────
+// The AI can change ONE thing on an existing IG sheet — enter/leave a stance, apply/remove a condition —
+// using the exact same validated ops the sheet controls use (parseIgEdit → applyIgEdit). Owner: "make sure
+// the AI has access to everything we are building so that it can also edit things."
+
+/** The structured-output tool the model fills to edit a stance/condition on an IG character. */
+export const IG_EDIT_TOOL = {
+  name: 'edit_ig_sheet',
+  description:
+    "Change ONE thing on an Intuitive Games character's sheet in place: enter a stance (set_active_stance, one active at a time), leave the stance (clear_stance), apply a condition (add_condition), or remove a condition (remove_condition). Use the EXACT Intuitive Games stance/condition name.",
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      op: { type: 'string', enum: [...IG_EDIT_OPS], description: 'The edit operation.' },
+      name: { type: 'string', description: 'The stance or condition name (omit for clear_stance).' },
+    },
+    required: ['op'],
+  },
+};
+
+/** Turn an AI tool call into a validated IGEdit (or an error). Reuses the same parser the API route uses,
+ *  so the AI can never emit an edit the manual path wouldn't accept. */
+export function parseIGEditToolCall(raw: unknown): { edit: IGEdit } | { error: string } {
+  return parseIgEdit(raw);
+}
+
+/** Grounding for the edit tool: the exact stance + condition names the AI may use (IG source only). */
+export function igEditToolInstruction(): string {
+  return [
+    'To change a stance or condition on the current Intuitive Games character, call edit_ig_sheet.',
+    `Valid stances (use the name without the word "Stance"): ${IG_STANCE_DEFS.map((s) => s.name).join(', ')}.`,
+    `Valid conditions: ${IG_CONDITIONS.map((c) => c.name).join(', ')}.`,
+    'Only one stance is active at a time — set_active_stance replaces the current one. Use the exact names above; do not invent a stance or condition.',
+  ].join('\n');
+}
 
 /** The grounding system prompt: the IG rules + the vanilla catalog so an AI build matches the real system. */
 export function igBuilderSystemPrompt(): string {
