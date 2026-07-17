@@ -499,6 +499,16 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       wired it into `glossary/index.ts` `BY_SYSTEM`. **Verified in the running app**: library search for
       "stance" under intuitive-games returns Stances / Advantage & Disadvantage / Damage Reduction. All
       four focus systems are now searchable + AI-navigable in the library.
+- [x] **The AI now answers FROM the library ✅** — closed the gap where `systemGroundingBlock` grounded
+      the AI (librarian, builder, adjudication) on the rules catalog + DB store but NOT the in-code
+      glossary. It now does deterministic, **system-scoped** glossary retrieval (no key needed): the
+      top matching articles for the question are injected into the grounding block, with stopwords
+      stripped so natural-language questions retrieve the right article. **Verified end-to-end**: asking
+      the librarian "how does the multiple attack penalty work if I Strike three times?" (PF2e) returned
+      the exact numbers from the article (−5/−10, −4/−8 agile), `grounded > 0`. So the AI now gives
+      correct, system-accurate answers quoting the library rather than recall. Tests:
+      `grounding-glossary.test.ts` (4 — glossary in the block, natural-language retrieval, no
+      cross-system leak, empty-query still deterministic).
 - [x] **Guardrails**: `glossary.test.ts` now includes a no-duplicate-terms integrity check per system;
       `system-integrity.test.ts` enforces no cross-system leakage. Every entry carries seeAlso links +
       search aliases and resolves through the no-key keyword search.
