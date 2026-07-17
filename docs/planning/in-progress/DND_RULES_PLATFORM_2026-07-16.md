@@ -576,6 +576,10 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       modifier→score mapping, projected HP/AC equal the rules engine, the weapon Strike + Fist land in
       the shared attacks, and the route's `summarizeCharacterProvenance` pass runs and tags vanilla
       content — the same seam a browser build would exercise, minus the browser.
+      **Plus (6b follow-up) ancestry senses + initiative on the sheet** — ancestry senses (Darkvision,
+      Low-light vision) lived on `PF2_ANCESTRIES` but were dropped at build; the builder now carries them
+      onto `PF2Character.senses` and the sheet shows them. The sheet also shows an Initiative stat (PF2
+      rolls initiative with Perception by default). `pathfinder2e-builder.test.ts` +3.
 - [x] **Intuitive Games ✅** — closed the gap found 2026-07-16 (its content lived only in the builder
       module, not the searchable glossary). Authored `lib/dnd/glossary/intuitive-games.ts` (26 articles)
       from the engine's own numbers (igProficiency = level, igDegreeOfSuccess, igSaveTotal, igMaxHp) and
