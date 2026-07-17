@@ -16,6 +16,7 @@ import { dndAiConfigured } from '@/lib/dnd/ai';
 import LibrarySearch from '@/app/dnd/_ui/LibrarySearch';
 import LibraryChat from '@/app/dnd/_ui/LibraryChat';
 import GlossaryList from '@/app/dnd/_ui/GlossaryList';
+import { igSystemLogo, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
 
 export function generateStaticParams() {
   return GAME_SYSTEMS.map((s) => ({ key: s.key }));
@@ -62,12 +63,20 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
           {/* ── header ─────────────────────────────────────────────────── */}
           <div>
             <Link className={styles.hexBtn} href="/dnd/library" style={{ marginBottom: 10 }}>← Rules Library</Link>
-            <h1 className={styles.title} style={{ textAlign: 'left', margin: '8px 0 0' }}>{page.name}</h1>
+            <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginTop: 8 }}>
+              {page.key === 'intuitive-games' && (
+                // Brendan's Intuitive Games logo — the system's own mark, credited to him.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={igSystemLogo()} alt="Intuitive Games logo" title={IG_ART_CREDIT} style={{ width: 56, height: 56, flex: '0 0 auto' }} />
+              )}
+              <h1 className={styles.title} style={{ textAlign: 'left', margin: 0 }}>{page.name}</h1>
+            </div>
             <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--hx-teal-1)', marginTop: 4 }}>
               {page.tagline}
             </div>
             <p style={{ color: 'var(--hx-muted)', margin: '6px 0 0', maxWidth: 720 }}>
               {page.notes} {page.publisher ? `· ${page.publisher}` : ''} · Facts drawn from <em>{page.source}</em>.
+              {page.key === 'intuitive-games' && <> · <span style={{ color: 'var(--hx-gold-2)' }}>{IG_ART_CREDIT}</span></>}
             </p>
           </div>
 
