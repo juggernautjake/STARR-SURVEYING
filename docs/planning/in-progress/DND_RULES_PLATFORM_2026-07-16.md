@@ -1508,6 +1508,16 @@ the overlay rule, because "you are a bear now" must be perfectly reversible.
       is a separate pool and damage overflow returns to you. Other systems and homebrew differ. So a
       form declares its own carry-over policy (`keepMental`, `keepFeatures`, `separateHp`, …) rather
       than the engine hardcoding one game's answer — Ground Rule 1.
+      **⚠️ OPEN FINDING — a weak form can't lower physical stats (needs a rules call, not an autonomous guess).**
+      The ledger resolves `set` as `Math.max(base, override)`, so a `set` RAISES but never LOWERS below the
+      base. That's correct for ITEMS (a Belt of Giant Strength "has no effect if your STR is already higher"),
+      but a FORM by RAW REPLACES physical stats even when lower — a STR-20 druid who Wild Shapes into a rat
+      should be STR 2, yet today stays 20. The transform code even leans on the max rule ("stops a dumb beast
+      from lowering you") though `keepMental` is the real mechanism for the mental case. Fixing it means giving
+      form-sourced `set` REPLACE semantics while items keep max — a change to the ledger's core resolution
+      (55+ tests), so it's the same shape of deliberate call as the attunement question, left for the owner.
+      Current behavior is now pinned by `ledger-set-max.test.ts` (3), so any future change is explicit +
+      reviewed.
 - [ ] Forms are **authored with the same builder** as characters (Slice 17) — a form is a sheet. A DM
       can define a bear once and reuse it; a player can be turned into another PC.
 - [ ] The Active Effects panel (Slice 12) shows the transform as the source it is, with **End
