@@ -561,6 +561,11 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       when met. `PF2Skill.armorPenalty` + `PF2Combat.armorCheckPenalty`; `pf2SkillTotal` takes the
       penalty and applies it only to flagged skills; the sheet marks penalized skills with ▲. This
       CLOSES the PF2 armor mechanics (AC + Dex cap + speed + check penalty all correct). +3 tests.
+      **Plus (6b follow-up) a PF2 weapon catalog → real Strikes** — a built character's only Strike was
+      an unarmed Fist. `PF2_WEAPONS` (19 Player Core simple+martial weapons: damage die/type, traits,
+      group, hands, range) + `pf2WeaponStrike` (ranged/finesse use DEX when it beats STR; melee adds STR
+      to damage; attack rank = class attack proficiency). The builder prepends a picked weapon's Strike
+      (Fist kept as fallback); weapon picker in the UI; AI parse/schema accept `weapon`. +5 tests.
 - [x] **Intuitive Games ✅** — closed the gap found 2026-07-16 (its content lived only in the builder
       module, not the searchable glossary). Authored `lib/dnd/glossary/intuitive-games.ts` (26 articles)
       from the engine's own numbers (igProficiency = level, igDegreeOfSuccess, igSaveTotal, igMaxHp) and
