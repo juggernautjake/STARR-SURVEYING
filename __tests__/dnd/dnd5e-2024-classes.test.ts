@@ -16,6 +16,15 @@ const EXPECTED = [
   'Paladin', 'Ranger', 'Rogue', 'Sorcerer', 'Warlock', 'Wizard',
 ];
 
+// The RAW hit die per class (identical in 2014 and 2024). Drives max HP + the hit-dice pool, so a wrong
+// value silently gives a whole class the wrong HP — and the generic "is one of 6/8/10/12" check would pass
+// a Barbarian typo'd to d10. Pin the correct value.
+const HIT_DICE: Record<string, number> = {
+  Barbarian: 12, Fighter: 10, Paladin: 10, Ranger: 10,
+  Bard: 8, Cleric: 8, Druid: 8, Monk: 8, Rogue: 8, Warlock: 8,
+  Sorcerer: 6, Wizard: 6,
+};
+
 describe('the 2024 class roster', () => {
   it('registers all 12 PHB classes', () => {
     expect(CLASSES.map((c) => c.name).sort()).toEqual([...EXPECTED].sort());
@@ -45,9 +54,9 @@ describe.each(CLASSES.map((c) => [c.name, c] as const))('%s', (_name, def) => {
     expect(validateClassDefinition(def)).toEqual([]);
   });
 
-  it('belongs to dnd5e-2024 and has a hit die, 2 saves and a description', () => {
+  it('belongs to dnd5e-2024 and has the RAW hit die, 2 saves and a description', () => {
     expect(def.system).toBe(SYS);
-    expect([6, 8, 10, 12]).toContain(def.hitDie);
+    expect(def.hitDie, `${def.name} hit die`).toBe(HIT_DICE[def.name]); // the CORRECT die, not just a valid one
     expect(def.savingThrows.length).toBe(2);
     expect(def.description.trim().length).toBeGreaterThan(20);
   });

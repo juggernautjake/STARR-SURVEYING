@@ -17,6 +17,14 @@ const ALL_12 = [
   'Paladin', 'Ranger', 'Rogue', 'Sorcerer', 'Warlock', 'Wizard',
 ];
 
+// RAW hit die per class (+ the 2014-only Artificer, d8). A wrong value silently mis-sizes a whole class's
+// HP; the generic "is a valid die" check wouldn't catch it. Pin the correct value.
+const HIT_DICE: Record<string, number> = {
+  Barbarian: 12, Fighter: 10, Paladin: 10, Ranger: 10,
+  Bard: 8, Cleric: 8, Druid: 8, Monk: 8, Rogue: 8, Warlock: 8, Artificer: 8,
+  Sorcerer: 6, Wizard: 6,
+};
+
 describe('the 2014 class roster (authored class-by-class)', () => {
   it('registers all 12 PHB classes plus the Artificer, and the system reports it has class data', () => {
     for (const name of ALL_12) expect(CLASSES.map((c) => c.name)).toContain(name);
@@ -67,9 +75,9 @@ describe.each(CLASSES.map((c) => [c.name, c] as const))('%s (2014)', (_name, def
     for (const row of table) expect(row.features).toBeDefined();
   });
 
-  it('belongs to dnd5e-2014 with a hit die, exactly two saves, and a subclass choice', () => {
+  it('belongs to dnd5e-2014 with the RAW hit die, exactly two saves, and a subclass choice', () => {
     expect(def.system).toBe(SYS);
-    expect([6, 8, 10, 12]).toContain(def.hitDie);
+    expect(def.hitDie, `${def.name} hit die`).toBe(HIT_DICE[def.name]); // the CORRECT die, not just a valid one
     expect(def.savingThrows).toHaveLength(2);
     // A feature marks the subclass choice at the class's subclassLevel (3 for most; 1 for Sorcerer).
     expect(def.features.some((f) => f.choice === 'subclass' && f.level === def.subclassLevel)).toBe(true);

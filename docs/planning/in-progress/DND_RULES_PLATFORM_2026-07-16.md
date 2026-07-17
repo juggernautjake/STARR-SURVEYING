@@ -483,6 +483,12 @@ One system per slice — depth-first, verified against sources. In priority orde
       skill) was tested at the tier corners, but `expectedProfBonus` reads it as a table lookup so an interior
       cell (L6/7/10/11/…) could drift. Pinned all 20 levels for both editions against the RAW formula
       `floor((level−1)/4)+2` — correct. `system-rules.test.ts` +1.
+      **Per-class hit die pinned to RAW (2026-07-17):** every class's `hitDie` (drives max HP + the hit-dice
+      pool) was validated only as "one of 6/8/10/12" — so a Barbarian typo'd to d10 or a Wizard to d8 would
+      pass. Verified all 25 defs (12 classes ×2024 + 13 ×2014 incl. Artificer) against RAW and pinned each to
+      its correct value (Barbarian 12; Fighter/Paladin/Ranger 10; Sorcerer/Wizard 6; rest 8) — all correct.
+      `dnd5e-2024-classes.test.ts` / `dnd5e-2014-classes.test.ts` (the per-class hit-die assertion tightened
+      from "a valid die" to "the RAW die").
       **2026-07-16 — ALL 12 PHB CLASSES SHIPPED ✅** (`lib/dnd/classes/dnd5e-2014/`): Barbarian, Bard,
       Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock, Wizard — each L1–20 with
       every PHB subclass, all edition-differences vs 2024 locked by `dnd5e-2014-classes.test.ts` (71
