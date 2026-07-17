@@ -544,6 +544,11 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       and Monk empty by design — no formal subclass). The PF2 builder drives its subclass field from a
       per-class `<datalist>` (real options as suggestions, freeform kept as the custom escape hatch).
       `pathfinder2e-builder.test.ts` +1.
+      **Plus (6b follow-up) correct full-caster spell slots** — `pf2SpellSlots(level)` replaces the
+      builder's hardcoded `[5]` with the real Player Core progression (5 cantrips; a rank opens at level
+      2r−1 with 2 slots, rises to 3 at 2r; the single 10th-rank slot at level 19). The PF2 sheet renders
+      slots per rank. All 7 caster classes are full casters on this table. `pathfinder2e-rules.test.ts`
+      +5 (table verified vs Player Core), builder +2.
 - [x] **Intuitive Games ✅** — closed the gap found 2026-07-16 (its content lived only in the builder
       module, not the searchable glossary). Authored `lib/dnd/glossary/intuitive-games.ts` (26 articles)
       from the engine's own numbers (igProficiency = level, igDegreeOfSuccess, igSaveTotal, igMaxHp) and
