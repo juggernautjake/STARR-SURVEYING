@@ -38,6 +38,16 @@ overwrite a deliberate design.
       Wizard) with subclasses; the app models a flat 13-class list. Restructure to match the site? (Touches
       the IG builder, provenance, and seeds.)
       *Detail: `INTUITIVE_GAMES_FULL_BUILDOUT`; `SITE_MASTER.md` item 3.*
+- [ ] **2014 exhaustion — flat-2024-model-for-all, or the real tiered table? (edition-dependent; not
+      autonomously changed).** The sheet applies 2024 exhaustion (−2 to every d20 test per level, −5 ft speed,
+      death at 6) to EVERY character, including 2014 ones. But 2014 exhaustion is a qualitatively different
+      6-tier table (L1 = disadvantage on ability checks, L2 = speed halved, L3 = disadvantage on attacks/saves,
+      L4 = HP max halved, L5 = speed 0, L6 = death) — which the AI grounding already describes, so the sheet
+      contradicts the grounding for a 2014 character. Two honest options: (a) keep the single 2024 model
+      everywhere as an intentional simplification/house rule for your platform, or (b) implement the 2014 tiered
+      table (a real feature — several distinct per-tier effects, gated on `system`, which the store already has).
+      Not changed autonomously (player-facing behavior). *Detail: `store.tsx` rollCheck; the gap is pinned as a
+      tracked, guarded one by `exhaustion-d20.test.ts` (edition-blindness + the grounding-vs-sheet inconsistency).*
 - [ ] **Long-rest hit-dice restore — confirm your intended rule (edition-dependent; not autonomously changed).**
       `longRest` (`store.tsx:977`) restores ALL hit dice (`hitDiceRemaining = hitDiceTotal`) for every edition.
       2014 RAW regains only HALF your total Hit Dice (min 1); I'm not certain 2024 kept that vs. full-restore,

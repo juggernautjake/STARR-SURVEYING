@@ -31,6 +31,11 @@ UI.
    proficiency bonus is not PF2's level-added proficiency). Everything is keyed by system.
 2. **Editions are different systems.** 2014 vs 2024 Exhaustion, Surprise, Grappled, Prone,
    Inspiration and feats all have two different *correct* answers. Never merge them.
+   *(Known tracked violation, surfaced 2026-07-17: the sheet's roll-time exhaustion applies the 2024
+   flat −2/level model to EVERY character, including 2014 ones, whose exhaustion is a different tiered
+   table — the AI grounding already distinguishes them, so only the sheet merges them. The fix is a
+   player-facing behavior change → owner-gated (BLOCKERS §A); pinned meanwhile by `exhaustion-d20.test.ts`
+   so it can't drift further or be mistaken for edition-correct.)*
 3. **Never invent a rule.** If the reference doesn't cover it, say so. Accuracy beats completeness
    — omit a number rather than guess. (Authoring agents have already caught several errors in
    briefs by verifying against sources instead of recall — keep doing that.)

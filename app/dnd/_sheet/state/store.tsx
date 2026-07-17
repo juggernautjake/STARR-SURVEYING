@@ -599,6 +599,12 @@ export function CharacterProvider({
       const hasDis = advMode === 'dis' || !!opts.disadvantage
       const mode: Advantage = hasAdv && hasDis ? 'flat' : hasAdv ? 'adv' : hasDis ? 'dis' : 'flat'
       // Exhaustion: −2 to every d20 test per level (2024 rules), applied automatically.
+      // KNOWN EDITION GAP: this flat −2/level is applied regardless of the character's edition. It is
+      // correct for 2024, but 2014 exhaustion is a qualitatively different TIERED table (L1 disadvantage
+      // on ability checks, L3 on attacks/saves, speed/HP effects at other tiers) — which the AI grounding
+      // already describes (system-rules TIERED table), so the sheet currently contradicts it for a 2014
+      // character. Implementing the 2014 table is a player-facing behavior change → owner-gated (BLOCKERS §A);
+      // guarded as a tracked gap by exhaustion-d20.test.ts rather than silently applying the wrong model.
       const exh = char.combat.exhaustion || 0
       // Only attack rolls consult the crit range; a check or save always crits on a 20 only.
       const rollCritMin = opts.kind === 'attack' ? critMin : 20

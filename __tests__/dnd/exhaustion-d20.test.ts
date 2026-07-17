@@ -39,3 +39,28 @@ describe('2024 exhaustion applies −2/level to d20 tests at roll time', () => {
     expect((STORE.match(/Math\.min\(6, /g) || []).length).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe('the −2/level model is 2024-only, and its edition-blindness is a TRACKED gap (not silent)', () => {
+  // This is the exhaustion analogue of effect-target-render-gaps: the flat −2/level applied above is the
+  // 2024 rule. 2014 exhaustion is a qualitatively different TIERED table, which the AI grounding already
+  // describes — so a 2014 character on this sheet is mechanically modelled with the WRONG exhaustion.
+  // Implementing the 2014 table is a player-facing behavior change (owner-gated, BLOCKERS §A). Until then
+  // this pins that the sheet applies the flat model UNCONDITIONALLY (no edition branch around it), so a
+  // future edition-gating fix is a deliberate, test-visible change rather than an accidental drift.
+  const SYSTEM_RULES = fs.readFileSync(path.join(process.cwd(), 'lib/dnd/system-rules.ts'), 'utf8');
+
+  it('the roll-time exhaustion penalty is NOT gated on the character edition today', () => {
+    // The `mod - 2 * exh` fold has no `system ===`/edition guard beside it — it is applied to every
+    // character. (If someone adds 2014-tiered handling, this assertion should be updated in the same change.)
+    const idx = STORE.indexOf('rollD20(mod - 2 * exh');
+    expect(idx).toBeGreaterThan(0);
+    const window = STORE.slice(Math.max(0, idx - 400), idx);
+    expect(/system\s*===|edition\s*===|is2014|dnd5e-2014/.test(window)).toBe(false);
+  });
+
+  it('yet the AI grounding DOES distinguish the editions — the sheet is the side that lags', () => {
+    // Proves the gap is a real inconsistency, not a codebase that is uniformly 2024-only: the rules block
+    // tells the AI 2014 exhaustion is a tiered table while the sheet applies the flat 2024 penalty.
+    expect(SYSTEM_RULES).toMatch(/TIERED/i);
+  });
+});
