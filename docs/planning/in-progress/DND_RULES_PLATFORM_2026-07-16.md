@@ -560,6 +560,12 @@ One system per slice — depth-first, verified against sources. In priority orde
       how HURT the character is. Now shows CURRENT/max HP + temp (matching the sheet's `currentHp || maxHp`)
       and a STATUS line for PF2's death track (Dying/Wounded) when live — the only dynamic combat state PF2
       models (it has no other named-condition field). `pf2-digest.test.ts` +1.
+      **PF2 level-based DC table pinned at every level (2026-07-17):** `pf2LevelBasedDc` (the GM Core baseline
+      DC behind every untrained/environmental check) was spot-checked at L0/1/5/20 — but NONE of the
+      +2-jump levels (3,6,9,12,15,18), the irregular part of the progression, was tested; a typo in a jump
+      would give a whole tier of tasks the wrong DC. Verified the full 0–20 table against GM Core and pinned
+      every level (correct). `pf2-rules.test.ts` +1. (`PF2_RANK_BONUS` — trained+2…legendary+8 — was already
+      fully covered via `pf2Proficiency`.)
 - [~] **6c–6h — the other six systems → MOVED to `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`**
       (2026-07-16, per the user's scope call). The platform is focused on **four** systems first — D&D
       5e 2024, D&D 5e 2014, Intuitive Games, Pathfinder 2e. PF1e, Starfinder 1e, Cyberpunk RED, Shadowrun

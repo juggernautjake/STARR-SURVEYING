@@ -161,4 +161,13 @@ describe('pf2 level-based DC table', () => {
     expect(pf2LevelBasedDc(5)).toBe(20);
     expect(pf2LevelBasedDc(20)).toBe(40);
   });
+  it('matches GM Core at EVERY level 0–20, including the +2-jump levels', () => {
+    // The progression is +1/level EXCEPT levels 3,6,9,12,15,18 which jump +2 — the irregular part the spot
+    // checks above skip entirely. A typo in a jump (or an interior +1 level) would give a whole tier of
+    // tasks the wrong DC. Pin the full GM Core table.
+    const GM_CORE = [14, 15, 16, 18, 19, 20, 22, 23, 24, 26, 27, 28, 30, 31, 32, 34, 35, 36, 38, 39, 40];
+    for (let level = 0; level <= 20; level++) {
+      expect(pf2LevelBasedDc(level), `level ${level}`).toBe(GM_CORE[level]);
+    }
+  });
 });
