@@ -532,6 +532,12 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       **Plus the 10 class "subclass" mechanisms** — Instinct, Racket, Bloodline, Doctrine, Mystery,
       Order, Muse, Research Field, Cause, Hunter's Edge — each a searchable article (so "what is a
       Rogue's Racket" resolves). 44 → 92 terms; verified "racket" → the article.
+      **Plus (6b follow-up) the 17 PF2 backgrounds** now surface in the library — `searchLibrary`
+      projects them as `background` hits (matched by name or "background") from the new
+      `pathfinder2e/content.ts`, and `libraryPageFor` renders a PF2-only **Backgrounds** table (boosts /
+      trained skill+Lore / skill feat). Backgrounds were consequential level-1 data that lived only in
+      the builder before; now a player or the AI can browse them. System-scoped (no 5e leak);
+      `library.test.ts` +1 (Acolyte → Religion; absent from 5e pages).
 - [x] **Intuitive Games ✅** — closed the gap found 2026-07-16 (its content lived only in the builder
       module, not the searchable glossary). Authored `lib/dnd/glossary/intuitive-games.ts` (26 articles)
       from the engine's own numbers (igProficiency = level, igDegreeOfSuccess, igSaveTotal, igMaxHp) and
