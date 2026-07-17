@@ -62,6 +62,17 @@ describe('system rules catalog (grounding)', () => {
     expect(expectedProfBonus(SYSTEM_AMBIGUOUS, 5)).toBeNull();
   });
 
+  it('the PB_5E table is RAW-correct at EVERY level, both editions (not just the tier corners)', () => {
+    // expectedProfBonus reads PB_5E as a table lookup, so an interior-cell typo (e.g. L6 = 4) would slip
+    // past the corner checks above. Pin every level against the RAW formula: +2 at 1–4, then +1 per 4
+    // levels (floor((level−1)/4)+2), identical in 2014 and 2024.
+    for (let level = 1; level <= 20; level++) {
+      const raw = Math.floor((level - 1) / 4) + 2;
+      expect(expectedProfBonus('dnd5e-2014', level), `2014 L${level}`).toBe(raw);
+      expect(expectedProfBonus('dnd5e-2024', level), `2024 L${level}`).toBe(raw);
+    }
+  });
+
   it('summary labels the system + source', () => {
     expect(systemRulesSummary('dnd5e-2024')).toMatch(/D&D 5e \(2024\)/);
     expect(systemRulesSummary(SYSTEM_AMBIGUOUS)).toMatch(/ambiguous/i);

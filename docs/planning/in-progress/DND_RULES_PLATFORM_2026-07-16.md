@@ -475,7 +475,11 @@ One system per slice — depth-first, verified against sources. In priority orde
       rank-TRANSITION levels (rank 2 at L3, 3 at L5, 4 at L7, 5 at L9) weren't, and `MYSTIC_ARCANUM_LEVEL`
       (ranks 6–9 at L11/13/15/17) was UNguarded — a typo there would hand the Warlock its capstone Arcanum at
       the wrong level. Golden-pinned all three against RAW (all correct). `class-engine.test.ts` +2. Every 5e
-      caster table (full / half / third / pact / arcanum) is now locked cell-by-cell.
+      caster table (full / half / third / pact / arcanum) is now locked cell-by-cell. **Proficiency-bonus
+      table pinned at EVERY level too (2026-07-17):** `PB_5E` (the +2→+6 progression behind every attack/save/
+      skill) was tested at the tier corners, but `expectedProfBonus` reads it as a table lookup so an interior
+      cell (L6/7/10/11/…) could drift. Pinned all 20 levels for both editions against the RAW formula
+      `floor((level−1)/4)+2` — correct. `system-rules.test.ts` +1.
       **2026-07-16 — ALL 12 PHB CLASSES SHIPPED ✅** (`lib/dnd/classes/dnd5e-2014/`): Barbarian, Bard,
       Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock, Wizard — each L1–20 with
       every PHB subclass, all edition-differences vs 2024 locked by `dnd5e-2014-classes.test.ts` (71
