@@ -107,6 +107,17 @@ describe('parseIgEdit', () => {
     expect(parseIgEdit({ op: 'add_condition' })).toHaveProperty('error');
     expect(parseIgEdit({ op: 'clear_stance' })).toHaveProperty('edit'); // clear needs no name
   });
+  it('applyIgEdit has a case for EVERY op parseIgEdit accepts (no silent no-op edit)', () => {
+    // parseIgEdit accepts every IG_EDIT_OPS op; applyIgEdit must APPLY every one, or an accepted op falls
+    // through to the default and changes nothing — the AI reports success while the IG sheet is unchanged,
+    // breaking "editable for all stances/feats/conditions". The `never` guard in applyIgEdit covers the
+    // IGEdit UNION↔handler; this covers IG_EDIT_OPS (the AI-facing op list) ↔ handler.
+    const src = fs.readFileSync(path.join(process.cwd(), 'lib/dnd/systems/intuitive-games/edit.ts'), 'utf8');
+    const body = src.slice(src.indexOf('export function applyIgEdit'), src.indexOf('export function parseIgEdit'));
+    for (const op of IG_EDIT_OPS) {
+      expect(body.includes(`case '${op}'`), `applyIgEdit has no case for "${op}" — the AI's IG edit would silently do nothing`).toBe(true);
+    }
+  });
 });
 
 describe('describeIgEdit', () => {

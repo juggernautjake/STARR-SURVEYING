@@ -392,7 +392,14 @@ expanded requirements (2026-07-17):
       wired into `IG_EDIT_OPS` + the `edit_ig_sheet` AI tool + grounding (lists `IG_DEFENSIVE_POWERS`), and a
       write-gated selector on the sheet's Defensive Power block. So every IG mechanic — stance, condition,
       feat, power, AND defensive power — is now editable manually and by the AI. `ig-edit.test.ts` +3,
-      `ig-ai.test.ts` (enum+grounding), `ig-sheet-tooltips.test.ts` +1. **AI can now EXPLAIN any IG feat
+      `ig-ai.test.ts` (enum+grounding), `ig-sheet-tooltips.test.ts` +1. **Edit-vocabulary↔handler drift
+      guarded (2026-07-17):** `applyIgEdit` ended in `default: return ig`, so a future `IGEdit` op without a
+      case would silently no-op — the AI reports success while the IG sheet is unchanged, quietly breaking
+      "editable for all stances/feats/conditions." Added a compile-time `never` exhaustiveness guard inside
+      that default (a new union op without a handler fails to compile; the runtime `return ig` still guards a
+      malformed payload) AND a source-scan test that every `IG_EDIT_OPS` op has an `applyIgEdit` case (the
+      AI-facing op list ↔ handler). All 9 ops verified handled; the vocabulary can no longer drift from what
+      the sheet applies. `ig-edit.test.ts` +1. **AI can now EXPLAIN any IG feat
       from source (2026-07-17):** the always-on IG rules block lists feats by NAME only (151 full effects
       would bloat every prompt), and the query-scoped feat retrieval in `grounding.ts` (`groundingFeats`/
       `matchFeats`) was **2024-only** — so asking the librarian "how does the IG Endurance feat work?" hit

@@ -89,8 +89,15 @@ export function applyIgEdit(ig: IGCharacter, edit: IGEdit): IGCharacter {
       if (!name || !ig.powers.some((p) => eq(p, name))) return ig;
       return { ...ig, powers: ig.powers.filter((p) => !eq(p, name)) };
     }
-    default:
+    default: {
+      // Compile-time exhaustiveness: EVERY IGEdit op must have a case above, or an op the AI can emit
+      // would silently no-op (the AI reports success while the IG sheet is unchanged — breaking "editable
+      // for all stances/feats/conditions"). A new union op without a handler fails to compile here. The
+      // runtime `return ig` still stands for a malformed payload that slips past parseIgEdit.
+      const _exhaustive: never = edit;
+      void _exhaustive;
       return ig;
+    }
   }
 }
 
