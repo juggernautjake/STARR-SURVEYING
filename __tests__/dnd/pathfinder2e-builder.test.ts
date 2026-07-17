@@ -255,6 +255,26 @@ describe('PF2 weapons become real Strikes', () => {
     expect(new Set(PF2_WEAPONS.map((w) => w.category))).toEqual(new Set(['simple', 'martial']));
     expect(pf2Weapon('longsword')!.damageDie).toBe('1d8');
   });
+
+  it('every weapon has its Player Core damage die + damage type (not just Longsword)', () => {
+    // A wrong damage die (Greataxe 1d10 instead of 1d12?) or damage type mis-rolls every Strike with that
+    // weapon; only Longsword was spot-checked. Pin the full set (dice + B/P/S type) verified vs Player Core.
+    const GOLDEN: Record<string, { die: string; type: string }> = {
+      Club: { die: '1d6', type: 'B' }, Dagger: { die: '1d4', type: 'P' }, Mace: { die: '1d6', type: 'B' },
+      Sap: { die: '1d6', type: 'B' }, Spear: { die: '1d6', type: 'P' }, Staff: { die: '1d4', type: 'B' },
+      Crossbow: { die: '1d8', type: 'P' }, Shortbow: { die: '1d6', type: 'P' },
+      'Battle Axe': { die: '1d8', type: 'S' }, Flail: { die: '1d6', type: 'B' }, Greataxe: { die: '1d12', type: 'S' },
+      Greatsword: { die: '1d12', type: 'S' }, Longsword: { die: '1d8', type: 'S' }, Rapier: { die: '1d6', type: 'P' },
+      Scimitar: { die: '1d6', type: 'S' }, Shortsword: { die: '1d6', type: 'P' }, Warhammer: { die: '1d8', type: 'B' },
+      Longbow: { die: '1d8', type: 'P' },
+    };
+    for (const w of PF2_WEAPONS) {
+      const g = GOLDEN[w.name];
+      expect(g, `no golden entry for weapon "${w.name}"`).toBeDefined();
+      expect(w.damageDie, `${w.name} damage die`).toBe(g.die);
+      expect(w.damageType, `${w.name} damage type`).toBe(g.type);
+    }
+  });
   it('a melee Strike uses STR and adds STR to damage', () => {
     const s = pf2WeaponStrike(pf2Weapon('Longsword')!, { STR: 4, DEX: 1, CON: 0, INT: 0, WIS: 0, CHA: 0 }, 'expert');
     expect(s.attribute).toBe('STR');

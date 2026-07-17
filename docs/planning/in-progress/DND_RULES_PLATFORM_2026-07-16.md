@@ -618,6 +618,9 @@ One system per slice — depth-first, verified against sources. In priority orde
       3–4 / speed 0; medium 3–4 / 1–2 / −5; heavy 5–6 / 0–1 / −10) and pinned each + a category→speed-penalty
       cross-check — all correct. (Left the `strength` requirement unpinned — not independently re-verified,
       and pinning unverified data isn't verification.) `pathfinder2e-builder.test.ts` +1.
+      **18 PF2 weapons' damage die + type pinned (2026-07-17):** a wrong die (Greataxe 1d10 vs 1d12?) or
+      B/P/S type mis-rolls every Strike with that weapon; only Longsword was spot-checked. Verified all 18
+      (8 simple + 10 martial) vs Player Core and pinned each. All correct. `pathfinder2e-builder.test.ts` +1.
 - [~] **6c–6h — the other six systems → MOVED to `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`**
       (2026-07-16, per the user's scope call). The platform is focused on **four** systems first — D&D
       5e 2024, D&D 5e 2014, Intuitive Games, Pathfinder 2e. PF1e, Starfinder 1e, Cyberpunk RED, Shadowrun
