@@ -18,6 +18,7 @@ import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-g
 import { igConditionSummary } from '@/lib/dnd/systems/intuitive-games/modifiers';
 import type { IGEdit } from '@/lib/dnd/systems/intuitive-games/edit';
 import { findIGFeat } from '@/lib/dnd/systems/intuitive-games/feats';
+import { igAncestryArt, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
 
 const effectMap = (() => {
   const m = new Map<string, string>();
@@ -107,16 +108,29 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
       {(() => {
         const anc = findIGAncestry(id.ancestry);
         if (!anc) return null;
+        const art = igAncestryArt(anc.name);
         return (
           <div style={{ display: 'grid', gap: 6 }}>
             <div style={{ ...label }}>Ancestry — {anc.name} {badgeFor(id.ancestry)}</div>
-            <div style={{ fontSize: 12, color: 'var(--hx-muted)', lineHeight: 1.4 }}>{anc.blurb}</div>
-            <div style={{ display: 'grid', gap: 5 }}>
-              {anc.traits.map((t) => (
-                <div key={t.name} title={t.text} style={{ fontSize: 12.5, color: 'var(--hx-text)', lineHeight: 1.4, cursor: 'help' }}>
-                  <span style={{ color: 'var(--hx-gold-2)', fontWeight: 600 }}>{t.name}.</span> {t.text}
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              {art && (
+                // Brendan's hand-drawn race art (ink on white); a light card keeps it legible on the dark sheet.
+                <figure style={{ margin: 0, flex: '0 0 auto', display: 'grid', gap: 3, justifyItems: 'center' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={art} alt={`${anc.name} — Intuitive Games race art`} title={IG_ART_CREDIT} loading="lazy" style={{ width: 132, height: 'auto', borderRadius: 8, background: '#f4f1ea', border: '1px solid var(--hx-line)', padding: 4 }} />
+                  <figcaption style={{ fontSize: 9, color: 'var(--hx-muted)', letterSpacing: '0.02em' }}>Art · Brendan (Intuitive Games)</figcaption>
+                </figure>
+              )}
+              <div style={{ flex: '1 1 260px', display: 'grid', gap: 6, minWidth: 220 }}>
+                <div style={{ fontSize: 12, color: 'var(--hx-muted)', lineHeight: 1.4 }}>{anc.blurb}</div>
+                <div style={{ display: 'grid', gap: 5 }}>
+                  {anc.traits.map((t) => (
+                    <div key={t.name} title={t.text} style={{ fontSize: 12.5, color: 'var(--hx-text)', lineHeight: 1.4, cursor: 'help' }}>
+                      <span style={{ color: 'var(--hx-gold-2)', fontWeight: 600 }}>{t.name}.</span> {t.text}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
           </div>
         );

@@ -248,10 +248,14 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       template) is **missing ~24 spells** and doesn't model the tiers. Full roster captured in the master doc;
       the fetch tool declined verbatim spell effects, so completing this needs the exact text from Brendan/the
       site — flagged, not fabricated.
-- [ ] **A20 — Art scrub (owner request 2026-07-17).** Screenshot the race/character/other art on
-      intuitivegames.net (browser tools — WebFetch returns only text) and bring it into the app's IG library/
-      sheet "and make it look good," with attribution to Brendan (the creator). Browser-driven; needs in-app
-      visual verification.
+- [~] **A20 — Art scrub (owner request 2026-07-17).** ✅ *Ancestry art shipped* (browser-scrubbed via the
+      Chrome tools + `curl`): the 8 hand-drawn **race portraits** the site publishes (dwarf/elf/gnome/halfling/
+      leshonki/migoi[="Yeti"]/naga/ogre) downloaded to `public/dnd/intuitive-games/ancestries/`, manifested in
+      `art.ts` (`igAncestryArt`), and rendered on the **IGSheet ancestry panel** on a light card with a visible
+      "Art · Brendan (Intuitive Games)" **credit** (Human/Sprite have no site portrait). `ig-art.test.ts` (4,
+      incl. a real-file-exists check) + `ig-sheet-tooltips.test.ts` +1. **Remaining:** class/character art on
+      `/classes`, the home logo/branding, any item/spell art; and confirming Brendan's OK on reuse (a
+      formality). Visual appearance to confirm in-app.
 - [~] **A17 — Verification pass.** ✅ *Completeness guard shipped* (`library.test.ts`): a test asserts the IG
       library page surfaces **all 21 major sections** of intuitivegames.net (core/abilities/advancement/
       classes/skills/ancestries/backgrounds/stances/conditions/feats/powers/defensive-powers/actions/

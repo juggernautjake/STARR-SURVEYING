@@ -76,7 +76,8 @@ External: Online Community (Locals platform link).
 | /redistribution | ✅ FULL | `content.ts` `IG_REDISTRIBUTION_RULES`; library "Redistribution" |
 | /game-list | 🚧 WIP-on-site (one board game, "Overrun") | — (no RPG rules impact) |
 | / (home) | ⬜ not yet scrubbed (nav + intro) | — |
-| ART (race/character/other) | ⬜ not yet scrubbed — needs browser screenshots (owner request) | — |
+| ART — ancestry portraits | 🟨 PARTIAL (8 race portraits downloaded + on the sheet) | `public/dnd/intuitive-games/ancestries/*.png`; `art.ts`; sheet ancestry panel |
+| ART — character/class/other | ⬜ not yet scrubbed (classes page + home logo remain) | — |
 
 *Legend:* the ✅ pages below carry their full transcription; the ⬜/🟨 pages are filled in over subsequent
 scrub slices. This tracker is updated as each page is completed.
@@ -168,6 +169,22 @@ Radiance, Spectral Sling, Vitality, Wave Crash, Disguise, Burst, Carapace Growth
 Poison Dart, Quick Claw, Temporary Weapon) and does not yet model the **Description/Advanced/Expert tiers**.
 The fetch tool declined to reproduce the full verbatim spell effects, so completing this faithfully needs the
 exact text from the site/Brendan — **flagged as a follow-up**, not fabricated.
+
+## ART — Ancestry / race portraits 🟨 PARTIAL
+
+**Attribution:** all art is **Brendan's** (Intuitive Games); downloaded from the site's public CDN into the
+app with a visible "Art · Brendan (Intuitive Games)" credit. *(Recommend Brendan's explicit OK on reuse — a
+formality given it's his system being built into the app at the owner's request.)*
+
+The `/traits-ancestries` page publishes a hand-drawn ink portrait per ancestry. **8 downloaded** →
+`public/dnd/intuitive-games/ancestries/`: dwarf, elf, gnome, halfling, leshonki, **migoi** (the site's "Yeti"
+race art), naga, ogre. **Human and Sprite have no portrait on the site.** Source: Squarespace CDN
+`…/65fb23736e04db4769b471d2/…` (filenames like `Male+Dwarf+Race+Art.png`, `Elf.png`, `Male+Yeti+Race+Art.png`).
+Manifest: `lib/dnd/systems/intuitive-games/art.ts` (`igAncestryArt`); rendered in the IGSheet ancestry panel on
+a light card (the art is ink-on-white) with the credit line.
+
+**Remaining art:** class/character illustrations on `/classes`, the site logo/branding on the home page, and
+any item/spell art — a follow-up browser-scrub slice.
 
 ## /game-list — Game List 🚧 WIP-on-site
 

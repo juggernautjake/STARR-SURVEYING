@@ -54,6 +54,12 @@ describe('IGSheet shows in-play stances + conditions with tooltips', () => {
     expect(SRC).toMatch(/title=\{t\.text\}/); // each trait hover-explains itself
   });
 
+  it('shows Brendan\'s race art in the ancestry panel, with attribution (A20)', () => {
+    expect(SRC).toContain('igAncestryArt(anc.name)');
+    expect(SRC).toMatch(/Intuitive Games race art/); // alt text
+    expect(SRC).toMatch(/Brendan \(Intuitive Games\)/); // visible credit
+  });
+
   it('the character page passes write access to the sheet', () => {
     const PAGE = fs.readFileSync(path.join(process.cwd(), 'app/dnd/characters/[id]/page.tsx'), 'utf8');
     expect(PAGE).toMatch(/<IGSheet[^>]*canEdit=\{canWrite\}[^>]*characterId=\{character\.id\}/);
