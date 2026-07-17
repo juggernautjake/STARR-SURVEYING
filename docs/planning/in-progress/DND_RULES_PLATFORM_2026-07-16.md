@@ -570,6 +570,10 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       before, now surface in `searchLibrary` as `armor`/`weapon` hits (AC/Dex-cap/Str; damage die+type+
       traits) and as PF2-only **Armor** and **Weapons** tables on the library page. System-scoped (no 5e
       leak). `library.test.ts` +1 (Full Plate +6 AC, Longsword 1d8 slashing).
+      **Plus (6b follow-up) a PF2 spell catalog** — the last missing PF2 content. `PF2_SPELLS` (25
+      cantrips + iconic spells across ranks 0–6 and the four traditions, with cast cost + factual effect)
+      surfaces in `searchLibrary` as `spell` hits and a PF2-only **Spells** table (marked representative,
+      not exhaustive). System-scoped; `library.test.ts` +1 (Fireball rank 3 arcane, Shield cantrip).
       **Plus (6b hardening) a test on the assemble seam** — `assemblePF2VanillaCharacter` (the projection
       the `pf2-build` routes persist and the character page reads) is now covered by
       `pathfinder2e-assemble.test.ts` (8): the sidecar passes `isPF2Character`, identity→meta/chips,
