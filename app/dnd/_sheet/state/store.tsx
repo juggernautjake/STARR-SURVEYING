@@ -87,6 +87,7 @@ interface Ctx {
   acInfo: AcResult
   /** The generic STR-based Save DC (8 + PB + STR, or the manual override) — one source for every card. */
   saveDc: number
+  spellSaveDc: number
   /** The EFFECTIVE active form id (Slice 18): the form a `transform` effect imposes, else the
    *  character's own `activeFormId`. Components render THIS so an imposed form shows as active;
    *  the form TOGGLE still writes `char.activeFormId` (the base), so the transform stays an overlay. */
@@ -563,6 +564,14 @@ export function CharacterProvider({
     () => char.combat.saveDCOverride ?? 8 + pb + abilityMod(abilities.str),
     [char.combat.saveDCOverride, pb, abilities.str],
   )
+  // Single source for the SPELL save DC too — the SpellsPanel header and castSpell used to compute it
+  // with the override + spell_save_dc effect folded in a DIFFERENT order, so the two disagreed when a
+  // character had both. Both now read this. Effect folds on top of (override ?? 8 + PB + casting mod).
+  const spellSaveDc = useMemo(() => {
+    const sc = char.spellcasting
+    const scMod = sc ? abilityMod(abilities[sc.ability]) : 0
+    return ledger.value('spell_save_dc', char.combat.saveDCOverride ?? 8 + pb + scMod)
+  }, [char.spellcasting, abilities, pb, ledger, char.combat.saveDCOverride])
 
   const commitRoll = useCallback((entry: Omit<RollEntry, 'id'>) => {
     setLog((l) => [{ ...entry, id: idRef.current++ }, ...l].slice(0, 40))
@@ -704,7 +713,7 @@ export function CharacterProvider({
       // ledger-effective proficiency, and the DC/attack fold their own `spell_save_dc`/`spell_attack`
       // effects on top.
       const mod = sc ? abilityMod(abilities[sc.ability]) : 0
-      const saveDC = char.combat.saveDCOverride ?? ledger.value('spell_save_dc', 8 + pb + mod)
+      const saveDC = spellSaveDc // single source — matches the SpellsPanel header exactly
       const label = spell.alias ? `${spell.name} (“${spell.alias}”)` : spell.name
       if (spell.level > 0) {
         setCharState((c) => {
@@ -742,7 +751,7 @@ export function CharacterProvider({
         commitRoll({ label: `${label} — cast`, kind: 'raw', total: 0, breakdown: spell.save ? `${spell.save.ability.toUpperCase()} save DC ${saveDC}` : spell.level > 0 ? `L${spell.level} slot spent` : 'cantrip' })
       }
     },
-    [char.spellcasting, abilities, pb, ledger, char.combat.saveDCOverride, rollCheck, rollExpr, stage, commitRoll],
+    [char.spellcasting, abilities, pb, ledger, spellSaveDc, rollCheck, rollExpr, stage, commitRoll],
   )
 
   // Use a class feature: spend its resource (if any) and roll/apply its effect (heal/temp HP
@@ -1055,6 +1064,7 @@ export function CharacterProvider({
     critMin,
     acInfo,
     saveDc,
+    spellSaveDc,
     activeFormId,
     isDM,
     canWrite: canWrite ?? isDM,
