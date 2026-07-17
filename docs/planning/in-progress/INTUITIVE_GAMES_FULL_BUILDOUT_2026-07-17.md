@@ -433,6 +433,15 @@ expanded requirements (2026-07-17):
       unambiguous flat-penalty phrasing, with a sanity test pinning that it selects exactly Shaken/Sickened.
       `ig-mechanics-match-text.test.ts` +2. **Remaining:**
       add/remove condition editing (B6 route) + optionally folding the penalty through the rolls.
+      **Audit finding 2026-07-17 — the mechanics are DISPLAYED but there is no in-app roll to apply them to.**
+      `IGSheet` computes + shows the condition penalty (`igConditionSummary`) and the active stance's effect
+      (`igStanceMechanicNote`) but has **no roller** (zero `roll`/`dice` refs), exactly like `PF2Sheet`. The
+      "shown, not folded — the exhaustion pattern" framing above is only half the 5e pattern: the 5e sheet
+      shows exhaustion AND auto-applies it at ROLL time (`rollCheck` folds −2/level), whereas IG has no roll
+      time. So the IG mechanics are real (computed, text-faithful, displayed) but the *player* applies them by
+      hand. Whether IG should get an in-app roller that auto-applies them (like 5e) — which would directly
+      satisfy the owner's "real mechanics affecting checks/rolls" ask — or stay a reference sheet is a product
+      call; tracked in `BLOCKERS.md §C` alongside the parallel PF2-roller decision.
 - [~] **B5 — Stances: display + tooltip + mechanics + edit.** The sheet clearly shows the ACTIVE stance (one at
       a time); hovering shows its Basic/Advanced text; the effect is applied to the relevant rolls per the
       Basic-below-L5 / Advanced-at-L5+ rule; enter/leave editable on the sheet + by the AI. Marquee mechanic.

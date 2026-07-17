@@ -76,13 +76,20 @@ overwrite a deliberate design.
       *Detail: `DND_RULES_PLATFORM` Slice 29.*
 - [ ] **Form-editor UI** (author an arbitrary foreign statblock as a form) — the only heavier half of
       transform left; `Forms.tsx` is display+toggle today. *Detail: Slice 18.*
-- [ ] **PF2 in-app roller (a product call + UI work).** The D&D 5e sheet rolls checks/attacks/saves/damage
-      in-app with a dice tray; the PF2 sheet is display-only — it shows the +modifiers but has no roll
-      surface, so `pf2Degree` (the four degrees of success + the nat-20/nat-1 step) is fully built and
-      comprehensively tested yet reaches no player: a PF2 user can't roll a Strike or skill check and see
-      "critical success." The engine is ready; only the roll UI is missing. Surfaced 2026-07-17 by audit
-      (`pf2Degree` has zero call sites; `PF2Sheet.tsx` has no roll). Decide whether PF2 should roll in-app
-      like 5e (then I wire the sheet to `pf2Degree`/`pf2AttackBonus`) or stay a reference sheet by design.
+- [ ] **In-app roller for the bespoke sheets — PF2 AND Intuitive Games (a product call + UI work).** The
+      D&D 5e sheet rolls checks/attacks/saves/damage in-app with a dice tray that AUTO-APPLIES its mechanics
+      (e.g. exhaustion −2/level folds into every roll). The two bespoke sheets are display-only:
+      • **PF2** — `PF2Sheet` shows the +modifiers but has no roll surface, so `pf2Degree` (the four degrees
+        of success + the nat-20/nat-1 step) is fully built + comprehensively tested yet reaches no player
+        (zero call sites). The engine is ready; only the roll UI is missing.
+      • **IG** — `IGSheet` COMPUTES + DISPLAYS the condition penalty (`igConditionSummary` → "−N to attacks,
+        saves & skills") and the active stance's effect (`igStanceMechanicNote`), but has no roller either
+        (zero `roll`/`dice` refs), so those mechanics are shown for the player to apply by hand, not folded
+        into an in-app roll. This one touches your explicit IG ask ("build real mechanics affecting checks/
+        rolls"): the mechanics ARE real (computed, text-faithful, displayed) — the open question is whether
+        you want an in-app IG roller that auto-applies them like the 5e sheet, or display-only is fine.
+      Surfaced 2026-07-17 by audit. Decide per system whether it should roll in-app (then I wire the sheet to
+      the existing `pf2Degree`/`pf2AttackBonus` / `igConditionSummary` engines) or stay a reference sheet.
 - [ ] **Mobile upload runtime** — every decision in the capture→save→send→drain→notify→delete flow is a
       pure, tested function; the Expo runtime (true background upload task, MediaLibrary, notifications, the
       queue screen) can only be built + verified on real iOS/Android by you. *Detail: `SURVEYING_WORKMODE`
