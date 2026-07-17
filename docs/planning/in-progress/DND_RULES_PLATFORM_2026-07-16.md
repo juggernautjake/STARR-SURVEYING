@@ -2514,6 +2514,12 @@ level, fixing bugs/styling) is the substantive remainder and needs an interactiv
 (a throwaway test account + character on live Supabase) — held pending the owner's go-ahead to write +
 clean up that test data unattended.
 
+**Whole-repo health checkpoint ✅ (2026-07-17).** Going into the walkthrough, the codebase is verified
+clean: the FULL test suite passes (**12,837 tests, 0 failures**, 30 skipped) and a full `tsc --noEmit`
+is exit-0 — so the ~40-slice audit run (every derived value on the ledger, every d20 applying exhaustion,
+edit round-trips, registry/AI-schema/trigger consistency, security gates, Ground-Rule-1 scoping) left no
+regression anywhere in the repo, not just the DnD subset.
+
 - [ ] **Fresh account.** Create a NEW user through the pseudo-login (name + password, no email — see
       Slice 36). Confirm the sign-up path works from a clean state.
 - [ ] **First character, D&D 5e 2024, vanilla.** Create a character and walk the WHOLE creation flow
