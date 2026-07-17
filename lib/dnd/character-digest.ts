@@ -223,6 +223,7 @@ export function adjudicationInstruction(characterName: string, systemName: strin
   return [
     `ADJUDICATING FOR A SPECIFIC CHARACTER: you are answering about ${characterName}, whose sheet is given below.`,
     `Use ${characterName}'s ACTUAL numbers, features, resources and current conditions — not a generic ${systemName} character's.`,
+    `The numbers on the sheet are ALREADY the current EFFECTIVE values — base plus every active item, spell, form and condition (a "[base N]" note shows the unmodified value, and a listed penalty like "Exhaustion 3 (−6 to all d20 rolls)" is the current effect). Rule on them as given; do NOT re-add a bonus that is plainly already folded in, or re-apply a penalty already reflected.`,
     '',
     'When the question is situational ("can I…", "what happens if…", "does X apply here?"):',
     `1. Answer with a clear ruling first, in one line.`,

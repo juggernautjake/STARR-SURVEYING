@@ -106,6 +106,10 @@ describe('adjudicationInstruction demands honesty over confidence', () => {
   it('forbids inventing anything the sheet does not have', () => {
     expect(i).toMatch(/Never invent a feature, a number, or a resource/);
   });
+  it('tells the AI the numbers are already effective, so it does not double-count a folded-in bonus', () => {
+    expect(i).toMatch(/current EFFECTIVE values/);
+    expect(i).toMatch(/do NOT re-add a bonus/);
+  });
 });
 
 describe('the digest reports LEDGER-resolved numbers, not the stored base (Slice 15)', () => {
