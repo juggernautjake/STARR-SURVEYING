@@ -574,6 +574,9 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       cantrips + iconic spells across ranks 0–6 and the four traditions, with cast cost + factual effect)
       surfaces in `searchLibrary` as `spell` hits and a PF2-only **Spells** table (marked representative,
       not exhaustive). System-scoped; `library.test.ts` +1 (Fireball rank 3 arcane, Shield cantrip).
+      **Plus (6b follow-up) gear/spells/subclasses in `pf2Catalog()`** — the catalog (which feeds the AI
+      builder's grounding prompt) now also groups Subclasses, Weapons, Armor, and Spells, so an AI PF2
+      build references a real bloodline/longsword/breastplate/Fireball instead of inventing one. +1 test.
       **Plus (6b hardening) a test on the assemble seam** — `assemblePF2VanillaCharacter` (the projection
       the `pf2-build` routes persist and the character page reads) is now covered by
       `pathfinder2e-assemble.test.ts` (8): the sidecar passes `isPF2Character`, identity→meta/chips,
