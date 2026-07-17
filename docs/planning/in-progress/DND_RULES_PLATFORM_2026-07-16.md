@@ -374,9 +374,11 @@ renders. The one clear gap — spells — is now closed.
 
 The engine (`lib/dnd/classes/custom.ts`) is built and tested; there is no UI.
 
-- [ ] `/dnd/characters/[id]/build/class` — define a class from scratch: hit die, saves, skills,
-      per-level features, resources, spellcasting. Live `reviewCustomClass` feedback (errors block,
-      balance warnings advise).
+- [~] `/dnd/characters/[id]/build/class` — define a class from scratch. **AI-assist endpoint ✅ SHIPPED**
+      (`dadb68a5`): `POST /api/dnd/characters/[id]/homebrew-class { prompt }` → draft → `buildCustomClass`
+      → `reviewCustomClass` → `{ draft, definition, review }` (errors block / warnings advise via
+      `splitReview`), write-gated + propose-only. **Remaining:** the page UI (prompt box + editable draft
+      form + live review) and the persist action.
 - [~] Homebrew subclass + homebrew feat builders. **AI-input side ✅ SHIPPED** (`1ceae899`):
       `parseCustomSubclassInput`/`CUSTOM_SUBCLASS_TOOL` → `buildCustomSubclass` and
       `parseCustomFeatInput`/`CUSTOM_FEAT_TOOL` → `buildCustomFeat`+`reviewCustomFeat` (custom-ai.ts, +4
