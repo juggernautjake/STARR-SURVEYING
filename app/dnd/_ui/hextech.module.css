@@ -871,20 +871,104 @@ select.input {
    gaps. Sized to stand about as tall as the wordmark's caps. */
 .siteBrandCluster {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  gap: 2px;
+  /* Small fixed tracks (not 1fr) so the four diamonds sit CLOSE — the diamonds center in each cell
+     and the tight tracks pull them together into one compact larger diamond, instead of a full empty
+     glyph-width cell holding them apart. */
+  grid-template-columns: repeat(3, 0.42em);
+  grid-template-rows: repeat(3, 0.42em);
+  place-items: center;
+  gap: 0;
   color: var(--hx-teal-1);
-  font-size: 7px;
-  line-height: 1;
+  /* Each small diamond 3× its original size (7px → 21px); the top/left/right/bottom arrangement is
+     unchanged — they just get bigger in place. */
+  font-size: 21px;
+  line-height: 0.5;
 }
 .siteBrandCluster span {
   display: block;
+  position: relative;
+  will-change: transform, filter;
+  transition: filter 0.35s ease;
 }
 .siteBrandCluster span:nth-child(1) { grid-column: 2; grid-row: 1; }
 .siteBrandCluster span:nth-child(2) { grid-column: 1; grid-row: 2; }
 .siteBrandCluster span:nth-child(3) { grid-column: 3; grid-row: 2; }
 .siteBrandCluster span:nth-child(4) { grid-column: 2; grid-row: 3; }
+
+/* A wispy trail: a blurred, faded copy of each diamond that lags behind its dance, like a spirit
+   sprite's tail of light. Hidden until hover. */
+.siteBrandCluster span::after {
+  content: '◆';
+  position: absolute;
+  inset: 0;
+  color: var(--hx-teal-1);
+  filter: blur(3px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+
+/* On hover of the whole wordmark, the four diamonds in each cluster dance — each drifts on its own
+   little orbit, glowing, with the blurred trail whisping behind it. Staggered so they don't move in
+   lock-step; the trail animation is the same path started a beat later so it lags like a tail. */
+.siteBrand:hover .siteBrandCluster span,
+.siteBrand:focus-visible .siteBrandCluster span {
+  filter: drop-shadow(0 0 5px rgba(var(--hx-teal-rgb, 10, 200, 185), 0.85));
+  animation: spriteDance 2.4s ease-in-out infinite;
+}
+.siteBrand:hover .siteBrandCluster span::after,
+.siteBrand:focus-visible .siteBrandCluster span::after {
+  opacity: 0.55;
+  animation: spriteDance 2.4s ease-in-out infinite;
+  animation-delay: -0.18s; /* the trail lags a beat behind the diamond it follows */
+}
+/* Per-diamond variety: different durations + delays so the four sprites drift independently. */
+.siteBrand:hover .siteBrandCluster span:nth-child(1) { animation-duration: 2.1s; animation-delay: 0s; }
+.siteBrand:hover .siteBrandCluster span:nth-child(2) { animation-duration: 2.7s; animation-delay: -0.5s; }
+.siteBrand:hover .siteBrandCluster span:nth-child(3) { animation-duration: 2.3s; animation-delay: -0.9s; }
+.siteBrand:hover .siteBrandCluster span:nth-child(4) { animation-duration: 2.9s; animation-delay: -1.3s; }
+
+/* A lively little jig — the sprites dart and shimmer around their spots. */
+@keyframes spriteDance {
+  0%   { transform: translate(0, 0) rotate(0deg) scale(1); }
+  20%  { transform: translate(2px, -2.5px) rotate(24deg) scale(1.08); }
+  45%  { transform: translate(-2px, 1.5px) rotate(-18deg) scale(0.96); }
+  65%  { transform: translate(1.5px, 2px) rotate(14deg) scale(1.05); }
+  85%  { transform: translate(-1px, -1.5px) rotate(-8deg) scale(0.99); }
+  100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+}
+
+/* On hover, each cluster also spins as a whole around its own center, so the four sprites orbit the
+   middle — the LEFT cluster clockwise, the RIGHT counter-clockwise (mirror images of each other). This
+   rides on top of each diamond's individual dance (parent rotation × child transform). */
+.siteBrand:hover > .siteBrandCluster:nth-child(1),
+.siteBrand:focus-visible > .siteBrandCluster:nth-child(1) {
+  animation: clusterSpinCW 9s linear infinite;
+}
+.siteBrand:hover > .siteBrandCluster:nth-child(3),
+.siteBrand:focus-visible > .siteBrandCluster:nth-child(3) {
+  animation: clusterSpinCCW 9s linear infinite;
+}
+@keyframes clusterSpinCW {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes clusterSpinCCW {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
+}
+
+/* Respect reduced-motion: keep the glow, drop the dance. */
+@media (prefers-reduced-motion: reduce) {
+  .siteBrand:hover .siteBrandCluster span,
+  .siteBrand:hover .siteBrandCluster span::after,
+  .siteBrand:focus-visible .siteBrandCluster span,
+  .siteBrand:focus-visible .siteBrandCluster span::after,
+  .siteBrand:hover > .siteBrandCluster,
+  .siteBrand:focus-visible > .siteBrandCluster {
+    animation: none;
+  }
+}
 .siteNav {
   /* Always hug the right edge, even on pages where the back button (the only other in-flow item)
      renders nothing — otherwise a lone nav would slide left. */

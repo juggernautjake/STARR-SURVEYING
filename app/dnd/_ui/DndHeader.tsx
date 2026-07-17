@@ -32,6 +32,11 @@ export default function DndHeader({ userName }: { userName?: string | null }) {
         <Link href="/dnd" className={styles.siteNavLink}>
           Lobby
         </Link>
+        {/* The rules library — every system's classes, subclasses, features, conditions and rules,
+            searchable and AI-navigable. Given a top-level nav slot so it's always one click away. */}
+        <Link href="/dnd/library" className={styles.siteNavLink}>
+          Library
+        </Link>
         <Link href="/dnd/characters/new" className={styles.siteNavLink}>
           ＋ Character
         </Link>
