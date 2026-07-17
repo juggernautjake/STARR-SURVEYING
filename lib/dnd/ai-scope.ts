@@ -23,11 +23,14 @@
 //     `requireCharacterWrite(params.id)` (lib/dnd/characters.ts), so the write is keyed
 //     to one character id AND the caller's owner/assigned-player/DM authorization. There
 //     is no route that lets the AI address a different character or a foreign resource.
-//   • Tool constraint: the AI's only mutation tool is `edit_sheet`, whose entire op
-//     vocabulary maps to fields of the Character model (applied by the pure
-//     `applySheetEdits`, which returns a Character and nothing else). No op names or
-//     targets a page, campaign, map, user, or another character. `assertCharacterScopedOps`
-//     below asserts that invariant so a future op that reached outside the sheet fails a test.
+//   • Tool constraint: the AI's mutation tools are `edit_sheet` (game mechanics),
+//     `edit_ig_sheet` (Intuitive Games mechanics), and `customize_layout` (the sheet's
+//     HTML/CSS + blocks). Every op in all three maps to fields of the Character model / its
+//     own custom_layout + custom_css (applied by the pure `applySheetEdits` / `applyIgEdit` /
+//     `applyLayoutEdits`, each returning a Character or its layout and nothing else). No op
+//     names or targets a page, campaign, map, user, or another character.
+//     `assertCharacterScopedOps` below asserts that invariant for ALL THREE vocabularies
+//     (ai-scope.test.ts) so a future op that reached outside the sheet fails a test.
 //   • Prompt constraint: the edit system prompt tells the agent to change only what the
 //     user asked and to touch nothing else; the chat UI states the scope to the user.
 

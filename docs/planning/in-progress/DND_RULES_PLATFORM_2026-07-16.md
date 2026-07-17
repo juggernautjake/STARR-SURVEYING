@@ -389,6 +389,13 @@ power ops — `ig-edit.test.ts` +1) and `applyLayoutEdits` (the AI's HTML/CSS re
 CSS, add/remove/move/update block, retitle — `layout-edits.test.ts` +1). All three now carry a compile-time
 `never` exhaustiveness guard + a tool-schema↔handler source-scan, so NONE of the three ways the AI changes
 a sheet — mechanics, IG mechanics, or layout/style — can ever have an op that silently no-ops.
+**Scoping boundary extended to all three vocabularies (2026-07-17):** the `assertCharacterScopedOps` guard
+(`ai-scope.ts` — every AI op must be a character-sheet-scoped mutation, never reaching a page/campaign/map/
+user/other character) was verified against `edit_sheet` and `customize_layout` but NOT the IG `edit_ig_sheet`
+vocabulary — and `ai-scope.ts`'s own doc still claimed `edit_sheet` was "the only mutation tool" (stale since
+the IG + layout tools shipped). Both fixed: `ai-scope.test.ts` now asserts ALL THREE vocabularies pass the
+scoping check (all do — no live violation), and the boundary doc lists all three. So the security boundary
+can't silently lapse for the IG or layout surface as it did in coverage. `ai-scope.test.ts` +1.
 
 - [x] **`add_spell` / `remove_spell` ✅ SHIPPED 2026-07-17.** The AI could rename or item-grant spells but
       not add/remove them directly. Added both to the edit vocabulary + the AI tool schema (full spell
