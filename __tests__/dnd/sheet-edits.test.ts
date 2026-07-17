@@ -1,7 +1,24 @@
 // __tests__/dnd/sheet-edits.test.ts — structured sheet edits (Phase I2).
 import { describe, it, expect } from 'vitest';
-import { applySheetEdits, editPath, editOldValue, revertSheetEdit, type SheetEdit } from '@/lib/dnd/sheet-edits';
+import { applySheetEdits, editPath, editOldValue, revertSheetEdit, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
+import { EFFECT_OPERATIONS } from '@/app/dnd/_sheet/engine/effects';
+
+describe('the AI edit_sheet tool schema stays in sync with the effect registry', () => {
+  // Appendix A / C: the AI's tool schema is meant to be GENERATED from the effect vocabulary, not a
+  // hand-written list that drifts. It had: it listed grant_sense (a TARGET) as an operation and omitted
+  // condition_advantage (a real operation), so the AI couldn't emit a Dwarven-Resilience item. The
+  // operation list is now built from EFFECT_OPERATIONS; this guards it against being re-hardcoded.
+  const schemaStr = JSON.stringify(SHEET_EDIT_TOOL);
+  it('the effects description lists exactly the engine operations', () => {
+    expect(schemaStr).toContain(EFFECT_OPERATIONS.join('|'));
+  });
+  it('includes every operation individually (incl. condition_advantage, the one that was missing)', () => {
+    for (const op of EFFECT_OPERATIONS) {
+      expect(schemaStr, `operation "${op}" missing from the AI tool schema`).toContain(op);
+    }
+  });
+});
 
 describe('applySheetEdits', () => {
   it('sets meta, level, abilities, and combat', () => {

@@ -11,6 +11,7 @@ import type { Effect } from '@/app/dnd/_sheet/engine/effects';
 import type { AbilityKey, ProfLevel } from '@/app/dnd/_sheet/rules/dnd';
 import { validateCustomTag, RESERVED_TAGS } from '@/app/dnd/_sheet/components/ui/tagInfo';
 import { validateEffect } from '@/lib/dnd/effects/targets';
+import { EFFECT_OPERATIONS } from '@/app/dnd/_sheet/engine/effects';
 import { cleanTriggers } from '@/lib/dnd/effects/triggers';
 
 /** The full set of fields an item edit can carry (Slice 14). Shared by add_item + update_item so
@@ -632,7 +633,7 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
               type: 'array',
               description:
                 'For add_item/update_item: the item\'s REAL passive effects, applied by the ledger while equipped/attuned. THIS is what makes an item change the sheet. Each effect is { target, operation, value?, condition? }. ' +
-                'target is a key from the effect registry (e.g. ability_str, ac, speed_walk, spell_save_dc, attack_and_damage, resistance, darkvision). operation is add|set|set_base|advantage|disadvantage|grant_proficiency|resistance|immunity|vulnerability|grant_sense (use the ones the target allows). value is a number for numeric targets, a string for text/damage_type/proficiency/sense targets. Omit value for advantage/disadvantage. Unknown targets/operations are REJECTED, not coerced — use only registry keys.',
+                `target is a key from the effect registry (e.g. ability_str, ac, speed_walk, spell_save_dc, attack_and_damage, resistance, grant_sense). operation is ${EFFECT_OPERATIONS.join('|')} (use the ones the target allows). value is a number for numeric targets, a string for text/damage_type/proficiency/sense/dice targets. Omit value for advantage/disadvantage. Unknown targets/operations are REJECTED, not coerced — use only registry keys.`,
               items: {
                 type: 'object',
                 properties: {
