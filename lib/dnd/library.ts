@@ -11,11 +11,19 @@ import { glossaryFor, searchGlossary } from './glossary';
 import { classesForSystem } from './classes/registry';
 import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
+import { IG_CONDITIONS, type NamedEntry } from './systems/intuitive-games/content';
 
 /** The full feat registry for a system, or [] when only a catalog sample exists. System-keyed
  *  dispatcher (the pattern `findFeat`'s comment calls for) so a feat never leaks across systems. */
 function featsForSystem(system: string): Feat[] {
   return system === 'dnd5e-2024' ? FEATS_2024 : [];
+}
+
+/** Conditions a system exposes WITH full mechanical text (vs. the name-only chip list). System-keyed so
+ *  Intuitive Games' condition rules never surface under another system. IG's are transcribed verbatim
+ *  from intuitivegames.net; the rest still render as name chips until authored. */
+function conditionsWithTextFor(system: string): NamedEntry[] {
+  return system === 'intuitive-games' ? IG_CONDITIONS : [];
 }
 
 /** Backgrounds a system exposes as structured library data. System-keyed so PF2's backgrounds never
@@ -265,7 +273,19 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
   }
 
   if (r.content.conditions.length) {
-    sections.push({ id: 'conditions', title: 'Conditions', lead: `${r.content.conditions.length} standardized states.`, chips: r.content.conditions });
+    const condText = conditionsWithTextFor(key).filter((c) => c.effect);
+    if (condText.length) {
+      // Full rules text (IG today): a two-column table so a reader — and the AI — gets the actual
+      // mechanical effect, not just the name.
+      sections.push({
+        id: 'conditions',
+        title: 'Conditions',
+        lead: `${condText.length} standardized states — full rules text.`,
+        table: { headers: ['Condition', 'Effect'], rows: condText.map((c) => [c.name, c.effect as string]) },
+      });
+    } else {
+      sections.push({ id: 'conditions', title: 'Conditions', lead: `${r.content.conditions.length} standardized states.`, chips: r.content.conditions });
+    }
   }
 
   if (r.content.sampleFeats.length) {
@@ -368,7 +388,14 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
     for (const s of r.content.skills) push('skill', s.name, `${s.name} — governed by ${s.ability} in ${r.label}.`);
     for (const s of r.content.species) push('species', s, `${s} — a playable ${speciesNoun(r.key).toLowerCase().replace(/s$/, '')} in ${r.label}.`);
     for (const n of r.content.ancestryNotes ?? []) push('species', n.split(/[—-]/)[0].trim() || 'Ancestry', n);
-    for (const c of r.content.conditions) push('condition', c, `${c} — a condition in ${r.label}.`);
+    // Systems with full condition text (IG) expose each condition's real mechanical effect, so
+    // "grappled" or "flat-footed" returns the actual rules; the rest fall back to a one-line stub.
+    const condText = conditionsWithTextFor(key);
+    if (condText.length) {
+      for (const c of condText) push('condition', c.name, `${c.name} — ${c.effect ?? `a condition in ${r.label}.`}`);
+    } else {
+      for (const c of r.content.conditions) push('condition', c, `${c} — a condition in ${r.label}.`);
+    }
     // Systems with a full FEATS registry (dnd5e-2024) expose EVERY feat with its real benefit text and
     // category, so "great weapon master" or "alert" returns the actual rules, not a one-line stub.
     const fullFeats = featsForSystem(key);

@@ -246,3 +246,31 @@ describe('full 2024 feats project into library search (Slice 8b)', () => {
     expect(archery!.body).toMatch(/\+2/); // Archery gives +2 to ranged attack rolls
   });
 });
+
+describe('Intuitive Games conditions carry full rules text (IG buildout A4)', () => {
+  it('renders the conditions section as a full-text table, not name chips', () => {
+    const page = libraryPageFor('intuitive-games')!;
+    const cond = page.sections.find((s) => s.id === 'conditions')!;
+    expect(cond.table).toBeTruthy();
+    expect(cond.chips).toBeUndefined();
+    expect(cond.table!.headers).toEqual(['Condition', 'Effect']);
+    expect(cond.table!.rows).toHaveLength(18);
+    const grappled = cond.table!.rows.find((r) => r[0] === 'Grappled');
+    expect(grappled?.[1]).toMatch(/flat-footed/i);
+  });
+
+  it('search returns the real mechanical effect, not a one-line stub', () => {
+    const grappled = searchLibrary('grappled', 'intuitive-games').find((h) => h.kind === 'condition');
+    expect(grappled?.name).toBe('Grappled');
+    expect(grappled!.body).toMatch(/two hands/i);
+    expect(grappled!.body.length).toBeGreaterThan(60);
+    // "flat-footed" resolves to its own full condition text too.
+    const flat = searchLibrary('flat-footed', 'intuitive-games').find((h) => h.kind === 'condition');
+    expect(flat!.body).toMatch(/until they take an action in combat/i);
+  });
+
+  it('IG condition text does not leak into another system', () => {
+    // "heatstroke" is an IG condition; a 5e search must not surface it as a condition.
+    expect(searchLibrary('heatstroke', 'dnd5e-2024').some((h) => h.kind === 'condition')).toBe(false);
+  });
+});

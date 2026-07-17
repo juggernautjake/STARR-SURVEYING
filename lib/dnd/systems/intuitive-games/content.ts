@@ -31,6 +31,30 @@ export const IG_STANCES: NamedEntry[] = [
   { name: 'Menacing', effect: 'A: advantage on trained combat skills. B: advantage on all combat skills.' },
 ];
 
+// ── Conditions (18) — the standardized states, with the FULL mechanical text transcribed verbatim from
+//    intuitivegames.net/conditions (2026-07-17). The names mirror `systemConditions('intuitive-games')`
+//    in system-rules.ts (guarded by a drift test); this list adds the rules body the library + AI need.
+export const IG_CONDITIONS: NamedEntry[] = [
+  { name: 'Asleep', effect: 'The creature can take no actions and is treated as paralyzed. Any amount of damage, loud noises, or physical contact with another creature may wake the sleeping creature.' },
+  { name: 'Blind', effect: 'A blinded creature automatically fails all sight-based perception checks. They are at disadvantage on all attack rolls, reflex saves, and perception checks. If a character is permanently blinded then they may spend a trait to remove the disadvantage on one of the three penalized abilities.' },
+  { name: 'Broken', effect: 'A broken item does not function properly. Technological items do not work while broken. Weapons are at disadvantage on attack rolls. Armor provides only half of the normal DR and imposes a -2 penalty on reflex saves. Shields provide no reflex save bonus when broken.' },
+  { name: 'Confused', effect: 'A confused creature lashes out against those around it, making attacks wildly with whatever weapon or item it has in its hands. The confused creature must roll a die at the beginning of every turn. If it is an odd number, they cannot tell friend from foe and do everything in their power to attack the nearest creature. If it is an even number, they can tell friend from foe and will either do everything in their power to attack a foe or attack themselves. If they can tell friend from foe and provoke a reaction, they automatically fail their reflex save to avoid an attack if the creature makes one.' },
+  { name: 'Deaf', effect: 'A deafened creature automatically fails all hearing-based perception checks. They are at disadvantage on all reflex saves and perception checks. If a character is permanently deafened then they may spend a trait to remove the disadvantage on one of the two penalized abilities.' },
+  { name: 'Entangled', effect: 'An entangled creature is at disadvantage on all strength or dexterity-based checks, excluding any checks made to free themselves from whatever is entangling them. An entangled creature cannot move from their current location.' },
+  { name: 'Fascinated', effect: 'A fascinated creature can not take any actions. The fascination can be ended prematurely if the fascinated creature is threatened or attacked. The fascinated creature is at disadvantage on all perception checks.' },
+  { name: 'Flat-Footed', effect: 'A flat-footed creature does not add their dexterity modifier on any reflex saves or skill checks and can not make reactions. All creatures are flat-footed until they take an action in combat.' },
+  { name: 'Grappled', effect: 'Grappled creatures are flat-footed and the creature cannot move from its current location. They also cannot take any actions which require two hands.' },
+  { name: 'Heatstroke', effect: 'A creature that has been exposed to blistering heat without ample protection takes one point of nonlethal damage every ten minutes. In addition, they are treated as shaken if they do not succeed a fortitude save every 10 minutes.' },
+  { name: 'Hypothermia', effect: 'A creature that has been exposed to freezing cold without ample protection takes one point of nonlethal damage every ten minutes. In addition, they are treated as entangled if they do not succeed a fortitude save every 10 minutes.' },
+  { name: 'Incorporeal', effect: 'An incorporeal creature does not take damage from physical attacks and passes through solid objects. This creature can see into the spirit world by spending three actions, and upon doing so it can see through the veil between the worlds into the parallel part of the spirit world that matches where it resides in the natural world. While viewing into the spirit world, an incorporeal creature is considered blind.' },
+  { name: 'Invisible', effect: 'An invisible creature gets advantage on stealth checks. Other creatures are considered flat footed to their attacks. If another creature tries to attack the invisible creature, they must identify the square they are attacking. A creature who cannot see their attacker also applies the Blind penalty against them: Disadvantage on all opposed attack rolls and reflex saves. This applies even if the attacker was not invisible, but was just unnoticed by their target until attacking.' },
+  { name: 'Paralyzed', effect: 'A paralyzed creature cannot use any actions, reactions, free actions, or do anything else that requires movement. The reflex saves of the creature are always treated as if the creature rolled a Natural 1, only adding their level to the check. Rolling attacks with advantage automatically increases the degree of success by one step, skipping the benefit from the first source of advantage.' },
+  { name: 'Pinned', effect: 'The creature is treated as prone along with the usual penalties of being grappled.' },
+  { name: 'Prone', effect: 'A prone creature cannot make ranged attacks and is at disadvantage on all melee attack rolls and perception checks.' },
+  { name: 'Shaken', effect: 'A shaken creature takes a -2 penalty on attack rolls, saving throws, skill checks, and ability checks.' },
+  { name: 'Sickened', effect: 'A sickened creature takes a -2 penalty on attack rolls, saving throws, skill checks, and ability checks. If the creature fails any Fortitude save while sickened, it becomes paralyzed for a number of rounds equal to the amount it failed the save by.' },
+];
+
 // ── Feats — General + Combat + special powers referenced by the sheet. ──────────────────────────────
 export const IG_FEATS: NamedEntry[] = [
   { name: 'Toughness', category: 'General' },

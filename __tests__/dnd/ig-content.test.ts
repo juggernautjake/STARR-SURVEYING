@@ -2,10 +2,10 @@
 // covers the system's content (IG builder Slice 1). It is the recognition key for provenance flagging.
 import { describe, it, expect } from 'vitest';
 import {
-  IG_STANCES, IG_FEATS, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES, IG_MOVEMENT_TYPES,
+  IG_STANCES, IG_FEATS, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES, IG_MOVEMENT_TYPES, IG_CONDITIONS,
   igIsVanilla, igVanillaNames, igContentSummary,
 } from '@/lib/dnd/systems/intuitive-games/content';
-import { systemRulesBlock } from '@/lib/dnd/system-rules';
+import { systemRulesBlock, systemConditions } from '@/lib/dnd/system-rules';
 
 describe('Intuitive Games vanilla content library (Slice 1)', () => {
   it('has the 10 stances, each with an effect', () => {
@@ -40,6 +40,22 @@ describe('Intuitive Games vanilla content library (Slice 1)', () => {
     expect(igIsVanilla('power', 'Fireball Supreme')).toBe(false);
     expect(igIsVanilla('feat', 'My Homebrew Feat')).toBe(false);
     expect(igVanillaNames('spell')).toEqual(igVanillaNames('power')); // spell is an alias for power
+  });
+
+  it('has all 18 conditions with full mechanical text, matching the system condition list (no drift)', () => {
+    expect(IG_CONDITIONS).toHaveLength(18);
+    for (const c of IG_CONDITIONS) {
+      expect(c.name).toBeTruthy();
+      expect(c.effect && c.effect.length).toBeGreaterThan(20); // a real body, not a stub
+    }
+    // The names must exactly match systemConditions() so the classifier/tracker and the library agree.
+    expect(IG_CONDITIONS.map((c) => c.name)).toEqual(systemConditions('intuitive-games'));
+    // Spot-check a couple of verbatim mechanics from intuitivegames.net/conditions.
+    const grappled = IG_CONDITIONS.find((c) => c.name === 'Grappled');
+    expect(grappled?.effect).toMatch(/flat-footed/i);
+    expect(grappled?.effect).toMatch(/cannot take any actions which require two hands/i);
+    const flatFooted = IG_CONDITIONS.find((c) => c.name === 'Flat-Footed');
+    expect(flatFooted?.effect).toMatch(/until they take an action in combat/i);
   });
 
   it('the content summary exposes every kind and grounding lists the vanilla options', () => {

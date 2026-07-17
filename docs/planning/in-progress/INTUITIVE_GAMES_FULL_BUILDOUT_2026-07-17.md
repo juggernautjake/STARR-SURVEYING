@@ -49,12 +49,30 @@ Magical Items (`/magical-items`) · Tools (`/tools`) · Weapons (`/weapons`).
 *(Each slice below fetches the specific page and transcribes it faithfully — this list is the map, not the
 content. Where a page turns out to be sparse/WIP, the slice records that per Ground Rule 2.)*
 
-## Current code state
+## Current code state (mapped 2026-07-17)
 
-*(To be filled from the IG codebase-mapping pass in flight — the exact system id/slug, where IG library
-entries live [TS module vs `dnd_system_entries` seed], the feats/conditions/species data models, whether any
-"stance" concept exists in the engine yet, and how the builder/sheet branch on the IG system. Populated
-before Area B starts; Area A can begin as soon as the id + entry shape are known.)*
+IG is a **fully-registered, `available` focus system** (id **`intuitive-games`**), not a stub — bespoke
+builder + read-only sheet + 26-article glossary + AI build. Key facts for this buildout:
+- **System registration:** `lib/dnd/systems.ts` `GAME_SYSTEMS` (status `available`); mechanical record in
+  `lib/dnd/system-rules.ts` `SYSTEM_RULES['intuitive-games']` (abilities, 3-action economy, degrees of
+  success, levels 1–10, `content` block).
+- **Library page** is built purely from `system-rules.ts` → `lib/dnd/library.ts` `libraryPageFor()` +
+  `lib/dnd/glossary/intuitive-games.ts` (26 articles), rendered by `app/dnd/library/[key]/page.tsx`. DB-free.
+- **Rich IG content already exists but is UNDER-surfaced:** `lib/dnd/systems/intuitive-games/content.ts`
+  holds 10 stances (A/B effects), ~40 powers/spells by school, 6 defensive powers, weapon/movement taxonomy,
+  bestiary — but the library page shows only abilities/classes/skills/species/conditions/sample-feats.
+- **Accuracy gaps vs the website:** conditions + feats were **names-only** (no rules text), and the feat
+  list was sourced from an uploaded template, so several names (`Boundless Stamina`, `Inspiring Insight`,
+  `Daring Quickness`, `Death Spiral`) **do not exist on intuitivegames.net** and must be reconciled to the
+  real Combat/General feat lists (with effect text). Species are 10 names + prose, not structured
+  (`speciesView` returns name-only `custom` for IG). Stances exist but aren't editable on the sheet or wired
+  into the effect engine.
+- **Builder/sheet:** `app/dnd/_ui/IGCharacterBuilder.tsx` (guided picker → `/api/dnd/characters/[id]/ig-build`)
+  + `builder.ts`; `app/dnd/_ui/IGSheet.tsx` is **entirely read-only** (stances/feats/conditions display but
+  can't be edited without re-running the whole builder). Making them editable needs a new per-element edit
+  route (`ig-edit`) analogous to `ig-build`.
+- Faithful website source transcribed to scratchpad `ig-source/` (conditions ✓ verbatim, stances ✓, core
+  rules ✓, ancestries ✓, feats — inventory + gist, RE-FETCH verbatim before authoring feat bodies).
 
 ---
 
@@ -71,8 +89,13 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       resolution system).
 - [ ] **A2 — Character Building** (`/character-building`) — the build procedure, ability scores, progression.
 - [ ] **A3 — Skills** (`/skills`) — the skill list + how skills work.
-- [ ] **A4 — Conditions** (`/conditions`) — every status effect, full text + mechanical effect (feeds the
-      sheet's condition system in Area B).
+- [x] **A4 — Conditions** (`/conditions`) — ✅ SHIPPED (`content.ts` `IG_CONDITIONS`). All **18 conditions**
+      transcribed **verbatim** from the site with full mechanical text (Asleep…Sickened); names drift-guarded
+      against `systemConditions('intuitive-games')`. The library page now renders conditions as a **full-text
+      Condition/Effect table** (was name-only chips), and `searchLibrary` returns each condition's real effect
+      (so "grappled"/"flat-footed" resolves the actual rules) — directly serving the AI-legibility rule.
+      System-scoped (IG condition text can't leak into another system). `ig-content.test.ts` +1,
+      `library.test.ts` +3. None were WIP — the page is fully defined.
 - [ ] **A5 — Traits / Ancestries** (`/traits-ancestries`) — every race/ancestry fully fleshed out (the owner
       explicitly wants all races complete): traits, size, speed, senses, sub-options.
 - [ ] **A6 — Backgrounds** (`/backgrounds`).
