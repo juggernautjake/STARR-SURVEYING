@@ -14,7 +14,7 @@ import { useCampaignChannel } from '@/app/dnd/_ui/useCampaignChannel'
 import { DEFAULT_INITIATIVE, type InitiativeFlavor } from '../registry'
 
 export default function InitiativePrompt({ flavor = DEFAULT_INITIATIVE }: { flavor?: InitiativeFlavor }) {
-  const { char, characterId, campaignId } = useChar()
+  const { char, abilities, ledger, characterId, campaignId } = useChar()
   const [encounterId, setEncounterId] = useState<string | null>(null)
   const [manual, setManual] = useState(false)
   const [roll, setRoll] = useState<{ face: number; total: number } | null>(null)
@@ -24,7 +24,9 @@ export default function InitiativePrompt({ flavor = DEFAULT_INITIATIVE }: { flav
   // Ping the initiative channel after submitting so the DM's tracker refetches + reorders.
   const { ping } = useCampaignChannel(campaignId ?? null, 'initiative', () => {})
 
-  const initBonus = abilityMod(char.abilities.dex) + (char.combat.initiativeMisc || 0)
+  // Effective initiative: ledger-folded DEX + any `initiative` effect (Alert-style), so a DEX item or an
+  // initiative boon changes the roll the player actually submits — not just the base DEX.
+  const initBonus = ledger.value('initiative', abilityMod(abilities.dex) + (char.combat.initiativeMisc || 0))
   const bonusStr = initBonus >= 0 ? `+${initBonus}` : `${initBonus}`
 
   useEffect(() => {

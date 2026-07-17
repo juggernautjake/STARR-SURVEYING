@@ -991,7 +991,8 @@ export function CharacterProvider({
 
   const spendHitDie = useCallback(() => {
     if (char.combat.hitDiceRemaining <= 0) return
-    const conMod = Math.floor((char.abilities.con - 10) / 2)
+    // Effective CON (Slice 10): a CON-boosting item raises hit-die healing, like it raises max HP.
+    const conMod = Math.floor((abilities.con - 10) / 2)
     const heal = rollDie(char.combat.hitDiceSize)
     const total = Math.max(0, heal + conMod)
     stage(
@@ -1006,7 +1007,7 @@ export function CharacterProvider({
         currentHp: Math.min(effMaxHp(c), c.combat.currentHp + total),
       },
     }))
-  }, [char.abilities.con, char.combat.hitDiceRemaining, char.combat.hitDiceSize, stage])
+  }, [abilities.con, char.combat.hitDiceRemaining, char.combat.hitDiceSize, stage])
 
   const value: Ctx = {
     char,

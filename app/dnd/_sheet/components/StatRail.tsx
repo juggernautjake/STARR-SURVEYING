@@ -11,9 +11,12 @@ export default function StatRail() {
   // `initiativeAdvantage`) instead of being inferred from the level.
   const feralInstinct = !!char.initiativeAdvantage && level >= (char.initiativeAdvantage.unlockLevel ?? 1)
   const initAdvLabel = char.initiativeAdvantage?.label ?? 'Advantage'
-  const strMod = abilityMod(char.abilities.str)
-  const dexMod = abilityMod(char.abilities.dex)
-  const init = dexMod + combat.initiativeMisc
+  // Effective STR/DEX (Slice 10) — the ability pills below already show the ledger-effective scores, so
+  // the derived Init and Save DC in this same rail must too, or a DEX item bumps the DEX pill (★) while
+  // the Init right next to it sits stale. Initiative also folds any `initiative` effect (Alert-style).
+  const strMod = abilityMod(abilities.str)
+  const dexMod = abilityMod(abilities.dex)
+  const init = ledger.value('initiative', dexMod + combat.initiativeMisc)
   const dc = combat.saveDCOverride ?? 8 + pb + strMod
   const activeForm = char.forms.find((f) => f.id === activeFormId)
   const formLabel = activeForm ? activeForm.name.split('—').pop()?.trim() : 'Base'

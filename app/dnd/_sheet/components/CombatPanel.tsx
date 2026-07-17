@@ -10,7 +10,7 @@ import EffectStar from './ui/EffectStar'
 import TraitEditor from './ui/TraitEditor'
 
 export default function CombatPanel() {
-  const { char, setChar, editMode, canWrite, ledger, adjustHp, activeFormId, rollDeathSave, spendHitDie, shortRest, longRest } = useChar()
+  const { char, abilities, setChar, editMode, canWrite, ledger, adjustHp, activeFormId, rollDeathSave, spendHitDie, shortRest, longRest } = useChar()
   const [editingTrait, setEditingTrait] = useState<{ index: number; text: string } | null>(null)
   const removeTrait = (i: number) => {
     if (!confirm('Delete this trait? This cannot be undone.')) return
@@ -23,14 +23,14 @@ export default function CombatPanel() {
     char.regen == null
       ? 0
       : char.regen.amount === 'conMod'
-        ? Math.max(1, abilityMod(char.abilities.con))
+        ? Math.max(1, abilityMod(abilities.con))
         : char.regen.amount
   const longRestPrompt = `Take a long rest? Restores HP, hit dice, resources, death saves${char.longRestNote ? `, ${char.longRestNote}` : ''}.`
   // AC from equipped armor/shield + item AC-effects; falls back to the manual combat.ac when
   // nothing is equipped (so hand-set AC still works). Recomputes when inventory/DEX/AC change.
   const acInfo = useMemo(
-    () => deriveAc(char.inventory, abilityMod(char.abilities.dex), combat.ac, char.activeEffects),
-    [char.inventory, char.abilities.dex, combat.ac, char.activeEffects],
+    () => deriveAc(char.inventory, abilityMod(abilities.dex), combat.ac, char.activeEffects),
+    [char.inventory, abilities.dex, combat.ac, char.activeEffects],
   )
 
   // Walk speed through the ledger (Slice 15): a Boots of Striding +10 shows here and stars itself.
@@ -270,7 +270,7 @@ export default function CombatPanel() {
               {acInfo.fromEquipment && combat.ac !== acInfo.ac && <span className="hl-note"> (manual base {combat.ac})</span>}
             </li>
             <li>
-              <strong>Initiative {signed(abilityMod(char.abilities.dex) + combat.initiativeMisc)}</strong> — DEX-based; roll it from the quick bar.
+              <strong>Initiative {signed(ledger.value('initiative', abilityMod(abilities.dex) + combat.initiativeMisc))}</strong> — DEX-based; roll it from the quick bar.
             </li>
             <li>
               <strong>
