@@ -501,6 +501,11 @@ One system per slice — depth-first, verified against sources. In priority orde
       RAW-correct — a Cleric typo'd to 3 would offer its Domain 2 levels late and still pass. Pinned every
       2014 class's subclass level to RAW (all 13 correct). This is the same edition-sensitive category as the
       exhaustion gap, so worth nailing down.
+      **ASI cadence pinned EXACTLY, both editions (2026-07-17):** the checks used `toContain([4,8,12,16])` +
+      `not.toContain(19)`, which verify the expected levels are present but NOT that there are no extras — a
+      spurious ASI at 14 would slip. Pinned the full `asiLevels` array per class: 2024 = 4/8/12/16 (Fighter
+      +6/14, Rogue +10; L19 is an Epic Boon, never an ASI), 2014 = the same PLUS L19 (the edition tell). All
+      25 correct — a missing OR spurious ASI level is now caught.
       **2026-07-16 — ALL 12 PHB CLASSES SHIPPED ✅** (`lib/dnd/classes/dnd5e-2014/`): Barbarian, Bard,
       Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock, Wizard — each L1–20 with
       every PHB subclass, all edition-differences vs 2024 locked by `dnd5e-2014-classes.test.ts` (71

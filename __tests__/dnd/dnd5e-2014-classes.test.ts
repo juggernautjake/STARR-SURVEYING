@@ -43,6 +43,16 @@ const SUBCLASS_LEVEL: Record<string, number> = {
   Barbarian: 3, Bard: 3, Fighter: 3, Monk: 3, Paladin: 3, Ranger: 3, Rogue: 3, Artificer: 3,
 };
 
+// The EXACT 2014 ASI cadence — INCLUDING level 19 (in 2024 that's an Epic Boon, not an ASI: the edition
+// tell). Fighter adds 6 & 14, Rogue adds 10; everyone else is the plain 4/8/12/16/19. Pinned exactly so a
+// missing OR spurious ASI level is caught, not just "contains 19".
+const ASI_LEVELS: Record<string, number[]> = {
+  Fighter: [4, 6, 8, 12, 14, 16, 19], Rogue: [4, 8, 10, 12, 16, 19],
+  Barbarian: [4, 8, 12, 16, 19], Bard: [4, 8, 12, 16, 19], Cleric: [4, 8, 12, 16, 19], Druid: [4, 8, 12, 16, 19],
+  Monk: [4, 8, 12, 16, 19], Paladin: [4, 8, 12, 16, 19], Ranger: [4, 8, 12, 16, 19], Sorcerer: [4, 8, 12, 16, 19],
+  Warlock: [4, 8, 12, 16, 19], Wizard: [4, 8, 12, 16, 19], Artificer: [4, 8, 12, 16, 19],
+};
+
 describe('the 2014 class roster (authored class-by-class)', () => {
   it('registers all 12 PHB classes plus the Artificer, and the system reports it has class data', () => {
     for (const name of ALL_12) expect(CLASSES.map((c) => c.name)).toContain(name);
@@ -99,6 +109,8 @@ describe.each(CLASSES.map((c) => [c.name, c] as const))('%s (2014)', (_name, def
     expect([...def.savingThrows].sort(), `${def.name} save proficiencies`).toEqual(SAVES[def.name]); // the CORRECT pair
     // The subclass level is the RAW-correct one for this class (edition-sensitive: 1/2/3 in 2014)...
     expect(def.subclassLevel, `${def.name} subclass level`).toBe(SUBCLASS_LEVEL[def.name]);
+    // The exact 2014 ASI cadence (edition-sensitive: includes L19, unlike 2024).
+    expect([...def.asiLevels].sort((a, b) => a - b), `${def.name} ASI levels`).toEqual(ASI_LEVELS[def.name]);
     // ...and a subclass-choice feature actually sits at that level (consistency).
     expect(def.features.some((f) => f.choice === 'subclass' && f.level === def.subclassLevel)).toBe(true);
   });
