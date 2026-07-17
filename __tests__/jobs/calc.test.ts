@@ -29,11 +29,33 @@ describe('evalArithmetic', () => {
     expect(evalArithmetic('process')).toBeNull();
     expect(evalArithmetic('1;2')).toBeNull();
   });
+  it('handles unary minus in every position, including before a parenthesis', () => {
+    expect(evalArithmetic('-(2+3)')).toBe(-5);   // leading unary before '('
+    expect(evalArithmetic('3*-(2)')).toBe(-6);   // unary after an operator, before '('
+    expect(evalArithmetic('10--4')).toBe(14);    // subtract a negative
+    expect(evalArithmetic('2*(3+-1)')).toBe(4);  // unary inside parens
+  });
+  it('rejects malformed input rather than guessing', () => {
+    expect(evalArithmetic('1.2.3')).toBeNull();  // a number with two dots
+    expect(evalArithmetic('()')).toBeNull();     // empty parens are not a value
+    expect(evalArithmetic('2+3)')).toBeNull();   // a right paren with no left
+    expect(evalArithmetic('5*')).toBeNull();     // a dangling operator
+  });
+  it('nested parentheses and deep precedence', () => {
+    expect(evalArithmetic('((1+2)*(3+4))')).toBe(21);
+    expect(evalArithmetic('2+3*4-10/2')).toBe(9); // 2 + 12 − 5
+  });
 });
 
 describe('formatCalcResult', () => {
   it('trims floating-point noise', () => {
     expect(formatCalcResult(0.1 + 0.2)).toBe('0.3');
     expect(formatCalcResult(42)).toBe('42');
+  });
+  it('drops trailing zeros and caps at 6 decimals', () => {
+    expect(formatCalcResult(2.0)).toBe('2');          // a whole-number float shows as an integer
+    expect(formatCalcResult(10 / 3)).toBe('3.333333'); // repeating decimal, 6 places
+    expect(formatCalcResult(1.5)).toBe('1.5');
+    expect(formatCalcResult(NaN)).toBe('');            // non-finite → empty, never "NaN"
   });
 });

@@ -7,6 +7,11 @@
 type Tok = { t: 'num'; v: number } | { t: 'op'; v: string } | { t: 'lp' } | { t: 'rp' };
 
 const PREC: Record<string, number> = { '+': 1, '-': 1, '*': 2, '/': 2 };
+// Unary minus binds tighter than any binary op and is right-associative, so `3*-(2)` is 3 × (−2) = −6,
+// not (3×0)−2. Modelled as its own operator `u-` rather than the old `0 - …` trick, which only gave the
+// right answer at the top level (a preceding `*`/`/` bound the injected `0` and broke the sign).
+const UNARY = 'u-';
+const prec = (v: string): number => (v === UNARY ? 3 : PREC[v]);
 
 /** Normalize the display operators (× ÷ −) to ASCII so the tokenizer sees one form. */
 function normalize(expr: string): string {
@@ -42,7 +47,8 @@ function tokenize(expr: string): Tok[] {
     } else if (c === '(') { out.push({ t: 'lp' }); i++; }
     else if (c === ')') { out.push({ t: 'rp' }); i++; }
     else if (c in PREC) {
-      if (c === '-' && unaryPos) out.push({ t: 'num', v: 0 }); // e.g. -(2+3) → 0-(2+3)
+      // Unary minus before a '(' (the digit case is handled above by inlining a negative number).
+      if (c === '-' && unaryPos) { out.push({ t: 'op', v: UNARY }); i++; continue; }
       out.push({ t: 'op', v: c });
       i++;
     } else {
@@ -67,7 +73,11 @@ export function evalArithmetic(expr: string): number | null {
     else if (tk.t === 'op') {
       while (ops.length) {
         const top = ops[ops.length - 1];
-        if (top.t === 'op' && PREC[top.v] >= PREC[tk.v]) output.push(ops.pop()!);
+        if (top.t !== 'op') break;
+        // Pop higher-precedence ops always; equal-precedence only when the incoming op is left-assoc
+        // (binary). A right-assoc unary minus does NOT pop another unary, so `--4` stays 4.
+        const pt = prec(top.v), pk = prec(tk.v);
+        if (pt > pk || (pt === pk && tk.v !== UNARY)) output.push(ops.pop()!);
         else break;
       }
       ops.push(tk);
@@ -92,6 +102,11 @@ export function evalArithmetic(expr: string): number | null {
   const stack: number[] = [];
   for (const tk of output) {
     if (tk.t === 'num') stack.push(tk.v);
+    else if (tk.t === 'op' && tk.v === UNARY) {
+      const a = stack.pop();
+      if (a === undefined) return null;
+      stack.push(-a);
+    }
     else if (tk.t === 'op') {
       const b = stack.pop(); const a = stack.pop();
       if (a === undefined || b === undefined) return null;
@@ -107,9 +122,10 @@ export function evalArithmetic(expr: string): number | null {
   return stack[0];
 }
 
-/** Format a calculator result: trims floating-point noise to at most 6 decimals, no trailing zeros. */
+/** Format a calculator result: trims floating-point noise to at most 6 decimals, no trailing zeros.
+ *  `Math.round(n*1e6)/1e6` does the rounding; `String` of the result already drops trailing zeros
+ *  (2.5 → "2.5", 2.0 → "2"), so a single conversion is all it takes. */
 export function formatCalcResult(n: number): string {
   if (!Number.isFinite(n)) return '';
-  const r = Math.round(n * 1e6) / 1e6;
-  return Number.isInteger(r) ? String(r) : String(r);
+  return String(Math.round(n * 1e6) / 1e6);
 }
