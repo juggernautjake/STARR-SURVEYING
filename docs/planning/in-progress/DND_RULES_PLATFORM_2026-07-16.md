@@ -412,14 +412,17 @@ One system per slice — depth-first, verified against sources. In priority orde
       pass the class's system. Tests: `dnd5e-2014-classes.test.ts` (11 — structural validity, L1→20,
       the edition tells, per-class fallback, no-leak) + the 2024 suite updated to the scoped signature.
       **6a DONE** — 12 PHB classes + Artificer, all L1–20 with subclasses (77 tests). Next: 6b (Pathfinder 2e).
-- [ ] **6b — Pathfinder 2e**: classes with flat HP/level, the feat cadence (ancestry 1/5/9/13/17,
-      class at even levels, skill at even, general at 3/7/11/15/19), attribute boosts at 5/10/15/20.
-- [ ] **6c — Pathfinder 1e**: BAB progressions, save progressions, skill ranks, feats at odd levels.
-- [ ] **6d — Starfinder 1e**: Stamina/HP/Resolve, EAC/KAC, four-ability increases at 5/10/15/20.
-- [ ] **6e — Cyberpunk RED**: Roles + Role Ability ranks 1–10 (no levels — model as rank tracks).
-- [ ] **6f — Shadowrun 6e**: archetypes + priority creation (no levels — model as Karma spend).
-- [ ] **6g — Call of Cthulhu 7e**: occupations + skill-point formulas (no levels, no classes).
-- [ ] **6h — Blades in the Dark**: playbooks + special abilities + XP tracks (no levels).
+- [ ] **6b — Pathfinder 2e** (a FOCUS system): classes with flat HP/level, the feat cadence (ancestry
+      1/5/9/13/17, class at even levels, skill at even, general at 3/7/11/15/19), attribute boosts at
+      5/10/15/20. Needs a **dedicated per-system model** (the `intuitive-games` module pattern), NOT the
+      5e-shaped `ClassDefinition` — its hit-die/ASI/slot math would misrepresent PF2e.
+- [~] **6c–6h — the other six systems → MOVED to `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`**
+      (2026-07-16, per the user's scope call). The platform is focused on **four** systems first — D&D
+      5e 2024, D&D 5e 2014, Intuitive Games, Pathfinder 2e. PF1e, Starfinder 1e, Cyberpunk RED, Shadowrun
+      6e, Call of Cthulhu 7e, and Blades in the Dark are now seeded as **🚧 under construction**
+      (`GameSystem.status === 'under-construction'`): offered but not selectable, listed in the campaign
+      picker's "Under construction" group and disabled in the SystemSwitcher. They will be built out
+      later — see the pending doc for what each needs.
 
 For the level-less systems the model must NOT invent a level table — extend the builder to express
 "advancement by spend" (Karma/IP/skill checks) instead. `registry.ts` already reports

@@ -79,7 +79,14 @@ export default function NewCampaignButton() {
         <span className={styles.label}>Game system</span>
         <select className={styles.input} value={system} onChange={(e) => setSystem(e.target.value)}>
           <option value={SYSTEM_AMBIGUOUS}>— pick later —</option>
-          {GAME_SYSTEMS.map((s) => <option key={s.key} value={s.key}>{s.name}</option>)}
+          <optgroup label="Available now">
+            {GAME_SYSTEMS.filter((s) => s.status === 'available').map((s) => <option key={s.key} value={s.key}>{s.name}</option>)}
+          </optgroup>
+          <optgroup label="Under construction (coming later)">
+            {GAME_SYSTEMS.filter((s) => s.status !== 'available').map((s) => (
+              <option key={s.key} value={s.key} disabled>{s.name} — 🚧 under construction</option>
+            ))}
+          </optgroup>
         </select>
         <span style={{ fontSize: 11.5, color: 'var(--hx-muted)', marginTop: 3 }}>The rulebook your table runs. Characters brought from another system can be translated into it.</span>
       </label>

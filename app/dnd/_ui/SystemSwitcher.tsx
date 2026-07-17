@@ -6,7 +6,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { GAME_SYSTEMS, SYSTEM_AMBIGUOUS, systemLabel } from '@/lib/dnd/systems';
+import { GAME_SYSTEMS, SYSTEM_AMBIGUOUS, systemLabel, isSystemAvailable } from '@/lib/dnd/systems';
 import styles from './hextech.module.css';
 
 export default function SystemSwitcher({
@@ -30,8 +30,12 @@ export default function SystemSwitcher({
   // Every system the character can hold: ambiguous + the seeded systems.
   const all = [SYSTEM_AMBIGUOUS, ...GAME_SYSTEMS.map((s) => s.key)];
 
+  // Under-construction systems are offered but not selectable yet — you can't switch a character INTO
+  // one until it's built out (its rules/classes aren't ready). The active system always stays usable.
+  const selectable = (system: string) => system === SYSTEM_AMBIGUOUS || system === active || isSystemAvailable(system);
+
   async function go(system: string) {
-    if (system === active || busy) return;
+    if (system === active || busy || !selectable(system)) return;
     const isTranspose = !built.has(system);
     if (isTranspose && !aiConfigured) { setMsg('AI is not configured — cannot transpose to a new system.'); return; }
     setBusy(system); setMsg(isTranspose ? `Transposing into ${systemLabel(system)}…` : null);
@@ -71,20 +75,27 @@ export default function SystemSwitcher({
             {all.map((s) => {
               const on = s === active;
               const has = built.has(s);
+              const canPick = selectable(s);
               return (
                 <button
                   key={s}
                   type="button"
-                  disabled={!!busy || on}
+                  disabled={!!busy || on || !canPick}
                   onClick={() => go(s)}
-                  title={on ? 'Active system' : has ? 'Switch to your saved sheet for this system' : 'Transpose (AI builds a sheet in this system)'}
+                  title={
+                    on ? 'Active system'
+                    : !canPick ? 'Under construction — this system isn\'t built out yet'
+                    : has ? 'Switch to your saved sheet for this system'
+                    : 'Transpose (AI builds a sheet in this system)'
+                  }
                   style={{
                     padding: '7px 11px',
                     borderRadius: 999,
                     border: on ? '2px solid var(--hx-teal-1)' : `1px solid ${has ? 'var(--hx-gold-2)' : 'var(--hx-line)'}`,
                     background: on ? 'rgba(10,200,185,0.14)' : has ? 'rgba(200,170,110,0.08)' : 'transparent',
-                    color: 'var(--hx-text)',
-                    cursor: busy || on ? 'default' : 'pointer',
+                    color: canPick ? 'var(--hx-text)' : 'var(--hx-muted)',
+                    cursor: busy || on || !canPick ? 'default' : 'pointer',
+                    opacity: !canPick ? 0.6 : 1,
                     fontSize: 12.5,
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -93,6 +104,7 @@ export default function SystemSwitcher({
                 >
                   {systemLabel(s)}
                   {on ? <span style={{ fontSize: 10, color: 'var(--hx-teal-1)' }}>● ACTIVE</span>
+                    : !canPick ? <span style={{ fontSize: 10, color: 'var(--hx-muted)' }}>🚧 soon</span>
                     : has ? <span style={{ fontSize: 10, color: 'var(--hx-gold-2)' }}>saved</span>
                     : <span style={{ fontSize: 10, color: 'var(--hx-muted)' }}>+ transpose</span>}
                   {busy === s && <span style={{ fontSize: 10 }}>…</span>}

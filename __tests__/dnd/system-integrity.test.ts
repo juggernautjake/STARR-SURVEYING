@@ -8,7 +8,7 @@
 // can only ever be given the version that belongs to its chosen system. If a future edit adds
 // cross-system content without scoping it, one of these fails.
 import { describe, it, expect } from 'vitest';
-import { GAME_SYSTEMS } from '@/lib/dnd/systems';
+import { GAME_SYSTEMS, availableSystems, isSystemAvailable } from '@/lib/dnd/systems';
 import { classesForSystem, findClass, subclassesFor, findSubclass } from '@/lib/dnd/classes/registry';
 import { findTerm, glossaryFor } from '@/lib/dnd/glossary';
 import { FEATS_2024 } from '@/lib/dnd/feats/dnd5e-2024';
@@ -84,6 +84,24 @@ describe('the glossary is scoped: a shared term returns the CORRECT system versi
 
   it('a system with no glossary yields nothing rather than borrowing another\'s', () => {
     expect(findTerm('a-made-up-system', 'Frightened')).toBeNull();
+  });
+});
+
+describe('system availability — four systems are the focus; the rest are under construction', () => {
+  it('marks exactly the four built-out systems as available', () => {
+    expect(availableSystems().map((s) => s.key).sort()).toEqual(
+      ['dnd5e-2014', 'dnd5e-2024', 'intuitive-games', 'pathfinder2e'].sort(),
+    );
+  });
+
+  it('marks every other seeded system as under construction (offered, but a future build)', () => {
+    const under = GAME_SYSTEMS.filter((s) => s.status === 'under-construction').map((s) => s.key).sort();
+    expect(under).toEqual(['blades', 'coc7e', 'cyberpunk-red', 'pathfinder1e', 'shadowrun6e', 'starfinder1e'].sort());
+    for (const k of under) expect(isSystemAvailable(k)).toBe(false);
+  });
+
+  it('every system carries a status (nothing untriaged)', () => {
+    for (const s of GAME_SYSTEMS) expect(['available', 'under-construction']).toContain(s.status);
   });
 });
 
