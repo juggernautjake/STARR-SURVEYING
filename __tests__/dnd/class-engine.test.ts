@@ -50,6 +50,18 @@ describe('spell slot tables', () => {
     expect(FULL_CASTER_SLOTS[16][9]).toBe(0);
   });
 
+  it('every spell rank arrives at exactly its odd level (a new rank at 3,5,7,…,17), 0 the level before', () => {
+    // Rank R first appears at level 2R−1: rank 2 at L3, rank 3 at L5, … rank 9 at L17. A single-cell typo
+    // here gives casters a spell rank too early or late — the most impactful kind of slot-table error.
+    for (let rank = 2; rank <= 9; rank++) {
+      const arrival = 2 * rank - 1;
+      expect(FULL_CASTER_SLOTS[arrival][rank], `rank ${rank} should arrive at level ${arrival}`).toBeGreaterThanOrEqual(1);
+      expect(FULL_CASTER_SLOTS[arrival - 1][rank], `rank ${rank} should NOT exist at level ${arrival - 1}`).toBe(0);
+    }
+    // The capstone row: a level-20 full caster has 4/3/3/3/3/2/2/1/1 across ranks 1–9.
+    expect(FULL_CASTER_SLOTS[20].slice(1)).toEqual([4, 3, 3, 3, 3, 2, 2, 1, 1]);
+  });
+
   it('half casters get nothing at level 1 and cap at rank 5', () => {
     expect(HALF_CASTER_SLOTS[1].slice(1).every((n) => n === 0)).toBe(true);
     expect(HALF_CASTER_SLOTS[2][1]).toBe(2);
