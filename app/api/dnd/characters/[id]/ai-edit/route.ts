@@ -3,6 +3,7 @@
 // (schema = our edit vocabulary), we apply the edits to the character's data, persist,
 // and log each edit to dnd_sheet_edits. Powers G2 (build) and I3 (refine).
 import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession } from '@/lib/dnd/auth';
 import { requireCharacterWrite } from '@/lib/dnd/characters';
@@ -129,9 +130,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // Audit each edit (best-effort — don't fail the request if logging fails). Capture old_value from
   // the PRE-edit character (Slice 26), so the DM review queue can show the diff and Revert can restore
-  // the prior value — computed against `current`, before any edit in the batch applied.
+  // the prior value — computed against `current`, before any edit in the batch applied. Every edit from
+  // THIS request shares one `batch_id` so the whole change can be undone as a unit (history/undo A2).
+  const batchId = randomUUID();
+  const batchSummary = (result?.input?.summary ?? '').toString().slice(0, 500) || `${edits.length} edit(s)`;
   await supabaseAdmin.from('dnd_sheet_edits').insert(
-    edits.map((e) => ({ character_id: params.id, editor_user_id: session.userId, is_dm: isDM, field_path: editPath(e), old_value: (editOldValue(current, e) ?? null) as unknown, new_value: e as unknown, scope: 'permanent' })),
+    edits.map((e) => ({ character_id: params.id, editor_user_id: session.userId, is_dm: isDM, field_path: editPath(e), old_value: (editOldValue(current, e) ?? null) as unknown, new_value: e as unknown, scope: 'permanent', batch_id: batchId, source: 'ai', summary: batchSummary })),
   ).then(() => {}, () => {});
 
   // Safety net (Slice 3): flag anything that doesn't belong to the character's system so a wrong-system
@@ -142,5 +146,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     violations.length ? `⚠ Check: ${violationsSummary(violations)}` : null,
     rejectedEffects.length ? `⚠ Dropped ${rejectedEffects.length} invalid effect(s): ${rejectedEffects.map((r) => r.reason).join(' ')}` : null,
   ].filter(Boolean).join('\n');
-  return NextResponse.json({ ok: true, kind: 'mechanics', summary: summary || null, editCount: edits.length, name: updated.meta.name, violations, rejectedEffects });
+  // Return the batch id + a compact preview so the chat can offer an immediate "Undo this change"
+  // button bound to exactly the edits this request made (history/undo A3).
+  const editsPreview = edits.map((e) => ({ op: e.op, path: editPath(e) }));
+  return NextResponse.json({ ok: true, kind: 'mechanics', summary: summary || null, editCount: edits.length, name: updated.meta.name, violations, rejectedEffects, batchId, batchSummary, editsPreview });
 }

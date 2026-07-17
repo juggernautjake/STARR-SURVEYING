@@ -300,6 +300,24 @@ export function revertSheetEdit(input: Character, e: SheetEdit, oldValue: unknow
   return c;
 }
 
+/** One audited edit paired with the `old_value` recorded when it was applied. */
+export interface AuditedEdit { edit: SheetEdit; oldValue: unknown }
+
+/**
+ * Revert a whole BATCH of edits (all the edits from one request) as a unit — the "undo that change"
+ * primitive (history/undo B1). Folds `revertSheetEdit` over the batch in REVERSE order, each with its
+ * own recorded `old_value`, so the sheet returns to exactly its pre-batch state. Reverse order matters:
+ * if the batch added an item and then retuned it, the retune must be undone before the add is dropped.
+ * Pure — the route loads the batch's audit rows and passes them here.
+ */
+export function revertBatch(input: Character, batch: AuditedEdit[]): Character {
+  let c = input;
+  for (let i = batch.length - 1; i >= 0; i--) {
+    c = revertSheetEdit(c, batch[i].edit, batch[i].oldValue);
+  }
+  return c;
+}
+
 /** Apply a validated edit list to a Character, returning a new Character (pure). */
 export function applySheetEdits(input: Character, edits: SheetEdit[]): Character {
   const c: Character = structuredClone(input);
