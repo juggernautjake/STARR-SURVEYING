@@ -88,6 +88,10 @@ source's extension so the OS knows the MIME type on re-read — but `guessExtens
 `endsWith('.jpg')`, so a content/remote URI like `photo.jpg?token=…` or `clip.mov#t=3` matched nothing
 and the file was stored with NO extension. Extracted to a pure `mobile/lib/mediaPath.ts` (Expo-free,
 unit-testable like `queueOrder`), now stripping any query string/fragment first. `media-path.test.ts` (3).
+Also moved the storage-path **filename sanitiser** (`sanitiseName`, `1a648920`) into the same pure
+module and locked its security property with tests — it can never emit a path separator, so a
+`../../etc/passwd` filename can't traverse the object key. +4 tests (no behavior change; a guard on a
+user-input → storage-key helper).
 
 **Gaps (map each to the user's explicit asks):**
 
