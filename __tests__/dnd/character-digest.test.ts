@@ -142,6 +142,30 @@ describe('the digest reports LEDGER-resolved numbers, not the stored base (Slice
     expect(d).toMatch(/AC 18 \[base 17\]/);
   });
 
+  it('reports the spell save DC + attack from the EFFECTIVE spellcasting ability', () => {
+    // A caster with base INT 10; the boosted variant equips an item SETTING INT to 20 (+5 mod). The
+    // reported Spell Save DC / attack must rise by 5 — i.e. it reads the effective ability, not the base.
+    function caster(withItem: boolean): Character {
+      const c = fixture();
+      c.combat = { ...c.combat, exhaustion: 0 };
+      c.abilities = { ...c.abilities, int: 10 };
+      c.spellcasting = { ability: 'int', slots: { 1: { current: 2, max: 2 } } } as Character['spellcasting'];
+      if (withItem) {
+        c.inventory = [
+          { id: 'hb', name: 'Headband of Intellect', desc: '', qty: 1, tags: [], equipped: true, effects: [{ target: 'ability_int', operation: 'set', value: 20 }] },
+        ] as Character['inventory'];
+      }
+      return c;
+    }
+    const plain = characterDigest(caster(false), 'dnd-5e-2024');
+    const boosted = characterDigest(caster(true), 'dnd-5e-2024');
+    expect(plain).toMatch(/SPELLCASTING: INT · Spell Save DC \d+ · Spell Attack [+-]\d+/);
+    const dc = (s: string) => Number(s.match(/Spell Save DC (\d+)/)![1]);
+    const atk = (s: string) => Number(s.match(/Spell Attack ([+-]\d+)/)![1]);
+    expect(dc(boosted)).toBe(dc(plain) + 5);   // INT 10 → 20 is +5 to the mod
+    expect(atk(boosted)).toBe(atk(plain) + 5);
+  });
+
   it('a vanilla character shows no base annotations and no ACTIVE EFFECTS line', () => {
     // Truly vanilla: no item/spell effects AND no exhaustion (which now legitimately reduces speed).
     const c = fixture();

@@ -11,7 +11,7 @@
 //  · Nothing is inferred. If the sheet doesn't say it, it isn't here — the AI must not be handed
 //    a guess dressed up as a fact.
 import type { Character } from '@/app/dnd/_sheet/types';
-import { abilityMod } from '@/app/dnd/_sheet/rules/dnd';
+import { abilityMod, profBonusForLevel } from '@/app/dnd/_sheet/rules/dnd';
 import { buildLedger } from './effects/ledger';
 import { deriveAc } from '@/app/dnd/_sheet/lib/derive-ac';
 import { summarizeCharacterProvenance } from './provenance';
@@ -123,6 +123,19 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
   // Resources — a ruling often depends on whether the character can still pay for something.
   const res = (char.resources ?? []).map((r) => `${r.name} ${r.current}/${r.max} (resets on ${r.resetOn} rest)`);
   if (res.length) lines.push(`RESOURCES: ${res.join(' · ')}`);
+
+  // Spell save DC + attack — a caster's most-adjudicated numbers ("does the target save vs your
+  // Fireball?"). EFFECTIVE, matching what SpellsPanel shows: the spellcasting ability folds through the
+  // ledger and the DC/attack fold their own spell_save_dc/spell_attack effects, so an INT/CHA item or a
+  // Rod of the Pact Keeper is reflected — the AI must not rule on a stale DC.
+  if (char.spellcasting?.ability) {
+    const sc = char.spellcasting;
+    const pb = profBonusForLevel(m.level ?? 1);
+    const mod = abilityMod(ledger.value(`ability_${sc.ability}`, char.abilities?.[sc.ability] ?? 10));
+    const dc = ledger.value('spell_save_dc', c.saveDCOverride ?? 8 + pb + mod);
+    const atk = ledger.value('spell_attack', pb + mod);
+    lines.push(`SPELLCASTING: ${sc.ability.toUpperCase()} · Spell Save DC ${dc} · Spell Attack ${signed(atk)}`);
+  }
 
   if (char.spellcasting?.slots) {
     const slots = Object.entries(char.spellcasting.slots)
