@@ -94,7 +94,7 @@ export default function StatRail() {
         </div>
 
         {(combat.exhaustion > 0 || canWrite) && (
-          <div className="vpill" title="Exhaustion — −2 to all d20 rolls per level (max 6)">
+          <div className="vpill" title={`Exhaustion — each level is −2 to all d20 rolls (attacks, saves, checks) AND −5 ft Speed (max 6 levels)${combat.exhaustion > 0 ? `. Now: −${2 * combat.exhaustion} to d20, −${5 * combat.exhaustion} ft Speed` : ''}`}>
             <span className="vk">Exhaustion</span>
             {canWrite && (
               <button className="step" style={{ marginRight: 2 }} onClick={() => setExhaustion(Math.max(0, combat.exhaustion - 1))} title="Reduce exhaustion">−</button>
@@ -102,6 +102,9 @@ export default function StatRail() {
             <span className="vv" style={{ color: combat.exhaustion > 0 ? 'var(--danger)' : 'var(--muted)' }}>{combat.exhaustion}</span>
             {canWrite && (
               <button className="step" style={{ marginLeft: 2 }} onClick={() => setExhaustion(Math.min(6, combat.exhaustion + 1))} title="Add exhaustion">+</button>
+            )}
+            {combat.exhaustion > 0 && (
+              <span className="vslash" style={{ fontSize: 10.5, color: 'var(--muted)' }}> −{2 * combat.exhaustion} d20 · −{5 * combat.exhaustion}ft</span>
             )}
           </div>
         )}

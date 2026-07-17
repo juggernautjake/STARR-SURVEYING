@@ -202,6 +202,18 @@ export function collectSources(char: Character, ctx: LedgerContext = {}): Ledger
     }
   }
 
+  // Exhaustion (2024): each level is −5 ft Speed. The d20 −2/level penalty is applied at roll time
+  // (store.rollCheck), but Speed is a stored/derived number, so model it as a condition source here —
+  // then the Combat panel's Speed reflects it and the ★ explains "Exhaustion N: −5N ft". Only when
+  // exhausted; at 0 it contributes nothing (no false marker on a fresh sheet).
+  const exhaustion = char.combat?.exhaustion ?? 0;
+  if (exhaustion > 0) {
+    base = [...base, {
+      id: 'exhaustion', kind: 'condition', name: `Exhaustion ${exhaustion}`,
+      effects: [{ target: 'speed_walk', operation: 'add', value: -5 * exhaustion }],
+    }];
+  }
+
   // The ACTIVE form's effects (Slice 15/25) — a Titan form's +STR, a beast form's fly speed. The
   // active form is the one a `transform` effect IMPOSES (Slice 18), else the character's own
   // `activeFormId`. Only it contributes, and the base ('base'/none) never does, so dropping the
