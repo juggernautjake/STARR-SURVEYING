@@ -46,15 +46,15 @@ Schema is `seeds/*.sql` applied via `scripts/apply-seeds.mjs`; apply to live per
 
 ## Area B — Undo a whole request
 
-- [ ] **B1 — Batch-revert route** `POST .../edits/revert-batch { batchId }`: load the batch's rows
-      (newest-first), fold `revertSheetEdit` over each in reverse order, persist, and audit the batch
-      revert (source `'revert'`, referencing the undone batch). Owner/player/DM gated like the existing
-      revert route. Idempotent-ish: a re-revert of an already-reverted batch is a no-op.
-- [ ] **B2 — "Undo" button in the AI chat.** `SheetEditChat.tsx`: after a mechanics edit, show an
-      **⟲ Undo this change** button bound to the returned `batchId` (calls revert-batch, then reloads the
-      sheet via the existing `dnd:reload-character` event). One click puts the sheet back.
-- [ ] **B3 — Tests.** reverting a batch restores every field the batch touched (the "all-powerful →
-      back to normal" round-trip); a partial/already-reverted batch doesn't double-apply.
+- [x] **B1 — Batch-revert route. ✅ SHIPPED** (`c8f72916`). `POST .../edits/revert-batch { batchId }`
+      loads the batch's rows (oldest-first), folds `revertBatch` over them, persists, audits the revert
+      (source `'revert'`). Write-gated; 404 when the batch is already undone. (Pure `revertBatch` shipped
+      in `635a8312`.)
+- [x] **B2 — "Undo" button in the AI chat. ✅ SHIPPED** (`c8f72916`). A mechanics reply carries its
+      `batchId` and renders **⟲ Undo this change**; one click reverts the batch, reloads the sheet via
+      the `dnd:reload-character` event, and marks the message "change undone".
+- [x] **B3 — Tests. ✅** `revert-batch.test.ts` (3): the "all-powerful → back to normal" round-trip
+      restores the exact pre-batch sheet; add-then-retune unwinds in reverse; empty batch no-ops.
 
 ## Area C — Ask the AI to undo
 
