@@ -489,6 +489,9 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       trait (Human's versatility, Orc's Ferocity, Leshy's no-food/water/air), certain facts stated and
       exact ability boosts kept general per Ground Rule 3. 44 → 82 terms. **Verified in the app**:
       searching pathfinder2e for "fighter" returns the class article and "dwarf" the ancestry article.
+      **Plus the 10 class "subclass" mechanisms** — Instinct, Racket, Bloodline, Doctrine, Mystery,
+      Order, Muse, Research Field, Cause, Hunter's Edge — each a searchable article (so "what is a
+      Rogue's Racket" resolves). 44 → 92 terms; verified "racket" → the article.
 - [x] **Intuitive Games ✅** — closed the gap found 2026-07-16 (its content lived only in the builder
       module, not the searchable glossary). Authored `lib/dnd/glossary/intuitive-games.ts` (26 articles)
       from the engine's own numbers (igProficiency = level, igDegreeOfSuccess, igSaveTotal, igMaxHp) and
