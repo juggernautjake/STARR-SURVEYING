@@ -2085,6 +2085,10 @@ regression to *reach*, not the drawing:
       (1) forcing a selected image instance produced all 5 handles in `#handleLayer` (z-index 6, DM
       mode); (2) a REAL `mousedown` on a freshly-placed image set `selection` to that instance AND
       produced the 5 handles + wrapper. So both the drawing and the reach work for a standard image.
+      **Regression guard shipped** (`map-viewer-handles.test.ts`, 4): source-anchors `renderHandles` and
+      asserts it excludes only free text (images DO get handles), draws the four corner scale pads + rotate
+      handle + stem, wires the scale/rotate mousedown handlers, and yields the screen to the 3D viewer — so
+      the "handles disappeared" report can't silently recur.
       Deliberately did NOT ship a speculative fix — that would risk breaking the working path.
       Most likely explanations for the user's report, to check if it recurs: a stale deployed build
       (hard-refresh), or a specific image variant — a **spiral/spin image** renders a different DOM
