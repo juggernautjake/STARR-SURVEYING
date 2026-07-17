@@ -334,7 +334,14 @@ expanded requirements (2026-07-17):
       stances/conditions). `ig-edit.test.ts` +3. **On-sheet feat controls shipped** (`IGSheet` Reference
       feats): a write-gated × on each feat chip + an "+ add feat…" picker grouped General/Combat (excludes
       feats already held), both POST to the ig-edit route — so feats are now editable manually AND by the AI.
-      `ig-sheet-tooltips.test.ts` +1. **Remaining:** prerequisite gating in the builder.
+      `ig-sheet-tooltips.test.ts` +1. **Powers editing shipped (full parity):** the edit vocabulary now also
+      covers powers — `applyIgEdit` gains `add_power`/`remove_power` (append + case-insensitive de-dupe /
+      clear on `ig.powers`); `IG_EDIT_OPS`, the `edit_ig_sheet` tool + grounding (lists the roster via
+      `igAllSpellNames()`) include them; and `IGSheet`'s Powers block gets a write-gated × on each power + an
+      "+ add power…" picker grouped by school (from `IG_POWERS`, excludes powers already known). So stances,
+      conditions, feats, AND powers are now all editable manually on the sheet and by the AI. `ig-edit.test.ts`
+      +1, `ig-ai.test.ts` (enum+power grounding), `ig-sheet-tooltips.test.ts` +1. **Remaining:** prerequisite
+      gating in the builder (owner-gated — needs the per-class/level feat & power ladders from Brendan).
 - [~] **B4 — Conditions: display + tooltip + mechanics + edit.** Conditions the character has are clearly shown
       on the sheet; hovering shows the full rules text (from `IG_CONDITIONS`); the mechanical ones actually
       apply (e.g. Flat-Footed drops Dex to Reflex/skills; Shaken/Sickened −2; Blind disadvantage) via the

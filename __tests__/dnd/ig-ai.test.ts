@@ -42,18 +42,20 @@ describe('IG AI-customize core (full-sheet Slice 10)', () => {
   });
 
   it('the AI edit tool exposes the same validated ops as the manual route (AI parity)', () => {
-    // The tool enumerates exactly the four edit ops and requires op.
+    // The tool enumerates exactly the validated edit ops (stance/condition/feat/power) and requires op.
     expect((IG_EDIT_TOOL.input_schema.properties.op as { enum: string[] }).enum).toEqual(
-      ['set_active_stance', 'clear_stance', 'add_condition', 'remove_condition', 'add_feat', 'remove_feat'],
+      ['set_active_stance', 'clear_stance', 'add_condition', 'remove_condition', 'add_feat', 'remove_feat', 'add_power', 'remove_power'],
     );
     expect(IG_EDIT_TOOL.input_schema.required).toContain('op');
     // A tool call runs through the SAME parser the API route uses.
     expect(parseIGEditToolCall({ op: 'add_condition', name: 'Shaken' })).toEqual({ edit: { op: 'add_condition', name: 'Shaken' } });
+    expect(parseIGEditToolCall({ op: 'add_power', name: 'Mirror Image' })).toEqual({ edit: { op: 'add_power', name: 'Mirror Image' } });
     expect(parseIGEditToolCall({ op: 'nuke', name: 'x' })).toHaveProperty('error');
-    // Grounding lists the real stance + condition names and forbids inventing.
+    // Grounding lists the real stance + condition + power names and forbids inventing.
     const g = igEditToolInstruction();
     expect(g).toMatch(/Defensive/);   // a stance
     expect(g).toMatch(/Grappled/);    // a condition
+    expect(g).toMatch(/Mirror Image/); // a power
     expect(g).toMatch(/do not invent/i);
   });
 

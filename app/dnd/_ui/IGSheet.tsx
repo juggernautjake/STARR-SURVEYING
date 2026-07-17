@@ -339,18 +339,36 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
       })()}
 
       {/* Reference — powers + feats + stance descriptions + the action economy. */}
-      {(ig.powers.length > 0 || ig.feats.general.length > 0 || ig.feats.combat.length > 0 || ig.stances.length > 0) && (
+      {(ig.powers.length > 0 || ig.feats.general.length > 0 || ig.feats.combat.length > 0 || ig.stances.length > 0 || canDoEdit) && (
         <div style={{ display: 'grid', gap: 12 }}>
           <div style={label}>Reference — powers, feats &amp; stances</div>
-          {ig.powers.length > 0 && (
+          {(ig.powers.length > 0 || canDoEdit) && (
             <div style={{ display: 'grid', gap: 6 }}>
               <span style={{ ...label, color: 'var(--hx-pink-1, #d98cc0)' }}>Powers</span>
               {ig.powers.map((p) => (
                 <div key={p} style={{ display: 'grid', gap: 1 }}>
-                  <span style={{ fontSize: 13, color: 'var(--hx-text)', display: 'flex', alignItems: 'center', gap: 6 }}>{p} {badgeFor(p)}</span>
+                  <span style={{ fontSize: 13, color: 'var(--hx-text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {p} {badgeFor(p)}
+                    {canDoEdit && (
+                      <button type="button" aria-label={`Remove ${p}`} disabled={editing} onClick={() => postEdit({ op: 'remove_power', name: p })} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+                    )}
+                  </span>
                   {effectOf(p) && <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>{effectOf(p)}</span>}
                 </div>
               ))}
+              {canDoEdit && (() => {
+                // Add a power — grouped by the roster's school/category; excludes powers already known. The
+                // route de-dupes, so a repeat pick is a harmless no-op.
+                const have = new Set(ig.powers.map((p) => p.toLowerCase()));
+                const opts = IG_POWERS.filter((p) => !have.has(p.name.toLowerCase()));
+                const cats = Array.from(new Set(opts.map((p) => p.category)));
+                return (
+                  <select aria-label="Add power" value="" disabled={editing} onChange={(ev) => { if (ev.target.value) postEdit({ op: 'add_power', name: ev.target.value }); }} style={{ fontSize: 12, background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '2px 6px', justifySelf: 'start' }}>
+                    <option value="">+ add power…</option>
+                    {cats.map((c) => <optgroup key={c} label={c}>{opts.filter((p) => p.category === c).map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}</optgroup>)}
+                  </select>
+                );
+              })()}
             </div>
           )}
           {(ig.feats.general.length > 0 || ig.feats.combat.length > 0 || canDoEdit) && (

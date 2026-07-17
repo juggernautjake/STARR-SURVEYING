@@ -7,7 +7,7 @@ import type { IGPicks } from './builder';
 import { systemRulesBlock } from '../../system-rules';
 import { igCatalog } from './catalog';
 import { IG_EDIT_OPS, parseIgEdit, type IGEdit } from './edit';
-import { IG_STANCE_DEFS, IG_CONDITIONS } from './content';
+import { IG_STANCE_DEFS, IG_CONDITIONS, igAllSpellNames } from './content';
 
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.map(str).filter(Boolean) : []);
@@ -86,12 +86,12 @@ export const IG_PICKS_TOOL = {
 export const IG_EDIT_TOOL = {
   name: 'edit_ig_sheet',
   description:
-    "Change ONE thing on an Intuitive Games character's sheet in place: enter a stance (set_active_stance, one active at a time), leave the stance (clear_stance), apply/remove a condition (add_condition/remove_condition), or add/remove a feat (add_feat/remove_feat). Use the EXACT Intuitive Games stance/condition/feat name.",
+    "Change ONE thing on an Intuitive Games character's sheet in place: enter a stance (set_active_stance, one active at a time), leave the stance (clear_stance), apply/remove a condition (add_condition/remove_condition), add/remove a feat (add_feat/remove_feat), or learn/remove a power (add_power/remove_power). Use the EXACT Intuitive Games stance/condition/feat/power name.",
   input_schema: {
     type: 'object' as const,
     properties: {
       op: { type: 'string', enum: [...IG_EDIT_OPS], description: 'The edit operation.' },
-      name: { type: 'string', description: 'The stance / condition / feat name (omit for clear_stance).' },
+      name: { type: 'string', description: 'The stance / condition / feat / power name (omit for clear_stance).' },
     },
     required: ['op'],
   },
@@ -106,11 +106,12 @@ export function parseIGEditToolCall(raw: unknown): { edit: IGEdit } | { error: s
 /** Grounding for the edit tool: the exact stance + condition names the AI may use (IG source only). */
 export function igEditToolInstruction(): string {
   return [
-    'To change a stance, condition, or feat on the current Intuitive Games character, call edit_ig_sheet.',
+    'To change a stance, condition, feat, or power on the current Intuitive Games character, call edit_ig_sheet.',
     `Valid stances (use the name without the word "Stance"): ${IG_STANCE_DEFS.map((s) => s.name).join(', ')}.`,
     `Valid conditions: ${IG_CONDITIONS.map((c) => c.name).join(', ')}.`,
     'Feats: add_feat/remove_feat take an Intuitive Games feat name (add_feat routes it to the General or Combat list automatically). Use a real IG feat name.',
-    'Only one stance is active at a time — set_active_stance replaces the current one. Use the exact names above; do not invent a stance, condition, or feat.',
+    `Powers: add_power/remove_power take an Intuitive Games power name. Known powers: ${igAllSpellNames().join(', ')}.`,
+    'Only one stance is active at a time — set_active_stance replaces the current one. Use the exact names above; do not invent a stance, condition, feat, or power.',
   ].join('\n');
 }
 

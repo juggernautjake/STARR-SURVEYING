@@ -14,10 +14,12 @@ export type IGEdit =
   | { op: 'add_condition'; name: string }
   | { op: 'remove_condition'; name: string }
   | { op: 'add_feat'; name: string }
-  | { op: 'remove_feat'; name: string };
+  | { op: 'remove_feat'; name: string }
+  | { op: 'add_power'; name: string }
+  | { op: 'remove_power'; name: string };
 
 /** The op names the AI tool + API accept. */
-export const IG_EDIT_OPS = ['set_active_stance', 'clear_stance', 'add_condition', 'remove_condition', 'add_feat', 'remove_feat'] as const;
+export const IG_EDIT_OPS = ['set_active_stance', 'clear_stance', 'add_condition', 'remove_condition', 'add_feat', 'remove_feat', 'add_power', 'remove_power'] as const;
 export type IGEditOp = typeof IG_EDIT_OPS[number];
 
 const eq = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -68,6 +70,16 @@ export function applyIgEdit(ig: IGCharacter, edit: IGEdit): IGCharacter {
       if (!inEither) return ig;
       return { ...ig, feats: { general: ig.feats.general.filter((f) => !eq(f, name)), combat: ig.feats.combat.filter((f) => !eq(f, name)) } };
     }
+    case 'add_power': {
+      const name = edit.name.trim();
+      if (!name || ig.powers.some((p) => eq(p, name))) return ig;
+      return { ...ig, powers: [...ig.powers, name] };
+    }
+    case 'remove_power': {
+      const name = edit.name.trim();
+      if (!name || !ig.powers.some((p) => eq(p, name))) return ig;
+      return { ...ig, powers: ig.powers.filter((p) => !eq(p, name)) };
+    }
     default:
       return ig;
   }
@@ -96,6 +108,8 @@ export function describeIgEdit(edit: IGEdit): string {
     case 'remove_condition': return `Removed the ${edit.name} condition.`;
     case 'add_feat': return `Added the ${edit.name} feat.`;
     case 'remove_feat': return `Removed the ${edit.name} feat.`;
+    case 'add_power': return `Learned the ${edit.name} power.`;
+    case 'remove_power': return `Removed the ${edit.name} power.`;
     default: return 'No change.';
   }
 }

@@ -67,6 +67,14 @@ describe('applyIgEdit — feats', () => {
     const removed = applyIgEdit(ig, { op: 'remove_feat', name: 'TOUGHNESS' });
     expect([...removed.feats.general, ...removed.feats.combat].some((f) => f.toLowerCase() === 'toughness')).toBe(false);
   });
+  it('add_power appends + de-dupes (case-insensitive); remove_power clears it', () => {
+    let ig = applyIgEdit(base(), { op: 'add_power', name: 'Mirror Image' });
+    expect(ig.powers).toContain('Mirror Image');
+    ig = applyIgEdit(ig, { op: 'add_power', name: 'mirror image' }); // no dup
+    expect(ig.powers.filter((p) => p.toLowerCase() === 'mirror image')).toHaveLength(1);
+    const removed = applyIgEdit(ig, { op: 'remove_power', name: 'MIRROR IMAGE' });
+    expect(removed.powers.some((p) => p.toLowerCase() === 'mirror image')).toBe(false);
+  });
 });
 
 describe('parseIgEdit', () => {
