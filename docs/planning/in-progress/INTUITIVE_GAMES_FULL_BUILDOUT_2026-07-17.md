@@ -359,6 +359,13 @@ expanded requirements (2026-07-17):
       feat group at `igAllFeats()` (bucketed General/Combat), preserving any `IG_FEATS` name it doesn't carry
       under "Feats · Unlisted (pending reconcile)". `ig-catalog.test.ts` +1 asserts every `igAllFeats()` feat
       is offered. Powers AND feats now have one identical set across sheet, builder, and both AI paths.
+      **Ground Rule 2 honored for the new WIP entries (2026-07-17):** offering the full roster added catalog
+      powers with no effect text yet (pending Brendan). The vanilla library rendered an effect-less entry as
+      a bare name — reading as "this has no effect" rather than "effect pending." Added an explicit
+      "Effect text not yet published — work in progress." marker for effect-BEARING kinds (stance/power/feat/
+      defensive-power/condition) that lack effect text; name-only kinds (ancestry/class/weapon-type/…) are
+      unmarked (they lack nothing). `ig-vanilla-library-wip.test.ts` (3) pins the marker + that a real
+      effect-less power exists to guard.
       **Defensive power
       now editable too (2026-07-17):** it was display-only post-build (a chip, no control) while stances,
       conditions, feats and powers were all editable — a gap in "everything editable." Added a
