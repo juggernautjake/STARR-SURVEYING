@@ -10,7 +10,7 @@ import { rulesForSystem, type SystemRules } from './system-rules';
 import { glossaryFor, searchGlossary } from './glossary';
 import { classesForSystem } from './classes/registry';
 import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
-import { PF2_BACKGROUNDS, type PF2BackgroundDef } from './systems/pathfinder2e/content';
+import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef } from './systems/pathfinder2e/content';
 
 /** The full feat registry for a system, or [] when only a catalog sample exists. System-keyed
  *  dispatcher (the pattern `findFeat`'s comment calls for) so a feat never leaks across systems. */
@@ -23,6 +23,16 @@ function featsForSystem(system: string): Feat[] {
 function backgroundsForSystem(system: string): PF2BackgroundDef[] {
   return system === 'pathfinder2e' ? PF2_BACKGROUNDS : [];
 }
+
+/** Armor / weapons a system exposes as structured library data (PF2 only today). System-keyed so a
+ *  PF2 breastplate or longsword never surfaces under a 5e system, whose gear lives elsewhere. */
+function armorsForSystem(system: string): PF2ArmorDef[] {
+  return system === 'pathfinder2e' ? PF2_ARMORS : [];
+}
+function weaponsForSystem(system: string): PF2WeaponDef[] {
+  return system === 'pathfinder2e' ? PF2_WEAPONS : [];
+}
+const DMG_TYPE: Record<string, string> = { B: 'bludgeoning', P: 'piercing', S: 'slashing' };
 
 export interface LibraryFact {
   label: string;
@@ -203,6 +213,32 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
     });
   }
 
+  // Armor + weapons (PF2 only today) — the gear tables players scan for.
+  const armors = armorsForSystem(key).filter((a) => a.category !== 'unarmored');
+  if (armors.length) {
+    sections.push({
+      id: 'armor',
+      title: 'Armor',
+      lead: `${armors.length} armors — AC bonus, Dex cap, and the Strength that waives their penalties.`,
+      table: {
+        headers: ['Armor', 'Category', 'AC', 'Dex cap', 'Str', 'Check', 'Speed'],
+        rows: armors.map((a) => [a.name, a.category, `+${a.acBonus}`, `+${a.dexCap ?? '∞'}`, `+${a.strength}`, `${a.checkPenalty}`, `${a.speedPenalty} ft`]),
+      },
+    });
+  }
+  const weapons = weaponsForSystem(key);
+  if (weapons.length) {
+    sections.push({
+      id: 'weapons',
+      title: 'Weapons',
+      lead: `${weapons.length} weapons — damage, type, and traits.`,
+      table: {
+        headers: ['Weapon', 'Category', 'Damage', 'Group', 'Traits'],
+        rows: weapons.map((w) => [w.name, w.category, `${w.damageDie} ${w.damageType}${w.range ? ` (${w.range} ft)` : ''}`, w.group, w.traits.join(', ') || '—']),
+      },
+    });
+  }
+
   if (r.content.conditions.length) {
     sections.push({ id: 'conditions', title: 'Conditions', lead: `${r.content.conditions.length} standardized states.`, chips: r.content.conditions });
   }
@@ -320,6 +356,15 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
     // feat — real structured data from the PF2 content library, searchable by name or "background".
     for (const b of backgroundsForSystem(key)) {
       push('background', b.name, `${b.name} background — trains ${b.skill} + ${b.lore}; grants the ${b.feat} skill feat; boosts ${b.boosts.join(', ')}. ${b.summary}`);
+    }
+    // Armor + weapons (PF2 only today): the stats a player scans for — AC bonus / Dex cap / Strength for
+    // armor; damage die + type + traits for weapons. System-scoped so 5e gear never surfaces here.
+    for (const a of armorsForSystem(key)) {
+      if (a.category === 'unarmored') continue;
+      push('armor', a.name, `${a.name} — ${a.category} armor; +${a.acBonus} AC, Dex cap +${a.dexCap ?? '∞'}, Str ${a.strength}, check ${a.checkPenalty}, speed ${a.speedPenalty} ft.`);
+    }
+    for (const w of weaponsForSystem(key)) {
+      push('weapon', w.name, `${w.name} — ${w.category} ${w.group.toLowerCase()}; ${w.damageDie} ${DMG_TYPE[w.damageType] ?? w.damageType}${w.range ? `, ranged ${w.range} ft` : ''}${w.traits.length ? `; ${w.traits.join(', ')}` : ''}.`);
     }
   }
 

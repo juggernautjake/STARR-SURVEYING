@@ -37,9 +37,12 @@ describe('library pages', () => {
     expect(titles('coc7e')).toContain('Occupations');
     expect(titles('pathfinder2e')).toContain('Ancestries');
     expect(titles('pathfinder2e')).toContain('Backgrounds'); // PF2-only section
+    expect(titles('pathfinder2e')).toContain('Armor');
+    expect(titles('pathfinder2e')).toContain('Weapons');
     expect(titles('dnd5e-2024')).toContain('Classes');
-    // Backgrounds are a PF2-only library section today — they must NOT leak into 5e pages.
+    // Backgrounds/Armor/Weapons are PF2-only library sections today — they must NOT leak into 5e pages.
     expect(titles('dnd5e-2024')).not.toContain('Backgrounds');
+    expect(titles('dnd5e-2024')).not.toContain('Weapons');
   });
 
   it('states plainly when a system has no levels', () => {
@@ -115,6 +118,17 @@ describe('searchLibrary', () => {
     expect(acolyte!.body).toMatch(/Religion/);
     // Backgrounds are PF2-only — searching a 5e system for a PF2 background name yields no background hit.
     expect(searchLibrary('acolyte', 'dnd5e-2024').some((h) => h.kind === 'background')).toBe(false);
+  });
+
+  it('surfaces PF2 armor and weapons by name, system-scoped', () => {
+    const plate = searchLibrary('full plate', 'pathfinder2e').find((h) => h.kind === 'armor');
+    expect(plate).toBeTruthy();
+    expect(plate!.body).toMatch(/\+6 AC/);
+    const longsword = searchLibrary('longsword', 'pathfinder2e').find((h) => h.kind === 'weapon');
+    expect(longsword).toBeTruthy();
+    expect(longsword!.body).toMatch(/1d8 slashing/);
+    // Gear is PF2-only in the library — a PF2 weapon name yields no weapon hit under a 5e system.
+    expect(searchLibrary('longsword', 'dnd5e-2024').some((h) => h.kind === 'weapon')).toBe(false);
   });
 
   it('finds the non-d20 systems’ own vocabulary', () => {
