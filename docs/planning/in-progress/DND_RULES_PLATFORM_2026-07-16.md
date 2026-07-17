@@ -577,6 +577,10 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       **Plus (6b follow-up) gear/spells/subclasses in `pf2Catalog()`** — the catalog (which feeds the AI
       builder's grounding prompt) now also groups Subclasses, Weapons, Armor, and Spells, so an AI PF2
       build references a real bloodline/longsword/breastplate/Fireball instead of inventing one. +1 test.
+      **Plus (6b hardening) a content-integrity guard** — `pathfinder2e-content-integrity.test.ts` (9)
+      locks the whole PF2 library internally consistent: no duplicate names per catalog, valid ranks/
+      attributes, backgrounds train real skills, spells rank 0–10 with valid traditions, gear categories/
+      damage types valid — so future edits can't silently introduce a dangling reference or bad rank.
       **Plus (6b hardening) a test on the assemble seam** — `assemblePF2VanillaCharacter` (the projection
       the `pf2-build` routes persist and the character page reads) is now covered by
       `pathfinder2e-assemble.test.ts` (8): the sidecar passes `isPF2Character`, identity→meta/chips,
