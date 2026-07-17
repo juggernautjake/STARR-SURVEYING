@@ -2293,7 +2293,11 @@ ledger-resolved numbers, and a DM equip propagates live (C11b + Slice 10). Detai
       no ACTIVE EFFECTS line. **AC is now accurate too**: the digest runs the same `deriveAc` the
       sheet does (equipped armour/shield + AC effects, DEX folded), so its AC matches what the player
       sees, base flagged when it differs. Tests: `character-digest.test.ts` +4 (15 total). This closes
-      the "confidently wrong ruling" hazard flagged after Slice 10.
+      the "confidently wrong ruling" hazard flagged after Slice 10. **Spell save DC + attack added**
+      (`bdbff686`): the digest omitted a caster's most-adjudicated numbers, so the AI had to guess the DC
+      for "does the target save vs your Fireball?". Now a `SPELLCASTING:` line computed like SpellsPanel
+      (effective ability + PB, folding `spell_save_dc`/`spell_attack`) — a Headband of Intellect / Rod of
+      the Pact Keeper is reflected. +1 test (DC/attack rise by the item's +5).
 - [x] **Realtime equip propagation ✅ VERIFIED 2026-07-16 (no code change needed).** Already satisfied
       by the existing C11b broadcast (`store.tsx:369–405`): a DM equip writes `data`, pings the
       per-character channel, and every other viewer refetches the full authed sheet and re-derives —
