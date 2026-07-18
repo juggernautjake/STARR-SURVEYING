@@ -92,6 +92,12 @@ describe('dispatchMenuAction — routes ids to cad:* window events', () => {
   });
 
   it('edit.undo and edit.redo bypass the event bus (they go through the undo store)', async () => {
+    // The undo store is a MODULE SINGLETON shared across the whole test worker; a prior CAD test can leave
+    // entries on its undoStack. This test only holds when undo()/redo() are no-ops (nothing to undo) — with a
+    // polluted stack, undo() runs applyOperations and its canvas-refresh side effect fires cad:undo, calling
+    // the listener (deterministic full-suite-only failure). Clear it first so the assertion is hermetic.
+    const { useUndoStore } = await import('@/lib/cad/store');
+    useUndoStore.getState().clear();
     const listener = vi.fn();
     (window as Window).addEventListener('cad:undo', listener);
     (window as Window).addEventListener('cad:redo', listener);
