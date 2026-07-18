@@ -65,6 +65,8 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
 - [~] **IGS2 — Image analysis + hosting.** IN PROGRESS. Stat data that lives only in images is transcribed by
       reading the pixels (Playwright download + vision). DONE: the Encumbrance table (STR 6–20 × 5 weight cols)
       → `stat-tables-from-images.md` + image hosted at `public/dnd/intuitive-games/tables/encumbrance.png`.
+      Now also PROGRAMMATIC: `igCarryingCapacity(str, {quadruped})` in IG rules encodes the table
+      (base×{1,2,4,6}, quadruped ×3), golden-pinned row-for-row by `ig-encumbrance.test.ts`.
       REMAINING: sweep remaining pages for content images, download + host + transcribe each.
 - [x] **IGS3 — WIP "needs definition" report.** ✅ SHIPPED (living) — `WIP-needs-definition.md` auto-flags
       every EMPTY toggle found (4 so far: Craft's Manufacture/Repair Object, Perform's Entertain/Impress).
