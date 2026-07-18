@@ -24,6 +24,9 @@ export default function SystemSwitcher({
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  // Transpose lifecycle (Area TR1): 'working' shows the animated progress bar; 'done' shows an obvious
+  // success notification. Only set for a transpose (an AI build), not an instant switch.
+  const [transpose, setTranspose] = useState<{ system: string; phase: 'working' | 'done' } | null>(null);
 
   const active = activeSystem || SYSTEM_AMBIGUOUS;
   const built = new Set(builtSystems.map((s) => s || SYSTEM_AMBIGUOUS));
@@ -38,16 +41,19 @@ export default function SystemSwitcher({
     if (system === active || busy || !selectable(system)) return;
     const isTranspose = !built.has(system);
     if (isTranspose && !aiConfigured) { setMsg('AI is not configured — cannot transpose to a new system.'); return; }
-    setBusy(system); setMsg(isTranspose ? `Transposing into ${systemLabel(system)}…` : null);
+    setBusy(system); setMsg(null);
+    if (isTranspose) setTranspose({ system, phase: 'working' });
     try {
       const r = await fetch(`/api/dnd/characters/${characterId}/system`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ system }),
       });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) { setMsg(j.error ?? 'Could not change system.'); setBusy(null); return; }
+      if (!r.ok) { setMsg(j.error ?? 'Could not change system.'); setTranspose(null); setBusy(null); return; }
+      if (isTranspose) setTranspose({ system, phase: 'done' }); // obvious completion notification
       router.refresh();
     } catch {
       setMsg('Network error — please try again.');
+      setTranspose(null);
     } finally {
       setBusy(null);
     }
@@ -112,6 +118,26 @@ export default function SystemSwitcher({
               );
             })}
           </div>
+          {/* Transpose progress + completion (TR1) — a working state that obviously reads as "the AI is
+              building", then a clear done notification. */}
+          {transpose?.phase === 'working' && (
+            <div style={{ margin: '10px 0 0', padding: '10px 12px', border: '1px solid var(--hx-teal-2)', borderRadius: 8, background: 'rgba(10,200,185,0.06)', display: 'grid', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span className={styles.spinner} aria-hidden />
+                <div>
+                  <strong style={{ color: 'var(--hx-teal-1)', fontFamily: 'var(--hx-font-display)' }}>Transposing into {systemLabel(transpose.system)}…</strong>
+                  <div style={{ fontSize: 12, color: 'var(--hx-muted)' }}>The AI is reading {systemLabel(transpose.system)}’s rules and rebuilding the character. Your other versions are kept.</div>
+                </div>
+              </div>
+              <div className={styles.transposeBar} />
+            </div>
+          )}
+          {transpose?.phase === 'done' && (
+            <div role="status" style={{ margin: '10px 0 0', padding: '10px 12px', border: '1px solid var(--hx-gold-1)', borderRadius: 8, background: 'rgba(212,175,55,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+              <strong style={{ color: 'var(--hx-gold-2)', fontFamily: 'var(--hx-font-display)' }}>✓ Transposed into {systemLabel(transpose.system)} — now active!</strong>
+              <button type="button" className={styles.hexBtn} style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => setTranspose(null)}>Dismiss</button>
+            </div>
+          )}
           {msg && <p style={{ margin: '8px 0 0', fontSize: 12.5, color: 'var(--hx-muted)' }}>{msg}</p>}
         </>
       )}

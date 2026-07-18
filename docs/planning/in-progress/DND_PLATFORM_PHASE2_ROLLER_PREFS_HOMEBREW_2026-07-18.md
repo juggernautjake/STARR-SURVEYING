@@ -302,9 +302,12 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
 > vibe/persona/abilities, and (d) validates every custom piece against the system's mechanics + balance before
 > committing (as close to the system's mechanics as possible).
 
-- [ ] **TR1 — Transpose progress + completion UX.** `SystemSwitcher` transpose action shows an in-progress
-      animation/state while the AI builds, then an obvious success notification (with a summary of what was
-      built vanilla vs custom). Wire to the existing transpose route's lifecycle.
+- [x] **TR1 — Transpose progress + completion UX.** ✅ SHIPPED — `SystemSwitcher` now runs a working→done
+      lifecycle for a transpose (not an instant switch): a spinner + animated indeterminate progress bar
+      (`.transposeBar`) with "The AI is reading {system}'s rules and rebuilding…" while it builds, then an
+      obvious `role="status"` success banner ("✓ Transposed into {system} — now active!") with a dismiss.
+      Guarded by `transpose-progress.test.ts`. REMAINING for TR1: a vanilla-vs-custom summary in the done
+      banner (arrives with TR3 when the route reports what it built).
 - [ ] **TR2 — Custom-content consent prompt.** Before an AI transpose, if custom is allowed for the character
       or its campaign (respect `allow_custom` + DM grants + invited campaigns), prompt the user to approve the
       AI creating custom content. Default off/ask; a "vanilla-only best effort" path when declined.
