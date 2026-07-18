@@ -90,7 +90,10 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
       only covered `ac|maxHp|currentHp|speed`; it couldn't set **tempHp** or **exhaustion** — both tracked on the
       sheet/digest and adjudicated by the AI (exhaustion drives the whole M1 mechanics chain). Added both to the
       `set_combat` field union + tool schema, with exhaustion clamped to its 0–6 track (`sheet-edits.test.ts`
-      +2). **Area SQ4 (AI edits every component) is done across all three systems** — IG (HP ops), PF2 (full
+      +2). **Manual IG HP control ✅ (2026-07-18)** — the `apply_damage`/`heal` IG ops existed for the AI but had
+      no manual UI; added quick damage (−) / heal (＋) buttons under the IG sheet's HP block that post to the
+      ig-edit route, so a player can take damage / heal without entering full edit mode (`ig-edit.test.ts` +1).
+      **Area SQ4 (AI edits every component) is done across all three systems** — IG (HP ops), PF2 (full
       edit path + endpoint + dispatch), and 5e (tempHp + exhaustion). The remaining SQ items (SQ1/2/5 styling +
       completeness + per-system browser QA) need the running app.
 - [ ] **SQ5 — Per-system verification** — a browser/QA pass per system (the memory-documented Slice-40

@@ -55,6 +55,9 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
   const [lastRoll, setLastRoll] = useState<{ label: string; total: number; detail: string; tone: 'crit' | 'fumble' | 'normal' } | null>(null);
   // Optional target DC — when set, a roll resolves the four-step degree of success (IG's ladder).
   const [targetDc, setTargetDc] = useState('');
+  // Quick in-play HP adjust (Area SQ4) — the apply_damage/heal ig-edit ops exist for the AI; this wires a manual
+  // control so a player can take damage / heal without entering full edit mode.
+  const [hpAmt, setHpAmt] = useState('');
   const rollLine = (label: string, modifier: number) => {
     const dcNum = targetDc.trim() === '' ? undefined : Number(targetDc);
     const dc = Number.isFinite(dcNum) ? dcNum : undefined;
@@ -209,6 +212,19 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
         <div style={{ flex: 1, minWidth: 90, textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 6px' }}>
           <div style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>Hit Points</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--hx-text)' }}>{derived.currentHp}<span style={{ fontSize: 12, color: 'var(--hx-muted)' }}> / {derived.maxHp}</span></div>
+          {canDoEdit && (
+            // Quick damage / heal — posts apply_damage / heal to the ig-edit route (SQ4).
+            <div style={{ display: 'flex', gap: 3, marginTop: 6, alignItems: 'center', justifyContent: 'center' }}>
+              <input type="number" min={1} value={hpAmt} onChange={(e) => setHpAmt(e.target.value)} placeholder="±" aria-label="HP amount"
+                style={{ width: 42, fontSize: 12, padding: '2px 4px', textAlign: 'center', background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 6 }} />
+              <button type="button" disabled={editing || !hpAmt.trim()} title="Take damage"
+                onClick={() => { const n = parseInt(hpAmt, 10); if (n > 0) { postEdit({ op: 'apply_damage', amount: n }); setHpAmt(''); } }}
+                style={{ fontSize: 11, padding: '2px 6px', background: 'none', border: '1px solid var(--hx-danger)', color: 'var(--hx-danger)', borderRadius: 6, cursor: 'pointer' }}>−</button>
+              <button type="button" disabled={editing || !hpAmt.trim()} title="Heal"
+                onClick={() => { const n = parseInt(hpAmt, 10); if (n > 0) { postEdit({ op: 'heal', amount: n }); setHpAmt(''); } }}
+                style={{ fontSize: 11, padding: '2px 6px', background: 'none', border: '1px solid var(--hx-teal-1)', color: 'var(--hx-teal-1)', borderRadius: 6, cursor: 'pointer' }}>＋</button>
+            </div>
+          )}
         </div>
         <div style={{ flex: 1, minWidth: 90, textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 6px' }}>
           <div style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>Proficiency</div>

@@ -203,3 +203,12 @@ describe('applyIgEdit — HP damage + healing (SQ4)', () => {
     expect(describeIgEdit({ op: 'heal', amount: 5 })).toMatch(/Healed 5 HP/);
   });
 });
+
+describe('IG sheet exposes a manual HP damage/heal control (SQ4)', () => {
+  const SHEET = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/IGSheet.tsx'), 'utf8');
+  it('wires quick damage/heal buttons to the apply_damage/heal ig-edit ops', () => {
+    expect(SHEET).toContain("postEdit({ op: 'apply_damage', amount: n })");
+    expect(SHEET).toContain("postEdit({ op: 'heal', amount: n })");
+    expect(SHEET).toContain('canDoEdit &&'); // only for a viewer who can write
+  });
+});
