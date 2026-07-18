@@ -1,0 +1,98 @@
+[
+ {
+  "title": "Beast Companion - Beastmaster",
+  "body": "Gain an ability score increase to any one physical score. Take a -2 penalty to intelligence. Gain a skill proficiency from the list below: Acrobatics Climb Fly Perception Stealth Swim Many beasts should take an additional penalty to intelligence. If this occurs, the beast gains a bonus to constitution."
+ },
+ {
+  "title": "Elemental - Summoner",
+  "body": "Choose one of the 5 energy types. Your companion gains resistance to the type of energy damage chosen equal to twice your level. Skill proficiency: Arcane"
+ },
+ {
+  "title": "Familiar - Eldritch Binder",
+  "body": "Must be small or tiny in size Gain proficiency in any one skill. When rolling to assist the summoner with a proficient skill, the companion rolls with advantage."
+ },
+ {
+  "title": "Swarm - Packmaster",
+  "body": "Must be tiny or small in size. All companions take a -4 to intelligence. (Minimum intelligence of 1) All swarm companions gain the swarming stance. This does not confer the advanced stance, even once the Packmater is Level 5. Gain a skill proficiency from the list below: Acrobatics Climb Fly Perception Stealth Swim Some swarm creatures should take an additional penalty to intelligence, as they may be unintelligent bugs or similar creatures. If this occurs, the creature gains a bonus to constitution."
+ },
+ {
+  "title": "Ability Score Boost",
+  "body": "The creature increases any 2 ability scores."
+ },
+ {
+  "title": "Armor Proficiency",
+  "body": "The creature is considered to be proficient with armor. Armor for a non-humanoid creature is priced differently. Tiny creatures: Half Price Small creatures: Normal price. Medium creatures: Double Price. Large creatures: Triple price."
+ },
+ {
+  "title": "Enhanced Attacks",
+  "body": "The creature gains a +2 bonus on attacks with natural weapons."
+ },
+ {
+  "title": "Enhanced Sense",
+  "body": "The creature has some sort of extraordinary sense. This ability must be chosen when the creature is acquired. Scent - 100 feet Darkvision - 50 feet Blindsight - 30 feet Tremorsense - 50 feet"
+ },
+ {
+  "title": "Favored Strike",
+  "body": "Requires the creature to possess only one natural weapon. The creature’s natural weapon is particularly powerful and deals an additional 1d6 points of damage."
+ },
+ {
+  "title": "Furious Strikes",
+  "body": "Requires the creature to possess more than one natural weapon. The creature’s weapons work well in concert. As an action, the creature can attack with two weapons at the same time. Each attack deals two fewer points of damage than normal when this ability is used. This counts as one attack for the MSP, but not abilities like parry or redirect."
+ },
+ {
+  "title": "Natural Armor",
+  "body": "The creature gains DR 4. This feature can be added to the same creature multiple times. Each time, it gains an additional 2 DR"
+ },
+ {
+  "title": "New Movement Type",
+  "body": "The creature gains a new movement type from the list of available movement options. If necessary, the creature achieves this movement via magic or the growth of new appendages. Flight : 20 feet of fly speed. Climb: 20 feet of climb speed. Swim: 20 feet of swim speed.Fast: Increase base speed by 10 feet. Burrow: 20 feet of burrow speed. Steady: The creature is not impacted by difficult terrain. Nimble: The creature automatically succeeds saves against a single combat skill. EG: A snake may be immune to Trip attempts Consult your DM to ensure this movement type is appropriate for your chosen creature."
+ },
+ {
+  "title": "New Skill Proficiency",
+  "body": "The creature gains proficiency in any one skill."
+ },
+ {
+  "title": "Poison/Venom",
+  "body": "The creature’s natural attacks now have a poison or venom effect. Pick one type of poison from the list below. Once chosen, this type of damage is always the damage dealt with this ability.Strength DexterityIntelligence The creature and its victim both make Fortitude saves if the target is hit by an attack by the creature. Critical Success The creature takes 1d6 points of ability damage to the chosen score and loses an action on their next turn. Success The creature takes 1d6 points of ability damage to the chosen score. Partial Success The creature takes one point of ability damage to the chosen score. Failure The target does not suffer any ill effects. Critical Failure The target does not suffer any ill effects and is immune to subsequent poison from the same source for one minute."
+ },
+ {
+  "title": "Reach",
+  "body": "The creature’s natural attacks have additional reach, allowing the creature to treat all hexes within 10 feet as threatened. This does not interrupt the creature’s ability to attack adjacent creatures as normal. If a creature already has reach, increase the reach by 5 feet. As with most features, this ability can only be selected once."
+ },
+ {
+  "title": "Elemental Breath",
+  "body": "The creature gains a magical elemental breath attack that deals damage equal to 1d6 per 2 levels of the Archon. Only one element can be used for this attack. Once the element is chosen, it cannot be changed. As a two-action activity, the companion may activate a spray in a 10-foot cone. All creatures within range must make reflex saves as if targeted by the attack. This is a proficient attack for the companion. Spray attacks are considered to be melee weapons that deal damage within the listed range. Spray attacks cannot be countered or redirected, and only require one attack roll against all targets. The Archon may spend an additional class power to expand the range of this ability to 20 feet."
+ },
+ {
+  "title": "Energy Attacks",
+  "body": "The creature is enhanced with magic in some way and deals an amount of elemental damage equal to its summoner’s level with each attack. This is only available to elementals or familiars."
+ },
+ {
+  "title": "Linguist",
+  "body": "The creature can speak a single common and a single uncommon language. The intelligence of a creature with this power must be no lower than 8. This ability is magical and does not require the creature to have the physical traits necessary to speak as a normal creature would."
+ },
+ {
+  "title": "Massive",
+  "body": "The creature becomes huge, gaining two ASBs to strength and two ASPs to dexterity. Its reach also increases by 5 feet. A familiar or a swarm creature cannot have this Aspect."
+ },
+ {
+  "title": "Sorcerous",
+  "body": "The creature gains access to a single spell from the Wizard list which it can cast. It uses its charisma and its arcane skill instead of intelligence and the spellcraft skill. The level of the Archon is used to determine the caster level of the spell. The creature must be trained in the Arcane skill to have this Aspect."
+ },
+ {
+  "title": "Telepathy",
+  "body": "The creature learns how to communicate telepathically, with a range of 100 feet. The creature can only speak in whatever languages it knows, but can also send images of things that it has seen and remembers. A creature with an intelligence of 2 or lower cannot have this Aspect."
+ },
+ {
+  "title": "Verdant",
+  "body": "The companion is transformed into a plant creature through magic. Plant creatures do not take nonlethal damage. Plant creatures gain DR equal to their Constitution modifier. Plant creatures double the fire damage they take."
+ },
+ {
+  "title": "Companion Creatures and Language",
+  "body": "If a companion creature has an intelligence of 6 or greater, it can understand one language. The Archon almost always speaks this language. Language is not needed to communicate simple actions to the creature, but full reports from scouting or other activities cannot be accomplished without language. A creature that has 10 intelligence or more can be taught how to read. There are no mechanics in place for this but it would require work during the downtime of a campaign. If a creature possesses the physical tools to speak a language, then it may speak any language that it knows. It may think using known languages, and could “speak” telepathically as well."
+ },
+ {
+  "title": "Specific Mythical Creatures",
+  "body": "If a specific mythical creature is chosen for a companion, like a dragon or a griffon, it is recommended that their iconic abilities are added at character creation. A dragon could be Large with a breath weapon if the player chooses the Aspect ability at Level 1."
+ }
+]

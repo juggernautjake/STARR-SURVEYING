@@ -15,6 +15,7 @@ import { LANGUAGES_2024, TOOLS_2024, type Language as Dnd2024Language, type Tool
 import { SPECIES_2024 } from './species/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
 import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, IG_COMPANION_TYPES, IG_COMPANION_RULES, IG_BACKGROUND_DEFS, IG_CLASS_RULES, IG_CLASS_DETAILS, IG_CLASS_POWER_EFFECTS, IG_REDISTRIBUTION_RULES, type NamedEntry, type IGStance, type IGAncestry, type IGCompanionType, type IGBackground } from './systems/intuitive-games/content';
+import { IG_COMPANION_FEATURES, IG_COMPANION_ASPECTS, IG_COMPANION_BUILD_RULES } from './systems/intuitive-games/companions';
 import { igAllFeats, type IGFeat } from './systems/intuitive-games/feats';
 import { igAncestryArt, IG_ART_CREDIT } from './systems/intuitive-games/art';
 import { homebrewLibrarySection } from './homebrew/projection';
@@ -633,7 +634,30 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
         headers: ['Companion type', 'Class', 'Details'],
         rows: igCompanions.map((c) => [c.name, c.subclass, c.text]),
       },
+      // The full build system, scraped 2026-07-18 (statistics rules + the example), so a companion sheet can
+      // be built in full — HP from Constitution, size modifiers, natural weapons, and the powers below.
+      body: key === 'intuitive-games' ? [
+        'How to build a companion:',
+        ...IG_COMPANION_BUILD_RULES,
+        `Features (start with one, gain more): ${IG_COMPANION_FEATURES.map((f) => f.name).join(', ')}.`,
+        `Aspects (only via the Archon's Aspect power): ${IG_COMPANION_ASPECTS.map((a) => a.name).join(', ')}.`,
+        'Example — a Level 1 Tiger (Beast Companion): Large, Speed 40, STR 18 / DEX 18 / CON 16, 1 bite + 4 claws +5 (1d8+4), 16 HP.',
+      ] : undefined,
     });
+    if (key === 'intuitive-games') {
+      sections.push({
+        id: 'companion-powers',
+        title: 'Companion Features & Aspects',
+        lead: `The ${IG_COMPANION_FEATURES.length} features and ${IG_COMPANION_ASPECTS.length} aspects a companion creature can be built with (scraped from /companion-creatures).`,
+        table: {
+          headers: ['Name', 'Kind', 'Effect'],
+          rows: [
+            ...IG_COMPANION_FEATURES.map((f) => [f.name, 'Feature', f.effect]),
+            ...IG_COMPANION_ASPECTS.map((a) => [a.name, 'Aspect', a.effect]),
+          ],
+        },
+      });
+    }
   }
 
   // Gear (IG) — weapons (a WIP framework: classes + properties, no named roster yet), armor (the DR
@@ -891,6 +915,10 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
     for (const p of igPowersFor(key)) push('power', p.name, `${p.name} — ${p.category ?? ''} power in ${r.label}: ${p.effect ?? ''}`);
     for (const d of igDefensivePowersFor(key)) push('defensive-power', d.name, `${d.name} — a defensive power (reaction) in ${r.label}: ${d.effect ?? ''}`);
     for (const c of igCompanionsFor(key)) push('companion', c.name, `${c.name} — a ${c.subclass} companion in ${r.label}: ${c.text}`);
+    if (key === 'intuitive-games') {
+      for (const f of IG_COMPANION_FEATURES) push('companion-feature', f.name, `${f.name} — a companion creature feature: ${f.effect}`);
+      for (const a of IG_COMPANION_ASPECTS) push('companion-aspect', a.name, `${a.name} — a companion creature aspect (Archon's Aspect power): ${a.effect}`);
+    }
     for (const b of igBackgroundsFor(key)) push('background', b.name, `${b.name} background — ${b.hp} HP; boosts ${b.boosts}; trains ${b.proficiencies.join(', ')}; grants the ${b.stance} Stance.`);
     // IG gear: weapon classes + properties, armor (with DR), and shields — searchable by name.
     if (key === 'intuitive-games') {
