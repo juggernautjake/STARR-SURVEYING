@@ -352,8 +352,15 @@ below states what it reuses.
       (caller supplies the timestamp → testable). `__tests__/mobile/capture-intent.test.ts` (9). **Remaining
       (mobile-runtime):** the camera option screen UI, launching the camera per intent, the receipt auto-extract
       + document AI calls, and writing the row with this metadata — device-tested.
-- [ ] **D5 — Job instructions page (with file/image hyperlinks).** An RPLS-authored instructions surface that
-      can link `job_files`/`file_nodes` entries. New small table or a `jobs.instructions` rich field.
+- [~] **D5 — Job instructions page (with file/image hyperlinks). ✅ Pure parser shipped.** `lib/jobs/instructions.ts`
+      — instructions are text with markdown-flavoured file embeds `[label](job-file:<id>)` (and inline images
+      `![alt](job-file:<id>)`, reusing existing `job_files`/`field_media` ids, no new store). `parseInstructions`
+      tokenizes into text/link/image segments (malformed link-like text stays literal, never throws);
+      `resolveInstructions` attaches each file's name+url or marks it broken (`file: null`) so a removed file
+      renders a "missing" chip not a dead link; `extractFileRefs`/`brokenInstructionRefs` warn the RPLS before
+      saving that a linked file is gone. Web + mobile render from the same parse. `__tests__/jobs/instructions.test.ts`
+      (8). **Remaining:** the `jobs.instructions` text column (idempotent ALTER) + the RPLS editor UI + the
+      viewer that renders resolved segments — UI/schema wiring.
 - [~] **D6 — Mileage tracker + reusable vehicles. ✅ Pure math shipped.** `lib/mileage/odometer.ts` — the
       MANUAL odometer entry the owner described (start/end reading + vehicle), distinct from the existing
       GPS-ping mileage but reusing the SAME `IRS_BUSINESS_RATE_2025` (no second rate to drift):
