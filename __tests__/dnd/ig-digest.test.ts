@@ -69,7 +69,8 @@ describe('igCharacterDigest', () => {
     // (the AI can't recall a bespoke IG reaction from its name alone).
     expect(d).toMatch(/DEFENSIVE POWER: Sidestep — On a successful Reflex save vs an attack, take a free 5-foot step/);
     expect(d).toMatch(/FEATS: .*Endurance.*Weapon Focus/);
-    expect(d).toMatch(/POWERS: .*Elemental Blast/);
+    // POWERS now carry their EFFECT text too (SQ3), like the defensive power above — not just the name.
+    expect(d).toMatch(/POWERS: Elemental Blast — .*ranged elemental attack/i);
   });
 
   it('a custom/unknown defensive power stays name-only — never an invented effect (Ground Rule 2)', () => {
@@ -144,5 +145,15 @@ describe('igCharacterDigest', () => {
     const route = fs.readFileSync(path.join(process.cwd(), 'app/api/dnd/library/chat/route.ts'), 'utf8');
     expect(route).toContain('isIGCharacter(igData)');
     expect(route).toContain('igCharacterDigest(igData)');
+  });
+});
+
+describe('IG digest — powers carry effect text (SQ3)', () => {
+  it('a custom/unknown power stays name-only (never an invented effect, Ground Rule 2)', () => {
+    const ig = fixture();
+    ig.powers = ['Elemental Blast', 'Totally Homebrew Zap'];
+    const d = igCharacterDigest(ig);
+    expect(d).toMatch(/Elemental Blast — /);              // recognized → effect
+    expect(d).toMatch(/Totally Homebrew Zap(?! — )/);     // unknown → name only, no fabricated effect
   });
 });

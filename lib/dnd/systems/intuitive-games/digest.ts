@@ -10,7 +10,7 @@
 
 import { type IGCharacter, IG_ABILITIES } from './model';
 import { igConditionSummary, igStanceMechanicNote } from './modifiers';
-import { findIGAncestry, IG_DEFENSIVE_POWERS } from './content';
+import { findIGAncestry, IG_DEFENSIVE_POWERS, IG_POWERS } from './content';
 import { igDerived, igSkillTotal, igAbilityMod, igResolveAttack } from './rules';
 
 const sgn = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
@@ -96,7 +96,16 @@ export function igCharacterDigest(ig: IGCharacter): string {
   }
   const feats = [...(ig.feats?.general ?? []), ...(ig.feats?.combat ?? [])];
   if (feats.length) lines.push(`FEATS: ${feats.join(', ')}`);
-  if (ig.powers?.length) lines.push(`POWERS: ${ig.powers.join(', ')}`);
+  // POWERS with their effect text (SQ3) — like the stance/condition/defensive-power effects above, a ruling on
+  // "how does my power work?" needs the effect, which the AI can't recall from a bespoke IG power's NAME. Text
+  // from IG_POWERS for a recognized power; an unknown/custom one stays name-only (never invented, Ground Rule 2).
+  if (ig.powers?.length) {
+    const parts = ig.powers.map((n) => {
+      const p = IG_POWERS.find((x) => x.name.toLowerCase() === n.toLowerCase());
+      return p?.effect ? `${n} — ${p.effect}` : n;
+    });
+    lines.push(`POWERS: ${parts.join(' · ')}`);
+  }
 
   // Companion creature (Beastmaster's beast, Summoner's elemental, …) — a whole second combatant the AI
   // would otherwise never see. State its type + HP so a ruling knows the companion is on the field.

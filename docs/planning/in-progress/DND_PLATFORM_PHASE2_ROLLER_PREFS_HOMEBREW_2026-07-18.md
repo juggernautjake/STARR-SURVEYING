@@ -41,9 +41,15 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
       spirit to IG/PF2).
 - [ ] **SQ2 — Information completeness** — every field the system needs is present + correct on the sheet
       (cross-check vs each system's rules module; IG vs `SITE_MASTER.md`).
-- [ ] **SQ3 — AI reads every component** — the character digest for each system (`characterDigest`,
-      `igCharacterDigest`, `pf2CharacterDigest`) must include every meaningful component so the adjudicating
-      AI sees the whole sheet. Audit each digest for gaps.
+- [~] **SQ3 — AI reads every component** — audited the IG digest (`igCharacterDigest`): it already carries
+      identity, ancestry TRAITS (with text), abilities, defenses (HP/DR/saves), resolved attacks, trained
+      skills, active stance + effect, conditions + computed penalty, defensive power + effect, feats, and the
+      companion. **Gap found + fixed:** POWERS were listed by NAME only — a ruling on "how does my power work?"
+      needs the effect (the AI can't recall a bespoke IG power from its name), exactly like stances/conditions/
+      defensive-powers already do. Powers now carry their `IG_POWERS` effect text; an unknown/custom power stays
+      name-only (Ground Rule 2 — never invented). `ig-digest.test.ts` +1 & strengthened. REMAINING: the same
+      audit pass over the 5e `characterDigest` + `pf2CharacterDigest` (both already rich; a spot-audit for any
+      name-only component is the follow-up).
 - [ ] **SQ4 — AI edits every component** — the AI edit path (`applySheetEdits` / `applyIgEdit` / PF2 edits)
       can change every editable field on each system's sheet, rules-scoped. Audit coverage + fill gaps.
 - [ ] **SQ5 — Per-system verification** — a browser/QA pass per system (the memory-documented Slice-40
