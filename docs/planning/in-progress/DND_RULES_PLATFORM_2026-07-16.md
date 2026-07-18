@@ -1013,10 +1013,14 @@ Decisions that stuck:
   parallel vocabulary plus a translation layer.
 
 **Still open in this slice** (moved to the slices that own them):
-- [ ] Equipping routes a weapon into Attacks / armour into AC automatically (`attacksFromInventory`
-      and `computeAC` already do this correctly and are still uncalled) → belongs with Slice 15.
-- [ ] AC / speeds / HP max / save DC / initiative read the ledger (abilities, saves, skills and
-      attacks now do).
+- [~] Equipping routes armour → AC / a weapon → Attacks. **Armour → AC ✅ SHIPPED** — `deriveAc(char.inventory,
+      …)` (the store's `acInfo`) folds equipped armour + `ac` effects live. **Weapon → Attacks ⏸** —
+      `attacksFromInventory` derives it correctly but is still UNCALLED by the live Attacks table; wiring it in
+      is the browser-verified surface that moves with the weapon builder (Slice 15/27).
+- [x] ✅ SHIPPED (verified 2026-07-18): **AC / speed / HP max / save DC / initiative read the ledger** — AC via
+      `deriveAc` (folds `ac` effects), HP max via `buildLedger(c).value('hp_max', …)`, speed via the ledger's
+      `speed_*` effects (exhaustion/feats), save DC + initiative fold their own ledger targets — same single
+      source the abilities/saves/skills/attacks already read, so no two components derive a stat independently.
 - [~] Equip validation (attunement limits, one body armour). **RULE ✅ SHIPPED; live wiring ⏸ (corrected
       2026-07-18).** Attunement was already validated (`canAttune` + `ATTUNEMENT_CAP`); added the equip-slot
       rules to `engine/equipment.ts`: `canEquip(items, id)` enforces **one body armour at a time**, **one
