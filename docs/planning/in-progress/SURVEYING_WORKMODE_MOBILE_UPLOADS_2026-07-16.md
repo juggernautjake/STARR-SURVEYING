@@ -347,9 +347,14 @@ below states what it reuses.
       AI analysis. Builds on `field_media`/`receipts` + the mobile capture path (Area C).
 - [ ] **D5 — Job instructions page (with file/image hyperlinks).** An RPLS-authored instructions surface that
       can link `job_files`/`file_nodes` entries. New small table or a `jobs.instructions` rich field.
-- [ ] **D6 — Mileage tracker + reusable vehicles.** Start/end odometer + vehicle picker (save/add/delete),
-      writing to financials — surface the existing `app/api/admin/mileage` + `app/api/admin/vehicles` in Work
-      Mode; extract any pure mileage-delta/validation logic to a tested module.
+- [~] **D6 — Mileage tracker + reusable vehicles. ✅ Pure math shipped.** `lib/mileage/odometer.ts` — the
+      MANUAL odometer entry the owner described (start/end reading + vehicle), distinct from the existing
+      GPS-ping mileage but reusing the SAME `IRS_BUSINESS_RATE_2025` (no second rate to drift):
+      `odometerMiles`/`validateOdometerEntry` (reversed/negative/absurd-day guards), `mileageReimbursement`,
+      and `resolveOdometerEntry` → `{ miles, reimbursement, rate }` | `{ error }` (one call so the form preview
+      and the saved financial line agree). `__tests__/mileage/odometer.test.ts` (8). **Remaining:** the Work
+      Mode odometer form + vehicle picker (save/add/delete reuse `app/api/admin/vehicles`) + persisting the
+      entry to financials via a route — UI + API wiring.
 - [~] **D7 — Compass (azimuth + bearing). ✅ Pure formatter shipped.** `lib/surveying/compass.ts` —
       `compassReading(headingDeg)` → `{ azimuth, azimuthText, bearingText, cardinal }`, reusing
       `lib/cad/geometry/bearing.ts`'s `formatAzimuth`/`formatBearing` (single source of truth) and adding the
