@@ -358,13 +358,8 @@ export const IG_CLASS_RULES =
   'proficiencies, and a starting power. Each class has subclass options that grant additional powers, ' +
   'specializations, greater specializations, and manifestations.';
 
-export interface IGClassGroup { group: string; classes: string[] }
-export const IG_CLASS_GROUPS: IGClassGroup[] = [
-  { group: 'Summoning', classes: ['Archon', 'Beastmaster', 'Eldritch Binder', 'Packmaster'] },
-  { group: 'Nature', classes: ['Conduit', 'Druid'] },
-  { group: 'Combat', classes: ['Fighter', 'Freebooter', 'Marksman', 'Sohei'] },
-  { group: 'Magic', classes: ['Wizard', 'Magician', 'Shaman'] },
-];
+// (Legacy `IG_CLASS_GROUPS`/`IG_SUBCLASSES`/`IG_CLASS_TAXONOMY_FINDING` removed — the canonical class↔subclass
+//  structure is now `IG_CLASS_TAXONOMY` in ./taxonomy.ts, Area T1. Those held a stale/incomplete grouping.)
 
 // ── Per-class detail (from intuitivegames.net/classes) — captured group-by-group. FINDING: the site
 //    presents Fighter as the PARENT class of Champion/Freebooter/Marksman/Sohei (subclasses), which differs
@@ -408,19 +403,7 @@ export const IG_CLASS_DETAILS: IGClassDetail[] = [
   { name: 'Witch', classification: 'subclass of Conduit', primaryAbility: 'Wisdom', grantedStance: 'Defensive', defensivePower: 'Material Shield', powers: ['Advanced Material', 'Material Spray', 'Natural Remedy', 'New Material', 'Redistribute Complex Object', 'Swift Redistribution', 'Temporary Shift', 'Vast Manufacturing', 'Transmuter'], specializations: ['Forbidden Practices (undead companion creation)', 'Natural Healer'] },
 ];
 
-// The class taxonomy AS THE SITE PRESENTS IT (confirmed across all four groups, 2026-07-17): 4 parent
-// classes, each with subclasses. This differs from the app's flat 13-class `classNames` list — surfaced as
-// a finding for the owner, NOT unilaterally reconciled (restructuring touches the builder, provenance,
-// seeds, and validator).
-export const IG_CLASS_TAXONOMY_FINDING =
-  'On the site, classes are 4 PARENT classes each with subclasses — Archon → Beastmaster / Eldritch Binder ' +
-  '/ Packmaster / Summoner; Conduit → Druid / Shifter / Witch; Fighter → Champion / Freebooter / Marksman / ' +
-  'Sohei; Wizard → Arcanist / Magician / Shaman. This differs from the app’s flat 13-class list; pending an ' +
-  'owner decision to restructure.';
-
-// ── Subclasses + backgrounds (the documented ones; extensible). ─────────────────────────────────────
-// The five SUBCLASSES (chosen within a class) — distinct from the 13 classes above.
-export const IG_SUBCLASSES: string[] = ['Arcanist', 'Summoner', 'Champion', 'Witch', 'Shifter'];
+// ── Backgrounds (the documented ones; extensible). Subclasses now live in ./taxonomy.ts (Area T1). ──────
 
 // The Combat Skills (Sheet 4) — tracked separately from general skills. Str/Dex variants share these names.
 export const IG_COMBAT_SKILLS = new Set(['Dirty Trick', 'Disarm', 'Feint', 'Grapple', 'Overrun', 'Reposition', 'Steal', 'Sunder', 'Trip']);
