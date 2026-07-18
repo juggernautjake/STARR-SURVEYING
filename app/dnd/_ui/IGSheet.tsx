@@ -18,6 +18,7 @@ import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_SPELL_ROSTER, IG_DEFENSIVE_PO
 import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-games/inPlay';
 import { igConditionSummary, igStanceMechanicNote } from '@/lib/dnd/systems/intuitive-games/modifiers';
 import { igConditionRollEffect, type IgRollKind } from '@/lib/dnd/conditions/intuitive-games';
+import { igCompanionHp, igCompanionAbility } from '@/lib/dnd/systems/intuitive-games/companions';
 import type { IGEdit } from '@/lib/dnd/systems/intuitive-games/edit';
 import { findIGFeat, igAllFeats } from '@/lib/dnd/systems/intuitive-games/feats';
 import { igAncestryArt, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
@@ -584,7 +585,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
               ))}
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 12.5 }}>
-              <span style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 9px' }}><span style={{ color: 'var(--hx-muted)' }}>HP </span>{co.hitPoints}</span>
+              <span title={`Rules HP for CON ${co.abilities.CON} at level ${Math.max(1, derived.level)}: ${igCompanionHp(co.abilities.CON, Math.max(1, derived.level))} (CON score at level 1, then +2 + CON mod per level).`} style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 9px', cursor: 'help' }}><span style={{ color: 'var(--hx-muted)' }}>HP </span>{co.hitPoints}</span>
               {IG_SAVES.map((s) => <span key={s} style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 9px' }}><span style={{ color: 'var(--hx-muted)' }}>{s.slice(0, 4)} </span>{fmt(saveTotal(s))}</span>)}
               {co.damageReduction > 0 && <span style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 9px' }}><span style={{ color: 'var(--hx-muted)' }}>DR </span>{co.damageReduction}</span>}
             </div>
@@ -600,7 +601,17 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
                 {co.attacks.map((a) => { const r = igResolveAttack({ ...ig, abilities: co.abilities }, a); return <span key={a.id} style={{ fontSize: 12.5, border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 9px' }}>{a.name} <span style={{ color: 'var(--hx-gold-2)' }}>{fmt(r.toHit)}</span> · {r.damage}</span>; })}
               </div>
             )}
-            {co.powers.length > 0 && <div style={{ fontSize: 12.5 }}><span style={label}>Powers </span><span style={value}>{co.powers.join(', ')}</span></div>}
+            {co.powers.length > 0 && (
+              <div style={{ fontSize: 12.5 }}>
+                <span style={label}>Features / Aspects </span>
+                {/* Each companion feature/aspect shows its scraped effect text on hover (Area companions),
+                    so the companion sheet is legible in full, not just a list of names. */}
+                {co.powers.map((p, i) => {
+                  const eff = igCompanionAbility(p);
+                  return <span key={p}>{i > 0 ? ', ' : ''}<span title={eff ?? ''} style={{ ...value, cursor: eff ? 'help' : 'default', borderBottom: eff ? '1px dotted var(--hx-line)' : 'none' }}>{p}</span></span>;
+                })}
+              </div>
+            )}
             {co.notes && <p style={{ ...value, whiteSpace: 'pre-wrap', margin: 0, color: 'var(--hx-muted)' }}>{co.notes}</p>}
           </div>
         );
