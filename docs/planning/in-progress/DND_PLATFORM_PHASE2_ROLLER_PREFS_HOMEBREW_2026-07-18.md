@@ -122,8 +122,12 @@ Make the mechanics the prefs name actually swappable, VANILLA BY DEFAULT.
 - [ ] **R6 — Tests:** each mode produces the right logged entry; auto-toggle changes whether mechanics fold.
 
 ### Area D — Dice roller interfaces & styles (depends on R)
-- [ ] **D1 — Style system.** A pluggable dice-roller theme (the existing "futuristic" is style #1) chosen per
-      system via the `diceRollerStyle` pref. Add **rugged**, **natural**, **fantasy**, **medieval** themes.
+- [x] **D1 — Style system.** ✅ SHIPPED — the dice tray's look is now driven by `preferences.diceRollerStyle`.
+      The store exposes the effective preferences in its context; `DiceTray` stamps `data-dice-style` on the
+      tray + minimized FAB; `theme.css` themes all four new looks (**rugged**, **natural**, **fantasy**,
+      **medieval**) by re-skinning the frame/header/title, with **futuristic** as the default base look (no
+      override). Guarded by `dice-style.test.ts`; the contrast guard exempts `[data-dice-style]` (a bespoke
+      look like a `.skin-*`). Full suite green (1942). REMAINING D2 (animated 3D tumbling dice) is separate.
 - [ ] **D2 — Animated 3D dice tray.** Real dice-rolling animation (d20/dice tumbling in a tray) — a canvas/
       WebGL or CSS-3D roller. Themeable per D1. Falls back to a static roll on reduced-motion / no-WebGL.
 - [ ] **D3 — Tests / visual:** the pure roll result is unchanged by the skin (source-anchored); visual polish

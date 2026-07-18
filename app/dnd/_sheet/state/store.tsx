@@ -63,6 +63,9 @@ interface RollDmgOpts {
 }
 
 interface Ctx {
+  /** The effective preferences (campaign DM ∩ player) driving configurable mechanics + the dice style.
+   *  Always present — the vanilla set when the sheet is standalone (Area P/M/D). */
+  preferences: EffectivePreferences
   /** The BASE character as stored. Effects are never written into it — read `abilities`/`ledger`
    *  for what the character currently IS. Write through `setChar` as always. */
   char: Character
@@ -1082,6 +1085,7 @@ export function CharacterProvider({
   }, [abilities.con, char.combat.hitDiceRemaining, char.combat.hitDiceSize, stage])
 
   const value: Ctx = {
+    preferences: prefs,
     char,
     abilities,
     ledger,

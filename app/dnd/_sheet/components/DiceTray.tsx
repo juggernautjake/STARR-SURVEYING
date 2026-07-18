@@ -5,7 +5,10 @@ import RollStage from './RollStage'
 import { setMuted, isMuted, primeAudio } from '../lib/audio'
 
 export default function DiceTray() {
-  const { log, clearLog, resetStage, activeRoll, advMode, setAdvMode, transformActive, topFormId, transform, endTransform, nextTurn, recklessActive, toggleReckless, rollCheck, rollExpr, char, activeFormId } = useChar()
+  const { log, clearLog, resetStage, activeRoll, advMode, setAdvMode, transformActive, topFormId, transform, endTransform, nextTurn, recklessActive, toggleReckless, rollCheck, rollExpr, char, activeFormId, preferences } = useChar()
+  // The dice-roller visual style is a campaign/player preference (Area D). Applied as a data attribute the
+  // stylesheet themes; 'futuristic' is the default look, so an unset/standalone sheet is unchanged.
+  const diceStyle = preferences.diceRollerStyle.value
   // Reckless (Barbarian) and the Surge/transform controls are character-only mechanics —
   // gate them on the sheet_type's registered modules so other characters don't get a
   // dead '🔥 Surge' button or a Reckless toggle they have no feature for.
@@ -57,7 +60,7 @@ export default function DiceTray() {
 
   if (!open) {
     return (
-      <button className="tray-fab" onClick={() => setOpen(true)} title="Open dice tray">
+      <button className="tray-fab" data-dice-style={diceStyle} onClick={() => setOpen(true)} title="Open dice tray">
         🎲
       </button>
     )
@@ -68,7 +71,7 @@ export default function DiceTray() {
     : undefined
 
   return (
-    <div className={`tray ${pos ? 'floating' : ''}`} ref={trayRef} style={posStyle} onMouseDown={primeAudio}>
+    <div className={`tray ${pos ? 'floating' : ''}`} data-dice-style={diceStyle} ref={trayRef} style={posStyle} onMouseDown={primeAudio}>
       <div className="tray-head drag-handle" onPointerDown={onDragStart} title="Drag to move">
         <div className="tray-title">⠿ Dice Core</div>
         <div className="btn-row">
