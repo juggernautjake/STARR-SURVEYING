@@ -8,7 +8,7 @@ import EffectStar from './ui/EffectStar'
 const PROF_ORDER: ProfLevel[] = ['none', 'proficient', 'expertise']
 
 export default function SavesSkills() {
-  const { char, abilities, pb, setChar, rollCheck, ledger, activeFormId } = useChar()
+  const { char, abilities, pb, saveDc, setChar, rollCheck, ledger, activeFormId } = useChar()
   // Proficiencies granted by an active effect (Slice 11 grant-half): a pendant that grants longsword
   // proficiency, a boon that grants a language. The ledger collects them with their source; this is
   // their home on the sheet — a granted target that renders nowhere is a lie the engine tells.
@@ -38,12 +38,24 @@ export default function SavesSkills() {
     setChar((c) => ({ ...c, customSkills: (c.customSkills ?? []).filter((cs) => cs.id !== id) }))
   }
 
+  // OR the ledger's advantage/disadvantage flags across several roll targets (e.g. a specific save +
+  // all_saves) so an effect that grants advantage on a save/skill actually reaches the roll — the
+  // hardcoded feature flags (Danger Sense, Base Form) are combined with these. Empty when nothing grants.
+  const rollFlagsUnion = (...targets: string[]) =>
+    targets.reduce(
+      (acc, t) => { const f = ledger.rollFlags(t); return { advantage: acc.advantage || f.advantage, disadvantage: acc.disadvantage || f.disadvantage } },
+      { advantage: false, disadvantage: false },
+    )
+
+  // Passive Perception and the Save DC read the LEDGER-effective abilities (like the saves + skills
+  // below do), not the base scores — otherwise a WIS- or STR-boosting item would move every save and
+  // skill on this card but silently leave these two stale.
   const passivePerception =
     10 +
-    abilityMod(char.abilities.wis) +
+    abilityMod(abilities.wis) +
     profContribution(char.skills.perception.prof, pb) +
     char.skills.perception.misc
-  const saveDC = 8 + pb + abilityMod(char.abilities.str)
+  const saveDC = saveDc // single source (store) — honors the manual override, like the StatRail does
 
   function cycleSkill(key: string) {
     setChar((c) => {
@@ -78,8 +90,13 @@ export default function SavesSkills() {
           <div className="rowlist">
             {ABILITIES.map((a) => {
               const s = char.saves[a.key]
+              // Fold the ledger's save-bonus targets (a Cloak of Protection's +1 all saves, an item's
+              // +2 to a specific save) — like initiative/death_save fold theirs. No-op when nothing grants
+              // them, so no current character changes; it just makes those effects actually reach the roll.
               const mod = abilityMod(abilities[a.key]) + (s.proficient ? pb : 0) + s.misc
+                + ledger.value(`${a.key}_saves`, 0) + ledger.value('all_saves', 0)
               const isDex = a.key === 'dex'
+              const saveEf = rollFlagsUnion(`${a.key}_saves`, 'all_saves') // ledger advantage/disadvantage on this save
               return (
                 <div className="rrow" key={a.key}>
                   <button
@@ -90,13 +107,15 @@ export default function SavesSkills() {
                   />
                   <div className="rlabel">
                     {a.full}
-                    <EffectStar target={`ability_${a.key}`} label={`${a.full} save`} />
+                    {/* Watch the ability AND the save-bonus targets the roll folds (line ~97): a
+                        Cloak of Protection's `all_saves` +1 moves the number, so the ★ must light for it. */}
+                    <EffectStar target={[`ability_${a.key}`, `${a.key}_saves`, 'all_saves']} label={`${a.full} save`} />
                     {isDex && <span className="rabil">DANGER SENSE · ADV</span>}
                   </div>
                   <div className="rmod">{signed(mod)}</div>
                   <button
                     className="rollbtn"
-                    onClick={() => rollCheck(`${a.label} Save`, mod, { kind: 'save', advantage: isDex, tag: isDex ? 'Danger Sense' : undefined })}
+                    onClick={() => rollCheck(`${a.label} Save`, mod, { kind: 'save', advantage: isDex || saveEf.advantage, disadvantage: saveEf.disadvantage, tag: isDex ? 'Danger Sense' : undefined })}
                   >
                     {signed(mod)}
                   </button>
@@ -114,9 +133,11 @@ export default function SavesSkills() {
               const st = char.skills[sk.key]
               const abil = ABILITIES.find((a) => a.key === sk.ability)!
               const mod = abilityMod(abilities[sk.ability]) + profContribution(st.prof, pb) + st.misc
+                + ledger.value(`skill.${sk.key}`, 0) + ledger.value('all_skills', 0)
               // Base Form ("The Kid") is small and unassuming → advantage on Stealth.
               // The larger Surge forms (Brute, Titan…) are anything but subtle.
               const stealthAdv = sk.key === 'stealth' && activeFormId === 'base'
+              const skillEf = rollFlagsUnion(`skill.${sk.key}`, 'all_skills') // ledger advantage/disadvantage on this skill
               return (
                 <div className="rrow" key={sk.key}>
                   <button
@@ -127,13 +148,15 @@ export default function SavesSkills() {
                   />
                   <div className="rlabel">
                     {sk.label}
-                    <EffectStar target={`ability_${sk.ability}`} label={sk.label} />
+                    {/* Watch the ability AND the skill-bonus targets the roll folds (line ~134): a
+                        `skill.stealth`/`all_skills` item moves the number, so the ★ must light for it. */}
+                    <EffectStar target={[`ability_${sk.ability}`, `skill.${sk.key}`, 'all_skills']} label={sk.label} />
                     <span className="rabil">{abil.label}</span>
                     {stealthAdv && <span className="rabil" style={{ color: 'var(--tealbright)' }}>BASE FORM · ADV</span>}
                   </div>
                   <button
                     className="rollbtn"
-                    onClick={() => rollCheck(`${sk.label}`, mod, { advantage: stealthAdv, tag: stealthAdv ? 'Base Form' : abil.label })}
+                    onClick={() => rollCheck(`${sk.label}`, mod, { advantage: stealthAdv || skillEf.advantage, disadvantage: skillEf.disadvantage, tag: stealthAdv ? 'Base Form' : abil.label })}
                   >
                     {signed(mod)}
                   </button>

@@ -110,6 +110,13 @@ const rollTargets: TargetDef[] = [
   { key: 'attack_roll', label: 'Attack rolls', group: 'roll', valueType: 'number', ops: ROLL, help: 'Modify or grant advantage on attack rolls.', rendersAt: 'Combat tab · Attacks', allowsNegative: true },
   { key: 'damage_roll', label: 'Damage rolls', group: 'roll', valueType: 'number', ops: ['add'], help: 'Modify damage dealt.', rendersAt: 'Combat tab · Attacks', allowsNegative: true },
   { key: 'attack_and_damage', label: 'Attack AND damage', group: 'roll', valueType: 'number', ops: ['add'], help: 'The classic magic-weapon bonus: +N to hit and to damage.', rendersAt: 'Combat tab · Attacks', allowsNegative: true },
+  // The LOWEST natural d20 that scores a critical hit on attacks — 20 normally, 19 for Improved Critical,
+  // 18 for Superior. Multiple sources take the widest (lowest) range; only attack rolls consult it.
+  { key: 'crit_range', label: 'Critical hit range', group: 'roll', valueType: 'number', ops: ['set'], help: 'The lowest natural d20 that crits on your attacks (19 = crit on 19–20, like Improved Critical). Widest source wins.', rendersAt: 'Combat tab · Attacks (shown on the to-hit, applied to the roll)' },
+  // Bonus DICE, not a flat number: Enlarge's +1d4, a flametongue's +1d6 fire, a brand's +2d6 radiant.
+  // A great many effects add dice rather than a modifier, and `damage_roll` (a number) cannot express
+  // them. The value is a dice expression with an optional damage type — "1d6" or "1d6 fire".
+  { key: 'weapon_bonus_dice', label: 'Weapon bonus damage dice', group: 'roll', valueType: 'dice', ops: ['add'], help: 'Add bonus damage DICE to every weapon attack (e.g. Enlarge\'s +1d4, a flametongue\'s +1d6 fire). Value is a dice expression, optionally with a damage type: "1d6" or "1d6 fire".', rendersAt: 'Combat tab · Attacks (rolled into weapon damage)' },
   { key: 'all_saves', label: 'All saving throws', group: 'roll', valueType: 'number', ops: ROLL, help: 'Modify or grant advantage on every save.', rendersAt: 'Abilities tab · Saves', allowsNegative: true },
   ...ABILITIES.map((a) => ({
     key: `${a.key}_saves`,
@@ -142,6 +149,10 @@ const defenseTargets: TargetDef[] = [
   { key: 'immunity', label: 'Immunity', group: 'defense', valueType: 'damage_type', ops: ['immunity'], help: 'Take no damage from a damage type.', rendersAt: 'Combat tab · Defenses' },
   { key: 'vulnerability', label: 'Vulnerability', group: 'defense', valueType: 'damage_type', ops: ['vulnerability'], help: 'Take double damage from a damage type. A real downside — cursed items live here.', rendersAt: 'Combat tab · Defenses' },
   { key: 'condition_immunity', label: 'Condition immunity', group: 'defense', valueType: 'text', ops: ['immunity'], help: 'You cannot be affected by a named condition.', rendersAt: 'Combat tab · Defenses' },
+  // Advantage on saves AGAINST a named condition/effect (Dwarven Resilience vs poison, Fey Ancestry vs
+  // charmed, Gnome Cunning vs magic). Informational, like a resistance — the game asks the player to
+  // know when it applies, so the sheet LISTS it rather than silently auto-applying to untagged saves.
+  { key: 'condition_advantage', label: 'Advantage vs condition', group: 'defense', valueType: 'text', ops: ['condition_advantage'], help: 'Advantage on saving throws against a named condition or effect (poison, charmed, magic). Listed on the sheet — the player invokes it, as the rules require.', rendersAt: 'Combat tab · Defenses' },
 ];
 
 // ── Grants ───────────────────────────────────────────────────────────────────
@@ -149,11 +160,14 @@ const grantTargets: TargetDef[] = [
   { key: 'proficiency', label: 'Proficiency', group: 'grant', valueType: 'proficiency', ops: ['grant_proficiency'], help: 'Grant proficiency with a skill, tool, weapon, armour or language.', rendersAt: 'Skills tab · Proficiencies' },
   { key: 'expertise', label: 'Expertise', group: 'grant', valueType: 'proficiency', ops: ['grant_proficiency'], help: 'Double the proficiency bonus for a skill.', rendersAt: 'Skills tab' },
   { key: 'grant_feature', label: 'Feature / ability', group: 'grant', valueType: 'ref', ops: ['set'], help: "Grant a feature — including one from another class entirely (the pendant that makes you rage).", rendersAt: 'Features tab (badged with its source)' },
-  { key: 'grant_attack', label: 'Attack', group: 'grant', valueType: 'ref', ops: ['set'], help: 'Grant an attack option.', rendersAt: 'Combat tab · Attacks' },
-  { key: 'grant_spell', label: 'Spell', group: 'grant', valueType: 'ref', ops: ['set'], help: 'Grant a spell, prepared or castable.', rendersAt: 'Spells tab' },
-  { key: 'grant_resource', label: 'Resource track', group: 'grant', valueType: 'ref', ops: ['set'], help: 'Grant a usage pool (charges, points) with its own reset rule.', rendersAt: 'Combat tab · Resources' },
+  // A full Attack/Spell/Resource is a structured object, not a ref string — so these are authored on the
+  // item's `grantsAttack`/`grantsSpell`/`grantsResource` field (which renders while the item is active),
+  // NOT as an effect value here. The help says so, so a builder doesn't emit an effect that renders nowhere.
+  { key: 'grant_attack', label: 'Attack', group: 'grant', valueType: 'ref', ops: ['set'], help: "Grant an attack option. Author it on the item's `grantsAttack` field (a full Attack) — that's what renders in the Attacks table.", rendersAt: 'Combat tab · Attacks (via the item\'s grantsAttack field)' },
+  { key: 'grant_spell', label: 'Spell', group: 'grant', valueType: 'ref', ops: ['set'], help: "Grant a spell, prepared or castable. Author it on the item's `grantsSpell` field (a full Spell) — that's what renders in the Spells tab.", rendersAt: 'Spells tab (via the item\'s grantsSpell field)' },
+  { key: 'grant_resource', label: 'Resource track', group: 'grant', valueType: 'ref', ops: ['set'], help: "Grant a usage pool (charges, points) with its own reset rule. Author it on the item's `grantsResource` field — that's what renders in Resources.", rendersAt: 'Combat tab · Resources (via the item\'s grantsResource field)' },
   { key: 'grant_sense', label: 'Sense', group: 'grant', valueType: 'sense', ops: ['set'], help: 'Grant darkvision / tremorsense / truesight / blindsight, with a range.', rendersAt: 'Combat tab · Senses' },
-  { key: 'grant_language', label: 'Language', group: 'grant', valueType: 'text', ops: ['grant_proficiency'], help: 'Grant a language.', rendersAt: 'Overview · Languages' },
+  { key: 'grant_language', label: 'Language', group: 'grant', valueType: 'text', ops: ['grant_proficiency'], help: 'Grant a language.', rendersAt: 'Skills tab · Granted Proficiencies' },
 ];
 
 // ── Identity ─────────────────────────────────────────────────────────────────
@@ -169,6 +183,7 @@ const identityTargets: TargetDef[] = [
   { key: 'gender', label: 'Gender', group: 'identity', valueType: 'text', ops: ['set'], help: 'Change the recorded gender while active.', rendersAt: 'Overview · Bio' },
   { key: 'pronouns', label: 'Pronouns', group: 'identity', valueType: 'text', ops: ['set'], help: 'Change the recorded pronouns while active.', rendersAt: 'Overview · Bio' },
   { key: 'profession', label: 'Profession', group: 'identity', valueType: 'text', ops: ['set'], help: 'Change the recorded profession/occupation while active.', rendersAt: 'Overview · Bio' },
+  { key: 'alignment', label: 'Alignment', group: 'identity', valueType: 'text', ops: ['set'], help: 'Change the recorded alignment while active (a helm of opposite alignment, a curse).', rendersAt: 'Overview · Bio' },
   { key: 'size', label: 'Size', group: 'identity', valueType: 'text', ops: ['set'], help: 'Change size. MECHANICAL: drives carrying capacity, grapple/shove legality, and some damage dice.', rendersAt: 'Overview · Combat tab' },
   { key: 'creature_type', label: 'Creature type', group: 'identity', valueType: 'text', ops: ['set'], help: 'Change creature type (beast, undead…). Matters for spells that target a type.', rendersAt: 'Overview' },
 ];
@@ -311,7 +326,9 @@ export function describeEffect(e: { target: string; operation: string; value?: n
   const signed = n >= 0 ? `+${n}` : `${n}`;
   switch (e.operation) {
     case 'add':
-      return `${signed} ${label}${cond}`;
+      // A dice-valued add (heal 2d4, +1d6 fire weapon dice) carries a string, not a number — render
+      // the expression itself, not the "+0" a numeric read would produce.
+      return `${typeof e.value === 'string' ? `+${e.value}` : signed} ${label}${cond}`;
     case 'set':
     case 'set_base':
       return t?.valueType === 'number' ? `${label} set to ${e.value}${cond}` : `${label}: ${e.value}${cond}`;
@@ -327,6 +344,8 @@ export function describeEffect(e: { target: string; operation: string; value?: n
       return `Immunity: ${e.value}${cond}`;
     case 'vulnerability':
       return `Vulnerability: ${e.value}${cond}`;
+    case 'condition_advantage':
+      return `Advantage on saves vs ${e.value}${cond}`;
     default:
       return `${label}${cond}`;
   }

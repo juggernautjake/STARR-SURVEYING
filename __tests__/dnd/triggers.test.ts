@@ -5,6 +5,7 @@
 // someone else. These tests pin the collection + gating + description; surfacing is a read of this.
 import { describe, it, expect } from 'vitest';
 import { collectTriggers, triggersForEvent, describeTrigger, cleanTriggers, TRIGGER_EVENT_LABEL } from '@/lib/dnd/effects/triggers';
+import { isItemActive } from '@/lib/dnd/effects/ledger';
 import { applySheetEdits } from '@/lib/dnd/sheet-edits';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character, Trigger } from '@/app/dnd/_sheet/types';
@@ -31,6 +32,20 @@ describe('triggers are collected from active sources', () => {
 
   it('an UNequipped item contributes no trigger (same active-rule as effects)', () => {
     expect(collectTriggers(spiked(false))).toHaveLength(0);
+  });
+
+  it('trigger activation is the ledger\'s SHARED isItemActive rule, not a private copy', () => {
+    // An attuned-but-unequipped item is inactive by the ledger's rule; a trigger on it must not fire.
+    // This proves triggers.ts and the ledger agree because they now call the SAME function.
+    const c = blankCharacter('X');
+    const attunedUnworn = { id: 'cloak', name: 'Spiked Cloak', desc: '', qty: 1, tags: [], attuned: true, equipped: false, triggers: [barbs] };
+    c.inventory = [attunedUnworn] as Character['inventory'];
+    expect(isItemActive(c.inventory[0])).toBe(false);
+    expect(collectTriggers(c)).toHaveLength(0);
+    // Worn + attuned → active by the same rule, so the trigger collects.
+    c.inventory = [{ ...attunedUnworn, equipped: true }] as Character['inventory'];
+    expect(isItemActive(c.inventory[0])).toBe(true);
+    expect(collectTriggers(c)).toHaveLength(1);
   });
 
   it('a feature trigger only counts at/above its unlock level', () => {

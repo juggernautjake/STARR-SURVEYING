@@ -37,6 +37,7 @@ CREATE INDEX IF NOT EXISTS idx_document_wallet_user_email
 -- RLS: Users can read their own wallet; service role can write
 ALTER TABLE document_wallet_balance ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS document_wallet_select_own ON document_wallet_balance;
 CREATE POLICY document_wallet_select_own
   ON document_wallet_balance
   FOR SELECT
@@ -118,6 +119,7 @@ CREATE INDEX IF NOT EXISTS idx_doc_purchase_stripe_session
 -- RLS: Users can read their own history; service role can write
 ALTER TABLE document_purchase_history ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS document_purchase_history_select_own ON document_purchase_history;
 CREATE POLICY document_purchase_history_select_own
   ON document_purchase_history
   FOR SELECT

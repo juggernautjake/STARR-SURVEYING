@@ -6,7 +6,9 @@ import { searchSystemEntries } from './system-store';
 import { SYSTEM_AMBIGUOUS, systemLabel } from './systems';
 import { systemRulesBlock } from './system-rules';
 import { glossaryFor, type GlossaryEntry } from './glossary';
-import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
+import { FEATS_2024 } from './feats/dnd5e-2024';
+import { igAllFeats } from './systems/intuitive-games/feats';
+import { IG_POWERS, IG_DEFENSIVE_POWERS } from './systems/intuitive-games/content';
 
 /** Lenient glossary retrieval for GROUNDING: score each article by how many of the query keywords
  *  appear (term > alias > body), require at least one, and take the top matches. Unlike the library
@@ -35,19 +37,57 @@ function retrieveGlossary(system: string, keywords: string, limit: number): Glos
     .map((x) => x.e);
 }
 
-/** Feats a full registry can ground the AI on, system-scoped (only dnd5e-2024 has one today). */
-function groundingFeats(system: string): Feat[] {
-  return system === 'dnd5e-2024' ? FEATS_2024 : [];
+/** The minimal shape the feat grounding block needs — name, a display category, and the full benefit
+ *  text. Both the 2024 `Feat` registry and IG's `IGFeat` (effect → benefit) map onto this, so a system
+ *  with its own feat corpus can be grounded without forcing it into another system's feat type. */
+interface GroundableFeat { name: string; category: string; benefit: string }
+
+/** Feats a full registry can ground the AI on, system-scoped. 2024 has a structured registry; IG has
+ *  its 151-feat catalog (`igAllFeats`, effect text per feat). Other systems have no feat corpus yet.
+ *  Why this matters: the always-on IG rules block lists feats by NAME only (151 full effects would bloat
+ *  every prompt), so the ONLY path that puts an IG feat's EFFECT text in front of the AI is this
+ *  query-scoped retrieval — without it, "how does the IG Toughness feat work?" grounds on nothing. */
+function groundingFeats(system: string): GroundableFeat[] {
+  if (system === 'dnd5e-2024') return FEATS_2024;
+  if (system === 'intuitive-games') {
+    return igAllFeats().map((f) => ({ name: f.name, category: f.category, benefit: f.effect }));
+  }
+  return [];
 }
 
 /** The feats whose NAME matches a keyword in the query — so "what does tavern brawler do" grounds on
  *  the real Tavern Brawler text. Name-only match keeps it precise (a feat body mentions many words). */
-function matchFeats(system: string, keywords: string, limit: number): Feat[] {
+function matchFeats(system: string, keywords: string, limit: number): GroundableFeat[] {
   const words = keywords.split(/\s+/).filter(Boolean);
   if (!words.length) return [];
   return groundingFeats(system)
     .filter((f) => { const n = f.name.toLowerCase(); return words.some((w) => n.includes(w)); })
     .slice(0, limit);
+}
+
+/** The IG powers/spells whose NAME matches a keyword — the power counterpart of matchFeats. The always-on
+ *  IG rules block lists power NAMES only (full effects would bloat every prompt), so — exactly like feats —
+ *  this query-scoped retrieval is the ONLY path that puts an IG power's EFFECT text in front of the AI;
+ *  without it "how does Elemental Blast work?" grounds on nothing. Covers BOTH the school powers/spells
+ *  (`IG_POWERS`) and the 6 defensive powers (`IG_DEFENSIVE_POWERS`) — a defensive power is a reaction the AI
+ *  must equally be able to explain ("how does my Sidestep work?"), and it too is name-only in the block.
+ *  Only IG has an effect-bearing power corpus; a power still awaiting Brendan's text isn't here (never invented). */
+function matchPowers(system: string, keywords: string, limit: number): { name: string; school: string; effect: string }[] {
+  if (system !== 'intuitive-games') return [];
+  const words = keywords.split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  const corpus = [
+    ...IG_POWERS.map((p) => ({ name: p.name, school: p.category ?? 'Power', effect: p.effect })),
+    ...IG_DEFENSIVE_POWERS.map((p) => ({ name: p.name, school: 'Defensive Power', effect: p.effect })),
+  ];
+  return corpus
+    .filter((p) => {
+      if (!p.effect) return false; // a power still awaiting Brendan's text grounds on nothing (never invented)
+      const n = p.name.toLowerCase();
+      return words.some((w) => n.includes(w));
+    })
+    .slice(0, limit)
+    .map((p) => ({ name: p.name, school: p.school, effect: p.effect as string }));
 }
 
 export interface SystemGrounding {
@@ -120,6 +160,14 @@ export async function systemGroundingBlock(system: string | null | undefined, qu
       featHits.map((f) => `## ${f.name} (${f.category} feat)\n${f.benefit}`).join('\n\n')
     : '';
 
+  // Full effect text for the IG powers/spells named in the query — the power counterpart of featBlock,
+  // so "how does Elemental Blast work?" grounds on the real IG effect, not recall or a bare name.
+  const powerHits = keywords ? matchPowers(system, keywords, 4) : [];
+  const powerBlock = powerHits.length
+    ? `\n\nRELEVANT ${label} POWERS (authoritative effect text — use exactly):\n` +
+      powerHits.map((p) => `## ${p.name} (${p.school})\n${p.effect}`).join('\n\n')
+    : '';
+
   // Optional semantic enhancement: scoped RAG hits (only when an embeddings key is configured). These
   // augment — never replace — the deterministic rules block above.
   const entries = await searchSystemEntries(system, query, { matchCount: 10, minSimilarity: 0.3 }).catch(() => []);
@@ -134,7 +182,7 @@ export async function systemGroundingBlock(system: string | null | undefined, qu
       `numbers as stated in the AUTHORITATIVE RULES block. NEVER borrow mechanics from another game system, ` +
       `and NEVER invent rules or numbers. When the sources are ambiguous, missing, or conflict with ${label}, ` +
       `put the issue in \`unmapped\` (so the user is asked) rather than guessing.`,
-    block: rulesBlock + glossaryBlock + featBlock + ragBlock,
-    matched: entries.length + glossaryHits.length + featHits.length,
+    block: rulesBlock + glossaryBlock + featBlock + powerBlock + ragBlock,
+    matched: entries.length + glossaryHits.length + featHits.length + powerHits.length,
   };
 }

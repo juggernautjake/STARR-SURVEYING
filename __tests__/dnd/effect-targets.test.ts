@@ -13,6 +13,7 @@ import {
   TARGET_GROUP_LABELS,
   type TargetGroup,
 } from '@/lib/dnd/effects/targets';
+import { EFFECT_OPERATIONS } from '@/app/dnd/_sheet/engine/effects';
 
 describe('the registry is well-formed', () => {
   it('has no duplicate keys', () => {
@@ -125,6 +126,26 @@ describe('validation refuses rather than coerces', () => {
     expect(err!.reason).toMatch(/not valid/);
     expect(isOperationAllowed('hp_max', 'advantage')).toBe(false);
     expect(isOperationAllowed('hp_max', 'add')).toBe(true);
+  });
+
+  it('EVERY target enforces its OWN ops allowlist — the gate is not just spot-checked on hp_max', () => {
+    // The check above proves one target refuses one bad op. This proves the gate holds across the WHOLE
+    // registry: for every target, an operation it does NOT list is refused by both isOperationAllowed and
+    // validateEffect (kept in lockstep). So a target authored with the wrong ops — or a validateEffect
+    // regression that only bites some targets — fails here instead of silently accepting a nonsense effect
+    // (e.g. "resistance on Strength"). EFFECT_OPERATIONS is the exhaustive roster, so a newly-added
+    // operation is swept automatically without touching this test.
+    for (const t of EFFECT_TARGETS) {
+      const forbidden = EFFECT_OPERATIONS.filter((op) => !t.ops.includes(op));
+      expect(forbidden.length, `${t.key} lists every operation — is that really intended?`).toBeGreaterThan(0);
+      for (const op of forbidden) {
+        expect(isOperationAllowed(t.key, op), `${t.key} should forbid "${op}"`).toBe(false);
+        expect(
+          validateEffect({ target: t.key, operation: op, value: 1 }),
+          `${t.key} must refuse "${op}" (allowed: ${t.ops.join(', ')})`,
+        ).not.toBeNull();
+      }
+    }
   });
 
   it('rejects a numeric target given a non-number', () => {

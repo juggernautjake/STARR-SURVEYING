@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { classesForSystem, findClass, subclassesFor, systemHasClasses } from '@/lib/dnd/classes/registry';
 import { snapshotAtLevel, progressionTable, validateClassDefinition } from '@/lib/dnd/classes/engine';
+import { FULL_CASTER_SLOTS, HALF_CASTER_SLOTS, ARTIFICER_SLOTS } from '@/lib/dnd/classes/slots';
 
 const SYS = 'dnd5e-2014';
 const CLASSES = classesForSystem(SYS);
@@ -15,6 +16,42 @@ const ALL_12 = [
   'Barbarian', 'Bard', 'Cleric', 'Druid', 'Fighter', 'Monk',
   'Paladin', 'Ranger', 'Rogue', 'Sorcerer', 'Warlock', 'Wizard',
 ];
+
+// RAW hit die per class (+ the 2014-only Artificer, d8). A wrong value silently mis-sizes a whole class's
+// HP; the generic "is a valid die" check wouldn't catch it. Pin the correct value.
+const HIT_DICE: Record<string, number> = {
+  Barbarian: 12, Fighter: 10, Paladin: 10, Ranger: 10,
+  Bard: 8, Cleric: 8, Druid: 8, Monk: 8, Rogue: 8, Warlock: 8, Artificer: 8,
+  Sorcerer: 6, Wizard: 6,
+};
+
+// RAW saving-throw proficiency pair per class (+ Artificer CON/INT). "Exactly 2 saves" wouldn't catch a
+// wrong pair, yet these decide every save the class is proficient in. Pinned order-independently.
+const SAVES: Record<string, string[]> = {
+  Barbarian: ['con', 'str'], Bard: ['cha', 'dex'], Cleric: ['cha', 'wis'], Druid: ['int', 'wis'],
+  Fighter: ['con', 'str'], Monk: ['dex', 'str'], Paladin: ['cha', 'wis'], Ranger: ['dex', 'str'],
+  Rogue: ['dex', 'int'], Sorcerer: ['cha', 'con'], Warlock: ['cha', 'wis'], Wizard: ['int', 'wis'],
+  Artificer: ['con', 'int'],
+};
+
+// The 2014 subclass-choice level per class — an EDITION-SENSITIVE quirk (2024 puts every subclass at L3;
+// 2014 varies: Cleric/Sorcerer/Warlock at 1, Druid/Wizard at 2, the rest at 3). The generic "a subclass
+// feature sits at def.subclassLevel" check verifies consistency but not the RAW value; a Cleric typo'd to 3
+// would offer its Domain 2 levels late and still pass. Pin the correct value per class.
+const SUBCLASS_LEVEL: Record<string, number> = {
+  Cleric: 1, Sorcerer: 1, Warlock: 1, Druid: 2, Wizard: 2,
+  Barbarian: 3, Bard: 3, Fighter: 3, Monk: 3, Paladin: 3, Ranger: 3, Rogue: 3, Artificer: 3,
+};
+
+// The EXACT 2014 ASI cadence — INCLUDING level 19 (in 2024 that's an Epic Boon, not an ASI: the edition
+// tell). Fighter adds 6 & 14, Rogue adds 10; everyone else is the plain 4/8/12/16/19. Pinned exactly so a
+// missing OR spurious ASI level is caught, not just "contains 19".
+const ASI_LEVELS: Record<string, number[]> = {
+  Fighter: [4, 6, 8, 12, 14, 16, 19], Rogue: [4, 8, 10, 12, 16, 19],
+  Barbarian: [4, 8, 12, 16, 19], Bard: [4, 8, 12, 16, 19], Cleric: [4, 8, 12, 16, 19], Druid: [4, 8, 12, 16, 19],
+  Monk: [4, 8, 12, 16, 19], Paladin: [4, 8, 12, 16, 19], Ranger: [4, 8, 12, 16, 19], Sorcerer: [4, 8, 12, 16, 19],
+  Warlock: [4, 8, 12, 16, 19], Wizard: [4, 8, 12, 16, 19], Artificer: [4, 8, 12, 16, 19],
+};
 
 describe('the 2014 class roster (authored class-by-class)', () => {
   it('registers all 12 PHB classes plus the Artificer, and the system reports it has class data', () => {
@@ -38,6 +75,26 @@ describe('the 2014 class roster (authored class-by-class)', () => {
   });
 });
 
+describe('2014 casters are wired to the shared slot tables (kind ⟺ table, by identity)', () => {
+  const casterOf = (n: string) => findClass(SYS, n)!.spellcasting;
+  it('full casters (Bard/Cleric/Druid/Sorcerer/Wizard) use the SHARED FULL_CASTER_SLOTS object', () => {
+    for (const n of ['Bard', 'Cleric', 'Druid', 'Sorcerer', 'Wizard']) {
+      expect(casterOf(n)?.kind, n).toBe('full');
+      expect(casterOf(n)?.slots, `${n} uses the shared FULL_CASTER_SLOTS`).toBe(FULL_CASTER_SLOTS);
+    }
+  });
+  it('Paladin/Ranger use HALF_CASTER_SLOTS; the Artificer uses its own rounds-up table', () => {
+    for (const n of ['Paladin', 'Ranger']) {
+      expect(casterOf(n)?.kind, n).toBe('half');
+      expect(casterOf(n)?.slots, `${n} uses HALF_CASTER_SLOTS`).toBe(HALF_CASTER_SLOTS);
+    }
+    // The Artificer is a half-caster by kind but rounds UP — its own table, NOT the standard one.
+    expect(casterOf('Artificer')?.kind).toBe('half');
+    expect(casterOf('Artificer')?.slots).toBe(ARTIFICER_SLOTS);
+    expect(casterOf('Artificer')?.slots).not.toBe(HALF_CASTER_SLOTS);
+  });
+});
+
 describe.each(CLASSES.map((c) => [c.name, c] as const))('%s (2014)', (_name, def) => {
   it('is structurally valid and levels cleanly 1→20', () => {
     expect(validateClassDefinition(def)).toEqual([]);
@@ -46,11 +103,15 @@ describe.each(CLASSES.map((c) => [c.name, c] as const))('%s (2014)', (_name, def
     for (const row of table) expect(row.features).toBeDefined();
   });
 
-  it('belongs to dnd5e-2014 with a hit die, exactly two saves, and a subclass choice', () => {
+  it('belongs to dnd5e-2014 with the RAW hit die, exactly two saves, and a subclass choice', () => {
     expect(def.system).toBe(SYS);
-    expect([6, 8, 10, 12]).toContain(def.hitDie);
-    expect(def.savingThrows).toHaveLength(2);
-    // A feature marks the subclass choice at the class's subclassLevel (3 for most; 1 for Sorcerer).
+    expect(def.hitDie, `${def.name} hit die`).toBe(HIT_DICE[def.name]); // the CORRECT die, not just a valid one
+    expect([...def.savingThrows].sort(), `${def.name} save proficiencies`).toEqual(SAVES[def.name]); // the CORRECT pair
+    // The subclass level is the RAW-correct one for this class (edition-sensitive: 1/2/3 in 2014)...
+    expect(def.subclassLevel, `${def.name} subclass level`).toBe(SUBCLASS_LEVEL[def.name]);
+    // The exact 2014 ASI cadence (edition-sensitive: includes L19, unlike 2024).
+    expect([...def.asiLevels].sort((a, b) => a - b), `${def.name} ASI levels`).toEqual(ASI_LEVELS[def.name]);
+    // ...and a subclass-choice feature actually sits at that level (consistency).
     expect(def.features.some((f) => f.choice === 'subclass' && f.level === def.subclassLevel)).toBe(true);
   });
 });

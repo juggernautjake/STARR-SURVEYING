@@ -17,7 +17,7 @@ describe('assembleIGVanillaCharacter (Slice 7b)', () => {
     expect(c.meta.species).toBe('Migoi');
     expect(c.meta.className).toBe('Freebooter');
     // stances/powers/feats become displayable features with their catalog effect text
-    expect(c.features.find((f) => f.name === 'Offensive')?.body[0]).toMatch(/advantage on attacks/i);
+    expect(c.features.find((f) => f.name === 'Offensive')?.body[0]).toMatch(/advantage on all attack rolls/i);
     expect(c.features.some((f) => f.source === 'Power' && f.name === 'Mirror Image')).toBe(true);
     expect(c.attacks[0].name).toBe('Cutlass');
     // kinded igBuild is recorded

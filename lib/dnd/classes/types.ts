@@ -47,6 +47,11 @@ export type SpellSlotRow = number[];
 
 export interface ClassSpellcasting {
   kind: CasterKind;
+  /** The Artificer exception: it is a `half` caster, but for MULTICLASS caster-level math its levels
+   *  round UP (ceil), not down like Paladin/Ranger — the single 5e half-caster that does. Set true only
+   *  on the Artificer; consumed by `multiclassCasterLevel`. (Single-class slots come from its own `slots`
+   *  table, so this flag matters only when combining classes.) */
+  roundHalfUp?: boolean;
   ability: AbilityKey;
   /** How the prepared/known count is derived — shown to the builder. */
   preparedRule?: string;

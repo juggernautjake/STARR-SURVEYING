@@ -5,13 +5,28 @@
 import { useEffect, useState } from 'react'
 import styles from '@/app/dnd/_ui/hextech.module.css'
 
+type ReqStatus = 'untouched' | 'pending' | 'complete'
 interface Suggestion {
   id: string
   body: string
   authorName: string | null
+  userKey: string | null
   pagePath: string | null
+  status: ReqStatus
   createdAt: string
 }
+
+const STATUS_META: Record<ReqStatus, { label: string; color: string }> = {
+  untouched: { label: 'Untouched', color: 'var(--hx-muted)' },
+  pending: { label: 'Pending', color: 'var(--hx-gold-2)' },
+  complete: { label: 'Complete', color: 'var(--hx-teal-1)' },
+}
+const FILTERS: { key: ReqStatus | 'all'; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'untouched', label: 'Untouched' },
+  { key: 'pending', label: 'Pending' },
+  { key: 'complete', label: 'Complete' },
+]
 
 function timeAgo(iso: string): string {
   const then = new Date(iso).getTime()
@@ -32,12 +47,15 @@ export default function SuggestionsPage() {
   const [error, setError] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  // Only the owner (Jacob) may delete/manage; non-owners get a read-only board.
+  const [owner, setOwner] = useState(false)
+  const [filter, setFilter] = useState<ReqStatus | 'all'>('all')
 
   useEffect(() => {
     let cancelled = false
     fetch('/api/dnd/suggestions')
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('Could not load suggestions.'))))
-      .then((j) => { if (!cancelled) setItems((j.suggestions ?? []) as Suggestion[]) })
+      .then((j) => { if (!cancelled) { setItems((j.suggestions ?? []) as Suggestion[]); setOwner(!!j.owner) } })
       .catch((e) => { if (!cancelled) setError(e.message || 'Could not load suggestions.') })
     return () => { cancelled = true }
   }, [])
@@ -55,6 +73,20 @@ export default function SuggestionsPage() {
     }
     setCopiedId(s.id)
     setTimeout(() => setCopiedId((c) => (c === s.id ? null : c)), 1600)
+  }
+
+  async function setStatus(s: Suggestion, status: ReqStatus) {
+    // Optimistic; revert on failure.
+    setItems((list) => (list ? list.map((x) => (x.id === s.id ? { ...x, status } : x)) : list))
+    try {
+      const r = await fetch(`/api/dnd/suggestions/${s.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
+      })
+      if (!r.ok) throw new Error()
+    } catch {
+      setItems((list) => (list ? list.map((x) => (x.id === s.id ? { ...x, status: s.status } : x)) : list))
+      window.alert('Could not update the status.')
+    }
   }
 
   async function remove(s: Suggestion) {
@@ -91,6 +123,24 @@ export default function SuggestionsPage() {
             </div>
           )}
 
+          {items && items.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {FILTERS.map((f) => {
+                const count = f.key === 'all' ? items.length : items.filter((s) => s.status === f.key).length
+                const active = filter === f.key
+                return (
+                  <button key={f.key} type="button" onClick={() => setFilter(f.key)}
+                    style={{ fontSize: 12, padding: '5px 12px', borderRadius: 14, cursor: 'pointer',
+                      border: `1px solid ${active ? 'var(--hx-teal-1)' : 'var(--hx-line)'}`,
+                      background: active ? 'rgba(10,200,185,0.15)' : 'transparent',
+                      color: active ? 'var(--hx-teal-1)' : 'var(--hx-muted)' }}>
+                    {f.label} ({count})
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
           {items && items.length === 0 && !error && (
             <section className={styles.framedPanel}>
               <div className={styles.framedPanelTop} />
@@ -100,17 +150,32 @@ export default function SuggestionsPage() {
 
           {items && items.length > 0 && (
             <div style={{ display: 'grid', gap: 12 }}>
-              {items.map((s) => (
+              {items.filter((s) => filter === 'all' || s.status === filter).map((s) => (
                 <section key={s.id} className={styles.framedPanel} style={{ display: 'grid', gap: 10 }}>
                   <div className={styles.framedPanelTop} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: STATUS_META[s.status].color, border: `1px solid ${STATUS_META[s.status].color}`, borderRadius: 4, padding: '1px 7px' }}>
+                      {STATUS_META[s.status].label}
+                    </span>
+                  </div>
                   <div style={{ whiteSpace: 'pre-wrap', fontSize: 14.5, lineHeight: 1.55, color: 'var(--hx-text)' }}>{s.body}</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', borderTop: '1px solid var(--hx-line)', paddingTop: 10 }}>
                     <div style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>
                       <span style={{ color: s.authorName ? 'var(--hx-gold-2)' : 'var(--hx-muted)' }}>{s.authorName || 'Anonymous'}</span>
+                      {owner && s.userKey && <span style={{ color: 'var(--hx-muted)' }}> ({s.userKey})</span>}
                       <span> · {timeAgo(s.createdAt)}</span>
                       {s.pagePath && <span> · from {s.pagePath}</span>}
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      {owner && (
+                        <select value={s.status} onChange={(e) => setStatus(s, e.target.value as ReqStatus)}
+                          title="Change this request's status"
+                          style={{ fontSize: 12, padding: '5px 8px', cursor: 'pointer', color: 'var(--hx-text)', background: 'rgba(1,10,19,0.55)', border: '1px solid var(--hx-line)', borderRadius: 4 }}>
+                          <option value="untouched">Untouched</option>
+                          <option value="pending">Pending</option>
+                          <option value="complete">Complete</option>
+                        </select>
+                      )}
                       <button
                         onClick={() => copy(s)}
                         title="Copy this suggestion's text to your clipboard"
@@ -118,14 +183,16 @@ export default function SuggestionsPage() {
                       >
                         {copiedId === s.id ? '✓ Copied' : '⧉ Copy'}
                       </button>
-                      <button
-                        onClick={() => remove(s)}
-                        disabled={deleting === s.id}
-                        title="Delete this suggestion (asks to confirm first)"
-                        style={{ fontSize: 12, padding: '5px 12px', cursor: 'pointer', color: '#ff6b6b', background: 'transparent', border: '1px solid var(--hx-line)', borderRadius: 4 }}
-                      >
-                        {deleting === s.id ? 'Deleting…' : '🗑 Delete'}
-                      </button>
+                      {owner && (
+                        <button
+                          onClick={() => remove(s)}
+                          disabled={deleting === s.id}
+                          title="Delete this suggestion (asks to confirm first)"
+                          style={{ fontSize: 12, padding: '5px 12px', cursor: 'pointer', color: '#ff6b6b', background: 'transparent', border: '1px solid var(--hx-line)', borderRadius: 4 }}
+                        >
+                          {deleting === s.id ? 'Deleting…' : '🗑 Delete'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </section>

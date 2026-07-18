@@ -3,11 +3,13 @@
 // (schema = our edit vocabulary), we apply the edits to the character's data, persist,
 // and log each edit to dnd_sheet_edits. Powers G2 (build) and I3 (refine).
 import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession } from '@/lib/dnd/auth';
 import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { dndToolCall, dndAiConfigured } from '@/lib/dnd/ai';
-import { applySheetEdits, editPath, editOldValue, validateSheetEdits, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
+import { applySheetEdits, editPath, editOldValue, validateSheetEdits, revertBatch, SHEET_EDIT_TOOL, type SheetEdit, type AuditedEdit } from '@/lib/dnd/sheet-edits';
+import { recentBatchDigest, latestUndoableBatch, type EditHistoryRow } from '@/lib/dnd/edit-history';
 import { applyLayoutEdits, LAYOUT_EDIT_TOOL, type LayoutEdit } from '@/lib/dnd/layout-edits';
 import { normalizeLayout } from '@/lib/dnd/custom-sheet';
 import { systemGroundingBlock } from '@/lib/dnd/grounding';
@@ -15,6 +17,12 @@ import { validateCharacterForSystem, violationsSummary } from '@/lib/dnd/system-
 import { normalizeSystem } from '@/lib/dnd/systems';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
+import { IG_EDIT_TOOL, parseIGEditToolCall, igEditToolInstruction } from '@/lib/dnd/systems/intuitive-games/ai';
+import { applyIgEdit, describeIgEdit } from '@/lib/dnd/systems/intuitive-games/edit';
+import { isIGCharacter, type IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
+import { igCharacterDigest } from '@/lib/dnd/systems/intuitive-games/digest';
+import { isPF2Character, type PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
+import { pf2CharacterDigest } from '@/lib/dnd/systems/pathfinder2e/digest';
 
 // Routing hint so the agent picks the right tool: mechanics → edit_sheet, look/layout →
 // customize_layout. Both only ever touch THIS character (Slice 8b).
@@ -22,7 +30,18 @@ const LAYOUT_ROUTING =
   'If the user asks to change the SHEET ITSELF — its layout, sections, blocks, widgets, styling, colors, ' +
   'fonts, or format (move/resize/restyle/add/remove elements, set CSS) — call customize_layout. If they ask ' +
   'to change the CHARACTER — feats, abilities, mechanics, transformations, spells, attacks, stats — call ' +
-  'edit_sheet. Never touch anything outside this character.';
+  'edit_sheet. If they ask to UNDO, REVERT, or PUT BACK your most recent change (or "take my character back ' +
+  'to what it was"), call undo_last_change. Never touch anything outside this character.';
+
+/** The tool the model picks to undo its own most recent change to this character. No inputs — the route
+ *  reverts the latest un-reverted AI batch. */
+const UNDO_TOOL = {
+  name: 'undo_last_change',
+  description: 'Undo the most recent change you made to this character — reverts your last edit batch, ' +
+    'restoring the character to how it was before. Use when the user says undo, revert, put it back, or ' +
+    'take my character back to what it was.',
+  input_schema: { type: 'object' as const, properties: {}, required: [] as string[] },
+};
 
 /** A compact index of the current custom blocks so the agent can target them by position. */
 function layoutSummary(raw: unknown): string {
@@ -74,9 +93,31 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const current: Character = (row.data as unknown as Character | null) ?? blankCharacter(row.name);
 
+  // Intuitive Games characters keep a bespoke sidecar at data.ig; expose the edit_ig_sheet tool so the AI
+  // can enter/leave a stance or apply/remove a condition on THAT model (parity with the manual controls).
+  const rawData = (row.data ?? {}) as Record<string, unknown>;
+  const igData = rawData.ig;
+  const isIG = normalizeSystem((row as { system?: string }).system) === 'intuitive-games' && isIGCharacter(igData);
+  // Pathfinder 2e keeps its own sidecar at data.pf2e; the edit AI can't edit its mechanics incrementally
+  // (there's no pf2-edit tool — PF2 is built via the builder), but it should SEE the character's PF2 state
+  // so base edits (name, notes) are informed, the same way the adjudication chat route does.
+  const pf2Data = rawData.pf2e;
+  const isPF2 = isPF2Character(pf2Data);
+
   // System grounding (Slice 3/8): edits must stay inside the character's chosen system —
   // no cross-system rules, no invented mechanics.
   const grounding = await systemGroundingBlock((row as { system?: string }).system, instr).catch(() => null);
+
+  // Recent edit history (history/undo C): lets the AI answer "what did you change?" and gives
+  // "undo that" a target. Best-effort — a missing table/column just yields an empty digest.
+  const { data: histRows } = await supabaseAdmin
+    .from('dnd_sheet_edits')
+    .select('batch_id, source, field_path, summary, created_at')
+    .eq('character_id', params.id)
+    .order('created_at', { ascending: false })
+    .limit(80);
+  const history = (histRows ?? []) as EditHistoryRow[];
+  const historyDigest = recentBatchDigest(history);
 
   let result;
   try {
@@ -84,14 +125,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // customize_layout for LAYOUT/STYLING of the custom sheet (Slice 12: add/remove/move/
     // resize/restyle blocks, set CSS). Both are scoped to this one character (Slice 8b).
     result = await dndToolCall<{ summary?: string; edits: unknown[] }>({
-      system: [SYSTEM, LAYOUT_ROUTING, grounding?.instruction].filter(Boolean).join('\n\n'),
+      system: [SYSTEM, LAYOUT_ROUTING, isIG ? igEditToolInstruction() : null, grounding?.instruction].filter(Boolean).join('\n\n'),
       user: [
         `Current sheet:\n${sheetDigest(current)}`,
+        // The FULL IG state (stance + its effect, conditions + the computed penalty, defensive power, feats,
+        // powers) — not just stance/condition names — so the edit AI knows what the character already has
+        // (won't re-add a held feat/power) and can reason about the active mechanics. Same summary the
+        // librarian adjudicates from, so edit + explain agree.
+        isIG ? igCharacterDigest(igData as IGCharacter) : null,
+        // Likewise the PF2 state (AC/HP/saves/perception, class/spell DC, MAP schedule, strikes, skills) so
+        // the edit AI is state-aware for a Pathfinder character, matching the librarian's context.
+        isPF2 ? pf2CharacterDigest(pf2Data as PF2Character) : null,
         `Current custom layout blocks: ${layoutSummary((row as { custom_layout?: unknown }).custom_layout)}`,
+        historyDigest || null,
         grounding?.block || null,
         `Instruction: ${instr}`,
       ].filter(Boolean).join('\n\n'),
-      tools: [SHEET_EDIT_TOOL, LAYOUT_EDIT_TOOL],
+      tools: [SHEET_EDIT_TOOL, LAYOUT_EDIT_TOOL, UNDO_TOOL, ...(isIG ? [IG_EDIT_TOOL] : [])],
       toolChoice: { type: 'auto' },
       maxTokens: 4096,
       temperature: 0.4,
@@ -99,6 +149,51 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'AI call failed.' }, { status: 502 });
   }
+  // ── Undo path (history/undo C1): the user asked to undo/revert/put it back ────────────
+  if (result?.name === 'undo_last_change') {
+    const target = latestUndoableBatch(history);
+    if (!target) {
+      return NextResponse.json({ ok: true, kind: 'undo', reverted: 0, batchId: null, summary: 'There is no recent change of mine to undo on this character.' });
+    }
+    // The rows we selected for the digest don't carry old_value/new_value, so fetch the full batch.
+    const { data: full } = await supabaseAdmin
+      .from('dnd_sheet_edits')
+      .select('old_value, new_value, created_at')
+      .eq('character_id', params.id)
+      .eq('batch_id', target.batchId)
+      .order('created_at', { ascending: true });
+    const audited = ((full ?? []) as { old_value: unknown; new_value: SheetEdit | null }[])
+      .filter((r): r is { old_value: unknown; new_value: SheetEdit } => !!r.new_value)
+      .map((r): AuditedEdit => ({ edit: r.new_value, oldValue: r.old_value }));
+    if (!audited.length) return NextResponse.json({ ok: true, kind: 'undo', reverted: 0, batchId: null, summary: 'There is no recent change of mine to undo on this character.' });
+
+    const reverted = revertBatch(current, audited);
+    const { error: rErr } = await supabaseAdmin.from('dnd_characters').update({ data: reverted, name: reverted.meta?.name || row.name }).eq('id', params.id);
+    if (rErr) return NextResponse.json({ error: rErr.message }, { status: 500 });
+    await supabaseAdmin.from('dnd_sheet_edits').insert({
+      character_id: params.id, editor_user_id: session.userId, is_dm: isDM,
+      field_path: `revert-batch:${target.batchId}`, old_value: null, new_value: null, scope: 'permanent',
+      source: 'revert', summary: `Undid a change of ${audited.length} edit(s)${target.summary ? `: ${target.summary}` : ''}`,
+    }).then(() => {}, () => {});
+    return NextResponse.json({ ok: true, kind: 'undo', reverted: audited.length, batchId: target.batchId, summary: `Undone — reverted my last change${target.summary ? ` (${target.summary})` : ''}. Your character is back to how it was.` });
+  }
+
+  // ── Intuitive Games incremental edit (edit_ig_sheet → applyIgEdit on data.ig) ─────────
+  if (result?.name === 'edit_ig_sheet') {
+    if (!isIG) return NextResponse.json({ error: 'This character has no Intuitive Games sheet to edit.' }, { status: 400 });
+    const parsed = parseIGEditToolCall(result.input);
+    if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    const nextIg = applyIgEdit(igData as IGCharacter, parsed.edit);
+    const { error: igErr } = await supabaseAdmin.from('dnd_characters').update({ data: { ...rawData, ig: nextIg } }).eq('id', params.id);
+    if (igErr) return NextResponse.json({ error: igErr.message }, { status: 500 });
+    await supabaseAdmin.from('dnd_sheet_edits').insert({
+      character_id: params.id, editor_user_id: session.userId, is_dm: isDM,
+      field_path: `ig:${parsed.edit.op}`, old_value: null, new_value: null, scope: 'permanent',
+      source: 'ai', summary: describeIgEdit(parsed.edit),
+    }).then(() => {}, () => {});
+    return NextResponse.json({ ok: true, kind: 'ig-edit', summary: describeIgEdit(parsed.edit), stances: nextIg.combat.stances, conditions: nextIg.combat.conditions });
+  }
+
   const editsRaw = result?.input?.edits;
   if (!Array.isArray(editsRaw) || editsRaw.length === 0) return NextResponse.json({ error: 'The AI did not return any edits.' }, { status: 502 });
 
@@ -129,9 +224,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // Audit each edit (best-effort — don't fail the request if logging fails). Capture old_value from
   // the PRE-edit character (Slice 26), so the DM review queue can show the diff and Revert can restore
-  // the prior value — computed against `current`, before any edit in the batch applied.
+  // the prior value — computed against `current`, before any edit in the batch applied. Every edit from
+  // THIS request shares one `batch_id` so the whole change can be undone as a unit (history/undo A2).
+  const batchId = randomUUID();
+  const batchSummary = (result?.input?.summary ?? '').toString().slice(0, 500) || `${edits.length} edit(s)`;
   await supabaseAdmin.from('dnd_sheet_edits').insert(
-    edits.map((e) => ({ character_id: params.id, editor_user_id: session.userId, is_dm: isDM, field_path: editPath(e), old_value: (editOldValue(current, e) ?? null) as unknown, new_value: e as unknown, scope: 'permanent' })),
+    edits.map((e) => ({ character_id: params.id, editor_user_id: session.userId, is_dm: isDM, field_path: editPath(e), old_value: (editOldValue(current, e) ?? null) as unknown, new_value: e as unknown, scope: 'permanent', batch_id: batchId, source: 'ai', summary: batchSummary })),
   ).then(() => {}, () => {});
 
   // Safety net (Slice 3): flag anything that doesn't belong to the character's system so a wrong-system
@@ -142,5 +240,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     violations.length ? `⚠ Check: ${violationsSummary(violations)}` : null,
     rejectedEffects.length ? `⚠ Dropped ${rejectedEffects.length} invalid effect(s): ${rejectedEffects.map((r) => r.reason).join(' ')}` : null,
   ].filter(Boolean).join('\n');
-  return NextResponse.json({ ok: true, kind: 'mechanics', summary: summary || null, editCount: edits.length, name: updated.meta.name, violations, rejectedEffects });
+  // Return the batch id + a compact preview so the chat can offer an immediate "Undo this change"
+  // button bound to exactly the edits this request made (history/undo A3).
+  const editsPreview = edits.map((e) => ({ op: e.op, path: editPath(e) }));
+  return NextResponse.json({ ok: true, kind: 'mechanics', summary: summary || null, editCount: edits.length, name: updated.meta.name, violations, rejectedEffects, batchId, batchSummary, editsPreview });
 }

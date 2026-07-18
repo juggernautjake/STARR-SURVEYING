@@ -108,6 +108,16 @@ describe('General feat data', () => {
     }
   });
 
+  it('no Origin feat carries a minLevel prerequisite — they are always level-1 takeable', () => {
+    // Origin feats come from a Background (or Human Versatile) at level 1. A minLevel prereq on one would
+    // make featEligibility reject it at the origin slot (ctx.level 1 < minLevel) — silently un-offerable.
+    // Only `alert` was spot-checked; this pins the whole set against that authoring slip.
+    for (const feat of ORIGIN_FEATS_2024) {
+      const minLevels = (feat.prerequisites ?? []).map((p) => p.minLevel).filter((l) => l != null);
+      expect(minLevels, `${feat.name} (Origin) must not have a minLevel prereq`).toEqual([]);
+    }
+  });
+
   it('the three categories are disjoint', () => {
     const o = new Set(ORIGIN_FEATS_2024.map((f) => f.key));
     const fs = new Set(FIGHTING_STYLE_FEATS_2024.map((f) => f.key));
@@ -123,7 +133,8 @@ describe('the level builder offers only rules-legal feats (UI wiring)', () => {
   const path = require('node:path');
   const LB = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/LevelBuilder.tsx'), 'utf8');
   it('replaced the free-text feat input with a filtered dropdown + custom escape hatch', () => {
-    expect(LB).toContain('asiFeatChoices(system, current.level)');
+    // Now also merges the character's saved homebrew feats (adapted) into the ASI choices.
+    expect(LB).toContain('asiFeatChoices(system, current.level, plan?.homebrewFeats ?? [])');
     expect(LB).toContain('✎ Custom feat…');
     // the old free-text "take a feat instead — its name" input is gone
     expect(LB).not.toContain('take a feat instead — its name');

@@ -9,6 +9,17 @@
 import type { Character } from '@/app/dnd/_sheet/types';
 import { SYSTEM_AMBIGUOUS, systemLabel, type CharacterSystem } from './systems';
 import { rulesForSystem, systemClassNames, systemSpecies } from './system-rules';
+import { readHomebrewClasses, homebrewClassesForSystem } from './classes/homebrew-store';
+import { classesForSystem } from './classes/registry';
+
+/** The set of concrete class-feature names for a system (choice placeholders like ASI excluded). */
+function classFeatureNames(system: string): Set<string> {
+  const s = new Set<string>();
+  for (const c of classesForSystem(system)) {
+    for (const f of c.features) if (f.name && !f.choice) s.add(f.name.trim().toLowerCase());
+  }
+  return s;
+}
 
 export interface SystemViolation {
   /** Sheet field the issue is about (e.g. 'meta.className'). */
@@ -55,10 +66,30 @@ export function validateCharacterForSystem(character: Character, system: Charact
     }
   }
 
-  // 3. Class belongs to the system (token match; tolerant of multiclass/subclass strings).
+  // 3. Class belongs to the system (token match; tolerant of multiclass/subclass strings). A SAVED
+  //    HOMEBREW class (Slice 5) is legitimate for this character, so include its names — otherwise the
+  //    validator would falsely flag every custom class as "not recognized".
+  const homebrewClassNames = homebrewClassesForSystem(readHomebrewClasses(c), system).map((hc) => hc.name);
   const className = String(c?.meta?.className ?? '').trim();
-  if (className && !mentionsAny(className, systemClassNames(system))) {
+  if (className && !mentionsAny(className, [...systemClassNames(system), ...homebrewClassNames])) {
     out.push({ field: 'meta.className', severity: 'warn', message: `Class "${className}" is not a recognized ${label} class — verify it isn't from another system.` });
+  }
+
+  // 3b. Cross-EDITION class features: a feature that exists ONLY in the OTHER 5e edition's class data
+  //     (e.g. 2024 "Weapon Mastery" on a 2014 sheet, or 2014 "Ki" on a 2024 sheet) is flagged. Features
+  //     shared by both editions (Action Surge, Sneak Attack…) never flag, and a homebrew feature in
+  //     NEITHER edition never flags — so this is conservative, catching only edition-exclusive leakage.
+  if (system === 'dnd5e-2024' || system === 'dnd5e-2014') {
+    const other = system === 'dnd5e-2024' ? 'dnd5e-2014' : 'dnd5e-2024';
+    const mine = classFeatureNames(system);
+    const theirs = classFeatureNames(other);
+    const otherLabel = systemLabel(other);
+    for (const f of c?.features ?? []) {
+      const n = String(f?.name ?? '').trim().toLowerCase();
+      if (n && theirs.has(n) && !mine.has(n)) {
+        out.push({ field: `features.${f.name}`, severity: 'warn', message: `Feature "${f.name}" is a ${otherLabel} class feature, not ${label} — verify it isn't from the other edition.` });
+      }
+    }
   }
 
   // 4. Species/ancestry belongs to the system.

@@ -16,6 +16,10 @@ import { normalizeSystem, systemLabel, SYSTEM_AMBIGUOUS } from '@/lib/dnd/system
 import { getCharacterAccess } from '@/lib/dnd/characters';
 import { normalizeCharacter } from '@/app/dnd/_sheet/data/blank';
 import { characterDigest, adjudicationInstruction } from '@/lib/dnd/character-digest';
+import { isIGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
+import { igCharacterDigest } from '@/lib/dnd/systems/intuitive-games/digest';
+import { isPF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
+import { pf2CharacterDigest } from '@/lib/dnd/systems/pathfinder2e/digest';
 
 export const maxDuration = 60;
 
@@ -76,6 +80,14 @@ export async function POST(req: NextRequest) {
       if (charSystem !== SYSTEM_AMBIGUOUS) focus = charSystem;
       characterName = row.name;
       digest = characterDigest(data, focus);
+      // A bespoke-sheet character's real numbers live in a system sidecar the general characterDigest
+      // doesn't read — the IG state (active stance, conditions + their computed penalty, feats/powers) in
+      // data.ig, and the PF2 derived numbers (AC, saves, Class/Spell DC, Strike + skill totals) in
+      // data.pf2e. Append the matching one so the librarian rules WITH the character's real state.
+      const igData = (row.data as { ig?: unknown } | null)?.ig;
+      if (isIGCharacter(igData)) digest = `${digest}\n\n${igCharacterDigest(igData)}`;
+      const pf2Data = (row.data as { pf2e?: unknown } | null)?.pf2e;
+      if (isPF2Character(pf2Data)) digest = `${digest}\n\n${pf2CharacterDigest(pf2Data)}`;
     }
   }
 

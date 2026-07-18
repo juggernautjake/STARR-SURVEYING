@@ -1,7 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useChar } from '../state/store'
 import { abilityMod, signed } from '../rules/dnd'
-import { deriveAc } from '../lib/derive-ac'
 import { md } from '../lib/inline'
 import { RichRules } from './RuleTip'
 import SectionHead from './ui/SectionHead'
@@ -10,7 +9,7 @@ import EffectStar from './ui/EffectStar'
 import TraitEditor from './ui/TraitEditor'
 
 export default function CombatPanel() {
-  const { char, setChar, editMode, canWrite, ledger, adjustHp, activeFormId, rollDeathSave, spendHitDie, shortRest, longRest } = useChar()
+  const { char, abilities, acInfo, setChar, editMode, canWrite, ledger, adjustHp, activeFormId, rollDeathSave, spendHitDie, shortRest, longRest } = useChar()
   const [editingTrait, setEditingTrait] = useState<{ index: number; text: string } | null>(null)
   const removeTrait = (i: number) => {
     if (!confirm('Delete this trait? This cannot be undone.')) return
@@ -23,15 +22,12 @@ export default function CombatPanel() {
     char.regen == null
       ? 0
       : char.regen.amount === 'conMod'
-        ? Math.max(1, abilityMod(char.abilities.con))
+        ? Math.max(1, abilityMod(abilities.con))
         : char.regen.amount
   const longRestPrompt = `Take a long rest? Restores HP, hit dice, resources, death saves${char.longRestNote ? `, ${char.longRestNote}` : ''}.`
-  // AC from equipped armor/shield + item AC-effects; falls back to the manual combat.ac when
-  // nothing is equipped (so hand-set AC still works). Recomputes when inventory/DEX/AC change.
-  const acInfo = useMemo(
-    () => deriveAc(char.inventory, abilityMod(char.abilities.dex), combat.ac, char.activeEffects),
-    [char.inventory, char.abilities.dex, combat.ac, char.activeEffects],
-  )
+  // AC comes from the store's single derived `acInfo` (Slice 13's one-answer rule) so this panel and the
+  // always-visible StatRail can never disagree — equipped armor/shield + effective DEX + AC effects,
+  // falling back to the manual combat.ac when nothing is equipped.
 
   // Walk speed through the ledger (Slice 15): a Boots of Striding +10 shows here and stars itself.
   // Speed is display-only, so folding it has none of max-HP's heal-clamp interaction — that stays
@@ -76,8 +72,29 @@ export default function CombatPanel() {
   // grant-half). Collected by the ledger with their source; the Defenses card is their home — a
   // resistance that renders nowhere is a defense the player has and can't see.
   const resistances = ledger.collected('resistance')
-  const immunities = ledger.collected('immunity')
   const vulnerabilities = ledger.collected('vulnerability')
+  // `immunity` is the ONE operation shared by two targets — damage `immunity` (fire, cold…) and
+  // `condition_immunity` (Frightened, Poisoned…). `collected('immunity')` filters by OPERATION, so it
+  // would lump a condition immunity in with the damage ones ("Immune — fire, Frightened"), which is
+  // wrong. Collect each by TARGET via explain() so conditions get their own, correctly-labelled line
+  // (the registry promises condition_immunity its own home on the Defenses card).
+  const dedupByValue = (contribs: ReturnType<typeof ledger.explain>): { value: string; source: string }[] => {
+    const seen = new Set<string>()
+    const out: { value: string; source: string }[] = []
+    for (const c of contribs) {
+      if (c.suppressed || typeof c.effect.value !== 'string') continue
+      const k = c.effect.value.toLowerCase()
+      if (seen.has(k)) continue
+      seen.add(k)
+      out.push({ value: c.effect.value, source: c.source })
+    }
+    return out
+  }
+  const immunities = dedupByValue(ledger.explain('immunity'))                     // damage only
+  const conditionImmunities = dedupByValue(ledger.explain('condition_immunity'))  // named conditions
+  // Advantage on saves vs a named condition (Dwarven Resilience, Fey Ancestry…). Listed, not
+  // auto-applied — the game asks the player to invoke it, since saves aren't tagged by source here.
+  const conditionAdvantages = ledger.collected('condition_advantage')
   // Granted senses (darkvision 60, tremorsense…) — op is `set`, not a collect-op, so read the
   // ledger's contributions for the target. Each carries the sense text and the source granting it.
   const senses = ledger
@@ -263,11 +280,11 @@ export default function CombatPanel() {
           <h3>Defenses</h3>
           <ul className="clean">
             <li>
-              <strong>Armor Class {acInfo.ac}</strong> — {acInfo.fromEquipment ? `from ${acInfo.source}` : combat.acNote}
+              <strong>Armor Class <EffectStar target="ac" label="Armor Class">{acInfo.ac}</EffectStar></strong> — {acInfo.fromEquipment ? `from ${acInfo.source}` : combat.acNote}
               {acInfo.fromEquipment && combat.ac !== acInfo.ac && <span className="hl-note"> (manual base {combat.ac})</span>}
             </li>
             <li>
-              <strong>Initiative {signed(abilityMod(char.abilities.dex) + combat.initiativeMisc)}</strong> — DEX-based; roll it from the quick bar.
+              <strong>Initiative {signed(ledger.value('initiative', abilityMod(abilities.dex) + combat.initiativeMisc))}</strong> — DEX-based; roll it from the quick bar.
             </li>
             <li>
               <strong>
@@ -317,10 +334,32 @@ export default function CombatPanel() {
                 ))}
               </li>
             )}
+            {conditionImmunities.length > 0 && (
+              <li>
+                <strong>Immune to conditions</strong> —{' '}
+                {conditionImmunities.map((r, i) => (
+                  <span key={`${r.value}-${r.source}`} style={{ textTransform: 'capitalize' }}>
+                    {i > 0 && ', '}
+                    {r.value} <span className="hl-note">({r.source})</span>
+                  </span>
+                ))}
+              </li>
+            )}
             {vulnerabilities.length > 0 && (
               <li>
                 <strong style={{ color: 'var(--danger)' }}>Vulnerable</strong> —{' '}
                 {vulnerabilities.map((r, i) => (
+                  <span key={`${r.value}-${r.source}`} style={{ textTransform: 'capitalize' }}>
+                    {i > 0 && ', '}
+                    {r.value} <span className="hl-note">({r.source})</span>
+                  </span>
+                ))}
+              </li>
+            )}
+            {conditionAdvantages.length > 0 && (
+              <li>
+                <strong>Adv. on saves vs</strong> —{' '}
+                {conditionAdvantages.map((r, i) => (
                   <span key={`${r.value}-${r.source}`} style={{ textTransform: 'capitalize' }}>
                     {i > 0 && ', '}
                     {r.value} <span className="hl-note">({r.source})</span>

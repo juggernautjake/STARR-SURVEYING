@@ -1,7 +1,74 @@
 // __tests__/dnd/sheet-edits.test.ts — structured sheet edits (Phase I2).
 import { describe, it, expect } from 'vitest';
-import { applySheetEdits, editPath, editOldValue, revertSheetEdit, type SheetEdit } from '@/lib/dnd/sheet-edits';
+import fs from 'node:fs';
+import path from 'node:path';
+import { applySheetEdits, editPath, editOldValue, revertSheetEdit, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
+import { EFFECT_OPERATIONS } from '@/app/dnd/_sheet/engine/effects';
+
+describe('the AI edit_sheet tool schema stays in sync with the effect registry', () => {
+  // Appendix A / C: the AI's tool schema is meant to be GENERATED from the effect vocabulary, not a
+  // hand-written list that drifts. It had: it listed grant_sense (a TARGET) as an operation and omitted
+  // condition_advantage (a real operation), so the AI couldn't emit a Dwarven-Resilience item. The
+  // operation list is now built from EFFECT_OPERATIONS; this guards it against being re-hardcoded.
+  const schemaStr = JSON.stringify(SHEET_EDIT_TOOL);
+  it('the effects description lists exactly the engine operations', () => {
+    expect(schemaStr).toContain(EFFECT_OPERATIONS.join('|'));
+  });
+  it('includes every operation individually (incl. condition_advantage, the one that was missing)', () => {
+    for (const op of EFFECT_OPERATIONS) {
+      expect(schemaStr, `operation "${op}" missing from the AI tool schema`).toContain(op);
+    }
+  });
+});
+
+describe('every edit op can be reverted (undo, user request)', () => {
+  it('reverting define_tag drops the tag it created — was an unrevertable op', () => {
+    const base = blankCharacter('X');
+    const edit: SheetEdit = { op: 'define_tag', name: 'psionic', desc: 'A mind power' };
+    const oldValue = editOldValue(base, edit); // null — a create
+    const applied = applySheetEdits(base, [edit]);
+    expect((applied.customTags ?? []).some((t) => t.name === 'psionic')).toBe(true);
+    const reverted = revertSheetEdit(applied, edit, oldValue);
+    expect((reverted.customTags ?? []).some((t) => t.name === 'psionic')).toBe(false);
+  });
+
+  it('reverting a set_meta that FILLED an empty field clears it again (not left stranded)', () => {
+    const base = blankCharacter('X');
+    // Alignment starts unset; the AI sets it, then the user undoes.
+    const edit: SheetEdit = { op: 'set_meta', field: 'alignment', value: 'Lawful Good' };
+    const oldValue = editOldValue(base, edit); // null — the field was unset
+    const applied = applySheetEdits(base, [edit]);
+    expect(applied.meta.alignment).toBe('Lawful Good');
+    const reverted = revertSheetEdit(applied, edit, oldValue);
+    expect(reverted.meta.alignment ?? '').toBe(''); // cleared, not left as "Lawful Good"
+  });
+
+  it('revertSheetEdit has a case for EVERY op the tool schema offers (no silent no-op undo)', () => {
+    // A missing case makes an edit unrevertable — exactly the define_tag gap. Guard it against the next op.
+    const ops = (SHEET_EDIT_TOOL.input_schema as { properties: { edits: { items: { properties: { op: { enum: string[] } } } } } })
+      .properties.edits.items.properties.op.enum;
+    const src = fs.readFileSync(path.join(process.cwd(), 'lib/dnd/sheet-edits.ts'), 'utf8');
+    const body = src.slice(src.indexOf('export function revertSheetEdit'), src.indexOf('export interface AuditedEdit'));
+    for (const op of ops) {
+      expect(body.includes(`case '${op}'`), `revertSheetEdit has no case for "${op}" — it would undo to a no-op`).toBe(true);
+    }
+  });
+
+  it('applySheetEdits has a case for EVERY op the tool schema offers (no silent no-op EDIT)', () => {
+    // The apply-path twin of the revert guard, and the more important one: an op the AI is OFFERED (the
+    // tool-schema enum) but that applySheetEdits doesn't handle reports success while changing NOTHING —
+    // it breaks the "the AI can actually edit everything on the sheet" promise. The TS `never` guard in
+    // applySheetEdits covers union↔handler drift; this covers tool-schema↔handler drift (a separate object).
+    const ops = (SHEET_EDIT_TOOL.input_schema as { properties: { edits: { items: { properties: { op: { enum: string[] } } } } } })
+      .properties.edits.items.properties.op.enum;
+    const src = fs.readFileSync(path.join(process.cwd(), 'lib/dnd/sheet-edits.ts'), 'utf8');
+    const body = src.slice(src.indexOf('export function applySheetEdits'), src.indexOf('export function validateSheetEdits'));
+    for (const op of ops) {
+      expect(body.includes(`case '${op}'`), `applySheetEdits has no case for "${op}" — the AI's edit would silently do nothing`).toBe(true);
+    }
+  });
+});
 
 describe('applySheetEdits', () => {
   it('sets meta, level, abilities, and combat', () => {
@@ -61,6 +128,27 @@ describe('applySheetEdits', () => {
     const base = blankCharacter('X');
     applySheetEdits(base, [{ op: 'set_ability', ability: 'str', value: 20 }]);
     expect(base.abilities.str).toBe(10);
+  });
+
+  it('never mutates the input across nested-field AND array ops (guards the input deep-clone)', () => {
+    // applySheetEdits deep-clones input (structuredClone), so it's non-mutating by construction — but that
+    // is the WHOLE guarantee: if the clone ever regressed to a shallow `{ ...input }`, the nested-field ops
+    // (set_meta → c.meta.*, set_combat → c.combat.*) would mutate the caller while the array ops stay safe.
+    // The set_ability test above touches one field; this deep-equals the WHOLE input across a broad batch.
+    const base = blankCharacter('Immutable');
+    const before = structuredClone(base);
+    applySheetEdits(base, [
+      { op: 'set_name', value: 'New Name' },
+      { op: 'set_meta', field: 'background', value: 'Soldier' },
+      { op: 'set_level', value: 5 },
+      { op: 'set_combat', field: 'ac', value: 18 },
+      { op: 'set_ability', ability: 'str', value: 20 },
+      { op: 'add_attack', name: 'Bow' },
+      { op: 'add_feature', name: 'Second Wind' },
+      { op: 'add_item', name: 'Rope' },
+      { op: 'add_resource', name: 'Ki', max: 3 },
+    ] as SheetEdit[]);
+    expect(base).toEqual(before); // the entire input character, untouched
   });
 
   describe('rename_* preserves every other field (the stat-loss fix)', () => {
@@ -335,5 +423,72 @@ describe('add_spell / remove_spell — the AI can build spells directly (not jus
     const afterRemove = applySheetEdits(added, [removeEdit]);
     const restored = revertSheetEdit(afterRemove, removeEdit, old);
     expect((restored.spells ?? []).find((x) => x.name === 'Ward')?.description).toBe('Shield.');
+  });
+});
+
+describe('add_condition / remove_condition — the AI can apply conditions (incl. custom ones)', () => {
+  it('adds a condition (dedup, case-insensitive) and removes it', () => {
+    let out = applySheetEdits(blankCharacter('X'), [{ op: 'add_condition', name: 'Poisoned' }]);
+    expect(out.combat.conditions).toContain('Poisoned');
+    // dedup — adding again (any case) doesn't duplicate
+    out = applySheetEdits(out, [{ op: 'add_condition', name: 'poisoned' }]);
+    expect((out.combat.conditions ?? []).filter((c) => c.toLowerCase() === 'poisoned')).toHaveLength(1);
+    // a custom/homebrew condition works too
+    out = applySheetEdits(out, [{ op: 'add_condition', name: 'Star-Cursed' }]);
+    expect(out.combat.conditions).toContain('Star-Cursed');
+    out = applySheetEdits(out, [{ op: 'remove_condition', name: 'POISONED' }]);
+    expect(out.combat.conditions).not.toContain('Poisoned');
+    expect(out.combat.conditions).toContain('Star-Cursed');
+  });
+
+  it('revert restores the exact prior conditions', () => {
+    const base = applySheetEdits(blankCharacter('X'), [{ op: 'add_condition', name: 'Prone' }]);
+    const addEdit: SheetEdit = { op: 'add_condition', name: 'Frightened' };
+    const old = editOldValue(base, addEdit);
+    const added = applySheetEdits(base, [addEdit]);
+    expect(added.combat.conditions).toContain('Frightened');
+    const reverted = revertSheetEdit(added, addEdit, old);
+    expect(reverted.combat.conditions).toEqual(['Prone']); // Frightened gone, Prone kept
+  });
+});
+
+describe('add_currency / set_currency / remove_currency — the AI can manage money (Area C)', () => {
+  it('adds a custom currency with a rate, matched later by name or abbrev', () => {
+    const out = applySheetEdits(blankCharacter('X'), [
+      { op: 'add_currency', name: 'Guild Mark', abbrev: 'gm', amount: 4, rate: 500 },
+    ]);
+    const gm = (out.currencies ?? []).find((c) => c.name === 'Guild Mark');
+    expect(gm).toMatchObject({ name: 'Guild Mark', abbrev: 'gm', amount: 4, rate: 500 });
+    // set_currency finds it by abbreviation and bumps the amount + rate
+    const out2 = applySheetEdits(out, [{ op: 'set_currency', currency: 'gm', amount: 6, rate: 600 }]);
+    const gm2 = (out2.currencies ?? []).find((c) => c.name === 'Guild Mark')!;
+    expect(gm2.amount).toBe(6);
+    expect(gm2.rate).toBe(600);
+  });
+
+  it('add_currency upserts by name (default amount 0, rate 1) and remove_currency drops it', () => {
+    let out = applySheetEdits(blankCharacter('X'), [{ op: 'add_currency', name: 'Shards' }]);
+    const s = (out.currencies ?? []).find((c) => c.name === 'Shards')!;
+    expect(s.amount).toBe(0);
+    expect(s.rate).toBe(1);
+    out = applySheetEdits(out, [{ op: 'add_currency', name: 'shards', amount: 10 }]); // upsert, not dup
+    expect((out.currencies ?? []).filter((c) => c.name.toLowerCase() === 'shards')).toHaveLength(1);
+    out = applySheetEdits(out, [{ op: 'remove_currency', currency: 'Shards' }]);
+    expect((out.currencies ?? []).some((c) => c.name === 'Shards')).toBe(false);
+  });
+
+  it('revert restores a removed currency and drops an added one', () => {
+    const base = applySheetEdits(blankCharacter('X'), [{ op: 'add_currency', name: 'Ducats', amount: 7, rate: 50 }]);
+    // remove → revert restores it exactly
+    const removeEdit: SheetEdit = { op: 'remove_currency', currency: 'Ducats' };
+    const old = editOldValue(base, removeEdit);
+    const afterRemove = applySheetEdits(base, [removeEdit]);
+    const restored = revertSheetEdit(afterRemove, removeEdit, old);
+    expect((restored.currencies ?? []).find((c) => c.name === 'Ducats')).toMatchObject({ amount: 7, rate: 50 });
+    // add → revert drops it
+    const addEdit: SheetEdit = { op: 'add_currency', name: 'Florins', amount: 3 };
+    const added = applySheetEdits(base, [addEdit]);
+    const reverted = revertSheetEdit(added, addEdit, editOldValue(base, addEdit));
+    expect((reverted.currencies ?? []).some((c) => c.name === 'Florins')).toBe(false);
   });
 });

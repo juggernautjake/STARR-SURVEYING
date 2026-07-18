@@ -19,7 +19,11 @@ function acEffectBonus(items: InvItem[]): { bonus: number; sources: string[] } {
   let bonus = 0
   const sources: string[] = []
   for (const it of items) {
-    if (!(it.equipped || it.attuned)) continue
+    // Active while equipped or attuned (the ItemBuilder's own "effects while equipped/attuned" rule).
+    // NB: honor the `equipped` TAG too, not just the flag — the ledger's isEquipped does, so an item
+    // equipped via tag was getting its STR bonus but not its AC bonus. (Whether attunement ALONE should
+    // activate effects is a separate, contested question — the ledger uses equipped-only; left as-is.)
+    if (!(it.equipped || it.tags?.includes('equipped') || it.attuned)) continue
     for (const e of it.effects ?? []) {
       if (e.target === 'ac' && e.operation === 'add' && typeof e.value === 'number') {
         bonus += e.value
@@ -34,8 +38,14 @@ function acEffectBonus(items: InvItem[]): { bonus: number; sources: string[] } {
  *  character's hand-set / unarmored value, used as the base when no body armor is equipped. */
 export function deriveAc(inventory: InvItem[] | undefined, dexMod: number, manualAc: number, activeEffects?: ActiveEffect[]): AcResult {
   const items = inventory ?? []
-  const bodyArmor = items.find((i) => i.kind === 'armor' && i.equipped && i.armor)
-  const shieldItem = items.find((i) => i.kind === 'shield' && i.equipped && i.armor)
+  // "Worn" = equipped by the flag OR by the 'equipped' TAG — the SAME predicate the ledger's isEquipped
+  // uses (and that acEffectBonus above already honors). Without this, a body armor equipped via the tag
+  // (as the rest of the engine recognizes it) had its +ac EFFECTS counted but its ARMOR BASE ignored, so
+  // the sheet showed the unarmored/manual AC instead of the armor's. Attuned-alone is NOT worn — you don't
+  // gain armor AC from attuning without donning it (and the attuned-effects question is tracked separately).
+  const isWorn = (i: InvItem) => i.equipped === true || i.tags?.includes('equipped') === true
+  const bodyArmor = items.find((i) => i.kind === 'armor' && isWorn(i) && i.armor)
+  const shieldItem = items.find((i) => i.kind === 'shield' && isWorn(i) && i.armor)
   const itemEff = acEffectBonus(items)
   // Active temporary effects (consumed buffs / DM boons) contribute their +ac too.
   let activeBonus = 0

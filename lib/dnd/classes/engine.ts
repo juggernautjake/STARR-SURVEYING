@@ -149,15 +149,20 @@ export function validateClassDefinition(def: ClassDefinition): ClassValidation[]
 }
 
 /**
- * 5e multiclass spell slots: add full-caster levels, HALF the half-caster levels (rounded down),
- * and a THIRD of third-caster levels, then read the full-caster table at that total. Pact slots
- * are tracked separately and never merge — that's the rule people get wrong most often.
+ * 5e multiclass spell slots: add full-caster levels, HALF the half-caster levels, and a THIRD of
+ * third-caster levels, then read the full-caster table at that total. Two rules people get wrong:
+ *   1. Pact slots are tracked separately and never merge.
+ *   2. Half casters round DOWN (Paladin/Ranger) — EXCEPT the Artificer, which rounds UP. So a part
+ *      must say which rounding it uses: pass `roundUp` (from the class's `spellcasting.roundHalfUp`)
+ *      for the Artificer. floor(1/2)=0 but ceil(1/2)=1, so an Artificer 1 already contributes a level.
  */
-export function multiclassCasterLevel(parts: { kind: ClassDefinition['spellcasting'] extends undefined ? never : NonNullable<ClassDefinition['spellcasting']>['kind']; level: number }[]): number {
+export function multiclassCasterLevel(
+  parts: { kind: NonNullable<ClassDefinition['spellcasting']>['kind']; level: number; roundUp?: boolean }[],
+): number {
   let total = 0;
   for (const p of parts) {
     if (p.kind === 'full') total += p.level;
-    else if (p.kind === 'half') total += Math.floor(p.level / 2);
+    else if (p.kind === 'half') total += p.roundUp ? Math.ceil(p.level / 2) : Math.floor(p.level / 2);
     else if (p.kind === 'third') total += Math.floor(p.level / 3);
   }
   return Math.min(20, total);

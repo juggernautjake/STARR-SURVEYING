@@ -35,11 +35,21 @@ describe('an item DC bonus composes with the caster base', () => {
   });
 });
 
-describe('SpellsPanel routes DC + attack through the ledger', () => {
-  it('computes both via value(target, base) rather than a bare formula', () => {
-    expect(PANEL).toContain("ledger.value('spell_save_dc'");
+describe('the spell save DC is a single store source (SpellsPanel header == castSpell)', () => {
+  const STORE = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_sheet/state/store.tsx'), 'utf8');
+
+  it('the store computes spellSaveDc once, folding the effect on top of (override ?? 8+PB+mod)', () => {
+    // The two used to fold the override + spell_save_dc effect in a DIFFERENT order, so a caster with
+    // BOTH an override and a Rod-of-the-Pact-Keeper effect saw a different DC in the header vs. on cast.
+    expect(STORE).toContain("ledger.value('spell_save_dc', char.combat.saveDCOverride ?? 8 + pb + scMod)");
+  });
+
+  it('both the SpellsPanel header and castSpell read that single source', () => {
+    expect(PANEL).toContain('const saveDC = spellSaveDc');
+    expect(STORE).toContain('const saveDC = spellSaveDc');
+  });
+
+  it('the spell ATTACK still routes through the ledger in the panel', () => {
     expect(PANEL).toContain("ledger.value('spell_attack'");
-    // the base still carries the caster override + 8+PB+mod.
-    expect(PANEL).toContain('char.combat.saveDCOverride ?? 8 + pb + mod');
   });
 });

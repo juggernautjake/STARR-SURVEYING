@@ -59,6 +59,21 @@ describe('the ledger imposes an identity, over an untouched base', () => {
     const led = buildLedger(out);
     expect(led.identity('name')).toBeNull(); // gone the moment it's off
   });
+
+  it('two items renaming you: LAST writer wins (identity is a choice, not a number to maximise)', () => {
+    // Numbers resolve highest-wins; identity is deliberately LAST-writer-wins (ledger.ts identity()) — two
+    // pendants both renaming you resolve to the one filed last (inventory order), sourced to it. A
+    // regression to first-wins or a numeric max (which would go NaN on strings) would pick the wrong name.
+    const c = blankCharacter('Wendol');
+    c.inventory = [
+      { id: 'p1', name: 'Pendant of Zul', desc: '', qty: 1, tags: [], equipped: true, effects: [{ target: 'name', operation: 'set', value: 'Zul' }] },
+      { id: 'p2', name: 'Mask of Kael', desc: '', qty: 1, tags: [], equipped: true, effects: [{ target: 'name', operation: 'set', value: 'Kael' }] },
+    ] as Character['inventory'];
+    const led = buildLedger(c);
+    expect(led.identity('name')).toEqual({ value: 'Kael', source: 'Mask of Kael' }); // the last one wins
+    // ...and BOTH contributions stay visible, so the panel/★ can show the conflict rather than hide it.
+    expect(led.explain('name')).toHaveLength(2);
+  });
 });
 
 describe('the Hero header renders the overlay, not the base, and stars it', () => {
@@ -136,9 +151,23 @@ describe('gender / pronouns / profession identity fields (Slice 11)', () => {
     expect(c.meta.profession).toBe('Farmer'); // overlay, base kept
   });
 
-  it('the Bio renders a Details line for the three fields, overlay-aware', () => {
+  it('an alignment overlay (Helm of Opposite Alignment) lights isModified — the ★ data trigger', () => {
+    // The Bio detail rows now carry the ★; it lights on isModified(target). A classic identity item —
+    // a Helm of Opposite Alignment sets `alignment` — must therefore be explainable, not a silent flip.
+    const c = blankCharacter('Paladin');
+    c.meta = { ...c.meta, alignment: 'Lawful Good' };
+    c.inventory = [{ id: 'helm', name: 'Helm of Opposite Alignment', desc: '', qty: 1, tags: [], equipped: true, effects: [{ target: 'alignment', operation: 'set', value: 'Chaotic Evil' }] }] as Character['inventory'];
+    const led = buildLedger(c);
+    expect(led.identity('alignment')?.value).toBe('Chaotic Evil');
+    expect(led.isModified('alignment')).toBe(true);
+    expect(c.meta.alignment).toBe('Lawful Good'); // overlay, base kept
+  });
+
+  it('the Bio renders a Details line for the four fields, overlay-aware AND starred', () => {
     const bio = read('app/dnd/_sheet/components/Bio.tsx');
     expect(bio).toContain("ledger.identity(field)?.value ?? char.meta[field]");
-    for (const f of ['Gender', 'Pronouns', 'Profession']) expect(bio).toContain(f);
+    for (const f of ['Gender', 'Pronouns', 'Profession', 'Alignment']) expect(bio).toContain(f);
+    // the overlaid value is wrapped in a ★ keyed to the field, like name/species/class in the Hero
+    expect(bio).toContain('<EffectStar target={d.key} label={d.label}>{detail(d.key) || \'—\'}</EffectStar>');
   });
 });

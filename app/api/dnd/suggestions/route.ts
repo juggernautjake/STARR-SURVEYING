@@ -4,7 +4,7 @@
 //          every /dnd page (including the login screen) so anonymous submits are allowed.
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { getDndSession } from '@/lib/dnd/auth';
+import { getDndSession, isDndOwner } from '@/lib/dnd/auth';
 
 const MAX_BODY = 4000;
 const MAX_NAME = 120;
@@ -13,21 +13,29 @@ export async function GET() {
   try {
     const { data, error } = await supabaseAdmin
       .from('dnd_suggestions')
-      .select('id, body, author_name, page_path, created_at')
+      .select('id, body, author_name, user_key, page_path, status, created_at')
       .order('created_at', { ascending: false });
     if (error) throw error;
+    const owner = isDndOwner(getDndSession());
     return NextResponse.json({
-      suggestions: ((data ?? []) as { id: string; body: string; author_name: string | null; page_path: string | null; created_at: string }[]).map((s) => ({
+      // Whether the current viewer may manage the board (delete/status) — drives the owner-only
+      // controls on the review page so a non-owner never sees a Delete button that would 403.
+      owner,
+      suggestions: ((data ?? []) as { id: string; body: string; author_name: string | null; user_key: string | null; page_path: string | null; status: string | null; created_at: string }[]).map((s) => ({
         id: s.id,
         body: s.body,
         authorName: s.author_name,
+        // The account handle (synthetic pseudo-login key) is only exposed to the owner reviewing
+        // the board — non-owners see just the display name, not everyone's login keys.
+        userKey: owner ? s.user_key : null,
         pagePath: s.page_path,
+        status: s.status ?? 'untouched',
         createdAt: s.created_at,
       })),
     });
   } catch {
     // Table not migrated yet → empty list rather than a 500 (graceful degradation).
-    return NextResponse.json({ suggestions: [] });
+    return NextResponse.json({ owner: isDndOwner(getDndSession()), suggestions: [] });
   }
 }
 
@@ -50,7 +58,7 @@ export async function POST(req: NextRequest) {
   try {
     const { data, error } = await supabaseAdmin
       .from('dnd_suggestions')
-      .insert({ body: text.slice(0, MAX_BODY), author_name: authorName, page_path: pagePath, user_id: session?.userId ?? null })
+      .insert({ body: text.slice(0, MAX_BODY), author_name: authorName, page_path: pagePath, user_id: session?.userId ?? null, user_key: session?.email ?? null })
       .select('id, created_at')
       .single();
     if (error || !data) throw error ?? new Error('insert failed');

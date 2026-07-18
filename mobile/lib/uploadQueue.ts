@@ -25,10 +25,15 @@
  */
 import * as FileSystem from 'expo-file-system';
 import { useEffect, useState } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 import { usePowerSync, useQuery } from '@powersync/react';
 import type { AbstractPowerSyncDatabase } from '@powersync/react-native';
 
+import { shouldDrainOnAppStateChange } from './appStateDrain';
+import { backoffMsForRetry } from './uploadBackoff';
+import { classifyUploadOutcome } from './uploadOutcome';
 import { logError, logInfo, logWarn } from './log';
+import { guessExtension } from './mediaPath';
 import { isOnWifiNow, isOnlineNow, subscribeToOnline } from './networkState';
 import { supabase } from './supabase';
 import { randomUUID } from './uuid';
@@ -39,10 +44,7 @@ const PENDING_DIR = 'pending-uploads';
 /** Cap retries — past this we leave the row queued but stop poking
  *  it on every network event. The user can re-attempt manually. */
 const MAX_RETRIES = 8;
-/** Backoff in ms — doubles per attempt up to ~5 min. The first
- *  retry fires ~5s after the initial failure; the 8th would fire
- *  ~10 min later if the queue ever got there. */
-const BACKOFF_MS = [5_000, 10_000, 20_000, 40_000, 80_000, 160_000, 300_000, 300_000];
+// Backoff schedule (5s → 5min ceiling) lives in the pure, tested uploadBackoff module.
 
 type ParentTable = 'receipts' | 'field_media' | 'job_files';
 
@@ -300,14 +302,11 @@ async function tryOne(
     });
 
   if (error) {
-    // Distinguish dupe vs transient: if the server already has the
-    // object (e.g. a prior session's upload succeeded but we never
-    // got the response back), Supabase returns "Duplicate" — that's
-    // a happy-path success for us.
-    const lower = error.message.toLowerCase();
-    const alreadyUploaded =
-      lower.includes('duplicate') || lower.includes('already exists');
-    if (alreadyUploaded) {
+    // Distinguish dupe vs transient (classifyUploadOutcome): if the server already has the object (e.g. a
+    // prior session's upload succeeded but we never got the response back), Supabase returns "Duplicate" —
+    // a happy-path success. Any OTHER error is transient → retry, so we NEVER delete a file the server
+    // didn't receive.
+    if (classifyUploadOutcome(error.message) === 'uploaded') {
       logInfo('uploadQueue.tryOne', 'already uploaded — treating as success', {
         pending_id: args.pendingId,
         storage_path: args.storagePath,
@@ -392,7 +391,7 @@ async function markRetry(
   errorMessage: string
 ): Promise<void> {
   const nextRetry = args.retryCount + 1;
-  const backoff = BACKOFF_MS[Math.min(args.retryCount, BACKOFF_MS.length - 1)];
+  const backoff = backoffMsForRetry(args.retryCount);
   const nextAttemptAt = Date.now() + backoff;
 
   // Field_media rows show a 'failed' badge on the thumbnail when the
@@ -496,19 +495,6 @@ async function persistFile(
   await FileSystem.copyAsync({ from: sourceUri, to: dest });
   logInfo(scope, 'persisted to documentDirectory', { dest });
   return dest;
-}
-
-function guessExtension(uri: string): string {
-  const lower = uri.toLowerCase();
-  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return '.jpg';
-  if (lower.endsWith('.png')) return '.png';
-  if (lower.endsWith('.heic')) return '.heic';
-  if (lower.endsWith('.webp')) return '.webp';
-  if (lower.endsWith('.mp4')) return '.mp4';
-  if (lower.endsWith('.mov')) return '.mov';
-  if (lower.endsWith('.m4a')) return '.m4a';
-  if (lower.endsWith('.mp3')) return '.mp3';
-  return '';
 }
 
 /**
@@ -774,6 +760,18 @@ export function useUploadQueueDrainer(): void {
       if (online) void drainOnce();
     });
 
+    // Foreground return — covers "the app was suspended in the
+    // background (JS timers throttled), the user reopens it": resume
+    // the queue immediately instead of waiting up to PROCESS_INTERVAL_MS.
+    // (Prompt resume; NOT background execution — that needs a native
+    // task and is bounded by the OS's background windows.)
+    let lastAppState: AppStateStatus = AppState.currentState;
+    const appStateSub = AppState.addEventListener('change', (next) => {
+      const prev = lastAppState;
+      lastAppState = next;
+      if (shouldDrainOnAppStateChange(prev, next)) void drainOnce();
+    });
+
     // Periodic — covers "Supabase had a partial outage, NetInfo
     // didn't notice."
     const interval = setInterval(() => void drainOnce(), PROCESS_INTERVAL_MS);
@@ -781,6 +779,7 @@ export function useUploadQueueDrainer(): void {
     return () => {
       mounted = false;
       unsub();
+      appStateSub.remove();
       clearInterval(interval);
     };
   }, [db]);

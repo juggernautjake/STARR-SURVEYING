@@ -9,12 +9,13 @@ import {
   type PF2Character, type PF2AttributeKey, type PF2Skill, type PF2Feat,
 } from './model';
 import {
-  PF2_SKILLS, pf2Class, pf2Ancestry, pf2Background,
-  type PF2ClassDef, type PF2AncestryDef,
+  PF2_SKILLS, pf2Class, pf2Ancestry, pf2Background, pf2Armor, pf2Weapon,
+  type PF2ClassDef, type PF2AncestryDef, type PF2WeaponDef,
 } from './content';
+import type { PF2Attack, PF2Rank } from './model';
 import type { Character } from '@/app/dnd/_sheet/types';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
-import { pf2MaxHp, pf2ArmorClass, pf2Derived } from './rules';
+import { pf2MaxHp, pf2ArmorClass, pf2Derived, pf2SpellSlots } from './rules';
 
 /** Apply a sequence of attribute boosts to a base modifier map, honoring the +4 partial-boost rule
  *  (at +4 or higher, a boost gives +½ — tracked here by only raising every other boost past +4). This
@@ -50,12 +51,29 @@ export interface PF2Picks {
   freeBoosts?: PF2AttributeKey[];
   /** Skills the player trained beyond the class's fixed skills. */
   trainedSkills?: string[];
+  /** Worn armor (a PF2_ARMORS name). Sets the AC item bonus + Dex cap; defaults to Unarmored. */
+  armor?: string;
+  /** A wielded weapon (a PF2_WEAPONS name) added as the primary Strike, alongside the default Fist. */
+  weapon?: string;
   languages?: string[];
   bio?: string;
   photoUrl?: string;
 }
 
 const ZERO = (): Record<PF2AttributeKey, number> => ({ STR: 0, DEX: 0, CON: 0, INT: 0, WIS: 0, CHA: 0 });
+
+const DAMAGE_TYPE: Record<'B' | 'P' | 'S', string> = { B: 'bludgeoning', P: 'piercing', S: 'slashing' };
+
+/** Turn a weapon into a Strike: ranged weapons and finesse melee use DEX when it beats STR; melee adds
+ *  STR to damage, ranged shows the die alone. The attack RANK is the character's class attack proficiency. */
+export function pf2WeaponStrike(w: PF2WeaponDef, attributes: Record<PF2AttributeKey, number>, rank: PF2Rank): PF2Attack {
+  const ranged = w.range > 0;
+  const finesse = w.traits.includes('finesse');
+  const attribute: PF2AttributeKey = ranged ? 'DEX' : finesse && attributes.DEX > attributes.STR ? 'DEX' : 'STR';
+  const str = attributes.STR;
+  const dmg = ranged ? `${w.damageDie} ${DAMAGE_TYPE[w.damageType]}` : `${w.damageDie}${str >= 0 ? '+' : ''}${str} ${DAMAGE_TYPE[w.damageType]}`;
+  return { id: `wpn-${w.name.toLowerCase().replace(/\s+/g, '-')}`, name: w.name, attribute, rank, weaponBonus: 0, damage: dmg, traits: w.traits };
+}
 
 /** Compute the level-1 attribute modifiers from ancestry + background + class + free boosts (when the UI
  *  didn't hand us final numbers). Free boosts must go to four DIFFERENT attributes per the rules. */
@@ -95,10 +113,19 @@ export function buildPF2Character(picks: PF2Picks): PF2Character {
   (picks.trainedSkills ?? []).forEach((s) => trained.add(s.toLowerCase()));
   const skills: PF2Skill[] = PF2_SKILLS.map((s) => ({
     name: s.name, attribute: s.attribute, rank: trained.has(s.name.toLowerCase()) ? 'trained' : 'untrained', itemBonus: 0,
+    armorPenalty: !!s.armorPenalty,
   }));
 
   const init = cls?.initial;
   const con = attributes.CON;
+  const armor = pf2Armor(picks.armor || 'Unarmored');
+  // Meeting the armor's Strength requirement reduces the speed penalty by 5 ft (to a min of 0); not
+  // meeting it applies the full penalty. (Check penalty is likewise waived when met — deferred to the
+  // skill-penalty slice.)
+  const meetsStr = armor ? attributes.STR >= armor.strength : true;
+  const speedPenalty = armor ? (meetsStr ? Math.min(0, armor.speedPenalty + 5) : armor.speedPenalty) : 0;
+  // The check penalty is waived entirely when the Strength requirement is met.
+  const armorCheckPenalty = armor && !meetsStr ? armor.checkPenalty : 0;
 
   const feats: PF2Feat[] = [];
   if (cls) feats.push({ id: 'cls-key', name: `${cls.name} (${cls.subclassLabel})`, level: 1, track: 'feature', traits: [cls.name], body: cls.summary });
@@ -124,17 +151,21 @@ export function buildPF2Character(picks: PF2Picks): PF2Character {
       classHpPerLevel: cls?.hpPerLevel ?? 8,
       currentHp: (anc?.hp ?? 8) + ((cls?.hpPerLevel ?? 8) + con) * level,
       tempHp: 0, dyingValue: 0, woundedValue: 0,
-      speed: anc?.speed ?? 25,
-      armorRank: init?.defense ?? 'trained', dexCap: null, acItemBonus: 0,
+      speed: (anc?.speed ?? 25) + speedPenalty,
+      armorRank: init?.defense ?? 'trained', dexCap: armor ? armor.dexCap : null, acItemBonus: armor?.acBonus ?? 0, armorName: armor?.name || 'Unarmored', armorCheckPenalty,
       attackRank: init?.attacks ?? 'trained',
       classDcRank: init?.classDc ?? 'trained', classDcAttribute: keyAttr,
     },
-    attacks: [{ id: 'unarmed', name: 'Fist', attribute: 'STR', rank: init?.attacks ?? 'trained', weaponBonus: 0, damage: '1d4 bludgeoning', traits: ['agile', 'finesse', 'nonlethal', 'unarmed'] }],
+    attacks: [
+      ...(picks.weapon && pf2Weapon(picks.weapon) ? [pf2WeaponStrike(pf2Weapon(picks.weapon)!, attributes, init?.attacks ?? 'trained')] : []),
+      { id: 'unarmed', name: 'Fist', attribute: 'STR', rank: init?.attacks ?? 'trained', weaponBonus: 0, damage: '1d4 bludgeoning', traits: ['agile', 'finesse', 'nonlethal', 'unarmed'] },
+    ],
     spellcasting: cls?.spellcasting
-      ? { tradition: cls.spellcasting.tradition, kind: cls.spellcasting.kind, attribute: cls.spellcasting.attribute, rank: 'trained', slots: [5] }
+      ? { tradition: cls.spellcasting.tradition, kind: cls.spellcasting.kind, attribute: cls.spellcasting.attribute, rank: 'trained', slots: pf2SpellSlots(level) }
       : { tradition: 'none', kind: 'none', attribute: keyAttr, rank: 'untrained', slots: [] },
     feats,
     languages: [...new Set([...(anc?.languages ?? ['Common']), ...(picks.languages ?? [])])],
+    senses: anc?.senses ? [anc.senses] : [],
   };
 }
 

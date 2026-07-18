@@ -11,13 +11,13 @@ import type { Character } from '@/app/dnd/_sheet/types';
 
 function fixture(): Character {
   const c = blankCharacter('Rangor');
-  c.meta = { ...c.meta, species: 'Ragnar', className: 'Barbarian', subclass: 'Path of the Juggernaut', level: 7 };
+  c.meta = { ...c.meta, species: 'Ragnar', className: 'Barbarian', subclass: 'Path of the Juggernaut', level: 7, background: 'Soldier', alignment: 'Chaotic Good' };
   c.abilities = { ...c.abilities, str: 18, dex: 14, con: 16, int: 8, wis: 12, cha: 10 };
   c.combat = { ...c.combat, ac: 17, maxHp: 68, currentHp: 41, tempHp: 5, speed: 30, exhaustion: 1, conditions: ['grappled'] } as Character['combat'];
   c.saves = { ...c.saves, str: { proficient: true, misc: 0 }, con: { proficient: true, misc: 0 } };
   c.skills = { ...c.skills, athletics: { prof: 'expertise', misc: 0 }, survival: { prof: 'proficient', misc: 0 } };
   c.resources = [{ id: 'r1', name: 'Momentum', current: 2, max: 4, resetOn: 'long' }] as Character['resources'];
-  c.attacks = [{ id: 'a1', name: 'Cross Counter', range: 'melee 5 ft', damage: '1d8+4', damageType: 'bludgeoning' }] as Character['attacks'];
+  c.attacks = [{ id: 'a1', name: 'Cross Counter', ability: 'str', proficient: true, range: 'melee 5 ft', damage: '1d8', damageType: 'bludgeoning' }] as Character['attacks'];
   c.features = [
     { id: 'f1', name: 'Living Momentum', source: 'Ragnar', body: ['Once per turn, when you move 10 feet in a straight line you gain a stacking bonus.'], unlockLevel: 1 },
     { id: 'f2', name: 'Unstoppable Force', source: 'Ragnar', body: ['You cannot be knocked prone while conscious.'], unlockLevel: 1 },
@@ -29,11 +29,19 @@ function fixture(): Character {
 describe('characterDigest carries the sheet, not a generic character', () => {
   const d = characterDigest(fixture(), 'dnd-5e-2024');
 
-  it('names the character, its build and its system', () => {
+  it('names the character, its build, system, background and alignment', () => {
     expect(d).toContain('NAME: Rangor');
     expect(d).toContain('Barbarian');
     expect(d).toContain('Path of the Juggernaut');
     expect(d).toContain('LEVEL: 7');
+    expect(d).toContain('Background: Soldier');
+    expect(d).toContain('Alignment: Chaotic Good');
+  });
+
+  it('omits the background/alignment line when the character has neither (no empty scaffolding)', () => {
+    const out = characterDigest(blankCharacter('Blank'), 'dnd-5e-2024');
+    expect(out).not.toContain('Background:');
+    expect(out).not.toContain('Alignment:');
   });
 
   it('carries ability scores WITH their modifiers (the numbers rulings turn on)', () => {
@@ -44,7 +52,7 @@ describe('characterDigest carries the sheet, not a generic character', () => {
   it('carries current state, not just maximums — an in-play ruling needs what is true now', () => {
     expect(d).toContain('HP 41/68 (+5 temp)');
     expect(d).toContain('AC 17');
-    expect(d).toContain('Exhaustion 1');
+    expect(d).toContain('Exhaustion 1 (−2 to all d20 rolls)'); // the penalty the sheet actually applies
   });
 
   it('states conditions explicitly, including their absence', () => {
@@ -55,7 +63,7 @@ describe('characterDigest carries the sheet, not a generic character', () => {
   });
 
   it('carries proficiencies, resources and attacks', () => {
-    expect(d).toMatch(/SAVE PROFICIENCIES: .*STR.*CON/);
+    expect(d).toMatch(/SAVES: .*STR [+-]\d+\*.*CON [+-]\d+\*/); // save bonuses, proficient ones starred
     expect(d).toContain('athletics (expertise)');
     expect(d).toContain('Momentum 2/4');
     expect(d).toContain('Cross Counter');
@@ -106,6 +114,10 @@ describe('adjudicationInstruction demands honesty over confidence', () => {
   it('forbids inventing anything the sheet does not have', () => {
     expect(i).toMatch(/Never invent a feature, a number, or a resource/);
   });
+  it('tells the AI the numbers are already effective, so it does not double-count a folded-in bonus', () => {
+    expect(i).toMatch(/current EFFECTIVE values/);
+    expect(i).toMatch(/do NOT re-add a bonus/);
+  });
 });
 
 describe('the digest reports LEDGER-resolved numbers, not the stored base (Slice 15)', () => {
@@ -123,12 +135,14 @@ describe('the digest reports LEDGER-resolved numbers, not the stored base (Slice
     const d = characterDigest(belted(), 'dnd-5e-2024');
     expect(d).toMatch(/STR 22 \(\+6\) \[base 18\]/);   // effective, with base flagged
     expect(d).not.toMatch(/STR 18 \(\+4\) ·/);          // the raw base is NOT what's reported
+    expect(d).toMatch(/SAVES: STR \+9\*/);              // proficient STR save = +6 (eff) + 3 (PB), effective
     expect(d).toContain('ACTIVE EFFECTS: Belt of the Bear, Striding Boots');
   });
 
   it('folds walk speed too, base noted', () => {
+    // fixture() carries Exhaustion 1 (−5 ft), so base 30 + 10 boots − 5 exhaustion = 35.
     const d = characterDigest(belted(), 'dnd-5e-2024');
-    expect(d).toMatch(/Speed 40 ft \[base 30\]/);
+    expect(d).toMatch(/Speed 35 ft \[base 30\]/);
   });
 
   it('reports the DERIVED AC (equipped armour + AC effects), base noted when it differs', () => {
@@ -141,11 +155,166 @@ describe('the digest reports LEDGER-resolved numbers, not the stored base (Slice
     expect(d).toMatch(/AC 18 \[base 17\]/);
   });
 
+  it('reports attack to-hit from the EFFECTIVE ability + proficiency', () => {
+    function withStr(boost: boolean): Character {
+      const c = fixture();
+      c.combat = { ...c.combat, exhaustion: 0 };
+      c.attacks = [{ id: 'gs', name: 'Greatsword', ability: 'str', proficient: true, range: 'melee 5 ft', damage: '2d6', damageType: 'slashing' }] as Character['attacks'];
+      if (boost) {
+        c.inventory = [{ id: 'belt', name: 'Belt of the Bear', desc: '', qty: 1, tags: [], equipped: true, effects: [{ target: 'ability_str', operation: 'set', value: 22 }] }] as Character['inventory'];
+      }
+      return c;
+    }
+    const plain = characterDigest(withStr(false), 'dnd-5e-2024');
+    const boosted = characterDigest(withStr(true), 'dnd-5e-2024');
+    // Damage folds the ability mod the sheet adds automatically: 2d6 + STR.
+    expect(plain).toMatch(/Greatsword \([+-]\d+ to hit, melee 5 ft, 2d6[+-]\d+ slashing\)/);
+    const th = (s: string) => Number(s.match(/Greatsword \(([+-]\d+) to hit/)![1]);
+    const dmg = (s: string) => Number(s.match(/2d6([+-]\d+) slashing/)![1]);
+    expect(th(boosted)).toBe(th(plain) + 2); // STR 18 → 22 is +2 to the mod
+    expect(dmg(boosted)).toBe(dmg(plain) + 2); // damage mod rises with STR too
+  });
+
+  it('reports Passive Perception + Initiative from the EFFECTIVE WIS/DEX', () => {
+    function withBoosts(on: boolean): Character {
+      const c = fixture();
+      c.combat = { ...c.combat, exhaustion: 0 };
+      if (on) {
+        c.inventory = [
+          { id: 'w', name: 'Cap of Insight', desc: '', qty: 1, tags: [], equipped: true, effects: [{ target: 'ability_wis', operation: 'add', value: 4 }] },
+          { id: 'd', name: 'Cloak of Reflexes', desc: '', qty: 1, tags: [], equipped: true, effects: [{ target: 'ability_dex', operation: 'add', value: 4 }] },
+        ] as Character['inventory'];
+      }
+      return c;
+    }
+    const plain = characterDigest(withBoosts(false), 'dnd-5e-2024');
+    const boosted = characterDigest(withBoosts(true), 'dnd-5e-2024');
+    expect(plain).toMatch(/Passive Perception \d+/);
+    expect(plain).toMatch(/Initiative [+-]\d+/);
+    const pp = (s: string) => Number(s.match(/Passive Perception (\d+)/)![1]);
+    const init = (s: string) => Number(s.match(/Initiative ([+-]\d+)/)![1]);
+    expect(pp(boosted)).toBe(pp(plain) + 2);     // +4 WIS → +2 mod
+    expect(init(boosted)).toBe(init(plain) + 2); // +4 DEX → +2 mod
+  });
+
+  it('reports the spell save DC + attack from the EFFECTIVE spellcasting ability', () => {
+    // A caster with base INT 10; the boosted variant equips an item SETTING INT to 20 (+5 mod). The
+    // reported Spell Save DC / attack must rise by 5 — i.e. it reads the effective ability, not the base.
+    function caster(withItem: boolean): Character {
+      const c = fixture();
+      c.combat = { ...c.combat, exhaustion: 0 };
+      c.abilities = { ...c.abilities, int: 10 };
+      c.spellcasting = { ability: 'int', slots: { 1: { current: 2, max: 2 } } } as Character['spellcasting'];
+      if (withItem) {
+        c.inventory = [
+          { id: 'hb', name: 'Headband of Intellect', desc: '', qty: 1, tags: [], equipped: true, effects: [{ target: 'ability_int', operation: 'set', value: 20 }] },
+        ] as Character['inventory'];
+      }
+      return c;
+    }
+    const plain = characterDigest(caster(false), 'dnd-5e-2024');
+    const boosted = characterDigest(caster(true), 'dnd-5e-2024');
+    expect(plain).toMatch(/SPELLCASTING: INT · Spell Save DC \d+ · Spell Attack [+-]\d+/);
+    const dc = (s: string) => Number(s.match(/Spell Save DC (\d+)/)![1]);
+    const atk = (s: string) => Number(s.match(/Spell Attack ([+-]\d+)/)![1]);
+    expect(dc(boosted)).toBe(dc(plain) + 5);   // INT 10 → 20 is +5 to the mod
+    expect(atk(boosted)).toBe(atk(plain) + 5);
+  });
+
   it('a vanilla character shows no base annotations and no ACTIVE EFFECTS line', () => {
-    const d = characterDigest(fixture(), 'dnd-5e-2024');
+    // Truly vanilla: no item/spell effects AND no exhaustion (which now legitimately reduces speed).
+    const c = fixture();
+    c.combat = { ...c.combat, exhaustion: 0 };
+    const d = characterDigest(c, 'dnd-5e-2024');
     expect(d).not.toContain('[base ');
     expect(d).not.toContain('ACTIVE EFFECTS:');
     expect(d).toMatch(/STR 18 \(\+4\)/); // the base IS the effective value here
+  });
+
+  it('folds save/attack/damage effects so the AI sees the same numbers the sheet does', () => {
+    // A Cloak of Protection (+1 all saves) + a +1-to-all-attacks item. The digest must report the
+    // folded numbers, matching the sheet's now-folding rolls — otherwise the AI would misadjudicate.
+    const c = blankCharacter('Warded');
+    c.abilities = { ...c.abilities, dex: 10, str: 10 };
+    c.saves = { ...c.saves, dex: { proficient: false, misc: 0 } } as Character['saves'];
+    c.attacks = [{ id: 'sw', name: 'Sword', ability: 'str', proficient: true, damage: '1d8', damageType: 'slashing', range: 'melee' }] as Character['attacks'];
+    c.inventory = [{
+      id: 'cloak', name: 'Cloak of Protection', desc: '', qty: 1, tags: [], equipped: true,
+      effects: [{ target: 'all_saves', operation: 'add', value: 1 }, { target: 'attack_and_damage', operation: 'add', value: 1 }],
+    }] as Character['inventory'];
+    const d = characterDigest(c, 'dnd-5e-2024');
+    expect(d).toMatch(/DEX \+1/); // 0 base + 1 all_saves
+    expect(d).toMatch(/Sword \(\+\d/); // to-hit includes the +1 attack_and_damage (prof 2 + 1 = +3)
+  });
+});
+
+describe('the digest carries effect-derived movement, senses and defenses (Slice 11)', () => {
+  // These render on the sheet's Combat panel (fly/swim/climb/burrow, Senses, the Defenses card) but were
+  // absent from the AI's copy of the sheet — so a ruling on "can you fly to the ledge?" / "do you see in
+  // the dark?" / "do you take fire damage?" would be blind to capabilities the player can plainly see.
+  function equipped(effects: { target: string; operation: string; value: number | string }[]): Character {
+    const c = fixture();
+    c.combat = { ...c.combat, exhaustion: 0 };
+    c.inventory = [
+      { id: 'x', name: 'Wondrous Item', desc: '', qty: 1, tags: [], equipped: true, effects },
+    ] as Character['inventory'];
+    return c;
+  }
+
+  it('reports a granted fly/swim/climb speed, only once it exists', () => {
+    const plain = characterDigest(fixture(), 'dnd-5e-2024');
+    expect(plain).not.toContain('Movement '); // no non-walking modes → no line at all
+    const d = characterDigest(equipped([
+      { target: 'speed_fly', operation: 'set', value: 60 },
+      { target: 'speed_swim', operation: 'set', value: 30 },
+    ]), 'dnd-5e-2024');
+    expect(d).toMatch(/Movement .*fly 60 ft/);
+    expect(d).toMatch(/swim 30 ft/);
+  });
+
+  it('reports granted senses (the "do you see in the dark?" fact)', () => {
+    const d = characterDigest(equipped([
+      { target: 'grant_sense', operation: 'set', value: 'darkvision 60 ft' },
+    ]), 'dnd-5e-2024');
+    expect(d).toMatch(/Senses .*darkvision 60 ft/);
+  });
+
+  it('reports damage resistance / immunity / vulnerability, kept distinct from condition immunity', () => {
+    const d = characterDigest(equipped([
+      { target: 'resistance', operation: 'resistance', value: 'fire' },
+      { target: 'immunity', operation: 'immunity', value: 'poison' },
+      { target: 'vulnerability', operation: 'vulnerability', value: 'cold' },
+      { target: 'condition_immunity', operation: 'immunity', value: 'frightened' },
+    ]), 'dnd-5e-2024');
+    expect(d).toMatch(/DEFENSES:/);
+    expect(d).toMatch(/Resistant: fire/);
+    expect(d).toMatch(/Immune: poison/);          // damage immunity
+    expect(d).toMatch(/Vulnerable: cold/);
+    expect(d).toMatch(/Immune to conditions: frightened/); // NOT lumped with the damage immunity
+  });
+
+  it('reports a granted movement trait (hover / ignores difficult terrain), presence = the effect', () => {
+    const d = characterDigest(equipped([
+      { target: 'hover', operation: 'set', value: 1 },
+      { target: 'ignore_difficult_terrain', operation: 'set', value: 1 },
+    ]), 'dnd-5e-2024');
+    expect(d).toMatch(/Movement traits: .*can hover/);
+    expect(d).toMatch(/ignores difficult terrain/);
+  });
+
+  it('reports advantage on saves vs a named condition (Dwarven Resilience etc.), not auto-applied', () => {
+    const d = characterDigest(equipped([
+      { target: 'condition_advantage', operation: 'condition_advantage', value: 'poison' },
+    ]), 'dnd-5e-2024');
+    expect(d).toMatch(/DEFENSES:.*Advantage on saves vs: poison/);
+  });
+
+  it('a character with none of these gets no Movement/Senses/DEFENSES noise', () => {
+    const d = characterDigest((() => { const c = fixture(); c.combat = { ...c.combat, exhaustion: 0 }; return c; })(), 'dnd-5e-2024');
+    expect(d).not.toContain('Movement ');
+    expect(d).not.toContain('Movement traits:');
+    expect(d).not.toContain('Senses ');
+    expect(d).not.toContain('DEFENSES:');
   });
 });
 

@@ -4,6 +4,7 @@
 // Pure data — safe to import server-side (the character-create API seeds it).
 import type { Character } from '../types';
 import { ABILITIES, SKILLS, type AbilityKey } from '../rules/dnd';
+import { defaultCurrencies } from '@/lib/dnd/currency';
 
 const ABILITY_KEYS = ABILITIES.map((a) => a.key) as AbilityKey[];
 
@@ -53,6 +54,7 @@ export function blankCharacter(name: string): Character {
     progression: [],
     inventory: [],
     currency: { credits: 0, harmonyte: 0, scrip: 0 },
+    currencies: defaultCurrencies(),
     bio: { intro: [], appearance: [], personality: [], background: '', playTips: [] },
     balance: { synergies: [], weaknesses: [] },
     dmNote: '',
@@ -131,6 +133,10 @@ export function normalizeCharacter(d: unknown): Character {
     balance,
     bio: { ...base.bio, ...(src.bio ?? {}) },
     currency: { ...base.currency, ...(src.currency ?? {}) },
+    // Only NEW sheets (seeded from blankCharacter, so stored WITH `currencies`) use the flexible money
+    // model; legacy stored sheets have no `currencies` and keep their fixed `currency` display. So we
+    // preserve exactly what was stored rather than letting the base default leak onto old characters.
+    currencies: Array.isArray(src.currencies) ? src.currencies : undefined,
     abilities: { ...base.abilities, ...(src.abilities ?? {}) },
     saves: { ...base.saves, ...(src.saves ?? {}) },
     skills: { ...base.skills, ...(src.skills ?? {}) },

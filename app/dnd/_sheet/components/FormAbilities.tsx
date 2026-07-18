@@ -3,10 +3,13 @@ import { abilityMod } from '../rules/dnd'
 import SectionHead from './ui/SectionHead'
 
 export default function FormAbilities() {
-  const { char, pb, activeFormId, useFormAbility, rollDmg } = useChar()
+  const { char, abilities, pb, activeFormId, useFormAbility, rollDmg } = useChar()
   const form = char.forms.find((f) => f.id === activeFormId)
   const surged = char.combat.transformActive
-  const saveDC = 8 + pb + abilityMod(char.abilities.str)
+  // Effective STR (Slice 10/25): when transformed, `abilities` already folds the form's imposed STR
+  // (a Titan form sets STR to 25) plus items — so the form's ability DC uses the form's strength, not
+  // the base character's.
+  const saveDC = 8 + pb + abilityMod(abilities.str)
 
   if (!form?.abilities?.length) return null
 

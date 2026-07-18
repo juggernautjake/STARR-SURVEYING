@@ -45,6 +45,26 @@ describe('IG rules math (full-sheet Slice 2)', () => {
     expect(igResolveAttack(c, atk).damage).toBe('2d6+6');
   });
 
+  it('folds a flat bonusToHit and bonusDamage (a magic weapon\'s +N) — the other fixtures use +0', () => {
+    // Both bonus terms are 0 in the STR-melee and ranged tests, so a regression dropping them would lose
+    // every magic IG weapon's flat bonus and still pass. Exercise them on an otherwise-plain weapon.
+    const c = blankIGCharacter('Fighter'); c.identity.level = 2; c.abilities.STR = 10; // +0
+    const magic = { id: 'm', name: 'Flametongue', weaponType: 'Melee', properties: '', proficient: false, weaponFocus: false, weaponSpecialization: false, ability: 'STR' as const, bonusToHit: 3, bonusDamage: 2, damage: '1d8' };
+    expect(igAttackBonus(magic, 2, 0)).toBe(3);            // 0 mod + 0 prof + 0 focus + bonusToHit 3
+    expect(igDamageBonus(magic, 0)).toBe(2);               // 0 str mod + 0 spec + bonusDamage 2
+    expect(igResolveAttack(c, magic).damage).toBe('1d8+2');
+  });
+
+  it('a ranged/non-STR attack adds its ability to the to-HIT but NOT to damage (only STR melee does)', () => {
+    // The `strMelee ? abilityMod : 0` branch: a DEX bow's +3 reaches the attack roll but never the damage —
+    // so a regression that added the ability to ALL damage would over-count ranged/finesse weapons.
+    const c = blankIGCharacter('Archer'); c.identity.level = 4; c.abilities.DEX = 16; // +3
+    const bow = { id: 'b', name: 'Longbow', weaponType: 'Ranged', properties: '', proficient: true, weaponFocus: false, weaponSpecialization: false, ability: 'DEX' as const, bonusToHit: 0, bonusDamage: 0, damage: '1d8' };
+    expect(igAttackBonus(bow, 4, igAbilityMod(c.abilities.DEX))).toBe(7); // DEX(+3) + proficiency(4)
+    expect(igDamageBonus(bow, igAbilityMod(c.abilities.DEX))).toBe(0);    // ranged → no ability mod to damage
+    expect(igResolveAttack(c, bow).damage).toBe('1d8');                   // bare die, no bonus appended
+  });
+
   it('degrees of success (±10, nat 20 up / nat 1 down)', () => {
     expect(igDegreeOfSuccess(25, 15)).toBe('critical-success'); // beat by 10
     expect(igDegreeOfSuccess(16, 15)).toBe('success');
@@ -52,6 +72,17 @@ describe('IG rules math (full-sheet Slice 2)', () => {
     expect(igDegreeOfSuccess(5, 15)).toBe('critical-failure'); // miss by 10
     expect(igDegreeOfSuccess(16, 15, 1)).toBe('failure');        // nat 1 knocks success → failure
     expect(igDegreeOfSuccess(14, 15, 20)).toBe('success');       // nat 20 lifts failure → success
+  });
+
+  it('a natural 20/1 shifts exactly ONE degree and CLAMPS at the ends (no out-of-bounds degree)', () => {
+    // The step-shift ladder + its bounds — the crit-boundary clamps that a missing min(3,…)/max(0,…) would
+    // break, indexing the degree array out of range to `undefined`. nat 20 lifts each rung but never past
+    // critical-success; nat 1 drops each but never below critical-failure.
+    expect(igDegreeOfSuccess(16, 15, 20)).toBe('critical-success'); // success → crit-success
+    expect(igDegreeOfSuccess(25, 15, 20)).toBe('critical-success'); // already crit — clamps, not beyond
+    expect(igDegreeOfSuccess(14, 15, 1)).toBe('critical-failure');  // failure → crit-failure
+    expect(igDegreeOfSuccess(5, 15, 1)).toBe('critical-failure');   // already crit-fail — clamps at 0
+    expect(igDegreeOfSuccess(15, 15, 20)).toBe('critical-success'); // exactly meets DC (success) → crit on nat 20
   });
 
   it('max HP = Class+Background HP + CON mod × level; derived summary is coherent', () => {

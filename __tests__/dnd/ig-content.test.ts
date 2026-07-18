@@ -2,16 +2,38 @@
 // covers the system's content (IG builder Slice 1). It is the recognition key for provenance flagging.
 import { describe, it, expect } from 'vitest';
 import {
-  IG_STANCES, IG_FEATS, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES, IG_MOVEMENT_TYPES,
-  igIsVanilla, igVanillaNames, igContentSummary,
+  IG_STANCES, IG_STANCE_DEFS, IG_STANCE_RULES, IG_FEATS, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES,
+  IG_MOVEMENT_TYPES, IG_CONDITIONS, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_SPELL_ROSTER,
+  igIsVanilla, igVanillaNames, igContentSummary, findIGAncestry, igAllSpellNames, igSpellsMissingEffects,
+  igPowersNotInRoster,
 } from '@/lib/dnd/systems/intuitive-games/content';
-import { systemRulesBlock } from '@/lib/dnd/system-rules';
+import { IG_GENERAL_FEATS, IG_COMBAT_FEATS, igAllFeats, findIGFeat } from '@/lib/dnd/systems/intuitive-games/feats';
+import { systemRulesBlock, systemConditions, systemSpecies } from '@/lib/dnd/system-rules';
 
 describe('Intuitive Games vanilla content library (Slice 1)', () => {
   it('has the 10 stances, each with an effect', () => {
     expect(IG_STANCES).toHaveLength(10);
     for (const s of IG_STANCES) { expect(s.name).toBeTruthy(); expect(s.effect).toBeTruthy(); }
     expect(IG_STANCES.map((s) => s.name)).toEqual(expect.arrayContaining(['Offensive', 'Defensive', 'Precise', 'Menacing']));
+  });
+
+  it('has structured Basic/Advanced stance defs (verbatim from the site) that back the NamedEntry list', () => {
+    expect(IG_STANCE_DEFS).toHaveLength(10);
+    for (const s of IG_STANCE_DEFS) {
+      expect(s.name).toBeTruthy();
+      expect(s.basic.length).toBeGreaterThan(5);
+      expect(s.advanced.length).toBeGreaterThan(5);
+    }
+    // IG_STANCES must be derived from the defs (names line up, effect carries both tiers).
+    expect(IG_STANCES.map((s) => s.name)).toEqual(IG_STANCE_DEFS.map((s) => s.name));
+    const offensive = IG_STANCE_DEFS.find((s) => s.name === 'Offensive')!;
+    expect(offensive.basic).toMatch(/advantage on all attack rolls/i);
+    expect(offensive.advanced).toMatch(/half your level/i);
+    const defensive = IG_STANCE_DEFS.find((s) => s.name === 'Defensive')!;
+    expect(defensive.advanced).toMatch(/Damage Reduction/i);
+    // The general rules are captured (one at a time, action to enter, Basic below L5 / Advanced at L5+).
+    expect(IG_STANCE_RULES).toMatch(/Only one stance can be active/i);
+    expect(IG_STANCE_RULES).toMatch(/below Level 5/i);
   });
 
   it('has the powers grouped by school and the defensive powers', () => {
@@ -42,6 +64,102 @@ describe('Intuitive Games vanilla content library (Slice 1)', () => {
     expect(igVanillaNames('spell')).toEqual(igVanillaNames('power')); // spell is an alias for power
   });
 
+  it('has all 18 conditions with full mechanical text, matching the system condition list (no drift)', () => {
+    expect(IG_CONDITIONS).toHaveLength(18);
+    for (const c of IG_CONDITIONS) {
+      expect(c.name).toBeTruthy();
+      expect(c.effect && c.effect.length).toBeGreaterThan(20); // a real body, not a stub
+    }
+    // The names must exactly match systemConditions() so the classifier/tracker and the library agree.
+    expect(IG_CONDITIONS.map((c) => c.name)).toEqual(systemConditions('intuitive-games'));
+    // Spot-check a couple of verbatim mechanics from intuitivegames.net/conditions.
+    const grappled = IG_CONDITIONS.find((c) => c.name === 'Grappled');
+    expect(grappled?.effect).toMatch(/flat-footed/i);
+    expect(grappled?.effect).toMatch(/cannot take any actions which require two hands/i);
+    const flatFooted = IG_CONDITIONS.find((c) => c.name === 'Flat-Footed');
+    expect(flatFooted?.effect).toMatch(/until they take an action in combat/i);
+  });
+
+  it('has all 10 ancestries, each with two verbatim traits, matching the system species list (no drift)', () => {
+    expect(IG_ANCESTRIES).toHaveLength(10);
+    for (const a of IG_ANCESTRIES) {
+      expect(a.name).toBeTruthy();
+      expect(a.blurb.length).toBeGreaterThan(10);
+      expect(a.traits).toHaveLength(2);
+      for (const t of a.traits) { expect(t.name).toBeTruthy(); expect(t.text.length).toBeGreaterThan(15); }
+    }
+    // Names must match systemSpecies() so the builder/classifier and the library agree.
+    expect(IG_ANCESTRIES.map((a) => a.name)).toEqual(systemSpecies('intuitive-games'));
+    // Spot-check verbatim mechanics.
+    const dwarf = IG_ANCESTRIES.find((a) => a.name === 'Dwarf')!;
+    expect(dwarf.traits.find((t) => t.name === 'Cave Vision')?.text).toMatch(/darkvision out to a range of 30 feet/i);
+    const leshonki = IG_ANCESTRIES.find((a) => a.name === 'Leshonki')!;
+    expect(leshonki.traits.find((t) => t.name === 'Barkskin')?.text).toMatch(/DR 2, which stacks/i);
+    expect(IG_ANCESTRY_TRAIT_RULES).toMatch(/cannot be retrained/i);
+    // findIGAncestry resolves case/space-insensitively and returns null for unknowns.
+    expect(findIGAncestry('  gnome ')?.name).toBe('Gnome');
+    expect(findIGAncestry('Not An Ancestry')).toBeNull();
+    expect(findIGAncestry(null)).toBeNull();
+  });
+
+  it('has the full general-feats catalog (83) with prerequisites + effect, and the classifier knows them', () => {
+    expect(IG_GENERAL_FEATS.length).toBeGreaterThanOrEqual(83);
+    for (const f of IG_GENERAL_FEATS) {
+      expect(f.name).toBeTruthy();
+      expect(f.category).toBe('General');
+      expect(f.effect.length).toBeGreaterThan(15);
+      expect(['General', 'Skill', 'Special', 'Ability']).toContain(f.group);
+    }
+    // The previously-"suspect" names ARE real site feats (Special/Ability sections) — must be present.
+    for (const real of ['Boundless Stamina', 'Daring Quickness', 'Inspiring Insight', 'Fleet', 'Toughness']) {
+      expect(IG_GENERAL_FEATS.some((f) => f.name === real)).toBe(true);
+    }
+    // The provenance classifier recognizes every authored feat (so a real feat isn't flagged custom).
+    expect(igIsVanilla('feat', 'Fleet')).toBe(true);
+    expect(igIsVanilla('feat', 'Quick Caster')).toBe(true);
+    expect(igIsVanilla('feat', 'My Invented Feat')).toBe(false);
+  });
+
+  it('has the full combat-feats catalog (68 incl. Mythic Stances, Styles, Mastery) with effect text', () => {
+    expect(IG_COMBAT_FEATS.length).toBeGreaterThanOrEqual(68);
+    for (const f of IG_COMBAT_FEATS) {
+      expect(f.category).toBe('Combat');
+      expect(f.effect.length).toBeGreaterThan(15);
+    }
+    // The four combat sub-groups are all represented.
+    for (const g of ['Combat', 'Mythic Stance', 'Style', 'Mastery']) {
+      expect(IG_COMBAT_FEATS.some((f) => f.group === g)).toBe(true);
+    }
+    expect(IG_COMBAT_FEATS.some((f) => f.name === 'Mythic Stance: Dragon Stance')).toBe(true);
+    expect(IG_COMBAT_FEATS.some((f) => f.name === 'Style: Wild Combat')).toBe(true);
+    // The classifier knows combat feats too.
+    expect(igIsVanilla('feat', 'Cleave')).toBe(true);
+    expect(igIsVanilla('feat', 'Power Attack')).toBe(true);
+    // igAllFeats combines both pages.
+    expect(igAllFeats().length).toBe(IG_GENERAL_FEATS.length + IG_COMBAT_FEATS.length);
+    // findIGFeat resolves case/space-insensitively for the sheet tooltip, null for unknowns.
+    expect(findIGFeat('  fleet ')?.effect).toMatch(/10 additional feet/i);
+    expect(findIGFeat('Not A Feat')).toBeNull();
+  });
+
+  it('recognizes the full site spell roster as vanilla (not just the effect-carrying powers)', () => {
+    expect(igAllSpellNames().length).toBeGreaterThanOrEqual(50);
+    expect(IG_SPELL_ROSTER.Evocation).toContain('Wave Crash');
+    // Spells from the site roster that aren't in the old IG_POWERS are STILL recognized vanilla.
+    expect(igIsVanilla('spell', 'Named Bullet')).toBe(true);
+    expect(igIsVanilla('power', 'Wave Crash')).toBe(true);
+    expect(igIsVanilla('spell', 'Mirror Image')).toBe(true); // one that IS in IG_POWERS too
+    expect(igIsVanilla('spell', 'My Homebrew Spell')).toBe(false);
+    // The missing-effects helper reports roster spells lacking effect text (a real, non-empty gap today).
+    const missing = igSpellsMissingEffects();
+    expect(missing).toContain('Named Bullet');
+    expect(missing).not.toContain('Mirror Image'); // this one has effect text in IG_POWERS
+    // The REVERSE discrepancy: template powers not on the current site roster (for owner reconciliation).
+    const reverse = igPowersNotInRoster();
+    expect(reverse).toContain('Mage Armor'); // template power not in the site's current spell list
+    expect(reverse).not.toContain('Dispel Magic'); // this IS on the roster
+  });
+
   it('the content summary exposes every kind and grounding lists the vanilla options', () => {
     const summary = igContentSummary();
     expect(Object.keys(summary)).toEqual(expect.arrayContaining(['stance', 'power', 'feat', 'defensive-power', 'weapon-type', 'movement-type']));
@@ -49,5 +167,30 @@ describe('Intuitive Games vanilla content library (Slice 1)', () => {
     expect(block).toMatch(/Stances \(adopt one/);
     expect(block).toMatch(/Elemental Blast/);
     expect(block).toMatch(/Defensive Powers: /);
+  });
+
+  it('the AI grounding block carries the FULL IG rules text (so the AI explains/edits from IG source only)', () => {
+    const block = systemRulesBlock('intuitive-games');
+    // Stances: full Basic/Advanced text, not just names.
+    expect(block).toMatch(/Defensive Stance: Basic \(below Lv 5\)/);
+    expect(block).toMatch(/Damage Reduction equal to half your level/i);
+    // Conditions: the exact IG effect, flagged as IG-specific (never another system's version).
+    expect(block).toMatch(/use these EXACT Intuitive Games effects/i);
+    expect(block).toMatch(/Grappled: .*two hands/i);
+    // Ancestries: each with its two traits' full text.
+    expect(block).toMatch(/Dwarf: Cave Vision — Gain darkvision/i);
+    expect(block).toMatch(/Barkskin — You always have DR 2/i);
+    // The additional mechanics the AI adjudicates are grounded too.
+    expect(block).toMatch(/Taking damage:.*Fortitude save/i);
+    expect(block).toMatch(/Combat skills:.*Reflex save/i);
+    expect(block).toMatch(/Redistribution \(Conduit\):/);
+    expect(block).toMatch(/Backgrounds .*Soldier \(Menacing\)/);
+    // Companion creatures: the advancement rule + each of the 4 types (so a ruling on a Beastmaster's
+    // beast or a Summoner's elemental grounds on the real IG companion rules, not another system's pet).
+    expect(block).toMatch(/Companion creatures .*gain HP each level equal to 2/i);
+    expect(block).toMatch(/Beast Companion \(Beastmaster\):/);
+    expect(block).toMatch(/Elemental \(Summoner\):/);
+    expect(block).toMatch(/Familiar \(Eldritch Binder\):/);
+    expect(block).toMatch(/Swarm \(Packmaster\):/);
   });
 });

@@ -11,7 +11,6 @@ export default function DndJoinPage() {
   const code = String(params?.code ?? '');
 
   const [displayName, setDisplayName] = useState('');
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -26,10 +25,12 @@ export default function DndJoinPage() {
     setBusy(true);
     setError(null);
     try {
+      // Name + password only — the platform doesn't collect an email (Slice 36). The name is the
+      // identity; the invite `code` attaches this new account to the campaign.
       const res = await fetch('/api/dnd/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, email, password, displayName }),
+        body: JSON.stringify({ code, name: displayName, password }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -68,24 +69,12 @@ export default function DndJoinPage() {
           </label>
 
           <label className={styles.field}>
-            <span className={styles.label}>Email</span>
-            <input
-              className={styles.input}
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </label>
-
-          <label className={styles.field}>
             <span className={styles.label}>Password</span>
             <input
               className={styles.input}
               type="password"
               autoComplete="new-password"
-              minLength={8}
+              minLength={4}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -98,7 +87,7 @@ export default function DndJoinPage() {
               className={styles.input}
               type="password"
               autoComplete="new-password"
-              minLength={8}
+              minLength={4}
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               required

@@ -68,6 +68,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_county_portal_configs_updated_at ON county_portal_configs;
 CREATE TRIGGER trg_county_portal_configs_updated_at
   BEFORE UPDATE ON county_portal_configs
   FOR EACH ROW EXECUTE FUNCTION update_county_portal_configs_updated_at();
@@ -79,6 +80,7 @@ CREATE TRIGGER trg_county_portal_configs_updated_at
 ALTER TABLE county_portal_configs ENABLE ROW LEVEL SECURITY;
 
 -- Authenticated users can read active configs
+DROP POLICY IF EXISTS county_portal_configs_select_authenticated ON county_portal_configs;
 CREATE POLICY county_portal_configs_select_authenticated
   ON county_portal_configs
   FOR SELECT
@@ -86,6 +88,7 @@ CREATE POLICY county_portal_configs_select_authenticated
   USING (is_active = true);
 
 -- Service role (used by admin API routes) can perform all operations
+DROP POLICY IF EXISTS county_portal_configs_all_service_role ON county_portal_configs;
 CREATE POLICY county_portal_configs_all_service_role
   ON county_portal_configs
   FOR ALL

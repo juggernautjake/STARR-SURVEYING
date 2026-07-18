@@ -56,9 +56,10 @@ describe('theme tokens drive every accent (no hardcoded palette literals)', () =
       if (!m) continue;
       // Legitimately exempt:
       //  · .skin-* blocks — a bespoke skin may commit to its own fixed look
+      //  · [data-dice-style] — the dice-roller styles (Area D), bespoke tray looks like a skin
       //  · .stream-* / .sd-* — the streamer dock, which is a fixed dark chrome on every skin
       //  · ::selection — text on a solid accent fill
-      if (/skin-|stream|\.sd-|::selection/.test(selector)) continue;
+      if (/skin-|data-dice-style|stream|\.sd-|::selection/.test(selector)) continue;
       offenders.push(`${i + 1}: ${selector} → ${line.trim()}`);
     }
     expect(offenders, `hardcoded text colours in the shared sheet (use var(--ink) or an accent token):\n${offenders.join('\n')}`).toEqual([]);

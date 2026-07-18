@@ -86,6 +86,41 @@ export function equip(items: EquipItem[], id: string, on = true): EquipItem[] {
 }
 export const unequip = (items: EquipItem[], id: string): EquipItem[] => equip(items, id, false);
 
+// ── Equip validation: the hard slot rules D&D shares ────────────────────────────────────────────
+// A shield is `kind: 'shield'` or an armor entry whose armorType is 'shield'; body armour is any
+// other armor. Two-handed weapons and shields fight over the off-hand. Where a system has no rule
+// we return ok — this only enforces the universally-hard ones (Slice 10: "where a system has a hard
+// rule, enforce it; where it doesn't, allow it and let the panel show the truth").
+const isShieldItem = (x: EquipItem): boolean => x.kind === 'shield' || x.armor?.armorType === 'shield';
+const isBodyArmorItem = (x: EquipItem): boolean => x.kind === 'armor' && x.armor?.armorType !== 'shield';
+const isTwoHandedItem = (x: EquipItem): boolean => x.kind === 'weapon' && !!x.weapon?.properties?.includes('two-handed');
+
+/** Whether `id` can be EQUIPPED right now, given what is already equipped. Enforces one body armour
+ *  at a time, one shield, and two-handed-vs-shield mutual exclusion. Re-equipping something already on
+ *  is a harmless no-op (ok). Pure — pair with `equip` (or `equipChecked`) for the UI. */
+export function canEquip(items: EquipItem[], id: string): { ok: boolean; reason?: string } {
+  const it = items.find((i) => i.id === id);
+  if (!it) return { ok: false, reason: 'No such item.' };
+  if (it.equipped) return { ok: true }; // already equipped — no slot conflict to create
+  const others = items.filter((x) => x.equipped && x.id !== id);
+  if (isBodyArmorItem(it) && others.some(isBodyArmorItem)) {
+    return { ok: false, reason: 'Already wearing body armor — unequip it first.' };
+  }
+  if (isShieldItem(it)) {
+    if (others.some(isShieldItem)) return { ok: false, reason: 'Already using a shield.' };
+    if (others.some(isTwoHandedItem)) return { ok: false, reason: 'Cannot use a shield while wielding a two-handed weapon.' };
+  }
+  if (isTwoHandedItem(it) && others.some(isShieldItem)) {
+    return { ok: false, reason: 'Cannot wield a two-handed weapon while using a shield.' };
+  }
+  return { ok: true };
+}
+
+/** Equip only if the slot rules allow it (no-op otherwise — pair with `canEquip` for UI messaging). */
+export function equipChecked(items: EquipItem[], id: string): EquipItem[] {
+  return canEquip(items, id).ok ? equip(items, id) : items;
+}
+
 export function attunedCount(items: EquipItem[]): number {
   return items.filter((it) => it.attuned).length;
 }
@@ -112,15 +147,32 @@ export const itemsWeight = (items: EquipItem[]): number =>
 export const totalWeight = (items: EquipItem[], currency?: Currency): number =>
   itemsWeight(items) + (currency ? coinWeight(currency) : 0);
 
-/** 2024 carrying capacity = STR × 15 (lb). */
-export const carryingCapacity = (strScore: number): number => strScore * 15;
+/** The 5e size multiplier for carrying capacity / lifting: Tiny ×½, Small/Medium ×1, Large ×2, Huge ×4,
+ *  Gargantuan ×8. Unknown/blank size defaults to ×1 (Medium). Case-insensitive; "Powerful Build" is
+ *  modelled by the caller passing the one-size-larger value. This is what makes `size` mechanical, not
+ *  cosmetic — a Large creature carries twice what its Strength alone would suggest. */
+export function sizeCapacityMultiplier(size?: string | null): number {
+  switch ((size ?? '').trim().toLowerCase()) {
+    case 'tiny': return 0.5;
+    case 'large': return 2;
+    case 'huge': return 4;
+    case 'gargantuan': return 8;
+    default: return 1; // small / medium / unknown
+  }
+}
+
+/** 2024 carrying capacity = STR × 15 (lb), scaled by the creature's size (Tiny ½ … Gargantuan ×8). */
+export const carryingCapacity = (strScore: number, size?: string | null): number =>
+  strScore * 15 * sizeCapacityMultiplier(size);
 
 export type Encumbrance = 'none' | 'encumbered' | 'heavily' | 'over';
-/** Variant encumbrance thresholds: STR×5 encumbered, STR×10 heavily, STR×15 over-capacity. */
-export function encumbranceLevel(weight: number, strScore: number): Encumbrance {
-  if (weight > strScore * 15) return 'over';
-  if (weight > strScore * 10) return 'heavily';
-  if (weight > strScore * 5) return 'encumbered';
+/** Variant encumbrance thresholds: STR×5 encumbered, STR×10 heavily, STR×15 over-capacity — each scaled
+ *  by the size multiplier, so a Large character isn't "over" at a Medium character's weights. */
+export function encumbranceLevel(weight: number, strScore: number, size?: string | null): Encumbrance {
+  const m = sizeCapacityMultiplier(size);
+  if (weight > strScore * 15 * m) return 'over';
+  if (weight > strScore * 10 * m) return 'heavily';
+  if (weight > strScore * 5 * m) return 'encumbered';
   return 'none';
 }
 

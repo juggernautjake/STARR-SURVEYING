@@ -232,6 +232,10 @@ export interface InvItem {
   /** Event-triggered reactions this item carries while equipped (Slice 15) — spiked armour that hits
    *  back, a shield that frightens. Surfaced (not auto-applied) when their event fires. */
   triggers?: Trigger[]
+  /** Weight in lb per unit (Slice 11 carrying capacity). Optional — items without a weight count as 0,
+   *  so the running total only reflects gear the player actually weighed. Feeds the Inventory carrying
+   *  line together with the size-scaled `carryingCapacity`/`encumbranceLevel`. */
+  weight?: number
   /** Hand-tuned away from how it was (Slice 20) → drives the ✎ marker. */
   customized?: boolean
 }
@@ -338,6 +342,7 @@ export interface Character {
     gender?: string
     pronouns?: string
     profession?: string
+    alignment?: string
     /** The chosen 2024 mechanical BACKGROUND (a key into lib/dnd/backgrounds) — distinct from the
      *  narrative `bio.background` prose. In 2024 this is what grants the ability increases + Origin
      *  feat + skills + tool (Slice 4). */
@@ -461,7 +466,20 @@ export interface Character {
    *  rather than in a global registry so a campaign's vocabulary travels with its sheets and
    *  nobody has to curate a shared list. */
   customTags?: CustomTag[]
+  /** Legacy fixed-key money (kept for existing sheets). New sheets use `currencies` below. */
   currency: { credits: number; harmonyte: number; scrip: number }
+  /** Flexible money: a list of named currencies with amounts + conversion rates (a rate = value of
+   *  one unit in BASE units; the base currency is rate 1). Optional so legacy sheets stay valid; when
+   *  present, the sheet renders this (amounts, total wealth, conversion table) instead of `currency`.
+   *  See lib/dnd/currency.ts for the math. */
+  currencies?: import('@/lib/dnd/currency').Currency[]
+  /** Homebrew classes saved to this character (Slice 5). The registry resolves them as `extra` so a
+   *  custom class appears in the level builder like an official one. See lib/dnd/classes/homebrew-store. */
+  homebrewClasses?: import('@/lib/dnd/classes/types').ClassDefinition[]
+  /** Homebrew feats saved to this character (Slice 5). */
+  homebrewFeats?: import('@/lib/dnd/classes/custom').CustomFeat[]
+  /** Homebrew subclasses saved to this character (Slice 5). The registry resolves them via `extra`. */
+  homebrewSubclasses?: import('@/lib/dnd/classes/types').SubclassDefinition[]
   bio: {
     intro: string[]
     appearance: string[]

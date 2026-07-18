@@ -12,7 +12,8 @@ import {
   clampLevel,
 } from '@/lib/dnd/classes/engine';
 import { buildCustomClass, reviewCustomClass, buildCustomFeat, reviewCustomFeat, normalisePerLevel, type CustomClassDraft } from '@/lib/dnd/classes/custom';
-import { FULL_CASTER_SLOTS, HALF_CASTER_SLOTS, THIRD_CASTER_SLOTS, PACT_SLOTS, PACT_RANK } from '@/lib/dnd/classes/slots';
+import { FULL_CASTER_SLOTS, HALF_CASTER_SLOTS, THIRD_CASTER_SLOTS, PACT_SLOTS, PACT_RANK, MYSTIC_ARCANUM_LEVEL } from '@/lib/dnd/classes/slots';
+import { findClass } from '@/lib/dnd/classes/registry';
 import type { ClassDefinition } from '@/lib/dnd/classes/types';
 
 describe('proficiency bonus + HP maths', () => {
@@ -50,11 +51,67 @@ describe('spell slot tables', () => {
     expect(FULL_CASTER_SLOTS[16][9]).toBe(0);
   });
 
+  it('every spell rank arrives at exactly its odd level (a new rank at 3,5,7,…,17), 0 the level before', () => {
+    // Rank R first appears at level 2R−1: rank 2 at L3, rank 3 at L5, … rank 9 at L17. A single-cell typo
+    // here gives casters a spell rank too early or late — the most impactful kind of slot-table error.
+    for (let rank = 2; rank <= 9; rank++) {
+      const arrival = 2 * rank - 1;
+      expect(FULL_CASTER_SLOTS[arrival][rank], `rank ${rank} should arrive at level ${arrival}`).toBeGreaterThanOrEqual(1);
+      expect(FULL_CASTER_SLOTS[arrival - 1][rank], `rank ${rank} should NOT exist at level ${arrival - 1}`).toBe(0);
+    }
+    // The capstone row: a level-20 full caster has 4/3/3/3/3/2/2/1/1 across ranks 1–9.
+    expect(FULL_CASTER_SLOTS[20].slice(1)).toEqual([4, 3, 3, 3, 3, 2, 2, 1, 1]);
+  });
+
   it('half casters get nothing at level 1 and cap at rank 5', () => {
     expect(HALF_CASTER_SLOTS[1].slice(1).every((n) => n === 0)).toBe(true);
     expect(HALF_CASTER_SLOTS[2][1]).toBe(2);
     expect(HALF_CASTER_SLOTS[20][5]).toBe(2);
     expect(HALF_CASTER_SLOTS[20][6]).toBe(0); // never reaches rank 6
+  });
+
+  it('half-caster spell ranks arrive at 2/5/9/13/17 (rank R>1 at level 4R−3), 0 the level before', () => {
+    // Paladin/Ranger: 1st rank at L2, then a new rank at 5, 9, 13, 17. An off-by-one gives them spells
+    // several levels early/late — as impactful as the full-caster arrivals.
+    expect(HALF_CASTER_SLOTS[2][1]).toBeGreaterThanOrEqual(1); // rank 1 at L2
+    for (let rank = 2; rank <= 5; rank++) {
+      const arrival = 4 * rank - 3; // 5, 9, 13, 17
+      expect(HALF_CASTER_SLOTS[arrival][rank], `rank ${rank} should arrive at level ${arrival}`).toBeGreaterThanOrEqual(1);
+      expect(HALF_CASTER_SLOTS[arrival - 1][rank], `rank ${rank} should NOT exist at level ${arrival - 1}`).toBe(0);
+    }
+  });
+
+  // Golden reference: the ARRIVAL guards above catch a rank appearing at the wrong level, and the corner
+  // checks catch the endpoints — but neither pins the intermediate COUNTS (e.g. a typo making L11's rank-1
+  // "3" instead of "4"). These tables drive EVERY caster, so pin every cell against the RAW PHB values
+  // (identical in 2014 and 2024). A change to slots.ts must intentionally update this golden copy.
+  it('the FULL-caster table matches the PHB at EVERY level (rank 1–9)', () => {
+    const GOLDEN: Record<number, number[]> = {
+      1: [2, 0, 0, 0, 0, 0, 0, 0, 0], 2: [3, 0, 0, 0, 0, 0, 0, 0, 0], 3: [4, 2, 0, 0, 0, 0, 0, 0, 0],
+      4: [4, 3, 0, 0, 0, 0, 0, 0, 0], 5: [4, 3, 2, 0, 0, 0, 0, 0, 0], 6: [4, 3, 3, 0, 0, 0, 0, 0, 0],
+      7: [4, 3, 3, 1, 0, 0, 0, 0, 0], 8: [4, 3, 3, 2, 0, 0, 0, 0, 0], 9: [4, 3, 3, 3, 1, 0, 0, 0, 0],
+      10: [4, 3, 3, 3, 2, 0, 0, 0, 0], 11: [4, 3, 3, 3, 2, 1, 0, 0, 0], 12: [4, 3, 3, 3, 2, 1, 0, 0, 0],
+      13: [4, 3, 3, 3, 2, 1, 1, 0, 0], 14: [4, 3, 3, 3, 2, 1, 1, 0, 0], 15: [4, 3, 3, 3, 2, 1, 1, 1, 0],
+      16: [4, 3, 3, 3, 2, 1, 1, 1, 0], 17: [4, 3, 3, 3, 2, 1, 1, 1, 1], 18: [4, 3, 3, 3, 3, 1, 1, 1, 1],
+      19: [4, 3, 3, 3, 3, 2, 1, 1, 1], 20: [4, 3, 3, 3, 3, 2, 2, 1, 1],
+    };
+    for (let lvl = 1; lvl <= 20; lvl++) {
+      expect(FULL_CASTER_SLOTS[lvl].slice(1), `full caster level ${lvl}`).toEqual(GOLDEN[lvl]);
+    }
+  });
+
+  it('the HALF-caster table matches the PHB at EVERY level (Paladin/Ranger, ranks 1–5)', () => {
+    const GOLDEN: Record<number, number[]> = {
+      1: [0, 0, 0, 0, 0], 2: [2, 0, 0, 0, 0], 3: [3, 0, 0, 0, 0], 4: [3, 0, 0, 0, 0], 5: [4, 2, 0, 0, 0],
+      6: [4, 2, 0, 0, 0], 7: [4, 3, 0, 0, 0], 8: [4, 3, 0, 0, 0], 9: [4, 3, 2, 0, 0], 10: [4, 3, 2, 0, 0],
+      11: [4, 3, 3, 0, 0], 12: [4, 3, 3, 0, 0], 13: [4, 3, 3, 1, 0], 14: [4, 3, 3, 1, 0], 15: [4, 3, 3, 2, 0],
+      16: [4, 3, 3, 2, 0], 17: [4, 3, 3, 3, 1], 18: [4, 3, 3, 3, 1], 19: [4, 3, 3, 3, 2], 20: [4, 3, 3, 3, 2],
+    };
+    for (let lvl = 1; lvl <= 20; lvl++) {
+      // Half casters never exceed rank 5, so ranks 6–9 must all be 0, and ranks 1–5 match the PHB.
+      expect(HALF_CASTER_SLOTS[lvl].slice(1, 6), `half caster level ${lvl} (ranks 1–5)`).toEqual(GOLDEN[lvl]);
+      expect(HALF_CASTER_SLOTS[lvl].slice(6).every((n) => n === 0), `half caster level ${lvl} has no rank 6+`).toBe(true);
+    }
   });
 
   it('third casters start at 3 and cap at rank 4', () => {
@@ -64,6 +121,31 @@ describe('spell slot tables', () => {
     expect(THIRD_CASTER_SLOTS[20][5]).toBe(0);
   });
 
+  it('third-caster spell ranks arrive at 3/7/13/19, 0 the level before', () => {
+    // Eldritch Knight / Arcane Trickster: rank 1 at L3, rank 2 at L7, rank 3 at L13, rank 4 at L19.
+    const arrivals: Record<number, number> = { 1: 3, 2: 7, 3: 13, 4: 19 };
+    for (const [rankStr, lvl] of Object.entries(arrivals)) {
+      const rank = Number(rankStr);
+      expect(THIRD_CASTER_SLOTS[lvl][rank], `rank ${rank} should arrive at level ${lvl}`).toBeGreaterThanOrEqual(1);
+      if (lvl > 1) expect(THIRD_CASTER_SLOTS[lvl - 1][rank], `rank ${rank} should NOT exist at level ${lvl - 1}`).toBe(0);
+    }
+  });
+
+  it('the THIRD-caster table matches the PHB at EVERY level (EK/AT, ranks 1–4)', () => {
+    // Golden reference (completes the full/half/pact set): the arrival guards above catch a rank appearing
+    // at the wrong level, but not the intermediate COUNTS. Third casters cap at rank 4, so ranks 5–9 = 0.
+    const GOLDEN: Record<number, number[]> = {
+      1: [0, 0, 0, 0], 2: [0, 0, 0, 0], 3: [2, 0, 0, 0], 4: [3, 0, 0, 0], 5: [3, 0, 0, 0], 6: [3, 0, 0, 0],
+      7: [4, 2, 0, 0], 8: [4, 2, 0, 0], 9: [4, 2, 0, 0], 10: [4, 3, 0, 0], 11: [4, 3, 0, 0], 12: [4, 3, 0, 0],
+      13: [4, 3, 2, 0], 14: [4, 3, 2, 0], 15: [4, 3, 2, 0], 16: [4, 3, 3, 0], 17: [4, 3, 3, 0], 18: [4, 3, 3, 0],
+      19: [4, 3, 3, 1], 20: [4, 3, 3, 1],
+    };
+    for (let lvl = 1; lvl <= 20; lvl++) {
+      expect(THIRD_CASTER_SLOTS[lvl].slice(1, 5), `third caster level ${lvl} (ranks 1–4)`).toEqual(GOLDEN[lvl]);
+      expect(THIRD_CASTER_SLOTS[lvl].slice(5).every((n) => n === 0), `third caster level ${lvl} has no rank 5+`).toBe(true);
+    }
+  });
+
   it('pact magic is a different shape — few slots, highest rank', () => {
     expect(PACT_SLOTS[1]).toBe(1);
     expect(PACT_SLOTS[2]).toBe(2);
@@ -71,6 +153,21 @@ describe('spell slot tables', () => {
     expect(PACT_SLOTS[17]).toBe(4);
     expect(PACT_RANK[9]).toBe(5);
     expect(PACT_RANK[20]).toBe(5); // never past rank 5 — Mystic Arcanum covers 6-9
+  });
+
+  // Golden reference for the Warlock's two bespoke tables (like the full/half golden guards). The spot
+  // checks above catch the corners but not the RANK-transition levels — a typo shifting when a slot rank
+  // kicks in (rank 2 at L3, 3 at L5, 4 at L7, 5 at L9) or a slot-count boundary would slip. Index 0 unused.
+  it('the full PACT_SLOTS + PACT_RANK tables match the PHB at every level', () => {
+    // Slots: 1 at L1, 2 through L10, 3 at L11–16, 4 at L17–20.
+    expect(PACT_SLOTS).toEqual([0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4]);
+    // Rank: rises 1→5 across L1–9 (a new rank every 2 levels), then holds at 5.
+    expect(PACT_RANK).toEqual([0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5]);
+  });
+
+  it('Mystic Arcanum gives ranks 6–9 at levels 11/13/15/17 (unguarded before)', () => {
+    // A typo here would hand the Warlock its capstone 9th-rank Arcanum at the wrong level.
+    expect(MYSTIC_ARCANUM_LEVEL).toEqual({ 6: 11, 7: 13, 8: 15, 9: 17 });
   });
 });
 
@@ -84,6 +181,35 @@ describe('multiclass caster level', () => {
 
   it('pact levels never merge into the slot table', () => {
     expect(multiclassCasterLevel([{ kind: 'pact', level: 5 }])).toBe(0);
+  });
+
+  it('the Artificer half-caster rounds UP (ceil), unlike Paladin/Ranger which round down', () => {
+    // The famous exception: an Artificer contributes ceil(level/2) to the multiclass caster level.
+    // Odd levels are where it diverges — Artificer 1 already contributes a level; a round-down half
+    // caster contributes none until level 2.
+    expect(multiclassCasterLevel([{ kind: 'half', level: 1, roundUp: true }])).toBe(1); // ceil(1/2)=1, not 0
+    expect(multiclassCasterLevel([{ kind: 'half', level: 3, roundUp: true }])).toBe(2); // ceil(3/2)=2, not 1
+    expect(multiclassCasterLevel([{ kind: 'half', level: 5, roundUp: true }])).toBe(3); // ceil(5/2)=3, not 2
+    // vs a Paladin/Ranger at the same level (round down) — the default, unchanged.
+    expect(multiclassCasterLevel([{ kind: 'half', level: 5 }])).toBe(2);
+    // Artificer 3 / Wizard 3 → ceil(3/2)=2 + 3 = caster level 5 (would be 4 if it wrongly rounded down).
+    expect(multiclassCasterLevel([{ kind: 'half', level: 3, roundUp: true }, { kind: 'full', level: 3 }])).toBe(5);
+    // Two half-casters that round OPPOSITELY in one character (Artificer up, Paladin down) — the exact case
+    // the per-part flag exists for. Each rounding applies to ITS OWN level, never the combined total:
+    // rounding the total would give ceil(2/2)=1 or floor(2/2)=1 for A1+P1, hiding the divergence.
+    expect(multiclassCasterLevel([{ kind: 'half', level: 1, roundUp: true }, { kind: 'half', level: 1 }])).toBe(1); // 1 + 0
+    expect(multiclassCasterLevel([{ kind: 'half', level: 3, roundUp: true }, { kind: 'half', level: 3 }])).toBe(3); // 2 + 1
+  });
+
+  it('the Artificer class definition carries the round-up flag so a caller can pass roundUp', () => {
+    // The rounding is a property of the class, recorded at the source (not hardcoded in the caller).
+    const artificer = findClass('dnd5e-2014', 'artificer');
+    expect(artificer?.spellcasting?.kind).toBe('half');
+    expect(artificer?.spellcasting?.roundHalfUp).toBe(true);
+    // A true round-DOWN half caster (Ranger) must NOT carry the flag, or it would round up too.
+    const ranger = findClass('dnd5e-2014', 'ranger');
+    expect(ranger?.spellcasting?.kind).toBe('half');
+    expect(ranger?.spellcasting?.roundHalfUp).toBeFalsy();
   });
 });
 

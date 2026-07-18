@@ -9,6 +9,7 @@
 // components — a follow-up; this pins the resolution + the mechanical overlay.
 import { describe, it, expect } from 'vitest';
 import { buildLedger, imposedTransform } from '@/lib/dnd/effects/ledger';
+import { describeEffect } from '@/lib/dnd/effects/targets';
 import { applySheetEdits, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character, CharForm } from '@/app/dnd/_sheet/types';
@@ -37,6 +38,20 @@ const potion: SheetEdit = {
   equipped: true,
   effects: [{ target: 'transform', operation: 'set', value: 'bear' }],
 } as SheetEdit;
+
+describe('a transform reads legibly wherever effects are described (Active Effects panel + ★)', () => {
+  it('describeEffect renders a transform as a readable line, not a bare target key', () => {
+    // The Active Effects panel (Slice 12) and the ★ tooltip (Slice 13) both label effects through the
+    // shared describeEffect. A transform is a `set` on the `transform` (ref) target, so it must read
+    // "Transform into another form: <form>" — the "why is my AC 11 while I'm a bear" answer the doc
+    // requires on the sheet — not a blank line or the raw "transform" key.
+    expect(describeEffect({ target: 'transform', operation: 'set', value: 'Brown Bear' }))
+      .toBe('Transform into another form: Brown Bear');
+    // …and it carries the per-effect condition gate like every other effect line.
+    expect(describeEffect({ target: 'transform', operation: 'set', value: 'Brown Bear', condition: 'raging' }))
+      .toBe('Transform into another form: Brown Bear (while raging)');
+  });
+});
 
 describe('a transform effect imposes a form, resolved by the ledger', () => {
   it('imposedTransform / ledger.transform() name the form and its source', () => {
@@ -71,6 +86,38 @@ describe('a transform effect imposes a form, resolved by the ledger', () => {
     const led = buildLedger(c);
     expect(led.transform()).toBeNull();          // nothing IMPOSED it
     expect(led.value('ability_str', 10)).toBe(19); // ...but the active form still applies
+  });
+});
+
+describe('the ledger never mutates the stored character (anti-permanent-bear, at the resolver)', () => {
+  // The two-field check above ("activeFormId stays base, STR stays 10") is the symptom; this is the
+  // guarantee it rides on. Part II's one architectural rule is that effects are OVERLAYS, never baked
+  // into the base — so buildLedger, which every render calls, must not write a single field of its
+  // input. If a future refactor ever cached derived state back onto the character, these fail loudly,
+  // and THAT is the bug that leaves a druid permanently a bear.
+  const clone = (c: Character): Character => JSON.parse(JSON.stringify(c));
+
+  it('leaves its input byte-identical in the base form', () => {
+    const c = druid();
+    const before = clone(c);
+    buildLedger(c);
+    expect(c).toEqual(before);
+  });
+
+  it('leaves its input byte-identical while an imposed transform is active', () => {
+    const out = applySheetEdits(druid(), [potion]); // the potion imposes the bear form
+    const before = clone(out);
+    const led = buildLedger(out);
+    expect(led.transform()).not.toBeNull(); // we really are transformed…
+    expect(out).toEqual(before); // …and the stored sheet is untouched
+  });
+
+  it('leaves its input byte-identical while in your OWN bear form', () => {
+    const c = druid();
+    c.activeFormId = 'bear';
+    const before = clone(c);
+    buildLedger(c);
+    expect(c).toEqual(before);
   });
 });
 

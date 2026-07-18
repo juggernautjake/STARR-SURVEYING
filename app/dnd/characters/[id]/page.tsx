@@ -34,6 +34,9 @@ import LibraryChat from '@/app/dnd/_ui/LibraryChat';
 import AddToDemoButton from '@/app/dnd/_ui/AddToDemoButton';
 import { dndAiConfigured } from '@/lib/dnd/ai';
 import { DEMO_CAMPAIGN_ID } from '@/lib/dnd/constants';
+import { resolvePreferences, type EffectivePreferences } from '@/lib/dnd/preferences';
+import { readCampaignPreferences } from '@/lib/dnd/campaign-preferences';
+import HouseRulesPanel from '@/app/dnd/_ui/HouseRulesPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,6 +47,16 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
   const res = await getCharacterAccess(params.id);
   if (!res.access) redirect('/dnd'); // no access → back to the hub
   const { character, isDM, canWrite } = res.access;
+
+  // Effective preferences (Area P2c) — the campaign's DM settings, resolved for this player, fed to the sheet
+  // store so configurable mechanics (long-rest model, …) actually follow the campaign's house rules. Player-
+  // side overrides (P2b) aren't stored yet, so the player object is empty → the campaign values win (with any
+  // DM lock). No campaign → undefined → the store's vanilla default.
+  let effectivePreferences: EffectivePreferences | undefined;
+  if (character.campaign_id) {
+    const { data: campPrefRow } = await supabaseAdmin.from('dnd_campaigns').select('theme').eq('id', character.campaign_id).maybeSingle();
+    effectivePreferences = resolvePreferences(readCampaignPreferences((campPrefRow as { theme?: unknown } | null)?.theme));
+  }
 
   // Submission/approval panel (IG builder Slice 5): show the custom/vanilla content summary + submit
   // (owner) / review (DM) controls for any character in a campaign. The provenance is computed live so
@@ -105,7 +118,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
     if (isIGCharacter(igData)) {
       const dmGranted = (Array.isArray(character.dm_granted) ? character.dm_granted : []) as { kind?: ElementKind; name: string; grantedBy?: string | null; mechanics?: string | null }[];
       const summary = summarizeCharacterProvenance((character.data as unknown as Character | null) ?? blankCharacter(character.name), 'intuitive-games', dmGranted);
-      igSheet = <IGSheet ig={igData} elements={summary.elements} />;
+      igSheet = <IGSheet ig={igData} elements={summary.elements} canEdit={canWrite} characterId={character.id} />;
     }
   }
 
@@ -154,7 +167,11 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
         canWrite={canWrite}
         customLayout={character.custom_layout}
         customCss={character.custom_css}
+        preferences={effectivePreferences}
       />
+      {/* The campaign's active house rules, read-only (Area P3 scaffold) — so a player can see the rules in
+          force and which the DM locked. Only shown for a character in a campaign. */}
+      {effectivePreferences && <HouseRulesPanel preferences={effectivePreferences} />}
       {/* Ask the librarian ABOUT THIS CHARACTER. The system is pinned to the character's own, and
           passing characterId makes the chat adjudicate against the real sheet ("can I shove while
           grappled?") rather than answer about a generic character. Anyone who can see the sheet can

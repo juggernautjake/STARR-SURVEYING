@@ -7,16 +7,24 @@
 // platform design tokens and lives inside the character page, so custom layout/CSS apply.
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { IG_ABILITIES, IG_SAVES } from '@/lib/dnd/systems/intuitive-games/model';
 import { igAbilityMod, igDerived, igSkillTotal, igRanksSpent, igResolveAttack } from '@/lib/dnd/systems/intuitive-games/rules';
-import { IG_STANCES, IG_POWERS, IG_ACTION_ECONOMIES, igActionsByEconomy } from '@/lib/dnd/systems/intuitive-games/content';
+import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_SPELL_ROSTER, IG_DEFENSIVE_POWERS, IG_CONDITIONS, IG_ACTION_ECONOMIES, igActionsByEconomy, findIGAncestry } from '@/lib/dnd/systems/intuitive-games/content';
+import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-games/inPlay';
+import { igConditionSummary, igStanceMechanicNote } from '@/lib/dnd/systems/intuitive-games/modifiers';
+import type { IGEdit } from '@/lib/dnd/systems/intuitive-games/edit';
+import { findIGFeat, igAllFeats } from '@/lib/dnd/systems/intuitive-games/feats';
+import { igAncestryArt, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
 
 const effectMap = (() => {
   const m = new Map<string, string>();
-  for (const e of [...IG_STANCES, ...IG_POWERS]) if (e.effect) m.set(e.name.trim().toLowerCase(), e.effect);
+  // Include defensive powers so their chip can hover-explain itself like every other in-play effect
+  // (owner: "hovering over any effect in play shows a tooltip explaining how it works").
+  for (const e of [...IG_STANCES, ...IG_POWERS, ...IG_DEFENSIVE_POWERS]) if (e.effect) m.set(e.name.trim().toLowerCase(), e.effect);
   return m;
 })();
 const effectOf = (name: string) => effectMap.get(name.trim().toLowerCase()) ?? '';
@@ -36,8 +44,27 @@ function Badge({ source }: { source: Source }) {
 
 const fmt = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
 
-export default function IGSheet({ ig, elements }: { ig: IGCharacter; elements: Tagged[] }) {
+export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IGCharacter; elements: Tagged[]; canEdit?: boolean; characterId?: string }) {
   const derived = useMemo(() => igDerived(ig), [ig]);
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  // Incremental edit (enter/leave a stance, add/remove a condition) via the write-gated ig-edit route.
+  // Available only to a viewer who can write this character; refreshes the sheet on success.
+  const canDoEdit = !!(canEdit && characterId);
+  const postEdit = async (edit: IGEdit) => {
+    if (!characterId || editing) return;
+    setEditing(true);
+    try {
+      await fetch(`/api/dnd/characters/${characterId}/ig-edit`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(edit),
+      });
+      router.refresh();
+    } catch {
+      /* surfaced by the unchanged sheet; a retry is a re-tap */
+    } finally {
+      setEditing(false);
+    }
+  };
   const srcByName = useMemo(() => {
     const m = new Map<string, Source>();
     for (const e of elements ?? []) m.set(e.name.trim().toLowerCase(), e.source);
@@ -78,6 +105,39 @@ export default function IGSheet({ ig, elements }: { ig: IGCharacter; elements: T
         </div>
       </div>
 
+      {/* Ancestry traits (B1): the full traits of the character's IG ancestry, each with its rules text.
+          A known ancestry gets its blurb + both ancestry traits; an unknown one just shows the name row. */}
+      {(() => {
+        const anc = findIGAncestry(id.ancestry);
+        if (!anc) return null;
+        const art = igAncestryArt(anc.name);
+        return (
+          <div style={{ display: 'grid', gap: 6 }}>
+            <div style={{ ...label }}>Ancestry — {anc.name} {badgeFor(id.ancestry)}</div>
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              {art && (
+                // Brendan's hand-drawn race art (ink on white); a light card keeps it legible on the dark sheet.
+                <figure style={{ margin: 0, flex: '0 0 auto', display: 'grid', gap: 3, justifyItems: 'center' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={art} alt={`${anc.name} — Intuitive Games race art`} title={IG_ART_CREDIT} loading="lazy" style={{ width: 132, height: 'auto', borderRadius: 8, background: '#f4f1ea', border: '1px solid var(--hx-line)', padding: 4 }} />
+                  <figcaption style={{ fontSize: 9, color: 'var(--hx-muted)', letterSpacing: '0.02em' }}>Art · Brendan (Intuitive Games)</figcaption>
+                </figure>
+              )}
+              <div style={{ flex: '1 1 260px', display: 'grid', gap: 6, minWidth: 220 }}>
+                <div style={{ fontSize: 12, color: 'var(--hx-muted)', lineHeight: 1.4 }}>{anc.blurb}</div>
+                <div style={{ display: 'grid', gap: 5 }}>
+                  {anc.traits.map((t) => (
+                    <div key={t.name} title={t.text} style={{ fontSize: 12.5, color: 'var(--hx-text)', lineHeight: 1.4, cursor: 'help' }}>
+                      <span style={{ color: 'var(--hx-gold-2)', fontWeight: 600 }}>{t.name}.</span> {t.text}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Ability scores + modifiers */}
       <div>
         <div style={{ ...label, marginBottom: 6 }}>Ability Scores</div>
@@ -113,11 +173,14 @@ export default function IGSheet({ ig, elements }: { ig: IGCharacter; elements: T
       {/* Combat — attacks (to-hit + damage from the rules engine), HP/DR, stances, defensive power, conditions. */}
       {(() => {
         const cb = ig.combat;
-        const chip = (name: string) => (
-          <span key={name} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '2px 9px' }}>
-            {name} {badgeFor(name)}
-          </span>
-        );
+        const chip = (name: string) => {
+          const tip = effectOf(name); // the rules text, so the chip hover-explains itself
+          return (
+            <span key={name} title={tip || undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '2px 9px', cursor: tip ? 'help' : 'default' }}>
+              {name} {badgeFor(name)}
+            </span>
+          );
+        };
         const has = cb.attacks.length || cb.stances.length || cb.defensivePower || cb.conditions.length || cb.situationalBonuses.length || cb.hitPoints.classBackgroundHp || cb.damageReduction;
         if (!has) return null;
         return (
@@ -156,10 +219,101 @@ export default function IGSheet({ ig, elements }: { ig: IGCharacter; elements: T
               </div>
               {cb.damageReduction > 0 && <div style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '6px 10px', fontSize: 12.5 }}><span style={{ color: 'var(--hx-muted)' }}>DR </span>{cb.damageReduction}</div>}
             </div>
-            {cb.stances.length > 0 && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Stances</span><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{cb.stances.map(chip)}</div></div>}
-            {cb.defensivePower && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Defensive Power</span><div>{chip(cb.defensivePower)}</div></div>}
+            {(cb.stances.length > 0 || canDoEdit) && (
+              <div style={{ display: 'grid', gap: 4 }}>
+                <span style={label}>Stances <span style={{ textTransform: 'none', letterSpacing: 0 }}>(one active at a time — hover for the full rules)</span></span>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {cb.stances.map((name) => {
+                    const e = igStanceInPlay(name, derived.level);
+                    return (
+                      <span key={name} title={e?.tooltip ?? name} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '2px 9px', cursor: 'help' }}>
+                        {e?.name ?? name} {badgeFor(name)}
+                        {e?.summary ? <span style={{ color: 'var(--hx-muted)', fontSize: 11 }}>· {e.summary}</span> : null}
+                      </span>
+                    );
+                  })}
+                  {canDoEdit && (
+                    // Enter a stance (one active at a time — the route replaces the current one) or clear it.
+                    <select
+                      aria-label="Active stance"
+                      value={cb.stances[0] ?? ''}
+                      disabled={editing}
+                      onChange={(ev) => postEdit(ev.target.value ? { op: 'set_active_stance', name: ev.target.value } : { op: 'clear_stance' })}
+                      style={{ fontSize: 12, background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '2px 6px' }}
+                    >
+                      <option value="">— no stance —</option>
+                      {IG_STANCE_DEFS.map((s) => <option key={s.name} value={s.name}>{s.name} Stance</option>)}
+                    </select>
+                  )}
+                </div>
+                {(() => {
+                  // The active stance's precise mechanical effect at this level (adv/disadv/DR/bonus) — shown,
+                  // per the same legibility pattern as the condition penalty (not folded into base numbers).
+                  const note = cb.stances[0] ? igStanceMechanicNote(cb.stances[0], derived.level) : null;
+                  return note ? <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', lineHeight: 1.4 }}>{note}</div> : null;
+                })()}
+              </div>
+            )}
+            {(cb.defensivePower || canDoEdit) && (
+              <div style={{ display: 'grid', gap: 4 }}>
+                <span style={label}>Defensive Power</span>
+                {cb.defensivePower && <div>{chip(cb.defensivePower)}</div>}
+                {canDoEdit && (
+                  // One defensive power (a reaction); set/replace/clear it — parity with the AI's
+                  // set_defensive_power. Offers the full IG_DEFENSIVE_POWERS list.
+                  <select aria-label="Defensive power" value={cb.defensivePower} disabled={editing} onChange={(ev) => postEdit({ op: 'set_defensive_power', name: ev.target.value })} style={{ fontSize: 12, background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '2px 6px', justifySelf: 'start' }}>
+                    <option value="">— no defensive power —</option>
+                    {IG_DEFENSIVE_POWERS.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
+                  </select>
+                )}
+              </div>
+            )}
             {cb.situationalBonuses.length > 0 && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Situational Bonuses</span><div style={{ fontSize: 12.5, color: 'var(--hx-text)' }}>{cb.situationalBonuses.join(' · ')}</div></div>}
-            {cb.conditions.length > 0 && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Conditions</span><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{cb.conditions.map((c) => <span key={c} style={{ fontSize: 12, color: 'var(--hx-danger)', border: '1px solid var(--hx-danger)', borderRadius: 12, padding: '1px 8px' }}>{c}</span>)}</div></div>}
+            {(cb.conditions.length > 0 || canDoEdit) && (
+              <div style={{ display: 'grid', gap: 4 }}>
+                <span style={label}>Conditions <span style={{ textTransform: 'none', letterSpacing: 0 }}>(hover for the full rules)</span></span>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {cb.conditions.map((c) => {
+                    const e = igConditionInPlay(c);
+                    return (
+                      <span key={c} title={e?.tooltip ?? c} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--hx-danger)', border: '1px solid var(--hx-danger)', borderRadius: 12, padding: '1px 8px', cursor: 'help' }}>
+                        {c}
+                        {canDoEdit && (
+                          <button type="button" aria-label={`Remove ${c}`} disabled={editing} onClick={() => postEdit({ op: 'remove_condition', name: c })} style={{ background: 'none', border: 'none', color: 'var(--hx-danger)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+                        )}
+                      </span>
+                    );
+                  })}
+                  {canDoEdit && (
+                    // Apply a condition — the route de-dupes, so re-applying an active one is a no-op.
+                    <select
+                      aria-label="Add condition"
+                      value=""
+                      disabled={editing}
+                      onChange={(ev) => { if (ev.target.value) postEdit({ op: 'add_condition', name: ev.target.value }); }}
+                      style={{ fontSize: 12, background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '2px 6px' }}
+                    >
+                      <option value="">+ add condition…</option>
+                      {IG_CONDITIONS.filter((c) => !cb.conditions.some((x) => x.toLowerCase() === c.name.toLowerCase())).map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
+                    </select>
+                  )}
+                </div>
+                {(() => {
+                  // Legible "what's actually applied" note — the stacking flat penalty + any disadvantages,
+                  // straight from the IG condition rules (shown, not silently folded into the base numbers).
+                  const sum = igConditionSummary(cb.conditions);
+                  if (sum.flatD20 === 0 && sum.disadvantages.length === 0) return null;
+                  return (
+                    <div style={{ fontSize: 11.5, color: 'var(--hx-muted)', lineHeight: 1.4 }}>
+                      {sum.flatD20 !== 0 && (
+                        <div><span style={{ color: 'var(--hx-danger)', fontWeight: 600 }}>{sum.flatD20} to attacks, saves &amp; skill checks</span> ({sum.flatSources.join(', ')})</div>
+                      )}
+                      {sum.disadvantages.map((d) => <div key={d}>{d}</div>)}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
           </div>
         );
       })()}
@@ -203,27 +357,77 @@ export default function IGSheet({ ig, elements }: { ig: IGCharacter; elements: T
       })()}
 
       {/* Reference — powers + feats + stance descriptions + the action economy. */}
-      {(ig.powers.length > 0 || ig.feats.general.length > 0 || ig.feats.combat.length > 0 || ig.stances.length > 0) && (
+      {(ig.powers.length > 0 || ig.feats.general.length > 0 || ig.feats.combat.length > 0 || ig.stances.length > 0 || canDoEdit) && (
         <div style={{ display: 'grid', gap: 12 }}>
           <div style={label}>Reference — powers, feats &amp; stances</div>
-          {ig.powers.length > 0 && (
+          {(ig.powers.length > 0 || canDoEdit) && (
             <div style={{ display: 'grid', gap: 6 }}>
               <span style={{ ...label, color: 'var(--hx-pink-1, #d98cc0)' }}>Powers</span>
               {ig.powers.map((p) => (
                 <div key={p} style={{ display: 'grid', gap: 1 }}>
-                  <span style={{ fontSize: 13, color: 'var(--hx-text)', display: 'flex', alignItems: 'center', gap: 6 }}>{p} {badgeFor(p)}</span>
-                  {effectOf(p) && <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>{effectOf(p)}</span>}
+                  <span style={{ fontSize: 13, color: 'var(--hx-text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {p} {badgeFor(p)}
+                    {canDoEdit && (
+                      <button type="button" aria-label={`Remove ${p}`} disabled={editing} onClick={() => postEdit({ op: 'remove_power', name: p })} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+                    )}
+                  </span>
+                  {effectOf(p)
+                    ? <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>{effectOf(p)}</span>
+                    // A recognized (non-custom) power with no effect text is a roster power pending
+                    // Brendan's rules — say so (Ground Rule 2) rather than leaving a bare name that reads
+                    // as "no effect". A custom power gets no note (its effect simply isn't authored here).
+                    : srcByName.get(p.trim().toLowerCase()) && srcByName.get(p.trim().toLowerCase()) !== 'custom'
+                      ? <span style={{ fontSize: 11, fontStyle: 'italic', color: 'var(--hx-gold-2)' }}>Effect text not yet published — work in progress.</span>
+                      : null}
                 </div>
               ))}
+              {canDoEdit && (() => {
+                // Add a power — offered from the FULL IG spell-list roster grouped by school, so the sheet
+                // has parity with the AI's add_power (which grounds on igAllSpellNames). Drawing only from
+                // IG_POWERS would hide roster powers whose effect text is still pending Brendan (e.g. Gate,
+                // Portal). Excludes powers already known; the route de-dupes, so a repeat pick is a no-op.
+                const have = new Set(ig.powers.map((p) => p.toLowerCase()));
+                const schools = Object.entries(IG_SPELL_ROSTER)
+                  .map(([school, names]) => [school, names.filter((n) => !have.has(n.toLowerCase()))] as const)
+                  .filter(([, names]) => names.length > 0);
+                return (
+                  <select aria-label="Add power" value="" disabled={editing} onChange={(ev) => { if (ev.target.value) postEdit({ op: 'add_power', name: ev.target.value }); }} style={{ fontSize: 12, background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '2px 6px', justifySelf: 'start' }}>
+                    <option value="">+ add power…</option>
+                    {schools.map(([school, names]) => <optgroup key={school} label={school}>{names.map((n) => <option key={n} value={n}>{n}</option>)}</optgroup>)}
+                  </select>
+                );
+              })()}
             </div>
           )}
-          {(ig.feats.general.length > 0 || ig.feats.combat.length > 0) && (
+          {(ig.feats.general.length > 0 || ig.feats.combat.length > 0 || canDoEdit) && (
             <div style={{ display: 'grid', gap: 4 }}>
-              <span style={label}>Feats</span>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {[...ig.feats.general, ...ig.feats.combat].map((f) => (
-                  <span key={f} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '2px 9px' }}>{f} {badgeFor(f)}</span>
-                ))}
+              <span style={label}>Feats <span style={{ textTransform: 'none', letterSpacing: 0 }}>(hover for the full rules)</span></span>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                {[...ig.feats.general, ...ig.feats.combat].map((f) => {
+                  const def = findIGFeat(f);
+                  const tip = def ? `${def.name} — ${def.category} feat${def.prerequisites ? ` (Prereq: ${def.prerequisites})` : ''}: ${def.effect}` : undefined;
+                  return (
+                    <span key={f} title={tip} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '2px 9px', cursor: def ? 'help' : 'default' }}>
+                      {f} {badgeFor(f)}
+                      {canDoEdit && (
+                        <button type="button" aria-label={`Remove ${f}`} disabled={editing} onClick={() => postEdit({ op: 'remove_feat', name: f })} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+                      )}
+                    </span>
+                  );
+                })}
+                {canDoEdit && (() => {
+                  // Add a feat — grouped by General/Combat; excludes feats the character already has. The
+                  // route routes it to the right list + de-dupes, so a stray pick is harmless.
+                  const have = new Set([...ig.feats.general, ...ig.feats.combat].map((f) => f.toLowerCase()));
+                  const opts = igAllFeats().filter((f) => !have.has(f.name.toLowerCase()));
+                  return (
+                    <select aria-label="Add feat" value="" disabled={editing} onChange={(ev) => { if (ev.target.value) postEdit({ op: 'add_feat', name: ev.target.value }); }} style={{ fontSize: 12, background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '2px 6px' }}>
+                      <option value="">+ add feat…</option>
+                      <optgroup label="General">{opts.filter((f) => f.category === 'General').map((f) => <option key={`g-${f.name}`} value={f.name}>{f.name}</option>)}</optgroup>
+                      <optgroup label="Combat">{opts.filter((f) => f.category === 'Combat').map((f) => <option key={`c-${f.name}`} value={f.name}>{f.name}</option>)}</optgroup>
+                    </select>
+                  );
+                })()}
               </div>
             </div>
           )}

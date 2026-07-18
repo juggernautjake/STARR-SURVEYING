@@ -68,3 +68,30 @@ describe('a system designation and homebrew are orthogonal', () => {
     expect(SEED).toMatch(/ORTHOGONAL/);
   });
 });
+
+describe('normalizeSystem is a strict exact-key gate (the routing safety net)', () => {
+  // This gates `isIG = normalizeSystem(system) === 'intuitive-games'` and every other system route, so its
+  // exactness matters: an unknown value must fall back to ambiguous (never guess a rulebook), and a crafted
+  // superset of a real key must NOT normalize to that key.
+  it('returns every real system key unchanged', () => {
+    for (const s of GAME_SYSTEMS) expect(normalizeSystem(s.key)).toBe(s.key);
+  });
+
+  it('falls back to ambiguous for nullish, non-string, and unknown/alias values (never guesses a rulebook)', () => {
+    for (const v of [null, undefined, '', '   ', 42, {}, [], 'D&D', 'pathfinder', 'IG', 'dnd-5e-2024']) {
+      expect(normalizeSystem(v)).toBe(SYSTEM_AMBIGUOUS);
+    }
+  });
+
+  it('matches EXACTLY — a superset/near-miss of a real key does NOT route as that system', () => {
+    // The security-relevant property: a crafted "intuitive-games-x" must not normalize to "intuitive-games"
+    // (which drives isIG digest/edit routing). A regression to includes()/startsWith() would break this.
+    expect(normalizeSystem('intuitive-games-x')).toBe(SYSTEM_AMBIGUOUS);
+    expect(normalizeSystem('intuitive-game')).toBe(SYSTEM_AMBIGUOUS); // one char short
+    expect(normalizeSystem('xdnd5e-2024')).toBe(SYSTEM_AMBIGUOUS);
+  });
+
+  it('trims surrounding whitespace on an otherwise-exact key', () => {
+    expect(normalizeSystem('  intuitive-games  ')).toBe('intuitive-games');
+  });
+});

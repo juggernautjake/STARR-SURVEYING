@@ -11,6 +11,17 @@ __tests__/dnd`, `npx eslint`, and — for anything with a UI — **driven in the
 just unit-tested. Commit per slice. Do not mark a slice done with failing tests or an unverified
 UI.
 
+> **⏸ STATUS (2026-07-17): the vast majority of slices are ✅ SHIPPED.** The remaining open items are NOT
+> unattended-buildable — each needs one of: **an owner product decision** (Rangor/Pugilist as a real custom
+> class; setting the demo characters' system `ambiguous`→`dnd5e-2024`, a live-DB write); an **absent
+> `VOYAGE_API_KEY`** (Slice 8 semantic search — keyword search is the working fallback); or **specialized UI
+> needing visual verification** (Slice 29/35 map-studio 3D controls + the city-lights day/night design call;
+> Slice 39 player-console drawer; Slice 18 transform polish). Recent unattended progress: **Slice 37**
+> browser-Back history-pollution fixed (`JumpNav`); **Slice 8b** IG library massively expanded (see
+> `INTUITIVE_GAMES_FULL_BUILDOUT_2026-07-17.md`); and the previously-**untested map studio** gained regression
+> guards for its four documented fixes (cloud-field translation, image handles, 2D/3D size parity, canvas
+> sizing). No open item can move this doc to `completed/` without the owner.
+
 ---
 
 ## Ground rules (these are why the platform exists — do not violate them)
@@ -20,6 +31,11 @@ UI.
    proficiency bonus is not PF2's level-added proficiency). Everything is keyed by system.
 2. **Editions are different systems.** 2014 vs 2024 Exhaustion, Surprise, Grappled, Prone,
    Inspiration and feats all have two different *correct* answers. Never merge them.
+   *(Known tracked violation, surfaced 2026-07-17: the sheet's roll-time exhaustion applies the 2024
+   flat −2/level model to EVERY character, including 2014 ones, whose exhaustion is a different tiered
+   table — the AI grounding already distinguishes them, so only the sheet merges them. The fix is a
+   player-facing behavior change → owner-gated (BLOCKERS §A); pinned meanwhile by `exhaustion-d20.test.ts`
+   so it can't drift further or be mistaken for edition-correct.)*
 3. **Never invent a rule.** If the reference doesn't cover it, say so. Accuracy beats completeness
    — omit a number rather than guess. (Authoring agents have already caught several errors in
    briefs by verifying against sources instead of recall — keep doing that.)
@@ -265,6 +281,12 @@ categories) and Epic Boon remain.
       — replacing the old free-text box that accepted any feat. Unknown keys pass as custom/homebrew.
       Tests: `feat-eligibility.test.ts` (14) + updated `levelup.test.ts` (Origin-feat-at-ASI now
       rejected; prereqs enforced; unknown = custom). See the `feedback_rules_legal_builders` memory.
+      **Audit 2026-07-17:** re-read `featEligibility` end-to-end — the slot→category gate, epic-boon-@19,
+      all three prereq types (minLevel/ability/needs, conservative-block on missing ability context), and
+      the unknown-key custom escape hatch are all correct and comprehensively covered. Added one missing
+      DATA-invariant guard: every Origin feat is now asserted to carry NO `minLevel` prereq — one would make
+      it silently un-offerable at the level-1 origin slot, and only `alert` was spot-checked. All 16 clean.
+      `feat-eligibility.test.ts` +1.
 - [x] **Backgrounds** (16) ✅ SHIPPED (commit pending) — `lib/dnd/backgrounds/dnd5e-2024.ts`. All
       sixteen PHB backgrounds (Acolyte … Wayfarer), each with its three ability options (the 2024 rule
       that the **background** carries the increases, not the species — encoded and tested), Origin feat,
@@ -281,16 +303,25 @@ categories) and Epic Boon remain.
       asserts no species object carries one under ANY name (`abilityScores`/`asi`/`str`/… — the
       2014-vs-2024 trap made un-reintroducible). Spot-checks the distinctive numbers (dwarf/orc 120-ft
       darkvision, goliath 35 speed, halfling Small).
+      **All 10 species' size/speed/darkvision golden-pinned (2026-07-17):** the spot-checks covered only a
+      few; verified every species against 2024 RAW and pinned each — importantly the edition-specific
+      changes a typo would most likely hit: Dwarf & Gnome speed 30 (up from 2014's 25), Dragonborn now HAS
+      darkvision 60, Goliath 35, and `darkvision` undefined for the species without it (Goliath/Halfling/
+      Human). All correct. `species.test.ts` +1.
 - [x] **Languages** + tool proficiencies as lists ✅ SHIPPED (commit pending) —
       `lib/dnd/languages/dnd5e-2024.ts`. All 2024 languages with the Standard/Rare split (Primordial
       carries its Aquan/Auran/Ignan/Terran dialects) and all tools across the four families (Artisan's
       Tools ×17, Gaming Sets, Musical Instruments, standalone kits), with `languagesByRarity` /
       `toolsByFamily` / `isKnownTool` helpers. Tests: `languages.test.ts` (5) — including the connective
       check that **every background's named tool resolves** here (specific tool or category phrase), so
-      a typo in either file fails the build.
-- [~] Wire into the level builder: an ASI choice offers real feats with prerequisites checked ✅
+      a typo in either file fails the build. **Standard/Rare membership pinned EXACTLY (2026-07-17):** the
+      split was spot-checked (Common/Draconic std, Abyssal/Undercommon rare); now the full 10-standard /
+      9-rare lists are pinned, catching the 2024-specific tells a regression would hit — Orc is now STANDARD
+      (Rare/different in 2014) and Common Sign Language is a new Standard entry. Correct.
+- [x] Wire into the level builder: an ASI choice offers real feats with prerequisites checked ✅
       (see the rules-legal feat granting note above); character creation offers backgrounds/species —
-      **species picker ✅ + background picker ✅ SHIPPED (commit pending)**. **Rules-legal
+      **species picker ✅ + background picker ✅ SHIPPED** (all sub-parts below shipped + tested; verified
+      done 2026-07-18). **Rules-legal
       background application core ✅ SHIPPED:** `lib/dnd/backgrounds/apply.ts`
       (`validateAbilityAssignment` / `backgroundGrants` / `applyAbilityIncreases`) enforces the 2024
       +2/+1-or-+1/+1/+1 spread across only the background's three abilities, and returns the feat +
@@ -361,27 +392,79 @@ abilities/combat/level/skills/saves) AND through `LAYOUT_EDIT_TOOL` it rewrites 
 `custom_css` + `custom_layout` (HTML/CSS) and saves them (`sheet_type: 'custom'`), which the browser
 renders. The one clear gap — spells — is now closed.
 
+**Vocabulary↔handler drift guarded, both directions (2026-07-17):** audited that all 31 `SheetEdit` ops
+are actually applied — an op the AI can EMIT but that `applySheetEdits` doesn't HANDLE would report
+success while changing nothing (the AI's edit silently lost), directly breaking "the AI can edit
+everything." No live gap (all 31 handled), but the switch had no exhaustiveness guard. Added a compile-time
+`never` guard (a new union op without a handler now fails to compile) AND a source-scan test mirroring the
+existing revert guard (every tool-schema op has an apply case) — so the AI's edit vocabulary and what the
+sheet actually applies can never silently diverge. `sheet-edits.test.ts` +1. **Same guard applied to the
+other two AI edit vocabularies (2026-07-17):** `applyIgEdit` (the IG stance/condition/feat/power/defensive-
+power ops — `ig-edit.test.ts` +1) and `applyLayoutEdits` (the AI's HTML/CSS restyle vocabulary — set/append
+CSS, add/remove/move/update block, retitle — `layout-edits.test.ts` +1). All three now carry a compile-time
+`never` exhaustiveness guard + a tool-schema↔handler source-scan, so NONE of the three ways the AI changes
+a sheet — mechanics, IG mechanics, or layout/style — can ever have an op that silently no-ops.
+**Scoping boundary extended to all three vocabularies (2026-07-17):** the `assertCharacterScopedOps` guard
+(`ai-scope.ts` — every AI op must be a character-sheet-scoped mutation, never reaching a page/campaign/map/
+user/other character) was verified against `edit_sheet` and `customize_layout` but NOT the IG `edit_ig_sheet`
+vocabulary — and `ai-scope.ts`'s own doc still claimed `edit_sheet` was "the only mutation tool" (stale since
+the IG + layout tools shipped). Both fixed: `ai-scope.test.ts` now asserts ALL THREE vocabularies pass the
+scoping check (all do — no live violation), and the boundary doc lists all three. So the security boundary
+can't silently lapse for the IG or layout surface as it did in coverage. `ai-scope.test.ts` +1.
+**Privilege-escalation naming terms added (2026-07-18):** `FORBIDDEN_OP_TERMS` caught page/campaign/map/user/
+file/global reaches but NOT privilege-shaped op names — `set_role`, `add_permission`, `update_password`,
+`set_auth_provider`, `add_credential`, `set_secret` all start with a scoped prefix and contained no forbidden
+term, so they'd have passed the naming heuristic. Added `role`/`permission`/`auth`/`password`/`credential`/
+`secret` (defense-in-depth behind the primary server-side `requireCharacterWrite`); verified no real op
+collides (`add_power`/`set_defensive_power` carry "power", never "permission" — the every-vocabulary-scoped
+test proves it). `ai-scope.test.ts` +1 (privilege-shaped ops refused; real power ops still pass). Full dnd
+suite green (1869).
+
 - [x] **`add_spell` / `remove_spell` ✅ SHIPPED 2026-07-17.** The AI could rename or item-grant spells but
       not add/remove them directly. Added both to the edit vocabulary + the AI tool schema (full spell
       shape: level 0–9, school, casting time, range, components, duration, concentration, ritual, attack
       vs save resolution, higher-level scaling). Upserts by name, clamps level, revertible. Matches the
       `add_`/`remove_` allow-list prefixes automatically. Tests: `sheet-edits.test.ts` +3.
-- [ ] Custom **classes/subclasses** as first-class AI ops (today expressible as a bundle of features);
-      custom **conditions** as reusable definitions. Consider whether the existing feature/effect
-      vocabulary covers these or they warrant their own ops.
+- [x] Custom **classes/subclasses** as first-class AI ops ✅ — the Slice 5 homebrew builders make them
+      exactly that (AI-drafted, engine-validated, saved, resolved in the level builder). Custom
+      **conditions** ✅ — `add_condition`/`remove_condition` sheet-edit ops (`9376ec81`) let the AI apply/
+      clear any named (incl. homebrew) condition on `combat.conditions`; richer per-condition mechanics
+      remain expressible via the existing effect/`define_tag` vocabulary (no separate registry needed).
 
 ## Slice 5 — Custom class / subclass / feat builder UI
 
 The engine (`lib/dnd/classes/custom.ts`) is built and tested; there is no UI.
 
-- [ ] `/dnd/characters/[id]/build/class` — define a class from scratch: hit die, saves, skills,
-      per-level features, resources, spellcasting. Live `reviewCustomClass` feedback (errors block,
-      balance warnings advise).
-- [ ] Homebrew subclass + homebrew feat builders.
-- [ ] AI assist: describe the class in prose → a draft definition the player edits.
-- [ ] Persist to the character/campaign; flag as custom content so the **existing** provenance +
-      DM approval (seed 443, `lib/dnd/provenance.ts`, `submission.ts`) picks it up.
-- [ ] A custom class must appear in the level builder exactly like an official one.
+- [x] `/dnd/characters/[id]/build/class` — define a class from scratch. **✅ SHIPPED** (`dadb68a5`,
+      `d1facdbe`, `7fa1a665`, `253e42f9`): AI-assist endpoint → drafts + reviews via the existing engine;
+      the page is a prompt box → "Draft with AI" → the built definition + features + the engine's review
+      (errors red/block, warnings gold/advise) → **Save to my character** (persists, gated on a clean
+      review) → the saved class **resolves in the level builder like an official one**. **Remaining (nice-
+      to-have):** a manual field-by-field edit form on the draft (today you iterate by re-prompting).
+- [x] **Homebrew subclass + homebrew feat builders. ✅ SHIPPED** (`1ceae899`, `f6ada419`, `656a256c`).
+      All three designers ship as prompt→draft→review pages on the existing engine: `/build/feat`
+      (`buildCustomFeat`+`reviewCustomFeat`) and `/build/subclass` (`buildCustomSubclass`, checks the
+      parent class resolves incl. saved homebrew). **All three persist + resolve in the level builder**:
+      class (`7fa1a665`/`253e42f9`), feat (`b03c65f7`/`20d93339` — shows in the ASI picker), subclass
+      (`1da93c4a` — `subclassesFor(..., extra)` offers it under its parent class). **Nice-to-have
+      remaining:** manual field-by-field edit forms on the drafts. **Save-route security guarded**
+      (`68f2b10a`): the three `*/save` routes persist into a character's data, so they're write-gated
+      (session 401 + `requireCharacterWrite`) and rebuild from PARSED input server-side (never trust a
+      client-supplied built definition); `homebrew-save-access.test.ts` (6) pins both so a future edit
+      can't drop the gate.
+- [x] **AI assist: prose → a draft the player edits. ✅ SHIPPED** (`279e502f`). `lib/dnd/classes/custom-ai.ts`
+      — `CUSTOM_CLASS_TOOL` (structured-output schema) + `parseCustomClassDraft` (defensive normalizer →
+      a valid `CustomClassDraft`) that flows through the existing `buildCustomClass` + `reviewCustomClass`,
+      so the AI proposes and the engine adjudicates/flags balance. 5 tests incl. the full round-trip.
+      **Remaining for this item's UI:** the `/build/class` page wiring a prompt box to this.
+- [x] **Persist to the character; flag as custom. ✅ SHIPPED** (`7fa1a665`). `homebrew-store.ts` (pure:
+      upsert-by-key/remove/system-filter/read) + `Character.homebrewClasses` + a save endpoint that
+      rebuilds+re-reviews server-side, rejects errors, upserts + persists (stamps author, flagged custom),
+      and a Save button on `/build/class` (disabled while errors exist). 4+ tests.
+- [x] **A custom class appears in the level builder like an official one. ✅ SHIPPED** (`253e42f9`). The
+      levels route (which the LevelBuilder reads) passes `readHomebrewClasses(data)` to `findClass` as
+      `extra` at both call sites, so a saved custom class walks a real level table. +1 test proving it
+      resolves via extra and stays system-scoped (Ground Rule 1).
 
 ## Slice 6 — Full class data for the remaining systems
 
@@ -395,6 +478,62 @@ One system per slice — depth-first, verified against sources. In priority orde
       **2014** paths (Berserker, Totem Warrior) — the 2024 paths (Wild Heart/World Tree/Zealot) do NOT
       appear. This drives both the class-table render (the doc's "in the running app" bar) AND the
       cross-system integrity guard in the live builder, not just in unit tests.
+      **Artificer multiclass rounding fixed (2026-07-17):** `multiclassCasterLevel` halved every `half`
+      caster with `Math.floor` — correct for Paladin/Ranger but WRONG for the Artificer, the one 5e half
+      caster whose multiclass levels round UP (ceil). Because Artificer shares `kind: 'half'`, the function
+      couldn't tell them apart, so an Artificer at odd levels was under-counted by one caster level (an
+      Artificer 3 gave caster level 1, not 2 — a missing spell slot when combined with another caster).
+      Recorded the exception at the source (`spellcasting.roundHalfUp: true` on the Artificer def, a new
+      optional `ClassSpellcasting` field) and taught `multiclassCasterLevel` to honor it via an optional
+      per-part `roundUp`; Paladin/Ranger (no flag) still round down. Latent today (multiclass slot-merging
+      isn't wired to the sheet yet) but the utility + its test enshrined the wrong rule; now RAW-correct.
+      `class-engine.test.ts` +2 (ceil at odd levels; the Artificer def carries the flag, Ranger doesn't).
+      **Mixed-half-caster edge pinned (2026-07-18):** the tests exercised Artificer + a FULL caster, but not
+      two half-casters rounding OPPOSITELY in one character (Artificer up + Paladin down) — the exact case
+      the per-part flag exists for, where each rounding must apply to its own level, never the combined total.
+      Added 2 assertions: Artificer 1 + Paladin 1 → 1 (ceil½ + floor½ = 1+0, not a rounded total), Artificer 3
+      + Paladin 3 → 3 (2+1). Full dnd suite green (1867).
+      **Slot tables pinned cell-by-cell against RAW (2026-07-17):** `FULL_CASTER_SLOTS` + `HALF_CASTER_SLOTS`
+      (`slots.ts`) drive EVERY 5e caster (2014 + 2024). The existing tests guarded rank ARRIVAL levels + the
+      L20 corner, but not the intermediate COUNTS — a typo like L11's rank-1 "3" instead of "4" would slip.
+      Verified all 20 rows of both tables against the PHB and added a golden-reference guard for every cell
+      (ranks 1–9 full; 1–5 half + "no rank 6+"), so a change to these shared tables must be intentional.
+      Both matched RAW exactly (no bug — locks the data). `class-engine.test.ts` +2. **Warlock pact tables
+      pinned too (2026-07-17):** `PACT_SLOTS` + `PACT_RANK` were spot-checked at the corners but their
+      rank-TRANSITION levels (rank 2 at L3, 3 at L5, 4 at L7, 5 at L9) weren't, and `MYSTIC_ARCANUM_LEVEL`
+      (ranks 6–9 at L11/13/15/17) was UNguarded — a typo there would hand the Warlock its capstone Arcanum at
+      the wrong level. Golden-pinned all three against RAW (all correct). `class-engine.test.ts` +2. **Third
+      caster (EK/AT) golden-pinned too (2026-07-17):** `THIRD_CASTER_SLOTS` was arrival-guarded but not
+      cell-pinned; verified against the PHB (opens 2× rank-1 at L3, caps at rank 4 by L19) and pinned every
+      level (ranks 1–4 + "no rank 5+"), all correct. `class-engine.test.ts` +1. Every 5e caster table (full /
+      half / third / pact / arcanum) is now GENUINELY locked cell-by-cell. **Proficiency-bonus
+      table pinned at EVERY level too (2026-07-17):** `PB_5E` (the +2→+6 progression behind every attack/save/
+      skill) was tested at the tier corners, but `expectedProfBonus` reads it as a table lookup so an interior
+      cell (L6/7/10/11/…) could drift. Pinned all 20 levels for both editions against the RAW formula
+      `floor((level−1)/4)+2` — correct. `system-rules.test.ts` +1.
+      **Per-class hit die pinned to RAW (2026-07-17):** every class's `hitDie` (drives max HP + the hit-dice
+      pool) was validated only as "one of 6/8/10/12" — so a Barbarian typo'd to d10 or a Wizard to d8 would
+      pass. Verified all 25 defs (12 classes ×2024 + 13 ×2014 incl. Artificer) against RAW and pinned each to
+      its correct value (Barbarian 12; Fighter/Paladin/Ranger 10; Sorcerer/Wizard 6; rest 8) — all correct.
+      `dnd5e-2024-classes.test.ts` / `dnd5e-2014-classes.test.ts` (the per-class hit-die assertion tightened
+      from "a valid die" to "the RAW die").
+      **Per-class SAVE proficiencies pinned too (2026-07-17):** same shape of hole — the tests checked
+      "exactly 2 saves" but not WHICH two, so a wrong pair (Barbarian STR/CON → STR/DEX) would pass while
+      breaking every save the class rolls with proficiency. Verified all 25 defs against RAW and pinned each
+      pair order-independently (Barb STR/CON, Bard DEX/CHA, Cleric WIS/CHA, Druid INT/WIS, Fighter STR/CON,
+      Monk STR/DEX, Paladin WIS/CHA, Ranger STR/DEX, Rogue DEX/INT, Sorc CON/CHA, Warlock WIS/CHA, Wizard
+      INT/WIS, Artificer CON/INT) — all correct.
+      **2014 SUBCLASS levels pinned (2026-07-17, edition-sensitive):** 2024 puts every subclass at L3 (already
+      pinned), but 2014 varies — Cleric/Sorcerer/Warlock choose at L1, Druid/Wizard at L2, the rest at L3. The
+      test only checked a subclass feature SITS at `subclassLevel` (consistency), not that the level is
+      RAW-correct — a Cleric typo'd to 3 would offer its Domain 2 levels late and still pass. Pinned every
+      2014 class's subclass level to RAW (all 13 correct). This is the same edition-sensitive category as the
+      exhaustion gap, so worth nailing down.
+      **ASI cadence pinned EXACTLY, both editions (2026-07-17):** the checks used `toContain([4,8,12,16])` +
+      `not.toContain(19)`, which verify the expected levels are present but NOT that there are no extras — a
+      spurious ASI at 14 would slip. Pinned the full `asiLevels` array per class: 2024 = 4/8/12/16 (Fighter
+      +6/14, Rogue +10; L19 is an Epic Boon, never an ASI), 2014 = the same PLUS L19 (the edition tell). All
+      25 correct — a missing OR spurious ASI level is now caught.
       **2026-07-16 — ALL 12 PHB CLASSES SHIPPED ✅** (`lib/dnd/classes/dnd5e-2014/`): Barbarian, Bard,
       Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock, Wizard — each L1–20 with
       every PHB subclass, all edition-differences vs 2024 locked by `dnd5e-2014-classes.test.ts` (71
@@ -456,6 +595,49 @@ One system per slice — depth-first, verified against sources. In priority orde
       - **63 tests** (rules 15 + builder 18 + ai 6, plus the existing dnd suite); tsc + eslint clean.
       Remaining polish (deferred): per-level rank/feat progression tables (level-1 legal today; higher
       levels set initial ranks + accept manual/AI edits), heritage/class-feat mechanical bodies.
+      **Audit finding 2026-07-17 — the degree engine is built but unwired to any roll.** `PF2Sheet` is
+      display-only: it shows every +modifier (skills/saves/AC/Strike, all from the rules engine) but has NO
+      roll surface, and `pf2Degree` (the four degrees + the nat-20/nat-1 step, fully tested at
+      `pathfinder2e-rules.test.ts`) has **zero call sites** — so a PF2 player can't roll a check/Strike and
+      see "critical success" the way the 5e sheet rolls and shows a crit. The hard part (the resolver) is
+      done; only a PF2 roll UI + a `pf2Degree` call is missing. Whether PF2 should roll in-app like 5e or
+      remain a reference sheet is a product call — tracked in `BLOCKERS.md §C`.
+      **AI adjudicates with the PF2 character's derived numbers now (2026-07-17):** the "Ask the Librarian"
+      route built its per-character digest with the general `characterDigest`, which reads the 5e `Character`
+      model and NEVER the `data.pf2e` sidecar — so a ruling on a PF2 character was blind to its AC, save
+      totals, Class/Spell DC, Strike + skill bonuses (it had the PF2 rulebook but not the DC to answer "does
+      the target save?"). Added a pure `pf2CharacterDigest` (`digest.ts`) that states AC/HP/saves/Perception,
+      Class DC, Spell DC+attack (casters), the MAP schedule, Strike to-hits, and trained+ skill totals — all
+      from the same `rules.ts` the sheet uses; the `library/chat` route appends it when `data.pf2e` is
+      present. Parallel to the IG `igCharacterDigest` shipped the same day. `pf2-digest.test.ts` (6).
+      **Completed with the dynamic state (2026-07-17):** the first pass showed only MAX HP — a ruling needs
+      how HURT the character is. Now shows CURRENT/max HP + temp (matching the sheet's `currentHp || maxHp`)
+      and a STATUS line for PF2's death track (Dying/Wounded) when live — the only dynamic combat state PF2
+      models (it has no other named-condition field). `pf2-digest.test.ts` +1.
+      **PF2 level-based DC table pinned at every level (2026-07-17):** `pf2LevelBasedDc` (the GM Core baseline
+      DC behind every untrained/environmental check) was spot-checked at L0/1/5/20 — but NONE of the
+      +2-jump levels (3,6,9,12,15,18), the irregular part of the progression, was tested; a typo in a jump
+      would give a whole tier of tasks the wrong DC. Verified the full 0–20 table against GM Core and pinned
+      every level (correct). `pf2-rules.test.ts` +1. (`PF2_RANK_BONUS` — trained+2…legendary+8 — was already
+      fully covered via `pf2Proficiency`.)
+      **8 PF2 ancestries golden-pinned (2026-07-17):** HP/size/speed/boosts were only spot-checked (Dwarf/Elf
+      HP via the HP formula, Dwarf speed via the armor test). Verified all 8 against Player Core and pinned
+      each — the distinctive values a typo would hit are Dwarf speed 20 and Elf speed 30 (rest 25), the
+      6/8/10 HP tiers, and the boost patterns (Human = two free, Orc = STR + two free). All correct.
+      `pathfinder2e-builder.test.ts` +1.
+      **All 14 PF2 CLASSES' key attribute + HP/level pinned (2026-07-17):** only Fighter/Wizard HP was
+      exercised (via the HP formula). A wrong key attribute mis-computes the class DC + spell attribute; a
+      wrong HP/level mis-sizes every level. Verified all 14 vs Player Core and pinned each (Barbarian STR/12,
+      martials STR-or-DEX/10, casters INT-or-CHA/6, the 8-HP mid tier) — all correct. `pathfinder2e-builder.test.ts` +1.
+      **12 PF2 armors' AC-critical values pinned (2026-07-17):** `acBonus` + `dexCap` + `speedPenalty` drive
+      `pf2ArmorClass` (AC = 10 + min(Dex, dexCap) + prof + acBonus), and only Full Plate's str/speed was
+      spot-checked. Verified all 12 against Player Core's standard progression (light acBonus 1–2 / dexCap
+      3–4 / speed 0; medium 3–4 / 1–2 / −5; heavy 5–6 / 0–1 / −10) and pinned each + a category→speed-penalty
+      cross-check — all correct. (Left the `strength` requirement unpinned — not independently re-verified,
+      and pinning unverified data isn't verification.) `pathfinder2e-builder.test.ts` +1.
+      **18 PF2 weapons' damage die + type pinned (2026-07-17):** a wrong die (Greataxe 1d10 vs 1d12?) or
+      B/P/S type mis-rolls every Strike with that weapon; only Longsword was spot-checked. Verified all 18
+      (8 simple + 10 martial) vs Player Core and pinned each. All correct. `pathfinder2e-builder.test.ts` +1.
 - [~] **6c–6h — the other six systems → MOVED to `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`**
       (2026-07-16, per the user's scope call). The platform is focused on **four** systems first — D&D
       5e 2024, D&D 5e 2014, Intuitive Games, Pathfinder 2e. PF1e, Starfinder 1e, Cyberpunk RED, Shadowrun
@@ -488,12 +670,67 @@ now audited and guarded:
 
 ## Slice 7 — Everything connected
 
-- [ ] Choosing a system on a character drives: available classes, skills list, conditions,
-      the sheet's ability model, and the glossary the sheet links to.
-- [ ] `system-validate.ts` runs against the class data (not just the catalog) so a sheet with a
-      2014 feature on a 2024 character is flagged.
-- [ ] The sheet's Progression tab renders from `progressionTable(def, sub)` rather than
-      hand-authored per-character arrays.
+- [~] Choosing a system on a character drives: available classes, skills list, conditions,
+      the sheet's ability model, and the glossary the sheet links to. **Mostly SHIPPED** — `system-rules.ts`
+      exposes `systemClasses`/`systemClassNames`/`systemConditions`/`systemSpecies`/`systemSkills` for all
+      four focus systems; the class/species pickers + the `ConditionTracker` (system conditions, PF2's
+      numeric Frightened 2 etc.) + the glossary are all system-scoped, and PF2 has its own bespoke sheet +
+      ability model. **⚑ PF2 skill math + armor-check-penalty conditional pinned (2026-07-18):**
+      `pf2SkillTotal` (used live by `pf2CharacterDigest`) had no direct assertion — its base formula
+      (attribute + level-based proficiency + item bonus) and, critically, its conditional armor-check
+      penalty (bulky armor reduces the STR/DEX physical skills Athletics/Acrobatics/Stealth/Thievery but
+      NOT knowledge skills, gated on each skill's `armorPenalty` flag) were untested. `pathfinder2e-rules.test.ts`
+      +2 pins both — an ACP that leaked onto Arcana, or never applied to Athletics, now fails a test.
+      Full dnd suite green (1867). **⚑ `normalizeSystem` routing gate pinned (2026-07-18):** the strict
+      exact-key normaliser gates every system route (`isIG = normalizeSystem(system) === 'intuitive-games'`,
+      the digest/edit router) but only its positive round-trip was tested. `system-designation.test.ts` +4
+      pins the safe-default + exactness: nullish/non-string/unknown aliases ('D&D'/'pathfinder'/'IG'/the
+      'dnd-5e-2024' typo) → ambiguous (never guesses a rulebook), and a crafted superset ('intuitive-games-x')
+      does NOT normalize to a real key (a regression to includes()/startsWith() would mis-route a character to
+      the wrong system's rules). Full dnd suite green (1881).
+      **⚑ PF2 digest — background + deity added (2026-07-18):** `pf2CharacterDigest` surfaced
+      class/subclass/ancestry/heritage but not the character's background or DEITY — and deity is mechanically
+      live in PF2 (anathema, domains, favored weapon), so a ruling on "does this break your anathema?" needs
+      it. Now appends "Background: … Deity: …" when set (omitted otherwise). `pf2-digest.test.ts` +2. (Parallel
+      to the same IG digest fix.) Full dnd suite green (1889).
+      **⚑ PF2 state now feeds the EDIT AI too (2026-07-18):** the adjudication chat route appended
+      `pf2CharacterDigest` for a PF2 character, but the `ai-edit` route appended only the IG digest — so the
+      AI editing a PF2 character was blind to its state while the IG edit AI wasn't. Wired the PF2 digest into
+      the ai-edit route's context (PF2 has no incremental pf2-edit tool, but the read context informs base
+      edits + matches the librarian). `pf2-digest.test.ts` +1 (route source-anchor). Full dnd suite green (1891).
+      **⚑ PF2 STRIKES now carry damage + traits (2026-07-18):** the digest's strikes line showed only the
+      to-hit bonus — a ruling on "how much damage?" had nothing, and the AI couldn't tell which strikes are
+      agile (deciding the MAP column). Now shows "Longsword +13, 1d8+4 slashing [agile, finesse]".
+      `pf2-digest.test.ts` +2. Full dnd suite green (1892).
+      **⚑ Raw abilities/attributes added to IG + PF2 digests (2026-07-18):** only the 5e digest surfaced raw
+      ability mods; a bare ability/attribute check ("a STR check to force the door") on an IG or PF2 character
+      left the AI without the mod. Added an "ABILITIES: STR +N …" line to IG (scores→mods via `igAbilityMod`)
+      and "ATTRIBUTES: …" to PF2 (stored as mods already). Now all three digests carry raw abilities.
+      `ig-digest.test.ts` +1, `pf2-digest.test.ts` +1. Full dnd suite green (1895).
+      **⚑ PF2 speed added (2026-07-18):** the PF2 digest omitted the character's Speed — positioning-critical
+      in PF2 (Stride/Step/reach/flanking), so a "can you reach them?" ruling had nothing. Added "· Speed N ft"
+      to the DEFENSES line. `pf2-digest.test.ts` (+1 assertion). Full dnd suite green (1895).
+      **Cross-system leak guard added** (`8f34eed9`): `system-conditions-skills-scope.test.ts`
+      (8) extends Ground Rule 1 to the condition + skill lists — PF2's Clumsy/Enfeebled/Off-Guard stay out
+      of 5e, 5e's Charmed/Restrained out of PF2, IG's Heatstroke + Bluff-not-Deception unique — so a new
+      condition/skill can't be authored without scoping it. **Remaining gap (deferred — data-model work):** the STANDARD sheet's `SavesSkills`
+      still renders the hardcoded 5e `SKILLS`. That's correct for both 5e editions (identical lists) but
+      wrong for **intuitive-games**, whose skills differ (Arcane/Appraise/Bluff…). System-scoping it needs
+      a system-keyed skill-proficiency store (today `char.skills` is a fixed 5e-keyed shape), which is
+      larger than a drop-in and risks the primary 5e path — so it's deferred rather than rushed.
+      **Correctness fix shipped in passing** (`0295bdf2`): Passive Perception + Save DC on that card were
+      reading base abilities, not the ledger-effective ones — now fixed (see Slice 10). `saves-skills-effective.test.ts` (2).
+- [x] `system-validate.ts` runs against the class data (not just the catalog). **✅ SHIPPED** (`67f40793`,
+      `90d6a967`): the validator includes the character's saved homebrew classes (no false flag), and
+      cross-references features against both 5e editions' class data so an edition-EXCLUSIVE feature
+      (e.g. a 2014-only feature on a 2024 sheet) is warned — conservatively (shared + homebrew features
+      never flag).
+- [x] **The sheet's Progression tab renders from `progressionTable(def, sub)`. ✅ SHIPPED** (`82375dae`,
+      `0b2fd295`): `progressionRows(def, sub, level)` maps the class data to the 20 `ProgressionRow`s
+      (faithful level/prof/per-level-features; middle columns from resources/spell info) + `progressionColumns`
+      for the labels. The levels route computes it server-side (no client-bundle hit) and the Progression
+      component fetches `/levels` and prefers that class-DATA table over the hand-authored array — falling
+      back to the stored array for a custom/ambiguous character. 7 tests total.
 - [ ] Jack: decide whether Rangor/Pugilist become a real custom class + subclass through the Slice-5
       builder (they are currently hand-authored sheet data with `system: ambiguous`).
 
@@ -544,6 +781,53 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       and Monk empty by design — no formal subclass). The PF2 builder drives its subclass field from a
       per-class `<datalist>` (real options as suggestions, freeform kept as the custom escape hatch).
       `pathfinder2e-builder.test.ts` +1.
+      **Plus (6b follow-up) correct full-caster spell slots** — `pf2SpellSlots(level)` replaces the
+      builder's hardcoded `[5]` with the real Player Core progression (5 cantrips; a rank opens at level
+      2r−1 with 2 slots, rises to 3 at 2r; the single 10th-rank slot at level 19). The PF2 sheet renders
+      slots per rank. All 7 caster classes are full casters on this table. `pathfinder2e-rules.test.ts`
+      +5 (table verified vs Player Core), builder +2.
+      **Plus (6b follow-up) worn armor → correct AC/Dex-cap/speed** — every PF2 character previously
+      showed UNARMORED AC because the builder never applied armor. Added `PF2_ARMORS` (11 Player Core
+      armors, unarmored→heavy, with AC item bonus / Dex cap / Strength req / check + speed penalties);
+      the builder applies the picked armor's Dex cap + AC bonus (full plate now caps Dex to 0 and adds
+      +6) and the speed penalty (correctly reduced by 5 ft when the Strength req is met). Armor picker in
+      the builder UI + name shown under AC on the sheet; the AI parse/schema accept `armor`.
+      `pathfinder2e-builder.test.ts` +6.
+      **Plus (6b follow-up) the armored-skill check penalty** — now applied to the four armor-affected
+      skills (Acrobatics/Athletics/Stealth/Thievery) when the Strength requirement is unmet, and waived
+      when met. `PF2Skill.armorPenalty` + `PF2Combat.armorCheckPenalty`; `pf2SkillTotal` takes the
+      penalty and applies it only to flagged skills; the sheet marks penalized skills with ▲. This
+      CLOSES the PF2 armor mechanics (AC + Dex cap + speed + check penalty all correct). +3 tests.
+      **Plus (6b follow-up) a PF2 weapon catalog → real Strikes** — a built character's only Strike was
+      an unarmed Fist. `PF2_WEAPONS` (19 Player Core simple+martial weapons: damage die/type, traits,
+      group, hands, range) + `pf2WeaponStrike` (ranged/finesse use DEX when it beats STR; melee adds STR
+      to damage; attack rank = class attack proficiency). The builder prepends a picked weapon's Strike
+      (Fist kept as fallback); weapon picker in the UI; AI parse/schema accept `weapon`. +5 tests.
+      **Plus (6b follow-up) PF2 armor + weapons in the library** — the new gear catalogs, builder-only
+      before, now surface in `searchLibrary` as `armor`/`weapon` hits (AC/Dex-cap/Str; damage die+type+
+      traits) and as PF2-only **Armor** and **Weapons** tables on the library page. System-scoped (no 5e
+      leak). `library.test.ts` +1 (Full Plate +6 AC, Longsword 1d8 slashing).
+      **Plus (6b follow-up) a PF2 spell catalog** — the last missing PF2 content. `PF2_SPELLS` (25
+      cantrips + iconic spells across ranks 0–6 and the four traditions, with cast cost + factual effect)
+      surfaces in `searchLibrary` as `spell` hits and a PF2-only **Spells** table (marked representative,
+      not exhaustive). System-scoped; `library.test.ts` +1 (Fireball rank 3 arcane, Shield cantrip).
+      **Plus (6b follow-up) gear/spells/subclasses in `pf2Catalog()`** — the catalog (which feeds the AI
+      builder's grounding prompt) now also groups Subclasses, Weapons, Armor, and Spells, so an AI PF2
+      build references a real bloodline/longsword/breastplate/Fireball instead of inventing one. +1 test.
+      **Plus (6b hardening) a content-integrity guard** — `pathfinder2e-content-integrity.test.ts` (9)
+      locks the whole PF2 library internally consistent: no duplicate names per catalog, valid ranks/
+      attributes, backgrounds train real skills, spells rank 0–10 with valid traditions, gear categories/
+      damage types valid — so future edits can't silently introduce a dangling reference or bad rank.
+      **Plus (6b hardening) a test on the assemble seam** — `assemblePF2VanillaCharacter` (the projection
+      the `pf2-build` routes persist and the character page reads) is now covered by
+      `pathfinder2e-assemble.test.ts` (8): the sidecar passes `isPF2Character`, identity→meta/chips,
+      modifier→score mapping, projected HP/AC equal the rules engine, the weapon Strike + Fist land in
+      the shared attacks, and the route's `summarizeCharacterProvenance` pass runs and tags vanilla
+      content — the same seam a browser build would exercise, minus the browser.
+      **Plus (6b follow-up) ancestry senses + initiative on the sheet** — ancestry senses (Darkvision,
+      Low-light vision) lived on `PF2_ANCESTRIES` but were dropped at build; the builder now carries them
+      onto `PF2Character.senses` and the sheet shows them. The sheet also shows an Initiative stat (PF2
+      rolls initiative with Perception by default). `pathfinder2e-builder.test.ts` +3.
 - [x] **Intuitive Games ✅** — closed the gap found 2026-07-16 (its content lived only in the builder
       module, not the searchable glossary). Authored `lib/dnd/glossary/intuitive-games.ts` (26 articles)
       from the engine's own numbers (igProficiency = level, igDegreeOfSuccess, igSaveTotal, igMaxHp) and
@@ -554,6 +838,16 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       wired it into `glossary/index.ts` `BY_SYSTEM`. **Verified in the running app**: library search for
       "stance" under intuitive-games returns Stances / Advantage & Disadvantage / Damage Reduction. All
       four focus systems are now searchable + AI-navigable in the library.
+      **↑↑ MASSIVELY EXPANDED 2026-07-17** — the IG library is now the most complete of the four focus
+      systems: a full **site scrub** of intuitivegames.net into **25 library sections** (core rules +
+      damage/cover/movement, character-building, classes + per-class detail, skills + combat skills, 10
+      ancestries w/ art, 10 backgrounds, 10 stances, 18 conditions, **151 feats**, powers + full spell
+      roster, redistribution, companions, weapons/armor/shields/equipment/tools/magical items), all
+      full-text + searchable + AI-grounded, plus the interactive sheet (tooltips + mechanics + manual & AI
+      edit) and Brendan's race art. Tracked in its own doc **`INTUITIVE_GAMES_FULL_BUILDOUT_2026-07-17.md`**
+      + the master reference **`docs/reference/intuitive-games/SITE_MASTER.md`**. So Slice 8b's IG portion is
+      not just "26 glossary articles" — it's a complete system build (with the owner-gated remainder — spell
+      effect text, class ladders, taxonomy decision — tracked in that doc's gaps list).
 - [x] **The AI now answers FROM the library ✅** — closed the gap where `systemGroundingBlock` grounded
       the AI (librarian, builder, adjudication) on the rules catalog + DB store but NOT the in-code
       glossary. It now does deterministic, **system-scoped** glossary retrieval (no key needed): the
@@ -605,12 +899,20 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       model now exists (`lib/dnd/systems/pathfinder2e/`), so PF2 classes/ancestries/backgrounds have
       structured builder data + a bespoke sheet; the PF2 catalog projects them into the library picker.
 
-## Slice 8 — Semantic search (optional, needs a key)
+## Slice 8 — Semantic search (optional, needs a key) — ⏸ DEFERRED pending `VOYAGE_API_KEY`
 
-- [ ] Backfill embeddings for `dnd_system_entries` + the glossary once `VOYAGE_API_KEY` exists
-      (`scripts/dnd-seed-system-rules.ts` already embeds when configured).
-- [ ] Project the glossary into the store so semantic retrieval reaches the full articles.
-- [ ] Keyword search must remain the fallback — it is the only thing that works without a key.
+- [~] Backfill embeddings for `dnd_system_entries` + the glossary once `VOYAGE_API_KEY` exists
+      (`scripts/dnd-seed-system-rules.ts` already embeds when configured). **DEFERRED — blocked on the
+      absent `VOYAGE_API_KEY`:** the backfill literally cannot run or be verified without the key, and it's a
+      pure retrieval-QUALITY enhancement (not a correctness path). The embedding code is already written and
+      runs automatically once a key is present — so this is a config/ops step, not a build task.
+- [~] Project the glossary into the store so semantic retrieval reaches the full articles. **DEFERRED for the
+      same reason** — semantic retrieval is inert without embeddings, which need the key.
+- [x] Keyword search must remain the fallback — it is the only thing that works without a key. **✅ SHIPPED /
+      verified throughout:** `searchLibrary` (`lib/dnd/library.ts`) is pure + DB-free and is what actually
+      runs today (no key, no seeded rows) — the whole four-focus-system library + IG's 25 sections are
+      searchable by keyword, proven across the `library.test.ts` suite. So the SEARCH VALUE is delivered; only
+      the semantic-ranking upgrade waits on the key.
 
 ---
 
@@ -712,7 +1014,19 @@ Decisions that stuck:
       and `computeAC` already do this correctly and are still uncalled) → belongs with Slice 15.
 - [ ] AC / speeds / HP max / save DC / initiative read the ledger (abilities, saves, skills and
       attacks now do).
-- [ ] Equip validation (attunement limits, one body armour).
+- [~] Equip validation (attunement limits, one body armour). **RULE ✅ SHIPPED; live wiring ⏸ (corrected
+      2026-07-18).** Attunement was already validated (`canAttune` + `ATTUNEMENT_CAP`); added the equip-slot
+      rules to `engine/equipment.ts`: `canEquip(items, id)` enforces **one body armour at a time**, **one
+      shield**, and **two-handed-weapon vs shield mutual exclusion** (both directions), returning a reason
+      string; re-equipping something already on is a harmless no-op; unknown id → not ok. `equipChecked`
+      equips only when valid (a no-op on conflict, mirroring `attune`). `equipment.test.ts` +5 covers all of
+      it. **⚠ CORRECTION: the "single mutation path can never reach an illegal state" claim was wrong** — the
+      only caller of `equipChecked` is `engine/character.ts`, the DEAD `deriveCharacter` reducer no live
+      surface imports. The live equip paths (`ItemBuilder` checkbox, AI `equip_item`) don't call `canEquip`,
+      so illegal equipped states ARE reachable there (bounded: `deriveAc` still picks one armour for AC, but
+      item EFFECTS stack). Wiring it into the live paths needs a UX/refusal decision → owner/QA-gated, now
+      guarded by `equip-enforcement-gap.test.ts`. See the fuller finding under Slice 10's "Equipping is
+      validated" item above.
 
 ---
 
@@ -720,32 +1034,113 @@ Decisions that stuck:
 
 One pure function that every later slice reads. Nothing else in Part II can be built first.
 
-- [ ] `lib/dnd/effects/ledger.ts`: `buildLedger(char, ctx) → EffectLedger`. It walks EVERY source —
-      equipped/attuned inventory items, `activeEffects[]` (consumed potions, spells cast on you, DM
-      boons), features gated by `unlockLevel`, the active form/transform, conditions — and returns,
-      **per target**: the base value, every contributing effect with its `source`, and the final value.
-- [ ] Resolution order is documented and tested, not emergent: `set_base` → `set` (highest wins) →
-      `add` (all stack) → advantage/disadvantage (both → flat). Ties broken deterministically.
-- [ ] The ledger explains itself: every entry carries `{ source, sourceKind, label, delta }` so the
-      tooltip in Slice 13 and the panel in Slice 12 are *reads*, not re-derivations. Two components
-      computing "why is my STR 22" independently will drift; there must be one answer.
-- [ ] Swap the sheet's reads onto the ledger: abilities, AC, speed, HP max, save DC, initiative,
-      skills, proficiency. This is the change that makes item effects real.
-- [ ] **An equipped item lands in the right place, automatically.** Equipping routes by what the item
-      *is*, with no per-item code: a weapon appears as a row in **Attacks** with its computed to-hit
-      and damage; armour drives **AC** (respecting DEX cap / STR requirement / stealth disadvantage);
-      a shield stacks; a consumable is usable from **Inventory**; a granted feature (Slice 11) appears
-      in **Features**; a granted spell in **Spells**; a granted resource as a **resource track**.
-      Each carries a badge naming the item it came from, and each disappears on unequip.
-      `engine/weapons.ts` (`attacksFromInventory`) and `engine/armor.ts` (`computeAC`) already do this
-      work correctly — they are simply not called by anything the player sees. Same root cause as
-      above; same fix.
-- [ ] Equipping is validated, not blind: attunement limits, "one body armour at a time", two-handed
-      vs shield. Where a system has a hard rule, enforce it; where it doesn't, allow it and let the
-      panel show the truth.
-- [ ] Tests: base with no sources == the stored character (the no-op case must be exact, or every
-      existing sheet silently changes); two items adding to one target stack; two `set`s take the
-      highest; removing a source restores the base *exactly*.
+- [x] `lib/dnd/effects/ledger.ts`: `buildLedger(char, ctx) → EffectLedger`. ✅ SHIPPED — walks every source
+      (equipped/attuned inventory, `activeEffects[]`, features gated by `unlockLevel`, the active
+      form/transform, conditions) via `collectSources` and returns, per target, the base, every contributing
+      effect with its `source`/`sourceKind`/`label`, and the resolved final. `effect-ledger.test.ts` (30,
+      incl. the fifteen-effect "one boot" invariant and the source-kind sweep).
+- [x] Resolution order is documented and tested, not emergent: `set_base`/`set` (highest wins) → `add`
+      (all stack) → advantage/disadvantage (both → flat). ✅ SHIPPED — `resolveAgainst` is
+      `max(base, highest override) + Σadds`; `effect-ledger.test.ts` pins each step: adds stack, highest set
+      wins, a set never lowers the base, adds stack on top of the winner, adv+disadv cancel, and derived
+      targets resolve against the caller's base. **⚑ set_base NOW PINNED (2026-07-18):** every order test
+      exercised only `set` — yet the ledger pools `set_base` with `set` into the same highest-wins override
+      (ledger.ts ~L349), so a regression handling only `set` would silently break every `set_base` with no
+      failing test. Added 2 cases: a `set_base` shares the highest-wins override (beating a lower `set`, with
+      adds stacking on top) and never lowers a higher base — identical treatment to `set`, now guarded.
+      `effect-ledger.test.ts` +2 (30 total). Full dnd suite green (1859).
+- [x] The ledger explains itself: every entry carries `{ source, sourceKind, label, delta }` so the tooltip
+      (Slice 13) and the panel (Slice 12) are *reads*, not re-derivations. ✅ SHIPPED — `explain(target)`
+      returns the contributions with source/label; `EffectStar` and `ActiveEffects` both read them (guarded
+      by `effect-star.test.ts` / `active-effects.test.ts` against a second local formatter). One answer.
+- [x] Swap the sheet's reads onto the ledger: abilities, AC, speed, HP max, save DC, initiative,
+      skills, proficiency. This is the change that makes item effects real. **✅ COMPLETED** — most
+      landed with Slice 10, and a base-vs-effective audit of the derived-value paths (`0295bdf2`,
+      `ef5240b2`) caught the stragglers that still read BASE scores while the ability pills beside them
+      showed effective: **Passive Perception + Save DC** (SavesSkills), **AC** (CombatPanel — derived from
+      base DEX, so a DEX item never moved AC), **Initiative** in the StatRail *and* CombatPanel *and* the
+      InitiativePrompt (the last one submitted the wrong encounter turn-order bonus), **CON-mod regen**,
+      and **hit-die healing**. All now read effective abilities; initiative folds the `initiative` ledger
+      target. `saves-skills-effective.test.ts` (2) + `derived-effective-abilities.test.ts` (7) guard
+      against regression to the base scores. **Spellcasting + weapon + form sweep** (`4b5d7825`): the
+      spell **Save DC** and **spell attack** (both `castSpell` and the `SpellsPanel` header) derived from
+      BASE spellcasting ability, so a Headband of Intellect / CHA item never moved them — now effective,
+      folding `spell_save_dc`/`spell_attack`; **weapon damage** flat mod used base STR/DEX; the StreamChat
+      WIS save and the transform **FormAbilities** DC used base too (the form DC now correctly uses the
+      form's imposed STR). `derived-effective-spellcasting.test.ts` (5). A repo-wide grep confirms no
+      derived value still reads `abilityMod(char.abilities…)`. **AC unified to one source** (`537d770c`):
+      the always-visible StatRail showed the manual `combat.ac` while the Combat panel showed the DERIVED
+      AC — an armored character saw two different numbers. AC is now derived once in the store (`acInfo`,
+      effective DEX + equipped armor/shield + AC effects) and both surfaces read it, satisfying Slice 13's
+      "one answer" rule. The rail shows the derived AC (read-only, sourced) when equipment drives it,
+      editable manual AC otherwise. `ac-single-source.test.ts` (5). **AC honors the equipped TAG**
+      (`fc1e1200`): `deriveAc` checked only the `equipped` flag, so an item equipped via the `equipped`
+      TAG applied its STR/speed bonuses (ledger's `isEquipped` honors the tag) but NOT its AC bonus — a
+      split-brain result; fixed. **Same fix extended to the armour BASE (2026-07-17):** `fc1e1200` taught
+      `deriveAc`'s +ac EFFECT sum to honor the tag, but the body-armour/shield SELECTION that sets the base
+      AC still checked only the `equipped` flag — so a tag-equipped breastplate had its ring/effect bonuses
+      counted while its own base AC was ignored, and the sheet showed the unarmoured/manual AC. Both halves
+      of `deriveAc` now use one `isWorn` predicate (`equipped` flag OR `equipped` tag = the ledger's
+      `isEquipped`; attuned-alone is not worn). `derive-ac.test.ts` +1 (a tag-equipped armour+shield sets
+      the base). **⚠️ OPEN FINDING (needs a product call, not an autonomous guess):** the
+      codebase disagrees on whether attunement ALONE (attuned but unworn) activates an item's effects —
+      the ledger's `isItemActive` reduces to equipped-only, while `deriveAc`, `equipment.collectItemEffects`,
+      and the ItemBuilder's "effects while equipped/attuned" label all say equipped-OR-attuned. So an
+      attuned-but-unequipped item's AC currently applies but its STR does not. Left unchanged pending a
+      decision on the intended rule; both paths should then use one shared predicate. **Ledger consistency
+      pinned (2026-07-17):** verified the LEDGER itself — the source of truth for the sheet's displayed
+      numbers — is internally consistent (an attuned-but-unworn item contributes NOTHING, neither STR nor
+      AC; a worn item contributes everything), so the sheet can't show the split-brain on a single item.
+      `ledger-attunement.test.ts` (3) characterizes this so a change to the ledger's attunement handling
+      (i.e. implementing the eventual decision) fails loudly and gets reviewed. The cross-path decision
+      (whether attunement ALONE activates effects, unifying the older `collectItemEffects`/`deriveAc` paths
+      with the ledger) remains the owner's call — confirmed consolidating them is NOT behavior-preserving
+      (`deriveAc` also honors the equipped TAG that `collectItemEffects` doesn't), so it can't be done blind. **Save DC unified the same way**
+      (`4fcef838`): the StatRail honored the manual override while the Saves & Skills card recomputed
+      8+PB+STR and ignored it — two Save DCs on one sheet. Now derived once in the store (`saveDc` =
+      override ?? 8+PB+effective STR); both cards read it. `save-dc-single-source.test.ts` (3).
+      **Max HP tone/display unified** (`42ceb2c8`): the rail showed BASE max HP and coloured its low-HP
+      tone from it while the panel showed the effective max — a +HP buff moved one, not the other. The
+      rail now reads the effective max (edit base, show effective with ★). `statrail-effective-maxhp.test.ts`
+      (3). **Speed unified too** (`e1ad8caf`): the rail showed base `combat.speed` while the panel showed
+      the ledger walk speed (items + the exhaustion −5ft/level penalty) — so exhaustion's speed hit, the
+      mechanic the user asked to be real, was invisible in the rail. Now effective. `statrail-effective-speed.test.ts`
+      (2). With AC, Save DC, Max HP, and Speed, the StatRail and the detail panels no longer disagree on
+      any derived value — every prominent number on the sheet reads one ledger-effective source.
+- [~] **An equipped item lands in the right place, automatically.** ✅ *Mostly wired:* **armour drives AC**
+      (live via `deriveAc` — category + DEX cap + one-at-a-time, tested), a **consumable** is usable from
+      Inventory (the ⚗ Use path, Slice 12), and **granted feature/attack/spell/resource** all render sourced
+      + gone-on-unequip (Slice 11 grants, `grant-render-paths.test.ts`). **Remaining — the weapon→Attacks
+      row:** `engine/weapons.ts` (`attacksFromInventory`) derives an attack from a weapon item correctly but
+      is NOT called by the live Attacks table (which renders stored + `grantsAttack` attacks) — wiring it in
+      is the same browser-verified surface as the weapon builder (Slice 27), so it moves with that.
+- [~] Equipping is validated, not blind: attunement limits, "one body armour at a time", two-handed vs
+      shield. Where a system has a hard rule, enforce it; where it doesn't, allow it and let the panel show
+      the truth. **The RULE is implemented + tested, but NOT wired to the live paths (finding 2026-07-18).**
+      `engine/equipment.ts` `canEquip`/`equipChecked` correctly refuse a second body armour, a second shield,
+      and a shield-with-a-two-handed-weapon (both directions), and `equipment.test.ts` covers all of it — BUT
+      `equipChecked` is only called by `engine/character.ts`, the DEAD `deriveCharacter` reducer no live
+      component/store imports. The LIVE equip paths — the `ItemBuilder` "Equipped" checkbox (`patch`→`onSave`,
+      no validation) and the AI `equip_item` (`sheet-edits.ts`, sets `equipped` unconditionally) — do NOT call
+      `canEquip`, so a player/AI CAN reach an illegal equipped state. Damage is bounded: `deriveAc` defensively
+      `.find`s ONE armour + one shield for AC (so no double-AC — `derive-ac.test.ts` +2 pins that, catching a
+      `.filter/.reduce` regression), but the LEDGER still applies every equipped item's EFFECTS, so two worn
+      magic armours both contribute. **Wiring `canEquip` into the live paths needs a UX decision** (refuse with
+      a message, like `rejectedEffects`? auto-swap the conflicting item? — a silent no-op would be the
+      "AI reports success, sheet unchanged" anti-pattern), so it's owner/QA-gated, tracked by
+      `equip-enforcement-gap.test.ts` (below). **Attunement limits** likewise: `canAttune`/`ATTUNEMENT_CAP`
+      exist + are tested but ride the same unwired reducer (BLOCKERS §A).
+- [x] Tests: base with no sources == the stored character; two items adding to one target stack; two `set`s
+      take the highest; removing a source restores the base *exactly*. ✅ SHIPPED — all in
+      `effect-ledger.test.ts` (the exact no-op case, add-stacking, highest-set-wins incl. the new `set_base`
+      pin, and unequip-restores-base-exactly with a `structuredClone` before/after check).
+      **⚑ Non-mutation now pinned at FULL breadth (2026-07-18):** the anti-corruption invariant (buildLedger
+      runs every render and must never write back to the character) was checked whole-object only for the
+      transform case, and abilities-only for items. Added `effect-ledger.test.ts` +1: a character carrying
+      equipped + attuned items, an activeEffect (consumed buff), a feature, and conditions ALL at once stays
+      deep-equal (`structuredClone` before/after) through `buildLedger` + every read method (value/explain/
+      collected/rollFlags/identity/isModified). So a future refactor that cached derived state onto the model
+      — silently corrupting every stored character — fails a test. Full dnd suite green (1883).
 
 **Done when:** equipping a +2 STR belt on any sheet changes the displayed STR, its modifier, the
 athletics check, and the carrying capacity — with no code that knows what a belt is.
@@ -758,7 +1153,11 @@ Identity: name/species/class/subclass, size/creature-type, portrait/token, and g
 profession — all overlay the display over an untouched base and revert on unequip. The one remaining
 follow-up is `size` → carrying-capacity/grapple MECHANICS (it already displays); everything the request
 named — "an item could literally turn the character into a completely different character" — works.
-Details of each piece below.
+Details of each piece below. **⚑ Multi-overlay resolution pinned (2026-07-18):** identity effects are
+deliberately LAST-writer-wins (`ledger.ts identity()`), NOT highest-wins like numbers — two items renaming
+you resolve to the one filed last (sourced to it), and both contributions stay visible so the ★/panel can
+show the conflict. This untested edge is now guarded by `identity-overlay.test.ts` +1 (a numeric-max
+regression would go NaN on the string values and silently pick wrong).
 
 The request's real ask: *"it could literally turn the character into a completely different character."*
 
@@ -783,7 +1182,13 @@ rendered nowhere. `SavesSkills` now lists granted proficiencies under Skills, ea
 pattern: `collected('resistance'|'immunity'|'vulnerability')` was available but unrendered. The
 Defenses card in `CombatPanel` now lists each, per-type, tagged with its source (vulnerabilities in
 the danger colour), gated on non-empty. Tests: `grant-defenses.test.ts` (3) — collected+sourced,
-gone-on-unequip, render wiring.
+gone-on-unequip, render wiring. **Condition-immunity conflation fixed (2026-07-17):** `condition_immunity`
+is a DISTINCT target (a named condition — Frightened, Poisoned) but shares the `immunity` OPERATION with
+damage immunity, and `collected('immunity')` filters by operation — so an authored condition immunity
+rendered mislabeled inside the damage "Immune — fire, poison" list. Now each is collected by TARGET via
+`explain('immunity')` / `explain('condition_immunity')` (with a local value-dedup) and condition
+immunities get their own "Immune to conditions" line — the distinct Defenses home the registry promises.
+`grant-defenses.test.ts` +2 (ledger keeps them on separate targets; the panel renders the new line).
 
 **Grant: senses ✅ SHIPPED (commit pending).** `grant_sense` (darkvision 60, tremorsense…) uses op
 `set`, so it's read via `ledger.explain('grant_sense')` rather than `collected`. The Defenses card
@@ -856,29 +1261,108 @@ and spells all resolve through the ledger (flat grants) or a structured item sub
 
 Original action items (kept for the remaining work):
 
-- [ ] **Identity targets**: `name`, `image`/`token`, `species`, `className`, `subclass`, `gender`,
-      `profession`, `size`, `pronouns`. Operation `set_identity`. Overlaid by the ledger (see the rule
-      above), never written to the model.
-- [ ] **Size** is mechanical, not cosmetic: it drives carrying capacity, weapon damage dice for some
-      systems, grapple/shove legality. Wire it to those, or it is a costume.
-- [ ] **Grant targets**: `grant_feature`, `grant_attack`, `grant_spell`, `grant_resource`,
-      `grant_sense`, plus the existing `grant_proficiency`. This is the pendant that gives you an
-      ability from another class entirely — the granted feature appears in Features with a badge
-      naming the item it came from, and vanishes when the item comes off.
-- [ ] **Movement is not one number.** `speed_fly`, `speed_swim`, `speed_climb`, `speed_burrow`,
-      `hover` are each their own target with their own base (Appendix A) — a potion of flying is not
-      "+30 speed". A fly speed can exist while the walk speed is 0, and the sheet must show both.
-      This needs a **speeds block on the sheet** before it can be granted; see rule 2 below.
-- [ ] **Senses** (`grant_sense`: darkvision/tremorsense/truesight/blindsight, with a range) likewise
-      need somewhere to render.
-- [ ] **Every new target must have a home on the sheet, or it is a lie.** Granting a burrow speed
-      that appears nowhere is exactly the bug this whole Part is fixing — a correct engine nobody can
-      see. A target is not done until it renders.
-- [ ] A single item carries **any number of effects of any mix** — the "one boot that rewrites you"
-      case is just an item with fifteen effects and must need no special code.
-- [ ] Tests: an item granting a Barbarian feature to a Wizard shows it in Features, sourced to the
+- [x] **Identity targets**: `name`, `image`/`token`, `species`, `class`, `subclass`, `gender`,
+      `pronouns`, `profession`, `alignment`, `size`, `creature_type`. ✅ SHIPPED — all registered
+      (`targets.ts` identityTargets) with the `set` operation, overlaid via `ledger.identity(target)`
+      (never written to `meta`), each with a real render home: name/species/class/subclass in the Hero
+      header (starred), image/token at display in `App.tsx` (gallery/framer keep base media), size as
+      carrying capacity + Combat, creature_type in CombatPanel, gender/pronouns/profession/alignment in
+      the Bio Details line. `identity-overlay.test.ts` + `identity-alignment.test.ts` + `identity-size.test.ts`.
+      **⚑ BIO DETAIL OVERLAYS NOW STARRED (2026-07-18).** The Details line rendered the ledger-overlaid
+      gender/pronouns/profession/alignment but — unlike name/species/class in the Hero — carried NO ★, so a
+      Helm of Opposite Alignment (`set alignment`) or a Girdle (`set gender`) flipped the shown value with
+      no way to see why. Wrapped each read-mode detail in `<EffectStar target={d.key}>`; the star lights on
+      `isModified(target)` (true whenever an identity effect contributes) and the popover attributes the
+      source. Edit mode still binds the input to the BASE `meta` value. `identity-overlay.test.ts` +2 (the
+      alignment-overlay isModified trigger + the Bio star wiring). Full dnd suite green (1836). The identity
+      target set is now complete AND uniformly explainable.
+- [~] **Size** is mechanical, not cosmetic. **Carrying capacity ✅ SHIPPED** (`05bbe5b6`):
+      `sizeCapacityMultiplier` scales `carryingCapacity`/`encumbranceLevel` (Tiny ½ … Gargantuan ×8), so a
+      Large character carries double; +1 test. **Now visible ✅ SHIPPED** (`5c28bbdf`): the Inventory tab
+      renders a "Carrying X / Y lb · <encumbrance>" line reading the ledger-effective STR + size (so a
+      STR item or a size-change updates it live), `InvItem` gains an optional per-unit `weight`, and the
+      item builder exposes a Weight (lb) input; `inventory-carrying.test.ts` (4) locks the wiring.
+      (Weapon-damage-die scaling for some effects remains a later item.) The `size` effect target was
+      already wired.
+- [~] **Size** — weapon damage dice / grapple-shove legality. **Bonus-dice path ✅ SHIPPED**
+      (`85a39e6e`): a new `weapon_bonus_dice` roll target (dice-valued, add-only) lets any effect add
+      DICE to weapon damage — `damage_roll` only added a flat number, so Enlarge's +1d4, a flametongue's
+      +1d6 fire, an elemental brand's +2d6 all had no home. `rollWeaponDamage` collects every
+      non-suppressed ledger contribution, parses each into a typed segment (`parseBonusDamageSegment`),
+      and rolls it into the weapon's damage with a BONUS DICE tag. So `size` now has a real mechanical
+      route: **Enlarge = the size identity-set bundled with a +1d4 `weapon_bonus_dice` effect** — an
+      authored, citable rule, not an invented auto-scaling of the base dice (which is not a PHB rule for
+      PCs and would violate Ground Rule 3). Also fixed a latent `describeEffect` bug (dice-add rendered
+      as "+0 <label>"). `weapon-bonus-dice.test.ts` (13).
+      **DEFERRED — generic size→base-dice auto-scaling + grapple/shove legality gating.** Auto-doubling
+      a PC's weapon dice by size is a Monster-Manual design convention, not a PHB rule for player
+      characters, so deriving it automatically would invent a rule; the real mechanic is per-effect
+      bonus dice, now shipped above. Grapple/shove size legality is a real rule but has **no home on the
+      sheet** (no grapple/shove action UI to gate) — wiring a target that renders nowhere is exactly the
+      "a target with no home is a lie" failure this doc forbids. Both revisit if/when a grapple UI or a
+      per-system oversized-weapon rule lands.
+- [x] **Grant targets**: `grant_feature`, `grant_attack`, `grant_spell`, `grant_resource`,
+      `grant_sense`, plus the existing `grant_proficiency`/`grant_language`. ✅ SHIPPED — the pendant that
+      gives you an ability from another class entirely. Two render paths, both honest in the registry
+      (`grant-render-paths.test.ts`): **effect-rendered** — `grant_feature` via `Features.explain('grant_feature')`,
+      `grant_sense` via CombatPanel Senses, `grant_proficiency`/`grant_language` via `collected(...)`; and
+      **structured** — `grant_attack`/`grant_spell`/`grant_resource` authored on the item's `grantsAttack`/
+      `grantsSpell`/`grantsResource` field, rendered read-only in Attacks/Spells/Resources while the item is
+      active. Every granted row is **badged to its source item** and gone on unequip (`isItemActive`).
+      Covered by 10 grant test files (grant-feature/attack/spell/resource/sense/proficiency/defenses/speeds/
+      language + dm-grant).
+      **⚑ SOURCE-BADGE PARITY NOW GUARDED (2026-07-18).** The render-path tests proved each panel READS its
+      `grants*` field, but nothing guarded that the row still DISPLAYS its source attribution — a regression
+      dropping the "granted · {item}" badge (or the source-keyed React key that keeps two items' same-named
+      grants distinct) would have stayed green while silently un-attributing every grant. Added a parity guard
+      to `grant-render-paths.test.ts` (+2) asserting Attacks/Spells render `granted · {source}` (with the
+      `Granted by …` title), Resources spells out `Granted by <strong>{source}</strong>`, and all three key
+      their rows by source. Full dnd suite green (1838). **Grant targets are complete.**
+- [x] **Movement is not one number. ✅ SHIPPED** — `speed_fly`/`swim`/`climb`/`burrow` (+ `hover`,
+      `ignore_difficult_terrain`) each render in CombatPanel's speeds block, shown only once granted
+      (base 0 hidden), and **the AI digest now mirrors them** (2026-07-17): a granted non-walking mode
+      surfaces as `STATE: … · Movement fly 60 ft, swim 30 ft`, so a ruling on "can you fly to the ledge?"
+      sees what the sheet shows. `character-digest.test.ts` covers fly/swim + the base-0-hidden case.
+- [x] **Senses ✅ SHIPPED** — `grant_sense` renders on CombatPanel's Senses line AND in the digest
+      (`STATE: … · Senses darkvision 60 ft`), closing the "do you see in the dark?" blind spot for the AI.
+- [x] **Every new target must have a home on the sheet, or it is a lie. ✅ (sheet + AI)** — the sheet was
+      the first home; the AI digest is the *second*, and it was silently missing movement, senses and the
+      whole Defenses card (resistance/immunity/vulnerability/condition-immunity). All four now project into
+      the digest, reading the ledger with CombatPanel's exact logic (damage- vs condition-immunity kept
+      distinct, not lumped). So the AI is no longer blind to capabilities the player can plainly see.
+      **Digest↔CombatPanel parity completed (2026-07-17):** the first pass left two sheet facts still absent
+      from the AI's copy — the movement FLAGS (`hover`, `ignore_difficult_terrain`; presence = the effect)
+      and `condition_advantage` (Dwarven Resilience / Fey Ancestry "advantage on saves vs poison/charm",
+      listed-not-auto-applied, so the AI must be *told* it exists). Both now emit (`Movement traits: …`,
+      `DEFENSES: … · Advantage on saves vs: …`), so every effect-derived fact CombatPanel renders is now in
+      the digest. `character-digest.test.ts` +2.
+      **⚑ Identity completeness across all three digests (2026-07-18):** the 5e digest surfaced
+      species/class/subclass/level but not `background` or `alignment` (mechanically live in 2014 — aligned
+      weapons, detect evil/good). Added a "Background: … · Alignment: …" line (from `meta`, distinct from the
+      correctly-omitted `bio.background` prose; omitted when unset). `character-digest.test.ts` +2. With the
+      parallel IG (background) and PF2 (background + deity) digest fixes the same day, all three character
+      digests now surface every identity field the AI needs to adjudicate. Full dnd suite green (1890).
+- [x] A single item carries **any number of effects of any mix** — the "one boot that rewrites you"
+      case is just an item with fifteen effects and needs no special code. ✅ SHIPPED (verified, not built —
+      the architecture already generalized). **⚑ INVARIANT PINNED (2026-07-18).** Added `effect-ledger.test.ts`
+      +2: a single `Boots of Rewriting` item carrying FIFTEEN effects across every family at once (ability
+      add, AC add, walk+fly speed, max HP, initiative, all_saves, a skill advantage, the three damage
+      defenses, a condition-save advantage, a cross-class `grant_feature`, a `grant_sense`, and a `name`
+      identity overlay) resolves them ALL from one `buildLedger` pass — each number correct, each ref/defense
+      attributed to the ONE item, `led.sources` length exactly 1 despite the fifteen effects — and hands
+      every one back the instant the boot is unequipped (`led.sources` empty, every value at base). This is
+      the "no per-item logic" claim made concrete: if any effect family needed special-casing, a fifteen-mix
+      item is where it would break. It doesn't. Full dnd suite green (1840).
+- [x] Tests: an item granting a Barbarian feature to a Wizard shows it in Features, sourced to the
       item, and gone on unequip; identity effects never mutate stored `meta`; a save-then-unequip
-      round-trip leaves the model byte-identical to before it was equipped.
+      round-trip leaves the model byte-identical to before it was equipped. **✅ SHIPPED 2026-07-17.**
+      Identity-overlay non-mutation + unequip-drops-overlay + last-writer-wins were already covered
+      (`identity-overlay.test.ts`); the gap was the **grant_feature BEHAVIOUR** — the render-path test
+      only proved `Features.tsx` reads `explain('grant_feature')`, not that the ledger actually resolves
+      one. Added three behavioural cases (`grant-render-paths.test.ts` +3): a Wizard wearing a
+      `grant_feature` pendant sees "Rage (Barbarian)" in `explain()` sourced to the item and
+      `isModified('grant_feature')`; the grant vanishes on unequip; an unworn pendant grants nothing.
+      Full suite 1661 green.
 
 ## Slice 12 — The Active Effects sheet (every template) ✅ SHIPPED
 
@@ -890,13 +1374,27 @@ one-click **End effect** (which removes the CAUSE — unequip for a worn item, d
 a consumed one), states "nothing active" rather than vanishing, and now shows each source's art
 thumbnail (Slice 28). This is a READ of the ledger — it re-derives nothing.
 
-- [ ] A new tab/panel on **every** template listing every source currently modifying the character:
-      each item/spell/ability/potion/form/condition, what it is, and **the exact effect it is having**
-      — resolved values from the ledger, not the item's advertised text. If the belt's +2 is being
-      overridden by the gauntlets' `set 21`, the panel must say the belt is contributing nothing.
-      That divergence is precisely what the panel exists to surface.
-- [ ] Group by source kind (worn · attuned · consumed · spell · form · condition · DM), each with its
-      duration and a one-click **end effect**.
+**Consumption decision extracted + tested (2026-07-17):** the "Use" handler's decision — what a
+consumable DOES (resolve an instant heal/temp now vs. snapshot a lasting condition/buff into an
+ActiveEffect that outlives the item vs. note-only, and whether to decrement) — was tangled with the
+I/O inside `Inventory.consume()`. Pulled the pure part into `lib/dnd/effects/consume.ts`
+(`planConsume(item) → { instant, activeEffect, consumes }`), behaviour-preserving; the component now
+just executes the plan (roll + apply, push the ActiveEffect, decrement). This is what makes Slice 12's
+acceptance cases unit-testable: `consume-plan.test.ts` (9) pins that a **pure-heal potion leaves NO
+ActiveEffect**, a **buff snapshots its label + effects + duration** (surviving the consumed item), a
+status records the named condition, a note-only still consumes, and a missing-consumable item is a
+no-op. Full suite 1655 green.
+
+- [x] A new tab/panel on **every** template listing every source currently modifying the character. ✅
+      SHIPPED — `ActiveEffects` (mounted in `App.tsx` above the tabs) reads the ledger (`ledger.byTarget`,
+      not a local formatter) and the shared `describeEffect`, so it shows the RESOLVED effect, not the
+      item's advertised text; a contribution overridden by a higher-priority `set` renders "overridden —
+      doing nothing". `active-effects.test.ts` pins the ledger-read, the on-every-template mount, and the
+      suppression case (a Hill Giant belt losing to Storm Giant's `set 29` is shown as suppressed).
+- [x] Group by source kind (worn · attuned · consumed · spell · form · condition · DM · feature), each
+      with its duration and a one-click **end effect**. ✅ SHIPPED — grouped by `sourceKind`; ending
+      removes the CAUSE (unequip for worn/attuned, drop the ActiveEffect for a consumed one) and a class
+      feature offers no "end" (it's what the character IS). `active-effects.test.ts` covers each path.
 - [ ] **Consumption: the effect outlives the item.** This is the case the data model must get right,
       and it is why an `ActiveEffect` is a *separate source* from the item that produced it rather
       than a pointer back into inventory:
@@ -911,19 +1409,40 @@ thumbnail (Slice 28). This is a READ of the ledger — it re-derives nothing.
         inventory, still listed in the panel for its buff.
       - Because the snapshot is taken at use time, later editing the *item* must not retroactively
         change an effect already running on a character. That's a feature, not a bug.
+        **⚑ REAL BUG FIXED (2026-07-18).** `planConsume`'s buff branch returned `effects: eff.effects`
+        by REFERENCE, and `Inventory.consume` spreads the seed (`{ ...plan.activeEffect }`) — a shallow
+        copy that keeps the `effects` array aliased to the item's own `consumable.effect.effects`. So a
+        buff potion at qty 2 (drink one, the item stays) left the running ActiveEffect POINTING AT the
+        item's array; a later edit to that item (item builder / AI `update_item`) would silently rewrite
+        the buff already running — precisely this invariant, violated. Fixed by snapshotting in
+        `planConsume` (`(eff.effects ?? []).map((e) => ({ ...e }))`), so the seed is independent by
+        construction regardless of how the component stores it. `consume-plan.test.ts` +1: mutating the
+        item's effects (changed value + appended effect) after `planConsume` leaves the captured
+        ActiveEffect untouched and a distinct array object. Full dnd suite green (1841).
       - **Ending** a consumed effect just drops the `ActiveEffect` — the item is long gone. Ending a
         *worn* item's effect unequips the item, because there the item IS the cause and an effect
         that is "off" while its cause is still worn would be a lie about the sheet.
-- [ ] Durations are shown as authored ("12 hours", "3 rounds") and are **not** silently expired by a
-      timer. This is a table aid, not a simulation; the DM decides when time passes. But the panel is
-      what lets you *notice* at the start of next session — which is the whole point.
-- [ ] A **Use** control on any consumable in Inventory runs the above. It is the only path that
-      consumes, so there is one place where "drank it" is implemented.
-- [ ] Tests: an item with effects always appears; a pure-heal potion is consumed and leaves NO panel
-      entry; a buff potion is consumed and its effect still shows with its label and duration; a
-      heal+buff potion does both; editing the item afterwards does not mutate the running effect;
-      ending a worn effect unequips, ending a consumed effect does not resurrect the item; the
-      panel's numbers equal the ledger's (one source of truth).
+- [x] Durations are shown as authored and are **not** silently expired by a timer. ✅ SHIPPED — the panel
+      states durations "never run out on their own" and contains no `setInterval`/`setTimeout`; a table aid,
+      not a simulation. `active-effects.test.ts` guards both (the copy + the no-timer invariant).
+- [x] A **Use** control on any consumable in Inventory runs the above. ✅ SHIPPED — the "⚗ Use" button in
+      Inventory is the single path that consumes, routing through the pure `planConsume` then executing
+      (roll instant / push the snapshotted ActiveEffect / decrement qty).
+- [~] Tests: an item with effects always appears; a pure-heal potion leaves NO panel entry; a buff potion
+      still shows with its label + duration; **a heal+buff potion does both**; editing the item afterwards
+      doesn't mutate the running effect; ending a worn effect unequips, a consumed effect doesn't resurrect
+      the item; the panel's numbers equal the ledger's. ✅ All shipped EXCEPT the heal+buff combo:
+      `consume-plan.test.ts` (pure-heal → no ActiveEffect; buff → snapshot with label+duration; the
+      snapshot-independence fix above) + `active-effects.test.ts` (source-anchored: item appears, ledger is
+      the single source of truth, worn-ends-unequip vs consumed-drops, suppression shown).
+      **⏸ DEFERRED — the heal+buff dual-effect consumable.** The model is single-`kind` (`ConsumableStats.effect.kind`
+      is one of heal/temp/status/buff/custom), so a potion that instant-heals AND grants a lasting buff
+      isn't representable: `planConsume` returns an instant OR an activeEffect, never both. Building it
+      needs a schema widening + a `planConsume` that emits both + the executor + an **editor authoring UI**
+      for the combo + a design call on how it's authored — implementation cost clearly exceeding the value
+      of a rare combo potion when every single-kind path works and is tested. `consume-plan.test.ts` pins
+      the current single-kind contract (a buff's stray `dice` is ignored, not silently rolled) so the combo
+      can't be assumed to work; revisit if a real combo consumable is needed. Full dnd suite green (1842).
 
 ## Slice 13 — Show me what's touched: the star + the tooltip ✅ SHIPPED 2026-07-16
 
@@ -964,18 +1483,30 @@ raw combat numbers:
 
 > "effected stats numbers and stuff will just get a little star or something we can hover over."
 
-- [ ] Any ledger-modified value renders a marker (★) beside it and a highlight ring: abilities, AC,
-      speed, HP, saves, skills, attacks, DC, granted features.
-- [ ] Hover/focus → tooltip listing **every** contributing effect and its source, base → final
-      ("STR 18 base · +2 Belt of the Bear · +2 Rage · = 22"). Reuse `RuleTip`'s inline-safe `<span>`
-      popover — the invalid-nesting bug from Slice 2 (a `<div>` inside a `<p>` gets force-closed by
-      the browser, tearing text out of its element) is already solved there; do not re-solve it.
-- [ ] Keyboard + touch reachable. A hover-only affordance is invisible on a tablet at the table,
-      which is where this is actually used.
-- [ ] The marker must be theme-token driven (`var(--gold)` etc.), never a literal — the contrast
-      guards in `sheet-contrast.test.ts` will fail the build otherwise, and correctly so.
-- [ ] Tests: an unmodified sheet has zero stars (no false positives — a star that's always on is
-      noise); modifying one ability stars exactly that ability; the tooltip names every source.
+- [x] Any ledger-modified value renders a marker (★) beside it and a highlight ring: abilities, AC,
+      speed, HP, saves, skills, attacks, DC. ✅ SHIPPED (`ui/EffectStar.tsx`), wired into Abilities,
+      StatRail, CombatPanel (AC/HP/speeds), SavesSkills, Attacks, Hero (name/species/class/subclass).
+      **Granted-features star deferred** — grants (`grant_feature`/`grant_attack`/…) have no render home
+      yet (same gap the render-gaps test tracks), so there's no feature node to star.
+- [x] Hover/focus → tooltip listing **every** contributing effect and its source, base → final. ✅ The
+      EffectStar popover shows `{base} base` → each contribution `{label} — {source}` → `= {final}`,
+      reusing `RuleTip`'s inline-safe all-`<span>` chrome (the `<div>`-in-`<p>` trap is not re-solved).
+- [x] Keyboard + touch reachable. ✅ The ★ is a real `<button>` with `aria-label` + native `title`, not
+      a hover-only affordance.
+- [x] The marker must be theme-token driven. ✅ `.effect-star*` chrome uses tokens only —
+      `effect-star.test.ts` fails on any hex literal in the block.
+- [x] Tests: an unmodified sheet has zero stars; modifying one ability stars exactly that ability; the
+      tooltip names every source. ✅ `effect-star.test.ts` (15) covers all three + the wiring per surface.
+      **⚑ SAVE/SKILL STAR-COVERAGE GAP CLOSED (2026-07-18).** The roll-target sweep had wired
+      `<ability>_saves`/`all_saves` (and `skill.<key>`/`all_skills`) into the actual save/skill *rolls*,
+      but each row's ★ still watched ONLY the governing ability target — so a Cloak of Protection's
+      `all_saves +1` moved the printed modifier while lighting no star, leaving the player an unexplainable
+      bonus. Fixed by widening the two `EffectStar` targets to the arrays the roll folds
+      (`[ability_<k>, <k>_saves, all_saves]` / `[ability_<abil>, skill.<key>, all_skills]`); the star lights
+      when ANY is modified and the popover attributes each. No value change (custom checks fold no ledger
+      bonus, so they keep the ability-only target). Guards: `effect-star.test.ts` + a consistency assertion
+      in `saves-skills-effective.test.ts` tying the star's targets to the roll's folds. Full dnd suite green
+      (1835). **Slice 13 (the ★ affordance) is now complete.**
 
 ## Slice 14 — The AI generates real items, not labels ✅ SHIPPED 2026-07-16 (mechanical effects)
 
@@ -986,6 +1517,18 @@ raw combat numbers:
 toggles whether the effects apply. The end-to-end test that matters passes: an AI-emitted "Belt of
 the Bear" (`{target:'ability_str',operation:'set',value:19}`) actually moves STR to 19 through the
 ledger while the base stays 16 (overlay, not bake), and unequipping gives the character back exactly.
+**⚑ Edit-path non-mutation pinned at breadth (2026-07-18):** `applySheetEdits` deep-clones its input
+(`structuredClone`), so it's non-mutating by construction — but that clone IS the whole guarantee: a
+regression to a shallow `{ ...input }` would let the nested-field ops (`set_meta`→`c.meta.*`,
+`set_combat`→`c.combat.*`) mutate the caller. The existing test touched one field; added `sheet-edits.test.ts`
++1 deep-equaling the WHOLE input across a broad batch (set_name/meta/level/combat/ability + add_attack/
+feature/item/resource). This completes non-mutation coverage across all FOUR edit surfaces — the 5e ledger
+read (`buildLedger`), `applySheetEdits`, `applyIgEdit` (its array-append ops), and `applyLayoutEdits` (the
+shared `START` fixture survives a full add/remove/move/update/title/css batch, `layout-edits.test.ts` +1) —
+each previously proven for one representative case, now proven at breadth so a lost clone or a spread→push
+regression fails a test rather than silently corrupting stored data. The DM-facing UNDO pair is pinned too
+(`revertBatch` leaves its input post-batch sheet untouched — `revert-batch.test.ts` +1), so a revert can't
+corrupt the live sheet it reads. Full dnd suite green (1887).
 
 **Rejected, never coerced.** Effects are validated at the boundary against the registry
 (`cleanEffects` drops any unknown target / illegal operation / non-numeric value so no NaN or
@@ -1007,24 +1550,33 @@ illegal op rejected, non-number rejected, update/equip refine without rebuild, s
 - *DM provenance/approval* for generated items reuses the existing `summarizeCharacterProvenance`
   path (Slice 5); no new approval surface was added.
 
-### Original spec (superseded above for the shipped parts)
+### Original spec (superseded above for the shipped parts) — ✅ all verified shipped 2026-07-18
 
-- [ ] Widen `add_item` in `lib/dnd/sheet-edits.ts` to the full `InvItem`: `kind`, `desc`, `qty`,
-      `image`, `weapon`/`armor`/`consumable` stats, `attuned`, and **`effects: Effect[]`** — the whole
-      point. Add `update_item` and `equip_item`.
-- [ ] Validate hard at the boundary: unknown target/operation → reject the edit, don't coerce it. An
-      item whose effect silently didn't parse is worse than a refused one, because the player believes
-      it works.
-- [ ] Prompt: given "a random potion that gives proficiency in something", the AI emits a real item
-      with real effects, appears in inventory, and works. Ground it in the character's system so a
-      generated item obeys that rulebook's vocabulary.
-- [ ] **Art**: generate/attach item art (`dnd-media`, `kind='item'`), falling back to a kind icon.
-      Per the request, art is the *least* important part — it must never block the mechanics.
-- [ ] Balance guard: DM-facing provenance. Generated items route through the existing
-      `summarizeCharacterProvenance` / approval path (Slice 5's) rather than a new one — a player
-      generating a +10 sword is a table problem, and the DM approval surface already exists.
-- [ ] Tests: a described item round-trips to effects that the ledger resolves; an invalid effect is
-      rejected, not coerced; a generated item changes the sheet's numbers end-to-end.
+- [x] Widen `add_item` to the full `InvItem` (`kind`, `desc`, `qty`, `image`, `weapon`/`armor`/`consumable`
+      stats, `attuned`, **`effects: Effect[]`**) + `update_item` + `equip_item`. ✅ SHIPPED — see the Slice 14
+      shipped description above; `ai-items.test.ts` covers the end-to-end round-trip and the tool-schema enum.
+- [x] Validate hard at the boundary: unknown target/operation → reject, don't coerce. ✅ SHIPPED —
+      `validateEffect` (targets.ts) refuses an unknown target, an operation outside the target's `ops`
+      allowlist, a non-finite numeric value, and an empty value-carrying effect; `sheet-edits.ts` filters
+      invalid effects out of an item and the ai-edit route REPORTS them (`rejectedEffects`), so a bad effect
+      is refused-and-surfaced, never silently parsed-away. `ai-items.test.ts` + `effect-targets.test.ts`.
+      **⚑ OPS-GATE NOW SWEPT ACROSS THE WHOLE REGISTRY (2026-07-18).** The op-rejection was spot-checked on
+      one target (`hp_max` + `advantage`); added a per-target sweep proving EVERY registered target refuses
+      every operation outside its own `ops` list (via both `isOperationAllowed` and `validateEffect`, kept in
+      lockstep), driven by the exhaustive `EFFECT_OPERATIONS` roster so a new operation is covered
+      automatically. So a target mis-authored with the wrong ops — or a `validateEffect` regression that only
+      bites some targets — now fails a test instead of silently accepting "resistance on Strength".
+      `effect-targets.test.ts` +1 (34 total). Full dnd suite green (1843).
+- [x] Prompt: the AI emits a real item with real effects, grounded in the character's system. ✅ SHIPPED —
+      the `edit_sheet` vocabulary + system grounding; a generated item appears in inventory and moves the
+      numbers (`ai-items.test.ts` end-to-end).
+- [x] **Art** falls back to a kind icon and never blocks mechanics. ✅ SHIPPED — item art is optional
+      (`image?`), mechanics resolve with or without it.
+- [x] Balance guard: generated items route through the existing `summarizeCharacterProvenance` / Slice-5
+      approval path, not a new surface. ✅ SHIPPED — no new approval surface was added (see the Slice 14
+      note above).
+- [x] Tests: a described item round-trips to ledger-resolved effects; an invalid effect is rejected not
+      coerced; a generated item changes the numbers end-to-end. ✅ SHIPPED — `ai-items.test.ts`.
 
 **Done when:** "give me a pendant that makes me a Level 3 Barbarian named Zul with +2 STR and a
 different portrait" produces one item that does all of it, and taking it off gives you back exactly
@@ -1046,7 +1598,9 @@ vocabulary (Slice 11), so "armour that changes your species" is just armour with
 features, where `on` is one of eleven events (`hit_by_melee`…`reduced_to_zero`) and `action` is a
 prompt-shaped payload (roll damage/heal/temp-HP, apply a condition, grant an effect, spend a resource,
 or DM-adjudicate). `lib/dnd/effects/triggers.ts` collects the ACTIVE triggers (equipped items +
-unlocked features, condition-gated by the same rule the ledger uses), filters them by event
+unlocked features, condition-gated by the same rule the ledger uses — now LITERALLY shared: triggers
+imports the ledger's exported `isItemActive` instead of a hand-kept copy that could drift, `19cad91e`,
++1 test proving agreement on the attuned-but-unequipped edge), filters them by event
 (`triggersForEvent`), and describes them (`describeTrigger`). A **Reactions & Triggers** panel on
 every sheet lists them grouped by event ("When hit by a melee attack — Spiked Barbs: 1d6 piercing,
 from Spiked Armour"). Kept firmly a PROMPT, not automation — nothing auto-applies damage to a creature
@@ -1085,36 +1639,44 @@ dice, and it targets someone who is not you. The ledger cannot express it, and s
 to cover it would wreck the thing that makes the ledger tractable (pure, order-independent, always
 re-derivable). So triggers are a **separate concept** that lives beside effects, not inside them.
 
-- [ ] **Attack editing** (the plain ask, first): edit and create attacks directly on the sheet —
-      name, ability, proficiency, to-hit and damage bonuses, range, typed damage, crit range/dice,
-      notes. Today `add_attack` exists for the AI but the player cannot author or edit one by hand.
-- [ ] **Weapon builder**: define a weapon's mechanics — damage dice + type, properties (finesse,
-      versatile, reach, two-handed, thrown, loading, ammunition), mastery (2024), range bands,
-      attack/damage effects, and **on-hit riders** (extra typed damage, a save-or-condition, a
-      resource cost). The derived attack row comes from the weapon, so changing the weapon changes
-      the attack — no double authoring.
-- [ ] **Armor / clothing builder**: base AC, armour category, DEX cap, STR requirement, stealth
-      disadvantage, resistances, and arbitrary `effects` (Slice 11's full vocabulary — armour that
-      changes your species is just armour with an identity effect).
-- [ ] **`Trigger` — the new concept**: `{ on, condition?, action }`.
-      - `on`: `hit_by_melee` · `hit_by_ranged` · `hit_by_spell` · `you_hit` · `you_crit` ·
-        `you_are_crit` · `save_failed` · `turn_start` · `turn_end` · `damaged` · `reduced_to_zero`.
-      - `action`: roll damage (typed, with its own dice + optional attack roll), heal, apply a
-        condition, grant a temporary effect, spend/restore a resource, or a DM prompt.
-      - Triggers may carry their own limits (`once per turn`, `N per long rest`, a resource cost) —
-        unlimited retaliation is the failure mode here, and the data model must be able to say no.
-- [ ] **Triggers are prompts, not automation.** When a trigger's event happens, the sheet *surfaces*
-      it ("Spiked Barbs: 1d6 piercing to the attacker — roll?") and the player/DM resolves it. It must
-      not silently apply damage to a creature the sheet does not model. Guessing that a hit landed, or
-      auto-resolving against an enemy the app has never seen, is how the sheet starts lying about the
-      table's actual state — and a wrong automatic ruling is worse than a visible reminder.
-- [ ] Triggers surface in the Slice 12 panel and are starred by Slice 13 like anything else, so
-      "why did my armour just do something" always has an answer on the sheet.
-- [ ] The AI (Slice 14) can author all of it: "armour that burns anyone who hits me" → an armour item
-      with a `hit_by_melee` trigger rolling fire damage, in the inventory, working.
-- [ ] Tests: a weapon's edits flow to its attack row; an armour's DEX cap is respected by the ledger's
-      AC; a trigger fires only on its event and only within its limit; a trigger with no limit is
-      flagged; retaliation never mutates another character's sheet.
+- [x] **Attack editing** (the plain ask, first): edit and create attacks directly on the sheet. ✅
+      SHIPPED — `AttackEditor` (mounted from Attacks.tsx) covers name, damage dice + type, ability,
+      range, to-hit/damage bonuses, proficiency, notes, and the save/area/DC fields for save-based
+      attacks; "＋ Add attack" creates one, "Edit attack" edits, "Duplicate"/"Delete" round it out. (Crit
+      range/dice is intentionally NOT a per-attack field — it's the effect-derived `crit_range` target, so
+      an item/feature grants it and the store derives the widest range, cf. `crit-range.test.ts`.)
+- [ ] **Weapon builder**: author a weapon's mechanics (damage dice/type, properties, 2024 mastery, range
+      bands, on-hit riders) so its derived attack row follows the weapon. **Mechanic present, builder UI
+      not:** `attacksFromInventory` (`engine/weapons.ts`) already derives an attack from a weapon item, but
+      the live sheet renders stored/`grantsAttack` attacks — wiring a weapon→attack authoring surface into
+      `ItemBuilder` (+ live derivation) is browser-verified feature work for the build/QA phase.
+- [~] **Armor / clothing builder**: base AC, category, DEX cap, STR requirement, stealth disadvantage,
+      resistances, arbitrary `effects`. **Mechanic ✅ shipped + tested, builder UI not.** The live AC path
+      (`deriveAc`, used by CombatPanel) already honors category (light = base + DEX, medium = base +
+      min(DEX, cap), heavy = flat) and an item's own `dexCap`, and arbitrary armour `effects` flow through
+      the ledger like any item's. **⚑ CUSTOM DEX-CAP PINNED (2026-07-18):** the medium-armor test used
+      `dexCap: 2` (== the default), so an AUTHORED non-standard cap — exactly the builder's output — was
+      unguarded; added `derive-ac.test.ts` +2 proving a `dexCap: 3` gives base + min(DEX, 3) not +2, a
+      `dexCap: 0` admits no DEX (which also pins `?? 2` against a `|| 2` regression), and an undeclared cap
+      falls back to 2. So the armour *mechanic* is complete; only the authoring UI in `ItemBuilder` remains
+      (browser-verified). Full dnd suite green (1845).
+- [x] **`Trigger` — the new concept**: `{ on, condition?, action }`. ✅ SHIPPED (see the prose above) —
+      a separate concept beside `Effect` (an event-triggered ACTION, not a continuous overlay): the full
+      event roster, action kinds (typed damage / heal / condition / temp effect / resource / DM prompt),
+      and per-trigger limits are modelled and validated by `cleanTriggers`. `triggers.test.ts` (12).
+- [x] **Triggers are prompts, not automation.** ✅ SHIPPED — the Reactions & Triggers panel surfaces each
+      trigger grouped by event with a 🎲 Roll to resolve on demand; nothing auto-applies damage to a
+      creature the app can't see (a condition/note reaction is shown, never auto-rolled).
+- [x] Triggers surface in the panel and are visible like anything else. ✅ SHIPPED — the Reactions &
+      Triggers panel is on every sheet, collected from equipped/attuned items, gated by equip/level/condition.
+- [x] The AI can author all of it. ✅ SHIPPED — `add_item`/`update_item` accept a `triggers` array
+      (tool-schema-documented), validated by `cleanTriggers` (bogus event/label dropped, bad action → DM
+      prompt, never coerced). "spiked armour that hits back for 1d6 in melee" produces a real trigger.
+- [~] Tests: a trigger fires only on its event and within its limit; a no-limit trigger is flagged;
+      retaliation never mutates another character's sheet — ✅ all in `triggers.test.ts` (12). **Armour DEX
+      cap respected by the ledger's AC ✅** (`derive-ac.test.ts`, incl. the custom-cap pin above). The one
+      part still open is **"a weapon's edits flow to its attack row"** — the weapon-builder UI + live
+      weapon→attack derivation (the unbuilt item above), browser-verified.
 
 ## Slice 17 — The effect builder: "Add effect" by hand ✅ SHIPPED 2026-07-16
 
@@ -1163,10 +1725,13 @@ now carries `effects` authored through the same `EffectRows`, snapshotted into a
 cast so the ledger resolves it like a potion. The builder is now on item + feature + spell +
 consumable-buff editors — the whole authoring surface.
 
-- [ ] On any item/spell/feature editor: an **Add effect** button → pick an effect type → fill in its
-      numbers. Repeatable; an item holds any number of effects.
-- [ ] The picker is **built from the effect vocabulary**, not a hand-written menu, so a new operation
-      shows up in the UI automatically and cannot be forgotten. Grouped for humans:
+- [x] On any item/spell/feature editor: an **Add effect** button → pick an effect type → fill in its
+      numbers. Repeatable; an item holds any number of effects. ✅ SHIPPED — `EffectRows` (mounted in
+      ItemBuilder + FeatureEditor + SpellEditor + consumable-buff editor); see the prose above.
+- [x] The picker is **built from the effect vocabulary**, not a hand-written menu, so a new operation
+      shows up in the UI automatically and cannot be forgotten. ✅ SHIPPED — the target `<select>` is
+      generated from `EFFECT_TARGETS` grouped by `TARGET_GROUP_LABELS`, the op dropdown is constrained to
+      the target's `ops`, and the value control follows its `valueType`. Grouped for humans:
       - *Modify a number* — ability, AC, speed, HP, save DC, initiative, a skill, attack, damage.
         `add` (stacks) or `set` (overrides). **Negative values are first-class** — a cursed item that
         gives −2 DEX is the same machinery as a +2 belt, and the UI must not fight it.
@@ -1178,16 +1743,32 @@ consumable-buff editors — the whole authoring surface.
       - *Duration* — permanent while worn · while attuned · timed ("12 hours") · until ended.
       - *Trigger* — Slice 15's event actions.
       - *Transform* — Slice 18.
-- [ ] Each effect gets a **plain-English preview line** as you build it ("+2 STR while equipped",
-      "disadvantage on Stealth"). An effect builder whose output you can't read is how you end up
-      with items nobody trusts.
-- [ ] **Condition/gating** per effect: unconditional, while equipped, while attuned, or gated on a
-      named condition (`raging`, `bloodied`) — the engine's `condition` field, exposed.
-- [ ] Validate on save: unknown target → refuse with a reason. Never silently drop an effect; the
-      player will believe it works.
-- [ ] Tests: every operation in the vocabulary is reachable from the picker (a guard that fails when
+- [x] Each effect gets a **plain-English preview line** as you build it. ✅ SHIPPED — each row previews
+      via the shared `describeEffect` (the SAME renderer as the ★ tooltip + Active Effects panel), so what
+      you author reads exactly as the sheet describes it. One renderer, three readers, no drift.
+- [x] **Condition/gating** per effect: unconditional, while equipped, while attuned, or gated on a named
+      condition. ✅ SHIPPED — each row's optional "if… (raging)" field wires the engine's `condition` and
+      flows into the describeEffect preview ("+10 Walking speed (while raging)").
+- [x] Validate on save: unknown target → refuse with a reason. ✅ SHIPPED — `save()` runs every effect
+      through the same `validateEffect` the AI path uses and refuses with a readable message rather than
+      persisting a broken effect the player would believe works.
+- [x] Tests: every operation in the vocabulary is reachable from the picker (a guard that fails when
       someone adds an operation and forgets the UI); a hand-built item and an AI-built item with the
-      same mechanics produce identical `Effect[]`; a negative modifier round-trips.
+      same mechanics produce identical `Effect[]`; a negative modifier round-trips. ✅ SHIPPED — all three,
+      plus the description-coverage companion below.
+      **Reachability guard ✅ SHIPPED** (`5f0ec149`): `EFFECT_OPERATIONS` — a runtime roster kept
+      exhaustive at compile time (`satisfies Record<EffectOperation, 1>`) — plus a test that each op is
+      offered by ≥1 target (the picker renders `def.ops`, so unlisted = unpickable). +10 tests. The
+      negative-modifier round-trip is covered by `effect-targets.test.ts` (validate + describe of a −2);
+      the hand-vs-AI identical-`Effect[]` guard is the existing "builder produces the same Effect[] the
+      AI emits" registry-driven suite.
+      **Description-coverage companion guard ✅ SHIPPED (2026-07-17):** reachability proves an operation is
+      PICKABLE; this proves it's DESCRIBABLE. `describeEffect` is the plain-English label shown in the ★
+      tooltip / Active Effects panel / builder preview ("hover tooltips on every in-play effect") — but its
+      `operation` is typed `string`, so an op with no explicit case falls through to the generic `${label}`
+      default, rendering the effect's bare target name instead of what it DOES. Added an `it.each` over
+      `EFFECT_OPERATIONS` asserting `describeEffect` has an explicit case for each — so a new operation can't
+      ship a meaningless tooltip. All 10 covered. `effect-builder.test.ts` +10.
 
 ## Slice 18 — Transform: become a different character entirely ⏳ PARTIAL 2026-07-16
 
@@ -1278,19 +1859,45 @@ the overlay rule, because "you are a bear now" must be perfectly reversible.
       is a separate pool and damage overflow returns to you. Other systems and homebrew differ. So a
       form declares its own carry-over policy (`keepMental`, `keepFeatures`, `separateHp`, …) rather
       than the engine hardcoding one game's answer — Ground Rule 1.
+      **⚠️ OPEN FINDING — a weak form can't lower physical stats (needs a rules call, not an autonomous guess).**
+      The ledger resolves `set` as `Math.max(base, override)`, so a `set` RAISES but never LOWERS below the
+      base. That's correct for ITEMS (a Belt of Giant Strength "has no effect if your STR is already higher"),
+      but a FORM by RAW REPLACES physical stats even when lower — a STR-20 druid who Wild Shapes into a rat
+      should be STR 2, yet today stays 20. The transform code even leans on the max rule ("stops a dumb beast
+      from lowering you") though `keepMental` is the real mechanism for the mental case. Fixing it means giving
+      form-sourced `set` REPLACE semantics while items keep max — a change to the ledger's core resolution
+      (55+ tests), so it's the same shape of deliberate call as the attunement question, left for the owner.
+      Current behavior is now pinned by `ledger-set-max.test.ts` (3), so any future change is explicit +
+      reviewed.
 - [ ] Forms are **authored with the same builder** as characters (Slice 17) — a form is a sheet. A DM
       can define a bear once and reuse it; a player can be turned into another PC.
-- [ ] The Active Effects panel (Slice 12) shows the transform as the source it is, with **End
-      transform** — and, per the request, that is how you get back.
-- [ ] While transformed, the panel and the star markers (Slice 13) still explain the *form's* numbers,
-      so "why is my AC 11" has an answer while you are a bear.
+- [x] The Active Effects panel (Slice 12) shows the transform as the source it is, with **End transform**
+      — and, per the request, that is how you get back. ✅ SHIPPED — a `transform` effect rides on its
+      item/spell/potion source, which the panel lists; the generic "End effect" removes that cause
+      (unequip / drop the ActiveEffect) → the transform reverts. `describeEffect` renders the row legibly
+      ("Transform into another form: Brown Bear").
+- [x] While transformed, the panel and the star markers (Slice 13) still explain the *form's* numbers,
+      so "why is my AC 11" has an answer while you are a bear. ✅ SHIPPED — the form's own effects resolve
+      through the ledger, so `explain('ac')` (and every ★) attributes the form's contribution.
+      **⚑ TRANSFORM DISPLAY PINNED (2026-07-18):** `describeEffect` for a `transform` effect was untested —
+      the exact label the panel + ★ show while transformed. Added `transform.test.ts` +1 asserting it reads
+      "Transform into another form: <form>" (and carries the while-condition gate), not a blank line or the
+      raw `transform` key. Full dnd suite green (1846).
 - [~] Damage taken in form, resources spent in form, and duration are tracked on the form instance,
       not on the base sheet. (HP ✅ — `char.formHp` pool via `separateHp`, base frozen; duration already
       on `combat.transformTurnsLeft`. Form-scoped RESOURCE pools remain a follow-up under the
       foreign-statblock authoring UI.)
-- [ ] Tests: transform → the sheet renders the form; the stored base character is byte-identical
+- [x] Tests: transform → the sheet renders the form; the stored base character is byte-identical
       throughout (the anti-"permanent bear" guard); revert restores exactly; carry-over policy is
-      honoured per form; a save while transformed does not corrupt the base.
+      honoured per form; a save while transformed does not corrupt the base. **✅ SHIPPED 2026-07-17.**
+      `transform.test.ts` covered resolution, the form's own effects, the two-field overlay check, revert,
+      and the keepFeatures/keepMental/separateHp policies; **strengthened the byte-identical guard at the
+      resolver** — three new cases assert `buildLedger` leaves its input deep-equal (base form, imposed
+      transform active, and your own bear form), i.e. the render path itself never bakes an overlay into
+      the base. This is the general invariant the "STR stays 10" symptom rides on; a future refactor that
+      cached derived state back onto the character fails these loudly. `transform.test.ts` +3 (16 total).
+      **Deferred (the only heavier half):** the arbitrary foreign-statblock authoring UI (Forms.tsx is
+      display+toggle only) — transforming into your OWN defined forms is done end-to-end.
 
 ## Slice 20 — Edit everything on the sheet, and mark what's been customized ✅ SHIPPED 2026-07-16
 
@@ -1437,21 +2044,25 @@ does all of this by hand through the same vocabulary (Slice 20). Presentation ed
 existing `customize_layout`/`custom_css` path; mechanics never as CSS (the ai-scope guard). Tests:
 `sheet-edits.test.ts` (+5 for rename_spell/resource + update_attack).
 
-- [ ] **Rename anything**: `rename` ops for attacks, items, features, spells, resources — matched by
-      current name or id. This is the literal reported case and it is one op away.
-- [ ] **Retune anything**: change a damage die, a range, a to-hit bonus, a resource max, an effect's
-      value. Every edit lands in the model, persists, and re-derives through the ledger — so
-      "make my sword do more damage" moves the actual attack row.
-- [ ] **Manual parity**: everything the AI can do here, the player can do by hand (Slice 20), through
-      the same vocabulary. If the AI is the only way to rename a weapon, the feature is a toy.
-- [ ] Per-character CSS/HTML: `custom_layout` / `custom_css` already exist and are already applied
-      per-character — extend the AI's reach to them for *presentation* changes ("make the headers
-      gold"), and keep mechanics in the structured vocabulary. **Do not let the AI express mechanics
-      as CSS.** A damage die written into a stylesheet is invisible to the ledger, to the digest and
-      to the DM — it would look right on screen and be wrong everywhere else that matters.
-- [ ] Every AI edit is audited (`dnd_sheet_edits`) and marked ✎ (Slice 20).
-- [ ] Tests: rename persists across a reload; a retuned damage die changes the derived attack; the
-      AI cannot smuggle a mechanic through CSS.
+- [x] **Rename anything**: `rename` ops for attacks, items, features, spells, resources. ✅ SHIPPED —
+      `rename_attack`/`rename_item`/`rename_feature`/`rename_spell`/`rename_resource`, matched by name,
+      each preserving every other field (the stat-loss fix); `sheet-edits.test.ts`.
+- [x] **Retune anything**: change a damage die, range, to-hit, resource max, an effect's value. ✅ SHIPPED
+      — `update_attack`/`update_item`/`set_combat`/`set_skill`/`rename_resource`(max) land in the model and
+      re-derive through the ledger; `sheet-edits.test.ts` ("update_attack retunes … change the damage die").
+- [x] **Manual parity**: everything the AI can do here, the player can do by hand (Slice 20). ✅ SHIPPED —
+      the in-place editors (AttackEditor/ItemBuilder/Feature/Spell/Resource) route through the SAME
+      `setChar`/edit vocabulary, so a hand edit and an AI edit are indistinguishable.
+- [x] Per-character CSS/HTML: `custom_layout` / `custom_css` — AI reach for *presentation* only. ✅ SHIPPED
+      — the `customize_layout` vocabulary (7 presentation ops) is separate from `edit_sheet`.
+- [x] Every AI edit is audited (`dnd_sheet_edits`) and marked ✎ (Slice 20). ✅ SHIPPED.
+- [x] Tests: a retuned damage die changes the derived attack; the AI cannot smuggle a mechanic through CSS.
+      ✅ SHIPPED — retune pinned (`sheet-edits.test.ts`). **⚑ "No mechanic through CSS" now GUARDED
+      (2026-07-18):** the guarantee is that the layout/CSS vocabulary and the mechanical `edit_sheet`
+      vocabulary stay DISJOINT — if an op appeared in both, a mechanic could ride in on a presentation edit.
+      `layout-edits.test.ts` +1 asserts zero op overlap between the two tool schemas AND that the layout
+      vocabulary carries no mechanical op family. (Reload-persistence is browser/integration — B8 QA.) Full
+      dnd suite green (1868).
 
 ## Slice 24 — Chat UX: never block the typist ✅ SHIPPED 2026-07-16
 
@@ -1666,10 +2277,18 @@ this is the remaining half.
 - [x] **2D/3D size parity** — an SVG lets its glow spill outside the box; a WebGL canvas cannot, so
       the camera pulled back and the 3D body rendered far smaller. Both now render the body at ~78%
       of the viewer with halos fully visible (2D 78.0%, 3D 1/1.28 = 78.1%; the constants
-      cross-reference each other).
-- [ ] **City lights and lava are invisible in the 3D preview — but they are NOT missing.** Checked
+      cross-reference each other). **Guarded** (`map-viewer-handles.test.ts`): a test asserts both the 2D
+      `.pv2d{width:78%}` and the 3D `1/1.28` constant are present, so one can't drift without the other.
+- [~] **City lights and lava are invisible in the 3D preview — but they are NOT missing.** Checked
       rather than assumed: `_genericPlanetCfg` forwards `city`/`lava`/`lightColor`, and
       `planet3d-model.js` consumes all three (`cfg.city` at :244, `cfg.lava` at :86/:147/:194).
+      **Plumbing now GUARDED (2026-07-17):** `map-studio-config.test.ts` +1 asserts `_genericPlanetCfg`
+      forwards `lava`/`city`/`lightColor` onto the assembled config AND that `planet3d-model.js` reads
+      `cfg.lava`/`cfg.city`/`cfg.lightColor`, so a future edit can't silently drop them and recreate the
+      clouds/water "slider does nothing" bug for these controls. **Still deferred (visual, device-verified):**
+      the sun/terminator angle so the night-side glow is actually visible in the preview — the doc's own
+      note warns not to eyeball the sun vector without first reading the shader's light convention, and the
+      day/night-mask agreement between 2D and 3D is a rendering decision that needs eyes on the preview.
       They are **self-lit and only glow on the NIGHT side** — and the editor's sun sits nearly
       behind the camera (`SUN = (3,2,4)`), so the planet renders almost fully lit and there is no
       night side to see them on. 2D draws city dots across the whole disc with no day/night mask,
@@ -1692,7 +2311,13 @@ this is the remaining half.
       "These drive both the 2D art and the live 3D model." Where a field genuinely cannot exist in
       one renderer, say so in the UI rather than leaving a dead control.
 - [ ] Real-time: every control re-renders on `input`, not on release.
-- [ ] Test: a fixture asserting every editable field of every kind reaches the 3D config — so a new
+- [~] Test: a fixture asserting every editable field of every kind reaches the 3D config — so a new
+      *(Regression guard shipped for the fixed cloud-field translation: `map-studio-config.test.ts` (4)
+      source-anchors `_genericPlanetCfg` and asserts it translates the editor's cloudAmount/cloudColor into
+      the model's cloudCov/cloudTint, maps cloudStyle "none"→0 cover + banded/storm→shape knobs, and keeps the
+      rich pass-through allowlist — so the "slider silently does nothing" bug can't regress. The FULL
+      every-field-of-every-kind audit still needs the per-field 2D-only-vs-3D classification, which is
+      judgment work best paired with the visual pass.)*
       slider cannot be added without wiring it.
 
 **Shipped 2026-07-16 — the 3D clipping half.** The preview camera sat at a fixed `z=4.6` with a 34°
@@ -1909,13 +2534,22 @@ regression to *reach*, not the drawing:
       (1) forcing a selected image instance produced all 5 handles in `#handleLayer` (z-index 6, DM
       mode); (2) a REAL `mousedown` on a freshly-placed image set `selection` to that instance AND
       produced the 5 handles + wrapper. So both the drawing and the reach work for a standard image.
+      **Regression guard shipped** (`map-viewer-handles.test.ts`, 4): source-anchors `renderHandles` and
+      asserts it excludes only free text (images DO get handles), draws the four corner scale pads + rotate
+      handle + stem, wires the scale/rotate mousedown handlers, and yields the screen to the 3D viewer — so
+      the "handles disappeared" report can't silently recur.
       Deliberately did NOT ship a speculative fix — that would risk breaking the working path.
       Most likely explanations for the user's report, to check if it recurs: a stale deployed build
       (hard-refresh), or a specific image variant — a **spiral/spin image** renders a different DOM
       (a `<canvas>` in `.art`) and is the one untested edge; if handles are missing, note whether the
       image had spiral or spin on. Left open pending a reproducible case.
 - [ ] Once visible, verify scale from any corner and rotate from the stem both work and persist.
-- [ ] A guard/regression note so the handles can't silently disappear again.
+      (Manual/browser step — belongs to the Slice 40 QA pass; the drag math is unchanged.)
+- [x] **A guard/regression note so the handles can't silently disappear again. ✅ SHIPPED** (`b808a9b8`).
+      `map-studio-handles.test.ts` (5) locks `renderHandles`'s invariants against the file the browser
+      loads: it skips only `kind==="text"` (not `image`), draws the rotate + 4 corner scale handles,
+      wires them to `onInstScaleDown`/`onInstRotateDown`, is called from the render path, and keeps the
+      corner CSS. A regression that drops or breaks the handles now fails CI.
 
 ### 35b — A background image with parallax OFF ✅ SHIPPED 2026-07-16
 > "make it so that we can set a background image that doesn't do parallax. We should be able to turn
@@ -1979,9 +2613,16 @@ regression to *reach*, not the drawing:
 > "sometimes when I hit back it just kind of jumps up and down on the same page and I have to hit it
 > two or three times before it actually goes back."
 
-- [ ] **Diagnose first.** The symptom (Back scrolls/"jumps" instead of navigating, needs 2–3 presses)
-      is the classic sign of **spurious history entries** — something is pushing to history on the
-      same route. Prime suspects, in order:
+- [~] **Diagnose first.** ✅ *Audited (`0077…` follow-up).* Walked every `router.push`/`history.*` and
+      query-param entry point in `app/dnd`: the `?new=campaign` opener (`NewCampaignButton`/`CampaignDashboard`)
+      and the `searchParams.set(...)` calls in `LibrarySearch`/`LevelBuilder` do **NOT** touch browser history
+      (the latter set params on a `fetch` URL). The one concrete history-polluting source found is the
+      **library page's jump-nav `<a href="#section">` links** — each click pushes a `#` entry, so Back
+      "jumps up and down" the same page (exactly the report). Fixed: new `JumpNav` client component scrolls the
+      target into view and **`history.replaceState`s the hash instead of pushing**, so Back leaves in one
+      press. `jump-nav.test.ts` (2). *(If the character-sheet/campaign report persists, it needs live repro —
+      no other history-pushing source was found in the audit.)*
+      The remaining suspects were checked and cleared:
       - A component calling `router.push` / `history.pushState` on mount or on a state change that
         lands on the *same* URL (each adds an entry you have to Back through). Audit `router.push`
         and `router.replace` calls — anything that navigates to the current path should be
@@ -2015,14 +2656,15 @@ The full flow the user described, end to end. Several pieces already exist (invi
 campaign `system` + `allow_custom` fields, the character import/AI builder, the cross-system chat);
 this slice is mostly about wiring them into one journey.
 
-### 38a — A simple campaign creation page
+### 38a — A simple campaign creation page ✅ SHIPPED
 > "pick the system, name it, describe it. Then create it."
-- [ ] The create form (`NewCampaignButton` / dashboard) gains a **system picker** (GAME_SYSTEMS) plus
-      name + description. Persist the chosen system on the campaign — the DM's rulebook for the table.
-      Verify `dnd_campaigns` has a `system` column; add one (idempotent seed) if not.
-- [ ] An **"Allow custom builds"** toggle on the create/build page → sets `dnd_campaigns.allow_custom`
-      (the column already exists; `SheetApprovalPanel` reads it). This is what later makes porting a
-      character across systems easier.
+- [x] **System picker + name + description — shipped.** `NewCampaignButton` has name, description, and a
+      **Game system** `<select>` (GAME_SYSTEMS, grouped available vs 🚧 under-construction, disabled), plus
+      a "pick later" option. The POST `/api/dnd/campaigns` persists `system` (via `normalizeSystem`) to
+      `dnd_campaigns.system` (seed `447_dnd_campaign_system.sql`, `NOT NULL DEFAULT 'ambiguous'`).
+- [x] **"Allow custom builds" toggle — shipped.** The create form's toggle sets `allow_custom` on the
+      campaign (seed `443_dnd_custom_approval.sql`); `SheetApprovalPanel` reads it. `campaign-create.test.ts`
+      covers the route's stale-session handling.
 
 ### 38b — Invite by copyable link ✅ SHIPPED 2026-07-16
 > "being able to copy a link to the main campaign page and then send that link to people to join."
@@ -2032,9 +2674,11 @@ this slice is mostly about wiring them into one journey.
       asked for: "Generate a link, hit Copy, and send it to your players. Opening it lets them sign in
       (or make an account) and join this campaign."
 - [x] **The link target works.** `/dnd/join/[code]` accepts the invite and creates/authenticates an
-      account, then routes into the campaign as a member — the B4 acceptance flow. (Its form still
-      asks for an email, a pre-`Slice 36` remnant to reconcile with the name+password-only login — a
-      small consistency follow-up, not a break in the invite flow.)
+      account, then routes into the campaign as a member — the B4 acceptance flow. **Email remnant
+      reconciled ✅ SHIPPED** (`6d7cdeb7`): the join form no longer collects an email and the register
+      route is now name+password-only (identity via `nameToKey`, 4-char minimum, 409 on a taken name —
+      the exact Slice-36 signup convention), while keeping the invite validate/consume/attach logic.
+      `join-name-only.test.ts` (7).
 
 ### 38c — Join → bring or make a character ✅ SHIPPED 2026-07-16
 > "routed to the campaign page where they will be prompted to bring in a character already made, or
@@ -2148,7 +2792,27 @@ ledger-resolved numbers, and a DM equip propagates live (C11b + Slice 10). Detai
       no ACTIVE EFFECTS line. **AC is now accurate too**: the digest runs the same `deriveAc` the
       sheet does (equipped armour/shield + AC effects, DEX folded), so its AC matches what the player
       sees, base flagged when it differs. Tests: `character-digest.test.ts` +4 (15 total). This closes
-      the "confidently wrong ruling" hazard flagged after Slice 10.
+      the "confidently wrong ruling" hazard flagged after Slice 10. **Spell save DC + attack added**
+      (`bdbff686`): the digest omitted a caster's most-adjudicated numbers, so the AI had to guess the DC
+      for "does the target save vs your Fireball?". Now a `SPELLCASTING:` line computed like SpellsPanel
+      (effective ability + PB, folding `spell_save_dc`/`spell_attack`) — a Headband of Intellect / Rod of
+      the Pact Keeper is reflected. +1 test (DC/attack rise by the item's +5). **Passive Perception +
+      Initiative added** (`aa0bedbe`): two more routinely-adjudicated numbers ("does the guard notice?",
+      "who acts first?"), effective (WIS/DEX through the ledger, Initiative folds `initiative` effects).
+      +1 test. **Attack to-hit / save DC added** (`ba1fa3f6`): attacks listed damage but not whether they
+      LAND ("does it hit AC 15?"). Each attack now carries its to-hit (effective ability + PB + bonus) or
+      an AOE's save DC, computed like the Attacks table. +1 test. The digest now carries every effective
+      number a ruling turns on — abilities, HP, AC, speed, Passive Perception, Initiative, spell DC/attack,
+      and per-attack to-hit/DC. **Attack damage folds the ability mod too** (`6c8e7fae`): the digest showed
+      the raw die while the sheet adds the mod automatically, so "how much damage?" understated it; now
+      it adds the effective mod + bonus and resolves the per-level ladder. +1 assertion. **Save bonuses
+      added** (`1d0ee892`): the digest listed which saves were proficient but not the bonus a target rolls;
+      now a `SAVES:` line gives each save's effective total (proficient starred), so "does it make the CON
+      save?" has a number. **Adjudicator told the numbers are already effective** (`af5298c0`): the ruling
+      prompt now states the sheet values are the CURRENT effective ones (base + effects; `[base N]` /
+      stated penalties shown), so the AI rules on them as-is and doesn't double-count a folded-in bonus or
+      re-apply a reflected penalty — closing the loop so the effective numbers are USED right, not just
+      reported. +1 test.
 - [x] **Realtime equip propagation ✅ VERIFIED 2026-07-16 (no code change needed).** Already satisfied
       by the existing C11b broadcast (`store.tsx:369–405`): a DM equip writes `data`, pings the
       per-character channel, and every other viewer refetches the full authed sheet and re-derives —
@@ -2180,23 +2844,31 @@ Movement is not one number, and a potion of flying is not "+speed". Each mode is
 its own base, so a fly speed can exist where a walk speed is 0 (and the sheet shows both).
 
 **Core numbers** — `ability_str|dex|con|int|wis|cha` · `ac` · `initiative` · `hp_max` ·
-`hp_temp` · `hit_dice` · `proficiency_bonus` · `spell_save_dc` · `spell_attack` · `carrying_capacity`.
+`temp_hp` (catalog once wrote `hp_temp`) · `hit_dice` · `proficiency_bonus` · `spell_save_dc` · `spell_attack` · `carrying_capacity`.
 
 **Rolls** — `attack_roll` · `damage_roll` · `attack_and_damage` · `save_<ability>` · `save_all` ·
 `skill_<name>` · `skill_all` · `ability_check_<ability>` · `death_save` · `concentration_save` ·
 `initiative_roll`. Operations: `add`, `set`, `advantage`, `disadvantage`, plus `reroll_below` (Great
 Weapon Fighting), `minimum_roll`, `crit_range` (19–20 → 18–20), `crit_dice`.
+✅ **`crit_range` shipped** (`f12a6c08`) as a proper target — widest-range-wins, only attacks consult it,
+shown on the to-hit; `crit-range.test.ts` (8). The other three operations remain dice-engine work.
 
 **Defenses** — `resistance` · `immunity` · `vulnerability` (by damage type) ·
 `condition_immunity` · `condition_advantage` (advantage on saves vs a named condition).
+✅ **`condition_advantage` shipped** (`637c982c`) — was in this catalog list but missing from the
+registry; added with its own collect op + a Defenses render block ("Adv. on saves vs — poison
+(source)"), listed not auto-applied (the rules ask the player to invoke it). `condition-advantage.test.ts` (5).
 
-**Grants** — `grant_proficiency` (skill/tool/weapon/armour/language) · `grant_expertise` ·
-`grant_feature` · `grant_attack` · `grant_spell` · `grant_cantrip` · `grant_resource` ·
+**Grants** — `grant_proficiency` (skill/tool/weapon/armour/language) · `expertise` (catalog once wrote
+`grant_expertise`) · `grant_feature` · `grant_attack` · `grant_spell` · `grant_cantrip` · `grant_resource` ·
 `grant_spell_slot` · `grant_sense` (darkvision/truesight/tremorsense/blindsight, with a range) ·
 `grant_language` · `grant_action` (a new thing you can do).
 
 **Identity** (Slice 11) — `name` · `image` · `token` · `species` · `class` · `subclass` ·
 `gender` · `pronouns` · `profession` · `size` · `creature_type` · `alignment`.
+✅ **`alignment` shipped** (`e2673bcf`) — was the one identity key in this catalog list missing from the
+live registry; added as a text identity overlay homed on the Bio Details line (like gender/pronouns/
+profession), AI-settable via `set_meta`. `identity-alignment.test.ts` (4).
 
 **Instant** (Slice 12; fires once, leaves nothing) — `heal` · `temp_hp` · `damage` ·
 `restore_resource` · `restore_slot` · `remove_condition` · `apply_condition` · `set_hp`.
@@ -2216,10 +2888,93 @@ such*, not faked with a number that looks authoritative).
 2. Every target must render **somewhere** on the sheet, or it is a lie. A target with no home is not
    done — that is the entire lesson of the current codebase, where a complete effects engine sits
    unread because nothing renders it. **`grant_sense` and `speed_burrow` need places to live before
-   they can be granted.**
+   they can be granted.** ✅ **`rendersAt` accuracy** (`37b145fe`): the field must name the ACTUAL home,
+   not just a plausible one — `grant_language` claimed "Overview · Languages" but effect-granted
+   languages render in the Skills tab's "Granted Proficiencies" panel (they use the `grant_proficiency`
+   op); corrected + `grant-language-renders.test.ts` (4) pins the real path. **Structured-grant mechanism
+   clarified** (`e4904995`): `grant_attack`/`grant_spell`/`grant_resource` are ref-string effect targets,
+   but a full Attack/Spell/Resource is a structured object — so they're authored on the item's
+   `grantsAttack`/`grantsSpell`/`grantsResource` field (which renders while the item is active); there's
+   no effect-render path. Help + rendersAt now name the field so a builder can't emit an effect that
+   validates yet renders nowhere. `grant-render-paths.test.ts` (4).
 3. `set` vs `add` is per-target and documented (Storm Giant Strength *sets* STR to 29; a belt *adds*).
 4. Unknown target → the edit is refused with a reason. Never coerced, never silently dropped.
 5. A target the engine cannot faithfully model gets `note`, not an approximation.
+
+**Contract reconciliation (this catalog ↔ the live registry) ✅ — guarded by `appendix-a-contract.test.ts` (4).**
+Every catalog name above is now either **built** in `lib/dnd/effects/targets.ts`, an **alias** for a
+built target (pure naming, no missing capability), or an **explicit deferral** with a reason — and the
+guard test fails if any entry is none of those, or if a deferred target later gets built without being
+removed from the deferred list. So the contract and the code can no longer quietly disagree.
+- **Aliases (naming only):** `hp_temp` → the registry's `temp_hp`; `grant_expertise` → `expertise`.
+- **Deferred (need engine resolution, not just a render home):** `grant_cantrip` (a cantrip is a
+  level-0 spell → `grant_spell` covers it), `grant_action` (a granted action is a `grant_feature` today),
+  `grant_spell_slot` (a *persistent* bonus slot needs slot-grant resolution; `restore_slot` only refills
+  existing ones), `set_hp` (needs the generic instant-effect consume path the bespoke consumable model
+  doesn't route yet), `concentration` (needs a concentration tracker before it can honestly render),
+  `inspiration` (`char.inspiration` is a player-toggled boolean; granting it needs instant resolution,
+  not a ledger overlay), `action_count` (the specific `attacks_per_action`/`reaction_count`/
+  `bonus_action_count` exist; a generic one has no distinct home). **Honesty correction (2026-07-17):**
+  "exist" above meant *registered as targets*, but four of them — `attunement_slots`, `reaction_count`,
+  `bonus_action_count`, `attacks_per_action` — are registered yet **read by no component**, so an item
+  granting "+1 reaction" or "+1 attunement slot" validates and the AI can emit it, but it silently
+  no-ops and renders nowhere (the current sheet has no action-economy tracker, and no attunement model in
+  its Inventory). `effect-targets.test.ts`/`appendix-a-contract.test.ts` didn't catch this — the former
+  only checks `rendersAt` is a non-empty string, the latter only checks a target exists. New
+  `effect-target-render-gaps.test.ts` tracks the registered-but-unrendered set (the 4 economy targets, plus
+  the deeper-feature `hit_dice`/`exhaustion`/`condition`, each with a per-target reason; `concentration_save`
+  was in this set until it was wired — see 2026-07-18 below) and fails the moment a LISTED one is wired
+  (forcing its removal) — turning a false-confidence gap into a guarded one. Wiring the economy ones needs an
+  action-economy/attunement render home (larger feature work), deferred until then.
+  **⚑ Over-claim corrected + soundness guard added (2026-07-18):** the test's header (and this doc) claimed a
+  "completeness sweep" catching ANY new silently-unread target — but no such sweep exists, and a sound one is
+  infeasible via source-scan: ~60 targets aren't read as a literal `value('key')` yet are legitimately
+  rendered through template reads (`value(`${a.key}_saves`)`, `skill.${…}`), `deriveAc`, item `grants*`
+  fields, `identity(field)`, `ledger.transform()`, or consume-op handlers. Corrected the claim to what the
+  file actually guarantees (the LISTED set is sound + can only shrink; completeness is human-maintained), and
+  ADDED a sound guard: no listed target is rendered via a TEMPLATE read either (`isFamilyRead`) — so a
+  per-ability save / skill / speed target can't be wrongly parked as "unrendered". `effect-target-render-gaps.test.ts` +1.
+  **⚑ CONCENTRATION SAVE — the last unrendered ROLL target now wired (2026-07-18).** `concentration_save`
+  was in the registered-but-unrendered set because the sheet had a concentration *tracker* but no
+  concentration *save roll* to fold a bonus into — a core 5e mechanic (take damage while concentrating →
+  CON save, DC 10 or ½ the damage) the sheet simply couldn't roll. Added `store.rollConcentrationSave()`:
+  a CON save that folds `concentration_save` + `con_saves` + `all_saves` (value AND rollFlags) and rolls
+  through the shared `rollCheck`, so exhaustion, the crit rule, and adv/dis cancellation all apply exactly
+  like every other save — and War Caster's advantage-on-concentration-saves-specifically finally reaches
+  the roll. Surfaced as a "🎲 Save" button on the ConditionTracker, gated to `is5e` (the tracker is
+  system-agnostic but the DC-10 CON-save *rule* is 5e-only — no cross-system leak onto a PF2/CoC/IG sheet).
+  Guards: `concentration-save.test.ts` (4 — the exact folds, the rollCheck route, the 5e gate) +
+  `effect-target-render-gaps.test.ts` (concentration_save now reads true, removed from the unrendered set).
+  Every registered ROLL target now reaches an actual roll; the only registered-but-unrendered targets left
+  are the 4 economy/attunement ones that genuinely need a new render home.
+  **⚑ ROLL-TARGET SWEEP — a whole CLASS of dropped effects fixed (2026-07-18).** Walking "does every
+  registered ROLL target actually reach its roll?" across the sheet found that many did NOT: they were
+  resolved only by `deriveCharacter`/`apply.ts`, which is imported by **no** component or store (dead for
+  display — the sheet runs on the ledger). So `death_save`, `<ability>_saves`/`all_saves`,
+  `skill.<key>`/`all_skills`, and `attack_roll`/`damage_roll`/`attack_and_damage` — both their numeric
+  bonuses AND their advantage/disadvantage — never reached the actual save/skill/attack/damage/death-save
+  rolls (a Cloak of Protection's +1 saves, a +2-skill item, a +N-to-all-attacks item all silently did
+  nothing). Fixed by folding `ledger.value(target,0)` + `ledger.rollFlags(target)` into each live roll
+  site (`SavesSkills`, `Attacks`, `rollWeaponDamage`, `rollDeathSave`), exactly like the already-correct
+  `initiative`/`spell_save_dc`/`spell_attack`. Verified no current content uses these targets, so every
+  fix is a no-op for existing characters (purely makes the capability work). Guards:
+  `saves-skills-effective.test.ts` (+2), `attack-global-bonus.test.ts` (4), `effect-target-render-gaps.test.ts`
+  (death_save now reads true). Every registered roll target now reaches its roll. Of the Rolls-section *operations*,
+  **`crit_range` shipped** (`f12a6c08`) — a proper roll target: `rollD20` gained a crit threshold, the
+  store derives the widest range across sources (min, sidestepping the ledger's highest-wins `set`), only
+  attacks consult it, and the Attacks table shows "crit 19–20"; `crit-range.test.ts` (8). The remaining
+  operations (`reroll_below` for Great Weapon Fighting, `minimum_roll`, `crit_dice`) are still deeper
+  dice-engine work — each needs the damage roller to rewrite individual dice, not just a threshold — so
+  they stay deferred. `alignment`, `condition_advantage`, and now `crit_range` were the clean ones — all
+  shipped.
+- **Death-save state transition extracted + guarded (2026-07-17).** `rollDeathSave` derived the outcome
+  TWICE inline — once for the roll-log label, once for the success/failure counts — two copies of the same
+  nat-20/nat-1/≥10/cap-3 branches, free to drift (and the life-or-death rule was otherwise untested; only a
+  long-rest reset touched it). Extracted the pure `applyDeathSave(state, natural, total)` (`_sheet/lib/death-save.ts`,
+  like `derive-ac`): nat 20 → regain 1 HP + clear both tracks, nat 1 → two failures, total ≥ 10 → success
+  else failure, each capped at 3. The store now calls it for both the label and the state, so they can't
+  diverge. `death-save.test.ts` (6) pins every branch incl. the cap edge (a 2nd nat-1 at 2 failures lands on
+  3) and that the threshold reads the folded TOTAL (an exhaustion-reduced 12→8 fails). No behavior change.
 
 # Appendix B — Item type catalog
 
@@ -2245,6 +3000,10 @@ Orthogonal to type, and where the mechanics actually live: `slot` (what it occup
 - The AI's tool schema is **generated from Appendix A**, so it can emit any effect the engine
   supports and — importantly — *cannot* emit one it doesn't. The schema is the guardrail; this is
   why "the AI made no edits" was the schema working, and why widening it is the whole fix.
+  ✅ **Operation list now actually generated** (`ec49f629`): the `edit_sheet` tool's operation list had
+  been hand-written and DRIFTED — it listed `grant_sense` (a target, not an operation) and omitted
+  `condition_advantage`, so the AI couldn't build a Dwarven-Resilience item. Built from `EFFECT_OPERATIONS`
+  (the compile-time-exhaustive roster) so it can't drift again; `sheet-edits.test.ts` +2 guards it.
 - It **writes** through `applySheetEdits` → the item lands in the real inventory, equippable and
   usable. Not a suggestion, not a chat message describing an item.
 - The DM can generate items **onto a player's sheet** (they already have write access via
@@ -2257,62 +3016,12 @@ Orthogonal to type, and where the mechanics actually live: `slot` (what it occup
 
 ---
 
-## Slice 40 — Final full-system QA walkthrough (Playwright, browser, manual) 🔴 LAST — after everything else
+## Final full-system QA walkthrough — MOVED TO `pending/` (2026-07-17)
 
-> User directive (2026-07-16): "When everything is finally built, do a final run-through of all the
-> features with Playwright. Manually use the browser to create a new user, create a character, then go
-> through the whole character-creation process step by step, through every level, building it as vanilla
-> as possible. Then move on to the next game-rule system and build a whole new character with the
-> character builder, step by step. Do this for ALL game systems, one new character each, all built
-> vanilla. Look for any errors, anything in the building process that isn't correct, bugs, or
-> formatting/styling issues, and FIX them. Be very thorough. Really make sure styling and formatting
-> and readability are attractive."
-
-**This slice runs LAST — only once every other slice in this doc is shipped or explicitly deferred.**
-It is a manual, browser-driven acceptance pass, not an automated test suite (though it may leave
-Playwright specs behind). Do it with the Playwright MCP tools against a real running app.
-
-- [ ] **Fresh account.** Create a NEW user through the pseudo-login (name + password, no email — see
-      Slice 36). Confirm the sign-up path works from a clean state.
-- [ ] **First character, D&D 5e 2024, vanilla.** Create a character and walk the WHOLE creation flow
-      step by step: species → background (confirm the +2/+1 or +1/+1/+1 spread and the granted Origin
-      feat + skills + tool actually land), class, then **level 1 → 20 one level at a time** via the
-      Level Builder. At each ASI slot, confirm the feat picker offers only rules-legal feats and that
-      "vanilla" (book-legal) choices are always available. No AI/homebrew unless a level genuinely has
-      no book option.
-- [ ] **Every other system, one vanilla character each.** Repeat the full step-by-step build for each
-      GAME_SYSTEM the app offers (5e 2014, PF2e, PF1e, Starfinder, Cyberpunk RED, Shadowrun, CoC,
-      Blades…). For level-less systems, walk their advancement-by-spend flow instead of a level table.
-      Where a system's rules data isn't built yet, RECORD that the builder correctly falls back to
-      custom rather than offering wrong options — don't paper over a missing ruleset as if it passed.
-- [ ] **Hunt for correctness + UX defects and FIX them as found:** wrong or missing choices at a level;
-      an ASI/feat/ability offered when it shouldn't be (or missing when it should); numbers that don't
-      add up on the resulting sheet; dead controls; and — explicitly called out by the user — **styling,
-      formatting, readability and attractiveness** on every screen touched (spacing, contrast,
-      alignment, overflow, mobile width, the Hextech theme holding together).
-- [ ] **Capture evidence.** Screenshot each system's finished sheet and any bug before/after. A GIF of
-      at least one full creation flow (per the browser-automation GIF guidance) is worth keeping.
-- [ ] Log every fix inline here (or in a QA notes file) so this pass leaves a record, not just green
-      vibes. When the walkthrough is clean for every system, this slice — and the doc — is done.
-
-## Known gaps / notes for whoever picks this up
-
-- **`VOYAGE_API_KEY` is absent**, so all semantic search returns nothing. Keyword search
-  (`lib/dnd/library.ts`, `keywordSearchSystemEntries`) is what actually runs today. `ANTHROPIC_API_KEY`
-  IS present, so the AI works.
-- **Storage-policy seeds** (102, 290, 295) need table ownership and can only be applied from the
-  Supabase dashboard. 7 more seeds fail as "policy/trigger already exists" — harmless.
-- **Uncertain rules flagged by the authoring agents** (worth a second source before release):
-  Warlock invocations-known progression; Wizard Spell Mastery's swap clause; Great Old One
-  Clairvoyant Combatant's limit; Monk Warrior of the Elements details; Starfinder
-  Fatigued/Exhausted magnitudes and Grappled/Pinned penalties; Envoy expertise die thresholds;
-  **2024 Epic Boon signature-effect wording/numbers** (`lib/dnd/feats/dnd5e-2024.ts` —
-  `EPIC_BOON_FEATS_2024`; the +1-to-30 increase and level-19 gate are certain, the capstone text is
-  concise-but-verify).
-- **`spellsKnown` currently carries prepared counts** for 2024 preparers. Consider renaming to
-  `spellsKnownOrPrepared`. The 2024 Ranger/Paladin/Cleric/Druid prepared counts are prose in
-  `preparedRule`, not structured — promote them if the builder needs the numbers.
-- **"Rank" vs "level" for spells**: the codebase says rank (UA wording); the printed 2024 PHB says
-  level. A sitewide rename if player-facing accuracy matters.
-- **`SubclassDefinition.alwaysPrepared`** can't express Circle of the Land's four terrain lists —
-  they're in the feature body instead.
+The last D&D item (originally "Slice 40") — the manual, Playwright-driven acceptance pass that creates a
+fresh account and builds one vanilla character per game system, level by level, fixing every correctness/
+styling/formatting bug found — has been **parked in `docs/planning/pending/DND_FINAL_QA_WALKTHROUGH.md`**
+at the owner's request (2026-07-17). It needs an interactive, DB-backed session on live Supabase (a
+throwaway test account + characters), which we agreed to run at another time. The read-only browser sweep
+already done (every no-data /dnd page runtime-verified error-free) and the "known gaps" notes for the run
+travelled with it into that doc. Move it back to `in-progress/` when the run starts.

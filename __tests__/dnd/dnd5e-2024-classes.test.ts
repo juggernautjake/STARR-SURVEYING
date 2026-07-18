@@ -16,6 +16,35 @@ const EXPECTED = [
   'Paladin', 'Ranger', 'Rogue', 'Sorcerer', 'Warlock', 'Wizard',
 ];
 
+// The RAW hit die per class (identical in 2014 and 2024). Drives max HP + the hit-dice pool, so a wrong
+// value silently gives a whole class the wrong HP — and the generic "is one of 6/8/10/12" check would pass
+// a Barbarian typo'd to d10. Pin the correct value.
+const HIT_DICE: Record<string, number> = {
+  Barbarian: 12, Fighter: 10, Paladin: 10, Ranger: 10,
+  Bard: 8, Cleric: 8, Druid: 8, Monk: 8, Rogue: 8, Warlock: 8,
+  Sorcerer: 6, Wizard: 6,
+};
+
+// The RAW pair of saving-throw proficiencies per class (identical in 2014/2024). The generic "exactly 2
+// saves" check wouldn't catch a wrong PAIR (e.g. Barbarian's STR/CON typo'd to STR/DEX), yet these decide
+// every save the class is proficient in. Pinned order-independently.
+const SAVES: Record<string, string[]> = {
+  Barbarian: ['con', 'str'], Bard: ['cha', 'dex'], Cleric: ['cha', 'wis'], Druid: ['int', 'wis'],
+  Fighter: ['con', 'str'], Monk: ['dex', 'str'], Paladin: ['cha', 'wis'], Ranger: ['dex', 'str'],
+  Rogue: ['dex', 'int'], Sorcerer: ['cha', 'con'], Warlock: ['cha', 'wis'], Wizard: ['int', 'wis'],
+};
+
+// The EXACT ASI cadence per 2024 class. Most take one at 4/8/12/16 (level 19 is an Epic Boon, NOT an ASI
+// — a 2024 vs 2014 tell); Fighter adds 6 & 14, Rogue adds 10. The `toContain` check below verifies the
+// expected levels are PRESENT but not that there are no EXTRAS (an erroneous ASI at 14 would slip). Pin the
+// full array so both a missing and a spurious level are caught.
+const ASI_LEVELS: Record<string, number[]> = {
+  Fighter: [4, 6, 8, 12, 14, 16], Rogue: [4, 8, 10, 12, 16],
+  Barbarian: [4, 8, 12, 16], Bard: [4, 8, 12, 16], Cleric: [4, 8, 12, 16], Druid: [4, 8, 12, 16],
+  Monk: [4, 8, 12, 16], Paladin: [4, 8, 12, 16], Ranger: [4, 8, 12, 16], Sorcerer: [4, 8, 12, 16],
+  Warlock: [4, 8, 12, 16], Wizard: [4, 8, 12, 16],
+};
+
 describe('the 2024 class roster', () => {
   it('registers all 12 PHB classes', () => {
     expect(CLASSES.map((c) => c.name).sort()).toEqual([...EXPECTED].sort());
@@ -45,10 +74,10 @@ describe.each(CLASSES.map((c) => [c.name, c] as const))('%s', (_name, def) => {
     expect(validateClassDefinition(def)).toEqual([]);
   });
 
-  it('belongs to dnd5e-2024 and has a hit die, 2 saves and a description', () => {
+  it('belongs to dnd5e-2024 and has the RAW hit die, 2 saves and a description', () => {
     expect(def.system).toBe(SYS);
-    expect([6, 8, 10, 12]).toContain(def.hitDie);
-    expect(def.savingThrows.length).toBe(2);
+    expect(def.hitDie, `${def.name} hit die`).toBe(HIT_DICE[def.name]); // the CORRECT die, not just a valid one
+    expect([...def.savingThrows].sort(), `${def.name} save proficiencies`).toEqual(SAVES[def.name]); // the CORRECT pair
     expect(def.description.trim().length).toBeGreaterThan(20);
   });
 
@@ -58,7 +87,7 @@ describe.each(CLASSES.map((c) => [c.name, c] as const))('%s', (_name, def) => {
   });
 
   it('has ASIs at 4/8/12/16 and an Epic Boon at 19 — never an ASI at 19', () => {
-    for (const lv of [4, 8, 12, 16]) expect(def.asiLevels).toContain(lv);
+    expect([...def.asiLevels].sort((a, b) => a - b), `${def.name} ASI levels`).toEqual(ASI_LEVELS[def.name]); // exact — no extras
     expect(def.asiLevels).not.toContain(19);
     expect(def.features.some((f) => f.level === 19 && f.choice === 'epic-boon')).toBe(true);
     expect(def.features.some((f) => f.level === 19 && f.choice === 'asi')).toBe(false);
@@ -121,15 +150,16 @@ describe('spellcasting is wired to the shared tables', () => {
   it('full casters read the full table', () => {
     for (const n of ['Bard', 'Cleric', 'Druid', 'Sorcerer', 'Wizard']) {
       expect(casterOf(n)?.kind, n).toBe('full');
-      expect(casterOf(n)?.slots?.[5]?.[3], `${n} L5 3rd-rank slots`).toBe(FULL_CASTER_SLOTS[5][3]);
-      expect(casterOf(n)?.slots?.[20]?.[9], `${n} L20 9th`).toBe(1);
+      // "wired to the shared table" means the SAME object — an off-by-one copy or a mis-imported table
+      // would pass a cell-value check but fail this. Also keeps kind and slots from silently desyncing.
+      expect(casterOf(n)?.slots, `${n} uses the shared FULL_CASTER_SLOTS`).toBe(FULL_CASTER_SLOTS);
     }
   });
 
   it('Paladin and Ranger are HALF casters', () => {
     for (const n of ['Paladin', 'Ranger']) {
       expect(casterOf(n)?.kind, n).toBe('half');
-      expect(casterOf(n)?.slots?.[20]?.[6], `${n} never reaches rank 6`).toBe(HALF_CASTER_SLOTS[20][6]);
+      expect(casterOf(n)?.slots, `${n} uses the shared HALF_CASTER_SLOTS`).toBe(HALF_CASTER_SLOTS);
     }
   });
 

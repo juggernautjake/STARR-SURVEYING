@@ -48,6 +48,31 @@ describe('2024 species', () => {
     expect(findSpecies('halfling')?.size).toBe('Small');
     expect(findSpecies('nope')).toBeUndefined();
   });
+
+  it('every species has the RAW 2024 size / speed / darkvision (not just the spot-checked few)', () => {
+    // Encodes the 2024-specific changes a typo would most likely miss: Dwarf & Gnome speed is 30 (up from
+    // 25 in 2014), Dragonborn now HAS darkvision 60, Goliath moves at 35. darkvision is undefined for the
+    // species without it. Pin all 10 so a wrong dark-sight range or speed can't slip past `speed > 0`.
+    const GOLDEN: Record<string, { size: string; speed: number; darkvision?: number }> = {
+      aasimar: { size: 'Small or Medium', speed: 30, darkvision: 60 },
+      dragonborn: { size: 'Medium', speed: 30, darkvision: 60 },
+      dwarf: { size: 'Medium', speed: 30, darkvision: 120 },
+      elf: { size: 'Medium', speed: 30, darkvision: 60 },
+      gnome: { size: 'Small', speed: 30, darkvision: 60 },
+      goliath: { size: 'Medium', speed: 35 },
+      halfling: { size: 'Small', speed: 30 },
+      human: { size: 'Small or Medium', speed: 30 },
+      orc: { size: 'Medium', speed: 30, darkvision: 120 },
+      tiefling: { size: 'Small or Medium', speed: 30, darkvision: 60 },
+    };
+    for (const sp of SPECIES_2024) {
+      const g = GOLDEN[sp.key];
+      expect(g, `no golden entry for species "${sp.key}"`).toBeDefined();
+      expect(sp.size, `${sp.name} size`).toBe(g.size);
+      expect(sp.speed, `${sp.name} speed`).toBe(g.speed);
+      expect(sp.darkvision, `${sp.name} darkvision`).toBe(g.darkvision); // undefined for no-darkvision species
+    }
+  });
 });
 
 describe('the sheet surfaces species as a rules-grounded picker (Slice 4 creation UI)', () => {
@@ -63,9 +88,9 @@ describe('the sheet surfaces species as a rules-grounded picker (Slice 4 creatio
     expect(HERO).toContain('editMode && is2024');
   });
 
-  it('shows the matched species traits (size/speed/darkvision + traits)', () => {
-    expect(HERO).toContain('matchedSpecies');
-    expect(HERO).toContain('matchedSpecies.traits.map');
-    expect(HERO).toContain('Darkvision');
+  it('renders the system-agnostic Species/Ancestry traits panel (Area B)', () => {
+    // The old 2024-only inline card became a shared, all-systems panel (SpeciesTraits + species/view).
+    expect(HERO).toContain('SpeciesTraits');
+    expect(HERO).toContain('<SpeciesTraits');
   });
 });

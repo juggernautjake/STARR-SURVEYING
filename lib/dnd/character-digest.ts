@@ -11,7 +11,8 @@
 //  · Nothing is inferred. If the sheet doesn't say it, it isn't here — the AI must not be handed
 //    a guess dressed up as a fact.
 import type { Character } from '@/app/dnd/_sheet/types';
-import { abilityMod } from '@/app/dnd/_sheet/rules/dnd';
+import type { AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
+import { abilityMod, profBonusForLevel, profContribution } from '@/app/dnd/_sheet/rules/dnd';
 import { buildLedger } from './effects/ledger';
 import { deriveAc } from '@/app/dnd/_sheet/lib/derive-ac';
 import { summarizeCharacterProvenance } from './provenance';
@@ -47,12 +48,19 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
   // that are TRUE RIGHT NOW, not the stored base. A ruling on a belt-boosted STR 19 that reads the
   // base 16 is exactly the confidently-wrong adjudication this whole part exists to prevent.
   const ledger = buildLedger(char);
+  const pb = profBonusForLevel(m.level ?? 1);
+  // Effective ability score for a key — the digest's numbers must fold item/effect boosts.
+  const effAbil = (k: AbilityKey): number => ledger.value(`ability_${k}`, char.abilities?.[k] ?? 10);
 
   const who = [m.species, m.className, m.subclass].filter(Boolean).join(' · ');
   lines.push(`NAME: ${m.name || 'Unnamed'}`);
   lines.push(`SYSTEM: ${systemLabel(system)}`);
   if (who) lines.push(`BUILD: ${who}`);
   if (m.level) lines.push(`LEVEL: ${m.level}`);
+  // Background (its grants are reflected in skills/features, but the name gives context) and alignment
+  // (mechanically live in 2014 — aligned weapons, detect evil/good — narrative in 2024). Omitted when unset.
+  const idExtra = [m.background && `Background: ${m.background}`, m.alignment && `Alignment: ${m.alignment}`].filter(Boolean).join(' · ');
+  if (idExtra) lines.push(idExtra);
 
   // Abilities with modifiers — the numbers most rulings turn on. EFFECTIVE (ledger) values, with
   // the base noted when an effect has moved it, so the AI reasons on the real score AND can see it's
@@ -85,8 +93,86 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
     const sp = ledger.value('speed_walk', c.speed);
     state.push(`Speed ${sp} ft${sp !== c.speed ? ` [base ${c.speed}]` : ''}`);
   }
-  if (c.exhaustion) state.push(`Exhaustion ${c.exhaustion}`);
+  // Non-walking movement (Slice 11): fly/swim/climb/burrow are each their own target with their own
+  // base, exactly as CombatPanel shows them — a potion of flying is a fly speed, not "+30 speed". The
+  // sheet gives these a home; the digest is the AI's copy of the sheet, so a ruling ("can you reach the
+  // ledge?", "how fast do you swim clear?") must see them too. Shown only once granted (base 0 hidden).
+  const extraSpeeds = (
+    [
+      ['speed_fly', 'fly'],
+      ['speed_swim', 'swim'],
+      ['speed_climb', 'climb'],
+      ['speed_burrow', 'burrow'],
+    ] as const
+  )
+    .map(([key, label]) => ({ label, value: ledger.value(key, 0), modified: ledger.isModified(key) }))
+    .filter((s) => s.value > 0 || s.modified);
+  if (extraSpeeds.length) state.push(`Movement ${extraSpeeds.map((s) => `${s.label} ${s.value} ft`).join(', ')}`);
+  // Granted senses (darkvision 60, tremorsense…) — a ruling on "do you see in the dark?" hinges on this.
+  // Same source the sheet's Senses line reads (grant_sense contributions carry the sense text).
+  const senses = ledger
+    .explain('grant_sense')
+    .filter((cn) => !cn.suppressed && typeof cn.effect.value === 'string')
+    .map((cn) => String(cn.effect.value));
+  if (senses.length) state.push(`Senses ${senses.join(', ')}`);
+  // Movement traits granted by an effect — presence IS the effect (Boots of Levitation → hover; a spell →
+  // ignore difficult terrain). CombatPanel lists these; a ruling on "can you cross the bramble?" / "do you
+  // fall when knocked prone mid-air?" needs them too. Read like the sheet: any non-suppressed contribution.
+  const moveTraits = (
+    [
+      ['hover', 'can hover'],
+      ['ignore_difficult_terrain', 'ignores difficult terrain'],
+    ] as const
+  )
+    .filter(([key]) => ledger.explain(key).some((cn) => !cn.suppressed))
+    .map(([, label]) => label);
+  if (moveTraits.length) state.push(`Movement traits: ${moveTraits.join(', ')}`);
+  // Passive Perception + Initiative — both routinely decide a ruling ("does the guard notice?", "who
+  // acts first?"). EFFECTIVE: WIS/DEX fold through the ledger and Initiative folds any `initiative` effect.
+  if (char.skills?.perception) {
+    const pp = 10 + abilityMod(ledger.value('ability_wis', char.abilities?.wis ?? 10)) + profContribution(char.skills.perception.prof, pb) + (char.skills.perception.misc ?? 0);
+    state.push(`Passive Perception ${pp}`);
+  }
+  if (char.abilities?.dex != null) {
+    const init = ledger.value('initiative', abilityMod(ledger.value('ability_dex', char.abilities.dex)) + (c.initiativeMisc ?? 0));
+    state.push(`Initiative ${signed(init)}`);
+  }
+  // State the exhaustion penalty the SHEET applies (−2/level to every d20 roll), so a ruling on "does
+  // this attack/save/check land?" uses the same reduced roll the sheet does — not the unpenalized bonus.
+  if (c.exhaustion) state.push(`Exhaustion ${c.exhaustion} (−${2 * c.exhaustion} to all d20 rolls)`);
   if (state.length) lines.push(`STATE: ${state.join(' · ')}`);
+
+  // Damage + condition DEFENSES granted by active effects — the "do you take fire damage?" / "are you
+  // immune to being Frightened?" facts a ruling turns on. Read exactly as CombatPanel's Defenses card:
+  // resistances/vulnerabilities are collect-ops; damage `immunity` and `condition_immunity` share the
+  // `immunity` operation, so each is read per-TARGET (never lumped) and de-duplicated by value.
+  const dedupValues = (contribs: ReturnType<typeof ledger.explain>): string[] => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const cn of contribs) {
+      if (cn.suppressed || typeof cn.effect.value !== 'string') continue;
+      const k = cn.effect.value.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(cn.effect.value);
+    }
+    return out;
+  };
+  const defense: string[] = [];
+  const resist = ledger.collected('resistance').map((r) => r.value);
+  const vuln = ledger.collected('vulnerability').map((v) => v.value);
+  const dmgImm = dedupValues(ledger.explain('immunity'));
+  const condImm = dedupValues(ledger.explain('condition_immunity'));
+  // Advantage on saves vs a named condition (Dwarven Resilience vs poison, Fey Ancestry vs charm) — the
+  // sheet lists these; a ruling on "do you save with advantage vs the poison?" needs them. Not auto-applied
+  // (the game asks the player to invoke it), which is exactly why the AI must be told the advantage exists.
+  const condAdv = ledger.collected('condition_advantage').map((a) => a.value);
+  if (resist.length) defense.push(`Resistant: ${resist.join(', ')}`);
+  if (dmgImm.length) defense.push(`Immune: ${dmgImm.join(', ')}`);
+  if (vuln.length) defense.push(`Vulnerable: ${vuln.join(', ')}`);
+  if (condImm.length) defense.push(`Immune to conditions: ${condImm.join(', ')}`);
+  if (condAdv.length) defense.push(`Advantage on saves vs: ${condAdv.join(', ')}`);
+  if (defense.length) lines.push(`DEFENSES: ${defense.join(' · ')}`);
 
   // What is currently modifying this character — so the AI knows WHY a number differs from the base
   // and can factor it into a ruling ("you have advantage from Rage").
@@ -110,11 +196,20 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
   lines.push(`CONDITIONS: ${conditions.length ? conditions.join(', ') : 'none'}`);
   if (c.concentration) lines.push(`CONCENTRATING ON: ${c.concentration}`);
 
-  // Proficiencies actually matter for "can I…" questions.
-  const profSaves = Object.entries(char.saves ?? {})
-    .filter(([, v]) => v?.proficient)
-    .map(([k]) => k.toUpperCase());
-  if (profSaves.length) lines.push(`SAVE PROFICIENCIES: ${profSaves.join(', ')}`);
+  // Saving-throw BONUSES — a ruling ("does the target make the CON save vs your DC?") needs the number,
+  // not just which saves are proficient. Effective ability + PB (if proficient) + misc, like the sheet.
+  if (char.saves) {
+    const saveLine = (['str', 'dex', 'con', 'int', 'wis', 'cha'] as const)
+      .map((k) => {
+        const s = char.saves![k] ?? { proficient: false, misc: 0 };
+        // Fold the ledger save-bonus targets so the AI's save number matches the sheet's (which now does).
+        const mod = abilityMod(effAbil(k)) + (s.proficient ? pb : 0) + (s.misc ?? 0)
+          + ledger.value(`${k}_saves`, 0) + ledger.value('all_saves', 0);
+        return `${k.toUpperCase()} ${signed(mod)}${s.proficient ? '*' : ''}`;
+      })
+      .join(' · ');
+    lines.push(`SAVES: ${saveLine}  (* = proficient)`);
+  }
   const skills = Object.entries(char.skills ?? {})
     .filter(([, v]) => v?.prof && v.prof !== 'none')
     .map(([k, v]) => `${k}${v.prof === 'expertise' ? ' (expertise)' : ''}`);
@@ -124,6 +219,18 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
   const res = (char.resources ?? []).map((r) => `${r.name} ${r.current}/${r.max} (resets on ${r.resetOn} rest)`);
   if (res.length) lines.push(`RESOURCES: ${res.join(' · ')}`);
 
+  // Spell save DC + attack — a caster's most-adjudicated numbers ("does the target save vs your
+  // Fireball?"). EFFECTIVE, matching what SpellsPanel shows: the spellcasting ability folds through the
+  // ledger and the DC/attack fold their own spell_save_dc/spell_attack effects, so an INT/CHA item or a
+  // Rod of the Pact Keeper is reflected — the AI must not rule on a stale DC.
+  if (char.spellcasting?.ability) {
+    const sc = char.spellcasting;
+    const mod = abilityMod(ledger.value(`ability_${sc.ability}`, char.abilities?.[sc.ability] ?? 10));
+    const dc = ledger.value('spell_save_dc', c.saveDCOverride ?? 8 + pb + mod);
+    const atk = ledger.value('spell_attack', pb + mod);
+    lines.push(`SPELLCASTING: ${sc.ability.toUpperCase()} · Spell Save DC ${dc} · Spell Attack ${signed(atk)}`);
+  }
+
   if (char.spellcasting?.slots) {
     const slots = Object.entries(char.spellcasting.slots)
       .filter(([, v]) => v && v.max > 0)
@@ -132,9 +239,24 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
   }
 
   // Attacks, with the numbers.
+  // Attacks WITH their to-hit / save DC — "does it hit AC 15?" is the other half of most combat
+  // rulings. Computed like the sheet's Attacks table: effective ability mod + PB (if proficient) +
+  // bonus, or an AOE's save DC. Without this the AI knew the damage but not whether the attack lands.
   const attacks = (char.attacks ?? [])
     .filter((a) => (a.unlockLevel ?? 1) <= (m.level ?? 1))
-    .map((a) => `${a.name} (${a.range}, ${a.damage} ${a.damageType})`);
+    .map((a) => {
+      const key: AbilityKey = char.abilities?.[a.ability] != null ? a.ability : 'str';
+      const hit = a.saveBased
+        ? `DC ${a.saveDcOverride ?? 8 + pb + abilityMod(effAbil(a.saveDcAbility ?? 'str'))} ${(a.saveAbility ?? 'dex').toUpperCase()} save`
+        : `${signed(abilityMod(effAbil(key)) + (a.proficient ? pb : 0) + (a.bonusToHit ?? 0)
+            + ledger.value('attack_roll', 0) + ledger.value('attack_and_damage', 0))} to hit`;
+      // Damage die + the ability mod the sheet adds automatically (the `damage` field is the raw die).
+      // AOE dice don't add the ability mod, matching the Attacks table.
+      const die = a.damageByLevel?.length ? a.damageByLevel.reduce((acc, e) => ((m.level ?? 1) >= e.level ? e.damage : acc), a.damage) : a.damage;
+      const dmgMod = a.saveBased ? 0 : abilityMod(effAbil(key)) + (a.bonusDamage ?? 0)
+        + ledger.value('damage_roll', 0) + ledger.value('attack_and_damage', 0);
+      return `${a.name} (${hit}, ${a.range}, ${die}${dmgMod ? signed(dmgMod) : ''} ${a.damageType})`;
+    });
   if (attacks.length) lines.push(`ATTACKS: ${attacks.join(' · ')}`);
 
   // Features the character actually HAS at its level — the core of "does my feature apply?".
@@ -175,6 +297,7 @@ export function adjudicationInstruction(characterName: string, systemName: strin
   return [
     `ADJUDICATING FOR A SPECIFIC CHARACTER: you are answering about ${characterName}, whose sheet is given below.`,
     `Use ${characterName}'s ACTUAL numbers, features, resources and current conditions — not a generic ${systemName} character's.`,
+    `The numbers on the sheet are ALREADY the current EFFECTIVE values — base plus every active item, spell, form and condition (a "[base N]" note shows the unmodified value, and a listed penalty like "Exhaustion 3 (−6 to all d20 rolls)" is the current effect). Rule on them as given; do NOT re-add a bonus that is plainly already folded in, or re-apply a penalty already reflected.`,
     '',
     'When the question is situational ("can I…", "what happens if…", "does X apply here?"):',
     `1. Answer with a clear ruling first, in one line.`,

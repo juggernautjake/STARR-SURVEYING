@@ -36,6 +36,25 @@ describe('rollTyped — per-damage-type breakdown', () => {
     expect(r.parts[0].total).toBeLessThanOrEqual(19);
   });
 
+  it('a crit on a segment WITH a flat doubles the DICE but adds the flat ONCE (the weapon-crit path)', () => {
+    // rollWeaponDamage folds the ability modifier into the segment (weaponSegments → e.g. 2d8+3) and then
+    // crits via rollTyped — so the everyday martial critical hit takes THIS path, not rollDamage's. The
+    // "double the dice, never the flat" rule is pinned for rollDamage (dice-core) but was untested here,
+    // where doubling the +3 would silently inflate every weapon crit by the wielder's ability mod. This is
+    // deterministic: it reads the ACTUAL rolled dice out of the breakdown and checks the arithmetic, so it
+    // proves the flat wasn't doubled regardless of what the dice came up.
+    const r = rollTyped([{ dice: '2d8+3', type: 'slashing' }], true);
+    expect(r.crit).toBe(true);
+    const part = r.parts[0];
+    const diceVals = (part.breakdown.match(/\[([0-9,]+)\]/)?.[1] ?? '').split(',').filter(Boolean).map(Number);
+    expect(diceVals).toHaveLength(4); // 2d8 doubled to 4d8
+    for (const v of diceVals) { expect(v).toBeGreaterThanOrEqual(1); expect(v).toBeLessThanOrEqual(8); }
+    // The flat is added exactly once: total minus the four actual dice equals 3 (never 6).
+    expect(part.total - diceVals.reduce((a, b) => a + b, 0)).toBe(3);
+    expect(part.breakdown).toContain('+3');
+    expect(part.breakdown).not.toContain('+6');
+  });
+
   it('merges same-type segments into one part (1d6 + 1d4 poison → [2,10])', () => {
     const r = rollTyped([
       { dice: '1d6', type: 'poison' },

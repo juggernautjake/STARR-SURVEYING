@@ -64,9 +64,10 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
 
       {/* Headline defenses */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <Stat label="AC" value={`${d.ac}`} />
+        <Stat label="AC" value={`${d.ac}`} sub={pf2.combat.armorName && pf2.combat.armorName !== 'Unarmored' ? pf2.combat.armorName : undefined} />
         <Stat label="HP" value={`${pf2.combat.currentHp || d.maxHp}/${d.maxHp}`} sub={pf2.combat.tempHp ? `+${pf2.combat.tempHp} temp` : undefined} />
         <Stat label="Perception" value={fmt(pf2PerceptionTotal(pf2))} sub={pf2.perception.rank} />
+        <Stat label="Initiative" value={fmt(pf2PerceptionTotal(pf2))} sub="Perception" />
         <Stat label="Speed" value={`${pf2.combat.speed} ft`} />
         <Stat label="Class DC" value={`${d.classDc}`} sub={pf2.combat.classDcAttribute} />
         {d.spellDc != null && <Stat label="Spell DC" value={`${d.spellDc}`} sub={`atk ${fmt(d.spellAttack ?? 0)} · ${pf2.spellcasting.tradition}`} />}
@@ -88,17 +89,20 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
 
       {/* Skills */}
       <div>
-        <div style={label}>Skills</div>
+        <div style={label}>Skills{pf2.combat.armorCheckPenalty ? <span style={{ fontWeight: 400, color: 'var(--hx-muted)', fontSize: 10 }}> · armor check penalty {pf2.combat.armorCheckPenalty} on ▲ skills</span> : null}</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 4, marginTop: 6 }}>
-          {pf2.skills.map((sk) => (
-            <div key={sk.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: '3px 8px', border: '1px solid var(--hx-line)', borderRadius: 6, opacity: sk.rank === 'untrained' ? 0.55 : 1 }}>
-              <span style={{ fontSize: 11.5, color: 'var(--hx-text)' }}>{sk.name} <span style={{ color: 'var(--hx-muted)', fontSize: 9.5 }}>{sk.attribute}</span></span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <strong style={{ fontSize: 12.5, color: 'var(--hx-teal-1)' }}>{fmt(pf2SkillTotal(sk, id.level, pf2.attributes))}</strong>
-                <RankPill rank={sk.rank} />
-              </span>
-            </div>
-          ))}
+          {pf2.skills.map((sk) => {
+            const penalized = !!sk.armorPenalty && !!pf2.combat.armorCheckPenalty;
+            return (
+              <div key={sk.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: '3px 8px', border: '1px solid var(--hx-line)', borderRadius: 6, opacity: sk.rank === 'untrained' ? 0.55 : 1 }}>
+                <span style={{ fontSize: 11.5, color: 'var(--hx-text)' }}>{sk.name}{penalized ? <span title="armor check penalty applies" style={{ color: 'var(--hx-gold-2)' }}> ▲</span> : null} <span style={{ color: 'var(--hx-muted)', fontSize: 9.5 }}>{sk.attribute}</span></span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <strong style={{ fontSize: 12.5, color: 'var(--hx-teal-1)' }}>{fmt(pf2SkillTotal(sk, id.level, pf2.attributes, pf2.combat.armorCheckPenalty))}</strong>
+                  <RankPill rank={sk.rank} />
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -117,10 +121,19 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
         </div>
       )}
 
-      {/* Spellcasting summary */}
+      {/* Spellcasting summary + slots per rank */}
       {pf2.spellcasting.kind !== 'none' && (
-        <div style={{ fontSize: 12, color: 'var(--hx-muted)' }}>
-          <span style={label}>Spellcasting</span> — {pf2.spellcasting.tradition} {pf2.spellcasting.kind}, {pf2.spellcasting.attribute} · proficiency {fmt(pf2Proficiency(pf2.spellcasting.rank, id.level))} ({pf2.spellcasting.rank}).
+        <div style={{ display: 'grid', gap: 6 }}>
+          <div style={{ fontSize: 12, color: 'var(--hx-muted)' }}>
+            <span style={label}>Spellcasting</span> — {pf2.spellcasting.tradition} {pf2.spellcasting.kind}, {pf2.spellcasting.attribute} · proficiency {fmt(pf2Proficiency(pf2.spellcasting.rank, id.level))} ({pf2.spellcasting.rank}).
+          </div>
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+            {pf2.spellcasting.slots.map((n, r) => (n > 0 ? (
+              <span key={r} style={{ fontSize: 11, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 6, padding: '2px 7px' }}>
+                {r === 0 ? 'Cantrips' : `Rank ${r}`}: <strong style={{ color: 'var(--hx-teal-1)' }}>{n}</strong>
+              </span>
+            ) : null))}
+          </div>
         </div>
       )}
 
@@ -142,7 +155,10 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
         </div>
       )}
 
-      <div style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>Languages: {pf2.languages.join(', ') || '—'}. All numbers derived by the PF2 rules engine (proficiency = rank bonus + level when trained).</div>
+      <div style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>
+        {pf2.senses && pf2.senses.length > 0 && <>Senses: {pf2.senses.join(', ')}. </>}
+        Languages: {pf2.languages.join(', ') || '—'}. All numbers derived by the PF2 rules engine (proficiency = rank bonus + level when trained).
+      </div>
     </div>
   );
 }

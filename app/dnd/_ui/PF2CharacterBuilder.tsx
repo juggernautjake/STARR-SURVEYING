@@ -10,7 +10,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
-import { PF2_ANCESTRIES, PF2_CLASSES, PF2_BACKGROUNDS, PF2_SKILLS } from '@/lib/dnd/systems/pathfinder2e/content';
+import { PF2_ANCESTRIES, PF2_CLASSES, PF2_BACKGROUNDS, PF2_SKILLS, PF2_ARMORS, PF2_WEAPONS } from '@/lib/dnd/systems/pathfinder2e/content';
 import { PF2_ATTRIBUTES, type PF2AttributeKey } from '@/lib/dnd/systems/pathfinder2e/model';
 
 export default function PF2CharacterBuilder({ characterId, initialName, aiConfigured }: { characterId: string; initialName: string; aiConfigured?: boolean }) {
@@ -28,6 +28,8 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
   const [className, setClassName] = useState('');
   const [subclass, setSubclass] = useState('');
   const [deity, setDeity] = useState('');
+  const [armor, setArmor] = useState('Unarmored');
+  const [weapon, setWeapon] = useState('');
   const [keyAttribute, setKeyAttribute] = useState<PF2AttributeKey>('STR');
   const [attributes, setAttributes] = useState<Record<PF2AttributeKey, number>>({ STR: 0, DEX: 0, CON: 0, INT: 0, WIS: 0, CHA: 0 });
   const [trainedSkills, setTrainedSkills] = useState<string[]>([]);
@@ -61,7 +63,7 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
   }
 
   const build = () => post(`/api/dnd/characters/${characterId}/pf2-build`, {
-    picks: { name, level, ancestry, heritage, background, className, subclass, deity, keyAttribute, attributes, trainedSkills },
+    picks: { name, level, ancestry, heritage, background, className, subclass, deity, keyAttribute, attributes, trainedSkills, armor, weapon },
   }, setBusy);
 
   const aiBuild = () => {
@@ -122,11 +124,26 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={label}>KEY ATTRIBUTE</span>
-          <select value={keyAttribute} onChange={(e) => setKeyAttribute(e.target.value as PF2AttributeKey)} style={{ ...input, width: 90 }}>
-            {(cls?.keyAttribute ?? PF2_ATTRIBUTES).map((k) => <option key={k} value={k}>{k}</option>)}
-          </select>
+        <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={label}>KEY ATTRIBUTE</span>
+            <select value={keyAttribute} onChange={(e) => setKeyAttribute(e.target.value as PF2AttributeKey)} style={{ ...input, width: 90 }}>
+              {(cls?.keyAttribute ?? PF2_ATTRIBUTES).map((k) => <option key={k} value={k}>{k}</option>)}
+            </select>
+          </span>
+          <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={label}>ARMOR</span>
+            <select value={armor} onChange={(e) => setArmor(e.target.value)} style={{ ...input, minWidth: 150 }} title="Sets AC item bonus + Dex cap">
+              {PF2_ARMORS.map((a) => <option key={a.name} value={a.name}>{a.name}{a.category !== 'unarmored' ? ` (+${a.acBonus} AC, ${a.category})` : ''}</option>)}
+            </select>
+          </span>
+          <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={label}>WEAPON</span>
+            <select value={weapon} onChange={(e) => setWeapon(e.target.value)} style={{ ...input, minWidth: 160 }} title="Adds a Strike (alongside your Fist)">
+              <option value="">No weapon (Fist only)</option>
+              {PF2_WEAPONS.map((w) => <option key={w.name} value={w.name}>{w.name} ({w.damageDie} {w.damageType}{w.range ? `, ${w.range}ft` : ''})</option>)}
+            </select>
+          </span>
         </div>
 
         <div style={label}>ATTRIBUTE MODIFIERS <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>(PF2 uses modifiers, e.g. +4)</span></div>

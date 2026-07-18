@@ -14,13 +14,19 @@ import {
 import { BACKGROUNDS_2024 } from '@/lib/dnd/backgrounds/dnd5e-2024';
 
 describe('2024 languages', () => {
-  it('splits into Standard and Rare with the canonical members', () => {
-    const std = languagesByRarity('standard').map((l) => l.name);
-    const rare = languagesByRarity('rare').map((l) => l.name);
-    expect(std).toContain('Common');
-    expect(std).toContain('Draconic');
-    expect(rare).toContain('Abyssal');
-    expect(rare).toContain('Undercommon');
+  it('splits into Standard and Rare with the EXACT 2024 PHB membership', () => {
+    const std = languagesByRarity('standard').map((l) => l.name).sort();
+    const rare = languagesByRarity('rare').map((l) => l.name).sort();
+    // Pin the full lists, not just spot-checks — the 2024-specific tells a regression would hit are that
+    // Orc is now STANDARD (it was Rare/different in 2014) and Common Sign Language is a new Standard entry.
+    expect(std).toEqual([
+      'Common', 'Common Sign Language', 'Draconic', 'Dwarvish', 'Elvish',
+      'Giant', 'Gnomish', 'Goblin', 'Halfling', 'Orc',
+    ].sort());
+    expect(rare).toEqual([
+      'Abyssal', 'Celestial', 'Deep Speech', 'Druidic', 'Infernal',
+      'Primordial', 'Sylvan', "Thieves' Cant", 'Undercommon',
+    ].sort());
     expect(std).not.toContain('Abyssal'); // rarity is exclusive
   });
 

@@ -8,6 +8,7 @@ import { validateAbilityAssignment, reconcileBackgroundIncreases, type AbilityAs
 import { SKILLS, ABILITIES, type AbilityKey } from '@/app/dnd/_sheet/rules/dnd'
 import { md } from '../lib/inline'
 import SectionHead from './ui/SectionHead'
+import EffectStar from './ui/EffectStar'
 
 const SKILL_LABEL: Record<string, string> = Object.fromEntries(SKILLS.map((s) => [s.key, s.label]))
 const ABILITY_LABEL: Record<string, string> = Object.fromEntries(ABILITIES.map((a) => [a.key, a.label]))
@@ -100,13 +101,15 @@ export default function Bio() {
   // Descriptive identity fields (Slice 11): the render home for gender/pronouns/profession. Each is
   // overlayable by an identity effect (a potion that changes your recorded profession), base stands
   // otherwise. Edit them by hand below (canWrite), or the AI sets them via set_meta.
-  const detail = (field: 'gender' | 'pronouns' | 'profession') => ledger.identity(field)?.value ?? char.meta[field] ?? ''
-  const details: { key: 'gender' | 'pronouns' | 'profession'; label: string }[] = [
+  type DetailKey = 'gender' | 'pronouns' | 'profession' | 'alignment'
+  const detail = (field: DetailKey) => ledger.identity(field)?.value ?? char.meta[field] ?? ''
+  const details: { key: DetailKey; label: string }[] = [
     { key: 'gender', label: 'Gender' },
     { key: 'pronouns', label: 'Pronouns' },
     { key: 'profession', label: 'Profession' },
+    { key: 'alignment', label: 'Alignment' },
   ]
-  const setMeta = (k: 'gender' | 'pronouns' | 'profession', v: string) =>
+  const setMeta = (k: DetailKey, v: string) =>
     setChar((c) => ({ ...c, meta: { ...c.meta, [k]: v } }))
 
   // Mechanical 2024 background (Slice 4): a pick from the real list that grants ability increases +
@@ -266,7 +269,11 @@ export default function Bio() {
                   onChange={(e) => setMeta(d.key, e.target.value)}
                 />
               ) : (
-                <div style={{ fontSize: 15, color: 'var(--ink)' }}>{detail(d.key) || '—'}</div>
+                // Star an OVERLAID detail (a Helm of Opposite Alignment sets `alignment`, a girdle sets
+                // `gender`) so the change is explainable — the same affordance name/species/class carry.
+                <div style={{ fontSize: 15, color: 'var(--ink)' }}>
+                  <EffectStar target={d.key} label={d.label}>{detail(d.key) || '—'}</EffectStar>
+                </div>
               )}
             </div>
           ))}

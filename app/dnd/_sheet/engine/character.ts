@@ -19,7 +19,7 @@ import { activeEffects, type Effect } from './effects';
 import { applyEffectsToDerived, type DerivedWithEffects } from './apply';
 import {
   collectItemEffects,
-  equip,
+  equipChecked,
   unequip,
   attune,
   unattune,
@@ -106,7 +106,10 @@ export function applyModelEdit(c: EngineCharacter, edit: ModelEdit): EngineChara
     case 'update_item':
       return { ...c, items: c.items.map((i) => (i.id === edit.id ? { ...i, ...edit.patch } : i)) };
     case 'equip':
-      return { ...c, items: edit.equipped ? equip(c.items, edit.id) : unequip(c.items, edit.id) };
+      // equipChecked mirrors attune(): it self-enforces the hard slot rules (one body armor, one
+      // shield, two-handed vs shield) and no-ops on a conflict, so the reducer can never reach an
+      // illegal equipped state. Unequip is always allowed.
+      return { ...c, items: edit.equipped ? equipChecked(c.items, edit.id) : unequip(c.items, edit.id) };
     case 'attune':
       return { ...c, items: edit.attuned ? attune(c.items, edit.id) : unattune(c.items, edit.id) };
     case 'add_feature':

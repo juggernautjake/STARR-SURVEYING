@@ -11,6 +11,7 @@ import type { Effect } from '@/app/dnd/_sheet/engine/effects';
 import type { AbilityKey, ProfLevel } from '@/app/dnd/_sheet/rules/dnd';
 import { validateCustomTag, RESERVED_TAGS } from '@/app/dnd/_sheet/components/ui/tagInfo';
 import { validateEffect } from '@/lib/dnd/effects/targets';
+import { EFFECT_OPERATIONS } from '@/app/dnd/_sheet/engine/effects';
 import { cleanTriggers } from '@/lib/dnd/effects/triggers';
 
 /** The full set of fields an item edit can carry (Slice 14). Shared by add_item + update_item so
@@ -113,7 +114,7 @@ function applyItemPayload(base: InvItem, p: ItemPayload): InvItem {
 
 export type SheetEdit =
   | { op: 'set_name'; value: string }
-  | { op: 'set_meta'; field: 'kicker' | 'role' | 'species' | 'className' | 'subclass' | 'gender' | 'pronouns' | 'profession'; value: string }
+  | { op: 'set_meta'; field: 'kicker' | 'role' | 'species' | 'className' | 'subclass' | 'gender' | 'pronouns' | 'profession' | 'alignment'; value: string }
   | { op: 'set_level'; value: number }
   | { op: 'set_ability'; ability: AbilityKey; value: number }
   | { op: 'set_save_proficient'; ability: AbilityKey; value: boolean }
@@ -130,6 +131,16 @@ export type SheetEdit =
   // school, timing, the resolution (attack roll or save vs DC), damage/heal, higher-level scaling.
   | { op: 'add_spell'; name: string; level: number; school?: string; castTime?: string; range?: string; components?: string; duration?: string; concentration?: boolean; ritual?: boolean; description: string; prepared?: boolean; attack?: boolean; save?: { ability: AbilityKey; effect: string }; higher?: string }
   | { op: 'remove_spell'; name: string }
+  // Money the AI can manage (Area C): add a named currency (a coin or a custom one like "Guild Marks"),
+  // update an existing one's amount/rate/name, or remove it. `rate` = value of one unit in BASE units
+  // (the base currency is rate 1); currencies are matched by id, name, or abbreviation.
+  | { op: 'add_currency'; name: string; abbrev?: string; amount?: number; rate?: number }
+  | { op: 'set_currency'; currency: string; amount?: number; rate?: number; name?: string; abbrev?: string }
+  | { op: 'remove_currency'; currency: string }
+  // Conditions the AI can apply/clear on the character — the standard ones (Poisoned, Prone, …) OR a
+  // custom/homebrew condition (any name). Stored on combat.conditions; the sheet's tracker shows them.
+  | { op: 'add_condition'; name: string }
+  | { op: 'remove_condition'; name: string }
   // add_item now carries the FULL item (Slice 14): kind, stats, art, and real `effects` that the
   // ledger resolves — not just a name. update_item merges fields into an existing item; equip_item
   // toggles whether its effects apply.
@@ -158,6 +169,12 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(
 const clampAbility = (n: number) => Math.max(1, Math.min(30, Math.round(n)));
 const eqName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
+/** Match a currency by id, name, or abbreviation (case-insensitive) — the AI may refer to any. */
+function findCurrency(list: Character['currencies'], key: string): NonNullable<Character['currencies']>[number] | null {
+  const k = key.trim().toLowerCase();
+  return (list ?? []).find((c) => c.id.toLowerCase() === k || eqName(c.name, key) || (c.abbrev ?? '').toLowerCase() === k) ?? null;
+}
+
 /** A human-readable path for the audit row (dnd_sheet_edits.field_path). */
 export function editPath(e: SheetEdit): string {
   switch (e.op) {
@@ -172,6 +189,9 @@ export function editPath(e: SheetEdit): string {
     case 'add_feature': case 'remove_feature': case 'rename_feature': return `features[${slug(e.name)}]`;
     case 'add_item': case 'update_item': case 'equip_item': case 'remove_item': case 'rename_item': case 'tag_item': return `inventory[${slug(e.name)}]`;
     case 'add_spell': case 'remove_spell': case 'rename_spell': return `spells[${slug(e.name)}]`;
+    case 'add_currency': return `currencies[${slug(e.name)}]`;
+    case 'set_currency': case 'remove_currency': return `currencies[${slug(e.currency)}]`;
+    case 'add_condition': case 'remove_condition': return 'combat.conditions';
     case 'rename_resource': return `resources[${slug(e.name)}]`;
     case 'define_tag': return `customTags[${slug(e.name)}]`;
     case 'add_resource': return `resources[${slug(e.name)}]`;
@@ -202,6 +222,9 @@ export function editOldValue(current: Character, e: SheetEdit): unknown {
     case 'add_item': case 'update_item': case 'equip_item': case 'remove_item': case 'rename_item': case 'tag_item':
       return findByName(current.inventory, e.name);
     case 'add_spell': case 'remove_spell': case 'rename_spell': return findByName(current.spells, e.name);
+    case 'add_currency': return findCurrency(current.currencies, e.name);
+    case 'set_currency': case 'remove_currency': return findCurrency(current.currencies, e.currency);
+    case 'add_condition': case 'remove_condition': return [...(current.combat?.conditions ?? [])];
     case 'add_resource': case 'rename_resource': return findByName(current.resources, e.name);
     default: return null;
   }
@@ -239,7 +262,10 @@ export function revertSheetEdit(input: Character, e: SheetEdit, oldValue: unknow
 
   switch (e.op) {
     case 'set_name': if (typeof oldValue === 'string') c.meta.name = oldValue; break;
-    case 'set_meta': if (oldValue != null) c.meta[e.field] = String(oldValue); break;
+    // A null oldValue here means the field was UNSET before the edit (the optional identity fields —
+    // gender/pronouns/profession/alignment — start undefined). Revert to '' so filling an empty field is
+    // undoable; guarding on `!= null` (as the numeric sets do) would strand the new value.
+    case 'set_meta': c.meta[e.field] = oldValue != null ? String(oldValue) : ''; break;
     case 'set_level': if (typeof oldValue === 'number') c.meta.level = oldValue; break;
     case 'set_ability': if (typeof oldValue === 'number') c.abilities[e.ability] = oldValue; break;
     case 'set_combat': if (typeof oldValue === 'number') c.combat[e.field] = oldValue; break;
@@ -261,9 +287,52 @@ export function revertSheetEdit(input: Character, e: SheetEdit, oldValue: unknow
     case 'add_spell': case 'remove_spell': case 'rename_spell':
       c.spells = restore(c.spells ?? [], prior as Spell | null);
       break;
+    case 'add_condition': case 'remove_condition':
+      // conditions is a plain string[]; the prior array was captured, so restoring it is exact.
+      if (Array.isArray(oldValue)) c.combat.conditions = oldValue as string[];
+      break;
+    case 'add_currency': case 'set_currency': case 'remove_currency': {
+      // Currencies match by id/name/abbrev (not the generic name-only restore). prior = the pre-edit
+      // currency (restore it), or null when the edit CREATED one (drop what it created).
+      const priorCur = (oldValue ?? null) as NonNullable<Character['currencies']>[number] | null;
+      const key = e.op === 'add_currency' ? e.name : e.currency;
+      const list = c.currencies ?? [];
+      if (priorCur) {
+        c.currencies = list.some((x) => x.id === priorCur.id)
+          ? list.map((x) => (x.id === priorCur.id ? priorCur : x))
+          : [...list, priorCur];
+      } else {
+        const k = key.trim().toLowerCase();
+        c.currencies = list.filter((x) => !(x.id.toLowerCase() === k || eqName(x.name, key) || (x.abbrev ?? '').toLowerCase() === k));
+      }
+      break;
+    }
     case 'add_resource': case 'rename_resource':
       c.resources = restore(c.resources, prior as Resource | null);
       break;
+    case 'define_tag':
+      // A pure create (oldValue is null) — undo it by dropping the tag it added. Without this case an
+      // undone AI edit that defined a tag would leave the tag category orphaned on the sheet.
+      if (c.customTags) c.customTags = (c.customTags as CustomTag[]).filter((t) => !eqName(t.name, e.name));
+      break;
+  }
+  return c;
+}
+
+/** One audited edit paired with the `old_value` recorded when it was applied. */
+export interface AuditedEdit { edit: SheetEdit; oldValue: unknown }
+
+/**
+ * Revert a whole BATCH of edits (all the edits from one request) as a unit — the "undo that change"
+ * primitive (history/undo B1). Folds `revertSheetEdit` over the batch in REVERSE order, each with its
+ * own recorded `old_value`, so the sheet returns to exactly its pre-batch state. Reverse order matters:
+ * if the batch added an item and then retuned it, the retune must be undone before the add is dropped.
+ * Pure — the route loads the batch's audit rows and passes them here.
+ */
+export function revertBatch(input: Character, batch: AuditedEdit[]): Character {
+  let c = input;
+  for (let i = batch.length - 1; i >= 0; i--) {
+    c = revertSheetEdit(c, batch[i].edit, batch[i].oldValue);
   }
   return c;
 }
@@ -397,6 +466,49 @@ export function applySheetEdits(input: Character, edits: SheetEdit[]): Character
         break;
       }
       case 'remove_spell': c.spells = (c.spells ?? []).filter((s) => !eqName(s.name, e.name)); break;
+      case 'add_currency': {
+        // Add a named currency (a coin or a custom one). Upsert by name so re-adding refines rather
+        // than duplicates. rate = value of one unit in base units (default 1); amount default 0.
+        const id = `cur-${slug(e.name)}`;
+        const cur = {
+          id, name: e.name.trim() || 'Currency',
+          ...(e.abbrev ? { abbrev: e.abbrev.trim() } : {}),
+          amount: Math.max(0, Number(e.amount) || 0),
+          rate: e.rate != null && Number(e.rate) > 0 ? Number(e.rate) : 1,
+        };
+        c.currencies = [...(c.currencies ?? []).filter((x) => !eqName(x.name, e.name) && x.id !== id), cur];
+        break;
+      }
+      case 'set_currency': {
+        // Update an existing currency's amount/rate/name/abbrev (matched by id/name/abbrev).
+        const target = findCurrency(c.currencies, e.currency);
+        if (target) {
+          c.currencies = (c.currencies ?? []).map((x) => (x.id === target.id ? {
+            ...x,
+            ...(e.name ? { name: e.name.trim() } : {}),
+            ...(e.abbrev != null ? { abbrev: e.abbrev.trim() } : {}),
+            ...(e.amount != null ? { amount: Math.max(0, Number(e.amount) || 0) } : {}),
+            ...(e.rate != null && Number(e.rate) > 0 ? { rate: Number(e.rate) } : {}),
+          } : x));
+        }
+        break;
+      }
+      case 'remove_currency': {
+        const target = findCurrency(c.currencies, e.currency);
+        if (target) c.currencies = (c.currencies ?? []).filter((x) => x.id !== target.id);
+        break;
+      }
+      case 'add_condition': {
+        const name = e.name.trim();
+        if (name) {
+          const cur = c.combat.conditions ?? [];
+          if (!cur.some((x) => x.trim().toLowerCase() === name.toLowerCase())) c.combat.conditions = [...cur, name];
+        }
+        break;
+      }
+      case 'remove_condition':
+        c.combat.conditions = (c.combat.conditions ?? []).filter((x) => x.trim().toLowerCase() !== e.name.trim().toLowerCase());
+        break;
       case 'add_item': {
         // Build on a fresh blank item, then layer the payload — so a bare add_item still works and
         // a rich one (kind, stats, effects) round-trips. Replaces any same-named item (upsert).
@@ -421,6 +533,15 @@ export function applySheetEdits(input: Character, edits: SheetEdit[]): Character
       case 'add_resource': {
         const res: Resource = { id: `ai-res-${slug(e.name)}`, name: e.name, max: Math.max(0, Math.round(e.max)), current: Math.max(0, Math.round(e.max)), color: e.color ?? 'teal', resetOn: e.resetOn ?? 'long' };
         c.resources = [...c.resources.filter((r) => !eqName(r.name, e.name)), res];
+        break;
+      }
+      default: {
+        // Exhaustiveness guard: EVERY SheetEdit op must have a case above. This is the AI's edit
+        // vocabulary — if an op the AI can emit has no case here, the edit silently does NOTHING (the AI
+        // reports success while the sheet is unchanged), breaking the "the AI can actually edit everything"
+        // guarantee. A new op added to the union without a handler fails to COMPILE here.
+        const _exhaustive: never = e;
+        void _exhaustive;
         break;
       }
     }
@@ -481,9 +602,9 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
           properties: {
             op: {
               type: 'string',
-              enum: ['set_name', 'set_meta', 'set_level', 'set_ability', 'set_save_proficient', 'set_skill', 'set_combat', 'add_attack', 'update_attack', 'remove_attack', 'rename_attack', 'add_feature', 'remove_feature', 'rename_feature', 'add_spell', 'remove_spell', 'rename_spell', 'add_item', 'update_item', 'equip_item', 'remove_item', 'rename_item', 'rename_resource', 'add_resource', 'define_tag', 'tag_item'],
+              enum: ['set_name', 'set_meta', 'set_level', 'set_ability', 'set_save_proficient', 'set_skill', 'set_combat', 'add_attack', 'update_attack', 'remove_attack', 'rename_attack', 'add_feature', 'remove_feature', 'rename_feature', 'add_spell', 'remove_spell', 'rename_spell', 'add_item', 'update_item', 'equip_item', 'remove_item', 'rename_item', 'rename_resource', 'add_resource', 'define_tag', 'tag_item', 'add_currency', 'set_currency', 'remove_currency', 'add_condition', 'remove_condition'],
             },
-            field: { type: 'string', description: 'For set_meta: kicker|role|species|className|subclass|gender|pronouns|profession. For set_combat: ac|maxHp|currentHp|speed.' },
+            field: { type: 'string', description: 'For set_meta: kicker|role|species|className|subclass|gender|pronouns|profession|alignment. For set_combat: ac|maxHp|currentHp|speed.' },
             to: { type: 'string', description: 'For rename_* ops: the NEW name. Renames keep every other field — use these to rename an attack/feature/item, never remove + re-add (that drops its stats).' },
             tag: { type: 'string', description: 'For tag_item: the tag to add to the item named by `name`. Must already be a built-in tag or one you defined with define_tag; weapon/consumable/equipped are reserved.' },
             ability: { type: 'string', enum: ABILITY_KEYS },
@@ -514,6 +635,11 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
             save: { type: 'object', description: 'For add_spell: { ability, effect } when the target rolls a save vs your spell DC.', properties: { ability: { type: 'string', enum: ABILITY_KEYS }, effect: { type: 'string' } } },
             higher: { type: 'string', description: 'For add_spell: the "at higher levels" upcasting text.' },
             prepared: { type: 'boolean', description: 'For add_spell: whether it starts prepared/known (default true).' },
+            // ── Currency fields (add_currency / set_currency / remove_currency) ─────────────
+            currency: { type: 'string', description: 'For set_currency/remove_currency: which currency to change (by name, abbreviation, or id).' },
+            abbrev: { type: 'string', description: 'For add_currency/set_currency: short symbol, e.g. "gp".' },
+            amount: { type: 'number', description: 'For add_currency/set_currency: how many the character holds (default 0).' },
+            rate: { type: 'number', description: 'For add_currency/set_currency: value of ONE unit in BASE units (the base currency is rate 1; e.g. gp = 100 when cp is base). Default 1.' },
             // ── Item fields (add_item / update_item), Slice 14 ──────────────────────────────
             kind: { type: 'string', enum: ITEM_KINDS, description: 'For add_item/update_item: weapon|armor|shield|consumable|wondrous|gear.' },
             equipped: { type: 'boolean', description: 'For add_item/update_item/equip_item: whether the item is worn/wielded. An item\'s `effects` apply only while equipped (or equipped AND attuned).' },
@@ -524,7 +650,7 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
               type: 'array',
               description:
                 'For add_item/update_item: the item\'s REAL passive effects, applied by the ledger while equipped/attuned. THIS is what makes an item change the sheet. Each effect is { target, operation, value?, condition? }. ' +
-                'target is a key from the effect registry (e.g. ability_str, ac, speed_walk, spell_save_dc, attack_and_damage, resistance, darkvision). operation is add|set|set_base|advantage|disadvantage|grant_proficiency|resistance|immunity|vulnerability|grant_sense (use the ones the target allows). value is a number for numeric targets, a string for text/damage_type/proficiency/sense targets. Omit value for advantage/disadvantage. Unknown targets/operations are REJECTED, not coerced — use only registry keys.',
+                `target is a key from the effect registry (e.g. ability_str, ac, speed_walk, spell_save_dc, attack_and_damage, resistance, grant_sense). operation is ${EFFECT_OPERATIONS.join('|')} (use the ones the target allows). value is a number for numeric targets, a string for text/damage_type/proficiency/sense/dice targets. Omit value for advantage/disadvantage. Unknown targets/operations are REJECTED, not coerced — use only registry keys.`,
               items: {
                 type: 'object',
                 properties: {

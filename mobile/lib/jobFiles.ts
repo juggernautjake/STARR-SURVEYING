@@ -32,6 +32,7 @@ import { usePowerSync, useQuery } from '@powersync/react';
 import { useAuth } from './auth';
 import type { AppDatabase } from './db/schema';
 import { logError, logInfo, logWarn } from './log';
+import { sanitiseName } from './mediaPath';
 import { enqueueAndAttempt } from './uploadQueue';
 import { randomUUID } from './uuid';
 
@@ -109,16 +110,6 @@ export interface AttachedFile {
   storagePath: string;
 }
 
-/** Sanitize a user-typed filename for a storage path. Strips path
- *  separators, collapses whitespace, caps length. */
-function sanitiseName(raw: string): string {
-  const cleaned = raw
-    .replace(/[/\\]+/g, '_')
-    .replace(/[^A-Za-z0-9._\- ]/g, '_')
-    .replace(/\s+/g, '_')
-    .slice(0, 80);
-  return cleaned || 'file';
-}
 
 /** Best-effort extension probe — picker uri + mime fallback. */
 function inferExtension(uri: string, mime: string | null): string {

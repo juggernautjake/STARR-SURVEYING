@@ -53,6 +53,9 @@ export interface PF2Skill {
   rank: PF2Rank;
   /** Assurance, item bonuses, etc. — flat additions the sheet shows separately. */
   itemBonus: number;
+  /** True for the four skills that take the armor check penalty (Acrobatics, Athletics, Stealth,
+   *  Thievery) when the wearer doesn't meet the armor's Strength requirement. */
+  armorPenalty?: boolean;
 }
 
 export interface PF2Save {
@@ -74,6 +77,11 @@ export interface PF2Combat {
   armorRank: PF2Rank;
   dexCap: number | null; // null = uncapped (unarmored / no cap)
   acItemBonus: number;
+  /** The worn armor's name (display only; the numbers above are what the rules engine reads). */
+  armorName?: string;
+  /** The effective armor check penalty (≤ 0) applied to armor-affected skills; 0 when the Strength
+   *  requirement is met or when unarmored. */
+  armorCheckPenalty?: number;
   /** The attack proficiency that gates your Strikes (Fighter is highest). */
   attackRank: PF2Rank;
   /** The class DC proficiency (for class features that impose saves). */
@@ -126,6 +134,8 @@ export interface PF2Character {
   spellcasting: PF2Spellcasting;
   feats: PF2Feat[];
   languages: string[];
+  /** Special senses from ancestry/heritage (e.g. "Darkvision", "Low-light vision"). Display only. */
+  senses?: string[];
 }
 
 /** Runtime guard: is this stored value a PF2Character sidecar (character.data.pf2e)? */

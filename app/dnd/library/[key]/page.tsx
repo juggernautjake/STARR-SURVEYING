@@ -16,6 +16,8 @@ import { dndAiConfigured } from '@/lib/dnd/ai';
 import LibrarySearch from '@/app/dnd/_ui/LibrarySearch';
 import LibraryChat from '@/app/dnd/_ui/LibraryChat';
 import GlossaryList from '@/app/dnd/_ui/GlossaryList';
+import JumpNav from '@/app/dnd/_ui/JumpNav';
+import { igSystemLogo, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
 
 export function generateStaticParams() {
   return GAME_SYSTEMS.map((s) => ({ key: s.key }));
@@ -62,47 +64,47 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
           {/* ── header ─────────────────────────────────────────────────── */}
           <div>
             <Link className={styles.hexBtn} href="/dnd/library" style={{ marginBottom: 10 }}>← Rules Library</Link>
-            <h1 className={styles.title} style={{ textAlign: 'left', margin: '8px 0 0' }}>{page.name}</h1>
+            <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginTop: 8 }}>
+              {page.key === 'intuitive-games' && (
+                // Brendan's Intuitive Games logo — the system's own mark, credited to him.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={igSystemLogo()} alt="Intuitive Games logo" title={IG_ART_CREDIT} style={{ width: 56, height: 56, flex: '0 0 auto' }} />
+              )}
+              <h1 className={styles.title} style={{ textAlign: 'left', margin: 0 }}>{page.name}</h1>
+            </div>
             <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--hx-teal-1)', marginTop: 4 }}>
               {page.tagline}
             </div>
             <p style={{ color: 'var(--hx-muted)', margin: '6px 0 0', maxWidth: 720 }}>
               {page.notes} {page.publisher ? `· ${page.publisher}` : ''} · Facts drawn from <em>{page.source}</em>.
+              {page.key === 'intuitive-games' && <> · <span style={{ color: 'var(--hx-gold-2)' }}>{IG_ART_CREDIT}</span></>}
             </p>
           </div>
 
           {/* ── jump links ─────────────────────────────────────────────── */}
-          <nav
-            style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '10px 12px', border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.4)' }}
-            aria-label="Jump to a section"
-          >
-            {page.sections.map((s) => (
-              <a key={s.id} href={`#${s.id}`} style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--hx-gold-2)', textDecoration: 'none' }}>
-                {s.title}
-              </a>
-            ))}
-            {glossary.length > 0 && (
-              <a href="#glossary" style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--hx-gold-2)', textDecoration: 'none' }}>
-                Glossary ({glossary.length})
-              </a>
-            )}
-            {classes.length > 0 && (
-              <a href="#progression" style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--hx-gold-2)', textDecoration: 'none' }}>
-                Class tables
-              </a>
-            )}
-          </nav>
+          {/* JumpNav scrolls without pushing a hash history entry, so Back leaves the page in one press
+              (Slice 37 — a plain #anchor made Back "jump up and down" the same page). */}
+          <JumpNav
+            items={[
+              ...page.sections.map((s) => ({ id: s.id, label: s.title })),
+              ...(glossary.length > 0 ? [{ id: 'glossary', label: `Glossary (${glossary.length})` }] : []),
+              ...(classes.length > 0 ? [{ id: 'progression', label: 'Class tables' }] : []),
+            ]}
+          />
 
           <LibrarySearch system={page.key} systemName={page.name} />
 
           {/* ── the rules, section by section ──────────────────────────── */}
+          {/* Each section is a collapsible <details>, DEFAULT CLOSED (owner 2026-07-18): the page opens as a
+              scannable list of section headers you expand on demand — native, no-JS, accessible, and much
+              better on mobile. (Per-entry expansion within a section is the next slice.) */}
           {page.sections.map((s) => (
-            <section key={s.id} id={s.id} className={styles.framedPanel} style={{ padding: '14px 16px', display: 'grid', gap: 10, scrollMarginTop: 16 }}>
-              <div className={styles.framedPanelTop} />
-              <div>
-                <h2 className={styles.panelTitle} style={{ margin: 0 }}>{s.title}</h2>
-                {s.lead && <p style={{ color: 'var(--hx-muted)', fontSize: 13, margin: '3px 0 0' }}>{s.lead}</p>}
-              </div>
+            <details key={s.id} id={s.id} className={styles.framedPanel} style={{ padding: '12px 16px', scrollMarginTop: 16 }}>
+              <summary style={{ cursor: 'pointer', listStyle: 'revert' }}>
+                <h2 className={styles.panelTitle} style={{ margin: 0, display: 'inline' }}>{s.title}</h2>
+                {s.lead && <span style={{ color: 'var(--hx-muted)', fontSize: 13, marginLeft: 8 }}>— {s.lead}</span>}
+              </summary>
+              <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
 
               {s.facts && (
                 <dl style={{ display: 'grid', gap: 10, margin: 0 }}>
@@ -135,6 +137,24 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
                 </div>
               )}
 
+              {/* Per-entry collapsibles (MOB2c) — each name expands to its full detail; nested inside the
+                  section <details>, also default-closed. The owner's "click a race to expand every detail". */}
+              {s.entries && (
+                <div style={{ display: 'grid', gap: 6 }}>
+                  {s.entries.map((e) => (
+                    <details key={e.name} style={{ border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.4)', padding: '7px 10px' }}>
+                      <summary style={{ cursor: 'pointer', fontSize: 13.5 }}>
+                        <strong style={{ color: 'var(--hx-gold-2)' }}>{e.name}</strong>
+                        {e.brief && <span style={{ color: 'var(--hx-muted)', marginLeft: 8 }}>— {e.brief}</span>}
+                      </summary>
+                      <div style={{ fontSize: 13, color: 'var(--hx-text)', lineHeight: 1.65, marginTop: 6 }}>
+                        <Rich text={e.detail} />
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              )}
+
               {s.table && (
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -161,7 +181,23 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
                   </table>
                 </div>
               )}
-            </section>
+
+              {s.images && (
+                <figure style={{ margin: 0, display: 'grid', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    {s.images.gallery.map((g) => (
+                      <div key={g.src} style={{ display: 'grid', gap: 3, justifyItems: 'center', width: 116 }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={g.src} alt={g.caption} title={s.images!.credit} loading="lazy" style={{ width: 116, height: 'auto', borderRadius: 8, background: '#f4f1ea', border: '1px solid var(--hx-line)', padding: 4 }} />
+                        <span style={{ fontSize: 11.5, color: 'var(--hx-gold-2)' }}>{g.caption}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {s.images.credit && <figcaption style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>{s.images.credit}</figcaption>}
+                </figure>
+              )}
+              </div>
+            </details>
           ))}
 
           {/* ── full class tables, for systems that have them ──────────── */}

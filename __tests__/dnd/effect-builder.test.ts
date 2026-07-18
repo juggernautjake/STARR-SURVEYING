@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { EFFECT_TARGETS, findTarget, validateEffect, describeEffect } from '@/lib/dnd/effects/targets';
+import { EFFECT_OPERATIONS } from '@/app/dnd/_sheet/engine/effects';
 
 const BUILDER = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_sheet/components/ItemBuilder.tsx'), 'utf8');
 const FEATURE_EDITOR = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_sheet/components/ui/FeatureEditor.tsx'), 'utf8');
@@ -85,5 +86,31 @@ describe('every registry default the picker can produce is a VALID effect', () =
   it('a number target with the default value 1 resolves (sanity on the common case)', () => {
     expect(findTarget('ac')?.valueType).toBe('number');
     expect(validateEffect({ target: 'ac', operation: 'add', value: 1 })).toBeNull();
+  });
+});
+
+describe('every operation in the vocabulary is reachable from the picker (Slice 17)', () => {
+  // The picker offers a target's `ops`, so an operation is only pickable if SOME target lists it. This
+  // guard fails the moment an operation is added to the engine but assigned to no target — exactly the
+  // "added an op, forgot the UI" gap the doc names. (Exhaustiveness of EFFECT_OPERATIONS itself is
+  // enforced at compile time by the `satisfies Record<EffectOperation, 1>` in effects.ts.)
+  const opsOnTargets = new Set(EFFECT_TARGETS.flatMap((t) => t.ops));
+  it.each(EFFECT_OPERATIONS)('operation "%s" is offered by at least one target', (op) => {
+    expect(opsOnTargets.has(op), `no target lists "${op}" — it is unreachable from the picker`).toBe(true);
+  });
+});
+
+describe('every operation has its OWN human description (the effect tooltips the owner asked for)', () => {
+  // describeEffect is the plain-English label shown in effect tooltips / the Active Effects panel / the
+  // builder preview ("hover tooltips on every in-play effect"). Its `operation` is typed `string`, so it
+  // can't use a `never` guard — but an operation with no explicit case falls through to the generic
+  // `${label}` default, so the effect would render its bare target name instead of what it DOES. This pins
+  // that every operation in the vocabulary has an explicit case, so a new op can't ship a meaningless label.
+  const TARGETS = fs.readFileSync(path.join(process.cwd(), 'lib/dnd/effects/targets.ts'), 'utf8');
+  const start = TARGETS.indexOf('export function describeEffect');
+  const nextExport = TARGETS.indexOf('\nexport ', start + 1); // describeEffect may be the last export
+  const body = nextExport === -1 ? TARGETS.slice(start) : TARGETS.slice(start, nextExport);
+  it.each(EFFECT_OPERATIONS)('describeEffect has an explicit case for "%s" (not the generic default)', (op) => {
+    expect(body.includes(`case '${op}'`), `describeEffect has no case for "${op}" — it would render the bare target label`).toBe(true);
   });
 });

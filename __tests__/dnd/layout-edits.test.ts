@@ -1,8 +1,15 @@
 // __tests__/dnd/layout-edits.test.ts — real-time layout/style edits to the custom sheet
 // add/remove/move/restyle blocks and set CSS, staying character-scoped (Phase V, Slice 12).
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { applyLayoutEdits, LAYOUT_EDIT_TOOL, type LayoutEdit } from '@/lib/dnd/layout-edits';
+import { SHEET_EDIT_TOOL } from '@/lib/dnd/sheet-edits';
 import { assertCharacterScopedOps } from '@/lib/dnd/ai-scope';
+
+const opEnumOf = (tool: typeof LAYOUT_EDIT_TOOL): string[] =>
+  (tool.input_schema as { properties?: { edits?: { items?: { properties?: { op?: { enum?: string[] } } } } } })
+    .properties?.edits?.items?.properties?.op?.enum ?? [];
 
 const START = {
   title: 'Kael',
@@ -18,6 +25,24 @@ describe('layout edits (Slice 12)', () => {
     const { layout } = applyLayoutEdits(START, '', [{ op: 'add_block', index: 1, block: { type: 'note', text: 'Watch AoO' } }]);
     expect(layout.blocks[1].type).toBe('note');
     expect(layout.blocks).toHaveLength(4);
+  });
+
+  it('never mutates the input layout (the shared START fixture must survive a full batch)', () => {
+    // applyLayoutEdits normalizes rawLayout into a fresh structure, so the caller's layout is untouched —
+    // and it MUST be, since START is a module-level fixture reused across every test here. Pin it: a batch
+    // that adds/removes/moves/updates blocks and sets title/css leaves the input deep-equal. (Completes the
+    // non-mutation coverage across all four edit engines: ledger, applySheetEdits, applyIgEdit, layout.)
+    const before = structuredClone(START);
+    applyLayoutEdits(START, 'body{}', [
+      { op: 'set_title', value: 'Changed' },
+      { op: 'add_block', index: 0, block: { type: 'note', text: 'x' } },
+      { op: 'remove_block', index: 1 },
+      { op: 'move_block', from: 0, to: 1 },
+      { op: 'update_block', index: 0, block: { type: 'text', text: 'y' } },
+      { op: 'set_css', value: 'p{}' },
+      { op: 'append_css', value: 'div{}' },
+    ] as LayoutEdit[]);
+    expect(START).toEqual(before);
   });
 
   it('removes and moves (reflows) blocks', () => {
@@ -59,5 +84,34 @@ describe('layout edits (Slice 12)', () => {
     const ops = schema.properties?.edits?.items?.properties?.op?.enum ?? [];
     expect(ops.length).toBeGreaterThan(0);
     expect(() => assertCharacterScopedOps(ops)).not.toThrow();
+  });
+
+  it('applyLayoutEdits has a case for EVERY op the tool schema offers (no silent no-op restyle)', () => {
+    // The AI restyles/reformats the sheet through this vocabulary ("edit the html/css and save it"). An op
+    // the tool offers but applyLayoutEdits doesn't handle would report success while the layout is
+    // unchanged. The `never` guard in applyLayoutEdits covers the LayoutEdit union↔handler; this covers the
+    // tool-schema op enum↔handler — mirrors the edit_sheet / edit_ig_sheet apply-path guards.
+    const schema = LAYOUT_EDIT_TOOL.input_schema as { properties?: { edits?: { items?: { properties?: { op?: { enum?: string[] } } } } } };
+    const ops = schema.properties?.edits?.items?.properties?.op?.enum ?? [];
+    const src = fs.readFileSync(path.join(process.cwd(), 'lib/dnd/layout-edits.ts'), 'utf8');
+    const body = src.slice(src.indexOf('export function applyLayoutEdits'), src.indexOf('export const LAYOUT_EDIT_TOOL'));
+    for (const op of ops) {
+      expect(body.includes(`case '${op}'`), `applyLayoutEdits has no case for "${op}" — the AI's restyle would silently do nothing`).toBe(true);
+    }
+  });
+
+  it('is DISJOINT from the mechanical edit_sheet vocabulary — the "no mechanic through CSS" guarantee', () => {
+    // Slice 24's rule: layout/CSS edits (customize_layout) and mechanical edits (edit_sheet) are two SEPARATE
+    // vocabularies. If any op appeared in BOTH, a mechanic could ride in on a presentation edit; and a damage
+    // die written as CSS/layout would be invisible to the ledger, the digest, and the DM. This pins both:
+    // no shared op, and the layout vocabulary carries no mechanical op family.
+    const layoutOps = new Set(opEnumOf(LAYOUT_EDIT_TOOL));
+    const sheetOps = opEnumOf(SHEET_EDIT_TOOL);
+    expect(layoutOps.size).toBeGreaterThan(0);
+    expect(sheetOps.length).toBeGreaterThan(0);
+    const overlap = sheetOps.filter((op) => layoutOps.has(op));
+    expect(overlap, 'ops in BOTH vocabularies would let a mechanic ride in as a layout edit').toEqual([]);
+    const MECHANICAL = /^(set_ability|set_combat|set_skill|set_save|set_level|add_attack|update_attack|add_item|update_item|add_feature|add_spell|add_resource|add_condition|equip_item)/;
+    expect([...layoutOps].filter((op) => MECHANICAL.test(op)), 'the layout vocabulary must be presentation-only').toEqual([]);
   });
 });

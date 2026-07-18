@@ -23,11 +23,14 @@
 //     `requireCharacterWrite(params.id)` (lib/dnd/characters.ts), so the write is keyed
 //     to one character id AND the caller's owner/assigned-player/DM authorization. There
 //     is no route that lets the AI address a different character or a foreign resource.
-//   • Tool constraint: the AI's only mutation tool is `edit_sheet`, whose entire op
-//     vocabulary maps to fields of the Character model (applied by the pure
-//     `applySheetEdits`, which returns a Character and nothing else). No op names or
-//     targets a page, campaign, map, user, or another character. `assertCharacterScopedOps`
-//     below asserts that invariant so a future op that reached outside the sheet fails a test.
+//   • Tool constraint: the AI's mutation tools are `edit_sheet` (game mechanics),
+//     `edit_ig_sheet` (Intuitive Games mechanics), and `customize_layout` (the sheet's
+//     HTML/CSS + blocks). Every op in all three maps to fields of the Character model / its
+//     own custom_layout + custom_css (applied by the pure `applySheetEdits` / `applyIgEdit` /
+//     `applyLayoutEdits`, each returning a Character or its layout and nothing else). No op
+//     names or targets a page, campaign, map, user, or another character.
+//     `assertCharacterScopedOps` below asserts that invariant for ALL THREE vocabularies
+//     (ai-scope.test.ts) so a future op that reached outside the sheet fails a test.
 //   • Prompt constraint: the edit system prompt tells the agent to change only what the
 //     user asked and to touch nothing else; the chat UI states the scope to the user.
 
@@ -37,8 +40,13 @@
 const CHARACTER_SCOPED_PREFIXES = ['set_', 'add_', 'remove_', 'rename_', 'clear_', 'update_', 'move_', 'append_', 'define_', 'tag_', 'equip_'];
 
 /** Words that, appearing in an op name, would signal a write reaching OUTSIDE the target
- *  character's own sheet — a boundary violation. */
-const FORBIDDEN_OP_TERMS = ['page', 'campaign', 'map', 'user', 'character_', 'other', 'site', 'route', 'file', 'global'];
+ *  character's own sheet — a boundary violation. Includes privilege-escalation-shaped terms
+ *  (role/permission/auth/…) so an op that LOOKS like it grants access or touches credentials is
+ *  refused even with a valid set_/add_/update_ prefix — defense-in-depth behind the server-side
+ *  `requireCharacterWrite` that is the primary boundary. (No real sheet-edit op contains these:
+ *  `add_power`/`set_defensive_power` carry "power", never "permission" — verified by the
+ *  every-vocabulary-is-scoped test that runs this over the real op enums.) */
+const FORBIDDEN_OP_TERMS = ['page', 'campaign', 'map', 'user', 'character_', 'other', 'site', 'route', 'file', 'global', 'role', 'permission', 'auth', 'password', 'credential', 'secret'];
 
 /** Throw if any op in the given list is not strictly character-sheet-scoped. Used by the
  *  Slice 8b boundary test against the real `edit_sheet` op enum, so the guardrail is

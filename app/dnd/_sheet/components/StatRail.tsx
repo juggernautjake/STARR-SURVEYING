@@ -3,7 +3,7 @@ import { ABILITIES, abilityMod, signed } from '../rules/dnd'
 import InlineNumber from './ui/InlineNumber'
 
 export default function StatRail() {
-  const { char, abilities, ledger, pb, setChar, rollCheck, setExhaustion, canWrite, characterId, activeFormId } = useChar()
+  const { char, abilities, acInfo, saveDc, ledger, pb, setChar, rollCheck, setExhaustion, canWrite, characterId, activeFormId } = useChar()
   const { combat } = char
   const level = char.meta.level
   // Advantage on Initiative is the Barbarian's Feral Instinct — a class feature, not something
@@ -11,13 +11,26 @@ export default function StatRail() {
   // `initiativeAdvantage`) instead of being inferred from the level.
   const feralInstinct = !!char.initiativeAdvantage && level >= (char.initiativeAdvantage.unlockLevel ?? 1)
   const initAdvLabel = char.initiativeAdvantage?.label ?? 'Advantage'
-  const strMod = abilityMod(char.abilities.str)
-  const dexMod = abilityMod(char.abilities.dex)
-  const init = dexMod + combat.initiativeMisc
-  const dc = combat.saveDCOverride ?? 8 + pb + strMod
+  // Effective DEX (Slice 10) — the ability pills below already show the ledger-effective scores, so the
+  // derived Init must too, or a DEX item bumps the DEX pill (★) while the Init beside it sits stale.
+  // Initiative also folds any `initiative` effect (Alert-style). Save DC comes from the store's single
+  // `saveDc` (effective STR + override) so this rail and the Saves & Skills card can't disagree.
+  const dexMod = abilityMod(abilities.dex)
+  const init = ledger.value('initiative', dexMod + combat.initiativeMisc)
+  const dc = saveDc
   const activeForm = char.forms.find((f) => f.id === activeFormId)
   const formLabel = activeForm ? activeForm.name.split('—').pop()?.trim() : 'Base'
-  const hpRatio = combat.currentHp / Math.max(1, combat.maxHp)
+  // Effective max HP (Slice 10): a +HP buff (Heroes' Feast, Aid) raises it, and the Combat panel already
+  // shows the effective value — so the rail's HP fraction, tone, and max display must use it too, not the
+  // base. Edit the base via the InlineNumber; show the effective.
+  const effMaxHp = ledger.value('hp_max', combat.maxHp)
+  const hpMaxModified = effMaxHp !== combat.maxHp
+  // Effective walk speed (Slice 10/11): folds speed items (Boots of Striding) AND the exhaustion −5ft/level
+  // penalty (ledger). The Combat panel already shows this; the rail must too, or exhaustion's speed hit is
+  // invisible in the most prominent place. Edit the base; show the effective.
+  const walkSpeed = ledger.value('speed_walk', combat.speed)
+  const speedModified = walkSpeed !== combat.speed
+  const hpRatio = combat.currentHp / Math.max(1, effMaxHp)
   const hpTone = combat.currentHp <= 0 ? 'crit' : hpRatio <= 0.35 ? 'crit' : hpRatio <= 0.6 ? 'warn' : 'ok'
 
   const setCombat = (patch: Partial<typeof combat>) => setChar((c) => ({ ...c, combat: { ...c.combat, ...patch } }))
@@ -45,7 +58,14 @@ export default function StatRail() {
           <span className="vv">
             <InlineNumber value={combat.currentHp} min={0} path="combat.currentHp" onCommit={(n) => setCombat({ currentHp: n })} title="Double-click to set current HP" />
             <span className="vslash">/</span>
-            <InlineNumber value={combat.maxHp} min={1} path="combat.maxHp" onCommit={(n) => setCombat({ maxHp: n })} title="Double-click to set max HP" />
+            <InlineNumber
+              value={combat.maxHp}
+              min={1}
+              path="combat.maxHp"
+              onCommit={(n) => setCombat({ maxHp: n })}
+              title={hpMaxModified ? `Max HP ${combat.maxHp} base → ${effMaxHp} with effects · double-click to set base` : 'Double-click to set max HP'}
+              display={<span className={hpMaxModified ? 'is-modified' : undefined}>{effMaxHp}{hpMaxModified && <span className="mod-star" aria-hidden>★</span>}</span>}
+            />
           </span>
           {combat.tempHp > 0 && <span className="vtemp">+{combat.tempHp}</span>}
         </div>
@@ -53,7 +73,13 @@ export default function StatRail() {
         <div className="vpill">
           <span className="vk">AC</span>
           <span className="vv">
-            <InlineNumber value={combat.ac} min={0} path="combat.ac" onCommit={(n) => setCombat({ ac: n })} title="Double-click to set AC" />
+            {/* Show the DERIVED AC (same source as the Combat panel) when equipped armor/effects drive it —
+                so the rail can't disagree with the panel. Editable manual AC only when nothing is equipped. */}
+            {acInfo.fromEquipment ? (
+              <span title={`From ${acInfo.source}`}>{acInfo.ac}</span>
+            ) : (
+              <InlineNumber value={combat.ac} min={0} path="combat.ac" onCommit={(n) => setCombat({ ac: n })} title="Double-click to set AC" />
+            )}
           </span>
         </div>
 
@@ -67,7 +93,14 @@ export default function StatRail() {
         <div className="vpill">
           <span className="vk">Speed</span>
           <span className="vv">
-            <InlineNumber value={combat.speed} min={0} path="combat.speed" onCommit={(n) => setCombat({ speed: n })} title="Double-click to set speed" />
+            <InlineNumber
+              value={combat.speed}
+              min={0}
+              path="combat.speed"
+              onCommit={(n) => setCombat({ speed: n })}
+              title={speedModified ? `Speed ${combat.speed} base → ${walkSpeed} with effects/exhaustion · double-click to set base` : 'Double-click to set speed'}
+              display={<span className={speedModified ? 'is-modified' : undefined}>{walkSpeed}{speedModified && <span className="mod-star" aria-hidden>★</span>}</span>}
+            />
           </span>
         </div>
 
@@ -94,7 +127,7 @@ export default function StatRail() {
         </div>
 
         {(combat.exhaustion > 0 || canWrite) && (
-          <div className="vpill" title="Exhaustion — −2 to all d20 rolls per level (max 6)">
+          <div className="vpill" title={`Exhaustion — each level is −2 to all d20 rolls (attacks, saves, checks) AND −5 ft Speed (max 6 levels)${combat.exhaustion > 0 ? `. Now: −${2 * combat.exhaustion} to d20, −${5 * combat.exhaustion} ft Speed` : ''}`}>
             <span className="vk">Exhaustion</span>
             {canWrite && (
               <button className="step" style={{ marginRight: 2 }} onClick={() => setExhaustion(Math.max(0, combat.exhaustion - 1))} title="Reduce exhaustion">−</button>
@@ -102,6 +135,9 @@ export default function StatRail() {
             <span className="vv" style={{ color: combat.exhaustion > 0 ? 'var(--danger)' : 'var(--muted)' }}>{combat.exhaustion}</span>
             {canWrite && (
               <button className="step" style={{ marginLeft: 2 }} onClick={() => setExhaustion(Math.min(6, combat.exhaustion + 1))} title="Add exhaustion">+</button>
+            )}
+            {combat.exhaustion > 0 && (
+              <span className="vslash" style={{ fontSize: 10.5, color: 'var(--muted)' }}> −{2 * combat.exhaustion} d20 · −{5 * combat.exhaustion}ft</span>
             )}
           </div>
         )}

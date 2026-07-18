@@ -13,6 +13,9 @@ import { normalizeSystem } from '@/lib/dnd/systems';
 import { blankCharacter, normalizeCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
 import { findClass, subclassesFor } from '@/lib/dnd/classes/registry';
+import { readHomebrewClasses, readHomebrewFeats, readHomebrewSubclasses } from '@/lib/dnd/classes/homebrew-store';
+import { customFeatToFeat } from '@/lib/dnd/feats/homebrew-adapter';
+import { progressionRows, progressionColumns } from '@/lib/dnd/classes/progression-rows';
 import { planLevelUp, recordChoice, validateChoice, chosenSubclassKey, type RecordedChoice } from '@/lib/dnd/classes/levelup';
 import { clampLevel } from '@/lib/dnd/classes/engine';
 
@@ -28,8 +31,13 @@ async function load(id: string) {
 function planFor(data: Character, system: string, to: number) {
   const choices = (data.build?.choices ?? []) as RecordedChoice[];
   const className = data.meta?.className ?? '';
-  const def = findClass(system, data.build?.classKey || className);
+  // Saved homebrew classes resolve exactly like official ones — the registry accepts them as `extra`
+  // (Slice 5). So a custom class the player built + saved walks a real level table here.
+  const homebrew = readHomebrewClasses(data);
+  const def = findClass(system, data.build?.classKey || className, homebrew);
   const level = clampLevel(data.meta?.level ?? 1);
+  // The character's saved homebrew feats (adapted to the Feat shape) so they appear in the ASI picker.
+  const homebrewFeats = readHomebrewFeats(data).map(customFeatToFeat);
 
   if (!def) {
     // No official class attached — we can't walk a level table we don't have. Say so honestly
@@ -41,12 +49,13 @@ function planFor(data: Character, system: string, to: number) {
       classKnown: false,
       outstanding: [],
       gained: [],
+      homebrewFeats,
       ready: true,
       choices,
     };
   }
 
-  const subs = subclassesFor(def.system, def.key);
+  const subs = subclassesFor(def.system, def.key, readHomebrewSubclasses(data).filter((s) => s.classKey === def.key));
   const subKey = data.build?.subclassKey || chosenSubclassKey(choices);
   const sub = subs.find((s) => s.key === subKey) ?? null;
   const proficientSkills = Object.entries(data.skills ?? {})
@@ -61,6 +70,11 @@ function planFor(data: Character, system: string, to: number) {
     classKnown: true,
     outstanding: plan.outstanding,
     gained: plan.gained,
+    homebrewFeats,
+    // The full 1→20 class table, straight from the class data (Slice 7) — the Progression tab renders
+    // this instead of a hand-authored per-character array.
+    progression: progressionRows(def, sub, level),
+    progressionColumns: progressionColumns(def),
     ready: plan.ready,
     choices,
   };
@@ -91,8 +105,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!choice.kind || typeof choice.level !== 'number') {
       return NextResponse.json({ error: 'A choice needs a level and a kind.' }, { status: 400 });
     }
-    const def = findClass(system, next.build?.classKey || next.meta?.className || '');
-    const subs = def ? subclassesFor(def.system, def.key) : [];
+    const def = findClass(system, next.build?.classKey || next.meta?.className || '', readHomebrewClasses(next));
+    const subs = def ? subclassesFor(def.system, def.key, readHomebrewSubclasses(next).filter((s) => s.classKey === def.key)) : [];
     const proficientSkills = Object.entries(next.skills ?? {})
       .filter(([, v]) => v?.prof === 'proficient' || v?.prof === 'expertise')
       .map(([k]) => k);

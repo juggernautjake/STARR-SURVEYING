@@ -12,7 +12,12 @@ import { normalizeCharacter, blankCharacter } from '../data/blank'
 import { profBonusForLevel, abilityMod, maxHpForLevel, speedForLevel, MAX_BUILT_LEVEL } from '../rules/dnd'
 import { buildLedger, type EffectLedger } from '@/lib/dnd/effects/ledger'
 import { routeFormDamage, isFormHpLive } from '@/lib/dnd/effects/form-hp'
-import { rollD20, rollDamage, parseDice, rollDie, rollTyped, weaponSegments, type Advantage } from '../lib/dice'
+import { rollD20, rollDamage, parseDice, rollDie, rollTyped, weaponSegments, parseBonusDamageSegment, type Advantage } from '../lib/dice'
+import { deriveAc, type AcResult } from '../lib/derive-ac'
+import { applyDeathSave } from '../lib/death-save'
+import { resolvePreferences, DEFAULT_CAMPAIGN_PREFERENCES, type EffectivePreferences } from '@/lib/dnd/preferences'
+import { hitDiceAfterLongRest } from '@/lib/dnd/mechanics/long-rest'
+import { exhaustionD20Effect, type Edition } from '@/lib/dnd/mechanics/exhaustion'
 
 // Per-character localStorage slot. A single shared key meant every standalone sheet
 // read and wrote the SAME cached character (originally Lazzuh's); keying by id keeps
@@ -59,6 +64,12 @@ interface RollDmgOpts {
 }
 
 interface Ctx {
+  /** The effective preferences (campaign DM ∩ player) driving configurable mechanics + the dice style.
+   *  Always present — the vanilla set when the sheet is standalone (Area P/M/D). */
+  preferences: EffectivePreferences
+  /** The character's rules edition ('2014' | '2024'), derived from the system key — drives edition-specific
+   *  mechanics like the exhaustion model (Area M1). */
+  edition: Edition
   /** The BASE character as stored. Effects are never written into it — read `abilities`/`ledger`
    *  for what the character currently IS. Write through `setChar` as always. */
   char: Character
@@ -79,6 +90,14 @@ interface Ctx {
    *  cache. Edits keep working and are cached locally; they sync when the DB returns. */
   offline: boolean
   pb: number
+  /** Lowest natural d20 that crits on attacks (20 normally; widened by `crit_range` effects). */
+  critMin: number
+  /** Derived Armor Class (equipped armor/shield + effective DEX + AC effects), the single source both
+   *  the StatRail and the Combat panel read. `fromEquipment` is false when the manual AC stands. */
+  acInfo: AcResult
+  /** The generic STR-based Save DC (8 + PB + STR, or the manual override) — one source for every card. */
+  saveDc: number
+  spellSaveDc: number
   /** The EFFECTIVE active form id (Slice 18): the form a `transform` effect imposes, else the
    *  character's own `activeFormId`. Components render THIS so an imposed form shows as active;
    *  the form TOGGLE still writes `char.activeFormId` (the base), so the transform stays an overlay. */
@@ -149,6 +168,7 @@ interface Ctx {
   shortRest: () => void
   longRest: () => void
   rollDeathSave: () => void
+  rollConcentrationSave: () => void
   spendHitDie: () => void
 }
 
@@ -225,6 +245,7 @@ export function CharacterProvider({
   isDM = false,
   canWrite,
   system,
+  preferences,
 }: {
   children: React.ReactNode
   /** When set (C3), the sheet loads/saves `dnd_characters.data` via the API for
@@ -241,7 +262,17 @@ export function CharacterProvider({
   /** The character's game system — passed to the ledger so system-scoped sources (species) apply
    *  only on the matching system (Ground Rule 1). Omitted → the ledger adds no species source. */
   system?: string
+  /** The effective preferences (campaign DM ∩ player) that drive configurable mechanics — Area P/M/E/R/D.
+   *  The single seam every swappable rule reads. Omitted → the full VANILLA set (resolvePreferences of the
+   *  defaults), so a sheet opened outside a campaign behaves exactly as it always has. */
+  preferences?: EffectivePreferences
 }) {
+  // Effective preferences, defaulting to the vanilla set when none were supplied (standalone sheet).
+  const prefs: EffectivePreferences = preferences ?? resolvePreferences(DEFAULT_CAMPAIGN_PREFERENCES)
+  // The exhaustion model + the character's edition decide how exhaustion bites a d20 test (Area M1). Edition
+  // comes from the system key ('dnd5e-2014' → 2014); anything else (incl. 2024) uses the 2024 rules.
+  const exhaustionModel = prefs.exhaustionModel.value
+  const edition: Edition = system?.includes('2014') ? '2014' : '2024'
   const dbMode = !!characterId
   // The character as first hydrated — the baseline `reset()` restores. Captured on the
   // initial load (DB or local) and never overwritten by later realtime/remote updates.
@@ -526,6 +557,44 @@ export function CharacterProvider({
   // Effective active form (Slice 18): a transform effect's imposed form overlays the base one.
   const activeFormId = useMemo(() => ledger.transform()?.value ?? char.activeFormId, [ledger, char.activeFormId])
 
+  // The lowest natural d20 that crits on attacks — 20 normally, widened by `crit_range` effects (Improved
+  // Critical → 19, Superior → 18). The WIDEST source wins, so we take the min across contributions
+  // (explain + min, sidestepping the ledger's set/add aggregation which would take the highest). Attack
+  // rolls consult this; the Attacks table shows it so an expanded range isn't invisible.
+  const critMin = useMemo(() => {
+    // Take the min over ALL contributions, NOT the ledger's set-race survivor: `set` semantics keep the
+    // HIGHEST value (marking the lower one suppressed), but for crit range the LOWEST wins (widest range).
+    // Condition-gated effects that don't apply are already excluded upstream, so everything here is live.
+    const vals = ledger
+      .explain('crit_range')
+      .filter((c) => typeof c.effect.value === 'number')
+      .map((c) => Number(c.effect.value))
+    return vals.length ? Math.max(2, Math.min(20, ...vals)) : 20
+  }, [ledger])
+
+  // Derived Armor Class — ONE source so the StatRail and the Combat panel can never disagree (Slice 13's
+  // "one answer" rule). Equipped armor/shield + effective DEX + item/effect AC bonuses; falls back to the
+  // manual `combat.ac` when nothing is equipped. Uses the effective DEX so a DEX item raises AC.
+  const acInfo = useMemo(
+    () => deriveAc(char.inventory, abilityMod(abilities.dex), char.combat.ac, char.activeEffects),
+    [char.inventory, abilities.dex, char.combat.ac, char.activeEffects],
+  )
+
+  // The generic STR-based Save DC (8 + PB + STR, or the manual override) — derived once so the StatRail
+  // and the Saves & Skills card can't disagree (they did: the rail honored the override, the card didn't).
+  const saveDc = useMemo(
+    () => char.combat.saveDCOverride ?? 8 + pb + abilityMod(abilities.str),
+    [char.combat.saveDCOverride, pb, abilities.str],
+  )
+  // Single source for the SPELL save DC too — the SpellsPanel header and castSpell used to compute it
+  // with the override + spell_save_dc effect folded in a DIFFERENT order, so the two disagreed when a
+  // character had both. Both now read this. Effect folds on top of (override ?? 8 + PB + casting mod).
+  const spellSaveDc = useMemo(() => {
+    const sc = char.spellcasting
+    const scMod = sc ? abilityMod(abilities[sc.ability]) : 0
+    return ledger.value('spell_save_dc', char.combat.saveDCOverride ?? 8 + pb + scMod)
+  }, [char.spellcasting, abilities, pb, ledger, char.combat.saveDCOverride])
+
   const commitRoll = useCallback((entry: Omit<RollEntry, 'id'>) => {
     setLog((l) => [{ ...entry, id: idRef.current++ }, ...l].slice(0, 40))
   }, [])
@@ -548,16 +617,27 @@ export function CharacterProvider({
 
   const rollCheck = useCallback(
     (label: string, mod: number, opts: RollD20Opts = {}) => {
-      const hasAdv = advMode === 'adv' || (recklessActive && !!opts.strMelee) || !!opts.advantage
-      const hasDis = advMode === 'dis' || !!opts.disadvantage
-      const mode: Advantage = hasAdv && hasDis ? 'flat' : hasAdv ? 'adv' : hasDis ? 'dis' : 'flat'
-      // Exhaustion: −2 to every d20 test per level (2024 rules), applied automatically.
+      // Exhaustion (Area M1): the effective model + the character's edition decide how exhaustion bites a
+      // d20 test. 2024 / the flat option = −2 per level on every test; 2014 vanilla = the tiered table's
+      // DISADVANTAGE (ability checks at L1, attacks & saves at L3). The pure helper owns the rule; here we
+      // fold its result into the roll's modifier and the advantage mode.
       const exh = char.combat.exhaustion || 0
-      const r = rollD20(mod - 2 * exh, mode)
+      const exhKind = opts.kind === 'attack' ? 'attack' : opts.kind === 'save' ? 'save' : 'check'
+      const exhEff = exhaustionD20Effect(exhKind, exh, edition, exhaustionModel)
+      const hasAdv = advMode === 'adv' || (recklessActive && !!opts.strMelee) || !!opts.advantage
+      const hasDis = advMode === 'dis' || !!opts.disadvantage || exhEff.disadvantage
+      const mode: Advantage = hasAdv && hasDis ? 'flat' : hasAdv ? 'adv' : hasDis ? 'dis' : 'flat'
+      // Only attack rolls consult the crit range; a check or save always crits on a 20 only.
+      const rollCritMin = opts.kind === 'attack' ? critMin : 20
+      const r = rollD20(mod + exhEff.penalty, mode, rollCritMin)
       const tags: string[] = []
       if (recklessActive && opts.strMelee) tags.push('RECKLESS')
       if (opts.advantage) tags.push('ADV')
-      if (exh > 0) tags.push(`EXH −${2 * exh}`)
+      if (exh > 0) {
+        if (exhEff.penalty) tags.push(`EXH ${exhEff.penalty}`)
+        else if (exhEff.disadvantage) tags.push('EXH (dis)')
+      }
+      if (rollCritMin < 20) tags.push(`CRIT ${rollCritMin}–20`)
       if (opts.tag) tags.push(opts.tag)
       stage(
         {
@@ -573,7 +653,7 @@ export function CharacterProvider({
         { landing: r.natural, min: 1, max: 20, isD20: true, crit: r.crit, fumble: r.fumble },
       )
     },
-    [advMode, recklessActive, char.combat.exhaustion, stage],
+    [advMode, recklessActive, char.combat.exhaustion, critMin, stage, edition, exhaustionModel],
   )
 
   const rollDmg = useCallback(
@@ -608,14 +688,25 @@ export function CharacterProvider({
       const w = item.weapon
       if (!w) return
       const abilityKey = w.ability ?? 'str'
-      const mod = abilityMod(char.abilities[abilityKey])
+      const mod = abilityMod(abilities[abilityKey]) // effective (Slice 10) — a STR/DEX item raises weapon damage
       const formBonus = item.tags?.includes('weapon') && char.combat.transformActive ? char.combat.formDamageBonus : 0
-      const flat = mod + formBonus
-      const segments = weaponSegments(w.damage, w.bonus, flat)
+      // Fold the ledger's GLOBAL flat damage targets (damage_roll, and the magic-weapon attack_and_damage
+      // +N) on top of ability + form. No-op without them; the weapon's own +N is w.bonus (per-weapon).
+      const flat = mod + formBonus + ledger.value('damage_roll', 0) + ledger.value('attack_and_damage', 0)
+      // Ledger-granted bonus damage DICE (Enlarge's +1d4, a flametongue's +1d6 fire) ride on top of the
+      // weapon's own dice — a real rules mechanic that `damage_roll` (a flat number) can't express. Each
+      // non-suppressed `weapon_bonus_dice` contribution parses to a typed segment and joins the roll.
+      const bonusDice = ledger
+        .explain('weapon_bonus_dice')
+        .filter((c) => !c.suppressed && typeof c.effect.value === 'string')
+        .map((c) => parseBonusDamageSegment(String(c.effect.value)))
+        .filter((s): s is NonNullable<typeof s> => s != null)
+      const segments = [...weaponSegments(w.damage, w.bonus, flat), ...bonusDice]
       const typed = rollTyped(segments, opts.crit)
       const tags: string[] = []
       if (opts.crit) tags.push('CRIT ×2 DICE')
       if (formBonus) tags.push('TRANSFORMED')
+      if (bonusDice.length) tags.push('BONUS DICE')
       // spin range roughly covers plausible totals across all segments
       const maxV = segments.reduce((s, seg) => {
         const p = parseDice(seg.dice)
@@ -626,7 +717,7 @@ export function CharacterProvider({
         { landing: typed.total, min: Math.max(1, flat + 1), max: Math.max(2, maxV), isD20: false },
       )
     },
-    [char.abilities, char.combat.transformActive, char.combat.formDamageBonus, stage],
+    [abilities, char.combat.transformActive, char.combat.formDamageBonus, ledger, stage],
   )
 
   const rollExpr = useCallback(
@@ -647,9 +738,12 @@ export function CharacterProvider({
   const castSpell = useCallback(
     (spell: Spell) => {
       const sc = char.spellcasting
-      const mod = sc ? abilityMod(char.abilities[sc.ability]) : 0
-      const pb = profBonusForLevel(char.meta.level)
-      const saveDC = char.combat.saveDCOverride ?? 8 + pb + mod
+      // Effective spellcasting ability (Slice 10): a Headband of Intellect (Wizard) or a CHA item
+      // (Sorcerer) must raise the spell save DC and spell attack, not just the ability pill. `pb` is the
+      // ledger-effective proficiency, and the DC/attack fold their own `spell_save_dc`/`spell_attack`
+      // effects on top.
+      const mod = sc ? abilityMod(abilities[sc.ability]) : 0
+      const saveDC = spellSaveDc // single source — matches the SpellsPanel header exactly
       const label = spell.alias ? `${spell.name} (“${spell.alias}”)` : spell.name
       if (spell.level > 0) {
         setCharState((c) => {
@@ -672,7 +766,7 @@ export function CharacterProvider({
         }
         setCharState((c) => ({ ...c, activeEffects: [...(c.activeEffects ?? []).filter((x) => x.id !== ae.id), ae] }))
       }
-      if (spell.attack) rollCheck(`${label} — spell attack`, pb + mod, { kind: 'attack' })
+      if (spell.attack) rollCheck(`${label} — spell attack`, ledger.value('spell_attack', pb + mod), { kind: 'attack' })
       if (spell.damage && spell.damage.length) {
         const typed = rollTyped(spell.damage.map((d) => ({ dice: d.dice, type: d.type })))
         const tag = spell.save ? `${spell.save.ability.toUpperCase()} save DC ${saveDC}` : undefined
@@ -687,7 +781,7 @@ export function CharacterProvider({
         commitRoll({ label: `${label} — cast`, kind: 'raw', total: 0, breakdown: spell.save ? `${spell.save.ability.toUpperCase()} save DC ${saveDC}` : spell.level > 0 ? `L${spell.level} slot spent` : 'cantrip' })
       }
     },
-    [char.spellcasting, char.abilities, char.meta.level, char.combat.saveDCOverride, rollCheck, rollExpr, stage, commitRoll],
+    [char.spellcasting, abilities, pb, ledger, spellSaveDc, rollCheck, rollExpr, stage, commitRoll],
   )
 
   // Use a class feature: spend its resource (if any) and roll/apply its effect (heal/temp HP
@@ -913,6 +1007,7 @@ export function CharacterProvider({
     }))
   }, [])
 
+  const longRestModel = prefs.longRestModel.value
   const longRest = useCallback(() => {
     setRecklessActive(false)
     setCharState((c) => ({
@@ -921,7 +1016,9 @@ export function CharacterProvider({
         ...c.combat,
         currentHp: c.combat.maxHp,
         tempHp: 0,
-        hitDiceRemaining: c.combat.hitDiceTotal,
+        // Hit dice restored per the campaign's long-rest model (Area M2). Vanilla (default) = full restore,
+        // so a sheet with no preferences behaves exactly as before; 'half-hit-dice' is the 2014-RAW option.
+        hitDiceRemaining: hitDiceAfterLongRest(c.combat.hitDiceTotal, c.combat.hitDiceRemaining, longRestModel),
         deathSuccess: 0,
         deathFail: 0,
         transformActive: false,
@@ -937,32 +1034,51 @@ export function CharacterProvider({
         ? { ...c.spellcasting, slots: Object.fromEntries(Object.entries(c.spellcasting.slots).map(([lvl, s]) => [lvl, { ...s!, current: s!.max }])) }
         : c.spellcasting,
     }))
-  }, [])
+  }, [longRestModel])
 
   const rollDeathSave = useCallback(() => {
-    const bonus = char.combat.deathSaveBonus
-    const r = rollD20(bonus, 'flat')
-    let result = ''
-    if (r.natural === 20) result = 'NAT 20 — regain 1 HP!'
-    else if (r.natural === 1) result = 'NAT 1 — two failures'
-    else result = r.total >= 10 ? 'Success' : 'Failure'
+    // A death saving throw is a D20 Test (a save), so exhaustion applies here exactly as rollCheck applies it
+    // to every other d20 — via the same model+edition helper (Area M1). Nat 20 / nat 1 still read the NATURAL
+    // die, unaffected by any penalty.
+    const exh = char.combat.exhaustion || 0
+    const exhEff = exhaustionD20Effect('save', exh, edition, exhaustionModel)
+    // Fold the ledger's `death_save` target so an effect that grants a death-save bonus (a feat/item)
+    // actually applies — like initiative folds `initiative`. No-op when nothing grants it.
+    const bonus = ledger.value('death_save', char.combat.deathSaveBonus) + exhEff.penalty
+    const r = rollD20(bonus, exhEff.disadvantage ? 'dis' : 'flat')
+    // One source of truth for the outcome: the log label AND the tracked success/failure counts both come
+    // from applyDeathSave, so they can't drift (nat 20 regain+reset, nat 1 two failures, ≥10 success, cap 3).
+    const outcome = applyDeathSave(char.combat, r.natural, r.total)
+    const tag = exh > 0 ? `${outcome.label} · EXH ${exhEff.penalty ? exhEff.penalty : '(dis)'}` : outcome.label
     stage(
-      { label: 'Death Save', kind: 'save', total: r.total, breakdown: r.breakdown, crit: r.natural === 20, fumble: r.natural === 1, tag: result },
+      { label: 'Death Save', kind: 'save', total: r.total, breakdown: r.breakdown, crit: r.natural === 20, fumble: r.natural === 1, tag },
       { landing: r.natural, min: 1, max: 20, isD20: true, crit: r.natural === 20, fumble: r.natural === 1 },
     )
     setCharState((c) => {
-      let { deathSuccess, deathFail, currentHp } = c.combat
-      if (r.natural === 20) return { ...c, combat: { ...c.combat, deathSuccess: 0, deathFail: 0, currentHp: Math.max(1, currentHp) } }
-      if (r.natural === 1) deathFail = Math.min(3, deathFail + 2)
-      else if (r.total >= 10) deathSuccess = Math.min(3, deathSuccess + 1)
-      else deathFail = Math.min(3, deathFail + 1)
-      return { ...c, combat: { ...c.combat, deathSuccess, deathFail } }
+      const next = applyDeathSave(c.combat, r.natural, r.total)
+      return { ...c, combat: { ...c.combat, deathSuccess: next.deathSuccess, deathFail: next.deathFail, currentHp: next.currentHp } }
     })
-  }, [char.combat.deathSaveBonus, stage])
+  }, [char.combat, ledger, stage, edition, exhaustionModel])
+
+  // A concentration save is a Constitution saving throw when you take damage while concentrating — DC 10,
+  // or half the damage taken if that's higher (the DM sets the DC from the hit, so the roll shows the total
+  // and the player compares). Folds the CON-save bonus PLUS the concentration-specific `concentration_save`
+  // target (War Caster grants advantage on concentration saves SPECIFICALLY, not all CON saves), and reuses
+  // rollCheck so exhaustion and the adv/dis cancellation apply exactly like every other save.
+  const rollConcentrationSave = useCallback(() => {
+    const s = char.saves?.con ?? { proficient: false, misc: 0 }
+    const mod = abilityMod(abilities.con) + (s.proficient ? pb : 0) + (s.misc ?? 0)
+      + ledger.value('con_saves', 0) + ledger.value('all_saves', 0) + ledger.value('concentration_save', 0)
+    const targets = ['concentration_save', 'con_saves', 'all_saves']
+    const advantage = targets.some((t) => ledger.rollFlags(t).advantage)
+    const disadvantage = targets.some((t) => ledger.rollFlags(t).disadvantage)
+    rollCheck('Concentration Save', mod, { kind: 'save', advantage, disadvantage, tag: 'DC 10 or ½ damage' })
+  }, [char.saves, abilities.con, pb, ledger, rollCheck])
 
   const spendHitDie = useCallback(() => {
     if (char.combat.hitDiceRemaining <= 0) return
-    const conMod = Math.floor((char.abilities.con - 10) / 2)
+    // Effective CON (Slice 10): a CON-boosting item raises hit-die healing, like it raises max HP.
+    const conMod = Math.floor((abilities.con - 10) / 2)
     const heal = rollDie(char.combat.hitDiceSize)
     const total = Math.max(0, heal + conMod)
     stage(
@@ -977,9 +1093,11 @@ export function CharacterProvider({
         currentHp: Math.min(effMaxHp(c), c.combat.currentHp + total),
       },
     }))
-  }, [char.abilities.con, char.combat.hitDiceRemaining, char.combat.hitDiceSize, stage])
+  }, [abilities.con, char.combat.hitDiceRemaining, char.combat.hitDiceSize, stage])
 
   const value: Ctx = {
+    preferences: prefs,
+    edition,
     char,
     abilities,
     ledger,
@@ -989,6 +1107,10 @@ export function CharacterProvider({
     reloadFromDb,
     offline,
     pb,
+    critMin,
+    acInfo,
+    saveDc,
+    spellSaveDc,
     activeFormId,
     isDM,
     canWrite: canWrite ?? isDM,
@@ -1039,6 +1161,7 @@ export function CharacterProvider({
     shortRest,
     longRest,
     rollDeathSave,
+    rollConcentrationSave,
     spendHitDie,
   }
 

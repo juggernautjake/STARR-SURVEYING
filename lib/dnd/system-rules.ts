@@ -7,7 +7,8 @@
 // Content is concise MECHANICAL FACTS + numbers (paraphrased, not verbatim rulebook prose), each
 // attributed to its source book. Keyed strictly by system so nothing crosses editions.
 import { SYSTEM_AMBIGUOUS, systemLabel, type CharacterSystem } from './systems';
-import { IG_STANCES, IG_FEATS, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES } from './systems/intuitive-games/content';
+import { IG_STANCE_DEFS, IG_STANCE_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES, IG_CONDITIONS, IG_ANCESTRIES, IG_DAMAGE_SAVE_RULES, IG_REDISTRIBUTION_RULES, IG_SKILL_RULES, IG_COMBAT_SKILL_RULES, IG_BACKGROUND_DEFS, IG_COMPANION_RULES, IG_COMPANION_TYPES } from './systems/intuitive-games/content';
+import { igAllFeats } from './systems/intuitive-games/feats';
 import { EXTRA_SYSTEM_RULES } from './system-rules-extra';
 
 export interface AbilityModel {
@@ -412,12 +413,27 @@ export function systemRulesBlock(system: CharacterSystem): string {
   // Intuitive Games carries a rich content library (stances, powers/spells, feats, defensive powers,
   // weapon-type taxonomy) — list the real options so an AI build picks from them and only invents when asked.
   if (r.key === 'intuitive-games') {
+    // Give the AI the FULL Intuitive Games rules text (not just names) for the elements it explains + edits,
+    // so it uses IG's own mechanics and never another system's. Source: intuitivegames.net only.
     lines.push(
-      `• Stances (adopt one; each has an A and B benefit): ${IG_STANCES.map((s) => s.name).join(', ')}.`,
+      `• Stances (adopt one at a time). ${IG_STANCE_RULES}`,
+      ...IG_STANCE_DEFS.map((s) => `   - ${s.name} Stance: Basic (below Lv 5) — ${s.basic} Advanced (Lv 5+) — ${s.advanced}`),
+      `• Conditions — use these EXACT Intuitive Games effects, never another system's version of a same-named condition:`,
+      ...IG_CONDITIONS.map((c) => `   - ${c.name}: ${c.effect}`),
+      `• Ancestries & their two ancestry traits each:`,
+      ...IG_ANCESTRIES.map((a) => `   - ${a.name}: ${a.traits.map((t) => `${t.name} — ${t.text}`).join(' ')}`),
       `• Powers/spells (by school): ${IG_POWERS.map((p) => p.name).join(', ')}.`,
-      `• Feats (General + Combat): ${IG_FEATS.map((f) => f.name).join(', ')}.`,
+      `• General Feats (use ONLY these; each with its effect is in the library): ${igAllFeats().filter((f) => f.category === 'General').map((f) => f.name).join(', ')}.`,
+      `• Combat Feats (use ONLY these; incl. Mythic Stances, Styles, and Mastery feats): ${igAllFeats().filter((f) => f.category === 'Combat').map((f) => f.name).join(', ')}.`,
       `• Defensive Powers: ${IG_DEFENSIVE_POWERS.map((d) => d.name).join(', ')}.`,
       `• Weapon types: ${IG_WEAPON_TYPES.join(', ')}.`,
+      `• Taking damage: ${IG_DAMAGE_SAVE_RULES}`,
+      `• Skill checks: ${IG_SKILL_RULES}`,
+      `• Combat skills: ${IG_COMBAT_SKILL_RULES}`,
+      `• Redistribution (Conduit): ${IG_REDISTRIBUTION_RULES}`,
+      `• Companion creatures (by Archon subclass): ${IG_COMPANION_RULES}`,
+      ...IG_COMPANION_TYPES.map((t) => `   - ${t.name} (${t.subclass}): ${t.text}`),
+      `• Backgrounds (each grants starting HP, two ability boosts, proficiencies, and a Stance): ${IG_BACKGROUND_DEFS.map((b) => `${b.name} (${b.stance})`).join(', ')}.`,
     );
   }
   return lines.join('\n');

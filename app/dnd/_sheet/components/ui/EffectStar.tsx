@@ -21,7 +21,9 @@ export default function EffectStar({
   children,
 }: {
   /** The ledger target(s) whose effects explain this number. A save/skill passes its governing
-   *  ability target, because that's what actually moved the roll. */
+   *  ability target PLUS its own bonus targets (`<ability>_saves`/`all_saves`,
+   *  `skill.<key>`/`all_skills`) — the roll folds all of them, so the ★ lights when ANY is modified
+   *  (e.g. a Cloak of Protection touches only `all_saves`, not the ability). */
   target: string | string[]
   /** Human name for the value, shown as the popover's heading ("Strength", "Athletics"). */
   label?: string

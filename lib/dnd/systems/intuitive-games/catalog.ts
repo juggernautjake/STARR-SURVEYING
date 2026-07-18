@@ -5,9 +5,10 @@
 // system — so each entry carries `source: 'vanilla'`. Custom/DM-granted elements come from the sheet +
 // dm_granted and are flagged by provenance.ts, not here.
 import {
-  IG_STANCES, IG_FEATS, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES, IG_MOVEMENT_TYPES,
+  IG_STANCES, IG_FEATS, IG_POWERS, IG_SPELL_ROSTER, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES, IG_MOVEMENT_TYPES,
   IG_SUBCLASSES, IG_CREATURE_TYPES, IG_ACTIONS, igCreaturesByGroup, type NamedEntry,
 } from './content';
+import { igAllFeats } from './feats';
 import { systemSpecies, systemClasses, systemSkills, systemConditions } from '../../system-rules';
 import type { ElementKind } from '../../provenance';
 
@@ -56,11 +57,30 @@ export function igCatalog(): CatalogGroup[] {
   // Stances carry their A/B effect text.
   groups.push({ title: 'Stances', kind: 'stance', entries: IG_STANCES.map((s) => entry('stance', s)) });
 
-  // Feats bucketed General / Combat.
-  groups.push(...byCategory('feat', IG_FEATS, 'Feats'));
+  // Feats bucketed General / Combat — the FULL catalog (igAllFeats, 150+), matching the sheet's feat
+  // picker and the AI's add_feat, not the ~20-entry IG_FEATS the sheet just references. Any IG_FEATS name
+  // the full catalog doesn't carry is preserved under an "unlisted" group (never silently dropped).
+  groups.push(...byCategory('feat', igAllFeats(), 'Feats'));
+  const featSet = new Set(igAllFeats().map((f) => f.name.trim().toLowerCase()));
+  const unlistedFeats = IG_FEATS.filter((f) => !featSet.has(f.name.trim().toLowerCase()));
+  if (unlistedFeats.length) groups.push({ title: 'Feats · Unlisted (pending reconcile)', kind: 'feat', entries: unlistedFeats.map((f) => entry('feat', f)) });
 
-  // Powers grouped by school; defensive powers as their own group.
-  groups.push(...byCategory('power', IG_POWERS, 'Powers'));
+  // Powers: the FULL spell-list roster grouped by school — parity with the sheet's add-power picker and
+  // the AI's add_power (which both use the roster), so the builder can't offer fewer powers than they can.
+  // Effect text is attached from IG_POWERS where Brendan's text has landed; name-only otherwise (honest
+  // WIP, never fabricated — Ground Rule 2). Any IG_POWERS the current roster doesn't list are PRESERVED
+  // under an "unlisted" group (possible renames/removals only Brendan can reconcile — never silently dropped).
+  const powerMeta = new Map(IG_POWERS.map((p) => [p.name.trim().toLowerCase(), p] as const));
+  for (const [school, spellNames] of Object.entries(IG_SPELL_ROSTER)) {
+    groups.push({
+      title: `Powers · ${school}`,
+      kind: 'power',
+      entries: spellNames.map((n) => ({ kind: 'power' as const, name: n, effect: powerMeta.get(n.trim().toLowerCase())?.effect, source: 'vanilla' as const })),
+    });
+  }
+  const rosterSet = new Set(Object.values(IG_SPELL_ROSTER).flat().map((n) => n.trim().toLowerCase()));
+  const unlisted = IG_POWERS.filter((p) => !rosterSet.has(p.name.trim().toLowerCase()));
+  if (unlisted.length) groups.push({ title: 'Powers · Unlisted (pending reconcile)', kind: 'power', entries: unlisted.map((p) => entry('power', p)) });
   groups.push({ title: 'Defensive powers', kind: 'defensive-power', entries: IG_DEFENSIVE_POWERS.map((d) => entry('defensive-power', d)) });
 
   groups.push({ title: 'Weapon types', kind: 'weapon-type', entries: IG_WEAPON_TYPES.map((n) => entry('weapon-type', n)) });

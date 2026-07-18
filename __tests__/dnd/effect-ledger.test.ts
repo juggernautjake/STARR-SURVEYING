@@ -87,6 +87,27 @@ describe('numbers resolve by a documented order, not by luck', () => {
     expect(buildLedger(c).value('ability_str')).toBe(23);
   });
 
+  it('set_base is the FIRST documented step and shares the highest-wins override with set', () => {
+    // The documented order is `set_base → set → add`, but every test above exercised only `set` — the
+    // ledger pools set_base with set into one "highest override wins" (ledger.ts ~L349), so a regression
+    // that handled only `set` would silently break every set_base effect with no failing test. Pin it:
+    // set_base 19 beats set 17 and the base 16, then the +2 add stacks on top — identical treatment to set.
+    const c = hero(); // base STR 16
+    c.inventory = [
+      item({ name: 'Amulet of Base Might', effects: [{ target: 'ability_str', operation: 'set_base', value: 19 }] }),
+      item({ name: 'Circlet', effects: [{ target: 'ability_str', operation: 'set', value: 17 }] }),
+      item({ name: 'Belt of the Bear', effects: [{ target: 'ability_str', operation: 'add', value: 2 }] }),
+    ];
+    expect(buildLedger(c).value('ability_str')).toBe(21); // max(16, 19, 17) + 2
+  });
+
+  it('a set_base never lowers a higher base, exactly like set', () => {
+    const c = hero();
+    c.abilities = { ...c.abilities, str: 22 };
+    c.inventory = [item({ name: 'Amulet', effects: [{ target: 'ability_str', operation: 'set_base', value: 19 }] })];
+    expect(buildLedger(c).value('ability_str')).toBe(22); // the base already beats the set_base override
+  });
+
   it('advantage and disadvantage cancel to a flat roll', () => {
     const c = hero();
     c.inventory = [
@@ -154,6 +175,28 @@ describe('removing a source restores the base EXACTLY', () => {
     c.inventory[0].equipped = false;
     expect(buildLedger(c).value('ability_str')).toBe(16);
     expect(c.abilities).toEqual(before.abilities);
+  });
+
+  it('buildLedger never mutates its input — the WHOLE character stays byte-identical across every source kind', () => {
+    // The foundational safety property, tested at full breadth: buildLedger runs on every render over
+    // equipped + attuned items, activeEffects (consumed buffs), features, and conditions all at once. If it
+    // EVER wrote back to the character (e.g. a refactor caching derived state onto the model), every stored
+    // character would silently corrupt. The item-level test above checks abilities only; this deep-equals the
+    // ENTIRE object before/after, and exercises every read method (none may mutate either).
+    const c = hero();
+    c.inventory = [
+      item({ name: 'Belt', equipped: true, effects: [{ target: 'ability_str', operation: 'add', value: 2 }] }),
+      item({ name: 'Cloak', attuned: true, tags: ['equipped'], effects: [{ target: 'all_saves', operation: 'add', value: 1 }] }),
+    ];
+    c.activeEffects = [{ id: 'ae', label: 'Potion', source: 'Potion of Storm Giant Strength', effects: [{ target: 'ability_str', operation: 'set', value: 29 }] }];
+    c.features = [{ id: 'f', name: 'Rage', source: 'Barbarian', body: [''], effects: [{ target: 'ac', operation: 'add', value: 2 }] }];
+    c.combat = { ...c.combat, conditions: ['Prone'] };
+    const before = structuredClone(c);
+    const led = buildLedger(c);
+    // Exercise every read surface — resolving a value, explaining, collecting, roll flags, identity, isModified.
+    led.value('ability_str'); led.value('all_saves', 0); led.explain('ac');
+    led.collected('resistance'); led.rollFlags('skill.stealth'); led.identity('name'); led.isModified('ability_str');
+    expect(c).toEqual(before); // the entire stored character, untouched
   });
 });
 
@@ -317,5 +360,89 @@ describe('collectSources sees every kind of source', () => {
     c.inventory = [item({ name: 'A rock', effects: [] })];
     c.features = [{ id: 'f', name: 'Flavour', source: 'Bio', body: ['prose only'] }];
     expect(collectSources(c)).toEqual([]);
+  });
+});
+
+describe('one item, any number of effects of any mix — the "boot that rewrites you" (no special code)', () => {
+  // The architecture claim the doc makes: an item is just a bag of effects, and the ledger resolves each
+  // by its target + operation with NO per-item logic. So a SINGLE item carrying fifteen effects across
+  // every family — ability, AC, two movement modes, max HP, initiative, saves, a skill advantage, the
+  // three damage defenses, a condition-save advantage, a cross-class feature, a sense, an identity overlay
+  // — must resolve them ALL from one buildLedger pass, each attributed to the one item, and hand them ALL
+  // back the instant it comes off. If any of this needed special-casing, this is where it would show.
+  const REWRITER = (): InvItem =>
+    item({
+      name: 'Boots of Rewriting',
+      effects: [
+        { target: 'ability_str', operation: 'add', value: 2 },
+        { target: 'ac', operation: 'add', value: 1 },
+        { target: 'speed_walk', operation: 'add', value: 10 },
+        { target: 'speed_fly', operation: 'set', value: 60 },
+        { target: 'hp_max', operation: 'add', value: 5 },
+        { target: 'initiative', operation: 'add', value: 2 },
+        { target: 'all_saves', operation: 'add', value: 1 },
+        { target: 'skill.stealth', operation: 'advantage' },
+        { target: 'resistance', operation: 'resistance', value: 'fire' },
+        { target: 'immunity', operation: 'immunity', value: 'poison' },
+        { target: 'vulnerability', operation: 'vulnerability', value: 'cold' },
+        { target: 'condition_advantage', operation: 'condition_advantage', value: 'poison' },
+        { target: 'grant_feature', operation: 'set', value: 'Rage (Barbarian)' },
+        { target: 'grant_sense', operation: 'set', value: 'darkvision 60' },
+        { target: 'name', operation: 'set', value: 'The Rewritten' },
+      ] as Effect[],
+    });
+
+  it('resolves all fifteen effects from one pass, each sourced to the single item', () => {
+    const c = hero();
+    c.inventory = [REWRITER()];
+    const led = buildLedger(c);
+
+    // numbers (add stacks onto the sheet base; set overrides)
+    expect(led.value('ability_str')).toBe(18);
+    expect(led.value('ac')).toBe(16);
+    expect(led.value('speed_walk')).toBe(40);
+    expect(led.value('speed_fly')).toBe(60);
+    expect(led.value('hp_max')).toBe(49);
+    expect(led.value('initiative', 0)).toBe(2);
+    expect(led.value('all_saves', 0)).toBe(1);
+    // roll flag
+    expect(led.rollFlags('skill.stealth').advantage).toBe(true);
+    // collected damage defenses
+    expect(led.collected('resistance').map((r) => r.value)).toEqual(['fire']);
+    expect(led.collected('immunity').map((r) => r.value)).toEqual(['poison']);
+    expect(led.collected('vulnerability').map((r) => r.value)).toEqual(['cold']);
+    // explained refs + the condition-save advantage
+    expect(led.explain('condition_advantage')[0].effect.value).toBe('poison');
+    expect(led.explain('grant_feature')[0].effect.value).toBe('Rage (Barbarian)');
+    expect(led.explain('grant_sense')[0].effect.value).toBe('darkvision 60');
+    // identity overlay
+    expect(led.identity('name')?.value).toBe('The Rewritten');
+
+    // ONE source, despite fifteen effects — the "no special code" invariant made concrete.
+    expect(led.sources).toHaveLength(1);
+    // and every attribution points back to that same one item.
+    for (const s of [
+      led.collected('resistance')[0].source,
+      led.explain('grant_feature')[0].source,
+      led.identity('name')?.source,
+    ]) expect(s).toBe('Boots of Rewriting');
+  });
+
+  it('hands every one of them back the instant the boot comes off', () => {
+    const c = hero();
+    c.inventory = [REWRITER()];
+    c.inventory[0].equipped = false; // an unworn item contributes nothing
+    const led = buildLedger(c);
+    expect(led.value('ability_str')).toBe(16);
+    expect(led.value('ac')).toBe(15);
+    expect(led.value('speed_walk')).toBe(30);
+    expect(led.value('speed_fly')).toBe(0);
+    expect(led.value('hp_max')).toBe(44);
+    expect(led.value('all_saves', 0)).toBe(0);
+    expect(led.rollFlags('skill.stealth').advantage).toBe(false);
+    expect(led.collected('resistance')).toEqual([]);
+    expect(led.explain('grant_feature')).toEqual([]);
+    expect(led.identity('name')).toBeNull();
+    expect(led.sources).toEqual([]);
   });
 });

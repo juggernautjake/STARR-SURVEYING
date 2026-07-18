@@ -28,9 +28,12 @@ export function pf2Degree(total: number, dc: number, natural?: number): PF2Degre
   return (['critical-failure', 'failure', 'success', 'critical-success'] as const)[step];
 }
 
-/** A skill's total modifier: its attribute modifier + proficiency + item bonus. */
-export function pf2SkillTotal(skill: PF2Skill, level: number, attributes: Record<PF2AttributeKey, number>): number {
-  return (attributes[skill.attribute] ?? 0) + pf2Proficiency(skill.rank, level) + (skill.itemBonus || 0);
+/** A skill's total modifier: its attribute modifier + proficiency + item bonus, minus the armor check
+ *  penalty for the four armor-affected skills (Acrobatics/Athletics/Stealth/Thievery) when one applies.
+ *  `armorCheckPenalty` is ≤ 0; it only bites skills flagged `armorPenalty`. */
+export function pf2SkillTotal(skill: PF2Skill, level: number, attributes: Record<PF2AttributeKey, number>, armorCheckPenalty = 0): number {
+  const penalty = skill.armorPenalty ? (armorCheckPenalty || 0) : 0;
+  return (attributes[skill.attribute] ?? 0) + pf2Proficiency(skill.rank, level) + (skill.itemBonus || 0) + penalty;
 }
 
 /** A saving throw's total: governing attribute modifier + proficiency + item bonus. */
@@ -83,6 +86,24 @@ export function pf2MultipleAttackPenalty(strikeIndex: number, agile: boolean): n
   if (strikeIndex <= 0) return 0;
   const base = agile ? 4 : 5;
   return -Math.min(2, strikeIndex) * base; // −5/−10 (or −4/−8 agile); caps at the 3rd Strike
+}
+
+/** A full spellcaster's spell slots by character level (Player Core table). Returns an 11-element array
+ *  where index 0 = cantrips (always 5) and index r (1–10) = slots of spell rank r. Every PF2 caster class
+ *  (Bard, Cleric, Druid, Oracle, Sorcerer, Witch, Wizard) is a full caster on this progression; class
+ *  features (Wizard school, cleric Font, etc.) add EXTRA slots on top and are tracked separately.
+ *  Pattern: a new rank opens at level 2r−1 with 2 slots and rises to 3 at level 2r; rank 10 is a single
+ *  slot gained at level 19. */
+export function pf2SpellSlots(level: number): number[] {
+  const L = pf2Level(level);
+  const slots = new Array(11).fill(0);
+  slots[0] = 5; // cantrips
+  for (let r = 1; r <= 10; r++) {
+    const opens = 2 * r - 1;
+    if (L < opens) continue;
+    slots[r] = r === 10 ? 1 : L === opens ? 2 : 3;
+  }
+  return slots;
 }
 
 /** A standard "level-based DC" — the baseline DC for a task of a given level (PF2 GM Core table). */
