@@ -328,6 +328,23 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       `transpose-custom.test.ts` (default-false, prompt-by-consent, read-first/prefer-vanilla, CUSTOM: listing,
       `allowedCustom` in the response). **Area TR complete.**
 
+### Area MV — Multiple sheets per system: vanilla vs custom variants (owner 2026-07-18)
+> Owner: allow MORE THAN ONE character sheet for the SAME character in the SAME system — e.g. a **vanilla**
+> build and a separate **custom** build of the same character in that system. One sheet labelled "Vanilla",
+> the other "Custom-built"; the user can switch between them like the cross-system variants.
+
+- [ ] **MV1 — Variant model.** Today `system_variants` keys ONE sheet per system. Extend it to allow multiple
+      sheets per system, each with a `variantLabel`/`kind` ('vanilla' | 'custom') so a system can hold both a
+      vanilla and a custom build. Keep back-compat (existing single-per-system data still loads).
+      *(Touches `lib/dnd/system-variants.ts` + the character row's `system_variants` jsonb — no column change.)*
+- [ ] **MV2 — Switcher UI.** `SystemSwitcher` lists each per-system variant (Vanilla / Custom) as a separate
+      chip you can switch to; a transpose with custom consent creates/labels the "Custom-built" variant, a
+      vanilla transpose the "Vanilla" one — both kept side by side for the same system.
+- [ ] **MV3 — Labels on the sheet + provenance.** The active sheet shows its Vanilla/Custom label; the custom
+      variant's invented elements stay provenance-flagged for DM review.
+- [ ] **MV4 — Tests:** two variants coexist for one system; switching preserves both; labels correct;
+      back-compat with single-variant data.
+
 ### Area T — IG class taxonomy (bounded data restructure)
 - [ ] **T1 — Restructure to the site's real taxonomy:** 4 parent classes (Archon / Conduit / Fighter /
       Wizard) each with subclasses (Archon → Beastmaster/Eldritch Binder/Packmaster/Summoner; Conduit →
