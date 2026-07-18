@@ -84,9 +84,18 @@ setting is system-aware where the mechanic differs by system.
 ### Area M — Configurable mechanics (depends on P)
 Make the mechanics the prefs name actually swappable, VANILLA BY DEFAULT.
 
-- [ ] **M1 — Exhaustion model selector.** `rollCheck`/speed read the effective `exhaustionModel`: default the
-      correct-per-edition vanilla (2024 flat −2/level; **2014 the real tiered table**), plus the popular
-      flat-−2/level option for systems that want it. (Resolves `BLOCKERS §A` exhaustion + the 2014-tiered gap.)
+- **M1 — Exhaustion model selector. OWNER DECISION (2026-07-17):** the **2014 tiered table IS the main model
+  for the 2014 edition**, implemented programmatically into the mechanics; **flat −2/level is a selectable
+  option** (also fully hooked up). `vanilla` = per-edition RAW (2014 → tiered; 2024 → flat −2/level);
+  `flat-2-per-level` = always flat −2/level.
+  - [x] **M1a — Exhaustion pure core.** ✅ SHIPPED — `lib/dnd/mechanics/exhaustion.ts`
+        `exhaustionD20Effect(kind, level, edition, model)` → `{ penalty, disadvantage }`: flat model / 2024
+        vanilla = −2×level on every d20 test (no disadvantage); 2014 vanilla = the tiered table's disadvantage
+        (ability checks at L1+, attacks & saves at L3+), no flat penalty. Plus `exhaustionSpeedPenalty` and
+        `exhaustionCapsHpAt`/`exhaustionIsDead` for the non-d20 tiers. Golden-pinned by
+        `mechanics-exhaustion.test.ts`.
+  - [ ] **M1b — Wire into the store** `rollCheck` (reads `preferences.exhaustionModel` + the character's
+        edition from `system`) + speed/HP for the 2014 tiers. Behavior change for 2014 chars is owner-authorized.
 - [x] **M2 — Long-rest model selector.** ✅ SHIPPED — pure `hitDiceAfterLongRest(total, remaining, model)`
       in `lib/dnd/mechanics/long-rest.ts` (vanilla=full restore, half-hit-dice=2014 RAW half+min1, gritty/epic
       = amount unchanged), golden-pinned by `mechanics-long-rest.test.ts`. Wired into the sheet store's
@@ -114,7 +123,12 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       Golden-pinned by `equip-conflicts.test.ts`.
 - [ ] **E1b — Conflict dialog + wiring.** The popup component (Cancel + per-conflict swap), shown from the live
       equip toggle (`ItemBuilder` "Equipped" + inventory equip) when `equipLimits === 'enforced'` and conflicts
-      exist; wire the AI `equip_item` path to the same core.
+      exist; wire the AI `equip_item` path to the same core. **NOTE (owner's sword+shield→axe example):** the
+      owner expects a two-handed weapon to also conflict with OTHER held one-handed weapons (both hands
+      occupied), so E1b should extend the conflict core with a hand-slot rule (a two-handed weapon frees/blocks
+      both hands) — the current core only models shield/body-armor/two-handed-vs-shield. Wire point found:
+      equipping commits via `Inventory.upsert` (ItemBuilder "Equipped" → onSave). `preferences.equipLimits` is
+      already on the store context for the gate.
 - [ ] **E2 — Toggle:** `equipLimits: off` skips the check entirely (equip freely; the panel still shows truth).
 - [ ] **E3 — Tests:** update the `equip-enforcement-gap` tracker → the live paths now enforce when on, allow
       when off.
