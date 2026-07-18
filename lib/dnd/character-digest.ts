@@ -302,6 +302,11 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
   const equipped = (char.inventory ?? []).filter((i) => i.equipped || i.tags?.includes('equipped'));
   if (equipped.length) lines.push(`EQUIPPED: ${equipped.map((i) => i.name).join(' · ')}`);
 
+  // Wealth — a downtime / shopping / bribe ruling ("can you afford the 50 gp potion?") turns on it. Lists the
+  // character's coins with a non-zero amount (the flexible `currencies` list, e.g. cp/sp/gp/pp or custom coins).
+  const coins = (char.currencies ?? []).filter((cn) => (cn.amount || 0) > 0);
+  if (coins.length) lines.push(`WEALTH: ${coins.map((cn) => `${cn.amount} ${cn.abbrev || cn.name}`).join(', ')}`);
+
   const active = (char.activeEffects ?? []).map((e) => e.label);
   if (active.length) lines.push(`ACTIVE EFFECTS: ${active.join(' · ')}`);
 

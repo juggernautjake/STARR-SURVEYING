@@ -394,3 +394,18 @@ describe('the 5e digest shows skill totals, not just proficiency names (SQ3)', (
     expect(characterDigest(blankCharacter('Commoner'), 'dnd-5e-2024')).not.toMatch(/^SKILLS: /m);
   });
 });
+
+describe('the 5e digest surfaces wealth (SQ3 completeness)', () => {
+  it('lists coins with a non-zero amount, omits zero coins + the line when broke', () => {
+    const c = blankCharacter('Merchant') as Character;
+    c.currencies = [
+      { id: 'gp', name: 'Gold', abbrev: 'gp', amount: 42, rate: 100 },
+      { id: 'sp', name: 'Silver', abbrev: 'sp', amount: 7, rate: 10 },
+      { id: 'cp', name: 'Copper', abbrev: 'cp', amount: 0, rate: 1 },
+    ];
+    const d = characterDigest(c, 'dnd-5e-2024');
+    expect(d).toMatch(/WEALTH: 42 gp, 7 sp/);
+    expect(d).not.toMatch(/0 cp/); // zero coins omitted
+    expect(characterDigest(blankCharacter('Broke'), 'dnd-5e-2024')).not.toMatch(/WEALTH:/);
+  });
+});
