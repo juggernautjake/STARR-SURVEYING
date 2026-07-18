@@ -22,8 +22,8 @@ import { isIGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import PF2CharacterBuilder from '@/app/dnd/_ui/PF2CharacterBuilder';
 import PF2Sheet from '@/app/dnd/_ui/PF2Sheet';
 import { isPF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
-import { readVariants, builtSystems, type ActiveSheet } from '@/lib/dnd/system-variants';
-import { normalizeSystem } from '@/lib/dnd/systems';
+import { readVariants, builtSystems, listSheets, readActiveSlotMeta, type ActiveSheet } from '@/lib/dnd/system-variants';
+import { normalizeSystem, systemLabel } from '@/lib/dnd/systems';
 import { summarizeCharacterProvenance, type ElementKind } from '@/lib/dnd/provenance';
 import { normalizeSubmissionStatus } from '@/lib/dnd/submission';
 import { readGrants } from '@/lib/dnd/dm-grant';
@@ -153,13 +153,21 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
         <AddToDemoButton characterId={character.id} campaignId={DEMO_CAMPAIGN_ID} />
       )}
       {canWrite && (() => {
+        const rawVariants = (character as { system_variants?: unknown }).system_variants;
+        const activeMeta = readActiveSlotMeta(rawVariants);
         const active: ActiveSheet = {
           system: normalizeSystem((character as { system?: string }).system),
           data: character.data,
           sheet_type: character.sheet_type,
+          ...(activeMeta.slotId ? { slotId: activeMeta.slotId } : {}),
+          kind: activeMeta.kind,
+          ...(activeMeta.name ? { name: activeMeta.name } : {}),
         };
-        const built = builtSystems(active, readVariants((character as { system_variants?: unknown }).system_variants));
-        return <SystemSwitcher characterId={character.id} activeSystem={active.system} builtSystems={built} aiConfigured={dndAiConfigured()} allowCustom={transposeAllowsCustom} />;
+        const variants = readVariants(rawVariants);
+        const built = builtSystems(active, variants);
+        // Every sheet the character holds (Area MV2c) — active + each stored slot, with kind + name.
+        const sheets = listSheets(active, variants, systemLabel);
+        return <SystemSwitcher characterId={character.id} activeSystem={active.system} builtSystems={built} sheets={sheets} aiConfigured={dndAiConfigured()} allowCustom={transposeAllowsCustom} />;
       })()}
       {canWrite && <SheetStyleBrowser characterId={character.id} current={character.sheet_type} />}
       <SheetRoot

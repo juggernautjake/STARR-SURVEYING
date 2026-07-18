@@ -32,3 +32,31 @@ describe('system route — multi-sheet slot operations (MV2b)', () => {
     expect((route.match(/withActiveSlotMeta\(/g) || []).length).toBeGreaterThanOrEqual(4);
   });
 });
+
+describe('SystemSwitcher UI shows every sheet + a "+" add (MV2c)', () => {
+  const switcher = readFileSync(join(process.cwd(), 'app/dnd/_ui/SystemSwitcher.tsx'), 'utf8');
+  const page = readFileSync(join(process.cwd(), 'app/dnd/characters/[id]/page.tsx'), 'utf8');
+
+  it('the page passes the full sheet list (listSheets) to the switcher', () => {
+    expect(page).toContain('listSheets(active, variants, systemLabel)');
+    expect(page).toContain('readActiveSlotMeta(rawVariants)');
+    expect(page).toContain('sheets={sheets}');
+  });
+
+  it('renders each sheet as a switchable chip (by slotId) with a vanilla/custom badge', () => {
+    expect(switcher).toContain('sheets.map((sh)');
+    expect(switcher).toContain('switchSlot(sh.slotId)');
+    expect(switcher).toMatch(/sh\.kind === 'custom' \? 'CUSTOM' : 'VANILLA'/);
+    expect(switcher).toContain('● ACTIVE');
+  });
+
+  it('has a "+ Add sheet" form (system + vanilla/custom + optional name) posting action:add', () => {
+    expect(switcher).toContain('＋ Add sheet');
+    expect(switcher).toContain("JSON.stringify({ action: 'add', system: addSystem, kind: addKind, name: addName.trim() || undefined })");
+    expect(switcher).toContain('GAME_SYSTEMS.filter((s) => isSystemAvailable(s.key))'); // only playable systems addable
+  });
+
+  it('switching a slot posts { slotId } to the system route', () => {
+    expect(switcher).toContain('JSON.stringify({ slotId })');
+  });
+});

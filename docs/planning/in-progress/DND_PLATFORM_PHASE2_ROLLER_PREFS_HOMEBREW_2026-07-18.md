@@ -387,8 +387,14 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       handles `{ action:'add', system, kind, name? }` → `addSheetSlot` (add a blank sheet for a PLAYABLE
       system, `isSystemAvailable`-gated, without switching); and every persist path (switch/transpose too) now
       writes `withActiveSlotMeta` so the active kind/name/slotId survive. Guarded by `mv-route.test.ts`.
-      REMAINING **MV2c** — the `SystemSwitcher` UI: render `listSheets` as per-slot chips, a "+" add-sheet
-      (vanilla/custom + optional name), and route a custom transpose to ADD a slot.
+      **MV2c ✅ SHIPPED** — the `SystemSwitcher` now shows a **"Your sheets"** section: every sheet the
+      character holds (from `listSheets`) as a switchable chip labelled with its name + a VANILLA/CUSTOM badge
+      (active one highlighted), plus a **"＋ Add sheet"** form (pick a playable system + Vanilla/Custom + an
+      optional name → posts `action:'add'`). Switching a chip posts `{ slotId }`. The page passes the sheet
+      list + active-slot meta. Guarded by `mv-route.test.ts`; full suite green (2035). **Area MV is now
+      user-visible end to end** (add/name/switch multiple vanilla+custom sheets per system). REMAINING (MV
+      polish): rename/delete a sheet; route a custom-consented TRANSPOSE to ADD a slot rather than overwrite
+      (MV3 sheet label on the sheet itself is a nice-to-have).
 - [ ] **MV3 — Labels on the sheet + provenance.** The active sheet shows its name + Vanilla/Custom label; the
       custom variant's invented elements stay provenance-flagged for DM review.
 - [ ] **MV4 — Tests:** two variants coexist for one system; switching preserves both; naming (custom +
