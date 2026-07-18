@@ -4,7 +4,12 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { applyLayoutEdits, LAYOUT_EDIT_TOOL, type LayoutEdit } from '@/lib/dnd/layout-edits';
+import { SHEET_EDIT_TOOL } from '@/lib/dnd/sheet-edits';
 import { assertCharacterScopedOps } from '@/lib/dnd/ai-scope';
+
+const opEnumOf = (tool: typeof LAYOUT_EDIT_TOOL): string[] =>
+  (tool.input_schema as { properties?: { edits?: { items?: { properties?: { op?: { enum?: string[] } } } } } })
+    .properties?.edits?.items?.properties?.op?.enum ?? [];
 
 const START = {
   title: 'Kael',
@@ -75,5 +80,20 @@ describe('layout edits (Slice 12)', () => {
     for (const op of ops) {
       expect(body.includes(`case '${op}'`), `applyLayoutEdits has no case for "${op}" — the AI's restyle would silently do nothing`).toBe(true);
     }
+  });
+
+  it('is DISJOINT from the mechanical edit_sheet vocabulary — the "no mechanic through CSS" guarantee', () => {
+    // Slice 24's rule: layout/CSS edits (customize_layout) and mechanical edits (edit_sheet) are two SEPARATE
+    // vocabularies. If any op appeared in BOTH, a mechanic could ride in on a presentation edit; and a damage
+    // die written as CSS/layout would be invisible to the ledger, the digest, and the DM. This pins both:
+    // no shared op, and the layout vocabulary carries no mechanical op family.
+    const layoutOps = new Set(opEnumOf(LAYOUT_EDIT_TOOL));
+    const sheetOps = opEnumOf(SHEET_EDIT_TOOL);
+    expect(layoutOps.size).toBeGreaterThan(0);
+    expect(sheetOps.length).toBeGreaterThan(0);
+    const overlap = sheetOps.filter((op) => layoutOps.has(op));
+    expect(overlap, 'ops in BOTH vocabularies would let a mechanic ride in as a layout edit').toEqual([]);
+    const MECHANICAL = /^(set_ability|set_combat|set_skill|set_save|set_level|add_attack|update_attack|add_item|update_item|add_feature|add_spell|add_resource|add_condition|equip_item)/;
+    expect([...layoutOps].filter((op) => MECHANICAL.test(op)), 'the layout vocabulary must be presentation-only').toEqual([]);
   });
 });

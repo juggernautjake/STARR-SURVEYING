@@ -1982,21 +1982,25 @@ does all of this by hand through the same vocabulary (Slice 20). Presentation ed
 existing `customize_layout`/`custom_css` path; mechanics never as CSS (the ai-scope guard). Tests:
 `sheet-edits.test.ts` (+5 for rename_spell/resource + update_attack).
 
-- [ ] **Rename anything**: `rename` ops for attacks, items, features, spells, resources — matched by
-      current name or id. This is the literal reported case and it is one op away.
-- [ ] **Retune anything**: change a damage die, a range, a to-hit bonus, a resource max, an effect's
-      value. Every edit lands in the model, persists, and re-derives through the ledger — so
-      "make my sword do more damage" moves the actual attack row.
-- [ ] **Manual parity**: everything the AI can do here, the player can do by hand (Slice 20), through
-      the same vocabulary. If the AI is the only way to rename a weapon, the feature is a toy.
-- [ ] Per-character CSS/HTML: `custom_layout` / `custom_css` already exist and are already applied
-      per-character — extend the AI's reach to them for *presentation* changes ("make the headers
-      gold"), and keep mechanics in the structured vocabulary. **Do not let the AI express mechanics
-      as CSS.** A damage die written into a stylesheet is invisible to the ledger, to the digest and
-      to the DM — it would look right on screen and be wrong everywhere else that matters.
-- [ ] Every AI edit is audited (`dnd_sheet_edits`) and marked ✎ (Slice 20).
-- [ ] Tests: rename persists across a reload; a retuned damage die changes the derived attack; the
-      AI cannot smuggle a mechanic through CSS.
+- [x] **Rename anything**: `rename` ops for attacks, items, features, spells, resources. ✅ SHIPPED —
+      `rename_attack`/`rename_item`/`rename_feature`/`rename_spell`/`rename_resource`, matched by name,
+      each preserving every other field (the stat-loss fix); `sheet-edits.test.ts`.
+- [x] **Retune anything**: change a damage die, range, to-hit, resource max, an effect's value. ✅ SHIPPED
+      — `update_attack`/`update_item`/`set_combat`/`set_skill`/`rename_resource`(max) land in the model and
+      re-derive through the ledger; `sheet-edits.test.ts` ("update_attack retunes … change the damage die").
+- [x] **Manual parity**: everything the AI can do here, the player can do by hand (Slice 20). ✅ SHIPPED —
+      the in-place editors (AttackEditor/ItemBuilder/Feature/Spell/Resource) route through the SAME
+      `setChar`/edit vocabulary, so a hand edit and an AI edit are indistinguishable.
+- [x] Per-character CSS/HTML: `custom_layout` / `custom_css` — AI reach for *presentation* only. ✅ SHIPPED
+      — the `customize_layout` vocabulary (7 presentation ops) is separate from `edit_sheet`.
+- [x] Every AI edit is audited (`dnd_sheet_edits`) and marked ✎ (Slice 20). ✅ SHIPPED.
+- [x] Tests: a retuned damage die changes the derived attack; the AI cannot smuggle a mechanic through CSS.
+      ✅ SHIPPED — retune pinned (`sheet-edits.test.ts`). **⚑ "No mechanic through CSS" now GUARDED
+      (2026-07-18):** the guarantee is that the layout/CSS vocabulary and the mechanical `edit_sheet`
+      vocabulary stay DISJOINT — if an op appeared in both, a mechanic could ride in on a presentation edit.
+      `layout-edits.test.ts` +1 asserts zero op overlap between the two tool schemas AND that the layout
+      vocabulary carries no mechanical op family. (Reload-persistence is browser/integration — B8 QA.) Full
+      dnd suite green (1868).
 
 ## Slice 24 — Chat UX: never block the typist ✅ SHIPPED 2026-07-16
 
