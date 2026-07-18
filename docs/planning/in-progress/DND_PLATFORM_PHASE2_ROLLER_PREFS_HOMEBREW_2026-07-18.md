@@ -489,10 +489,17 @@ This is the "form editor" the owner clarified: a full **create-and-share** syste
       12). REMAINING for H1: the live-DB schema/store (a `homebrew_content` table via seeds) — deferred to a
       live-Supabase slice (needs the DB connection; the pure model is the reusable core the store + UI + AI
       grounding all build on).
-- [ ] **H2 — Custom section per system (browse + search + AI).** Every system's library gets a
-      **Custom / Homebrew / Extras** section listing its homebrew, well-formatted, searchable (`searchLibrary`),
-      and projected into the AI grounding (so the AI can explain + use it). Seed with **Rangor (race)** +
-      **Pugilist (class)** from Jack's existing hand-authored data.
+- [~] **H2 — Custom section per system (browse + search + AI).** ✅ CORE SHIPPED — `lib/dnd/homebrew/projection.ts`
+      turns the catalog into (a) a per-system **"Custom / Homebrew · Extras"** `LibrarySection` of collapsible
+      entries (name + "Kind · by Creator" brief + full text), (b) an **AI-grounding** block (each piece + a
+      "only if the DM has allowed it" caveat), and both are wired live: `libraryPageFor` appends the section
+      when the system has homebrew, and `searchLibrary` indexes each piece (scoped to its system). Seeded with
+      **Rangor (race)** + **Pugilist (class)** in `lib/dnd/homebrew/seeds.ts`, descriptions lifted verbatim from
+      the existing `rangor.ts`/`jack.ts` sheet data (nothing invented), attributed to Jacob, scoped to 2024,
+      approved. Golden-pinned (`homebrew-library.test.ts`, 6; library suite still green). REMAINING: fold
+      `homebrewGrounding` into the live grounding builder + surface a search/browse filter UI in the library
+      page (the section + search already work; a dedicated filter chip is the polish) — small follow-ups once
+      the live-DB store (H1 tail) exists.
 - [ ] **H3 — Creation UI.** Build-and-post forms for each content kind (reusing the effect builder / item
       builder / attack builder / weapon+armor builders), attributed to the creator on save.
 - [ ] **H4 — Use-on-character + DM gating.** A character can adopt a homebrew element **iff the DM allows it**

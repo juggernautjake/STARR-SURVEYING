@@ -17,6 +17,9 @@ import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type
 import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, IG_COMPANION_TYPES, IG_COMPANION_RULES, IG_BACKGROUND_DEFS, IG_CLASS_GROUPS, IG_CLASS_RULES, IG_SUBCLASSES, IG_CLASS_DETAILS, IG_CLASS_TAXONOMY_FINDING, IG_REDISTRIBUTION_RULES, type NamedEntry, type IGStance, type IGAncestry, type IGCompanionType, type IGBackground } from './systems/intuitive-games/content';
 import { igAllFeats, type IGFeat } from './systems/intuitive-games/feats';
 import { igAncestryArt, IG_ART_CREDIT } from './systems/intuitive-games/art';
+import { homebrewLibrarySection } from './homebrew/projection';
+import { browseHomebrew } from './homebrew/model';
+import { HOMEBREW_SEEDS } from './homebrew/seeds';
 import { IG_WEAPON_RULES, IG_WEAPON_CLASS_DATA, IG_WEAPON_PROPERTIES, IG_ARMOR_RULES, IG_ARMORS, IG_SHIELD_RULES, IG_SHIELDS, IG_EQUIPMENT_PACKS, IG_EQUIPMENT_NOTE, IG_TOOL_RULES, IG_MAGIC_ITEM_RULES, IG_ENCHANTMENTS } from './systems/intuitive-games/items';
 import { IG_SKILL_RULES, IG_COMBAT_SKILL_RULES, IG_COMBAT_SKILLS, IG_BUILD_STEPS, IG_PROGRESSION_NOTE, IG_DAMAGE_SAVE_RULES, IG_DAMAGE_TYPE_DATA, IG_COVER, IG_MOVEMENT_RULES, IG_SIZE_CATEGORIES, IG_SIZE_NOTE, IG_SPELL_ROSTER, igSpellsMissingEffects } from './systems/intuitive-games/content';
 
@@ -675,6 +678,11 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
     });
   }
 
+  // Custom / Homebrew section (Area H2) — the community-made content scoped to this system, appended last so
+  // it reads as extras beneath the official rules. Omitted entirely when the system has no homebrew.
+  const homebrew = homebrewLibrarySection(HOMEBREW_SEEDS, key);
+  if (homebrew) sections.push(homebrew);
+
   return {
     key: r.key,
     name: r.label,
@@ -877,6 +885,10 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
     }
     for (const sp of spellsForSystem(key)) {
       push('spell', sp.name, `${sp.name} — ${pf2RankLabel(sp.rank)}, ${sp.traditions.join('/')}; ${sp.cast}. ${sp.effect}`);
+    }
+    // Homebrew content is searchable too (Area H2) — the published, in-system pieces surface by name/kind/creator.
+    for (const hb of browseHomebrew(HOMEBREW_SEEDS, { system: key })) {
+      push(hb.kind, hb.name, `${hb.summary ?? ''} ${hb.description ?? ''} — homebrew by ${hb.creator.name}`.trim());
     }
   }
 
