@@ -8,6 +8,9 @@
 import type { Effect } from '@/app/dnd/_sheet/engine/effects';
 import type { ActiveEffect } from '@/app/dnd/_sheet/types';
 import { validateEffect } from '@/lib/dnd/effects/targets';
+import type { ClassDefinition } from '@/lib/dnd/classes/types';
+import type { CustomFeat } from '@/lib/dnd/classes/custom';
+import { validateClassDefinition } from '@/lib/dnd/classes/engine';
 import type { HomebrewContent } from './model';
 
 /** The engine effects a homebrew piece grants. Reads `payload.effects` (or a bare `Effect[]` payload),
@@ -33,4 +36,37 @@ export function homebrewToActiveEffect(c: HomebrewContent): ActiveEffect | null 
     source: `Homebrew · by ${c.creator.name}`, // attribution persists onto the resolved effect
     effects,
   };
+}
+
+/**
+ * A homebrew `class`/`subclass` piece → the `ClassDefinition` to add to `char.homebrewClasses` (H4/H5 — the
+ * non-effect half of adoption). The payload must be a structurally-VALID class for the piece's OWN system (the
+ * class engine's `validateClassDefinition` must return []), or this refuses it (null) rather than storing a
+ * broken class the level builder can't level. The creator is stamped as the author. Pure.
+ */
+export function homebrewToCharacterClass(c: HomebrewContent): ClassDefinition | null {
+  if (c.kind !== 'class' && c.kind !== 'subclass') return null;
+  const p = c.payload;
+  if (!p || typeof p !== 'object') return null;
+  const def = p as ClassDefinition;
+  // Minimal structural shape + the hard system-match rule (a class is never valid outside its own system).
+  if (typeof def.key !== 'string' || typeof def.name !== 'string' || typeof def.hitDie !== 'number' || def.system !== c.system) return null;
+  let issues: unknown[];
+  try { issues = validateClassDefinition(def); } catch { return null; }
+  if (Array.isArray(issues) && issues.length > 0) return null; // the engine found it unlevelable — refuse it
+  return { ...def, custom: { ...(def.custom ?? {}), authorName: c.creator.name } };
+}
+
+/**
+ * A homebrew `feat` piece → the `CustomFeat` to add to `char.homebrewFeats`. Requires the core fields + a valid
+ * category + a system match; refuses anything else (null). The creator is stamped as the author. Pure.
+ */
+export function homebrewToCharacterFeat(c: HomebrewContent): CustomFeat | null {
+  if (c.kind !== 'feat') return null;
+  const p = c.payload;
+  if (!p || typeof p !== 'object') return null;
+  const f = p as CustomFeat;
+  const CATEGORIES = ['origin', 'general', 'fighting-style', 'epic-boon'];
+  if (typeof f.key !== 'string' || typeof f.name !== 'string' || typeof f.body !== 'string' || f.system !== c.system || !CATEGORIES.includes(f.category)) return null;
+  return { ...f, custom: { ...(f.custom ?? {}), authorName: c.creator.name } };
 }

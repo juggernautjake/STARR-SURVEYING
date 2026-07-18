@@ -629,6 +629,12 @@ This is the "form editor" the owner clarified: a full **create-and-share** syste
       (`homebrew-library.test.ts` + `grounding.test.ts`). Plus the model itself (`homebrew-model.test.ts`, 12).
       **Area H pure core is complete** — model, browse/search, live grounding, DM gate, and the effect round-trip
       are all built + tested; only the live-DB store + creation/DM-allowlist UIs (browser + Supabase) remain.
+      **Adopt layer now covers EVERY kind (2026-07-18):** besides the effect round-trip (items/effects →
+      `homebrewToActiveEffect`), a homebrew **class/subclass** piece → `homebrewToCharacterClass` (validated by
+      the class engine's `validateClassDefinition`, refused if unlevelable, system-matched, creator stamped as
+      author) and a **feat** piece → `homebrewToCharacterFeat` (core fields + valid category + system match),
+      for `char.homebrewClasses`/`homebrewFeats`. `homebrew-adopt-class.test.ts` (4). The pure "use homebrew on a
+      character" API is now whole across content kinds; only the live adopt route/UI (H4) is deferred.
 
 ### Area IGP — IG power effect texts (content; hook up what exists, flag Brendan's gap)
 - [ ] **IGP1 — Hook up every power with effect text** end-to-end (already largely done: grounding + library +
