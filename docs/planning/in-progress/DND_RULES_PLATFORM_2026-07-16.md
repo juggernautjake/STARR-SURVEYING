@@ -2382,7 +2382,13 @@ this is the remaining half.
 - [ ] Both renderers must honour the SAME field. The editor already promises this in its own copy:
       "These drive both the 2D art and the live 3D model." Where a field genuinely cannot exist in
       one renderer, say so in the UI rather than leaving a dead control.
-- [ ] Real-time: every control re-renders on `input`, not on release.
+- [x] ✅ SHIPPED (verified 2026-07-18) Real-time: every control re-renders on `input`, not on release. The
+      object editor's continuous sliders (`edSea`, `edCloudAmt`, `edLava`, `edCity`, and the rest) all bind
+      `.oninput` — which fires on every drag step — and call `edPreview()` immediately, so the preview updates
+      live rather than only when the slider is released (the exact "clouds don't increase while I crank it"
+      symptom). Discrete controls (selects/checkboxes) correctly use `.onchange`. Guarded by
+      `map-studio-config.test.ts` (+4): the reported controls bind `.oninput`→`edPreview()` and never
+      `.onchange`, so a regression to release-only firing fails in CI.
 - [~] Test: a fixture asserting every editable field of every kind reaches the 3D config — so a new
       *(Regression guard shipped for the fixed cloud-field translation: `map-studio-config.test.ts` (4)
       source-anchors `_genericPlanetCfg` and asserts it translates the editor's cloudAmount/cloudColor into

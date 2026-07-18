@@ -58,3 +58,20 @@ describe('map studio: _genericPlanetCfg translates editor field names to the mod
     expect(MODEL).toMatch(/cfg\.lightColor/);
   });
 });
+
+describe('map studio: object-editor sliders re-render in REAL TIME, not on release (Slice 29 / DND_RULES 2385)', () => {
+  const STUDIO = fs.readFileSync(path.join(process.cwd(), 'public/dnd/maps/map-studio.html'), 'utf8');
+  // The original report — "the clouds are not increasing whenever I crank the slider" — is a control that
+  // only reacts on release. The fix is that every continuous slider binds `.oninput` (fires on every drag
+  // step) and calls edPreview() so the preview updates live. Lock the reported controls so a regression to
+  // `.onchange` (release-only) fails here.
+  for (const id of ['edSea', 'edCloudAmt', 'edLava', 'edCity']) {
+    it(`#${id} binds .oninput and re-renders the preview live (never .onchange)`, () => {
+      // the binding drives edWork + calls edPreview() on every input step
+      const re = new RegExp(`\\$\\("#${id}"\\)\\.oninput\\s*=\\s*e\\s*=>\\{[^}]*edPreview\\(\\)`);
+      expect(STUDIO).toMatch(re);
+      // and it must NOT be wired on the release-only change event
+      expect(STUDIO).not.toContain(`$("#${id}").onchange`);
+    });
+  }
+});
