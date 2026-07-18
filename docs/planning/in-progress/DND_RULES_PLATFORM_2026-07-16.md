@@ -1962,13 +1962,18 @@ Belt of Giant Strength has ★ and no ✎. Same element can carry both. Conflati
 marker that means "something, somewhere, maybe" — i.e. noise the reader learns to ignore, which
 costs more than having no marker at all.
 
-- [ ] ✎ appears on anything edited away from its source: a modified official spell, a hand-tuned
-      class feature, an attack with adjusted numbers, an off-table ability score.
-- [ ] Hovering ✎ shows **what changed** — "Fireball · damage 8d6 → 10d6 (edited by Jacob,
-      2026-07-16)" — and offers **Revert to official**. Reuse `summarizeCharacterProvenance`, which
-      already distinguishes vanilla / custom / DM-granted content; this is its natural UI.
-- [ ] The DM's approval surface (Slice 5) reads the same provenance, so ✎ is also what a DM scans
-      when reviewing a sheet. A player quietly editing Fireball to 10d6 must not be invisible.
+- [x] ✅ SHIPPED (verified 2026-07-18): **✎ appears on anything edited away from its source** — `EditMark.tsx`
+      (Slice 20) renders ✎ on any element flagged `customized`; the attack/feature/etc. editors set it via
+      `nextCustomized` (a hand-tuned spell/feature/attack/ability). Distinct from ★ (active effect).
+      `customized-marker.test.ts` pins it.
+- [~] Hovering ✎ + **Revert**: the ✎ marker + a tooltip ("Hand-customized — this was edited away from how it
+      came") are SHIPPED, and the full audited diff + revert exist in the `EditReviewPanel` (per-batch/per-edit
+      Revert, `old_value`→ shown). REMAINING: surfacing the SPECIFIC per-element diff ("8d6 → 10d6, by Jacob,
+      date") + a Revert directly in the inline ✎ hover — a UI enhancement (browser); the data (audit rows) is
+      already there.
+- [x] ✅ SHIPPED: **the DM's approval surface reads the same provenance** — `SheetApprovalPanel` (custom content)
+      + `EditReviewPanel` (the campaign review queue) both read `summarizeCharacterProvenance` / the
+      `dnd_sheet_edits` audit, so a player quietly editing Fireball is visible in the DM's queue with its author.
 - [ ] Tests: an untouched sheet has zero ✎; editing a value marks exactly that value; revert clears
       the marker and restores the source value; ★ and ✎ are independent (one never implies the other).
 
