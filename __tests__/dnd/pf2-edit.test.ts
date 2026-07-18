@@ -36,6 +36,7 @@ describe('PF2 HP edits (SQ4)', () => {
     const healed = applyPf2Edit(c, { op: 'heal', amount: 10 });
     expect(healed.combat.currentHp).toBe(10);
     expect(healed.combat.dyingValue).toBe(0); // regaining HP clears Dying
+    expect(healed.combat.woundedValue).toBe(1); // PF2: losing Dying increases Wounded by 1
     // heal caps at max
     expect(applyPf2Edit(fighter(), { op: 'heal', amount: 9999 }).combat.currentHp).toBe(pf2MaxHp(fighter()));
   });
@@ -63,5 +64,19 @@ describe('PF2 edit parsing + AI parity + scope (SQ4)', () => {
   });
   it('every PF2 edit op is character-scoped (no out-of-sheet reach)', () => {
     expect(() => assertCharacterScopedOps([...PF2_EDIT_OPS])).not.toThrow();
+  });
+});
+
+describe('PF2 wounded escalation on recovery (rules correctness)', () => {
+  it('a second knockdown-and-recovery cycle raises Dying by the accumulated Wounded (PF2)', () => {
+    let c = fighter();
+    // 1st drop → Dying 1 (Wounded 0 + 1). Recover → Dying 0, Wounded 1.
+    c = applyPf2Edit(c, { op: 'apply_damage', amount: 9999 });
+    expect(c.combat.dyingValue).toBe(1);
+    c = applyPf2Edit(c, { op: 'heal', amount: 5 });
+    expect(c.combat.woundedValue).toBe(1);
+    // 2nd drop while Wounded 1 → Dying = 1 + Wounded 1 = 2 (the escalation the rule creates).
+    c = applyPf2Edit(c, { op: 'apply_damage', amount: 9999 });
+    expect(c.combat.dyingValue).toBe(2);
   });
 });

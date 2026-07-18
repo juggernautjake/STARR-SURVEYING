@@ -74,7 +74,10 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
       `lib/dnd/systems/pathfinder2e/edit.ts` (`applyPf2Edit`): `apply_damage` (temp HP soaked first, floors at 0,
       and dropping to 0 sets Dying = 1 + Wounded per PF2), `heal` (caps at max; regaining HP clears Dying),
       `set_temp_hp`, `set_dying` (0–4), `set_wounded` — all pure/immutable, handling the `0 = full` stored-HP
-      convention via the death track. Exposed as the `edit_pf2_sheet` AI tool (same parser). Golden-pinned
+      convention via the death track. **Rules-correctness fix (2026-07-18):** `heal` that clears Dying now also
+      increments Wounded by 1 (PF2: each time you lose Dying, Wounded rises — so the next knockdown gives Dying
+      = 1 + Wounded), the escalation the death track exists to model. Exposed as the `edit_pf2_sheet` AI tool
+      (same parser). Golden-pinned
       (`pf2-edit.test.ts`, 6). **PF2 edit ENDPOINT wired ✅** — `app/api/dnd/characters/[id]/pf2-edit/route.ts`
       (the counterpart to `ig-edit`): write-gated at the character chokepoint (`requireCharacterWrite`), guards
       the PF2 sidecar, runs the same validated `parsePf2Edit` + pure `applyPf2Edit`, and persists only

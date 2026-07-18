@@ -48,8 +48,12 @@ export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit): PF2Character {
       const amount = Math.max(0, Math.round(edit.amount || 0));
       if (!amount) return pf2;
       combat.currentHp = Math.min(maxHp, effCur + amount);
-      // PF2: regaining HP while Dying removes the Dying condition (you're conscious/stable again).
-      if (combat.currentHp > 0 && combat.dyingValue) combat.dyingValue = 0;
+      // PF2: regaining HP while Dying removes the Dying condition — AND each time you LOSE the Dying condition
+      // you increase your Wounded value by 1 (so the next drop is more dangerous). Both apply here.
+      if (combat.currentHp > 0 && combat.dyingValue) {
+        combat.dyingValue = 0;
+        combat.woundedValue = (Number(combat.woundedValue) || 0) + 1;
+      }
       return { ...pf2, combat };
     }
     case 'set_temp_hp': {
