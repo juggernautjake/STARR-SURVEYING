@@ -36,6 +36,7 @@ import { dndAiConfigured } from '@/lib/dnd/ai';
 import { DEMO_CAMPAIGN_ID } from '@/lib/dnd/constants';
 import { resolvePreferences, type EffectivePreferences } from '@/lib/dnd/preferences';
 import { readCampaignPreferences } from '@/lib/dnd/campaign-preferences';
+import HouseRulesPanel from '@/app/dnd/_ui/HouseRulesPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -168,6 +169,9 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
         customCss={character.custom_css}
         preferences={effectivePreferences}
       />
+      {/* The campaign's active house rules, read-only (Area P3 scaffold) — so a player can see the rules in
+          force and which the DM locked. Only shown for a character in a campaign. */}
+      {effectivePreferences && <HouseRulesPanel preferences={effectivePreferences} />}
       {/* Ask the librarian ABOUT THIS CHARACTER. The system is pinned to the character's own, and
           passing characterId makes the chat adjudicate against the real sheet ("can I shove while
           grappled?") rather than answer about a generic character. Anyone who can see the sheet can

@@ -64,8 +64,11 @@ setting is system-aware where the mechanic differs by system.
       Proven end-to-end + source-anchored by `preferences-sheet-wiring.test.ts`; full suite green (1935).
       REMAINING: **P2b** player-side overrides (per-user-per-campaign store — needs a `dnd_campaign_members`
       jsonb column; the resolver already accepts the player object, it's just always empty today).
-- [ ] **P3 — Player preferences page.** UI to set a player's own prefs (only where the DM hasn't locked them);
-      locked settings show the DM's value, disabled, with "set by your DM".
+- [~] **P3 — Player preferences page.** IN PROGRESS. **P3a ✅ SHIPPED (read-only view)** — `HouseRulesPanel`
+      renders on the character sheet (when the character is in a campaign), showing every effective preference
+      with a human label and a 🔒 on any the DM locked. So a player can already SEE the rules in force, sourced
+      from the live P2c resolution. Guarded by `house-rules-panel.test.ts`. REMAINING (P3b): make the unlocked
+      rows editable — blocked on **P2b** (a per-player override store to save the player's choices into).
 - [x] **P4 — DM / campaign preferences page.** ✅ SHIPPED — `CampaignPreferencesDm.tsx`, a comprehensive
       panel in the DM-only campaign controls (`CampaignPageClient`). Every configurable setting is exposed —
       auto-apply mechanics (toggle) + exhaustion / long-rest / equipment-limits / dice-roller-style / roll-
