@@ -965,16 +965,19 @@ Decisions that stuck:
       and `computeAC` already do this correctly and are still uncalled) → belongs with Slice 15.
 - [ ] AC / speeds / HP max / save DC / initiative read the ledger (abilities, saves, skills and
       attacks now do).
-- [x] Equip validation (attunement limits, one body armour). **✅ SHIPPED 2026-07-17.** Attunement was
-      already validated (`canAttune` + `ATTUNEMENT_CAP`); added the equip-slot rules to
-      `engine/equipment.ts`: `canEquip(items, id)` enforces **one body armour at a time**, **one shield**,
-      and **two-handed-weapon vs shield mutual exclusion** (both directions), returning a reason string;
-      re-equipping something already on is a harmless no-op; unknown id → not ok. `equipChecked` equips
-      only when valid (a no-op on conflict, exactly mirroring `attune`). The character reducer's `equip`
-      case now routes through `equipChecked`, so the single mutation path can never reach an illegal
-      equipped state. Systems without a hard rule still return ok (per the ground rule). `equipment.test.ts`
-      +5. **Deferred within this item:** surfacing the `canEquip` reason as a toast in the Inventory UI is a
-      visual-polish follow-up — the invariant is already enforced at the reducer.
+- [~] Equip validation (attunement limits, one body armour). **RULE ✅ SHIPPED; live wiring ⏸ (corrected
+      2026-07-18).** Attunement was already validated (`canAttune` + `ATTUNEMENT_CAP`); added the equip-slot
+      rules to `engine/equipment.ts`: `canEquip(items, id)` enforces **one body armour at a time**, **one
+      shield**, and **two-handed-weapon vs shield mutual exclusion** (both directions), returning a reason
+      string; re-equipping something already on is a harmless no-op; unknown id → not ok. `equipChecked`
+      equips only when valid (a no-op on conflict, mirroring `attune`). `equipment.test.ts` +5 covers all of
+      it. **⚠ CORRECTION: the "single mutation path can never reach an illegal state" claim was wrong** — the
+      only caller of `equipChecked` is `engine/character.ts`, the DEAD `deriveCharacter` reducer no live
+      surface imports. The live equip paths (`ItemBuilder` checkbox, AI `equip_item`) don't call `canEquip`,
+      so illegal equipped states ARE reachable there (bounded: `deriveAc` still picks one armour for AC, but
+      item EFFECTS stack). Wiring it into the live paths needs a UX/refusal decision → owner/QA-gated, now
+      guarded by `equip-enforcement-gap.test.ts`. See the fuller finding under Slice 10's "Equipping is
+      validated" item above.
 
 ---
 
@@ -1064,14 +1067,20 @@ One pure function that every later slice reads. Nothing else in Part II can be b
       is the same browser-verified surface as the weapon builder (Slice 27), so it moves with that.
 - [~] Equipping is validated, not blind: attunement limits, "one body armour at a time", two-handed vs
       shield. Where a system has a hard rule, enforce it; where it doesn't, allow it and let the panel show
-      the truth. **"One body armour at a time" ✅ enforced + now guarded (2026-07-18):** `deriveAc` selects a
-      SINGLE body armor and a single shield (`.find`), so two equipped armors never sum their base ACs —
-      `derive-ac.test.ts` +2 pins it (two armors → the first only, not 18+14; two shields → one +2, not +4),
-      catching a `.filter/.reduce` regression that would double a character's armor. **Attunement limits
-      remain the owner's call** (BLOCKERS §A — the sheet Inventory has no attunement-slot model; the
-      `equipment.ts` cap is unused, tracked by `effect-target-render-gaps`). Two-handed-vs-shield has no
-      hard-rule enforcement by design (permissive — the panel shows the truth), consistent with this item's
-      "where it doesn't, allow it".
+      the truth. **The RULE is implemented + tested, but NOT wired to the live paths (finding 2026-07-18).**
+      `engine/equipment.ts` `canEquip`/`equipChecked` correctly refuse a second body armour, a second shield,
+      and a shield-with-a-two-handed-weapon (both directions), and `equipment.test.ts` covers all of it — BUT
+      `equipChecked` is only called by `engine/character.ts`, the DEAD `deriveCharacter` reducer no live
+      component/store imports. The LIVE equip paths — the `ItemBuilder` "Equipped" checkbox (`patch`→`onSave`,
+      no validation) and the AI `equip_item` (`sheet-edits.ts`, sets `equipped` unconditionally) — do NOT call
+      `canEquip`, so a player/AI CAN reach an illegal equipped state. Damage is bounded: `deriveAc` defensively
+      `.find`s ONE armour + one shield for AC (so no double-AC — `derive-ac.test.ts` +2 pins that, catching a
+      `.filter/.reduce` regression), but the LEDGER still applies every equipped item's EFFECTS, so two worn
+      magic armours both contribute. **Wiring `canEquip` into the live paths needs a UX decision** (refuse with
+      a message, like `rejectedEffects`? auto-swap the conflicting item? — a silent no-op would be the
+      "AI reports success, sheet unchanged" anti-pattern), so it's owner/QA-gated, tracked by
+      `equip-enforcement-gap.test.ts` (below). **Attunement limits** likewise: `canAttune`/`ATTUNEMENT_CAP`
+      exist + are tested but ride the same unwired reducer (BLOCKERS §A).
 - [x] Tests: base with no sources == the stored character; two items adding to one target stack; two `set`s
       take the highest; removing a source restores the base *exactly*. ✅ SHIPPED — all in
       `effect-ledger.test.ts` (the exact no-op case, add-stacking, highest-set-wins incl. the new `set_base`
