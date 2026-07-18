@@ -319,4 +319,10 @@ prefixes, and auto-suggests the next number/warns on duplicates for the Points s
 and untested. `__tests__/mobile/data-point-codes.test.ts` (13) pins `extractPrefix` (known/longest/unknown/
 null, case- and delimiter-aware), `lookupPrefix` (card entry vs the muted unknown fallback), `isKnownPrefix`,
 and `suggestNextName` (highest+1, bare prefix when none, width-widening BM099/BM100→BM101, 2-digit default,
-case-insensitive). Mobile suite green (126).
+case-insensitive). Mobile suite green (126). **Receipt money math guarded (2026-07-18):** `mobile/lib/money.ts`
+(`formatCents`/`parseCents` — the cents↔dollar-string conversion behind `receipts.total_cents` that feeds the
+Area-C receipt uploads) is financial-correctness-critical and was untested. `__tests__/mobile/money.test.ts`
+(9) pins the rounding-free formatting (cents zero-pad, thousands separators, negative sign, em-dash for
+null/non-finite), the tolerant-but-strict parser ($/comma/whitespace accepted; 3+ decimals, multiple dots,
+scientific notation, negatives, letters rejected; empty/`.` → null mid-typing), and the
+`parseCents(formatCents(x)) === x` round-trip. Mobile suite green (135).
