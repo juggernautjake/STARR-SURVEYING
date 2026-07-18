@@ -101,10 +101,21 @@ Make the mechanics the prefs name actually swappable, VANILLA BY DEFAULT.
       default is vanilla.
 
 ### Area E — Equip rules, live + toggleable (depends on P; `canEquip` already built + tested)
-- [ ] **E1 — Wire `canEquip`/`equipChecked` into the LIVE equip paths** (the `ItemBuilder` "Equipped"
-      checkbox + the AI `equip_item`), gated on `equipLimits === 'enforced'`. Refuse-with-reason UX (surface
-      the `canEquip` reason), not a silent no-op. (Resolves the `equip-enforcement-gap` + `BLOCKERS §A`.)
-- [ ] **E2 — Toggle:** `equipLimits: off` skips the check entirely (the panel still shows the truth).
+**OWNER DECISION (2026-07-17) — the refusal UX is an interactive CONFLICT DIALOG, not a plain refuse-with-reason.**
+When equipping X conflicts with what's worn, a clearly-laid-out popup appears that (a) explains the conflict in
+plain language ("you're already holding a sword and a shield"), and (b) offers **Cancel** plus a **swap** button
+for EACH conflicting item ("Unequip the sword & equip the axe", "Unequip the shield & equip the axe"). The
+player picks one and it executes immediately. Must be quick + easy to resolve for player/DM/user.
+
+- [x] **E1a — Conflict-detection + swap core (pure, live `InvItem` model).** ✅ SHIPPED — `lib/dnd/equip-
+      conflicts.ts`: `equipConflicts(items, id)` returns the currently-equipped items that would conflict
+      (one-body-armor, one-shield, two-handed-vs-shield), each with a plain-language reason; `resolveEquipSwap
+      (items, id, unequipIds)` unequips the chosen conflictor(s) and equips the target (pure, immutable).
+      Golden-pinned by `equip-conflicts.test.ts`.
+- [ ] **E1b — Conflict dialog + wiring.** The popup component (Cancel + per-conflict swap), shown from the live
+      equip toggle (`ItemBuilder` "Equipped" + inventory equip) when `equipLimits === 'enforced'` and conflicts
+      exist; wire the AI `equip_item` path to the same core.
+- [ ] **E2 — Toggle:** `equipLimits: off` skips the check entirely (equip freely; the panel still shows truth).
 - [ ] **E3 — Tests:** update the `equip-enforcement-gap` tracker → the live paths now enforce when on, allow
       when off.
 

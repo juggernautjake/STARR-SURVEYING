@@ -1,0 +1,76 @@
+// lib/dnd/equip-conflicts.ts — Phase 2, Area E1a. Equip-slot conflict detection on the LIVE sheet inventory
+// (InvItem), plus the swap that resolves one. Pure + immutable, so the conflict dialog (E1b) is all
+// presentation: it calls equipConflicts to build the choices, then resolveEquipSwap to apply the picked one.
+//
+// The rules enforced (5e): one body armor worn at a time · one shield · a two-handed weapon and a shield
+// can't be held together. `equipLimits: off` (a preference) means the caller skips this entirely.
+
+/** The subset of an inventory item this module needs — kept structural so it accepts the sheet's InvItem
+ *  without importing the full sheet types (and so tests can pass minimal fixtures). */
+export interface EquipConflictItem {
+  id: string;
+  name?: string;
+  kind?: string; // 'weapon' | 'armor' | 'shield' | 'consumable' | 'wondrous' | 'gear'
+  equipped?: boolean;
+  weapon?: { properties?: string[] } | null;
+  armor?: { category?: string } | null;
+}
+
+const isShield = (it: EquipConflictItem): boolean => it.kind === 'shield' || it.armor?.category === 'shield';
+const isBodyArmor = (it: EquipConflictItem): boolean => it.kind === 'armor' && it.armor?.category !== 'shield';
+const isTwoHanded = (it: EquipConflictItem): boolean =>
+  it.kind === 'weapon' && !!it.weapon?.properties?.includes('two-handed');
+
+const label = (it: EquipConflictItem): string => (it.name && it.name.trim()) || 'that item';
+
+/** One currently-equipped item that blocks equipping the target, with a plain-language reason the dialog
+ *  shows on its swap button. */
+export interface EquipConflict {
+  id: string;
+  name: string;
+  reason: string;
+}
+
+/**
+ * The currently-equipped items that would conflict with equipping `id`. Empty ⇒ equipping is free (no dialog
+ * needed). Re-equipping something already on, or an unknown id, yields no conflicts.
+ */
+export function equipConflicts(items: EquipConflictItem[], id: string): EquipConflict[] {
+  const target = items.find((i) => i.id === id);
+  if (!target || target.equipped) return [];
+  const others = items.filter((x) => x.equipped && x.id !== id);
+  const out: EquipConflict[] = [];
+
+  if (isBodyArmor(target)) {
+    for (const o of others) {
+      if (isBodyArmor(o)) out.push({ id: o.id, name: label(o), reason: `You're already wearing ${label(o)} as body armor.` });
+    }
+  }
+  if (isShield(target)) {
+    for (const o of others) {
+      if (isShield(o)) out.push({ id: o.id, name: label(o), reason: `You're already using ${label(o)} as a shield.` });
+      else if (isTwoHanded(o)) out.push({ id: o.id, name: label(o), reason: `You can't hold a shield while wielding ${label(o)} (two-handed).` });
+    }
+  }
+  if (isTwoHanded(target)) {
+    for (const o of others) {
+      if (isShield(o)) out.push({ id: o.id, name: label(o), reason: `You can't wield a two-handed weapon while using ${label(o)} (shield).` });
+    }
+  }
+  // De-dupe (a single item could match more than one branch in odd data).
+  return out.filter((c, i) => out.findIndex((d) => d.id === c.id) === i);
+}
+
+/**
+ * Apply a swap: unequip each id in `unequipIds`, then equip the target `id`. Pure — returns a new array,
+ * inputs untouched. Passing an empty `unequipIds` simply equips the target (used when there was no conflict,
+ * or `equipLimits: off`).
+ */
+export function resolveEquipSwap<T extends EquipConflictItem>(items: T[], id: string, unequipIds: string[]): T[] {
+  const drop = new Set(unequipIds);
+  return items.map((it) => {
+    if (it.id === id) return { ...it, equipped: true };
+    if (drop.has(it.id)) return { ...it, equipped: false };
+    return it;
+  });
+}
