@@ -661,7 +661,13 @@ now audited and guarded:
       exposes `systemClasses`/`systemClassNames`/`systemConditions`/`systemSpecies`/`systemSkills` for all
       four focus systems; the class/species pickers + the `ConditionTracker` (system conditions, PF2's
       numeric Frightened 2 etc.) + the glossary are all system-scoped, and PF2 has its own bespoke sheet +
-      ability model. **Cross-system leak guard added** (`8f34eed9`): `system-conditions-skills-scope.test.ts`
+      ability model. **⚑ PF2 skill math + armor-check-penalty conditional pinned (2026-07-18):**
+      `pf2SkillTotal` (used live by `pf2CharacterDigest`) had no direct assertion — its base formula
+      (attribute + level-based proficiency + item bonus) and, critically, its conditional armor-check
+      penalty (bulky armor reduces the STR/DEX physical skills Athletics/Acrobatics/Stealth/Thievery but
+      NOT knowledge skills, gated on each skill's `armorPenalty` flag) were untested. `pathfinder2e-rules.test.ts`
+      +2 pins both — an ACP that leaked onto Arcana, or never applied to Athletics, now fails a test.
+      Full dnd suite green (1867). **Cross-system leak guard added** (`8f34eed9`): `system-conditions-skills-scope.test.ts`
       (8) extends Ground Rule 1 to the condition + skill lists — PF2's Clumsy/Enfeebled/Off-Guard stay out
       of 5e, 5e's Charmed/Restrained out of PF2, IG's Heatstroke + Bluff-not-Deception unique — so a new
       condition/skill can't be authored without scoping it. **Remaining gap (deferred — data-model work):** the STANDARD sheet's `SavesSkills`

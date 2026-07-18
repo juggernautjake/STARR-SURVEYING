@@ -5,7 +5,7 @@ import {
   pf2MaxHp, pf2ArmorClass, pf2ClassDc, pf2SpellDc, pf2SpellAttack,
   pf2AttackBonus, pf2MultipleAttackPenalty, pf2LevelBasedDc, pf2Derived, pf2SpellSlots,
 } from '@/lib/dnd/systems/pathfinder2e/rules';
-import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
+import type { PF2Character, PF2Skill } from '@/lib/dnd/systems/pathfinder2e/model';
 
 /** A level-5 Dwarf Fighter with full-plate, a +0 rune, and a longsword — hand-computed PF2 numbers. */
 function fighter5(): PF2Character {
@@ -115,6 +115,25 @@ describe('pf2 spellcasting (level-5 Wizard-ish)', () => {
     c.attributes.INT = 4;
     expect(pf2SpellDc(c)).toBe(10 + 4 + (2 + 5));   // 21
     expect(pf2SpellAttack(c)).toBe(4 + (2 + 5));     // 11
+  });
+});
+
+describe('pf2 skill total + the armor-check-penalty conditional', () => {
+  const attrs = fighter5().attributes; // STR 4, DEX 1, CON 3, INT 0, WIS 2, CHA 0
+  const athletics: PF2Skill = { name: 'Athletics', attribute: 'STR', rank: 'trained', itemBonus: 0, armorPenalty: true };
+  const arcana: PF2Skill = { name: 'Arcana', attribute: 'INT', rank: 'trained', itemBonus: 1 }; // no armorPenalty flag
+
+  it('total = attribute + proficiency (rank bonus + level) + item bonus', () => {
+    // level 5, trained (+2 rank) → proficiency 7. Athletics: STR 4 + 7 = 11. Arcana: INT 0 + 7 + item 1 = 8.
+    expect(pf2SkillTotal(athletics, 5, attrs, 0)).toBe(4 + (2 + 5));
+    expect(pf2SkillTotal(arcana, 5, attrs, 0)).toBe(0 + (2 + 5) + 1);
+  });
+
+  it('the armor-check penalty bites ONLY armorPenalty skills (Athletics), never others (Arcana)', () => {
+    // A bulky-armor −2 reduces the STR/DEX physical skills (Athletics/Acrobatics/Stealth/Thievery) but NOT
+    // knowledge/social skills — pf2SkillTotal gates the penalty on the skill's own `armorPenalty` flag.
+    expect(pf2SkillTotal(athletics, 5, attrs, -2)).toBe(11 - 2); // 9 — the physical skill takes it
+    expect(pf2SkillTotal(arcana, 5, attrs, -2)).toBe(8);         // unchanged — Arcana ignores the ACP
   });
 });
 
