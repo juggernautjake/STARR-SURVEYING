@@ -13,7 +13,7 @@ import { blankIGCharacter, blankIGCompanion } from '@/lib/dnd/systems/intuitive-
 
 function fixture() {
   const ig = blankIGCharacter('Brannor');
-  ig.identity = { ...ig.identity, level: 6, className: 'Fighter', subclass: 'Champion', ancestry: 'Dwarf' };
+  ig.identity = { ...ig.identity, level: 6, className: 'Fighter', subclass: 'Champion', ancestry: 'Dwarf', background: 'Soldier' };
   ig.abilities = { ...ig.abilities, CON: 14 };
   ig.combat.hitPoints = { classBackgroundHp: 40, nonlethal: 3, lethal: 8 };
   ig.combat.damageReduction = 2;
@@ -34,11 +34,18 @@ function fixture() {
 describe('igCharacterDigest', () => {
   const d = igCharacterDigest(fixture());
 
-  it('names the character, its build and level', () => {
+  it('names the character, its build, level, and background', () => {
     expect(d).toMatch(/INTUITIVE GAMES CHARACTER: Brannor/);
     expect(d).toMatch(/Fighter \/ Champion/);
     expect(d).toMatch(/Dwarf/);
     expect(d).toMatch(/level 6/);
+    expect(d).toMatch(/Background: Soldier/); // narrative/context for social rulings
+  });
+
+  it('omits the Background clause when the character has none', () => {
+    const ig = fixture();
+    ig.identity = { ...ig.identity, background: '' };
+    expect(igCharacterDigest(ig)).not.toMatch(/Background:/);
   });
 
   it('states the ACTIVE stance WITH its resolved mechanical effect (advanced at level 5+)', () => {

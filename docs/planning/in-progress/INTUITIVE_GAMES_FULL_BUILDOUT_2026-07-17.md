@@ -387,7 +387,11 @@ expanded requirements (2026-07-17):
       the third combat reaction and the AI can't recall a bespoke IG one from its name. Now shows
       "DEFENSIVE POWER: <name> — <effect>" from `IG_DEFENSIVE_POWERS` for a recognized one; a custom power
       stays name-only (never invented). `ig-digest.test.ts` +1 (effect shown; custom → name-only). Full dnd
-      suite green (1857). **Remaining:**
+      suite green (1857). **Background added to the digest header (2026-07-18):** the identity line carried
+      class/subclass/specialization/ancestry but not the character's `background` — the one identity field the
+      AI didn't see for narrative/context rulings ("as a Soldier, would you know this?"). Now appends
+      "Background: <name>." when set, omitted otherwise. `ig-digest.test.ts` +2. Full dnd suite green (1888).
+      **Remaining:**
       the machine-readable effect model that the SHEET applies (B4/B5 mechanics).
 - [~] **B1 — Ancestry/traits in the builder + sheet.** IG ancestries selectable in the builder; the sheet
       renders each ancestry's full traits (from A5) with per-trait tooltips; size/speed-changing traits reflect

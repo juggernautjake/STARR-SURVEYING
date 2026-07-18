@@ -22,7 +22,8 @@ export function igCharacterDigest(ig: IGCharacter): string {
   const build = [id.className, id.subclass, id.specialization].filter(Boolean).join(' / ');
   lines.push(
     `INTUITIVE GAMES CHARACTER: ${id.name || 'Unnamed'}${build ? ` — ${build}` : ''}` +
-      `${id.ancestry ? ` (${id.ancestry})` : ''}, level ${id.level}.`,
+      `${id.ancestry ? ` (${id.ancestry})` : ''}, level ${id.level}.` +
+      `${id.background ? ` Background: ${id.background}.` : ''}`,
   );
 
   // Ancestry TRAITS with their full IG text — a ruling on "can you see in the dark?" turns on the
