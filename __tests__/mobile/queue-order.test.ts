@@ -46,6 +46,18 @@ describe('nextUpload — strict one-at-a-time', () => {
     expect(nextUpload([row({ id: 'a', paused: 1 })], env())).toBeNull();
     expect(nextUpload([], env())).toBeNull();
   });
+
+  it('a PRIORITIZED but Wi-Fi-blocked row does not stall the queue on cellular — the next eligible row uploads (C4 × KK)', () => {
+    // The real scenario: the surveyor prioritizes a big video (queue_position 1, require_wifi) but is on
+    // cellular. Eligibility is filtered BEFORE ordering, so the ineligible top-priority row is skipped and
+    // the lower-priority non-Wi-Fi row uploads — the queue never wedges on a row it can't send right now.
+    const rows = [
+      row({ id: 'vid', queue_position: 1, require_wifi: 1, created_at: 50 }), // prioritized, but Wi-Fi-only
+      row({ id: 'photo', queue_position: 2, created_at: 100 }),               // lower priority, cellular-ok
+    ];
+    expect(nextUpload(rows, env({ onWifi: false }))?.id).toBe('photo'); // on cellular → skip the video
+    expect(nextUpload(rows, env({ onWifi: true }))?.id).toBe('vid');    // on Wi-Fi → the priority video wins
+  });
 });
 
 describe('prioritize + reorder (user controls)', () => {

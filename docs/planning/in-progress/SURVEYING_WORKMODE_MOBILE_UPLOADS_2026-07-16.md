@@ -291,10 +291,12 @@ is a pure, tested function; the runtime is pure I/O around them.)*
       failure path) + a notify-frequency setting.
 - [x] **C7 — Tests. ✅ SHIPPED** (`__tests__/mobile/queue-order.test.ts` + `upload-failure-choices.test.ts`).
       The ordering engine is covered (strict one-at-a-time `nextUpload`, FIFO vs `queue_position`,
-      eligibility gating, prioritize + reorder — 8 tests), and the failure-choice engine is covered
-      (the three choices surface, save-local-forget removes the row while keeping the file, backoff/retry
-      stay eligible — 13 tests). The device-side drain-order/notification behavior these pure engines feed
-      remains a mobile-runtime concern tracked under C1/C2/C5.
+      eligibility gating, prioritize + reorder — 9 tests, +1 on 2026-07-18 pinning the **C4 × KK composition**:
+      a PRIORITIZED but Wi-Fi-only row does NOT stall the queue on cellular — eligibility is filtered before
+      ordering, so the next eligible row uploads, and the priority video only wins once on Wi-Fi), and the
+      failure-choice engine is covered (the three choices surface, save-local-forget removes the row while
+      keeping the file, backoff/retry stay eligible — 13 tests). The device-side drain-order/notification
+      behavior these pure engines feed remains a mobile-runtime concern tracked under C1/C2/C5.
 
 ---
 
