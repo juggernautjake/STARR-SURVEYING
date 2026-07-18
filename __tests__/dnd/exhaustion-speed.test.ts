@@ -46,18 +46,20 @@ describe('exhaustion reduces Speed through the ledger', () => {
   });
 });
 
-// The −2/level d20 penalty is applied at ROLL time in the store (not the ledger). Source-anchored,
-// since the roll callbacks are store hooks. Death saves were the one d20 test that skipped it.
+// The exhaustion d20 penalty is applied at ROLL time in the store (not the ledger), now via the edition +
+// model aware helper (Area M1b). Source-anchored, since the roll callbacks are store hooks. Death saves and
+// submitted initiative go through the same helper as every other d20 test. (The exact numbers are unit-tested
+// in mechanics-exhaustion.test.ts; the roll-time wiring detail lives in exhaustion-d20.test.ts.)
 describe('exhaustion applies to every d20 roll, including death saves', () => {
   const STORE = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_sheet/state/store.tsx'), 'utf8');
-  it('rollCheck reduces the d20 by 2 per exhaustion level', () => {
-    expect(STORE).toContain('rollD20(mod - 2 * exh');
+  it('rollCheck folds the exhaustion helper into the d20 modifier', () => {
+    expect(STORE).toContain('rollD20(mod + exhEff.penalty, mode, rollCritMin)');
   });
-  it('death saves take the SAME −2/level penalty (were the outlier)', () => {
-    expect(STORE).toContain("ledger.value('death_save', char.combat.deathSaveBonus) - 2 * exh");
+  it('death saves go through the SAME helper (were the outlier)', () => {
+    expect(STORE).toContain("ledger.value('death_save', char.combat.deathSaveBonus) + exhEff.penalty");
   });
-  it('the submitted encounter initiative takes the penalty too (initiative is a D20 Test)', () => {
+  it('the submitted encounter initiative uses the helper too (initiative is a D20 Test)', () => {
     const INITP = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_sheet/components/InitiativePrompt.tsx'), 'utf8');
-    expect(INITP).toContain('- 2 * (char.combat.exhaustion || 0)');
+    expect(INITP).toContain('+ exhInit.penalty');
   });
 });

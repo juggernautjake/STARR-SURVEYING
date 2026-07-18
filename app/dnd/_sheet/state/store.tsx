@@ -17,6 +17,7 @@ import { deriveAc, type AcResult } from '../lib/derive-ac'
 import { applyDeathSave } from '../lib/death-save'
 import { resolvePreferences, DEFAULT_CAMPAIGN_PREFERENCES, type EffectivePreferences } from '@/lib/dnd/preferences'
 import { hitDiceAfterLongRest } from '@/lib/dnd/mechanics/long-rest'
+import { exhaustionD20Effect, type Edition } from '@/lib/dnd/mechanics/exhaustion'
 
 // Per-character localStorage slot. A single shared key meant every standalone sheet
 // read and wrote the SAME cached character (originally Lazzuh's); keying by id keeps
@@ -66,6 +67,9 @@ interface Ctx {
   /** The effective preferences (campaign DM ∩ player) driving configurable mechanics + the dice style.
    *  Always present — the vanilla set when the sheet is standalone (Area P/M/D). */
   preferences: EffectivePreferences
+  /** The character's rules edition ('2014' | '2024'), derived from the system key — drives edition-specific
+   *  mechanics like the exhaustion model (Area M1). */
+  edition: Edition
   /** The BASE character as stored. Effects are never written into it — read `abilities`/`ledger`
    *  for what the character currently IS. Write through `setChar` as always. */
   char: Character
@@ -265,6 +269,10 @@ export function CharacterProvider({
 }) {
   // Effective preferences, defaulting to the vanilla set when none were supplied (standalone sheet).
   const prefs: EffectivePreferences = preferences ?? resolvePreferences(DEFAULT_CAMPAIGN_PREFERENCES)
+  // The exhaustion model + the character's edition decide how exhaustion bites a d20 test (Area M1). Edition
+  // comes from the system key ('dnd5e-2014' → 2014); anything else (incl. 2024) uses the 2024 rules.
+  const exhaustionModel = prefs.exhaustionModel.value
+  const edition: Edition = system?.includes('2014') ? '2014' : '2024'
   const dbMode = !!characterId
   // The character as first hydrated — the baseline `reset()` restores. Captured on the
   // initial load (DB or local) and never overwritten by later realtime/remote updates.
@@ -609,24 +617,26 @@ export function CharacterProvider({
 
   const rollCheck = useCallback(
     (label: string, mod: number, opts: RollD20Opts = {}) => {
-      const hasAdv = advMode === 'adv' || (recklessActive && !!opts.strMelee) || !!opts.advantage
-      const hasDis = advMode === 'dis' || !!opts.disadvantage
-      const mode: Advantage = hasAdv && hasDis ? 'flat' : hasAdv ? 'adv' : hasDis ? 'dis' : 'flat'
-      // Exhaustion: −2 to every d20 test per level (2024 rules), applied automatically.
-      // KNOWN EDITION GAP: this flat −2/level is applied regardless of the character's edition. It is
-      // correct for 2024, but 2014 exhaustion is a qualitatively different TIERED table (L1 disadvantage
-      // on ability checks, L3 on attacks/saves, speed/HP effects at other tiers) — which the AI grounding
-      // already describes (system-rules TIERED table), so the sheet currently contradicts it for a 2014
-      // character. Implementing the 2014 table is a player-facing behavior change → owner-gated (BLOCKERS §A);
-      // guarded as a tracked gap by exhaustion-d20.test.ts rather than silently applying the wrong model.
+      // Exhaustion (Area M1): the effective model + the character's edition decide how exhaustion bites a
+      // d20 test. 2024 / the flat option = −2 per level on every test; 2014 vanilla = the tiered table's
+      // DISADVANTAGE (ability checks at L1, attacks & saves at L3). The pure helper owns the rule; here we
+      // fold its result into the roll's modifier and the advantage mode.
       const exh = char.combat.exhaustion || 0
+      const exhKind = opts.kind === 'attack' ? 'attack' : opts.kind === 'save' ? 'save' : 'check'
+      const exhEff = exhaustionD20Effect(exhKind, exh, edition, exhaustionModel)
+      const hasAdv = advMode === 'adv' || (recklessActive && !!opts.strMelee) || !!opts.advantage
+      const hasDis = advMode === 'dis' || !!opts.disadvantage || exhEff.disadvantage
+      const mode: Advantage = hasAdv && hasDis ? 'flat' : hasAdv ? 'adv' : hasDis ? 'dis' : 'flat'
       // Only attack rolls consult the crit range; a check or save always crits on a 20 only.
       const rollCritMin = opts.kind === 'attack' ? critMin : 20
-      const r = rollD20(mod - 2 * exh, mode, rollCritMin)
+      const r = rollD20(mod + exhEff.penalty, mode, rollCritMin)
       const tags: string[] = []
       if (recklessActive && opts.strMelee) tags.push('RECKLESS')
       if (opts.advantage) tags.push('ADV')
-      if (exh > 0) tags.push(`EXH −${2 * exh}`)
+      if (exh > 0) {
+        if (exhEff.penalty) tags.push(`EXH ${exhEff.penalty}`)
+        else if (exhEff.disadvantage) tags.push('EXH (dis)')
+      }
       if (rollCritMin < 20) tags.push(`CRIT ${rollCritMin}–20`)
       if (opts.tag) tags.push(opts.tag)
       stage(
@@ -643,7 +653,7 @@ export function CharacterProvider({
         { landing: r.natural, min: 1, max: 20, isD20: true, crit: r.crit, fumble: r.fumble },
       )
     },
-    [advMode, recklessActive, char.combat.exhaustion, critMin, stage],
+    [advMode, recklessActive, char.combat.exhaustion, critMin, stage, edition, exhaustionModel],
   )
 
   const rollDmg = useCallback(
@@ -1027,18 +1037,19 @@ export function CharacterProvider({
   }, [longRestModel])
 
   const rollDeathSave = useCallback(() => {
-    // A death saving throw is a D20 Test, so exhaustion's −2/level applies here too (2024) — the same
-    // penalty rollCheck applies to every other d20. Without this, death saves were the one roll that
-    // ignored exhaustion. Nat 20 / nat 1 still read the NATURAL die, unaffected by the penalty.
+    // A death saving throw is a D20 Test (a save), so exhaustion applies here exactly as rollCheck applies it
+    // to every other d20 — via the same model+edition helper (Area M1). Nat 20 / nat 1 still read the NATURAL
+    // die, unaffected by any penalty.
     const exh = char.combat.exhaustion || 0
+    const exhEff = exhaustionD20Effect('save', exh, edition, exhaustionModel)
     // Fold the ledger's `death_save` target so an effect that grants a death-save bonus (a feat/item)
     // actually applies — like initiative folds `initiative`. No-op when nothing grants it.
-    const bonus = ledger.value('death_save', char.combat.deathSaveBonus) - 2 * exh
-    const r = rollD20(bonus, 'flat')
+    const bonus = ledger.value('death_save', char.combat.deathSaveBonus) + exhEff.penalty
+    const r = rollD20(bonus, exhEff.disadvantage ? 'dis' : 'flat')
     // One source of truth for the outcome: the log label AND the tracked success/failure counts both come
     // from applyDeathSave, so they can't drift (nat 20 regain+reset, nat 1 two failures, ≥10 success, cap 3).
     const outcome = applyDeathSave(char.combat, r.natural, r.total)
-    const tag = exh > 0 ? `${outcome.label} · EXH −${2 * exh}` : outcome.label
+    const tag = exh > 0 ? `${outcome.label} · EXH ${exhEff.penalty ? exhEff.penalty : '(dis)'}` : outcome.label
     stage(
       { label: 'Death Save', kind: 'save', total: r.total, breakdown: r.breakdown, crit: r.natural === 20, fumble: r.natural === 1, tag },
       { landing: r.natural, min: 1, max: 20, isD20: true, crit: r.natural === 20, fumble: r.natural === 1 },
@@ -1047,7 +1058,7 @@ export function CharacterProvider({
       const next = applyDeathSave(c.combat, r.natural, r.total)
       return { ...c, combat: { ...c.combat, deathSuccess: next.deathSuccess, deathFail: next.deathFail, currentHp: next.currentHp } }
     })
-  }, [char.combat, ledger, stage])
+  }, [char.combat, ledger, stage, edition, exhaustionModel])
 
   // A concentration save is a Constitution saving throw when you take damage while concentrating — DC 10,
   // or half the damage taken if that's higher (the DM sets the DC from the hit, so the roll shows the total
@@ -1086,6 +1097,7 @@ export function CharacterProvider({
 
   const value: Ctx = {
     preferences: prefs,
+    edition,
     char,
     abilities,
     ledger,

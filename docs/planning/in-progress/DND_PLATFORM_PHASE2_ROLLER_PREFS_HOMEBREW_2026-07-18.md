@@ -113,8 +113,14 @@ Make the mechanics the prefs name actually swappable, VANILLA BY DEFAULT.
         (ability checks at L1+, attacks & saves at L3+), no flat penalty. Plus `exhaustionSpeedPenalty` and
         `exhaustionCapsHpAt`/`exhaustionIsDead` for the non-d20 tiers. Golden-pinned by
         `mechanics-exhaustion.test.ts`.
-  - [ ] **M1b — Wire into the store** `rollCheck` (reads `preferences.exhaustionModel` + the character's
-        edition from `system`) + speed/HP for the 2014 tiers. Behavior change for 2014 chars is owner-authorized.
+  - [x] **M1b — Wire into the store.** ✅ SHIPPED — `rollCheck` now folds `exhaustionD20Effect(kind, exh,
+        edition, model)` into the modifier + advantage mode (2024/flat → −2/level; 2014 vanilla → tiered
+        disadvantage), and `rollDeathSave` + `InitiativePrompt` use the same helper. `edition` is derived from
+        the system key and exposed on the store context; `exhaustionModel` reads the effective preference.
+        Behavior change for 2014 chars is owner-authorized. `exhaustion-d20.test.ts` + `exhaustion-speed.test.ts`
+        rewritten from the old "tracked gap" to assert the new edition/model-aware wiring; full suite green
+        (1956). REMAINING (M1c, minor): apply the 2014 speed factor / HP-max-halving tiers to the sheet's
+        derived speed + max HP (the pure helpers `exhaustionSpeedFactor`/`exhaustionHpMaxFactor` exist).
 - [x] **M2 — Long-rest model selector.** ✅ SHIPPED — pure `hitDiceAfterLongRest(total, remaining, model)`
       in `lib/dnd/mechanics/long-rest.ts` (vanilla=full restore, half-hit-dice=2014 RAW half+min1, gritty/epic
       = amount unchanged), golden-pinned by `mechanics-long-rest.test.ts`. Wired into the sheet store's

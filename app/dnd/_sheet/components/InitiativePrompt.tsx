@@ -10,11 +10,12 @@ import { supabase } from '@/lib/supabase'
 import { useChar } from '../state/store'
 import { abilityMod } from '../rules/dnd'
 import { rollD20 } from '../lib/dice'
+import { exhaustionD20Effect } from '@/lib/dnd/mechanics/exhaustion'
 import { useCampaignChannel } from '@/app/dnd/_ui/useCampaignChannel'
 import { DEFAULT_INITIATIVE, type InitiativeFlavor } from '../registry'
 
 export default function InitiativePrompt({ flavor = DEFAULT_INITIATIVE }: { flavor?: InitiativeFlavor }) {
-  const { char, abilities, ledger, characterId, campaignId } = useChar()
+  const { char, abilities, ledger, characterId, campaignId, edition, preferences } = useChar()
   const [encounterId, setEncounterId] = useState<string | null>(null)
   const [manual, setManual] = useState(false)
   const [roll, setRoll] = useState<{ face: number; total: number } | null>(null)
@@ -25,11 +26,13 @@ export default function InitiativePrompt({ flavor = DEFAULT_INITIATIVE }: { flav
   const { ping } = useCampaignChannel(campaignId ?? null, 'initiative', () => {})
 
   // Effective initiative: ledger-folded DEX + any `initiative` effect (Alert-style), so a DEX item or an
-  // initiative boon changes the roll the player actually submits — not just the base DEX. Exhaustion's
-  // −2/level applies too: initiative is a DEX check (a D20 Test), and rollCheck already penalizes the
-  // StatRail's initiative roll — this is the SAME roll, submitted to the encounter's turn order.
+  // initiative boon changes the roll the player actually submits — not just the base DEX. Exhaustion applies
+  // too: initiative is a DEX check (a D20 Test), penalized the same way rollCheck penalizes it (Area M1). The
+  // flat penalty (2024 / the flat option) reduces this submitted turn-order value; the 2014 tiered model uses
+  // disadvantage, which has no flat effect on a submitted number (it applies when the die is actually rolled).
+  const exhInit = exhaustionD20Effect('check', char.combat.exhaustion || 0, edition, preferences.exhaustionModel.value)
   const initBonus =
-    ledger.value('initiative', abilityMod(abilities.dex) + (char.combat.initiativeMisc || 0)) - 2 * (char.combat.exhaustion || 0)
+    ledger.value('initiative', abilityMod(abilities.dex) + (char.combat.initiativeMisc || 0)) + exhInit.penalty
   const bonusStr = initBonus >= 0 ? `+${initBonus}` : `${initBonus}`
 
   useEffect(() => {
