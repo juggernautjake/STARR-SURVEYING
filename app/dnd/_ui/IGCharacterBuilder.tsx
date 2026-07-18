@@ -10,7 +10,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import { igCatalog } from '@/lib/dnd/systems/intuitive-games/catalog';
-import { igCreaturesByGroup, IG_BACKGROUND_DEFS, IG_CLASS_DETAILS, findIGClassDetail } from '@/lib/dnd/systems/intuitive-games/content';
+import { igCreaturesByGroup, IG_BACKGROUND_DEFS, IG_CLASS_DETAILS, findIGClassDetail, igClassPowerEffect } from '@/lib/dnd/systems/intuitive-games/content';
 import { igParentClasses, igSubclassesOf } from '@/lib/dnd/systems/intuitive-games/taxonomy';
 import { classifyElement, type ElementKind } from '@/lib/dnd/provenance';
 
@@ -158,8 +158,26 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
             {detailRow('Stance', classDetail.grantedStance)}
             {detailRow('Defensive power', classDetail.defensivePower)}
             {detailRow('Starting power', classDetail.startingPower)}
-            {classDetail.powers?.length ? detailRow('Powers', classDetail.powers.join(', ')) : null}
-            {classDetail.specializations?.length ? detailRow('Specializations', classDetail.specializations.map((s) => s.split(' (')[0]).join(', ')) : null}
+            {/* Powers/specializations render as chips, each carrying its verbatim effect text as a hover
+                tooltip (from IG_CLASS_POWER_EFFECTS) — so the class is "hooked up": you see what a power DOES
+                at pick-time, not just its name. A chip with known effect gets a dotted underline + help cursor. */}
+            {classDetail.powers?.length ? (
+              <div><span style={{ color: 'var(--hx-muted)' }}>Powers: </span>
+                {classDetail.powers.map((p, i) => {
+                  const eff = igClassPowerEffect(p);
+                  return <span key={p}>{i > 0 ? ', ' : ''}<span title={eff ?? 'Effect text not captured yet.'} style={{ color: 'var(--hx-ink)', cursor: eff ? 'help' : 'default', borderBottom: eff ? '1px dotted var(--hx-line)' : 'none' }}>{p}</span></span>;
+                })}
+              </div>
+            ) : null}
+            {classDetail.specializations?.length ? (
+              <div><span style={{ color: 'var(--hx-muted)' }}>Specializations: </span>
+                {classDetail.specializations.map((s, i) => {
+                  const bare = s.split(' (')[0];
+                  const eff = igClassPowerEffect(bare) ?? (s.includes('(') ? s.slice(s.indexOf('(') + 1, s.lastIndexOf(')')) : undefined);
+                  return <span key={s}>{i > 0 ? ', ' : ''}<span title={eff ?? 'Effect text not captured yet.'} style={{ color: 'var(--hx-ink)', cursor: eff ? 'help' : 'default', borderBottom: eff ? '1px dotted var(--hx-line)' : 'none' }}>{bare}</span></span>;
+                })}
+              </div>
+            ) : null}
             {classDetail.note ? <div style={{ color: 'var(--hx-muted)', fontStyle: 'italic' }}>{classDetail.note}</div> : null}
           </div>
         )}

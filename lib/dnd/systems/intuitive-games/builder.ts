@@ -7,7 +7,7 @@
 // by the provenance classifier — no special-casing needed. Pure — no services.
 import type { Character } from '@/app/dnd/_sheet/types';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
-import { IG_STANCES, IG_POWERS, IG_FEATS, IG_DEFENSIVE_POWERS, IG_COMBAT_SKILLS } from './content';
+import { IG_STANCES, IG_POWERS, IG_FEATS, IG_DEFENSIVE_POWERS, IG_COMBAT_SKILLS, igClassPowerEffect } from './content';
 import { blankIGCharacter, blankIGCompanion, type IGCharacter, type IGAttack, type IGAbilityKey } from './model';
 import { systemSkills } from '../../system-rules';
 
@@ -113,7 +113,10 @@ export function assembleIGVanillaCharacter(picks: IGPicks): Character & { igBuil
   const features: Character['features'] = [];
   for (const s of picks.stances ?? []) features.push({ id: uid('stance'), name: s, source: 'Stance', body: [effectOf(IG_STANCES, s) || 'Stance.'], tone: 'teal' });
   if (picks.defensivePower) features.push({ id: uid('defpow'), name: picks.defensivePower, source: 'Defensive Power', body: [effectOf(IG_DEFENSIVE_POWERS, picks.defensivePower) || 'Defensive power (reaction).'], tone: 'gold' });
-  for (const pw of picks.powers ?? []) features.push({ id: uid('power'), name: pw, source: 'Power', body: [effectOf(IG_POWERS, pw) || 'Power.'], tone: 'pink' });
+  // Effect text: prefer the spell/power roster (IG_POWERS), then the class power ladder
+  // (IG_CLASS_POWER_EFFECTS via igClassPowerEffect) so a class power like Surge/Challenge/Aspect lands
+  // with its rules text on the sheet, not a bare "Power." A genuinely unknown/custom one stays name-only.
+  for (const pw of picks.powers ?? []) features.push({ id: uid('power'), name: pw, source: 'Power', body: [effectOf(IG_POWERS, pw) || igClassPowerEffect(pw) || 'Power.'], tone: 'pink' });
   for (const f of picks.feats ?? []) features.push({ id: uid('feat'), name: f, source: 'Feat', body: [effectOf(IG_FEATS, f) || 'Feat.'] });
   char.features = features;
 

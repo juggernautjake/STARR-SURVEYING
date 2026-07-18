@@ -14,7 +14,7 @@ import { BACKGROUNDS_2024, type Background as Dnd2024Background } from './backgr
 import { LANGUAGES_2024, TOOLS_2024, type Language as Dnd2024Language, type Tool as Dnd2024Tool } from './languages/dnd5e-2024';
 import { SPECIES_2024 } from './species/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
-import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, IG_COMPANION_TYPES, IG_COMPANION_RULES, IG_BACKGROUND_DEFS, IG_CLASS_RULES, IG_CLASS_DETAILS, IG_REDISTRIBUTION_RULES, type NamedEntry, type IGStance, type IGAncestry, type IGCompanionType, type IGBackground } from './systems/intuitive-games/content';
+import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, IG_COMPANION_TYPES, IG_COMPANION_RULES, IG_BACKGROUND_DEFS, IG_CLASS_RULES, IG_CLASS_DETAILS, IG_CLASS_POWER_EFFECTS, IG_REDISTRIBUTION_RULES, type NamedEntry, type IGStance, type IGAncestry, type IGCompanionType, type IGBackground } from './systems/intuitive-games/content';
 import { igAllFeats, type IGFeat } from './systems/intuitive-games/feats';
 import { igAncestryArt, IG_ART_CREDIT } from './systems/intuitive-games/art';
 import { homebrewLibrarySection } from './homebrew/projection';
@@ -304,6 +304,15 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
         `Per-class detail (${IG_CLASS_DETAILS.length} entries):`,
         ...detailLines,
       ],
+    });
+    // Class-power effect text (scraped from /classes) — the effects behind every power name the classes
+    // above list, so the library page + AI grounding can explain what a power DOES, not just name it.
+    const powerRows = Object.entries(IG_CLASS_POWER_EFFECTS).sort((a, b) => a[0].localeCompare(b[0]));
+    sections.push({
+      id: 'class-powers',
+      title: 'Class Powers',
+      lead: `Effect text for the ${powerRows.length} class powers, specializations, and redistribution materials the classes above grant.`,
+      table: { headers: ['Power', 'Effect'], rows: powerRows.map(([name, effect]) => [name, effect]) },
     });
   } else if (r.content.classes.length) {
     const hpHeader = r.content.classes.some((c) => c.hitDie != null) ? 'Hit die' : 'HP / level';

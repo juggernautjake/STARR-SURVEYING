@@ -458,11 +458,26 @@ describe('Intuitive Games classes surface fully on the library (IG buildout A10)
     expect(sohei).toMatch(/Precise stance/);
     expect(sohei).toMatch(/Counterattack defensive power/);
     expect(sohei).toMatch(/Flurry/); // a listed power
-    // Magic group: Wizard is a class with a starting power; Arcanist a subclass; Magician/Shaman flagged WIP.
+    // Magic group: Wizard is a class with a starting power; Arcanist/Magician/Shaman are its subclasses,
+    // now fully built from the 2026-07-18 /classes scrape (no longer WIP stubs).
     const wizard = classes.body!.find((b) => b.startsWith('Wizard'));
     expect(wizard).toMatch(/Elemental Blast/);
     expect(classes.body!.find((b) => b.startsWith('Arcanist'))).toMatch(/subclass of Wizard/);
-    expect(classes.body!.find((b) => b.startsWith('Magician'))).toMatch(/work in progress|not captured/i);
+    const magician = classes.body!.find((b) => b.startsWith('Magician'));
+    expect(magician).toMatch(/Shifting stance/);
+    expect(magician).toMatch(/Misdirection defensive power/);
+    expect(magician).not.toMatch(/work in progress|not captured/i);
+    const shaman = classes.body!.find((b) => b.startsWith('Shaman'));
+    expect(shaman).toMatch(/Life Connection defensive power/);
+  });
+
+  it('exposes a Class Powers section with scraped effect text (Surge, Magical Healing, …)', () => {
+    const powers = libraryPageFor('intuitive-games')!.sections.find((s) => s.id === 'class-powers')!;
+    expect(powers.table!.headers).toEqual(['Power', 'Effect']);
+    const surge = powers.table!.rows.find((r) => r[0] === 'Surge');
+    expect(surge?.[1]).toMatch(/increase any two physical ability scores/i);
+    const heal = powers.table!.rows.find((r) => r[0] === 'Magical Healing');
+    expect(heal?.[1]).toMatch(/heal/i);
   });
 });
 

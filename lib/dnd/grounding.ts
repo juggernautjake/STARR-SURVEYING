@@ -8,7 +8,7 @@ import { systemRulesBlock } from './system-rules';
 import { glossaryFor, type GlossaryEntry } from './glossary';
 import { FEATS_2024 } from './feats/dnd5e-2024';
 import { igAllFeats } from './systems/intuitive-games/feats';
-import { IG_POWERS, IG_DEFENSIVE_POWERS } from './systems/intuitive-games/content';
+import { IG_POWERS, IG_DEFENSIVE_POWERS, IG_CLASS_POWER_EFFECTS } from './systems/intuitive-games/content';
 import { homebrewGrounding } from './homebrew/projection';
 import { HOMEBREW_SEEDS } from './homebrew/seeds';
 import { IG_CLASS_TAXONOMY } from './systems/intuitive-games/taxonomy';
@@ -82,6 +82,9 @@ function matchPowers(system: string, keywords: string, limit: number): { name: s
   const corpus = [
     ...IG_POWERS.map((p) => ({ name: p.name, school: p.category ?? 'Power', effect: p.effect })),
     ...IG_DEFENSIVE_POWERS.map((p) => ({ name: p.name, school: 'Defensive Power', effect: p.effect })),
+    // Class powers/specializations (Surge, Challenge, Aspect, Magical Healing, …) — so "how does my Surge
+    // work?" grounds on the scraped effect text, not nothing. Name-only class powers never reach here.
+    ...Object.entries(IG_CLASS_POWER_EFFECTS).map(([name, effect]) => ({ name, school: 'Class Power', effect })),
   ];
   return corpus
     .filter((p) => {
