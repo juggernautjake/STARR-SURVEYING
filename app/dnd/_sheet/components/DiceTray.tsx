@@ -27,9 +27,12 @@ export default function DiceTray() {
   }, [rollToken])
   const [diceCount, setDiceCount] = useState(1)
   const [muted, setMutedState] = useState(isMuted())
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  // `w` pins the tray's on-screen width captured the instant dragging begins, so going from the docked
+  // (width:100%) layout to floating never shrinks or reflows it — it just detaches and moves (owner request).
+  const [pos, setPos] = useState<{ x: number; y: number; w: number } | null>(null)
   const trayRef = useRef<HTMLDivElement>(null)
   const dragOff = useRef<{ dx: number; dy: number } | null>(null)
+  const dragWidth = useRef<number | null>(null)
 
   const combat = char.combat
   const topForm = char.forms.find((f) => f.id === topFormId)
@@ -48,18 +51,19 @@ export default function DiceTray() {
     if (!el) return
     const rect = el.getBoundingClientRect()
     dragOff.current = { dx: e.clientX - rect.left, dy: e.clientY - rect.top }
-    setPos({ x: rect.left, y: rect.top })
+    // Capture the CURRENT rendered width and hold it through the drag so the tray keeps its exact size.
+    dragWidth.current = rect.width
+    setPos({ x: rect.left, y: rect.top, w: rect.width })
     window.addEventListener('pointermove', onDragMove)
     window.addEventListener('pointerup', onDragEnd)
   }
   const onDragMove = (e: PointerEvent) => {
     if (!dragOff.current) return
-    const el = trayRef.current
-    const w = el?.offsetWidth ?? 366
-    const h = el?.offsetHeight ?? 300
+    const w = dragWidth.current ?? trayRef.current?.offsetWidth ?? 366
+    const h = trayRef.current?.offsetHeight ?? 300
     const x = Math.min(window.innerWidth - w - 6, Math.max(6, e.clientX - dragOff.current.dx))
-    const y = Math.min(window.innerHeight - 44, Math.max(6, e.clientY - dragOff.current.dy))
-    setPos({ x, y })
+    const y = Math.min(window.innerHeight - h - 6, Math.max(6, e.clientY - dragOff.current.dy))
+    setPos({ x, y, w })
   }
   const onDragEnd = () => {
     dragOff.current = null
@@ -76,7 +80,7 @@ export default function DiceTray() {
   }
 
   const posStyle = pos
-    ? { position: 'fixed' as const, left: pos.x, top: pos.y, right: 'auto' as const, bottom: 'auto' as const }
+    ? { position: 'fixed' as const, left: pos.x, top: pos.y, right: 'auto' as const, bottom: 'auto' as const, width: pos.w, maxWidth: 'calc(100vw - 12px)' as const }
     : undefined
 
   return (
