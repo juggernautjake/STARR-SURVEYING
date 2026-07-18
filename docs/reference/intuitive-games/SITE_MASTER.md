@@ -25,26 +25,24 @@ Everything the automated scrub **can't** pull faithfully, so you know exactly wh
 **(T)** the text-fetch tool declined to reproduce long verbatim rules text → you can **copy-paste it from the
 site**; **(S)** the content is a **work-in-progress / not published** on the site → only Brendan has it.
 
-1. **(T) Full spell effect text — `/spell-list`.** I have all spell NAMES by school, but not the
-   Description / Advanced / Expert effect text for each. **Please paste the spell list's full text** (or send
-   Brendan's source doc) so every spell gets its exact effects + tiers. This list is computed from the code
-   (`igSpellsMissingEffects()`) and guarded by `ig-content-gaps.test.ts`, so it stays current as text lands.
-
-   **26 powers still need effect text** (name-only in the app today, shown as "work in progress"):
-   Natural Ally, Elemental Blade, Detect Thoughts/Emotions, Trace, Unburdened Vision, Comprehend, Mindlink,
-   Named Bullet, Calm, Erase Memory, Hold Creature, Mind Scream, Destruction, Repeating Blast, Radiance,
-   Spectral Sling, Vitality, Wave Crash, Disguise, Burst, Carapace Growth, Creature Morph, Item Shift,
-   Poison Dart, Quick Claw, Temporary Weapon.
-
-   **9 powers the app carries that are NOT on the current site roster** — likely renames/removals; please
-   confirm each is dropped or tell me its current name so I can reconcile (kept, not deleted, until you say):
+1. **✅ RESOLVED (2026-07-18) — Full spell effect text `/spell-list`.** A Playwright pass pulled **all 55 spells**
+   with their full **Description / Advanced / Expert** text directly from the Squarespace accordion DOM (the
+   content is present even when collapsed — no per-toggle clicking needed). Saved verbatim to
+   `ig-spells-scraped.json`. `igSpellsMissingEffects()` now returns **0** — every roster spell's Description is
+   in `IG_POWERS`. *(The 26 formerly-"WIP" powers — Natural Ally, Named Bullet, Trace, Mind Scream, Carapace
+   Growth, Poison Dart, … — were already filled in an earlier session; this scrape re-confirms them + adds the
+   Advanced/Expert tier text as an available enrichment.)*
+   **Still open — 9 powers the app carries that are NOT on the current site roster** (likely renames/removals):
    Mage Armor, Misdirection, Life Connection, Companion Shield, Material Shield, Detect Thoughts,
-   Elemental Blast, Piercing Element, Wide Blast.
-2. **(T/S) Full per-class feature ladders — `/classes`.** I captured each class's key ability, HP, granted
-   stance, defensive power, notable-power NAMES, and specialization names. I do **not** have: the full
-   **per-level (1–10) progression** for each class, nor the detailed effect text of each class power. Also
-   **Champion, Magician, and Shaman** had no detail on the fetched page. **Please paste each class's full
-   writeup** (or confirm what's still WIP).
+   Elemental Blast, Piercing Element, Wide Blast. Kept, not deleted, until you confirm each is dropped or give
+   its current name.
+2. **✅ SCRAPED (2026-07-18) — Per-class detail `/classes`.** A Playwright pass captured **all 18 classes/
+   subclasses**, each with granted stance, defensive power + effect, and the **full effect text of every class
+   power** — saved to `ig-classes-scraped.json`. This **includes Champion, Magician, and Shaman**, which are now
+   published on the page (they had no detail on the earlier fetch). **Clarification:** the site publishes **no
+   per-level (1–10) progression table** — classes are power-list based, so there is no level-by-level ladder to
+   scrape; the powers + effects ARE the per-class detail. **Remaining is integration** (folding the scraped power
+   effect text into `IG_CLASS_DETAILS`, which today carries power names only) — a build slice, not a content gap.
 3. **(DECISION) Class vs subclass taxonomy.** The site is structured as **4 parent classes** (Archon, Conduit,
    Fighter, Wizard) each with subclasses. The app models a flat 13-class list. **I need your decision** on
    restructuring to match the site (it touches the builder, provenance, and seeds).

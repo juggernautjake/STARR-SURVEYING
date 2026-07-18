@@ -78,13 +78,25 @@ overwrite a deliberate design.
 
 ## B. Content only you / Brendan have (paste it and I fill it in)
 
-- [ ] **26 Intuitive Games power effect texts** — the powers shown as "work in progress" in-app today.
-      Exact list is enumerated + guarded in `docs/reference/intuitive-games/SITE_MASTER.md` item 1
-      (and `ig-content-gaps.test.ts`). Paste each power's Description/Advanced/Expert text.
-- [ ] **9 off-roster IG powers to reconcile** — app carries them, the current site roster doesn't; confirm
-      dropped or give current names. Also in `SITE_MASTER.md` item 1.
-- [ ] **Per-class feature ladders (IG)** — full level 1–10 progression + power effect text per class, incl.
-      Champion / Magician / Shaman (no detail on the fetched page). `SITE_MASTER.md` item 2.
+- [x] ~~**26 Intuitive Games power effect texts.**~~ **RESOLVED (verified 2026-07-18): all 55 roster spells
+      are in `IG_POWERS` with their full Description text** — the "26 missing" was stale (filled in an earlier
+      session). Re-confirmed by a fresh **Playwright scrape of `/spell-list`** (the Squarespace accordions hold
+      their content in the DOM even collapsed, so all Description/Advanced/Expert text pulls cleanly — saved to
+      `docs/reference/intuitive-games/ig-spells-scraped.json`). `igSpellsMissingEffects()` now returns 0.
+      **One enrichment available (queued):** the app stores only each spell's Description; the scrape ALSO
+      captured the **Advanced + Expert tier text**, which could be added to enrich the powers with their tier
+      progression — a follow-up, not a blocker.
+- [ ] **9 off-roster IG powers to reconcile** — app carries them, the current site roster doesn't (renames/
+      removals from the site). Kept, not deleted, until you confirm each is dropped or give its current name.
+      Also in `SITE_MASTER.md` item 1.
+- [~] **Per-class detail (IG) — SCRAPED (2026-07-18):** re-Playwrighted `/classes` — all 18 classes/subclasses
+      now pull cleanly (accordion content is in the DOM), **including Champion, Magician, and Shaman** (which
+      previously had no detail on the fetched page). Each class's granted stance, defensive power + effect, and
+      **full power effect text** are captured → `docs/reference/intuitive-games/ig-classes-scraped.json`.
+      **Clarification:** the site has **no per-level (1–10) progression table** — classes are power-list based, so
+      "the level-by-level ladder" doesn't exist to scrape; the powers + effects ARE the per-class detail, and
+      they're now available. **Remaining is integration** (folding the scraped power effect text into
+      `IG_CLASS_DETAILS`, which today carries power NAMES) — a build slice, no longer blocked on content.
 - [ ] **Other IG unpublished content** — combat-skill mechanics beyond Dirty Trick, named weapons,
       equipment/tools tables, FAQs, companion combat rules, Sprite/Human race art. `SITE_MASTER.md` items 4–11.
 
