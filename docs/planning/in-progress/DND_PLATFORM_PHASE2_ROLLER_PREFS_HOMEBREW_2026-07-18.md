@@ -75,6 +75,16 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
 - [ ] **IGS5 — Build out the rest.** Wire the scraped class ladders (→ Area T taxonomy), skill mechanics,
       backgrounds/cultures, core-rules tables, equipment/armor/weapon/magic-item data into the app + library,
       well-formatted, each verbatim from the site; carry empty items as "coming soon".
+- [x] **IGS4b — All content verbatim from the site (owner 2026-07-17).** ✅ SHIPPED — audited IG_POWERS vs
+      the scrape and replaced 28 paraphrased roster effects with Brendan's verbatim text (all 54 roster spells
+      verbatim; 9 off-roster kept + flagged, nothing invented). Art credit corrected to "Art by Jacob ·
+      commissioned by Brendan". ONGOING: keep auditing every IG module (feats, ancestries, conditions,
+      stances, items) against the scraped reference docs for any non-verbatim/invented text.
+- [ ] **IGS7 — IG library page quality (owner 2026-07-17).** Owner: each section of the IG library must be
+      (a) fully built, (b) contain ONLY correct site-sourced info, (c) be interactive where it should be, and
+      (d) be formatted/styled in an intuitive, easy-to-read way — "right now it is not that way." A per-section
+      pass: verify completeness vs the scrape, strip any non-site content, improve the formatting/interaction.
+      (Overlaps Area SQ1/SQ2 for IG.)
 - [ ] **IGS6 — EVERYTHING interactable on the character sheet (owner 2026-07-17).** Owner: make sure ALL
       actions, ancestry traits, stances, spells, class abilities/buffs, leveling, HP, attack, AC, armor,
       weapons, starting equipment, feats, conditions — literally everything — is built into the sheet and
@@ -235,9 +245,12 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       total + crit/fumble + (with a DC) the four-step `degree` for IG/PF2 (the shared ladder, extracted as
       `fourStepDegree`) or meet-or-beat `success` for others. `clampNatural` guards bad manual entry;
       `rollNaturalD20` isolates the only randomness. Golden-pinned by `roll-engine.test.ts` (8).
-- [ ] **R1b — Wire the engine into the bespoke sheets.** Tapping a check/save/attack/skill on the IG/PF2 sheet
-      calls `resolveD20Roll` with that line's modifier (from `igResolveAttack`/`pf2AttackBonus`/…) + the
-      target DC, logs the result. (The pure engine + the per-system modifier math both exist; this is the UI.)
+- [x] **R1b — Wire the engine into the bespoke sheets.** ✅ SHIPPED (IG + PF2). Both bespoke sheets now
+      tap-to-roll on **ability checks (IG), saves, skills, attacks/Strikes (to-hit) AND damage** — d20 rolls
+      via `resolveD20Roll`, damage via `rollDiceExpr` (dice-expression engine), shown in a shared
+      `{label,total,detail,tone}` banner. Guarded by `ig-sheet-roller.test.ts` + `pf2-sheet-roller.test.ts`.
+      REMAINING (R1b tail): a **target-DC field** to surface the four-step degree of success (the engine
+      already returns `degree` when a DC is supplied) — a small follow-up.
 - [ ] **R2 — Auto-mechanics toggle.** When on, active conditions/stances/exhaustion fold into every roll;
       when off, the sheet shows the modifiers but the player applies them. Reads the `autoMechanics` pref.
 - [ ] **R3 — Manual roll input.** Enter a d20/dice result by hand; the sheet folds the character's modifiers.
@@ -258,6 +271,57 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       WebGL or CSS-3D roller. Themeable per D1. Falls back to a static roll on reduced-motion / no-WebGL.
 - [ ] **D3 — Tests / visual:** the pure roll result is unchanged by the skin (source-anchored); visual polish
       is in-app.
+
+### Area HIDE — Hide the non-playable systems site-wide (owner 2026-07-18)
+> Owner: only four systems are ready — D&D 2024, D&D 2014, Pathfinder 2e, Intuitive Games. Every other system
+> (PF1e, Starfinder, CoC7e, Blades, Cyberpunk RED, Shadowrun 6e) must be **fully hidden** everywhere — pages,
+> buttons, mentions, transpose targets, builders. KEEP the code/data, just hide. The library shows "more
+> systems + their character-sheet builders coming soon" in their place.
+
+- [x] **HIDE1 — Library.** ✅ SHIPPED — `allLibraryPages()` filters to `isSystemAvailable`; the per-system
+      library page 404s for non-playable keys; `generateStaticParams` only emits playable keys; the index
+      shows a "◆ More systems coming soon" card. Guarded by `library.test.ts`.
+- [x] **HIDE2 — Character builder / New Character.** ✅ SHIPPED — `NewCharacterForm`'s system `<select>` maps
+      `GAME_SYSTEMS.filter(isSystemAvailable)`, so only the four are buildable.
+- [x] **HIDE3 — System switcher / transpose.** ✅ SHIPPED — `SystemSwitcher`'s list is ambiguous + the four
+      available + (defensively) the character's current system; a hidden system can't be a build/transpose
+      target (was previously shown-but-disabled).
+- [x] **HIDE4 — Campaign.** ✅ SHIPPED — `NewCampaignButton` dropped its "under construction (coming later)"
+      optgroup; only the four available systems are offered.
+- [x] **HIDE5 — Guards/tests.** ✅ SHIPPED — `hidden-systems.test.ts`: the available set is exactly the four,
+      the others stay registered but hidden, the library only builds available pages, and each listing surface
+      filters to available. **Area HIDE complete** (library HIDE1 + builder + switcher + campaign + guards).
+
+### Area TR — Character transpose UX + AI custom-content build (owner 2026-07-17)
+> Owner intent: when transposing a character into another system, show an **animation/confirmation** that it's
+> working, then a clear **"done" notification**. If custom content is allowed for that character OR its
+> campaign (incl. campaigns it's been invited to), first **prompt**: "OK for the AI to create custom content
+> to make this character work in the new system?" If yes, the AI (a) reads the WHOLE target system first,
+> (b) builds the character with the vanilla system as far as possible, (c) creates balanced custom
+> classes/ancestries/feats/stances/spells/abilities only where needed to preserve the character's
+> vibe/persona/abilities, and (d) validates every custom piece against the system's mechanics + balance before
+> committing (as close to the system's mechanics as possible).
+
+- [x] **TR1 — Transpose progress + completion UX.** ✅ SHIPPED — `SystemSwitcher` now runs a working→done
+      lifecycle for a transpose (not an instant switch): a spinner + animated indeterminate progress bar
+      (`.transposeBar`) with "The AI is reading {system}'s rules and rebuilding…" while it builds, then an
+      obvious `role="status"` success banner ("✓ Transposed into {system} — now active!") with a dismiss.
+      Guarded by `transpose-progress.test.ts`. REMAINING for TR1: a vanilla-vs-custom summary in the done
+      banner (arrives with TR3 when the route reports what it built).
+- [x] **TR2 — Custom-content consent prompt.** ✅ SHIPPED — before an AI transpose, when custom is allowed
+      (the character's campaign isn't vanilla-only; no campaign → allowed), `SystemSwitcher` shows a
+      `role="dialog"` prompt: "Transpose into {system} — allow custom content?" explaining vanilla-first +
+      balanced custom, with **Yes — allow balanced custom / No — vanilla only / Cancel**. The choice is passed
+      to the route as `allowCustom`. An instant switch (already-built system) skips the prompt; a vanilla-only
+      campaign transposes best-effort vanilla without asking. The page passes `allowCustom` from the campaign's
+      `allow_custom`. Guarded by `transpose-progress.test.ts`. REMAINING: **TR3** — the route/AI actually
+      honoring `allowCustom` (read-system-first, vanilla-first, balanced custom, provenance).
+- [ ] **TR3 — Read-system-first + balanced custom build.** The transpose prompt to the AI must (a) load the
+      full target-system grounding first, (b) prefer vanilla, (c) generate custom elements only as needed and
+      run each through a balance/mechanics check vs the system before finalizing, (d) preserve the character's
+      persona/abilities. Attribute any custom content to the AI + flag it (provenance) so a DM can review.
+- [ ] **TR4 — Tests:** consent gating (custom allowed vs not), the build reads the system grounding, custom
+      pieces are provenance-flagged, and the vanilla-first fallback when consent is declined.
 
 ### Area T — IG class taxonomy (bounded data restructure)
 - [ ] **T1 — Restructure to the site's real taxonomy:** 4 parent classes (Archon / Conduit / Fighter /

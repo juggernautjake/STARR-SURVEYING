@@ -201,6 +201,14 @@ export default function App({ theme, sheetType, system }: { theme?: SheetTheme; 
 
       <div className="appgrid">
         <div className="maincol">
+          {/* Cross-cutting panels (conditions, active effects, reactions, edit review) sit ABOVE the tab bar
+              so each tab's info renders DIRECTLY beneath the tab selector, not pushed down by these
+              (owner 2026-07-18). Applies wherever a sheet uses this tabbed engine layout. */}
+          <ConditionTracker />
+          <ActiveEffects />
+          <Reactions />
+          <EditReviewPanel />
+
           <div className="stickyhead">
             <StatRail />
             <nav className="tabs">
@@ -212,11 +220,6 @@ export default function App({ theme, sheetType, system }: { theme?: SheetTheme; 
               ))}
             </nav>
           </div>
-
-          <ConditionTracker />
-          <ActiveEffects />
-          <Reactions />
-          <EditReviewPanel />
 
           <div className="tabpane" key={tab}>
             {tab === 'overview' && (

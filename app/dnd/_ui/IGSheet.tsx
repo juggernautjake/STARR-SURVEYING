@@ -13,7 +13,7 @@ import styles from './hextech.module.css';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { IG_ABILITIES, IG_SAVES } from '@/lib/dnd/systems/intuitive-games/model';
 import { igAbilityMod, igDerived, igSkillTotal, igRanksSpent, igResolveAttack } from '@/lib/dnd/systems/intuitive-games/rules';
-import { resolveD20Roll, rollNaturalD20, type RollResult } from '@/lib/dnd/roll';
+import { resolveD20Roll, rollNaturalD20, rollDiceExpr, degreeLabel } from '@/lib/dnd/roll';
 import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_SPELL_ROSTER, IG_DEFENSIVE_POWERS, IG_CONDITIONS, IG_ACTION_ECONOMIES, igActionsByEconomy, findIGAncestry } from '@/lib/dnd/systems/intuitive-games/content';
 import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-games/inPlay';
 import { igConditionSummary, igStanceMechanicNote } from '@/lib/dnd/systems/intuitive-games/modifiers';
@@ -49,12 +49,30 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
   const derived = useMemo(() => igDerived(ig), [ig]);
   const router = useRouter();
   const [editing, setEditing] = useState(false);
-  // In-app roller (Area R1b) — tap a save or skill to roll a d20 + its modifier through the shared engine,
-  // showing the result in the banner below. The natural die comes from the RNG here (auto mode); manual-entry
-  // + record-IRL + a target DC (degrees) come in R2/R3/R5.
-  const [lastRoll, setLastRoll] = useState<{ label: string; result: RollResult } | null>(null);
+  // In-app roller (Area R1b) — tap a save/skill/attack to roll a d20 + its modifier, or an attack's damage
+  // to roll its dice, through the shared engine; the result shows in the banner below. RNG here (auto mode);
+  // manual-entry + record-IRL + a target DC (degrees) come in R2/R3/R5.
+  const [lastRoll, setLastRoll] = useState<{ label: string; total: number; detail: string; tone: 'crit' | 'fumble' | 'normal' } | null>(null);
+  // Optional target DC — when set, a roll resolves the four-step degree of success (IG's ladder).
+  const [targetDc, setTargetDc] = useState('');
   const rollLine = (label: string, modifier: number) => {
-    setLastRoll({ label, result: resolveD20Roll({ natural: rollNaturalD20(), modifier, system: 'intuitive-games' }) });
+    const dcNum = targetDc.trim() === '' ? undefined : Number(targetDc);
+    const dc = Number.isFinite(dcNum) ? dcNum : undefined;
+    const r = resolveD20Roll({ natural: rollNaturalD20(), modifier, dc, system: 'intuitive-games' });
+    const sign = r.modifier >= 0 ? `+ ${r.modifier}` : `− ${Math.abs(r.modifier)}`;
+    let detail = `d20 [${r.natural}] ${sign}`;
+    let tone: 'crit' | 'fumble' | 'normal' = r.critical ? 'crit' : r.fumble ? 'fumble' : 'normal';
+    if (r.degree && r.dc != null) {
+      detail += ` · vs DC ${r.dc} → ${degreeLabel(r.degree)}`;
+      if (r.degree === 'critical-success') tone = 'crit';
+      else if (r.degree === 'critical-failure') tone = 'fumble';
+    }
+    detail += `${r.critical ? ' · NAT 20' : ''}${r.fumble ? ' · NAT 1' : ''}`;
+    setLastRoll({ label, total: r.total, detail, tone });
+  };
+  const rollDamage = (label: string, expr: string) => {
+    const r = rollDiceExpr(expr);
+    setLastRoll({ label, total: r.total, detail: r.breakdown, tone: 'normal' });
   };
   // Incremental edit (enter/leave a stance, add/remove a condition) via the write-gated ig-edit route.
   // Available only to a viewer who can write this character; refreshes the sheet on success.
@@ -151,26 +169,33 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
         <div style={{ ...label, marginBottom: 6 }}>Ability Scores</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(60px, 1fr))', gap: 8 }}>
           {IG_ABILITIES.map((k) => (
-            <div key={k} style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 4px', background: 'rgba(1,10,19,0.4)' }}>
-              <div style={{ fontSize: 10.5, color: 'var(--hx-muted)', letterSpacing: '0.06em' }}>{k}</div>
+            // Tap an ability to roll an ability check (R1b): d20 + its modifier.
+            <button key={k} type="button" onClick={() => rollLine(`${k} check`, igAbilityMod(ig.abilities[k]))} title={`Roll ${k} check (d20 ${fmt(igAbilityMod(ig.abilities[k]))})`}
+              style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 4px', background: 'rgba(1,10,19,0.4)', cursor: 'pointer', width: '100%' }}>
+              <div style={{ fontSize: 10.5, color: 'var(--hx-muted)', letterSpacing: '0.06em' }}>{k} 🎲</div>
               <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--hx-text)', lineHeight: 1.1 }}>{ig.abilities[k]}</div>
               <div style={{ fontSize: 12.5, color: 'var(--hx-gold-2)' }}>{fmt(igAbilityMod(ig.abilities[k]))}</div>
-            </div>
+            </button>
           ))}
         </div>
       </div>
 
-      {/* Roll result banner (Area R1b) — shows the last in-app roll (tap a save below to roll). */}
-      {lastRoll && (
-        <div style={{ border: '1px solid var(--hx-gold-1)', borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', background: 'rgba(212,175,55,0.06)' }}>
-          <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{lastRoll.label}</span>
-          <strong style={{ fontSize: 20, color: lastRoll.result.critical ? 'var(--hx-teal-1)' : lastRoll.result.fumble ? 'var(--hx-danger)' : 'var(--hx-gold-2)' }}>{lastRoll.result.total}</strong>
-          <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>
-            d20 [{lastRoll.result.natural}] {lastRoll.result.modifier >= 0 ? `+ ${lastRoll.result.modifier}` : `− ${Math.abs(lastRoll.result.modifier)}`}
-            {lastRoll.result.critical && ' · NAT 20'}{lastRoll.result.fumble && ' · NAT 1'}
-          </span>
-        </div>
-      )}
+      {/* Roller controls + result banner (Area R1b) — tap a save/skill/attack/ability below to roll; set a
+          target DC to see the degree of success. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <label style={{ fontSize: 11, color: 'var(--hx-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          🎲 Target DC
+          <input type="number" value={targetDc} onChange={(e) => setTargetDc(e.target.value)} placeholder="—"
+            style={{ width: 56, fontSize: 12, padding: '3px 6px', background: 'rgba(1,10,19,0.6)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }} />
+        </label>
+        {lastRoll && (
+          <div style={{ flex: 1, minWidth: 200, border: '1px solid var(--hx-gold-1)', borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', background: 'rgba(212,175,55,0.06)' }}>
+            <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{lastRoll.label}</span>
+            <strong style={{ fontSize: 20, color: lastRoll.tone === 'crit' ? 'var(--hx-teal-1)' : lastRoll.tone === 'fumble' ? 'var(--hx-danger)' : 'var(--hx-gold-2)' }}>{lastRoll.total}</strong>
+            <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>{lastRoll.detail}</span>
+          </div>
+        )}
+      </div>
 
       {/* Saves + top-line stats — tap a save to roll it in-app (R1b). */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -222,8 +247,20 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
                         <tr key={a.id} style={{ color: 'var(--hx-text)' }}>
                           <td style={{ padding: '3px 8px 3px 0' }}>{a.name}{a.weaponFocus ? <span title="Weapon Focus" style={{ color: 'var(--hx-gold-2)', fontSize: 10 }}> ✦</span> : null}{a.weaponSpecialization ? <span title="Weapon Specialization" style={{ color: 'var(--hx-gold-2)', fontSize: 10 }}>✦</span> : null}</td>
                           <td style={{ padding: '3px 8px 3px 0', color: 'var(--hx-muted)' }}>{a.weaponType} {badgeFor(a.weaponType)}</td>
-                          <td style={{ padding: '3px 8px 3px 0', color: 'var(--hx-gold-2)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmt(r.toHit)}</td>
-                          <td style={{ padding: '3px 8px 3px 0', fontVariantNumeric: 'tabular-nums' }}>{r.damage}</td>
+                          <td style={{ padding: '3px 8px 3px 0', fontVariantNumeric: 'tabular-nums' }}>
+                            {/* Tap the to-hit to roll the attack (R1b): d20 + to-hit through the shared engine. */}
+                            <button type="button" onClick={() => rollLine(`${a.name} attack`, r.toHit)} title={`Roll ${a.name} attack (d20 ${fmt(r.toHit)})`}
+                              style={{ background: 'none', border: 'none', color: 'var(--hx-gold-2)', fontWeight: 600, cursor: 'pointer', padding: 0, fontVariantNumeric: 'tabular-nums' }}>
+                              {fmt(r.toHit)} 🎲
+                            </button>
+                          </td>
+                          <td style={{ padding: '3px 8px 3px 0', fontVariantNumeric: 'tabular-nums' }}>
+                            {/* Tap the damage to roll the dice expression (R1b). */}
+                            <button type="button" onClick={() => rollDamage(`${a.name} damage`, r.damage)} title={`Roll ${a.name} damage (${r.damage})`}
+                              style={{ background: 'none', border: 'none', color: 'var(--hx-text)', cursor: 'pointer', padding: 0, fontVariantNumeric: 'tabular-nums' }}>
+                              {r.damage} 🎲
+                            </button>
+                          </td>
                           <td style={{ padding: '3px 8px 3px 0', color: 'var(--hx-muted)' }}>{a.properties}</td>
                         </tr>
                       );

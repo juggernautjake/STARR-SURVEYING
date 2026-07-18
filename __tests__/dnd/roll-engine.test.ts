@@ -66,3 +66,41 @@ describe('input hygiene', () => {
     expect(fourStepDegree(15, 15)).toBe('success');
   });
 });
+
+import { parseDiceExpr, rollDiceExpr } from '@/lib/dnd/roll';
+
+describe('dice-expression rolls (damage/healing)', () => {
+  it('parses single + multi-die + flat expressions', () => {
+    expect(parseDiceExpr('2d6+6')).toEqual({ dice: [{ count: 2, sides: 6, sign: 1 }], modifier: 6 });
+    expect(parseDiceExpr('1d8')).toEqual({ dice: [{ count: 1, sides: 8, sign: 1 }], modifier: 0 });
+    expect(parseDiceExpr('1d8+1d6+2')).toEqual({ dice: [{ count: 1, sides: 8, sign: 1 }, { count: 1, sides: 6, sign: 1 }], modifier: 2 });
+    expect(parseDiceExpr('1d10-1')).toEqual({ dice: [{ count: 1, sides: 10, sign: 1 }], modifier: -1 });
+    expect(parseDiceExpr('8')).toEqual({ dice: [], modifier: 8 });
+    expect(parseDiceExpr('')).toBeNull();
+    expect(parseDiceExpr('nonsense')).toBeNull();
+  });
+
+  it('rolls with a seeded RNG deterministically (max faces here)', () => {
+    const max = () => 0.999; // always the top face
+    const r = rollDiceExpr('2d6+6', max);
+    expect(r.total).toBe(18); // 6 + 6 + 6
+    expect(r.breakdown).toContain('2d6[6,6]');
+    expect(r.breakdown).toContain('= 18');
+  });
+
+  it('clamps a negative total to 0 and handles a bad expression', () => {
+    const min = () => 0; // always face 1
+    expect(rollDiceExpr('1d4-10', min).total).toBe(0); // 1 − 10 → clamp 0
+    expect(rollDiceExpr('junk').total).toBe(0);
+  });
+});
+
+import { degreeLabel } from '@/lib/dnd/roll';
+describe('degreeLabel', () => {
+  it('gives human labels for each degree', () => {
+    expect(degreeLabel('critical-success')).toBe('Critical Success');
+    expect(degreeLabel('success')).toBe('Success');
+    expect(degreeLabel('failure')).toBe('Failure');
+    expect(degreeLabel('critical-failure')).toBe('Critical Failure');
+  });
+});

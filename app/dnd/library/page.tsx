@@ -23,9 +23,9 @@ export default function LibraryIndexPage() {
             <Link className={styles.hexBtn} href="/dnd" style={{ marginBottom: 10 }}>← Lobby</Link>
             <h1 className={styles.title} style={{ textAlign: 'left', margin: '8px 0 0' }}>Rules Library</h1>
             <p style={{ color: 'var(--hx-muted)', margin: '4px 0 0', maxWidth: 720 }}>
-              {pages.length} game systems, each written out in full — how the dice work, how characters advance, and the
-              exact numbers. Search across every system, or open one to read it end to end. Ask the librarian anything;
-              it answers from the system you point it at, and never borrows another system’s rules.
+              {pages.length} playable game systems, each written out in full — how the dice work, how characters advance,
+              and the exact numbers. Search across every system, or open one to read it end to end. Ask the librarian
+              anything; it answers from the system you point it at, and never borrows another system’s rules.
             </p>
           </div>
 
@@ -56,6 +56,15 @@ export default function LibraryIndexPage() {
                   <span style={{ fontSize: 11, color: 'var(--hx-muted)', marginTop: 2 }}>{p.sections.length} sections · {p.source}</span>
                 </Link>
               ))}
+              {/* Under-construction systems are hidden site-wide (owner 2026-07-18); a single placeholder card
+                  tells players more systems + their character-sheet builders are on the way. */}
+              <div style={{ display: 'grid', gap: 6, padding: '12px 14px', border: '1px dashed var(--hx-line)', background: 'rgba(1,10,19,0.25)', borderRadius: 2, alignContent: 'center' }}>
+                <strong style={{ fontFamily: 'var(--hx-font-display)', color: 'var(--hx-teal-1)', fontSize: 16 }}>◆ More systems coming soon</strong>
+                <span style={{ fontSize: 12.5, color: 'var(--hx-muted)', lineHeight: 1.5 }}>
+                  Additional game systems — and their character-sheet builders — are in development and will appear here
+                  when they’re ready to play.
+                </span>
+              </div>
             </div>
           </section>
 

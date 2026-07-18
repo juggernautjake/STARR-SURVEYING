@@ -11,7 +11,7 @@ import styles from '@/app/dnd/_ui/hextech.module.css';
 import { libraryPageFor } from '@/lib/dnd/library';
 import { glossaryFor } from '@/lib/dnd/glossary';
 import { classesForSystem, subclassesFor } from '@/lib/dnd/classes/registry';
-import { GAME_SYSTEMS } from '@/lib/dnd/systems';
+import { GAME_SYSTEMS, isSystemAvailable } from '@/lib/dnd/systems';
 import { dndAiConfigured } from '@/lib/dnd/ai';
 import LibrarySearch from '@/app/dnd/_ui/LibrarySearch';
 import LibraryChat from '@/app/dnd/_ui/LibraryChat';
@@ -20,7 +20,8 @@ import JumpNav from '@/app/dnd/_ui/JumpNav';
 import { igSystemLogo, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
 
 export function generateStaticParams() {
-  return GAME_SYSTEMS.map((s) => ({ key: s.key }));
+  // Only the playable systems have a public library page; under-construction systems are hidden (owner 2026-07-18).
+  return GAME_SYSTEMS.filter((s) => isSystemAvailable(s.key)).map((s) => ({ key: s.key }));
 }
 
 export function generateMetadata({ params }: { params: { key: string } }): Metadata {
@@ -52,7 +53,8 @@ function Rich({ text }: { text: string }) {
 
 export default function LibrarySystemPage({ params }: { params: { key: string } }) {
   const page = libraryPageFor(params.key);
-  if (!page) notFound();
+  // Under-construction systems are hidden — their library page 404s (owner 2026-07-18).
+  if (!page || !isSystemAvailable(params.key)) notFound();
 
   const glossary = glossaryFor(params.key);
   const classes = classesForSystem(params.key);

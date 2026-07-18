@@ -50,6 +50,16 @@ export function fourStepDegree(total: number, dc: number, natural?: number): Rol
 
 const usesDegrees = (system?: string): boolean => system === 'intuitive-games' || system === 'pathfinder2e';
 
+/** A short human label for a degree of success, for the roll banner. */
+export function degreeLabel(d: RollDegree): string {
+  return {
+    'critical-success': 'Critical Success',
+    success: 'Success',
+    failure: 'Failure',
+    'critical-failure': 'Critical Failure',
+  }[d];
+}
+
 /** Clamp a d20 face to 1–20 (so a bad manual entry can't produce an out-of-range roll). */
 export function clampNatural(n: number): number {
   return Math.max(1, Math.min(20, Math.floor(n || 0)));
@@ -89,4 +99,67 @@ export function resolveD20Roll(input: RollInput): RollResult {
  *  above stays pure/testable. Callers in the auto-roll mode use this, then pass the face to `resolveD20Roll`. */
 export function rollNaturalD20(): number {
   return Math.floor(Math.random() * 20) + 1;
+}
+
+// ── Dice-expression rolls (damage, healing, etc.) ────────────────────────────────────────────────────────
+// A damage line like "2d6+6" or "1d8+1d6+2" isn't a d20 test — it's a sum of dice + flat modifiers. Parsing
+// is pure/testable; the roll itself takes an RNG (defaulting to Math.random) so tests can seed it.
+
+export interface DiceTerm { count: number; sides: number; sign: 1 | -1 }
+export interface ParsedDice { dice: DiceTerm[]; modifier: number }
+
+/** Parse "2d6+6", "1d8+1d6+2", "1d10-1", "8" into dice terms + a flat modifier. Returns null if there's no
+ *  recognizable dice/number content. */
+export function parseDiceExpr(expr: string): ParsedDice | null {
+  if (!expr) return null;
+  const tokens = expr.replace(/\s+/g, '').match(/[+-]?(?:\d*d\d+|\d+)/gi);
+  if (!tokens) return null;
+  const dice: DiceTerm[] = [];
+  let modifier = 0;
+  let any = false;
+  for (const tok of tokens) {
+    const sign: 1 | -1 = tok.startsWith('-') ? -1 : 1;
+    const body = tok.replace(/^[+-]/, '');
+    const dm = body.match(/^(\d*)d(\d+)$/i);
+    if (dm) {
+      const count = dm[1] === '' ? 1 : parseInt(dm[1], 10);
+      const sides = parseInt(dm[2], 10);
+      if (count > 0 && sides > 0) { dice.push({ count, sides, sign }); any = true; }
+    } else if (/^\d+$/.test(body)) {
+      modifier += sign * parseInt(body, 10);
+      any = true;
+    }
+  }
+  return any ? { dice, modifier } : null;
+}
+
+export interface DiceRollResult {
+  expr: string;
+  total: number;
+  /** A human breakdown, e.g. "2d6[3,5] + 6 = 14". */
+  breakdown: string;
+}
+
+/** Roll a dice expression. Impure (uses `rng`, default Math.random) — parsing stays pure above. Returns the
+ *  total (never below 0) + a breakdown string for the roll log. A bad expression rolls to 0. */
+export function rollDiceExpr(expr: string, rng: () => number = Math.random): DiceRollResult {
+  const parsed = parseDiceExpr(expr);
+  if (!parsed) return { expr, total: 0, breakdown: `${expr} = 0` };
+  const parts: string[] = [];
+  let total = 0;
+  for (const term of parsed.dice) {
+    const rolls: number[] = [];
+    for (let i = 0; i < term.count; i++) {
+      const face = Math.floor(rng() * term.sides) + 1;
+      rolls.push(face);
+      total += term.sign * face;
+    }
+    parts.push(`${term.sign < 0 ? '− ' : ''}${term.count}d${term.sides}[${rolls.join(',')}]`);
+  }
+  if (parsed.modifier) {
+    total += parsed.modifier;
+    parts.push(`${parsed.modifier < 0 ? '−' : '+'} ${Math.abs(parsed.modifier)}`);
+  }
+  total = Math.max(0, total);
+  return { expr, total, breakdown: `${parts.join(' ')} = ${total}` };
 }

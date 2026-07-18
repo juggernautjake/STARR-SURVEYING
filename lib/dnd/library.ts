@@ -5,7 +5,7 @@
 // and DB-free. The dnd_system_entries store is an optional projection used for semantic retrieval;
 // the pages deliberately do NOT depend on it, so the library is fully readable with no embeddings
 // key and no seeded rows.
-import { GAME_SYSTEMS, systemLabel, type CharacterSystem } from './systems';
+import { GAME_SYSTEMS, isSystemAvailable, systemLabel, type CharacterSystem } from './systems';
 import { rulesForSystem, type SystemRules } from './system-rules';
 import { glossaryFor, searchGlossary } from './glossary';
 import { classesForSystem } from './classes/registry';
@@ -688,7 +688,12 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
 
 /** Every system's page, in the GAME_SYSTEMS order. */
 export function allLibraryPages(): LibrarySystemPage[] {
-  return GAME_SYSTEMS.map((s) => libraryPageFor(s.key)).filter((p): p is LibrarySystemPage => !!p);
+  // Only the PLAYABLE systems are shown/searchable; under-construction systems are fully hidden across the
+  // site (owner 2026-07-18) — kept in the registry, just not surfaced anywhere. The library shows a
+  // "coming soon" note in their place.
+  return GAME_SYSTEMS.filter((s) => isSystemAvailable(s.key))
+    .map((s) => libraryPageFor(s.key))
+    .filter((p): p is LibrarySystemPage => !!p);
 }
 
 export interface LibraryHit {

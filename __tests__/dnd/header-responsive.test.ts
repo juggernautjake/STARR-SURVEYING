@@ -27,6 +27,13 @@ describe('DnD header collapses to a dropdown on mobile (MOB1)', () => {
     expect(header).toContain('Signed in as');
   });
 
+  it('closes the mobile dropdown after picking a nav item (client onClick removes [open])', () => {
+    expect(header).toContain("'use client'");
+    expect(header).toMatch(/closest\('details'\)\?\.removeAttribute\('open'\)/);
+    // every nav Link inside the menu wires the close handler
+    expect((header.match(/onClick=\{closeMenu\}/g) || []).length).toBeGreaterThanOrEqual(4);
+  });
+
   it('CSS hides the toggle on desktop and turns it into a dropdown on mobile', () => {
     // Desktop base: the hamburger toggle is display:none.
     expect(css).toMatch(/\.siteMenuToggle\s*\{[^}]*display:\s*none/);

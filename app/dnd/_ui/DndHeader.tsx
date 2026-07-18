@@ -1,3 +1,4 @@
+'use client';
 // Unique /dnd site header — the D&D platform is "a different site hiding underneath"
 // the Starr marketing site (which has its own header suppressed by LayoutShell). Kept
 // self-contained: it links only within /dnd, never back out to the marketing pages, so
@@ -8,6 +9,11 @@ import HeaderBack from './HeaderBack';
 import LogoutButton from './LogoutButton';
 
 export default function DndHeader({ userName }: { userName?: string | null }) {
+  // Close the mobile <details> dropdown after picking a nav item (owner 2026-07-18) — otherwise the native
+  // menu stays open across the client-side route change (the header persists in the layout).
+  const closeMenu = (e: React.MouseEvent) => {
+    (e.currentTarget as HTMLElement).closest('details')?.removeAttribute('open');
+  };
   return (
     <header className={styles.siteHeader}>
       <HeaderBack />
@@ -38,21 +44,21 @@ export default function DndHeader({ userName }: { userName?: string | null }) {
           <span className={styles.siteMenuLabel}>{userName || 'Menu'}</span>
         </summary>
         <nav className={styles.siteNav}>
-          <Link href="/dnd" className={styles.siteNavLink}>
+          <Link href="/dnd" className={styles.siteNavLink} onClick={closeMenu}>
             Lobby
           </Link>
           {/* The rules library — every system's classes, subclasses, features, conditions and rules,
               searchable and AI-navigable. Given a top-level nav slot so it's always one click away. */}
-          <Link href="/dnd/library" className={styles.siteNavLink}>
+          <Link href="/dnd/library" className={styles.siteNavLink} onClick={closeMenu}>
             Library
           </Link>
-          <Link href="/dnd/characters/new" className={styles.siteNavLink}>
+          <Link href="/dnd/characters/new" className={styles.siteNavLink} onClick={closeMenu}>
             ＋ Character
           </Link>
           {/* Start a campaign (become its DM, invite players). Only for signed-in users — a campaign
               needs an owner. Opens the campaigns dashboard with the New Campaign form ready. */}
           {userName && (
-            <Link href="/dnd?new=campaign" className={styles.siteNavLink}>
+            <Link href="/dnd?new=campaign" className={styles.siteNavLink} onClick={closeMenu}>
               ＋ Campaign
             </Link>
           )}
@@ -64,7 +70,7 @@ export default function DndHeader({ userName }: { userName?: string | null }) {
               <LogoutButton />
             </span>
           ) : (
-            <Link href="/dnd" className={styles.siteNavLink}>
+            <Link href="/dnd" className={styles.siteNavLink} onClick={closeMenu}>
               Sign in
             </Link>
           )}
