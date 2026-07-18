@@ -12,7 +12,7 @@ describe('transpose progress + completion UX (TR1)', () => {
   it('tracks a working → done lifecycle, only for a transpose (not an instant switch)', () => {
     expect(switcher).toMatch(/phase:\s*'working'\s*\|\s*'done'/);
     expect(switcher).toContain("setTranspose({ system, phase: 'working' })");
-    expect(switcher).toContain("setTranspose({ system, phase: 'done' })");
+    expect(switcher).toMatch(/setTranspose\(\{ system, phase: 'done'/); // done + the AI summary/allowedCustom
     // an instant switch (already built) must NOT enter the transpose lifecycle
     expect(switcher).toContain('if (isTranspose) setTranspose(');
   });
