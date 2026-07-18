@@ -222,7 +222,13 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
                         <tr key={a.id} style={{ color: 'var(--hx-text)' }}>
                           <td style={{ padding: '3px 8px 3px 0' }}>{a.name}{a.weaponFocus ? <span title="Weapon Focus" style={{ color: 'var(--hx-gold-2)', fontSize: 10 }}> ✦</span> : null}{a.weaponSpecialization ? <span title="Weapon Specialization" style={{ color: 'var(--hx-gold-2)', fontSize: 10 }}>✦</span> : null}</td>
                           <td style={{ padding: '3px 8px 3px 0', color: 'var(--hx-muted)' }}>{a.weaponType} {badgeFor(a.weaponType)}</td>
-                          <td style={{ padding: '3px 8px 3px 0', color: 'var(--hx-gold-2)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmt(r.toHit)}</td>
+                          <td style={{ padding: '3px 8px 3px 0', fontVariantNumeric: 'tabular-nums' }}>
+                            {/* Tap the to-hit to roll the attack (R1b): d20 + to-hit through the shared engine. */}
+                            <button type="button" onClick={() => rollLine(`${a.name} attack`, r.toHit)} title={`Roll ${a.name} attack (d20 ${fmt(r.toHit)})`}
+                              style={{ background: 'none', border: 'none', color: 'var(--hx-gold-2)', fontWeight: 600, cursor: 'pointer', padding: 0, fontVariantNumeric: 'tabular-nums' }}>
+                              {fmt(r.toHit)} 🎲
+                            </button>
+                          </td>
                           <td style={{ padding: '3px 8px 3px 0', fontVariantNumeric: 'tabular-nums' }}>{r.damage}</td>
                           <td style={{ padding: '3px 8px 3px 0', color: 'var(--hx-muted)' }}>{a.properties}</td>
                         </tr>

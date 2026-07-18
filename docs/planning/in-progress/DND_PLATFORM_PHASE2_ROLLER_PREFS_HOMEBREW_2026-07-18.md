@@ -245,9 +245,11 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       total + crit/fumble + (with a DC) the four-step `degree` for IG/PF2 (the shared ladder, extracted as
       `fourStepDegree`) or meet-or-beat `success` for others. `clampNatural` guards bad manual entry;
       `rollNaturalD20` isolates the only randomness. Golden-pinned by `roll-engine.test.ts` (8).
-- [ ] **R1b — Wire the engine into the bespoke sheets.** Tapping a check/save/attack/skill on the IG/PF2 sheet
-      calls `resolveD20Roll` with that line's modifier (from `igResolveAttack`/`pf2AttackBonus`/…) + the
-      target DC, logs the result. (The pure engine + the per-system modifier math both exist; this is the UI.)
+- [~] **R1b — Wire the engine into the bespoke sheets.** IN PROGRESS (IG). The IG sheet now taps-to-roll on
+      **saves, skills, AND attacks** (to-hit) — each calls `resolveD20Roll` with that line's modifier (from
+      `igResolveAttack`/`igSkillTotal`/`igSaves`) and shows the result in a banner (total, natural die,
+      crit/fumble). Guarded by `ig-sheet-roller.test.ts`. REMAINING: PF2 sheet parity; damage rolls (a dice-
+      expression roll, separate from the d20 engine); a target-DC field to surface degrees of success.
 - [ ] **R2 — Auto-mechanics toggle.** When on, active conditions/stances/exhaustion fold into every roll;
       when off, the sheet shows the modifiers but the player applies them. Reads the `autoMechanics` pref.
 - [ ] **R3 — Manual roll input.** Enter a d20/dice result by hand; the sheet folds the character's modifiers.
