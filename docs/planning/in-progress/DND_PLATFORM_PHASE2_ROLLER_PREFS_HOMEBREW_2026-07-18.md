@@ -273,10 +273,20 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       minimized (watches `activeRoll.token`). Guarded by `dice-tray-ux.test.ts`.
 - [ ] **D2 — Animated 3D dice tray.** Real dice-rolling animation (d20/dice tumbling in a tray) — a canvas/
       WebGL or CSS-3D roller. Themeable per D1. Falls back to a static roll on reduced-motion / no-WebGL.
-- [ ] **D4 — Dice rollers get the full template + color-theme customization (owner 2026-07-18).** Each dice
-      roller should be as customizable as the character-sheet templates, incl. the same color-variation themes
-      (ties to Area TH). Currently 5 named styles exist; extend so a roller's palette/skin uses the shared
-      theme-token system the templates use.
+- [x] **D4a — Header controls formatting (owner 2026-07-18).** ✅ SHIPPED — the tray-head style/sound/minimize
+      controls align cleanly (the style `<select>`'s native chrome was breaking the row; now a clean pill).
+- [ ] **D4 — Dice-roller skins: colors from the sheet, shapes/textures/number-display per skin (owner
+      2026-07-18).** A substantial roller redesign, multi-slice:
+  - **D4b — Colors inherit the sheet palette.** Every roller skin uses the character sheet's own theme tokens
+    (so it matches the sheet + the TH color themes); only the shape/texture/layout differs by skin, not the
+    hue. Rework the `[data-dice-style]` CSS to pull `var(--…)` sheet tokens instead of hardcoded hexes.
+  - **D4c — Per-skin shape/texture/format/positioning.** Each of the 5 skins gets its own vibe — frame shape,
+    textures, control layout/positioning — while keeping identical functionality.
+  - **D4d — Per-skin NUMBER-DISPLAY styling.** The roll-result readout differs per skin: the current
+    "futuristic screen" for one; others change number size/font/color during the roll, or render mono-colour.
+    (Touches `RollStage`/the result render, keyed off `data-dice-style`.)
+  - **D4e — New animations + sounds per skin.** More varied roll animations + sound sets per skin; all hooked
+    to the sheet, responsive, reduced-motion aware. (Pairs with D2's animated dice.)
 - [ ] **D3 — Tests / visual:** the pure roll result is unchanged by the skin (source-anchored); visual polish
       is in-app.
 
