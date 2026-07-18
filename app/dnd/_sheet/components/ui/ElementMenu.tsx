@@ -20,8 +20,10 @@ export interface MenuAction {
   danger?: boolean
 }
 
-/** Where the librarian lives, pre-filled and focused on this system (same target as RuleTip). */
-function askUrl(system: string, subject: string): string {
+/** Where the librarian lives, pre-filled and focused on this system (same target as RuleTip). Exported so
+ *  its URL-encoding + fragment placement are unit-pinned — a subject with an apostrophe/ampersand must encode
+ *  safely and `#chat` must sit OUTSIDE the query, or the librarian opens on a broken deep-link. */
+export function askUrl(system: string, subject: string): string {
   const q = `Tell me about “${subject}” on my character — what it does and when I'd use it.`
   return `/dnd/library/${encodeURIComponent(system)}?ask=${encodeURIComponent(q)}#chat`
 }

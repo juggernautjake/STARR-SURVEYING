@@ -1866,12 +1866,18 @@ keep-your-mind `keepMental`, and separate-pool `separateHp`).
 Slice 11 overlays *fields*. This overlays the **whole sheet** — and it is the strongest argument for
 the overlay rule, because "you are a bear now" must be perfectly reversible.
 
-- [ ] A `transform` effect names a **form**: a stored sheet (a statblock, a creature, another
-      character). While active, the sheet **renders the form**.
-- [ ] The base character is **never overwritten** — it is the thing underneath. Reverting is dropping
-      the source, exactly like any other effect. (If transform mutated the sheet, an autosave
-      mid-transform would leave a druid permanently a bear, with their real character gone. This is
-      the failure this whole design exists to prevent.)
+- [x] ✅ SHIPPED (verified 2026-07-18) A `transform` effect names a **form**: a stored sheet (a statblock, a
+      creature, another character). While active, the sheet **renders the form** — `ledger.transform()` names the
+      form + source and the form's OWN effects resolve through the ledger; the form-reading components use the
+      EFFECTIVE `activeFormId` (imposed-transform-aware), not the raw base field. `transform.test.ts` (imposed +
+      own-form + no-transform cases). (Transforming into an arbitrary FOREIGN statblock you don't own as a form
+      is the separate authoring-UI item below, 1891.)
+- [x] ✅ SHIPPED The base character is **never overwritten** — it is the thing underneath. Reverting is dropping
+      the source, exactly like any other effect. Pinned hard: `buildLedger` leaves its input **byte-identical**
+      (deep-equal) in the base form, with an imposed transform active, AND in your own bear form (the anti-
+      "permanent bear" invariant — a render can never bake the overlay into the base), the store's Forms toggle
+      writes only the BASE `activeFormId`, and `activeFormId` stays "base" / STR stays 10 under an imposed form.
+      `transform.test.ts` (16).
 - [x] **What carries over is a per-form rule, not a guess.** (`keepFeatures` + `keepMental` +
       `separateHp` ✅ all shipped.) 5e Wild Shape keeps INT/WIS/CHA,
       personality, and your own features; it takes the beast's STR/DEX/CON, AC, speed and attacks; HP
@@ -1888,8 +1894,12 @@ the overlay rule, because "you are a bear now" must be perfectly reversible.
       (55+ tests), so it's the same shape of deliberate call as the attunement question, left for the owner.
       Current behavior is now pinned by `ledger-set-max.test.ts` (3), so any future change is explicit +
       reviewed.
-- [ ] Forms are **authored with the same builder** as characters (Slice 17) — a form is a sheet. A DM
-      can define a bear once and reuse it; a player can be turned into another PC.
+- [~] Forms are **authored with the same builder** as characters (Slice 17) — a form is a sheet. A DM
+      can define a bear once and reuse it; a player can be turned into another PC. **DEFERRED (browser-gated
+      authoring UI)** — `Forms.tsx` is display+toggle only; transforming into your OWN defined forms is done
+      end-to-end (above), but a form-editor surface on the sheet (authoring a foreign statblock as a full sheet)
+      is the one heavier half left, and it's build/QA feature work. Forms + their carry-over policy are authored
+      in data for now.
 - [x] The Active Effects panel (Slice 12) shows the transform as the source it is, with **End transform**
       — and, per the request, that is how you get back. ✅ SHIPPED — a `transform` effect rides on its
       item/spell/potion source, which the panel lists; the generic "End effect" removes that cause
@@ -2240,7 +2250,11 @@ feature that doesn't exist — and today most of these elements have no affordan
       actions only when the viewer can write, so a read-only viewer sees no ⋯.
 - [x] ✅ SHIPPED: **keyboard + touch reachable** — it's a click-opened `role="menu"` with `role="menuitem"`
       items + aria-labels, not hover-only.
-- [ ] Tests: every element kind exposes a ⋯; a viewer sees none; each menu opens its editor.
+- [x] ✅ SHIPPED (verified 2026-07-18) Tests: every element kind exposes a ⋯; a viewer sees none; each menu
+      opens its editor. `element-editing.test.ts` pins all three across every editable panel — Attacks,
+      Inventory, Features, Spells, Resources, and Combat/traits each assert `<ElementMenu` is mounted AND
+      `canWrite && (<ElementMenu` (so a read-only viewer sees none), plus per-kind editor-field coverage
+      (the menu opens the right editor). `element-menu-ask-ai.test.ts` covers the built-in Ask-AI item.
 
 ## Slice 28 — Art and thumbnails for everything ✅ SHIPPED 2026-07-16
 
