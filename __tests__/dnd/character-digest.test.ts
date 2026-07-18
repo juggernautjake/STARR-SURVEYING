@@ -58,6 +58,14 @@ describe('characterDigest carries the sheet, not a generic character', () => {
     expect(characterDigest(fixture(), SYSTEM_AMBIGUOUS)).toContain('SYSTEM: System-ambiguous');
   });
 
+  it('normalizes an off-key system so a typo reads as ambiguous, never a raw string in the AI prompt', () => {
+    // 'dnd-5e-2024' is the plausible-looking typo of the real 'dnd5e-2024' key. The digest must not emit it
+    // verbatim as if it were a rulebook — it normalizes to an honest "System-ambiguous".
+    const out = characterDigest(fixture(), 'dnd-5e-2024' as unknown as Parameters<typeof characterDigest>[1]);
+    expect(out).toContain('SYSTEM: System-ambiguous');
+    expect(out).not.toContain('SYSTEM: dnd-5e-2024');
+  });
+
   it('a CUSTOMIZED sheet still reports its system — homebrew never collapses it to systemless', () => {
     const c = fixture();
     c.attacks = [{ ...c.attacks[0], customized: true }] as Character['attacks']; // a hand-tuned attack (✎)

@@ -16,7 +16,7 @@ import { abilityMod, profBonusForLevel, profContribution, SKILLS } from '@/app/d
 import { buildLedger } from './effects/ledger';
 import { deriveAc } from '@/app/dnd/_sheet/lib/derive-ac';
 import { summarizeCharacterProvenance } from './provenance';
-import { systemLabel, type CharacterSystem } from './systems';
+import { systemLabel, normalizeSystem, type CharacterSystem } from './systems';
 import { totalIn } from './currency';
 
 /** Trim a rules body to its first sentence-ish, for a name + reminder rather than a restatement. */
@@ -55,7 +55,10 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
 
   const who = [m.species, m.className, m.subclass].filter(Boolean).join(' · ');
   lines.push(`NAME: ${m.name || 'Unnamed'}`);
-  lines.push(`SYSTEM: ${systemLabel(system)}`);
+  // Normalize before labelling so an off-key value (a caller passing 'dnd-5e-2024' instead of the canonical
+  // 'dnd5e-2024', say) reads as an honest "System-ambiguous" rather than leaking a raw typo string into the
+  // AI's prompt as if it were a rulebook. Canonical keys are unchanged.
+  lines.push(`SYSTEM: ${systemLabel(normalizeSystem(system))}`);
   if (who) lines.push(`BUILD: ${who}`);
   if (m.level) lines.push(`LEVEL: ${m.level}`);
   // Background (its grants are reflected in skills/features, but the name gives context) and alignment

@@ -2039,6 +2039,12 @@ customized, exactly as the request asks.
 - [x] ✅ SHIPPED: **customization does not weaken the designation** — the 5e system chip's title reads "This
       sheet is adjudicated with {system} rules. Homebrew content on it is still this character's own," and the
       digest PROVENANCE line keeps system + house-ruled orthogonal (Slice 22). Not collapsed to "systemless."
+      **Digest SYSTEM line hardened (2026-07-18):** `characterDigest` now `normalizeSystem`s its system arg
+      before labelling, so an off-key value (a caller passing the `dnd-5e-2024` typo instead of the canonical
+      `dnd5e-2024`, exactly the mistake the digest's own tests make) reads as an honest `SYSTEM: System-ambiguous`
+      rather than leaking a raw typo string into the AI's prompt as if it were a rulebook. The one production
+      caller (`library/chat`) already normalized; this makes the digest robust regardless of caller.
+      `character-digest.test.ts` pins it.
 - [~] **Set Jacob, Susie, Sarah, Jack and Andrew to `dnd-5e-2024`.** DEFERRED — a live-DB write (updating the
       demo characters' `system` column from `ambiguous`), which needs the Supabase connection; can't be done or
       verified headless. The idempotent seed is a one-liner once the DB is reachable.
