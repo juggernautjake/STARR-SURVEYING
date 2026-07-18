@@ -62,10 +62,44 @@ export function defaultVariantName(systemLabel: string, kind: SheetVariantKind):
   return `${systemLabel} · ${variantKindLabel(kind)}`;
 }
 
+/** Reserved key in `system_variants` holding the ACTIVE sheet's slot metadata (Area MV2b): its slotId, kind
+ *  and name. The active sheet lives in the character's live columns (which have no slot/kind/name column), so
+ *  this jsonb key persists that metadata — no schema change. Never a real sheet slot. */
+export const ACTIVE_SLOT_META_KEY = '__activeSlot';
+
+/** True for reserved (non-sheet) keys in the variants map. */
+const isReservedKey = (k: string): boolean => k.startsWith('__');
+
+/** The persisted metadata for the character's active sheet (Area MV2b). */
+export interface ActiveSlotMeta { slotId?: string; kind?: SheetVariantKind; name?: string }
+
+/** Read the active sheet's slot metadata out of the raw `system_variants` jsonb. */
+export function readActiveSlotMeta(raw: unknown): ActiveSlotMeta {
+  const rec = raw && typeof raw === 'object' ? (raw as Record<string, unknown>)[ACTIVE_SLOT_META_KEY] : null;
+  if (!rec || typeof rec !== 'object') return {};
+  const m = rec as Record<string, unknown>;
+  return {
+    ...(typeof m.slotId === 'string' ? { slotId: m.slotId } : {}),
+    kind: variantKind(m),
+    ...(typeof m.name === 'string' && m.name.trim() ? { name: m.name.trim() } : {}),
+  };
+}
+
+/** Merge the active sheet's slot metadata into a variants map for persistence (Area MV2b). */
+export function withActiveSlotMeta(variants: SystemVariants, active: ActiveSheet): Record<string, unknown> {
+  const meta: ActiveSlotMeta = {
+    ...(active.slotId ? { slotId: active.slotId } : {}),
+    kind: variantKind(active),
+    ...(active.name ? { name: active.name } : {}),
+  };
+  return { ...variants, [ACTIVE_SLOT_META_KEY]: meta };
+}
+
 export function readVariants(raw: unknown): SystemVariants {
   if (!raw || typeof raw !== 'object') return {};
   const out: SystemVariants = {};
   for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (isReservedKey(k)) continue; // skip the active-slot meta + any future reserved keys
     if (v && typeof v === 'object') {
       const rec = v as Record<string, unknown>;
       out[k] = {
