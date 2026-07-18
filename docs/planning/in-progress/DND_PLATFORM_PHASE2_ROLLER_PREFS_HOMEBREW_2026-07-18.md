@@ -628,9 +628,15 @@ was AI leveling an EXISTING character by one increment.
       tool choice), then `parseLevelUpToolCall` → `applyLevelUpDraft` → persists to `dnd_characters.data`.
       Refuses past level 20; body accepts optional `instruction` guidance + `mode:'custom'`. So "AI can handle
       leveling up characters with either custom or vanilla stuff" is now real end-to-end (logic + route).
-      `__tests__/dnd/level-up-route.test.ts` (5). **Remaining:** the sheet's level-up wizard button that offers
-      "standard picks / custom-build / ✨ AI" and calls this route (or the manual paths) — a UI slice; and
-      auditing level-ups to `dnd_sheet_edits` for the undo timeline (optional, mirrors ai-edit).
+      `__tests__/dnd/level-up-route.test.ts` (5).
+- [~] **LU4 — Level-up from the character AI chat. ✅ SHIPPED.** Rather than only a dedicated route, the
+      existing character chat now levels you up: `LEVEL_UP_TOOL` is offered by the ai-edit route with a routing
+      hint, and a `level_up_character` dispatch branch applies `parseLevelUpToolCall → applyLevelUpDraft`,
+      persists, and **audits to `dnd_sheet_edits`** (`level:{N}`) so a level-up joins the undo timeline. So "level
+      me up", "level me up with custom feats", or "level up the vanilla way" work in the same chat the player
+      already uses. The dispatch-completeness guard (`ai-edit-dispatch.test.ts`) is updated so a future tool
+      still forces a handler. **Remaining:** a one-tap level-up BUTTON on the sheet (calls this or the dedicated
+      route) — pure UI polish; the mechanism is fully wired.
 
 ### Area T — IG class taxonomy (bounded data restructure)
 - [x] **T1 — Restructure to the site's real taxonomy.** ✅ CANONICAL TAXONOMY SHIPPED — `lib/dnd/systems/
