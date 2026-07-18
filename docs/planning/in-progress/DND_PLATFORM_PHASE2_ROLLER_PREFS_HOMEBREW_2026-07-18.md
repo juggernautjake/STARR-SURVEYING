@@ -316,12 +316,17 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       campaign transposes best-effort vanilla without asking. The page passes `allowCustom` from the campaign's
       `allow_custom`. Guarded by `transpose-progress.test.ts`. REMAINING: **TR3** — the route/AI actually
       honoring `allowCustom` (read-system-first, vanilla-first, balanced custom, provenance).
-- [ ] **TR3 — Read-system-first + balanced custom build.** The transpose prompt to the AI must (a) load the
-      full target-system grounding first, (b) prefer vanilla, (c) generate custom elements only as needed and
-      run each through a balance/mechanics check vs the system before finalizing, (d) preserve the character's
-      persona/abilities. Attribute any custom content to the AI + flag it (provenance) so a DM can review.
-- [ ] **TR4 — Tests:** consent gating (custom allowed vs not), the build reads the system grounding, custom
-      pieces are provenance-flagged, and the vanilla-first fallback when consent is declined.
+- [x] **TR3 — Read-system-first + balanced custom build.** ✅ SHIPPED — the transpose route
+      (`.../[id]/system`) now parses `allowCustom` (default false) and picks the prompt accordingly:
+      `transposeSystemPrompt(allowCustom)` = a shared base ("READ the target system's rules first… PREFER
+      vanilla") + either the strict **vanilla-only** suffix (never invent) or the **allow-custom** suffix
+      (create BALANCED custom only where no vanilla option fits, in the system's own mechanics/format,
+      balanced vs comparable vanilla, listed as "CUSTOM:" for DM review). The existing target-system grounding
+      is loaded first; the existing provenance detection flags any custom element (it's not in the vanilla
+      catalog); the response returns `allowedCustom`. Guarded by `transpose-custom.test.ts`.
+- [x] **TR4 — Tests.** ✅ SHIPPED — `transpose-progress.test.ts` (consent gating + progress/done UX) +
+      `transpose-custom.test.ts` (default-false, prompt-by-consent, read-first/prefer-vanilla, CUSTOM: listing,
+      `allowedCustom` in the response). **Area TR complete.**
 
 ### Area T — IG class taxonomy (bounded data restructure)
 - [ ] **T1 — Restructure to the site's real taxonomy:** 4 parent classes (Archon / Conduit / Fighter /
