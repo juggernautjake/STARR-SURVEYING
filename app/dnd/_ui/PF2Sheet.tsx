@@ -13,7 +13,7 @@ import { PF2_ATTRIBUTES, PF2_SAVES } from '@/lib/dnd/systems/pathfinder2e/model'
 import {
   pf2Derived, pf2SkillTotal, pf2SaveTotal, pf2PerceptionTotal, pf2AttackBonus, pf2Proficiency,
 } from '@/lib/dnd/systems/pathfinder2e/rules';
-import { resolveD20Roll, rollNaturalD20, rollDiceExpr } from '@/lib/dnd/roll';
+import { resolveD20Roll, rollNaturalD20, rollDiceExpr, degreeLabel } from '@/lib/dnd/roll';
 
 const fmt = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
 const RANK_ABBR: Record<string, string> = { untrained: 'U', trained: 'T', expert: 'E', master: 'M', legendary: 'L' };
@@ -42,10 +42,22 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
   // shared engine; result shows in the banner. RNG (auto mode); PF2 uses the four-step degree ladder once a DC
   // is supplied (a target-DC field is a later slice).
   const [lastRoll, setLastRoll] = useState<{ label: string; total: number; detail: string; tone: 'crit' | 'fumble' | 'normal' } | null>(null);
+  // Optional target DC — when set, a roll resolves PF2's four-step degree of success.
+  const [targetDc, setTargetDc] = useState('');
   const rollLine = (name: string, modifier: number) => {
-    const r = resolveD20Roll({ natural: rollNaturalD20(), modifier, system: 'pathfinder2e' });
+    const dcNum = targetDc.trim() === '' ? undefined : Number(targetDc);
+    const dc = Number.isFinite(dcNum) ? dcNum : undefined;
+    const r = resolveD20Roll({ natural: rollNaturalD20(), modifier, dc, system: 'pathfinder2e' });
     const sign = r.modifier >= 0 ? `+ ${r.modifier}` : `− ${Math.abs(r.modifier)}`;
-    setLastRoll({ label: name, total: r.total, detail: `d20 [${r.natural}] ${sign}${r.critical ? ' · NAT 20' : ''}${r.fumble ? ' · NAT 1' : ''}`, tone: r.critical ? 'crit' : r.fumble ? 'fumble' : 'normal' });
+    let detail = `d20 [${r.natural}] ${sign}`;
+    let tone: 'crit' | 'fumble' | 'normal' = r.critical ? 'crit' : r.fumble ? 'fumble' : 'normal';
+    if (r.degree && r.dc != null) {
+      detail += ` · vs DC ${r.dc} → ${degreeLabel(r.degree)}`;
+      if (r.degree === 'critical-success') tone = 'crit';
+      else if (r.degree === 'critical-failure') tone = 'fumble';
+    }
+    detail += `${r.critical ? ' · NAT 20' : ''}${r.fumble ? ' · NAT 1' : ''}`;
+    setLastRoll({ label: name, total: r.total, detail, tone });
   };
   const rollDamage = (name: string, expr: string) => {
     const r = rollDiceExpr(expr);
@@ -88,14 +100,21 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
         {d.spellDc != null && <Stat label="Spell DC" value={`${d.spellDc}`} sub={`atk ${fmt(d.spellAttack ?? 0)} · ${pf2.spellcasting.tradition}`} />}
       </div>
 
-      {/* Roll result banner (R1b) — the last in-app roll (tap a save/skill/strike below). */}
-      {lastRoll && (
-        <div style={{ border: '1px solid var(--hx-gold-1)', borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', background: 'rgba(212,175,55,0.06)' }}>
-          <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{lastRoll.label}</span>
-          <strong style={{ fontSize: 20, color: lastRoll.tone === 'crit' ? 'var(--hx-teal-1)' : lastRoll.tone === 'fumble' ? 'var(--hx-danger)' : 'var(--hx-gold-2)' }}>{lastRoll.total}</strong>
-          <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>{lastRoll.detail}</span>
-        </div>
-      )}
+      {/* Roller controls + result banner (R1b) — tap a save/skill/Strike below; set a target DC for the degree. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <label style={{ fontSize: 11, color: 'var(--hx-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          🎲 Target DC
+          <input type="number" value={targetDc} onChange={(e) => setTargetDc(e.target.value)} placeholder="—"
+            style={{ width: 56, fontSize: 12, padding: '3px 6px', background: 'rgba(1,10,19,0.6)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }} />
+        </label>
+        {lastRoll && (
+          <div style={{ flex: 1, minWidth: 200, border: '1px solid var(--hx-gold-1)', borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', background: 'rgba(212,175,55,0.06)' }}>
+            <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{lastRoll.label}</span>
+            <strong style={{ fontSize: 20, color: lastRoll.tone === 'crit' ? 'var(--hx-teal-1)' : lastRoll.tone === 'fumble' ? 'var(--hx-danger)' : 'var(--hx-gold-2)' }}>{lastRoll.total}</strong>
+            <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>{lastRoll.detail}</span>
+          </div>
+        )}
+      </div>
 
       {/* Saves — tap to roll (R1b) */}
       <div>

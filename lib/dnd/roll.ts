@@ -50,6 +50,16 @@ export function fourStepDegree(total: number, dc: number, natural?: number): Rol
 
 const usesDegrees = (system?: string): boolean => system === 'intuitive-games' || system === 'pathfinder2e';
 
+/** A short human label for a degree of success, for the roll banner. */
+export function degreeLabel(d: RollDegree): string {
+  return {
+    'critical-success': 'Critical Success',
+    success: 'Success',
+    failure: 'Failure',
+    'critical-failure': 'Critical Failure',
+  }[d];
+}
+
 /** Clamp a d20 face to 1–20 (so a bad manual entry can't produce an out-of-range roll). */
 export function clampNatural(n: number): number {
   return Math.max(1, Math.min(20, Math.floor(n || 0)));

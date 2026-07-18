@@ -13,7 +13,7 @@ import styles from './hextech.module.css';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { IG_ABILITIES, IG_SAVES } from '@/lib/dnd/systems/intuitive-games/model';
 import { igAbilityMod, igDerived, igSkillTotal, igRanksSpent, igResolveAttack } from '@/lib/dnd/systems/intuitive-games/rules';
-import { resolveD20Roll, rollNaturalD20, rollDiceExpr } from '@/lib/dnd/roll';
+import { resolveD20Roll, rollNaturalD20, rollDiceExpr, degreeLabel } from '@/lib/dnd/roll';
 import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_SPELL_ROSTER, IG_DEFENSIVE_POWERS, IG_CONDITIONS, IG_ACTION_ECONOMIES, igActionsByEconomy, findIGAncestry } from '@/lib/dnd/systems/intuitive-games/content';
 import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-games/inPlay';
 import { igConditionSummary, igStanceMechanicNote } from '@/lib/dnd/systems/intuitive-games/modifiers';
@@ -53,10 +53,22 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
   // to roll its dice, through the shared engine; the result shows in the banner below. RNG here (auto mode);
   // manual-entry + record-IRL + a target DC (degrees) come in R2/R3/R5.
   const [lastRoll, setLastRoll] = useState<{ label: string; total: number; detail: string; tone: 'crit' | 'fumble' | 'normal' } | null>(null);
+  // Optional target DC — when set, a roll resolves the four-step degree of success (IG's ladder).
+  const [targetDc, setTargetDc] = useState('');
   const rollLine = (label: string, modifier: number) => {
-    const r = resolveD20Roll({ natural: rollNaturalD20(), modifier, system: 'intuitive-games' });
+    const dcNum = targetDc.trim() === '' ? undefined : Number(targetDc);
+    const dc = Number.isFinite(dcNum) ? dcNum : undefined;
+    const r = resolveD20Roll({ natural: rollNaturalD20(), modifier, dc, system: 'intuitive-games' });
     const sign = r.modifier >= 0 ? `+ ${r.modifier}` : `− ${Math.abs(r.modifier)}`;
-    setLastRoll({ label, total: r.total, detail: `d20 [${r.natural}] ${sign}${r.critical ? ' · NAT 20' : ''}${r.fumble ? ' · NAT 1' : ''}`, tone: r.critical ? 'crit' : r.fumble ? 'fumble' : 'normal' });
+    let detail = `d20 [${r.natural}] ${sign}`;
+    let tone: 'crit' | 'fumble' | 'normal' = r.critical ? 'crit' : r.fumble ? 'fumble' : 'normal';
+    if (r.degree && r.dc != null) {
+      detail += ` · vs DC ${r.dc} → ${degreeLabel(r.degree)}`;
+      if (r.degree === 'critical-success') tone = 'crit';
+      else if (r.degree === 'critical-failure') tone = 'fumble';
+    }
+    detail += `${r.critical ? ' · NAT 20' : ''}${r.fumble ? ' · NAT 1' : ''}`;
+    setLastRoll({ label, total: r.total, detail, tone });
   };
   const rollDamage = (label: string, expr: string) => {
     const r = rollDiceExpr(expr);
@@ -168,14 +180,22 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
         </div>
       </div>
 
-      {/* Roll result banner (Area R1b) — shows the last in-app roll (tap a save below to roll). */}
-      {lastRoll && (
-        <div style={{ border: '1px solid var(--hx-gold-1)', borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', background: 'rgba(212,175,55,0.06)' }}>
-          <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{lastRoll.label}</span>
-          <strong style={{ fontSize: 20, color: lastRoll.tone === 'crit' ? 'var(--hx-teal-1)' : lastRoll.tone === 'fumble' ? 'var(--hx-danger)' : 'var(--hx-gold-2)' }}>{lastRoll.total}</strong>
-          <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>{lastRoll.detail}</span>
-        </div>
-      )}
+      {/* Roller controls + result banner (Area R1b) — tap a save/skill/attack/ability below to roll; set a
+          target DC to see the degree of success. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <label style={{ fontSize: 11, color: 'var(--hx-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          🎲 Target DC
+          <input type="number" value={targetDc} onChange={(e) => setTargetDc(e.target.value)} placeholder="—"
+            style={{ width: 56, fontSize: 12, padding: '3px 6px', background: 'rgba(1,10,19,0.6)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }} />
+        </label>
+        {lastRoll && (
+          <div style={{ flex: 1, minWidth: 200, border: '1px solid var(--hx-gold-1)', borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', background: 'rgba(212,175,55,0.06)' }}>
+            <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{lastRoll.label}</span>
+            <strong style={{ fontSize: 20, color: lastRoll.tone === 'crit' ? 'var(--hx-teal-1)' : lastRoll.tone === 'fumble' ? 'var(--hx-danger)' : 'var(--hx-gold-2)' }}>{lastRoll.total}</strong>
+            <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>{lastRoll.detail}</span>
+          </div>
+        )}
+      </div>
 
       {/* Saves + top-line stats — tap a save to roll it in-app (R1b). */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>

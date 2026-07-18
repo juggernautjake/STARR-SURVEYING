@@ -94,3 +94,13 @@ describe('dice-expression rolls (damage/healing)', () => {
     expect(rollDiceExpr('junk').total).toBe(0);
   });
 });
+
+import { degreeLabel } from '@/lib/dnd/roll';
+describe('degreeLabel', () => {
+  it('gives human labels for each degree', () => {
+    expect(degreeLabel('critical-success')).toBe('Critical Success');
+    expect(degreeLabel('success')).toBe('Success');
+    expect(degreeLabel('failure')).toBe('Failure');
+    expect(degreeLabel('critical-failure')).toBe('Critical Failure');
+  });
+});
