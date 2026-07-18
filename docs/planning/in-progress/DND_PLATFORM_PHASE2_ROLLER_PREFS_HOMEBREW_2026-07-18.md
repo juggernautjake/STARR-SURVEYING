@@ -56,8 +56,11 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
       features/traits/spell-DC+slots/provenance) but never listed the character's actual **SPELLS** — a ruling
       on "can you cast X / what does your spell do?" was blind to them (only the DC/slots were shown). Added a
       SPELLS section (name + level + school + a brief of the effect; a homebrew spell's text verbatim), capped
-      like FEATURES with a "+N more" note (`character-digest.test.ts` +3). **Area SQ3 (AI reads every component)
-      is done across all three systems** — IG powers, PF2 feats+senses, 5e spells.
+      like FEATURES with a "+N more" note (`character-digest.test.ts` +3). Also upgraded the 5e SKILLS line from
+      proficiency NAMES to full **skill totals** (ability mod + prof/expertise contribution + misc, matching the
+      sheet — SAVES already showed numbers, and IG/PF2 show skill totals) so a skill-check ruling has the number;
+      and added PF2 **LANGUAGES** (social/exploration rulings). **Area SQ3 (AI reads every component) is done
+      across all three systems** — IG powers, PF2 feats+senses+languages, 5e spells + skill totals.
 - [x] **SQ4 — AI edits every component** — audited the IG edit path (`applyIgEdit`): it could change
       stance/conditions/feats/powers/defensive-power but had **no way to adjust HP** — the single most common
       in-play edit, which the digest already surfaces (a ruling "you take 8 damage" couldn't be applied). Added

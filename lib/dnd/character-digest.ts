@@ -12,7 +12,7 @@
 //    a guess dressed up as a fact.
 import type { Character } from '@/app/dnd/_sheet/types';
 import type { AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
-import { abilityMod, profBonusForLevel, profContribution } from '@/app/dnd/_sheet/rules/dnd';
+import { abilityMod, profBonusForLevel, profContribution, SKILLS } from '@/app/dnd/_sheet/rules/dnd';
 import { buildLedger } from './effects/ledger';
 import { deriveAc } from '@/app/dnd/_sheet/lib/derive-ac';
 import { summarizeCharacterProvenance } from './provenance';
@@ -210,10 +210,18 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
       .join(' · ');
     lines.push(`SAVES: ${saveLine}  (* = proficient)`);
   }
+  // Proficient/expert skills WITH their total bonus — a skill-check ruling ("do you pick the lock?") needs the
+  // NUMBER, not just "you're proficient" (SAVES already show numbers; the IG/PF2 digests show skill totals).
+  // Ability mod + proficiency contribution (½/×1/×2 for prof/expertise) + misc, matching the sheet's Skills.
   const skills = Object.entries(char.skills ?? {})
     .filter(([, v]) => v?.prof && v.prof !== 'none')
-    .map(([k, v]) => `${k}${v.prof === 'expertise' ? ' (expertise)' : ''}`);
-  if (skills.length) lines.push(`SKILL PROFICIENCIES: ${skills.join(', ')}`);
+    .map(([k, v]) => {
+      const def = SKILLS.find((s) => s.key === k);
+      const ability = def?.ability ?? 'int';
+      const total = abilityMod(effAbil(ability)) + profContribution(v.prof, pb) + (v.misc ?? 0);
+      return `${def?.label ?? k} ${signed(total)}${v.prof === 'expertise' ? ' (expertise)' : ''}`;
+    });
+  if (skills.length) lines.push(`SKILLS: ${skills.join(' · ')}`);
 
   // Resources — a ruling often depends on whether the character can still pay for something.
   const res = (char.resources ?? []).map((r) => `${r.name} ${r.current}/${r.max} (resets on ${r.resetOn} rest)`);

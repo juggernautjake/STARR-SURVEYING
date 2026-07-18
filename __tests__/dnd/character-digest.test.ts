@@ -64,7 +64,7 @@ describe('characterDigest carries the sheet, not a generic character', () => {
 
   it('carries proficiencies, resources and attacks', () => {
     expect(d).toMatch(/SAVES: .*STR [+-]\d+\*.*CON [+-]\d+\*/); // save bonuses, proficient ones starred
-    expect(d).toContain('athletics (expertise)');
+    expect(d).toMatch(/SKILLS: .*Athletics [+-]\d+ \(expertise\)/); // skills now carry their computed total
     expect(d).toContain('Momentum 2/4');
     expect(d).toContain('Cross Counter');
   });
@@ -375,5 +375,22 @@ describe('the 5e digest lists the character’s spells (SQ3)', () => {
   });
   it('omits the SPELLS line for a non-caster (no empty scaffolding)', () => {
     expect(characterDigest(blankCharacter('Fighter'), 'dnd-5e-2024')).not.toMatch(/^SPELLS:/m);
+  });
+});
+
+describe('the 5e digest shows skill totals, not just proficiency names (SQ3)', () => {
+  it('lists each proficient/expert skill with its computed bonus', () => {
+    const c = blankCharacter('Rogue') as Character;
+    c.abilities = { ...c.abilities, dex: 16 }; // +3
+    c.skills = { ...c.skills, stealth: { prof: 'expertise', misc: 0 }, athletics: { prof: 'proficient', misc: 0 } };
+    const d = characterDigest(c, 'dnd-5e-2024');
+    // level 1 → PB 2. Stealth (dex+3): +3 + expertise(2×2=4) = +7. Athletics (str+0): +0 + prof(2) = +2.
+    expect(d).toMatch(/SKILLS: /);
+    expect(d).toMatch(/Stealth \+7 \(expertise\)/);
+    expect(d).toMatch(/Athletics \+2/);
+    expect(d).not.toMatch(/SKILL PROFICIENCIES/); // replaced by the totals line
+  });
+  it('omits the SKILLS line when nothing is proficient', () => {
+    expect(characterDigest(blankCharacter('Commoner'), 'dnd-5e-2024')).not.toMatch(/^SKILLS: /m);
   });
 });
