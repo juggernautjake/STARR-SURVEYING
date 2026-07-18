@@ -350,8 +350,13 @@ below states what it reuses.
 - [ ] **D6 — Mileage tracker + reusable vehicles.** Start/end odometer + vehicle picker (save/add/delete),
       writing to financials — surface the existing `app/api/admin/mileage` + `app/api/admin/vehicles` in Work
       Mode; extract any pure mileage-delta/validation logic to a tested module.
-- [ ] **D7 — Compass (azimuth + bearing).** A clean compass reading that formats a heading as both azimuth and
-      quadrant bearing (reusing `azimuthToBearing`/`formatBearing`); the device heading source is mobile-runtime.
+- [~] **D7 — Compass (azimuth + bearing). ✅ Pure formatter shipped.** `lib/surveying/compass.ts` —
+      `compassReading(headingDeg)` → `{ azimuth, azimuthText, bearingText, cardinal }`, reusing
+      `lib/cad/geometry/bearing.ts`'s `formatAzimuth`/`formatBearing` (single source of truth) and adding the
+      only missing display piece: 16-point cardinal naming (`cardinalPoint`). Normalizes any heading to [0,360),
+      returns null for a non-finite heading (UI shows "—"). `__tests__/surveying/compass.test.ts` (8).
+      **Remaining (mobile-runtime):** the device magnetometer heading source (`expo-sensors`/`Magnetometer`) +
+      the compass dial UI — feed the live heading into this pure formatter; device-tested.
 - [ ] **D8 — In-Work-Mode AI assistant (text + voice).** Type-or-talk assistant; reuse the existing DnD/library
       chat + TTS/STT plumbing where possible. Voice I/O is device/runtime-gated (note honestly per slice).
 
