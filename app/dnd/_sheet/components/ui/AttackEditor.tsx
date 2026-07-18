@@ -14,6 +14,13 @@ import type { Attack } from '../../types'
 import EditDialog, { Field } from './EditDialog'
 import ImageUpload from './ImageUpload'
 import { nextCustomized } from '../../lib/customized'
+import { diffFields, logManualEdits } from '../../lib/log-edit'
+
+// The fields a hand-edit can move — each becomes an audit row (`attack.<name>.<field>`) so the DM's
+// review queue shows manual attack tweaks the same way it shows AI edits and DM overrides (Slice 20).
+const AUDITED: (keyof Attack)[] = [
+  'name', 'damage', 'damageType', 'ability', 'range', 'bonusToHit', 'bonusDamage', 'proficient', 'saveBased', 'saveAbility',
+]
 
 const DAMAGE_TYPES = [
   'bludgeoning', 'piercing', 'slashing', 'fire', 'cold', 'lightning', 'thunder',
@@ -21,16 +28,20 @@ const DAMAGE_TYPES = [
 ]
 
 export default function AttackEditor({ attack, onClose }: { attack: Attack; onClose: () => void }) {
-  const { setChar } = useChar()
+  const { setChar, characterId } = useChar()
   const [draft, setDraft] = useState<Attack>({ ...attack })
   const set = <K extends keyof Attack>(k: K, v: Attack[K]) => setDraft((d) => ({ ...d, [k]: v }))
 
   function save() {
     const name = draft.name.trim() || attack.name // never let a rename blank the row out
-    const customized = nextCustomized(attack, draft) // ✎ once hand-tuned (Slice 20)
+    const next = { ...draft, name }
+    const customized = nextCustomized(attack, next) // ✎ once hand-tuned (Slice 20)
+    // Audit the change to the same log the AI + DM overrides use, keyed by the attack's original name
+    // so the DM's queue reads "Longbow · damage: 1d8 → 1d10" (before the setChar swaps it in).
+    logManualEdits(characterId, diffFields(attack, next, `attack.${attack.name}`, AUDITED))
     setChar((c) => ({
       ...c,
-      attacks: c.attacks.map((a) => (a.id === attack.id ? { ...draft, name, customized } : a)),
+      attacks: c.attacks.map((a) => (a.id === attack.id ? { ...next, customized } : a)),
     }))
     onClose()
   }

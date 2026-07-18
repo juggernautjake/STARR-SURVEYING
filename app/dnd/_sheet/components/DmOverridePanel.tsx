@@ -2,6 +2,7 @@ import InlineNumber from './ui/InlineNumber'
 import AiSheetEdit from './AiSheetEdit'
 import StreamControl from './StreamControl'
 import { useChar } from '../state/store'
+import { logManualEdit } from '../lib/log-edit'
 import type { Character } from '../types'
 
 // DM sheet-control panel (§6.8.1 / Phase C10). Renders only in DM mode. Gives the
@@ -23,21 +24,10 @@ export default function DmOverridePanel({ hasStream = false }: { hasStream?: boo
   const { char, setChar, isDM, tempMode, setTempMode, clearAllOverrides, setLevel, characterId } = useChar()
   if (!isDM) return null
 
-  // Record a DM override to the edit log (C11a). Fire-and-forget; only when the
-  // sheet is DB-backed (a characterId exists). The scope follows Temp mode.
-  const logEdit = (fieldPath: string, oldValue: number, newValue: number) => {
-    if (!characterId || oldValue === newValue) return
-    void fetch(`/api/dnd/characters/${characterId}/edits`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        field_path: fieldPath,
-        old_value: oldValue,
-        new_value: newValue,
-        scope: tempMode ? 'temp' : 'permanent',
-      }),
-    }).catch(() => {})
-  }
+  // Record a DM override to the edit log (C11a) via the shared audit path. Fire-and-forget; only
+  // when the sheet is DB-backed (a characterId exists). The scope follows Temp mode.
+  const logEdit = (fieldPath: string, oldValue: number, newValue: number) =>
+    logManualEdit(characterId, fieldPath, oldValue, newValue, tempMode ? 'temp' : 'permanent')
 
   const setAbility = (k: keyof Character['abilities']) => (n: number) => {
     logEdit(`ability.${k}`, char.abilities[k], n)

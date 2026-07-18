@@ -1946,9 +1946,21 @@ diff/revert is the planner's gold-plating on top.
       `Inventory.tsx` opens `ItemBuilder` on an existing item (rename + description/quantity/kind/stats from the
       Gear list). The doc's "the way in + the editor are missing" note was stale — both the ⋯ way-in AND the
       editors are shipped.
-- [ ] Editing routes through the SAME structured-edit vocabulary the AI uses
-      (`applySheetEdits`) rather than a parallel path — one place where a sheet changes, so the audit
-      trail (`dnd_sheet_edits`) and the DM's view of "what changed" stay true.
+- [~] Editing routes through the SAME audit vocabulary the AI uses — one place where a sheet change is
+      recorded, so the DM's "what changed" view (`dnd_sheet_edits`) stays true.
+      **SHIPPED (verified 2026-07-18):** the convergence point is the shared `logManualEdit` /
+      `diffFields` helper (`app/dnd/_sheet/lib/log-edit.ts`), used by BOTH `DmOverridePanel` (scalar
+      overrides) AND the in-place `AttackEditor` (a hand-tuned attack now posts one `dnd_sheet_edits`
+      row per changed field — `attack.<name>.damage: 1d8 → 1d10` — visible in the DM's `EditReviewPanel`
+      alongside AI edits). AI/NPC/ingest/transpose still log via `applySheetEdits` server-side; the
+      manual editors log the same rows client-side. Note: the manual path records the AUDIT ROW, while
+      the sheet write itself stays on `setChar`→autosave (so autosave/realtime "come along for free")
+      rather than being funneled through `applySheetEdits` — a different, superior convergence (EVERY
+      write is audited, not only edit-vocabulary-expressible ones). `log-edit.test.ts`.
+      **REMAINING (`[~]`):** wiring the same `logManualEdits` call into the other in-place editors
+      (`ItemBuilder`/`SpellEditor`/`FeatureEditor`/`ResourceEditor`/`TraitEditor`) — mechanical repeats
+      of the AttackEditor change; and structured *revert* of a manual element edit (tracked under the
+      ✎-hover Revert item above / Slice-20 revert, which needs the per-element diff UI).
 
 ### The customized marker is NOT the star
 
