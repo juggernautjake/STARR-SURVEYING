@@ -456,7 +456,10 @@ The engine (`lib/dnd/classes/custom.ts`) is built and tested; there is no UI.
       — `CUSTOM_CLASS_TOOL` (structured-output schema) + `parseCustomClassDraft` (defensive normalizer →
       a valid `CustomClassDraft`) that flows through the existing `buildCustomClass` + `reviewCustomClass`,
       so the AI proposes and the engine adjudicates/flags balance. 5 tests incl. the full round-trip.
-      **Remaining for this item's UI:** the `/build/class` page wiring a prompt box to this.
+      **UI SHIPPED (verified 2026-07-18):** `/build/class/page.tsx` wires a prompt box → `/homebrew-class`
+      (AI draft) → renders the engine's balance review (errors block save) → `/homebrew-class/save`; both
+      endpoints exist, and `homebrew-class-page.test.ts` source-anchors the page (sibling to the shipped
+      `/build/feat` + `/build/subclass`). Only the nice-to-have manual field-by-field edit form remains.
 - [x] **Persist to the character; flag as custom. ✅ SHIPPED** (`7fa1a665`). `homebrew-store.ts` (pure:
       upsert-by-key/remove/system-filter/read) + `Character.homebrewClasses` + a save endpoint that
       rebuilds+re-reviews server-side, rejects errors, upserts + persists (stamps author, flagged custom),
