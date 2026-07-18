@@ -382,6 +382,13 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       incl. two-sheets-per-system + round-trip). REMAINING **MV2b**: a route to add/switch/rename/delete a slot
       + the `SystemSwitcher` UI (the "+" add-sheet with vanilla/custom + name, and per-slot switch chips from
       `listSheets`); a custom transpose ADDs a slot instead of overwriting.
+      **MV2b(route) ✅ SHIPPED** — the system route now: folds the persisted active-slot meta onto the live
+      active sheet (`readActiveSlotMeta`); handles `{ slotId }` → `switchToSlot` (switch to a SPECIFIC sheet);
+      handles `{ action:'add', system, kind, name? }` → `addSheetSlot` (add a blank sheet for a PLAYABLE
+      system, `isSystemAvailable`-gated, without switching); and every persist path (switch/transpose too) now
+      writes `withActiveSlotMeta` so the active kind/name/slotId survive. Guarded by `mv-route.test.ts`.
+      REMAINING **MV2c** — the `SystemSwitcher` UI: render `listSheets` as per-slot chips, a "+" add-sheet
+      (vanilla/custom + optional name), and route a custom transpose to ADD a slot.
 - [ ] **MV3 — Labels on the sheet + provenance.** The active sheet shows its name + Vanilla/Custom label; the
       custom variant's invented elements stay provenance-flagged for DM review.
 - [ ] **MV4 — Tests:** two variants coexist for one system; switching preserves both; naming (custom +
