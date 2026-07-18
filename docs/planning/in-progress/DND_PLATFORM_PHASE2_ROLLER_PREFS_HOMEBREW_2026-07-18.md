@@ -337,6 +337,10 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       physically-rolled result straight to the shared roll log (kind default `raw`, tagged IRL) — no folding,
       no animation. Both R3 + R5 are wired into a compact two-mode **"Enter a roll"** panel in the DiceTray
       (Manual d20: face + modifier → Fold; Record IRL: result → Log), themed to the tray palette, Enter-to-submit.
+      **recordMode preference wired ✅ (2026-07-18)** — the `recordMode` pref (auto/manual/irl) was defined + had a
+      DM control but was UNUSED; the DiceTray now reads it to default the entry panel: `manual`/`irl` open it (in
+      Fold / Record-IRL mode respectively), `auto` leaves it closed (the app rolls). So a table that rolls
+      physical dice gets the right entry surface by default (`dice-tray-ux.test.ts` +1).
 - [x] **R6 — Tests:** ✅ SHIPPED — `foldD20` golden-pinned (face+mod, crit/fumble, clamp, sign) in
       `manual-roll.test.ts`; the store's `manualD20`/`recordRoll` + the tray's two-mode entry panel are
       source-anchored there; the R2 auto-toggle gate is anchored in `exhaustion-d20.test.ts`. Full suite green.

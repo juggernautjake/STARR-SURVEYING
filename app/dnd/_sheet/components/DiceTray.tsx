@@ -28,8 +28,13 @@ export default function DiceTray() {
   const [diceCount, setDiceCount] = useState(1)
   // Manual / IRL roll entry (Areas R3 + R5) — enter a physically-rolled d20 face (the sheet folds your
   // modifier) or just log a roll you made in person (result + what it was for).
-  const [entryOpen, setEntryOpen] = useState(false)
-  const [entryMode, setEntryMode] = useState<'fold' | 'log'>('fold')
+  // The campaign/player's roll RECORD MODE (Area R) drives the entry panel's default: 'auto' = the app rolls
+  // (panel closed), 'manual' = enter a physical d20 face and the sheet folds your modifier (Fold), 'irl' = just
+  // log the result you rolled in person (Record IRL). Previously this preference was unused — now it opens the
+  // right entry mode by default for a table that rolls physical dice.
+  const recordMode = preferences.recordMode.value
+  const [entryOpen, setEntryOpen] = useState(recordMode !== 'auto')
+  const [entryMode, setEntryMode] = useState<'fold' | 'log'>(recordMode === 'irl' ? 'log' : 'fold')
   const [entryLabel, setEntryLabel] = useState('')
   const [entryFace, setEntryFace] = useState('')
   const [entryMod, setEntryMod] = useState('')

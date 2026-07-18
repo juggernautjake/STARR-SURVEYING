@@ -49,3 +49,11 @@ describe('per-skin number-display styling (D4d)', () => {
     expect(tray).toContain('<RollStage roller={diceStyle} />');
   });
 });
+
+describe('recordMode preference drives the entry panel default (Area R — was unused)', () => {
+  it('reads preferences.recordMode and defaults the entry panel open + to the matching mode', () => {
+    expect(tray).toContain('const recordMode = preferences.recordMode.value');
+    expect(tray).toContain("useState(recordMode !== 'auto')"); // manual/irl → panel open by default
+    expect(tray).toContain("useState<'fold' | 'log'>(recordMode === 'irl' ? 'log' : 'fold')"); // irl → Record IRL, else Fold
+  });
+})
