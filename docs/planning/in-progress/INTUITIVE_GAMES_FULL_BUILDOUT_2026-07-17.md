@@ -47,6 +47,13 @@ per-class ladders, `/redistribution`, `/game-list`, and the home page.
    magical-items, damage, character-building) or IG-only search kinds (stance/companion/damage-type/cover/
    combat-skill/defensive-power/trait/magic-item) appear under ANY other game system — so a future IG addition
    that forgets to scope itself is caught, not shipped.
+   **⚑ Digest-router isolation now guarded too (2026-07-18):** the adjudication chat route sends a character's
+   sidecar to the RIGHT rules digest via type guards (`isIGCharacter`/`isPF2Character`), and a false positive
+   would feed IG rules to a PF2/5e character (Ground-Rule-1 leak at the AI layer). The guards were tested only
+   POSITIVELY; new `digest-router-isolation.test.ts` (8) pins the cross-system rejection — `isIGCharacter`
+   refuses a PF2 sidecar (has `attributes`, not `abilities`) and a 5e object (has `meta`, not `identity`),
+   `isPF2Character` refuses an IG sidecar, both refuse nullish/non-object input, and the two are mutually
+   exclusive on any one sidecar. So the AI can never adjudicate one system's character with another's rules.
 
 4. **Every builder/sheet element must render somewhere and be editable** — a stance the builder can pick must
    show on the sheet with its full rules text; a feat granted must appear in Features; a condition must be
