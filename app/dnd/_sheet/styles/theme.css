@@ -1610,6 +1610,60 @@
   cursor: pointer;
 }
 .dnd-sheet .tray-hist-head:hover { color: var(--tealbright); }
+
+/* Manual / IRL roll entry (Areas R3 + R5). Inherits the tray's palette like everything else. */
+.dnd-sheet .tray-entry {
+  padding: 8px 10px 10px;
+  display: grid;
+  gap: 7px;
+  border-bottom: 1px solid var(--line-strong);
+}
+.dnd-sheet .tray-entry-modes {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: rgba(var(--void-rgb), 0.5);
+}
+.dnd-sheet .te-mode {
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 11.5px;
+  padding: 5px 8px;
+  cursor: pointer;
+  transition: background 0.14s, color 0.14s;
+}
+.dnd-sheet .te-mode.on {
+  background: linear-gradient(180deg, rgba(var(--tealbright-rgb), 0.9), rgba(var(--tealbright-rgb), 0.7));
+  color: var(--void);
+  font-weight: 600;
+}
+.dnd-sheet .tray-entry .te-input,
+.dnd-sheet .tray-entry .te-num {
+  background: rgba(var(--void-rgb), 0.7);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: 13px;
+  padding: 6px 9px;
+  outline: none;
+}
+.dnd-sheet .tray-entry .te-input { width: 100%; box-sizing: border-box; }
+.dnd-sheet .tray-entry .te-input:focus,
+.dnd-sheet .tray-entry .te-num:focus { border-color: var(--hotpink); }
+.dnd-sheet .tray-entry .te-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.dnd-sheet .tray-entry .te-num { width: 0; flex: 1 1 auto; min-width: 0; }
+.dnd-sheet .tray-entry .te-row .btn { flex: 0 0 auto; }
+
 .dnd-sheet .tray-log {
   max-height: 320px;
   overflow-y: auto;

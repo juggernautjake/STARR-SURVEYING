@@ -12,7 +12,7 @@ import { normalizeCharacter, blankCharacter } from '../data/blank'
 import { profBonusForLevel, abilityMod, maxHpForLevel, speedForLevel, MAX_BUILT_LEVEL } from '../rules/dnd'
 import { buildLedger, type EffectLedger } from '@/lib/dnd/effects/ledger'
 import { routeFormDamage, isFormHpLive } from '@/lib/dnd/effects/form-hp'
-import { rollD20, rollDamage, parseDice, rollDie, rollTyped, weaponSegments, parseBonusDamageSegment, type Advantage } from '../lib/dice'
+import { rollD20, foldD20, rollDamage, parseDice, rollDie, rollTyped, weaponSegments, parseBonusDamageSegment, type Advantage } from '../lib/dice'
 import { deriveAc, type AcResult } from '../lib/derive-ac'
 import { applyDeathSave } from '../lib/death-save'
 import { resolvePreferences, DEFAULT_CAMPAIGN_PREFERENCES, type EffectivePreferences } from '@/lib/dnd/preferences'
@@ -153,6 +153,10 @@ interface Ctx {
   resetStage: () => void
 
   rollCheck: (label: string, mod: number, opts?: RollD20Opts) => void
+  /** Fold a manually-entered d20 face into a check (Area R3). */
+  manualD20: (label: string, mod: number, face: number, opts?: RollD20Opts) => void
+  /** Record an IRL roll straight to the log (Area R5). */
+  recordRoll: (label: string, total: number, opts?: { kind?: RollEntry['kind']; note?: string }) => void
   rollDmg: (label: string, diceExpr: string, opts?: RollDmgOpts) => void
   rollWeaponDamage: (item: InvItem, opts?: { crit?: boolean }) => void
   rollExpr: (label: string, expr: string, kind?: RollEntry['kind']) => void
@@ -656,6 +660,37 @@ export function CharacterProvider({
     [advMode, recklessActive, char.combat.exhaustion, critMin, stage, edition, exhaustionModel],
   )
 
+  // Manually-entered d20 (Area R3) — the player rolled a physical die and types the FACE; the sheet folds the
+  // character's modifier + exhaustion and decides crit/fumble via foldD20, then stages it (landing on their
+  // face) so the reveal + log read like any other check. No randomness; advantage doesn't apply (they chose).
+  const manualD20 = useCallback(
+    (label: string, mod: number, face: number, opts: RollD20Opts = {}) => {
+      const exh = char.combat.exhaustion || 0
+      const exhKind = opts.kind === 'attack' ? 'attack' : opts.kind === 'save' ? 'save' : 'check'
+      const exhEff = exhaustionD20Effect(exhKind, exh, edition, exhaustionModel)
+      const rollCritMin = opts.kind === 'attack' ? critMin : 20
+      const r = foldD20(face, mod + exhEff.penalty, rollCritMin)
+      const tags: string[] = ['MANUAL']
+      if (exh > 0 && exhEff.penalty) tags.push(`EXH ${exhEff.penalty}`)
+      if (rollCritMin < 20) tags.push(`CRIT ${rollCritMin}–20`)
+      if (opts.tag) tags.push(opts.tag)
+      stage(
+        { label, kind: opts.kind ?? 'check', total: r.total, breakdown: r.breakdown, crit: r.crit, fumble: r.fumble, mode: 'flat', tag: tags.join(' · ') || undefined },
+        { landing: r.natural, min: 1, max: 20, isD20: true, crit: r.crit, fumble: r.fumble },
+      )
+    },
+    [char.combat.exhaustion, critMin, stage, edition, exhaustionModel],
+  )
+
+  // Record an IRL roll (Area R5) — the player rolled physical dice and just wants it in the log (result + what
+  // it was for). No folding, no animation: it goes straight to the shared roll log like any committed roll.
+  const recordRoll = useCallback(
+    (label: string, total: number, opts: { kind?: RollEntry['kind']; note?: string } = {}) => {
+      commitRoll({ label: label.trim() || 'IRL roll', kind: opts.kind ?? 'raw', total: Math.round(total || 0), breakdown: opts.note?.trim() || 'recorded (rolled in person)', tag: 'IRL' })
+    },
+    [commitRoll],
+  )
+
   const rollDmg = useCallback(
     (label: string, diceExpr: string, opts: RollDmgOpts = {}) => {
       const dmg = rollDamage(diceExpr, opts.crit)
@@ -1147,6 +1182,8 @@ export function CharacterProvider({
     commitRoll,
     resetStage,
     rollCheck,
+    manualD20,
+    recordRoll,
     rollDmg,
     rollWeaponDamage,
     rollExpr,

@@ -253,12 +253,19 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       already returns `degree` when a DC is supplied) — a small follow-up.
 - [ ] **R2 — Auto-mechanics toggle.** When on, active conditions/stances/exhaustion fold into every roll;
       when off, the sheet shows the modifiers but the player applies them. Reads the `autoMechanics` pref.
-- [ ] **R3 — Manual roll input.** Enter a d20/dice result by hand; the sheet folds the character's modifiers.
+- [x] **R3 — Manual roll input.** ✅ SHIPPED — pure `foldD20(face, mod, critMin)` in `_sheet/lib/dice.ts`
+      folds a physically-rolled d20 face with the character's modifier (clamps 1–20, no randomness/advantage —
+      the player chose the die), deciding crit/fumble like any roll. Store `manualD20(label, mod, face, opts)`
+      layers exhaustion + crit range on top and STAGES it (the reveal + log play, landing on the entered face,
+      tagged MANUAL). Golden-pinned (`manual-roll.test.ts`).
 - [ ] **R4 — Manual stat / direct edit.** Already exists for 5e; ensure the bespoke sheets can be directly
       edited (stats/HP/etc.) — parity.
-- [ ] **R5 — Record an IRL roll.** Log a roll the player made physically (result + what it was for) to the
-      roll history without the app rolling it. Feeds the same log/undo.
+- [x] **R5 — Record an IRL roll.** ✅ SHIPPED — store `recordRoll(label, total, opts)` commits a
+      physically-rolled result straight to the shared roll log (kind default `raw`, tagged IRL) — no folding,
+      no animation. Both R3 + R5 are wired into a compact two-mode **"Enter a roll"** panel in the DiceTray
+      (Manual d20: face + modifier → Fold; Record IRL: result → Log), themed to the tray palette, Enter-to-submit.
 - [ ] **R6 — Tests:** each mode produces the right logged entry; auto-toggle changes whether mechanics fold.
+      (R3/R5 golden + source-anchored done; R2 auto-toggle folding pending.)
 
 ### Area D — Dice roller interfaces & styles (depends on R)
 - [x] **D1 — Style system.** ✅ SHIPPED — the dice tray's look is now driven by `preferences.diceRollerStyle`.

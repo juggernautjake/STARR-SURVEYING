@@ -206,3 +206,24 @@ export function rollD20(mod: number, mode: Advantage = 'flat', critMin = 20): D2
     breakdown: `${kept}${modStr}`,
   }
 }
+
+/**
+ * Fold a MANUALLY-entered d20 face (Area R3) — the player rolled a physical die and types the face; the sheet
+ * applies their modifier and decides crit/fumble exactly like a rolled result, but the number is theirs (no
+ * randomness, no advantage — they already chose which die to keep). The face is clamped to 1–20.
+ */
+export function foldD20(natural: number, mod: number, critMin = 20): D20Roll {
+  const nat = Math.max(1, Math.min(20, Math.round(natural || 0)))
+  const total = nat + mod
+  const modStr = mod === 0 ? '' : mod > 0 ? ` + ${mod}` : ` − ${Math.abs(mod)}`
+  return {
+    total,
+    natural: nat,
+    rolls: [nat],
+    mod,
+    mode: 'flat',
+    crit: nat >= critMin && nat !== 1,
+    fumble: nat === 1,
+    breakdown: `d20[${nat}]${modStr} (entered)`,
+  }
+}

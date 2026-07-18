@@ -5,7 +5,7 @@ import RollStage from './RollStage'
 import { setMuted, isMuted, primeAudio } from '../lib/audio'
 
 export default function DiceTray() {
-  const { log, clearLog, resetStage, activeRoll, advMode, setAdvMode, transformActive, topFormId, transform, endTransform, nextTurn, recklessActive, toggleReckless, rollCheck, rollExpr, char, activeFormId, preferences } = useChar()
+  const { log, clearLog, resetStage, activeRoll, advMode, setAdvMode, transformActive, topFormId, transform, endTransform, nextTurn, recklessActive, toggleReckless, rollCheck, rollExpr, manualD20, recordRoll, char, activeFormId, preferences } = useChar()
   // The dice-roller visual style. Defaults to the campaign/player preference (Area D), but a per-session
   // selector in the tray lets the player try any style right from the roller (owner 2026-07-18).
   const DICE_STYLES = ['futuristic', 'rugged', 'natural', 'fantasy', 'medieval'] as const
@@ -26,6 +26,27 @@ export default function DiceTray() {
     if (rollToken != null) setOpen(true)
   }, [rollToken])
   const [diceCount, setDiceCount] = useState(1)
+  // Manual / IRL roll entry (Areas R3 + R5) — enter a physically-rolled d20 face (the sheet folds your
+  // modifier) or just log a roll you made in person (result + what it was for).
+  const [entryOpen, setEntryOpen] = useState(false)
+  const [entryMode, setEntryMode] = useState<'fold' | 'log'>('fold')
+  const [entryLabel, setEntryLabel] = useState('')
+  const [entryFace, setEntryFace] = useState('')
+  const [entryMod, setEntryMod] = useState('')
+  const [entryTotal, setEntryTotal] = useState('')
+  const submitEntry = () => {
+    const label = entryLabel.trim() || (entryMode === 'fold' ? 'Manual d20' : 'IRL roll')
+    if (entryMode === 'fold') {
+      const face = parseInt(entryFace, 10)
+      if (!Number.isFinite(face)) return
+      manualD20(label, parseInt(entryMod, 10) || 0, face, { kind: 'check' })
+    } else {
+      const total = parseInt(entryTotal, 10)
+      if (!Number.isFinite(total)) return
+      recordRoll(label, total)
+    }
+    setEntryLabel(''); setEntryFace(''); setEntryMod(''); setEntryTotal('')
+  }
   const [muted, setMutedState] = useState(isMuted())
   // `w` pins the tray's on-screen width captured the instant dragging begins, so going from the docked
   // (width:100%) layout to floating never shrinks or reflows it — it just detaches and moves (owner request).
@@ -201,6 +222,36 @@ export default function DiceTray() {
           Flat d20
         </button>
       </div>
+
+      {/* Manual / IRL roll entry (Areas R3 + R5). */}
+      <button type="button" className="tray-hist-head" onClick={() => setEntryOpen((v) => !v)} aria-expanded={entryOpen} title="Enter a physical roll">
+        <span>{entryOpen ? '▾' : '▸'} Enter a roll</span>
+      </button>
+      {entryOpen && (
+        <div className="tray-entry">
+          <div className="tray-entry-modes" role="group" aria-label="Roll entry mode">
+            <button type="button" className={`te-mode ${entryMode === 'fold' ? 'on' : ''}`} aria-pressed={entryMode === 'fold'} onClick={() => setEntryMode('fold')}>Manual d20</button>
+            <button type="button" className={`te-mode ${entryMode === 'log' ? 'on' : ''}`} aria-pressed={entryMode === 'log'} onClick={() => setEntryMode('log')}>Record IRL</button>
+          </div>
+          <input className="te-input" value={entryLabel} onChange={(e) => setEntryLabel(e.target.value)} placeholder={entryMode === 'fold' ? 'What for? (e.g. Stealth)' : 'What for? (e.g. Attack)'} maxLength={40}
+            onKeyDown={(e) => { if (e.key === 'Enter') submitEntry() }} />
+          {entryMode === 'fold' ? (
+            <div className="te-row">
+              <input className="te-num" type="number" min={1} max={20} value={entryFace} onChange={(e) => setEntryFace(e.target.value)} placeholder="d20" title="The d20 face you rolled"
+                onKeyDown={(e) => { if (e.key === 'Enter') submitEntry() }} />
+              <input className="te-num" type="number" value={entryMod} onChange={(e) => setEntryMod(e.target.value)} placeholder="+mod" title="Your modifier — added to the die"
+                onKeyDown={(e) => { if (e.key === 'Enter') submitEntry() }} />
+              <button type="button" className="btn tiny solid" onClick={submitEntry} disabled={entryFace.trim() === ''}>Fold</button>
+            </div>
+          ) : (
+            <div className="te-row">
+              <input className="te-num" type="number" value={entryTotal} onChange={(e) => setEntryTotal(e.target.value)} placeholder="result" title="The final result you rolled in person"
+                onKeyDown={(e) => { if (e.key === 'Enter') submitEntry() }} />
+              <button type="button" className="btn tiny solid" onClick={submitEntry} disabled={entryTotal.trim() === ''}>Log</button>
+            </div>
+          )}
+        </div>
+      )}
 
       <button
         type="button"
