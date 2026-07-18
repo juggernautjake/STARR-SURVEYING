@@ -480,6 +480,11 @@ One system per slice — depth-first, verified against sources. In priority orde
       per-part `roundUp`; Paladin/Ranger (no flag) still round down. Latent today (multiclass slot-merging
       isn't wired to the sheet yet) but the utility + its test enshrined the wrong rule; now RAW-correct.
       `class-engine.test.ts` +2 (ceil at odd levels; the Artificer def carries the flag, Ranger doesn't).
+      **Mixed-half-caster edge pinned (2026-07-18):** the tests exercised Artificer + a FULL caster, but not
+      two half-casters rounding OPPOSITELY in one character (Artificer up + Paladin down) — the exact case
+      the per-part flag exists for, where each rounding must apply to its own level, never the combined total.
+      Added 2 assertions: Artificer 1 + Paladin 1 → 1 (ceil½ + floor½ = 1+0, not a rounded total), Artificer 3
+      + Paladin 3 → 3 (2+1). Full dnd suite green (1867).
       **Slot tables pinned cell-by-cell against RAW (2026-07-17):** `FULL_CASTER_SLOTS` + `HALF_CASTER_SLOTS`
       (`slots.ts`) drive EVERY 5e caster (2014 + 2024). The existing tests guarded rank ARRIVAL levels + the
       L20 corner, but not the intermediate COUNTS — a typo like L11's rank-1 "3" instead of "4" would slip.

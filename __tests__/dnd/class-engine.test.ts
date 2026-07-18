@@ -194,6 +194,11 @@ describe('multiclass caster level', () => {
     expect(multiclassCasterLevel([{ kind: 'half', level: 5 }])).toBe(2);
     // Artificer 3 / Wizard 3 → ceil(3/2)=2 + 3 = caster level 5 (would be 4 if it wrongly rounded down).
     expect(multiclassCasterLevel([{ kind: 'half', level: 3, roundUp: true }, { kind: 'full', level: 3 }])).toBe(5);
+    // Two half-casters that round OPPOSITELY in one character (Artificer up, Paladin down) — the exact case
+    // the per-part flag exists for. Each rounding applies to ITS OWN level, never the combined total:
+    // rounding the total would give ceil(2/2)=1 or floor(2/2)=1 for A1+P1, hiding the divergence.
+    expect(multiclassCasterLevel([{ kind: 'half', level: 1, roundUp: true }, { kind: 'half', level: 1 }])).toBe(1); // 1 + 0
+    expect(multiclassCasterLevel([{ kind: 'half', level: 3, roundUp: true }, { kind: 'half', level: 3 }])).toBe(3); // 2 + 1
   });
 
   it('the Artificer class definition carries the round-up flag so a caller can pass roundUp', () => {
