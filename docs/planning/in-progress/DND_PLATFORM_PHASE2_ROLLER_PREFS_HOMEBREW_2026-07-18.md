@@ -168,12 +168,18 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       shield as swap candidates; one-shield + one-body-armor rules kept. Added `handsToFree(items, id)` so the
       dialog knows whether unequipping ONE chosen conflictor suffices (dual-wield: free 1) or ALL are needed
       (two-handed over sword+shield: free 2). Golden-pinned (7 tests incl. the owner's case + dual-wield).
-- [ ] **E1c — Conflict dialog + wiring.** The popup component (clear explanation + Cancel + per-conflict swap,
-      using `handsToFree` to know when a single pick resolves it vs. all), shown from the live equip toggle
-      (`Inventory.upsert` — ItemBuilder "Equipped" → onSave) when `equipLimits === 'enforced'` and conflicts
-      exist; wire the AI `equip_item` path to the same core. `preferences.equipLimits` is already on the store
-      context for the gate.
-- [ ] **E2 — Toggle:** `equipLimits: off` skips the check entirely (equip freely; the panel still shows truth).
+- [x] **E1c — Conflict dialog + wiring.** ✅ SHIPPED — `EquipConflictDialog` (a clear popup: explains each
+      conflict, then Cancel + resolution buttons) wired into `Inventory.upsert`. When a save would equip an
+      item and `equipLimits === 'enforced'`, the item is committed UNEQUIPPED and the dialog opens; the player
+      resolves it deliberately. The dialog computes per-conflict single swaps (unequip just that item when it
+      resolves — dual-wield → "swap the sword / the shield") and falls back to one "Unequip {all} & equip"
+      when a two-handed weapon needs both hands freed — exactly the owner's UX. `equipLimits: off` skips the
+      whole check (equip freely) = **E2 done too**. Guarded by `equip-conflict-dialog.test.ts` (gate/flow +
+      swap-choice logic for both cases); full suite green (1961). REMAINING (E1d): route the AI `equip_item`
+      edit through the same core so an AI-driven equip is validated identically.
+- [x] **E2 — Toggle:** ✅ SHIPPED with E1c — `Inventory.upsert` only runs the conflict check when
+      `preferences.equipLimits.value === 'enforced'`; with `off` the equip commits unrestricted. The DM sets
+      this on the campaign preferences panel (P4); it reaches the sheet via P2c.
 - [ ] **E3 — Tests:** update the `equip-enforcement-gap` tracker → the live paths now enforce when on, allow
       when off.
 
