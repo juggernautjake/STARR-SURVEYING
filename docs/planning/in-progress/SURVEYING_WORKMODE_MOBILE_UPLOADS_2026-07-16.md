@@ -313,4 +313,10 @@ docstring promises: separator sniffing (comma/tab/semicolon, tie→comma), heade
 export), comment/blank-line skipping, the never-throw soft-failure paths (empty file, unparseable row kept +
 warned, undetectable format → raw cells), and the case-insensitive `matchedRowNames` linker. Mobile suite
 green (113). *(This is a pure-logic module, not device-gated I/O — the same "extract the decision, unit-test
-it" pattern as the upload decision layer.)*
+it" pattern as the upload decision layer.)* **Point-name intelligence guarded too (2026-07-18):**
+`mobile/lib/dataPointCodes.ts` (Plan §5.3 — the 179-code prefix taxonomy that color-codes points, extracts
+prefixes, and auto-suggests the next number/warns on duplicates for the Points surface) was likewise pure
+and untested. `__tests__/mobile/data-point-codes.test.ts` (13) pins `extractPrefix` (known/longest/unknown/
+null, case- and delimiter-aware), `lookupPrefix` (card entry vs the muted unknown fallback), `isKnownPrefix`,
+and `suggestNextName` (highest+1, bare prefix when none, width-widening BM099/BM100→BM101, 2-digit default,
+case-insensitive). Mobile suite green (126).
