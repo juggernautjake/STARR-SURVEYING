@@ -7,10 +7,13 @@ import { GAME_SYSTEMS } from '@/lib/dnd/systems';
 import { rulesForSystem } from '@/lib/dnd/system-rules';
 
 describe('library pages', () => {
-  it('builds a page for every registered system', () => {
+  it('builds a page for every PLAYABLE system (under-construction systems are hidden site-wide)', () => {
+    // Owner 2026-07-18: only the four playable systems are surfaced; the rest are hidden but kept in the
+    // registry. allLibraryPages() now returns only available systems.
     const pages = allLibraryPages();
-    expect(pages.length).toBe(GAME_SYSTEMS.length);
-    expect(pages.length).toBeGreaterThanOrEqual(10);
+    const availableCount = GAME_SYSTEMS.filter((s) => s.status === 'available').length;
+    expect(pages.length).toBe(availableCount);
+    expect(availableCount).toBe(4); // dnd5e-2014, dnd5e-2024, pathfinder2e, intuitive-games
     for (const p of pages) {
       expect(p.name, `${p.key} name`).toBeTruthy();
       expect(p.source, `${p.key} source`).toBeTruthy();
