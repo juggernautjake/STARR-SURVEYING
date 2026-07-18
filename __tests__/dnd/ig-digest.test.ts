@@ -56,10 +56,19 @@ describe('igCharacterDigest', () => {
     expect(d).toMatch(/Prone: disadvantage on melee attack rolls/);
   });
 
-  it('lists the defensive power, feats and powers (the character\'s capabilities)', () => {
-    expect(d).toMatch(/DEFENSIVE POWER: Sidestep/);
+  it('lists the defensive power WITH its effect, plus feats and powers (the character\'s capabilities)', () => {
+    // Like the stance's effect and the conditions' penalty, a recognized defensive power shows what it DOES
+    // (the AI can't recall a bespoke IG reaction from its name alone).
+    expect(d).toMatch(/DEFENSIVE POWER: Sidestep — On a successful Reflex save vs an attack, take a free 5-foot step/);
     expect(d).toMatch(/FEATS: .*Endurance.*Weapon Focus/);
     expect(d).toMatch(/POWERS: .*Elemental Blast/);
+  });
+
+  it('a custom/unknown defensive power stays name-only — never an invented effect (Ground Rule 2)', () => {
+    const ig = fixture();
+    ig.combat.defensivePower = 'Homebrew Ward';
+    const dc = igCharacterDigest(ig);
+    expect(dc).toMatch(/DEFENSIVE POWER: Homebrew Ward$/m); // name, no " — <effect>" appended
   });
 
   it('states DEFENSES — current/max HP (with nonlethal), DR, and the three resolved saves', () => {

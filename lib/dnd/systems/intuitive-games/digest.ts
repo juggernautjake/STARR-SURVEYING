@@ -10,7 +10,7 @@
 
 import type { IGCharacter } from './model';
 import { igConditionSummary, igStanceMechanicNote } from './modifiers';
-import { findIGAncestry } from './content';
+import { findIGAncestry, IG_DEFENSIVE_POWERS } from './content';
 import { igDerived, igSkillTotal, igAbilityMod } from './rules';
 
 const sgn = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
@@ -71,7 +71,13 @@ export function igCharacterDigest(ig: IGCharacter): string {
     lines.push('CONDITIONS: none');
   }
 
-  if (ig.combat.defensivePower) lines.push(`DEFENSIVE POWER: ${ig.combat.defensivePower}`);
+  // The defensive power is a combat reaction — show WHAT it does, like the stance's effect and the
+  // conditions' penalty above, since the AI can't recall a bespoke IG reaction from its name alone. Effect
+  // from IG_DEFENSIVE_POWERS for a recognized one; a custom/unknown power stays name-only (never invented).
+  if (ig.combat.defensivePower) {
+    const dp = IG_DEFENSIVE_POWERS.find((d) => d.name.toLowerCase() === ig.combat.defensivePower.toLowerCase());
+    lines.push(`DEFENSIVE POWER: ${ig.combat.defensivePower}${dp?.effect ? ` — ${dp.effect}` : ''}`);
+  }
   const feats = [...(ig.feats?.general ?? []), ...(ig.feats?.combat ?? [])];
   if (feats.length) lines.push(`FEATS: ${feats.join(', ')}`);
   if (ig.powers?.length) lines.push(`POWERS: ${ig.powers.join(', ')}`);

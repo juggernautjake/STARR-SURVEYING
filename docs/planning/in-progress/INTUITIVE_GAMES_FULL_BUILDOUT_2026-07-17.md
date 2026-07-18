@@ -368,7 +368,13 @@ expanded requirements (2026-07-17):
       with its `igSkillTotal`, combat skills flagged `[combat]` (they resolve vs a Reflex save, not a flat
       DC), untrained skills omitted as clutter. `ig-digest.test.ts` +1. The IG digest now mirrors the 5e/PF2
       digests: identity + ancestry-traits, HP/DR/saves, trained skills, stance + its effect, conditions +
-      penalty, defensive power, feats, powers, companion. Full dnd suite green (1856). **Remaining:**
+      penalty, defensive power, feats, powers, companion. Full dnd suite green (1856).
+      **Defensive-power EFFECT added (2026-07-18):** the digest showed the stance's effect and the
+      conditions' penalty but the defensive power NAME-only — an inconsistency, since a defensive power is
+      the third combat reaction and the AI can't recall a bespoke IG one from its name. Now shows
+      "DEFENSIVE POWER: <name> — <effect>" from `IG_DEFENSIVE_POWERS` for a recognized one; a custom power
+      stays name-only (never invented). `ig-digest.test.ts` +1 (effect shown; custom → name-only). Full dnd
+      suite green (1857). **Remaining:**
       the machine-readable effect model that the SHEET applies (B4/B5 mechanics).
 - [~] **B1 — Ancestry/traits in the builder + sheet.** IG ancestries selectable in the builder; the sheet
       renders each ancestry's full traits (from A5) with per-trait tooltips; size/speed-changing traits reflect
