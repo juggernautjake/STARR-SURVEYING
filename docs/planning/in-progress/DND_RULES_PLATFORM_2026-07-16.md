@@ -2847,18 +2847,24 @@ the console out of its page. Deferred as its own follow-up; the affordance above
 > have all of the info displayed on the screen and knobs and all of that." … "It might already be
 > built, but I am not seeing it when I click on player view as the DM."
 
-- [ ] **Investigate what exists.** The map studio has a "▶ Player" mode (`map-studio.html`, the
-      `data-mode="play"` button) and there is a player-facing console (`console.html`) with the
-      dice-core/roll UI. Determine whether Player mode is supposed to surface that console and it's
-      simply not mounting for the DM, or whether the console is a separate page never embedded in the
-      map view. The user's "not seeing it" says the entry point is missing or hidden in Player mode.
+- [x] ✅ SHIPPED (verified 2026-07-16, guarded 2026-07-18) **Investigate what exists.** Answered by the
+      Slice-39 finding above: the console (`console.html`) is a **separate page**, never embedded in the studio
+      map view; the studio's "▶ Player" toggle is a *lesser* preview (`body.playmode` hides the DM chrome +
+      shows an info panel) that never surfaced the console — so the DM's "not seeing it" was a real
+      missing-entry-point, not a mount bug. The entry point is now shipped (the "🖥 Open player console ↗"
+      deep-link) and guarded by `map-player-console.test.ts`.
 - [ ] **The panel.** A bottom-anchored drawer over the map: slides UP to open (covering most of the
       viewer), slides DOWN to close leaving a **peek header always visible** (a handle/tab) that
       clicks to reopen. Smooth transform transition, not a mount/unmount.
 - [ ] **Contents.** The full "digital screen" — all the info + knobs/controls the console shows
       (dice, rolls, whatever the screen surfaces). Reuse `console.html`'s content rather than
       rebuilding it; embed or share the component.
-- [ ] **Visible in Player view**, including for the DM previewing Player mode (the reported gap).
+- [~] **Visible in Player view**, including for the DM previewing Player mode (the reported gap). **Entry
+      point SHIPPED + guarded** — the "🖥 Open player console ↗" link appears ONLY in Player mode (and only when
+      opened from a campaign), deep-linking to the real console with the current map; `map-player-console.test.ts`
+      pins its URL shape + Player-mode-only gating. The FULLER ask — embedding the console drawer *inside* the
+      studio's Player preview (vs opening the real console in a new tab) — is the deferred follow-up noted above
+      (iframe/factor-out `console.html`), and confirming the in-place drawer is browser QA.
 - [ ] Remembers open/closed per session, like the chat resize (Slice 9's `useResizable` pattern is
       the reference for a remembered drawer).
 - [ ] Verify by entering Player mode as the DM and confirming the drawer's peek header shows and
