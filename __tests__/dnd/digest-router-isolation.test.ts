@@ -34,6 +34,11 @@ describe('isPF2Character routes ONLY a PF2 sidecar', () => {
   it('rejects an IG character (has abilities, not attributes; no skills[])', () => {
     expect(isPF2Character(igChar)).toBe(false);
   });
+  it('rejects a 5e character (has meta/abilities, not identity/attributes/skills[])', () => {
+    // Parity with the IG side's 5e rejection: a plain 5e sheet must NOT be routed to the PF2 digest/edit tool
+    // — that would feed PF2 rules to a D&D character (a Ground-Rule-1 cross-system leak).
+    expect(isPF2Character(fiveEShaped)).toBe(false);
+  });
   it('rejects nullish / empty / non-object inputs', () => {
     for (const v of [null, undefined, {}, 'pf2', 42, []]) expect(isPF2Character(v)).toBe(false);
   });

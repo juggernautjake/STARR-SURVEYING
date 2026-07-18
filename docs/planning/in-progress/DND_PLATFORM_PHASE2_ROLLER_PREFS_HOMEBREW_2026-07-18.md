@@ -120,6 +120,11 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
       `edit_pf2_sheet` in its toolset for PF2 characters, instructs the AI it can change HP + the death track,
       and dispatches a returned call through `parsePF2EditToolCall` → `applyPf2Edit` → persists `data.pf2e` +
       audits to `dnd_sheet_edits` (mirroring the IG branch exactly). **PF2 now has full AI-edit parity with IG.**
+      **Cross-system routing isolation completed (2026-07-18):** the digest/edit routing keys off the type
+      guards (`isIGCharacter`/`isPF2Character`), and a false positive would feed one system's rules to another
+      character (a Ground-Rule-1 leak). `digest-router-isolation.test.ts` pinned the guards' negative cases, but
+      the PF2 side rejected only IG-shaped + junk, not a 5e sheet (the IG side already rejected all three); added
+      `isPF2Character(5e-shaped) → false` so both guards now explicitly refuse the OTHER two systems' shapes.
       `pf2-edit-route.test.ts` +2. **5e `applySheetEdits` audited + fixed ✅** — the richest path, but `set_combat`
       only covered `ac|maxHp|currentHp|speed`; it couldn't set **tempHp** or **exhaustion** — both tracked on the
       sheet/digest and adjudicated by the AI (exhaustion drives the whole M1 mechanics chain). Added both to the
