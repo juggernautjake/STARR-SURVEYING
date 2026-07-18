@@ -18,27 +18,26 @@ overwrite a deliberate design.
 
 ## A. Decisions (each converts directly to shipped code)
 
-- [ ] **Attunement-alone activation (the split-brain is USER-VISIBLE — verified 2026-07-18).** Should an item
-      that's *attuned but not worn* apply its effects? The ledger says no (equipped-only), but `deriveAc` — which
-      is what the store's `acInfo` and thus the sheet's displayed **AC** actually use — says equipped-OR-attuned.
-      So on the live sheet an attuned-but-unworn item's **AC bonus applies while its STR (and every other ledger
-      effect) doesn't** — the "AC moved but STR didn't" inconsistency, visible to the player, not just a code
-      disagreement. (An earlier characterization test wrongly implied the sheet couldn't show this because it
-      only checked `ledger.value('ac')`, which the sheet doesn't display for AC — now corrected + pinned to the
-      real behavior.) Your call picks one predicate; I make `deriveAc` and the ledger agree on it.
-      *Detail: `DND_RULES_PLATFORM` Slice 10 "OPEN FINDING"; pinned by `ledger-attunement.test.ts` (both paths).*
-- [ ] **Weak-form stat replacement.** By D&D RAW, Wild Shape *replaces* physical stats even when lower
-      (a STR-20 druid becomes a STR-2 rat). Today `set` uses `Math.max(base, override)`, so a weak form
-      can't lower you — deliberate for items (a lesser belt mustn't lower a stronger hero), wrong for forms.
-      Your call: give form-sourced `set` replace-semantics while items keep max?
-      *Detail: `DND_RULES_PLATFORM` Slice 18 "OPEN FINDING"; pinned by `ledger-set-max.test.ts`.*
-- [ ] **Feat ability increase (+1) auto-apply.** Taking a feat like Resilient enforces legality but does
-      NOT raise the ability score — that's left manual today (tested at `levelup.test.ts:190`). Do you want
-      the builder to prompt for which ability the feat's +1 targets and apply it? (A real feature: capture
-      the choice + apply it; changes a currently-deliberate behavior.)
-- [ ] **Rangor / Pugilist.** Make them real custom class + subclass through the Slice-5 homebrew builders,
-      or keep them as hand-authored `system: ambiguous` sheet data?
-      *Detail: `DND_RULES_PLATFORM` Slice 7.*
+- [x] **Attunement-alone activation — RESOLVED (2026-07-18).** Decision (owner): equipping is always required;
+      attunement is auto (a preference) or manual. Shipped the `autoAttune` campaign preference (default on) and
+      made `deriveAc` share the ledger's `isItemActive` rule, so an attuned-but-unworn item no longer moves AC
+      while withholding STR — one rule for every stat. The split-brain is gone. *Pinned by `ledger-attunement.test.ts`.*
+- [x] **Weak-form stat replacement — RESOLVED (2026-07-18).** Decision (owner): default fully changes stats.
+      Shipped the `shapeshiftStats` preference (full | partial | none, default full): a form now REPLACES ability
+      scores up OR down (a rat form drops a druid to STR 2) via a `formOverride` flag that bypasses the item
+      highest-set-wins rule; 'partial' midpoints, 'none' leaves scores. *Pinned by `ledger-set-max.test.ts` +
+      `shapeshift-feat-prefs.test.ts`.*
+- [x] **Feat ability increase (+1) auto-apply — RESOLVED (2026-07-18).** Decision (owner): auto-apply, with a
+      preference. Shipped `featAutoApply` (default on) — a feat feature's ability effects fold automatically; off
+      withholds them for manual application. *Pinned by `shapeshift-feat-prefs.test.ts`.*
+- [x] **Rangor / Pugilist — RESOLVED (2026-07-18).** Decision (owner): fully build them as 2024 custom options.
+      Shipped Rangor as a `dnd5e-2024` species (custom-flagged, natural armor + traits) and Pugilist as a full
+      1–20 `ClassDefinition` (Fisticuffs/Iron Chin/Moxie + the Sweet Science subclass, custom-flagged), both
+      registered so the builder offers them. *Pinned by `dnd5e-2024-classes.test.ts` + `species.test.ts`.*
+- [ ] **Intuitive Games class-vs-subclass taxonomy.** The site is 4 parent classes (Archon/Conduit/Fighter/
+      Wizard) with subclasses; the app models a flat 13-class list. Restructure to match the site? (Touches
+      the IG builder, provenance, and seeds.)
+      *Detail: `INTUITIVE_GAMES_FULL_BUILDOUT`; `SITE_MASTER.md` item 3.*
 - [ ] **Intuitive Games class-vs-subclass taxonomy.** The site is 4 parent classes (Archon/Conduit/Fighter/
       Wizard) with subclasses; the app models a flat 13-class list. Restructure to match the site? (Touches
       the IG builder, provenance, and seeds.)
@@ -68,13 +67,10 @@ overwrite a deliberate design.
       and `vanilla`/`gritty`/`epic` give full restore, DM-selectable per campaign. The only residual (a smaller
       call): should it AUTO-pick half for a 2014 character rather than leaving it a DM preference? Tell me if you
       want the auto-per-edition default and I'll add it. *Detail: `DND_PLATFORM_PHASE2` Area P/M; `mechanics-defaults.test.ts`.*
-- [ ] **PF2 damage while already downed — does it escalate Dying? (surfaced 2026-07-18).** `applyPf2Edit`'s
-      `apply_damage` sets Dying only on the TRANSITION to 0 HP (`effCur > 0`), so damage taken while a character
-      is ALREADY at 0 does not auto-increment Dying — though PF2 RAW raises a dying creature's Dying by 1 (2 on a
-      crit) each time it takes damage. Kept as-is deliberately (auto-escalating a downed PC's death clock on every
-      incoming hit is a heavier, crit-aware call better made in the UI with the DM), pinned + flagged so it's
-      explicit, not an accident. Your call: auto-escalate (with crit awareness) or leave it a manual/DM step?
-      *Detail: `DND_PLATFORM_PHASE2` Area E/PF2-edit "OPEN FINDING"; pinned by `pf2-edit.test.ts`.*
+- [x] **PF2 damage while already downed — RESOLVED (2026-07-18).** Decision (owner): follow the official PF2
+      rules, with an option. Shipped the `downedDamageModel` preference (official | off, default official):
+      `apply_damage` now raises an already-dying creature's Dying value by 1 (2 on a crit) per RAW; 'off' leaves
+      it to recovery saves. Threaded from the campaign through both PF2 edit routes. *Pinned by `pf2-edit.test.ts`.*
 
 ## B. Content only you / Brendan have (paste it and I fill it in)
 
@@ -89,14 +85,18 @@ overwrite a deliberate design.
 - [ ] **9 off-roster IG powers to reconcile** — app carries them, the current site roster doesn't (renames/
       removals from the site). Kept, not deleted, until you confirm each is dropped or give its current name.
       Also in `SITE_MASTER.md` item 1.
-- [~] **Per-class detail (IG) — SCRAPED (2026-07-18):** re-Playwrighted `/classes` — all 18 classes/subclasses
-      now pull cleanly (accordion content is in the DOM), **including Champion, Magician, and Shaman** (which
-      previously had no detail on the fetched page). Each class's granted stance, defensive power + effect, and
-      **full power effect text** are captured → `docs/reference/intuitive-games/ig-classes-scraped.json`.
-      **Clarification:** the site has **no per-level (1–10) progression table** — classes are power-list based, so
-      "the level-by-level ladder" doesn't exist to scrape; the powers + effects ARE the per-class detail, and
-      they're now available. **Remaining is integration** (folding the scraped power effect text into
-      `IG_CLASS_DETAILS`, which today carries power NAMES) — a build slice, no longer blocked on content.
+- [x] **Per-class detail (IG) — RESOLVED (2026-07-18):** re-Playwrighted `/classes` (all 18 classes/subclasses,
+      incl. Champion/Magician/Shaman) → `ig-classes-scraped.json`, then INTEGRATED: `IG_CLASS_POWER_EFFECTS` (99
+      powers/specializations with verbatim effect text) + `igClassPowerEffect()`; Magician & Shaman filled from
+      WIP stubs; the builder preview, sheet feature bodies, library, and AI grounding all now show what a class
+      power DOES, not just its name. The site has no per-level 1–10 table (classes are power-list based), so
+      that "ladder" was a misread. *Pinned by `library.test.ts` + `ig-content.test.ts`.*
+- [x] **IG companion creatures — RESOLVED (2026-07-18):** Playwright-scraped `/companion-creatures` (the system
+      the old stub said was "unpublished" — it's fully published) → the complete catalog in `companions.ts`:
+      4 types, 11 features + 7 aspects (with effect text), the size table, the statistics rules, the Tiger
+      example, and the `igCompanionHp`/`igCompanionSize`/`igCompanionAbility` derivations. Exposed in the library
+      (browsable + searchable) and tied into the on-sheet companion panel (HP derivation + feature/aspect
+      tooltips). *Pinned by `ig-companions.test.ts`.*
 - [ ] **Other IG unpublished content** — combat-skill mechanics beyond Dirty Trick, named weapons,
       equipment/tools tables, FAQs, companion combat rules, Sprite/Human race art. `SITE_MASTER.md` items 4–11.
 
@@ -107,17 +107,12 @@ overwrite a deliberate design.
       *Detail: `DND_RULES_PLATFORM` Slice 29.*
 - [ ] **Form-editor UI** (author an arbitrary foreign statblock as a form) — the only heavier half of
       transform left; `Forms.tsx` is display+toggle today. *Detail: Slice 18.*
-- [ ] **PF2 general conditions + focus points (bespoke-sheet UI + mechanical model).** The `pf2e` sidecar
-      tracks only the dying/wounded death track — not general conditions (Frightened/Clumsy/Off-Guard, which
-      carry real numeric penalties) or focus points. **Correction (verified 2026-07-18):** conditions are NOT
-      fully invisible to the AI — a PF2 character has a base `Character` too, so the AI CAN set them via
-      `edit_sheet` `add_condition` (→ `combat.conditions`) and they DO reach the librarian via the base
-      `characterDigest` CONDITIONS line. What's genuinely missing: (1) the **bespoke `PF2Sheet` has no
-      condition UI**, so a player viewing it can't see/manage conditions (they live on the base model,
-      unrendered on the PF2 sheet), and (2) there's **no PF2-specific mechanical penalty model** (Frightened
-      2 → −2, with PF2's "status penalties don't stack — highest wins" rule) — the AI applies it from RAW, but
-      the sheet doesn't compute/display it. Focus points aren't modeled at all. Feature work; needs eyes on
-      the PF2 sheet + RAW confirmation on the penalty-stacking rules.
+- [~] **PF2 general conditions + focus points — CONDITIONS RESOLVED (2026-07-18); focus points remain.** Shipped
+      the PF2 penalty model (`lib/dnd/conditions/pathfinder2e.ts`) with PF2's non-stacking rule (worst status +
+      worst circumstance apply; same-type don't stack), a `conditions` field on the PF2 combat model + a
+      `set_condition` edit op (AI-callable), the PF2 sheet's `rollLine` auto-folding active conditions (naming
+      the sources), and an active-conditions strip on the sheet. *Pinned by `pf2-conditions.test.ts`.* **Residual:**
+      **focus points** (the Focus pool + Refocus) still aren't modeled — a smaller follow-up.
 - [~] **In-app roller for the bespoke sheets — MOSTLY RESOLVED (verified 2026-07-18): both bespoke sheets now
       ROLL in-app.** When this was written PF2Sheet/IGSheet were display-only; Area R1b has since wired both to
       the shared `resolveD20Roll` engine: tapping a check/save/skill/strike rolls a d20 + its modifier (and a
