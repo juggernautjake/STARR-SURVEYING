@@ -111,6 +111,15 @@ export interface LibraryFact {
   value: string;
 }
 
+/** One named, individually-collapsible entry within a section (a condition, ancestry, feat…): the reader
+ *  scans the names, and expands the one they want for its full detail. `brief` is an optional teaser shown
+ *  on the (collapsed) summary line; `detail` is the full Rich-formatted text revealed on expand. */
+export interface LibraryEntry {
+  name: string;
+  brief?: string;
+  detail: string;
+}
+
 export interface LibrarySection {
   id: string;
   title: string;
@@ -124,6 +133,10 @@ export interface LibrarySection {
   chips?: string[];
   /** Tabular data with headers. */
   table?: { headers: string[]; rows: string[][] };
+  /** Individually-collapsible named entries — each expands from a name (+ optional brief) to its full
+   *  detail. The per-entry disclosure the owner asked for (2026-07-17): a scannable list of names that
+   *  expands on demand, much better than a wall-of-text table on mobile. */
+  entries?: LibraryEntry[];
   /** An image gallery (e.g. ancestry portraits), with a shared credit line. */
   images?: { gallery: { src: string; caption: string }[]; credit?: string };
 }
@@ -489,13 +502,14 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
   if (r.content.conditions.length) {
     const condText = conditionsWithTextFor(key).filter((c) => c.effect);
     if (condText.length) {
-      // Full rules text (IG today): a two-column table so a reader — and the AI — gets the actual
-      // mechanical effect, not just the name.
+      // Full rules text (IG today): each condition is its own collapsible entry (MOB2c) — the reader scans
+      // the 18 names and expands the one they need for its full mechanical effect, instead of a wall-of-text
+      // two-column table. Far more usable on mobile; the full effect still reaches the AI via the digest.
       sections.push({
         id: 'conditions',
         title: 'Conditions',
-        lead: `${condText.length} standardized states — full rules text.`,
-        table: { headers: ['Condition', 'Effect'], rows: condText.map((c) => [c.name, c.effect as string]) },
+        lead: `${condText.length} standardized states — tap a condition for its full rules text.`,
+        entries: condText.map((c) => ({ name: c.name, detail: c.effect as string })),
       });
     } else {
       sections.push({ id: 'conditions', title: 'Conditions', lead: `${r.content.conditions.length} standardized states.`, chips: r.content.conditions });

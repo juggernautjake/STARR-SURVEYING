@@ -137,6 +137,24 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
                 </div>
               )}
 
+              {/* Per-entry collapsibles (MOB2c) — each name expands to its full detail; nested inside the
+                  section <details>, also default-closed. The owner's "click a race to expand every detail". */}
+              {s.entries && (
+                <div style={{ display: 'grid', gap: 6 }}>
+                  {s.entries.map((e) => (
+                    <details key={e.name} style={{ border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.4)', padding: '7px 10px' }}>
+                      <summary style={{ cursor: 'pointer', fontSize: 13.5 }}>
+                        <strong style={{ color: 'var(--hx-gold-2)' }}>{e.name}</strong>
+                        {e.brief && <span style={{ color: 'var(--hx-muted)', marginLeft: 8 }}>— {e.brief}</span>}
+                      </summary>
+                      <div style={{ fontSize: 13, color: 'var(--hx-text)', lineHeight: 1.65, marginTop: 6 }}>
+                        <Rich text={e.detail} />
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              )}
+
               {s.table && (
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>

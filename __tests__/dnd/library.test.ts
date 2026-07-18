@@ -17,7 +17,7 @@ describe('library pages', () => {
       expect(p.sections.length, `${p.key} sections`).toBeGreaterThanOrEqual(6);
       // Every section must actually carry content — no empty shells.
       for (const s of p.sections) {
-        const filled = !!(s.body?.length || s.facts?.length || s.chips?.length || s.table?.rows.length);
+        const filled = !!(s.body?.length || s.facts?.length || s.chips?.length || s.table?.rows.length || s.entries?.length);
         expect(filled, `${p.key} → ${s.title} has content`).toBe(true);
       }
     }
@@ -327,7 +327,7 @@ describe('Intuitive Games library is complete (IG buildout A17 completeness guar
     for (const id of required) expect(ids.has(id), `IG library is missing the "${id}" section`).toBe(true);
     // Every section carries real content (no empty shells).
     for (const s of page.sections) {
-      const filled = !!(s.body?.length || s.facts?.length || s.chips?.length || s.table?.rows.length);
+      const filled = !!(s.body?.length || s.facts?.length || s.chips?.length || s.table?.rows.length || s.entries?.length);
       expect(filled, `IG section "${s.title}" has content`).toBe(true);
     }
   });
@@ -621,15 +621,17 @@ describe('Intuitive Games stances surface on the library page (IG buildout A9)',
 });
 
 describe('Intuitive Games conditions carry full rules text (IG buildout A4)', () => {
-  it('renders the conditions section as a full-text table, not name chips', () => {
+  it('renders each condition as its own collapsible entry with full effect text, not name chips (MOB2c)', () => {
     const page = libraryPageFor('intuitive-games')!;
     const cond = page.sections.find((s) => s.id === 'conditions')!;
-    expect(cond.table).toBeTruthy();
+    // Per-entry collapsibles now (MOB2c): a scannable list of 18 names, each expanding to its full effect —
+    // the effect text is preserved (still reaches the AI via the digest), just no longer a wall-of-text table.
+    expect(cond.entries).toBeTruthy();
     expect(cond.chips).toBeUndefined();
-    expect(cond.table!.headers).toEqual(['Condition', 'Effect']);
-    expect(cond.table!.rows).toHaveLength(18);
-    const grappled = cond.table!.rows.find((r) => r[0] === 'Grappled');
-    expect(grappled?.[1]).toMatch(/flat-footed/i);
+    expect(cond.table).toBeUndefined();
+    expect(cond.entries!).toHaveLength(18);
+    const grappled = cond.entries!.find((e) => e.name === 'Grappled');
+    expect(grappled?.detail).toMatch(/flat-footed/i);
   });
 
   it('search returns the real mechanical effect, not a one-line stub', () => {

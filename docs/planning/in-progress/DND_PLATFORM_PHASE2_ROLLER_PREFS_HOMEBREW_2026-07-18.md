@@ -158,12 +158,17 @@ building, campaign control, and every page look and work well on mobile as well 
       `library-collapsible.test.ts`. NEXT (owner 2026-07-17 follow-up): per-ENTRY expansion *within* a section
       (a race/feat shows a brief line, expands to full detail) — needs the section data model to carry
       per-entry brief+detail; tracked as MOB2c below.
-- [ ] **MOB2c — Per-entry expand within a section (owner 2026-07-17).** Within an open section, each entry
-      (a race, feat, condition, …) shows a brief summary line and expands to its full detail on click — nested
-      `<details>` inside the section `<details>`. Requires the `LibrarySection` model to carry structured
-      `{ name, brief, detail }` entries (today sections are flat tables/lists/prose), so this is a data-model
-      slice: add an optional `entries` shape + render each as a nested collapsible, migrating the highest-value
-      sections first (ancestries, feats, conditions).
+- [x] **MOB2c — Per-entry expand within a section (owner 2026-07-17).** ✅ SHIPPED (pattern) — added a
+      `LibraryEntry { name; brief?; detail }` shape + optional `entries` on `LibrarySection`, rendered as
+      nested default-closed `<details>` inside the section `<details>` (name/brief on the summary, full
+      Rich-formatted detail on expand). First real migration: **IG Conditions** — the 18-row effect table is
+      now 18 individually-expandable entries (scannable name list → tap for full effect; the effect text still
+      reaches the AI via the digest). Guarded by `library.test.ts` (conditions = `entries`, 18, full text) +
+      the two completeness predicates now count `entries`. NEXT (MOB2d): migrate the remaining wall-of-text
+      sections to `entries` the same way — ancestries (name + trait detail), feats, stances, powers.
+- [ ] **MOB2d — Migrate remaining rich sections to per-entry collapsibles.** Reuse the MOB2c `entries` shape
+      for ancestries (name → full trait text + `brief` teaser), feats-general/combat, stances, and powers/
+      spells across all systems, so every long section is a scannable expandable list, not a wall of text.
 - [ ] **MOB3 — Character sheets (5e + IG + PF2) mobile pass.** The multi-column sheet stacks legibly; the
       dice tray / roller is reachable; editors + pickers usable one-handed.
 - [ ] **MOB4 — Login + character builder + campaign control mobile pass.** Forms, steps, and controls fit and
