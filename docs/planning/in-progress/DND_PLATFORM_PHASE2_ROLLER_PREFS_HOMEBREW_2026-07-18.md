@@ -478,10 +478,17 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
 ### Area H — Homebrew / custom / DLC / extras (per system) + content-creation system
 This is the "form editor" the owner clarified: a full **create-and-share** system, plus a browse section.
 
-- [ ] **H1 — Content model + store.** A `homebrew_content` model: a typed union over every content kind
-      (weapon, item, potion, armor, spell, stance, effect, ability, skill, feat, race, class, subclass),
-      each carrying its mechanical payload (reusing the existing `Effect`/attack/armor/etc. shapes), a
-      `system` scope, a `creator` (attribution), and a visibility/approval state. Live-DB schema via seeds.
+- [~] **H1 — Content model + store.** ✅ PURE MODEL SHIPPED — `lib/dnd/homebrew/model.ts`: `HomebrewContent`
+      over all 13 kinds (weapon…subclass), each carrying its mechanical `payload` (the existing engine shapes),
+      a normalized `system` scope (or `'any'`), a required `creator` (attribution — content is never anonymous),
+      and a `status` lifecycle (draft→submitted→approved→rejected). Pure helpers: `normalizeHomebrew` (defensive
+      parse, drops invalid rows), `validateHomebrew`, `homebrewKindLabel`, `homebrewInSystem`,
+      `homebrewMatchesSearch`, `isHomebrewPublished`, **`canUseHomebrew`** (the H4 DM-allowlist gate:
+      players only ever use APPROVED + allowlisted/allow-all pieces; a DM may use their own drafts), and
+      `browseHomebrew` (published + in-system + query, newest-first). Golden-pinned (`homebrew-model.test.ts`,
+      12). REMAINING for H1: the live-DB schema/store (a `homebrew_content` table via seeds) — deferred to a
+      live-Supabase slice (needs the DB connection; the pure model is the reusable core the store + UI + AI
+      grounding all build on).
 - [ ] **H2 — Custom section per system (browse + search + AI).** Every system's library gets a
       **Custom / Homebrew / Extras** section listing its homebrew, well-formatted, searchable (`searchLibrary`),
       and projected into the AI grounding (so the AI can explain + use it). Seed with **Rangor (race)** +
