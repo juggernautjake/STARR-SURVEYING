@@ -303,3 +303,14 @@ completion note rather than over-promising. Web vs mobile split: capture + resil
 **mobile** concern (the real field device); the web hub (Area B) gets capture but leans on the same
 `field_media`/`job_files` model. Some pieces are live-DB-only schema — apply + verify seeds against
 Supabase, don't assume a CREATE TABLE exists.
+
+**⚑ Related field-data hardening — CSV coordinate parser guarded (2026-07-18).** `mobile/lib/csvCoords.ts`
+(the Trimble/Carlson `P,N,E,Z,D` survey-export parser feeding the Work Mode hub's Points surface, closing the
+F5 deferral) is a PURE, correctness-critical module — a parse bug corrupts field survey data — that had
+shipped with **no tests**. Added `__tests__/mobile/csv-coords.test.ts` (11) covering the variants its own
+docstring promises: separator sniffing (comma/tab/semicolon, tie→comma), header detection, both column orders
+(P-first `pnezd` / P-last `nezdp`), quoted fields with embedded commas, comma-thousands numbers (European
+export), comment/blank-line skipping, the never-throw soft-failure paths (empty file, unparseable row kept +
+warned, undetectable format → raw cells), and the case-insensitive `matchedRowNames` linker. Mobile suite
+green (113). *(This is a pure-logic module, not device-gated I/O — the same "extract the decision, unit-test
+it" pattern as the upload decision layer.)*
