@@ -1097,7 +1097,11 @@ Identity: name/species/class/subclass, size/creature-type, portrait/token, and g
 profession — all overlay the display over an untouched base and revert on unequip. The one remaining
 follow-up is `size` → carrying-capacity/grapple MECHANICS (it already displays); everything the request
 named — "an item could literally turn the character into a completely different character" — works.
-Details of each piece below.
+Details of each piece below. **⚑ Multi-overlay resolution pinned (2026-07-18):** identity effects are
+deliberately LAST-writer-wins (`ledger.ts identity()`), NOT highest-wins like numbers — two items renaming
+you resolve to the one filed last (sourced to it), and both contributions stay visible so the ★/panel can
+show the conflict. This untested edge is now guarded by `identity-overlay.test.ts` +1 (a numeric-max
+regression would go NaN on the string values and silently pick wrong).
 
 The request's real ask: *"it could literally turn the character into a completely different character."*
 
