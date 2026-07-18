@@ -55,6 +55,21 @@ export default function SystemSwitcher({
     } catch { setMsg('Network error — please try again.'); } finally { setBusy(null); }
   }
 
+  // Rename / delete a sheet (Area MV).
+  const [editingSlot, setEditingSlot] = useState<string | null>(null);
+  const [editSlotName, setEditSlotName] = useState('');
+  async function slotAction(slotId: string, extra: Record<string, unknown>, okMsg?: string) {
+    setBusy(slotId); setMsg(null);
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}/system`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slotId, ...extra }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setMsg(j.error ?? 'Could not update sheet.'); return; }
+      setEditingSlot(null); if (okMsg) setMsg(okMsg); router.refresh();
+    } catch { setMsg('Network error — please try again.'); } finally { setBusy(null); }
+  }
+
   // Add a NEW (blank) sheet for a playable system, vanilla or custom, without switching to it (MV2c).
   async function addSheet() {
     setBusy('__add'); setMsg(null);
@@ -154,28 +169,39 @@ export default function SystemSwitcher({
                 </button>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {sheets.map((sh) => (
-                  <button
-                    key={sh.slotId}
-                    type="button"
-                    disabled={sh.active || !!busy}
-                    onClick={() => !sh.active && switchSlot(sh.slotId)}
-                    title={sh.active ? 'The active sheet' : `Switch to “${sh.name}”`}
-                    style={{
-                      padding: '6px 10px', borderRadius: 8, fontSize: 12,
-                      border: sh.active ? '2px solid var(--hx-teal-1)' : '1px solid var(--hx-line)',
-                      background: sh.active ? 'rgba(10,200,185,0.14)' : 'transparent',
-                      color: 'var(--hx-text)', cursor: sh.active || busy ? 'default' : 'pointer',
-                      display: 'inline-flex', alignItems: 'center', gap: 6,
-                    }}
-                  >
-                    {sh.name}
-                    <span style={{ fontSize: 9.5, color: sh.kind === 'custom' ? 'var(--hx-gold-2)' : 'var(--hx-muted)', border: '1px solid currentColor', borderRadius: 4, padding: '0 4px' }}>
-                      {sh.kind === 'custom' ? 'CUSTOM' : 'VANILLA'}
-                    </span>
-                    {sh.active && <span style={{ fontSize: 9.5, color: 'var(--hx-teal-1)' }}>● ACTIVE</span>}
-                    {busy === sh.slotId && <span style={{ fontSize: 10 }}>…</span>}
-                  </button>
+                {sheets.map((sh) => editingSlot === sh.slotId ? (
+                  // Inline rename (Area MV).
+                  <span key={sh.slotId} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: '1px solid var(--hx-gold-1)', borderRadius: 8, padding: '2px 4px' }}>
+                    <input autoFocus value={editSlotName} onChange={(e) => setEditSlotName(e.target.value)} placeholder="Sheet name" maxLength={60}
+                      onKeyDown={(e) => { if (e.key === 'Enter') slotAction(sh.slotId, { action: 'rename', name: editSlotName }); if (e.key === 'Escape') setEditingSlot(null); }}
+                      style={{ width: 130, fontSize: 12, padding: '3px 6px', background: 'rgba(1,10,19,0.6)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }} />
+                    <button type="button" className={styles.hexBtn} style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => slotAction(sh.slotId, { action: 'rename', name: editSlotName })} disabled={!!busy}>Save</button>
+                    <button type="button" className={styles.hexBtn} style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => setEditingSlot(null)}>×</button>
+                  </span>
+                ) : (
+                  <span key={sh.slotId} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, border: sh.active ? '2px solid var(--hx-teal-1)' : '1px solid var(--hx-line)', background: sh.active ? 'rgba(10,200,185,0.14)' : 'transparent', borderRadius: 8, padding: '2px 4px 2px 8px' }}>
+                    <button
+                      type="button"
+                      disabled={sh.active || !!busy}
+                      onClick={() => !sh.active && switchSlot(sh.slotId)}
+                      title={sh.active ? 'The active sheet' : `Switch to “${sh.name}”`}
+                      style={{ background: 'none', border: 'none', color: 'var(--hx-text)', cursor: sh.active || busy ? 'default' : 'pointer', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 2px' }}
+                    >
+                      {sh.name}
+                      <span style={{ fontSize: 9.5, color: sh.kind === 'custom' ? 'var(--hx-gold-2)' : 'var(--hx-muted)', border: '1px solid currentColor', borderRadius: 4, padding: '0 4px' }}>
+                        {sh.kind === 'custom' ? 'CUSTOM' : 'VANILLA'}
+                      </span>
+                      {sh.active && <span style={{ fontSize: 9.5, color: 'var(--hx-teal-1)' }}>● ACTIVE</span>}
+                      {busy === sh.slotId && <span style={{ fontSize: 10 }}>…</span>}
+                    </button>
+                    {/* Rename any sheet; delete only a non-active one (switch away first). */}
+                    <button type="button" title="Rename this sheet" onClick={() => { setEditingSlot(sh.slotId); setEditSlotName(sh.name); }} disabled={!!busy}
+                      style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 11, padding: '0 3px' }}>✎</button>
+                    {!sh.active && (
+                      <button type="button" title="Delete this sheet" onClick={() => { if (confirm(`Delete the sheet “${sh.name}”? This can't be undone.`)) slotAction(sh.slotId, { action: 'delete' }); }} disabled={!!busy}
+                        style={{ background: 'none', border: 'none', color: 'var(--hx-danger)', cursor: 'pointer', fontSize: 11, padding: '0 3px' }}>✕</button>
+                    )}
+                  </span>
                 ))}
               </div>
               {adding && (

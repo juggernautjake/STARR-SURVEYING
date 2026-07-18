@@ -192,3 +192,18 @@ describe('active-slot metadata persistence (Area MV2b)', () => {
     expect(readActiveSlotMeta(null)).toEqual({});
   });
 });
+
+import { deleteVariant, renameVariant } from '@/lib/dnd/system-variants';
+
+describe('rename + delete a stored sheet (Area MV)', () => {
+  const v = { 'a': { data: {}, sheet_type: 'default', kind: 'vanilla' as const, name: 'One' }, 'b': { data: {}, sheet_type: 'default', kind: 'custom' as const } };
+  it('deleteVariant removes only the target slot (no-op if absent)', () => {
+    expect(Object.keys(deleteVariant(v, 'a'))).toEqual(['b']);
+    expect(deleteVariant(v, 'nope')).toBe(v); // no-op returns same ref
+  });
+  it('renameVariant sets/clears the name', () => {
+    expect(renameVariant(v, 'a', 'Renamed')['a'].name).toBe('Renamed');
+    expect('name' in renameVariant(v, 'a', '  ')['a']).toBe(false); // empty → cleared to default
+    expect(renameVariant(v, 'nope', 'x')).toBe(v);
+  });
+});

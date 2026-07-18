@@ -392,9 +392,12 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       (active one highlighted), plus a **"＋ Add sheet"** form (pick a playable system + Vanilla/Custom + an
       optional name → posts `action:'add'`). Switching a chip posts `{ slotId }`. The page passes the sheet
       list + active-slot meta. Guarded by `mv-route.test.ts`; full suite green (2035). **Area MV is now
-      user-visible end to end** (add/name/switch multiple vanilla+custom sheets per system). REMAINING (MV
-      polish): rename/delete a sheet; route a custom-consented TRANSPOSE to ADD a slot rather than overwrite
-      (MV3 sheet label on the sheet itself is a nice-to-have).
+      user-visible end to end** (add/name/switch multiple vanilla+custom sheets per system).
+      **MV rename/delete ✅ SHIPPED** — `deleteVariant`/`renameVariant` pure helpers + route actions
+      (`rename` for the active-via-meta or a stored slot; `delete` for a NON-active slot only — the active can't
+      be deleted); the switcher chips get an inline **✎ rename** (any sheet) and a **✕ delete** (non-active,
+      with a confirm). Golden-pinned. REMAINING (minor): route a custom-consented TRANSPOSE to ADD a slot
+      rather than overwrite the system's sheet.
 - [x] **MV3 — Labels on the sheet + provenance.** ✅ SHIPPED — the switcher header shows the active sheet's
       **VANILLA/CUSTOM** badge, and (when the character has >1 sheet) an "Active sheet: {name}" line, so it's
       always clear which sheet is live. Custom variants' invented elements remain provenance-flagged via the
