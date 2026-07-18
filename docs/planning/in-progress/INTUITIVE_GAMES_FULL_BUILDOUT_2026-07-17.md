@@ -595,9 +595,19 @@ expanded requirements (2026-07-17):
       conditions, feats and traits do. `ig-sheet-tooltips.test.ts` +1. **Remaining:** a prettier
       custom-styled/focusable tooltip component (native `title` works + is accessible now; visual polish is a
       follow-up). Needs visual confirmation in-app.
-- [ ] **B8 — Alignment/verification.** Walk an IG character build and confirm every offered option matches the
+- [~] **B8 — Alignment/verification.** Walk an IG character build and confirm every offered option matches the
       site, numbers add up, mechanics apply correctly, and stances/conditions/feats/traits are all editable,
       displayed, tooltipped, and AI-accessible. (Ties into the QA walkthrough in `pending/`.)
+      **Data-level clause SHIPPED (2026-07-18):** "every offered option matches the [catalog]" is now an
+      executable invariant — `ig-builder-options.test.ts` reconstructs the exact option lists the builder
+      renders (the `igCatalog()` `names(kind)` lists for ancestry/subclass/stance/power/feat/defensive-power/
+      weapon-type + the taxonomy's parent classes and scoped `igSubclassesOf` subclasses) and asserts every one
+      classifies **vanilla** through the same `classifyElement` the builder uses, so the picker can never present
+      a phantom option and the taxonomy↔classifier can't silently drift (9 checks, all green). **REMAINING
+      (browser QA):** the rest of B8 — numbers add up, mechanics apply correctly, and the editable/displayed/
+      tooltipped/AI-accessible confirmation — is a visual/behavioral walk on a running app, which is the
+      `pending/` QA walkthrough's job (needs a browser). The editability + AI-access + tooltips themselves are
+      already shipped + unit-tested per B1/B3 above; B8's role is the end-to-end human confirmation.
 
 ---
 
