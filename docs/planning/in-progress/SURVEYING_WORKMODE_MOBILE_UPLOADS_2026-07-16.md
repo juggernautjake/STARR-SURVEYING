@@ -332,4 +332,10 @@ functions were untested (a wrong duration or clock-out minute count is a payroll
 <1m, whole-minutes-floored, "{h}h {m}m", and the ≥10h "drop the minutes / go home" tier),
 `durationMinutesBetween` (whole minutes, round-half-up, null on missing/malformed/reversed ranges), and
 `localISODate` (TZ-safe zero-padded YYYY-MM-DD). The Date.now-/locale-dependent formatters in the same file
-are left to on-device verification. Mobile suite green (144).
+are left to on-device verification. Mobile suite green (144). **Auth-callback token parse guarded (2026-07-18,
+adjacent to the mobile program — not an uploads action item, but a zero-test security-critical pure module):**
+`mobile/lib/parseAuthUrl.ts` extracts the Supabase access/refresh tokens from a magic-link / password-reset
+deep link — and the tokens live in the URL FRAGMENT (after `#`), not the query string, so a parse bug
+silently breaks sign-in. `__tests__/mobile/parse-auth-url.test.ts` (5) pins fragment extraction + type,
+the fragment-only rule (query-string tokens ignored; fragment wins when both present), the null paths
+(missing/fragmentless/incomplete → null, never a partial object), and percent-decoding. Mobile suite green (149).
