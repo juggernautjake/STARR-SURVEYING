@@ -1985,16 +1985,15 @@ alongside the ledger-resolved stats — so the librarian has a rulebook AND sees
 (Slice 20's ✎ / provenance). The chip is independent of homebrew: a sheet is "D&D 5e (2024)" *and*
 customized, exactly as the request asks.
 
-- [ ] **Display the system** on every sheet — a badge in the hero header, on every template, plus
-      the Overview. Today you cannot tell what game a sheet is for by looking at it.
-- [ ] **Customization does not weaken the designation, and this is the point.** A sheet is "D&D 5e
-      2024" *and* homebrewed. The system says which rulebook adjudicates; the ✎ markers (Slice 20)
-      and `summarizeCharacterProvenance` say which parts are house-ruled. These are orthogonal, and
-      collapsing them (an "it's custom so it's systemless" fallback) is what leaves the AI with
-      nothing to reason from — the current bug.
-- [ ] **Set Jacob, Susie, Sarah, Jack and Andrew to `dnd-5e-2024`.** They are `ambiguous` today, so
-      the librarian answers edition-neutrally on the very sheets it should be most useful on. A seed,
-      idempotent like the rest.
+- [x] ✅ SHIPPED (verified 2026-07-18): **display the system on every template** — the 5e Hero shows a Slice-21
+      `system-chip`; the IG sheet header shows "Intuitive Games · Level N"; the PF2 sheet header shows a
+      "PATHFINDER 2e" badge. All three tell you which game the sheet is for at a glance.
+- [x] ✅ SHIPPED: **customization does not weaken the designation** — the 5e system chip's title reads "This
+      sheet is adjudicated with {system} rules. Homebrew content on it is still this character's own," and the
+      digest PROVENANCE line keeps system + house-ruled orthogonal (Slice 22). Not collapsed to "systemless."
+- [~] **Set Jacob, Susie, Sarah, Jack and Andrew to `dnd-5e-2024`.** DEFERRED — a live-DB write (updating the
+      demo characters' `system` column from `ambiguous`), which needs the Supabase connection; can't be done or
+      verified headless. The idempotent seed is a one-liner once the DB is reachable.
 - [ ] Jack's Rangor/Pugilist content stays exactly as-is — it becomes *2024 with homebrew*, not
       *no system*. That is the whole distinction this slice draws.
 - [ ] The AI gets both facts (Slice 22).
