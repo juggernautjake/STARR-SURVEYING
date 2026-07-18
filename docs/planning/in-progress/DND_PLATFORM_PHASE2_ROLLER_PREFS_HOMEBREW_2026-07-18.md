@@ -49,6 +49,31 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
 - [ ] **SQ5 — Per-system verification** — a browser/QA pass per system (the memory-documented Slice-40
       walkthrough): build a character, exercise the sheet + AI edit + read, fix correctness + styling bugs.
 
+### Area IGS — Intuitive Games full site mirror + build-out (owner 2026-07-17)
+> Owner intent (several messages): scrape EVERY page of Brendan's IG TTRPG with Playwright, opening all
+> collapsed DOM toggles so every word is captured; pull + analyze every IMAGE (some hold stat tables); flag
+> every undefined/empty element as a WIP "needs definition" list (shareable with Brendan); download images and
+> host them where they belong on our site; and BUILD OUT everything that's fleshed out into our app, well
+> formatted. **Be discerning: Brendan has OTHER game projects on the site (e.g. the board game "Overrun") —
+> pull ONLY the Intuitive Games TTRPG content, not the other projects.**
+
+- [~] **IGS1 — DOM scrub of every TTRPG page.** IN PROGRESS. Reusable Playwright extractor pulls headings +
+      prose + tables + accordion text (incl. hidden/collapsed) per page. DONE: spell-list, classes, skills,
+      backgrounds, core-rules → `docs/reference/intuitive-games/*-scraped.md`. REMAINING pages: traits-
+      ancestries, feats-general, feats-combat, stances, conditions, weapons, armor-shields, equipment, tools,
+      magical-items, companion-creatures, redistribution, character-building, home. (Skip game-list = Overrun.)
+- [~] **IGS2 — Image analysis + hosting.** IN PROGRESS. Stat data that lives only in images is transcribed by
+      reading the pixels (Playwright download + vision). DONE: the Encumbrance table (STR 6–20 × 5 weight cols)
+      → `stat-tables-from-images.md` + image hosted at `public/dnd/intuitive-games/tables/encumbrance.png`.
+      REMAINING: sweep remaining pages for content images, download + host + transcribe each.
+- [x] **IGS3 — WIP "needs definition" report.** ✅ SHIPPED (living) — `WIP-needs-definition.md` auto-flags
+      every EMPTY toggle found (4 so far: Craft's Manufacture/Repair Object, Perform's Entertain/Impress).
+      Regenerates as more pages are scraped. This is the owner's shareable "what Brendan still needs to build".
+- [x] **IGS4 — Wire spell texts.** ✅ SHIPPED — the 26 missing power texts closed in IG_POWERS (see IGP).
+- [ ] **IGS5 — Build out the rest.** Wire the scraped class ladders (→ Area T taxonomy), skill mechanics,
+      backgrounds/cultures, core-rules tables, equipment/armor/weapon/magic-item data into the app + library,
+      well-formatted, each verbatim from the site; carry empty items as "coming soon".
+
 ### Area TH — Per-template color themes (owner 2026-07-17)
 > Owner, verbatim intent: for EACH current character-sheet template, create multiple (3–4) color themes and
 > tie ALL the colors in that template to the theme's color tokens, so a user picks a template and then picks a
