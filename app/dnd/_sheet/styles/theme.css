@@ -1393,45 +1393,53 @@
   width: 366px;
 }
 
-/* ── Dice-roller styles (Area D) ─────────────────────────────────────────────────────────────────
-   The tray's look is a campaign/player preference. 'futuristic' is the default (the base .tray above,
-   neon + hotpink glow); the four below re-skin the frame, header, and title. Applied via the
-   data-dice-style attribute DiceTray sets from preferences.diceRollerStyle. */
+/* ── Dice-roller styles (Area D / D4b) ───────────────────────────────────────────────────────────
+   The tray's look is a campaign/player preference. Every skin INHERITS the character sheet's own colour
+   palette (the base `.tray` above pulls --panel/--void/--line-strong/--ink/--hotpink tokens, so a skin matches
+   the sheet + its colour theme) — only the SHAPE, TEXTURE, glow and title treatment change per skin, giving
+   each a different vibe with the same colours + functionality. Applied via the data-dice-style attribute. */
+.dnd-sheet .tray[data-dice-style] {
+  /* shared base for the shape layer — the panel gradient comes from `.tray`; skins add a texture on top. */
+  background-blend-mode: normal;
+}
+
+/* Rugged — blocky, heavy frame, no neon; a faint stone hatch texture. */
 .dnd-sheet .tray[data-dice-style='rugged'] {
-  border: 2px solid #6b5a3e;
-  border-radius: 5px;
-  background: linear-gradient(160deg, #2a241c, #14100b);
-  box-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.9);
+  border-width: 3px;
+  border-radius: 3px;
+  box-shadow: 0 16px 40px -18px rgba(0, 0, 0, 0.92);
+  background-image:
+    linear-gradient(160deg, rgba(var(--panel-2-rgb), 0.98), rgba(var(--void-rgb), 0.98)),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.018) 0 2px, transparent 2px 7px);
 }
-.dnd-sheet .tray[data-dice-style='rugged'] .tray-head { background: rgba(120, 90, 50, 0.16); border-bottom-color: #4a3f2c; }
-.dnd-sheet .tray[data-dice-style='rugged'] .tray-title { color: #d8c39a; letter-spacing: 0.05em; }
+.dnd-sheet .tray[data-dice-style='rugged'] .tray-head { border-bottom-width: 2px; }
+.dnd-sheet .tray[data-dice-style='rugged'] .tray-title { letter-spacing: 0.02em; text-transform: uppercase; }
 
+/* Natural — soft organic rounding, a gentle teal aura. */
 .dnd-sheet .tray[data-dice-style='natural'] {
-  border: 2px solid #4f6b3e;
-  border-radius: 14px;
-  background: linear-gradient(160deg, #1d2617, #10160c);
-  box-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.85), 0 0 30px -22px #7bd06a;
+  border-radius: 22px;
+  box-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.85), 0 0 30px -18px var(--tealbright);
 }
-.dnd-sheet .tray[data-dice-style='natural'] .tray-head { background: rgba(90, 140, 70, 0.14); border-bottom-color: #34492a; }
-.dnd-sheet .tray[data-dice-style='natural'] .tray-title { color: #bfe0a6; }
+.dnd-sheet .tray[data-dice-style='natural'] .tray-title { letter-spacing: 0.12em; }
 
+/* Fantasy — ornate rounding + a strong dual-tone arcane glow + inner sheen. */
 .dnd-sheet .tray[data-dice-style='fantasy'] {
-  border: 2px solid #7a5cc0;
   border-radius: 18px;
-  background: linear-gradient(160deg, #241a3a, #130d22);
-  box-shadow: 0 22px 60px -18px rgba(0, 0, 0, 0.9), 0 0 44px -16px #b58cff;
+  box-shadow: 0 22px 60px -18px rgba(0, 0, 0, 0.9), 0 0 44px -12px var(--hotpink), inset 0 0 32px -22px var(--tealbright);
 }
-.dnd-sheet .tray[data-dice-style='fantasy'] .tray-head { background: rgba(150, 110, 230, 0.16); border-bottom-color: #4a3a72; }
-.dnd-sheet .tray[data-dice-style='fantasy'] .tray-title { color: #e6cf8f; }
+.dnd-sheet .tray[data-dice-style='fantasy'] .tray-title { letter-spacing: 0.14em; }
 
+/* Medieval — sharp iron corners, serif title, a faint parchment weave. */
 .dnd-sheet .tray[data-dice-style='medieval'] {
-  border: 2px solid #7c6a4a;
-  border-radius: 4px;
-  background: linear-gradient(160deg, #2b2417, #17130b);
-  box-shadow: 0 16px 40px -18px rgba(0, 0, 0, 0.9);
+  border-width: 3px;
+  border-radius: 2px;
+  box-shadow: 0 16px 40px -18px rgba(0, 0, 0, 0.92);
+  background-image:
+    linear-gradient(160deg, rgba(var(--panel-2-rgb), 0.98), rgba(var(--void-rgb), 0.98)),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.015) 0 1px, transparent 1px 5px),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.015) 0 1px, transparent 1px 5px);
 }
-.dnd-sheet .tray[data-dice-style='medieval'] .tray-head { background: rgba(150, 125, 80, 0.14); border-bottom-color: #574a32; }
-.dnd-sheet .tray[data-dice-style='medieval'] .tray-title { color: #e2d3ad; font-family: Georgia, 'Times New Roman', serif; letter-spacing: 0.03em; }
+.dnd-sheet .tray[data-dice-style='medieval'] .tray-title { font-family: Georgia, 'Times New Roman', serif; letter-spacing: 0.03em; }
 .dnd-sheet .tray-head {
   display: flex;
   align-items: center;

@@ -273,10 +273,25 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       minimized (watches `activeRoll.token`). Guarded by `dice-tray-ux.test.ts`.
 - [ ] **D2 — Animated 3D dice tray.** Real dice-rolling animation (d20/dice tumbling in a tray) — a canvas/
       WebGL or CSS-3D roller. Themeable per D1. Falls back to a static roll on reduced-motion / no-WebGL.
-- [ ] **D4 — Dice rollers get the full template + color-theme customization (owner 2026-07-18).** Each dice
-      roller should be as customizable as the character-sheet templates, incl. the same color-variation themes
-      (ties to Area TH). Currently 5 named styles exist; extend so a roller's palette/skin uses the shared
-      theme-token system the templates use.
+- [x] **D4a — Header controls formatting (owner 2026-07-18).** ✅ SHIPPED — the tray-head style/sound/minimize
+      controls align cleanly (the style `<select>`'s native chrome was breaking the row; now a clean pill).
+- [ ] **D4 — Dice-roller skins: colors from the sheet, shapes/textures/number-display per skin (owner
+      2026-07-18).** A substantial roller redesign, multi-slice:
+  - [x] **D4b — Colors inherit the sheet palette.** ✅ SHIPPED — the four skins no longer hardcode hues; they
+    inherit the sheet's tokens (border `--line-strong`, title `--ink`, panel `--panel-2-rgb`/`--void-rgb`,
+    glow `--hotpink`/`--tealbright`), so the roller matches the sheet + its colour theme. Only shape/texture/
+    glow/title differ per skin (rugged sharp+stone hatch/no glow, natural soft-round+teal aura, fantasy
+    ornate+dual glow, medieval sharp iron+parchment weave+serif). Verified in-browser; no hardcoded hexes
+    remain; dice-style + sheet-contrast tests green.
+  - **D4c — Per-skin shape/texture/format/positioning.** Each of the 5 skins gets its own vibe — frame shape,
+    textures, control layout/positioning — while keeping identical functionality.
+  - [x] **D4d — Per-skin NUMBER-DISPLAY styling.** ✅ SHIPPED — `RollStage` takes the active skin (`roller`
+    prop from `DiceTray`) and drives a per-skin `DISPLAY_MODE`: **futuristic** cycles colour + font + tilt
+    (the screen vibe); **fantasy** shimmers colour on a steady font; **natural/rugged/medieval** are calm
+    single-colour with a stable font (teal Rajdhani / gold Oswald / gold serif). Crit/fumble still read
+    semantic gold/danger on every skin. Colours are sheet accent tokens (D4b). Guarded by `dice-tray-ux.test.ts`.
+  - **D4e — New animations + sounds per skin.** More varied roll animations + sound sets per skin; all hooked
+    to the sheet, responsive, reduced-motion aware. (Pairs with D2's animated dice.)
 - [ ] **D3 — Tests / visual:** the pure roll result is unchanged by the skin (source-anchored); visual polish
       is in-app.
 
@@ -367,8 +382,23 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       incl. two-sheets-per-system + round-trip). REMAINING **MV2b**: a route to add/switch/rename/delete a slot
       + the `SystemSwitcher` UI (the "+" add-sheet with vanilla/custom + name, and per-slot switch chips from
       `listSheets`); a custom transpose ADDs a slot instead of overwriting.
-- [ ] **MV3 — Labels on the sheet + provenance.** The active sheet shows its name + Vanilla/Custom label; the
-      custom variant's invented elements stay provenance-flagged for DM review.
+      **MV2b(route) ✅ SHIPPED** — the system route now: folds the persisted active-slot meta onto the live
+      active sheet (`readActiveSlotMeta`); handles `{ slotId }` → `switchToSlot` (switch to a SPECIFIC sheet);
+      handles `{ action:'add', system, kind, name? }` → `addSheetSlot` (add a blank sheet for a PLAYABLE
+      system, `isSystemAvailable`-gated, without switching); and every persist path (switch/transpose too) now
+      writes `withActiveSlotMeta` so the active kind/name/slotId survive. Guarded by `mv-route.test.ts`.
+      **MV2c ✅ SHIPPED** — the `SystemSwitcher` now shows a **"Your sheets"** section: every sheet the
+      character holds (from `listSheets`) as a switchable chip labelled with its name + a VANILLA/CUSTOM badge
+      (active one highlighted), plus a **"＋ Add sheet"** form (pick a playable system + Vanilla/Custom + an
+      optional name → posts `action:'add'`). Switching a chip posts `{ slotId }`. The page passes the sheet
+      list + active-slot meta. Guarded by `mv-route.test.ts`; full suite green (2035). **Area MV is now
+      user-visible end to end** (add/name/switch multiple vanilla+custom sheets per system). REMAINING (MV
+      polish): rename/delete a sheet; route a custom-consented TRANSPOSE to ADD a slot rather than overwrite
+      (MV3 sheet label on the sheet itself is a nice-to-have).
+- [x] **MV3 — Labels on the sheet + provenance.** ✅ SHIPPED — the switcher header shows the active sheet's
+      **VANILLA/CUSTOM** badge, and (when the character has >1 sheet) an "Active sheet: {name}" line, so it's
+      always clear which sheet is live. Custom variants' invented elements remain provenance-flagged via the
+      existing approval/provenance path. Guarded by `mv-route.test.ts`.
 - [ ] **MV4 — Tests:** two variants coexist for one system; switching preserves both; naming (custom +
       default); back-compat with single-variant data.
 

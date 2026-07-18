@@ -13,12 +13,15 @@ export default function SystemSwitcher({
   characterId,
   activeSystem,
   builtSystems,
+  sheets = [],
   aiConfigured,
   allowCustom = true,
 }: {
   characterId: string;
   activeSystem: string;
   builtSystems: string[];
+  /** Every sheet the character holds (Area MV2c): active + each stored slot, with kind + name. */
+  sheets?: { slotId: string; system: string; kind: 'vanilla' | 'custom'; name: string; active: boolean }[];
   aiConfigured: boolean;
   /** Whether custom content is allowed for this character/campaign — gates the transpose consent prompt (TR2). */
   allowCustom?: boolean;
@@ -32,6 +35,39 @@ export default function SystemSwitcher({
   const [transpose, setTranspose] = useState<{ system: string; phase: 'working' | 'done'; summary?: string | null; allowedCustom?: boolean } | null>(null);
   // The system awaiting the custom-content consent decision (Area TR2).
   const [consent, setConsent] = useState<string | null>(null);
+  // Add-sheet form state (Area MV2c).
+  const [adding, setAdding] = useState(false);
+  const [addSystem, setAddSystem] = useState(activeSystem || SYSTEM_AMBIGUOUS);
+  const [addKind, setAddKind] = useState<'vanilla' | 'custom'>('vanilla');
+  const [addName, setAddName] = useState('');
+
+  // Switch the active sheet to a SPECIFIC stored slot (MV2c) — a character can hold several sheets per system.
+  async function switchSlot(slotId: string) {
+    if (busy) return;
+    setBusy(slotId); setMsg(null);
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}/system`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slotId }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setMsg(j.error ?? 'Could not switch sheet.'); return; }
+      router.refresh();
+    } catch { setMsg('Network error — please try again.'); } finally { setBusy(null); }
+  }
+
+  // Add a NEW (blank) sheet for a playable system, vanilla or custom, without switching to it (MV2c).
+  async function addSheet() {
+    setBusy('__add'); setMsg(null);
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}/system`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'add', system: addSystem, kind: addKind, name: addName.trim() || undefined }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setMsg(j.error ?? 'Could not add sheet.'); return; }
+      setAdding(false); setAddName(''); router.refresh();
+    } catch { setMsg('Network error — please try again.'); } finally { setBusy(null); }
+  }
 
   const active = activeSystem || SYSTEM_AMBIGUOUS;
   const built = new Set(builtSystems.map((s) => s || SYSTEM_AMBIGUOUS));
@@ -76,24 +112,92 @@ export default function SystemSwitcher({
     }
   }
 
+  // The active sheet (MV3) — its name + kind label shown on the switcher header so you always know which of
+  // the character's sheets is live.
+  const activeSheet = sheets.find((s) => s.active);
   return (
     <div className={styles.framedPanel} style={{ margin: '10px 0', padding: '10px 14px' }}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={styles.hexBtn}
-        style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+        style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
       >
-        <span style={{ fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)' }}>◆ Game system — {systemLabel(active)}</span>
+        <span style={{ fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          ◆ Game system — {systemLabel(active)}
+          {activeSheet && (
+            <span style={{ fontSize: 9.5, color: activeSheet.kind === 'custom' ? 'var(--hx-gold-2)' : 'var(--hx-muted)', border: '1px solid currentColor', borderRadius: 4, padding: '0 4px', fontFamily: 'var(--hx-font-body)' }}>
+              {activeSheet.kind === 'custom' ? 'CUSTOM' : 'VANILLA'}
+            </span>
+          )}
+        </span>
         <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{open ? 'Hide' : 'Switch / transpose'}</span>
       </button>
+      {activeSheet && sheets.length > 1 && (
+        // When the character has more than one sheet, name the active one so it's unmistakable which is live.
+        <div style={{ fontSize: 11.5, color: 'var(--hx-muted)', marginTop: 4 }}>Active sheet: <strong style={{ color: 'var(--hx-text)' }}>{activeSheet.name}</strong></div>
+      )}
       {open && (
         <>
           <p style={{ margin: '10px 0 8px', fontSize: 12.5, color: 'var(--hx-muted)' }}>
-            This character can hold a separate sheet per system. Switch instantly between the ones you’ve built,
-            or transpose into a new system — the AI rebuilds the character under that system’s rules only, and
-            your other versions are kept.
+            This character can hold several sheets — even more than one per system (a vanilla build and a
+            custom build). Switch between them below, add a new one, or transpose into a new system.
           </p>
+
+          {/* Your sheets (Area MV2c) — every sheet the character holds, each switchable; add a new one. */}
+          {sheets.length > 0 && (
+            <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--hx-teal-1)' }}>Your sheets</span>
+                <button type="button" className={styles.hexBtn} style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => setAdding((a) => !a)} disabled={!!busy}>
+                  {adding ? '× Cancel' : '＋ Add sheet'}
+                </button>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {sheets.map((sh) => (
+                  <button
+                    key={sh.slotId}
+                    type="button"
+                    disabled={sh.active || !!busy}
+                    onClick={() => !sh.active && switchSlot(sh.slotId)}
+                    title={sh.active ? 'The active sheet' : `Switch to “${sh.name}”`}
+                    style={{
+                      padding: '6px 10px', borderRadius: 8, fontSize: 12,
+                      border: sh.active ? '2px solid var(--hx-teal-1)' : '1px solid var(--hx-line)',
+                      background: sh.active ? 'rgba(10,200,185,0.14)' : 'transparent',
+                      color: 'var(--hx-text)', cursor: sh.active || busy ? 'default' : 'pointer',
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                    }}
+                  >
+                    {sh.name}
+                    <span style={{ fontSize: 9.5, color: sh.kind === 'custom' ? 'var(--hx-gold-2)' : 'var(--hx-muted)', border: '1px solid currentColor', borderRadius: 4, padding: '0 4px' }}>
+                      {sh.kind === 'custom' ? 'CUSTOM' : 'VANILLA'}
+                    </span>
+                    {sh.active && <span style={{ fontSize: 9.5, color: 'var(--hx-teal-1)' }}>● ACTIVE</span>}
+                    {busy === sh.slotId && <span style={{ fontSize: 10 }}>…</span>}
+                  </button>
+                ))}
+              </div>
+              {adding && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 10px' }}>
+                  <select value={addSystem} onChange={(e) => setAddSystem(e.target.value)} style={{ fontSize: 12, padding: '4px 6px', background: 'rgba(1,10,19,0.6)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }}>
+                    {GAME_SYSTEMS.filter((s) => isSystemAvailable(s.key)).map((s) => <option key={s.key} value={s.key}>{s.name}</option>)}
+                  </select>
+                  <select value={addKind} onChange={(e) => setAddKind(e.target.value as 'vanilla' | 'custom')} style={{ fontSize: 12, padding: '4px 6px', background: 'rgba(1,10,19,0.6)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }}>
+                    <option value="vanilla">Vanilla</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                  <input value={addName} onChange={(e) => setAddName(e.target.value)} placeholder="Sheet name (optional)" maxLength={60}
+                    style={{ flex: 1, minWidth: 120, fontSize: 12, padding: '4px 8px', background: 'rgba(1,10,19,0.6)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }} />
+                  <button type="button" className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} style={{ padding: '4px 12px', fontSize: 12 }} onClick={addSheet} disabled={busy === '__add'}>
+                    {busy === '__add' ? 'Adding…' : 'Add'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--hx-teal-1)', marginBottom: 4 }}>Systems</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {all.map((s) => {
               const on = s === active;

@@ -13,8 +13,8 @@ import { dndToolCall, dndAiConfigured } from '@/lib/dnd/ai';
 import { applySheetEdits, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import { systemGroundingBlock } from '@/lib/dnd/grounding';
 import { validateCharacterForSystem } from '@/lib/dnd/system-validate';
-import { normalizeSystem, systemLabel } from '@/lib/dnd/systems';
-import { readVariants, hasVariant, switchActive, installTransposed, type ActiveSheet } from '@/lib/dnd/system-variants';
+import { normalizeSystem, systemLabel, isSystemAvailable } from '@/lib/dnd/systems';
+import { readVariants, hasVariant, switchActive, installTransposed, switchToSlot, addSheetSlot, readActiveSlotMeta, withActiveSlotMeta, type ActiveSheet } from '@/lib/dnd/system-variants';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
 
@@ -76,14 +76,57 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // false (strict vanilla) so a missing/legacy caller never silently invents content.
   const allowCustom = body?.allowCustom === true;
 
+  // The active sheet's slot metadata (kind/name/slotId) persists in the system_variants jsonb (MV2b) since the
+  // character columns have no such fields; fold it onto the live active sheet.
+  const activeMeta = readActiveSlotMeta(row.system_variants);
   const active: ActiveSheet = {
     system: normalizeSystem(row.system),
     data: row.data ?? blankCharacter(row.name),
     sheet_type: row.sheet_type || 'default',
     custom_layout: row.custom_layout,
     custom_css: row.custom_css ?? '',
+    ...(activeMeta.slotId ? { slotId: activeMeta.slotId } : {}),
+    kind: activeMeta.kind,
+    ...(activeMeta.name ? { name: activeMeta.name } : {}),
   };
   const variants = readVariants(row.system_variants);
+
+  // ── Switch to a SPECIFIC stored slot (Area MV2b) — a character can hold multiple sheets per system. ──
+  if (typeof body?.slotId === 'string' && body.slotId) {
+    let next;
+    try { next = switchToSlot(active, variants, body.slotId); }
+    catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : 'No such sheet.' }, { status: 400 }); }
+    const { error } = await supabaseAdmin
+      .from('dnd_characters')
+      .update({
+        system: next.active.system,
+        data: next.active.data,
+        sheet_type: next.active.sheet_type,
+        custom_layout: next.active.custom_layout ?? { blocks: [] },
+        custom_css: next.active.custom_css ?? '',
+        system_variants: withActiveSlotMeta(next.variants, next.active),
+      })
+      .eq('id', params.id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, kind: 'switch-slot', slotId: body.slotId, system: next.active.system });
+  }
+
+  // ── Add a new (blank) sheet slot for a playable system, without switching to it (Area MV2b). ──
+  if (body?.action === 'add') {
+    if (!isSystemAvailable(target)) return NextResponse.json({ error: 'That system is not available to build.' }, { status: 400 });
+    const kind = body?.kind === 'custom' ? 'custom' : 'vanilla';
+    const { variants: withNew, slotId } = addSheetSlot(variants, {
+      system: target, kind,
+      name: typeof body?.name === 'string' && body.name.trim() ? body.name.trim() : undefined,
+      data: blankCharacter(row.name), // a fresh blank sheet in the target system
+    });
+    const { error } = await supabaseAdmin
+      .from('dnd_characters')
+      .update({ system_variants: withActiveSlotMeta(withNew, active) }) // active sheet unchanged
+      .eq('id', params.id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, kind: 'add-sheet', slotId, system: target, sheetKind: kind });
+  }
 
   // Already active — nothing to do.
   if (target === active.system) return NextResponse.json({ ok: true, kind: 'noop', system: target });
@@ -99,7 +142,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         sheet_type: next.active.sheet_type,
         custom_layout: next.active.custom_layout ?? { blocks: [] },
         custom_css: next.active.custom_css ?? '',
-        system_variants: next.variants,
+        system_variants: withActiveSlotMeta(next.variants, next.active),
       })
       .eq('id', params.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -147,7 +190,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       sheet_type: next.active.sheet_type,
       custom_layout: next.active.custom_layout ?? { blocks: [] },
       custom_css: next.active.custom_css ?? '',
-      system_variants: next.variants,
+      system_variants: withActiveSlotMeta(next.variants, next.active),
     })
     .eq('id', params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

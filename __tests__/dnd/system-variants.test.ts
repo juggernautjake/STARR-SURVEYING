@@ -168,3 +168,27 @@ describe('slot operations — switch/add specific sheets (Area MV2)', () => {
     expect(() => switchToSlot(active, {}, 'nope')).toThrow(/no sheet slot/i);
   });
 });
+
+import { ACTIVE_SLOT_META_KEY, readActiveSlotMeta, withActiveSlotMeta } from '@/lib/dnd/system-variants';
+
+describe('active-slot metadata persistence (Area MV2b)', () => {
+  it('readVariants skips the reserved active-slot key (it is not a sheet)', () => {
+    const v = readVariants({ 'pathfinder2e': { data: {}, sheet_type: 'default' }, [ACTIVE_SLOT_META_KEY]: { slotId: 'x', kind: 'custom' } });
+    expect(Object.keys(v)).toEqual(['pathfinder2e']);
+    expect(ACTIVE_SLOT_META_KEY in v).toBe(false);
+  });
+
+  it('round-trips the active sheet slotId/kind/name through withActiveSlotMeta → readActiveSlotMeta', () => {
+    const a: ActiveSheet = { system: 'dnd5e-2024', slotId: 'dnd5e-2024#2', data: {}, sheet_type: 'default', kind: 'custom', name: 'Homebrew Kael' };
+    const persisted = withActiveSlotMeta({ 'pathfinder2e': { data: {}, sheet_type: 'default' } }, a);
+    // the sheet variant survives alongside the reserved meta
+    expect(persisted['pathfinder2e']).toBeTruthy();
+    const meta = readActiveSlotMeta(persisted);
+    expect(meta).toEqual({ slotId: 'dnd5e-2024#2', kind: 'custom', name: 'Homebrew Kael' });
+  });
+
+  it('returns empty when nothing is stored (legacy)', () => {
+    expect(readActiveSlotMeta({})).toEqual({});
+    expect(readActiveSlotMeta(null)).toEqual({});
+  });
+});
