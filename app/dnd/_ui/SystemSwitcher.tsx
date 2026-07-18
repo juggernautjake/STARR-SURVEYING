@@ -32,7 +32,7 @@ export default function SystemSwitcher({
   const [msg, setMsg] = useState<string | null>(null);
   // Transpose lifecycle (Area TR1): 'working' shows the animated progress bar; 'done' shows an obvious
   // success notification. Only set for a transpose (an AI build), not an instant switch.
-  const [transpose, setTranspose] = useState<{ system: string; phase: 'working' | 'done'; summary?: string | null; allowedCustom?: boolean } | null>(null);
+  const [transpose, setTranspose] = useState<{ system: string; phase: 'working' | 'done'; summary?: string | null; allowedCustom?: boolean; custom?: { type: string; name: string; note?: string }[]; hp?: number } | null>(null);
   // The system awaiting the custom-content consent decision (Area TR2).
   const [consent, setConsent] = useState<string | null>(null);
   // Add-sheet form state (Area MV2c).
@@ -40,6 +40,9 @@ export default function SystemSwitcher({
   const [addSystem, setAddSystem] = useState(activeSystem || SYSTEM_AMBIGUOUS);
   const [addKind, setAddKind] = useState<'vanilla' | 'custom'>('vanilla');
   const [addName, setAddName] = useState('');
+  // How to build the new sheet (Area MV): 'blank' = an empty sheet; 'transpose' = the AI rebuilds THIS
+  // character into the chosen system as a new sheet, keeping every existing one. Transpose needs the AI.
+  const [addMethod, setAddMethod] = useState<'blank' | 'transpose'>('blank');
 
   // Switch the active sheet to a SPECIFIC stored slot (MV2c) — a character can hold several sheets per system.
   async function switchSlot(slotId: string) {
@@ -70,13 +73,32 @@ export default function SystemSwitcher({
     } catch { setMsg('Network error — please try again.'); } finally { setBusy(null); }
   }
 
-  // Add a NEW (blank) sheet for a playable system, vanilla or custom, without switching to it (MV2c).
+  // Create a NEW sheet for a playable system (MV2c/MV). 'blank' parks an empty sheet without switching; a
+  // 'transpose' has the AI rebuild THIS character into that system as a fresh, now-active sheet, keeping every
+  // existing one (so you can hold e.g. a vanilla AND a custom build for the same system).
   async function addSheet() {
+    const name = addName.trim() || undefined;
+    if (addMethod === 'transpose') {
+      if (!aiConfigured) { setMsg('AI is not configured — cannot transpose. Add a blank sheet instead.'); return; }
+      setBusy('__add'); setMsg(null); setAdding(false);
+      setTranspose({ system: addSystem, phase: 'working' });
+      try {
+        const r = await fetch(`/api/dnd/characters/${characterId}/system`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'transpose', system: addSystem, allowCustom: addKind === 'custom', name }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) { setMsg(j.error ?? 'Could not build the sheet.'); setTranspose(null); return; }
+        setTranspose({ system: addSystem, phase: 'done', summary: j.summary ?? null, allowedCustom: j.allowedCustom, custom: j.custom ?? [], hp: j.hp });
+        setAddName(''); router.refresh();
+      } catch { setMsg('Network error — please try again.'); setTranspose(null); } finally { setBusy(null); }
+      return;
+    }
     setBusy('__add'); setMsg(null);
     try {
       const r = await fetch(`/api/dnd/characters/${characterId}/system`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'add', system: addSystem, kind: addKind, name: addName.trim() || undefined }),
+        body: JSON.stringify({ action: 'add', system: addSystem, kind: addKind, name }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setMsg(j.error ?? 'Could not add sheet.'); return; }
@@ -117,7 +139,7 @@ export default function SystemSwitcher({
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setMsg(j.error ?? 'Could not change system.'); setTranspose(null); setBusy(null); return; }
       // Obvious completion notification, carrying the AI's summary (what it built, incl. any CUSTOM: pieces).
-      if (isTranspose) setTranspose({ system, phase: 'done', summary: j.summary ?? null, allowedCustom: j.allowedCustom });
+      if (isTranspose) setTranspose({ system, phase: 'done', summary: j.summary ?? null, allowedCustom: j.allowedCustom, custom: j.custom ?? [], hp: j.hp });
       router.refresh();
     } catch {
       setMsg('Network error — please try again.');
@@ -219,27 +241,45 @@ export default function SystemSwitcher({
                         className={`${styles.input} ${styles.sheetControl}`} />
                     </label>
                   </div>
-                  <div className={styles.sheetField}>
-                    <span className={styles.sheetFieldLabel}>Build with</span>
-                    <div className={styles.segmented} role="group" aria-label="Sheet build type">
-                      <button type="button" aria-pressed={addKind === 'vanilla'} onClick={() => setAddKind('vanilla')}
-                        className={`${styles.segment} ${addKind === 'vanilla' ? `${styles.segmentOn} ${styles.segmentVanilla}` : ''}`}>
-                        📖 Vanilla
-                      </button>
-                      <button type="button" aria-pressed={addKind === 'custom'} onClick={() => setAddKind('custom')}
-                        className={`${styles.segment} ${addKind === 'custom' ? `${styles.segmentOn} ${styles.segmentCustom}` : ''}`}>
-                        ✦ Custom
-                      </button>
+                  <div className={styles.sheetAddGrid}>
+                    <div className={styles.sheetField}>
+                      <span className={styles.sheetFieldLabel}>Content</span>
+                      <div className={styles.segmented} role="group" aria-label="Sheet content type">
+                        <button type="button" aria-pressed={addKind === 'vanilla'} onClick={() => setAddKind('vanilla')}
+                          className={`${styles.segment} ${addKind === 'vanilla' ? `${styles.segmentOn} ${styles.segmentVanilla}` : ''}`}>
+                          📖 Vanilla
+                        </button>
+                        <button type="button" aria-pressed={addKind === 'custom'} onClick={() => setAddKind('custom')}
+                          className={`${styles.segment} ${addKind === 'custom' ? `${styles.segmentOn} ${styles.segmentCustom}` : ''}`}>
+                          ✦ Custom
+                        </button>
+                      </div>
                     </div>
-                    <span style={{ fontSize: 11, color: 'var(--hx-muted)', lineHeight: 1.4 }}>
-                      {addKind === 'custom'
+                    <div className={styles.sheetField}>
+                      <span className={styles.sheetFieldLabel}>Start from</span>
+                      <div className={styles.segmented} role="group" aria-label="How to build the sheet">
+                        <button type="button" aria-pressed={addMethod === 'blank'} onClick={() => setAddMethod('blank')}
+                          className={`${styles.segment} ${addMethod === 'blank' ? `${styles.segmentOn} ${styles.segmentVanilla}` : ''}`}>
+                          ▢ Blank
+                        </button>
+                        <button type="button" aria-pressed={addMethod === 'transpose'} onClick={() => setAddMethod('transpose')} disabled={!aiConfigured}
+                          title={aiConfigured ? 'The AI rebuilds this character in the chosen system' : 'AI is not configured'}
+                          className={`${styles.segment} ${addMethod === 'transpose' ? `${styles.segmentOn} ${styles.segmentCustom}` : ''}`} style={!aiConfigured ? { opacity: 0.5, cursor: 'default' } : undefined}>
+                          ✨ AI transpose
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--hx-muted)', lineHeight: 1.45 }}>
+                    {addMethod === 'transpose'
+                      ? `The AI reads ${systemLabel(addSystem)}’s rules and rebuilds this character as a new ${addKind === 'custom' ? 'custom-content' : 'vanilla'} sheet — your other sheets are kept.`
+                      : addKind === 'custom'
                         ? 'A blank sheet you can build with homebrew classes, feats and content.'
                         : 'A blank sheet built strictly from the system’s official rules.'}
-                    </span>
-                  </div>
+                  </span>
                   <div className={styles.sheetAddActions}>
                     <button type="button" className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} style={{ padding: '7px 18px', fontSize: 12.5 }} onClick={addSheet} disabled={busy === '__add'}>
-                      {busy === '__add' ? 'Adding…' : '＋ Create sheet'}
+                      {busy === '__add' ? (addMethod === 'transpose' ? 'Building…' : 'Adding…') : addMethod === 'transpose' ? '✨ Build sheet' : '＋ Create sheet'}
                     </button>
                     <button type="button" className={styles.hexBtn} style={{ padding: '7px 14px', fontSize: 12.5 }} onClick={() => setAdding(false)} disabled={busy === '__add'}>
                       Cancel
@@ -340,11 +380,29 @@ export default function SystemSwitcher({
                 <button type="button" className={styles.hexBtn} style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => setTranspose(null)}>Dismiss</button>
               </div>
               {transpose.summary && (
-                // What the AI built — vanilla mapping + any CUSTOM: pieces it flagged for DM review (TR1/TR3).
+                // What the AI built — the vanilla mapping + a note on any custom pieces (TR1/TR3).
                 <p style={{ margin: 0, fontSize: 12, color: 'var(--hx-muted)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{transpose.summary}</p>
               )}
-              {transpose.allowedCustom && /CUSTOM:/i.test(transpose.summary ?? '') && (
-                <span style={{ fontSize: 11, color: 'var(--hx-teal-1)' }}>◆ Custom content was created — review it on the sheet / approval panel.</span>
+              {typeof transpose.hp === 'number' && (
+                <span style={{ fontSize: 11, color: 'var(--hx-muted)' }}>Built at <strong style={{ color: 'var(--hx-text)' }}>{transpose.hp} HP</strong> for the character’s level.</span>
+              )}
+              {transpose.custom && transpose.custom.length > 0 && (
+                // Every AI-INVENTED (non-vanilla) element, so it's unmistakable what is homebrew (owner request).
+                <div style={{ border: '1px solid var(--hx-gold-1)', borderRadius: 7, background: 'rgba(212,175,55,0.06)', padding: '8px 10px', display: 'grid', gap: 5 }}>
+                  <strong style={{ fontSize: 11.5, color: 'var(--hx-gold-2)', letterSpacing: '0.04em' }}>
+                    ✦ {transpose.custom.length} custom {transpose.custom.length === 1 ? 'element' : 'elements'} created (not vanilla to {systemLabel(transpose.system)})
+                  </strong>
+                  <ul style={{ margin: 0, padding: '0 0 0 2px', listStyle: 'none', display: 'grid', gap: 4 }}>
+                    {transpose.custom.map((c, i) => (
+                      <li key={i} style={{ fontSize: 11.5, color: 'var(--hx-text)', lineHeight: 1.4 }}>
+                        <span style={{ fontSize: 9, color: 'var(--hx-gold-2)', border: '1px solid currentColor', borderRadius: 3, padding: '0 4px', marginRight: 5, textTransform: 'uppercase' }}>{c.type}</span>
+                        <strong>{c.name}</strong>
+                        {c.note && <span style={{ color: 'var(--hx-muted)' }}> — {c.note}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                  <span style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>These are flagged as customized on the sheet for DM review.</span>
+                </div>
               )}
             </div>
           )}

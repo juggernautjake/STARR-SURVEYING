@@ -52,7 +52,8 @@ describe('SystemSwitcher UI shows every sheet + a "+" add (MV2c)', () => {
 
   it('has a "+ Add sheet" form (system + vanilla/custom + optional name) posting action:add', () => {
     expect(switcher).toContain('＋ Add sheet');
-    expect(switcher).toContain("JSON.stringify({ action: 'add', system: addSystem, kind: addKind, name: addName.trim() || undefined })");
+    expect(switcher).toContain("JSON.stringify({ action: 'add', system: addSystem, kind: addKind, name })");
+    expect(switcher).toContain('const name = addName.trim() || undefined;');
     expect(switcher).toContain('GAME_SYSTEMS.filter((s) => isSystemAvailable(s.key))'); // only playable systems addable
   });
 
@@ -93,5 +94,51 @@ describe('rename + delete sheet route/UI (Area MV)', () => {
     expect(switcher2).toContain("slotAction(sh.slotId, { action: 'rename', name: editSlotName })");
     expect(switcher2).toContain("slotAction(sh.slotId, { action: 'delete' })");
     expect(switcher2).toContain('!sh.active &&'); // delete only on non-active
+  });
+});
+
+describe('transpose quality — full digest, HP safety net, custom manifest (Area MV)', () => {
+  const route3 = readFileSync(join(process.cwd(), 'app/api/dnd/characters/[id]/system/route.ts'), 'utf8');
+  const tool = readFileSync(join(process.cwd(), 'lib/dnd/sheet-edits.ts'), 'utf8');
+  const switcher3 = readFileSync(join(process.cwd(), 'app/dnd/_ui/SystemSwitcher.tsx'), 'utf8');
+
+  it('sends a RICH source digest (abilities, saves, skills, features, spells, attacks, inventory) not just names', () => {
+    expect(route3).toContain('abilityMods');
+    expect(route3).toContain('saveProficiencies');
+    expect(route3).toContain('skillProficiencies');
+    expect(route3).toMatch(/features: c\.features\.map/);
+    expect(route3).toMatch(/text: \(f\.body \?\? \[\]\)\.join/); // feature RULES TEXT, not just the name
+    expect(route3).toMatch(/spells: \(c\.spells \?\? \[\]\)\.map/);
+  });
+
+  it('never leaves a transposed sheet at the blank seed’s 1 HP (repairs from level + hit die)', () => {
+    expect(route3).toContain('fallbackMaxHp');
+    expect(route3).toContain('transposed.combat.maxHp <= 1');
+    expect(route3).toContain('transposed.combat.currentHp = transposed.combat.maxHp'); // starts full
+  });
+
+  it('the AI reports invented content in a structured `custom` list, flagged on the sheet + returned', () => {
+    expect(tool).toContain('custom: {'); // the edit tool exposes a custom-content array
+    expect(route3).toContain('result?.input?.custom');
+    expect(route3).toContain('customized: true'); // matching sheet elements are flagged customized
+    expect(route3).toContain('custom: customList'); // returned to the client
+  });
+
+  it('a custom-consented transpose is thorough + balanced-for-level in the prompt', () => {
+    expect(route3).toContain('HARD, thorough look at EVERYTHING');
+    expect(route3).toMatch(/BALANCED against comparable vanilla/);
+    expect(route3).toContain('party level');
+  });
+
+  it('the switcher lists every custom element created in the done banner', () => {
+    expect(switcher3).toContain('transpose.custom');
+    expect(switcher3).toContain('custom {transpose.custom.length === 1 ? \'element\' : \'elements\'} created');
+  });
+
+  it('the add card can build a NEW sheet by AI transpose (posting action:transpose), keeping existing sheets', () => {
+    expect(switcher3).toContain("aria-pressed={addMethod === 'transpose'}");
+    expect(switcher3).toContain("action: 'transpose', system: addSystem, allowCustom: addKind === 'custom'");
+    expect(route3).toContain("const forceNewSheet = body?.action === 'transpose'");
+    expect(route3).toContain('installTransposedNewSlot(active, variants, target, transposed');
   });
 });

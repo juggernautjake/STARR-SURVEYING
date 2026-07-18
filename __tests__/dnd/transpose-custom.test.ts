@@ -25,7 +25,8 @@ describe('transpose route honors allowCustom (TR3)', () => {
   });
 
   it('custom pieces are listed for DM review, and the response reports allowedCustom', () => {
-    expect(route).toMatch(/prefixed "CUSTOM:"/);
+    expect(route).toMatch(/with "CUSTOM:"/);            // still flagged in the summary
+    expect(route).toContain('record EVERY invented element in the `custom` array'); // + a structured manifest
     expect(route).toContain('allowedCustom: allowCustom');
   });
 });

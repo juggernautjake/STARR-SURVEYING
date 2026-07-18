@@ -610,6 +610,19 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
         items: { type: 'string' },
         description: 'Design decisions you need the USER to resolve before the build is confident: anything missing, ambiguous, or CONFLICTING across the sources (e.g. two files disagree on a stat). Phrase each as a direct question. Leave empty in ruthless mode.',
       },
+      custom: {
+        type: 'array',
+        description: 'HOMEBREW / CUSTOM content you INVENTED (not present in the target system\'s official rules) — used when transposing a character and a signature ability has no vanilla equivalent. List EVERY invented element so the user sees exactly what is not vanilla. Leave empty when everything you built is official.',
+        items: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', description: 'What kind of element: class | subclass | ancestry | feat | spell | stance | feature | attack | item | resource | trait | other.' },
+            name: { type: 'string', description: 'The exact name of the element as it appears on the sheet.' },
+            note: { type: 'string', description: 'One line: what it does and why it was needed to preserve the character, plus a word on how it is balanced for the level/tier.' },
+          },
+          required: ['type', 'name'],
+        },
+      },
       edits: {
         type: 'array',
         items: {

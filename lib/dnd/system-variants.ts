@@ -231,6 +231,24 @@ export function installTransposed(
   };
 }
 
+/**
+ * Install a freshly-transposed sheet as a NEW slot and make it active, WITHOUT disturbing any sheet the
+ * target system already has (Area MV). This is the "build another version of this character" path — e.g. a
+ * custom-consented transpose alongside an existing vanilla sheet, or a second sheet for the same system.
+ * Composes addSheetSlot (park the new sheet) + switchToSlot (activate it, snapshotting the current active).
+ */
+export function installTransposedNewSlot(
+  active: ActiveSheet,
+  variants: SystemVariants,
+  target: string,
+  transposedData: unknown,
+  opts: { kind?: SheetVariantKind; name?: string } = {},
+): { active: ActiveSheet; variants: SystemVariants } {
+  const kind: SheetVariantKind = opts.kind === 'custom' ? 'custom' : 'vanilla';
+  const { variants: withNew, slotId } = addSheetSlot(variants, { system: target, kind, name: opts.name, data: transposedData });
+  return switchToSlot(active, withNew, slotId);
+}
+
 // ── Slot-based operations (Area MV2) — switch to a SPECIFIC sheet, or add a new one for a system. ──────────
 
 /** A fresh, unique slot id for a new sheet of `system`: the bare system if free, else `system#2`, `#3`, …
