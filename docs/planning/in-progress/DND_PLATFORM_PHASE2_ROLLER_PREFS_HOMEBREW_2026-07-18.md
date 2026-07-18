@@ -468,12 +468,20 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       default); back-compat with single-variant data.
 
 ### Area T — IG class taxonomy (bounded data restructure)
-- [ ] **T1 — Restructure to the site's real taxonomy:** 4 parent classes (Archon / Conduit / Fighter /
-      Wizard) each with subclasses (Archon → Beastmaster/Eldritch Binder/Packmaster/Summoner; Conduit →
-      Druid/Shifter/Witch; Fighter → Champion/Freebooter/Marksman/Sohei; Wizard → Arcanist/Magician/Shaman),
-      replacing the flat 13-class list. Update `content.ts` class data, the IG builder, provenance, grounding,
-      library. (Resolves `BLOCKERS §A` taxonomy + IG doc A10/B2.)
-- [ ] **T2 — Tests:** the taxonomy is golden-pinned to the site; the builder offers parent→subclass; no leak.
+- [~] **T1 — Restructure to the site's real taxonomy.** ✅ CANONICAL TAXONOMY SHIPPED — `lib/dnd/systems/
+      intuitive-games/taxonomy.ts`: `IG_CLASS_TAXONOMY` = the 4 parents × subclasses VERBATIM from the site
+      (Archon → Beastmaster/Eldritch Binder/Packmaster/Summoner; Conduit → Druid/Shifter/Witch; Fighter →
+      Champion/Freebooter/Marksman/Sohei; Wizard → Arcanist/Magician/Shaman), plus pure helpers `igParentClasses`,
+      `igSubclassesOf`, `igParentOf`, `igIsParentClass`/`igIsSubclass`, `igAllTaxonomyClasses`, `igClassLabel`
+      ("Fighter · Marksman"). This is the single source the builder/grounding/provenance/library will read.
+      REMAINING: rewire those four surfaces (the IG builder's parent→subclass picker, provenance, grounding,
+      library) onto this structure and retire the old flat/`IG_CLASS_GROUPS` grouping — a multi-surface
+      (incl. UI) change best driven in the running app; the data core + guarantees are done.
+- [~] **T2 — Tests.** ✅ TAXONOMY GOLDEN-PINNED — `ig-taxonomy.test.ts` (5): the 4 parents + subclasses are
+      pinned to the site; every subclass maps to exactly ONE parent (no leak / no cross-family duplicate);
+      queries are case-insensitive + family-labelled; and the taxonomy is proven CONSISTENT with the mechanical
+      `IG_CLASS_DETAILS` (every `classification: 'subclass of X'` row matches its taxonomy parent). The
+      "builder offers parent→subclass" assertion follows once T1's builder rewire lands.
 
 ### Area H — Homebrew / custom / DLC / extras (per system) + content-creation system
 This is the "form editor" the owner clarified: a full **create-and-share** system, plus a browse section.
