@@ -1498,7 +1498,9 @@ feature/item/resource). This completes non-mutation coverage across all FOUR edi
 read (`buildLedger`), `applySheetEdits`, `applyIgEdit` (its array-append ops), and `applyLayoutEdits` (the
 shared `START` fixture survives a full add/remove/move/update/title/css batch, `layout-edits.test.ts` +1) —
 each previously proven for one representative case, now proven at breadth so a lost clone or a spread→push
-regression fails a test rather than silently corrupting stored data. Full dnd suite green (1886).
+regression fails a test rather than silently corrupting stored data. The DM-facing UNDO pair is pinned too
+(`revertBatch` leaves its input post-batch sheet untouched — `revert-batch.test.ts` +1), so a revert can't
+corrupt the live sheet it reads. Full dnd suite green (1887).
 
 **Rejected, never coerced.** Effects are validated at the boundary against the registry
 (`cleanEffects` drops any unknown target / illegal operation / non-numeric value so no NaN or

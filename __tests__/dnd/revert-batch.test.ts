@@ -63,4 +63,19 @@ describe('revertBatch — undo a whole AI request', () => {
     const base = blankCharacter('Still');
     expect(revertBatch(base, [])).toEqual(base);
   });
+
+  it('does not mutate its input — reverting produces a NEW sheet, the post-batch one stays intact', () => {
+    // revertBatch deep-clones its input (structuredClone), so a DM's undo can't corrupt the live sheet it
+    // reads. The tests above only inspect the returned `back`; this pins that `after` survives the revert
+    // untouched (the apply+revert pair to the applySheetEdits non-mutation guard).
+    const base = blankCharacter('Vera');
+    const { after, batch } = applyWithAudit(base, [
+      { op: 'set_level', value: 20 },
+      { op: 'add_item', name: 'Vorpal Sword', kind: 'weapon' },
+      { op: 'add_feature', name: 'Godslayer', body: ['x'] },
+    ]);
+    const before = structuredClone(after);
+    revertBatch(after, batch);
+    expect(after).toEqual(before); // the input post-batch sheet is untouched by the revert
+  });
 });
