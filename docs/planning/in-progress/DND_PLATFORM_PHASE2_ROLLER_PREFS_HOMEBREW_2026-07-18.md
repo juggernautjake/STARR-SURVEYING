@@ -151,10 +151,19 @@ building, campaign control, and every page look and work well on mobile as well 
       header intact.
 - [ ] **MOB2 — Library page mobile pass.** Tables/section grids/galleries reflow + scroll within their own
       container (no page-level horizontal scroll); tap targets sized for touch.
-- [ ] **MOB2b — Collapsible library sections (owner 2026-07-18).** Every system-library section is a
-      toggle-open/closed accordion, and **all sections start CLOSED** — so the page opens as a scannable list
-      of section headers a reader expands on demand (helps mobile especially). Persist open/closed per section
-      is a nice-to-have; default-closed is the requirement.
+- [x] **MOB2b — Collapsible library sections (owner 2026-07-18).** ✅ SHIPPED — every system-library section
+      in `app/dnd/library/[key]/page.tsx` is now a native `<details>`/`<summary>` accordion, **all default
+      CLOSED** (no `open` attr), so the page opens as a scannable list of section headers you expand on demand.
+      Native HTML → no-JS, accessible, keyboard-toggleable, mobile-friendly. Guarded by
+      `library-collapsible.test.ts`. NEXT (owner 2026-07-17 follow-up): per-ENTRY expansion *within* a section
+      (a race/feat shows a brief line, expands to full detail) — needs the section data model to carry
+      per-entry brief+detail; tracked as MOB2c below.
+- [ ] **MOB2c — Per-entry expand within a section (owner 2026-07-17).** Within an open section, each entry
+      (a race, feat, condition, …) shows a brief summary line and expands to its full detail on click — nested
+      `<details>` inside the section `<details>`. Requires the `LibrarySection` model to carry structured
+      `{ name, brief, detail }` entries (today sections are flat tables/lists/prose), so this is a data-model
+      slice: add an optional `entries` shape + render each as a nested collapsible, migrating the highest-value
+      sections first (ancestries, feats, conditions).
 - [ ] **MOB3 — Character sheets (5e + IG + PF2) mobile pass.** The multi-column sheet stacks legibly; the
       dice tray / roller is reachable; editors + pickers usable one-handed.
 - [ ] **MOB4 — Login + character builder + campaign control mobile pass.** Forms, steps, and controls fit and

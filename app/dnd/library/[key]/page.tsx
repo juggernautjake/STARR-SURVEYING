@@ -95,13 +95,16 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
           <LibrarySearch system={page.key} systemName={page.name} />
 
           {/* ── the rules, section by section ──────────────────────────── */}
+          {/* Each section is a collapsible <details>, DEFAULT CLOSED (owner 2026-07-18): the page opens as a
+              scannable list of section headers you expand on demand — native, no-JS, accessible, and much
+              better on mobile. (Per-entry expansion within a section is the next slice.) */}
           {page.sections.map((s) => (
-            <section key={s.id} id={s.id} className={styles.framedPanel} style={{ padding: '14px 16px', display: 'grid', gap: 10, scrollMarginTop: 16 }}>
-              <div className={styles.framedPanelTop} />
-              <div>
-                <h2 className={styles.panelTitle} style={{ margin: 0 }}>{s.title}</h2>
-                {s.lead && <p style={{ color: 'var(--hx-muted)', fontSize: 13, margin: '3px 0 0' }}>{s.lead}</p>}
-              </div>
+            <details key={s.id} id={s.id} className={styles.framedPanel} style={{ padding: '12px 16px', scrollMarginTop: 16 }}>
+              <summary style={{ cursor: 'pointer', listStyle: 'revert' }}>
+                <h2 className={styles.panelTitle} style={{ margin: 0, display: 'inline' }}>{s.title}</h2>
+                {s.lead && <span style={{ color: 'var(--hx-muted)', fontSize: 13, marginLeft: 8 }}>— {s.lead}</span>}
+              </summary>
+              <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
 
               {s.facts && (
                 <dl style={{ display: 'grid', gap: 10, margin: 0 }}>
@@ -175,7 +178,8 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
                   {s.images.credit && <figcaption style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>{s.images.credit}</figcaption>}
                 </figure>
               )}
-            </section>
+              </div>
+            </details>
           ))}
 
           {/* ── full class tables, for systems that have them ──────────── */}
