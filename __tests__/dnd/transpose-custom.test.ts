@@ -50,3 +50,23 @@ describe('the transpose result surfaces rule violations (were computed but hidde
     expect(switcher).toMatch(/rules .*to review/);
   });
 });
+
+describe('transpose PRESERVES the character’s stats — no reset to blank 10s / 1 HP (bug fix 2026-07-18)', () => {
+  it('carries the 6 ability scores forward from the source into the seed (5e/PF2/IG share them)', () => {
+    // The reported bug: a transposed character came out with every ability at 10, because the blank seed's
+    // scores were never overwritten when the AI only rebuilt features/attacks. The seed now inherits the source
+    // abilities so a vanilla transpose keeps the real stats; the AI's set_ability edits still win on top.
+    expect(route).toContain('seed.abilities = { ...seed.abilities, ...source.abilities }');
+  });
+
+  it('has an ability safety net: restore the source scores if the applied edits left the block all-10', () => {
+    expect(route).toContain('const allTen = ABILS.every');
+    expect(route).toContain('sourceHadReal');
+    expect(route).toContain('transposed.abilities = { ...transposed.abilities, ...source.abilities }');
+  });
+
+  it('still repairs HP from level + hit die and fills to full (never left at the seed’s 1/1)', () => {
+    expect(route).toContain('transposed.combat.maxHp = fallbackMaxHp(');
+    expect(route).toContain('transposed.combat.currentHp = transposed.combat.maxHp');
+  });
+});

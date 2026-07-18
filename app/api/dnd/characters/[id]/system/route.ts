@@ -283,7 +283,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // Start from a blank sheet carrying the concept forward, then apply the target-system edits.
   const seed = blankCharacter(source.meta.name);
   seed.meta = { ...seed.meta, level: source.meta.level, species: source.meta.species, role: source.meta.role };
+  // Carry the 6 ability scores FORWARD (5e/PF2/IG are all d20 and share STR/DEX/CON/INT/WIS/CHA), so a vanilla
+  // transpose keeps the character's real stats instead of resetting to the blank seed's 10s. The AI's edits
+  // refine on top (a set_ability wins where the target system needs a different value); where it says nothing,
+  // the source value stands. Without this, an AI that only rebuilt features/attacks left every score at 10.
+  seed.abilities = { ...seed.abilities, ...source.abilities };
   const transposed = applySheetEdits(seed, edits);
+
+  // Ability safety net (mirrors the HP net below): if the applied edits left the whole ability block at the
+  // blank 10s while the SOURCE had real scores, the AI forgot to set them — restore the source's scores so a
+  // transposed character is never silently reduced to all-10 stats.
+  const ABILS = ['str', 'dex', 'con', 'int', 'wis', 'cha'] as const;
+  const allTen = ABILS.every((k) => (transposed.abilities?.[k] ?? 10) === 10);
+  const sourceHadReal = ABILS.some((k) => (source.abilities?.[k] ?? 10) !== 10);
+  if (allTen && sourceHadReal) transposed.abilities = { ...transposed.abilities, ...source.abilities };
 
   // ── HP safety net (Area MV/transpose quality) — the blank seed carries 1 HP; if the AI didn't set a real
   //    max HP the sheet would read "1 hp" (the bug the owner hit twice). Repair it from the level + hit die. ──
