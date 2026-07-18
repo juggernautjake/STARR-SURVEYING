@@ -27,6 +27,24 @@ describe('applyIgEdit — stances (one active at a time)', () => {
     applyIgEdit(ig, { op: 'set_active_stance', name: 'Menacing' });
     expect(ig.combat.stances).toEqual(['Defensive']); // original unchanged
   });
+
+  it('never mutates the input for the ARRAY-appending ops either (guards the shallow `combat` copy)', () => {
+    // applyIgEdit shallow-copies combat (`{ ...ig.combat }`), so combat.conditions/etc. ALIAS the input's
+    // arrays. The impl appends via spread (`[...arr, x]`), not push — but a future "optimize to push" would
+    // silently mutate the caller's character. The stance test above only covers a whole-array replace;
+    // this deep-equals the WHOLE input before/after across every array-touching + field-setting op.
+    const check = (apply: (ig: ReturnType<typeof base>) => void) => {
+      const ig = base();
+      const before = structuredClone(ig);
+      apply(ig);
+      expect(ig).toEqual(before);
+    };
+    check((ig) => applyIgEdit(ig, { op: 'add_condition', name: 'Shaken' }));
+    check((ig) => applyIgEdit(ig, { op: 'remove_condition', name: 'Prone' }));
+    check((ig) => applyIgEdit(ig, { op: 'add_feat', name: 'Cleave' }));
+    check((ig) => applyIgEdit(ig, { op: 'add_power', name: 'Elemental Blast' }));
+    check((ig) => applyIgEdit(ig, { op: 'set_defensive_power', name: 'Sidestep' }));
+  });
 });
 
 describe('applyIgEdit — conditions', () => {

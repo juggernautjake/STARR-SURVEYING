@@ -539,7 +539,13 @@ expanded requirements (2026-07-17):
       `add_condition`, `remove_condition` (case-insensitive de-dupe, empty-name no-op, never mutates input),
       plus `parseIgEdit` (validates the payload) + `describeIgEdit` (audit line). The route is write-gated
       (owner/player/DM via `requireCharacterWrite`), rejects non-IG characters, and persists just the patched
-      sidecar. `ig-edit.test.ts` (10). **AI edit tool shipped** (`ai.ts` `IG_EDIT_TOOL` +
+      sidecar. `ig-edit.test.ts` (10). **⚑ Non-mutation pinned at full breadth (2026-07-18):** `applyIgEdit`
+      shallow-copies combat (`{ ...ig.combat }`), so `combat.conditions`/etc. ALIAS the input's arrays — the
+      impl correctly appends via spread (`[...arr, x]`), but the non-mutation test covered only
+      `set_active_stance` (a whole-array replace), leaving the array-appending ops (add_condition/add_feat/
+      add_power) — the ones that could regress to a `.push` that silently mutates the caller — unguarded.
+      Added `ig-edit.test.ts` +1: `structuredClone` before/after deep-equal across every array-touching +
+      field-setting op. (Same shallow-copy-aliasing class as the 5e consumed-buff snapshot bug fixed earlier.) **AI edit tool shipped** (`ai.ts` `IG_EDIT_TOOL` +
       `parseIGEditToolCall` + `igEditToolInstruction`): the AI's `edit_ig_sheet` tool enumerates exactly the
       four ops and routes a tool call through the SAME `parseIgEdit` the manual route uses (the AI can't emit
       an edit the manual path wouldn't accept); the grounding lists the real stance + condition names and
