@@ -13,15 +13,21 @@ describe('IG sheet is interactive — tap to roll (R1b / IGS6)', () => {
     expect(sheet).toContain('resolveD20Roll({ natural: rollNaturalD20()');
   });
 
-  it('shows the last roll in a result banner (total + natural + crit/fumble)', () => {
+  it('shows the last roll in a generic result banner (label + total + detail, tone-coloured)', () => {
     expect(sheet).toContain('lastRoll');
-    expect(sheet).toMatch(/lastRoll\.result\.total/);
-    expect(sheet).toMatch(/lastRoll\.result\.(critical|fumble)/);
+    expect(sheet).toMatch(/lastRoll\.total/);
+    expect(sheet).toMatch(/lastRoll\.detail/);
+    expect(sheet).toMatch(/lastRoll\.tone/); // crit/fumble/normal colouring, shared by d20 + damage rolls
   });
 
-  it('saves, skills, AND attacks are all tap-to-roll', () => {
+  it('saves, skills, attacks (to-hit) AND attack damage are all tap-to-roll', () => {
     expect(sheet).toMatch(/rollLine\(`\$\{s\} save`/);         // saves
     expect(sheet).toMatch(/rollLine\(`\$\{s\.name\} \(\$\{s\.ability\}\)`/); // skills
-    expect(sheet).toMatch(/rollLine\(`\$\{a\.name\} attack`/); // attacks
+    expect(sheet).toMatch(/rollLine\(`\$\{a\.name\} attack`/); // attacks (to-hit)
+    expect(sheet).toMatch(/rollDamage\(`\$\{a\.name\} damage`, r\.damage\)/); // damage dice
+  });
+
+  it('damage uses the dice-expression roller', () => {
+    expect(sheet).toContain('rollDiceExpr');
   });
 });

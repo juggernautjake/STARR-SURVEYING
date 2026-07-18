@@ -13,7 +13,7 @@ import styles from './hextech.module.css';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { IG_ABILITIES, IG_SAVES } from '@/lib/dnd/systems/intuitive-games/model';
 import { igAbilityMod, igDerived, igSkillTotal, igRanksSpent, igResolveAttack } from '@/lib/dnd/systems/intuitive-games/rules';
-import { resolveD20Roll, rollNaturalD20, type RollResult } from '@/lib/dnd/roll';
+import { resolveD20Roll, rollNaturalD20, rollDiceExpr } from '@/lib/dnd/roll';
 import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_SPELL_ROSTER, IG_DEFENSIVE_POWERS, IG_CONDITIONS, IG_ACTION_ECONOMIES, igActionsByEconomy, findIGAncestry } from '@/lib/dnd/systems/intuitive-games/content';
 import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-games/inPlay';
 import { igConditionSummary, igStanceMechanicNote } from '@/lib/dnd/systems/intuitive-games/modifiers';
@@ -49,12 +49,18 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
   const derived = useMemo(() => igDerived(ig), [ig]);
   const router = useRouter();
   const [editing, setEditing] = useState(false);
-  // In-app roller (Area R1b) — tap a save or skill to roll a d20 + its modifier through the shared engine,
-  // showing the result in the banner below. The natural die comes from the RNG here (auto mode); manual-entry
-  // + record-IRL + a target DC (degrees) come in R2/R3/R5.
-  const [lastRoll, setLastRoll] = useState<{ label: string; result: RollResult } | null>(null);
+  // In-app roller (Area R1b) — tap a save/skill/attack to roll a d20 + its modifier, or an attack's damage
+  // to roll its dice, through the shared engine; the result shows in the banner below. RNG here (auto mode);
+  // manual-entry + record-IRL + a target DC (degrees) come in R2/R3/R5.
+  const [lastRoll, setLastRoll] = useState<{ label: string; total: number; detail: string; tone: 'crit' | 'fumble' | 'normal' } | null>(null);
   const rollLine = (label: string, modifier: number) => {
-    setLastRoll({ label, result: resolveD20Roll({ natural: rollNaturalD20(), modifier, system: 'intuitive-games' }) });
+    const r = resolveD20Roll({ natural: rollNaturalD20(), modifier, system: 'intuitive-games' });
+    const sign = r.modifier >= 0 ? `+ ${r.modifier}` : `− ${Math.abs(r.modifier)}`;
+    setLastRoll({ label, total: r.total, detail: `d20 [${r.natural}] ${sign}${r.critical ? ' · NAT 20' : ''}${r.fumble ? ' · NAT 1' : ''}`, tone: r.critical ? 'crit' : r.fumble ? 'fumble' : 'normal' });
+  };
+  const rollDamage = (label: string, expr: string) => {
+    const r = rollDiceExpr(expr);
+    setLastRoll({ label, total: r.total, detail: r.breakdown, tone: 'normal' });
   };
   // Incremental edit (enter/leave a stance, add/remove a condition) via the write-gated ig-edit route.
   // Available only to a viewer who can write this character; refreshes the sheet on success.
@@ -164,11 +170,8 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
       {lastRoll && (
         <div style={{ border: '1px solid var(--hx-gold-1)', borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', background: 'rgba(212,175,55,0.06)' }}>
           <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{lastRoll.label}</span>
-          <strong style={{ fontSize: 20, color: lastRoll.result.critical ? 'var(--hx-teal-1)' : lastRoll.result.fumble ? 'var(--hx-danger)' : 'var(--hx-gold-2)' }}>{lastRoll.result.total}</strong>
-          <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>
-            d20 [{lastRoll.result.natural}] {lastRoll.result.modifier >= 0 ? `+ ${lastRoll.result.modifier}` : `− ${Math.abs(lastRoll.result.modifier)}`}
-            {lastRoll.result.critical && ' · NAT 20'}{lastRoll.result.fumble && ' · NAT 1'}
-          </span>
+          <strong style={{ fontSize: 20, color: lastRoll.tone === 'crit' ? 'var(--hx-teal-1)' : lastRoll.tone === 'fumble' ? 'var(--hx-danger)' : 'var(--hx-gold-2)' }}>{lastRoll.total}</strong>
+          <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>{lastRoll.detail}</span>
         </div>
       )}
 
@@ -229,7 +232,13 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
                               {fmt(r.toHit)} 🎲
                             </button>
                           </td>
-                          <td style={{ padding: '3px 8px 3px 0', fontVariantNumeric: 'tabular-nums' }}>{r.damage}</td>
+                          <td style={{ padding: '3px 8px 3px 0', fontVariantNumeric: 'tabular-nums' }}>
+                            {/* Tap the damage to roll the dice expression (R1b). */}
+                            <button type="button" onClick={() => rollDamage(`${a.name} damage`, r.damage)} title={`Roll ${a.name} damage (${r.damage})`}
+                              style={{ background: 'none', border: 'none', color: 'var(--hx-text)', cursor: 'pointer', padding: 0, fontVariantNumeric: 'tabular-nums' }}>
+                              {r.damage} 🎲
+                            </button>
+                          </td>
                           <td style={{ padding: '3px 8px 3px 0', color: 'var(--hx-muted)' }}>{a.properties}</td>
                         </tr>
                       );
