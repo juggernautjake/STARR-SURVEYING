@@ -325,4 +325,11 @@ Area-C receipt uploads) is financial-correctness-critical and was untested. `__t
 (9) pins the rounding-free formatting (cents zero-pad, thousands separators, negative sign, em-dash for
 null/non-finite), the tolerant-but-strict parser ($/comma/whitespace accepted; 3+ decimals, multiple dots,
 scientific notation, negatives, letters rejected; empty/`.` → null mid-typing), and the
-`parseCents(formatCents(x)) === x` round-trip. Mobile suite green (135).
+`parseCents(formatCents(x)) === x` round-trip. Mobile suite green (135). **Time-tracking formatters guarded
+(2026-07-18):** `mobile/lib/timeFormat.ts` powers the Work Mode "Time" tab; its three fully-deterministic
+functions were untested (a wrong duration or clock-out minute count is a payroll error).
+`__tests__/mobile/time-format.test.ts` (9) pins `formatDuration`'s tier boundaries (non-finite/negative→"0m",
+<1m, whole-minutes-floored, "{h}h {m}m", and the ≥10h "drop the minutes / go home" tier),
+`durationMinutesBetween` (whole minutes, round-half-up, null on missing/malformed/reversed ranges), and
+`localISODate` (TZ-safe zero-padded YYYY-MM-DD). The Date.now-/locale-dependent formatters in the same file
+are left to on-device verification. Mobile suite green (144).
