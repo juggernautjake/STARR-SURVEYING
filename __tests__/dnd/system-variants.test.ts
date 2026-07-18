@@ -94,3 +94,77 @@ describe('sheet kind + name labels (Area MV1)', () => {
     expect(snap.name).toBe('X');
   });
 });
+
+import { listSheets, variantSystemOf } from '@/lib/dnd/system-variants';
+
+describe('multi-slot listing (Area MV1b)', () => {
+  const label = (s: string) => ({ 'dnd5e-2024': 'D&D 5e (2024)', 'pathfinder2e': 'Pathfinder 2e' }[s] ?? s);
+
+  it('variantSystemOf uses the explicit system, else the key (legacy)', () => {
+    expect(variantSystemOf({ data: {}, sheet_type: 'default' }, 'pathfinder2e')).toBe('pathfinder2e'); // legacy key
+    expect(variantSystemOf({ data: {}, sheet_type: 'default', system: 'dnd5e-2024' }, 'dnd5e-2024#custom')).toBe('dnd5e-2024');
+  });
+
+  it('readVariants + listSheets support TWO sheets for the same system (slot-keyed)', () => {
+    // a slot-keyed map: two dnd5e-2024 sheets (vanilla + custom) under distinct slot ids
+    const raw = {
+      'dnd5e-2024': { data: {}, sheet_type: 'default', kind: 'vanilla', system: 'dnd5e-2024', name: 'By the book' },
+      'dnd5e-2024#custom': { data: {}, sheet_type: 'default', kind: 'custom', system: 'dnd5e-2024' },
+    };
+    const v = readVariants(raw);
+    expect(Object.keys(v).sort()).toEqual(['dnd5e-2024', 'dnd5e-2024#custom']); // both slots kept
+    const sheets = listSheets({ system: 'pathfinder2e', data: {}, sheet_type: 'default' }, v, label);
+    // active + the two dnd5e-2024 slots = 3
+    expect(sheets).toHaveLength(3);
+    const dnd = sheets.filter((s) => s.system === 'dnd5e-2024');
+    expect(dnd.map((s) => s.kind).sort()).toEqual(['custom', 'vanilla']);
+    expect(dnd.find((s) => s.kind === 'vanilla')!.name).toBe('By the book'); // explicit name
+    expect(dnd.find((s) => s.kind === 'custom')!.name).toBe('D&D 5e (2024) · Custom-built'); // default name
+    // the active sheet is flagged + auto-named
+    const act = sheets.find((s) => s.active)!;
+    expect(act.system).toBe('pathfinder2e');
+    expect(act.name).toBe('Pathfinder 2e · Vanilla');
+  });
+});
+
+import { newSlotId, addSheetSlot, switchToSlot } from '@/lib/dnd/system-variants';
+
+describe('slot operations — switch/add specific sheets (Area MV2)', () => {
+  it('newSlotId keeps the bare system for the first sheet, then suffixes', () => {
+    expect(newSlotId({}, 'dnd5e-2024')).toBe('dnd5e-2024');
+    expect(newSlotId({ 'dnd5e-2024': { data: {}, sheet_type: 'default' } }, 'dnd5e-2024')).toBe('dnd5e-2024#2');
+    expect(newSlotId({ 'dnd5e-2024': { data: {}, sheet_type: 'default' }, 'dnd5e-2024#2': { data: {}, sheet_type: 'default' } }, 'dnd5e-2024')).toBe('dnd5e-2024#3');
+  });
+
+  it('addSheetSlot adds a labelled sheet for a system without touching the active one', () => {
+    const { variants, slotId } = addSheetSlot({}, { system: 'pathfinder2e', kind: 'custom', name: 'Homebrew Kael' });
+    expect(slotId).toBe('pathfinder2e');
+    expect(variants['pathfinder2e'].kind).toBe('custom');
+    expect(variants['pathfinder2e'].name).toBe('Homebrew Kael');
+    expect(variants['pathfinder2e'].system).toBe('pathfinder2e');
+    // a second custom sheet for the same system gets a distinct slot
+    const two = addSheetSlot(variants, { system: 'pathfinder2e', kind: 'vanilla' });
+    expect(two.slotId).toBe('pathfinder2e#2');
+    expect(Object.keys(two.variants).sort()).toEqual(['pathfinder2e', 'pathfinder2e#2']);
+  });
+
+  it('switchToSlot swaps to a specific slot, snapshotting the active back (round-trip)', () => {
+    const a: ActiveSheet = { system: 'dnd5e-2024', slotId: 'dnd5e-2024', data: { v: 1 }, sheet_type: 'default', kind: 'vanilla' };
+    // two dnd5e-2024 slots stored (a custom + the target)
+    const variants = { 'dnd5e-2024#2': { data: { v: 2 }, sheet_type: 'lazzuh', kind: 'custom' as const, system: 'dnd5e-2024', name: 'Custom Kael' } };
+    const out = switchToSlot(a, variants, 'dnd5e-2024#2');
+    expect(out.active.slotId).toBe('dnd5e-2024#2');
+    expect(out.active.kind).toBe('custom');
+    expect(out.active.name).toBe('Custom Kael');
+    expect((out.active.data as { v: number }).v).toBe(2);
+    // the previously-active sheet is snapshotted back under its own slot id (no collision)
+    expect(out.variants['dnd5e-2024']).toBeTruthy();
+    expect('dnd5e-2024#2' in out.variants).toBe(false); // the loaded slot leaves the map
+    // both sheets are the same system but distinct slots
+    expect(out.variants['dnd5e-2024'].system).toBe('dnd5e-2024');
+  });
+
+  it('switchToSlot throws for an unknown slot', () => {
+    expect(() => switchToSlot(active, {}, 'nope')).toThrow(/no sheet slot/i);
+  });
+});
