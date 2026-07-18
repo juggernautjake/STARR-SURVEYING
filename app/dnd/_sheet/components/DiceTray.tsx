@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useChar } from '../state/store'
 import { useSheetModule } from '../state/sheetConfig'
 import RollStage from './RollStage'
@@ -18,6 +18,13 @@ export default function DiceTray() {
   const hasForms = useSheetModule('forms')
   const [open, setOpen] = useState(true)
   const [histOpen, setHistOpen] = useState(true)   // collapse/expand the roll history
+  // Auto-open the tray when a roll is triggered from the sheet while it's minimized, so the roll animation
+  // pops up automatically instead of playing behind the FAB (owner 2026-07-18). `activeRoll.token` increments
+  // per roll, so a new roll re-opens the tray.
+  const rollToken = activeRoll?.token
+  useEffect(() => {
+    if (rollToken != null) setOpen(true)
+  }, [rollToken])
   const [diceCount, setDiceCount] = useState(1)
   const [muted, setMutedState] = useState(isMuted())
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
