@@ -29,7 +29,7 @@ export default function SystemSwitcher({
   const [msg, setMsg] = useState<string | null>(null);
   // Transpose lifecycle (Area TR1): 'working' shows the animated progress bar; 'done' shows an obvious
   // success notification. Only set for a transpose (an AI build), not an instant switch.
-  const [transpose, setTranspose] = useState<{ system: string; phase: 'working' | 'done' } | null>(null);
+  const [transpose, setTranspose] = useState<{ system: string; phase: 'working' | 'done'; summary?: string | null; allowedCustom?: boolean } | null>(null);
   // The system awaiting the custom-content consent decision (Area TR2).
   const [consent, setConsent] = useState<string | null>(null);
 
@@ -65,7 +65,8 @@ export default function SystemSwitcher({
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setMsg(j.error ?? 'Could not change system.'); setTranspose(null); setBusy(null); return; }
-      if (isTranspose) setTranspose({ system, phase: 'done' }); // obvious completion notification
+      // Obvious completion notification, carrying the AI's summary (what it built, incl. any CUSTOM: pieces).
+      if (isTranspose) setTranspose({ system, phase: 'done', summary: j.summary ?? null, allowedCustom: j.allowedCustom });
       router.refresh();
     } catch {
       setMsg('Network error — please try again.');
@@ -176,9 +177,18 @@ export default function SystemSwitcher({
             </div>
           )}
           {transpose?.phase === 'done' && (
-            <div role="status" style={{ margin: '10px 0 0', padding: '10px 12px', border: '1px solid var(--hx-gold-1)', borderRadius: 8, background: 'rgba(212,175,55,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-              <strong style={{ color: 'var(--hx-gold-2)', fontFamily: 'var(--hx-font-display)' }}>✓ Transposed into {systemLabel(transpose.system)} — now active!</strong>
-              <button type="button" className={styles.hexBtn} style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => setTranspose(null)}>Dismiss</button>
+            <div role="status" style={{ margin: '10px 0 0', padding: '10px 12px', border: '1px solid var(--hx-gold-1)', borderRadius: 8, background: 'rgba(212,175,55,0.1)', display: 'grid', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                <strong style={{ color: 'var(--hx-gold-2)', fontFamily: 'var(--hx-font-display)' }}>✓ Transposed into {systemLabel(transpose.system)} — now active!</strong>
+                <button type="button" className={styles.hexBtn} style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => setTranspose(null)}>Dismiss</button>
+              </div>
+              {transpose.summary && (
+                // What the AI built — vanilla mapping + any CUSTOM: pieces it flagged for DM review (TR1/TR3).
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--hx-muted)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{transpose.summary}</p>
+              )}
+              {transpose.allowedCustom && /CUSTOM:/i.test(transpose.summary ?? '') && (
+                <span style={{ fontSize: 11, color: 'var(--hx-teal-1)' }}>◆ Custom content was created — review it on the sheet / approval panel.</span>
+              )}
             </div>
           )}
           {msg && <p style={{ margin: '8px 0 0', fontSize: 12.5, color: 'var(--hx-muted)' }}>{msg}</p>}

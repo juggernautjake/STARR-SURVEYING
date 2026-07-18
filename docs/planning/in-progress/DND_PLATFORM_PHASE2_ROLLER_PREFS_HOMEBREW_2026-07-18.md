@@ -267,8 +267,16 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       **medieval**) by re-skinning the frame/header/title, with **futuristic** as the default base look (no
       override). Guarded by `dice-style.test.ts`; the contrast guard exempts `[data-dice-style]` (a bespoke
       look like a `.skin-*`). Full suite green (1942). REMAINING D2 (animated 3D tumbling dice) is separate.
+- [x] **D1b — In-tray style selector + auto-open (owner 2026-07-18).** ✅ SHIPPED — the dice tray has a style
+      selector in its header (switch futuristic/rugged/natural/fantasy/medieval right from the roller; a
+      per-session override of the preference), and it auto-opens when a roll is triggered from the sheet while
+      minimized (watches `activeRoll.token`). Guarded by `dice-tray-ux.test.ts`.
 - [ ] **D2 — Animated 3D dice tray.** Real dice-rolling animation (d20/dice tumbling in a tray) — a canvas/
       WebGL or CSS-3D roller. Themeable per D1. Falls back to a static roll on reduced-motion / no-WebGL.
+- [ ] **D4 — Dice rollers get the full template + color-theme customization (owner 2026-07-18).** Each dice
+      roller should be as customizable as the character-sheet templates, incl. the same color-variation themes
+      (ties to Area TH). Currently 5 named styles exist; extend so a roller's palette/skin uses the shared
+      theme-token system the templates use.
 - [ ] **D3 — Tests / visual:** the pure roll result is unchanged by the skin (source-anchored); visual polish
       is in-app.
 
@@ -316,12 +324,42 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       campaign transposes best-effort vanilla without asking. The page passes `allowCustom` from the campaign's
       `allow_custom`. Guarded by `transpose-progress.test.ts`. REMAINING: **TR3** — the route/AI actually
       honoring `allowCustom` (read-system-first, vanilla-first, balanced custom, provenance).
-- [ ] **TR3 — Read-system-first + balanced custom build.** The transpose prompt to the AI must (a) load the
-      full target-system grounding first, (b) prefer vanilla, (c) generate custom elements only as needed and
-      run each through a balance/mechanics check vs the system before finalizing, (d) preserve the character's
-      persona/abilities. Attribute any custom content to the AI + flag it (provenance) so a DM can review.
-- [ ] **TR4 — Tests:** consent gating (custom allowed vs not), the build reads the system grounding, custom
-      pieces are provenance-flagged, and the vanilla-first fallback when consent is declined.
+- [x] **TR3 — Read-system-first + balanced custom build.** ✅ SHIPPED — the transpose route
+      (`.../[id]/system`) now parses `allowCustom` (default false) and picks the prompt accordingly:
+      `transposeSystemPrompt(allowCustom)` = a shared base ("READ the target system's rules first… PREFER
+      vanilla") + either the strict **vanilla-only** suffix (never invent) or the **allow-custom** suffix
+      (create BALANCED custom only where no vanilla option fits, in the system's own mechanics/format,
+      balanced vs comparable vanilla, listed as "CUSTOM:" for DM review). The existing target-system grounding
+      is loaded first; the existing provenance detection flags any custom element (it's not in the vanilla
+      catalog); the response returns `allowedCustom`. Guarded by `transpose-custom.test.ts`.
+- [x] **TR4 — Tests.** ✅ SHIPPED — `transpose-progress.test.ts` (consent gating + progress/done UX) +
+      `transpose-custom.test.ts` (default-false, prompt-by-consent, read-first/prefer-vanilla, CUSTOM: listing,
+      `allowedCustom` in the response). **Area TR complete.**
+
+### Area MV — Multiple sheets per system: vanilla vs custom variants (owner 2026-07-18)
+> Owner: allow MORE THAN ONE character sheet for the SAME character in the SAME system — e.g. a **vanilla**
+> build and a separate **custom** build of the same character in that system. One sheet labelled "Vanilla",
+> the other "Custom-built"; the user can switch between them like the cross-system variants.
+
+> Owner (2026-07-18, expanded): in the system-selection element, add a **"+"** button to add a NEW sheet in
+> any playable system, then choose vanilla or custom. Sheets are **explicitly nameable** (custom naming);
+> otherwise a helpful default name. Track all of a character's sheets.
+
+- [~] **MV1 — Variant model.** IN PROGRESS. **MV1a ✅ SHIPPED (label/name foundation)** — `system-variants.ts`
+      now threads a `kind` ('vanilla' | 'custom', default vanilla — back-compat) AND an optional `name` through
+      the variant model, `readVariants`, `snapshotActive`, `switchActive`, and `installTransposed(…, {kind,
+      name})`; the transpose route labels the built sheet by the consent (custom→'custom'). Helpers
+      `variantKind`/`variantKindLabel`/`defaultVariantName`. Golden-pinned by `system-variants.test.ts` (9).
+      REMAINING **MV1b** — the compound keying so a system can store MULTIPLE sheets (a slot id per sheet, not
+      one-per-system); readVariants back-compat maps legacy bare-system keys to a single vanilla slot.
+- [ ] **MV2 — "+" add-sheet + switcher UI.** In `SystemSwitcher`: a **"+"** to add a new sheet in any playable
+      system (choose vanilla/custom + optional name, default `System · Vanilla/Custom-built`); list each sheet
+      (per system, per kind, with its name) as a switchable chip. Needs MV1b's multi-slot model + a route to
+      create/rename/delete a sheet.
+- [ ] **MV3 — Labels on the sheet + provenance.** The active sheet shows its name + Vanilla/Custom label; the
+      custom variant's invented elements stay provenance-flagged for DM review.
+- [ ] **MV4 — Tests:** two variants coexist for one system; switching preserves both; naming (custom +
+      default); back-compat with single-variant data.
 
 ### Area T — IG class taxonomy (bounded data restructure)
 - [ ] **T1 — Restructure to the site's real taxonomy:** 4 parent classes (Archon / Conduit / Fighter /

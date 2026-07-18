@@ -25,7 +25,7 @@ describe('alignment is a first-class identity target', () => {
 });
 
 describe('alignment is wired into its render + write paths', () => {
-  it('the Bio Details line renders alignment alongside gender/pronouns/profession', () => {
+  it('the Bio Details line renders alignment alongside gender/profession', () => {
     expect(BIO).toContain("{ key: 'alignment', label: 'Alignment' }");
   });
   it('set_meta accepts alignment (type union + AI schema description)', () => {

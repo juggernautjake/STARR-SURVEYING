@@ -18,14 +18,33 @@ import { readVariants, hasVariant, switchActive, installTransposed, type ActiveS
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
 
-const TRANSPOSE_SYSTEM =
+// The transpose system prompt. Vanilla-first always; `allowCustom` decides whether the AI may create
+// BALANCED custom content to preserve the character where no vanilla option fits (Area TR3). It's told to
+// read the target system's rules (provided in the grounding) FIRST, then build.
+const TRANSPOSE_BASE =
   'You are transposing an existing tabletop RPG character into a DIFFERENT game system, as faithfully as ' +
-  'possible. You receive the source character (JSON digest) and must rebuild it under the TARGET system. ' +
-  'Call edit_sheet with the full set of edits to construct the target-system sheet: keep the concept, ' +
-  'name, level intent, role and signature abilities, but express EVERY mechanic using ONLY the target ' +
-  'system’s rules, feats, spells, actions, weapons and numbers — never the source system’s, never invented. ' +
-  'When a source mechanic has no faithful target equivalent, choose the closest legal target-system option ' +
-  'and note the substitution in `unmapped` so the user can review it.';
+  'possible. First READ and understand the TARGET system’s rules from the grounding provided. Then rebuild ' +
+  'the character under the TARGET system: keep the concept, name, level intent, role and signature abilities, ' +
+  'but express EVERY mechanic using the TARGET system’s rules, feats, spells, actions, weapons and numbers — ' +
+  'never the source system’s. PREFER the target system’s VANILLA options wherever they fit. Call edit_sheet ' +
+  'with the full set of edits to construct the target-system sheet.';
+
+const TRANSPOSE_VANILLA_ONLY =
+  ' Use ONLY existing target-system content — never invent new classes, ancestries, feats, spells or ' +
+  'abilities. When a source mechanic has no faithful target equivalent, choose the closest legal ' +
+  'target-system option and note the substitution in `summary` so the user can review it.';
+
+const TRANSPOSE_ALLOW_CUSTOM =
+  ' Prefer vanilla target-system content. ONLY where no vanilla option can faithfully preserve a signature ' +
+  'ability or the character’s vibe, you MAY create a BALANCED custom element (class, subclass, ancestry, ' +
+  'feat, stance, spell or ability). Every custom element MUST (a) use the target system’s own mechanics and ' +
+  'format, (b) be balanced against comparable vanilla content of the same level/tier, and (c) be clearly ' +
+  'named. Do NOT create custom content when a vanilla option already works. List every custom element you ' +
+  'create in `summary`, each prefixed "CUSTOM:", so a DM can review + balance it.';
+
+function transposeSystemPrompt(allowCustom: boolean): string {
+  return TRANSPOSE_BASE + (allowCustom ? TRANSPOSE_ALLOW_CUSTOM : TRANSPOSE_VANILLA_ONLY);
+}
 
 function sheetDigest(c: Character): string {
   return JSON.stringify({
@@ -53,6 +72,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const body = await req.json().catch(() => ({}));
   const target = normalizeSystem(body?.system);
+  // Consent from the transpose prompt (Area TR2/TR3): may the AI create balanced custom content? Defaults
+  // false (strict vanilla) so a missing/legacy caller never silently invents content.
+  const allowCustom = body?.allowCustom === true;
 
   const active: ActiveSheet = {
     system: normalizeSystem(row.system),
@@ -93,7 +115,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   let result;
   try {
     result = await dndToolCall<{ summary?: string; edits: SheetEdit[] }>({
-      system: [TRANSPOSE_SYSTEM, grounding?.instruction].filter(Boolean).join('\n\n'),
+      system: [transposeSystemPrompt(allowCustom), grounding?.instruction].filter(Boolean).join('\n\n'),
       user: [
         `Target system: ${label}. Rebuild this character under ${label} only.`,
         `Source character (system: ${systemLabel(active.system)}):\n${sheetDigest(source)}`,
@@ -114,7 +136,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const seed = blankCharacter(source.meta.name);
   seed.meta = { ...seed.meta, level: source.meta.level, species: source.meta.species, role: source.meta.role };
   const transposed = applySheetEdits(seed, edits);
-  const next = installTransposed(active, variants, target, transposed);
+  // Label the new sheet Vanilla/Custom by the consent (Area MV).
+  const next = installTransposed(active, variants, target, transposed, { kind: allowCustom ? 'custom' : 'vanilla' });
 
   const { error } = await supabaseAdmin
     .from('dnd_characters')
@@ -131,5 +154,5 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // Safety net (Slice 3): confirm the transposed sheet actually fits the target system.
   const violations = validateCharacterForSystem(transposed, target);
-  return NextResponse.json({ ok: true, kind: 'transpose', system: target, summary: result?.input?.summary ?? null, editCount: edits.length, violations });
+  return NextResponse.json({ ok: true, kind: 'transpose', system: target, allowedCustom: allowCustom, summary: result?.input?.summary ?? null, editCount: edits.length, violations });
 }

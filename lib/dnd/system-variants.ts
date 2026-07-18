@@ -8,12 +8,31 @@
 // helpers are pure so the switch/transpose logic is unit-tested; the route just persists.
 import { normalizeSystem } from './systems';
 
+/** Whether a stored sheet was built with only the system's VANILLA content, or includes CUSTOM (invented /
+ *  homebrew) content — the label the owner wants so a character can hold both a vanilla and a custom build of
+ *  the same system (Area MV). */
+export type SheetVariantKind = 'vanilla' | 'custom';
+
+/** A sheet's kind, defaulting to 'vanilla' for legacy/unlabelled variants (back-compat). */
+export function variantKind(v: { kind?: unknown } | null | undefined): SheetVariantKind {
+  return v && (v as { kind?: unknown }).kind === 'custom' ? 'custom' : 'vanilla';
+}
+
+/** The human label for a variant kind, shown on the sheet + switcher. */
+export function variantKindLabel(kind: SheetVariantKind): string {
+  return kind === 'custom' ? 'Custom-built' : 'Vanilla';
+}
+
 /** One system's stored sheet (mirrors the character's live sheet columns). */
 export interface SystemVariant {
   data: unknown;
   sheet_type: string;
   custom_layout?: unknown;
   custom_css?: string | null;
+  /** Vanilla vs custom build (Area MV) — defaults to 'vanilla' when absent. */
+  kind?: SheetVariantKind;
+  /** A user-facing name for this sheet (Area MV) — custom or the auto-default. */
+  name?: string;
 }
 
 export type SystemVariants = Record<string, SystemVariant>;
@@ -25,6 +44,16 @@ export interface ActiveSheet {
   sheet_type: string;
   custom_layout?: unknown;
   custom_css?: string | null;
+  /** Vanilla vs custom build (Area MV). */
+  kind?: SheetVariantKind;
+  /** A user-facing name for this sheet (Area MV). */
+  name?: string;
+}
+
+/** A quick default name for a sheet, so every sheet is identifiable without the user naming it (Area MV):
+ *  e.g. "Pathfinder 2e · Vanilla" / "D&D 5e (2024) · Custom-built". Callers may pass a `systemLabel`. */
+export function defaultVariantName(systemLabel: string, kind: SheetVariantKind): string {
+  return `${systemLabel} · ${variantKindLabel(kind)}`;
 }
 
 export function readVariants(raw: unknown): SystemVariants {
@@ -38,6 +67,8 @@ export function readVariants(raw: unknown): SystemVariants {
         sheet_type: typeof rec.sheet_type === 'string' ? rec.sheet_type : 'default',
         custom_layout: rec.custom_layout,
         custom_css: (rec.custom_css as string | null | undefined) ?? '',
+        kind: variantKind(rec),
+        ...(typeof rec.name === 'string' && rec.name.trim() ? { name: rec.name.trim() } : {}),
       };
     }
   }
@@ -51,6 +82,8 @@ export function snapshotActive(active: ActiveSheet): SystemVariant {
     sheet_type: active.sheet_type || 'default',
     custom_layout: active.custom_layout,
     custom_css: active.custom_css ?? '',
+    kind: variantKind(active),
+    ...(active.name ? { name: active.name } : {}),
   };
 }
 
@@ -95,6 +128,8 @@ export function switchActive(
       sheet_type: chosen.sheet_type || 'default',
       custom_layout: chosen.custom_layout,
       custom_css: chosen.custom_css ?? '',
+      kind: variantKind(chosen),
+      ...(chosen.name ? { name: chosen.name } : {}),
     },
     variants: nextVariants,
   };
@@ -109,14 +144,17 @@ export function installTransposed(
   variants: SystemVariants,
   target: string,
   transposedData: unknown,
+  opts: { kind?: SheetVariantKind; name?: string } = {},
 ): { active: ActiveSheet; variants: SystemVariants } {
   const cur = normalizeSystem(active.system);
   const tgt = normalizeSystem(target);
   const nextVariants: SystemVariants = { ...variants };
   if (tgt !== cur) nextVariants[cur] = snapshotActive(active);
   delete nextVariants[tgt];
+  // Label the freshly-built sheet (Area MV): a custom-consented transpose is 'custom', else 'vanilla'.
+  const kind: SheetVariantKind = opts.kind === 'custom' ? 'custom' : 'vanilla';
   return {
-    active: { system: tgt, data: transposedData, sheet_type: 'default', custom_layout: { blocks: [] }, custom_css: '' },
+    active: { system: tgt, data: transposedData, sheet_type: 'default', custom_layout: { blocks: [] }, custom_css: '', kind, ...(opts.name ? { name: opts.name } : {}) },
     variants: nextVariants,
   };
 }
