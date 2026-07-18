@@ -37,7 +37,11 @@
 /** Op-name prefixes that are legitimate, character-sheet-scoped mutations. Every
  *  `edit_sheet` op must start with one of these — anything else would imply a target
  *  outside the character's own sheet. */
-const CHARACTER_SCOPED_PREFIXES = ['set_', 'add_', 'remove_', 'rename_', 'clear_', 'update_', 'move_', 'append_', 'define_', 'tag_', 'equip_'];
+const CHARACTER_SCOPED_PREFIXES = ['set_', 'add_', 'remove_', 'rename_', 'clear_', 'update_', 'move_', 'append_', 'define_', 'tag_', 'equip_', 'apply_'];
+
+/** A few whole-op verbs that are inherently sheet-local but aren't prefixed (e.g. the HP verb `heal`). Listed
+ *  explicitly so the prefix guard accepts them without loosening the general rule. */
+const CHARACTER_SCOPED_EXACT = new Set(['heal']);
 
 /** Words that, appearing in an op name, would signal a write reaching OUTSIDE the target
  *  character's own sheet — a boundary violation. Includes privilege-escalation-shaped terms
@@ -54,8 +58,8 @@ const FORBIDDEN_OP_TERMS = ['page', 'campaign', 'map', 'user', 'character_', 'ot
 export function assertCharacterScopedOps(ops: string[]): void {
   for (const op of ops) {
     const lower = op.toLowerCase();
-    if (!CHARACTER_SCOPED_PREFIXES.some((p) => lower.startsWith(p))) {
-      throw new Error(`AI edit op "${op}" is not character-scoped (must be a set/add/remove/clear/update of a sheet field).`);
+    if (!CHARACTER_SCOPED_EXACT.has(lower) && !CHARACTER_SCOPED_PREFIXES.some((p) => lower.startsWith(p))) {
+      throw new Error(`AI edit op "${op}" is not character-scoped (must be a set/add/remove/clear/update/apply of a sheet field).`);
     }
     if (FORBIDDEN_OP_TERMS.some((t) => lower.includes(t))) {
       throw new Error(`AI edit op "${op}" appears to target a resource outside the character's own sheet.`);

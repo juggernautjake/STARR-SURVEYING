@@ -44,7 +44,7 @@ describe('IG AI-customize core (full-sheet Slice 10)', () => {
   it('the AI edit tool exposes the same validated ops as the manual route (AI parity)', () => {
     // The tool enumerates exactly the validated edit ops (stance/condition/feat/power/defensive) and requires op.
     expect((IG_EDIT_TOOL.input_schema.properties.op as { enum: string[] }).enum).toEqual(
-      ['set_active_stance', 'clear_stance', 'add_condition', 'remove_condition', 'add_feat', 'remove_feat', 'add_power', 'remove_power', 'set_defensive_power'],
+      ['set_active_stance', 'clear_stance', 'add_condition', 'remove_condition', 'add_feat', 'remove_feat', 'add_power', 'remove_power', 'set_defensive_power', 'apply_damage', 'heal'],
     );
     expect(IG_EDIT_TOOL.input_schema.required).toContain('op');
     // A tool call runs through the SAME parser the API route uses.

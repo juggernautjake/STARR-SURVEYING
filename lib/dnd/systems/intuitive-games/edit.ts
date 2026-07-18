@@ -7,6 +7,7 @@
 
 import type { IGCharacter } from './model';
 import { findIGFeat } from './feats';
+import { igMaxHp } from './rules';
 
 export type IGEdit =
   | { op: 'set_active_stance'; name: string }
@@ -17,10 +18,12 @@ export type IGEdit =
   | { op: 'remove_feat'; name: string }
   | { op: 'add_power'; name: string }
   | { op: 'remove_power'; name: string }
-  | { op: 'set_defensive_power'; name: string };
+  | { op: 'set_defensive_power'; name: string }
+  | { op: 'apply_damage'; amount: number; nonlethal?: boolean }
+  | { op: 'heal'; amount: number };
 
 /** The op names the AI tool + API accept. */
-export const IG_EDIT_OPS = ['set_active_stance', 'clear_stance', 'add_condition', 'remove_condition', 'add_feat', 'remove_feat', 'add_power', 'remove_power', 'set_defensive_power'] as const;
+export const IG_EDIT_OPS = ['set_active_stance', 'clear_stance', 'add_condition', 'remove_condition', 'add_feat', 'remove_feat', 'add_power', 'remove_power', 'set_defensive_power', 'apply_damage', 'heal'] as const;
 export type IGEditOp = typeof IG_EDIT_OPS[number];
 
 const eq = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -89,6 +92,28 @@ export function applyIgEdit(ig: IGCharacter, edit: IGEdit): IGCharacter {
       if (!name || !ig.powers.some((p) => eq(p, name))) return ig;
       return { ...ig, powers: ig.powers.filter((p) => !eq(p, name)) };
     }
+    case 'apply_damage': {
+      // HP tracks damage TAKEN (currentHp = maxHp − lethal). Damage raises the lethal (or nonlethal) pool;
+      // lethal is capped at maxHp so currentHp floors at 0 (down), never a phantom negative.
+      const amount = Math.max(0, Math.round(edit.amount || 0));
+      if (!amount) return ig;
+      const hp = { ...ig.combat.hitPoints };
+      if (edit.nonlethal) hp.nonlethal = (Number(hp.nonlethal) || 0) + amount;
+      else hp.lethal = Math.min(igMaxHp(ig), (Number(hp.lethal) || 0) + amount);
+      return { ...ig, combat: { ...combat, hitPoints: hp } };
+    }
+    case 'heal': {
+      // Healing removes lethal damage first (the HP that matters for "am I up?"), then any nonlethal.
+      const amount = Math.max(0, Math.round(edit.amount || 0));
+      if (!amount) return ig;
+      const hp = { ...ig.combat.hitPoints };
+      const lethal = Number(hp.lethal) || 0;
+      const healedLethal = Math.min(lethal, amount);
+      hp.lethal = lethal - healedLethal;
+      const rest = amount - healedLethal;
+      if (rest > 0) hp.nonlethal = Math.max(0, (Number(hp.nonlethal) || 0) - rest);
+      return { ...ig, combat: { ...combat, hitPoints: hp } };
+    }
     default: {
       // Compile-time exhaustiveness: EVERY IGEdit op must have a case above, or an op the AI can emit
       // would silently no-op (the AI reports success while the IG sheet is unchanged — breaking "editable
@@ -113,6 +138,13 @@ export function parseIgEdit(raw: unknown): { edit: IGEdit } | { error: string } 
   if (op === 'clear_stance') return { edit: { op: 'clear_stance' } };
   // set_defensive_power accepts an empty name — that clears the single defensive-power slot.
   if (op === 'set_defensive_power') return { edit: { op: 'set_defensive_power', name } };
+  // HP ops carry a numeric `amount`, not a `name`.
+  if (op === 'apply_damage' || op === 'heal') {
+    const amount = Math.max(0, Math.round(Number(o.amount) || 0));
+    if (!amount) return { error: `The "${op}" edit needs a positive "amount".` };
+    if (op === 'apply_damage') return { edit: { op, amount, nonlethal: o.nonlethal === true } };
+    return { edit: { op, amount } };
+  }
   if (!name) return { error: `The "${op}" edit needs a non-empty "name".` };
   return { edit: { op, name } as IGEdit };
 }
@@ -129,6 +161,8 @@ export function describeIgEdit(edit: IGEdit): string {
     case 'add_power': return `Learned the ${edit.name} power.`;
     case 'remove_power': return `Removed the ${edit.name} power.`;
     case 'set_defensive_power': return edit.name ? `Set the defensive power to ${edit.name}.` : 'Cleared the defensive power.';
+    case 'apply_damage': return `Took ${edit.amount} ${edit.nonlethal ? 'nonlethal ' : ''}damage.`;
+    case 'heal': return `Healed ${edit.amount} HP.`;
     default: return 'No change.';
   }
 }

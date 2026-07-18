@@ -53,8 +53,15 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
       do?" needs it, and it's on-sheet content the AI can't recall from a name) and **SENSES** (darkvision etc.
       — a visibility ruling turns on them); both added (`pf2-digest.test.ts` +2). REMAINING: a spot-audit of the
       5e `characterDigest` (already the richest — attacks/features/spells/effects all resolved).
-- [ ] **SQ4 — AI edits every component** — the AI edit path (`applySheetEdits` / `applyIgEdit` / PF2 edits)
-      can change every editable field on each system's sheet, rules-scoped. Audit coverage + fill gaps.
+- [~] **SQ4 — AI edits every component** — audited the IG edit path (`applyIgEdit`): it could change
+      stance/conditions/feats/powers/defensive-power but had **no way to adjust HP** — the single most common
+      in-play edit, which the digest already surfaces (a ruling "you take 8 damage" couldn't be applied). Added
+      `apply_damage` (raises lethal, or nonlethal with a flag; capped so currentHp floors at 0) and `heal`
+      (removes lethal first, then nonlethal) — pure, immutable, clamped. Wired into the AI tool schema (`amount`
+      +`nonlethal` props, enum auto-updated) + the tool instruction, and the character-scope guard now accepts
+      the `apply_`/`heal` HP verbs. Golden-pinned (`ig-edit.test.ts` +5; ig-ai + ai-scope parity updated).
+      REMAINING: audit `applySheetEdits` (5e — already the richest) + the PF2 edit path for any editable field
+      the AI can't reach.
 - [ ] **SQ5 — Per-system verification** — a browser/QA pass per system (the memory-documented Slice-40
       walkthrough): build a character, exercise the sheet + AI edit + read, fix correctness + styling bugs.
 

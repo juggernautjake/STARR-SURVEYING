@@ -116,7 +116,11 @@ describe('applyIgEdit — defensive power (single slot)', () => {
 describe('parseIgEdit', () => {
   it('accepts every valid op and rejects unknown ones', () => {
     for (const op of IG_EDIT_OPS) {
-      const r = parseIgEdit({ op, name: op === 'clear_stance' ? undefined : 'Shaken' });
+      // HP ops carry `amount`; the rest carry `name` (clear_stance carries neither).
+      const payload = op === 'apply_damage' || op === 'heal'
+        ? { op, amount: 5 }
+        : { op, name: op === 'clear_stance' ? undefined : 'Shaken' };
+      const r = parseIgEdit(payload);
       expect('edit' in r).toBe(true);
     }
     expect(parseIgEdit({ op: 'delete_everything', name: 'x' })).toHaveProperty('error');
@@ -152,5 +156,50 @@ describe('ig-edit route wiring', () => {
     expect(SRC).toContain('applyIgEdit(ig, parsed.edit)');
     expect(SRC).toContain('isIGCharacter(ig)'); // rejects non-IG characters
     expect(SRC).toContain("update({ data: nextData })"); // persists the patched sidecar
+  });
+});
+
+import { igCurrentHp, igMaxHp } from '@/lib/dnd/systems/intuitive-games/rules';
+
+describe('applyIgEdit — HP damage + healing (SQ4)', () => {
+  function hero() {
+    const ig = blankIGCharacter('HP Test');
+    ig.identity = { ...ig.identity, level: 5 };
+    ig.abilities = { ...ig.abilities, CON: 12 }; // +1 mod
+    ig.combat.hitPoints = { classBackgroundHp: 40, nonlethal: 0, lethal: 0 };
+    return ig; // maxHp = 40 + 1*5 = 45
+  }
+  it('apply_damage raises lethal (currentHp drops), capped so currentHp floors at 0', () => {
+    const ig = hero();
+    expect(igMaxHp(ig)).toBe(45);
+    const hurt = applyIgEdit(ig, { op: 'apply_damage', amount: 12 });
+    expect(igCurrentHp(hurt)).toBe(33);
+    // overkill caps at 0, never negative
+    const downed = applyIgEdit(ig, { op: 'apply_damage', amount: 999 });
+    expect(igCurrentHp(downed)).toBe(0);
+    // input never mutated
+    expect(igCurrentHp(ig)).toBe(45);
+  });
+  it('nonlethal damage goes to the nonlethal pool, not lethal', () => {
+    const out = applyIgEdit(hero(), { op: 'apply_damage', amount: 6, nonlethal: true });
+    expect(out.combat.hitPoints.nonlethal).toBe(6);
+    expect(igCurrentHp(out)).toBe(45); // lethal HP unchanged
+  });
+  it('heal removes lethal damage first, then nonlethal, never below 0', () => {
+    let ig = hero();
+    ig = applyIgEdit(ig, { op: 'apply_damage', amount: 10 });          // lethal 10
+    ig = applyIgEdit(ig, { op: 'apply_damage', amount: 4, nonlethal: true }); // nonlethal 4
+    const healed = applyIgEdit(ig, { op: 'heal', amount: 12 });        // 10 lethal + 2 nonlethal
+    expect(healed.combat.hitPoints.lethal).toBe(0);
+    expect(healed.combat.hitPoints.nonlethal).toBe(2);
+    expect(igCurrentHp(healed)).toBe(45);
+  });
+  it('parseIgEdit validates a positive amount + round-trips describe', () => {
+    expect(IG_EDIT_OPS).toContain('apply_damage');
+    expect(IG_EDIT_OPS).toContain('heal');
+    expect(parseIgEdit({ op: 'apply_damage', amount: 0 })).toEqual({ error: expect.stringMatching(/positive "amount"/) });
+    expect(parseIgEdit({ op: 'apply_damage', amount: 7, nonlethal: true })).toEqual({ edit: { op: 'apply_damage', amount: 7, nonlethal: true } });
+    expect(describeIgEdit({ op: 'apply_damage', amount: 7, nonlethal: true })).toMatch(/7 nonlethal damage/);
+    expect(describeIgEdit({ op: 'heal', amount: 5 })).toMatch(/Healed 5 HP/);
   });
 });

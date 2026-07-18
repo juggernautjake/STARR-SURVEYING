@@ -86,12 +86,14 @@ export const IG_PICKS_TOOL = {
 export const IG_EDIT_TOOL = {
   name: 'edit_ig_sheet',
   description:
-    "Change ONE thing on an Intuitive Games character's sheet in place: enter a stance (set_active_stance, one active at a time), leave the stance (clear_stance), apply/remove a condition (add_condition/remove_condition), add/remove a feat (add_feat/remove_feat), learn/remove a power (add_power/remove_power), or set the defensive power (set_defensive_power; empty name clears it). Use the EXACT Intuitive Games stance/condition/feat/power name.",
+    "Change ONE thing on an Intuitive Games character's sheet in place: enter a stance (set_active_stance, one active at a time), leave the stance (clear_stance), apply/remove a condition (add_condition/remove_condition), add/remove a feat (add_feat/remove_feat), learn/remove a power (add_power/remove_power), set the defensive power (set_defensive_power; empty name clears it), apply damage (apply_damage with `amount`, set `nonlethal: true` for nonlethal), or heal (heal with `amount`). Use the EXACT Intuitive Games stance/condition/feat/power name.",
   input_schema: {
     type: 'object' as const,
     properties: {
       op: { type: 'string', enum: [...IG_EDIT_OPS], description: 'The edit operation.' },
-      name: { type: 'string', description: 'The stance / condition / feat / power name (omit for clear_stance).' },
+      name: { type: 'string', description: 'The stance / condition / feat / power name (omit for clear_stance and the HP ops).' },
+      amount: { type: 'integer', minimum: 1, description: 'For apply_damage / heal: how many HP.' },
+      nonlethal: { type: 'boolean', description: 'For apply_damage: the damage is nonlethal.' },
     },
     required: ['op'],
   },
@@ -112,6 +114,7 @@ export function igEditToolInstruction(): string {
     'Feats: add_feat/remove_feat take an Intuitive Games feat name (add_feat routes it to the General or Combat list automatically). Use a real IG feat name.',
     `Powers: add_power/remove_power take an Intuitive Games power name. Known powers: ${igAllSpellNames().join(', ')}.`,
     `Defensive power: set_defensive_power takes one defensive power (a reaction) — the character has a single slot; an empty name clears it. Options: ${IG_DEFENSIVE_POWERS.map((d) => d.name).join(', ')}.`,
+    'HP: apply_damage takes an `amount` (add `nonlethal: true` for nonlethal damage); heal takes an `amount`. HP tracks damage taken (current = max − lethal), so these adjust it in play.',
     'Only one stance is active at a time — set_active_stance replaces the current one. Use the exact names above; do not invent a stance, condition, feat, or power.',
   ].join('\n');
 }
