@@ -277,9 +277,12 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       controls align cleanly (the style `<select>`'s native chrome was breaking the row; now a clean pill).
 - [ ] **D4 — Dice-roller skins: colors from the sheet, shapes/textures/number-display per skin (owner
       2026-07-18).** A substantial roller redesign, multi-slice:
-  - **D4b — Colors inherit the sheet palette.** Every roller skin uses the character sheet's own theme tokens
-    (so it matches the sheet + the TH color themes); only the shape/texture/layout differs by skin, not the
-    hue. Rework the `[data-dice-style]` CSS to pull `var(--…)` sheet tokens instead of hardcoded hexes.
+  - [x] **D4b — Colors inherit the sheet palette.** ✅ SHIPPED — the four skins no longer hardcode hues; they
+    inherit the sheet's tokens (border `--line-strong`, title `--ink`, panel `--panel-2-rgb`/`--void-rgb`,
+    glow `--hotpink`/`--tealbright`), so the roller matches the sheet + its colour theme. Only shape/texture/
+    glow/title differ per skin (rugged sharp+stone hatch/no glow, natural soft-round+teal aura, fantasy
+    ornate+dual glow, medieval sharp iron+parchment weave+serif). Verified in-browser; no hardcoded hexes
+    remain; dice-style + sheet-contrast tests green.
   - **D4c — Per-skin shape/texture/format/positioning.** Each of the 5 skins gets its own vibe — frame shape,
     textures, control layout/positioning — while keeping identical functionality.
   - **D4d — Per-skin NUMBER-DISPLAY styling.** The roll-result readout differs per skin: the current
