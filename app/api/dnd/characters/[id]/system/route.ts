@@ -136,7 +136,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const seed = blankCharacter(source.meta.name);
   seed.meta = { ...seed.meta, level: source.meta.level, species: source.meta.species, role: source.meta.role };
   const transposed = applySheetEdits(seed, edits);
-  const next = installTransposed(active, variants, target, transposed);
+  // Label the new sheet Vanilla/Custom by the consent (Area MV).
+  const next = installTransposed(active, variants, target, transposed, { kind: allowCustom ? 'custom' : 'vanilla' });
 
   const { error } = await supabaseAdmin
     .from('dnd_characters')

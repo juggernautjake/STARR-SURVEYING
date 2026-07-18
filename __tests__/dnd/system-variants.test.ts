@@ -60,3 +60,37 @@ describe('system variants (Slice 13)', () => {
     expect(snap.sheet_type).toBe('default');
   });
 });
+
+import { variantKind, variantKindLabel, defaultVariantName, snapshotActive } from '@/lib/dnd/system-variants';
+
+describe('sheet kind + name labels (Area MV1)', () => {
+  it('variantKind defaults to vanilla for legacy/unlabelled variants', () => {
+    expect(variantKind(undefined)).toBe('vanilla');
+    expect(variantKind({})).toBe('vanilla');
+    expect(variantKind({ kind: 'custom' })).toBe('custom');
+    expect(variantKind({ kind: 'weird' })).toBe('vanilla'); // unknown → vanilla
+  });
+
+  it('labels + default names identify a sheet', () => {
+    expect(variantKindLabel('vanilla')).toBe('Vanilla');
+    expect(variantKindLabel('custom')).toBe('Custom-built');
+    expect(defaultVariantName('Pathfinder 2e', 'custom')).toBe('Pathfinder 2e · Custom-built');
+    expect(defaultVariantName('D&D 5e (2024)', 'vanilla')).toBe('D&D 5e (2024) · Vanilla');
+  });
+
+  it('readVariants carries kind (default vanilla) + a trimmed name; snapshotActive round-trips them', () => {
+    const raw = {
+      'pathfinder2e': { data: {}, sheet_type: 'default' }, // legacy, unlabelled
+      'dnd5e-2024': { data: {}, sheet_type: 'default', kind: 'custom', name: '  My Homebrew Build  ' },
+    };
+    const v = readVariants(raw);
+    expect(v['pathfinder2e'].kind).toBe('vanilla');
+    expect(v['pathfinder2e'].name).toBeUndefined();
+    expect(v['dnd5e-2024'].kind).toBe('custom');
+    expect(v['dnd5e-2024'].name).toBe('My Homebrew Build'); // trimmed
+    // snapshotActive preserves kind + name
+    const snap = snapshotActive({ system: 'dnd5e-2024', data: {}, sheet_type: 'default', kind: 'custom', name: 'X' });
+    expect(snap.kind).toBe('custom');
+    expect(snap.name).toBe('X');
+  });
+});

@@ -333,17 +333,25 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
 > build and a separate **custom** build of the same character in that system. One sheet labelled "Vanilla",
 > the other "Custom-built"; the user can switch between them like the cross-system variants.
 
-- [ ] **MV1 — Variant model.** Today `system_variants` keys ONE sheet per system. Extend it to allow multiple
-      sheets per system, each with a `variantLabel`/`kind` ('vanilla' | 'custom') so a system can hold both a
-      vanilla and a custom build. Keep back-compat (existing single-per-system data still loads).
-      *(Touches `lib/dnd/system-variants.ts` + the character row's `system_variants` jsonb — no column change.)*
-- [ ] **MV2 — Switcher UI.** `SystemSwitcher` lists each per-system variant (Vanilla / Custom) as a separate
-      chip you can switch to; a transpose with custom consent creates/labels the "Custom-built" variant, a
-      vanilla transpose the "Vanilla" one — both kept side by side for the same system.
-- [ ] **MV3 — Labels on the sheet + provenance.** The active sheet shows its Vanilla/Custom label; the custom
-      variant's invented elements stay provenance-flagged for DM review.
-- [ ] **MV4 — Tests:** two variants coexist for one system; switching preserves both; labels correct;
-      back-compat with single-variant data.
+> Owner (2026-07-18, expanded): in the system-selection element, add a **"+"** button to add a NEW sheet in
+> any playable system, then choose vanilla or custom. Sheets are **explicitly nameable** (custom naming);
+> otherwise a helpful default name. Track all of a character's sheets.
+
+- [~] **MV1 — Variant model.** IN PROGRESS. **MV1a ✅ SHIPPED (label/name foundation)** — `system-variants.ts`
+      now threads a `kind` ('vanilla' | 'custom', default vanilla — back-compat) AND an optional `name` through
+      the variant model, `readVariants`, `snapshotActive`, `switchActive`, and `installTransposed(…, {kind,
+      name})`; the transpose route labels the built sheet by the consent (custom→'custom'). Helpers
+      `variantKind`/`variantKindLabel`/`defaultVariantName`. Golden-pinned by `system-variants.test.ts` (9).
+      REMAINING **MV1b** — the compound keying so a system can store MULTIPLE sheets (a slot id per sheet, not
+      one-per-system); readVariants back-compat maps legacy bare-system keys to a single vanilla slot.
+- [ ] **MV2 — "+" add-sheet + switcher UI.** In `SystemSwitcher`: a **"+"** to add a new sheet in any playable
+      system (choose vanilla/custom + optional name, default `System · Vanilla/Custom-built`); list each sheet
+      (per system, per kind, with its name) as a switchable chip. Needs MV1b's multi-slot model + a route to
+      create/rename/delete a sheet.
+- [ ] **MV3 — Labels on the sheet + provenance.** The active sheet shows its name + Vanilla/Custom label; the
+      custom variant's invented elements stay provenance-flagged for DM review.
+- [ ] **MV4 — Tests:** two variants coexist for one system; switching preserves both; naming (custom +
+      default); back-compat with single-variant data.
 
 ### Area T — IG class taxonomy (bounded data restructure)
 - [ ] **T1 — Restructure to the site's real taxonomy:** 4 parent classes (Archon / Conduit / Fighter /
