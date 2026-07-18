@@ -65,8 +65,13 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
       and dropping to 0 sets Dying = 1 + Wounded per PF2), `heal` (caps at max; regaining HP clears Dying),
       `set_temp_hp`, `set_dying` (0–4), `set_wounded` — all pure/immutable, handling the `0 = full` stored-HP
       convention via the death track. Exposed as the `edit_pf2_sheet` AI tool (same parser). Golden-pinned
-      (`pf2-edit.test.ts`, 6). REMAINING: wire `edit_pf2_sheet` into the live chat route (persists `data.pf2e`)
-      — needs the route/browser; and a spot-audit of the 5e `applySheetEdits` (already the richest path).
+      (`pf2-edit.test.ts`, 6). **PF2 edit ENDPOINT wired ✅** — `app/api/dnd/characters/[id]/pf2-edit/route.ts`
+      (the counterpart to `ig-edit`): write-gated at the character chokepoint (`requireCharacterWrite`), guards
+      the PF2 sidecar, runs the same validated `parsePf2Edit` + pure `applyPf2Edit`, and persists only
+      `data.pf2e` — so the manual sheet AND the AI's `edit_pf2_sheet` tool go through one endpoint
+      (`pf2-edit-route.test.ts`, 3). REMAINING: dispatch `edit_pf2_sheet` from the AI chat loop (the tool +
+      endpoint both exist; only the chat-route tool-call handler needs the PF2 branch) — and a spot-audit of the
+      5e `applySheetEdits` (already the richest path).
 - [ ] **SQ5 — Per-system verification** — a browser/QA pass per system (the memory-documented Slice-40
       walkthrough): build a character, exercise the sheet + AI edit + read, fix correctness + styling bugs.
 
