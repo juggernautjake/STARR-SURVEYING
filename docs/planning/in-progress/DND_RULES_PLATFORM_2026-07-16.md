@@ -2876,9 +2876,17 @@ removed from the deferred list. So the contract and the code can no longer quiet
   only checks `rendersAt` is a non-empty string, the latter only checks a target exists. New
   `effect-target-render-gaps.test.ts` tracks the registered-but-unrendered set (the 4 economy targets, plus
   the deeper-feature `hit_dice`/`exhaustion`/`condition`, each with a per-target reason; `concentration_save`
-  was in this set until it was wired — see 2026-07-18 below) and fails the moment one is wired or a new silent
-  gap appears — turning a false-confidence gap into a guarded one. Wiring the economy ones needs an
+  was in this set until it was wired — see 2026-07-18 below) and fails the moment a LISTED one is wired
+  (forcing its removal) — turning a false-confidence gap into a guarded one. Wiring the economy ones needs an
   action-economy/attunement render home (larger feature work), deferred until then.
+  **⚑ Over-claim corrected + soundness guard added (2026-07-18):** the test's header (and this doc) claimed a
+  "completeness sweep" catching ANY new silently-unread target — but no such sweep exists, and a sound one is
+  infeasible via source-scan: ~60 targets aren't read as a literal `value('key')` yet are legitimately
+  rendered through template reads (`value(`${a.key}_saves`)`, `skill.${…}`), `deriveAc`, item `grants*`
+  fields, `identity(field)`, `ledger.transform()`, or consume-op handlers. Corrected the claim to what the
+  file actually guarantees (the LISTED set is sound + can only shrink; completeness is human-maintained), and
+  ADDED a sound guard: no listed target is rendered via a TEMPLATE read either (`isFamilyRead`) — so a
+  per-ability save / skill / speed target can't be wrongly parked as "unrendered". `effect-target-render-gaps.test.ts` +1.
   **⚑ CONCENTRATION SAVE — the last unrendered ROLL target now wired (2026-07-18).** `concentration_save`
   was in the registered-but-unrendered set because the sheet had a concentration *tracker* but no
   concentration *save roll* to fold a bonus into — a core 5e mechanic (take damage while concentrating →

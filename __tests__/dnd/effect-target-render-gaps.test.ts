@@ -16,8 +16,18 @@ import path from 'node:path';
 import { findTarget } from '@/lib/dnd/effects/targets';
 
 // key → why it has no render/apply home yet (needs an action-economy tracker / a sheet attunement model).
-// This is the COMPLETE set of registered-but-unwired targets — a completeness
-// sweep below asserts no OTHER collect/explain/value-style target is silently unread.
+// This is the hand-maintained set of registered-but-unwired targets. The guarantee this file DOES enforce
+// (see the `it`s below): every LISTED target really is registered, is read by NO component, and carries a
+// reason; wiring one forces its removal (the gap for a tracked target can only shrink, never silently grow).
+//
+// It does NOT auto-sweep for OTHER silently-unread targets — an earlier comment claimed a completeness sweep,
+// but a sound one is infeasible via source-scan: most of the ~60 targets that aren't read as a literal
+// `value('key')`/`collected('key')` are nonetheless legitimately rendered through patterns a string match
+// can't see — TEMPLATE reads (`value(`${a.key}_saves`)`, `value(`skill.${sk.key}`)`, `ability_${…}`, speed
+// modes via a loop var), `ac` via `deriveAc`, structured grants via the item's `grants*` field, identity via
+// `identity(field)` with a variable, `transform` via `ledger.transform()`, and the instant/consume ops
+// (heal/temp_hp/damage/apply_condition) handled outside the ledger. So adding a NEW target still requires a
+// human to add it here (or wire it) — the completeness of THIS list is maintained by review, not automation.
 const REGISTERED_BUT_UNRENDERED: Record<string, string> = {
   attunement_slots: 'the current sheet Inventory has no attunement model (the equipment.ts cap is unused here), so nothing reads it',
   reaction_count: 'no action-economy tracker on the sheet to show reactions/round',
@@ -45,6 +55,16 @@ const isRead = (key: string): boolean =>
   READ_SOURCES.includes(`value('${key}'`) ||
   READ_SOURCES.includes(`identity('${key}')`);
 
+// A target rendered via a TEMPLATE/derived read that the literal `isRead` can't see — so the tracked list
+// can't accidentally include something that IS wired. Mirrors the component read patterns for the families
+// (per-ability saves, skills, ability mods, movement modes, and the variable-keyed identity fields).
+const isFamilyRead = (key: string): boolean =>
+  (/_saves$/.test(key) && READ_SOURCES.includes('_saves`')) ||          // value(`${a.key}_saves`)
+  (key.startsWith('skill.') && READ_SOURCES.includes('skill.${')) ||    // value(`skill.${sk.key}`)
+  (key.startsWith('ability_') && READ_SOURCES.includes('ability_${')) ||// value(`ability_${a.key}`)
+  (key.startsWith('speed_') && READ_SOURCES.includes('speed_')) ||      // walk literal + the speeds loop
+  (['image', 'token', 'gender', 'pronouns', 'profession', 'alignment'].includes(key) && READ_SOURCES.includes('identity(field)'));
+
 describe('registered-but-unrendered effect targets are tracked, not silently lost', () => {
   it('each listed target really is registered (authorable + AI-emittable) — so the no-op is real', () => {
     for (const key of Object.keys(REGISTERED_BUT_UNRENDERED)) {
@@ -55,6 +75,14 @@ describe('registered-but-unrendered effect targets are tracked, not silently los
   it('each listed target is read by NO component — wiring one forces its removal from this list', () => {
     const nowRendered = Object.keys(REGISTERED_BUT_UNRENDERED).filter(isRead);
     expect(nowRendered, 'these are now read by a component — remove them from REGISTERED_BUT_UNRENDERED').toEqual([]);
+  });
+
+  it('nor is any listed target rendered via a TEMPLATE/derived read (soundness — the literal scan misses those)', () => {
+    // The literal `isRead` can't see `value(`${a.key}_saves`)` etc., so a per-ability save / skill / speed
+    // target could be wrongly parked in this list as "unrendered". This catches that: a listed target that
+    // IS template-rendered must be removed. Guards the tracked set's soundness, not its completeness.
+    const templateRendered = Object.keys(REGISTERED_BUT_UNRENDERED).filter(isFamilyRead);
+    expect(templateRendered, 'a listed target is rendered via a template read — remove it from the list').toEqual([]);
   });
 
   it('every deferral carries a reason (the doc must be able to say WHY it has no home)', () => {
