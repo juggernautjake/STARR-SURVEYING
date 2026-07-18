@@ -92,10 +92,13 @@ export default function DiceTray() {
             onChange={(e) => setStyleOverride(e.target.value as (typeof DICE_STYLES)[number])}
             onPointerDown={(e) => e.stopPropagation()}
             title="Dice roller style"
-            style={{ textTransform: 'capitalize', cursor: 'pointer' }}
+            aria-label="Dice roller style"
+            // Native <select> chrome (arrow + min-width) broke the button-row alignment; strip it so this reads
+            // as a clean pill matching the tiny ghost buttons (owner 2026-07-18).
+            style={{ appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none', textTransform: 'capitalize', cursor: 'pointer', fontSize: 10, padding: '4px 9px', lineHeight: 1.2, maxWidth: 92, textAlign: 'center' }}
           >
             {DICE_STYLES.map((s) => (
-              <option key={s} value={s}>{s}</option>
+              <option key={s} value={s}>{`🎲 ${s}`}</option>
             ))}
           </select>
           <button className="btn tiny ghost" onClick={toggleMute} title={muted ? 'Unmute' : 'Mute'}>
