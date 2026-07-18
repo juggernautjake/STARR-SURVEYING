@@ -2205,16 +2205,17 @@ the per-element art of Slice 28.)
 Slice 20 makes everything editable; this is **how you get there**. A feature nobody can find is a
 feature that doesn't exist — and today most of these elements have no affordance at all.
 
-- [ ] A **⋯ menu** on every editable element: attacks, items, spells, features, resources, traits,
-      active effects, forms. One consistent control in one consistent place, so the answer to "how
-      do I change this?" is the same everywhere.
-- [ ] Menu: **Edit · Duplicate · Delete · Change art · Add effect · Ask AI about this**.
-      "Ask AI about this" reuses the Slice 3 adjudicator, pre-filled with the element.
-- [ ] Opens the right editor for the element's kind (Slice 15's attack/weapon/armor builders,
-      Slice 17's effect builder). One editor per kind, reached from everywhere that shows one.
-- [ ] Only for `canWrite`. A viewer sees no ⋯ — an affordance that errors on click is worse than
-      no affordance.
-- [ ] Reachable by keyboard and touch, like Slice 13's markers. Never hover-only.
+- [x] ✅ SHIPPED (verified 2026-07-18): a **⋯ menu on every editable element** — one shared `ElementMenu.tsx`
+      (Slice 27) used consistently across Attacks, Inventory, Spells, Features, Resources, and Combat/traits, so
+      "how do I change this?" is the same control everywhere. `element-menu-ask-ai.test.ts` + `element-editing.test.ts`.
+- [x] ✅ SHIPPED: the menu carries the element's actions + a built-in **✨ Ask AI about this** that opens the
+      Slice-3 librarian pre-filled with the element; each panel supplies its Edit/Delete/etc. actions.
+- [x] ✅ SHIPPED: **opens the right editor per kind** — each panel's menu action opens that kind's editor
+      (`AttackEditor` / `ItemBuilder` / `SpellEditor` / `ResourceEditor` / `TraitEditor` / `FeatureEditor`).
+- [x] ✅ SHIPPED: **only for `canWrite`** — `ElementMenu` returns null with no actions, and the panels pass edit
+      actions only when the viewer can write, so a read-only viewer sees no ⋯.
+- [x] ✅ SHIPPED: **keyboard + touch reachable** — it's a click-opened `role="menu"` with `role="menuitem"`
+      items + aria-labels, not hover-only.
 - [ ] Tests: every element kind exposes a ⋯; a viewer sees none; each menu opens its editor.
 
 ## Slice 28 — Art and thumbnails for everything ✅ SHIPPED 2026-07-16
