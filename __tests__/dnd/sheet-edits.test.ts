@@ -130,6 +130,27 @@ describe('applySheetEdits', () => {
     expect(base.abilities.str).toBe(10);
   });
 
+  it('never mutates the input across nested-field AND array ops (guards the input deep-clone)', () => {
+    // applySheetEdits deep-clones input (structuredClone), so it's non-mutating by construction — but that
+    // is the WHOLE guarantee: if the clone ever regressed to a shallow `{ ...input }`, the nested-field ops
+    // (set_meta → c.meta.*, set_combat → c.combat.*) would mutate the caller while the array ops stay safe.
+    // The set_ability test above touches one field; this deep-equals the WHOLE input across a broad batch.
+    const base = blankCharacter('Immutable');
+    const before = structuredClone(base);
+    applySheetEdits(base, [
+      { op: 'set_name', value: 'New Name' },
+      { op: 'set_meta', field: 'background', value: 'Soldier' },
+      { op: 'set_level', value: 5 },
+      { op: 'set_combat', field: 'ac', value: 18 },
+      { op: 'set_ability', ability: 'str', value: 20 },
+      { op: 'add_attack', name: 'Bow' },
+      { op: 'add_feature', name: 'Second Wind' },
+      { op: 'add_item', name: 'Rope' },
+      { op: 'add_resource', name: 'Ki', max: 3 },
+    ] as SheetEdit[]);
+    expect(base).toEqual(before); // the entire input character, untouched
+  });
+
   describe('rename_* preserves every other field (the stat-loss fix)', () => {
     // The bug this closes: with no rename op, the AI renamed by remove + re-add, which dropped
     // every field it wasn't re-supplied — a "Backless Park Bench" renamed to "Park Bench" lost its

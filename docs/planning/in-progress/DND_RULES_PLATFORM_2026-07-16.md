@@ -1489,6 +1489,14 @@ raw combat numbers:
 toggles whether the effects apply. The end-to-end test that matters passes: an AI-emitted "Belt of
 the Bear" (`{target:'ability_str',operation:'set',value:19}`) actually moves STR to 19 through the
 ledger while the base stays 16 (overlay, not bake), and unequipping gives the character back exactly.
+**⚑ Edit-path non-mutation pinned at breadth (2026-07-18):** `applySheetEdits` deep-clones its input
+(`structuredClone`), so it's non-mutating by construction — but that clone IS the whole guarantee: a
+regression to a shallow `{ ...input }` would let the nested-field ops (`set_meta`→`c.meta.*`,
+`set_combat`→`c.combat.*`) mutate the caller. The existing test touched one field; added `sheet-edits.test.ts`
++1 deep-equaling the WHOLE input across a broad batch (set_name/meta/level/combat/ability + add_attack/
+feature/item/resource). This completes non-mutation coverage across all three edit engines — 5e ledger read,
+`applySheetEdits`, and `applyIgEdit` (the IG one's array-append ops were pinned the same day). Full dnd suite
+green (1885).
 
 **Rejected, never coerced.** Effects are validated at the boundary against the registry
 (`cleanEffects` drops any unknown target / illegal operation / non-numeric value so no NaN or
