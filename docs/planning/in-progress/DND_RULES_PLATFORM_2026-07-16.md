@@ -1936,18 +1936,16 @@ diff/revert is the planner's gold-plating on top.
 > stats are edited, then there should be some kind of marker showing that the thing has been
 > customized."
 
-- [ ] **Edit in place**: attacks, abilities/features, spells, resources, skills, inventory items,
-      traits. Add · edit · duplicate · delete · reorder. Every one of these already exists as *data*;
-      most have no editor.
-- [ ] **The two most-reported cases, called out so they can't be lost in the list** (asked for three
-      separate times, with screenshots of Jack's Attacks table and Gear list):
-      - **Attacks**: rename "Backless Park Bench", and edit its range, to-hit, damage die, damage
-        type and description — from the Attacks table itself. Right now the whole table is read-only
-        prose; the only editable thing on it is the roll buttons.
-      - **Inventory items**: rename an item and edit its description, quantity, kind and stats from
-        the Gear list. Same story — the rows render, nothing about them opens.
-      Both rows already carry everything needed (`Attack`, `InvItem`); what's missing is purely the
-      way in (Slice 27's ⋯) and the editor behind it.
+- [x] ✅ SHIPPED (verified 2026-07-18): **edit in place** on the (5e/general) sheet — every listed element type
+      has a dedicated in-place editor wired into its panel: attacks (`AttackEditor`), features (`FeatureEditor`),
+      spells (`SpellEditor`), resources (`ResourceEditor`), traits (`TraitEditor`), inventory items
+      (`ItemBuilder`), reached via the Slice-27 ⋯ row menu / edit mode. (Bespoke IG/PF2 sheets have narrower
+      editing — that's a separate PHASE2 concern, not this.)
+- [x] ✅ SHIPPED: **the two most-reported cases** — `Attacks.tsx` has the ⋯ menu → "Edit attack" opening
+      `AttackEditor` (rename + range/to-hit/damage die/type/description from the Attacks table itself), and
+      `Inventory.tsx` opens `ItemBuilder` on an existing item (rename + description/quantity/kind/stats from the
+      Gear list). The doc's "the way in + the editor are missing" note was stale — both the ⋯ way-in AND the
+      editors are shipped.
 - [ ] Editing routes through the SAME structured-edit vocabulary the AI uses
       (`applySheetEdits`) rather than a parallel path — one place where a sheet changes, so the audit
       trail (`dnd_sheet_edits`) and the DM's view of "what changed" stay true.
