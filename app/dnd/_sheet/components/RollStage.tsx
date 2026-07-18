@@ -108,7 +108,7 @@ export default function RollStage({ roller = 'futuristic' }: { roller?: string }
           fontWeight: mode.cycleFont ? randOf(WEIGHTS) : (mode.weight ?? 800),
           rotate: mode.rotate ? (Math.random() - 0.5) * 10 : 0,
         })
-        tick(progress)
+        tick(progress, roller)
         i++
         const ease = Math.pow(progress, 2.4)
         const delay = 32 + ease * 210 + Math.random() * 26
@@ -125,13 +125,13 @@ export default function RollStage({ roller = 'futuristic' }: { roller?: string }
         })
         if (fumble) {
           setPhase('fumble')
-          errorBuzz()
+          errorBuzz(roller)
         } else if (crit) {
           setPhase('crit')
-          tada()
+          tada(roller)
         } else {
           setPhase('done')
-          blip()
+          blip(roller)
         }
         setReveal({ total: entry.total, breakdown: entry.breakdown, label: entry.label, tag: entry.tag, isD20: activeRoll.isD20 })
         timer.current = window.setTimeout(() => {
@@ -144,7 +144,7 @@ export default function RollStage({ roller = 'futuristic' }: { roller?: string }
     // Kick off after the warm-up: the whoosh and first tick fire together with
     // the first spinning number, once the audio context has had time to resume.
     timer.current = window.setTimeout(() => {
-      whoosh()
+      whoosh(roller)
       run()
     }, WARMUP)
 

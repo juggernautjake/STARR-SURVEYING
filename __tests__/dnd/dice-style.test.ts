@@ -29,3 +29,38 @@ describe('dice roller style preference (D1)', () => {
     expect(css).not.toContain("data-dice-style='futuristic'");
   });
 });
+
+import { readFileSync as _rf } from 'node:fs';
+import { join as _join } from 'node:path';
+
+describe('per-skin sounds + spin animations (Area D4e)', () => {
+  const audio = _rf(_join(process.cwd(), 'app/dnd/_sheet/lib/audio.ts'), 'utf8');
+  const rollStage = _rf(_join(process.cwd(), 'app/dnd/_sheet/components/RollStage.tsx'), 'utf8');
+  const theme = _rf(_join(process.cwd(), 'app/dnd/_sheet/styles/theme.css'), 'utf8');
+
+  it('audio defines a distinct VOICE per skin and every SFX takes the skin', () => {
+    for (const skin of ['futuristic', 'rugged', 'natural', 'fantasy', 'medieval']) {
+      expect(audio).toContain(`${skin}: { wave:`);
+    }
+    expect(audio).toContain('export function tick(progress = 0, skin?: string)');
+    expect(audio).toContain('export function tada(skin?: string)');
+    expect(audio).toContain('export function errorBuzz(skin?: string)');
+    expect(audio).toContain('function voice(skin?: string)');
+  });
+
+  it('RollStage passes the active roller skin into every SFX call', () => {
+    expect(rollStage).toContain('tick(progress, roller)');
+    expect(rollStage).toContain('errorBuzz(roller)');
+    expect(rollStage).toContain('tada(roller)');
+    expect(rollStage).toContain('blip(roller)');
+    expect(rollStage).toContain('whoosh(roller)');
+  });
+
+  it('each non-futuristic skin has its own spinning-number animation', () => {
+    for (const kf of ['ruggedTumble', 'naturalBob', 'fantasyFloat', 'medievalStamp']) {
+      expect(theme).toContain(`@keyframes ${kf}`);
+    }
+    expect(theme).toContain("[data-dice-style='rugged'] .stage-spinning .stage-number");
+    expect(theme).toContain('prefers-reduced-motion: reduce'); // honors reduced motion
+  });
+});

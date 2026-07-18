@@ -2259,6 +2259,42 @@
     transform: translateY(1px) scale(0.99);
   }
 }
+
+/* ── Per-skin SPIN animations (Area D4e) — the number tumbles differently per roller: futuristic keeps the
+   glitchy `jitter` above; the others each get their own motion so the roll FEELS like the skin. ── */
+.dnd-sheet .tray[data-dice-style='rugged'] .stage-spinning .stage-number {
+  animation: ruggedTumble 0.11s steps(3) infinite; /* heavy stone/iron tumble */
+}
+@keyframes ruggedTumble {
+  0% { transform: translate(-2px, -2px) rotate(-3deg) scale(1.04); }
+  50% { transform: translate(2px, 1px) rotate(2deg) scale(0.97); }
+  100% { transform: translate(-1px, 2px) rotate(-1deg) scale(1.02); }
+}
+.dnd-sheet .tray[data-dice-style='natural'] .stage-spinning .stage-number {
+  animation: naturalBob 0.24s ease-in-out infinite; /* soft organic bob */
+}
+@keyframes naturalBob {
+  0%, 100% { transform: translateY(-2px) scale(1.01); }
+  50% { transform: translateY(2px) scale(0.99); }
+}
+.dnd-sheet .tray[data-dice-style='fantasy'] .stage-spinning .stage-number {
+  animation: fantasyFloat 0.3s ease-in-out infinite; /* floaty, faintly rotating shimmer */
+}
+@keyframes fantasyFloat {
+  0% { transform: translateY(-1px) rotate(-2deg) scale(1.03); }
+  50% { transform: translateY(-3px) rotate(2deg) scale(1.05); }
+  100% { transform: translateY(-1px) rotate(-1deg) scale(1.03); }
+}
+.dnd-sheet .tray[data-dice-style='medieval'] .stage-spinning .stage-number {
+  animation: medievalStamp 0.13s steps(2) infinite; /* firm, weighty stamp */
+}
+@keyframes medievalStamp {
+  0% { transform: translateY(-2px) scale(1.05); }
+  100% { transform: translateY(1px) scale(0.98); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dnd-sheet .tray[data-dice-style] .stage-spinning .stage-number { animation-duration: 0.3s; }
+}
 .dnd-sheet .stage-crit {
   border-color: var(--tealbright);
   box-shadow: inset 0 0 60px -8px rgba(var(--violet-rgb), 0.6), 0 0 40px -6px rgba(var(--tealbright-rgb), 0.7);

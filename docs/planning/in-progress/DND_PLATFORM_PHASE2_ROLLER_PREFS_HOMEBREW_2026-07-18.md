@@ -290,8 +290,14 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
     (the screen vibe); **fantasy** shimmers colour on a steady font; **natural/rugged/medieval** are calm
     single-colour with a stable font (teal Rajdhani / gold Oswald / gold serif). Crit/fumble still read
     semantic gold/danger on every skin. Colours are sheet accent tokens (D4b). Guarded by `dice-tray-ux.test.ts`.
-  - **D4e — New animations + sounds per skin.** More varied roll animations + sound sets per skin; all hooked
-    to the sheet, responsive, reduced-motion aware. (Pairs with D2's animated dice.)
+  - [x] **D4e — New animations + sounds per skin.** ✅ SHIPPED (owner: "new animations and things… new sounds
+    too"). SOUNDS: `lib/audio.ts` now defines a per-skin VOICE (waveforms + pitch + grit); every SFX
+    (tick/blip/whoosh/tada/errorBuzz) takes the skin, so rugged knocks low + gritty, natural taps soft + woody,
+    fantasy chimes bell-like + shimmers, medieval is hornlike, futuristic keeps the original digital synth.
+    `RollStage` passes the active `roller` into every call. ANIMATIONS: per-skin spinning-number keyframes
+    (ruggedTumble / naturalBob / fantasyFloat / medievalStamp; futuristic keeps `jitter`) keyed off the tray's
+    `data-dice-style`, with a `prefers-reduced-motion` fallback. The pure roll RESULT is untouched (crit/fumble
+    stay gold/danger). Golden-pinned (dice-style +3). Full dnd suite green (2053). Remaining: D2 animated 3D dice.
 - [ ] **D3 — Tests / visual:** the pure roll result is unchanged by the skin (source-anchored); visual polish
       is in-app.
 
