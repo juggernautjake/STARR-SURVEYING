@@ -53,9 +53,13 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
   // side overrides (P2b) aren't stored yet, so the player object is empty → the campaign values win (with any
   // DM lock). No campaign → undefined → the store's vanilla default.
   let effectivePreferences: EffectivePreferences | undefined;
+  // Whether the AI may create custom content when transposing this character (Area TR2). Allowed unless the
+  // campaign is vanilla-only; a character with no campaign has no such restriction.
+  let transposeAllowsCustom = true;
   if (character.campaign_id) {
-    const { data: campPrefRow } = await supabaseAdmin.from('dnd_campaigns').select('theme').eq('id', character.campaign_id).maybeSingle();
+    const { data: campPrefRow } = await supabaseAdmin.from('dnd_campaigns').select('theme, allow_custom').eq('id', character.campaign_id).maybeSingle();
     effectivePreferences = resolvePreferences(readCampaignPreferences((campPrefRow as { theme?: unknown } | null)?.theme));
+    transposeAllowsCustom = (campPrefRow as { allow_custom?: boolean } | null)?.allow_custom !== false;
   }
 
   // Submission/approval panel (IG builder Slice 5): show the custom/vanilla content summary + submit
@@ -155,7 +159,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
           sheet_type: character.sheet_type,
         };
         const built = builtSystems(active, readVariants((character as { system_variants?: unknown }).system_variants));
-        return <SystemSwitcher characterId={character.id} activeSystem={active.system} builtSystems={built} aiConfigured={dndAiConfigured()} />;
+        return <SystemSwitcher characterId={character.id} activeSystem={active.system} builtSystems={built} aiConfigured={dndAiConfigured()} allowCustom={transposeAllowsCustom} />;
       })()}
       {canWrite && <SheetStyleBrowser characterId={character.id} current={character.sheet_type} />}
       <SheetRoot

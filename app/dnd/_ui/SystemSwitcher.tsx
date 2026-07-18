@@ -14,11 +14,14 @@ export default function SystemSwitcher({
   activeSystem,
   builtSystems,
   aiConfigured,
+  allowCustom = true,
 }: {
   characterId: string;
   activeSystem: string;
   builtSystems: string[];
   aiConfigured: boolean;
+  /** Whether custom content is allowed for this character/campaign — gates the transpose consent prompt (TR2). */
+  allowCustom?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -27,6 +30,8 @@ export default function SystemSwitcher({
   // Transpose lifecycle (Area TR1): 'working' shows the animated progress bar; 'done' shows an obvious
   // success notification. Only set for a transpose (an AI build), not an instant switch.
   const [transpose, setTranspose] = useState<{ system: string; phase: 'working' | 'done' } | null>(null);
+  // The system awaiting the custom-content consent decision (Area TR2).
+  const [consent, setConsent] = useState<string | null>(null);
 
   const active = activeSystem || SYSTEM_AMBIGUOUS;
   const built = new Set(builtSystems.map((s) => s || SYSTEM_AMBIGUOUS));
@@ -37,15 +42,26 @@ export default function SystemSwitcher({
 
   const selectable = (system: string) => system === SYSTEM_AMBIGUOUS || system === active || isSystemAvailable(system);
 
-  async function go(system: string) {
+  // Decide whether to run now or ask for custom-content consent first (TR2).
+  function go(system: string) {
     if (system === active || busy || !selectable(system)) return;
     const isTranspose = !built.has(system);
-    if (isTranspose && !aiConfigured) { setMsg('AI is not configured — cannot transpose to a new system.'); return; }
+    if (!isTranspose) { runChange(system, false); return; } // instant switch to a saved sheet — no AI, no consent
+    if (!aiConfigured) { setMsg('AI is not configured — cannot transpose to a new system.'); return; }
+    if (allowCustom) { setConsent(system); return; } // custom is permitted → ask before the AI invents anything
+    runChange(system, false); // custom not allowed here → best-effort vanilla-only transpose
+  }
+
+  // Perform the switch/transpose. `useCustom` tells the AI it may create balanced custom content (TR3).
+  async function runChange(system: string, useCustom: boolean) {
+    setConsent(null);
+    if (busy) return;
+    const isTranspose = !built.has(system);
     setBusy(system); setMsg(null);
     if (isTranspose) setTranspose({ system, phase: 'working' });
     try {
       const r = await fetch(`/api/dnd/characters/${characterId}/system`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ system }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ system, allowCustom: useCustom }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setMsg(j.error ?? 'Could not change system.'); setTranspose(null); setBusy(null); return; }
@@ -118,6 +134,33 @@ export default function SystemSwitcher({
               );
             })}
           </div>
+          {/* Custom-content consent (TR2) — before an AI transpose, when custom is allowed, ask whether the
+              AI may create balanced custom content to fit the character, or build vanilla-only. */}
+          {consent && (
+            <div role="dialog" aria-label="Allow custom content?" style={{ margin: '10px 0 0', padding: '12px 14px', border: '1px solid var(--hx-gold-1)', borderRadius: 8, background: 'rgba(212,175,55,0.08)', display: 'grid', gap: 10 }}>
+              <div>
+                <strong style={{ color: 'var(--hx-gold-2)', fontFamily: 'var(--hx-font-display)' }}>Transpose into {systemLabel(consent)} — allow custom content?</strong>
+                <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--hx-muted)', lineHeight: 1.55 }}>
+                  The AI will build this character with {systemLabel(consent)}’s <strong>vanilla</strong> rules as far as
+                  possible. To fully preserve the character’s abilities and vibe it may need to create some balanced
+                  <strong> custom</strong> classes, ancestries, feats, or abilities — each validated against the system.
+                  Is that OK, or should it stay strictly vanilla?
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button type="button" className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} style={{ padding: '6px 14px' }} onClick={() => runChange(consent, true)}>
+                  Yes — allow balanced custom content
+                </button>
+                <button type="button" className={styles.hexBtn} style={{ padding: '6px 14px' }} onClick={() => runChange(consent, false)}>
+                  No — vanilla only
+                </button>
+                <button type="button" className={styles.hexBtn} style={{ padding: '6px 14px', opacity: 0.8 }} onClick={() => setConsent(null)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Transpose progress + completion (TR1) — a working state that obviously reads as "the AI is
               building", then a clear done notification. */}
           {transpose?.phase === 'working' && (

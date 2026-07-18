@@ -32,3 +32,27 @@ describe('transpose progress + completion UX (TR1)', () => {
     expect(switcher).toMatch(/role="status"/);
   });
 });
+
+describe('custom-content consent before an AI transpose (TR2)', () => {
+  it('asks for consent only for a transpose when custom is allowed; not for an instant switch', () => {
+    // an already-built target switches immediately (no consent, no AI)
+    expect(switcher).toContain('if (!isTranspose) { runChange(system, false); return; }');
+    // a transpose with custom allowed opens the consent prompt first
+    expect(switcher).toContain('if (allowCustom) { setConsent(system); return; }');
+    // custom not allowed → best-effort vanilla-only transpose (still no invented content)
+    expect(switcher).toContain('runChange(system, false); // custom not allowed');
+  });
+
+  it('the consent choice is passed to the route as allowCustom', () => {
+    expect(switcher).toContain('runChange(consent, true)');   // Yes — allow custom
+    expect(switcher).toContain('runChange(consent, false)');  // No — vanilla only
+    expect(switcher).toContain('JSON.stringify({ system, allowCustom: useCustom })');
+  });
+
+  it('the prompt explains vanilla-first + balanced custom, with Cancel', () => {
+    expect(switcher).toMatch(/allow custom content\?/i);
+    expect(switcher).toMatch(/vanilla only/i);
+    expect(switcher).toContain('setConsent(null)'); // Cancel
+    expect(switcher).toMatch(/role="dialog"/);
+  });
+});

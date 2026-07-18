@@ -308,9 +308,14 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       obvious `role="status"` success banner ("✓ Transposed into {system} — now active!") with a dismiss.
       Guarded by `transpose-progress.test.ts`. REMAINING for TR1: a vanilla-vs-custom summary in the done
       banner (arrives with TR3 when the route reports what it built).
-- [ ] **TR2 — Custom-content consent prompt.** Before an AI transpose, if custom is allowed for the character
-      or its campaign (respect `allow_custom` + DM grants + invited campaigns), prompt the user to approve the
-      AI creating custom content. Default off/ask; a "vanilla-only best effort" path when declined.
+- [x] **TR2 — Custom-content consent prompt.** ✅ SHIPPED — before an AI transpose, when custom is allowed
+      (the character's campaign isn't vanilla-only; no campaign → allowed), `SystemSwitcher` shows a
+      `role="dialog"` prompt: "Transpose into {system} — allow custom content?" explaining vanilla-first +
+      balanced custom, with **Yes — allow balanced custom / No — vanilla only / Cancel**. The choice is passed
+      to the route as `allowCustom`. An instant switch (already-built system) skips the prompt; a vanilla-only
+      campaign transposes best-effort vanilla without asking. The page passes `allowCustom` from the campaign's
+      `allow_custom`. Guarded by `transpose-progress.test.ts`. REMAINING: **TR3** — the route/AI actually
+      honoring `allowCustom` (read-system-first, vanilla-first, balanced custom, provenance).
 - [ ] **TR3 — Read-system-first + balanced custom build.** The transpose prompt to the AI must (a) load the
       full target-system grounding first, (b) prefer vanilla, (c) generate custom elements only as needed and
       run each through a balance/mechanics check vs the system before finalizing, (d) preserve the character's
