@@ -612,9 +612,17 @@ was AI leveling an EXISTING character by one increment.
       normalizer for an AI-proposed (or hand-entered) single level — new features/feats/buffs, HP, ability
       increases, optional subclass, `mode: 'vanilla'|'custom'` — pinning the target to currentLevel+1, clamping
       HP + ability increases, dropping nameless features, never throwing. `isLegalAsi`/`abilityIncreaseTotal`
-      flag an over-spend for the DM. `__tests__/dnd/level-up-draft.test.ts` (8). **Next:** the AI level-up TOOL
-      schema + route (feed the character digest + `standardLevelUpOptions`; ingest via `parseLevelUpDraft`;
-      apply as sheet edits) + the wizard's "standard vs custom vs AI" branch — an API/UI slice.
+      flag an over-spend for the DM. `__tests__/dnd/level-up-draft.test.ts` (8).
+- [~] **LU2 — AI level-up tool + apply. ✅ Tool schema + pure apply shipped.** `lib/dnd/classes/level-up-ai.ts`
+      — `LEVEL_UP_TOOL` (the structured-output tool the model fills: mode vanilla|custom, hpGained,
+      abilityIncreases, subclass, features[]) + `parseLevelUpToolCall` (→ `parseLevelUpDraft`) + the PURE
+      `applyLevelUpDraft(char, draft)` that turns a validated draft into a NEW Character: bumps the level,
+      appends the features (sourced to the level, flagged `customized` when invented so they hit the DM's
+      review), applies the ASI (capped at 30 for Epic-Boon headroom), adds the HP, and records a chosen
+      subclass. Deterministic feature ids (`lvl-{N}-{slug}`) → idempotent + testable, input untouched.
+      `__tests__/dnd/level-up-ai.test.ts` (7). **Next:** the level-up ROUTE (ground the model with the digest +
+      `standardLevelUpOptions`, call the tool, `applyLevelUpDraft`, persist) + the wizard's standard/custom/AI
+      branch — an API/UI slice mirroring the existing ai-edit route.
 
 ### Area T — IG class taxonomy (bounded data restructure)
 - [x] **T1 — Restructure to the site's real taxonomy.** ✅ CANONICAL TAXONOMY SHIPPED — `lib/dnd/systems/
