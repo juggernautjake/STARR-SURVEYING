@@ -45,6 +45,16 @@ describe('IG rules math (full-sheet Slice 2)', () => {
     expect(igResolveAttack(c, atk).damage).toBe('2d6+6');
   });
 
+  it('folds a flat bonusToHit and bonusDamage (a magic weapon\'s +N) — the other fixtures use +0', () => {
+    // Both bonus terms are 0 in the STR-melee and ranged tests, so a regression dropping them would lose
+    // every magic IG weapon's flat bonus and still pass. Exercise them on an otherwise-plain weapon.
+    const c = blankIGCharacter('Fighter'); c.identity.level = 2; c.abilities.STR = 10; // +0
+    const magic = { id: 'm', name: 'Flametongue', weaponType: 'Melee', properties: '', proficient: false, weaponFocus: false, weaponSpecialization: false, ability: 'STR' as const, bonusToHit: 3, bonusDamage: 2, damage: '1d8' };
+    expect(igAttackBonus(magic, 2, 0)).toBe(3);            // 0 mod + 0 prof + 0 focus + bonusToHit 3
+    expect(igDamageBonus(magic, 0)).toBe(2);               // 0 str mod + 0 spec + bonusDamage 2
+    expect(igResolveAttack(c, magic).damage).toBe('1d8+2');
+  });
+
   it('a ranged/non-STR attack adds its ability to the to-HIT but NOT to damage (only STR melee does)', () => {
     // The `strMelee ? abilityMod : 0` branch: a DEX bow's +3 reaches the attack roll but never the damage —
     // so a regression that added the ability to ALL damage would over-count ranged/finesse weapons.
