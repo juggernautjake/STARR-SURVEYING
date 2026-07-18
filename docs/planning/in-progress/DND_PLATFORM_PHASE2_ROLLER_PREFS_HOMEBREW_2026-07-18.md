@@ -468,7 +468,7 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       default); back-compat with single-variant data.
 
 ### Area T — IG class taxonomy (bounded data restructure)
-- [~] **T1 — Restructure to the site's real taxonomy.** ✅ CANONICAL TAXONOMY SHIPPED — `lib/dnd/systems/
+- [x] **T1 — Restructure to the site's real taxonomy.** ✅ CANONICAL TAXONOMY SHIPPED — `lib/dnd/systems/
       intuitive-games/taxonomy.ts`: `IG_CLASS_TAXONOMY` = the 4 parents × subclasses VERBATIM from the site
       (Archon → Beastmaster/Eldritch Binder/Packmaster/Summoner; Conduit → Druid/Shifter/Witch; Fighter →
       Champion/Freebooter/Marksman/Sohei; Wizard → Arcanist/Magician/Shaman), plus pure helpers `igParentClasses`,
@@ -479,14 +479,18 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       scoped so it never appears in another system's grounding (`ig-taxonomy.test.ts` +2). **LIBRARY surface
       wired ✅** — the IG library Classes section now renders the 4 parent families × their subclasses (a
       "Parent class → Subclasses" table) instead of the old flat `IG_CLASS_GROUPS` grouping, retiring the
-      taxonomy-mismatch NOTE (it's reconciled now); `library.test.ts` updated. REMAINING: the IG builder's
-      parent→subclass picker + provenance labelling — UI surfaces best driven in the running app; the data
-      core, AI grounding, and library are done.
-- [~] **T2 — Tests.** ✅ TAXONOMY GOLDEN-PINNED — `ig-taxonomy.test.ts` (5): the 4 parents + subclasses are
+      taxonomy-mismatch NOTE (it's reconciled now); `library.test.ts` updated. **BUILDER surface wired ✅** —
+      `IGCharacterBuilder`'s Class dropdown now offers the four PARENT classes (`igParentClasses()`) and the
+      Subclass dropdown is SCOPED to the chosen parent (`igSubclassesOf(className)`), disabled until a class is
+      picked and cleared when the class changes — so you can only ever pick one of a parent's own subclasses,
+      never a cross-family one (`ig-builder-ui.test.ts` +2). **T1 is now done across data, grounding, library,
+      and builder.** (A future nicety: `igClassLabel` provenance strings on saved sheets — cosmetic.)
+- [x] **T2 — Tests.** ✅ TAXONOMY GOLDEN-PINNED — `ig-taxonomy.test.ts` (5): the 4 parents + subclasses are
       pinned to the site; every subclass maps to exactly ONE parent (no leak / no cross-family duplicate);
       queries are case-insensitive + family-labelled; and the taxonomy is proven CONSISTENT with the mechanical
-      `IG_CLASS_DETAILS` (every `classification: 'subclass of X'` row matches its taxonomy parent). The
-      "builder offers parent→subclass" assertion follows once T1's builder rewire lands.
+      `IG_CLASS_DETAILS` (every `classification: 'subclass of X'` row matches its taxonomy parent), and the
+      **builder offers parent→subclass** (`ig-builder-ui.test.ts` — parent-only class list, scoped subclass
+      dropdown). No leak proven at every surface. **Area T complete.**
 
 ### Area H — Homebrew / custom / DLC / extras (per system) + content-creation system
 This is the "form editor" the owner clarified: a full **create-and-share** system, plus a browse section.

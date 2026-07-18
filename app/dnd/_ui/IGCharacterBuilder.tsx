@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import { igCatalog } from '@/lib/dnd/systems/intuitive-games/catalog';
 import { igCreaturesByGroup, IG_BACKGROUND_DEFS, IG_CLASS_DETAILS } from '@/lib/dnd/systems/intuitive-games/content';
+import { igParentClasses, igSubclassesOf } from '@/lib/dnd/systems/intuitive-games/taxonomy';
 import { classifyElement, type ElementKind } from '@/lib/dnd/provenance';
 
 const ABILITY_KEYS = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
@@ -23,7 +24,9 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
   const router = useRouter();
   const catalog = useMemo(() => igCatalog(), []);
   const ancestries = useMemo(() => names(catalog, 'ancestry'), [catalog]);
-  const classes = useMemo(() => names(catalog, 'class'), [catalog]);
+  // The class picker offers the four PARENT classes; the subclass picker is scoped to the chosen parent
+  // (Area T1). `subclasses` (the full catalog list) is only the pre-selection fallback.
+  const classes = useMemo(() => igParentClasses(), []);
   const subclasses = useMemo(() => names(catalog, 'subclass'), [catalog]);
   const stanceOpts = useMemo(() => names(catalog, 'stance'), [catalog]);
   const powerOpts = useMemo(() => names(catalog, 'power'), [catalog]);
@@ -134,8 +137,10 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <select value={ancestry} onChange={(e) => setAncestry(e.target.value)} style={{ ...input, flex: 1, minWidth: 130 }}><option value="">Ancestry…</option>{ancestries.map((a) => <option key={a} value={a}>{a}</option>)}</select>
-          <select value={className} onChange={(e) => setClassName(e.target.value)} style={{ ...input, flex: 1, minWidth: 130 }}><option value="">Class…</option>{classes.map((a) => <option key={a} value={a}>{a}</option>)}</select>
-          <select value={subclass} onChange={(e) => setSubclass(e.target.value)} style={{ ...input, flex: 1, minWidth: 130 }}><option value="">Subclass…</option>{subclasses.map((a) => <option key={a} value={a}>{a}</option>)}</select>
+          <select value={className} onChange={(e) => { setClassName(e.target.value); setSubclass(''); }} style={{ ...input, flex: 1, minWidth: 130 }}><option value="">Class…</option>{classes.map((a) => <option key={a} value={a}>{a}</option>)}</select>
+          {/* Subclasses are scoped to the chosen PARENT class (Area T1) — you can only pick one of ITS
+              subclasses, never a subclass from another family. Falls back to the full list before a class is chosen. */}
+          <select value={subclass} onChange={(e) => setSubclass(e.target.value)} disabled={!className} title={className ? `Subclasses of ${className}` : 'Pick a class first'} style={{ ...input, flex: 1, minWidth: 130, opacity: className ? 1 : 0.6 }}><option value="">Subclass…</option>{(className ? igSubclassesOf(className) : subclasses).map((a) => <option key={a} value={a}>{a}</option>)}</select>
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <input list="ig-spec-opts" value={specialization} onChange={(e) => setSpecialization(e.target.value)} placeholder="Specialization" style={{ ...input, flex: 1, minWidth: 130 }} />

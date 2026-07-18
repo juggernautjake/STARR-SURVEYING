@@ -20,3 +20,14 @@ describe('IG builder background picker', () => {
     expect(SRC).toMatch(/c\.specializations/);
   });
 });
+
+describe('IG builder parent → subclass picker (Area T1)', () => {
+  it('the class dropdown offers the four parent classes', () => {
+    expect(SRC).toContain('const classes = useMemo(() => igParentClasses()');
+  });
+  it('the subclass dropdown is scoped to the chosen parent and resets when the class changes', () => {
+    expect(SRC).toContain('setClassName(e.target.value); setSubclass('); // changing class clears the subclass
+    expect(SRC).toContain('(className ? igSubclassesOf(className) : subclasses).map'); // scoped options
+    expect(SRC).toContain('disabled={!className}'); // can't pick a subclass before a class
+  });
+});
