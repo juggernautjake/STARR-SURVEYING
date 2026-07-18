@@ -101,20 +101,17 @@ overwrite a deliberate design.
       2 → −2, with PF2's "status penalties don't stack — highest wins" rule) — the AI applies it from RAW, but
       the sheet doesn't compute/display it. Focus points aren't modeled at all. Feature work; needs eyes on
       the PF2 sheet + RAW confirmation on the penalty-stacking rules.
-- [ ] **In-app roller for the bespoke sheets — PF2 AND Intuitive Games (a product call + UI work).** The
-      D&D 5e sheet rolls checks/attacks/saves/damage in-app with a dice tray that AUTO-APPLIES its mechanics
-      (e.g. exhaustion −2/level folds into every roll). The two bespoke sheets are display-only:
-      • **PF2** — `PF2Sheet` shows the +modifiers but has no roll surface, so `pf2Degree` (the four degrees
-        of success + the nat-20/nat-1 step) is fully built + comprehensively tested yet reaches no player
-        (zero call sites). The engine is ready; only the roll UI is missing.
-      • **IG** — `IGSheet` COMPUTES + DISPLAYS the condition penalty (`igConditionSummary` → "−N to attacks,
-        saves & skills") and the active stance's effect (`igStanceMechanicNote`), but has no roller either
-        (zero `roll`/`dice` refs), so those mechanics are shown for the player to apply by hand, not folded
-        into an in-app roll. This one touches your explicit IG ask ("build real mechanics affecting checks/
-        rolls"): the mechanics ARE real (computed, text-faithful, displayed) — the open question is whether
-        you want an in-app IG roller that auto-applies them like the 5e sheet, or display-only is fine.
-      Surfaced 2026-07-17 by audit. Decide per system whether it should roll in-app (then I wire the sheet to
-      the existing `pf2Degree`/`pf2AttackBonus` / `igConditionSummary` engines) or stay a reference sheet.
+- [~] **In-app roller for the bespoke sheets — MOSTLY RESOLVED (verified 2026-07-18): both bespoke sheets now
+      ROLL in-app.** When this was written PF2Sheet/IGSheet were display-only; Area R1b has since wired both to
+      the shared `resolveD20Roll` engine: tapping a check/save/skill/strike rolls a d20 + its modifier (and a
+      strike's damage via `rollDiceExpr`), with an optional **target-DC field** that resolves the four-step
+      degree of success (`pf2Degree` now has call sites; IG's ladder too), shown in a result banner. Tested
+      (`pf2-sheet-roller.test.ts`, `ig-sheet-roller.test.ts`). **The one residual — a genuine product call:** the
+      bespoke rollers pass the BASE modifier and show the condition/stance penalty **legibly** for the player to
+      apply (a deliberate transparency choice — see `IGSheet` "not folded into base numbers"), whereas the 5e
+      dice tray AUTO-FOLDS its exhaustion. Do you want the IG/PF2 rollers to auto-fold the displayed condition/
+      stance penalty into the rolled total like 5e, or keep the current show-and-apply pattern? (Only this
+      auto-fold choice is left; the roll surfaces themselves are shipped.)
 - [ ] **Mobile upload runtime** — every decision in the capture→save→send→drain→notify→delete flow is a
       pure, tested function; the Expo runtime (true background upload task, MediaLibrary, notifications, the
       queue screen) can only be built + verified on real iOS/Android by you. *Detail: `SURVEYING_WORKMODE`
