@@ -112,17 +112,31 @@ export default function SystemSwitcher({
     }
   }
 
+  // The active sheet (MV3) — its name + kind label shown on the switcher header so you always know which of
+  // the character's sheets is live.
+  const activeSheet = sheets.find((s) => s.active);
   return (
     <div className={styles.framedPanel} style={{ margin: '10px 0', padding: '10px 14px' }}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={styles.hexBtn}
-        style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+        style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
       >
-        <span style={{ fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)' }}>◆ Game system — {systemLabel(active)}</span>
+        <span style={{ fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          ◆ Game system — {systemLabel(active)}
+          {activeSheet && (
+            <span style={{ fontSize: 9.5, color: activeSheet.kind === 'custom' ? 'var(--hx-gold-2)' : 'var(--hx-muted)', border: '1px solid currentColor', borderRadius: 4, padding: '0 4px', fontFamily: 'var(--hx-font-body)' }}>
+              {activeSheet.kind === 'custom' ? 'CUSTOM' : 'VANILLA'}
+            </span>
+          )}
+        </span>
         <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{open ? 'Hide' : 'Switch / transpose'}</span>
       </button>
+      {activeSheet && sheets.length > 1 && (
+        // When the character has more than one sheet, name the active one so it's unmistakable which is live.
+        <div style={{ fontSize: 11.5, color: 'var(--hx-muted)', marginTop: 4 }}>Active sheet: <strong style={{ color: 'var(--hx-text)' }}>{activeSheet.name}</strong></div>
+      )}
       {open && (
         <>
           <p style={{ margin: '10px 0 8px', fontSize: 12.5, color: 'var(--hx-muted)' }}>

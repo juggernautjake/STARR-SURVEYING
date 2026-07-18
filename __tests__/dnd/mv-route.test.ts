@@ -60,3 +60,12 @@ describe('SystemSwitcher UI shows every sheet + a "+" add (MV2c)', () => {
     expect(switcher).toContain('JSON.stringify({ slotId })');
   });
 });
+
+describe('active sheet label on the switcher (MV3)', () => {
+  const switcher = readFileSync(join(process.cwd(), 'app/dnd/_ui/SystemSwitcher.tsx'), 'utf8');
+  it('surfaces the active sheet kind badge + name', () => {
+    expect(switcher).toContain('const activeSheet = sheets.find((s) => s.active)');
+    expect(switcher).toMatch(/activeSheet\.kind === 'custom' \? 'CUSTOM' : 'VANILLA'/);
+    expect(switcher).toContain('Active sheet: <strong');
+  });
+});

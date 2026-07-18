@@ -395,8 +395,10 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       user-visible end to end** (add/name/switch multiple vanilla+custom sheets per system). REMAINING (MV
       polish): rename/delete a sheet; route a custom-consented TRANSPOSE to ADD a slot rather than overwrite
       (MV3 sheet label on the sheet itself is a nice-to-have).
-- [ ] **MV3 — Labels on the sheet + provenance.** The active sheet shows its name + Vanilla/Custom label; the
-      custom variant's invented elements stay provenance-flagged for DM review.
+- [x] **MV3 — Labels on the sheet + provenance.** ✅ SHIPPED — the switcher header shows the active sheet's
+      **VANILLA/CUSTOM** badge, and (when the character has >1 sheet) an "Active sheet: {name}" line, so it's
+      always clear which sheet is live. Custom variants' invented elements remain provenance-flagged via the
+      existing approval/provenance path. Guarded by `mv-route.test.ts`.
 - [ ] **MV4 — Tests:** two variants coexist for one system; switching preserves both; naming (custom +
       default); back-compat with single-variant data.
 
