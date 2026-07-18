@@ -492,3 +492,23 @@ describe('add_currency / set_currency / remove_currency — the AI can manage mo
     expect((reverted.currencies ?? []).some((c) => c.name === 'Florins')).toBe(false);
   });
 });
+
+describe('set_combat covers tempHp + exhaustion (SQ4 — AI edits every component)', () => {
+  it('sets temp HP and clamps exhaustion to the 0–6 track', () => {
+    const base = blankCharacter('X');
+    const withTemp = applySheetEdits(base, [{ op: 'set_combat', field: 'tempHp', value: 8 }]);
+    expect(withTemp.combat.tempHp).toBe(8);
+    const exh = applySheetEdits(base, [{ op: 'set_combat', field: 'exhaustion', value: 3 }]);
+    expect(exh.combat.exhaustion).toBe(3);
+    // exhaustion is a 0–6 track — an over-value clamps to 6
+    expect(applySheetEdits(base, [{ op: 'set_combat', field: 'exhaustion', value: 99 }]).combat.exhaustion).toBe(6);
+    // other combat fields still floor at 0 (not clamped to 6)
+    expect(applySheetEdits(base, [{ op: 'set_combat', field: 'maxHp', value: 45 }]).combat.maxHp).toBe(45);
+  });
+  it('the edit tool advertises tempHp + exhaustion as set_combat fields', () => {
+    const src = fs.readFileSync(path.join(process.cwd(), 'lib/dnd/sheet-edits.ts'), 'utf8');
+    expect(src).toContain("'ac' | 'maxHp' | 'currentHp' | 'speed' | 'tempHp' | 'exhaustion'");
+    const toolField = (SHEET_EDIT_TOOL.input_schema as { properties: { edits: { items: { properties: { field: { description: string } } } } } }).properties.edits.items.properties.field.description;
+    expect(toolField).toMatch(/tempHp\|exhaustion/);
+  });
+});

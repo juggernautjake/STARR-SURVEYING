@@ -53,7 +53,7 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
       do?" needs it, and it's on-sheet content the AI can't recall from a name) and **SENSES** (darkvision etc.
       — a visibility ruling turns on them); both added (`pf2-digest.test.ts` +2). REMAINING: a spot-audit of the
       5e `characterDigest` (already the richest — attacks/features/spells/effects all resolved).
-- [~] **SQ4 — AI edits every component** — audited the IG edit path (`applyIgEdit`): it could change
+- [x] **SQ4 — AI edits every component** — audited the IG edit path (`applyIgEdit`): it could change
       stance/conditions/feats/powers/defensive-power but had **no way to adjust HP** — the single most common
       in-play edit, which the digest already surfaces (a ruling "you take 8 damage" couldn't be applied). Added
       `apply_damage` (raises lethal, or nonlethal with a flag; capped so currentHp floors at 0) and `heal`
@@ -73,8 +73,13 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
       `edit_pf2_sheet` in its toolset for PF2 characters, instructs the AI it can change HP + the death track,
       and dispatches a returned call through `parsePF2EditToolCall` → `applyPf2Edit` → persists `data.pf2e` +
       audits to `dnd_sheet_edits` (mirroring the IG branch exactly). **PF2 now has full AI-edit parity with IG.**
-      `pf2-edit-route.test.ts` +2. REMAINING for SQ4: a spot-audit of the 5e `applySheetEdits` (already the
-      richest path — it edits every mechanical field).
+      `pf2-edit-route.test.ts` +2. **5e `applySheetEdits` audited + fixed ✅** — the richest path, but `set_combat`
+      only covered `ac|maxHp|currentHp|speed`; it couldn't set **tempHp** or **exhaustion** — both tracked on the
+      sheet/digest and adjudicated by the AI (exhaustion drives the whole M1 mechanics chain). Added both to the
+      `set_combat` field union + tool schema, with exhaustion clamped to its 0–6 track (`sheet-edits.test.ts`
+      +2). **Area SQ4 (AI edits every component) is done across all three systems** — IG (HP ops), PF2 (full
+      edit path + endpoint + dispatch), and 5e (tempHp + exhaustion). The remaining SQ items (SQ1/2/5 styling +
+      completeness + per-system browser QA) need the running app.
 - [ ] **SQ5 — Per-system verification** — a browser/QA pass per system (the memory-documented Slice-40
       walkthrough): build a character, exercise the sheet + AI edit + read, fix correctness + styling bugs.
 

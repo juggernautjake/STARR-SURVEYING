@@ -121,7 +121,7 @@ export type SheetEdit =
   | { op: 'set_ability'; ability: AbilityKey; value: number }
   | { op: 'set_save_proficient'; ability: AbilityKey; value: boolean }
   | { op: 'set_skill'; skill: string; prof: ProfLevel }
-  | { op: 'set_combat'; field: 'ac' | 'maxHp' | 'currentHp' | 'speed'; value: number }
+  | { op: 'set_combat'; field: 'ac' | 'maxHp' | 'currentHp' | 'speed' | 'tempHp' | 'exhaustion'; value: number }
   | { op: 'add_attack'; name: string; ability: AbilityKey; damage: string; damageType?: string; proficient?: boolean; range?: string; bonusToHit?: number; bonusDamage?: number }
   // Retune an EXISTING attack in place — the literal reported case "change my sword's damage die".
   // Merges only the fields given (keeping the rest), unlike add_attack which replaces the whole row.
@@ -369,7 +369,12 @@ export function applySheetEdits(input: Character, edits: SheetEdit[], opts: { eq
       case 'set_skill':
         c.skills[e.skill] = { ...(c.skills[e.skill] ?? { misc: 0 }), prof: e.prof };
         break;
-      case 'set_combat': c.combat[e.field] = Math.max(0, Math.round(e.value)); break;
+      case 'set_combat': {
+        // Exhaustion is a 0–6 track (drives the whole M1 mechanics chain); every other combat number floors at 0.
+        const v = Math.max(0, Math.round(e.value));
+        c.combat[e.field] = e.field === 'exhaustion' ? Math.min(6, v) : v;
+        break;
+      }
       case 'add_attack': {
         const atk: Attack = {
           id: `ai-atk-${slug(e.name)}`,
@@ -632,7 +637,7 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
               type: 'string',
               enum: ['set_name', 'set_meta', 'set_level', 'set_ability', 'set_save_proficient', 'set_skill', 'set_combat', 'add_attack', 'update_attack', 'remove_attack', 'rename_attack', 'add_feature', 'remove_feature', 'rename_feature', 'add_spell', 'remove_spell', 'rename_spell', 'add_item', 'update_item', 'equip_item', 'remove_item', 'rename_item', 'rename_resource', 'add_resource', 'define_tag', 'tag_item', 'add_currency', 'set_currency', 'remove_currency', 'add_condition', 'remove_condition'],
             },
-            field: { type: 'string', description: 'For set_meta: kicker|role|species|className|subclass|gender|pronouns|profession|alignment. For set_combat: ac|maxHp|currentHp|speed.' },
+            field: { type: 'string', description: 'For set_meta: kicker|role|species|className|subclass|gender|pronouns|profession|alignment. For set_combat: ac|maxHp|currentHp|speed|tempHp|exhaustion (exhaustion is a 0–6 track).' },
             to: { type: 'string', description: 'For rename_* ops: the NEW name. Renames keep every other field — use these to rename an attack/feature/item, never remove + re-add (that drops its stats).' },
             tag: { type: 'string', description: 'For tag_item: the tag to add to the item named by `name`. Must already be a built-in tag or one you defined with define_tag; weapon/consumable/equipped are reserved.' },
             ability: { type: 'string', enum: ABILITY_KEYS },
