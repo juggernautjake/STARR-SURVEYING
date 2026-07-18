@@ -17,6 +17,7 @@ import { resolveD20Roll, rollNaturalD20, rollDiceExpr, degreeLabel } from '@/lib
 import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_SPELL_ROSTER, IG_DEFENSIVE_POWERS, IG_CONDITIONS, IG_ACTION_ECONOMIES, igActionsByEconomy, findIGAncestry } from '@/lib/dnd/systems/intuitive-games/content';
 import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-games/inPlay';
 import { igConditionSummary, igStanceMechanicNote } from '@/lib/dnd/systems/intuitive-games/modifiers';
+import { igConditionRollEffect, type IgRollKind } from '@/lib/dnd/conditions/intuitive-games';
 import type { IGEdit } from '@/lib/dnd/systems/intuitive-games/edit';
 import { findIGFeat, igAllFeats } from '@/lib/dnd/systems/intuitive-games/feats';
 import { igAncestryArt, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
@@ -58,10 +59,15 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
   // Quick in-play HP adjust (Area SQ4) — the apply_damage/heal ig-edit ops exist for the AI; this wires a manual
   // control so a player can take damage / heal without entering full edit mode.
   const [hpAmt, setHpAmt] = useState('');
-  const rollLine = (label: string, modifier: number) => {
+  const rollLine = (label: string, modifier: number, kind: IgRollKind = 'ability_check') => {
     const dcNum = targetDc.trim() === '' ? undefined : Number(targetDc);
     const dc = Number.isFinite(dcNum) ? dcNum : undefined;
-    const r = resolveD20Roll({ natural: rollNaturalD20(), modifier, dc, system: 'intuitive-games' });
+    // Auto-fold active IG conditions into the roll (Area R2 — IG): Shaken/Sickened's flat −2, plus
+    // disadvantage from Blind/Prone/Deaf/etc. on the matching roll category. Disadvantage rolls two d20 and
+    // keeps the lower; the affecting conditions are named on the result so the player sees WHY.
+    const cond = igConditionRollEffect((ig.combat?.conditions ?? []) as string[], kind);
+    const natural = cond.disadvantage ? Math.min(rollNaturalD20(), rollNaturalD20()) : rollNaturalD20();
+    const r = resolveD20Roll({ natural, modifier: modifier + cond.penalty, dc, system: 'intuitive-games' });
     const sign = r.modifier >= 0 ? `+ ${r.modifier}` : `− ${Math.abs(r.modifier)}`;
     let detail = `d20 [${r.natural}] ${sign}`;
     let tone: 'crit' | 'fumble' | 'normal' = r.critical ? 'crit' : r.fumble ? 'fumble' : 'normal';
@@ -71,6 +77,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
       else if (r.degree === 'critical-failure') tone = 'fumble';
     }
     detail += `${r.critical ? ' · NAT 20' : ''}${r.fumble ? ' · NAT 1' : ''}`;
+    if (cond.sources.length) detail += ` · ⚠ ${cond.disadvantage ? 'DIS ' : ''}${cond.penalty ? `${cond.penalty} ` : ''}from ${cond.sources.join(', ')}`;
     setLastRoll({ label, total: r.total, detail, tone });
   };
   const rollDamage = (label: string, expr: string) => {
@@ -173,7 +180,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(60px, 1fr))', gap: 8 }}>
           {IG_ABILITIES.map((k) => (
             // Tap an ability to roll an ability check (R1b): d20 + its modifier.
-            <button key={k} type="button" onClick={() => rollLine(`${k} check`, igAbilityMod(ig.abilities[k]))} title={`Roll ${k} check (d20 ${fmt(igAbilityMod(ig.abilities[k]))})`}
+            <button key={k} type="button" onClick={() => rollLine(`${k} check`, igAbilityMod(ig.abilities[k]), (k === 'STR' || k === 'DEX') ? 'str_dex_check' : 'ability_check')} title={`Roll ${k} check (d20 ${fmt(igAbilityMod(ig.abilities[k]))})`}
               style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 4px', background: 'rgba(1,10,19,0.4)', cursor: 'pointer', width: '100%' }}>
               <div style={{ fontSize: 10.5, color: 'var(--hx-muted)', letterSpacing: '0.06em' }}>{k} 🎲</div>
               <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--hx-text)', lineHeight: 1.1 }}>{ig.abilities[k]}</div>
@@ -203,7 +210,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
       {/* Saves + top-line stats — tap a save to roll it in-app (R1b). */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         {IG_SAVES.map((s) => (
-          <button key={s} type="button" onClick={() => rollLine(`${s} save`, derived.saves[s])} title={`Roll ${s} (d20 ${fmt(derived.saves[s])})`}
+          <button key={s} type="button" onClick={() => rollLine(`${s} save`, derived.saves[s], s === 'Reflex' ? 'reflex_save' : s === 'Fortitude' ? 'fortitude_save' : 'will_save')} title={`Roll ${s} (d20 ${fmt(derived.saves[s])})`}
             style={{ flex: 1, minWidth: 90, textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 6px', background: 'none', cursor: 'pointer' }}>
             <div style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>{s} 🎲</div>
             <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--hx-teal-1)' }}>{fmt(derived.saves[s])}</div>
@@ -265,7 +272,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
                           <td style={{ padding: '3px 8px 3px 0', color: 'var(--hx-muted)' }}>{a.weaponType} {badgeFor(a.weaponType)}</td>
                           <td style={{ padding: '3px 8px 3px 0', fontVariantNumeric: 'tabular-nums' }}>
                             {/* Tap the to-hit to roll the attack (R1b): d20 + to-hit through the shared engine. */}
-                            <button type="button" onClick={() => rollLine(`${a.name} attack`, r.toHit)} title={`Roll ${a.name} attack (d20 ${fmt(r.toHit)})`}
+                            <button type="button" onClick={() => rollLine(`${a.name} attack`, r.toHit, 'attack')} title={`Roll ${a.name} attack (d20 ${fmt(r.toHit)})`}
                               style={{ background: 'none', border: 'none', color: 'var(--hx-gold-2)', fontWeight: 600, cursor: 'pointer', padding: 0, fontVariantNumeric: 'tabular-nums' }}>
                               {fmt(r.toHit)} 🎲
                             </button>
