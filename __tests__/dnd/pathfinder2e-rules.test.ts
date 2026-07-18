@@ -99,6 +99,12 @@ describe('pf2 derived numbers (level-5 Fighter)', () => {
   it('Strike bonus = attribute + proficiency + weapon rune', () => {
     expect(pf2AttackBonus(c.attacks[0], c.identity.level, c.attributes)).toBe(4 + (4 + 5)); // 13
   });
+  it('Strike bonus actually FOLDS a non-zero weapon potency rune (the fixture uses +0)', () => {
+    // The test above names "weapon rune" but the fixture's rune is 0, so the term was never exercised —
+    // a regression dropping `+ atk.weaponBonus` would break every PF2 magic weapon and pass that test.
+    const runed = { ...c.attacks[0], weaponBonus: 2 };
+    expect(pf2AttackBonus(runed, c.identity.level, c.attributes)).toBe(4 + (4 + 5) + 2); // 15
+  });
   it('pf2Derived rolls up the header numbers', () => {
     const d = pf2Derived(c);
     expect(d.maxHp).toBe(75);
