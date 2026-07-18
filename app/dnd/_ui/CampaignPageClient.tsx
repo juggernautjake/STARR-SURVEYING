@@ -12,6 +12,7 @@ import CampaignArtControl from './CampaignArtControl'
 import CampaignGalleryDm from './CampaignGalleryDm'
 import CampaignNotesDm from './CampaignNotesDm'
 import CampaignMapsDm from './CampaignMapsDm'
+import CampaignPreferencesDm from './CampaignPreferencesDm'
 
 export interface CampaignDetail {
   campaign: { id: string; name: string; blurb?: string | null; role: string; theme?: { artUrl?: string | null; notes?: string | null; dmNotes?: string | null } | null }
@@ -22,6 +23,8 @@ export interface CampaignDetail {
     ownerUserId?: string | null; ownerName?: string | null; playedByUserId?: string | null; playedByName?: string | null;
   }[]
   sessions: { id: string; title: string; status: string; sort_order: number }[]
+  /** Normalized campaign DM preferences (Area P) — returned by the campaign GET. */
+  preferences?: import('@/lib/dnd/preferences').CampaignPreferences
 }
 
 const STATUS_COLOR: Record<string, string> = { prep: 'var(--hx-muted)', live: 'var(--hx-teal-1)', done: 'var(--hx-gold-2)' }
@@ -266,6 +269,9 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                   <CampaignGalleryDm campaignId={campaignId} />
                   <CampaignMapsDm campaignId={campaignId} />
                   <CampaignNotesDm campaignId={campaignId} initialNotes={data.campaign.theme?.notes ?? ''} initialDmNotes={data.campaign.theme?.dmNotes ?? ''} />
+                  {/* Comprehensive campaign house-rules (Area P4) — every configurable mechanic + a per-setting
+                      lock. Persists to the campaign theme jsonb; DM-only. */}
+                  <CampaignPreferencesDm campaignId={campaignId} initialPreferences={data.preferences} />
                 </>
               )}
 

@@ -61,8 +61,15 @@ setting is system-aware where the mechanic differs by system.
       player via `resolvePreferences` for the sheets/rollers to consume.
 - [ ] **P3 — Player preferences page.** UI to set a player's own prefs (only where the DM hasn't locked them);
       locked settings show the DM's value, disabled, with "set by your DM".
-- [ ] **P4 — DM / campaign preferences page.** Comprehensive: the DM sets every campaign-wide mechanic +
-      which settings players may self-choose vs. are locked. Everything a player pref can be, the DM can force.
+- [x] **P4 — DM / campaign preferences page.** ✅ SHIPPED — `CampaignPreferencesDm.tsx`, a comprehensive
+      panel in the DM-only campaign controls (`CampaignPageClient`). Every configurable setting is exposed —
+      auto-apply mechanics (toggle) + exhaustion / long-rest / equipment-limits / dice-roller-style / roll-
+      recording-mode (each a select with ALL options), and **every one carries a "Players may choose" lock**
+      that, when unticked, forces the DM's value on all players (🔒). Defaults to vanilla everywhere; persists
+      via `PATCH /api/dnd/campaigns/[id]` (the P2a path, DM-only), optimistic with rollback + the server's
+      normalized copy trusted back. Guarded by `campaign-preferences-panel.test.ts` (surfaces every setting,
+      every lock, every option, PATCHes). NOTE: the panel WRITES the prefs; making each setting actually
+      change mechanics/sheets is Areas M/E/R/D consuming them (+ P2b/P2c player side, P3 player page).
 - [ ] **P5 — Tests:** the resolver clamps player→DM correctly; a locked DM setting can't be overridden;
       defaults are the vanilla model for every system.
 
