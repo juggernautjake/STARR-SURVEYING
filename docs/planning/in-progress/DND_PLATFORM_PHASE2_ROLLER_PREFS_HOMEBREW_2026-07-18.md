@@ -75,6 +75,16 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
 - [ ] **IGS5 — Build out the rest.** Wire the scraped class ladders (→ Area T taxonomy), skill mechanics,
       backgrounds/cultures, core-rules tables, equipment/armor/weapon/magic-item data into the app + library,
       well-formatted, each verbatim from the site; carry empty items as "coming soon".
+- [x] **IGS4b — All content verbatim from the site (owner 2026-07-17).** ✅ SHIPPED — audited IG_POWERS vs
+      the scrape and replaced 28 paraphrased roster effects with Brendan's verbatim text (all 54 roster spells
+      verbatim; 9 off-roster kept + flagged, nothing invented). Art credit corrected to "Art by Jacob ·
+      commissioned by Brendan". ONGOING: keep auditing every IG module (feats, ancestries, conditions,
+      stances, items) against the scraped reference docs for any non-verbatim/invented text.
+- [ ] **IGS7 — IG library page quality (owner 2026-07-17).** Owner: each section of the IG library must be
+      (a) fully built, (b) contain ONLY correct site-sourced info, (c) be interactive where it should be, and
+      (d) be formatted/styled in an intuitive, easy-to-read way — "right now it is not that way." A per-section
+      pass: verify completeness vs the scrape, strip any non-site content, improve the formatting/interaction.
+      (Overlaps Area SQ1/SQ2 for IG.)
 - [ ] **IGS6 — EVERYTHING interactable on the character sheet (owner 2026-07-17).** Owner: make sure ALL
       actions, ancestry traits, stances, spells, class abilities/buffs, leveling, HP, attack, AC, armor,
       weapons, starting equipment, feats, conditions — literally everything — is built into the sheet and
