@@ -28,6 +28,31 @@ slice per loop → typecheck+lint+commit+push+annotate).
 
 ---
 
+## ⏸ STATUS (2026-07-18): headless core COMPLETE — remainder needs a live environment
+
+The pure/testable core of this program is built, tested, and merged to `main` (DnD suite 2171 green; whole-app
+suite 13,638 green). **Completed areas:** MV (multi-sheet), TR (transpose + the quality overhaul), R (roller
+modes R2/R3/R5/R6), D (dice skins D1–D4e), TH (colour themes + WCAG guard), M (configurable mechanics), E
+(equip rules), H (homebrew — full pure model/gate/adopt/grounding/seeds), T (IG class taxonomy across every
+surface), HIDE, IGP2, and the SQ3/SQ4 read+write digest/edit audits across all three character systems.
+
+**What remains — grouped by the resource it needs (nothing below is buildable/verifiable headless):**
+
+- **Needs a running browser (UI + visual QA):** SQ1 (sheet styling), SQ2 (on-sheet field completeness), SQ5
+  (per-system QA walkthrough), the weapon→Attacks live-table wiring, H3 (homebrew creation forms) + the H4 DM
+  allowlist UI, TH3's theme-picker visual check, D2 (animated 3D dice), PL (3D planets), MOB2/MOB3/MOB5
+  (mobile passes), IGS7 (IG library formatting), and a glance at the two HP quick-controls added 2026-07-18.
+- **Needs the live Supabase DB:** the H1-tail `homebrew_content` store (schema via seeds) + the H4 adopt route,
+  and setting the demo characters (Jacob/Susie/Sarah/Jack/Andrew) from `ambiguous` → their real system.
+- **Needs Brendan's content (Ground Rule 2 — never invent):** IGP3 (the 26 pending IG power effect texts),
+  ART1–3 (race/species portraits), and the Champion / Magician / Shaman full class detail.
+- **Needs an owner decision:** none currently blocking — the IG off-roster powers (IGP2) and taxonomy (T) are
+  resolved; `VOYAGE_API_KEY` gates only the OPTIONAL semantic search (keyword search is the working fallback).
+
+The per-area detail below records exactly what shipped and what each item's specific blocker is.
+
+---
+
 ## Areas & slices (sequenced by dependency)
 
 ### Area SQ — Sheet quality + full AI integration, ALL FOUR systems (owner 2026-07-17)
