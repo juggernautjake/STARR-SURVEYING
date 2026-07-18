@@ -2929,7 +2929,14 @@ ledger-resolved numbers, and a DM equip propagates live (C11b + Slice 10). Detai
       and since Slice 10 put the ledger in the render path, the equipped item's effects now apply live
       on the player's open sheet (before Slice 10 the refetch happened but the effects were ignored).
       The two shipped pieces compose; nothing further to build.
-- [ ] Realtime: an equip by the DM propagates to the player's open sheet (C11b broadcast already exists).
+- [x] ✅ SHIPPED (verified 2026-07-16, guarded 2026-07-18) Realtime: an equip by the DM propagates to the
+      player's open sheet (C11b broadcast already exists). Same work as the "Realtime equip propagation ✅
+      VERIFIED" item above — the per-character broadcast channel (`store.tsx`) pings on any save and every other
+      viewer refetches through the authed API, and since Slice 10 the ledger is in the render path so the
+      equipped item's effects apply live. This slice ADDED a regression guard (`realtime-sync.test.ts`, 5):
+      one channel per character with `broadcast:{self:false}`, the senderId self-ping guard, the refetch-through-
+      the-authed-API on a peer ping (the security property — **sheet data never rides the public channel**, so
+      a broadcast can't leak a private sheet), the post-save ping, and channel teardown on unmount.
 
 ---
 
