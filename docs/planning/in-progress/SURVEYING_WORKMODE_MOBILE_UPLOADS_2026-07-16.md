@@ -300,6 +300,63 @@ is a pure, tested function; the runtime is pure I/O around them.)*
 
 ---
 
+## Area D — Work Mode field toolset (owner directive 2026-07-18)
+
+> Owner, verbatim intent: switch between jobs in Work Mode; a well-formatted **job info header** (property
+> address, property id, customer phone numbers, …) at the top; below it a row of tool buttons — **camera,
+> job files, job instructions, mileage tracker, compass, calculator, ask AI**, plus anything already built
+> in the hub. Straightforward, job-focused, just the tools to get all kinds of surveying jobs done.
+> **Camera** → a screen offering: plain photo/video for the job · a **receipt** photo · a **document for AI**
+> to analyze · (other surveying applications). Captured media → the job file; **receipts also → the financial
+> page**; every image carries **metadata** (time, location, job info, capturing device, who was on the job,
+> and if possible who recorded it). A receipt is **auto-analyzed** and its data saved to financials; a
+> document is analyzed/saved by AI. See **all** the job's screenshots/pdfs/research files. A **job
+> instructions** page the RPLS/manager writes, able to **hyperlink files/documents/images**. A **mileage
+> tracker** (start/end miles + the vehicle used; save/add/delete reusable vehicles; → financials). A
+> **compass** reading azimuth + bearing, flawless + easy to read. A **calculator** — the best-formatted one
+> for surveying: bearings↔azimuths, angle add/subtract, right/complementary angle, trig (law of sines/cosines,
+> Pythagorean), and normal arithmetic; intuitive. An **AI assistant** you can type to OR talk to (voice both ways).
+
+**Consolidation rule (owner):** do NOT build redundancies — combine new ideas into the existing systems and
+refine. Substantial infrastructure already exists to build ON: bearing↔azimuth + DMS
+(`lib/calculators/bearing-azimuth/convert.ts`), scientific trig (`lib/calculators/math.ts`), full calculator
+models (`lib/calculators/models/*`), mileage + vehicles APIs (`app/api/admin/mileage`, `app/api/admin/vehicles`),
+compass (`lib/cad/integrations/compass.ts`), the arithmetic field calc (`lib/jobs/calc.ts`, Area B3), the
+`field_media`/`job_files`/`receipts` upload model, and the mobile upload decision layer (Area C). Each slice
+below states what it reuses.
+
+**Gaps:**
+
+- [x] **D1 — Surveying calculator math (triangle + angle solving). ✅ SHIPPED.** The one genuine gap in the
+      calculator's math (conversion + scientific trig already existed): `lib/surveying/triangle.ts` — angle
+      add/subtract (decimal + DMS, wrapping 360), complement/supplement (validity-guarded), Pythagorean
+      hypotenuse/leg, and law of sines/cosines (side + angle, with the SSA-impossible and triangle-inequality
+      cases returning `null`, never NaN). Reuses the existing `Dms` type + `dmsToDecimal`/`decimalToDms` rather
+      than re-deriving them. Pure + framework-free; `__tests__/surveying/triangle.test.ts` (15 — 3-4-5, 30-60-90,
+      equilateral, and every impossible-input path). *Next: the Work Mode calculator UI wires these + the
+      existing convert/math modules into one surveying-focused keypad.*
+- [ ] **D2 — Work Mode job switcher + job-info header.** A job `<select>` to switch the active job in Work
+      Mode (extends B1's picker) + a formatted header (address via `lib/jobs/location`, property id, tap-to-call
+      numbers via `telHref` for the client + every `job_contacts` phone). Reuse the A1/A2/B2 helpers.
+- [ ] **D3 — Tool launcher row.** The camera / files / instructions / mileage / compass / calculator / ask-AI
+      buttons on the hub, each opening its surface. Consolidate with the existing FieldCrewWorkspace tabs
+      (Photo/Files/Mileage/…) rather than adding a parallel nav.
+- [ ] **D4 — Camera capture modes + metadata.** The capture-intent screen (job photo/video · receipt ·
+      document-for-AI) + the pure metadata-assembly (time/location/job/device/crew/recorder) that stamps every
+      capture. Receipt intent routes to the receipt pipeline (→ financials, auto-analyzed); document intent to
+      AI analysis. Builds on `field_media`/`receipts` + the mobile capture path (Area C).
+- [ ] **D5 — Job instructions page (with file/image hyperlinks).** An RPLS-authored instructions surface that
+      can link `job_files`/`file_nodes` entries. New small table or a `jobs.instructions` rich field.
+- [ ] **D6 — Mileage tracker + reusable vehicles.** Start/end odometer + vehicle picker (save/add/delete),
+      writing to financials — surface the existing `app/api/admin/mileage` + `app/api/admin/vehicles` in Work
+      Mode; extract any pure mileage-delta/validation logic to a tested module.
+- [ ] **D7 — Compass (azimuth + bearing).** A clean compass reading that formats a heading as both azimuth and
+      quadrant bearing (reusing `azimuthToBearing`/`formatBearing`); the device heading source is mobile-runtime.
+- [ ] **D8 — In-Work-Mode AI assistant (text + voice).** Type-or-talk assistant; reuse the existing DnD/library
+      chat + TTS/STT plumbing where possible. Voice I/O is device/runtime-gated (note honestly per slice).
+
+---
+
 ### Sequencing & scope honesty
 A (job tap-to-act — small, high daily value) first; then B (Work Mode hub — the streamlined field
 surface); then C (upload queue refinements on the existing mobile foundation). Area C's background-execution
