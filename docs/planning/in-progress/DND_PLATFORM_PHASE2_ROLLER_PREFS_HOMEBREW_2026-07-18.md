@@ -267,8 +267,16 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       **medieval**) by re-skinning the frame/header/title, with **futuristic** as the default base look (no
       override). Guarded by `dice-style.test.ts`; the contrast guard exempts `[data-dice-style]` (a bespoke
       look like a `.skin-*`). Full suite green (1942). REMAINING D2 (animated 3D tumbling dice) is separate.
+- [x] **D1b — In-tray style selector + auto-open (owner 2026-07-18).** ✅ SHIPPED — the dice tray has a style
+      selector in its header (switch futuristic/rugged/natural/fantasy/medieval right from the roller; a
+      per-session override of the preference), and it auto-opens when a roll is triggered from the sheet while
+      minimized (watches `activeRoll.token`). Guarded by `dice-tray-ux.test.ts`.
 - [ ] **D2 — Animated 3D dice tray.** Real dice-rolling animation (d20/dice tumbling in a tray) — a canvas/
       WebGL or CSS-3D roller. Themeable per D1. Falls back to a static roll on reduced-motion / no-WebGL.
+- [ ] **D4 — Dice rollers get the full template + color-theme customization (owner 2026-07-18).** Each dice
+      roller should be as customizable as the character-sheet templates, incl. the same color-variation themes
+      (ties to Area TH). Currently 5 named styles exist; extend so a roller's palette/skin uses the shared
+      theme-token system the templates use.
 - [ ] **D3 — Tests / visual:** the pure roll result is unchanged by the skin (source-anchored); visual polish
       is in-app.
 
