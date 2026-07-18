@@ -40,8 +40,16 @@ function fighter5(): PF2Character {
 describe('pf2CharacterDigest', () => {
   const d = pf2CharacterDigest(fighter5());
 
-  it('names the character, its build, ancestry and level', () => {
+  it('names the character, its build, ancestry, level, and background', () => {
     expect(d).toMatch(/PATHFINDER 2e CHARACTER: Durgan — Fighter \(Dwarf Rock Dwarf\), level 5/);
+    expect(d).toMatch(/Background: Warrior/);
+    expect(d).not.toMatch(/Deity:/); // the fixture has no deity → clause omitted
+  });
+
+  it('surfaces the DEITY when set (mechanically live in PF2 — anathema/domains/favored weapon)', () => {
+    const cleric = fighter5();
+    cleric.identity = { ...cleric.identity, deity: 'Sarenrae' };
+    expect(pf2CharacterDigest(cleric)).toMatch(/Deity: Sarenrae/);
   });
 
   it('carries the derived DEFENSES from the real rules (AC/HP/saves/perception)', () => {

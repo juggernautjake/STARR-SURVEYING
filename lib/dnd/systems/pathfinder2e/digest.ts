@@ -24,7 +24,10 @@ export function pf2CharacterDigest(pf2: PF2Character): string {
   const anc = [id.ancestry, id.heritage].filter(Boolean).join(' ');
   lines.push(
     `PATHFINDER 2e CHARACTER: ${id.name || 'Unnamed'}${build ? ` — ${build}` : ''}` +
-      `${anc ? ` (${anc})` : ''}, level ${level}.`,
+      `${anc ? ` (${anc})` : ''}, level ${level}.` +
+      // Background gives narrative/context; DEITY is mechanically live in PF2 (anathema, domains, favored
+      // weapon), so a ruling on "does this break your anathema?" needs it. Both omitted when unset.
+      `${id.background ? ` Background: ${id.background}.` : ''}${id.deity ? ` Deity: ${id.deity}.` : ''}`,
   );
 
   // The defenses a ruling turns on ("does the target save?", "does the attack hit your AC?"). HP is

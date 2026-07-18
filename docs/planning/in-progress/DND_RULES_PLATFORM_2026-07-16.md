@@ -688,6 +688,11 @@ now audited and guarded:
       'dnd-5e-2024' typo) → ambiguous (never guesses a rulebook), and a crafted superset ('intuitive-games-x')
       does NOT normalize to a real key (a regression to includes()/startsWith() would mis-route a character to
       the wrong system's rules). Full dnd suite green (1881).
+      **⚑ PF2 digest — background + deity added (2026-07-18):** `pf2CharacterDigest` surfaced
+      class/subclass/ancestry/heritage but not the character's background or DEITY — and deity is mechanically
+      live in PF2 (anathema, domains, favored weapon), so a ruling on "does this break your anathema?" needs
+      it. Now appends "Background: … Deity: …" when set (omitted otherwise). `pf2-digest.test.ts` +2. (Parallel
+      to the same IG digest fix.) Full dnd suite green (1889).
       **Cross-system leak guard added** (`8f34eed9`): `system-conditions-skills-scope.test.ts`
       (8) extends Ground Rule 1 to the condition + skill lists — PF2's Clumsy/Enfeebled/Off-Guard stay out
       of 5e, 5e's Charmed/Restrained out of PF2, IG's Heatstroke + Bluff-not-Deception unique — so a new
