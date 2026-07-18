@@ -40,8 +40,13 @@
 const CHARACTER_SCOPED_PREFIXES = ['set_', 'add_', 'remove_', 'rename_', 'clear_', 'update_', 'move_', 'append_', 'define_', 'tag_', 'equip_'];
 
 /** Words that, appearing in an op name, would signal a write reaching OUTSIDE the target
- *  character's own sheet — a boundary violation. */
-const FORBIDDEN_OP_TERMS = ['page', 'campaign', 'map', 'user', 'character_', 'other', 'site', 'route', 'file', 'global'];
+ *  character's own sheet — a boundary violation. Includes privilege-escalation-shaped terms
+ *  (role/permission/auth/…) so an op that LOOKS like it grants access or touches credentials is
+ *  refused even with a valid set_/add_/update_ prefix — defense-in-depth behind the server-side
+ *  `requireCharacterWrite` that is the primary boundary. (No real sheet-edit op contains these:
+ *  `add_power`/`set_defensive_power` carry "power", never "permission" — verified by the
+ *  every-vocabulary-is-scoped test that runs this over the real op enums.) */
+const FORBIDDEN_OP_TERMS = ['page', 'campaign', 'map', 'user', 'character_', 'other', 'site', 'route', 'file', 'global', 'role', 'permission', 'auth', 'password', 'credential', 'secret'];
 
 /** Throw if any op in the given list is not strictly character-sheet-scoped. Used by the
  *  Slice 8b boundary test against the real `edit_sheet` op enum, so the guardrail is

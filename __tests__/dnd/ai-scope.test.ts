@@ -48,6 +48,16 @@ describe('AI permission boundary (Slice 8b)', () => {
     expect(() => assertCharacterScopedOps(['add_feature'])).not.toThrow();
   });
 
+  it('refuses privilege-escalation-shaped op names even with a valid prefix (defense-in-depth)', () => {
+    // Secondary to server-side requireCharacterWrite, but the naming guard should still refuse an op that
+    // LOOKS like it grants access or touches credentials despite a set_/add_/update_ prefix.
+    for (const op of ['set_role', 'add_permission', 'update_password', 'set_auth_provider', 'add_credential', 'set_secret']) {
+      expect(() => assertCharacterScopedOps([op]), `${op} should be refused`).toThrow();
+    }
+    // …and a real sheet op that merely CONTAINS an adjacent word still passes (add_power ≠ permission).
+    expect(() => assertCharacterScopedOps(['add_power', 'set_defensive_power'])).not.toThrow();
+  });
+
   it('applying edits only ever yields a Character (never a foreign resource)', () => {
     const base = blankCharacter('Test');
     const out = applySheetEdits(base, [

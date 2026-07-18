@@ -411,6 +411,14 @@ vocabulary — and `ai-scope.ts`'s own doc still claimed `edit_sheet` was "the o
 the IG + layout tools shipped). Both fixed: `ai-scope.test.ts` now asserts ALL THREE vocabularies pass the
 scoping check (all do — no live violation), and the boundary doc lists all three. So the security boundary
 can't silently lapse for the IG or layout surface as it did in coverage. `ai-scope.test.ts` +1.
+**Privilege-escalation naming terms added (2026-07-18):** `FORBIDDEN_OP_TERMS` caught page/campaign/map/user/
+file/global reaches but NOT privilege-shaped op names — `set_role`, `add_permission`, `update_password`,
+`set_auth_provider`, `add_credential`, `set_secret` all start with a scoped prefix and contained no forbidden
+term, so they'd have passed the naming heuristic. Added `role`/`permission`/`auth`/`password`/`credential`/
+`secret` (defense-in-depth behind the primary server-side `requireCharacterWrite`); verified no real op
+collides (`add_power`/`set_defensive_power` carry "power", never "permission" — the every-vocabulary-scoped
+test proves it). `ai-scope.test.ts` +1 (privilege-shaped ops refused; real power ops still pass). Full dnd
+suite green (1869).
 
 - [x] **`add_spell` / `remove_spell` ✅ SHIPPED 2026-07-17.** The AI could rename or item-grant spells but
       not add/remove them directly. Added both to the edit vocabulary + the AI tool schema (full spell
