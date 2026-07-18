@@ -271,6 +271,29 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
 - [ ] **D3 — Tests / visual:** the pure roll result is unchanged by the skin (source-anchored); visual polish
       is in-app.
 
+### Area TR — Character transpose UX + AI custom-content build (owner 2026-07-17)
+> Owner intent: when transposing a character into another system, show an **animation/confirmation** that it's
+> working, then a clear **"done" notification**. If custom content is allowed for that character OR its
+> campaign (incl. campaigns it's been invited to), first **prompt**: "OK for the AI to create custom content
+> to make this character work in the new system?" If yes, the AI (a) reads the WHOLE target system first,
+> (b) builds the character with the vanilla system as far as possible, (c) creates balanced custom
+> classes/ancestries/feats/stances/spells/abilities only where needed to preserve the character's
+> vibe/persona/abilities, and (d) validates every custom piece against the system's mechanics + balance before
+> committing (as close to the system's mechanics as possible).
+
+- [ ] **TR1 — Transpose progress + completion UX.** `SystemSwitcher` transpose action shows an in-progress
+      animation/state while the AI builds, then an obvious success notification (with a summary of what was
+      built vanilla vs custom). Wire to the existing transpose route's lifecycle.
+- [ ] **TR2 — Custom-content consent prompt.** Before an AI transpose, if custom is allowed for the character
+      or its campaign (respect `allow_custom` + DM grants + invited campaigns), prompt the user to approve the
+      AI creating custom content. Default off/ask; a "vanilla-only best effort" path when declined.
+- [ ] **TR3 — Read-system-first + balanced custom build.** The transpose prompt to the AI must (a) load the
+      full target-system grounding first, (b) prefer vanilla, (c) generate custom elements only as needed and
+      run each through a balance/mechanics check vs the system before finalizing, (d) preserve the character's
+      persona/abilities. Attribute any custom content to the AI + flag it (provenance) so a DM can review.
+- [ ] **TR4 — Tests:** consent gating (custom allowed vs not), the build reads the system grounding, custom
+      pieces are provenance-flagged, and the vanilla-first fallback when consent is declined.
+
 ### Area T — IG class taxonomy (bounded data restructure)
 - [ ] **T1 — Restructure to the site's real taxonomy:** 4 parent classes (Archon / Conduit / Fighter /
       Wizard) each with subclasses (Archon → Beastmaster/Eldritch Binder/Packmaster/Summoner; Conduit →
