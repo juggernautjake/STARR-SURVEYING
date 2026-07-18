@@ -272,6 +272,24 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
 - [ ] **D3 — Tests / visual:** the pure roll result is unchanged by the skin (source-anchored); visual polish
       is in-app.
 
+### Area HIDE — Hide the non-playable systems site-wide (owner 2026-07-18)
+> Owner: only four systems are ready — D&D 2024, D&D 2014, Pathfinder 2e, Intuitive Games. Every other system
+> (PF1e, Starfinder, CoC7e, Blades, Cyberpunk RED, Shadowrun 6e) must be **fully hidden** everywhere — pages,
+> buttons, mentions, transpose targets, builders. KEEP the code/data, just hide. The library shows "more
+> systems + their character-sheet builders coming soon" in their place.
+
+- [x] **HIDE1 — Library.** ✅ SHIPPED — `allLibraryPages()` filters to `isSystemAvailable`; the per-system
+      library page 404s for non-playable keys; `generateStaticParams` only emits playable keys; the index
+      shows a "◆ More systems coming soon" card. Guarded by `library.test.ts`.
+- [ ] **HIDE2 — Character builder / New Character.** The system picker (`NewCharacterForm`) offers ONLY the
+      four; no under-construction option is selectable.
+- [ ] **HIDE3 — System switcher / transpose.** `SystemSwitcher` only lists the four as build/transpose
+      targets; a hidden system can't be a transpose destination.
+- [ ] **HIDE4 — Campaign + everywhere else.** `NewCampaignButton` + any other surface that lists/mentions a
+      system filters to available; sweep for stray mentions.
+- [ ] **HIDE5 — Guards/tests:** a source/behaviour test that no surface enumerates a non-available system;
+      the "coming soon" copy is present.
+
 ### Area TR — Character transpose UX + AI custom-content build (owner 2026-07-17)
 > Owner intent: when transposing a character into another system, show an **animation/confirmation** that it's
 > working, then a clear **"done" notification**. If custom content is allowed for that character OR its
