@@ -85,6 +85,12 @@ overwrite a deliberate design.
       *Detail: `DND_RULES_PLATFORM` Slice 29.*
 - [ ] **Form-editor UI** (author an arbitrary foreign statblock as a form) — the only heavier half of
       transform left; `Forms.tsx` is display+toggle today. *Detail: Slice 18.*
+- [ ] **PF2 general conditions + focus points (model + UI).** The PF2 sidecar tracks only the dying/wounded
+      death track — not general conditions (Frightened/Clumsy/Off-Guard, which carry real numeric penalties)
+      or focus points (for focus spells). `PF2Sheet` has no condition UI and the model has no field, so a
+      Frightened PF2 character's −2 is untracked and invisible to the AI. Adding it is feature work (a PF2
+      condition/focus model + sheet controls + the digest line, which is ready to receive it). Surfaced by
+      the 2026-07-18 digest-completeness sweep.
 - [ ] **In-app roller for the bespoke sheets — PF2 AND Intuitive Games (a product call + UI work).** The
       D&D 5e sheet rolls checks/attacks/saves/damage in-app with a dice tray that AUTO-APPLIES its mechanics
       (e.g. exhaustion −2/level folds into every roll). The two bespoke sheets are display-only:
@@ -188,6 +194,17 @@ overflow/exactly-empty/base-floor), PF2 MAP + spell-slot progression, currency e
 fail-safe default.
 
 ### Third pass (2026-07-18, this session) — findings + hardening
+
+**AI-adjudication surface COMPLETED across all three systems.** A cross-system symmetry sweep of the three
+character digests (the fact-blocks the librarian rules from) found several real blind spots and closed them,
+so the AI can now resolve any check / save / attack end-to-end in 5e, IG, or PF2: every digest now carries
+the character's **identity** (incl. background/deity/alignment), **raw abilities/attributes** (a bare STR
+check reads these), **defenses** (+ PF2 speed — positioning-critical), **skills**, and **attacks/strikes with
+resolved to-hit AND damage** (IG had no attacks line at all; PF2 strikes had no damage). The one remaining
+asymmetry — PF2 general conditions (Frightened/Clumsy) + focus points — is a MODEL gap, not a digest gap:
+they aren't in the `pf2e` sidecar (PF2 tracks only the dying/wounded death track today), so surfacing them
+needs a PF2 condition/focus model + UI first (feature work). Guards: `ig-digest.test.ts`, `pf2-digest.test.ts`,
+`character-digest.test.ts`.
 
 **Real bug FIXED — consumed-buff snapshot aliasing.** `planConsume`'s buff branch returned its effects
 array BY REFERENCE, and `Inventory.consume` spreads the seed (shallow), so a running `ActiveEffect` aliased
