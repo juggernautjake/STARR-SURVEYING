@@ -9,11 +9,15 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { igCharacterDigest } from '@/lib/dnd/systems/intuitive-games/digest';
-import { blankIGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
+import { blankIGCharacter, blankIGCompanion } from '@/lib/dnd/systems/intuitive-games/model';
 
 function fixture() {
   const ig = blankIGCharacter('Brannor');
   ig.identity = { ...ig.identity, level: 6, className: 'Fighter', subclass: 'Champion', ancestry: 'Dwarf' };
+  ig.abilities = { ...ig.abilities, CON: 14 };
+  ig.combat.hitPoints = { classBackgroundHp: 40, nonlethal: 3, lethal: 8 };
+  ig.combat.damageReduction = 2;
+  ig.combat.saves = { Fortitude: { rank: 2, misc: 0 }, Reflex: { rank: 1, misc: 0 }, Will: { rank: 0, misc: 0 } };
   ig.combat.stances = ['Offensive'];
   ig.combat.conditions = ['Shaken', 'Prone'];
   ig.combat.defensivePower = 'Sidestep';
@@ -51,6 +55,25 @@ describe('igCharacterDigest', () => {
     expect(d).toMatch(/DEFENSIVE POWER: Sidestep/);
     expect(d).toMatch(/FEATS: .*Endurance.*Weapon Focus/);
     expect(d).toMatch(/POWERS: .*Elemental Blast/);
+  });
+
+  it('states DEFENSES — current/max HP (with nonlethal), DR, and the three resolved saves', () => {
+    // The numbers a ruling turns on. maxHp = 40 bg + CON mod 2 × level 6 = 52; currentHp = 52 − 8 lethal = 44.
+    // Saves = rank + proficiency(=level 6) + governing-ability mod: Fort 2+6+2, Ref 1+6+0, Will 0+6+0.
+    expect(d).toMatch(/DEFENSES: HP 44\/52 \(3 nonlethal\)/);
+    expect(d).toMatch(/DR 2/);
+    expect(d).toMatch(/Saves Fort \+10, Ref \+7, Will \+6/);
+  });
+
+  it('surfaces the companion creature when the character has one (a whole second combatant)', () => {
+    const ig = fixture();
+    ig.companion = { ...blankIGCompanion('Rukh', 'Dire Wolf'), hitPoints: 33, movement: '50 ft' };
+    const dc = igCharacterDigest(ig);
+    expect(dc).toMatch(/COMPANION: Rukh \(Dire Wolf, HP 33, 50 ft\)/);
+  });
+
+  it('omits the COMPANION line when there is none (no empty scaffolding)', () => {
+    expect(d).not.toMatch(/COMPANION:/); // the base fixture has companion = null
   });
 
   it('surfaces the ancestry TRAITS with their full IG text (a darkvision ruling needs them, not just "Dwarf")', () => {

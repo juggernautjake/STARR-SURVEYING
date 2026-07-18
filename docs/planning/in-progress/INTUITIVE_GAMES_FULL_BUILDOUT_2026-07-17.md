@@ -349,7 +349,15 @@ expanded requirements (2026-07-17):
       "ANCESTRY TRAITS (<name>): <trait> — <text> · …" line drawn ONLY from `IG_ANCESTRIES` (`findIGAncestry`);
       an unknown/custom ancestry adds nothing (Ground Rule 2 — never invented). So "can you see in the dark?"
       is now adjudicated from the character's own ancestry. `ig-digest.test.ts` +2 (Dwarf's traits surface;
-      a homebrew ancestry adds no line). Full dnd suite green (1848). **Remaining:**
+      a homebrew ancestry adds no line). Full dnd suite green (1848).
+      **⚑ DEFENSES + COMPANION NOW IN THE DIGEST (2026-07-18):** the digest carried the character's dynamic
+      state (stance/conditions/feats/powers) but omitted the DEFENSIVE NUMBERS a ruling turns on — so the
+      librarian couldn't answer "am I still up?" or "do I make the Reflex save?" and was blind to a whole
+      COMPANION combatant. Added a `DEFENSES:` line (current/max HP with nonlethal, DR, and the three saves
+      Fort/Ref/Will — all resolved by `igDerived`/rules.ts, not re-derived) and a `COMPANION:` line
+      (name + type + HP + movement) shown only when `ig.companion` is set. Pure IG math, no invention.
+      `ig-digest.test.ts` +3 (the resolved HP/DR/save numbers; a companion surfaces; none → no line). Full
+      dnd suite green (1855). **Remaining:**
       the machine-readable effect model that the SHEET applies (B4/B5 mechanics).
 - [~] **B1 — Ancestry/traits in the builder + sheet.** IG ancestries selectable in the builder; the sheet
       renders each ancestry's full traits (from A5) with per-trait tooltips; size/speed-changing traits reflect

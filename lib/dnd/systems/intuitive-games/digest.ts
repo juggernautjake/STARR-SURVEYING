@@ -11,6 +11,9 @@
 import type { IGCharacter } from './model';
 import { igConditionSummary, igStanceMechanicNote } from './modifiers';
 import { findIGAncestry } from './content';
+import { igDerived } from './rules';
+
+const sgn = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
 
 /** A compact, adjudication-focused summary of an IG character's current mechanical state. */
 export function igCharacterDigest(ig: IGCharacter): string {
@@ -30,6 +33,16 @@ export function igCharacterDigest(ig: IGCharacter): string {
   if (ancestry?.traits.length) {
     lines.push(`ANCESTRY TRAITS (${ancestry.name}): ${ancestry.traits.map((t) => `${t.name} — ${t.text}`).join(' · ')}`);
   }
+
+  // DEFENSES — the numbers a ruling turns on, resolved by rules.ts: current/max HP (IG tracks lethal and
+  // nonlethal damage separately), damage reduction, and the three saves (Fortitude/Reflex/Will). Without
+  // these the librarian couldn't answer "am I still up?" or "do I make the Reflex save?" for the character.
+  const der = igDerived(ig);
+  const nonlethal = Number(ig.combat.hitPoints?.nonlethal) || 0;
+  const dr = Number(ig.combat.damageReduction) || 0;
+  const hp = `HP ${der.currentHp}/${der.maxHp}${nonlethal ? ` (${nonlethal} nonlethal)` : ''}`;
+  const saves = `Fort ${sgn(der.saves.Fortitude)}, Ref ${sgn(der.saves.Reflex)}, Will ${sgn(der.saves.Will)}`;
+  lines.push(`DEFENSES: ${hp} · DR ${dr} · Saves ${saves}`);
 
   // Active stance — one at a time. Its mechanical effect (advantage/disadvantage/DR/bonus) is exactly what
   // a ruling turns on, so state the resolved note, not just the name.
@@ -53,6 +66,14 @@ export function igCharacterDigest(ig: IGCharacter): string {
   const feats = [...(ig.feats?.general ?? []), ...(ig.feats?.combat ?? [])];
   if (feats.length) lines.push(`FEATS: ${feats.join(', ')}`);
   if (ig.powers?.length) lines.push(`POWERS: ${ig.powers.join(', ')}`);
+
+  // Companion creature (Beastmaster's beast, Summoner's elemental, …) — a whole second combatant the AI
+  // would otherwise never see. State its type + HP so a ruling knows the companion is on the field.
+  const comp = ig.companion;
+  if (comp) {
+    const bits = [comp.creatureType, `HP ${comp.hitPoints}`, comp.movement].filter(Boolean);
+    lines.push(`COMPANION: ${comp.name || 'Unnamed'}${bits.length ? ` (${bits.join(', ')})` : ''}`);
+  }
 
   return lines.join('\n');
 }
