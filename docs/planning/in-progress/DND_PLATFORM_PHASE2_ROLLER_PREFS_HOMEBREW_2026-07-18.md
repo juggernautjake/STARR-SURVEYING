@@ -60,8 +60,13 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
       (removes lethal first, then nonlethal) — pure, immutable, clamped. Wired into the AI tool schema (`amount`
       +`nonlethal` props, enum auto-updated) + the tool instruction, and the character-scope guard now accepts
       the `apply_`/`heal` HP verbs. Golden-pinned (`ig-edit.test.ts` +5; ig-ai + ai-scope parity updated).
-      REMAINING: audit `applySheetEdits` (5e — already the richest) + the PF2 edit path for any editable field
-      the AI can't reach.
+      **PF2 in-play edit path CREATED ✅** — PF2 had a build/picks tool but NO in-place edit at all. New pure
+      `lib/dnd/systems/pathfinder2e/edit.ts` (`applyPf2Edit`): `apply_damage` (temp HP soaked first, floors at 0,
+      and dropping to 0 sets Dying = 1 + Wounded per PF2), `heal` (caps at max; regaining HP clears Dying),
+      `set_temp_hp`, `set_dying` (0–4), `set_wounded` — all pure/immutable, handling the `0 = full` stored-HP
+      convention via the death track. Exposed as the `edit_pf2_sheet` AI tool (same parser). Golden-pinned
+      (`pf2-edit.test.ts`, 6). REMAINING: wire `edit_pf2_sheet` into the live chat route (persists `data.pf2e`)
+      — needs the route/browser; and a spot-audit of the 5e `applySheetEdits` (already the richest path).
 - [ ] **SQ5 — Per-system verification** — a browser/QA pass per system (the memory-documented Slice-40
       walkthrough): build a character, exercise the sheet + AI edit + read, fix correctness + styling bugs.
 

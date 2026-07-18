@@ -8,6 +8,7 @@ import type { PF2AttributeKey } from './model';
 import { PF2_ATTRIBUTES } from './model';
 import { pf2Catalog } from './catalog';
 import { systemRulesBlock } from '../../system-rules';
+import { PF2_EDIT_OPS, parsePf2Edit, type PF2Edit } from './edit';
 
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.map(str).filter(Boolean) : []);
@@ -75,6 +76,29 @@ export const PF2_PICKS_TOOL = {
     required: ['name'],
   },
 };
+
+// ── In-play edit tool (Area SQ4) — change ONE thing on a PF2 character in place (HP + the death track), the
+//    PF2 counterpart of edit_ig_sheet. Reuses the pure parser so the AI can never emit an edit the manual path
+//    wouldn't accept. ──────────────────────────────────────────────────────────────────────────────────────
+export const PF2_EDIT_TOOL = {
+  name: 'edit_pf2_sheet',
+  description:
+    "Change ONE thing on a Pathfinder 2e character's sheet in place: apply damage (apply_damage with `amount` — soaked by temp HP first, floors at 0), heal (heal with `amount` — regaining HP while Dying clears Dying), set temporary HP (set_temp_hp with `amount`, 0 clears), or set the death track (set_dying with `value` 0–4 where 4 = dead; set_wounded with `value`, 0 clears).",
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      op: { type: 'string', enum: [...PF2_EDIT_OPS], description: 'The edit operation.' },
+      amount: { type: 'integer', minimum: 0, description: 'For apply_damage / heal / set_temp_hp: how many HP.' },
+      value: { type: 'integer', minimum: 0, description: 'For set_dying (0–4) / set_wounded: the track value.' },
+    },
+    required: ['op'],
+  },
+};
+
+/** Turn an AI tool call into a validated PF2Edit (or an error). Same parser the API route uses. */
+export function parsePF2EditToolCall(raw: unknown): { edit: PF2Edit } | { error: string } {
+  return parsePf2Edit(raw);
+}
 
 /** The grounding system prompt: PF2 rules + the vanilla catalog so an AI build matches the real system. */
 export function pf2BuilderSystemPrompt(): string {
