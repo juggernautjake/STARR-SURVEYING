@@ -23,3 +23,18 @@ describe('pf2-edit route (SQ4)', () => {
     expect(route).toContain("change: describePf2Edit(parsed.edit)");
   });
 });
+
+describe('ai-edit route dispatches edit_pf2_sheet (SQ4)', () => {
+  const SRC = readFileSync(join(process.cwd(), 'app/api/dnd/characters/[id]/ai-edit/route.ts'), 'utf8');
+  it('offers edit_pf2_sheet only for PF2 characters and applies it to data.pf2e', () => {
+    expect(SRC).toMatch(/isPF2 \? \[PF2_EDIT_TOOL\] : \[\]/); // tool added only when PF2
+    expect(SRC).toContain("result?.name === 'edit_pf2_sheet'");
+    expect(SRC).toContain('parsePF2EditToolCall(result.input)');
+    expect(SRC).toContain('applyPf2Edit(pf2Data as PF2Character, parsed.edit)');
+    expect(SRC).toContain('pf2e: nextPf2');
+    expect(SRC).toContain("field_path: `pf2:${parsed.edit.op}`"); // audited to dnd_sheet_edits
+  });
+  it('instructs the AI it can now change PF2 HP + the death track in play', () => {
+    expect(SRC).toMatch(/call edit_pf2_sheet: apply_damage \/ heal/);
+  });
+});

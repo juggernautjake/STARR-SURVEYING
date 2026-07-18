@@ -69,9 +69,12 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
       (the counterpart to `ig-edit`): write-gated at the character chokepoint (`requireCharacterWrite`), guards
       the PF2 sidecar, runs the same validated `parsePf2Edit` + pure `applyPf2Edit`, and persists only
       `data.pf2e` — so the manual sheet AND the AI's `edit_pf2_sheet` tool go through one endpoint
-      (`pf2-edit-route.test.ts`, 3). REMAINING: dispatch `edit_pf2_sheet` from the AI chat loop (the tool +
-      endpoint both exist; only the chat-route tool-call handler needs the PF2 branch) — and a spot-audit of the
-      5e `applySheetEdits` (already the richest path).
+      (`pf2-edit-route.test.ts`, 3). **AI chat-loop dispatch wired ✅** — the `ai-edit` route now offers
+      `edit_pf2_sheet` in its toolset for PF2 characters, instructs the AI it can change HP + the death track,
+      and dispatches a returned call through `parsePF2EditToolCall` → `applyPf2Edit` → persists `data.pf2e` +
+      audits to `dnd_sheet_edits` (mirroring the IG branch exactly). **PF2 now has full AI-edit parity with IG.**
+      `pf2-edit-route.test.ts` +2. REMAINING for SQ4: a spot-audit of the 5e `applySheetEdits` (already the
+      richest path — it edits every mechanical field).
 - [ ] **SQ5 — Per-system verification** — a browser/QA pass per system (the memory-documented Slice-40
       walkthrough): build a character, exercise the sheet + AI edit + read, fix correctness + styling bugs.
 

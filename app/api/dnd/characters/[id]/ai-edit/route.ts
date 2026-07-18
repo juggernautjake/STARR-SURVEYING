@@ -24,6 +24,8 @@ import { isIGCharacter, type IGCharacter } from '@/lib/dnd/systems/intuitive-gam
 import { igCharacterDigest } from '@/lib/dnd/systems/intuitive-games/digest';
 import { isPF2Character, type PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { pf2CharacterDigest } from '@/lib/dnd/systems/pathfinder2e/digest';
+import { PF2_EDIT_TOOL, parsePF2EditToolCall } from '@/lib/dnd/systems/pathfinder2e/ai';
+import { applyPf2Edit, describePf2Edit } from '@/lib/dnd/systems/pathfinder2e/edit';
 
 // Routing hint so the agent picks the right tool: mechanics → edit_sheet, look/layout →
 // customize_layout. Both only ever touch THIS character (Slice 8b).
@@ -99,9 +101,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const rawData = (row.data ?? {}) as Record<string, unknown>;
   const igData = rawData.ig;
   const isIG = normalizeSystem((row as { system?: string }).system) === 'intuitive-games' && isIGCharacter(igData);
-  // Pathfinder 2e keeps its own sidecar at data.pf2e; the edit AI can't edit its mechanics incrementally
-  // (there's no pf2-edit tool — PF2 is built via the builder), but it should SEE the character's PF2 state
-  // so base edits (name, notes) are informed, the same way the adjudication chat route does.
+  // Pathfinder 2e keeps its own sidecar at data.pf2e; the AI SEES its state (digest) and can now change it in
+  // place via edit_pf2_sheet (HP + the dying/wounded death track), the PF2 counterpart of edit_ig_sheet.
   const pf2Data = rawData.pf2e;
   const isPF2 = isPF2Character(pf2Data);
 
@@ -126,7 +127,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // customize_layout for LAYOUT/STYLING of the custom sheet (Slice 12: add/remove/move/
     // resize/restyle blocks, set CSS). Both are scoped to this one character (Slice 8b).
     result = await dndToolCall<{ summary?: string; edits: unknown[] }>({
-      system: [SYSTEM, LAYOUT_ROUTING, isIG ? igEditToolInstruction() : null, grounding?.instruction].filter(Boolean).join('\n\n'),
+      system: [SYSTEM, LAYOUT_ROUTING, isIG ? igEditToolInstruction() : null,
+        isPF2 ? 'To change this Pathfinder 2e character in play, call edit_pf2_sheet: apply_damage / heal (with `amount`), set_temp_hp, or the death track set_dying (0–4) / set_wounded. Use it for HP + death-track changes; use edit_sheet for everything else.' : null,
+        grounding?.instruction].filter(Boolean).join('\n\n'),
       user: [
         `Current sheet:\n${sheetDigest(current)}`,
         // The FULL IG state (stance + its effect, conditions + the computed penalty, defensive power, feats,
@@ -142,7 +145,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         grounding?.block || null,
         `Instruction: ${instr}`,
       ].filter(Boolean).join('\n\n'),
-      tools: [SHEET_EDIT_TOOL, LAYOUT_EDIT_TOOL, UNDO_TOOL, ...(isIG ? [IG_EDIT_TOOL] : [])],
+      tools: [SHEET_EDIT_TOOL, LAYOUT_EDIT_TOOL, UNDO_TOOL, ...(isIG ? [IG_EDIT_TOOL] : []), ...(isPF2 ? [PF2_EDIT_TOOL] : [])],
       toolChoice: { type: 'auto' },
       maxTokens: 4096,
       temperature: 0.4,
@@ -193,6 +196,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       source: 'ai', summary: describeIgEdit(parsed.edit),
     }).then(() => {}, () => {});
     return NextResponse.json({ ok: true, kind: 'ig-edit', summary: describeIgEdit(parsed.edit), stances: nextIg.combat.stances, conditions: nextIg.combat.conditions });
+  }
+
+  // ── Pathfinder 2e incremental edit (edit_pf2_sheet → applyPf2Edit on data.pf2e) ───────
+  if (result?.name === 'edit_pf2_sheet') {
+    if (!isPF2) return NextResponse.json({ error: 'This character has no Pathfinder 2e sheet to edit.' }, { status: 400 });
+    const parsed = parsePF2EditToolCall(result.input);
+    if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    const nextPf2 = applyPf2Edit(pf2Data as PF2Character, parsed.edit);
+    const { error: pf2Err } = await supabaseAdmin.from('dnd_characters').update({ data: { ...rawData, pf2e: nextPf2 } }).eq('id', params.id);
+    if (pf2Err) return NextResponse.json({ error: pf2Err.message }, { status: 500 });
+    await supabaseAdmin.from('dnd_sheet_edits').insert({
+      character_id: params.id, editor_user_id: session.userId, is_dm: isDM,
+      field_path: `pf2:${parsed.edit.op}`, old_value: null, new_value: null, scope: 'permanent',
+      source: 'ai', summary: describePf2Edit(parsed.edit),
+    }).then(() => {}, () => {});
+    return NextResponse.json({ ok: true, kind: 'pf2-edit', summary: describePf2Edit(parsed.edit), currentHp: nextPf2.combat.currentHp, dyingValue: nextPf2.combat.dyingValue });
   }
 
   const editsRaw = result?.input?.edits;
