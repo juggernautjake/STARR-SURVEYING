@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest';
 import { libraryPageFor, allLibraryPages, searchLibrary, taglineFor } from '@/lib/dnd/library';
 import { GAME_SYSTEMS } from '@/lib/dnd/systems';
 import { rulesForSystem } from '@/lib/dnd/system-rules';
+import { igPowersNotInRoster } from '@/lib/dnd/systems/intuitive-games/content';
 
 describe('library pages', () => {
   it('builds a page for every PLAYABLE system (under-construction systems are hidden site-wide)', () => {
@@ -532,8 +533,10 @@ describe('Intuitive Games powers, defensive powers, and actions surface on the l
     expect(ids).toContain('actions');
     const powers = page.sections.find((s) => s.id === 'powers')!;
     const blast = powers.entries!.find((e) => e.name === 'Elemental Blast');
-    expect(blast?.brief).toBe('Evocation'); // school is the brief teaser
-    expect(blast?.detail).toMatch(/ranged elemental attack/i); // full effect on expand
+    // Elemental Blast is one of the 9 powers we carry that aren't on the current site roster (IGP2) — the
+    // school is the brief teaser, now with the off-roster label appended.
+    expect(blast?.brief).toBe('Evocation · not on the current site roster');
+    expect(blast?.detail).toMatch(/ranged elemental attack/i); // full effect still on expand
     const actions = page.sections.find((s) => s.id === 'actions')!;
     expect(actions.table!.rows.find((r) => /Stride/.test(r[0]))?.[1]).toBe('1 action');
   });
@@ -667,5 +670,24 @@ describe('Intuitive Games conditions carry full rules text (IG buildout A4)', ()
   it('IG condition text does not leak into another system', () => {
     // "heatstroke" is an IG condition; a 5e search must not surface it as a condition.
     expect(searchLibrary('heatstroke', 'dnd5e-2024').some((h) => h.kind === 'condition')).toBe(false);
+  });
+});
+
+describe('IG off-roster powers are clearly labelled in the library (IGP2)', () => {
+  it('labels powers we carry that are not on the current site roster, and keeps them (not dropped)', () => {
+    const off: string[] = igPowersNotInRoster();
+    const powers = libraryPageFor('intuitive-games')!.sections.find((s) => s.id === 'powers')!;
+    if (off.length === 0) {
+      // if the site roster ever fully covers our powers, there's simply nothing to flag — still valid
+      expect(powers.entries!.every((e) => !/not on the current site roster/.test(e.brief ?? ''))).toBe(true);
+      return;
+    }
+    const offEntry = powers.entries!.find((e) => e.name.trim().toLowerCase() === off[0].trim().toLowerCase())!;
+    expect(offEntry.brief).toMatch(/not on the current site roster/);
+    expect(offEntry.detail).toMatch(/pending reconcile/);
+    // the piece is still present (kept, not dropped)
+    expect(powers.entries!.some((e) => e.name === off[0])).toBe(true);
+    // and the section summarises the count
+    expect(powers.body!.some((b) => /NOT on the current site roster/.test(b))).toBe(true);
   });
 });

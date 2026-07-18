@@ -541,9 +541,15 @@ This is the "form editor" the owner clarified: a full **create-and-share** syste
 ### Area IGP — IG power effect texts (content; hook up what exists, flag Brendan's gap)
 - [ ] **IGP1 — Hook up every power with effect text** end-to-end (already largely done: grounding + library +
       sheet). Ensure the full `IG_SPELL_ROSTER` is offered everywhere with WIP markers where text is pending.
-- [ ] **IGP2 — The 9 off-roster powers:** owner delegated the decision — plan: keep them under a clearly
-      labeled **"Powers · not on the current site roster"** subsection (attributed as such) rather than
-      dropping them, so nothing Jack's characters use silently disappears; reconcile if the site adds/renames.
+- [x] **IGP2 — The 9 off-roster powers.** ✅ SHIPPED (owner-delegated decision executed) — the library's
+      Powers & Spells section now LABELS each of the 9 powers we carry that aren't on the current
+      intuitivegames.net spell-list roster (Mage Armor, Misdirection, Life Connection, Companion Shield,
+      Material Shield, Detect Thoughts, Elemental Blast, Piercing Element, Wide Blast): the brief gets
+      "· not on the current site roster", the detail opens with a ⚑ "kept, pending reconcile" note, and the
+      section summarises the count. They are KEPT (Jack's characters use some), not dropped, so nothing silently
+      disappears; reconciled if the site adds/renames them. Golden-pinned (`library.test.ts`, IGP2 block +
+      existing power test updated). The builder catalog already grouped them ("Powers · Unlisted"); the library
+      now matches. tsc + eslint clean; full dnd suite green (2118).
 - [ ] **IGP3 — Missing 26 power effect texts:** these still need Brendan's verbatim text (Ground Rule 2 — never
       invented). Owner may paste them; until then they render with the honest WIP marker. *(Not blocked on me
       inventing — blocked on the source text.)*

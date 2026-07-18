@@ -22,7 +22,7 @@ import { browseHomebrew } from './homebrew/model';
 import { HOMEBREW_SEEDS } from './homebrew/seeds';
 import { IG_CLASS_TAXONOMY, igAllTaxonomyClasses } from './systems/intuitive-games/taxonomy';
 import { IG_WEAPON_RULES, IG_WEAPON_CLASS_DATA, IG_WEAPON_PROPERTIES, IG_ARMOR_RULES, IG_ARMORS, IG_SHIELD_RULES, IG_SHIELDS, IG_EQUIPMENT_PACKS, IG_EQUIPMENT_NOTE, IG_TOOL_RULES, IG_MAGIC_ITEM_RULES, IG_ENCHANTMENTS } from './systems/intuitive-games/items';
-import { IG_SKILL_RULES, IG_COMBAT_SKILL_RULES, IG_COMBAT_SKILLS, IG_BUILD_STEPS, IG_PROGRESSION_NOTE, IG_DAMAGE_SAVE_RULES, IG_DAMAGE_TYPE_DATA, IG_COVER, IG_MOVEMENT_RULES, IG_SIZE_CATEGORIES, IG_SIZE_NOTE, IG_SPELL_ROSTER, igSpellsMissingEffects } from './systems/intuitive-games/content';
+import { IG_SKILL_RULES, IG_COMBAT_SKILL_RULES, IG_COMBAT_SKILLS, IG_BUILD_STEPS, IG_PROGRESSION_NOTE, IG_DAMAGE_SAVE_RULES, IG_DAMAGE_TYPE_DATA, IG_COVER, IG_MOVEMENT_RULES, IG_SIZE_CATEGORIES, IG_SIZE_NOTE, IG_SPELL_ROSTER, igSpellsMissingEffects, igPowersNotInRoster } from './systems/intuitive-games/content';
 
 /** The full feat registry for a system, or [] when only a catalog sample exists. System-keyed
  *  dispatcher (the pattern `findFeat`'s comment calls for) so a feat never leaks across systems. */
@@ -563,20 +563,30 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
     // table for the ones we have text for; spells still awaiting Brendan's verbatim effect text are flagged.
     const rosterLines = Object.entries(IG_SPELL_ROSTER).map(([school, names]) => `${school}: ${names.join(', ')}.`);
     const missing = igSpellsMissingEffects();
+    // Powers we carry effect text for that are NOT on the current site spell-list roster (Area IGP2) — owner-
+    // delegated: keep them (Jack's characters use some), but LABEL them clearly rather than presenting them as
+    // roster spells, so nothing silently drifts. Reconciled if the site later adds/renames them.
+    const offRoster = new Set(igPowersNotInRoster().map((n) => n.trim().toLowerCase()));
     sections.push({
       id: 'powers',
       title: 'Powers & Spells',
       lead: `${igPowers.length} powers with full effect text across ${new Set(igPowers.map((p) => p.category)).size} schools — tap a power for its effect. The complete site roster (all schools) is listed below; each site spell has Description/Advanced/Expert tiers.`,
-      entries: igPowers.map((p) => ({
-        name: p.name,
-        brief: p.category ?? undefined,
-        detail: p.effect ?? '—',
-      })),
+      entries: igPowers.map((p) => {
+        const isOff = offRoster.has(p.name.trim().toLowerCase());
+        return {
+          name: p.name,
+          brief: [p.category, isOff ? 'not on the current site roster' : null].filter(Boolean).join(' · ') || undefined,
+          detail: isOff
+            ? `⚑ Not on the current intuitivegames.net spell-list roster (kept for characters that use it; pending reconcile).\n\n${p.effect ?? '—'}`
+            : (p.effect ?? '—'),
+        };
+      }),
       body: [
         'Complete spell roster from intuitivegames.net/spell-list:',
         ...rosterLines,
         missing.length ? `Awaiting verbatim effect text from the site/Brendan (${missing.length}): ${missing.join(', ')}.` : 'All roster spells have effect text.',
-      ],
+        offRoster.size ? `${offRoster.size} powers we carry are NOT on the current site roster (labelled "not on the current site roster" above) — kept, not dropped, pending Brendan's reconcile.` : null,
+      ].filter((x): x is string => !!x),
     });
   }
   const igDef = igDefensivePowersFor(key);
