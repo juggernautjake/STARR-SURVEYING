@@ -121,7 +121,13 @@ term fully defined. One slice per site section; each fetches the page, transcrib
       grounding + search paths (a separate consolidated term index would be dead code: the sheet uses bespoke
       `findIG*` tooltips, the AI uses grounding, and search already indexes every entry). No further work — the
       pipeline this item defines is what every other Area-A slice used.
-- [x] **A1 — Core Rules** (`/core-rules`) — ✅ SHIPPED. The core resolution, action economy, saves, and
+- [x] **A1 — Core Rules** (`/core-rules`) — ✅ SHIPPED. **⚑ Degree-of-success clamps pinned (2026-07-18):**
+      `igDegreeOfSuccess` (the core IG resolution — crit-succ/succ/fail/crit-fail by ±10, a nat 20 shifts up
+      one degree / a nat 1 down one) was tested for the middle steps but NOT the crit-boundary clamps — a
+      missing `min(3,…)`/`max(0,…)` would index the degree array out of range to `undefined`. `ig-rules.test.ts`
+      +1 pins the full ladder + both clamps (nat 20 on a crit-success stays crit; nat 1 on a crit-failure
+      stays crit-fail; success→crit-success, failure→crit-failure). Full dnd suite green (1865).
+      The core resolution, action economy, saves, and
       ability model were already in the library (from `system-rules.ts`); this slice adds the remaining
       `/core-rules` mechanics as a **Damage, cover & movement** section (`content.ts`): the damage **Fortitude
       save** (DC = total HP lost; degree-by-degree action loss), the 6 **damage types** (DR/incorporeal

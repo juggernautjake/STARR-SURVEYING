@@ -54,6 +54,17 @@ describe('IG rules math (full-sheet Slice 2)', () => {
     expect(igDegreeOfSuccess(14, 15, 20)).toBe('success');       // nat 20 lifts failure → success
   });
 
+  it('a natural 20/1 shifts exactly ONE degree and CLAMPS at the ends (no out-of-bounds degree)', () => {
+    // The step-shift ladder + its bounds — the crit-boundary clamps that a missing min(3,…)/max(0,…) would
+    // break, indexing the degree array out of range to `undefined`. nat 20 lifts each rung but never past
+    // critical-success; nat 1 drops each but never below critical-failure.
+    expect(igDegreeOfSuccess(16, 15, 20)).toBe('critical-success'); // success → crit-success
+    expect(igDegreeOfSuccess(25, 15, 20)).toBe('critical-success'); // already crit — clamps, not beyond
+    expect(igDegreeOfSuccess(14, 15, 1)).toBe('critical-failure');  // failure → crit-failure
+    expect(igDegreeOfSuccess(5, 15, 1)).toBe('critical-failure');   // already crit-fail — clamps at 0
+    expect(igDegreeOfSuccess(15, 15, 20)).toBe('critical-success'); // exactly meets DC (success) → crit on nat 20
+  });
+
   it('max HP = Class+Background HP + CON mod × level; derived summary is coherent', () => {
     const c = blankIGCharacter('Tank'); c.identity.level = 3; c.abilities.CON = 16; // +3
     c.combat.hitPoints.classBackgroundHp = 20;
