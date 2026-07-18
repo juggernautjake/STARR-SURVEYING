@@ -569,8 +569,15 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       **VANILLA/CUSTOM** badge, and (when the character has >1 sheet) an "Active sheet: {name}" line, so it's
       always clear which sheet is live. Custom variants' invented elements remain provenance-flagged via the
       existing approval/provenance path. Guarded by `mv-route.test.ts`.
-- [ ] **MV4 — Tests:** two variants coexist for one system; switching preserves both; naming (custom +
-      default); back-compat with single-variant data.
+- [x] **MV4 — Tests.** ✅ SHIPPED (verified 2026-07-18) — all four clauses are pinned in
+      `system-variants.test.ts`: **two variants coexist for one system** ("readVariants + listSheets support
+      TWO sheets for the same system (slot-keyed)" — active + two dnd5e-2024 slots = 3); **switching preserves
+      both** ("switchToSlot swaps to a specific slot, snapshotting the active back (round-trip)" + the lossless-
+      reversible switch test); **naming (custom + default)** (explicit name "By the book" vs. auto default
+      "…· Custom-built", plus the labels/default-names test). This slice ADDED the missing **back-compat**
+      clause: a legacy single-sheet character (empty variants map) now has a test proving `listSheets` returns
+      exactly its one active sheet — flagged active, `active:`-slot-marked, correctly auto-named — so the
+      switcher shows one real chip, never a phantom/broken slot. **Area MV tests complete.**
 
 ### Area T — IG class taxonomy (bounded data restructure)
 - [x] **T1 — Restructure to the site's real taxonomy.** ✅ CANONICAL TAXONOMY SHIPPED — `lib/dnd/systems/

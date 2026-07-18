@@ -105,6 +105,16 @@ describe('multi-slot listing (Area MV1b)', () => {
     expect(variantSystemOf({ data: {}, sheet_type: 'default', system: 'dnd5e-2024' }, 'dnd5e-2024#custom')).toBe('dnd5e-2024');
   });
 
+  // MV4 back-compat: a legacy character predating multi-variant data has just its one active sheet and NO
+  // variants map. listSheets must return exactly that one sheet — flagged active, correctly named, with the
+  // `active:` slot marker — so the switcher shows a single real chip and never a phantom/broken slot.
+  it('back-compat: a single-sheet character (empty variants) lists exactly its one active sheet', () => {
+    const sheets = listSheets(active, readVariants(undefined), label); // readVariants(undefined) → {}
+    expect(sheets).toHaveLength(1);
+    expect(sheets[0]).toMatchObject({ system: 'dnd5e-2024', active: true, slotId: 'active:dnd5e-2024' });
+    expect(sheets[0].name).toBe('D&D 5e (2024) · Vanilla'); // auto-named from the label + default kind
+  });
+
   it('readVariants + listSheets support TWO sheets for the same system (slot-keyed)', () => {
     // a slot-keyed map: two dnd5e-2024 sheets (vanilla + custom) under distinct slot ids
     const raw = {
