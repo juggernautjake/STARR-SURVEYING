@@ -318,9 +318,10 @@ categories) and Epic Boon remain.
       split was spot-checked (Common/Draconic std, Abyssal/Undercommon rare); now the full 10-standard /
       9-rare lists are pinned, catching the 2024-specific tells a regression would hit — Orc is now STANDARD
       (Rare/different in 2014) and Common Sign Language is a new Standard entry. Correct.
-- [~] Wire into the level builder: an ASI choice offers real feats with prerequisites checked ✅
+- [x] Wire into the level builder: an ASI choice offers real feats with prerequisites checked ✅
       (see the rules-legal feat granting note above); character creation offers backgrounds/species —
-      **species picker ✅ + background picker ✅ SHIPPED (commit pending)**. **Rules-legal
+      **species picker ✅ + background picker ✅ SHIPPED** (all sub-parts below shipped + tested; verified
+      done 2026-07-18). **Rules-legal
       background application core ✅ SHIPPED:** `lib/dnd/backgrounds/apply.ts`
       (`validateAbilityAssignment` / `backgroundGrants` / `applyAbilityIncreases`) enforces the 2024
       +2/+1-or-+1/+1/+1 spread across only the background's three abilities, and returns the feat +
