@@ -45,6 +45,16 @@ describe('IG rules math (full-sheet Slice 2)', () => {
     expect(igResolveAttack(c, atk).damage).toBe('2d6+6');
   });
 
+  it('a ranged/non-STR attack adds its ability to the to-HIT but NOT to damage (only STR melee does)', () => {
+    // The `strMelee ? abilityMod : 0` branch: a DEX bow's +3 reaches the attack roll but never the damage —
+    // so a regression that added the ability to ALL damage would over-count ranged/finesse weapons.
+    const c = blankIGCharacter('Archer'); c.identity.level = 4; c.abilities.DEX = 16; // +3
+    const bow = { id: 'b', name: 'Longbow', weaponType: 'Ranged', properties: '', proficient: true, weaponFocus: false, weaponSpecialization: false, ability: 'DEX' as const, bonusToHit: 0, bonusDamage: 0, damage: '1d8' };
+    expect(igAttackBonus(bow, 4, igAbilityMod(c.abilities.DEX))).toBe(7); // DEX(+3) + proficiency(4)
+    expect(igDamageBonus(bow, igAbilityMod(c.abilities.DEX))).toBe(0);    // ranged → no ability mod to damage
+    expect(igResolveAttack(c, bow).damage).toBe('1d8');                   // bare die, no bonus appended
+  });
+
   it('degrees of success (±10, nat 20 up / nat 1 down)', () => {
     expect(igDegreeOfSuccess(25, 15)).toBe('critical-success'); // beat by 10
     expect(igDegreeOfSuccess(16, 15)).toBe('success');
