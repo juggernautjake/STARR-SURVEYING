@@ -21,6 +21,8 @@ import type { Effect } from '@/app/dnd/_sheet/engine/effects';
 import { findTarget, describeEffect } from './targets';
 import { findSpecies } from '@/lib/dnd/species/dnd5e-2024';
 import { speciesEffects } from '@/lib/dnd/species/apply';
+import { exhaustionSpeedFactor, exhaustionHpMaxFactor, type Edition } from '@/lib/dnd/mechanics/exhaustion';
+import type { ExhaustionModel } from '@/lib/dnd/preferences';
 
 export type SourceKind =
   | 'item' // worn/equipped gear
@@ -109,6 +111,10 @@ export interface LedgerContext {
    *  different things across games (Ground Rule 1), so species mechanics only apply when this is the
    *  matching system. Omitted → no species source (safe default: a bare character is unchanged). */
   system?: string;
+  /** The effective exhaustion model (Area M1). Omitted → 'vanilla' (per-edition RAW). With the 2014 edition
+   *  + vanilla, exhaustion halves/zeroes Speed by tier and halves max HP at tier 4; otherwise it's −5 ft/level
+   *  and no HP change. */
+  exhaustionModel?: ExhaustionModel;
 }
 
 const isEquipped = (i: InvItem) => i.equipped === true || i.tags?.includes('equipped') === true;
@@ -202,16 +208,35 @@ export function collectSources(char: Character, ctx: LedgerContext = {}): Ledger
     }
   }
 
-  // Exhaustion (2024): each level is −5 ft Speed. The d20 −2/level penalty is applied at roll time
-  // (store.rollCheck), but Speed is a stored/derived number, so model it as a condition source here —
-  // then the Combat panel's Speed reflects it and the ★ explains "Exhaustion N: −5N ft". Only when
-  // exhausted; at 0 it contributes nothing (no false marker on a fresh sheet).
+  // Exhaustion Speed + HP tiers (Area M1c). The d20 −2/level (or 2014 tiered disadvantage) is applied at roll
+  // time (store.rollCheck); Speed and max HP are stored/derived numbers, so model them as a condition source
+  // here so the Combat panel reflects them and the ★ explains the source. Edition + model decide the shape:
+  //   · 2024 / the flat option → −5 ft Speed per level; HP max untouched.
+  //   · 2014 vanilla → Speed halved at tiers 2–4 and 0 at tier 5+ (a computed `add`); max HP halved at tier 4+.
+  // Only when exhausted, and only non-zero effects are added (no false marker on a fresh sheet).
   const exhaustion = char.combat?.exhaustion ?? 0;
   if (exhaustion > 0) {
-    base = [...base, {
-      id: 'exhaustion', kind: 'condition', name: `Exhaustion ${exhaustion}`,
-      effects: [{ target: 'speed_walk', operation: 'add', value: -5 * exhaustion }],
-    }];
+    const edition: Edition = ctx.system?.includes('2014') ? '2014' : '2024';
+    const model: ExhaustionModel = ctx.exhaustionModel ?? 'vanilla';
+    const baseSpeed = char.combat?.speed ?? 30;
+    const exhEffects: Effect[] = [];
+    if (model === 'flat-2-per-level' || edition === '2024') {
+      exhEffects.push({ target: 'speed_walk', operation: 'add', value: -5 * exhaustion });
+    } else {
+      // 2014 tiered: express the Speed factor as an `add` down to the halved/zero value, and halve max HP.
+      const factor = exhaustionSpeedFactor(exhaustion, edition, model);
+      const speedPenalty = -(baseSpeed - Math.floor(baseSpeed * factor));
+      if (speedPenalty !== 0) exhEffects.push({ target: 'speed_walk', operation: 'add', value: speedPenalty });
+      const hpFactor = exhaustionHpMaxFactor(exhaustion, edition, model);
+      if (hpFactor < 1) {
+        const baseHp = char.combat?.maxHp ?? 0;
+        const hpPenalty = -(baseHp - Math.floor(baseHp * hpFactor));
+        if (hpPenalty !== 0) exhEffects.push({ target: 'hp_max', operation: 'add', value: hpPenalty });
+      }
+    }
+    if (exhEffects.length) {
+      base = [...base, { id: 'exhaustion', kind: 'condition', name: `Exhaustion ${exhaustion}`, effects: exhEffects }];
+    }
   }
 
   // The ACTIVE form's effects (Slice 15/25) — a Titan form's +STR, a beast form's fly speed. The
