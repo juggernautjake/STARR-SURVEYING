@@ -47,9 +47,12 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
       companion. **Gap found + fixed:** POWERS were listed by NAME only — a ruling on "how does my power work?"
       needs the effect (the AI can't recall a bespoke IG power from its name), exactly like stances/conditions/
       defensive-powers already do. Powers now carry their `IG_POWERS` effect text; an unknown/custom power stays
-      name-only (Ground Rule 2 — never invented). `ig-digest.test.ts` +1 & strengthened. REMAINING: the same
-      audit pass over the 5e `characterDigest` + `pf2CharacterDigest` (both already rich; a spot-audit for any
-      name-only component is the follow-up).
+      name-only (Ground Rule 2 — never invented). `ig-digest.test.ts` +1 & strengthened. **PF2 digest audited
+      + fixed ✅** — `pf2CharacterDigest` carried identity/defenses/attributes/status/offense/strikes/skills but
+      was MISSING the character's **FEATS** (now listed with their body text — a ruling on "what does your feat
+      do?" needs it, and it's on-sheet content the AI can't recall from a name) and **SENSES** (darkvision etc.
+      — a visibility ruling turns on them); both added (`pf2-digest.test.ts` +2). REMAINING: a spot-audit of the
+      5e `characterDigest` (already the richest — attacks/features/spells/effects all resolved).
 - [ ] **SQ4 — AI edits every component** — the AI edit path (`applySheetEdits` / `applyIgEdit` / PF2 edits)
       can change every editable field on each system's sheet, rules-scoped. Audit coverage + fill gaps.
 - [ ] **SQ5 — Per-system verification** — a browser/QA pass per system (the memory-documented Slice-40

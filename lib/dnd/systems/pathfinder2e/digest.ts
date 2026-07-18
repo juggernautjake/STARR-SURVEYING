@@ -84,5 +84,20 @@ export function pf2CharacterDigest(pf2: PF2Character): string {
     );
   }
 
+  // FEATS / features the character has taken, WITH their text (SQ3) — a ruling on "what does your <feat> do?"
+  // needs the body, which lives on the SHEET (the AI can't recall a specific PF2 feat's exact text from its
+  // name, and it's the character's own chosen content, not a bare system lookup). Grouped by track + level.
+  if (pf2.feats?.length) {
+    lines.push(
+      `FEATS: ${pf2.feats
+        .map((f) => `${f.name} (${f.track}${f.level ? ` L${f.level}` : ''})${f.body ? ` — ${f.body}` : ''}`)
+        .join(' · ')}`,
+    );
+  }
+
+  // Special senses (darkvision, low-light) — a visibility ruling ("can you see them in the dark?") turns on
+  // these, exactly as the IG digest surfaces ancestry senses.
+  if (pf2.senses?.length) lines.push(`SENSES: ${pf2.senses.join(', ')}.`);
+
   return lines.join('\n');
 }

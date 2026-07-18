@@ -123,3 +123,23 @@ describe('pf2CharacterDigest', () => {
     expect(route).toContain('pf2CharacterDigest(pf2Data as PF2Character)');
   });
 });
+
+describe('pf2CharacterDigest — feats + senses reach the AI (SQ3)', () => {
+  it('lists the character’s feats WITH their body text, and its senses', () => {
+    const c = fighter5();
+    c.feats = [
+      { id: 'f1', name: 'Power Attack', level: 1, track: 'class', traits: ['flourish'], body: 'Make a melee Strike with a penalty to a single attack, dealing extra damage.' },
+      { id: 'f2', name: 'Intimidating Glare', level: 2, track: 'skill', traits: [], body: 'Demoralize with a glare instead of speech.' },
+    ];
+    c.senses = ['Darkvision'];
+    const d = pf2CharacterDigest(c);
+    expect(d).toMatch(/FEATS: Power Attack \(class L1\) — Make a melee Strike/);
+    expect(d).toMatch(/Intimidating Glare \(skill L2\) — Demoralize/);
+    expect(d).toMatch(/SENSES: Darkvision\./);
+  });
+  it('omits the FEATS/SENSES lines when the character has none (no empty scaffolding)', () => {
+    const d = pf2CharacterDigest(fighter5()); // fixture has feats: [] and no senses
+    expect(d).not.toMatch(/FEATS:/);
+    expect(d).not.toMatch(/SENSES:/);
+  });
+});
