@@ -969,13 +969,34 @@ select.input {
     animation: none;
   }
 }
-.siteNav {
-  /* Always hug the right edge, even on pages where the back button (the only other in-flow item)
-     renders nothing — otherwise a lone nav would slide left. */
+/* The nav collapses into a <details> dropdown on mobile (MOB1). The <details> wrapper hugs the right edge;
+   on desktop its summary is hidden and the nav panel below shows inline as a bar. */
+.siteMenu {
   margin-left: auto;
+  position: relative;
+}
+.siteMenuToggle {
+  /* Hidden on desktop — the nav shows inline. Becomes the hamburger toggle on mobile (media query below). */
+  display: none;
+}
+.siteMenuToggle::-webkit-details-marker,
+.siteMenuToggle::marker {
+  display: none;
+  content: '';
+}
+.siteNav {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+/* Author `display:flex` on the panel overrides the UA "closed <details> hides its children" rule, so on
+   desktop the nav bar is always visible regardless of the (irrelevant, hidden-toggle) open state. */
+.siteNavUser {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--hx-muted);
 }
 .siteNavLink {
   font-size: 12px;
@@ -1124,5 +1145,75 @@ select.input {
      when it's the row's only/!main action; rows with multiple controls still wrap. */
   .brand {
     font-size: 10.5px;
+  }
+
+  /* ── Header (MOB1): collapse the nav into a tap-to-open dropdown ─────────────────────────── */
+  .siteHeader {
+    padding: 8px 12px;
+  }
+  /* Keep the centered brand from colliding with the back button + menu toggle on a narrow screen:
+     drop the flanking diamond clusters and shrink the wordmark. */
+  .siteBrandCluster {
+    display: none;
+  }
+  .siteBrandText {
+    font-size: 13px;
+    letter-spacing: 0.08em;
+  }
+  .siteMenuToggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+    list-style: none;
+    padding: 7px 11px;
+    border: 1px solid var(--hx-line);
+    border-radius: 5px;
+    background: rgba(10, 200, 185, 0.06);
+    color: var(--hx-gold-3);
+    font-size: 13px;
+    max-width: 46vw;
+  }
+  /* The signed-in name on the toggle truncates instead of pushing the toggle off-screen. */
+  .siteMenuLabel {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .siteNav {
+    /* Dropdown panel: absolutely positioned under the toggle, hidden until the <details> is open. */
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    min-width: 210px;
+    max-width: 82vw;
+    padding: 8px;
+    background: linear-gradient(180deg, rgba(9, 20, 40, 0.99), rgba(9, 20, 40, 0.97));
+    border: 1px solid var(--hx-gold-0);
+    border-radius: 7px;
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55);
+    z-index: 60;
+    display: none;
+  }
+  .siteMenu[open] .siteNav {
+    display: flex;
+  }
+  .siteNavLink {
+    padding: 10px 12px;
+    font-size: 13.5px;
+    border-radius: 4px;
+  }
+  /* Signed-in row: stack the name over a full-width Log out, set off from the links above. */
+  .siteNavUser {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 9px;
+    margin-top: 5px;
+    padding: 9px 12px 4px;
+    border-top: 1px solid var(--hx-line);
+    font-size: 13px;
   }
 }

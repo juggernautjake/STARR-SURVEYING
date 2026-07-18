@@ -146,9 +146,14 @@ This is the "form editor" the owner clarified: a full **create-and-share** syste
 The header and many elements don't work on phones. Make the library, ALL character sheets, login, character
 building, campaign control, and every page look and work well on mobile as well as desktop.
 
-- [ ] **MOB1 — Responsive header (first).** Collapse the nav into a mobile dropdown/hamburger menu; show the
-      signed-in user's name and a working log-out; no overflow/overlap on narrow widths. Keep the desktop
-      header intact.
+- [x] **MOB1 — Responsive header (first).** ✅ SHIPPED — `DndHeader.tsx` now wraps the nav in a native
+      `<details>`/`<summary>` (stays a server component, zero client JS). Desktop: the summary/hamburger is
+      `display:none` and the nav shows inline as before. Mobile (≤640px): the nav collapses behind a
+      "☰ {name}" toggle that opens a right-anchored dropdown, so the signed-in name is visible without
+      opening and Log out sits one tap inside; the centered brand drops its diamond clusters + shrinks so it
+      can't collide with the back button/toggle. **Verified in a real browser at 1200px and 375px** — desktop
+      nav visible with `<details>` closed (author `display:flex` overrides the UA closed-hide), mobile shows
+      the toggle + hidden nav, open reveals the dropdown. Guarded by `header-responsive.test.ts`.
 - [ ] **MOB2 — Library page mobile pass.** Tables/section grids/galleries reflow + scroll within their own
       container (no page-level horizontal scroll); tap targets sized for touch.
 - [x] **MOB2b — Collapsible library sections (owner 2026-07-18).** ✅ SHIPPED — every system-library section

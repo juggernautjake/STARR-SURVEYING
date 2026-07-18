@@ -28,38 +28,48 @@ export default function DndHeader({ userName }: { userName?: string | null }) {
           <span>◆</span>
         </span>
       </Link>
-      <nav className={styles.siteNav}>
-        <Link href="/dnd" className={styles.siteNavLink}>
-          Lobby
-        </Link>
-        {/* The rules library — every system's classes, subclasses, features, conditions and rules,
-            searchable and AI-navigable. Given a top-level nav slot so it's always one click away. */}
-        <Link href="/dnd/library" className={styles.siteNavLink}>
-          Library
-        </Link>
-        <Link href="/dnd/characters/new" className={styles.siteNavLink}>
-          ＋ Character
-        </Link>
-        {/* Start a campaign (become its DM, invite players). Only for signed-in users — a campaign
-            needs an owner. Opens the campaigns dashboard with the New Campaign form ready. */}
-        {userName && (
-          <Link href="/dnd?new=campaign" className={styles.siteNavLink}>
-            ＋ Campaign
-          </Link>
-        )}
-        {userName ? (
-          <span className={styles.siteNavUser} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ opacity: 0.85 }}>
-              Signed in as <strong>{userName}</strong>
-            </span>
-            <LogoutButton />
-          </span>
-        ) : (
+      {/* Collapsible nav (MOB1). Native <details> so this stays a server component with no client JS:
+          on desktop the summary/hamburger is hidden and the nav shows inline as a bar; on a phone the nav
+          collapses behind a "☰ {name}" toggle that opens as a dropdown — so the user's name is visible
+          without opening, and Log out lives one tap inside. */}
+      <details className={styles.siteMenu}>
+        <summary className={styles.siteMenuToggle} aria-label="Menu">
+          <span aria-hidden>☰</span>
+          <span className={styles.siteMenuLabel}>{userName || 'Menu'}</span>
+        </summary>
+        <nav className={styles.siteNav}>
           <Link href="/dnd" className={styles.siteNavLink}>
-            Sign in
+            Lobby
           </Link>
-        )}
-      </nav>
+          {/* The rules library — every system's classes, subclasses, features, conditions and rules,
+              searchable and AI-navigable. Given a top-level nav slot so it's always one click away. */}
+          <Link href="/dnd/library" className={styles.siteNavLink}>
+            Library
+          </Link>
+          <Link href="/dnd/characters/new" className={styles.siteNavLink}>
+            ＋ Character
+          </Link>
+          {/* Start a campaign (become its DM, invite players). Only for signed-in users — a campaign
+              needs an owner. Opens the campaigns dashboard with the New Campaign form ready. */}
+          {userName && (
+            <Link href="/dnd?new=campaign" className={styles.siteNavLink}>
+              ＋ Campaign
+            </Link>
+          )}
+          {userName ? (
+            <span className={styles.siteNavUser}>
+              <span style={{ opacity: 0.85 }}>
+                Signed in as <strong>{userName}</strong>
+              </span>
+              <LogoutButton />
+            </span>
+          ) : (
+            <Link href="/dnd" className={styles.siteNavLink}>
+              Sign in
+            </Link>
+          )}
+        </nav>
+      </details>
     </header>
   );
 }
