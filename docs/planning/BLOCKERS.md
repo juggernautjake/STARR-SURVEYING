@@ -85,12 +85,17 @@ overwrite a deliberate design.
       *Detail: `DND_RULES_PLATFORM` Slice 29.*
 - [ ] **Form-editor UI** (author an arbitrary foreign statblock as a form) — the only heavier half of
       transform left; `Forms.tsx` is display+toggle today. *Detail: Slice 18.*
-- [ ] **PF2 general conditions + focus points (model + UI).** The PF2 sidecar tracks only the dying/wounded
-      death track — not general conditions (Frightened/Clumsy/Off-Guard, which carry real numeric penalties)
-      or focus points (for focus spells). `PF2Sheet` has no condition UI and the model has no field, so a
-      Frightened PF2 character's −2 is untracked and invisible to the AI. Adding it is feature work (a PF2
-      condition/focus model + sheet controls + the digest line, which is ready to receive it). Surfaced by
-      the 2026-07-18 digest-completeness sweep.
+- [ ] **PF2 general conditions + focus points (bespoke-sheet UI + mechanical model).** The `pf2e` sidecar
+      tracks only the dying/wounded death track — not general conditions (Frightened/Clumsy/Off-Guard, which
+      carry real numeric penalties) or focus points. **Correction (verified 2026-07-18):** conditions are NOT
+      fully invisible to the AI — a PF2 character has a base `Character` too, so the AI CAN set them via
+      `edit_sheet` `add_condition` (→ `combat.conditions`) and they DO reach the librarian via the base
+      `characterDigest` CONDITIONS line. What's genuinely missing: (1) the **bespoke `PF2Sheet` has no
+      condition UI**, so a player viewing it can't see/manage conditions (they live on the base model,
+      unrendered on the PF2 sheet), and (2) there's **no PF2-specific mechanical penalty model** (Frightened
+      2 → −2, with PF2's "status penalties don't stack — highest wins" rule) — the AI applies it from RAW, but
+      the sheet doesn't compute/display it. Focus points aren't modeled at all. Feature work; needs eyes on
+      the PF2 sheet + RAW confirmation on the penalty-stacking rules.
 - [ ] **In-app roller for the bespoke sheets — PF2 AND Intuitive Games (a product call + UI work).** The
       D&D 5e sheet rolls checks/attacks/saves/damage in-app with a dice tray that AUTO-APPLIES its mechanics
       (e.g. exhaustion −2/level folds into every roll). The two bespoke sheets are display-only:
@@ -201,9 +206,10 @@ so the AI can now resolve any check / save / attack end-to-end in 5e, IG, or PF2
 the character's **identity** (incl. background/deity/alignment), **raw abilities/attributes** (a bare STR
 check reads these), **defenses** (+ PF2 speed — positioning-critical), **skills**, and **attacks/strikes with
 resolved to-hit AND damage** (IG had no attacks line at all; PF2 strikes had no damage). The one remaining
-asymmetry — PF2 general conditions (Frightened/Clumsy) + focus points — is a MODEL gap, not a digest gap:
-they aren't in the `pf2e` sidecar (PF2 tracks only the dying/wounded death track today), so surfacing them
-needs a PF2 condition/focus model + UI first (feature work). Guards: `ig-digest.test.ts`, `pf2-digest.test.ts`,
+asymmetry — PF2 general conditions (Frightened/Clumsy) + focus points — is NOT a digest gap: conditions set
+on the base `Character` (e.g. by the AI's `edit_sheet add_condition`) already reach the librarian via
+`characterDigest`. What's missing is the bespoke `PF2Sheet` UI to see/manage them + a PF2-specific numeric
+penalty model (see §C for the corrected scope). Guards: `ig-digest.test.ts`, `pf2-digest.test.ts`,
 `character-digest.test.ts`.
 
 **Real bug FIXED — consumed-buff snapshot aliasing.** `planConsume`'s buff branch returned its effects
