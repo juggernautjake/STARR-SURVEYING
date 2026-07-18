@@ -99,5 +99,9 @@ export function pf2CharacterDigest(pf2: PF2Character): string {
   // these, exactly as the IG digest surfaces ancestry senses.
   if (pf2.senses?.length) lines.push(`SENSES: ${pf2.senses.join(', ')}.`);
 
+  // Languages — a social / exploration ruling ("can you read this inscription?", "do you understand them?")
+  // turns on which languages the character knows. PF2 grants them from ancestry + background + INT.
+  if (pf2.languages?.length) lines.push(`LANGUAGES: ${pf2.languages.join(', ')}.`);
+
   return lines.join('\n');
 }

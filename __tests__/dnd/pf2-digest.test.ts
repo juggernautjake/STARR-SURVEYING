@@ -143,3 +143,12 @@ describe('pf2CharacterDigest — feats + senses reach the AI (SQ3)', () => {
     expect(d).not.toMatch(/SENSES:/);
   });
 });
+
+describe('pf2CharacterDigest — languages (SQ3 completeness)', () => {
+  it('lists the character’s languages when it has any, omits the line otherwise', () => {
+    const c = fighter5(); c.languages = ['Common', 'Dwarven', 'Draconic'];
+    expect(pf2CharacterDigest(c)).toMatch(/LANGUAGES: Common, Dwarven, Draconic\./);
+    const none = fighter5(); none.languages = [];
+    expect(pf2CharacterDigest(none)).not.toMatch(/LANGUAGES:/);
+  });
+});
