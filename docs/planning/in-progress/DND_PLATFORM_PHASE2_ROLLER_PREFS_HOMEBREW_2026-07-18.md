@@ -398,6 +398,15 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       be deleted); the switcher chips get an inline **✎ rename** (any sheet) and a **✕ delete** (non-active,
       with a confirm). Golden-pinned. REMAINING (minor): route a custom-consented TRANSPOSE to ADD a slot
       rather than overwrite the system's sheet.
+      **MV UI overhaul ✅ SHIPPED (owner 2026-07-18: "make the add-sheet / system-select / name UI better,
+      more appealing, more intuitive").** New hextech module classes: `.sheetAddCard` (a framed, animated
+      gold-tinted mini-form) with **labelled fields** (`.sheetFieldLabel`) — a Game-system `<select>`, an
+      optional Sheet-name input (dynamic placeholder + Enter-to-create), and a **segmented Vanilla | Custom
+      control** (`.segmented`/`.segment`, replacing the cramped 2-item dropdown) with a one-line explainer of
+      each choice and a clear "＋ Create sheet" primary. The sheet chips became `.sheetChip`/`.sheetChipActive`
+      cards with `.kindPill` badges and round `.chipIcon` rename/delete buttons (active chip = teal border +
+      dot, no more text clutter). All reuse existing `--hx-*` tokens + the shared `.input`. Golden-pinned
+      (mv-route +1: card/labels/segmented/aria-pressed); contrast guard + full dnd suite green (2041).
 - [x] **MV3 — Labels on the sheet + provenance.** ✅ SHIPPED — the switcher header shows the active sheet's
       **VANILLA/CUSTOM** badge, and (when the character has >1 sheet) an "Active sheet: {name}" line, so it's
       always clear which sheet is live. Custom variants' invented elements remain provenance-flagged via the

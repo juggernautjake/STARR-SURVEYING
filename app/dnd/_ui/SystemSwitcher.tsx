@@ -161,63 +161,90 @@ export default function SystemSwitcher({
 
           {/* Your sheets (Area MV2c) — every sheet the character holds, each switchable; add a new one. */}
           {sheets.length > 0 && (
-            <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
+            <div style={{ display: 'grid', gap: 9, marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                 <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--hx-teal-1)' }}>Your sheets</span>
-                <button type="button" className={styles.hexBtn} style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => setAdding((a) => !a)} disabled={!!busy}>
+                <button type="button" className={`${styles.hexBtn} ${adding ? '' : styles.hexBtnPrimary}`} style={{ padding: '4px 12px', fontSize: 12 }} onClick={() => setAdding((a) => !a)} disabled={!!busy}>
                   {adding ? '× Cancel' : '＋ Add sheet'}
                 </button>
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
                 {sheets.map((sh) => editingSlot === sh.slotId ? (
                   // Inline rename (Area MV).
-                  <span key={sh.slotId} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: '1px solid var(--hx-gold-1)', borderRadius: 8, padding: '2px 4px' }}>
+                  <span key={sh.slotId} className={styles.sheetChip} style={{ borderColor: 'var(--hx-gold-1)' }}>
                     <input autoFocus value={editSlotName} onChange={(e) => setEditSlotName(e.target.value)} placeholder="Sheet name" maxLength={60}
                       onKeyDown={(e) => { if (e.key === 'Enter') slotAction(sh.slotId, { action: 'rename', name: editSlotName }); if (e.key === 'Escape') setEditingSlot(null); }}
-                      style={{ width: 130, fontSize: 12, padding: '3px 6px', background: 'rgba(1,10,19,0.6)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }} />
-                    <button type="button" className={styles.hexBtn} style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => slotAction(sh.slotId, { action: 'rename', name: editSlotName })} disabled={!!busy}>Save</button>
-                    <button type="button" className={styles.hexBtn} style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => setEditingSlot(null)}>×</button>
+                      className={`${styles.input} ${styles.sheetControl}`} style={{ width: 150 }} />
+                    <button type="button" className={styles.chipIcon} title="Save name" onClick={() => slotAction(sh.slotId, { action: 'rename', name: editSlotName })} disabled={!!busy}>✓</button>
+                    <button type="button" className={styles.chipIcon} title="Cancel" onClick={() => setEditingSlot(null)}>×</button>
                   </span>
                 ) : (
-                  <span key={sh.slotId} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, border: sh.active ? '2px solid var(--hx-teal-1)' : '1px solid var(--hx-line)', background: sh.active ? 'rgba(10,200,185,0.14)' : 'transparent', borderRadius: 8, padding: '2px 4px 2px 8px' }}>
+                  <span key={sh.slotId} className={`${styles.sheetChip} ${sh.active ? styles.sheetChipActive : ''}`}>
                     <button
                       type="button"
                       disabled={sh.active || !!busy}
                       onClick={() => !sh.active && switchSlot(sh.slotId)}
                       title={sh.active ? 'The active sheet' : `Switch to “${sh.name}”`}
-                      style={{ background: 'none', border: 'none', color: 'var(--hx-text)', cursor: sh.active || busy ? 'default' : 'pointer', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 2px' }}
+                      className={styles.sheetChipMain}
                     >
-                      {sh.name}
-                      <span style={{ fontSize: 9.5, color: sh.kind === 'custom' ? 'var(--hx-gold-2)' : 'var(--hx-muted)', border: '1px solid currentColor', borderRadius: 4, padding: '0 4px' }}>
+                      {sh.active && <span aria-hidden style={{ fontSize: 8, color: 'var(--hx-teal-1)' }}>●</span>}
+                      <span style={{ fontWeight: sh.active ? 600 : 400 }}>{sh.name}</span>
+                      <span className={`${styles.kindPill} ${sh.kind === 'custom' ? styles.kindCustom : styles.kindVanilla}`}>
                         {sh.kind === 'custom' ? 'CUSTOM' : 'VANILLA'}
                       </span>
-                      {sh.active && <span style={{ fontSize: 9.5, color: 'var(--hx-teal-1)' }}>● ACTIVE</span>}
                       {busy === sh.slotId && <span style={{ fontSize: 10 }}>…</span>}
                     </button>
                     {/* Rename any sheet; delete only a non-active one (switch away first). */}
-                    <button type="button" title="Rename this sheet" onClick={() => { setEditingSlot(sh.slotId); setEditSlotName(sh.name); }} disabled={!!busy}
-                      style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 11, padding: '0 3px' }}>✎</button>
+                    <button type="button" className={styles.chipIcon} title="Rename this sheet" onClick={() => { setEditingSlot(sh.slotId); setEditSlotName(sh.name); }} disabled={!!busy}>✎</button>
                     {!sh.active && (
-                      <button type="button" title="Delete this sheet" onClick={() => { if (confirm(`Delete the sheet “${sh.name}”? This can't be undone.`)) slotAction(sh.slotId, { action: 'delete' }); }} disabled={!!busy}
-                        style={{ background: 'none', border: 'none', color: 'var(--hx-danger)', cursor: 'pointer', fontSize: 11, padding: '0 3px' }}>✕</button>
+                      <button type="button" className={`${styles.chipIcon} ${styles.chipIconDanger}`} title="Delete this sheet" onClick={() => { if (confirm(`Delete the sheet “${sh.name}”? This can't be undone.`)) slotAction(sh.slotId, { action: 'delete' }); }} disabled={!!busy}>✕</button>
                     )}
                   </span>
                 ))}
               </div>
               {adding && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 10px' }}>
-                  <select value={addSystem} onChange={(e) => setAddSystem(e.target.value)} style={{ fontSize: 12, padding: '4px 6px', background: 'rgba(1,10,19,0.6)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }}>
-                    {GAME_SYSTEMS.filter((s) => isSystemAvailable(s.key)).map((s) => <option key={s.key} value={s.key}>{s.name}</option>)}
-                  </select>
-                  <select value={addKind} onChange={(e) => setAddKind(e.target.value as 'vanilla' | 'custom')} style={{ fontSize: 12, padding: '4px 6px', background: 'rgba(1,10,19,0.6)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }}>
-                    <option value="vanilla">Vanilla</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                  <input value={addName} onChange={(e) => setAddName(e.target.value)} placeholder="Sheet name (optional)" maxLength={60}
-                    style={{ flex: 1, minWidth: 120, fontSize: 12, padding: '4px 8px', background: 'rgba(1,10,19,0.6)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }} />
-                  <button type="button" className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} style={{ padding: '4px 12px', fontSize: 12 }} onClick={addSheet} disabled={busy === '__add'}>
-                    {busy === '__add' ? 'Adding…' : 'Add'}
-                  </button>
+                <div className={styles.sheetAddCard}>
+                  <div className={styles.sheetAddHead}>◆ Add a new sheet</div>
+                  <div className={styles.sheetAddGrid}>
+                    <label className={styles.sheetField}>
+                      <span className={styles.sheetFieldLabel}>Game system</span>
+                      <select value={addSystem} onChange={(e) => setAddSystem(e.target.value)} className={`${styles.input} ${styles.sheetControl}`}>
+                        {GAME_SYSTEMS.filter((s) => isSystemAvailable(s.key)).map((s) => <option key={s.key} value={s.key}>{s.name}</option>)}
+                      </select>
+                    </label>
+                    <label className={styles.sheetField}>
+                      <span className={styles.sheetFieldLabel}>Sheet name <span style={{ opacity: 0.6, letterSpacing: 0 }}>(optional)</span></span>
+                      <input value={addName} onChange={(e) => setAddName(e.target.value)} placeholder={`e.g. ${systemLabel(addSystem)} · ${addKind === 'custom' ? 'Custom-built' : 'Vanilla'}`} maxLength={60}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && busy !== '__add') addSheet(); }}
+                        className={`${styles.input} ${styles.sheetControl}`} />
+                    </label>
+                  </div>
+                  <div className={styles.sheetField}>
+                    <span className={styles.sheetFieldLabel}>Build with</span>
+                    <div className={styles.segmented} role="group" aria-label="Sheet build type">
+                      <button type="button" aria-pressed={addKind === 'vanilla'} onClick={() => setAddKind('vanilla')}
+                        className={`${styles.segment} ${addKind === 'vanilla' ? `${styles.segmentOn} ${styles.segmentVanilla}` : ''}`}>
+                        📖 Vanilla
+                      </button>
+                      <button type="button" aria-pressed={addKind === 'custom'} onClick={() => setAddKind('custom')}
+                        className={`${styles.segment} ${addKind === 'custom' ? `${styles.segmentOn} ${styles.segmentCustom}` : ''}`}>
+                        ✦ Custom
+                      </button>
+                    </div>
+                    <span style={{ fontSize: 11, color: 'var(--hx-muted)', lineHeight: 1.4 }}>
+                      {addKind === 'custom'
+                        ? 'A blank sheet you can build with homebrew classes, feats and content.'
+                        : 'A blank sheet built strictly from the system’s official rules.'}
+                    </span>
+                  </div>
+                  <div className={styles.sheetAddActions}>
+                    <button type="button" className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} style={{ padding: '7px 18px', fontSize: 12.5 }} onClick={addSheet} disabled={busy === '__add'}>
+                      {busy === '__add' ? 'Adding…' : '＋ Create sheet'}
+                    </button>
+                    <button type="button" className={styles.hexBtn} style={{ padding: '7px 14px', fontSize: 12.5 }} onClick={() => setAdding(false)} disabled={busy === '__add'}>
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
