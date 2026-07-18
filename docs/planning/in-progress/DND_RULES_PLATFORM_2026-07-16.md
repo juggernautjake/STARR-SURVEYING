@@ -1402,9 +1402,15 @@ no-op. Full suite 1655 green.
       with its duration and a one-click **end effect**. ✅ SHIPPED — grouped by `sourceKind`; ending
       removes the CAUSE (unequip for worn/attuned, drop the ActiveEffect for a consumed one) and a class
       feature offers no "end" (it's what the character IS). `active-effects.test.ts` covers each path.
-- [ ] **Consumption: the effect outlives the item.** This is the case the data model must get right,
-      and it is why an `ActiveEffect` is a *separate source* from the item that produced it rather
-      than a pointer back into inventory:
+- [x] ✅ SHIPPED (verified 2026-07-18) **Consumption: the effect outlives the item.** This is the case the data
+      model must get right, and it is why an `ActiveEffect` is a *separate source* from the item that produced it
+      rather than a pointer back into inventory. The pure `planConsume` (`lib/dnd/effects/consume.ts`) +
+      `Inventory.consume` implement every bullet below, `consume-plan.test.ts` (13) pins them. **The last
+      remaining sub-case — a potion with BOTH an instant heal AND a lasting buff — is now shipped
+      (2026-07-18):** `planConsume` decides the instant and the lasting effect INDEPENDENTLY (a heal/temp that
+      also carries `effects` returns both), and the component already applied each in its own branch, so one
+      drink heals now AND leaves the snapshotted buff running, qty −1 once. (A `buff` kind still ignores stray
+      dice — the instant kind is the consumable's own heal/temp kind, not the mere presence of a dice field.)
       - Using a consumable **decrements qty / removes the item immediately** — you drank it, it's gone.
       - Its **instant** effects (heal 2d4+2) resolve once and leave nothing behind. A healing potion
         therefore vanishes completely and never appears in the panel: there is nothing to show.

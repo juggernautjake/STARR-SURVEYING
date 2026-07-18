@@ -41,11 +41,14 @@ export interface ConsumePlan {
 const NOOP: ConsumePlan = { instant: null, activeEffect: null, consumes: false };
 
 /**
- * Decide what using a consumable does, without doing any of it. Behaviour matches the original
- * Inventory handler exactly:
- *  - heal / temp with dice → an instant to roll now; no ActiveEffect.
+ * Decide what using a consumable does, without doing any of it. The instant and the lasting effect are
+ * decided INDEPENDENTLY (not one-or-the-other by `kind`), so a potion carrying BOTH an instant and a buff
+ * does both — the case the data model must get right (Slice 12 / DND_RULES 1405):
+ *  - heal / temp with dice → an instant to roll now.
  *  - status with a named condition → an ActiveEffect (label = the condition, no stat effects).
  *  - buff → an ActiveEffect snapshotting its temporary `effects` (empty array if none) + duration.
+ *  - a heal / temp that ALSO carries `effects` → BOTH: the instant heals now AND the lasting buff survives
+ *    the item (e.g. Potion of Storm Giant Strength that also heals 2d4+2).
  *  - custom → note-only: nothing resolves, but the item is still consumed.
  *  - every real consumable decrements qty; an item with no consumable data is a no-op (no decrement).
  * A heal/temp with no dice still consumes (you used it) but rolls nothing.
@@ -54,31 +57,23 @@ export function planConsume(item: Pick<InvItem, 'name' | 'qty' | 'consumable'>):
   const eff = item.consumable?.effect;
   if (!eff) return NOOP;
   const consumes = (item.qty ?? 0) > 0;
-  switch (eff.kind) {
-    case 'heal':
-    case 'temp':
-      return { instant: eff.dice ? { kind: eff.kind, dice: eff.dice } : null, activeEffect: null, consumes };
-    case 'status':
-      return {
-        instant: null,
-        activeEffect: eff.status
-          ? { label: eff.status, effects: [], duration: eff.duration, source: item.name }
-          : null,
-        consumes,
-      };
-    case 'buff':
-      return {
-        instant: null,
-        // SNAPSHOT, not a reference: copy each effect into a fresh object + array so the running
-        // ActiveEffect is independent of the item it came from. Otherwise a buff potion at qty 2 (drink
-        // one, the item remains) would leave the ActiveEffect aliasing the item's own effects array, and a
-        // later edit to the item would retroactively rewrite the buff already running — the exact thing
-        // Slice 12 forbids ("editing the item afterwards must not mutate an effect already running").
-        activeEffect: { label: item.name, effects: (eff.effects ?? []).map((e) => ({ ...e })), duration: eff.duration, source: item.name },
-        consumes,
-      };
-    case 'custom':
-    default:
-      return { instant: null, activeEffect: null, consumes }; // note-only, DM adjudicates; still consumed
+
+  // An instant fires for a heal/temp that carries dice — resolve once, now, leave nothing behind. (Dice on
+  // a buff/status/custom are not an instant heal — the instant kind IS the consumable's heal/temp kind.)
+  const instant: ConsumeInstant | null =
+    (eff.kind === 'heal' || eff.kind === 'temp') && eff.dice ? { kind: eff.kind, dice: eff.dice } : null;
+
+  // A lasting ActiveEffect fires for: a named status condition; a `buff` (always, even with no mechanical
+  // effects — a timed label that shows in the panel); or a heal/temp that ALSO carries `effects` (the
+  // "both" case). SNAPSHOT, not a reference: copy each effect into a fresh object + array so the running
+  // ActiveEffect is independent of the item it came from — a later edit to the item (or drinking one of a
+  // stack of 2) can never retroactively rewrite a buff already running (Slice 12's core invariant).
+  let activeEffect: ConsumeActiveEffectSeed | null = null;
+  if (eff.kind === 'status') {
+    activeEffect = eff.status ? { label: eff.status, effects: [], duration: eff.duration, source: item.name } : null;
+  } else if (eff.kind === 'buff' || ((eff.kind === 'heal' || eff.kind === 'temp') && (eff.effects ?? []).length > 0)) {
+    activeEffect = { label: item.name, effects: (eff.effects ?? []).map((e) => ({ ...e })), duration: eff.duration, source: item.name };
   }
+
+  return { instant, activeEffect, consumes };
 }

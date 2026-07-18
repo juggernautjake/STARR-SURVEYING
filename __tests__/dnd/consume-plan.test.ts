@@ -71,11 +71,10 @@ describe('planConsume', () => {
     expect(plan.consumes).toBe(true);
   });
 
-  it('is single-kind today: a buff carrying stray `dice` consumes as a buff, the dice ignored (heal+buff combo deferred)', () => {
-    // The doc imagines a potion that BOTH heals instantly AND grants a lasting buff. The consumable model
-    // is single-`kind`, so that combo isn't representable yet — this pins the current contract so a combo
-    // can't be silently assumed to work: a buff's stray `dice` does NOT also roll a heal. When the combo is
-    // built (schema widening + editor authoring), this test changes to assert BOTH instant + activeEffect.
+  it("a buff's stray `dice` is still ignored — the instant kind IS the consumable's heal/temp kind", () => {
+    // A `buff` never rolls an instant, even if it carries dice: the instant heal/temp is decided by the
+    // consumable's own kind, not by the mere presence of a dice field. (The heal+buff COMBO is expressed as
+    // a heal/temp that ALSO carries `effects` — see the next test — not as a buff with stray dice.)
     const plan = planConsume(c({
       name: 'Combo Draught',
       consumable: { effect: { kind: 'buff', dice: '2d4+2', effects: [{ target: 'ac', operation: 'add', value: 2 }], duration: '1 hour' } },
@@ -83,6 +82,35 @@ describe('planConsume', () => {
     expect(plan.instant).toBeNull(); // no instant heal — buff never rolls, even with dice present
     expect(plan.activeEffect?.effects).toEqual([{ target: 'ac', operation: 'add', value: 2 }]);
     expect(plan.consumes).toBe(true);
+  });
+
+  it('the BOTH case: a heal that also carries `effects` heals now AND leaves a lasting buff (DND_RULES 1405)', () => {
+    // The data-model case the doc calls out: a potion that instant-heals 2d4+2 AND grants a 1-hour STR buff.
+    // planConsume now returns BOTH an instant (rolled + gone) and a snapshotted ActiveEffect (survives the
+    // item), and the component applies each in its own branch — one drink, both outcomes, qty −1 once.
+    const plan = planConsume(c({
+      name: 'Draught of Heroism',
+      consumable: { effect: { kind: 'heal', dice: '2d4+2', effects: [{ target: 'ability_str', operation: 'set', value: 21 }], duration: '1 hour' } },
+    }));
+    expect(plan.instant).toEqual({ kind: 'heal', dice: '2d4+2' }); // heals now
+    expect(plan.activeEffect).toEqual({ // AND a lasting buff that outlives the potion
+      label: 'Draught of Heroism',
+      effects: [{ target: 'ability_str', operation: 'set', value: 21 }],
+      duration: '1 hour',
+      source: 'Draught of Heroism',
+    });
+    expect(plan.consumes).toBe(true);
+  });
+
+  it('the BOTH case snapshots too — editing the item afterwards never mutates the buff the heal left running', () => {
+    const effects: Effect[] = [{ target: 'ability_str', operation: 'set', value: 21 }];
+    const plan = planConsume(c({
+      name: 'Draught of Heroism', qty: 2,
+      consumable: { effect: { kind: 'temp', dice: '1d4', effects, duration: '1 hour' } },
+    }));
+    effects[0].value = 1; // the item is later edited
+    expect(plan.activeEffect!.effects).toEqual([{ target: 'ability_str', operation: 'set', value: 21 }]);
+    expect(plan.activeEffect!.effects).not.toBe(effects); // distinct array — a snapshot, not a pointer
   });
 
   it('a custom (note-only) consumable resolves nothing but is still consumed (DM adjudicates)', () => {
