@@ -82,3 +82,15 @@ describe('systemGroundingBlock', () => {
     expect(g.block).toMatch(/take a free 5-foot step/); // the real IG effect
   });
 });
+
+describe('homebrew in the grounding block (Area H2/H4)', () => {
+  it('surfaces the system’s approved homebrew with the DM-permission caveat', async () => {
+    const g = await systemGroundingBlock('dnd5e-2024', 'Pugilist');
+    expect(g.block).toMatch(/Pugilist \(Class, by Jacob\)/);
+    expect(g.block).toMatch(/only if the DM has allowed it/);
+  });
+  it('does not leak a system’s homebrew into another system’s grounding', async () => {
+    const g = await systemGroundingBlock('pathfinder2e', 'Pugilist');
+    expect(g.block).not.toMatch(/Pugilist/);
+  });
+});

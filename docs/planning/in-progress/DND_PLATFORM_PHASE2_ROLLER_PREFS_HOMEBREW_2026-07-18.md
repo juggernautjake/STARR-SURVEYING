@@ -496,10 +496,12 @@ This is the "form editor" the owner clarified: a full **create-and-share** syste
       when the system has homebrew, and `searchLibrary` indexes each piece (scoped to its system). Seeded with
       **Rangor (race)** + **Pugilist (class)** in `lib/dnd/homebrew/seeds.ts`, descriptions lifted verbatim from
       the existing `rangor.ts`/`jack.ts` sheet data (nothing invented), attributed to Jacob, scoped to 2024,
-      approved. Golden-pinned (`homebrew-library.test.ts`, 6; library suite still green). REMAINING: fold
-      `homebrewGrounding` into the live grounding builder + surface a search/browse filter UI in the library
-      page (the section + search already work; a dedicated filter chip is the polish) — small follow-ups once
-      the live-DB store (H1 tail) exists.
+      approved. Golden-pinned (`homebrew-library.test.ts`, 6; library suite still green). **`homebrewGrounding`
+      is now folded into the LIVE grounding builder** (`systemGroundingBlock` appends the system's approved
+      homebrew with the DM-permission caveat, scoped so one system's homebrew never leaks into another's —
+      `grounding.test.ts` +2), so the adjudicating AI already sees a system's homebrew everywhere it builds/edits.
+      REMAINING (minor): a dedicated browse/filter chip in the library page UI — the section + search already
+      work — plus the live-DB store (H1 tail) so user-created pieces (not just the seeds) flow through.
 - [ ] **H3 — Creation UI.** Build-and-post forms for each content kind (reusing the effect builder / item
       builder / attack builder / weapon+armor builders), attributed to the creator on save.
 - [ ] **H4 — Use-on-character + DM gating.** A character can adopt a homebrew element **iff the DM allows it**

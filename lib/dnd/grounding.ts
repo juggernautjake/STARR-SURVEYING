@@ -9,6 +9,8 @@ import { glossaryFor, type GlossaryEntry } from './glossary';
 import { FEATS_2024 } from './feats/dnd5e-2024';
 import { igAllFeats } from './systems/intuitive-games/feats';
 import { IG_POWERS, IG_DEFENSIVE_POWERS } from './systems/intuitive-games/content';
+import { homebrewGrounding } from './homebrew/projection';
+import { HOMEBREW_SEEDS } from './homebrew/seeds';
 
 /** Lenient glossary retrieval for GROUNDING: score each article by how many of the query keywords
  *  appear (term > alias > body), require at least one, and take the top matches. Unlike the library
@@ -168,6 +170,11 @@ export async function systemGroundingBlock(system: string | null | undefined, qu
       powerHits.map((p) => `## ${p.name} (${p.school})\n${p.effect}`).join('\n\n')
     : '';
 
+  // Homebrew content available for this system (Area H2) — so the AI knows a system's community/homebrew
+  // pieces exist and what they do (it may only USE them when the DM has allowed them, which the block states).
+  const homebrewText = homebrewGrounding(HOMEBREW_SEEDS, system);
+  const homebrewBlock = homebrewText ? `\n\n${homebrewText}` : '';
+
   // Optional semantic enhancement: scoped RAG hits (only when an embeddings key is configured). These
   // augment — never replace — the deterministic rules block above.
   const entries = await searchSystemEntries(system, query, { matchCount: 10, minSimilarity: 0.3 }).catch(() => []);
@@ -182,7 +189,7 @@ export async function systemGroundingBlock(system: string | null | undefined, qu
       `numbers as stated in the AUTHORITATIVE RULES block. NEVER borrow mechanics from another game system, ` +
       `and NEVER invent rules or numbers. When the sources are ambiguous, missing, or conflict with ${label}, ` +
       `put the issue in \`unmapped\` (so the user is asked) rather than guessing.`,
-    block: rulesBlock + glossaryBlock + featBlock + powerBlock + ragBlock,
+    block: rulesBlock + glossaryBlock + featBlock + powerBlock + homebrewBlock + ragBlock,
     matched: entries.length + glossaryHits.length + featHits.length + powerHits.length,
   };
 }
