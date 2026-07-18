@@ -17,6 +17,16 @@ describe('map viewer: image scale/rotate handles (Slice 35a)', () => {
     expect(fn).not.toMatch(/i\.kind===["']image["']\)\s*return/); // images must NOT be excluded
   });
 
+  it('does not exclude the spin/3D image variants either — the flagged untested edge (Slice 35a)', () => {
+    // A spiral/spin image becomes kind 'spingalaxy' and a 3D body 'planet3d' — they render a <canvas> in
+    // .art rather than an <img>, which the doc flagged as the one variant not yet confirmed to keep handles.
+    // renderHandles keys off `kind` (only 'text' bails), NOT the art DOM, so these still get handles. Pin it:
+    // an early-return added for any of these kinds would silently strip a selected spin/3D object's handles.
+    for (const kind of ['spingalaxy', 'planet3d', 'diffspin']) {
+      expect(fn, `renderHandles must not exclude "${kind}"`).not.toMatch(new RegExp(`i\\.kind===["']${kind}["']\\)\\s*return`));
+    }
+  });
+
   it('draws the four corner scale pads + a rotate handle + stem', () => {
     for (const cls of ['ihandle tl', 'ihandle tr', 'ihandle bl', 'ihandle br', 'ihandle rot', 'ihandle rstem']) {
       expect(fn, `handle "${cls}" not drawn`).toContain(cls);

@@ -2634,8 +2634,13 @@ regression to *reach*, not the drawing:
       (hard-refresh), or a specific image variant — a **spiral/spin image** renders a different DOM
       (a `<canvas>` in `.art`) and is the one untested edge; if handles are missing, note whether the
       image had spiral or spin on. Left open pending a reproducible case.
-- [ ] Once visible, verify scale from any corner and rotate from the stem both work and persist.
-      (Manual/browser step — belongs to the Slice 40 QA pass; the drag math is unchanged.)
+- [~] Once visible, verify scale from any corner and rotate from the stem both work and persist.
+      (Manual/browser step — belongs to the Slice 40 QA pass; the drag math is unchanged.) **The one static
+      part is now closed:** the "untested edge" flagged above — a spiral/spin image (kind `spingalaxy`) or a 3D
+      body (`planet3d`) renders a `<canvas>` not an `<img>` — is guarded in `map-viewer-handles.test.ts`:
+      `renderHandles` keys off `kind` (only `text` bails), never the art DOM, so these variants still get
+      handles; a future early-return that stripped a spin/3D object's handles fails in CI. The remaining
+      corner-drag/stem-rotate/persist confirmation is genuinely interactive → browser QA.
 - [x] **A guard/regression note so the handles can't silently disappear again. ✅ SHIPPED** (`b808a9b8`).
       `map-studio-handles.test.ts` (5) locks `renderHandles`'s invariants against the file the browser
       loads: it skips only `kind==="text"` (not `image`), draws the rotate + 4 corner scale handles,
