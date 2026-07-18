@@ -56,6 +56,13 @@ describe('pf2CharacterDigest', () => {
     expect(d).toMatch(/ATTRIBUTES: STR \+4, DEX \+1, CON \+3, INT \+0, WIS \+2, CHA \+0/);
   });
 
+  it('renders a NEGATIVE attribute modifier correctly (a level-1 flaw → CHA -1, not +-1)', () => {
+    const flawed = fighter5();
+    flawed.attributes = { ...flawed.attributes, CHA: -1 };
+    expect(pf2CharacterDigest(flawed)).toMatch(/CHA -1/);
+    expect(pf2CharacterDigest(flawed)).not.toMatch(/CHA \+-1/);
+  });
+
   it('carries the derived DEFENSES from the real rules (AC/HP/saves/perception/speed)', () => {
     // AC 10 + cappedDex(min(1,0)=0) + trained(2+5=7) + item 6 = 23; HP 10 + (10+3)*5 = 75.
     // currentHp 0 reads as full, so HP shows 75/75 (matching the sheet's `currentHp || maxHp`).
