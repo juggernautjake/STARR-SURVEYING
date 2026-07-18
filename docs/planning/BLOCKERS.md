@@ -1,7 +1,7 @@
-# Blockers — what only you can unblock (as of 2026-07-17)
+# Blockers — what only you can unblock (as of 2026-07-18)
 
 The three docs in `in-progress/` are each ~90% shipped. Everything that could be built, tested, and
-verified autonomously **is** — the full app test suite is green (13,183 passing as of 2026-07-17). Per
+verified autonomously **is** — the full app test suite is green (**13,334 passing** as of 2026-07-18). Per
 the project's own rubric (`docs/planning/README.md`), all three correctly REMAIN in `in-progress/`:
 each still contains action items not yet done, and none meets the COMPLETED bar ("the feature has
 shipped"). What remains in all three is genuinely gated on your input: **decisions only you can make,
@@ -48,6 +48,15 @@ overwrite a deliberate design.
       table (a real feature — several distinct per-tier effects, gated on `system`, which the store already has).
       Not changed autonomously (player-facing behavior). *Detail: `store.tsx` rollCheck; the gap is pinned as a
       tracked, guarded one by `exhaustion-d20.test.ts` (edition-blindness + the grounding-vs-sheet inconsistency).*
+- [ ] **Wire `canEquip` into the live equip paths — needs a refusal UX (surfaced 2026-07-18).** The equip
+      rules (`engine/equipment.ts` `canEquip`/`equipChecked`: one body armour, one shield, two-handed-vs-shield)
+      are implemented + fully tested, but the ONLY caller is the dead `engine/character.ts` reducer no live
+      surface imports. The live paths — the `ItemBuilder` "Equipped" checkbox and the AI `equip_item` edit —
+      don't call `canEquip`, so an illegal equipped state IS reachable (bounded: `deriveAc` still picks one
+      armour for AC, but item EFFECTS stack). Wiring it in is a UX call: refuse-with-a-message (like the AI's
+      `rejectedEffects`)? auto-swap the conflicting item? A silent no-op would be the "AI reports success,
+      sheet unchanged" anti-pattern. Tell me the intended behavior and I'll wire it into both paths.
+      *Detail: `DND_RULES_PLATFORM` Slice 10 "Equipping is validated"; tracked by `equip-enforcement-gap.test.ts`.*
 - [ ] **Long-rest hit-dice restore — confirm your intended rule (edition-dependent; not autonomously changed).**
       `longRest` (`store.tsx:977`) restores ALL hit dice (`hitDiceRemaining = hitDiceTotal`) for every edition.
       2014 RAW regains only HALF your total Hit Dice (min 1); I'm not certain 2024 kept that vs. full-restore,
@@ -178,5 +187,46 @@ overflow/exactly-empty/base-floor), PF2 MAP + spell-slot progression, currency e
 `uploadRetention`'s confirmed-only delete guard, `queueOrder` eligibility/ordering, `cameraRollSave`
 fail-safe default.
 
-Full app test suite green: **13,183 passing** (grown steadily with each audit slice's guards). What's
+### Third pass (2026-07-18, this session) — findings + hardening
+
+**Real bug FIXED — consumed-buff snapshot aliasing.** `planConsume`'s buff branch returned its effects
+array BY REFERENCE, and `Inventory.consume` spreads the seed (shallow), so a running `ActiveEffect` aliased
+the item's own effects array. A buff potion at qty 2 (drink one, item stays), then edit that item → the buff
+ALREADY running silently rewrites itself — the exact "editing the item must not mutate a running effect"
+invariant, violated. Fixed by snapshotting in `planConsume`; `consume-plan.test.ts`.
+
+**Feature shipped — concentration-save roll.** The last unrendered ROLL target: a CON save (DC 10 or ½
+damage) that folds `concentration_save` + `con_saves` + `all_saves` through the shared `rollCheck` (so
+exhaustion + adv/dis apply), surfaced as a "🎲 Save" button on the ConditionTracker, gated to 5e. Every
+registered roll target now reaches an actual roll. `concentration-save.test.ts`.
+
+**IG AI-legibility COMPLETED (read side).** The AI can now both SEE and EXPLAIN everything on an IG character
+from IG source: the `igCharacterDigest` gained ancestry traits (Cave Vision → darkvision), a DEFENSES line
+(HP/DR/the three saves), trained skills, the defensive power's EFFECT, and the companion; the grounding
+gained query-scoped power + defensive-power effect text and the always-on companion rules. So "can you see
+in the dark?", "am I still up?", "how does my Sidestep work?", "how does my beast advance?" are all
+answerable from source now. `ig-digest.test.ts`, `grounding.test.ts`, `ig-content.test.ts`.
+
+**Explainability + attribution guarded.** The ★ marker now lights for the save/skill bonus targets the roll
+folds (a Cloak of Protection's `all_saves` was moving the number but lighting no star) and for the Bio
+identity overlays (Helm of Opposite Alignment); granted rows' source badges are now guarded from regression.
+`effect-star.test.ts`, `identity-overlay.test.ts`, `grant-render-paths.test.ts`.
+
+**Invariant holes closed** (documented behaviors with zero coverage — each a spot a plausible refactor would
+break silently): `set_base` resolution (pooled with `set`, untested), one-body-armour-at-a-time (deriveAc
+`.find`, untested), identity last-writer-wins, the 15-effect "one boot" generalization, IG degree-of-success
+nat-20/1 clamps (out-of-bounds guard), PF2 skill total + the armor-check-penalty conditional, and mixed-
+half-caster multiclass rounding (Artificer up + Paladin down in one character).
+
+**New tracked gap (→ §A above):** equip validation is correct + tested but wired only to the dead reducer,
+not the live paths — `equip-enforcement-gap.test.ts` pins the reality until you make the refusal-UX call.
+
+**Mobile operational-correctness layer brought under test** (pure modules that shipped with ZERO tests, each
+high-consequence for a surveying business): `csvCoords` (Trimble/Carlson P,N,E,Z,D coordinate import),
+`dataPointCodes` (179-code point-name intelligence + auto-numbering), `money` (receipt cents↔dollar math),
+`timeFormat` (payroll duration/date formatters), `parseAuthUrl` (auth-callback token parsing — the tokens
+live in the fragment, not the query). The RN/Expo/PowerSync-importing modules remain device-QA-gated
+(react-native doesn't resolve in the node test env).
+
+Full app test suite green: **13,334 passing** (grown steadily with each audit slice's guards). What's
 left is only Sections A–C above (owner decisions, Brendan's content, and eyes-on-app / device work).
