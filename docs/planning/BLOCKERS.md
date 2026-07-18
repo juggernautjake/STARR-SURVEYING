@@ -18,10 +18,15 @@ overwrite a deliberate design.
 
 ## A. Decisions (each converts directly to shipped code)
 
-- [ ] **Attunement-alone activation.** Should an item that's *attuned but not worn* apply its effects?
-      Today the ledger says no (equipped-only); the older `collectItemEffects`/`deriveAc` paths say
-      equipped-OR-attuned — they disagree. Your call picks one predicate for all three.
-      *Detail: `DND_RULES_PLATFORM` Slice 10 "OPEN FINDING"; pinned by `ledger-attunement.test.ts`.*
+- [ ] **Attunement-alone activation (the split-brain is USER-VISIBLE — verified 2026-07-18).** Should an item
+      that's *attuned but not worn* apply its effects? The ledger says no (equipped-only), but `deriveAc` — which
+      is what the store's `acInfo` and thus the sheet's displayed **AC** actually use — says equipped-OR-attuned.
+      So on the live sheet an attuned-but-unworn item's **AC bonus applies while its STR (and every other ledger
+      effect) doesn't** — the "AC moved but STR didn't" inconsistency, visible to the player, not just a code
+      disagreement. (An earlier characterization test wrongly implied the sheet couldn't show this because it
+      only checked `ledger.value('ac')`, which the sheet doesn't display for AC — now corrected + pinned to the
+      real behavior.) Your call picks one predicate; I make `deriveAc` and the ledger agree on it.
+      *Detail: `DND_RULES_PLATFORM` Slice 10 "OPEN FINDING"; pinned by `ledger-attunement.test.ts` (both paths).*
 - [ ] **Weak-form stat replacement.** By D&D RAW, Wild Shape *replaces* physical stats even when lower
       (a STR-20 druid becomes a STR-2 rat). Today `set` uses `Math.max(base, override)`, so a weak form
       can't lower you — deliberate for items (a lesser belt mustn't lower a stronger hero), wrong for forms.
