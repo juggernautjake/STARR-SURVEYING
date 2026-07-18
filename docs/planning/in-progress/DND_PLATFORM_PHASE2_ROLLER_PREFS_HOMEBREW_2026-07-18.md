@@ -512,8 +512,14 @@ This is the "form editor" the owner clarified: a full **create-and-share** syste
       (`homebrew-policy.test.ts`, 7). REMAINING: the live wiring — a campaign column storing the policy, the
       adopt route calling `canAdoptHomebrew` through `getCharacterAccess`, and the DM's allowlist UI (all need
       the live DB / a browser, so parked with the H1-tail DB slice).
-- [ ] **H5 — Tests:** a posted item round-trips to real effects the ledger resolves; attribution persists;
-      the DM gate blocks a disallowed element; searchable + grounded.
+- [x] **H5 — Tests.** ✅ SHIPPED — the whole pure H pipeline is golden-pinned: **round-trip** — a homebrew piece
+      with an `Effect[]` payload → `homebrewToActiveEffect` (`lib/dnd/homebrew/adopt.ts`) → the sheet ledger
+      resolves the REAL number (a Belt-of-Bear sets STR to 19 via `buildLedger`), invalid effects refused at the
+      boundary (`homebrew-adopt.test.ts`, 3); **attribution persists** (creator rides onto the effect `source`);
+      **DM gate blocks a disallowed element** (`homebrew-policy.test.ts`, 7); **searchable + grounded**
+      (`homebrew-library.test.ts` + `grounding.test.ts`). Plus the model itself (`homebrew-model.test.ts`, 12).
+      **Area H pure core is complete** — model, browse/search, live grounding, DM gate, and the effect round-trip
+      are all built + tested; only the live-DB store + creation/DM-allowlist UIs (browser + Supabase) remain.
 
 ### Area IGP — IG power effect texts (content; hook up what exists, flag Brendan's gap)
 - [ ] **IGP1 — Hook up every power with effect text** end-to-end (already largely done: grounding + library +
