@@ -121,7 +121,7 @@ export default function DiceTray() {
       </div>
 
       <div style={{ padding: '12px 12px 0' }}>
-        <RollStage />
+        <RollStage roller={diceStyle} />
       </div>
 
       <div className="tray-toggles">

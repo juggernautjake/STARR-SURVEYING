@@ -285,9 +285,11 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
     remain; dice-style + sheet-contrast tests green.
   - **D4c — Per-skin shape/texture/format/positioning.** Each of the 5 skins gets its own vibe — frame shape,
     textures, control layout/positioning — while keeping identical functionality.
-  - **D4d — Per-skin NUMBER-DISPLAY styling.** The roll-result readout differs per skin: the current
-    "futuristic screen" for one; others change number size/font/color during the roll, or render mono-colour.
-    (Touches `RollStage`/the result render, keyed off `data-dice-style`.)
+  - [x] **D4d — Per-skin NUMBER-DISPLAY styling.** ✅ SHIPPED — `RollStage` takes the active skin (`roller`
+    prop from `DiceTray`) and drives a per-skin `DISPLAY_MODE`: **futuristic** cycles colour + font + tilt
+    (the screen vibe); **fantasy** shimmers colour on a steady font; **natural/rugged/medieval** are calm
+    single-colour with a stable font (teal Rajdhani / gold Oswald / gold serif). Crit/fumble still read
+    semantic gold/danger on every skin. Colours are sheet accent tokens (D4b). Guarded by `dice-tray-ux.test.ts`.
   - **D4e — New animations + sounds per skin.** More varied roll animations + sound sets per skin; all hooked
     to the sheet, responsive, reduced-motion aware. (Pairs with D2's animated dice.)
 - [ ] **D3 — Tests / visual:** the pure roll result is unchanged by the skin (source-anchored); visual polish

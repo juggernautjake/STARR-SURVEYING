@@ -19,3 +19,25 @@ describe('dice tray UX', () => {
     expect(tray).toMatch(/useEffect\(\(\) => \{\s*if \(rollToken != null\) setOpen\(true\)/);
   });
 });
+
+describe('per-skin number-display styling (D4d)', () => {
+  const rollStage = readFileSync(join(process.cwd(), 'app/dnd/_sheet/components/RollStage.tsx'), 'utf8');
+
+  it('RollStage takes the roller skin + defines per-skin display modes', () => {
+    expect(rollStage).toContain('function RollStage({ roller = ');
+    expect(rollStage).toContain('DISPLAY_MODES');
+    // futuristic cycles everything; the others do not
+    expect(rollStage).toMatch(/futuristic: \{ cycleColor: true, cycleFont: true, rotate: true \}/);
+    expect(rollStage).toMatch(/natural: \{ cycleColor: false, cycleFont: false, rotate: false, color: 'var\(--tealbright\)'/);
+  });
+
+  it('the spin + landing honour the mode (cycle vs stable/mono), crit/fumble stay semantic', () => {
+    expect(rollStage).toContain('mode.cycleColor ? randOf(NEON) : (mode.color');
+    expect(rollStage).toContain('mode.cycleFont ? randOf(FONTS) : (mode.font');
+    expect(rollStage).toContain("fumble ? 'var(--danger)' : crit ? 'var(--gold)'"); // crit/fumble semantic on every skin
+  });
+
+  it('DiceTray passes the active skin to RollStage', () => {
+    expect(tray).toContain('<RollStage roller={diceStyle} />');
+  });
+});

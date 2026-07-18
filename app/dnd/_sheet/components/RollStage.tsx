@@ -31,7 +31,20 @@ interface DisplayStyle {
   rotate: number
 }
 
-export default function RollStage() {
+// Per-skin number-display behaviour (Area D4d). The futuristic screen cycles colour + font + tilt as it
+// spins; the others are calmer — some keep a STABLE font/size, some are a single MONO colour — so each roller
+// has its own vibe while colours still come from the sheet's accent tokens.
+interface DisplayMode { cycleColor: boolean; cycleFont: boolean; rotate: boolean; color?: string; font?: string; weight?: number }
+const DISPLAY_MODES: Record<string, DisplayMode> = {
+  futuristic: { cycleColor: true, cycleFont: true, rotate: true },
+  fantasy: { cycleColor: true, cycleFont: false, rotate: false, font: "'Michroma'", weight: 700 }, // shimmering colour, steady glyphs
+  natural: { cycleColor: false, cycleFont: false, rotate: false, color: 'var(--tealbright)', font: "'Rajdhani'", weight: 700 }, // calm mono teal
+  rugged: { cycleColor: false, cycleFont: false, rotate: false, color: 'var(--gold)', font: "'Oswald'", weight: 900 }, // solid mono, heavy
+  medieval: { cycleColor: false, cycleFont: false, rotate: false, color: 'var(--gold)', font: "Georgia, 'Times New Roman', serif", weight: 700 }, // classic serif mono
+}
+
+export default function RollStage({ roller = 'futuristic' }: { roller?: string }) {
+  const mode = DISPLAY_MODES[roller] ?? DISPLAY_MODES.futuristic
   const { activeRoll, commitRoll } = useChar()
   const [display, setDisplay] = useState<number | string>('—')
   const [style, setStyle] = useState<DisplayStyle>({ color: 'var(--tealbright)', fontFamily: "'Orbitron'", fontWeight: 800, rotate: 0 })
@@ -89,7 +102,12 @@ export default function RollStage() {
       const progress = i / steps
       if (i < steps) {
         setDisplay(randInt(min, max))
-        setStyle({ color: randOf(NEON), fontFamily: randOf(FONTS), fontWeight: randOf(WEIGHTS), rotate: (Math.random() - 0.5) * 10 })
+        setStyle({
+          color: mode.cycleColor ? randOf(NEON) : (mode.color ?? 'var(--tealbright)'),
+          fontFamily: mode.cycleFont ? randOf(FONTS) : (mode.font ?? "'Orbitron'"),
+          fontWeight: mode.cycleFont ? randOf(WEIGHTS) : (mode.weight ?? 800),
+          rotate: mode.rotate ? (Math.random() - 0.5) * 10 : 0,
+        })
         tick(progress)
         i++
         const ease = Math.pow(progress, 2.4)
@@ -98,9 +116,10 @@ export default function RollStage() {
       } else {
         setDisplay(landing)
         setStyle({
-          // Themed rather than hardcoded red/cyan, so a crit/fumble reads correctly on every skin.
-          color: fumble ? 'var(--danger)' : crit ? 'var(--gold)' : randOf(NEON),
-          fontFamily: fumble ? "'Oswald'" : crit ? "'Orbitron'" : randOf(FONTS),
+          // Crit/fumble always read semantically (gold/danger) on every skin; a normal landing uses the skin's
+          // display mode — cycling colour/font on futuristic, the skin's stable/mono colour otherwise (D4d).
+          color: fumble ? 'var(--danger)' : crit ? 'var(--gold)' : mode.cycleColor ? randOf(NEON) : (mode.color ?? 'var(--tealbright)'),
+          fontFamily: fumble ? "'Oswald'" : crit ? "'Orbitron'" : mode.cycleFont ? randOf(FONTS) : (mode.font ?? "'Orbitron'"),
           fontWeight: 900,
           rotate: 0,
         })
