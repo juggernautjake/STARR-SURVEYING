@@ -75,6 +75,13 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
 - [ ] **IGS5 — Build out the rest.** Wire the scraped class ladders (→ Area T taxonomy), skill mechanics,
       backgrounds/cultures, core-rules tables, equipment/armor/weapon/magic-item data into the app + library,
       well-formatted, each verbatim from the site; carry empty items as "coming soon".
+- [ ] **IGS6 — EVERYTHING interactable on the character sheet (owner 2026-07-17).** Owner: make sure ALL
+      actions, ancestry traits, stances, spells, class abilities/buffs, leveling, HP, attack, AC, armor,
+      weapons, starting equipment, feats, conditions — literally everything — is built into the sheet and
+      "accounted for in a dynamic, helpful, interactable way." This is the IG sheet's completeness+interactivity
+      pass (a large multi-slice effort; overlaps Area SQ for all systems + Area R roller). Break down per
+      component: each must (a) render its real data, (b) be rollable/usable where it's an action/roll,
+      (c) be editable (manual + AI), (d) show its rules text (tooltip/expand). Track gaps as sub-slices.
 
 ### Area TH — Per-template color themes (owner 2026-07-17)
 > Owner, verbatim intent: for EACH current character-sheet template, create multiple (3–4) color themes and
