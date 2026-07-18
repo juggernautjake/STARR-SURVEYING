@@ -346,11 +346,13 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
         const byAbility = IG_ABILITIES.map((ab) => ({ ab, list: general.filter((s) => s.ability === ab) })).filter((g) => g.list.length);
         const Row = ({ s }: { s: (typeof ig.skills)[number] }) => {
           const total = igSkillTotal(s, derived.level, igAbilityMod(ig.abilities[s.ability]));
+          // Tap a skill to roll it (R1b): d20 + total through the shared engine, result in the banner.
           return (
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12.5, padding: '1px 0' }}>
+            <button type="button" onClick={() => rollLine(`${s.name} (${s.ability})`, total)} title={`Roll ${s.name} (d20 ${fmt(total)})`}
+              style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12.5, padding: '2px 4px', width: '100%', background: 'none', border: 'none', borderRadius: 4, cursor: 'pointer', textAlign: 'left' }}>
               <span style={{ color: 'var(--hx-text)' }}>{s.name}{s.proficient ? <span style={{ color: 'var(--hx-teal-1)', fontSize: 9.5 }}> ●</span> : null}</span>
-              <span style={{ color: 'var(--hx-gold-2)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmt(total)}</span>
-            </div>
+              <span style={{ color: 'var(--hx-gold-2)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmt(total)} 🎲</span>
+            </button>
           );
         };
         return (
