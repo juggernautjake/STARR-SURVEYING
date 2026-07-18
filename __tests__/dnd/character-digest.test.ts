@@ -351,3 +351,29 @@ describe('the digest carries provenance + the prompt meets homebrew (Slice 22)',
     expect(i).toMatch(/neither on Rangor's sheet nor in the D&D 5e \(2024\) rules/);
   });
 });
+
+describe('the 5e digest lists the character’s spells (SQ3)', () => {
+  it('lists known spells with level + school + a brief of the effect, capped like features', () => {
+    const c = blankCharacter('Caster') as Character;
+    c.spellcasting = { ability: 'int' } as Character['spellcasting'];
+    c.spells = [
+      { id: 's1', name: 'Fireball', level: 3, school: 'Evocation', description: 'A bright streak flashes to a point and blossoms into flame — 8d6 fire, Dex save for half.' } as never,
+      { id: 's2', name: 'Mage Hand', level: 0, school: 'Conjuration', description: 'A spectral hand manipulates objects at a distance.' } as never,
+      { id: 's3', name: 'Shield', level: 1, school: 'Abjuration', description: '+5 AC until your next turn.', prepared: false } as never,
+    ];
+    const d = characterDigest(c, 'dnd-5e-2024');
+    expect(d).toMatch(/SPELLS:/);
+    expect(d).toMatch(/Fireball \(L3, Evocation\): .*8d6 fire/);
+    expect(d).toMatch(/Mage Hand \(cantrip, Conjuration\)/);
+    expect(d).toMatch(/Shield \(L1, Abjuration, unprepared\)/);
+  });
+  it('caps the spell list and notes how many more, like features', () => {
+    const c = blankCharacter('Archmage') as Character;
+    c.spells = Array.from({ length: 10 }, (_, i) => ({ id: `s${i}`, name: `Spell ${i}`, level: 1, description: 'x' })) as never;
+    const d = characterDigest(c, 'dnd-5e-2024', { maxFeatures: 3 });
+    expect(d).toMatch(/\(\+7 more not listed\)/);
+  });
+  it('omits the SPELLS line for a non-caster (no empty scaffolding)', () => {
+    expect(characterDigest(blankCharacter('Fighter'), 'dnd-5e-2024')).not.toMatch(/^SPELLS:/m);
+  });
+});

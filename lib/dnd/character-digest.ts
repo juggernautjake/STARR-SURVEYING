@@ -238,6 +238,21 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
     if (slots.length) lines.push(`SPELL SLOTS: ${slots.join(' · ')}`);
   }
 
+  // The character's actual SPELLS — a ruling on "can you cast X / what does your <spell> do?" needs the LIST,
+  // which the DC/slots above don't give. Name + level + school + a brief of the effect (a homebrew/customized
+  // spell's text rides along verbatim); capped like FEATURES so a full caster doesn't blow the prompt budget.
+  const spells = char.spells ?? [];
+  if (spells.length) {
+    const shown = spells.slice(0, maxFeatures);
+    lines.push('SPELLS:');
+    for (const s of shown) {
+      const lvl = s.level === 0 ? 'cantrip' : `L${s.level}`;
+      lines.push(`  · ${s.name} (${lvl}${s.school ? `, ${s.school}` : ''}${s.prepared === false ? ', unprepared' : ''}): ${brief(s.description ?? '')}`);
+    }
+    const hidden = spells.length - shown.length;
+    if (hidden > 0) lines.push(`  · (+${hidden} more not listed)`);
+  }
+
   // Attacks, with the numbers.
   // Attacks WITH their to-hit / save DC — "does it hit AC 15?" is the other half of most combat
   // rulings. Computed like the sheet's Attacks table: effective ability mod + PB (if proficient) +

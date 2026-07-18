@@ -41,7 +41,7 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
       spirit to IG/PF2).
 - [ ] **SQ2 — Information completeness** — every field the system needs is present + correct on the sheet
       (cross-check vs each system's rules module; IG vs `SITE_MASTER.md`).
-- [~] **SQ3 — AI reads every component** — audited the IG digest (`igCharacterDigest`): it already carries
+- [x] **SQ3 — AI reads every component** — audited the IG digest (`igCharacterDigest`): it already carries
       identity, ancestry TRAITS (with text), abilities, defenses (HP/DR/saves), resolved attacks, trained
       skills, active stance + effect, conditions + computed penalty, defensive power + effect, feats, and the
       companion. **Gap found + fixed:** POWERS were listed by NAME only — a ruling on "how does my power work?"
@@ -51,8 +51,13 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
       + fixed ✅** — `pf2CharacterDigest` carried identity/defenses/attributes/status/offense/strikes/skills but
       was MISSING the character's **FEATS** (now listed with their body text — a ruling on "what does your feat
       do?" needs it, and it's on-sheet content the AI can't recall from a name) and **SENSES** (darkvision etc.
-      — a visibility ruling turns on them); both added (`pf2-digest.test.ts` +2). REMAINING: a spot-audit of the
-      5e `characterDigest` (already the richest — attacks/features/spells/effects all resolved).
+      — a visibility ruling turns on them); both added (`pf2-digest.test.ts` +2). **5e `characterDigest` audited
+      + fixed ✅** — it was the richest (abilities/HP/AC/senses/exhaustion/resist-immune-vuln/resources/attacks/
+      features/traits/spell-DC+slots/provenance) but never listed the character's actual **SPELLS** — a ruling
+      on "can you cast X / what does your spell do?" was blind to them (only the DC/slots were shown). Added a
+      SPELLS section (name + level + school + a brief of the effect; a homebrew spell's text verbatim), capped
+      like FEATURES with a "+N more" note (`character-digest.test.ts` +3). **Area SQ3 (AI reads every component)
+      is done across all three systems** — IG powers, PF2 feats+senses, 5e spells.
 - [x] **SQ4 — AI edits every component** — audited the IG edit path (`applyIgEdit`): it could change
       stance/conditions/feats/powers/defensive-power but had **no way to adjust HP** — the single most common
       in-play edit, which the digest already surfaces (a ruling "you take 8 damage" couldn't be applied). Added
