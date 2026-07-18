@@ -57,6 +57,20 @@ describe('map studio: _genericPlanetCfg translates editor field names to the mod
     expect(MODEL).toMatch(/cfg\.city/);
     expect(MODEL).toMatch(/cfg\.lightColor/);
   });
+
+  it('forwards the TERRAIN fields (sea/cscale/coast/ice) to the model, and the model reads them (Slice 29)', () => {
+    // Water was the second big mapping fix (the sea slider was inverted + not reaching 3D). These are
+    // confirmed-3D fields — _genericPlanetCfg forwards each via num(L.<field>, …) for planet AND moon, and
+    // planet3d-model reads cfg.<field> to shade the surface — so guarding them (no visual judgment needed)
+    // stops a regression that silently drops terrain from the 3D preview the way clouds/water once were.
+    for (const f of ['sea', 'cscale', 'coast', 'ice']) {
+      expect(cfg, `_genericPlanetCfg drops "${f}"`).toMatch(new RegExp(`${f}:\\s*num\\(L\\.${f}`));
+    }
+    const MODEL = fs.readFileSync(path.join(process.cwd(), 'public/dnd/maps/planet3d-model.js'), 'utf8');
+    for (const f of ['sea', 'cscale', 'coast', 'ice']) {
+      expect(MODEL, `planet3d-model never reads cfg.${f}`).toMatch(new RegExp(`cfg\\.${f}`));
+    }
+  });
 });
 
 describe('map studio: object-editor sliders re-render in REAL TIME, not on release (Slice 29 / DND_RULES 2385)', () => {

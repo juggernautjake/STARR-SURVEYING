@@ -2374,11 +2374,18 @@ this is the remaining half.
 - [ ] **Audit every remaining control against both renderers.** For each kind (planet, moon, star,
       station, galaxy…), list every slider/toggle and confirm it changes (a) the 2D art and (b) the
       live 3D model. Two of these have now been mapping gaps; assume more are.
-- [ ] The likely cause, worth checking first: `edPreview()` hands `edWork` to
+- [~] The likely cause, worth checking first: `edPreview()` hands `edWork` to
       `EditorPreview3D.update()`, which rebuilds via `cfgFor(look)` →
       `Map3D._genericPlanetCfg({kind, look})`. Any field that mapping drops never reaches the model,
       so the slider moves, the value saves, and the preview is simply never told. A control that
-      silently does nothing is worse than a missing control — you think you tuned it.
+      silently does nothing is worse than a missing control — you think you tuned it. **Mechanism understood +
+      every CONFIRMED-3D field now guarded through this chokepoint:** `map-studio-config.test.ts` asserts
+      `_genericPlanetCfg` forwards clouds (translated), storms/rings/tilt/atmosphere, city/lava/lightColor, AND
+      (added 2026-07-18) the terrain fields sea/cscale/coast/ice — and that `planet3d-model.js` reads each — so
+      a regression that drops one of these from the 3D config (the exact clouds/water bug class) fails in CI. No
+      visual judgment needed for these; they demonstrably reach + drive the model. The exhaustive per-field
+      audit of the AMBIGUOUS fields (which may be genuinely 2D-only) continues under the item above and needs
+      eyes on the render.
 - [ ] Both renderers must honour the SAME field. The editor already promises this in its own copy:
       "These drive both the 2D art and the live 3D model." Where a field genuinely cannot exist in
       one renderer, say so in the UI rather than leaving a dead control.
