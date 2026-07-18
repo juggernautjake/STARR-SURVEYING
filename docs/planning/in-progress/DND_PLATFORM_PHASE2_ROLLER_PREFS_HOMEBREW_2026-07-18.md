@@ -251,8 +251,12 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       `{label,total,detail,tone}` banner. Guarded by `ig-sheet-roller.test.ts` + `pf2-sheet-roller.test.ts`.
       REMAINING (R1b tail): a **target-DC field** to surface the four-step degree of success (the engine
       already returns `degree` when a DC is supplied) — a small follow-up.
-- [ ] **R2 — Auto-mechanics toggle.** When on, active conditions/stances/exhaustion fold into every roll;
-      when off, the sheet shows the modifiers but the player applies them. Reads the `autoMechanics` pref.
+- [x] **R2 — Auto-mechanics toggle.** ✅ SHIPPED — the store reads `prefs.autoMechanics.value`; every d20 fold
+      site (rollCheck, manualD20, rollDeathSave) applies the exhaustion helper ONLY when auto-mechanics is on,
+      else uses a stable `NO_EXH` no-op and tags the roll `EXH (apply manually)` so the player knows to apply it
+      themselves. Default (on) behaviour is unchanged. Golden-anchored (`exhaustion-d20.test.ts` R2 block).
+      (Conditions/adv-dis are already player-driven via `advMode`; exhaustion is the auto-folded mechanic on the
+      generic sheet. IG stance auto-folding can extend the same gate later.)
 - [x] **R3 — Manual roll input.** ✅ SHIPPED — pure `foldD20(face, mod, critMin)` in `_sheet/lib/dice.ts`
       folds a physically-rolled d20 face with the character's modifier (clamps 1–20, no randomness/advantage —
       the player chose the die), deciding crit/fumble like any roll. Store `manualD20(label, mod, face, opts)`

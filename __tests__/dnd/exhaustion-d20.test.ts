@@ -52,3 +52,17 @@ describe('the 2014 tiered table is now the main model for the 2014 edition (owne
     expect(SYSTEM_RULES).toMatch(/TIERED/i);
   });
 });
+
+describe('auto-mechanics toggle gates the exhaustion fold (Area R2)', () => {
+  it('reads the autoMechanics pref and only folds exhaustion when it is ON', () => {
+    expect(STORE).toContain('const autoMechanics = prefs.autoMechanics.value');
+    expect(STORE).toContain('const NO_EXH = { penalty: 0, disadvantage: false } as const');
+    // every d20 fold site is gated: on → the helper, off → the no-op
+    expect(STORE).toContain('autoMechanics ? exhaustionD20Effect(exhKind, exh, edition, exhaustionModel) : NO_EXH');
+    expect(STORE).toContain("autoMechanics ? exhaustionD20Effect('save', exh, edition, exhaustionModel) : NO_EXH");
+    // when off, exhaustion is flagged for manual application rather than silently ignored
+    expect(STORE).toContain('EXH (apply manually)');
+    // the callbacks depend on autoMechanics so toggling re-derives them
+    expect(STORE).toMatch(/exhaustionModel, autoMechanics\]/);
+  });
+});

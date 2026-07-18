@@ -19,6 +19,10 @@ import { resolvePreferences, DEFAULT_CAMPAIGN_PREFERENCES, type EffectivePrefere
 import { hitDiceAfterLongRest } from '@/lib/dnd/mechanics/long-rest'
 import { exhaustionD20Effect, type Edition } from '@/lib/dnd/mechanics/exhaustion'
 
+// The no-op exhaustion effect used when auto-mechanics is OFF (Area R2) — a stable module constant so it never
+// destabilises the roll callbacks' dependency arrays.
+const NO_EXH = { penalty: 0, disadvantage: false } as const
+
 // Per-character localStorage slot. A single shared key meant every standalone sheet
 // read and wrote the SAME cached character (originally Lazzuh's); keying by id keeps
 // each character's local cache to itself.
@@ -277,6 +281,10 @@ export function CharacterProvider({
   // comes from the system key ('dnd5e-2014' → 2014); anything else (incl. 2024) uses the 2024 rules.
   const exhaustionModel = prefs.exhaustionModel.value
   const edition: Edition = system?.includes('2014') ? '2014' : '2024'
+  // Auto-mechanics (Area R2): when ON (default), swappable mechanics like exhaustion fold into every d20 roll
+  // automatically; when OFF, the sheet still SHOWS them but the player applies them by hand, so a roll uses no
+  // auto-penalty (a tag reminds them). `noExh` is the no-op the fold sites use when auto is off.
+  const autoMechanics = prefs.autoMechanics.value
   const dbMode = !!characterId
   // The character as first hydrated — the baseline `reset()` restores. Captured on the
   // initial load (DB or local) and never overwritten by later realtime/remote updates.
@@ -627,7 +635,7 @@ export function CharacterProvider({
       // fold its result into the roll's modifier and the advantage mode.
       const exh = char.combat.exhaustion || 0
       const exhKind = opts.kind === 'attack' ? 'attack' : opts.kind === 'save' ? 'save' : 'check'
-      const exhEff = exhaustionD20Effect(exhKind, exh, edition, exhaustionModel)
+      const exhEff = autoMechanics ? exhaustionD20Effect(exhKind, exh, edition, exhaustionModel) : NO_EXH
       const hasAdv = advMode === 'adv' || (recklessActive && !!opts.strMelee) || !!opts.advantage
       const hasDis = advMode === 'dis' || !!opts.disadvantage || exhEff.disadvantage
       const mode: Advantage = hasAdv && hasDis ? 'flat' : hasAdv ? 'adv' : hasDis ? 'dis' : 'flat'
@@ -638,7 +646,8 @@ export function CharacterProvider({
       if (recklessActive && opts.strMelee) tags.push('RECKLESS')
       if (opts.advantage) tags.push('ADV')
       if (exh > 0) {
-        if (exhEff.penalty) tags.push(`EXH ${exhEff.penalty}`)
+        if (!autoMechanics) tags.push('EXH (apply manually)') // R2: auto-mechanics off → not folded, just flagged
+        else if (exhEff.penalty) tags.push(`EXH ${exhEff.penalty}`)
         else if (exhEff.disadvantage) tags.push('EXH (dis)')
       }
       if (rollCritMin < 20) tags.push(`CRIT ${rollCritMin}–20`)
@@ -657,7 +666,7 @@ export function CharacterProvider({
         { landing: r.natural, min: 1, max: 20, isD20: true, crit: r.crit, fumble: r.fumble },
       )
     },
-    [advMode, recklessActive, char.combat.exhaustion, critMin, stage, edition, exhaustionModel],
+    [advMode, recklessActive, char.combat.exhaustion, critMin, stage, edition, exhaustionModel, autoMechanics],
   )
 
   // Manually-entered d20 (Area R3) — the player rolled a physical die and types the FACE; the sheet folds the
@@ -667,19 +676,19 @@ export function CharacterProvider({
     (label: string, mod: number, face: number, opts: RollD20Opts = {}) => {
       const exh = char.combat.exhaustion || 0
       const exhKind = opts.kind === 'attack' ? 'attack' : opts.kind === 'save' ? 'save' : 'check'
-      const exhEff = exhaustionD20Effect(exhKind, exh, edition, exhaustionModel)
+      const exhEff = autoMechanics ? exhaustionD20Effect(exhKind, exh, edition, exhaustionModel) : NO_EXH
       const rollCritMin = opts.kind === 'attack' ? critMin : 20
       const r = foldD20(face, mod + exhEff.penalty, rollCritMin)
       const tags: string[] = ['MANUAL']
-      if (exh > 0 && exhEff.penalty) tags.push(`EXH ${exhEff.penalty}`)
+      if (exh > 0) tags.push(autoMechanics && exhEff.penalty ? `EXH ${exhEff.penalty}` : autoMechanics ? '' : 'EXH (apply manually)')
       if (rollCritMin < 20) tags.push(`CRIT ${rollCritMin}–20`)
       if (opts.tag) tags.push(opts.tag)
       stage(
-        { label, kind: opts.kind ?? 'check', total: r.total, breakdown: r.breakdown, crit: r.crit, fumble: r.fumble, mode: 'flat', tag: tags.join(' · ') || undefined },
+        { label, kind: opts.kind ?? 'check', total: r.total, breakdown: r.breakdown, crit: r.crit, fumble: r.fumble, mode: 'flat', tag: tags.filter(Boolean).join(' · ') || undefined },
         { landing: r.natural, min: 1, max: 20, isD20: true, crit: r.crit, fumble: r.fumble },
       )
     },
-    [char.combat.exhaustion, critMin, stage, edition, exhaustionModel],
+    [char.combat.exhaustion, critMin, stage, edition, exhaustionModel, autoMechanics],
   )
 
   // Record an IRL roll (Area R5) — the player rolled physical dice and just wants it in the log (result + what
@@ -1076,7 +1085,7 @@ export function CharacterProvider({
     // to every other d20 — via the same model+edition helper (Area M1). Nat 20 / nat 1 still read the NATURAL
     // die, unaffected by any penalty.
     const exh = char.combat.exhaustion || 0
-    const exhEff = exhaustionD20Effect('save', exh, edition, exhaustionModel)
+    const exhEff = autoMechanics ? exhaustionD20Effect('save', exh, edition, exhaustionModel) : NO_EXH
     // Fold the ledger's `death_save` target so an effect that grants a death-save bonus (a feat/item)
     // actually applies — like initiative folds `initiative`. No-op when nothing grants it.
     const bonus = ledger.value('death_save', char.combat.deathSaveBonus) + exhEff.penalty
@@ -1084,7 +1093,9 @@ export function CharacterProvider({
     // One source of truth for the outcome: the log label AND the tracked success/failure counts both come
     // from applyDeathSave, so they can't drift (nat 20 regain+reset, nat 1 two failures, ≥10 success, cap 3).
     const outcome = applyDeathSave(char.combat, r.natural, r.total)
-    const tag = exh > 0 ? `${outcome.label} · EXH ${exhEff.penalty ? exhEff.penalty : '(dis)'}` : outcome.label
+    const tag = exh > 0
+      ? `${outcome.label} · ${autoMechanics ? `EXH ${exhEff.penalty ? exhEff.penalty : '(dis)'}` : 'EXH (apply manually)'}`
+      : outcome.label
     stage(
       { label: 'Death Save', kind: 'save', total: r.total, breakdown: r.breakdown, crit: r.natural === 20, fumble: r.natural === 1, tag },
       { landing: r.natural, min: 1, max: 20, isD20: true, crit: r.natural === 20, fumble: r.natural === 1 },
@@ -1093,7 +1104,7 @@ export function CharacterProvider({
       const next = applyDeathSave(c.combat, r.natural, r.total)
       return { ...c, combat: { ...c.combat, deathSuccess: next.deathSuccess, deathFail: next.deathFail, currentHp: next.currentHp } }
     })
-  }, [char.combat, ledger, stage, edition, exhaustionModel])
+  }, [char.combat, ledger, stage, edition, exhaustionModel, autoMechanics])
 
   // A concentration save is a Constitution saving throw when you take damage while concentrating — DC 10,
   // or half the damage taken if that's higher (the DM sets the DC from the hit, so the roll shows the total
