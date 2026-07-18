@@ -195,9 +195,15 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       when off.
 
 ### Area R — In-app roller for the bespoke sheets (PF2 + IG) (depends on P for the auto-toggle)
-- [ ] **R1 — Roll engines wired.** A shared roll surface for PF2 (`pf2Degree`/`pf2AttackBonus`/…) and IG
-      (`igResolveAttack`/`igConditionSummary`/`igStanceMechanicNote`/`igDegreeOfSuccess`), so tapping a
-      check/save/attack/skill on the bespoke sheet rolls it in-app with the mechanics folded in.
+- [x] **R1a — Shared roll-resolution engine (pure core).** ✅ SHIPPED — `lib/dnd/roll.ts`:
+      `resolveD20Roll({ natural, modifier, dc?, system? })` takes the natural face as INPUT (not rolled), so
+      one function serves every input mode — auto (RNG face), manual (typed face), IRL (recorded face). Returns
+      total + crit/fumble + (with a DC) the four-step `degree` for IG/PF2 (the shared ladder, extracted as
+      `fourStepDegree`) or meet-or-beat `success` for others. `clampNatural` guards bad manual entry;
+      `rollNaturalD20` isolates the only randomness. Golden-pinned by `roll-engine.test.ts` (8).
+- [ ] **R1b — Wire the engine into the bespoke sheets.** Tapping a check/save/attack/skill on the IG/PF2 sheet
+      calls `resolveD20Roll` with that line's modifier (from `igResolveAttack`/`pf2AttackBonus`/…) + the
+      target DC, logs the result. (The pure engine + the per-system modifier math both exist; this is the UI.)
 - [ ] **R2 — Auto-mechanics toggle.** When on, active conditions/stances/exhaustion fold into every roll;
       when off, the sheet shows the modifiers but the player applies them. Reads the `autoMechanics` pref.
 - [ ] **R3 — Manual roll input.** Enter a d20/dice result by hand; the sheet folds the character's modifiers.
