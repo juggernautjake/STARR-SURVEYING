@@ -57,12 +57,15 @@ describe('auto-mechanics toggle gates the exhaustion fold (Area R2)', () => {
   it('reads the autoMechanics pref and only folds exhaustion when it is ON', () => {
     expect(STORE).toContain('const autoMechanics = prefs.autoMechanics.value');
     expect(STORE).toContain('const NO_EXH = { penalty: 0, disadvantage: false } as const');
+    // The gate is `rollEffectsOn` = the autoMechanics pref AND the per-session vanilla toggle being off, so a
+    // straight vanilla roll skips the fold just like auto-mechanics-off does.
+    expect(STORE).toContain('const rollEffectsOn = autoMechanics && !vanillaMode');
     // every d20 fold site is gated: on → the helper, off → the no-op
-    expect(STORE).toContain('autoMechanics ? exhaustionD20Effect(exhKind, exh, edition, exhaustionModel) : NO_EXH');
-    expect(STORE).toContain("autoMechanics ? exhaustionD20Effect('save', exh, edition, exhaustionModel) : NO_EXH");
+    expect(STORE).toContain('rollEffectsOn ? exhaustionD20Effect(exhKind, exh, edition, exhaustionModel) : NO_EXH');
+    expect(STORE).toContain("rollEffectsOn ? exhaustionD20Effect('save', exh, edition, exhaustionModel) : NO_EXH");
     // when off, exhaustion is flagged for manual application rather than silently ignored
     expect(STORE).toContain('EXH (apply manually)');
-    // the callbacks depend on autoMechanics so toggling re-derives them
-    expect(STORE).toMatch(/exhaustionModel, autoMechanics\]/);
+    // the callbacks depend on the gate so toggling re-derives them
+    expect(STORE).toMatch(/exhaustionModel, rollEffectsOn\]/);
   });
 });

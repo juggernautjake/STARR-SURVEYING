@@ -138,6 +138,10 @@ interface Ctx {
 
   advMode: Advantage
   setAdvMode: (m: Advantage) => void
+  /** Per-session "vanilla roller" switch: when true, rolls ignore all auto-folded effects (conditions,
+   *  stances, exhaustion) for a straight roll. Independent of the campaign autoMechanics preference. */
+  vanillaMode: boolean
+  setVanillaMode: (v: boolean) => void
   transformActive: boolean
   topFormId: string | null // the top Surge form you'd transform into (null if none unlocked)
   transform: () => void
@@ -316,6 +320,11 @@ export function CharacterProvider({
     return initial
   })
   const [advMode, setAdvMode] = useState<Advantage>('flat')
+  // Vanilla roller (per-session, Area R2): a quick toggle to switch OFF all auto-folded effects — conditions,
+  // stances, exhaustion — for straight rolls, without changing the campaign preference. Combines with the
+  // autoMechanics pref: rolls fold effects only when the pref is on AND vanilla mode is off.
+  const [vanillaMode, setVanillaMode] = useState(false)
+  const rollEffectsOn = autoMechanics && !vanillaMode
   const [recklessActive, setRecklessActive] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [tempMode, setTempMode] = useState(false)
@@ -567,7 +576,7 @@ export function CharacterProvider({
   // source and re-deriving, which is why reverting is free and can't corrupt the sheet.
   // `foldConditions` = the auto-mechanics toggle: ON folds active 5e conditions (Poisoned → disadvantage on
   // attacks/skills) into the ledger so they reach every roll + explain themselves; OFF is the vanilla roller.
-  const ledger = useMemo(() => buildLedger(char, { system, exhaustionModel, foldConditions: autoMechanics, shapeshiftStats, autoAttune, featAutoApply }), [char, system, exhaustionModel, autoMechanics, shapeshiftStats, autoAttune, featAutoApply])
+  const ledger = useMemo(() => buildLedger(char, { system, exhaustionModel, foldConditions: rollEffectsOn, shapeshiftStats, autoAttune, featAutoApply }), [char, system, exhaustionModel, rollEffectsOn, shapeshiftStats, autoAttune, featAutoApply])
 
   // Effective ability scores: base + every active effect. Components read THESE, so a +2 belt
   // moves the score, its modifier, every skill using it, and its carrying capacity at once.
@@ -653,29 +662,31 @@ export function CharacterProvider({
       // fold its result into the roll's modifier and the advantage mode.
       const exh = char.combat.exhaustion || 0
       const exhKind = opts.kind === 'attack' ? 'attack' : opts.kind === 'save' ? 'save' : 'check'
-      const exhEff = autoMechanics ? exhaustionD20Effect(exhKind, exh, edition, exhaustionModel) : NO_EXH
-      const hasAdv = advMode === 'adv' || (recklessActive && !!opts.strMelee) || !!opts.advantage
-      const hasDis = advMode === 'dis' || !!opts.disadvantage || exhEff.disadvantage
+      const exhEff = rollEffectsOn ? exhaustionD20Effect(exhKind, exh, edition, exhaustionModel) : NO_EXH
+      // Vanilla mode also drops the per-roll advantage/disadvantage sourced from effects (conditions/stances)
+      // — only the manual DIS/FLAT/ADV segment + Reckless remain. Straight rolls, nothing folded.
+      const hasAdv = advMode === 'adv' || (recklessActive && !!opts.strMelee) || (rollEffectsOn && !!opts.advantage)
+      const hasDis = advMode === 'dis' || (rollEffectsOn && !!opts.disadvantage) || exhEff.disadvantage
       const mode: Advantage = hasAdv && hasDis ? 'flat' : hasAdv ? 'adv' : hasDis ? 'dis' : 'flat'
       // Only attack rolls consult the crit range; a check or save always crits on a 20 only.
       const rollCritMin = opts.kind === 'attack' ? critMin : 20
       const r = rollD20(mod + exhEff.penalty, mode, rollCritMin)
       const tags: string[] = []
       if (recklessActive && opts.strMelee) tags.push('RECKLESS')
-      if (opts.advantage) tags.push('ADV')
+      if (rollEffectsOn && opts.advantage) tags.push('ADV')
       if (exh > 0) {
-        if (!autoMechanics) tags.push('EXH (apply manually)') // R2: auto-mechanics off → not folded, just flagged
+        if (!rollEffectsOn) tags.push('EXH (apply manually)') // R2: auto-mechanics off / vanilla → not folded, just flagged
         else if (exhEff.penalty) tags.push(`EXH ${exhEff.penalty}`)
         else if (exhEff.disadvantage) tags.push('EXH (dis)')
       }
       if (rollCritMin < 20) tags.push(`CRIT ${rollCritMin}–20`)
       if (opts.tag) tags.push(opts.tag)
       // What HELPED vs HURT this roll, by name — so the tray shows "disadvantage · Poisoned" (red). Exhaustion's
-      // flat penalty / disadvantage joins the penalties; auto-mechanics-off shows nothing folded (vanilla roller).
-      const penalties = [...(opts.disSources ?? [])]
-      if (autoMechanics && exh > 0 && exhEff.penalty) penalties.push(`Exhaustion ${exhEff.penalty}`)
-      else if (autoMechanics && exh > 0 && exhEff.disadvantage) penalties.push('Exhaustion (disadvantage)')
-      const boosts = [...(opts.advSources ?? [])]
+      // flat penalty / disadvantage joins the penalties; vanilla mode shows nothing folded (straight roll).
+      const penalties = rollEffectsOn ? [...(opts.disSources ?? [])] : []
+      if (rollEffectsOn && exh > 0 && exhEff.penalty) penalties.push(`Exhaustion ${exhEff.penalty}`)
+      else if (rollEffectsOn && exh > 0 && exhEff.disadvantage) penalties.push('Exhaustion (disadvantage)')
+      const boosts = rollEffectsOn ? [...(opts.advSources ?? [])] : []
       stage(
         {
           label,
@@ -692,7 +703,7 @@ export function CharacterProvider({
         { landing: r.natural, min: 1, max: 20, isD20: true, crit: r.crit, fumble: r.fumble },
       )
     },
-    [advMode, recklessActive, char.combat.exhaustion, critMin, stage, edition, exhaustionModel, autoMechanics],
+    [advMode, recklessActive, char.combat.exhaustion, critMin, stage, edition, exhaustionModel, rollEffectsOn],
   )
 
   // Manually-entered d20 (Area R3) — the player rolled a physical die and types the FACE; the sheet folds the
@@ -702,11 +713,11 @@ export function CharacterProvider({
     (label: string, mod: number, face: number, opts: RollD20Opts = {}) => {
       const exh = char.combat.exhaustion || 0
       const exhKind = opts.kind === 'attack' ? 'attack' : opts.kind === 'save' ? 'save' : 'check'
-      const exhEff = autoMechanics ? exhaustionD20Effect(exhKind, exh, edition, exhaustionModel) : NO_EXH
+      const exhEff = rollEffectsOn ? exhaustionD20Effect(exhKind, exh, edition, exhaustionModel) : NO_EXH
       const rollCritMin = opts.kind === 'attack' ? critMin : 20
       const r = foldD20(face, mod + exhEff.penalty, rollCritMin)
       const tags: string[] = ['MANUAL']
-      if (exh > 0) tags.push(autoMechanics && exhEff.penalty ? `EXH ${exhEff.penalty}` : autoMechanics ? '' : 'EXH (apply manually)')
+      if (exh > 0) tags.push(rollEffectsOn && exhEff.penalty ? `EXH ${exhEff.penalty}` : rollEffectsOn ? '' : 'EXH (apply manually)')
       if (rollCritMin < 20) tags.push(`CRIT ${rollCritMin}–20`)
       if (opts.tag) tags.push(opts.tag)
       stage(
@@ -714,7 +725,7 @@ export function CharacterProvider({
         { landing: r.natural, min: 1, max: 20, isD20: true, crit: r.crit, fumble: r.fumble },
       )
     },
-    [char.combat.exhaustion, critMin, stage, edition, exhaustionModel, autoMechanics],
+    [char.combat.exhaustion, critMin, stage, edition, exhaustionModel, rollEffectsOn],
   )
 
   // Record an IRL roll (Area R5) — the player rolled physical dice and just wants it in the log (result + what
@@ -1111,7 +1122,7 @@ export function CharacterProvider({
     // to every other d20 — via the same model+edition helper (Area M1). Nat 20 / nat 1 still read the NATURAL
     // die, unaffected by any penalty.
     const exh = char.combat.exhaustion || 0
-    const exhEff = autoMechanics ? exhaustionD20Effect('save', exh, edition, exhaustionModel) : NO_EXH
+    const exhEff = rollEffectsOn ? exhaustionD20Effect('save', exh, edition, exhaustionModel) : NO_EXH
     // Fold the ledger's `death_save` target so an effect that grants a death-save bonus (a feat/item)
     // actually applies — like initiative folds `initiative`. No-op when nothing grants it.
     const bonus = ledger.value('death_save', char.combat.deathSaveBonus) + exhEff.penalty
@@ -1120,7 +1131,7 @@ export function CharacterProvider({
     // from applyDeathSave, so they can't drift (nat 20 regain+reset, nat 1 two failures, ≥10 success, cap 3).
     const outcome = applyDeathSave(char.combat, r.natural, r.total)
     const tag = exh > 0
-      ? `${outcome.label} · ${autoMechanics ? `EXH ${exhEff.penalty ? exhEff.penalty : '(dis)'}` : 'EXH (apply manually)'}`
+      ? `${outcome.label} · ${rollEffectsOn ? `EXH ${exhEff.penalty ? exhEff.penalty : '(dis)'}` : 'EXH (apply manually)'}`
       : outcome.label
     stage(
       { label: 'Death Save', kind: 'save', total: r.total, breakdown: r.breakdown, crit: r.natural === 20, fumble: r.natural === 1, tag },
@@ -1130,7 +1141,7 @@ export function CharacterProvider({
       const next = applyDeathSave(c.combat, r.natural, r.total)
       return { ...c, combat: { ...c.combat, deathSuccess: next.deathSuccess, deathFail: next.deathFail, currentHp: next.currentHp } }
     })
-  }, [char.combat, ledger, stage, edition, exhaustionModel, autoMechanics])
+  }, [char.combat, ledger, stage, edition, exhaustionModel, rollEffectsOn])
 
   // A concentration save is a Constitution saving throw when you take damage while concentrating — DC 10,
   // or half the damage taken if that's higher (the DM sets the DC from the hit, so the roll shows the total
@@ -1194,6 +1205,8 @@ export function CharacterProvider({
     saveDescriptions,
     advMode,
     setAdvMode,
+    vanillaMode,
+    setVanillaMode,
     transformActive,
     topFormId,
     transform,

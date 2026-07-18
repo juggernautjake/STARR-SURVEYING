@@ -5,7 +5,7 @@ import RollStage from './RollStage'
 import { setMuted, isMuted, primeAudio } from '../lib/audio'
 
 export default function DiceTray() {
-  const { log, clearLog, resetStage, activeRoll, advMode, setAdvMode, transformActive, topFormId, transform, endTransform, nextTurn, recklessActive, toggleReckless, rollCheck, rollExpr, manualD20, recordRoll, char, activeFormId, preferences } = useChar()
+  const { log, clearLog, resetStage, activeRoll, advMode, setAdvMode, vanillaMode, setVanillaMode, transformActive, topFormId, transform, endTransform, nextTurn, recklessActive, toggleReckless, rollCheck, rollExpr, manualD20, recordRoll, char, activeFormId, preferences } = useChar()
   // The dice-roller visual style. Defaults to the campaign/player preference (Area D), but a per-session
   // selector in the tray lets the player try any style right from the roller (owner 2026-07-18).
   const DICE_STYLES = ['futuristic', 'rugged', 'natural', 'fantasy', 'medieval'] as const
@@ -171,6 +171,15 @@ export default function DiceTray() {
             {recklessActive ? '⚡ RECKLESS' : 'Reckless'}
           </button>
         )}
+        {/* Vanilla roller (Area R2): flip OFF all auto-folded effects (conditions, stances, exhaustion) for a
+            straight roll — nothing but the die + your modifier + the manual DIS/FLAT/ADV segment. */}
+        <button
+          className={`btn tiny ${vanillaMode ? 'active' : ''}`}
+          onClick={() => setVanillaMode(!vanillaMode)}
+          title={vanillaMode ? 'Vanilla roller ON — effects (conditions/stances/exhaustion) are NOT applied. Click for the effects roller.' : 'Effects roller ON — conditions, stances & exhaustion fold into rolls. Click for a straight vanilla roll.'}
+        >
+          {vanillaMode ? '🎲 VANILLA' : '✨ Effects'}
+        </button>
       </div>
 
       {/* Transformation / Surge controls (forms module only) + exhaustion, which is a
