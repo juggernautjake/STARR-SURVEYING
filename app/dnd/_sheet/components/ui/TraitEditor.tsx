@@ -4,14 +4,17 @@
 // sheet (**bold**, rule links), so the editor is a plain textarea and the render side does the rest.
 import { useState } from 'react'
 import { useChar } from '../../state/store'
+import { logManualEdit } from '../../lib/log-edit'
 import EditDialog, { Field } from './EditDialog'
 
 export default function TraitEditor({ index, text, onClose }: { index: number; text: string; onClose: () => void }) {
-  const { setChar } = useChar()
+  const { setChar, characterId } = useChar()
   const [draft, setDraft] = useState(text)
 
   function save() {
     const v = draft.trim()
+    // Audit the change (Slice 20): an empty `v` is a delete (new value null); a rewrite logs old→new.
+    logManualEdit(characterId, `trait.${index}`, text, v || null)
     setChar((c) => {
       const traits = [...(c.traits ?? [])]
       if (index < 0 || index >= traits.length) return c

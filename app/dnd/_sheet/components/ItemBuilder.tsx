@@ -12,6 +12,7 @@ import type { Effect, EffectOperation } from '../engine/effects'
 import type { AbilityKey } from '../rules/dnd'
 import { findTarget, targetsInGroup, describeEffect, validateEffect, TARGET_GROUP_LABELS, type TargetGroup } from '@/lib/dnd/effects/targets'
 import { nextCustomized } from '../lib/customized'
+import { diffFields, logManualEdits } from '../lib/log-edit'
 import { cleanTriggers } from '@/lib/dnd/effects/triggers'
 
 const KINDS: { id: ItemKind; label: string }[] = [
@@ -84,7 +85,11 @@ export default function ItemBuilder({
     if (clean.triggers?.length) clean.triggers = cleanTriggers(clean.triggers)
     // ✎ (Slice 20): mark an item hand-tuned when EDITING an existing one changed it. A brand-new
     // item (no `initial`) isn't "customized from a source" — it just is what it is.
-    if (initial) clean.customized = nextCustomized(initial, clean)
+    if (initial) {
+      clean.customized = nextCustomized(initial, clean)
+      // Audit the edit to the same log the AI + DM overrides use (a new item isn't an "edit").
+      logManualEdits(characterId, diffFields(initial, clean, `item.${initial.name}`, ['name', 'desc', 'qty', 'kind']))
+    }
     onSave(clean)
   }
 

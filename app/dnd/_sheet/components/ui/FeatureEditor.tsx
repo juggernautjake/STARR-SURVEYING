@@ -10,18 +10,25 @@ import EditDialog, { Field } from './EditDialog'
 import { EffectRows } from '../ItemBuilder'
 import ImageUpload from './ImageUpload'
 import { nextCustomized } from '../../lib/customized'
+import { diffFields, logManualEdits } from '../../lib/log-edit'
+
+// Scalar fields whose hand-edit becomes an audit row (Slice 20); the body (paragraph array) + effects
+// stay out of the log — ✎ still marks them.
+const AUDITED: (keyof FeatureBlock)[] = ['name', 'source', 'unlockLevel', 'flavor']
 
 export default function FeatureEditor({ feature, onClose }: { feature: FeatureBlock; onClose: () => void }) {
-  const { setChar } = useChar()
+  const { setChar, characterId } = useChar()
   const [draft, setDraft] = useState<FeatureBlock>({ ...feature })
   const set = <K extends keyof FeatureBlock>(k: K, v: FeatureBlock[K]) => setDraft((d) => ({ ...d, [k]: v }))
 
   function save() {
     const name = draft.name.trim() || feature.name // a blank name would erase the card's heading
-    const customized = nextCustomized(feature, draft) // ✎ once hand-tuned (Slice 20)
+    const next = { ...draft, name }
+    const customized = nextCustomized(feature, next) // ✎ once hand-tuned (Slice 20)
+    logManualEdits(characterId, diffFields(feature, next, `feature.${feature.name}`, AUDITED))
     setChar((c) => ({
       ...c,
-      features: (c.features ?? []).map((f) => (f.id === feature.id ? { ...draft, name, customized } : f)),
+      features: (c.features ?? []).map((f) => (f.id === feature.id ? { ...next, customized } : f)),
     }))
     onClose()
   }

@@ -3,14 +3,17 @@
 // Ki, Superiority dice, a homebrew "focus" counter — all rendered as read-only pip rows before this.
 import { useState } from 'react'
 import { useChar } from '../../state/store'
+import { diffFields, logManualEdits } from '../../lib/log-edit'
 import type { Resource } from '../../types'
 import EditDialog, { Field } from './EditDialog'
 
 const COLORS: Resource['color'][] = ['pink', 'teal', 'gold']
 const RESETS: Resource['resetOn'][] = ['short', 'long']
+// Scalar fields whose hand-edit becomes an audit row (Slice 20).
+const AUDITED: (keyof Resource)[] = ['name', 'max', 'current', 'resetOn', 'color', 'unlockLevel', 'note']
 
 export default function ResourceEditor({ resource, onClose }: { resource: Resource; onClose: () => void }) {
-  const { setChar } = useChar()
+  const { setChar, characterId } = useChar()
   const [draft, setDraft] = useState<Resource>({ ...resource })
   const set = <K extends keyof Resource>(k: K, v: Resource[K]) => setDraft((d) => ({ ...d, [k]: v }))
 
@@ -19,9 +22,11 @@ export default function ResourceEditor({ resource, onClose }: { resource: Resour
     const max = Math.max(0, Math.round(draft.max || 0))
     // Never leave `current` above the new max, or the pip row renders more filled than exist.
     const current = Math.min(draft.current, max)
+    const next = { ...draft, name, max, current }
+    logManualEdits(characterId, diffFields(resource, next, `resource.${resource.name}`, AUDITED))
     setChar((c) => ({
       ...c,
-      resources: (c.resources ?? []).map((r) => (r.id === resource.id ? { ...draft, name, max, current } : r)),
+      resources: (c.resources ?? []).map((r) => (r.id === resource.id ? next : r)),
     }))
     onClose()
   }

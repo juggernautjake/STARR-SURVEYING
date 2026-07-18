@@ -1946,21 +1946,21 @@ diff/revert is the planner's gold-plating on top.
       `Inventory.tsx` opens `ItemBuilder` on an existing item (rename + description/quantity/kind/stats from the
       Gear list). The doc's "the way in + the editor are missing" note was stale — both the ⋯ way-in AND the
       editors are shipped.
-- [~] Editing routes through the SAME audit vocabulary the AI uses — one place where a sheet change is
-      recorded, so the DM's "what changed" view (`dnd_sheet_edits`) stays true.
-      **SHIPPED (verified 2026-07-18):** the convergence point is the shared `logManualEdit` /
-      `diffFields` helper (`app/dnd/_sheet/lib/log-edit.ts`), used by BOTH `DmOverridePanel` (scalar
-      overrides) AND the in-place `AttackEditor` (a hand-tuned attack now posts one `dnd_sheet_edits`
-      row per changed field — `attack.<name>.damage: 1d8 → 1d10` — visible in the DM's `EditReviewPanel`
-      alongside AI edits). AI/NPC/ingest/transpose still log via `applySheetEdits` server-side; the
-      manual editors log the same rows client-side. Note: the manual path records the AUDIT ROW, while
-      the sheet write itself stays on `setChar`→autosave (so autosave/realtime "come along for free")
-      rather than being funneled through `applySheetEdits` — a different, superior convergence (EVERY
-      write is audited, not only edit-vocabulary-expressible ones). `log-edit.test.ts`.
-      **REMAINING (`[~]`):** wiring the same `logManualEdits` call into the other in-place editors
-      (`ItemBuilder`/`SpellEditor`/`FeatureEditor`/`ResourceEditor`/`TraitEditor`) — mechanical repeats
-      of the AttackEditor change; and structured *revert* of a manual element edit (tracked under the
-      ✎-hover Revert item above / Slice-20 revert, which needs the per-element diff UI).
+- [x] ✅ SHIPPED (verified 2026-07-18): Editing routes through the SAME audit vocabulary the AI uses — one
+      place where a sheet change is recorded, so the DM's "what changed" view (`dnd_sheet_edits`) stays true.
+      The convergence point is the shared `logManualEdit` / `diffFields` helper
+      (`app/dnd/_sheet/lib/log-edit.ts`), now used by EVERY manual write surface: `DmOverridePanel` (scalar
+      overrides) AND all the in-place editors — `AttackEditor`, `SpellEditor`, `FeatureEditor`,
+      `ResourceEditor`, `TraitEditor`, and `ItemBuilder`. Each posts one `dnd_sheet_edits` row per changed
+      scalar field (`attack.<name>.damage: 1d8 → 1d10`, `spell.<name>.level: 3 → 4`, …), visible in the DM's
+      `EditReviewPanel` alongside AI edits. AI/NPC/ingest/transpose still log via `applySheetEdits`
+      server-side; the manual editors log the same rows client-side. Note: the manual path records the AUDIT
+      ROW while the sheet write itself stays on `setChar`→autosave (so autosave/realtime "come along for
+      free") rather than being funneled through `applySheetEdits` — a different, superior convergence (EVERY
+      write is audited, not just edit-vocabulary-expressible ones). Arrays/objects (effects, save) stay out of
+      the log by design — a ✎ still marks them; a JSON blob in the queue would be noise. `log-edit.test.ts`.
+      **STILL REMAINING (tracked under the ✎-hover Revert item above / Slice-20 revert):** structured *revert*
+      of a manual element edit, which needs the per-element diff-hover UI (a browser slice), not more logging.
 
 ### The customized marker is NOT the star
 

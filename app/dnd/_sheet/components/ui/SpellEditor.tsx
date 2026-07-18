@@ -14,11 +14,19 @@ import { EffectRows } from '../ItemBuilder'
 import ImageUpload from './ImageUpload'
 import { validateEffect } from '@/lib/dnd/effects/targets'
 import { nextCustomized } from '../../lib/customized'
+import { diffFields, logManualEdits } from '../../lib/log-edit'
+
+// Scalar fields whose hand-edit becomes an audit row (Slice 20). Arrays/objects (effects, save) stay
+// out of the log — a ✎ still marks them; a JSON blob in the DM's queue would be noise, not signal.
+const AUDITED: (keyof Spell)[] = [
+  'name', 'level', 'school', 'castTime', 'range', 'components', 'duration',
+  'description', 'concentration', 'ritual', 'attack', 'higher', 'effectDuration',
+]
 
 const LEVELS: SpellLevel[] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 export default function SpellEditor({ spell, onClose }: { spell: Spell; onClose: () => void }) {
-  const { setChar } = useChar()
+  const { setChar, characterId } = useChar()
   const [draft, setDraft] = useState<Spell>({ ...spell })
   const set = <K extends keyof Spell>(k: K, v: Spell[K]) => setDraft((d) => ({ ...d, [k]: v }))
 
@@ -31,10 +39,12 @@ export default function SpellEditor({ spell, onClose }: { spell: Spell; onClose:
       const bad = validateEffect(eff)
       if (bad) { setErr(bad.reason); return }
     }
-    const customized = nextCustomized(spell, draft) // ✎ once hand-tuned (Slice 20)
+    const next = { ...draft, name }
+    const customized = nextCustomized(spell, next) // ✎ once hand-tuned (Slice 20)
+    logManualEdits(characterId, diffFields(spell, next, `spell.${spell.name}`, AUDITED))
     setChar((c) => ({
       ...c,
-      spells: (c.spells ?? []).map((s) => (s.id === spell.id ? { ...draft, name, customized } : s)),
+      spells: (c.spells ?? []).map((s) => (s.id === spell.id ? { ...next, customized } : s)),
     }))
     onClose()
   }
