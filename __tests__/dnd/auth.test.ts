@@ -1,6 +1,38 @@
 // __tests__/dnd/auth.test.ts — dnd auth helpers (Phase B, B1).
-import { describe, it, expect } from 'vitest';
-import { signToken, verifyToken, hashPassword, verifyPassword } from '@/lib/dnd/auth';
+import { describe, it, expect, afterEach } from 'vitest';
+import { signToken, verifyToken, hashPassword, verifyPassword, isDndLoginRequired, isDndOpenAccess } from '@/lib/dnd/auth';
+
+describe('the /dnd access-model gate (login-required vs open, DND_REQUIRE_LOGIN)', () => {
+  const ORIGINAL = process.env.DND_REQUIRE_LOGIN;
+  afterEach(() => {
+    if (ORIGINAL === undefined) delete process.env.DND_REQUIRE_LOGIN;
+    else process.env.DND_REQUIRE_LOGIN = ORIGINAL;
+  });
+
+  it('defaults to OPEN access (no env set) — /dnd is public by design', () => {
+    delete process.env.DND_REQUIRE_LOGIN;
+    expect(isDndLoginRequired()).toBe(false);
+    expect(isDndOpenAccess()).toBe(true);
+  });
+
+  it('requires login for every obvious truthy spelling (fails toward the MORE-secure state)', () => {
+    // Hardened 2026-07-18: not just '1' — a deployer who INTENDS login-required gets it however they spell it,
+    // rather than silently staying open on a non-'1' value.
+    for (const v of ['1', 'true', 'yes', 'on', 'TRUE', 'On', ' 1 ']) {
+      process.env.DND_REQUIRE_LOGIN = v;
+      expect(isDndLoginRequired(), `"${v}" should require login`).toBe(true);
+      expect(isDndOpenAccess()).toBe(false);
+    }
+  });
+
+  it('stays OPEN for falsy / off values (0, false, no, off, empty) — never accidentally locks a public deploy', () => {
+    for (const v of ['0', 'false', 'no', 'off', '', '  ']) {
+      process.env.DND_REQUIRE_LOGIN = v;
+      expect(isDndLoginRequired(), `"${v}" must NOT require login`).toBe(false);
+      expect(isDndOpenAccess()).toBe(true);
+    }
+  });
+});
 
 describe('dnd auth: signed tokens', () => {
   it('round-trips a payload', () => {

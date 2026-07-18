@@ -2736,6 +2736,12 @@ regression to *reach*, not the drawing:
       break the intended owner-signs-up-by-name flow); instead added a **loud production start-up warning** when
       `DND_OWNER_KEYS` is unset (parallel to the existing `DND_SESSION_SECRET` warning). **Action for the owner:**
       set `DND_OWNER_KEYS` to the real owners AND provision/seed those accounts before the app is public.
+      **Access-model gate hardened + pinned (2026-07-18):** `isDndLoginRequired()` (the switch that flips /dnd
+      from public-by-default to login-required) checked `DND_REQUIRE_LOGIN === '1'` EXACTLY — a fail-OPEN
+      footgun: a deployer setting `=true`/`=yes`/`=on` (intending to lock /dnd down) would silently stay OPEN.
+      Now it accepts the obvious truthy spellings (`1`/`true`/`yes`/`on`, trimmed + case-insensitive) so it fails
+      toward the MORE-secure state, while `0`/`false`/`no`/`off`/unset correctly keep the by-design public
+      default. The whole gate is now unit-tested (`auth.test.ts`) — both directions — where it had NO coverage.
 - [x] **"+ Campaign"** in the header (signed-in only) → `/dnd?new=campaign`; `MyTable`'s new
       `NewCampaignButton` opens its form there, creates via `POST /api/dnd/campaigns` (creator = DM),
       and routes to the campaign's manage page. It then appears under "⚔️ Campaigns you run" and the

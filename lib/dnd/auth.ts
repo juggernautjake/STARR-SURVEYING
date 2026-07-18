@@ -119,7 +119,12 @@ export function setDndSession(user: { id: string; email: string; display_name: s
 // switched back on for the future by setting DND_REQUIRE_LOGIN=1, which flips the
 // middleware gate + the page-level redirects back to the login flow.
 export function isDndLoginRequired(): boolean {
-  return process.env.DND_REQUIRE_LOGIN === '1';
+  // Accept the obvious truthy spellings, not just the literal '1'. This is a security gate, so it must
+  // fail toward the MORE-secure state: a deployer who sets DND_REQUIRE_LOGIN=true / yes / on (intending
+  // login-required) gets login-required, instead of silently staying OPEN because the value wasn't exactly
+  // '1'. `false` / `0` / `no` / `off` / unset correctly leave /dnd open (its by-design default).
+  const v = (process.env.DND_REQUIRE_LOGIN ?? '').trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
 }
 
 /** True when /dnd is running open (the default). Kept as the name the pages already
