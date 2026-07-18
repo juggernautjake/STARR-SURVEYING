@@ -11,6 +11,15 @@ export type LongRestModel = 'vanilla' | 'half-hit-dice' | 'gritty' | 'epic';
 export type EquipLimits = 'enforced' | 'off';
 export type DiceRollerStyle = 'futuristic' | 'rugged' | 'natural' | 'fantasy' | 'medieval';
 export type RecordMode = 'auto' | 'manual' | 'irl';
+// How a shape-shift (Wild Shape, Primal Shape, Surge form, an assumed statblock) treats your ability
+// scores: 'full' — the form's scores fully replace yours, up OR down (RAW; the DEFAULT per owner);
+// 'partial' — the form only ever HELPS (a form score is used only when it beats your own); 'none' — forms
+// never touch ability scores (they change shape/senses/movement only). Read at the form-apply site.
+export type ShapeshiftStats = 'full' | 'partial' | 'none';
+// PF2 "damage while already dying" model: 'official' — taking damage while dying increases your Dying
+// value (by 1, or 2 on a crit / from a persistent source) per the PF2 rules (the DEFAULT); 'off' — dying
+// only advances from failed recovery saves, never from fresh damage (a gentler house rule).
+export type DownedDamageModel = 'official' | 'off';
 
 const VALUES = {
   exhaustionModel: ['vanilla', 'flat-2-per-level'] as ExhaustionModel[],
@@ -18,6 +27,8 @@ const VALUES = {
   equipLimits: ['enforced', 'off'] as EquipLimits[],
   diceRollerStyle: ['futuristic', 'rugged', 'natural', 'fantasy', 'medieval'] as DiceRollerStyle[],
   recordMode: ['auto', 'manual', 'irl'] as RecordMode[],
+  shapeshiftStats: ['full', 'partial', 'none'] as ShapeshiftStats[],
+  downedDamageModel: ['official', 'off'] as DownedDamageModel[],
 } as const;
 
 /** One campaign-level setting: its value + whether a player may override it with their own choice. */
@@ -34,6 +45,13 @@ export interface CampaignPreferences {
   equipLimits: CampaignSetting<EquipLimits>;
   diceRollerStyle: CampaignSetting<DiceRollerStyle>;
   recordMode: CampaignSetting<RecordMode>;
+  // Auto-attune: when true, a magic item that needs attunement is treated as attuned the moment it's in
+  // your inventory (its effects apply automatically); when false you attune manually. EQUIPPING (armor,
+  // clothing, weapons) is ALWAYS manual regardless — this only governs attunement.
+  autoAttune: CampaignSetting<boolean>;
+  featAutoApply: CampaignSetting<boolean>;
+  shapeshiftStats: CampaignSetting<ShapeshiftStats>;
+  downedDamageModel: CampaignSetting<DownedDamageModel>;
 }
 
 /** A player's chosen overrides. Partial — an unset field falls back to the campaign value. Only honored
@@ -45,6 +63,10 @@ export interface PlayerPreferences {
   equipLimits?: EquipLimits;
   diceRollerStyle?: DiceRollerStyle;
   recordMode?: RecordMode;
+  autoAttune?: boolean;
+  featAutoApply?: boolean;
+  shapeshiftStats?: ShapeshiftStats;
+  downedDamageModel?: DownedDamageModel;
 }
 
 /** One resolved setting the sheet reads, flagged if the DM locked it (so the UI can show "set by your DM"). */
@@ -60,16 +82,24 @@ export interface EffectivePreferences {
   equipLimits: EffectivePreference<EquipLimits>;
   diceRollerStyle: EffectivePreference<DiceRollerStyle>;
   recordMode: EffectivePreference<RecordMode>;
+  autoAttune: EffectivePreference<boolean>;
+  featAutoApply: EffectivePreference<boolean>;
+  shapeshiftStats: EffectivePreference<ShapeshiftStats>;
+  downedDamageModel: EffectivePreference<DownedDamageModel>;
 }
 
 /** The vanilla defaults — every setting on its RAW/standard value, and players free to choose by default. */
 export const DEFAULT_CAMPAIGN_PREFERENCES: CampaignPreferences = {
   autoMechanics: { value: true, playerCanChoose: true },
   exhaustionModel: { value: 'vanilla', playerCanChoose: true },
-  longRestModel: { value: 'vanilla', playerCanChoose: true },
+  longRestModel: { value: 'vanilla', playerCanChoose: true }, // 'vanilla' = each system's own RAW long rest
   equipLimits: { value: 'enforced', playerCanChoose: true },
   diceRollerStyle: { value: 'futuristic', playerCanChoose: true },
   recordMode: { value: 'auto', playerCanChoose: true },
+  autoAttune: { value: true, playerCanChoose: true }, // convenience default: attunement is automatic; equipping stays manual
+  featAutoApply: { value: true, playerCanChoose: true }, // a feat's ability increase applies itself by default
+  shapeshiftStats: { value: 'full', playerCanChoose: true }, // RAW: a form's scores fully replace yours
+  downedDamageModel: { value: 'official', playerCanChoose: true }, // PF2 RAW: damage while dying raises Dying
 };
 
 /** Resolve one setting: a locked setting always uses the campaign value; otherwise the player's choice wins
@@ -95,6 +125,10 @@ export function resolvePreferences(
     equipLimits: resolveOne(campaign.equipLimits, player.equipLimits),
     diceRollerStyle: resolveOne(campaign.diceRollerStyle, player.diceRollerStyle),
     recordMode: resolveOne(campaign.recordMode, player.recordMode),
+    autoAttune: resolveOne(campaign.autoAttune, player.autoAttune),
+    featAutoApply: resolveOne(campaign.featAutoApply, player.featAutoApply),
+    shapeshiftStats: resolveOne(campaign.shapeshiftStats, player.shapeshiftStats),
+    downedDamageModel: resolveOne(campaign.downedDamageModel, player.downedDamageModel),
   };
 }
 
@@ -121,6 +155,10 @@ export function normalizeCampaignPreferences(raw: unknown): CampaignPreferences 
     equipLimits: setting(r.equipLimits, VALUES.equipLimits, d.equipLimits),
     diceRollerStyle: setting(r.diceRollerStyle, VALUES.diceRollerStyle, d.diceRollerStyle),
     recordMode: setting(r.recordMode, VALUES.recordMode, d.recordMode),
+    autoAttune: setting(r.autoAttune, null, d.autoAttune),
+    featAutoApply: setting(r.featAutoApply, null, d.featAutoApply),
+    shapeshiftStats: setting(r.shapeshiftStats, VALUES.shapeshiftStats, d.shapeshiftStats),
+    downedDamageModel: setting(r.downedDamageModel, VALUES.downedDamageModel, d.downedDamageModel),
   };
 }
 
@@ -135,5 +173,9 @@ export function normalizePlayerPreferences(raw: unknown): PlayerPreferences {
   if (VALUES.equipLimits.includes(r.equipLimits as EquipLimits)) out.equipLimits = r.equipLimits as EquipLimits;
   if (VALUES.diceRollerStyle.includes(r.diceRollerStyle as DiceRollerStyle)) out.diceRollerStyle = r.diceRollerStyle as DiceRollerStyle;
   if (VALUES.recordMode.includes(r.recordMode as RecordMode)) out.recordMode = r.recordMode as RecordMode;
+  if (typeof r.autoAttune === 'boolean') out.autoAttune = r.autoAttune;
+  if (typeof r.featAutoApply === 'boolean') out.featAutoApply = r.featAutoApply;
+  if (VALUES.shapeshiftStats.includes(r.shapeshiftStats as ShapeshiftStats)) out.shapeshiftStats = r.shapeshiftStats as ShapeshiftStats;
+  if (VALUES.downedDamageModel.includes(r.downedDamageModel as DownedDamageModel)) out.downedDamageModel = r.downedDamageModel as DownedDamageModel;
   return out;
 }

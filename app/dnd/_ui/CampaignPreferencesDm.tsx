@@ -13,7 +13,8 @@ import {
 } from '@/lib/dnd/preferences';
 
 // Field metadata drives the whole panel, so adding a future setting is one entry here + one in preferences.ts.
-type EnumField = 'exhaustionModel' | 'longRestModel' | 'equipLimits' | 'diceRollerStyle' | 'recordMode';
+type EnumField = 'exhaustionModel' | 'longRestModel' | 'equipLimits' | 'diceRollerStyle' | 'recordMode' | 'shapeshiftStats' | 'downedDamageModel';
+type BoolField = 'autoMechanics' | 'autoAttune' | 'featAutoApply';
 
 const ENUM_OPTIONS: Record<EnumField, { value: string; label: string }[]> = {
   exhaustionModel: [
@@ -21,7 +22,7 @@ const ENUM_OPTIONS: Record<EnumField, { value: string; label: string }[]> = {
     { value: 'flat-2-per-level', label: '−2 to every d20 test per level' },
   ],
   longRestModel: [
-    { value: 'vanilla', label: 'Vanilla (full restore)' },
+    { value: 'vanilla', label: 'Vanilla — each system’s own RAW long rest' },
     { value: 'half-hit-dice', label: 'Half hit dice (2014 RAW)' },
     { value: 'gritty', label: 'Gritty realism (long rest = 7 days)' },
     { value: 'epic', label: 'Epic (long rest = a short rest)' },
@@ -42,17 +43,64 @@ const ENUM_OPTIONS: Record<EnumField, { value: string; label: string }[]> = {
     { value: 'manual', label: 'Manual roll input' },
     { value: 'irl', label: 'Record IRL rolls' },
   ],
+  shapeshiftStats: [
+    { value: 'full', label: 'Full — a form replaces your ability scores, up or down (RAW)' },
+    { value: 'partial', label: 'Partial — scores meet in the middle (a sensible average)' },
+    { value: 'none', label: 'None — forms change shape/senses/movement but never ability scores' },
+  ],
+  downedDamageModel: [
+    { value: 'official', label: 'Official (PF2) — damage while dying raises your Dying value' },
+    { value: 'off', label: 'Off — Dying only advances on failed recovery saves' },
+  ],
 };
 
 const ENUM_HELP: Record<EnumField, string> = {
   exhaustionModel: 'How exhaustion penalties are applied.',
-  longRestModel: 'How much a long rest restores.',
+  longRestModel: 'How much a long rest restores. Vanilla uses each game system’s own rules.',
   equipLimits: 'Whether the one-armor / one-shield equip rules are enforced.',
   diceRollerStyle: 'The look of the in-app dice roller.',
   recordMode: 'How rolls are entered: the roller applies effects, you type a total, or you record a real-life roll.',
+  shapeshiftStats: 'What a shape-shift (Wild Shape, Primal Shape, a Surge form) does to your ability scores. Full replaces them like the rules say; partial averages your scores with the form’s; none leaves your scores alone.',
+  downedDamageModel: 'Pathfinder 2e only: whether taking damage while already dying pushes your Dying value up (official rules) or leaves it to recovery saves.',
 };
 
-const ENUM_ORDER: EnumField[] = ['exhaustionModel', 'longRestModel', 'equipLimits', 'diceRollerStyle', 'recordMode'];
+const ENUM_ORDER: EnumField[] = ['exhaustionModel', 'longRestModel', 'equipLimits', 'diceRollerStyle', 'recordMode', 'shapeshiftStats', 'downedDamageModel'];
+
+const BOOL_LABEL: Record<BoolField, string> = {
+  autoMechanics: 'Auto-apply mechanics',
+  autoAttune: 'Auto-attune magic items',
+  featAutoApply: 'Auto-apply feat bonuses',
+};
+const BOOL_HELP: Record<BoolField, string> = {
+  autoMechanics: 'When on, the roller folds a roll’s effects (conditions, exhaustion, item bonuses) into the sheet automatically. When off, rolls are recorded but you apply effects by hand.',
+  autoAttune: 'When on, a magic item that needs attunement works the moment you equip it — no separate attune step. When off, you attune each item by hand. Either way you still equip armor, weapons, and worn items yourself.',
+  featAutoApply: 'When on, a feat’s ability-score increase (like Resilient’s +1) applies itself. When off, you raise the score by hand.',
+};
+const BOOL_ORDER: BoolField[] = ['autoMechanics', 'autoAttune', 'featAutoApply'];
+
+/** A small hoverable info dot — the "little more-info icon" next to any setting that has options. */
+function InfoDot({ tip }: { tip: string }) {
+  return (
+    <span
+      title={tip}
+      aria-label={tip}
+      tabIndex={0}
+      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 15, height: 15, borderRadius: '50%', border: '1px solid var(--hx-line)', color: 'var(--hx-muted)', fontSize: 10, fontWeight: 700, cursor: 'help', userSelect: 'none', marginLeft: 6 }}
+    >
+      ?
+    </span>
+  );
+}
+
+const ENUM_TITLE: Record<EnumField, string> = {
+  exhaustionModel: 'Exhaustion model',
+  longRestModel: 'Long-rest model',
+  equipLimits: 'Equipment limits',
+  diceRollerStyle: 'Dice roller style',
+  recordMode: 'Roll recording mode',
+  shapeshiftStats: 'Shape-shift ability scores',
+  downedDamageModel: 'Damage while dying (PF2)',
+};
 
 /** A "players may choose" lock: unticked → the DM's value is forced on every player (locked). */
 function LockToggle({ playerCanChoose, disabled, onChange }: { playerCanChoose: boolean; disabled: boolean; onChange: (v: boolean) => void }) {
@@ -107,26 +155,32 @@ export default function CampaignPreferencesDm({ campaignId, initialPreferences }
         every player then uses your value.
       </p>
 
-      {/* Auto-apply mechanics (boolean) */}
-      <div style={rowStyle}>
-        <div style={headStyle}>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: 'var(--hx-text)', cursor: busy ? 'wait' : 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={prefs.autoMechanics.value}
-              disabled={busy}
-              onChange={(e) => save({ ...prefs, autoMechanics: { ...prefs.autoMechanics, value: e.target.checked } })}
-            />
-            <strong style={{ color: 'var(--hx-gold-2)' }}>Auto-apply mechanics</strong>
-          </label>
-          <LockToggle
-            playerCanChoose={prefs.autoMechanics.playerCanChoose}
-            disabled={busy}
-            onChange={(v) => save({ ...prefs, autoMechanics: { ...prefs.autoMechanics, playerCanChoose: v } })}
-          />
-        </div>
-        <div style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>When on, the roller applies a roll’s effects to the sheet automatically. When off, rolls are recorded but nothing changes on its own.</div>
-      </div>
+      {/* Boolean settings (auto-apply mechanics / auto-attune / auto-apply feat bonuses) */}
+      {BOOL_ORDER.map((field) => {
+        const setting = prefs[field];
+        return (
+          <div key={field} style={rowStyle}>
+            <div style={headStyle}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: 'var(--hx-text)', cursor: busy ? 'wait' : 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={setting.value}
+                  disabled={busy}
+                  onChange={(e) => save({ ...prefs, [field]: { ...setting, value: e.target.checked } })}
+                />
+                <strong style={{ color: 'var(--hx-gold-2)' }}>{BOOL_LABEL[field]}</strong>
+                <InfoDot tip={BOOL_HELP[field]} />
+              </label>
+              <LockToggle
+                playerCanChoose={setting.playerCanChoose}
+                disabled={busy}
+                onChange={(v) => save({ ...prefs, [field]: { ...setting, playerCanChoose: v } })}
+              />
+            </div>
+            <div style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>{BOOL_HELP[field]}</div>
+          </div>
+        );
+      })}
 
       {/* Enum settings */}
       {ENUM_ORDER.map((field) => {
@@ -134,7 +188,7 @@ export default function CampaignPreferencesDm({ campaignId, initialPreferences }
         return (
           <div key={field} style={rowStyle}>
             <div style={headStyle}>
-              <strong style={{ color: 'var(--hx-gold-2)', fontSize: 13.5 }}>{field === 'exhaustionModel' ? 'Exhaustion model' : field === 'longRestModel' ? 'Long-rest model' : field === 'equipLimits' ? 'Equipment limits' : field === 'diceRollerStyle' ? 'Dice roller style' : 'Roll recording mode'}</strong>
+              <strong style={{ color: 'var(--hx-gold-2)', fontSize: 13.5 }}>{ENUM_TITLE[field]}<InfoDot tip={ENUM_HELP[field]} /></strong>
               <LockToggle
                 playerCanChoose={setting.playerCanChoose}
                 disabled={busy}

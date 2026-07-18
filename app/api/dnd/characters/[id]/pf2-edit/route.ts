@@ -8,6 +8,7 @@ import { getDndSession } from '@/lib/dnd/auth';
 import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { applyPf2Edit, parsePf2Edit, describePf2Edit } from '@/lib/dnd/systems/pathfinder2e/edit';
 import { isPF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
+import { readCampaignPreferences } from '@/lib/dnd/campaign-preferences';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
@@ -26,7 +27,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const parsed = parsePf2Edit(await req.json().catch(() => ({})));
   if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
-  const nextPf2 = applyPf2Edit(pf2, parsed.edit);
+  // Honor the campaign's downed-damage model (Area downed): 'official' escalates a dying creature's Dying
+  // value on new damage (PF2 RAW), 'off' leaves it to recovery saves. No campaign → the RAW default.
+  const campId = (character as { campaign_id?: string | null }).campaign_id;
+  let downedDamageModel: 'official' | 'off' = 'official';
+  if (campId) {
+    const { data: campRow } = await supabaseAdmin.from('dnd_campaigns').select('theme').eq('id', campId).maybeSingle();
+    const prefs = readCampaignPreferences((campRow as { theme?: unknown } | null)?.theme);
+    downedDamageModel = prefs.downedDamageModel.value;
+  }
+  const nextPf2 = applyPf2Edit(pf2, parsed.edit, { downedDamageModel });
   const nextData = { ...data, pf2e: nextPf2 };
 
   const { error } = await supabaseAdmin

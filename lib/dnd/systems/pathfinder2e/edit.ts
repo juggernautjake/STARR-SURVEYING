@@ -8,13 +8,22 @@
 // therefore resolve against the EFFECTIVE current (currentHp || maxHp) and write a real value back.
 import type { PF2Character } from './model';
 import { pf2MaxHp } from './rules';
+import type { DownedDamageModel } from '@/lib/dnd/preferences';
 
 export type PF2Edit =
-  | { op: 'apply_damage'; amount: number }
+  | { op: 'apply_damage'; amount: number; crit?: boolean }
   | { op: 'heal'; amount: number }
   | { op: 'set_temp_hp'; amount: number }
   | { op: 'set_dying'; value: number }
   | { op: 'set_wounded'; value: number };
+
+/** Options governing house-rule-configurable behavior of an edit. */
+export interface PF2EditOptions {
+  /** Downed-damage model (the downedDamageModel preference). 'official' (default) — damage to an already-
+   *  dying creature raises its Dying value (by 1, or 2 on a crit), per PF2 RAW. 'off' — a downed creature's
+   *  Dying only advances from failed recovery saves, never from fresh damage. */
+  downedDamageModel?: DownedDamageModel;
+}
 
 /** The op names the AI tool + API accept. */
 export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded'] as const;
@@ -23,7 +32,8 @@ export type PF2EditOp = (typeof PF2_EDIT_OPS)[number];
 const DYING_MAX = 4; // PF2: Dying 4 = dead.
 
 /** Apply one edit, returning a NEW PF2Character (input never mutated). A no-op edit returns the input. */
-export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit): PF2Character {
+export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit, opts: PF2EditOptions = {}): PF2Character {
+  const downedDamageModel: DownedDamageModel = opts.downedDamageModel ?? 'official';
   const combat = { ...pf2.combat };
   const maxHp = pf2MaxHp(pf2);
   // Stored currentHp uses 0 to mean "full" — UNLESS the character is Dying, in which case 0 is genuinely 0 HP
@@ -41,12 +51,15 @@ export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit): PF2Character {
       const next = Math.max(0, effCur - (amount - fromTemp));
       combat.currentHp = next;
       // PF2: reduced to 0 HP → you fall unconscious and gain Dying equal to 1 + your Wounded value.
-      // NOTE (rules interpretation, owner to confirm): this fires ONLY on the transition to 0 (`effCur > 0`).
-      // Damage taken while ALREADY at 0 does not auto-increment Dying, though PF2 RAW increases a dying
-      // creature's Dying value by 1 (2 on a crit) when it takes damage. Kept as-is deliberately for now —
-      // auto-escalating a downed PC's death clock on every incoming hit is a heavier, crit-aware call best
-      // made in the UI with the DM. Pinned + flagged in pf2-edit.test.ts so the choice is explicit.
-      if (next === 0 && effCur > 0) combat.dyingValue = Math.min(DYING_MAX, Math.max(combat.dyingValue, (Number(combat.woundedValue) || 0) + 1));
+      // This fires on the transition to 0 (`effCur > 0`).
+      if (next === 0 && effCur > 0) {
+        combat.dyingValue = Math.min(DYING_MAX, Math.max(combat.dyingValue, (Number(combat.woundedValue) || 0) + 1));
+      } else if (next === 0 && effCur === 0 && combat.dyingValue > 0 && downedDamageModel === 'official') {
+        // PF2 RAW: a creature that is ALREADY dying and takes damage increases its Dying value by 1, or by 2
+        // on a critical hit. The downedDamageModel preference gates this — 'off' leaves a downed PC's death
+        // clock to advance only on failed recovery saves (a gentler house rule).
+        combat.dyingValue = Math.min(DYING_MAX, combat.dyingValue + (edit.crit ? 2 : 1));
+      }
       return { ...pf2, combat };
     }
     case 'heal': {

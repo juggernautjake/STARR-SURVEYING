@@ -22,7 +22,7 @@ import { findTarget, describeEffect } from './targets';
 import { findSpecies } from '@/lib/dnd/species/dnd5e-2024';
 import { speciesEffects } from '@/lib/dnd/species/apply';
 import { exhaustionSpeedFactor, exhaustionHpMaxFactor, type Edition } from '@/lib/dnd/mechanics/exhaustion';
-import type { ExhaustionModel } from '@/lib/dnd/preferences';
+import type { ExhaustionModel, ShapeshiftStats } from '@/lib/dnd/preferences';
 import { conditionMechanics5e } from '@/lib/dnd/conditions/dnd5e';
 
 export type SourceKind =
@@ -74,6 +74,10 @@ export interface TargetLedger {
    */
   override: number | null;
   bonus: number;
+  /** True when the winning `set` came from an active FORM (a shape-shift). A form REPLACES the base — a
+   *  weak form lowers your scores, not just raises them (RAW). So this override bypasses the "highest wins,
+   *  base is a candidate" rule that protects a strong character from a weak item. Ability-only in practice. */
+  formOverride?: boolean;
 }
 
 export interface LedgerSource {
@@ -120,6 +124,21 @@ export interface LedgerContext {
    *  skill checks, etc.) as ledger sources — so they fold into rolls AND explain themselves (★/explain).
    *  Gated by the auto-mechanics toggle: OFF (default) is the "vanilla roller" with straight rolls. */
   foldConditions?: boolean;
+  /** How an active form treats ability scores (Area shapeshift). 'full' (default) — the form's `set`
+   *  ability effects replace yours, up OR down (RAW). 'partial' — each form ability score is pulled to the
+   *  midpoint of your base and the form's value (a sensible middle ground). 'none' — the form never touches
+   *  ability scores (its shape/senses/movement effects still apply). Mental scores dropped by `keepMental`
+   *  are already gone before this runs. */
+  shapeshiftStats?: ShapeshiftStats;
+  /** Auto-attune (Area attune). When true (default), an item that needs attunement applies as soon as it's
+   *  equipped — the attune step is automatic. When false the player must attune by hand before its effects
+   *  count. Equipping is always required either way. */
+  autoAttune?: boolean;
+  /** Feat auto-apply (Area feat). When true (default), a feat feature's ability-score effects fold into the
+   *  sheet automatically (Resilient's +1 CON just applies). When false those ability effects are NOT folded —
+   *  the player applies the increase to their base score by hand. Only ability effects on feat-source
+   *  features are gated; a feat's other effects (a granted proficiency, a resource) always apply. */
+  featAutoApply?: boolean;
 }
 
 const isEquipped = (i: InvItem) => i.equipped === true || i.tags?.includes('equipped') === true;
@@ -128,7 +147,15 @@ const isEquipped = (i: InvItem) => i.equipped === true || i.tags?.includes('equi
  *  a plain item just needs to be equipped. Exported so render paths that surface a structured
  *  grant (e.g. a granted resource) use the SAME active-rule as the effect collector below, rather
  *  than inventing a second one that could disagree. */
-export const isItemActive = (i: InvItem): boolean => (i.attuned ? isEquipped(i) && i.attuned === true : isEquipped(i));
+export const isItemActive = (i: InvItem, autoAttune = true): boolean => {
+  // An item "needs attunement" iff it carries an attunement state (`attuned` defined). Such an item
+  // applies only when equipped AND its attunement is satisfied — either it's explicitly attuned, or
+  // auto-attune is on (attunement granted automatically). A plain item (no `attuned` field) just needs
+  // equipping. Equipping is ALWAYS required; auto-attune only waives the manual attune step.
+  const needsAttunement = i.attuned !== undefined;
+  if (needsAttunement) return isEquipped(i) && (i.attuned === true || autoAttune);
+  return isEquipped(i);
+};
 
 /**
  * Collect every source of effects on a character.
@@ -139,16 +166,19 @@ export const isItemActive = (i: InvItem): boolean => (i.attuned ? isEquipped(i) 
 /** Every NON-form effect source: equipped/attuned items, active effects (consumed/spell/DM), and
  *  level-gated features. Split out so both `collectSources` and `imposedTransform` read the same set
  *  (a transform effect can live on any of them). */
-function baseSources(char: Character): LedgerSource[] {
+function baseSources(char: Character, autoAttune = true, featAutoApply = true): LedgerSource[] {
   const out: LedgerSource[] = [];
   const level = char.meta?.level ?? 1;
 
   for (const item of char.inventory ?? []) {
     if (!item?.effects?.length) continue;
-    // Attunement is stricter than equipping: an attuned item's effects need BOTH, matching the
-    // engine's equipment.collectItemEffects.
-    if (item.attuned) {
-      if (isEquipped(item)) out.push({ id: item.id, kind: 'attuned', name: item.name, effects: item.effects });
+    // Attunement gating (the autoAttune preference). An item that needs attunement (`attuned` defined)
+    // applies only when equipped AND its attunement is satisfied — explicitly attuned, or auto-attune on.
+    // With auto-attune OFF a not-yet-attuned item does nothing until the player attunes it by hand. A
+    // plain item (no `attuned` field) just needs equipping. isItemActive owns the single rule.
+    const needsAttunement = item.attuned !== undefined;
+    if (needsAttunement) {
+      if (isItemActive(item, autoAttune)) out.push({ id: item.id, kind: 'attuned', name: item.name, effects: item.effects });
       continue;
     }
     if (isEquipped(item)) out.push({ id: item.id, kind: 'item', name: item.name, effects: item.effects });
@@ -166,7 +196,15 @@ function baseSources(char: Character): LedgerSource[] {
   for (const f of char.features ?? []) {
     if (!f?.effects?.length) continue;
     if ((f.unlockLevel ?? 1) > level) continue;
-    out.push({ id: f.id, kind: 'feature', name: f.name, effects: f.effects });
+    let effs = f.effects;
+    // Feat auto-apply gating: with the pref OFF, a FEAT feature's ability-score effects don't fold (the
+    // player applies the increase to their base by hand). A feat's non-ability effects still apply, and a
+    // non-feat feature (class/species/background) is never gated — its ability grants always fold.
+    if (!featAutoApply && /feat/i.test(f.source ?? '')) {
+      effs = effs.filter((e) => !e.target.startsWith('ability_'));
+      if (!effs.length) continue;
+    }
+    out.push({ id: f.id, kind: 'feature', name: f.name, effects: effs });
   }
 
   return out;
@@ -199,7 +237,7 @@ const EXTERNAL_KINDS = new Set<SourceKind>(['consumed', 'spell', 'dm', 'conditio
 const MENTAL_TARGETS = new Set<string>(['ability_int', 'ability_wis', 'ability_cha']);
 
 export function collectSources(char: Character, ctx: LedgerContext = {}): LedgerSource[] {
-  let base = baseSources(char);
+  let base = baseSources(char, ctx.autoAttune ?? true, ctx.featAutoApply ?? true);
 
   // The character's SPECIES as a ledger source (Slice 4 follow-up). System-gated: "elf" is a
   // different thing in another game, so this only fires for a 2024 sheet whose species resolves in
@@ -281,6 +319,21 @@ export function collectSources(char: Character, ctx: LedgerContext = {}): Ledger
     if (activeForm.carryOver?.keepMental) {
       formEffects = formEffects.filter((e) => !MENTAL_TARGETS.has(e.target));
     }
+    // Shapeshift stat policy (the shapeshiftStats preference). 'full' is the default (leave the form's
+    // `set` scores alone — they replace up or down). 'none' strips the form's ability-score effects so
+    // your own scores stand (the form still changes shape/senses/movement). 'partial' pulls each form
+    // ability score to the midpoint of your base and the form's value — a sensible middle ground.
+    const policy: ShapeshiftStats = ctx.shapeshiftStats ?? 'full';
+    if (policy !== 'full') {
+      formEffects = formEffects.flatMap((e) => {
+        const isAbilitySet = e.operation === 'set' && e.target.startsWith('ability_');
+        if (!isAbilitySet) return [e];
+        if (policy === 'none') return []; // drop → your base ability score stands
+        const base = char.abilities?.[e.target.slice('ability_'.length) as keyof Character['abilities']];
+        if (typeof base !== 'number' || typeof e.value !== 'number') return [e];
+        return [{ ...e, value: Math.round((base + e.value) / 2) }]; // partial → midpoint
+      });
+    }
     if (formEffects.length) {
       out.push({ id: activeForm.id, kind: 'form', name: activeForm.name, effects: formEffects });
     }
@@ -323,8 +376,10 @@ const num = (v: Effect['value']): number => (typeof v === 'number' ? v : 0);
  * Giant Strength sets STR to 29, but a 30-STR character must not be dragged down to 29. Then every
  * `add` stacks on whatever won.
  */
-function resolveAgainst(entry: Pick<TargetLedger, 'override' | 'bonus'>, base: number): number {
-  const winner = entry.override !== null ? Math.max(base, entry.override) : base;
+function resolveAgainst(entry: Pick<TargetLedger, 'override' | 'bonus' | 'formOverride'>, base: number): number {
+  // A form override REPLACES the base outright (a weak form lowers you); every other `set` is a candidate
+  // that can only RAISE the base (Storm Giant Strength never drags a stronger character down).
+  const winner = entry.override !== null ? (entry.formOverride ? entry.override : Math.max(base, entry.override)) : base;
   return winner + entry.bonus;
 }
 
@@ -386,10 +441,14 @@ export function buildLedger(char: Character, ctx: LedgerContext = {}): EffectLed
     const mine = filed.filter((f) => f.target === target);
 
     let override: number | null = null;
-    for (const { effect } of mine) {
+    let formOverride = false;
+    for (const { src, effect } of mine) {
       if (effect.operation !== 'set' && effect.operation !== 'set_base') continue;
       const v = num(effect.value);
       if (override === null || v > override) override = v;
+      // A form's set (a shape-shift) replaces the base outright, even downward. Tracked so resolveAgainst
+      // skips the "base is a candidate" protection for this target.
+      if (src.kind === 'form') formOverride = true;
     }
 
     let bonus = 0;
@@ -401,6 +460,7 @@ export function buildLedger(char: Character, ctx: LedgerContext = {}): EffectLed
 
     entry.override = override;
     entry.bonus = bonus;
+    entry.formOverride = formOverride;
 
     const isNumeric = findTarget(target)?.valueType === 'number';
     entry.final =

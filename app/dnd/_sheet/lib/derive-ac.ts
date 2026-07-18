@@ -5,6 +5,7 @@
 //   • an equipped shield adds its bonus.
 //   • every equipped/attuned item's `ac`-add effects stack on top (e.g. Ring of Protection +1).
 import type { InvItem, ActiveEffect } from '../types'
+import { isItemActive } from '@/lib/dnd/effects/ledger'
 
 export interface AcResult {
   ac: number
@@ -15,15 +16,15 @@ export interface AcResult {
   source: string // human note, e.g. "Breastplate + Shield + Ring of Protection"
 }
 
-function acEffectBonus(items: InvItem[]): { bonus: number; sources: string[] } {
+function acEffectBonus(items: InvItem[], autoAttune: boolean): { bonus: number; sources: string[] } {
   let bonus = 0
   const sources: string[] = []
   for (const it of items) {
-    // Active while equipped or attuned (the ItemBuilder's own "effects while equipped/attuned" rule).
-    // NB: honor the `equipped` TAG too, not just the flag — the ledger's isEquipped does, so an item
-    // equipped via tag was getting its STR bonus but not its AC bonus. (Whether attunement ALONE should
-    // activate effects is a separate, contested question — the ledger uses equipped-only; left as-is.)
-    if (!(it.equipped || it.tags?.includes('equipped') || it.attuned)) continue
+    // Use the SAME activation rule as the effect ledger (isItemActive): equipped is always required, and
+    // attunement is satisfied by the attuned flag OR the auto-attune preference. This closes the old
+    // split-brain where AC counted an attuned-but-unequipped item's bonus while the ledger (HP/saves/etc.)
+    // did not — a Ring of Protection now moves AC and every other stat under one rule.
+    if (!isItemActive(it, autoAttune)) continue
     for (const e of it.effects ?? []) {
       if (e.target === 'ac' && e.operation === 'add' && typeof e.value === 'number') {
         bonus += e.value
@@ -36,7 +37,7 @@ function acEffectBonus(items: InvItem[]): { bonus: number; sources: string[] } {
 
 /** Compute AC from the inventory + any active temporary effects. `manualAc` is the
  *  character's hand-set / unarmored value, used as the base when no body armor is equipped. */
-export function deriveAc(inventory: InvItem[] | undefined, dexMod: number, manualAc: number, activeEffects?: ActiveEffect[]): AcResult {
+export function deriveAc(inventory: InvItem[] | undefined, dexMod: number, manualAc: number, activeEffects?: ActiveEffect[], autoAttune = true): AcResult {
   const items = inventory ?? []
   // "Worn" = equipped by the flag OR by the 'equipped' TAG — the SAME predicate the ledger's isEquipped
   // uses (and that acEffectBonus above already honors). Without this, a body armor equipped via the tag
@@ -46,7 +47,7 @@ export function deriveAc(inventory: InvItem[] | undefined, dexMod: number, manua
   const isWorn = (i: InvItem) => i.equipped === true || i.tags?.includes('equipped') === true
   const bodyArmor = items.find((i) => i.kind === 'armor' && isWorn(i) && i.armor)
   const shieldItem = items.find((i) => i.kind === 'shield' && isWorn(i) && i.armor)
-  const itemEff = acEffectBonus(items)
+  const itemEff = acEffectBonus(items, autoAttune)
   // Active temporary effects (consumed buffs / DM boons) contribute their +ac too.
   let activeBonus = 0
   const activeSources: string[] = []

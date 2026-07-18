@@ -60,7 +60,10 @@ describe('deriveAc', () => {
     const items: InvItem[] = [
       armor({ name: 'Breastplate', kind: 'armor', equipped: true, armor: { category: 'medium', baseAC: 14, dexCap: 2 } }),
       armor({ id: 's', name: 'Shield', kind: 'shield', equipped: true, armor: { category: 'shield', baseAC: 2 } }),
-      armor({ id: 'r', name: 'Ring of Protection', kind: 'wondrous', attuned: true, effects: [{ target: 'ac', operation: 'add', value: 1 }] }),
+      // A worn Ring of Protection: equipped AND attuned. Under the unified rule (deriveAc now shares the
+      // ledger's isItemActive), an attunement item must be equipped for its effects to count — the ring you
+      // benefit from is one you're wearing.
+      armor({ id: 'r', name: 'Ring of Protection', kind: 'wondrous', equipped: true, attuned: true, effects: [{ target: 'ac', operation: 'add', value: 1 }] }),
     ];
     const r = deriveAc(items, 3, 10);
     expect(r.ac).toBe(14 + 2 + 2 + 1); // base(14+min(3,2)=16) + shield 2 + ring 1 = 19

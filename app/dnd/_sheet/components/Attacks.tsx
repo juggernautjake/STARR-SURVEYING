@@ -12,7 +12,7 @@ import EffectStar from './ui/EffectStar'
 import EditMark from './ui/EditMark'
 
 export default function Attacks() {
-  const { char, abilities, pb, critMin, activeFormId, rollCheck, rollDmg, transformActive, recklessActive, canWrite, setChar, ledger } = useChar()
+  const { char, abilities, pb, critMin, activeFormId, rollCheck, rollDmg, transformActive, recklessActive, canWrite, setChar, ledger, preferences } = useChar()
   const [editing, setEditing] = useState<Attack | null>(null)
 
   const duplicate = (a: Attack) =>
@@ -41,7 +41,7 @@ export default function Attacks() {
   // rollable Attacks, rendered through the SAME row logic as owned attacks (so their to-hit/damage
   // can't drift), badged to their item, with no ⋯ menu (on loan) and gone on unequip.
   const grantedAttacks = (char.inventory ?? [])
-    .filter((i) => isItemActive(i) && i.grantsAttack)
+    .filter((i) => isItemActive(i, preferences.autoAttune.value) && i.grantsAttack)
     .map((i) => ({ atk: i.grantsAttack as Attack, source: i.name }))
 
   const rows: { a: Attack; granted: boolean; source?: string }[] = [

@@ -111,10 +111,12 @@ describe('Intuitive Games vanilla content library (Slice 1)', () => {
     expect(marksman?.powers).toContain('Weapon Training');
     // A parent class resolves too, with its starting power.
     expect(findIGClassDetail('Wizard')?.startingPower).toMatch(/Elemental Blast/);
-    // A WIP subclass (absent on the fetched page) resolves to its honest note, not fabricated grants.
+    // Shaman is now fully built from the /classes scrape (was a WIP stub before 2026-07-18).
     const shaman = findIGClassDetail('shaman');
-    expect(shaman?.note).toMatch(/work in progress|not captured/i);
-    expect(shaman?.powers).toBeUndefined();
+    expect(shaman?.grantedStance).toBe('Defensive');
+    expect(shaman?.defensivePower).toBe('Life Connection');
+    expect(shaman?.powers).toContain('Magical Healing');
+    expect(shaman?.note ?? '').not.toMatch(/work in progress|not captured/i);
     // Unknown / empty → undefined.
     expect(findIGClassDetail('Not A Class')).toBeUndefined();
     expect(findIGClassDetail(null)).toBeUndefined();

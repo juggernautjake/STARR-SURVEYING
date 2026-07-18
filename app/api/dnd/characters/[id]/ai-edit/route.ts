@@ -203,7 +203,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!isPF2) return NextResponse.json({ error: 'This character has no Pathfinder 2e sheet to edit.' }, { status: 400 });
     const parsed = parsePF2EditToolCall(result.input);
     if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
-    const nextPf2 = applyPf2Edit(pf2Data as PF2Character, parsed.edit);
+    // Honor the campaign's downed-damage model (Area downed) for AI-applied PF2 damage too.
+    const pf2CampId = (row as { campaign_id?: string | null }).campaign_id;
+    let downedDamageModel: 'official' | 'off' = 'official';
+    if (pf2CampId) {
+      const { data: campRow } = await supabaseAdmin.from('dnd_campaigns').select('theme').eq('id', pf2CampId).maybeSingle();
+      const prefs = readCampaignPreferences((campRow as { theme?: unknown } | null)?.theme);
+      downedDamageModel = prefs.downedDamageModel.value;
+    }
+    const nextPf2 = applyPf2Edit(pf2Data as PF2Character, parsed.edit, { downedDamageModel });
     const { error: pf2Err } = await supabaseAdmin.from('dnd_characters').update({ data: { ...rawData, pf2e: nextPf2 } }).eq('id', params.id);
     if (pf2Err) return NextResponse.json({ error: pf2Err.message }, { status: 500 });
     await supabaseAdmin.from('dnd_sheet_edits').insert({

@@ -16,6 +16,13 @@ const CONSUMERS: Record<string, string[]> = {
   equipLimits: ['app/dnd/_sheet/components/Inventory.tsx', 'app/api/dnd/characters/[id]/ai-edit/route.ts'],
   diceRollerStyle: ['app/dnd/_sheet/components/DiceTray.tsx'],
   recordMode: ['app/dnd/_sheet/components/DiceTray.tsx'],
+  // Read in the store, which threads them into buildLedger/deriveAc (attunement gating, feat auto-apply,
+  // and the shapeshift stat policy).
+  autoAttune: ['app/dnd/_sheet/state/store.tsx'],
+  featAutoApply: ['app/dnd/_sheet/state/store.tsx'],
+  shapeshiftStats: ['app/dnd/_sheet/state/store.tsx'],
+  // Consumed server-side at the PF2 edit sites, which resolve it from the campaign and pass it to applyPf2Edit.
+  downedDamageModel: ['app/api/dnd/characters/[id]/pf2-edit/route.ts', 'app/api/dnd/characters/[id]/ai-edit/route.ts'],
 };
 
 describe('every configurable preference is consumed (no defined-but-unread prefs)', () => {

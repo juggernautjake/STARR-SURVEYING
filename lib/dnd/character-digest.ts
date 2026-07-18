@@ -33,6 +33,10 @@ const signed = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
 export interface DigestOptions {
   /** Cap on features listed, newest-unlocked first. Keeps the prompt bounded on a level-20 sheet. */
   maxFeatures?: number;
+  /** Auto-attune preference (Area attune) — governs whether an attunement item's effects count without a
+   *  manual attune step. Threaded into BOTH the ledger and deriveAc so the digest's numbers match a sheet
+   *  under the same campaign. Omitted → true (the default). */
+  autoAttune?: boolean;
 }
 
 /**
@@ -41,6 +45,7 @@ export interface DigestOptions {
  */
 export function characterDigest(char: Character, system: CharacterSystem, opts: DigestOptions = {}): string {
   const maxFeatures = opts.maxFeatures ?? 24;
+  const autoAttune = opts.autoAttune ?? true;
   const m = char.meta ?? ({} as Character['meta']);
   const c = char.combat ?? ({} as Character['combat']);
   const lines: string[] = [];
@@ -48,7 +53,7 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
   // Resolve the character through the effect ledger (Slice 15): the digest must report the numbers
   // that are TRUE RIGHT NOW, not the stored base. A ruling on a belt-boosted STR 19 that reads the
   // base 16 is exactly the confidently-wrong adjudication this whole part exists to prevent.
-  const ledger = buildLedger(char);
+  const ledger = buildLedger(char, { autoAttune });
   const pb = profBonusForLevel(m.level ?? 1);
   // Effective ability score for a key — the digest's numbers must fold item/effect boosts.
   const effAbil = (k: AbilityKey): number => ledger.value(`ability_${k}`, char.abilities?.[k] ?? 10);
@@ -90,7 +95,7 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
   }
   if (c.ac != null) {
     const dexMod = abilityMod(ledger.value('ability_dex', char.abilities?.dex ?? 10));
-    const acInfo = deriveAc(char.inventory, dexMod, c.ac, char.activeEffects);
+    const acInfo = deriveAc(char.inventory, dexMod, c.ac, char.activeEffects, autoAttune);
     state.push(`AC ${acInfo.ac}${acInfo.ac !== c.ac ? ` [base ${c.ac}]` : ''}`);
   }
   if (c.speed != null) {

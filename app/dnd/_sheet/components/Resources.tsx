@@ -7,14 +7,15 @@ import ElementMenu from './ui/ElementMenu'
 import ResourceEditor from './ui/ResourceEditor'
 
 export default function Resources() {
-  const { char, setResource, canWrite, setChar } = useChar()
+  const { char, setResource, canWrite, setChar, preferences } = useChar()
   const [editing, setEditing] = useState<Resource | null>(null)
 
   // Usage pools GRANTED by an equipped item (Slice 11 grant-half). Read-only and badged to the
   // item — on loan, so no ⋯ menu and no editing; gone when the item comes off. The mechanics of a
   // resource are stateful (spend + rest-reset), so this shows the pool without in-panel spend.
+  // Honors the auto-attune preference, so an unattuned item's grant hides when attunement is manual.
   const grantedResources = (char.inventory ?? [])
-    .filter((i) => isItemActive(i) && i.grantsResource)
+    .filter((i) => isItemActive(i, preferences.autoAttune.value) && i.grantsResource)
     .map((i) => ({ res: i.grantsResource as Resource, source: i.name }))
 
   const duplicate = (r: Resource) =>

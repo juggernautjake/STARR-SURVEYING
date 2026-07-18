@@ -294,6 +294,13 @@ export function CharacterProvider({
   // automatically; when OFF, the sheet still SHOWS them but the player applies them by hand, so a roll uses no
   // auto-penalty (a tag reminds them). `noExh` is the no-op the fold sites use when auto is off.
   const autoMechanics = prefs.autoMechanics.value
+  // Shapeshift stat policy (Area shapeshift): how an active form treats ability scores — 'full' replaces
+  // (RAW default), 'partial' midpoints, 'none' leaves them. Read into the ledger below so a form derives
+  // per the DM/player choice. Auto-attune (Area attune): attunement-needing items apply without a manual
+  // attune step when on; equipping stays manual regardless. Both flow into buildLedger.
+  const shapeshiftStats = prefs.shapeshiftStats.value
+  const autoAttune = prefs.autoAttune.value
+  const featAutoApply = prefs.featAutoApply.value
   const dbMode = !!characterId
   // The character as first hydrated — the baseline `reset()` restores. Captured on the
   // initial load (DB or local) and never overwritten by later realtime/remote updates.
@@ -560,7 +567,7 @@ export function CharacterProvider({
   // source and re-deriving, which is why reverting is free and can't corrupt the sheet.
   // `foldConditions` = the auto-mechanics toggle: ON folds active 5e conditions (Poisoned → disadvantage on
   // attacks/skills) into the ledger so they reach every roll + explain themselves; OFF is the vanilla roller.
-  const ledger = useMemo(() => buildLedger(char, { system, exhaustionModel, foldConditions: autoMechanics }), [char, system, exhaustionModel, autoMechanics])
+  const ledger = useMemo(() => buildLedger(char, { system, exhaustionModel, foldConditions: autoMechanics, shapeshiftStats, autoAttune, featAutoApply }), [char, system, exhaustionModel, autoMechanics, shapeshiftStats, autoAttune, featAutoApply])
 
   // Effective ability scores: base + every active effect. Components read THESE, so a +2 belt
   // moves the score, its modifier, every skill using it, and its carrying capacity at once.
@@ -599,8 +606,8 @@ export function CharacterProvider({
   // "one answer" rule). Equipped armor/shield + effective DEX + item/effect AC bonuses; falls back to the
   // manual `combat.ac` when nothing is equipped. Uses the effective DEX so a DEX item raises AC.
   const acInfo = useMemo(
-    () => deriveAc(char.inventory, abilityMod(abilities.dex), char.combat.ac, char.activeEffects),
-    [char.inventory, abilities.dex, char.combat.ac, char.activeEffects],
+    () => deriveAc(char.inventory, abilityMod(abilities.dex), char.combat.ac, char.activeEffects, autoAttune),
+    [char.inventory, abilities.dex, char.combat.ac, char.activeEffects, autoAttune],
   )
 
   // The generic STR-based Save DC (8 + PB + STR, or the manual override) — derived once so the StatRail

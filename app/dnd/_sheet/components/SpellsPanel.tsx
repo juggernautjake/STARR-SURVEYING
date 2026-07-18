@@ -25,7 +25,7 @@ function damageLine(s: Spell): string {
 }
 
 export default function SpellsPanel() {
-  const { char, abilities, pb, setChar, editMode, canWrite, ledger, castSpell, setSpellSlot, restoreSpellSlots, spellSaveDc } = useChar()
+  const { char, abilities, pb, setChar, editMode, canWrite, ledger, castSpell, setSpellSlot, restoreSpellSlots, spellSaveDc, preferences } = useChar()
   const [editing, setEditing] = useState<Spell | null>(null)
   const duplicate = (sp: Spell) =>
     setChar((c) => ({ ...c, spells: [...(c.spells ?? []), { ...sp, id: `${sp.id}-copy-${(c.spells ?? []).length}`, name: `${sp.name} (copy)` }] }))
@@ -39,7 +39,7 @@ export default function SpellsPanel() {
   // Spells GRANTED by an equipped item (Slice 11 grant-half) — a wand of Fireball. Read-only and
   // badged; works even for a non-caster (no `sc`), so the panel shows whenever there's a grant.
   const grantedSpells = (char.inventory ?? [])
-    .filter((i) => isItemActive(i) && i.grantsSpell)
+    .filter((i) => isItemActive(i, preferences.autoAttune.value) && i.grantsSpell)
     .map((i) => ({ sp: i.grantsSpell as Spell, source: i.name }))
 
   function togglePrepared(id: string) {
