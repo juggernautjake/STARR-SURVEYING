@@ -39,3 +39,14 @@ describe('custom content is balanced to a concrete level (transpose)', () => {
     expect(route).toMatch(/Balance any custom content to level \$\{partyLevel\}/);
   });
 });
+
+describe('the transpose result surfaces rule violations (were computed but hidden)', () => {
+  const switcher = readFileSync(join(process.cwd(), 'app/dnd/_ui/SystemSwitcher.tsx'), 'utf8');
+  it('the route returns violations and the switcher shows them in the done banner', () => {
+    expect(route).toContain('violations = validateCharacterForSystem(transposed, target)');
+    expect(route).toContain('violations,'); // returned in the response
+    expect(switcher).toContain('violations: j.violations ?? []'); // captured from the response
+    expect(switcher).toContain('transpose.violations && transpose.violations.length > 0'); // rendered
+    expect(switcher).toMatch(/rules .*to review/);
+  });
+});

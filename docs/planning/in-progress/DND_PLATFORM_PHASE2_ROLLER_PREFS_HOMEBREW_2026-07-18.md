@@ -518,6 +518,9 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       **Custom manifest** — new optional `custom[]` on the edit tool; every invented element is flagged
       `customized: true` on the sheet AND listed (type · name · note) in the done banner, plus a "Built at N HP"
       line. Golden-pinned (system-variants +1, mv-route +6, transpose-custom updated). Full dnd suite green (2048).
+      **Fix 2026-07-18:** the Slice-3 safety-net `violations` (out-of-range level / ability cap) were RETURNED by
+      the route but never displayed — the done banner now surfaces them (error/warn styled) so an illegal
+      transposed sheet is visible, not silently accepted (`transpose-custom.test.ts` +1).
 - [x] **MV3 — Labels on the sheet + provenance.** ✅ SHIPPED — the switcher header shows the active sheet's
       **VANILLA/CUSTOM** badge, and (when the character has >1 sheet) an "Active sheet: {name}" line, so it's
       always clear which sheet is live. Custom variants' invented elements remain provenance-flagged via the

@@ -32,7 +32,7 @@ export default function SystemSwitcher({
   const [msg, setMsg] = useState<string | null>(null);
   // Transpose lifecycle (Area TR1): 'working' shows the animated progress bar; 'done' shows an obvious
   // success notification. Only set for a transpose (an AI build), not an instant switch.
-  const [transpose, setTranspose] = useState<{ system: string; phase: 'working' | 'done'; summary?: string | null; allowedCustom?: boolean; custom?: { type: string; name: string; note?: string }[]; hp?: number } | null>(null);
+  const [transpose, setTranspose] = useState<{ system: string; phase: 'working' | 'done'; summary?: string | null; allowedCustom?: boolean; custom?: { type: string; name: string; note?: string }[]; hp?: number; violations?: { field: string; severity: string; message: string }[] } | null>(null);
   // The system awaiting the custom-content consent decision (Area TR2).
   const [consent, setConsent] = useState<string | null>(null);
   // Add-sheet form state (Area MV2c).
@@ -91,7 +91,7 @@ export default function SystemSwitcher({
         });
         const j = await r.json().catch(() => ({}));
         if (!r.ok) { setMsg(j.error ?? 'Could not build the sheet.'); setTranspose(null); return; }
-        setTranspose({ system: addSystem, phase: 'done', summary: j.summary ?? null, allowedCustom: j.allowedCustom, custom: j.custom ?? [], hp: j.hp });
+        setTranspose({ system: addSystem, phase: 'done', summary: j.summary ?? null, allowedCustom: j.allowedCustom, custom: j.custom ?? [], hp: j.hp, violations: j.violations ?? [] });
         setAddName(''); router.refresh();
       } catch { setMsg('Network error — please try again.'); setTranspose(null); } finally { setBusy(null); }
       return;
@@ -141,7 +141,7 @@ export default function SystemSwitcher({
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setMsg(j.error ?? 'Could not change system.'); setTranspose(null); setBusy(null); return; }
       // Obvious completion notification, carrying the AI's summary (what it built, incl. any CUSTOM: pieces).
-      if (isTranspose) setTranspose({ system, phase: 'done', summary: j.summary ?? null, allowedCustom: j.allowedCustom, custom: j.custom ?? [], hp: j.hp });
+      if (isTranspose) setTranspose({ system, phase: 'done', summary: j.summary ?? null, allowedCustom: j.allowedCustom, custom: j.custom ?? [], hp: j.hp, violations: j.violations ?? [] });
       router.refresh();
     } catch {
       setMsg('Network error — please try again.');
@@ -425,6 +425,20 @@ export default function SystemSwitcher({
                     ))}
                   </ul>
                   <span style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>These are flagged as customized on the sheet for DM review.</span>
+                </div>
+              )}
+              {transpose.violations && transpose.violations.length > 0 && (
+                // Rule-legality check (Slice 3 safety net) — surfaced so a transposed sheet that lands
+                // out-of-range (level/ability cap) is visible, not silently accepted.
+                <div style={{ border: '1px solid var(--hx-danger)', borderRadius: 7, background: 'rgba(198,64,59,0.08)', padding: '8px 10px', display: 'grid', gap: 4 }}>
+                  <strong style={{ fontSize: 11.5, color: 'var(--hx-danger)' }}>⚠ {transpose.violations.length} rules {transpose.violations.length === 1 ? 'issue' : 'issues'} to review</strong>
+                  <ul style={{ margin: 0, padding: '0 0 0 2px', listStyle: 'none', display: 'grid', gap: 3 }}>
+                    {transpose.violations.map((v, i) => (
+                      <li key={i} style={{ fontSize: 11.5, color: v.severity === 'error' ? 'var(--hx-danger)' : 'var(--hx-muted)', lineHeight: 1.4 }}>
+                        <span style={{ fontSize: 9, textTransform: 'uppercase', marginRight: 5, opacity: 0.8 }}>{v.severity}</span>{v.message}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>
