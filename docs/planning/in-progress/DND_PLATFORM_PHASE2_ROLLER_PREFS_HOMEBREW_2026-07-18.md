@@ -162,14 +162,17 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       (one-body-armor, one-shield, two-handed-vs-shield), each with a plain-language reason; `resolveEquipSwap
       (items, id, unequipIds)` unequips the chosen conflictor(s) and equips the target (pure, immutable).
       Golden-pinned by `equip-conflicts.test.ts`.
-- [ ] **E1b — Conflict dialog + wiring.** The popup component (Cancel + per-conflict swap), shown from the live
-      equip toggle (`ItemBuilder` "Equipped" + inventory equip) when `equipLimits === 'enforced'` and conflicts
-      exist; wire the AI `equip_item` path to the same core. **NOTE (owner's sword+shield→axe example):** the
-      owner expects a two-handed weapon to also conflict with OTHER held one-handed weapons (both hands
-      occupied), so E1b should extend the conflict core with a hand-slot rule (a two-handed weapon frees/blocks
-      both hands) — the current core only models shield/body-armor/two-handed-vs-shield. Wire point found:
-      equipping commits via `Inventory.upsert` (ItemBuilder "Equipped" → onSave). `preferences.equipLimits` is
-      already on the store context for the gate.
+- [x] **E1b — Hand-slot conflict model (core).** ✅ SHIPPED — extended `equip-conflicts.ts` with a hands
+      model (`handCost`: two-handed=2, other weapon/shield=1, else 0). `equipConflicts` now also flags
+      hand-overflow, so the owner's sword+shield → equip a two-handed axe correctly returns BOTH the sword and
+      shield as swap candidates; one-shield + one-body-armor rules kept. Added `handsToFree(items, id)` so the
+      dialog knows whether unequipping ONE chosen conflictor suffices (dual-wield: free 1) or ALL are needed
+      (two-handed over sword+shield: free 2). Golden-pinned (7 tests incl. the owner's case + dual-wield).
+- [ ] **E1c — Conflict dialog + wiring.** The popup component (clear explanation + Cancel + per-conflict swap,
+      using `handsToFree` to know when a single pick resolves it vs. all), shown from the live equip toggle
+      (`Inventory.upsert` — ItemBuilder "Equipped" → onSave) when `equipLimits === 'enforced'` and conflicts
+      exist; wire the AI `equip_item` path to the same core. `preferences.equipLimits` is already on the store
+      context for the gate.
 - [ ] **E2 — Toggle:** `equipLimits: off` skips the check entirely (equip freely; the panel still shows truth).
 - [ ] **E3 — Tests:** update the `equip-enforcement-gap` tracker → the live paths now enforce when on, allow
       when off.
