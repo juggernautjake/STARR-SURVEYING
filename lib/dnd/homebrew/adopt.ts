@@ -6,7 +6,7 @@
 // (not just prose), and its creator attribution rides along onto the effect's `source`. Pure: the DM-gate
 // (policy.ts) decides IF a character may adopt; this decides WHAT it grants.
 import type { Effect } from '@/app/dnd/_sheet/engine/effects';
-import type { ActiveEffect } from '@/app/dnd/_sheet/types';
+import type { ActiveEffect, Character } from '@/app/dnd/_sheet/types';
 import { validateEffect } from '@/lib/dnd/effects/targets';
 import type { ClassDefinition } from '@/lib/dnd/classes/types';
 import type { CustomFeat } from '@/lib/dnd/classes/custom';
@@ -69,4 +69,33 @@ export function homebrewToCharacterFeat(c: HomebrewContent): CustomFeat | null {
   const CATEGORIES = ['origin', 'general', 'fighting-style', 'epic-boon'];
   if (typeof f.key !== 'string' || typeof f.name !== 'string' || typeof f.body !== 'string' || f.system !== c.system || !CATEGORIES.includes(f.category)) return null;
   return { ...f, custom: { ...(f.custom ?? {}), authorName: c.creator.name } };
+}
+
+/** What kind of thing an adoption added to the character. */
+export type AdoptedKind = 'class' | 'feat' | 'effect';
+
+/**
+ * The single top-level "use this homebrew piece on this character" (H4/H5) — routes by content kind to the
+ * right converter and returns the UPDATED character (immutable) plus what was added, or null when the piece
+ * grants nothing adoptable (pure prose, or a payload that failed validation). Re-adopting the same piece
+ * REPLACES its prior copy (dedup by class/feat key or effect id), so it's idempotent. The DM gate
+ * (`canAdoptHomebrew` in policy.ts) decides IF this may run; this decides WHAT it does.
+ */
+export function adoptHomebrew(char: Character, content: HomebrewContent): { char: Character; adopted: AdoptedKind } | null {
+  const cls = homebrewToCharacterClass(content);
+  if (cls) {
+    const kept = (char.homebrewClasses ?? []).filter((c) => c.key !== cls.key);
+    return { char: { ...char, homebrewClasses: [...kept, cls] }, adopted: 'class' };
+  }
+  const feat = homebrewToCharacterFeat(content);
+  if (feat) {
+    const kept = (char.homebrewFeats ?? []).filter((f) => f.key !== feat.key);
+    return { char: { ...char, homebrewFeats: [...kept, feat] }, adopted: 'feat' };
+  }
+  const eff = homebrewToActiveEffect(content);
+  if (eff) {
+    const kept = (char.activeEffects ?? []).filter((e) => e.id !== eff.id);
+    return { char: { ...char, activeEffects: [...kept, eff] }, adopted: 'effect' };
+  }
+  return null;
 }

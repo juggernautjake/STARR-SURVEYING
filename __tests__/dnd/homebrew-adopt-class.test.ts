@@ -52,3 +52,36 @@ describe('homebrewToCharacterFeat (H4/H5)', () => {
     expect(homebrewToCharacterFeat({ ...featPiece, kind: 'class' })).toBeNull();
   });
 });
+
+import { adoptHomebrew } from '@/lib/dnd/homebrew/adopt';
+import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
+import type { Character } from '@/app/dnd/_sheet/types';
+
+describe('adoptHomebrew — the top-level router (H4/H5)', () => {
+  it('routes each kind onto the right character field, immutably', () => {
+    const base = blankCharacter('Hero') as Character;
+    const cls = adoptHomebrew(base, classPiece)!;
+    expect(cls.adopted).toBe('class');
+    expect(cls.char.homebrewClasses?.map((c) => c.key)).toContain('hb-brawler');
+    expect(base.homebrewClasses ?? []).toEqual([]); // input not mutated
+
+    const feat = adoptHomebrew(base, featPiece)!;
+    expect(feat.adopted).toBe('feat');
+    expect(feat.char.homebrewFeats?.map((f) => f.key)).toContain('hb-lucky');
+
+    const belt: HomebrewContent = { id: 'hb-belt', kind: 'item', name: 'Belt', system: 'dnd5e-2024', creator: { name: 'J' }, status: 'approved', payload: { effects: [{ target: 'ability_str', operation: 'set', value: 19 }] } };
+    const eff = adoptHomebrew(base, belt)!;
+    expect(eff.adopted).toBe('effect');
+    expect(eff.char.activeEffects?.map((e) => e.id)).toContain('hb-hb-belt');
+  });
+  it('is idempotent — re-adopting replaces the prior copy, never duplicates', () => {
+    let c = blankCharacter('Hero') as Character;
+    c = adoptHomebrew(c, classPiece)!.char;
+    c = adoptHomebrew(c, classPiece)!.char; // adopt the SAME class again
+    expect(c.homebrewClasses?.filter((x) => x.key === 'hb-brawler')).toHaveLength(1);
+  });
+  it('returns null for a pure-prose / invalid piece (nothing adoptable)', () => {
+    const prose: HomebrewContent = { id: 'p', kind: 'stance', name: 'Cool Pose', system: 'dnd5e-2024', creator: { name: 'J' }, status: 'approved' };
+    expect(adoptHomebrew(blankCharacter('H') as Character, prose)).toBeNull();
+  });
+});

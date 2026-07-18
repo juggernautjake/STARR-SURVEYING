@@ -635,6 +635,11 @@ This is the "form editor" the owner clarified: a full **create-and-share** syste
       author) and a **feat** piece → `homebrewToCharacterFeat` (core fields + valid category + system match),
       for `char.homebrewClasses`/`homebrewFeats`. `homebrew-adopt-class.test.ts` (4). The pure "use homebrew on a
       character" API is now whole across content kinds; only the live adopt route/UI (H4) is deferred.
+      **Top-level router ✅ (2026-07-18):** `adoptHomebrew(char, content)` routes by kind to the right converter
+      and returns the UPDATED character (immutable) + what was added (`class`/`feat`/`effect`), idempotent
+      (re-adopting replaces by key/id), null for a pure-prose/invalid piece. So the eventual live adopt route is
+      a one-liner: gate with `canAdoptHomebrew` (policy.ts), call `adoptHomebrew`, persist. `homebrew-adopt-class.
+      test.ts` +3. **Area H's pure adopt API is now a single, complete entry point.**
 
 ### Area IGP — IG power effect texts (content; hook up what exists, flag Brendan's gap)
 - [ ] **IGP1 — Hook up every power with effect text** end-to-end (already largely done: grounding + library +
