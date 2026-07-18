@@ -38,33 +38,31 @@ overwrite a deliberate design.
       Wizard) with subclasses; the app models a flat 13-class list. Restructure to match the site? (Touches
       the IG builder, provenance, and seeds.)
       *Detail: `INTUITIVE_GAMES_FULL_BUILDOUT`; `SITE_MASTER.md` item 3.*
-- [ ] **2014 exhaustion — flat-2024-model-for-all, or the real tiered table? (edition-dependent; not
-      autonomously changed).** The sheet applies 2024 exhaustion (−2 to every d20 test per level, −5 ft speed,
-      death at 6) to EVERY character, including 2014 ones. But 2014 exhaustion is a qualitatively different
-      6-tier table (L1 = disadvantage on ability checks, L2 = speed halved, L3 = disadvantage on attacks/saves,
-      L4 = HP max halved, L5 = speed 0, L6 = death) — which the AI grounding already describes, so the sheet
-      contradicts the grounding for a 2014 character. Two honest options: (a) keep the single 2024 model
-      everywhere as an intentional simplification/house rule for your platform, or (b) implement the 2014 tiered
-      table (a real feature — several distinct per-tier effects, gated on `system`, which the store already has).
-      Not changed autonomously (player-facing behavior). *Detail: `store.tsx` rollCheck; the gap is pinned as a
-      tracked, guarded one by `exhaustion-d20.test.ts` (edition-blindness + the grounding-vs-sheet inconsistency).*
-- [ ] **Wire `canEquip` into the live equip paths — needs a refusal UX (surfaced 2026-07-18).** The equip
-      rules (`engine/equipment.ts` `canEquip`/`equipChecked`: one body armour, one shield, two-handed-vs-shield)
-      are implemented + fully tested, but the ONLY caller is the dead `engine/character.ts` reducer no live
-      surface imports. The live paths — the `ItemBuilder` "Equipped" checkbox and the AI `equip_item` edit —
-      don't call `canEquip`, so an illegal equipped state IS reachable (bounded: `deriveAc` still picks one
-      armour for AC, but item EFFECTS stack). Wiring it in is a UX call: refuse-with-a-message (like the AI's
-      `rejectedEffects`)? auto-swap the conflicting item? A silent no-op would be the "AI reports success,
-      sheet unchanged" anti-pattern. Tell me the intended behavior and I'll wire it into both paths.
-      *Detail: `DND_RULES_PLATFORM` Slice 10 "Equipping is validated"; tracked by `equip-enforcement-gap.test.ts`.*
-- [ ] **Long-rest hit-dice restore — confirm your intended rule (edition-dependent; not autonomously changed).**
-      `longRest` (`store.tsx:977`) restores ALL hit dice (`hitDiceRemaining = hitDiceTotal`) for every edition.
-      2014 RAW regains only HALF your total Hit Dice (min 1); I'm not certain 2024 kept that vs. full-restore,
-      so I did NOT change it — this is player-facing game behavior on your own tool, and "full HD on a long
-      rest" is also a common house rule. The rest of `longRest` is RAW-correct (HP→max, tempHP→0, all spell
-      slots restored, exhaustion −1, resources reset). If you want RAW-half, the one-line fix is
-      `hitDiceRemaining: Math.min(total, remaining + Math.max(1, Math.floor(total / 2)))` (ideally extracted to
-      a tested pure helper); tell me the intended rule per edition and I'll wire it.
+- [x] ~~**2014 exhaustion — flat-2024-model-for-all, or the real tiered table?**~~ **RESOLVED (verified
+      2026-07-18): the sheet is now edition-aware.** When this was written the sheet applied the 2024 flat model
+      to every character; the Phase-2 M-area work has since implemented `exhaustionD20Effect(kind, level, edition,
+      model)` (`lib/dnd/mechanics/exhaustion.ts`) and the store's `rollCheck` now passes the character's real
+      edition (derived from the system key) — so a 2014 character gets the tiered-disadvantage table (checks L1+,
+      attacks/saves L3+) and a 2024 character gets flat −2/level, with `flat-2-per-level` also selectable as a
+      house rule via the `exhaustionModel` preference. The sheet and the AI grounding now agree per edition.
+      Tested (`mechanics-defaults.test.ts`, `exhaustion-d20.test.ts`). Nothing left for you here.
+      *Detail: `DND_PLATFORM_PHASE2` Area M1.*
+- [x] ~~**Wire `canEquip` into the live equip paths — needs a refusal UX.**~~ **RESOLVED (verified 2026-07-18) —
+      your refusal-UX decision was made + shipped in Phase-2 Area E.** You chose the interactive CONFLICT DIALOG
+      (2026-07-17), and it's wired into BOTH live paths via the newer `equipConflicts` engine (superseding the
+      dead `canEquip`): the sheet's equip runs `equipConflicts` when `equipLimits === 'enforced'` and opens
+      `EquipConflictDialog` (Cancel + a per-conflict swap), and the AI `equip_item` edit auto-swaps to a legal
+      state (`applySheetEdits` + `resolveEquipSwap`); `equipLimits: off` skips the check. Tested
+      (`equip-conflict-dialog.test.ts`, `equip-enforcement-gap.test.ts` incl. the hand-slot case). Nothing left
+      for you here. *Detail: `DND_PLATFORM_PHASE2` Area E.*
+- [~] **Long-rest hit-dice restore — LARGELY RESOLVED (verified 2026-07-18): now a configurable campaign
+      preference, not a hardcode.** When this was written `longRest` hardcoded full restore; the Phase-2 P-area
+      work has since extracted a pure, tested `hitDiceAfterLongRest(total, remaining, model)`
+      (`lib/dnd/mechanics/long-rest.ts`) and wired the store's `longRest` to it via the `longRestModel` campaign
+      preference — so `half-hit-dice` gives exactly the RAW-half (`min(total, remaining + max(1, ⌊total/2⌋))`)
+      and `vanilla`/`gritty`/`epic` give full restore, DM-selectable per campaign. The only residual (a smaller
+      call): should it AUTO-pick half for a 2014 character rather than leaving it a DM preference? Tell me if you
+      want the auto-per-edition default and I'll add it. *Detail: `DND_PLATFORM_PHASE2` Area P/M; `mechanics-defaults.test.ts`.*
 - [ ] **PF2 damage while already downed — does it escalate Dying? (surfaced 2026-07-18).** `applyPf2Edit`'s
       `apply_damage` sets Dying only on the TRANSITION to 0 HP (`effCur > 0`), so damage taken while a character
       is ALREADY at 0 does not auto-increment Dying — though PF2 RAW raises a dying creature's Dying by 1 (2 on a
