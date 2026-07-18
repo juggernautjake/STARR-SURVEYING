@@ -4,6 +4,8 @@
 // score increases**. All the ability math moved to backgrounds (see ../backgrounds). A species gives
 // size, speed, creature type, and traits — never a +2 Dex. The `Species` type deliberately has no
 // ability field, and `species.test.ts` asserts no species object smuggles one in under any name.
+import type { AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
+
 export type SpeciesSize = 'Small' | 'Medium' | 'Small or Medium';
 
 export interface SpeciesTrait {
@@ -24,6 +26,12 @@ export interface Species {
   darkvision?: number;
   /** Named sub-lineage choices (Elf lineage, Tiefling legacy…), for the builder to offer. */
   lineages?: string[];
+  /** Natural-armor unarmored AC formula, when the species grants one (e.g. Rangor rocklike scales
+   *  13 + DEX). `base` is the flat value; the ability modifier is added by the ledger. Best-of with any
+   *  other unarmored formula the character has. */
+  naturalArmor?: { base: number; ability: AbilityKey };
+  /** Present only for homebrew species — who authored it, so the picker can badge it custom. */
+  custom?: { authorName?: string };
   traits: SpeciesTrait[];
 }
 
@@ -129,6 +137,21 @@ export const SPECIES_2024: Species[] = [
       { name: 'Fiendish Legacy', text: 'You choose Abyssal, Chthonic, or Infernal. Each grants the Thaumaturgy cantrip at level 1, plus a damage Resistance and additional spells at levels 3 and 5.' },
       { name: 'Otherworldly Presence', text: 'You know the Thaumaturgy cantrip; your spellcasting ability for it is the one chosen for your Fiendish Legacy.' },
       { name: 'Darkvision', text: 'You have Darkvision with a range of 60 feet.' },
+    ],
+  },
+  // ── Homebrew (Area H) — Rangor, the galaxy's "Unstoppable Force" (Jack's ancestry), a selectable 2024
+  //    custom species. Full 2024 shape: NO ability increases (those come from the background); size, speed,
+  //    traits + a natural-armor formula the ledger applies. Flagged `custom` so the picker badges it. ──────
+  {
+    key: 'rangor', name: 'Rangor', system: 'dnd5e-2024', creatureType: 'Humanoid',
+    size: 'Medium', speed: 30,
+    naturalArmor: { base: 13, ability: 'dex' },
+    custom: { authorName: 'Jacob' },
+    traits: [
+      { name: 'Rocklike Scales (Natural Armor)', text: 'While you are not wearing armor, your base Armor Class equals 13 + your Dexterity modifier (use whichever unarmored formula is higher if you have another).' },
+      { name: 'Living Momentum', text: 'When you hit with an attack after moving at least 15 feet in a straight line toward the target, choose one: push it 15 feet; knock it Prone (Strength save, DC 8 + your Strength modifier + your Proficiency Bonus); or deal extra damage equal to your Strength modifier.' },
+      { name: 'Powerful Build', text: 'You count as one size larger for carrying capacity and for what you can push, drag, or lift.' },
+      { name: 'Unstoppable Force', text: 'A number of times equal to your Proficiency Bonus per Long Rest, when an effect would reduce your Speed or move you against your will, you can ignore it.' },
     ],
   },
 ];

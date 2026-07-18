@@ -20,6 +20,7 @@ import { ROGUE_2024, ROGUE_SUBCLASSES_2024 } from './dnd5e-2024/rogue';
 import { SORCERER_2024, SORCERER_SUBCLASSES_2024 } from './dnd5e-2024/sorcerer';
 import { WARLOCK_2024, WARLOCK_SUBCLASSES_2024 } from './dnd5e-2024/warlock';
 import { WIZARD_2024, WIZARD_SUBCLASSES_2024 } from './dnd5e-2024/wizard';
+import { PUGILIST_2024, PUGILIST_SUBCLASSES_2024 } from './dnd5e-2024/pugilist';
 
 // D&D 5e 2014 (Slice 6a) — authored class-by-class; each is independently "known" (the registry
 // degrades per class, so an un-authored 2014 class simply falls back to the AI/homebrew path).
@@ -40,6 +41,9 @@ import { ARTIFICER_2014, ARTIFICER_SUBCLASSES_2014 } from './dnd5e-2014/artifice
 const DND5E_2024_CLASSES: ClassDefinition[] = [
   BARBARIAN_2024, BARD_2024, CLERIC_2024, DRUID_2024, FIGHTER_2024, MONK_2024,
   PALADIN_2024, RANGER_2024, ROGUE_2024, SORCERER_2024, WARLOCK_2024, WIZARD_2024,
+  // Homebrew, but fully authored 1–20 so the builder can walk it like any class. Flagged `custom` so the
+  // picker badges it and a DM can gate it (Area H — Rangor/Pugilist as selectable 2024 custom options).
+  PUGILIST_2024,
 ];
 
 const DND5E_2024_SUBCLASSES: SubclassDefinition[] = [
@@ -47,6 +51,7 @@ const DND5E_2024_SUBCLASSES: SubclassDefinition[] = [
   ...DRUID_SUBCLASSES_2024, ...FIGHTER_SUBCLASSES_2024, ...MONK_SUBCLASSES_2024,
   ...PALADIN_SUBCLASSES_2024, ...RANGER_SUBCLASSES_2024, ...ROGUE_SUBCLASSES_2024,
   ...SORCERER_SUBCLASSES_2024, ...WARLOCK_SUBCLASSES_2024, ...WIZARD_SUBCLASSES_2024,
+  ...PUGILIST_SUBCLASSES_2024,
 ];
 
 /**

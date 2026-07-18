@@ -31,3 +31,10 @@ export function speciesEffects(sp: Species, baseWalk?: number): Effect[] {
   }
   return out;
 }
+
+/** A species' natural-armor unarmored AC (e.g. Rangor rocklike scales 13 + DEX), or null when it has none.
+ *  The sheet's AC uses a best-of across unarmored formulas (like the Monk/Barbarian and Jack's bespoke sheet),
+ *  so this is offered as a candidate rather than forced — the player keeps the highest. */
+export function speciesNaturalArmorAc(sp: Species, abilityMod: number): number | null {
+  return sp.naturalArmor ? sp.naturalArmor.base + abilityMod : null;
+}

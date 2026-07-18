@@ -10,6 +10,10 @@ import { FULL_CASTER_SLOTS, HALF_CASTER_SLOTS, PACT_SLOTS } from '@/lib/dnd/clas
 
 const SYS = 'dnd5e-2024';
 const CLASSES = classesForSystem(SYS);
+// The 12 official PHB classes vs any flagged-homebrew additions (Pugilist). The golden-value checks below
+// (exact hit die / saves / ASI cadence) apply to the official roster; homebrew is validated separately for
+// structural soundness so it doesn't have to live in the RAW golden maps.
+const OFFICIAL = CLASSES.filter((c) => !c.custom);
 
 const EXPECTED = [
   'Barbarian', 'Bard', 'Cleric', 'Druid', 'Fighter', 'Monk',
@@ -47,7 +51,7 @@ const ASI_LEVELS: Record<string, number[]> = {
 
 describe('the 2024 class roster', () => {
   it('registers all 12 PHB classes', () => {
-    expect(CLASSES.map((c) => c.name).sort()).toEqual([...EXPECTED].sort());
+    expect(OFFICIAL.map((c) => c.name).sort()).toEqual([...EXPECTED].sort());
     expect(systemHasClasses(SYS)).toBe(true);
   });
 
@@ -69,7 +73,44 @@ describe('the 2024 class roster', () => {
   });
 });
 
-describe.each(CLASSES.map((c) => [c.name, c] as const))('%s', (_name, def) => {
+// The homebrew Pugilist (Area H) — a selectable 2024 custom class. It doesn't live in the RAW golden maps
+// (it's not a PHB class), but it must be structurally as sound as any official class: valid, subclass at 3,
+// ASIs 4/8/12/16 + Epic Boon at 19, and the engine walks it 1→20 with no hole and a real capstone.
+describe('Pugilist (homebrew 2024 class)', () => {
+  const def = findClass(SYS, 'Pugilist')!;
+  it('is registered, flagged custom, and structurally valid', () => {
+    expect(def).toBeTruthy();
+    expect(def.custom?.authorName).toBeTruthy();
+    expect(def.system).toBe(SYS);
+    expect(validateClassDefinition(def)).toEqual([]);
+  });
+  it('has a d10 hit die, two saves, subclass at 3, and the 2024 ASI/Epic-Boon cadence', () => {
+    expect(def.hitDie).toBe(10);
+    expect(def.savingThrows.length).toBe(2);
+    expect(def.subclassLevel).toBe(3);
+    expect([...def.asiLevels].sort((a, b) => a - b)).toEqual([4, 8, 12, 16]);
+    expect(def.features.some((f) => f.level === 19 && f.choice === 'epic-boon')).toBe(true);
+    expect(def.features.some((f) => f.level === 19 && f.choice === 'asi')).toBe(false);
+  });
+  it('the engine levels it 1→20 with no hole and a capstone', () => {
+    const table = progressionTable(def);
+    expect(table.length).toBe(20);
+    for (let i = 0; i < 20; i++) expect(table[i].level).toBe(i + 1);
+    const baseCapstone = def.features.some((f) => f.level === 20);
+    const subCapstone = subclassesFor(SYS, def.key).some((s) => s.features.some((f) => f.level === 17));
+    expect(baseCapstone || subCapstone).toBe(true);
+  });
+  it('has at least one subclass that levels cleanly from level 3', () => {
+    const subs = subclassesFor(SYS, def.key);
+    expect(subs.length).toBeGreaterThanOrEqual(1);
+    for (const s of subs) {
+      expect(s.classKey).toBe(def.key);
+      for (const f of s.features) expect(f.level).toBeGreaterThanOrEqual(def.subclassLevel);
+    }
+  });
+});
+
+describe.each(OFFICIAL.map((c) => [c.name, c] as const))('%s', (_name, def) => {
   it('is structurally valid', () => {
     expect(validateClassDefinition(def)).toEqual([]);
   });

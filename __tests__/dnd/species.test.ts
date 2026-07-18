@@ -11,12 +11,13 @@ import { SPECIES_2024, findSpecies } from '@/lib/dnd/species/dnd5e-2024';
 const ASI_KEYS = ['abilityScores', 'abilityIncrease', 'asi', 'abilityBonus', 'abilities', 'str', 'dex', 'con', 'int', 'wis', 'cha'];
 
 describe('2024 species', () => {
-  it('there are 10, with unique keys and the full PHB list', () => {
-    expect(SPECIES_2024).toHaveLength(10);
+  it('has the full 10-species PHB roster (plus any flagged homebrew), with unique keys', () => {
+    const official = SPECIES_2024.filter((s) => !s.custom);
+    expect(official).toHaveLength(10);
     const keys = SPECIES_2024.map((s) => s.key);
-    expect(new Set(keys).size).toBe(10);
+    expect(new Set(keys).size).toBe(keys.length); // unique across official + homebrew
     for (const name of ['Aasimar', 'Dragonborn', 'Dwarf', 'Elf', 'Gnome', 'Goliath', 'Halfling', 'Human', 'Orc', 'Tiefling']) {
-      expect(SPECIES_2024.map((s) => s.name)).toContain(name);
+      expect(official.map((s) => s.name)).toContain(name);
     }
   });
 
@@ -65,7 +66,10 @@ describe('2024 species', () => {
       orc: { size: 'Medium', speed: 30, darkvision: 120 },
       tiefling: { size: 'Small or Medium', speed: 30, darkvision: 60 },
     };
+    // The golden table is the PHB (2024) roster; homebrew species (flagged `custom`) are additive and not
+    // held to it — they just must not smuggle ability increases (asserted elsewhere).
     for (const sp of SPECIES_2024) {
+      if (sp.custom) continue;
       const g = GOLDEN[sp.key];
       expect(g, `no golden entry for species "${sp.key}"`).toBeDefined();
       expect(sp.size, `${sp.name} size`).toBe(g.size);
