@@ -428,7 +428,16 @@ expanded requirements (2026-07-17):
       individual feats; RAG needs an absent key). Extended `groundingFeats` to return `igAllFeats()` (mapped
       effect→benefit via a minimal `GroundableFeat` shape, since IG's General/Combat categories don't fit the
       2024 `Feat` union), so an IG feat query now grounds on that feat's full effect — at parity with 2024,
-      still query-scoped (no prompt bloat), 2024 unaffected. `grounding.test.ts` +3. **Remaining:**
+      still query-scoped (no prompt bloat), 2024 unaffected. `grounding.test.ts` +3.
+      **⚑ SAME FIX FOR POWERS (2026-07-18):** the feat fix left the identical hole for POWERS — the always-on
+      IG block lists power NAMES only (for `add_power` grounding), powers aren't glossary articles or feats,
+      and RAG needs an absent embeddings key, so "how does Dispel Magic work?" grounded on NOTHING carrying
+      the effect text (the AI answered from recall — i.e. guessed, for a bespoke system). Added `matchPowers`
+      + a `powerBlock` in `systemGroundingBlock` (the exact counterpart of `matchFeats`/`featBlock`): a
+      power query now grounds on the real `IG_POWERS` effect text, query-scoped (no prompt bloat), IG-only.
+      A power still awaiting Brendan's verbatim text isn't in `IG_POWERS`, so it grounds on nothing rather
+      than a fabricated effect (Ground Rule 2). `grounding.test.ts` +3 (grounds Dispel Magic's real effect;
+      empty query dumps nothing; no leak into a 2024 query). Full dnd suite green (1851). **Remaining:**
       prerequisite gating in the builder (owner-gated — needs the per-class/level feat & power ladders from
       Brendan).
 - [~] **B4 — Conditions: display + tooltip + mechanics + edit.** Conditions the character has are clearly shown

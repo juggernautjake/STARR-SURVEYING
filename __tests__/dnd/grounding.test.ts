@@ -52,4 +52,25 @@ describe('systemGroundingBlock', () => {
     expect(g.block).toMatch(/RELEVANT .* FEATS \(authoritative benefit text/);
     expect(g.block).toMatch(/Alert \(origin feat\)/);
   });
+
+  // The power counterpart of the feat grounding: the always-on IG block lists power NAMES only, so a
+  // power query must retrieve the real IG_POWERS effect text — otherwise "how does Dispel Magic work?"
+  // grounds on nothing and the AI answers from recall (which for a bespoke system means guessing).
+  it('grounds an Intuitive Games POWER query on its full IG effect text (IG has its own power corpus)', async () => {
+    const g = await systemGroundingBlock('intuitive-games', 'Dispel Magic');
+    expect(g.block).toMatch(/RELEVANT Intuitive Games POWERS \(authoritative effect text/);
+    expect(g.block).toMatch(/Dispel Magic \(Abjuration\)/);
+    expect(g.block).toMatch(/make an Arcane check to counter it/); // the real IG effect, not recall
+    expect(g.matched).toBeGreaterThan(0);
+  });
+
+  it('the IG power text is QUERY-SCOPED — an empty query does not dump every power effect', async () => {
+    const g = await systemGroundingBlock('intuitive-games', '   ');
+    expect(g.block).not.toMatch(/RELEVANT Intuitive Games POWERS/);
+  });
+
+  it('IG power grounding does not leak into another system (a 2024 query gets no IG POWERS block)', async () => {
+    const g = await systemGroundingBlock('dnd5e-2024', 'Dispel Magic');
+    expect(g.block).not.toMatch(/RELEVANT Intuitive Games POWERS/);
+  });
 });
