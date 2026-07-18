@@ -47,13 +47,22 @@ describe('SystemSwitcher UI shows every sheet + a "+" add (MV2c)', () => {
     expect(switcher).toContain('sheets.map((sh)');
     expect(switcher).toContain('switchSlot(sh.slotId)');
     expect(switcher).toMatch(/sh\.kind === 'custom' \? 'CUSTOM' : 'VANILLA'/);
-    expect(switcher).toContain('● ACTIVE');
+    expect(switcher).toContain('sheetChipActive'); // the active chip is visually distinguished
   });
 
   it('has a "+ Add sheet" form (system + vanilla/custom + optional name) posting action:add', () => {
     expect(switcher).toContain('＋ Add sheet');
     expect(switcher).toContain("JSON.stringify({ action: 'add', system: addSystem, kind: addKind, name: addName.trim() || undefined })");
     expect(switcher).toContain('GAME_SYSTEMS.filter((s) => isSystemAvailable(s.key))'); // only playable systems addable
+  });
+
+  it('the add-sheet form is a polished card with labelled fields + a segmented vanilla/custom control', () => {
+    expect(switcher).toContain('styles.sheetAddCard'); // framed card, not a raw flex row
+    expect(switcher).toContain('styles.sheetFieldLabel'); // fields are labelled
+    expect(switcher).toContain('styles.segmented'); // segmented control, not a 2-item <select>
+    expect(switcher).toContain("aria-pressed={addKind === 'vanilla'}");
+    expect(switcher).toContain("aria-pressed={addKind === 'custom'}");
+    expect(switcher).toContain("setAddKind('custom')");
   });
 
   it('switching a slot posts { slotId } to the system route', () => {

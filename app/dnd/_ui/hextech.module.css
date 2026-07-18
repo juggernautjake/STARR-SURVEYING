@@ -1270,3 +1270,161 @@ select.input {
     font-size: 13px;
   }
 }
+
+/* ── Sheet manager (SystemSwitcher) — a polished, intuitive add/switch/rename UI. ───────────── */
+/* The "Add a sheet" card: a distinct, gold-tinted panel that reads as a focused mini-form. */
+.sheetAddCard {
+  border: 1px solid var(--hx-gold-0);
+  border-radius: 10px;
+  background:
+    radial-gradient(120% 100% at 0% 0%, rgba(200, 155, 60, 0.08), transparent 60%),
+    linear-gradient(180deg, rgba(16, 35, 59, 0.6), rgba(11, 26, 44, 0.5));
+  padding: 14px 15px 15px;
+  display: grid;
+  gap: 12px;
+  animation: sheetAddIn 0.16s ease both;
+}
+@keyframes sheetAddIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.sheetAddHead {
+  font-family: var(--hx-font-display);
+  color: var(--hx-gold-2);
+  font-size: 13.5px;
+  letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+/* A responsive 2-column field grid that collapses to one column when tight. */
+.sheetAddGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+.sheetField { display: grid; gap: 5px; }
+/* Smaller label than the page-form .label, tuned for this compact card. */
+.sheetFieldLabel {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hx-gold-2);
+}
+/* Compact input/select variant — the page .input is 38px/16px; here 34px keeps the card tight
+   while staying >=16px font so mobile Safari doesn't zoom. */
+.sheetControl {
+  height: 34px;
+  font-size: 16px;
+  padding: 6px 10px;
+}
+.sheetControl:not(select) { padding: 6px 11px; }
+
+/* A segmented Vanilla | Custom control — far more legible than a 2-item dropdown. */
+.segmented {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--hx-line);
+  border-radius: 8px;
+  background: rgba(1, 10, 19, 0.6);
+  height: 34px;
+}
+.segment {
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--hx-muted);
+  font-family: var(--hx-font-body);
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: background 0.14s, color 0.14s, box-shadow 0.14s;
+}
+.segment:hover:not(.segmentOn) { color: var(--hx-text); }
+.segmentOn {
+  color: var(--hx-navy-0);
+  font-weight: 600;
+}
+.segmentOn.segmentVanilla {
+  background: linear-gradient(180deg, rgba(160, 155, 140, 0.95), rgba(120, 116, 104, 0.9));
+  color: var(--hx-navy-0);
+}
+.segmentOn.segmentCustom {
+  background: linear-gradient(180deg, var(--hx-gold-2), var(--hx-gold-1));
+  box-shadow: 0 0 12px rgba(200, 155, 60, 0.3);
+}
+.sheetAddActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Sheet chips (the "Your sheets" row) — a cleaner card look with a clear active state. */
+.sheetChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--hx-line);
+  border-radius: 9px;
+  background: rgba(1, 10, 19, 0.4);
+  padding: 3px 5px 3px 4px;
+  transition: border-color 0.14s, background 0.14s, box-shadow 0.14s;
+}
+.sheetChip:hover { border-color: var(--hx-gold-0); }
+.sheetChipActive {
+  border: 1px solid var(--hx-teal-2);
+  background: rgba(10, 200, 185, 0.12);
+  box-shadow: 0 0 0 1px rgba(10, 200, 185, 0.25) inset;
+}
+.sheetChipMain {
+  background: none;
+  border: none;
+  color: var(--hx-text);
+  font-family: var(--hx-font-body);
+  font-size: 12.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 4px 4px 6px;
+  cursor: pointer;
+}
+.sheetChipMain:disabled { cursor: default; }
+/* Kind pill inside a chip. */
+.kindPill {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  border-radius: 4px;
+  padding: 1px 5px;
+  border: 1px solid currentColor;
+  font-family: var(--hx-font-body);
+}
+.kindVanilla { color: var(--hx-muted); }
+.kindCustom { color: var(--hx-gold-2); }
+/* Small round icon buttons (rename / delete) inside a chip. */
+.chipIcon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--hx-muted);
+  transition: background 0.14s, color 0.14s;
+}
+.chipIcon:hover:not(:disabled) { background: rgba(255, 255, 255, 0.06); color: var(--hx-gold-2); }
+.chipIconDanger:hover:not(:disabled) { background: rgba(198, 64, 59, 0.16); color: var(--hx-danger); }
+.chipIcon:disabled { cursor: default; opacity: 0.4; }
