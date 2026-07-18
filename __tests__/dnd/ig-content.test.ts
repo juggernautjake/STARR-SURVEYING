@@ -5,7 +5,7 @@ import {
   IG_STANCES, IG_STANCE_DEFS, IG_STANCE_RULES, IG_FEATS, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES,
   IG_MOVEMENT_TYPES, IG_CONDITIONS, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_SPELL_ROSTER,
   igIsVanilla, igVanillaNames, igContentSummary, findIGAncestry, igAllSpellNames, igSpellsMissingEffects,
-  igPowersNotInRoster,
+  igPowersNotInRoster, findIGClassDetail,
 } from '@/lib/dnd/systems/intuitive-games/content';
 import { IG_GENERAL_FEATS, IG_COMBAT_FEATS, igAllFeats, findIGFeat } from '@/lib/dnd/systems/intuitive-games/feats';
 import { systemRulesBlock, systemConditions, systemSpecies } from '@/lib/dnd/system-rules';
@@ -100,6 +100,24 @@ describe('Intuitive Games vanilla content library (Slice 1)', () => {
     expect(findIGAncestry('  gnome ')?.name).toBe('Gnome');
     expect(findIGAncestry('Not An Ancestry')).toBeNull();
     expect(findIGAncestry(null)).toBeNull();
+  });
+
+  it('findIGClassDetail resolves a class/subclass detail case-insensitively (B2 — builder features preview)', () => {
+    // A subclass carries the granular grants the builder previews.
+    const marksman = findIGClassDetail('  marksman ');
+    expect(marksman?.name).toBe('Marksman');
+    expect(marksman?.grantedStance).toBe('Shifting');
+    expect(marksman?.classification).toMatch(/subclass of Fighter/i);
+    expect(marksman?.powers).toContain('Weapon Training');
+    // A parent class resolves too, with its starting power.
+    expect(findIGClassDetail('Wizard')?.startingPower).toMatch(/Elemental Blast/);
+    // A WIP subclass (absent on the fetched page) resolves to its honest note, not fabricated grants.
+    const shaman = findIGClassDetail('shaman');
+    expect(shaman?.note).toMatch(/work in progress|not captured/i);
+    expect(shaman?.powers).toBeUndefined();
+    // Unknown / empty → undefined.
+    expect(findIGClassDetail('Not A Class')).toBeUndefined();
+    expect(findIGClassDetail(null)).toBeUndefined();
   });
 
   it('has the full general-feats catalog (83) with prerequisites + effect, and the classifier knows them', () => {

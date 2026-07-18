@@ -10,7 +10,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import { igCatalog } from '@/lib/dnd/systems/intuitive-games/catalog';
-import { igCreaturesByGroup, IG_BACKGROUND_DEFS, IG_CLASS_DETAILS } from '@/lib/dnd/systems/intuitive-games/content';
+import { igCreaturesByGroup, IG_BACKGROUND_DEFS, IG_CLASS_DETAILS, findIGClassDetail } from '@/lib/dnd/systems/intuitive-games/content';
 import { igParentClasses, igSubclassesOf } from '@/lib/dnd/systems/intuitive-games/taxonomy';
 import { classifyElement, type ElementKind } from '@/lib/dnd/provenance';
 
@@ -116,6 +116,12 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
     </div>
   );
 
+  // B2: what the chosen class/subclass grants, from the captured A10 data. Prefer the subclass (more
+  // granular — its own stance/powers), else the parent class. Undefined for a name we have no detail for.
+  const classDetail = findIGClassDetail(subclass) ?? findIGClassDetail(className);
+  const detailRow = (label: string, value?: string) =>
+    value ? <div><span style={{ color: 'var(--hx-muted)' }}>{label}: </span><span style={{ color: 'var(--hx-ink)' }}>{value}</span></div> : null;
+
   return (
     <details className={styles.framedPanel} style={{ margin: '10px 0', padding: '10px 14px' }} open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
       <summary style={{ cursor: 'pointer', fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)' }}>
@@ -142,6 +148,21 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
               subclasses, never a subclass from another family. Falls back to the full list before a class is chosen. */}
           <select value={subclass} onChange={(e) => setSubclass(e.target.value)} disabled={!className} title={className ? `Subclasses of ${className}` : 'Pick a class first'} style={{ ...input, flex: 1, minWidth: 130, opacity: className ? 1 : 0.6 }}><option value="">Subclass…</option>{(className ? igSubclassesOf(className) : subclasses).map((a) => <option key={a} value={a}>{a}</option>)}</select>
         </div>
+        {/* B2: preview what the chosen class/subclass grants (HP, primary attribute, stance, powers, …) from the
+            captured A10 data, so you can see the class's features at pick-time. WIP classes show their note honestly. */}
+        {classDetail && (
+          <div data-testid="ig-class-features" style={{ fontSize: 11.5, lineHeight: 1.5, border: '1px solid var(--hx-line)', borderRadius: 6, padding: '7px 10px', background: 'rgba(255,255,255,0.02)', display: 'grid', gap: 1 }}>
+            <div style={{ color: 'var(--hx-teal-1)', fontWeight: 600 }}>{classDetail.name}{classDetail.classification ? ` — ${classDetail.classification}` : ''}</div>
+            {detailRow('Primary', classDetail.primaryAbility)}
+            {detailRow('HP', classDetail.hp)}
+            {detailRow('Stance', classDetail.grantedStance)}
+            {detailRow('Defensive power', classDetail.defensivePower)}
+            {detailRow('Starting power', classDetail.startingPower)}
+            {classDetail.powers?.length ? detailRow('Powers', classDetail.powers.join(', ')) : null}
+            {classDetail.specializations?.length ? detailRow('Specializations', classDetail.specializations.map((s) => s.split(' (')[0]).join(', ')) : null}
+            {classDetail.note ? <div style={{ color: 'var(--hx-muted)', fontStyle: 'italic' }}>{classDetail.note}</div> : null}
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <input list="ig-spec-opts" value={specialization} onChange={(e) => setSpecialization(e.target.value)} placeholder="Specialization" style={{ ...input, flex: 1, minWidth: 130 }} />
           <datalist id="ig-spec-opts">

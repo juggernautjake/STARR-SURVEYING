@@ -21,6 +21,23 @@ describe('IG builder background picker', () => {
   });
 });
 
+describe('IG builder class-features preview (Area B2)', () => {
+  it('previews the chosen class/subclass grants from findIGClassDetail (subclass preferred over parent)', () => {
+    expect(SRC).toContain('findIGClassDetail');
+    // subclass detail wins (its granular stance/powers), else the parent class.
+    expect(SRC).toContain('findIGClassDetail(subclass) ?? findIGClassDetail(className)');
+    expect(SRC).toContain('data-testid="ig-class-features"');
+  });
+  it('surfaces the class feature fields (hp, stance, powers, specializations) and the WIP note honestly', () => {
+    expect(SRC).toMatch(/classDetail\.hp/);
+    expect(SRC).toMatch(/classDetail\.grantedStance/);
+    expect(SRC).toMatch(/classDetail\.startingPower/);
+    expect(SRC).toMatch(/classDetail\.powers/);
+    expect(SRC).toMatch(/classDetail\.specializations/);
+    expect(SRC).toMatch(/classDetail\.note/); // a WIP class (Magician/Shaman) shows its note, not invented grants
+  });
+});
+
 describe('IG builder parent → subclass picker (Area T1)', () => {
   it('the class dropdown offers the four parent classes', () => {
     expect(SRC).toContain('const classes = useMemo(() => igParentClasses()');

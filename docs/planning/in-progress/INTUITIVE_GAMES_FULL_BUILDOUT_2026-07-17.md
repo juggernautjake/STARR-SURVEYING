@@ -405,7 +405,18 @@ expanded requirements (2026-07-17):
       hover-explaining itself — replacing the bare text row. Unknown ancestries degrade to the name row.
       **Remaining:** the builder's ancestry picker already offers them (`IGCharacterBuilder`); reflecting
       size/speed-changing traits (Burrower/Colossal/etc.) in the derived numbers is a follow-up.
-- [ ] **B2 — Classes in the builder.** IG classes selectable with their features/progression from A10.
+- [~] **B2 — Classes in the builder.** IG classes selectable with their features/progression from A10.
+      **Selection shipped** (Area T1): `IGCharacterBuilder` offers the four parent classes (`igParentClasses()`)
+      with the subclass picker scoped to the chosen parent (`igSubclassesOf`). **Features preview shipped
+      (2026-07-18):** picking a class/subclass now renders an `ig-class-features` panel showing what it grants
+      from the captured A10 data — primary attribute, HP, granted stance, defensive power, starting power, key
+      powers, and specializations — via a new pure `findIGClassDetail(name)` (subclass detail preferred over the
+      parent, case-insensitive). A WIP subclass (Magician/Shaman, absent on the fetched site page) honestly shows
+      its "work in progress / to re-verify" note instead of fabricated grants (Ground Rule 2). `ig-content.test.ts`
+      (finder) + `ig-builder-ui.test.ts` (panel wiring). **REMAINING (Brendan-content-gated):** the full per-LEVEL
+      progression ladders — the captured data is class-level grants (what the class gives), not a level-by-level
+      table, because the site's `/classes` page doesn't publish per-level ladders; that needs Brendan's content
+      (and the Champion/Magician/Shaman detail still absent on the page). Not fabricated per Ground Rule 2.
 - [~] **B3 — Feats.** IG combat + general feats (from A7/A8) offered rules-legally (prerequisites honored);
       editable; shown on the sheet sourced correctly, each with a tooltip of its full effect. **Sheet
       tooltips shipped** (`IGSheet` Reference feats + `findIGFeat`, `ig-content.test.ts`/`ig-sheet-tooltips.test.ts`):

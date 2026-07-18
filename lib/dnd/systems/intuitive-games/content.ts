@@ -403,6 +403,15 @@ export const IG_CLASS_DETAILS: IGClassDetail[] = [
   { name: 'Witch', classification: 'subclass of Conduit', primaryAbility: 'Wisdom', grantedStance: 'Defensive', defensivePower: 'Material Shield', powers: ['Advanced Material', 'Material Spray', 'Natural Remedy', 'New Material', 'Redistribute Complex Object', 'Swift Redistribution', 'Temporary Shift', 'Vast Manufacturing', 'Transmuter'], specializations: ['Forbidden Practices (undead companion creation)', 'Natural Healer'] },
 ];
 
+/** Look up a class/subclass's captured detail by name (case-insensitive), or undefined if we have none
+ *  for it. Pure — the builder's class-features preview + the library read through this so the two agree
+ *  on what a class grants (Area B2). */
+export function findIGClassDetail(name: string | null | undefined): IGClassDetail | undefined {
+  if (!name) return undefined;
+  const key = name.trim().toLowerCase();
+  return IG_CLASS_DETAILS.find((c) => c.name.toLowerCase() === key);
+}
+
 // ── Backgrounds (the documented ones; extensible). Subclasses now live in ./taxonomy.ts (Area T1). ──────
 
 // The Combat Skills (Sheet 4) — tracked separately from general skills. Str/Dex variants share these names.
