@@ -57,6 +57,10 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
   lines.push(`SYSTEM: ${systemLabel(system)}`);
   if (who) lines.push(`BUILD: ${who}`);
   if (m.level) lines.push(`LEVEL: ${m.level}`);
+  // Background (its grants are reflected in skills/features, but the name gives context) and alignment
+  // (mechanically live in 2014 — aligned weapons, detect evil/good — narrative in 2024). Omitted when unset.
+  const idExtra = [m.background && `Background: ${m.background}`, m.alignment && `Alignment: ${m.alignment}`].filter(Boolean).join(' · ');
+  if (idExtra) lines.push(idExtra);
 
   // Abilities with modifiers — the numbers most rulings turn on. EFFECTIVE (ledger) values, with
   // the base noted when an effect has moved it, so the AI reasons on the real score AND can see it's

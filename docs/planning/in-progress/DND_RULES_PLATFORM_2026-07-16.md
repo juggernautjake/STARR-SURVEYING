@@ -1319,6 +1319,12 @@ Original action items (kept for the remaining work):
       listed-not-auto-applied, so the AI must be *told* it exists). Both now emit (`Movement traits: …`,
       `DEFENSES: … · Advantage on saves vs: …`), so every effect-derived fact CombatPanel renders is now in
       the digest. `character-digest.test.ts` +2.
+      **⚑ Identity completeness across all three digests (2026-07-18):** the 5e digest surfaced
+      species/class/subclass/level but not `background` or `alignment` (mechanically live in 2014 — aligned
+      weapons, detect evil/good). Added a "Background: … · Alignment: …" line (from `meta`, distinct from the
+      correctly-omitted `bio.background` prose; omitted when unset). `character-digest.test.ts` +2. With the
+      parallel IG (background) and PF2 (background + deity) digest fixes the same day, all three character
+      digests now surface every identity field the AI needs to adjudicate. Full dnd suite green (1890).
 - [x] A single item carries **any number of effects of any mix** — the "one boot that rewrites you"
       case is just an item with fifteen effects and needs no special code. ✅ SHIPPED (verified, not built —
       the architecture already generalized). **⚑ INVARIANT PINNED (2026-07-18).** Added `effect-ledger.test.ts`

@@ -11,7 +11,7 @@ import type { Character } from '@/app/dnd/_sheet/types';
 
 function fixture(): Character {
   const c = blankCharacter('Rangor');
-  c.meta = { ...c.meta, species: 'Ragnar', className: 'Barbarian', subclass: 'Path of the Juggernaut', level: 7 };
+  c.meta = { ...c.meta, species: 'Ragnar', className: 'Barbarian', subclass: 'Path of the Juggernaut', level: 7, background: 'Soldier', alignment: 'Chaotic Good' };
   c.abilities = { ...c.abilities, str: 18, dex: 14, con: 16, int: 8, wis: 12, cha: 10 };
   c.combat = { ...c.combat, ac: 17, maxHp: 68, currentHp: 41, tempHp: 5, speed: 30, exhaustion: 1, conditions: ['grappled'] } as Character['combat'];
   c.saves = { ...c.saves, str: { proficient: true, misc: 0 }, con: { proficient: true, misc: 0 } };
@@ -29,11 +29,19 @@ function fixture(): Character {
 describe('characterDigest carries the sheet, not a generic character', () => {
   const d = characterDigest(fixture(), 'dnd-5e-2024');
 
-  it('names the character, its build and its system', () => {
+  it('names the character, its build, system, background and alignment', () => {
     expect(d).toContain('NAME: Rangor');
     expect(d).toContain('Barbarian');
     expect(d).toContain('Path of the Juggernaut');
     expect(d).toContain('LEVEL: 7');
+    expect(d).toContain('Background: Soldier');
+    expect(d).toContain('Alignment: Chaotic Good');
+  });
+
+  it('omits the background/alignment line when the character has neither (no empty scaffolding)', () => {
+    const out = characterDigest(blankCharacter('Blank'), 'dnd-5e-2024');
+    expect(out).not.toContain('Background:');
+    expect(out).not.toContain('Alignment:');
   });
 
   it('carries ability scores WITH their modifiers (the numbers rulings turn on)', () => {
