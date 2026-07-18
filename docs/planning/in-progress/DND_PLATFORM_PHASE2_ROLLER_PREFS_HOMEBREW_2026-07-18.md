@@ -243,8 +243,16 @@ setting is system-aware where the mechanic differs by system.
       normalized copy trusted back. Guarded by `campaign-preferences-panel.test.ts` (surfaces every setting,
       every lock, every option, PATCHes). NOTE: the panel WRITES the prefs; making each setting actually
       change mechanics/sheets is Areas M/E/R/D consuming them (+ P2b/P2c player side, P3 player page).
-- [ ] **P5 — Tests:** the resolver clamps player→DM correctly; a locked DM setting can't be overridden;
-      defaults are the vanilla model for every system.
+- [x] **P5 — Tests.** ✅ SHIPPED (verified 2026-07-18). All three assertions are pinned:
+      **clamp player→DM** + **a locked setting can't be overridden** live in `preferences.test.ts`
+      ("resolvePreferences — the DM clamps the player": player choice wins where allowed, a locked value
+      wins with `lockedByDM:true`); **defaults are the vanilla model for every system** is pinned both at
+      the preference layer (`preferences.test.ts` — every default is vanilla/standard, all player-choosable)
+      and at the per-EDITION mechanics layer (`mechanics-defaults.test.ts` — 2024 exhaustion = flat −2/level,
+      2014 vanilla = the tiered-disadvantage table, long-rest vanilla = full hit-dice restore). This slice
+      ADDED the two coverage gaps: `recordMode` now gets the same clamp+lock guarantee as the other five
+      fields, and a **totality guard** ("no field left unwired") that fails if a future preference is added to
+      `CampaignPreferences` but forgotten in `resolvePreferences` (mirrors the `preferences-consumed` guard).
 
 ### Area M — Configurable mechanics (depends on P)
 Make the mechanics the prefs name actually swappable, VANILLA BY DEFAULT.

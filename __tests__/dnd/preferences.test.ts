@@ -54,6 +54,33 @@ describe('resolvePreferences — the DM clamps the player', () => {
     expect(eff.equipLimits).toEqual({ value: 'enforced', lockedByDM: false });
     expect(eff.diceRollerStyle).toEqual({ value: 'futuristic', lockedByDM: false });
   });
+
+  // recordMode was the one resolver field the clamp/lock cases above never exercised — pin it too so the
+  // roll-recording preference gets the same player-choice-vs-DM-lock guarantee as the rest (P5).
+  it('recordMode clamps + locks like every other setting', () => {
+    const chosen = resolvePreferences(campaign(), { recordMode: 'irl' });
+    expect(chosen.recordMode).toEqual({ value: 'irl', lockedByDM: false });
+    const locked = resolvePreferences(
+      campaign({ recordMode: { value: 'auto', playerCanChoose: false } }),
+      { recordMode: 'irl' }, // player tries to override the DM's locked recording mode
+    );
+    expect(locked.recordMode).toEqual({ value: 'auto', lockedByDM: true });
+  });
+
+  // Totality guard (P5): the resolver must produce EVERY effective-preference field as a well-formed
+  // {value, lockedByDM}. If a new preference is added to CampaignPreferences but forgotten in
+  // resolvePreferences, that key resolves to `undefined` here and this fails — the pref can't ship half-wired.
+  it('resolves every campaign setting into a well-formed effective preference (no field left unwired)', () => {
+    const eff = resolvePreferences(campaign());
+    const campaignKeys = Object.keys(DEFAULT_CAMPAIGN_PREFERENCES).sort();
+    expect(Object.keys(eff).sort()).toEqual(campaignKeys);
+    for (const key of campaignKeys) {
+      const p = (eff as unknown as Record<string, { value: unknown; lockedByDM: unknown }>)[key];
+      expect(p, `resolvePreferences left "${key}" unwired`).toBeDefined();
+      expect(p.value, `"${key}" has no value`).not.toBeUndefined();
+      expect(typeof p.lockedByDM, `"${key}" has no lockedByDM flag`).toBe('boolean');
+    }
+  });
 });
 
 describe('normalizeCampaignPreferences — safe load from stored JSON', () => {
