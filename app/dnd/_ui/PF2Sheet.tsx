@@ -6,13 +6,14 @@
 // the platform design tokens and lives inside the character page, so custom layout/CSS apply.
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import styles from './hextech.module.css';
 import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { PF2_ATTRIBUTES, PF2_SAVES } from '@/lib/dnd/systems/pathfinder2e/model';
 import {
   pf2Derived, pf2SkillTotal, pf2SaveTotal, pf2PerceptionTotal, pf2AttackBonus, pf2Proficiency,
 } from '@/lib/dnd/systems/pathfinder2e/rules';
+import { resolveD20Roll, rollNaturalD20, rollDiceExpr } from '@/lib/dnd/roll';
 
 const fmt = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
 const RANK_ABBR: Record<string, string> = { untrained: 'U', trained: 'T', expert: 'E', master: 'M', legendary: 'L' };
@@ -36,6 +37,20 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
   const d = useMemo(() => pf2Derived(pf2), [pf2]);
   const id = pf2.identity;
   const label = { fontSize: 11, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' as const };
+
+  // In-app roller (R1b) — tap a save/skill/strike to roll a d20 + modifier, or a strike's damage, through the
+  // shared engine; result shows in the banner. RNG (auto mode); PF2 uses the four-step degree ladder once a DC
+  // is supplied (a target-DC field is a later slice).
+  const [lastRoll, setLastRoll] = useState<{ label: string; total: number; detail: string; tone: 'crit' | 'fumble' | 'normal' } | null>(null);
+  const rollLine = (name: string, modifier: number) => {
+    const r = resolveD20Roll({ natural: rollNaturalD20(), modifier, system: 'pathfinder2e' });
+    const sign = r.modifier >= 0 ? `+ ${r.modifier}` : `− ${Math.abs(r.modifier)}`;
+    setLastRoll({ label: name, total: r.total, detail: `d20 [${r.natural}] ${sign}${r.critical ? ' · NAT 20' : ''}${r.fumble ? ' · NAT 1' : ''}`, tone: r.critical ? 'crit' : r.fumble ? 'fumble' : 'normal' });
+  };
+  const rollDamage = (name: string, expr: string) => {
+    const r = rollDiceExpr(expr);
+    setLastRoll({ label: name, total: r.total, detail: r.breakdown, tone: 'normal' });
+  };
 
   const idBits = [id.ancestry && `${id.heritage ? id.heritage + ' ' : ''}${id.ancestry}`, id.background, id.className && `${id.className}${id.subclass ? ` (${id.subclass})` : ''}`, id.deity].filter(Boolean);
 
@@ -73,16 +88,26 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
         {d.spellDc != null && <Stat label="Spell DC" value={`${d.spellDc}`} sub={`atk ${fmt(d.spellAttack ?? 0)} · ${pf2.spellcasting.tradition}`} />}
       </div>
 
-      {/* Saves */}
+      {/* Roll result banner (R1b) — the last in-app roll (tap a save/skill/strike below). */}
+      {lastRoll && (
+        <div style={{ border: '1px solid var(--hx-gold-1)', borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', background: 'rgba(212,175,55,0.06)' }}>
+          <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{lastRoll.label}</span>
+          <strong style={{ fontSize: 20, color: lastRoll.tone === 'crit' ? 'var(--hx-teal-1)' : lastRoll.tone === 'fumble' ? 'var(--hx-danger)' : 'var(--hx-gold-2)' }}>{lastRoll.total}</strong>
+          <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>{lastRoll.detail}</span>
+        </div>
+      )}
+
+      {/* Saves — tap to roll (R1b) */}
       <div>
         <div style={label}>Saving Throws</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
           {PF2_SAVES.map((s) => (
-            <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', border: '1px solid var(--hx-line)', borderRadius: 8 }}>
-              <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{s}</span>
+            <button key={s} type="button" onClick={() => rollLine(`${s} save`, pf2SaveTotal(s, pf2))} title={`Roll ${s} (d20 ${fmt(pf2SaveTotal(s, pf2))})`}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', border: '1px solid var(--hx-line)', borderRadius: 8, background: 'none', cursor: 'pointer' }}>
+              <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{s} 🎲</span>
               <strong style={{ fontSize: 15, color: 'var(--hx-gold-2)' }}>{fmt(pf2SaveTotal(s, pf2))}</strong>
               <RankPill rank={pf2.saves[s].rank} />
-            </div>
+            </button>
           ))}
         </div>
       </div>
@@ -93,14 +118,16 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 4, marginTop: 6 }}>
           {pf2.skills.map((sk) => {
             const penalized = !!sk.armorPenalty && !!pf2.combat.armorCheckPenalty;
+            const total = pf2SkillTotal(sk, id.level, pf2.attributes, pf2.combat.armorCheckPenalty);
             return (
-              <div key={sk.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: '3px 8px', border: '1px solid var(--hx-line)', borderRadius: 6, opacity: sk.rank === 'untrained' ? 0.55 : 1 }}>
+              <button key={sk.name} type="button" onClick={() => rollLine(`${sk.name} (${sk.attribute})`, total)} title={`Roll ${sk.name} (d20 ${fmt(total)})`}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: '3px 8px', border: '1px solid var(--hx-line)', borderRadius: 6, opacity: sk.rank === 'untrained' ? 0.55 : 1, background: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
                 <span style={{ fontSize: 11.5, color: 'var(--hx-text)' }}>{sk.name}{penalized ? <span title="armor check penalty applies" style={{ color: 'var(--hx-gold-2)' }}> ▲</span> : null} <span style={{ color: 'var(--hx-muted)', fontSize: 9.5 }}>{sk.attribute}</span></span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <strong style={{ fontSize: 12.5, color: 'var(--hx-teal-1)' }}>{fmt(pf2SkillTotal(sk, id.level, pf2.attributes, pf2.combat.armorCheckPenalty))}</strong>
+                  <strong style={{ fontSize: 12.5, color: 'var(--hx-teal-1)' }}>{fmt(total)} 🎲</strong>
                   <RankPill rank={sk.rank} />
                 </span>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -111,12 +138,20 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
         <div>
           <div style={label}>Strikes</div>
           <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
-            {pf2.attacks.map((a) => (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '5px 10px', border: '1px solid var(--hx-line)', borderRadius: 6 }}>
-                <span style={{ fontSize: 12.5, color: 'var(--hx-text)' }}>{a.name}{a.traits.length ? <span style={{ color: 'var(--hx-muted)', fontSize: 10 }}> · {a.traits.join(', ')}</span> : null}</span>
-                <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}><strong style={{ color: 'var(--hx-gold-2)' }}>{fmt(pf2AttackBonus(a, id.level, pf2.attributes))}</strong> · {a.damage}</span>
-              </div>
-            ))}
+            {pf2.attacks.map((a) => {
+              const bonus = pf2AttackBonus(a, id.level, pf2.attributes);
+              return (
+                <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '5px 10px', border: '1px solid var(--hx-line)', borderRadius: 6 }}>
+                  <span style={{ fontSize: 12.5, color: 'var(--hx-text)' }}>{a.name}{a.traits.length ? <span style={{ color: 'var(--hx-muted)', fontSize: 10 }}> · {a.traits.join(', ')}</span> : null}</span>
+                  <span style={{ fontSize: 12, color: 'var(--hx-muted)', display: 'inline-flex', gap: 8, alignItems: 'baseline' }}>
+                    {/* Tap the Strike bonus to roll the attack; tap the damage to roll its dice (R1b). */}
+                    <button type="button" onClick={() => rollLine(`${a.name} Strike`, bonus)} title={`Roll ${a.name} Strike (d20 ${fmt(bonus)})`} style={{ background: 'none', border: 'none', color: 'var(--hx-gold-2)', fontWeight: 700, cursor: 'pointer', padding: 0 }}>{fmt(bonus)} 🎲</button>
+                    ·
+                    <button type="button" onClick={() => rollDamage(`${a.name} damage`, a.damage)} title={`Roll ${a.name} damage (${a.damage})`} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', padding: 0 }}>{a.damage} 🎲</button>
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
