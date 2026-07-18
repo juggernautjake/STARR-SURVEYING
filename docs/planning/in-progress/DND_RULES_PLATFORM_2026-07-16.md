@@ -2190,6 +2190,15 @@ matrix in `character-access.test.ts` (7): WRITE is owner/player/DM only (a mere 
 never writes, any visibility); READ follows visibility for non-writers — `private` → writers only (a
 member/stranger can't read), `campaign` → members read (not write), `public` → any signed-in user
 reads (not write); and write always implies read. Behaviour byte-identical; full suite green (2259).
+**Access-security sweep (2026-07-18):** audited every `supabaseAdmin` (RLS-bypassing) dnd route + the
+write/creation routes — all correctly gated (the auth endpoints + the public systems catalog are
+intentionally open; `dev/enter` is open-access-flag-gated + demo/campaign-participant-restricted + refuses
+passwordless entry to password-protected accounts; character/campaign PATCH+POST whitelist fields — no
+mass-assignment — and are DM/owner-gated). Added a regression guard for the one untested exposure-adjacent
+path: the demo `join-character` self-join promotes a private sheet to campaign-visible, so
+`join-character-gate.test.ts` pins its DEMO-only restriction + the OWNERSHIP check (you can only join your
+OWN character) + that the visibility bump is only reachable PAST the 403 ownership guard — a regression
+dropping either would let a user expose another person's private sheet.
 **`old_value` recording ✅ SHIPPED (commit pending)** — the audit foundation the review queue's Revert
 needs. `editOldValue(current, edit)` reads the PRE-edit value for every op (a scalar for set_*, the
 whole prior element for rename/update so a revert is exact, null for creates), and the ai-edit route
