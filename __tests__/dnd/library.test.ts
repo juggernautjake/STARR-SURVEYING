@@ -539,11 +539,13 @@ describe('Intuitive Games powers, defensive powers, and actions surface on the l
     expect(actions.table!.rows.find((r) => /Stride/.test(r[0]))?.[1]).toBe('1 action');
   });
 
-  it('lists the complete site spell roster + flags spells still awaiting effect text', () => {
+  it('lists the complete site spell roster; all spells now carry effect text', () => {
     const powers = libraryPageFor('intuitive-games')!.sections.find((s) => s.id === 'powers')!;
     expect(powers.body!.some((b) => /Complete spell roster/i.test(b))).toBe(true);
     expect(powers.body!.some((b) => /Evocation:.*Wave Crash/.test(b))).toBe(true);
-    expect(powers.body!.some((b) => /Awaiting verbatim effect text/i.test(b))).toBe(true);
+    // The gap is closed (scraped verbatim from the site 2026-07-17): the "awaiting text" line becomes the
+    // all-covered line.
+    expect(powers.body!.some((b) => /All roster spells have effect text/i.test(b))).toBe(true);
   });
 
   it('a power and a defensive power are searchable with effect text', () => {
@@ -555,6 +557,16 @@ describe('Intuitive Games powers, defensive powers, and actions surface on the l
 
   it('powers do not leak into a system without the mechanic', () => {
     expect(libraryPageFor('dnd5e-2024')!.sections.some((s) => s.id === 'powers')).toBe(false);
+  });
+});
+
+describe('the ancestry/race section uses each system\'s own noun (owner 2026-07-17)', () => {
+  const nounOf = (k: string) => libraryPageFor(k)!.sections.find((s) => s.id === 'species')?.title;
+  it('IG = Ancestries; PF2 = Ancestries; PF1 + 2014 D&D = Races; 2024 D&D = Species', () => {
+    expect(nounOf('intuitive-games')).toBe('Ancestries');
+    expect(nounOf('pathfinder2e')).toBe('Ancestries');
+    expect(nounOf('dnd5e-2014')).toBe('Races');
+    expect(nounOf('dnd5e-2024')).toBe('Species');
   });
 });
 
@@ -572,14 +584,20 @@ describe('Intuitive Games ancestries carry full trait text (IG buildout A5)', ()
     expect(dwarf?.detail).toMatch(/darkvision out to a range of 30 feet/i); // full text on expand
   });
 
-  it('includes Brendan\'s ancestry art as a gallery (the 8 the site publishes), credited', () => {
+  it('shows Brendan\'s ancestry art INSIDE each species accordion (opened), credited — not a separate gallery', () => {
+    // Owner 2026-07-17: the portrait lives in the species' own accordion (shown on open), so it's per-entry
+    // `image`, not a section-level gallery.
     const species = libraryPageFor('intuitive-games')!.sections.find((s) => s.id === 'species')!;
-    expect(species.images).toBeTruthy();
-    expect(species.images!.gallery.length).toBe(8); // Human + Sprite have no site art
-    expect(species.images!.gallery.find((g) => g.caption === 'Dwarf')?.src).toBe('/dnd/intuitive-games/ancestries/dwarf.png');
-    expect(species.images!.credit).toMatch(/Brendan/);
-    // Non-IG systems get no image gallery.
-    expect(libraryPageFor('dnd5e-2024')!.sections.find((s) => s.id === 'species')?.images).toBeUndefined();
+    expect(species.images).toBeUndefined(); // no separate gallery anymore
+    const dwarf = species.entries!.find((e) => e.name === 'Dwarf');
+    expect(dwarf!.image).toBe('/dnd/intuitive-games/ancestries/dwarf.png');
+    expect(dwarf!.imageCredit).toMatch(/Brendan/);
+    // The 8 the site publishes carry art; Human + Sprite have none.
+    expect(species.entries!.filter((e) => e.image).length).toBe(8);
+    expect(species.entries!.find((e) => e.name === 'Human')?.image).toBeUndefined();
+    // Non-IG systems get no per-entry art.
+    const dnd = libraryPageFor('dnd5e-2024')!.sections.find((s) => s.id === 'species');
+    expect(dnd?.entries?.some((e) => e.image)).toBeFalsy();
   });
 
   it('an ancestry and its individual traits are searchable', () => {

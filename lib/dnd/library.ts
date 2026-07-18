@@ -118,6 +118,11 @@ export interface LibraryEntry {
   name: string;
   brief?: string;
   detail: string;
+  /** Artwork shown INSIDE this entry's accordion when opened — large + centered above the detail text
+   *  (owner 2026-07-17: a species' art appears only when you expand its accordion). */
+  image?: string;
+  /** Credit line shown under the image (e.g. the artist). */
+  imageCredit?: string;
 }
 
 export interface LibrarySection {
@@ -181,10 +186,14 @@ function classNoun(key: string): string {
 
 /** The system's noun for a "species". */
 function speciesNoun(key: string): string {
+  // Each system's OWN noun for the ancestry/race concept (owner 2026-07-17).
   if (key === 'blades') return 'Heritages';
-  if (key === 'pathfinder2e' || key === 'pathfinder1e') return 'Ancestries';
+  if (key === 'intuitive-games') return 'Ancestries'; // IG's own term (/traits-ancestries)
+  if (key === 'pathfinder2e') return 'Ancestries'; // PF2 renamed Race → Ancestry
+  if (key === 'pathfinder1e') return 'Races'; // PF1 still uses Races
   if (key === 'shadowrun6e') return 'Metatypes';
-  return 'Species';
+  if (key === 'dnd5e-2014') return 'Races'; // 2014 D&D uses Race; 2024 renamed it to Species
+  return 'Species'; // dnd5e-2024 (official 2024 term) + any unlisted system
 }
 
 function featNoun(key: string): string {
@@ -339,24 +348,26 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
     const ancestries = ancestriesWithTraitsFor(key);
     if (ancestries.length) {
       // Full trait text (IG today): each ancestry with its two traits spelled out — "fully fleshed out",
-      // per the owner. One row per ancestry; the traits column lists "TraitName: text" for each.
-      // Brendan's per-ancestry portraits (those the site publishes) as a gallery beneath the trait table.
-      const gallery = ancestries
-        .map((a) => ({ src: igAncestryArt(a.name), caption: a.name }))
-        .filter((g): g is { src: string; caption: string } => !!g.src);
+      // per the owner. Each ancestry is its own accordion with the portrait (those the site publishes) shown
+      // inside it when opened.
       sections.push({
         id: 'species',
         title: speciesNoun(r.key),
         lead: IG_ANCESTRY_TRAIT_RULES,
         // Per-entry collapsibles (MOB2c/d): each ancestry shows its trait NAMES as a brief teaser and expands
-        // to the full trait text — the owner's exact example ("a race name, a brief description… click to
-        // expand every detail"). Portraits stay as the gallery beneath.
-        entries: ancestries.map((a) => ({
-          name: a.name,
-          brief: a.traits.map((t) => t.name).join(' · '),
-          detail: a.traits.map((t) => `**${t.name}** — ${t.text}`).join('\n\n'),
-        })),
-        images: gallery.length ? { gallery, credit: IG_ART_CREDIT } : undefined,
+        // to the full trait text. Owner 2026-07-17: the portrait now lives INSIDE each species' accordion
+        // (large + centered above the trait text), shown only when opened — not a separate always-visible
+        // gallery. Ancestries the site has no art for (Human, Sprite) simply have no image.
+        entries: ancestries.map((a) => {
+          const art = igAncestryArt(a.name);
+          return {
+            name: a.name,
+            brief: a.traits.map((t) => t.name).join(' · '),
+            detail: a.traits.map((t) => `**${t.name}** — ${t.text}`).join('\n\n'),
+            image: art || undefined,
+            imageCredit: art ? IG_ART_CREDIT : undefined,
+          };
+        }),
       });
     } else {
       sections.push({

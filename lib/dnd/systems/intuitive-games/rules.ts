@@ -113,3 +113,22 @@ export function igDerived(char: IGCharacter) {
     skills: igSkillTotals(char),
   };
 }
+
+/** The five encumbrance weight limits (pounds) for a Strength score, from the Core Rules encumbrance chart —
+ *  which on intuitivegames.net exists only as an IMAGE. Transcribed from the image (STR 6–20) and confirmed
+ *  to follow `base = (STR − 5) × 5`: Comfortable Held = base, Comfortable Carry = Maximum Held = base × 2,
+ *  Maximum Carry = base × 4, Maximum Drag = base × 6. See docs/reference/intuitive-games/stat-tables-from-images.md.
+ *  Quadrupeds triple every value (the rules text) — pass `quadruped: true`. */
+export function igCarryingCapacity(str: number, opts: { quadruped?: boolean } = {}): {
+  comfortableHeld: number; comfortableCarry: number; maximumHeld: number; maximumCarry: number; maximumDrag: number;
+} {
+  const base = Math.max(0, (Math.floor(str) - 5) * 5);
+  const m = opts.quadruped ? 3 : 1;
+  return {
+    comfortableHeld: base * m,
+    comfortableCarry: base * 2 * m,
+    maximumHeld: base * 2 * m,
+    maximumCarry: base * 4 * m,
+    maximumDrag: base * 6 * m,
+  };
+}

@@ -537,7 +537,7 @@ export function CharacterProvider({
   //
   // Effects are OVERLAYS: `char` stays the base character forever. Unequipping is just dropping a
   // source and re-deriving, which is why reverting is free and can't corrupt the sheet.
-  const ledger = useMemo(() => buildLedger(char, { system }), [char, system])
+  const ledger = useMemo(() => buildLedger(char, { system, exhaustionModel }), [char, system, exhaustionModel])
 
   // Effective ability scores: base + every active effect. Components read THESE, so a +2 belt
   // moves the score, its modifier, every skill using it, and its carrying capacity at once.

@@ -9,6 +9,7 @@ import { getDndSession } from '@/lib/dnd/auth';
 import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { dndToolCall, dndAiConfigured } from '@/lib/dnd/ai';
 import { applySheetEdits, editPath, editOldValue, validateSheetEdits, revertBatch, SHEET_EDIT_TOOL, type SheetEdit, type AuditedEdit } from '@/lib/dnd/sheet-edits';
+import { readCampaignPreferences } from '@/lib/dnd/campaign-preferences';
 import { recentBatchDigest, latestUndoableBatch, type EditHistoryRow } from '@/lib/dnd/edit-history';
 import { applyLayoutEdits, LAYOUT_EDIT_TOOL, type LayoutEdit } from '@/lib/dnd/layout-edits';
 import { normalizeLayout } from '@/lib/dnd/custom-sheet';
@@ -218,7 +219,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // An item's effects that the registry refused were DROPPED by applySheetEdits (never coerced);
   // surface them so a bonus that didn't take is visible, not silently missing (Slice 14).
   const rejectedEffects = validateSheetEdits(edits);
-  const updated = applySheetEdits(current, edits);
+  // Honor the campaign's equip-limits setting for AI equips too (Area E1d): resolve the effective preference
+  // from the character's campaign and pass it, so an AI equip auto-swaps to a legal state when enforced and
+  // stacks freely when off. No campaign → the vanilla default (enforced).
+  const campId = (row as { campaign_id?: string | null }).campaign_id;
+  let equipLimits: 'enforced' | 'off' = 'enforced';
+  if (campId) {
+    const { data: campRow } = await supabaseAdmin.from('dnd_campaigns').select('theme').eq('id', campId).maybeSingle();
+    equipLimits = readCampaignPreferences((campRow as { theme?: unknown } | null)?.theme).equipLimits.value;
+  }
+  const updated = applySheetEdits(current, edits, { equipLimits });
   const { error: upErr } = await supabaseAdmin.from('dnd_characters').update({ data: updated, name: updated.meta.name || row.name }).eq('id', params.id);
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
 

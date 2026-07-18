@@ -49,6 +49,40 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
 - [ ] **SQ5 — Per-system verification** — a browser/QA pass per system (the memory-documented Slice-40
       walkthrough): build a character, exercise the sheet + AI edit + read, fix correctness + styling bugs.
 
+### Area IGS — Intuitive Games full site mirror + build-out (owner 2026-07-17)
+> Owner intent (several messages): scrape EVERY page of Brendan's IG TTRPG with Playwright, opening all
+> collapsed DOM toggles so every word is captured; pull + analyze every IMAGE (some hold stat tables); flag
+> every undefined/empty element as a WIP "needs definition" list (shareable with Brendan); download images and
+> host them where they belong on our site; and BUILD OUT everything that's fleshed out into our app, well
+> formatted. **Be discerning: Brendan has OTHER game projects on the site (e.g. the board game "Overrun") —
+> pull ONLY the Intuitive Games TTRPG content, not the other projects.**
+
+- [~] **IGS1 — DOM scrub of every TTRPG page.** IN PROGRESS. Reusable Playwright extractor pulls headings +
+      prose + tables + accordion text (incl. hidden/collapsed) per page. DONE: spell-list, classes, skills,
+      backgrounds, core-rules → `docs/reference/intuitive-games/*-scraped.md`. REMAINING pages: traits-
+      ancestries, feats-general, feats-combat, stances, conditions, weapons, armor-shields, equipment, tools,
+      magical-items, companion-creatures, redistribution, character-building, home. (Skip game-list = Overrun.)
+- [~] **IGS2 — Image analysis + hosting.** IN PROGRESS. Stat data that lives only in images is transcribed by
+      reading the pixels (Playwright download + vision). DONE: the Encumbrance table (STR 6–20 × 5 weight cols)
+      → `stat-tables-from-images.md` + image hosted at `public/dnd/intuitive-games/tables/encumbrance.png`.
+      Now also PROGRAMMATIC: `igCarryingCapacity(str, {quadruped})` in IG rules encodes the table
+      (base×{1,2,4,6}, quadruped ×3), golden-pinned row-for-row by `ig-encumbrance.test.ts`.
+      REMAINING: sweep remaining pages for content images, download + host + transcribe each.
+- [x] **IGS3 — WIP "needs definition" report.** ✅ SHIPPED (living) — `WIP-needs-definition.md` auto-flags
+      every EMPTY toggle found (4 so far: Craft's Manufacture/Repair Object, Perform's Entertain/Impress).
+      Regenerates as more pages are scraped. This is the owner's shareable "what Brendan still needs to build".
+- [x] **IGS4 — Wire spell texts.** ✅ SHIPPED — the 26 missing power texts closed in IG_POWERS (see IGP).
+- [ ] **IGS5 — Build out the rest.** Wire the scraped class ladders (→ Area T taxonomy), skill mechanics,
+      backgrounds/cultures, core-rules tables, equipment/armor/weapon/magic-item data into the app + library,
+      well-formatted, each verbatim from the site; carry empty items as "coming soon".
+- [ ] **IGS6 — EVERYTHING interactable on the character sheet (owner 2026-07-17).** Owner: make sure ALL
+      actions, ancestry traits, stances, spells, class abilities/buffs, leveling, HP, attack, AC, armor,
+      weapons, starting equipment, feats, conditions — literally everything — is built into the sheet and
+      "accounted for in a dynamic, helpful, interactable way." This is the IG sheet's completeness+interactivity
+      pass (a large multi-slice effort; overlaps Area SQ for all systems + Area R roller). Break down per
+      component: each must (a) render its real data, (b) be rollable/usable where it's an action/roll,
+      (c) be editable (manual + AI), (d) show its rules text (tooltip/expand). Track gaps as sub-slices.
+
 ### Area TH — Per-template color themes (owner 2026-07-17)
 > Owner, verbatim intent: for EACH current character-sheet template, create multiple (3–4) color themes and
 > tie ALL the colors in that template to the theme's color tokens, so a user picks a template and then picks a
@@ -135,8 +169,12 @@ Make the mechanics the prefs name actually swappable, VANILLA BY DEFAULT.
         the system key and exposed on the store context; `exhaustionModel` reads the effective preference.
         Behavior change for 2014 chars is owner-authorized. `exhaustion-d20.test.ts` + `exhaustion-speed.test.ts`
         rewritten from the old "tracked gap" to assert the new edition/model-aware wiring; full suite green
-        (1956). REMAINING (M1c, minor): apply the 2014 speed factor / HP-max-halving tiers to the sheet's
-        derived speed + max HP (the pure helpers `exhaustionSpeedFactor`/`exhaustionHpMaxFactor` exist).
+        (1956).
+  - [x] **M1c — 2014 Speed + HP tiers.** ✅ SHIPPED — `buildLedger` now takes the effective `exhaustionModel`;
+        its exhaustion source is edition/model-aware: 2024/flat = −5 ft/level & HP untouched; 2014 vanilla =
+        Speed halved at tiers 2–4 / 0 at tier 5+ (a computed `add`) and max HP halved at tier 4+. Store passes
+        `exhaustionModel`. Golden-pinned by `exhaustion-2014-tiers.test.ts` (6); 2024 default unchanged
+        (`exhaustion-speed.test.ts` still green). **Area M1 (exhaustion) complete.**
 - [x] **M2 — Long-rest model selector.** ✅ SHIPPED — pure `hitDiceAfterLongRest(total, remaining, model)`
       in `lib/dnd/mechanics/long-rest.ts` (vanilla=full restore, half-hit-dice=2014 RAW half+min1, gritty/epic
       = amount unchanged), golden-pinned by `mechanics-long-rest.test.ts`. Wired into the sheet store's
@@ -162,22 +200,44 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       (one-body-armor, one-shield, two-handed-vs-shield), each with a plain-language reason; `resolveEquipSwap
       (items, id, unequipIds)` unequips the chosen conflictor(s) and equips the target (pure, immutable).
       Golden-pinned by `equip-conflicts.test.ts`.
-- [ ] **E1b — Conflict dialog + wiring.** The popup component (Cancel + per-conflict swap), shown from the live
-      equip toggle (`ItemBuilder` "Equipped" + inventory equip) when `equipLimits === 'enforced'` and conflicts
-      exist; wire the AI `equip_item` path to the same core. **NOTE (owner's sword+shield→axe example):** the
-      owner expects a two-handed weapon to also conflict with OTHER held one-handed weapons (both hands
-      occupied), so E1b should extend the conflict core with a hand-slot rule (a two-handed weapon frees/blocks
-      both hands) — the current core only models shield/body-armor/two-handed-vs-shield. Wire point found:
-      equipping commits via `Inventory.upsert` (ItemBuilder "Equipped" → onSave). `preferences.equipLimits` is
-      already on the store context for the gate.
-- [ ] **E2 — Toggle:** `equipLimits: off` skips the check entirely (equip freely; the panel still shows truth).
+- [x] **E1b — Hand-slot conflict model (core).** ✅ SHIPPED — extended `equip-conflicts.ts` with a hands
+      model (`handCost`: two-handed=2, other weapon/shield=1, else 0). `equipConflicts` now also flags
+      hand-overflow, so the owner's sword+shield → equip a two-handed axe correctly returns BOTH the sword and
+      shield as swap candidates; one-shield + one-body-armor rules kept. Added `handsToFree(items, id)` so the
+      dialog knows whether unequipping ONE chosen conflictor suffices (dual-wield: free 1) or ALL are needed
+      (two-handed over sword+shield: free 2). Golden-pinned (7 tests incl. the owner's case + dual-wield).
+- [x] **E1c — Conflict dialog + wiring.** ✅ SHIPPED — `EquipConflictDialog` (a clear popup: explains each
+      conflict, then Cancel + resolution buttons) wired into `Inventory.upsert`. When a save would equip an
+      item and `equipLimits === 'enforced'`, the item is committed UNEQUIPPED and the dialog opens; the player
+      resolves it deliberately. The dialog computes per-conflict single swaps (unequip just that item when it
+      resolves — dual-wield → "swap the sword / the shield") and falls back to one "Unequip {all} & equip"
+      when a two-handed weapon needs both hands freed — exactly the owner's UX. `equipLimits: off` skips the
+      whole check (equip freely) = **E2 done too**. Guarded by `equip-conflict-dialog.test.ts` (gate/flow +
+      swap-choice logic for both cases); full suite green (1961).
+- [x] **E1d — AI equip_item routed through the core.** ✅ SHIPPED — `applySheetEdits` takes an optional
+      `{ equipLimits }` (default enforced); on an enforced equip it auto-swaps (unequips conflicts via
+      `equipConflicts`/`resolveEquipSwap`, then equips the target) so an AI-driven equip always lands on a
+      legal state; `off` stacks freely. The ai-edit route resolves the character's campaign `equipLimits` and
+      passes it. The AI acts on the instruction (auto-resolve) where the UI asks the player — same core.
+- [x] **E3 — Tracker updated.** ✅ SHIPPED — `equip-enforcement-gap.test.ts` rewritten from "KNOWN GAP" to
+      assert enforcement: the AI path auto-swaps a second body armour to one (enforced) and stacks with
+      `equipLimits: off`; both live surfaces route through the equip-conflict core. **Area E complete.**
+- [x] **E2 — Toggle:** ✅ SHIPPED with E1c — `Inventory.upsert` only runs the conflict check when
+      `preferences.equipLimits.value === 'enforced'`; with `off` the equip commits unrestricted. The DM sets
+      this on the campaign preferences panel (P4); it reaches the sheet via P2c.
 - [ ] **E3 — Tests:** update the `equip-enforcement-gap` tracker → the live paths now enforce when on, allow
       when off.
 
 ### Area R — In-app roller for the bespoke sheets (PF2 + IG) (depends on P for the auto-toggle)
-- [ ] **R1 — Roll engines wired.** A shared roll surface for PF2 (`pf2Degree`/`pf2AttackBonus`/…) and IG
-      (`igResolveAttack`/`igConditionSummary`/`igStanceMechanicNote`/`igDegreeOfSuccess`), so tapping a
-      check/save/attack/skill on the bespoke sheet rolls it in-app with the mechanics folded in.
+- [x] **R1a — Shared roll-resolution engine (pure core).** ✅ SHIPPED — `lib/dnd/roll.ts`:
+      `resolveD20Roll({ natural, modifier, dc?, system? })` takes the natural face as INPUT (not rolled), so
+      one function serves every input mode — auto (RNG face), manual (typed face), IRL (recorded face). Returns
+      total + crit/fumble + (with a DC) the four-step `degree` for IG/PF2 (the shared ladder, extracted as
+      `fourStepDegree`) or meet-or-beat `success` for others. `clampNatural` guards bad manual entry;
+      `rollNaturalD20` isolates the only randomness. Golden-pinned by `roll-engine.test.ts` (8).
+- [ ] **R1b — Wire the engine into the bespoke sheets.** Tapping a check/save/attack/skill on the IG/PF2 sheet
+      calls `resolveD20Roll` with that line's modifier (from `igResolveAttack`/`pf2AttackBonus`/…) + the
+      target DC, logs the result. (The pure engine + the per-system modifier math both exist; this is the UI.)
 - [ ] **R2 — Auto-mechanics toggle.** When on, active conditions/stances/exhaustion fold into every roll;
       when off, the sheet shows the modifiers but the player applies them. Reads the `autoMechanics` pref.
 - [ ] **R3 — Manual roll input.** Enter a d20/dice result by hand; the sheet folds the character's modifiers.

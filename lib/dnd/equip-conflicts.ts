@@ -21,6 +21,15 @@ const isBodyArmor = (it: EquipConflictItem): boolean => it.kind === 'armor' && i
 const isTwoHanded = (it: EquipConflictItem): boolean =>
   it.kind === 'weapon' && !!it.weapon?.properties?.includes('two-handed');
 
+/** How many of your two hands an item occupies: a two-handed weapon needs both, any other weapon or a shield
+ *  needs one, everything else (body armor, worn gear) needs none. */
+const handCost = (it: EquipConflictItem): number => {
+  if (isTwoHanded(it)) return 2;
+  if (it.kind === 'weapon') return 1;
+  if (isShield(it)) return 1;
+  return 0;
+};
+
 const label = (it: EquipConflictItem): string => (it.name && it.name.trim()) || 'that item';
 
 /** One currently-equipped item that blocks equipping the target, with a plain-language reason the dialog
@@ -41,24 +50,54 @@ export function equipConflicts(items: EquipConflictItem[], id: string): EquipCon
   const others = items.filter((x) => x.equipped && x.id !== id);
   const out: EquipConflict[] = [];
 
+  // One body armor worn at a time.
   if (isBodyArmor(target)) {
     for (const o of others) {
       if (isBodyArmor(o)) out.push({ id: o.id, name: label(o), reason: `You're already wearing ${label(o)} as body armor.` });
     }
   }
+  // One shield at a time (independent of the hand count — you don't dual-wield shields).
   if (isShield(target)) {
     for (const o of others) {
       if (isShield(o)) out.push({ id: o.id, name: label(o), reason: `You're already using ${label(o)} as a shield.` });
-      else if (isTwoHanded(o)) out.push({ id: o.id, name: label(o), reason: `You can't hold a shield while wielding ${label(o)} (two-handed).` });
     }
   }
-  if (isTwoHanded(target)) {
-    for (const o of others) {
-      if (isShield(o)) out.push({ id: o.id, name: label(o), reason: `You can't wield a two-handed weapon while using ${label(o)} (shield).` });
+  // Hands: a weapon or shield occupies hands; a two-handed weapon takes both. If equipping the target would
+  // need more than two hands, every equipped hand-item is a candidate to free up — the dialog lets the player
+  // pick which one(s) to unequip (the owner's sword+shield → equip a two-handed axe case yields both).
+  const cost = handCost(target);
+  if (cost > 0) {
+    const handItems = others.filter((o) => handCost(o) > 0);
+    const used = handItems.reduce((s, o) => s + handCost(o), 0);
+    if (used + cost > 2) {
+      for (const o of handItems) {
+        const reason = isTwoHanded(target)
+          ? `${label(target)} needs both hands — you're holding ${label(o)}.`
+          : isTwoHanded(o)
+            ? `You can't hold ${label(target)} while wielding ${label(o)} (two-handed).`
+            : `Both hands are full — you're holding ${label(o)}.`;
+        out.push({ id: o.id, name: label(o), reason });
+      }
     }
   }
-  // De-dupe (a single item could match more than one branch in odd data).
+  // De-dupe (a shield can match both the one-shield rule and the hands rule).
   return out.filter((c, i) => out.findIndex((d) => d.id === c.id) === i);
+}
+
+/**
+ * How many hands must be freed to equip `id` (0 ⇒ it fits already). The dialog uses this to know whether
+ * unequipping a SINGLE chosen conflictor is enough (dual-wield: free 1) or ALL of them are required
+ * (a two-handed weapon over a sword+shield: free 2).
+ */
+export function handsToFree(items: EquipConflictItem[], id: string): number {
+  const target = items.find((i) => i.id === id);
+  if (!target || target.equipped) return 0;
+  const cost = handCost(target);
+  if (cost === 0) return 0;
+  const used = items
+    .filter((x) => x.equipped && x.id !== id)
+    .reduce((s, o) => s + handCost(o), 0);
+  return Math.max(0, used + cost - 2);
 }
 
 /**

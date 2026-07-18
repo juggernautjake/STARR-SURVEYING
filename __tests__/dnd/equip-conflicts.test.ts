@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { equipConflicts, resolveEquipSwap, type EquipConflictItem } from '@/lib/dnd/equip-conflicts';
+import { equipConflicts, resolveEquipSwap, handsToFree, type EquipConflictItem } from '@/lib/dnd/equip-conflicts';
 
 // Phase 2 · E1a — equip-slot conflict detection + swap on the live inventory model. The owner's example:
 // holding a sword + shield, trying to equip an axe (two-handed) → the axe conflicts with the shield, and the
@@ -12,10 +12,21 @@ const plate: EquipConflictItem = { id: 'plate', name: 'Plate', kind: 'armor', eq
 const chain: EquipConflictItem = { id: 'chain', name: 'Chain Mail', kind: 'armor', equipped: true, armor: { category: 'heavy' } };
 
 describe('equipConflicts', () => {
-  it("the owner's case: a two-handed axe conflicts with the equipped shield (not the one-handed sword)", () => {
+  it("the owner's case: a two-handed axe needs both hands, so it conflicts with BOTH the sword and the shield", () => {
     const conflicts = equipConflicts([sword, shield, axe], 'axe');
-    expect(conflicts.map((c) => c.id)).toEqual(['shield']);
-    expect(conflicts[0].reason).toMatch(/two-handed/i);
+    expect(conflicts.map((c) => c.id).sort()).toEqual(['shield', 'sword']);
+    expect(conflicts.every((c) => /both hands/i.test(c.reason))).toBe(true);
+    // Both must be freed (a two-handed weapon needs 2 hands, and both are occupied).
+    expect(handsToFree([sword, shield, axe], 'axe')).toBe(2);
+  });
+
+  it('dual-wield: equipping a third one-handed weapon needs only ONE hand freed (player picks which)', () => {
+    const dagger = { id: 'dagger', name: 'Dagger', kind: 'weapon', equipped: true, weapon: { properties: [] } };
+    const short = { id: 'short', name: 'Shortsword', kind: 'weapon', equipped: true, weapon: { properties: [] } };
+    const third = { id: 'third', name: 'Handaxe', kind: 'weapon', equipped: false, weapon: { properties: [] } };
+    const conflicts = equipConflicts([dagger, short, third], 'third');
+    expect(conflicts.map((c) => c.id).sort()).toEqual(['dagger', 'short']); // both are candidates
+    expect(handsToFree([dagger, short, third], 'third')).toBe(1); // but freeing either one suffices
   });
 
   it('equipping a shield conflicts with an equipped shield AND an equipped two-handed weapon', () => {

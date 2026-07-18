@@ -10,6 +10,8 @@ import { tagInfo } from './ui/tagInfo'
 import { totalInBase, baseCurrency, totalIn, conversionTable, fmtAmount, type Currency } from '@/lib/dnd/currency'
 import { carryingCapacity, encumbranceLevel } from '../engine/equipment'
 import { planConsume } from '@/lib/dnd/effects/consume'
+import { equipConflicts, resolveEquipSwap } from '@/lib/dnd/equip-conflicts'
+import EquipConflictDialog, { type EquipConflictState } from './EquipConflictDialog'
 
 // Kind icons for the no-art fallback token (Slice 28), matching the ItemBuilder kind labels so an
 // item without uploaded art still reads as intentional rather than a hole.
@@ -32,20 +34,43 @@ function weaponDamageSummary(it: InvItem): string {
 }
 
 export default function Inventory() {
-  const { char, setChar, characterId, editMode, rollExpr, adjustHp, rollWeaponDamage, addActiveEffect, canWrite, ledger } = useChar()
+  const { char, setChar, characterId, editMode, rollExpr, adjustHp, rollWeaponDamage, addActiveEffect, canWrite, ledger, preferences } = useChar()
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  // Equip-conflict popup (Area E1c) — set when a save would equip an item that conflicts with what's worn.
+  const [equipConflict, setEquipConflict] = useState<EquipConflictState | null>(null)
 
   const curLabels = labels()
 
-  // Add a new item or replace an existing one (by id) — the ItemBuilder emits a full InvItem.
+  // Add a new item or replace an existing one (by id) — the ItemBuilder emits a full InvItem. When the save
+  // would EQUIP an item and the campaign enforces equip limits, check for a slot conflict first: if one
+  // exists, commit the item UNEQUIPPED and raise the conflict dialog so the player resolves it deliberately
+  // (swap / cancel). With equipLimits off, equipping is unrestricted.
   function upsert(item: InvItem) {
     setChar((c) => {
       const exists = c.inventory.some((x) => x.id === item.id)
+      const enforce = preferences.equipLimits.value === 'enforced'
+      if (enforce && item.equipped) {
+        const nextInv = exists ? c.inventory.map((x) => (x.id === item.id ? item : x)) : [...c.inventory, item]
+        const conflicts = equipConflicts(nextInv, item.id)
+        if (conflicts.length) {
+          // Save it unequipped for now; the dialog will equip-with-swap (or leave it off on cancel).
+          setEquipConflict({ target: item, conflicts })
+          const stored = { ...item, equipped: false }
+          return { ...c, inventory: exists ? c.inventory.map((x) => (x.id === item.id ? stored : x)) : [...c.inventory, stored] }
+        }
+      }
       return { ...c, inventory: exists ? c.inventory.map((x) => (x.id === item.id ? item : x)) : [...c.inventory, item] }
     })
     setAdding(false)
     setEditingId(null)
+  }
+
+  // Resolve the equip conflict: unequip the chosen item(s), then equip the target.
+  function resolveEquip(unequipIds: string[]) {
+    const targetId = equipConflict?.target.id
+    if (targetId) setChar((c) => ({ ...c, inventory: resolveEquipSwap(c.inventory, targetId, unequipIds) }))
+    setEquipConflict(null)
   }
 
   function setQty(id: string, delta: number) {
@@ -291,6 +316,14 @@ export default function Inventory() {
           </button>
         )}
       </div>
+      {equipConflict && (
+        <EquipConflictDialog
+          state={equipConflict}
+          inventory={char.inventory}
+          onResolve={resolveEquip}
+          onCancel={() => setEquipConflict(null)}
+        />
+      )}
     </section>
   )
 }

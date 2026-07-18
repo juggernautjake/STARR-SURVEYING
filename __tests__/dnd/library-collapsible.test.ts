@@ -27,4 +27,19 @@ describe('library system page — collapsible sections, default closed (MOB2b)',
     expect(page).toMatch(/<details key=\{s\.id\} id=\{s\.id\}/);
     expect(page).toContain('scrollMarginTop');
   });
+
+  it('renders a per-entry image (e.g. a species portrait) INSIDE the accordion, above the detail text', () => {
+    // Owner 2026-07-17: art shows only when the accordion is open, large + centered before the detail.
+    expect(page).toContain('{e.image && (');
+    expect(page).toContain('<figure');
+    expect(page).toMatch(/src=\{e\.image\}/);
+    // the image block comes before the <Rich text={e.detail}
+    expect(page.indexOf('src={e.image}')).toBeLessThan(page.indexOf('<Rich text={e.detail}'));
+  });
+
+  it('links the IG logo/title to Brendan\'s site with a "see the source material" link', () => {
+    expect(page).toContain('https://www.intuitivegames.net');
+    expect(page).toMatch(/see the source material/i);
+    expect(page).toContain("target=\"_blank\"");
+  });
 });
