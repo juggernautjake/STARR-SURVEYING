@@ -1494,9 +1494,11 @@ ledger while the base stays 16 (overlay, not bake), and unequipping gives the ch
 regression to a shallow `{ ...input }` would let the nested-field ops (`set_meta`→`c.meta.*`,
 `set_combat`→`c.combat.*`) mutate the caller. The existing test touched one field; added `sheet-edits.test.ts`
 +1 deep-equaling the WHOLE input across a broad batch (set_name/meta/level/combat/ability + add_attack/
-feature/item/resource). This completes non-mutation coverage across all three edit engines — 5e ledger read,
-`applySheetEdits`, and `applyIgEdit` (the IG one's array-append ops were pinned the same day). Full dnd suite
-green (1885).
+feature/item/resource). This completes non-mutation coverage across all FOUR edit surfaces — the 5e ledger
+read (`buildLedger`), `applySheetEdits`, `applyIgEdit` (its array-append ops), and `applyLayoutEdits` (the
+shared `START` fixture survives a full add/remove/move/update/title/css batch, `layout-edits.test.ts` +1) —
+each previously proven for one representative case, now proven at breadth so a lost clone or a spread→push
+regression fails a test rather than silently corrupting stored data. Full dnd suite green (1886).
 
 **Rejected, never coerced.** Effects are validated at the boundary against the registry
 (`cleanEffects` drops any unknown target / illegal operation / non-numeric value so no NaN or

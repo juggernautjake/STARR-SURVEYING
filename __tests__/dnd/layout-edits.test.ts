@@ -27,6 +27,24 @@ describe('layout edits (Slice 12)', () => {
     expect(layout.blocks).toHaveLength(4);
   });
 
+  it('never mutates the input layout (the shared START fixture must survive a full batch)', () => {
+    // applyLayoutEdits normalizes rawLayout into a fresh structure, so the caller's layout is untouched —
+    // and it MUST be, since START is a module-level fixture reused across every test here. Pin it: a batch
+    // that adds/removes/moves/updates blocks and sets title/css leaves the input deep-equal. (Completes the
+    // non-mutation coverage across all four edit engines: ledger, applySheetEdits, applyIgEdit, layout.)
+    const before = structuredClone(START);
+    applyLayoutEdits(START, 'body{}', [
+      { op: 'set_title', value: 'Changed' },
+      { op: 'add_block', index: 0, block: { type: 'note', text: 'x' } },
+      { op: 'remove_block', index: 1 },
+      { op: 'move_block', from: 0, to: 1 },
+      { op: 'update_block', index: 0, block: { type: 'text', text: 'y' } },
+      { op: 'set_css', value: 'p{}' },
+      { op: 'append_css', value: 'div{}' },
+    ] as LayoutEdit[]);
+    expect(START).toEqual(before);
+  });
+
   it('removes and moves (reflows) blocks', () => {
     const removed = applyLayoutEdits(START, '', [{ op: 'remove_block', index: 2 }]).layout;
     expect(removed.blocks).toHaveLength(2);
