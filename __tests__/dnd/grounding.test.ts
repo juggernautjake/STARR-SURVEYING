@@ -73,4 +73,12 @@ describe('systemGroundingBlock', () => {
     const g = await systemGroundingBlock('dnd5e-2024', 'Dispel Magic');
     expect(g.block).not.toMatch(/RELEVANT Intuitive Games POWERS/);
   });
+
+  it('grounds a DEFENSIVE power query too — the digest names it, the AI must be able to explain it', async () => {
+    // Defensive powers (reactions) are name-only in the always-on block, exactly like school powers, so a
+    // query about the character's defensive power must retrieve its real effect from IG_DEFENSIVE_POWERS.
+    const g = await systemGroundingBlock('intuitive-games', 'Sidestep');
+    expect(g.block).toMatch(/Sidestep \(Defensive Power\)/);
+    expect(g.block).toMatch(/take a free 5-foot step/); // the real IG effect
+  });
 });

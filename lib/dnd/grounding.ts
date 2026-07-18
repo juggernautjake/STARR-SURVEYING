@@ -8,7 +8,7 @@ import { systemRulesBlock } from './system-rules';
 import { glossaryFor, type GlossaryEntry } from './glossary';
 import { FEATS_2024 } from './feats/dnd5e-2024';
 import { igAllFeats } from './systems/intuitive-games/feats';
-import { IG_POWERS } from './systems/intuitive-games/content';
+import { IG_POWERS, IG_DEFENSIVE_POWERS } from './systems/intuitive-games/content';
 
 /** Lenient glossary retrieval for GROUNDING: score each article by how many of the query keywords
  *  appear (term > alias > body), require at least one, and take the top matches. Unlike the library
@@ -68,20 +68,26 @@ function matchFeats(system: string, keywords: string, limit: number): Groundable
 /** The IG powers/spells whose NAME matches a keyword — the power counterpart of matchFeats. The always-on
  *  IG rules block lists power NAMES only (full effects would bloat every prompt), so — exactly like feats —
  *  this query-scoped retrieval is the ONLY path that puts an IG power's EFFECT text in front of the AI;
- *  without it "how does Elemental Blast work?" grounds on nothing. Only IG has an effect-bearing power
- *  corpus (`IG_POWERS`); a power still awaiting Brendan's text simply isn't here (never invented). */
+ *  without it "how does Elemental Blast work?" grounds on nothing. Covers BOTH the school powers/spells
+ *  (`IG_POWERS`) and the 6 defensive powers (`IG_DEFENSIVE_POWERS`) — a defensive power is a reaction the AI
+ *  must equally be able to explain ("how does my Sidestep work?"), and it too is name-only in the block.
+ *  Only IG has an effect-bearing power corpus; a power still awaiting Brendan's text isn't here (never invented). */
 function matchPowers(system: string, keywords: string, limit: number): { name: string; school: string; effect: string }[] {
   if (system !== 'intuitive-games') return [];
   const words = keywords.split(/\s+/).filter(Boolean);
   if (!words.length) return [];
-  return IG_POWERS
+  const corpus = [
+    ...IG_POWERS.map((p) => ({ name: p.name, school: p.category ?? 'Power', effect: p.effect })),
+    ...IG_DEFENSIVE_POWERS.map((p) => ({ name: p.name, school: 'Defensive Power', effect: p.effect })),
+  ];
+  return corpus
     .filter((p) => {
       if (!p.effect) return false; // a power still awaiting Brendan's text grounds on nothing (never invented)
       const n = p.name.toLowerCase();
       return words.some((w) => n.includes(w));
     })
     .slice(0, limit)
-    .map((p) => ({ name: p.name, school: p.category ?? 'Power', effect: p.effect as string }));
+    .map((p) => ({ name: p.name, school: p.school, effect: p.effect as string }));
 }
 
 export interface SystemGrounding {

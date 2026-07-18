@@ -437,7 +437,11 @@ expanded requirements (2026-07-17):
       power query now grounds on the real `IG_POWERS` effect text, query-scoped (no prompt bloat), IG-only.
       A power still awaiting Brendan's verbatim text isn't in `IG_POWERS`, so it grounds on nothing rather
       than a fabricated effect (Ground Rule 2). `grounding.test.ts` +3 (grounds Dispel Magic's real effect;
-      empty query dumps nothing; no leak into a 2024 query). Full dnd suite green (1851). **Remaining:**
+      empty query dumps nothing; no leak into a 2024 query). **Defensive powers folded in (2026-07-18):** the
+      6 `IG_DEFENSIVE_POWERS` (reactions) were the SAME name-only-in-the-block case — the digest names a
+      character's defensive power (Sidestep) but the AI had no path to its effect. `matchPowers` now searches
+      both corpora, so "how does my Sidestep work?" grounds on "take a free 5-foot step". `grounding.test.ts`
+      +1. Full dnd suite green (1852). **Remaining:**
       prerequisite gating in the builder (owner-gated — needs the per-class/level feat & power ladders from
       Brendan).
 - [~] **B4 — Conditions: display + tooltip + mechanics + edit.** Conditions the character has are clearly shown
