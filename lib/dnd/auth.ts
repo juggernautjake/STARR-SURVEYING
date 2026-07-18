@@ -26,6 +26,18 @@ if (SECRET === DEV_SECRET && process.env.NODE_ENV === 'production') {
   );
 }
 
+// The owner gate falls back to hardcoded dev keys (`name:jacob` / `quick:jacob`) when DND_OWNER_KEYS is
+// unset. In production that's a privilege-escalation footgun: owner status is "your login key ∈ owner keys",
+// and a `name:` key is exactly what registering that display name produces — so whoever signs up as "jacob"
+// FIRST (if the real owner hasn't claimed it / been seeded) becomes an owner. Warn loudly so the deploy sets
+// DND_OWNER_KEYS to the real owners AND provisions those accounts before going public.
+if (!process.env.DND_OWNER_KEYS && process.env.NODE_ENV === 'production') {
+  console.error(
+    '[dnd/auth] No DND_OWNER_KEYS set in production — owner status falls back to hardcoded dev keys, so ' +
+      'whoever first registers that display name gains owner privileges. Set DND_OWNER_KEYS + provision the owner accounts.',
+  );
+}
+
 // Cookie flags for the session. `secure` is on in production so the cookie only travels over HTTPS —
 // but a deployment served over plain HTTP (e.g. behind a TLS-terminating proxy that forwards http)
 // would have the browser DROP a Secure cookie, so new sign-ins never stick. `DND_COOKIE_INSECURE=1`

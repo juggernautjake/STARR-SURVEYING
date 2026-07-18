@@ -2728,7 +2728,14 @@ regression to *reach*, not the drawing:
       PRIVILEGE-ESCALATION attack to `auth.test.ts` — a swapped payload body (`userId: u1` → `userId: admin`)
       stapled to a stolen valid signature is rejected (the HMAC is over the original body, so the recomputed
       digest can't match), plus the length-guard path before the timing-safe compare. The forgery guarantee is
-      now explicit, not incidental.
+      now explicit, not incidental. **⚠ SECURITY NOTE for the owner (deploy config, 2026-07-18):** owner status
+      is "your login key ∈ `DND_OWNER_KEYS`", and a `name:` key is exactly what registering that display name
+      produces — so if `DND_OWNER_KEYS` is UNSET in production (falls back to the hardcoded `name:jacob`/
+      `quick:jacob` dev keys) and the real owner hasn't claimed/seeded that account, whoever signs up as "jacob"
+      FIRST gains owner privileges (trust-on-first-use). Not changed in code (blocking owner-name signup would
+      break the intended owner-signs-up-by-name flow); instead added a **loud production start-up warning** when
+      `DND_OWNER_KEYS` is unset (parallel to the existing `DND_SESSION_SECRET` warning). **Action for the owner:**
+      set `DND_OWNER_KEYS` to the real owners AND provision/seed those accounts before the app is public.
 - [x] **"+ Campaign"** in the header (signed-in only) → `/dnd?new=campaign`; `MyTable`'s new
       `NewCampaignButton` opens its form there, creates via `POST /api/dnd/campaigns` (creator = DM),
       and routes to the campaign's manage page. It then appears under "⚔️ Campaigns you run" and the
