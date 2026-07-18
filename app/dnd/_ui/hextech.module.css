@@ -984,6 +984,35 @@ select.input {
   display: none;
   content: '';
 }
+
+/* JumpNav pills — each in-page index link is a distinct bordered chip with a ◆ bullet, so items read as
+   separate rather than a run of text (owner 2026-07-17). */
+.jumpNavItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--hx-gold-2);
+  text-decoration: none;
+  padding: 4px 10px;
+  border: 1px solid var(--hx-line);
+  border-radius: 999px;
+  background: rgba(212, 175, 55, 0.05);
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.jumpNavItem::before {
+  content: '◆';
+  font-size: 8px;
+  color: var(--hx-teal-1);
+}
+.jumpNavItem:hover,
+.jumpNavItem:focus-visible {
+  color: var(--hx-gold-3);
+  border-color: var(--hx-gold-1);
+  background: rgba(212, 175, 55, 0.12);
+}
 .siteNav {
   display: flex;
   align-items: center;

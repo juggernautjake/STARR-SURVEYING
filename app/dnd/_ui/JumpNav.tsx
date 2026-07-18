@@ -27,12 +27,8 @@ export default function JumpNav({ items }: { items: JumpItem[] }) {
       aria-label="Jump to a section"
     >
       {items.map((i) => (
-        <a
-          key={i.id}
-          href={`#${i.id}`}
-          onClick={(e) => go(e, i.id)}
-          style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--hx-gold-2)', textDecoration: 'none' }}
-        >
+        // Each item is a distinct ◆-bulleted pill so the index reads as separate items, not a run of text.
+        <a key={i.id} href={`#${i.id}`} onClick={(e) => go(e, i.id)} className={styles.jumpNavItem}>
           {i.label}
         </a>
       ))}
