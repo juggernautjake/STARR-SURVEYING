@@ -109,6 +109,13 @@ export default function Hero() {
               )}
             </h1>
           )}
+          {/* Discreet, tongue-in-cheek OP flag set by a transpose that produced a very strong sheet for its
+              level (Area MV). Small + muted + italic — a wink, not a warning banner. */}
+          {char.meta.opNote && (
+            <p className="op-note" title={char.meta.opNote} style={{ margin: '2px 0 0', fontSize: 11, fontStyle: 'italic', color: 'var(--hx-muted, #8aa0ab)', opacity: 0.85 }}>
+              {char.meta.opNote}
+            </p>
+          )}
         </div>
         <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
           <button

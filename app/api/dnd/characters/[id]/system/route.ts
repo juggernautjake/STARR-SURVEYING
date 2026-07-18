@@ -16,6 +16,7 @@ import { validateCharacterForSystem } from '@/lib/dnd/system-validate';
 import { normalizeSystem, systemLabel, isSystemAvailable } from '@/lib/dnd/systems';
 import { readVariants, hasVariant, switchActive, installTransposed, installTransposedNewSlot, switchToSlot, addSheetSlot, deleteVariant, renameVariant, readActiveSlotMeta, withActiveSlotMeta, type ActiveSheet } from '@/lib/dnd/system-variants';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
+import { opNoteFor } from '@/lib/dnd/transpose/op-check';
 import type { Character } from '@/app/dnd/_sheet/types';
 
 // The transpose system prompt. Vanilla-first always; `allowCustom` decides whether the AI may create
@@ -311,6 +312,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
   if (!transposed.combat.hitDiceTotal || transposed.combat.hitDiceTotal < 1) transposed.combat.hitDiceTotal = lvl;
   if (!transposed.combat.hitDiceRemaining || transposed.combat.hitDiceRemaining > transposed.combat.hitDiceTotal) transposed.combat.hitDiceRemaining = transposed.combat.hitDiceTotal;
+
+  // ── OP check (Area MV/transpose quality) — we intentionally DON'T nerf a strong source character on
+  //    transpose (the owner asked us to keep it faithful); instead, if the result reads as clearly
+  //    overpowered for its level, drop a discreet, funny note on the hero header. Cleared if they trim down. ──
+  const opNote = opNoteFor({
+    name: transposed.meta.name || source.meta.name,
+    level: lvl,
+    abilities: transposed.abilities as Record<string, number>,
+    maxHp: transposed.combat.maxHp || 0,
+    attacksCount: transposed.attacks?.length ?? 0,
+  });
+  transposed.meta = { ...transposed.meta, opNote: opNote ?? undefined };
 
   // ── Flag every AI-invented element on the sheet (Area MV) — so the built character shows CLEARLY what is
   //    custom vs vanilla. Match the `custom` list by name against features/attacks/spells/inventory. ──

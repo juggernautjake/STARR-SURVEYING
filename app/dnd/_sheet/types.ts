@@ -352,6 +352,10 @@ export interface Character {
      *  can exactly reverse the prior increases before applying the new — `abilities` are running
      *  totals, so the applied spread must be remembered to be undone (Slice 4). */
     backgroundAbilities?: Partial<Record<AbilityKey, number>>
+    /** A discreet, tongue-in-cheek note set when a transpose produced a character that reads as clearly
+     *  overpowered for its level (Area MV/transpose quality). Shown small + italic in the hero header so the
+     *  player is gently warned without blocking the build. Cleared when they trim the sheet back down. */
+    opNote?: string
   }
   inspiration: boolean
   profBonusOverride?: number | null
