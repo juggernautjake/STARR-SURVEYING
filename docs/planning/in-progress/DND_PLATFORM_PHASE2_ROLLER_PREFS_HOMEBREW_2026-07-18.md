@@ -350,8 +350,15 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       the variant model, `readVariants`, `snapshotActive`, `switchActive`, and `installTransposed(…, {kind,
       name})`; the transpose route labels the built sheet by the consent (custom→'custom'). Helpers
       `variantKind`/`variantKindLabel`/`defaultVariantName`. Golden-pinned by `system-variants.test.ts` (9).
-      REMAINING **MV1b** — the compound keying so a system can store MULTIPLE sheets (a slot id per sheet, not
-      one-per-system); readVariants back-compat maps legacy bare-system keys to a single vanilla slot.
+      **MV1b ✅ SHIPPED (multi-slot model)** — `system_variants` is now keyed by an arbitrary **slot id** (not
+      one-per-system); each variant carries its own `system` field. `readVariants` keeps the raw slot keys +
+      derives each variant's system (legacy bare-system key → that system, kind vanilla). `builtSystems` /
+      `hasVariant` now read `variant.system` (via `variantSystemOf`), so a system holding TWO slots is handled.
+      New `listSheets(active, variants, systemLabelFn)` → the flat UI list of every sheet ({slotId, system,
+      kind, name, active}) with default names. Golden-pinned incl. a two-sheets-per-system case; existing
+      switch/transpose/campaign-port tests still green (back-compat). REMAINING: `switchActive`/`installTransposed`
+      + the route to operate by **slot id** (so you switch to a specific sheet, and a custom transpose ADDS a
+      slot instead of overwriting the system's) — that lands with MV2.
 - [ ] **MV2 — "+" add-sheet + switcher UI.** In `SystemSwitcher`: a **"+"** to add a new sheet in any playable
       system (choose vanilla/custom + optional name, default `System · Vanilla/Custom-built`); list each sheet
       (per system, per kind, with its name) as a switchable chip. Needs MV1b's multi-slot model + a route to

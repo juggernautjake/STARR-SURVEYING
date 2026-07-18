@@ -94,3 +94,35 @@ describe('sheet kind + name labels (Area MV1)', () => {
     expect(snap.name).toBe('X');
   });
 });
+
+import { listSheets, variantSystemOf } from '@/lib/dnd/system-variants';
+
+describe('multi-slot listing (Area MV1b)', () => {
+  const label = (s: string) => ({ 'dnd5e-2024': 'D&D 5e (2024)', 'pathfinder2e': 'Pathfinder 2e' }[s] ?? s);
+
+  it('variantSystemOf uses the explicit system, else the key (legacy)', () => {
+    expect(variantSystemOf({ data: {}, sheet_type: 'default' }, 'pathfinder2e')).toBe('pathfinder2e'); // legacy key
+    expect(variantSystemOf({ data: {}, sheet_type: 'default', system: 'dnd5e-2024' }, 'dnd5e-2024#custom')).toBe('dnd5e-2024');
+  });
+
+  it('readVariants + listSheets support TWO sheets for the same system (slot-keyed)', () => {
+    // a slot-keyed map: two dnd5e-2024 sheets (vanilla + custom) under distinct slot ids
+    const raw = {
+      'dnd5e-2024': { data: {}, sheet_type: 'default', kind: 'vanilla', system: 'dnd5e-2024', name: 'By the book' },
+      'dnd5e-2024#custom': { data: {}, sheet_type: 'default', kind: 'custom', system: 'dnd5e-2024' },
+    };
+    const v = readVariants(raw);
+    expect(Object.keys(v).sort()).toEqual(['dnd5e-2024', 'dnd5e-2024#custom']); // both slots kept
+    const sheets = listSheets({ system: 'pathfinder2e', data: {}, sheet_type: 'default' }, v, label);
+    // active + the two dnd5e-2024 slots = 3
+    expect(sheets).toHaveLength(3);
+    const dnd = sheets.filter((s) => s.system === 'dnd5e-2024');
+    expect(dnd.map((s) => s.kind).sort()).toEqual(['custom', 'vanilla']);
+    expect(dnd.find((s) => s.kind === 'vanilla')!.name).toBe('By the book'); // explicit name
+    expect(dnd.find((s) => s.kind === 'custom')!.name).toBe('D&D 5e (2024) · Custom-built'); // default name
+    // the active sheet is flagged + auto-named
+    const act = sheets.find((s) => s.active)!;
+    expect(act.system).toBe('pathfinder2e');
+    expect(act.name).toBe('Pathfinder 2e · Vanilla');
+  });
+});
