@@ -75,3 +75,19 @@ describe('taxonomy in the IG grounding (T1)', () => {
     expect(g.block).not.toMatch(/INTUITIVE GAMES CLASS TAXONOMY/);
   });
 });
+
+import { classifyElement } from '@/lib/dnd/provenance';
+
+describe('every taxonomy subclass is provenance-vanilla (T1 catalog fix)', () => {
+  it('all 14 subclasses classify vanilla, not custom (previously only 5 did)', () => {
+    for (const t of IG_CLASS_TAXONOMY) {
+      for (const s of t.subclasses) {
+        expect(classifyElement('intuitive-games', 'subclass', s)).toBe('vanilla');
+      }
+    }
+    // the four parents classify vanilla as classes
+    for (const p of ['Archon', 'Conduit', 'Fighter', 'Wizard']) {
+      expect(classifyElement('intuitive-games', 'class', p)).toBe('vanilla');
+    }
+  });
+});

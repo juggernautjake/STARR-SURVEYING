@@ -6,10 +6,11 @@
 // dm_granted and are flagged by provenance.ts, not here.
 import {
   IG_STANCES, IG_FEATS, IG_POWERS, IG_SPELL_ROSTER, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES, IG_MOVEMENT_TYPES,
-  IG_SUBCLASSES, IG_CREATURE_TYPES, IG_ACTIONS, igCreaturesByGroup, type NamedEntry,
+  IG_CREATURE_TYPES, IG_ACTIONS, igCreaturesByGroup, type NamedEntry,
 } from './content';
+import { igParentClasses, IG_CLASS_TAXONOMY } from './taxonomy';
 import { igAllFeats } from './feats';
-import { systemSpecies, systemClasses, systemSkills, systemConditions } from '../../system-rules';
+import { systemSpecies, systemSkills, systemConditions } from '../../system-rules';
 import type { ElementKind } from '../../provenance';
 
 export interface CatalogEntry {
@@ -51,8 +52,11 @@ export function igCatalog(): CatalogGroup[] {
   const groups: CatalogGroup[] = [];
 
   groups.push({ title: 'Ancestries', kind: 'ancestry', entries: systemSpecies('intuitive-games').map((n) => entry('ancestry', n)) });
-  groups.push({ title: 'Classes', kind: 'class', entries: systemClasses('intuitive-games').map((c) => entry('class', c.name)) });
-  groups.push({ title: 'Subclasses', kind: 'subclass', entries: IG_SUBCLASSES.map((n) => entry('subclass', n)) });
+  // Classes = the four PARENT classes; Subclasses = every subclass across all families (Area T1) — the
+  // canonical taxonomy, replacing the old arbitrary flat split (some subclasses were listed as classes, and
+  // the subclass group held only 5 of the 14).
+  groups.push({ title: 'Classes', kind: 'class', entries: igParentClasses().map((n) => entry('class', n)) });
+  groups.push({ title: 'Subclasses', kind: 'subclass', entries: IG_CLASS_TAXONOMY.flatMap((t) => t.subclasses).map((n) => entry('subclass', n)) });
 
   // Stances carry their A/B effect text.
   groups.push({ title: 'Stances', kind: 'stance', entries: IG_STANCES.map((s) => entry('stance', s)) });

@@ -10,6 +10,7 @@
 // sheet/grounding. Extend a list to teach the system a new vanilla element.
 
 import { igAllFeats } from './feats';
+import { IG_CLASS_TAXONOMY } from './taxonomy';
 
 export interface NamedEntry {
   name: string;
@@ -558,7 +559,9 @@ const KIND_NAMES: Record<IGContentKind, string[]> = {
   'defensive-power': IG_DEFENSIVE_POWERS.map((d) => d.name),
   'weapon-type': IG_WEAPON_TYPES,
   'movement-type': IG_MOVEMENT_TYPES,
-  subclass: IG_SUBCLASSES,
+  // Every subclass across all four families (Area T1) — so a real subclass like Sohei or Druid is flagged
+  // vanilla, not custom. Supersedes the old 5-name IG_SUBCLASSES list.
+  subclass: IG_CLASS_TAXONOMY.flatMap((t) => t.subclasses),
   background: IG_BACKGROUNDS,
   // A companion's creature is either a group name (Dragons) or a specific bestiary entry (Griffon) — both vanilla.
   'creature-type': [...IG_CREATURE_TYPES, ...IG_CREATURES.map((c) => c.name)],
