@@ -2717,9 +2717,17 @@ regression to *reach*, not the drawing:
       - A scroll-anchor / hash link (`href="#..."`) pushing a `#` entry that Back only scrolls away
         from.
       - Next.js scroll-restoration fighting a manually scrolled container.
-- [ ] Fix the specific source(s) found; don't paper over with a custom Back handler.
-- [ ] Verify: from a character sheet and from a campaign page, a single Back returns to the previous
-      page every time.
+- [~] Fix the specific source(s) found; don't paper over with a custom Back handler. **Done for the one
+      concrete source the audit found** — the library jump-nav now `replaceState`s its hash via `JumpNav`
+      (no custom Back handler), pinned by `jump-nav.test.ts`. This slice ALSO added a regression guard that the
+      **map studio** syncs its URL with `replaceState`, never `pushState` (the other surface the audit cleared,
+      previously unguarded) — so a change reintroducing history pollution on the map page fails in CI, not the
+      field. No other history-pushing source exists in the audited code; if the character-sheet/campaign report
+      persists it needs live repro (browser).
+- [~] Verify: from a character sheet and from a campaign page, a single Back returns to the previous
+      page every time. **DEFERRED (browser)** — an interactive click-Back-and-observe check on the running app;
+      the code-side invariants it depends on (no `pushState` history pollution in the nav/map surfaces) are now
+      guarded, but the end-to-end confirmation needs a live browser session.
 
 **Investigated 2026-07-16, no definitive culprit yet — did NOT ship a speculative fix.** Checked the
 strongest hypotheses: no `history.pushState` anywhere in the map pages (the map-studio bridge uses

@@ -7,6 +7,7 @@ import path from 'node:path';
 
 const NAV = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/JumpNav.tsx'), 'utf8');
 const PAGE = fs.readFileSync(path.join(process.cwd(), 'app/dnd/library/[key]/page.tsx'), 'utf8');
+const MAP_STUDIO = fs.readFileSync(path.join(process.cwd(), 'public/dnd/maps/map-studio.html'), 'utf8');
 
 describe('JumpNav does not pollute history (Slice 37)', () => {
   it('scrolls into view + REPLACES the hash rather than pushing a new entry', () => {
@@ -20,5 +21,13 @@ describe('JumpNav does not pollute history (Slice 37)', () => {
     expect(PAGE).toContain('<JumpNav');
     // the old inline hash-anchor jump nav is gone
     expect(PAGE).not.toMatch(/href=\{`#\$\{s\.id\}`\}/);
+  });
+
+  // The Slice-37 audit ruled the map studio OUT as a history polluter because its URL-sync uses
+  // replaceState (no new entry). Pin that so a change to pushState — which would reintroduce the
+  // "Back needs several presses" bug on the map page — fails here instead of in the field.
+  it('the map studio syncs its URL with replaceState, never pushState', () => {
+    expect(MAP_STUDIO).toContain('history.replaceState('); // the URL-state sync the audit relied on
+    expect(MAP_STUDIO).not.toContain('history.pushState(');
   });
 });
