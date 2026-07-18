@@ -1055,21 +1055,27 @@ One pure function that every later slice reads. Nothing else in Part II can be b
       mechanic the user asked to be real, was invisible in the rail. Now effective. `statrail-effective-speed.test.ts`
       (2). With AC, Save DC, Max HP, and Speed, the StatRail and the detail panels no longer disagree on
       any derived value — every prominent number on the sheet reads one ledger-effective source.
-- [ ] **An equipped item lands in the right place, automatically.** Equipping routes by what the item
-      *is*, with no per-item code: a weapon appears as a row in **Attacks** with its computed to-hit
-      and damage; armour drives **AC** (respecting DEX cap / STR requirement / stealth disadvantage);
-      a shield stacks; a consumable is usable from **Inventory**; a granted feature (Slice 11) appears
-      in **Features**; a granted spell in **Spells**; a granted resource as a **resource track**.
-      Each carries a badge naming the item it came from, and each disappears on unequip.
-      `engine/weapons.ts` (`attacksFromInventory`) and `engine/armor.ts` (`computeAC`) already do this
-      work correctly — they are simply not called by anything the player sees. Same root cause as
-      above; same fix.
-- [ ] Equipping is validated, not blind: attunement limits, "one body armour at a time", two-handed
-      vs shield. Where a system has a hard rule, enforce it; where it doesn't, allow it and let the
-      panel show the truth.
-- [ ] Tests: base with no sources == the stored character (the no-op case must be exact, or every
-      existing sheet silently changes); two items adding to one target stack; two `set`s take the
-      highest; removing a source restores the base *exactly*.
+- [~] **An equipped item lands in the right place, automatically.** ✅ *Mostly wired:* **armour drives AC**
+      (live via `deriveAc` — category + DEX cap + one-at-a-time, tested), a **consumable** is usable from
+      Inventory (the ⚗ Use path, Slice 12), and **granted feature/attack/spell/resource** all render sourced
+      + gone-on-unequip (Slice 11 grants, `grant-render-paths.test.ts`). **Remaining — the weapon→Attacks
+      row:** `engine/weapons.ts` (`attacksFromInventory`) derives an attack from a weapon item correctly but
+      is NOT called by the live Attacks table (which renders stored + `grantsAttack` attacks) — wiring it in
+      is the same browser-verified surface as the weapon builder (Slice 27), so it moves with that.
+- [~] Equipping is validated, not blind: attunement limits, "one body armour at a time", two-handed vs
+      shield. Where a system has a hard rule, enforce it; where it doesn't, allow it and let the panel show
+      the truth. **"One body armour at a time" ✅ enforced + now guarded (2026-07-18):** `deriveAc` selects a
+      SINGLE body armor and a single shield (`.find`), so two equipped armors never sum their base ACs —
+      `derive-ac.test.ts` +2 pins it (two armors → the first only, not 18+14; two shields → one +2, not +4),
+      catching a `.filter/.reduce` regression that would double a character's armor. **Attunement limits
+      remain the owner's call** (BLOCKERS §A — the sheet Inventory has no attunement-slot model; the
+      `equipment.ts` cap is unused, tracked by `effect-target-render-gaps`). Two-handed-vs-shield has no
+      hard-rule enforcement by design (permissive — the panel shows the truth), consistent with this item's
+      "where it doesn't, allow it".
+- [x] Tests: base with no sources == the stored character; two items adding to one target stack; two `set`s
+      take the highest; removing a source restores the base *exactly*. ✅ SHIPPED — all in
+      `effect-ledger.test.ts` (the exact no-op case, add-stacking, highest-set-wins incl. the new `set_base`
+      pin, and unequip-restores-base-exactly with a `structuredClone` before/after check).
 
 **Done when:** equipping a +2 STR belt on any sheet changes the displayed STR, its modifier, the
 athletics check, and the carrying capacity — with no code that knows what a belt is.

@@ -69,6 +69,28 @@ describe('deriveAc', () => {
     expect(r.effectBonus).toBe(1);
   });
 
+  it('applies only ONE body armor even if two are equipped ("one body armour at a time")', () => {
+    // deriveAc selects a SINGLE body armor (.find), so two equipped armors do NOT sum their base ACs — a
+    // regression to .filter/.reduce would silently double a character's armor. First-equipped wins.
+    const r = deriveAc([
+      armor({ name: 'Plate', kind: 'armor', equipped: true, armor: { category: 'heavy', baseAC: 18 } }),
+      armor({ id: 'b', name: 'Breastplate', kind: 'armor', equipped: true, armor: { category: 'medium', baseAC: 14, dexCap: 2 } }),
+    ], 4, 10);
+    expect(r.ac).toBe(18);          // the first armor (Plate) only — NOT 18 + 14 stacked
+    expect(r.base).toBe(18);
+    expect(r.source).toContain('Plate');
+    expect(r.source).not.toContain('Breastplate');
+  });
+
+  it('applies only ONE shield bonus even if two shields are equipped', () => {
+    const r = deriveAc([
+      armor({ name: 'Shield A', kind: 'shield', equipped: true, armor: { category: 'shield', baseAC: 2 } }),
+      armor({ id: 's2', name: 'Shield B', kind: 'shield', equipped: true, armor: { category: 'shield', baseAC: 2 } }),
+    ], 0, 10);
+    expect(r.ac).toBe(12);          // manual 10 + one shield 2 — NOT 10 + 4
+    expect(r.shield).toBe(2);
+  });
+
   it('honors the "equipped" TAG (not just the flag) when selecting the body armor + shield base', () => {
     // The ledger's isEquipped treats the 'equipped' TAG as equipped, and acEffectBonus already honored it
     // for +ac effects — but the armor/shield BASE selection only checked the flag, so a tag-equipped armor
