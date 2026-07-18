@@ -1390,6 +1390,8 @@
 }
 .dnd-sheet .tray.floating {
   position: fixed;
+  /* Width is pinned inline from the tray's docked width at drag start (DiceTray.tsx), so detaching to
+     float never shrinks or reflows it; 366px is only a fallback if no inline width is set. */
   width: 366px;
 }
 

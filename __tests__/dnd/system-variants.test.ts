@@ -207,3 +207,26 @@ describe('rename + delete a stored sheet (Area MV)', () => {
     expect(renameVariant(v, 'nope', 'x')).toBe(v);
   });
 });
+
+import { installTransposedNewSlot } from '@/lib/dnd/system-variants';
+
+describe('installTransposedNewSlot — transpose that ADDS a sheet (Area MV)', () => {
+  it('keeps the system’s existing sheet and makes the new transposed one active', () => {
+    // The character already has a vanilla dnd5e-2024 sheet stored; active is pathfinder2e.
+    const existing = { 'dnd5e-2024': { data: { meta: { name: 'V' } }, sheet_type: 'default', kind: 'vanilla' as const, system: 'dnd5e-2024', name: 'By the book' } };
+    const act: ActiveSheet = { system: 'pathfinder2e', data: { meta: { name: 'Kael', level: 5 } }, sheet_type: 'default' };
+    const out = installTransposedNewSlot(act, existing, 'dnd5e-2024', { meta: { name: 'Kael', level: 5 }, custom: true }, { kind: 'custom', name: 'Homebrew Kael' });
+    // The new custom sheet is active…
+    expect(out.active.system).toBe('dnd5e-2024');
+    expect(out.active.kind).toBe('custom');
+    expect(out.active.name).toBe('Homebrew Kael');
+    expect((out.active.data as { custom?: boolean }).custom).toBe(true);
+    // …the pre-existing vanilla dnd5e-2024 sheet is UNTOUCHED (not overwritten)…
+    expect(out.variants['dnd5e-2024'].name).toBe('By the book');
+    expect(out.variants['dnd5e-2024'].kind).toBe('vanilla');
+    // …and the previously-active pathfinder2e sheet is snapshotted back into the map.
+    expect(out.variants['pathfinder2e']).toBeTruthy();
+    // Two dnd5e-2024 sheets now coexist (the stored vanilla + the active custom under its own slot).
+    expect(out.active.slotId).not.toBe('dnd5e-2024');
+  });
+});

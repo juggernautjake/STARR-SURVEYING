@@ -18,6 +18,14 @@ describe('dice tray UX', () => {
     expect(tray).toContain('const rollToken = activeRoll?.token');
     expect(tray).toMatch(/useEffect\(\(\) => \{\s*if \(rollToken != null\) setOpen\(true\)/);
   });
+
+  it('dragging pins the tray’s width so it never shrinks/reflows when it detaches to float', () => {
+    // Owner: dragging made the roller "slightly smaller and messed up its interior formatting".
+    expect(tray).toContain('dragWidth');
+    expect(tray).toContain('dragWidth.current = rect.width'); // capture the docked width at drag start
+    expect(tray).toMatch(/setPos\(\{ x: rect\.left, y: rect\.top, w: rect\.width \}\)/);
+    expect(tray).toContain('width: pos.w'); // and apply it to the floating tray
+  });
 });
 
 describe('per-skin number-display styling (D4d)', () => {

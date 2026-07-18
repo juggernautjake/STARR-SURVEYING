@@ -407,6 +407,18 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       cards with `.kindPill` badges and round `.chipIcon` rename/delete buttons (active chip = teal border +
       dot, no more text clutter). All reuse existing `--hx-*` tokens + the shared `.input`. Golden-pinned
       (mv-route +1: card/labels/segmented/aria-pressed); contrast guard + full dnd suite green (2041).
+      **MV transpose-as-new-slot + transpose QUALITY overhaul ✅ SHIPPED (owner 2026-07-18: "underwhelmed with
+      the transpose — 1 HP bug; custom should recreate EVERYTHING the character can do, balanced, and clearly
+      flag what's custom").** (1) `installTransposedNewSlot` pure helper + `action:'transpose'` route path so a
+      transpose ADDS a sheet (keeping the system's existing one) — wired to the add card's new **Start from:
+      Blank | ✨ AI transpose** control (custom segment ⇒ allowCustom). (2) **1-HP bug fixed** — `fallbackMaxHp`
+      safety net repairs any sheet the AI left at the blank seed's 1 HP (from level + hit die + CON), starts it
+      at full HP, and fixes hit dice. (3) **Rich digest** — the AI now receives the FULL source character
+      (ability mods, save/skill proficiencies, every feature's rules text, attacks, spells, resources,
+      inventory, feats) instead of names-only, and a thorough+balanced-for-(party-)level custom prompt. (4)
+      **Custom manifest** — new optional `custom[]` on the edit tool; every invented element is flagged
+      `customized: true` on the sheet AND listed (type · name · note) in the done banner, plus a "Built at N HP"
+      line. Golden-pinned (system-variants +1, mv-route +6, transpose-custom updated). Full dnd suite green (2048).
 - [x] **MV3 — Labels on the sheet + provenance.** ✅ SHIPPED — the switcher header shows the active sheet's
       **VANILLA/CUSTOM** badge, and (when the character has >1 sheet) an "Active sheet: {name}" line, so it's
       always clear which sheet is live. Custom variants' invented elements remain provenance-flagged via the
