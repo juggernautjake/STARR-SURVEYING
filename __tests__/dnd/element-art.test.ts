@@ -7,6 +7,8 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { applySheetEdits, type SheetEdit } from '@/lib/dnd/sheet-edits';
+import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 const UPLOAD = read('app/dnd/_sheet/components/ui/ImageUpload.tsx');
@@ -50,5 +52,39 @@ describe('the Active Effects panel shows the source art (Slice 28)', () => {
     expect(AE).toContain('(char.inventory ?? []).find((i) => i.id === row.id)?.image');
     expect(AE).toContain('(char.features ?? []).find((f) => f.id === row.id)?.image');
     expect(AE).toContain('src={imageFor(row)}');
+  });
+});
+
+describe('an art-less element falls back to its kind icon (2316)', () => {
+  const INVENTORY = read('app/dnd/_sheet/components/Inventory.tsx');
+  it('renders the thumbnail when there is art, else the kind icon in the same square', () => {
+    // Inventory.tsx: `it.image ? <thumbnail> : <kind icon>` — a row is never blank, so the Gear list always
+    // reads as intentional whether or not the surveyor uploaded art.
+    expect(INVENTORY).toMatch(/it\.image \?/);
+    expect(INVENTORY).toMatch(/weapon: '⚔', armor: '🛡'/); // the KIND_ICON map that backs the fallback
+  });
+});
+
+describe('art never gates mechanics — the AI uses the SAME image field, and an item works without art (2312/2313)', () => {
+  it('the AI add_item carries artwork through the same `image` field (no second mechanism)', () => {
+    const out = applySheetEdits(blankCharacter('X'), [
+      { op: 'add_item', name: 'Sunblade', kind: 'weapon', image: 'https://cdn/x.png' } as SheetEdit,
+    ]);
+    const it = out.inventory.find((i) => i.name === 'Sunblade')!;
+    expect(it.image).toBe('https://cdn/x.png'); // same path the manual ImageUpload writes to
+  });
+
+  it('an item created with NO art is fully valid and usable — an upload failure never blocks it', () => {
+    const out = applySheetEdits(blankCharacter('X'), [
+      { op: 'add_item', name: 'Plain Rope', kind: 'gear', qty: 1 } as SheetEdit,
+    ]);
+    const it = out.inventory.find((i) => i.name === 'Plain Rope')!;
+    expect(it).toBeDefined();       // the item exists…
+    expect(it.image).toBeUndefined(); // …with no art (the row will show its kind icon)
+    expect(it.kind).toBe('gear');   // …and its mechanics are intact
+  });
+
+  it("the tool schema documents art as optional — 'never block mechanics on art'", () => {
+    expect(read('lib/dnd/sheet-edits.ts')).toContain('never block mechanics on art');
   });
 });

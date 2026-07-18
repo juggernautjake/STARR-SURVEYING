@@ -2309,12 +2309,23 @@ and `kind='item'` are already modelled). What's missing is that nothing but the 
 - [x] **A kind icon fallback ✅ SHIPPED (commit pending)** — for items: a row with no uploaded art
       shows its kind icon (⚔ 🛡 🔰 ⚗ ✨ 🎒, matching the builder) in the same square, so the Gear list
       always reads as intentional. (Other element types get theirs when their art field lands.)
-- [ ] AI-attached art (Slice 14) uses the same path — no second mechanism.
-- [ ] **Art never gates mechanics.** Per the request, "the image and the name and category really
-      don't matter all that much" — an upload failure must never block creating or using the item.
-- [ ] Reuse the map-token pipeline where it already exists rather than inventing a parallel one.
-- [ ] Tests: an element with art shows its thumbnail; one without shows its kind icon; an upload
-      failure leaves the item working.
+- [x] ✅ SHIPPED (verified 2026-07-18) AI-attached art (Slice 14) uses the same path — no second mechanism.
+      The AI's `add_item`/`update_item` writes artwork through the SAME optional `image` field the manual
+      `ImageUpload` writes (`applyItemPayload`), pinned behaviorally in `element-art.test.ts` (an AI `add_item`
+      with an `image` URL lands on `item.image`).
+- [x] ✅ SHIPPED **Art never gates mechanics.** Per the request, "the image and the name and category really
+      don't matter all that much" — an upload failure never blocks creating or using the item. `image` is
+      optional everywhere; the tool schema literally documents "never block mechanics on art"; and
+      `element-art.test.ts` proves an `add_item` with NO art yields a fully valid, usable item (correct kind,
+      no image → it shows its kind icon).
+- [x] ✅ SHIPPED Reuse the media/token pipeline where it already exists rather than inventing a parallel one.
+      `ImageUpload` POSTs every element's art to the ONE shared `/api/dnd/characters/[id]/media` endpoint
+      (`kind='item'`) → the same `dnd-media` bucket + `dnd_media` rows that the character token/art uploads use
+      — not a per-element uploader. `element-art.test.ts` (one shared control, posts to the media endpoint).
+- [x] ✅ SHIPPED (verified 2026-07-18) Tests: an element with art shows its thumbnail; one without shows its
+      kind icon; an upload failure leaves the item working. All three pinned in `element-art.test.ts` — the
+      three lists render `src={…image}`; an art-less inventory row falls back to its `KIND_ICON` (`it.image ?
+      <thumb> : <icon>`); and an item created with no art (the upload-failure outcome) is valid + usable.
 
 ## Slice 29 — Map studio: every control actually drives the preview
 
