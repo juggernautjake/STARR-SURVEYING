@@ -93,6 +93,25 @@ export async function characterIdsInCampaign(campaignId: string): Promise<string
 
 // Resolve the current user's access to a character. `status` is 200 on success;
 // 401 (not signed in) / 404 (no such character) / 403 (no access) otherwise.
+/**
+ * The PURE access decision for a character, separated from the DB fetch so the security-critical matrix
+ * (owner / player / DM / member × visibility → read / write) is exhaustively unit-testable without a live DB.
+ * WRITE: the owner, the assigned player, or a DM of a campaign it's in. READ: also a `public` character (any
+ * signed-in user) or a `campaign`-visible one a member can see. A `private` character is readable ONLY by
+ * someone who can also write it — visibility never grants read to a non-member/non-owner.
+ */
+export function resolveCharacterAccess(input: {
+  isOwner: boolean;
+  isPlayer: boolean;
+  isDM: boolean;
+  isMember: boolean;
+  visibility: 'private' | 'campaign' | 'public';
+}): { canWrite: boolean; canRead: boolean } {
+  const canWrite = input.isOwner || input.isPlayer || input.isDM;
+  const canRead = canWrite || input.visibility === 'public' || (input.visibility === 'campaign' && input.isMember);
+  return { canWrite, canRead };
+}
+
 export async function getCharacterAccess(id: string): Promise<AccessResult> {
   const session = getDndSession();
   if (!session) return { status: 401, error: 'Not signed in.' };
@@ -118,11 +137,8 @@ export async function getCharacterAccess(id: string): Promise<AccessResult> {
   const isOwner = row.owner_user_id != null && row.owner_user_id === session.userId;
   const isPlayer = row.played_by_user_id != null && row.played_by_user_id === session.userId;
 
-  // Write: the owner, the assigned player, or a DM of a campaign it's in. Read: also a
-  // `public` character (any signed-in user) or a `campaign`-visible one a member can see.
-  const canWrite = isOwner || isPlayer || isDM;
-  const canRead =
-    canWrite || row.visibility === 'public' || (row.visibility === 'campaign' && isMember);
+  // The pure decision (unit-tested exhaustively in character-access.test.ts) — this shell only fetches the flags.
+  const { canWrite, canRead } = resolveCharacterAccess({ isOwner, isPlayer, isDM, isMember, visibility: row.visibility });
   if (!canRead) return { status: 403, error: 'You do not have access to this character.' };
 
   return { status: 200, access: { character: row, isOwner, isPlayer, isDM, canWrite } };

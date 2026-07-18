@@ -2182,6 +2182,14 @@ player can edit every field on their own — no field is read-only, because ever
 editor (Slice 20) and `getCharacterAccess`/`requireCharacterWrite` already grant DM + owner/assigned
 write. The AI obeys the same gate (the ai-edit route resolves through `requireCharacterWrite`), every
 edit is audited in `dnd_sheet_edits`, and edited elements carry ✎ — hand and AI alike (Slice 20/23).
+**Access matrix hardened + now exhaustively tested (2026-07-18):** the security-critical read/write
+DECISION was buried inside the DB-fetching `getCharacterAccess`, so it had no direct unit test (a
+regression = a data leak or unauthorized write). Extracted the pure `resolveCharacterAccess({isOwner,
+isPlayer, isDM, isMember, visibility})` (the shell only fetches the flags now) and pinned the WHOLE
+matrix in `character-access.test.ts` (7): WRITE is owner/player/DM only (a mere member or stranger
+never writes, any visibility); READ follows visibility for non-writers — `private` → writers only (a
+member/stranger can't read), `campaign` → members read (not write), `public` → any signed-in user
+reads (not write); and write always implies read. Behaviour byte-identical; full suite green (2259).
 **`old_value` recording ✅ SHIPPED (commit pending)** — the audit foundation the review queue's Revert
 needs. `editOldValue(current, edit)` reads the PRE-edit value for every op (a scalar for set_*, the
 whole prior element for rename/update so a revert is exact, null for creates), and the ai-edit route
