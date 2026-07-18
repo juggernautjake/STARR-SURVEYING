@@ -65,12 +65,19 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
           <div>
             <Link className={styles.hexBtn} href="/dnd/library" style={{ marginBottom: 10 }}>← Rules Library</Link>
             <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginTop: 8 }}>
-              {page.key === 'intuitive-games' && (
-                // Brendan's Intuitive Games logo — the system's own mark, credited to him.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={igSystemLogo()} alt="Intuitive Games logo" title={IG_ART_CREDIT} style={{ width: 56, height: 56, flex: '0 0 auto' }} />
+              {page.key === 'intuitive-games' ? (
+                // Brendan's Intuitive Games logo + title link to his site — the system's own source material,
+                // credited to him (owner 2026-07-17). Opens intuitivegames.net in a new tab.
+                <a href="https://www.intuitivegames.net" target="_blank" rel="noreferrer noopener"
+                  style={{ display: 'flex', gap: 14, alignItems: 'center', textDecoration: 'none' }}
+                  title="View the source material on intuitivegames.net">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={igSystemLogo()} alt="Intuitive Games logo" style={{ width: 56, height: 56, flex: '0 0 auto' }} />
+                  <h1 className={styles.title} style={{ textAlign: 'left', margin: 0 }}>{page.name}</h1>
+                </a>
+              ) : (
+                <h1 className={styles.title} style={{ textAlign: 'left', margin: 0 }}>{page.name}</h1>
               )}
-              <h1 className={styles.title} style={{ textAlign: 'left', margin: 0 }}>{page.name}</h1>
             </div>
             <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--hx-teal-1)', marginTop: 4 }}>
               {page.tagline}
@@ -79,6 +86,13 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
               {page.notes} {page.publisher ? `· ${page.publisher}` : ''} · Facts drawn from <em>{page.source}</em>.
               {page.key === 'intuitive-games' && <> · <span style={{ color: 'var(--hx-gold-2)' }}>{IG_ART_CREDIT}</span></>}
             </p>
+            {page.key === 'intuitive-games' && (
+              // An explicit "see the source material" link to Brendan's site (owner 2026-07-17).
+              <a href="https://www.intuitivegames.net" target="_blank" rel="noreferrer noopener"
+                style={{ display: 'inline-block', marginTop: 6, fontSize: 13, color: 'var(--hx-teal-1)' }}>
+                ◆ Click here to see the source material on intuitivegames.net →
+              </a>
+            )}
           </div>
 
           {/* ── jump links ─────────────────────────────────────────────── */}
@@ -147,6 +161,16 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
                         <strong style={{ color: 'var(--hx-gold-2)' }}>{e.name}</strong>
                         {e.brief && <span style={{ color: 'var(--hx-muted)', marginLeft: 8 }}>— {e.brief}</span>}
                       </summary>
+                      {/* Artwork (e.g. a species portrait) shown large + centered at the top of the open
+                          accordion, above the detail text (owner 2026-07-17). Only when the entry has art. */}
+                      {e.image && (
+                        <figure style={{ margin: '10px 0 4px', display: 'grid', justifyItems: 'center', gap: 4 }}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={e.image} alt={e.name} title={e.imageCredit} loading="lazy"
+                            style={{ width: 'min(260px, 80%)', height: 'auto', borderRadius: 8, background: '#f4f1ea', border: '1px solid var(--hx-line)', padding: 6 }} />
+                          {e.imageCredit && <figcaption style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>{e.imageCredit}</figcaption>}
+                        </figure>
+                      )}
                       <div style={{ fontSize: 13, color: 'var(--hx-text)', lineHeight: 1.65, marginTop: 6 }}>
                         <Rich text={e.detail} />
                       </div>
