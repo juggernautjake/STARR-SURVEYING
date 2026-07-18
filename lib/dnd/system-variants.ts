@@ -51,6 +51,9 @@ export interface ActiveSheet {
   kind?: SheetVariantKind;
   /** A user-facing name for this sheet (Area MV). */
   name?: string;
+  /** Which slot this live sheet came from (Area MV2), so switching snapshots it back to the same slot id
+   *  instead of colliding with another sheet of the same system. Absent on legacy data → generated on demand. */
+  slotId?: string;
 }
 
 /** A quick default name for a sheet, so every sheet is identifiable without the user naming it (Area MV):
@@ -190,5 +193,69 @@ export function installTransposed(
   return {
     active: { system: tgt, data: transposedData, sheet_type: 'default', custom_layout: { blocks: [] }, custom_css: '', kind, ...(opts.name ? { name: opts.name } : {}) },
     variants: nextVariants,
+  };
+}
+
+// ── Slot-based operations (Area MV2) — switch to a SPECIFIC sheet, or add a new one for a system. ──────────
+
+/** A fresh, unique slot id for a new sheet of `system`: the bare system if free, else `system#2`, `#3`, …
+ *  (so the first sheet keeps the clean, back-compatible key). */
+export function newSlotId(variants: SystemVariants, system: string): string {
+  const s = normalizeSystem(system);
+  if (!(s in variants)) return s;
+  let n = 2;
+  while (`${s}#${n}` in variants) n++;
+  return `${s}#${n}`;
+}
+
+/** Add a new (stored) sheet slot for `system` without changing the active sheet. Returns the updated map +
+ *  the new slot id. Used by the "+" add-sheet flow (MV2) and a custom transpose that should ADD a slot. */
+export function addSheetSlot(
+  variants: SystemVariants,
+  spec: { system: string; kind: SheetVariantKind; name?: string; data?: unknown; sheet_type?: string },
+): { variants: SystemVariants; slotId: string } {
+  const s = normalizeSystem(spec.system);
+  const slotId = newSlotId(variants, s);
+  const next: SystemVariants = {
+    ...variants,
+    [slotId]: {
+      data: spec.data ?? null,
+      sheet_type: spec.sheet_type ?? 'default',
+      custom_layout: { blocks: [] },
+      custom_css: '',
+      kind: spec.kind,
+      system: s,
+      ...(spec.name && spec.name.trim() ? { name: spec.name.trim() } : {}),
+    },
+  };
+  return { variants: next, slotId };
+}
+
+/** Switch the active sheet to a SPECIFIC stored slot (Area MV2). Snapshots the current active back into its
+ *  own slot first (its `slotId`, or a fresh one), so a system's multiple sheets never collide. Throws if the
+ *  slot doesn't exist. */
+export function switchToSlot(
+  active: ActiveSheet,
+  variants: SystemVariants,
+  targetSlotId: string,
+): { active: ActiveSheet; variants: SystemVariants } {
+  if (!(targetSlotId in variants)) throw new Error(`No sheet slot "${targetSlotId}" to switch to.`);
+  const next: SystemVariants = { ...variants };
+  const activeSlot = active.slotId ?? newSlotId(next, active.system);
+  next[activeSlot] = snapshotActive(active);
+  const chosen = next[targetSlotId];
+  delete next[targetSlotId];
+  return {
+    active: {
+      slotId: targetSlotId,
+      system: variantSystemOf(chosen, targetSlotId),
+      data: chosen.data,
+      sheet_type: chosen.sheet_type || 'default',
+      custom_layout: chosen.custom_layout,
+      custom_css: chosen.custom_css ?? '',
+      kind: variantKind(chosen),
+      ...(chosen.name ? { name: chosen.name } : {}),
+    },
+    variants: next,
   };
 }

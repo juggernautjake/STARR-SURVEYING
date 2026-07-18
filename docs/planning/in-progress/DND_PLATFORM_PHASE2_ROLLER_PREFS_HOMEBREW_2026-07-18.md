@@ -359,10 +359,14 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       switch/transpose/campaign-port tests still green (back-compat). REMAINING: `switchActive`/`installTransposed`
       + the route to operate by **slot id** (so you switch to a specific sheet, and a custom transpose ADDS a
       slot instead of overwriting the system's) — that lands with MV2.
-- [ ] **MV2 — "+" add-sheet + switcher UI.** In `SystemSwitcher`: a **"+"** to add a new sheet in any playable
-      system (choose vanilla/custom + optional name, default `System · Vanilla/Custom-built`); list each sheet
-      (per system, per kind, with its name) as a switchable chip. Needs MV1b's multi-slot model + a route to
-      create/rename/delete a sheet.
+- [~] **MV2 — "+" add-sheet + switcher UI.** IN PROGRESS. **MV2a ✅ SHIPPED (slot ops model)** — pure
+      slot-based functions in `system-variants.ts`: `newSlotId` (bare system for the first sheet, then `#2/#3`),
+      `addSheetSlot(variants, {system,kind,name,…})` → adds a labelled sheet without touching the active,
+      `switchToSlot(active, variants, slotId)` → swaps to a SPECIFIC slot, snapshotting the active back under
+      its own `slotId` (no collision). `ActiveSheet.slotId` added for round-tripping. Golden-pinned (15 tests
+      incl. two-sheets-per-system + round-trip). REMAINING **MV2b**: a route to add/switch/rename/delete a slot
+      + the `SystemSwitcher` UI (the "+" add-sheet with vanilla/custom + name, and per-slot switch chips from
+      `listSheets`); a custom transpose ADDs a slot instead of overwriting.
 - [ ] **MV3 — Labels on the sheet + provenance.** The active sheet shows its name + Vanilla/Custom label; the
       custom variant's invented elements stay provenance-flagged for DM review.
 - [ ] **MV4 — Tests:** two variants coexist for one system; switching preserves both; naming (custom +
