@@ -2017,16 +2017,17 @@ reference, say so." Pointed at a homebrew sheet it did the wrong thing — discl
 own content as unofficial. The fix wasn't to weaken "never invent"; it was to tell the model **which**
 things are settled by the rulebook and which are settled by the sheet itself.
 
-- [ ] The digest (Slice 3) reports, per element, whether it is **vanilla, homebrew, or DM-granted**
-      (`summarizeCharacterProvenance` already computes exactly this — it just isn't in the prompt).
-- [ ] Prompt rule: **homebrew content on the sheet is REAL for this character.** Rangor's Living
-      Momentum is not "unofficial" — it is this character's rule, and the sheet is its source of
-      truth. Adjudicate *with* it. Only flag it when the player asks whether something is official,
-      or when a homebrew element contradicts a system rule in a way that changes the answer.
-- [ ] Keep the honesty rule where it belongs: never invent a rule *that isn't on the sheet or in the
-      rulebook*. Homebrew being on the sheet is exactly what makes citing it honest.
-- [ ] Tests: a homebrew feature is described as the character's own, not disclaimed; the digest
-      carries provenance; an official-rules question still gets the official answer.
+- [x] ✅ SHIPPED (verified 2026-07-18): the digest (Slice 3) reports, per element, whether it is **vanilla,
+      homebrew, or DM-granted** — `character-digest.ts` folds `summarizeCharacterProvenance` into a `PROVENANCE —
+      homebrew: … · DM-granted: …` line (per-element by name).
+- [x] ✅ SHIPPED: prompt rule **homebrew content on the sheet is REAL for this character** — the digest's
+      PROVENANCE line ends "These are REAL for this character; adjudicate WITH them, do not disclaim them as
+      unofficial," and `adjudicationInstruction` carries the full "HOMEBREW IS REAL … only flag it when the
+      player asks, or when it contradicts a system rule" rule.
+- [x] ✅ SHIPPED: the honesty rule stays put — "never invent a rule that isn't on the sheet or in the rulebook";
+      homebrew being ON the sheet is what makes citing it honest (same instruction).
+- [x] ✅ SHIPPED: tests — `character-digest.test.ts` (Slice 22): homebrew content reported as REAL not
+      disclaimed, the digest carries provenance, and a fully-vanilla sheet gets no PROVENANCE noise.
 
 ## Slice 23 — The AI edits anything, and it sticks ✅ SHIPPED 2026-07-16
 
