@@ -315,7 +315,11 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       via `resolveD20Roll`, damage via `rollDiceExpr` (dice-expression engine), shown in a shared
       `{label,total,detail,tone}` banner. Guarded by `ig-sheet-roller.test.ts` + `pf2-sheet-roller.test.ts`.
       REMAINING (R1b tail): a **target-DC field** to surface the four-step degree of success (the engine
-      already returns `degree` when a DC is supplied) — a small follow-up.
+      already returns `degree` when a DC is supplied) — a small follow-up. **Degree engine hardened ✅** —
+      `roll-engine.test.ts` now pins the tricky PF2/IG degree-bump CLAMP edges that are commonly misremembered:
+      a nat 20 on a critical failure reaches only failure (not success), a nat 1 on a success drops to failure,
+      and the ends clamp (nat 20 on a crit-success stays crit-success; nat 1 on a crit-failure stays there),
+      plus "no die face ⇒ no shift" for a folded/manual roll (+5 tests).
 - [x] **R2 — Auto-mechanics toggle.** ✅ SHIPPED — the store reads `prefs.autoMechanics.value`; every d20 fold
       site (rollCheck, manualD20, rollDeathSave) applies the exhaustion helper ONLY when auto-mechanics is on,
       else uses a stable `NO_EXH` no-op and tags the roll `EXH (apply manually)` so the player knows to apply it

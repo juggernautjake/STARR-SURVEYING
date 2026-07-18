@@ -104,3 +104,23 @@ describe('degreeLabel', () => {
     expect(degreeLabel('critical-failure')).toBe('Critical Failure');
   });
 });
+
+describe('degree bump CLAMPS at the ends — the edges people misremember (PF2/IG)', () => {
+  // dc 15 throughout. total = natural + modifier.
+  it('a natural 20 shifts only ONE step: a critical failure becomes a failure, NOT a success', () => {
+    // total 5 (≤ dc−10) = critical-failure; nat 20 → one step up = failure.
+    expect(fourStepDegree(5, 15, 20)).toBe('failure');
+  });
+  it('a natural 1 shifts only one step: a critical success becomes a success (already covered) and a success becomes a failure', () => {
+    expect(fourStepDegree(15, 15, 1)).toBe('failure'); // success → nat1 → failure
+  });
+  it('the top clamps: a natural 20 on an already-critical success stays a critical success', () => {
+    expect(fourStepDegree(25, 15, 20)).toBe('critical-success');
+  });
+  it('the bottom clamps: a natural 1 on an already-critical failure stays a critical failure', () => {
+    expect(fourStepDegree(5, 15, 1)).toBe('critical-failure');
+  });
+  it('no natural face given ⇒ no bump (a folded/manual roll without the die face)', () => {
+    expect(fourStepDegree(10, 15)).toBe('failure'); // total 10 = plain failure, no shift
+  });
+})
