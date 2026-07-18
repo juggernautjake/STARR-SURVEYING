@@ -19,6 +19,12 @@ describe('system route — multi-sheet slot operations (MV2b)', () => {
     expect(route).toContain('withActiveSlotMeta(next.variants, next.active)');
   });
 
+  it('the bare-slotId SWITCH only fires without an action, so rename/delete/transpose reach their handlers', () => {
+    // Regression: rename/delete/transpose also carry a slotId; without the `!body?.action` guard the switch
+    // branch swallowed them (a delete just switched to the slot instead of deleting it).
+    expect(route).toContain("typeof body?.slotId === 'string' && body.slotId && !body?.action");
+  });
+
   it('adds a new sheet slot for a PLAYABLE system without switching', () => {
     expect(route).toContain("body?.action === 'add'");
     expect(route).toContain('isSystemAvailable(target)'); // only playable systems buildable
@@ -90,10 +96,14 @@ describe('rename + delete sheet route/UI (Area MV)', () => {
     expect(route2).toContain('Switch to another sheet before deleting this one'); // can't delete the active
     expect(route2).toContain('deleteVariant(variants, body.slotId)');
   });
-  it('the switcher has inline rename + a delete on non-active sheets', () => {
+  it('the switcher has inline rename + a delete on non-active sheets, guarded by an in-app confirm popup', () => {
     expect(switcher2).toContain("slotAction(sh.slotId, { action: 'rename', name: editSlotName })");
-    expect(switcher2).toContain("slotAction(sh.slotId, { action: 'delete' })");
     expect(switcher2).toContain('!sh.active &&'); // delete only on non-active
+    // Delete opens a themed confirmation dialog (not the browser confirm), which then calls the delete action.
+    expect(switcher2).toContain('setConfirmDelete({ slotId: sh.slotId, name: sh.name })');
+    expect(switcher2).toMatch(/role="dialog" aria-label="Delete this sheet\?"/);
+    expect(switcher2).toContain("slotAction(d.slotId, { action: 'delete' }");
+    expect(switcher2).not.toContain('if (confirm('); // no raw browser confirm
   });
 });
 

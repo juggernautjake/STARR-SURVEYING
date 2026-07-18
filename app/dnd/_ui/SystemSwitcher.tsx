@@ -61,6 +61,8 @@ export default function SystemSwitcher({
   // Rename / delete a sheet (Area MV).
   const [editingSlot, setEditingSlot] = useState<string | null>(null);
   const [editSlotName, setEditSlotName] = useState('');
+  // The sheet pending a delete confirmation (owner: an in-app popup, not the browser confirm).
+  const [confirmDelete, setConfirmDelete] = useState<{ slotId: string; name: string } | null>(null);
   async function slotAction(slotId: string, extra: Record<string, unknown>, okMsg?: string) {
     setBusy(slotId); setMsg(null);
     try {
@@ -219,7 +221,7 @@ export default function SystemSwitcher({
                     {/* Rename any sheet; delete only a non-active one (switch away first). */}
                     <button type="button" className={styles.chipIcon} title="Rename this sheet" onClick={() => { setEditingSlot(sh.slotId); setEditSlotName(sh.name); }} disabled={!!busy}>✎</button>
                     {!sh.active && (
-                      <button type="button" className={`${styles.chipIcon} ${styles.chipIconDanger}`} title="Delete this sheet" onClick={() => { if (confirm(`Delete the sheet “${sh.name}”? This can't be undone.`)) slotAction(sh.slotId, { action: 'delete' }); }} disabled={!!busy}>✕</button>
+                      <button type="button" className={`${styles.chipIcon} ${styles.chipIconDanger}`} title="Delete this sheet" onClick={() => setConfirmDelete({ slotId: sh.slotId, name: sh.name })} disabled={!!busy}>✕</button>
                     )}
                   </span>
                 ))}
@@ -287,6 +289,27 @@ export default function SystemSwitcher({
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Delete confirmation (Area MV, owner request) — a themed in-app popup, not the browser confirm. */}
+          {confirmDelete && (
+            <div role="dialog" aria-label="Delete this sheet?" style={{ margin: '0 0 10px', padding: '12px 14px', border: '1px solid var(--hx-danger)', borderRadius: 8, background: 'rgba(198,64,59,0.1)', display: 'grid', gap: 10 }}>
+              <div>
+                <strong style={{ color: 'var(--hx-danger)', fontFamily: 'var(--hx-font-display)' }}>Delete “{confirmDelete.name}”?</strong>
+                <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--hx-muted)', lineHeight: 1.5 }}>
+                  This permanently removes this sheet from the character. It can’t be undone. Your other sheets are kept.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button type="button" className={styles.hexBtn} style={{ padding: '6px 16px', borderColor: 'var(--hx-danger)', color: 'var(--hx-danger)' }}
+                  onClick={() => { const d = confirmDelete; setConfirmDelete(null); slotAction(d.slotId, { action: 'delete' }, `Deleted “${d.name}”.`); }} disabled={!!busy}>
+                  {busy === confirmDelete.slotId ? 'Deleting…' : 'Delete sheet'}
+                </button>
+                <button type="button" className={styles.hexBtn} style={{ padding: '6px 16px' }} onClick={() => setConfirmDelete(null)} disabled={!!busy}>
+                  Cancel
+                </button>
+              </div>
             </div>
           )}
 

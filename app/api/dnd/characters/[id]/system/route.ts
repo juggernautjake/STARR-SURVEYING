@@ -138,7 +138,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const variants = readVariants(row.system_variants);
 
   // ── Switch to a SPECIFIC stored slot (Area MV2b) — a character can hold multiple sheets per system. ──
-  if (typeof body?.slotId === 'string' && body.slotId) {
+  // Only a bare `{ slotId }` switches. rename/delete/transpose also carry a slotId but set `action`, so they
+  // must fall through to their own handlers below — otherwise a delete would just switch to the slot (the bug
+  // the owner hit: "I say yes, but then it just makes that sheet the focused sheet and nothing gets deleted").
+  if (typeof body?.slotId === 'string' && body.slotId && !body?.action) {
     let next;
     try { next = switchToSlot(active, variants, body.slotId); }
     catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : 'No such sheet.' }, { status: 400 }); }
