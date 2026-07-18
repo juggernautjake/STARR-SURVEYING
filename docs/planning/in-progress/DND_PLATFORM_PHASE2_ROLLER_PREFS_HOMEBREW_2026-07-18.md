@@ -205,9 +205,16 @@ Make the mechanics the prefs name actually swappable, VANILLA BY DEFAULT.
       (no prop passed anywhere yet → vanilla → full restore); full dnd suite green (1930). REMAINING for M2:
       pass the real effective preferences into `CharacterProvider` once P2c resolves them at the sheet's
       mount (currently every caller omits the prop → vanilla).
-- [ ] **M3 — Rage & other class mechanics** as they come up — same pattern (vanilla default + options).
-- [ ] **M4 — Tests:** each model's numbers are golden-pinned; switching the pref changes the result; the
-      default is vanilla.
+- [~] **M3 — Rage & other class mechanics** — OPEN EXTENSION POINT (no discrete item currently pending). The
+      vanilla-default-plus-options SEAM is fully built (exhaustion M1, long-rest M2, auto-mechanics gate R2, all
+      reading `EffectivePreferences`); any future class mechanic (a rage-damage variant, an alt death-save rule,
+      etc.) slots in as another pure `lib/dnd/mechanics/*` model behind a preference, following M1/M2 exactly.
+      Left open (not deferred) because it tracks future mechanics as they arise, not a missing build.
+- [x] **M4 — Tests.** ✅ SHIPPED — each model's numbers are golden-pinned and switching the model changes the
+      result with vanilla as the default: long-rest (`mechanics-long-rest.test.ts` — vanilla full-restore vs
+      half-hit-dice vs gritty/epic), exhaustion (`mechanics-exhaustion.test.ts`, `exhaustion-2014-tiers.test.ts`
+      — 2024/flat −2/level vs 2014 tiered), and the R2 auto-toggle gate (`exhaustion-d20.test.ts`) proving the
+      pref actually changes the folded roll. **Area M (configurable mechanics) is functionally complete.**
 
 ### Area E — Equip rules, live + toggleable (depends on P; `canEquip` already built + tested)
 **OWNER DECISION (2026-07-17) — the refusal UX is an interactive CONFLICT DIALOG, not a plain refuse-with-reason.**
