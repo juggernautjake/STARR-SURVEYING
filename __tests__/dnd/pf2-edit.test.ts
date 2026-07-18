@@ -40,6 +40,20 @@ describe('PF2 HP edits (SQ4)', () => {
     // heal caps at max
     expect(applyPf2Edit(fighter(), { op: 'heal', amount: 9999 }).combat.currentHp).toBe(pf2MaxHp(fighter()));
   });
+
+  // ⚠ OPEN FINDING (rules interpretation, owner to confirm) — damage to an ALREADY-downed character does not
+  // auto-escalate Dying, though PF2 RAW increases a dying creature's Dying by 1 (2 on a crit) when it takes
+  // damage. `apply_damage` fires the Dying-set only on the TRANSITION to 0 (`effCur > 0`). This pins the
+  // CURRENT behavior so it's explicit + can't change silently; escalating a downed PC's death clock on every
+  // hit is a heavier, crit-aware call best made in the UI with the DM (see the note in edit.ts).
+  it('does NOT auto-increment Dying when an already-at-0 character takes more damage (current behavior, flagged)', () => {
+    let c = fighter();
+    c = applyPf2Edit(c, { op: 'apply_damage', amount: 9999 }); // to 0 HP (no Dying set yet — was at full, one drop)
+    c = applyPf2Edit(c, { op: 'set_dying', value: 1 });        // now Dying 1, at 0 HP
+    const hitAgain = applyPf2Edit(c, { op: 'apply_damage', amount: 5 }); // more damage while down
+    expect(hitAgain.combat.currentHp).toBe(0);      // still 0
+    expect(hitAgain.combat.dyingValue).toBe(1);     // Dying UNCHANGED (RAW would make this 2) — the flagged call
+  });
 });
 
 describe('PF2 death track edits (SQ4)', () => {

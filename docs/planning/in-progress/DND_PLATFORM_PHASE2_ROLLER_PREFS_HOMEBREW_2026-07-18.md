@@ -103,7 +103,13 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
       increments Wounded by 1 (PF2: each time you lose Dying, Wounded rises — so the next knockdown gives Dying
       = 1 + Wounded), the escalation the death track exists to model. Exposed as the `edit_pf2_sheet` AI tool
       (same parser). Golden-pinned
-      (`pf2-edit.test.ts`, 6). **PF2 edit ENDPOINT wired ✅** — `app/api/dnd/characters/[id]/pf2-edit/route.ts`
+      (`pf2-edit.test.ts`, 8). **⚠ OPEN FINDING flagged + pinned (2026-07-18) — owner rules call:** `apply_damage`
+      sets Dying only on the TRANSITION to 0 (`effCur > 0`), so damage to an ALREADY-downed character does NOT
+      auto-increment Dying — though PF2 RAW raises a dying creature's Dying by 1 (2 on a crit) when it takes
+      damage. Kept as-is deliberately (auto-escalating a downed PC's death clock on every incoming hit is a
+      heavier, crit-aware call better made in the UI with the DM), pinned by a `pf2-edit.test.ts` case + an inline
+      note in `edit.ts` so the choice is explicit rather than accidental. Same disposition as the ledger `set`
+      REPLACE-vs-max finding: a deliberate rules interpretation left for owner confirmation, not an autonomous change. **PF2 edit ENDPOINT wired ✅** — `app/api/dnd/characters/[id]/pf2-edit/route.ts`
       (the counterpart to `ig-edit`): write-gated at the character chokepoint (`requireCharacterWrite`), guards
       the PF2 sidecar, runs the same validated `parsePf2Edit` + pure `applyPf2Edit`, and persists only
       `data.pf2e` — so the manual sheet AND the AI's `edit_pf2_sheet` tool go through one endpoint

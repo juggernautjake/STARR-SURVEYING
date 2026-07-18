@@ -41,6 +41,11 @@ export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit): PF2Character {
       const next = Math.max(0, effCur - (amount - fromTemp));
       combat.currentHp = next;
       // PF2: reduced to 0 HP → you fall unconscious and gain Dying equal to 1 + your Wounded value.
+      // NOTE (rules interpretation, owner to confirm): this fires ONLY on the transition to 0 (`effCur > 0`).
+      // Damage taken while ALREADY at 0 does not auto-increment Dying, though PF2 RAW increases a dying
+      // creature's Dying value by 1 (2 on a crit) when it takes damage. Kept as-is deliberately for now —
+      // auto-escalating a downed PC's death clock on every incoming hit is a heavier, crit-aware call best
+      // made in the UI with the DM. Pinned + flagged in pf2-edit.test.ts so the choice is explicit.
       if (next === 0 && effCur > 0) combat.dyingValue = Math.min(DYING_MAX, Math.max(combat.dyingValue, (Number(combat.woundedValue) || 0) + 1));
       return { ...pf2, combat };
     }
