@@ -101,11 +101,12 @@ export default function Bio() {
   // Descriptive identity fields (Slice 11): the render home for gender/pronouns/profession. Each is
   // overlayable by an identity effect (a potion that changes your recorded profession), base stands
   // otherwise. Edit them by hand below (canWrite), or the AI sets them via set_meta.
+  // Pronouns intentionally dropped from the sheet's identity details (owner 2026-07-18). The `pronouns`
+  // meta field/type is kept for back-compat with existing data + the AI vocabulary, just not shown/edited.
   type DetailKey = 'gender' | 'pronouns' | 'profession' | 'alignment'
   const detail = (field: DetailKey) => ledger.identity(field)?.value ?? char.meta[field] ?? ''
   const details: { key: DetailKey; label: string }[] = [
     { key: 'gender', label: 'Gender' },
-    { key: 'pronouns', label: 'Pronouns' },
     { key: 'profession', label: 'Profession' },
     { key: 'alignment', label: 'Alignment' },
   ]

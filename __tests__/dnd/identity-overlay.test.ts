@@ -163,10 +163,12 @@ describe('gender / pronouns / profession identity fields (Slice 11)', () => {
     expect(c.meta.alignment).toBe('Lawful Good'); // overlay, base kept
   });
 
-  it('the Bio renders a Details line for the four fields, overlay-aware AND starred', () => {
+  it('the Bio renders a Details line for the identity fields, overlay-aware AND starred', () => {
     const bio = read('app/dnd/_sheet/components/Bio.tsx');
     expect(bio).toContain("ledger.identity(field)?.value ?? char.meta[field]");
-    for (const f of ['Gender', 'Pronouns', 'Profession', 'Alignment']) expect(bio).toContain(f);
+    // Pronouns is intentionally NOT shown (owner 2026-07-18); the rest are.
+    for (const f of ['Gender', 'Profession', 'Alignment']) expect(bio).toContain(f);
+    expect(bio).not.toMatch(/\{ key: 'pronouns', label: 'Pronouns' \}/);
     // the overlaid value is wrapped in a ★ keyed to the field, like name/species/class in the Hero
     expect(bio).toContain('<EffectStar target={d.key} label={d.label}>{detail(d.key) || \'—\'}</EffectStar>');
   });
