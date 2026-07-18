@@ -103,7 +103,10 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
       increments Wounded by 1 (PF2: each time you lose Dying, Wounded rises — so the next knockdown gives Dying
       = 1 + Wounded), the escalation the death track exists to model. Exposed as the `edit_pf2_sheet` AI tool
       (same parser). Golden-pinned
-      (`pf2-edit.test.ts`, 8). **⚠ OPEN FINDING flagged + pinned (2026-07-18) — owner rules call:** `apply_damage`
+      (`pf2-edit.test.ts`, 9 — +1 on 2026-07-18: the **op-handler drift guard** at parity with IG's, source-
+      anchoring `applyPf2Edit` so every advertised `PF2_EDIT_OPS` op has a `case` — a future op added to the
+      schema but not the applier switch would silently no-op while the AI reports success, and now fails in CI).
+      **⚠ OPEN FINDING flagged + pinned (2026-07-18) — owner rules call:** `apply_damage`
       sets Dying only on the TRANSITION to 0 (`effCur > 0`), so damage to an ALREADY-downed character does NOT
       auto-increment Dying — though PF2 RAW raises a dying creature's Dying by 1 (2 on a crit) when it takes
       damage. Kept as-is deliberately (auto-escalating a downed PC's death clock on every incoming hit is a

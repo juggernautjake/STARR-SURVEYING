@@ -1,6 +1,8 @@
 // __tests__/dnd/pf2-edit.test.ts — Area SQ4. The PF2 in-play edit vocabulary: apply damage / heal / temp HP /
 // the dying-wounded death track. Pure + immutable, mirroring the IG edit path; the AI tool reuses the parser.
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { applyPf2Edit, parsePf2Edit, describePf2Edit, PF2_EDIT_OPS } from '@/lib/dnd/systems/pathfinder2e/edit';
 import { PF2_EDIT_TOOL, parsePF2EditToolCall } from '@/lib/dnd/systems/pathfinder2e/ai';
 import { pf2MaxHp } from '@/lib/dnd/systems/pathfinder2e/rules';
@@ -75,6 +77,16 @@ describe('PF2 edit parsing + AI parity + scope (SQ4)', () => {
   it('the AI edit tool exposes the same ops + runs through the same parser', () => {
     expect((PF2_EDIT_TOOL.input_schema.properties.op as { enum: string[] }).enum).toEqual([...PF2_EDIT_OPS]);
     expect(parsePF2EditToolCall({ op: 'heal', amount: 4 })).toEqual({ edit: { op: 'heal', amount: 4 } });
+  });
+  it('applyPf2Edit has a case for EVERY advertised op (no silent no-op edit — parity with the IG guard)', () => {
+    // The tool enum equals PF2_EDIT_OPS (asserted above), so the AI can emit any of them. If a future op is
+    // added to the list + schema but not to applyPf2Edit's switch, it falls through and changes nothing while
+    // the AI reports success — a silent no-op. Source-anchor the applier so that drift fails here.
+    const src = fs.readFileSync(path.join(process.cwd(), 'lib/dnd/systems/pathfinder2e/edit.ts'), 'utf8');
+    const body = src.slice(src.indexOf('export function applyPf2Edit'), src.indexOf('export function parsePf2Edit'));
+    for (const op of PF2_EDIT_OPS) {
+      expect(body.includes(`case '${op}'`), `applyPf2Edit has no case for "${op}" — the AI's PF2 edit would silently do nothing`).toBe(true);
+    }
   });
   it('every PF2 edit op is character-scoped (no out-of-sheet reach)', () => {
     expect(() => assertCharacterScopedOps([...PF2_EDIT_OPS])).not.toThrow();
