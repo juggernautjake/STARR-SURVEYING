@@ -11,7 +11,7 @@
 import type { IGCharacter } from './model';
 import { igConditionSummary, igStanceMechanicNote } from './modifiers';
 import { findIGAncestry } from './content';
-import { igDerived } from './rules';
+import { igDerived, igSkillTotal, igAbilityMod } from './rules';
 
 const sgn = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
 
@@ -43,6 +43,15 @@ export function igCharacterDigest(ig: IGCharacter): string {
   const hp = `HP ${der.currentHp}/${der.maxHp}${nonlethal ? ` (${nonlethal} nonlethal)` : ''}`;
   const saves = `Fort ${sgn(der.saves.Fortitude)}, Ref ${sgn(der.saves.Reflex)}, Will ${sgn(der.saves.Will)}`;
   lines.push(`DEFENSES: ${hp} · DR ${dr} · Saves ${saves}`);
+
+  // Trained SKILLS with their totals — a skill-check ruling ("do you pick the lock?") needs the bonus. Only
+  // ranked/proficient skills are listed (untrained ones would just be clutter); a combat skill is flagged
+  // because it resolves against the target's Reflex save, not a flat DC (IG's distinct combat-skill rule).
+  const trained = (ig.skills ?? []).filter((s) => (Number(s.ranks) || 0) > 0 || s.proficient);
+  if (trained.length) {
+    const parts = trained.map((s) => `${s.name} ${sgn(igSkillTotal(s, id.level, igAbilityMod(ig.abilities[s.ability])))}${s.combat ? ' [combat]' : ''}`);
+    lines.push(`SKILLS (trained): ${parts.join(', ')}`);
+  }
 
   // Active stance — one at a time. Its mechanical effect (advantage/disadvantage/DR/bonus) is exactly what
   // a ruling turns on, so state the resolved note, not just the name.

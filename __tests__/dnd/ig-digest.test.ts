@@ -18,6 +18,11 @@ function fixture() {
   ig.combat.hitPoints = { classBackgroundHp: 40, nonlethal: 3, lethal: 8 };
   ig.combat.damageReduction = 2;
   ig.combat.saves = { Fortitude: { rank: 2, misc: 0 }, Reflex: { rank: 1, misc: 0 }, Will: { rank: 0, misc: 0 } };
+  ig.skills = [
+    { name: 'Stealth', ability: 'DEX', ranks: 3, proficient: true, misc: 0 },
+    { name: 'Grapple', ability: 'STR', ranks: 2, proficient: false, misc: 0, combat: true },
+    { name: 'Athletics', ability: 'STR', ranks: 0, proficient: false, misc: 0 }, // untrained → excluded
+  ];
   ig.combat.stances = ['Offensive'];
   ig.combat.conditions = ['Shaken', 'Prone'];
   ig.combat.defensivePower = 'Sidestep';
@@ -63,6 +68,15 @@ describe('igCharacterDigest', () => {
     expect(d).toMatch(/DEFENSES: HP 44\/52 \(3 nonlethal\)/);
     expect(d).toMatch(/DR 2/);
     expect(d).toMatch(/Saves Fort \+10, Ref \+7, Will \+6/);
+  });
+
+  it('lists the TRAINED skills with their totals, flags combat skills, and omits untrained ones', () => {
+    // Stealth: ranks 3 + proficiency(level 6) 6 + DEX mod 0 = +9. Grapple: ranks 2 + 0 + STR mod 0 = +2,
+    // flagged [combat] (it resolves vs a Reflex save, not a flat DC). Athletics (0 ranks, unproficient) is out.
+    expect(d).toMatch(/SKILLS \(trained\): /);
+    expect(d).toMatch(/Stealth \+9/);
+    expect(d).toMatch(/Grapple \+2 \[combat\]/);
+    expect(d).not.toMatch(/Athletics/);
   });
 
   it('surfaces the companion creature when the character has one (a whole second combatant)', () => {

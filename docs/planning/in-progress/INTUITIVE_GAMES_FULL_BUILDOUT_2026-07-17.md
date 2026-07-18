@@ -356,8 +356,13 @@ expanded requirements (2026-07-17):
       COMPANION combatant. Added a `DEFENSES:` line (current/max HP with nonlethal, DR, and the three saves
       Fort/Ref/Will — all resolved by `igDerived`/rules.ts, not re-derived) and a `COMPANION:` line
       (name + type + HP + movement) shown only when `ig.companion` is set. Pure IG math, no invention.
-      `ig-digest.test.ts` +3 (the resolved HP/DR/save numbers; a companion surfaces; none → no line). Full
-      dnd suite green (1855). **Remaining:**
+      `ig-digest.test.ts` +3 (the resolved HP/DR/save numbers; a companion surfaces; none → no line).
+      **Trained SKILLS added (2026-07-18):** a skill-check ruling ("do you pick the lock?") needs the bonus,
+      which the digest also lacked — added a `SKILLS (trained):` line listing each ranked/proficient skill
+      with its `igSkillTotal`, combat skills flagged `[combat]` (they resolve vs a Reflex save, not a flat
+      DC), untrained skills omitted as clutter. `ig-digest.test.ts` +1. The IG digest now mirrors the 5e/PF2
+      digests: identity + ancestry-traits, HP/DR/saves, trained skills, stance + its effect, conditions +
+      penalty, defensive power, feats, powers, companion. Full dnd suite green (1856). **Remaining:**
       the machine-readable effect model that the SHEET applies (B4/B5 mechanics).
 - [~] **B1 — Ancestry/traits in the builder + sheet.** IG ancestries selectable in the builder; the sheet
       renders each ancestry's full traits (from A5) with per-trait tooltips; size/speed-changing traits reflect
