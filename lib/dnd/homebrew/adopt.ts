@@ -99,3 +99,44 @@ export function adoptHomebrew(char: Character, content: HomebrewContent): { char
   }
   return null;
 }
+
+/**
+ * Author-time validation of a homebrew piece's mechanical PAYLOAD (Area H3, the counterpart to the identity
+ * `validateHomebrew` in model.ts). Returns human-readable problems the creation form shows before a piece can
+ * be posted — the adopt converters silently REJECT invalid payloads (return null); this explains WHY. A piece
+ * with NO payload is pure prose and valid (returns []). Reuses the same validators adoption uses, so the
+ * "shows an error at authoring" and "silently refused at adopt" surfaces can never disagree.
+ */
+export function validateHomebrewPayload(c: HomebrewContent): string[] {
+  const errs: string[] = [];
+  const p = c.payload;
+  if (p == null) return errs; // prose-only piece — nothing mechanical to validate
+
+  if (c.kind === 'class' || c.kind === 'subclass') {
+    if (typeof p !== 'object' || typeof (p as ClassDefinition).key !== 'string' || typeof (p as ClassDefinition).name !== 'string') {
+      errs.push('The class payload is not a class definition.');
+      return errs;
+    }
+    const def = p as ClassDefinition;
+    if (def.system !== c.system) errs.push(`The class is scoped to "${def.system}" but this piece is "${c.system}" — a class is never valid outside its own system.`);
+    if (typeof def.hitDie !== 'number') errs.push('The class needs a hit die.');
+    try { validateClassDefinition(def).forEach((v) => errs.push(`${v.field}: ${v.message}`)); }
+    catch { errs.push('The class definition could not be validated.'); }
+  } else if (c.kind === 'feat') {
+    if (typeof p !== 'object' || typeof (p as CustomFeat).name !== 'string') { errs.push('The feat payload is not a feat.'); return errs; }
+    const f = p as CustomFeat;
+    if (f.system !== c.system) errs.push(`The feat is scoped to "${f.system}" but this piece is "${c.system}".`);
+    if (!['origin', 'general', 'fighting-style', 'epic-boon'].includes(f.category)) errs.push(`"${f.category}" is not a valid feat category (origin / general / fighting-style / epic-boon).`);
+    if (!f.body || !f.body.trim()) errs.push('The feat needs rules text (body).');
+  } else {
+    // Effect-bearing kinds (item, weapon, armor, potion, effect, …): a PRESENT effects payload must all validate.
+    const raw = Array.isArray(p) ? p : (typeof p === 'object' && Array.isArray((p as { effects?: unknown }).effects) ? (p as { effects: unknown[] }).effects : null);
+    if (raw) {
+      raw.forEach((e, i) => {
+        const v = validateEffect((e ?? {}) as Record<string, unknown>);
+        if (v) errs.push(`Effect ${i + 1}: ${v.reason ?? 'invalid'}`);
+      });
+    }
+  }
+  return errs;
+}

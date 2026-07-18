@@ -85,3 +85,29 @@ describe('adoptHomebrew — the top-level router (H4/H5)', () => {
     expect(adoptHomebrew(blankCharacter('H') as Character, prose)).toBeNull();
   });
 });
+
+import { validateHomebrewPayload } from '@/lib/dnd/homebrew/adopt';
+
+describe('validateHomebrewPayload — author-time payload errors (H3)', () => {
+  it('a prose-only piece (no payload) is valid', () => {
+    expect(validateHomebrewPayload({ id: 'p', kind: 'stance', name: 'Pose', system: 'dnd5e-2024', creator: { name: 'J' }, status: 'draft' })).toEqual([]);
+  });
+  it('a valid class payload has no errors; a broken/mismatched one is explained', () => {
+    expect(validateHomebrewPayload(classPiece)).toEqual([]); // engine-valid fixture
+    const wrongSystem = validateHomebrewPayload({ ...classPiece, system: 'pathfinder2e' });
+    expect(wrongSystem.some((e) => /never valid outside its own system/.test(e))).toBe(true);
+    const broken = validateHomebrewPayload({ ...classPiece, payload: { key: 'x', name: 'X', system: 'dnd5e-2024', hitDie: 8 } });
+    expect(broken.length).toBeGreaterThan(0); // validateClassDefinition surfaced the missing pieces
+  });
+  it('a feat with a bad category / missing body is explained', () => {
+    const bad = validateHomebrewPayload({ ...featPiece, payload: { key: 'k', name: 'N', system: 'dnd5e-2024', category: 'bogus', body: '' } as never });
+    expect(bad.some((e) => /not a valid feat category/.test(e))).toBe(true);
+    expect(bad.some((e) => /needs rules text/.test(e))).toBe(true);
+  });
+  it('an item with an invalid effect payload flags the offending effect', () => {
+    const item: HomebrewContent = { id: 'i', kind: 'item', name: 'X', system: 'dnd5e-2024', creator: { name: 'J' }, status: 'draft', payload: { effects: [{ target: 'not_real', operation: 'bogus' }] } };
+    expect(validateHomebrewPayload(item).some((e) => /^Effect 1:/.test(e))).toBe(true);
+    const good: HomebrewContent = { ...item, payload: { effects: [{ target: 'ac', operation: 'add', value: 1 }] } };
+    expect(validateHomebrewPayload(good)).toEqual([]);
+  });
+});

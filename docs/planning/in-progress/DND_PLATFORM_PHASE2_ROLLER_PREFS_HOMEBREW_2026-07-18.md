@@ -611,8 +611,13 @@ This is the "form editor" the owner clarified: a full **create-and-share** syste
       `grounding.test.ts` +2), so the adjudicating AI already sees a system's homebrew everywhere it builds/edits.
       REMAINING (minor): a dedicated browse/filter chip in the library page UI — the section + search already
       work — plus the live-DB store (H1 tail) so user-created pieces (not just the seeds) flow through.
-- [ ] **H3 — Creation UI.** Build-and-post forms for each content kind (reusing the effect builder / item
-      builder / attack builder / weapon+armor builders), attributed to the creator on save.
+- [~] **H3 — Creation UI.** The forms are browser (deferred), but the **creation-time VALIDATION is pure +
+      shipped**: `validateHomebrewPayload(content)` (adopt.ts) returns human-readable problems for the piece's
+      mechanical payload per kind — class → `validateClassDefinition` messages + system-match, feat →
+      category/body/system, effect-bearing → `validateEffect` per effect; a prose-only piece is valid. It's the
+      counterpart to the identity `validateHomebrew` and reuses the SAME validators adoption uses, so "shown as
+      an error while authoring" and "silently refused at adopt" can never disagree. `homebrew-adopt-class.test.ts`
+      +4. REMAINING: the actual build-and-post form UI (browser).
 - [~] **H4 — Use-on-character + DM gating.** ✅ PURE GATE SHIPPED — `lib/dnd/homebrew/policy.ts`: a
       `CampaignHomebrewPolicy` (`allowAll` | explicit `allowedIds`), a defensive `readHomebrewPolicy` (unknown →
       the CLOSED default, never an accidental open catalog), and the pure decisions `homebrewAllowedForCampaign`
