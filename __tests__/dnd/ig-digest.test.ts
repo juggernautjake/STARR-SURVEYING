@@ -157,3 +157,19 @@ describe('IG digest — powers carry effect text (SQ3)', () => {
     expect(d).toMatch(/Totally Homebrew Zap(?! — )/);     // unknown → name only, no fabricated effect
   });
 });
+
+describe('IG digest — situational bonuses + languages (SQ3 completeness)', () => {
+  it('surfaces situational combat bonuses and known languages', () => {
+    const ig = fixture();
+    ig.combat.situationalBonuses = ['+2 to hit vs undead', '+1 AC while flanked'];
+    ig.identity = { ...ig.identity, commonLanguages: ['Common', 'Dwarven'], uncommonLanguages: ['Draconic'] };
+    const d = igCharacterDigest(ig);
+    expect(d).toMatch(/SITUATIONAL BONUSES: \+2 to hit vs undead · \+1 AC while flanked/);
+    expect(d).toMatch(/LANGUAGES: Common, Dwarven, Draconic\./);
+  });
+  it('omits both lines when empty (no scaffolding)', () => {
+    const d = igCharacterDigest(fixture()); // base fixture has neither
+    expect(d).not.toMatch(/SITUATIONAL BONUSES:/);
+    expect(d).not.toMatch(/LANGUAGES:/);
+  });
+});

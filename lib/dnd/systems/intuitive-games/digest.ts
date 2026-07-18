@@ -107,6 +107,15 @@ export function igCharacterDigest(ig: IGCharacter): string {
     lines.push(`POWERS: ${parts.join(' · ')}`);
   }
 
+  // Situational combat bonuses the character carries (e.g. "+2 to hit vs undead") — free-text, character-
+  // specific modifiers a ruling can turn on, which the AI has no other way to know (SQ3 completeness).
+  const sit = (ig.combat.situationalBonuses ?? []).filter((s) => s && s.trim());
+  if (sit.length) lines.push(`SITUATIONAL BONUSES: ${sit.join(' · ')}`);
+
+  // Languages — a social / exploration ruling ("can you read this?", "do you understand them?") turns on them.
+  const langs = [...(id.commonLanguages ?? []), ...(id.uncommonLanguages ?? [])].filter((l) => l && l.trim());
+  if (langs.length) lines.push(`LANGUAGES: ${langs.join(', ')}.`);
+
   // Companion creature (Beastmaster's beast, Summoner's elemental, …) — a whole second combatant the AI
   // would otherwise never see. State its type + HP so a ruling knows the companion is on the field.
   const comp = ig.companion;

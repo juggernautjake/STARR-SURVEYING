@@ -59,8 +59,10 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
       like FEATURES with a "+N more" note (`character-digest.test.ts` +3). Also upgraded the 5e SKILLS line from
       proficiency NAMES to full **skill totals** (ability mod + prof/expertise contribution + misc, matching the
       sheet — SAVES already showed numbers, and IG/PF2 show skill totals) so a skill-check ruling has the number;
-      and added PF2 **LANGUAGES** (social/exploration rulings). **Area SQ3 (AI reads every component) is done
-      across all three systems** — IG powers, PF2 feats+senses+languages, 5e spells + skill totals.
+      and added PF2 **LANGUAGES** (social/exploration rulings). The IG digest also gained **SITUATIONAL BONUSES**
+      (free-text combat modifiers like "+2 vs undead" a ruling turns on) + **LANGUAGES** (`ig-digest.test.ts` +2).
+      **Area SQ3 (AI reads every component) is done across all three systems** — IG (powers, situational bonuses,
+      languages), PF2 (feats, senses, languages), 5e (spells, skill totals).
 - [x] **SQ4 — AI edits every component** — audited the IG edit path (`applyIgEdit`): it could change
       stance/conditions/feats/powers/defensive-power but had **no way to adjust HP** — the single most common
       in-play edit, which the digest already surfaces (a ruling "you take 8 damage" couldn't be applied). Added
