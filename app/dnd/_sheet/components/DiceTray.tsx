@@ -6,9 +6,11 @@ import { setMuted, isMuted, primeAudio } from '../lib/audio'
 
 export default function DiceTray() {
   const { log, clearLog, resetStage, activeRoll, advMode, setAdvMode, transformActive, topFormId, transform, endTransform, nextTurn, recklessActive, toggleReckless, rollCheck, rollExpr, char, activeFormId, preferences } = useChar()
-  // The dice-roller visual style is a campaign/player preference (Area D). Applied as a data attribute the
-  // stylesheet themes; 'futuristic' is the default look, so an unset/standalone sheet is unchanged.
-  const diceStyle = preferences.diceRollerStyle.value
+  // The dice-roller visual style. Defaults to the campaign/player preference (Area D), but a per-session
+  // selector in the tray lets the player try any style right from the roller (owner 2026-07-18).
+  const DICE_STYLES = ['futuristic', 'rugged', 'natural', 'fantasy', 'medieval'] as const
+  const [styleOverride, setStyleOverride] = useState<(typeof DICE_STYLES)[number] | null>(null)
+  const diceStyle = styleOverride ?? preferences.diceRollerStyle.value
   // Reckless (Barbarian) and the Surge/transform controls are character-only mechanics —
   // gate them on the sheet_type's registered modules so other characters don't get a
   // dead '🔥 Surge' button or a Reckless toggle they have no feature for.
@@ -75,6 +77,20 @@ export default function DiceTray() {
       <div className="tray-head drag-handle" onPointerDown={onDragStart} title="Drag to move">
         <div className="tray-title">⠿ Dice Core</div>
         <div className="btn-row">
+          {/* Dice-roller style selector (owner 2026-07-18) — switch the roller's look from the roller itself.
+              Defaults to the campaign/player preference; the override is per-session. */}
+          <select
+            className="btn tiny ghost"
+            value={diceStyle}
+            onChange={(e) => setStyleOverride(e.target.value as (typeof DICE_STYLES)[number])}
+            onPointerDown={(e) => e.stopPropagation()}
+            title="Dice roller style"
+            style={{ textTransform: 'capitalize', cursor: 'pointer' }}
+          >
+            {DICE_STYLES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
           <button className="btn tiny ghost" onClick={toggleMute} title={muted ? 'Unmute' : 'Mute'}>
             {muted ? '🔇' : '🔊'}
           </button>

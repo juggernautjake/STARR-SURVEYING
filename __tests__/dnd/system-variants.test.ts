@@ -61,7 +61,7 @@ describe('system variants (Slice 13)', () => {
   });
 });
 
-import { variantKind, variantKindLabel, defaultVariantName, snapshotActive } from '@/lib/dnd/system-variants';
+import { variantKind, variantKindLabel, defaultVariantName } from '@/lib/dnd/system-variants';
 
 describe('sheet kind + name labels (Area MV1)', () => {
   it('variantKind defaults to vanilla for legacy/unlabelled variants', () => {
