@@ -11,6 +11,7 @@ import { igAllFeats } from './systems/intuitive-games/feats';
 import { IG_POWERS, IG_DEFENSIVE_POWERS } from './systems/intuitive-games/content';
 import { homebrewGrounding } from './homebrew/projection';
 import { HOMEBREW_SEEDS } from './homebrew/seeds';
+import { IG_CLASS_TAXONOMY } from './systems/intuitive-games/taxonomy';
 
 /** Lenient glossary retrieval for GROUNDING: score each article by how many of the query keywords
  *  appear (term > alias > body), require at least one, and take the top matches. Unlike the library
@@ -170,6 +171,13 @@ export async function systemGroundingBlock(system: string | null | undefined, qu
       powerHits.map((p) => `## ${p.name} (${p.school})\n${p.effect}`).join('\n\n')
     : '';
 
+  // IG class taxonomy (Area T1) — the site organises classes as 4 parents × subclasses, so the AI must build
+  // an IG character as a parent class + one of ITS subclasses (never a subclass under the wrong parent).
+  const taxonomyBlock = system === 'intuitive-games'
+    ? `\n\nINTUITIVE GAMES CLASS TAXONOMY (build a character as a PARENT class + one of ITS subclasses only):\n` +
+      IG_CLASS_TAXONOMY.map((t) => `- ${t.parent}: ${t.subclasses.join(', ')}`).join('\n')
+    : '';
+
   // Homebrew content available for this system (Area H2) — so the AI knows a system's community/homebrew
   // pieces exist and what they do (it may only USE them when the DM has allowed them, which the block states).
   const homebrewText = homebrewGrounding(HOMEBREW_SEEDS, system);
@@ -189,7 +197,7 @@ export async function systemGroundingBlock(system: string | null | undefined, qu
       `numbers as stated in the AUTHORITATIVE RULES block. NEVER borrow mechanics from another game system, ` +
       `and NEVER invent rules or numbers. When the sources are ambiguous, missing, or conflict with ${label}, ` +
       `put the issue in \`unmapped\` (so the user is asked) rather than guessing.`,
-    block: rulesBlock + glossaryBlock + featBlock + powerBlock + homebrewBlock + ragBlock,
+    block: rulesBlock + glossaryBlock + featBlock + powerBlock + taxonomyBlock + homebrewBlock + ragBlock,
     matched: entries.length + glossaryHits.length + featHits.length + powerHits.length,
   };
 }

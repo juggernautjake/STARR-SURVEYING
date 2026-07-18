@@ -60,3 +60,18 @@ describe('the taxonomy agrees with IG_CLASS_DETAILS (T2)', () => {
     }
   });
 });
+
+import { systemGroundingBlock } from '@/lib/dnd/grounding';
+
+describe('taxonomy in the IG grounding (T1)', () => {
+  it('grounds an IG build on the parent→subclass structure', async () => {
+    const g = await systemGroundingBlock('intuitive-games', 'build a summoner');
+    expect(g.block).toMatch(/CLASS TAXONOMY/);
+    expect(g.block).toMatch(/Archon: Beastmaster, Eldritch Binder, Packmaster, Summoner/);
+    expect(g.block).toMatch(/PARENT class \+ one of ITS subclasses/);
+  });
+  it('does not add the IG taxonomy to another system’s grounding', async () => {
+    const g = await systemGroundingBlock('dnd5e-2024', 'build a fighter');
+    expect(g.block).not.toMatch(/INTUITIVE GAMES CLASS TAXONOMY/);
+  });
+});

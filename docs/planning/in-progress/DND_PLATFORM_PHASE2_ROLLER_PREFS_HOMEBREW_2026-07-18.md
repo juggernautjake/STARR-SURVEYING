@@ -474,9 +474,11 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       Champion/Freebooter/Marksman/Sohei; Wizard → Arcanist/Magician/Shaman), plus pure helpers `igParentClasses`,
       `igSubclassesOf`, `igParentOf`, `igIsParentClass`/`igIsSubclass`, `igAllTaxonomyClasses`, `igClassLabel`
       ("Fighter · Marksman"). This is the single source the builder/grounding/provenance/library will read.
-      REMAINING: rewire those four surfaces (the IG builder's parent→subclass picker, provenance, grounding,
-      library) onto this structure and retire the old flat/`IG_CLASS_GROUPS` grouping — a multi-surface
-      (incl. UI) change best driven in the running app; the data core + guarantees are done.
+      **GROUNDING surface wired ✅** — `systemGroundingBlock` now appends an "INTUITIVE GAMES CLASS TAXONOMY"
+      block for IG builds (each parent + its subclasses; "build a PARENT class + one of ITS subclasses only"),
+      scoped so it never appears in another system's grounding (`ig-taxonomy.test.ts` +2). REMAINING: the IG
+      builder's parent→subclass picker, provenance, and library grouping — UI/data surfaces best driven in the
+      running app; the data core + AI grounding are done.
 - [~] **T2 — Tests.** ✅ TAXONOMY GOLDEN-PINNED — `ig-taxonomy.test.ts` (5): the 4 parents + subclasses are
       pinned to the site; every subclass maps to exactly ONE parent (no leak / no cross-family duplicate);
       queries are case-insensitive + family-labelled; and the taxonomy is proven CONSISTENT with the mechanical
