@@ -620,9 +620,17 @@ was AI leveling an EXISTING character by one increment.
       appends the features (sourced to the level, flagged `customized` when invented so they hit the DM's
       review), applies the ASI (capped at 30 for Epic-Boon headroom), adds the HP, and records a chosen
       subclass. Deterministic feature ids (`lvl-{N}-{slug}`) → idempotent + testable, input untouched.
-      `__tests__/dnd/level-up-ai.test.ts` (7). **Next:** the level-up ROUTE (ground the model with the digest +
-      `standardLevelUpOptions`, call the tool, `applyLevelUpDraft`, persist) + the wizard's standard/custom/AI
-      branch — an API/UI slice mirroring the existing ai-edit route.
+      `__tests__/dnd/level-up-ai.test.ts` (7).
+- [~] **LU3 — AI level-up route. ✅ SHIPPED.** `app/api/dnd/characters/[id]/level-up/route.ts` — the write-
+      chokepoint POST (auth + `dndAiConfigured` + `requireCharacterWrite`) that grounds the model with the
+      character digest + `standardLevelUpOptions` (or, for a custom/highly-modified character whose class has no
+      `ClassDefinition`, tells it to invent balanced custom content), offers ONLY `level_up_character` (forced
+      tool choice), then `parseLevelUpToolCall` → `applyLevelUpDraft` → persists to `dnd_characters.data`.
+      Refuses past level 20; body accepts optional `instruction` guidance + `mode:'custom'`. So "AI can handle
+      leveling up characters with either custom or vanilla stuff" is now real end-to-end (logic + route).
+      `__tests__/dnd/level-up-route.test.ts` (5). **Remaining:** the sheet's level-up wizard button that offers
+      "standard picks / custom-build / ✨ AI" and calls this route (or the manual paths) — a UI slice; and
+      auditing level-ups to `dnd_sheet_edits` for the undo timeline (optional, mirrors ai-edit).
 
 ### Area T — IG class taxonomy (bounded data restructure)
 - [x] **T1 — Restructure to the site's real taxonomy.** ✅ CANONICAL TAXONOMY SHIPPED — `lib/dnd/systems/

@@ -22,7 +22,7 @@ export const LEVEL_UP_TOOL = {
     'balanced homebrew features/feats/buffs that fit the character\'s class, subclass, and species. Always set ' +
     'the HP gained and any ability-score increase (a standard ASI is +2 to one ability or +1 to two).',
   input_schema: {
-    type: 'object',
+    type: 'object' as const,
     properties: {
       mode: { type: 'string', enum: ['vanilla', 'custom'], description: 'vanilla = standard class features; custom = invented balanced content.' },
       hpGained: { type: 'integer', minimum: 0, description: 'Hit points gained at this level (rolled or the class average + CON).' },
@@ -41,7 +41,7 @@ export const LEVEL_UP_TOOL = {
     },
     required: ['mode', 'features'],
   },
-} as const;
+};
 
 /** Turn an AI tool call into a validated LevelUpDraft (or the defensive default). Same parser the UI uses. */
 export function parseLevelUpToolCall(raw: unknown, currentLevel: number): LevelUpDraft {
