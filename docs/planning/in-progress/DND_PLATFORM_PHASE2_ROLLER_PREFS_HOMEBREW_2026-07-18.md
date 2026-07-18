@@ -268,8 +268,14 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       physically-rolled result straight to the shared roll log (kind default `raw`, tagged IRL) — no folding,
       no animation. Both R3 + R5 are wired into a compact two-mode **"Enter a roll"** panel in the DiceTray
       (Manual d20: face + modifier → Fold; Record IRL: result → Log), themed to the tray palette, Enter-to-submit.
-- [ ] **R6 — Tests:** each mode produces the right logged entry; auto-toggle changes whether mechanics fold.
-      (R3/R5 golden + source-anchored done; R2 auto-toggle folding pending.)
+- [x] **R6 — Tests:** ✅ SHIPPED — `foldD20` golden-pinned (face+mod, crit/fumble, clamp, sign) in
+      `manual-roll.test.ts`; the store's `manualD20`/`recordRoll` + the tray's two-mode entry panel are
+      source-anchored there; the R2 auto-toggle gate is anchored in `exhaustion-d20.test.ts`. Full suite green.
+- [ ] **R4 — Manual stat / direct edit (DEFERRED — needs a focused, browser-verified session).** The 5e sheet
+      has full in-place edit (editMode number fields); the IG sheet edits via structured `postEdit` ops
+      (stances/conditions/powers/feats). `PF2Sheet.tsx` is still largely a read-only display — adding true
+      in-place stat/HP editing there is a substantial data-model + UI build best done where it can be exercised
+      live, so it's parked rather than half-built at scale. Rationale documented per the README defer rubric.
 
 ### Area D — Dice roller interfaces & styles (depends on R)
 - [x] **D1 — Style system.** ✅ SHIPPED — the dice tray's look is now driven by `preferences.diceRollerStyle`.
