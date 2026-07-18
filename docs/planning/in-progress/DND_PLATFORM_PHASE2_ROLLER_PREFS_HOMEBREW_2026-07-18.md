@@ -166,9 +166,15 @@ building, campaign control, and every page look and work well on mobile as well 
       reaches the AI via the digest). Guarded by `library.test.ts` (conditions = `entries`, 18, full text) +
       the two completeness predicates now count `entries`. NEXT (MOB2d): migrate the remaining wall-of-text
       sections to `entries` the same way — ancestries (name + trait detail), feats, stances, powers.
-- [ ] **MOB2d — Migrate remaining rich sections to per-entry collapsibles.** Reuse the MOB2c `entries` shape
-      for ancestries (name → full trait text + `brief` teaser), feats-general/combat, stances, and powers/
-      spells across all systems, so every long section is a scannable expandable list, not a wall of text.
+- [x] **MOB2d — Migrate remaining rich sections to per-entry collapsibles.** ✅ SHIPPED — the five worst
+      walls-of-text on the IG page are now per-entry `entries` (scannable name list → tap to expand):
+      **Ancestries** (trait names as the brief → full trait text; portrait gallery kept), **Feats** (all
+      151 General+Combat — prerequisite as the brief → category+effect), **Stances** (Basic/Advanced folded
+      into the detail), **Powers & Spells** (school as the brief → effect; roster body kept), and **Defensive
+      Powers**. Search + AI grounding unaffected (they read the underlying content, not the section shape) —
+      full dnd suite green (1913). Guarded by the updated `library.test.ts` assertions (each section renders
+      `entries`, table undefined, content preserved). REMAINING walls (PF2 spell table, class tables) are
+      already their own `<details>` or genuinely tabular — left as tables deliberately.
 - [ ] **MOB3 — Character sheets (5e + IG + PF2) mobile pass.** The multi-column sheet stacks legibly; the
       dice tray / roller is reachable; editors + pickers usable one-handed.
 - [ ] **MOB4 — Login + character builder + campaign control mobile pass.** Forms, steps, and controls fit and

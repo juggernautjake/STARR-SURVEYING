@@ -276,18 +276,18 @@ describe('full 2024 feats project into library search (Slice 8b)', () => {
 });
 
 describe('Intuitive Games feats carry full rules text (IG buildout A7 + A8)', () => {
-  it('renders feats as a Feat/Prerequisites/Effect table (the whole General + Combat list, not a sample)', () => {
+  it('renders feats as per-entry collapsibles over the whole General + Combat list, not a sample (MOB2d)', () => {
     const page = libraryPageFor('intuitive-games')!;
     const feats = page.sections.find((s) => s.id === 'feats')!;
-    expect(feats.table).toBeTruthy();
+    expect(feats.entries).toBeTruthy();
     expect(feats.chips).toBeUndefined();
-    expect(feats.table!.headers).toEqual(['Feat', 'Prerequisites', 'Effect']);
-    expect(feats.table!.rows.length).toBeGreaterThanOrEqual(150); // 83 General + 68 Combat
+    expect(feats.table).toBeUndefined();
+    expect(feats.entries!.length).toBeGreaterThanOrEqual(150); // 83 General + 68 Combat
     expect(feats.lead).toMatch(/from intuitivegames\.net/i);
     expect(feats.lead).toMatch(/Combat/); // the lead now notes Combat coverage too
-    const alert = feats.table!.rows.find((r) => r[0] === 'Alert');
-    expect(alert?.[1]).toMatch(/Perception/); // prerequisite column
-    expect(alert?.[2]).toMatch(/flat-footed/i); // effect column
+    const alert = feats.entries!.find((e) => e.name === 'Alert');
+    expect(alert?.brief).toMatch(/Perception/); // prerequisite is the brief teaser
+    expect(alert?.detail).toMatch(/flat-footed/i); // full effect on expand
   });
 
   it('a general feat is searchable with its prerequisites + effect', () => {
@@ -532,10 +532,9 @@ describe('Intuitive Games powers, defensive powers, and actions surface on the l
     expect(ids).toContain('defensive-powers');
     expect(ids).toContain('actions');
     const powers = page.sections.find((s) => s.id === 'powers')!;
-    expect(powers.table!.headers).toEqual(['Power', 'School', 'Effect']);
-    const blast = powers.table!.rows.find((r) => r[0] === 'Elemental Blast');
-    expect(blast?.[1]).toBe('Evocation');
-    expect(blast?.[2]).toMatch(/ranged elemental attack/i);
+    const blast = powers.entries!.find((e) => e.name === 'Elemental Blast');
+    expect(blast?.brief).toBe('Evocation'); // school is the brief teaser
+    expect(blast?.detail).toMatch(/ranged elemental attack/i); // full effect on expand
     const actions = page.sections.find((s) => s.id === 'actions')!;
     expect(actions.table!.rows.find((r) => /Stride/.test(r[0]))?.[1]).toBe('1 action');
   });
@@ -560,16 +559,17 @@ describe('Intuitive Games powers, defensive powers, and actions surface on the l
 });
 
 describe('Intuitive Games ancestries carry full trait text (IG buildout A5)', () => {
-  it('renders the ancestries as a full-trait-text table with the trait-system rules', () => {
+  it('renders each ancestry as a collapsible entry: trait names as the brief, full trait text on expand (MOB2d)', () => {
     const page = libraryPageFor('intuitive-games')!;
     const species = page.sections.find((s) => s.id === 'species')!;
-    expect(species.table).toBeTruthy();
+    expect(species.entries).toBeTruthy();
     expect(species.chips).toBeUndefined();
+    expect(species.table).toBeUndefined();
     expect(species.lead).toMatch(/cannot be retrained/i);
-    expect(species.table!.rows).toHaveLength(10);
-    const dwarf = species.table!.rows.find((r) => r[0] === 'Dwarf');
-    expect(dwarf?.[1]).toMatch(/Cave Vision/);
-    expect(dwarf?.[1]).toMatch(/darkvision out to a range of 30 feet/i);
+    expect(species.entries!).toHaveLength(10);
+    const dwarf = species.entries!.find((e) => e.name === 'Dwarf');
+    expect(dwarf?.brief).toMatch(/Cave Vision/); // trait names are the teaser
+    expect(dwarf?.detail).toMatch(/darkvision out to a range of 30 feet/i); // full text on expand
   });
 
   it('includes Brendan\'s ancestry art as a gallery (the 8 the site publishes), credited', () => {
@@ -596,15 +596,18 @@ describe('Intuitive Games ancestries carry full trait text (IG buildout A5)', ()
 });
 
 describe('Intuitive Games stances surface on the library page (IG buildout A9)', () => {
-  it('renders a Stances section with the general rules + a Basic/Advanced table for all 10', () => {
+  it('renders a Stances section with the general rules + a per-stance collapsible for all 10 (MOB2d)', () => {
     const page = libraryPageFor('intuitive-games')!;
     const stances = page.sections.find((s) => s.id === 'stances')!;
     expect(stances).toBeTruthy();
     expect(stances.lead).toMatch(/Only one stance can be active/i);
-    expect(stances.table!.headers).toEqual(['Stance', 'Basic (below Lv 5)', 'Advanced (Lv 5+)']);
-    expect(stances.table!.rows).toHaveLength(10);
-    const defensive = stances.table!.rows.find((r) => r[0] === 'Defensive');
-    expect(defensive?.[2]).toMatch(/Damage Reduction/i);
+    expect(stances.table).toBeUndefined();
+    expect(stances.entries!).toHaveLength(10);
+    const defensive = stances.entries!.find((e) => e.name === 'Defensive');
+    // Both tiers fold into the detail: Basic below Lv 5, Advanced at Lv 5+.
+    expect(defensive?.detail).toMatch(/Damage Reduction/i);
+    expect(defensive?.detail).toMatch(/Basic \(below Lv 5\)/);
+    expect(defensive?.detail).toMatch(/Advanced \(Lv 5\+\)/);
   });
 
   it('a stance is searchable by name with both tiers of text', () => {

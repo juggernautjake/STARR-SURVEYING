@@ -348,10 +348,14 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
         id: 'species',
         title: speciesNoun(r.key),
         lead: IG_ANCESTRY_TRAIT_RULES,
-        table: {
-          headers: [speciesNoun(r.key).replace(/s$/, ''), 'Ancestry traits'],
-          rows: ancestries.map((a) => [a.name, a.traits.map((t) => `${t.name}: ${t.text}`).join('\n\n')]),
-        },
+        // Per-entry collapsibles (MOB2c/d): each ancestry shows its trait NAMES as a brief teaser and expands
+        // to the full trait text — the owner's exact example ("a race name, a brief description… click to
+        // expand every detail"). Portraits stay as the gallery beneath.
+        entries: ancestries.map((a) => ({
+          name: a.name,
+          brief: a.traits.map((t) => t.name).join(' · '),
+          detail: a.traits.map((t) => `**${t.name}** — ${t.text}`).join('\n\n'),
+        })),
         images: gallery.length ? { gallery, credit: IG_ART_CREDIT } : undefined,
       });
     } else {
@@ -492,10 +496,10 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
       id: 'stances',
       title: 'Stances',
       lead: IG_STANCE_RULES,
-      table: {
-        headers: ['Stance', 'Basic (below Lv 5)', 'Advanced (Lv 5+)'],
-        rows: stances.map((s) => [s.name, s.basic, s.advanced]),
-      },
+      entries: stances.map((s) => ({
+        name: s.name,
+        detail: `**Basic (below Lv 5):** ${s.basic}\n\n**Advanced (Lv 5+):** ${s.advanced}`,
+      })),
     });
   }
 
@@ -525,11 +529,14 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
     sections.push({
       id: 'feats',
       title: featNoun(r.key),
-      lead: `${igFeats.length} feats from intuitivegames.net (${gen} General${com ? ` · ${com} Combat` : ''}).`,
-      table: {
-        headers: ['Feat', 'Prerequisites', 'Effect'],
-        rows: igFeats.map((f) => [f.name, f.prerequisites ?? '—', f.effect]),
-      },
+      lead: `${igFeats.length} feats from intuitivegames.net (${gen} General${com ? ` · ${com} Combat` : ''}) — tap a feat for its full effect.`,
+      // 151 feats: a scannable name list beats a 151-row table. The prerequisite (if any) is the brief teaser
+      // on the summary; the full effect + category are revealed on expand.
+      entries: igFeats.map((f) => ({
+        name: f.name,
+        brief: f.prerequisites ? `Requires ${f.prerequisites}` : undefined,
+        detail: `**${f.category} feat${f.prerequisites ? ` · Prerequisites: ${f.prerequisites}` : ''}**\n\n${f.effect}`,
+      })),
     });
   } else if (r.content.sampleFeats.length) {
     sections.push({ id: 'feats', title: featNoun(r.key), lead: 'A representative sample — not the complete list.', chips: r.content.sampleFeats });
@@ -546,11 +553,12 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
     sections.push({
       id: 'powers',
       title: 'Powers & Spells',
-      lead: `${igPowers.length} powers with full effect text across ${new Set(igPowers.map((p) => p.category)).size} schools. The complete site roster (all schools) is listed below the table; each site spell has Description/Advanced/Expert tiers.`,
-      table: {
-        headers: ['Power', 'School', 'Effect'],
-        rows: igPowers.map((p) => [p.name, p.category ?? '—', p.effect ?? '—']),
-      },
+      lead: `${igPowers.length} powers with full effect text across ${new Set(igPowers.map((p) => p.category)).size} schools — tap a power for its effect. The complete site roster (all schools) is listed below; each site spell has Description/Advanced/Expert tiers.`,
+      entries: igPowers.map((p) => ({
+        name: p.name,
+        brief: p.category ?? undefined,
+        detail: p.effect ?? '—',
+      })),
       body: [
         'Complete spell roster from intuitivegames.net/spell-list:',
         ...rosterLines,
@@ -563,8 +571,8 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
     sections.push({
       id: 'defensive-powers',
       title: 'Defensive Powers',
-      lead: `${igDef.length} reactions spent to blunt or avoid an attack.`,
-      table: { headers: ['Defensive Power', 'Effect'], rows: igDef.map((d) => [d.name, d.effect ?? '—']) },
+      lead: `${igDef.length} reactions spent to blunt or avoid an attack — tap for the effect.`,
+      entries: igDef.map((d) => ({ name: d.name, detail: d.effect ?? '—' })),
     });
   }
   if (key === 'intuitive-games' && IG_ACTIONS.length) {
