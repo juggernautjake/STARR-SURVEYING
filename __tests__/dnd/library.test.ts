@@ -435,17 +435,15 @@ describe('Intuitive Games gear surfaces on the library (IG buildout A13/A14)', (
 });
 
 describe('Intuitive Games classes surface fully on the library (IG buildout A10)', () => {
-  it('renders all 13 classes grouped into 4 groups with the class-system overview', () => {
+  it('renders the 4 parent families with their subclasses (site taxonomy, Area T1)', () => {
     const page = libraryPageFor('intuitive-games')!;
     const classes = page.sections.find((s) => s.id === 'classes')!;
-    expect(classes.table!.headers).toEqual(['Group', 'Classes']);
-    expect(classes.table!.rows).toHaveLength(4); // 4 groups
-    const totalClasses = classes.table!.rows.reduce((n, r) => n + r[1].split(', ').length, 0);
-    expect(totalClasses).toBe(13);
-    expect(classes.lead).toMatch(/13 classes in 4 groups/);
-    expect(classes.lead).toMatch(/Subclasses.*Arcanist/); // subclasses noted, distinct from classes
-    const combat = classes.table!.rows.find((r) => r[0] === 'Combat');
-    expect(combat?.[1]).toMatch(/Fighter/);
+    expect(classes.table!.headers).toEqual(['Parent class', 'Subclasses']);
+    expect(classes.table!.rows.map((r) => r[0])).toEqual(['Archon', 'Conduit', 'Fighter', 'Wizard']);
+    const fighter = classes.table!.rows.find((r) => r[0] === 'Fighter');
+    expect(fighter?.[1]).toMatch(/Champion.*Freebooter.*Marksman.*Sohei/);
+    expect(classes.lead).toMatch(/parent families/);
+    expect(classes.lead).toMatch(/PARENT class \+ one of its subclasses/);
   });
 
   it('every IG class is still searchable (via classNames)', () => {
@@ -453,10 +451,8 @@ describe('Intuitive Games classes surface fully on the library (IG buildout A10)
     expect(searchLibrary('conduit', 'intuitive-games').some((h) => h.kind === 'class')).toBe(true);
   });
 
-  it('the classes section carries per-class detail (granted stance, defensive power, powers) + the taxonomy note', () => {
+  it('the classes section carries per-class detail (granted stance, defensive power, powers)', () => {
     const classes = libraryPageFor('intuitive-games')!.sections.find((s) => s.id === 'classes')!;
-    // Taxonomy finding surfaced for ALL FOUR parent classes.
-    expect(classes.body!.some((b) => /Archon →.*Conduit →.*Fighter →.*Wizard →/.test(b))).toBe(true);
     const sohei = classes.body!.find((b) => b.startsWith('Sohei'));
     expect(sohei).toMatch(/Precise stance/);
     expect(sohei).toMatch(/Counterattack defensive power/);
