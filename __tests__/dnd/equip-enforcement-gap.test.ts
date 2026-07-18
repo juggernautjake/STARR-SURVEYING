@@ -15,6 +15,10 @@ import type { InvItem } from '@/app/dnd/_sheet/types';
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 const armor = (id: string, name: string, equipped = false): InvItem =>
   ({ id, name, desc: '', qty: 1, tags: [], equipped, kind: 'armor', armor: { category: 'medium', baseAC: 14 } } as InvItem);
+const weapon = (id: string, name: string, twoHanded = false, equipped = false): InvItem =>
+  ({ id, name, desc: '', qty: 1, tags: ['weapon'], equipped, kind: 'weapon', weapon: { properties: twoHanded ? ['two-handed'] : [] } } as InvItem);
+const shield = (id: string, name: string, equipped = false): InvItem =>
+  ({ id, name, desc: '', qty: 1, tags: [], equipped, kind: 'shield', armor: { category: 'shield' } } as InvItem);
 
 describe('equip enforcement is wired into the live paths (Area E)', () => {
   it('the AI equip_item path auto-swaps: equipping a second body armour unequips the first (enforced default)', () => {
@@ -31,6 +35,15 @@ describe('equip enforcement is wired into the live paths (Area E)', () => {
     c.inventory = [armor('a', 'Plate', true), armor('b', 'Chain')];
     c = applySheetEdits(c, [{ op: 'equip_item', name: 'Chain', value: true } as SheetEdit], { equipLimits: 'off' });
     expect(c.inventory.filter((i) => i.kind === 'armor' && i.equipped)).toHaveLength(2);
+  });
+
+  it("the AI path enforces the HAND-SLOT model too: a two-handed weapon auto-frees BOTH a held weapon and shield (the owner's case)", () => {
+    let c = blankCharacter('Duelist');
+    c.inventory = [weapon('sw', 'Longsword', false, true), shield('sh', 'Kite Shield', true), weapon('ax', 'Greataxe', true)];
+    c = applySheetEdits(c, [{ op: 'equip_item', name: 'Greataxe', value: true } as SheetEdit]); // enforced default
+    const equipped = c.inventory.filter((i) => i.equipped).map((i) => i.name);
+    // Both hands are needed by the two-hander, so BOTH the sword and the shield are auto-unequipped.
+    expect(equipped).toEqual(['Greataxe']);
   });
 
   it('both live equip surfaces now route through the equip-conflict core', () => {

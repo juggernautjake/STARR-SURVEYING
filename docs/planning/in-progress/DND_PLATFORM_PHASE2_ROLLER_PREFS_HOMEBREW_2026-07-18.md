@@ -336,8 +336,13 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
 - [x] **E2 — Toggle:** ✅ SHIPPED with E1c — `Inventory.upsert` only runs the conflict check when
       `preferences.equipLimits.value === 'enforced'`; with `off` the equip commits unrestricted. The DM sets
       this on the campaign preferences panel (P4); it reaches the sheet via P2c.
-- [ ] **E3 — Tests:** update the `equip-enforcement-gap` tracker → the live paths now enforce when on, allow
-      when off.
+- [x] **E3 — Tests.** ✅ SHIPPED (verified 2026-07-18) — this is the same work as the E3 above (duplicate
+      line); `equip-enforcement-gap.test.ts` reads "the gap is now CLOSED" and pins enforce-when-on (AI
+      `equip_item` auto-swaps a second body armour to one) + allow-when-off (`equipLimits: 'off'` stacks
+      freely) + both surfaces routing through the core. This slice ADDED the missing behavioral case: the
+      HAND-SLOT model through the live AI path — equipping a two-handed weapon while holding a one-handed
+      weapon + shield auto-frees BOTH (the owner's sword+shield → greataxe case), which was previously proven
+      only on the pure core, not end-to-end through `applySheetEdits`. **Area E fully complete.**
 
 ### Area R — In-app roller for the bespoke sheets (PF2 + IG) (depends on P for the auto-toggle)
 - [x] **R1a — Shared roll-resolution engine (pure core).** ✅ SHIPPED — `lib/dnd/roll.ts`:
