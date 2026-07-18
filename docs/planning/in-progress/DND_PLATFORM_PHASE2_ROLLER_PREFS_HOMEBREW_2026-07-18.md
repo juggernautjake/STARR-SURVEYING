@@ -281,14 +281,16 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
 - [x] **HIDE1 — Library.** ✅ SHIPPED — `allLibraryPages()` filters to `isSystemAvailable`; the per-system
       library page 404s for non-playable keys; `generateStaticParams` only emits playable keys; the index
       shows a "◆ More systems coming soon" card. Guarded by `library.test.ts`.
-- [ ] **HIDE2 — Character builder / New Character.** The system picker (`NewCharacterForm`) offers ONLY the
-      four; no under-construction option is selectable.
-- [ ] **HIDE3 — System switcher / transpose.** `SystemSwitcher` only lists the four as build/transpose
-      targets; a hidden system can't be a transpose destination.
-- [ ] **HIDE4 — Campaign + everywhere else.** `NewCampaignButton` + any other surface that lists/mentions a
-      system filters to available; sweep for stray mentions.
-- [ ] **HIDE5 — Guards/tests:** a source/behaviour test that no surface enumerates a non-available system;
-      the "coming soon" copy is present.
+- [x] **HIDE2 — Character builder / New Character.** ✅ SHIPPED — `NewCharacterForm`'s system `<select>` maps
+      `GAME_SYSTEMS.filter(isSystemAvailable)`, so only the four are buildable.
+- [x] **HIDE3 — System switcher / transpose.** ✅ SHIPPED — `SystemSwitcher`'s list is ambiguous + the four
+      available + (defensively) the character's current system; a hidden system can't be a build/transpose
+      target (was previously shown-but-disabled).
+- [x] **HIDE4 — Campaign.** ✅ SHIPPED — `NewCampaignButton` dropped its "under construction (coming later)"
+      optgroup; only the four available systems are offered.
+- [x] **HIDE5 — Guards/tests.** ✅ SHIPPED — `hidden-systems.test.ts`: the available set is exactly the four,
+      the others stay registered but hidden, the library only builds available pages, and each listing surface
+      filters to available. **Area HIDE complete** (library HIDE1 + builder + switcher + campaign + guards).
 
 ### Area TR — Character transpose UX + AI custom-content build (owner 2026-07-17)
 > Owner intent: when transposing a character into another system, show an **animation/confirmation** that it's

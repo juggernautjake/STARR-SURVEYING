@@ -27,11 +27,11 @@ export default function SystemSwitcher({
 
   const active = activeSystem || SYSTEM_AMBIGUOUS;
   const built = new Set(builtSystems.map((s) => s || SYSTEM_AMBIGUOUS));
-  // Every system the character can hold: ambiguous + the seeded systems.
-  const all = [SYSTEM_AMBIGUOUS, ...GAME_SYSTEMS.map((s) => s.key)];
+  // Under-construction systems are HIDDEN entirely (owner 2026-07-18) — they can't be a build/transpose
+  // target. The list is ambiguous + the four playable systems + (defensively) the character's current system
+  // if it somehow sits on a hidden one, so a legacy character never shows a blank active system.
+  const all = [SYSTEM_AMBIGUOUS, ...GAME_SYSTEMS.filter((s) => isSystemAvailable(s.key) || s.key === active).map((s) => s.key)];
 
-  // Under-construction systems are offered but not selectable yet — you can't switch a character INTO
-  // one until it's built out (its rules/classes aren't ready). The active system always stays usable.
   const selectable = (system: string) => system === SYSTEM_AMBIGUOUS || system === active || isSystemAvailable(system);
 
   async function go(system: string) {

@@ -8,7 +8,7 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import styles from './hextech.module.css'
-import { GAME_SYSTEMS, SYSTEM_AMBIGUOUS } from '@/lib/dnd/systems'
+import { GAME_SYSTEMS, SYSTEM_AMBIGUOUS, isSystemAvailable } from '@/lib/dnd/systems'
 import { BUILD_MODES, type BuildMode } from '@/lib/dnd/build-modes'
 import InfoTip from './InfoTip'
 import BuilderHelp from './BuilderHelp'
@@ -123,7 +123,9 @@ export default function NewCharacterForm({
               <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>Pick a ruleset so the AI grounds the build in that system only — or leave it system-ambiguous.</span>
               <select style={input} value={system} onChange={(e) => setSystem(e.target.value)}>
                 <option value={SYSTEM_AMBIGUOUS}>System-ambiguous (no specific ruleset)</option>
-                {GAME_SYSTEMS.map((s) => (<option key={s.key} value={s.key}>{s.name}</option>))}
+                {/* Only the four playable systems are buildable; under-construction systems are hidden
+                    (owner 2026-07-18). */}
+                {GAME_SYSTEMS.filter((s) => isSystemAvailable(s.key)).map((s) => (<option key={s.key} value={s.key}>{s.name}</option>))}
               </select>
             </div>
 
