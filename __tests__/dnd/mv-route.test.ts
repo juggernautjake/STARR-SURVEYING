@@ -69,3 +69,20 @@ describe('active sheet label on the switcher (MV3)', () => {
     expect(switcher).toContain('Active sheet: <strong');
   });
 });
+
+describe('rename + delete sheet route/UI (Area MV)', () => {
+  const route2 = readFileSync(join(process.cwd(), 'app/api/dnd/characters/[id]/system/route.ts'), 'utf8');
+  const switcher2 = readFileSync(join(process.cwd(), 'app/dnd/_ui/SystemSwitcher.tsx'), 'utf8');
+  it('the route renames (active via meta or a stored slot) and deletes a NON-active slot', () => {
+    expect(route2).toContain("body?.action === 'rename'");
+    expect(route2).toContain('renameVariant(variants, body.slotId, name)');
+    expect(route2).toContain("body?.action === 'delete'");
+    expect(route2).toContain('Switch to another sheet before deleting this one'); // can't delete the active
+    expect(route2).toContain('deleteVariant(variants, body.slotId)');
+  });
+  it('the switcher has inline rename + a delete on non-active sheets', () => {
+    expect(switcher2).toContain("slotAction(sh.slotId, { action: 'rename', name: editSlotName })");
+    expect(switcher2).toContain("slotAction(sh.slotId, { action: 'delete' })");
+    expect(switcher2).toContain('!sh.active &&'); // delete only on non-active
+  });
+});

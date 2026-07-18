@@ -158,7 +158,8 @@ export function listSheets(active: ActiveSheet, variants: SystemVariants, system
   const nameFor = (v: { name?: string; kind?: SheetVariantKind }, system: string): string =>
     (v.name && v.name.trim()) || defaultVariantName(systemLabelFn(system), variantKind(v));
   const out: SheetSlot[] = [{
-    slotId: `active:${normalizeSystem(active.system)}`,
+    // Its real slotId when known (from the active-slot meta), else an `active:` marker — matches the route.
+    slotId: active.slotId ?? `active:${normalizeSystem(active.system)}`,
     system: normalizeSystem(active.system),
     kind: variantKind(active),
     name: nameFor(active, normalizeSystem(active.system)),
@@ -292,4 +293,22 @@ export function switchToSlot(
     },
     variants: next,
   };
+}
+
+/** Remove a stored sheet slot (Area MV). No-op if the slot doesn't exist. The ACTIVE sheet lives in the live
+ *  columns, not here, so it can never be deleted through this — the caller guards that. */
+export function deleteVariant(variants: SystemVariants, slotId: string): SystemVariants {
+  if (!(slotId in variants)) return variants;
+  const next: SystemVariants = { ...variants };
+  delete next[slotId];
+  return next;
+}
+
+/** Rename a stored sheet slot (Area MV). Empty name clears back to the auto-default. No-op if not found. */
+export function renameVariant(variants: SystemVariants, slotId: string, name: string): SystemVariants {
+  if (!(slotId in variants)) return variants;
+  const trimmed = name.trim();
+  const { name: _drop, ...rest } = variants[slotId];
+  void _drop;
+  return { ...variants, [slotId]: { ...rest, ...(trimmed ? { name: trimmed } : {}) } };
 }

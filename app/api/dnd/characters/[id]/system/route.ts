@@ -14,7 +14,7 @@ import { applySheetEdits, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/shee
 import { systemGroundingBlock } from '@/lib/dnd/grounding';
 import { validateCharacterForSystem } from '@/lib/dnd/system-validate';
 import { normalizeSystem, systemLabel, isSystemAvailable } from '@/lib/dnd/systems';
-import { readVariants, hasVariant, switchActive, installTransposed, switchToSlot, addSheetSlot, readActiveSlotMeta, withActiveSlotMeta, type ActiveSheet } from '@/lib/dnd/system-variants';
+import { readVariants, hasVariant, switchActive, installTransposed, switchToSlot, addSheetSlot, deleteVariant, renameVariant, readActiveSlotMeta, withActiveSlotMeta, type ActiveSheet } from '@/lib/dnd/system-variants';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
 
@@ -126,6 +126,44 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       .eq('id', params.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, kind: 'add-sheet', slotId, system: target, sheetKind: kind });
+  }
+
+  // The active sheet's slot id as the UI sees it (matches listSheets): its real slotId or the `active:` marker.
+  const activeSlotId = active.slotId ?? `active:${active.system}`;
+
+  // ── Rename a sheet (Area MV) — the active one (via its meta) or a stored slot. ──
+  if (body?.action === 'rename' && typeof body?.slotId === 'string') {
+    const name = typeof body?.name === 'string' ? body.name.trim() : '';
+    if (body.slotId === activeSlotId) {
+      const renamedActive: ActiveSheet = { ...active, name: name || undefined };
+      const { error } = await supabaseAdmin
+        .from('dnd_characters')
+        .update({ system_variants: withActiveSlotMeta(variants, renamedActive) }) // active columns unchanged
+        .eq('id', params.id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ ok: true, kind: 'rename', slotId: body.slotId });
+    }
+    if (!(body.slotId in variants)) return NextResponse.json({ error: 'No such sheet.' }, { status: 400 });
+    const next = renameVariant(variants, body.slotId, name);
+    const { error } = await supabaseAdmin
+      .from('dnd_characters')
+      .update({ system_variants: withActiveSlotMeta(next, active) })
+      .eq('id', params.id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, kind: 'rename', slotId: body.slotId });
+  }
+
+  // ── Delete a STORED sheet (Area MV) — never the active one (switch away first). ──
+  if (body?.action === 'delete' && typeof body?.slotId === 'string') {
+    if (body.slotId === activeSlotId) return NextResponse.json({ error: 'Switch to another sheet before deleting this one.' }, { status: 400 });
+    if (!(body.slotId in variants)) return NextResponse.json({ error: 'No such sheet.' }, { status: 400 });
+    const next = deleteVariant(variants, body.slotId);
+    const { error } = await supabaseAdmin
+      .from('dnd_characters')
+      .update({ system_variants: withActiveSlotMeta(next, active) })
+      .eq('id', params.id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, kind: 'delete', slotId: body.slotId });
   }
 
   // Already active — nothing to do.
