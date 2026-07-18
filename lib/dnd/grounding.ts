@@ -3,7 +3,7 @@
 // agent uses ONLY that system's rules (never another system, never invented) and FLAGS anything it
 // can't ground instead of guessing. For a system-ambiguous character it forbids assuming a ruleset.
 import { searchSystemEntries } from './system-store';
-import { SYSTEM_AMBIGUOUS, systemLabel } from './systems';
+import { SYSTEM_AMBIGUOUS, systemLabel, normalizeSystem } from './systems';
 import { systemRulesBlock } from './system-rules';
 import { glossaryFor, type GlossaryEntry } from './glossary';
 import { FEATS_2024 } from './feats/dnd5e-2024';
@@ -125,13 +125,17 @@ export function groundingKeywords(query: string): string {
 }
 
 export async function systemGroundingBlock(system: string | null | undefined, query: string): Promise<SystemGrounding> {
-  const sys = system || SYSTEM_AMBIGUOUS;
+  // Normalize to an exact catalog key up front (callers pass `row.system` straight from the DB). A non-canonical
+  // value — a typo, a migrated/legacy string — must resolve to AMBIGUOUS, not be trusted as a real system: else
+  // the AI is told "you are <raw string>" and grounds on lookups scoped to a key nothing matches (empty rules,
+  // false confidence). Every scoped lookup below uses `sys`, so a real system is unchanged and a bad one goes safe.
+  const sys = normalizeSystem(system);
   const label = systemLabel(sys);
   // The DETERMINISTIC authoritative rules block — always present, no embeddings/DB needed. This is
   // the core guarantee that the correct system's real mechanics/numbers are always in the prompt.
   const rulesBlock = systemRulesBlock(sys);
 
-  if (!system || system === SYSTEM_AMBIGUOUS) {
+  if (sys === SYSTEM_AMBIGUOUS) {
     return {
       instruction:
         'This character is SYSTEM-AMBIGUOUS: do not assume any specific ruleset. Use only generic, ' +
@@ -149,7 +153,7 @@ export async function systemGroundingBlock(system: string | null | undefined, qu
   // We strip stopwords first: the glossary search requires every word to match, so a natural-language
   // question ("what does the disengage action do") would otherwise fail on its filler words.
   const keywords = groundingKeywords(query);
-  const glossaryHits = keywords ? retrieveGlossary(system, keywords, 6) : [];
+  const glossaryHits = keywords ? retrieveGlossary(sys, keywords, 6) : [];
   const glossaryBlock = glossaryHits.length
     ? `\n\nRELEVANT ${label} GLOSSARY ARTICLES (authoritative rules text — quote these numbers exactly):\n` +
       glossaryHits.map((g) => `## ${g.term} (${g.kind})\n${g.body}`).join('\n\n')
@@ -157,7 +161,7 @@ export async function systemGroundingBlock(system: string | null | undefined, qu
 
   // Full feat text for the feats named in the query — so "explain Tavern Brawler" or "build a
   // character with Alert" grounds on the real 2024 benefit, not recall (2024 feats differ from 2014).
-  const featHits = keywords ? matchFeats(system, keywords, 4) : [];
+  const featHits = keywords ? matchFeats(sys, keywords, 4) : [];
   const featBlock = featHits.length
     ? `\n\nRELEVANT ${label} FEATS (authoritative benefit text — use exactly):\n` +
       featHits.map((f) => `## ${f.name} (${f.category} feat)\n${f.benefit}`).join('\n\n')
@@ -165,7 +169,7 @@ export async function systemGroundingBlock(system: string | null | undefined, qu
 
   // Full effect text for the IG powers/spells named in the query — the power counterpart of featBlock,
   // so "how does Elemental Blast work?" grounds on the real IG effect, not recall or a bare name.
-  const powerHits = keywords ? matchPowers(system, keywords, 4) : [];
+  const powerHits = keywords ? matchPowers(sys, keywords, 4) : [];
   const powerBlock = powerHits.length
     ? `\n\nRELEVANT ${label} POWERS (authoritative effect text — use exactly):\n` +
       powerHits.map((p) => `## ${p.name} (${p.school})\n${p.effect}`).join('\n\n')
@@ -173,19 +177,19 @@ export async function systemGroundingBlock(system: string | null | undefined, qu
 
   // IG class taxonomy (Area T1) — the site organises classes as 4 parents × subclasses, so the AI must build
   // an IG character as a parent class + one of ITS subclasses (never a subclass under the wrong parent).
-  const taxonomyBlock = system === 'intuitive-games'
+  const taxonomyBlock = sys === 'intuitive-games'
     ? `\n\nINTUITIVE GAMES CLASS TAXONOMY (build a character as a PARENT class + one of ITS subclasses only):\n` +
       IG_CLASS_TAXONOMY.map((t) => `- ${t.parent}: ${t.subclasses.join(', ')}`).join('\n')
     : '';
 
   // Homebrew content available for this system (Area H2) — so the AI knows a system's community/homebrew
   // pieces exist and what they do (it may only USE them when the DM has allowed them, which the block states).
-  const homebrewText = homebrewGrounding(HOMEBREW_SEEDS, system);
+  const homebrewText = homebrewGrounding(HOMEBREW_SEEDS, sys);
   const homebrewBlock = homebrewText ? `\n\n${homebrewText}` : '';
 
   // Optional semantic enhancement: scoped RAG hits (only when an embeddings key is configured). These
   // augment — never replace — the deterministic rules block above.
-  const entries = await searchSystemEntries(system, query, { matchCount: 10, minSimilarity: 0.3 }).catch(() => []);
+  const entries = await searchSystemEntries(sys, query, { matchCount: 10, minSimilarity: 0.3 }).catch(() => []);
   const ragBlock = entries.length
     ? `\n\nRETRIEVED ${label} REFERENCE ENTRIES (use alongside the authoritative rules above):\n` +
       entries.map((e) => `- [${e.kind}] ${e.name}${e.source ? ` (${e.source})` : ''}: ${e.body}`).join('\n')

@@ -29,6 +29,19 @@ describe('systemGroundingBlock', () => {
     expect(g.instruction).toMatch(/SYSTEM-AMBIGUOUS/);
   });
 
+  it('a NON-CANONICAL system key (a typo / legacy value from the DB) is treated as ambiguous, never a raw system', async () => {
+    // Callers pass `row.system` straight from the DB. A value that isn't an exact catalog key — the
+    // 'dnd-5e-2024' typo of 'dnd5e-2024', or any migrated/legacy string — must NOT be trusted as a real
+    // system: else the AI is told "you are built for dnd-5e-2024" and grounds on lookups scoped to a key
+    // nothing matches (empty rules block, false confidence). It resolves to the ambiguous, no-guessing path.
+    for (const bad of ['dnd-5e-2024', 'D&D', 'pathfinder', 'nonsense-system']) {
+      const g = await systemGroundingBlock(bad, 'what does the fighter get');
+      expect(g.instruction, `"${bad}" must ground as ambiguous`).toMatch(/SYSTEM-AMBIGUOUS/);
+      expect(g.instruction).not.toContain(bad); // the raw string never reaches the AI as a rulebook name
+      expect(g.matched).toBe(0);
+    }
+  });
+
   // A feat query must ground on the feat's FULL effect text, not just its name. The always-on rules
   // block lists feats by name only (dumping every feat's text would bloat every prompt), so this
   // query-scoped retrieval is the only path that puts the effect in front of the AI.

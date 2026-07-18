@@ -2044,7 +2044,14 @@ customized, exactly as the request asks.
       `dnd5e-2024`, exactly the mistake the digest's own tests make) reads as an honest `SYSTEM: System-ambiguous`
       rather than leaking a raw typo string into the AI's prompt as if it were a rulebook. The one production
       caller (`library/chat`) already normalized; this makes the digest robust regardless of caller.
-      `character-digest.test.ts` pins it.
+      `character-digest.test.ts` pins it. **Grounding block hardened the same way (2026-07-18) — the more
+      important half:** `systemGroundingBlock` only guarded `null` (`system || AMBIGUOUS`), so a non-canonical
+      truthy `row.system` (a typo/legacy value — and `ai-edit`/`ingest` pass it STRAIGHT from the DB) was
+      trusted as a real system: the AI was told "you are built for `<raw>`" and grounded on glossary/feat/power
+      lookups scoped to a key nothing matches (empty authoritative block, false confidence — the exact
+      hallucination this whole system exists to prevent). Now it `normalizeSystem`s once and every scoped lookup
+      uses the normalized `sys`, so a bad value takes the AMBIGUOUS "assume no ruleset" path; a real system is
+      unchanged. `grounding.test.ts` pins it (a typo/legacy/foreign string → ambiguous, never a raw rulebook name).
 - [~] **Set Jacob, Susie, Sarah, Jack and Andrew to `dnd-5e-2024`.** DEFERRED — a live-DB write (updating the
       demo characters' `system` column from `ambiguous`), which needs the Supabase connection; can't be done or
       verified headless. The idempotent seed is a one-liner once the DB is reachable.
