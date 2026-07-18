@@ -157,11 +157,13 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
         <div style={{ ...label, marginBottom: 6 }}>Ability Scores</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(60px, 1fr))', gap: 8 }}>
           {IG_ABILITIES.map((k) => (
-            <div key={k} style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 4px', background: 'rgba(1,10,19,0.4)' }}>
-              <div style={{ fontSize: 10.5, color: 'var(--hx-muted)', letterSpacing: '0.06em' }}>{k}</div>
+            // Tap an ability to roll an ability check (R1b): d20 + its modifier.
+            <button key={k} type="button" onClick={() => rollLine(`${k} check`, igAbilityMod(ig.abilities[k]))} title={`Roll ${k} check (d20 ${fmt(igAbilityMod(ig.abilities[k]))})`}
+              style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 4px', background: 'rgba(1,10,19,0.4)', cursor: 'pointer', width: '100%' }}>
+              <div style={{ fontSize: 10.5, color: 'var(--hx-muted)', letterSpacing: '0.06em' }}>{k} 🎲</div>
               <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--hx-text)', lineHeight: 1.1 }}>{ig.abilities[k]}</div>
               <div style={{ fontSize: 12.5, color: 'var(--hx-gold-2)' }}>{fmt(igAbilityMod(ig.abilities[k]))}</div>
-            </div>
+            </button>
           ))}
         </div>
       </div>

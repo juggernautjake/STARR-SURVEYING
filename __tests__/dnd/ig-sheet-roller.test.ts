@@ -20,7 +20,8 @@ describe('IG sheet is interactive — tap to roll (R1b / IGS6)', () => {
     expect(sheet).toMatch(/lastRoll\.tone/); // crit/fumble/normal colouring, shared by d20 + damage rolls
   });
 
-  it('saves, skills, attacks (to-hit) AND attack damage are all tap-to-roll', () => {
+  it('saves, skills, attacks (to-hit), damage AND ability checks are all tap-to-roll', () => {
+    expect(sheet).toMatch(/rollLine\(`\$\{k\} check`/);        // ability checks
     expect(sheet).toMatch(/rollLine\(`\$\{s\} save`/);         // saves
     expect(sheet).toMatch(/rollLine\(`\$\{s\.name\} \(\$\{s\.ability\}\)`/); // skills
     expect(sheet).toMatch(/rollLine\(`\$\{a\.name\} attack`/); // attacks (to-hit)
