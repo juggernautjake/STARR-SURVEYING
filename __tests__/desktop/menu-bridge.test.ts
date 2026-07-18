@@ -92,29 +92,29 @@ describe('dispatchMenuAction — routes ids to cad:* window events', () => {
   });
 
   it('edit.undo and edit.redo bypass the event bus (they go through the undo store)', async () => {
-    // The undo store is a MODULE SINGLETON shared across the whole test worker; a prior CAD test can leave
-    // entries on its undoStack. This test only holds when undo()/redo() are no-ops (nothing to undo) — with a
-    // polluted stack, undo() runs applyOperations and its canvas-refresh side effect fires cad:undo, calling
-    // the listener (deterministic full-suite-only failure). Clear it first so the assertion is hermetic.
-    const { useUndoStore } = await import('@/lib/cad/store');
-    useUndoStore.getState().clear();
+    // dispatchMenuAction routes undo/redo to the undo STORE, not the cad:undo/cad:redo event bus — so it must
+    // not SYNCHRONOUSLY dispatch those window events. We assert that synchronously, BEFORE any await: the undo
+    // store is a module singleton shared across the whole test worker (isolate:false), so awaiting here would
+    // let a leaked async undo() from another CAD test file run on a non-empty stack and fire cad:undo into this
+    // test's listener — a test-ordering-fragile false failure. A synchronous check is immune to that and still
+    // verifies the real contract. (Earlier `clear()`-based fix only covered undoStack pollution; this is robust
+    // against any async source.)
     const listener = vi.fn();
     (window as Window).addEventListener('cad:undo', listener);
     (window as Window).addEventListener('cad:redo', listener);
     dispatchMenuAction('edit.undo');
     dispatchMenuAction('edit.redo');
-    // dispatchMenuAction for undo/redo lazy-imports the undo store
-    // (`await import('../store')`). Resolve the imports explicitly
-    // so the teardown phase doesn't catch them mid-load and surface
-    // EnvironmentTeardownError. Awaiting the same module ref tracks
-    // the dynamic import's promise chain rather than guessing at
-    // event-loop timing.
-    await import('@/lib/cad/store');
-    await new Promise((r) => setTimeout(r, 10));
+    // Synchronous: no await has run yet, so no async undo/redo (this test's or a leaked one) can have fired.
     expect(listener).not.toHaveBeenCalled();
     (window as Window).removeEventListener('cad:undo', listener);
     (window as Window).removeEventListener('cad:redo', listener);
-  });
+    // Drain dispatchMenuAction's lazy `await import('../store')` so the teardown phase doesn't catch it
+    // mid-load (EnvironmentTeardownError). Awaiting the same module ref tracks that dynamic import's chain.
+    // The generous per-test timeout below covers this dynamic import of the big CAD-store barrel being SLOW
+    // (not hung) under full-suite worker contention — it timed out at the default 5s once the suite grew.
+    await import('@/lib/cad/store');
+    await new Promise((r) => setTimeout(r, 10));
+  }, 30_000);
 });
 
 describe('registerMenuBridge — Tauri-only subscription', () => {
