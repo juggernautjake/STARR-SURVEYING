@@ -681,7 +681,14 @@ now audited and guarded:
       penalty (bulky armor reduces the STR/DEX physical skills Athletics/Acrobatics/Stealth/Thievery but
       NOT knowledge skills, gated on each skill's `armorPenalty` flag) were untested. `pathfinder2e-rules.test.ts`
       +2 pins both — an ACP that leaked onto Arcana, or never applied to Athletics, now fails a test.
-      Full dnd suite green (1867). **Cross-system leak guard added** (`8f34eed9`): `system-conditions-skills-scope.test.ts`
+      Full dnd suite green (1867). **⚑ `normalizeSystem` routing gate pinned (2026-07-18):** the strict
+      exact-key normaliser gates every system route (`isIG = normalizeSystem(system) === 'intuitive-games'`,
+      the digest/edit router) but only its positive round-trip was tested. `system-designation.test.ts` +4
+      pins the safe-default + exactness: nullish/non-string/unknown aliases ('D&D'/'pathfinder'/'IG'/the
+      'dnd-5e-2024' typo) → ambiguous (never guesses a rulebook), and a crafted superset ('intuitive-games-x')
+      does NOT normalize to a real key (a regression to includes()/startsWith() would mis-route a character to
+      the wrong system's rules). Full dnd suite green (1881).
+      **Cross-system leak guard added** (`8f34eed9`): `system-conditions-skills-scope.test.ts`
       (8) extends Ground Rule 1 to the condition + skill lists — PF2's Clumsy/Enfeebled/Off-Guard stay out
       of 5e, 5e's Charmed/Restrained out of PF2, IG's Heatstroke + Bluff-not-Deception unique — so a new
       condition/skill can't be authored without scoping it. **Remaining gap (deferred — data-model work):** the STANDARD sheet's `SavesSkills`
