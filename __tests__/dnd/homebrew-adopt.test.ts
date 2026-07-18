@@ -23,6 +23,24 @@ describe('homebrew payload → effects (H5)', () => {
     // pure-prose homebrew grants nothing
     expect(homebrewPayloadEffects({ ...belt, payload: undefined })).toEqual([]);
   });
+
+  it('a MIXED payload keeps the valid effects and drops ONLY the malformed one — per-element boundary', () => {
+    // The security case for community-SHARED pieces: a hostile author can hide a malformed/injected effect
+    // among legit ones. The boundary validates each effect independently — it must neither let the bad one
+    // through NOR refuse the whole piece (which would let a single junk entry grief a good piece). Keep good, drop bad.
+    const mixed = homebrewPayloadEffects({
+      ...belt,
+      payload: { effects: [
+        { target: 'ability_str', operation: 'set', value: 19 }, // legit
+        { target: 'not_a_real_target', operation: 'nonsense' }, // injected junk
+        { target: 'ac', operation: 'add', value: 1 },            // legit
+      ] },
+    });
+    expect(mixed).toEqual([
+      { target: 'ability_str', operation: 'set', value: 19 },
+      { target: 'ac', operation: 'add', value: 1 },
+    ]);
+  });
 });
 
 describe('adopt round-trip: the ledger resolves the real number (H5)', () => {
