@@ -8,7 +8,7 @@
 // bonuses ("does the target save vs your DC?" needs the number). Pure + PF2-source-only (Ground Rule 1);
 // the chat route appends it.
 
-import type { PF2Character } from './model';
+import { type PF2Character, PF2_ATTRIBUTES } from './model';
 import { pf2Derived, pf2SkillTotal, pf2AttackBonus, pf2MultipleAttackPenalty } from './rules';
 
 const sign = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
@@ -38,6 +38,10 @@ export function pf2CharacterDigest(pf2: PF2Character): string {
     `DEFENSES: AC ${d.ac} · HP ${hpCur}/${d.maxHp}${temp} · Fort ${sign(d.saves.Fortitude)} · ` +
       `Ref ${sign(d.saves.Reflex)} · Will ${sign(d.saves.Will)} · Perception ${sign(d.perception)}.`,
   );
+
+  // Raw attribute modifiers — a bare attribute check (or verifying a derived number) reads from these. PF2
+  // stores attributes AS modifiers (STR 4, not a score of 18), so they print directly.
+  lines.push(`ATTRIBUTES: ${PF2_ATTRIBUTES.map((k) => `${k} ${sign(pf2.attributes[k] ?? 0)}`).join(', ')}`);
 
   // PF2's death track — stated only when live, since a ruling on a downed character turns on it (Dying 4 =
   // dead; each Wounded step raises the Dying you return with). PF2 tracks no other named conditions.

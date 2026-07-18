@@ -8,7 +8,7 @@
 // IG character blind to whether it is Shaken (−2 to attacks/saves/skills) or in an Offensive stance
 // (advantage on attacks). Pure + IG-source-only (Ground Rule 1); the chat route appends it to the digest.
 
-import type { IGCharacter } from './model';
+import { type IGCharacter, IG_ABILITIES } from './model';
 import { igConditionSummary, igStanceMechanicNote } from './modifiers';
 import { findIGAncestry, IG_DEFENSIVE_POWERS } from './content';
 import { igDerived, igSkillTotal, igAbilityMod, igResolveAttack } from './rules';
@@ -42,6 +42,10 @@ export function igCharacterDigest(ig: IGCharacter): string {
   const nonlethal = Number(ig.combat.hitPoints?.nonlethal) || 0;
   const dr = Number(ig.combat.damageReduction) || 0;
   const hp = `HP ${der.currentHp}/${der.maxHp}${nonlethal ? ` (${nonlethal} nonlethal)` : ''}`;
+  // Raw ability modifiers — a ruling on a bare ability check (a STR check to force a door) needs these, not
+  // just the derived skills/saves. Scores → mods via igAbilityMod, exactly as the sheet computes them.
+  lines.push(`ABILITIES: ${IG_ABILITIES.map((k) => `${k} ${sgn(igAbilityMod(ig.abilities[k]))}`).join(', ')}`);
+
   const saves = `Fort ${sgn(der.saves.Fortitude)}, Ref ${sgn(der.saves.Reflex)}, Will ${sgn(der.saves.Will)}`;
   lines.push(`DEFENSES: ${hp} · DR ${dr} · Saves ${saves}`);
 

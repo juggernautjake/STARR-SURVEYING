@@ -79,6 +79,11 @@ describe('igCharacterDigest', () => {
     expect(dc).toMatch(/DEFENSIVE POWER: Homebrew Ward$/m); // name, no " — <effect>" appended
   });
 
+  it('lists raw ABILITY modifiers (a bare ability check needs them, not just derived skills/saves)', () => {
+    // Fixture: CON 14 → +2, all others 10 → +0.
+    expect(d).toMatch(/ABILITIES: STR \+0, DEX \+0, CON \+2, INT \+0, WIS \+0, CHA \+0/);
+  });
+
   it('lists the character\'s ATTACKS with resolved to-hit + damage (was absent entirely)', () => {
     // Greatsword: to-hit = STR mod 0 + proficiency(level 6) + Weapon Focus +1 + bonusToHit 1 = 8;
     // damage = 2d6 + Weapon Specialization +2 = 2d6+2. A ruling on "does it hit / how much?" now has numbers.
