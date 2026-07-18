@@ -17,6 +17,7 @@ import { buildLedger } from './effects/ledger';
 import { deriveAc } from '@/app/dnd/_sheet/lib/derive-ac';
 import { summarizeCharacterProvenance } from './provenance';
 import { systemLabel, type CharacterSystem } from './systems';
+import { totalIn } from './currency';
 
 /** Trim a rules body to its first sentence-ish, for a name + reminder rather than a restatement. */
 function brief(body: string, max = 130): string {
@@ -303,9 +304,15 @@ export function characterDigest(char: Character, system: CharacterSystem, opts: 
   if (equipped.length) lines.push(`EQUIPPED: ${equipped.map((i) => i.name).join(' · ')}`);
 
   // Wealth — a downtime / shopping / bribe ruling ("can you afford the 50 gp potion?") turns on it. Lists the
-  // character's coins with a non-zero amount (the flexible `currencies` list, e.g. cp/sp/gp/pp or custom coins).
-  const coins = (char.currencies ?? []).filter((cn) => (cn.amount || 0) > 0);
-  if (coins.length) lines.push(`WEALTH: ${coins.map((cn) => `${cn.amount} ${cn.abbrev || cn.name}`).join(', ')}`);
+  // coins with a non-zero amount PLUS the total converted into the biggest coin (gp for 5e), so affordability
+  // is a direct read, not a mental sum.
+  const allCoins = char.currencies ?? [];
+  const coins = allCoins.filter((cn) => (cn.amount || 0) > 0);
+  if (coins.length) {
+    const top = allCoins.reduce((a, b) => (b.rate > a.rate ? b : a), allCoins[0]);
+    const total = Math.round(totalIn(allCoins, top) * 100) / 100;
+    lines.push(`WEALTH: ${coins.map((cn) => `${cn.amount} ${cn.abbrev || cn.name}`).join(', ')}${top ? ` (≈${total} ${top.abbrev || top.name} total)` : ''}`);
+  }
 
   const active = (char.activeEffects ?? []).map((e) => e.label);
   if (active.length) lines.push(`ACTIVE EFFECTS: ${active.join(' · ')}`);

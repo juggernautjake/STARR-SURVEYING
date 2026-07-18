@@ -404,7 +404,8 @@ describe('the 5e digest surfaces wealth (SQ3 completeness)', () => {
       { id: 'cp', name: 'Copper', abbrev: 'cp', amount: 0, rate: 1 },
     ];
     const d = characterDigest(c, 'dnd-5e-2024');
-    expect(d).toMatch(/WEALTH: 42 gp, 7 sp/);
+    // 42 gp + 7 sp = 4270 cp = 42.7 gp total (gp is the biggest coin).
+    expect(d).toMatch(/WEALTH: 42 gp, 7 sp \(≈42\.7 gp total\)/);
     expect(d).not.toMatch(/0 cp/); // zero coins omitted
     expect(characterDigest(blankCharacter('Broke'), 'dnd-5e-2024')).not.toMatch(/WEALTH:/);
   });
