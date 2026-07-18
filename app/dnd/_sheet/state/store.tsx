@@ -15,6 +15,8 @@ import { routeFormDamage, isFormHpLive } from '@/lib/dnd/effects/form-hp'
 import { rollD20, rollDamage, parseDice, rollDie, rollTyped, weaponSegments, parseBonusDamageSegment, type Advantage } from '../lib/dice'
 import { deriveAc, type AcResult } from '../lib/derive-ac'
 import { applyDeathSave } from '../lib/death-save'
+import { resolvePreferences, DEFAULT_CAMPAIGN_PREFERENCES, type EffectivePreferences } from '@/lib/dnd/preferences'
+import { hitDiceAfterLongRest } from '@/lib/dnd/mechanics/long-rest'
 
 // Per-character localStorage slot. A single shared key meant every standalone sheet
 // read and wrote the SAME cached character (originally Lazzuh's); keying by id keeps
@@ -236,6 +238,7 @@ export function CharacterProvider({
   isDM = false,
   canWrite,
   system,
+  preferences,
 }: {
   children: React.ReactNode
   /** When set (C3), the sheet loads/saves `dnd_characters.data` via the API for
@@ -252,7 +255,13 @@ export function CharacterProvider({
   /** The character's game system — passed to the ledger so system-scoped sources (species) apply
    *  only on the matching system (Ground Rule 1). Omitted → the ledger adds no species source. */
   system?: string
+  /** The effective preferences (campaign DM ∩ player) that drive configurable mechanics — Area P/M/E/R/D.
+   *  The single seam every swappable rule reads. Omitted → the full VANILLA set (resolvePreferences of the
+   *  defaults), so a sheet opened outside a campaign behaves exactly as it always has. */
+  preferences?: EffectivePreferences
 }) {
+  // Effective preferences, defaulting to the vanilla set when none were supplied (standalone sheet).
+  const prefs: EffectivePreferences = preferences ?? resolvePreferences(DEFAULT_CAMPAIGN_PREFERENCES)
   const dbMode = !!characterId
   // The character as first hydrated — the baseline `reset()` restores. Captured on the
   // initial load (DB or local) and never overwritten by later realtime/remote updates.
@@ -985,6 +994,7 @@ export function CharacterProvider({
     }))
   }, [])
 
+  const longRestModel = prefs.longRestModel.value
   const longRest = useCallback(() => {
     setRecklessActive(false)
     setCharState((c) => ({
@@ -993,7 +1003,9 @@ export function CharacterProvider({
         ...c.combat,
         currentHp: c.combat.maxHp,
         tempHp: 0,
-        hitDiceRemaining: c.combat.hitDiceTotal,
+        // Hit dice restored per the campaign's long-rest model (Area M2). Vanilla (default) = full restore,
+        // so a sheet with no preferences behaves exactly as before; 'half-hit-dice' is the 2014-RAW option.
+        hitDiceRemaining: hitDiceAfterLongRest(c.combat.hitDiceTotal, c.combat.hitDiceRemaining, longRestModel),
         deathSuccess: 0,
         deathFail: 0,
         transformActive: false,
@@ -1009,7 +1021,7 @@ export function CharacterProvider({
         ? { ...c.spellcasting, slots: Object.fromEntries(Object.entries(c.spellcasting.slots).map(([lvl, s]) => [lvl, { ...s!, current: s!.max }])) }
         : c.spellcasting,
     }))
-  }, [])
+  }, [longRestModel])
 
   const rollDeathSave = useCallback(() => {
     // A death saving throw is a D20 Test, so exhaustion's −2/level applies here too (2024) — the same

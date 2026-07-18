@@ -79,8 +79,15 @@ Make the mechanics the prefs name actually swappable, VANILLA BY DEFAULT.
 - [ ] **M1 — Exhaustion model selector.** `rollCheck`/speed read the effective `exhaustionModel`: default the
       correct-per-edition vanilla (2024 flat −2/level; **2014 the real tiered table**), plus the popular
       flat-−2/level option for systems that want it. (Resolves `BLOCKERS §A` exhaustion + the 2014-tiered gap.)
-- [ ] **M2 — Long-rest model selector.** Default vanilla per edition; options: RAW-half hit dice, gritty
-      realism, epic (short), etc. Pure `planLongRest(state, model)` + the store wires it.
+- [x] **M2 — Long-rest model selector.** ✅ SHIPPED — pure `hitDiceAfterLongRest(total, remaining, model)`
+      in `lib/dnd/mechanics/long-rest.ts` (vanilla=full restore, half-hit-dice=2014 RAW half+min1, gritty/epic
+      = amount unchanged), golden-pinned by `mechanics-long-rest.test.ts`. Wired into the sheet store's
+      `longRest`. **Established the preferences seam:** `CharacterProvider` now takes an optional resolved
+      `preferences?: EffectivePreferences` prop, defaulting to the full VANILLA set — the single place every
+      swappable mechanic (exhaustion, dice style, record mode, equip) will read. Behavior-preserving today
+      (no prop passed anywhere yet → vanilla → full restore); full dnd suite green (1930). REMAINING for M2:
+      pass the real effective preferences into `CharacterProvider` once P2c resolves them at the sheet's
+      mount (currently every caller omits the prop → vanilla).
 - [ ] **M3 — Rage & other class mechanics** as they come up — same pattern (vanilla default + options).
 - [ ] **M4 — Tests:** each model's numbers are golden-pinned; switching the pref changes the result; the
       default is vanilla.
