@@ -504,8 +504,14 @@ This is the "form editor" the owner clarified: a full **create-and-share** syste
       work — plus the live-DB store (H1 tail) so user-created pieces (not just the seeds) flow through.
 - [ ] **H3 — Creation UI.** Build-and-post forms for each content kind (reusing the effect builder / item
       builder / attack builder / weapon+armor builders), attributed to the creator on save.
-- [ ] **H4 — Use-on-character + DM gating.** A character can adopt a homebrew element **iff the DM allows it**
-      (a campaign allowlist / approval), threaded through the same provenance + `getCharacterAccess` path.
+- [~] **H4 — Use-on-character + DM gating.** ✅ PURE GATE SHIPPED — `lib/dnd/homebrew/policy.ts`: a
+      `CampaignHomebrewPolicy` (`allowAll` | explicit `allowedIds`), a defensive `readHomebrewPolicy` (unknown →
+      the CLOSED default, never an accidental open catalog), and the pure decisions `homebrewAllowedForCampaign`
+      / `allowedHomebrewList` / **`canAdoptHomebrew`** (requires published AND campaign-allowed; a DM previews
+      their own drafts), plus DM controls `toggleHomebrewAllowed` + `describeHomebrewPolicy`. Golden-pinned
+      (`homebrew-policy.test.ts`, 7). REMAINING: the live wiring — a campaign column storing the policy, the
+      adopt route calling `canAdoptHomebrew` through `getCharacterAccess`, and the DM's allowlist UI (all need
+      the live DB / a browser, so parked with the H1-tail DB slice).
 - [ ] **H5 — Tests:** a posted item round-trips to real effects the ledger resolves; attribution persists;
       the DM gate blocks a disallowed element; searchable + grounded.
 
