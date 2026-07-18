@@ -13,6 +13,8 @@ import { validateCustomTag, RESERVED_TAGS } from '@/app/dnd/_sheet/components/ui
 import { validateEffect } from '@/lib/dnd/effects/targets';
 import { EFFECT_OPERATIONS } from '@/app/dnd/_sheet/engine/effects';
 import { cleanTriggers } from '@/lib/dnd/effects/triggers';
+import { equipConflicts, resolveEquipSwap } from '@/lib/dnd/equip-conflicts';
+import type { EquipLimits } from '@/lib/dnd/preferences';
 
 /** The full set of fields an item edit can carry (Slice 14). Shared by add_item + update_item so
  *  the AI authors and refines an item through the SAME shape — a generated item is indistinguishable
@@ -338,8 +340,11 @@ export function revertBatch(input: Character, batch: AuditedEdit[]): Character {
 }
 
 /** Apply a validated edit list to a Character, returning a new Character (pure). */
-export function applySheetEdits(input: Character, edits: SheetEdit[]): Character {
+export function applySheetEdits(input: Character, edits: SheetEdit[], opts: { equipLimits?: EquipLimits } = {}): Character {
   const c: Character = structuredClone(input);
+  // Equip limits gate the AI equip exactly like the sheet's equip toggle (Area E1d). Enforced by default
+  // (the vanilla setting), so an AI-driven equip never silently leaves an illegal state; `off` lets it stack.
+  const enforceEquip = opts.equipLimits !== 'off';
   for (const e of edits) {
     // The AI may carry a payload in the semantic field (`name`/`proficient`) rather
     // than the generic `value`; read tolerantly so valid intents aren't dropped.
@@ -526,7 +531,17 @@ export function applySheetEdits(input: Character, edits: SheetEdit[]): Character
       case 'equip_item': {
         const v: unknown = e.value ?? raw.value;
         const equipped = v == null ? true : v === true || v === 'true';
-        c.inventory = c.inventory.map((i) => (eqName(i.name, e.name) ? { ...i, equipped } : i));
+        const target = c.inventory.find((i) => eqName(i.name, e.name));
+        if (!target) break;
+        if (equipped && enforceEquip) {
+          // Auto-swap so the AI leaves a rules-legal state: unequip whatever conflicts (one body armor / one
+          // shield / a two-handed weapon frees both hands), then equip the target. The UI dialog asks the
+          // player which to swap; the AI acts on the instruction and resolves the conflict deterministically.
+          const conflicts = equipConflicts(c.inventory, target.id);
+          c.inventory = resolveEquipSwap(c.inventory, target.id, conflicts.map((x) => x.id));
+        } else {
+          c.inventory = c.inventory.map((i) => (i.id === target.id ? { ...i, equipped } : i));
+        }
         break;
       }
       case 'remove_item': c.inventory = c.inventory.filter((i) => !eqName(i.name, e.name)); break;

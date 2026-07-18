@@ -175,8 +175,15 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       resolves — dual-wield → "swap the sword / the shield") and falls back to one "Unequip {all} & equip"
       when a two-handed weapon needs both hands freed — exactly the owner's UX. `equipLimits: off` skips the
       whole check (equip freely) = **E2 done too**. Guarded by `equip-conflict-dialog.test.ts` (gate/flow +
-      swap-choice logic for both cases); full suite green (1961). REMAINING (E1d): route the AI `equip_item`
-      edit through the same core so an AI-driven equip is validated identically.
+      swap-choice logic for both cases); full suite green (1961).
+- [x] **E1d — AI equip_item routed through the core.** ✅ SHIPPED — `applySheetEdits` takes an optional
+      `{ equipLimits }` (default enforced); on an enforced equip it auto-swaps (unequips conflicts via
+      `equipConflicts`/`resolveEquipSwap`, then equips the target) so an AI-driven equip always lands on a
+      legal state; `off` stacks freely. The ai-edit route resolves the character's campaign `equipLimits` and
+      passes it. The AI acts on the instruction (auto-resolve) where the UI asks the player — same core.
+- [x] **E3 — Tracker updated.** ✅ SHIPPED — `equip-enforcement-gap.test.ts` rewritten from "KNOWN GAP" to
+      assert enforcement: the AI path auto-swaps a second body armour to one (enforced) and stacks with
+      `equipLimits: off`; both live surfaces route through the equip-conflict core. **Area E complete.**
 - [x] **E2 — Toggle:** ✅ SHIPPED with E1c — `Inventory.upsert` only runs the conflict check when
       `preferences.equipLimits.value === 'enforced'`; with `off` the equip commits unrestricted. The DM sets
       this on the campaign preferences panel (P4); it reaches the sheet via P2c.
