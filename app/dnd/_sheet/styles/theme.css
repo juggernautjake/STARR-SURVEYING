@@ -1360,6 +1360,9 @@
 }
 .dnd-sheet .tray-fab {
   right: 20px;
+  /* Sit ABOVE the "Edit with AI" launcher (fixed bottom-right ~18px) instead of overlapping it, so the
+     minimized dice button is never stuck behind the AI chat button (owner 2026-07-18). */
+  bottom: 84px;
   background: linear-gradient(160deg, var(--panel-2), var(--panel));
   animation: fabpulse 2.4s ease-in-out infinite;
 }
