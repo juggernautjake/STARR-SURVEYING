@@ -30,3 +30,12 @@ describe('transpose route honors allowCustom (TR3)', () => {
     expect(route).toContain('allowedCustom: allowCustom');
   });
 });
+
+describe('custom content is balanced to a concrete level (transpose)', () => {
+  it('defaults the balancing level to the source character’s level so the instruction always fires', () => {
+    // Previously partyLevel came only from the request body (which the UI never sent), so the "balance to
+    // level N" line never appeared; now it falls back to the character's own level.
+    expect(route).toContain("(source.meta.level || undefined)");
+    expect(route).toMatch(/Balance any custom content to level \$\{partyLevel\}/);
+  });
+});

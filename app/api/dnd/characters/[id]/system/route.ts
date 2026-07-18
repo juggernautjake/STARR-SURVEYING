@@ -248,8 +248,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const source = (active.data as Character | null) ?? blankCharacter(row.name);
   const grounding = await systemGroundingBlock(target, `transpose ${source.meta.name} into ${label}`).catch(() => null);
 
-  // The campaign's party level, if this character is in one — so custom content can be balanced to it.
-  const partyLevel = typeof body?.partyLevel === 'number' ? body.partyLevel : undefined;
+  // The level to balance custom content against: an explicit campaign party level if the caller sends one,
+  // else the source character's own level (always available) — so the "balance to level N" instruction is a
+  // CONCRETE number the AI can size homebrew against, not a vague "the level/tier". (Previously the UI never
+  // sent partyLevel, so this line never fired; the character-level fallback makes it always concrete.)
+  const partyLevel = typeof body?.partyLevel === 'number' ? body.partyLevel : (source.meta.level || undefined);
 
   type CustomEntry = { type: string; name: string; note?: string };
   let result;
@@ -261,7 +264,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         allowCustom
           ? 'Custom content IS permitted where no vanilla option fits. Be thorough — preserve EVERY signature ability, weapon, spell and stance, inventing balanced homebrew where needed, and record each in `custom`.'
           : 'Custom content is NOT permitted — use only official target-system content.',
-        typeof partyLevel === 'number' ? `Campaign party level: ${partyLevel} — balance any custom content to this.` : null,
+        typeof partyLevel === 'number' ? `Balance any custom content to level ${partyLevel} (the character's level / the campaign's party level).` : null,
         `Source character (system: ${systemLabel(active.system)}). Recreate everything it can do:\n${sheetDigest(source)}`,
         grounding?.block || null,
       ].filter(Boolean).join('\n\n'),

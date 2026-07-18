@@ -507,7 +507,10 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       safety net repairs any sheet the AI left at the blank seed's 1 HP (from level + hit die + CON), starts it
       at full HP, and fixes hit dice. (3) **Rich digest** — the AI now receives the FULL source character
       (ability mods, save/skill proficiencies, every feature's rules text, attacks, spells, resources,
-      inventory, feats) instead of names-only, and a thorough+balanced-for-(party-)level custom prompt. (4)
+      inventory, feats) instead of names-only, and a thorough+balanced-for-(party-)level custom prompt. **Fix
+      2026-07-18:** the "balance custom content to level N" instruction was DEAD — it only fired on a `partyLevel`
+      the UI never sent; it now falls back to the source character's own level, so the AI always sizes homebrew
+      against a concrete level (`transpose-custom.test.ts` +1). (4)
       **Custom manifest** — new optional `custom[]` on the edit tool; every invented element is flagged
       `customized: true` on the sheet AND listed (type · name · note) in the done banner, plus a "Built at N HP"
       line. Golden-pinned (system-variants +1, mv-route +6, transpose-custom updated). Full dnd suite green (2048).
