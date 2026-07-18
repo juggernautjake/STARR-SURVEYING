@@ -249,6 +249,80 @@ export const streamerThemeBlue: SheetTheme = {
   },
 };
 
+// ── Colour themes per template (Area TH) ────────────────────────────────────────────────────────────
+// Alternate palettes for the DEFAULT (Hextech) skin — same readable deep-navy grounds + parchment ink as
+// `hextechTheme` (so contrast is preserved by construction), only the ACCENT hues change. Each is a LoL-region
+// flavour. A character picks one; `themeVariantsFor` lists the options for a skin. Grounds/ink kept identical
+// to hextech guarantees the TH4 contrast guard passes without re-tuning text legibility per palette.
+const HEXTECH_GROUNDS = {
+  void: '#010a13', 'void-2': '#04121f', panel: '#0a1626', 'panel-2': '#0e1e30', 'panel-3': '#12283f',
+  ink: '#f0e6d2', muted: '#a09b8c', 'muted-2': '#7a8794', danger: '#c8413f',
+} as const;
+
+// Shadow Isles — ghostly emerald energy, spectral green-gold.
+export const hextechShadowIsles: SheetTheme = {
+  colors: {
+    ...HEXTECH_GROUNDS,
+    pink: '#37d9a6', hotpink: '#1fb98a', violet: '#0d5a4e', 'violet-2': '#2a8f6f',
+    teal: '#37d9a6', tealbright: '#5cffcf', gold: '#9fe8b0', good: '#5cffcf',
+    line: 'rgba(55, 217, 166, 0.26)', 'line-strong': 'rgba(55, 217, 166, 0.5)',
+  },
+  fonts: hextechTheme.fonts,
+};
+// Noxus — imperial crimson + ash-steel.
+export const hextechNoxus: SheetTheme = {
+  colors: {
+    ...HEXTECH_GROUNDS,
+    pink: '#e0576a', hotpink: '#c8323f', violet: '#7a1f28', 'violet-2': '#a83a44',
+    teal: '#d98a45', tealbright: '#ffb066', gold: '#d9a441', good: '#0acb8f',
+    line: 'rgba(200, 50, 63, 0.28)', 'line-strong': 'rgba(200, 50, 63, 0.55)',
+  },
+  fonts: hextechTheme.fonts,
+};
+// Freljord — frozen ice-cyan + frost-silver.
+export const hextechFreljord: SheetTheme = {
+  colors: {
+    ...HEXTECH_GROUNDS,
+    pink: '#7fd3ff', hotpink: '#38a9e6', violet: '#1d4e78', 'violet-2': '#3a86c0',
+    teal: '#5ac8e0', tealbright: '#a6ecff', gold: '#cfe6f2', good: '#5cffcf',
+    line: 'rgba(56, 169, 230, 0.28)', 'line-strong': 'rgba(56, 169, 230, 0.55)',
+  },
+  fonts: hextechTheme.fonts,
+};
+
+/** One selectable colour theme: a stable key, a human label, and the SheetTheme it applies. */
+export interface ThemeVariant { key: string; label: string; theme: SheetTheme }
+
+const HEXTECH_VARIANTS: ThemeVariant[] = [
+  { key: 'hextech', label: 'Hextech Gold', theme: hextechTheme },
+  { key: 'shadow-isles', label: 'Shadow Isles', theme: hextechShadowIsles },
+  { key: 'noxus', label: 'Noxus Crimson', theme: hextechNoxus },
+  { key: 'freljord', label: 'Freljord Ice', theme: hextechFreljord },
+];
+const STREAMER_VARIANTS: ThemeVariant[] = [
+  { key: 'pink', label: 'Bubblegum', theme: streamerTheme },
+  { key: 'blue', label: 'Aqua', theme: streamerThemeBlue },
+];
+
+/** The colour themes available for a given skin (Area TH2). Every template gets at least its own theme; the
+ *  default (Hextech) skin offers a 4-palette set, the streamer its pink/blue pair. Unknown skins fall back to
+ *  the Hextech set so a character always has choices. */
+export function themeVariantsFor(skin?: string): ThemeVariant[] {
+  switch (skin) {
+    case 'streamer': return STREAMER_VARIANTS;
+    case 'donata': return [{ key: 'donata', label: 'Mojo Bazaar', theme: donataTheme }];
+    case 'rulebook': return [{ key: 'rangor', label: 'Rulebook', theme: rangorTheme }];
+    default: return HEXTECH_VARIANTS;
+  }
+}
+
+/** Resolve a theme by (skin, key) — the persistence seam for the picker (TH3). Falls back to the skin's first
+ *  variant when the key is missing/unknown, so a bad stored value never breaks the sheet. */
+export function resolveThemeVariant(skin: string | undefined, key: string | undefined): ThemeVariant {
+  const variants = themeVariantsFor(skin);
+  return variants.find((v) => v.key === key) ?? variants[0];
+}
+
 // Map a SheetTheme to the CSS custom properties theme.css consumes. Returns a
 // style object suitable for the `.dnd-sheet` root; an empty/undefined theme yields
 // no overrides (the stylesheet's Lazzuh defaults apply).

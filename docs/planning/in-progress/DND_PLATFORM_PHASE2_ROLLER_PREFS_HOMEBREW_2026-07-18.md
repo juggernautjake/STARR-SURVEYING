@@ -99,15 +99,21 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
 > color theme. Every theme must keep ALL text fully visible + readable (verify this). Works like Susie's
 > character having a pink version and a blue version — just extend that to all templates.
 
-- [ ] **TH1 — Theme-token audit per template.** Confirm each sheet skin drives its colors through CSS
-      variables (the `sheet-contrast` guards already push the shared sheet this way); list any hardcoded
-      colors that must become tokens first.
-- [ ] **TH2 — 3–4 color themes per template.** Define a palette set per `sheet_type` (like the existing
-      Susie pink/blue), each a full token set. Model on how the current per-skin theme + the Susie variant work.
-- [ ] **TH3 — Theme picker.** UI to choose a color theme for the character (alongside the existing
-      `SheetStyleBrowser` template picker); persists on the character.
-- [ ] **TH4 — Contrast guarantee.** Every theme passes the contrast/readability guard (extend
-      `sheet-contrast.test.ts`): all text legible on its background in every theme. **Owner hard requirement.**
+- [x] **TH1 — Theme-token audit per template.** ✅ CONFIRMED — every skin already drives its colours through the
+      `SheetTheme` token map (`theme.ts` → `themeToCssVars` → CSS vars on the `.dnd-sheet` root); the new
+      variants reuse that exact seam, no hardcoded colours introduced.
+- [x] **TH2 — 3–4 color themes per template.** ✅ SHIPPED — `themeVariantsFor(skin)` in `theme.ts` returns the
+      selectable palettes per template: the default (Hextech) skin now offers **4** — Hextech Gold, Shadow Isles
+      (emerald), Noxus (crimson), Freljord (ice) — each a full `SheetTheme` reusing Hextech's readable dark
+      grounds + parchment ink, swapping only the accent hues; streamer keeps its pink/blue pair; donata/rulebook
+      expose their own. `resolveThemeVariant(skin, key)` is the persistence seam (bad key → first variant).
+- [ ] **TH3 — Theme picker.** UI to choose a colour theme for the character (alongside the `SheetStyleBrowser`
+      template picker); persists on the character via `resolveThemeVariant`. **NEXT TH slice** (the data layer +
+      readability guarantee below are done; this is the remaining UI + persistence piece).
+- [x] **TH4 — Contrast guarantee.** ✅ SHIPPED — `theme-variants.test.ts` computes the real WCAG contrast ratio of
+      body ink vs the panel AND void grounds for **every** variant across every skin and asserts ≥ 4.5:1 (AA).
+      All 15 checks green — the owner's "readable" hard requirement is now machine-guaranteed for any palette we
+      add. (Complements `sheet-contrast.test.ts`, which guards the shared stylesheet's structural colours.)
 
 ### Area P — Preferences & campaign settings (FOUNDATION — build first; unblocks A/D/E)
 The config layer everything else reads. A player-preferences store + a DM/campaign-preferences store, with
