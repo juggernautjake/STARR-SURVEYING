@@ -23,6 +23,7 @@ import { findSpecies } from '@/lib/dnd/species/dnd5e-2024';
 import { speciesEffects } from '@/lib/dnd/species/apply';
 import { exhaustionSpeedFactor, exhaustionHpMaxFactor, type Edition } from '@/lib/dnd/mechanics/exhaustion';
 import type { ExhaustionModel } from '@/lib/dnd/preferences';
+import { conditionMechanics5e } from '@/lib/dnd/conditions/dnd5e';
 
 export type SourceKind =
   | 'item' // worn/equipped gear
@@ -115,6 +116,10 @@ export interface LedgerContext {
    *  + vanilla, exhaustion halves/zeroes Speed by tier and halves max HP at tier 4; otherwise it's −5 ft/level
    *  and no HP change. */
   exhaustionModel?: ExhaustionModel;
+  /** When true, active 5e conditions contribute their own roll effects (Poisoned → disadvantage on attacks &
+   *  skill checks, etc.) as ledger sources — so they fold into rolls AND explain themselves (★/explain).
+   *  Gated by the auto-mechanics toggle: OFF (default) is the "vanilla roller" with straight rolls. */
+  foldConditions?: boolean;
 }
 
 const isEquipped = (i: InvItem) => i.equipped === true || i.tags?.includes('equipped') === true;
@@ -236,6 +241,17 @@ export function collectSources(char: Character, ctx: LedgerContext = {}): Ledger
     }
     if (exhEffects.length) {
       base = [...base, { id: 'exhaustion', kind: 'condition', name: `Exhaustion ${exhaustion}`, effects: exhEffects }];
+    }
+  }
+
+  // Active 5e conditions as their own effect sources (opt-in via `foldConditions` = the auto-mechanics toggle).
+  // One source PER condition so `explain('attack_roll')` reads "Poisoned", "Frightened" separately — the player
+  // sees exactly which condition moved the roll. Only for 5e; IG/PF2 carry their own condition penalty models.
+  if (ctx.foldConditions && (ctx.system ?? '').startsWith('dnd5e')) {
+    const active = [...new Set([...(ctx.active ?? []), ...((char.combat?.conditions ?? []) as string[])])];
+    for (const name of active) {
+      const cm = conditionMechanics5e(name);
+      if (cm?.effects.length) base = [...base, { id: `cond-${name}`, kind: 'condition', name, effects: cm.effects }];
     }
   }
 

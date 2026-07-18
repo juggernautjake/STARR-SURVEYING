@@ -549,7 +549,9 @@ export function CharacterProvider({
   //
   // Effects are OVERLAYS: `char` stays the base character forever. Unequipping is just dropping a
   // source and re-deriving, which is why reverting is free and can't corrupt the sheet.
-  const ledger = useMemo(() => buildLedger(char, { system, exhaustionModel }), [char, system, exhaustionModel])
+  // `foldConditions` = the auto-mechanics toggle: ON folds active 5e conditions (Poisoned → disadvantage on
+  // attacks/skills) into the ledger so they reach every roll + explain themselves; OFF is the vanilla roller.
+  const ledger = useMemo(() => buildLedger(char, { system, exhaustionModel, foldConditions: autoMechanics }), [char, system, exhaustionModel, autoMechanics])
 
   // Effective ability scores: base + every active effect. Components read THESE, so a +2 belt
   // moves the score, its modifier, every skill using it, and its carrying capacity at once.

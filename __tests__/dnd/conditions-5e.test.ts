@@ -1,7 +1,10 @@
-// __tests__/dnd/conditions-5e.test.ts — the pure 5e condition mechanics registry (foundation for auto-fold).
-// Data only, not yet wired into buildLedger; this pins the RAW effects + the honest notes.
+// __tests__/dnd/conditions-5e.test.ts — the 5e condition mechanics registry + its ledger fold. Pins the RAW
+// effects, the honest notes, and that active conditions fold into the ledger (rollFlags/explain) when the
+// auto-mechanics toggle opts in via `foldConditions` — off is the "vanilla roller" with straight rolls.
 import { describe, it, expect } from 'vitest';
 import { CONDITION_MECHANICS_5E, conditionMechanics5e, conditionEffects5e } from '@/lib/dnd/conditions/dnd5e';
+import { buildLedger } from '@/lib/dnd/effects/ledger';
+import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 
 describe('5e condition mechanics registry', () => {
   it('models the disadvantage-on-attacks-and-checks conditions as ledger roll effects', () => {
@@ -48,5 +51,26 @@ describe('5e condition mechanics registry', () => {
     expect(conditionMechanics5e('Made-Up Condition')).toBeUndefined();
     expect(conditionEffects5e([])).toEqual([]);
     expect(conditionEffects5e(undefined)).toEqual([]);
+  });
+});
+
+describe('conditions fold into buildLedger when opted in (foldConditions gate)', () => {
+  it('a Poisoned 5e character gets disadvantage on attacks + skills, attributed to "Poisoned"', () => {
+    const c = blankCharacter('C');
+    c.combat = { ...c.combat, conditions: ['Poisoned'] };
+    // OFF (vanilla roller): no condition effect.
+    const off = buildLedger(c, { system: 'dnd5e-2024' });
+    expect(off.rollFlags('attack_roll').disadvantage).toBe(false);
+    // ON (auto-mechanics): folds + explains.
+    const on = buildLedger(c, { system: 'dnd5e-2024', foldConditions: true });
+    expect(on.rollFlags('attack_roll').disadvantage).toBe(true);
+    expect(on.rollFlags('all_skills').disadvantage).toBe(true);
+    expect(on.explain('attack_roll').some((e: { source: string }) => e.source === 'Poisoned')).toBe(true);
+  });
+
+  it('is 5e-scoped: an IG/PF2 system does not fold the 5e registry (they have their own models)', () => {
+    const c = blankCharacter('C');
+    c.combat = { ...c.combat, conditions: ['Poisoned'] };
+    expect(buildLedger(c, { system: 'pathfinder2e', foldConditions: true }).rollFlags('attack_roll').disadvantage).toBe(false);
   });
 });
