@@ -9,6 +9,7 @@ import { glossaryFor, type GlossaryEntry } from './glossary';
 import { FEATS_2024 } from './feats/dnd5e-2024';
 import { igAllFeats } from './systems/intuitive-games/feats';
 import { IG_POWERS, IG_DEFENSIVE_POWERS, IG_CLASS_POWER_EFFECTS } from './systems/intuitive-games/content';
+import { igSpellTiers } from './systems/intuitive-games/spell-tiers';
 import { homebrewGrounding } from './homebrew/projection';
 import { HOMEBREW_SEEDS } from './homebrew/seeds';
 import { IG_CLASS_TAXONOMY } from './systems/intuitive-games/taxonomy';
@@ -80,7 +81,15 @@ function matchPowers(system: string, keywords: string, limit: number): { name: s
   const words = keywords.split(/\s+/).filter(Boolean);
   if (!words.length) return [];
   const corpus = [
-    ...IG_POWERS.map((p) => ({ name: p.name, school: p.category ?? 'Power', effect: p.effect })),
+    ...IG_POWERS.map((p) => {
+      // Append the scraped Advanced/Expert tiers (A19) so "how does <spell> work at expert?" grounds on the
+      // full progression, not just the base Description. A power without captured tiers is unchanged.
+      const tiers = igSpellTiers(p.name);
+      const effect = tiers
+        ? `${p.effect}${tiers.advanced ? ` Advanced: ${tiers.advanced}` : ''}${tiers.expert ? ` Expert: ${tiers.expert}` : ''}`
+        : p.effect;
+      return { name: p.name, school: p.category ?? 'Power', effect };
+    }),
     ...IG_DEFENSIVE_POWERS.map((p) => ({ name: p.name, school: 'Defensive Power', effect: p.effect })),
     // Class powers/specializations (Surge, Challenge, Aspect, Magical Healing, …) — so "how does my Surge
     // work?" grounds on the scraped effect text, not nothing. Name-only class powers never reach here.

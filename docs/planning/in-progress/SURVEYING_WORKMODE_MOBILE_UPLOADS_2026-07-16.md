@@ -300,6 +300,87 @@ is a pure, tested function; the runtime is pure I/O around them.)*
 
 ---
 
+## Area D — Work Mode field toolset (owner directive 2026-07-18)
+
+> Owner, verbatim intent: switch between jobs in Work Mode; a well-formatted **job info header** (property
+> address, property id, customer phone numbers, …) at the top; below it a row of tool buttons — **camera,
+> job files, job instructions, mileage tracker, compass, calculator, ask AI**, plus anything already built
+> in the hub. Straightforward, job-focused, just the tools to get all kinds of surveying jobs done.
+> **Camera** → a screen offering: plain photo/video for the job · a **receipt** photo · a **document for AI**
+> to analyze · (other surveying applications). Captured media → the job file; **receipts also → the financial
+> page**; every image carries **metadata** (time, location, job info, capturing device, who was on the job,
+> and if possible who recorded it). A receipt is **auto-analyzed** and its data saved to financials; a
+> document is analyzed/saved by AI. See **all** the job's screenshots/pdfs/research files. A **job
+> instructions** page the RPLS/manager writes, able to **hyperlink files/documents/images**. A **mileage
+> tracker** (start/end miles + the vehicle used; save/add/delete reusable vehicles; → financials). A
+> **compass** reading azimuth + bearing, flawless + easy to read. A **calculator** — the best-formatted one
+> for surveying: bearings↔azimuths, angle add/subtract, right/complementary angle, trig (law of sines/cosines,
+> Pythagorean), and normal arithmetic; intuitive. An **AI assistant** you can type to OR talk to (voice both ways).
+
+**Consolidation rule (owner):** do NOT build redundancies — combine new ideas into the existing systems and
+refine. Substantial infrastructure already exists to build ON: bearing↔azimuth + DMS
+(`lib/calculators/bearing-azimuth/convert.ts`), scientific trig (`lib/calculators/math.ts`), full calculator
+models (`lib/calculators/models/*`), mileage + vehicles APIs (`app/api/admin/mileage`, `app/api/admin/vehicles`),
+compass (`lib/cad/integrations/compass.ts`), the arithmetic field calc (`lib/jobs/calc.ts`, Area B3), the
+`field_media`/`job_files`/`receipts` upload model, and the mobile upload decision layer (Area C). Each slice
+below states what it reuses.
+
+**Gaps:**
+
+- [x] **D1 — Surveying calculator math (triangle + angle solving). ✅ SHIPPED.** The one genuine gap in the
+      calculator's math (conversion + scientific trig already existed): `lib/surveying/triangle.ts` — angle
+      add/subtract (decimal + DMS, wrapping 360), complement/supplement (validity-guarded), Pythagorean
+      hypotenuse/leg, and law of sines/cosines (side + angle, with the SSA-impossible and triangle-inequality
+      cases returning `null`, never NaN). Reuses the existing `Dms` type + `dmsToDecimal`/`decimalToDms` rather
+      than re-deriving them. Pure + framework-free; `__tests__/surveying/triangle.test.ts` (15 — 3-4-5, 30-60-90,
+      equilateral, and every impossible-input path). *Next: the Work Mode calculator UI wires these + the
+      existing convert/math modules into one surveying-focused keypad.*
+- [ ] **D2 — Work Mode job switcher + job-info header.** A job `<select>` to switch the active job in Work
+      Mode (extends B1's picker) + a formatted header (address via `lib/jobs/location`, property id, tap-to-call
+      numbers via `telHref` for the client + every `job_contacts` phone). Reuse the A1/A2/B2 helpers.
+- [ ] **D3 — Tool launcher row.** The camera / files / instructions / mileage / compass / calculator / ask-AI
+      buttons on the hub, each opening its surface. Consolidate with the existing FieldCrewWorkspace tabs
+      (Photo/Files/Mileage/…) rather than adding a parallel nav.
+- [~] **D4 — Camera capture modes + metadata. ✅ Pure decision layer shipped.** `mobile/lib/captureIntent.ts` —
+      `captureDestination(intent)` routes each camera option to its store + post-processing without a parallel
+      pipeline: job photo/video → `field_media` (the existing GPS/compass/time-stamping capture path), receipt →
+      `receipts` (AI auto-analyze + financials), document → `job_files` (AI analyze). `CAPTURE_INTENTS` drives
+      the option list; unknown intents fall back to a job photo (never routes to nowhere). `shouldAnalyze` gates
+      the AI hand-off. `assembleCaptureMetadata(input)` is the owner's "every image gets time/location/job/
+      device/crew/recorder" stamp in one place — always carries capturedAt + jobId, drops absent fields (a
+      NaN/partial GPS fix, empty crew ids) so a partial capture yields a clean object, and never reads the clock
+      (caller supplies the timestamp → testable). `__tests__/mobile/capture-intent.test.ts` (9). **Remaining
+      (mobile-runtime):** the camera option screen UI, launching the camera per intent, the receipt auto-extract
+      + document AI calls, and writing the row with this metadata — device-tested.
+- [~] **D5 — Job instructions page (with file/image hyperlinks). ✅ Pure parser shipped.** `lib/jobs/instructions.ts`
+      — instructions are text with markdown-flavoured file embeds `[label](job-file:<id>)` (and inline images
+      `![alt](job-file:<id>)`, reusing existing `job_files`/`field_media` ids, no new store). `parseInstructions`
+      tokenizes into text/link/image segments (malformed link-like text stays literal, never throws);
+      `resolveInstructions` attaches each file's name+url or marks it broken (`file: null`) so a removed file
+      renders a "missing" chip not a dead link; `extractFileRefs`/`brokenInstructionRefs` warn the RPLS before
+      saving that a linked file is gone. Web + mobile render from the same parse. `__tests__/jobs/instructions.test.ts`
+      (8). **Remaining:** the `jobs.instructions` text column (idempotent ALTER) + the RPLS editor UI + the
+      viewer that renders resolved segments — UI/schema wiring.
+- [~] **D6 — Mileage tracker + reusable vehicles. ✅ Pure math shipped.** `lib/mileage/odometer.ts` — the
+      MANUAL odometer entry the owner described (start/end reading + vehicle), distinct from the existing
+      GPS-ping mileage but reusing the SAME `IRS_BUSINESS_RATE_2025` (no second rate to drift):
+      `odometerMiles`/`validateOdometerEntry` (reversed/negative/absurd-day guards), `mileageReimbursement`,
+      and `resolveOdometerEntry` → `{ miles, reimbursement, rate }` | `{ error }` (one call so the form preview
+      and the saved financial line agree). `__tests__/mileage/odometer.test.ts` (8). **Remaining:** the Work
+      Mode odometer form + vehicle picker (save/add/delete reuse `app/api/admin/vehicles`) + persisting the
+      entry to financials via a route — UI + API wiring.
+- [~] **D7 — Compass (azimuth + bearing). ✅ Pure formatter shipped.** `lib/surveying/compass.ts` —
+      `compassReading(headingDeg)` → `{ azimuth, azimuthText, bearingText, cardinal }`, reusing
+      `lib/cad/geometry/bearing.ts`'s `formatAzimuth`/`formatBearing` (single source of truth) and adding the
+      only missing display piece: 16-point cardinal naming (`cardinalPoint`). Normalizes any heading to [0,360),
+      returns null for a non-finite heading (UI shows "—"). `__tests__/surveying/compass.test.ts` (8).
+      **Remaining (mobile-runtime):** the device magnetometer heading source (`expo-sensors`/`Magnetometer`) +
+      the compass dial UI — feed the live heading into this pure formatter; device-tested.
+- [ ] **D8 — In-Work-Mode AI assistant (text + voice).** Type-or-talk assistant; reuse the existing DnD/library
+      chat + TTS/STT plumbing where possible. Voice I/O is device/runtime-gated (note honestly per slice).
+
+---
+
 ### Sequencing & scope honesty
 A (job tap-to-act — small, high daily value) first; then B (Work Mode hub — the streamlined field
 surface); then C (upload queue refinements on the existing mobile foundation). Area C's background-execution

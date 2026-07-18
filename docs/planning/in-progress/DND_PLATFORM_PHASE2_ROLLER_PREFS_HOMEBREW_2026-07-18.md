@@ -593,6 +593,45 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       exactly its one active sheet — flagged active, `active:`-slot-marked, correctly auto-named — so the
       switcher shows one real chip, never a phantom/broken slot. **Area MV tests complete.**
 
+### Area LU — AI/custom level-up for existing characters (owner 2026-07-18)
+
+> Owner, verbatim intent: when a custom character (custom or highly-modified class) levels up, they can either
+> **choose from the standard available features** that make sense for the class/race/subclass, OR **custom-build
+> the next level** — building the new feats/buffs manually, or **having AI do it**. AI must be able to level up
+> characters and keep building them with **either custom or vanilla** content. "Totally fleshed out."
+
+**Reuses (no redundancy):** `planLevelUp`/`nextChoice`/`validateChoice` (the vanilla ladder engine, with its
+custom escape hatch) and `custom-ai.ts` (`parseCustomClassDraft` — the AI-builds-a-whole-class path). The gap
+was AI leveling an EXISTING character by one increment.
+
+- [~] **LU1 — Level-up increment engine (vanilla + custom). ✅ Pure core shipped.** `lib/dnd/classes/level-up-draft.ts`
+      — two paths in one module: `standardLevelUpOptions(def, {from,to,…})` reuses `planLevelUp` to list the
+      class/subclass features GAINED at the new level + the choices it OWES (and synthesizes the ASI from
+      `def.asiLevels`, which planLevelUp doesn't surface) — "the standard available features that make sense",
+      for an official OR homebrew `ClassDefinition`; `parseLevelUpDraft(raw,{currentLevel})` is the defensive
+      normalizer for an AI-proposed (or hand-entered) single level — new features/feats/buffs, HP, ability
+      increases, optional subclass, `mode: 'vanilla'|'custom'` — pinning the target to currentLevel+1, clamping
+      HP + ability increases, dropping nameless features, never throwing. `isLegalAsi`/`abilityIncreaseTotal`
+      flag an over-spend for the DM. `__tests__/dnd/level-up-draft.test.ts` (8).
+- [~] **LU2 — AI level-up tool + apply. ✅ Tool schema + pure apply shipped.** `lib/dnd/classes/level-up-ai.ts`
+      — `LEVEL_UP_TOOL` (the structured-output tool the model fills: mode vanilla|custom, hpGained,
+      abilityIncreases, subclass, features[]) + `parseLevelUpToolCall` (→ `parseLevelUpDraft`) + the PURE
+      `applyLevelUpDraft(char, draft)` that turns a validated draft into a NEW Character: bumps the level,
+      appends the features (sourced to the level, flagged `customized` when invented so they hit the DM's
+      review), applies the ASI (capped at 30 for Epic-Boon headroom), adds the HP, and records a chosen
+      subclass. Deterministic feature ids (`lvl-{N}-{slug}`) → idempotent + testable, input untouched.
+      `__tests__/dnd/level-up-ai.test.ts` (7).
+- [~] **LU3 — AI level-up route. ✅ SHIPPED.** `app/api/dnd/characters/[id]/level-up/route.ts` — the write-
+      chokepoint POST (auth + `dndAiConfigured` + `requireCharacterWrite`) that grounds the model with the
+      character digest + `standardLevelUpOptions` (or, for a custom/highly-modified character whose class has no
+      `ClassDefinition`, tells it to invent balanced custom content), offers ONLY `level_up_character` (forced
+      tool choice), then `parseLevelUpToolCall` → `applyLevelUpDraft` → persists to `dnd_characters.data`.
+      Refuses past level 20; body accepts optional `instruction` guidance + `mode:'custom'`. So "AI can handle
+      leveling up characters with either custom or vanilla stuff" is now real end-to-end (logic + route).
+      `__tests__/dnd/level-up-route.test.ts` (5). **Remaining:** the sheet's level-up wizard button that offers
+      "standard picks / custom-build / ✨ AI" and calls this route (or the manual paths) — a UI slice; and
+      auditing level-ups to `dnd_sheet_edits` for the undo timeline (optional, mirrors ai-edit).
+
 ### Area T — IG class taxonomy (bounded data restructure)
 - [x] **T1 — Restructure to the site's real taxonomy.** ✅ CANONICAL TAXONOMY SHIPPED — `lib/dnd/systems/
       intuitive-games/taxonomy.ts`: `IG_CLASS_TAXONOMY` = the 4 parents × subclasses VERBATIM from the site

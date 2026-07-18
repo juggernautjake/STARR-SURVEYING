@@ -275,7 +275,15 @@ term fully defined. One slice per site section; each fetches the page, transcrib
 - [x] **A18 — Redistribution** (`/redistribution`) — ✅ SHIPPED (`content.ts` `IG_REDISTRIBUTION_RULES`): the
       Conduit's signature ability (2-action material reshaping; know materials = WIS mod; affect level in lbs;
       7 material categories; Manufacture Object + Launch Material 1d4/+1d4 per 2 levels) as a library section.
-- [~] **A19 — Spell List roster reconcile** (`/spell-list`) — ✅ *Roster + recognition shipped* (`content.ts`
+- [x] **A19 — Spell List roster reconcile + TIER TEXT** (`/spell-list`) — ✅ RESOLVED (2026-07-18). The
+      Description text landed earlier (`igSpellsMissingEffects()` === 0); the last gap — the **Advanced/Expert
+      tier progression** — is now scraped verbatim (Playwright, `ig-spells-scraped.json`) and shipped as
+      `lib/dnd/systems/intuitive-games/spell-tiers.ts` (`IG_SPELL_TIERS`, 54 spells × {advanced, expert} +
+      `igSpellTiers()`; the one duplicate site name "Adaptation" deduped first-seen). The AI grounding's
+      `matchPowers` now appends a spell's tiers to its effect, so "how does Burst work at expert?" grounds on
+      the real tier text. `__tests__/dnd/ig-spell-tiers.test.ts` (3). *(Superseded the "needs Brendan/site text"
+      note below — the site publishes the tiers; they're captured.)*
+- [~] **A19 (superseded) — Spell List roster reconcile** (`/spell-list`) — ✅ *Roster + recognition shipped* (`content.ts`
       `IG_SPELL_ROSTER` + `igSpellsMissingEffects`): the complete site spell roster (all ~52 names across 8
       schools) is now data; the power/spell **provenance classifier recognizes every real spell** (so
       "Named Bullet"/"Wave Crash" flag vanilla, not custom); the library Powers section lists the **full
