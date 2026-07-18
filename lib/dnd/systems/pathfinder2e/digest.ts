@@ -55,7 +55,16 @@ export function pf2CharacterDigest(pf2: PF2Character): string {
   );
 
   if (pf2.attacks?.length) {
-    lines.push(`STRIKES: ${pf2.attacks.map((a) => `${a.name} ${sign(pf2AttackBonus(a, level, pf2.attributes))}`).join(' · ')}`);
+    // Name + to-hit AND damage (a ruling needs "how much?", not just "does it hit?"), plus traits — agile
+    // decides which Multiple Attack Penalty column applies, so the AI must see it on the strike itself.
+    lines.push(
+      `STRIKES: ${pf2.attacks
+        .map((a) => {
+          const traits = (a.traits ?? []).length ? ` [${a.traits.join(', ')}]` : '';
+          return `${a.name} ${sign(pf2AttackBonus(a, level, pf2.attributes))}${a.damage ? `, ${a.damage}` : ''}${traits}`;
+        })
+        .join(' · ')}`,
+    );
   }
 
   // Trained-or-better skills with their totals — the numbers behind a skill ruling ("Athletics to Grapple").

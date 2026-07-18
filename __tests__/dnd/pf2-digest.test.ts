@@ -78,9 +78,15 @@ describe('pf2CharacterDigest', () => {
     expect(d).not.toMatch(/Spell DC/); // kind 'none'
   });
 
-  it('lists Strikes with their to-hit and trained-or-better skills with totals', () => {
-    expect(d).toMatch(/STRIKES: Longsword \+13/); // STR 4 + expert(4+5)
+  it('lists Strikes with to-hit AND damage, and trained-or-better skills with totals', () => {
+    expect(d).toMatch(/STRIKES: Longsword \+13, 1d8\+4 slashing/); // to-hit STR 4 + expert(4+5), plus damage
     expect(d).toMatch(/SKILLS: Athletics \+11 \(trained\)/); // STR 4 + trained(2+5)
+  });
+
+  it('shows a strike\'s traits so the AI knows which MAP column applies (agile)', () => {
+    const c = fighter5();
+    c.attacks = [{ id: 'd', name: 'Dagger', attribute: 'STR', rank: 'expert', weaponBonus: 0, damage: '1d4+4 piercing', traits: ['agile', 'finesse'] }];
+    expect(pf2CharacterDigest(c)).toMatch(/Dagger \+13, 1d4\+4 piercing \[agile, finesse\]/);
   });
 
   it('a caster variant DOES carry the Spell DC + attack', () => {

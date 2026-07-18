@@ -698,6 +698,10 @@ now audited and guarded:
       AI editing a PF2 character was blind to its state while the IG edit AI wasn't. Wired the PF2 digest into
       the ai-edit route's context (PF2 has no incremental pf2-edit tool, but the read context informs base
       edits + matches the librarian). `pf2-digest.test.ts` +1 (route source-anchor). Full dnd suite green (1891).
+      **⚑ PF2 STRIKES now carry damage + traits (2026-07-18):** the digest's strikes line showed only the
+      to-hit bonus — a ruling on "how much damage?" had nothing, and the AI couldn't tell which strikes are
+      agile (deciding the MAP column). Now shows "Longsword +13, 1d8+4 slashing [agile, finesse]".
+      `pf2-digest.test.ts` +2. Full dnd suite green (1892).
       **Cross-system leak guard added** (`8f34eed9`): `system-conditions-skills-scope.test.ts`
       (8) extends Ground Rule 1 to the condition + skill lists — PF2's Clumsy/Enfeebled/Off-Guard stay out
       of 5e, 5e's Charmed/Restrained out of PF2, IG's Heatstroke + Bluff-not-Deception unique — so a new
