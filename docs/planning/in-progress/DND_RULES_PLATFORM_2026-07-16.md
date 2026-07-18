@@ -707,6 +707,9 @@ now audited and guarded:
       left the AI without the mod. Added an "ABILITIES: STR +N …" line to IG (scores→mods via `igAbilityMod`)
       and "ATTRIBUTES: …" to PF2 (stored as mods already). Now all three digests carry raw abilities.
       `ig-digest.test.ts` +1, `pf2-digest.test.ts` +1. Full dnd suite green (1895).
+      **⚑ PF2 speed added (2026-07-18):** the PF2 digest omitted the character's Speed — positioning-critical
+      in PF2 (Stride/Step/reach/flanking), so a "can you reach them?" ruling had nothing. Added "· Speed N ft"
+      to the DEFENSES line. `pf2-digest.test.ts` (+1 assertion). Full dnd suite green (1895).
       **Cross-system leak guard added** (`8f34eed9`): `system-conditions-skills-scope.test.ts`
       (8) extends Ground Rule 1 to the condition + skill lists — PF2's Clumsy/Enfeebled/Off-Guard stay out
       of 5e, 5e's Charmed/Restrained out of PF2, IG's Heatstroke + Bluff-not-Deception unique — so a new

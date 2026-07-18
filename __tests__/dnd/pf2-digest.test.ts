@@ -56,10 +56,11 @@ describe('pf2CharacterDigest', () => {
     expect(d).toMatch(/ATTRIBUTES: STR \+4, DEX \+1, CON \+3, INT \+0, WIS \+2, CHA \+0/);
   });
 
-  it('carries the derived DEFENSES from the real rules (AC/HP/saves/perception)', () => {
+  it('carries the derived DEFENSES from the real rules (AC/HP/saves/perception/speed)', () => {
     // AC 10 + cappedDex(min(1,0)=0) + trained(2+5=7) + item 6 = 23; HP 10 + (10+3)*5 = 75.
     // currentHp 0 reads as full, so HP shows 75/75 (matching the sheet's `currentHp || maxHp`).
     expect(d).toMatch(/DEFENSES: AC 23 · HP 75\/75/);
+    expect(d).toMatch(/Speed 20 ft/); // positioning-critical in PF2
     expect(d).toMatch(/Fort \+12/);   // CON 3 + expert(4+5)
     expect(d).toMatch(/Ref \+8/);     // DEX 1 + trained(2+5)
     expect(d).toMatch(/Will \+11/);   // WIS 2 + expert(4+5)

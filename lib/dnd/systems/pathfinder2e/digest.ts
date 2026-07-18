@@ -36,7 +36,10 @@ export function pf2CharacterDigest(pf2: PF2Character): string {
   const temp = pf2.combat.tempHp ? ` (+${pf2.combat.tempHp} temp)` : '';
   lines.push(
     `DEFENSES: AC ${d.ac} · HP ${hpCur}/${d.maxHp}${temp} · Fort ${sign(d.saves.Fortitude)} · ` +
-      `Ref ${sign(d.saves.Reflex)} · Will ${sign(d.saves.Will)} · Perception ${sign(d.perception)}.`,
+      `Ref ${sign(d.saves.Reflex)} · Will ${sign(d.saves.Will)} · Perception ${sign(d.perception)} · ` +
+      // Speed is positioning-critical in PF2 (Stride/Step/reach/flanking) — a "can you reach them?" ruling
+      // turns on it, and the digest was silent on it.
+      `Speed ${pf2.combat.speed ?? 25} ft.`,
   );
 
   // Raw attribute modifiers — a bare attribute check (or verifying a derived number) reads from these. PF2
