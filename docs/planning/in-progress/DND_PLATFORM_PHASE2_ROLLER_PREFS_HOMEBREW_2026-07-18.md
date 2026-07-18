@@ -344,6 +344,9 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       DM control but was UNUSED; the DiceTray now reads it to default the entry panel: `manual`/`irl` open it (in
       Fold / Record-IRL mode respectively), `auto` leaves it closed (the app rolls). So a table that rolls
       physical dice gets the right entry surface by default (`dice-tray-ux.test.ts` +1).
+      **Regression guard ✅** — `preferences-consumed.test.ts` now asserts EVERY configurable preference has a
+      behavior-driving consumer (`prefs.<key>.value` read), documenting where each is consumed and failing if a
+      preference ever becomes defined-but-unread again (the exact shape of the recordMode bug).
 - [x] **R6 — Tests:** ✅ SHIPPED — `foldD20` golden-pinned (face+mod, crit/fumble, clamp, sign) in
       `manual-roll.test.ts`; the store's `manualD20`/`recordRoll` + the tray's two-mode entry panel are
       source-anchored there; the R2 auto-toggle gate is anchored in `exhaustion-d20.test.ts`. Full suite green.
