@@ -49,6 +49,22 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
 - [ ] **SQ5 — Per-system verification** — a browser/QA pass per system (the memory-documented Slice-40
       walkthrough): build a character, exercise the sheet + AI edit + read, fix correctness + styling bugs.
 
+### Area TH — Per-template color themes (owner 2026-07-17)
+> Owner, verbatim intent: for EACH current character-sheet template, create multiple (3–4) color themes and
+> tie ALL the colors in that template to the theme's color tokens, so a user picks a template and then picks a
+> color theme. Every theme must keep ALL text fully visible + readable (verify this). Works like Susie's
+> character having a pink version and a blue version — just extend that to all templates.
+
+- [ ] **TH1 — Theme-token audit per template.** Confirm each sheet skin drives its colors through CSS
+      variables (the `sheet-contrast` guards already push the shared sheet this way); list any hardcoded
+      colors that must become tokens first.
+- [ ] **TH2 — 3–4 color themes per template.** Define a palette set per `sheet_type` (like the existing
+      Susie pink/blue), each a full token set. Model on how the current per-skin theme + the Susie variant work.
+- [ ] **TH3 — Theme picker.** UI to choose a color theme for the character (alongside the existing
+      `SheetStyleBrowser` template picker); persists on the character.
+- [ ] **TH4 — Contrast guarantee.** Every theme passes the contrast/readability guard (extend
+      `sheet-contrast.test.ts`): all text legible on its background in every theme. **Owner hard requirement.**
+
 ### Area P — Preferences & campaign settings (FOUNDATION — build first; unblocks A/D/E)
 The config layer everything else reads. A player-preferences store + a DM/campaign-preferences store, with
 **player prefs clamped to the campaign's** (the DM's setting wins where it constrains). Owner emphasis
