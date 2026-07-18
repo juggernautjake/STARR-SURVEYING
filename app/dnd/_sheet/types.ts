@@ -499,9 +499,11 @@ export interface Character {
    *  the focus point (0–100% of the image) centered in the circle; `zoom` (≥1) tightens
    *  the crop. Omitted → sensible default (centered, or top for full-body art). */
   tokenFocus?: { x: number; y: number; zoom: number }
-  /** Chosen visual variant for skins that offer more than one (§6.9, streamer). The
-   *  engine applies the matching color theme + `.variant-<id>` class. */
-  skinVariant?: 'pink' | 'blue'
+  /** Chosen colour theme/variant for skins that offer more than one (§6.9 streamer pink/blue; Area TH the
+   *  Hextech Gold/Shadow-Isles/Noxus/Freljord set). The engine resolves it to a SheetTheme via
+   *  `resolveThemeVariant(skin, key)`; the streamer additionally applies a `.variant-<id>` class + art. Any
+   *  variant key from `themeVariantsFor` is valid; an unknown key safely falls back to the skin's first. */
+  skinVariant?: string
   /** Per-variant art + token URLs, so switching the style swaps the character art
    *  too. Falls back to the DB art_url/token_url (media) when a variant is unset. */
   variantArt?: {

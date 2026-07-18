@@ -5,7 +5,7 @@
 // scrollbars) apply here without leaking onto the rest of the Starr site.
 import { useState } from 'react'
 import './styles/theme.css'
-import { themeToCssVars, streamerThemeBlue, type SheetTheme } from './theme'
+import { themeToCssVars, themeVariantsFor, resolveThemeVariant, type SheetTheme } from './theme'
 import { getSheetConfig, type SheetModuleId } from './registry'
 import { useChar } from './state/store'
 import { SheetConfigProvider } from './state/sheetConfig'
@@ -77,18 +77,23 @@ export default function App({ theme, sheetType, system }: { theme?: SheetTheme; 
     (t) => (!('module' in t) || config.modules.includes(t.module)) && (t.id !== 'spells' || (char.spells?.length ?? 0) > 0),
   )
 
-  // Streamer skin variant (pink | blue) — the player toggles it; it swaps the color
-  // theme, the `.variant-<id>` class, AND the character art/token (§6.9).
-  const supportsVariants = config.skin === 'streamer'
-  const variant = supportsVariants ? char.skinVariant ?? 'pink' : 'pink'
-  // An explicit theme prop wins; otherwise the variant's theme, else the sheet_type's.
-  const effectiveTheme = theme ?? (supportsVariants && variant === 'blue' ? streamerThemeBlue : config.theme)
+  // Colour theme / skin variant (Area TH). A skin can offer several palettes (the default Hextech skin's
+  // Gold/Shadow-Isles/Noxus/Freljord set; the streamer's pink/blue). The chosen key lives on `char.skinVariant`
+  // and resolves to a SheetTheme via `resolveThemeVariant`. An explicit `theme` prop wins; with NO chosen
+  // variant we keep the sheet_type's own theme EXACTLY (so existing sheets are unchanged).
+  const themeVariants = themeVariantsFor(config.skin)
+  const hasThemePicker = themeVariants.length > 1
+  const effectiveTheme = theme ?? (char.skinVariant ? resolveThemeVariant(config.skin, char.skinVariant).theme : config.theme)
 
+  // The streamer additionally swaps the `.variant-<id>` class + per-variant art (§6.9) — a pink/blue-keyed
+  // concern kept narrow here even though the theme key itself is now free-form.
+  const supportsVariants = config.skin === 'streamer'
+  const streamerVariant: 'pink' | 'blue' = char.skinVariant === 'blue' ? 'blue' : 'pink'
   // Per-variant art/token, falling back to the single DB art_url/token_url (media). An identity
   // `image`/`token` EFFECT (Slice 11) overlays the DISPLAYED portrait/token — a pendant that makes you
   // look like Zul — winning over the base here. Deliberately only at this DISPLAY site: the gallery
   // and token framer read base `media`, so they still manage the character's own art, not the costume.
-  const vArt = supportsVariants ? char.variantArt?.[variant] : undefined
+  const vArt = supportsVariants ? char.variantArt?.[streamerVariant] : undefined
   const artUrl = ledger.identity('image')?.value ?? vArt?.art ?? media.artUrl
   const tokenUrl = ledger.identity('token')?.value ?? vArt?.token ?? media.tokenUrl
   // Portrait layout when the character has art: name/info left, full-body art right.
@@ -98,7 +103,7 @@ export default function App({ theme, sheetType, system }: { theme?: SheetTheme; 
   // the scope root; omitted tokens keep the Lazzuh defaults from theme.css (C7). A
   // registered `skin` adds a `skin-<id>` class (+ `variant-<id>` for the streamer)
   // that unlocks its bespoke CSS treatment scoped under `.dnd-sheet.skin-<id>` (C8).
-  const rootClass = `dnd-sheet${config.skin ? ` skin-${config.skin}` : ''}${supportsVariants ? ` variant-${variant}` : ''}`
+  const rootClass = `dnd-sheet${config.skin ? ` skin-${config.skin}` : ''}${supportsVariants ? ` variant-${streamerVariant}` : ''}`
   return (
     <SheetConfigProvider sheetType={sheetType} system={system}>
     {/* data-system makes the character's ruleset visible in the DOM — it decides which glossary
@@ -185,9 +190,9 @@ export default function App({ theme, sheetType, system }: { theme?: SheetTheme; 
       )}
 
       {/* Pink/blue style switch (streamer skin only) — swaps theme, class, and art. */}
-      {supportsVariants && <SkinSwitch />}
+      {hasThemePicker && <SkinSwitch variants={themeVariants} />}
       {/* Owner-DM art/token uploader — per-variant when the skin has variants (D1/D2). */}
-      <SheetArtUploader variant={supportsVariants ? variant : undefined} />
+      <SheetArtUploader variant={supportsVariants ? streamerVariant : undefined} />
       {/* Adjust which part of the (variant-aware) image the round token crops from (D2). */}
       <TokenFramer src={tokenUrl ?? artUrl ?? undefined} />
 

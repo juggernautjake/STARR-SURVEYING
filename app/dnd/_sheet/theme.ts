@@ -309,10 +309,13 @@ const STREAMER_VARIANTS: ThemeVariant[] = [
  *  the Hextech set so a character always has choices. */
 export function themeVariantsFor(skin?: string): ThemeVariant[] {
   switch (skin) {
+    case 'hextech': return HEXTECH_VARIANTS;
     case 'streamer': return STREAMER_VARIANTS;
     case 'donata': return [{ key: 'donata', label: 'Mojo Bazaar', theme: donataTheme }];
     case 'rulebook': return [{ key: 'rangor', label: 'Rulebook', theme: rangorTheme }];
-    default: return HEXTECH_VARIANTS;
+    // The base sheet (skin undefined) keeps its single neon theme — no mismatched picker of another skin's
+    // palettes. Only skins with a real multi-palette set (hextech, streamer) surface a theme picker.
+    default: return [{ key: 'lazzuh', label: 'Neon', theme: lazzuhTheme }];
   }
 }
 

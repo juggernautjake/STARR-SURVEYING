@@ -23,11 +23,14 @@ function contrast(a: string, b: string): number {
 const SKINS = ['hextech', 'streamer', 'donata', 'rulebook', undefined];
 
 describe('theme variants per template (TH2)', () => {
-  it('the default (hextech) skin offers a 3–4 palette set; unknown skins fall back to it', () => {
+  it('the default (hextech) skin offers a 3–4 palette set', () => {
     const def = themeVariantsFor('hextech');
     expect(def.length).toBeGreaterThanOrEqual(3);
     expect(def.map((v) => v.key)).toContain('noxus');
-    expect(themeVariantsFor('totally-unknown').map((v) => v.key)).toEqual(def.map((v) => v.key));
+  });
+  it('the base skin (no/unknown skin) keeps a single theme — no mismatched picker', () => {
+    expect(themeVariantsFor(undefined)).toHaveLength(1);
+    expect(themeVariantsFor('totally-unknown')).toHaveLength(1); // safe single fallback, not another skin's set
   });
   it('streamer keeps its pink/blue pair', () => {
     expect(themeVariantsFor('streamer').map((v) => v.key).sort()).toEqual(['blue', 'pink']);
@@ -35,7 +38,7 @@ describe('theme variants per template (TH2)', () => {
   it('resolveThemeVariant falls back to the first variant on a missing/bad key', () => {
     expect(resolveThemeVariant('hextech', 'nope').key).toBe('hextech');
     expect(resolveThemeVariant('hextech', 'noxus').key).toBe('noxus');
-    expect(resolveThemeVariant(undefined, undefined).key).toBe('hextech');
+    expect(resolveThemeVariant(undefined, undefined).key).toBe('lazzuh'); // base skin → its single theme
   });
 });
 
@@ -51,4 +54,26 @@ describe('every theme variant is readable (TH4 — WCAG AA)', () => {
       expect(contrast(ink!, voidc!)).toBeGreaterThanOrEqual(4.5);
     });
   }
+});
+
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+describe('theme picker wiring (TH3)', () => {
+  const app = readFileSync(join(process.cwd(), 'app/dnd/_sheet/App.tsx'), 'utf8');
+  const picker = readFileSync(join(process.cwd(), 'app/dnd/_sheet/components/SkinSwitch.tsx'), 'utf8');
+
+  it('App resolves the chosen variant to a theme, keeping the sheet_type theme when none is chosen', () => {
+    expect(app).toContain('const themeVariants = themeVariantsFor(config.skin)');
+    expect(app).toContain('const hasThemePicker = themeVariants.length > 1');
+    // no chosen variant → the sheet_type theme EXACTLY (no regression); chosen → resolveThemeVariant
+    expect(app).toContain('char.skinVariant ? resolveThemeVariant(config.skin, char.skinVariant).theme : config.theme');
+    expect(app).toContain('{hasThemePicker && <SkinSwitch variants={themeVariants} />}');
+  });
+
+  it('the picker renders every variant with a swatch and persists the choice to char.skinVariant', () => {
+    expect(picker).toContain('variants }: { variants: ThemeVariant[] }');
+    expect(picker).toContain('skinVariant: v.key');
+    expect(picker).toContain('v.theme.colors'); // builds a colour swatch from the palette
+  });
 });

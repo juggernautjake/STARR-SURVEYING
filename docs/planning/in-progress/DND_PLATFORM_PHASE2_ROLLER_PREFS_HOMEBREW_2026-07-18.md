@@ -107,9 +107,14 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
       (emerald), Noxus (crimson), Freljord (ice) — each a full `SheetTheme` reusing Hextech's readable dark
       grounds + parchment ink, swapping only the accent hues; streamer keeps its pink/blue pair; donata/rulebook
       expose their own. `resolveThemeVariant(skin, key)` is the persistence seam (bad key → first variant).
-- [ ] **TH3 — Theme picker.** UI to choose a colour theme for the character (alongside the `SheetStyleBrowser`
-      template picker); persists on the character via `resolveThemeVariant`. **NEXT TH slice** (the data layer +
-      readability guarantee below are done; this is the remaining UI + persistence piece).
+- [x] **TH3 — Theme picker.** ✅ SHIPPED — generalised the streamer's `SkinSwitch` into a colour-theme picker for
+      ANY multi-palette skin: it renders every `themeVariantsFor(skin)` option as a labelled colour-swatch chip
+      and persists the choice to `char.skinVariant` (widened `'pink'|'blue'` → `string`). App.tsx resolves the
+      active theme via `resolveThemeVariant(config.skin, char.skinVariant)` — **with no chosen variant it keeps
+      the sheet_type's own theme EXACTLY**, so every existing sheet is byte-for-byte unchanged; the base skin
+      returns a single theme (no mismatched picker). The streamer's `.variant-<id>` class + per-variant art stay
+      pink/blue-narrow. Source-anchored (`theme-variants.test.ts` TH3 block); full dnd suite green (2075).
+      **Area TH complete.**
 - [x] **TH4 — Contrast guarantee.** ✅ SHIPPED — `theme-variants.test.ts` computes the real WCAG contrast ratio of
       body ink vs the panel AND void grounds for **every** variant across every skin and asserts ≥ 4.5:1 (AA).
       All 15 checks green — the owner's "readable" hard requirement is now machine-guaranteed for any palette we
