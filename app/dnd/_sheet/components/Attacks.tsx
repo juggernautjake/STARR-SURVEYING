@@ -51,7 +51,7 @@ export default function Attacks() {
 
   return (
     <section id="attacks">
-      <SectionHead num="05" title="Attacks" />
+      <SectionHead num="05" title="Attacks" optionsTip="Whether conditions, stances & exhaustion fold into attack rolls is set by auto-mechanics (and the Dice Tray's vanilla toggle)" />
       <p className="lead">
         Tap <strong>Hit</strong> to roll to-hit, <strong>Dmg</strong> for damage.{' '}
         {hasFormStrike && (

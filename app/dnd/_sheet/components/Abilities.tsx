@@ -9,7 +9,7 @@ export default function Abilities() {
 
   return (
     <section id="abilities">
-      <SectionHead num="02" title="Ability Scores" />
+      <SectionHead num="02" title="Ability Scores" optionsTip="Feat bonuses and shape-shift forms that change ability scores are governed by preferences" />
       <p className="lead">
         Built for a hands-on brawler: Strength carries the punches, Constitution keeps him standing, Dexterity powers his
         Unarmored Defense and laser aim. Tap any score to roll a straight ability check.

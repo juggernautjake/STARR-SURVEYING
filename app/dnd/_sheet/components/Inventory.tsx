@@ -160,7 +160,7 @@ export default function Inventory() {
 
   return (
     <section id="inventory">
-      <SectionHead num="12" title="Inventory & Gear" />
+      <SectionHead num="12" title="Inventory & Gear" optionsTip="Auto-attune and equipment-limit preferences govern when items apply" />
       <p className="lead">A smooth boi’s kit — engineered biology first, salvaged space-tech second. Consumables roll their effect when used.</p>
 
       {(() => {

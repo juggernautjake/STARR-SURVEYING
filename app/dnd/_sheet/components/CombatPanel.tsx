@@ -121,7 +121,7 @@ export default function CombatPanel() {
 
   return (
     <section id="combat">
-      <SectionHead num="04" title="Vitals & Defenses" />
+      <SectionHead num="04" title="Vitals & Defenses" optionsTip="AC counts an attunement item only when it's equipped; auto-attune, exhaustion & long-rest are preferences" />
       <div className="two">
         {/* HP TRACKER */}
         <div className="card hp-card">

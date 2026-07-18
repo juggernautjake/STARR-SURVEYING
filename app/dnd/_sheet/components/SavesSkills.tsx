@@ -76,7 +76,7 @@ export default function SavesSkills() {
 
   return (
     <section id="core">
-      <SectionHead num="03" title="Saves & Skills" />
+      <SectionHead num="03" title="Saves & Skills" optionsTip="Whether conditions, stances & exhaustion fold into these rolls is set by auto-mechanics (and the Dice Tray's vanilla toggle)" />
       <p className="lead">
         Tap any row to roll. Advantage / Disadvantage from the Dice Tray applies; <em className="term">Danger Sense</em>{' '}
         auto-grants advantage on Dexterity saves. Passive Perception{' '}

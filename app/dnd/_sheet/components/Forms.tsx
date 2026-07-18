@@ -23,7 +23,7 @@ export default function Forms() {
 
   return (
     <section id="forms">
-      <SectionHead num="07" title="The Form Ladder — Rampager" />
+      <SectionHead num="07" title="The Form Ladder — Rampager" optionsTip="How a form changes your ability scores is set by the shape-shift preference (full / partial / none)" />
       <p className="lead">
         Your <strong>newest</strong> form is Rage-gated (<span className="badge timed">Surged</span>); every{' '}
         <strong>older</strong> form is at-will (<span className="badge at-will">Held</span>).
