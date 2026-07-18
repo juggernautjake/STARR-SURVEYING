@@ -6,6 +6,7 @@
 // explicitly, and (c) never contain anything the sheet doesn't say.
 import { describe, it, expect } from 'vitest';
 import { characterDigest, adjudicationInstruction } from '@/lib/dnd/character-digest';
+import { SYSTEM_AMBIGUOUS } from '@/lib/dnd/systems';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
 
@@ -47,6 +48,22 @@ describe('characterDigest carries the sheet, not a generic character', () => {
   it('carries ability scores WITH their modifiers (the numbers rulings turn on)', () => {
     expect(d).toMatch(/STR 18 \(\+4\)/);
     expect(d).toMatch(/INT 8 \(-1\)/);
+  });
+
+  // Slice 21: the digest names the RULEBOOK, so the librarian grounds its answer in the right system —
+  // and it stays reported even on a heavily-customized sheet (system ≠ "systemless"; DND_RULES 2048).
+  it('reports the SYSTEM the character is built for (the label of the real key, not hardcoded to 5e)', () => {
+    expect(characterDigest(fixture(), 'dnd5e-2024')).toContain('SYSTEM: D&D 5e (2024)');
+    expect(characterDigest(fixture(), 'pathfinder2e')).toContain('SYSTEM: Pathfinder 2e');
+    expect(characterDigest(fixture(), SYSTEM_AMBIGUOUS)).toContain('SYSTEM: System-ambiguous');
+  });
+
+  it('a CUSTOMIZED sheet still reports its system — homebrew never collapses it to systemless', () => {
+    const c = fixture();
+    c.attacks = [{ ...c.attacks[0], customized: true }] as Character['attacks']; // a hand-tuned attack (✎)
+    const out = characterDigest(c, 'dnd5e-2024');
+    expect(out).toContain('SYSTEM: D&D 5e (2024)'); // the rulebook is still named
+    expect(out).toContain('PROVENANCE'); // …alongside the house-ruled facts — the two are orthogonal (Slice 22)
   });
 
   it('carries current state, not just maximums — an in-play ruling needs what is true now', () => {

@@ -54,6 +54,15 @@ describe('the sheet SHOWS its system', () => {
     expect(block).toMatch(/rgba\(var\(--tealbright-rgb\)/);
     expect(block).not.toMatch(/#[0-9a-f]{3,6}/i);
   });
+
+  // "the badge renders on EVERY template" (DND_RULES 2048): the 5e Hero above covers the default sheet;
+  // the two BESPOKE sheets carry their own designation in their headers, so no template is systemless.
+  it('the bespoke IG sheet names its system in the header', () => {
+    expect(read('app/dnd/_ui/IGSheet.tsx')).toContain('Intuitive Games · Level');
+  });
+  it('the bespoke PF2 sheet shows a PATHFINDER 2e badge', () => {
+    expect(read('app/dnd/_ui/PF2Sheet.tsx')).toContain('PATHFINDER 2e');
+  });
 });
 
 describe('a system designation and homebrew are orthogonal', () => {

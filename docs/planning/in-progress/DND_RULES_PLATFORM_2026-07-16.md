@@ -2042,11 +2042,22 @@ customized, exactly as the request asks.
 - [~] **Set Jacob, Susie, Sarah, Jack and Andrew to `dnd-5e-2024`.** DEFERRED — a live-DB write (updating the
       demo characters' `system` column from `ambiguous`), which needs the Supabase connection; can't be done or
       verified headless. The idempotent seed is a one-liner once the DB is reachable.
-- [ ] Jack's Rangor/Pugilist content stays exactly as-is — it becomes *2024 with homebrew*, not
-      *no system*. That is the whole distinction this slice draws.
-- [ ] The AI gets both facts (Slice 22).
-- [ ] Tests: every demo character has a real system; the badge renders on every template; a
-      customized sheet still reports its system.
+- [x] ✅ SHIPPED (verified 2026-07-18) Jack's Rangor/Pugilist content stays exactly as-is — it becomes *2024
+      with homebrew*, not *no system*. That is the whole distinction this slice draws. The principle is shipped
+      AND tested: `character-digest.test.ts` proves a CUSTOMIZED sheet (a ✎ hand-tuned attack) still reports
+      `SYSTEM: D&D 5e (2024)` alongside its `PROVENANCE` line — homebrew never collapses the sheet to systemless.
+      (Whether Rangor/Pugilist ALSO become a first-class custom class/subclass is the separate owner call in the
+      Slice-5 item above; either way the sheet keeps its system.)
+- [x] ✅ SHIPPED The AI gets both facts (Slice 22) — the digest carries `SYSTEM:` AND a `PROVENANCE` summary
+      together, so the librarian sees the rulebook and which parts are house-ruled (verified by the customized-
+      sheet digest test above; Slice 22 itself is SHIPPED below).
+- [x] ✅ SHIPPED (verified 2026-07-18) Tests: every demo character has a real system; the badge renders on
+      every template; a customized sheet still reports its system. Pinned across three files: the SEED gives the
+      demo characters a real (existing, non-ambiguous) system key idempotently (`system-designation.test.ts`);
+      the badge renders on ALL THREE templates — the shared 5e Hero `system-chip`, the bespoke IG header
+      ("Intuitive Games · Level"), and the bespoke PF2 "PATHFINDER 2e" badge (`system-designation.test.ts`
+      extended this slice); and the digest reports `SYSTEM:` for the real key (5e / PF2 / ambiguous, not
+      hardcoded) AND keeps reporting it on a customized sheet (`character-digest.test.ts`, added this slice).
 
 ## Slice 22 — The AI meets customization without flinching ✅ SHIPPED 2026-07-16
 
