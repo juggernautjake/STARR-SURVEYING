@@ -61,6 +61,37 @@ describe('weapons: proficiency + versatile + bonuses', () => {
   });
 });
 
+describe('weapons: the derived attack follows the AUTHORED weapon (2024 mastery, range bands, by-name prof)', () => {
+  // DND_RULES 1661: a weapon's authored mechanics must flow to its derived attack row. The mastery + range
+  // fields are pass-through, so a builder/AI-authored weapon carries them onto the attack rather than losing
+  // them — previously unguarded (analogous to the armour dex-cap gap that hid an authored value).
+  it('carries the 2024 weapon mastery through to the attack', () => {
+    const a = buildAttack(weapon('s', 'Scimitar', { category: 'martial', damage: '1d6', damageType: 'slashing', properties: ['finesse', 'light'], mastery: 'Nick' }), ctx);
+    expect(a.mastery).toBe('Nick');
+  });
+  it('carries the authored range bands through to the attack (thrown / ranged)', () => {
+    const a = buildAttack(weapon('h', 'Handaxe', { category: 'simple', damage: '1d6', damageType: 'slashing', properties: ['thrown', 'light'], range: { normal: 20, long: 60 } }), ctx);
+    expect(a.range).toEqual({ normal: 20, long: 60 });
+  });
+  it('a weapon with no mastery / no range leaves those fields undefined (not fabricated)', () => {
+    const a = buildAttack(weapon('c', 'Club', { category: 'simple', damage: '1d4', damageType: 'bludgeoning' }), ctx);
+    expect(a.mastery).toBeUndefined();
+    expect(a.range).toBeUndefined();
+  });
+  it('proficiency granted BY WEAPON NAME (not category) still adds PB', () => {
+    // A character not proficient with the martial category, but trained in this specific weapon by name.
+    // (A plain STR martial weapon — no finesse — so the only variable between the two builds is the PB.)
+    const spec: WeaponSpec = { category: 'martial', damage: '1d8', damageType: 'slashing', properties: ['reach'] };
+    const trained = buildAttack(weapon('w', 'War Pick', spec), { ...ctx, proficientCategories: ['simple'], proficientWeapons: ['War Pick'] });
+    expect(trained.proficient).toBe(true);
+    expect(trained.toHit).toBe(6); // +4 STR + 2 PB
+    // …and without the by-name grant, the same weapon is non-proficient (no PB).
+    const untrained = buildAttack(weapon('w', 'War Pick', spec), { ...ctx, proficientCategories: ['simple'], proficientWeapons: [] });
+    expect(untrained.proficient).toBe(false);
+    expect(untrained.toHit).toBe(4); // +4 STR, no PB
+  });
+});
+
 describe('weapons: attacksFromInventory', () => {
   it('generates one attack per EQUIPPED weapon only', () => {
     const items: EquipItem[] = [

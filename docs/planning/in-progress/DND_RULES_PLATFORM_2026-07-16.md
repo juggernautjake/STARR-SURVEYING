@@ -1658,11 +1658,17 @@ re-derivable). So triggers are a **separate concept** that lives beside effects,
       attacks; "＋ Add attack" creates one, "Edit attack" edits, "Duplicate"/"Delete" round it out. (Crit
       range/dice is intentionally NOT a per-attack field — it's the effect-derived `crit_range` target, so
       an item/feature grants it and the store derives the widest range, cf. `crit-range.test.ts`.)
-- [ ] **Weapon builder**: author a weapon's mechanics (damage dice/type, properties, 2024 mastery, range
-      bands, on-hit riders) so its derived attack row follows the weapon. **Mechanic present, builder UI
-      not:** `attacksFromInventory` (`engine/weapons.ts`) already derives an attack from a weapon item, but
-      the live sheet renders stored/`grantsAttack` attacks — wiring a weapon→attack authoring surface into
-      `ItemBuilder` (+ live derivation) is browser-verified feature work for the build/QA phase.
+- [~] **Weapon builder**: author a weapon's mechanics (damage dice/type, properties, 2024 mastery, range
+      bands, on-hit riders) so its derived attack row follows the weapon. **Mechanic ✅ shipped + now
+      hardened (2026-07-18), builder UI browser-gated** (same disposition as the Armor builder below).
+      `buildAttack` (`engine/weapons.ts`) already derives the attack from an authored weapon — ability
+      (finesse = best of STR/DEX), category/by-name proficiency, `attackBonus`/`damageBonus` + effect bonuses,
+      versatile two-handed switch, damage type, RANGE bands, and 2024 MASTERY. This slice closed the mechanic's
+      coverage gaps (analogous to the armour dex-cap pin): `weapons.test.ts` +4 now proves mastery and range
+      bands pass THROUGH to the derived attack (and are left undefined, not fabricated, when unset), and that
+      by-NAME weapon proficiency adds PB where the category alone wouldn't. Only the authoring UI in
+      `ItemBuilder` (+ wiring the live derivation into the rendered Attacks table) remains — browser-verified
+      build/QA work; today a weapon item can already be a rollable attack via Slice-11 `grantsAttack`.
 - [~] **Armor / clothing builder**: base AC, category, DEX cap, STR requirement, stealth disadvantage,
       resistances, arbitrary `effects`. **Mechanic ✅ shipped + tested, builder UI not.** The live AC path
       (`deriveAc`, used by CombatPanel) already honors category (light = base + DEX, medium = base +
