@@ -24,8 +24,10 @@ export interface SystemHint {
   reason: 'named' | 'mechanic';
 }
 
-/** Explicit names/aliases for each system. Matched case-insensitively on word boundaries. */
-const ALIASES: Record<string, string[]> = {
+/** Explicit names/aliases for each system. Matched case-insensitively on word boundaries. Exported so a
+ *  completeness guard can assert EVERY catalog system has aliases — a system added to GAME_SYSTEMS without an
+ *  entry here would be silently undetectable ("you asked about <that system>?" never fires for it). */
+export const ALIASES: Record<string, string[]> = {
   'dnd5e-2014': ['5e 2014', '2014 phb', "2014 player's handbook", 'fifth edition 2014'],
   'dnd5e-2024': ['5e 2024', '2024 phb', '2024 player’s handbook', 'one dnd', 'one d&d'],
   pathfinder2e: ['pathfinder 2e', 'pathfinder second edition', 'pf2e', 'pf2', 'remaster'],

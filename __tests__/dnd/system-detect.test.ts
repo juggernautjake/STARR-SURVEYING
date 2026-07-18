@@ -3,8 +3,23 @@
 // focused system answers itself (false positives would nag on every message), and (c) never
 // suggest the system you're already focused on.
 import { describe, it, expect } from 'vitest';
-import { detectOtherSystem, crossSystemInstruction } from '@/lib/dnd/system-detect';
-import { SYSTEM_AMBIGUOUS } from '@/lib/dnd/systems';
+import { detectOtherSystem, crossSystemInstruction, ALIASES } from '@/lib/dnd/system-detect';
+import { SYSTEM_AMBIGUOUS, GAME_SYSTEMS } from '@/lib/dnd/systems';
+
+describe('ALIASES completeness — every catalog system is detectable by name', () => {
+  it('has a non-empty alias list for EVERY GAME_SYSTEMS key (a new system can’t ship undetectable)', () => {
+    for (const s of GAME_SYSTEMS) {
+      expect(ALIASES[s.key], `no cross-system aliases for "${s.key}" — detectOtherSystem can never name it`).toBeDefined();
+      expect(ALIASES[s.key].length, `empty alias list for "${s.key}"`).toBeGreaterThan(0);
+    }
+  });
+  it('lists no aliases for a system that isn’t in the catalog (no stale/phantom keys)', () => {
+    const keys = new Set(GAME_SYSTEMS.map((s) => s.key));
+    for (const k of Object.keys(ALIASES)) {
+      expect(keys.has(k), `ALIASES has "${k}" which is not a GAME_SYSTEMS key`).toBe(true);
+    }
+  });
+});
 
 describe('detectOtherSystem — explicit names', () => {
   it('catches a system named outright while focused elsewhere', () => {

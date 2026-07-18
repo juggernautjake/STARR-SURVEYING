@@ -2052,6 +2052,13 @@ customized, exactly as the request asks.
       hallucination this whole system exists to prevent). Now it `normalizeSystem`s once and every scoped lookup
       uses the normalized `sys`, so a bad value takes the AMBIGUOUS "assume no ruleset" path; a real system is
       unchanged. `grounding.test.ts` pins it (a typo/legacy/foreign string → ambiguous, never a raw rulebook name).
+      **Whole system-value bug class then swept + closed (2026-07-18):** verified every AI-facing consumer of a
+      DB `system` value is safe — `characterDigest` + `systemGroundingBlock` now normalize (fixed above);
+      `ai-edit`'s `isIG` routing, the transpose `target`, and `validateCharacterForSystem`'s callers all
+      `normalizeSystem`; `validateCharacterForSystem` itself skips gracefully on a non-canonical key (tested,
+      `'nonsense' → []`); and `detectOtherSystem` receives the normalized `focus`. Added a completeness guard
+      (`system-detect.test.ts`) that every `GAME_SYSTEMS` key has cross-system aliases (and no phantom keys), so
+      a system added to the catalog can't ship silently undetectable.
 - [~] **Set Jacob, Susie, Sarah, Jack and Andrew to `dnd-5e-2024`.** DEFERRED — a live-DB write (updating the
       demo characters' `system` column from `ambiguous`), which needs the Supabase connection; can't be done or
       verified headless. The idempotent seed is a one-liner once the DB is reachable.
