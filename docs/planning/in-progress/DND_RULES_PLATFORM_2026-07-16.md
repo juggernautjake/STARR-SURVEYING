@@ -2128,29 +2128,23 @@ elements differ.) The **Approve-to-clear-✎** action is shipped as a whole-shee
 granularity a review pass actually wants). Tests: `edit-review.test.ts` (6) + the `revertSheetEdit`/
 `editOldValue` suites.
 
-- [ ] **The DM can edit anything, anywhere, on any sheet in their campaign** — every number, die,
-      name, and word. No field is read-only to the DM. `getCharacterAccess` already grants DM write;
-      what's missing is that most fields have no editor at all (Slice 20).
-- [ ] **The player can edit everything on their own character** — hit dice, damage dice, stat
-      numbers, HP, AC, names, wording, titles. Not a locked-down sheet with a request form: they
-      just change it. This is the design the request asks for, and it's the right one — a table
-      where the DM must type every player's changes is a table that stops using the tool.
-- [ ] **Every change is visible to the DM, and reversible by them.** This is what makes player
-      autonomy safe:
-      - Each edited element carries ✎ with **what changed, from what, by whom, when** (Slice 20).
-      - A **campaign-level review queue**: every ✎ across every player, newest first, each with
-        **Approve** / **Revert** — the literal "yay or nay". Approving clears the flag (it is now
-        blessed); reverting restores the source value.
-      - `dnd_sheet_edits` already records the audit trail, and `SheetApprovalPanel` already exists
-        for custom content — extend those rather than inventing a parallel mechanism.
-- [ ] **Nothing is silently lost.** A revert restores the prior value into the model; the player
-      sees it reverted and why. A DM edit to a player's sheet is itself marked and attributed, so
-      the player is never gaslit by a number that changed with no explanation.
-- [ ] **The AI obeys the same permissions** — it writes through `getCharacterAccess` like everything
-      else. Its edits are marked ✎ too, so a DM reviewing a sheet sees AI-generated content exactly
-      as clearly as hand-made content (Appendix C).
-- [ ] Tests: a player can edit every field on their own sheet and none on another's; a DM can edit
-      any sheet in their campaign; every edit appears in the review queue with its diff and author;
+- [~] **The DM can edit anything, anywhere, on any sheet in their campaign.** ✅ Permissions + audit + review
+      shipped (`requireCharacterWrite` grants DM write; every edit audits to `dnd_sheet_edits`). REMAINING: most
+      fields still lack an in-place EDITOR (Slice 20 — the per-field ✎ edit UI, browser-deferred).
+- [~] **The player can edit everything on their own character.** Same as above: the write path + audit are
+      shipped; the direct in-place per-field editors (Slice 20 UI) are the remaining browser work.
+- [x] ✅ SHIPPED (verified 2026-07-18): **every change is visible to the DM, and reversible by them** — the
+      `EditReviewPanel` is a campaign review queue, newest-first, with **Approve all** (blesses/clears the ✎
+      marks) and per-batch/per-edit **Revert** (reverses exactly through the tested `revertBatch`/`revertSheetEdit`);
+      `dnd_sheet_edits` records the audit trail. Built on the existing approval mechanism, not a parallel one.
+- [x] ✅ SHIPPED: **nothing is silently lost** — a revert restores the prior value from the audited `old_value`;
+      a DM edit to a player's sheet is itself audited + attributed (`editor_user_id`, `is_dm`).
+- [x] ✅ SHIPPED: **the AI obeys the same permissions** — the ai-edit route goes through `requireCharacterWrite`
+      and audits every edit to `dnd_sheet_edits` with `source: 'ai'` + `is_dm`, so AI-generated changes appear in
+      the DM's review queue marked exactly like hand edits.
+- [~] Tests: `edit-review.test.ts` + the `revertSheetEdit`/`editOldValue`/`revertBatch` suites cover the
+      shipped review/revert/audit paths + AI-edit attribution. REMAINING: the per-field-editor permission tests
+      land with Slice 20's editor UI.
       Approve clears the flag; Revert restores the exact prior value; a non-DM cannot approve.
 
 ## Slice 27 — A clear way in: the ⋯ menu on every element ✅ SHIPPED 2026-07-16
