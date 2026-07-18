@@ -28,6 +28,20 @@ describe('retentionAfterUpload — post-confirmation choices', () => {
     expect(retentionAfterUpload('delete', { uploadConfirmed: true, savedToCameraRoll: true }).offerCameraRollDelete).toBe(true);
     expect(retentionAfterUpload('delete', { uploadConfirmed: true, savedToCameraRoll: false }).offerCameraRollDelete).toBe(false);
   });
+
+  it('the ASK prompt can offer camera-roll deletion too (it prompts, never auto-deletes)', () => {
+    const r = retentionAfterUpload('ask', { uploadConfirmed: true, savedToCameraRoll: true });
+    expect(r.prompt).toBe(true);
+    expect(r.deleteWorkingCopy).toBe(false);   // still nothing auto-deleted — the user decides in the prompt
+    expect(r.offerCameraRollDelete).toBe(true);
+  });
+
+  it('KEEP never offers camera-roll deletion, even when a camera-roll copy exists (keep = keep EVERYTHING)', () => {
+    // The safety property: a "keep on phone" preference must not surface a delete-the-camera-roll affordance,
+    // or the standing choice quietly becomes a delete path for the user's own photo library.
+    const r = retentionAfterUpload('keep', { uploadConfirmed: true, savedToCameraRoll: true });
+    expect(r).toEqual({ deleteWorkingCopy: false, prompt: false, offerCameraRollDelete: false });
+  });
 });
 
 describe('normalizeRetentionPref + labels', () => {
