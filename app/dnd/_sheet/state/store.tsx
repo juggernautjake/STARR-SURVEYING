@@ -39,6 +39,11 @@ export interface RollEntry {
   fumble?: boolean
   mode?: Advantage
   tag?: string
+  /** Named effects that REDUCED this roll — disadvantage-granting conditions/effects + any flat penalty
+   *  (exhaustion). Shown in RED in the tray so the player sees exactly what hurt the roll and why. */
+  penalties?: string[]
+  /** Named effects that HELPED this roll — advantage-granting conditions/effects. Shown non-red. */
+  boosts?: string[]
 }
 
 export interface ActiveRoll {
@@ -58,6 +63,10 @@ interface RollD20Opts {
   advantage?: boolean
   disadvantage?: boolean
   tag?: string
+  /** Named sources granting advantage/disadvantage on this roll (from `rollEffectSources`) — the caller knows
+   *  the ledger target(s); the tray shows disSources in red so "why is this at disadvantage?" is answered. */
+  disSources?: string[]
+  advSources?: string[]
 }
 interface RollDmgOpts {
   flat?: number
@@ -654,6 +663,12 @@ export function CharacterProvider({
       }
       if (rollCritMin < 20) tags.push(`CRIT ${rollCritMin}–20`)
       if (opts.tag) tags.push(opts.tag)
+      // What HELPED vs HURT this roll, by name — so the tray shows "disadvantage · Poisoned" (red). Exhaustion's
+      // flat penalty / disadvantage joins the penalties; auto-mechanics-off shows nothing folded (vanilla roller).
+      const penalties = [...(opts.disSources ?? [])]
+      if (autoMechanics && exh > 0 && exhEff.penalty) penalties.push(`Exhaustion ${exhEff.penalty}`)
+      else if (autoMechanics && exh > 0 && exhEff.disadvantage) penalties.push('Exhaustion (disadvantage)')
+      const boosts = [...(opts.advSources ?? [])]
       stage(
         {
           label,
@@ -664,6 +679,8 @@ export function CharacterProvider({
           fumble: r.fumble,
           mode,
           tag: tags.join(' · ') || undefined,
+          penalties: penalties.length ? penalties : undefined,
+          boosts: boosts.length ? boosts : undefined,
         },
         { landing: r.natural, min: 1, max: 20, isD20: true, crit: r.crit, fumble: r.fumble },
       )

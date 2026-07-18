@@ -283,6 +283,16 @@ export default function DiceTray() {
               <div>
                 <div className="re-label">{e.label}</div>
                 {e.tag && <div className="re-tag">{e.tag}</div>}
+                {(e.penalties?.length || e.boosts?.length) ? (
+                  <div className="re-effects" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2, fontSize: 10.5 }}>
+                    {e.penalties?.map((p) => (
+                      <span key={`p-${p}`} title={`${p} reduced this roll`} style={{ color: '#ff6b6b', fontWeight: 600 }}>▼ {p}</span>
+                    ))}
+                    {e.boosts?.map((b) => (
+                      <span key={`b-${b}`} title={`${b} helped this roll`} style={{ color: 'var(--hx-teal-1, #0ac8b9)', fontWeight: 600 }}>▲ {b}</span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
               <div className="re-total">{e.total}</div>
             </div>

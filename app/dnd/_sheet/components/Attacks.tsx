@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useChar } from '../state/store'
 import { useSheetModule } from '../state/sheetConfig'
 import { isItemActive } from '@/lib/dnd/effects/ledger'
+import { rollEffectSources } from '../lib/roll-effects'
 import { abilityMod, signed } from '../rules/dnd'
 import type { Attack } from '../types'
 import SectionHead from './ui/SectionHead'
@@ -93,6 +94,7 @@ export default function Attacks() {
               // Ledger advantage/disadvantage on attack rolls (an effect targeting attack_roll) — ORed
               // with the dice-tray advMode + Reckless (which rollCheck folds via advMode/strMelee).
               const atkEf = ledger.rollFlags('attack_roll')
+              const atkSrc = rollEffectSources(ledger, 'attack_roll') // named sources → shown on the roll
               const die = dieFor(a)
               const isSave = !!a.saveBased
               // Per-attack DC: a flat override wins; otherwise 8 + PB + the chosen ability's mod
@@ -124,7 +126,7 @@ export default function Attacks() {
                         onClick={() =>
                           isSave
                             ? rollDmg(`${a.name} — damage`, die, { tag: `${a.aoe ?? 'AOE'} · ${a.damageType}` })
-                            : rollCheck(`${a.name} — to hit`, toHit, { kind: 'attack', strMelee: a.strMelee, advantage: atkEf.advantage, disadvantage: atkEf.disadvantage })
+                            : rollCheck(`${a.name} — to hit`, toHit, { kind: 'attack', strMelee: a.strMelee, advantage: atkEf.advantage, disadvantage: atkEf.disadvantage, disSources: atkSrc.disadvantage, advSources: atkSrc.advantage })
                         }
                         title={isSave ? 'Roll area damage' : 'Roll to hit'}
                       >
@@ -192,7 +194,7 @@ export default function Attacks() {
                       <div className="btn-row">
                         <button
                           className="rollbtn"
-                          onClick={() => rollCheck(`${a.name} — to hit`, toHit, { kind: 'attack', strMelee: a.strMelee, advantage: atkEf.advantage, disadvantage: atkEf.disadvantage })}
+                          onClick={() => rollCheck(`${a.name} — to hit`, toHit, { kind: 'attack', strMelee: a.strMelee, advantage: atkEf.advantage, disadvantage: atkEf.disadvantage, disSources: atkSrc.disadvantage, advSources: atkSrc.advantage })}
                           title={active ? '' : `Requires ${a.formOnly} form (rolling anyway)`}
                         >
                           Hit

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useChar } from '../state/store'
 import { ABILITIES, SKILLS, abilityMod, signed, profContribution, type ProfLevel, type AbilityKey } from '../rules/dnd'
+import { rollEffectSources } from '../lib/roll-effects'
 import type { CustomSkill } from '../types'
 import SectionHead from './ui/SectionHead'
 import EffectStar from './ui/EffectStar'
@@ -97,6 +98,7 @@ export default function SavesSkills() {
                 + ledger.value(`${a.key}_saves`, 0) + ledger.value('all_saves', 0)
               const isDex = a.key === 'dex'
               const saveEf = rollFlagsUnion(`${a.key}_saves`, 'all_saves') // ledger advantage/disadvantage on this save
+              const saveSrc = rollEffectSources(ledger, `${a.key}_saves`, 'all_saves') // named sources → shown on the roll
               return (
                 <div className="rrow" key={a.key}>
                   <button
@@ -115,7 +117,7 @@ export default function SavesSkills() {
                   <div className="rmod">{signed(mod)}</div>
                   <button
                     className="rollbtn"
-                    onClick={() => rollCheck(`${a.label} Save`, mod, { kind: 'save', advantage: isDex || saveEf.advantage, disadvantage: saveEf.disadvantage, tag: isDex ? 'Danger Sense' : undefined })}
+                    onClick={() => rollCheck(`${a.label} Save`, mod, { kind: 'save', advantage: isDex || saveEf.advantage, disadvantage: saveEf.disadvantage, disSources: saveSrc.disadvantage, advSources: saveSrc.advantage, tag: isDex ? 'Danger Sense' : undefined })}
                   >
                     {signed(mod)}
                   </button>
@@ -138,6 +140,7 @@ export default function SavesSkills() {
               // The larger Surge forms (Brute, Titan…) are anything but subtle.
               const stealthAdv = sk.key === 'stealth' && activeFormId === 'base'
               const skillEf = rollFlagsUnion(`skill.${sk.key}`, 'all_skills') // ledger advantage/disadvantage on this skill
+              const skillSrc = rollEffectSources(ledger, `skill.${sk.key}`, 'all_skills') // named sources → shown on the roll
               return (
                 <div className="rrow" key={sk.key}>
                   <button
@@ -156,7 +159,7 @@ export default function SavesSkills() {
                   </div>
                   <button
                     className="rollbtn"
-                    onClick={() => rollCheck(`${sk.label}`, mod, { advantage: stealthAdv || skillEf.advantage, disadvantage: skillEf.disadvantage, tag: stealthAdv ? 'Base Form' : abil.label })}
+                    onClick={() => rollCheck(`${sk.label}`, mod, { advantage: stealthAdv || skillEf.advantage, disadvantage: skillEf.disadvantage, disSources: skillSrc.disadvantage, advSources: skillSrc.advantage, tag: stealthAdv ? 'Base Form' : abil.label })}
                   >
                     {signed(mod)}
                   </button>
