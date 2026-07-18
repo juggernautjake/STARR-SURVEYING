@@ -16,6 +16,7 @@ import { normalizeSystem, systemLabel, SYSTEM_AMBIGUOUS } from '@/lib/dnd/system
 import { getCharacterAccess } from '@/lib/dnd/characters';
 import { normalizeCharacter } from '@/app/dnd/_sheet/data/blank';
 import { characterDigest, adjudicationInstruction } from '@/lib/dnd/character-digest';
+import { sheetMechanicsHelp } from '@/lib/dnd/sheet-help';
 import { isIGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { igCharacterDigest } from '@/lib/dnd/systems/intuitive-games/digest';
 import { isPF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
@@ -108,6 +109,10 @@ export async function POST(req: NextRequest) {
         : `The reader's chosen system focus is ${label}. Answer for ${label}.`,
       grounding?.instruction,
       digest && characterName ? adjudicationInstruction(characterName, label) : null,
+      // With a character in focus, let the AI explain how the sheet derives its numbers and what each
+      // campaign preference does — so "how does my sheet work?" / "what does auto-attune do?" answers from
+      // the real design, not a guess.
+      digest ? sheetMechanicsHelp() : null,
       hint ? crossSystemInstruction(hint, label) : null,
     ]
       .filter(Boolean)
