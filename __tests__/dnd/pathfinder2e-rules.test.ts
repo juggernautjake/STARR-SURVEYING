@@ -89,6 +89,12 @@ describe('pf2 derived numbers (level-5 Fighter)', () => {
     expect(pf2SaveTotal('Reflex', c)).toBe(1 + (2 + 5));    // 8
     expect(pf2SaveTotal('Will', c)).toBe(2 + (4 + 5));      // 11
   });
+  it('a save folds a non-zero item bonus (cloak of resistance) — the fixture uses +0', () => {
+    // Same unexercised-term gap as the weapon rune: every fixture save is itemBonus 0, so a regression
+    // dropping `+ s.itemBonus` would silently lose every magic save bonus and still pass the test above.
+    const warded = { ...c, saves: { ...c.saves, Reflex: { rank: 'trained' as const, itemBonus: 1 } } };
+    expect(pf2SaveTotal('Reflex', warded)).toBe(1 + (2 + 5) + 1); // 9
+  });
   it('class DC = 10 + key attr + proficiency', () => {
     expect(pf2ClassDc(c)).toBe(10 + 4 + (4 + 5)); // 23
   });
