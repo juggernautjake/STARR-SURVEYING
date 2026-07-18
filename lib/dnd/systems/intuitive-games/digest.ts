@@ -11,7 +11,7 @@
 import type { IGCharacter } from './model';
 import { igConditionSummary, igStanceMechanicNote } from './modifiers';
 import { findIGAncestry, IG_DEFENSIVE_POWERS } from './content';
-import { igDerived, igSkillTotal, igAbilityMod } from './rules';
+import { igDerived, igSkillTotal, igAbilityMod, igResolveAttack } from './rules';
 
 const sgn = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
 
@@ -44,6 +44,17 @@ export function igCharacterDigest(ig: IGCharacter): string {
   const hp = `HP ${der.currentHp}/${der.maxHp}${nonlethal ? ` (${nonlethal} nonlethal)` : ''}`;
   const saves = `Fort ${sgn(der.saves.Fortitude)}, Ref ${sgn(der.saves.Reflex)}, Will ${sgn(der.saves.Will)}`;
   lines.push(`DEFENSES: ${hp} · DR ${dr} · Saves ${saves}`);
+
+  // ATTACKS — a ruling on "does my sword hit / how much damage?" needs the resolved to-hit + damage, which
+  // the digest was missing entirely for IG (5e/PF2 carry theirs). igResolveAttack folds proficiency, Weapon
+  // Focus/Specialization, and the governing ability, exactly as the sheet does.
+  if (ig.combat.attacks?.length) {
+    const parts = ig.combat.attacks.map((a) => {
+      const r = igResolveAttack(ig, a);
+      return `${a.name} ${sgn(r.toHit)}, ${r.damage}`;
+    });
+    lines.push(`ATTACKS: ${parts.join(' · ')}`);
+  }
 
   // Trained SKILLS with their totals — a skill-check ruling ("do you pick the lock?") needs the bonus. Only
   // ranked/proficient skills are listed (untrained ones would just be clutter); a combat skill is flagged

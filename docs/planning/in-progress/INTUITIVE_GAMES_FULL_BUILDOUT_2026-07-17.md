@@ -391,7 +391,11 @@ expanded requirements (2026-07-17):
       class/subclass/specialization/ancestry but not the character's `background` — the one identity field the
       AI didn't see for narrative/context rulings ("as a Soldier, would you know this?"). Now appends
       "Background: <name>." when set, omitted otherwise. `ig-digest.test.ts` +2. Full dnd suite green (1888).
-      **Remaining:**
+      **⚑ ATTACKS added to the digest (2026-07-18):** the digest had NO attacks line at all — the AI could
+      not adjudicate ANY IG attack ("does my sword hit? how much damage?") while 5e/PF2 carried theirs. Added
+      an "ATTACKS: <name> +to-hit, <damage>" line via `igResolveAttack` (folds proficiency, Weapon Focus/
+      Specialization, and the governing ability, exactly as the sheet does). `ig-digest.test.ts` +1. Full dnd
+      suite green (1893). **Remaining:**
       the machine-readable effect model that the SHEET applies (B4/B5 mechanics).
 - [~] **B1 — Ancestry/traits in the builder + sheet.** IG ancestries selectable in the builder; the sheet
       renders each ancestry's full traits (from A5) with per-trait tooltips; size/speed-changing traits reflect

@@ -25,6 +25,7 @@ function fixture() {
   ];
   ig.combat.stances = ['Offensive'];
   ig.combat.conditions = ['Shaken', 'Prone'];
+  ig.combat.attacks = [{ id: 'atk', name: 'Greatsword', weaponType: '', properties: '', proficient: true, weaponFocus: true, weaponSpecialization: true, ability: 'STR', bonusToHit: 1, bonusDamage: 0, damage: '2d6' }];
   ig.combat.defensivePower = 'Sidestep';
   ig.feats = { general: ['Endurance'], combat: ['Weapon Focus'] };
   ig.powers = ['Elemental Blast'];
@@ -76,6 +77,12 @@ describe('igCharacterDigest', () => {
     ig.combat.defensivePower = 'Homebrew Ward';
     const dc = igCharacterDigest(ig);
     expect(dc).toMatch(/DEFENSIVE POWER: Homebrew Ward$/m); // name, no " — <effect>" appended
+  });
+
+  it('lists the character\'s ATTACKS with resolved to-hit + damage (was absent entirely)', () => {
+    // Greatsword: to-hit = STR mod 0 + proficiency(level 6) + Weapon Focus +1 + bonusToHit 1 = 8;
+    // damage = 2d6 + Weapon Specialization +2 = 2d6+2. A ruling on "does it hit / how much?" now has numbers.
+    expect(d).toMatch(/ATTACKS: Greatsword \+8, 2d6\+2/);
   });
 
   it('states DEFENSES — current/max HP (with nonlethal), DR, and the three resolved saves', () => {
