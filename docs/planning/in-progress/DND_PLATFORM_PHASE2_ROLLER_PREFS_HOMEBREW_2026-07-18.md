@@ -56,9 +56,14 @@ setting is system-aware where the mechanic differs by system.
       before it touches the DB, and artUrl/notes/dmNotes are preserved untouched. Wired into
       `GET/PATCH /api/dnd/campaigns/[id]` (GET now returns normalized `preferences`; PATCH accepts a
       `preferences` patch, DM-only via the existing role gate). Guarded by `campaign-preferences.test.ts`.
-      REMAINING: **P2b** player-side overrides (per-user-per-campaign — needs a `dnd_campaign_members` jsonb
-      column or equivalent) and **P2c** the `useEffectivePreferences()` client hook that folds campaign +
-      player via `resolvePreferences` for the sheets/rollers to consume.
+      **P2c ✅ SHIPPED — the campaign's effective preferences now reach the sheet mechanics.** The character
+      sheet server page (`characters/[id]/page.tsx`) reads the campaign's stored prefs and folds them with
+      `resolvePreferences` (player object empty until P2b), passing the result down through `SheetRoot` into
+      `CharacterProvider`'s new `preferences` prop. So the DM panel → campaign theme → `hitDiceAfterLongRest`
+      chain is LIVE: a campaign set to the 2014-half long-rest model actually changes the sheet's rest.
+      Proven end-to-end + source-anchored by `preferences-sheet-wiring.test.ts`; full suite green (1935).
+      REMAINING: **P2b** player-side overrides (per-user-per-campaign store — needs a `dnd_campaign_members`
+      jsonb column; the resolver already accepts the player object, it's just always empty today).
 - [ ] **P3 — Player preferences page.** UI to set a player's own prefs (only where the DM hasn't locked them);
       locked settings show the DM's value, disabled, with "set by your DM".
 - [x] **P4 — DM / campaign preferences page.** ✅ SHIPPED — `CampaignPreferencesDm.tsx`, a comprehensive
