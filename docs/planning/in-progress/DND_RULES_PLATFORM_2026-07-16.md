@@ -2010,8 +2010,15 @@ costs more than having no marker at all.
 - [x] ✅ SHIPPED: **the DM's approval surface reads the same provenance** — `SheetApprovalPanel` (custom content)
       + `EditReviewPanel` (the campaign review queue) both read `summarizeCharacterProvenance` / the
       `dnd_sheet_edits` audit, so a player quietly editing Fireball is visible in the DM's queue with its author.
-- [ ] Tests: an untouched sheet has zero ✎; editing a value marks exactly that value; revert clears
-      the marker and restores the source value; ★ and ✎ are independent (one never implies the other).
+- [x] ✅ SHIPPED (verified 2026-07-18) Tests: an untouched sheet has zero ✎; editing a value marks exactly
+      that value; revert clears the marker and restores the source value; ★ and ✎ are independent. All four
+      are pinned: `customized-marker.test.ts` covers **untouched → un-customized** (a no-op save + unrelated
+      edits never flip ✎), **an edit marks exactly that element** (only the edited one becomes customized), and
+      **✎ ≠ ★** (distinct marker, never a shared class); and this slice added the **revert** case to
+      `sheet-edits.test.ts` — reverting an `update_attack` that set `customized:true` restores the pre-edit
+      snapshot, so the damage is back to its source value AND the ✎ is cleared (the structured revert path the
+      `EditReviewPanel` uses). The inline ✎-HOVER revert affordance stays deferred (browser, per the item
+      above), but the revert MECHANISM + its ✎-clearing is now shipped + tested.
 
 ## Slice 21 — System designation on every sheet (even customized ones) ✅ SHIPPED (verified 2026-07-16)
 

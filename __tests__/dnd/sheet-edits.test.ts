@@ -301,6 +301,20 @@ describe('update_attack retunes an existing attack in place (Slice 23 — "chang
     const out = applySheetEdits(before, [{ op: 'update_attack', name: 'Nonexistent', damage: '2d6' }]);
     expect(out.attacks[0].damage).toBe('1d8');
   });
+
+  it('reverting the edit CLEARS the ✎ marker and restores the source value (DND_RULES 2013)', () => {
+    // The doc's acceptance: revert clears the marker AND restores the source value. An element edit snapshots
+    // the whole prior element, so reverting an update_attack that set customized:true puts the attack back —
+    // damage restored, ✎ gone — because the pre-edit snapshot was un-customized.
+    const base = withSword();
+    const edit: SheetEdit = { op: 'update_attack', name: 'Sword', damage: '1d12' };
+    const oldValue = editOldValue(base, edit); // the pre-edit Sword: 1d8, no customized flag
+    const applied = applySheetEdits(base, [edit]);
+    expect(applied.attacks[0].customized).toBe(true); // the edit marked it
+    const reverted = revertSheetEdit(applied, edit, oldValue);
+    expect(reverted.attacks[0].damage).toBe('1d8');       // source value restored
+    expect(reverted.attacks[0].customized ?? false).toBe(false); // ✎ cleared
+  });
 });
 
 describe('editOldValue captures the prior value for the audit trail (Slice 26)', () => {
