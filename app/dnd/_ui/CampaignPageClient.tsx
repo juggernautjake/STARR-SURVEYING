@@ -4,6 +4,7 @@
 // restyled for the DM (Hextech) context (they're currently `.dnd-sheet`-scoped).
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { rosterRoleOf } from '@/lib/dnd/roster'
 import styles from './hextech.module.css'
 import InvitesPanel from './InvitesPanel'
 import Chat from './Chat'
@@ -359,7 +360,7 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                   if (shown.length === 0) return <p style={{ color: 'var(--hx-muted)' }}>No characters match “{search.trim()}”.</p>
                   // Group by roster category (Slice 30): PCs, special NPCs, generic NPCs. Editorial
                   // buckets over the same Character — moving between them is a field change.
-                  const roleOf = (c: (typeof shown)[number]) => c.rosterRole ?? (c.is_npc ? 'generic_npc' : 'pc')
+                  const roleOf = (c: (typeof shown)[number]) => rosterRoleOf(c.rosterRole, c.is_npc)
                   const GROUPS: { key: string; label: string }[] = [
                     { key: 'pc', label: 'Player Characters' },
                     { key: 'special_npc', label: 'Special NPCs' },
@@ -407,7 +408,7 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                           <select
                             className={styles.input}
                             style={{ width: '100%', padding: '4px 8px', fontSize: 11 }}
-                            value={c.rosterRole ?? (c.is_npc ? 'generic_npc' : 'pc')}
+                            value={rosterRoleOf(c.rosterRole, c.is_npc)}
                             onChange={(e) => setRosterRole(c.id, e.target.value)}
                             title="Categorise this character: a player character, a special (named/recurring) NPC, or a generic NPC. This is editorial only — it never changes the sheet."
                           >

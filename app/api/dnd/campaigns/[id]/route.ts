@@ -6,6 +6,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
 import { characterIdsInCampaign } from '@/lib/dnd/characters';
 import { readCampaignPreferences, writeCampaignPreferencesToTheme } from '@/lib/dnd/campaign-preferences';
+import { rosterRoleOf } from '@/lib/dnd/roster';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
@@ -74,7 +75,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       name: c.name,
       token_url: c.token_url ?? c.art_url ?? null,
       is_npc: c.is_npc,
-      rosterRole: c.roster_role ?? (c.is_npc ? 'generic_npc' : 'pc'),
+      rosterRole: rosterRoleOf(c.roster_role, c.is_npc),
       sheet_type: c.sheet_type ?? undefined,
       ownerUserId: c.owner_user_id,
       ownerName: c.owner_user_id ? userById.get(c.owner_user_id)?.display_name ?? null : null,

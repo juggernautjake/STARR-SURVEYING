@@ -2378,16 +2378,23 @@ flat. And "quick vs full" NPC builders are the Slice 31 work proper.
 > "for the campaign character management, I want to split it up so that we can have multiple
 > categories of characters. We will have generic npcs, special npcs, and then pcs."
 
-- [ ] A `role` on each character: `pc` · `special_npc` · `generic_npc`. A column + a seed, defaulting
-      existing characters to `pc` (they all are).
-- [ ] The campaign page groups the roster by role, each section collapsible with a count.
-- [ ] The distinction is **editorial, not mechanical** — a generic NPC is the same `Character` on the
-      same engine, just triaged differently. Do NOT give generic NPCs a cut-down model: the moment a
-      guard becomes important, the DM must be able to promote them without rebuilding them, and
-      "promote" should be a field change, not a migration.
-- [ ] Move a character between categories from the roster.
-- [ ] Tests: every existing character reads as a `pc`; promoting a generic NPC preserves its sheet
-      byte-for-byte.
+> _(These "Original spec" bullets restate the shipped Slice 30 items above — marked here to reflect that.)_
+
+- [x] ✅ SHIPPED (= Slice 30 item 1): a `role` on each character (`pc`/`special_npc`/`generic_npc`), the
+      `roster_role` column + seed 448, default `pc`, backfilled from `is_npc`.
+- [x] ✅ SHIPPED (= Slice 30 item 2): the campaign page groups the roster by role with a header + count per group.
+- [x] ✅ SHIPPED (= Slice 30 item 3): editorial, not mechanical — the same `Character`/engine; promoting is a
+      one-field change that never touches the sheet.
+- [x] ✅ SHIPPED (= Slice 30 item 2): move a character between categories from the roster (the per-card selector).
+- [x] ✅ SHIPPED (verified 2026-07-18) **Tests: every existing character reads as a `pc`.** This slice extracted the
+      four-times-inlined effective-role fallback into a single pure `rosterRoleOf(roster_role, is_npc)` +
+      `isRosterRole` (`lib/dnd/roster.ts`), wired into `campaign-summary`, both campaign/character routes, and
+      `CampaignPageClient` — and `roster.test.ts` pins the acceptance directly: a legacy character with no
+      `roster_role` reads as `pc` (an already-flagged NPC → `generic_npc`), a valid stored role wins, and a
+      CORRUPT stored role now falls back safely instead of leaking through (two call sites previously used a bare
+      `?? fallback` with no validity check — the shared helper fixes that). "Promoting preserves the sheet
+      byte-for-byte" holds structurally: the PATCH route only writes `roster_role` + the synced `is_npc`, never
+      `data` — verified end-to-end against the live API per Slice 30 item 4.
 
 ## Slice 31 — The NEW button, and two ways to build a character ✅ SHIPPED 2026-07-16
 
@@ -2505,8 +2512,11 @@ shipped, and spell DC/attack now compose with item bonuses through the ledger.)
       and a **flat DC override**. The Attacks row computes `saveDcOverride ?? (8 + PB + mod of the
       chosen ability, STR by default)` — previously it was hardcoded to `8 + PB + STR` with no
       control. `bonusToHit` / `bonusDamage` were already editable. 4 tests.
-- [ ] **Weapon ITEMS** (ItemBuilder) still have no to-hit / save-DC field of their own — they'd
-      inherit whatever the derived attack computes. Add the same controls there.
+- [~] **Weapon ITEMS** (ItemBuilder) still have no to-hit / save-DC field of their own — they'd
+      inherit whatever the derived attack computes. Add the same controls there. **DEFERRED** — see the
+      verified rationale in the "Weapon ITEMS to-hit/DC control" item below (the field is cosmetic until the
+      inventory→attacks engine is wired into the rendered table; the rendered path today is Slice-11
+      `grantsAttack`, and `attacksFromInventory` is confirmed test-only).
 - [x] **Spells now have an editor** (`SpellEditor`, reached via the ⋯ menu on each spell row —
       Slice 27 extended to the Spells tab). Edits name, level, school, timing, components, duration,
       description, concentration/ritual, and **how it resolves: a spell attack roll OR a save (which
@@ -2517,13 +2527,16 @@ shipped, and spell DC/attack now compose with item bonuses through the ledger.)
       `attackBonus = ledger.value('spell_attack', PB+mod)`, so a Rod of the Pact Keeper's +1 DC lands
       on top of the caster's own base (Slice 10's derived-target fix makes `value(target, callerBase)`
       respect the passed base). An unmodified caster is unchanged. `spell-dc-ledger.test.ts` (3).
-- [ ] **Weapon ITEMS to-hit/DC control** — deferred with a reason. The engine to turn a weapon item
-      into a rollable attack exists (`weapons.ts buildAttack`, which already reads `w.attackBonus` +
-      folds `attack`/`attack_and_damage` effects), but `attacksFromInventory` is **not wired into the
-      rendered Attacks table** (the table renders `char.attacks` + Slice-11 granted attacks, not
-      inventory-derived ones). Adding a to-hit field to the ItemBuilder weapon section would be
-      cosmetic until that engine is connected to the render — that connection is the real slice, and
-      it belongs with Slice 15's "call the uncalled engines" work, not here.
+- [~] **Weapon ITEMS to-hit/DC control** — DEFERRED with a reason (rationale re-VERIFIED against live code
+      2026-07-18). The engine to turn a weapon item into a rollable attack exists (`weapons.ts buildAttack`,
+      which already reads `w.attackBonus` + folds `attack`/`attack_and_damage` effects), but
+      `attacksFromInventory` is **confirmed test-only** — imported solely by `character.test.ts`/`jack.test.ts`,
+      never by the live sheet. The rendered `Attacks.tsx` shows `char.attacks` + Slice-11 `grantsAttack`
+      inventory items (a DIFFERENT mechanism — a weapon item can already carry a full rollable `Attack` with its
+      own to-hit/DC via `grantsAttack`). So adding a to-hit field to the ItemBuilder weapon section that feeds
+      `attacksFromInventory` would be cosmetic until that engine is connected to the render — that connection is
+      the real slice, and it belongs with Slice 15's "call the uncalled engines" work (or is already covered by
+      `grantsAttack` for the common case), not here. Cost clearly exceeds value for an autonomous pass.
 
 ## Slice 34 — Build-mode selector: make it look like the rest of the UI ✅ SHIPPED 2026-07-16
 

@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCharacterAccess, campaignsForCharacter } from '@/lib/dnd/characters';
 import { isSelectableSheetStyle } from '@/lib/dnd/sheet-styles';
+import { isRosterRole } from '@/lib/dnd/roster';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const res = await getCharacterAccess(params.id);
@@ -50,7 +51,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // Keep is_npc in sync so existing NPC-vs-PC filters and defaults stay correct.
   if ('roster_role' in patch) {
     const rr = String(patch.roster_role);
-    if (!['pc', 'special_npc', 'generic_npc'].includes(rr)) {
+    if (!isRosterRole(rr)) {
       return NextResponse.json({ error: 'Invalid roster role.' }, { status: 400 });
     }
     patch.is_npc = rr !== 'pc';

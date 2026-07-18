@@ -7,6 +7,7 @@ import { DEMO_CAMPAIGN_ID, DEMO_GUEST_USER_ID, DEMO_STREAMER, DEMO_DONATA } from
 import { streamerCharacter } from '@/app/dnd/_sheet/data/streamer';
 import { donataDime } from '@/app/dnd/_sheet/data/donata';
 import { characterIdsInCampaign } from '@/lib/dnd/characters';
+import { rosterRoleOf } from '@/lib/dnd/roster';
 
 // Self-heal for the Neon Odyssey demo: make sure the streamer (xxRainbowKittenUwU37xx)
 // exists with her full statted `streamer` sheet + a live stream, owned by Susie as a
@@ -410,7 +411,7 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
       playedByUserId: ch.played_by_user_id ?? null,
       playedByName: ch.played_by_user_id ? names.get(ch.played_by_user_id) ?? null : null,
       isNpc: ch.is_npc,
-      rosterRole: (['pc', 'special_npc', 'generic_npc'].includes(ch.roster_role ?? '') ? ch.roster_role : ch.is_npc ? 'generic_npc' : 'pc') as string,
+      rosterRole: rosterRoleOf(ch.roster_role, ch.is_npc),
       system: ch.system ?? null,
       sheetType: ch.sheet_type,
       portrait: ch.token_url ?? ch.art_url ?? null,
