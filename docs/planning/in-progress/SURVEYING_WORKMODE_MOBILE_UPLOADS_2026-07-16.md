@@ -341,10 +341,17 @@ below states what it reuses.
 - [ ] **D3 — Tool launcher row.** The camera / files / instructions / mileage / compass / calculator / ask-AI
       buttons on the hub, each opening its surface. Consolidate with the existing FieldCrewWorkspace tabs
       (Photo/Files/Mileage/…) rather than adding a parallel nav.
-- [ ] **D4 — Camera capture modes + metadata.** The capture-intent screen (job photo/video · receipt ·
-      document-for-AI) + the pure metadata-assembly (time/location/job/device/crew/recorder) that stamps every
-      capture. Receipt intent routes to the receipt pipeline (→ financials, auto-analyzed); document intent to
-      AI analysis. Builds on `field_media`/`receipts` + the mobile capture path (Area C).
+- [~] **D4 — Camera capture modes + metadata. ✅ Pure decision layer shipped.** `mobile/lib/captureIntent.ts` —
+      `captureDestination(intent)` routes each camera option to its store + post-processing without a parallel
+      pipeline: job photo/video → `field_media` (the existing GPS/compass/time-stamping capture path), receipt →
+      `receipts` (AI auto-analyze + financials), document → `job_files` (AI analyze). `CAPTURE_INTENTS` drives
+      the option list; unknown intents fall back to a job photo (never routes to nowhere). `shouldAnalyze` gates
+      the AI hand-off. `assembleCaptureMetadata(input)` is the owner's "every image gets time/location/job/
+      device/crew/recorder" stamp in one place — always carries capturedAt + jobId, drops absent fields (a
+      NaN/partial GPS fix, empty crew ids) so a partial capture yields a clean object, and never reads the clock
+      (caller supplies the timestamp → testable). `__tests__/mobile/capture-intent.test.ts` (9). **Remaining
+      (mobile-runtime):** the camera option screen UI, launching the camera per intent, the receipt auto-extract
+      + document AI calls, and writing the row with this metadata — device-tested.
 - [ ] **D5 — Job instructions page (with file/image hyperlinks).** An RPLS-authored instructions surface that
       can link `job_files`/`file_nodes` entries. New small table or a `jobs.instructions` rich field.
 - [~] **D6 — Mileage tracker + reusable vehicles. ✅ Pure math shipped.** `lib/mileage/odometer.ts` — the
