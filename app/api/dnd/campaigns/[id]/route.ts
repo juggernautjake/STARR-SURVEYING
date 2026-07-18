@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
 import { characterIdsInCampaign } from '@/lib/dnd/characters';
+import { readCampaignPreferences, writeCampaignPreferencesToTheme } from '@/lib/dnd/campaign-preferences';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
@@ -59,6 +60,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   return NextResponse.json({
     campaign: { ...campaign, role },
+    // Normalized DM preferences (Area P2) — the effective campaign-wide settings the sheets/rollers read.
+    // Read through the pure helper so a legacy campaign (no stored prefs) still returns the full vanilla set.
+    preferences: readCampaignPreferences((campaign as { theme?: unknown }).theme),
     members: members.map((m) => ({
       userId: m.user_id,
       role: m.role,
@@ -97,16 +101,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // Custom-content policy (IG builder Slice 5): false = vanilla-only campaign.
   if ('allow_custom' in body) patch.allow_custom = !!body.allow_custom;
 
-  // Art banner + campaign notes all live in the `theme` jsonb. `notes` is the
-  // player-visible campaign info; `dmNotes` is the DM's private prep (never sent to
-  // players). Merge so unspecified keys are preserved.
-  const themeKeys = ['artUrl', 'notes', 'dmNotes'] as const;
+  // Art banner, campaign notes, and the DM's campaign preferences (Area P2) all live in the `theme` jsonb.
+  // `notes` is the player-visible campaign info; `dmNotes` is the DM's private prep (never sent to players);
+  // `preferences` is the normalized CampaignPreferences the sheets/rollers read. Merge so unspecified keys
+  // are preserved.
+  const themeKeys = ['artUrl', 'notes', 'dmNotes', 'preferences'] as const;
   if (themeKeys.some((k) => k in body)) {
     const { data: cur } = await supabaseAdmin.from('dnd_campaigns').select('theme').eq('id', params.id).maybeSingle();
-    const theme = ((cur?.theme as Record<string, unknown> | null) ?? {}) as Record<string, unknown>;
+    let theme = ((cur?.theme as Record<string, unknown> | null) ?? {}) as Record<string, unknown>;
     if ('artUrl' in body) theme.artUrl = body.artUrl ? String(body.artUrl) : null;
     if ('notes' in body) theme.notes = typeof body.notes === 'string' ? body.notes : '';
     if ('dmNotes' in body) theme.dmNotes = typeof body.dmNotes === 'string' ? body.dmNotes : '';
+    // Preferences go through the pure normalizer, so a partial/corrupt/hostile body is sanitised to valid
+    // vanilla-defaulted settings before it ever reaches the DB.
+    if ('preferences' in body) theme = writeCampaignPreferencesToTheme(theme, body.preferences);
     patch.theme = theme;
   }
 
@@ -119,5 +127,5 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     .select('id, name, blurb, theme')
     .single();
   if (error || !data) return NextResponse.json({ error: error?.message ?? 'Update failed.' }, { status: 500 });
-  return NextResponse.json({ campaign: data });
+  return NextResponse.json({ campaign: data, preferences: readCampaignPreferences((data as { theme?: unknown }).theme) });
 }

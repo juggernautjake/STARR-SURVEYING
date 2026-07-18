@@ -48,8 +48,17 @@ setting is system-aware where the mechanic differs by system.
       `exhaustionModel`, `longRestModel`, `equipLimits`, `diceRollerStyle`, `recordMode` — extended per area as
       the mechanics land. `preferences.test.ts` (10): defaults are vanilla, clamp, lock, safe-load. **Next:**
       the per-character override layer + more system-specific fields as M/R/E build out.
-- [ ] **P2 — Persistence + hooks.** Store campaign prefs on the campaign row and player prefs on the
-      character/user; a `useEffectivePreferences()` hook the sheets/rollers consume. Live-DB schema via seeds.
+- [~] **P2 — Persistence + hooks.** IN PROGRESS. **P2a ✅ SHIPPED — campaign-side persistence with NO schema
+      migration:** DM preferences live in the existing `dnd_campaigns.theme` jsonb under a `preferences` key.
+      New pure helpers `lib/dnd/campaign-preferences.ts` (`readCampaignPreferences` /
+      `writeCampaignPreferencesToTheme`) are the single read/write path — legacy campaigns read as full
+      vanilla, a partial/corrupt/hostile PATCH body is sanitised through `normalizeCampaignPreferences`
+      before it touches the DB, and artUrl/notes/dmNotes are preserved untouched. Wired into
+      `GET/PATCH /api/dnd/campaigns/[id]` (GET now returns normalized `preferences`; PATCH accepts a
+      `preferences` patch, DM-only via the existing role gate). Guarded by `campaign-preferences.test.ts`.
+      REMAINING: **P2b** player-side overrides (per-user-per-campaign — needs a `dnd_campaign_members` jsonb
+      column or equivalent) and **P2c** the `useEffectivePreferences()` client hook that folds campaign +
+      player via `resolvePreferences` for the sheets/rollers to consume.
 - [ ] **P3 — Player preferences page.** UI to set a player's own prefs (only where the DM hasn't locked them);
       locked settings show the DM's value, disabled, with "set by your DM".
 - [ ] **P4 — DM / campaign preferences page.** Comprehensive: the DM sets every campaign-wide mechanic +
