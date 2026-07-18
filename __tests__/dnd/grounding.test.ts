@@ -60,7 +60,7 @@ describe('systemGroundingBlock', () => {
     const g = await systemGroundingBlock('intuitive-games', 'Dispel Magic');
     expect(g.block).toMatch(/RELEVANT Intuitive Games POWERS \(authoritative effect text/);
     expect(g.block).toMatch(/Dispel Magic \(Abjuration\)/);
-    expect(g.block).toMatch(/make an Arcane check to counter it/); // the real IG effect, not recall
+    expect(g.block).toMatch(/make a Spellcraft check to counter/); // the VERBATIM site effect (scraped), not a paraphrase
     expect(g.matched).toBeGreaterThan(0);
   });
 

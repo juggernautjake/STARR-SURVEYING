@@ -4,7 +4,7 @@
 // sheet/library read one source. Add a mapping here as more art is scrubbed from the site.
 
 /** Credit line shown wherever Intuitive Games art appears. */
-export const IG_ART_CREDIT = 'Art by Brendan · Intuitive Games (intuitivegames.net)';
+export const IG_ART_CREDIT = 'Art by Jacob · commissioned by Brendan for Intuitive Games (intuitivegames.net)';
 
 // Ancestry ("race") portraits — the 8 the site publishes (Human + Sprite have no portrait on the site yet).
 // Keyed by the lowercase ancestry name so it lines up with IG_ANCESTRIES.
