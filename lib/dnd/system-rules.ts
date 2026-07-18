@@ -7,7 +7,7 @@
 // Content is concise MECHANICAL FACTS + numbers (paraphrased, not verbatim rulebook prose), each
 // attributed to its source book. Keyed strictly by system so nothing crosses editions.
 import { SYSTEM_AMBIGUOUS, systemLabel, type CharacterSystem } from './systems';
-import { IG_STANCE_DEFS, IG_STANCE_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES, IG_CONDITIONS, IG_ANCESTRIES, IG_DAMAGE_SAVE_RULES, IG_REDISTRIBUTION_RULES, IG_SKILL_RULES, IG_COMBAT_SKILL_RULES, IG_BACKGROUND_DEFS } from './systems/intuitive-games/content';
+import { IG_STANCE_DEFS, IG_STANCE_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_WEAPON_TYPES, IG_CONDITIONS, IG_ANCESTRIES, IG_DAMAGE_SAVE_RULES, IG_REDISTRIBUTION_RULES, IG_SKILL_RULES, IG_COMBAT_SKILL_RULES, IG_BACKGROUND_DEFS, IG_COMPANION_RULES, IG_COMPANION_TYPES } from './systems/intuitive-games/content';
 import { igAllFeats } from './systems/intuitive-games/feats';
 import { EXTRA_SYSTEM_RULES } from './system-rules-extra';
 
@@ -431,6 +431,8 @@ export function systemRulesBlock(system: CharacterSystem): string {
       `• Skill checks: ${IG_SKILL_RULES}`,
       `• Combat skills: ${IG_COMBAT_SKILL_RULES}`,
       `• Redistribution (Conduit): ${IG_REDISTRIBUTION_RULES}`,
+      `• Companion creatures (by Archon subclass): ${IG_COMPANION_RULES}`,
+      ...IG_COMPANION_TYPES.map((t) => `   - ${t.name} (${t.subclass}): ${t.text}`),
       `• Backgrounds (each grants starting HP, two ability boosts, proficiencies, and a Stance): ${IG_BACKGROUND_DEFS.map((b) => `${b.name} (${b.stance})`).join(', ')}.`,
     );
   }

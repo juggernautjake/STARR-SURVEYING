@@ -185,5 +185,12 @@ describe('Intuitive Games vanilla content library (Slice 1)', () => {
     expect(block).toMatch(/Combat skills:.*Reflex save/i);
     expect(block).toMatch(/Redistribution \(Conduit\):/);
     expect(block).toMatch(/Backgrounds .*Soldier \(Menacing\)/);
+    // Companion creatures: the advancement rule + each of the 4 types (so a ruling on a Beastmaster's
+    // beast or a Summoner's elemental grounds on the real IG companion rules, not another system's pet).
+    expect(block).toMatch(/Companion creatures .*gain HP each level equal to 2/i);
+    expect(block).toMatch(/Beast Companion \(Beastmaster\):/);
+    expect(block).toMatch(/Elemental \(Summoner\):/);
+    expect(block).toMatch(/Familiar \(Eldritch Binder\):/);
+    expect(block).toMatch(/Swarm \(Packmaster\):/);
   });
 });

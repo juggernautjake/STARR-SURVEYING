@@ -328,7 +328,13 @@ expanded requirements (2026-07-17):
       cross-system leak. **Grounding extended** (`system-rules.ts`): the IG block now ALSO carries the damage
       **Fortitude-save** mechanic, the **skill-check** + **combat-skill** rules, **Redistribution** (Conduit),
       and the **backgrounds** (name + granted stance) — so the AI adjudicates the full IG ruleset, not just
-      stances/conditions/ancestries. `ig-content.test.ts` +1. **AI now sees the character's in-play STATE, not
+      stances/conditions/ancestries. `ig-content.test.ts` +1. **Companion creatures added (2026-07-18):**
+      the `IG_COMPANION_RULES` advancement rule + the 4 `IG_COMPANION_TYPES` (Beast Companion/Beastmaster,
+      Elemental/Summoner, Familiar/Eldritch Binder, Swarm/Packmaster) were transcribed (A12) but absent from
+      the grounding — so with the digest now surfacing a character's companion (B0 below), a ruling on "how
+      does my beast advance?" grounded on nothing. Folded them into the always-on IG block (a subsystem like
+      Redistribution, ~10 lines, core to 4 subclasses), so the AI explains companions from IG source, never
+      another system's pet rules. `ig-content.test.ts` +5 assertions (the rule + all four types). **AI now sees the character's in-play STATE, not
       just the rulebook (2026-07-17):** grounding gave the librarian the IG RULES, but the adjudication route
       built its per-character digest with the general `characterDigest`, which reads the 5e `Character` model
       and NEVER the `data.ig` sidecar — so a ruling on an IG character was blind to its active stance,
