@@ -87,6 +87,27 @@ describe('numbers resolve by a documented order, not by luck', () => {
     expect(buildLedger(c).value('ability_str')).toBe(23);
   });
 
+  it('set_base is the FIRST documented step and shares the highest-wins override with set', () => {
+    // The documented order is `set_base → set → add`, but every test above exercised only `set` — the
+    // ledger pools set_base with set into one "highest override wins" (ledger.ts ~L349), so a regression
+    // that handled only `set` would silently break every set_base effect with no failing test. Pin it:
+    // set_base 19 beats set 17 and the base 16, then the +2 add stacks on top — identical treatment to set.
+    const c = hero(); // base STR 16
+    c.inventory = [
+      item({ name: 'Amulet of Base Might', effects: [{ target: 'ability_str', operation: 'set_base', value: 19 }] }),
+      item({ name: 'Circlet', effects: [{ target: 'ability_str', operation: 'set', value: 17 }] }),
+      item({ name: 'Belt of the Bear', effects: [{ target: 'ability_str', operation: 'add', value: 2 }] }),
+    ];
+    expect(buildLedger(c).value('ability_str')).toBe(21); // max(16, 19, 17) + 2
+  });
+
+  it('a set_base never lowers a higher base, exactly like set', () => {
+    const c = hero();
+    c.abilities = { ...c.abilities, str: 22 };
+    c.inventory = [item({ name: 'Amulet', effects: [{ target: 'ability_str', operation: 'set_base', value: 19 }] })];
+    expect(buildLedger(c).value('ability_str')).toBe(22); // the base already beats the set_base override
+  });
+
   it('advantage and disadvantage cancel to a flat roll', () => {
     const c = hero();
     c.inventory = [

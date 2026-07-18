@@ -982,15 +982,25 @@ Decisions that stuck:
 
 One pure function that every later slice reads. Nothing else in Part II can be built first.
 
-- [ ] `lib/dnd/effects/ledger.ts`: `buildLedger(char, ctx) → EffectLedger`. It walks EVERY source —
-      equipped/attuned inventory items, `activeEffects[]` (consumed potions, spells cast on you, DM
-      boons), features gated by `unlockLevel`, the active form/transform, conditions — and returns,
-      **per target**: the base value, every contributing effect with its `source`, and the final value.
-- [ ] Resolution order is documented and tested, not emergent: `set_base` → `set` (highest wins) →
-      `add` (all stack) → advantage/disadvantage (both → flat). Ties broken deterministically.
-- [ ] The ledger explains itself: every entry carries `{ source, sourceKind, label, delta }` so the
-      tooltip in Slice 13 and the panel in Slice 12 are *reads*, not re-derivations. Two components
-      computing "why is my STR 22" independently will drift; there must be one answer.
+- [x] `lib/dnd/effects/ledger.ts`: `buildLedger(char, ctx) → EffectLedger`. ✅ SHIPPED — walks every source
+      (equipped/attuned inventory, `activeEffects[]`, features gated by `unlockLevel`, the active
+      form/transform, conditions) via `collectSources` and returns, per target, the base, every contributing
+      effect with its `source`/`sourceKind`/`label`, and the resolved final. `effect-ledger.test.ts` (30,
+      incl. the fifteen-effect "one boot" invariant and the source-kind sweep).
+- [x] Resolution order is documented and tested, not emergent: `set_base`/`set` (highest wins) → `add`
+      (all stack) → advantage/disadvantage (both → flat). ✅ SHIPPED — `resolveAgainst` is
+      `max(base, highest override) + Σadds`; `effect-ledger.test.ts` pins each step: adds stack, highest set
+      wins, a set never lowers the base, adds stack on top of the winner, adv+disadv cancel, and derived
+      targets resolve against the caller's base. **⚑ set_base NOW PINNED (2026-07-18):** every order test
+      exercised only `set` — yet the ledger pools `set_base` with `set` into the same highest-wins override
+      (ledger.ts ~L349), so a regression handling only `set` would silently break every `set_base` with no
+      failing test. Added 2 cases: a `set_base` shares the highest-wins override (beating a lower `set`, with
+      adds stacking on top) and never lowers a higher base — identical treatment to `set`, now guarded.
+      `effect-ledger.test.ts` +2 (30 total). Full dnd suite green (1859).
+- [x] The ledger explains itself: every entry carries `{ source, sourceKind, label, delta }` so the tooltip
+      (Slice 13) and the panel (Slice 12) are *reads*, not re-derivations. ✅ SHIPPED — `explain(target)`
+      returns the contributions with source/label; `EffectStar` and `ActiveEffects` both read them (guarded
+      by `effect-star.test.ts` / `active-effects.test.ts` against a second local formatter). One answer.
 - [x] Swap the sheet's reads onto the ledger: abilities, AC, speed, HP max, save DC, initiative,
       skills, proficiency. This is the change that makes item effects real. **✅ COMPLETED** — most
       landed with Slice 10, and a base-vs-effective audit of the derived-value paths (`0295bdf2`,
