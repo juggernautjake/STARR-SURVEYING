@@ -16,6 +16,18 @@ describe('dnd auth: signed tokens', () => {
     expect(verifyToken(`${body}.deadbeef`)).toBeNull();
   });
 
+  it('rejects a FORGED payload — a swapped body with a stolen signature can’t escalate identity', () => {
+    // The real attack: take a validly-signed token and staple its signature onto a DIFFERENT payload
+    // ("userId: u1" → "userId: admin"). The signature is over the ORIGINAL body, so the recomputed HMAC
+    // for the forged body won't match — verifyToken must return null (no privilege escalation).
+    const legit = signToken({ userId: 'u1' });
+    const stolenSig = legit.split('.')[1];
+    const forgedBody = Buffer.from(JSON.stringify({ userId: 'admin' })).toString('base64url');
+    expect(verifyToken(`${forgedBody}.${stolenSig}`)).toBeNull();
+    // and the length-guard path: a signature of a different length is rejected before the timing-safe compare
+    expect(verifyToken(`${forgedBody}.short`)).toBeNull();
+  });
+
   it('rejects a malformed token', () => {
     expect(verifyToken('not-a-token')).toBeNull();
     expect(verifyToken('')).toBeNull();

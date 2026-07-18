@@ -2723,6 +2723,12 @@ regression to *reach*, not the drawing:
       identity, stored as `name:<normalized>` in `dnd_users.email` (already holds synthetic keys like
       `quick:andrew`, so no schema change). `POST /api/dnd/auth/signup` (new); login accepts `name`;
       the login page has a Name field + a Create-account toggle. bcrypt-hashed. Verified end to end.
+      **Session token forgery-resistance hardened in tests (2026-07-18):** the HMAC-signed session (`signToken`/
+      `verifyToken`) already round-trips + rejects tampered-sig/malformed/expired tokens; added the actual
+      PRIVILEGE-ESCALATION attack to `auth.test.ts` — a swapped payload body (`userId: u1` → `userId: admin`)
+      stapled to a stolen valid signature is rejected (the HMAC is over the original body, so the recomputed
+      digest can't match), plus the length-guard path before the timing-safe compare. The forgery guarantee is
+      now explicit, not incidental.
 - [x] **"+ Campaign"** in the header (signed-in only) → `/dnd?new=campaign`; `MyTable`'s new
       `NewCampaignButton` opens its form there, creates via `POST /api/dnd/campaigns` (creator = DM),
       and routes to the campaign's manage page. It then appears under "⚔️ Campaigns you run" and the
