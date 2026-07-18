@@ -1,10 +1,10 @@
 # Blockers — what only you can unblock (as of 2026-07-18)
 
-The three docs in `in-progress/` are each ~90% shipped. Everything that could be built, tested, and
-verified autonomously **is** — the full app test suite is green (**13,334 passing** as of 2026-07-18). Per
-the project's own rubric (`docs/planning/README.md`), all three correctly REMAIN in `in-progress/`:
-each still contains action items not yet done, and none meets the COMPLETED bar ("the feature has
-shipped"). What remains in all three is genuinely gated on your input: **decisions only you can make,
+The four docs in `in-progress/` are each ~90% shipped. Everything that could be built, tested, and
+verified autonomously **is** — the app test suites are green (the dnd suite alone is **2,269 passing** as of
+2026-07-18). Per the project's own rubric (`docs/planning/README.md`), all four correctly REMAIN in
+`in-progress/`: each still contains action items not yet done, and none meets the COMPLETED bar ("the feature
+has shipped"). What remains in all four is genuinely gated on your input: **decisions only you can make,
 content only you/Brendan have, and things that need eyes on a running app or a device build** — none of
 it is "cost exceeds value" busywork that could be honestly deferred to empty the folder. This memo
 consolidates every one of those into a single checklist so you can spend your input where it unblocks
@@ -65,6 +65,13 @@ overwrite a deliberate design.
       slots restored, exhaustion −1, resources reset). If you want RAW-half, the one-line fix is
       `hitDiceRemaining: Math.min(total, remaining + Math.max(1, Math.floor(total / 2)))` (ideally extracted to
       a tested pure helper); tell me the intended rule per edition and I'll wire it.
+- [ ] **PF2 damage while already downed — does it escalate Dying? (surfaced 2026-07-18).** `applyPf2Edit`'s
+      `apply_damage` sets Dying only on the TRANSITION to 0 HP (`effCur > 0`), so damage taken while a character
+      is ALREADY at 0 does not auto-increment Dying — though PF2 RAW raises a dying creature's Dying by 1 (2 on a
+      crit) each time it takes damage. Kept as-is deliberately (auto-escalating a downed PC's death clock on every
+      incoming hit is a heavier, crit-aware call better made in the UI with the DM), pinned + flagged so it's
+      explicit, not an accident. Your call: auto-escalate (with crit awareness) or leave it a manual/DM step?
+      *Detail: `DND_PLATFORM_PHASE2` Area E/PF2-edit "OPEN FINDING"; pinned by `pf2-edit.test.ts`.*
 
 ## B. Content only you / Brendan have (paste it and I fill it in)
 
@@ -117,6 +124,28 @@ overwrite a deliberate design.
       `useUploadQueueDrainer` drains immediately when the app returns to the foreground, via the pure
       `appStateDrain.ts` decision — so only true background execution, bounded by iOS background windows,
       remains device-gated.)
+
+## D. Deploy-time security config — do these BEFORE /dnd is public (surfaced 2026-07-18)
+
+These are operational, not code changes — the code is hardened + warns at startup, but the deploy has to be
+configured and the owner accounts provisioned, or the /dnd hub ships with an open door.
+
+- [ ] **Set `DND_OWNER_KEYS` + provision the owner account(s).** Owner status is "your login key ∈
+      `DND_OWNER_KEYS`", and a `name:<name>` key is exactly what registering that display name produces. If the
+      var is UNSET in production it falls back to the hardcoded dev keys (`name:jacob`/`quick:jacob`), so
+      whoever registers "jacob" FIRST — if the real owner hasn't claimed/seeded it — gains owner (trust-on-first-
+      use). Code now logs a loud startup warning when it's unset (parallel to the `DND_SESSION_SECRET` warning),
+      but you must set it to the real owners AND register/seed those accounts before going public.
+- [ ] **Confirm `DND_SESSION_SECRET` is set in production.** Already warned at startup; without it the session
+      cookie is signed with an insecure shared default (forgeable + non-persistent).
+- [ ] **Decide `DND_REQUIRE_LOGIN`.** /dnd is PUBLIC by default (passwordless "enter as" for the demo/campaign
+      roster; password-protected accounts still can't be entered passwordlessly). To lock it down set
+      `DND_REQUIRE_LOGIN` to a truthy value — the gate was hardened 2026-07-18 to accept `1`/`true`/`yes`/`on`
+      (it previously required the literal `1`, a fail-OPEN footgun), so any obvious spelling now works.
+- [ ] **Live-Supabase demo-character `system` seed (idempotent; not run autonomously).** The demo characters
+      (Jacob/Susie/Sarah/Jack/Andrew) sit at `system = ambiguous`; the idempotent seed sets them to `dnd5e-2024`
+      so the sheet chip + AI grounding are specific. It's a live production-DB write, so I did NOT run it
+      unattended — apply/verify it (or tell me to) when you want it. *Detail: `DND_RULES_PLATFORM` Slice 21.*
 
 ---
 
@@ -251,5 +280,35 @@ high-consequence for a surveying business): `csvCoords` (Trimble/Carlson P,N,E,Z
 live in the fragment, not the query). The RN/Expo/PowerSync-importing modules remain device-QA-gated
 (react-native doesn't resolve in the node test env).
 
-Full app test suite green: **13,334 passing** (grown steadily with each audit slice's guards). What's
-left is only Sections A–C above (owner decisions, Brendan's content, and eyes-on-app / device work).
+### Fourth pass (2026-07-18, this session) — access-control + security sweep
+
+A focused sweep of the auth/access surface and the parallel bespoke subsystems. **Real fixes shipped:**
+- **Grounding false-ground (FIXED).** `systemGroundingBlock` only guarded `null`, so a non-canonical `row.system`
+  (a typo/legacy value — `ai-edit`/`ingest` pass it straight from the DB) was trusted as a real system: the AI
+  was told "you are built for `<raw>`" and grounded on lookups scoped to a key nothing matches (empty rules,
+  false confidence — the exact hallucination this exists to prevent). Now `normalizeSystem`s throughout.
+  `characterDigest` got the same fix (a raw typo could reach the AI prompt as a rulebook). `grounding.test.ts`,
+  `character-digest.test.ts`.
+- **`DND_REQUIRE_LOGIN` fail-OPEN footgun (FIXED).** The public-vs-login gate checked `=== '1'` exactly, so a
+  deployer setting `=true`/`=yes` (intending to lock /dnd) stayed OPEN. Now accepts the obvious truthy
+  spellings, failing toward the more-secure state. `auth.test.ts`.
+- **Roster-role un-validated leak (FIXED).** The effective-role fallback was inlined at 4 sites, 2 skipping the
+  validity check, so a corrupt stored `roster_role` leaked through as a phantom group. Extracted one validated
+  `rosterRoleOf`. `roster.test.ts`.
+
+**Security hardening + invariants pinned (no behavior change unless noted):** the character read/write access
+DECISION extracted to a pure, exhaustively-tested `resolveCharacterAccess` (owner/player/DM/member × visibility);
+session-token forgery resistance made explicit (a swapped payload + stolen signature can't escalate identity);
+`DND_OWNER_KEYS`-unset production warning added (see §D); the homebrew shared-content boundary pinned against a
+mixed valid+malformed effects payload; the demo `join-character` self-join gates (demo-only + ownership) guarded;
+every `supabaseAdmin` (RLS-bypassing) route audited + confirmed gated; PF2 edit op-handler drift guard added at
+parity with IG; the cross-system routing isolation completed (a 5e sheet can't mis-route to the PF2 digest/tool).
+
+**Re-verified correct + already comprehensively covered (no change):** the AI edit-scope boundary (every
+vocabulary character-scoped, privilege-escalation op names refused), grounding cross-system isolation
+(article/feat/power), `parseAuthCallbackUrl` (fragment-only, never-partial), character/campaign PATCH+POST
+(field whitelists — no mass-assignment — DM/owner-gated), `dev/enter` (open-access-flag + roster + password-guard).
+
+Full app test suite green (the dnd suite alone is now **2,269 passing**, grown with each guard). What's
+left is only Sections A–D above (owner decisions, Brendan's content, eyes-on-app / device work, and the
+deploy-time security config).
