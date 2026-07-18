@@ -1112,6 +1112,13 @@ One pure function that every later slice reads. Nothing else in Part II can be b
       take the highest; removing a source restores the base *exactly*. ✅ SHIPPED — all in
       `effect-ledger.test.ts` (the exact no-op case, add-stacking, highest-set-wins incl. the new `set_base`
       pin, and unequip-restores-base-exactly with a `structuredClone` before/after check).
+      **⚑ Non-mutation now pinned at FULL breadth (2026-07-18):** the anti-corruption invariant (buildLedger
+      runs every render and must never write back to the character) was checked whole-object only for the
+      transform case, and abilities-only for items. Added `effect-ledger.test.ts` +1: a character carrying
+      equipped + attuned items, an activeEffect (consumed buff), a feature, and conditions ALL at once stays
+      deep-equal (`structuredClone` before/after) through `buildLedger` + every read method (value/explain/
+      collected/rollFlags/identity/isModified). So a future refactor that cached derived state onto the model
+      — silently corrupting every stored character — fails a test. Full dnd suite green (1883).
 
 **Done when:** equipping a +2 STR belt on any sheet changes the displayed STR, its modifier, the
 athletics check, and the carrying capacity — with no code that knows what a belt is.

@@ -176,6 +176,28 @@ describe('removing a source restores the base EXACTLY', () => {
     expect(buildLedger(c).value('ability_str')).toBe(16);
     expect(c.abilities).toEqual(before.abilities);
   });
+
+  it('buildLedger never mutates its input — the WHOLE character stays byte-identical across every source kind', () => {
+    // The foundational safety property, tested at full breadth: buildLedger runs on every render over
+    // equipped + attuned items, activeEffects (consumed buffs), features, and conditions all at once. If it
+    // EVER wrote back to the character (e.g. a refactor caching derived state onto the model), every stored
+    // character would silently corrupt. The item-level test above checks abilities only; this deep-equals the
+    // ENTIRE object before/after, and exercises every read method (none may mutate either).
+    const c = hero();
+    c.inventory = [
+      item({ name: 'Belt', equipped: true, effects: [{ target: 'ability_str', operation: 'add', value: 2 }] }),
+      item({ name: 'Cloak', attuned: true, tags: ['equipped'], effects: [{ target: 'all_saves', operation: 'add', value: 1 }] }),
+    ];
+    c.activeEffects = [{ id: 'ae', label: 'Potion', source: 'Potion of Storm Giant Strength', effects: [{ target: 'ability_str', operation: 'set', value: 29 }] }];
+    c.features = [{ id: 'f', name: 'Rage', source: 'Barbarian', body: [''], effects: [{ target: 'ac', operation: 'add', value: 2 }] }];
+    c.combat = { ...c.combat, conditions: ['Prone'] };
+    const before = structuredClone(c);
+    const led = buildLedger(c);
+    // Exercise every read surface — resolving a value, explaining, collecting, roll flags, identity, isModified.
+    led.value('ability_str'); led.value('all_saves', 0); led.explain('ac');
+    led.collected('resistance'); led.rollFlags('skill.stealth'); led.identity('name'); led.isModified('ability_str');
+    expect(c).toEqual(before); // the entire stored character, untouched
+  });
 });
 
 describe('a source only counts when it should', () => {
