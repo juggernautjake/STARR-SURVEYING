@@ -21,6 +21,8 @@ import { IG_EDIT_TOOL, parseIGEditToolCall, igEditToolInstruction } from '@/lib/
 import { applyIgEdit, describeIgEdit } from '@/lib/dnd/systems/intuitive-games/edit';
 import { isIGCharacter, type IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { igCharacterDigest } from '@/lib/dnd/systems/intuitive-games/digest';
+import { isPF2Character, type PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
+import { pf2CharacterDigest } from '@/lib/dnd/systems/pathfinder2e/digest';
 
 // Routing hint so the agent picks the right tool: mechanics → edit_sheet, look/layout →
 // customize_layout. Both only ever touch THIS character (Slice 8b).
@@ -96,6 +98,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const rawData = (row.data ?? {}) as Record<string, unknown>;
   const igData = rawData.ig;
   const isIG = normalizeSystem((row as { system?: string }).system) === 'intuitive-games' && isIGCharacter(igData);
+  // Pathfinder 2e keeps its own sidecar at data.pf2e; the edit AI can't edit its mechanics incrementally
+  // (there's no pf2-edit tool — PF2 is built via the builder), but it should SEE the character's PF2 state
+  // so base edits (name, notes) are informed, the same way the adjudication chat route does.
+  const pf2Data = rawData.pf2e;
+  const isPF2 = isPF2Character(pf2Data);
 
   // System grounding (Slice 3/8): edits must stay inside the character's chosen system —
   // no cross-system rules, no invented mechanics.
@@ -126,6 +133,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         // (won't re-add a held feat/power) and can reason about the active mechanics. Same summary the
         // librarian adjudicates from, so edit + explain agree.
         isIG ? igCharacterDigest(igData as IGCharacter) : null,
+        // Likewise the PF2 state (AC/HP/saves/perception, class/spell DC, MAP schedule, strikes, skills) so
+        // the edit AI is state-aware for a Pathfinder character, matching the librarian's context.
+        isPF2 ? pf2CharacterDigest(pf2Data as PF2Character) : null,
         `Current custom layout blocks: ${layoutSummary((row as { custom_layout?: unknown }).custom_layout)}`,
         historyDigest || null,
         grounding?.block || null,

@@ -96,4 +96,12 @@ describe('pf2CharacterDigest', () => {
     expect(route).toContain('isPF2Character(pf2Data)');
     expect(route).toContain('pf2CharacterDigest(pf2Data)');
   });
+
+  it('the AI EDIT route also feeds PF2 state to the edit AI (parity with the IG edit path)', () => {
+    // The chat (adjudication) route already appends it; the edit route must too, or the AI editing a PF2
+    // character is blind to its state while the IG edit AI is not.
+    const route = fs.readFileSync(path.join(process.cwd(), 'app/api/dnd/characters/[id]/ai-edit/route.ts'), 'utf8');
+    expect(route).toContain('isPF2Character(pf2Data)');
+    expect(route).toContain('pf2CharacterDigest(pf2Data as PF2Character)');
+  });
 });

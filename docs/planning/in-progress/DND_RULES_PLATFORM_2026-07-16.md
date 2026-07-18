@@ -693,6 +693,11 @@ now audited and guarded:
       live in PF2 (anathema, domains, favored weapon), so a ruling on "does this break your anathema?" needs
       it. Now appends "Background: … Deity: …" when set (omitted otherwise). `pf2-digest.test.ts` +2. (Parallel
       to the same IG digest fix.) Full dnd suite green (1889).
+      **⚑ PF2 state now feeds the EDIT AI too (2026-07-18):** the adjudication chat route appended
+      `pf2CharacterDigest` for a PF2 character, but the `ai-edit` route appended only the IG digest — so the
+      AI editing a PF2 character was blind to its state while the IG edit AI wasn't. Wired the PF2 digest into
+      the ai-edit route's context (PF2 has no incremental pf2-edit tool, but the read context informs base
+      edits + matches the librarian). `pf2-digest.test.ts` +1 (route source-anchor). Full dnd suite green (1891).
       **Cross-system leak guard added** (`8f34eed9`): `system-conditions-skills-scope.test.ts`
       (8) extends Ground Rule 1 to the condition + skill lists — PF2's Clumsy/Enfeebled/Off-Guard stay out
       of 5e, 5e's Charmed/Restrained out of PF2, IG's Heatstroke + Bluff-not-Deception unique — so a new
