@@ -30,6 +30,25 @@ slice per loop → typecheck+lint+commit+push+annotate).
 
 ## Areas & slices (sequenced by dependency)
 
+### Area SQ — Sheet quality + full AI integration, ALL FOUR systems (owner 2026-07-17)
+> Owner, verbatim intent: make the character sheets for **IG, Pathfinder 2e, D&D 2024, and D&D 2014** all
+> styled well and looking good; make sure all the information is good; and make sure the **AI has complete
+> integration into editing all of them and reading every component**.
+
+This is a cross-system audit thrust (aligns with the planned final QA walkthrough). Per system:
+- [ ] **SQ1 — Styling/layout pass** — each sheet reads well + looks good on desktop AND mobile (ties to MOB3);
+      no broken/against-the-skin colors (the `sheet-contrast` guards already protect the 5e sheet — extend the
+      spirit to IG/PF2).
+- [ ] **SQ2 — Information completeness** — every field the system needs is present + correct on the sheet
+      (cross-check vs each system's rules module; IG vs `SITE_MASTER.md`).
+- [ ] **SQ3 — AI reads every component** — the character digest for each system (`characterDigest`,
+      `igCharacterDigest`, `pf2CharacterDigest`) must include every meaningful component so the adjudicating
+      AI sees the whole sheet. Audit each digest for gaps.
+- [ ] **SQ4 — AI edits every component** — the AI edit path (`applySheetEdits` / `applyIgEdit` / PF2 edits)
+      can change every editable field on each system's sheet, rules-scoped. Audit coverage + fill gaps.
+- [ ] **SQ5 — Per-system verification** — a browser/QA pass per system (the memory-documented Slice-40
+      walkthrough): build a character, exercise the sheet + AI edit + read, fix correctness + styling bugs.
+
 ### Area P — Preferences & campaign settings (FOUNDATION — build first; unblocks A/D/E)
 The config layer everything else reads. A player-preferences store + a DM/campaign-preferences store, with
 **player prefs clamped to the campaign's** (the DM's setting wins where it constrains). Owner emphasis
