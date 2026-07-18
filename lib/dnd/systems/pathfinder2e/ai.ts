@@ -83,13 +83,14 @@ export const PF2_PICKS_TOOL = {
 export const PF2_EDIT_TOOL = {
   name: 'edit_pf2_sheet',
   description:
-    "Change ONE thing on a Pathfinder 2e character's sheet in place: apply damage (apply_damage with `amount` — soaked by temp HP first, floors at 0), heal (heal with `amount` — regaining HP while Dying clears Dying), set temporary HP (set_temp_hp with `amount`, 0 clears), or set the death track (set_dying with `value` 0–4 where 4 = dead; set_wounded with `value`, 0 clears).",
+    "Change ONE thing on a Pathfinder 2e character's sheet in place: apply damage (apply_damage with `amount` — soaked by temp HP first, floors at 0), heal (heal with `amount` — regaining HP while Dying clears Dying), set temporary HP (set_temp_hp with `amount`, 0 clears), set the death track (set_dying with `value` 0–4 where 4 = dead; set_wounded with `value`, 0 clears), or set a condition (set_condition with `name` e.g. \"Frightened\"/\"Sickened\"/\"Prone\" and `value` — its numeric value, or 0 to clear; the sheet folds active conditions into rolls under PF2's non-stacking penalty rule).",
   input_schema: {
     type: 'object' as const,
     properties: {
       op: { type: 'string', enum: [...PF2_EDIT_OPS], description: 'The edit operation.' },
       amount: { type: 'integer', minimum: 0, description: 'For apply_damage / heal / set_temp_hp: how many HP.' },
-      value: { type: 'integer', minimum: 0, description: 'For set_dying (0–4) / set_wounded: the track value.' },
+      value: { type: 'integer', minimum: 0, description: 'For set_dying (0–4) / set_wounded / set_condition: the track or condition value (0 clears).' },
+      name: { type: 'string', description: 'For set_condition: the condition name, e.g. "Frightened", "Sickened", "Prone".' },
     },
     required: ['op'],
   },

@@ -10,7 +10,11 @@ const sheet = readFileSync(join(process.cwd(), 'app/dnd/_ui/IGSheet.tsx'), 'utf8
 describe('IG sheet is interactive — tap to roll (R1b / IGS6)', () => {
   it('uses the shared roll engine (resolveD20Roll + rollNaturalD20), not a bespoke roller', () => {
     expect(sheet).toContain("from '@/lib/dnd/roll'");
-    expect(sheet).toContain('resolveD20Roll({ natural: rollNaturalD20()');
+    // The roller resolves through the shared engine — a `natural` d20 (rolled once, or the lower of two for a
+    // condition-disadvantaged roll) fed to resolveD20Roll. Assert both pieces rather than one literal call, so
+    // the condition auto-fold (Area R2) doesn't trip a too-literal source match.
+    expect(sheet).toContain('resolveD20Roll({ natural,');
+    expect(sheet).toContain('rollNaturalD20()');
   });
 
   it('shows the last roll in a generic result banner (label + total + detail, tone-coloured)', () => {

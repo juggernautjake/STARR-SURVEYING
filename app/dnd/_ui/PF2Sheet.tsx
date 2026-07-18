@@ -14,6 +14,7 @@ import {
   pf2Derived, pf2SkillTotal, pf2SaveTotal, pf2PerceptionTotal, pf2AttackBonus, pf2Proficiency,
 } from '@/lib/dnd/systems/pathfinder2e/rules';
 import { resolveD20Roll, rollNaturalD20, rollDiceExpr, degreeLabel } from '@/lib/dnd/roll';
+import { pf2ConditionRollEffect, pf2ConditionMechanics, type Pf2RollKind } from '@/lib/dnd/conditions/pathfinder2e';
 
 const fmt = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
 const RANK_ABBR: Record<string, string> = { untrained: 'U', trained: 'T', expert: 'E', master: 'M', legendary: 'L' };
@@ -44,10 +45,14 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
   const [lastRoll, setLastRoll] = useState<{ label: string; total: number; detail: string; tone: 'crit' | 'fumble' | 'normal' } | null>(null);
   // Optional target DC — when set, a roll resolves PF2's four-step degree of success.
   const [targetDc, setTargetDc] = useState('');
-  const rollLine = (name: string, modifier: number) => {
+  const rollLine = (name: string, modifier: number, kind: Pf2RollKind = 'skill') => {
     const dcNum = targetDc.trim() === '' ? undefined : Number(targetDc);
     const dc = Number.isFinite(dcNum) ? dcNum : undefined;
-    const r = resolveD20Roll({ natural: rollNaturalD20(), modifier, dc, system: 'pathfinder2e' });
+    // Auto-fold active PF2 conditions (Area R2 — PF2): the WORST status penalty + the WORST circumstance
+    // penalty apply (same-type penalties don't stack; the two types do). Frightened/Sickened hit everything;
+    // Prone hits attacks. The affecting conditions are named on the result so the player sees why.
+    const cond = pf2ConditionRollEffect((pf2.combat.conditions ?? []) as { name: string; value?: number }[], kind);
+    const r = resolveD20Roll({ natural: rollNaturalD20(), modifier: modifier + cond.penalty, dc, system: 'pathfinder2e' });
     const sign = r.modifier >= 0 ? `+ ${r.modifier}` : `− ${Math.abs(r.modifier)}`;
     let detail = `d20 [${r.natural}] ${sign}`;
     let tone: 'crit' | 'fumble' | 'normal' = r.critical ? 'crit' : r.fumble ? 'fumble' : 'normal';
@@ -57,6 +62,7 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
       else if (r.degree === 'critical-failure') tone = 'fumble';
     }
     detail += `${r.critical ? ' · NAT 20' : ''}${r.fumble ? ' · NAT 1' : ''}`;
+    if (cond.sources.length) detail += ` · ⚠ ${cond.penalty} from ${cond.sources.join(', ')}`;
     setLastRoll({ label: name, total: r.total, detail, tone });
   };
   const rollDamage = (name: string, expr: string) => {
@@ -121,7 +127,7 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
         <div style={label}>Saving Throws</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
           {PF2_SAVES.map((s) => (
-            <button key={s} type="button" onClick={() => rollLine(`${s} save`, pf2SaveTotal(s, pf2))} title={`Roll ${s} (d20 ${fmt(pf2SaveTotal(s, pf2))})`}
+            <button key={s} type="button" onClick={() => rollLine(`${s} save`, pf2SaveTotal(s, pf2), s === 'Fortitude' ? 'fortitude' : s === 'Reflex' ? 'reflex' : 'will')} title={`Roll ${s} (d20 ${fmt(pf2SaveTotal(s, pf2))})`}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', border: '1px solid var(--hx-line)', borderRadius: 8, background: 'none', cursor: 'pointer' }}>
               <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{s} 🎲</span>
               <strong style={{ fontSize: 15, color: 'var(--hx-gold-2)' }}>{fmt(pf2SaveTotal(s, pf2))}</strong>
@@ -131,6 +137,21 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
         </div>
       </div>
 
+      {/* Active conditions (Area R2 — PF2). Shown so the player sees what's folding into their rolls; the
+          penalties apply automatically under PF2's non-stacking rule. Set/cleared via the AI edit tool. */}
+      {(pf2.combat.conditions ?? []).length > 0 && (
+        <div>
+          <div style={label}>Conditions <span style={{ fontWeight: 400, color: 'var(--hx-muted)', fontSize: 10 }}>· folded into rolls (worst status + worst circumstance)</span></div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+            {(pf2.combat.conditions ?? []).map((c) => (
+              <span key={c.name} title={pf2ConditionMechanics(c.name)?.note ?? ''} style={{ fontSize: 11.5, padding: '3px 9px', border: '1px solid var(--hx-line)', borderRadius: 999, color: 'var(--hx-gold-2)', cursor: 'help' }}>
+                {c.name}{c.value && c.value > 1 ? ` ${c.value}` : ''}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Skills */}
       <div>
         <div style={label}>Skills{pf2.combat.armorCheckPenalty ? <span style={{ fontWeight: 400, color: 'var(--hx-muted)', fontSize: 10 }}> · armor check penalty {pf2.combat.armorCheckPenalty} on ▲ skills</span> : null}</div>
@@ -139,7 +160,7 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
             const penalized = !!sk.armorPenalty && !!pf2.combat.armorCheckPenalty;
             const total = pf2SkillTotal(sk, id.level, pf2.attributes, pf2.combat.armorCheckPenalty);
             return (
-              <button key={sk.name} type="button" onClick={() => rollLine(`${sk.name} (${sk.attribute})`, total)} title={`Roll ${sk.name} (d20 ${fmt(total)})`}
+              <button key={sk.name} type="button" onClick={() => rollLine(`${sk.name} (${sk.attribute})`, total, 'skill')} title={`Roll ${sk.name} (d20 ${fmt(total)})`}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: '3px 8px', border: '1px solid var(--hx-line)', borderRadius: 6, opacity: sk.rank === 'untrained' ? 0.55 : 1, background: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
                 <span style={{ fontSize: 11.5, color: 'var(--hx-text)' }}>{sk.name}{penalized ? <span title="armor check penalty applies" style={{ color: 'var(--hx-gold-2)' }}> ▲</span> : null} <span style={{ color: 'var(--hx-muted)', fontSize: 9.5 }}>{sk.attribute}</span></span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -164,7 +185,7 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
                   <span style={{ fontSize: 12.5, color: 'var(--hx-text)' }}>{a.name}{a.traits.length ? <span style={{ color: 'var(--hx-muted)', fontSize: 10 }}> · {a.traits.join(', ')}</span> : null}</span>
                   <span style={{ fontSize: 12, color: 'var(--hx-muted)', display: 'inline-flex', gap: 8, alignItems: 'baseline' }}>
                     {/* Tap the Strike bonus to roll the attack; tap the damage to roll its dice (R1b). */}
-                    <button type="button" onClick={() => rollLine(`${a.name} Strike`, bonus)} title={`Roll ${a.name} Strike (d20 ${fmt(bonus)})`} style={{ background: 'none', border: 'none', color: 'var(--hx-gold-2)', fontWeight: 700, cursor: 'pointer', padding: 0 }}>{fmt(bonus)} 🎲</button>
+                    <button type="button" onClick={() => rollLine(`${a.name} Strike`, bonus, 'attack')} title={`Roll ${a.name} Strike (d20 ${fmt(bonus)})`} style={{ background: 'none', border: 'none', color: 'var(--hx-gold-2)', fontWeight: 700, cursor: 'pointer', padding: 0 }}>{fmt(bonus)} 🎲</button>
                     ·
                     <button type="button" onClick={() => rollDamage(`${a.name} damage`, a.damage)} title={`Roll ${a.name} damage (${a.damage})`} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', padding: 0 }}>{a.damage} 🎲</button>
                   </span>

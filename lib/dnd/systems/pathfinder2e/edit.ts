@@ -15,7 +15,10 @@ export type PF2Edit =
   | { op: 'heal'; amount: number }
   | { op: 'set_temp_hp'; amount: number }
   | { op: 'set_dying'; value: number }
-  | { op: 'set_wounded'; value: number };
+  | { op: 'set_wounded'; value: number }
+  // Set (or, with value 0, clear) a PF2 condition by name — Frightened 2, Sickened 1, Prone. The sheet folds
+  // active conditions into rolls under PF2's non-stacking penalty rule.
+  | { op: 'set_condition'; name: string; value: number };
 
 /** Options governing house-rule-configurable behavior of an edit. */
 export interface PF2EditOptions {
@@ -26,7 +29,7 @@ export interface PF2EditOptions {
 }
 
 /** The op names the AI tool + API accept. */
-export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded'] as const;
+export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded', 'set_condition'] as const;
 export type PF2EditOp = (typeof PF2_EDIT_OPS)[number];
 
 const DYING_MAX = 4; // PF2: Dying 4 = dead.
@@ -87,6 +90,15 @@ export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit, opts: PF2EditOpti
       combat.woundedValue = Math.max(0, Math.round(edit.value || 0));
       return { ...pf2, combat };
     }
+    case 'set_condition': {
+      // Upsert the condition by name; value 0 removes it. Values clamp to 0–10 (well past any real cap).
+      const name = edit.name.trim();
+      const value = Math.max(0, Math.min(10, Math.round(edit.value || 0)));
+      const list = (combat.conditions ?? []).filter((c) => c.name.toLowerCase() !== name.toLowerCase());
+      if (value > 0) list.push({ name, value });
+      combat.conditions = list;
+      return { ...pf2, combat };
+    }
     default: {
       const _exhaustive: never = edit;
       void _exhaustive;
@@ -107,6 +119,12 @@ export function parsePf2Edit(raw: unknown): { edit: PF2Edit } | { error: string 
     if ((op === 'apply_damage' || op === 'heal') && !amount) return { error: `The "${op}" edit needs a positive "amount".` };
     return { edit: { op, amount } };
   }
+  if (op === 'set_condition') {
+    const name = typeof o.name === 'string' ? o.name.trim() : '';
+    if (!name) return { error: 'The "set_condition" edit needs a condition "name".' };
+    const value = Math.max(0, Math.min(10, Math.round(Number(o.value) || 0)));
+    return { edit: { op, name, value } };
+  }
   // set_dying / set_wounded carry a `value` (0 is legal — it clears the track).
   const value = Math.max(0, Math.round(Number(o.value) || 0));
   return { edit: { op, value } as PF2Edit };
@@ -120,6 +138,7 @@ export function describePf2Edit(edit: PF2Edit): string {
     case 'set_temp_hp': return edit.amount ? `Gained ${edit.amount} temporary HP.` : 'Cleared temporary HP.';
     case 'set_dying': return edit.value ? `Now Dying ${edit.value}.` : 'No longer Dying.';
     case 'set_wounded': return edit.value ? `Now Wounded ${edit.value}.` : 'No longer Wounded.';
+    case 'set_condition': return edit.value ? `Now ${edit.name} ${edit.value}.` : `No longer ${edit.name}.`;
     default: return 'No change.';
   }
 }

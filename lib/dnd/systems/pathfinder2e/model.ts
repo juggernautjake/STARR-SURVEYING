@@ -87,6 +87,10 @@ export interface PF2Combat {
   /** The class DC proficiency (for class features that impose saves). */
   classDcRank: PF2Rank;
   classDcAttribute: PF2AttributeKey;
+  /** Active PF2 conditions with their values (Frightened 2, Sickened 1, Prone). The sheet folds their
+   *  penalties into rolls under PF2's non-stacking rule (worst status + worst circumstance). Optional so
+   *  legacy sidecars read as an empty list. */
+  conditions?: { name: string; value?: number }[];
 }
 
 export interface PF2Attack {
