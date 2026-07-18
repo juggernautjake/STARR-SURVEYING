@@ -539,11 +539,13 @@ describe('Intuitive Games powers, defensive powers, and actions surface on the l
     expect(actions.table!.rows.find((r) => /Stride/.test(r[0]))?.[1]).toBe('1 action');
   });
 
-  it('lists the complete site spell roster + flags spells still awaiting effect text', () => {
+  it('lists the complete site spell roster; all spells now carry effect text', () => {
     const powers = libraryPageFor('intuitive-games')!.sections.find((s) => s.id === 'powers')!;
     expect(powers.body!.some((b) => /Complete spell roster/i.test(b))).toBe(true);
     expect(powers.body!.some((b) => /Evocation:.*Wave Crash/.test(b))).toBe(true);
-    expect(powers.body!.some((b) => /Awaiting verbatim effect text/i.test(b))).toBe(true);
+    // The gap is closed (scraped verbatim from the site 2026-07-17): the "awaiting text" line becomes the
+    // all-covered line.
+    expect(powers.body!.some((b) => /All roster spells have effect text/i.test(b))).toBe(true);
   });
 
   it('a power and a defensive power are searchable with effect text', () => {

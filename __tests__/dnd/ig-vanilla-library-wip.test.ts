@@ -26,11 +26,14 @@ describe('the vanilla library is honest about WIP (Ground Rule 2)', () => {
     }
   });
 
-  it('at least one catalog power really is effect-less, so the marker guards a real case', () => {
+  it('every catalog power now carries effect text — the spell WIP gap is CLOSED (scraped 2026-07-17)', () => {
+    // All 56 site spells were scraped verbatim from intuitivegames.net/spell-list and wired into IG_POWERS,
+    // so no power is effect-less anymore. The WIP marker (tested above) remains, guarding any FUTURE
+    // effect-bearing entry that lacks text (e.g. content Brendan hasn't published yet on other pages).
     const effectlessPowers = igCatalog()
       .filter((g) => g.kind === 'power')
       .flatMap((g) => g.entries)
       .filter((e) => !e.effect);
-    expect(effectlessPowers.length).toBeGreaterThan(0); // e.g. Gate / Portal, pending Brendan's text
+    expect(effectlessPowers.length).toBe(0);
   });
 });

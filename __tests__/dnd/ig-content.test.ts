@@ -150,10 +150,12 @@ describe('Intuitive Games vanilla content library (Slice 1)', () => {
     expect(igIsVanilla('power', 'Wave Crash')).toBe(true);
     expect(igIsVanilla('spell', 'Mirror Image')).toBe(true); // one that IS in IG_POWERS too
     expect(igIsVanilla('spell', 'My Homebrew Spell')).toBe(false);
-    // The missing-effects helper reports roster spells lacking effect text (a real, non-empty gap today).
+    // The missing-effects helper: the gap is now CLOSED — every roster spell has verbatim effect text in
+    // IG_POWERS (scraped from intuitivegames.net/spell-list, 2026-07-17). Named Bullet used to be missing.
     const missing = igSpellsMissingEffects();
-    expect(missing).toContain('Named Bullet');
-    expect(missing).not.toContain('Mirror Image'); // this one has effect text in IG_POWERS
+    expect(missing).toHaveLength(0);
+    expect(missing).not.toContain('Named Bullet');
+    expect(missing).not.toContain('Mirror Image');
     // The REVERSE discrepancy: template powers not on the current site roster (for owner reconciliation).
     const reverse = igPowersNotInRoster();
     expect(reverse).toContain('Mage Armor'); // template power not in the site's current spell list
