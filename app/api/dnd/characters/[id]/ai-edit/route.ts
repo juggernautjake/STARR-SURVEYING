@@ -26,6 +26,7 @@ import { isPF2Character, type PF2Character } from '@/lib/dnd/systems/pathfinder2
 import { pf2CharacterDigest } from '@/lib/dnd/systems/pathfinder2e/digest';
 import { PF2_EDIT_TOOL, parsePF2EditToolCall } from '@/lib/dnd/systems/pathfinder2e/ai';
 import { applyPf2Edit, describePf2Edit } from '@/lib/dnd/systems/pathfinder2e/edit';
+import { LEVEL_UP_TOOL, parseLevelUpToolCall, applyLevelUpDraft } from '@/lib/dnd/classes/level-up-ai';
 
 // Routing hint so the agent picks the right tool: mechanics → edit_sheet, look/layout →
 // customize_layout. Both only ever touch THIS character (Slice 8b).
@@ -33,7 +34,10 @@ const LAYOUT_ROUTING =
   'If the user asks to change the SHEET ITSELF — its layout, sections, blocks, widgets, styling, colors, ' +
   'fonts, or format (move/resize/restyle/add/remove elements, set CSS) — call customize_layout. If they ask ' +
   'to change the CHARACTER — feats, abilities, mechanics, transformations, spells, attacks, stats — call ' +
-  'edit_sheet. If they ask to UNDO, REVERT, or PUT BACK your most recent change (or "take my character back ' +
+  'edit_sheet. If they ask to LEVEL UP the character (gain a level, "take me to the next level", "level me ' +
+  'up with custom feats", "level up the vanilla way"), call level_up_character — grant standard class features ' +
+  'when they exist (mode "vanilla") or invent balanced custom content for a custom/highly-modified character ' +
+  '(mode "custom"). If they ask to UNDO, REVERT, or PUT BACK your most recent change (or "take my character back ' +
   'to what it was"), call undo_last_change. Never touch anything outside this character.';
 
 /** The tool the model picks to undo its own most recent change to this character. No inputs — the route
@@ -145,7 +149,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         grounding?.block || null,
         `Instruction: ${instr}`,
       ].filter(Boolean).join('\n\n'),
-      tools: [SHEET_EDIT_TOOL, LAYOUT_EDIT_TOOL, UNDO_TOOL, ...(isIG ? [IG_EDIT_TOOL] : []), ...(isPF2 ? [PF2_EDIT_TOOL] : [])],
+      tools: [SHEET_EDIT_TOOL, LAYOUT_EDIT_TOOL, UNDO_TOOL, LEVEL_UP_TOOL, ...(isIG ? [IG_EDIT_TOOL] : []), ...(isPF2 ? [PF2_EDIT_TOOL] : [])],
       toolChoice: { type: 'auto' },
       maxTokens: 4096,
       temperature: 0.4,
@@ -220,6 +224,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       source: 'ai', summary: describePf2Edit(parsed.edit),
     }).then(() => {}, () => {});
     return NextResponse.json({ ok: true, kind: 'pf2-edit', summary: describePf2Edit(parsed.edit), currentHp: nextPf2.combat.currentHp, dyingValue: nextPf2.combat.dyingValue });
+  }
+
+  // ── Level-up path (Area LU): the user asked to gain a level (vanilla or custom) ───────
+  if (result?.name === 'level_up_character') {
+    const fromLevel = Math.max(1, current.meta?.level || 1);
+    if (fromLevel >= 20) return NextResponse.json({ error: 'This character is already level 20.' }, { status: 400 });
+    const draft = parseLevelUpToolCall(result.input, fromLevel);
+    const next = applyLevelUpDraft(current, draft);
+    const { error: luErr } = await supabaseAdmin.from('dnd_characters').update({ data: next, updated_at: new Date().toISOString() }).eq('id', params.id);
+    if (luErr) return NextResponse.json({ error: luErr.message }, { status: 500 });
+    const summary = `Level ${fromLevel} → ${draft.toLevel} (${draft.mode})${draft.features.length ? `: ${draft.features.map((f) => f.name).join(', ')}` : ''}.`;
+    await supabaseAdmin.from('dnd_sheet_edits').insert({
+      character_id: params.id, editor_user_id: session.userId, is_dm: isDM,
+      field_path: `level:${draft.toLevel}`, old_value: null, new_value: null, scope: 'permanent',
+      source: 'ai', summary,
+    }).then(() => {}, () => {});
+    return NextResponse.json({ ok: true, kind: 'level-up', fromLevel, toLevel: draft.toLevel, mode: draft.mode, hpGained: draft.hpGained, featuresAdded: draft.features.map((f) => f.name), summary });
   }
 
   const editsRaw = result?.input?.edits;

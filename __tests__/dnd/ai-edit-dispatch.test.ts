@@ -13,7 +13,7 @@ const route = readFileSync(join(process.cwd(), 'app/api/dnd/characters/[id]/ai-e
 
 describe('every AI edit tool offered by ai-edit is dispatched', () => {
   // Tools that get an explicit `result?.name === '<name>'` branch (the bespoke-sidecar + meta tools).
-  const namedDispatch = [LAYOUT_EDIT_TOOL.name, IG_EDIT_TOOL.name, PF2_EDIT_TOOL.name, 'undo_last_change'];
+  const namedDispatch = [LAYOUT_EDIT_TOOL.name, IG_EDIT_TOOL.name, PF2_EDIT_TOOL.name, 'undo_last_change', 'level_up_character'];
   for (const name of namedDispatch) {
     it(`${name} has an explicit dispatch branch`, () => {
       expect(route).toContain(`result?.name === '${name}'`);
@@ -25,8 +25,8 @@ describe('every AI edit tool offered by ai-edit is dispatched', () => {
     expect(route).toContain('const edits = editsRaw as SheetEdit[]');
     expect(route).toContain('applySheetEdits(current, edits');
   });
-  it('the offered toolset is exactly these five (so a NEW tool forces a matching dispatch here)', () => {
-    // If someone adds a 6th tool to the route, this list must change — prompting them to add its handler too.
-    expect(route).toContain('tools: [SHEET_EDIT_TOOL, LAYOUT_EDIT_TOOL, UNDO_TOOL, ...(isIG ? [IG_EDIT_TOOL] : []), ...(isPF2 ? [PF2_EDIT_TOOL] : [])]');
+  it('the offered toolset is exactly these tools (so a NEW tool forces a matching dispatch here)', () => {
+    // If someone adds another tool to the route, this list must change — prompting them to add its handler too.
+    expect(route).toContain('tools: [SHEET_EDIT_TOOL, LAYOUT_EDIT_TOOL, UNDO_TOOL, LEVEL_UP_TOOL, ...(isIG ? [IG_EDIT_TOOL] : []), ...(isPF2 ? [PF2_EDIT_TOOL] : [])]');
   });
 });
