@@ -452,3 +452,17 @@ describe('select vs focus: single-click locks on, double-click / button focuses 
     expect(SRC).not.toContain('window.addEventListener("resize",()=>{if(selectedId)');
   });
 });
+
+describe('player map: no runaway memory / smoother heavy galaxies (owner 2026-07-19)', () => {
+  it('DiffSpinGalaxy caps ring-slice resolution at 1024 (a 2000px galaxy → ~36MB not ~137MB of ring canvases)', () => {
+    expect(SRC).toContain('src=Math.min(iw,ih),size=Math.min(src,1024)');
+    expect(SRC).toContain('cx.drawImage(this.img,sx,sy,src,src,0,0,size,size)');
+  });
+  it('animation loops clamp dt so a hidden→visible jump does not burst-spawn or leap the animation', () => {
+    expect(SRC).toContain('const dt=Math.min(0.1,this._last?(now-this._last)/1000:0);this._last=now;');
+  });
+  it('the centre-galaxy engine is destroyed (loop + resize listener) before a re-render, not just dropped', () => {
+    expect(SRC).toContain('if(dsCenter){try{dsCenter.destroy();}catch(e){}}dsCenter=null;');
+    expect(SRC).not.toContain('viewport.innerHTML="";dsCenter=null;renderBackground();'); // the leaky version is gone
+  });
+});
