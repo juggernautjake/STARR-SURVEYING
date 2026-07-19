@@ -1,6 +1,14 @@
 # D&D Rules Platform — full buildout
 
-**Status:** IN PROGRESS · started 2026-07-16
+> **PARKED in `pending/` (owner 2026-07-18).** The owner deliberately deferred this doc ("let the stop hook run
+> on the other files, not the DND_RULES_PLATFORM file") while the other three tabletop planning docs were worked
+> to completion — those are now closed in `completed/`. This is genuinely-planned work parked on hold, not
+> abandoned: most slices shipped (1–3, 9–34, 38); the big remainders are Slice 5 (custom class/subclass/feat
+> builder UI), Slice 6 (rules-accurate class data for the other 8 systems L1–20 — huge, source-verify per Ground
+> Rule 3), Slice 7 (wiring), and Slice 40 (the final QA walkthrough). **Move back to `in-progress/` when the
+> owner reopens it.**
+
+**Status:** PARKED (pending) · started 2026-07-16 · deferred by owner 2026-07-18
 **Goal:** every supported game system fully written out, searchable, AI-explainable, and wired
 into the character sheets — so a player or DM can build a character to level 20 exactly as the
 system's designers intended, look any rule up instantly, and ask the AI how it applies in a
