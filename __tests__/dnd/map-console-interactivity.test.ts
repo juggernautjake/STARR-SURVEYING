@@ -69,7 +69,7 @@ describe('player console: sectors visible + hover/focus (owner 2026-07-18)', () 
     expect(SRC).not.toContain('const svg=mkSvg(2),svgF=mkSvg(11)');
   });
   it('sectors get a slight hover animation + a stronger focus highlight', () => {
-    expect(SRC).toContain('[data-sector]:hover{opacity:1 !important;stroke-width:3.4 !important');
+    expect(SRC).toContain('[data-sector]:hover,[data-sector].sector-hover{opacity:1 !important;stroke-width:3.4 !important');
     expect(SRC).toContain('[data-sector].sector-focus{');
     expect(SRC).toContain('transition:opacity .22s ease,stroke-width .22s ease,filter .22s ease');
   });
@@ -167,5 +167,22 @@ describe('player map: wheel-zoom never scrolls the page (over text or anywhere)'
   it('binds the wheel handler to #mapPane (the whole container), not #stage', () => {
     expect(SRC).toContain('$("#mapPane").addEventListener("wheel"');
     expect(SRC).not.toContain('stage.addEventListener("wheel"'); // moved off stage so labels can\'t leak to page scroll
+  });
+});
+
+describe('player map: systems enlarge on hover + two-way legend highlight (2D/hybrid)', () => {
+  it('a hovered system enlarges (scale) + brightens, from map hover OR the list', () => {
+    expect(SRC).toContain('[data-sector]:hover,[data-sector].sector-hover{opacity:1 !important;stroke-width:3.4 !important;filter:brightness(1.4) drop-shadow(0 0 6px currentColor);transform:scale(1.015);}');
+    expect(SRC).toContain('transform-box:fill-box;transform-origin:center;');
+  });
+  it('setSectorHover links the on-map region and its system-list row both ways', () => {
+    expect(SRC).toContain('function setSectorHover(id,on)');
+    expect(SRC).toContain('p.classList.toggle("sector-hover",on)');
+    expect(SRC).toContain('row.classList.toggle("hl",on)');
+    expect(SRC).toContain('r.onmouseenter=()=>{setSectorHover(s.id,true)'); // legend row → map
+    expect(SRC).toContain('setSectorHover(p.dataset.sector,true)'); // map sector → legend
+  });
+  it('the legend row shows a highlight style', () => {
+    expect(SRC).toContain('.legrow:hover,.legrow.hl{color:var(--ink)');
   });
 });

@@ -32,8 +32,8 @@
   .titlecard .tag{font-family:"Share Tech Mono",monospace;font-size:11px;letter-spacing:4px;color:var(--scan);opacity:.8;margin-top:3px;}
   .legend{position:absolute;top:14px;left:14px;z-index:20;background:rgba(8,10,22,.7);border:1px solid rgba(120,140,200,.2);border-radius:10px;padding:10px 12px;backdrop-filter:blur(8px);max-width:200px;max-height:44vh;overflow-y:auto;}
   .legend h3{margin:0 0 7px;font-family:"Orbitron";font-size:9px;letter-spacing:2px;color:var(--scan);font-weight:600;}
-  .legrow{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--dim);padding:2px 0;cursor:pointer;line-height:1.15;}
-  .legrow:hover{color:var(--ink);}
+  .legrow{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--dim);padding:2px 5px;cursor:pointer;line-height:1.15;border-radius:5px;transition:.15s;}
+  .legrow:hover,.legrow.hl{color:var(--ink);background:rgba(120,140,200,.14);box-shadow:0 0 0 1px rgba(120,140,200,.25) inset;}
   .legrow .dot{width:9px;height:9px;border-radius:2px;flex:none;border:1px solid rgba(255,255,255,.2);}
   .legrow.sub{padding-left:12px;font-size:11px;}
   .legdiv{height:1px;background:rgba(120,140,200,.18);margin:6px 0;}
@@ -46,8 +46,10 @@
   /* System/sector regions: a slight animation on hover (brighten + thicken the border), and a stronger
      highlight when one is focused (clicked here or from the systems list). The fill stays low-alpha so bodies
      inside stay legible; only the paint changes, so planets/stations over the region remain clickable. */
-  [data-sector]{transition:opacity .22s ease,stroke-width .22s ease,filter .22s ease;}
-  [data-sector]:hover{opacity:1 !important;stroke-width:3.4 !important;filter:brightness(1.4) drop-shadow(0 0 5px currentColor);}
+  [data-sector]{transition:opacity .22s ease,stroke-width .22s ease,filter .22s ease,transform .22s ease;transform-box:fill-box;transform-origin:center;}
+  /* Hover a system on the map OR its name in the list → both highlight (brighten + thicken border) AND the
+     region enlarges slightly. `.sector-hover` is the from-the-list link; `:hover` is the direct map hover. */
+  [data-sector]:hover,[data-sector].sector-hover{opacity:1 !important;stroke-width:3.4 !important;filter:brightness(1.4) drop-shadow(0 0 6px currentColor);transform:scale(1.015);}
   [data-sector].sector-focus{opacity:1 !important;stroke-width:4 !important;filter:brightness(1.55) drop-shadow(0 0 9px currentColor);}
   /* An element is INTERACTIVE (planets/moons/stars/… by default) or not (images by default; or anything the DM
      toggled off). Only interactive bodies respond to hover — they cursor:pointer, glow, enlarge, and raise; a
@@ -742,7 +744,7 @@ function render(){
       // A "front" sector renders above bodies; a body you can see through it must still win the click.
       if(p.dataset.front){for(const el of document.elementsFromPoint(e.clientX,e.clientY)){const bh=el.closest&&el.closest(".body[data-id]");if(bh){select({type:"instance",id:bh.dataset.id});return;}}}
       select({type:"sector",id:p.dataset.sector});};
-    p.onmouseenter=()=>{const s=(MAP.sectors||[]).find(x=>x.id===p.dataset.sector);hoverName(s?s.name:"",s&&s.meta?"meta-region":s&&s.parent?"sub-system":"system");SpaceAudio.hover();};p.onmouseleave=endHover;});
+    p.onmouseenter=()=>{const s=(MAP.sectors||[]).find(x=>x.id===p.dataset.sector);hoverName(s?s.name:"",s&&s.meta?"meta-region":s&&s.parent?"sub-system":"system");setSectorHover(p.dataset.sector,true);SpaceAudio.hover();};p.onmouseleave=()=>{setSectorHover(p.dataset.sector,false);endHover();};});
   viewport.appendChild(buildLabelLayer(B,W,H));   // rich formatted labels on top
   mountSpriteInstances();mountSpiralImages();buildLegend();
 }
@@ -775,9 +777,18 @@ function mountSpriteInstances(){
     const spin=inst.p3spin!=null?inst.p3spin:1;rec.sp.fps=Math.max(0,(look.frames||24)/8*spin);
     rec.sp.start();});
 }
-function buildLegend(){const box=$("#legendRows");box.innerHTML="";const tops=(MAP.sectors||[]).filter(s=>!s.parent);const subs=(MAP.sectors||[]).filter(s=>s.parent);
-  tops.forEach(s=>{const r=document.createElement("div");r.className="legrow";r.innerHTML=`<span class="dot" style="background:${s.color}"></span>${esc(s.name)}`;r.onclick=()=>select({type:"sector",id:s.id});box.appendChild(r);});
-  if(subs.length){const d=document.createElement("div");d.className="legdiv";box.appendChild(d);subs.forEach(s=>{const r=document.createElement("div");r.className="legrow sub";r.innerHTML=`<span class="dot" style="background:${s.color}"></span>${esc(s.name)}`;r.onclick=()=>select({type:"sector",id:s.id});box.appendChild(r);});}}
+// legend row DOM keyed by sector id, so hovering the map region can highlight its list entry and vice-versa.
+const legendRows={};
+// Two-way hover link: highlight BOTH the on-map region and its system-list row (in 2D AND hybrid, where the
+// same 2D sector paths + legend are used). Enlarge/brighten is the CSS `.sector-hover`/`:hover`; this syncs them.
+function setSectorHover(id,on){
+  const p=viewport&&viewport.querySelector(`[data-sector="${id}"]`);if(p)p.classList.toggle("sector-hover",on);
+  const row=legendRows[id];if(row)row.classList.toggle("hl",on);
+}
+function buildLegend(){const box=$("#legendRows");box.innerHTML="";for(const k in legendRows)delete legendRows[k];const tops=(MAP.sectors||[]).filter(s=>!s.parent);const subs=(MAP.sectors||[]).filter(s=>s.parent);
+  const mk=(s,cls)=>{const r=document.createElement("div");r.className=cls;r.innerHTML=`<span class="dot" style="background:${s.color}"></span>${esc(s.name)}`;r.onclick=()=>select({type:"sector",id:s.id});r.onmouseenter=()=>{setSectorHover(s.id,true);SpaceAudio.hover();};r.onmouseleave=()=>setSectorHover(s.id,false);legendRows[s.id]=r;box.appendChild(r);};
+  tops.forEach(s=>mk(s,"legrow"));
+  if(subs.length){const d=document.createElement("div");d.className="legdiv";box.appendChild(d);subs.forEach(s=>mk(s,"legrow sub"));}}
 
 /* ---- view / pan / zoom ---- */
 // apply() is called on EVERY wheel/pan event; a trackpad fires many per second and each does a dial update +
