@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { igStanceRollEffect } from '@/lib/dnd/stances/intuitive-games';
+import { igStanceRollEffect, igStanceDamageBonus } from '@/lib/dnd/stances/intuitive-games';
 
 describe('igStanceRollEffect', () => {
   it('Offensive stance → advantage on attacks, disadvantage on Reflex saves', () => {
@@ -32,6 +32,22 @@ describe('igStanceRollEffect', () => {
 
   it('an unknown/custom stance folds to nothing (never invented)', () => {
     expect(igStanceRollEffect('Moon Prism Power', 3, 'attack')).toEqual({ advantage: false, disadvantage: false, sources: [], conditional: [] });
+  });
+});
+
+describe('igStanceDamageBonus (folds into damage rolls)', () => {
+  it('Offensive advanced (L5+) adds +half your level to damage', () => {
+    expect(igStanceDamageBonus('Offensive', 6)).toEqual({ bonus: 3, source: 'Offensive stance' }); // floor(6/2)
+    expect(igStanceDamageBonus('Offensive', 10)).toEqual({ bonus: 5, source: 'Offensive stance' });
+  });
+  it('Offensive BASIC (below L5) grants no damage bonus (advantage, not +damage)', () => {
+    expect(igStanceDamageBonus('Offensive', 3)).toBeNull();
+  });
+  it('conditional damage effects (Precise sneak attack vs flanked) do NOT auto-fold', () => {
+    expect(igStanceDamageBonus('Precise', 6)).toBeNull();
+  });
+  it('a non-damage stance folds nothing', () => {
+    expect(igStanceDamageBonus('Defensive', 6)).toBeNull();
   });
 });
 

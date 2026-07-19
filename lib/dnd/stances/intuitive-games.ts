@@ -54,6 +54,22 @@ const EMPTY: IgStanceRollEffect = { advantage: false, disadvantage: false, sourc
  * stance effect surfaced for the player. The caller combines this with the condition effect + cancels an
  * opposing advantage/disadvantage to a straight roll (the 5e rule the platform already uses).
  */
+/**
+ * The active stance's UNCONDITIONAL flat DAMAGE bonus (folded into a damage roll), or null. Only Offensive's
+ * Advanced tier ("+half your level to damage rolls") auto-folds — conditional damage effects (Precise's sneak
+ * attack "vs a flanked target", Swarming's "when flanking") stay for the player, since the sheet can't know the
+ * situation. `half your level` = floor(level / 2), faithful to the site.
+ */
+export function igStanceDamageBonus(stance: string | null | undefined, level: number): { bonus: number; source: string } | null {
+  const m = igStanceMechanic(stance ?? null, level);
+  if (!m?.bonus) return null;
+  const t = m.bonus.toLowerCase();
+  if (/damage/.test(t) && /half your level/.test(t) && !isConditional(m.bonus)) {
+    return { bonus: Math.floor(level / 2), source: `${m.name} stance` };
+  }
+  return null;
+}
+
 export function igStanceRollEffect(stance: string | null | undefined, level: number, kind: IgRollKind): IgStanceRollEffect {
   const m = igStanceMechanic(stance ?? null, level);
   if (!m) return EMPTY;

@@ -18,7 +18,7 @@ import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_SPELL_ROSTER, IG_DEFENSIVE_PO
 import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-games/inPlay';
 import { igConditionSummary, igStanceMechanicNote } from '@/lib/dnd/systems/intuitive-games/modifiers';
 import { igConditionRollEffect, type IgRollKind } from '@/lib/dnd/conditions/intuitive-games';
-import { igStanceRollEffect } from '@/lib/dnd/stances/intuitive-games';
+import { igStanceRollEffect, igStanceDamageBonus } from '@/lib/dnd/stances/intuitive-games';
 import { igCompanionHp, igCompanionAbility } from '@/lib/dnd/systems/intuitive-games/companions';
 import type { IGEdit } from '@/lib/dnd/systems/intuitive-games/edit';
 import { findIGFeat, igAllFeats } from '@/lib/dnd/systems/intuitive-games/feats';
@@ -96,7 +96,11 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
   };
   const rollDamage = (label: string, expr: string) => {
     const r = rollDiceExpr(expr);
-    setLastRoll({ label, total: r.total, detail: r.breakdown, tone: 'normal' });
+    // Fold the active stance's unconditional flat damage bonus (Offensive advanced: +half level to damage).
+    const dmg = igStanceDamageBonus(ig.combat?.stances?.[0] ?? null, derived.level);
+    const total = r.total + (dmg?.bonus ?? 0);
+    const detail = dmg ? `${r.breakdown} + ${dmg.bonus} (${dmg.source})` : r.breakdown;
+    setLastRoll({ label, total, detail, tone: 'normal' });
   };
   // Incremental edit (enter/leave a stance, add/remove a condition) via the write-gated ig-edit route.
   // Available only to a viewer who can write this character; refreshes the sheet on success.

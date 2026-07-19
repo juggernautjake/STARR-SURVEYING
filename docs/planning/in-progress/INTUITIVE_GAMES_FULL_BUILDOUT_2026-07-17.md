@@ -580,7 +580,9 @@ expanded requirements (2026-07-17):
       Reflex saves, Defensive the reverse, Menacing → advantage on combat skills, etc. Opposing advantage +
       disadvantage cancel to a straight roll (the 5e rule); conditional stance effects ("when flanking") surface
       as a note, never auto-applied; unknown stances fold to nothing. Every source is named on the result line
-      (ADV/DIS + who). `ig-stance-roll.test.ts` (6). **B5 mechanics are now real, not hand-applied.**
+      (ADV/DIS + who). **Damage rolls too:** `igStanceDamageBonus` folds Offensive's Advanced "+half your level to
+      damage rolls" into `rollDamage` (conditional damage — Precise's sneak attack "vs a flanked target" — stays
+      for the player). `ig-stance-roll.test.ts` (10). **B5 mechanics are now real, not hand-applied.**
 - [x] **B6 — Editable IG sheet + AI edit route.** The bespoke `IGSheet` is read-only today; add an `ig-edit`
       route + write mode so stances/conditions/feats/traits are editable in place, and expose the same
       operations to the AI (edit + explain) — AI parity with the manual controls. **Edit engine + route
