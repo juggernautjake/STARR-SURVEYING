@@ -43,21 +43,30 @@
   .campbtn{position:absolute;top:14px;right:60px;z-index:21;background:rgba(20,26,48,.85);border:1px solid rgba(200,138,255,.4);color:var(--aether);border-radius:8px;padding:8px 13px;font-size:12px;cursor:pointer;backdrop-filter:blur(6px);letter-spacing:.5px;}
   .campbtn:hover{border-color:var(--aether);color:#fff;}
   .sector-label{position:absolute;transform:translate(-50%,-50%);font-family:"Cinzel",serif;font-weight:600;letter-spacing:3px;text-transform:uppercase;pointer-events:none;text-align:center;white-space:nowrap;text-shadow:0 0 16px currentColor,0 2px 7px #000;}
-  .body{position:absolute;transform:translate(-50%,-50%);cursor:pointer;}
+  /* An element is INTERACTIVE (planets/moons/stars/… by default) or not (images by default; or anything the DM
+     toggled off). Only interactive bodies respond to hover — they cursor:pointer, glow, enlarge, and raise; a
+     non-interactive body is pointer-events:none so hovering it does NOTHING (it never captures the pointer, so a
+     player's mouse passes through to the planets behind it and it never jumps in front). See the render at the
+     `.body`+`interactive`/`noninteractive` class below and the editor's per-element toggle. */
+  .body{position:absolute;transform:translate(-50%,-50%);cursor:default;}
+  .body.noninteractive{pointer-events:none;}   /* images (default) + DM-disabled bodies: inert, never raise on hover */
+  .body.interactive{cursor:pointer;}
   .body .art{width:100%;height:100%;pointer-events:none;position:relative;}
   .body .artbg{position:absolute;inset:0;border-radius:50%;pointer-events:none;}   /* opaque backing so a solid body occludes the starfield */
   /* Hybrid view: the 3D overlay draws the 3D-native bodies, so hide their 2D art/POIs/name */
   html.map-hybrid .body.n3d .art, html.map-hybrid .body.n3d .poilayer, html.map-hybrid .body.n3d .bname{opacity:0;}
-  .body .artwrap{position:relative;z-index:1;width:100%;height:100%;}
+  .body .artwrap{position:relative;z-index:1;width:100%;height:100%;transition:transform .15s ease;}
+  .body.interactive:hover .artwrap{transform:scale(1.07);}   /* enlarge slightly on hover (interactive only) */
   .body .poilayer{position:absolute;inset:0;pointer-events:none;z-index:6;}
   .body .poi{position:absolute;transform:translate(-50%,-50%);filter:drop-shadow(0 1px 3px #000);pointer-events:auto;cursor:pointer;}
   .body .poi svg{display:block;}
   .body .halo{position:absolute;inset:-35%;border-radius:50%;opacity:0;transition:opacity .25s;pointer-events:none;}
-  .body:hover .halo{opacity:.85;}
+  .body.interactive:hover .halo{opacity:.85;}
   .body.selected .halo{opacity:1;}
+  .body.interactive:hover{filter:drop-shadow(0 0 10px rgba(130,190,255,.85));}   /* outline glow on hover */
   .body .bname{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:5px;font-family:"Rajdhani";font-weight:600;font-size:12px;letter-spacing:.5px;color:#eaf2ff;white-space:nowrap;text-shadow:0 1px 6px #000,0 0 12px #000;pointer-events:none;opacity:.9;}
   .body .bname.cap{color:var(--gold);}
-  .body:hover{z-index:200 !important;}
+  .body.interactive:hover{z-index:200 !important;}   /* only an interactive body raises above the rest on hover */
   .body.selected{z-index:150 !important;}
   .selring{position:absolute;inset:-22%;border-radius:50%;border:1.5px solid var(--scan);opacity:0;pointer-events:none;box-shadow:0 0 14px var(--scan),inset 0 0 14px rgba(67,224,200,.3);}
   .body.selected .selring{opacity:.9;animation:selspin 8s linear infinite;}
@@ -369,6 +378,10 @@
 <script>
 "use strict";
 const $=s=>document.querySelector(s);
+// Element kinds that are NON-interactive by default in the player view (decorative backdrops) — a player's
+// hover passes through them so they never hijack the pointer or jump in front of the planets. Any other kind is
+// interactive by default. A per-element `interactable` flag (set in the editor) overrides this either way.
+const BODY_NONINTERACTIVE_DEFAULT=new Set(["image","background"]);
 const NS="http://www.w3.org/2000/svg";
 const uid=()=>Math.random().toString(36).slice(2,8);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -665,7 +678,11 @@ function render(){
   // bodies
   (MAP.instances||[]).forEach(i=>{if(i.kind==="text")return;   // text objects are pure labels (overlay)
     const iw=i.w||i.size,ih=i.h||i.size,rot=i.rot||0,op=i.opacity!=null?i.opacity:1;
-    const el=document.createElement("div");el.className="body"+(selectedId===i.id?" selected":"")+(i.kind==="image"?" imgbody":"")+(["planet3d","planet","moon","star","station","debris","asteroid"].includes(i.kind)?" n3d":"");el.dataset.id=i.id;el.style.cssText=`left:${i.x}px;top:${i.y}px;width:${iw}px;height:${ih}px;transform:translate(-50%,-50%) rotate(${rot}deg);opacity:${op};z-index:${i.kind==='galaxy'?4:10};`;
+    // Interactivity: respect an explicit per-element `interactable` flag if the DM set one; else default by kind
+    // — decorative backdrops (image, background) are NON-interactive so they don't hijack hover or jump in front,
+    // while celestial bodies (planets, moons, stars, …) are interactive. See BODY_NONINTERACTIVE_DEFAULT.
+    const interactive = i.interactable != null ? !!i.interactable : !BODY_NONINTERACTIVE_DEFAULT.has(i.kind);
+    const el=document.createElement("div");el.className="body"+(selectedId===i.id?" selected":"")+(i.kind==="image"?" imgbody":"")+(["planet3d","planet","moon","star","station","debris","asteroid"].includes(i.kind)?" n3d":"")+(interactive?" interactive":" noninteractive");el.dataset.id=i.id;el.style.cssText=`left:${i.x}px;top:${i.y}px;width:${iw}px;height:${ih}px;transform:translate(-50%,-50%) rotate(${rot}deg);opacity:${op};z-index:${i.kind==='galaxy'?4:10};`;
     const secColor=(MAP.sectors.find(s=>s.id===i.sector)||{}).color||"#88aaff";
     const look=i.look||i;
     let bodyHTML;
@@ -680,9 +697,12 @@ function render(){
     el.innerHTML=`<div class="halo" style="background:radial-gradient(circle,${secColor}66,transparent 62%)"></div><div class="selring"></div><div class="art"${artStyle}>${bg}<div class="artwrap">${fxOverlay(i.fx,look&&look.seed)}${bodyHTML}</div></div>${i.kind==="planet3d"?"":poiLayerHTML(i)}`;
     if(i.kind==="planet3d")el.dataset.p3=i.id;
     if(i.kind==="image"&&i.spiral&&i.spiral.on&&look.src)el.dataset.spiral=i.id;
-    el.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});};
-    el.onmouseenter=()=>{el.classList.add("hovered");hoverName(i.name,i.kind);};el.onmouseleave=()=>{el.classList.remove("hovered");endHover();};
-    el.querySelectorAll(".poi").forEach(p=>p.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});});
+    // Only an interactive body wires select/hover; a non-interactive one is inert (its POIs are also skipped).
+    if(interactive){
+      el.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});};
+      el.onmouseenter=()=>{el.classList.add("hovered");hoverName(i.name,i.kind);};el.onmouseleave=()=>{el.classList.remove("hovered");endHover();};
+      el.querySelectorAll(".poi").forEach(p=>p.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});});
+    }
     viewport.appendChild(el);});
   // sector click handlers
   viewport.querySelectorAll("[data-sector]").forEach(p=>{p.onclick=e=>{e.stopPropagation();
