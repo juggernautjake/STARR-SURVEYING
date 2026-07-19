@@ -175,6 +175,12 @@ function JobSummary({ job, loading }: { job: FieldJob | null; loading: boolean }
       <div style={{ display: 'grid', gap: 4 }}>
         <div style={label}>Property</div>
         <div style={{ fontSize: '0.95rem' }}>{addr || '—'}{job.county ? ` (${job.county} County)` : ''}</div>
+        {/* Explicit property/job identifier + coordinates (D2) — surveyors reference both the job number and
+            the lat/long when locating a property in the field. */}
+        <div style={{ fontSize: '0.85rem', color: 'var(--theme-fg-secondary)' }}>
+          {job.job_number ? <>Job&nbsp;#&nbsp;<strong style={{ color: 'var(--theme-fg-primary)' }}>{job.job_number}</strong></> : 'No job number'}
+          {job.latitude != null && job.longitude != null && <> · {Number(job.latitude).toFixed(6)}, {Number(job.longitude).toFixed(6)}</>}
+        </div>
         {hasJobLocation(job) && (
           <a href={jobMapsUrl(job)} target="_blank" rel="noopener noreferrer" className="btn tiny" style={{ justifySelf: 'start', textDecoration: 'none' }}>🧭 Navigate</a>
         )}
