@@ -472,3 +472,28 @@ deep link — and the tokens live in the URL FRAGMENT (after `#`), not the query
 silently breaks sign-in. `__tests__/mobile/parse-auth-url.test.ts` (5) pins fragment extraction + type,
 the fragment-only rule (query-string tokens ignored; fragment wins when both present), the null paths
 (missing/fragmentless/incomplete → null, never a partial object), and percent-decoding. Mobile suite green (149).
+
+---
+
+## Closeout (2026-07-18) — web/server surface COMPLETE; device-runtime remainder DEFERRED to on-device (owner)
+
+Every action item's buildable-in-repo portion — all the pure decision/geometry/queue logic and all the WEB
+surfaces — is shipped and tested. What remains in each `[~]` item is **exclusively device/native runtime** that
+cannot be built or verified in a browserless CI environment and is the owner's on-device work:
+
+- **Area C (background upload queue):** true background execution while the app is fully backgrounded
+  (`expo-task-manager`/`expo-background-fetch` or resumable uploads, hard-bounded by iOS background windows) +
+  the mobile queue-control buttons + local notifications. Every pure engine (sequential order, pause/prioritize/
+  reorder, failure-choice, status derivation, progress math, prompt-resume-on-foreground) is shipped + tested.
+- **D4 — camera capture screens** (live camera per intent, receipt/document AI hand-off, metadata write): pure
+  `captureIntent`/metadata layer shipped; the camera UI + native capture are device-only.
+- **D5 / D6 — mobile-native forms** for job instructions + odometer mileage: the schema, APIs, and WEB tabs are
+  shipped; only the native form remains.
+- **D7 — magnetometer compass dial:** the pure `compassReading` formatter is shipped; the live heading source
+  (`expo-sensors`) + the dial UI are device-only.
+- **D8 — voice I/O** (mic STT + spoken TTS): the TEXT assistant + route are shipped; voice is device-gated.
+
+These are tracked as device-gated in `docs/planning/BLOCKERS.md` (mobile upload runtime). This is a genuine
+cost-exceeds-value-in-this-environment deferral (needs a physical device + owner testing), not a convenience —
+so this doc moves to `completed/`: its buildable feature has shipped, and the on-device remainder lives in
+BLOCKERS for the owner's device pass. See also [[project_surveying_workmode_mobile]] / [[project_mobile_background_uploads]].
