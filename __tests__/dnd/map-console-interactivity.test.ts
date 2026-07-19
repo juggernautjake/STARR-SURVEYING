@@ -74,7 +74,7 @@ describe('player console: sectors visible + hover/focus (owner 2026-07-18)', () 
     expect(SRC).toContain('transition:opacity .22s ease,stroke-width .22s ease,filter .22s ease');
   });
   it('clicking a system in the legend focuses + highlights it via the sector-focus class', () => {
-    expect(SRC).toContain('r.onclick=()=>select({type:"sector",id:s.id})');
+    expect(SRC).toContain('r.onclick=()=>select({type:"sector",id:s.id},false)');   // single click = select, no zoom
     expect(SRC).toContain('p.classList.toggle("sector-focus",p.dataset.sector===s.id)');
   });
   it('sectors stay below the bodies (z-index 10) so planets in a region remain clickable', () => {
@@ -317,7 +317,7 @@ describe('sectors: layer + interactivity in the player (owner 2026-07-19)', () =
     expect(SRC).toContain('if(p.dataset.front){for(const el of document.elementsFromPoint');
   });
   it('a 3D sector pick drives the same CRT + legend as a 2D click (bridges)', () => {
-    expect(SRC).toContain('window.map3dSelectSector = (id) => { if(id) select({ type:"sector", id }); }');
+    expect(SRC).toContain('window.map3dSelectSector = (id) => { if(id) select({ type:"sector", id }, false); }');
     expect(SRC).toContain('window.map3dSectorHover = (id, on) => { if(id) setSectorHover(id, !!on); }');
     expect(SRC).toContain('else clearSelect();'); // a null 3D pick deselects the CRT
   });
@@ -421,5 +421,34 @@ describe('player edge-feather (fade) parity with the editor (owner 2026-07-19)',
     // DiffSpinGalaxy.fromConfig copies cfg.feather → this.feather, then re-slices with feathered ring edges.
     expect(SRC).toContain('if(cfg.feather!=null)this.feather=cfg.feather;');
     expect(SRC).toMatch(/fromConfig\(cfg\)\{[\s\S]*if\(this\.img\)this\._slice\(\);\}/);
+  });
+});
+
+describe('select vs focus: single-click locks on, double-click / button focuses (owner 2026-07-19)', () => {
+  it('select(sel, focus) only moves the camera when focus is passed — a single click never zooms', () => {
+    expect(SRC).toContain('function select(sel, focus){');
+    expect(SRC).toContain('renderScreen(sectorScreen(s));if(focus)focusCurrent();return;');
+    expect(SRC).toContain('else renderScreen(bodyScreen(i));');
+    expect(SRC).toContain('if(focus)focusCurrent();'); // only flies the camera when focus is requested
+    expect(SRC).toContain('function focusCurrent(){');
+  });
+  it('a body: single click selects (no focus), double click focuses', () => {
+    expect(SRC).toContain('el.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id},false);};');
+    expect(SRC).toContain('el.ondblclick=e=>{e.stopPropagation();e.preventDefault();select({type:"instance",id:i.id},true);};');
+  });
+  it('the readout shows a Focus button that flies the camera to the selection', () => {
+    expect(SRC).toContain('function focusBtnHTML(label){');
+    expect(SRC).toContain('data-focus="1"');
+    expect(SRC).toContain('${focusBtnHTML(kindLabel(b.kind))}');           // body: FOCUS PLANET / MOON / STATION…
+    expect(SRC).toContain('const fb=scrInner.querySelector("[data-focus]");if(fb)fb.onclick=()=>{focusCurrent();');
+  });
+  it('double-clicking the map focuses the body/region under the cursor (else zooms the point)', () => {
+    expect(SRC).toContain('const bh=el.closest&&el.closest(".body[data-id]");if(bh){select({type:"instance",id:bh.dataset.id},true);return;}');
+    expect(SRC).toContain('const sp=el.closest&&el.closest("[data-sector]");if(sp){select({type:"sector",id:sp.dataset.sector},true);return;}');
+  });
+  it('a 3D/hybrid single click locks on without zooming; resize no longer re-centres on the selection', () => {
+    expect(SRC).toContain('window.map3dSelect = (id) => { if(id) select({ type:"instance", id }, false); else clearSelect(); };');
+    expect(SRC).toContain('window.addEventListener("resize",()=>{apply(false);});');
+    expect(SRC).not.toContain('window.addEventListener("resize",()=>{if(selectedId)');
   });
 });

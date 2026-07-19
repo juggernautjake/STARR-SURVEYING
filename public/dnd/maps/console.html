@@ -151,6 +151,10 @@
   @keyframes radarSweep{to{transform:rotate(360deg);}}
   @keyframes blink{50%{opacity:0;}}
   .scr-head{display:flex;align-items:flex-start;gap:12px;flex:none;border-bottom:1px solid rgba(10,255,206,.2);padding-bottom:8px;margin-bottom:8px;}
+  /* FOCUS button in the readout — appears when a body/system is locked on; clicking it flies the camera there. */
+  .scr-focus{margin-left:auto;align-self:center;flex:none;background:linear-gradient(180deg,rgba(10,255,206,.16),rgba(10,255,206,.05));border:1px solid rgba(10,255,206,.5);color:var(--scan);font-family:"Orbitron",sans-serif;font-size:10px;letter-spacing:1.5px;padding:7px 12px;border-radius:6px;cursor:pointer;white-space:nowrap;text-shadow:0 0 6px rgba(10,255,206,.5);box-shadow:inset 0 0 10px rgba(10,255,206,.12);transition:background .15s,box-shadow .15s;}
+  .scr-focus:hover{background:linear-gradient(180deg,rgba(10,255,206,.3),rgba(10,255,206,.12));box-shadow:0 0 14px rgba(10,255,206,.35);}
+  .scr-focus:active{transform:translateY(1px);}
   /* Holographic mini-projector (Slice 3): the selected thing's likeness cast as a cyan hologram —
      scanlines, a sweeping refresh line, soft glow, a projector-base glow and a slow bob. */
   .scr-portrait{position:relative;width:86px;height:86px;flex:none;border-radius:8px;border:1px solid rgba(10,255,206,.32);background:radial-gradient(circle at 50% 42%,rgba(10,255,206,.10),rgba(6,20,40,.5) 70%,transparent);display:flex;align-items:center;justify-content:center;}
@@ -763,16 +767,20 @@ function render(){
     if(i.kind==="image"&&i.spiral&&i.spiral.on&&look.src)el.dataset.spiral=i.id;
     // Only an interactive body wires select/hover; a non-interactive one is inert (its POIs are also skipped).
     if(interactive){
-      el.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});};
+      el.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id},false);};            // single click → lock on (info only)
+      el.ondblclick=e=>{e.stopPropagation();e.preventDefault();select({type:"instance",id:i.id},true);};  // double click → focus the camera
       el.onmouseenter=()=>{el.classList.add("hovered");hoverName(i.name,i.kind);SpaceAudio.hover();};el.onmouseleave=()=>{el.classList.remove("hovered");endHover();};
-      el.querySelectorAll(".poi").forEach(p=>p.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});});
+      el.querySelectorAll(".poi").forEach(p=>p.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id},false);});
     }
     viewport.appendChild(el);});
   // sector click handlers
   viewport.querySelectorAll("[data-sector]").forEach(p=>{p.onclick=e=>{e.stopPropagation();
       // A "front" sector renders above bodies; a body you can see through it must still win the click.
-      if(p.dataset.front){for(const el of document.elementsFromPoint(e.clientX,e.clientY)){const bh=el.closest&&el.closest(".body[data-id]");if(bh){select({type:"instance",id:bh.dataset.id});return;}}}
-      select({type:"sector",id:p.dataset.sector});};
+      if(p.dataset.front){for(const el of document.elementsFromPoint(e.clientX,e.clientY)){const bh=el.closest&&el.closest(".body[data-id]");if(bh){select({type:"instance",id:bh.dataset.id},false);return;}}}
+      select({type:"sector",id:p.dataset.sector},false);};
+    p.ondblclick=e=>{e.stopPropagation();e.preventDefault();   // double click → focus the body under the cursor, else the region
+      if(p.dataset.front){for(const el of document.elementsFromPoint(e.clientX,e.clientY)){const bh=el.closest&&el.closest(".body[data-id]");if(bh){select({type:"instance",id:bh.dataset.id},true);return;}}}
+      select({type:"sector",id:p.dataset.sector},true);};
     p.onmouseenter=()=>{const s=(MAP.sectors||[]).find(x=>x.id===p.dataset.sector);hoverName(s?s.name:"",s&&s.meta?"meta-region":s&&s.parent?"sub-system":"system");setSectorHover(p.dataset.sector,true);SpaceAudio.hover();};p.onmouseleave=()=>{setSectorHover(p.dataset.sector,false);endHover();};});
   viewport.appendChild(buildLabelLayer(B,W,H));   // rich formatted labels on top
   mountSpriteInstances();mountSpiralImages();mountDiffspinInstances();buildLegend();
@@ -831,7 +839,7 @@ function setSectorHover(id,on){
   const row=legendRows[id];if(row)row.classList.toggle("hl",on);
 }
 function buildLegend(){const box=$("#legendRows");box.innerHTML="";for(const k in legendRows)delete legendRows[k];const tops=(MAP.sectors||[]).filter(s=>!s.parent);const subs=(MAP.sectors||[]).filter(s=>s.parent);
-  const mk=(s,cls)=>{const r=document.createElement("div");r.className=cls;r.innerHTML=`<span class="dot" style="background:${s.color}"></span>${esc(s.name)}`;r.onclick=()=>select({type:"sector",id:s.id});r.onmouseenter=()=>{setSectorHover(s.id,true);SpaceAudio.hover();};r.onmouseleave=()=>setSectorHover(s.id,false);legendRows[s.id]=r;box.appendChild(r);};
+  const mk=(s,cls)=>{const r=document.createElement("div");r.className=cls;r.innerHTML=`<span class="dot" style="background:${s.color}"></span>${esc(s.name)}`;r.onclick=()=>select({type:"sector",id:s.id},false);r.ondblclick=()=>select({type:"sector",id:s.id},true);r.onmouseenter=()=>{setSectorHover(s.id,true);SpaceAudio.hover();};r.onmouseleave=()=>setSectorHover(s.id,false);legendRows[s.id]=r;box.appendChild(r);};
   tops.forEach(s=>mk(s,"legrow"));
   if(subs.length){const d=document.createElement("div");d.className="legdiv";box.appendChild(d);subs.forEach(s=>mk(s,"legrow sub"));}}
 
@@ -876,7 +884,15 @@ $("#mapPane").addEventListener("wheel",e=>{e.preventDefault();const r=$("#mapPan
 // Double-click anywhere on the map → zoom IN centred on that point (a quick way to dive into a region). Capture
 // phase + sync3d so it lands instantly in hybrid too; it fires after the single-click select, so double-clicking
 // a body/region zooms in on it, and on empty space it just zooms toward the cursor.
-$("#mapPane").addEventListener("dblclick",e=>{e.preventDefault();e.stopPropagation();const r=$("#mapPane").getBoundingClientRect();zoomAround(e.clientX-r.left,e.clientY-r.top,2.1);},{passive:false,capture:true});
+$("#mapPane").addEventListener("dblclick",e=>{e.preventDefault();e.stopPropagation();
+  // Double-click a body/region → FOCUS it (fly the camera to frame it). This also covers the 3D & hybrid views,
+  // where the 3D bodies sit over the (interactive) 2D body/sector hit-targets. On empty space → zoom toward the point.
+  for(const el of document.elementsFromPoint(e.clientX,e.clientY)){
+    const bh=el.closest&&el.closest(".body[data-id]");if(bh){select({type:"instance",id:bh.dataset.id},true);return;}
+    const sp=el.closest&&el.closest("[data-sector]");if(sp){select({type:"sector",id:sp.dataset.sector},true);return;}
+  }
+  const r=$("#mapPane").getBoundingClientRect();zoomAround(e.clientX-r.left,e.clientY-r.top,2.1);
+},{passive:false,capture:true});
 // ── Touch: 1-finger pan + 2-finger pinch-zoom (mobile — the mouse handlers above don't fire on touch). A tap on
 //    a body/sector still bubbles to its click handler; a tap on empty space deselects. ──
 let pinch=null;
@@ -915,14 +931,22 @@ $("#zoomFit").onclick=()=>{clearSelect();fit(true);};
 function setSelectedEl(id){viewport.querySelectorAll(".body").forEach(el=>el.classList.toggle("selected",el.dataset.id===id));viewport.querySelectorAll("[data-sector]").forEach(p=>p.classList.remove("sector-focus"));}
 function pulseScan(){const l=$("#lampScan");l.classList.add("on");setTimeout(()=>l.classList.remove("on"),700);$("#tgl3").classList.add("up");setTimeout(()=>$("#tgl3").classList.remove("up"),700);$("#sigMeter").style.width=(70+Math.random()*28)+"%";}
 let curSel=null, hovering=false;
-function select(sel){
+// Selecting LOCKS ON — it shows the thing's readout but does NOT move the camera, so a single click never
+// yanks the view. Pass focus=true (double-click, or the on-screen Focus button) to also fly the camera to it.
+function select(sel, focus){
   pulseScan();hovering=false;SpaceAudio.select();
   if(sel.type==="sector"){const s=MAP.sectors.find(x=>x.id===sel.id);if(!s)return;selectedId=null;setSelectedEl(null);curSel={type:"sector",id:s.id};
     viewport.querySelectorAll("[data-sector]").forEach(p=>p.classList.toggle("sector-focus",p.dataset.sector===s.id));
-    renderScreen(sectorScreen(s));const c=polyCentroid(s.points);const bb={w:Math.max(...s.points.map(p=>p.x))-Math.min(...s.points.map(p=>p.x)),h:Math.max(...s.points.map(p=>p.y))-Math.min(...s.points.map(p=>p.y))};flyTo(c.x,c.y,fitZoomFor(bb.w*1.5,bb.h*1.5));return;}
+    renderScreen(sectorScreen(s));if(focus)focusCurrent();return;}
   const i=MAP.instances.find(x=>x.id===sel.id);if(!i)return;selectedId=i.id;setSelectedEl(i.id);curSel={type:"instance",id:i.id};
   if(i.kind==="galaxy"&&i.role==="core")renderScreen(coreScreen(i));else renderScreen(bodyScreen(i));
-  flyTo(i.x,i.y,i.kind==="galaxy"?fitZoomFor(i.size*3,i.size*3):clamp(1400/(i.size||50),1.4,4.2));
+  if(focus)focusCurrent();
+}
+// Fly the camera to frame the currently-selected body/sector. After it lands you can freely pan/zoom away —
+// nothing re-centres you. Driven by a double-click or the Focus button in the readout. (owner 2026-07-19)
+function focusCurrent(){
+  if(curSel&&curSel.type==="instance"){const i=MAP.instances.find(x=>x.id===curSel.id);if(i)flyTo(i.x,i.y,i.kind==="galaxy"?fitZoomFor(i.size*3,i.size*3):clamp(1400/(i.size||50),1.4,4.2));}
+  else if(curSel&&curSel.type==="sector"){const s=MAP.sectors.find(x=>x.id===curSel.id);if(s){const c=polyCentroid(s.points);const bb={w:Math.max(...s.points.map(p=>p.x))-Math.min(...s.points.map(p=>p.x)),h:Math.max(...s.points.map(p=>p.y))-Math.min(...s.points.map(p=>p.y))};flyTo(c.x,c.y,fitZoomFor(bb.w*1.5,bb.h*1.5));}}
 }
 function clearSelect(){selectedId=null;curSel=null;hovering=false;setSelectedEl(null);viewport.querySelectorAll("[data-sector]").forEach(p=>p.classList.remove("sector-focus"));showIdle();}
 // Hover targeting (Slice 1): show the hovered thing's name in the panel without selecting/zooming;
@@ -1066,12 +1090,14 @@ consoleDeck.addEventListener("pointerover",e=>{if(e.target.closest("button,.lamp
 {const lr=$("#legendRows");if(lr){lr.addEventListener("click",e=>{if(e.target.closest(".legrow"))SpaceAudio.click();});lr.addEventListener("pointerover",e=>{if(e.target.closest(".legrow"))SpaceAudio.hover();});}}
 const scrInner=$("#scrInner");
 function showIdle(){const nb=(MAP.instances||[]).length,ns=(MAP.sectors||[]).length;scrInner.innerHTML=`<div class="scr-idle"><div class="idle-radar"><span class="idle-sweep"></span><span class="idle-ring"></span><span class="idle-ring r2"></span></div><div class="lg">◈ AWAITING INPUT ◈</div><div class="sm">SELECT A SYSTEM OR STELLAR BODY<span class="blink">_</span></div><div class="sm" style="margin-top:10px;opacity:.6">NAV-LINK ESTABLISHED · ${ns} SYSTEMS · ${nb} BODIES CHARTED</div></div>`;}
-function renderScreen(html){scrInner.innerHTML=html;scrInner.querySelectorAll("[data-sec]").forEach(c=>c.onclick=()=>select({type:"sector",id:c.dataset.sec}));scrInner.querySelectorAll("[data-body]").forEach(c=>c.onclick=()=>select({type:"instance",id:c.dataset.body}));}
+function renderScreen(html){scrInner.innerHTML=html;scrInner.querySelectorAll("[data-sec]").forEach(c=>c.onclick=()=>select({type:"sector",id:c.dataset.sec},false));scrInner.querySelectorAll("[data-body]").forEach(c=>c.onclick=()=>select({type:"instance",id:c.dataset.body},false));const fb=scrInner.querySelector("[data-focus]");if(fb)fb.onclick=()=>{focusCurrent();beep(720,0.06);};}
 function portrait(svg){return `<div class="scr-portrait"><div class="holo-glow"></div><div class="holo-screen"><div class="holo-art">${svg}</div><div class="holo-tint"></div><div class="holo-scan"></div><div class="holo-sweep"></div></div><div class="holo-base"></div></div>`;}
 function poiBlock(pois){if(!pois||!pois.length)return "";return `<div style="margin-top:6px">${pois.map(p=>`<div class="scr-poi" data-body=""><div class="pic">${poiIconSVG(p.type,22)}</div><div><div class="pn">${esc(p.title)}</div><div class="pt">${poiType(p.type).label}</div>${p.desc?`<div class="pd">${esc(p.desc)}</div>`:""}</div></div>`).join("")}</div>`;}
+// The FOCUS control shown in the readout — a single click only locks on (info), this flies the camera to it.
+function focusBtnHTML(label){return `<button class="scr-focus" data-focus="1" title="Fly the camera to this — double-clicking it on the map does the same">◎ FOCUS ${esc((label||"target").toString().toUpperCase())}</button>`;}
 function bodyScreen(b){const s=MAP.sectors.find(x=>x.id===b.sector);const typeLabel=(b.kind||"body").toUpperCase();const artSvg=`<div style="width:66px;height:66px">${art(b.look||b,true)}</div>`;
   const poisHtml=b.pois&&b.pois.length?`<div style="font-family:Orbitron;font-size:10px;letter-spacing:2px;color:var(--amber);margin:8px 0 4px">◈ POINTS OF INTEREST (${b.pois.length})</div>${poiBlock(b.pois)}`:"";
-  return `<div class="scr-head">${portrait(artSvg)}<div class="scr-titles"><div class="scr-kicker">${typeLabel}${b.role==="capital"?" · CAPITAL":""}</div><div class="scr-name">${esc(b.name)}</div><div class="scr-creed">${s?esc(s.name):"Unaligned"}</div></div></div>
+  return `<div class="scr-head">${portrait(artSvg)}<div class="scr-titles"><div class="scr-kicker">${typeLabel}${b.role==="capital"?" · CAPITAL":""}</div><div class="scr-name">${esc(b.name)}</div><div class="scr-creed">${s?esc(s.name):"Unaligned"}</div></div>${focusBtnHTML(kindLabel(b.kind))}</div>
     <div class="scr-cols"><div class="scr-desc">${b.desc?esc(b.desc):(poisHtml?"":`<div class="scr-nodata">▏ NO FURTHER DATA ON RECORD</div>`)}${poisHtml}</div>
     <div class="scr-stats">
       <div class="scr-stat"><span class="k">CLASS</span><span class="v">${typeLabel}</span></div>
@@ -1085,10 +1111,10 @@ function sectorScreen(s){const members=MAP.instances.filter(b=>b.sector===s.id);
   const swatch=`<svg viewBox="0 0 66 66" style="width:66px;height:66px"><circle cx="33" cy="33" r="26" fill="${s.color}22" stroke="${s.color}" stroke-width="2" stroke-dasharray="5 4"/><text x="33" y="38" text-anchor="middle" fill="${s.color}" font-family="Orbitron" font-size="9">SYSTEM</text></svg>`;
   let chips="";if(s.meta&&subs.length)chips=`<div class="scr-chips">${subs.map(x=>`<span class="scr-chip" data-sec="${x.id}"><span class="cd" style="background:${x.color}"></span>${esc(x.name)}</span>`).join("")}</div>`;
   else if(members.length)chips=`<div class="scr-chips">${members.map(m=>`<span class="scr-chip" data-body="${m.id}"><span class="cd" style="background:${s.color}"></span>${esc(m.name)}${m.role==="capital"?" ★":""}</span>`).join("")}</div>`;
-  return `<div class="scr-head">${portrait(swatch)}<div class="scr-titles"><div class="scr-kicker">${s.meta?"META-REGION":s.parent?"SUB-SYSTEM"+(s.theme?" · "+s.theme.toUpperCase():""):(s.region||"SYSTEM").toUpperCase()}</div><div class="scr-name">${esc(s.name)}</div><div class="scr-creed">${esc(s.creed||"")}</div></div></div>
+  return `<div class="scr-head">${portrait(swatch)}<div class="scr-titles"><div class="scr-kicker">${s.meta?"META-REGION":s.parent?"SUB-SYSTEM"+(s.theme?" · "+s.theme.toUpperCase():""):(s.region||"SYSTEM").toUpperCase()}</div><div class="scr-name">${esc(s.name)}</div><div class="scr-creed">${esc(s.creed||"")}</div></div>${focusBtnHTML(s.meta?"region":s.parent?"sub-system":"system")}</div>
     <div class="scr-cols"><div class="scr-desc">${s.desc?esc(s.desc):(chips?"":`<div class="scr-nodata">▏ NO FURTHER DATA ON RECORD</div>`)}${chips}</div>
     <div class="scr-stats">${s.region?`<div class="scr-stat"><span class="k">REGION</span><span class="v">${s.region.toUpperCase()}</span></div>`:""}${s.theme?`<div class="scr-stat"><span class="k">THEME</span><span class="v">${s.theme.toUpperCase()}</span></div>`:""}<div class="scr-stat"><span class="k">BODIES</span><span class="v">${members.length||(subs.length?subs.length+" SUBS":"—")}</span></div>${subs.length&&!s.meta?`<div class="scr-stat"><span class="k">SUB-SYSTEMS</span><span class="v">${subs.length}</span></div>`:""}<div class="scr-stat"><span class="k">ALLEGIANCE</span><span class="v" style="color:${s.color}">████</span></div><div class="scr-stat"><span class="k">STATUS</span><span class="v" style="color:var(--scan)">SURVEYED</span></div></div></div>`;}
-function coreScreen(i){return `<div class="scr-head">${portrait(`<div style="width:66px;height:66px">${art(i.look,true)}</div>`)}<div class="scr-titles"><div class="scr-kicker" style="color:var(--gold)">GALACTIC CORE</div><div class="scr-name">${esc(i.name)}</div><div class="scr-creed">The song at the center of everything</div></div></div>
+function coreScreen(i){return `<div class="scr-head">${portrait(`<div style="width:66px;height:66px">${art(i.look,true)}</div>`)}<div class="scr-titles"><div class="scr-kicker" style="color:var(--gold)">GALACTIC CORE</div><div class="scr-name">${esc(i.name)}</div><div class="scr-creed">The song at the center of everything</div></div>${focusBtnHTML("core")}</div>
   <div class="scr-cols"><div class="scr-desc">${esc(i.desc)}</div><div class="scr-stats"><div class="scr-stat"><span class="k">TYPE</span><span class="v">AETHER SOURCE</span></div><div class="scr-stat"><span class="k">POSITION</span><span class="v">GALACTIC CENTER</span></div><div class="scr-stat"><span class="k">OUTPUT</span><span class="v" style="color:var(--gold)">∞</span></div><div class="scr-stat"><span class="k">STATUS</span><span class="v" style="color:var(--scan)">RADIANT</span></div></div></div>`;}
 
 /* ---- ambient fx ---- */
@@ -1211,7 +1237,9 @@ function meterLoop(){
   requestAnimationFrame(meterLoop);
 }
 requestAnimationFrame(meterLoop);
-window.addEventListener("resize",()=>{if(selectedId){const i=MAP.instances.find(x=>x.id===selectedId);if(i){flyTo(i.x,i.y,i.kind==="galaxy"?fitZoomFor(i.size*3,i.size*3):clamp(1400/(i.size||50),1.4,4.2));return;}}fit(false);});
+// Preserve the player's current pan/zoom on resize (e.g. entering fullscreen) — don't yank the view back onto the
+// selection. Selecting no longer moves the camera, so a resize shouldn't either. (owner 2026-07-19)
+window.addEventListener("resize",()=>{apply(false);});
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),1800);}
 
 /* ---- init: last published campaign, else sample ---- */
@@ -1233,11 +1261,11 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
   let curData = null, curStamp = null, curMapId = wanted || null;
   // Expose the live map to the 3D viewer (map3d.js); a 3D pick drives the CRT readout.
   window.mapData = () => curData || (typeof MAP !== "undefined" ? MAP : { instances: [] });
-  window.map3dSelect = (id) => { if(id) select({ type:"instance", id }); else clearSelect(); };
+  window.map3dSelect = (id) => { if(id) select({ type:"instance", id }, false); else clearSelect(); };   // 3D single click → lock on, no zoom
   // A 3D surface-POI pick shows the parent body's readout — same as clicking a POI on the 2D map.
-  window.map3dSelectPoi = (instId, poiId) => { if(instId) select({ type:"instance", id:instId }); };
+  window.map3dSelectPoi = (instId, poiId) => { if(instId) select({ type:"instance", id:instId }, false); };
   // A 3D sector pick selects the region (drives the CRT + persistent glow), matching a 2D sector click.
-  window.map3dSelectSector = (id) => { if(id) select({ type:"sector", id }); };
+  window.map3dSelectSector = (id) => { if(id) select({ type:"sector", id }, false); };
   // Two-way hover link: hovering a sector in 3D also highlights its row in the SYSTEMS legend (and vice-versa).
   window.map3dSectorHover = (id, on) => { if(id) setSectorHover(id, !!on); };
   // Paint the 2D backdrop to match the published sky (parity with the 3D viewer).
