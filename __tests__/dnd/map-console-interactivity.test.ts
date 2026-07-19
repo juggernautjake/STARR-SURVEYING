@@ -12,7 +12,7 @@ const SRC = readFileSync(join(process.cwd(), 'public/dnd/maps/console.html'), 'u
 
 describe('player console: default interactivity by kind', () => {
   it('images + backdrops are the non-interactive-by-default kinds', () => {
-    expect(SRC).toContain('BODY_NONINTERACTIVE_DEFAULT=new Set(["image","background"])');
+    expect(SRC).toContain('BODY_NONINTERACTIVE_DEFAULT=new Set(["image","background","galaxy","spingalaxy"])');
   });
   it('interactivity honours an explicit per-element flag, else defaults by kind', () => {
     expect(SRC).toContain('i.interactable != null ? !!i.interactable : !BODY_NONINTERACTIVE_DEFAULT.has(i.kind)');
@@ -384,5 +384,25 @@ describe('player animations stay live across tab visibility (owner 2026-07-19)',
     expect(SRC).toContain('rec.engine.setImage(src).then(()=>{rec.engine.fromConfig(inst.spiral);rec.engine.start();})');
     // normalizeMap must preserve each instance's spiral config + look so the player renders what the DM built
     expect(SRC).toContain('role:"",...i,look:i.look||{kind:i.kind}');
+  });
+});
+
+describe('player renders spinning galaxies (kind "spingalaxy") like the editor (owner 2026-07-19)', () => {
+  const MAP3D = readFileSync(join(process.cwd(), 'public/dnd/maps/map3d.js'), 'utf8');
+  it('a spingalaxy body gets a live dscanvas + a mountDiffspinInstances engine (was static art() before)', () => {
+    expect(SRC).toContain('else if(i.kind==="spingalaxy")bodyHTML=`<canvas class="dscanvas"');
+    expect(SRC).toContain('if(i.kind==="spingalaxy")el.dataset.ds=i.id;');
+    expect(SRC).toContain('function mountDiffspinInstances()');
+    // drives the same engine as the DM editor, from look.image + look.dsCfg
+    expect(SRC).toContain('rec.engine.setImage(look.image).then(()=>{if(look.dsCfg)rec.engine.fromConfig(look.dsCfg);rec.engine.start();})');
+    expect(SRC).toContain('mountSpriteInstances();mountSpiralImages();mountDiffspinInstances();buildLegend();');
+  });
+  it('spingalaxy (+ galaxy) are backdrops: non-interactive by default and behind the bodies', () => {
+    expect(SRC).toContain('BODY_NONINTERACTIVE_DEFAULT=new Set(["image","background","galaxy","spingalaxy"])');
+  });
+  it('in HYBRID the 2D layer owns spingalaxy (map3d skips it), so the 2D spin is what players see', () => {
+    // map3d only renders native-3D kinds in overlay; spingalaxy is not one, so it must animate in 2D.
+    expect(MAP3D).toContain('if (overlay && !this._isNative3D(it.kind)) continue;');
+    expect(MAP3D).not.toContain("kind === 'spingalaxy' || kind === 'planet3d'"); // spingalaxy is NOT native-3D
   });
 });

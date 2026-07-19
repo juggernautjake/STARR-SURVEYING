@@ -406,7 +406,7 @@ const $=s=>document.querySelector(s);
 // Element kinds that are NON-interactive by default in the player view (decorative backdrops) — a player's
 // hover passes through them so they never hijack the pointer or jump in front of the planets. Any other kind is
 // interactive by default. A per-element `interactable` flag (set in the editor) overrides this either way.
-const BODY_NONINTERACTIVE_DEFAULT=new Set(["image","background"]);
+const BODY_NONINTERACTIVE_DEFAULT=new Set(["image","background","galaxy","spingalaxy"]);
 const NS="http://www.w3.org/2000/svg";
 const uid=()=>Math.random().toString(36).slice(2,8);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -729,6 +729,7 @@ function render(){
     const look=i.look||i;
     let bodyHTML;
     if(i.kind==="planet3d")bodyHTML=`<canvas class="p3canvas" style="width:100%;height:100%;display:block;border-radius:50%"></canvas>`;
+    else if(i.kind==="spingalaxy")bodyHTML=`<canvas class="dscanvas" style="width:100%;height:100%;display:block;border-radius:50%"></canvas>`;   // spinning galaxy — image sliced into differentially-rotating rings (same engine as the DM editor)
     else if(i.kind==="image"){const src=look.src,fit=i.imgFit||"contain",px=i.imgPosX!=null?i.imgPosX:50,py=i.imgPosY!=null?i.imgPosY:50;
       if(i.spiral&&i.spiral.on&&src)bodyHTML=`<canvas class="spiralcanvas" style="width:100%;height:100%;display:block"></canvas>`;   // layered spiral of the image
       else bodyHTML=src?`<img src="${src}" draggable="false" style="width:100%;height:100%;display:block;object-fit:${fit};object-position:${px}% ${py}%;pointer-events:none">`:(look.svgData?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">${look.svgData}</div>`:art(look,true));}
@@ -742,6 +743,7 @@ function render(){
     const bg=solid?`<div class="artbg" style="background:${(look.c1||look.c3||"#0b1526")}"></div>`:"";
     el.innerHTML=`<div class="halo" style="background:radial-gradient(circle,${secColor}66,transparent 62%)"></div><div class="selring"></div><div class="art"${artStyle}>${bg}<div class="artwrap">${fxOverlay(i.fx,look&&look.seed)}${bodyHTML}</div></div>${i.kind==="planet3d"?"":poiLayerHTML(i)}`;
     if(i.kind==="planet3d")el.dataset.p3=i.id;
+    if(i.kind==="spingalaxy")el.dataset.ds=i.id;
     if(i.kind==="image"&&i.spiral&&i.spiral.on&&look.src)el.dataset.spiral=i.id;
     // Only an interactive body wires select/hover; a non-interactive one is inert (its POIs are also skipped).
     if(interactive){
@@ -757,7 +759,23 @@ function render(){
       select({type:"sector",id:p.dataset.sector});};
     p.onmouseenter=()=>{const s=(MAP.sectors||[]).find(x=>x.id===p.dataset.sector);hoverName(s?s.name:"",s&&s.meta?"meta-region":s&&s.parent?"sub-system":"system");setSectorHover(p.dataset.sector,true);SpaceAudio.hover();};p.onmouseleave=()=>{setSectorHover(p.dataset.sector,false);endHover();};});
   viewport.appendChild(buildLabelLayer(B,W,H));   // rich formatted labels on top
-  mountSpriteInstances();mountSpiralImages();buildLegend();
+  mountSpriteInstances();mountSpiralImages();mountDiffspinInstances();buildLegend();
+}
+// SPINNING GALAXIES (kind "spingalaxy") — the DM's uploaded galaxy image sliced into concentric rings that spin
+// at different speeds (DiffSpinGalaxy). The player view rendered these STATICALLY before (fell through to art());
+// now it drives the exact same engine as the editor, from look.image + look.dsCfg. (owner 2026-07-19)
+const diffspinLive={};
+function mountDiffspinInstances(){
+  const liveIds=new Set((MAP.instances||[]).filter(i=>i.kind==="spingalaxy").map(i=>i.id));
+  Object.keys(diffspinLive).forEach(id=>{if(!liveIds.has(id)){try{diffspinLive[id].engine.destroy();}catch(e){}delete diffspinLive[id];}});
+  document.querySelectorAll('[data-ds]').forEach(el=>{
+    const id=el.dataset.ds;const inst=(MAP.instances||[]).find(x=>x.id===id);if(!inst)return;const cv=el.querySelector('canvas.dscanvas');if(!cv)return;
+    const look=inst.look||inst;let rec=diffspinLive[id];
+    if(!rec){const eng=new DiffSpinGalaxy(cv,{rings:(look.dsCfg&&look.dsCfg.rings)||6});rec=diffspinLive[id]={engine:eng,imageURL:null,cv:null};}
+    if(rec.cv!==cv){rec.engine.canvas=cv;rec.engine.ctx=cv.getContext('2d');rec.engine._fit();rec.cv=cv;}
+    if(look.image&&rec.imageURL!==look.image){rec.imageURL=look.image;rec.engine.setImage(look.image).then(()=>{if(look.dsCfg)rec.engine.fromConfig(look.dsCfg);rec.engine.start();});}
+    else {if(look.dsCfg)rec.engine.fromConfig(look.dsCfg);rec.engine._fit();rec.engine.start();}
+  });
 }
 // layered-spiral images — swirl the player's published image into rotating rings (same engine as the DM)
 const spiralLiveImg={};
@@ -1073,6 +1091,7 @@ function kickAnimations(){
   const restart=e=>{ if(!e)return; try{ e._fit&&e._fit(); }catch(_){} try{ e.running=false; }catch(_){} try{ e.start&&e.start(); }catch(_){} };
   restart(dsCenter);
   try{ Object.keys(spiralLiveImg).forEach(id=>restart(spiralLiveImg[id]&&spiralLiveImg[id].engine)); }catch(_){}
+  try{ Object.keys(diffspinLive).forEach(id=>restart(diffspinLive[id]&&diffspinLive[id].engine)); }catch(_){}
   try{ Object.keys(spriteLive).forEach(id=>{ const r=spriteLive[id]; if(r&&r.sp){ try{ r.sp._fit&&r.sp._fit(); r.sp.start&&r.sp.start(); }catch(_){} } }); }catch(_){}
   restart(ambient);
 }
