@@ -198,13 +198,23 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
         <div style={{ ...label, marginBottom: 6 }}>Ability Scores</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(60px, 1fr))', gap: 8 }}>
           {IG_ABILITIES.map((k) => (
-            // Tap an ability to roll an ability check (R1b): d20 + its modifier.
-            <button key={k} type="button" onClick={() => rollLine(`${k} check`, igAbilityMod(ig.abilities[k]), (k === 'STR' || k === 'DEX') ? 'str_dex_check' : 'ability_check')} title={`Roll ${k} check (d20 ${fmt(igAbilityMod(ig.abilities[k]))})`}
-              style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 4px', background: 'rgba(1,10,19,0.4)', cursor: 'pointer', width: '100%' }}>
-              <div style={{ fontSize: 10.5, color: 'var(--hx-muted)', letterSpacing: '0.06em' }}>{k} 🎲</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--hx-text)', lineHeight: 1.1 }}>{ig.abilities[k]}</div>
-              <div style={{ fontSize: 12.5, color: 'var(--hx-gold-2)' }}>{fmt(igAbilityMod(ig.abilities[k]))}</div>
-            </button>
+            <div key={k} style={{ display: 'grid', gap: 3 }}>
+              {/* Tap an ability to roll an ability check (R1b): d20 + its modifier. */}
+              <button type="button" onClick={() => rollLine(`${k} check`, igAbilityMod(ig.abilities[k]), (k === 'STR' || k === 'DEX') ? 'str_dex_check' : 'ability_check')} title={`Roll ${k} check (d20 ${fmt(igAbilityMod(ig.abilities[k]))})`}
+                style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 4px', background: 'rgba(1,10,19,0.4)', cursor: 'pointer', width: '100%' }}>
+                <div style={{ fontSize: 10.5, color: 'var(--hx-muted)', letterSpacing: '0.06em' }}>{k} 🎲</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--hx-text)', lineHeight: 1.1 }}>{ig.abilities[k]}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--hx-gold-2)' }}>{fmt(igAbilityMod(ig.abilities[k]))}</div>
+              </button>
+              {canDoEdit && (
+                // Editable score (IGS6): set the ability directly via the set_ability edit op. Commit on Enter or
+                // blur; keyed by the current value so it resets after the sheet refreshes.
+                <input key={`${k}-${ig.abilities[k]}`} type="number" min={1} max={30} defaultValue={ig.abilities[k]} disabled={editing} aria-label={`Set ${k}`}
+                  onKeyDown={(ev) => { if (ev.key === 'Enter') (ev.target as HTMLInputElement).blur(); }}
+                  onBlur={(ev) => { const v = parseInt(ev.target.value, 10); if (Number.isFinite(v) && v !== ig.abilities[k]) postEdit({ op: 'set_ability', ability: k, value: v }); }}
+                  style={{ width: '100%', textAlign: 'center', fontSize: 11, padding: '2px 0', background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 6 }} />
+              )}
+            </div>
           ))}
         </div>
       </div>

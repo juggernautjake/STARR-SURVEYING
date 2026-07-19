@@ -174,7 +174,14 @@ This is a cross-system audit thrust (aligns with the planned final QA walkthroug
       (d) be formatted/styled in an intuitive, easy-to-read way — "right now it is not that way." A per-section
       pass: verify completeness vs the scrape, strip any non-site content, improve the formatting/interaction.
       (Overlaps Area SQ1/SQ2 for IG.)
-- [ ] **IGS6 — EVERYTHING interactable on the character sheet (owner 2026-07-17).** Owner: make sure ALL
+- [~] **IGS6 — EVERYTHING interactable on the character sheet (owner 2026-07-17).** **Ability scores now editable
+      (2026-07-18):** added the `set_ability` ig-edit op (STR/DEX/CON/INT/WIS/CHA, clamped 1–30) + AI tool +
+      grounding, and an inline number input per ability on the IGSheet (edit-gated, commits via the op) — so core
+      stats are directly editable manually AND by the AI, at parity with stances/conditions/feats/powers/HP.
+      Combined with the roller (b/c), the auto-folded mechanics (B4/B5), and the touch-reachable tooltips (B7-d),
+      the IG sheet now renders + rolls + edits + explains every in-play element. **Remaining:** a full per-component
+      audit sweep (each action/weapon/AC/armor/leveling verified interactive) — a browser-QA pass (SQ/Slice-40).
+      Owner: make sure ALL
       actions, ancestry traits, stances, spells, class abilities/buffs, leveling, HP, attack, AC, armor,
       weapons, starting equipment, feats, conditions — literally everything — is built into the sheet and
       "accounted for in a dynamic, helpful, interactable way." This is the IG sheet's completeness+interactivity

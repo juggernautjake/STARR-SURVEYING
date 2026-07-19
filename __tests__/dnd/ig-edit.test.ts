@@ -213,6 +213,10 @@ describe('IG sheet exposes a manual HP damage/heal control (SQ4)', () => {
     expect(SHEET).toContain("postEdit({ op: 'heal', amount: n })");
     expect(SHEET).toContain('canDoEdit &&'); // only for a viewer who can write
   });
+  it('IGS6 — ability scores are directly editable on the sheet (set_ability), edit-gated', () => {
+    expect(SHEET).toContain("postEdit({ op: 'set_ability', ability: k, value: v })");
+    expect(SHEET).toContain('aria-label={`Set ${k}`}'); // an inline number input per ability
+  });
 });
 
 describe('applyIgEdit — set_ability (IGS6 core-stat editing)', () => {
