@@ -51,3 +51,14 @@ describe('zoom/pan is rAF-throttled (no per-event jank)', () => {
     expect(SRC).toContain('function _applyNow(anim)'); // the real work moved here, called once per frame
   });
 });
+
+describe('editor per-element interactivity toggle (map-studio)', () => {
+  const STUDIO2 = readFileSync(join(process.cwd(), 'public/dnd/maps/map-studio.html'), 'utf8');
+  it('the inspector has an interactive checkbox defaulting by kind', () => {
+    expect(STUDIO2).toContain('id="iInteract"');
+    expect(STUDIO2).toContain('i.interactable!=null?i.interactable:!["image","background"].includes(i.kind)');
+  });
+  it('the toggle writes i.interactable (the flag the player view reads) and re-renders', () => {
+    expect(STUDIO2).toContain('iv.onchange=e=>{i.interactable=e.target.checked;renderInstances();markDirty();}');
+  });
+});

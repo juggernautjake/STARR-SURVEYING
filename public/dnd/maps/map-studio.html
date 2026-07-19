@@ -1954,6 +1954,9 @@ function renderInstanceInspector(){
     ${i.kind==="image"?`<h4>Spin</h4><div class="field"><label>Rotate speed <span style="float:right;color:var(--gold)" id="iImgSpinV">${i.imgSpin||0}°/s</span></label><div class="slider"><input type="range" id="iImgSpin" min="0" max="90" value="${i.imgSpin||0}"></div></div><div style="font-size:11px;color:var(--faint)">Continuously rotates the whole image (2D &amp; 3D viewer).</div>`:""}
     ${i.kind==="image"?imageSpiralControlsHTML(i):""}
     ${layerControlsHTML(true,i.behind)}
+    <h4>Interactivity</h4>
+    <label class="chk" style="display:flex;align-items:center;gap:7px;font-size:12px;padding:4px 0;cursor:pointer"><input type="checkbox" id="iInteract" ${(i.interactable!=null?i.interactable:!["image","background"].includes(i.kind))?"checked":""}> ✦ Players can interact with this</label>
+    <div style="font-size:11px;color:var(--faint)">When on, hovering it in the player view highlights it (enlarge + glow) and a click opens its info. When off, it's inert — the mouse passes through and it never jumps in front. Default: planets/moons/etc. on, images &amp; backdrops off.</div>
     <h4>Live movement</h4>
     <label class="chk" style="display:flex;align-items:center;gap:7px;font-size:12px;padding:4px 0;cursor:pointer"><input type="checkbox" id="iLive" ${i.live?"checked":""}> 🛰 Keep updated (live)</label>
     <div style="font-size:11px;color:var(--faint)">Move this element mid-session and players see the new position within seconds (needs the map published to the campaign).</div>
@@ -1978,6 +1981,7 @@ function renderInstanceInspector(){
   if(i.kind==="image"){const sp=$("#iImgSpin");if(sp)sp.oninput=e=>{i.imgSpin=+e.target.value;$("#iImgSpinV").textContent=i.imgSpin+"°/s";renderInstances();markDirty();};wireImageSpiral(i);}
   wireLayerControls(state.instances,i);
   {const lv=$("#iLive");if(lv)lv.onchange=e=>{i.live=e.target.checked;markDirty();if(i.live&&window.__mapLivePush)window.__mapLivePush();};}
+  {const iv=$("#iInteract");if(iv)iv.onchange=e=>{i.interactable=e.target.checked;renderInstances();markDirty();};}   // per-element interactivity override (player view reads i.interactable)
   if(i.kind==="image"){const sb=$("#iSpiralize");if(sb)sb.onclick=()=>applySpinToInstance(i);
     const ff=$("#iImgFit");if(ff)ff.onchange=e=>{i.imgFit=e.target.value;const row=$("#iImgPosRow");if(row)row.style.display=i.imgFit==="cover"?"":"none";renderInstances();markDirty();};
     const px=$("#iPx");if(px)px.oninput=e=>{i.imgPosX=+e.target.value;$("#iPxV").textContent=i.imgPosX+"%";renderInstances();markDirty();};
