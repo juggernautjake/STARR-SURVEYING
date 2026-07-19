@@ -14,7 +14,8 @@ import { applySheetEdits, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/shee
 import { systemGroundingBlock } from '@/lib/dnd/grounding';
 import { validateCharacterForSystem } from '@/lib/dnd/system-validate';
 import { normalizeSystem, systemLabel, isSystemAvailable } from '@/lib/dnd/systems';
-import { readVariants, hasVariant, switchActive, installTransposed, installTransposedNewSlot, switchToSlot, addSheetSlot, deleteVariant, renameVariant, readActiveSlotMeta, withActiveSlotMeta, type ActiveSheet } from '@/lib/dnd/system-variants';
+import { readVariants, hasVariant, switchActive, installTransposed, installTransposedNewSlot, switchToSlot, addSheetSlot, deleteVariant, renameVariant, readActiveSlotMeta, withActiveSlotMeta, listSheets, type ActiveSheet } from '@/lib/dnd/system-variants';
+import { pickSourceSheet } from '@/lib/dnd/transpose/source-sheet';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import { opNoteFor } from '@/lib/dnd/transpose/op-check';
 import type { Character } from '@/app/dnd/_sheet/types';
@@ -246,7 +247,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // ── No variant yet → transpose (AI builds the target-system sheet). ─────────────────
   if (!dndAiConfigured()) return NextResponse.json({ error: 'AI is not configured — cannot transpose to a new system.' }, { status: 503 });
   const label = systemLabel(target);
-  const source = (active.data as Character | null) ?? blankCharacter(row.name);
+  // Which existing sheet to ADAPT FROM (owner 2026-07-18: "keep track of the original sheet … use that to
+  // develop new-system sheets, OR let the user choose which built version the AI adapts"). Default to the
+  // ORIGINAL (first hand-built) sheet so a new system grows from the canonical build, not whatever is active;
+  // a caller may pass `sourceSlotId` to pick a specific one. The grounding then RE-GEARS any custom content
+  // into the target system (never transplanting another system's numbers).
+  const sheets = listSheets(active, variants, systemLabel);
+  const chosenSource = pickSourceSheet(sheets, typeof body?.sourceSlotId === 'string' ? body.sourceSlotId : undefined);
+  const sourceData = chosenSource && !chosenSource.active ? (variants[chosenSource.slotId]?.data ?? active.data) : active.data;
+  const sourceSystem = chosenSource?.system ?? active.system;
+  const source = (sourceData as Character | null) ?? blankCharacter(row.name);
   const grounding = await systemGroundingBlock(target, `transpose ${source.meta.name} into ${label}`).catch(() => null);
 
   // The level to balance custom content against: an explicit campaign party level if the caller sends one,
@@ -266,7 +276,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           ? 'Custom content IS permitted where no vanilla option fits. Be thorough — preserve EVERY signature ability, weapon, spell and stance, inventing balanced homebrew where needed, and record each in `custom`.'
           : 'Custom content is NOT permitted — use only official target-system content.',
         typeof partyLevel === 'number' ? `Balance any custom content to level ${partyLevel} (the character's level / the campaign's party level).` : null,
-        `Source character (system: ${systemLabel(active.system)}). Recreate everything it can do:\n${sheetDigest(source)}`,
+        `Source character (system: ${systemLabel(sourceSystem)}). Recreate everything it can do:\n${sheetDigest(source)}`,
         grounding?.block || null,
       ].filter(Boolean).join('\n\n'),
       tools: [SHEET_EDIT_TOOL],
