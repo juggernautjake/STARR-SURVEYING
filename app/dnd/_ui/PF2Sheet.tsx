@@ -7,6 +7,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { PF2_ATTRIBUTES, PF2_SAVES } from '@/lib/dnd/systems/pathfinder2e/model';
@@ -35,10 +36,28 @@ function RankPill({ rank }: { rank: string }) {
   return <span title={rank} style={{ fontSize: 9, fontWeight: 700, color: trained ? 'var(--hx-teal-1)' : 'var(--hx-muted)', border: `1px solid ${trained ? 'var(--hx-teal-1)' : 'var(--hx-line)'}`, borderRadius: 4, padding: '0 4px' }}>{RANK_ABBR[rank] ?? '?'}</span>;
 }
 
-export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
+export default function PF2Sheet({ pf2, characterId, canEdit }: { pf2: PF2Character; characterId?: string; canEdit?: boolean }) {
+  const router = useRouter();
   const d = useMemo(() => pf2Derived(pf2), [pf2]);
   const id = pf2.identity;
   const label = { fontSize: 11, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' as const };
+  const [saving, setSaving] = useState(false);
+
+  // An incremental in-place edit (R4) — POST one structured op to the write-gated pf2-edit route, then refresh
+  // the server component so the new numbers render. Only wired when the viewer can edit + we have a character id.
+  const postEdit = async (edit: Record<string, unknown>) => {
+    if (!characterId || saving) return;
+    setSaving(true);
+    try {
+      await fetch(`/api/dnd/characters/${characterId}/pf2-edit`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(edit),
+      });
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
+  };
+  const canDoEdit = !!(canEdit && characterId);
 
   // In-app roller (R1b) — tap a save/skill/strike to roll a d20 + modifier, or a strike's damage, through the
   // shared engine; result shows in the banner. RNG (auto mode); PF2 uses the four-step degree ladder once a DC
@@ -91,6 +110,14 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
             <div key={k} style={{ textAlign: 'center', padding: '6px 2px', border: '1px solid var(--hx-line)', borderRadius: 8 }}>
               <div style={{ fontSize: 10, color: 'var(--hx-muted)' }}>{k}</div>
               <strong style={{ fontSize: 17, color: 'var(--hx-text)' }}>{fmt(pf2.attributes[k])}</strong>
+              {canDoEdit && (
+                // Edit the attribute MODIFIER in place (R4) — commits set_attribute on Enter/blur; re-keyed to
+                // reset after the sheet refreshes. PF2 tracks modifiers, so the input IS the modifier.
+                <input key={`${k}-${pf2.attributes[k]}`} type="number" min={-5} max={12} defaultValue={pf2.attributes[k]} disabled={saving} aria-label={`Set ${k}`}
+                  onKeyDown={(ev) => { if (ev.key === 'Enter') (ev.target as HTMLInputElement).blur(); }}
+                  onBlur={(ev) => { const v = parseInt(ev.target.value, 10); if (Number.isFinite(v) && v !== pf2.attributes[k]) postEdit({ op: 'set_attribute', attribute: k, value: v }); }}
+                  style={{ width: '100%', marginTop: 3, textAlign: 'center', fontSize: 10.5, padding: '1px 0', background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 5 }} />
+              )}
             </div>
           ))}
         </div>

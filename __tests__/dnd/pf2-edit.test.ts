@@ -143,3 +143,16 @@ describe('PF2 set_attribute (in-play stat edit, AI parity with IG set_ability)',
     expect(JSON.stringify(PF2_EDIT_TOOL)).toContain('set_attribute');
   });
 });
+
+describe('PF2 sheet exposes an inline attribute editor (R4 manual UI)', () => {
+  const SHEET = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8');
+  const PAGE = fs.readFileSync(path.join(process.cwd(), 'app/dnd/characters/[id]/page.tsx'), 'utf8');
+  it('wires an edit-gated inline input per attribute to the pf2-edit set_attribute op', () => {
+    expect(SHEET).toContain("postEdit({ op: 'set_attribute', attribute: k, value: v })");
+    expect(SHEET).toContain('/api/dnd/characters/${characterId}/pf2-edit');
+    expect(SHEET).toContain('const canDoEdit = !!(canEdit && characterId)');
+  });
+  it('the page passes characterId + canEdit so the controls appear only for editors', () => {
+    expect(PAGE).toContain('<PF2Sheet pf2={pf2Data} characterId={character.id} canEdit={canWrite} />');
+  });
+});

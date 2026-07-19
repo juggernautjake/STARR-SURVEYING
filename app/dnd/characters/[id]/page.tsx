@@ -151,7 +151,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
   let pf2Sheet = null;
   if (normalizeSystem((character as { system?: string }).system) === 'pathfinder2e') {
     const pf2Data = (character.data as { pf2e?: unknown } | null)?.pf2e;
-    if (isPF2Character(pf2Data)) pf2Sheet = <PF2Sheet pf2={pf2Data} />;
+    if (isPF2Character(pf2Data)) pf2Sheet = <PF2Sheet pf2={pf2Data} characterId={character.id} canEdit={canWrite} />;
   }
 
   return (
