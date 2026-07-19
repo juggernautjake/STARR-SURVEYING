@@ -805,8 +805,16 @@ building, campaign control, and every page look and work well on mobile as well 
       can't collide with the back button/toggle. **Verified in a real browser at 1200px and 375px** — desktop
       nav visible with `<details>` closed (author `display:flex` overrides the UA closed-hide), mobile shows
       the toggle + hidden nav, open reveals the dropdown. Guarded by `header-responsive.test.ts`.
-- [ ] **MOB2 — Library page mobile pass.** Tables/section grids/galleries reflow + scroll within their own
-      container (no page-level horizontal scroll); tap targets sized for touch.
+- [~] **MOB2 — Library page mobile pass.** Tables/section grids/galleries reflow + scroll within their own
+      container (no page-level horizontal scroll); tap targets sized for touch. **No-horizontal-scroll invariant
+      SHIPPED as an executable guard** (`mobile-table-overflow.test.ts`): audited every `<table>` on a sheet/
+      library surface (Attacks, Progression, InteractiveSheet, the library `[key]` page, IGSheet) — all five
+      already sit inside an overflow-x container (the shared `.table-wrap` class, whose CSS sets
+      `overflow-x: auto`, or an inline `overflowX:'auto'`), so a table scrolls within its card, never the page.
+      The guard reconstructs that contract from source so a future edit can't reintroduce the classic phone
+      side-scroll bug. Section grids/galleries already reflow via the theme.css breakpoints (ability/skill grids
+      collapse at 440/680/760px; the two-column `.appgrid` is flex-wrap with `min-width:0`). **Remaining (browser
+      QA):** the visual tap-target-size sweep — a running-app check, part of the `pending/` QA walkthrough.
 - [x] **MOB2b — Collapsible library sections (owner 2026-07-18).** ✅ SHIPPED — every system-library section
       in `app/dnd/library/[key]/page.tsx` is now a native `<details>`/`<summary>` accordion, **all default
       CLOSED** (no `open` attr), so the page opens as a scannable list of section headers you expand on demand.
