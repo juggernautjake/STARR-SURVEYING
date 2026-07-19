@@ -381,8 +381,13 @@ below states what it reuses.
       `resolveInstructions` attaches each file's name+url or marks it broken (`file: null`) so a removed file
       renders a "missing" chip not a dead link; `extractFileRefs`/`brokenInstructionRefs` warn the RPLS before
       saving that a linked file is gone. Web + mobile render from the same parse. `__tests__/jobs/instructions.test.ts`
-      (8). **Remaining:** the `jobs.instructions` text column (idempotent ALTER) + the RPLS editor UI + the
-      viewer that renders resolved segments — UI/schema wiring.
+      (8). **Schema + API SHIPPED:** `seeds/452_job_instructions.sql` (applied live, idempotent) adds
+      `jobs.instructions TEXT`; `GET/PUT /api/admin/jobs/[id]/instructions` — GET returns the raw text + the
+      RESOLVED segments (embeds attached to their `job_files` name+url server-side, broken ones flagged) + a
+      `canEdit` flag; PUT is limited to the job's lead RPLS or an org admin and warns which referenced files are
+      missing (`brokenRefs`). Org-scoped (another org's job is 404). `instructions-route.test.ts` (4).
+      **Remaining:** the Work Mode Instructions tab (a thin viewer of `segments` + a textarea editor for the
+      RPLS) — pure UI binding over this API.
 - [~] **D6 — Mileage tracker + reusable vehicles. ✅ Pure math shipped.** `lib/mileage/odometer.ts` — the
       MANUAL odometer entry the owner described (start/end reading + vehicle), distinct from the existing
       GPS-ping mileage but reusing the SAME `IRS_BUSINESS_RATE_2025` (no second rate to drift):
