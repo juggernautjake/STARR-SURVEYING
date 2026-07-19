@@ -16,6 +16,7 @@ import { SPECIES_2024 } from './species/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
 import { IG_CONDITIONS, IG_STANCE_DEFS, IG_STANCE_RULES, IG_ANCESTRIES, IG_ANCESTRY_TRAIT_RULES, IG_POWERS, IG_DEFENSIVE_POWERS, IG_ACTIONS, IG_COMPANION_TYPES, IG_COMPANION_RULES, IG_BACKGROUND_DEFS, IG_CLASS_RULES, IG_CLASS_DETAILS, IG_CLASS_POWER_EFFECTS, IG_REDISTRIBUTION_RULES, type NamedEntry, type IGStance, type IGAncestry, type IGCompanionType, type IGBackground } from './systems/intuitive-games/content';
 import { IG_COMPANION_FEATURES, IG_COMPANION_ASPECTS, IG_COMPANION_BUILD_RULES } from './systems/intuitive-games/companions';
+import { IG_REDISTRIBUTION_MATERIALS } from './systems/intuitive-games/content';
 import { igAllFeats, type IGFeat } from './systems/intuitive-games/feats';
 import { igAncestryArt, IG_ART_CREDIT } from './systems/intuitive-games/art';
 import { homebrewLibrarySection } from './homebrew/projection';
@@ -621,7 +622,16 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
   }
   if (key === 'intuitive-games') {
     // Redistribution — the Conduit's signature ability (its own /redistribution page on the site).
-    sections.push({ id: 'redistribution', title: 'Redistribution', lead: 'The Conduit’s signature material-shaping ability.', body: [IG_REDISTRIBUTION_RULES] });
+    sections.push({
+      id: 'redistribution', title: 'Redistribution', lead: 'The Conduit’s signature material-shaping ability.',
+      body: [IG_REDISTRIBUTION_RULES],
+      // The 7 materials + their Launch Material damage type, scraped verbatim (2026-07-18) — the per-material
+      // damage the prose only sampled (Metal/Gems), now complete for a Conduit's Launch Material attack.
+      table: {
+        headers: ['Material', 'What it is', 'Launch damage'],
+        rows: IG_REDISTRIBUTION_MATERIALS.map((m) => [m.name, m.description, m.launchDamage]),
+      },
+    });
   }
 
   const igCompanions = igCompanionsFor(key);

@@ -272,9 +272,14 @@ term fully defined. One slice per site section; each fetches the page, transcrib
 - [x] **A16 — FAQs** (`/faqs`) — ✅ RESOLVED (nothing to reproduce). A fetch of the FAQs page returned no
       question/answer content — the page is empty / a work in progress. Per Ground Rule 2, no FAQ section was
       fabricated; recorded here as "no FAQ content on the site yet." Revisit if the page later carries Q&A.
-- [x] **A18 — Redistribution** (`/redistribution`) — ✅ SHIPPED (`content.ts` `IG_REDISTRIBUTION_RULES`): the
-      Conduit's signature ability (2-action material reshaping; know materials = WIS mod; affect level in lbs;
-      7 material categories; Manufacture Object + Launch Material 1d4/+1d4 per 2 levels) as a library section.
+- [x] **A18 — Redistribution** (`/redistribution`) — ✅ SHIPPED + RE-SCRUBBED (2026-07-18). The prose rules
+      (`content.ts` `IG_REDISTRIBUTION_RULES`) shipped earlier; a fresh Playwright pass of `/redistribution`
+      found the one detail the prose only sampled — the **per-material Launch Material damage type** — now
+      captured as structured data `IG_REDISTRIBUTION_MATERIALS` (the 7 materials × description × launch damage:
+      Fine Particles→Slashing, Fluids→Bludgeoning/Piercing, Gems→Piercing, Metal/Stone→S/P/B choosable,
+      Oozes→Bludgeoning, Organic Matter→Slashing/Piercing/Bludgeoning by part) and surfaced as a table in the
+      library Redistribution section. `__tests__/dnd/ig-redistribution.test.ts` (3). **Redistribution scrub target
+      closed.**
 - [x] **A19 — Spell List roster reconcile + TIER TEXT** (`/spell-list`) — ✅ RESOLVED (2026-07-18). The
       Description text landed earlier (`igSpellsMissingEffects()` === 0); the last gap — the **Advanced/Expert
       tier progression** — is now scraped verbatim (Playwright, `ig-spells-scraped.json`) and shipped as
